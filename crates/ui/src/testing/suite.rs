@@ -16,6 +16,7 @@ mod pattern;
 mod shape;
 mod size;
 mod states;
+mod style;
 mod text;
 mod variants;
 
@@ -65,7 +66,8 @@ const SHAPES: &[Case] = &[
 ];
 
 /// The case modules, in the order their cases run.
-const GROUPS: &[&[Case]] = &[states::CASES, size::CASES, drive::CASES, activation::CASES, variants::CASES, text::CASES, SHAPES];
+const GROUPS: &[&[Case]] =
+    &[states::CASES, size::CASES, drive::CASES, activation::CASES, variants::CASES, text::CASES, SHAPES, shape::CASES, style::CASES];
 
 fn cases() -> impl Iterator<Item = &'static Case> {
     GROUPS.iter().flat_map(|group| group.iter())
@@ -107,7 +109,10 @@ pub fn trials(package: &'static str, registered: &[&'static Registration]) -> Ve
     let probes: Vec<&'static Probe> = registered.iter().copied().filter_map(Registration::probe).collect();
     let mut trials = Vec::new();
     for probe in probes.iter().copied() {
-        let stories: Vec<Story> = own.iter().filter(|entry| (entry.type_name)() == probe.type_name()).map(|entry| entry.story).collect();
+        let mut stories: Vec<Story> = own.iter().filter(|entry| (entry.type_name)() == probe.type_name()).map(|entry| entry.story).collect();
+        if stories.is_empty() {
+            stories.extend(probe.sample_story.map(|story| story()));
+        }
         trials.push(Trial::test(format!("suite::{}", probe.type_name()), move || run_type(probe, stories)));
     }
     let patterns: Vec<&'static PatternProbe> = registered.iter().copied().filter_map(Registration::pattern_probe).collect();

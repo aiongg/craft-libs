@@ -108,6 +108,17 @@ pub struct Probe {
     pub exempt: &'static [Exemption],
     /// The first sentence of the type's doc comment.
     pub purpose: &'static str,
+    /// Makes an instance of the type, boxed, so `entry` can show a type that has no story: the type's
+    /// `#[component(sample = ..)]`.
+    #[cfg(feature = "testing")]
+    pub sample: Option<fn() -> Box<dyn Any>>,
+    /// The story that shows `sample`; the suite runs its cases over it for a type with no story of its own.
+    #[cfg(feature = "testing")]
+    pub sample_story: Option<fn() -> crate::testing::Story>,
+    /// Resolves the style of a boxed instance of the type under a style context; `None` for an instance of
+    /// another type.
+    #[cfg(feature = "testing")]
+    pub looks: fn(&dyn Any, &crate::style::StyleCx<'_>) -> Option<crate::testing::style::StyleLooks>,
     name: fn() -> &'static str,
     value: fn() -> bool,
 }
@@ -168,6 +179,12 @@ impl Probe {
             overlay,
             exempt,
             purpose: "",
+            #[cfg(feature = "testing")]
+            sample: None,
+            #[cfg(feature = "testing")]
+            sample_story: None,
+            #[cfg(feature = "testing")]
+            looks: crate::testing::style::style_looks::<T>,
             name: std::any::type_name::<T>,
             value: carries_value::<T>,
         }
@@ -178,6 +195,21 @@ impl Probe {
     pub const fn with_purpose(mut self, purpose: &'static str) -> Self {
         self.purpose = purpose;
         self
+    }
+
+    /// The probe with the type's sample: `make` boxes an instance and `story` shows it.
+    #[cfg(feature = "testing")]
+    #[must_use]
+    pub const fn with_sample(mut self, make: fn() -> Box<dyn Any>, story: fn() -> crate::testing::Story) -> Self {
+        self.sample = Some(make);
+        self.sample_story = Some(story);
+        self
+    }
+
+    /// Shows the leaf `sample` in the flow of `ui`: the body of a sample story.
+    #[cfg(feature = "testing")]
+    pub fn show_sample<T: Component + Meta<Shape = shape::Leaf> + 'static>(ui: &mut Ui, sample: T) -> crate::testing::StoryOutput {
+        sample.show(ui).response().clone().into()
     }
 
     /// The type's name, with its type arguments.
@@ -285,24 +317,47 @@ impl Registration {
 pub static REGISTRATIONS: [Registration];
 
 /// Registers the component type `$ty` of shape `$shape` (`leaf`, `container` or `collection`) with its declarations:
-/// `$overlay`, the `($case, $reason)` exemptions and the `$purpose` line of its doc comment.
+/// `$overlay`, the `($case, $reason)` exemptions, the optional `$sample` constructor (`fn() -> $ty`, leaves only)
+/// and the `$purpose` line of its doc comment.
 #[doc(hidden)]
 #[macro_export]
 #[cfg(feature = "testing")]
 macro_rules! __register_contract {
-    ($ty:ty, $shape:ident, $overlay:expr, [$(($case:expr, $reason:expr)),*], $purpose:expr) => {
+    ($ty:ty, $shape:ident, $overlay:expr, [$(($case:expr, $reason:expr)),*], [], $purpose:expr) => {
         const _: () = {
-            const EXEMPT: &[$crate::contract::Exemption] = &[$($crate::contract::Exemption::new($case, $reason)),*];
-            #[$crate::__private::linkme::distributed_slice($crate::contract::REGISTRATIONS)]
-            #[linkme(crate = $crate::__private::linkme)]
-            static REGISTRATION: $crate::contract::Registration = $crate::contract::Registration::component($crate::contract::Probe::$shape::<$ty>(
-                env!("CARGO_PKG_NAME"),
-                env!("CARGO_CRATE_NAME"),
-                module_path!(),
-                $overlay,
-                EXEMPT,
-            ).with_purpose($purpose));
+            $crate::__register_probe!($ty, $shape, $overlay, [$(($case, $reason)),*], $purpose,);
         };
+    };
+    ($ty:ty, $shape:ident, $overlay:expr, [$(($case:expr, $reason:expr)),*], [$sample:path], $purpose:expr) => {
+        const _: () = {
+            fn make_sample() -> ::std::boxed::Box<dyn ::std::any::Any> {
+                ::std::boxed::Box::new($sample())
+            }
+            fn show_sample(ui: &mut $crate::__private::egui::Ui, _: &mut $crate::testing::StoryData) -> $crate::testing::StoryOutput {
+                $crate::contract::Probe::show_sample::<$ty>(ui, $sample())
+            }
+            fn sample_story() -> $crate::testing::Story {
+                $crate::testing::Story::new("sample", show_sample).covers(&[$crate::testing::Required::Default])
+            }
+            $crate::__register_probe!($ty, $shape, $overlay, [$(($case, $reason)),*], $purpose, .with_sample(make_sample, sample_story));
+        };
+    };
+}
+
+/// The registration static of `__register_contract!`; `$with` is the probe's further builder calls.
+#[doc(hidden)]
+#[macro_export]
+#[cfg(feature = "testing")]
+macro_rules! __register_probe {
+    ($ty:ty, $shape:ident, $overlay:expr, [$(($case:expr, $reason:expr)),*], $purpose:expr, $($with:tt)*) => {
+        const EXEMPT: &[$crate::contract::Exemption] = &[$($crate::contract::Exemption::new($case, $reason)),*];
+        #[$crate::__private::linkme::distributed_slice($crate::contract::REGISTRATIONS)]
+        #[linkme(crate = $crate::__private::linkme)]
+        static REGISTRATION: $crate::contract::Registration = $crate::contract::Registration::component(
+            $crate::contract::Probe::$shape::<$ty>(env!("CARGO_PKG_NAME"), env!("CARGO_CRATE_NAME"), module_path!(), $overlay, EXEMPT)
+                .with_purpose($purpose)
+                $($with)*,
+        );
     };
 }
 
@@ -338,5 +393,5 @@ macro_rules! __register_pattern {
 #[macro_export]
 #[cfg(not(feature = "testing"))]
 macro_rules! __register_contract {
-    ($ty:ty, $shape:ident, $overlay:expr, [$(($case:expr, $reason:expr)),*], $purpose:expr) => {};
+    ($ty:ty, $shape:ident, $overlay:expr, [$(($case:expr, $reason:expr)),*], [$($sample:path)?], $purpose:expr) => {};
 }

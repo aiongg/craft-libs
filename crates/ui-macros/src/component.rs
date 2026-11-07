@@ -20,6 +20,8 @@ enum Shape {
 struct Declared {
     overlay: bool,
     exempt: Vec<(LitStr, LitStr)>,
+    /// The function that makes an instance of a leaf for the suite: `sample = path`.
+    sample: Option<syn::Path>,
     /// The first sentence of the type's doc comment; empty for `register_contract!`.
     purpose: String,
 }
@@ -57,6 +59,11 @@ impl Declared {
                 (Some(case), Some(reason)) => self.exempt.push((case, reason)),
                 _ => return Err(meta.error("`exempt` needs both `case = \"..\"` and `reason = \"..\"`")),
             }
+        } else if path.is_ident("sample") {
+            if self.sample.is_some() {
+                return Err(meta.error("`sample` is declared once"));
+            }
+            self.sample = Some(meta.value()?.parse::<syn::Path>()?);
         } else {
             return Ok(false);
         }
@@ -99,7 +106,7 @@ fn parse_options(attrs: &[Attribute]) -> syn::Result<Options> {
                 options.probe.extend(types);
             } else if !options.declared.read(&meta)? {
                 return Err(meta.error(
-                    "unknown `component` option; expected `container`, `collection`, `widget`, `overlay`, `content_painter`, `canvas_control`, `exempt(..)` or `probe(..)`",
+                    "unknown `component` option; expected `container`, `collection`, `widget`, `overlay`, `content_painter`, `canvas_control`, `exempt(..)`, `sample = ..` or `probe(..)`",
                 ));
             }
             Ok(())
@@ -166,7 +173,16 @@ pub(crate) fn purpose_of(attrs: &[Attribute]) -> String {
     sentence.trim_end_matches('.').to_owned()
 }
 
-fn registrations(types: &[Type], declared: &Declared, shape: Shape) -> TokenStream {
+fn registrations(types: &[Type], declared: &Declared, shape: Shape) -> syn::Result<TokenStream> {
+    if let Some(sample) = &declared.sample {
+        if shape != Shape::Leaf {
+            return Err(syn::Error::new_spanned(sample, "`sample` is for a leaf: a container or collection needs a body or a source"));
+        }
+        if types.len() != 1 {
+            return Err(syn::Error::new_spanned(sample, "`sample` makes one type: a type registered through `probe(..)` has no single sample"));
+        }
+    }
+    let sample: Vec<_> = declared.sample.iter().collect();
     let overlay = declared.overlay;
     let exempt: Vec<_> = declared.exempt.iter().map(|(case, reason)| quote!((#case, #reason))).collect();
     let shape = match shape {
@@ -175,16 +191,16 @@ fn registrations(types: &[Type], declared: &Declared, shape: Shape) -> TokenStre
         Shape::Collection => quote!(collection),
     };
     let purpose = &declared.purpose;
-    let each = types.iter().map(|ty| quote!(::craft_ui::__register_contract!(#ty, #shape, #overlay, [#(#exempt),*], #purpose);));
+    let each = types.iter().map(|ty| quote!(::craft_ui::__register_contract!(#ty, #shape, #overlay, [#(#exempt),*], [#(#sample)*], #purpose);));
     // Inside craft-ui the registration's `link_section` statics meet the crate's `deny(unsafe_code)`; the allow is
     // scoped to this block and written only there, because an `allow` in an app crate that forbids it is an error.
     let allow = crate::util::in_craft_ui().then(|| quote!(#[allow(unsafe_code)]));
-    quote! {
+    Ok(quote! {
         #allow
         const _: () = {
             #(#each)*
         };
-    }
+    })
 }
 
 /// The registration of each pattern type in `types`, with the `purpose` line of its doc comment.
@@ -478,7 +494,7 @@ pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
     });
     let types = instantiations(ident, &input.generics, options.probe, "component")?;
     options.declared.purpose = purpose_of(&input.attrs);
-    let registration = registrations(&types, &options.declared, shape);
+    let registration = registrations(&types, &options.declared, shape)?;
     Ok(quote! {
         #key_tokens
         impl #impl_generics ::craft_ui::contract::Meta for #ident #type_generics #where_clause {
@@ -539,14 +555,14 @@ impl Parse for Registered {
                 } else if meta.path.is_ident("pattern") {
                     pattern = true;
                 } else if !declared.read(&meta)? {
-                    return Err(meta.error("expected `container`, `collection`, `pattern`, `overlay` or `exempt(..)`"));
+                    return Err(meta.error("expected `container`, `collection`, `pattern`, `overlay`, `exempt(..)` or `sample = ..`"));
                 }
                 Ok(())
             })
             .parse2(input.parse::<TokenStream>()?)?;
         }
-        if pattern && (shape != Shape::Leaf || declared.overlay || !declared.exempt.is_empty()) {
-            return Err(input.error("`pattern` takes no shape, `overlay` or `exempt(..)`: a pattern has no pipeline"));
+        if pattern && (shape != Shape::Leaf || declared.overlay || !declared.exempt.is_empty() || declared.sample.is_some()) {
+            return Err(input.error("`pattern` takes no shape, `overlay`, `sample` or `exempt(..)`: a pattern has no pipeline"));
         }
         Ok(Registered { types, declared, shape, pattern })
     }
@@ -564,5 +580,5 @@ pub(crate) fn register(input: TokenStream) -> syn::Result<TokenStream> {
     if registered.pattern {
         return Ok(pattern_registrations(&registered.types, ""));
     }
-    Ok(registrations(&registered.types, &registered.declared, registered.shape))
+    registrations(&registered.types, &registered.declared, registered.shape)
 }
