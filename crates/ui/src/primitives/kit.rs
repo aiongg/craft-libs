@@ -183,6 +183,11 @@ impl ContentPainterCx<'_> {
         self.painter.pixels_per_point()
     }
 
+    /// Paints the part `uv` of `texture` into `rect`, untinted.
+    pub fn picture(&self, texture: egui::TextureId, rect: Rect, uv: Rect) {
+        crate::runtime::egui::textures::paint(&self.painter, texture, rect, uv, Color32::from_gray(u8::MAX));
+    }
+
     /// Paints the transparency checkerboard over `rect`.
     pub fn checker(&self, rect: Rect) {
         self.painter.extend(checker(self.tokens, rect, self.painter.clip_rect()));

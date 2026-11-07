@@ -13,7 +13,7 @@ use crate::runtime::focus::{ActivateKeys, KeepKeys, KeyUse};
 use crate::style::{ComponentStyle, FocusLook, StyleCx};
 use craft_behavior::{CanvasTransform, CursorIcon, CursorPriority, IconId, Metrics, NavMove, PartKey, PressPhase, Sense};
 use egui::load::SizedTexture;
-use egui::{Color32, Rect, Response, Ui, Vec2, pos2};
+use egui::{Rect, Response, Ui, Vec2, pos2};
 
 #[cfg(feature = "testing")]
 mod stories;
@@ -29,9 +29,6 @@ const ZOOM_EPSILON: f32 = 1e-4;
 
 /// The share of the well an arrow key pans the view by.
 const PAN_SHARE: f32 = 0.1;
-
-/// The tint that shows the picture as it is.
-const UNTINTED: Color32 = Color32::from_gray(u8::MAX);
 
 craft_ui::words! {
     /// The words of the preview pane and its zoom row.
@@ -216,7 +213,7 @@ impl Component for PreviewPane {
             pos2((visible.min.x - picture.min.x) / size.x, (visible.min.y - picture.min.y) / size.y),
             pos2((visible.max.x - picture.min.x) / size.x, (visible.max.y - picture.min.y) / size.y),
         );
-        crate::runtime::egui::textures::paint(&painter.painter, self.texture.id, visible, uv, UNTINTED);
+        painter.picture(self.texture.id, visible, uv);
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> PreviewOutput {

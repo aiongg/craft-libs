@@ -1620,6 +1620,7 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
   - `pub fn from_id(id: &str) -> Option<ToolIcon>`. The built-in tool for an id, `None` for an unknown one and for a custom tool.
 - `craft_ui::primitives::Wrap`: `pub enum Wrap { Line, Wrap, Elide, ElidePath }`. How a run fits its room.
 - `craft_ui::primitives::checker`: `pub fn checker(tokens: &UiTokens, rect: Rect, clip: Rect) -> Vec<Shape>`. The transparency checkerboard over `rect`, drawn where `clip` shows it: the light colour fills it and the dark
+- `craft_ui::primitives::ContentPainterCx::picture`: `pub fn picture(&self, texture: TextureId, rect: Rect, uv: Rect)`. Paints the part `uv` of `texture` into `rect`, untinted.
 - `craft_ui::primitives::drop_mark`: `pub fn drop_mark(tokens: &UiTokens, from: Pos2, to: Pos2, pixels_per_point: f32) -> Vec<Shape>`. The insertion mark of a drop from `from` to `to`.
 - `craft_ui::primitives::ellipse`: `pub fn ellipse(center: Pos2, axes: [Vec2; 2]) -> Vec<Pos2>`. The points of the ellipse with centre `center` and conjugate half-axes `axes` (a rotated or skewed circle is
 - `craft_ui::primitives::grid_lines`: `pub fn grid_lines(tokens: &UiTokens, rect: Rect, spacing: Vec2, clip: Rect, pixels_per_point: f32) -> Vec<Shape>`. The grid lines over `rect` that `clip` shows, every `spacing` points from the rect's top-left corner, as grid
