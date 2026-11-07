@@ -166,10 +166,7 @@ impl Screens {
                 move |ui, state| {
                     // A right-to-left screen starts at the right: egui then starts each
                     // `ui.horizontal` row from the right too.
-                    let layout = match locale.direction {
-                        Direction::Rtl => Layout::top_down(Align::Max),
-                        Direction::Ltr => Layout::top_down(Align::Min),
-                    };
+                    let layout = Layout::top_down(if locale.direction.is_rtl() { Align::Max } else { Align::Min });
                     ui.with_layout(layout, |ui| app(ui, &locale, state));
                 },
                 state,
