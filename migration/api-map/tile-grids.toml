@@ -191,7 +191,7 @@ name = "TileGroup"
 old = "craft_ui::list::tiles::TileGroup"
 new = "craft_ui::tile_grid::TileGroup"
 status = "moved"
-note = "Built with `TileGroup::new(start, count, title)`, `.detail(..)` and `.open(bool)`; the open state replaces `group_disclosure(&[bool])`."
+note = "Built with `TileGroup::new(key, start, count, title)`, `.detail(..)` and `.open(bool)`; `TileGroup<K>` carries the key of the header row, which differs from every tile key. The open state replaces `group_disclosure(&[bool])`."
 
 [[type]]
 name = "TileRow"
@@ -296,7 +296,7 @@ note = "See `TileLayout`."
 [[setter]]
 type = "TileGrid"
 old = "groups(&[TileGroup])"
-new = "groups(&[TileGroup])"
+new = "groups(&[TileGroup<K>])"
 note = "Unchanged."
 
 [[setter]]
@@ -423,10 +423,10 @@ note = "A drop reports `CollectionEvent::FilesDropped`."
 type = "TileGrid"
 old = "GroupPicked / GroupContextMenu by pointer only"
 new = "GridEvent::GroupPicked / GridEvent::GroupMenu from the keyboard"
-note = "A group header is a row of the grid outline: Up and Down reach it; Left and Right close and open a collapsible group, Enter picks it, the context-menu key and Shift+F10 open its menu."
+note = "A group header is a section row of the item step that holds the lead (`DisplayOrder::section_stop`): Up and Down reach it; Left and Right close and open a collapsible group, Enter picks it, the context-menu key and Shift+F10 open its menu."
 
 [[setter]]
 type = "Tile"
-old = ""
+old = "thumb(..) as the only picture"
 new = "icon(impl Into<IconSpec<'static>>)"
 note = "The picture area shows the icon centred on the placeholder, at the style's face size, in place of a picture; the last of `thumb` and `icon` called wins."

@@ -320,7 +320,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 let hit = (origin.y >= rect.min.y)
                     .then(|| layout.hit(Self::logical(layout, rect, rtl, origin), offset))
                     .flatten()
-                    .filter(|&at| self.source.enabled(at) && comp.can_drag(&self.source.key(at)));
+                    .filter(|&at| self.source.enabled(at) && !self.source.section_stop(at) && comp.can_drag(&self.source.key(at)));
                 if self.drags.sweep.is_some() {
                     self.sweep_to(cx, layout, rect, offset, rtl, layer(pos));
                 } else if let Some(at) = hit {

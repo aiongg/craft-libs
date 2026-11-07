@@ -2,8 +2,9 @@
 //! hidden tiles, and ratings, checks and activation each have one route.
 
 use craft_behavior::{DisplayOrder, ItemSource, Selection, SizeHint};
-use craft_ui::contract::{ActivateOn, Bind, CollectionEvent, ShowCollection as _};
+use craft_ui::contract::{ActivateOn, Bind, CollectionEvent, Role, ShowCollection as _};
 use craft_ui::list::{ThumbAspect, ToggleState};
+use craft_ui::testing::access::focused_key;
 use craft_ui::testing::{Fixture, trial};
 use craft_ui::tile_grid::{BadgeVisibility, CaptionPlace, GridEvent, RatingKeys, Tile, TileGrid, TileGroup, TilePartEvent};
 use egui::{Key, Modifiers, Rect, Vec2};
@@ -124,7 +125,7 @@ fn a_three_by_two_picture_keeps_its_aspect_in_every_tiling() {
         ("equal", |grid| grid.aspect(ASPECT)),
         ("justified", |grid| grid.justified()),
         ("grouped", |grid| {
-            let groups: &'static [TileGroup] = Box::leak(Box::new([TileGroup::new(0, 6, "A"), TileGroup::new(6, 6, "B")]));
+            let groups: &'static [TileGroup<usize>] = Box::leak(Box::new([TileGroup::new(100, 0, 6, "A"), TileGroup::new(101, 6, 6, "B")]));
             grid.groups(groups).aspect(ASPECT)
         }),
     ];
@@ -159,7 +160,8 @@ fn the_grid_puts_every_caption_where_it_says() {
 /// End goes to the last tile that shows, not to a tile of a closed group.
 #[trial]
 fn end_lands_on_a_shown_tile_when_the_last_group_is_closed() {
-    let groups: &'static [TileGroup] = Box::leak(Box::new([TileGroup::new(0, 6, "Open"), TileGroup::new(6, 6, "Closed").open(false)]));
+    let groups: &'static [TileGroup<usize>] =
+        Box::leak(Box::new([TileGroup::new(100, 0, 6, "Open"), TileGroup::new(101, 6, 6, "Closed").open(false)]));
     let (mut fixture, seen) = rig(12, move |grid| grid.groups(groups), plain);
     click(&mut fixture, "alpha");
     fixture.key(Key::End, Modifiers::NONE);
@@ -253,7 +255,8 @@ fn activate_on_click_reports_the_clicked_tile() {
 /// Up from the first tile row lands on the group's own header, and a header takes Left, Right and Enter.
 #[trial]
 fn group_headers_are_rows_of_the_outline_with_their_own_keys() {
-    let groups: &'static [TileGroup] = Box::leak(Box::new([TileGroup::new(0, 6, "First"), TileGroup::new(6, 6, "Second").open(false)]));
+    let groups: &'static [TileGroup<usize>] =
+        Box::leak(Box::new([TileGroup::new(100, 0, 6, "First"), TileGroup::new(101, 6, 6, "Second").open(false)]));
     let (mut fixture, seen) = rig(12, move |grid| grid.groups(groups).collapsible(), plain);
     let opened = |seen: &Rc<RefCell<Seen>>| -> Vec<(usize, bool)> {
         seen.borrow()
@@ -290,4 +293,32 @@ fn group_headers_are_rows_of_the_outline_with_their_own_keys() {
     assert_eq!(opened(&seen), [(0, false)], "Up from the first tile row lands on the group's header, and Left closes it");
     press(&mut fixture, Key::ArrowDown);
     assert_eq!(seen.borrow().selection.lead, Some(0), "Down from the header returns to the first tile row");
+}
+
+/// A click on a group header gives the grid focus with the header as the lead: the access tree reports the header
+/// focused, and Left closes its group.
+#[trial]
+fn a_click_on_a_group_header_focuses_the_grid_with_the_header_as_lead() {
+    let groups: &'static [TileGroup<usize>] = Box::leak(Box::new([TileGroup::new(100, 0, 6, "First"), TileGroup::new(101, 6, 6, "Second")]));
+    let (mut fixture, seen) = rig(12, move |grid| grid.groups(groups).collapsible(), plain);
+    let headings = fixture.tree().with_role(Role::HEADING);
+    let header = headings
+        .into_iter()
+        .find(|key| fixture.tree().name_of(*key) == Some("Second"))
+        .and_then(|key| fixture.target(key))
+        .expect("the header is a heading node");
+    fixture.click(&header);
+    fixture.idle(2);
+    assert!(fixture.focused().is_some(), "the click focused the grid: {:?}", seen.borrow().grid);
+    assert_eq!(focused_key(fixture.tree()), header.node, "the access tree reports the header focused");
+    seen.borrow_mut().grid.clear();
+    fixture.key(Key::ArrowLeft, Modifiers::NONE);
+    fixture.idle(2);
+    let closed: Vec<_> = seen
+        .borrow()
+        .grid
+        .iter()
+        .filter_map(|event| if let GridEvent::GroupOpen { group, open, .. } = event { Some((*group, *open)) } else { None })
+        .collect();
+    assert_eq!(closed, [(1, false)], "Left on the lead header closes its group");
 }

@@ -34,8 +34,8 @@ pub use crate::runtime::pending::{Job, Pending, Progress};
 pub(crate) use body::REORDER_BAND;
 pub use collection::{
     ActivateOn, CollectionEvent, CollectionProps, CollectionResponse, ColumnAlign, ColumnEvent, ColumnKind, ColumnSort, ColumnSpec,
-    ContextMenuRequest, DragPayload, HeaderMenuRequest, LeadOnOpen, LeadSource, ListDrag, OpenChange, Rename, ReorderMove, ReorderRule, RowState, SelectMode,
-    SpaceAction, ToggleColumn, ToggleEdit,
+    ContextMenuRequest, DragPayload, HeaderMenuRequest, LeadOnOpen, LeadSource, ListDrag, OpenChange, Rename, ReorderMove, ReorderRule, RowState,
+    SelectMode, SpaceAction, ToggleColumn, ToggleEdit,
 };
 pub use container::{
     Collapse, ContainerProps, DragBand, EndRegion, FooterRegion, Gap, HeaderRegion, Mount, Notch, Pad, PaneEdge, Scroll, ScrollAnchor, ScrollAxes,
@@ -47,7 +47,7 @@ pub use cx::{Accessible, Activation, BodyCx, Cx, CxCore, Edit, Focus, ItemCx, Me
 pub use entry::Entry;
 pub use group::{GroupHandle, GroupKind, GroupState};
 pub use items::{ColumnCommands, request_rename};
-pub(crate) use items::{Move, lead_position, request_move};
+pub(crate) use items::{lead_position, section_part};
 pub use label::{CellWidth, FieldLabelRole, FieldLayout, GlyphLabel, LabelAlign, LabelKind, Scrub, SideLabel};
 pub use looks::Looks;
 pub use overlay::{Overlay, OverlayUi, Overlays, Popup, PopupHandle, Trigger};

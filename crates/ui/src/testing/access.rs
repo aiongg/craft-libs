@@ -11,6 +11,11 @@ pub fn begin_label_scope(ctx: &Context, container: Id, label: FieldLabel) {
     scope::begin(ctx, container, container, scope::Kind::Label(label));
 }
 
+/// The node AccessKit reports as focused.
+pub fn focused_key(tree: &AccessTree) -> NodeKey {
+    tree.focused_key()
+}
+
 /// Whether the node declares an action a user can take: focus, click or a value change.
 pub fn is_interactive(tree: &AccessTree, key: NodeKey) -> bool {
     [Declared::Focus, Declared::Click, Declared::Increment, Declared::Decrement, Declared::SetValue, Declared::Expand, Declared::Collapse]

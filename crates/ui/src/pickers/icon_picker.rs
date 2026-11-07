@@ -165,7 +165,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> IconPicker<'a, K> {
         let matcher = (!query.is_empty()).then(|| Matcher::new(&env.folder(), &query));
 
         let mut items = Vec::new();
-        let mut shown_groups = Vec::new();
+        let mut named = Vec::new();
         for group in groups {
             let kept: Vec<&IconPickerItem<K>> =
                 group.items.iter().filter(|item| matcher.as_ref().is_none_or(|matcher| item.matches(matcher))).collect();
@@ -173,10 +173,13 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> IconPicker<'a, K> {
                 continue;
             }
             if !group.name.is_empty() {
-                shown_groups.push(TileGroup::new(items.len(), kept.len(), group.name.clone()));
+                named.push((items.len(), kept.len(), group.name.clone()));
             }
             items.extend(kept);
         }
+        // The header rows are keyed after the cells, whose keys are their positions.
+        let shown_groups: Vec<TileGroup<usize>> =
+            named.into_iter().enumerate().map(|(at, (start, count, name))| TileGroup::new(items.len() + at, start, count, name)).collect();
         let held: Option<K> = match value.reborrow().get() {
             Some(Mixed::Same(Some(key))) => Some(key),
             _ => None,

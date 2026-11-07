@@ -7,6 +7,9 @@ use crate::tile_grid::Tile;
 use craft_behavior::{DisplayOrder, ItemSource, SizeHint};
 use egui::Ui;
 
+/// The keys of the group header rows, apart from the tiles' own.
+const GROUP_KEYS: [usize; 3] = [1000, 1001, 1002];
+
 /// Tiles keyed by position, each with a picture aspect that cycles through the usual photo shapes.
 struct Photos(usize);
 
@@ -63,9 +66,9 @@ fn tile_grid_justified(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 fn tile_grid_groups(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let open = data.value("open", [true, false, true]);
     let groups = [
-        TileGroup::new(0, 12, "October 2026").detail("12 photos").open(open[0]),
-        TileGroup::new(12, 8, "September 2026").detail("8 photos").open(open[1]),
-        TileGroup::new(20, 10, "August 2026").detail("10 photos").open(open[2]),
+        TileGroup::new(GROUP_KEYS[0], 0, 12, "October 2026").detail("12 photos").open(open[0]),
+        TileGroup::new(GROUP_KEYS[1], 12, 8, "September 2026").detail("8 photos").open(open[1]),
+        TileGroup::new(GROUP_KEYS[2], 20, 10, "August 2026").detail("10 photos").open(open[2]),
     ];
     let out = TileGrid::new("Library")
         .groups(&groups)
