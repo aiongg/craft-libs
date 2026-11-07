@@ -9,7 +9,7 @@ mod slot;
 pub use arrange::{Placed, arrange};
 pub use body::{BodyLayout, RowAlign};
 pub use column_group::ColumnGroup;
-pub(crate) use column_group::{GLYPHS, LABELS, ambient_width};
+pub(crate) use column_group::{GLYPHS, LABELS, ambient_room, ambient_width};
 pub use label::{place_label, record_control_baseline};
 pub use slot::measure_slot;
 

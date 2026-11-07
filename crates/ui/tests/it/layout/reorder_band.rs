@@ -71,7 +71,8 @@ fn alt_down_in_a_reorderable_sections_header_moves_it_and_does_not_close_it() {
     };
     frames.idle(3, &mut show);
     request(&frames.ctx, FocusTarget::Id(title.get()));
-    frames.frame(Vec::new(), &mut show);
+    // Focus reaches the chain one pass after the request and the container holds the chord from the pass after that.
+    frames.idle(3, &mut show);
     let alt = Modifiers::ALT;
     frames.frame(vec![key_press(Key::ArrowDown, alt)], &mut show);
     frames.frame(vec![key_release(Key::ArrowDown, alt)], &mut show);

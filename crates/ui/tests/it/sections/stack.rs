@@ -1,9 +1,10 @@
 //! `SectionStack`: Alt+Up and Alt+Down and a header drag move a section, each section reports its place, and Alt+Down
 //! in a stack's section moves it instead of closing it.
 
-use craft_ui::contract::{Role, ShowContainer as _};
+use craft_ui::contract::ShowContainer as _;
 use craft_ui::runtime::drag;
 use craft_ui::sections::{Section, SectionStack};
+use craft_ui::testing::access::NodeKey;
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Id, Key, Modifiers, Vec2};
@@ -66,12 +67,16 @@ fn scene() -> (Fixture, Rc<RefCell<Seen>>) {
     (fixture, seen)
 }
 
-/// Puts focus in the section titled `title`: two clicks on its disclosure close and reopen it.
+/// Puts keyboard focus on the disclosure of the section titled `title`: Tab walks the sections' headers in order.
 fn focus_section(fixture: &mut Fixture, title: &str) {
-    let lead = fixture.by_role(Role::BUTTON).into_iter().find(|button| fixture.tree().name_of(button.node) == Some(title)).expect("a disclosure");
-    fixture.click(&lead);
-    fixture.click(&lead);
-    fixture.settle();
+    for _ in 0..TITLES.len() * 2 {
+        fixture.key(Key::Tab, Modifiers::NONE);
+        fixture.settle();
+        if fixture.focused().is_some_and(|id| fixture.tree().name_of(NodeKey::of(id)) == Some(title)) {
+            return;
+        }
+    }
+    panic!("Tab never reached the section {title}");
 }
 
 #[trial]
@@ -79,7 +84,7 @@ fn alt_down_in_the_first_section_moves_it_to_position_one_and_alt_up_moves_nothi
     let (mut fixture, seen) = scene();
     focus_section(&mut fixture, TITLES[0]);
     fixture.key(Key::ArrowUp, Modifiers::ALT);
-    assert!(seen.borrow().moves.is_empty(), "the first section cannot move up");
+    assert!(seen.borrow().moves.is_empty(), "the first section cannot move up: {:?} {:?}", seen.borrow().moves, seen.borrow().order);
     fixture.key(Key::ArrowDown, Modifiers::ALT);
     assert_eq!(seen.borrow().moves, [(0, 1)], "Alt+Down moves the first section one place toward the end");
     assert_eq!(seen.borrow().order, [1, 0, 2]);
@@ -122,4 +127,12 @@ fn each_section_reports_its_place_in_the_stack() {
     for (index, id) in ids.iter().enumerate() {
         assert_eq!(fixture.tree().position(*id), Some((index, TITLES.len())), "section {index} is {} of {}", index + 1, TITLES.len());
     }
+}
+
+#[trial]
+fn a_stack_is_as_high_as_its_sections_and_stays_so() {
+    let (mut fixture, _) = scene();
+    let settled = fixture.shown().height();
+    fixture.idle(3);
+    assert_eq!(fixture.shown().height(), settled, "sections fill the width, not the height, so the stack does not grow");
 }

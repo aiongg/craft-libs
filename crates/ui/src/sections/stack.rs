@@ -116,7 +116,7 @@ impl<'a, K: Clone + PartialEq + std::hash::Hash + Send + Sync + 'static> Section
     pub fn new(order: &'a [K]) -> Self {
         SectionStack {
             common: Common::new(),
-            props: ContainerProps::new().sizing(Sizing::Fill),
+            props: ContainerProps::new().sizing(Sizing::FillWidth),
             order,
             seen: Arc::new(Mutex::new(Vec::new())),
             moves: Vec::new(),

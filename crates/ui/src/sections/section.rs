@@ -76,12 +76,12 @@ pub struct Section<'a> {
 impl<'a> Section<'a> {
     /// A collapsible section titled `title`. It starts open.
     pub fn new(title: impl Into<Label>) -> Self {
-        Section::build(title, true, ContainerProps::new().collapse(Collapse::new()).sizing(Sizing::Fill))
+        Section::build(title, true, ContainerProps::new().collapse(Collapse::new()).sizing(Sizing::FillWidth))
     }
 
     /// A section that is always open: the title alone, with no disclosure.
     pub fn fixed(title: impl Into<Label>) -> Self {
-        Section::build(title, false, ContainerProps::new().sizing(Sizing::Fill))
+        Section::build(title, false, ContainerProps::new().sizing(Sizing::FillWidth))
     }
 
     fn build(title: impl Into<Label>, collapsible: bool, props: ContainerProps) -> Self {
@@ -129,7 +129,7 @@ impl<'a> Section<'a> {
     #[must_use]
     pub fn in_stack(mut self, slot: StackSlot) -> Self {
         self.props = self.props.position(slot.position());
-        self.reorder(true)
+        self.reorder(true).id_salt(slot.salt())
     }
 
     /// Fills the trailing region of the header with the app's controls (a Segmented, a Select, an icon button, count
