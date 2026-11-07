@@ -88,6 +88,10 @@ struct Rig {
 }
 
 fn rig() -> Rig {
+    rig_of(entries)
+}
+
+fn rig_of(entries: fn() -> Vec<HelpEntry>) -> Rig {
     let (open, picked) = (Rc::new(Cell::new(true)), Rc::new(RefCell::new(None)));
     let (shared_open, shared_picked) = (Rc::clone(&open), Rc::clone(&picked));
     let mut fixture = Fixture::new(move |ui| {
@@ -121,10 +125,10 @@ fn escape_clears_the_query_before_it_closes_the_palette() {
 /// A pointer resting over a row does not take the active row back from the arrow keys; it moves the row only when it moves.
 #[trial]
 fn a_resting_pointer_leaves_the_active_row_to_the_arrow_keys() {
-    let mut rig = rig();
-    // A command the app has not enabled is listed but skipped by the active row.
-    for command in [EditCommands::Undo, EditCommands::Redo, EditCommands::Cut, EditCommands::SelectAll] {
-        rig.fixture.command_state(command, CommandState::new().enabled(true));
+    // App commands the app enables: the active row skips a command that is disabled.
+    let mut rig = rig_of(|| ["Undo", "Redo", "Cut", "Select All"].map(|label| HelpEntry::new(CommandRef::new(label), label)).to_vec());
+    for label in ["Undo", "Redo", "Cut", "Select All"] {
+        rig.fixture.command_state(CommandRef::new(label), CommandState::new().enabled(true));
     }
     rig.fixture.settle();
     let first = row(&rig.fixture, "Undo").expect("the row is listed").center();
@@ -137,5 +141,5 @@ fn a_resting_pointer_leaves_the_active_row_to_the_arrow_keys() {
     rig.fixture.idle(2);
     rig.fixture.key(Key::Enter, Modifiers::NONE);
     rig.fixture.idle(2);
-    assert_eq!(rig.picked.borrow().clone(), Some(CommandRef::from(EditCommands::Cut)), "the row above the one under the pointer is active");
+    assert_eq!(rig.picked.borrow().clone(), Some(CommandRef::new("Cut")), "the row above the one under the pointer is active");
 }

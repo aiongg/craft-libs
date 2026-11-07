@@ -25,6 +25,7 @@ fn tour(index: Rc<Cell<usize>>) -> Fixture {
 fn the_arrows_step_the_tour_with_the_focus_on_an_action() {
     let index = Rc::new(Cell::new(0));
     let mut fixture = tour(index.clone());
+    eprintln!("DIAG focused {:?}", fixture.focused());
     fixture.key(Key::ArrowRight, Modifiers::NONE);
     fixture.settle();
     assert_eq!(index.get(), 1, "Right goes to the next step");
