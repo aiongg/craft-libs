@@ -2,7 +2,7 @@
 //! popup to assistive technology.
 
 use craft_ui::contract::{Bind, Entry, Props as _, Role, Show as _};
-use craft_ui::pickers::Select;
+use craft_ui::pickers::{Select, SelectFace};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Id, Key, Modifiers};
 use std::cell::Cell;
@@ -189,4 +189,20 @@ fn typing_then_down_and_enter_picks_the_first_match() {
     rig.press(Key::ArrowDown);
     rig.press(Key::Enter);
     assert_eq!(rig.value.get(), 1, "Banana is the first entry that matches");
+}
+
+#[trial]
+fn a_hosted_placeholder_face_paints_in_the_muted_ink() {
+    let mut fixture = Fixture::new(|ui| {
+        let entries = [Entry::new(0u8, "Normal"), Entry::new(1, "Multiply")];
+        let mut mode = 9u8;
+        Select::new("Blend mode", Bind::bound(&mut mode), &entries).placeholder("Pick a mode").id_salt("mode").show(ui);
+    });
+    fixture.settle();
+    let seen = fixture.styles_of(std::any::type_name::<SelectFace<'static>>());
+    assert!(!seen.is_empty(), "the hosted face's style is recorded");
+    for style in seen {
+        let [text, placeholder] = &style.looks.texts[..] else { panic!("a face has a text and a placeholder look") };
+        assert_ne!(text.color, placeholder.color, "the placeholder keeps its muted ink in the host's field");
+    }
 }

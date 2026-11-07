@@ -287,6 +287,7 @@ fn paint_ui<'a, C: Component>(ui: &'a mut Ui, env: &'a Env, cx: &'a Cx<'_, C>) -
         active: focus.filter(|_| cx.core.state.flags.contains(crate::style::Flags::FOCUSED)),
         // Only a composite with parts paints faces, so the others skip the look list.
         text: if cx.core.results.is_empty() { None } else { cx.style.texts().first().map(|text| &text.color) },
+        muted: if cx.core.results.is_empty() { None } else { cx.style.texts().get(1).map(|text| &text.color) },
         flags: cx.core.state.flags & HOST_FLAGS,
         enabled: cx.core.resolved.enabled,
         size: cx.core.resolved.size,
@@ -863,6 +864,9 @@ pub(crate) struct FaceSource<'a> {
     /// The text colour of the host part, which a face reads through `StyleCx::host_ink`; `None` when the host has no
     /// text look.
     pub ink: Option<&'a crate::style::Stateful<crate::style::StyleColor>>,
+    /// The muted text colour of the host part, which a face reads through `StyleCx::host_muted_ink`; `None` when the
+    /// host has no muted text look.
+    pub muted: Option<&'a crate::style::Stateful<crate::style::StyleColor>>,
     /// The flags the host owns for its faces: whether its value is invalid or warns.
     pub flags: crate::style::Flags,
 }
@@ -876,7 +880,7 @@ pub(crate) fn paint_face<C: Show>(ui: &mut Ui, source: &FaceSource<'_>, part: Pa
     debug_assert!(common.tooltip.is_none(), "a face instance carries no tooltip; use `PartBuilder::tooltip`");
     let step1 = steps::env::<C>(&ctx, &env, &common);
     let scx = steps::style_cx(&ctx, &env, &step1);
-    let scx = source.ink.map_or(scx, |ink| scx.hosted(ink));
+    let scx = source.ink.map_or(scx, |ink| scx.hosted(ink, source.muted));
     let style = steps::style::<C>(&ctx, &scx, face.style_key());
     let id = face_id(source.id, part);
     let resolved = steps::resolved(id, &step1, &common);
@@ -914,6 +918,7 @@ pub(crate) fn paint_face<C: Show>(ui: &mut Ui, source: &FaceSource<'_>, part: Pa
             response: source.response,
             active: None,
             text: None,
+            muted: None,
             flags: crate::style::Flags::empty(),
             enabled: step1.enabled,
             size: step1.size,

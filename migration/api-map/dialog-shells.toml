@@ -263,6 +263,7 @@ note = "Moved: the footer region does not scroll, and its closure shows anything
 type = "Dialog"
 old = "modeless()"
 new = "modeless()"
+note = "A tool window in its own OS window (the preferences window): `modeless().viewport()`; where windows are unavailable it shows on the modeless layer."
 
 [[setter]]
 type = "Dialog"
