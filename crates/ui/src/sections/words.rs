@@ -7,5 +7,6 @@ craft_ui::words! {
         menu: "sections.menu" = "More actions";
         float: "sections.float" = "Float";
         gate: "sections.gate" = "Enable";
+        footer: "sections.footer" = "Actions";
     }
 }
