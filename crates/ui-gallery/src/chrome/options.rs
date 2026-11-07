@@ -5,7 +5,7 @@ use craft_behavior::Value;
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::buttons::{Button, ToggleButton};
 use craft_ui::choice::Segmented;
-use craft_ui::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Entry, Show as _, ShowContainer as _};
 use craft_ui::display::{Shade, Text};
 use craft_ui::layout_components::Stack;
 use craft_ui::pickers::Select;

@@ -55,7 +55,7 @@ impl GallerySettings {
             scale: SCALES.name(appearance.scale).to_owned(),
             direction: DIRECTIONS.name(appearance.direction).to_owned(),
             size: SIZES.name(appearance.size).to_owned(),
-            filter: viewer.filter.clone(),
+            filter: viewer.browser.filter.clone(),
             selected: viewer.selected_type().unwrap_or_default().to_owned(),
             open_modules: viewer.open_modules(),
             layout: viewer.layout().save(),

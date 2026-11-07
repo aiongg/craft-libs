@@ -6,7 +6,7 @@ use craft_behavior::{GroupId, Selection};
 use craft_i18n::Direction;
 use craft_theme::ControlSize;
 use craft_theme::variant::Tone;
-use craft_ui::contract::{Bind, CollectionEvent, Props as _, SelectMode, Show as _, ShowCollection as _, ShowContainer as _};
+use craft_ui::contract::{Bind, CollectionEvent, SelectMode, Show as _, ShowCollection as _, ShowContainer as _};
 use craft_ui::display::{Shade, Text};
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::list::{List, ListRow, OpenSet};

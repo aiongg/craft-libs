@@ -102,7 +102,6 @@ impl Viewer {
         match command {
             GalleryCommands::ResetLayout => self.browser.dock = PanelShares::default().tree(),
             GalleryCommands::ResetStories => self.browser.reset_stories(),
-            _ => {}
         }
     }
 }
