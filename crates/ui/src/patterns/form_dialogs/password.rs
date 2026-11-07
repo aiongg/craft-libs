@@ -234,6 +234,8 @@ impl Entries {
 #[derive(crate::contract::Pattern, crate::contract::Props)]
 pub struct PasswordDialog<'a> {
     purpose: PasswordPurpose,
+    /// Carried back in the answer, so the app knows which file the password is for.
+    #[prop(boxed)]
     tag: Option<Box<dyn Any + Send>>,
     /// The line under the field, in the error colour.
     #[prop]
@@ -247,13 +249,6 @@ impl<'a> PasswordDialog<'a> {
     /// A dialog for `purpose`, with no error line and no tag.
     pub fn new(purpose: PasswordPurpose) -> Self {
         PasswordDialog { purpose, tag: None, error: None, open: None }
-    }
-
-    /// Carried back in the answer, so the app knows which file the password is for.
-    #[must_use]
-    pub fn tag<T: Any + Send>(mut self, tag: T) -> Self {
-        self.tag = Some(Box::new(tag));
-        self
     }
 
     /// Shows the dialog.
