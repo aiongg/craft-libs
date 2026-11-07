@@ -145,7 +145,11 @@ impl Component for TitleRow<'_> {
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         let text = cx.layout(&title_run(self, cx.style.role, cx.resolved.label)).galley.size();
         let parts = usize::from(self.has_lead()) + self.actions.len();
-        Vec2::new(text.x + text.y * parts as f32 + cx.gap() * parts as f32, text.y)
+        // The parts are square on the row's height, which the height token can raise above the text's.
+        let side = text.y.max(cx.style.metrics.min_size.y);
+        let natural = text.x + side * parts as f32 + cx.gap() * parts as f32;
+        // The row fills the width it is offered, so its actions sit at the end edge.
+        Vec2::new(natural.max(cx.room.unwrap_or(0.0)), text.y)
     }
 
     fn sense(&self) -> Sense {

@@ -78,6 +78,7 @@ pub(crate) fn show_body_layer<R>(
     transform: TSTransform,
     at: Pos2,
     forward: Option<Forward>,
+    clip: Rect,
     body: impl FnOnce(&mut egui::Ui) -> R,
 ) -> R {
     ctx.set_transform_layer(layer, transform);
@@ -92,9 +93,15 @@ pub(crate) fn show_body_layer<R>(
             if let Some(forward) = forward {
                 ui.interact(transform.inverse() * forward.rect, forward.id, forward.sense);
             }
+            ui.set_clip_rect(transform.inverse() * clip);
             body(ui)
         })
         .inner
+}
+
+/// The transform of a body zoomed by `scale` about its top left `at` and moved by `offset`.
+pub(crate) fn body_transform(at: Pos2, scale: f32, offset: Vec2) -> TSTransform {
+    TSTransform::new(at.to_vec2() * (1.0 - scale) + offset, scale)
 }
 
 /// An egui layer, as the runtime's shape records name it.

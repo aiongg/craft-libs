@@ -89,6 +89,8 @@ pub struct CxCore<'a> {
     pub(crate) press_cancel: Option<PressCancel>,
     /// The visible range each scroll part moved to this pass, from step 8's results.
     pub(crate) scroll_moves: Vec<(PartKey, Range<f64>)>,
+    /// The parts that show the value, whose double click resets it like the root's.
+    pub(crate) value_parts: Vec<(PartKey, Option<u64>)>,
     /// The sense the root's egui widget carries, for the forwarding widget of a transformed body.
     pub(crate) root_sense: Sense,
     /// The member of the container's roving group Tab arrives at, set by the group's pick.
@@ -1108,6 +1110,7 @@ pub(crate) struct PartExtras {
     pub drag_cursor: Option<CursorIcon>,
     pub tooltip: Option<Tooltip>,
     pub pointer_only: Option<&'static str>,
+    pub value: bool,
 }
 
 impl PartBuilder<'_> {
@@ -1169,6 +1172,13 @@ impl PartBuilder<'_> {
     /// The part's tooltip.
     pub fn tooltip(self, tooltip: impl Into<Tooltip>) -> Self {
         self.declared.tooltip = Some(tooltip.into());
+        self
+    }
+
+    /// The part shows the component's value: a double click on it resets the value, as one on the root does. A
+    /// stepper button or a scroll thumb is no value part.
+    pub fn value_part(self) -> Self {
+        self.declared.value = true;
         self
     }
 

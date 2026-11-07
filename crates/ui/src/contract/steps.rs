@@ -496,7 +496,9 @@ pub(crate) struct StopsIn<'a> {
 /// The id of the roving group a container's body forms.
 /// Records that `id` is a member of the roving `group` in this pass.
 pub(crate) fn join_group(ctx: &Context, group: Id, id: Id) {
-    store::put(ctx, sub(group, ("member", id)), crate::runtime::pointer::pass_of(ctx));
+    let slot = sub(group, ("member", id));
+    store::put(ctx, slot, crate::runtime::pointer::pass_of(ctx));
+    crate::runtime::memory::adopt::<u64>(ctx, id, slot);
 }
 
 /// `group` when `id` joined it in this pass or the one before, else `None`: a component that is no member keeps its
@@ -637,10 +639,10 @@ pub(crate) fn edit_intents<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
     }
 }
 
-/// A second press of a double click went down on the component's root or one of its parts this pass.
+/// A second press of a double click went down on the component's root or one of its value parts this pass (10.2).
 fn is_double_click(core: &CxCore<'_>) -> bool {
     let second = |phase: &craft_behavior::PressPhase| matches!(phase, craft_behavior::PressPhase::Down { start, .. } if start.clicks >= 2);
-    second(&core.press.phase) || core.results.values().any(|result| second(&result.press.phase))
+    second(&core.press.phase) || core.value_parts.iter().any(|key| core.results.get(key).is_some_and(|result| second(&result.press.phase)))
 }
 
 /// Step 12: a control with a reset value tells its label scope whether its value differs from it (10.2).
@@ -1007,6 +1009,8 @@ pub(crate) struct ReportIn<'a> {
     pub scrolls: (bool, bool),
     /// The roving group the component's own stop is in.
     pub group: Option<Id>,
+    /// The expanded state of a collapsible container, unless `Component::access` says otherwise.
+    pub expanded: Option<bool>,
 }
 
 /// The bound command's hint and shortcut text, which describe and key its node.
@@ -1049,6 +1053,9 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
     let tooltip = tooltip_text.as_ref().map(Label::as_str);
     if access.live.is_none() {
         access.live = input.live;
+    }
+    if access.expanded.is_none() {
+        access.expanded = input.expanded;
     }
     if access.position.is_none() {
         access.position = input.group.and_then(|group| focus::group_position(ctx, id, group));
@@ -1122,7 +1129,7 @@ fn report_sub(core: &CxCore<'_>, input: &ReportIn<'_>, node: &SubNode, face: Opt
         focusable: core.resolved.enabled && declared.is_some_and(|(_, extras)| extras.focusable),
         clickable: core.resolved.enabled && declared.is_some_and(|(decl, _)| decl.sense.contains(Sense::CLICK)),
         active: core.active == Some(node.part),
-        face: face.map(|face| FaceFacts { name: &face.name, flags: face.flags, numeric: face.numeric.as_ref() }),
+        face: face.map(|face| FaceFacts { name: &face.name, flags: face.flags, numeric: face.numeric.as_ref(), expanded: face.expanded }),
         label: core.resolved.label,
         parent: node.under.map_or(core.id, |under| access::sub_node_id(core.id, under)),
     };

@@ -3,9 +3,9 @@
 //! frame. The merge rule uses the same path: a `Role::Merged` container's name, description and states go into the
 //! one child's node.
 
-use crate::runtime::egui::{access as adapter, memory::Service};
+use crate::runtime::egui::{access as adapter, memory as store, memory::Service};
 use crate::runtime::layout_memory;
-use crate::runtime::memory::sub;
+use crate::runtime::memory::{self, sub};
 use craft_behavior::PressState;
 use craft_theme::Flags;
 use egui::{Context, Id, Rect, Vec2};
@@ -74,6 +74,8 @@ pub(crate) enum Kind {
 
 struct Scope {
     container: Id,
+    /// The component whose eviction takes the facts the scope records.
+    owner: Id,
     kind: Kind,
     /// The direct controls: node components inside this scope that sit in no other node component of it.
     nodes: Vec<(Id, bool)>,
@@ -83,6 +85,8 @@ struct Scope {
     baseline: Option<f32>,
     /// The control that registered a reset value and whether its value differs from it.
     reset: Option<ResetFact>,
+    /// The narrowest width of the first control.
+    control_min: Option<f32>,
 }
 
 /// What a control tells its label scope about its reset (10.2).
@@ -98,8 +102,10 @@ pub(crate) struct ResetFact {
 struct Stack(Vec<Scope>);
 
 /// Opens the scope of `container`; its body shows inside it.
-pub(crate) fn begin(ctx: &Context, container: Id, kind: Kind) {
-    Service::<Stack>::of(ctx).with(|stack| stack.0.push(Scope { container, kind, nodes: Vec::new(), open: Vec::new(), baseline: None, reset: None }));
+pub(crate) fn begin(ctx: &Context, container: Id, owner: Id, kind: Kind) {
+    Service::<Stack>::of(ctx).with(|stack| {
+        stack.0.push(Scope { container, owner, kind, nodes: Vec::new(), open: Vec::new(), baseline: None, reset: None, control_min: None })
+    });
 }
 
 /// The innermost label scope's label, read by `cx.field_label()`.
@@ -150,6 +156,25 @@ pub(crate) fn record_baseline(ctx: &Context, baseline: f32) {
     });
 }
 
+/// Whether a label scope is open: a control then reports its minimum width.
+pub(crate) fn in_label(ctx: &Context) -> bool {
+    Service::<Stack>::of(ctx).with(|stack| stack.0.iter().any(|scope| matches!(scope.kind, Kind::Label(_))))
+}
+
+/// Records the narrowest width of a control inside the innermost label scope. The first control to report wins.
+pub(crate) fn record_control_min(ctx: &Context, width: f32) {
+    Service::<Stack>::of(ctx).with(|stack| {
+        if let Some(scope) = stack.0.iter_mut().rev().find(|scope| matches!(scope.kind, Kind::Label(_))) {
+            scope.control_min.get_or_insert(width);
+        }
+    });
+}
+
+/// The narrowest width the first control of `container`'s label scope reported last frame.
+pub(crate) fn last_control_min(ctx: &Context, container: Id) -> f32 {
+    layout_memory::read(ctx, sub(container, "control_min")).map_or(0.0, |size| size.x)
+}
+
 /// Registers the reset of the control `control` with the innermost label scope.
 pub(crate) fn register_reset(ctx: &Context, control: Id, differs: bool) {
     Service::<Stack>::of(ctx).with(|stack| {
@@ -161,11 +186,13 @@ pub(crate) fn register_reset(ctx: &Context, control: Id, differs: bool) {
 
 /// The reset fact the label scope of `container` recorded last frame.
 pub(crate) fn last_reset(ctx: &Context, container: Id) -> Option<ResetFact> {
-    Service::<Resets>::of(ctx).with(|resets| resets.0.get(&container).copied())
+    store::peek_clone::<ResetFact>(ctx, reset_slot(container))
 }
 
-#[derive(Default)]
-struct Resets(std::collections::HashMap<Id, ResetFact>);
+/// The slot of a container's reset fact; it goes with the scope's owner.
+fn reset_slot(container: Id) -> Id {
+    sub(container, "reset_fact")
+}
 
 /// What a merged container adds to its child's node.
 pub(crate) struct Merged {
@@ -187,10 +214,15 @@ pub(crate) fn finish(ctx: &Context, container: Id, merged: Option<Merged>) {
             if let Some(baseline) = scope.baseline {
                 layout_memory::record(ctx, sub(scope.container, "baseline"), Vec2::new(0.0, baseline));
             }
-            Service::<Resets>::of(ctx).with(|resets| match scope.reset {
-                Some(fact) => resets.0.insert(scope.container, fact),
-                None => resets.0.remove(&scope.container),
-            });
+            layout_memory::record(ctx, sub(scope.container, "control_min"), Vec2::new(scope.control_min.unwrap_or(0.0), 0.0));
+            let slot = reset_slot(scope.container);
+            match scope.reset {
+                Some(fact) => {
+                    store::put(ctx, slot, fact);
+                    memory::adopt::<ResetFact>(ctx, scope.owner, slot);
+                }
+                None => drop(store::take::<ResetFact>(ctx, slot)),
+            }
         }
         Kind::Merge => {
             debug_assert_eq!(scope.nodes.len(), 1, "a merged container shows exactly one component");

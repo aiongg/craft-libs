@@ -330,6 +330,11 @@ impl MemoryStage {
         store::peek_clone::<Wrapped<SHOWN, T>>(ctx, id).map(|wrapped| wrapped.0).unwrap_or_default()
     }
 
+    /// Read-only access to a saved slot, as `peek` does for a shown one.
+    pub(crate) fn peek_saved<T: Slot>(ctx: &Context, key: &SaveKey) -> T {
+        store::peek_clone::<Wrapped<SAVED, T>>(ctx, key.id()).map(|wrapped| wrapped.0).unwrap_or_default()
+    }
+
     /// A sizing pass's stage, which keeps nothing.
     pub(crate) fn is_peek(&self) -> bool {
         self.peek_only

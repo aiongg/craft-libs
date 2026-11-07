@@ -1,17 +1,17 @@
 //! The mount host (16.2): where steps 6 to 16 of a container run. `Inline` runs in the parent's `Ui`; the others
 //! open a `Ui` of their own and call `pass` once for each pass that `Ui` gets.
 
-use super::body::{Placement, placement_id};
+use super::body::placement_of;
 use super::container::PaneEdge;
 use super::overlay::{self, FloatPlace, Layer, Overlay, Place};
 use super::run::{Host, HostCx, ShowAt};
 use super::{ContainerProps, Mount, ShellPane};
 use crate::runtime::egui::panels::{self, Edge};
-use crate::runtime::egui::{areas, memory as store, viewports};
+use crate::runtime::egui::{areas, viewports};
 use crate::runtime::env::Env;
 use crate::runtime::focus::FocusPolicy;
 use crate::runtime::layout_memory;
-use crate::runtime::memory::sub;
+use crate::runtime::memory::{SaveKey, sub};
 use crate::runtime::motion::{self, Presence};
 use crate::runtime::overlay::CloseReason;
 use egui::{Id, Pos2, Rect, Ui, Vec2};
@@ -39,7 +39,7 @@ pub(super) fn host(props: &ContainerProps, at: &HostCx<'_>, open: bool) -> Mount
         Mount::Inline => Mounted { host: Box::new(InlineHost), exiting: false },
         Mount::Pane(pane) => Mounted { host: Box::new(PaneHost(*pane)), exiting: false },
         Mount::Layer(overlay) => match layer(overlay) {
-            (Some(fade), exiting) => Mounted { host: Box::new(LayerHost::new(overlay.clone(), exiting, fade)), exiting },
+            (Some(fade), exiting) => Mounted { host: Box::new(LayerHost::new(overlay.clone(), props.save.clone(), exiting, fade)), exiting },
             (None, _) => closed(),
         },
         Mount::FullWindow => match layer(&Overlay::floating()) {
@@ -49,7 +49,7 @@ pub(super) fn host(props: &ContainerProps, at: &HostCx<'_>, open: bool) -> Mount
         Mount::Viewport { fallback } => {
             if !viewports::available(ctx) {
                 return match layer(fallback) {
-                    (Some(fade), exiting) => Mounted { host: Box::new(LayerHost::new(fallback.clone(), exiting, fade)), exiting },
+                    (Some(fade), exiting) => Mounted { host: Box::new(LayerHost::new(fallback.clone(), props.save.clone(), exiting, fade)), exiting },
                     (None, _) => closed(),
                 };
             }
@@ -87,26 +87,35 @@ impl Host for PaneHost {
             PaneEdge::Bottom => (Edge::Bottom, false),
             _ => (Edge::Center, false),
         };
-        let last = layout_memory::read(parent.ctx(), id).map(|size| if along_x { size.x } else { size.y });
-        panels::show_pane(parent, edge, sub(id, ("pane", self.0.name)), last, |ui| {
+        let ctx = parent.ctx().clone();
+        // The pane's extent is its own memory, seeded from the size the pane first took and kept until the user
+        // resizes it: the body's size does not carry it, since a filling body takes what the pane gives.
+        let extent = sub(id, "pane_extent");
+        let last = layout_memory::read(&ctx, extent).map(|size| if along_x { size.x } else { size.y });
+        let outer = panels::show_pane(parent, edge, sub(id, ("pane", self.0.name)), last, |ui| {
             let installed = Env::install_for(ui, env.clone());
             pass(ui, None);
             Env::restore(&ui.ctx().clone(), installed);
         });
+        if last.is_none() && edge != Edge::Center && outer.is_positive() {
+            layout_memory::record(&ctx, extent, outer.size());
+        }
     }
 }
 
 /// A layer through the overlay host, at the container's placement: the overlay's own place until the user moves it.
+/// The placement lives in the container's saved slot when it has a `SaveKey`, else in shown memory.
 struct LayerHost {
     overlay: Overlay,
+    save: Option<SaveKey>,
     exiting: bool,
     fade: f32,
     dismissed: Option<CloseReason>,
 }
 
 impl LayerHost {
-    fn new(overlay: Overlay, exiting: bool, fade: f32) -> Self {
-        LayerHost { overlay, exiting, fade, dismissed: None }
+    fn new(overlay: Overlay, save: Option<SaveKey>, exiting: bool, fade: f32) -> Self {
+        LayerHost { overlay, save, exiting, fade, dismissed: None }
     }
 }
 
@@ -117,7 +126,7 @@ impl Host for LayerHost {
             return;
         }
         let ctx = parent.ctx().clone();
-        let placement: Placement = store::peek_clone(&ctx, placement_id(id)).unwrap_or_default();
+        let placement = placement_of(&ctx, id, self.save.as_ref());
         let mut overlay = self.overlay.clone();
         if let Some(pos) = placement.pos {
             overlay.place = Place::Float(FloatPlace::at(Pos2::from(pos)));

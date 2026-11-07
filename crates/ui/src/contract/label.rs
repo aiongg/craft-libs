@@ -214,9 +214,14 @@ impl Component for LabelLeaf {
 pub(crate) struct LabelIn<'a> {
     /// The scope the controls register with; the container's own id, or a derived id for `labelled`.
     pub scope: Id,
+    /// The component whose eviction takes the label scope's facts.
+    pub owner: Id,
     /// The node the label's node sits under in AccessKit: the composite's own id, when it has a node.
     pub parent: Option<Id>,
     pub row: Rect,
+    /// The width the mount offers the row. A content-sized row is as wide as its content took, so the choice between
+    /// beside and above reads the room, not the row.
+    pub room: f32,
     pub text: &'a Label,
     pub side: &'a SideLabel,
     pub enabled: bool,
@@ -236,7 +241,12 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Rect {
     let flow = Flow::new(input.row, rtl);
     let label_id = sub(input.scope, "label");
     if input.side.kind == LabelKind::Hidden {
-        scope::begin(&ctx, input.scope, scope::Kind::Label(FieldLabel::new(label_id, Rect::NOTHING, input.text.as_str()).role(input.side.role)));
+        scope::begin(
+            &ctx,
+            input.scope,
+            input.owner,
+            scope::Kind::Label(FieldLabel::new(label_id, Rect::NOTHING, input.text.as_str()).role(input.side.role)),
+        );
         return input.row;
     }
     let slot = if reset.is_some() { slot_side } else { 0.0 };
@@ -270,10 +280,23 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Rect {
             (width, f32::INFINITY)
         }
     };
+    // The room decides; a beside label gets the width it needs even where last frame's content was narrower.
+    let stacks = input.room < stack_below;
+    let flow = if stacks || input.row.width() >= stack_below {
+        flow
+    } else {
+        let mut wide = input.row;
+        if rtl {
+            wide.min.x = wide.max.x - stack_below;
+        } else {
+            wide.max.x = wide.min.x + stack_below;
+        }
+        Flow::new(wide, rtl)
+    };
     let placed = crate::layout::place_label(
         &kids,
         input.scope,
-        &LabelColumn::new(column, stack_below, gap),
+        &LabelColumn::new(column, if stacks { f32::INFINITY } else { 0.0 }, gap),
         flow,
         natural.min(Vec2::new(column, natural.y)),
         baseline,
@@ -285,6 +308,6 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Rect {
         keys::route(&ctx, fact.control, Intent::Reset);
     }
     let label = FieldLabel::new(label_id_for_scope, placed.label, input.text.as_str()).role(input.side.role).with_press(shown.press);
-    scope::begin(&ctx, input.scope, scope::Kind::Label(label));
+    scope::begin(&ctx, input.scope, input.owner, scope::Kind::Label(label));
     placed.control
 }

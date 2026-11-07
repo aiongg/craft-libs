@@ -144,3 +144,42 @@ fn a_title_row_in_a_containers_header_toggles_the_body() {
     frames.idle(2, &mut show);
     assert!(!ran.get(), "a click on the header's disclosure closes the body");
 }
+
+#[trial]
+fn a_title_row_fills_its_header_so_the_actions_sit_at_the_end_edge() {
+    use craft_ui::testing::layout::in_region;
+    const REGION: Rect = Rect { min: Pos2::new(10.0, 10.0), max: Pos2::new(310.0, 60.0) };
+    let mut frames = Frames::new();
+    let out = RefCell::new(Out::default());
+    let mut show = |ui: &mut Ui| {
+        in_region(ui, REGION, |ui| {
+            let TitleOutput { edit, action, .. } = TitleRow::new("Options").actions([HeaderAction::Close]).id_salt("row").show(ui);
+            let mut out = out.borrow_mut();
+            out.id = Some(edit.response.id);
+            out.action = out.action.or(action);
+        });
+    };
+    frames.idle(3, &mut show);
+    let close = Pos2::new(REGION.right() - 4.0, REGION.top() + 4.0);
+    click(&mut frames, close, &mut show);
+    assert_eq!(out.borrow().action, Some(HeaderAction::Close), "the Close part touches the end edge of the header");
+}
+
+#[trial]
+fn a_footer_bar_leaves_a_content_sized_container_as_wide_as_its_body() {
+    use craft_ui::testing::layout::{Block, in_region};
+    const REGION: Rect = Rect { min: Pos2::new(10.0, 10.0), max: Pos2::new(410.0, 210.0) };
+    const BODY: f32 = 120.0;
+    let width = std::cell::Cell::new(0.0);
+    let mut frames = Frames::new();
+    frames.idle(6, |ui| {
+        in_region(ui, REGION, |ui| {
+            let props = ContainerProps::new().header(HeaderRegion::new()).footer(FooterRegion::new());
+            let out = Panel { common: Common::new(), props }.id_salt("panel").show(ui, |ui, _| {
+                Block::new(egui::Vec2::new(BODY, 20.0)).show(ui);
+            });
+            width.set(out.output.rect.width());
+        });
+    });
+    assert!(width.get() < BODY + 20.0, "the footer's End-aligned row does not widen the container to the room: {}", width.get());
+}

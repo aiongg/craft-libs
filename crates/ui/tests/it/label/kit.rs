@@ -196,3 +196,43 @@ impl Component for LabelledDial<'_> {
         cx.response.clone()
     }
 }
+
+/// A control that fills the width it is offered and can shrink to `WIDE_MIN`.
+#[derive(Component)]
+pub struct Wide {
+    #[common]
+    common: Common,
+}
+
+pub const WIDE_MIN: f32 = 40.0;
+
+impl Wide {
+    pub fn new() -> Self {
+        Wide { common: Common::new() }
+    }
+}
+
+impl Component for Wide {
+    const ROLE: Role = Role::GROUP;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: WideStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        match cx.proposal {
+            craft_behavior::Proposal::Min => Vec2::new(WIDE_MIN, 20.0),
+            _ => Vec2::new(cx.room.unwrap_or(WIDE_MIN), 20.0),
+        }
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::HOVER
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}

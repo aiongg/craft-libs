@@ -102,3 +102,22 @@ fn a_viewport_mount_shows_its_body_in_the_fallback_layer_under_test() {
     assert!(ran.get() > 0, "the body ran in the fallback layer");
     assert!(screen.contains_rect(rect.get()) && rect.get().width() >= BODY.x, "the fallback layer sits inside the window: {:?}", rect.get());
 }
+
+#[trial]
+fn a_pane_holds_its_width_while_its_body_fills_it() {
+    use craft_ui::contract::{PaneEdge, ShellPane};
+    let width = Cell::new(0.0);
+    let mut frames = Frames::new();
+    let mut widths = Vec::new();
+    for _ in 0..10 {
+        frames.idle(1, |ui| {
+            let props = ContainerProps::new().mount(Mount::Pane(ShellPane::new("side").edge(PaneEdge::Start))).pad(craft_ui::contract::Pad::Regular);
+            let out = Slab::new(props).id_salt("pane").show(ui, |ui, _| {
+                Block::new(BODY).show(ui);
+            });
+            width.set(out.output.rect.width());
+        });
+        widths.push(width.get());
+    }
+    assert!((widths[9] - widths[3]).abs() < SLACK, "a pane keeps its width from frame to frame: {widths:?}");
+}

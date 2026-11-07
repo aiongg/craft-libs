@@ -329,12 +329,12 @@ fn show_root(ui: &mut Ui, ctx: &Context, root: &ProbeRoot) -> RootReport {
     } else if let Some(transform) = root.transform {
         let parent = ui.layer_id();
         let layer = areas::body_layer(parent, id);
-        let scale = transform.scale;
-        let map = TSTransform::new(root.rect.min.to_vec2() * (1.0 - scale) + transform.offset, scale);
+        let map = areas::body_transform(root.rect.min, transform.scale, transform.offset);
         body = Some(map);
         sensing::set_layer(ctx, arena, layer);
-        let forward = Forward { id: sub(id, "transform"), sense: response::to_egui(result.sense), rect: root.rect.intersect(ui.clip_rect()) };
-        areas::show_body_layer(ctx, parent, layer, map, root.rect.min, Some(forward), |body_ui| {
+        let visible = root.rect.intersect(ui.clip_rect());
+        let forward = Forward { id: sub(id, "transform"), sense: response::to_egui(result.sense), rect: visible };
+        areas::show_body_layer(ctx, parent, layer, map, root.rect.min, Some(forward), visible, |body_ui| {
             if let Some(size) = root.blocker {
                 fixture::allocate_blocker(body_ui, size);
             }

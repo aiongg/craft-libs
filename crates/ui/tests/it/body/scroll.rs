@@ -226,3 +226,22 @@ fn a_stack_shows_its_children_one_under_another() {
     let rects = rects.borrow();
     assert!(rects[0].max.y <= rects[1].min.y && (rects[0].min.x - rects[1].min.x).abs() < SAME, "one under another: {rects:?}");
 }
+
+#[trial]
+fn a_content_sized_scrolling_stack_is_as_tall_as_its_room_and_scrolls() {
+    let (rect, extent) = (Cell::new(Rect::NOTHING), Cell::new(0.0));
+    let mut frames = Frames::new();
+    frames.idle(5, |ui| {
+        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
+            let out = Stack::new().scroll(Scroll::vertical()).id_salt("stack").show(ui, |ui, _| {
+                for _ in 0..40 {
+                    Block::new(LINE).show(ui);
+                }
+                extent.set(ui.min_rect().height());
+            });
+            rect.set(out.output.rect);
+        });
+    });
+    assert!(extent.get() > VIEW.y, "the content is taller than the room: {}", extent.get());
+    assert!((rect.get().height() - VIEW.y).abs() < NEAR, "a content-sized scrolling body takes the room's height, not zero: {:?}", rect.get());
+}
