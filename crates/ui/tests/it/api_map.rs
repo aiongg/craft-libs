@@ -22,6 +22,10 @@ fn keys_within(entry: &toml::Table, allowed: &[&str], at: &str, problems: &mut V
     }
 }
 
+fn read_table(path: &Path) -> Result<toml::Table, String> {
+    fs::read_to_string(path).map_err(|e| e.to_string())?.parse().map_err(|e: toml::de::Error| e.to_string())
+}
+
 fn is_path(text: &str) -> bool {
     text.is_empty() || syn::parse_str::<syn::Path>(text).is_ok()
 }
@@ -101,7 +105,7 @@ fn api_map_files_have_the_shape_the_codemods_read() {
         }
         count += 1;
         let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-        let file: toml::Table = match fs::read_to_string(&path).map_err(|e| e.to_string()).and_then(|t| t.parse().map_err(|e: toml::de::Error| e.to_string())) {
+        let file = match read_table(&path) {
             Ok(file) => file,
             Err(error) => {
                 problems.push(format!("{name}: {error}"));
@@ -109,7 +113,8 @@ fn api_map_files_have_the_shape_the_codemods_read() {
             }
         };
         keys_within(&file, &["family", "new_module", "type", "call", "token", "setter"], &name, &mut problems);
-        if name != "common.toml" && (text(&file, "family").is_empty() || !is_path(text(&file, "new_module")) || !file.contains_key("new_module")) {
+        let family_shape = !text(&file, "family").is_empty() && file.contains_key("new_module") && is_path(text(&file, "new_module"));
+        if name != "common.toml" && !family_shape {
             problems.push(format!("{name}: a family file has `family` and a `new_module` path"));
         }
         check_types(&name, &file, &mut problems);
