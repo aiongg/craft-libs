@@ -234,7 +234,7 @@ fn escape_closes_a_collapsible_container_through_its_scope_rule() {
         let close = Cell::new(false);
         Holder::new(props.clone(), &close).id_salt("pane").show(ui, |ui, _| {
             ran.set(true);
-            Probe::new(&probes).size(LINE).show(ui);
+            Probe::new(&probes).size(LINE).leaves_cancel().show(ui);
         });
     };
     frames.idle(3, &mut show);
@@ -251,7 +251,7 @@ fn escape_closes_a_collapsible_container_through_its_scope_rule() {
 fn an_animated_collapse_keeps_the_body_while_it_closes() {
     let (height, ran) = (Cell::new(0.0), Cell::new(false));
     let close = Cell::new(false);
-    let props = ContainerProps::new().collapse(Collapse::new()).sizing(Sizing::Content);
+    let props = ContainerProps::new().header(HeaderRegion::new()).collapse(Collapse::new()).sizing(Sizing::Content);
     let mut frames = Frames::new();
     let mut show = |ui: &mut Ui| {
         ran.set(false);
@@ -264,6 +264,8 @@ fn an_animated_collapse_keeps_the_body_while_it_closes() {
     frames.idle(4, &mut show);
     let open = height.get();
     close.set(true);
+    // The pass that requests the close shows the body open; the next one starts the presence from open.
+    frames.frame(vec![], &mut show);
     frames.frame(vec![], &mut show);
     frames.advance(0.05);
     frames.frame(vec![], &mut show);
