@@ -9,12 +9,12 @@ use craft_behavior::kurbo::{Point, Rect as DocRect};
 use craft_behavior::{CanvasView, Mixed};
 use egui::{Rect, Ui, Vec2, vec2};
 
-/// How far the thumb is dragged, in points.
-const DRAG: f32 = 20.0;
+/// How far the thumb is dragged, in drag thresholds.
+const DRAG_THRESHOLDS: f32 = 3.0;
 
-/// Where the thumb is pressed, from the start of its track, in points: the views of the stories start at the document's
-/// start, so the thumb begins there and is longer than this.
-const GRIP: f32 = 8.0;
+/// Where the thumb is pressed, in drag thresholds from the start of its track: the views of the stories start at the
+/// document's start, so the thumb begins there and is longer than this.
+const GRIP_THRESHOLDS: f32 = 1.5;
 
 /// The document the bars scroll, in document units.
 const DOCUMENT: DocRect = DocRect::new(0.0, 0.0, 800.0, 600.0);
@@ -37,8 +37,9 @@ fn view_over(rect: Rect) -> CanvasView {
 fn drag_thumb(fixture: &mut Fixture) {
     let Some(id) = fixture.root_id() else { return };
     let Some(track) = fixture.part(id, HORIZONTAL) else { return };
-    let grip = Target { node: track.node, rect: Rect::from_center_size(track.rect.left_center() + vec2(GRIP, 0.0), Vec2::ZERO) };
-    fixture.drag(&grip, Vec2::new(DRAG, 0.0));
+    let threshold = crate::testing::input::max_click_dist(fixture.ctx());
+    let grip = Target { node: track.node, rect: Rect::from_center_size(track.rect.left_center() + vec2(GRIP_THRESHOLDS * threshold, 0.0), Vec2::ZERO) };
+    fixture.drag(&grip, Vec2::new(DRAG_THRESHOLDS * threshold, 0.0));
 }
 
 /// Shows the bars over `view` as the only canvas control of a canvas, and returns their output.

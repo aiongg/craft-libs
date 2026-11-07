@@ -9,8 +9,8 @@ use craft_behavior::kurbo::Point;
 use craft_behavior::{CanvasView, Mixed, RulerUnits};
 use egui::{Rect, Ui, Vec2};
 
-/// How far the corner is dragged, in points: out of the corner and onto the document.
-const DRAG: f32 = 80.0;
+/// How far the corner is dragged, in drag thresholds: out of the corner and onto the document.
+const DRAG_THRESHOLDS: f32 = 12.0;
 
 /// The document point the view is centred on.
 const CENTRE: Point = Point::new(200.0, 150.0);
@@ -27,7 +27,8 @@ fn pixels() -> RulerText {
 fn drag_corner(fixture: &mut Fixture) {
     let Some(id) = fixture.root_id() else { return };
     let Some(corner) = fixture.part(id, CORNER) else { return };
-    fixture.drag(&corner, Vec2::splat(DRAG));
+    let travel = DRAG_THRESHOLDS * crate::testing::input::max_click_dist(fixture.ctx());
+    fixture.drag(&corner, Vec2::splat(travel));
 }
 
 /// Shows `rulers` as the only canvas control of a canvas whose view lies inside the strips.

@@ -195,7 +195,7 @@ enum MenuRow {
 /// - A secondary click on a strip or the corner opens the units menu when [`units`](Rulers::units) lists units, and
 ///   reports [`RulerOutput::context`] either way. The menu's rows are also the [`RulerCommands`].
 #[derive(crate::contract::Component, crate::contract::Props)]
-#[component(canvas_control, content_painter)]
+#[component(canvas_control, content_painter, overlay)]
 pub struct Rulers<'a> {
     #[common]
     common: Common,
@@ -263,10 +263,6 @@ impl<'a> Rulers<'a> {
 
     fn text(&self, part: RulerPart) -> &RulerText {
         if part == RulerPart::Vertical { self.y } else { self.x }
-    }
-
-    fn locked(&self) -> bool {
-        self.origin_locked || !self.interactive
     }
 
     /// Where the zero point lands for the pointer at `pos`: on the nearest tick of the rulers with Shift, else where
