@@ -95,15 +95,11 @@ impl Component for IconButton<'_> {
         let mut surface = face::surface(cx, &off);
         surface.fill = off.fill.clone().on(on.fill.off);
         surface.border = off.edge.clone().map(|edge| edge.on(on.edge.as_ref().map_or(on.fill.off, |edge| edge.off)));
-        // The on fill is the soft accent fill, which the theme pairs with its normal text and not with the accent
-        // text; the glyph reads in the normal text while on.
-        let normal = cx.color(cx.tokens.color.text.normal);
-        let on_ink = States { rest: normal, hover: normal, pressed: normal, disabled: on.text.off.disabled };
         IconButtonStyle {
             surface,
             metrics: Metrics::new().min_size(Vec2::splat(control.height)),
             focus: face::focus(cx),
-            glyph: IconLook::new(control.icon, off.text.clone().on(on_ink)),
+            glyph: IconLook::new(control.icon, off.text.clone().on(on.text.off)),
             badge: control.icon * BADGE_RATIO,
             badge_edge: cx.color(cx.tokens.color.line.mark),
             mark: cx.tokens.space.gap.tight,

@@ -223,13 +223,13 @@ fn measure_contrast(subject: &Subject, source: &Source, reachable: Flags) -> Res
                             };
                             let ink = Rgba::from(paint);
                             let opaque_fill = fill.is_some_and(|fill| fill.a() == 255);
-                            let listed = |ground: &egui::Color32| table.lists(ink, Rgba::from(*ground));
-                            // An ink on a fill of its own must pair with that fill; on a ground it does not choose, it
-                            // must pair with at least one.
+                            // An ink on a fill of its own must pair with that fill. On a ground the style does not choose
+                            // (no fill, or a translucent one, or an ink painted on a part's own fill) the ink must
+                            // be a foreground of the table.
                             let unpaired = if opaque_fill {
-                                under.iter().find(|(_, ground)| !listed(ground))
+                                under.iter().find(|(_, ground)| !table.lists(ink, Rgba::from(*ground)))
                             } else {
-                                under.iter().all(|(_, ground)| !listed(ground)).then_some(&under[0])
+                                (!table.has_ink(ink)).then_some(&under[0])
                             };
                             if let Some((name, ground)) = unpaired {
                                 return Err(format!(
@@ -275,6 +275,10 @@ impl PairTable {
             .collect();
         let colors = ColorToken::ALL.iter().map(|&token| (token.path().to_owned(), colors.get(token))).collect();
         PairTable { pairs, colors }
+    }
+
+    fn has_ink(&self, ink: Rgba) -> bool {
+        self.pairs.iter().any(|(fg, _)| *fg == ink)
     }
 
     fn lists(&self, ink: Rgba, ground: Rgba) -> bool {
