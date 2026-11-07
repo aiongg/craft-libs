@@ -16,6 +16,7 @@ mod collate;
 mod date;
 mod fold;
 mod format;
+pub mod matcher;
 mod number;
 mod region;
 mod scripts;
