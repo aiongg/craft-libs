@@ -325,19 +325,12 @@ struct Inked<'a> {
     ink: &'a RefCell<Option<Ink>>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
 struct InkStyle {
+    #[style(surface)]
     look: SurfaceLook,
-}
-
-impl ComponentStyle for InkStyle {
-    fn metrics(&self) -> craft_behavior::Metrics {
-        craft_behavior::Metrics::new().min_size(Vec2::new(20.0, 20.0))
-    }
-
-    fn surface(&self) -> Option<&SurfaceLook> {
-        Some(&self.look)
-    }
+    #[style(metrics)]
+    metrics: craft_behavior::Metrics,
 }
 
 impl Component for Inked<'_> {
@@ -346,7 +339,10 @@ impl Component for Inked<'_> {
     type Output = Response;
 
     fn style(cx: &StyleCx<'_>, _: InkedStyleKey) -> InkStyle {
-        InkStyle { look: SurfaceLook::new(Stateful::new(cx.ink(Ink::OnPanel))).kind(SurfaceKind::Scrim) }
+        InkStyle {
+            look: SurfaceLook::new(Stateful::new(cx.ink(Ink::OnPanel))).kind(SurfaceKind::Scrim),
+            metrics: craft_behavior::Metrics::new().min_size(Vec2::new(20.0, 20.0)),
+        }
     }
 
     fn sense(&self) -> Sense {

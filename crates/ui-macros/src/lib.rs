@@ -8,6 +8,9 @@ mod style;
 mod token_group;
 mod util;
 
+#[cfg(test)]
+mod tests;
+
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{ItemFn, ReturnType, parse_macro_input};

@@ -96,15 +96,11 @@ struct Dot {
     common: Common,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
 struct DotStyle {
     color: StyleColor,
-}
-
-impl ComponentStyle for DotStyle {
-    fn metrics(&self) -> Metrics {
-        Metrics::new()
-    }
+    #[style(metrics)]
+    metrics: Metrics,
 }
 
 impl Component for Dot {
@@ -113,7 +109,7 @@ impl Component for Dot {
     type Output = Response;
 
     fn style(cx: &StyleCx<'_>, _: DotStyleKey) -> DotStyle {
-        DotStyle { color: cx.ink(Ink::OnDark) }
+        DotStyle { color: cx.ink(Ink::OnDark), metrics: Metrics::new() }
     }
 
     fn update(&mut self, _: &mut Cx<'_, Self>) {
@@ -144,7 +140,7 @@ impl Component for Host {
     type Output = Response;
 
     fn style(cx: &StyleCx<'_>, _: HostStyleKey) -> DotStyle {
-        DotStyle { color: cx.ink(Ink::OnPanel) }
+        DotStyle { color: cx.ink(Ink::OnPanel), metrics: Metrics::new() }
     }
 
     fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {

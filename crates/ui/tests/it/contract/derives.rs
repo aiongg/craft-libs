@@ -212,7 +212,7 @@ struct Parts {
 
 #[trial]
 fn a_derived_style_exposes_its_marked_parts() {
-    let style = Parts { surface: None, focus: FocusLook::new(egui::Stroke::new(2.0, egui::Color32::RED), 1.0), metrics: Metrics::new().gap(3.0) };
+    let style = Parts { surface: None, focus: FocusLook::new(egui::Stroke::NONE, 1.0), metrics: Metrics::new().gap(3.0) };
     assert!(style.surface().is_none(), "an absent optional surface is no surface");
     assert_eq!(style.focus(), Some(&style.focus));
     assert_eq!(style.metrics().gap, 3.0);
