@@ -9,7 +9,7 @@ use crate::runtime::egui::memory::Service;
 use crate::runtime::egui::{input as raw_input, pass, repaint};
 use crate::runtime::{focus, keys};
 use craft_behavior::{EditCommand, pick_instance, resolve_flags};
-use craft_keymap::{Active, Chord, CommandKind, CommandRef, Keymap, Matcher, ModalRule, Overrides, Platform, Scopes};
+use craft_keymap::{Active, Chord, CommandKind, CommandRef, Keymap, Matcher, ModalRule, Overrides, Platform, Press, Scopes};
 use egui::{Context, Id, ViewportId};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -391,7 +391,11 @@ pub(crate) fn begin(ctx: &Context) {
                 }
             }
             _ => {
-                let Some(hit) = matcher.press(&shortcuts.layout, &shortcut.input, false, now, &keymap, &active, outer) else { continue };
+                let Some(hit) =
+                    matcher.press(&shortcuts.layout, &keymap, &Press { input: &shortcut.input, repeat: false, now, active: &active, outer })
+                else {
+                    continue;
+                };
                 let (app, instance) = with(ctx, |board| board.target_of(ctx, &hit.command));
                 if !resolve_in(ctx, &hit.command, instance).enabled {
                     continue;

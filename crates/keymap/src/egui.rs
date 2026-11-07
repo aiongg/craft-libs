@@ -8,7 +8,7 @@ use crate::chord::{Chord, Key, Mods, Platform};
 use crate::keymap::Keymap;
 use crate::layout::{KeyInput, Layout};
 pub use crate::matcher::Hit;
-use crate::matcher::Matcher;
+use crate::matcher::{Matcher, Press};
 use crate::scope::Active;
 
 /// The platform to build a keymap for in this context. Unlike [`Platform::current`], a web build
@@ -339,7 +339,7 @@ impl Dispatcher {
     }
 
     fn press(&mut self, input: &KeyInput, repeat: bool, now: f64, keymap: &Keymap, active: &Active) -> Option<Hit> {
-        self.matcher.press(&self.layout, input, repeat, now, keymap, active, &[])
+        self.matcher.press(&self.layout, keymap, &Press { input, repeat, now, active, outer: &[] })
     }
 
     /// Takes the platform's answer on whether the layout is Latin. `None` (not reported) leaves

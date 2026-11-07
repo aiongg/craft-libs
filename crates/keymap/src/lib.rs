@@ -167,7 +167,7 @@ pub use keymap::{
     Lookup, MAX_BINDING_TEXT, MAX_BINDINGS, MAX_COMMANDS, MAX_CONFLICTS, ModalRule, Overrides, Policy, Problem, TypingRule, text_editing_chords,
 };
 pub use layout::{COMMON_SYMBOLS, KeyInput, Layout, SYMBOL_TABLE, SymbolLayout};
-pub use matcher::{Hit, Matcher};
+pub use matcher::{Hit, Matcher, Press};
 pub use parity::ReturnGlyph;
 #[cfg(feature = "egui")]
 pub use parity::{ClipboardPress, clipboard_presses};

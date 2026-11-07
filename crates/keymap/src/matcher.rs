@@ -53,6 +53,21 @@ struct LastPress {
     panel: Option<String>,
 }
 
+/// One key press to match.
+#[derive(Clone, Copy, Debug)]
+pub struct Press<'a> {
+    /// What the toolkit reports of the key.
+    pub input: &'a KeyInput,
+    /// A repeat of a held key: it runs a single binding and never counts toward a double press.
+    pub repeat: bool,
+    /// The time of the press in seconds.
+    pub now: f64,
+    /// What has the keyboard.
+    pub active: &'a Active<'a>,
+    /// The panels around the focused one, innermost first ([`Keymap::lookup_nested`]).
+    pub outer: &'a [&'a str],
+}
+
 /// The state that matching presses carries between them: the previous press, for double presses.
 #[derive(Clone, Debug)]
 pub struct Matcher {
@@ -73,18 +88,9 @@ impl Matcher {
         Matcher::default()
     }
 
-    /// The command `input` runs, with `layout` reading the press. `outer` lists the panels around the focused
-    /// one ([`Keymap::lookup_nested`]). A repeat runs a single binding and never counts toward a double press.
-    pub fn press(
-        &mut self,
-        layout: &Layout,
-        input: &KeyInput,
-        repeat: bool,
-        now: f64,
-        keymap: &Keymap,
-        active: &Active,
-        outer: &[&str],
-    ) -> Option<Hit> {
+    /// The command `press` runs, with `layout` reading the key.
+    pub fn press(&mut self, layout: &Layout, keymap: &Keymap, press: &Press<'_>) -> Option<Hit> {
+        let Press { input, repeat, now, active, outer } = *press;
         let mut chords = layout.candidates(input);
         let first = *chords.first()?;
         if self.delete_equivalence {
