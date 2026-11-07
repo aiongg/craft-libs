@@ -19,8 +19,236 @@ old = "craft_ui::dialog::command_form::CommandForm"
 new = "craft_ui::patterns::form_dialogs::CommandForm"
 status = "pending"
 
+
+# Parameter model and rows (form-dialogs-a).
+[[type]]
+name = "Param"
+old = "craft_ui::dialog::params::Param"
+new = "craft_ui::patterns::form_dialogs::Param"
+status = "moved"
+note = "`label`, `hint` and `tooltip` are `Label`s (a word or a string) in place of English strings the dialog translated; `unit` is a `UnitKind`; the struct is `#[non_exhaustive]`, so build it with `Param::new`."
+
+[[type]]
+name = "ParamKind"
+old = "craft_ui::dialog::params::ParamKind"
+new = "craft_ui::patterns::form_dialogs::ParamKind"
+status = "moved"
+note = "Struct-like variants are `#[non_exhaustive]`: build a kind with `ParamKind::range`, `int`, `number`, `bool`, `choice`, `angle`, `color`, `grid`, `point`, `channel`, `text` or `optional_number`. `Choice` options are `(String, Label)`."
+
+[[type]]
+name = "NumberUnit"
+old = "craft_ui::dialog::params::NumberUnit"
+new = "craft_ui::patterns::form_dialogs::NumberUnit"
+status = "moved"
+note = "`label` is a `Label`; build with `NumberUnit::new`."
+
+[[type]]
+name = "PathKind"
+old = "craft_ui::dialog::params::PathKind"
+new = "craft_ui::patterns::form_dialogs::PathKind"
+status = "moved"
+
+[[type]]
+name = "PathRequest"
+old = "craft_ui::dialog::params::PathRequest"
+new = "craft_ui::patterns::form_dialogs::PathRequest"
+status = "moved"
+note = "`#[non_exhaustive]`: build with `PathRequest::new(key, kind)`."
+
+[[type]]
+name = "EyedropperRequest"
+old = "craft_ui::dialog::params::EyedropperRequest"
+new = "craft_ui::patterns::form_dialogs::EyedropperRequest"
+status = "moved"
+note = "`#[non_exhaustive]`: build with `EyedropperRequest::new(key, armed)`."
+
+[[type]]
+name = "CustomRow"
+old = "craft_ui::dialog::params::CustomRow"
+new = "craft_ui::patterns::form_dialogs::CustomRow"
+status = "moved"
+note = "The draw closure takes `&mut CustomContext` in place of `&CustomContext`."
+
+[[type]]
+name = "CustomContext"
+old = "craft_ui::dialog::params::CustomContext"
+new = "craft_ui::patterns::form_dialogs::CustomContext"
+status = "moved"
+note = "`pick_color(&mut self, key)` records the request, which comes back as `ParamRowsOutput::pick_color`; it no longer goes through egui temp data."
+
+[[type]]
+name = "ParamRowsResponse"
+old = "craft_ui::dialog::params::ParamRowsResponse"
+new = ""
+status = "removed"
+note = "Replaced by `ParamRowsOutput { response, changed, values, pick_color, path, eyedropper }`; `color` is `pick_color`."
+
+[[type]]
+name = "ParamRowsOutput"
+old = ""
+new = "craft_ui::patterns::form_dialogs::ParamRowsOutput"
+status = "replaced"
+note = "The output of `ParamRows::show`, in place of `ParamRowsResponse`; `values` holds the values after the pass for a binding that does not write through."
+
+[[type]]
+name = "ParamRows"
+old = "craft_ui::dialog::params::ParamRows"
+new = "craft_ui::patterns::form_dialogs::ParamRows"
+status = "moved"
+note = "A pattern on `FieldGroup`: `ParamRows::new(label, &params, Bind<DialogFields>)` in place of `new(id_salt, &params)` with `show(ui, &mut fields)`; `show(ui)` returns `ParamRowsOutput`. A `Param::section` opens a `Section` whose body is the rows up to the next section."
+
+[[type]]
+name = "DialogFields"
+old = "craft_ui::dialog::fields::DialogFields"
+new = "craft_ui::patterns::form_dialogs::DialogFields"
+status = "moved"
+
+[[type]]
+name = "FieldValue"
+old = "craft_ui::dialog::fields::FieldValue"
+new = "craft_ui::patterns::form_dialogs::FieldValue"
+status = "moved"
+
+[[type]]
+name = "ColorRequest"
+old = "craft_ui::dialog::color_request::ColorRequest"
+new = "craft_ui::patterns::form_dialogs::ColorRequest"
+status = "moved"
+note = "`title` is an `Option<Label>`; `#[non_exhaustive]`, build with `ColorRequest::new(key, color)`."
+
+# Functions the L4 properties dialog calls.
+[[call]]
+old = "translated(ctx, text)"
+new = ""
+note = "Removed: a row's label, hint, tooltip and option labels are `Label`s, so an app passes a word (`Label::from(word)`) where it passed English text for the dialog to translate."
+
+[[call]]
+old = "encode(component)"
+new = "craft_ui::patterns::form_dialogs::encode(component)"
+note = "Moved unchanged: an sRGB component in 0 to 1 as a byte."
+
+[[call]]
+old = "open_fields(ctx, id, &params, &mut fields)"
+new = "craft_ui::patterns::form_dialogs::open_fields(&params, &mut fields)"
+note = "Fills the defaults and takes the opening snapshot; the first-field focus is the dialog's `Initial::First`, so it takes no context or id."
+
 # One entry per renamed, removed or reshaped setter or constructor.
-# [[setter]]
-# type = ""
-# old = ""
-# new = ""
+# Param builders.
+[[setter]]
+type = "Param"
+old = "Param::new(key, label: impl Into<String>, kind)"
+new = "Param::new(key, label: impl Into<Label>, kind)"
+
+[[setter]]
+type = "Param"
+old = "Param::number(key, label: impl Into<String>, default, step, decimals)"
+new = "Param::number(key, label: impl Into<Label>, default, step, decimals)"
+
+[[setter]]
+type = "Param"
+old = "bounds(lo, hi)"
+new = "bounds(lo, hi)"
+note = "Unchanged."
+
+[[setter]]
+type = "Param"
+old = "Param::custom(key, label, draw: Fn(&mut Ui, &mut DialogFields, &CustomContext) -> Response)"
+new = "Param::custom(key, label: impl Into<Label>, draw: Fn(&mut Ui, &mut DialogFields, &mut CustomContext) -> Response)"
+
+[[setter]]
+type = "Param"
+old = "Param::section(label: impl Into<String>)"
+new = "Param::section(label: impl Into<Label>)"
+note = "Shows as a `Section` over the rows that follow it, not a heading over a hairline."
+
+[[setter]]
+type = "Param"
+old = "Param::number_with_units(key, label: impl Into<String>, base, step, decimals, units)"
+new = "Param::number_with_units(key, label: impl Into<Label>, base, step, decimals, units)"
+
+[[setter]]
+type = "Param"
+old = "default_unit(id)"
+new = "default_unit(id)"
+note = "Unchanged."
+
+[[setter]]
+type = "Param"
+old = "visible_when(key, value)"
+new = "visible_when(key, value)"
+note = "Unchanged."
+
+[[setter]]
+type = "Param"
+old = "enabled_when(key, value)"
+new = "enabled_when(key, value)"
+note = "Unchanged."
+
+[[setter]]
+type = "Param"
+old = "browse(kind)"
+new = "browse(kind)"
+note = "Unchanged; the press comes back as `ParamRowsOutput::path`."
+
+[[setter]]
+type = "Param"
+old = "hint(text: impl Into<String>)"
+new = "hint(text: impl Into<Label>)"
+
+[[setter]]
+type = "Param"
+old = "tooltip(text: impl Into<String>)"
+new = "tooltip(text: impl Into<Label>)"
+
+[[setter]]
+type = "Param"
+old = "decimals(places)"
+new = "decimals(places)"
+note = "Unchanged."
+
+[[setter]]
+type = "Param"
+old = "randomize()"
+new = "randomize()"
+note = "Unchanged; the button draws from the sequence of `ParamRows::seed`."
+
+[[setter]]
+type = "Param"
+old = "eyedropper()"
+new = "eyedropper()"
+note = "Unchanged; the press comes back as `ParamRowsOutput::eyedropper`."
+
+[[setter]]
+type = "Param"
+old = "armed(armed)"
+new = "armed(armed)"
+note = "Unchanged."
+
+[[setter]]
+type = "Param"
+old = "full_width()"
+new = "full_width()"
+note = "Unchanged."
+
+[[setter]]
+type = "Param"
+old = "not_remembered()"
+new = "not_remembered()"
+note = "Unchanged."
+
+[[setter]]
+type = "Param"
+old = "unit(unit: Unit)"
+new = "unit(unit: UnitKind)"
+note = "`craft_ui::runtime::env::UnitKind` in place of a localized `Unit` template."
+
+[[setter]]
+type = "ParamRows"
+old = "preview(image: SizedTexture)"
+new = ""
+note = "The preview pane belongs to `ParamDialog` (form-dialogs-b); the rows take no image."
+
+[[setter]]
+type = "ParamRows"
+old = "ParamRows::show(ui, &mut fields)"
+new = "ParamRows::new(label, &params, Bind::bound(&mut fields)).show(ui)"
