@@ -7,7 +7,7 @@ use super::values::reuse_arc;
 use super::{Common, Component, Cx, IdSource, Pointer as _, Resolved, Styled as _, Validity, ValueOf};
 use crate::primitives::sensing::PartDecl;
 use crate::primitives::{FaceRecord, FocusKind, FocusRing, PaintShape, StateLayer, StateLayerKind, Surface};
-use crate::runtime::access::{Access, Role, SubNode, scope};
+use crate::runtime::access::{Access, Politeness, Role, SubNode, scope};
 use crate::runtime::commands::{self, CommandKind, ResolvedCommand};
 use crate::runtime::egui::access::{self as adapter, FaceFacts, Own, SubDecl};
 use crate::runtime::egui::{memory as store, pass, repaint, response};
@@ -18,7 +18,9 @@ use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::motion::{Drives as _, spec};
 use crate::runtime::{inspect, keys, layout_memory, wheel};
 use crate::style::{ComponentStyle, Flags, Ink, StateSet, StyleCx, accepted_variant, resolve_style, surface_style};
-use craft_behavior::{CancelReason, EditEvent, Gesture, GesturePhase, Intent, KeyRole, Mixed, PartRef, PressCancel, Proposal, Roving, Sense, Value};
+use craft_behavior::{
+    CancelReason, EditEvent, Gesture, GesturePhase, Input, Intent, KeyRole, Mixed, PartRef, PressCancel, Proposal, Roving, Sense, Value,
+};
 use craft_theme::{ControlSize, State, StateMix, Variant};
 use egui::{Context, Id, Rect, Response, Ui, Vec2};
 use std::any::TypeId;
@@ -486,10 +488,36 @@ pub(crate) struct StopsIn<'a> {
     pub role: KeyRole,
     pub rtl: bool,
     pub parts: &'a PartsStep,
+    /// The roving group of the body this component is shown in: its own stop joins it.
+    pub group: Option<Id>,
+    /// The container's `ContainerProps.roving`: its body's members form this group.
+    pub body_roving: Option<Roving>,
+}
+
+/// The id of the roving group a container's body forms.
+/// Records that `id` is a member of the roving `group` in this pass.
+pub(crate) fn join_group(ctx: &Context, group: Id, id: Id) {
+    store::put(ctx, sub(group, ("member", id)), crate::runtime::pointer::pass_of(ctx));
+}
+
+/// `group` when `id` joined it in this pass or the one before, else `None`: a component that is no member keeps its
+/// own Tab stop.
+pub(crate) fn member_group(ctx: &Context, group: Option<Id>, id: Id) -> Option<Id> {
+    let group = group?;
+    let pass = crate::runtime::pointer::pass_of(ctx);
+    let joined = store::peek_clone::<u64>(ctx, sub(group, ("member", id)))?;
+    (joined.saturating_add(1) >= pass).then_some(group)
+}
+
+pub(crate) fn body_group(id: Id) -> Id {
+    sub(id, "body_roving")
 }
 
 pub(crate) fn register_stops(input: &StopsIn<'_>) {
     let ctx = input.ctx;
+    if let Some(roving) = input.body_roving {
+        focus::register_group(ctx, Group::new(body_group(input.id), roving).rtl(input.rtl));
+    }
     debug_assert!(input.parts.rovings.len() <= 1, "a component declares one roving group; a second would be dropped");
     let group = (!input.parts.rovings.is_empty()).then(|| sub(input.id, "roving"));
     if let (Some(group), Some(roving)) = (group, input.parts.rovings.first()) {
@@ -497,7 +525,7 @@ pub(crate) fn register_stops(input: &StopsIn<'_>) {
     }
     let own = || Stop::new(input.id, input.keys).root(input.holder).role(input.role);
     if input.focusable {
-        focus::register_stop(ctx, own());
+        focus::register_stop(ctx, if let Some(group) = input.group { own().in_group(group) } else { own() });
     }
     for (decl, extras) in &input.parts.decls {
         if extras.focusable {
@@ -601,12 +629,29 @@ pub(crate) fn edit_intents<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
             cx.cancel(reason);
         }
     }
-    if cx.core.intents.take(Intent::Reset) {
+    let double = is_double_click(&cx.core);
+    if cx.core.intents.take(Intent::Reset) || (double && !matches!(C::INPUT, Input::Text | Input::Editor)) {
         let reset = comp.bind().and_then(|bind| bind.reset_value().cloned());
         if let Some(reset) = reset {
             cx.set(reset);
         }
     }
+}
+
+/// A second press of a double click went down on the component's root or one of its parts this pass.
+fn is_double_click(core: &CxCore<'_>) -> bool {
+    let second = |phase: &craft_behavior::PressPhase| matches!(phase, craft_behavior::PressPhase::Down { start, .. } if start.clicks >= 2);
+    second(&core.press.phase) || core.results.values().any(|result| second(&result.press.phase))
+}
+
+/// Step 12: a control with a reset value tells its label scope whether its value differs from it (10.2).
+pub(crate) fn register_reset<C: Component>(comp: &mut C, cx: &Cx<'_, C>) {
+    if matches!(C::INPUT, Input::Text | Input::Editor) {
+        return;
+    }
+    let Some(reset) = comp.bind().and_then(|bind| bind.reset_value().cloned()) else { return };
+    let differs = cx.mixed || cx.shown.as_deref() != Some(&reset);
+    scope::register_reset(&cx.core.ctx, cx.core.id, differs);
 }
 
 /// Writes back what the component left untaken, and its state-dependent claims for the next frames.
@@ -919,6 +964,10 @@ pub(crate) struct ReportIn<'a> {
     pub node: bool,
     pub decls: &'a [(PartDecl, PartExtras)],
     pub sense: Sense,
+    /// The container's `ContainerProps.live`.
+    pub live: Option<Politeness>,
+    /// The roving group the component's own stop is in.
+    pub group: Option<Id>,
 }
 
 /// The bound command's hint and shortcut text, which describe and key its node.
@@ -959,6 +1008,12 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
     let validity = validity_message(cx);
     let tooltip_text = resolved.tooltip.map(|tooltip| core.env.resolve(&tooltip.spec().text));
     let tooltip = tooltip_text.as_ref().map(Label::as_str);
+    if access.live.is_none() {
+        access.live = input.live;
+    }
+    if access.position.is_none() {
+        access.position = input.group.and_then(|group| focus::group_position(ctx, id, group));
+    }
     let paint = core.paint.borrow();
     if role == Role::Merged {
         let facts = scope::Merged {

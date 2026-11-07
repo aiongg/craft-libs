@@ -2,12 +2,13 @@
 //! gate state, scroll offset, move and resize, and the zoomed canvas body.
 
 use super::cx::BodyCx;
+use super::label::{self, LabelIn};
 use crate::style::ComponentStyle as _;
 use super::run::{ShapeHooks, ShowAt};
 use super::{Container, ContainerProps, Cx, Gap, Internal, Mount, Pad, PartsCx, Scroll, Sizing};
 use crate::layout;
 use crate::primitives::{ScrollBar, Surface};
-use crate::runtime::access::Role;
+use crate::runtime::access::{Politeness, Role};
 use crate::runtime::egui::{access, alloc, areas, child, response, style};
 use crate::runtime::env::{AppValues, ArenaId, Env};
 use crate::runtime::focus::FocusPolicy;
@@ -15,7 +16,7 @@ use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::{commands, layout_memory, wheel};
 use crate::style::{Corners, RuleKind, StyleCx, UiTokens, rule_look, scroll_bar_look, surface_style};
 use craft_behavior::{
-    Axis, CursorIcon, EditEvent, GestureId, HitLevel, HitPriority, Mixed, PartKey, PressPhase, ScrollPos, ScrollSpan, WheelTaker,
+    Axis, Roving, CursorIcon, EditEvent, GestureId, HitLevel, HitPriority, Mixed, PartKey, PressPhase, ScrollPos, ScrollSpan, WheelTaker,
 };
 use egui::emath::TSTransform;
 use egui::{Context, Id, Pos2, Rect, Shape, Stroke, Ui, UiBuilder, Vec2};
@@ -250,6 +251,14 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
 
     fn arena(&self, comp: &C) -> bool {
         comp.props(Internal::new()).arena
+    }
+
+    fn roving(&self, comp: &C) -> Option<Roving> {
+        comp.props(Internal::new()).roving
+    }
+
+    fn live(&self, comp: &C) -> Option<Politeness> {
+        comp.props(Internal::new()).live
     }
 
     fn read(&mut self, comp: &mut C, stage: &mut MemoryStage, id: Id, env: &Env) {
@@ -505,6 +514,23 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             close |= bcx.close_requested();
             self.header_size = Some(header_ui.min_rect().size());
         }
+        // B2 label: the control gets the rect the label leaves; the label column adds to the container's extent.
+        let mut body_rect = regions.body;
+        if let Some(side) = props.label {
+            let resolved = cx.core.resolved;
+            let input = LabelIn {
+                scope: id,
+                parent: node.then_some(id),
+                row: regions.body,
+                text: resolved.label_value,
+                side: &side,
+                enabled: resolved.enabled,
+                size: resolved.size,
+                control_min: self.remembered.map_or(0.0, |size| size.x),
+            };
+            body_rect = label::run(ui, env, &input);
+        }
+        let label_extra = (regions.body.size() - body_rect.size()).max(Vec2::ZERO);
         // B3 body, if open, under the body env; the gate is read after the header changed it.
         let is_open = open;
         let enabled = gate.unwrap_or(true);
@@ -519,11 +545,14 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 if let Some(size) = props.child_size {
                     scoped.size = size;
                 }
+                if props.roving.is_some() {
+                    scoped.roving = Some(super::steps::body_group(id));
+                }
                 if let Some(scope) = props.command_scope {
                     scoped.commands = scoped.commands.pushed(scope, id);
                 }
             });
-            let mut bcx = BodyCx::new(body_id, body_env.view(), resolved, regions.body, &mut *cx.core.memory, &mut open, gate.as_mut());
+            let mut bcx = BodyCx::new(body_id, body_env.view(), resolved, body_rect, &mut *cx.core.memory, &mut open, gate.as_mut());
             let gap = Vec2::splat(gap_of(&env.tokens, props.body_gap));
             let layout_id = sub(id, "layout");
             let (layout, body) = (&props.layout, &mut *self.body);
@@ -558,17 +587,20 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                     let parent = ui.layer_id();
                     let layer = areas::body_layer(parent, id);
                     let scale = transform.scale;
-                    let tf = TSTransform::new(regions.body.min.to_vec2() * (1.0 - scale) + transform.offset, scale);
+                    let tf = TSTransform::new(body_rect.min.to_vec2() * (1.0 - scale) + transform.offset, scale);
                     if props.arena {
                         crate::primitives::sensing::set_layer(&ctx, ArenaId::new(id), layer);
                     }
                     let forward = areas::Forward { id: sub(id, "transform"), sense: response::to_egui(cx.core.root_sense), rect: rect.intersect(ui.clip_rect()) };
-                    areas::show_body_layer(&ctx, parent, layer, tf, regions.body.min, Some(forward), |area_ui| run(area_ui, regions.body, &mut bcx))
+                    areas::show_body_layer(&ctx, parent, layer, tf, body_rect.min, Some(forward), |area_ui| run(area_ui, body_rect, &mut bcx))
                 }
-                None => run(ui, regions.body, &mut bcx),
+                None => run(ui, body_rect, &mut bcx),
             };
             close |= bcx.close_requested();
-            self.view = Some(regions.body);
+            if let Some(size) = &mut self.body_size {
+                *size += label_extra;
+            }
+            self.view = Some(body_rect);
         } else {
             self.body_size = Some(Vec2::ZERO);
         }

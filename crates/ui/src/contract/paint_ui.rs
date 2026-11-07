@@ -1,12 +1,15 @@
 //! `PaintUi` (5.3): what `paint` and `paint_over` get instead of a `Ui`. It lives in the contract (layer 4)
 //! because `child` and `face` show components; `Draw` and the painters stay in `primitives`.
 
+use super::SideLabel;
+use super::label::{self, LabelIn};
 use super::run::{self, FaceSource, ShowAt};
 use super::{ContentPainter, Cx, Show, TipFn};
 use crate::primitives::sensing::PartResults;
 use crate::primitives::{ContentPainterCx, Draw, DrawEnv, PaintRecord};
+use crate::runtime::access::scope;
 use crate::runtime::egui::{access, alloc, child};
-use crate::runtime::env::Env;
+use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::sub;
 use crate::style::Ink;
 use craft_behavior::PartRef;
@@ -45,16 +48,31 @@ impl PaintUi<'_> {
     /// Shows a child component at a physical rect, with id `cx.key(key)`. The child `Ui` is pinned left to
     /// right: this site is unmirrored.
     pub fn child<C: Show>(&mut self, key: impl Hash + Debug, rect: Rect, child: C) -> C::Output {
-        self.child_with(key, rect, child, None)
+        self.child_with(self.id.with(key), rect, child, None)
     }
 
     /// Shows a child with rich tooltip content.
     pub fn child_with_tip<C: Show>(&mut self, key: impl Hash + Debug, rect: Rect, child: C, tip: impl FnOnce(&mut Ui)) -> C::Output {
-        self.child_with(key, rect, child, Some(Box::new(tip)))
+        self.child_with(self.id.with(key), rect, child, Some(Box::new(tip)))
     }
 
-    fn child_with<C: Show>(&mut self, key: impl Hash + Debug, rect: Rect, child: C, tip: Option<TipFn<'_>>) -> C::Output {
+    /// Runs the label step (B2) for one leaf child at `rect`: the label's placement beside or above the child, the
+    /// label scope, scrub and the reset dot. The child gets the rect the label leaves.
+    pub fn labelled<C: Show>(&mut self, key: impl Hash + Debug, rect: Rect, label: Label, side: SideLabel, child: C) -> C::Output {
         let id = self.id.with(key);
+        let row = sub(id, "field");
+        let env = Env::of(self.ui);
+        let mut child = child;
+        let control_min = child.measure_in(&*self.ui, craft_behavior::Proposal::Min).x;
+        let input =
+            LabelIn { scope: row, parent: Some(self.id), row: rect, text: &label, side: &side, enabled: self.enabled, size: self.size, control_min };
+        let control = label::run(&mut *self.ui, &env, &input);
+        let output = self.child_with(id, control, child, None);
+        scope::finish(self.ui.ctx(), row, None);
+        output
+    }
+
+    fn child_with<C: Show>(&mut self, id: Id, rect: Rect, child: C, tip: Option<TipFn<'_>>) -> C::Output {
         let scope = sub(self.id, "children");
         let parent = &mut *self.ui;
         let kids = self.kids.get_or_insert_with(|| {

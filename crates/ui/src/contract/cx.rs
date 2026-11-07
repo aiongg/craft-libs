@@ -91,6 +91,24 @@ pub struct CxCore<'a> {
     pub(crate) scroll_moves: Vec<(PartKey, Range<f64>)>,
     /// The sense the root's egui widget carries, for the forwarding widget of a transformed body.
     pub(crate) root_sense: Sense,
+    /// The member of the container's roving group Tab arrives at, set by the group's pick.
+    pub(crate) roving_arrival: Option<Id>,
+}
+
+impl<C: Component> Cx<'_, C> {
+    /// Makes this component a member of the roving group of the body it is shown in: its stop joins the group and
+    /// Tab visits the group once. A component that never calls it keeps its own Tab stop.
+    pub fn join_roving(&mut self) {
+        if let Some(group) = self.core.env.roving() {
+            super::steps::join_group(&self.core.ctx, group, self.core.id);
+        }
+    }
+
+    /// Names the member of this container's roving group (`ContainerProps.roving`) that Tab arrives at; the
+    /// first member when none is named.
+    pub fn roving_arrival(&mut self, member: Id) {
+        self.core.roving_arrival = Some(member);
+    }
 }
 
 impl sealed::Sealed for CxCore<'_> {}

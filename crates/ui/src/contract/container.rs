@@ -1,5 +1,6 @@
 //! `ContainerProps` and the types of its fields (16.2).
 
+use super::label::SideLabel;
 use super::overlay::Overlay;
 use crate::layout::BodyLayout;
 use crate::runtime::access::Politeness;
@@ -310,12 +311,6 @@ pub enum Gap {
     /// `space.gap.section`.
     Section,
 }
-
-/// A field label's kind, layout and role.
-// F5-MERGE: F5d owns `SideLabel`; the combiner replaces this with the label step's type.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct SideLabel;
 
 /// What a container or collection adds to `Common`.
 #[derive(Clone, Debug)]

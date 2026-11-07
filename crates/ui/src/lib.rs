@@ -14,6 +14,7 @@ pub mod canvas;
 pub mod canvas_controls;
 pub mod choice;
 pub mod contract;
+pub mod controls;
 pub mod dialog;
 pub mod display;
 pub mod docking;

@@ -6,13 +6,16 @@ mod callsites;
 mod commands;
 mod contract;
 mod drag;
+mod controls;
 mod egui_surface;
 mod focus;
+mod label;
 mod layout;
 mod motion;
 mod overlay;
 mod paint;
 mod runtime;
+mod sections;
 mod style;
 mod values;
 

@@ -284,6 +284,9 @@ pub struct Scoped {
     pub scale: Scale,
     /// The innermost arena: components shown under it join it.
     pub arena: Option<ArenaId>,
+    /// The roving group of the innermost body with `ContainerProps.roving`: components shown under it put
+    /// their stops in it instead of the scope's Tab order.
+    pub(crate) roving: Option<Id>,
     /// From `ContainerProps.transform`.
     pub transform: Option<CanvasTransform>,
     /// The `Grid` body whose cursor places the children in flow.
@@ -361,6 +364,7 @@ impl Env {
                 ids_stable: true,
                 scale,
                 arena: None,
+                roving: None,
                 transform: None,
                 grid: None,
                 in_scroll: false,
@@ -407,6 +411,7 @@ impl Env {
     pub fn capture(&self) -> EnvCapture {
         EnvCapture(self.derive(|s| {
             s.arena = None;
+            s.roving = None;
             s.transform = None;
             s.grid = None;
             s.in_scroll = false;
@@ -546,6 +551,11 @@ pub struct EnvView<'a> {
 }
 
 impl<'a> EnvView<'a> {
+    /// The roving group of the innermost body with `ContainerProps.roving`.
+    pub(crate) fn roving(&self) -> Option<Id> {
+        self.scoped.roving
+    }
+
     /// The layout direction.
     pub fn direction(&self) -> Direction {
         self.scoped.direction

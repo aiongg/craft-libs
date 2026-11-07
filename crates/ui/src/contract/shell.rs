@@ -3,7 +3,6 @@
 //! F3-LATER: the item step (F6). `CollectionProps` carries the collection's key-independent settings.
 
 
-
 /// What a collection reads from the app: plain data.
 #[derive(Clone, Debug, Default)]
 #[non_exhaustive]

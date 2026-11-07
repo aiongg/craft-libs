@@ -11,13 +11,13 @@ use super::{
 use super::{Inner, ItemFn};
 use crate::primitives::sensing::{self, MemberSpec, PartDecl, RootSpec};
 use crate::primitives::{FaceRecord, PaintRecord, PartResult, face_id};
-use crate::runtime::access::{Role, scope};
+use crate::runtime::access::{Politeness, Role, scope};
 use crate::runtime::egui::{access, alloc, child};
 use crate::runtime::env::{AppValues, ArenaId, Env, EnvView};
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::{commands, focus, inspect, keys, memory};
 use crate::style::{ComponentStyle as _, Ink, StateSet, StyleCx};
-use craft_behavior::{Flow, Input, ItemLayout, ItemSource, KeyRole, PartRef, PressState, Proposal, ScrollPos, Sense};
+use craft_behavior::{Flow, Input, ItemLayout, ItemSource, KeyRole, PartRef, PressState, Proposal, Roving, ScrollPos, Sense};
 use craft_theme::ControlSize;
 use egui::{Context, Id, Rect, Response, Ui, UiBuilder, Vec2};
 use std::cell::RefCell;
@@ -69,6 +69,16 @@ pub(crate) trait ShapeHooks<C: Component> {
     /// Whether the root is an arena root: its sense covers its members.
     fn arena(&self, _comp: &C) -> bool {
         false
+    }
+
+    /// The roving rules of the body's members, when the shape's body forms one group.
+    fn roving(&self, _comp: &C) -> Option<Roving> {
+        None
+    }
+
+    /// The politeness of a live region the shape's body is.
+    fn live(&self, _comp: &C) -> Option<Politeness> {
+        None
     }
 
     /// What the shape adds to the content size at step 5, before padding and `min_size`.
@@ -225,6 +235,7 @@ fn blank_core<'a>(
         press_cancel: None,
         scroll_moves: Vec::new(),
         root_sense: Sense::empty(),
+        roving_arrival: None,
     }
 }
 
@@ -338,6 +349,8 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
         role: KeyRole::new().resettable(resettable),
         rtl,
         parts: &parts,
+        group: steps::member_group(&ctx, env.roving, id),
+        body_roving: p.hooks.roving(comp),
     });
     if !inert {
         steps::register_wheel(&ctx, id, rect, own, comp.bind().is_some());
@@ -399,6 +412,9 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     overlay::begin_owner(&ctx, id);
     comp.update(cx);
     p.hooks.updated(comp, cx);
+    if let (Some(roving), Some(arrival)) = (p.hooks.roving(comp), cx.core.roving_arrival) {
+        focus::register_group(&ctx, focus::Group::new(steps::body_group(id), roving).rtl(rtl).selected(arrival));
+    }
     // 10 overlay
     p.trace.mark(Step::Overlay);
     let open = overlay::open_map(&mut *cx.core.memory, id);
@@ -411,6 +427,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     p.trace.mark(Step::Apply);
     steps::apply_values(comp, cx);
     p.hooks.apply(comp, cx);
+    steps::register_reset(comp, cx);
     // 12 state
     p.trace.mark(Step::State);
     steps::state(comp, cx, overlay::popup_shown(&ctx, id), env.ink);
@@ -438,7 +455,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     steps::settle(comp, cx);
     // 16 report, then the tooltip.
     p.trace.mark(Step::Report);
-    steps::report(comp, cx, &steps::ReportIn { node, decls: &parts.decls, sense: own });
+    steps::report(comp, cx, &steps::ReportIn { node, decls: &parts.decls, sense: own, live: p.hooks.live(comp), group: steps::member_group(&ctx, env.roving, id) });
     tooltip::run(cx, tooltip::TipIn { ui: &*ui, env, rich: p.tip.take() });
     p.activated = comp.activated(cx) && resolved.enabled;
 }
@@ -535,6 +552,12 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     if real_pass {
         trace.mark(Step::Finish);
         steps::before_finish(&mut cx, activated);
+        if shape == ShapeKind::Leaf {
+            let baseline = cx.core.paint.borrow().baseline;
+            if let Some(baseline) = baseline {
+                scope::record_baseline(&ctx, baseline - cx.core.rect.top());
+            }
+        }
     }
     let output = comp.finish(cx);
     if real_pass {
