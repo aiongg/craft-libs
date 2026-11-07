@@ -9,7 +9,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 fn at(position: Anchor9) -> WatermarkSettings {
-    WatermarkSettings { position, ..WatermarkSettings::default() }
+    let mut settings = WatermarkSettings::default();
+    settings.position = position;
+    settings
 }
 
 /// An inset along an axis the position centres on has nothing to offset.
@@ -34,7 +36,9 @@ fn the_stash_keeps_the_text_and_the_image_path_apart() {
 /// Picking Graphic and then Text again brings the typed text back.
 #[trial]
 fn switching_the_style_restores_the_text() {
-    let value = Rc::new(RefCell::new(WatermarkSettings { style: WatermarkStyle::Text("Studio".to_owned()), ..WatermarkSettings::default() }));
+    let mut opening = WatermarkSettings::default();
+    opening.style = WatermarkStyle::Text("Studio".to_owned());
+    let value = Rc::new(RefCell::new(opening));
     let held = Rc::clone(&value);
     let mut fixture = Fixture::new(move |ui| {
         let mut value = held.borrow_mut();

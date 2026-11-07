@@ -16,21 +16,28 @@ const FRAMES: u32 = 12;
 const FPS: f32 = 24.0;
 const DOCUMENT: PixelSize = PixelSize::new(1200, 800);
 
+/// The opening settings changed by `change`.
+fn options(change: impl FnOnce(&mut SaveForWebOptions)) -> SaveForWebOptions {
+    let mut options = SaveForWebOptions::default();
+    change(&mut options);
+    options
+}
+
 fn with_format(format: WebFormat) -> SaveForWebOptions {
-    SaveForWebOptions { format, ..SaveForWebOptions::default() }
+    options(|options| options.format = format)
 }
 
 /// 4-Up's two extra panes halve and quarter the quality or the colours; other formats become PNG-8 and GIF.
 #[trial]
 fn four_up_variants_halve_and_quarter_what_the_format_has() {
-    let jpeg = four_up_variants(&SaveForWebOptions { quality: 60, ..with_format(WebFormat::Jpeg) });
+    let jpeg = four_up_variants(&options(|options| options.quality = 60));
     assert_eq!((jpeg[0].quality, jpeg[1].quality), (30, 15));
     assert!(jpeg.iter().all(|variant| variant.format == WebFormat::Jpeg));
 
-    let gif = four_up_variants(&SaveForWebOptions { colors: 128, ..with_format(WebFormat::Gif) });
+    let gif = four_up_variants(&options(|options| (options.format, options.colors) = (WebFormat::Gif, 128)));
     assert_eq!((gif[0].colors, gif[1].colors), (64, 32));
 
-    let lossless = four_up_variants(&SaveForWebOptions { lossless: true, ..with_format(WebFormat::WebP) });
+    let lossless = four_up_variants(&options(|options| (options.format, options.lossless) = (WebFormat::WebP, true)));
     assert_eq!((lossless[0].format, lossless[1].format), (WebFormat::Png8, WebFormat::Gif), "lossless WebP has no quality to halve");
     assert_eq!((lossless[0].colors, lossless[1].colors), (128, 64));
 
@@ -64,8 +71,8 @@ fn the_animation_clock_steps_whole_frames_and_wraps() {
 #[trial]
 fn a_preset_matches_the_settings_apart_from_the_size() {
     let preset = WebPreset::new("JPEG Medium", SaveForWebOptions::default());
-    assert!(preset.is_set_in(&SaveForWebOptions { percent: 50.0, ..SaveForWebOptions::default() }));
-    assert!(!preset.is_set_in(&SaveForWebOptions { quality: 61, ..SaveForWebOptions::default() }));
+    assert!(preset.is_set_in(&options(|options| options.percent = 50.0)));
+    assert!(!preset.is_set_in(&options(|options| options.quality = 61)));
     assert_eq!(WebView::FourUp.panes().len(), 4);
     assert_eq!(WebView::Optimized.panes(), &[WebPane::Encoded(0)]);
 }
