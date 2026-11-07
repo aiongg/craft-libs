@@ -47,7 +47,7 @@ name = "PreviewPane"
 old = ""
 new = "craft_ui::patterns::form_dialogs::PreviewPane"
 status = "replaced"
-note = "The preview panes of `ParamDialog` and Save for Web: `PreviewPane::new(label, texture: SizedTexture, view: CanvasTransform)` shows the picture; `show(ui) -> PreviewOutput { response, view }` reports the next view after a pan or zoom. `PreviewZoom::new(view)` is the zoom row."
+note = "The preview panes of `ParamDialog` and Save for Web: `PreviewPane::new(label, texture: SizedTexture, view: CanvasTransform)` shows the picture; `show(ui) -> PreviewOutput { response, view }` reports the next view after a pan or zoom. `PreviewZoom::new(view)` is the zoom row. The pane declares AccessKit's scroll actions on the axes it pans on (`Access::pans`) and takes them as the arrow moves."
 
 [[type]]
 name = "PreviewZoom"
