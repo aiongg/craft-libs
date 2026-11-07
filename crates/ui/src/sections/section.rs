@@ -2,14 +2,15 @@
 //! open state, and an optional trailing region for the app's controls. The body shows while the section is open.
 
 use super::group_box::SECTION_LEVEL;
+use super::stack::StackSlot;
 use super::title_row::{HeaderAction, HeaderStrength, TitleRow};
 use crate::contract::{
-    Bind, BindMut, BodyCx, Collapse, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, NoValue, Outcome, Props as _, Role,
-    SaveKey, Show as _, Sizing, WordSetCx as _,
+    Bind, BindMut, BodyCx, Collapse, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, NoValue, Outcome, Pointer as _,
+    Props as _, REORDER_BAND, Role, SaveKey, Show as _, Sizing, WordSetCx as _, reorder,
 };
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx};
-use craft_behavior::{Metrics, Sense};
+use craft_behavior::{Metrics, PointerButton, PressPhase, Sense};
 use egui::{Response, Ui};
 
 #[cfg(feature = "testing")]
@@ -23,8 +24,8 @@ pub struct SectionStyle {
     metrics: Metrics,
 }
 
-/// What a section reports: its response and the header action taken this pass. The open state is the caller's
-/// binding, or the container's own memory (saved across runs under `remember`).
+/// What a section reports: its response, the header action taken this pass and what its reorder band did. The open
+/// state is the caller's binding, or the container's own memory (saved across runs under `remember`).
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct SectionOutput {
@@ -32,6 +33,10 @@ pub struct SectionOutput {
     pub response: Response,
     /// The header action part taken this pass.
     pub action: Option<HeaderAction>,
+    /// The header band was press-dragged past the drag threshold this pass.
+    pub grabbed: bool,
+    /// Alt+Up or Alt+Down was pressed with focus in the section: `true` toward the end.
+    pub nudged: Option<bool>,
 }
 
 impl Outcome for SectionOutput {
@@ -65,6 +70,7 @@ pub struct Section<'a> {
     actions: Vec<HeaderAction>,
     controls: Option<Controls<'a>>,
     taken: Option<HeaderAction>,
+    nudged: Option<bool>,
 }
 
 impl<'a> Section<'a> {
@@ -89,6 +95,7 @@ impl<'a> Section<'a> {
             actions: Vec::new(),
             controls: None,
             taken: None,
+            nudged: None,
         }
         .label(title)
     }
@@ -115,6 +122,14 @@ impl<'a> Section<'a> {
         let band = if on { DragBand::Reorder } else { DragBand::None };
         self.update_header(|header| header.band(band));
         self
+    }
+
+    /// The section is a member of a `SectionStack`: its header reorders it and it reports its place among the
+    /// stack's sections.
+    #[must_use]
+    pub fn in_stack(mut self, slot: StackSlot) -> Self {
+        self.props = self.props.position(slot.position());
+        self.reorder(true)
     }
 
     /// Fills the trailing region of the header with the app's controls (a Segmented, a Select, an icon button, count
@@ -154,8 +169,18 @@ impl Component for Section<'_> {
         Sense::empty()
     }
 
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        if self.props.header.is_some_and(|header| header.band == DragBand::Reorder) {
+            self.nudged = reorder::take_move_item(&mut cx.core.intents);
+        }
+    }
+
     fn finish(self, cx: Cx<'_, Self>) -> SectionOutput {
-        SectionOutput { response: cx.response.clone(), action: self.taken }
+        let grabbed = cx
+            .core
+            .part_if_declared(REORDER_BAND)
+            .is_some_and(|band| matches!(band.press.phase, PressPhase::DragStart { start, .. } if start.button == PointerButton::Primary));
+        SectionOutput { response: cx.response.clone(), action: self.taken, grabbed, nudged: self.nudged }
     }
 }
 
