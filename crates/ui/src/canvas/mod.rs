@@ -30,6 +30,13 @@ pub use tool_host::{ToolHost, ToolHostResponse, ToolInput, ToolReadout};
 mod raster_source;
 pub use raster_source::{PixelRect, RasterSource};
 
+mod rulers;
+mod scrollbars;
+pub use rulers::{
+    INCH_EIGHTHS, INCH_SIXTEENTHS, RulerCommands, RulerMargins, RulerOutput, RulerPart, RulerTick, Rulers, TickRule, ZeroSnap,
+};
+pub use scrollbars::{CanvasScrollbars, ScrollbarsOutput};
+
 use crate::contract::{Common, Component, Container, ContainerProps, Cx, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role, Sizing};
 use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;

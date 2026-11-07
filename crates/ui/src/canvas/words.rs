@@ -7,5 +7,14 @@ craft_ui::words! {
         crop_top_right: "canvas.cropTopRight" = "Crop corner, top right";
         crop_bottom_left: "canvas.cropBottomLeft" = "Crop corner, bottom left";
         crop_bottom_right: "canvas.cropBottomRight" = "Crop corner, bottom right";
+
+        ruler_horizontal: "canvas.rulerHorizontal" = "Horizontal ruler";
+        ruler_vertical: "canvas.rulerVertical" = "Vertical ruler";
+        ruler_origin: "canvas.rulerOrigin" = "Ruler origin";
+        ruler_menu: "canvas.rulerMenu" = "Ruler units";
+        ruler_reset_zero: "canvas.rulerResetZero" = "Reset Zero Point";
+
+        scroll_horizontal: "canvas.scrollHorizontal" = "Horizontal scroll bar";
+        scroll_vertical: "canvas.scrollVertical" = "Vertical scroll bar";
     }
 }
