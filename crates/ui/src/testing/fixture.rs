@@ -10,7 +10,7 @@ use craft_behavior::{MotionMode, PartRef};
 use craft_host::target::Os;
 use craft_theme::{Contrast, Mode, Size, TextSize};
 use egui::{Event, Id, Key, Modifiers, Pos2, Rect, Ui, Vec2};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 /// A node of the AccessKit tree, as input addresses it.
@@ -41,6 +41,8 @@ pub struct Fixture {
     shown: Rect,
     data: Rc<RefCell<StoryData>>,
     outputs: Rc<RefCell<Vec<StoryOutput>>>,
+    /// The id of the latest output, which stays when the outputs are taken.
+    root_id: Rc<Cell<Option<Id>>>,
     passes: usize,
 }
 
@@ -56,6 +58,7 @@ impl Fixture {
             shown: Rect::NOTHING,
             data: Rc::default(),
             outputs: Rc::default(),
+            root_id: Rc::default(),
             passes: 0,
         }
     }
@@ -64,13 +67,16 @@ impl Fixture {
     pub fn story(story: &Story) -> Self {
         let data = Rc::new(RefCell::new(StoryData::default()));
         let outputs = Rc::new(RefCell::new(Vec::new()));
-        let (shared_data, shared_outputs, show) = (data.clone(), outputs.clone(), story.show);
+        let root_id = Rc::new(Cell::new(None));
+        let (shared_data, shared_outputs, shared_root, show) = (data.clone(), outputs.clone(), root_id.clone(), story.show);
         let mut fixture = Fixture::new(move |ui| {
             let output = show(ui, &mut shared_data.borrow_mut());
+            shared_root.set(output.id);
             shared_outputs.borrow_mut().push(output);
         });
         fixture.data = data;
         fixture.outputs = outputs;
+        fixture.root_id = root_id;
         fixture
     }
 
@@ -146,9 +152,9 @@ impl Fixture {
         std::mem::take(&mut *self.outputs.borrow_mut())
     }
 
-    /// The component id of the latest shown output.
+    /// The component id of the latest shown output, kept when the outputs are taken.
     pub fn root_id(&self) -> Option<Id> {
-        self.outputs.borrow().last().and_then(|output| output.id)
+        self.root_id.get()
     }
 
     /// The area the latest pass allocated.
