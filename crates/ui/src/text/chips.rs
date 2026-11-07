@@ -18,9 +18,6 @@ use craft_theme::Variant;
 use egui::{Rect, Vec2, pos2, vec2};
 use std::borrow::Cow;
 
-/// The draft is at least this many control heights wide, so a full line of chips still leaves room to type.
-const DRAFT_MIN_IN_HEIGHTS: f32 = 4.0;
-
 /// The characters that end a chip in typed or pasted text.
 const SEPARATORS: [char; 3] = [',', ';', '\n'];
 
@@ -94,6 +91,8 @@ pub struct ChipFieldStyle {
     surface: SurfaceLook,
     #[style(metrics)]
     metrics: Metrics,
+    /// The least width of the draft, so a full line of chips still leaves room to type.
+    draft_min: f32,
 }
 
 /// A field of removable chips and a draft text part. Enter or leaving the field commits the draft as chips; the
@@ -178,7 +177,7 @@ fn arrange(cx: &MeasureCx<'_, ChipField<'_>>, chips: &[String], room: Option<f32
         chips.iter().enumerate().map(|(at, chip)| cx.child(("chip", at), &mut Badge::new(chip.clone()), Proposal::Ideal)).collect();
     let side = sizes.iter().map(|size| size.y).fold(0.0, f32::max);
     let gap = cx.gap();
-    let draft_min = metrics.min_size.y * DRAFT_MIN_IN_HEIGHTS;
+    let draft_min = cx.style.draft_min;
     let widths: Vec<f32> = sizes.iter().map(|size| size.x + side).collect();
     let room = room.unwrap_or_else(|| widths.iter().sum::<f32>() + gap * widths.len() as f32 + draft_min);
     Arranged {
@@ -199,7 +198,7 @@ impl Component for ChipField<'_> {
 
     fn style(cx: &StyleCx<'_>, _: ChipFieldStyleKey) -> ChipFieldStyle {
         let field = FieldStyle::at(cx);
-        ChipFieldStyle { surface: field.surface, metrics: field.metrics.gap(cx.control().gap) }
+        ChipFieldStyle { surface: field.surface, metrics: field.metrics.gap(cx.control().gap), draft_min: cx.tokens.size.length.short }
     }
 
     fn sense(&self) -> Sense {
@@ -260,7 +259,7 @@ impl Component for ChipField<'_> {
         let backspace = Intent::delete(false, Granularity::Unit);
         let delete = Intent::delete(true, Granularity::Unit);
         let mut removed = (0..chips.len()).find(|&at| {
-            // A draft committed earlier in this pass added chips that `parts` has not declared yet.
+            // Guard: a commit asks for a new pass, so no chip is undeclared; one that is stays out of this pass.
             cx.part_if_declared(REMOVE.at(at as u64)).is_some_and(|result| result.press.phase.is_click())
         });
         if removed.is_none() {
@@ -286,7 +285,7 @@ impl Component for ChipField<'_> {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let Some(chips) = cx.value() else { return };
         for (at, chip) in chips.iter().enumerate() {
-            // Chips a draft committed in this pass get their parts and faces next pass.
+            // Guard: a commit asks for a new pass, so no chip is undeclared; one that is stays out of this pass.
             if cx.part_if_declared(CHIP.at(at as u64)).is_none() {
                 continue;
             }

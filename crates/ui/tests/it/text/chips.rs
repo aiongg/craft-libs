@@ -64,6 +64,21 @@ fn typing_a_comma_adds_the_chip_and_empties_the_draft() {
     assert_eq!(*value.borrow(), chips(&["red", "blue"]), "a semicolon also commits");
 }
 
+/// The chip a comma commits is shown in the frame of the comma, not a frame later.
+#[trial]
+fn a_committed_chip_is_shown_in_the_same_frame() {
+    let value = Rc::new(RefCell::new(Vec::<String>::new()));
+    let shown = value.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        ChipField::new("Keywords", Bind::bound(&mut *shown.borrow_mut())).show(ui);
+    });
+    fixture.settle();
+    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.type_text("red,");
+    assert_eq!(*value.borrow(), chips(&["red"]));
+    assert!(fixture.texts().iter().any(|run| run.text == "red"), "the new chip is painted in the frame that added it");
+}
+
 /// Marking the alt text decorative keeps its text visible, disabled and out of the Tab order; unmarking makes it
 /// editable again with the same text.
 #[trial]
