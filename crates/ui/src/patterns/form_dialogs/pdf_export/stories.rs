@@ -11,6 +11,6 @@ const ARTBOARDS: usize = 5;
 
 #[story(PdfExportDialog<'static>, covers = [], drive = Drive::Never)]
 fn pdf_export_dialog(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let settings = data.value("settings", PdfSettings::default());
-    PdfExportDialog::new("Story", Bind::bound(settings)).opened(Bind::bound(data.value("open", true))).artboard_count(ARTBOARDS).show(ui).into()
+    let (settings, open) = data.value("pdf", (PdfSettings::default(), true));
+    PdfExportDialog::new("Story", Bind::bound(settings)).opened(Bind::bound(open)).artboard_count(ARTBOARDS).show(ui).into()
 }
