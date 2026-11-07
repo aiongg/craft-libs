@@ -206,7 +206,7 @@ fn integrated_frame(
 
 /// Read the platform once (500 ms at most, as for [`crate::Choice::probe`]) and decide.
 /// `prefix` names the override variable `<PREFIX>_TITLEBAR`; when it is unset, `CRAFT_TITLEBAR`
-/// applies. `backend` is the one the app opens its window on, [`backend_from_env`](crate::desktop::backend_from_env)
+/// applies. `backend` is the one the app opens its window on, [`Backend::from_env`]
 /// unless the app forces X11.
 pub fn decide_for(prefix: Prefix, backend: Backend, pref: TitleBarPref) -> Decision {
     decide_for_kind(prefix, backend, WindowKind::Main, pref)

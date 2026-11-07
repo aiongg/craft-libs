@@ -27,13 +27,6 @@ pub struct Desktop {
     pub icon_theme: Option<String>,
 }
 
-/// The backend winit opens by default: Wayland when `WAYLAND_DISPLAY` or `WAYLAND_SOCKET` is set, else X11. An app
-/// that forces X11 (XWayland) passes [`Backend::X11`] instead.
-pub fn backend_from_env() -> Backend {
-    let set = |k| std::env::var_os(k).is_some_and(|v| !v.is_empty());
-    if set("WAYLAND_DISPLAY") || set("WAYLAND_SOCKET") { Backend::Wayland } else { Backend::X11 }
-}
-
 impl Desktop {
     /// Read the desktop. Reads environment variables and small config files; the Wayland registry
     /// is probed (500 ms at most) only when `backend` is [`Backend::Wayland`].
