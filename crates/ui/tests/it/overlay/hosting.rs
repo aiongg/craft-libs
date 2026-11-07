@@ -6,7 +6,8 @@ use craft_behavior::{HitLevel, HitPriority, Metrics, PartKey, Sense};
 use craft_ui::buttons::Button;
 use craft_ui::contract::overlay::{Dismiss, Outside, Popup};
 use craft_ui::contract::{
-    Common, Component, Cx, MeasureCx, Overlay, OverlayUi, Overlays as _, PartsCx, Pointer as _, Props as _, Role, Show as _, ShowContainer as _,
+    Access, Common, Component, Cx, MeasureCx, Name, Overlay, OverlayUi, Overlays as _, PartsCx, Pointer as _, Props as _, Role, Show as _,
+    ShowContainer as _,
 };
 use craft_ui::menu::{Menu, MenuItem};
 use craft_ui::runtime::commands::{FireSource, Fired};
@@ -38,6 +39,8 @@ struct Titles<'a> {
     #[common]
     common: Common,
     on_press: bool,
+    /// The first part has a sub-node of its own.
+    node: bool,
     rows: &'a Rows,
 }
 
@@ -68,6 +71,12 @@ impl Component for Titles<'_> {
         }
     }
 
+    fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
+        if self.node {
+            access.node(FIRST, Role::BUTTON).name = Name::Text("First".to_owned());
+        }
+    }
+
     fn overlay(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>) {
         for (key, index) in [(FIRST, 0), (SECOND, 1)] {
             let popup = cx.popup("menu").at(index);
@@ -91,7 +100,7 @@ fn show_titles<'a>(rows: &'a Rows, on_press: bool) -> impl FnMut(&mut Ui) + 'a {
     move |ui| {
         rows.shown[0].set(false);
         rows.shown[1].set(false);
-        Titles { common: Common::new(), on_press, rows }.id_salt("titles").show_at(ui, TITLES);
+        Titles { common: Common::new(), on_press, node: false, rows }.id_salt("titles").show_at(ui, TITLES);
     }
 }
 
@@ -343,4 +352,22 @@ fn the_opening_reader_is_true_only_in_the_frame_the_layer_first_shows() {
     let seen = seen.into_inner();
     assert_eq!(seen.first(), Some(&true), "the first shown pass is the opening");
     assert!(seen.len() > 2 && seen[seen.len() - 3..].iter().all(|opening| !opening), "later frames are not");
+}
+
+/// The root's expanded state with the first part toggling, with and without a sub-node of its own.
+fn root_expanded(node: bool) -> Option<bool> {
+    let mut frames = Frames::new();
+    let rows = Rows::default();
+    let root = Cell::new(egui::Id::NULL);
+    let mut show = |ui: &mut Ui| {
+        root.set(Titles { common: Common::new(), on_press: false, node, rows: &rows }.id_salt("titles").show_at(ui, TITLES).id);
+    };
+    frames.idle(4, &mut show);
+    frames.tree().expanded(root.get())
+}
+
+#[trial]
+fn the_root_reports_its_popup_state_unless_a_toggling_part_has_a_sub_node_of_its_own() {
+    assert_eq!(root_expanded(false), Some(false), "a toggling part with no sub-node leaves the state to the root");
+    assert_eq!(root_expanded(true), None, "the part's sub-node carries the state, not the root");
 }
