@@ -76,7 +76,10 @@ pub(crate) fn modal_layer_open(ctx: &Context) -> bool {
         return false;
     };
     let now = ctx.cumulative_frame_nr();
-    let closed = ctx.data(|d| d.get_temp::<Registry>(registry_id())).map(|r| if r.closed_frame + 1 == now { r.closed } else { Vec::new() }).unwrap_or_default();
+    let closed = ctx
+        .data(|d| d.get_temp::<Registry>(registry_id()))
+        .map(|r| if r.closed_frame + 1 == now { r.closed } else { Vec::new() })
+        .unwrap_or_default();
     if !closed.contains(&top) {
         return true;
     }

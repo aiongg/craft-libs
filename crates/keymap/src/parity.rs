@@ -104,7 +104,7 @@ impl crate::egui::Dispatcher {
     /// fill on Windows). On by default.
     // pc: crates/ui-egui/src/input/shortcuts.rs:141-146 `key_matches`.
     pub fn with_delete_equivalence(mut self, on: bool) -> crate::egui::Dispatcher {
-        self.delete_equivalence = on;
+        self.matcher.delete_equivalence = on;
         self
     }
 }

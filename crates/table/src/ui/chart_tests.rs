@@ -41,7 +41,16 @@ fn every_primitive_paints() {
         ChartPrimitive::Polygon { points: vec![[0.0, 2.0], [3.0, 0.0], [6.0, 6.0], [10.0, 1.0], [10.0, 10.0], [0.0, 10.0]], fill: RED, stroke: None };
     assert!(matches!(painted(&[mountain], origin, zoom)[0], Shape::Mesh(_)), "a concave polygon is a mesh");
 
-    let wedge = ChartPrimitive::Wedge { center_x: 50.0, center_y: 50.0, outer_radius: 20.0, inner_radius: 0.0, start_angle: 0.0, end_angle: 1.5, fill: RED, stroke: Some((RED, 1.0)) };
+    let wedge = ChartPrimitive::Wedge {
+        center_x: 50.0,
+        center_y: 50.0,
+        outer_radius: 20.0,
+        inner_radius: 0.0,
+        start_angle: 0.0,
+        end_angle: 1.5,
+        fill: RED,
+        stroke: Some((RED, 1.0)),
+    };
     let shapes = painted(&[wedge], origin, zoom);
     assert!(shapes.len() >= 2, "a wedge is a mesh and its outline");
     let circle = ChartPrimitive::Circle { center_x: 50.0, center_y: 50.0, radius: 5.0, fill: Some(RED), stroke: None };

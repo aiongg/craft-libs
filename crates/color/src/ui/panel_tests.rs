@@ -287,7 +287,8 @@ fn dragging_to_the_bottom_right_keeps_the_knob_there() {
     let value = |rig: &Rig, role: Role, name: &str| {
         rig.nodes.iter().map(|(_, n)| n).find(|n| n.role() == role && n.label() == Some(name)).and_then(|n| n.value()).unwrap_or_default().to_owned()
     };
-    let hue = |rig: &Rig| rig.nodes.iter().map(|(_, n)| n).find(|n| n.role() == Role::Slider && n.label() == Some("Hue")).and_then(|n| n.numeric_value());
+    let hue =
+        |rig: &Rig| rig.nodes.iter().map(|(_, n)| n).find(|n| n.role() == Role::Slider && n.label() == Some("Hue")).and_then(|n| n.numeric_value());
     let hue_before = hue(&rig);
     assert!(hue_before.is_some_and(|h| (h - 210.0).abs() < 1.0), "{hue_before:?}");
 
@@ -325,7 +326,8 @@ fn every_panel_model_round_trips_its_colours() {
     use craft_cms::convert::CmykConverter;
     use craft_theme::{ColorModel, HsbModel, LabModel, RgbModel};
 
-    let colours = [Srgba::rgb(0.2, 0.6, 0.8), Srgba::rgb(1.0, 0.0, 0.0), Srgba::rgb(0.0, 0.0, 0.0), Srgba::rgb(1.0, 1.0, 1.0), Srgba::rgb(0.5, 0.25, 0.75)];
+    let colours =
+        [Srgba::rgb(0.2, 0.6, 0.8), Srgba::rgb(1.0, 0.0, 0.0), Srgba::rgb(0.0, 0.0, 0.0), Srgba::rgb(1.0, 1.0, 1.0), Srgba::rgb(0.5, 0.25, 0.75)];
     let worst = |a: Srgba, b: Srgba| (a.r - b.r).abs().max((a.g - b.g).abs()).max((a.b - b.b).abs());
     let rounded = |model: &dyn ColorModel, c: Srgba| {
         let mut v = model.from_srgb(c);

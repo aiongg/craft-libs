@@ -4,10 +4,11 @@
 
 use ::egui::{Context, Event, InputState, Key as EguiKey, KeyboardShortcut, Modifiers};
 
-use crate::chord::{Chord, Key, Mods, Platform, Trigger};
-use crate::command::CommandRef;
-use crate::keymap::{Keymap, Lookup};
+use crate::chord::{Chord, Key, Mods, Platform};
+use crate::keymap::Keymap;
 use crate::layout::{KeyInput, Layout};
+pub use crate::matcher::Hit;
+use crate::matcher::Matcher;
 use crate::scope::Active;
 
 /// The platform to build a keymap for in this context. Unlike [`Platform::current`], a web build
@@ -111,51 +112,6 @@ pub fn matches(binding: &Chord, key: EguiKey, mods: &Modifiers, platform: Platfo
 
 pub use crate::editor::DOUBLE_PRESS;
 
-/// A command a key press runs.
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct Hit {
-    /// The command to run; for tools sharing the chord, the first of `cycle`.
-    pub command: CommandRef,
-    /// Tools of one group sharing the chord, in catalog order (the app picks the next one);
-    /// empty for a plain command.
-    pub cycle: Vec<CommandRef>,
-    /// The chord whose binding matched, with `double` set when the double binding ran.
-    pub trigger: Trigger,
-    /// Whether `trigger` is the chord the press means ([`Layout::resolve`]), the one the shortcut
-    /// recorder records. `false` when the press matched through a stand-in: a Shift binding on the
-    /// US base key (`Shift+;` for `:`), `+` and `=` standing for each other, or a digit-row
-    /// position's digit.
-    pub exact: bool,
-    /// The press is a bound chord of `command` with Alt added, and `command` opted in
-    /// ([`Bindable::has_alt_variant`](crate::Bindable::has_alt_variant)). `trigger` is the chord
-    /// pressed, Alt included.
-    pub alt_variant: bool,
-    /// The text of the Paste event that ran the command, or on the web of the Paste event that
-    /// came with the press that ran it.
-    pub pasted: Option<String>,
-}
-
-impl Hit {
-    fn from_lookup(lookup: Lookup, trigger: Trigger, exact: bool) -> Option<Hit> {
-        let (command, cycle) = match lookup {
-            Lookup::None => return None,
-            Lookup::Run(command) => (command, Vec::new()),
-            Lookup::Cycle(cycle) => (cycle.first()?.clone(), cycle),
-        };
-        Some(Hit { command, cycle, trigger, exact, alt_variant: false, pasted: None })
-    }
-}
-
-#[derive(Clone, Debug)]
-struct LastPress {
-    chord: Chord,
-    at: f64,
-    ran_double: bool,
-    /// The focused panel: a press in another panel never completes the pair.
-    panel: Option<String>,
-}
-
 /// Runs a keymap against egui's input, one call per frame before the UI reads its keys.
 ///
 /// It reads key presses (repeats only when [`with_repeat`](Self::with_repeat) is on). A press
@@ -187,7 +143,7 @@ struct LastPress {
 /// (Cmd+Z, word moves) to the field.
 #[derive(Clone, Debug)]
 pub struct Dispatcher {
-    last: Option<LastPress>,
+    pub(crate) matcher: Matcher,
     repeat: bool,
     clipboard: bool,
     /// Whether a press's Text event comes before it when no text field has focus, as eframe's
@@ -197,8 +153,6 @@ pub struct Dispatcher {
     /// Whether right Alt is held. egui-winit reports AltGr with neither Ctrl nor Alt, so its
     /// presses would otherwise teach the layout as plain ones.
     right_alt: bool,
-    /// See [`Dispatcher::with_delete_equivalence`].
-    pub(crate) delete_equivalence: bool,
 }
 
 /// eframe's web build sends a press's Text event first when no text field has focus.
@@ -206,15 +160,7 @@ const TEXT_FIRST: bool = cfg!(target_arch = "wasm32");
 
 impl Default for Dispatcher {
     fn default() -> Dispatcher {
-        Dispatcher {
-            last: None,
-            repeat: false,
-            clipboard: false,
-            text_first: TEXT_FIRST,
-            layout: Layout::new(),
-            right_alt: false,
-            delete_equivalence: true,
-        }
+        Dispatcher { matcher: Matcher::new(), repeat: false, clipboard: false, text_first: TEXT_FIRST, layout: Layout::new(), right_alt: false }
     }
 }
 
@@ -392,6 +338,10 @@ impl Dispatcher {
         hits
     }
 
+    fn press(&mut self, input: &KeyInput, repeat: bool, now: f64, keymap: &Keymap, active: &Active) -> Option<Hit> {
+        self.matcher.press(&self.layout, input, repeat, now, keymap, active, &[])
+    }
+
     /// Takes the platform's answer on whether the layout is Latin. `None` (not reported) leaves
     /// the layout as it is, so an earlier report or typing decides.
     fn report_latin(&mut self, reported: Option<bool>) {
@@ -416,57 +366,6 @@ impl Dispatcher {
                 self.layout.observe(physical, mods, text);
             }
         }
-    }
-
-    fn press(&mut self, input: &KeyInput, repeat: bool, now: f64, keymap: &Keymap, active: &Active) -> Option<Hit> {
-        let mut chords = self.layout.candidates(input);
-        let first = *chords.first()?;
-        if self.delete_equivalence {
-            // Delete and Backspace stand for each other, after the press's own chords.
-            let twins: Vec<Chord> = chords
-                .iter()
-                .filter_map(|c| match c.key {
-                    Key::Delete => Some(Chord::new(c.mods, Key::Backspace)),
-                    Key::Backspace => Some(Chord::new(c.mods, Key::Delete)),
-                    _ => None,
-                })
-                .collect();
-            chords.extend(twins);
-        }
-        let find = |double: bool| {
-            chords.iter().find_map(|&chord| Hit::from_lookup(keymap.lookup(&chord, double, active), Trigger { chord, double }, chord == first))
-        };
-        // Only when no binding owns the Alt chord itself, so a bound Alt chord runs its own command.
-        let alt_variant = |chords: &[Chord]| {
-            let platform = keymap.platform();
-            chords.iter().filter(|c| c.mods.alt).find_map(|&chord| {
-                if active.typing && !keymap.typing_rule().fires(&chord, platform) {
-                    return None;
-                }
-                let plain = Chord::new(Mods { alt: false, ..chord.mods }, chord.key);
-                match keymap.lookup(&plain, false, &Active { typing: false, ..*active }) {
-                    Lookup::Run(command) if keymap.bindable(&command).is_some_and(|b| b.has_alt_variant) => Some(Hit {
-                        command,
-                        cycle: Vec::new(),
-                        trigger: Trigger { chord, double: false },
-                        exact: chord == first,
-                        alt_variant: true,
-                        pasted: None,
-                    }),
-                    _ => None,
-                }
-            })
-        };
-        if repeat {
-            return find(false).or_else(|| alt_variant(&chords));
-        }
-        let again = self
-            .last
-            .as_ref()
-            .is_some_and(|l| l.chord == first && !l.ran_double && l.panel.as_deref() == active.panel && now >= l.at && now - l.at < DOUBLE_PRESS);
-        let double = if again { find(true) } else { None };
-        self.last = Some(LastPress { chord: first, at: now, ran_double: double.is_some(), panel: active.panel.map(str::to_owned) });
-        double.or_else(|| find(false)).or_else(|| alt_variant(&chords))
     }
 }
 

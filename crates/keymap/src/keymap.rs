@@ -246,6 +246,9 @@ impl Bindable {
     /// Marks the command as showing and hiding something ([`Bindable::is_toggle`]).
     pub fn toggle(mut self) -> Bindable {
         self.is_toggle = true;
+        if self.kind == Kind::Command {
+            self.kind = Kind::Toggle;
+        }
         self
     }
 
@@ -258,6 +261,7 @@ impl Bindable {
 
     /// Sets the [`kind`](Bindable::kind).
     pub fn with_kind(mut self, kind: Kind) -> Bindable {
+        self.is_toggle |= kind == Kind::Toggle;
         self.kind = kind;
         self
     }
@@ -744,13 +748,18 @@ impl Keymap {
 
     /// The command `chord` (pressed twice when `double`) runs with `active` focus.
     pub fn lookup(&self, chord: &Chord, double: bool, active: &Active) -> Lookup {
+        self.lookup_nested(chord, double, active, &[])
+    }
+
+    /// [`lookup`](Self::lookup) with the panels around the focused one in `outer` ([`Scopes::rank_nested`]).
+    pub fn lookup_nested(&self, chord: &Chord, double: bool, active: &Active, outer: &[&str]) -> Lookup {
         let want = Trigger { chord: chord.effective(self.platform), double };
         let held = active.typing && !self.typing.fires(&want.chord, self.platform);
         let Some(holders) = self.by_trigger.get(&want) else { return Lookup::None };
         // Each command's nearest rank; `holders` is in catalog order.
         let mut ranks: Vec<(usize, u8)> = Vec::new();
         for &(i, k) in holders {
-            let Some(r) = self.at(i, k).and_then(|(_, s)| self.scopes.rank(s, active)) else { continue };
+            let Some(r) = self.at(i, k).and_then(|(_, s)| self.scopes.rank_nested(s, active, outer)) else { continue };
             // The typing rule holds back everything except bindings of an active context (rank 0).
             if held && r != 0 {
                 continue;

@@ -231,6 +231,24 @@ impl Scopes {
         }
     }
 
+    /// [`rank`](Self::rank) for a focus inside nested panels: `outer` lists the panels around the focused one,
+    /// which claim a chord after it and before the panels that share with it. An active context 0, the
+    /// focused panel 1, an enclosing panel 2, a panel sharing with the focused one 3, the application 4,
+    /// any other panel 5 with fallthrough on.
+    pub fn rank_nested(&self, scope: &Scope, active: &Active, outer: &[&str]) -> Option<u8> {
+        let name = scope.as_str();
+        match self.kind_of(name) {
+            ScopeKind::Context => active.contexts.contains(&name).then_some(0),
+            ScopeKind::Application => Some(4),
+            ScopeKind::Panel => match active.panel {
+                Some(p) if p == name => Some(1),
+                _ if outer.contains(&name) => Some(2),
+                Some(p) if self.shares(p, name) => Some(3),
+                _ => self.panel_fallthrough.then_some(5),
+            },
+        }
+    }
+
     /// Whether the same chord in `a` and `b` makes only one of them work: the same scope, two
     /// panels that share, or two different contexts (both can be active at once). Other pairs that
     /// can be active together shadow (`Some(false)`): a context over anything else, a panel over
