@@ -5,7 +5,6 @@
 mod browser;
 mod chip;
 mod detail;
-mod inspector;
 mod layer;
 mod problems;
 mod rows;
@@ -14,7 +13,6 @@ mod words;
 
 pub use browser::{BrowserOutput, TokenBrowser};
 pub use detail::TokenDetail;
-pub use inspector::AccessInspector;
 pub use layer::{AppLayerEditor, LayerOutput, parse_sizes};
 pub use problems::{Problems, ProblemsOutput};
 pub use rows::Row;
