@@ -459,9 +459,7 @@ impl<T: Copy> PressMachine<T> {
         let mut drag_started = false;
         let mut released: Option<(T, PressStart, Pos2, bool, bool)> = None;
         let mut cancelled: Option<(T, PressStart, PressCancel)> = None;
-        if let (Some(reason), Some(open)) = (input.cancel, self.open)
-            && (open.dragging || matches!(reason, PressCancel::Disabled | PressCancel::Removed))
-        {
+        if let (Some(reason), Some(open)) = (input.cancel, self.open) {
             cancelled = Some((open.target, open.start, reason));
             self.open = None;
         }
@@ -484,16 +482,16 @@ impl<T: Copy> PressMachine<T> {
                 }
                 PointerEvent::Pressed { button, pos: at, time, clicks } => {
                     pos = at;
-                    // A middle press captures for a drag (a canvas pan) and never starts over an open press; a primary
-                    // press does not replace an open middle press.
-                    let middle = button == PointerButton::Middle;
-                    let over_other = self.open.is_some_and(|open| middle || open.start.button != button);
-                    if !matches!(button, PointerButton::Primary | PointerButton::Middle) || over_other {
+                    // A middle or secondary press captures for a drag (a canvas pan, a drag with the secondary button) and
+                    // never clicks or starts over an open press; a primary press does not replace one of them.
+                    let capture_only = button != PointerButton::Primary;
+                    let over_other = self.open.is_some_and(|open| capture_only || open.start.button != button);
+                    if !matches!(button, PointerButton::Primary | PointerButton::Middle | PointerButton::Secondary) || over_other {
                         continue;
                     }
                     self.open = pick(at)
-                        .map(|(target, sense)| (target, if middle { sense - Sense::CLICK } else { sense }))
-                        .filter(|(_, sense)| !middle || sense.contains(Sense::DRAG))
+                        .map(|(target, sense)| (target, if capture_only { sense - Sense::CLICK } else { sense }))
+                        .filter(|(_, sense)| !capture_only || sense.contains(Sense::DRAG))
                         .map(|(target, sense)| Open {
                             target,
                             sense,
@@ -609,6 +607,18 @@ mod tests {
     }
 
     #[test]
+    fn a_secondary_press_captures_for_a_drag_and_never_clicks() {
+        let secondary = |x: f32| PointerEvent::pressed_by(PointerButton::Secondary, pos2(x, 0.0), 1.0, 1);
+        let mut machine = PressMachine::new();
+        pass(&mut machine, &[secondary(0.0)], Sense::CLICK | Sense::DRAG);
+        let step = pass(&mut machine, &[PointerEvent::Moved(pos2(20.0, 0.0))], Sense::CLICK | Sense::DRAG);
+        assert!(matches!(step.phase, Some(PressPhase::DragStart { start, .. }) if start.button == PointerButton::Secondary), "{step:?}");
+        let mut clicked = PressMachine::new();
+        pass(&mut clicked, &[secondary(0.0)], Sense::CLICK);
+        assert_eq!(clicked.target(), None, "a click-only shape takes no secondary press");
+    }
+
+    #[test]
     fn a_press_no_shape_takes_opens_nothing() {
         let mut machine = PressMachine::<u8>::new();
         let step = machine.step(PassInput::new(&[press(0.0, 1.0)], SLOP, pos2(0.0, 0.0), true), |_| None);
@@ -628,12 +638,14 @@ mod tests {
     }
 
     #[test]
-    fn a_cancel_before_the_drag_starts_leaves_the_press_alone() {
+    fn an_escape_before_the_drag_starts_cancels_the_press_and_the_release_clicks_nothing() {
         let mut machine = PressMachine::new();
         pass(&mut machine, &[press(0.0, 1.0)], Sense::CLICK | Sense::DRAG);
         let held = PassInput::new(&[], SLOP, pos2(0.0, 0.0), true).cancel(Some(PressCancel::Escape));
         let step = machine.step(held, |_| Some((1, Sense::CLICK | Sense::DRAG)));
-        assert!(matches!(step.phase, Some(PressPhase::Down { .. })));
+        assert!(matches!(step.phase, Some(PressPhase::Cancel { reason: PressCancel::Escape, .. })));
+        let step = pass(&mut machine, &[PointerEvent::released(pos2(0.0, 0.0))], Sense::CLICK | Sense::DRAG);
+        assert_eq!(step, PressStep::default());
     }
 
     #[test]

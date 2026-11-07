@@ -13,5 +13,5 @@ mod words;
 pub use button::{Button, ButtonStyle};
 pub use icon_button::{IconButton, IconButtonStyle};
 pub use link::{Link, LinkStyle};
-pub use split_button::{SplitButton, SplitButtonStyle, SplitOutput};
+pub use split_button::{MenuEntry, SplitButton, SplitButtonStyle, SplitOutput};
 pub use toggle_button::{ToggleButton, ToggleButtonStyle};

@@ -193,7 +193,7 @@ fn with_arena<R>(ctx: &Context, arena: ArenaId, pass_nr: u64, f: impl FnOnce(&mu
         if !arenas.sweep_registered {
             arenas.sweep_registered = true;
             crate::runtime::frame::register_end_sweep(ctx, std::any::TypeId::of::<Arenas>(), sweep_undrawn);
-            pointer::register_drag_probe(ctx, any_dragging);
+            pointer::register_press_probe(ctx, any_press_open);
         }
         if arenas.swept != pass_nr {
             arenas.swept = pass_nr;
@@ -374,7 +374,7 @@ pub(crate) fn sense_member(ui: &Ui, arena: ArenaId, spec: MemberSpec<'_>) -> Mem
         response: response::member(ui, spec.id, spec.rect, spec.enabled, view),
         parts: part_results(ctx, arena, spec.id, spec.parts),
         press: shape_press(ctx, arena, spec.id),
-        activated: outcome.activated.is_some_and(|hit| hit.owner == spec.id),
+        activated: view.clicked,
     }
 }
 
@@ -424,7 +424,7 @@ fn outcome(ctx: &Context, arena: ArenaId, layer: Layer, enabled: bool, union_sen
             &pass_pointer.events,
             frame.slop,
             pos,
-            pass_pointer.primary_down || frame.buttons.contains(craft_behavior::Buttons::MIDDLE),
+            pass_pointer.primary_down || frame.buttons.intersects(craft_behavior::Buttons::MIDDLE | craft_behavior::Buttons::SECONDARY),
         )
         .delta(frame.delta)
         .cancel(cancel);
@@ -501,8 +501,8 @@ fn sweep_undrawn(ctx: &Context) {
     }
 }
 
-fn any_dragging(ctx: &Context) -> bool {
-    PerViewport::<Arenas>::with(ctx, pass::current_viewport(ctx), |arenas| arenas.by_root.values().any(|state| state.machine.dragging()))
+fn any_press_open(ctx: &Context) -> bool {
+    PerViewport::<Arenas>::with(ctx, pass::current_viewport(ctx), |arenas| arenas.by_root.values().any(|state| state.machine.target().is_some()))
 }
 
 /// The arena's outcome of the running pass, idle when the root has not run yet.

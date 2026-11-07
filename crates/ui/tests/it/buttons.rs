@@ -1,9 +1,8 @@
 //! `SplitButton`: the main part runs the action and never opens the menu, the arrow and Alt+Down open it, a pick
 //! reports the entry as one choice and closes the menu.
 
-use craft_ui::buttons::SplitButton;
+use craft_ui::buttons::{MenuEntry, SplitButton};
 use craft_ui::contract::{Role, Show as _};
-use craft_ui::controls::select::SelectOption;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers};
 use std::cell::Cell;
@@ -19,7 +18,7 @@ fn rig() -> Rig {
     let (clicks, chosen) = (Rc::new(Cell::new(0)), Rc::new(Cell::new(None)));
     let (shown_clicks, shown_chosen) = (clicks.clone(), chosen.clone());
     let mut fixture = Fixture::new(move |ui| {
-        let entries = [SelectOption::new(7u8, "Colour"), SelectOption::new(9, "Grayscale")];
+        let entries = [MenuEntry::new(7u8, "Colour"), MenuEntry::new(9, "Grayscale")];
         let out = SplitButton::new("Trace", &entries).show(ui);
         if craft_ui::testing::contract::clicked(&out.response) {
             shown_clicks.set(shown_clicks.get() + 1);

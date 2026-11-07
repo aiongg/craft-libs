@@ -367,7 +367,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     p.trace.mark(Step::Sense);
     let decls: Vec<PartDecl> = parts.decls.iter().map(|(decl, _)| decl.clone()).collect();
     let enabled = resolved.enabled && !inert;
-    let (response, results, press, activation, activated_member, root_sense) = match member {
+    let (mut response, results, press, activation, activated_member, root_sense) = match member {
         Some(arena) => {
             let sensed = sensing::sense_member(ui, arena, MemberSpec { id, rect, sense: own, parts: &decls, enabled });
             (sensed.response, sensed.parts, sensed.press, sensed.activated, None, Sense::empty())
@@ -394,6 +394,10 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     cx.core.content_rect = flow.inset(metrics.padding);
     cx.core.flow = flow;
     cx.core.visible = rect.intersect(ui.clip_rect());
+    // A read-only component takes no activation: the response reports no click either.
+    if !steps::takes_activation(&resolved) {
+        response.flags.remove(egui::response::Flags::CLICKED | egui::response::Flags::FAKE_PRIMARY_CLICKED);
+    }
     cx.core.response = response;
     // The focus service holds last pass's registration: a part that is not in this pass's results is not active.
     cx.core.active = focus::active_part(&ctx, id).filter(|part| results.contains_key(&(part.key, part.index)));
@@ -403,7 +407,15 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     cx.core.root_sense = root_sense;
     cx.core.press = press;
     cx.core.member_of = member.map(|arena| arena.0);
-    cx.core.activation = activation.then_some(Activation { by_key: false });
+    // A key or AccessKit activation of a member reaches its arena root, which names the member.
+    let keyed = member.is_some_and(|arena| keys::activated_member(&ctx, arena.0) == Some(id));
+    cx.core.activation = if !steps::takes_activation(&resolved) {
+        None
+    } else if keyed {
+        Some(Activation { by_key: true })
+    } else {
+        activation.then_some(Activation { by_key: false })
+    };
     cx.core.activated_member = activated_member.or_else(|| arena.then(|| keys::activated_member(&ctx, id)).flatten());
     cx.core.intents = keys::intents_of(&ctx, Some(id), rtl);
     p.hooks.sensed(comp, cx);
@@ -551,7 +563,8 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
         scope::record_control_min(&ctx, min.x);
     }
     let size = hooks.sized(&comp, ui, size);
-    let inert = !steps::guard(size, shape);
+    // A component shown at a rect fills it, so the rect is as much its size as the measure is.
+    let inert = !steps::guard(size, shape) || matches!(at, ShowAt::Rect(rect) if !steps::guard(rect.size(), shape));
     if inert && size != Vec2::ZERO {
         let now = crate::runtime::frame::clock(&ctx);
         let log = stage.shown::<SizeLog>(sub(id, "size_log"));

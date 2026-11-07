@@ -151,7 +151,7 @@ impl Action {
 
 /// What the running pass's pointer input says, converted once.
 pub(crate) struct PointerRead {
-    /// The primary-button events in arrival order. `clicks` of each press is 1: the caller counts.
+    /// The primary, middle and secondary button events in arrival order. `clicks` of each press is 1: the caller counts.
     pub events: Vec<PointerEvent>,
     /// The latest pointer position when the pass began, `None` when the pointer is not in the window.
     pub pos: Option<Pos2>,
@@ -218,7 +218,7 @@ pub(crate) fn pointer_read(ctx: &Context) -> PointerRead {
             match event {
                 Event::PointerButton { pos, button, pressed, .. } if *button != egui::PointerButton::Primary => {
                     let button = button_of(*button);
-                    if button == PointerButton::Middle {
+                    if matches!(button, PointerButton::Middle | PointerButton::Secondary) {
                         events.push(if *pressed {
                             PointerEvent::pressed_by(button, *pos, input.time, 1)
                         } else {

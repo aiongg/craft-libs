@@ -99,6 +99,12 @@ pub(super) fn root_target(fixture: &Fixture) -> Target {
     fixture.root_id().and_then(|id| fixture.node_of(id)).unwrap_or(Target { node: NodeKey::of(Id::NULL), rect: fixture.shown() })
 }
 
+/// The node a click or an AccessKit `Click` activates: the first clickable part, or the component itself.
+fn activation_target(fixture: &Fixture) -> Target {
+    let part = fixture.click_part().zip(fixture.root_id()).and_then(|(part, id)| fixture.part(id, part));
+    part.unwrap_or_else(|| root_target(fixture))
+}
+
 /// Activation by the `variant`th way: click, Enter, Space or AccessKit `Click`.
 pub(super) fn activate(fixture: &mut Fixture, variant: usize, target: &Target) {
     let none = Modifiers::NONE;
@@ -175,7 +181,7 @@ fn pick(fixture: &mut Fixture, row: usize, by_click: bool) {
 pub(super) fn run(fixture: &mut Fixture, plan: Plan, variant: usize) {
     let target = root_target(fixture);
     match plan {
-        Plan::Activate => activate(fixture, variant, &target),
+        Plan::Activate => activate(fixture, variant, &activation_target(fixture)),
         Plan::Step => step(fixture, variant, &target),
         Plan::Drag(part) => drag(fixture, part, variant == 1),
         Plan::Type(text) => {
