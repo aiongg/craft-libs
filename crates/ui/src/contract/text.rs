@@ -2,7 +2,7 @@
 //! text adapter, then the typing run over what the adapter recorded, and applies the run's events through `Cx`.
 
 use super::cx::{Cx, PartsCx, gesture_key};
-use super::{Component, Edit as _, ValueOf};
+use super::{Component, Edit as _, Overlays as _, ValueOf};
 use crate::primitives::text_adapter::{self as adapter, End, TextState};
 use crate::primitives::{TextKey, TextOptions, TextOutcome};
 use crate::runtime::access::text as text_access;
@@ -14,6 +14,11 @@ use craft_behavior::{CancelReason, Caret, Codec, EditRun, Ended, EscapeRule, Esc
 use egui::{Rect, Ui};
 use std::any::Any;
 use std::sync::Arc;
+
+/// The id of the text adapter's state in the component's memory.
+fn state_id(id: egui::Id) -> egui::Id {
+    sub(id, "text_state")
+}
 
 /// What `PartsCx::text` leaves for step 8b.
 #[derive(Default)]
@@ -185,6 +190,39 @@ fn facts<C: Component>(
     state.rows = Some(rows);
 }
 
+/// Opens the completion list's popup while the adapter holds candidates and closes it otherwise.
+fn drive_completions<C: Component>(cx: &mut Cx<'_, C>, open: bool) {
+    let list = cx.popup("completions");
+    if open {
+        list.open(cx);
+    } else {
+        list.close(cx);
+    }
+}
+
+/// Applies the typing run's events to the component's value: a parsed draft reaches the binding in the pass it is
+/// typed, and a commit proposes and commits in one pass.
+fn apply_events<C: Component>(cx: &mut Cx<'_, C>, events: Vec<TextEvent<ValueOf<C>>>) {
+    let id = cx.core.id;
+    for event in events {
+        let running = cx.core.memory.recall::<Gesture<ValueOf<C>>>(gesture_key(id)).is_running();
+        match event {
+            TextEvent::Propose(value) => cx.propose(value),
+            TextEvent::Commit(value) if running => {
+                cx.propose(value);
+                cx.commit();
+            }
+            TextEvent::Commit(value) => {
+                if cx.value() != Some(&value) {
+                    cx.set(value);
+                }
+            }
+            TextEvent::Cancel(reason) if running => cx.cancel(reason),
+            TextEvent::Cancel(_) => {}
+        }
+    }
+}
+
 /// Step 8b: runs the text adapter at the part's rect, then the typing run over what it recorded, and applies the
 /// run's events: a typed value reaches the binding in the pass it is typed.
 pub(crate) fn run<C: Component>(
@@ -203,7 +241,7 @@ pub(crate) fn run<C: Component>(
     };
     let resolve = *resolve;
     let (ctx, id) = (cx.core.ctx.clone(), cx.core.id);
-    let state_id = sub(id, "text_state");
+    let state_id = state_id(id);
     let mut state = std::mem::take(cx.core.memory.shown::<TextState>(state_id));
     let widget = adapter::text_id(id, decl.key);
     let focused = crate::runtime::egui::focus::has_focus(&ctx, widget);
@@ -244,40 +282,40 @@ pub(crate) fn run<C: Component>(
             _ => text_edit::select(&ctx, widget, len, len),
         }
     }
-    let Some(resolved) = cx.value().map(|value| resolve(&mut state, value, step.commit_now)) else { return };
+    if decl.options.complete.is_some() {
+        drive_completions(cx, state.completions.open);
+    }
+    let Some(resolved) = cx.value().map(|value| resolve(&mut state, value, step.commit_now)) else {
+        // A value that went away since `parts` leaves the run as it was.
+        *cx.core.memory.shown::<TextState>(state_id) = state;
+        return;
+    };
     facts(cx, &mut state, widget, &out, decl.rect, decl.options.mask, read_only);
     cx.core.text_invalid = state.invalid;
     if state.draft.is_some() {
         keys::hold_escape(&ctx, id);
     }
+    let (completions, completion_index) = (state.completions.items.clone(), state.completions.index);
     *cx.core.memory.shown::<TextState>(state_id) = state;
     let mut outcome = resolved.outcome;
     outcome.layout = Some(out.layout);
     outcome.caret_visible = caret_visible;
     outcome.composing = crate::runtime::ime::composing(&ctx, widget);
+    outcome.completions = completions;
+    outcome.completion_index = completion_index;
     cx.core.texts = Some((decl.key, Box::new(outcome)));
-    for event in resolved.events {
-        let running = cx.core.memory.recall::<Gesture<ValueOf<C>>>(gesture_key(id)).is_running();
-        match event {
-            TextEvent::Propose(value) => cx.propose(value),
-            TextEvent::Commit(value) if running => {
-                cx.propose(value);
-                cx.commit();
-            }
-            TextEvent::Commit(value) => {
-                if cx.value() != Some(&value) {
-                    cx.set(value);
-                }
-            }
-            TextEvent::Cancel(reason) if running => cx.cancel(reason),
-            TextEvent::Cancel(_) => {}
-        }
-    }
+    apply_events(cx, resolved.events);
     cx.core.submitted |= resolved.submitted;
     cx.core.escaped |= resolved.escaped;
 }
 
 impl<C: Component> Cx<'_, C> {
+    /// Accepts candidate `at` of the text part's completion list in the next pass: a click on a row of the list.
+    pub(crate) fn pick_completion(&mut self, at: usize) {
+        self.core.memory.shown::<TextState>(state_id(self.core.id)).completions.picked = Some(at);
+        crate::runtime::egui::repaint::request(&self.core.ctx);
+    }
+
     /// The result of the text part `key` this pass: the draft, the laid-out text and the caret blink. `None` while
     /// the text service has not produced one (a part first registered this pass), and for a key `parts` never
     /// registered, which is a debug assertion.

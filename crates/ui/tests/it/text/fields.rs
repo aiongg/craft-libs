@@ -3,7 +3,7 @@
 use super::kit::Rig;
 use crate::label::kit::Field;
 use craft_behavior::MotionMode;
-use craft_ui::contract::{Bind, Props as _, Show as _};
+use craft_ui::contract::{Bind, Props as _, Role as UiRole, Show as _};
 use craft_ui::contract::{ShowContainer as _, SideLabel};
 use craft_ui::primitives::{Completer, Completion};
 use craft_ui::runtime::commands::{CommandRef, EditCommands};
@@ -123,6 +123,36 @@ fn completion_list_takes_arrows_and_tab_while_open_and_the_caret_does_not_move()
     }
     assert_eq!(craft_ui::testing::focus::egui_focused(&rig.frames.ctx), focus, "Tab went to the list, not to the next stop");
     assert_eq!(rig.text, "alps", "Tab accepted the highlighted candidate");
+}
+
+/// One frame of a field with the `Prefixes` completer.
+fn completing(rig: &mut Rig, events: Vec<Event>) {
+    let (text, seen) = (&mut rig.text, &mut rig.seen);
+    rig.frames.frame(events, |ui| {
+        let out = TextField::new("Name", Bind::bound(&mut *text)).complete(Prefixes).id_salt("name").show(ui);
+        seen.id = out.response.id;
+    });
+}
+
+/// Enter accepts the highlighted candidate in the pass it arrives, replacing the range the completer named, and the
+/// list's rows are option nodes named by their candidates.
+#[trial]
+fn completion_accepts_in_the_pass_of_the_key_and_lists_option_nodes() {
+    let mut rig = Rig::new("");
+    rig.focus();
+    completing(&mut rig, vec![Event::Text("al".into())]);
+    for _ in 0..4 {
+        completing(&mut rig, vec![]);
+    }
+    let tree = rig.frames.tree();
+    let options = tree.with_role(UiRole::LIST_BOX_OPTION);
+    let mut names: Vec<_> = options.iter().filter_map(|key| tree.name_of(*key)).collect();
+    names.sort_unstable();
+    assert_eq!(names, ["alpha", "alps"], "one option node per candidate");
+    completing(&mut rig, vec![key_press(Key::ArrowDown, Modifiers::NONE)]);
+    completing(&mut rig, vec![]);
+    completing(&mut rig, vec![key_press(Key::Enter, Modifiers::NONE)]);
+    assert_eq!(rig.text, "alps", "the candidate replaced the typed prefix in the pass of Enter");
 }
 
 /// A number field parses through its codec, rejects text that is no number and keeps the value.

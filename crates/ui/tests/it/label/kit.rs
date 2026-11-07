@@ -1,10 +1,10 @@
 //! Components for the label-step trials: a scrubbing value control, a field container and a leaf that labels the
 //! control it paints.
 
-use craft_behavior::{GesturePhase, Metrics, PressPhase, Sense, ValueDrag};
+use craft_behavior::{Metrics, Sense, ValueDrag};
 use craft_ui::contract::{
     Accessible as _, Bind, BindMut, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, FieldLabel, MeasureCx, PaintUi,
-    Props as _, Remember as _, Role, SideLabel,
+    Props as _, Role, Scrub, SideLabel,
 };
 use craft_ui::primitives::TextRun;
 use craft_ui::style::{ComponentStyle, StyleCx};
@@ -39,9 +39,6 @@ const RATE: f64 = 1.0;
 /// The value a reset restores.
 pub const RESET: f64 = 7.0;
 const RANGE: std::ops::RangeInclusive<f64> = 0.0..=1000.0;
-
-#[derive(Clone, Default)]
-struct Start(f64);
 
 /// A number control that scrubs by its label and paints its value as text, so it has a baseline.
 #[derive(Component)]
@@ -79,33 +76,15 @@ impl Component for Dial<'_> {
         Some(self.value.reborrow())
     }
 
+    fn scrub(&self) -> Option<Scrub<f64>> {
+        Some(Scrub::new(ValueDrag::relative(RATE, RANGE), |value| *value, |value| value))
+    }
+
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        let label = cx.field_label();
-        {
-            let mut seen = self.seen.borrow_mut();
-            seen.rect = cx.rect;
-            seen.id = Some(cx.id);
-            seen.label = label.clone();
-        }
-        let Some(label) = label else { return };
-        let rtl = cx.env.direction().is_rtl();
-        let drag = ValueDrag::relative(RATE, RANGE);
-        match label.press.phase {
-            PressPhase::DragStart { .. } => {
-                cx.memory::<Start>().0 = cx.value().copied().unwrap_or(0.0);
-                cx.begin();
-            }
-            PressPhase::Drag { .. } => {
-                let start = cx.memory::<Start>().0;
-                if let Some(next) = drag.value(start, &label.press, rtl) {
-                    cx.propose(next);
-                }
-            }
-            PressPhase::Release { .. } if cx.gesture().is_some_and(|phase| matches!(phase, GesturePhase::Begin | GesturePhase::Update)) => {
-                cx.commit()
-            }
-            _ => {}
-        }
+        let mut seen = self.seen.borrow_mut();
+        seen.rect = cx.rect;
+        seen.id = Some(cx.id);
+        seen.label = cx.field_label();
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {

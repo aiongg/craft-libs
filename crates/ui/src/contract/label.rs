@@ -14,7 +14,7 @@ use crate::runtime::env::{Env, Label};
 use crate::runtime::keys;
 use crate::runtime::memory::sub;
 use crate::style::{ComponentStyle, ResetMarkLook, StyleCx};
-use craft_behavior::{ColumnWidth, Flow, Intent, LabelColumn, Metrics, PartKey, PressPhase, PressState, Sense};
+use craft_behavior::{ColumnWidth, Flow, Intent, LabelColumn, Metrics, PartKey, PressPhase, PressState, Sense, ValueDrag};
 use egui::{Id, Rect, Response, Ui, UiBuilder, Vec2};
 use std::cell::Cell;
 
@@ -93,6 +93,20 @@ impl SideLabel {
     pub const fn scrub(mut self, on: bool) -> Self {
         self.scrub = on;
         self
+    }
+}
+
+/// How a drag on the side label changes a control's value: the drag maths over the control's number.
+pub struct Scrub<V> {
+    pub(crate) drag: ValueDrag,
+    pub(crate) read: fn(&V) -> f64,
+    pub(crate) write: fn(f64) -> V,
+}
+
+impl<V> Scrub<V> {
+    /// A scrub by `drag`, reading the number a value holds with `read` and making a value of a number with `write`.
+    pub const fn new(drag: ValueDrag, read: fn(&V) -> f64, write: fn(f64) -> V) -> Self {
+        Scrub { drag, read, write }
     }
 }
 

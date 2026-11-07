@@ -1,20 +1,17 @@
 //! Text and number fields: `TextField<C>` and `NumberField` on the text part (18.3).
 
+mod completions;
 #[cfg(feature = "testing")]
 mod stories;
 mod words;
 
 use crate::contract::{
-    Accessible as _, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Overlay, OverlayUi, Overlays as _,
-    PartsCx, Props as _, Remember as _, Role, Trigger,
+    Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, OverlayUi, PartsCx, Props as _, Role, Scrub,
 };
-use crate::primitives::text_adapter::{TextState, text_id};
-use crate::primitives::{Completer, Completion, TextKey, TextOptions, TextRun};
-use crate::runtime::egui::text_edit;
+use crate::primitives::{Completer, TextKey, TextOptions, TextRun};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx, SurfaceLook};
-use craft_behavior::{Codec, GesturePhase, Insets, Metrics, NumberCodec, PartKey, PlainText, PressPhase, Sense, ValueDrag};
-use craft_keymap::{Chord, Key};
+use craft_behavior::{Codec, Insets, Metrics, NumberCodec, PartKey, PlainText, Sense, ValueDrag};
 use egui::{Rect, Vec2};
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -47,14 +44,6 @@ const TEXT: PartKey = PartKey::new("text");
 
 fn text_part<V>() -> TextKey<V> {
     TextKey::new(TEXT)
-}
-
-/// The completion list's state: the candidates shown, the highlighted one, and the draft Escape hid it for.
-#[derive(Clone, Default)]
-struct CompletionState {
-    items: Vec<Completion>,
-    index: usize,
-    dismissed: Option<String>,
 }
 
 /// A text field over a codec: plain text by default.
@@ -130,10 +119,17 @@ impl<'a, C: Codec + Clone + 'static> TextField<'a, C> {
         self
     }
 
-    /// Completion candidates for the text before the caret. The field owns the list and the keys it takes.
+    /// Completion candidates for the text before the caret. The text adapter owns the list and the keys it takes.
     #[must_use]
     pub fn complete(mut self, completer: impl Completer + 'static) -> Self {
         self.options.complete = Some(Arc::new(completer));
+        self
+    }
+
+    /// `text` replaces the selection in this pass: at the caret it inserts. Set it for one pass only.
+    #[must_use]
+    pub fn replace_selection(mut self, text: impl Into<String>) -> Self {
+        self.options.replace_selection = Some(text.into());
         self
     }
 }
@@ -171,82 +167,11 @@ impl<C: Codec + Clone + 'static> Component for TextField<'_, C> {
         Some(self.value.reborrow())
     }
 
-    /// The completion list: candidates from the draft and caret, the keys it claims while open, acceptance by
-    /// replacing the returned byte range of the draft.
-    fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        let Some(completer) = self.options.complete.clone() else { return };
-        let (ctx, id) = (cx.core.ctx.clone(), cx.core.id);
-        let widget = text_id(id, TEXT);
-        let popup = cx.popup("completions");
-        popup.trigger(Trigger::Manual, cx);
-        let draft = cx.text(&text_part::<C::Value>()).and_then(|outcome| outcome.draft.clone());
-        let mut items = Vec::new();
-        let range = match &draft {
-            Some(text) if cx.is_focused() => {
-                let chars = text_edit::selection(&ctx, widget).map_or_else(|| text.chars().count(), |selection| selection.0);
-                let caret = text.char_indices().nth(chars).map_or(text.len(), |(byte, _)| byte);
-                completer.complete(text, caret, &mut items)
-            }
-            _ => None,
-        };
-        let down = cx.take_claimed(Chord::plain(Key::Down));
-        let up = cx.take_claimed(Chord::plain(Key::Up));
-        let escape = cx.take_claimed(Chord::plain(Key::Escape));
-        let accept = cx.take_claimed(Chord::plain(Key::Enter)) | cx.take_claimed(Chord::plain(Key::Tab));
-        let state = cx.memory::<CompletionState>();
-        if escape {
-            state.dismissed = draft.clone();
-        }
-        if state.dismissed.is_some() && state.dismissed != draft {
-            state.dismissed = None;
-        }
-        let (Some(range), true) = (range, !items.is_empty() && state.dismissed.is_none()) else {
-            *state = CompletionState::default();
-            popup.close(cx);
-            return;
-        };
-        if state.items.iter().map(|item| item.insert.as_str()).ne(items.iter().map(|item| item.insert.as_str())) {
-            state.index = 0;
-        }
-        if down {
-            state.index = (state.index + 1).min(items.len() - 1);
-        }
-        if up {
-            state.index = state.index.saturating_sub(1);
-        }
-        state.items = items;
-        let picked = state.items[state.index].clone();
-        if accept {
-            let text = draft.unwrap_or_default();
-            let inserted = format!("{}{}{}", &text[..range.start], picked.insert, &text[range.end..]);
-            let caret = inserted[..range.start + picked.insert.len()].chars().count();
-            text_edit::select(&ctx, widget, caret, caret);
-            let slot = cx.core.memory.shown::<TextState>(crate::runtime::memory::sub(id, "text_state"));
-            slot.draft = Some(inserted);
-            slot.dirty = true;
-            *cx.memory::<CompletionState>() = CompletionState::default();
-            popup.close(cx);
-            return;
-        }
-        // Up, Down, Enter, Tab and Escape have one consumer while the list is open: the list.
-        for key in [Key::Up, Key::Down, Key::Enter, Key::Tab, Key::Escape] {
-            cx.claim(Chord::plain(key));
-        }
-        popup.open(cx);
-    }
-
+    /// The completion list under the field, over what the text adapter holds.
     fn overlay(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>) {
-        if self.options.complete.is_none() {
-            return;
+        if self.options.complete.is_some() {
+            completions::show(ui, cx, &text_part::<C::Value>());
         }
-        let popup = cx.popup("completions");
-        let state = cx.recall::<CompletionState>();
-        ui.show(popup, Overlay::dropdown(), |ui, _| {
-            for (at, item) in state.items.iter().enumerate() {
-                let text = egui::RichText::new(item.label.as_str());
-                ui.label(if at == state.index { text.strong() } else { text });
-            }
-        });
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> EditResponse<C::Value> {
@@ -284,10 +209,6 @@ impl<'a> NumberField<'a> {
     }
 }
 
-/// The value a scrub started from.
-#[derive(Clone, Default)]
-struct ScrubStart(f64);
-
 impl Component for NumberField<'_> {
     const ROLE: Role = Role::SPIN_BUTTON;
     const INPUT: crate::contract::Input = crate::contract::Input::Text;
@@ -317,30 +238,8 @@ impl Component for NumberField<'_> {
         Some(self.value.reborrow())
     }
 
-    fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        if !self.scrub || cx.core.resolved.read_only || !cx.core.resolved.enabled {
-            return;
-        }
-        let Some(label) = cx.field_label() else { return };
-        crate::runtime::access::scope::register_scrub(&cx.core.ctx);
-        let rtl = cx.env.direction().is_rtl();
-        let drag = ValueDrag::relative(SCRUB_RATE, f64::MIN..=f64::MAX);
-        match label.press.phase {
-            PressPhase::DragStart { .. } => {
-                cx.memory::<ScrubStart>().0 = cx.value().copied().flatten().unwrap_or(0.0);
-                cx.begin();
-            }
-            PressPhase::Drag { .. } => {
-                let start = cx.memory::<ScrubStart>().0;
-                if let Some(next) = drag.value(start, &label.press, rtl) {
-                    cx.propose(Some(next));
-                }
-            }
-            PressPhase::Release { .. } if cx.gesture().is_some_and(|phase| matches!(phase, GesturePhase::Begin | GesturePhase::Update)) => {
-                cx.commit()
-            }
-            _ => {}
-        }
+    fn scrub(&self) -> Option<Scrub<Option<f64>>> {
+        self.scrub.then(|| Scrub::new(ValueDrag::relative(SCRUB_RATE, f64::MIN..=f64::MAX), |value| value.unwrap_or(0.0), Some))
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> EditResponse<Option<f64>> {

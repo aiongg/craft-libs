@@ -54,6 +54,8 @@ pub struct TextOptions {
     pub tab_inserts: bool,
     /// Candidates for the text before the caret.
     pub complete: Option<Arc<dyn Completer>>,
+    /// Text that replaces the selection in the pass it is set (the caret inserts it).
+    pub replace_selection: Option<String>,
 }
 
 impl TextOptions {
