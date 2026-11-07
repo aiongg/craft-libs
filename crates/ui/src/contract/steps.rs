@@ -1274,7 +1274,12 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
     let row = core.env.facts_of(id).map(|facts| facts.position);
     for node in &mut access.nodes {
         // A cell of an item row knows its row and, by its repeat, its column.
-        if let (Some(row), Some(column), Role::Node(crate::runtime::egui::access::NodeRole::Cell | crate::runtime::egui::access::NodeRole::GridCell)) = (row, node.part.index, node.role) {
+        if let (
+            Some(row),
+            Some(column),
+            Role::Node(crate::runtime::egui::access::NodeRole::Cell | crate::runtime::egui::access::NodeRole::GridCell),
+        ) = (row, node.part.index, node.role)
+        {
             node.grid = access::GridPlace {
                 row_index: node.grid.row_index.or(Some(row.index)),
                 column_index: node.grid.column_index.or(Some(column as usize)),

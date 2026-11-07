@@ -250,6 +250,12 @@ pub trait Component: Meta + Sized {
         Vec2::ZERO
     }
 
+    /// The axis along which the component takes all the room the flow offers when that is more than it measured,
+    /// as a container with `Sizing::Fill` does: a vertical rule fills its row's height.
+    fn fills(&self) -> Option<craft_behavior::Axis> {
+        None
+    }
+
     /// The root's sense; the shape's default unless a canvas control.
     fn sense(&self) -> Sense {
         if Self::CANVAS_CONTROL { Sense::empty() } else { <Self::Shape as ShowShape>::DEFAULT_SENSE }
