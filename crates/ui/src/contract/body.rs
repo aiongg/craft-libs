@@ -540,6 +540,7 @@ impl<'b> BodyHooks<'b> {
             // never taller than the room less header and footer, so the footer stays inside the room.
             let body_h = (self.remembered.map_or(0.0, |size| size.y) * self.presence.t).min(body_room);
             let line_h = if inline { body_h.max(header_h) } else { body_h }.max(end_h).min(body_room);
+            eprintln!("DBG room {room:?} inner {inner:?} hdr {header_h} ftr {footer_h} rem {:?} t {} line {line_h}", self.remembered, self.presence.t);
             (top + body_room, top + line_h)
         } else {
             (inner.max.y - footer_h, inner.max.y - footer_h)
