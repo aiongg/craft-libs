@@ -1,16 +1,16 @@
 //! `Tour` (24.4): a guided walk through the interface, one step at a time, a card beside the part it explains.
 
 use super::words::PanelWords;
-use crate::buttons::Button;
 use crate::contract::overlay::{Anchor, FloatPlace, OverlayFit, Place, ViewportShare};
-use crate::contract::{Bind, Overlay, Pattern, Props, Show as _, ShowContainer as _, StopProps as _};
+use crate::contract::{Bind, Overlay, Pattern, Props, Show as _, ShowContainer as _};
 use crate::display::Text;
-use crate::layout_components::{Row, Stack};
-use crate::notices::{Notice, NoticeLayout};
+use crate::layout_components::Stack;
+use crate::notices::{Notice, NoticeAction, NoticeLayout};
+use crate::runtime::commands::{CommandSet as _, Commands as _};
 use crate::popover::Popover;
 use crate::runtime::env::{Env, Label};
 use crate::runtime::focus::Initial;
-use crate::runtime::overlay::{Backdrop, CloseReason, Rank};
+use crate::runtime::overlay::{Backdrop, Rank};
 use craft_behavior::overlay::{Align, Side};
 use craft_behavior::{EditEvent, GestureId, Mixed};
 use craft_theme::variant::Tone;
@@ -19,6 +19,20 @@ use std::sync::Arc;
 
 #[cfg(feature = "testing")]
 mod stories;
+
+/// The keys of a tour: Right goes to the next step and Left back (the keymap mirrors them in a right-to-left
+/// interface). They belong to the tour that holds the focus and work under the tour's own modal layer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui_macros::CommandSet)]
+#[command(prefix = "tour", scope = "tour")]
+#[non_exhaustive]
+pub(crate) enum TourCommands {
+    /// Go to the next step, or finish on the last.
+    #[command(label = "Next", default = "Right", modal = "always")]
+    Next,
+    /// Go back a step.
+    #[command(label = "Back", default = "Left", modal = "always")]
+    Back,
+}
 
 /// The card's widest share of the window.
 const CARD_SHARE: ViewportShare = ViewportShare::new(0.3, 0.6);
@@ -78,7 +92,8 @@ pub struct TourOutput {
 /// - Show it while the tour runs; the app stops showing it on `Finished` and `Skipped`.
 /// - The index binding holds the step; Next and Back change it and report the event. An index past the last step
 ///   shows the last step.
-/// - Keys: Next has the focus when the step opens, so Enter goes on; Escape skips; Tab reaches Back and Skip.
+/// - Keys: Next has the focus when the step opens, so Enter goes on; Right and Left step forward and back (mirrored
+///   in a right-to-left interface); Escape skips; Tab reaches Back and Skip.
 #[derive(Pattern, Props)]
 pub struct Tour<'a> {
     label: Label,
@@ -103,42 +118,41 @@ impl<'a> Tour<'a> {
         let words = env.words::<PanelWords>();
         let count = words.tour_count.fill(&[("n", &env.format().integer(at as u64 + 1)), ("total", &env.format().integer(steps.len() as u64))]);
         let layer = layer(step.target);
-        let mut clicked = (false, false, false);
-        let shown = Popover::new(step.title.clone(), Bind::given(true)).overlay(|_| layer).initial_focus(Initial::Default).close_on_enter(true).show(
-            ui,
-            |ui, _| {
-                Stack::new().show(ui, |ui, _| {
-                    Notice::new(Tone::Neutral, step.text.clone()).title(step.title.clone()).layout(NoticeLayout::Inline).show(ui);
-                    Text::new(count.clone()).show(ui);
-                    Row::new().show(ui, |ui, _| {
-                        let skip = if at < last { Some(Button::new(words.tour_skip.clone()).show(ui)) } else { None };
-                        let back = if at > 0 { Some(Button::new(words.tour_back.clone()).show(ui)) } else { None };
-                        let next = if at < last { words.tour_next.clone() } else { words.tour_done.clone() };
-                        let next = Button::new(next).default_stop().show(ui);
-                        clicked = (
-                            skip.is_some_and(|skip| crate::contract::clicked(&skip)),
-                            back.is_some_and(|back| crate::contract::clicked(&back)),
-                            crate::contract::clicked(&next),
-                        );
-                    });
-                });
-            },
-        );
-        let (skip, back, next) = clicked;
+        let mut taken: Option<TourEvent> = None;
         let forward = if at < last { TourEvent::Next } else { TourEvent::Finished };
-        let event = if next {
-            Some(forward)
-        } else if back {
-            Some(TourEvent::Back)
-        } else if skip {
-            Some(TourEvent::Skipped)
-        } else {
-            match shown.output.closed {
-                Some(CloseReason::Enter) => Some(forward),
-                Some(_) => Some(TourEvent::Skipped),
-                None => None,
-            }
-        };
+        let shown = Popover::new(step.title.clone(), Bind::given(true))
+            .overlay(|_| layer)
+            .initial_focus(Initial::Default)
+            .command_scope(TourCommands::SCOPE)
+            .show(ui, |ui, cx| {
+                while let Some((command, _)) = cx.take_command::<TourCommands>() {
+                    taken = match command {
+                        TourCommands::Next => Some(forward),
+                        TourCommands::Back if at > 0 => Some(TourEvent::Back),
+                        TourCommands::Back => taken,
+                    };
+                }
+                Stack::new().show(ui, |ui, _| {
+                    let mut notice = Notice::new(Tone::Neutral, step.text.clone()).title(step.title.clone()).layout(NoticeLayout::Inline);
+                    // Reading order: Skip, Back, Next; the indices below follow it.
+                    let mut order = Vec::with_capacity(3);
+                    if at < last {
+                        notice = notice.action(NoticeAction::new(words.tour_skip.clone()));
+                        order.push(TourEvent::Skipped);
+                    }
+                    if at > 0 {
+                        notice = notice.action(NoticeAction::new(words.tour_back.clone()));
+                        order.push(TourEvent::Back);
+                    }
+                    notice = notice.action(NoticeAction::new(if at < last { words.tour_next.clone() } else { words.tour_done.clone() }).default_action());
+                    order.push(forward);
+                    if let Some(event) = notice.show(ui).action.and_then(|at| order.get(at).copied()) {
+                        taken = Some(event);
+                    }
+                    Text::new(count.clone()).show(ui);
+                });
+            });
+        let event = taken.or(shown.output.closed.map(|_| TourEvent::Skipped));
         let moved = match event {
             Some(TourEvent::Next) => Some(at + 1),
             Some(TourEvent::Back) => Some(at - 1),

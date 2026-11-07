@@ -2,6 +2,7 @@
 
 mod footer;
 mod header;
+mod panel;
 mod section;
 mod stack;
 

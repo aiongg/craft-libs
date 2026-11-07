@@ -5,7 +5,7 @@
 use super::FooterBar;
 use super::title_row::{HeaderAction, HeaderStrength, TitleRow};
 use super::words::SectionWords;
-use crate::contract::overlay::{Popup, Trigger};
+use crate::contract::overlay::{Anchor, Popup, Trigger};
 use crate::contract::{
     Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, FooterRegion, HeaderRegion, NoValue, Outcome, Pad, Props as _, Role,
     Scroll, Show as _, ShowContainer as _, Sizing, WordSetCx as _,
@@ -191,7 +191,13 @@ impl Container for Panel<'_> {
         self.taken = shown.action.or(self.taken);
         if let Some(rows) = self.menu.as_mut() {
             let name = cx.words::<SectionWords>().menu.clone();
-            Menu::new(name).opened_by(&shown.edit.response, Trigger::Manual).show(ui, |ui, menu| (rows.0)(ui, menu));
+            // Two openers on the header's response: the menu button (Manual, hung under the button) and the context
+            // request (right click, Menu key, Shift+F10).
+            let mut menu = Menu::new(name).opened_by(&shown.edit.response, Trigger::Manual);
+            if let Some(button) = shown.menu_rect {
+                menu = menu.anchor(Anchor::Rect(button));
+            }
+            menu.opened_by(&shown.edit.response, Trigger::Context).show(ui, |ui, menu| (rows.0)(ui, menu));
         }
     }
 
