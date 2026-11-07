@@ -7,6 +7,7 @@ use crate::contract::{
     Bind, BindMut, BodyCx, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Props as _, Role, SelectMode,
     Show as _, Sizing, WordSetCx as _,
 };
+use crate::notices::{Notice, NoticeLayout};
 use crate::primitives::IconSpec;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
@@ -258,6 +259,6 @@ impl Collection for EventList<'_> {
 
     fn empty(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         let words = cx.words::<EventWords>();
-        super::findings::EmptyNote::new().label(words.none.clone()).show_at(ui, cx.rect);
+        Notice::new(Tone::Neutral, words.none.clone()).layout(NoticeLayout::Centred).show_at(ui, cx.rect);
     }
 }
