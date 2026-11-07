@@ -7,8 +7,8 @@ use crate::runtime::egui::access::node_key;
 use crate::runtime::egui::input::{self as raw_input, Action, ActionKind, KeyEvent, RawInput};
 use crate::runtime::focus::{self, StopRec};
 use crate::runtime::frame::PerViewport;
-use craft_behavior::focus::key_owner;
 use crate::runtime::overlay;
+use craft_behavior::focus::key_owner;
 use craft_behavior::focus::{EscapeFacts, EscapeStep, escape_step};
 use craft_behavior::keys;
 use craft_behavior::{AccessRequest, CancelRule, EditCommand, Intent, KeyOwner, MoveMods, NavMove, OwnerClass, PartRef};
@@ -589,10 +589,9 @@ impl Intents {
     /// Takes the next move that scrolls (page up or down, start, end): what a focused component that does not
     /// take it leaves to the scroll owner around it (9.2 rule 5).
     pub(crate) fn take_scroll_move(&mut self) -> Option<NavMove> {
-        let at = self
-            .items
-            .iter()
-            .position(|(item, taken)| !taken && matches!(item, Intent::Move(NavMove::PageUp | NavMove::PageDown | NavMove::Start | NavMove::End, _)))?;
+        let at = self.items.iter().position(|(item, taken)| {
+            !taken && matches!(item, Intent::Move(NavMove::PageUp | NavMove::PageDown | NavMove::Start | NavMove::End, _))
+        })?;
         self.items[at].1 = true;
         match self.items[at].0 {
             Intent::Move(mv, _) => Some(mv),

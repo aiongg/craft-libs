@@ -124,7 +124,10 @@ pub(crate) fn end_pass(ctx: &Context) {
         let elapsed = queue.last_tick.map_or(0.0, |last| (now - last).max(0.0)) as f32;
         queue.last_tick = Some(now);
         for live in &mut queue.live {
-            if live.shown && !live.held && let Some(remaining) = &mut live.remaining {
+            if live.shown
+                && !live.held
+                && let Some(remaining) = &mut live.remaining
+            {
                 *remaining -= elapsed;
             }
         }

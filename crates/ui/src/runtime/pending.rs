@@ -195,16 +195,14 @@ struct PendingState {
 }
 
 fn queue_of(ctx: &Context, jobs: &Arc<dyn Jobs>) -> Arc<JobQueue<Id, ()>> {
-    Service::<PendingState>::of(ctx).with(|state| {
-        match &state.queue {
-            Some((current, queue)) if Arc::ptr_eq(current, jobs) => queue.clone(),
-            _ => {
-                let wake_ctx = ctx.clone();
-                let wake = Wake::new(move || repaint::request(&wake_ctx));
-                let queue = Arc::new(JobQueue::new(jobs.clone(), wake, QueueOptions { name: "craft-pending", ..QueueOptions::default() }));
-                state.queue = Some((jobs.clone(), queue.clone()));
-                queue
-            }
+    Service::<PendingState>::of(ctx).with(|state| match &state.queue {
+        Some((current, queue)) if Arc::ptr_eq(current, jobs) => queue.clone(),
+        _ => {
+            let wake_ctx = ctx.clone();
+            let wake = Wake::new(move || repaint::request(&wake_ctx));
+            let queue = Arc::new(JobQueue::new(jobs.clone(), wake, QueueOptions { name: "craft-pending", ..QueueOptions::default() }));
+            state.queue = Some((jobs.clone(), queue.clone()));
+            queue
         }
     })
 }

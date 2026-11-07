@@ -15,9 +15,9 @@ use craft_theme::{Flags, Tone};
 use egui::Id;
 use std::ops::RangeInclusive;
 
+pub(crate) use emit::{FaceFacts, Own, PopupShown, SubDecl, report, report_layer, report_sub, sub_node_id};
 pub use live::announce;
 pub(crate) use live::{begin_pass as begin_live_pass, end_pass as end_live_pass};
-pub(crate) use emit::{FaceFacts, Own, PopupShown, SubDecl, report, report_layer, report_sub, sub_node_id};
 pub use scope::{FieldLabel, FieldLabelRole};
 
 /// Makes `parent` the node `id` attaches to. Call it before the node of `id` is created.

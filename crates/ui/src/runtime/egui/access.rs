@@ -3,8 +3,8 @@
 //! reads a finished tree update. What a node says is decided in `runtime::access`.
 
 mod node;
-mod roles;
 mod patch;
+mod roles;
 #[cfg(feature = "testing")]
 mod tree;
 

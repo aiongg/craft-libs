@@ -36,6 +36,8 @@ pub enum Declared {
     Collapse,
     /// A custom action.
     Custom,
+    /// Scroll down by a page.
+    ScrollDown,
 }
 
 impl Declared {
@@ -49,6 +51,7 @@ impl Declared {
             Declared::Expand => Action::Expand,
             Declared::Collapse => Action::Collapse,
             Declared::Custom => Action::CustomAction,
+            Declared::ScrollDown => Action::ScrollDown,
         }
     }
 }

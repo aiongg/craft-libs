@@ -34,6 +34,11 @@ pub fn wheel(dy: f32) -> Event {
     fixture::wheel_event(dy)
 }
 
+/// A mouse wheel turning `dy` lines at the pointer.
+pub fn wheel_lines(dy: f32) -> Event {
+    fixture::wheel_lines_event(dy)
+}
+
 /// The secondary button going down or up at `pos`.
 pub fn secondary(pos: Pos2, pressed: bool) -> Event {
     fixture::secondary_button(pos, pressed)

@@ -257,7 +257,10 @@ fn write_actions(node: &mut accesskit::Node, spec: &NodeSpec) {
     if !spec.custom_actions.is_empty() {
         node.add_action(accesskit::Action::CustomAction);
         node.set_custom_actions(
-            spec.custom_actions.iter().map(|(id, description)| accesskit::CustomAction { id: *id, description: description.clone() }).collect::<Vec<_>>(),
+            spec.custom_actions
+                .iter()
+                .map(|(id, description)| accesskit::CustomAction { id: *id, description: description.clone() })
+                .collect::<Vec<_>>(),
         );
     }
 }

@@ -323,7 +323,14 @@ pub(crate) fn drop_under_modal(input: &mut RawInput) -> (bool, bool) {
     input.events.retain(|event| {
         let blocked = matches!(
             event,
-            Event::PointerButton { .. } | Event::MouseWheel { .. } | Event::Key { .. } | Event::Text(_) | Event::Copy | Event::Cut | Event::Paste(_) | Event::Touch { .. }
+            Event::PointerButton { .. }
+                | Event::MouseWheel { .. }
+                | Event::Key { .. }
+                | Event::Text(_)
+                | Event::Copy
+                | Event::Cut
+                | Event::Paste(_)
+                | Event::Touch { .. }
         );
         press |= matches!(event, Event::PointerButton { pressed: true, .. });
         !blocked

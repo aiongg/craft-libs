@@ -3,22 +3,23 @@
 
 use super::cx::BodyCx;
 use super::label::{self, LabelIn};
-use crate::style::ComponentStyle as _;
 use super::run::{ShapeHooks, ShowAt};
 use super::{Container, ContainerProps, Cx, Gap, Internal, Mount, Notch, Pad, PartsCx, Scroll, Sizing};
 use crate::layout;
 use crate::primitives::{ScrollBar, Surface};
 use crate::runtime::access::{self, Politeness, Role};
+use crate::runtime::commands::{self, CommandSet as _, WindowCommand};
 use crate::runtime::egui::{alloc, areas, child, response, style};
 use crate::runtime::env::{AppValues, ArenaId, Env};
 use crate::runtime::focus::FocusPolicy;
 use crate::runtime::memory::{MemoryStage, sub};
-use crate::runtime::commands::{self, CommandSet as _, WindowCommand};
 use crate::runtime::motion::{Driver, Presence, spec};
 use crate::runtime::{keys, layout_memory, pointer, wheel};
+use crate::style::ComponentStyle as _;
 use crate::style::{Corners, RuleKind, StyleCx, UiTokens, rule_look, scroll_bar_look, surface_style};
 use craft_behavior::{
-    Axis, CancelRule, Roving, CursorIcon, EditEvent, GestureId, HitLevel, HitPriority, Mixed, PartKey, PressPhase, ScrollPos, ScrollSpan, WheelNotch, WheelTaker,
+    Axis, CancelRule, CursorIcon, EditEvent, GestureId, HitLevel, HitPriority, Mixed, PartKey, PressPhase, Roving, ScrollPos, ScrollSpan, WheelNotch,
+    WheelTaker,
 };
 use craft_keymap::{Chord, Key, Mods};
 use egui::emath::TSTransform;
@@ -76,7 +77,8 @@ struct WindowMode {
 }
 
 /// The arrow chords, with and without Shift, a window mode holds, with the direction each moves.
-const MODE_ARROWS: [(Key, Vec2); 4] = [(Key::Left, Vec2::new(-1.0, 0.0)), (Key::Right, Vec2::new(1.0, 0.0)), (Key::Up, Vec2::new(0.0, -1.0)), (Key::Down, Vec2::new(0.0, 1.0))];
+const MODE_ARROWS: [(Key, Vec2); 4] =
+    [(Key::Left, Vec2::new(-1.0, 0.0)), (Key::Right, Vec2::new(1.0, 0.0)), (Key::Up, Vec2::new(0.0, -1.0)), (Key::Down, Vec2::new(0.0, 1.0))];
 
 /// The eight edge and corner grips of a resizable layer, in the order of `GRIPS`: which edges each moves.
 const GRIPS: [(i8, i8, CursorIcon); 8] = [
@@ -183,7 +185,8 @@ impl BodyHooks<'_> {
                     continue;
                 }
             };
-            let (visible, extent, offset) = if vertical { (view.y, self.last.extent.1, self.offset.y) } else { (view.x, self.last.extent.0, self.offset.x) };
+            let (visible, extent, offset) =
+                if vertical { (view.y, self.last.extent.1, self.offset.y) } else { (view.x, self.last.extent.0, self.offset.x) };
             let span = ScrollSpan::new(0.0..f64::from(extent).max(f64::from(visible)), offset..offset + f64::from(visible));
             let start = craft_behavior::scroll::page(&span, toward_end).start;
             if vertical {
@@ -215,7 +218,7 @@ impl BodyHooks<'_> {
             };
             mode = if mode.kind == Some(kind) { WindowMode::default() } else { WindowMode { kind: Some(kind), restore: slot.clone() } };
         }
-        if mode.kind.is_some() && crate::runtime::focus::focus_in_scope(&ctx, id) != Some(true) {
+        if mode.kind.is_some() && !commands::focus_within(&ctx, id) {
             mode = WindowMode::default();
         }
         if let Some(kind) = mode.kind {
@@ -334,7 +337,10 @@ impl<'b> BodyHooks<'b> {
             bars.push((Bar { key: SCROLL_Y, axis: Axis::Y, track }, span));
         }
         if h_on {
-            let track = Rect::from_min_max(Pos2::new(view.min.x, view.max.y - thickness), Pos2::new(view.max.x - if v_on { thickness } else { 0.0 }, view.max.y));
+            let track = Rect::from_min_max(
+                Pos2::new(view.min.x, view.max.y - thickness),
+                Pos2::new(view.max.x - if v_on { thickness } else { 0.0 }, view.max.y),
+            );
             let content = f64::from(ex).max(f64::from(view.width()));
             let span = ScrollSpan::new(0.0..content, self.offset.x..self.offset.x + f64::from(view.width()));
             bars.push((Bar { key: SCROLL_X, axis: Axis::X, track }, span));
@@ -407,7 +413,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         };
         self.open_at_read = self.open;
         self.presence = match collapse {
-            Some(collapse) if collapse.animated => Driver { stage: &*stage, base: id, policy: env.motion }.presence("collapse", self.open, spec::OPEN_RISE),
+            Some(collapse) if collapse.animated => {
+                Driver { stage: &*stage, base: id, policy: env.motion }.presence("collapse", self.open, spec::OPEN_RISE)
+            }
             _ => Presence { t: f32::from(u8::from(self.open)), visible: self.open, exiting: false },
         };
         self.mode = stage.session::<WindowMode>(sub(id, "window_mode")).clone();
@@ -458,7 +466,11 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             self.moved = true;
         }
         for mv in super::steps::take_scroll_moves(&ctx, id) {
-            let (visible, extent, offset, vertical) = if scroll.vertical_on() { (view.y, self.last.extent.1, self.offset.y, true) } else { (view.x, self.last.extent.0, self.offset.x, false) };
+            let (visible, extent, offset, vertical) = if scroll.vertical_on() {
+                (view.y, self.last.extent.1, self.offset.y, true)
+            } else {
+                (view.x, self.last.extent.0, self.offset.x, false)
+            };
             let span = ScrollSpan::new(0.0..f64::from(extent).max(f64::from(visible)), offset..offset + f64::from(visible));
             if let Some(range) = craft_behavior::scroll::jump(&span, mv) {
                 if vertical {
@@ -708,8 +720,12 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             let gap = Vec2::splat(gap_of(&env.tokens, props.body_gap));
             let layout_id = sub(id, "layout");
             // While the body opens or closes, it shows only the part of its last height that the presence reaches.
-            let reveal_clip = (animated && self.presence.t < 1.0)
-                .then(|| Rect::from_min_max(body_rect.min, Pos2::new(body_rect.max.x, body_rect.min.y + self.remembered.map_or(0.0, |size| size.y) * self.presence.t)));
+            let reveal_clip = (animated && self.presence.t < 1.0).then(|| {
+                Rect::from_min_max(
+                    body_rect.min,
+                    Pos2::new(body_rect.max.x, body_rect.min.y + self.remembered.map_or(0.0, |size| size.y) * self.presence.t),
+                )
+            });
             let (layout, body) = (&props.layout, &mut *self.body);
             let mut run = |parent: &mut Ui, at: Rect, bcx: &mut BodyCx<'_>| -> Option<Vec2> {
                 let mut body_ui = alloc::child(parent, {
@@ -725,12 +741,14 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                     Some(scroll) => {
                         let off = self.offset;
                         let big = super::MAX_EXTENT;
-                        let (width, height) = (if scroll.horizontal_on() { big } else { at.width() }, if scroll.vertical_on() { big } else { at.height() });
+                        let (width, height) =
+                            (if scroll.horizontal_on() { big } else { at.width() }, if scroll.vertical_on() { big } else { at.height() });
                         let x = if scroll.horizontal_on() { off.x as f32 } else { 0.0 };
                         let min_x = if rtl { at.max.x - width + x } else { at.min.x - x };
                         let max = Rect::from_min_size(Pos2::new(min_x, at.min.y - off.y as f32), Vec2::new(width, height));
                         let layout_of = *body_ui.layout();
-                        let mut region_ui = alloc::child(&mut body_ui, UiBuilder::new().scope_id(sub(id, "scroll_region")).layout(layout_of).max_rect(max));
+                        let mut region_ui =
+                            alloc::child(&mut body_ui, UiBuilder::new().scope_id(sub(id, "scroll_region")).layout(layout_of).max_rect(max));
                         region_ui.set_clip_rect(at.intersect(body_ui.clip_rect()));
                         layout::run_body(&mut region_ui, layout_id, layout, gap, |ui| body(ui, bcx));
                         self.extent = Some(region_ui.min_rect().size());
@@ -749,7 +767,11 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                     if props.arena {
                         crate::primitives::sensing::set_layer(&ctx, ArenaId::new(id), layer);
                     }
-                    let forward = areas::Forward { id: sub(id, "transform"), sense: response::to_egui(cx.core.root_sense), rect: rect.intersect(ui.clip_rect()) };
+                    let forward = areas::Forward {
+                        id: sub(id, "transform"),
+                        sense: response::to_egui(cx.core.root_sense),
+                        rect: rect.intersect(ui.clip_rect()),
+                    };
                     areas::show_body_layer(&ctx, parent, layer, tf, body_rect.min, Some(forward), |area_ui| run(area_ui, body_rect, &mut bcx))
                 }
                 None => run(ui, body_rect, &mut bcx),
@@ -791,7 +813,11 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                     let (at, len) = craft_behavior::scroll::thumb(&span, length, look.min_thumb);
                     let thumb = super::cx::thumb_rect(bar.track, bar.axis, rtl, at, len);
                     let enabled = cx.core.resolved.enabled;
-                    let state = super::steps::part_state(cx.core.results.get(&(bar.key, Some(super::cx::THUMB))).unwrap_or(&crate::primitives::PartResult::IDLE), enabled, None);
+                    let state = super::steps::part_state(
+                        cx.core.results.get(&(bar.key, Some(super::cx::THUMB))).unwrap_or(&crate::primitives::PartResult::IDLE),
+                        enabled,
+                        None,
+                    );
                     ui.painter().extend(ScrollBar::shapes(&look, bar.track, thumb, &state));
                 }
             }
@@ -832,7 +858,8 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             && closable
             && policy.cancel != CancelRule::Ignore
             && crate::runtime::focus::focus_in_scope(&cx.core.ctx, id) == Some(true)
-            && let Some(craft_behavior::focus::EscapeStep::CloseScope) = keys::scope_escape(&cx.core.ctx, policy.cancel, pointer::press_captured(&cx.core.ctx), false)
+            && let Some(craft_behavior::focus::EscapeStep::CloseScope) =
+                keys::scope_escape(&cx.core.ctx, policy.cancel, pointer::press_captured(&cx.core.ctx), false)
         {
             self.close = true;
         }

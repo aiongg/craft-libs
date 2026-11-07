@@ -222,6 +222,11 @@ pub(crate) fn take_fired(ctx: &Context) -> Vec<Fired> {
     with(ctx, |board| std::mem::take(&mut board.out))
 }
 
+/// Whether the component that holds key focus sits inside the instance `id`.
+pub(crate) fn focus_within(ctx: &Context, id: Id) -> bool {
+    with(ctx, |board| board.focused.iter().any(|(_, chain)| chain.iter().any(|instance| *instance == id)))
+}
+
 /// Records that the container `id` is an instance of `scope` in the running pass of its viewport.
 pub(crate) fn register_instance(ctx: &Context, scope: CommandScope, id: Id) {
     let viewport = pass::current_viewport(ctx);

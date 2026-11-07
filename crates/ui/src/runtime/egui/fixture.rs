@@ -148,6 +148,8 @@ pub enum AccessActionKind {
     Increment,
     /// AccessKit `Expand`, an action with no intent of its own.
     Expand,
+    /// AccessKit `ScrollDown`.
+    ScrollDown,
 }
 
 impl AccessActionKind {
@@ -161,6 +163,7 @@ impl AccessActionKind {
             AccessActionKind::Click => accesskit::Action::Click,
             AccessActionKind::Increment => accesskit::Action::Increment,
             AccessActionKind::Expand => accesskit::Action::Expand,
+            AccessActionKind::ScrollDown => accesskit::Action::ScrollDown,
         }
     }
 }
@@ -195,6 +198,17 @@ pub(crate) fn clicked_by_primary(response: &egui::Response) -> bool {
 /// The widget id egui's hit test chose as the click target at the latest pointer position.
 pub(crate) fn click_target(ctx: &Context) -> Option<egui::Id> {
     crate::runtime::egui::input::hit_targets(ctx).0
+}
+
+/// A wheel event at the pointer, `dy` lines of vertical scroll.
+pub(crate) fn wheel_lines_event(dy: f32) -> Event {
+    Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Line,
+        delta: egui::Vec2::new(0.0, dy),
+        phase: egui::TouchPhase::Move,
+        modifiers: Modifiers::NONE,
+        source: egui::MouseWheelSource::Wheel,
+    }
 }
 
 /// A wheel event at the pointer, `dy` points of vertical scroll.
