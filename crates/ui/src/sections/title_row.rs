@@ -6,6 +6,7 @@ use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Outcome, PaintUi, PartsCx, Pointer as _,
     Props as _, Role, WordSetCx as _,
 };
+use crate::controls::check::Checkbox;
 use crate::controls::disclosure::Disclosure;
 use crate::primitives::{PaintShape, Span, StrokeWidth, TextRun};
 use crate::runtime::env::Label;
@@ -213,7 +214,7 @@ impl Component for TitleRow<'_> {
                 flow = flow.take_start(side).1;
             }
             Lead::Check(_) => {
-                ui.face(LEAD, CheckFace::new(value).label(words.gate.clone()));
+                ui.face(LEAD, Checkbox::new(Bind::given(value)).label(words.gate.clone()));
                 flow = flow.take_start(side).1;
             }
         }
@@ -246,22 +247,6 @@ fn title_run<'t>(row: &'t TitleRow<'_>, role: TypeRole, title: &'t str) -> TextR
     TextRun::spans(spans).role(role)
 }
 
-/// The look of a gate: a box with a check mark.
-// F8-LATER: `Checkbox` of the choice family replaces this face.
-#[derive(crate::contract::Component)]
-#[component(exempt(case = "stories", reason = "A face of the title row's check lead, shown only inside it."))]
-struct CheckFace {
-    #[common]
-    common: Common,
-    checked: bool,
-}
-
-impl CheckFace {
-    fn new(checked: bool) -> Self {
-        CheckFace { common: Common::new(), checked }
-    }
-}
-
 /// The style of the title row's faces: a mark colour and its size.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 struct MarkStyle {
@@ -274,39 +259,6 @@ struct MarkStyle {
 fn mark_style(cx: &StyleCx<'_>) -> MarkStyle {
     let side = cx.control().icon;
     MarkStyle { metrics: Metrics::new().min_size(Vec2::splat(side)), ink: cx.ink(Ink::OnPanel), side }
-}
-
-impl Component for CheckFace {
-    const ROLE: Role = Role::CHECK_BOX;
-    type Style = MarkStyle;
-    type Output = Response;
-
-    fn style(cx: &StyleCx<'_>, _: CheckFaceStyleKey) -> MarkStyle {
-        mark_style(cx)
-    }
-
-    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let side = cx.style.side;
-        let square = Rect::from_center_size(cx.rect.center(), Vec2::splat(side));
-        let draw = ui.draw();
-        draw.stroke(&PaintShape::Rect(square, egui::CornerRadius::ZERO), StrokeWidth::Thin, cx.style.ink);
-        if self.checked {
-            let (c, u) = (square.center(), side / 4.0);
-            draw.stroke(
-                &PaintShape::Path(vec![c + Vec2::new(-u, 0.0), c + Vec2::new(-u / 3.0, u * 0.8), c + Vec2::new(u, -u)]),
-                StrokeWidth::Medium,
-                cx.style.ink,
-            );
-        }
-    }
-
-    fn flags(&self) -> crate::style::Flags {
-        if self.checked { crate::style::Flags::CHECKED } else { crate::style::Flags::empty() }
-    }
-
-    fn finish(self, cx: Cx<'_, Self>) -> Response {
-        cx.response.clone()
-    }
 }
 
 /// The look of an action part.
