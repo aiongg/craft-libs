@@ -78,3 +78,5 @@ fn a_body_reads_the_shell_the_root_values_hold() {
     });
     assert_eq!(*seen.borrow(), Some(true), "outside a shell a body has none");
 }
+
+mod app_shell;
