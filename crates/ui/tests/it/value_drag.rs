@@ -127,6 +127,7 @@ fn a_drag_between_the_range_thumbs_moves_both_and_keeps_their_distance() {
     let upper = fixture.by_label("Level, Maximum").expect("the upper thumb is named by the label and its end");
     let between = lower.center().lerp(upper.center(), 0.5);
     let travel = Vec2::new(12.0, 0.0);
+    let (low0, high0) = (lower_end(&fixture), upper_end(&fixture));
     fixture.frame(vec![pointer::moved(between)]);
     fixture.frame(vec![pointer::press(between)]);
     fixture.frame(vec![pointer::moved(between + travel / 2.0)]);
@@ -134,8 +135,8 @@ fn a_drag_between_the_range_thumbs_moves_both_and_keeps_their_distance() {
     fixture.frame(vec![pointer::release(between + travel)]);
     fixture.idle(2);
     let (low, high) = (lower_end(&fixture), upper_end(&fixture));
-    assert!(low > 20.0, "the lower thumb moved with the drag: {low}");
-    assert!((high - low - (UPPER_END - 20.0)).abs() < TOLERANCE, "the thumbs keep their distance: {low} to {high}");
+    assert!(low > low0, "the lower thumb moved with the drag: {low0} to {low}");
+    assert!((high - low - (high0 - low0)).abs() < TOLERANCE, "the thumbs keep their distance: {low} to {high}");
 }
 
 const FIELD: Rect = Rect { min: Pos2::new(20.0, 20.0), max: Pos2::new(220.0, 50.0) };

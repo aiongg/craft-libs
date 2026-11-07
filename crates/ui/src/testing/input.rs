@@ -8,6 +8,11 @@ pub fn key_press(key: Key, modifiers: Modifiers) -> Event {
     fixture::key_press(key, modifiers)
 }
 
+/// An event of typed `text`.
+pub fn text(text: &str) -> Event {
+    fixture::text_event(text)
+}
+
 /// Whether a press of `key` is still in this pass's input: no component claimed it.
 pub fn key_reached(ctx: &Context, key: Key) -> bool {
     fixture::key_reached(ctx, key)

@@ -107,14 +107,7 @@ fn a_chord_names_a_punctuation_key_by_the_keyboards_layout() {
     fixture.os(Os::Windows).settle();
     let shown = |fixture: &Fixture| fixture.texts().iter().map(|text| text.text.clone()).collect::<Vec<_>>().join("");
     assert_eq!(shown(&fixture), "Ctrl+/", "an unlearned layout shows the key's own name");
-    let press = |pressed| egui::Event::Key {
-        key: egui::Key::Slash,
-        physical_key: Some(egui::Key::Slash),
-        pressed,
-        repeat: false,
-        modifiers: egui::Modifiers::NONE,
-    };
-    fixture.frame(vec![press(true), egui::Event::Text("é".into()), press(false)]);
+    fixture.frame(vec![craft_ui::testing::input::key_press(egui::Key::Slash, egui::Modifiers::NONE), craft_ui::testing::input::text("é")]);
     fixture.settle();
     assert_eq!(shown(&fixture), "Ctrl+É", "typing taught the layout the character at that key");
 }

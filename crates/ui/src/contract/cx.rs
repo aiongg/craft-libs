@@ -480,7 +480,14 @@ impl CxCore<'_> {
     /// The state set of `part`: its press and hover, its own flags, and the focus flags only when it is the
     /// active part of the focused component.
     pub(crate) fn part_state(&self, part: PartRef) -> StateSet {
+        self.part_state_lit(part, false)
+    }
+
+    /// The state set of `part`, hovered as well when `lit`: a part the pointer is not over that a press at the pointer
+    /// would act on.
+    pub(crate) fn part_state_lit(&self, part: PartRef, lit: bool) -> StateSet {
         let result = self.part(part);
+        let hovered = result.hovered || lit;
         let mut flags = result.flags;
         if self.active_now() == Some(part) && focus::is_focused(&self.ctx, self.id) {
             flags |= Flags::FOCUSED;
@@ -493,13 +500,13 @@ impl CxCore<'_> {
             craft_theme::State::Disabled
         } else if pressed {
             craft_theme::State::Pressed
-        } else if result.hovered {
+        } else if hovered {
             craft_theme::State::Hover
         } else {
             craft_theme::State::Rest
         };
         let on = flags.intersects(Flags::ON);
-        let t = craft_theme::StateMix::new(f32::from(u8::from(result.hovered)), f32::from(u8::from(pressed)), f32::from(u8::from(on)));
+        let t = craft_theme::StateMix::new(f32::from(u8::from(hovered)), f32::from(u8::from(pressed)), f32::from(u8::from(on)));
         StateSet::new(state, flags, t)
     }
 }
