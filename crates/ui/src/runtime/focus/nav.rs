@@ -119,7 +119,7 @@ impl State {
     /// The arrival member of a roving group: its selected member, else the first.
     fn arrival(&self, group: &super::Group) -> Option<StopRec> {
         let members = || self.last_stops.iter().filter(|rec| rec.stop.group == Some(group.id));
-        group.selected.and_then(|id| members().find(|rec| rec.stop.id == id)).or_else(|| members().next()).cloned()
+        group.selected.and_then(|key| members().find(|rec| rec.stop.key() == key)).or_else(|| members().next()).cloned()
     }
 
     fn entries(&self, scope_root: Option<Id>, all_controls: bool) -> Vec<Entry> {

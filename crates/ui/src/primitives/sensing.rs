@@ -284,11 +284,11 @@ pub(crate) fn sense_root(ui: &Ui, spec: RootSpec<'_>) -> RootResult {
         rotate(state, pass_nr);
         state.previous_union_sense
     });
-    // A disabled root only hovers, whatever its parts and members sense; it keeps the focus stop its own sense grants.
+    // A disabled root only hovers, whatever its parts and members sense; it keeps the focus stop its own sense or a part's grants.
     let sense = if spec.enabled {
         spec.own.iter().fold(spec.own_sense | last_union, |sense, part| sense | part.sense)
     } else {
-        Sense::HOVER | spec.own_sense.intersection(Sense::FOCUS)
+        Sense::HOVER | spec.own.iter().fold(spec.own_sense, |sense, part| sense | part.sense).intersection(Sense::FOCUS)
     };
     let response = response::widget(ui, spec.id, spec.rect.intersect(clip), sense);
     // Each edge or handle part that reaches outside the root rect gets its own widget, resolved as the root.

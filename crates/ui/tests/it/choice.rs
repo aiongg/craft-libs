@@ -161,29 +161,32 @@ fn a_click_on_the_current_star_clears_the_rating() {
     assert_eq!(value.get(), 0);
 }
 
-/// With focus in the row, the arrows step by one and stop at the ends, Home and End jump to them, and a digit sets
-/// that many stars.
+/// Tab arrives at the current star; the arrows and Home and End move focus between the stars and leave the rating;
+/// Space sets the focused star's rating and a digit sets that many stars.
 #[trial]
-fn rating_keys_step_jump_and_set() {
+fn rating_arrows_move_focus_and_space_and_digits_set() {
     let (mut fixture, value) = rating_rig(1);
     press(&mut fixture, Key::Tab);
     press(&mut fixture, Key::ArrowRight);
     press(&mut fixture, Key::ArrowRight);
-    assert_eq!(value.get(), 3);
+    assert_eq!(value.get(), 1, "the arrows move focus, not the rating");
+    press(&mut fixture, Key::Space);
+    assert_eq!(value.get(), 3, "Space sets the focused star");
     press(&mut fixture, Key::Num5);
     assert_eq!(value.get(), 5);
-    press(&mut fixture, Key::ArrowRight);
-    assert_eq!(value.get(), 5, "the arrows stop at the last star");
     press(&mut fixture, Key::Home);
-    assert_eq!(value.get(), 0);
+    press(&mut fixture, Key::Space);
+    assert_eq!(value.get(), 1, "Home focuses the first star");
     press(&mut fixture, Key::End);
-    assert_eq!(value.get(), 5);
+    press(&mut fixture, Key::Space);
+    assert_eq!(value.get(), 5, "End focuses the last star");
 }
 
-/// The arrows pass over a disabled segment, and a click on one picks nothing.
+/// Tab arrives at the selected segment, the arrows move focus past a disabled segment, Space picks the focused one,
+/// and a click on a disabled segment picks nothing.
 #[trial]
-fn segmented_arrows_skip_disabled_segments() {
-    let value = Rc::new(Cell::new(1u8));
+fn segmented_arrows_move_focus_past_disabled_segments_and_space_picks() {
+    let value = Rc::new(Cell::new(3u8));
     let shown = value.clone();
     let mut fixture = Fixture::new(move |ui| {
         let segments = [Segment::new(1u8, "Draft"), Segment::new(2, "Review").enabled(false), Segment::new(3, "Final")];
@@ -194,12 +197,12 @@ fn segmented_arrows_skip_disabled_segments() {
     fixture.settle();
     let review = fixture.by_label("Review").expect("every segment is a node");
     fixture.click(&review);
-    assert_eq!(value.get(), 1, "a disabled segment is not picked");
+    assert_eq!(value.get(), 3, "a disabled segment is not picked");
     press(&mut fixture, Key::Tab);
-    press(&mut fixture, Key::ArrowRight);
-    assert_eq!(value.get(), 3);
     press(&mut fixture, Key::ArrowLeft);
-    assert_eq!(value.get(), 1);
+    assert_eq!(value.get(), 3, "the arrows move focus, not the pick");
+    press(&mut fixture, Key::Space);
+    assert_eq!(value.get(), 1, "Tab arrived at the selected segment; one ArrowLeft passed the disabled one to Draft");
 }
 
 /// Rows labelled through the body's label step carry an icon and a count, and a click on a row's radio still

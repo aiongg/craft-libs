@@ -387,6 +387,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
         id,
         holder: holder_widget.unwrap_or_else(|| member.map_or(id, |arena| arena.0)),
         focusable: !inert && steps::takes_focus(resolved) && own.contains(Sense::FOCUS) && env.item != Some(id),
+        parts_focus: !inert && steps::takes_focus(resolved),
         text: holder_widget.is_some(),
         keys: text_keys.unwrap_or(C::KEYS),
         role: p.hooks.key_role(comp).resettable(resettable),
@@ -485,7 +486,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     p.hooks.updated(comp, cx);
     steps::record_context(&cx.core);
     if let (Some(roving), Some(arrival)) = (p.hooks.roving(comp), cx.core.roving_arrival) {
-        focus::register_group(&ctx, focus::Group::new(steps::body_group(id), roving).rtl(rtl).selected(arrival));
+        focus::register_group(&ctx, focus::Group::new(steps::body_group(id), roving).rtl(rtl).selected((arrival, None)));
     }
     // 10 overlay
     p.trace.mark(Step::Overlay);

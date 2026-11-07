@@ -492,6 +492,8 @@ pub(crate) struct StopsIn<'a> {
     /// The egui widget that holds key focus: the component, or an arena member's root.
     pub holder: Id,
     pub focusable: bool,
+    /// The component takes focus (`takes_focus`): its focusable parts are stops.
+    pub parts_focus: bool,
     /// The component's one stop is a text part, whose egui widget holds focus.
     pub text: bool,
     pub keys: focus::KeyUse,
@@ -535,7 +537,10 @@ pub(crate) fn register_stops(input: &StopsIn<'_>) {
     debug_assert!(input.parts.rovings.len() <= 1, "a component declares one roving group; a second would be dropped");
     let group = (!input.parts.rovings.is_empty()).then(|| sub(input.id, "roving"));
     if let (Some(group), Some(roving)) = (group, input.parts.rovings.first()) {
-        focus::register_group(ctx, Group::new(group, *roving).rtl(input.rtl));
+        let arrival = input.parts.decls.iter().rev().find(|(_, extras)| extras.selected && extras.focusable);
+        let group = Group::new(group, *roving).rtl(input.rtl);
+        let arrival = arrival.map(|(decl, _)| (input.id, Some(PartRef { key: decl.key, index: decl.index })));
+        focus::register_group(ctx, if let Some(arrival) = arrival { group.selected(arrival) } else { group });
     }
     let own = || {
         let stop = Stop::new(input.id, input.keys).root(input.holder).role(input.role);
@@ -545,7 +550,7 @@ pub(crate) fn register_stops(input: &StopsIn<'_>) {
         focus::register_stop(ctx, if let Some(group) = input.group.or(input.row) { own().in_group(group) } else { own() });
     }
     for (decl, extras) in &input.parts.decls {
-        if extras.focusable {
+        if extras.focusable && input.parts_focus {
             let stop = own().part(PartRef { key: decl.key, index: decl.index });
             focus::register_stop(ctx, if let Some(group) = group.or(input.row) { stop.in_group(group) } else { stop });
         }

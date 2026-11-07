@@ -648,6 +648,18 @@ impl Intents {
         }
     }
 
+    /// Takes an intent equal to `intent` in every field, once per pass: `Intent::delete(false, Granularity::Grapheme)`
+    /// takes Backspace and leaves Delete, which `take` would also take.
+    pub fn take_exact(&mut self, intent: &Intent) -> bool {
+        match self.items.iter().position(|(item, taken)| !taken && item == intent) {
+            Some(at) => {
+                self.items[at].1 = true;
+                true
+            }
+            None => false,
+        }
+    }
+
     /// Takes the next move.
     pub fn take_move(&mut self) -> Option<(NavMove, MoveMods)> {
         let at = self.items.iter().position(|(item, taken)| !taken && matches!(item, Intent::Move(..)))?;

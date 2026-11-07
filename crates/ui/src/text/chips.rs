@@ -12,7 +12,6 @@ use crate::contract::{
 use crate::display::Badge;
 use crate::primitives::TextOptions;
 use crate::runtime::env::Label;
-use crate::runtime::memory::Remember as _;
 use crate::style::{ComponentStyle, StyleCx, SurfaceLook};
 use craft_behavior::{Caret, Codec, Flow, Granularity, IconId, Intent, Metrics, NavShape, NotAValue, PartKey, Proposal, Roving, Sense};
 use craft_theme::Variant;
@@ -96,10 +95,6 @@ pub struct ChipFieldStyle {
     #[style(metrics)]
     metrics: Metrics,
 }
-
-/// Whether the next Backspace in an empty draft removes the last chip: the first one only selects it.
-#[derive(Clone, Copy, Default)]
-struct Armed(bool);
 
 /// A field of removable chips and a draft text part. Enter or leaving the field commits the draft as chips; the
 /// value is the list of chip texts.
@@ -234,7 +229,11 @@ impl Component for ChipField<'_> {
             let cell = Flow::new(line_rect(line), rtl).span(start, arranged.placement.widths[at]);
             let cell = Rect::from_center_size(cell.center(), vec2(cell.width(), arranged.side));
             let (body, remove) = Flow::new(cell, rtl).take_start(arranged.bodies[at].min(cell.width()));
-            cx.part(CHIP.at(at as u64), body).sense(Sense::CLICK | Sense::FOCUS).focusable();
+            let chip = cx.part(CHIP.at(at as u64), body).sense(Sense::CLICK | Sense::FOCUS).focusable();
+            // The chip next to the draft is the group's arrival: Shift+Tab from the draft lands on it.
+            if at + 1 == chips.len() {
+                chip.selected();
+            }
             cx.part(REMOVE.at(at as u64), remove.rect()).sense(Sense::CLICK).over().pointer_only(REMOVE_BY_KEY);
         }
         let (line, start, width) = arranged.placement.draft;
@@ -251,32 +250,33 @@ impl Component for ChipField<'_> {
         Some(self.value.reborrow())
     }
 
-    /// A remove part's click, Delete or Backspace on a focused chip, and Backspace in an empty draft: the first
-    /// selects the last chip, the second removes it.
+    /// A remove part's click, or Delete or Backspace on a focused chip, removes the chip; Backspace in an empty draft
+    /// focuses the last chip. Delete in an empty draft does nothing.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let Some(chips) = cx.value().cloned() else { return };
         let draft_empty = cx.text(&text_part::<Vec<String>>()).is_none_or(|text| text.draft.as_deref().is_none_or(str::is_empty));
         let on_chip = cx.active_part().filter(|part| part.key == CHIP).and_then(|part| part.index);
         let in_draft = cx.is_focused() && cx.active_part().is_none();
-        if !(in_draft && draft_empty) {
-            cx.memory::<Armed>().0 = false;
-        }
-        let delete = || Intent::delete(false, Granularity::Unit);
-        let mut removed = (0..chips.len()).find(|&at| cx.part_if_declared(REMOVE.at(at as u64)).is_some_and(|part| part.press.phase.is_click()));
+        let backspace = Intent::delete(false, Granularity::Unit);
+        let delete = Intent::delete(true, Granularity::Unit);
+        let mut removed = (0..chips.len()).find(|&at| {
+            // A draft committed earlier in this pass added chips that `parts` has not declared yet.
+            cx.part_if_declared(REMOVE.at(at as u64)).is_some_and(|result| result.press.phase.is_click())
+        });
         if removed.is_none() {
             if let Some(at) = on_chip {
-                if cx.intents().take(delete()) {
+                if cx.intents().take_exact(&backspace) || cx.intents().take_exact(&delete) {
                     removed = Some(at as usize);
                 }
-            } else if in_draft && draft_empty && !chips.is_empty() && cx.intents().take(delete()) {
-                if std::mem::take(&mut cx.memory::<Armed>().0) {
-                    removed = Some(chips.len() - 1);
-                } else {
-                    cx.memory::<Armed>().0 = true;
-                }
+            } else if in_draft && draft_empty && !chips.is_empty() && cx.intents().take_exact(&backspace) {
+                cx.focus_part(CHIP.at(chips.len() as u64 - 1));
             }
         }
         if let Some(at) = removed.filter(|&at| at < chips.len()) {
+            // Next pass the chip after the removed one sits at `at`, where focus already is; with none, the draft.
+            if on_chip.is_some() && at + 1 == chips.len() {
+                cx.focus_own();
+            }
             let mut rest = chips;
             rest.remove(at);
             cx.set(rest);
@@ -285,17 +285,22 @@ impl Component for ChipField<'_> {
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let Some(chips) = cx.value() else { return };
-        let armed = cx.recall::<Armed>().0;
-        for (at, chip) in chips.iter().enumerate().filter(|(at, _)| cx.part_if_declared(CHIP.at(*at as u64)).is_some()) {
-            let variant = if armed && at + 1 == chips.len() { Variant::PRIMARY } else { Variant::SECONDARY };
-            ui.face(CHIP.at(at as u64), Badge::new(chip.clone()).variant(variant));
+        for (at, chip) in chips.iter().enumerate() {
+            // Chips a draft committed in this pass get their parts and faces next pass.
+            if cx.part_if_declared(CHIP.at(at as u64)).is_none() {
+                continue;
+            }
+            ui.face(CHIP.at(at as u64), Badge::new(chip.clone()).variant(Variant::SECONDARY));
         }
     }
 
     fn paint_over(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let Some(chips) = cx.value() else { return };
         let words = cx.words::<ChipWords>();
-        for (at, chip) in chips.iter().enumerate().filter(|(at, _)| cx.part_if_declared(REMOVE.at(*at as u64)).is_some()) {
+        for (at, chip) in chips.iter().enumerate() {
+            if cx.part_if_declared(REMOVE.at(at as u64)).is_none() {
+                continue;
+            }
             let name = words.remove.fill(&[("name", chip.as_str())]);
             ui.face(REMOVE.at(at as u64), IconButton::new(IconId::new("close")).label(name).focusable(false));
         }
