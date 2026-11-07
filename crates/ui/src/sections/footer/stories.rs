@@ -2,17 +2,18 @@
 
 use super::{DropAction, FooterAction, FooterBar};
 use crate::buttons::IconButton;
-use crate::contract::{Props as _, Show as _, ShowContainer as _};
+use crate::contract::{PopupKind, Props as _, Show as _, ShowContainer as _};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::IconId;
+use craft_theme::variant::Tone;
 use egui::Ui;
 
 #[story(FooterBar, covers = [], drive = Drive::Never)]
 fn footer_actions(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let actions = [
-        FooterAction::new(IconId::new("trash"), "Delete layer").accepts_drops::<u8>(|_| true).enabled(false),
-        FooterAction::new(IconId::new("plus"), "New layer"),
-        FooterAction::new(IconId::new("settings"), "Layer settings"),
+        FooterAction::new(IconId::new("trash"), "Delete layer").accepts_drops::<u8>(|_| true).takes_drops_disabled(true).enabled(false),
+        FooterAction::new(IconId::new("plus"), "New layer").popup(PopupKind::Menu).expanded(false),
+        FooterAction::new(IconId::new("settings"), "Layer settings").pressed(true).tone(Tone::Accent),
     ];
     FooterBar::actions(actions).show_footer(ui).into()
 }
