@@ -68,7 +68,7 @@ fn text_part<V>() -> TextKey<V> {
 }
 
 /// A text field over a codec: plain text by default.
-#[derive(crate::contract::Component)]
+#[derive(crate::contract::Component, crate::contract::Props)]
 #[component(overlay, probe(TextField<'static, PlainText>))]
 pub struct TextField<'a, C: Codec + Clone + 'static = PlainText> {
     #[common]
@@ -76,7 +76,9 @@ pub struct TextField<'a, C: Codec + Clone + 'static = PlainText> {
     value: Bind<'a, C::Value>,
     codec: C,
     options: TextOptions,
-    /// The value of an empty field: the text a mixed field shows and what the clear part sets.
+    /// The value of an empty field, for a codec whose values have no natural empty: a mixed field shows its text and
+    /// the clear part of a search field sets it.
+    #[prop]
     empty: Option<C::Value>,
     /// The search form: a leading glyph and a clear part, and Escape clears the text first.
     search: bool,
@@ -104,14 +106,6 @@ impl<'a, C: Codec + Clone + 'static> TextField<'a, C> {
     /// A field named `label` that shows `value` through `codec`.
     pub fn with_codec(label: impl Into<Label>, value: Bind<'a, C::Value>, codec: C) -> Self {
         TextField { common: Common::new(), value, codec, options: TextOptions::default(), empty: None, search: false }.label(label)
-    }
-
-    /// The value of an empty field, for a codec whose values have no natural empty: a mixed field shows its text and
-    /// the clear part of a search field sets it.
-    #[must_use]
-    pub fn empty(mut self, value: C::Value) -> Self {
-        self.empty = Some(value);
-        self
     }
 
     /// Shown while the text is empty.

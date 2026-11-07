@@ -132,7 +132,7 @@ impl<'a> PointPicker<'a> {
     }
 
     /// The point `press` gives, from the point at the start of the drag.
-    fn dragged(&self, drags: &[ValueDrag; 2], start: [f64; 2], press: &PressState) -> Option<[f64; 2]> {
+    fn moved_by(&self, drags: &[ValueDrag; 2], start: [f64; 2], press: &PressState) -> Option<[f64; 2]> {
         Some([self.settle(0, drags[0].value(start[0], press, false)?), self.settle(1, drags[1].value(start[1], press, false)?)])
     }
 
@@ -211,13 +211,13 @@ impl Component for PointPicker<'_> {
                     cx.begin();
                 }
                 PressPhase::Drag { .. } => {
-                    if let Some(next) = self.dragged(&drags, start, &press) {
+                    if let Some(next) = self.moved_by(&drags, start, &press) {
                         cx.propose(next);
                     }
                 }
                 PressPhase::Release { click, .. } => {
                     let running = cx.gesture().is_some();
-                    if let Some(next) = self.dragged(&drags, start, &press) {
+                    if let Some(next) = self.moved_by(&drags, start, &press) {
                         if running {
                             cx.propose(next);
                         } else if click {

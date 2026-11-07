@@ -131,6 +131,8 @@ pub struct LinkedFields<'a, const N: usize> {
     #[prop]
     layout: LinkedLayout,
     captions: Option<[Label; N]>,
+    /// Each field's own range.
+    #[prop]
     ranges: Option<[RangeInclusive<f64>; N]>,
 }
 
@@ -162,13 +164,6 @@ impl<'a, const N: usize> LinkedFields<'a, N> {
     #[must_use]
     pub fn range(mut self, range: RangeInclusive<f64>) -> Self {
         self.ranges = Some(std::array::from_fn(|_| range.clone()));
-        self
-    }
-
-    /// Each field's own range.
-    #[must_use]
-    pub fn ranges(mut self, ranges: [RangeInclusive<f64>; N]) -> Self {
-        self.ranges = Some(ranges);
         self
     }
 

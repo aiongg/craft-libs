@@ -92,6 +92,8 @@ pub struct TitleRow<'a> {
     /// Text after the title.
     #[prop(into)]
     subtitle: Option<Label>,
+    /// An icon before the title, painted in the row's ink unless the spec names another.
+    #[prop]
     icon: Option<IconSpec<'a>>,
     lead: Lead<'a>,
     actions: Vec<HeaderAction>,
@@ -123,13 +125,6 @@ impl<'a> TitleRow<'a> {
             placed: None,
         }
         .label(title)
-    }
-
-    /// An icon before the title, painted in the row's ink unless the spec names another.
-    #[must_use]
-    pub fn icon(mut self, icon: IconSpec<'a>) -> Self {
-        self.icon = Some(icon);
-        self
     }
 
     /// A check box lead bound to the container's gate.

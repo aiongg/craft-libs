@@ -126,8 +126,9 @@ fn mentions_only(e: &Expr, param: &str) -> bool {
 fn fields(cx: &Cx<'_>, s: &ItemStruct, out: &mut Vec<Finding>) {
     let named = |f: &syn::Field| f.ident.as_ref().map(ToString::to_string);
     let derived = derives(&s.attrs);
-    let component =
-        derived.iter().any(|d| d == "Component" || d == "Props") || s.fields.iter().any(|f| f.attrs.iter().any(|a| a.path().is_ident("common")));
+    // A plain options struct that derives only `Props` (such as `Segment`) has no `Common` and implements no `Props`
+    // trait, so its setters shadow nothing.
+    let component = derived.iter().any(|d| d == "Component") || s.fields.iter().any(|f| f.attrs.iter().any(|a| a.path().is_ident("common")));
     for f in &s.fields {
         let Some(field) = named(f) else { continue };
         if component && COMMON_FIELDS.contains(&field.as_str()) {
@@ -135,7 +136,7 @@ fn fields(cx: &Cx<'_>, s: &ItemStruct, out: &mut Vec<Finding>) {
         }
         let Some(prop) = f.attrs.iter().find(|a| a.path().is_ident("prop")) else { continue };
         let setter = setter_name(prop).unwrap_or_else(|| field.clone());
-        if SETTERS.contains(&setter.as_str()) {
+        if component && SETTERS.contains(&setter.as_str()) {
             cx.flag_span(out, SHADOW, SHADOW, f.span(), format!("the setter `{}::{setter}` shadows the `Props` setter of that name", s.ident));
         }
         if !declares_quantity(prop) && is_point_size(&f.ty, &field) {

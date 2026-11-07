@@ -103,12 +103,14 @@ struct Armed(bool);
 
 /// A field of removable chips and a draft text part. Enter or leaving the field commits the draft as chips; the
 /// value is the list of chip texts.
-#[derive(crate::contract::Component)]
+#[derive(crate::contract::Component, crate::contract::Props)]
 pub struct ChipField<'a> {
     #[common]
     common: Common,
     value: Bind<'a, Vec<String>>,
     options: TextOptions,
+    /// Shown while the field has no chips and the draft is empty.
+    #[prop(into)]
     placeholder: Option<Label>,
 }
 
@@ -117,13 +119,6 @@ impl<'a> ChipField<'a> {
     pub fn new(label: impl Into<Label>, value: Bind<'a, Vec<String>>) -> Self {
         let options = TextOptions { clear_on_escape: true, ..TextOptions::default() };
         ChipField { common: Common::new(), value, options, placeholder: None }.label(label)
-    }
-
-    /// Shown while the field has no chips and the draft is empty.
-    #[must_use]
-    pub fn placeholder(mut self, placeholder: impl Into<Label>) -> Self {
-        self.placeholder = Some(placeholder.into());
-        self
     }
 }
 

@@ -62,6 +62,7 @@ struct DragStart(f64);
 
 /// How positions along a slider's track map to values.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub enum SliderScale {
     /// Equal distances are equal changes.
     #[default]
@@ -222,12 +223,18 @@ pub struct Slider<'a> {
     #[prop]
     ticks: usize,
     marks: Marks,
+    /// The value as the caller words it ("50 %"), which assistive technology reads in place of the number.
+    #[prop(into)]
     value_text: Option<Label>,
+    /// Paints the groove with `face`, a component shown as the look of the track (a colour gradient). The fill is not
+    /// drawn over it.
+    #[prop]
     track_face: Option<TrackFace<'a>>,
 }
 
 /// The shape of a slider's thumb.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum SliderThumb {
     /// A knob on the track.
     #[default]
@@ -265,19 +272,6 @@ impl<'a> Slider<'a> {
     /// slider is taller by one caption line. The captions are drawing only: assistive technology gets the value.
     pub fn marks_labelled<L: Into<Label>>(mut self, marks: impl IntoIterator<Item = (f64, L)>) -> Self {
         self.marks.set_labelled(marks);
-        self
-    }
-
-    /// The value as the caller words it ("50 %"), which assistive technology reads in place of the number.
-    pub fn value_text(mut self, text: impl Into<Label>) -> Self {
-        self.value_text = Some(text.into());
-        self
-    }
-
-    /// Paints the groove with `face`, a component shown as the look of the track (a colour gradient). The fill is not
-    /// drawn over it.
-    pub fn track_face(mut self, face: TrackFace<'a>) -> Self {
-        self.track_face = Some(face);
         self
     }
 
