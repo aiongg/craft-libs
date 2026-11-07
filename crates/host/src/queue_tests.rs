@@ -163,6 +163,31 @@ fn queue_gives_back_a_lane_the_host_dropped() {
     assert_eq!(drain(&queue), ["b", "a"]);
 }
 
+// A job left waiting by a dropped lane gets a lane from `resume`, and `resume` adds none while a lane is alive.
+#[test]
+fn queue_resume_starts_a_lane_only_when_none_is_alive() {
+    use crate::Jobs;
+    struct Refusing(AtomicUsize, ManualJobs);
+    impl Jobs for Refusing {
+        fn spawn(&self, name: &str, job: Box<dyn FnOnce() + Send>) {
+            if self.0.load(Ordering::Relaxed) == 0 {
+                drop(job);
+            } else {
+                self.1.spawn(name, job);
+            }
+        }
+    }
+    let jobs = Arc::new(Refusing(AtomicUsize::new(0), ManualJobs::new()));
+    let queue = JobQueue::<&'static str, &'static str>::new(jobs.clone(), Wake::new(|| {}), QueueOptions { lanes: 2, name: "test" });
+    queue.submit("a", Priority::VISIBLE, |_| "a");
+    jobs.0.store(1, Ordering::Relaxed);
+    queue.resume();
+    queue.resume();
+    assert_eq!(jobs.1.waiting(), 1, "one lane for the waiting job");
+    jobs.1.run_all();
+    assert_eq!(drain(&queue), ["a"]);
+}
+
 // `shutdown` drops waiting jobs, cancels running ones, and returns true once they have ended.
 #[test]
 fn queue_shutdown_waits_for_running_jobs() {

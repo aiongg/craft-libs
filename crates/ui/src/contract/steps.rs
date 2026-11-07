@@ -14,7 +14,7 @@ use crate::runtime::env::{Env, Label};
 use crate::runtime::focus::{self, Group, Stop};
 use crate::runtime::frame::{PerViewport, Stamped};
 use crate::runtime::memory::{MemoryStage, sub};
-use crate::runtime::motion::{Animate as _, spec};
+use crate::runtime::motion::{Drives as _, spec};
 use crate::runtime::{inspect, keys, layout_memory, wheel};
 use crate::style::{ComponentStyle, Flags, Ink, StateSet, StyleCx, accepted_variant, resolve_style, surface_style};
 use craft_behavior::{
@@ -746,7 +746,8 @@ fn ease(core: &CxCore<'_>, targets: [bool; 3]) -> StateMix {
     if core.face_mode {
         return StateMix::new(f32::from(u8::from(hover)), f32::from(u8::from(press)), f32::from(u8::from(on)));
     }
-    StateMix::new(core.anim_bool("hover", hover, spec::HOVER), core.anim_bool("press", press, spec::HOVER), core.anim_bool("on", on, spec::CHECK))
+    let driver = core.driver();
+    StateMix::new(driver.state_anim("hover", hover, spec::HOVER), driver.state_anim("press", press, spec::HOVER), driver.state_anim("on", on, spec::CHECK))
 }
 
 /// Step 12, state: flags first, then `state`; animates hover, press and on; the ink of the surface, else `inherited`.

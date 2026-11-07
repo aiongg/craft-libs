@@ -33,7 +33,7 @@ impl Component for Thumbnail<'_> {
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let result = cx.pending("thumb", || {
-            Job::new("thumbnail", |progress, _| {
+            Job::new(|progress, _| {
                 progress.report(0.5);
                 Ok::<u32, String>(7)
             })
