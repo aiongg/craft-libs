@@ -37,6 +37,44 @@ old = "craft_ui::canvas::navigator::preview::Navigator"
 new = "craft_ui::canvas::Navigator"
 status = "pending"
 
+[[type]]
+name = "CanvasView"
+old = "craft_ui::canvas::view::CanvasView"
+new = "craft_behavior::CanvasView"
+status = "moved"
+
+[[type]]
+name = "ZoomLadder"
+old = "craft_ui::canvas::zoom::ZoomLadder"
+new = "craft_behavior::ZoomLadder"
+status = "moved"
+
+[[type]]
+name = "ViewHistory"
+old = "craft_ui::canvas::view_history::ViewHistory"
+new = "craft_behavior::ViewHistory"
+status = "moved"
+
+[[type]]
+name = "ViewPlace"
+old = "craft_ui::canvas::view_history::ViewPlace"
+new = "craft_behavior::ViewPlace"
+status = "moved"
+
+[[type]]
+name = "RulerUnits"
+old = "craft_ui::canvas::units::RulerUnits"
+new = "craft_behavior::RulerUnits"
+status = "replaced"
+note = "The tick maths is craft_behavior::RulerUnits; the text of a distance or tick is craft_ui::canvas::RulerText over Env::units. The legacy numbers and unit fields are gone."
+
+[[type]]
+name = "Guide"
+old = "craft_ui::canvas::guides::Guide"
+new = "craft_ui::canvas::Guide"
+status = "replaced"
+note = "key is a GuideKey, orientation is axis (GuideAxis), span is Option<(f64, f64)> and color an Option<craft_theme::Rgba>."
+
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]
 # type = ""

@@ -1,6 +1,16 @@
-//! The transform a canvas body is shown through.
+//! The transform a canvas body is shown through, and the canvas view with its zoom rules, history and ruler units.
 
 use emath::{Pos2, Vec2};
+
+mod history;
+mod units;
+mod view;
+pub mod zoom;
+
+pub use history::{ViewHistory, ViewPlace};
+pub use units::{RulerUnits, Ticks};
+pub use view::{CanvasView, resize_cursor};
+pub use zoom::ZoomLadder;
 
 /// A canvas body's mapping from canvas coordinates to its layer: `screen = canvas * scale + offset`.
 #[derive(Clone, Copy, Debug, PartialEq)]

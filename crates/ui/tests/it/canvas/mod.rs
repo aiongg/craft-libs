@@ -7,6 +7,8 @@ use egui::{Pos2, Rect};
 use std::cell::RefCell;
 use std::rc::Rc;
 
+mod space;
+
 fn crop() -> Rect {
     Rect::from_min_max(Pos2::new(20.0, 20.0), Pos2::new(100.0, 80.0))
 }
