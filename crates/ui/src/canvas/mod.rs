@@ -25,6 +25,9 @@ pub use tool::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPointer};
 pub use tool_groups::{PickStep, tool_pick};
 pub use tool_host::{ToolHost, ToolHostResponse, ToolInput, ToolReadout};
 
+mod raster_source;
+pub use raster_source::{PixelRect, RasterSource};
+
 use crate::contract::{Common, Component, Container, ContainerProps, Cx, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role, Sizing};
 use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;

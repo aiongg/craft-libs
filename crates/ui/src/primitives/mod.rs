@@ -40,6 +40,11 @@ pub use text_input::{Completer, Completion, EditorLine, EditorPurpose, EditorRun
 pub use textures::TextureCache;
 pub use tool::ToolIcon;
 
+pub use textures::{
+    CachedTexture, LoadFailure, LoadResult, LoadedPicture, LoaderOptions, MAX_TEXTURE, Priority, Revision, TextureBudget, TextureKey, TextureLoader,
+    TextureState, TextureStatistics, TextureStore, TextureStoreOptions, TextureWords, fit_image, reduce_image, texture_factor, texture_side,
+};
+
 pub(crate) use draw::DrawEnv;
 pub(crate) use record::{Adopted, FaceRecord, PaintRecord, face_id};
 pub(crate) use text::TextEnv;

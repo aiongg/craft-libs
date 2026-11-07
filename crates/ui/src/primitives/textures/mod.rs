@@ -1,4 +1,15 @@
-//! `TextureCache`, the one texture path.
+//! `TextureCache`, the icon texture path, and beside it the keyed `TextureStore` with its background
+//! `TextureLoader`.
+
+mod limits;
+mod loader;
+mod store;
+mod words;
+
+pub use limits::{MAX_TEXTURE, fit_image, reduce_image, texture_factor, texture_side};
+pub use loader::{LoadFailure, LoadResult, LoadedPicture, LoaderOptions, Priority, TextureLoader};
+pub use store::{CachedTexture, Revision, TextureBudget, TextureKey, TextureState, TextureStatistics, TextureStore, TextureStoreOptions};
+pub use words::TextureWords;
 
 use crate::runtime::egui::{memory, pass, textures};
 use egui::{ColorImage, Context, TextureHandle, TextureId};
