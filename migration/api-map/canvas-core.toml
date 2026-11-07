@@ -165,7 +165,7 @@ name = "TextureCache"
 old = "craft_ui::canvas::textures::TextureCache"
 new = ""
 status = "removed"
-note = "The legacy keyed texture cache is `craft_ui::primitives::TextureStore<K>`; `craft_ui::primitives::TextureCache` is the icon path and keeps its own name. `TextureCacheOptions` is `TextureStoreOptions` (`thumbnails()`, `pages()`, `frames()`; `.filter(..)`, `.budget(..)`, `TextureBudget::new(max_bytes, max_entries)`). `Revision(n)` is `Revision::new(n)`. The store methods take the `Context` (`state`, `put`, `put_region`, `get_or_put`, `put_empty`, `put_failure`, `forget`, `retain`, `clear`, `statistics`); `put_failure` takes a `LoadFailure` instead of a message; `CachedTexture::size` is `[u32; 2]` and `sized()` gives the `SizedTexture` of `PreviewPane`."
+note = "The legacy keyed texture cache is `craft_ui::primitives::TextureStore<K>`; `craft_ui::primitives::TextureCache` is the icon path and keeps its own name. `TextureCacheOptions` is `TextureStoreOptions` (`thumbnails()`, `pages()`, `frames()`; `.filter(..)`, `.budget(..)`, `TextureBudget::new(max_bytes, max_entries)`). `Revision(n)` is `Revision::new(n)`. The store methods take the `Context` (`state`, `put`, `put_region`, `get_or_put`, `put_empty`, `put_failure`, `forget`, `retain`, `clear`, `statistics`); `put_failure` takes a `LoadFailure` instead of a message; `CachedTexture::size` is a `craft_behavior::PixelSize` and `sized()` gives the `SizedTexture` of `PreviewPane`."
 
 [[type]]
 name = "TextureStore"
@@ -186,14 +186,14 @@ name = "RasterSource"
 old = "craft_ui::canvas::raster::RasterSource"
 new = "craft_ui::canvas::RasterSource"
 status = "moved"
-note = "Unchanged trait (`size`, `revision`, `read(region, factor, out)`); `PixelRect` moved with it to `craft_ui::canvas::PixelRect`, built with `PixelRect::new` (`#[non_exhaustive]`). `PixelRect::visible(&CanvasView, size)` is not here: canvas-raster-a writes it over the new `CanvasView`."
+note = "Same methods, with `size() -> craft_behavior::PixelSize` and `revision() -> craft_ui::primitives::Revision` (`Revision::new(n)`) in place of `[u32; 2]` and `u64`; `read(region, factor, out)` is unchanged; `PixelRect` moved with it to `craft_ui::canvas::PixelRect`, built with `PixelRect::new` (`#[non_exhaustive]`). `PixelRect::visible(&CanvasView, size)` is not here: canvas-raster-a writes it over the new `CanvasView`."
 
 [[type]]
 name = "PixelRect"
 old = "craft_ui::canvas::raster::PixelRect"
 new = "craft_ui::canvas::PixelRect"
 status = "moved"
-note = "See `RasterSource`."
+note = "See `RasterSource`. `PixelRect::of_size` takes a `PixelSize`."
 
 [[type]]
 name = "PaintedCursor"
