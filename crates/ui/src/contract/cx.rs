@@ -557,10 +557,7 @@ impl<C: Component> MeasureCx<'_, C> {
 
     /// The icon side of the component's size.
     pub fn icon(&self) -> f32 {
-        match self.resolved.size {
-            craft_theme::ControlSize::Sm => self.tokens.size.icon.sm,
-            _ => self.tokens.size.icon.md,
-        }
+        crate::style::control_metrics(self.tokens, self.resolved.size).icon
     }
 
     /// The gap between the component's items.

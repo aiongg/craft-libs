@@ -534,14 +534,13 @@ pub(crate) fn state<C: Component>(comp: &C, cx: &mut Cx<'_, C>, open: bool, inhe
     };
     let t = ease(core, [hovered, pressed, flags.intersects(Flags::ON)]);
     core.state = StateSet::new(state, flags, t);
-    core.ink = surface_ink(cx.style.surface(), state, inherited);
+    core.ink = surface_ink(cx.style.surface(), &core.state, inherited);
     core.stated = true;
 }
 
-/// The ink the surface reads in: the surface kind of the state (`kind_down` while pressed), else `inherited`.
-pub(crate) fn surface_ink(look: Option<&crate::style::SurfaceLook>, state: State, inherited: Ink) -> Ink {
-    let kind = look.and_then(|look| if state == State::Pressed { look.kind_down.or(look.kind) } else { look.kind });
-    kind.map_or(inherited, |kind| kind.ink())
+/// The ink the surface reads in: the surface kind of the state, else `inherited`.
+pub(crate) fn surface_ink(look: Option<&crate::style::SurfaceLook>, state: &StateSet, inherited: Ink) -> Ink {
+    look.and_then(|look| look.kind_in(state)).map_or(inherited, |kind| kind.ink())
 }
 
 /// Step 13, paint, the pipeline's part before `C::paint`: the root surface and the state fill.
@@ -549,9 +548,7 @@ pub(crate) fn paint_surface<C: Component>(ui: &Ui, env: &Env, cx: &Cx<'_, C>) {
     let Some(look) = cx.style.surface() else { return };
     let fill = cx.core.resolve(&look.fill);
     let ppp = ui.ctx().pixels_per_point();
-    let down = cx.core.state.state == State::Pressed;
-    let kind = if down { look.kind_down.or(look.kind) } else { look.kind };
-    let shapes = match kind {
+    let shapes = match look.kind_in(&cx.core.state) {
         Some(kind) => Surface::shapes(&surface_style(&env.tokens, kind), Some(fill.egui()), cx.core.rect, look.corners, env.direction, ppp),
         None => {
             let radius = look.corners.apply(look.radius, env.direction);

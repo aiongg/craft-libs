@@ -135,6 +135,11 @@ impl SurfaceLook {
         SurfaceLook { kind: None, kind_down: None, fill, border: None, border_width: 0.0, radius: CornerRadius::ZERO, corners: Corners::All }
     }
 
+    /// The surface kind in `state`: `kind_down` while pressed, else `kind`.
+    pub fn kind_in(&self, state: &super::StateSet) -> Option<SurfaceKind> {
+        if state.state == craft_theme::State::Pressed { self.kind_down.or(self.kind) } else { self.kind }
+    }
+
     /// Sets the surface kind.
     pub fn kind(mut self, kind: SurfaceKind) -> Self {
         self.kind = Some(kind);

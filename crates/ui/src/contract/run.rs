@@ -620,7 +620,7 @@ pub(crate) fn paint_face<C: Show>(ui: &mut Ui, source: &FaceSource<'_>, part: Pa
     core.flow = flow;
     core.state = state;
     core.stated = true;
-    core.ink = steps::surface_ink(style.surface(), part_state.state, env.ink);
+    core.ink = steps::surface_ink(style.surface(), &state, env.ink);
     core.visible = rect;
     let cx = Cx::<C> { core, style: &style, shown };
     steps::paint_surface(ui, &env, &cx);

@@ -11,8 +11,10 @@ use craft_ui::contract::{
 use craft_ui::runtime::env::{AppValues, EnvValue, StyleValue};
 use craft_ui::runtime::{InstallSpec, install};
 use craft_ui::style::{ComponentStyle, Ink, StateSet, StyleCx, StyleKey, SurfaceKind, SurfaceLook};
-use craft_ui::testing::contract::findings;
+use craft_ui::testing::contract::{allocate, clicked as is_clicked, clicked_by_primary, findings};
+use craft_ui::testing::focus::named_id;
 use craft_ui::testing::input::key_press;
+use craft_ui::testing::memory::scoped;
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Frames, trial};
 use egui::{Id, Key, Modifiers, Pos2, Rect, Response, Ui, UiBuilder, Vec2};
@@ -129,10 +131,6 @@ impl Component for Hooked<'_> {
         self.mark("update");
     }
 
-    fn overlay(&mut self, _: &mut craft_ui::contract::OverlayUi<'_>, _: &mut Cx<'_, Self>) {
-        self.mark("overlay");
-    }
-
     fn flags(&self) -> craft_ui::style::Flags {
         self.mark("flags");
         craft_ui::style::Flags::empty()
@@ -167,10 +165,7 @@ fn hooks_run_in_pipeline_order_with_the_body_between_paint_and_paint_over() {
         log.borrow_mut().clear();
         Hooked::new(&log).show(ui, |_, _| log.borrow_mut().push("body"));
     });
-    assert_eq!(
-        *log.borrow(),
-        ["measure", "parts", "update", "overlay", "flags", "content_env", "paint", "body", "paint_over", "activated", "finish"]
-    );
+    assert_eq!(*log.borrow(), ["measure", "parts", "update", "flags", "content_env", "paint", "body", "paint_over", "activated", "finish"]);
 }
 
 /// A sizing pass of the parent `Ui` allocates the size and runs nothing else.
@@ -190,14 +185,14 @@ fn a_sizing_pass_registers_nothing_and_its_id_is_the_real_passs() {
     let seen = RefCell::new(Seen::default());
     let mut real_id = None;
     frames.frame(vec![], |ui| {
-        real_id = Some(ui.scope(|ui| Probe::new(&seen).show(ui)).inner.id);
+        real_id = Some(scoped(ui, |ui| Probe::new(&seen).show(ui)).id);
     });
     assert_eq!(sized_id, real_id, "the Auto ordinal of a sizing pass is the real pass's");
 
     // The id a sizing pass used is free for the real show in the same pass.
     let mut frames = Frames::new();
     let seen = RefCell::new(Seen::default());
-    let shared = Id::unique("shared");
+    let shared = named_id("shared");
     frames.frame(vec![], |ui| {
         ui.scope_builder(UiBuilder::new().sizing_pass(), |ui| Probe::new(&seen).id(shared).show(ui));
         Probe::new(&seen).id(shared).show(ui);
@@ -209,7 +204,7 @@ fn a_sizing_pass_registers_nothing_and_its_id_is_the_real_passs() {
 fn showing_one_id_twice_in_a_pass_is_a_duplicate_id_finding() {
     let mut frames = Frames::new();
     let seen = RefCell::new(Seen::default());
-    let shared = Id::unique("shared");
+    let shared = named_id("shared");
     // The second show also trips the debug assertion that one id opens one memory stage per pass; the finding is
     // recorded before it.
     let shown = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -297,8 +292,8 @@ fn the_click_flags_follow_how_the_component_was_activated() {
     let show = |ui: &mut Ui, command: bool, out: &mut bool, by_pointer: &mut bool| {
         let probe = Probe::new(&seen).id_salt("probe");
         let response = if command { probe.command("cmd").show(ui) } else { probe.show(ui) };
-        *out = response.clicked();
-        *by_pointer = response.clicked_by(egui::PointerButton::Primary);
+        *out = is_clicked(&response);
+        *by_pointer = clicked_by_primary(&response);
     };
     let mut by_pointer = false;
     frames.frame(vec![], |ui| show(ui, false, &mut clicked, &mut by_pointer));
@@ -312,8 +307,8 @@ fn the_click_flags_follow_how_the_component_was_activated() {
     let at = Pos2::new(10.0, 10.0);
     let show_bound = |ui: &mut Ui, out: &mut bool, by_pointer: &mut bool| {
         let response = Probe::new(&seen).id_salt("probe").command("cmd").show(ui);
-        *out = response.clicked();
-        *by_pointer = response.clicked_by(egui::PointerButton::Primary);
+        *out = is_clicked(&response);
+        *by_pointer = clicked_by_primary(&response);
     };
     bound.frame(vec![moved(at)], |ui| show_bound(ui, &mut clicked, &mut by_pointer));
     bound.frame(vec![press(at)], |ui| show_bound(ui, &mut clicked, &mut by_pointer));
@@ -357,7 +352,7 @@ fn body_sizes(fill: bool) -> (Vec<Vec2>, Vec2) {
             let out = Hooked::new(&log).id_salt("panel").show(ui, |ui, _| {
                 first_room.borrow_mut().get_or_insert(ui.available_size());
                 let size = if fill { ui.available_size().max(Vec2::ZERO) } else { Vec2::new(50.0, 30.0) };
-                ui.allocate_exact_size(size, egui::Sense::hover());
+                allocate(ui, size);
             });
             sizes.push(out.output.rect.size());
         });

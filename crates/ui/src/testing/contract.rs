@@ -27,3 +27,18 @@ pub fn take_reveal(ctx: &Context, owner: Id) -> Option<egui::Rect> {
 pub fn edit_response<T>(response: egui::Response) -> crate::contract::EditResponse<T> {
     crate::contract::EditResponse::new(response)
 }
+
+/// Whether `response` reports a click, by pointer or by keyboard activation.
+pub fn clicked(response: &egui::Response) -> bool {
+    crate::runtime::egui::fixture::clicked(response)
+}
+
+/// Whether `response` reports a primary-button pointer click.
+pub fn clicked_by_primary(response: &egui::Response) -> bool {
+    crate::runtime::egui::fixture::clicked_by_primary(response)
+}
+
+/// Allocates a widget of `size` in `ui`.
+pub fn allocate(ui: &mut egui::Ui, size: egui::Vec2) {
+    crate::runtime::egui::fixture::allocate_blocker(ui, size);
+}

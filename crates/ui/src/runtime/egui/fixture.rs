@@ -170,6 +170,11 @@ pub(crate) fn clicked(response: &egui::Response) -> bool {
     response.clicked()
 }
 
+/// Whether the `Response` reports a primary-button pointer click.
+pub(crate) fn clicked_by_primary(response: &egui::Response) -> bool {
+    response.clicked_by(egui::PointerButton::Primary)
+}
+
 /// The widget id egui's hit test chose as the click target at the latest pointer position.
 pub(crate) fn click_target(ctx: &Context) -> Option<egui::Id> {
     crate::runtime::egui::input::hit_targets(ctx).0

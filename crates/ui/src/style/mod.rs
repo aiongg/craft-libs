@@ -14,7 +14,7 @@ mod tokens;
 pub use cache::{Accepted, accepted_variant};
 pub use craft_behavior::{ControlMetrics, Insets, Metrics};
 pub use craft_theme::{FlagMask, Flags, Mix, Resolve, State, StateMix, Stateful, States, TokenGroup, TypeRole};
-pub use cx::{StyleCx, VariantParts};
+pub use cx::{StyleCx, VariantParts, control_metrics};
 pub use key::{EnvKey, Ink, StyleKey};
 pub use look::{ComponentStyle, Corners, DataColor, FocusLook, IconLook, StyleColor, SurfaceKind, SurfaceLook, TextLook};
 pub use paint::{HandleLook, ResetMarkLook, RuleKind, RuleLook, ScrollBarLook};

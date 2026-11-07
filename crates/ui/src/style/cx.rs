@@ -128,16 +128,7 @@ impl<'a> StyleCx<'a> {
 
     /// The height, icon side, padding and gap of a control at the ambient size.
     pub fn control(&self) -> ControlMetrics {
-        let size = &self.tokens.size;
-        let pad = self.tokens.space.pad.control;
-        let gap = self.tokens.space.gap.inline;
-        ControlMetrics::at(
-            self.size,
-            &BySize { sm: size.control.sm, md: size.control.md },
-            &BySize { sm: size.icon.sm, md: size.icon.md },
-            &BySize { sm: pad, md: pad },
-            &BySize { sm: gap, md: gap },
-        )
+        control_metrics(self.tokens, self.size)
     }
 
     /// What a surface of `kind` draws.
@@ -205,4 +196,18 @@ impl<'a> StyleCx<'a> {
         service.with(|cache| cache.built.insert(cache_key, shared));
         group
     }
+}
+
+/// The height, icon side, padding and gap of a control of `size`.
+pub fn control_metrics(tokens: &UiTokens, size: ControlSize) -> ControlMetrics {
+    let sizes = &tokens.size;
+    let pad = tokens.space.pad.control;
+    let gap = tokens.space.gap.inline;
+    ControlMetrics::at(
+        size,
+        &BySize { sm: sizes.control.sm, md: sizes.control.md },
+        &BySize { sm: sizes.icon.sm, md: sizes.icon.md },
+        &BySize { sm: pad, md: pad },
+        &BySize { sm: gap, md: gap },
+    )
 }
