@@ -1,0 +1,135 @@
+story composites/selection-overlay/ants
+args
+  turn = Number { value: 20.0, min: -90.0, max: 90.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Label "" value="Subject at 25%" actions=[Click]
+              r.0.0.0.0.0.0.0 TextRun "" value="Subject at 25%"
+            r.0.0.0.0.0.1 Canvas "zoom-25" actions=[Click,Focus]
+              r.0.0.0.0.0.1.0 GenericContainer ""
+                r.0.0.0.0.0.1.0.0 GraphicsObject "Selection" value="414 px × 382 px at 593 px, 372 px"
+          r.0.0.0.0.1 GenericContainer ""
+            r.0.0.0.0.1.0 Label "" value="Subject at 50%" actions=[Click]
+              r.0.0.0.0.1.0.0 TextRun "" value="Subject at 50%"
+            r.0.0.0.0.1.1 Canvas "zoom-50" actions=[Click,Focus]
+              r.0.0.0.0.1.1.0 GenericContainer ""
+                r.0.0.0.0.1.1.0.0 GraphicsObject "Selection" value="414 px × 382 px at 593 px, 372 px"
+          r.0.0.0.0.2 GenericContainer ""
+            r.0.0.0.0.2.0 Label "" value="Subject at 100%" actions=[Click]
+              r.0.0.0.0.2.0.0 TextRun "" value="Subject at 100%"
+            r.0.0.0.0.2.1 Canvas "zoom-100" actions=[Click,Focus]
+              r.0.0.0.0.2.1.0 GenericContainer ""
+                r.0.0.0.0.2.1.0.0 GraphicsObject "Selection" value="414 px × 382 px at 593 px, 372 px"
+          r.0.0.0.0.3 GenericContainer ""
+            r.0.0.0.0.3.0 Label "" value="Subject at 200%" actions=[Click]
+              r.0.0.0.0.3.0.0 TextRun "" value="Subject at 200%"
+            r.0.0.0.0.3.1 Canvas "zoom-200" actions=[Click,Focus]
+              r.0.0.0.0.3.1.0 GenericContainer ""
+                r.0.0.0.0.3.1.0.0 GraphicsObject "Selection" value="414 px × 382 px at 593 px, 372 px"
+          r.0.0.0.0.4 GenericContainer ""
+            r.0.0.0.0.4.0 Label "" value="Large mask at 12%" actions=[Click]
+              r.0.0.0.0.4.0.0 TextRun "" value="Large mask at 12%"
+            r.0.0.0.0.4.1 GenericContainer ""
+              r.0.0.0.0.4.1.0 GraphicsObject "Selection" value="2,048 px × 2,048 px at 18,976 px, 13,976 px"
+          r.0.0.0.0.5 GenericContainer ""
+            r.0.0.0.0.5.0 Label "" value="Floating piece, offset" actions=[Click]
+              r.0.0.0.0.5.0.0 TextRun "" value="Floating piece, offset"
+            r.0.0.0.0.5.1 Canvas "floating" actions=[Click,Focus]
+              r.0.0.0.0.5.1.0 GenericContainer ""
+                r.0.0.0.0.5.1.0.0 GraphicsObject "Selection" value="414 px × 382 px at 593 px, 372 px"
+          r.0.0.0.0.6 GenericContainer ""
+            r.0.0.0.0.6.0 Label "" value="Mapped outline, turned" actions=[Click]
+              r.0.0.0.0.6.0.0 TextRun "" value="Mapped outline, turned"
+            r.0.0.0.0.6.1 Canvas "mapped" actions=[Click,Focus]
+              r.0.0.0.0.6.1.0 GenericContainer ""
+                r.0.0.0.0.6.1.0.0 GraphicsObject "Selection" value="414 px × 382 px at 593 px, 372 px"
+          r.0.0.0.0.7 GenericContainer ""
+            r.0.0.0.0.7.0 Label "" value="Edges hidden" actions=[Click]
+              r.0.0.0.0.7.0.0 TextRun "" value="Edges hidden"
+            r.0.0.0.0.7.1 Canvas "hidden" actions=[Click,Focus]
+              r.0.0.0.0.7.1.0 GenericContainer ""
+                r.0.0.0.0.7.1.0.0 GraphicsObject "Selection" value="414 px × 382 px at 593 px, 372 px"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.1 Canvas "zoom-25"
+  2: r.0.0.0.0.1.1 Canvas "zoom-50"
+  3: r.0.0.0.0.2.1 Canvas "zoom-100"
+  4: r.0.0.0.0.3.1 Canvas "zoom-200"
+  5: r.0.0.0.0.5.1 Canvas "floating"
+  6: r.0.0.0.0.6.1 Canvas "mapped"
+  7: r.0.0.0.0.7.1 Canvas "hidden"
+  8: r.0.0.0.0.0.1 Canvas "zoom-25"
+  cycle after 7 nodes
+drive: 15 actionable nodes
+drive r.0.0.0.0.0.0 Label ""
+  click:
+    focus: r.0.0.0.0.0.1 Canvas "zoom-25" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.0.1 Canvas "zoom-25"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.1 Canvas "zoom-25" -> r Window ""
+drive r.0.0.0.0.1.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.1.1 Canvas "zoom-50"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1.1 Canvas "zoom-50" -> r Window ""
+drive r.0.0.0.0.2.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.2.1 Canvas "zoom-100"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.2.1 Canvas "zoom-100" -> r Window ""
+drive r.0.0.0.0.3.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.3.1 Canvas "zoom-200"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.3.1 Canvas "zoom-200" -> r Window ""
+drive r.0.0.0.0.4.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.5.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.5.1 Canvas "floating"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.5.1 Canvas "floating" -> r Window ""
+drive r.0.0.0.0.6.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.6.1 Canvas "mapped"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.6.1 Canvas "mapped" -> r Window ""
+drive r.0.0.0.0.7.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.7.1 Canvas "hidden"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.7.1 Canvas "hidden" -> r Window ""

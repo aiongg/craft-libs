@@ -1,0 +1,160 @@
+story controls/swatch/palette
+args
+  size = Choice { options: ["sm", "md"], index: 1 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 ColorWell "Colour 1" value="#e5484d" [unselected] actions=[Click,Focus]
+              r.0.0.0.0.0.0.1 ColorWell "Colour 2" value="#f76b15" [unselected] actions=[Click,Focus]
+              r.0.0.0.0.0.0.2 ColorWell "Colour 3" value="#f5a524" [unselected] actions=[Click,Focus]
+              r.0.0.0.0.0.0.3 ColorWell "Colour 4" value="#f5d90a" [unselected] actions=[Click,Focus]
+              r.0.0.0.0.0.0.4 ColorWell "Colour 5" value="#7ac55c" [unselected] actions=[Click,Focus]
+              r.0.0.0.0.0.0.5 ColorWell "Colour 6" value="#30a46c" [unselected] actions=[Click,Focus]
+              r.0.0.0.0.0.0.6 ColorWell "Colour 7" value="#12a594" [unselected] actions=[Click,Focus]
+              r.0.0.0.0.0.0.7 ColorWell "Colour 8" value="#009ee1" [selected] actions=[Click,Focus]
+              r.0.0.0.0.0.0.8 ColorWell "Colour 9" value="#3e63dd" [unselected] actions=[Click,Focus]
+              r.0.0.0.0.0.0.9 ColorWell "Colour 10" value="#8e4ec6" [unselected] actions=[Click,Focus]
+              r.0.0.0.0.0.0.10 ColorWell "Colour 11" value="#d6409f" [unselected] actions=[Click,Focus]
+              r.0.0.0.0.0.0.11 ColorWell "Colour 12" value="#888d91" [unselected] actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0 ColorWell "Colour 1"
+  2: r.0.0.0.0.0.0.1 ColorWell "Colour 2"
+  3: r.0.0.0.0.0.0.2 ColorWell "Colour 3"
+  4: r.0.0.0.0.0.0.3 ColorWell "Colour 4"
+  5: r.0.0.0.0.0.0.4 ColorWell "Colour 5"
+  6: r.0.0.0.0.0.0.5 ColorWell "Colour 6"
+  7: r.0.0.0.0.0.0.6 ColorWell "Colour 7"
+  8: r.0.0.0.0.0.0.7 ColorWell "Colour 8"
+  9: r.0.0.0.0.0.0.8 ColorWell "Colour 9"
+  10: r.0.0.0.0.0.0.9 ColorWell "Colour 10"
+  11: r.0.0.0.0.0.0.10 ColorWell "Colour 11"
+  12: r.0.0.0.0.0.0.11 ColorWell "Colour 12"
+  13: r.0.0.0.0.0.0.0 ColorWell "Colour 1"
+  cycle after 12 nodes
+drive: 12 actionable nodes
+drive r.0.0.0.0.0.0.0 ColorWell "Colour 1"
+  click:
+    - r.0.0.0.0.0.0.0 ColorWell "Colour 1" value="#e5484d" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0 ColorWell "Colour 1" value="#e5484d" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.7 ColorWell "Colour 8" value="#009ee1" [selected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.7 ColorWell "Colour 8" value="#009ee1" [unselected] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0 ColorWell "Colour 1" -> r Window ""
+drive r.0.0.0.0.0.0.1 ColorWell "Colour 2"
+  click:
+    - r.0.0.0.0.0.0.0 ColorWell "Colour 1" value="#e5484d" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1 ColorWell "Colour 2" value="#f76b15" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0 ColorWell "Colour 1" value="#e5484d" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1 ColorWell "Colour 2" value="#f76b15" [selected] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.1 ColorWell "Colour 2" -> r Window ""
+drive r.0.0.0.0.0.0.2 ColorWell "Colour 3"
+  click:
+    - r.0.0.0.0.0.0.1 ColorWell "Colour 2" value="#f76b15" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2 ColorWell "Colour 3" value="#f5a524" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1 ColorWell "Colour 2" value="#f76b15" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2 ColorWell "Colour 3" value="#f5a524" [selected] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.2 ColorWell "Colour 3" -> r Window ""
+drive r.0.0.0.0.0.0.3 ColorWell "Colour 4"
+  click:
+    - r.0.0.0.0.0.0.2 ColorWell "Colour 3" value="#f5a524" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.3 ColorWell "Colour 4" value="#f5d90a" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2 ColorWell "Colour 3" value="#f5a524" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.3 ColorWell "Colour 4" value="#f5d90a" [selected] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.3 ColorWell "Colour 4" -> r Window ""
+drive r.0.0.0.0.0.0.4 ColorWell "Colour 5"
+  click:
+    - r.0.0.0.0.0.0.3 ColorWell "Colour 4" value="#f5d90a" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.4 ColorWell "Colour 5" value="#7ac55c" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.3 ColorWell "Colour 4" value="#f5d90a" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.4 ColorWell "Colour 5" value="#7ac55c" [selected] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.4 ColorWell "Colour 5" -> r Window ""
+drive r.0.0.0.0.0.0.5 ColorWell "Colour 6"
+  click:
+    - r.0.0.0.0.0.0.4 ColorWell "Colour 5" value="#7ac55c" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.5 ColorWell "Colour 6" value="#30a46c" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.4 ColorWell "Colour 5" value="#7ac55c" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.5 ColorWell "Colour 6" value="#30a46c" [selected] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.5 ColorWell "Colour 6" -> r Window ""
+drive r.0.0.0.0.0.0.6 ColorWell "Colour 7"
+  click:
+    - r.0.0.0.0.0.0.5 ColorWell "Colour 6" value="#30a46c" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.6 ColorWell "Colour 7" value="#12a594" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.5 ColorWell "Colour 6" value="#30a46c" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.6 ColorWell "Colour 7" value="#12a594" [selected] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.6 ColorWell "Colour 7" -> r Window ""
+drive r.0.0.0.0.0.0.7 ColorWell "Colour 8"
+  click:
+    - r.0.0.0.0.0.0.6 ColorWell "Colour 7" value="#12a594" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.7 ColorWell "Colour 8" value="#009ee1" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.6 ColorWell "Colour 7" value="#12a594" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.7 ColorWell "Colour 8" value="#009ee1" [selected] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.7 ColorWell "Colour 8" -> r Window ""
+drive r.0.0.0.0.0.0.8 ColorWell "Colour 9"
+  click:
+    - r.0.0.0.0.0.0.7 ColorWell "Colour 8" value="#009ee1" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.8 ColorWell "Colour 9" value="#3e63dd" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.7 ColorWell "Colour 8" value="#009ee1" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.8 ColorWell "Colour 9" value="#3e63dd" [selected] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.8 ColorWell "Colour 9" -> r Window ""
+drive r.0.0.0.0.0.0.9 ColorWell "Colour 10"
+  click:
+    - r.0.0.0.0.0.0.8 ColorWell "Colour 9" value="#3e63dd" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.9 ColorWell "Colour 10" value="#8e4ec6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.8 ColorWell "Colour 9" value="#3e63dd" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.9 ColorWell "Colour 10" value="#8e4ec6" [selected] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.9 ColorWell "Colour 10" -> r Window ""
+drive r.0.0.0.0.0.0.10 ColorWell "Colour 11"
+  click:
+    - r.0.0.0.0.0.0.9 ColorWell "Colour 10" value="#8e4ec6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.10 ColorWell "Colour 11" value="#d6409f" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.9 ColorWell "Colour 10" value="#8e4ec6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.10 ColorWell "Colour 11" value="#d6409f" [selected] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.10 ColorWell "Colour 11" -> r Window ""
+drive r.0.0.0.0.0.0.11 ColorWell "Colour 12"
+  click:
+    - r.0.0.0.0.0.0.10 ColorWell "Colour 11" value="#d6409f" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.11 ColorWell "Colour 12" value="#888d91" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.10 ColorWell "Colour 11" value="#d6409f" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.11 ColorWell "Colour 12" value="#888d91" [selected] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.11 ColorWell "Colour 12" -> r Window ""

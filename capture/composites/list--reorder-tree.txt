@@ -1,0 +1,201 @@
+story composites/list/reorder-tree
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Tree "Layers" actions=[Focus]
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 GenericContainer ""
+                  r.0.0.0.0.0.0.0.0.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.0.0.0 TreeItem "Title" [selected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+                    r.0.0.0.0.0.0.0.0.0.2 Button "Collapse Header" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+                    r.0.0.0.0.0.0.0.0.0.3 TreeItem "Logo" [unselected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.0.0.0.0.0.4 TreeItem "Tagline" [unselected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.0.0.0.0.0.5 TreeItem "Photos" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+                    r.0.0.0.0.0.0.0.0.0.6 Button "Collapse Photos" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+                    r.0.0.0.0.0.0.0.0.0.7 TreeItem "Beach" [unselected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.0.0.0.0.0.8 TreeItem "Archive" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+                    r.0.0.0.0.0.0.0.0.0.9 Button "Expand Archive" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+                    r.0.0.0.0.0.0.0.0.0.10 TreeItem "Caption" [unselected] actions=[Click,Focus,ScrollIntoView]
+          r.0.0.0.0.1 Label "" value="Drop into the middle of a group" actions=[Click]
+            r.0.0.0.0.1.0 TextRun "" value="Drop into the middle of a group"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0.0.0 TreeItem "Title"
+  2: r.0.0.0.0.0.0.0.0.0.0 TreeItem "Title"
+  cycle after 1 nodes
+drive: 13 actionable nodes
+drive r.0.0.0.0.0.0 Tree "Layers"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.0 TreeItem "Title" -> r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header"
+    - r.0.0.0.0.0.0.0.0.0.0 TreeItem "Title" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0 TreeItem "Title" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header" -> r.0.0.0.0.0.0.0.0.0.0 TreeItem "Title"
+    - r.0.0.0.0.0.0.0.0.0.0 TreeItem "Title" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0 TreeItem "Title" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0 TreeItem "Title" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0 TreeItem "Title"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0 TreeItem "Title"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.0 TreeItem "Title" -> r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header"
+    - r.0.0.0.0.0.0.0.0.0.0 TreeItem "Title" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0 TreeItem "Title" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.0.0.0 TreeItem "Title" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0 TreeItem "Title" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0 TreeItem "Title" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header"
+    - r.0.0.0.0.0.0.0.0.0.0 TreeItem "Title" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0 TreeItem "Title" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header" -> r.0.0.0.0.0.0.0.0.0.3 TreeItem "Logo"
+    - r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.3 TreeItem "Logo" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.3 TreeItem "Logo" [selected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header" -> r.0.0.0.0.0.0.0.0.0.0 TreeItem "Title"
+    - r.0.0.0.0.0.0.0.0.0.0 TreeItem "Title" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0 TreeItem "Title" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.3 TreeItem "Logo" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.3 TreeItem "Logo" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft:
+    - r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.2 Button "Collapse Header" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.3 TreeItem "Logo" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.4 TreeItem "Tagline" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.2 Button "Expand Header" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+  ArrowRight:
+    - r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.2 Button "Expand Header" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.2 Button "Collapse Header" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.3 TreeItem "Logo" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.4 TreeItem "Tagline" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.2 Button "Collapse Header"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header"
+    - r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.2 Button "Collapse Header" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.3 TreeItem "Logo" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.4 TreeItem "Tagline" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.2 Button "Expand Header" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+  Escape: node gone
+drive r.0.0.0.0.0.0.0.0.0.3 TreeItem "Logo"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.0.0.4 TreeItem "Tagline"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.0.0.5 TreeItem "Photos"
+  click:
+    focus: r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header" -> r.0.0.0.0.0.0.0.0.0.3 TreeItem "Photos"
+    - r.0.0.0.0.0.0.0.0.0.0 TreeItem "Title" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0 TreeItem "Title" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.3 TreeItem "Photos" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.3 TreeItem "Photos" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.3 TreeItem "Photos" -> r.0.0.0.0.0.0.0.0.0.5 TreeItem "Beach"
+    - r.0.0.0.0.0.0.0.0.0.3 TreeItem "Photos" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.3 TreeItem "Photos" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.5 TreeItem "Beach" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.5 TreeItem "Beach" [selected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.3 TreeItem "Photos" -> r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header"
+    - r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.5 TreeItem "Beach" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.5 TreeItem "Beach" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft:
+    - r.0.0.0.0.0.0.0.0.0.3 TreeItem "Photos" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.4 Button "Collapse Photos" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.5 TreeItem "Beach" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.6 TreeItem "Archive" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.7 Button "Expand Archive" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.3 TreeItem "Photos" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.4 Button "Expand Photos" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+  ArrowRight:
+    - r.0.0.0.0.0.0.0.0.0.3 TreeItem "Photos" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.4 Button "Expand Photos" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.3 TreeItem "Photos" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.4 Button "Collapse Photos" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.5 TreeItem "Beach" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.6 TreeItem "Archive" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.7 Button "Expand Archive" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.3 TreeItem "Photos" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.6 Button "Collapse Photos"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.3 TreeItem "Photos"
+    - r.0.0.0.0.0.0.0.0.0.3 TreeItem "Photos" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.4 Button "Collapse Photos" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.5 TreeItem "Beach" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.6 TreeItem "Archive" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.7 Button "Expand Archive" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.3 TreeItem "Photos" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.4 Button "Expand Photos" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+  Escape: node gone
+drive r.0.0.0.0.0.0.0.0.0.7 TreeItem "Beach"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.0.0.8 TreeItem "Archive"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.0.0.9 Button "Expand Archive"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.0.0.10 TreeItem "Caption"
+  click:
+    focus: r.0.0.0.0.0.0.0.0.0.3 TreeItem "Photos" -> r.0.0.0.0.0.0.0.0.0.5 TreeItem "Caption"
+    - r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.1 TreeItem "Header" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.5 TreeItem "Caption" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.5 TreeItem "Caption" [selected] actions=[Click,Focus,ScrollIntoView]
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.5 TreeItem "Caption" -> r.0.0.0.0.0.0.0.0.0.3 TreeItem "Photos"
+    - r.0.0.0.0.0.0.0.0.0.3 TreeItem "Photos" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.3 TreeItem "Photos" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.5 TreeItem "Caption" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.5 TreeItem "Caption" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.5 TreeItem "Caption" -> r Window ""
+drive r.0.0.0.0.1 Label ""
+  click: no change
+  Escape: no change

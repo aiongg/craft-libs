@@ -1,0 +1,95 @@
+story composites/slider-row/wheel-step
+args
+  step = Number { value: 5.0, min: 0.5, max: 20.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 Label "" value="Opacity"
+            r.0.0.0.0.0.1 GenericContainer ""
+              r.0.0.0.0.0.1.0 SpinButton "Opacity" value="50" number=50 in 0..1000 step 1 labelled_by=[r.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                r.0.0.0.0.0.1.0.0 TextRun "" value="50"
+            r.0.0.0.0.0.2 Slider "Opacity" number=50 in 0..1000 step 10 labelled_by=[r.0.0.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.1.0 SpinButton "Opacity"
+  2: r.0.0.0.0.0.2 Slider "Opacity"
+  3: r.0.0.0.0.0.1.0 SpinButton "Opacity"
+  cycle after 2 nodes
+drive: 2 actionable nodes
+drive r.0.0.0.0.0.1.0 SpinButton "Opacity"
+  click: no change
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.1.0 SpinButton "Opacity" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.1.0 SpinButton "Opacity" value="50" number=50 in 0..1000 step 1 labelled_by=[r.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0 TextRun "" value="50"
+    - r.0.0.0.0.0.2 Slider "Opacity" number=50 in 0..1000 step 10 labelled_by=[r.0.0.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0 SpinButton "Opacity" value="51" number=51 in 0..1000 step 1 labelled_by=[r.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0 TextRun "" value="51"
+    + r.0.0.0.0.0.2 Slider "Opacity" number=51 in 0..1000 step 10 labelled_by=[r.0.0.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.0.1.0 SpinButton "Opacity" value="51" number=51 in 0..1000 step 1 labelled_by=[r.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0 TextRun "" value="51"
+    - r.0.0.0.0.0.2 Slider "Opacity" number=51 in 0..1000 step 10 labelled_by=[r.0.0.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0 SpinButton "Opacity" value="50" number=50 in 0..1000 step 1 labelled_by=[r.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0 TextRun "" value="50"
+    + r.0.0.0.0.0.2 Slider "Opacity" number=50 in 0..1000 step 10 labelled_by=[r.0.0.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.0 SpinButton "Opacity" -> r Window ""
+drive r.0.0.0.0.0.2 Slider "Opacity"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.0.1.0 SpinButton "Opacity" value="50" number=50 in 0..1000 step 1 labelled_by=[r.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0 TextRun "" value="50"
+    - r.0.0.0.0.0.2 Slider "Opacity" number=50 in 0..1000 step 10 labelled_by=[r.0.0.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0 SpinButton "Opacity" value="40" number=40 in 0..1000 step 1 labelled_by=[r.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0 TextRun "" value="40"
+    + r.0.0.0.0.0.2 Slider "Opacity" number=40 in 0..1000 step 10 labelled_by=[r.0.0.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowRight:
+    - r.0.0.0.0.0.1.0 SpinButton "Opacity" value="40" number=40 in 0..1000 step 1 labelled_by=[r.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0 TextRun "" value="40"
+    - r.0.0.0.0.0.2 Slider "Opacity" number=40 in 0..1000 step 10 labelled_by=[r.0.0.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0 SpinButton "Opacity" value="50" number=50 in 0..1000 step 1 labelled_by=[r.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0 TextRun "" value="50"
+    + r.0.0.0.0.0.2 Slider "Opacity" number=50 in 0..1000 step 10 labelled_by=[r.0.0.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowUp:
+    - r.0.0.0.0.0.1.0 SpinButton "Opacity" value="50" number=50 in 0..1000 step 1 labelled_by=[r.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0 TextRun "" value="50"
+    - r.0.0.0.0.0.2 Slider "Opacity" number=50 in 0..1000 step 10 labelled_by=[r.0.0.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0 SpinButton "Opacity" value="60" number=60 in 0..1000 step 1 labelled_by=[r.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0 TextRun "" value="60"
+    + r.0.0.0.0.0.2 Slider "Opacity" number=60 in 0..1000 step 10 labelled_by=[r.0.0.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.0.1.0 SpinButton "Opacity" value="60" number=60 in 0..1000 step 1 labelled_by=[r.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0 TextRun "" value="60"
+    - r.0.0.0.0.0.2 Slider "Opacity" number=60 in 0..1000 step 10 labelled_by=[r.0.0.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0 SpinButton "Opacity" value="50" number=50 in 0..1000 step 1 labelled_by=[r.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0 TextRun "" value="50"
+    + r.0.0.0.0.0.2 Slider "Opacity" number=50 in 0..1000 step 10 labelled_by=[r.0.0.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home:
+    - r.0.0.0.0.0.1.0 SpinButton "Opacity" value="50" number=50 in 0..1000 step 1 labelled_by=[r.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0 TextRun "" value="50"
+    - r.0.0.0.0.0.2 Slider "Opacity" number=50 in 0..1000 step 10 labelled_by=[r.0.0.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0 SpinButton "Opacity" value="0" number=0 in 0..1000 step 1 labelled_by=[r.0.0.0.0.0.0.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0 TextRun "" value="0"
+    + r.0.0.0.0.0.2 Slider "Opacity" number=0 in 0..1000 step 10 labelled_by=[r.0.0.0.0.0.0.0] actions=[Focus,Increment,SetValue]
+  End:
+    - r.0.0.0.0.0.1.0 SpinButton "Opacity" value="0" number=0 in 0..1000 step 1 labelled_by=[r.0.0.0.0.0.0.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0 TextRun "" value="0"
+    - r.0.0.0.0.0.2 Slider "Opacity" number=0 in 0..1000 step 10 labelled_by=[r.0.0.0.0.0.0.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.1.0 SpinButton "Opacity" value="1,000" number=1000 in 0..1000 step 1 labelled_by=[r.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0 TextRun "" value="1,000"
+    + r.0.0.0.0.0.2 Slider "Opacity" number=1000 in 0..1000 step 10 labelled_by=[r.0.0.0.0.0.0.0] actions=[Focus,Decrement,SetValue]
+  Escape:
+    focus: r.0.0.0.0.0.2 Slider "Opacity" -> r Window ""

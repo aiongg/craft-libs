@@ -1,0 +1,313 @@
+story composites/picture-fill-editor/editor
+args
+  mode = Choice { options: ["stretch", "tile"], index: 0 }
+  source = Bool(true)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 Label "" value="Picture source"
+            r.0.0.0.0.0.1 GenericContainer ""
+              r.0.0.0.0.0.1.0 GenericContainer ""
+                r.0.0.0.0.0.1.0.0 Label "" value="Harbour.png"
+            r.0.0.0.0.0.2 GenericContainer ""
+              r.0.0.0.0.0.2.0 GenericContainer ""
+                r.0.0.0.0.0.2.0.0 Button "Insert…" actions=[Click,Focus]
+            r.0.0.0.0.0.3 GenericContainer ""
+              r.0.0.0.0.0.3.0 GenericContainer ""
+                r.0.0.0.0.0.3.0.0 CheckBox "Tile picture as texture" [unchecked] actions=[Click,Focus]
+            r.0.0.0.0.0.4 GenericContainer ""
+              r.0.0.0.0.0.4.0 Label "" value="Offset left"
+            r.0.0.0.0.0.5 GenericContainer ""
+              r.0.0.0.0.0.5.0 GenericContainer ""
+                r.0.0.0.0.0.5.0.0 SpinButton "Offset left" value="0 %" number=0 in -..- step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                  r.0.0.0.0.0.5.0.0.0 TextRun "" value="0"
+            r.0.0.0.0.0.6 GenericContainer ""
+              r.0.0.0.0.0.6.0 Label "" value="Offset top"
+            r.0.0.0.0.0.7 GenericContainer ""
+              r.0.0.0.0.0.7.0 GenericContainer ""
+                r.0.0.0.0.0.7.0.0 SpinButton "Offset top" value="0 %" number=0 in -..- step 1 labelled_by=[r.0.0.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                  r.0.0.0.0.0.7.0.0.0 TextRun "" value="0"
+            r.0.0.0.0.0.8 GenericContainer ""
+              r.0.0.0.0.0.8.0 Label "" value="Offset right"
+            r.0.0.0.0.0.9 GenericContainer ""
+              r.0.0.0.0.0.9.0 GenericContainer ""
+                r.0.0.0.0.0.9.0.0 SpinButton "Offset right" value="0 %" number=0 in -..- step 1 labelled_by=[r.0.0.0.0.0.8.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                  r.0.0.0.0.0.9.0.0.0 TextRun "" value="0"
+            r.0.0.0.0.0.10 GenericContainer ""
+              r.0.0.0.0.0.10.0 Label "" value="Offset bottom"
+            r.0.0.0.0.0.11 GenericContainer ""
+              r.0.0.0.0.0.11.0 GenericContainer ""
+                r.0.0.0.0.0.11.0.0 SpinButton "Offset bottom" value="0 %" number=0 in -..- step 1 labelled_by=[r.0.0.0.0.0.10.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                  r.0.0.0.0.0.11.0.0.0 TextRun "" value="0"
+            r.0.0.0.0.0.12 GenericContainer ""
+              r.0.0.0.0.0.12.0 GenericContainer ""
+                r.0.0.0.0.0.12.0.0 CheckBox "Rotate with shape" [checked] actions=[Click,Focus]
+            r.0.0.0.0.0.13 GenericContainer ""
+              r.0.0.0.0.0.13.0 GenericContainer ""
+                r.0.0.0.0.0.13.0.0 GenericContainer ""
+                  r.0.0.0.0.0.13.0.0.0 Label "" value="Transparency"
+                r.0.0.0.0.0.13.0.1 GenericContainer ""
+                  r.0.0.0.0.0.13.0.1.0 SpinButton "Transparency" value="0 %" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.13.0.0.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+                    r.0.0.0.0.0.13.0.1.0.0 TextRun "" value="0"
+                r.0.0.0.0.0.13.0.2 Slider "Transparency" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.13.0.0.0] actions=[Focus,Increment,SetValue]
+          r.0.0.0.0.1 Label "" value="Files are fake: Insert… answers with one picture." actions=[Click]
+            r.0.0.0.0.1.0 TextRun "" value="Files are fake: Insert… answers with one picture."
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.2.0.0 Button "Insert…"
+  2: r.0.0.0.0.0.3.0.0 CheckBox "Tile picture as texture"
+  3: r.0.0.0.0.0.5.0.0 SpinButton "Offset left"
+  4: r.0.0.0.0.0.7.0.0 SpinButton "Offset top"
+  5: r.0.0.0.0.0.9.0.0 SpinButton "Offset right"
+  6: r.0.0.0.0.0.11.0.0 SpinButton "Offset bottom"
+  7: r.0.0.0.0.0.12.0.0 CheckBox "Rotate with shape"
+  8: r.0.0.0.0.0.13.0.1.0 SpinButton "Transparency"
+  9: r.0.0.0.0.0.13.0.2 Slider "Transparency"
+  10: r.0.0.0.0.0.2.0.0 Button "Insert…"
+  cycle after 9 nodes
+drive: 10 actionable nodes
+drive r.0.0.0.0.0.2.0.0 Button "Insert…"
+  click:
+    - r.0.0.0.0.0.1.0.0 Label "" value="Harbour.png"
+    + r.0.0.0.0.0.1.0.0 Label "" value="Meadow.jpg"
+    - r.0.0.0.0.1 Label "" value="Files are fake: Insert… answers with one picture." actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Files are fake: Insert… answers with one picture."
+    + r.0.0.0.0.1 Label "" value="Picture received: Meadow.jpg, 4 bytes" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Picture received: Meadow.jpg, 4 bytes"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.2.0.0 Button "Insert…" -> r Window ""
+drive r.0.0.0.0.0.3.0.0 CheckBox "Tile picture as texture"
+  click:
+    - r.0.0.0.0.0.3.0.0 CheckBox "Tile picture as texture" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.3.0.0 CheckBox "Tile picture as texture" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.4.0 Label "" value="Offset left"
+    + r.0.0.0.0.0.4.0 Label "" value="Offset X"
+    - r.0.0.0.0.0.5.0.0 SpinButton "Offset left" value="0 %" number=0 in -..- step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.5.0.0 SpinButton "Offset X" value="0 pt" number=0 in -..- step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.6.0 Label "" value="Offset top"
+    + r.0.0.0.0.0.6.0 Label "" value="Offset Y"
+    - r.0.0.0.0.0.7.0.0 SpinButton "Offset top" value="0 %" number=0 in -..- step 1 labelled_by=[r.0.0.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.7.0.0 SpinButton "Offset Y" value="0 pt" number=0 in -..- step 1 labelled_by=[r.0.0.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.8.0 Label "" value="Offset right"
+    + r.0.0.0.0.0.8.0 Label "" value="Scale X"
+    - r.0.0.0.0.0.9.0.0 SpinButton "Offset right" value="0 %" number=0 in -..- step 1 labelled_by=[r.0.0.0.0.0.8.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.9.0.0.0 TextRun "" value="0"
+    + r.0.0.0.0.0.9.0.0 SpinButton "Scale X" value="100 %" number=100 in 0.1..- step 1 labelled_by=[r.0.0.0.0.0.8.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.9.0.0.0 TextRun "" value="100"
+    - r.0.0.0.0.0.10.0 Label "" value="Offset bottom"
+    + r.0.0.0.0.0.10.0 Label "" value="Scale Y"
+    - r.0.0.0.0.0.11.0.0 SpinButton "Offset bottom" value="0 %" number=0 in -..- step 1 labelled_by=[r.0.0.0.0.0.10.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.0.0 TextRun "" value="0"
+    + r.0.0.0.0.0.11.0.0 SpinButton "Scale Y" value="100 %" number=100 in 0.1..- step 1 labelled_by=[r.0.0.0.0.0.10.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.0.0 TextRun "" value="100"
+    + r.0.0.0.0.0.12.0 Label "" value="Alignment"
+    + r.0.0.0.0.0.13 GenericContainer ""
+    + r.0.0.0.0.0.13.0.0 ComboBox "Alignment" value="Top left" labelled_by=[r.0.0.0.0.0.12.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.14 GenericContainer ""
+    + r.0.0.0.0.0.14.0 Label "" value="Mirror type"
+    + r.0.0.0.0.0.15 GenericContainer ""
+    + r.0.0.0.0.0.15.0 GenericContainer ""
+    + r.0.0.0.0.0.15.0.0 ComboBox "Mirror type" value="None" labelled_by=[r.0.0.0.0.0.14.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.16 GenericContainer ""
+    + r.0.0.0.0.0.16.0 GenericContainer ""
+    - r.0.0.0.0.0.13.0.1.0 SpinButton "Transparency" value="0 %" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.13.0.0.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.17.0.1.0 SpinButton "Transparency" value="0 %" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.13.0.2 Slider "Transparency" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.13.0.0.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.1 Label "" value="Picture received: Meadow.jpg, 4 bytes" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Picture received: Meadow.jpg, 4 bytes"
+    + r.0.0.0.0.0.17.0.2 Slider "Transparency" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.1 Label "" value="Last event: Set" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set"
+  Space:
+    - r.0.0.0.0.0.3.0.0 CheckBox "Tile picture as texture" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.3.0.0 CheckBox "Tile picture as texture" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.4.0 Label "" value="Offset X"
+    + r.0.0.0.0.0.4.0 Label "" value="Offset left"
+    - r.0.0.0.0.0.5.0.0 SpinButton "Offset X" value="0 pt" number=0 in -..- step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.5.0.0 SpinButton "Offset left" value="0 %" number=0 in -..- step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.6.0 Label "" value="Offset Y"
+    + r.0.0.0.0.0.6.0 Label "" value="Offset top"
+    - r.0.0.0.0.0.7.0.0 SpinButton "Offset Y" value="0 pt" number=0 in -..- step 1 labelled_by=[r.0.0.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.7.0.0 SpinButton "Offset top" value="0 %" number=0 in -..- step 1 labelled_by=[r.0.0.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.8.0 Label "" value="Scale X"
+    - r.0.0.0.0.0.9 GenericContainer ""
+    - r.0.0.0.0.0.9.0 GenericContainer ""
+    - r.0.0.0.0.0.9.0.0 SpinButton "Scale X" value="100 %" number=100 in 0.1..- step 1 labelled_by=[r.0.0.0.0.0.8.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.9.0.0.0 TextRun "" value="100"
+    - r.0.0.0.0.0.10 GenericContainer ""
+    - r.0.0.0.0.0.10.0 Label "" value="Scale Y"
+    - r.0.0.0.0.0.11 GenericContainer ""
+    - r.0.0.0.0.0.11.0 GenericContainer ""
+    - r.0.0.0.0.0.11.0.0 SpinButton "Scale Y" value="100 %" number=100 in 0.1..- step 1 labelled_by=[r.0.0.0.0.0.10.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.0.0 TextRun "" value="100"
+    - r.0.0.0.0.0.12 GenericContainer ""
+    - r.0.0.0.0.0.12.0 Label "" value="Alignment"
+    + r.0.0.0.0.0.8.0 Label "" value="Offset right"
+    - r.0.0.0.0.0.13.0.0 ComboBox "Alignment" value="Top left" labelled_by=[r.0.0.0.0.0.12.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.9.0.0 SpinButton "Offset right" value="0 %" number=0 in -..- step 1 labelled_by=[r.0.0.0.0.0.8.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.9.0.0.0 TextRun "" value="0"
+    - r.0.0.0.0.0.14.0 Label "" value="Mirror type"
+    + r.0.0.0.0.0.10.0 Label "" value="Offset bottom"
+    - r.0.0.0.0.0.15.0.0 ComboBox "Mirror type" value="None" labelled_by=[r.0.0.0.0.0.14.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.11.0.0 SpinButton "Offset bottom" value="0 %" number=0 in -..- step 1 labelled_by=[r.0.0.0.0.0.10.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.0.0 TextRun "" value="0"
+    - r.0.0.0.0.0.17.0.1.0 SpinButton "Transparency" value="0 %" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.13.0.1.0 SpinButton "Transparency" value="0 %" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.13.0.0.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.17.0.2 Slider "Transparency" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.13.0.2 Slider "Transparency" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.13.0.0.0] actions=[Focus,Increment,SetValue]
+  Enter:
+    - r.0.0.0.0.0.3.0.0 CheckBox "Tile picture as texture" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.3.0.0 CheckBox "Tile picture as texture" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.4.0 Label "" value="Offset left"
+    + r.0.0.0.0.0.4.0 Label "" value="Offset X"
+    - r.0.0.0.0.0.5.0.0 SpinButton "Offset left" value="0 %" number=0 in -..- step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.5.0.0 SpinButton "Offset X" value="0 pt" number=0 in -..- step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.6.0 Label "" value="Offset top"
+    + r.0.0.0.0.0.6.0 Label "" value="Offset Y"
+    - r.0.0.0.0.0.7.0.0 SpinButton "Offset top" value="0 %" number=0 in -..- step 1 labelled_by=[r.0.0.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.7.0.0 SpinButton "Offset Y" value="0 pt" number=0 in -..- step 1 labelled_by=[r.0.0.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.8.0 Label "" value="Offset right"
+    + r.0.0.0.0.0.8.0 Label "" value="Scale X"
+    - r.0.0.0.0.0.9.0.0 SpinButton "Offset right" value="0 %" number=0 in -..- step 1 labelled_by=[r.0.0.0.0.0.8.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.9.0.0.0 TextRun "" value="0"
+    + r.0.0.0.0.0.9.0.0 SpinButton "Scale X" value="100 %" number=100 in 0.1..- step 1 labelled_by=[r.0.0.0.0.0.8.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.9.0.0.0 TextRun "" value="100"
+    - r.0.0.0.0.0.10.0 Label "" value="Offset bottom"
+    + r.0.0.0.0.0.10.0 Label "" value="Scale Y"
+    - r.0.0.0.0.0.11.0.0 SpinButton "Offset bottom" value="0 %" number=0 in -..- step 1 labelled_by=[r.0.0.0.0.0.10.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.0.0 TextRun "" value="0"
+    + r.0.0.0.0.0.11.0.0 SpinButton "Scale Y" value="100 %" number=100 in 0.1..- step 1 labelled_by=[r.0.0.0.0.0.10.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.0.0 TextRun "" value="100"
+    + r.0.0.0.0.0.12.0 Label "" value="Alignment"
+    + r.0.0.0.0.0.13 GenericContainer ""
+    + r.0.0.0.0.0.13.0.0 ComboBox "Alignment" value="Top left" labelled_by=[r.0.0.0.0.0.12.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.14 GenericContainer ""
+    + r.0.0.0.0.0.14.0 Label "" value="Mirror type"
+    + r.0.0.0.0.0.15 GenericContainer ""
+    + r.0.0.0.0.0.15.0 GenericContainer ""
+    + r.0.0.0.0.0.15.0.0 ComboBox "Mirror type" value="None" labelled_by=[r.0.0.0.0.0.14.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.16 GenericContainer ""
+    + r.0.0.0.0.0.16.0 GenericContainer ""
+    - r.0.0.0.0.0.13.0.1.0 SpinButton "Transparency" value="0 %" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.13.0.0.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.17.0.1.0 SpinButton "Transparency" value="0 %" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.13.0.2 Slider "Transparency" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.13.0.0.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.17.0.2 Slider "Transparency" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Focus,Increment,SetValue]
+  Escape:
+    focus: r.0.0.0.0.0.3.0.0 CheckBox "Tile picture as texture" -> r Window ""
+drive r.0.0.0.0.0.5.0.0 SpinButton "Offset left"
+  all steps: node gone
+drive r.0.0.0.0.0.7.0.0 SpinButton "Offset top"
+  all steps: node gone
+drive r.0.0.0.0.0.9.0.0 SpinButton "Offset right"
+  all steps: node gone
+drive r.0.0.0.0.0.11.0.0 SpinButton "Offset bottom"
+  all steps: node gone
+drive r.0.0.0.0.0.12.0.0 CheckBox "Rotate with shape"
+  click:
+    - r.0.0.0.0.0.16.0.0 CheckBox "Rotate with shape" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.16.0.0 CheckBox "Rotate with shape" [unchecked] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.0.16.0.0 CheckBox "Rotate with shape" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.16.0.0 CheckBox "Rotate with shape" [checked] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.0.16.0.0 CheckBox "Rotate with shape" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.16.0.0 CheckBox "Rotate with shape" [unchecked] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.16.0.0 CheckBox "Rotate with shape" -> r Window ""
+drive r.0.0.0.0.0.13.0.1.0 SpinButton "Transparency"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.17.0.2 Slider "Transparency"
+    - r.0.0.0.0.0.17.0.1.0 SpinButton "Transparency" value="0 %" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.17.0.1.0.0 TextRun "" value="0"
+    - r.0.0.0.0.0.17.0.2 Slider "Transparency" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.1 Label "" value="Last event: Set" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set"
+    + r.0.0.0.0.0.17.0.1.0 SpinButton "Transparency" value="82 %" number=82.27635025978088 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.17.0.1.0.0 TextRun "" value="82"
+    + r.0.0.0.0.0.17.0.2 Slider "Transparency" number=82.27635025978088 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1 Label "" value="Last event: Commit" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Commit"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.17.0.1.0 SpinButton "Transparency" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.17.0.1.0 SpinButton "Transparency" value="82 %" number=82.27635025978088 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.17.0.1.0.0 TextRun "" value="82"
+    - r.0.0.0.0.0.17.0.2 Slider "Transparency" number=82.27635025978088 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.1 Label "" value="Last event: Commit" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Commit"
+    + r.0.0.0.0.0.17.0.1.0 SpinButton "Transparency" value="83 %" number=83 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.17.0.1.0.0 TextRun "" value="83"
+    + r.0.0.0.0.0.17.0.2 Slider "Transparency" number=83 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1 Label "" value="Last event: Set" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set"
+  ArrowDown:
+    - r.0.0.0.0.0.17.0.1.0 SpinButton "Transparency" value="83 %" number=83 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.17.0.1.0.0 TextRun "" value="83"
+    - r.0.0.0.0.0.17.0.2 Slider "Transparency" number=83 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.17.0.1.0 SpinButton "Transparency" value="82 %" number=82 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.17.0.1.0.0 TextRun "" value="82"
+    + r.0.0.0.0.0.17.0.2 Slider "Transparency" number=82 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.17.0.1.0 SpinButton "Transparency" -> r Window ""
+drive r.0.0.0.0.0.13.0.2 Slider "Transparency"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.0.17.0.1.0 SpinButton "Transparency" value="82 %" number=82 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.17.0.1.0.0 TextRun "" value="82"
+    - r.0.0.0.0.0.17.0.2 Slider "Transparency" number=82 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.17.0.1.0 SpinButton "Transparency" value="81 %" number=81 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.17.0.1.0.0 TextRun "" value="81"
+    + r.0.0.0.0.0.17.0.2 Slider "Transparency" number=81 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowRight:
+    - r.0.0.0.0.0.17.0.1.0 SpinButton "Transparency" value="81 %" number=81 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.17.0.1.0.0 TextRun "" value="81"
+    - r.0.0.0.0.0.17.0.2 Slider "Transparency" number=81 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.17.0.1.0 SpinButton "Transparency" value="82 %" number=82 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.17.0.1.0.0 TextRun "" value="82"
+    + r.0.0.0.0.0.17.0.2 Slider "Transparency" number=82 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowUp:
+    - r.0.0.0.0.0.17.0.1.0 SpinButton "Transparency" value="82 %" number=82 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.17.0.1.0.0 TextRun "" value="82"
+    - r.0.0.0.0.0.17.0.2 Slider "Transparency" number=82 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.17.0.1.0 SpinButton "Transparency" value="83 %" number=83 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.17.0.1.0.0 TextRun "" value="83"
+    + r.0.0.0.0.0.17.0.2 Slider "Transparency" number=83 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.0.17.0.1.0 SpinButton "Transparency" value="83 %" number=83 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.17.0.1.0.0 TextRun "" value="83"
+    - r.0.0.0.0.0.17.0.2 Slider "Transparency" number=83 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.17.0.1.0 SpinButton "Transparency" value="82 %" number=82 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.17.0.1.0.0 TextRun "" value="82"
+    + r.0.0.0.0.0.17.0.2 Slider "Transparency" number=82 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home:
+    - r.0.0.0.0.0.17.0.1.0 SpinButton "Transparency" value="82 %" number=82 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.17.0.1.0.0 TextRun "" value="82"
+    - r.0.0.0.0.0.17.0.2 Slider "Transparency" number=82 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.17.0.1.0 SpinButton "Transparency" value="0 %" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.17.0.1.0.0 TextRun "" value="0"
+    + r.0.0.0.0.0.17.0.2 Slider "Transparency" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Focus,Increment,SetValue]
+  End:
+    - r.0.0.0.0.0.17.0.1.0 SpinButton "Transparency" value="0 %" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.17.0.1.0.0 TextRun "" value="0"
+    - r.0.0.0.0.0.17.0.2 Slider "Transparency" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.17.0.1.0 SpinButton "Transparency" value="100 %" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.17.0.1.0.0 TextRun "" value="100"
+    + r.0.0.0.0.0.17.0.2 Slider "Transparency" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.17.0.0.0] actions=[Focus,Decrement,SetValue]
+  Escape:
+    focus: r.0.0.0.0.0.17.0.2 Slider "Transparency" -> r Window ""
+drive r.0.0.0.0.1 Label ""
+  click: no change
+  Escape: no change

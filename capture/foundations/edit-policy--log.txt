@@ -1,0 +1,213 @@
+story foundations/edit-policy/log
+args
+  update rate = Choice { options: ["realtime", "debounced 300 ms"], index: 0 }
+  cancellable = Bool(true)
+  on release only = Bool(false)
+  field first = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 GenericContainer ""
+                  r.0.0.0.0.0.0.0.0.0 Slider "Level" number=40 in 0..100 step - actions=[Focus]
+                  r.0.0.0.0.0.0.0.0.1 TextInput "Label" value="Layer 1" actions=[Click,Focus]
+              r.0.0.0.0.0.0.1 GenericContainer ""
+                r.0.0.0.0.0.0.1.0 GenericContainer ""
+                  r.0.0.0.0.0.0.1.0.0 Slider "Level" number=40 in 0..100 step - actions=[Focus]
+                  r.0.0.0.0.0.0.1.0.1 TextInput "Label" value="Layer 1" actions=[Click,Focus]
+              r.0.0.0.0.0.0.2 GenericContainer ""
+                r.0.0.0.0.0.0.2.0 GenericContainer ""
+                  r.0.0.0.0.0.0.2.0.0 Button "Undo during gesture" actions=[Click,Focus]
+                  r.0.0.0.0.0.0.2.0.1 Button "Switch document" actions=[Click,Focus]
+              r.0.0.0.0.0.0.3 Label "" value="Document A: level 40, label \"Layer 1\", 0 undo steps" actions=[Click]
+                r.0.0.0.0.0.0.3.0 TextRun "" value="Document A: level 40, label \"Layer 1\", 0 undo steps"
+              r.0.0.0.0.0.0.4 GenericContainer ""
+                r.0.0.0.0.0.0.4.0 Label "" value="No events yet" actions=[Click]
+                  r.0.0.0.0.0.0.4.0.0 TextRun "" value="No events yet"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0.0 Slider "Level"
+  2: r.0.0.0.0.0.0.0.0.1 TextInput "Label"
+  3: r.0.0.0.0.0.0.1.0.0 Slider "Level"
+  4: r.0.0.0.0.0.0.1.0.1 TextInput "Label"
+  5: r.0.0.0.0.0.0.2.0.0 Button "Undo during gesture"
+  6: r.0.0.0.0.0.0.2.0.1 Button "Switch document"
+  7: r.0.0.0.0.0.0.0.0.0 Slider "Level"
+  cycle after 6 nodes
+drive: 8 actionable nodes
+drive r.0.0.0.0.0.0.0.0.0 Slider "Level"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.0.0.0.0.0 Slider "Level" number=40 in 0..100 step - actions=[Focus]
+    + r.0.0.0.0.0.0.0.0.0 Slider "Level" number=39 in 0..100 step - actions=[Focus]
+    - r.0.0.0.0.0.0.1.0.0 Slider "Level" number=40 in 0..100 step - actions=[Focus]
+    + r.0.0.0.0.0.0.1.0.0 Slider "Level" number=39 in 0..100 step - actions=[Focus]
+    - r.0.0.0.0.0.0.3 Label "" value="Document A: level 40, label \"Layer 1\", 0 undo steps" actions=[Click]
+    - r.0.0.0.0.0.0.3.0 TextRun "" value="Document A: level 40, label \"Layer 1\", 0 undo steps"
+    + r.0.0.0.0.0.0.3 Label "" value="Document A: level 39, label \"Layer 1\", 1 undo steps" actions=[Click]
+    + r.0.0.0.0.0.0.3.0 TextRun "" value="Document A: level 39, label \"Layer 1\", 1 undo steps"
+    - r.0.0.0.0.0.0.4.0 Label "" value="No events yet" actions=[Click]
+    - r.0.0.0.0.0.0.4.0.0 TextRun "" value="No events yet"
+    + r.0.0.0.0.0.0.4.0 Label "" value="slider: Set 39.0" actions=[Click]
+    + r.0.0.0.0.0.0.4.0.0 TextRun "" value="slider: Set 39.0"
+  ArrowRight:
+    - r.0.0.0.0.0.0.0.0.0 Slider "Level" number=39 in 0..100 step - actions=[Focus]
+    + r.0.0.0.0.0.0.0.0.0 Slider "Level" number=40 in 0..100 step - actions=[Focus]
+    - r.0.0.0.0.0.0.1.0.0 Slider "Level" number=39 in 0..100 step - actions=[Focus]
+    + r.0.0.0.0.0.0.1.0.0 Slider "Level" number=40 in 0..100 step - actions=[Focus]
+    - r.0.0.0.0.0.0.3 Label "" value="Document A: level 39, label \"Layer 1\", 1 undo steps" actions=[Click]
+    - r.0.0.0.0.0.0.3.0 TextRun "" value="Document A: level 39, label \"Layer 1\", 1 undo steps"
+    + r.0.0.0.0.0.0.3 Label "" value="Document A: level 40, label \"Layer 1\", 2 undo steps" actions=[Click]
+    + r.0.0.0.0.0.0.3.0 TextRun "" value="Document A: level 40, label \"Layer 1\", 2 undo steps"
+    + r.0.0.0.0.0.0.4.0 Label "" value="slider: Set 40.0" actions=[Click]
+    + r.0.0.0.0.0.0.4.0.0 TextRun "" value="slider: Set 40.0"
+  ArrowUp: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0 Slider "Level" -> r.0.0.0.0.0.0.1.0.0 Slider "Level"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0 Slider "Level" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.1 TextInput "Label"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.1 TextInput "Label"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.1 TextInput "Label" -> r Window ""
+drive r.0.0.0.0.0.0.1.0.0 Slider "Level"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.0.0.0.0.0 Slider "Level" number=40 in 0..100 step - actions=[Focus]
+    + r.0.0.0.0.0.0.0.0.0 Slider "Level" number=39 in 0..100 step - actions=[Focus]
+    - r.0.0.0.0.0.0.1.0.0 Slider "Level" number=40 in 0..100 step - actions=[Focus]
+    + r.0.0.0.0.0.0.1.0.0 Slider "Level" number=39 in 0..100 step - actions=[Focus]
+    - r.0.0.0.0.0.0.3 Label "" value="Document A: level 40, label \"Layer 1\", 2 undo steps" actions=[Click]
+    - r.0.0.0.0.0.0.3.0 TextRun "" value="Document A: level 40, label \"Layer 1\", 2 undo steps"
+    + r.0.0.0.0.0.0.3 Label "" value="Document A: level 39, label \"Layer 1\", 3 undo steps" actions=[Click]
+    + r.0.0.0.0.0.0.3.0 TextRun "" value="Document A: level 39, label \"Layer 1\", 3 undo steps"
+    + r.0.0.0.0.0.0.4.0 Label "" value="composite: Set (39.0, \"Layer 1\")" actions=[Click]
+    + r.0.0.0.0.0.0.4.0.0 TextRun "" value="composite: Set (39.0, \"Layer 1\")"
+  ArrowRight:
+    - r.0.0.0.0.0.0.0.0.0 Slider "Level" number=39 in 0..100 step - actions=[Focus]
+    + r.0.0.0.0.0.0.0.0.0 Slider "Level" number=40 in 0..100 step - actions=[Focus]
+    - r.0.0.0.0.0.0.1.0.0 Slider "Level" number=39 in 0..100 step - actions=[Focus]
+    + r.0.0.0.0.0.0.1.0.0 Slider "Level" number=40 in 0..100 step - actions=[Focus]
+    - r.0.0.0.0.0.0.3 Label "" value="Document A: level 39, label \"Layer 1\", 3 undo steps" actions=[Click]
+    - r.0.0.0.0.0.0.3.0 TextRun "" value="Document A: level 39, label \"Layer 1\", 3 undo steps"
+    + r.0.0.0.0.0.0.3 Label "" value="Document A: level 40, label \"Layer 1\", 4 undo steps" actions=[Click]
+    + r.0.0.0.0.0.0.3.0 TextRun "" value="Document A: level 40, label \"Layer 1\", 4 undo steps"
+    + r.0.0.0.0.0.0.4.0 Label "" value="composite: Set (40.0, \"Layer 1\")" actions=[Click]
+    + r.0.0.0.0.0.0.4.0.0 TextRun "" value="composite: Set (40.0, \"Layer 1\")"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.1.0.0 Slider "Level" -> r.0.0.0.0.0.0.0.0.0 Slider "Level"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.1.0.0 Slider "Level" -> r.0.0.0.0.0.0.2.0.1 Button "Switch document"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.1.0.0 Slider "Level" -> r Window ""
+drive r.0.0.0.0.0.0.1.0.1 TextInput "Label"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.1.0.1 TextInput "Label"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.1.0.1 TextInput "Label" -> r Window ""
+drive r.0.0.0.0.0.0.2.0.0 Button "Undo during gesture"
+  click:
+    - r.0.0.0.0.0.0.0.0.0 Slider "Level" number=40 in 0..100 step - actions=[Focus]
+    + r.0.0.0.0.0.0.0.0.0 Slider "Level" number=39 in 0..100 step - actions=[Focus]
+    - r.0.0.0.0.0.0.1.0.0 Slider "Level" number=40 in 0..100 step - actions=[Focus]
+    + r.0.0.0.0.0.0.1.0.0 Slider "Level" number=39 in 0..100 step - actions=[Focus]
+    - r.0.0.0.0.0.0.3 Label "" value="Document A: level 40, label \"Layer 1\", 4 undo steps" actions=[Click]
+    - r.0.0.0.0.0.0.3.0 TextRun "" value="Document A: level 40, label \"Layer 1\", 4 undo steps"
+    + r.0.0.0.0.0.0.3 Label "" value="Document A: level 39, label \"Layer 1\", 3 undo steps" actions=[Click]
+    + r.0.0.0.0.0.0.3.0 TextRun "" value="Document A: level 39, label \"Layer 1\", 3 undo steps"
+    + r.0.0.0.0.0.0.4.0 Label "" value="undo: one step" actions=[Click]
+    + r.0.0.0.0.0.0.4.0.0 TextRun "" value="undo: one step"
+  Space:
+    - r.0.0.0.0.0.0.0.0.0 Slider "Level" number=39 in 0..100 step - actions=[Focus]
+    + r.0.0.0.0.0.0.0.0.0 Slider "Level" number=40 in 0..100 step - actions=[Focus]
+    - r.0.0.0.0.0.0.1.0.0 Slider "Level" number=39 in 0..100 step - actions=[Focus]
+    + r.0.0.0.0.0.0.1.0.0 Slider "Level" number=40 in 0..100 step - actions=[Focus]
+    - r.0.0.0.0.0.0.3 Label "" value="Document A: level 39, label \"Layer 1\", 3 undo steps" actions=[Click]
+    - r.0.0.0.0.0.0.3.0 TextRun "" value="Document A: level 39, label \"Layer 1\", 3 undo steps"
+    + r.0.0.0.0.0.0.3 Label "" value="Document A: level 40, label \"Layer 1\", 2 undo steps" actions=[Click]
+    + r.0.0.0.0.0.0.3.0 TextRun "" value="Document A: level 40, label \"Layer 1\", 2 undo steps"
+    + r.0.0.0.0.0.0.4.0 Label "" value="undo: one step" actions=[Click]
+    + r.0.0.0.0.0.0.4.0.0 TextRun "" value="undo: one step"
+  Enter:
+    - r.0.0.0.0.0.0.0.0.0 Slider "Level" number=40 in 0..100 step - actions=[Focus]
+    + r.0.0.0.0.0.0.0.0.0 Slider "Level" number=39 in 0..100 step - actions=[Focus]
+    - r.0.0.0.0.0.0.1.0.0 Slider "Level" number=40 in 0..100 step - actions=[Focus]
+    + r.0.0.0.0.0.0.1.0.0 Slider "Level" number=39 in 0..100 step - actions=[Focus]
+    - r.0.0.0.0.0.0.3 Label "" value="Document A: level 40, label \"Layer 1\", 2 undo steps" actions=[Click]
+    - r.0.0.0.0.0.0.3.0 TextRun "" value="Document A: level 40, label \"Layer 1\", 2 undo steps"
+    + r.0.0.0.0.0.0.3 Label "" value="Document A: level 39, label \"Layer 1\", 1 undo steps" actions=[Click]
+    + r.0.0.0.0.0.0.3.0 TextRun "" value="Document A: level 39, label \"Layer 1\", 1 undo steps"
+    + r.0.0.0.0.0.0.4.0 Label "" value="undo: one step" actions=[Click]
+    + r.0.0.0.0.0.0.4.0.0 TextRun "" value="undo: one step"
+  Escape:
+    focus: r.0.0.0.0.0.0.2.0.0 Button "Undo during gesture" -> r Window ""
+drive r.0.0.0.0.0.0.2.0.1 Button "Switch document"
+  click:
+    - r.0.0.0.0.0.0.0.0.0 Slider "Level" number=39 in 0..100 step - actions=[Focus]
+    - r.0.0.0.0.0.0.0.0.1 TextInput "Label" value="Layer 1" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0 Slider "Level" number=75 in 0..100 step - actions=[Focus]
+    + r.0.0.0.0.0.0.0.0.1 TextInput "Label" value="Background" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1.0.0 Slider "Level" number=39 in 0..100 step - actions=[Focus]
+    - r.0.0.0.0.0.0.1.0.1 TextInput "Label" value="Layer 1" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1.0.0 Slider "Level" number=75 in 0..100 step - actions=[Focus]
+    + r.0.0.0.0.0.0.1.0.1 TextInput "Label" value="Background" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.3 Label "" value="Document A: level 39, label \"Layer 1\", 1 undo steps" actions=[Click]
+    - r.0.0.0.0.0.0.3.0 TextRun "" value="Document A: level 39, label \"Layer 1\", 1 undo steps"
+    + r.0.0.0.0.0.0.3 Label "" value="Document B: level 75, label \"Background\", 0 undo steps" actions=[Click]
+    + r.0.0.0.0.0.0.3.0 TextRun "" value="Document B: level 75, label \"Background\", 0 undo steps"
+    + r.0.0.0.0.0.0.4.0 Label "" value="switched to document B: cancel_all(DocumentSwitched)" actions=[Click]
+    + r.0.0.0.0.0.0.4.0.0 TextRun "" value="switched to document B: cancel_all(DocumentSwitched)"
+  Space:
+    - r.0.0.0.0.0.0.0.0.0 Slider "Level" number=75 in 0..100 step - actions=[Focus]
+    - r.0.0.0.0.0.0.0.0.1 TextInput "Label" value="Background" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0 Slider "Level" number=39 in 0..100 step - actions=[Focus]
+    + r.0.0.0.0.0.0.0.0.1 TextInput "Label" value="Layer 1" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1.0.0 Slider "Level" number=75 in 0..100 step - actions=[Focus]
+    - r.0.0.0.0.0.0.1.0.1 TextInput "Label" value="Background" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1.0.0 Slider "Level" number=39 in 0..100 step - actions=[Focus]
+    + r.0.0.0.0.0.0.1.0.1 TextInput "Label" value="Layer 1" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.3 Label "" value="Document B: level 75, label \"Background\", 0 undo steps" actions=[Click]
+    - r.0.0.0.0.0.0.3.0 TextRun "" value="Document B: level 75, label \"Background\", 0 undo steps"
+    + r.0.0.0.0.0.0.3 Label "" value="Document A: level 39, label \"Layer 1\", 1 undo steps" actions=[Click]
+    + r.0.0.0.0.0.0.3.0 TextRun "" value="Document A: level 39, label \"Layer 1\", 1 undo steps"
+    + r.0.0.0.0.0.0.4.0 Label "" value="switched to document A: cancel_all(DocumentSwitched)" actions=[Click]
+    + r.0.0.0.0.0.0.4.0.0 TextRun "" value="switched to document A: cancel_all(DocumentSwitched)"
+  Enter:
+    - r.0.0.0.0.0.0.0.0.0 Slider "Level" number=39 in 0..100 step - actions=[Focus]
+    - r.0.0.0.0.0.0.0.0.1 TextInput "Label" value="Layer 1" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0 Slider "Level" number=75 in 0..100 step - actions=[Focus]
+    + r.0.0.0.0.0.0.0.0.1 TextInput "Label" value="Background" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1.0.0 Slider "Level" number=39 in 0..100 step - actions=[Focus]
+    - r.0.0.0.0.0.0.1.0.1 TextInput "Label" value="Layer 1" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1.0.0 Slider "Level" number=75 in 0..100 step - actions=[Focus]
+    + r.0.0.0.0.0.0.1.0.1 TextInput "Label" value="Background" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.3 Label "" value="Document A: level 39, label \"Layer 1\", 1 undo steps" actions=[Click]
+    - r.0.0.0.0.0.0.3.0 TextRun "" value="Document A: level 39, label \"Layer 1\", 1 undo steps"
+    + r.0.0.0.0.0.0.3 Label "" value="Document B: level 75, label \"Background\", 0 undo steps" actions=[Click]
+    + r.0.0.0.0.0.0.3.0 TextRun "" value="Document B: level 75, label \"Background\", 0 undo steps"
+    + r.0.0.0.0.0.0.4.0 Label "" value="switched to document B: cancel_all(DocumentSwitched)" actions=[Click]
+    + r.0.0.0.0.0.0.4.0.0 TextRun "" value="switched to document B: cancel_all(DocumentSwitched)"
+  Escape:
+    focus: r.0.0.0.0.0.0.2.0.1 Button "Switch document" -> r Window ""
+drive r.0.0.0.0.0.0.3 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.4.0 Label ""
+  click: no change
+  Escape: no change

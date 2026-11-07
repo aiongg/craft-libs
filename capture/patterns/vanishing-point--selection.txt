@@ -1,0 +1,182 @@
+story patterns/vanishing-point/selection
+args
+  open = Bool(true)
+  plane = Choice { options: ["None", "wall", "window", "Floor Patch", "Torn Wall"], index: 1 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+  r.1 Dialog "Vanishing Point (Photo, 22%)"
+    r.1.0 GenericContainer ""
+    r.1.1 GenericContainer ""
+      r.1.1.0 GenericContainer ""
+        r.1.1.0.0 Header "Vanishing Point (Photo, 22%)"
+        r.1.1.0.1 GenericContainer ""
+          r.1.1.0.1.0 GenericContainer ""
+            r.1.1.0.1.0.0 Label "" value="Vanishing Point (Photo, 22%)"
+        r.1.1.0.2 GenericContainer ""
+        r.1.1.0.3 Toolbar "Tool options"
+          r.1.1.0.3.0 GenericContainer ""
+            r.1.1.0.3.0.0 GenericContainer ""
+              r.1.1.0.3.0.0.0 GenericContainer ""
+                r.1.1.0.3.0.0.0.0 GenericContainer ""
+                  r.1.1.0.3.0.0.0.0.0 Label "" value="Grid Size:"
+                  r.1.1.0.3.0.0.0.0.1 GenericContainer ""
+                    r.1.1.0.3.0.0.0.0.1.0 Unknown "" actions=[Click,Focus]
+                    r.1.1.0.3.0.0.0.0.1.1 SpinButton "Grid Size" value="100 px" number=100 in 2..2000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                      r.1.1.0.3.0.0.0.0.1.1.0 TextRun "" value="100"
+                  r.1.1.0.3.0.0.0.0.2 CheckBox "Paste" [unchecked] actions=[Click,Focus]
+                  r.1.1.0.3.0.0.0.0.3 CheckBox "New Layer" [unchecked] actions=[Click,Focus]
+        r.1.1.0.4 Pane ""
+          r.1.1.0.4.0 GenericContainer ""
+            r.1.1.0.4.0.0 Toolbar "Tools"
+              r.1.1.0.4.0.0.0 GenericContainer ""
+                r.1.1.0.4.0.0.0.0 GenericContainer ""
+                  r.1.1.0.4.0.0.0.0.0 GenericContainer ""
+                    r.1.1.0.4.0.0.0.0.0.0 Button "Edit Plane Tool" description="V" [unchecked] actions=[Click,Focus]
+                  r.1.1.0.4.0.0.0.0.1 GenericContainer ""
+                    r.1.1.0.4.0.0.0.0.1.0 Button "Create Plane Tool" description="C" [checked] actions=[Click,Focus]
+                  r.1.1.0.4.0.0.0.0.2 GenericContainer ""
+                    r.1.1.0.4.0.0.0.0.2.0 Button "Stamp Tool" description="S" [unchecked] actions=[Click,Focus]
+                  r.1.1.0.4.0.0.0.0.3 GenericContainer ""
+                    r.1.1.0.4.0.0.0.0.3.0 Button "Hand Tool" description="H" [unchecked] actions=[Click,Focus]
+                  r.1.1.0.4.0.0.0.0.4 GenericContainer ""
+                    r.1.1.0.4.0.0.0.0.4.0 Button "Zoom Tool" description="Z" [unchecked] actions=[Click,Focus]
+              r.1.1.0.4.0.0.1 GenericContainer ""
+        r.1.1.0.5 Pane ""
+          r.1.1.0.5.0 GenericContainer ""
+            r.1.1.0.5.0.0 Group "Settings"
+              r.1.1.0.5.0.0.0 GenericContainer ""
+                r.1.1.0.5.0.0.0.0 GenericContainer ""
+                  r.1.1.0.5.0.0.0.0.0 GenericContainer ""
+              r.1.1.0.5.0.0.1 GenericContainer ""
+                r.1.1.0.5.0.0.1.0 GenericContainer ""
+                  r.1.1.0.5.0.0.1.0.0 Button "OK" description="Default" actions=[Click,Focus]
+                  r.1.1.0.5.0.0.1.0.1 Button "Cancel" actions=[Click,Focus]
+        r.1.1.0.6 Canvas "Image" value="22%" actions=[Click,Focus]
+        r.1.1.0.7 Group "Plane corners" actions=[Focus]
+          r.1.1.0.7.0 GenericContainer ""
+            r.1.1.0.7.0.0 GraphicsObject "Plane 1, top-left corner" value="250, 300" [unselected]
+            r.1.1.0.7.0.1 GraphicsObject "Plane 1, top-right corner" value="800, 330" [unselected]
+            r.1.1.0.7.0.2 GraphicsObject "Plane 1, bottom-right corner" value="800, 780" [unselected]
+            r.1.1.0.7.0.3 GraphicsObject "Plane 1, bottom-left corner" value="250, 850" [unselected]
+            r.1.1.0.7.0.4 GraphicsObject "Plane 2, top-left corner" value="900, 200" [unselected]
+            r.1.1.0.7.0.5 GraphicsObject "Plane 2, top-right corner" value="1,400, 220" [unselected]
+            r.1.1.0.7.0.6 GraphicsObject "Plane 2, bottom-right corner" value="1,400, 500" [unselected]
+            r.1.1.0.7.0.7 GraphicsObject "Plane 2, bottom-left corner" value="900, 520" [unselected]
+            r.1.1.0.7.0.8 GraphicsObject "Plane 3, top-left corner" value="900, 650" [unselected]
+            r.1.1.0.7.0.9 GraphicsObject "Plane 3, top-right corner" value="1,300, 650" [unselected]
+            r.1.1.0.7.0.10 GraphicsObject "Plane 3, bottom-right corner" value="1,300, 950" [unselected]
+            r.1.1.0.7.0.11 GraphicsObject "Plane 3, bottom-left corner" value="900, 950" [unselected]
+            r.1.1.0.7.0.12 GraphicsObject "Plane 4, top-left corner" value="800, 330" [unselected]
+            r.1.1.0.7.0.13 GraphicsObject "Plane 4, top-right corner" value="1,030.7, 480.5" [unselected]
+            r.1.1.0.7.0.14 GraphicsObject "Plane 4, bottom-right corner" value="1,030.7, 930.5" [unselected]
+            r.1.1.0.7.0.15 GraphicsObject "Plane 4, bottom-left corner" value="800, 780" [unselected]
+tab
+  start: r Window ""
+  1: r.1.1.0.3.0.0.0.0.1.0 Unknown ""
+  2: r.1.1.0.3.0.0.0.0.1.1 SpinButton "Grid Size"
+  3: r.1.1.0.3.0.0.0.0.1.0 Unknown ""
+  cycle after 2 nodes
+drive: 13 actionable nodes
+drive r.1.1.0.3.0.0.0.0.1.0 Unknown ""
+  click:
+    focus: r.1.1.0.3.0.0.0.0.1.0 Unknown "" -> r.1.1.0.3.0.0.0.0.1.1 SpinButton "Grid Size"
+  Space:
+    focus: r.1.1.0.3.0.0.0.0.1.0 Unknown "" -> r.1.1.0.3.0.0.0.0.1.1 SpinButton "Grid Size"
+  Enter:
+    focus: r.1.1.0.3.0.0.0.0.1.0 Unknown "" -> r Window ""
+    arg open: Bool(true) -> Bool(false)
+    - r.1 Dialog "Vanishing Point (Photo, 22%)"
+    - r.1.0 GenericContainer ""
+    - r.1.1 GenericContainer ""
+    - r.1.1.0 GenericContainer ""
+    - r.1.1.0.0 Header "Vanishing Point (Photo, 22%)"
+    - r.1.1.0.1 GenericContainer ""
+    - r.1.1.0.1.0 GenericContainer ""
+    - r.1.1.0.1.0.0 Label "" value="Vanishing Point (Photo, 22%)"
+    - r.1.1.0.2 GenericContainer ""
+    - r.1.1.0.3 Toolbar "Tool options"
+    - r.1.1.0.3.0 GenericContainer ""
+    - r.1.1.0.3.0.0 GenericContainer ""
+    - r.1.1.0.3.0.0.0 GenericContainer ""
+    - r.1.1.0.3.0.0.0.0 GenericContainer ""
+    - r.1.1.0.3.0.0.0.0.0 Label "" value="Grid Size:"
+    - r.1.1.0.3.0.0.0.0.1 GenericContainer ""
+    - r.1.1.0.3.0.0.0.0.1.0 Unknown "" actions=[Click,Focus]
+    - r.1.1.0.3.0.0.0.0.1.1 SpinButton "Grid Size" value="100 px" number=100 in 2..2000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.3.0.0.0.0.1.1.0 TextRun "" value="100"
+    - r.1.1.0.3.0.0.0.0.2 CheckBox "Paste" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.3.0.0.0.0.3 CheckBox "New Layer" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.4 Pane ""
+    - r.1.1.0.4.0 GenericContainer ""
+    - r.1.1.0.4.0.0 Toolbar "Tools"
+    - r.1.1.0.4.0.0.0 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0.0 Button "Edit Plane Tool" description="V" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.0.0.1 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.1.0 Button "Create Plane Tool" description="C" [checked] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.0.0.2 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.2.0 Button "Stamp Tool" description="S" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.0.0.3 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.3.0 Button "Hand Tool" description="H" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.0.0.4 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.4.0 Button "Zoom Tool" description="Z" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.1 GenericContainer ""
+    - r.1.1.0.5 Pane ""
+    - r.1.1.0.5.0 GenericContainer ""
+    - r.1.1.0.5.0.0 Group "Settings"
+    - r.1.1.0.5.0.0.0 GenericContainer ""
+    - r.1.1.0.5.0.0.0.0 GenericContainer ""
+    - r.1.1.0.5.0.0.0.0.0 GenericContainer ""
+    - r.1.1.0.5.0.0.1 GenericContainer ""
+    - r.1.1.0.5.0.0.1.0 GenericContainer ""
+    - r.1.1.0.5.0.0.1.0.0 Button "OK" description="Default" actions=[Click,Focus]
+    - r.1.1.0.5.0.0.1.0.1 Button "Cancel" actions=[Click,Focus]
+    - r.1.1.0.6 Canvas "Image" value="22%" actions=[Click,Focus]
+    - r.1.1.0.7 Group "Plane corners" actions=[Focus]
+    - r.1.1.0.7.0 GenericContainer ""
+    - r.1.1.0.7.0.0 GraphicsObject "Plane 1, top-left corner" value="250, 300" [unselected]
+    - r.1.1.0.7.0.1 GraphicsObject "Plane 1, top-right corner" value="800, 330" [unselected]
+    - r.1.1.0.7.0.2 GraphicsObject "Plane 1, bottom-right corner" value="800, 780" [unselected]
+    - r.1.1.0.7.0.3 GraphicsObject "Plane 1, bottom-left corner" value="250, 850" [unselected]
+    - r.1.1.0.7.0.4 GraphicsObject "Plane 2, top-left corner" value="900, 200" [unselected]
+    - r.1.1.0.7.0.5 GraphicsObject "Plane 2, top-right corner" value="1,400, 220" [unselected]
+    - r.1.1.0.7.0.6 GraphicsObject "Plane 2, bottom-right corner" value="1,400, 500" [unselected]
+    - r.1.1.0.7.0.7 GraphicsObject "Plane 2, bottom-left corner" value="900, 520" [unselected]
+    - r.1.1.0.7.0.8 GraphicsObject "Plane 3, top-left corner" value="900, 650" [unselected]
+    - r.1.1.0.7.0.9 GraphicsObject "Plane 3, top-right corner" value="1,300, 650" [unselected]
+    - r.1.1.0.7.0.10 GraphicsObject "Plane 3, bottom-right corner" value="1,300, 950" [unselected]
+    - r.1.1.0.7.0.11 GraphicsObject "Plane 3, bottom-left corner" value="900, 950" [unselected]
+    - r.1.1.0.7.0.12 GraphicsObject "Plane 4, top-left corner" value="800, 330" [unselected]
+    - r.1.1.0.7.0.13 GraphicsObject "Plane 4, top-right corner" value="1,030.7, 480.5" [unselected]
+    - r.1.1.0.7.0.14 GraphicsObject "Plane 4, bottom-right corner" value="1,030.7, 930.5" [unselected]
+    - r.1.1.0.7.0.15 GraphicsObject "Plane 4, bottom-left corner" value="800, 780" [unselected]
+  Escape: node gone
+drive r.1.1.0.3.0.0.0.0.1.1 SpinButton "Grid Size"
+  all steps: node gone
+drive r.1.1.0.3.0.0.0.0.2 CheckBox "Paste"
+  all steps: node gone
+drive r.1.1.0.3.0.0.0.0.3 CheckBox "New Layer"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.0.0 Button "Edit Plane Tool"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.1.0 Button "Create Plane Tool"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.2.0 Button "Stamp Tool"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.3.0 Button "Hand Tool"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.4.0 Button "Zoom Tool"
+  all steps: node gone
+drive r.1.1.0.5.0.0.1.0.0 Button "OK"
+  all steps: node gone
+drive r.1.1.0.5.0.0.1.0.1 Button "Cancel"
+  all steps: node gone
+drive r.1.1.0.6 Canvas "Image"
+  all steps: node gone
+drive r.1.1.0.7 Group "Plane corners"
+  all steps: node gone

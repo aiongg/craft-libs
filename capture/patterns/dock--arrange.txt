@@ -1,0 +1,80 @@
+story patterns/dock/arrange
+args
+  documents = Number { value: 4.0, min: 0.0, max: 8.0 }
+  groups = Number { value: 1.0, min: 1.0, max: 6.0 }
+  floating = Number { value: 0.0, min: 0.0, max: 6.0 }
+  cells = Number { value: 4.0, min: 2.0, max: 6.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Button "Arrange" [collapsed popup:Menu] actions=[Click,Focus]
+          r.0.0.0.0.1 Label "" value="TileAllVertically" actions=[Click]
+            r.0.0.0.0.1.0 TextRun "" value="TileAllVertically"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0 Button "Arrange"
+  2: r.0.0.0.0.0 Button "Arrange"
+  cycle after 1 nodes
+drive: 2 actionable nodes
+drive r.0.0.0.0.0 Button "Arrange"
+  click:
+    - r.0.0.0.0.0 Button "Arrange" [collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0 Button "Arrange" [expanded popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0 Menu ""
+    + r.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0 MenuItem "Tile All Vertically" actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.1 MenuItem "Tile All Horizontally" actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.2 MenuItem "2-up Vertical" actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.3 MenuItem "2-up Horizontal" actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.4 MenuItem "3-up Vertical" actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.5 MenuItem "3-up Horizontal" actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.6 MenuItem "3-up Stacked" actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.7 MenuItem "4-up" actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.8 MenuItem "6-up" actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.9 MenuItem "Consolidate All to Tabs" [disabled] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.10 MenuItem "Cascade" actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.11 MenuItem "Tile" actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.12 MenuItem "Float in Window" actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.13 MenuItem "Float All in Windows" actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.14 MenuItem "New Window for Document" actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.15 MenuItem "Match Zoom" actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.16 MenuItem "Match Location" actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.17 MenuItem "Match Rotation" actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.18 MenuItem "Match All" actions=[Click]
+  Space: no change
+  Enter: no change
+  Escape:
+    - r.0.0.0.0.0 Button "Arrange" [expanded popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.0 Menu ""
+    - r.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0 MenuItem "Tile All Vertically" actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.1 MenuItem "Tile All Horizontally" actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.2 MenuItem "2-up Vertical" actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.3 MenuItem "2-up Horizontal" actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.4 MenuItem "3-up Vertical" actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.5 MenuItem "3-up Horizontal" actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.6 MenuItem "3-up Stacked" actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.7 MenuItem "4-up" actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.8 MenuItem "6-up" actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.9 MenuItem "Consolidate All to Tabs" [disabled] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.10 MenuItem "Cascade" actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.11 MenuItem "Tile" actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.12 MenuItem "Float in Window" actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.13 MenuItem "Float All in Windows" actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.14 MenuItem "New Window for Document" actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.15 MenuItem "Match Zoom" actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.16 MenuItem "Match Location" actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.17 MenuItem "Match Rotation" actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.18 MenuItem "Match All" actions=[Click]
+    + r.0.0.0.0.0 Button "Arrange" [collapsed popup:Menu] actions=[Click,Focus]
+drive r.0.0.0.0.1 Label ""
+  click:
+    focus: r.0.0.0.0.0 Button "Arrange" -> r Window ""
+  Escape: no change

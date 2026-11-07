@@ -1,0 +1,248 @@
+story patterns/page-setup-dialog/dialog
+args
+  open = Bool(true)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+  r.1 Dialog "Page Setup"
+    r.1.0 GenericContainer ""
+    r.1.1 GenericContainer ""
+      r.1.1.0 GenericContainer ""
+        r.1.1.0.0 GenericContainer ""
+          r.1.1.0.0.0 GenericContainer ""
+            r.1.1.0.0.0.0 GenericContainer ""
+              r.1.1.0.0.0.0.0 Heading "Page Setup" value="Page Setup"
+            r.1.1.0.0.0.1 Button "Close" description="Close" actions=[Click,Focus]
+            r.1.1.0.0.0.2 GenericContainer ""
+              r.1.1.0.0.0.2.0 GenericContainer ""
+                r.1.1.0.0.0.2.0.0 GenericContainer ""
+                  r.1.1.0.0.0.2.0.0.0 GenericContainer ""
+                    r.1.1.0.0.0.2.0.0.0.0 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.0.0.0 Label "" value="Margins"
+                  r.1.1.0.0.0.2.0.0.1 GenericContainer ""
+                    r.1.1.0.0.0.2.0.0.1.0 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.1.0.0 Label "" value="Top"
+                    r.1.1.0.0.0.2.0.0.1.1 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.1.1.0 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.1.1.0.0 SpinButton "Top" value="1 in" number=1 in 0..22 step 0.05 labelled_by=[r.1.1.0.0.0.2.0.0.1.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                          r.1.1.0.0.0.2.0.0.1.1.0.0.0 TextRun "" value="1"
+                    r.1.1.0.0.0.2.0.0.1.2 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.1.2.0 Label "" value="Bottom"
+                    r.1.1.0.0.0.2.0.0.1.3 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.1.3.0 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.1.3.0.0 SpinButton "Bottom" value="1 in" number=1 in 0..22 step 0.05 labelled_by=[r.1.1.0.0.0.2.0.0.1.2.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                          r.1.1.0.0.0.2.0.0.1.3.0.0.0 TextRun "" value="1"
+                    r.1.1.0.0.0.2.0.0.1.4 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.1.4.0 Label "" value="Left"
+                    r.1.1.0.0.0.2.0.0.1.5 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.1.5.0 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.1.5.0.0 SpinButton "Left" value="1 in" number=1 in 0..22 step 0.05 labelled_by=[r.1.1.0.0.0.2.0.0.1.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                          r.1.1.0.0.0.2.0.0.1.5.0.0.0 TextRun "" value="1"
+                    r.1.1.0.0.0.2.0.0.1.6 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.1.6.0 Label "" value="Right"
+                    r.1.1.0.0.0.2.0.0.1.7 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.1.7.0 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.1.7.0.0 SpinButton "Right" value="1 in" number=1 in 0..22 step 0.05 labelled_by=[r.1.1.0.0.0.2.0.0.1.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                          r.1.1.0.0.0.2.0.0.1.7.0.0.0 TextRun "" value="1"
+                    r.1.1.0.0.0.2.0.0.1.8 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.1.8.0 Label "" value="Gutter"
+                    r.1.1.0.0.0.2.0.0.1.9 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.1.9.0 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.1.9.0.0 SpinButton "Gutter" value="0 in" number=0 in 0..22 step 0.05 labelled_by=[r.1.1.0.0.0.2.0.0.1.8.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+                          r.1.1.0.0.0.2.0.0.1.9.0.0.0 TextRun "" value="0"
+                  r.1.1.0.0.0.2.0.0.2 GenericContainer ""
+                    r.1.1.0.0.0.2.0.0.2.0 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.2.0.0 Label "" value="Orientation"
+                  r.1.1.0.0.0.2.0.0.3 RadioGroup "Orientation"
+                    r.1.1.0.0.0.2.0.0.3.0 RadioButton "Portrait" [checked] actions=[Click,Focus]
+                    r.1.1.0.0.0.2.0.0.3.1 RadioButton "Landscape" [unchecked] actions=[Click,Focus]
+                  r.1.1.0.0.0.2.0.0.4 GenericContainer ""
+                    r.1.1.0.0.0.2.0.0.4.0 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.4.0.0 Label "" value="Pages"
+                  r.1.1.0.0.0.2.0.0.5 CheckBox "Mirror margins" [unchecked] actions=[Click,Focus]
+                  r.1.1.0.0.0.2.0.0.6 GenericContainer ""
+                    r.1.1.0.0.0.2.0.0.6.0 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.6.0.0 Label "" value="Paper"
+                  r.1.1.0.0.0.2.0.0.7 GenericContainer ""
+                    r.1.1.0.0.0.2.0.0.7.0 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.7.0.0 Label "" value="Paper size"
+                    r.1.1.0.0.0.2.0.0.7.1 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.7.1.0 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.7.1.0.0 ComboBox "Paper size" value="Letter" labelled_by=[r.1.1.0.0.0.2.0.0.7.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+                    r.1.1.0.0.0.2.0.0.7.2 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.7.2.0 Label "" value="Width"
+                    r.1.1.0.0.0.2.0.0.7.3 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.7.3.0 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.7.3.0.0 SpinButton "Width" value="8.5 in" number=8.5 in 0.1..22 step 0.05 labelled_by=[r.1.1.0.0.0.2.0.0.7.2.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                          r.1.1.0.0.0.2.0.0.7.3.0.0.0 TextRun "" value="8.5"
+                    r.1.1.0.0.0.2.0.0.7.4 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.7.4.0 Label "" value="Height"
+                    r.1.1.0.0.0.2.0.0.7.5 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.7.5.0 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.7.5.0.0 SpinButton "Height" value="11 in" number=11 in 0.1..22 step 0.05 labelled_by=[r.1.1.0.0.0.2.0.0.7.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                          r.1.1.0.0.0.2.0.0.7.5.0.0.0 TextRun "" value="11"
+                  r.1.1.0.0.0.2.0.0.8 GenericContainer ""
+                    r.1.1.0.0.0.2.0.0.8.0 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.8.0.0 Label "" value="Headers and footers"
+                  r.1.1.0.0.0.2.0.0.9 GenericContainer ""
+                    r.1.1.0.0.0.2.0.0.9.0 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.9.0.0 Label "" value="Vertical alignment"
+                    r.1.1.0.0.0.2.0.0.9.1 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.9.1.0 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.9.1.0.0 ComboBox "Vertical alignment" value="Top" labelled_by=[r.1.1.0.0.0.2.0.0.9.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+                  r.1.1.0.0.0.2.0.0.10 CheckBox "Different Odd & Even Pages" [unchecked] actions=[Click,Focus]
+                  r.1.1.0.0.0.2.0.0.11 CheckBox "Different First Page" [unchecked] actions=[Click,Focus]
+              r.1.1.0.0.0.2.1 GenericContainer ""
+              r.1.1.0.0.0.2.2 GenericContainer ""
+                r.1.1.0.0.0.2.2.0 Button "OK" description="Default" actions=[Click,Focus]
+                r.1.1.0.0.0.2.2.1 Button "Cancel" actions=[Click,Focus]
+tab
+  start: r.1.1.0.0.0.2.0.0.1.1.0.0 SpinButton "Top"
+  1: r.1.1.0.0.0.2.0.0.1.3.0.0 SpinButton "Bottom"
+  2: r.1.1.0.0.0.2.0.0.1.5.0.0 SpinButton "Left"
+  3: r.1.1.0.0.0.2.0.0.1.7.0.0 SpinButton "Right"
+  4: r.1.1.0.0.0.2.0.0.1.9.0.0 SpinButton "Gutter"
+  5: r.1.1.0.0.0.2.0.0.7.3.0.0 SpinButton "Width"
+  6: r.1.1.0.0.0.2.0.0.7.5.0.0 SpinButton "Height"
+  7: r.1.1.0.0.0.2.2.0 Button "OK"
+  8: r.1.1.0.0.0.2.2.1 Button "Cancel"
+  9: r.1.1.0.0.0.2.0.0.1.1.0.0 SpinButton "Top"
+  10: r.1.1.0.0.0.2.0.0.1.3.0.0 SpinButton "Bottom"
+  cycle after 9 nodes
+drive: 17 actionable nodes
+drive r.1.1.0.0.0.1 Button "Close"
+  click:
+    focus: r.1.1.0.0.0.2.0.0.1.3.0.0 SpinButton "Bottom" -> r Window ""
+    arg open: Bool(true) -> Bool(false)
+    - r.1 Dialog "Page Setup"
+    - r.1.0 GenericContainer ""
+    - r.1.1 GenericContainer ""
+    - r.1.1.0 GenericContainer ""
+    - r.1.1.0.0 GenericContainer ""
+    - r.1.1.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0.0 Heading "Page Setup" value="Page Setup"
+    - r.1.1.0.0.0.1 Button "Close" description="Close" actions=[Click,Focus]
+    - r.1.1.0.0.0.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.0 Label "" value="Margins"
+    - r.1.1.0.0.0.2.0.0.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.0.0 Label "" value="Top"
+    - r.1.1.0.0.0.2.0.0.1.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.1.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.1.0.0 SpinButton "Top" value="1 in" number=1 in 0..22 step 0.05 labelled_by=[r.1.1.0.0.0.2.0.0.1.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.1.1.0.0.0 TextRun "" value="1"
+    - r.1.1.0.0.0.2.0.0.1.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.2.0 Label "" value="Bottom"
+    - r.1.1.0.0.0.2.0.0.1.3 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.3.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.3.0.0 SpinButton "Bottom" value="1 in" number=1 in 0..22 step 0.05 labelled_by=[r.1.1.0.0.0.2.0.0.1.2.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.1.3.0.0.0 TextRun "" value="1"
+    - r.1.1.0.0.0.2.0.0.1.4 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.4.0 Label "" value="Left"
+    - r.1.1.0.0.0.2.0.0.1.5 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.5.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.5.0.0 SpinButton "Left" value="1 in" number=1 in 0..22 step 0.05 labelled_by=[r.1.1.0.0.0.2.0.0.1.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.1.5.0.0.0 TextRun "" value="1"
+    - r.1.1.0.0.0.2.0.0.1.6 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.6.0 Label "" value="Right"
+    - r.1.1.0.0.0.2.0.0.1.7 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.7.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.7.0.0 SpinButton "Right" value="1 in" number=1 in 0..22 step 0.05 labelled_by=[r.1.1.0.0.0.2.0.0.1.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.1.7.0.0.0 TextRun "" value="1"
+    - r.1.1.0.0.0.2.0.0.1.8 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.8.0 Label "" value="Gutter"
+    - r.1.1.0.0.0.2.0.0.1.9 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.9.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.9.0.0 SpinButton "Gutter" value="0 in" number=0 in 0..22 step 0.05 labelled_by=[r.1.1.0.0.0.2.0.0.1.8.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.1.9.0.0.0 TextRun "" value="0"
+    - r.1.1.0.0.0.2.0.0.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.2.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.2.0.0 Label "" value="Orientation"
+    - r.1.1.0.0.0.2.0.0.3 RadioGroup "Orientation"
+    - r.1.1.0.0.0.2.0.0.3.0 RadioButton "Portrait" [checked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.3.1 RadioButton "Landscape" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.4 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.4.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.4.0.0 Label "" value="Pages"
+    - r.1.1.0.0.0.2.0.0.5 CheckBox "Mirror margins" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.6 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.6.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.6.0.0 Label "" value="Paper"
+    - r.1.1.0.0.0.2.0.0.7 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.7.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.7.0.0 Label "" value="Paper size"
+    - r.1.1.0.0.0.2.0.0.7.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.7.1.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.7.1.0.0 ComboBox "Paper size" value="Letter" labelled_by=[r.1.1.0.0.0.2.0.0.7.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.7.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.7.2.0 Label "" value="Width"
+    - r.1.1.0.0.0.2.0.0.7.3 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.7.3.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.7.3.0.0 SpinButton "Width" value="8.5 in" number=8.5 in 0.1..22 step 0.05 labelled_by=[r.1.1.0.0.0.2.0.0.7.2.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.7.3.0.0.0 TextRun "" value="8.5"
+    - r.1.1.0.0.0.2.0.0.7.4 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.7.4.0 Label "" value="Height"
+    - r.1.1.0.0.0.2.0.0.7.5 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.7.5.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.7.5.0.0 SpinButton "Height" value="11 in" number=11 in 0.1..22 step 0.05 labelled_by=[r.1.1.0.0.0.2.0.0.7.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.7.5.0.0.0 TextRun "" value="11"
+    - r.1.1.0.0.0.2.0.0.8 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.8.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.8.0.0 Label "" value="Headers and footers"
+    - r.1.1.0.0.0.2.0.0.9 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.9.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.9.0.0 Label "" value="Vertical alignment"
+    - r.1.1.0.0.0.2.0.0.9.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.9.1.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.9.1.0.0 ComboBox "Vertical alignment" value="Top" labelled_by=[r.1.1.0.0.0.2.0.0.9.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.10 CheckBox "Different Odd & Even Pages" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.11 CheckBox "Different First Page" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.1 GenericContainer ""
+    - r.1.1.0.0.0.2.2 GenericContainer ""
+    - r.1.1.0.0.0.2.2.0 Button "OK" description="Default" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.2.1 Button "Cancel" actions=[Click,Focus]
+    + r.0.0.0.0.0 Label "" value="Result: Cancel" actions=[Click]
+    + r.0.0.0.0.0.0 TextRun "" value="Result: Cancel"
+  Space: node gone
+  Enter: node gone
+  Escape: node gone
+drive r.1.1.0.0.0.2.0.0.1.1.0.0 SpinButton "Top"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.1.3.0.0 SpinButton "Bottom"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.1.5.0.0 SpinButton "Left"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.1.7.0.0 SpinButton "Right"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.1.9.0.0 SpinButton "Gutter"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.3.0 RadioButton "Portrait"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.3.1 RadioButton "Landscape"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.5 CheckBox "Mirror margins"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.7.1.0.0 ComboBox "Paper size"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.7.3.0.0 SpinButton "Width"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.7.5.0.0 SpinButton "Height"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.9.1.0.0 ComboBox "Vertical alignment"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.10 CheckBox "Different Odd & Even Pages"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.11 CheckBox "Different First Page"
+  all steps: node gone
+drive r.1.1.0.0.0.2.2.0 Button "OK"
+  all steps: node gone
+drive r.1.1.0.0.0.2.2.1 Button "Cancel"
+  all steps: node gone

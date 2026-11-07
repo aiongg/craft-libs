@@ -1,0 +1,537 @@
+story patterns/actions-panel/sets
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 Tree "Actions" actions=[Focus]
+                  r.0.0.0.0.0.0.0.0.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+                      r.0.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+                        r.0.0.0.0.0.0.0.0.0.0.0.1 CheckBox "Include in playback: Sharpen" description="Include in playback" [mixed] actions=[Click]
+                        r.0.0.0.0.0.0.0.0.0.0.0.2 Button "Collapse Sharpen" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+                        r.0.0.0.0.0.0.0.0.0.0.0.3 GenericContainer ""
+                          r.0.0.0.0.0.0.0.0.0.0.0.3.0 Label "" value="F2 · 2/3 steps"
+                        r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Levels" [unselected] actions=[Click,Focus,ScrollIntoView]
+                        r.0.0.0.0.0.0.0.0.0.0.0.5 CheckBox "Include in playback: Levels" description="Include in playback" [checked] actions=[Click]
+                        r.0.0.0.0.0.0.0.0.0.0.0.6 CheckBox "Show dialog during playback: Levels" description="Show dialog during playback" [unchecked] actions=[Click]
+                        r.0.0.0.0.0.0.0.0.0.0.0.7 TreeItem "Curves" [unselected] actions=[Click,Focus,ScrollIntoView]
+                        r.0.0.0.0.0.0.0.0.0.0.0.8 CheckBox "Include in playback: Curves" description="Include in playback" [unchecked] actions=[Click]
+                        r.0.0.0.0.0.0.0.0.0.0.0.9 CheckBox "Show dialog during playback: Curves" description="Show dialog during playback" [unchecked] actions=[Click]
+                        r.0.0.0.0.0.0.0.0.0.0.0.10 TreeItem "Unsharp Mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+                        r.0.0.0.0.0.0.0.0.0.0.0.11 CheckBox "Include in playback: Unsharp Mask" description="Include in playback" [checked] actions=[Click]
+                        r.0.0.0.0.0.0.0.0.0.0.0.12 CheckBox "Show dialog during playback: Unsharp Mask" description="Show dialog during playback" [unchecked] actions=[Click]
+                        r.0.0.0.0.0.0.0.0.0.0.0.13 TreeItem "Effects" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+                        r.0.0.0.0.0.0.0.0.0.0.0.14 Button "Collapse Effects" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+                        r.0.0.0.0.0.0.0.0.0.0.0.15 GenericContainer ""
+                          r.0.0.0.0.0.0.0.0.0.0.0.15.0 Label "" value="2 actions"
+                        r.0.0.0.0.0.0.0.0.0.0.0.16 TreeItem "Vignette" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+                        r.0.0.0.0.0.0.0.0.0.0.0.17 CheckBox "Include in playback: Vignette" description="Include in playback" [checked] actions=[Click]
+                        r.0.0.0.0.0.0.0.0.0.0.0.18 Button "Expand Vignette" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+                        r.0.0.0.0.0.0.0.0.0.0.0.19 GenericContainer ""
+                          r.0.0.0.0.0.0.0.0.0.0.0.19.0 Label "" value="2 steps"
+                        r.0.0.0.0.0.0.0.0.0.0.0.20 TreeItem "Soft Glow" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+                        r.0.0.0.0.0.0.0.0.0.0.0.21 CheckBox "Include in playback: Soft Glow" description="Include in playback" [checked] actions=[Click]
+                        r.0.0.0.0.0.0.0.0.0.0.0.22 Button "Expand Soft Glow" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+                        r.0.0.0.0.0.0.0.0.0.0.0.23 GenericContainer ""
+                          r.0.0.0.0.0.0.0.0.0.0.0.23.0 Label "" value="1 step"
+                        r.0.0.0.0.0.0.0.0.0.0.0.24 TreeItem "Portrait" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+                        r.0.0.0.0.0.0.0.0.0.0.0.25 Button "Collapse Portrait" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+                        r.0.0.0.0.0.0.0.0.0.0.0.26 GenericContainer ""
+                          r.0.0.0.0.0.0.0.0.0.0.0.26.0 Label "" value="1 action"
+                        r.0.0.0.0.0.0.0.0.0.0.0.27 TreeItem "Skin Retouch" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+                        r.0.0.0.0.0.0.0.0.0.0.0.28 CheckBox "Include in playback: Skin Retouch" description="Include in playback" [checked] actions=[Click]
+                        r.0.0.0.0.0.0.0.0.0.0.0.29 Button "Expand Skin Retouch" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+                        r.0.0.0.0.0.0.0.0.0.0.0.30 GenericContainer ""
+                          r.0.0.0.0.0.0.0.0.0.0.0.30.0 Label "" value="2 steps"
+                r.0.0.0.0.0.0.0.1 GenericContainer ""
+                  r.0.0.0.0.0.0.0.1.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.1.0.0 Button "Button Mode" description="Button Mode" [unchecked] actions=[Click,Focus]
+                  r.0.0.0.0.0.0.0.1.1 Button "Delete" description="Delete" actions=[Click,Focus]
+                  r.0.0.0.0.0.0.0.1.2 GenericContainer ""
+                    r.0.0.0.0.0.0.0.1.2.0 Button "Create new action" description="Create new action" actions=[Click,Focus]
+                  r.0.0.0.0.0.0.0.1.3 GenericContainer ""
+                    r.0.0.0.0.0.0.0.1.3.0 Button "Create new set" description="Create new set" actions=[Click,Focus]
+                  r.0.0.0.0.0.0.0.1.4 GenericContainer ""
+                    r.0.0.0.0.0.0.0.1.4.0 Button "Play selection" description="Play selection" actions=[Click,Focus]
+                  r.0.0.0.0.0.0.0.1.5 GenericContainer ""
+                    r.0.0.0.0.0.0.0.1.5.0 Button "Begin recording" description="Begin recording" [unchecked] actions=[Click,Focus]
+                  r.0.0.0.0.0.0.0.1.6 GenericContainer ""
+                    r.0.0.0.0.0.0.0.1.6.0 Button "Stop playing/recording" description="Stop playing/recording" [disabled] actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen"
+  2: r.0.0.0.0.0.0.0.1.0.0 Button "Button Mode"
+  3: r.0.0.0.0.0.0.0.1.1 Button "Delete"
+  4: r.0.0.0.0.0.0.0.1.2.0 Button "Create new action"
+  5: r.0.0.0.0.0.0.0.1.3.0 Button "Create new set"
+  6: r.0.0.0.0.0.0.0.1.4.0 Button "Play selection"
+  7: r.0.0.0.0.0.0.0.1.5.0 Button "Begin recording"
+  8: r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen"
+  cycle after 7 nodes
+drive: 32 actionable nodes
+drive r.0.0.0.0.0.0.0.0 Tree "Actions"
+  Space:
+    - r.0.0.0.0.0.0.0.0.0.0.0.1 CheckBox "Include in playback: Sharpen" description="Include in playback" [mixed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.1 CheckBox "Include in playback: Sharpen" description="Include in playback" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.3.0 Label "" value="F2 · 2/3 steps"
+    + r.0.0.0.0.0.0.0.0.0.0.0.3.0 Label "" value="F2 · 3 steps"
+    - r.0.0.0.0.0.0.0.0.0.0.0.8 CheckBox "Include in playback: Curves" description="Include in playback" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.8 CheckBox "Include in playback: Curves" description="Include in playback" [checked] actions=[Click]
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen" -> r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Levels"
+    - r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Levels" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Levels" [selected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Levels" -> r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen"
+    - r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Levels" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Levels" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft:
+    - r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.2 Button "Collapse Sharpen" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.2 Button "Expand Sharpen" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Levels" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.5 CheckBox "Include in playback: Levels" description="Include in playback" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.6 CheckBox "Show dialog during playback: Levels" description="Show dialog during playback" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.7 TreeItem "Curves" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.8 CheckBox "Include in playback: Curves" description="Include in playback" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.9 CheckBox "Show dialog during playback: Curves" description="Show dialog during playback" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.10 TreeItem "Unsharp Mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.11 CheckBox "Include in playback: Unsharp Mask" description="Include in playback" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.12 CheckBox "Show dialog during playback: Unsharp Mask" description="Show dialog during playback" [unchecked] actions=[Click]
+  ArrowRight:
+    - r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.2 Button "Expand Sharpen" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.2 Button "Collapse Sharpen" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Levels" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.5 CheckBox "Include in playback: Levels" description="Include in playback" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.6 CheckBox "Show dialog during playback: Levels" description="Show dialog during playback" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.7 TreeItem "Curves" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.8 CheckBox "Include in playback: Curves" description="Include in playback" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.9 CheckBox "Show dialog during playback: Curves" description="Show dialog during playback" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.10 TreeItem "Unsharp Mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.11 CheckBox "Include in playback: Unsharp Mask" description="Include in playback" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.12 CheckBox "Show dialog during playback: Unsharp Mask" description="Show dialog during playback" [unchecked] actions=[Click]
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen"
+  Space:
+    - r.0.0.0.0.0.0.0.0.0.0.0.1 CheckBox "Include in playback: Sharpen" description="Include in playback" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.1 CheckBox "Include in playback: Sharpen" description="Include in playback" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.5 CheckBox "Include in playback: Levels" description="Include in playback" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.5 CheckBox "Include in playback: Levels" description="Include in playback" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.8 CheckBox "Include in playback: Curves" description="Include in playback" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.8 CheckBox "Include in playback: Curves" description="Include in playback" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.11 CheckBox "Include in playback: Unsharp Mask" description="Include in playback" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.11 CheckBox "Include in playback: Unsharp Mask" description="Include in playback" [unchecked] actions=[Click]
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen" -> r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Levels"
+    - r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Levels" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Levels" [selected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Levels" -> r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen"
+    - r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Levels" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Levels" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft:
+    - r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.2 Button "Collapse Sharpen" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.2 Button "Expand Sharpen" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Levels" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.5 CheckBox "Include in playback: Levels" description="Include in playback" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.6 CheckBox "Show dialog during playback: Levels" description="Show dialog during playback" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.7 TreeItem "Curves" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.8 CheckBox "Include in playback: Curves" description="Include in playback" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.9 CheckBox "Show dialog during playback: Curves" description="Show dialog during playback" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.10 TreeItem "Unsharp Mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.11 CheckBox "Include in playback: Unsharp Mask" description="Include in playback" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.12 CheckBox "Show dialog during playback: Unsharp Mask" description="Show dialog during playback" [unchecked] actions=[Click]
+  ArrowRight:
+    - r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.2 Button "Expand Sharpen" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.2 Button "Collapse Sharpen" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Levels" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.5 CheckBox "Include in playback: Levels" description="Include in playback" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.6 CheckBox "Show dialog during playback: Levels" description="Show dialog during playback" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.7 TreeItem "Curves" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.8 CheckBox "Include in playback: Curves" description="Include in playback" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.9 CheckBox "Show dialog during playback: Curves" description="Show dialog during playback" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.10 TreeItem "Unsharp Mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.11 CheckBox "Include in playback: Unsharp Mask" description="Include in playback" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.12 CheckBox "Show dialog during playback: Unsharp Mask" description="Show dialog during playback" [unchecked] actions=[Click]
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.0.1 CheckBox "Include in playback: Sharpen"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.0.0.1 CheckBox "Include in playback: Sharpen" description="Include in playback" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.1 CheckBox "Include in playback: Sharpen" description="Include in playback" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.5 CheckBox "Include in playback: Levels" description="Include in playback" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.5 CheckBox "Include in playback: Levels" description="Include in playback" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.8 CheckBox "Include in playback: Curves" description="Include in playback" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.8 CheckBox "Include in playback: Curves" description="Include in playback" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.11 CheckBox "Include in playback: Unsharp Mask" description="Include in playback" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.11 CheckBox "Include in playback: Unsharp Mask" description="Include in playback" [checked] actions=[Click]
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.0.0.0.2 Button "Collapse Sharpen"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen"
+    - r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.2 Button "Collapse Sharpen" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.2 Button "Expand Sharpen" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Levels" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.5 CheckBox "Include in playback: Levels" description="Include in playback" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.6 CheckBox "Show dialog during playback: Levels" description="Show dialog during playback" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.7 TreeItem "Curves" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.8 CheckBox "Include in playback: Curves" description="Include in playback" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.9 CheckBox "Show dialog during playback: Curves" description="Show dialog during playback" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.10 TreeItem "Unsharp Mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.11 CheckBox "Include in playback: Unsharp Mask" description="Include in playback" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.12 CheckBox "Show dialog during playback: Unsharp Mask" description="Show dialog during playback" [unchecked] actions=[Click]
+  Escape: node gone
+drive r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Levels"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.0.0.0.0.5 CheckBox "Include in playback: Levels"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.0.0.0.0.6 CheckBox "Show dialog during playback: Levels"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.0.0.0.0.7 TreeItem "Curves"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.0.0.0.0.8 CheckBox "Include in playback: Curves"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.0.0.0.0.9 CheckBox "Show dialog during playback: Curves"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.0.0.0.0.10 TreeItem "Unsharp Mask"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.0.0.0.0.11 CheckBox "Include in playback: Unsharp Mask"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.0.0.0.0.12 CheckBox "Show dialog during playback: Unsharp Mask"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.0.0.0.0.13 TreeItem "Effects"
+  click:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen" -> r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Effects"
+    - r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Effects" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Effects" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+  Space: no change
+  Enter:
+    - r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Effects" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.5 Button "Collapse Effects" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Effects" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.5 Button "Expand Effects" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.7 TreeItem "Vignette" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.8 CheckBox "Include in playback: Vignette" description="Include in playback" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.9 Button "Expand Vignette" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.10 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.10.0 Label "" value="2 steps"
+    - r.0.0.0.0.0.0.0.0.0.0.0.11 TreeItem "Soft Glow" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.12 CheckBox "Include in playback: Soft Glow" description="Include in playback" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.13 Button "Expand Soft Glow" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.14 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.14.0 Label "" value="1 step"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Effects" -> r.0.0.0.0.0.0.0.0.0.0.0.7 TreeItem "Portrait"
+    - r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Effects" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Effects" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.7 TreeItem "Portrait" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.7 TreeItem "Portrait" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.7 TreeItem "Portrait" -> r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Effects"
+    - r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Effects" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Effects" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.7 TreeItem "Portrait" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.7 TreeItem "Portrait" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight:
+    - r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Effects" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.5 Button "Expand Effects" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Effects" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.5 Button "Collapse Effects" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.7 TreeItem "Vignette" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.8 CheckBox "Include in playback: Vignette" description="Include in playback" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.9 Button "Expand Vignette" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.10 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.10.0 Label "" value="2 steps"
+    + r.0.0.0.0.0.0.0.0.0.0.0.11 TreeItem "Soft Glow" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.12 CheckBox "Include in playback: Soft Glow" description="Include in playback" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.13 Button "Expand Soft Glow" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.14 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.14.0 Label "" value="1 step"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Effects" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.0.14 Button "Collapse Effects"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Effects"
+    - r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Effects" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.5 Button "Collapse Effects" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Effects" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.5 Button "Expand Effects" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.7 TreeItem "Vignette" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.8 CheckBox "Include in playback: Vignette" description="Include in playback" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.9 Button "Expand Vignette" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.10 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.10.0 Label "" value="2 steps"
+    - r.0.0.0.0.0.0.0.0.0.0.0.11 TreeItem "Soft Glow" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.12 CheckBox "Include in playback: Soft Glow" description="Include in playback" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.13 Button "Expand Soft Glow" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.14 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.14.0 Label "" value="1 step"
+  Escape: node gone
+drive r.0.0.0.0.0.0.0.0.0.0.0.16 TreeItem "Vignette"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.0.0.0.0.17 CheckBox "Include in playback: Vignette"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.0.0.0.0.18 Button "Expand Vignette"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.0.0.0.0.20 TreeItem "Soft Glow"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.0.0.0.0.21 CheckBox "Include in playback: Soft Glow"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.0.0.0.0.22 Button "Expand Soft Glow"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.0.0.0.0.24 TreeItem "Portrait"
+  click:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Effects" -> r.0.0.0.0.0.0.0.0.0.0.0.7 TreeItem "Portrait"
+    - r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Effects" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Effects" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.7 TreeItem "Portrait" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.7 TreeItem "Portrait" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+  Space: no change
+  Enter:
+    - r.0.0.0.0.0.0.0.0.0.0.0.7 TreeItem "Portrait" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.8 Button "Collapse Portrait" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.7 TreeItem "Portrait" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.8 Button "Expand Portrait" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.10 TreeItem "Skin Retouch" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.11 CheckBox "Include in playback: Skin Retouch" description="Include in playback" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.12 Button "Expand Skin Retouch" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.13 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.13.0 Label "" value="2 steps"
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.7 TreeItem "Portrait" -> r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Effects"
+    - r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Effects" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Effects" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.7 TreeItem "Portrait" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.7 TreeItem "Portrait" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight:
+    - r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Effects" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.5 Button "Expand Effects" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Effects" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.5 Button "Collapse Effects" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.7 TreeItem "Vignette" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.8 CheckBox "Include in playback: Vignette" description="Include in playback" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.9 Button "Expand Vignette" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.10 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.10.0 Label "" value="2 steps"
+    + r.0.0.0.0.0.0.0.0.0.0.0.11 TreeItem "Soft Glow" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.12 CheckBox "Include in playback: Soft Glow" description="Include in playback" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.13 Button "Expand Soft Glow" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.14 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.14.0 Label "" value="1 step"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Effects" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.0.25 Button "Collapse Portrait"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.0.0.0.0.27 TreeItem "Skin Retouch"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.0.0.0.0.28 CheckBox "Include in playback: Skin Retouch"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.0.0.0.0.29 Button "Expand Skin Retouch"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.1.0.0 Button "Button Mode"
+  click:
+    - r.0.0.0.0.0.0.0.0 Tree "Actions" actions=[Focus]
+    + r.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.1 CheckBox "Include in playback: Sharpen" description="Include in playback" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.2 Button "Expand Sharpen" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.3 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.3.0 Label "" value="F2 · 3 steps"
+    - r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Effects" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.5 Button "Collapse Effects" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.6 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.6.0 Label "" value="2 actions"
+    - r.0.0.0.0.0.0.0.0.0.0.0.7 TreeItem "Vignette" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.8 CheckBox "Include in playback: Vignette" description="Include in playback" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.9 Button "Expand Vignette" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.10 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.10.0 Label "" value="2 steps"
+    - r.0.0.0.0.0.0.0.0.0.0.0.11 TreeItem "Soft Glow" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.12 CheckBox "Include in playback: Soft Glow" description="Include in playback" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.13 Button "Expand Soft Glow" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.14 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.14.0 Label "" value="1 step"
+    - r.0.0.0.0.0.0.0.0.0.0.0.15 TreeItem "Portrait" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.16 Button "Expand Portrait" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.17 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.17.0 Label "" value="1 action"
+    + r.0.0.0.0.0.0.0.0.0.0 Button "Sharpen" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.1 Button "Vignette" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.2 Button "Soft Glow" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.3 Button "Skin Retouch" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.1.0.0 Button "Button Mode" description="Button Mode" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.0.0 Button "Button Mode" description="Button Mode" [checked] actions=[Click,Focus]
+  Space:
+    focus: r.0.0.0.0.0.0.0.1.0.0 Button "Button Mode" -> r Window ""
+    - r.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0 Tree "Actions" actions=[Focus]
+    - r.0.0.0.0.0.0.0.0.0.0 Button "Sharpen" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.1 Button "Vignette" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.2 Button "Soft Glow" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.3 Button "Skin Retouch" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.1 CheckBox "Include in playback: Sharpen" description="Include in playback" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.2 Button "Expand Sharpen" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.3 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.3.0 Label "" value="F2 · 3 steps"
+    + r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Effects" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.5 Button "Collapse Effects" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.6 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.6.0 Label "" value="2 actions"
+    + r.0.0.0.0.0.0.0.0.0.0.0.7 TreeItem "Vignette" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.8 CheckBox "Include in playback: Vignette" description="Include in playback" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.9 Button "Expand Vignette" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.10 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.10.0 Label "" value="2 steps"
+    + r.0.0.0.0.0.0.0.0.0.0.0.11 TreeItem "Soft Glow" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.12 CheckBox "Include in playback: Soft Glow" description="Include in playback" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.13 Button "Expand Soft Glow" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.14 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.14.0 Label "" value="1 step"
+    + r.0.0.0.0.0.0.0.0.0.0.0.15 TreeItem "Portrait" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.16 Button "Expand Portrait" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.17 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.17.0 Label "" value="1 action"
+    - r.0.0.0.0.0.0.0.1.0.0 Button "Button Mode" description="Button Mode" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.0.0 Button "Button Mode" description="Button Mode" [unchecked] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.0.0.0.1.0.0 Button "Button Mode" -> r Window ""
+    - r.0.0.0.0.0.0.0.0 Tree "Actions" actions=[Focus]
+    + r.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.1 CheckBox "Include in playback: Sharpen" description="Include in playback" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.2 Button "Expand Sharpen" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.3 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.3.0 Label "" value="F2 · 3 steps"
+    - r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Effects" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.5 Button "Collapse Effects" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.6 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.6.0 Label "" value="2 actions"
+    - r.0.0.0.0.0.0.0.0.0.0.0.7 TreeItem "Vignette" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.8 CheckBox "Include in playback: Vignette" description="Include in playback" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.9 Button "Expand Vignette" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.10 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.10.0 Label "" value="2 steps"
+    - r.0.0.0.0.0.0.0.0.0.0.0.11 TreeItem "Soft Glow" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.12 CheckBox "Include in playback: Soft Glow" description="Include in playback" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.13 Button "Expand Soft Glow" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.14 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.14.0 Label "" value="1 step"
+    - r.0.0.0.0.0.0.0.0.0.0.0.15 TreeItem "Portrait" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.16 Button "Expand Portrait" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.17 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.17.0 Label "" value="1 action"
+    + r.0.0.0.0.0.0.0.0.0.0 Button "Sharpen" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.1 Button "Vignette" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.2 Button "Soft Glow" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.3 Button "Skin Retouch" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.1.0.0 Button "Button Mode" description="Button Mode" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.0.0 Button "Button Mode" description="Button Mode" [checked] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.0.0.1.0.0 Button "Button Mode" -> r Window ""
+drive r.0.0.0.0.0.0.0.1.1 Button "Delete"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.1 Button "Vignette" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.2 Button "Soft Glow" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.1.1 Button "Delete" description="Delete" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.1 Button "Delete" description="Delete" [disabled] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.1.2.0 Button "Create new action"
+  click:
+    - r.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0 Tree "Actions" actions=[Focus]
+    - r.0.0.0.0.0.0.0.0.0.0 Button "Sharpen" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.1 Button "Skin Retouch" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "Sharpen" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.1 CheckBox "Include in playback: Sharpen" description="Include in playback" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.2 Button "Expand Sharpen" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.3 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.3.0 Label "" value="F2 · 3 steps"
+    + r.0.0.0.0.0.0.0.0.0.0.0.4 TreeItem "Action 3, recording" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.5 Button "Collapse Action 3" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.6 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.6.0 Label "" value="0 steps"
+    + r.0.0.0.0.0.0.0.0.0.0.0.7 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.8 TreeItem "Portrait" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.9 Button "Expand Portrait" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.10 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.10.0 Label "" value="1 action"
+    + r.0.0.0.0.0.0.0.0.0.0.0.11 TreeItem "Effects" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.12 Button "Collapse Effects" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.13 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.13.0 Label "" value="0 actions"
+    - r.0.0.0.0.0.0.0.1.0.0 Button "Button Mode" description="Button Mode" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.0.0 Button "Button Mode" description="Button Mode" [disabled checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.1.2.0 Button "Create new action" description="Create new action" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.2.0 Button "Create new action" description="Create new action" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.1.3.0 Button "Create new set" description="Create new set" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.3.0 Button "Create new set" description="Create new set" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.1.4.0 Button "Play selection" description="Play selection" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.4.0 Button "Play selection" description="Play selection" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.1.5.0 Button "Begin recording" description="Begin recording" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.5.0 Button "Begin recording" description="Begin recording" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.1.6.0 Button "Stop playing/recording" description="Stop playing/recording" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.6.0 Button "Stop playing/recording" description="Stop playing/recording" actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.1.3.0 Button "Create new set"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.1.4.0 Button "Play selection"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.1.5.0 Button "Begin recording"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.1.5.0 Button "Begin recording" -> r Window ""

@@ -1,0 +1,25 @@
+story patterns/status-bar/job
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Group "Status bar"
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 ProgressIndicator "Blur" value="45%" number=0.44999998807907104 in 0..1 step -
+                r.0.0.0.0.0.0.0.1 Button "Cancel" description="Cancel" actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.1 Button "Cancel"
+  2: r.0.0.0.0.0.0.0.1 Button "Cancel"
+  cycle after 1 nodes
+drive: 1 actionable nodes
+drive r.0.0.0.0.0.0.0.1 Button "Cancel"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.1 Button "Cancel" -> r Window ""

@@ -1,0 +1,286 @@
+story patterns/mask-view-controls/modes
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 Label "" value="View" actions=[Click]
+                r.0.0.0.0.0.0.0.0 TextRun "" value="View"
+              r.0.0.0.0.0.0.1 ComboBox "View Mode" value="Onion Skin" [collapsed popup:Listbox] actions=[Click,Focus]
+            r.0.0.0.0.0.1 Slider "Opacity" value="50%" number=50 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+            r.0.0.0.0.0.2 CheckBox "Show Edge" [unchecked] actions=[Click,Focus]
+            r.0.0.0.0.0.3 CheckBox "Show Original" [unchecked] actions=[Click,Focus]
+            r.0.0.0.0.0.4 Label "" value="F cycles the views; hold X to see the image" actions=[Click]
+              r.0.0.0.0.0.4.0 TextRun "" value="F cycles the views; hold X to see the image"
+          r.0.0.0.0.1 Canvas "large" actions=[Click,Focus]
+            r.0.0.0.0.1.0 GenericContainer ""
+              r.0.0.0.0.1.0.0 GraphicsObject "Selection" value="248 px × 229 px at 356 px, 223 px"
+          r.0.0.0.0.2 GenericContainer ""
+            r.0.0.0.0.2.0 Label "" value="Onion Skin" actions=[Click]
+              r.0.0.0.0.2.0.0 TextRun "" value="Onion Skin"
+            r.0.0.0.0.2.1 Canvas "onionSkin" actions=[Click,Focus]
+              r.0.0.0.0.2.1.0 GenericContainer ""
+                r.0.0.0.0.2.1.0.0 GraphicsObject "Selection" value="62 px × 58 px at 89 px, 55 px"
+          r.0.0.0.0.3 GenericContainer ""
+            r.0.0.0.0.3.0 Label "" value="Marching Ants" actions=[Click]
+              r.0.0.0.0.3.0.0 TextRun "" value="Marching Ants"
+            r.0.0.0.0.3.1 Canvas "marchingAnts" actions=[Click,Focus]
+              r.0.0.0.0.3.1.0 GenericContainer ""
+                r.0.0.0.0.3.1.0.0 GraphicsObject "Selection" value="62 px × 58 px at 89 px, 55 px"
+          r.0.0.0.0.4 GenericContainer ""
+            r.0.0.0.0.4.0 Label "" value="Overlay" actions=[Click]
+              r.0.0.0.0.4.0.0 TextRun "" value="Overlay"
+            r.0.0.0.0.4.1 Canvas "overlay" actions=[Click,Focus]
+              r.0.0.0.0.4.1.0 GenericContainer ""
+                r.0.0.0.0.4.1.0.0 GraphicsObject "Selection" value="62 px × 58 px at 89 px, 55 px"
+          r.0.0.0.0.5 GenericContainer ""
+            r.0.0.0.0.5.0 Label "" value="On Black" actions=[Click]
+              r.0.0.0.0.5.0.0 TextRun "" value="On Black"
+            r.0.0.0.0.5.1 Canvas "onBlack" actions=[Click,Focus]
+              r.0.0.0.0.5.1.0 GenericContainer ""
+                r.0.0.0.0.5.1.0.0 GraphicsObject "Selection" value="62 px × 58 px at 89 px, 55 px"
+          r.0.0.0.0.6 GenericContainer ""
+            r.0.0.0.0.6.0 Label "" value="On White" actions=[Click]
+            r.0.0.0.0.6.1 Canvas "onWhite" actions=[Click,Focus]
+              r.0.0.0.0.6.1.0 GenericContainer ""
+                r.0.0.0.0.6.1.0.0 GraphicsObject "Selection" value="62 px × 58 px at 89 px, 55 px"
+          r.0.0.0.0.7 GenericContainer ""
+            r.0.0.0.0.7.0 Label "" value="Black & White" actions=[Click]
+            r.0.0.0.0.7.1 Canvas "blackWhite" actions=[Click,Focus]
+              r.0.0.0.0.7.1.0 GenericContainer ""
+                r.0.0.0.0.7.1.0.0 GraphicsObject "Selection" value="62 px × 58 px at 89 px, 55 px"
+          r.0.0.0.0.8 GenericContainer ""
+            r.0.0.0.0.8.0 Label "" value="On Layers" actions=[Click]
+            r.0.0.0.0.8.1 Canvas "onLayers" actions=[Click,Focus]
+              r.0.0.0.0.8.1.0 GenericContainer ""
+                r.0.0.0.0.8.1.0.0 GraphicsObject "Selection" value="62 px × 58 px at 89 px, 55 px"
+          r.0.0.0.0.9 GenericContainer ""
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.1 ComboBox "View Mode"
+  2: r.0.0.0.0.0.1 Slider "Opacity"
+  3: r.0.0.0.0.0.2 CheckBox "Show Edge"
+  4: r.0.0.0.0.0.3 CheckBox "Show Original"
+  5: r.0.0.0.0.1 Canvas "large"
+  6: r.0.0.0.0.2.1 Canvas "onionSkin"
+  7: r.0.0.0.0.3.1 Canvas "marchingAnts"
+  8: r.0.0.0.0.4.1 Canvas "overlay"
+  9: r.0.0.0.0.5.1 Canvas "onBlack"
+  10: r.0.0.0.0.6.1 Canvas "onWhite"
+  11: r.0.0.0.0.7.1 Canvas "blackWhite"
+  12: r.0.0.0.0.8.1 Canvas "onLayers"
+  13: r.0.0.0.0.0.0.1 ComboBox "View Mode"
+  cycle after 12 nodes
+drive: 21 actionable nodes
+drive r.0.0.0.0.0.0.0 Label ""
+  click:
+    focus: r.0.0.0.0.0.0.1 ComboBox "View Mode" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.0.0.1 ComboBox "View Mode"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Onion Skin"
+    - r.0.0.0.0.0.0.1 ComboBox "View Mode" value="Onion Skin" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1 ComboBox "View Mode" value="Onion Skin" controls=[r.0.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1.0 ListBox ""
+    + r.0.0.0.0.0.0.1.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Onion Skin" shortcut="O" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Marching Ants" shortcut="M" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Overlay" shortcut="V" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "On Black" shortcut="A" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.4 ListBoxOption "On White" shortcut="T" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.5 ListBoxOption "Black & White" shortcut="K" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.6 ListBoxOption "On Layers" shortcut="Y" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Onion Skin" -> r.0.0.0.0.0.0.1 ComboBox "View Mode"
+    - r.0.0.0.0.0.0.1 ComboBox "View Mode" value="Onion Skin" controls=[r.0.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1.0 ListBox ""
+    - r.0.0.0.0.0.0.1.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Onion Skin" shortcut="O" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Marching Ants" shortcut="M" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Overlay" shortcut="V" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "On Black" shortcut="A" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.4 ListBoxOption "On White" shortcut="T" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.5 ListBoxOption "Black & White" shortcut="K" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.6 ListBoxOption "On Layers" shortcut="Y" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1 ComboBox "View Mode" value="Onion Skin" [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.0.0.1 ComboBox "View Mode" -> r.0.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Onion Skin"
+    - r.0.0.0.0.0.0.1 ComboBox "View Mode" value="Onion Skin" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1 ComboBox "View Mode" value="Onion Skin" controls=[r.0.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1.0 ListBox ""
+    + r.0.0.0.0.0.0.1.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Onion Skin" shortcut="O" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Marching Ants" shortcut="M" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Overlay" shortcut="V" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "On Black" shortcut="A" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.4 ListBoxOption "On White" shortcut="T" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.5 ListBoxOption "Black & White" shortcut="K" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.6 ListBoxOption "On Layers" shortcut="Y" [unselected] actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Onion Skin" -> r.0.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Marching Ants"
+    - r.0.0.0.0.0.0.1 ComboBox "View Mode" value="Onion Skin" controls=[r.0.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1 ComboBox "View Mode" value="Marching Ants" controls=[r.0.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Onion Skin" shortcut="O" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Marching Ants" shortcut="M" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Onion Skin" shortcut="O" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Marching Ants" shortcut="M" [selected] actions=[Click]
+    - r.0.0.0.0.0.1 Slider "Opacity" value="50%" number=50 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Marching Ants" -> r.0.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Onion Skin"
+    - r.0.0.0.0.0.0.1 ComboBox "View Mode" value="Marching Ants" controls=[r.0.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1 ComboBox "View Mode" value="Onion Skin" controls=[r.0.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Onion Skin" shortcut="O" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Marching Ants" shortcut="M" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Onion Skin" shortcut="O" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Marching Ants" shortcut="M" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1 Slider "Opacity" value="50%" number=50 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Onion Skin" -> r.0.0.0.0.0.0.1 ComboBox "View Mode"
+    - r.0.0.0.0.0.0.1 ComboBox "View Mode" value="Onion Skin" controls=[r.0.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1.0 ListBox ""
+    - r.0.0.0.0.0.0.1.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Onion Skin" shortcut="O" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Marching Ants" shortcut="M" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Overlay" shortcut="V" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "On Black" shortcut="A" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.4 ListBoxOption "On White" shortcut="T" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.5 ListBoxOption "Black & White" shortcut="K" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.6 ListBoxOption "On Layers" shortcut="Y" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1 ComboBox "View Mode" value="Onion Skin" [collapsed popup:Listbox] actions=[Click,Focus]
+drive r.0.0.0.0.0.1 Slider "Opacity"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.0.1 Slider "Opacity" value="50%" number=50 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1 Slider "Opacity" value="49%" number=49 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+  ArrowRight:
+    - r.0.0.0.0.0.1 Slider "Opacity" value="49%" number=49 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1 Slider "Opacity" value="50%" number=50 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+  ArrowUp:
+    - r.0.0.0.0.0.1 Slider "Opacity" value="50%" number=50 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1 Slider "Opacity" value="51%" number=51 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.0.1 Slider "Opacity" value="51%" number=51 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1 Slider "Opacity" value="50%" number=50 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+  Home:
+    - r.0.0.0.0.0.1 Slider "Opacity" value="50%" number=50 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1 Slider "Opacity" value="0%" number=0 in 0..100 step 1 actions=[Focus,Increment,SetValue]
+  End:
+    - r.0.0.0.0.0.1 Slider "Opacity" value="0%" number=0 in 0..100 step 1 actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.1 Slider "Opacity" value="100%" number=100 in 0..100 step 1 actions=[Focus,Decrement,SetValue]
+  Escape:
+    focus: r.0.0.0.0.0.1 Slider "Opacity" -> r Window ""
+drive r.0.0.0.0.0.2 CheckBox "Show Edge"
+  click:
+    - r.0.0.0.0.0.2 CheckBox "Show Edge" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.2 CheckBox "Show Edge" [checked] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.0.2 CheckBox "Show Edge" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.2 CheckBox "Show Edge" [unchecked] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.0.2 CheckBox "Show Edge" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.2 CheckBox "Show Edge" [checked] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.2 CheckBox "Show Edge" -> r Window ""
+drive r.0.0.0.0.0.3 CheckBox "Show Original"
+  click:
+    - r.0.0.0.0.0.3 CheckBox "Show Original" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.3 CheckBox "Show Original" [checked] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.0.3 CheckBox "Show Original" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.3 CheckBox "Show Original" [unchecked] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.0.3 CheckBox "Show Original" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.3 CheckBox "Show Original" [checked] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.3 CheckBox "Show Original" -> r Window ""
+drive r.0.0.0.0.0.4 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.1 Canvas "large"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1 Canvas "large" -> r Window ""
+drive r.0.0.0.0.2.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.2.1 Canvas "onionSkin"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.2.1 Canvas "onionSkin" -> r Window ""
+drive r.0.0.0.0.3.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.3.1 Canvas "marchingAnts"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.3.1 Canvas "marchingAnts" -> r Window ""
+drive r.0.0.0.0.4.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.4.1 Canvas "overlay"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.4.1 Canvas "overlay" -> r Window ""
+drive r.0.0.0.0.5.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.5.1 Canvas "onBlack"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.5.1 Canvas "onBlack" -> r Window ""
+drive r.0.0.0.0.6.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.6.1 Canvas "onWhite"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.6.1 Canvas "onWhite" -> r Window ""
+drive r.0.0.0.0.7.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.7.1 Canvas "blackWhite"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.7.1 Canvas "blackWhite" -> r Window ""
+drive r.0.0.0.0.8.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.8.1 Canvas "onLayers"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.8.1 Canvas "onLayers" -> r Window ""

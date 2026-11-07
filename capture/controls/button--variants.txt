@@ -1,0 +1,210 @@
+story controls/button/variants
+args
+  label = Text("Button")
+  icon = Choice { options: ["none", "save", "chevron_right"], index: 0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 Label "" value="primary sm" actions=[Click]
+                r.0.0.0.0.0.0.0.0 TextRun "" value="primary sm"
+              r.0.0.0.0.0.0.1 GenericContainer ""
+                r.0.0.0.0.0.0.1.0 Button "Button" actions=[Click,Focus]
+              r.0.0.0.0.0.0.2 GenericContainer ""
+                r.0.0.0.0.0.0.2.0 Button "Button" [disabled] actions=[Click,Focus]
+              r.0.0.0.0.0.0.3 GenericContainer ""
+                r.0.0.0.0.0.0.3.0 Button "Button" actions=[Focus]
+              r.0.0.0.0.0.0.4 Label "" value="primary md" actions=[Click]
+                r.0.0.0.0.0.0.4.0 TextRun "" value="primary md"
+              r.0.0.0.0.0.0.5 GenericContainer ""
+                r.0.0.0.0.0.0.5.0 Button "Button" actions=[Click,Focus]
+              r.0.0.0.0.0.0.6 GenericContainer ""
+                r.0.0.0.0.0.0.6.0 Button "Button" [disabled] actions=[Click,Focus]
+              r.0.0.0.0.0.0.7 GenericContainer ""
+                r.0.0.0.0.0.0.7.0 Button "Button" actions=[Focus]
+              r.0.0.0.0.0.0.8 Label "" value="secondary sm" actions=[Click]
+                r.0.0.0.0.0.0.8.0 TextRun "" value="secondary sm"
+              r.0.0.0.0.0.0.9 GenericContainer ""
+                r.0.0.0.0.0.0.9.0 Button "Button" actions=[Click,Focus]
+              r.0.0.0.0.0.0.10 GenericContainer ""
+                r.0.0.0.0.0.0.10.0 Button "Button" [disabled] actions=[Click,Focus]
+              r.0.0.0.0.0.0.11 GenericContainer ""
+                r.0.0.0.0.0.0.11.0 Button "Button" actions=[Focus]
+              r.0.0.0.0.0.0.12 Label "" value="secondary md" actions=[Click]
+                r.0.0.0.0.0.0.12.0 TextRun "" value="secondary md"
+              r.0.0.0.0.0.0.13 GenericContainer ""
+                r.0.0.0.0.0.0.13.0 Button "Button" actions=[Click,Focus]
+              r.0.0.0.0.0.0.14 GenericContainer ""
+                r.0.0.0.0.0.0.14.0 Button "Button" [disabled] actions=[Click,Focus]
+              r.0.0.0.0.0.0.15 GenericContainer ""
+                r.0.0.0.0.0.0.15.0 Button "Button" actions=[Focus]
+              r.0.0.0.0.0.0.16 Label "" value="ghost sm" actions=[Click]
+                r.0.0.0.0.0.0.16.0 TextRun "" value="ghost sm"
+              r.0.0.0.0.0.0.17 GenericContainer ""
+                r.0.0.0.0.0.0.17.0 Button "Button" actions=[Click,Focus]
+              r.0.0.0.0.0.0.18 GenericContainer ""
+                r.0.0.0.0.0.0.18.0 Button "Button" [disabled] actions=[Click,Focus]
+              r.0.0.0.0.0.0.19 GenericContainer ""
+                r.0.0.0.0.0.0.19.0 Button "Button" actions=[Focus]
+              r.0.0.0.0.0.0.20 Label "" value="ghost md" actions=[Click]
+                r.0.0.0.0.0.0.20.0 TextRun "" value="ghost md"
+              r.0.0.0.0.0.0.21 GenericContainer ""
+                r.0.0.0.0.0.0.21.0 Button "Button" actions=[Click,Focus]
+              r.0.0.0.0.0.0.22 GenericContainer ""
+                r.0.0.0.0.0.0.22.0 Button "Button" [disabled] actions=[Click,Focus]
+              r.0.0.0.0.0.0.23 GenericContainer ""
+                r.0.0.0.0.0.0.23.0 Button "Button" actions=[Focus]
+              r.0.0.0.0.0.0.24 Label "" value="danger sm" actions=[Click]
+                r.0.0.0.0.0.0.24.0 TextRun "" value="danger sm"
+              r.0.0.0.0.0.0.25 GenericContainer ""
+                r.0.0.0.0.0.0.25.0 Button "Button" actions=[Click,Focus]
+              r.0.0.0.0.0.0.26 GenericContainer ""
+                r.0.0.0.0.0.0.26.0 Button "Button" [disabled] actions=[Click,Focus]
+              r.0.0.0.0.0.0.27 GenericContainer ""
+                r.0.0.0.0.0.0.27.0 Button "Button" actions=[Focus]
+              r.0.0.0.0.0.0.28 Label "" value="danger md" actions=[Click]
+                r.0.0.0.0.0.0.28.0 TextRun "" value="danger md"
+              r.0.0.0.0.0.0.29 GenericContainer ""
+                r.0.0.0.0.0.0.29.0 Button "Button" actions=[Click,Focus]
+              r.0.0.0.0.0.0.30 GenericContainer ""
+                r.0.0.0.0.0.0.30.0 Button "Button" [disabled] actions=[Click,Focus]
+              r.0.0.0.0.0.0.31 GenericContainer ""
+                r.0.0.0.0.0.0.31.0 Button "Button" actions=[Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.1.0 Button "Button"
+  2: r.0.0.0.0.0.0.3.0 Button "Button"
+  3: r.0.0.0.0.0.0.5.0 Button "Button"
+  4: r.0.0.0.0.0.0.7.0 Button "Button"
+  5: r.0.0.0.0.0.0.9.0 Button "Button"
+  6: r.0.0.0.0.0.0.11.0 Button "Button"
+  7: r.0.0.0.0.0.0.13.0 Button "Button"
+  8: r.0.0.0.0.0.0.15.0 Button "Button"
+  9: r.0.0.0.0.0.0.17.0 Button "Button"
+  10: r.0.0.0.0.0.0.19.0 Button "Button"
+  11: r.0.0.0.0.0.0.21.0 Button "Button"
+  12: r.0.0.0.0.0.0.23.0 Button "Button"
+  13: r.0.0.0.0.0.0.25.0 Button "Button"
+  14: r.0.0.0.0.0.0.27.0 Button "Button"
+  15: r.0.0.0.0.0.0.29.0 Button "Button"
+  16: r.0.0.0.0.0.0.31.0 Button "Button"
+  17: r.0.0.0.0.0.0.1.0 Button "Button"
+  cycle after 16 nodes
+drive: 24 actionable nodes
+drive r.0.0.0.0.0.0.0 Label ""
+  click:
+    focus: r.0.0.0.0.0.0.1.0 Button "Button" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.0.0.1.0 Button "Button"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.1.0 Button "Button" -> r Window ""
+drive r.0.0.0.0.0.0.3.0 Button "Button"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.3.0 Button "Button" -> r Window ""
+drive r.0.0.0.0.0.0.4 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.5.0 Button "Button"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.5.0 Button "Button" -> r Window ""
+drive r.0.0.0.0.0.0.7.0 Button "Button"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.7.0 Button "Button" -> r Window ""
+drive r.0.0.0.0.0.0.8 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.9.0 Button "Button"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.9.0 Button "Button" -> r Window ""
+drive r.0.0.0.0.0.0.11.0 Button "Button"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.11.0 Button "Button" -> r Window ""
+drive r.0.0.0.0.0.0.12 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.13.0 Button "Button"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.13.0 Button "Button" -> r Window ""
+drive r.0.0.0.0.0.0.15.0 Button "Button"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.15.0 Button "Button" -> r Window ""
+drive r.0.0.0.0.0.0.16 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.17.0 Button "Button"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.17.0 Button "Button" -> r Window ""
+drive r.0.0.0.0.0.0.19.0 Button "Button"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.19.0 Button "Button" -> r Window ""
+drive r.0.0.0.0.0.0.20 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.21.0 Button "Button"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.21.0 Button "Button" -> r Window ""
+drive r.0.0.0.0.0.0.23.0 Button "Button"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.23.0 Button "Button" -> r Window ""
+drive r.0.0.0.0.0.0.24 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.25.0 Button "Button"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.25.0 Button "Button" -> r Window ""
+drive r.0.0.0.0.0.0.27.0 Button "Button"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.27.0 Button "Button" -> r Window ""
+drive r.0.0.0.0.0.0.28 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.29.0 Button "Button"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.29.0 Button "Button" -> r Window ""
+drive r.0.0.0.0.0.0.31.0 Button "Button"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.31.0 Button "Button" -> r Window ""

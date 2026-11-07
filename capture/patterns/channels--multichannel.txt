@@ -1,0 +1,312 @@
+story patterns/channels/multichannel
+args
+  background = Bool(true)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Button "Finish next" actions=[Click,Focus]
+            r.0.0.0.0.0.1 Button "Reset" actions=[Click,Focus]
+          r.0.0.0.0.1 GenericContainer ""
+            r.0.0.0.0.1.0 GenericContainer ""
+              r.0.0.0.0.1.0.0 ListBox "Channels" actions=[Focus]
+                r.0.0.0.0.1.0.0.0 GenericContainer ""
+                  r.0.0.0.0.1.0.0.0.0 GenericContainer ""
+                    r.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+                      r.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Cyan" [selected] actions=[Click,Focus,ScrollIntoView]
+                      r.0.0.0.0.1.0.0.0.0.0.1 Button "Visibility Cyan" description="Toggle visibility" [checked] actions=[Click]
+                      r.0.0.0.0.1.0.0.0.0.0.2 GenericContainer ""
+                        r.0.0.0.0.1.0.0.0.0.0.2.0 Label "" value="Ctrl+2"
+                      r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta" [unselected] actions=[Click,Focus,ScrollIntoView]
+                      r.0.0.0.0.1.0.0.0.0.0.4 Button "Visibility Magenta" description="Toggle visibility" [checked] actions=[Click]
+                      r.0.0.0.0.1.0.0.0.0.0.5 GenericContainer ""
+                        r.0.0.0.0.1.0.0.0.0.0.5.0 Label "" value="Ctrl+3"
+                      r.0.0.0.0.1.0.0.0.0.0.6 ListBoxOption "Yellow" [unselected] actions=[Click,Focus,ScrollIntoView]
+                      r.0.0.0.0.1.0.0.0.0.0.7 Button "Visibility Yellow" description="Toggle visibility" [checked] actions=[Click]
+                      r.0.0.0.0.1.0.0.0.0.0.8 GenericContainer ""
+                        r.0.0.0.0.1.0.0.0.0.0.8.0 Label "" value="Ctrl+4"
+              r.0.0.0.0.1.0.1 GenericContainer ""
+                r.0.0.0.0.1.0.1.0 Button "Delete current channel" description="Delete current channel" actions=[Click,Focus]
+                r.0.0.0.0.1.0.1.1 Button "Create new channel" description="Create new channel" actions=[Click,Focus]
+                r.0.0.0.0.1.0.1.2 Button "Save selection as channel" description="Save selection as channel" actions=[Click,Focus]
+                r.0.0.0.0.1.0.1.3 Button "Load channel as selection" description="Load channel as selection" actions=[Click,Focus]
+          r.0.0.0.0.2 Label "" value="No event yet" actions=[Click]
+            r.0.0.0.0.2.0 TextRun "" value="No event yet"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0 Button "Finish next"
+  2: r.0.0.0.0.0.1 Button "Reset"
+  3: r.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Cyan"
+  4: r.0.0.0.0.1.0.1.0 Button "Delete current channel"
+  5: r.0.0.0.0.1.0.1.1 Button "Create new channel"
+  6: r.0.0.0.0.1.0.1.2 Button "Save selection as channel"
+  7: r.0.0.0.0.1.0.1.3 Button "Load channel as selection"
+  8: r.0.0.0.0.0.0 Button "Finish next"
+  cycle after 7 nodes
+drive: 14 actionable nodes
+drive r.0.0.0.0.0.0 Button "Finish next"
+  click: no change
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0 Button "Finish next" -> r Window ""
+    - r.0.0.0.0.0.0 Button "Finish next" actions=[Click,Focus]
+    + r.0.0.0.0.0.0 Button "Finish next" [disabled] actions=[Click,Focus]
+  Escape: no change
+drive r.0.0.0.0.0.1 Button "Reset"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.1 Button "Reset" -> r Window ""
+drive r.0.0.0.0.1.0.0 ListBox "Channels"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.2 Label "" value="No event yet" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="No event yet"
+    + r.0.0.0.0.2 Label "" value="Last event: Options" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Options"
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Cyan" -> r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta"
+    - r.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Cyan" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Cyan" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: Options" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Options"
+    + r.0.0.0.0.2 Label "" value="Last event: Target" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Target"
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta" -> r.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Cyan"
+    - r.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Cyan" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Cyan" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Cyan" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Cyan"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Cyan"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.2 Label "" value="Last event: Target" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Target"
+    + r.0.0.0.0.2 Label "" value="Last event: Options" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Options"
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Cyan" -> r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta"
+    - r.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Cyan" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Cyan" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: Options" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Options"
+    + r.0.0.0.0.2 Label "" value="Last event: Target" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Target"
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta" -> r.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Cyan"
+    - r.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Cyan" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Cyan" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Cyan" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.0.1 Button "Visibility Cyan"
+  click:
+    - r.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Cyan" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.0.1 Button "Visibility Cyan" description="Toggle visibility" [checked] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Cyan" description="Hidden" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.1 Button "Visibility Cyan" description="Toggle visibility" [unchecked] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: Target" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Target"
+    + r.0.0.0.0.2 Label "" value="Last event: Visibility" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Visibility"
+  Escape: no change
+drive r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta"
+    - r.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Cyan" description="Hidden" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Cyan" description="Hidden" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: Visibility" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Visibility"
+    + r.0.0.0.0.2 Label "" value="Last event: Target" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Target"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.2 Label "" value="Last event: Target" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Target"
+    + r.0.0.0.0.2 Label "" value="Last event: Options" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Options"
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta" -> r.0.0.0.0.1.0.0.0.0.0.6 ListBoxOption "Yellow"
+    - r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.0.6 ListBoxOption "Yellow" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.6 ListBoxOption "Yellow" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: Options" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Options"
+    + r.0.0.0.0.2 Label "" value="Last event: Target" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Target"
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.0.6 ListBoxOption "Yellow" -> r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta"
+    - r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.0.6 ListBoxOption "Yellow" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.6 ListBoxOption "Yellow" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.0.4 Button "Visibility Magenta"
+  click:
+    - r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.0.4 Button "Visibility Magenta" description="Toggle visibility" [checked] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta" description="Hidden" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.4 Button "Visibility Magenta" description="Toggle visibility" [unchecked] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: Target" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Target"
+    + r.0.0.0.0.2 Label "" value="Last event: Visibility" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Visibility"
+  Escape: no change
+drive r.0.0.0.0.1.0.0.0.0.0.6 ListBoxOption "Yellow"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.0.6 ListBoxOption "Yellow"
+    - r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta" description="Hidden" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta" description="Hidden" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.0.6 ListBoxOption "Yellow" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.6 ListBoxOption "Yellow" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: Visibility" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Visibility"
+    + r.0.0.0.0.2 Label "" value="Last event: Target" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Target"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.2 Label "" value="Last event: Target" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Target"
+    + r.0.0.0.0.2 Label "" value="Last event: Options" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Options"
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.0.6 ListBoxOption "Yellow" -> r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta"
+    - r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta" description="Hidden" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta" description="Hidden" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.0.6 ListBoxOption "Yellow" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.6 ListBoxOption "Yellow" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: Options" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Options"
+    + r.0.0.0.0.2 Label "" value="Last event: Target" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Target"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.0.7 Button "Visibility Yellow"
+  click:
+    - r.0.0.0.0.1.0.0.0.0.0.6 ListBoxOption "Yellow" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.0.7 Button "Visibility Yellow" description="Toggle visibility" [checked] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.6 ListBoxOption "Yellow" description="Hidden" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.7 Button "Visibility Yellow" description="Toggle visibility" [unchecked] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: Target" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Target"
+    + r.0.0.0.0.2 Label "" value="Last event: Visibility" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Visibility"
+  Escape: no change
+drive r.0.0.0.0.1.0.1.0 Button "Delete current channel"
+  click:
+    - r.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Cyan" description="Hidden" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Cyan" description="Hidden" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Magenta" description="Hidden" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.0.4 Button "Visibility Magenta" description="Toggle visibility" [unchecked] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.5 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.5.0 Label "" value="Ctrl+3"
+    - r.0.0.0.0.1.0.0.0.0.0.8.0 Label "" value="Ctrl+4"
+    + r.0.0.0.0.1.0.0.0.0.0.5.0 Label "" value="Ctrl+3"
+    - r.0.0.0.0.2 Label "" value="Last event: Visibility" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Visibility"
+    + r.0.0.0.0.2 Label "" value="Last event: Footer" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Footer"
+  Space:
+    - r.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Cyan" description="Hidden" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.0.1 Button "Visibility Cyan" description="Toggle visibility" [unchecked] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.2 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.2.0 Label "" value="Ctrl+2"
+    - r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Yellow" description="Hidden" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Yellow" description="Hidden" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.0.5.0 Label "" value="Ctrl+3"
+    + r.0.0.0.0.1.0.0.0.0.0.2.0 Label "" value="Ctrl+2"
+  Enter:
+    focus: r.0.0.0.0.1.0.1.0 Button "Delete current channel" -> r Window ""
+    - r.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Yellow" description="Hidden" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.0.1 Button "Visibility Yellow" description="Toggle visibility" [unchecked] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.2 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.2.0 Label "" value="Ctrl+2"
+    - r.0.0.0.0.1.0.1.0 Button "Delete current channel" description="Delete current channel" actions=[Click,Focus]
+    + r.0.0.0.0.1.0.1.0 Button "Delete current channel" description="Delete current channel" [disabled] actions=[Click,Focus]
+  Escape: no change
+drive r.0.0.0.0.1.0.1.1 Button "Create new channel"
+  click:
+    - r.0.0.0.0.0.0 Button "Finish next" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.0 Button "Finish next" actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Alpha 1" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.1 Button "Visibility Alpha 1" description="Toggle visibility" [checked] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.2 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.2.0 Label "" value="Ctrl+2"
+    - r.0.0.0.0.1.0.1.0 Button "Delete current channel" description="Delete current channel" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.1.0 Button "Delete current channel" description="Delete current channel" actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Alpha 1" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Alpha 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Alpha 2" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.4 Button "Visibility Alpha 2" description="Toggle visibility" [checked] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.5 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.5.0 Label "" value="Ctrl+3"
+  Enter:
+    - r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Alpha 2" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Alpha 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.6 ListBoxOption "Alpha 3" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.7 Button "Visibility Alpha 3" description="Toggle visibility" [checked] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.8 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.8.0 Label "" value="Ctrl+4"
+  Escape:
+    focus: r.0.0.0.0.1.0.1.1 Button "Create new channel" -> r Window ""
+drive r.0.0.0.0.1.0.1.2 Button "Save selection as channel"
+  click:
+    - r.0.0.0.0.1.0.0.0.0.0.6 ListBoxOption "Alpha 3" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.6 ListBoxOption "Alpha 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.9 ListBoxOption "Alpha 4" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.10 Button "Visibility Alpha 4" description="Toggle visibility" [checked] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.11 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.11.0 Label "" value="Ctrl+5"
+  Space:
+    - r.0.0.0.0.1.0.0.0.0.0.9 ListBoxOption "Alpha 4" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.9 ListBoxOption "Alpha 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.12 ListBoxOption "Alpha 5" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.13 Button "Visibility Alpha 5" description="Toggle visibility" [checked] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.14 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.14.0 Label "" value="Ctrl+6"
+  Enter:
+    - r.0.0.0.0.1.0.0.0.0.0.12 ListBoxOption "Alpha 5" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.12 ListBoxOption "Alpha 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.15 ListBoxOption "Alpha 6" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0.16 Button "Visibility Alpha 6" description="Toggle visibility" [checked] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.17 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.17.0 Label "" value="Ctrl+7"
+  Escape:
+    focus: r.0.0.0.0.1.0.1.2 Button "Save selection as channel" -> r Window ""
+drive r.0.0.0.0.1.0.1.3 Button "Load channel as selection"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.1.3 Button "Load channel as selection" -> r Window ""
+drive r.0.0.0.0.2 Label ""
+  click: no change
+  Escape: no change

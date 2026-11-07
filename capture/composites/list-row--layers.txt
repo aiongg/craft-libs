@@ -1,0 +1,136 @@
+story composites/list-row/layers
+args
+  thumbnails = Choice { options: ["None", "Small", "Medium", "Large"], index: 0 }
+  detail = Bool(false)
+  highlight second row = Bool(false)
+  layer form = Bool(true)
+  width = Number { value: 280.0, min: 60.0, max: 480.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 ListBoxOption "Headline" [selected] actions=[Click]
+            r.0.0.0.0.0.1 Button "Visibility Headline" [checked] actions=[Click]
+            r.0.0.0.0.0.2 Button "Lock Headline" [unchecked] actions=[Click]
+            r.0.0.0.0.0.3 GenericContainer ""
+              r.0.0.0.0.0.3.0 Label "" value="Normal" actions=[Click]
+                r.0.0.0.0.0.3.0.0 TextRun "" value="Normal"
+            r.0.0.0.0.0.4 ListBoxOption "Photo with a name too long for the panel to show whole" [unselected] actions=[Click]
+            r.0.0.0.0.0.5 Button "Visibility Photo with a name too long for the panel to show whole" [checked] actions=[Click]
+            r.0.0.0.0.0.6 Button "Lock Photo with a name too long for the panel to show whole" [unchecked] actions=[Click]
+            r.0.0.0.0.0.7 GenericContainer ""
+              r.0.0.0.0.0.7.0 Label "" value="Normal" actions=[Click]
+                r.0.0.0.0.0.7.0.0 TextRun "" value="Normal"
+            r.0.0.0.0.0.8 ListBoxOption "Shadow" [unselected] actions=[Click]
+            r.0.0.0.0.0.9 Button "Visibility Shadow" [checked] actions=[Click]
+            r.0.0.0.0.0.10 Button "Lock Shadow" [unchecked] actions=[Click]
+            r.0.0.0.0.0.11 GenericContainer ""
+              r.0.0.0.0.0.11.0 Label "" value="Normal" actions=[Click]
+                r.0.0.0.0.0.11.0.0 TextRun "" value="Normal"
+            r.0.0.0.0.0.12 ListBoxOption "Background" [unselected] actions=[Click]
+            r.0.0.0.0.0.13 Button "Visibility Background" [checked] actions=[Click]
+            r.0.0.0.0.0.14 Button "Lock Background" [checked] actions=[Click]
+            r.0.0.0.0.0.15 GenericContainer ""
+              r.0.0.0.0.0.15.0 Label "" value="Normal" actions=[Click]
+                r.0.0.0.0.0.15.0.0 TextRun "" value="Normal"
+tab
+  start: r Window ""
+  1: r Window ""
+  2: r Window ""
+  cycle after 1 nodes
+drive: 16 actionable nodes
+drive r.0.0.0.0.0.0 ListBoxOption "Headline"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.1 Button "Visibility Headline"
+  click:
+    - r.0.0.0.0.0.1 Button "Visibility Headline" [checked] actions=[Click]
+    + r.0.0.0.0.0.1 Button "Visibility Headline" [unchecked] actions=[Click]
+  Escape: no change
+drive r.0.0.0.0.0.2 Button "Lock Headline"
+  click:
+    - r.0.0.0.0.0.2 Button "Lock Headline" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.2 Button "Lock Headline" [checked] actions=[Click]
+  Escape: no change
+drive r.0.0.0.0.0.3.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.4 ListBoxOption "Photo with a name too long for the panel to show whole"
+  click:
+    - r.0.0.0.0.0.0 ListBoxOption "Headline" [selected] actions=[Click]
+    + r.0.0.0.0.0.0 ListBoxOption "Headline" [unselected] actions=[Click]
+    - r.0.0.0.0.0.4 ListBoxOption "Photo with a name too long for the panel to show whole" [unselected] actions=[Click]
+    + r.0.0.0.0.0.4 ListBoxOption "Photo with a name too long for the panel to show whole" [selected] actions=[Click]
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.5 Button "Visibility Photo with a name too long for the panel to show whole"
+  click:
+    - r.0.0.0.0.0.5 Button "Visibility Photo with a name too long for the panel to show whole" [checked] actions=[Click]
+    + r.0.0.0.0.0.5 Button "Visibility Photo with a name too long for the panel to show whole" [unchecked] actions=[Click]
+  Escape: no change
+drive r.0.0.0.0.0.6 Button "Lock Photo with a name too long for the panel to show whole"
+  click:
+    - r.0.0.0.0.0.6 Button "Lock Photo with a name too long for the panel to show whole" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.6 Button "Lock Photo with a name too long for the panel to show whole" [checked] actions=[Click]
+  Escape: no change
+drive r.0.0.0.0.0.7.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.8 ListBoxOption "Shadow"
+  click:
+    - r.0.0.0.0.0.4 ListBoxOption "Photo with a name too long for the panel to show whole" [selected] actions=[Click]
+    + r.0.0.0.0.0.4 ListBoxOption "Photo with a name too long for the panel to show whole" [unselected] actions=[Click]
+    - r.0.0.0.0.0.8 ListBoxOption "Shadow" [unselected] actions=[Click]
+    + r.0.0.0.0.0.8 ListBoxOption "Shadow" [selected] actions=[Click]
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.9 Button "Visibility Shadow"
+  click:
+    - r.0.0.0.0.0.9 Button "Visibility Shadow" [checked] actions=[Click]
+    + r.0.0.0.0.0.9 Button "Visibility Shadow" [unchecked] actions=[Click]
+  Escape: no change
+drive r.0.0.0.0.0.10 Button "Lock Shadow"
+  click:
+    - r.0.0.0.0.0.10 Button "Lock Shadow" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.10 Button "Lock Shadow" [checked] actions=[Click]
+  Escape: no change
+drive r.0.0.0.0.0.11.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.12 ListBoxOption "Background"
+  click:
+    - r.0.0.0.0.0.8 ListBoxOption "Shadow" [selected] actions=[Click]
+    + r.0.0.0.0.0.8 ListBoxOption "Shadow" [unselected] actions=[Click]
+    - r.0.0.0.0.0.12 ListBoxOption "Background" [unselected] actions=[Click]
+    + r.0.0.0.0.0.12 ListBoxOption "Background" [selected] actions=[Click]
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.13 Button "Visibility Background"
+  click:
+    - r.0.0.0.0.0.13 Button "Visibility Background" [checked] actions=[Click]
+    + r.0.0.0.0.0.13 Button "Visibility Background" [unchecked] actions=[Click]
+  Escape: no change
+drive r.0.0.0.0.0.14 Button "Lock Background"
+  click:
+    - r.0.0.0.0.0.14 Button "Lock Background" [checked] actions=[Click]
+    + r.0.0.0.0.0.14 Button "Lock Background" [unchecked] actions=[Click]
+  Escape: no change
+drive r.0.0.0.0.0.15.0 Label ""
+  click: no change
+  Escape: no change

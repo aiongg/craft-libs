@@ -1,0 +1,450 @@
+story patterns/page-thumbnails/strip
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 Button "Smaller Thumbnails" description="Smaller Thumbnails" actions=[Click,Focus]
+              r.0.0.0.0.0.0.1 Slider "Thumbnail Size" number=1 in 0.5..1.5 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+              r.0.0.0.0.0.0.2 Button "Larger Thumbnails" description="Larger Thumbnails" actions=[Click,Focus]
+            r.0.0.0.0.0.1 ListBox "Pages" actions=[Focus]
+              r.0.0.0.0.0.1.0 GenericContainer ""
+                r.0.0.0.0.0.1.0.0 GenericContainer ""
+                  r.0.0.0.0.0.1.0.0.0 ListBoxOption "Page 1" description="1" [unselected] actions=[Click,Focus,ShowContextMenu]
+                  r.0.0.0.0.0.1.0.0.1 ListBoxOption "Page 2" description="2" [unselected] actions=[Click,Focus,ShowContextMenu]
+                  r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 3" description="3" [unselected] actions=[Click,Focus,ShowContextMenu]
+                  r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 4" description="4" [unselected] actions=[Click,Focus,ShowContextMenu]
+                  r.0.0.0.0.0.1.0.0.4 ListBoxOption "Page 5" description="5" [unselected] actions=[Click,Focus,ShowContextMenu]
+                  r.0.0.0.0.0.1.0.0.5 ListBoxOption "Page 6" description="6" [selected] actions=[Click,Focus,ShowContextMenu]
+                  r.0.0.0.0.0.1.0.0.6 Heading "Front matter, 8 pages" value="Front matter, 8 pages" [expanded] actions=[Click,Focus,Collapse]
+                  r.0.0.0.0.0.1.0.0.7 Button "Collapse Front matter" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click,Focus]
+                  r.0.0.0.0.0.1.0.0.8 Button "New Slide" actions=[Click,Focus]
+              r.0.0.0.0.0.1.1 ScrollBar "Scroll bar" actions=[Click]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0 Button "Smaller Thumbnails"
+  2: r.0.0.0.0.0.0.1 Slider "Thumbnail Size"
+  3: r.0.0.0.0.0.0.2 Button "Larger Thumbnails"
+  4: r.0.0.0.0.0.1 ListBox "Pages"
+  5: r.0.0.0.0.0.1.0.0.6 Heading "Front matter, 8 pages"
+  6: r.0.0.0.0.0.1.0.0.7 Button "Collapse Front matter"
+  7: r.0.0.0.0.0.1.0.0.8 Button "New Slide"
+  8: r.0.0.0.0.0.0.0 Button "Smaller Thumbnails"
+  cycle after 7 nodes
+drive: 14 actionable nodes
+drive r.0.0.0.0.0.0.0 Button "Smaller Thumbnails"
+  click:
+    - r.0.0.0.0.0.0.1 Slider "Thumbnail Size" number=1 in 0.5..1.5 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.1 Slider "Thumbnail Size" number=0.75 in 0.5..1.5 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0 Heading "Body, 22 pages" value="Body, 22 pages" [expanded] actions=[Click,Focus,Collapse]
+    + r.0.0.0.0.0.1.0.0.1 Button "Collapse Body" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.8 ListBoxOption "Page 7" description="7" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.9 ListBoxOption "Page 8" description="8" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.10 ListBoxOption "Page 9" description="9" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.11 ListBoxOption "Page 10" description="10" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.12 ListBoxOption "Page 11" description="11" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.13 ListBoxOption "Page 12" description="12" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.14 ListBoxOption "Page 13" description="13" [unselected] actions=[Click,Focus,ShowContextMenu]
+  Space:
+    focus: r.0.0.0.0.0.0.0 Button "Smaller Thumbnails" -> r Window ""
+    - r.0.0.0.0.0.0.0 Button "Smaller Thumbnails" description="Smaller Thumbnails" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1 Slider "Thumbnail Size" number=0.75 in 0.5..1.5 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.0 Button "Smaller Thumbnails" description="Smaller Thumbnails" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1 Slider "Thumbnail Size" number=0.5 in 0.5..1.5 step 0.25 actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.15 ListBoxOption "Page 14" description="14" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.16 ListBoxOption "Page 15" description="15" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.17 ListBoxOption "Page 16" description="16" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.18 ListBoxOption "Page 17" description="17" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.19 ListBoxOption "Page 18" description="18" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.20 ListBoxOption "Page 19" description="19" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.21 ListBoxOption "Page 20" description="20" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.22 ListBoxOption "Page 21" description="21" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.23 ListBoxOption "Page 22" description="22" [unselected] actions=[Click,Focus,ShowContextMenu]
+  Enter: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.1 Slider "Thumbnail Size"
+  Space: no change
+  Enter: no change
+  ArrowLeft: no change
+  ArrowRight:
+    - r.0.0.0.0.0.0.0 Button "Smaller Thumbnails" description="Smaller Thumbnails" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1 Slider "Thumbnail Size" number=0.5 in 0.5..1.5 step 0.25 actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.0.0 Button "Smaller Thumbnails" description="Smaller Thumbnails" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1 Slider "Thumbnail Size" number=0.75 in 0.5..1.5 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.1.0.0.15 ListBoxOption "Page 14" description="14" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.16 ListBoxOption "Page 15" description="15" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.17 ListBoxOption "Page 16" description="16" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.18 ListBoxOption "Page 17" description="17" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.19 ListBoxOption "Page 18" description="18" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.20 ListBoxOption "Page 19" description="19" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.21 ListBoxOption "Page 20" description="20" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.22 ListBoxOption "Page 21" description="21" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.23 ListBoxOption "Page 22" description="22" [unselected] actions=[Click,Focus,ShowContextMenu]
+  ArrowUp:
+    - r.0.0.0.0.0.0.1 Slider "Thumbnail Size" number=0.75 in 0.5..1.5 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.1 Slider "Thumbnail Size" number=1 in 0.5..1.5 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.1.0.0.0 Heading "Body, 22 pages" value="Body, 22 pages" [expanded] actions=[Click,Focus,Collapse]
+    - r.0.0.0.0.0.1.0.0.1 Button "Collapse Body" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.8 ListBoxOption "Page 7" description="7" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.9 ListBoxOption "Page 8" description="8" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.10 ListBoxOption "Page 9" description="9" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.11 ListBoxOption "Page 10" description="10" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.12 ListBoxOption "Page 11" description="11" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.13 ListBoxOption "Page 12" description="12" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.14 ListBoxOption "Page 13" description="13" [unselected] actions=[Click,Focus,ShowContextMenu]
+  ArrowDown:
+    - r.0.0.0.0.0.0.1 Slider "Thumbnail Size" number=1 in 0.5..1.5 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.1 Slider "Thumbnail Size" number=0.75 in 0.5..1.5 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0 Heading "Body, 22 pages" value="Body, 22 pages" [expanded] actions=[Click,Focus,Collapse]
+    + r.0.0.0.0.0.1.0.0.1 Button "Collapse Body" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.8 ListBoxOption "Page 7" description="7" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.9 ListBoxOption "Page 8" description="8" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.10 ListBoxOption "Page 9" description="9" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.11 ListBoxOption "Page 10" description="10" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.12 ListBoxOption "Page 11" description="11" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.13 ListBoxOption "Page 12" description="12" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.14 ListBoxOption "Page 13" description="13" [unselected] actions=[Click,Focus,ShowContextMenu]
+  Home:
+    - r.0.0.0.0.0.0.0 Button "Smaller Thumbnails" description="Smaller Thumbnails" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1 Slider "Thumbnail Size" number=0.75 in 0.5..1.5 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.0 Button "Smaller Thumbnails" description="Smaller Thumbnails" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1 Slider "Thumbnail Size" number=0.5 in 0.5..1.5 step 0.25 actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.15 ListBoxOption "Page 14" description="14" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.16 ListBoxOption "Page 15" description="15" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.17 ListBoxOption "Page 16" description="16" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.18 ListBoxOption "Page 17" description="17" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.19 ListBoxOption "Page 18" description="18" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.20 ListBoxOption "Page 19" description="19" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.21 ListBoxOption "Page 20" description="20" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.22 ListBoxOption "Page 21" description="21" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.23 ListBoxOption "Page 22" description="22" [unselected] actions=[Click,Focus,ShowContextMenu]
+  End:
+    - r.0.0.0.0.0.0.0 Button "Smaller Thumbnails" description="Smaller Thumbnails" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1 Slider "Thumbnail Size" number=0.5 in 0.5..1.5 step 0.25 actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.0.0.2 Button "Larger Thumbnails" description="Larger Thumbnails" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0 Button "Smaller Thumbnails" description="Smaller Thumbnails" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1 Slider "Thumbnail Size" number=1.5 in 0.5..1.5 step 0.25 actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.0.0.2 Button "Larger Thumbnails" description="Larger Thumbnails" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0 Heading "Body, 22 pages" value="Body, 22 pages" [expanded] actions=[Click,Focus,Collapse]
+    - r.0.0.0.0.0.1.0.0.1 Button "Collapse Body" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.6 ListBoxOption "Page 5" description="5" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.7 ListBoxOption "Page 6" description="6" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.8 ListBoxOption "Page 7" description="7" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.9 ListBoxOption "Page 8" description="8" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.10 ListBoxOption "Page 9" description="9" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.11 ListBoxOption "Page 10" description="10" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.12 ListBoxOption "Page 11" description="11" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.13 ListBoxOption "Page 12" description="12" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.14 ListBoxOption "Page 13" description="13" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.15 ListBoxOption "Page 14" description="14" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.16 ListBoxOption "Page 15" description="15" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.17 ListBoxOption "Page 16" description="16" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.18 ListBoxOption "Page 17" description="17" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.19 ListBoxOption "Page 18" description="18" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.20 ListBoxOption "Page 19" description="19" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.21 ListBoxOption "Page 20" description="20" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.22 ListBoxOption "Page 21" description="21" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.23 ListBoxOption "Page 22" description="22" [unselected] actions=[Click,Focus,ShowContextMenu]
+  Escape:
+    focus: r.0.0.0.0.0.0.1 Slider "Thumbnail Size" -> r Window ""
+drive r.0.0.0.0.0.0.2 Button "Larger Thumbnails"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape: no change
+drive r.0.0.0.0.0.1 ListBox "Pages"
+  Space:
+    + r.0.0.0.0.1 Label "" value="Last event: Selection(SelectionChange { pick: Toggle, row: Some(7), selection: Selection { items: [5, 6], lead: Some(6), anchor: Some(7) } })" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Toggle, row: Some(7), selection: Selection { items: [5, 6], lead: "
+    + r.0.0.0.0.1.1 TextRun "" value="Some(6), anchor: Some(7) } })"
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: Selection(SelectionChange { pick: Toggle, row: Some(7), selection: Selection { items: [5, 6], lead: Some(6), anchor: Some(7) } })" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Toggle, row: Some(7), selection: Selection { items: [5, 6], lead: "
+    - r.0.0.0.0.1.1 TextRun "" value="Some(6), anchor: Some(7) } })"
+    + r.0.0.0.0.1 Label "" value="Last event: Activate(6)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Activate(6)"
+  ArrowDown:
+    focus: r.0.0.0.0.0.1 ListBox "Pages" -> r.0.0.0.0.0.1.0.0.4 ListBoxOption "Page 9"
+    - r.0.0.0.0.0.1.0.0.0 ListBoxOption "Page 1" description="1" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.1 ListBoxOption "Page 2" description="2" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 3" description="3" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 4" description="4" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.0 Heading "Body, 22 pages" value="Body, 22 pages" [expanded] actions=[Click,Focus,Collapse]
+    + r.0.0.0.0.0.1.0.0.1 Button "Collapse Body" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 7" description="7" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 8" description="8" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.4 ListBoxOption "Page 9" description="9" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.5 ListBoxOption "Page 10" description="10" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1 Label "" value="Last event: Activate(6)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Activate(6)"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(8)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(8)"
+  ArrowUp:
+    focus: r.0.0.0.0.0.1.0.0.4 ListBoxOption "Page 9" -> r.0.0.0.0.0.1.0.0.4 ListBoxOption "Page 7"
+    - r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 7" description="7" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 5" description="5" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 6" description="6" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.4 ListBoxOption "Page 7" description="7" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.4 ListBoxOption "Page 9" description="9" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.6 ListBoxOption "Page 9" description="9" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1 Label "" value="Last event: Go(8)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(8)"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(6)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(6)"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.1.0.0.4 ListBoxOption "Page 7" -> r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 6"
+    - r.0.0.0.0.0.1.0.0.0 Heading "Body, 22 pages" value="Body, 22 pages" [expanded] actions=[Click,Focus,Collapse]
+    - r.0.0.0.0.0.1.0.0.1 Button "Collapse Body" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0 ListBoxOption "Page 3" description="3" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.1 ListBoxOption "Page 4" description="4" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 6" description="6" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.4 ListBoxOption "Page 7" description="7" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 6" description="6" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.4 ListBoxOption "Page 7" description="7" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.6 ListBoxOption "Page 9" description="9" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.7 ListBoxOption "Page 10" description="10" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1 Label "" value="Last event: Go(6)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(6)"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(5)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(5)"
+  ArrowRight:
+    focus: r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 6" -> r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 7"
+    - r.0.0.0.0.0.1.0.0.0 ListBoxOption "Page 3" description="3" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.1 ListBoxOption "Page 4" description="4" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 6" description="6" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.4 ListBoxOption "Page 7" description="7" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.1 ListBoxOption "Page 6" description="6" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 7" description="7" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1 Label "" value="Last event: Go(5)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(5)"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(6)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(6)"
+  Escape:
+    - r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 7" description="7" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 7" description="7" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1 Label "" value="Last event: Go(6)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(6)"
+    + r.0.0.0.0.1 Label "" value="Last event: Selection(SelectionChange { pick: Clear, row: None, selection: Selection { items: [], lead: Some(6), anchor: None } })" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Clear, row: None, selection: Selection { items: [], lead: Some(6), "
+    + r.0.0.0.0.1.1 TextRun "" value="anchor: None } })"
+drive r.0.0.0.0.0.1.0.0.0 ListBoxOption "Page 1"
+  all steps: node gone
+drive r.0.0.0.0.0.1.0.0.1 ListBoxOption "Page 2"
+  all steps: node gone
+drive r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 3"
+  all steps: node gone
+drive r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 4"
+  all steps: node gone
+drive r.0.0.0.0.0.1.0.0.4 ListBoxOption "Page 5"
+  click:
+    focus: r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 7" -> r Window ""
+  Space:
+    - r.0.0.0.0.0.1.0.0.0 ListBoxOption "Page 5" description="5" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.0 ListBoxOption "Page 5" description="5" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1 Label "" value="Last event: Selection(SelectionChange { pick: Clear, row: None, selection: Selection { items: [], lead: Some(6), anchor: None } })" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Clear, row: None, selection: Selection { items: [], lead: Some(6), "
+    - r.0.0.0.0.1.1 TextRun "" value="anchor: None } })"
+    + r.0.0.0.0.1 Label "" value="Last event: Selection(SelectionChange { pick: Toggle, row: Some(4), selection: Selection { items: [4], lead: Some(4), anchor: Some(4) } })" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Toggle, row: Some(4), selection: Selection { items: [4], lead: "
+    + r.0.0.0.0.1.1 TextRun "" value="Some(4), anchor: Some(4) } })"
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: Selection(SelectionChange { pick: Toggle, row: Some(4), selection: Selection { items: [4], lead: Some(4), anchor: Some(4) } })" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Toggle, row: Some(4), selection: Selection { items: [4], lead: "
+    - r.0.0.0.0.1.1 TextRun "" value="Some(4), anchor: Some(4) } })"
+    + r.0.0.0.0.1 Label "" value="Last event: Activate(4)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Activate(4)"
+  ArrowDown:
+    focus: r.0.0.0.0.0.1.0.0.0 ListBoxOption "Page 5" -> r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 7"
+    - r.0.0.0.0.0.1.0.0.0 ListBoxOption "Page 5" description="5" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.0 ListBoxOption "Page 5" description="5" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 7" description="7" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 7" description="7" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1 Label "" value="Last event: Activate(4)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Activate(4)"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(6)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(6)"
+  ArrowUp:
+    focus: r.0.0.0.0.0.1.0.0.0 ListBoxOption "Page 5" -> r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 3"
+    + r.0.0.0.0.0.1.0.0.0 ListBoxOption "Page 1" description="1" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.1 ListBoxOption "Page 2" description="2" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 3" description="3" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 4" description="4" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 7" description="7" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 8" description="8" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1 Label "" value="Last event: Go(6)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(6)"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(2)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(2)"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.1.0.0.4 ListBoxOption "Page 5" -> r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 4"
+    - r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 3" description="3" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 4" description="4" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 3" description="3" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 4" description="4" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1 Label "" value="Last event: Go(2)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(2)"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(3)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(3)"
+  ArrowRight:
+    focus: r.0.0.0.0.0.1.0.0.4 ListBoxOption "Page 5" -> r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 6"
+    - r.0.0.0.0.0.1.0.0.0 ListBoxOption "Page 1" description="1" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.1 ListBoxOption "Page 2" description="2" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 4" description="4" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.1 ListBoxOption "Page 4" description="4" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.5 ListBoxOption "Page 6" description="6" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 6" description="6" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1 Label "" value="Last event: Go(3)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(3)"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(5)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(5)"
+  Escape:
+    - r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 6" description="6" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 6" description="6" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1 Label "" value="Last event: Go(5)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(5)"
+    + r.0.0.0.0.1 Label "" value="Last event: Selection(SelectionChange { pick: Clear, row: None, selection: Selection { items: [], lead: Some(4), anchor: None } })" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Clear, row: None, selection: Selection { items: [], lead: Some(4), "
+    + r.0.0.0.0.1.1 TextRun "" value="anchor: None } })"
+drive r.0.0.0.0.0.1.0.0.5 ListBoxOption "Page 6"
+  click:
+    focus: r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 5" -> r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 6"
+    - r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 6" description="6" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 6" description="6" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1 Label "" value="Last event: Selection(SelectionChange { pick: Clear, row: None, selection: Selection { items: [], lead: Some(4), anchor: None } })" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Clear, row: None, selection: Selection { items: [], lead: Some(4), "
+    - r.0.0.0.0.1.1 TextRun "" value="anchor: None } })"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(5)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(5)"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: Go(5)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(5)"
+    + r.0.0.0.0.1 Label "" value="Last event: Activate(5)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Activate(5)"
+  ArrowDown:
+    focus: r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 6" -> r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 8"
+    - r.0.0.0.0.0.1.0.0.0 ListBoxOption "Page 3" description="3" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.1 ListBoxOption "Page 4" description="4" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 6" description="6" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.1 ListBoxOption "Page 6" description="6" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 7" description="7" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 8" description="8" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1 Label "" value="Last event: Activate(5)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Activate(5)"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(7)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(7)"
+  ArrowUp:
+    focus: r.0.0.0.0.0.1.0.0.1 ListBoxOption "Page 6" -> r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 4"
+    + r.0.0.0.0.0.1.0.0.0 ListBoxOption "Page 1" description="1" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.1 ListBoxOption "Page 2" description="2" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 3" description="3" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 4" description="4" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 7" description="7" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 8" description="8" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1 Label "" value="Last event: Go(7)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(7)"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(3)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(3)"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.1.0.0.5 ListBoxOption "Page 6" -> r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 5"
+    - r.0.0.0.0.0.1.0.0.0 ListBoxOption "Page 1" description="1" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.1 ListBoxOption "Page 2" description="2" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 4" description="4" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.4 ListBoxOption "Page 5" description="5" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.1 ListBoxOption "Page 4" description="4" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 5" description="5" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1 Label "" value="Last event: Go(3)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(3)"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(4)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(4)"
+  ArrowRight:
+    focus: r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 6" -> r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 7"
+    - r.0.0.0.0.0.1.0.0.0 ListBoxOption "Page 3" description="3" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.1 ListBoxOption "Page 4" description="4" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 5" description="5" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.0 ListBoxOption "Page 5" description="5" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 7" description="7" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 8" description="8" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1 Label "" value="Last event: Go(4)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(4)"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(6)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(6)"
+  Escape:
+    - r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 7" description="7" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 7" description="7" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1 Label "" value="Last event: Go(6)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(6)"
+    + r.0.0.0.0.1 Label "" value="Last event: Selection(SelectionChange { pick: Clear, row: None, selection: Selection { items: [], lead: Some(5), anchor: None } })" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Clear, row: None, selection: Selection { items: [], lead: Some(5), "
+    + r.0.0.0.0.1.1 TextRun "" value="anchor: None } })"
+drive r.0.0.0.0.0.1.0.0.6 Heading "Front matter, 8 pages"
+  click:
+    focus: r.0.0.0.0.0.1.0.0.1 ListBoxOption "Page 6" -> r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 8"
+    - r.0.0.0.0.0.1.0.0.0 ListBoxOption "Page 5" description="5" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.1 ListBoxOption "Page 6" description="6" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 7" description="7" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 8" description="8" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.0 ListBoxOption "Page 5" description="5" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.1 ListBoxOption "Page 6" description="6" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 7" description="7" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 8" description="8" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1 Label "" value="Last event: Selection(SelectionChange { pick: Clear, row: None, selection: Selection { items: [], lead: Some(5), anchor: None } })" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Clear, row: None, selection: Selection { items: [], lead: Some(5), "
+    - r.0.0.0.0.1.1 TextRun "" value="anchor: None } })"
+    + r.0.0.0.0.1 Label "" value="Last event: Selection(SelectionChange { pick: Range, row: Some(0), selection: Selection { items: [0, 1, 2, 3, 4, 5, 6, 7], lead: Some(7), anchor: Some(0) } })" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Range, row: Some(0), selection: Selection { items: [0, 1, 2, 3, 4, "
+    + r.0.0.0.0.1.1 TextRun "" value="5, 6, 7], lead: Some(7), anchor: Some(0) } })"
+  Space:
+    focus: r.0.0.0.0.0.1.0.0.4 Heading "Front matter, 8 pages" -> r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 8"
+  Enter:
+    focus: r.0.0.0.0.0.1.0.0.4 Heading "Front matter, 8 pages" -> r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 8"
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.4 Heading "Front matter, 8 pages" -> r Window ""
+drive r.0.0.0.0.0.1.0.0.7 Button "Collapse Front matter"
+  click:
+    - r.0.0.0.0.1 Label "" value="Last event: Selection(SelectionChange { pick: Range, row: Some(0), selection: Selection { items: [0, 1, 2, 3, 4, 5, 6, 7], lead: Some(7), anchor: Some(0) } })" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Range, row: Some(0), selection: Selection { items: [0, 1, 2, 3, 4, "
+    - r.0.0.0.0.1.1 TextRun "" value="5, 6, 7], lead: Some(7), anchor: Some(0) } })"
+    + r.0.0.0.0.1 Label "" value="Last event: SectionOpen { section: 0, open: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: SectionOpen { section: 0, open: false }"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.5 Button "Collapse Front matter" -> r Window ""
+drive r.0.0.0.0.0.1.0.0.8 Button "New Slide"
+  click: no change
+  Space:
+    - r.0.0.0.0.1 Label "" value="Last event: SectionOpen { section: 0, open: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: SectionOpen { section: 0, open: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: NewPage" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: NewPage"
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.6 Button "New Slide" -> r Window ""
+drive r.0.0.0.0.0.1.1 ScrollBar "Scroll bar"
+  click:
+    - r.0.0.0.0.0.1.0.0.0 ListBoxOption "Page 5" description="5" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.1 ListBoxOption "Page 6" description="6" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 7" description="7" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 8" description="8" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.1.0.0.4 Heading "Front matter, 8 pages" value="Front matter, 8 pages" [expanded] actions=[Click,Focus,Collapse]
+    - r.0.0.0.0.0.1.0.0.5 Button "Collapse Front matter" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0 ListBoxOption "Page 13" description="13" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.1 ListBoxOption "Page 14" description="14" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.2 ListBoxOption "Page 15" description="15" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.3 ListBoxOption "Page 16" description="16" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.4 ListBoxOption "Page 17" description="17" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.5 ListBoxOption "Page 18" description="18" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.1.0.0.6 Heading "Body, 22 pages" value="Body, 22 pages" [expanded] actions=[Click,Focus,Collapse]
+    + r.0.0.0.0.0.1.0.0.7 Button "Collapse Body" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click,Focus]
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown: no change
+  Home: no change
+  End: no change
+  Escape: no change

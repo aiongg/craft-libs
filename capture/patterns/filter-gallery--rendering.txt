@@ -1,0 +1,260 @@
+story patterns/filter-gallery/rendering
+args
+  open = Bool(true)
+  state = Choice { options: ["rendering", "Done, with the note"], index: 0 }
+  progress = Number { value: 40.0, min: 0.0, max: 100.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+  r.1 Dialog "Neon Glow (Photo, 1%)"
+    r.1.0 GenericContainer ""
+    r.1.1 GenericContainer ""
+      r.1.1.0 GenericContainer ""
+        r.1.1.0.0 Header "Neon Glow (Photo, 1%)"
+        r.1.1.0.1 GenericContainer ""
+          r.1.1.0.1.0 GenericContainer ""
+            r.1.1.0.1.0.0 Label "" value="Neon Glow (Photo, 1%)"
+        r.1.1.0.2 GenericContainer ""
+        r.1.1.0.3 Pane ""
+          r.1.1.0.3.0 GenericContainer ""
+            r.1.1.0.3.0.0 Group "Settings"
+              r.1.1.0.3.0.0.0 GenericContainer ""
+                r.1.1.0.3.0.0.0.0 GenericContainer ""
+                  r.1.1.0.3.0.0.0.0.0 Button "OK" description="Default" actions=[Click,Focus]
+                  r.1.1.0.3.0.0.0.0.1 Button "Cancel" actions=[Click,Focus]
+              r.1.1.0.3.0.0.1 GenericContainer ""
+                r.1.1.0.3.0.0.1.0 GenericContainer ""
+                  r.1.1.0.3.0.0.1.0.0 GenericContainer ""
+                    r.1.1.0.3.0.0.1.0.0.0 ComboBox "Filter" value="Neon Glow" [collapsed popup:Listbox] actions=[Click,Focus]
+                    r.1.1.0.3.0.0.1.0.0.1 Group "Settings"
+                      r.1.1.0.3.0.0.1.0.0.1.0 GenericContainer ""
+                        r.1.1.0.3.0.0.1.0.0.1.0.0 GenericContainer ""
+                          r.1.1.0.3.0.0.1.0.0.1.0.0.0 Label "" value="Glow Size"
+                        r.1.1.0.3.0.0.1.0.0.1.0.1 GenericContainer ""
+                          r.1.1.0.3.0.0.1.0.0.1.0.1.0 GenericContainer ""
+                            r.1.1.0.3.0.0.1.0.0.1.0.1.0.0 GenericContainer ""
+                              r.1.1.0.3.0.0.1.0.0.1.0.1.0.0.0 Slider "Glow Size" number=5 in -24..24 step 0.48 labelled_by=[r.1.1.0.3.0.0.1.0.0.1.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+                              r.1.1.0.3.0.0.1.0.0.1.0.1.0.0.1 SpinButton "Glow Size" value="5" number=5 in -24..24 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                                r.1.1.0.3.0.0.1.0.0.1.0.1.0.0.1.0 TextRun "" value="5"
+                        r.1.1.0.3.0.0.1.0.0.1.0.2 GenericContainer ""
+                          r.1.1.0.3.0.0.1.0.0.1.0.2.0 Label "" value="Glow Color"
+                        r.1.1.0.3.0.0.1.0.0.1.0.3 GenericContainer ""
+                          r.1.1.0.3.0.0.1.0.0.1.0.3.0 GenericContainer ""
+                            r.1.1.0.3.0.0.1.0.0.1.0.3.0.0 ColorWell "Glow Color" value="#e64d99" labelled_by=[r.1.1.0.3.0.0.1.0.0.1.0.2.0] [unselected] actions=[Click,Focus]
+                    r.1.1.0.3.0.0.1.0.0.2 GenericContainer ""
+                      r.1.1.0.3.0.0.1.0.0.2.0 Label "" value="Uses the foreground and background colors." actions=[Click]
+                        r.1.1.0.3.0.0.1.0.0.2.0.0 TextRun "" value="Uses the foreground and background colors."
+                    r.1.1.0.3.0.0.1.0.0.3 ListBox "Effect Layers" actions=[Focus]
+                      r.1.1.0.3.0.0.1.0.0.3.0 GenericContainer ""
+                        r.1.1.0.3.0.0.1.0.0.3.0.0 GenericContainer ""
+                          r.1.1.0.3.0.0.1.0.0.3.0.0.0 GenericContainer ""
+                            r.1.1.0.3.0.0.1.0.0.3.0.0.0.0 ListBoxOption "Neon Glow" [selected] actions=[Click,Focus,ScrollIntoView]
+                            r.1.1.0.3.0.0.1.0.0.3.0.0.0.1 Button "Visibility Neon Glow" [checked] actions=[Click]
+                            r.1.1.0.3.0.0.1.0.0.3.0.0.0.2 ListBoxOption "Sponge" [unselected] actions=[Click,Focus,ScrollIntoView]
+                            r.1.1.0.3.0.0.1.0.0.3.0.0.0.3 Button "Visibility Sponge" [unchecked] actions=[Click]
+                            r.1.1.0.3.0.0.1.0.0.3.0.0.0.4 ListBoxOption "Cutout" [unselected] actions=[Click,Focus,ScrollIntoView]
+                            r.1.1.0.3.0.0.1.0.0.3.0.0.0.5 Button "Visibility Cutout" [checked] actions=[Click]
+                    r.1.1.0.3.0.0.1.0.0.4 GenericContainer ""
+                      r.1.1.0.3.0.0.1.0.0.4.0 GenericContainer ""
+                        r.1.1.0.3.0.0.1.0.0.4.0.0 GenericContainer ""
+                          r.1.1.0.3.0.0.1.0.0.4.0.0.0 Button "Move effect layer up" description="Move effect layer up" [disabled] actions=[Click,Focus]
+                        r.1.1.0.3.0.0.1.0.0.4.0.1 GenericContainer ""
+                          r.1.1.0.3.0.0.1.0.0.4.0.1.0 Button "Move effect layer down" description="Move effect layer down" actions=[Click,Focus]
+                      r.1.1.0.3.0.0.1.0.0.4.1 GenericContainer ""
+                        r.1.1.0.3.0.0.1.0.0.4.1.0 Button "New effect layer" description="New effect layer" actions=[Click,Focus]
+                        r.1.1.0.3.0.0.1.0.0.4.1.1 GenericContainer ""
+                          r.1.1.0.3.0.0.1.0.0.4.1.1.0 Button "Delete effect layer" description="Delete effect layer" actions=[Click,Focus]
+                    r.1.1.0.3.0.0.1.0.0.5 Status "Updating preview"
+        r.1.1.0.4 Pane ""
+          r.1.1.0.4.0 GenericContainer ""
+            r.1.1.0.4.0.0 Group "Filters"
+              r.1.1.0.4.0.0.0 GenericContainer ""
+                r.1.1.0.4.0.0.0.0 GenericContainer ""
+                  r.1.1.0.4.0.0.0.0.0 GenericContainer ""
+                    r.1.1.0.4.0.0.0.0.0.0 Group "Filters"
+                      r.1.1.0.4.0.0.0.0.0.0.0 DisclosureTriangle "Artistic" [expanded] actions=[Click,Focus]
+                      r.1.1.0.4.0.0.0.0.0.0.1 GenericContainer ""
+                        r.1.1.0.4.0.0.0.0.0.0.1.0 GenericContainer ""
+                          r.1.1.0.4.0.0.0.0.0.0.1.0.0 Label "" value="Artistic"
+                      r.1.1.0.4.0.0.0.0.0.0.2 Button "Cutout" [unselected] actions=[Click]
+                      r.1.1.0.4.0.0.0.0.0.0.3 Button "Sponge" [unselected] actions=[Click]
+                      r.1.1.0.4.0.0.0.0.0.0.4 Button "Neon Glow" [selected] actions=[Click,Focus]
+                      r.1.1.0.4.0.0.0.0.0.0.5 DisclosureTriangle "Sketch" [collapsed] actions=[Click,Focus]
+                      r.1.1.0.4.0.0.0.0.0.0.6 GenericContainer ""
+                        r.1.1.0.4.0.0.0.0.0.0.6.0 GenericContainer ""
+                          r.1.1.0.4.0.0.0.0.0.0.6.0.0 Label "" value="Sketch"
+        r.1.1.0.5 Pane ""
+          r.1.1.0.5.0 GenericContainer ""
+            r.1.1.0.5.0.0 GenericContainer ""
+              r.1.1.0.5.0.0.0 Button "Zoom Out" description="Zoom Out" actions=[Click,Focus]
+              r.1.1.0.5.0.0.1 Button "Zoom In" description="Zoom In" actions=[Click,Focus]
+              r.1.1.0.5.0.0.2 ComboBox "Zoom" value="Fit in View" [collapsed popup:Listbox] actions=[Click,Focus]
+              r.1.1.0.5.0.0.3 ProgressIndicator "Updating preview" number=0.4000000059604645 in 0..1 step -
+        r.1.1.0.6 Canvas "Image" value="1%" actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.1.1.0.3.0.0.0.0.0 Button "OK"
+  2: r.1.1.0.3.0.0.0.0.1 Button "Cancel"
+  3: r.1.1.0.3.0.0.1.0.0.0 ComboBox "Filter"
+  4: r.1.1.0.3.0.0.1.0.0.1.0.1.0.0.0 Slider "Glow Size"
+  5: r.1.1.0.3.0.0.1.0.0.1.0.1.0.0.1 SpinButton "Glow Size"
+  6: r.1.1.0.3.0.0.1.0.0.1.0.3.0.0 ColorWell "Glow Color"
+  7: r.1.1.0.3.0.0.1.0.0.3.0.0.0.0 ListBoxOption "Neon Glow"
+  8: r.1.1.0.3.0.0.1.0.0.4.0.1.0 Button "Move effect layer down"
+  9: r.1.1.0.3.0.0.1.0.0.4.1.0 Button "New effect layer"
+  10: r.1.1.0.3.0.0.1.0.0.4.1.1.0 Button "Delete effect layer"
+  11: r.1.1.0.4.0.0.0.0.0.0.0 DisclosureTriangle "Artistic"
+  12: r.1.1.0.4.0.0.0.0.0.0.4 Button "Neon Glow"
+  13: r.1.1.0.4.0.0.0.0.0.0.5 DisclosureTriangle "Sketch"
+  14: r.1.1.0.5.0.0.0 Button "Zoom Out"
+  15: r.1.1.0.5.0.0.1 Button "Zoom In"
+  16: r.1.1.0.5.0.0.2 ComboBox "Zoom"
+  17: r.1.1.0.6 Canvas "Image"
+  18: r.1.1.0.3.0.0.0.0.0 Button "OK"
+  cycle after 17 nodes
+drive: 26 actionable nodes
+drive r.1.1.0.3.0.0.0.0.0 Button "OK"
+  click:
+    focus: r.1.1.0.3.0.0.0.0.0 Button "OK" -> r Window ""
+    arg open: Bool(true) -> Bool(false)
+    - r.1 Dialog "Neon Glow (Photo, 1%)"
+    - r.1.0 GenericContainer ""
+    - r.1.1 GenericContainer ""
+    - r.1.1.0 GenericContainer ""
+    - r.1.1.0.0 Header "Neon Glow (Photo, 1%)"
+    - r.1.1.0.1 GenericContainer ""
+    - r.1.1.0.1.0 GenericContainer ""
+    - r.1.1.0.1.0.0 Label "" value="Neon Glow (Photo, 1%)"
+    - r.1.1.0.2 GenericContainer ""
+    - r.1.1.0.3 Pane ""
+    - r.1.1.0.3.0 GenericContainer ""
+    - r.1.1.0.3.0.0 Group "Settings"
+    - r.1.1.0.3.0.0.0 GenericContainer ""
+    - r.1.1.0.3.0.0.0.0 GenericContainer ""
+    - r.1.1.0.3.0.0.0.0.0 Button "OK" description="Default" actions=[Click,Focus]
+    - r.1.1.0.3.0.0.0.0.1 Button "Cancel" actions=[Click,Focus]
+    - r.1.1.0.3.0.0.1 GenericContainer ""
+    - r.1.1.0.3.0.0.1.0 GenericContainer ""
+    - r.1.1.0.3.0.0.1.0.0 GenericContainer ""
+    - r.1.1.0.3.0.0.1.0.0.0 ComboBox "Filter" value="Neon Glow" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.1.1.0.3.0.0.1.0.0.1 Group "Settings"
+    - r.1.1.0.3.0.0.1.0.0.1.0 GenericContainer ""
+    - r.1.1.0.3.0.0.1.0.0.1.0.0 GenericContainer ""
+    - r.1.1.0.3.0.0.1.0.0.1.0.0.0 Label "" value="Glow Size"
+    - r.1.1.0.3.0.0.1.0.0.1.0.1 GenericContainer ""
+    - r.1.1.0.3.0.0.1.0.0.1.0.1.0 GenericContainer ""
+    - r.1.1.0.3.0.0.1.0.0.1.0.1.0.0 GenericContainer ""
+    - r.1.1.0.3.0.0.1.0.0.1.0.1.0.0.0 Slider "Glow Size" number=5 in -24..24 step 0.48 labelled_by=[r.1.1.0.3.0.0.1.0.0.1.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.1.1.0.3.0.0.1.0.0.1.0.1.0.0.1 SpinButton "Glow Size" value="5" number=5 in -24..24 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.3.0.0.1.0.0.1.0.1.0.0.1.0 TextRun "" value="5"
+    - r.1.1.0.3.0.0.1.0.0.1.0.2 GenericContainer ""
+    - r.1.1.0.3.0.0.1.0.0.1.0.2.0 Label "" value="Glow Color"
+    - r.1.1.0.3.0.0.1.0.0.1.0.3 GenericContainer ""
+    - r.1.1.0.3.0.0.1.0.0.1.0.3.0 GenericContainer ""
+    - r.1.1.0.3.0.0.1.0.0.1.0.3.0.0 ColorWell "Glow Color" value="#e64d99" labelled_by=[r.1.1.0.3.0.0.1.0.0.1.0.2.0] [unselected] actions=[Click,Focus]
+    - r.1.1.0.3.0.0.1.0.0.2 GenericContainer ""
+    - r.1.1.0.3.0.0.1.0.0.2.0 Label "" value="Uses the foreground and background colors." actions=[Click]
+    - r.1.1.0.3.0.0.1.0.0.2.0.0 TextRun "" value="Uses the foreground and background colors."
+    - r.1.1.0.3.0.0.1.0.0.3 ListBox "Effect Layers" actions=[Focus]
+    - r.1.1.0.3.0.0.1.0.0.3.0 GenericContainer ""
+    - r.1.1.0.3.0.0.1.0.0.3.0.0 GenericContainer ""
+    - r.1.1.0.3.0.0.1.0.0.3.0.0.0 GenericContainer ""
+    - r.1.1.0.3.0.0.1.0.0.3.0.0.0.0 ListBoxOption "Neon Glow" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.1.0.3.0.0.1.0.0.3.0.0.0.1 Button "Visibility Neon Glow" [checked] actions=[Click]
+    - r.1.1.0.3.0.0.1.0.0.3.0.0.0.2 ListBoxOption "Sponge" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.1.0.3.0.0.1.0.0.3.0.0.0.3 Button "Visibility Sponge" [unchecked] actions=[Click]
+    - r.1.1.0.3.0.0.1.0.0.3.0.0.0.4 ListBoxOption "Cutout" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.1.0.3.0.0.1.0.0.3.0.0.0.5 Button "Visibility Cutout" [checked] actions=[Click]
+    - r.1.1.0.3.0.0.1.0.0.4 GenericContainer ""
+    - r.1.1.0.3.0.0.1.0.0.4.0 GenericContainer ""
+    - r.1.1.0.3.0.0.1.0.0.4.0.0 GenericContainer ""
+    - r.1.1.0.3.0.0.1.0.0.4.0.0.0 Button "Move effect layer up" description="Move effect layer up" [disabled] actions=[Click,Focus]
+    - r.1.1.0.3.0.0.1.0.0.4.0.1 GenericContainer ""
+    - r.1.1.0.3.0.0.1.0.0.4.0.1.0 Button "Move effect layer down" description="Move effect layer down" actions=[Click,Focus]
+    - r.1.1.0.3.0.0.1.0.0.4.1 GenericContainer ""
+    - r.1.1.0.3.0.0.1.0.0.4.1.0 Button "New effect layer" description="New effect layer" actions=[Click,Focus]
+    - r.1.1.0.3.0.0.1.0.0.4.1.1 GenericContainer ""
+    - r.1.1.0.3.0.0.1.0.0.4.1.1.0 Button "Delete effect layer" description="Delete effect layer" actions=[Click,Focus]
+    - r.1.1.0.3.0.0.1.0.0.5 Status "Updating preview"
+    - r.1.1.0.4 Pane ""
+    - r.1.1.0.4.0 GenericContainer ""
+    - r.1.1.0.4.0.0 Group "Filters"
+    - r.1.1.0.4.0.0.0 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0.0 Group "Filters"
+    - r.1.1.0.4.0.0.0.0.0.0.0 DisclosureTriangle "Artistic" [expanded] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.0.0.0.0.1 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0.0.1.0 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0.0.1.0.0 Label "" value="Artistic"
+    - r.1.1.0.4.0.0.0.0.0.0.2 Button "Cutout" [unselected] actions=[Click]
+    - r.1.1.0.4.0.0.0.0.0.0.3 Button "Sponge" [unselected] actions=[Click]
+    - r.1.1.0.4.0.0.0.0.0.0.4 Button "Neon Glow" [selected] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.0.0.0.0.5 DisclosureTriangle "Sketch" [collapsed] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.0.0.0.0.6 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0.0.6.0 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0.0.6.0.0 Label "" value="Sketch"
+    - r.1.1.0.5 Pane ""
+    - r.1.1.0.5.0 GenericContainer ""
+    - r.1.1.0.5.0.0 GenericContainer ""
+    - r.1.1.0.5.0.0.0 Button "Zoom Out" description="Zoom Out" actions=[Click,Focus]
+    - r.1.1.0.5.0.0.1 Button "Zoom In" description="Zoom In" actions=[Click,Focus]
+    - r.1.1.0.5.0.0.2 ComboBox "Zoom" value="Fit in View" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.1.1.0.5.0.0.3 ProgressIndicator "Updating preview" number=0.4000000059604645 in 0..1 step -
+    - r.1.1.0.6 Canvas "Image" value="1%" actions=[Click,Focus]
+  Space: node gone
+  Enter: node gone
+  Escape: node gone
+drive r.1.1.0.3.0.0.0.0.1 Button "Cancel"
+  all steps: node gone
+drive r.1.1.0.3.0.0.1.0.0.0 ComboBox "Filter"
+  all steps: node gone
+drive r.1.1.0.3.0.0.1.0.0.1.0.1.0.0.0 Slider "Glow Size"
+  all steps: node gone
+drive r.1.1.0.3.0.0.1.0.0.1.0.1.0.0.1 SpinButton "Glow Size"
+  all steps: node gone
+drive r.1.1.0.3.0.0.1.0.0.1.0.3.0.0 ColorWell "Glow Color"
+  all steps: node gone
+drive r.1.1.0.3.0.0.1.0.0.2.0 Label ""
+  all steps: node gone
+drive r.1.1.0.3.0.0.1.0.0.3 ListBox "Effect Layers"
+  all steps: node gone
+drive r.1.1.0.3.0.0.1.0.0.3.0.0.0.0 ListBoxOption "Neon Glow"
+  all steps: node gone
+drive r.1.1.0.3.0.0.1.0.0.3.0.0.0.1 Button "Visibility Neon Glow"
+  all steps: node gone
+drive r.1.1.0.3.0.0.1.0.0.3.0.0.0.2 ListBoxOption "Sponge"
+  all steps: node gone
+drive r.1.1.0.3.0.0.1.0.0.3.0.0.0.3 Button "Visibility Sponge"
+  all steps: node gone
+drive r.1.1.0.3.0.0.1.0.0.3.0.0.0.4 ListBoxOption "Cutout"
+  all steps: node gone
+drive r.1.1.0.3.0.0.1.0.0.3.0.0.0.5 Button "Visibility Cutout"
+  all steps: node gone
+drive r.1.1.0.3.0.0.1.0.0.4.0.1.0 Button "Move effect layer down"
+  all steps: node gone
+drive r.1.1.0.3.0.0.1.0.0.4.1.0 Button "New effect layer"
+  all steps: node gone
+drive r.1.1.0.3.0.0.1.0.0.4.1.1.0 Button "Delete effect layer"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.0.0.0 DisclosureTriangle "Artistic"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.0.0.2 Button "Cutout"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.0.0.3 Button "Sponge"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.0.0.4 Button "Neon Glow"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.0.0.5 DisclosureTriangle "Sketch"
+  all steps: node gone
+drive r.1.1.0.5.0.0.0 Button "Zoom Out"
+  all steps: node gone
+drive r.1.1.0.5.0.0.1 Button "Zoom In"
+  all steps: node gone
+drive r.1.1.0.5.0.0.2 ComboBox "Zoom"
+  all steps: node gone
+drive r.1.1.0.6 Canvas "Image"
+  all steps: node gone

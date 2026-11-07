@@ -1,0 +1,20 @@
+story composites/histogram/markers
+args
+  width = Number { value: 256.0, min: 80.0, max: 400.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Image "Histogram" value="Levels points"
+            r.0.0.0.0.0.1 Image "0"
+            r.0.0.0.0.0.2 Image "1.00"
+            r.0.0.0.0.0.3 Image "255"
+tab
+  start: r Window ""
+  1: r Window ""
+  2: r Window ""
+  cycle after 1 nodes
+drive: 0 actionable nodes

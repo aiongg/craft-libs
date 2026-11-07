@@ -1,0 +1,98 @@
+story patterns/divide-slices-dialog/dialog
+args
+  open = Bool(true)
+  rows = Choice { options: ["off", "count", "size"], index: 1 }
+  rows value = Number { value: 2.0, min: 1.0, max: 1000.0 }
+  columns = Choice { options: ["off", "count", "size"], index: 0 }
+  columns value = Number { value: 3.0, min: 1.0, max: 1000.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+  r.1 Dialog "Divide Slice"
+    r.1.0 GenericContainer ""
+    r.1.1 GenericContainer ""
+      r.1.1.0 GenericContainer ""
+        r.1.1.0.0 GenericContainer ""
+          r.1.1.0.0.0 GenericContainer ""
+            r.1.1.0.0.0.0 GenericContainer ""
+              r.1.1.0.0.0.0.0 Heading "Divide Slice" value="Divide Slice"
+            r.1.1.0.0.0.1 Button "Close" description="Close" actions=[Click,Focus]
+            r.1.1.0.0.0.2 GenericContainer ""
+              r.1.1.0.0.0.2.0 GenericContainer ""
+                r.1.1.0.0.0.2.0.0 GenericContainer ""
+                  r.1.1.0.0.0.2.0.0.0 CheckBox "Divide Horizontally Into" [checked] actions=[Click,Focus]
+                  r.1.1.0.0.0.2.0.0.1 GenericContainer ""
+                    r.1.1.0.0.0.2.0.0.1.0 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.1.0.0 SpinButton "Divide Horizontally Into, slices, evenly spaced" value="2" number=2 in 1..1000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                        r.1.1.0.0.0.2.0.0.1.0.0.0 TextRun "" value="2"
+                      r.1.1.0.0.0.2.0.0.1.0.1 ComboBox "Divide Horizontally Into, slices, evenly spaced / pixels per slice" value="slices, evenly spaced" [collapsed popup:Listbox] actions=[Click,Focus]
+                  r.1.1.0.0.0.2.0.0.2 CheckBox "Divide Vertically Into" [unchecked] actions=[Click,Focus]
+                  r.1.1.0.0.0.2.0.0.3 GenericContainer ""
+                    r.1.1.0.0.0.2.0.0.3.0 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.3.0.0 SpinButton "Divide Vertically Into, slices, evenly spaced" value="1" number=1 in 1..1000 step - [disabled]
+                        r.1.1.0.0.0.2.0.0.3.0.0.0 TextRun "" value="1"
+                      r.1.1.0.0.0.2.0.0.3.0.1 ComboBox "Divide Vertically Into, slices, evenly spaced / pixels per slice" value="slices, evenly spaced" [disabled collapsed popup:Listbox] actions=[Click,Focus]
+              r.1.1.0.0.0.2.1 GenericContainer ""
+              r.1.1.0.0.0.2.2 GenericContainer ""
+                r.1.1.0.0.0.2.2.0 Button "OK" description="Default" actions=[Click,Focus]
+                r.1.1.0.0.0.2.2.1 Button "Cancel" actions=[Click,Focus]
+tab
+  start: r.1.1.0.0.0.2.0.0.1.0.0 SpinButton "Divide Horizontally Into, slices, evenly spaced"
+  1: r.1.1.0.0.0.2.2.0 Button "OK"
+  2: r.1.1.0.0.0.2.2.1 Button "Cancel"
+  3: r.1.1.0.0.0.2.0.0.1.0.0 SpinButton "Divide Horizontally Into, slices, evenly spaced"
+  4: r.1.1.0.0.0.2.2.0 Button "OK"
+  cycle after 3 nodes
+drive: 7 actionable nodes
+drive r.1.1.0.0.0.1 Button "Close"
+  click:
+    focus: r.1.1.0.0.0.2.2.0 Button "OK" -> r Window ""
+    arg open: Bool(true) -> Bool(false)
+    - r.1 Dialog "Divide Slice"
+    - r.1.0 GenericContainer ""
+    - r.1.1 GenericContainer ""
+    - r.1.1.0 GenericContainer ""
+    - r.1.1.0.0 GenericContainer ""
+    - r.1.1.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0.0 Heading "Divide Slice" value="Divide Slice"
+    - r.1.1.0.0.0.1 Button "Close" description="Close" actions=[Click,Focus]
+    - r.1.1.0.0.0.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0 CheckBox "Divide Horizontally Into" [checked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.0.0 SpinButton "Divide Horizontally Into, slices, evenly spaced" value="2" number=2 in 1..1000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.1.0.0.0 TextRun "" value="2"
+    - r.1.1.0.0.0.2.0.0.1.0.1 ComboBox "Divide Horizontally Into, slices, evenly spaced / pixels per slice" value="slices, evenly spaced" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.2 CheckBox "Divide Vertically Into" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.3 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.3.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.3.0.0 SpinButton "Divide Vertically Into, slices, evenly spaced" value="1" number=1 in 1..1000 step - [disabled]
+    - r.1.1.0.0.0.2.0.0.3.0.0.0 TextRun "" value="1"
+    - r.1.1.0.0.0.2.0.0.3.0.1 ComboBox "Divide Vertically Into, slices, evenly spaced / pixels per slice" value="slices, evenly spaced" [disabled collapsed popup:Listbox] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.1 GenericContainer ""
+    - r.1.1.0.0.0.2.2 GenericContainer ""
+    - r.1.1.0.0.0.2.2.0 Button "OK" description="Default" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.2.1 Button "Cancel" actions=[Click,Focus]
+    + r.0.0.0.0.0 Label "" value="Result: Cancel" actions=[Click]
+    + r.0.0.0.0.0.0 TextRun "" value="Result: Cancel"
+  Space: node gone
+  Enter: node gone
+  Escape: node gone
+drive r.1.1.0.0.0.2.0.0.0 CheckBox "Divide Horizontally Into"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.1.0.0 SpinButton "Divide Horizontally Into, slices, evenly spaced"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.1.0.1 ComboBox "Divide Horizontally Into, slices, evenly spaced / pixels per slice"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.2 CheckBox "Divide Vertically Into"
+  all steps: node gone
+drive r.1.1.0.0.0.2.2.0 Button "OK"
+  all steps: node gone
+drive r.1.1.0.0.0.2.2.1 Button "Cancel"
+  all steps: node gone

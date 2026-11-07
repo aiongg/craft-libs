@@ -1,0 +1,23 @@
+story primitives/before-after/modes
+args
+  mode = Choice { options: ["after", "original", "side by side", "stacked", "split", "split stacked"], index: 2 }
+  captions = Bool(true)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Image "Before"
+          r.0.0.0.0.1 Image "After"
+          r.0.0.0.0.2 Label "" value="Shown: Side by side" actions=[Click]
+            r.0.0.0.0.2.0 TextRun "" value="Shown: Side by side"
+tab
+  start: r Window ""
+  1: r Window ""
+  2: r Window ""
+  cycle after 1 nodes
+drive: 1 actionable nodes
+drive r.0.0.0.0.2 Label ""
+  click: no change
+  Escape: no change

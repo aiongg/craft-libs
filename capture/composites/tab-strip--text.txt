@@ -1,0 +1,157 @@
+story composites/tab-strip/text
+args
+  width = Number { value: 640.0, min: 160.0, max: 1200.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 TabList "Categories" actions=[Focus]
+              r.0.0.0.0.0.0.0 Tab "Recent" [selected] actions=[Click,Focus,ShowContextMenu]
+              r.0.0.0.0.0.0.1 Tab "Saved" [unselected] actions=[Click,Focus,ShowContextMenu]
+              r.0.0.0.0.0.0.2 Tab "Photo" [unselected] actions=[Click,Focus,ShowContextMenu]
+              r.0.0.0.0.0.0.3 Tab "Print" [unselected] actions=[Click,Focus,ShowContextMenu]
+              r.0.0.0.0.0.0.4 Tab "Art & Illustration" [unselected] actions=[Click,Focus,ShowContextMenu]
+              r.0.0.0.0.0.0.5 Tab "Web" [unselected] actions=[Click,Focus,ShowContextMenu]
+              r.0.0.0.0.0.0.6 Tab "Mobile" [unselected] actions=[Click,Focus,ShowContextMenu]
+              r.0.0.0.0.0.0.7 Tab "Film & Video" [unselected] actions=[Click,Focus,ShowContextMenu]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0 Tab "Recent"
+  2: r.0.0.0.0.0.0.0 Tab "Recent"
+  cycle after 1 nodes
+drive: 9 actionable nodes
+drive r.0.0.0.0.0.0 TabList "Categories"
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.0.0 Tab "Recent" -> r.0.0.0.0.0.0.1 Tab "Saved"
+  Escape:
+    focus: r.0.0.0.0.0.0.1 Tab "Saved" -> r Window ""
+drive r.0.0.0.0.0.0.0 Tab "Recent"
+  click: no change
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.0.0 Tab "Recent" -> r.0.0.0.0.0.0.1 Tab "Saved"
+  Escape:
+    focus: r.0.0.0.0.0.0.0 Tab "Recent" -> r Window ""
+drive r.0.0.0.0.0.0.1 Tab "Saved"
+  click:
+    - r.0.0.0.0.0.0.0 Tab "Recent" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.1 Tab "Saved" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0 Tab "Recent" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.1 Tab "Saved" [selected] actions=[Click,Focus,ShowContextMenu]
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.0.1 Tab "Saved" -> r.0.0.0.0.0.0.0 Tab "Recent"
+  ArrowRight:
+    focus: r.0.0.0.0.0.0.1 Tab "Saved" -> r.0.0.0.0.0.0.2 Tab "Photo"
+  Escape:
+    focus: r.0.0.0.0.0.0.1 Tab "Saved" -> r Window ""
+drive r.0.0.0.0.0.0.2 Tab "Photo"
+  click:
+    - r.0.0.0.0.0.0.1 Tab "Saved" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.2 Tab "Photo" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.1 Tab "Saved" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.2 Tab "Photo" [selected] actions=[Click,Focus,ShowContextMenu]
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.0.2 Tab "Photo" -> r.0.0.0.0.0.0.1 Tab "Saved"
+  ArrowRight:
+    focus: r.0.0.0.0.0.0.2 Tab "Photo" -> r.0.0.0.0.0.0.3 Tab "Print"
+  Escape:
+    focus: r.0.0.0.0.0.0.2 Tab "Photo" -> r Window ""
+drive r.0.0.0.0.0.0.3 Tab "Print"
+  click:
+    - r.0.0.0.0.0.0.2 Tab "Photo" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.3 Tab "Print" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.2 Tab "Photo" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.3 Tab "Print" [selected] actions=[Click,Focus,ShowContextMenu]
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.0.3 Tab "Print" -> r.0.0.0.0.0.0.2 Tab "Photo"
+  ArrowRight:
+    focus: r.0.0.0.0.0.0.3 Tab "Print" -> r.0.0.0.0.0.0.4 Tab "Art & Illustration"
+  Escape:
+    focus: r.0.0.0.0.0.0.3 Tab "Print" -> r Window ""
+drive r.0.0.0.0.0.0.4 Tab "Art & Illustration"
+  click:
+    - r.0.0.0.0.0.0.3 Tab "Print" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.4 Tab "Art & Illustration" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.3 Tab "Print" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.4 Tab "Art & Illustration" [selected] actions=[Click,Focus,ShowContextMenu]
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.0.4 Tab "Art & Illustration" -> r.0.0.0.0.0.0.3 Tab "Print"
+  ArrowRight:
+    focus: r.0.0.0.0.0.0.4 Tab "Art & Illustration" -> r.0.0.0.0.0.0.5 Tab "Web"
+  Escape:
+    focus: r.0.0.0.0.0.0.4 Tab "Art & Illustration" -> r Window ""
+drive r.0.0.0.0.0.0.5 Tab "Web"
+  click:
+    - r.0.0.0.0.0.0.4 Tab "Art & Illustration" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.5 Tab "Web" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.4 Tab "Art & Illustration" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.5 Tab "Web" [selected] actions=[Click,Focus,ShowContextMenu]
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.0.5 Tab "Web" -> r.0.0.0.0.0.0.4 Tab "Art & Illustration"
+  ArrowRight:
+    focus: r.0.0.0.0.0.0.5 Tab "Web" -> r.0.0.0.0.0.0.6 Tab "Mobile"
+  Escape:
+    focus: r.0.0.0.0.0.0.5 Tab "Web" -> r Window ""
+drive r.0.0.0.0.0.0.6 Tab "Mobile"
+  click:
+    - r.0.0.0.0.0.0.5 Tab "Web" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.6 Tab "Mobile" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.5 Tab "Web" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.6 Tab "Mobile" [selected] actions=[Click,Focus,ShowContextMenu]
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.0.6 Tab "Mobile" -> r.0.0.0.0.0.0.5 Tab "Web"
+  ArrowRight:
+    focus: r.0.0.0.0.0.0.6 Tab "Mobile" -> r.0.0.0.0.0.0.7 Tab "Film & Video"
+  Escape:
+    focus: r.0.0.0.0.0.0.6 Tab "Mobile" -> r Window ""
+drive r.0.0.0.0.0.0.7 Tab "Film & Video"
+  click:
+    - r.0.0.0.0.0.0.6 Tab "Mobile" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.7 Tab "Film & Video" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.6 Tab "Mobile" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.7 Tab "Film & Video" [selected] actions=[Click,Focus,ShowContextMenu]
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.0.7 Tab "Film & Video" -> r.0.0.0.0.0.0.6 Tab "Mobile"
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.7 Tab "Film & Video" -> r Window ""

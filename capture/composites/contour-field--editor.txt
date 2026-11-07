@@ -1,0 +1,448 @@
+story composites/contour-field/editor
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 Label "" value="Contour" actions=[Click]
+                r.0.0.0.0.0.0.0.0 TextRun "" value="Contour"
+              r.0.0.0.0.0.0.1 Image "" [hidden]
+              r.0.0.0.0.0.0.2 Button "Contour Editor" value="Cone" description="Contour Editor" actions=[Click,Focus]
+              r.0.0.0.0.0.0.3 Button "Contour presets" [collapsed popup:Dialog] actions=[Click,Focus]
+              r.0.0.0.0.0.0.4 CheckBox "Anti-aliased" [unchecked] actions=[Click,Focus]
+          r.0.0.0.0.1 Label "" value="Contour: Cone, 18 points." actions=[Click]
+            r.0.0.0.0.1.0 TextRun "" value="Contour: Cone, 18 points."
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.2 Button "Contour Editor"
+  2: r.0.0.0.0.0.0.3 Button "Contour presets"
+  3: r.0.0.0.0.0.0.4 CheckBox "Anti-aliased"
+  4: r.0.0.0.0.0.0.2 Button "Contour Editor"
+  cycle after 3 nodes
+drive: 5 actionable nodes
+drive r.0.0.0.0.0.0.0 Label ""
+  click:
+    focus: r.0.0.0.0.0.0.2 Button "Contour Editor" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.0.0.2 Button "Contour Editor"
+  click:
+    focus: r Window "" -> r.1.1.0.0.0.2.1.0 Button "OK"
+    + r.1 Dialog "Contour Editor"
+    + r.1.0 GenericContainer ""
+    + r.1.1 GenericContainer ""
+    + r.1.1.0 GenericContainer ""
+    + r.1.1.0.0 GenericContainer ""
+    + r.1.1.0.0.0 GenericContainer ""
+    + r.1.1.0.0.0.0 GenericContainer ""
+    + r.1.1.0.0.0.0.0 Heading "Contour Editor" value="Contour Editor"
+    + r.1.1.0.0.0.1 Button "Close" description="Close" actions=[Click,Focus]
+    + r.1.1.0.0.0.2 GenericContainer ""
+    + r.1.1.0.0.0.2.0 GenericContainer ""
+    + r.1.1.0.0.0.2.0.0 GenericContainer ""
+    + r.1.1.0.0.0.2.0.0.0 GenericContainer ""
+    + r.1.1.0.0.0.2.0.0.0.0 GenericContainer ""
+    + r.1.1.0.0.0.2.0.0.0.0.0 GenericContainer ""
+    + r.1.1.0.0.0.2.0.0.0.0.0.0 Label "" value="Preset" actions=[Click]
+    + r.1.1.0.0.0.2.0.0.0.0.0.0.0 TextRun "" value="Preset"
+    + r.1.1.0.0.0.2.0.0.0.0.0.1 ComboBox "Preset" value="Cone" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.1.1.0.0.0.2.0.0.0.1 GenericContainer ""
+    + r.1.1.0.0.0.2.0.0.0.1.0 GenericContainer ""
+    + r.1.1.0.0.0.2.0.0.0.1.0.0 Group "Cone" value="18 points" actions=[Click,Focus]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.0 GraphicsObject "Point 1 of 18" value="Input 0%, Output 0%" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.1 GraphicsObject "Point 2 of 18" value="Input 17%, Output 48%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.2 GraphicsObject "Point 3 of 18" value="Input 20%, Output 56%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.3 GraphicsObject "Point 4 of 18" value="Input 27%, Output 71%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.4 GraphicsObject "Point 5 of 18" value="Input 38%, Output 92%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.5 GraphicsObject "Point 6 of 18" value="Input 43%, Output 97%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.6 GraphicsObject "Point 7 of 18" value="Input 48%, Output 99%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.7 GraphicsObject "Point 8 of 18" value="Input 52%, Output 99%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.8 GraphicsObject "Point 9 of 18" value="Input 57%, Output 97%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.9 GraphicsObject "Point 10 of 18" value="Input 66%, Output 86%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.10 GraphicsObject "Point 11 of 18" value="Input 70%, Output 79%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.11 GraphicsObject "Point 12 of 18" value="Input 74%, Output 71%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.12 GraphicsObject "Point 13 of 18" value="Input 84%, Output 48%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.13 GraphicsObject "Point 14 of 18" value="Input 86%, Output 40%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.14 GraphicsObject "Point 15 of 18" value="Input 91%, Output 27%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.15 GraphicsObject "Point 16 of 18" value="Input 95%, Output 16%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.16 GraphicsObject "Point 17 of 18" value="Input 98%, Output 8%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.17 GraphicsObject "Point 18 of 18" value="Input 100%, Output 0%" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.1 GenericContainer ""
+    + r.1.1.0.0.0.2.0.0.0.1.0.1.0 GenericContainer ""
+    + r.1.1.0.0.0.2.0.0.0.1.0.1.0.0 Label "" value="Input"
+    + r.1.1.0.0.0.2.0.0.0.1.0.1.1 GenericContainer ""
+    + r.1.1.0.0.0.2.0.0.0.1.0.1.1.0 SpinButton "Input" value="0%" number=0 in 0..100 step - labelled_by=[r.1.1.0.0.0.2.0.0.0.1.0.1.0.0] [disabled]
+    + r.1.1.0.0.0.2.0.0.0.1.0.1.1.0.0 TextRun "" value="0"
+    + r.1.1.0.0.0.2.0.0.0.1.0.1.2 GenericContainer ""
+    + r.1.1.0.0.0.2.0.0.0.1.0.1.2.0 Label "" value="Output"
+    + r.1.1.0.0.0.2.0.0.0.1.0.1.3 GenericContainer ""
+    + r.1.1.0.0.0.2.0.0.0.1.0.1.3.0 SpinButton "Output" value="0%" number=0 in 0..100 step - labelled_by=[r.1.1.0.0.0.2.0.0.0.1.0.1.2.0] [disabled]
+    + r.1.1.0.0.0.2.0.0.0.1.0.1.3.0.0 TextRun "" value="0"
+    + r.1.1.0.0.0.2.0.0.0.1.0.2 CheckBox "Corner" [disabled unchecked] actions=[Click,Focus]
+    + r.1.1.0.0.0.2.1 GenericContainer ""
+    + r.1.1.0.0.0.2.1.0 Button "OK" description="Default" actions=[Click,Focus]
+    + r.1.1.0.0.0.2.1.1 Button "Cancel" actions=[Click,Focus]
+    + r.1.1.0.0.0.2.1.2 Button "Load…" actions=[Click,Focus]
+    + r.1.1.0.0.0.2.1.3 Button "Save…" actions=[Click,Focus]
+    + r.1.1.0.0.0.2.1.4 Button "New…" actions=[Click,Focus]
+  Space:
+    focus: r.1.1.0.0.0.2.1.0 Button "OK" -> r Window ""
+    - r.1 Dialog "Contour Editor"
+    - r.1.0 GenericContainer ""
+    - r.1.1 GenericContainer ""
+    - r.1.1.0 GenericContainer ""
+    - r.1.1.0.0 GenericContainer ""
+    - r.1.1.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0.0 Heading "Contour Editor" value="Contour Editor"
+    - r.1.1.0.0.0.1 Button "Close" description="Close" actions=[Click,Focus]
+    - r.1.1.0.0.0.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.0.0 Label "" value="Preset" actions=[Click]
+    - r.1.1.0.0.0.2.0.0.0.0.0.0.0 TextRun "" value="Preset"
+    - r.1.1.0.0.0.2.0.0.0.0.0.1 ComboBox "Preset" value="Cone" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.0.0 Group "Cone" value="18 points" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.0 GraphicsObject "Point 1 of 18" value="Input 0%, Output 0%" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.1 GraphicsObject "Point 2 of 18" value="Input 17%, Output 48%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.2 GraphicsObject "Point 3 of 18" value="Input 20%, Output 56%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.3 GraphicsObject "Point 4 of 18" value="Input 27%, Output 71%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.4 GraphicsObject "Point 5 of 18" value="Input 38%, Output 92%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.5 GraphicsObject "Point 6 of 18" value="Input 43%, Output 97%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.6 GraphicsObject "Point 7 of 18" value="Input 48%, Output 99%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.7 GraphicsObject "Point 8 of 18" value="Input 52%, Output 99%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.8 GraphicsObject "Point 9 of 18" value="Input 57%, Output 97%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.9 GraphicsObject "Point 10 of 18" value="Input 66%, Output 86%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.10 GraphicsObject "Point 11 of 18" value="Input 70%, Output 79%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.11 GraphicsObject "Point 12 of 18" value="Input 74%, Output 71%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.12 GraphicsObject "Point 13 of 18" value="Input 84%, Output 48%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.13 GraphicsObject "Point 14 of 18" value="Input 86%, Output 40%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.14 GraphicsObject "Point 15 of 18" value="Input 91%, Output 27%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.15 GraphicsObject "Point 16 of 18" value="Input 95%, Output 16%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.16 GraphicsObject "Point 17 of 18" value="Input 98%, Output 8%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.17 GraphicsObject "Point 18 of 18" value="Input 100%, Output 0%" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.0.1.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.0.1.0.0 Label "" value="Input"
+    - r.1.1.0.0.0.2.0.0.0.1.0.1.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.0.1.1.0 SpinButton "Input" value="0%" number=0 in 0..100 step - labelled_by=[r.1.1.0.0.0.2.0.0.0.1.0.1.0.0] [disabled]
+    - r.1.1.0.0.0.2.0.0.0.1.0.1.1.0.0 TextRun "" value="0"
+    - r.1.1.0.0.0.2.0.0.0.1.0.1.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.0.1.2.0 Label "" value="Output"
+    - r.1.1.0.0.0.2.0.0.0.1.0.1.3 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.0.1.3.0 SpinButton "Output" value="0%" number=0 in 0..100 step - labelled_by=[r.1.1.0.0.0.2.0.0.0.1.0.1.2.0] [disabled]
+    - r.1.1.0.0.0.2.0.0.0.1.0.1.3.0.0 TextRun "" value="0"
+    - r.1.1.0.0.0.2.0.0.0.1.0.2 CheckBox "Corner" [disabled unchecked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.1 GenericContainer ""
+    - r.1.1.0.0.0.2.1.0 Button "OK" description="Default" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.1.1 Button "Cancel" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.1.2 Button "Load…" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.1.3 Button "Save…" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.1.4 Button "New…" actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.0.0.2 Button "Contour Editor" -> r.1.1.0.0.0.2.1.0 Button "OK"
+    + r.1 Dialog "Contour Editor"
+    + r.1.0 GenericContainer ""
+    + r.1.1 GenericContainer ""
+    + r.1.1.0 GenericContainer ""
+    + r.1.1.0.0 GenericContainer ""
+    + r.1.1.0.0.0 GenericContainer ""
+    + r.1.1.0.0.0.0 GenericContainer ""
+    + r.1.1.0.0.0.0.0 Heading "Contour Editor" value="Contour Editor"
+    + r.1.1.0.0.0.1 Button "Close" description="Close" actions=[Click,Focus]
+    + r.1.1.0.0.0.2 GenericContainer ""
+    + r.1.1.0.0.0.2.0 GenericContainer ""
+    + r.1.1.0.0.0.2.0.0 GenericContainer ""
+    + r.1.1.0.0.0.2.0.0.0 GenericContainer ""
+    + r.1.1.0.0.0.2.0.0.0.0 GenericContainer ""
+    + r.1.1.0.0.0.2.0.0.0.0.0 GenericContainer ""
+    + r.1.1.0.0.0.2.0.0.0.0.0.0 Label "" value="Preset" actions=[Click]
+    + r.1.1.0.0.0.2.0.0.0.0.0.0.0 TextRun "" value="Preset"
+    + r.1.1.0.0.0.2.0.0.0.0.0.1 ComboBox "Preset" value="Cone" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.1.1.0.0.0.2.0.0.0.1 GenericContainer ""
+    + r.1.1.0.0.0.2.0.0.0.1.0 GenericContainer ""
+    + r.1.1.0.0.0.2.0.0.0.1.0.0 Group "Cone" value="18 points" actions=[Click,Focus]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.0 GraphicsObject "Point 1 of 18" value="Input 0%, Output 0%" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.1 GraphicsObject "Point 2 of 18" value="Input 17%, Output 48%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.2 GraphicsObject "Point 3 of 18" value="Input 20%, Output 56%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.3 GraphicsObject "Point 4 of 18" value="Input 27%, Output 71%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.4 GraphicsObject "Point 5 of 18" value="Input 38%, Output 92%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.5 GraphicsObject "Point 6 of 18" value="Input 43%, Output 97%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.6 GraphicsObject "Point 7 of 18" value="Input 48%, Output 99%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.7 GraphicsObject "Point 8 of 18" value="Input 52%, Output 99%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.8 GraphicsObject "Point 9 of 18" value="Input 57%, Output 97%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.9 GraphicsObject "Point 10 of 18" value="Input 66%, Output 86%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.10 GraphicsObject "Point 11 of 18" value="Input 70%, Output 79%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.11 GraphicsObject "Point 12 of 18" value="Input 74%, Output 71%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.12 GraphicsObject "Point 13 of 18" value="Input 84%, Output 48%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.13 GraphicsObject "Point 14 of 18" value="Input 86%, Output 40%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.14 GraphicsObject "Point 15 of 18" value="Input 91%, Output 27%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.15 GraphicsObject "Point 16 of 18" value="Input 95%, Output 16%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.16 GraphicsObject "Point 17 of 18" value="Input 98%, Output 8%, corner" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.0.17 GraphicsObject "Point 18 of 18" value="Input 100%, Output 0%" [unselected]
+    + r.1.1.0.0.0.2.0.0.0.1.0.1 GenericContainer ""
+    + r.1.1.0.0.0.2.0.0.0.1.0.1.0 GenericContainer ""
+    + r.1.1.0.0.0.2.0.0.0.1.0.1.0.0 Label "" value="Input"
+    + r.1.1.0.0.0.2.0.0.0.1.0.1.1 GenericContainer ""
+    + r.1.1.0.0.0.2.0.0.0.1.0.1.1.0 SpinButton "Input" value="0%" number=0 in 0..100 step - labelled_by=[r.1.1.0.0.0.2.0.0.0.1.0.1.0.0] [disabled]
+    + r.1.1.0.0.0.2.0.0.0.1.0.1.1.0.0 TextRun "" value="0"
+    + r.1.1.0.0.0.2.0.0.0.1.0.1.2 GenericContainer ""
+    + r.1.1.0.0.0.2.0.0.0.1.0.1.2.0 Label "" value="Output"
+    + r.1.1.0.0.0.2.0.0.0.1.0.1.3 GenericContainer ""
+    + r.1.1.0.0.0.2.0.0.0.1.0.1.3.0 SpinButton "Output" value="0%" number=0 in 0..100 step - labelled_by=[r.1.1.0.0.0.2.0.0.0.1.0.1.2.0] [disabled]
+    + r.1.1.0.0.0.2.0.0.0.1.0.1.3.0.0 TextRun "" value="0"
+    + r.1.1.0.0.0.2.0.0.0.1.0.2 CheckBox "Corner" [disabled unchecked] actions=[Click,Focus]
+    + r.1.1.0.0.0.2.1 GenericContainer ""
+    + r.1.1.0.0.0.2.1.0 Button "OK" description="Default" actions=[Click,Focus]
+    + r.1.1.0.0.0.2.1.1 Button "Cancel" actions=[Click,Focus]
+    + r.1.1.0.0.0.2.1.2 Button "Load…" actions=[Click,Focus]
+    + r.1.1.0.0.0.2.1.3 Button "Save…" actions=[Click,Focus]
+    + r.1.1.0.0.0.2.1.4 Button "New…" actions=[Click,Focus]
+  Escape:
+    focus: r.1.1.0.0.0.2.1.0 Button "OK" -> r Window ""
+    - r.1 Dialog "Contour Editor"
+    - r.1.0 GenericContainer ""
+    - r.1.1 GenericContainer ""
+    - r.1.1.0 GenericContainer ""
+    - r.1.1.0.0 GenericContainer ""
+    - r.1.1.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0.0 Heading "Contour Editor" value="Contour Editor"
+    - r.1.1.0.0.0.1 Button "Close" description="Close" actions=[Click,Focus]
+    - r.1.1.0.0.0.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.0.0 Label "" value="Preset" actions=[Click]
+    - r.1.1.0.0.0.2.0.0.0.0.0.0.0 TextRun "" value="Preset"
+    - r.1.1.0.0.0.2.0.0.0.0.0.1 ComboBox "Preset" value="Cone" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.0.0 Group "Cone" value="18 points" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.0 GraphicsObject "Point 1 of 18" value="Input 0%, Output 0%" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.1 GraphicsObject "Point 2 of 18" value="Input 17%, Output 48%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.2 GraphicsObject "Point 3 of 18" value="Input 20%, Output 56%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.3 GraphicsObject "Point 4 of 18" value="Input 27%, Output 71%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.4 GraphicsObject "Point 5 of 18" value="Input 38%, Output 92%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.5 GraphicsObject "Point 6 of 18" value="Input 43%, Output 97%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.6 GraphicsObject "Point 7 of 18" value="Input 48%, Output 99%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.7 GraphicsObject "Point 8 of 18" value="Input 52%, Output 99%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.8 GraphicsObject "Point 9 of 18" value="Input 57%, Output 97%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.9 GraphicsObject "Point 10 of 18" value="Input 66%, Output 86%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.10 GraphicsObject "Point 11 of 18" value="Input 70%, Output 79%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.11 GraphicsObject "Point 12 of 18" value="Input 74%, Output 71%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.12 GraphicsObject "Point 13 of 18" value="Input 84%, Output 48%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.13 GraphicsObject "Point 14 of 18" value="Input 86%, Output 40%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.14 GraphicsObject "Point 15 of 18" value="Input 91%, Output 27%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.15 GraphicsObject "Point 16 of 18" value="Input 95%, Output 16%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.16 GraphicsObject "Point 17 of 18" value="Input 98%, Output 8%, corner" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.17 GraphicsObject "Point 18 of 18" value="Input 100%, Output 0%" [unselected]
+    - r.1.1.0.0.0.2.0.0.0.1.0.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.0.1.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.0.1.0.0 Label "" value="Input"
+    - r.1.1.0.0.0.2.0.0.0.1.0.1.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.0.1.1.0 SpinButton "Input" value="0%" number=0 in 0..100 step - labelled_by=[r.1.1.0.0.0.2.0.0.0.1.0.1.0.0] [disabled]
+    - r.1.1.0.0.0.2.0.0.0.1.0.1.1.0.0 TextRun "" value="0"
+    - r.1.1.0.0.0.2.0.0.0.1.0.1.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.0.1.2.0 Label "" value="Output"
+    - r.1.1.0.0.0.2.0.0.0.1.0.1.3 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.0.1.3.0 SpinButton "Output" value="0%" number=0 in 0..100 step - labelled_by=[r.1.1.0.0.0.2.0.0.0.1.0.1.2.0] [disabled]
+    - r.1.1.0.0.0.2.0.0.0.1.0.1.3.0.0 TextRun "" value="0"
+    - r.1.1.0.0.0.2.0.0.0.1.0.2 CheckBox "Corner" [disabled unchecked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.1 GenericContainer ""
+    - r.1.1.0.0.0.2.1.0 Button "OK" description="Default" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.1.1 Button "Cancel" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.1.2 Button "Load…" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.1.3 Button "Save…" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.1.4 Button "New…" actions=[Click,Focus]
+drive r.0.0.0.0.0.0.3 Button "Contour presets"
+  click:
+    focus: r Window "" -> r.1.0.0.3 Button "Cone"
+    - r.0.0.0.0.0.0.3 Button "Contour presets" [collapsed popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.3 Button "Contour presets" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.1 Dialog "Contour presets"
+    + r.1.0 GenericContainer ""
+    + r.1.0.0 GenericContainer ""
+    + r.1.0.0.0 Image "" [hidden]
+    + r.1.0.0.1 Button "Linear" description="Linear" [unselected] actions=[Click]
+    + r.1.0.0.2 Image "" [hidden]
+    + r.1.0.0.3 Button "Cone" description="Cone" [selected] actions=[Click,Focus]
+    + r.1.0.0.4 Image "" [hidden]
+    + r.1.0.0.5 Button "Cone - Inverted" description="Cone - Inverted" [unselected] actions=[Click]
+    + r.1.0.0.6 Image "" [hidden]
+    + r.1.0.0.7 Button "Cove - Deep" description="Cove - Deep" [unselected] actions=[Click]
+    + r.1.0.1 GenericContainer ""
+    + r.1.0.1.0 Image "" [hidden]
+    + r.1.0.1.1 Button "Cove - Shallow" description="Cove - Shallow" [unselected] actions=[Click]
+    + r.1.0.1.2 Image "" [hidden]
+    + r.1.0.1.3 Button "Gaussian" description="Gaussian" [unselected] actions=[Click]
+    + r.1.0.1.4 Image "" [hidden]
+    + r.1.0.1.5 Button "Half Round" description="Half Round" [unselected] actions=[Click]
+    + r.1.0.1.6 Image "" [hidden]
+    + r.1.0.1.7 Button "Ring" description="Ring" [unselected] actions=[Click]
+    + r.1.0.2 GenericContainer ""
+    + r.1.0.2.0 Image "" [hidden]
+    + r.1.0.2.1 Button "Ring - Double" description="Ring - Double" [unselected] actions=[Click]
+    + r.1.0.2.2 Image "" [hidden]
+    + r.1.0.2.3 Button "Rolling Slope - Descending" description="Rolling Slope - Descending" [unselected] actions=[Click]
+    + r.1.0.2.4 Image "" [hidden]
+    + r.1.0.2.5 Button "Rounded Steps" description="Rounded Steps" [unselected] actions=[Click]
+    + r.1.0.2.6 Image "" [hidden]
+    + r.1.0.2.7 Button "Sawtooth 1" description="Sawtooth 1" [unselected] actions=[Click]
+    + r.1.0.3 GenericContainer ""
+    + r.1.0.3.0 Image "" [hidden]
+    + r.1.0.3.1 Button "Soft Ramp" description="Soft Ramp" [unselected] actions=[Click]
+    + r.1.0.3.2 Image "" [hidden]
+    + r.1.0.3.3 Button "Notch" description="Notch" [unselected] actions=[Click]
+    + r.1.0.4 Button "Load Contours…" actions=[Click,Focus]
+    + r.1.0.5 Button "Replace Contours…" actions=[Click,Focus]
+    + r.1.0.6 Button "Save Contours…" actions=[Click,Focus]
+  Space:
+    focus: r.1.0.0.3 Button "Cone" -> r Window ""
+    - r.0.0.0.0.0.0.3 Button "Contour presets" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.3 Button "Contour presets" [collapsed popup:Dialog] actions=[Click,Focus]
+    - r.1 Dialog "Contour presets"
+    - r.1.0 GenericContainer ""
+    - r.1.0.0 GenericContainer ""
+    - r.1.0.0.0 Image "" [hidden]
+    - r.1.0.0.1 Button "Linear" description="Linear" [unselected] actions=[Click]
+    - r.1.0.0.2 Image "" [hidden]
+    - r.1.0.0.3 Button "Cone" description="Cone" [selected] actions=[Click,Focus]
+    - r.1.0.0.4 Image "" [hidden]
+    - r.1.0.0.5 Button "Cone - Inverted" description="Cone - Inverted" [unselected] actions=[Click]
+    - r.1.0.0.6 Image "" [hidden]
+    - r.1.0.0.7 Button "Cove - Deep" description="Cove - Deep" [unselected] actions=[Click]
+    - r.1.0.1 GenericContainer ""
+    - r.1.0.1.0 Image "" [hidden]
+    - r.1.0.1.1 Button "Cove - Shallow" description="Cove - Shallow" [unselected] actions=[Click]
+    - r.1.0.1.2 Image "" [hidden]
+    - r.1.0.1.3 Button "Gaussian" description="Gaussian" [unselected] actions=[Click]
+    - r.1.0.1.4 Image "" [hidden]
+    - r.1.0.1.5 Button "Half Round" description="Half Round" [unselected] actions=[Click]
+    - r.1.0.1.6 Image "" [hidden]
+    - r.1.0.1.7 Button "Ring" description="Ring" [unselected] actions=[Click]
+    - r.1.0.2 GenericContainer ""
+    - r.1.0.2.0 Image "" [hidden]
+    - r.1.0.2.1 Button "Ring - Double" description="Ring - Double" [unselected] actions=[Click]
+    - r.1.0.2.2 Image "" [hidden]
+    - r.1.0.2.3 Button "Rolling Slope - Descending" description="Rolling Slope - Descending" [unselected] actions=[Click]
+    - r.1.0.2.4 Image "" [hidden]
+    - r.1.0.2.5 Button "Rounded Steps" description="Rounded Steps" [unselected] actions=[Click]
+    - r.1.0.2.6 Image "" [hidden]
+    - r.1.0.2.7 Button "Sawtooth 1" description="Sawtooth 1" [unselected] actions=[Click]
+    - r.1.0.3 GenericContainer ""
+    - r.1.0.3.0 Image "" [hidden]
+    - r.1.0.3.1 Button "Soft Ramp" description="Soft Ramp" [unselected] actions=[Click]
+    - r.1.0.3.2 Image "" [hidden]
+    - r.1.0.3.3 Button "Notch" description="Notch" [unselected] actions=[Click]
+    - r.1.0.4 Button "Load Contours…" actions=[Click,Focus]
+    - r.1.0.5 Button "Replace Contours…" actions=[Click,Focus]
+    - r.1.0.6 Button "Save Contours…" actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.0.0.3 Button "Contour presets" -> r.1.0.0.3 Button "Cone"
+    - r.0.0.0.0.0.0.3 Button "Contour presets" [collapsed popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.3 Button "Contour presets" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.1 Dialog "Contour presets"
+    + r.1.0 GenericContainer ""
+    + r.1.0.0 GenericContainer ""
+    + r.1.0.0.0 Image "" [hidden]
+    + r.1.0.0.1 Button "Linear" description="Linear" [unselected] actions=[Click]
+    + r.1.0.0.2 Image "" [hidden]
+    + r.1.0.0.3 Button "Cone" description="Cone" [selected] actions=[Click,Focus]
+    + r.1.0.0.4 Image "" [hidden]
+    + r.1.0.0.5 Button "Cone - Inverted" description="Cone - Inverted" [unselected] actions=[Click]
+    + r.1.0.0.6 Image "" [hidden]
+    + r.1.0.0.7 Button "Cove - Deep" description="Cove - Deep" [unselected] actions=[Click]
+    + r.1.0.1 GenericContainer ""
+    + r.1.0.1.0 Image "" [hidden]
+    + r.1.0.1.1 Button "Cove - Shallow" description="Cove - Shallow" [unselected] actions=[Click]
+    + r.1.0.1.2 Image "" [hidden]
+    + r.1.0.1.3 Button "Gaussian" description="Gaussian" [unselected] actions=[Click]
+    + r.1.0.1.4 Image "" [hidden]
+    + r.1.0.1.5 Button "Half Round" description="Half Round" [unselected] actions=[Click]
+    + r.1.0.1.6 Image "" [hidden]
+    + r.1.0.1.7 Button "Ring" description="Ring" [unselected] actions=[Click]
+    + r.1.0.2 GenericContainer ""
+    + r.1.0.2.0 Image "" [hidden]
+    + r.1.0.2.1 Button "Ring - Double" description="Ring - Double" [unselected] actions=[Click]
+    + r.1.0.2.2 Image "" [hidden]
+    + r.1.0.2.3 Button "Rolling Slope - Descending" description="Rolling Slope - Descending" [unselected] actions=[Click]
+    + r.1.0.2.4 Image "" [hidden]
+    + r.1.0.2.5 Button "Rounded Steps" description="Rounded Steps" [unselected] actions=[Click]
+    + r.1.0.2.6 Image "" [hidden]
+    + r.1.0.2.7 Button "Sawtooth 1" description="Sawtooth 1" [unselected] actions=[Click]
+    + r.1.0.3 GenericContainer ""
+    + r.1.0.3.0 Image "" [hidden]
+    + r.1.0.3.1 Button "Soft Ramp" description="Soft Ramp" [unselected] actions=[Click]
+    + r.1.0.3.2 Image "" [hidden]
+    + r.1.0.3.3 Button "Notch" description="Notch" [unselected] actions=[Click]
+    + r.1.0.4 Button "Load Contours…" actions=[Click,Focus]
+    + r.1.0.5 Button "Replace Contours…" actions=[Click,Focus]
+    + r.1.0.6 Button "Save Contours…" actions=[Click,Focus]
+  Escape:
+    focus: r.1.0.0.3 Button "Cone" -> r.0.0.0.0.0.0.3 Button "Contour presets"
+    - r.0.0.0.0.0.0.3 Button "Contour presets" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.3 Button "Contour presets" [collapsed popup:Dialog] actions=[Click,Focus]
+    - r.1 Dialog "Contour presets"
+    - r.1.0 GenericContainer ""
+    - r.1.0.0 GenericContainer ""
+    - r.1.0.0.0 Image "" [hidden]
+    - r.1.0.0.1 Button "Linear" description="Linear" [unselected] actions=[Click]
+    - r.1.0.0.2 Image "" [hidden]
+    - r.1.0.0.3 Button "Cone" description="Cone" [selected] actions=[Click,Focus]
+    - r.1.0.0.4 Image "" [hidden]
+    - r.1.0.0.5 Button "Cone - Inverted" description="Cone - Inverted" [unselected] actions=[Click]
+    - r.1.0.0.6 Image "" [hidden]
+    - r.1.0.0.7 Button "Cove - Deep" description="Cove - Deep" [unselected] actions=[Click]
+    - r.1.0.1 GenericContainer ""
+    - r.1.0.1.0 Image "" [hidden]
+    - r.1.0.1.1 Button "Cove - Shallow" description="Cove - Shallow" [unselected] actions=[Click]
+    - r.1.0.1.2 Image "" [hidden]
+    - r.1.0.1.3 Button "Gaussian" description="Gaussian" [unselected] actions=[Click]
+    - r.1.0.1.4 Image "" [hidden]
+    - r.1.0.1.5 Button "Half Round" description="Half Round" [unselected] actions=[Click]
+    - r.1.0.1.6 Image "" [hidden]
+    - r.1.0.1.7 Button "Ring" description="Ring" [unselected] actions=[Click]
+    - r.1.0.2 GenericContainer ""
+    - r.1.0.2.0 Image "" [hidden]
+    - r.1.0.2.1 Button "Ring - Double" description="Ring - Double" [unselected] actions=[Click]
+    - r.1.0.2.2 Image "" [hidden]
+    - r.1.0.2.3 Button "Rolling Slope - Descending" description="Rolling Slope - Descending" [unselected] actions=[Click]
+    - r.1.0.2.4 Image "" [hidden]
+    - r.1.0.2.5 Button "Rounded Steps" description="Rounded Steps" [unselected] actions=[Click]
+    - r.1.0.2.6 Image "" [hidden]
+    - r.1.0.2.7 Button "Sawtooth 1" description="Sawtooth 1" [unselected] actions=[Click]
+    - r.1.0.3 GenericContainer ""
+    - r.1.0.3.0 Image "" [hidden]
+    - r.1.0.3.1 Button "Soft Ramp" description="Soft Ramp" [unselected] actions=[Click]
+    - r.1.0.3.2 Image "" [hidden]
+    - r.1.0.3.3 Button "Notch" description="Notch" [unselected] actions=[Click]
+    - r.1.0.4 Button "Load Contours…" actions=[Click,Focus]
+    - r.1.0.5 Button "Replace Contours…" actions=[Click,Focus]
+    - r.1.0.6 Button "Save Contours…" actions=[Click,Focus]
+drive r.0.0.0.0.0.0.4 CheckBox "Anti-aliased"
+  click:
+    focus: r.0.0.0.0.0.0.3 Button "Contour presets" -> r Window ""
+    - r.0.0.0.0.0.0.4 CheckBox "Anti-aliased" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.4 CheckBox "Anti-aliased" [checked] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.0.0.4 CheckBox "Anti-aliased" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.4 CheckBox "Anti-aliased" [unchecked] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.0.0.4 CheckBox "Anti-aliased" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.4 CheckBox "Anti-aliased" [checked] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.0.4 CheckBox "Anti-aliased" -> r Window ""
+drive r.0.0.0.0.1 Label ""
+  click: no change
+  Escape: no change

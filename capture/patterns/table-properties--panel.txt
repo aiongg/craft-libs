@@ -1,0 +1,730 @@
+story patterns/table-properties/panel
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 Label "" value="Rows"
+            r.0.0.0.0.0.1 GenericContainer ""
+              r.0.0.0.0.0.1.0 GenericContainer ""
+                r.0.0.0.0.0.1.0.0 SpinButton "Rows" value="4" number=4 in 1..- step 1 labelled_by=[r.0.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                  r.0.0.0.0.0.1.0.0.0 TextRun "" value="4"
+            r.0.0.0.0.0.2 GenericContainer ""
+              r.0.0.0.0.0.2.0 GenericContainer ""
+                r.0.0.0.0.0.2.0.0 Label "" value="Columns"
+            r.0.0.0.0.0.3 GenericContainer ""
+              r.0.0.0.0.0.3.0 GenericContainer ""
+                r.0.0.0.0.0.3.0.0 SpinButton "Columns" value="3" number=3 in 1..- step 1 labelled_by=[r.0.0.0.0.0.2.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                  r.0.0.0.0.0.3.0.0.0 TextRun "" value="3"
+            r.0.0.0.0.0.4 GenericContainer ""
+              r.0.0.0.0.0.4.0 GenericContainer ""
+                r.0.0.0.0.0.4.0.0 Label "" value="Row Height"
+            r.0.0.0.0.0.5 GenericContainer ""
+              r.0.0.0.0.0.5.0 GenericContainer ""
+                r.0.0.0.0.0.5.0.0 ComboBox "Row Height" value="At Least" labelled_by=[r.0.0.0.0.0.4.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+            r.0.0.0.0.0.6 GenericContainer ""
+              r.0.0.0.0.0.6.0 GenericContainer ""
+                r.0.0.0.0.0.6.0.0 Label "" value="Height"
+            r.0.0.0.0.0.7 GenericContainer ""
+              r.0.0.0.0.0.7.0 GenericContainer ""
+                r.0.0.0.0.0.7.0.0 SpinButton "Height" value="" placeholder="—" labelled_by=[r.0.0.0.0.0.6.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                  r.0.0.0.0.0.7.0.0.0 TextRun "" value=""
+            r.0.0.0.0.0.8 GenericContainer ""
+              r.0.0.0.0.0.8.0 GenericContainer ""
+                r.0.0.0.0.0.8.0.0 Label "" value="Column Width"
+            r.0.0.0.0.0.9 GenericContainer ""
+              r.0.0.0.0.0.9.0 GenericContainer ""
+                r.0.0.0.0.0.9.0.0 SpinButton "Column Width" value="120 pt" number=120 in 0..- step 1 labelled_by=[r.0.0.0.0.0.8.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                  r.0.0.0.0.0.9.0.0.0 TextRun "" value="120"
+            r.0.0.0.0.0.10 Button "Distribute Rows Evenly" description="Equal fixed heights for the selected rows; cell text may become overset." actions=[Click,Focus]
+            r.0.0.0.0.0.11 Group "Cell Text"
+              r.0.0.0.0.0.11.0 GenericContainer ""
+                r.0.0.0.0.0.11.0.0 Label "" value="Cell Text"
+                r.0.0.0.0.0.11.0.1 GenericContainer ""
+                  r.0.0.0.0.0.11.0.1.0 GenericContainer ""
+                    r.0.0.0.0.0.11.0.1.0.0 GenericContainer ""
+                      r.0.0.0.0.0.11.0.1.0.0.0 Label "" value="Cell Text"
+                  r.0.0.0.0.0.11.0.1.1 GenericContainer ""
+                    r.0.0.0.0.0.11.0.1.1.0 GenericContainer ""
+                      r.0.0.0.0.0.11.0.1.1.0.0 ComboBox "Cell Text" value="" labelled_by=[r.0.0.0.0.0.11.0.1.0.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+                  r.0.0.0.0.0.11.0.1.2 GenericContainer ""
+                    r.0.0.0.0.0.11.0.1.2.0 GenericContainer ""
+                      r.0.0.0.0.0.11.0.1.2.0.0 Label "" value="Top"
+                  r.0.0.0.0.0.11.0.1.3 GenericContainer ""
+                    r.0.0.0.0.0.11.0.1.3.0 GenericContainer ""
+                      r.0.0.0.0.0.11.0.1.3.0.0 SpinButton "Top" value="3.6 pt" number=3.6 in 0..- step 1 labelled_by=[r.0.0.0.0.0.11.0.1.2.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                        r.0.0.0.0.0.11.0.1.3.0.0.0 TextRun "" value="3.6"
+                  r.0.0.0.0.0.11.0.1.4 GenericContainer ""
+                    r.0.0.0.0.0.11.0.1.4.0 GenericContainer ""
+                      r.0.0.0.0.0.11.0.1.4.0.0 Label "" value="Left"
+                  r.0.0.0.0.0.11.0.1.5 GenericContainer ""
+                    r.0.0.0.0.0.11.0.1.5.0 GenericContainer ""
+                      r.0.0.0.0.0.11.0.1.5.0.0 SpinButton "Left" value="3.6 pt" number=3.6 in 0..- step 1 labelled_by=[r.0.0.0.0.0.11.0.1.4.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                        r.0.0.0.0.0.11.0.1.5.0.0.0 TextRun "" value="3.6"
+                  r.0.0.0.0.0.11.0.1.6 GenericContainer ""
+                    r.0.0.0.0.0.11.0.1.6.0 GenericContainer ""
+                      r.0.0.0.0.0.11.0.1.6.0.0 Label "" value="Bottom"
+                  r.0.0.0.0.0.11.0.1.7 GenericContainer ""
+                    r.0.0.0.0.0.11.0.1.7.0 GenericContainer ""
+                      r.0.0.0.0.0.11.0.1.7.0.0 SpinButton "Bottom" value="3.6 pt" number=3.6 in 0..- step 1 labelled_by=[r.0.0.0.0.0.11.0.1.6.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                        r.0.0.0.0.0.11.0.1.7.0.0.0 TextRun "" value="3.6"
+                  r.0.0.0.0.0.11.0.1.8 GenericContainer ""
+                    r.0.0.0.0.0.11.0.1.8.0 GenericContainer ""
+                      r.0.0.0.0.0.11.0.1.8.0.0 Label "" value="Right"
+                  r.0.0.0.0.0.11.0.1.9 GenericContainer ""
+                    r.0.0.0.0.0.11.0.1.9.0 GenericContainer ""
+                      r.0.0.0.0.0.11.0.1.9.0.0 SpinButton "Right" value="3.6 pt" number=3.6 in 0..- step 1 labelled_by=[r.0.0.0.0.0.11.0.1.8.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                        r.0.0.0.0.0.11.0.1.9.0.0.0 TextRun "" value="3.6"
+            r.0.0.0.0.0.12 Button "Merge Cells" actions=[Click,Focus]
+            r.0.0.0.0.0.13 Button "Unmerge" [disabled] actions=[Click,Focus]
+            r.0.0.0.0.0.14 Button "Insert Row" actions=[Click,Focus]
+            r.0.0.0.0.0.15 Button "Insert Column" actions=[Click,Focus]
+            r.0.0.0.0.0.16 Button "Delete Row" actions=[Click,Focus]
+            r.0.0.0.0.0.17 Button "Delete Column" actions=[Click,Focus]
+            r.0.0.0.0.0.18 GenericContainer ""
+              r.0.0.0.0.0.18.0 GenericContainer ""
+                r.0.0.0.0.0.18.0.0 Label "" value="Direction"
+            r.0.0.0.0.0.19 GenericContainer ""
+              r.0.0.0.0.0.19.0 GenericContainer ""
+                r.0.0.0.0.0.19.0.0 ComboBox "Direction" value="Left to Right" labelled_by=[r.0.0.0.0.0.18.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+            r.0.0.0.0.0.20 CheckBox "Alternating Row Fills" [unchecked] actions=[Click,Focus]
+            r.0.0.0.0.0.21 CheckBox "Repeat Header Rows" [unchecked] actions=[Click,Focus]
+            r.0.0.0.0.0.22 GenericContainer ""
+              r.0.0.0.0.0.22.0 GenericContainer ""
+                r.0.0.0.0.0.22.0.0 Label "" value="Header Rows"
+            r.0.0.0.0.0.23 GenericContainer ""
+              r.0.0.0.0.0.23.0 GenericContainer ""
+                r.0.0.0.0.0.23.0.0 SpinButton "Header Rows" value="0" number=0 in 0..- step 1 labelled_by=[r.0.0.0.0.0.22.0.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+                  r.0.0.0.0.0.23.0.0.0 TextRun "" value="0"
+            r.0.0.0.0.0.24 GenericContainer ""
+              r.0.0.0.0.0.24.0 GenericContainer ""
+                r.0.0.0.0.0.24.0.0 Label "" value="Footer Rows"
+            r.0.0.0.0.0.25 GenericContainer ""
+              r.0.0.0.0.0.25.0 GenericContainer ""
+                r.0.0.0.0.0.25.0.0 SpinButton "Footer Rows" value="0" number=0 in 0..- step 1 labelled_by=[r.0.0.0.0.0.24.0.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+                  r.0.0.0.0.0.25.0.0.0 TextRun "" value="0"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.1.0.0 SpinButton "Rows"
+  2: r.0.0.0.0.0.3.0.0 SpinButton "Columns"
+  3: r.0.0.0.0.0.5.0.0 ComboBox "Row Height"
+  4: r.0.0.0.0.0.7.0.0 SpinButton "Height"
+  5: r.0.0.0.0.0.9.0.0 SpinButton "Column Width"
+  6: r.0.0.0.0.0.10 Button "Distribute Rows Evenly"
+  7: r.0.0.0.0.0.11.0.1.1.0.0 ComboBox "Cell Text"
+  8: r.0.0.0.0.0.11.0.1.3.0.0 SpinButton "Top"
+  9: r.0.0.0.0.0.11.0.1.5.0.0 SpinButton "Left"
+  10: r.0.0.0.0.0.11.0.1.7.0.0 SpinButton "Bottom"
+  11: r.0.0.0.0.0.11.0.1.9.0.0 SpinButton "Right"
+  12: r.0.0.0.0.0.12 Button "Merge Cells"
+  13: r.0.0.0.0.0.14 Button "Insert Row"
+  14: r.0.0.0.0.0.15 Button "Insert Column"
+  15: r.0.0.0.0.0.16 Button "Delete Row"
+  16: r.0.0.0.0.0.17 Button "Delete Column"
+  17: r.0.0.0.0.0.19.0.0 ComboBox "Direction"
+  18: r.0.0.0.0.0.20 CheckBox "Alternating Row Fills"
+  19: r.0.0.0.0.0.21 CheckBox "Repeat Header Rows"
+  20: r.0.0.0.0.0.23.0.0 SpinButton "Header Rows"
+  21: r.0.0.0.0.0.25.0.0 SpinButton "Footer Rows"
+  22: r.0.0.0.0.0.1.0.0 SpinButton "Rows"
+  cycle after 21 nodes
+drive: 21 actionable nodes
+drive r.0.0.0.0.0.1.0.0 SpinButton "Rows"
+  click: no change
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.1.0.0 SpinButton "Rows" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.1.0.0 SpinButton "Rows" value="4" number=4 in 1..- step 1 labelled_by=[r.0.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0 TextRun "" value="4"
+    + r.0.0.0.0.0.1.0.0 SpinButton "Rows" value="5" number=5 in 1..- step 1 labelled_by=[r.0.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0 TextRun "" value="5"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: Rows(5), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: Rows(5), modifiers: Modifiers::NONE }"
+  ArrowDown:
+    - r.0.0.0.0.0.1.0.0 SpinButton "Rows" value="5" number=5 in 1..- step 1 labelled_by=[r.0.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0 TextRun "" value="5"
+    + r.0.0.0.0.0.1.0.0 SpinButton "Rows" value="4" number=4 in 1..- step 1 labelled_by=[r.0.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0 TextRun "" value="4"
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: Rows(5), modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: Rows(5), modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: Rows(4), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: Rows(4), modifiers: Modifiers::NONE }"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0 SpinButton "Rows" -> r Window ""
+drive r.0.0.0.0.0.3.0.0 SpinButton "Columns"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.3.0.0 SpinButton "Columns"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.3.0.0 SpinButton "Columns" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.3.0.0 SpinButton "Columns" value="3" number=3 in 1..- step 1 labelled_by=[r.0.0.0.0.0.2.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.3.0.0.0 TextRun "" value="3"
+    + r.0.0.0.0.0.3.0.0 SpinButton "Columns" value="4" number=4 in 1..- step 1 labelled_by=[r.0.0.0.0.0.2.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.3.0.0.0 TextRun "" value="4"
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: Rows(4), modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: Rows(4), modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: Columns(4), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: Columns(4), modifiers: Modifiers::NONE }"
+  ArrowDown:
+    - r.0.0.0.0.0.3.0.0 SpinButton "Columns" value="4" number=4 in 1..- step 1 labelled_by=[r.0.0.0.0.0.2.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.3.0.0.0 TextRun "" value="4"
+    + r.0.0.0.0.0.3.0.0 SpinButton "Columns" value="3" number=3 in 1..- step 1 labelled_by=[r.0.0.0.0.0.2.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.3.0.0.0 TextRun "" value="3"
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: Columns(4), modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: Columns(4), modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: Columns(3), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: Columns(3), modifiers: Modifiers::NONE }"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.3.0.0 SpinButton "Columns" -> r Window ""
+drive r.0.0.0.0.0.5.0.0 ComboBox "Row Height"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.5.0.0.0.0.0.0.0.0 ListBoxOption "At Least"
+    - r.0.0.0.0.0.5.0.0 ComboBox "Row Height" value="At Least" labelled_by=[r.0.0.0.0.0.4.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.0.0 ComboBox "Row Height" value="At Least" labelled_by=[r.0.0.0.0.0.4.0.0] controls=[r.0.0.0.0.0.5.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.0.0.0 ListBox ""
+    + r.0.0.0.0.0.5.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.5.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.5.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.5.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.5.0.0.0.0.0.0.0.0 ListBoxOption "At Least" [selected] actions=[Click]
+    + r.0.0.0.0.0.5.0.0.0.0.0.0.0.1 ListBoxOption "Exactly" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.0.5.0.0.0.0.0.0.0.0 ListBoxOption "At Least" -> r.0.0.0.0.0.5.0.0 ComboBox "Row Height"
+    - r.0.0.0.0.0.5.0.0 ComboBox "Row Height" value="At Least" labelled_by=[r.0.0.0.0.0.4.0.0] controls=[r.0.0.0.0.0.5.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.0.0.0 ListBox ""
+    - r.0.0.0.0.0.5.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.0.0.0.0.0.0.0.0 ListBoxOption "At Least" [selected] actions=[Click]
+    - r.0.0.0.0.0.5.0.0.0.0.0.0.0.1 ListBoxOption "Exactly" [unselected] actions=[Click]
+    + r.0.0.0.0.0.5.0.0 ComboBox "Row Height" value="At Least" labelled_by=[r.0.0.0.0.0.4.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.0.5.0.0 ComboBox "Row Height" -> r.0.0.0.0.0.5.0.0.0.0.0.0.0.0 ListBoxOption "At Least"
+    - r.0.0.0.0.0.5.0.0 ComboBox "Row Height" value="At Least" labelled_by=[r.0.0.0.0.0.4.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.0.0 ComboBox "Row Height" value="At Least" labelled_by=[r.0.0.0.0.0.4.0.0] controls=[r.0.0.0.0.0.5.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.0.0.0 ListBox ""
+    + r.0.0.0.0.0.5.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.5.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.5.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.5.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.5.0.0.0.0.0.0.0.0 ListBoxOption "At Least" [selected] actions=[Click]
+    + r.0.0.0.0.0.5.0.0.0.0.0.0.0.1 ListBoxOption "Exactly" [unselected] actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.0.5.0.0.0.0.0.0.0.0 ListBoxOption "At Least" -> r.0.0.0.0.0.5.0.0.0.0.0.0.0.1 ListBoxOption "Exactly"
+  ArrowUp:
+    focus: r.0.0.0.0.0.5.0.0.0.0.0.0.0.1 ListBoxOption "Exactly" -> r.0.0.0.0.0.5.0.0.0.0.0.0.0.0 ListBoxOption "At Least"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.5.0.0.0.0.0.0.0.0 ListBoxOption "At Least" -> r.0.0.0.0.0.5.0.0 ComboBox "Row Height"
+    - r.0.0.0.0.0.5.0.0 ComboBox "Row Height" value="At Least" labelled_by=[r.0.0.0.0.0.4.0.0] controls=[r.0.0.0.0.0.5.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.0.0.0 ListBox ""
+    - r.0.0.0.0.0.5.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.0.0.0.0.0.0.0.0 ListBoxOption "At Least" [selected] actions=[Click]
+    - r.0.0.0.0.0.5.0.0.0.0.0.0.0.1 ListBoxOption "Exactly" [unselected] actions=[Click]
+    + r.0.0.0.0.0.5.0.0 ComboBox "Row Height" value="At Least" labelled_by=[r.0.0.0.0.0.4.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+drive r.0.0.0.0.0.7.0.0 SpinButton "Height"
+  click:
+    focus: r.0.0.0.0.0.5.0.0 ComboBox "Row Height" -> r.0.0.0.0.0.7.0.0 SpinButton "Height"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.7.0.0 SpinButton "Height" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.7.0.0 SpinButton "Height" value="" placeholder="—" labelled_by=[r.0.0.0.0.0.6.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.7.0.0.0 TextRun "" value=""
+    + r.0.0.0.0.0.7.0.0 SpinButton "Height" value="1 pt" number=1 in 0..- step 1 labelled_by=[r.0.0.0.0.0.6.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.7.0.0.0 TextRun "" value="1"
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: Columns(3), modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: Columns(3), modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: RowHeight(1.0), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: RowHeight(1.0), modifiers: Modifiers::NONE }"
+  ArrowDown:
+    - r.0.0.0.0.0.7.0.0 SpinButton "Height" value="1 pt" number=1 in 0..- step 1 labelled_by=[r.0.0.0.0.0.6.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.7.0.0.0 TextRun "" value="1"
+    + r.0.0.0.0.0.7.0.0 SpinButton "Height" value="0 pt" number=0 in 0..- step 1 labelled_by=[r.0.0.0.0.0.6.0.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.7.0.0.0 TextRun "" value="0"
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: RowHeight(1.0), modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: RowHeight(1.0), modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: RowHeight(0.0), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: RowHeight(0.0), modifiers: Modifiers::NONE }"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.7.0.0 SpinButton "Height" -> r Window ""
+drive r.0.0.0.0.0.9.0.0 SpinButton "Column Width"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.9.0.0 SpinButton "Column Width"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.9.0.0 SpinButton "Column Width" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.9.0.0 SpinButton "Column Width" value="120 pt" number=120 in 0..- step 1 labelled_by=[r.0.0.0.0.0.8.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.9.0.0.0 TextRun "" value="120"
+    + r.0.0.0.0.0.9.0.0 SpinButton "Column Width" value="121 pt" number=121 in 0..- step 1 labelled_by=[r.0.0.0.0.0.8.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.9.0.0.0 TextRun "" value="121"
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: RowHeight(0.0), modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: RowHeight(0.0), modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: ColumnWidth(121.0), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: ColumnWidth(121.0), modifiers: Modifiers::NONE }"
+  ArrowDown:
+    - r.0.0.0.0.0.9.0.0 SpinButton "Column Width" value="121 pt" number=121 in 0..- step 1 labelled_by=[r.0.0.0.0.0.8.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.9.0.0.0 TextRun "" value="121"
+    + r.0.0.0.0.0.9.0.0 SpinButton "Column Width" value="120 pt" number=120 in 0..- step 1 labelled_by=[r.0.0.0.0.0.8.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.9.0.0.0 TextRun "" value="120"
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: ColumnWidth(121.0), modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: ColumnWidth(121.0), modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: ColumnWidth(120.0), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: ColumnWidth(120.0), modifiers: Modifiers::NONE }"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.9.0.0 SpinButton "Column Width" -> r Window ""
+drive r.0.0.0.0.0.10 Button "Distribute Rows Evenly"
+  click:
+    - r.0.0.0.0.0.5.0.0 ComboBox "Row Height" value="At Least" labelled_by=[r.0.0.0.0.0.4.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.0.0 ComboBox "Row Height" value="Exactly" labelled_by=[r.0.0.0.0.0.4.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: ColumnWidth(120.0), modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: ColumnWidth(120.0), modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: DistributeRows, modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: DistributeRows, modifiers: Modifiers::NONE }"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.10 Button "Distribute Rows Evenly" -> r Window ""
+drive r.0.0.0.0.0.11.0.1.1.0.0 ComboBox "Cell Text"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.11.0.1.1.0.0 ComboBox "Cell Text"
+    - r.0.0.0.0.0.11.0.1.1.0.0 ComboBox "Cell Text" value="" labelled_by=[r.0.0.0.0.0.11.0.1.0.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.11.0.1.1.0.0 ComboBox "Cell Text" value="" labelled_by=[r.0.0.0.0.0.11.0.1.0.0.0] controls=[r.0.0.0.0.0.11.0.1.1.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.11.0.1.1.0.0.0 ListBox ""
+    + r.0.0.0.0.0.11.0.1.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.11.0.1.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.11.0.1.1.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.11.0.1.1.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.11.0.1.1.0.0.0.0.0.0.0.0 ListBoxOption "Top" [unselected] actions=[Click]
+    + r.0.0.0.0.0.11.0.1.1.0.0.0.0.0.0.0.1 ListBoxOption "Center" [unselected] actions=[Click]
+    + r.0.0.0.0.0.11.0.1.1.0.0.0.0.0.0.0.2 ListBoxOption "Bottom" [unselected] actions=[Click]
+    + r.0.0.0.0.0.11.0.1.1.0.0.0.0.0.0.0.3 ListBoxOption "Justify" [unselected] actions=[Click]
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.11.0.1.1.0.0 ComboBox "Cell Text" -> r.0.0.0.0.0.11.0.1.1.0.0.0.0.0.0.0.0 ListBoxOption "Top"
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.11.0.1.1.0.0.0.0.0.0.0.0 ListBoxOption "Top" -> r.0.0.0.0.0.11.0.1.1.0.0 ComboBox "Cell Text"
+    - r.0.0.0.0.0.11.0.1.1.0.0 ComboBox "Cell Text" value="" labelled_by=[r.0.0.0.0.0.11.0.1.0.0.0] controls=[r.0.0.0.0.0.11.0.1.1.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.11.0.1.1.0.0.0 ListBox ""
+    - r.0.0.0.0.0.11.0.1.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.11.0.1.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.11.0.1.1.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.11.0.1.1.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.11.0.1.1.0.0.0.0.0.0.0.0 ListBoxOption "Top" [unselected] actions=[Click]
+    - r.0.0.0.0.0.11.0.1.1.0.0.0.0.0.0.0.1 ListBoxOption "Center" [unselected] actions=[Click]
+    - r.0.0.0.0.0.11.0.1.1.0.0.0.0.0.0.0.2 ListBoxOption "Bottom" [unselected] actions=[Click]
+    - r.0.0.0.0.0.11.0.1.1.0.0.0.0.0.0.0.3 ListBoxOption "Justify" [unselected] actions=[Click]
+    + r.0.0.0.0.0.11.0.1.1.0.0 ComboBox "Cell Text" value="" labelled_by=[r.0.0.0.0.0.11.0.1.0.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+drive r.0.0.0.0.0.11.0.1.3.0.0 SpinButton "Top"
+  click:
+    focus: r.0.0.0.0.0.11.0.1.1.0.0 ComboBox "Cell Text" -> r.0.0.0.0.0.11.0.1.3.0.0 SpinButton "Top"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.11.0.1.3.0.0 SpinButton "Top" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.11.0.1.3.0.0 SpinButton "Top" value="3.6 pt" number=3.6 in 0..- step 1 labelled_by=[r.0.0.0.0.0.11.0.1.2.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.3.0.0.0 TextRun "" value="3.6"
+    + r.0.0.0.0.0.11.0.1.3.0.0 SpinButton "Top" value="5 pt" number=5 in 0..- step 1 labelled_by=[r.0.0.0.0.0.11.0.1.2.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.3.0.0.0 TextRun "" value="5"
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: DistributeRows, modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: DistributeRows, modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: Inset(0, 5.0), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: Inset(0, 5.0), modifiers: Modifiers::NONE }"
+  ArrowDown:
+    - r.0.0.0.0.0.11.0.1.3.0.0 SpinButton "Top" value="5 pt" number=5 in 0..- step 1 labelled_by=[r.0.0.0.0.0.11.0.1.2.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.3.0.0.0 TextRun "" value="5"
+    + r.0.0.0.0.0.11.0.1.3.0.0 SpinButton "Top" value="4 pt" number=4 in 0..- step 1 labelled_by=[r.0.0.0.0.0.11.0.1.2.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.3.0.0.0 TextRun "" value="4"
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: Inset(0, 5.0), modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: Inset(0, 5.0), modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: Inset(0, 4.0), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: Inset(0, 4.0), modifiers: Modifiers::NONE }"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.11.0.1.3.0.0 SpinButton "Top" -> r Window ""
+drive r.0.0.0.0.0.11.0.1.5.0.0 SpinButton "Left"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.11.0.1.5.0.0 SpinButton "Left"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.11.0.1.5.0.0 SpinButton "Left" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.11.0.1.5.0.0 SpinButton "Left" value="3.6 pt" number=3.6 in 0..- step 1 labelled_by=[r.0.0.0.0.0.11.0.1.4.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.5.0.0.0 TextRun "" value="3.6"
+    + r.0.0.0.0.0.11.0.1.5.0.0 SpinButton "Left" value="5 pt" number=5 in 0..- step 1 labelled_by=[r.0.0.0.0.0.11.0.1.4.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.5.0.0.0 TextRun "" value="5"
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: Inset(0, 4.0), modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: Inset(0, 4.0), modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: Inset(1, 5.0), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: Inset(1, 5.0), modifiers: Modifiers::NONE }"
+  ArrowDown:
+    - r.0.0.0.0.0.11.0.1.5.0.0 SpinButton "Left" value="5 pt" number=5 in 0..- step 1 labelled_by=[r.0.0.0.0.0.11.0.1.4.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.5.0.0.0 TextRun "" value="5"
+    + r.0.0.0.0.0.11.0.1.5.0.0 SpinButton "Left" value="4 pt" number=4 in 0..- step 1 labelled_by=[r.0.0.0.0.0.11.0.1.4.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.5.0.0.0 TextRun "" value="4"
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: Inset(1, 5.0), modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: Inset(1, 5.0), modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: Inset(1, 4.0), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: Inset(1, 4.0), modifiers: Modifiers::NONE }"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.11.0.1.5.0.0 SpinButton "Left" -> r Window ""
+drive r.0.0.0.0.0.11.0.1.7.0.0 SpinButton "Bottom"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.11.0.1.7.0.0 SpinButton "Bottom"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.11.0.1.7.0.0 SpinButton "Bottom" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.11.0.1.7.0.0 SpinButton "Bottom" value="3.6 pt" number=3.6 in 0..- step 1 labelled_by=[r.0.0.0.0.0.11.0.1.6.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.7.0.0.0 TextRun "" value="3.6"
+    + r.0.0.0.0.0.11.0.1.7.0.0 SpinButton "Bottom" value="5 pt" number=5 in 0..- step 1 labelled_by=[r.0.0.0.0.0.11.0.1.6.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.7.0.0.0 TextRun "" value="5"
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: Inset(1, 4.0), modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: Inset(1, 4.0), modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: Inset(2, 5.0), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: Inset(2, 5.0), modifiers: Modifiers::NONE }"
+  ArrowDown:
+    - r.0.0.0.0.0.11.0.1.7.0.0 SpinButton "Bottom" value="5 pt" number=5 in 0..- step 1 labelled_by=[r.0.0.0.0.0.11.0.1.6.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.7.0.0.0 TextRun "" value="5"
+    + r.0.0.0.0.0.11.0.1.7.0.0 SpinButton "Bottom" value="4 pt" number=4 in 0..- step 1 labelled_by=[r.0.0.0.0.0.11.0.1.6.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.7.0.0.0 TextRun "" value="4"
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: Inset(2, 5.0), modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: Inset(2, 5.0), modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: Inset(2, 4.0), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: Inset(2, 4.0), modifiers: Modifiers::NONE }"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.11.0.1.7.0.0 SpinButton "Bottom" -> r Window ""
+drive r.0.0.0.0.0.11.0.1.9.0.0 SpinButton "Right"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.11.0.1.9.0.0 SpinButton "Right"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.11.0.1.9.0.0 SpinButton "Right" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.11.0.1.9.0.0 SpinButton "Right" value="3.6 pt" number=3.6 in 0..- step 1 labelled_by=[r.0.0.0.0.0.11.0.1.8.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.9.0.0.0 TextRun "" value="3.6"
+    + r.0.0.0.0.0.11.0.1.9.0.0 SpinButton "Right" value="5 pt" number=5 in 0..- step 1 labelled_by=[r.0.0.0.0.0.11.0.1.8.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.9.0.0.0 TextRun "" value="5"
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: Inset(2, 4.0), modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: Inset(2, 4.0), modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: Inset(3, 5.0), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: Inset(3, 5.0), modifiers: Modifiers::NONE }"
+  ArrowDown:
+    - r.0.0.0.0.0.11.0.1.9.0.0 SpinButton "Right" value="5 pt" number=5 in 0..- step 1 labelled_by=[r.0.0.0.0.0.11.0.1.8.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.9.0.0.0 TextRun "" value="5"
+    + r.0.0.0.0.0.11.0.1.9.0.0 SpinButton "Right" value="4 pt" number=4 in 0..- step 1 labelled_by=[r.0.0.0.0.0.11.0.1.8.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.9.0.0.0 TextRun "" value="4"
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: Inset(3, 5.0), modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: Inset(3, 5.0), modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: Inset(3, 4.0), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: Inset(3, 4.0), modifiers: Modifiers::NONE }"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.11.0.1.9.0.0 SpinButton "Right" -> r Window ""
+drive r.0.0.0.0.0.12 Button "Merge Cells"
+  click:
+    - r.0.0.0.0.0.13 Button "Unmerge" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.13 Button "Unmerge" actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: Inset(3, 4.0), modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: Inset(3, 4.0), modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: Merge, modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: Merge, modifiers: Modifiers::NONE }"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.12 Button "Merge Cells" -> r Window ""
+drive r.0.0.0.0.0.14 Button "Insert Row"
+  click:
+    - r.0.0.0.0.0.1.0.0 SpinButton "Rows" value="4" number=4 in 1..- step 1 labelled_by=[r.0.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0 TextRun "" value="4"
+    + r.0.0.0.0.0.1.0.0 SpinButton "Rows" value="5" number=5 in 1..- step 1 labelled_by=[r.0.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0 TextRun "" value="5"
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: Merge, modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: Merge, modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: InsertRow, modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: InsertRow, modifiers: Modifiers::NONE }"
+  Space:
+    - r.0.0.0.0.0.1.0.0 SpinButton "Rows" value="5" number=5 in 1..- step 1 labelled_by=[r.0.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0 TextRun "" value="5"
+    + r.0.0.0.0.0.1.0.0 SpinButton "Rows" value="6" number=6 in 1..- step 1 labelled_by=[r.0.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0 TextRun "" value="6"
+  Enter:
+    - r.0.0.0.0.0.1.0.0 SpinButton "Rows" value="6" number=6 in 1..- step 1 labelled_by=[r.0.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0 TextRun "" value="6"
+    + r.0.0.0.0.0.1.0.0 SpinButton "Rows" value="7" number=7 in 1..- step 1 labelled_by=[r.0.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0 TextRun "" value="7"
+  Escape:
+    focus: r.0.0.0.0.0.14 Button "Insert Row" -> r Window ""
+drive r.0.0.0.0.0.15 Button "Insert Column"
+  click:
+    - r.0.0.0.0.0.3.0.0 SpinButton "Columns" value="3" number=3 in 1..- step 1 labelled_by=[r.0.0.0.0.0.2.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.3.0.0.0 TextRun "" value="3"
+    + r.0.0.0.0.0.3.0.0 SpinButton "Columns" value="4" number=4 in 1..- step 1 labelled_by=[r.0.0.0.0.0.2.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.3.0.0.0 TextRun "" value="4"
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: InsertRow, modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: InsertRow, modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: InsertColumn, modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: InsertColumn, modifiers: Modifiers::NONE }"
+  Space:
+    - r.0.0.0.0.0.3.0.0 SpinButton "Columns" value="4" number=4 in 1..- step 1 labelled_by=[r.0.0.0.0.0.2.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.3.0.0.0 TextRun "" value="4"
+    + r.0.0.0.0.0.3.0.0 SpinButton "Columns" value="5" number=5 in 1..- step 1 labelled_by=[r.0.0.0.0.0.2.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.3.0.0.0 TextRun "" value="5"
+  Enter:
+    - r.0.0.0.0.0.3.0.0 SpinButton "Columns" value="5" number=5 in 1..- step 1 labelled_by=[r.0.0.0.0.0.2.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.3.0.0.0 TextRun "" value="5"
+    + r.0.0.0.0.0.3.0.0 SpinButton "Columns" value="6" number=6 in 1..- step 1 labelled_by=[r.0.0.0.0.0.2.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.3.0.0.0 TextRun "" value="6"
+  Escape:
+    focus: r.0.0.0.0.0.15 Button "Insert Column" -> r Window ""
+drive r.0.0.0.0.0.16 Button "Delete Row"
+  click:
+    - r.0.0.0.0.0.1.0.0 SpinButton "Rows" value="7" number=7 in 1..- step 1 labelled_by=[r.0.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0 TextRun "" value="7"
+    + r.0.0.0.0.0.1.0.0 SpinButton "Rows" value="6" number=6 in 1..- step 1 labelled_by=[r.0.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0 TextRun "" value="6"
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: InsertColumn, modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: InsertColumn, modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: DeleteRow, modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: DeleteRow, modifiers: Modifiers::NONE }"
+  Space:
+    - r.0.0.0.0.0.1.0.0 SpinButton "Rows" value="6" number=6 in 1..- step 1 labelled_by=[r.0.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0 TextRun "" value="6"
+    + r.0.0.0.0.0.1.0.0 SpinButton "Rows" value="5" number=5 in 1..- step 1 labelled_by=[r.0.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0 TextRun "" value="5"
+  Enter:
+    - r.0.0.0.0.0.1.0.0 SpinButton "Rows" value="5" number=5 in 1..- step 1 labelled_by=[r.0.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0 TextRun "" value="5"
+    + r.0.0.0.0.0.1.0.0 SpinButton "Rows" value="4" number=4 in 1..- step 1 labelled_by=[r.0.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0 TextRun "" value="4"
+  Escape:
+    focus: r.0.0.0.0.0.16 Button "Delete Row" -> r Window ""
+drive r.0.0.0.0.0.17 Button "Delete Column"
+  click:
+    - r.0.0.0.0.0.3.0.0 SpinButton "Columns" value="6" number=6 in 1..- step 1 labelled_by=[r.0.0.0.0.0.2.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.3.0.0.0 TextRun "" value="6"
+    + r.0.0.0.0.0.3.0.0 SpinButton "Columns" value="5" number=5 in 1..- step 1 labelled_by=[r.0.0.0.0.0.2.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.3.0.0.0 TextRun "" value="5"
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: DeleteRow, modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: DeleteRow, modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: DeleteColumn, modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: DeleteColumn, modifiers: Modifiers::NONE }"
+  Space:
+    - r.0.0.0.0.0.3.0.0 SpinButton "Columns" value="5" number=5 in 1..- step 1 labelled_by=[r.0.0.0.0.0.2.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.3.0.0.0 TextRun "" value="5"
+    + r.0.0.0.0.0.3.0.0 SpinButton "Columns" value="4" number=4 in 1..- step 1 labelled_by=[r.0.0.0.0.0.2.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.3.0.0.0 TextRun "" value="4"
+  Enter:
+    - r.0.0.0.0.0.3.0.0 SpinButton "Columns" value="4" number=4 in 1..- step 1 labelled_by=[r.0.0.0.0.0.2.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.3.0.0.0 TextRun "" value="4"
+    + r.0.0.0.0.0.3.0.0 SpinButton "Columns" value="3" number=3 in 1..- step 1 labelled_by=[r.0.0.0.0.0.2.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.3.0.0.0 TextRun "" value="3"
+  Escape:
+    focus: r.0.0.0.0.0.17 Button "Delete Column" -> r Window ""
+drive r.0.0.0.0.0.19.0.0 ComboBox "Direction"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.19.0.0.0.0.0.0.0.0 ListBoxOption "Left to Right"
+    - r.0.0.0.0.0.19.0.0 ComboBox "Direction" value="Left to Right" labelled_by=[r.0.0.0.0.0.18.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.19.0.0 ComboBox "Direction" value="Left to Right" labelled_by=[r.0.0.0.0.0.18.0.0] controls=[r.0.0.0.0.0.19.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.19.0.0.0 ListBox ""
+    + r.0.0.0.0.0.19.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.19.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.19.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.19.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.19.0.0.0.0.0.0.0.0 ListBoxOption "Left to Right" [selected] actions=[Click]
+    + r.0.0.0.0.0.19.0.0.0.0.0.0.0.1 ListBoxOption "Right to Left" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.0.19.0.0.0.0.0.0.0.0 ListBoxOption "Left to Right" -> r.0.0.0.0.0.19.0.0 ComboBox "Direction"
+    - r.0.0.0.0.0.19.0.0 ComboBox "Direction" value="Left to Right" labelled_by=[r.0.0.0.0.0.18.0.0] controls=[r.0.0.0.0.0.19.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.19.0.0.0 ListBox ""
+    - r.0.0.0.0.0.19.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.19.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.19.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.19.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.19.0.0.0.0.0.0.0.0 ListBoxOption "Left to Right" [selected] actions=[Click]
+    - r.0.0.0.0.0.19.0.0.0.0.0.0.0.1 ListBoxOption "Right to Left" [unselected] actions=[Click]
+    + r.0.0.0.0.0.19.0.0 ComboBox "Direction" value="Left to Right" labelled_by=[r.0.0.0.0.0.18.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.0.19.0.0 ComboBox "Direction" -> r.0.0.0.0.0.19.0.0.0.0.0.0.0.0 ListBoxOption "Left to Right"
+    - r.0.0.0.0.0.19.0.0 ComboBox "Direction" value="Left to Right" labelled_by=[r.0.0.0.0.0.18.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.19.0.0 ComboBox "Direction" value="Left to Right" labelled_by=[r.0.0.0.0.0.18.0.0] controls=[r.0.0.0.0.0.19.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.19.0.0.0 ListBox ""
+    + r.0.0.0.0.0.19.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.19.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.19.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.19.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.19.0.0.0.0.0.0.0.0 ListBoxOption "Left to Right" [selected] actions=[Click]
+    + r.0.0.0.0.0.19.0.0.0.0.0.0.0.1 ListBoxOption "Right to Left" [unselected] actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.0.19.0.0.0.0.0.0.0.0 ListBoxOption "Left to Right" -> r.0.0.0.0.0.19.0.0.0.0.0.0.0.1 ListBoxOption "Right to Left"
+  ArrowUp:
+    focus: r.0.0.0.0.0.19.0.0.0.0.0.0.0.1 ListBoxOption "Right to Left" -> r.0.0.0.0.0.19.0.0.0.0.0.0.0.0 ListBoxOption "Left to Right"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.19.0.0.0.0.0.0.0.0 ListBoxOption "Left to Right" -> r.0.0.0.0.0.19.0.0 ComboBox "Direction"
+    - r.0.0.0.0.0.19.0.0 ComboBox "Direction" value="Left to Right" labelled_by=[r.0.0.0.0.0.18.0.0] controls=[r.0.0.0.0.0.19.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.19.0.0.0 ListBox ""
+    - r.0.0.0.0.0.19.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.19.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.19.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.19.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.19.0.0.0.0.0.0.0.0 ListBoxOption "Left to Right" [selected] actions=[Click]
+    - r.0.0.0.0.0.19.0.0.0.0.0.0.0.1 ListBoxOption "Right to Left" [unselected] actions=[Click]
+    + r.0.0.0.0.0.19.0.0 ComboBox "Direction" value="Left to Right" labelled_by=[r.0.0.0.0.0.18.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+drive r.0.0.0.0.0.20 CheckBox "Alternating Row Fills"
+  click:
+    focus: r.0.0.0.0.0.19.0.0 ComboBox "Direction" -> r Window ""
+    - r.0.0.0.0.0.20 CheckBox "Alternating Row Fills" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.20 CheckBox "Alternating Row Fills" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: DeleteColumn, modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: DeleteColumn, modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: AlternatingFills(true), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: AlternatingFills(true), modifiers: Modifiers::NONE }"
+  Space:
+    - r.0.0.0.0.0.20 CheckBox "Alternating Row Fills" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.20 CheckBox "Alternating Row Fills" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: AlternatingFills(true), modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: AlternatingFills(true), modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: AlternatingFills(false), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: AlternatingFills(false), modifiers: Modifiers::NONE }"
+  Enter:
+    - r.0.0.0.0.0.20 CheckBox "Alternating Row Fills" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.20 CheckBox "Alternating Row Fills" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: AlternatingFills(false), modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: AlternatingFills(false), modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: AlternatingFills(true), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: AlternatingFills(true), modifiers: Modifiers::NONE }"
+  Escape:
+    focus: r.0.0.0.0.0.20 CheckBox "Alternating Row Fills" -> r Window ""
+drive r.0.0.0.0.0.21 CheckBox "Repeat Header Rows"
+  click:
+    - r.0.0.0.0.0.21 CheckBox "Repeat Header Rows" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.21 CheckBox "Repeat Header Rows" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: AlternatingFills(true), modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: AlternatingFills(true), modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: RepeatHeader(true), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: RepeatHeader(true), modifiers: Modifiers::NONE }"
+  Space:
+    - r.0.0.0.0.0.21 CheckBox "Repeat Header Rows" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.21 CheckBox "Repeat Header Rows" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: RepeatHeader(true), modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: RepeatHeader(true), modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: RepeatHeader(false), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: RepeatHeader(false), modifiers: Modifiers::NONE }"
+  Enter:
+    - r.0.0.0.0.0.21 CheckBox "Repeat Header Rows" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.21 CheckBox "Repeat Header Rows" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: RepeatHeader(false), modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: RepeatHeader(false), modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: RepeatHeader(true), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: RepeatHeader(true), modifiers: Modifiers::NONE }"
+  Escape:
+    focus: r.0.0.0.0.0.21 CheckBox "Repeat Header Rows" -> r Window ""
+drive r.0.0.0.0.0.23.0.0 SpinButton "Header Rows"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.23.0.0 SpinButton "Header Rows"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.23.0.0 SpinButton "Header Rows" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.23.0.0 SpinButton "Header Rows" value="0" number=0 in 0..- step 1 labelled_by=[r.0.0.0.0.0.22.0.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.23.0.0.0 TextRun "" value="0"
+    + r.0.0.0.0.0.23.0.0 SpinButton "Header Rows" value="1" number=1 in 0..- step 1 labelled_by=[r.0.0.0.0.0.22.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.23.0.0.0 TextRun "" value="1"
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: RepeatHeader(true), modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: RepeatHeader(true), modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: HeaderRows(1), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: HeaderRows(1), modifiers: Modifiers::NONE }"
+  ArrowDown:
+    - r.0.0.0.0.0.23.0.0 SpinButton "Header Rows" value="1" number=1 in 0..- step 1 labelled_by=[r.0.0.0.0.0.22.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.23.0.0.0 TextRun "" value="1"
+    + r.0.0.0.0.0.23.0.0 SpinButton "Header Rows" value="0" number=0 in 0..- step 1 labelled_by=[r.0.0.0.0.0.22.0.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.23.0.0.0 TextRun "" value="0"
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: HeaderRows(1), modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: HeaderRows(1), modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: HeaderRows(0), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: HeaderRows(0), modifiers: Modifiers::NONE }"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.23.0.0 SpinButton "Header Rows" -> r Window ""
+drive r.0.0.0.0.0.25.0.0 SpinButton "Footer Rows"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.25.0.0 SpinButton "Footer Rows"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.25.0.0 SpinButton "Footer Rows" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.25.0.0 SpinButton "Footer Rows" value="0" number=0 in 0..- step 1 labelled_by=[r.0.0.0.0.0.24.0.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.25.0.0.0 TextRun "" value="0"
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: HeaderRows(0), modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: HeaderRows(0), modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.0.25.0.0 SpinButton "Footer Rows" value="1" number=1 in 0..- step 1 labelled_by=[r.0.0.0.0.0.24.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.25.0.0.0 TextRun "" value="1"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: FooterRows(1), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: FooterRows(1), modifiers: Modifiers::NONE }"
+  ArrowDown:
+    - r.0.0.0.0.0.25.0.0 SpinButton "Footer Rows" value="1" number=1 in 0..- step 1 labelled_by=[r.0.0.0.0.0.24.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.25.0.0.0 TextRun "" value="1"
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: FooterRows(1), modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: FooterRows(1), modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.0.25.0.0 SpinButton "Footer Rows" value="0" number=0 in 0..- step 1 labelled_by=[r.0.0.0.0.0.24.0.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.25.0.0.0 TextRun "" value="0"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: FooterRows(0), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: FooterRows(0), modifiers: Modifiers::NONE }"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.25.0.0 SpinButton "Footer Rows" -> r Window ""

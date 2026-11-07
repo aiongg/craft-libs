@@ -1,0 +1,146 @@
+story patterns/toolbar/vertical-liquify
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Toolbar "Liquify tools"
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 GenericContainer ""
+                  r.0.0.0.0.0.0.0.0.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.0.0.0 Button "Forward Warp" description="W" [checked] actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.1 Button "Reconstruct" description="R" [unchecked] actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.2 Button "Smooth" description="E" [unchecked] actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.3 Button "Twirl Clockwise" description="C" [unchecked] actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.4 Button "Pucker" description="S" [unchecked] actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.5 Button "Bloat" description="B" [unchecked] actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.6 Button "Push Left" description="O" [unchecked] actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.7 Button "Freeze Mask" description="F" [unchecked] actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.8 Button "Thaw Mask" description="T" [unchecked] actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.9 Button "Face" description="A" [unchecked] actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.10 Button "Hand" description="H" [unchecked] actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0.0.0 Button "Forward Warp"
+  2: r.0.0.0.0.0.0.0.0.0.1 Button "Reconstruct"
+  3: r.0.0.0.0.0.0.0.0.0.2 Button "Smooth"
+  4: r.0.0.0.0.0.0.0.0.0.3 Button "Twirl Clockwise"
+  5: r.0.0.0.0.0.0.0.0.0.4 Button "Pucker"
+  6: r.0.0.0.0.0.0.0.0.0.5 Button "Bloat"
+  7: r.0.0.0.0.0.0.0.0.0.6 Button "Push Left"
+  8: r.0.0.0.0.0.0.0.0.0.7 Button "Freeze Mask"
+  9: r.0.0.0.0.0.0.0.0.0.8 Button "Thaw Mask"
+  10: r.0.0.0.0.0.0.0.0.0.9 Button "Face"
+  11: r.0.0.0.0.0.0.0.0.0.10 Button "Hand"
+  12: r.0.0.0.0.0.0.0.0.0.0 Button "Forward Warp"
+  cycle after 11 nodes
+drive: 11 actionable nodes
+drive r.0.0.0.0.0.0.0.0.0.0 Button "Forward Warp"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0 Button "Forward Warp" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.1 Button "Reconstruct"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.0 Button "Forward Warp" description="W" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.1 Button "Reconstruct" description="R" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0 Button "Forward Warp" description="W" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.1 Button "Reconstruct" description="R" [checked] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.1 Button "Reconstruct" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.2 Button "Smooth"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.1 Button "Reconstruct" description="R" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.2 Button "Smooth" description="E" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.1 Button "Reconstruct" description="R" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.2 Button "Smooth" description="E" [checked] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.2 Button "Smooth" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.3 Button "Twirl Clockwise"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.2 Button "Smooth" description="E" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.3 Button "Twirl Clockwise" description="C" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.2 Button "Smooth" description="E" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.3 Button "Twirl Clockwise" description="C" [checked] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.3 Button "Twirl Clockwise" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.4 Button "Pucker"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.3 Button "Twirl Clockwise" description="C" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.4 Button "Pucker" description="S" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.3 Button "Twirl Clockwise" description="C" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.4 Button "Pucker" description="S" [checked] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.4 Button "Pucker" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.5 Button "Bloat"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.4 Button "Pucker" description="S" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.5 Button "Bloat" description="B" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.4 Button "Pucker" description="S" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.5 Button "Bloat" description="B" [checked] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.5 Button "Bloat" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.6 Button "Push Left"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.5 Button "Bloat" description="B" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.6 Button "Push Left" description="O" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.5 Button "Bloat" description="B" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.6 Button "Push Left" description="O" [checked] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.6 Button "Push Left" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.7 Button "Freeze Mask"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.6 Button "Push Left" description="O" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.7 Button "Freeze Mask" description="F" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.6 Button "Push Left" description="O" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.7 Button "Freeze Mask" description="F" [checked] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.7 Button "Freeze Mask" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.8 Button "Thaw Mask"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.7 Button "Freeze Mask" description="F" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.8 Button "Thaw Mask" description="T" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.7 Button "Freeze Mask" description="F" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.8 Button "Thaw Mask" description="T" [checked] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.8 Button "Thaw Mask" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.9 Button "Face"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.8 Button "Thaw Mask" description="T" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.9 Button "Face" description="A" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.8 Button "Thaw Mask" description="T" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.9 Button "Face" description="A" [checked] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.9 Button "Face" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.10 Button "Hand"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.9 Button "Face" description="A" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.10 Button "Hand" description="H" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.9 Button "Face" description="A" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.10 Button "Hand" description="H" [checked] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.10 Button "Hand" -> r Window ""

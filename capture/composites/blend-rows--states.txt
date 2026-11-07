@@ -1,0 +1,1949 @@
+story composites/blend-rows/states
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Label "" value="Normal layer" actions=[Click]
+            r.0.0.0.0.0.0 TextRun "" value="Normal layer"
+          r.0.0.0.0.1 GenericContainer ""
+            r.0.0.0.0.1.0 GenericContainer ""
+              r.0.0.0.0.1.0.0 GenericContainer ""
+                r.0.0.0.0.1.0.0.0 GenericContainer ""
+                  r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+                r.0.0.0.0.1.0.0.1 GenericContainer ""
+                  r.0.0.0.0.1.0.0.1.0 Label "" value="Opacity:"
+                r.0.0.0.0.1.0.0.2 GenericContainer ""
+                  r.0.0.0.0.1.0.0.2.0 SpinButton "Opacity" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+                    r.0.0.0.0.1.0.0.2.0.0 TextRun "" value="100"
+                  r.0.0.0.0.1.0.0.2.1 Button "Opacity" description="Opacity" [collapsed] actions=[Click]
+              r.0.0.0.0.1.0.1 GenericContainer ""
+                r.0.0.0.0.1.0.1.0 Label "" value="Lock:"
+              r.0.0.0.0.1.0.2 GenericContainer ""
+                r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.1.0.3 GenericContainer ""
+                r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.1.0.4 GenericContainer ""
+                r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.1.0.5 GenericContainer ""
+                r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.1.0.6 GenericContainer ""
+                r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.1.0.7 GenericContainer ""
+                r.0.0.0.0.1.0.7.0 GenericContainer ""
+                  r.0.0.0.0.1.0.7.0.0 Label "" value="Fill:"
+                r.0.0.0.0.1.0.7.1 GenericContainer ""
+                  r.0.0.0.0.1.0.7.1.0 SpinButton "Fill" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+                    r.0.0.0.0.1.0.7.1.0.0 TextRun "" value="100"
+                  r.0.0.0.0.1.0.7.1.1 Button "Fill" description="Fill" [collapsed] actions=[Click]
+          r.0.0.0.0.2 Label "" value="Group" actions=[Click]
+            r.0.0.0.0.2.0 TextRun "" value="Group"
+          r.0.0.0.0.3 GenericContainer ""
+            r.0.0.0.0.3.0 GenericContainer ""
+              r.0.0.0.0.3.0.0 GenericContainer ""
+                r.0.0.0.0.3.0.0.0 GenericContainer ""
+                  r.0.0.0.0.3.0.0.0.0 ComboBox "Blend Mode" value="Pass Through" [collapsed popup:Listbox] actions=[Click,Focus]
+                r.0.0.0.0.3.0.0.1 GenericContainer ""
+                  r.0.0.0.0.3.0.0.1.0 Label "" value="Opacity:"
+                r.0.0.0.0.3.0.0.2 GenericContainer ""
+                  r.0.0.0.0.3.0.0.2.0 SpinButton "Opacity" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+                    r.0.0.0.0.3.0.0.2.0.0 TextRun "" value="100"
+                  r.0.0.0.0.3.0.0.2.1 Button "Opacity" description="Opacity" [collapsed] actions=[Click]
+              r.0.0.0.0.3.0.1 GenericContainer ""
+                r.0.0.0.0.3.0.1.0 Label "" value="Lock:"
+              r.0.0.0.0.3.0.2 GenericContainer ""
+                r.0.0.0.0.3.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.3.0.3 GenericContainer ""
+                r.0.0.0.0.3.0.3.0 Button "Lock image pixels" description="Lock image pixels" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.3.0.4 GenericContainer ""
+                r.0.0.0.0.3.0.4.0 Button "Lock position" description="Lock position" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.3.0.5 GenericContainer ""
+                r.0.0.0.0.3.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.3.0.6 GenericContainer ""
+                r.0.0.0.0.3.0.6.0 Button "Lock all" description="Lock all" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.3.0.7 GenericContainer ""
+                r.0.0.0.0.3.0.7.0 GenericContainer ""
+                  r.0.0.0.0.3.0.7.0.0 Label "" value="Fill:"
+                r.0.0.0.0.3.0.7.1 GenericContainer ""
+                  r.0.0.0.0.3.0.7.1.0 SpinButton "Fill" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+                    r.0.0.0.0.3.0.7.1.0.0 TextRun "" value="100"
+                  r.0.0.0.0.3.0.7.1.1 Button "Fill" description="Fill" [collapsed] actions=[Click]
+          r.0.0.0.0.4 Label "" value="Background" actions=[Click]
+            r.0.0.0.0.4.0 TextRun "" value="Background"
+          r.0.0.0.0.5 GenericContainer ""
+            r.0.0.0.0.5.0 GenericContainer ""
+              r.0.0.0.0.5.0.0 GenericContainer ""
+                r.0.0.0.0.5.0.0.0 GenericContainer ""
+                  r.0.0.0.0.5.0.0.0.0 ComboBox "Blend Mode" value="Normal" [disabled collapsed popup:Listbox] actions=[Click,Focus]
+                r.0.0.0.0.5.0.0.1 GenericContainer ""
+                  r.0.0.0.0.5.0.0.1.0 Label "" value="Opacity:" [disabled]
+                r.0.0.0.0.5.0.0.2 GenericContainer ""
+                  r.0.0.0.0.5.0.0.2.0 SpinButton "Opacity" value="100%" number=100 in 0..100 step - [disabled]
+                    r.0.0.0.0.5.0.0.2.0.0 TextRun "" value="100"
+                  r.0.0.0.0.5.0.0.2.1 Button "Opacity" description="Opacity" [disabled collapsed] actions=[Click]
+              r.0.0.0.0.5.0.1 GenericContainer ""
+                r.0.0.0.0.5.0.1.0 Label "" value="Lock:"
+              r.0.0.0.0.5.0.2 GenericContainer ""
+                r.0.0.0.0.5.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.5.0.3 GenericContainer ""
+                r.0.0.0.0.5.0.3.0 Button "Lock image pixels" description="Lock image pixels" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.5.0.4 GenericContainer ""
+                r.0.0.0.0.5.0.4.0 Button "Lock position" description="Lock position" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.5.0.5 GenericContainer ""
+                r.0.0.0.0.5.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.5.0.6 GenericContainer ""
+                r.0.0.0.0.5.0.6.0 Button "Lock all" description="Lock all" [checked] actions=[Click,Focus]
+              r.0.0.0.0.5.0.7 GenericContainer ""
+                r.0.0.0.0.5.0.7.0 GenericContainer ""
+                  r.0.0.0.0.5.0.7.0.0 Label "" value="Fill:" [disabled]
+                r.0.0.0.0.5.0.7.1 GenericContainer ""
+                  r.0.0.0.0.5.0.7.1.0 SpinButton "Fill" value="100%" number=100 in 0..100 step - [disabled]
+                    r.0.0.0.0.5.0.7.1.0.0 TextRun "" value="100"
+                  r.0.0.0.0.5.0.7.1.1 Button "Fill" description="Fill" [disabled collapsed] actions=[Click]
+          r.0.0.0.0.6 Label "" value="Several layers selected" actions=[Click]
+            r.0.0.0.0.6.0 TextRun "" value="Several layers selected"
+          r.0.0.0.0.7 GenericContainer ""
+            r.0.0.0.0.7.0 GenericContainer ""
+              r.0.0.0.0.7.0.0 GenericContainer ""
+                r.0.0.0.0.7.0.0.0 GenericContainer ""
+                  r.0.0.0.0.7.0.0.0.0 ComboBox "Blend Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+                r.0.0.0.0.7.0.0.1 GenericContainer ""
+                  r.0.0.0.0.7.0.0.1.0 Label "" value="Opacity:"
+                r.0.0.0.0.7.0.0.2 GenericContainer ""
+                  r.0.0.0.0.7.0.0.2.0 SpinButton "Opacity" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+                    r.0.0.0.0.7.0.0.2.0.0 TextRun "" value="100"
+                  r.0.0.0.0.7.0.0.2.1 Button "Opacity" description="Opacity" [collapsed] actions=[Click]
+              r.0.0.0.0.7.0.1 GenericContainer ""
+                r.0.0.0.0.7.0.1.0 Label "" value="Lock:"
+              r.0.0.0.0.7.0.2 GenericContainer ""
+                r.0.0.0.0.7.0.2.0 Button "Lock transparent pixels" description="Included in Lock image pixels" [disabled unchecked] actions=[Click,Focus]
+              r.0.0.0.0.7.0.3 GenericContainer ""
+                r.0.0.0.0.7.0.3.0 Button "Lock image pixels" description="Lock image pixels" [checked] actions=[Click,Focus]
+              r.0.0.0.0.7.0.4 GenericContainer ""
+                r.0.0.0.0.7.0.4.0 Button "Lock position" description="Lock position" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.7.0.5 GenericContainer ""
+                r.0.0.0.0.7.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.7.0.6 GenericContainer ""
+                r.0.0.0.0.7.0.6.0 Button "Lock all" description="Lock all" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.7.0.7 GenericContainer ""
+                r.0.0.0.0.7.0.7.0 GenericContainer ""
+                  r.0.0.0.0.7.0.7.0.0 Label "" value="Fill:"
+                r.0.0.0.0.7.0.7.1 GenericContainer ""
+                  r.0.0.0.0.7.0.7.1.0 SpinButton "Fill" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+                    r.0.0.0.0.7.0.7.1.0.0 TextRun "" value="100"
+                  r.0.0.0.0.7.0.7.1.1 Button "Fill" description="Fill" [collapsed] actions=[Click]
+          r.0.0.0.0.8 Label "" value="No active layer" actions=[Click]
+            r.0.0.0.0.8.0 TextRun "" value="No active layer"
+          r.0.0.0.0.9 GenericContainer ""
+            r.0.0.0.0.9.0 GenericContainer ""
+              r.0.0.0.0.9.0.0 GenericContainer ""
+                r.0.0.0.0.9.0.0.0 GenericContainer ""
+                  r.0.0.0.0.9.0.0.0.0 ComboBox "Blend Mode" value="Normal" [disabled collapsed popup:Listbox] actions=[Click,Focus]
+                r.0.0.0.0.9.0.0.1 GenericContainer ""
+                  r.0.0.0.0.9.0.0.1.0 Label "" value="Opacity:" [disabled]
+                r.0.0.0.0.9.0.0.2 GenericContainer ""
+                  r.0.0.0.0.9.0.0.2.0 SpinButton "Opacity" value="100%" number=100 in 0..100 step - [disabled]
+                    r.0.0.0.0.9.0.0.2.0.0 TextRun "" value="100"
+                  r.0.0.0.0.9.0.0.2.1 Button "Opacity" description="Opacity" [disabled collapsed] actions=[Click]
+              r.0.0.0.0.9.0.1 GenericContainer ""
+                r.0.0.0.0.9.0.1.0 Label "" value="Lock:"
+              r.0.0.0.0.9.0.2 GenericContainer ""
+                r.0.0.0.0.9.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [disabled unchecked] actions=[Click,Focus]
+              r.0.0.0.0.9.0.3 GenericContainer ""
+                r.0.0.0.0.9.0.3.0 Button "Lock image pixels" description="Lock image pixels" [disabled unchecked] actions=[Click,Focus]
+              r.0.0.0.0.9.0.4 GenericContainer ""
+                r.0.0.0.0.9.0.4.0 Button "Lock position" description="Lock position" [disabled unchecked] actions=[Click,Focus]
+              r.0.0.0.0.9.0.5 GenericContainer ""
+                r.0.0.0.0.9.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [disabled unchecked] actions=[Click,Focus]
+              r.0.0.0.0.9.0.6 GenericContainer ""
+                r.0.0.0.0.9.0.6.0 Button "Lock all" description="Lock all" [disabled unchecked] actions=[Click,Focus]
+              r.0.0.0.0.9.0.7 GenericContainer ""
+                r.0.0.0.0.9.0.7.0 GenericContainer ""
+                  r.0.0.0.0.9.0.7.0.0 Label "" value="Fill:" [disabled]
+                r.0.0.0.0.9.0.7.1 GenericContainer ""
+                  r.0.0.0.0.9.0.7.1.0 SpinButton "Fill" value="100%" number=100 in 0..100 step - [disabled]
+                    r.0.0.0.0.9.0.7.1.0.0 TextRun "" value="100"
+                  r.0.0.0.0.9.0.7.1.1 Button "Fill" description="Fill" [disabled collapsed] actions=[Click]
+          r.0.0.0.0.10 Label "" value="Narrow" actions=[Click]
+            r.0.0.0.0.10.0 TextRun "" value="Narrow"
+          r.0.0.0.0.11 GenericContainer ""
+            r.0.0.0.0.11.0 GenericContainer ""
+              r.0.0.0.0.11.0.0 GenericContainer ""
+                r.0.0.0.0.11.0.0.0 GenericContainer ""
+                  r.0.0.0.0.11.0.0.0.0 ComboBox "Blend Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+                r.0.0.0.0.11.0.0.1 GenericContainer ""
+                  r.0.0.0.0.11.0.0.1.0 SpinButton "Opacity" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+                    r.0.0.0.0.11.0.0.1.0.0 TextRun "" value="100"
+                  r.0.0.0.0.11.0.0.1.1 Button "Opacity" description="Opacity" [collapsed] actions=[Click]
+              r.0.0.0.0.11.0.1 GenericContainer ""
+                r.0.0.0.0.11.0.1.0 Button "Lock transparent pixels" description="Lock transparent pixels" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.11.0.2 GenericContainer ""
+                r.0.0.0.0.11.0.2.0 Button "Lock image pixels" description="Lock image pixels" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.11.0.3 GenericContainer ""
+                r.0.0.0.0.11.0.3.0 Button "Lock position" description="Lock position" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.11.0.4 GenericContainer ""
+                r.0.0.0.0.11.0.4.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.11.0.5 GenericContainer ""
+                r.0.0.0.0.11.0.5.0 Button "Lock all" description="Lock all" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.11.0.6 GenericContainer ""
+                r.0.0.0.0.11.0.6.0 GenericContainer ""
+                  r.0.0.0.0.11.0.6.0.0 Label "" value="Fill:"
+                r.0.0.0.0.11.0.6.1 GenericContainer ""
+                  r.0.0.0.0.11.0.6.1.0 SpinButton "Fill" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+                    r.0.0.0.0.11.0.6.1.0.0 TextRun "" value="100"
+                  r.0.0.0.0.11.0.6.1.1 Button "Fill" description="Fill" [collapsed] actions=[Click]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode"
+  2: r.0.0.0.0.1.0.0.2.0 SpinButton "Opacity"
+  3: r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels"
+  4: r.0.0.0.0.1.0.3.0 Button "Lock image pixels"
+  5: r.0.0.0.0.1.0.4.0 Button "Lock position"
+  6: r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames"
+  7: r.0.0.0.0.1.0.6.0 Button "Lock all"
+  8: r.0.0.0.0.1.0.7.1.0 SpinButton "Fill"
+  9: r.0.0.0.0.3.0.0.0.0 ComboBox "Blend Mode"
+  10: r.0.0.0.0.3.0.0.2.0 SpinButton "Opacity"
+  11: r.0.0.0.0.3.0.2.0 Button "Lock transparent pixels"
+  12: r.0.0.0.0.3.0.3.0 Button "Lock image pixels"
+  13: r.0.0.0.0.3.0.4.0 Button "Lock position"
+  14: r.0.0.0.0.3.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames"
+  15: r.0.0.0.0.3.0.6.0 Button "Lock all"
+  16: r.0.0.0.0.3.0.7.1.0 SpinButton "Fill"
+  17: r.0.0.0.0.5.0.2.0 Button "Lock transparent pixels"
+  18: r.0.0.0.0.5.0.3.0 Button "Lock image pixels"
+  19: r.0.0.0.0.5.0.4.0 Button "Lock position"
+  20: r.0.0.0.0.5.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames"
+  21: r.0.0.0.0.5.0.6.0 Button "Lock all"
+  22: r.0.0.0.0.7.0.0.0.0 ComboBox "Blend Mode"
+  23: r.0.0.0.0.7.0.0.2.0 SpinButton "Opacity"
+  24: r.0.0.0.0.7.0.3.0 Button "Lock image pixels"
+  25: r.0.0.0.0.7.0.4.0 Button "Lock position"
+  26: r.0.0.0.0.7.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames"
+  27: r.0.0.0.0.7.0.6.0 Button "Lock all"
+  28: r.0.0.0.0.7.0.7.1.0 SpinButton "Fill"
+  29: r.0.0.0.0.11.0.0.0.0 ComboBox "Blend Mode"
+  30: r.0.0.0.0.11.0.0.1.0 SpinButton "Opacity"
+  31: r.0.0.0.0.11.0.1.0 Button "Lock transparent pixels"
+  32: r.0.0.0.0.11.0.2.0 Button "Lock image pixels"
+  33: r.0.0.0.0.11.0.3.0 Button "Lock position"
+  34: r.0.0.0.0.11.0.4.0 Button "Prevent auto-nesting in and out of Artboards and Frames"
+  35: r.0.0.0.0.11.0.5.0 Button "Lock all"
+  36: r.0.0.0.0.11.0.6.1.0 SpinButton "Fill"
+  37: r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode"
+  cycle after 36 nodes
+drive: 50 actionable nodes
+drive r.0.0.0.0.0 Label ""
+  click:
+    focus: r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal"
+    - r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.0 ListBox ""
+    + r.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Darken" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Multiply" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Color Burn" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.5 ListBoxOption "Linear Burn" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Darker Color" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.7 ListBoxOption "Lighten" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Screen" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Color Dodge" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.10 ListBoxOption "Linear Dodge (Add)" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.11 ListBoxOption "Lighter Color" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Overlay" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.13 ListBoxOption "Soft Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.14 ListBoxOption "Hard Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.15 ListBoxOption "Vivid Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.16 ListBoxOption "Linear Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.17 ListBoxOption "Pin Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.18 ListBoxOption "Hard Mix" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.19 ListBoxOption "Difference" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.20 ListBoxOption "Exclusion" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.21 ListBoxOption "Subtract" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.22 ListBoxOption "Divide" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.23 ListBoxOption "Hue" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.24 ListBoxOption "Saturation" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.25 ListBoxOption "Color" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.26 ListBoxOption "Luminosity" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    + r.0.0.0.0.2 Label "" value="Last event: Blend(Begin { id: GestureId(648), value: None })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Begin { id: GestureId(648), value: None })"
+  Space:
+    focus: r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" -> r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode"
+    - r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.0 ListBox ""
+    - r.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Darken" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Multiply" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Color Burn" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.5 ListBoxOption "Linear Burn" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Darker Color" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.7 ListBoxOption "Lighten" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Screen" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Color Dodge" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.10 ListBoxOption "Linear Dodge (Add)" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.11 ListBoxOption "Lighter Color" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Overlay" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.13 ListBoxOption "Soft Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.14 ListBoxOption "Hard Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.15 ListBoxOption "Vivid Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.16 ListBoxOption "Linear Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.17 ListBoxOption "Pin Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.18 ListBoxOption "Hard Mix" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.19 ListBoxOption "Difference" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.20 ListBoxOption "Exclusion" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.21 ListBoxOption "Subtract" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.22 ListBoxOption "Divide" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.23 ListBoxOption "Hue" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.24 ListBoxOption "Saturation" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.25 ListBoxOption "Color" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.26 ListBoxOption "Luminosity" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Blend(Begin { id: GestureId(648), value: None })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Begin { id: GestureId(648), value: None })"
+    + r.0.0.0.0.2 Label "" value="Last event: Blend(Commit { id: GestureId(648), value: \"normal\", changed: false, modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Commit { id: GestureId(648), value: \"normal\", changed: false, modifiers: Modifiers::NONE })"
+  Enter:
+    focus: r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" -> r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal"
+    - r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.0 ListBox ""
+    + r.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Darken" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Multiply" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Color Burn" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.5 ListBoxOption "Linear Burn" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Darker Color" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.7 ListBoxOption "Lighten" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Screen" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Color Dodge" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.10 ListBoxOption "Linear Dodge (Add)" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.11 ListBoxOption "Lighter Color" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Overlay" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.13 ListBoxOption "Soft Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.14 ListBoxOption "Hard Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.15 ListBoxOption "Vivid Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.16 ListBoxOption "Linear Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.17 ListBoxOption "Pin Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.18 ListBoxOption "Hard Mix" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.19 ListBoxOption "Difference" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.20 ListBoxOption "Exclusion" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.21 ListBoxOption "Subtract" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.22 ListBoxOption "Divide" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.23 ListBoxOption "Hue" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.24 ListBoxOption "Saturation" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.25 ListBoxOption "Color" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.26 ListBoxOption "Luminosity" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: Blend(Commit { id: GestureId(648), value: \"normal\", changed: false, modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Commit { id: GestureId(648), value: \"normal\", changed: false, modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.2 Label "" value="Last event: Blend(Begin { id: GestureId(649), value: None })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Begin { id: GestureId(649), value: None })"
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" -> r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve"
+    - r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Dissolve" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [selected] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: Blend(Begin { id: GestureId(649), value: None })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Begin { id: GestureId(649), value: None })"
+    + r.0.0.0.0.2 Label "" value="Last event: Blend(Update { id: GestureId(649), value: \"dissolve\", modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Update { id: GestureId(649), value: \"dissolve\", modifiers: Modifiers::NONE })"
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" -> r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal"
+    - r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Dissolve" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [selected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [unselected] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: Blend(Update { id: GestureId(649), value: \"dissolve\", modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Update { id: GestureId(649), value: \"dissolve\", modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.2 Label "" value="Last event: Blend(Update { id: GestureId(649), value: \"normal\", modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Update { id: GestureId(649), value: \"normal\", modifiers: Modifiers::NONE })"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" -> r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode"
+    - r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.0 ListBox ""
+    - r.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Darken" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Multiply" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Color Burn" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.5 ListBoxOption "Linear Burn" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Darker Color" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.7 ListBoxOption "Lighten" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Screen" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Color Dodge" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.10 ListBoxOption "Linear Dodge (Add)" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.11 ListBoxOption "Lighter Color" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Overlay" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.13 ListBoxOption "Soft Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.14 ListBoxOption "Hard Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.15 ListBoxOption "Vivid Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.16 ListBoxOption "Linear Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.17 ListBoxOption "Pin Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.18 ListBoxOption "Hard Mix" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.19 ListBoxOption "Difference" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.20 ListBoxOption "Exclusion" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.21 ListBoxOption "Subtract" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.22 ListBoxOption "Divide" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.23 ListBoxOption "Hue" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.24 ListBoxOption "Saturation" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.25 ListBoxOption "Color" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.26 ListBoxOption "Luminosity" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Blend(Update { id: GestureId(649), value: \"normal\", modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Update { id: GestureId(649), value: \"normal\", modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.2 Label "" value="Last event: Blend(Cancel { id: GestureId(649), reason: Escape })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Cancel { id: GestureId(649), reason: Escape })"
+drive r.0.0.0.0.1.0.0.2.0 SpinButton "Opacity"
+  click:
+    focus: r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" -> r.0.0.0.0.1.0.0.2.0 SpinButton "Opacity"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.1.0.0.2.0 SpinButton "Opacity" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown:
+    - r.0.0.0.0.1.0.0.2.0 SpinButton "Opacity" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.0.0.2.0.0 TextRun "" value="100"
+    + r.0.0.0.0.1.0.0.2.0 SpinButton "Opacity" value="99%" number=99 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.0.0.2.0.0 TextRun "" value="99"
+    - r.0.0.0.0.2 Label "" value="Last event: Blend(Cancel { id: GestureId(649), reason: Escape })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Cancel { id: GestureId(649), reason: Escape })"
+    + r.0.0.0.0.2 Label "" value="Last event: Opacity(Set { value: 99.0, modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Opacity(Set { value: 99.0, modifiers: Modifiers::NONE })"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.2.0 SpinButton "Opacity" -> r Window ""
+drive r.0.0.0.0.1.0.0.2.1 Button "Opacity"
+  click:
+    - r.0.0.0.0.1.0.0.2.1 Button "Opacity" description="Opacity" [collapsed] actions=[Click]
+    + r.0.0.0.0.1.0.0.2.1 Button "Opacity" description="Opacity" [expanded] actions=[Click]
+    + r.0.0.0.0.1.0.0.2.1.0 Dialog ""
+    + r.0.0.0.0.1.0.0.2.1.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.2.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.2.1.0.0.0.0 Slider "Opacity" number=99 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+  Escape:
+    - r.0.0.0.0.1.0.0.2.1 Button "Opacity" description="Opacity" [expanded] actions=[Click]
+    - r.0.0.0.0.1.0.0.2.1.0 Dialog ""
+    - r.0.0.0.0.1.0.0.2.1.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.2.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.2.1.0.0.0.0 Slider "Opacity" number=99 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.0.0.2.1 Button "Opacity" description="Opacity" [collapsed] actions=[Click]
+drive r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels"
+  click:
+    - r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Opacity(Set { value: 99.0, modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Opacity(Set { value: 99.0, modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Transparency, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Transparency, on: true }"
+  Space:
+    - r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Transparency, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Transparency, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Transparency, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Transparency, on: false }"
+  Enter:
+    - r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Transparency, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Transparency, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Transparency, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Transparency, on: true }"
+  Escape:
+    focus: r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" -> r Window ""
+drive r.0.0.0.0.1.0.3.0 Button "Lock image pixels"
+  click:
+    - r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Included in Lock image pixels" [disabled checked] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Transparency, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Transparency, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Pixels, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Pixels, on: true }"
+  Space:
+    - r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Included in Lock image pixels" [disabled checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Pixels, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Pixels, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Pixels, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Pixels, on: false }"
+  Enter:
+    - r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Included in Lock image pixels" [disabled checked] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Pixels, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Pixels, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Pixels, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Pixels, on: true }"
+  Escape:
+    focus: r.0.0.0.0.1.0.3.0 Button "Lock image pixels" -> r Window ""
+drive r.0.0.0.0.1.0.4.0 Button "Lock position"
+  click:
+    - r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Pixels, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Pixels, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Position, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Position, on: true }"
+  Space:
+    - r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Position, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Position, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Position, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Position, on: false }"
+  Enter:
+    - r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Position, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Position, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Position, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Position, on: true }"
+  Escape:
+    focus: r.0.0.0.0.1.0.4.0 Button "Lock position" -> r Window ""
+drive r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames"
+  click:
+    - r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Position, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Position, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Artboard, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Artboard, on: true }"
+  Space:
+    - r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Artboard, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Artboard, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Artboard, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Artboard, on: false }"
+  Enter:
+    - r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Artboard, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Artboard, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Artboard, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Artboard, on: true }"
+  Escape:
+    focus: r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" -> r Window ""
+drive r.0.0.0.0.1.0.6.0 Button "Lock all"
+  click:
+    - r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Artboard, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Artboard, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: All, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: All, on: true }"
+  Space:
+    - r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: All, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: All, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: All, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: All, on: false }"
+  Enter:
+    - r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: All, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: All, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: All, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: All, on: true }"
+  Escape:
+    focus: r.0.0.0.0.1.0.6.0 Button "Lock all" -> r Window ""
+drive r.0.0.0.0.1.0.7.1.0 SpinButton "Fill"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.7.1.0 SpinButton "Fill"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.1.0.7.1.0 SpinButton "Fill" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown:
+    - r.0.0.0.0.1.0.7.1.0 SpinButton "Fill" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.0.7.1.0.0 TextRun "" value="100"
+    + r.0.0.0.0.1.0.7.1.0 SpinButton "Fill" value="99%" number=99 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.0.7.1.0.0 TextRun "" value="99"
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: All, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: All, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Fill(Set { value: 99.0, modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Fill(Set { value: 99.0, modifiers: Modifiers::NONE })"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.7.1.0 SpinButton "Fill" -> r Window ""
+drive r.0.0.0.0.1.0.7.1.1 Button "Fill"
+  click:
+    - r.0.0.0.0.1.0.7.1.1 Button "Fill" description="Fill" [collapsed] actions=[Click]
+    + r.0.0.0.0.1.0.7.1.1 Button "Fill" description="Fill" [expanded] actions=[Click]
+    + r.0.0.0.0.1.0.7.1.1.0 Dialog ""
+    + r.0.0.0.0.1.0.7.1.1.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.7.1.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.7.1.1.0.0.0.0 Slider "Fill" number=99 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+  Escape:
+    - r.0.0.0.0.1.0.7.1.1 Button "Fill" description="Fill" [expanded] actions=[Click]
+    - r.0.0.0.0.1.0.7.1.1.0 Dialog ""
+    - r.0.0.0.0.1.0.7.1.1.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.7.1.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.7.1.1.0.0.0.0 Slider "Fill" number=99 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.0.7.1.1 Button "Fill" description="Fill" [collapsed] actions=[Click]
+drive r.0.0.0.0.2 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.3.0.0.0.0 ComboBox "Blend Mode"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal"
+    - r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.0 ListBox ""
+    + r.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Darken" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Multiply" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Color Burn" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.5 ListBoxOption "Linear Burn" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Darker Color" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.7 ListBoxOption "Lighten" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Screen" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Color Dodge" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.10 ListBoxOption "Linear Dodge (Add)" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.11 ListBoxOption "Lighter Color" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Overlay" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.13 ListBoxOption "Soft Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.14 ListBoxOption "Hard Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.15 ListBoxOption "Vivid Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.16 ListBoxOption "Linear Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.17 ListBoxOption "Pin Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.18 ListBoxOption "Hard Mix" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.19 ListBoxOption "Difference" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.20 ListBoxOption "Exclusion" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.21 ListBoxOption "Subtract" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.22 ListBoxOption "Divide" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.23 ListBoxOption "Hue" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.24 ListBoxOption "Saturation" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.25 ListBoxOption "Color" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.26 ListBoxOption "Luminosity" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: Fill(Set { value: 99.0, modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Fill(Set { value: 99.0, modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.2 Label "" value="Last event: Blend(Begin { id: GestureId(650), value: None })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Begin { id: GestureId(650), value: None })"
+  Space:
+    focus: r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" -> r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode"
+    - r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.0 ListBox ""
+    - r.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Darken" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Multiply" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Color Burn" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.5 ListBoxOption "Linear Burn" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Darker Color" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.7 ListBoxOption "Lighten" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Screen" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Color Dodge" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.10 ListBoxOption "Linear Dodge (Add)" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.11 ListBoxOption "Lighter Color" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Overlay" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.13 ListBoxOption "Soft Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.14 ListBoxOption "Hard Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.15 ListBoxOption "Vivid Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.16 ListBoxOption "Linear Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.17 ListBoxOption "Pin Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.18 ListBoxOption "Hard Mix" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.19 ListBoxOption "Difference" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.20 ListBoxOption "Exclusion" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.21 ListBoxOption "Subtract" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.22 ListBoxOption "Divide" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.23 ListBoxOption "Hue" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.24 ListBoxOption "Saturation" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.25 ListBoxOption "Color" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.26 ListBoxOption "Luminosity" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Blend(Begin { id: GestureId(650), value: None })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Begin { id: GestureId(650), value: None })"
+    + r.0.0.0.0.2 Label "" value="Last event: Blend(Commit { id: GestureId(650), value: \"normal\", changed: false, modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Commit { id: GestureId(650), value: \"normal\", changed: false, modifiers: Modifiers::NONE })"
+  Enter:
+    focus: r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" -> r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal"
+    - r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.0 ListBox ""
+    + r.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Darken" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Multiply" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Color Burn" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.5 ListBoxOption "Linear Burn" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Darker Color" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.7 ListBoxOption "Lighten" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Screen" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Color Dodge" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.10 ListBoxOption "Linear Dodge (Add)" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.11 ListBoxOption "Lighter Color" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Overlay" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.13 ListBoxOption "Soft Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.14 ListBoxOption "Hard Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.15 ListBoxOption "Vivid Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.16 ListBoxOption "Linear Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.17 ListBoxOption "Pin Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.18 ListBoxOption "Hard Mix" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.19 ListBoxOption "Difference" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.20 ListBoxOption "Exclusion" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.21 ListBoxOption "Subtract" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.22 ListBoxOption "Divide" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.23 ListBoxOption "Hue" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.24 ListBoxOption "Saturation" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.25 ListBoxOption "Color" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.26 ListBoxOption "Luminosity" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: Blend(Commit { id: GestureId(650), value: \"normal\", changed: false, modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Commit { id: GestureId(650), value: \"normal\", changed: false, modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.2 Label "" value="Last event: Blend(Begin { id: GestureId(651), value: None })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Begin { id: GestureId(651), value: None })"
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" -> r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve"
+    - r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Dissolve" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [selected] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: Blend(Begin { id: GestureId(651), value: None })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Begin { id: GestureId(651), value: None })"
+    + r.0.0.0.0.2 Label "" value="Last event: Blend(Update { id: GestureId(651), value: \"dissolve\", modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Update { id: GestureId(651), value: \"dissolve\", modifiers: Modifiers::NONE })"
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" -> r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal"
+    - r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Dissolve" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [selected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [unselected] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: Blend(Update { id: GestureId(651), value: \"dissolve\", modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Update { id: GestureId(651), value: \"dissolve\", modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.2 Label "" value="Last event: Blend(Update { id: GestureId(651), value: \"normal\", modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Update { id: GestureId(651), value: \"normal\", modifiers: Modifiers::NONE })"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" -> r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode"
+    - r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.0 ListBox ""
+    - r.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Darken" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Multiply" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Color Burn" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.5 ListBoxOption "Linear Burn" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Darker Color" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.7 ListBoxOption "Lighten" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Screen" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Color Dodge" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.10 ListBoxOption "Linear Dodge (Add)" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.11 ListBoxOption "Lighter Color" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Overlay" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.13 ListBoxOption "Soft Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.14 ListBoxOption "Hard Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.15 ListBoxOption "Vivid Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.16 ListBoxOption "Linear Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.17 ListBoxOption "Pin Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.18 ListBoxOption "Hard Mix" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.19 ListBoxOption "Difference" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.20 ListBoxOption "Exclusion" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.21 ListBoxOption "Subtract" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.22 ListBoxOption "Divide" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.23 ListBoxOption "Hue" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.24 ListBoxOption "Saturation" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.25 ListBoxOption "Color" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.26 ListBoxOption "Luminosity" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Blend(Update { id: GestureId(651), value: \"normal\", modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Update { id: GestureId(651), value: \"normal\", modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.2 Label "" value="Last event: Blend(Cancel { id: GestureId(651), reason: Escape })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Cancel { id: GestureId(651), reason: Escape })"
+drive r.0.0.0.0.3.0.0.2.0 SpinButton "Opacity"
+  click:
+    focus: r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" -> r.0.0.0.0.1.0.0.2.0 SpinButton "Opacity"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.1.0.0.2.0 SpinButton "Opacity" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.1.0.0.2.0 SpinButton "Opacity" value="99%" number=99 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.0.0.2.0.0 TextRun "" value="99"
+    + r.0.0.0.0.1.0.0.2.0 SpinButton "Opacity" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.0.0.2.0.0 TextRun "" value="100"
+    - r.0.0.0.0.2 Label "" value="Last event: Blend(Cancel { id: GestureId(651), reason: Escape })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Cancel { id: GestureId(651), reason: Escape })"
+    + r.0.0.0.0.2 Label "" value="Last event: Opacity(Set { value: 100.0, modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Opacity(Set { value: 100.0, modifiers: Modifiers::NONE })"
+  ArrowDown:
+    - r.0.0.0.0.1.0.0.2.0 SpinButton "Opacity" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.0.0.2.0.0 TextRun "" value="100"
+    + r.0.0.0.0.1.0.0.2.0 SpinButton "Opacity" value="99%" number=99 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.0.0.2.0.0 TextRun "" value="99"
+    - r.0.0.0.0.2 Label "" value="Last event: Opacity(Set { value: 100.0, modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Opacity(Set { value: 100.0, modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.2 Label "" value="Last event: Opacity(Set { value: 99.0, modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Opacity(Set { value: 99.0, modifiers: Modifiers::NONE })"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.2.0 SpinButton "Opacity" -> r Window ""
+drive r.0.0.0.0.3.0.0.2.1 Button "Opacity"
+  click:
+    - r.0.0.0.0.1.0.0.2.1 Button "Opacity" description="Opacity" [collapsed] actions=[Click]
+    + r.0.0.0.0.1.0.0.2.1 Button "Opacity" description="Opacity" [expanded] actions=[Click]
+    + r.0.0.0.0.1.0.0.2.1.0 Dialog ""
+    + r.0.0.0.0.1.0.0.2.1.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.2.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.2.1.0.0.0.0 Slider "Opacity" number=99 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+  Escape:
+    - r.0.0.0.0.1.0.0.2.1 Button "Opacity" description="Opacity" [expanded] actions=[Click]
+    - r.0.0.0.0.1.0.0.2.1.0 Dialog ""
+    - r.0.0.0.0.1.0.0.2.1.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.2.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.2.1.0.0.0.0 Slider "Opacity" number=99 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.0.0.2.1 Button "Opacity" description="Opacity" [collapsed] actions=[Click]
+drive r.0.0.0.0.3.0.2.0 Button "Lock transparent pixels"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape: no change
+drive r.0.0.0.0.3.0.3.0 Button "Lock image pixels"
+  click:
+    - r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Included in Lock image pixels" [disabled checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Opacity(Set { value: 99.0, modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Opacity(Set { value: 99.0, modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Pixels, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Pixels, on: false }"
+  Space:
+    - r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Included in Lock image pixels" [disabled checked] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Pixels, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Pixels, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Pixels, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Pixels, on: true }"
+  Enter:
+    - r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Included in Lock image pixels" [disabled checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Pixels, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Pixels, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Pixels, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Pixels, on: false }"
+  Escape:
+    focus: r.0.0.0.0.1.0.3.0 Button "Lock image pixels" -> r Window ""
+drive r.0.0.0.0.3.0.4.0 Button "Lock position"
+  click:
+    - r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Pixels, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Pixels, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Position, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Position, on: false }"
+  Space:
+    - r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Position, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Position, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Position, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Position, on: true }"
+  Enter:
+    - r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Position, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Position, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Position, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Position, on: false }"
+  Escape:
+    focus: r.0.0.0.0.1.0.4.0 Button "Lock position" -> r Window ""
+drive r.0.0.0.0.3.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames"
+  click:
+    - r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Position, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Position, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Artboard, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Artboard, on: false }"
+  Space:
+    - r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Artboard, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Artboard, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Artboard, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Artboard, on: true }"
+  Enter:
+    - r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Artboard, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Artboard, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Artboard, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Artboard, on: false }"
+  Escape:
+    focus: r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" -> r Window ""
+drive r.0.0.0.0.3.0.6.0 Button "Lock all"
+  click:
+    - r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Artboard, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Artboard, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: All, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: All, on: false }"
+  Space:
+    - r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: All, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: All, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: All, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: All, on: true }"
+  Enter:
+    - r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: All, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: All, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: All, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: All, on: false }"
+  Escape:
+    focus: r.0.0.0.0.1.0.6.0 Button "Lock all" -> r Window ""
+drive r.0.0.0.0.3.0.7.1.0 SpinButton "Fill"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.7.1.0 SpinButton "Fill"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.1.0.7.1.0 SpinButton "Fill" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.1.0.7.1.0 SpinButton "Fill" value="99%" number=99 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.0.7.1.0.0 TextRun "" value="99"
+    + r.0.0.0.0.1.0.7.1.0 SpinButton "Fill" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.0.7.1.0.0 TextRun "" value="100"
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: All, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: All, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Fill(Set { value: 100.0, modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Fill(Set { value: 100.0, modifiers: Modifiers::NONE })"
+  ArrowDown:
+    - r.0.0.0.0.1.0.7.1.0 SpinButton "Fill" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.0.7.1.0.0 TextRun "" value="100"
+    + r.0.0.0.0.1.0.7.1.0 SpinButton "Fill" value="99%" number=99 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.0.7.1.0.0 TextRun "" value="99"
+    - r.0.0.0.0.2 Label "" value="Last event: Fill(Set { value: 100.0, modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Fill(Set { value: 100.0, modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.2 Label "" value="Last event: Fill(Set { value: 99.0, modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Fill(Set { value: 99.0, modifiers: Modifiers::NONE })"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.7.1.0 SpinButton "Fill" -> r Window ""
+drive r.0.0.0.0.3.0.7.1.1 Button "Fill"
+  click:
+    - r.0.0.0.0.1.0.7.1.1 Button "Fill" description="Fill" [collapsed] actions=[Click]
+    + r.0.0.0.0.1.0.7.1.1 Button "Fill" description="Fill" [expanded] actions=[Click]
+    + r.0.0.0.0.1.0.7.1.1.0 Dialog ""
+    + r.0.0.0.0.1.0.7.1.1.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.7.1.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.7.1.1.0.0.0.0 Slider "Fill" number=99 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+  Escape:
+    - r.0.0.0.0.1.0.7.1.1 Button "Fill" description="Fill" [expanded] actions=[Click]
+    - r.0.0.0.0.1.0.7.1.1.0 Dialog ""
+    - r.0.0.0.0.1.0.7.1.1.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.7.1.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.7.1.1.0.0.0.0 Slider "Fill" number=99 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.0.7.1.1 Button "Fill" description="Fill" [collapsed] actions=[Click]
+drive r.0.0.0.0.4 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.5.0.2.0 Button "Lock transparent pixels"
+  click:
+    - r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Fill(Set { value: 99.0, modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Fill(Set { value: 99.0, modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Transparency, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Transparency, on: false }"
+  Space:
+    - r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Transparency, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Transparency, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Transparency, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Transparency, on: true }"
+  Enter:
+    - r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Transparency, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Transparency, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Transparency, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Transparency, on: false }"
+  Escape:
+    focus: r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" -> r Window ""
+drive r.0.0.0.0.5.0.3.0 Button "Lock image pixels"
+  click:
+    - r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Included in Lock image pixels" [disabled unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Transparency, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Transparency, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Pixels, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Pixels, on: true }"
+  Space:
+    - r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Included in Lock image pixels" [disabled unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Pixels, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Pixels, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Pixels, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Pixels, on: false }"
+  Enter:
+    - r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Included in Lock image pixels" [disabled unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Pixels, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Pixels, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Pixels, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Pixels, on: true }"
+  Escape:
+    focus: r.0.0.0.0.1.0.3.0 Button "Lock image pixels" -> r Window ""
+drive r.0.0.0.0.5.0.4.0 Button "Lock position"
+  click:
+    - r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Pixels, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Pixels, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Position, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Position, on: true }"
+  Space:
+    - r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Position, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Position, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Position, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Position, on: false }"
+  Enter:
+    - r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Position, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Position, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Position, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Position, on: true }"
+  Escape:
+    focus: r.0.0.0.0.1.0.4.0 Button "Lock position" -> r Window ""
+drive r.0.0.0.0.5.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames"
+  click:
+    - r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Position, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Position, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Artboard, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Artboard, on: true }"
+  Space:
+    - r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Artboard, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Artboard, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Artboard, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Artboard, on: false }"
+  Enter:
+    - r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Artboard, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Artboard, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Artboard, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Artboard, on: true }"
+  Escape:
+    focus: r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" -> r Window ""
+drive r.0.0.0.0.5.0.6.0 Button "Lock all"
+  click:
+    - r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Artboard, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Artboard, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: All, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: All, on: true }"
+  Space:
+    - r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: All, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: All, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: All, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: All, on: false }"
+  Enter:
+    - r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: All, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: All, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: All, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: All, on: true }"
+  Escape:
+    focus: r.0.0.0.0.1.0.6.0 Button "Lock all" -> r Window ""
+drive r.0.0.0.0.6 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.7.0.0.0.0 ComboBox "Blend Mode"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal"
+    - r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.0 ListBox ""
+    + r.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Darken" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Multiply" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Color Burn" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.5 ListBoxOption "Linear Burn" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Darker Color" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.7 ListBoxOption "Lighten" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Screen" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Color Dodge" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.10 ListBoxOption "Linear Dodge (Add)" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.11 ListBoxOption "Lighter Color" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Overlay" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.13 ListBoxOption "Soft Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.14 ListBoxOption "Hard Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.15 ListBoxOption "Vivid Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.16 ListBoxOption "Linear Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.17 ListBoxOption "Pin Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.18 ListBoxOption "Hard Mix" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.19 ListBoxOption "Difference" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.20 ListBoxOption "Exclusion" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.21 ListBoxOption "Subtract" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.22 ListBoxOption "Divide" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.23 ListBoxOption "Hue" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.24 ListBoxOption "Saturation" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.25 ListBoxOption "Color" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.26 ListBoxOption "Luminosity" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: All, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: All, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Blend(Begin { id: GestureId(652), value: None })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Begin { id: GestureId(652), value: None })"
+  Space:
+    focus: r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" -> r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode"
+    - r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.0 ListBox ""
+    - r.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Darken" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Multiply" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Color Burn" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.5 ListBoxOption "Linear Burn" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Darker Color" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.7 ListBoxOption "Lighten" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Screen" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Color Dodge" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.10 ListBoxOption "Linear Dodge (Add)" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.11 ListBoxOption "Lighter Color" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Overlay" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.13 ListBoxOption "Soft Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.14 ListBoxOption "Hard Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.15 ListBoxOption "Vivid Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.16 ListBoxOption "Linear Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.17 ListBoxOption "Pin Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.18 ListBoxOption "Hard Mix" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.19 ListBoxOption "Difference" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.20 ListBoxOption "Exclusion" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.21 ListBoxOption "Subtract" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.22 ListBoxOption "Divide" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.23 ListBoxOption "Hue" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.24 ListBoxOption "Saturation" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.25 ListBoxOption "Color" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.26 ListBoxOption "Luminosity" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Blend(Begin { id: GestureId(652), value: None })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Begin { id: GestureId(652), value: None })"
+    + r.0.0.0.0.2 Label "" value="Last event: Blend(Commit { id: GestureId(652), value: \"normal\", changed: false, modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Commit { id: GestureId(652), value: \"normal\", changed: false, modifiers: Modifiers::NONE })"
+  Enter:
+    focus: r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" -> r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal"
+    - r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.0 ListBox ""
+    + r.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Darken" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Multiply" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Color Burn" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.5 ListBoxOption "Linear Burn" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Darker Color" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.7 ListBoxOption "Lighten" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Screen" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Color Dodge" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.10 ListBoxOption "Linear Dodge (Add)" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.11 ListBoxOption "Lighter Color" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Overlay" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.13 ListBoxOption "Soft Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.14 ListBoxOption "Hard Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.15 ListBoxOption "Vivid Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.16 ListBoxOption "Linear Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.17 ListBoxOption "Pin Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.18 ListBoxOption "Hard Mix" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.19 ListBoxOption "Difference" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.20 ListBoxOption "Exclusion" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.21 ListBoxOption "Subtract" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.22 ListBoxOption "Divide" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.23 ListBoxOption "Hue" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.24 ListBoxOption "Saturation" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.25 ListBoxOption "Color" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.26 ListBoxOption "Luminosity" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: Blend(Commit { id: GestureId(652), value: \"normal\", changed: false, modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Commit { id: GestureId(652), value: \"normal\", changed: false, modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.2 Label "" value="Last event: Blend(Begin { id: GestureId(653), value: None })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Begin { id: GestureId(653), value: None })"
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" -> r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve"
+    - r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Dissolve" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [selected] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: Blend(Begin { id: GestureId(653), value: None })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Begin { id: GestureId(653), value: None })"
+    + r.0.0.0.0.2 Label "" value="Last event: Blend(Update { id: GestureId(653), value: \"dissolve\", modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Update { id: GestureId(653), value: \"dissolve\", modifiers: Modifiers::NONE })"
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" -> r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal"
+    - r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Dissolve" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [selected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [unselected] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: Blend(Update { id: GestureId(653), value: \"dissolve\", modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Update { id: GestureId(653), value: \"dissolve\", modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.2 Label "" value="Last event: Blend(Update { id: GestureId(653), value: \"normal\", modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Update { id: GestureId(653), value: \"normal\", modifiers: Modifiers::NONE })"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" -> r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode"
+    - r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.0 ListBox ""
+    - r.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Darken" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Multiply" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Color Burn" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.5 ListBoxOption "Linear Burn" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Darker Color" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.7 ListBoxOption "Lighten" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Screen" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Color Dodge" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.10 ListBoxOption "Linear Dodge (Add)" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.11 ListBoxOption "Lighter Color" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Overlay" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.13 ListBoxOption "Soft Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.14 ListBoxOption "Hard Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.15 ListBoxOption "Vivid Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.16 ListBoxOption "Linear Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.17 ListBoxOption "Pin Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.18 ListBoxOption "Hard Mix" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.19 ListBoxOption "Difference" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.20 ListBoxOption "Exclusion" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.21 ListBoxOption "Subtract" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.22 ListBoxOption "Divide" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.23 ListBoxOption "Hue" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.24 ListBoxOption "Saturation" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.25 ListBoxOption "Color" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.26 ListBoxOption "Luminosity" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Blend(Update { id: GestureId(653), value: \"normal\", modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Update { id: GestureId(653), value: \"normal\", modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.2 Label "" value="Last event: Blend(Cancel { id: GestureId(653), reason: Escape })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Cancel { id: GestureId(653), reason: Escape })"
+drive r.0.0.0.0.7.0.0.2.0 SpinButton "Opacity"
+  click:
+    focus: r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" -> r.0.0.0.0.1.0.0.2.0 SpinButton "Opacity"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.1.0.0.2.0 SpinButton "Opacity" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.1.0.0.2.0 SpinButton "Opacity" value="99%" number=99 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.0.0.2.0.0 TextRun "" value="99"
+    + r.0.0.0.0.1.0.0.2.0 SpinButton "Opacity" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.0.0.2.0.0 TextRun "" value="100"
+    - r.0.0.0.0.2 Label "" value="Last event: Blend(Cancel { id: GestureId(653), reason: Escape })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Cancel { id: GestureId(653), reason: Escape })"
+    + r.0.0.0.0.2 Label "" value="Last event: Opacity(Set { value: 100.0, modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Opacity(Set { value: 100.0, modifiers: Modifiers::NONE })"
+  ArrowDown:
+    - r.0.0.0.0.1.0.0.2.0 SpinButton "Opacity" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.0.0.2.0.0 TextRun "" value="100"
+    + r.0.0.0.0.1.0.0.2.0 SpinButton "Opacity" value="99%" number=99 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.0.0.2.0.0 TextRun "" value="99"
+    - r.0.0.0.0.2 Label "" value="Last event: Opacity(Set { value: 100.0, modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Opacity(Set { value: 100.0, modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.2 Label "" value="Last event: Opacity(Set { value: 99.0, modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Opacity(Set { value: 99.0, modifiers: Modifiers::NONE })"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.2.0 SpinButton "Opacity" -> r Window ""
+drive r.0.0.0.0.7.0.0.2.1 Button "Opacity"
+  click:
+    - r.0.0.0.0.1.0.0.2.1 Button "Opacity" description="Opacity" [collapsed] actions=[Click]
+    + r.0.0.0.0.1.0.0.2.1 Button "Opacity" description="Opacity" [expanded] actions=[Click]
+    + r.0.0.0.0.1.0.0.2.1.0 Dialog ""
+    + r.0.0.0.0.1.0.0.2.1.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.2.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.2.1.0.0.0.0 Slider "Opacity" number=99 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+  Escape:
+    - r.0.0.0.0.1.0.0.2.1 Button "Opacity" description="Opacity" [expanded] actions=[Click]
+    - r.0.0.0.0.1.0.0.2.1.0 Dialog ""
+    - r.0.0.0.0.1.0.0.2.1.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.2.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.2.1.0.0.0.0 Slider "Opacity" number=99 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.0.0.2.1 Button "Opacity" description="Opacity" [collapsed] actions=[Click]
+drive r.0.0.0.0.7.0.3.0 Button "Lock image pixels"
+  click:
+    - r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Included in Lock image pixels" [disabled unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Opacity(Set { value: 99.0, modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Opacity(Set { value: 99.0, modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Pixels, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Pixels, on: false }"
+  Space:
+    - r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Included in Lock image pixels" [disabled unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Pixels, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Pixels, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Pixels, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Pixels, on: true }"
+  Enter:
+    - r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Included in Lock image pixels" [disabled unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Pixels, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Pixels, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Pixels, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Pixels, on: false }"
+  Escape:
+    focus: r.0.0.0.0.1.0.3.0 Button "Lock image pixels" -> r Window ""
+drive r.0.0.0.0.7.0.4.0 Button "Lock position"
+  click:
+    - r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Pixels, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Pixels, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Position, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Position, on: false }"
+  Space:
+    - r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Position, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Position, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Position, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Position, on: true }"
+  Enter:
+    - r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Position, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Position, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Position, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Position, on: false }"
+  Escape:
+    focus: r.0.0.0.0.1.0.4.0 Button "Lock position" -> r Window ""
+drive r.0.0.0.0.7.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames"
+  click:
+    - r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Position, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Position, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Artboard, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Artboard, on: false }"
+  Space:
+    - r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Artboard, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Artboard, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Artboard, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Artboard, on: true }"
+  Enter:
+    - r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Artboard, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Artboard, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Artboard, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Artboard, on: false }"
+  Escape:
+    focus: r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" -> r Window ""
+drive r.0.0.0.0.7.0.6.0 Button "Lock all"
+  click:
+    - r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Artboard, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Artboard, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: All, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: All, on: false }"
+  Space:
+    - r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: All, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: All, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: All, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: All, on: true }"
+  Enter:
+    - r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: All, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: All, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: All, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: All, on: false }"
+  Escape:
+    focus: r.0.0.0.0.1.0.6.0 Button "Lock all" -> r Window ""
+drive r.0.0.0.0.7.0.7.1.0 SpinButton "Fill"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.7.1.0 SpinButton "Fill"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.1.0.7.1.0 SpinButton "Fill" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.1.0.7.1.0 SpinButton "Fill" value="99%" number=99 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.0.7.1.0.0 TextRun "" value="99"
+    + r.0.0.0.0.1.0.7.1.0 SpinButton "Fill" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.0.7.1.0.0 TextRun "" value="100"
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: All, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: All, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Fill(Set { value: 100.0, modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Fill(Set { value: 100.0, modifiers: Modifiers::NONE })"
+  ArrowDown:
+    - r.0.0.0.0.1.0.7.1.0 SpinButton "Fill" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.0.7.1.0.0 TextRun "" value="100"
+    + r.0.0.0.0.1.0.7.1.0 SpinButton "Fill" value="99%" number=99 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.0.7.1.0.0 TextRun "" value="99"
+    - r.0.0.0.0.2 Label "" value="Last event: Fill(Set { value: 100.0, modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Fill(Set { value: 100.0, modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.2 Label "" value="Last event: Fill(Set { value: 99.0, modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Fill(Set { value: 99.0, modifiers: Modifiers::NONE })"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.7.1.0 SpinButton "Fill" -> r Window ""
+drive r.0.0.0.0.7.0.7.1.1 Button "Fill"
+  click:
+    - r.0.0.0.0.1.0.7.1.1 Button "Fill" description="Fill" [collapsed] actions=[Click]
+    + r.0.0.0.0.1.0.7.1.1 Button "Fill" description="Fill" [expanded] actions=[Click]
+    + r.0.0.0.0.1.0.7.1.1.0 Dialog ""
+    + r.0.0.0.0.1.0.7.1.1.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.7.1.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.7.1.1.0.0.0.0 Slider "Fill" number=99 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+  Escape:
+    - r.0.0.0.0.1.0.7.1.1 Button "Fill" description="Fill" [expanded] actions=[Click]
+    - r.0.0.0.0.1.0.7.1.1.0 Dialog ""
+    - r.0.0.0.0.1.0.7.1.1.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.7.1.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.7.1.1.0.0.0.0 Slider "Fill" number=99 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.0.7.1.1 Button "Fill" description="Fill" [collapsed] actions=[Click]
+drive r.0.0.0.0.8 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.10 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.11.0.0.0.0 ComboBox "Blend Mode"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal"
+    - r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.0 ListBox ""
+    + r.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Darken" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Multiply" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Color Burn" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.5 ListBoxOption "Linear Burn" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Darker Color" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.7 ListBoxOption "Lighten" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Screen" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Color Dodge" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.10 ListBoxOption "Linear Dodge (Add)" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.11 ListBoxOption "Lighter Color" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Overlay" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.13 ListBoxOption "Soft Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.14 ListBoxOption "Hard Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.15 ListBoxOption "Vivid Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.16 ListBoxOption "Linear Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.17 ListBoxOption "Pin Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.18 ListBoxOption "Hard Mix" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.19 ListBoxOption "Difference" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.20 ListBoxOption "Exclusion" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.21 ListBoxOption "Subtract" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.22 ListBoxOption "Divide" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.23 ListBoxOption "Hue" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.24 ListBoxOption "Saturation" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.25 ListBoxOption "Color" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.26 ListBoxOption "Luminosity" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: Fill(Set { value: 99.0, modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Fill(Set { value: 99.0, modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.2 Label "" value="Last event: Blend(Begin { id: GestureId(654), value: None })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Begin { id: GestureId(654), value: None })"
+  Space:
+    focus: r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" -> r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode"
+    - r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.0 ListBox ""
+    - r.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Darken" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Multiply" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Color Burn" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.5 ListBoxOption "Linear Burn" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Darker Color" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.7 ListBoxOption "Lighten" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Screen" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Color Dodge" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.10 ListBoxOption "Linear Dodge (Add)" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.11 ListBoxOption "Lighter Color" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Overlay" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.13 ListBoxOption "Soft Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.14 ListBoxOption "Hard Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.15 ListBoxOption "Vivid Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.16 ListBoxOption "Linear Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.17 ListBoxOption "Pin Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.18 ListBoxOption "Hard Mix" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.19 ListBoxOption "Difference" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.20 ListBoxOption "Exclusion" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.21 ListBoxOption "Subtract" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.22 ListBoxOption "Divide" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.23 ListBoxOption "Hue" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.24 ListBoxOption "Saturation" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.25 ListBoxOption "Color" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.26 ListBoxOption "Luminosity" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Blend(Begin { id: GestureId(654), value: None })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Begin { id: GestureId(654), value: None })"
+    + r.0.0.0.0.2 Label "" value="Last event: Blend(Commit { id: GestureId(654), value: \"normal\", changed: false, modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Commit { id: GestureId(654), value: \"normal\", changed: false, modifiers: Modifiers::NONE })"
+  Enter:
+    focus: r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" -> r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal"
+    - r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.0 ListBox ""
+    + r.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Darken" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Multiply" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Color Burn" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.5 ListBoxOption "Linear Burn" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Darker Color" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.7 ListBoxOption "Lighten" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Screen" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Color Dodge" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.10 ListBoxOption "Linear Dodge (Add)" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.11 ListBoxOption "Lighter Color" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Overlay" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.13 ListBoxOption "Soft Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.14 ListBoxOption "Hard Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.15 ListBoxOption "Vivid Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.16 ListBoxOption "Linear Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.17 ListBoxOption "Pin Light" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.18 ListBoxOption "Hard Mix" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.19 ListBoxOption "Difference" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.20 ListBoxOption "Exclusion" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.21 ListBoxOption "Subtract" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.22 ListBoxOption "Divide" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.23 ListBoxOption "Hue" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.24 ListBoxOption "Saturation" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.25 ListBoxOption "Color" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.26 ListBoxOption "Luminosity" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: Blend(Commit { id: GestureId(654), value: \"normal\", changed: false, modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Commit { id: GestureId(654), value: \"normal\", changed: false, modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.2 Label "" value="Last event: Blend(Begin { id: GestureId(655), value: None })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Begin { id: GestureId(655), value: None })"
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" -> r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve"
+    - r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Dissolve" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [selected] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: Blend(Begin { id: GestureId(655), value: None })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Begin { id: GestureId(655), value: None })"
+    + r.0.0.0.0.2 Label "" value="Last event: Blend(Update { id: GestureId(655), value: \"dissolve\", modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Update { id: GestureId(655), value: \"dissolve\", modifiers: Modifiers::NONE })"
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" -> r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal"
+    - r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Dissolve" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [selected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [unselected] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: Blend(Update { id: GestureId(655), value: \"dissolve\", modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Update { id: GestureId(655), value: \"dissolve\", modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.2 Label "" value="Last event: Blend(Update { id: GestureId(655), value: \"normal\", modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Update { id: GestureId(655), value: \"normal\", modifiers: Modifiers::NONE })"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" -> r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode"
+    - r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.0 ListBox ""
+    - r.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Darken" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Multiply" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Color Burn" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.5 ListBoxOption "Linear Burn" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Darker Color" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.7 ListBoxOption "Lighten" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Screen" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Color Dodge" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.10 ListBoxOption "Linear Dodge (Add)" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.11 ListBoxOption "Lighter Color" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Overlay" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.13 ListBoxOption "Soft Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.14 ListBoxOption "Hard Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.15 ListBoxOption "Vivid Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.16 ListBoxOption "Linear Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.17 ListBoxOption "Pin Light" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.18 ListBoxOption "Hard Mix" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.19 ListBoxOption "Difference" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.20 ListBoxOption "Exclusion" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.21 ListBoxOption "Subtract" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.22 ListBoxOption "Divide" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.23 ListBoxOption "Hue" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.24 ListBoxOption "Saturation" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.25 ListBoxOption "Color" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.0.0.26 ListBoxOption "Luminosity" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Blend(Update { id: GestureId(655), value: \"normal\", modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Update { id: GestureId(655), value: \"normal\", modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.2 Label "" value="Last event: Blend(Cancel { id: GestureId(655), reason: Escape })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Cancel { id: GestureId(655), reason: Escape })"
+drive r.0.0.0.0.11.0.0.1.0 SpinButton "Opacity"
+  click:
+    focus: r.0.0.0.0.1.0.0.0.0 ComboBox "Blend Mode" -> r.0.0.0.0.1.0.0.2.0 SpinButton "Opacity"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.1.0.0.2.0 SpinButton "Opacity" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.1.0.0.2.0 SpinButton "Opacity" value="99%" number=99 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.0.0.2.0.0 TextRun "" value="99"
+    + r.0.0.0.0.1.0.0.2.0 SpinButton "Opacity" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.0.0.2.0.0 TextRun "" value="100"
+    - r.0.0.0.0.2 Label "" value="Last event: Blend(Cancel { id: GestureId(655), reason: Escape })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Blend(Cancel { id: GestureId(655), reason: Escape })"
+    + r.0.0.0.0.2 Label "" value="Last event: Opacity(Set { value: 100.0, modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Opacity(Set { value: 100.0, modifiers: Modifiers::NONE })"
+  ArrowDown:
+    - r.0.0.0.0.1.0.0.2.0 SpinButton "Opacity" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.0.0.2.0.0 TextRun "" value="100"
+    + r.0.0.0.0.1.0.0.2.0 SpinButton "Opacity" value="99%" number=99 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.0.0.2.0.0 TextRun "" value="99"
+    - r.0.0.0.0.2 Label "" value="Last event: Opacity(Set { value: 100.0, modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Opacity(Set { value: 100.0, modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.2 Label "" value="Last event: Opacity(Set { value: 99.0, modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Opacity(Set { value: 99.0, modifiers: Modifiers::NONE })"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.2.0 SpinButton "Opacity" -> r Window ""
+drive r.0.0.0.0.11.0.0.1.1 Button "Opacity"
+  click:
+    - r.0.0.0.0.1.0.0.2.1 Button "Opacity" description="Opacity" [collapsed] actions=[Click]
+    + r.0.0.0.0.1.0.0.2.1 Button "Opacity" description="Opacity" [expanded] actions=[Click]
+    + r.0.0.0.0.1.0.0.2.1.0 Dialog ""
+    + r.0.0.0.0.1.0.0.2.1.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.2.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.2.1.0.0.0.0 Slider "Opacity" number=99 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+  Escape:
+    - r.0.0.0.0.1.0.0.2.1 Button "Opacity" description="Opacity" [expanded] actions=[Click]
+    - r.0.0.0.0.1.0.0.2.1.0 Dialog ""
+    - r.0.0.0.0.1.0.0.2.1.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.2.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.2.1.0.0.0.0 Slider "Opacity" number=99 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.0.0.2.1 Button "Opacity" description="Opacity" [collapsed] actions=[Click]
+drive r.0.0.0.0.11.0.1.0 Button "Lock transparent pixels"
+  click:
+    - r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Opacity(Set { value: 99.0, modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Opacity(Set { value: 99.0, modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Transparency, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Transparency, on: true }"
+  Space:
+    - r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Transparency, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Transparency, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Transparency, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Transparency, on: false }"
+  Enter:
+    - r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Transparency, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Transparency, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Transparency, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Transparency, on: true }"
+  Escape:
+    focus: r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" -> r Window ""
+drive r.0.0.0.0.11.0.2.0 Button "Lock image pixels"
+  click:
+    - r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Included in Lock image pixels" [disabled checked] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Transparency, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Transparency, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Pixels, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Pixels, on: true }"
+  Space:
+    - r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Included in Lock image pixels" [disabled checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Pixels, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Pixels, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Pixels, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Pixels, on: false }"
+  Enter:
+    - r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Lock transparent pixels" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.2.0 Button "Lock transparent pixels" description="Included in Lock image pixels" [disabled checked] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.3.0 Button "Lock image pixels" description="Lock image pixels" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Pixels, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Pixels, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Pixels, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Pixels, on: true }"
+  Escape:
+    focus: r.0.0.0.0.1.0.3.0 Button "Lock image pixels" -> r Window ""
+drive r.0.0.0.0.11.0.3.0 Button "Lock position"
+  click:
+    - r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Pixels, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Pixels, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Position, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Position, on: true }"
+  Space:
+    - r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Position, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Position, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Position, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Position, on: false }"
+  Enter:
+    - r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.4.0 Button "Lock position" description="Lock position" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Position, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Position, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Position, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Position, on: true }"
+  Escape:
+    focus: r.0.0.0.0.1.0.4.0 Button "Lock position" -> r Window ""
+drive r.0.0.0.0.11.0.4.0 Button "Prevent auto-nesting in and out of Artboards and Frames"
+  click:
+    - r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Position, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Position, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Artboard, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Artboard, on: true }"
+  Space:
+    - r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Artboard, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Artboard, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Artboard, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Artboard, on: false }"
+  Enter:
+    - r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Artboard, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Artboard, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Artboard, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Artboard, on: true }"
+  Escape:
+    focus: r.0.0.0.0.1.0.5.0 Button "Prevent auto-nesting in and out of Artboards and Frames" -> r Window ""
+drive r.0.0.0.0.11.0.5.0 Button "Lock all"
+  click:
+    - r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: Artboard, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: Artboard, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: All, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: All, on: true }"
+  Space:
+    - r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: All, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: All, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: All, on: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: All, on: false }"
+  Enter:
+    - r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.6.0 Button "Lock all" description="Lock all" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: All, on: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: All, on: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Lock { kind: All, on: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: All, on: true }"
+  Escape:
+    focus: r.0.0.0.0.1.0.6.0 Button "Lock all" -> r Window ""
+drive r.0.0.0.0.11.0.6.1.0 SpinButton "Fill"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.7.1.0 SpinButton "Fill"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.1.0.7.1.0 SpinButton "Fill" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.1.0.7.1.0 SpinButton "Fill" value="99%" number=99 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.0.7.1.0.0 TextRun "" value="99"
+    + r.0.0.0.0.1.0.7.1.0 SpinButton "Fill" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.0.7.1.0.0 TextRun "" value="100"
+    - r.0.0.0.0.2 Label "" value="Last event: Lock { kind: All, on: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lock { kind: All, on: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Fill(Set { value: 100.0, modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Fill(Set { value: 100.0, modifiers: Modifiers::NONE })"
+  ArrowDown:
+    - r.0.0.0.0.1.0.7.1.0 SpinButton "Fill" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.0.7.1.0.0 TextRun "" value="100"
+    + r.0.0.0.0.1.0.7.1.0 SpinButton "Fill" value="99%" number=99 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.0.7.1.0.0 TextRun "" value="99"
+    - r.0.0.0.0.2 Label "" value="Last event: Fill(Set { value: 100.0, modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Fill(Set { value: 100.0, modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.2 Label "" value="Last event: Fill(Set { value: 99.0, modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Fill(Set { value: 99.0, modifiers: Modifiers::NONE })"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.7.1.0 SpinButton "Fill" -> r Window ""
+drive r.0.0.0.0.11.0.6.1.1 Button "Fill"
+  click:
+    - r.0.0.0.0.1.0.7.1.1 Button "Fill" description="Fill" [collapsed] actions=[Click]
+    + r.0.0.0.0.1.0.7.1.1 Button "Fill" description="Fill" [expanded] actions=[Click]
+    + r.0.0.0.0.1.0.7.1.1.0 Dialog ""
+    + r.0.0.0.0.1.0.7.1.1.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.7.1.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.7.1.1.0.0.0.0 Slider "Fill" number=99 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+  Escape:
+    - r.0.0.0.0.1.0.7.1.1 Button "Fill" description="Fill" [expanded] actions=[Click]
+    - r.0.0.0.0.1.0.7.1.1.0 Dialog ""
+    - r.0.0.0.0.1.0.7.1.1.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.7.1.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.7.1.1.0.0.0.0 Slider "Fill" number=99 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.0.7.1.1 Button "Fill" description="Fill" [collapsed] actions=[Click]

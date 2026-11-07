@@ -1,0 +1,48 @@
+story patterns/dock/panel-menu
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Button "≡" [collapsed popup:Menu] actions=[Click,Focus]
+          r.0.0.0.0.1 Label "" value="Nothing chosen" actions=[Click]
+            r.0.0.0.0.1.0 TextRun "" value="Nothing chosen"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0 Button "≡"
+  2: r.0.0.0.0.0 Button "≡"
+  cycle after 1 nodes
+drive: 2 actionable nodes
+drive r.0.0.0.0.0 Button "≡"
+  click:
+    - r.0.0.0.0.0 Button "≡" [collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0 Button "≡" [expanded popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0 Menu ""
+    + r.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0 MenuItemCheckBox "Show Thumbnails" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.1 MenuItem "Merge Down" actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.2 MenuItem "Float" actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.3 MenuItem "Move Panel To" [collapsed popup:Menu] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.4 MenuItem "Close" actions=[Click]
+  Space: no change
+  Enter: no change
+  Escape:
+    - r.0.0.0.0.0 Button "≡" [expanded popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.0 Menu ""
+    - r.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0 MenuItemCheckBox "Show Thumbnails" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.1 MenuItem "Merge Down" actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.2 MenuItem "Float" actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.3 MenuItem "Move Panel To" [collapsed popup:Menu] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.4 MenuItem "Close" actions=[Click]
+    + r.0.0.0.0.0 Button "≡" [collapsed popup:Menu] actions=[Click,Focus]
+drive r.0.0.0.0.1 Label ""
+  click:
+    focus: r.0.0.0.0.0 Button "≡" -> r Window ""
+  Escape: no change

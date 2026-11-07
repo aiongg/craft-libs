@@ -1,0 +1,183 @@
+story primitives/slice-tool/slices
+args
+  zoom = Number { value: 100.0, min: 10.0, max: 800.0 }
+  rotation = Number { value: 0.0, min: -180.0, max: 180.0 }
+  flip = Bool(false)
+  aspect = Number { value: 1.0, min: 0.5, max: 2.0 }
+  ppp = Choice { options: ["gallery", "1", "1.25", "1.5", "2"], index: 0 }
+  mode = Choice { options: ["slice", "select"], index: 0 }
+  rules = Choice { options: ["photoshop", "illustrator"], index: 0 }
+  auto = Bool(true)
+  locked = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Canvas "Document" actions=[Click,Focus]
+          r.0.0.0.0.1 Group "Slices" actions=[Focus]
+            r.0.0.0.0.1.0 GenericContainer ""
+              r.0.0.0.0.1.0.0 GraphicsObject "Slice 01, auto slice, 640 by 60 at 0, 0" [unselected]
+              r.0.0.0.0.1.0.1 GraphicsObject "Slice 02, auto slice, 80 by 340 at 0, 60" [unselected]
+              r.0.0.0.0.1.0.2 GraphicsObject "Slice 03, user slice, 220 by 140 at 80, 60" [unselected]
+              r.0.0.0.0.1.0.3 GraphicsObject "Slice 04, auto slice, 340 by 60 at 300, 60" [unselected]
+              r.0.0.0.0.1.0.4 GraphicsObject "Slice 05, layer slice, 200 by 180 at 360, 120" [unselected]
+              r.0.0.0.0.1.0.5 GraphicsObject "Slice 06, auto slice, 80 by 180 at 560, 120" [unselected]
+              r.0.0.0.0.1.0.6 GraphicsObject "Slice 07, auto slice, 280 by 200 at 80, 200" [unselected]
+              r.0.0.0.0.1.0.7 GraphicsObject "Slice 08, auto slice, 280 by 100 at 360, 300" [unselected]
+          r.0.0.0.0.2 Toolbar "Slice options"
+            r.0.0.0.0.2.0 GenericContainer ""
+              r.0.0.0.0.2.0.0 GenericContainer ""
+                r.0.0.0.0.2.0.0.0 GenericContainer ""
+                  r.0.0.0.0.2.0.0.0.0 GenericContainer ""
+                    r.0.0.0.0.2.0.0.0.0.0 GenericContainer ""
+                      r.0.0.0.0.2.0.0.0.0.0.0 GenericContainer ""
+                        r.0.0.0.0.2.0.0.0.0.0.0.0 Group ""
+                          r.0.0.0.0.2.0.0.0.0.0.0.0.0 GenericContainer ""
+                            r.0.0.0.0.2.0.0.0.0.0.0.0.0.0 Label "" value="Style:"
+                            r.0.0.0.0.2.0.0.0.0.0.0.0.0.1 ComboBox "Style" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+                            r.0.0.0.0.2.0.0.0.0.0.0.0.0.2 Group ""
+                              r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0 GenericContainer ""
+                                r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.0 Label "" value="Width:" [disabled]
+                                r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.1 GenericContainer ""
+                                  r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.1.0 Unknown "" [disabled] actions=[Click,Focus]
+                                  r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.1.1 SpinButton "Width" value="1" number=1 in 0.001..999 step - [disabled]
+                                    r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.1.1.0 TextRun "" value="1"
+                                r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.2 Button "Swaps height and width" description="Swaps height and width" [disabled] actions=[Click,Focus]
+                                r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.3 Label "" value="Height:" [disabled]
+                                r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.4 GenericContainer ""
+                                  r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.4.0 Unknown "" [disabled] actions=[Click,Focus]
+                                  r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.4.1 SpinButton "Height" value="1" number=1 in 0.001..999 step - [disabled]
+                                    r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.4.1.0 TextRun "" value="1"
+                      r.0.0.0.0.2.0.0.0.0.0.1 Button "Slices From Guides" actions=[Click,Focus]
+          r.0.0.0.0.3 GenericContainer ""
+            r.0.0.0.0.3.0 Button "Reset" actions=[Click,Focus]
+            r.0.0.0.0.3.1 Label "" value="No slice selected" actions=[Click]
+              r.0.0.0.0.3.1.0 TextRun "" value="No slice selected"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0 Canvas "Document"
+  2: r.0.0.0.0.1.0.0 GraphicsObject "Slice 01, auto slice, 640 by 60 at 0, 0"
+    - r.0.0.0.0.1.0.0 GraphicsObject "Slice 01, auto slice, 640 by 60 at 0, 0" [unselected]
+    + r.0.0.0.0.1.0.0 GraphicsObject "Slice 01, auto slice, 640 by 60 at 0, 0" [selected]
+    - r.0.0.0.0.3.1 Label "" value="No slice selected" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="No slice selected"
+    + r.0.0.0.0.3.1 Label "" value="Selected: slice 1" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Selected: slice 1"
+  3: r.0.0.0.0.2.0.0.0.0.0.0.0.0.1 ComboBox "Style"
+  4: r.0.0.0.0.2.0.0.0.0.0.1 Button "Slices From Guides"
+  5: r.0.0.0.0.3.0 Button "Reset"
+  6: r.0.0.0.0.0 Canvas "Document"
+  cycle after 5 nodes
+drive: 6 actionable nodes
+drive r.0.0.0.0.0 Canvas "Document"
+  click:
+    focus: r.0.0.0.0.0 Canvas "Document" -> r.0.0.0.0.1.0.6 GraphicsObject "Slice 07, auto slice, 280 by 200 at 80, 200"
+    - r.0.0.0.0.1.0.0 GraphicsObject "Slice 01, auto slice, 640 by 60 at 0, 0" [selected]
+    + r.0.0.0.0.1.0.0 GraphicsObject "Slice 01, auto slice, 640 by 60 at 0, 0" [unselected]
+    - r.0.0.0.0.1.0.6 GraphicsObject "Slice 07, auto slice, 280 by 200 at 80, 200" [unselected]
+    + r.0.0.0.0.1.0.6 GraphicsObject "Slice 07, auto slice, 280 by 200 at 80, 200" [selected]
+    - r.0.0.0.0.3.1 Label "" value="Selected: slice 1" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Selected: slice 1"
+    + r.0.0.0.0.3.1 Label "" value="Selected: slice 7" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Selected: slice 7"
+  Space: no change
+  Enter: no change
+  Escape: no change
+drive r.0.0.0.0.1 Group "Slices"
+  Space: no change
+  Enter: no change
+  Escape: no change
+drive r.0.0.0.0.2.0.0.0.0.0.0.0.0.1 ComboBox "Style"
+  click: no change
+  Space:
+    focus: r.0.0.0.0.2.0.0.0.0.0.0.0.0.1 ComboBox "Style" -> r.0.0.0.0.2.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Normal"
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.0.1 ComboBox "Style" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.0.1 ComboBox "Style" value="Normal" controls=[r.0.0.0.0.2.0.0.0.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.0.1.0 ListBox ""
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.0.1.0.0 GenericContainer ""
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Fixed Ratio" [unselected] actions=[Click]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Fixed Size" [unselected] actions=[Click]
+  Enter:
+    focus: r.0.0.0.0.2.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Normal" -> r.0.0.0.0.2.0.0.0.0.0.0.0.0.1 ComboBox "Style"
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.0.1 ComboBox "Style" value="Normal" controls=[r.0.0.0.0.2.0.0.0.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.0.1.0 ListBox ""
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.0.1.0.0 GenericContainer ""
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Fixed Ratio" [unselected] actions=[Click]
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Fixed Size" [unselected] actions=[Click]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.0.1 ComboBox "Style" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+  ArrowDown:
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.0.1 ComboBox "Style" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.0.1 ComboBox "Style" value="Fixed Ratio" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.0 Label "" value="Width:" [disabled]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.0 Label "" value="Width:"
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.1.0 Unknown "" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.1.1 SpinButton "Width" value="1" number=1 in 0.001..999 step - [disabled]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.1.0 Unknown "" actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.1.1 SpinButton "Width" value="1" number=1 in 0.001..999 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.2 Button "Swaps height and width" description="Swaps height and width" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.3 Label "" value="Height:" [disabled]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.2 Button "Swaps height and width" description="Swaps height and width" actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.3 Label "" value="Height:"
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.4.0 Unknown "" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.4.1 SpinButton "Height" value="1" number=1 in 0.001..999 step - [disabled]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.4.0 Unknown "" actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.4.1 SpinButton "Height" value="1" number=1 in 0.001..999 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+  ArrowUp:
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.0.1 ComboBox "Style" value="Fixed Ratio" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.0.1 ComboBox "Style" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.0 Label "" value="Width:"
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.0 Label "" value="Width:" [disabled]
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.1.0 Unknown "" actions=[Click,Focus]
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.1.1 SpinButton "Width" value="1" number=1 in 0.001..999 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.1.0 Unknown "" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.1.1 SpinButton "Width" value="1" number=1 in 0.001..999 step - [disabled]
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.2 Button "Swaps height and width" description="Swaps height and width" actions=[Click,Focus]
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.3 Label "" value="Height:"
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.2 Button "Swaps height and width" description="Swaps height and width" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.3 Label "" value="Height:" [disabled]
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.4.0 Unknown "" actions=[Click,Focus]
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.4.1 SpinButton "Height" value="1" number=1 in 0.001..999 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.4.0 Unknown "" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.0.2.0.4.1 SpinButton "Height" value="1" number=1 in 0.001..999 step - [disabled]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.2.0.0.0.0.0.0.0.0.1 ComboBox "Style" -> r Window ""
+drive r.0.0.0.0.2.0.0.0.0.0.1 Button "Slices From Guides"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.6 GraphicsObject "Slice 07, auto slice, 280 by 200 at 80, 200"
+    - r.0.0.0.0.3.1 Label "" value="Selected: slice 7" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Selected: slice 7"
+    + r.0.0.0.0.3.1 Label "" value="Selected: slice 7 · Command: FromGuides" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Selected: slice 7 · Command: FromGuides"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.2.0.0.0.0.0.1 Button "Slices From Guides" -> r Window ""
+drive r.0.0.0.0.3.0 Button "Reset"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1 Group "Slices"
+    - r.0.0.0.0.1.0.6 GraphicsObject "Slice 07, auto slice, 280 by 200 at 80, 200" [selected]
+    + r.0.0.0.0.1.0.6 GraphicsObject "Slice 07, auto slice, 280 by 200 at 80, 200" [unselected]
+    - r.0.0.0.0.3.1 Label "" value="Selected: slice 7 · Command: FromGuides" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Selected: slice 7 · Command: FromGuides"
+    + r.0.0.0.0.3.1 Label "" value="No slice selected" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="No slice selected"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.3.0 Button "Reset" -> r Window ""
+drive r.0.0.0.0.3.1 Label ""
+  click:
+    focus: r Window "" -> r.0.0.0.0.1 Group "Slices"
+  Escape: no change

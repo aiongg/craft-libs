@@ -1,0 +1,171 @@
+story patterns/artboard-properties/section
+args
+  background = Choice { options: ["white", "black", "transparent", "custom"], index: 0 }
+  x = Number { value: 0.0, min: -500.0, max: 500.0 }
+  y = Number { value: 0.0, min: -500.0, max: 500.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 DisclosureTriangle "Artboard" [expanded] actions=[Click,Focus]
+          r.0.0.0.0.1 GenericContainer ""
+            r.0.0.0.0.1.0 GenericContainer ""
+              r.0.0.0.0.1.0.0 Label "" value="Artboard"
+          r.0.0.0.0.2 GenericContainer ""
+            r.0.0.0.0.2.0 GenericContainer ""
+              r.0.0.0.0.2.0.0 Label "" value="Size"
+            r.0.0.0.0.2.1 GenericContainer ""
+              r.0.0.0.0.2.1.0 ComboBox "Size" value="Custom" labelled_by=[r.0.0.0.0.2.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+            r.0.0.0.0.2.2 GenericContainer ""
+              r.0.0.0.0.2.2.0 Label "" value="W"
+            r.0.0.0.0.2.3 GenericContainer ""
+              r.0.0.0.0.2.3.0 SpinButton "Width" value="180 px" number=180 in 1..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                r.0.0.0.0.2.3.0.0 TextRun "" value="180"
+            r.0.0.0.0.2.4 GenericContainer ""
+              r.0.0.0.0.2.4.0 Label "" value="H"
+            r.0.0.0.0.2.5 GenericContainer ""
+              r.0.0.0.0.2.5.0 SpinButton "Height" value="240 px" number=240 in 1..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                r.0.0.0.0.2.5.0.0 TextRun "" value="240"
+            r.0.0.0.0.2.6 GenericContainer ""
+              r.0.0.0.0.2.6.0 Label "" value="X"
+            r.0.0.0.0.2.7 GenericContainer ""
+              r.0.0.0.0.2.7.0 SpinButton "X" value="0 px" number=0 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                r.0.0.0.0.2.7.0.0 TextRun "" value="0"
+            r.0.0.0.0.2.8 GenericContainer ""
+              r.0.0.0.0.2.8.0 Label "" value="Y"
+            r.0.0.0.0.2.9 GenericContainer ""
+              r.0.0.0.0.2.9.0 SpinButton "Y" value="0 px" number=0 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                r.0.0.0.0.2.9.0.0 TextRun "" value="0"
+            r.0.0.0.0.2.10 GenericContainer ""
+              r.0.0.0.0.2.10.0 Label "" value="Background"
+            r.0.0.0.0.2.11 GenericContainer ""
+              r.0.0.0.0.2.11.0 GenericContainer ""
+                r.0.0.0.0.2.11.0.0 ComboBox "Background" value="White" labelled_by=[r.0.0.0.0.2.10.0] [collapsed popup:Listbox] actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0 DisclosureTriangle "Artboard"
+  2: r.0.0.0.0.2.1.0 ComboBox "Size"
+  3: r.0.0.0.0.2.3.0 SpinButton "Width"
+  4: r.0.0.0.0.2.5.0 SpinButton "Height"
+  5: r.0.0.0.0.2.7.0 SpinButton "X"
+  6: r.0.0.0.0.2.9.0 SpinButton "Y"
+  7: r.0.0.0.0.2.11.0.0 ComboBox "Background"
+  8: r.0.0.0.0.0 DisclosureTriangle "Artboard"
+  cycle after 7 nodes
+drive: 7 actionable nodes
+drive r.0.0.0.0.0 DisclosureTriangle "Artboard"
+  click:
+    - r.0.0.0.0.0 DisclosureTriangle "Artboard" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.0 DisclosureTriangle "Artboard" [collapsed] actions=[Click,Focus]
+    - r.0.0.0.0.2 GenericContainer ""
+    - r.0.0.0.0.2.0 GenericContainer ""
+    - r.0.0.0.0.2.0.0 Label "" value="Size"
+    - r.0.0.0.0.2.1 GenericContainer ""
+    - r.0.0.0.0.2.1.0 ComboBox "Size" value="Custom" labelled_by=[r.0.0.0.0.2.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.2.2 GenericContainer ""
+    - r.0.0.0.0.2.2.0 Label "" value="W"
+    - r.0.0.0.0.2.3 GenericContainer ""
+    - r.0.0.0.0.2.3.0 SpinButton "Width" value="180 px" number=180 in 1..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.3.0.0 TextRun "" value="180"
+    - r.0.0.0.0.2.4 GenericContainer ""
+    - r.0.0.0.0.2.4.0 Label "" value="H"
+    - r.0.0.0.0.2.5 GenericContainer ""
+    - r.0.0.0.0.2.5.0 SpinButton "Height" value="240 px" number=240 in 1..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.5.0.0 TextRun "" value="240"
+    - r.0.0.0.0.2.6 GenericContainer ""
+    - r.0.0.0.0.2.6.0 Label "" value="X"
+    - r.0.0.0.0.2.7 GenericContainer ""
+    - r.0.0.0.0.2.7.0 SpinButton "X" value="0 px" number=0 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.7.0.0 TextRun "" value="0"
+    - r.0.0.0.0.2.8 GenericContainer ""
+    - r.0.0.0.0.2.8.0 Label "" value="Y"
+    - r.0.0.0.0.2.9 GenericContainer ""
+    - r.0.0.0.0.2.9.0 SpinButton "Y" value="0 px" number=0 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.9.0.0 TextRun "" value="0"
+    - r.0.0.0.0.2.10 GenericContainer ""
+    - r.0.0.0.0.2.10.0 Label "" value="Background"
+    - r.0.0.0.0.2.11 GenericContainer ""
+    - r.0.0.0.0.2.11.0 GenericContainer ""
+    - r.0.0.0.0.2.11.0.0 ComboBox "Background" value="White" labelled_by=[r.0.0.0.0.2.10.0] [collapsed popup:Listbox] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.0 DisclosureTriangle "Artboard" [collapsed] actions=[Click,Focus]
+    + r.0.0.0.0.0 DisclosureTriangle "Artboard" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.2 GenericContainer ""
+    + r.0.0.0.0.2.0 GenericContainer ""
+    + r.0.0.0.0.2.0.0 Label "" value="Size"
+    + r.0.0.0.0.2.1 GenericContainer ""
+    + r.0.0.0.0.2.1.0 ComboBox "Size" value="Custom" labelled_by=[r.0.0.0.0.2.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.2.2 GenericContainer ""
+    + r.0.0.0.0.2.2.0 Label "" value="W"
+    + r.0.0.0.0.2.3 GenericContainer ""
+    + r.0.0.0.0.2.3.0 SpinButton "Width" value="180 px" number=180 in 1..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.3.0.0 TextRun "" value="180"
+    + r.0.0.0.0.2.4 GenericContainer ""
+    + r.0.0.0.0.2.4.0 Label "" value="H"
+    + r.0.0.0.0.2.5 GenericContainer ""
+    + r.0.0.0.0.2.5.0 SpinButton "Height" value="240 px" number=240 in 1..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.5.0.0 TextRun "" value="240"
+    + r.0.0.0.0.2.6 GenericContainer ""
+    + r.0.0.0.0.2.6.0 Label "" value="X"
+    + r.0.0.0.0.2.7 GenericContainer ""
+    + r.0.0.0.0.2.7.0 SpinButton "X" value="0 px" number=0 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.7.0.0 TextRun "" value="0"
+    + r.0.0.0.0.2.8 GenericContainer ""
+    + r.0.0.0.0.2.8.0 Label "" value="Y"
+    + r.0.0.0.0.2.9 GenericContainer ""
+    + r.0.0.0.0.2.9.0 SpinButton "Y" value="0 px" number=0 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.9.0.0 TextRun "" value="0"
+    + r.0.0.0.0.2.10 GenericContainer ""
+    + r.0.0.0.0.2.10.0 Label "" value="Background"
+    + r.0.0.0.0.2.11 GenericContainer ""
+    + r.0.0.0.0.2.11.0 GenericContainer ""
+    + r.0.0.0.0.2.11.0.0 ComboBox "Background" value="White" labelled_by=[r.0.0.0.0.2.10.0] [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.0 DisclosureTriangle "Artboard" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.0 DisclosureTriangle "Artboard" [collapsed] actions=[Click,Focus]
+    - r.0.0.0.0.2 GenericContainer ""
+    - r.0.0.0.0.2.0 GenericContainer ""
+    - r.0.0.0.0.2.0.0 Label "" value="Size"
+    - r.0.0.0.0.2.1 GenericContainer ""
+    - r.0.0.0.0.2.1.0 ComboBox "Size" value="Custom" labelled_by=[r.0.0.0.0.2.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.2.2 GenericContainer ""
+    - r.0.0.0.0.2.2.0 Label "" value="W"
+    - r.0.0.0.0.2.3 GenericContainer ""
+    - r.0.0.0.0.2.3.0 SpinButton "Width" value="180 px" number=180 in 1..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.3.0.0 TextRun "" value="180"
+    - r.0.0.0.0.2.4 GenericContainer ""
+    - r.0.0.0.0.2.4.0 Label "" value="H"
+    - r.0.0.0.0.2.5 GenericContainer ""
+    - r.0.0.0.0.2.5.0 SpinButton "Height" value="240 px" number=240 in 1..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.5.0.0 TextRun "" value="240"
+    - r.0.0.0.0.2.6 GenericContainer ""
+    - r.0.0.0.0.2.6.0 Label "" value="X"
+    - r.0.0.0.0.2.7 GenericContainer ""
+    - r.0.0.0.0.2.7.0 SpinButton "X" value="0 px" number=0 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.7.0.0 TextRun "" value="0"
+    - r.0.0.0.0.2.8 GenericContainer ""
+    - r.0.0.0.0.2.8.0 Label "" value="Y"
+    - r.0.0.0.0.2.9 GenericContainer ""
+    - r.0.0.0.0.2.9.0 SpinButton "Y" value="0 px" number=0 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.9.0.0 TextRun "" value="0"
+    - r.0.0.0.0.2.10 GenericContainer ""
+    - r.0.0.0.0.2.10.0 Label "" value="Background"
+    - r.0.0.0.0.2.11 GenericContainer ""
+    - r.0.0.0.0.2.11.0 GenericContainer ""
+    - r.0.0.0.0.2.11.0.0 ComboBox "Background" value="White" labelled_by=[r.0.0.0.0.2.10.0] [collapsed popup:Listbox] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0 DisclosureTriangle "Artboard" -> r Window ""
+drive r.0.0.0.0.2.1.0 ComboBox "Size"
+  all steps: node gone
+drive r.0.0.0.0.2.3.0 SpinButton "Width"
+  all steps: node gone
+drive r.0.0.0.0.2.5.0 SpinButton "Height"
+  all steps: node gone
+drive r.0.0.0.0.2.7.0 SpinButton "X"
+  all steps: node gone
+drive r.0.0.0.0.2.9.0 SpinButton "Y"
+  all steps: node gone
+drive r.0.0.0.0.2.11.0.0 ComboBox "Background"
+  all steps: node gone

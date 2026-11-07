@@ -1,0 +1,35 @@
+story primitives/state-layer/states
+args
+  disabled = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.1 GenericContainer ""
+            r.0.0.0.0.1.0 GenericContainer ""
+              r.0.0.0.0.1.0.0 GenericContainer ""
+                r.0.0.0.0.1.0.0.0 Button "Hover or press" actions=[Click,Focus]
+                r.0.0.0.0.1.0.0.1 Button "On a raised surface" actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.1.0.0.0 Button "Hover or press"
+  2: r.0.0.0.0.1.0.0.1 Button "On a raised surface"
+  3: r.0.0.0.0.1.0.0.0 Button "Hover or press"
+  cycle after 2 nodes
+drive: 2 actionable nodes
+drive r.0.0.0.0.1.0.0.0 Button "Hover or press"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0 Button "Hover or press" -> r Window ""
+drive r.0.0.0.0.1.0.0.1 Button "On a raised surface"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.1 Button "On a raised surface" -> r Window ""

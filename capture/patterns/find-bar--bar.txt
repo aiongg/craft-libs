@@ -1,0 +1,125 @@
+story patterns/find-bar/bar
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 SearchInput "Find text" value="page" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+              r.0.0.0.0.0.0.0 TextRun "" value="page"
+            r.0.0.0.0.0.1 Button "Clear" description="Clear" actions=[Click]
+            r.0.0.0.0.0.2 Label "" value="3 of 12" actions=[Click]
+              r.0.0.0.0.0.2.0 TextRun "" value="3 of 12"
+            r.0.0.0.0.0.3 Button "Previous (Shift+F3)" description="Previous (Shift+F3)" actions=[Click,Focus]
+            r.0.0.0.0.0.4 Button "Next (F3)" description="Next (F3)" actions=[Click,Focus]
+            r.0.0.0.0.0.5 Button "Find options" description="Find options" [checked collapsed popup:Menu] actions=[Click,Focus]
+            r.0.0.0.0.0.6 Button "Close (Esc)" description="Close (Esc)" actions=[Click,Focus]
+tab
+  start: r.0.0.0.0.0.0 SearchInput "Find text"
+  1: r.0.0.0.0.0.3 Button "Previous (Shift+F3)"
+  2: r.0.0.0.0.0.4 Button "Next (F3)"
+  3: r.0.0.0.0.0.5 Button "Find options"
+  4: r.0.0.0.0.0.6 Button "Close (Esc)"
+  5: r.0.0.0.0.0.0 SearchInput "Find text"
+  6: r.0.0.0.0.0.3 Button "Previous (Shift+F3)"
+  cycle after 5 nodes
+drive: 7 actionable nodes
+drive r.0.0.0.0.0.0 SearchInput "Find text"
+  click:
+    focus: r.0.0.0.0.0.3 Button "Previous (Shift+F3)" -> r.0.0.0.0.0.0 SearchInput "Find text"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.0.2 Label "" value="3 of 12" actions=[Click]
+    - r.0.0.0.0.0.2.0 TextRun "" value="3 of 12"
+    + r.0.0.0.0.0.2 Label "" value="4 of 12" actions=[Click]
+    + r.0.0.0.0.0.2.0 TextRun "" value="4 of 12"
+    + r.0.0.0.0.1 Label "" value="Last event: Step(Some(3))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Step(Some(3))"
+  Escape:
+    - r.0.0.0.0.0.0 SearchInput "Find text" value="page" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0 TextRun "" value="page"
+    - r.0.0.0.0.0.1 Button "Clear" description="Clear" actions=[Click]
+    - r.0.0.0.0.0.2 Label "" value="4 of 12" actions=[Click]
+    - r.0.0.0.0.0.2.0 TextRun "" value="4 of 12"
+    + r.0.0.0.0.0.0 SearchInput "Find text" value="" placeholder="Find text" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0 TextRun "" value=""
+    - r.0.0.0.0.1 Label "" value="Last event: Step(Some(3))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Step(Some(3))"
+    + r.0.0.0.0.1 Label "" value="Last event: Search(\"\")" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Search(\"\")"
+drive r.0.0.0.0.0.1 Button "Clear"
+  all steps: node gone
+drive r.0.0.0.0.0.2 Label ""
+  click:
+    focus: r.0.0.0.0.0.0 SearchInput "Find text" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.0.3 Button "Previous (Shift+F3)"
+  click:
+    - r.0.0.0.0.1 Label "" value="Last event: Search(\"\")" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Search(\"\")"
+    + r.0.0.0.0.1 Label "" value="Last event: Step(Some(2))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Step(Some(2))"
+  Space:
+    - r.0.0.0.0.1 Label "" value="Last event: Step(Some(2))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Step(Some(2))"
+    + r.0.0.0.0.1 Label "" value="Last event: Step(Some(1))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Step(Some(1))"
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: Step(Some(1))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Step(Some(1))"
+    + r.0.0.0.0.1 Label "" value="Last event: Step(Some(0))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Step(Some(0))"
+  Escape:
+    focus: r.0.0.0.0.0.1 Button "Previous (Shift+F3)" -> r Window ""
+drive r.0.0.0.0.0.4 Button "Next (F3)"
+  click:
+    - r.0.0.0.0.1 Label "" value="Last event: Step(Some(0))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Step(Some(0))"
+    + r.0.0.0.0.1 Label "" value="Last event: Step(Some(1))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Step(Some(1))"
+  Space:
+    - r.0.0.0.0.1 Label "" value="Last event: Step(Some(1))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Step(Some(1))"
+    + r.0.0.0.0.1 Label "" value="Last event: Step(Some(2))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Step(Some(2))"
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: Step(Some(2))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Step(Some(2))"
+    + r.0.0.0.0.1 Label "" value="Last event: Step(Some(3))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Step(Some(3))"
+  Escape:
+    focus: r.0.0.0.0.0.2 Button "Next (F3)" -> r Window ""
+drive r.0.0.0.0.0.5 Button "Find options"
+  click:
+    - r.0.0.0.0.0.3 Button "Find options" description="Find options" [checked collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.3 Button "Find options" description="Find options" [checked expanded popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.3.0 Menu ""
+    + r.0.0.0.0.0.3.0.0 GenericContainer ""
+    + r.0.0.0.0.0.3.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.3.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.3.0.0.0.0.0 MenuItemCheckBox "Whole words only" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.3.0.0.0.0.1 MenuItemCheckBox "Case-sensitive" [checked] actions=[Click]
+  Space: no change
+  Enter: no change
+  Escape:
+    - r.0.0.0.0.0.3 Button "Find options" description="Find options" [checked expanded popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.3.0 Menu ""
+    - r.0.0.0.0.0.3.0.0 GenericContainer ""
+    - r.0.0.0.0.0.3.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.3.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.3.0.0.0.0.0 MenuItemCheckBox "Whole words only" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.3.0.0.0.0.1 MenuItemCheckBox "Case-sensitive" [checked] actions=[Click]
+    + r.0.0.0.0.0.3 Button "Find options" description="Find options" [checked collapsed popup:Menu] actions=[Click,Focus]
+drive r.0.0.0.0.0.6 Button "Close (Esc)"
+  click:
+    focus: r.0.0.0.0.0.3 Button "Find options" -> r Window ""
+    - r.0.0.0.0.1 Label "" value="Last event: Step(Some(3))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Step(Some(3))"
+    + r.0.0.0.0.1 Label "" value="Last event: Closed" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Closed"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.4 Button "Close (Esc)" -> r Window ""

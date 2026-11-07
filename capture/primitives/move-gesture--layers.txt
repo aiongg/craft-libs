@@ -1,0 +1,42 @@
+story primitives/move-gesture/layers
+args
+  zoom = Number { value: 100.0, min: 10.0, max: 800.0 }
+  rotation = Number { value: 0.0, min: -180.0, max: 180.0 }
+  flip = Bool(false)
+  aspect = Number { value: 1.0, min: 0.5, max: 2.0 }
+  ppp = Choice { options: ["gallery", "1", "1.25", "1.5", "2"], index: 0 }
+  width = Number { value: 140.0, min: 20.0, max: 300.0 }
+  height = Number { value: 90.0, min: 20.0, max: 300.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Canvas "Document" actions=[Click,Focus]
+          r.0.0.0.0.1 GenericContainer ""
+            r.0.0.0.0.1.0 Button "Reset" actions=[Click,Focus]
+            r.0.0.0.0.1.1 Label "" value="Free" actions=[Click]
+              r.0.0.0.0.1.1.0 TextRun "" value="Free"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0 Canvas "Document"
+  2: r.0.0.0.0.1.0 Button "Reset"
+  3: r.0.0.0.0.0 Canvas "Document"
+  cycle after 2 nodes
+drive: 3 actionable nodes
+drive r.0.0.0.0.0 Canvas "Document"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape: no change
+drive r.0.0.0.0.1.0 Button "Reset"
+  click:
+    focus: r.0.0.0.0.0 Canvas "Document" -> r Window ""
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1.0 Button "Reset" -> r Window ""
+drive r.0.0.0.0.1.1 Label ""
+  click: no change
+  Escape: no change

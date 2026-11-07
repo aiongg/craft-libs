@@ -1,0 +1,69 @@
+story composites/list-row/masks
+args
+  linked = Bool(true)
+  width = Number { value: 280.0, min: 120.0, max: 480.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 ListBoxOption "Layer with masks" [selected] actions=[Click]
+            r.0.0.0.0.0.1 Button "Link the layer mask to Layer with masks" description="Link the layer mask to Layer with masks" [checked] actions=[Click,Focus]
+            r.0.0.0.0.0.2 Button "Link the vector mask to Layer with masks" description="Link the vector mask to Layer with masks" [checked] actions=[Click,Focus]
+            r.0.0.0.0.0.3 ListBoxOption "Clipped layer" description="Clipped to the layer below" [unselected] actions=[Click]
+            r.0.0.0.0.0.4 ListBoxOption "Background" [unselected] actions=[Click]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.1 Button "Link the layer mask to Layer with masks"
+  2: r.0.0.0.0.0.2 Button "Link the vector mask to Layer with masks"
+  3: r.0.0.0.0.0.1 Button "Link the layer mask to Layer with masks"
+  cycle after 2 nodes
+drive: 5 actionable nodes
+drive r.0.0.0.0.0.0 ListBoxOption "Layer with masks"
+  click:
+    focus: r.0.0.0.0.0.1 Button "Link the layer mask to Layer with masks" -> r Window ""
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.1 Button "Link the layer mask to Layer with masks"
+  click:
+    - r.0.0.0.0.0.1 Button "Link the layer mask to Layer with masks" description="Link the layer mask to Layer with masks" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1 Button "Link the layer mask to Layer with masks" description="Link the layer mask to Layer with masks" [unchecked] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.0.1 Button "Link the layer mask to Layer with masks" description="Link the layer mask to Layer with masks" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1 Button "Link the layer mask to Layer with masks" description="Link the layer mask to Layer with masks" [checked] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.0.1 Button "Link the layer mask to Layer with masks" description="Link the layer mask to Layer with masks" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1 Button "Link the layer mask to Layer with masks" description="Link the layer mask to Layer with masks" [unchecked] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.1 Button "Link the layer mask to Layer with masks" -> r Window ""
+drive r.0.0.0.0.0.2 Button "Link the vector mask to Layer with masks"
+  click:
+    - r.0.0.0.0.0.2 Button "Link the vector mask to Layer with masks" description="Link the vector mask to Layer with masks" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.2 Button "Link the vector mask to Layer with masks" description="Link the vector mask to Layer with masks" [unchecked] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.0.2 Button "Link the vector mask to Layer with masks" description="Link the vector mask to Layer with masks" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.2 Button "Link the vector mask to Layer with masks" description="Link the vector mask to Layer with masks" [checked] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.0.2 Button "Link the vector mask to Layer with masks" description="Link the vector mask to Layer with masks" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.2 Button "Link the vector mask to Layer with masks" description="Link the vector mask to Layer with masks" [unchecked] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.2 Button "Link the vector mask to Layer with masks" -> r Window ""
+drive r.0.0.0.0.0.3 ListBoxOption "Clipped layer"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.4 ListBoxOption "Background"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change

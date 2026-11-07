@@ -1,0 +1,228 @@
+story patterns/artboard-bar/bar
+args
+  selection = Bool(true)
+  wide = Bool(true)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Toolbar "Artboard options"
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 GenericContainer ""
+                  r.0.0.0.0.0.0.0.0.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.0.0.0 Group ""
+                      r.0.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.0.0.0.0 Label "" value="Size:"
+                        r.0.0.0.0.0.0.0.0.0.0.0.1 ComboBox "Preset" value="Custom" [collapsed popup:Listbox] actions=[Click,Focus]
+                        r.0.0.0.0.0.0.0.0.0.0.0.2 Label "" value="W:"
+                        r.0.0.0.0.0.0.0.0.0.0.0.3 GenericContainer ""
+                          r.0.0.0.0.0.0.0.0.0.0.0.3.0 Unknown "" actions=[Click,Focus]
+                          r.0.0.0.0.0.0.0.0.0.0.0.3.1 SpinButton "Width" value="240 px" number=240 in 1..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                            r.0.0.0.0.0.0.0.0.0.0.0.3.1.0 TextRun "" value="240"
+                        r.0.0.0.0.0.0.0.0.0.0.0.4 Label "" value="H:"
+                        r.0.0.0.0.0.0.0.0.0.0.0.5 GenericContainer ""
+                          r.0.0.0.0.0.0.0.0.0.0.0.5.0 Unknown "" actions=[Click,Focus]
+                          r.0.0.0.0.0.0.0.0.0.0.0.5.1 SpinButton "Height" value="180 px" number=180 in 1..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                            r.0.0.0.0.0.0.0.0.0.0.0.5.1.0 TextRun "" value="180"
+                        r.0.0.0.0.0.0.0.0.0.0.0.6 Button "Make Portrait" actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.1 Button "Add New Artboard" description="Add New Artboard" actions=[Click,Focus]
+              r.0.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+          r.0.0.0.0.1 Label "" value="Size 240 × 180" actions=[Click]
+            r.0.0.0.0.1.0 TextRun "" value="Size 240 × 180"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0.0.0.0.1 ComboBox "Preset"
+  2: r.0.0.0.0.0.0.0.0.0.0.0.3.0 Unknown ""
+  3: r.0.0.0.0.0.0.0.0.0.0.0.3.1 SpinButton "Width"
+  4: r.0.0.0.0.0.0.0.0.0.0.0.3.0 Unknown ""
+  cycle after 3 nodes
+drive: 9 actionable nodes
+drive r.0.0.0.0.0.0.0.0.0.0.0.1 ComboBox "Preset"
+  click:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.3.0 Unknown "" -> r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Custom"
+    - r.0.0.0.0.0.0.0.0.0.0.0.1 ComboBox "Preset" value="Custom" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.0.1 ComboBox "Preset" value="Custom" controls=[r.0.0.0.0.0.0.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.0.1.0 ListBox ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.1.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Custom" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Letter" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Tablet" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Phone" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Custom" -> r.0.0.0.0.0.0.0.0.0.0.0.1 ComboBox "Preset"
+    - r.0.0.0.0.0.0.0.0.0.0.0.1 ComboBox "Preset" value="Custom" controls=[r.0.0.0.0.0.0.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.0.1.0 ListBox ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.1.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Custom" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Letter" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Tablet" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Phone" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.1 ComboBox "Preset" value="Custom" [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.1 ComboBox "Preset" -> r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Custom"
+    - r.0.0.0.0.0.0.0.0.0.0.0.1 ComboBox "Preset" value="Custom" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.0.1 ComboBox "Preset" value="Custom" controls=[r.0.0.0.0.0.0.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.0.1.0 ListBox ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.1.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Custom" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Letter" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Tablet" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Phone" [unselected] actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Custom" -> r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Letter"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Letter" -> r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Custom"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Custom" -> r.0.0.0.0.0.0.0.0.0.0.0.1 ComboBox "Preset"
+    - r.0.0.0.0.0.0.0.0.0.0.0.1 ComboBox "Preset" value="Custom" controls=[r.0.0.0.0.0.0.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.0.1.0 ListBox ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.1.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Custom" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Letter" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Tablet" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Phone" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.1 ComboBox "Preset" value="Custom" [collapsed popup:Listbox] actions=[Click,Focus]
+drive r.0.0.0.0.0.0.0.0.0.0.0.3.0 Unknown ""
+  click:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.1 ComboBox "Preset" -> r.0.0.0.0.0.0.0.0.0.0.0.3.1 SpinButton "Width"
+  Space:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.3.0 Unknown "" -> r.0.0.0.0.0.0.0.0.0.0.0.3.1 SpinButton "Width"
+  Enter:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.3.0 Unknown "" -> r.0.0.0.0.0.0.0.0.0.0.0.3.1 SpinButton "Width"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.3.0 Unknown "" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.0.3.1 SpinButton "Width"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0.0.3.1 SpinButton "Width"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.3.1 SpinButton "Width" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.0.0.0.0.3.1 SpinButton "Width" value="240 px" number=240 in 1..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.0.3.1.0 TextRun "" value="240"
+    + r.0.0.0.0.0.0.0.0.0.0.0.3.1 SpinButton "Width" value="241 px" number=241 in 1..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.0.3.1.0 TextRun "" value="241"
+    - r.0.0.0.0.1 Label "" value="Size 240 × 180" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Size 240 × 180"
+    + r.0.0.0.0.1 Label "" value="Size 241 × 180" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Size 241 × 180"
+  ArrowDown:
+    - r.0.0.0.0.0.0.0.0.0.0.0.3.1 SpinButton "Width" value="241 px" number=241 in 1..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.0.3.1.0 TextRun "" value="241"
+    + r.0.0.0.0.0.0.0.0.0.0.0.3.1 SpinButton "Width" value="240 px" number=240 in 1..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.0.3.1.0 TextRun "" value="240"
+    - r.0.0.0.0.1 Label "" value="Size 241 × 180" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Size 241 × 180"
+    + r.0.0.0.0.1 Label "" value="Size 240 × 180" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Size 240 × 180"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.3.1 SpinButton "Width" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.0.5.0 Unknown ""
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0.0.5.1 SpinButton "Height"
+  Space:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.5.0 Unknown "" -> r.0.0.0.0.0.0.0.0.0.0.0.5.1 SpinButton "Height"
+  Enter:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.5.0 Unknown "" -> r.0.0.0.0.0.0.0.0.0.0.0.5.1 SpinButton "Height"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.5.0 Unknown "" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.0.5.1 SpinButton "Height"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0.0.5.1 SpinButton "Height"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.5.1 SpinButton "Height" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.0.0.0.0.5.1 SpinButton "Height" value="180 px" number=180 in 1..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.0.5.1.0 TextRun "" value="180"
+    + r.0.0.0.0.0.0.0.0.0.0.0.5.1 SpinButton "Height" value="181 px" number=181 in 1..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.0.5.1.0 TextRun "" value="181"
+    - r.0.0.0.0.1 Label "" value="Size 240 × 180" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Size 240 × 180"
+    + r.0.0.0.0.1 Label "" value="Size 240 × 181" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Size 240 × 181"
+  ArrowDown:
+    - r.0.0.0.0.0.0.0.0.0.0.0.5.1 SpinButton "Height" value="181 px" number=181 in 1..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.0.5.1.0 TextRun "" value="181"
+    + r.0.0.0.0.0.0.0.0.0.0.0.5.1 SpinButton "Height" value="180 px" number=180 in 1..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.0.5.1.0 TextRun "" value="180"
+    - r.0.0.0.0.1 Label "" value="Size 240 × 181" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Size 240 × 181"
+    + r.0.0.0.0.1 Label "" value="Size 240 × 180" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Size 240 × 180"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.5.1 SpinButton "Height" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.0.6 Button "Make Portrait"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.0.0.3.1 SpinButton "Width" value="240 px" number=240 in 1..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.0.3.1.0 TextRun "" value="240"
+    + r.0.0.0.0.0.0.0.0.0.0.0.3.1 SpinButton "Width" value="180 px" number=180 in 1..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.0.3.1.0 TextRun "" value="180"
+    - r.0.0.0.0.0.0.0.0.0.0.0.5.1 SpinButton "Height" value="180 px" number=180 in 1..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.0.5.1.0 TextRun "" value="180"
+    - r.0.0.0.0.0.0.0.0.0.0.0.6 Button "Make Portrait" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.0.5.1 SpinButton "Height" value="240 px" number=240 in 1..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.0.5.1.0 TextRun "" value="240"
+    + r.0.0.0.0.0.0.0.0.0.0.0.6 Button "Make Landscape" actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Size 240 × 180" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Size 240 × 180"
+    + r.0.0.0.0.1 Label "" value="Size 180 × 240" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Size 180 × 240"
+  Space: node gone
+  Enter: node gone
+  Escape: node gone
+drive r.0.0.0.0.0.0.0.0.0.1 Button "Add New Artboard"
+  click:
+    - r.0.0.0.0.1 Label "" value="Size 180 × 240" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Size 180 × 240"
+    + r.0.0.0.0.1 Label "" value="Size 180 × 240 · Added Artboard 2" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Size 180 × 240 · Added Artboard 2"
+  Space:
+    - r.0.0.0.0.1 Label "" value="Size 180 × 240 · Added Artboard 2" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Size 180 × 240 · Added Artboard 2"
+    + r.0.0.0.0.1 Label "" value="Size 180 × 240 · Added Artboard 3" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Size 180 × 240 · Added Artboard 3"
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Size 180 × 240 · Added Artboard 3" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Size 180 × 240 · Added Artboard 3"
+    + r.0.0.0.0.1 Label "" value="Size 180 × 240 · Added Artboard 4" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Size 180 × 240 · Added Artboard 4"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.1 Button "Add New Artboard" -> r Window ""
+drive r.0.0.0.0.0.0.1 ScrollBar ""
+  click: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown: no change
+  Home: no change
+  End: no change
+  Escape: no change
+drive r.0.0.0.0.1 Label ""
+  click: no change
+  Escape: no change

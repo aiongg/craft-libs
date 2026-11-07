@@ -1,0 +1,86 @@
+story patterns/dock/workspaces
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 ComboBox "Choose a workspace" value="Essentials" [collapsed popup:Listbox] actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0 ComboBox "Choose a workspace"
+  2: r.0.0.0.0.0 ComboBox "Choose a workspace"
+  cycle after 1 nodes
+drive: 1 actionable nodes
+drive r.0.0.0.0.0 ComboBox "Choose a workspace"
+  click:
+    focus: r.0.0.0.0.0 ComboBox "Choose a workspace" -> r.0.0.0.0.0.0.0.0.2.0.0 ListBoxOption "Essentials"
+    - r.0.0.0.0.0 ComboBox "Choose a workspace" value="Essentials" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0 ComboBox "Choose a workspace" value="Essentials" controls=[r.0.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0 ListBox ""
+    + r.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0 Button "Workspace" description="Workspace" [collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.2 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.2.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.2.0.0 ListBoxOption "Essentials" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.2.0.1 ListBoxOption "Painting" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.2.0.2 ListBoxOption "Photography" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.2.0.3 ListBoxOption "Mine" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.2.0.4 ListBoxOption "Review" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.0.0.0.0.2.0.0 ListBoxOption "Essentials" -> r.0.0.0.0.0 ComboBox "Choose a workspace"
+    - r.0.0.0.0.0 ComboBox "Choose a workspace" value="Essentials" controls=[r.0.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0 ListBox ""
+    - r.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0 Button "Workspace" description="Workspace" [collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.1 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.2 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.2.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.2.0.0 ListBoxOption "Essentials" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.2.0.1 ListBoxOption "Painting" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.2.0.2 ListBoxOption "Photography" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.2.0.3 ListBoxOption "Mine" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.2.0.4 ListBoxOption "Review" [unselected] actions=[Click]
+    + r.0.0.0.0.0 ComboBox "Choose a workspace" value="Essentials" [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.0 ComboBox "Choose a workspace" -> r.0.0.0.0.0.0.0.0.2.0.0 ListBoxOption "Essentials"
+    - r.0.0.0.0.0 ComboBox "Choose a workspace" value="Essentials" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0 ComboBox "Choose a workspace" value="Essentials" controls=[r.0.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0 ListBox ""
+    + r.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0 Button "Workspace" description="Workspace" [collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.2 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.2.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.2.0.0 ListBoxOption "Essentials" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.2.0.1 ListBoxOption "Painting" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.2.0.2 ListBoxOption "Photography" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.2.0.3 ListBoxOption "Mine" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.2.0.4 ListBoxOption "Review" [unselected] actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.2.0.0 ListBoxOption "Essentials" -> r.0.0.0.0.0.0.0.0.2.0.1 ListBoxOption "Painting"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.2.0.1 ListBoxOption "Painting" -> r.0.0.0.0.0.0.0.0.2.0.0 ListBoxOption "Essentials"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.2.0.0 ListBoxOption "Essentials" -> r.0.0.0.0.0 ComboBox "Choose a workspace"
+    - r.0.0.0.0.0 ComboBox "Choose a workspace" value="Essentials" controls=[r.0.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0 ListBox ""
+    - r.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0 Button "Workspace" description="Workspace" [collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.1 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.2 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.2.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.2.0.0 ListBoxOption "Essentials" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.2.0.1 ListBoxOption "Painting" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.2.0.2 ListBoxOption "Photography" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.2.0.3 ListBoxOption "Mine" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.2.0.4 ListBoxOption "Review" [unselected] actions=[Click]
+    + r.0.0.0.0.0 ComboBox "Choose a workspace" value="Essentials" [collapsed popup:Listbox] actions=[Click,Focus]

@@ -1,0 +1,80 @@
+story primitives/connector-tool/tool
+args
+  zoom = Number { value: 100.0, min: 10.0, max: 800.0 }
+  rotation = Number { value: 0.0, min: -180.0, max: 180.0 }
+  flip = Bool(false)
+  aspect = Number { value: 1.0, min: 0.5, max: 2.0 }
+  ppp = Choice { options: ["gallery", "1", "1.25", "1.5", "2"], index: 0 }
+  routing = Choice { options: ["straight", "elbow", "curved"], index: 1 }
+  snap free end = Bool(true)
+  add buttons = Bool(true)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Canvas "Document" actions=[Click,Focus]
+          r.0.0.0.0.1 Group "Connector" actions=[Focus]
+            r.0.0.0.0.1.0 GenericContainer ""
+              r.0.0.0.0.1.0.0 GraphicsObject "Start, attached to 1" [unselected]
+              r.0.0.0.0.1.0.1 GraphicsObject "End, attached to 2" [unselected]
+              r.0.0.0.0.1.0.2 GraphicsObject "Bend 1 of 2" [unselected]
+              r.0.0.0.0.1.0.3 GraphicsObject "Bend 2 of 2" [unselected]
+          r.0.0.0.0.2 GenericContainer ""
+            r.0.0.0.0.2.0 Button "Select next connector" actions=[Click,Focus]
+            r.0.0.0.0.2.1 Button "Reset" actions=[Click,Focus]
+          r.0.0.0.0.3 Label "" value="2 connectors · No event yet" actions=[Click]
+            r.0.0.0.0.3.0 TextRun "" value="2 connectors · No event yet"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0 Canvas "Document"
+  2: r.0.0.0.0.1.0.0 GraphicsObject "Start, attached to 1"
+    - r.0.0.0.0.1.0.0 GraphicsObject "Start, attached to 1" [unselected]
+    + r.0.0.0.0.1.0.0 GraphicsObject "Start, attached to 1" [selected]
+  3: r.0.0.0.0.2.0 Button "Select next connector"
+  4: r.0.0.0.0.2.1 Button "Reset"
+  5: r.0.0.0.0.0 Canvas "Document"
+  cycle after 4 nodes
+drive: 5 actionable nodes
+drive r.0.0.0.0.0 Canvas "Document"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape: no change
+drive r.0.0.0.0.1 Group "Connector"
+  Space: no change
+  Enter: no change
+  Escape: no change
+drive r.0.0.0.0.2.0 Button "Select next connector"
+  click:
+    focus: r.0.0.0.0.1.0.0 GraphicsObject "Start, attached to 1" -> r Window ""
+    - r.0.0.0.0.1.0.0 GraphicsObject "Start, attached to 1" [selected]
+    - r.0.0.0.0.1.0.1 GraphicsObject "End, attached to 2" [unselected]
+    + r.0.0.0.0.1.0.0 GraphicsObject "Start, attached to 2" [unselected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "End, attached to 3" [unselected]
+  Space:
+    - r.0.0.0.0.1.0.0 GraphicsObject "Start, attached to 2" [unselected]
+    - r.0.0.0.0.1.0.1 GraphicsObject "End, attached to 3" [unselected]
+    + r.0.0.0.0.1.0.0 GraphicsObject "Start, attached to 1" [unselected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "End, attached to 2" [unselected]
+  Enter:
+    - r.0.0.0.0.1.0.0 GraphicsObject "Start, attached to 1" [unselected]
+    - r.0.0.0.0.1.0.1 GraphicsObject "End, attached to 2" [unselected]
+    + r.0.0.0.0.1.0.0 GraphicsObject "Start, attached to 2" [unselected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "End, attached to 3" [unselected]
+  Escape:
+    focus: r.0.0.0.0.2.0 Button "Select next connector" -> r Window ""
+drive r.0.0.0.0.2.1 Button "Reset"
+  click:
+    - r.0.0.0.0.1.0.0 GraphicsObject "Start, attached to 2" [unselected]
+    - r.0.0.0.0.1.0.1 GraphicsObject "End, attached to 3" [unselected]
+    + r.0.0.0.0.1.0.0 GraphicsObject "Start, attached to 1" [unselected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "End, attached to 2" [unselected]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.2.1 Button "Reset" -> r Window ""
+drive r.0.0.0.0.3 Label ""
+  click: no change
+  Escape: no change

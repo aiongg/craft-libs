@@ -1,0 +1,204 @@
+story controls/icon-button/plain
+args
+  size = Choice { options: ["sm", "md"], index: 1 }
+  tone = Choice { options: ["neutral", "info", "good", "warn", "bad"], index: 0 }
+  disabled = Bool(false)
+  show tooltip = Bool(true)
+  badge = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 Button "Undo" description="Undo" actions=[Click,Focus]
+              r.0.0.0.0.0.0.1 Button "Redo" description="Redo" actions=[Click,Focus]
+              r.0.0.0.0.0.0.2 Button "Copy" description="Copy" actions=[Click,Focus]
+              r.0.0.0.0.0.0.3 Button "Delete" description="Delete" actions=[Click,Focus]
+              r.0.0.0.0.0.0.4 Button "Settings" description="Settings" actions=[Click,Focus]
+          r.0.0.0.0.1 Label "" value="Clicked 0 times" actions=[Click]
+            r.0.0.0.0.1.0 TextRun "" value="Clicked 0 times"
+          r.0.0.0.0.2 GenericContainer ""
+            r.0.0.0.0.2.0 GenericContainer ""
+              r.0.0.0.0.2.0.0 Button "Undo" description="Undo" [checked] actions=[Click,Focus]
+              r.0.0.0.0.2.0.1 Button "Redo" description="Redo" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.2.0.2 Button "Copy" description="Copy" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.2.0.3 Button "Delete" description="Delete" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.2.0.4 Button "Settings" description="Settings" [unchecked] actions=[Click,Focus]
+          r.0.0.0.0.3 Label "" value="Selected: Undo" actions=[Click]
+            r.0.0.0.0.3.0 TextRun "" value="Selected: Undo"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0 Button "Undo"
+  2: r.0.0.0.0.0.0.1 Button "Redo"
+  3: r.0.0.0.0.0.0.2 Button "Copy"
+  4: r.0.0.0.0.0.0.3 Button "Delete"
+  5: r.0.0.0.0.0.0.4 Button "Settings"
+  6: r.0.0.0.0.2.0.0 Button "Undo"
+  7: r.0.0.0.0.2.0.1 Button "Redo"
+  8: r.0.0.0.0.2.0.2 Button "Copy"
+  9: r.0.0.0.0.2.0.3 Button "Delete"
+  10: r.0.0.0.0.2.0.4 Button "Settings"
+  11: r.0.0.0.0.0.0.0 Button "Undo"
+  cycle after 10 nodes
+drive: 12 actionable nodes
+drive r.0.0.0.0.0.0.0 Button "Undo"
+  click:
+    - r.0.0.0.0.1 Label "" value="Clicked 0 times" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Clicked 0 times"
+    + r.0.0.0.0.1 Label "" value="Clicked 1 times" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Clicked 1 times"
+  Space:
+    - r.0.0.0.0.1 Label "" value="Clicked 1 times" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Clicked 1 times"
+    + r.0.0.0.0.1 Label "" value="Clicked 2 times" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Clicked 2 times"
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Clicked 2 times" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Clicked 2 times"
+    + r.0.0.0.0.1 Label "" value="Clicked 3 times" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Clicked 3 times"
+  Escape:
+    focus: r.0.0.0.0.0.0.0 Button "Undo" -> r Window ""
+drive r.0.0.0.0.0.0.1 Button "Redo"
+  click:
+    - r.0.0.0.0.1 Label "" value="Clicked 3 times" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Clicked 3 times"
+    + r.0.0.0.0.1 Label "" value="Clicked 4 times" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Clicked 4 times"
+  Space:
+    - r.0.0.0.0.1 Label "" value="Clicked 4 times" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Clicked 4 times"
+    + r.0.0.0.0.1 Label "" value="Clicked 5 times" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Clicked 5 times"
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Clicked 5 times" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Clicked 5 times"
+    + r.0.0.0.0.1 Label "" value="Clicked 6 times" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Clicked 6 times"
+  Escape:
+    focus: r.0.0.0.0.0.0.1 Button "Redo" -> r Window ""
+drive r.0.0.0.0.0.0.2 Button "Copy"
+  click:
+    - r.0.0.0.0.1 Label "" value="Clicked 6 times" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Clicked 6 times"
+    + r.0.0.0.0.1 Label "" value="Clicked 7 times" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Clicked 7 times"
+  Space:
+    - r.0.0.0.0.1 Label "" value="Clicked 7 times" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Clicked 7 times"
+    + r.0.0.0.0.1 Label "" value="Clicked 8 times" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Clicked 8 times"
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Clicked 8 times" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Clicked 8 times"
+    + r.0.0.0.0.1 Label "" value="Clicked 9 times" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Clicked 9 times"
+  Escape:
+    focus: r.0.0.0.0.0.0.2 Button "Copy" -> r Window ""
+drive r.0.0.0.0.0.0.3 Button "Delete"
+  click:
+    - r.0.0.0.0.1 Label "" value="Clicked 9 times" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Clicked 9 times"
+    + r.0.0.0.0.1 Label "" value="Clicked 10 times" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Clicked 10 times"
+  Space:
+    - r.0.0.0.0.1 Label "" value="Clicked 10 times" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Clicked 10 times"
+    + r.0.0.0.0.1 Label "" value="Clicked 11 times" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Clicked 11 times"
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Clicked 11 times" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Clicked 11 times"
+    + r.0.0.0.0.1 Label "" value="Clicked 12 times" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Clicked 12 times"
+  Escape:
+    focus: r.0.0.0.0.0.0.3 Button "Delete" -> r Window ""
+drive r.0.0.0.0.0.0.4 Button "Settings"
+  click:
+    - r.0.0.0.0.1 Label "" value="Clicked 12 times" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Clicked 12 times"
+    + r.0.0.0.0.1 Label "" value="Clicked 13 times" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Clicked 13 times"
+  Space:
+    - r.0.0.0.0.1 Label "" value="Clicked 13 times" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Clicked 13 times"
+    + r.0.0.0.0.1 Label "" value="Clicked 14 times" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Clicked 14 times"
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Clicked 14 times" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Clicked 14 times"
+    + r.0.0.0.0.1 Label "" value="Clicked 15 times" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Clicked 15 times"
+  Escape:
+    focus: r.0.0.0.0.0.0.4 Button "Settings" -> r Window ""
+drive r.0.0.0.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.2.0.0 Button "Undo"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.2.0.0 Button "Undo" -> r Window ""
+drive r.0.0.0.0.2.0.1 Button "Redo"
+  click:
+    - r.0.0.0.0.2.0.0 Button "Undo" description="Undo" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2.0.1 Button "Redo" description="Redo" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0 Button "Undo" description="Undo" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.2.0.1 Button "Redo" description="Redo" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.3 Label "" value="Selected: Undo" actions=[Click]
+    - r.0.0.0.0.3.0 TextRun "" value="Selected: Undo"
+    + r.0.0.0.0.3 Label "" value="Selected: Redo" actions=[Click]
+    + r.0.0.0.0.3.0 TextRun "" value="Selected: Redo"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.2.0.1 Button "Redo" -> r Window ""
+drive r.0.0.0.0.2.0.2 Button "Copy"
+  click:
+    - r.0.0.0.0.2.0.1 Button "Redo" description="Redo" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2.0.2 Button "Copy" description="Copy" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.2.0.1 Button "Redo" description="Redo" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.2.0.2 Button "Copy" description="Copy" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.3 Label "" value="Selected: Redo" actions=[Click]
+    - r.0.0.0.0.3.0 TextRun "" value="Selected: Redo"
+    + r.0.0.0.0.3 Label "" value="Selected: Copy" actions=[Click]
+    + r.0.0.0.0.3.0 TextRun "" value="Selected: Copy"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.2.0.2 Button "Copy" -> r Window ""
+drive r.0.0.0.0.2.0.3 Button "Delete"
+  click:
+    - r.0.0.0.0.2.0.2 Button "Copy" description="Copy" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2.0.3 Button "Delete" description="Delete" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.2.0.2 Button "Copy" description="Copy" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.2.0.3 Button "Delete" description="Delete" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.3 Label "" value="Selected: Copy" actions=[Click]
+    - r.0.0.0.0.3.0 TextRun "" value="Selected: Copy"
+    + r.0.0.0.0.3 Label "" value="Selected: Delete" actions=[Click]
+    + r.0.0.0.0.3.0 TextRun "" value="Selected: Delete"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.2.0.3 Button "Delete" -> r Window ""
+drive r.0.0.0.0.2.0.4 Button "Settings"
+  click:
+    - r.0.0.0.0.2.0.3 Button "Delete" description="Delete" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2.0.4 Button "Settings" description="Settings" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.3 Label "" value="Selected: Delete" actions=[Click]
+    - r.0.0.0.0.3.0 TextRun "" value="Selected: Delete"
+    + r.0.0.0.0.2.0.3 Button "Delete" description="Delete" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.2.0.4 Button "Settings" description="Settings" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.3 Label "" value="Selected: Settings" actions=[Click]
+    + r.0.0.0.0.3.0 TextRun "" value="Selected: Settings"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.2.0.4 Button "Settings" -> r Window ""
+drive r.0.0.0.0.3 Label ""
+  click: no change
+  Escape: no change

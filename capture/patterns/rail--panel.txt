@@ -1,0 +1,73 @@
+story patterns/rail/panel
+args
+  open = Choice { options: ["none", "properties", "navigator", "color", "layers", "history", "brushes"], index: 4 }
+  height = Number { value: 320.0, min: 120.0, max: 600.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Pane ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 Pane ""
+                  r.0.0.0.0.0.0.0.0.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.1 GenericContainer ""
+                  r.0.0.0.0.0.0.0.1.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.1.0.0 Toolbar "Panels"
+                      r.0.0.0.0.0.0.0.1.0.0.0 GenericContainer ""
+                        r.0.0.0.0.0.0.0.1.0.0.0.0 Button "Properties" description="Properties" [unchecked] actions=[Click,Focus]
+                        r.0.0.0.0.0.0.0.1.0.0.0.1 Button "Navigator" description="Navigator" [unchecked] actions=[Click,Focus]
+                        r.0.0.0.0.0.0.0.1.0.0.0.2 Button "Color & Swatches" description="Color & Swatches" [unchecked] actions=[Click,Focus]
+                        r.0.0.0.0.0.0.0.1.0.0.0.3 Button "Layers" description="Layers" [checked] actions=[Click,Focus]
+  r.1 Button "History" description="Has content" [unchecked] actions=[Click,Focus]
+  r.2 Button "Brushes" description="Has content" [unchecked] actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.1.0.0.0.0 Button "Properties"
+  2: r.0.0.0.0.0.0.0.1.0.0.0.1 Button "Navigator"
+  3: r.0.0.0.0.0.0.0.1.0.0.0.2 Button "Color & Swatches"
+  4: r.0.0.0.0.0.0.0.1.0.0.0.3 Button "Layers"
+  5: r.1 Button "History"
+  6: r.2 Button "Brushes"
+  7: r.0.0.0.0.0.0.0.1.0.0.0.0 Button "Properties"
+  cycle after 6 nodes
+drive: 6 actionable nodes
+drive r.0.0.0.0.0.0.0.1.0.0.0.0 Button "Properties"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.1.0.0.0.0 Button "Properties" -> r Window ""
+drive r.0.0.0.0.0.0.0.1.0.0.0.1 Button "Navigator"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.1.0.0.0.1 Button "Navigator" -> r Window ""
+drive r.0.0.0.0.0.0.0.1.0.0.0.2 Button "Color & Swatches"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.1.0.0.0.2 Button "Color & Swatches" -> r Window ""
+drive r.0.0.0.0.0.0.0.1.0.0.0.3 Button "Layers"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.1.0.0.0.3 Button "Layers" -> r Window ""
+drive r.1 Button "History"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.1 Button "History" -> r Window ""
+drive r.2 Button "Brushes"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.2 Button "Brushes" -> r Window ""

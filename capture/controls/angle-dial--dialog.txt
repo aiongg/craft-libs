@@ -1,0 +1,106 @@
+story controls/angle-dial/dialog
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 TextInput "Name" value="Drop shadow" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+                  r.0.0.0.0.0.0.0.0.0 TextRun "" value="Drop shadow"
+                r.0.0.0.0.0.0.0.1 GenericContainer ""
+                  r.0.0.0.0.0.0.0.1.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.1.0.0 GenericContainer ""
+                      r.0.0.0.0.0.0.0.1.0.0.0 Slider "Angle" value="120°" number=120 in -180..180 step 1 actions=[Focus,Decrement,Increment,SetValue]
+                      r.0.0.0.0.0.0.0.1.0.0.1 GenericContainer ""
+                        r.0.0.0.0.0.0.0.1.0.0.1.0 SpinButton "Angle" value="120°" number=120 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                          r.0.0.0.0.0.0.0.1.0.0.1.0.0 TextRun "" value="120"
+                r.0.0.0.0.0.0.0.2 TextInput "Note" value="Soft" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+                  r.0.0.0.0.0.0.0.2.0 TextRun "" value="Soft"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0 TextInput "Name"
+  2: r.0.0.0.0.0.0.0.1.0.0.1.0 SpinButton "Angle"
+  3: r.0.0.0.0.0.0.0.2 TextInput "Note"
+  4: r.0.0.0.0.0.0.0.0 TextInput "Name"
+  cycle after 3 nodes
+drive: 4 actionable nodes
+drive r.0.0.0.0.0.0.0.0 TextInput "Name"
+  click: no change
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.0.0 TextInput "Name" -> r Window ""
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0 TextInput "Name" -> r Window ""
+drive r.0.0.0.0.0.0.0.1.0.0.0 Slider "Angle"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.0.0.0.1.0.0.0 Slider "Angle" value="120°" number=120 in -180..180 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.0.1.0.0.0 Slider "Angle" value="119°" number=119 in -180..180 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.0.0.1.0.0.1.0 SpinButton "Angle" value="120°" number=120 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.1.0.0.1.0.0 TextRun "" value="120"
+    + r.0.0.0.0.0.0.0.1.0.0.1.0 SpinButton "Angle" value="119°" number=119 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.1.0.0.1.0.0 TextRun "" value="119"
+  ArrowRight:
+    - r.0.0.0.0.0.0.0.1.0.0.0 Slider "Angle" value="119°" number=119 in -180..180 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.0.1.0.0.0 Slider "Angle" value="120°" number=120 in -180..180 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.0.0.1.0.0.1.0 SpinButton "Angle" value="119°" number=119 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.1.0.0.1.0.0 TextRun "" value="119"
+    + r.0.0.0.0.0.0.0.1.0.0.1.0 SpinButton "Angle" value="120°" number=120 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.1.0.0.1.0.0 TextRun "" value="120"
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.1.0.0.0 Slider "Angle" value="120°" number=120 in -180..180 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.0.1.0.0.0 Slider "Angle" value="121°" number=121 in -180..180 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.0.0.1.0.0.1.0 SpinButton "Angle" value="120°" number=120 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.1.0.0.1.0.0 TextRun "" value="120"
+    + r.0.0.0.0.0.0.0.1.0.0.1.0 SpinButton "Angle" value="121°" number=121 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.1.0.0.1.0.0 TextRun "" value="121"
+  ArrowDown:
+    - r.0.0.0.0.0.0.0.1.0.0.0 Slider "Angle" value="121°" number=121 in -180..180 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.0.1.0.0.0 Slider "Angle" value="120°" number=120 in -180..180 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.0.0.1.0.0.1.0 SpinButton "Angle" value="121°" number=121 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.1.0.0.1.0.0 TextRun "" value="121"
+    + r.0.0.0.0.0.0.0.1.0.0.1.0 SpinButton "Angle" value="120°" number=120 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.1.0.0.1.0.0 TextRun "" value="120"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.1.0.0.0 Slider "Angle" -> r Window ""
+drive r.0.0.0.0.0.0.0.1.0.0.1.0 SpinButton "Angle"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.1.0.0.1.0 SpinButton "Angle"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.0.1.0.0.1.0 SpinButton "Angle" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.1.0.0.0 Slider "Angle" value="120°" number=120 in -180..180 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.0.1.0.0.0 Slider "Angle" value="121°" number=121 in -180..180 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.0.0.1.0.0.1.0 SpinButton "Angle" value="120°" number=120 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.1.0.0.1.0.0 TextRun "" value="120"
+    + r.0.0.0.0.0.0.0.1.0.0.1.0 SpinButton "Angle" value="121°" number=121 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.1.0.0.1.0.0 TextRun "" value="121"
+  ArrowDown:
+    - r.0.0.0.0.0.0.0.1.0.0.0 Slider "Angle" value="121°" number=121 in -180..180 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.0.1.0.0.0 Slider "Angle" value="120°" number=120 in -180..180 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.0.0.1.0.0.1.0 SpinButton "Angle" value="121°" number=121 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.1.0.0.1.0.0 TextRun "" value="121"
+    + r.0.0.0.0.0.0.0.1.0.0.1.0 SpinButton "Angle" value="120°" number=120 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.1.0.0.1.0.0 TextRun "" value="120"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.1.0.0.1.0 SpinButton "Angle" -> r Window ""
+drive r.0.0.0.0.0.0.0.2 TextInput "Note"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.2 TextInput "Note"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.0.2 TextInput "Note" -> r Window ""
+  Escape:
+    focus: r.0.0.0.0.0.0.0.2 TextInput "Note" -> r Window ""

@@ -1,0 +1,144 @@
+story patterns/dialog/properties
+args
+  open = Bool(true)
+  read only = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+  r.1 Dialog "Document Properties"
+    r.1.0 GenericContainer ""
+    r.1.1 GenericContainer ""
+      r.1.1.0 GenericContainer ""
+        r.1.1.0.0 GenericContainer ""
+          r.1.1.0.0.0 GenericContainer ""
+            r.1.1.0.0.0.0 GenericContainer ""
+              r.1.1.0.0.0.0.0 Heading "Document Properties" value="Document Properties"
+            r.1.1.0.0.0.1 Button "Close" description="Close" actions=[Click,Focus]
+            r.1.1.0.0.0.2 GenericContainer ""
+              r.1.1.0.0.0.2.0 GenericContainer ""
+                r.1.1.0.0.0.2.0.0 GenericContainer ""
+                  r.1.1.0.0.0.2.0.0.0 TabList "Document Properties" actions=[Focus]
+                    r.1.1.0.0.0.2.0.0.0.0 Tab "General" [selected] actions=[Click,Focus,ShowContextMenu]
+                    r.1.1.0.0.0.2.0.0.0.1 Tab "Advanced" [unselected] actions=[Click,Focus,ShowContextMenu]
+                  r.1.1.0.0.0.2.0.0.1 GenericContainer ""
+                    r.1.1.0.0.0.2.0.0.1.0 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.1.0.0 Label "" value="File"
+                    r.1.1.0.0.0.2.0.0.1.1 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.1.1.0 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.1.1.0.0 Label "File" value="poster.psd" labelled_by=[r.1.1.0.0.0.2.0.0.1.0.0] actions=[Click]
+                          r.1.1.0.0.0.2.0.0.1.1.0.0.0 TextRun "" value="poster.psd"
+                    r.1.1.0.0.0.2.0.0.1.2 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.1.2.0 Label "" value="Size"
+                    r.1.1.0.0.0.2.0.0.1.3 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.1.3.0 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.1.3.0.0 Label "Size" value="1200 × 800 px" labelled_by=[r.1.1.0.0.0.2.0.0.1.2.0] actions=[Click]
+                          r.1.1.0.0.0.2.0.0.1.3.0.0.0 TextRun "" value="1200 × 800 px"
+                    r.1.1.0.0.0.2.0.0.1.4 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.1.4.0 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.1.4.0.0 Label "" value="Description"
+                    r.1.1.0.0.0.2.0.0.1.5 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.1.5.0 Label "" value="Title"
+                    r.1.1.0.0.0.2.0.0.1.6 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.1.6.0 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.1.6.0.0 GenericContainer ""
+                          r.1.1.0.0.0.2.0.0.1.6.0.0.0 TextInput "Title" value="Poster" labelled_by=[r.1.1.0.0.0.2.0.0.1.5.0] actions=[Click,Focus,SetValue,ReplaceSelectedText]
+                            r.1.1.0.0.0.2.0.0.1.6.0.0.0.0 TextRun "" value="Poster"
+                    r.1.1.0.0.0.2.0.0.1.7 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.1.7.0 Label "" value="Author"
+                    r.1.1.0.0.0.2.0.0.1.8 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.1.8.0 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.1.8.0.0 GenericContainer ""
+                          r.1.1.0.0.0.2.0.0.1.8.0.0.0 TextInput "Author" value="" placeholder="" labelled_by=[r.1.1.0.0.0.2.0.0.1.7.0] actions=[Click,Focus,SetValue,ReplaceSelectedText]
+                            r.1.1.0.0.0.2.0.0.1.8.0.0.0.0 TextRun "" value=""
+              r.1.1.0.0.0.2.1 GenericContainer ""
+              r.1.1.0.0.0.2.2 GenericContainer ""
+                r.1.1.0.0.0.2.2.0 Button "OK" description="Default" actions=[Click,Focus]
+                r.1.1.0.0.0.2.2.1 Button "Cancel" actions=[Click,Focus]
+tab
+  start: r.1.1.0.0.0.2.0.0.1.6.0.0.0 TextInput "Title"
+  1: r.1.1.0.0.0.2.0.0.1.8.0.0.0 TextInput "Author"
+  2: r.1.1.0.0.0.2.2.0 Button "OK"
+  3: r.1.1.0.0.0.2.2.1 Button "Cancel"
+  4: r.1.1.0.0.0.2.0.0.1.6.0.0.0 TextInput "Title"
+  5: r.1.1.0.0.0.2.0.0.1.8.0.0.0 TextInput "Author"
+  cycle after 4 nodes
+drive: 10 actionable nodes
+drive r.1.1.0.0.0.1 Button "Close"
+  click:
+    focus: r.1.1.0.0.0.2.0.0.1.8.0.0.0 TextInput "Author" -> r Window ""
+    arg open: Bool(true) -> Bool(false)
+    - r.1 Dialog "Document Properties"
+    - r.1.0 GenericContainer ""
+    - r.1.1 GenericContainer ""
+    - r.1.1.0 GenericContainer ""
+    - r.1.1.0.0 GenericContainer ""
+    - r.1.1.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0.0 Heading "Document Properties" value="Document Properties"
+    - r.1.1.0.0.0.1 Button "Close" description="Close" actions=[Click,Focus]
+    - r.1.1.0.0.0.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0 TabList "Document Properties" actions=[Focus]
+    - r.1.1.0.0.0.2.0.0.0.0 Tab "General" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.1.1.0.0.0.2.0.0.0.1 Tab "Advanced" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.1.1.0.0.0.2.0.0.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.0.0 Label "" value="File"
+    - r.1.1.0.0.0.2.0.0.1.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.1.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.1.0.0 Label "File" value="poster.psd" labelled_by=[r.1.1.0.0.0.2.0.0.1.0.0] actions=[Click]
+    - r.1.1.0.0.0.2.0.0.1.1.0.0.0 TextRun "" value="poster.psd"
+    - r.1.1.0.0.0.2.0.0.1.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.2.0 Label "" value="Size"
+    - r.1.1.0.0.0.2.0.0.1.3 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.3.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.3.0.0 Label "Size" value="1200 × 800 px" labelled_by=[r.1.1.0.0.0.2.0.0.1.2.0] actions=[Click]
+    - r.1.1.0.0.0.2.0.0.1.3.0.0.0 TextRun "" value="1200 × 800 px"
+    - r.1.1.0.0.0.2.0.0.1.4 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.4.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.4.0.0 Label "" value="Description"
+    - r.1.1.0.0.0.2.0.0.1.5 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.5.0 Label "" value="Title"
+    - r.1.1.0.0.0.2.0.0.1.6 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.6.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.6.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.6.0.0.0 TextInput "Title" value="Poster" labelled_by=[r.1.1.0.0.0.2.0.0.1.5.0] actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.1.6.0.0.0.0 TextRun "" value="Poster"
+    - r.1.1.0.0.0.2.0.0.1.7 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.7.0 Label "" value="Author"
+    - r.1.1.0.0.0.2.0.0.1.8 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.8.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.8.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.8.0.0.0 TextInput "Author" value="" placeholder="" labelled_by=[r.1.1.0.0.0.2.0.0.1.7.0] actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.1.8.0.0.0.0 TextRun "" value=""
+    - r.1.1.0.0.0.2.1 GenericContainer ""
+    - r.1.1.0.0.0.2.2 GenericContainer ""
+    - r.1.1.0.0.0.2.2.0 Button "OK" description="Default" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.2.1 Button "Cancel" actions=[Click,Focus]
+    + r.0.0.0.0.0 Label "" value="Result: Cancel" actions=[Click]
+    + r.0.0.0.0.0.0 TextRun "" value="Result: Cancel"
+  Space: node gone
+  Enter: node gone
+  Escape: node gone
+drive r.1.1.0.0.0.2.0.0.0 TabList "Document Properties"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0 Tab "General"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.1 Tab "Advanced"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.1.1.0.0 Label "File"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.1.3.0.0 Label "Size"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.1.6.0.0.0 TextInput "Title"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.1.8.0.0.0 TextInput "Author"
+  all steps: node gone
+drive r.1.1.0.0.0.2.2.0 Button "OK"
+  all steps: node gone
+drive r.1.1.0.0.0.2.2.1 Button "Cancel"
+  all steps: node gone

@@ -1,0 +1,70 @@
+story patterns/dialog/prompt
+args
+  kind = Choice { options: ["prompt", "alert"], index: 0 }
+  open = Bool(true)
+  translated labels = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+  r.1 Dialog "Unsaved changes"
+    r.1.0 GenericContainer ""
+    r.1.1 GenericContainer ""
+      r.1.1.0 GenericContainer ""
+        r.1.1.0.0 GenericContainer ""
+          r.1.1.0.0.0 GenericContainer ""
+            r.1.1.0.0.0.0 GenericContainer ""
+              r.1.1.0.0.0.0.0 Heading "Unsaved changes" value="Unsaved changes"
+            r.1.1.0.0.0.1 Button "Close" description="Close" actions=[Click,Focus]
+            r.1.1.0.0.0.2 GenericContainer ""
+              r.1.1.0.0.0.2.0 GenericContainer ""
+                r.1.1.0.0.0.2.0.0 GenericContainer ""
+                  r.1.1.0.0.0.2.0.0.0 Label "" value="Do you want to save the changes before closing?" actions=[Click]
+                    r.1.1.0.0.0.2.0.0.0.0 TextRun "" value="Do you want to save the changes before closing?"
+              r.1.1.0.0.0.2.1 GenericContainer ""
+                r.1.1.0.0.0.2.1.0 Button "(Y)es" description="Default" shortcut="Y" actions=[Click,Focus]
+                r.1.1.0.0.0.2.1.1 Button "(N)o" shortcut="N" actions=[Click,Focus]
+                r.1.1.0.0.0.2.1.2 Button "(C)ancel" shortcut="C" actions=[Click,Focus]
+tab
+  start: r.1.1.0.0.0.2.1.0 Button "(Y)es"
+  1: r.1.1.0.0.0.2.1.1 Button "(N)o"
+  2: r.1.1.0.0.0.2.1.2 Button "(C)ancel"
+  3: r.1.1.0.0.0.2.1.0 Button "(Y)es"
+  4: r.1.1.0.0.0.2.1.1 Button "(N)o"
+  cycle after 3 nodes
+drive: 5 actionable nodes
+drive r.1.1.0.0.0.1 Button "Close"
+  click:
+    focus: r.1.1.0.0.0.2.1.1 Button "(N)o" -> r Window ""
+    arg open: Bool(true) -> Bool(false)
+    - r.1 Dialog "Unsaved changes"
+    - r.1.0 GenericContainer ""
+    - r.1.1 GenericContainer ""
+    - r.1.1.0 GenericContainer ""
+    - r.1.1.0.0 GenericContainer ""
+    - r.1.1.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0.0 Heading "Unsaved changes" value="Unsaved changes"
+    - r.1.1.0.0.0.1 Button "Close" description="Close" actions=[Click,Focus]
+    - r.1.1.0.0.0.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0 Label "" value="Do you want to save the changes before closing?" actions=[Click]
+    - r.1.1.0.0.0.2.0.0.0.0 TextRun "" value="Do you want to save the changes before closing?"
+    - r.1.1.0.0.0.2.1 GenericContainer ""
+    - r.1.1.0.0.0.2.1.0 Button "(Y)es" description="Default" shortcut="Y" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.1.1 Button "(N)o" shortcut="N" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.1.2 Button "(C)ancel" shortcut="C" actions=[Click,Focus]
+  Space: node gone
+  Enter: node gone
+  Escape: node gone
+drive r.1.1.0.0.0.2.0.0.0 Label ""
+  all steps: node gone
+drive r.1.1.0.0.0.2.1.0 Button "(Y)es"
+  all steps: node gone
+drive r.1.1.0.0.0.2.1.1 Button "(N)o"
+  all steps: node gone
+drive r.1.1.0.0.0.2.1.2 Button "(C)ancel"
+  all steps: node gone

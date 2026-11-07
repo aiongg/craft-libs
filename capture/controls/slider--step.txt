@@ -1,0 +1,134 @@
+story controls/slider/step
+args
+  size = Choice { options: ["sm", "md"], index: 1 }
+  disabled = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 Label "" value="Step 10"
+            r.0.0.0.0.0.1 GenericContainer ""
+              r.0.0.0.0.0.1.0 GenericContainer ""
+                r.0.0.0.0.0.1.0.0 GenericContainer ""
+                  r.0.0.0.0.0.1.0.0.0 Slider "Step 10" number=40 in 0..100 step 10 labelled_by=[r.0.0.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+                  r.0.0.0.0.0.1.0.0.1 Label "" value="40.0" actions=[Click]
+                    r.0.0.0.0.0.1.0.0.1.0 TextRun "" value="40.0"
+            r.0.0.0.0.0.2 GenericContainer ""
+              r.0.0.0.0.0.2.0 Label "" value="Step 25"
+            r.0.0.0.0.0.3 GenericContainer ""
+              r.0.0.0.0.0.3.0 GenericContainer ""
+                r.0.0.0.0.0.3.0.0 GenericContainer ""
+                  r.0.0.0.0.0.3.0.0.0 Slider "Step 25" number=50 in 0..100 step 25 labelled_by=[r.0.0.0.0.0.2.0] actions=[Focus,Decrement,Increment,SetValue]
+                  r.0.0.0.0.0.3.0.0.1 Label "" value="50.0" actions=[Click]
+                    r.0.0.0.0.0.3.0.0.1.0 TextRun "" value="50.0"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.1.0.0.0 Slider "Step 10"
+  2: r.0.0.0.0.0.3.0.0.0 Slider "Step 25"
+  3: r.0.0.0.0.0.1.0.0.0 Slider "Step 10"
+  cycle after 2 nodes
+drive: 4 actionable nodes
+drive r.0.0.0.0.0.1.0.0.0 Slider "Step 10"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.0.1.0.0.0 Slider "Step 10" number=40 in 0..100 step 10 labelled_by=[r.0.0.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.1.0.0.1 Label "" value="40.0" actions=[Click]
+    - r.0.0.0.0.0.1.0.0.1.0 TextRun "" value="40.0"
+    + r.0.0.0.0.0.1.0.0.0 Slider "Step 10" number=30 in 0..100 step 10 labelled_by=[r.0.0.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.1 Label "" value="30.0" actions=[Click]
+    + r.0.0.0.0.0.1.0.0.1.0 TextRun "" value="30.0"
+  ArrowRight:
+    - r.0.0.0.0.0.1.0.0.0 Slider "Step 10" number=30 in 0..100 step 10 labelled_by=[r.0.0.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.1.0.0.1 Label "" value="30.0" actions=[Click]
+    - r.0.0.0.0.0.1.0.0.1.0 TextRun "" value="30.0"
+    + r.0.0.0.0.0.1.0.0.0 Slider "Step 10" number=40 in 0..100 step 10 labelled_by=[r.0.0.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.1 Label "" value="40.0" actions=[Click]
+    + r.0.0.0.0.0.1.0.0.1.0 TextRun "" value="40.0"
+  ArrowUp:
+    - r.0.0.0.0.0.1.0.0.0 Slider "Step 10" number=40 in 0..100 step 10 labelled_by=[r.0.0.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.1.0.0.1 Label "" value="40.0" actions=[Click]
+    - r.0.0.0.0.0.1.0.0.1.0 TextRun "" value="40.0"
+    + r.0.0.0.0.0.1.0.0.0 Slider "Step 10" number=50 in 0..100 step 10 labelled_by=[r.0.0.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.1 Label "" value="50.0" actions=[Click]
+    + r.0.0.0.0.0.1.0.0.1.0 TextRun "" value="50.0"
+  ArrowDown:
+    - r.0.0.0.0.0.1.0.0.0 Slider "Step 10" number=50 in 0..100 step 10 labelled_by=[r.0.0.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.1.0.0.1 Label "" value="50.0" actions=[Click]
+    - r.0.0.0.0.0.1.0.0.1.0 TextRun "" value="50.0"
+    + r.0.0.0.0.0.1.0.0.0 Slider "Step 10" number=40 in 0..100 step 10 labelled_by=[r.0.0.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.1 Label "" value="40.0" actions=[Click]
+    + r.0.0.0.0.0.1.0.0.1.0 TextRun "" value="40.0"
+  Home:
+    - r.0.0.0.0.0.1.0.0.0 Slider "Step 10" number=40 in 0..100 step 10 labelled_by=[r.0.0.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.1.0.0.1 Label "" value="40.0" actions=[Click]
+    - r.0.0.0.0.0.1.0.0.1.0 TextRun "" value="40.0"
+    + r.0.0.0.0.0.1.0.0.0 Slider "Step 10" number=0 in 0..100 step 10 labelled_by=[r.0.0.0.0.0.0.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.1 Label "" value="0.0" actions=[Click]
+    + r.0.0.0.0.0.1.0.0.1.0 TextRun "" value="0.0"
+  End:
+    - r.0.0.0.0.0.1.0.0.0 Slider "Step 10" number=0 in 0..100 step 10 labelled_by=[r.0.0.0.0.0.0.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.0.1.0.0.1 Label "" value="0.0" actions=[Click]
+    - r.0.0.0.0.0.1.0.0.1.0 TextRun "" value="0.0"
+    + r.0.0.0.0.0.1.0.0.0 Slider "Step 10" number=100 in 0..100 step 10 labelled_by=[r.0.0.0.0.0.0.0] actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.0.1.0.0.1 Label "" value="100.0" actions=[Click]
+    + r.0.0.0.0.0.1.0.0.1.0 TextRun "" value="100.0"
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.0 Slider "Step 10" -> r Window ""
+drive r.0.0.0.0.0.1.0.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.3.0.0.0 Slider "Step 25"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.0.3.0.0.0 Slider "Step 25" number=50 in 0..100 step 25 labelled_by=[r.0.0.0.0.0.2.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.3.0.0.1 Label "" value="50.0" actions=[Click]
+    - r.0.0.0.0.0.3.0.0.1.0 TextRun "" value="50.0"
+    + r.0.0.0.0.0.3.0.0.0 Slider "Step 25" number=25 in 0..100 step 25 labelled_by=[r.0.0.0.0.0.2.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.3.0.0.1 Label "" value="25.0" actions=[Click]
+    + r.0.0.0.0.0.3.0.0.1.0 TextRun "" value="25.0"
+  ArrowRight:
+    - r.0.0.0.0.0.3.0.0.0 Slider "Step 25" number=25 in 0..100 step 25 labelled_by=[r.0.0.0.0.0.2.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.3.0.0.1 Label "" value="25.0" actions=[Click]
+    - r.0.0.0.0.0.3.0.0.1.0 TextRun "" value="25.0"
+    + r.0.0.0.0.0.3.0.0.0 Slider "Step 25" number=50 in 0..100 step 25 labelled_by=[r.0.0.0.0.0.2.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.3.0.0.1 Label "" value="50.0" actions=[Click]
+    + r.0.0.0.0.0.3.0.0.1.0 TextRun "" value="50.0"
+  ArrowUp:
+    - r.0.0.0.0.0.3.0.0.0 Slider "Step 25" number=50 in 0..100 step 25 labelled_by=[r.0.0.0.0.0.2.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.3.0.0.1 Label "" value="50.0" actions=[Click]
+    - r.0.0.0.0.0.3.0.0.1.0 TextRun "" value="50.0"
+    + r.0.0.0.0.0.3.0.0.0 Slider "Step 25" number=75 in 0..100 step 25 labelled_by=[r.0.0.0.0.0.2.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.3.0.0.1 Label "" value="75.0" actions=[Click]
+    + r.0.0.0.0.0.3.0.0.1.0 TextRun "" value="75.0"
+  ArrowDown:
+    - r.0.0.0.0.0.3.0.0.0 Slider "Step 25" number=75 in 0..100 step 25 labelled_by=[r.0.0.0.0.0.2.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.3.0.0.1 Label "" value="75.0" actions=[Click]
+    - r.0.0.0.0.0.3.0.0.1.0 TextRun "" value="75.0"
+    + r.0.0.0.0.0.3.0.0.0 Slider "Step 25" number=50 in 0..100 step 25 labelled_by=[r.0.0.0.0.0.2.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.3.0.0.1 Label "" value="50.0" actions=[Click]
+    + r.0.0.0.0.0.3.0.0.1.0 TextRun "" value="50.0"
+  Home:
+    - r.0.0.0.0.0.3.0.0.0 Slider "Step 25" number=50 in 0..100 step 25 labelled_by=[r.0.0.0.0.0.2.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.3.0.0.1 Label "" value="50.0" actions=[Click]
+    - r.0.0.0.0.0.3.0.0.1.0 TextRun "" value="50.0"
+    + r.0.0.0.0.0.3.0.0.0 Slider "Step 25" number=0 in 0..100 step 25 labelled_by=[r.0.0.0.0.0.2.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.3.0.0.1 Label "" value="0.0" actions=[Click]
+    + r.0.0.0.0.0.3.0.0.1.0 TextRun "" value="0.0"
+  End:
+    - r.0.0.0.0.0.3.0.0.0 Slider "Step 25" number=0 in 0..100 step 25 labelled_by=[r.0.0.0.0.0.2.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.0.3.0.0.1 Label "" value="0.0" actions=[Click]
+    - r.0.0.0.0.0.3.0.0.1.0 TextRun "" value="0.0"
+    + r.0.0.0.0.0.3.0.0.0 Slider "Step 25" number=100 in 0..100 step 25 labelled_by=[r.0.0.0.0.0.2.0] actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.0.3.0.0.1 Label "" value="100.0" actions=[Click]
+    + r.0.0.0.0.0.3.0.0.1.0 TextRun "" value="100.0"
+  Escape:
+    focus: r.0.0.0.0.0.3.0.0.0 Slider "Step 25" -> r Window ""
+drive r.0.0.0.0.0.3.0.0.1 Label ""
+  click: no change
+  Escape: no change

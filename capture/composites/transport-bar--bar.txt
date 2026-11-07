@@ -1,0 +1,219 @@
+story composites/transport-bar/bar
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Toolbar "Transport"
+              r.0.0.0.0.0.0.0 Button "Add Marker (M)" description="Add Marker (M)" actions=[Click,Focus]
+              r.0.0.0.0.0.0.1 Button "Mark In (I)" description="Mark In (I)" actions=[Click,Focus]
+              r.0.0.0.0.0.0.2 Button "Mark Out (O)" description="Mark Out (O)" actions=[Click,Focus]
+              r.0.0.0.0.0.0.3 Button "Go to In (Shift+I)" description="Go to In (Shift+I)" actions=[Click,Focus]
+              r.0.0.0.0.0.0.4 Button "Step Back 1 Frame (Left)" description="Step Back 1 Frame (Left)" actions=[Click,Focus]
+              r.0.0.0.0.0.0.5 Button "Play-Stop Toggle (Space)" description="Play-Stop Toggle (Space)" actions=[Click,Focus]
+              r.0.0.0.0.0.0.6 Button "Step Forward 1 Frame (Right)" description="Step Forward 1 Frame (Right)" actions=[Click,Focus]
+              r.0.0.0.0.0.0.7 Button "Go to Out (Shift+O)" description="Go to Out (Shift+O)" actions=[Click,Focus]
+              r.0.0.0.0.0.0.8 Button "Lift (;)" description="Lift (;)" actions=[Click,Focus]
+              r.0.0.0.0.0.0.9 Button "Extract (')" description="Extract (')" actions=[Click,Focus]
+              r.0.0.0.0.0.0.10 Button "Export Frame" description="Export Frame" actions=[Click,Focus]
+              r.0.0.0.0.0.0.11 Button "Loop" description="Loop" [checked] actions=[Click,Focus]
+          r.0.0.0.0.1 Button "Button Editor" description="Button Editor" [collapsed popup:Dialog] actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0 Button "Add Marker (M)"
+  2: r.0.0.0.0.0.0.1 Button "Mark In (I)"
+  3: r.0.0.0.0.0.0.2 Button "Mark Out (O)"
+  4: r.0.0.0.0.0.0.3 Button "Go to In (Shift+I)"
+  5: r.0.0.0.0.0.0.4 Button "Step Back 1 Frame (Left)"
+  6: r.0.0.0.0.0.0.5 Button "Play-Stop Toggle (Space)"
+  7: r.0.0.0.0.0.0.6 Button "Step Forward 1 Frame (Right)"
+  8: r.0.0.0.0.0.0.7 Button "Go to Out (Shift+O)"
+  9: r.0.0.0.0.0.0.8 Button "Lift (;)"
+  10: r.0.0.0.0.0.0.9 Button "Extract (')"
+  11: r.0.0.0.0.0.0.10 Button "Export Frame"
+  12: r.0.0.0.0.0.0.11 Button "Loop"
+  13: r.0.0.0.0.1 Button "Button Editor"
+  14: r.0.0.0.0.0.0.0 Button "Add Marker (M)"
+  cycle after 13 nodes
+drive: 13 actionable nodes
+drive r.0.0.0.0.0.0.0 Button "Add Marker (M)"
+  click:
+    + r.0.0.0.0.2 Label "" value="Last event: AddMarker" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: AddMarker"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0 Button "Add Marker (M)" -> r Window ""
+drive r.0.0.0.0.0.0.1 Button "Mark In (I)"
+  click:
+    - r.0.0.0.0.2 Label "" value="Last event: AddMarker" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: AddMarker"
+    + r.0.0.0.0.2 Label "" value="Last event: MarkIn" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: MarkIn"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.1 Button "Mark In (I)" -> r Window ""
+drive r.0.0.0.0.0.0.2 Button "Mark Out (O)"
+  click:
+    - r.0.0.0.0.2 Label "" value="Last event: MarkIn" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: MarkIn"
+    + r.0.0.0.0.2 Label "" value="Last event: MarkOut" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: MarkOut"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.2 Button "Mark Out (O)" -> r Window ""
+drive r.0.0.0.0.0.0.3 Button "Go to In (Shift+I)"
+  click:
+    - r.0.0.0.0.2 Label "" value="Last event: MarkOut" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: MarkOut"
+    + r.0.0.0.0.2 Label "" value="Last event: GoToIn" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoToIn"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.3 Button "Go to In (Shift+I)" -> r Window ""
+drive r.0.0.0.0.0.0.4 Button "Step Back 1 Frame (Left)"
+  click:
+    - r.0.0.0.0.2 Label "" value="Last event: GoToIn" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoToIn"
+    + r.0.0.0.0.2 Label "" value="Last event: StepBack" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: StepBack"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.4 Button "Step Back 1 Frame (Left)" -> r Window ""
+drive r.0.0.0.0.0.0.5 Button "Play-Stop Toggle (Space)"
+  click:
+    - r.0.0.0.0.2 Label "" value="Last event: StepBack" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: StepBack"
+    + r.0.0.0.0.2 Label "" value="Last event: PlayStop" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: PlayStop"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.5 Button "Play-Stop Toggle (Space)" -> r Window ""
+drive r.0.0.0.0.0.0.6 Button "Step Forward 1 Frame (Right)"
+  click:
+    - r.0.0.0.0.2 Label "" value="Last event: PlayStop" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: PlayStop"
+    + r.0.0.0.0.2 Label "" value="Last event: StepForward" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: StepForward"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.6 Button "Step Forward 1 Frame (Right)" -> r Window ""
+drive r.0.0.0.0.0.0.7 Button "Go to Out (Shift+O)"
+  click:
+    - r.0.0.0.0.2 Label "" value="Last event: StepForward" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: StepForward"
+    + r.0.0.0.0.2 Label "" value="Last event: GoToOut" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoToOut"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.7 Button "Go to Out (Shift+O)" -> r Window ""
+drive r.0.0.0.0.0.0.8 Button "Lift (;)"
+  click:
+    - r.0.0.0.0.2 Label "" value="Last event: GoToOut" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoToOut"
+    + r.0.0.0.0.2 Label "" value="Last event: Lift" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Lift"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.8 Button "Lift (;)" -> r Window ""
+drive r.0.0.0.0.0.0.9 Button "Extract (')"
+  click:
+    - r.0.0.0.0.2 Label "" value="Last event: Lift" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Lift"
+    + r.0.0.0.0.2 Label "" value="Last event: Extract" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Extract"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.9 Button "Extract (')" -> r Window ""
+drive r.0.0.0.0.0.0.10 Button "Export Frame"
+  click:
+    - r.0.0.0.0.2 Label "" value="Last event: Extract" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Extract"
+    + r.0.0.0.0.2 Label "" value="Last event: ExportFrame" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: ExportFrame"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.10 Button "Export Frame" -> r Window ""
+drive r.0.0.0.0.0.0.11 Button "Loop"
+  click:
+    - r.0.0.0.0.0.0.11 Button "Loop" description="Loop" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.11 Button "Loop" description="Loop" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: ExportFrame" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: ExportFrame"
+    + r.0.0.0.0.2 Label "" value="Last event: Loop" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Loop"
+  Space:
+    - r.0.0.0.0.0.0.11 Button "Loop" description="Loop" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.11 Button "Loop" description="Loop" [checked] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.0.0.11 Button "Loop" description="Loop" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.11 Button "Loop" description="Loop" [unchecked] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.0.11 Button "Loop" -> r Window ""
+drive r.0.0.0.0.1 Button "Button Editor"
+  click:
+    focus: r Window "" -> r.1.0.0 CheckBox "Add Marker (M)"
+    - r.0.0.0.0.1 Button "Button Editor" description="Button Editor" [collapsed popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.1 Button "Button Editor" description="Button Editor" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.1 Dialog "Button Editor"
+    + r.1.0 GenericContainer ""
+    + r.1.0.0 CheckBox "Add Marker (M)" [checked] actions=[Click,Focus]
+    + r.1.0.1 CheckBox "Mark In (I)" [checked] actions=[Click,Focus]
+    + r.1.0.2 CheckBox "Mark Out (O)" [checked] actions=[Click,Focus]
+    + r.1.0.3 CheckBox "Go to In (Shift+I)" [checked] actions=[Click,Focus]
+    + r.1.0.4 CheckBox "Step Back 1 Frame (Left)" [checked] actions=[Click,Focus]
+    + r.1.0.5 CheckBox "Play-Stop Toggle (Space)" [checked] actions=[Click,Focus]
+    + r.1.0.6 CheckBox "Step Forward 1 Frame (Right)" [checked] actions=[Click,Focus]
+    + r.1.0.7 CheckBox "Go to Out (Shift+O)" [checked] actions=[Click,Focus]
+    + r.1.0.8 CheckBox "Lift (;)" [checked] actions=[Click,Focus]
+    + r.1.0.9 CheckBox "Extract (')" [checked] actions=[Click,Focus]
+    + r.1.0.10 CheckBox "Export Frame" [checked] actions=[Click,Focus]
+    + r.1.0.11 CheckBox "Loop" [checked] actions=[Click,Focus]
+    + r.1.0.12 Button "Reset" actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.0.0.1 Button "Mark In (I)" description="Mark In (I)" actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Loop" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Loop"
+    + r.0.0.0.0.2 Label "" value="Last event: TransportBarSettings { hidden: [MarkIn] }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: TransportBarSettings { hidden: [MarkIn] }"
+    - r.1.0.1 CheckBox "Mark In (I)" [checked] actions=[Click,Focus]
+    + r.1.0.1 CheckBox "Mark In (I)" [unchecked] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.0.0.0 Button "Add Marker (M)" description="Add Marker (M)" actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: TransportBarSettings { hidden: [MarkIn] }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: TransportBarSettings { hidden: [MarkIn] }"
+    + r.0.0.0.0.2 Label "" value="Last event: TransportBarSettings { hidden: [MarkIn, AddMarker] }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: TransportBarSettings { hidden: [MarkIn, AddMarker] }"
+    - r.1.0.0 CheckBox "Add Marker (M)" [checked] actions=[Click,Focus]
+    + r.1.0.0 CheckBox "Add Marker (M)" [unchecked] actions=[Click,Focus]
+  Escape:
+    - r.0.0.0.0.1 Button "Button Editor" description="Button Editor" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.1 Button "Button Editor" description="Button Editor" [collapsed popup:Dialog] actions=[Click,Focus]
+    - r.1 Dialog "Button Editor"
+    - r.1.0 GenericContainer ""
+    - r.1.0.0 CheckBox "Add Marker (M)" [unchecked] actions=[Click,Focus]
+    - r.1.0.1 CheckBox "Mark In (I)" [unchecked] actions=[Click,Focus]
+    - r.1.0.2 CheckBox "Mark Out (O)" [checked] actions=[Click,Focus]
+    - r.1.0.3 CheckBox "Go to In (Shift+I)" [checked] actions=[Click,Focus]
+    - r.1.0.4 CheckBox "Step Back 1 Frame (Left)" [checked] actions=[Click,Focus]
+    - r.1.0.5 CheckBox "Play-Stop Toggle (Space)" [checked] actions=[Click,Focus]
+    - r.1.0.6 CheckBox "Step Forward 1 Frame (Right)" [checked] actions=[Click,Focus]
+    - r.1.0.7 CheckBox "Go to Out (Shift+O)" [checked] actions=[Click,Focus]
+    - r.1.0.8 CheckBox "Lift (;)" [checked] actions=[Click,Focus]
+    - r.1.0.9 CheckBox "Extract (')" [checked] actions=[Click,Focus]
+    - r.1.0.10 CheckBox "Export Frame" [checked] actions=[Click,Focus]
+    - r.1.0.11 CheckBox "Loop" [checked] actions=[Click,Focus]
+    - r.1.0.12 Button "Reset" actions=[Click,Focus]

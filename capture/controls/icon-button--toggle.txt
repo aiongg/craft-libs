@@ -1,0 +1,45 @@
+story controls/icon-button/toggle
+args
+  size = Choice { options: ["sm", "md"], index: 1 }
+  disabled = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 Button "Visible" description="Visible" [checked] actions=[Click,Focus]
+              r.0.0.0.0.0.0.1 Button "Locked" description="Locked" [unchecked] actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0 Button "Visible"
+  2: r.0.0.0.0.0.0.1 Button "Locked"
+  3: r.0.0.0.0.0.0.0 Button "Visible"
+  cycle after 2 nodes
+drive: 2 actionable nodes
+drive r.0.0.0.0.0.0.0 Button "Visible"
+  click:
+    - r.0.0.0.0.0.0.0 Button "Visible" description="Visible" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0 Button "Visible" description="Visible" [unchecked] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.0.0.0 Button "Visible" description="Visible" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0 Button "Visible" description="Visible" [checked] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.0.0.0 Button "Visible" description="Visible" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0 Button "Visible" description="Visible" [unchecked] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.0.0 Button "Visible" -> r Window ""
+drive r.0.0.0.0.0.0.1 Button "Locked"
+  click:
+    - r.0.0.0.0.0.0.1 Button "Locked" description="Locked" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1 Button "Locked" description="Locked" [checked] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.0.0.1 Button "Locked" description="Locked" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1 Button "Locked" description="Locked" [unchecked] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.0.0.1 Button "Locked" description="Locked" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1 Button "Locked" description="Locked" [checked] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.0.1 Button "Locked" -> r Window ""

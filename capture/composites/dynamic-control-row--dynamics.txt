@@ -1,0 +1,539 @@
+story composites/dynamic-control-row/dynamics
+args
+  curve shaped = Bool(false)
+  diameter = Number { value: 120.0, min: 1.0, max: 2500.0 }
+  original = Number { value: 80.0, min: 1.0, max: 2500.0 }
+  max = Number { value: 2500.0, min: 1.0, max: 5000.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Label "" value="Control:" actions=[Click]
+              r.0.0.0.0.0.0.0 TextRun "" value="Control:"
+            r.0.0.0.0.0.1 ComboBox "Control:" value="Fade" [collapsed popup:Listbox] actions=[Click,Focus]
+            r.0.0.0.0.0.2 SpinButton "Fade steps" value="25" number=25 in 1..9999 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+              r.0.0.0.0.0.2.0 TextRun "" value="25"
+          r.0.0.0.0.1 GenericContainer ""
+            r.0.0.0.0.1.0 Label "" value="Control:" actions=[Click]
+              r.0.0.0.0.1.0.0 TextRun "" value="Control:"
+            r.0.0.0.0.1.1 ComboBox "Control:" value="Pen Pressure" [collapsed popup:Listbox] actions=[Click,Focus]
+            r.0.0.0.0.1.2 Button "Response curve" description="Response curve" [unchecked] actions=[Click,Focus]
+          r.0.0.0.0.2 Label "" value="" actions=[Click]
+            r.0.0.0.0.2.0 TextRun "" value=""
+          r.0.0.0.0.3 Label "" value="With restore" actions=[Click]
+            r.0.0.0.0.3.0 TextRun "" value="With restore"
+          r.0.0.0.0.4 GenericContainer ""
+            r.0.0.0.0.4.0 Label "" value="Size" actions=[Click]
+              r.0.0.0.0.4.0.0 TextRun "" value="Size"
+            r.0.0.0.0.4.1 GenericContainer ""
+              r.0.0.0.0.4.1.0 SpinButton "Size" value="120 px" number=120 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                r.0.0.0.0.4.1.0.0 TextRun "" value="120"
+              r.0.0.0.0.4.1.1 Button "Restore original size" description="Restore original size" actions=[Click,Focus]
+          r.0.0.0.0.5 Slider "Size" number=120 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+          r.0.0.0.0.6 Label "" value="Without restore" actions=[Click]
+            r.0.0.0.0.6.0 TextRun "" value="Without restore"
+          r.0.0.0.0.7 GenericContainer ""
+            r.0.0.0.0.7.0 Label "" value="Size" actions=[Click]
+              r.0.0.0.0.7.0.0 TextRun "" value="Size"
+            r.0.0.0.0.7.1 GenericContainer ""
+              r.0.0.0.0.7.1.0 SpinButton "Size" value="120 px" number=120 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                r.0.0.0.0.7.1.0.0 TextRun "" value="120"
+          r.0.0.0.0.8 Slider "Size" number=120 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.1 ComboBox "Control:"
+  2: r.0.0.0.0.0.2 SpinButton "Fade steps"
+  3: r.0.0.0.0.1.1 ComboBox "Control:"
+  4: r.0.0.0.0.1.2 Button "Response curve"
+  5: r.0.0.0.0.4.1.0 SpinButton "Size"
+  6: r.0.0.0.0.4.1.1 Button "Restore original size"
+  7: r.0.0.0.0.5 Slider "Size"
+  8: r.0.0.0.0.7.1.0 SpinButton "Size"
+  9: r.0.0.0.0.8 Slider "Size"
+  10: r.0.0.0.0.0.1 ComboBox "Control:"
+  cycle after 9 nodes
+drive: 16 actionable nodes
+drive r.0.0.0.0.0.0 Label ""
+  click:
+    focus: r.0.0.0.0.0.1 ComboBox "Control:" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.0.1 ComboBox "Control:"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Fade"
+    - r.0.0.0.0.0.1 ComboBox "Control:" value="Fade" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1 ComboBox "Control:" value="Fade" controls=[r.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0 ListBox ""
+    + r.0.0.0.0.0.1.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Off" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Fade" [selected] actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Pen Pressure" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Pen Tilt" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Fade" -> r.0.0.0.0.0.1 ComboBox "Control:"
+    - r.0.0.0.0.0.1 ComboBox "Control:" value="Fade" controls=[r.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0 ListBox ""
+    - r.0.0.0.0.0.1.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Off" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Fade" [selected] actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Pen Pressure" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Pen Tilt" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1 ComboBox "Control:" value="Fade" [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.0.1 ComboBox "Control:" -> r.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Fade"
+    - r.0.0.0.0.0.1 ComboBox "Control:" value="Fade" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1 ComboBox "Control:" value="Fade" controls=[r.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0 ListBox ""
+    + r.0.0.0.0.0.1.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Off" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Fade" [selected] actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Pen Pressure" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Pen Tilt" [unselected] actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Fade" -> r.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Pen Pressure"
+    - r.0.0.0.0.0.1 ComboBox "Control:" value="Fade" controls=[r.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1 ComboBox "Control:" value="Pen Pressure" controls=[r.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Fade" [selected] actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Pen Pressure" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Fade" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Pen Pressure" [selected] actions=[Click]
+    - r.0.0.0.0.0.2 SpinButton "Fade steps" value="25" number=25 in 1..9999 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.2.0 TextRun "" value="25"
+    + r.0.0.0.0.0.2 Button "Response curve" description="Response curve" [unchecked] actions=[Click,Focus]
+  ArrowUp:
+    focus: r.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Pen Pressure" -> r.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Fade"
+    - r.0.0.0.0.0.1 ComboBox "Control:" value="Pen Pressure" controls=[r.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1 ComboBox "Control:" value="Fade" controls=[r.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Fade" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Pen Pressure" [selected] actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Fade" [selected] actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Pen Pressure" [unselected] actions=[Click]
+    - r.0.0.0.0.0.2 Button "Response curve" description="Response curve" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.2 SpinButton "Fade steps" value="25" number=25 in 1..9999 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.2.0 TextRun "" value="25"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Fade" -> r.0.0.0.0.0.1 ComboBox "Control:"
+    - r.0.0.0.0.0.1 ComboBox "Control:" value="Fade" controls=[r.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0 ListBox ""
+    - r.0.0.0.0.0.1.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Off" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Fade" [selected] actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Pen Pressure" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.0.3 ListBoxOption "Pen Tilt" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1 ComboBox "Control:" value="Fade" [collapsed popup:Listbox] actions=[Click,Focus]
+drive r.0.0.0.0.0.2 SpinButton "Fade steps"
+  click:
+    focus: r.0.0.0.0.0.1 ComboBox "Control:" -> r.0.0.0.0.0.2 SpinButton "Fade steps"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.2 SpinButton "Fade steps" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.2 SpinButton "Fade steps" value="25" number=25 in 1..9999 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.2.0 TextRun "" value="25"
+    + r.0.0.0.0.0.2 SpinButton "Fade steps" value="26" number=26 in 1..9999 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.2.0 TextRun "" value="26"
+  ArrowDown:
+    - r.0.0.0.0.0.2 SpinButton "Fade steps" value="26" number=26 in 1..9999 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.2.0 TextRun "" value="26"
+    + r.0.0.0.0.0.2 SpinButton "Fade steps" value="25" number=25 in 1..9999 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.2.0 TextRun "" value="25"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.2 SpinButton "Fade steps" -> r Window ""
+drive r.0.0.0.0.1.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.1.1 ComboBox "Control:"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.1.0.0.0.0.0.2 ListBoxOption "Pen Pressure"
+    - r.0.0.0.0.1.1 ComboBox "Control:" value="Pen Pressure" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.1 ComboBox "Control:" value="Pen Pressure" controls=[r.0.0.0.0.1.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.1.0 ListBox ""
+    + r.0.0.0.0.1.1.0.0 GenericContainer ""
+    + r.0.0.0.0.1.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.1.0.0.0.0.0.0 ListBoxOption "Off" [unselected] actions=[Click]
+    + r.0.0.0.0.1.1.0.0.0.0.0.1 ListBoxOption "Fade" [unselected] actions=[Click]
+    + r.0.0.0.0.1.1.0.0.0.0.0.2 ListBoxOption "Pen Pressure" [selected] actions=[Click]
+    + r.0.0.0.0.1.1.0.0.0.0.0.3 ListBoxOption "Pen Tilt" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.1.1.0.0.0.0.0.2 ListBoxOption "Pen Pressure" -> r.0.0.0.0.1.1 ComboBox "Control:"
+    - r.0.0.0.0.1.1 ComboBox "Control:" value="Pen Pressure" controls=[r.0.0.0.0.1.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1.1.0 ListBox ""
+    - r.0.0.0.0.1.1.0.0 GenericContainer ""
+    - r.0.0.0.0.1.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.1.0.0.0.0.0.0 ListBoxOption "Off" [unselected] actions=[Click]
+    - r.0.0.0.0.1.1.0.0.0.0.0.1 ListBoxOption "Fade" [unselected] actions=[Click]
+    - r.0.0.0.0.1.1.0.0.0.0.0.2 ListBoxOption "Pen Pressure" [selected] actions=[Click]
+    - r.0.0.0.0.1.1.0.0.0.0.0.3 ListBoxOption "Pen Tilt" [unselected] actions=[Click]
+    + r.0.0.0.0.1.1 ComboBox "Control:" value="Pen Pressure" [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.1.1 ComboBox "Control:" -> r.0.0.0.0.1.1.0.0.0.0.0.2 ListBoxOption "Pen Pressure"
+    - r.0.0.0.0.1.1 ComboBox "Control:" value="Pen Pressure" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.1 ComboBox "Control:" value="Pen Pressure" controls=[r.0.0.0.0.1.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.1.0 ListBox ""
+    + r.0.0.0.0.1.1.0.0 GenericContainer ""
+    + r.0.0.0.0.1.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.1.0.0.0.0.0.0 ListBoxOption "Off" [unselected] actions=[Click]
+    + r.0.0.0.0.1.1.0.0.0.0.0.1 ListBoxOption "Fade" [unselected] actions=[Click]
+    + r.0.0.0.0.1.1.0.0.0.0.0.2 ListBoxOption "Pen Pressure" [selected] actions=[Click]
+    + r.0.0.0.0.1.1.0.0.0.0.0.3 ListBoxOption "Pen Tilt" [unselected] actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.1.1.0.0.0.0.0.2 ListBoxOption "Pen Pressure" -> r.0.0.0.0.1.1.0.0.0.0.0.3 ListBoxOption "Pen Tilt"
+    - r.0.0.0.0.1.1 ComboBox "Control:" value="Pen Pressure" controls=[r.0.0.0.0.1.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.1 ComboBox "Control:" value="Pen Tilt" controls=[r.0.0.0.0.1.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1.1.0.0.0.0.0.2 ListBoxOption "Pen Pressure" [selected] actions=[Click]
+    - r.0.0.0.0.1.1.0.0.0.0.0.3 ListBoxOption "Pen Tilt" [unselected] actions=[Click]
+    + r.0.0.0.0.1.1.0.0.0.0.0.2 ListBoxOption "Pen Pressure" [unselected] actions=[Click]
+    + r.0.0.0.0.1.1.0.0.0.0.0.3 ListBoxOption "Pen Tilt" [selected] actions=[Click]
+  ArrowUp:
+    focus: r.0.0.0.0.1.1.0.0.0.0.0.3 ListBoxOption "Pen Tilt" -> r.0.0.0.0.1.1.0.0.0.0.0.2 ListBoxOption "Pen Pressure"
+    - r.0.0.0.0.1.1 ComboBox "Control:" value="Pen Tilt" controls=[r.0.0.0.0.1.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.1 ComboBox "Control:" value="Pen Pressure" controls=[r.0.0.0.0.1.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1.1.0.0.0.0.0.2 ListBoxOption "Pen Pressure" [unselected] actions=[Click]
+    - r.0.0.0.0.1.1.0.0.0.0.0.3 ListBoxOption "Pen Tilt" [selected] actions=[Click]
+    + r.0.0.0.0.1.1.0.0.0.0.0.2 ListBoxOption "Pen Pressure" [selected] actions=[Click]
+    + r.0.0.0.0.1.1.0.0.0.0.0.3 ListBoxOption "Pen Tilt" [unselected] actions=[Click]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.1.1.0.0.0.0.0.2 ListBoxOption "Pen Pressure" -> r.0.0.0.0.1.1 ComboBox "Control:"
+    - r.0.0.0.0.1.1 ComboBox "Control:" value="Pen Pressure" controls=[r.0.0.0.0.1.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1.1.0 ListBox ""
+    - r.0.0.0.0.1.1.0.0 GenericContainer ""
+    - r.0.0.0.0.1.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.1.0.0.0.0.0.0 ListBoxOption "Off" [unselected] actions=[Click]
+    - r.0.0.0.0.1.1.0.0.0.0.0.1 ListBoxOption "Fade" [unselected] actions=[Click]
+    - r.0.0.0.0.1.1.0.0.0.0.0.2 ListBoxOption "Pen Pressure" [selected] actions=[Click]
+    - r.0.0.0.0.1.1.0.0.0.0.0.3 ListBoxOption "Pen Tilt" [unselected] actions=[Click]
+    + r.0.0.0.0.1.1 ComboBox "Control:" value="Pen Pressure" [collapsed popup:Listbox] actions=[Click,Focus]
+drive r.0.0.0.0.1.2 Button "Response curve"
+  click:
+    focus: r.0.0.0.0.1.1 ComboBox "Control:" -> r Window ""
+    - r.0.0.0.0.1.2 Button "Response curve" description="Response curve" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value=""
+    + r.0.0.0.0.1.2 Button "Response curve" description="Response curve" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.2 Label "" value="Response curve open" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Response curve open"
+  Space:
+    - r.0.0.0.0.1.2 Button "Response curve" description="Response curve" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Response curve open" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Response curve open"
+    + r.0.0.0.0.1.2 Button "Response curve" description="Response curve" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.2 Label "" value="" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value=""
+  Enter:
+    - r.0.0.0.0.1.2 Button "Response curve" description="Response curve" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value=""
+    + r.0.0.0.0.1.2 Button "Response curve" description="Response curve" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.2 Label "" value="Response curve open" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Response curve open"
+  Escape:
+    focus: r.0.0.0.0.1.2 Button "Response curve" -> r Window ""
+drive r.0.0.0.0.2 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.3 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.4.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.4.1.0 SpinButton "Size"
+  click:
+    focus: r Window "" -> r.0.0.0.0.4.1.0 SpinButton "Size"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.4.1.0 SpinButton "Size" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    arg diameter: Number { value: 120.0, min: 1.0, max: 2500.0 } -> Number { value: 121.0, min: 1.0, max: 2500.0 }
+    - r.0.0.0.0.4.1.0 SpinButton "Size" value="120 px" number=120 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.4.1.0.0 TextRun "" value="120"
+    + r.0.0.0.0.4.1.0 SpinButton "Size" value="121 px" number=121 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.4.1.0.0 TextRun "" value="121"
+    - r.0.0.0.0.5 Slider "Size" number=120 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.5 Slider "Size" number=121 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.7.1.0 SpinButton "Size" value="120 px" number=120 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.7.1.0.0 TextRun "" value="120"
+    - r.0.0.0.0.8 Slider "Size" number=120 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.7.1.0 SpinButton "Size" value="121 px" number=121 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.7.1.0.0 TextRun "" value="121"
+    + r.0.0.0.0.8 Slider "Size" number=121 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    arg diameter: Number { value: 121.0, min: 1.0, max: 2500.0 } -> Number { value: 120.0, min: 1.0, max: 2500.0 }
+    - r.0.0.0.0.4.1.0 SpinButton "Size" value="121 px" number=121 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.4.1.0.0 TextRun "" value="121"
+    + r.0.0.0.0.4.1.0 SpinButton "Size" value="120 px" number=120 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.4.1.0.0 TextRun "" value="120"
+    - r.0.0.0.0.5 Slider "Size" number=121 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.5 Slider "Size" number=120 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.7.1.0 SpinButton "Size" value="121 px" number=121 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.7.1.0.0 TextRun "" value="121"
+    - r.0.0.0.0.8 Slider "Size" number=121 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.7.1.0 SpinButton "Size" value="120 px" number=120 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.7.1.0.0 TextRun "" value="120"
+    + r.0.0.0.0.8 Slider "Size" number=120 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.4.1.0 SpinButton "Size" -> r Window ""
+drive r.0.0.0.0.4.1.1 Button "Restore original size"
+  click:
+    arg diameter: Number { value: 120.0, min: 1.0, max: 2500.0 } -> Number { value: 80.0, min: 1.0, max: 2500.0 }
+    - r.0.0.0.0.4.1.0 SpinButton "Size" value="120 px" number=120 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.4.1.0.0 TextRun "" value="120"
+    + r.0.0.0.0.4.1.0 SpinButton "Size" value="80 px" number=80 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.4.1.0.0 TextRun "" value="80"
+    - r.0.0.0.0.5 Slider "Size" number=120 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.5 Slider "Size" number=80 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.7.1.0 SpinButton "Size" value="120 px" number=120 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.7.1.0.0 TextRun "" value="120"
+    - r.0.0.0.0.8 Slider "Size" number=120 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.7.1.0 SpinButton "Size" value="80 px" number=80 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.7.1.0.0 TextRun "" value="80"
+    + r.0.0.0.0.8 Slider "Size" number=80 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.4.1.1 Button "Restore original size" -> r Window ""
+drive r.0.0.0.0.5 Slider "Size"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    arg diameter: Number { value: 80.0, min: 1.0, max: 2500.0 } -> Number { value: 79.0, min: 1.0, max: 2500.0 }
+    - r.0.0.0.0.4.1.0 SpinButton "Size" value="80 px" number=80 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.4.1.0.0 TextRun "" value="80"
+    + r.0.0.0.0.4.1.0 SpinButton "Size" value="79 px" number=79 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.4.1.0.0 TextRun "" value="79"
+    - r.0.0.0.0.5 Slider "Size" number=80 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.5 Slider "Size" number=79 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.7.1.0 SpinButton "Size" value="80 px" number=80 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.7.1.0.0 TextRun "" value="80"
+    - r.0.0.0.0.8 Slider "Size" number=80 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.7.1.0 SpinButton "Size" value="79 px" number=79 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.7.1.0.0 TextRun "" value="79"
+    + r.0.0.0.0.8 Slider "Size" number=79 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+  ArrowRight:
+    arg diameter: Number { value: 79.0, min: 1.0, max: 2500.0 } -> Number { value: 80.0, min: 1.0, max: 2500.0 }
+    - r.0.0.0.0.4.1.0 SpinButton "Size" value="79 px" number=79 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.4.1.0.0 TextRun "" value="79"
+    + r.0.0.0.0.4.1.0 SpinButton "Size" value="80 px" number=80 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.4.1.0.0 TextRun "" value="80"
+    - r.0.0.0.0.5 Slider "Size" number=79 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.5 Slider "Size" number=80 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.7.1.0 SpinButton "Size" value="79 px" number=79 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.7.1.0.0 TextRun "" value="79"
+    - r.0.0.0.0.8 Slider "Size" number=79 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.7.1.0 SpinButton "Size" value="80 px" number=80 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.7.1.0.0 TextRun "" value="80"
+    + r.0.0.0.0.8 Slider "Size" number=80 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+  ArrowUp:
+    arg diameter: Number { value: 80.0, min: 1.0, max: 2500.0 } -> Number { value: 81.0, min: 1.0, max: 2500.0 }
+    - r.0.0.0.0.4.1.0 SpinButton "Size" value="80 px" number=80 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.4.1.0.0 TextRun "" value="80"
+    + r.0.0.0.0.4.1.0 SpinButton "Size" value="81 px" number=81 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.4.1.0.0 TextRun "" value="81"
+    - r.0.0.0.0.5 Slider "Size" number=80 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.5 Slider "Size" number=81 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.7.1.0 SpinButton "Size" value="80 px" number=80 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.7.1.0.0 TextRun "" value="80"
+    - r.0.0.0.0.8 Slider "Size" number=80 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.7.1.0 SpinButton "Size" value="81 px" number=81 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.7.1.0.0 TextRun "" value="81"
+    + r.0.0.0.0.8 Slider "Size" number=81 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    arg diameter: Number { value: 81.0, min: 1.0, max: 2500.0 } -> Number { value: 80.0, min: 1.0, max: 2500.0 }
+    - r.0.0.0.0.4.1.0 SpinButton "Size" value="81 px" number=81 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.4.1.0.0 TextRun "" value="81"
+    + r.0.0.0.0.4.1.0 SpinButton "Size" value="80 px" number=80 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.4.1.0.0 TextRun "" value="80"
+    - r.0.0.0.0.5 Slider "Size" number=81 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.5 Slider "Size" number=80 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.7.1.0 SpinButton "Size" value="81 px" number=81 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.7.1.0.0 TextRun "" value="81"
+    - r.0.0.0.0.8 Slider "Size" number=81 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.7.1.0 SpinButton "Size" value="80 px" number=80 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.7.1.0.0 TextRun "" value="80"
+    + r.0.0.0.0.8 Slider "Size" number=80 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+  Home:
+    arg diameter: Number { value: 80.0, min: 1.0, max: 2500.0 } -> Number { value: 1.0, min: 1.0, max: 2500.0 }
+    - r.0.0.0.0.4.1.0 SpinButton "Size" value="80 px" number=80 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.4.1.0.0 TextRun "" value="80"
+    + r.0.0.0.0.4.1.0 SpinButton "Size" value="1 px" number=1 in 1..2500 step 1 actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.4.1.0.0 TextRun "" value="1"
+    - r.0.0.0.0.5 Slider "Size" number=80 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.5 Slider "Size" number=1 in 1..2500 step 1 actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.7.1.0 SpinButton "Size" value="80 px" number=80 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.7.1.0.0 TextRun "" value="80"
+    - r.0.0.0.0.8 Slider "Size" number=80 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.7.1.0 SpinButton "Size" value="1 px" number=1 in 1..2500 step 1 actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.7.1.0.0 TextRun "" value="1"
+    + r.0.0.0.0.8 Slider "Size" number=1 in 1..2500 step 1 actions=[Focus,Increment,SetValue]
+  End:
+    arg diameter: Number { value: 1.0, min: 1.0, max: 2500.0 } -> Number { value: 2500.0, min: 1.0, max: 2500.0 }
+    - r.0.0.0.0.4.1.0 SpinButton "Size" value="1 px" number=1 in 1..2500 step 1 actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.4.1.0.0 TextRun "" value="1"
+    + r.0.0.0.0.4.1.0 SpinButton "Size" value="2,500 px" number=2500 in 1..2500 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.4.1.0.0 TextRun "" value="2,500"
+    - r.0.0.0.0.5 Slider "Size" number=1 in 1..2500 step 1 actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.5 Slider "Size" number=2500 in 1..2500 step 1 actions=[Focus,Decrement,SetValue]
+    - r.0.0.0.0.7.1.0 SpinButton "Size" value="1 px" number=1 in 1..2500 step 1 actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.7.1.0.0 TextRun "" value="1"
+    - r.0.0.0.0.8 Slider "Size" number=1 in 1..2500 step 1 actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.7.1.0 SpinButton "Size" value="2,500 px" number=2500 in 1..2500 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.7.1.0.0 TextRun "" value="2,500"
+    + r.0.0.0.0.8 Slider "Size" number=2500 in 1..2500 step 1 actions=[Focus,Decrement,SetValue]
+  Escape:
+    focus: r.0.0.0.0.5 Slider "Size" -> r Window ""
+drive r.0.0.0.0.6 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.7.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.7.1.0 SpinButton "Size"
+  click:
+    focus: r Window "" -> r.0.0.0.0.7.1.0 SpinButton "Size"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.7.1.0 SpinButton "Size" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown:
+    arg diameter: Number { value: 2500.0, min: 1.0, max: 2500.0 } -> Number { value: 2499.0, min: 1.0, max: 2500.0 }
+    - r.0.0.0.0.4.1.0 SpinButton "Size" value="2,500 px" number=2500 in 1..2500 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.4.1.0.0 TextRun "" value="2,500"
+    + r.0.0.0.0.4.1.0 SpinButton "Size" value="2,499 px" number=2499 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.4.1.0.0 TextRun "" value="2,499"
+    - r.0.0.0.0.5 Slider "Size" number=2500 in 1..2500 step 1 actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.5 Slider "Size" number=2499 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.7.1.0 SpinButton "Size" value="2,500 px" number=2500 in 1..2500 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.7.1.0.0 TextRun "" value="2,500"
+    - r.0.0.0.0.8 Slider "Size" number=2500 in 1..2500 step 1 actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.7.1.0 SpinButton "Size" value="2,499 px" number=2499 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.7.1.0.0 TextRun "" value="2,499"
+    + r.0.0.0.0.8 Slider "Size" number=2499 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.7.1.0 SpinButton "Size" -> r Window ""
+drive r.0.0.0.0.8 Slider "Size"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    arg diameter: Number { value: 2499.0, min: 1.0, max: 2500.0 } -> Number { value: 2498.0, min: 1.0, max: 2500.0 }
+    - r.0.0.0.0.4.1.0 SpinButton "Size" value="2,499 px" number=2499 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.4.1.0.0 TextRun "" value="2,499"
+    + r.0.0.0.0.4.1.0 SpinButton "Size" value="2,498 px" number=2498 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.4.1.0.0 TextRun "" value="2,498"
+    - r.0.0.0.0.5 Slider "Size" number=2499 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.5 Slider "Size" number=2498 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.7.1.0 SpinButton "Size" value="2,499 px" number=2499 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.7.1.0.0 TextRun "" value="2,499"
+    - r.0.0.0.0.8 Slider "Size" number=2499 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.7.1.0 SpinButton "Size" value="2,498 px" number=2498 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.7.1.0.0 TextRun "" value="2,498"
+    + r.0.0.0.0.8 Slider "Size" number=2498 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+  ArrowRight:
+    arg diameter: Number { value: 2498.0, min: 1.0, max: 2500.0 } -> Number { value: 2499.0, min: 1.0, max: 2500.0 }
+    - r.0.0.0.0.4.1.0 SpinButton "Size" value="2,498 px" number=2498 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.4.1.0.0 TextRun "" value="2,498"
+    + r.0.0.0.0.4.1.0 SpinButton "Size" value="2,499 px" number=2499 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.4.1.0.0 TextRun "" value="2,499"
+    - r.0.0.0.0.5 Slider "Size" number=2498 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.5 Slider "Size" number=2499 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.7.1.0 SpinButton "Size" value="2,498 px" number=2498 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.7.1.0.0 TextRun "" value="2,498"
+    - r.0.0.0.0.8 Slider "Size" number=2498 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.7.1.0 SpinButton "Size" value="2,499 px" number=2499 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.7.1.0.0 TextRun "" value="2,499"
+    + r.0.0.0.0.8 Slider "Size" number=2499 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+  ArrowUp:
+    arg diameter: Number { value: 2499.0, min: 1.0, max: 2500.0 } -> Number { value: 2500.0, min: 1.0, max: 2500.0 }
+    - r.0.0.0.0.4.1.0 SpinButton "Size" value="2,499 px" number=2499 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.4.1.0.0 TextRun "" value="2,499"
+    + r.0.0.0.0.4.1.0 SpinButton "Size" value="2,500 px" number=2500 in 1..2500 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.4.1.0.0 TextRun "" value="2,500"
+    - r.0.0.0.0.5 Slider "Size" number=2499 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.5 Slider "Size" number=2500 in 1..2500 step 1 actions=[Focus,Decrement,SetValue]
+    - r.0.0.0.0.7.1.0 SpinButton "Size" value="2,499 px" number=2499 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.7.1.0.0 TextRun "" value="2,499"
+    - r.0.0.0.0.8 Slider "Size" number=2499 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.7.1.0 SpinButton "Size" value="2,500 px" number=2500 in 1..2500 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.7.1.0.0 TextRun "" value="2,500"
+    + r.0.0.0.0.8 Slider "Size" number=2500 in 1..2500 step 1 actions=[Focus,Decrement,SetValue]
+  ArrowDown:
+    arg diameter: Number { value: 2500.0, min: 1.0, max: 2500.0 } -> Number { value: 2499.0, min: 1.0, max: 2500.0 }
+    - r.0.0.0.0.4.1.0 SpinButton "Size" value="2,500 px" number=2500 in 1..2500 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.4.1.0.0 TextRun "" value="2,500"
+    + r.0.0.0.0.4.1.0 SpinButton "Size" value="2,499 px" number=2499 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.4.1.0.0 TextRun "" value="2,499"
+    - r.0.0.0.0.5 Slider "Size" number=2500 in 1..2500 step 1 actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.5 Slider "Size" number=2499 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.7.1.0 SpinButton "Size" value="2,500 px" number=2500 in 1..2500 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.7.1.0.0 TextRun "" value="2,500"
+    - r.0.0.0.0.8 Slider "Size" number=2500 in 1..2500 step 1 actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.7.1.0 SpinButton "Size" value="2,499 px" number=2499 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.7.1.0.0 TextRun "" value="2,499"
+    + r.0.0.0.0.8 Slider "Size" number=2499 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+  Home:
+    arg diameter: Number { value: 2499.0, min: 1.0, max: 2500.0 } -> Number { value: 1.0, min: 1.0, max: 2500.0 }
+    - r.0.0.0.0.4.1.0 SpinButton "Size" value="2,499 px" number=2499 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.4.1.0.0 TextRun "" value="2,499"
+    + r.0.0.0.0.4.1.0 SpinButton "Size" value="1 px" number=1 in 1..2500 step 1 actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.4.1.0.0 TextRun "" value="1"
+    - r.0.0.0.0.5 Slider "Size" number=2499 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.5 Slider "Size" number=1 in 1..2500 step 1 actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.7.1.0 SpinButton "Size" value="2,499 px" number=2499 in 1..2500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.7.1.0.0 TextRun "" value="2,499"
+    - r.0.0.0.0.8 Slider "Size" number=2499 in 1..2500 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.7.1.0 SpinButton "Size" value="1 px" number=1 in 1..2500 step 1 actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.7.1.0.0 TextRun "" value="1"
+    + r.0.0.0.0.8 Slider "Size" number=1 in 1..2500 step 1 actions=[Focus,Increment,SetValue]
+  End:
+    arg diameter: Number { value: 1.0, min: 1.0, max: 2500.0 } -> Number { value: 2500.0, min: 1.0, max: 2500.0 }
+    - r.0.0.0.0.4.1.0 SpinButton "Size" value="1 px" number=1 in 1..2500 step 1 actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.4.1.0.0 TextRun "" value="1"
+    + r.0.0.0.0.4.1.0 SpinButton "Size" value="2,500 px" number=2500 in 1..2500 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.4.1.0.0 TextRun "" value="2,500"
+    - r.0.0.0.0.5 Slider "Size" number=1 in 1..2500 step 1 actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.5 Slider "Size" number=2500 in 1..2500 step 1 actions=[Focus,Decrement,SetValue]
+    - r.0.0.0.0.7.1.0 SpinButton "Size" value="1 px" number=1 in 1..2500 step 1 actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.7.1.0.0 TextRun "" value="1"
+    - r.0.0.0.0.8 Slider "Size" number=1 in 1..2500 step 1 actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.7.1.0 SpinButton "Size" value="2,500 px" number=2500 in 1..2500 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.7.1.0.0 TextRun "" value="2,500"
+    + r.0.0.0.0.8 Slider "Size" number=2500 in 1..2500 step 1 actions=[Focus,Decrement,SetValue]
+  Escape:
+    focus: r.0.0.0.0.8 Slider "Size" -> r Window ""

@@ -1,0 +1,225 @@
+story composites/list/reorder-refused
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 ListBox "Layers" actions=[Focus]
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 GenericContainer ""
+                  r.0.0.0.0.0.0.0.0.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Text" [selected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.0.0.0.0.0.1 Button "Lock Text" [unchecked] actions=[Click]
+                    r.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Frame" [unselected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.0.0.0.0.0.3 Button "Lock Frame" [checked] actions=[Click]
+                    r.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Photo" [unselected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.0.0.0.0.0.5 Button "Lock Photo" [unchecked] actions=[Click]
+                    r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Badge" [unselected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.0.0.0.0.0.7 Button "Lock Badge" [checked] actions=[Click]
+                    r.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Shape" [unselected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.0.0.0.0.0.9 Button "Lock Shape" [unchecked] actions=[Click]
+                    r.0.0.0.0.0.0.0.0.0.10 ListBoxOption "Background" [unselected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.0.0.0.0.0.11 Button "Lock Background" [unchecked] actions=[Click]
+          r.0.0.0.0.1 Label "" value="Background and locked layers refuse drops" actions=[Click]
+            r.0.0.0.0.1.0 TextRun "" value="Background and locked layers refuse drops"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Text"
+  2: r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Text"
+  cycle after 1 nodes
+drive: 14 actionable nodes
+drive r.0.0.0.0.0.0 ListBox "Layers"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Text" -> r.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Frame"
+    - r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Text" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Text" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Frame" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Frame" [selected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Frame" -> r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Text"
+    - r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Text" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Text" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Frame" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Frame" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Text" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Text"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Text"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Text" -> r.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Frame"
+    - r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Text" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Text" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Frame" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Frame" [selected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Text" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Text" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Frame" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Frame" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Text" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.1 Button "Lock Text"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.1 Button "Lock Text" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.1 Button "Lock Text" [checked] actions=[Click]
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Frame"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Frame"
+    - r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Text" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Text" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Frame" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Frame" [selected] actions=[Click,Focus,ScrollIntoView]
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Frame" -> r.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Photo"
+    - r.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Frame" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Frame" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Photo" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Photo" [selected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Frame" -> r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Text"
+    - r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Text" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Text" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Photo" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Photo" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Frame" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.3 Button "Lock Frame"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.3 Button "Lock Frame" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.3 Button "Lock Frame" [unchecked] actions=[Click]
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Photo"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Photo"
+    - r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Text" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Text" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Photo" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Photo" [selected] actions=[Click,Focus,ScrollIntoView]
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Photo" -> r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Badge"
+    - r.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Photo" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Photo" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Badge" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Badge" [selected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Photo" -> r.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Frame"
+    - r.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Frame" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Frame" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Badge" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Badge" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Photo" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.5 Button "Lock Photo"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.5 Button "Lock Photo" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.5 Button "Lock Photo" [checked] actions=[Click]
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Badge"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Badge"
+    - r.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Frame" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Frame" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Badge" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Badge" [selected] actions=[Click,Focus,ScrollIntoView]
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Badge" -> r.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Shape"
+    - r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Badge" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Badge" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Shape" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Shape" [selected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Badge" -> r.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Photo"
+    - r.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Photo" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Photo" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Shape" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Shape" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Badge" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.7 Button "Lock Badge"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.7 Button "Lock Badge" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.7 Button "Lock Badge" [unchecked] actions=[Click]
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Shape"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Shape"
+    - r.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Photo" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.4 ListBoxOption "Photo" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Shape" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Shape" [selected] actions=[Click,Focus,ScrollIntoView]
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Shape" -> r.0.0.0.0.0.0.0.0.0.10 ListBoxOption "Background"
+    - r.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Shape" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Shape" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.10 ListBoxOption "Background" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.10 ListBoxOption "Background" [selected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Shape" -> r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Badge"
+    - r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Badge" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Badge" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.10 ListBoxOption "Background" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.10 ListBoxOption "Background" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Shape" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.9 Button "Lock Shape"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.9 Button "Lock Shape" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.9 Button "Lock Shape" [checked] actions=[Click]
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.0.10 ListBoxOption "Background"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.10 ListBoxOption "Background"
+    - r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Badge" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Badge" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.10 ListBoxOption "Background" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.10 ListBoxOption "Background" [selected] actions=[Click,Focus,ScrollIntoView]
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.10 ListBoxOption "Background" -> r.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Shape"
+    - r.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Shape" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.8 ListBoxOption "Shape" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.10 ListBoxOption "Background" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.10 ListBoxOption "Background" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.10 ListBoxOption "Background" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.11 Button "Lock Background"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.11 Button "Lock Background" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.11 Button "Lock Background" [checked] actions=[Click]
+  Escape: no change
+drive r.0.0.0.0.1 Label ""
+  click: no change
+  Escape: no change

@@ -1,0 +1,48 @@
+story composites/path-field/field
+args
+  path = Choice { options: ["existing", "missing", "empty"], index: 1 }
+  must exist = Bool(true)
+  enabled = Bool(true)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 Label "" value="PDF file" actions=[Click]
+                r.0.0.0.0.0.0.0.0 TextRun "" value="PDF file"
+              r.0.0.0.0.0.0.1 TextInput "PDF file" value="/home/studio/Documents/brochure-v3.pdf" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+                r.0.0.0.0.0.0.1.0 TextRun "" value="/home/studio/Documents/brochure-v3.pdf"
+              r.0.0.0.0.0.0.2 Button "Browse…" actions=[Click,Focus]
+            r.0.0.0.0.0.1 Label "" value="The file was not found." actions=[Click]
+              r.0.0.0.0.0.1.0 TextRun "" value="The file was not found."
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.1 TextInput "PDF file"
+  2: r.0.0.0.0.0.0.2 Button "Browse…"
+  3: r.0.0.0.0.0.0.1 TextInput "PDF file"
+  cycle after 2 nodes
+drive: 4 actionable nodes
+drive r.0.0.0.0.0.0.0 Label ""
+  click:
+    focus: r.0.0.0.0.0.0.1 TextInput "PDF file" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.0.0.1 TextInput "PDF file"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.1 TextInput "PDF file"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.1 TextInput "PDF file" -> r Window ""
+  Escape:
+    focus: r.0.0.0.0.0.0.1 TextInput "PDF file" -> r Window ""
+drive r.0.0.0.0.0.0.2 Button "Browse…"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.2 Button "Browse…" -> r Window ""
+drive r.0.0.0.0.0.1 Label ""
+  click: no change
+  Escape: no change

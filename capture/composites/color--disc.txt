@@ -1,0 +1,137 @@
+story composites/color/disc
+args
+  selected = Number { value: 0.0, min: 0.0, max: 3.0 }
+  brightness = Number { value: 1.0, min: 0.0, max: 1.0 }
+  side = Number { value: 150.0, min: 28.0, max: 400.0 }
+  disabled = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Group "Harmony"
+            r.0.0.0.0.0.0 Slider "Color 1" value="Hue 0 degrees, Saturation 80 %" actions=[Focus]
+            r.0.0.0.0.0.1 Slider "Color 2" value="Hue 120 degrees, Saturation 60 %" actions=[Focus]
+            r.0.0.0.0.0.2 Slider "Color 3" value="Hue 250 degrees, Saturation 70 %" actions=[Focus]
+          r.0.0.0.0.1 Label "" value="Last event: " actions=[Click]
+            r.0.0.0.0.1.0 TextRun "" value="Last event: "
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0 Slider "Color 1"
+  2: r.0.0.0.0.0.0 Slider "Color 1"
+  cycle after 1 nodes
+drive: 4 actionable nodes
+drive r.0.0.0.0.0.0 Slider "Color 1"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.0.0 Slider "Color 1" value="Hue 0 degrees, Saturation 80 %" actions=[Focus]
+    + r.0.0.0.0.0.0 Slider "Color 1" value="Hue 359 degrees, Saturation 80 %" actions=[Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: " actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: "
+    + r.0.0.0.0.1 Label "" value="Last event: Set [0, 359, 80]" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set [0, 359, "
+    + r.0.0.0.0.1.1 TextRun "" value="80]"
+  ArrowRight:
+    - r.0.0.0.0.0.0 Slider "Color 1" value="Hue 359 degrees, Saturation 80 %" actions=[Focus]
+    + r.0.0.0.0.0.0 Slider "Color 1" value="Hue 0 degrees, Saturation 80 %" actions=[Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set [0, 359, 80]" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set [0, 359, "
+    - r.0.0.0.0.1.1 TextRun "" value="80]"
+    + r.0.0.0.0.1 Label "" value="Last event: Set [0, 0, 80]" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set [0, 0, 80]"
+  ArrowUp:
+    - r.0.0.0.0.0.0 Slider "Color 1" value="Hue 0 degrees, Saturation 80 %" actions=[Focus]
+    + r.0.0.0.0.0.0 Slider "Color 1" value="Hue 0 degrees, Saturation 81 %" actions=[Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set [0, 0, 80]" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set [0, 0, 80]"
+    + r.0.0.0.0.1 Label "" value="Last event: Set [0, 0, 81]" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set [0, 0, 81]"
+  ArrowDown:
+    - r.0.0.0.0.0.0 Slider "Color 1" value="Hue 0 degrees, Saturation 81 %" actions=[Focus]
+    + r.0.0.0.0.0.0 Slider "Color 1" value="Hue 0 degrees, Saturation 80 %" actions=[Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set [0, 0, 81]" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set [0, 0, 81]"
+    + r.0.0.0.0.1 Label "" value="Last event: Set [0, 0, 80]" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set [0, 0, 80]"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.0 Slider "Color 1" -> r Window ""
+drive r.0.0.0.0.0.1 Slider "Color 2"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.0.1 Slider "Color 2" value="Hue 120 degrees, Saturation 60 %" actions=[Focus]
+    + r.0.0.0.0.0.1 Slider "Color 2" value="Hue 119 degrees, Saturation 60 %" actions=[Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set [0, 0, 80]" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set [0, 0, 80]"
+    + r.0.0.0.0.1 Label "" value="Last event: Set [1, 119, 60]" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set [1, 119, 60]"
+  ArrowRight:
+    - r.0.0.0.0.0.1 Slider "Color 2" value="Hue 119 degrees, Saturation 60 %" actions=[Focus]
+    + r.0.0.0.0.0.1 Slider "Color 2" value="Hue 120 degrees, Saturation 60 %" actions=[Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set [1, 119, 60]" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set [1, 119, 60]"
+    + r.0.0.0.0.1 Label "" value="Last event: Set [1, 120, 60]" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set [1, 120, 60]"
+  ArrowUp:
+    - r.0.0.0.0.0.1 Slider "Color 2" value="Hue 120 degrees, Saturation 60 %" actions=[Focus]
+    + r.0.0.0.0.0.1 Slider "Color 2" value="Hue 120 degrees, Saturation 61 %" actions=[Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set [1, 120, 60]" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set [1, 120, 60]"
+    + r.0.0.0.0.1 Label "" value="Last event: Set [1, 120, 61]" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set [1, 120, 61]"
+  ArrowDown:
+    - r.0.0.0.0.0.1 Slider "Color 2" value="Hue 120 degrees, Saturation 61 %" actions=[Focus]
+    + r.0.0.0.0.0.1 Slider "Color 2" value="Hue 120 degrees, Saturation 60 %" actions=[Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set [1, 120, 61]" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set [1, 120, 61]"
+    + r.0.0.0.0.1 Label "" value="Last event: Set [1, 120, 60]" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set [1, 120, 60]"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.1 Slider "Color 2" -> r Window ""
+drive r.0.0.0.0.0.2 Slider "Color 3"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.0.2 Slider "Color 3" value="Hue 250 degrees, Saturation 70 %" actions=[Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set [1, 120, 60]" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set [1, 120, 60]"
+    + r.0.0.0.0.0.2 Slider "Color 3" value="Hue 249 degrees, Saturation 70 %" actions=[Focus]
+    + r.0.0.0.0.1 Label "" value="Last event: Set [2, 249, 70]" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set [2, 249, "
+    + r.0.0.0.0.1.1 TextRun "" value="70]"
+  ArrowRight:
+    - r.0.0.0.0.0.2 Slider "Color 3" value="Hue 249 degrees, Saturation 70 %" actions=[Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set [2, 249, 70]" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set [2, 249, "
+    + r.0.0.0.0.0.2 Slider "Color 3" value="Hue 250 degrees, Saturation 70 %" actions=[Focus]
+    + r.0.0.0.0.1 Label "" value="Last event: Set [2, 250, 70]" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set [2, 250, "
+  ArrowUp:
+    - r.0.0.0.0.0.2 Slider "Color 3" value="Hue 250 degrees, Saturation 70 %" actions=[Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set [2, 250, 70]" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set [2, 250, "
+    - r.0.0.0.0.1.1 TextRun "" value="70]"
+    + r.0.0.0.0.0.2 Slider "Color 3" value="Hue 250 degrees, Saturation 71 %" actions=[Focus]
+    + r.0.0.0.0.1 Label "" value="Last event: Set [2, 250, 71]" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set [2, 250, 71]"
+  ArrowDown:
+    - r.0.0.0.0.0.2 Slider "Color 3" value="Hue 250 degrees, Saturation 71 %" actions=[Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set [2, 250, 71]" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set [2, 250, 71]"
+    + r.0.0.0.0.0.2 Slider "Color 3" value="Hue 250 degrees, Saturation 70 %" actions=[Focus]
+    + r.0.0.0.0.1 Label "" value="Last event: Set [2, 250, 70]" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set [2, 250, "
+    + r.0.0.0.0.1.1 TextRun "" value="70]"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.2 Slider "Color 3" -> r Window ""
+drive r.0.0.0.0.1 Label ""
+  click: no change
+  Escape: no change

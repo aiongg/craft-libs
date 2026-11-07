@@ -1,0 +1,205 @@
+story controls/preview-select/underline
+args
+  size = Choice { options: ["sm", "md"], index: 1 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 Label "" value="Underline"
+            r.0.0.0.0.0.1 GenericContainer ""
+              r.0.0.0.0.0.1.0 GenericContainer ""
+                r.0.0.0.0.0.1.0.0 ComboBox "Underline" value="Single" labelled_by=[r.0.0.0.0.0.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+            r.0.0.0.0.0.2 GenericContainer ""
+              r.0.0.0.0.0.2.0 Label "" value="Stroke type"
+            r.0.0.0.0.0.3 GenericContainer ""
+              r.0.0.0.0.0.3.0 GenericContainer ""
+                r.0.0.0.0.0.3.0.0 ComboBox "Stroke type" value="Single" labelled_by=[r.0.0.0.0.0.2.0] [collapsed popup:Listbox] actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.1.0.0 ComboBox "Underline"
+  2: r.0.0.0.0.0.3.0.0 ComboBox "Stroke type"
+  3: r.0.0.0.0.0.1.0.0 ComboBox "Underline"
+  cycle after 2 nodes
+drive: 2 actionable nodes
+drive r.0.0.0.0.0.1.0.0 ComboBox "Underline"
+  click:
+    focus: r.0.0.0.0.0.1.0.0 ComboBox "Underline" -> r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.0 ListBoxOption "Single"
+    - r.0.0.0.0.0.1.0.0 ComboBox "Underline" value="Single" labelled_by=[r.0.0.0.0.0.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0 ComboBox "Underline" value="Single" labelled_by=[r.0.0.0.0.0.0.0] controls=[r.0.0.0.0.0.1.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0 ListBox ""
+    + r.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.0 ListBoxOption "Single" description="Single" [selected] actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.1 ListBoxOption "Double" description="Double" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.2 ListBoxOption "Thick" description="Thick" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.3 ListBoxOption "Dotted" description="Dotted" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.4 ListBoxOption "Dashed" description="Dashed" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.5 ListBoxOption "Dot-dash" description="Dot-dash" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.6 ListBoxOption "Dot-dot-dash" description="Dot-dot-dash" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.7 ListBoxOption "Wave" description="Wave" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.0 ListBoxOption "Single" -> r.0.0.0.0.0.1.0.0 ComboBox "Underline"
+    - r.0.0.0.0.0.1.0.0 ComboBox "Underline" value="Single" labelled_by=[r.0.0.0.0.0.0.0] controls=[r.0.0.0.0.0.1.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0 ListBox ""
+    - r.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.0 ListBoxOption "Single" description="Single" [selected] actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.1 ListBoxOption "Double" description="Double" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.2 ListBoxOption "Thick" description="Thick" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.3 ListBoxOption "Dotted" description="Dotted" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.4 ListBoxOption "Dashed" description="Dashed" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.5 ListBoxOption "Dot-dash" description="Dot-dash" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.6 ListBoxOption "Dot-dot-dash" description="Dot-dot-dash" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.7 ListBoxOption "Wave" description="Wave" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.0.0 ComboBox "Underline" value="Single" labelled_by=[r.0.0.0.0.0.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.0.1.0.0 ComboBox "Underline" -> r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.0 ListBoxOption "Single"
+    - r.0.0.0.0.0.1.0.0 ComboBox "Underline" value="Single" labelled_by=[r.0.0.0.0.0.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0 ComboBox "Underline" value="Single" labelled_by=[r.0.0.0.0.0.0.0] controls=[r.0.0.0.0.0.1.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0 ListBox ""
+    + r.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.0 ListBoxOption "Single" description="Single" [selected] actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.1 ListBoxOption "Double" description="Double" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.2 ListBoxOption "Thick" description="Thick" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.3 ListBoxOption "Dotted" description="Dotted" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.4 ListBoxOption "Dashed" description="Dashed" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.5 ListBoxOption "Dot-dash" description="Dot-dash" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.6 ListBoxOption "Dot-dot-dash" description="Dot-dot-dash" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.7 ListBoxOption "Wave" description="Wave" [unselected] actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.0 ListBoxOption "Single" -> r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.1 ListBoxOption "Double"
+    - r.0.0.0.0.0.1.0.0 ComboBox "Underline" value="Single" labelled_by=[r.0.0.0.0.0.0.0] controls=[r.0.0.0.0.0.1.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0 ComboBox "Underline" value="Double" labelled_by=[r.0.0.0.0.0.0.0] controls=[r.0.0.0.0.0.1.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.0 ListBoxOption "Single" description="Single" [selected] actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.1 ListBoxOption "Double" description="Double" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.0 ListBoxOption "Single" description="Single" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.1 ListBoxOption "Double" description="Double" [selected] actions=[Click]
+  ArrowUp:
+    focus: r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.1 ListBoxOption "Double" -> r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.0 ListBoxOption "Single"
+    - r.0.0.0.0.0.1.0.0 ComboBox "Underline" value="Double" labelled_by=[r.0.0.0.0.0.0.0] controls=[r.0.0.0.0.0.1.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0 ComboBox "Underline" value="Single" labelled_by=[r.0.0.0.0.0.0.0] controls=[r.0.0.0.0.0.1.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.0 ListBoxOption "Single" description="Single" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.1 ListBoxOption "Double" description="Double" [selected] actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.0 ListBoxOption "Single" description="Single" [selected] actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.1 ListBoxOption "Double" description="Double" [unselected] actions=[Click]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.0 ListBoxOption "Single" -> r.0.0.0.0.0.1.0.0 ComboBox "Underline"
+    - r.0.0.0.0.0.1.0.0 ComboBox "Underline" value="Single" labelled_by=[r.0.0.0.0.0.0.0] controls=[r.0.0.0.0.0.1.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0 ListBox ""
+    - r.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.0 ListBoxOption "Single" description="Single" [selected] actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.1 ListBoxOption "Double" description="Double" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.2 ListBoxOption "Thick" description="Thick" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.3 ListBoxOption "Dotted" description="Dotted" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.4 ListBoxOption "Dashed" description="Dashed" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.5 ListBoxOption "Dot-dash" description="Dot-dash" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.6 ListBoxOption "Dot-dot-dash" description="Dot-dot-dash" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.7 ListBoxOption "Wave" description="Wave" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.0.0 ComboBox "Underline" value="Single" labelled_by=[r.0.0.0.0.0.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+drive r.0.0.0.0.0.3.0.0 ComboBox "Stroke type"
+  click:
+    focus: r.0.0.0.0.0.1.0.0 ComboBox "Underline" -> r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.0 ListBoxOption "Single"
+    - r.0.0.0.0.0.3.0.0 ComboBox "Stroke type" value="Single" labelled_by=[r.0.0.0.0.0.2.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.3.0.0 ComboBox "Stroke type" value="Single" labelled_by=[r.0.0.0.0.0.2.0] controls=[r.0.0.0.0.0.3.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.3.0.0.0 ListBox ""
+    + r.0.0.0.0.0.3.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.3.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.3.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.3.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.3.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.0 ListBoxOption "Single" [selected] actions=[Click]
+    + r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.1 ListBoxOption "Dashed" [unselected] actions=[Click]
+    + r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.2 ListBoxOption "Dotted" [unselected] actions=[Click]
+    + r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.3 ListBoxOption "Thick - Thin" [unselected] actions=[Click]
+    + r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.4 ListBoxOption "Thin - Thick" [unselected] actions=[Click]
+    + r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.5 ListBoxOption "Thin - Thin" [unselected] actions=[Click]
+    + r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.6 ListBoxOption "Thick - Thick" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.0 ListBoxOption "Single" -> r.0.0.0.0.0.3.0.0 ComboBox "Stroke type"
+    - r.0.0.0.0.0.3.0.0 ComboBox "Stroke type" value="Single" labelled_by=[r.0.0.0.0.0.2.0] controls=[r.0.0.0.0.0.3.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.3.0.0.0 ListBox ""
+    - r.0.0.0.0.0.3.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.3.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.3.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.3.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.3.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.0 ListBoxOption "Single" [selected] actions=[Click]
+    - r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.1 ListBoxOption "Dashed" [unselected] actions=[Click]
+    - r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.2 ListBoxOption "Dotted" [unselected] actions=[Click]
+    - r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.3 ListBoxOption "Thick - Thin" [unselected] actions=[Click]
+    - r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.4 ListBoxOption "Thin - Thick" [unselected] actions=[Click]
+    - r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.5 ListBoxOption "Thin - Thin" [unselected] actions=[Click]
+    - r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.6 ListBoxOption "Thick - Thick" [unselected] actions=[Click]
+    + r.0.0.0.0.0.3.0.0 ComboBox "Stroke type" value="Single" labelled_by=[r.0.0.0.0.0.2.0] [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.0.3.0.0 ComboBox "Stroke type" -> r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.0 ListBoxOption "Single"
+    - r.0.0.0.0.0.3.0.0 ComboBox "Stroke type" value="Single" labelled_by=[r.0.0.0.0.0.2.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.3.0.0 ComboBox "Stroke type" value="Single" labelled_by=[r.0.0.0.0.0.2.0] controls=[r.0.0.0.0.0.3.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.3.0.0.0 ListBox ""
+    + r.0.0.0.0.0.3.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.3.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.3.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.3.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.3.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.0 ListBoxOption "Single" [selected] actions=[Click]
+    + r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.1 ListBoxOption "Dashed" [unselected] actions=[Click]
+    + r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.2 ListBoxOption "Dotted" [unselected] actions=[Click]
+    + r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.3 ListBoxOption "Thick - Thin" [unselected] actions=[Click]
+    + r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.4 ListBoxOption "Thin - Thick" [unselected] actions=[Click]
+    + r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.5 ListBoxOption "Thin - Thin" [unselected] actions=[Click]
+    + r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.6 ListBoxOption "Thick - Thick" [unselected] actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.0 ListBoxOption "Single" -> r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.1 ListBoxOption "Dashed"
+    - r.0.0.0.0.0.3.0.0 ComboBox "Stroke type" value="Single" labelled_by=[r.0.0.0.0.0.2.0] controls=[r.0.0.0.0.0.3.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.3.0.0 ComboBox "Stroke type" value="Dashed" labelled_by=[r.0.0.0.0.0.2.0] controls=[r.0.0.0.0.0.3.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.0 ListBoxOption "Single" [selected] actions=[Click]
+    - r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.1 ListBoxOption "Dashed" [unselected] actions=[Click]
+    + r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.0 ListBoxOption "Single" [unselected] actions=[Click]
+    + r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.1 ListBoxOption "Dashed" [selected] actions=[Click]
+  ArrowUp:
+    focus: r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.1 ListBoxOption "Dashed" -> r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.0 ListBoxOption "Single"
+    - r.0.0.0.0.0.3.0.0 ComboBox "Stroke type" value="Dashed" labelled_by=[r.0.0.0.0.0.2.0] controls=[r.0.0.0.0.0.3.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.3.0.0 ComboBox "Stroke type" value="Single" labelled_by=[r.0.0.0.0.0.2.0] controls=[r.0.0.0.0.0.3.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.0 ListBoxOption "Single" [unselected] actions=[Click]
+    - r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.1 ListBoxOption "Dashed" [selected] actions=[Click]
+    + r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.0 ListBoxOption "Single" [selected] actions=[Click]
+    + r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.1 ListBoxOption "Dashed" [unselected] actions=[Click]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.0 ListBoxOption "Single" -> r.0.0.0.0.0.3.0.0 ComboBox "Stroke type"
+    - r.0.0.0.0.0.3.0.0 ComboBox "Stroke type" value="Single" labelled_by=[r.0.0.0.0.0.2.0] controls=[r.0.0.0.0.0.3.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.3.0.0.0 ListBox ""
+    - r.0.0.0.0.0.3.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.3.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.3.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.3.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.3.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.0 ListBoxOption "Single" [selected] actions=[Click]
+    - r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.1 ListBoxOption "Dashed" [unselected] actions=[Click]
+    - r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.2 ListBoxOption "Dotted" [unselected] actions=[Click]
+    - r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.3 ListBoxOption "Thick - Thin" [unselected] actions=[Click]
+    - r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.4 ListBoxOption "Thin - Thick" [unselected] actions=[Click]
+    - r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.5 ListBoxOption "Thin - Thin" [unselected] actions=[Click]
+    - r.0.0.0.0.0.3.0.0.0.0.0.0.0.0.6 ListBoxOption "Thick - Thick" [unselected] actions=[Click]
+    + r.0.0.0.0.0.3.0.0 ComboBox "Stroke type" value="Single" labelled_by=[r.0.0.0.0.0.2.0] [collapsed popup:Listbox] actions=[Click,Focus]

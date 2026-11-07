@@ -1,0 +1,827 @@
+story patterns/paint-list/list
+args
+  actions = Bool(true)
+  add = Bool(true)
+  remove = Bool(true)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Button "Add" actions=[Click,Focus]
+            r.0.0.0.0.0.1 GenericContainer ""
+              r.0.0.0.0.0.1.0 ListBox "Fill" actions=[Focus]
+                r.0.0.0.0.0.1.0.0 GenericContainer ""
+                  r.0.0.0.0.0.1.0.0.0 GenericContainer ""
+                    r.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+                      r.0.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Brand, #378ef0" [selected] actions=[Click,Focus,ScrollIntoView]
+                      r.0.0.0.0.0.1.0.0.0.0.1 GenericContainer ""
+                        r.0.0.0.0.0.1.0.0.0.0.1.0 Button "Remove" description="Remove" actions=[Click,Focus]
+                      r.0.0.0.0.0.1.0.0.0.0.2 GenericContainer ""
+                        r.0.0.0.0.0.1.0.0.0.0.2.0 Button "Select layers with this color" description="Select layers with this color" actions=[Click,Focus]
+                      r.0.0.0.0.0.1.0.0.0.0.3 GenericContainer ""
+                        r.0.0.0.0.0.1.0.0.0.0.3.0 Button "Detach style" description="Detach style" actions=[Click,Focus]
+                      r.0.0.0.0.0.1.0.0.0.0.4 GenericContainer ""
+                        r.0.0.0.0.0.1.0.0.0.0.4.0 SpinButton "Opacity" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+                          r.0.0.0.0.0.1.0.0.0.0.4.0.0 TextRun "" value="100"
+                      r.0.0.0.0.0.1.0.0.0.0.5 GenericContainer ""
+                        r.0.0.0.0.0.1.0.0.0.0.5.0 TextInput "Color" value="378EF0" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+                          r.0.0.0.0.0.1.0.0.0.0.5.0.0 TextRun "" value="378EF0"
+                      r.0.0.0.0.0.1.0.0.0.0.6 GenericContainer ""
+                        r.0.0.0.0.0.1.0.0.0.0.6.0 ColorWell "Edit color" value="#378ef0" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+                      r.0.0.0.0.0.1.0.0.0.0.7 GenericContainer ""
+                        r.0.0.0.0.0.1.0.0.0.0.7.0 Label "" value="Brand blue"
+                      r.0.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Shadow, #14141480" [unselected] actions=[Click,Focus,ScrollIntoView]
+                      r.0.0.0.0.0.1.0.0.0.0.9 GenericContainer ""
+                        r.0.0.0.0.0.1.0.0.0.0.9.0 Button "Remove" description="Remove" actions=[Click,Focus]
+                      r.0.0.0.0.0.1.0.0.0.0.10 GenericContainer ""
+                        r.0.0.0.0.0.1.0.0.0.0.10.0 Button "Select layers with this color" description="Select layers with this color" actions=[Click,Focus]
+                      r.0.0.0.0.0.1.0.0.0.0.11 GenericContainer ""
+                        r.0.0.0.0.0.1.0.0.0.0.11.0 Button "Color styles" description="Color styles" actions=[Click,Focus]
+                      r.0.0.0.0.0.1.0.0.0.0.12 GenericContainer ""
+                        r.0.0.0.0.0.1.0.0.0.0.12.0 SpinButton "Opacity" value="50%" number=50 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                          r.0.0.0.0.0.1.0.0.0.0.12.0.0 TextRun "" value="50"
+                      r.0.0.0.0.0.1.0.0.0.0.13 GenericContainer ""
+                        r.0.0.0.0.0.1.0.0.0.0.13.0 TextInput "Color" value="141414" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+                          r.0.0.0.0.0.1.0.0.0.0.13.0.0 TextRun "" value="141414"
+                      r.0.0.0.0.0.1.0.0.0.0.14 GenericContainer ""
+                        r.0.0.0.0.0.1.0.0.0.0.14.0 ColorWell "Edit color" value="#14141480" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+                      r.0.0.0.0.0.1.0.0.0.0.15 ListBoxOption "Sunrise" [unselected] actions=[Click,Focus,ScrollIntoView]
+                      r.0.0.0.0.0.1.0.0.0.0.16 GenericContainer ""
+                        r.0.0.0.0.0.1.0.0.0.0.16.0 Button "Remove" description="Remove" actions=[Click,Focus]
+                      r.0.0.0.0.0.1.0.0.0.0.17 GenericContainer ""
+                        r.0.0.0.0.0.1.0.0.0.0.17.0 Button "Select layers with this color" description="Select layers with this color" actions=[Click,Focus]
+                      r.0.0.0.0.0.1.0.0.0.0.18 GenericContainer ""
+                        r.0.0.0.0.0.1.0.0.0.0.18.0 Button "Color styles" description="Color styles" actions=[Click,Focus]
+                      r.0.0.0.0.0.1.0.0.0.0.19 GenericContainer ""
+                      r.0.0.0.0.0.1.0.0.0.0.20 GenericContainer ""
+                      r.0.0.0.0.0.1.0.0.0.0.21 GenericContainer ""
+                        r.0.0.0.0.0.1.0.0.0.0.21.0 ColorWell "Edit color" value="Gradient" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+                      r.0.0.0.0.0.1.0.0.0.0.22 ListBoxOption "Bubbles" [unselected] actions=[Click,Focus,ScrollIntoView]
+                      r.0.0.0.0.0.1.0.0.0.0.23 GenericContainer ""
+                        r.0.0.0.0.0.1.0.0.0.0.23.0 Button "Remove" description="Remove" actions=[Click,Focus]
+                      r.0.0.0.0.0.1.0.0.0.0.24 GenericContainer ""
+                        r.0.0.0.0.0.1.0.0.0.0.24.0 Button "Select layers with this color" description="Select layers with this color" actions=[Click,Focus]
+                      r.0.0.0.0.0.1.0.0.0.0.25 GenericContainer ""
+                        r.0.0.0.0.0.1.0.0.0.0.25.0 Button "Color styles" description="Color styles" actions=[Click,Focus]
+                      r.0.0.0.0.0.1.0.0.0.0.26 GenericContainer ""
+                      r.0.0.0.0.0.1.0.0.0.0.27 GenericContainer ""
+                      r.0.0.0.0.0.1.0.0.0.0.28 GenericContainer ""
+                        r.0.0.0.0.0.1.0.0.0.0.28.0 ColorWell "Edit color" value="Pattern: Bubbles" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+                      r.0.0.0.0.0.1.0.0.0.0.29 ListBoxOption "Harbour.png" [unselected] actions=[Click,Focus,ScrollIntoView]
+                      r.0.0.0.0.0.1.0.0.0.0.30 GenericContainer ""
+                        r.0.0.0.0.0.1.0.0.0.0.30.0 Button "Remove" description="Remove" actions=[Click,Focus]
+                      r.0.0.0.0.0.1.0.0.0.0.31 GenericContainer ""
+                        r.0.0.0.0.0.1.0.0.0.0.31.0 Button "Select layers with this color" description="Select layers with this color" actions=[Click,Focus]
+                      r.0.0.0.0.0.1.0.0.0.0.32 GenericContainer ""
+                        r.0.0.0.0.0.1.0.0.0.0.32.0 Button "Color styles" description="Color styles" actions=[Click,Focus]
+                      r.0.0.0.0.0.1.0.0.0.0.33 GenericContainer ""
+                      r.0.0.0.0.0.1.0.0.0.0.34 GenericContainer ""
+                      r.0.0.0.0.0.1.0.0.0.0.35 GenericContainer ""
+                        r.0.0.0.0.0.1.0.0.0.0.35.0 ColorWell "Edit color" value="Picture: Harbour.png" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+          r.0.0.0.0.1 GenericContainer ""
+            r.0.0.0.0.1.0 Button "Reset" actions=[Click,Focus]
+            r.0.0.0.0.1.1 Label "" value="No event yet" actions=[Click]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0 Button "Add"
+  2: r.0.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Brand, #378ef0"
+  3: r.0.0.0.0.0.1.0.0.0.0.1.0 Button "Remove"
+  4: r.0.0.0.0.0.1.0.0.0.0.2.0 Button "Select layers with this color"
+  5: r.0.0.0.0.0.1.0.0.0.0.3.0 Button "Detach style"
+  6: r.0.0.0.0.0.1.0.0.0.0.4.0 SpinButton "Opacity"
+  7: r.0.0.0.0.0.1.0.0.0.0.5.0 TextInput "Color"
+  8: r.0.0.0.0.0.1.0.0.0.0.6.0 ColorWell "Edit color"
+  9: r.0.0.0.0.0.1.0.0.0.0.9.0 Button "Remove"
+  10: r.0.0.0.0.0.1.0.0.0.0.10.0 Button "Select layers with this color"
+  11: r.0.0.0.0.0.1.0.0.0.0.11.0 Button "Color styles"
+  12: r.0.0.0.0.0.1.0.0.0.0.12.0 SpinButton "Opacity"
+  13: r.0.0.0.0.0.1.0.0.0.0.13.0 TextInput "Color"
+  14: r.0.0.0.0.0.1.0.0.0.0.14.0 ColorWell "Edit color"
+  15: r.0.0.0.0.0.1.0.0.0.0.16.0 Button "Remove"
+  16: r.0.0.0.0.0.1.0.0.0.0.17.0 Button "Select layers with this color"
+  17: r.0.0.0.0.0.1.0.0.0.0.18.0 Button "Color styles"
+  18: r.0.0.0.0.0.1.0.0.0.0.21.0 ColorWell "Edit color"
+  19: r.0.0.0.0.0.1.0.0.0.0.23.0 Button "Remove"
+  20: r.0.0.0.0.0.1.0.0.0.0.24.0 Button "Select layers with this color"
+  21: r.0.0.0.0.0.1.0.0.0.0.25.0 Button "Color styles"
+  22: r.0.0.0.0.0.1.0.0.0.0.28.0 ColorWell "Edit color"
+  23: r.0.0.0.0.0.1.0.0.0.0.30.0 Button "Remove"
+  24: r.0.0.0.0.0.1.0.0.0.0.31.0 Button "Select layers with this color"
+  25: r.0.0.0.0.0.1.0.0.0.0.32.0 Button "Color styles"
+  26: r.0.0.0.0.0.1.0.0.0.0.35.0 ColorWell "Edit color"
+  27: r.0.0.0.0.1.0 Button "Reset"
+  28: r.0.0.0.0.0.0 Button "Add"
+  cycle after 27 nodes
+drive: 33 actionable nodes
+drive r.0.0.0.0.0.0 Button "Add"
+  click:
+    + r.0.0.0.0.0.1.0.0.0.0.36 ListBoxOption "Fill, #378ef0" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.0.37 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.37.0 Button "Remove" description="Remove" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.38 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.38.0 Button "Select layers with this color" description="Select layers with this color" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.39 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.39.0 Button "Color styles" description="Color styles" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.40 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.40.0 SpinButton "Opacity" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0.40.0.0 TextRun "" value="100"
+    + r.0.0.0.0.0.1.0.0.0.0.41 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.41.0 TextInput "Color" value="378EF0" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0.41.0.0 TextRun "" value="378EF0"
+    + r.0.0.0.0.0.1.0.0.0.0.42 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.42.0 ColorWell "Edit color" value="#378ef0" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.1.1 Label "" value="No event yet" actions=[Click]
+    + r.0.0.0.0.1.1 Label "" value="Add, row 6" actions=[Click]
+  Space:
+    + r.0.0.0.0.0.1.0.0.0.0.43 ListBoxOption "Fill, #378ef0" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.0.44 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.44.0 Button "Remove" description="Remove" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.45 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.45.0 Button "Select layers with this color" description="Select layers with this color" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.46 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.46.0 Button "Color styles" description="Color styles" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.47 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.47.0 SpinButton "Opacity" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0.47.0.0 TextRun "" value="100"
+    + r.0.0.0.0.0.1.0.0.0.0.48 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.48.0 TextInput "Color" value="378EF0" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0.48.0.0 TextRun "" value="378EF0"
+    + r.0.0.0.0.0.1.0.0.0.0.49 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.49.0 ColorWell "Edit color" value="#378ef0" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.1.1 Label "" value="Add, row 6" actions=[Click]
+    + r.0.0.0.0.1.1 Label "" value="Add, row 7" actions=[Click]
+  Enter:
+    + r.0.0.0.0.0.1.0.0.0.0.50 ListBoxOption "Fill, #378ef0" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.0.51 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.51.0 Button "Remove" description="Remove" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.52 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.52.0 Button "Select layers with this color" description="Select layers with this color" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.53 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.53.0 Button "Color styles" description="Color styles" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.54 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.54.0 SpinButton "Opacity" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0.54.0.0 TextRun "" value="100"
+    + r.0.0.0.0.0.1.0.0.0.0.55 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.55.0 TextInput "Color" value="378EF0" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0.55.0.0 TextRun "" value="378EF0"
+    + r.0.0.0.0.0.1.0.0.0.0.56 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.56.0 ColorWell "Edit color" value="#378ef0" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.1.1 Label "" value="Add, row 7" actions=[Click]
+    + r.0.0.0.0.1.1 Label "" value="Add, row 8" actions=[Click]
+  Escape:
+    focus: r.0.0.0.0.0.0 Button "Add" -> r Window ""
+drive r.0.0.0.0.0.1.0 ListBox "Fill"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Brand, #378ef0" -> r.0.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Shadow, #14141480"
+    - r.0.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Brand, #378ef0" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Brand, #378ef0" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Shadow, #14141480" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Shadow, #14141480" [selected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Shadow, #14141480" -> r.0.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Brand, #378ef0"
+    - r.0.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Brand, #378ef0" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Brand, #378ef0" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Shadow, #14141480" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Shadow, #14141480" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Brand, #378ef0" -> r Window ""
+drive r.0.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Brand, #378ef0"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.1.0.0.0.0.5.0 TextInput "Color"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.1.0.0.0.0.5.0 TextInput "Color" -> r Window ""
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.1.0.0.0.0.1.0 Button "Remove"
+  click:
+    - r.0.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Brand, #378ef0" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0.0.0.0.1 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.1.0 Button "Remove" description="Remove" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.2 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.2.0 Button "Select layers with this color" description="Select layers with this color" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.3 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.3.0 Button "Detach style" description="Detach style" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.4 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.4.0 SpinButton "Opacity" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0.4.0.0 TextRun "" value="100"
+    - r.0.0.0.0.0.1.0.0.0.0.5 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.5.0 TextInput "Color" value="378EF0" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0.5.0.0 TextRun "" value="378EF0"
+    - r.0.0.0.0.0.1.0.0.0.0.6 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.6.0 ColorWell "Edit color" value="#378ef0" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.7 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.7.0 Label "" value="Brand blue"
+    - r.0.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Shadow, #14141480" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Shadow, #14141480" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.1 Label "" value="Add, row 8" actions=[Click]
+    + r.0.0.0.0.1.1 Label "" value="Remove, row 1" actions=[Click]
+  Space:
+    - r.0.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Shadow, #14141480" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0.0.0.0.1 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.1.0 Button "Remove" description="Remove" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.2 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.2.0 Button "Select layers with this color" description="Select layers with this color" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.3 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.3.0 Button "Color styles" description="Color styles" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.4 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.4.0 SpinButton "Opacity" value="50%" number=50 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0.4.0.0 TextRun "" value="50"
+    - r.0.0.0.0.0.1.0.0.0.0.5 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.5.0 TextInput "Color" value="141414" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0.5.0.0 TextRun "" value="141414"
+    - r.0.0.0.0.0.1.0.0.0.0.6 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.6.0 ColorWell "Edit color" value="#14141480" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.7 ListBoxOption "Sunrise" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Sunrise" [selected] actions=[Click,Focus,ScrollIntoView]
+  Enter:
+    - r.0.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Sunrise" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0.0.0.0.1 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.1.0 Button "Remove" description="Remove" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.2 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.2.0 Button "Select layers with this color" description="Select layers with this color" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.3 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.3.0 Button "Color styles" description="Color styles" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.4 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.5 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.6 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.6.0 ColorWell "Edit color" value="Gradient" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.7 ListBoxOption "Bubbles" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Bubbles" [selected] actions=[Click,Focus,ScrollIntoView]
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.0.0.1.0 Button "Remove" -> r Window ""
+drive r.0.0.0.0.0.1.0.0.0.0.2.0 Button "Select layers with this color"
+  click:
+    - r.0.0.0.0.1.1 Label "" value="Remove, row 1" actions=[Click]
+    + r.0.0.0.0.1.1 Label "" value="Select layers, row 1" actions=[Click]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.0.0.2.0 Button "Select layers with this color" -> r Window ""
+drive r.0.0.0.0.0.1.0.0.0.0.3.0 Button "Detach style"
+  all steps: node gone
+drive r.0.0.0.0.0.1.0.0.0.0.4.0 SpinButton "Opacity"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.1.0.0.0.0.18.0 SpinButton "Opacity"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.1.0.0.0.0.18.0 SpinButton "Opacity" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown:
+    - r.0.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Fill, #378ef0" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Fill, #378ef0fc" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0.0.0.0.18.0 SpinButton "Opacity" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0.18.0.0 TextRun "" value="100"
+    + r.0.0.0.0.0.1.0.0.0.0.18.0 SpinButton "Opacity" value="99%" number=99.00000095367432 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0.18.0.0 TextRun "" value="99"
+    - r.0.0.0.0.0.1.0.0.0.0.20.0 ColorWell "Edit color" value="#378ef0" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.20.0 ColorWell "Edit color" value="#378ef0fc" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.1.1 Label "" value="Select layers, row 1" actions=[Click]
+    + r.0.0.0.0.1.1 Label "" value="Opacity, row 3" actions=[Click]
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.0.0.18.0 SpinButton "Opacity" -> r Window ""
+drive r.0.0.0.0.0.1.0.0.0.0.5.0 TextInput "Color"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.1.0.0.0.0.19.0 TextInput "Color"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.1.0.0.0.0.19.0 TextInput "Color" -> r Window ""
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.0.0.19.0 TextInput "Color" -> r Window ""
+drive r.0.0.0.0.0.1.0.0.0.0.6.0 ColorWell "Edit color"
+  click:
+    - r.0.0.0.0.0.1.0.0.0.0.6.0 ColorWell "Edit color" value="Pattern: Bubbles" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.6.0 ColorWell "Edit color" value="Pattern: Bubbles" [expanded unselected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.6.0.0 Dialog ""
+    + r.0.0.0.0.0.1.0.0.0.0.6.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.6.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.6.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.6.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.6.0.0.0.0.0.0.0 RadioGroup "Edit color"
+    + r.0.0.0.0.0.1.0.0.0.0.6.0.0.0.0.0.0.0.0 RadioButton "No Color" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.6.0.0.0.0.0.0.0.1 RadioButton "Solid" [unchecked] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.0.1.0.0.0.0.6.0 ColorWell "Edit color" value="Pattern: Bubbles" [expanded unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.6.0.0 Dialog ""
+    - r.0.0.0.0.0.1.0.0.0.0.6.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.6.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.6.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.6.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.6.0.0.0.0.0.0.0 RadioGroup "Edit color"
+    - r.0.0.0.0.0.1.0.0.0.0.6.0.0.0.0.0.0.0.0 RadioButton "No Color" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.6.0.0.0.0.0.0.0.1 RadioButton "Solid" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.6.0 ColorWell "Edit color" value="Pattern: Bubbles" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.0.1.0.0.0.0.6.0 ColorWell "Edit color" value="Pattern: Bubbles" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.6.0 ColorWell "Edit color" value="Pattern: Bubbles" [expanded unselected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.6.0.0 Dialog ""
+    + r.0.0.0.0.0.1.0.0.0.0.6.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.6.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.6.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.6.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.6.0.0.0.0.0.0.0 RadioGroup "Edit color"
+    + r.0.0.0.0.0.1.0.0.0.0.6.0.0.0.0.0.0.0.0 RadioButton "No Color" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.6.0.0.0.0.0.0.0.1 RadioButton "Solid" [unchecked] actions=[Click,Focus]
+  Escape:
+    - r.0.0.0.0.0.1.0.0.0.0.6.0 ColorWell "Edit color" value="Pattern: Bubbles" [expanded unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.6.0.0 Dialog ""
+    - r.0.0.0.0.0.1.0.0.0.0.6.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.6.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.6.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.6.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.6.0.0.0.0.0.0.0 RadioGroup "Edit color"
+    - r.0.0.0.0.0.1.0.0.0.0.6.0.0.0.0.0.0.0.0 RadioButton "No Color" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.6.0.0.0.0.0.0.0.1 RadioButton "Solid" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.6.0 ColorWell "Edit color" value="Pattern: Bubbles" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+drive r.0.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Shadow, #14141480"
+  all steps: node gone
+drive r.0.0.0.0.0.1.0.0.0.0.9.0 Button "Remove"
+  click:
+    focus: r.0.0.0.0.0.1.0.0.0.0.6.0 ColorWell "Edit color" -> r Window ""
+    - r.0.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Bubbles" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0.0.0.0.1 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.1.0 Button "Remove" description="Remove" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.2 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.2.0 Button "Select layers with this color" description="Select layers with this color" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.3 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.3.0 Button "Color styles" description="Color styles" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.4 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.5 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.6 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.6.0 ColorWell "Edit color" value="Pattern: Bubbles" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.7 ListBoxOption "Harbour.png" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Harbour.png" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.1 Label "" value="Opacity, row 3" actions=[Click]
+    + r.0.0.0.0.1.1 Label "" value="Remove, row 1" actions=[Click]
+  Space:
+    - r.0.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Harbour.png" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0.0.0.0.1 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.1.0 Button "Remove" description="Remove" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.2 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.2.0 Button "Select layers with this color" description="Select layers with this color" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.3 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.3.0 Button "Color styles" description="Color styles" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.4 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.5 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.6 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.6.0 ColorWell "Edit color" value="Picture: Harbour.png" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.7 ListBoxOption "Fill, #378ef0fc" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Fill, #378ef0fc" [selected] actions=[Click,Focus,ScrollIntoView]
+  Enter:
+    - r.0.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Fill, #378ef0fc" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0.0.0.0.1 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.1.0 Button "Remove" description="Remove" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.2 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.2.0 Button "Select layers with this color" description="Select layers with this color" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.3 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.3.0 Button "Color styles" description="Color styles" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.4 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.4.0 SpinButton "Opacity" value="99%" number=99.00000095367432 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0.4.0.0 TextRun "" value="99"
+    - r.0.0.0.0.0.1.0.0.0.0.5 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.5.0 TextInput "Color" value="378EF0" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0.5.0.0 TextRun "" value="378EF0"
+    - r.0.0.0.0.0.1.0.0.0.0.6 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.6.0 ColorWell "Edit color" value="#378ef0fc" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.7 ListBoxOption "Fill, #378ef0" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Fill, #378ef0" [selected] actions=[Click,Focus,ScrollIntoView]
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.0.0.1.0 Button "Remove" -> r Window ""
+drive r.0.0.0.0.0.1.0.0.0.0.10.0 Button "Select layers with this color"
+  click:
+    - r.0.0.0.0.1.1 Label "" value="Remove, row 1" actions=[Click]
+    + r.0.0.0.0.1.1 Label "" value="Select layers, row 1" actions=[Click]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.0.0.2.0 Button "Select layers with this color" -> r Window ""
+drive r.0.0.0.0.0.1.0.0.0.0.11.0 Button "Color styles"
+  click:
+    - r.0.0.0.0.0.1.0.0.0.0.3.0 Button "Color styles" description="Color styles" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.3.0 Button "Detach style" description="Detach style" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.7 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.7.0 Label "" value="Brand blue"
+    - r.0.0.0.0.1.1 Label "" value="Select layers, row 1" actions=[Click]
+    + r.0.0.0.0.1.1 Label "" value="Bind, row 1" actions=[Click]
+  Space:
+    focus: r.0.0.0.0.0.1.0.0.0.0.11.0 Button "Color styles" -> r Window ""
+    - r.0.0.0.0.0.1.0.0.0.0.11.0 Button "Color styles" description="Color styles" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.11.0 Button "Detach style" description="Detach style" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.15 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.15.0 Label "" value="Brand blue"
+    - r.0.0.0.0.1.1 Label "" value="Bind, row 1" actions=[Click]
+    + r.0.0.0.0.1.1 Label "" value="Bind, row 2" actions=[Click]
+  Enter: node gone
+  Escape: node gone
+drive r.0.0.0.0.0.1.0.0.0.0.12.0 SpinButton "Opacity"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.1.0.0.0.0.12.0 SpinButton "Opacity"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.1.0.0.0.0.12.0 SpinButton "Opacity" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown:
+    - r.0.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Fill, #378ef0" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Fill, #378ef0fc" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0.0.0.0.12.0 SpinButton "Opacity" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0.12.0.0 TextRun "" value="100"
+    + r.0.0.0.0.0.1.0.0.0.0.12.0 SpinButton "Opacity" value="99%" number=99.00000095367432 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0.12.0.0 TextRun "" value="99"
+    - r.0.0.0.0.0.1.0.0.0.0.14.0 ColorWell "Edit color" value="#378ef0" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0 ColorWell "Edit color" value="#378ef0fc" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.1.1 Label "" value="Bind, row 2" actions=[Click]
+    + r.0.0.0.0.1.1 Label "" value="Opacity, row 2" actions=[Click]
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.0.0.12.0 SpinButton "Opacity" -> r Window ""
+drive r.0.0.0.0.0.1.0.0.0.0.13.0 TextInput "Color"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.1.0.0.0.0.13.0 TextInput "Color"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.1.0.0.0.0.13.0 TextInput "Color" -> r Window ""
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.0.0.13.0 TextInput "Color" -> r Window ""
+drive r.0.0.0.0.0.1.0.0.0.0.14.0 ColorWell "Edit color"
+  click:
+    - r.0.0.0.0.0.1.0.0.0.0.14.0 ColorWell "Edit color" value="#378ef0fc" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0 ColorWell "Edit color" value="#378ef0fc" [expanded unselected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0 Dialog ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.0 RadioGroup "Edit color"
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.0.0 RadioButton "No Color" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.0.1 RadioButton "Solid" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1 Group "Edit color"
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.0.0.0 Slider "Saturation and brightness" value="Saturation 77 %, Brightness 94 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.0.0.1 Slider "Hue" number=211.78378295898438 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.1 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.1.0 Label "" value="Hue"
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.2 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.2.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.2.0.0 SpinButton "Hue" value="212°" number=211.78378295898438 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.1.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.2.0.0.0 TextRun "" value="212"
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.3 Slider "Hue" number=211.78378295898438 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.4 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.4.0 Label "" value="Saturation"
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.5 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.5.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.5.0.0 SpinButton "Saturation" value="77%" number=77.08333587646484 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.5.0.0.0 TextRun "" value="77"
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.6 Slider "Saturation" number=77.08333587646484 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.7 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.7.0 Label "" value="Brightness"
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.8 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.8.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.8.0.0 SpinButton "Brightness" value="94%" number=94.11764526367188 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.7.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.8.0.0.0 TextRun "" value="94"
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.9 Slider "Brightness" number=94.11764526367188 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.10 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.10.0 Button "Color model: HSB" [collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11.0.0 Label "" value="#" actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11.0.0.0 TextRun "" value="#"
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11.0.1 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11.0.1.0 TextInput "Hex color" value="378EF0" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11.0.1.0.0 TextRun "" value="378EF0"
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11.0.2 Button "Pick screen color" description="Pick screen color" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.12 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.12.0 Label "" value="Opacity"
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.13 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.13.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.13.0.0 SpinButton "Opacity" value="99%" number=99.00000095367432 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.13.0.0.0 TextRun "" value="99"
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.14 Slider "Opacity" number=99.00000095367432 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+  Space:
+    - r.0.0.0.0.0.1.0.0.0.0.14.0 ColorWell "Edit color" value="#378ef0fc" [expanded unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0 Dialog ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.0 RadioGroup "Edit color"
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.0.0 RadioButton "No Color" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.0.1 RadioButton "Solid" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1 Group "Edit color"
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.0.0.0 Slider "Saturation and brightness" value="Saturation 77 %, Brightness 94 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.0.0.1 Slider "Hue" number=211.78378295898438 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.1 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.1.0 Label "" value="Hue"
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.2 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.2.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.2.0.0 SpinButton "Hue" value="212°" number=211.78378295898438 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.1.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.2.0.0.0 TextRun "" value="212"
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.3 Slider "Hue" number=211.78378295898438 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.4 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.4.0 Label "" value="Saturation"
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.5 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.5.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.5.0.0 SpinButton "Saturation" value="77%" number=77.08333587646484 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.5.0.0.0 TextRun "" value="77"
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.6 Slider "Saturation" number=77.08333587646484 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.7 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.7.0 Label "" value="Brightness"
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.8 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.8.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.8.0.0 SpinButton "Brightness" value="94%" number=94.11764526367188 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.7.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.8.0.0.0 TextRun "" value="94"
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.9 Slider "Brightness" number=94.11764526367188 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.10 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.10.0 Button "Color model: HSB" [collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11.0.0 Label "" value="#" actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11.0.0.0 TextRun "" value="#"
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11.0.1 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11.0.1.0 TextInput "Hex color" value="378EF0" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11.0.1.0.0 TextRun "" value="378EF0"
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11.0.2 Button "Pick screen color" description="Pick screen color" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.12 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.12.0 Label "" value="Opacity"
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.13 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.13.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.13.0.0 SpinButton "Opacity" value="99%" number=99.00000095367432 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.13.0.0.0 TextRun "" value="99"
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.14 Slider "Opacity" number=99.00000095367432 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0 ColorWell "Edit color" value="#378ef0fc" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.0.1.0.0.0.0.14.0 ColorWell "Edit color" value="#378ef0fc" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0 ColorWell "Edit color" value="#378ef0fc" [expanded unselected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0 Dialog ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.0 RadioGroup "Edit color"
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.0.0 RadioButton "No Color" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.0.1 RadioButton "Solid" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1 Group "Edit color"
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.0.0.0 Slider "Saturation and brightness" value="Saturation 77 %, Brightness 94 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.0.0.1 Slider "Hue" number=211.78378295898438 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.1 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.1.0 Label "" value="Hue"
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.2 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.2.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.2.0.0 SpinButton "Hue" value="212°" number=211.78378295898438 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.1.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.2.0.0.0 TextRun "" value="212"
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.3 Slider "Hue" number=211.78378295898438 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.4 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.4.0 Label "" value="Saturation"
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.5 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.5.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.5.0.0 SpinButton "Saturation" value="77%" number=77.08333587646484 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.5.0.0.0 TextRun "" value="77"
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.6 Slider "Saturation" number=77.08333587646484 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.7 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.7.0 Label "" value="Brightness"
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.8 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.8.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.8.0.0 SpinButton "Brightness" value="94%" number=94.11764526367188 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.7.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.8.0.0.0 TextRun "" value="94"
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.9 Slider "Brightness" number=94.11764526367188 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.10 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.10.0 Button "Color model: HSB" [collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11.0.0 Label "" value="#" actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11.0.0.0 TextRun "" value="#"
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11.0.1 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11.0.1.0 TextInput "Hex color" value="378EF0" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11.0.1.0.0 TextRun "" value="378EF0"
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11.0.2 Button "Pick screen color" description="Pick screen color" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.12 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.12.0 Label "" value="Opacity"
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.13 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.13.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.13.0.0 SpinButton "Opacity" value="99%" number=99.00000095367432 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.13.0.0.0 TextRun "" value="99"
+    + r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.14 Slider "Opacity" number=99.00000095367432 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+  Escape:
+    - r.0.0.0.0.0.1.0.0.0.0.14.0 ColorWell "Edit color" value="#378ef0fc" [expanded unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0 Dialog ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.0 RadioGroup "Edit color"
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.0.0 RadioButton "No Color" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.0.1 RadioButton "Solid" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1 Group "Edit color"
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.0.0.0 Slider "Saturation and brightness" value="Saturation 77 %, Brightness 94 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.0.0.1 Slider "Hue" number=211.78378295898438 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.1 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.1.0 Label "" value="Hue"
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.2 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.2.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.2.0.0 SpinButton "Hue" value="212°" number=211.78378295898438 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.1.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.2.0.0.0 TextRun "" value="212"
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.3 Slider "Hue" number=211.78378295898438 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.4 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.4.0 Label "" value="Saturation"
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.5 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.5.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.5.0.0 SpinButton "Saturation" value="77%" number=77.08333587646484 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.5.0.0.0 TextRun "" value="77"
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.6 Slider "Saturation" number=77.08333587646484 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.7 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.7.0 Label "" value="Brightness"
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.8 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.8.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.8.0.0 SpinButton "Brightness" value="94%" number=94.11764526367188 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.7.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.8.0.0.0 TextRun "" value="94"
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.9 Slider "Brightness" number=94.11764526367188 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.10 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.10.0 Button "Color model: HSB" [collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11.0.0 Label "" value="#" actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11.0.0.0 TextRun "" value="#"
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11.0.1 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11.0.1.0 TextInput "Hex color" value="378EF0" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11.0.1.0.0 TextRun "" value="378EF0"
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.11.0.2 Button "Pick screen color" description="Pick screen color" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.12 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.12.0 Label "" value="Opacity"
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.13 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.13.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.13.0.0 SpinButton "Opacity" value="99%" number=99.00000095367432 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.13.0.0.0 TextRun "" value="99"
+    - r.0.0.0.0.0.1.0.0.0.0.14.0.0.0.0.0.0.1.14 Slider "Opacity" number=99.00000095367432 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.0.14.0 ColorWell "Edit color" value="#378ef0fc" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+drive r.0.0.0.0.0.1.0.0.0.0.15 ListBoxOption "Sunrise"
+  all steps: node gone
+drive r.0.0.0.0.0.1.0.0.0.0.16.0 Button "Remove"
+  click:
+    focus: r.0.0.0.0.0.1.0.0.0.0.14.0 ColorWell "Edit color" -> r Window ""
+    - r.0.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Fill, #378ef0" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0.0.0.0.1 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.1.0 Button "Remove" description="Remove" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.2 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.2.0 Button "Select layers with this color" description="Select layers with this color" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.3 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.3.0 Button "Detach style" description="Detach style" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.4 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.4.0 SpinButton "Opacity" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0.4.0.0 TextRun "" value="100"
+    - r.0.0.0.0.0.1.0.0.0.0.5 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.5.0 TextInput "Color" value="378EF0" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0.5.0.0 TextRun "" value="378EF0"
+    - r.0.0.0.0.0.1.0.0.0.0.6 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.6.0 ColorWell "Edit color" value="#378ef0" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.7 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.7.0 Label "" value="Brand blue"
+    - r.0.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Fill, #378ef0fc" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Fill, #378ef0fc" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.1 Label "" value="Opacity, row 2" actions=[Click]
+    + r.0.0.0.0.1.1 Label "" value="Remove, row 1" actions=[Click]
+  Space:
+    focus: r.0.0.0.0.0.1.0.0.0.0.1.0 Button "Remove" -> r Window ""
+    - r.0.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Fill, #378ef0fc" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0.0.0.0.1 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.1.0 Button "Remove" description="Remove" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.2 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.2.0 Button "Select layers with this color" description="Select layers with this color" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.3 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.3.0 Button "Detach style" description="Detach style" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.4 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.4.0 SpinButton "Opacity" value="99%" number=99.00000095367432 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0.4.0.0 TextRun "" value="99"
+    - r.0.0.0.0.0.1.0.0.0.0.5 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.5.0 TextInput "Color" value="378EF0" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0.5.0.0 TextRun "" value="378EF0"
+    - r.0.0.0.0.0.1.0.0.0.0.6 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.6.0 ColorWell "Edit color" value="#378ef0fc" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.7 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.7.0 Label "" value="Brand blue"
+  Enter: node gone
+  Escape: node gone
+drive r.0.0.0.0.0.1.0.0.0.0.17.0 Button "Select layers with this color"
+  all steps: node gone
+drive r.0.0.0.0.0.1.0.0.0.0.18.0 Button "Color styles"
+  all steps: node gone
+drive r.0.0.0.0.0.1.0.0.0.0.21.0 ColorWell "Edit color"
+  all steps: node gone
+drive r.0.0.0.0.0.1.0.0.0.0.22 ListBoxOption "Bubbles"
+  all steps: node gone
+drive r.0.0.0.0.0.1.0.0.0.0.23.0 Button "Remove"
+  all steps: node gone
+drive r.0.0.0.0.0.1.0.0.0.0.24.0 Button "Select layers with this color"
+  all steps: node gone
+drive r.0.0.0.0.0.1.0.0.0.0.25.0 Button "Color styles"
+  all steps: node gone
+drive r.0.0.0.0.0.1.0.0.0.0.28.0 ColorWell "Edit color"
+  all steps: node gone
+drive r.0.0.0.0.0.1.0.0.0.0.29 ListBoxOption "Harbour.png"
+  all steps: node gone
+drive r.0.0.0.0.0.1.0.0.0.0.30.0 Button "Remove"
+  all steps: node gone
+drive r.0.0.0.0.0.1.0.0.0.0.31.0 Button "Select layers with this color"
+  all steps: node gone
+drive r.0.0.0.0.0.1.0.0.0.0.32.0 Button "Color styles"
+  all steps: node gone
+drive r.0.0.0.0.0.1.0.0.0.0.35.0 ColorWell "Edit color"
+  all steps: node gone
+drive r.0.0.0.0.1.0 Button "Reset"
+  click: no change
+  Space:
+    + r.0.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Brand, #378ef0" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.0.1 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.1.0 Button "Remove" description="Remove" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.2 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.2.0 Button "Select layers with this color" description="Select layers with this color" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.3 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.3.0 Button "Detach style" description="Detach style" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.4 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.4.0 SpinButton "Opacity" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0.4.0.0 TextRun "" value="100"
+    + r.0.0.0.0.0.1.0.0.0.0.5 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.5.0 TextInput "Color" value="378EF0" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0.5.0.0 TextRun "" value="378EF0"
+    + r.0.0.0.0.0.1.0.0.0.0.6 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.6.0 ColorWell "Edit color" value="#378ef0" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.7 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.7.0 Label "" value="Brand blue"
+    + r.0.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Shadow, #14141480" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.0.9 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.9.0 Button "Remove" description="Remove" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.10 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.10.0 Button "Select layers with this color" description="Select layers with this color" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.11 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.11.0 Button "Color styles" description="Color styles" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.12 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.12.0 SpinButton "Opacity" value="50%" number=50 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0.12.0.0 TextRun "" value="50"
+    + r.0.0.0.0.0.1.0.0.0.0.13 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.13.0 TextInput "Color" value="141414" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0.13.0.0 TextRun "" value="141414"
+    + r.0.0.0.0.0.1.0.0.0.0.14 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.14.0 ColorWell "Edit color" value="#14141480" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.15 ListBoxOption "Sunrise" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.0.16 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.16.0 Button "Remove" description="Remove" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.17 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.17.0 Button "Select layers with this color" description="Select layers with this color" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.18 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.18.0 Button "Color styles" description="Color styles" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.19 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.20 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.21 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.21.0 ColorWell "Edit color" value="Gradient" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.22 ListBoxOption "Bubbles" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.0.23 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.23.0 Button "Remove" description="Remove" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.24 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.24.0 Button "Select layers with this color" description="Select layers with this color" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.25 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.25.0 Button "Color styles" description="Color styles" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.26 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.27 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.28 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.28.0 ColorWell "Edit color" value="Pattern: Bubbles" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.29 ListBoxOption "Harbour.png" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.0.30 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.30.0 Button "Remove" description="Remove" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.31 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.31.0 Button "Select layers with this color" description="Select layers with this color" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.32 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.32.0 Button "Color styles" description="Color styles" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.33 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.34 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.35 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.35.0 ColorWell "Edit color" value="Picture: Harbour.png" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.1.1 Label "" value="Remove, row 1" actions=[Click]
+    + r.0.0.0.0.1.1 Label "" value="No event yet" actions=[Click]
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1.0 Button "Reset" -> r Window ""
+drive r.0.0.0.0.1.1 Label ""
+  click: no change
+  Escape: no change

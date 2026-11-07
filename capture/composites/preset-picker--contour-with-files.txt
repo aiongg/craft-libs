@@ -1,0 +1,115 @@
+story composites/preset-picker/contour-with-files
+args
+  columns = Number { value: 4.0, min: 2.0, max: 8.0 }
+  split = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Button "Contour: Contour 1" [collapsed popup:Dialog] actions=[Click,Focus]
+          r.0.0.0.0.1 Label "" value="Selected: Contour 1" actions=[Click]
+            r.0.0.0.0.1.0 TextRun "" value="Selected: Contour 1"
+          r.0.0.0.0.2 Label "" value="Files are fake: Load… reads two contours, Save… writes nothing." actions=[Click]
+            r.0.0.0.0.2.0 TextRun "" value="Files are fake: Load… reads two contours, Save… writes nothing."
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0 Button "Contour: Contour 1"
+  2: r.0.0.0.0.0 Button "Contour: Contour 1"
+  cycle after 1 nodes
+drive: 3 actionable nodes
+drive r.0.0.0.0.0 Button "Contour: Contour 1"
+  click:
+    focus: r.0.0.0.0.0 Button "Contour: Contour 1" -> r.1.0.0.0.0.0 ListBoxOption "Contour 1"
+    - r.0.0.0.0.0 Button "Contour: Contour 1" [collapsed popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0 Button "Contour: Contour 1" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.1 Dialog "Contour"
+    + r.1.0 GenericContainer ""
+    + r.1.0.0 ListBox "Contour" actions=[Focus]
+    + r.1.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0.0 ListBoxOption "Contour 1" description="Contour 1" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.1 ListBoxOption "Contour 2" description="Contour 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.2 ListBoxOption "Contour 3" description="Contour 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.3 ListBoxOption "Contour 4" description="Contour 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.4 ListBoxOption "Contour 5" description="Contour 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.5 ListBoxOption "Contour 6" description="Contour 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.6 ListBoxOption "Contour 7" description="Contour 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.7 ListBoxOption "Contour 8" description="Contour 8" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.1 Button "Load…" actions=[Click,Focus]
+    + r.1.0.2 Button "Replace…" actions=[Click,Focus]
+    + r.1.0.3 Button "Save…" actions=[Click,Focus]
+  Space:
+    focus: r.1.0.1 Button "Load…" -> r.0.0.0.0.0 Button "Contour: Contour 1"
+    - r.0.0.0.0.0 Button "Contour: Contour 1" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0 Button "Contour: Contour 1" [collapsed popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.2 Label "" value="Loaded Imported.shc" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Loaded Imported.shc"
+    - r.1 Dialog "Contour"
+    - r.1.0 GenericContainer ""
+    - r.1.0.0 ListBox "Contour" actions=[Focus]
+    - r.1.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0.0 ListBoxOption "Contour 1" description="Contour 1" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.1 ListBoxOption "Contour 2" description="Contour 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.2 ListBoxOption "Contour 3" description="Contour 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.3 ListBoxOption "Contour 4" description="Contour 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.4 ListBoxOption "Contour 5" description="Contour 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.5 ListBoxOption "Contour 6" description="Contour 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.6 ListBoxOption "Contour 7" description="Contour 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.7 ListBoxOption "Contour 8" description="Contour 8" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.1 Button "Load…" actions=[Click,Focus]
+    - r.1.0.2 Button "Replace…" actions=[Click,Focus]
+    - r.1.0.3 Button "Save…" actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.0 Button "Contour: Contour 1" -> r.1.0.0.0.0.0 ListBoxOption "Contour 1"
+    - r.0.0.0.0.0 Button "Contour: Contour 1" [collapsed popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0 Button "Contour: Contour 1" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.1 Dialog "Contour"
+    + r.1.0 GenericContainer ""
+    + r.1.0.0 ListBox "Contour" actions=[Focus]
+    + r.1.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0.0 ListBoxOption "Contour 1" description="Contour 1" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.1 ListBoxOption "Contour 2" description="Contour 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.2 ListBoxOption "Contour 3" description="Contour 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.3 ListBoxOption "Contour 4" description="Contour 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.4 ListBoxOption "Contour 5" description="Contour 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.5 ListBoxOption "Contour 6" description="Contour 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.6 ListBoxOption "Contour 7" description="Contour 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.7 ListBoxOption "Contour 8" description="Contour 8" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.8 ListBoxOption "Ripple" description="Ripple" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.9 ListBoxOption "Sawtooth" description="Sawtooth" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.1 Button "Load…" actions=[Click,Focus]
+    + r.1.0.2 Button "Replace…" actions=[Click,Focus]
+    + r.1.0.3 Button "Save…" actions=[Click,Focus]
+  Escape:
+    focus: r.1.0.1 Button "Load…" -> r.0.0.0.0.0 Button "Contour: Contour 1"
+    - r.0.0.0.0.0 Button "Contour: Contour 1" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0 Button "Contour: Contour 1" [collapsed popup:Dialog] actions=[Click,Focus]
+    - r.1 Dialog "Contour"
+    - r.1.0 GenericContainer ""
+    - r.1.0.0 ListBox "Contour" actions=[Focus]
+    - r.1.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0.0 ListBoxOption "Contour 1" description="Contour 1" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.1 ListBoxOption "Contour 2" description="Contour 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.2 ListBoxOption "Contour 3" description="Contour 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.3 ListBoxOption "Contour 4" description="Contour 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.4 ListBoxOption "Contour 5" description="Contour 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.5 ListBoxOption "Contour 6" description="Contour 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.6 ListBoxOption "Contour 7" description="Contour 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.7 ListBoxOption "Contour 8" description="Contour 8" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.8 ListBoxOption "Ripple" description="Ripple" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.9 ListBoxOption "Sawtooth" description="Sawtooth" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.1 Button "Load…" actions=[Click,Focus]
+    - r.1.0.2 Button "Replace…" actions=[Click,Focus]
+    - r.1.0.3 Button "Save…" actions=[Click,Focus]
+drive r.0.0.0.0.1 Label ""
+  click:
+    focus: r.0.0.0.0.0 Button "Contour: Contour 1" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.2 Label ""
+  click: no change
+  Escape: no change

@@ -1,0 +1,280 @@
+story primitives/gradient-line/with-editor
+args
+  zoom = Number { value: 100.0, min: 10.0, max: 800.0 }
+  rotation = Number { value: 0.0, min: -180.0, max: 180.0 }
+  flip = Bool(false)
+  aspect = Number { value: 1.0, min: 0.5, max: 2.0 }
+  ppp = Choice { options: ["gallery", "1", "1.25", "1.5", "2"], index: 0 }
+  rows = Choice { options: ["Split", "Combined"], index: 0 }
+  reverse = Bool(false)
+  midpoints = Bool(true)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Label "" value="Undo steps: 0" actions=[Click]
+            r.0.0.0.0.0.0 TextRun "" value="Undo steps: 0"
+          r.0.0.0.0.1 GenericContainer ""
+            r.0.0.0.0.1.0 GenericContainer ""
+              r.0.0.0.0.1.0.0 GenericContainer ""
+                r.0.0.0.0.1.0.0.0 GenericContainer ""
+                  r.0.0.0.0.1.0.0.0.0 Group "Gradient" value="4 color stops, 2 opacity stops" actions=[Click,Focus]
+                    r.0.0.0.0.1.0.0.0.0.0 GraphicsObject "Opacity stop 1 of 2" value="0%, opacity 100%" [unselected]
+                    r.0.0.0.0.1.0.0.0.0.1 GraphicsObject "Opacity midpoint 1" value="50%" [unselected]
+                    r.0.0.0.0.1.0.0.0.0.2 GraphicsObject "Opacity stop 2 of 2" value="100%, opacity 100%" [unselected]
+                    r.0.0.0.0.1.0.0.0.0.3 GraphicsObject "Color stop 1 of 4" value="0%, #2159B8" [selected]
+                    r.0.0.0.0.1.0.0.0.0.4 GraphicsObject "Midpoint 1" value="50%" [unselected]
+                    r.0.0.0.0.1.0.0.0.0.5 GraphicsObject "Color stop 2 of 4" value="30%, #F2BF33" [unselected]
+                    r.0.0.0.0.1.0.0.0.0.6 GraphicsObject "Midpoint 2" value="35%" [unselected]
+                    r.0.0.0.0.1.0.0.0.0.7 GraphicsObject "Color stop 3 of 4" value="70%, #D9404D" [unselected]
+                    r.0.0.0.0.1.0.0.0.0.8 GraphicsObject "Midpoint 3" value="50%" [unselected]
+                    r.0.0.0.0.1.0.0.0.0.9 GraphicsObject "Color stop 4 of 4" value="100%, #E6E6F2" [unselected]
+                  r.0.0.0.0.1.0.0.0.1 GenericContainer ""
+                    r.0.0.0.0.1.0.0.0.1.0 GenericContainer ""
+                      r.0.0.0.0.1.0.0.0.1.0.0 Label "" value="Color"
+                    r.0.0.0.0.1.0.0.0.1.1 GenericContainer ""
+                      r.0.0.0.0.1.0.0.0.1.1.0 GenericContainer ""
+                        r.0.0.0.0.1.0.0.0.1.1.0.0 ColorWell "Color" value="#2159b8" labelled_by=[r.0.0.0.0.1.0.0.0.1.0.0] [unselected] actions=[Click,Focus]
+                    r.0.0.0.0.1.0.0.0.1.2 GenericContainer ""
+                      r.0.0.0.0.1.0.0.0.1.2.0 Label "" value="Location"
+                    r.0.0.0.0.1.0.0.0.1.3 GenericContainer ""
+                      r.0.0.0.0.1.0.0.0.1.3.0 GenericContainer ""
+                        r.0.0.0.0.1.0.0.0.1.3.0.0 SpinButton "Location" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.0.0.0.1.2.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+                          r.0.0.0.0.1.0.0.0.1.3.0.0.0 TextRun "" value="0"
+                    r.0.0.0.0.1.0.0.0.1.4 GenericContainer ""
+                      r.0.0.0.0.1.0.0.0.1.4.0 Button "Delete stop" description="Delete stop" actions=[Click,Focus]
+            r.0.0.0.0.1.1 Canvas "Document" actions=[Click,Focus]
+            r.0.0.0.0.1.2 Group "Gradient" value="4 stops" actions=[Focus]
+              r.0.0.0.0.1.2.0 GenericContainer ""
+                r.0.0.0.0.1.2.0.0 GraphicsObject "Gradient line" value="4 stops" [unselected]
+                r.0.0.0.0.1.2.0.1 GraphicsObject "Start point" [unselected]
+                r.0.0.0.0.1.2.0.2 GraphicsObject "Color stop 1 of 4" value="0%, #2159B8" [selected]
+                r.0.0.0.0.1.2.0.3 GraphicsObject "Midpoint 1" value="50%" [unselected]
+                r.0.0.0.0.1.2.0.4 GraphicsObject "Color stop 2 of 4" value="30%, #F2BF33" [unselected]
+                r.0.0.0.0.1.2.0.5 GraphicsObject "Midpoint 2" value="35%" [unselected]
+                r.0.0.0.0.1.2.0.6 GraphicsObject "Color stop 3 of 4" value="70%, #D9404D" [unselected]
+                r.0.0.0.0.1.2.0.7 GraphicsObject "Midpoint 3" value="50%" [unselected]
+                r.0.0.0.0.1.2.0.8 GraphicsObject "Color stop 4 of 4" value="100%, #E6E6F2" [unselected]
+                r.0.0.0.0.1.2.0.9 GraphicsObject "End point" [unselected]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.1.0.0.0.0.3 GraphicsObject "Color stop 1 of 4"
+  2: r.0.0.0.0.1.0.0.0.1.1.0.0 ColorWell "Color"
+  3: r.0.0.0.0.1.0.0.0.1.3.0.0 SpinButton "Location"
+  4: r.0.0.0.0.1.0.0.0.1.4.0 Button "Delete stop"
+  5: r.0.0.0.0.1.1 Canvas "Document"
+  6: r.0.0.0.0.1.2.0.0 GraphicsObject "Gradient line"
+  7: r.0.0.0.0.1.0.0.0.0.3 GraphicsObject "Color stop 1 of 4"
+  cycle after 6 nodes
+drive: 7 actionable nodes
+drive r.0.0.0.0.0 Label ""
+  click:
+    focus: r.0.0.0.0.1.0.0.0.0.3 GraphicsObject "Color stop 1 of 4" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.1.0.0.0.0 Group "Gradient"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.7 GraphicsObject "Color stop 3 of 5"
+    - r.0.0.0.0.0 Label "" value="Undo steps: 0" actions=[Click]
+    - r.0.0.0.0.0.0 TextRun "" value="Undo steps: 0"
+    + r.0.0.0.0.0 Label "" value="Undo steps: 1" actions=[Click]
+    + r.0.0.0.0.0.0 TextRun "" value="Undo steps: 1"
+    - r.0.0.0.0.1.0.0.0.0 Group "Gradient" value="4 color stops, 2 opacity stops" actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0 Group "Gradient" value="5 color stops, 2 opacity stops" actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.3 GraphicsObject "Color stop 1 of 4" value="0%, #2159B8" [selected]
+    + r.0.0.0.0.1.0.0.0.0.3 GraphicsObject "Color stop 1 of 5" value="0%, #2159B8" [unselected]
+    - r.0.0.0.0.1.0.0.0.0.5 GraphicsObject "Color stop 2 of 4" value="30%, #F2BF33" [unselected]
+    - r.0.0.0.0.1.0.0.0.0.6 GraphicsObject "Midpoint 2" value="35%" [unselected]
+    - r.0.0.0.0.1.0.0.0.0.7 GraphicsObject "Color stop 3 of 4" value="70%, #D9404D" [unselected]
+    + r.0.0.0.0.1.0.0.0.0.5 GraphicsObject "Color stop 2 of 5" value="30%, #F2BF33" [unselected]
+    + r.0.0.0.0.1.0.0.0.0.6 GraphicsObject "Midpoint 2" value="50%" [unselected]
+    + r.0.0.0.0.1.0.0.0.0.7 GraphicsObject "Color stop 3 of 5" value="50%, #E37143" [selected]
+    - r.0.0.0.0.1.0.0.0.0.9 GraphicsObject "Color stop 4 of 4" value="100%, #E6E6F2" [unselected]
+    + r.0.0.0.0.1.0.0.0.0.9 GraphicsObject "Color stop 4 of 5" value="70%, #D9404D" [unselected]
+    + r.0.0.0.0.1.0.0.0.0.10 GraphicsObject "Midpoint 4" value="50%" [unselected]
+    + r.0.0.0.0.1.0.0.0.0.11 GraphicsObject "Color stop 5 of 5" value="100%, #E6E6F2" [unselected]
+    - r.0.0.0.0.1.0.0.0.1.1.0.0 ColorWell "Color" value="#2159b8" labelled_by=[r.0.0.0.0.1.0.0.0.1.0.0] [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.1.1.0.0 ColorWell "Color" value="#e37143" labelled_by=[r.0.0.0.0.1.0.0.0.1.0.0] [unselected] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.1.3.0.0 SpinButton "Location" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.0.0.0.1.2.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.0.0.0.1.3.0.0.0 TextRun "" value="0"
+    + r.0.0.0.0.1.0.0.0.1.3.0.0 SpinButton "Location" value="50%" number=50 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.0.0.0.1.2.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.0.0.0.1.3.0.0.0 TextRun "" value="50"
+    - r.0.0.0.0.1.2 Group "Gradient" value="4 stops" actions=[Focus]
+    + r.0.0.0.0.1.2 Group "Gradient" value="5 stops" actions=[Focus]
+    - r.0.0.0.0.1.2.0.0 GraphicsObject "Gradient line" value="4 stops" [unselected]
+    + r.0.0.0.0.1.2.0.0 GraphicsObject "Gradient line" value="5 stops" [unselected]
+    - r.0.0.0.0.1.2.0.2 GraphicsObject "Color stop 1 of 4" value="0%, #2159B8" [selected]
+    + r.0.0.0.0.1.2.0.2 GraphicsObject "Color stop 1 of 5" value="0%, #2159B8" [unselected]
+    - r.0.0.0.0.1.2.0.4 GraphicsObject "Color stop 2 of 4" value="30%, #F2BF33" [unselected]
+    - r.0.0.0.0.1.2.0.5 GraphicsObject "Midpoint 2" value="35%" [unselected]
+    - r.0.0.0.0.1.2.0.6 GraphicsObject "Color stop 3 of 4" value="70%, #D9404D" [unselected]
+    + r.0.0.0.0.1.2.0.4 GraphicsObject "Color stop 2 of 5" value="30%, #F2BF33" [unselected]
+    + r.0.0.0.0.1.2.0.5 GraphicsObject "Midpoint 2" value="50%" [unselected]
+    + r.0.0.0.0.1.2.0.6 GraphicsObject "Color stop 3 of 5" value="50%, #E37143" [selected]
+    - r.0.0.0.0.1.2.0.8 GraphicsObject "Color stop 4 of 4" value="100%, #E6E6F2" [unselected]
+    + r.0.0.0.0.1.2.0.8 GraphicsObject "Color stop 4 of 5" value="70%, #D9404D" [unselected]
+    + r.0.0.0.0.1.2.0.9 GraphicsObject "Midpoint 4" value="50%" [unselected]
+    + r.0.0.0.0.1.2.0.10 GraphicsObject "Color stop 5 of 5" value="100%, #E6E6F2" [unselected]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.7 GraphicsObject "Color stop 3 of 5" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.1.1.0.0 ColorWell "Color"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.1.1.0.0 ColorWell "Color" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.1.3.0.0 SpinButton "Location"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.1.3.0.0 SpinButton "Location"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.1.0.0.0.1.3.0.0 SpinButton "Location" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0 Label "" value="Undo steps: 1" actions=[Click]
+    - r.0.0.0.0.0.0 TextRun "" value="Undo steps: 1"
+    + r.0.0.0.0.0 Label "" value="Undo steps: 2" actions=[Click]
+    + r.0.0.0.0.0.0 TextRun "" value="Undo steps: 2"
+    - r.0.0.0.0.1.0.0.0.0.7 GraphicsObject "Color stop 3 of 5" value="50%, #E37143" [selected]
+    + r.0.0.0.0.1.0.0.0.0.7 GraphicsObject "Color stop 3 of 5" value="51%, #E37143" [selected]
+    - r.0.0.0.0.1.0.0.0.1.3.0.0 SpinButton "Location" value="50%" number=50 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.0.0.0.1.2.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.0.0.0.1.3.0.0.0 TextRun "" value="50"
+    + r.0.0.0.0.1.0.0.0.1.3.0.0 SpinButton "Location" value="51%" number=51 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.0.0.0.1.2.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.0.0.0.1.3.0.0.0 TextRun "" value="51"
+    - r.0.0.0.0.1.2.0.6 GraphicsObject "Color stop 3 of 5" value="50%, #E37143" [selected]
+    + r.0.0.0.0.1.2.0.6 GraphicsObject "Color stop 3 of 5" value="51%, #E37143" [selected]
+  ArrowDown:
+    - r.0.0.0.0.0 Label "" value="Undo steps: 2" actions=[Click]
+    - r.0.0.0.0.0.0 TextRun "" value="Undo steps: 2"
+    + r.0.0.0.0.0 Label "" value="Undo steps: 3" actions=[Click]
+    + r.0.0.0.0.0.0 TextRun "" value="Undo steps: 3"
+    - r.0.0.0.0.1.0.0.0.0.7 GraphicsObject "Color stop 3 of 5" value="51%, #E37143" [selected]
+    + r.0.0.0.0.1.0.0.0.0.7 GraphicsObject "Color stop 3 of 5" value="50%, #E37143" [selected]
+    - r.0.0.0.0.1.0.0.0.1.3.0.0 SpinButton "Location" value="51%" number=51 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.0.0.0.1.2.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.0.0.0.1.3.0.0.0 TextRun "" value="51"
+    + r.0.0.0.0.1.0.0.0.1.3.0.0 SpinButton "Location" value="50%" number=50 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.0.0.0.1.2.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.0.0.0.1.3.0.0.0 TextRun "" value="50"
+    - r.0.0.0.0.1.2.0.6 GraphicsObject "Color stop 3 of 5" value="51%, #E37143" [selected]
+    + r.0.0.0.0.1.2.0.6 GraphicsObject "Color stop 3 of 5" value="50%, #E37143" [selected]
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.1.3.0.0 SpinButton "Location" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.1.4.0 Button "Delete stop"
+  click:
+    - r.0.0.0.0.0 Label "" value="Undo steps: 3" actions=[Click]
+    - r.0.0.0.0.0.0 TextRun "" value="Undo steps: 3"
+    + r.0.0.0.0.0 Label "" value="Undo steps: 4" actions=[Click]
+    + r.0.0.0.0.0.0 TextRun "" value="Undo steps: 4"
+    - r.0.0.0.0.1.0.0.0.0 Group "Gradient" value="5 color stops, 2 opacity stops" actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0 Group "Gradient" value="4 color stops, 2 opacity stops" actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.3 GraphicsObject "Color stop 1 of 5" value="0%, #2159B8" [unselected]
+    + r.0.0.0.0.1.0.0.0.0.3 GraphicsObject "Color stop 1 of 4" value="0%, #2159B8" [unselected]
+    - r.0.0.0.0.1.0.0.0.0.5 GraphicsObject "Color stop 2 of 5" value="30%, #F2BF33" [unselected]
+    + r.0.0.0.0.1.0.0.0.0.5 GraphicsObject "Color stop 2 of 4" value="30%, #F2BF33" [unselected]
+    - r.0.0.0.0.1.0.0.0.0.7 GraphicsObject "Color stop 3 of 5" value="50%, #E37143" [selected]
+    + r.0.0.0.0.1.0.0.0.0.7 GraphicsObject "Color stop 3 of 4" value="70%, #D9404D" [selected]
+    - r.0.0.0.0.1.0.0.0.0.9 GraphicsObject "Color stop 4 of 5" value="70%, #D9404D" [unselected]
+    - r.0.0.0.0.1.0.0.0.0.10 GraphicsObject "Midpoint 4" value="50%" [unselected]
+    - r.0.0.0.0.1.0.0.0.0.11 GraphicsObject "Color stop 5 of 5" value="100%, #E6E6F2" [unselected]
+    + r.0.0.0.0.1.0.0.0.0.9 GraphicsObject "Color stop 4 of 4" value="100%, #E6E6F2" [unselected]
+    - r.0.0.0.0.1.0.0.0.1.1.0.0 ColorWell "Color" value="#e37143" labelled_by=[r.0.0.0.0.1.0.0.0.1.0.0] [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.1.1.0.0 ColorWell "Color" value="#d9404d" labelled_by=[r.0.0.0.0.1.0.0.0.1.0.0] [unselected] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.1.3.0.0 SpinButton "Location" value="50%" number=50 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.0.0.0.1.2.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.0.0.0.1.3.0.0.0 TextRun "" value="50"
+    + r.0.0.0.0.1.0.0.0.1.3.0.0 SpinButton "Location" value="70%" number=70 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.0.0.0.1.2.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.0.0.0.1.3.0.0.0 TextRun "" value="70"
+    - r.0.0.0.0.1.2 Group "Gradient" value="5 stops" actions=[Focus]
+    + r.0.0.0.0.1.2 Group "Gradient" value="4 stops" actions=[Focus]
+    - r.0.0.0.0.1.2.0.0 GraphicsObject "Gradient line" value="5 stops" [unselected]
+    + r.0.0.0.0.1.2.0.0 GraphicsObject "Gradient line" value="4 stops" [unselected]
+    - r.0.0.0.0.1.2.0.2 GraphicsObject "Color stop 1 of 5" value="0%, #2159B8" [unselected]
+    + r.0.0.0.0.1.2.0.2 GraphicsObject "Color stop 1 of 4" value="0%, #2159B8" [unselected]
+    - r.0.0.0.0.1.2.0.4 GraphicsObject "Color stop 2 of 5" value="30%, #F2BF33" [unselected]
+    + r.0.0.0.0.1.2.0.4 GraphicsObject "Color stop 2 of 4" value="30%, #F2BF33" [unselected]
+    - r.0.0.0.0.1.2.0.6 GraphicsObject "Color stop 3 of 5" value="50%, #E37143" [selected]
+    + r.0.0.0.0.1.2.0.6 GraphicsObject "Color stop 3 of 4" value="70%, #D9404D" [selected]
+    - r.0.0.0.0.1.2.0.8 GraphicsObject "Color stop 4 of 5" value="70%, #D9404D" [unselected]
+    - r.0.0.0.0.1.2.0.9 GraphicsObject "Midpoint 4" value="50%" [unselected]
+    - r.0.0.0.0.1.2.0.10 GraphicsObject "Color stop 5 of 5" value="100%, #E6E6F2" [unselected]
+    + r.0.0.0.0.1.2.0.8 GraphicsObject "Color stop 4 of 4" value="100%, #E6E6F2" [unselected]
+  Space:
+    - r.0.0.0.0.0 Label "" value="Undo steps: 4" actions=[Click]
+    - r.0.0.0.0.0.0 TextRun "" value="Undo steps: 4"
+    + r.0.0.0.0.0 Label "" value="Undo steps: 5" actions=[Click]
+    + r.0.0.0.0.0.0 TextRun "" value="Undo steps: 5"
+    - r.0.0.0.0.1.0.0.0.0 Group "Gradient" value="4 color stops, 2 opacity stops" actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0 Group "Gradient" value="3 color stops, 2 opacity stops" actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.3 GraphicsObject "Color stop 1 of 4" value="0%, #2159B8" [unselected]
+    + r.0.0.0.0.1.0.0.0.0.3 GraphicsObject "Color stop 1 of 3" value="0%, #2159B8" [unselected]
+    - r.0.0.0.0.1.0.0.0.0.5 GraphicsObject "Color stop 2 of 4" value="30%, #F2BF33" [unselected]
+    + r.0.0.0.0.1.0.0.0.0.5 GraphicsObject "Color stop 2 of 3" value="30%, #F2BF33" [unselected]
+    - r.0.0.0.0.1.0.0.0.0.7 GraphicsObject "Color stop 3 of 4" value="70%, #D9404D" [selected]
+    - r.0.0.0.0.1.0.0.0.0.8 GraphicsObject "Midpoint 3" value="50%" [unselected]
+    - r.0.0.0.0.1.0.0.0.0.9 GraphicsObject "Color stop 4 of 4" value="100%, #E6E6F2" [unselected]
+    + r.0.0.0.0.1.0.0.0.0.7 GraphicsObject "Color stop 3 of 3" value="100%, #E6E6F2" [selected]
+    - r.0.0.0.0.1.0.0.0.1.1.0.0 ColorWell "Color" value="#d9404d" labelled_by=[r.0.0.0.0.1.0.0.0.1.0.0] [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.1.1.0.0 ColorWell "Color" value="#e6e6f2" labelled_by=[r.0.0.0.0.1.0.0.0.1.0.0] [unselected] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.1.3.0.0 SpinButton "Location" value="70%" number=70 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.0.0.0.1.2.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.0.0.0.1.3.0.0.0 TextRun "" value="70"
+    + r.0.0.0.0.1.0.0.0.1.3.0.0 SpinButton "Location" value="100%" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.0.0.0.1.2.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.0.0.0.1.3.0.0.0 TextRun "" value="100"
+    - r.0.0.0.0.1.2 Group "Gradient" value="4 stops" actions=[Focus]
+    + r.0.0.0.0.1.2 Group "Gradient" value="3 stops" actions=[Focus]
+    - r.0.0.0.0.1.2.0.0 GraphicsObject "Gradient line" value="4 stops" [unselected]
+    + r.0.0.0.0.1.2.0.0 GraphicsObject "Gradient line" value="3 stops" [unselected]
+    - r.0.0.0.0.1.2.0.2 GraphicsObject "Color stop 1 of 4" value="0%, #2159B8" [unselected]
+    + r.0.0.0.0.1.2.0.2 GraphicsObject "Color stop 1 of 3" value="0%, #2159B8" [unselected]
+    - r.0.0.0.0.1.2.0.4 GraphicsObject "Color stop 2 of 4" value="30%, #F2BF33" [unselected]
+    + r.0.0.0.0.1.2.0.4 GraphicsObject "Color stop 2 of 3" value="30%, #F2BF33" [unselected]
+    - r.0.0.0.0.1.2.0.6 GraphicsObject "Color stop 3 of 4" value="70%, #D9404D" [selected]
+    - r.0.0.0.0.1.2.0.7 GraphicsObject "Midpoint 3" value="50%" [unselected]
+    - r.0.0.0.0.1.2.0.8 GraphicsObject "Color stop 4 of 4" value="100%, #E6E6F2" [unselected]
+    + r.0.0.0.0.1.2.0.6 GraphicsObject "Color stop 3 of 3" value="100%, #E6E6F2" [selected]
+  Enter:
+    focus: r.0.0.0.0.1.0.0.0.1.4.0 Button "Delete stop" -> r Window ""
+    - r.0.0.0.0.0 Label "" value="Undo steps: 5" actions=[Click]
+    - r.0.0.0.0.0.0 TextRun "" value="Undo steps: 5"
+    + r.0.0.0.0.0 Label "" value="Undo steps: 6" actions=[Click]
+    + r.0.0.0.0.0.0 TextRun "" value="Undo steps: 6"
+    - r.0.0.0.0.1.0.0.0.0 Group "Gradient" value="3 color stops, 2 opacity stops" actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0 Group "Gradient" value="2 color stops, 2 opacity stops" actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.3 GraphicsObject "Color stop 1 of 3" value="0%, #2159B8" [unselected]
+    + r.0.0.0.0.1.0.0.0.0.3 GraphicsObject "Color stop 1 of 2" value="0%, #2159B8" [unselected]
+    - r.0.0.0.0.1.0.0.0.0.5 GraphicsObject "Color stop 2 of 3" value="30%, #F2BF33" [unselected]
+    - r.0.0.0.0.1.0.0.0.0.6 GraphicsObject "Midpoint 2" value="50%" [unselected]
+    - r.0.0.0.0.1.0.0.0.0.7 GraphicsObject "Color stop 3 of 3" value="100%, #E6E6F2" [selected]
+    + r.0.0.0.0.1.0.0.0.0.5 GraphicsObject "Color stop 2 of 2" value="30%, #F2BF33" [selected]
+    - r.0.0.0.0.1.0.0.0.1.1.0.0 ColorWell "Color" value="#e6e6f2" labelled_by=[r.0.0.0.0.1.0.0.0.1.0.0] [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.1.1.0.0 ColorWell "Color" value="#f2bf33" labelled_by=[r.0.0.0.0.1.0.0.0.1.0.0] [unselected] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.1.3.0.0 SpinButton "Location" value="100%" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.0.0.0.1.2.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.0.0.0.1.3.0.0.0 TextRun "" value="100"
+    + r.0.0.0.0.1.0.0.0.1.3.0.0 SpinButton "Location" value="30%" number=30 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.0.0.0.1.2.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.0.0.0.1.3.0.0.0 TextRun "" value="30"
+    - r.0.0.0.0.1.0.0.0.1.4.0 Button "Delete stop" description="Delete stop" actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.1.4.0 Button "Delete stop" description="Delete stop" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.1.2 Group "Gradient" value="3 stops" actions=[Focus]
+    + r.0.0.0.0.1.2 Group "Gradient" value="2 stops" actions=[Focus]
+    - r.0.0.0.0.1.2.0.0 GraphicsObject "Gradient line" value="3 stops" [unselected]
+    + r.0.0.0.0.1.2.0.0 GraphicsObject "Gradient line" value="2 stops" [unselected]
+    - r.0.0.0.0.1.2.0.2 GraphicsObject "Color stop 1 of 3" value="0%, #2159B8" [unselected]
+    + r.0.0.0.0.1.2.0.2 GraphicsObject "Color stop 1 of 2" value="0%, #2159B8" [unselected]
+    - r.0.0.0.0.1.2.0.4 GraphicsObject "Color stop 2 of 3" value="30%, #F2BF33" [unselected]
+    - r.0.0.0.0.1.2.0.5 GraphicsObject "Midpoint 2" value="50%" [unselected]
+    - r.0.0.0.0.1.2.0.6 GraphicsObject "Color stop 3 of 3" value="100%, #E6E6F2" [selected]
+    + r.0.0.0.0.1.2.0.4 GraphicsObject "Color stop 2 of 2" value="30%, #F2BF33" [selected]
+  Escape: no change
+drive r.0.0.0.0.1.1 Canvas "Document"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1.1 Canvas "Document" -> r Window ""
+drive r.0.0.0.0.1.2 Group "Gradient"
+  Space: no change
+  Enter: no change
+  Escape: no change

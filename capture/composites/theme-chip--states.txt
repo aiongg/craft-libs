@@ -1,0 +1,86 @@
+story composites/theme-chip/states
+args
+  theme = Number { value: 1.0, min: 0.0, max: 9.0 }
+  dark = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 RadioButton "Pro" description="Pro" [unchecked] actions=[Click,Focus]
+            r.0.0.0.0.0.1 GenericContainer ""
+              r.0.0.0.0.0.1.0 RadioButton "Pro" description="Pro" [checked] actions=[Click,Focus]
+            r.0.0.0.0.0.2 GenericContainer ""
+              r.0.0.0.0.0.2.0 RadioButton "Pro" value="Favorite" description="Pro" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.0.2.1 Button "Remove from Favorites: Pro" description="Remove from Favorites" actions=[Click]
+            r.0.0.0.0.0.3 GenericContainer ""
+              r.0.0.0.0.0.3.0 RadioButton "Pro" value="Favorite" description="Pro" [checked] actions=[Click,Focus]
+              r.0.0.0.0.0.3.1 Button "Remove from Favorites: Pro" description="Remove from Favorites" actions=[Click]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0 RadioButton "Pro"
+  2: r.0.0.0.0.0.1.0 RadioButton "Pro"
+  3: r.0.0.0.0.0.2.0 RadioButton "Pro"
+  4: r.0.0.0.0.0.3.0 RadioButton "Pro"
+  5: r.0.0.0.0.0.0.0 RadioButton "Pro"
+  cycle after 4 nodes
+drive: 6 actionable nodes
+drive r.0.0.0.0.0.0.0 RadioButton "Pro"
+  click:
+    + r.0.0.0.0.0.0.1 Button "Add to Favorites: Pro" description="Add to Favorites" actions=[Click]
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.0.0 RadioButton "Pro" -> r.0.0.0.0.0.1.0 RadioButton "Pro"
+  Escape:
+    focus: r.0.0.0.0.0.0.0 RadioButton "Pro" -> r Window ""
+drive r.0.0.0.0.0.1.0 RadioButton "Pro"
+  click:
+    - r.0.0.0.0.0.0.1 Button "Add to Favorites: Pro" description="Add to Favorites" actions=[Click]
+    + r.0.0.0.0.0.1.1 Button "Add to Favorites: Pro" description="Add to Favorites" actions=[Click]
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.1.0 RadioButton "Pro" -> r.0.0.0.0.0.0.0 RadioButton "Pro"
+  ArrowRight:
+    focus: r.0.0.0.0.0.1.0 RadioButton "Pro" -> r.0.0.0.0.0.2.0 RadioButton "Pro"
+  Escape:
+    focus: r.0.0.0.0.0.1.0 RadioButton "Pro" -> r Window ""
+drive r.0.0.0.0.0.2.0 RadioButton "Pro"
+  click:
+    - r.0.0.0.0.0.1.1 Button "Add to Favorites: Pro" description="Add to Favorites" actions=[Click]
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.2.0 RadioButton "Pro" -> r.0.0.0.0.0.1.0 RadioButton "Pro"
+  ArrowRight:
+    focus: r.0.0.0.0.0.2.0 RadioButton "Pro" -> r.0.0.0.0.0.3.0 RadioButton "Pro"
+  Escape:
+    focus: r.0.0.0.0.0.2.0 RadioButton "Pro" -> r Window ""
+drive r.0.0.0.0.0.2.1 Button "Remove from Favorites: Pro"
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.3.0 RadioButton "Pro"
+  click: no change
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.3.0 RadioButton "Pro" -> r.0.0.0.0.0.2.0 RadioButton "Pro"
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.3.0 RadioButton "Pro" -> r Window ""
+drive r.0.0.0.0.0.3.1 Button "Remove from Favorites: Pro"
+  click: no change
+  Escape: no change

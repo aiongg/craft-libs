@@ -1,0 +1,328 @@
+story patterns/shape-panel/sections
+args
+  shape = Choice { options: ["rectangle", "ellipse", "polygon", "star", "line"], index: 0 }
+  locked = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Group "Shape properties"
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 DisclosureTriangle "Appearance" [expanded] actions=[Click,Focus]
+                r.0.0.0.0.0.0.0.1 GenericContainer ""
+                  r.0.0.0.0.0.0.0.1.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.1.0.0 Label "" value="Appearance"
+                r.0.0.0.0.0.0.0.2 GenericContainer ""
+                  r.0.0.0.0.0.0.0.2.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.2.0.0 Label "" value="Fill"
+                  r.0.0.0.0.0.0.0.2.1 GenericContainer ""
+                    r.0.0.0.0.0.0.0.2.1.0 ColorWell "Fill color" value="#378ef0" description="Set shape fill type" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+                  r.0.0.0.0.0.0.0.2.2 GenericContainer ""
+                    r.0.0.0.0.0.0.0.2.2.0 Label "" value="Stroke"
+                  r.0.0.0.0.0.0.0.2.3 GenericContainer ""
+                    r.0.0.0.0.0.0.0.2.3.0 ColorWell "Stroke color" value="#141414" description="Set shape stroke type" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+                  r.0.0.0.0.0.0.0.2.4 GenericContainer ""
+                    r.0.0.0.0.0.0.0.2.4.0 Label "" value="Stroke width"
+                  r.0.0.0.0.0.0.0.2.5 GenericContainer ""
+                    r.0.0.0.0.0.0.0.2.5.0 SpinButton "Stroke width" value="0 px" number=0 in 0..288 step 1 labelled_by=[r.0.0.0.0.0.0.0.2.4.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+                      r.0.0.0.0.0.0.0.2.5.0.0 TextRun "" value="0"
+                r.0.0.0.0.0.0.0.3 Button "Stroke Options" value="No Color" description="Stroke Options" [collapsed popup:Dialog] actions=[Click,Focus]
+                r.0.0.0.0.0.0.0.4 DisclosureTriangle "Shape" [expanded] actions=[Click,Focus]
+                r.0.0.0.0.0.0.0.5 GenericContainer ""
+                  r.0.0.0.0.0.0.0.5.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.5.0.0 Label "" value="Shape"
+                r.0.0.0.0.0.0.0.6 GenericContainer ""
+                  r.0.0.0.0.0.0.0.6.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.6.0.0 Label "" value="W"
+                  r.0.0.0.0.0.0.0.6.1 GenericContainer ""
+                    r.0.0.0.0.0.0.0.6.1.0 SpinButton "Width" value="320 px" number=320 in 1..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                      r.0.0.0.0.0.0.0.6.1.0.0 TextRun "" value="320"
+                  r.0.0.0.0.0.0.0.6.2 GenericContainer ""
+                    r.0.0.0.0.0.0.0.6.2.0 Label "" value="H"
+                  r.0.0.0.0.0.0.0.6.3 GenericContainer ""
+                    r.0.0.0.0.0.0.0.6.3.0 SpinButton "Height" value="200 px" number=200 in 1..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                      r.0.0.0.0.0.0.0.6.3.0.0 TextRun "" value="200"
+                  r.0.0.0.0.0.0.0.6.4 GenericContainer ""
+                    r.0.0.0.0.0.0.0.6.4.0 Label "" value="Corner radius" description="Corner radius"
+                  r.0.0.0.0.0.0.0.6.5 GenericContainer ""
+                    r.0.0.0.0.0.0.0.6.5.0 SpinButton "Corner radius" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.6.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                      r.0.0.0.0.0.0.0.6.5.0.0 TextRun "" value="12"
+                  r.0.0.0.0.0.0.0.6.6 GenericContainer ""
+                    r.0.0.0.0.0.0.0.6.6.0 Label "" value="Top Left"
+                  r.0.0.0.0.0.0.0.6.7 GenericContainer ""
+                    r.0.0.0.0.0.0.0.6.7.0 SpinButton "Top Left" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.6.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                      r.0.0.0.0.0.0.0.6.7.0.0 TextRun "" value="12"
+                  r.0.0.0.0.0.0.0.6.8 GenericContainer ""
+                    r.0.0.0.0.0.0.0.6.8.0 Label "" value="Top Right"
+                  r.0.0.0.0.0.0.0.6.9 GenericContainer ""
+                    r.0.0.0.0.0.0.0.6.9.0 SpinButton "Top Right" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.6.8.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                      r.0.0.0.0.0.0.0.6.9.0.0 TextRun "" value="12"
+                  r.0.0.0.0.0.0.0.6.10 GenericContainer ""
+                    r.0.0.0.0.0.0.0.6.10.0 Label "" value="Bottom Left"
+                  r.0.0.0.0.0.0.0.6.11 GenericContainer ""
+                    r.0.0.0.0.0.0.0.6.11.0 SpinButton "Bottom Left" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.6.10.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                      r.0.0.0.0.0.0.0.6.11.0.0 TextRun "" value="12"
+                  r.0.0.0.0.0.0.0.6.12 GenericContainer ""
+                    r.0.0.0.0.0.0.0.6.12.0 Label "" value="Bottom Right"
+                  r.0.0.0.0.0.0.0.6.13 GenericContainer ""
+                    r.0.0.0.0.0.0.0.6.13.0 SpinButton "Bottom Right" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.6.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                      r.0.0.0.0.0.0.0.6.13.0.0 TextRun "" value="12"
+          r.0.0.0.0.1 GenericContainer ""
+            r.0.0.0.0.1.0 Button "Reset" actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0 DisclosureTriangle "Appearance"
+  2: r.0.0.0.0.0.0.0.2.1.0 ColorWell "Fill color"
+  3: r.0.0.0.0.0.0.0.2.3.0 ColorWell "Stroke color"
+  4: r.0.0.0.0.0.0.0.2.5.0 SpinButton "Stroke width"
+  5: r.0.0.0.0.0.0.0.3 Button "Stroke Options"
+  6: r.0.0.0.0.0.0.0.4 DisclosureTriangle "Shape"
+  7: r.0.0.0.0.0.0.0.6.1.0 SpinButton "Width"
+  8: r.0.0.0.0.0.0.0.6.3.0 SpinButton "Height"
+  9: r.0.0.0.0.0.0.0.6.5.0 SpinButton "Corner radius"
+  10: r.0.0.0.0.0.0.0.6.7.0 SpinButton "Top Left"
+  11: r.0.0.0.0.0.0.0.6.9.0 SpinButton "Top Right"
+  12: r.0.0.0.0.0.0.0.6.11.0 SpinButton "Bottom Left"
+  13: r.0.0.0.0.0.0.0.6.13.0 SpinButton "Bottom Right"
+  14: r.0.0.0.0.1.0 Button "Reset"
+  15: r.0.0.0.0.0.0.0.0 DisclosureTriangle "Appearance"
+  cycle after 14 nodes
+drive: 14 actionable nodes
+drive r.0.0.0.0.0.0.0.0 DisclosureTriangle "Appearance"
+  click:
+    - r.0.0.0.0.0.0.0.0 DisclosureTriangle "Appearance" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0 DisclosureTriangle "Appearance" [collapsed] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.2 GenericContainer ""
+    - r.0.0.0.0.0.0.0.2.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.2.0.0 Label "" value="Fill"
+    - r.0.0.0.0.0.0.0.2.1 GenericContainer ""
+    - r.0.0.0.0.0.0.0.2.1.0 ColorWell "Fill color" value="#378ef0" description="Set shape fill type" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.2.2 GenericContainer ""
+    - r.0.0.0.0.0.0.0.2.2.0 Label "" value="Stroke"
+    - r.0.0.0.0.0.0.0.2.3 GenericContainer ""
+    - r.0.0.0.0.0.0.0.2.3.0 ColorWell "Stroke color" value="#141414" description="Set shape stroke type" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.2.4 GenericContainer ""
+    - r.0.0.0.0.0.0.0.2.4.0 Label "" value="Stroke width"
+    - r.0.0.0.0.0.0.0.2.5 GenericContainer ""
+    - r.0.0.0.0.0.0.0.2.5.0 SpinButton "Stroke width" value="0 px" number=0 in 0..288 step 1 labelled_by=[r.0.0.0.0.0.0.0.2.4.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.2.5.0.0 TextRun "" value="0"
+    - r.0.0.0.0.0.0.0.3 Button "Stroke Options" value="No Color" description="Stroke Options" [collapsed popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.6.5.0 SpinButton "Corner radius" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.6.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.4.5.0 SpinButton "Corner radius" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.6.7.0 SpinButton "Top Left" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.6.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.4.7.0 SpinButton "Top Left" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.6.9.0 SpinButton "Top Right" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.6.8.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.4.9.0 SpinButton "Top Right" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.8.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.6.11.0 SpinButton "Bottom Left" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.6.10.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.4.11.0 SpinButton "Bottom Left" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.10.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.6.13.0 SpinButton "Bottom Right" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.6.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.4.13.0 SpinButton "Bottom Right" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+  Space:
+    - r.0.0.0.0.0.0.0.0 DisclosureTriangle "Appearance" [collapsed] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0 DisclosureTriangle "Appearance" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.2 GenericContainer ""
+    + r.0.0.0.0.0.0.0.2.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.2.0.0 Label "" value="Fill"
+    + r.0.0.0.0.0.0.0.2.1 GenericContainer ""
+    + r.0.0.0.0.0.0.0.2.1.0 ColorWell "Fill color" value="#378ef0" description="Set shape fill type" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.2.2 GenericContainer ""
+    + r.0.0.0.0.0.0.0.2.2.0 Label "" value="Stroke"
+    + r.0.0.0.0.0.0.0.2.3 GenericContainer ""
+    + r.0.0.0.0.0.0.0.2.3.0 ColorWell "Stroke color" value="#141414" description="Set shape stroke type" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.2.4 GenericContainer ""
+    + r.0.0.0.0.0.0.0.2.4.0 Label "" value="Stroke width"
+    + r.0.0.0.0.0.0.0.2.5 GenericContainer ""
+    + r.0.0.0.0.0.0.0.2.5.0 SpinButton "Stroke width" value="0 px" number=0 in 0..288 step 1 labelled_by=[r.0.0.0.0.0.0.0.2.4.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.2.5.0.0 TextRun "" value="0"
+    + r.0.0.0.0.0.0.0.3 Button "Stroke Options" value="No Color" description="Stroke Options" [collapsed popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.4.5.0 SpinButton "Corner radius" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.6.5.0 SpinButton "Corner radius" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.6.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.4.7.0 SpinButton "Top Left" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.6.7.0 SpinButton "Top Left" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.6.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.4.9.0 SpinButton "Top Right" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.8.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.6.9.0 SpinButton "Top Right" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.6.8.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.4.11.0 SpinButton "Bottom Left" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.10.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.6.11.0 SpinButton "Bottom Left" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.6.10.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.4.13.0 SpinButton "Bottom Right" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.6.13.0 SpinButton "Bottom Right" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.6.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+  Enter:
+    - r.0.0.0.0.0.0.0.0 DisclosureTriangle "Appearance" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0 DisclosureTriangle "Appearance" [collapsed] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.2 GenericContainer ""
+    - r.0.0.0.0.0.0.0.2.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.2.0.0 Label "" value="Fill"
+    - r.0.0.0.0.0.0.0.2.1 GenericContainer ""
+    - r.0.0.0.0.0.0.0.2.1.0 ColorWell "Fill color" value="#378ef0" description="Set shape fill type" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.2.2 GenericContainer ""
+    - r.0.0.0.0.0.0.0.2.2.0 Label "" value="Stroke"
+    - r.0.0.0.0.0.0.0.2.3 GenericContainer ""
+    - r.0.0.0.0.0.0.0.2.3.0 ColorWell "Stroke color" value="#141414" description="Set shape stroke type" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.2.4 GenericContainer ""
+    - r.0.0.0.0.0.0.0.2.4.0 Label "" value="Stroke width"
+    - r.0.0.0.0.0.0.0.2.5 GenericContainer ""
+    - r.0.0.0.0.0.0.0.2.5.0 SpinButton "Stroke width" value="0 px" number=0 in 0..288 step 1 labelled_by=[r.0.0.0.0.0.0.0.2.4.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.2.5.0.0 TextRun "" value="0"
+    - r.0.0.0.0.0.0.0.3 Button "Stroke Options" value="No Color" description="Stroke Options" [collapsed popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.6.5.0 SpinButton "Corner radius" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.6.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.4.5.0 SpinButton "Corner radius" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.6.7.0 SpinButton "Top Left" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.6.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.4.7.0 SpinButton "Top Left" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.6.9.0 SpinButton "Top Right" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.6.8.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.4.9.0 SpinButton "Top Right" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.8.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.6.11.0 SpinButton "Bottom Left" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.6.10.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.4.11.0 SpinButton "Bottom Left" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.10.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.6.13.0 SpinButton "Bottom Right" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.6.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.4.13.0 SpinButton "Bottom Right" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0 DisclosureTriangle "Appearance" -> r Window ""
+drive r.0.0.0.0.0.0.0.2.1.0 ColorWell "Fill color"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.2.3.0 ColorWell "Stroke color"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.2.5.0 SpinButton "Stroke width"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.3 Button "Stroke Options"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.4 DisclosureTriangle "Shape"
+  click:
+    - r.0.0.0.0.0.0.0.2 DisclosureTriangle "Shape" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.2 DisclosureTriangle "Shape" [collapsed] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.4 GenericContainer ""
+    - r.0.0.0.0.0.0.0.4.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.4.0.0 Label "" value="W"
+    - r.0.0.0.0.0.0.0.4.1 GenericContainer ""
+    - r.0.0.0.0.0.0.0.4.1.0 SpinButton "Width" value="320 px" number=320 in 1..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.4.1.0.0 TextRun "" value="320"
+    - r.0.0.0.0.0.0.0.4.2 GenericContainer ""
+    - r.0.0.0.0.0.0.0.4.2.0 Label "" value="H"
+    - r.0.0.0.0.0.0.0.4.3 GenericContainer ""
+    - r.0.0.0.0.0.0.0.4.3.0 SpinButton "Height" value="200 px" number=200 in 1..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.4.3.0.0 TextRun "" value="200"
+    - r.0.0.0.0.0.0.0.4.4 GenericContainer ""
+    - r.0.0.0.0.0.0.0.4.4.0 Label "" value="Corner radius" description="Corner radius"
+    - r.0.0.0.0.0.0.0.4.5 GenericContainer ""
+    - r.0.0.0.0.0.0.0.4.5.0 SpinButton "Corner radius" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.4.5.0.0 TextRun "" value="12"
+    - r.0.0.0.0.0.0.0.4.6 GenericContainer ""
+    - r.0.0.0.0.0.0.0.4.6.0 Label "" value="Top Left"
+    - r.0.0.0.0.0.0.0.4.7 GenericContainer ""
+    - r.0.0.0.0.0.0.0.4.7.0 SpinButton "Top Left" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.4.7.0.0 TextRun "" value="12"
+    - r.0.0.0.0.0.0.0.4.8 GenericContainer ""
+    - r.0.0.0.0.0.0.0.4.8.0 Label "" value="Top Right"
+    - r.0.0.0.0.0.0.0.4.9 GenericContainer ""
+    - r.0.0.0.0.0.0.0.4.9.0 SpinButton "Top Right" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.8.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.4.9.0.0 TextRun "" value="12"
+    - r.0.0.0.0.0.0.0.4.10 GenericContainer ""
+    - r.0.0.0.0.0.0.0.4.10.0 Label "" value="Bottom Left"
+    - r.0.0.0.0.0.0.0.4.11 GenericContainer ""
+    - r.0.0.0.0.0.0.0.4.11.0 SpinButton "Bottom Left" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.10.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.4.11.0.0 TextRun "" value="12"
+    - r.0.0.0.0.0.0.0.4.12 GenericContainer ""
+    - r.0.0.0.0.0.0.0.4.12.0 Label "" value="Bottom Right"
+    - r.0.0.0.0.0.0.0.4.13 GenericContainer ""
+    - r.0.0.0.0.0.0.0.4.13.0 SpinButton "Bottom Right" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.4.13.0.0 TextRun "" value="12"
+  Space:
+    - r.0.0.0.0.0.0.0.2 DisclosureTriangle "Shape" [collapsed] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.2 DisclosureTriangle "Shape" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.4 GenericContainer ""
+    + r.0.0.0.0.0.0.0.4.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.4.0.0 Label "" value="W"
+    + r.0.0.0.0.0.0.0.4.1 GenericContainer ""
+    + r.0.0.0.0.0.0.0.4.1.0 SpinButton "Width" value="320 px" number=320 in 1..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.4.1.0.0 TextRun "" value="320"
+    + r.0.0.0.0.0.0.0.4.2 GenericContainer ""
+    + r.0.0.0.0.0.0.0.4.2.0 Label "" value="H"
+    + r.0.0.0.0.0.0.0.4.3 GenericContainer ""
+    + r.0.0.0.0.0.0.0.4.3.0 SpinButton "Height" value="200 px" number=200 in 1..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.4.3.0.0 TextRun "" value="200"
+    + r.0.0.0.0.0.0.0.4.4 GenericContainer ""
+    + r.0.0.0.0.0.0.0.4.4.0 Label "" value="Corner radius" description="Corner radius"
+    + r.0.0.0.0.0.0.0.4.5 GenericContainer ""
+    + r.0.0.0.0.0.0.0.4.5.0 SpinButton "Corner radius" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.4.5.0.0 TextRun "" value="12"
+    + r.0.0.0.0.0.0.0.4.6 GenericContainer ""
+    + r.0.0.0.0.0.0.0.4.6.0 Label "" value="Top Left"
+    + r.0.0.0.0.0.0.0.4.7 GenericContainer ""
+    + r.0.0.0.0.0.0.0.4.7.0 SpinButton "Top Left" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.4.7.0.0 TextRun "" value="12"
+    + r.0.0.0.0.0.0.0.4.8 GenericContainer ""
+    + r.0.0.0.0.0.0.0.4.8.0 Label "" value="Top Right"
+    + r.0.0.0.0.0.0.0.4.9 GenericContainer ""
+    + r.0.0.0.0.0.0.0.4.9.0 SpinButton "Top Right" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.8.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.4.9.0.0 TextRun "" value="12"
+    + r.0.0.0.0.0.0.0.4.10 GenericContainer ""
+    + r.0.0.0.0.0.0.0.4.10.0 Label "" value="Bottom Left"
+    + r.0.0.0.0.0.0.0.4.11 GenericContainer ""
+    + r.0.0.0.0.0.0.0.4.11.0 SpinButton "Bottom Left" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.10.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.4.11.0.0 TextRun "" value="12"
+    + r.0.0.0.0.0.0.0.4.12 GenericContainer ""
+    + r.0.0.0.0.0.0.0.4.12.0 Label "" value="Bottom Right"
+    + r.0.0.0.0.0.0.0.4.13 GenericContainer ""
+    + r.0.0.0.0.0.0.0.4.13.0 SpinButton "Bottom Right" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.4.13.0.0 TextRun "" value="12"
+  Enter:
+    - r.0.0.0.0.0.0.0.2 DisclosureTriangle "Shape" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.2 DisclosureTriangle "Shape" [collapsed] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.4 GenericContainer ""
+    - r.0.0.0.0.0.0.0.4.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.4.0.0 Label "" value="W"
+    - r.0.0.0.0.0.0.0.4.1 GenericContainer ""
+    - r.0.0.0.0.0.0.0.4.1.0 SpinButton "Width" value="320 px" number=320 in 1..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.4.1.0.0 TextRun "" value="320"
+    - r.0.0.0.0.0.0.0.4.2 GenericContainer ""
+    - r.0.0.0.0.0.0.0.4.2.0 Label "" value="H"
+    - r.0.0.0.0.0.0.0.4.3 GenericContainer ""
+    - r.0.0.0.0.0.0.0.4.3.0 SpinButton "Height" value="200 px" number=200 in 1..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.4.3.0.0 TextRun "" value="200"
+    - r.0.0.0.0.0.0.0.4.4 GenericContainer ""
+    - r.0.0.0.0.0.0.0.4.4.0 Label "" value="Corner radius" description="Corner radius"
+    - r.0.0.0.0.0.0.0.4.5 GenericContainer ""
+    - r.0.0.0.0.0.0.0.4.5.0 SpinButton "Corner radius" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.4.5.0.0 TextRun "" value="12"
+    - r.0.0.0.0.0.0.0.4.6 GenericContainer ""
+    - r.0.0.0.0.0.0.0.4.6.0 Label "" value="Top Left"
+    - r.0.0.0.0.0.0.0.4.7 GenericContainer ""
+    - r.0.0.0.0.0.0.0.4.7.0 SpinButton "Top Left" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.4.7.0.0 TextRun "" value="12"
+    - r.0.0.0.0.0.0.0.4.8 GenericContainer ""
+    - r.0.0.0.0.0.0.0.4.8.0 Label "" value="Top Right"
+    - r.0.0.0.0.0.0.0.4.9 GenericContainer ""
+    - r.0.0.0.0.0.0.0.4.9.0 SpinButton "Top Right" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.8.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.4.9.0.0 TextRun "" value="12"
+    - r.0.0.0.0.0.0.0.4.10 GenericContainer ""
+    - r.0.0.0.0.0.0.0.4.10.0 Label "" value="Bottom Left"
+    - r.0.0.0.0.0.0.0.4.11 GenericContainer ""
+    - r.0.0.0.0.0.0.0.4.11.0 SpinButton "Bottom Left" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.10.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.4.11.0.0 TextRun "" value="12"
+    - r.0.0.0.0.0.0.0.4.12 GenericContainer ""
+    - r.0.0.0.0.0.0.0.4.12.0 Label "" value="Bottom Right"
+    - r.0.0.0.0.0.0.0.4.13 GenericContainer ""
+    - r.0.0.0.0.0.0.0.4.13.0 SpinButton "Bottom Right" value="12 px" number=12 in 0..100000 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.4.13.0.0 TextRun "" value="12"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.2 DisclosureTriangle "Shape" -> r Window ""
+drive r.0.0.0.0.0.0.0.6.1.0 SpinButton "Width"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.6.3.0 SpinButton "Height"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.6.5.0 SpinButton "Corner radius"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.6.7.0 SpinButton "Top Left"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.6.9.0 SpinButton "Top Right"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.6.11.0 SpinButton "Bottom Left"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.6.13.0 SpinButton "Bottom Right"
+  all steps: node gone
+drive r.0.0.0.0.1.0 Button "Reset"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1.0 Button "Reset" -> r Window ""

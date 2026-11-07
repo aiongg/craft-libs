@@ -1,0 +1,110 @@
+story composites/media-controls/controls
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Toolbar "Media controls"
+            r.0.0.0.0.0.0 Button "Play or pause media" description="Play or pause media" actions=[Click,Focus]
+            r.0.0.0.0.0.1 Button "Back 0.25 seconds" description="Back 0.25 seconds" actions=[Click,Focus]
+            r.0.0.0.0.0.2 Button "Forward 0.25 seconds" description="Forward 0.25 seconds" actions=[Click,Focus]
+            r.0.0.0.0.0.3 GenericContainer ""
+              r.0.0.0.0.0.3.0 Slider "Seek" value="0:12.50" number=12.5 in 0..65 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0 Button "Play or pause media"
+  2: r.0.0.0.0.0.1 Button "Back 0.25 seconds"
+  3: r.0.0.0.0.0.2 Button "Forward 0.25 seconds"
+  4: r.0.0.0.0.0.3.0 Slider "Seek"
+  5: r.0.0.0.0.0.0 Button "Play or pause media"
+  cycle after 4 nodes
+drive: 4 actionable nodes
+drive r.0.0.0.0.0.0 Button "Play or pause media"
+  click:
+    + r.0.0.0.0.1 Label "" value="Last event: Toggle" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Toggle"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0 Button "Play or pause media" -> r Window ""
+drive r.0.0.0.0.0.1 Button "Back 0.25 seconds"
+  click:
+    - r.0.0.0.0.0.3.0 Slider "Seek" value="0:12.50" number=12.5 in 0..65 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.1 Label "" value="Last event: Toggle" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Toggle"
+    + r.0.0.0.0.0.3.0 Slider "Seek" value="0:12.25" number=12.25 in 0..65 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1 Label "" value="Last event: Nudge(-0.25)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Nudge(-0.25)"
+  Space:
+    - r.0.0.0.0.0.3.0 Slider "Seek" value="0:12.25" number=12.25 in 0..65 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.3.0 Slider "Seek" value="0:12.00" number=12 in 0..65 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+  Enter:
+    - r.0.0.0.0.0.3.0 Slider "Seek" value="0:12.00" number=12 in 0..65 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.3.0 Slider "Seek" value="0:11.75" number=11.75 in 0..65 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+  Escape:
+    focus: r.0.0.0.0.0.1 Button "Back 0.25 seconds" -> r Window ""
+drive r.0.0.0.0.0.2 Button "Forward 0.25 seconds"
+  click:
+    - r.0.0.0.0.0.3.0 Slider "Seek" value="0:11.75" number=11.75 in 0..65 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.1 Label "" value="Last event: Nudge(-0.25)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Nudge(-0.25)"
+    + r.0.0.0.0.0.3.0 Slider "Seek" value="0:12.00" number=12 in 0..65 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1 Label "" value="Last event: Nudge(0.25)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Nudge(0.25)"
+  Space:
+    - r.0.0.0.0.0.3.0 Slider "Seek" value="0:12.00" number=12 in 0..65 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.3.0 Slider "Seek" value="0:12.25" number=12.25 in 0..65 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+  Enter:
+    - r.0.0.0.0.0.3.0 Slider "Seek" value="0:12.25" number=12.25 in 0..65 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.3.0 Slider "Seek" value="0:12.50" number=12.5 in 0..65 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+  Escape:
+    focus: r.0.0.0.0.0.2 Button "Forward 0.25 seconds" -> r Window ""
+drive r.0.0.0.0.0.3.0 Slider "Seek"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.0.3.0 Slider "Seek" value="0:12.50" number=12.5 in 0..65 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.1 Label "" value="Last event: Nudge(0.25)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Nudge(0.25)"
+    + r.0.0.0.0.0.3.0 Slider "Seek" value="0:12.25" number=12.25 in 0..65 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: 12.25, modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: 12.25, modifiers: Modifiers::NONE }"
+  ArrowRight:
+    - r.0.0.0.0.0.3.0 Slider "Seek" value="0:12.25" number=12.25 in 0..65 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: 12.25, modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: 12.25, modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.0.3.0 Slider "Seek" value="0:12.50" number=12.5 in 0..65 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: 12.5, modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: 12.5, modifiers: Modifiers::NONE }"
+  ArrowUp:
+    - r.0.0.0.0.0.3.0 Slider "Seek" value="0:12.50" number=12.5 in 0..65 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: 12.5, modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: 12.5, modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.0.3.0 Slider "Seek" value="0:12.75" number=12.75 in 0..65 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: 12.75, modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: 12.75, modifiers: Modifiers::NONE }"
+  ArrowDown:
+    - r.0.0.0.0.0.3.0 Slider "Seek" value="0:12.75" number=12.75 in 0..65 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: 12.75, modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: 12.75, modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.0.3.0 Slider "Seek" value="0:12.50" number=12.5 in 0..65 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: 12.5, modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: 12.5, modifiers: Modifiers::NONE }"
+  Home:
+    - r.0.0.0.0.0.3.0 Slider "Seek" value="0:12.50" number=12.5 in 0..65 step 0.25 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: 12.5, modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: 12.5, modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.0.3.0 Slider "Seek" value="0:00.00" number=0 in 0..65 step 0.25 actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: 0.0, modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: 0.0, modifiers: Modifiers::NONE }"
+  End:
+    - r.0.0.0.0.0.3.0 Slider "Seek" value="0:00.00" number=0 in 0..65 step 0.25 actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: 0.0, modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: 0.0, modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.0.3.0 Slider "Seek" value="1:05.00" number=65 in 0..65 step 0.25 actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: 65.0, modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: 65.0, modifiers: Modifiers::NONE }"
+  Escape:
+    focus: r.0.0.0.0.0.3.0 Slider "Seek" -> r Window ""

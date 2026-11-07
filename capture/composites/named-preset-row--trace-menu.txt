@@ -1,0 +1,117 @@
+story composites/named-preset-row/trace-menu
+args
+  custom = Bool(true)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Group "Trace preset"
+            r.0.0.0.0.0.0 Button "Trace preset: Custom" [collapsed popup:Dialog] actions=[Click,Focus]
+            r.0.0.0.0.0.1 Button "Manage presets" description="Manage presets" [collapsed popup:Menu] actions=[Click,Focus]
+          r.0.0.0.0.1 Label "" value="Selected: Default" actions=[Click]
+            r.0.0.0.0.1.0 TextRun "" value="Selected: Default"
+          r.0.0.0.0.2 Label "" value="Files are fake: Load… reads two contours, Save… writes nothing." actions=[Click]
+            r.0.0.0.0.2.0 TextRun "" value="Files are fake: Load… reads two contours, Save… writes nothing."
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0 Button "Trace preset: Custom"
+  2: r.0.0.0.0.0.1 Button "Manage presets"
+  3: r.0.0.0.0.0.0 Button "Trace preset: Custom"
+  cycle after 2 nodes
+drive: 4 actionable nodes
+drive r.0.0.0.0.0.0 Button "Trace preset: Custom"
+  click:
+    focus: r.0.0.0.0.0.0 Button "Trace preset: Custom" -> r.1.0.0.0.0.0 ListBoxOption "Default"
+    - r.0.0.0.0.0.0 Button "Trace preset: Custom" [collapsed popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0 Button "Trace preset: Custom" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.1 Dialog "Trace preset"
+    + r.1.0 GenericContainer ""
+    + r.1.0.0 ListBox "Trace preset" actions=[Focus]
+    + r.1.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0.0 ListBoxOption "Default" description="Default" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.1 ListBoxOption "High Fidelity Photo" description="High Fidelity Photo" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.2 ListBoxOption "Low Fidelity Photo" description="Low Fidelity Photo" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.3 ListBoxOption "3 Colors" description="3 Colors" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.4 ListBoxOption "Sketched Art" description="Sketched Art" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.5 ListBoxOption "Line Art" description="Line Art" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Space:
+    - r.0.0.0.0.0.0 Button "Trace preset: Custom" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0 Button "Trace preset: Custom" [collapsed popup:Dialog] actions=[Click,Focus]
+    - r.1 Dialog "Trace preset"
+    - r.1.0 GenericContainer ""
+    - r.1.0.0 ListBox "Trace preset" actions=[Focus]
+    - r.1.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0.0 ListBoxOption "Default" description="Default" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.1 ListBoxOption "High Fidelity Photo" description="High Fidelity Photo" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.2 ListBoxOption "Low Fidelity Photo" description="Low Fidelity Photo" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.3 ListBoxOption "3 Colors" description="3 Colors" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.4 ListBoxOption "Sketched Art" description="Sketched Art" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.5 ListBoxOption "Line Art" description="Line Art" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Enter:
+    focus: r.0.0.0.0.0.0 Button "Trace preset: Custom" -> r.1.0.0.0.0.0 ListBoxOption "Default"
+    - r.0.0.0.0.0.0 Button "Trace preset: Custom" [collapsed popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0 Button "Trace preset: Custom" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.1 Dialog "Trace preset"
+    + r.1.0 GenericContainer ""
+    + r.1.0.0 ListBox "Trace preset" actions=[Focus]
+    + r.1.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0.0 ListBoxOption "Default" description="Default" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.1 ListBoxOption "High Fidelity Photo" description="High Fidelity Photo" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.2 ListBoxOption "Low Fidelity Photo" description="Low Fidelity Photo" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.3 ListBoxOption "3 Colors" description="3 Colors" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.4 ListBoxOption "Sketched Art" description="Sketched Art" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.5 ListBoxOption "Line Art" description="Line Art" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape:
+    - r.0.0.0.0.0.0 Button "Trace preset: Custom" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0 Button "Trace preset: Custom" [collapsed popup:Dialog] actions=[Click,Focus]
+    - r.1 Dialog "Trace preset"
+    - r.1.0 GenericContainer ""
+    - r.1.0.0 ListBox "Trace preset" actions=[Focus]
+    - r.1.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0.0 ListBoxOption "Default" description="Default" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.1 ListBoxOption "High Fidelity Photo" description="High Fidelity Photo" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.2 ListBoxOption "Low Fidelity Photo" description="Low Fidelity Photo" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.3 ListBoxOption "3 Colors" description="3 Colors" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.4 ListBoxOption "Sketched Art" description="Sketched Art" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.5 ListBoxOption "Line Art" description="Line Art" [unselected] actions=[Click,Focus,ScrollIntoView]
+drive r.0.0.0.0.0.1 Button "Manage presets"
+  click:
+    focus: r.0.0.0.0.0.0 Button "Trace preset: Custom" -> r Window ""
+    - r.0.0.0.0.0.1 Button "Manage presets" description="Manage presets" [collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.1 Button "Manage presets" description="Manage presets" [expanded popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0 Menu ""
+    + r.0.0.0.0.0.1.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0 MenuItem "Save as New Preset…" actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.1 MenuItem "Rename…" [disabled] actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.2 MenuItem "Delete" [disabled] actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.3 MenuItem "Load…" actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.4 MenuItem "Save…" actions=[Click]
+  Space: no change
+  Enter: no change
+  Escape:
+    - r.0.0.0.0.0.1 Button "Manage presets" description="Manage presets" [expanded popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0 Menu ""
+    - r.0.0.0.0.0.1.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0 MenuItem "Save as New Preset…" actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.1 MenuItem "Rename…" [disabled] actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.2 MenuItem "Delete" [disabled] actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.3 MenuItem "Load…" actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.4 MenuItem "Save…" actions=[Click]
+    + r.0.0.0.0.0.1 Button "Manage presets" description="Manage presets" [collapsed popup:Menu] actions=[Click,Focus]
+drive r.0.0.0.0.1 Label ""
+  click:
+    focus: r.0.0.0.0.0.1 Button "Manage presets" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.2 Label ""
+  click: no change
+  Escape: no change

@@ -1,0 +1,89 @@
+story primitives/magnetic-lasso-tool/magnetic
+args
+  width = Number { value: 1600.0, min: 200.0, max: 3200.0 }
+  edge_width = Number { value: 10.0, min: 1.0, max: 256.0 }
+  contrast = Number { value: 10.0, min: 1.0, max: 100.0 }
+  frequency = Number { value: 57.0, min: 0.0, max: 100.0 }
+  operation = Choice { options: ["new", "add", "subtract", "intersect"], index: 0 }
+  seconds = Number { value: 4.0, min: 0.5, max: 10.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Button "Play" actions=[Click,Focus]
+            r.0.0.0.0.0.1 Button "Reset selection" actions=[Click,Focus]
+          r.0.0.0.0.1 Canvas "magnetic-lasso" actions=[Click,Focus]
+            r.0.0.0.0.1.0 GenericContainer ""
+              r.0.0.0.0.1.0.0 GraphicsObject "Selection" value="414 px × 382 px at 593 px, 372 px"
+          r.0.0.0.0.2 Label "" value="Idle. Last event: none yet." actions=[Click]
+            r.0.0.0.0.2.0 TextRun "" value="Idle. Last event: none yet."
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0 Button "Play"
+  2: r.0.0.0.0.0.1 Button "Reset selection"
+  3: r.0.0.0.0.1 Canvas "magnetic-lasso"
+  4: r.0.0.0.0.0.0 Button "Play"
+  cycle after 3 nodes
+drive: 4 actionable nodes
+drive r.0.0.0.0.0.0 Button "Play"
+  click:
+    - r.0.0.0.0.2 Label "" value="Idle. Last event: none yet." actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Idle. Last event: none yet."
+    + r.0.0.0.0.1.1 GenericContainer ""
+    + r.0.0.0.0.1.1.0 GraphicsObject "Selection outline" value="12 points"
+    + r.0.0.0.0.2 Label "" value="Drawing an outline, 12 points. Last event: none yet." actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Drawing an outline, 12 points. Last event: none yet."
+  Space:
+    - r.0.0.0.0.1.1.0 GraphicsObject "Selection outline" value="12 points"
+    - r.0.0.0.0.2 Label "" value="Drawing an outline, 12 points. Last event: none yet." actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Drawing an outline, 12 points. Last event: none yet."
+    + r.0.0.0.0.1.1.0 GraphicsObject "Selection outline" value="38 points"
+    + r.0.0.0.0.2 Label "" value="Drawing an outline, 38 points. Last event: none yet." actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Drawing an outline, 38 points. Last event: none yet."
+  Enter:
+    - r.0.0.0.0.1.1.0 GraphicsObject "Selection outline" value="38 points"
+    - r.0.0.0.0.2 Label "" value="Drawing an outline, 38 points. Last event: none yet." actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Drawing an outline, 38 points. Last event: none yet."
+    + r.0.0.0.0.1.1.0 GraphicsObject "Selection outline" value="57 points"
+    + r.0.0.0.0.2 Label "" value="Drawing an outline, 57 points. Last event: none yet." actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Drawing an outline, 57 points. Last event: none yet."
+  Escape:
+    focus: r.0.0.0.0.0.0 Button "Play" -> r Window ""
+    - r.0.0.0.0.1.1 GenericContainer ""
+    - r.0.0.0.0.1.1.0 GraphicsObject "Selection outline" value="57 points"
+    - r.0.0.0.0.2 Label "" value="Drawing an outline, 57 points. Last event: none yet." actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Drawing an outline, 57 points. Last event: none yet."
+    + r.0.0.0.0.2 Label "" value="Idle. Last event: none yet." actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Idle. Last event: none yet."
+drive r.0.0.0.0.0.1 Button "Reset selection"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.1 Button "Reset selection" -> r Window ""
+drive r.0.0.0.0.1 Canvas "magnetic-lasso"
+  click:
+    - r.0.0.0.0.2 Label "" value="Idle. Last event: none yet." actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Idle. Last event: none yet."
+    + r.0.0.0.0.1.1 GenericContainer ""
+    + r.0.0.0.0.1.1.0 GraphicsObject "Selection outline" value="136 points"
+    + r.0.0.0.0.2 Label "" value="Drawing an outline, 136 points. Last event: none yet." actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Drawing an outline, 136 points. Last event: none yet."
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1.0.0 GraphicsObject "Selection" value="414 px × 382 px at 593 px, 372 px"
+    - r.0.0.0.0.1.1 GenericContainer ""
+    - r.0.0.0.0.1.1.0 GraphicsObject "Selection outline" value="136 points"
+    - r.0.0.0.0.2 Label "" value="Drawing an outline, 136 points. Last event: none yet." actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Drawing an outline, 136 points. Last event: none yet."
+    + r.0.0.0.0.1.0.0 GraphicsObject "Selection" value="97 px × 92 px at 800 px, 538 px"
+    + r.0.0.0.0.2 Label "" value="Idle. Last event: Selected." actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Idle. Last event: Selected."
+  Escape: no change
+drive r.0.0.0.0.2 Label ""
+  click:
+    focus: r.0.0.0.0.1 Canvas "magnetic-lasso" -> r Window ""
+  Escape: no change

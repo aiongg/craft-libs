@@ -1,0 +1,304 @@
+story patterns/relink-dialog/dialog
+args
+  open = Bool(true)
+  relink others = Bool(true)
+  exact names = Bool(false)
+  slow search = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+  r.1 Dialog "Link Media"
+    r.1.0 GenericContainer ""
+    r.1.1 GenericContainer ""
+      r.1.1.0 GenericContainer ""
+        r.1.1.0.0 GenericContainer ""
+          r.1.1.0.0.0 GenericContainer ""
+            r.1.1.0.0.0.0 GenericContainer ""
+              r.1.1.0.0.0.0.0 Heading "Link Media" value="Link Media"
+            r.1.1.0.0.0.1 Button "Close" description="Close" actions=[Click,Focus]
+            r.1.1.0.0.0.2 GenericContainer ""
+              r.1.1.0.0.0.2.0 GenericContainer ""
+                r.1.1.0.0.0.2.0.0 GenericContainer ""
+                  r.1.1.0.0.0.2.0.0.0 Label "" value="Find the missing files, or leave them offline." actions=[Click]
+                    r.1.1.0.0.0.2.0.0.0.0 TextRun "" value="Find the missing files, or leave them offline."
+                  r.1.1.0.0.0.2.0.0.1 Table "Link Media" actions=[Focus]
+                    r.1.1.0.0.0.2.0.0.1.0 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.1.0.0 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.1.0.0.0 ColumnHeader "Clip Name" description="Click to sort, drag to move the column. Drag its edge to resize it." actions=[Click,Focus]
+                        r.1.1.0.0.0.2.0.0.1.0.0.1 Splitter "Resize Clip Name" number=144 in 40..4000 step 8 actions=[Focus,Decrement,Increment,SetValue]
+                        r.1.1.0.0.0.2.0.0.1.0.0.2 ColumnHeader "File Name" description="Click to sort, drag to move the column. Drag its edge to resize it." actions=[Click,Focus]
+                        r.1.1.0.0.0.2.0.0.1.0.0.3 Splitter "Resize File Name" number=144 in 40..4000 step 8 actions=[Focus,Decrement,Increment,SetValue]
+                        r.1.1.0.0.0.2.0.0.1.0.0.4 ColumnHeader "File Path" description="Click to sort, drag to move the column. Drag its edge to resize it." actions=[Click,Focus]
+                        r.1.1.0.0.0.2.0.0.1.0.0.5 Splitter "Resize File Path" number=144 in 40..4000 step 8 actions=[Focus,Decrement,Increment,SetValue]
+                        r.1.1.0.0.0.2.0.0.1.0.0.6 ColumnHeader "Status" description="Click to sort, drag to move the column. Drag its edge to resize it." actions=[Click,Focus]
+                        r.1.1.0.0.0.2.0.0.1.0.0.7 Splitter "Resize Status" number=144 in 40..4000 step 8 actions=[Focus,Decrement,Increment,SetValue]
+                        r.1.1.0.0.0.2.0.0.1.0.0.8 Row "" [selected] actions=[Focus,ScrollIntoView]
+                          r.1.1.0.0.0.2.0.0.1.0.0.8.0 Cell ""
+                            r.1.1.0.0.0.2.0.0.1.0.0.8.0.0 Label "" value="Clip 1"
+                          r.1.1.0.0.0.2.0.0.1.0.0.8.1 Cell ""
+                            r.1.1.0.0.0.2.0.0.1.0.0.8.1.0 Label "" value="a.mov"
+                          r.1.1.0.0.0.2.0.0.1.0.0.8.2 Cell ""
+                            r.1.1.0.0.0.2.0.0.1.0.0.8.2.0 Label "" value="/old/shoot/a.mov"
+                          r.1.1.0.0.0.2.0.0.1.0.0.8.3 Cell ""
+                            r.1.1.0.0.0.2.0.0.1.0.0.8.3.0 Label "" value="Media missing"
+                        r.1.1.0.0.0.2.0.0.1.0.0.9 Row "" [unselected] actions=[Focus,ScrollIntoView]
+                          r.1.1.0.0.0.2.0.0.1.0.0.9.0 Cell ""
+                            r.1.1.0.0.0.2.0.0.1.0.0.9.0.0 Label "" value="Clip 2"
+                          r.1.1.0.0.0.2.0.0.1.0.0.9.1 Cell ""
+                            r.1.1.0.0.0.2.0.0.1.0.0.9.1.0 Label "" value="b.mov"
+                          r.1.1.0.0.0.2.0.0.1.0.0.9.2 Cell ""
+                            r.1.1.0.0.0.2.0.0.1.0.0.9.2.0 Label "" value="/old/shoot/b.mov"
+                          r.1.1.0.0.0.2.0.0.1.0.0.9.3 Cell ""
+                            r.1.1.0.0.0.2.0.0.1.0.0.9.3.0 Label "" value="Media missing"
+                        r.1.1.0.0.0.2.0.0.1.0.0.10 Row "" [unselected] actions=[Focus,ScrollIntoView]
+                          r.1.1.0.0.0.2.0.0.1.0.0.10.0 Cell ""
+                            r.1.1.0.0.0.2.0.0.1.0.0.10.0.0 Label "" value="Clip 3"
+                          r.1.1.0.0.0.2.0.0.1.0.0.10.1 Cell ""
+                            r.1.1.0.0.0.2.0.0.1.0.0.10.1.0 Label "" value="c.mov"
+                          r.1.1.0.0.0.2.0.0.1.0.0.10.2 Cell ""
+                            r.1.1.0.0.0.2.0.0.1.0.0.10.2.0 Label "" value="/old/shoot/c.mov"
+                          r.1.1.0.0.0.2.0.0.1.0.0.10.3 Cell ""
+                            r.1.1.0.0.0.2.0.0.1.0.0.10.3.0 Label "" value="Media missing"
+                        r.1.1.0.0.0.2.0.0.1.0.0.11 Row "" [unselected] actions=[Focus,ScrollIntoView]
+                          r.1.1.0.0.0.2.0.0.1.0.0.11.0 Cell ""
+                            r.1.1.0.0.0.2.0.0.1.0.0.11.0.0 Label "" value="Clip 4"
+                          r.1.1.0.0.0.2.0.0.1.0.0.11.1 Cell ""
+                            r.1.1.0.0.0.2.0.0.1.0.0.11.1.0 Label "" value="d.mov"
+                          r.1.1.0.0.0.2.0.0.1.0.0.11.2 Cell ""
+                            r.1.1.0.0.0.2.0.0.1.0.0.11.2.0 Label "" value="/old/shoot/d.mov"
+                          r.1.1.0.0.0.2.0.0.1.0.0.11.3 Cell ""
+                            r.1.1.0.0.0.2.0.0.1.0.0.11.3.0 Label "" value="Media missing"
+                  r.1.1.0.0.0.2.0.0.2 GenericContainer ""
+                    r.1.1.0.0.0.2.0.0.2.0 Label "" value="Match file properties" actions=[Click]
+                      r.1.1.0.0.0.2.0.0.2.0.0 TextRun "" value="Match file properties"
+                    r.1.1.0.0.0.2.0.0.2.1 CheckBox "File Name" [checked] actions=[Click,Focus]
+                    r.1.1.0.0.0.2.0.0.2.2 CheckBox "File Extension" [checked] actions=[Click,Focus]
+                    r.1.1.0.0.0.2.0.0.2.3 CheckBox "Same File" [checked] actions=[Click,Focus]
+                  r.1.1.0.0.0.2.0.0.3 CheckBox "Relink others automatically" [checked] actions=[Click,Focus]
+                  r.1.1.0.0.0.2.0.0.4 GenericContainer ""
+                    r.1.1.0.0.0.2.0.0.4.0 Label "" value="Search in:" actions=[Click]
+                      r.1.1.0.0.0.2.0.0.4.0.0 TextRun "" value="Search in:"
+                    r.1.1.0.0.0.2.0.0.4.1 TextInput "Search in:" value="/new" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+                      r.1.1.0.0.0.2.0.0.4.1.0 TextRun "" value="/new"
+                    r.1.1.0.0.0.2.0.0.4.2 Button "Browse…" actions=[Click,Focus]
+                  r.1.1.0.0.0.2.0.0.5 GenericContainer ""
+                    r.1.1.0.0.0.2.0.0.5.0 CheckBox "Exact name matches only" [unchecked] actions=[Click,Focus]
+                    r.1.1.0.0.0.2.0.0.5.1 Button "Search" actions=[Click,Focus]
+                  r.1.1.0.0.0.2.0.0.6 Status ""
+                    r.1.1.0.0.0.2.0.0.6.0 GenericContainer ""
+                  r.1.1.0.0.0.2.0.0.7 GenericContainer ""
+                    r.1.1.0.0.0.2.0.0.7.0 GenericContainer ""
+              r.1.1.0.0.0.2.1 GenericContainer ""
+                r.1.1.0.0.0.2.1.0 GenericContainer ""
+                  r.1.1.0.0.0.2.1.0.0 Button "Leave All Offline" actions=[Click,Focus]
+                  r.1.1.0.0.0.2.1.0.1 Button "Leave Offline" description="Leave Offline" actions=[Click,Focus]
+              r.1.1.0.0.0.2.2 GenericContainer ""
+                r.1.1.0.0.0.2.2.0 Button "Link" [disabled] actions=[Click,Focus]
+                r.1.1.0.0.0.2.2.1 Button "Done" actions=[Click,Focus]
+                r.1.1.0.0.0.2.2.2 Button "Cancel" actions=[Click,Focus]
+                r.1.1.0.0.0.2.2.3 Button "Locate…" actions=[Click,Focus]
+  r.2 Unknown ""
+  r.3 Unknown ""
+  r.4 Unknown ""
+  r.5 Unknown ""
+  r.6 Unknown ""
+  r.7 Unknown ""
+  r.8 Unknown ""
+  r.9 Unknown ""
+  r.10 Unknown ""
+  r.11 Unknown ""
+  r.12 Unknown ""
+  r.13 Unknown ""
+  r.14 Unknown ""
+  r.15 Unknown ""
+  r.16 Unknown ""
+  r.17 Unknown ""
+tab
+  start: r Window ""
+  1: r.1.1.0.0.0.1 Button "Close"
+  2: r.1.1.0.0.0.2.0.0.4.1 TextInput "Search in:"
+  3: r.1.1.0.0.0.2.2.1 Button "Done"
+  4: r.1.1.0.0.0.2.2.2 Button "Cancel"
+  5: r.1.1.0.0.0.2.2.3 Button "Locate…"
+  6: r.1.1.0.0.0.2.0.0.4.1 TextInput "Search in:"
+  cycle after 5 nodes
+drive: 30 actionable nodes
+drive r.1.1.0.0.0.1 Button "Close"
+  click:
+    focus: r.1.1.0.0.0.2.0.0.4.1 TextInput "Search in:" -> r Window ""
+    arg open: Bool(true) -> Bool(false)
+    - r.1 Dialog "Link Media"
+    - r.1.0 GenericContainer ""
+    - r.1.1 GenericContainer ""
+    - r.1.1.0 GenericContainer ""
+    - r.1.1.0.0 GenericContainer ""
+    - r.1.1.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0.0 Heading "Link Media" value="Link Media"
+    - r.1.1.0.0.0.1 Button "Close" description="Close" actions=[Click,Focus]
+    - r.1.1.0.0.0.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0 Label "" value="Find the missing files, or leave them offline." actions=[Click]
+    - r.1.1.0.0.0.2.0.0.0.0 TextRun "" value="Find the missing files, or leave them offline."
+    - r.1.1.0.0.0.2.0.0.1 Table "Link Media" actions=[Focus]
+    - r.1.1.0.0.0.2.0.0.1.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.0.0.0 ColumnHeader "Clip Name" description="Click to sort, drag to move the column. Drag its edge to resize it." actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.1.0.0.1 Splitter "Resize Clip Name" number=144 in 40..4000 step 8 actions=[Focus,Decrement,Increment,SetValue]
+    - r.1.1.0.0.0.2.0.0.1.0.0.2 ColumnHeader "File Name" description="Click to sort, drag to move the column. Drag its edge to resize it." actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.1.0.0.3 Splitter "Resize File Name" number=144 in 40..4000 step 8 actions=[Focus,Decrement,Increment,SetValue]
+    - r.1.1.0.0.0.2.0.0.1.0.0.4 ColumnHeader "File Path" description="Click to sort, drag to move the column. Drag its edge to resize it." actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.1.0.0.5 Splitter "Resize File Path" number=144 in 40..4000 step 8 actions=[Focus,Decrement,Increment,SetValue]
+    - r.1.1.0.0.0.2.0.0.1.0.0.6 ColumnHeader "Status" description="Click to sort, drag to move the column. Drag its edge to resize it." actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.1.0.0.7 Splitter "Resize Status" number=144 in 40..4000 step 8 actions=[Focus,Decrement,Increment,SetValue]
+    - r.1.1.0.0.0.2.0.0.1.0.0.8 Row "" [selected] actions=[Focus,ScrollIntoView]
+    - r.1.1.0.0.0.2.0.0.1.0.0.8.0 Cell ""
+    - r.1.1.0.0.0.2.0.0.1.0.0.8.0.0 Label "" value="Clip 1"
+    - r.1.1.0.0.0.2.0.0.1.0.0.8.1 Cell ""
+    - r.1.1.0.0.0.2.0.0.1.0.0.8.1.0 Label "" value="a.mov"
+    - r.1.1.0.0.0.2.0.0.1.0.0.8.2 Cell ""
+    - r.1.1.0.0.0.2.0.0.1.0.0.8.2.0 Label "" value="/old/shoot/a.mov"
+    - r.1.1.0.0.0.2.0.0.1.0.0.8.3 Cell ""
+    - r.1.1.0.0.0.2.0.0.1.0.0.8.3.0 Label "" value="Media missing"
+    - r.1.1.0.0.0.2.0.0.1.0.0.9 Row "" [unselected] actions=[Focus,ScrollIntoView]
+    - r.1.1.0.0.0.2.0.0.1.0.0.9.0 Cell ""
+    - r.1.1.0.0.0.2.0.0.1.0.0.9.0.0 Label "" value="Clip 2"
+    - r.1.1.0.0.0.2.0.0.1.0.0.9.1 Cell ""
+    - r.1.1.0.0.0.2.0.0.1.0.0.9.1.0 Label "" value="b.mov"
+    - r.1.1.0.0.0.2.0.0.1.0.0.9.2 Cell ""
+    - r.1.1.0.0.0.2.0.0.1.0.0.9.2.0 Label "" value="/old/shoot/b.mov"
+    - r.1.1.0.0.0.2.0.0.1.0.0.9.3 Cell ""
+    - r.1.1.0.0.0.2.0.0.1.0.0.9.3.0 Label "" value="Media missing"
+    - r.1.1.0.0.0.2.0.0.1.0.0.10 Row "" [unselected] actions=[Focus,ScrollIntoView]
+    - r.1.1.0.0.0.2.0.0.1.0.0.10.0 Cell ""
+    - r.1.1.0.0.0.2.0.0.1.0.0.10.0.0 Label "" value="Clip 3"
+    - r.1.1.0.0.0.2.0.0.1.0.0.10.1 Cell ""
+    - r.1.1.0.0.0.2.0.0.1.0.0.10.1.0 Label "" value="c.mov"
+    - r.1.1.0.0.0.2.0.0.1.0.0.10.2 Cell ""
+    - r.1.1.0.0.0.2.0.0.1.0.0.10.2.0 Label "" value="/old/shoot/c.mov"
+    - r.1.1.0.0.0.2.0.0.1.0.0.10.3 Cell ""
+    - r.1.1.0.0.0.2.0.0.1.0.0.10.3.0 Label "" value="Media missing"
+    - r.1.1.0.0.0.2.0.0.1.0.0.11 Row "" [unselected] actions=[Focus,ScrollIntoView]
+    - r.1.1.0.0.0.2.0.0.1.0.0.11.0 Cell ""
+    - r.1.1.0.0.0.2.0.0.1.0.0.11.0.0 Label "" value="Clip 4"
+    - r.1.1.0.0.0.2.0.0.1.0.0.11.1 Cell ""
+    - r.1.1.0.0.0.2.0.0.1.0.0.11.1.0 Label "" value="d.mov"
+    - r.1.1.0.0.0.2.0.0.1.0.0.11.2 Cell ""
+    - r.1.1.0.0.0.2.0.0.1.0.0.11.2.0 Label "" value="/old/shoot/d.mov"
+    - r.1.1.0.0.0.2.0.0.1.0.0.11.3 Cell ""
+    - r.1.1.0.0.0.2.0.0.1.0.0.11.3.0 Label "" value="Media missing"
+    - r.1.1.0.0.0.2.0.0.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.2.0 Label "" value="Match file properties" actions=[Click]
+    - r.1.1.0.0.0.2.0.0.2.0.0 TextRun "" value="Match file properties"
+    - r.1.1.0.0.0.2.0.0.2.1 CheckBox "File Name" [checked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.2.2 CheckBox "File Extension" [checked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.2.3 CheckBox "Same File" [checked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.3 CheckBox "Relink others automatically" [checked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.4 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.4.0 Label "" value="Search in:" actions=[Click]
+    - r.1.1.0.0.0.2.0.0.4.0.0 TextRun "" value="Search in:"
+    - r.1.1.0.0.0.2.0.0.4.1 TextInput "Search in:" value="/new" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.4.1.0 TextRun "" value="/new"
+    - r.1.1.0.0.0.2.0.0.4.2 Button "Browse…" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.5 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.5.0 CheckBox "Exact name matches only" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.5.1 Button "Search" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.6 Status ""
+    - r.1.1.0.0.0.2.0.0.6.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.7 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.7.0 GenericContainer ""
+    - r.1.1.0.0.0.2.1 GenericContainer ""
+    - r.1.1.0.0.0.2.1.0 GenericContainer ""
+    - r.1.1.0.0.0.2.1.0.0 Button "Leave All Offline" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.1.0.1 Button "Leave Offline" description="Leave Offline" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.2 GenericContainer ""
+    - r.1.1.0.0.0.2.2.0 Button "Link" [disabled] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.2.1 Button "Done" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.2.2 Button "Cancel" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.2.3 Button "Locate…" actions=[Click,Focus]
+    - r.2 Unknown ""
+    - r.3 Unknown ""
+    - r.4 Unknown ""
+    - r.5 Unknown ""
+    - r.6 Unknown ""
+    - r.7 Unknown ""
+    - r.8 Unknown ""
+    - r.9 Unknown ""
+    - r.10 Unknown ""
+    - r.11 Unknown ""
+    - r.12 Unknown ""
+    - r.13 Unknown ""
+    - r.14 Unknown ""
+    - r.15 Unknown ""
+    - r.16 Unknown ""
+    - r.17 Unknown ""
+    + r.0.0.0.0.0 Label "" value="Result: Cancel" actions=[Click]
+    + r.0.0.0.0.0.0 TextRun "" value="Result: Cancel"
+  Space: node gone
+  Enter: node gone
+  Escape: node gone
+drive r.1.1.0.0.0.2.0.0.0 Label ""
+  click: no change
+  Escape: no change
+drive r.1.1.0.0.0.2.0.0.1 Table "Link Media"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.1.0.0.0 ColumnHeader "Clip Name"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.1.0.0.1 Splitter "Resize Clip Name"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.1.0.0.2 ColumnHeader "File Name"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.1.0.0.3 Splitter "Resize File Name"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.1.0.0.4 ColumnHeader "File Path"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.1.0.0.5 Splitter "Resize File Path"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.1.0.0.6 ColumnHeader "Status"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.1.0.0.7 Splitter "Resize Status"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.1.0.0.8 Row ""
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.1.0.0.9 Row ""
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.1.0.0.10 Row ""
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.1.0.0.11 Row ""
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.2.0 Label ""
+  click: no change
+  Escape: no change
+drive r.1.1.0.0.0.2.0.0.2.1 CheckBox "File Name"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.2.2 CheckBox "File Extension"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.2.3 CheckBox "Same File"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.3 CheckBox "Relink others automatically"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.4.0 Label ""
+  click: no change
+  Escape: no change
+drive r.1.1.0.0.0.2.0.0.4.1 TextInput "Search in:"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.4.2 Button "Browse…"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.5.0 CheckBox "Exact name matches only"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.5.1 Button "Search"
+  all steps: node gone
+drive r.1.1.0.0.0.2.1.0.0 Button "Leave All Offline"
+  all steps: node gone
+drive r.1.1.0.0.0.2.1.0.1 Button "Leave Offline"
+  all steps: node gone
+drive r.1.1.0.0.0.2.2.1 Button "Done"
+  all steps: node gone
+drive r.1.1.0.0.0.2.2.2 Button "Cancel"
+  all steps: node gone
+drive r.1.1.0.0.0.2.2.3 Button "Locate…"
+  all steps: node gone

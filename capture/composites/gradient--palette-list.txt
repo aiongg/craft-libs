@@ -1,0 +1,201 @@
+story composites/gradient/palette-list
+args
+  recent = Number { value: 4.0, min: 0.0, max: 8.0 }
+  max_height = Number { value: 120.0, min: 40.0, max: 300.0 }
+  selected = Bool(true)
+  width = Number { value: 240.0, min: 100.0, max: 400.0 }
+  disabled = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 ListBox "Gradient presets" actions=[Click,Focus]
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 GenericContainer ""
+                  r.0.0.0.0.0.0.0.0.0 Label "" value="Recent" actions=[Click]
+                    r.0.0.0.0.0.0.0.0.0.0 TextRun "" value="Recent"
+                r.0.0.0.0.0.0.0.1 ListBoxOption "Recent 1" [unselected] actions=[Click]
+                r.0.0.0.0.0.0.0.2 ListBoxOption "Recent 2" [unselected] actions=[Click]
+                r.0.0.0.0.0.0.0.3 ListBoxOption "Recent 3" [unselected] actions=[Click]
+                r.0.0.0.0.0.0.0.4 ListBoxOption "Recent 4" [unselected] actions=[Click]
+                r.0.0.0.0.0.0.0.5 GenericContainer ""
+                  r.0.0.0.0.0.0.0.5.0 Label "" value="Basics" actions=[Click]
+                r.0.0.0.0.0.0.0.6 ListBoxOption "Black, White" [unselected] actions=[Click]
+                r.0.0.0.0.0.0.0.7 ListBoxOption "Red, Green" [unselected] actions=[Click]
+                r.0.0.0.0.0.0.0.8 ListBoxOption "Blue, Yellow" [unselected] actions=[Click]
+                r.0.0.0.0.0.0.0.9 ListBoxOption "Blue to clear" [unselected] actions=[Click]
+                r.0.0.0.0.0.0.0.10 GenericContainer ""
+                  r.0.0.0.0.0.0.0.10.0 Label "" value="Warm and cool" actions=[Click]
+                r.0.0.0.0.0.0.0.11 ListBoxOption "Sunset" [unselected] actions=[Click]
+                r.0.0.0.0.0.0.0.12 ListBoxOption "Ember" [unselected] actions=[Click]
+                r.0.0.0.0.0.0.0.13 ListBoxOption "Lagoon" [unselected] actions=[Click]
+                r.0.0.0.0.0.0.0.14 ListBoxOption "Meadow" [unselected] actions=[Click]
+                r.0.0.0.0.0.0.0.15 ListBoxOption "Orchid" [unselected] actions=[Click]
+                r.0.0.0.0.0.0.0.16 ListBoxOption "Slate" [unselected] actions=[Click]
+            r.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+          r.0.0.0.0.1 Label "" value="Last event: " actions=[Click]
+            r.0.0.0.0.1.0 TextRun "" value="Last event: "
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.1 ListBoxOption "Recent 1"
+  2: r.0.0.0.0.0.0.0.1 ListBoxOption "Recent 1"
+  cycle after 1 nodes
+drive: 20 actionable nodes
+drive r.0.0.0.0.0 ListBox "Gradient presets"
+  click: node has no finite bounds
+  Space:
+    - r.0.0.0.0.0.0.0.1 ListBoxOption "Recent 1" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.1 ListBoxOption "Recent 1" [selected] actions=[Click]
+    - r.0.0.0.0.1 Label "" value="Last event: " actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: "
+    + r.0.0.0.0.1 Label "" value="Last event: Set \"Recent(0)\"" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set \"Recent(0)\""
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.1 ListBoxOption "Recent 1" -> r.0.0.0.0.0.0.0.2 ListBoxOption "Recent 2"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.2 ListBoxOption "Recent 2" -> r.0.0.0.0.0.0.0.1 ListBoxOption "Recent 1"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.1 ListBoxOption "Recent 1" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.1 ListBoxOption "Recent 1"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.2 ListBoxOption "Recent 2"
+  click:
+    - r.0.0.0.0.0.0.0.1 ListBoxOption "Recent 1" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.0.2 ListBoxOption "Recent 2" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.1 ListBoxOption "Recent 1" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.2 ListBoxOption "Recent 2" [selected] actions=[Click]
+    - r.0.0.0.0.1 Label "" value="Last event: Set \"Recent(0)\"" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set \"Recent(0)\""
+    + r.0.0.0.0.1 Label "" value="Last event: Set \"Recent(1)\"" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set \"Recent(1)\""
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.3 ListBoxOption "Recent 3"
+  click:
+    - r.0.0.0.0.0.0.0.2 ListBoxOption "Recent 2" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.0.3 ListBoxOption "Recent 3" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.2 ListBoxOption "Recent 2" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.3 ListBoxOption "Recent 3" [selected] actions=[Click]
+    - r.0.0.0.0.1 Label "" value="Last event: Set \"Recent(1)\"" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set \"Recent(1)\""
+    + r.0.0.0.0.1 Label "" value="Last event: Set \"Recent(2)\"" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set \"Recent(2)\""
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.4 ListBoxOption "Recent 4"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.5.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.6 ListBoxOption "Black, White"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.7 ListBoxOption "Red, Green"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.8 ListBoxOption "Blue, Yellow"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.9 ListBoxOption "Blue to clear"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.10.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.11 ListBoxOption "Sunset"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.12 ListBoxOption "Ember"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.13 ListBoxOption "Lagoon"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.14 ListBoxOption "Meadow"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.15 ListBoxOption "Orchid"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.16 ListBoxOption "Slate"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.1 ScrollBar ""
+  click:
+    - r.0.0.0.0.0.0.0.0.0.0 TextRun "" value="Recent"
+    + r.0.0.0.0.0.0.0.10.0.0 TextRun "" value="Warm and cool"
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown: no change
+  Home: no change
+  End: no change
+  Escape: no change
+drive r.0.0.0.0.1 Label ""
+  click: no change
+  Escape: no change

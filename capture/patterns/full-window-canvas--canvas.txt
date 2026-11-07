@@ -1,0 +1,114 @@
+story patterns/full-window-canvas/canvas
+args
+  open = Bool(true)
+  tool = Choice { options: ["none", "hand", "zoom"], index: 0 }
+  checkerboard = Bool(true)
+  overlay = Bool(true)
+  tint = Bool(true)
+  zoom bar = Bool(true)
+  preview = Choice { options: ["idle", "pending", "half done", "failed"], index: 0 }
+  note = Bool(true)
+  width = Number { value: 760.0, min: 480.0, max: 1100.0 }
+  height = Number { value: 380.0, min: 280.0, max: 700.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+  r.1 Dialog "Liquify (Photo, 156%)"
+    r.1.0 GenericContainer ""
+    r.1.1 GenericContainer ""
+      r.1.1.0 GenericContainer ""
+        r.1.1.0.0 Header "Liquify (Photo, 156%)"
+        r.1.1.0.1 GenericContainer ""
+          r.1.1.0.1.0 GenericContainer ""
+            r.1.1.0.1.0.0 Label "" value="Liquify (Photo, 156%)"
+        r.1.1.0.2 GenericContainer ""
+        r.1.1.0.3 Pane ""
+          r.1.1.0.3.0 GenericContainer ""
+            r.1.1.0.3.0.0 Group "Preview"
+              r.1.1.0.3.0.0.0 Header "Preview"
+              r.1.1.0.3.0.0.1 GenericContainer ""
+                r.1.1.0.3.0.0.1.0 GenericContainer ""
+                  r.1.1.0.3.0.0.1.0.0 Label "" value="Preview"
+              r.1.1.0.3.0.0.2 GenericContainer ""
+              r.1.1.0.3.0.0.3 GenericContainer ""
+                r.1.1.0.3.0.0.3.0 GenericContainer ""
+                  r.1.1.0.3.0.0.3.0.0 GenericContainer ""
+                    r.1.1.0.3.0.0.3.0.0.0 Label "" value="Image" actions=[Click]
+                      r.1.1.0.3.0.0.3.0.0.0.0 TextRun "" value="Image"
+              r.1.1.0.3.0.0.4 GenericContainer ""
+                r.1.1.0.3.0.0.4.0 GenericContainer ""
+                  r.1.1.0.3.0.0.4.0.0 Button "OK" description="Default" actions=[Click,Focus]
+                  r.1.1.0.3.0.0.4.0.1 Button "Cancel" actions=[Click,Focus]
+        r.1.1.0.4 Pane ""
+          r.1.1.0.4.0 GenericContainer ""
+            r.1.1.0.4.0.0 GenericContainer ""
+              r.1.1.0.4.0.0.0 Button "Zoom Out" description="Zoom Out" actions=[Click,Focus]
+              r.1.1.0.4.0.0.1 Button "Zoom In" description="Zoom In" actions=[Click,Focus]
+              r.1.1.0.4.0.0.2 ComboBox "Zoom" value="Fit in View" [collapsed popup:Listbox] actions=[Click,Focus]
+              r.1.1.0.4.0.0.3 Label "" value="Preview 12 ms"
+        r.1.1.0.5 Canvas "Image" value="156%" actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.1.1.0.3.0.0.4.0.0 Button "OK"
+  2: r.1.1.0.3.0.0.4.0.1 Button "Cancel"
+  3: r.1.1.0.4.0.0.0 Button "Zoom Out"
+  4: r.1.1.0.4.0.0.1 Button "Zoom In"
+  5: r.1.1.0.4.0.0.2 ComboBox "Zoom"
+  6: r.1.1.0.5 Canvas "Image"
+  7: r.1.1.0.3.0.0.4.0.0 Button "OK"
+  cycle after 6 nodes
+drive: 7 actionable nodes
+drive r.1.1.0.3.0.0.3.0.0.0 Label ""
+  click:
+    focus: r.1.1.0.3.0.0.4.0.0 Button "OK" -> r Window ""
+  Escape:
+    arg open: Bool(true) -> Bool(false)
+    - r.1 Dialog "Liquify (Photo, 156%)"
+    - r.1.0 GenericContainer ""
+    - r.1.1 GenericContainer ""
+    - r.1.1.0 GenericContainer ""
+    - r.1.1.0.0 Header "Liquify (Photo, 156%)"
+    - r.1.1.0.1 GenericContainer ""
+    - r.1.1.0.1.0 GenericContainer ""
+    - r.1.1.0.1.0.0 Label "" value="Liquify (Photo, 156%)"
+    - r.1.1.0.2 GenericContainer ""
+    - r.1.1.0.3 Pane ""
+    - r.1.1.0.3.0 GenericContainer ""
+    - r.1.1.0.3.0.0 Group "Preview"
+    - r.1.1.0.3.0.0.0 Header "Preview"
+    - r.1.1.0.3.0.0.1 GenericContainer ""
+    - r.1.1.0.3.0.0.1.0 GenericContainer ""
+    - r.1.1.0.3.0.0.1.0.0 Label "" value="Preview"
+    - r.1.1.0.3.0.0.2 GenericContainer ""
+    - r.1.1.0.3.0.0.3 GenericContainer ""
+    - r.1.1.0.3.0.0.3.0 GenericContainer ""
+    - r.1.1.0.3.0.0.3.0.0 GenericContainer ""
+    - r.1.1.0.3.0.0.3.0.0.0 Label "" value="Image" actions=[Click]
+    - r.1.1.0.3.0.0.3.0.0.0.0 TextRun "" value="Image"
+    - r.1.1.0.3.0.0.4 GenericContainer ""
+    - r.1.1.0.3.0.0.4.0 GenericContainer ""
+    - r.1.1.0.3.0.0.4.0.0 Button "OK" description="Default" actions=[Click,Focus]
+    - r.1.1.0.3.0.0.4.0.1 Button "Cancel" actions=[Click,Focus]
+    - r.1.1.0.4 Pane ""
+    - r.1.1.0.4.0 GenericContainer ""
+    - r.1.1.0.4.0.0 GenericContainer ""
+    - r.1.1.0.4.0.0.0 Button "Zoom Out" description="Zoom Out" actions=[Click,Focus]
+    - r.1.1.0.4.0.0.1 Button "Zoom In" description="Zoom In" actions=[Click,Focus]
+    - r.1.1.0.4.0.0.2 ComboBox "Zoom" value="Fit in View" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.3 Label "" value="Preview 12 ms"
+    - r.1.1.0.5 Canvas "Image" value="156%" actions=[Click,Focus]
+drive r.1.1.0.3.0.0.4.0.0 Button "OK"
+  all steps: node gone
+drive r.1.1.0.3.0.0.4.0.1 Button "Cancel"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0 Button "Zoom Out"
+  all steps: node gone
+drive r.1.1.0.4.0.0.1 Button "Zoom In"
+  all steps: node gone
+drive r.1.1.0.4.0.0.2 ComboBox "Zoom"
+  all steps: node gone
+drive r.1.1.0.5 Canvas "Image"
+  all steps: node gone

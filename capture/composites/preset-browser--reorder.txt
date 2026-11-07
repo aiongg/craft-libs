@@ -1,0 +1,388 @@
+story composites/preset-browser/reorder
+args
+  view = Choice { options: ["grid", "list"], index: 0 }
+  size = Number { value: 36.0, min: 16.0, max: 96.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Tree "Reorderable presets" actions=[Focus]
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 GenericContainer ""
+                  r.0.0.0.0.0.0.0.0.0 TreeItem "Warm" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+                  r.0.0.0.0.0.0.0.0.1 Button "Collapse Warm" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+                r.0.0.0.0.0.0.0.1 TreeItem "Preset 1" description="Preset 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.2 TreeItem "Preset 2" description="Preset 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.3 TreeItem "Preset 3" description="Preset 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.4 TreeItem "Preset 4" description="Preset 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.5 TreeItem "Preset 5" description="Preset 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.6 TreeItem "Preset 6" description="Preset 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.7 GenericContainer ""
+                  r.0.0.0.0.0.0.0.7.0 TreeItem "Cool" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+                  r.0.0.0.0.0.0.0.7.1 Button "Collapse Cool" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+                r.0.0.0.0.0.0.0.8 TreeItem "Preset 7" description="Preset 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.9 TreeItem "Preset 8" description="Preset 8" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.10 TreeItem "Preset 9" description="Preset 9" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.11 TreeItem "Preset 10" description="Preset 10" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.12 TreeItem "Preset 11" description="Preset 11" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.13 TreeItem "Preset 12" description="Preset 12" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.14 GenericContainer ""
+                  r.0.0.0.0.0.0.0.14.0 TreeItem "Locked" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+                  r.0.0.0.0.0.0.0.14.1 Button "Collapse Locked" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+                r.0.0.0.0.0.0.0.15 TreeItem "Preset 13" description="Preset 13" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.16 TreeItem "Preset 14" description="Preset 14" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.17 TreeItem "Preset 15" description="Preset 15" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.18 TreeItem "Preset 16" description="Preset 16" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.19 TreeItem "Preset 17" description="Preset 17" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.20 TreeItem "Preset 18" description="Preset 18" [unselected] actions=[Click,Focus,ScrollIntoView]
+          r.0.0.0.0.1 Label "" value="Selected: none. Last event: " actions=[Click]
+            r.0.0.0.0.1.0 TextRun "" value="Selected: none. Last event: "
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0.0 TreeItem "Warm"
+  2: r.0.0.0.0.0.0.0.0.0 TreeItem "Warm"
+  cycle after 1 nodes
+drive: 26 actionable nodes
+drive r.0.0.0.0.0 Tree "Reorderable presets"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.0.0.0.0.0 TreeItem "Warm" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.1 Button "Collapse Warm" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.0.1 TreeItem "Preset 1" description="Preset 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.2 TreeItem "Preset 2" description="Preset 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.3 TreeItem "Preset 3" description="Preset 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.4 TreeItem "Preset 4" description="Preset 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.5 TreeItem "Preset 5" description="Preset 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.6 TreeItem "Preset 6" description="Preset 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0 TreeItem "Warm" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.1 Button "Expand Warm" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.1 Label "" value="Selected: none. Last event: " actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Selected: none. Last event: "
+    + r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1000, open: false, all: false })" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Selected: none. Last event: Open(OpenChange { row: "
+    + r.0.0.0.0.1.1 TextRun "" value="1000, open: false, all: false })"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0 TreeItem "Warm" -> r.0.0.0.0.0.0.0.1.0 TreeItem "Cool"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.1.0 TreeItem "Cool" -> r.0.0.0.0.0.0.0.0.0 TreeItem "Warm"
+  ArrowLeft: no change
+  ArrowRight:
+    - r.0.0.0.0.0.0.0.0.0 TreeItem "Warm" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.1 Button "Expand Warm" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0 TreeItem "Warm" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.1 Button "Collapse Warm" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.0.1 TreeItem "Preset 1" description="Preset 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.2 TreeItem "Preset 2" description="Preset 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.3 TreeItem "Preset 3" description="Preset 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.4 TreeItem "Preset 4" description="Preset 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.5 TreeItem "Preset 5" description="Preset 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.6 TreeItem "Preset 6" description="Preset 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1000, open: false, all: false })" actions=[Click]
+    + r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1000, open: true, all: false })" actions=[Click]
+    - r.0.0.0.0.1.1 TextRun "" value="1000, open: false, all: false })"
+    + r.0.0.0.0.1.1 TextRun "" value="1000, open: true, all: false })"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0 TreeItem "Warm" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0 TreeItem "Warm"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0 TreeItem "Warm"
+    - r.0.0.0.0.0.0.0.0.0 TreeItem "Warm" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.1 Button "Collapse Warm" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.0.1 TreeItem "Preset 1" description="Preset 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.2 TreeItem "Preset 2" description="Preset 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.3 TreeItem "Preset 3" description="Preset 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.4 TreeItem "Preset 4" description="Preset 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.5 TreeItem "Preset 5" description="Preset 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.6 TreeItem "Preset 6" description="Preset 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0 TreeItem "Warm" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.1 Button "Expand Warm" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1000, open: true, all: false })" actions=[Click]
+    + r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1000, open: false, all: false })" actions=[Click]
+    - r.0.0.0.0.1.1 TextRun "" value="1000, open: true, all: false })"
+    + r.0.0.0.0.1.1 TextRun "" value="1000, open: false, all: false })"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.0.0.0.0.0 TreeItem "Warm" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.1 Button "Expand Warm" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0 TreeItem "Warm" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.1 Button "Collapse Warm" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.0.1 TreeItem "Preset 1" description="Preset 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.2 TreeItem "Preset 2" description="Preset 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.3 TreeItem "Preset 3" description="Preset 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.4 TreeItem "Preset 4" description="Preset 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.5 TreeItem "Preset 5" description="Preset 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.6 TreeItem "Preset 6" description="Preset 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1000, open: false, all: false })" actions=[Click]
+    + r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1000, open: true, all: false })" actions=[Click]
+    - r.0.0.0.0.1.1 TextRun "" value="1000, open: false, all: false })"
+    + r.0.0.0.0.1.1 TextRun "" value="1000, open: true, all: false })"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0 TreeItem "Warm" -> r.0.0.0.0.0.0.0.1 TreeItem "Preset 1"
+  ArrowUp: no change
+  ArrowLeft:
+    - r.0.0.0.0.0.0.0.0.0 TreeItem "Warm" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.1 Button "Collapse Warm" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.0.1 TreeItem "Preset 1" description="Preset 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.2 TreeItem "Preset 2" description="Preset 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.3 TreeItem "Preset 3" description="Preset 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.4 TreeItem "Preset 4" description="Preset 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.5 TreeItem "Preset 5" description="Preset 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.6 TreeItem "Preset 6" description="Preset 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0 TreeItem "Warm" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.1 Button "Expand Warm" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1000, open: true, all: false })" actions=[Click]
+    + r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1000, open: false, all: false })" actions=[Click]
+    - r.0.0.0.0.1.1 TextRun "" value="1000, open: true, all: false })"
+    + r.0.0.0.0.1.1 TextRun "" value="1000, open: false, all: false })"
+  ArrowRight:
+    - r.0.0.0.0.0.0.0.0.0 TreeItem "Warm" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.1 Button "Expand Warm" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0 TreeItem "Warm" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.1 Button "Collapse Warm" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.0.1 TreeItem "Preset 1" description="Preset 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.2 TreeItem "Preset 2" description="Preset 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.3 TreeItem "Preset 3" description="Preset 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.4 TreeItem "Preset 4" description="Preset 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.5 TreeItem "Preset 5" description="Preset 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.6 TreeItem "Preset 6" description="Preset 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1000, open: false, all: false })" actions=[Click]
+    + r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1000, open: true, all: false })" actions=[Click]
+    - r.0.0.0.0.1.1 TextRun "" value="1000, open: false, all: false })"
+    + r.0.0.0.0.1.1 TextRun "" value="1000, open: true, all: false })"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0 TreeItem "Warm" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.1 Button "Collapse Warm"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0 TreeItem "Warm"
+    - r.0.0.0.0.0.0.0.0.0 TreeItem "Warm" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.1 Button "Collapse Warm" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.0.1 TreeItem "Preset 1" description="Preset 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.2 TreeItem "Preset 2" description="Preset 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.3 TreeItem "Preset 3" description="Preset 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.4 TreeItem "Preset 4" description="Preset 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.5 TreeItem "Preset 5" description="Preset 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.6 TreeItem "Preset 6" description="Preset 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0 TreeItem "Warm" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.1 Button "Expand Warm" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1000, open: true, all: false })" actions=[Click]
+    + r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1000, open: false, all: false })" actions=[Click]
+    - r.0.0.0.0.1.1 TextRun "" value="1000, open: true, all: false })"
+    + r.0.0.0.0.1.1 TextRun "" value="1000, open: false, all: false })"
+  Escape: node gone
+drive r.0.0.0.0.0.0.0.1 TreeItem "Preset 1"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.2 TreeItem "Preset 2"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.3 TreeItem "Preset 3"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.4 TreeItem "Preset 4"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.5 TreeItem "Preset 5"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.6 TreeItem "Preset 6"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.7.0 TreeItem "Cool"
+  click:
+    focus: r.0.0.0.0.0.0.0.0.0 TreeItem "Warm" -> r.0.0.0.0.0.0.0.1.0 TreeItem "Cool"
+    - r.0.0.0.0.0.0.0.1.0 TreeItem "Cool" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.1.1 Button "Collapse Cool" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.0.2 TreeItem "Preset 7" description="Preset 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.3 TreeItem "Preset 8" description="Preset 8" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.4 TreeItem "Preset 9" description="Preset 9" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.5 TreeItem "Preset 10" description="Preset 10" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.6 TreeItem "Preset 11" description="Preset 11" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.7 TreeItem "Preset 12" description="Preset 12" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.1.0 TreeItem "Cool" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.1.1 Button "Expand Cool" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1000, open: false, all: false })" actions=[Click]
+    + r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1001, open: false, all: false })" actions=[Click]
+    - r.0.0.0.0.1.1 TextRun "" value="1000, open: false, all: false })"
+    + r.0.0.0.0.1.1 TextRun "" value="1001, open: false, all: false })"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.0.0.0.1.0 TreeItem "Cool" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.1.1 Button "Expand Cool" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.1.0 TreeItem "Cool" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.1.1 Button "Collapse Cool" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.0.2 TreeItem "Preset 7" description="Preset 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.3 TreeItem "Preset 8" description="Preset 8" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.4 TreeItem "Preset 9" description="Preset 9" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.5 TreeItem "Preset 10" description="Preset 10" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.6 TreeItem "Preset 11" description="Preset 11" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.7 TreeItem "Preset 12" description="Preset 12" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1001, open: false, all: false })" actions=[Click]
+    + r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1001, open: true, all: false })" actions=[Click]
+    - r.0.0.0.0.1.1 TextRun "" value="1001, open: false, all: false })"
+    + r.0.0.0.0.1.1 TextRun "" value="1001, open: true, all: false })"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.1.0 TreeItem "Cool" -> r.0.0.0.0.0.0.0.2 TreeItem "Preset 7"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.1.0 TreeItem "Cool" -> r.0.0.0.0.0.0.0.0.0 TreeItem "Warm"
+  ArrowLeft:
+    - r.0.0.0.0.0.0.0.1.0 TreeItem "Cool" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.1.1 Button "Collapse Cool" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.0.2 TreeItem "Preset 7" description="Preset 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.3 TreeItem "Preset 8" description="Preset 8" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.4 TreeItem "Preset 9" description="Preset 9" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.5 TreeItem "Preset 10" description="Preset 10" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.6 TreeItem "Preset 11" description="Preset 11" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.7 TreeItem "Preset 12" description="Preset 12" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.1.0 TreeItem "Cool" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.1.1 Button "Expand Cool" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1001, open: true, all: false })" actions=[Click]
+    + r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1001, open: false, all: false })" actions=[Click]
+    - r.0.0.0.0.1.1 TextRun "" value="1001, open: true, all: false })"
+    + r.0.0.0.0.1.1 TextRun "" value="1001, open: false, all: false })"
+  ArrowRight:
+    - r.0.0.0.0.0.0.0.1.0 TreeItem "Cool" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.1.1 Button "Expand Cool" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.1.0 TreeItem "Cool" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.1.1 Button "Collapse Cool" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.0.2 TreeItem "Preset 7" description="Preset 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.3 TreeItem "Preset 8" description="Preset 8" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.4 TreeItem "Preset 9" description="Preset 9" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.5 TreeItem "Preset 10" description="Preset 10" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.6 TreeItem "Preset 11" description="Preset 11" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.7 TreeItem "Preset 12" description="Preset 12" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1001, open: false, all: false })" actions=[Click]
+    + r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1001, open: true, all: false })" actions=[Click]
+    - r.0.0.0.0.1.1 TextRun "" value="1001, open: false, all: false })"
+    + r.0.0.0.0.1.1 TextRun "" value="1001, open: true, all: false })"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.1.0 TreeItem "Cool" -> r Window ""
+drive r.0.0.0.0.0.0.0.7.1 Button "Collapse Cool"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.1.0 TreeItem "Cool"
+    - r.0.0.0.0.0.0.0.1.0 TreeItem "Cool" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.1.1 Button "Collapse Cool" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.0.2 TreeItem "Preset 7" description="Preset 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.3 TreeItem "Preset 8" description="Preset 8" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.4 TreeItem "Preset 9" description="Preset 9" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.5 TreeItem "Preset 10" description="Preset 10" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.6 TreeItem "Preset 11" description="Preset 11" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.7 TreeItem "Preset 12" description="Preset 12" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.1.0 TreeItem "Cool" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.1.1 Button "Expand Cool" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1001, open: true, all: false })" actions=[Click]
+    + r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1001, open: false, all: false })" actions=[Click]
+    - r.0.0.0.0.1.1 TextRun "" value="1001, open: true, all: false })"
+    + r.0.0.0.0.1.1 TextRun "" value="1001, open: false, all: false })"
+  Escape: node gone
+drive r.0.0.0.0.0.0.0.8 TreeItem "Preset 7"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.9 TreeItem "Preset 8"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.10 TreeItem "Preset 9"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.11 TreeItem "Preset 10"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.12 TreeItem "Preset 11"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.13 TreeItem "Preset 12"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.14.0 TreeItem "Locked"
+  click:
+    focus: r.0.0.0.0.0.0.0.1.0 TreeItem "Cool" -> r.0.0.0.0.0.0.0.2.0 TreeItem "Locked"
+    - r.0.0.0.0.0.0.0.2.0 TreeItem "Locked" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.2.1 Button "Collapse Locked" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.0.3 TreeItem "Preset 13" description="Preset 13" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.4 TreeItem "Preset 14" description="Preset 14" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.5 TreeItem "Preset 15" description="Preset 15" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.6 TreeItem "Preset 16" description="Preset 16" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.7 TreeItem "Preset 17" description="Preset 17" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.8 TreeItem "Preset 18" description="Preset 18" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1001, open: false, all: false })" actions=[Click]
+    + r.0.0.0.0.0.0.0.2.0 TreeItem "Locked" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.2.1 Button "Expand Locked" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1002, open: false, all: false })" actions=[Click]
+    - r.0.0.0.0.1.1 TextRun "" value="1001, open: false, all: false })"
+    + r.0.0.0.0.1.1 TextRun "" value="1002, open: false, all: false })"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.0.0.0.2.0 TreeItem "Locked" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.2.1 Button "Expand Locked" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1002, open: false, all: false })" actions=[Click]
+    + r.0.0.0.0.0.0.0.2.0 TreeItem "Locked" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.2.1 Button "Collapse Locked" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.0.3 TreeItem "Preset 13" description="Preset 13" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.4 TreeItem "Preset 14" description="Preset 14" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.5 TreeItem "Preset 15" description="Preset 15" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.6 TreeItem "Preset 16" description="Preset 16" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.7 TreeItem "Preset 17" description="Preset 17" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.8 TreeItem "Preset 18" description="Preset 18" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1002, open: true, all: false })" actions=[Click]
+    - r.0.0.0.0.1.1 TextRun "" value="1002, open: false, all: false })"
+    + r.0.0.0.0.1.1 TextRun "" value="1002, open: true, all: false })"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.2.0 TreeItem "Locked" -> r.0.0.0.0.0.0.0.3 TreeItem "Preset 13"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.2.0 TreeItem "Locked" -> r.0.0.0.0.0.0.0.1.0 TreeItem "Cool"
+  ArrowLeft:
+    - r.0.0.0.0.0.0.0.2.0 TreeItem "Locked" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.2.1 Button "Collapse Locked" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.0.3 TreeItem "Preset 13" description="Preset 13" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.4 TreeItem "Preset 14" description="Preset 14" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.5 TreeItem "Preset 15" description="Preset 15" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.6 TreeItem "Preset 16" description="Preset 16" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.7 TreeItem "Preset 17" description="Preset 17" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.8 TreeItem "Preset 18" description="Preset 18" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1002, open: true, all: false })" actions=[Click]
+    + r.0.0.0.0.0.0.0.2.0 TreeItem "Locked" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.2.1 Button "Expand Locked" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1002, open: false, all: false })" actions=[Click]
+    - r.0.0.0.0.1.1 TextRun "" value="1002, open: true, all: false })"
+    + r.0.0.0.0.1.1 TextRun "" value="1002, open: false, all: false })"
+  ArrowRight:
+    - r.0.0.0.0.0.0.0.2.0 TreeItem "Locked" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.2.1 Button "Expand Locked" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1002, open: false, all: false })" actions=[Click]
+    + r.0.0.0.0.0.0.0.2.0 TreeItem "Locked" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.2.1 Button "Collapse Locked" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.0.3 TreeItem "Preset 13" description="Preset 13" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.4 TreeItem "Preset 14" description="Preset 14" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.5 TreeItem "Preset 15" description="Preset 15" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.6 TreeItem "Preset 16" description="Preset 16" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.7 TreeItem "Preset 17" description="Preset 17" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.8 TreeItem "Preset 18" description="Preset 18" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1002, open: true, all: false })" actions=[Click]
+    - r.0.0.0.0.1.1 TextRun "" value="1002, open: false, all: false })"
+    + r.0.0.0.0.1.1 TextRun "" value="1002, open: true, all: false })"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.2.0 TreeItem "Locked" -> r Window ""
+drive r.0.0.0.0.0.0.0.14.1 Button "Collapse Locked"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.2.0 TreeItem "Locked"
+    - r.0.0.0.0.0.0.0.2.0 TreeItem "Locked" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.2.1 Button "Collapse Locked" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.0.3 TreeItem "Preset 13" description="Preset 13" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.4 TreeItem "Preset 14" description="Preset 14" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.5 TreeItem "Preset 15" description="Preset 15" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.6 TreeItem "Preset 16" description="Preset 16" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.7 TreeItem "Preset 17" description="Preset 17" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.8 TreeItem "Preset 18" description="Preset 18" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1002, open: true, all: false })" actions=[Click]
+    + r.0.0.0.0.0.0.0.2.0 TreeItem "Locked" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.2.1 Button "Expand Locked" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.1 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1002, open: false, all: false })" actions=[Click]
+    - r.0.0.0.0.1.1 TextRun "" value="1002, open: true, all: false })"
+    + r.0.0.0.0.1.1 TextRun "" value="1002, open: false, all: false })"
+  Escape: node gone
+drive r.0.0.0.0.0.0.0.15 TreeItem "Preset 13"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.16 TreeItem "Preset 14"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.17 TreeItem "Preset 15"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.18 TreeItem "Preset 16"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.19 TreeItem "Preset 17"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.20 TreeItem "Preset 18"
+  all steps: node gone
+drive r.0.0.0.0.1 Label ""
+  click:
+    focus: r.0.0.0.0.0.0.0.2.0 TreeItem "Locked" -> r Window ""
+  Escape: no change

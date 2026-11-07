@@ -1,0 +1,82 @@
+story patterns/shell/status-readout
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Group "Status bar"
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 SpinButton "Zoom" value="100%" number=100 in 0.01..100000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                  r.0.0.0.0.0.0.0.0.0 TextRun "" value="100"
+              r.0.0.0.0.0.0.1 Label "" value="Doc: 24.9M/71.0M" actions=[Click]
+                r.0.0.0.0.0.0.1.0 TextRun "" value="Doc: 24.9M/71.0M"
+              r.0.0.0.0.0.0.2 Button "Show" description="Show" [collapsed popup:Menu] actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0 SpinButton "Zoom"
+  2: r.0.0.0.0.0.0.2 Button "Show"
+  3: r.0.0.0.0.0.0.0.0 SpinButton "Zoom"
+  cycle after 2 nodes
+drive: 3 actionable nodes
+drive r.0.0.0.0.0.0.0.0 SpinButton "Zoom"
+  click: no change
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.0.0 SpinButton "Zoom" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.0 SpinButton "Zoom" value="100%" number=100 in 0.01..100000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0 TextRun "" value="100"
+    + r.0.0.0.0.0.0.0.0 SpinButton "Zoom" value="101%" number=101 in 0.01..100000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0 TextRun "" value="101"
+  ArrowDown:
+    - r.0.0.0.0.0.0.0.0 SpinButton "Zoom" value="101%" number=101 in 0.01..100000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0 TextRun "" value="101"
+    + r.0.0.0.0.0.0.0.0 SpinButton "Zoom" value="100%" number=100 in 0.01..100000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0 TextRun "" value="100"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0 SpinButton "Zoom" -> r Window ""
+drive r.0.0.0.0.0.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.2 Button "Show"
+  click:
+    - r.0.0.0.0.0.0.2 Button "Show" description="Show" [collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2 Button "Show" description="Show" [expanded popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0 Menu ""
+    + r.0.0.0.0.0.0.2.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.2.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.2.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.2.0.0.0.0.0 MenuItemRadio "Document Sizes" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.1 MenuItemRadio "Document Profile" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.2 MenuItemRadio "Document Dimensions" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.3 MenuItemRadio "Measurement Scale" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.4 MenuItemRadio "Scratch Sizes" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.5 MenuItemRadio "Efficiency" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.6 MenuItemRadio "Timing" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.7 MenuItemRadio "Current Tool" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.8 MenuItemRadio "Layer Count" [unchecked] actions=[Click]
+  Space: no change
+  Enter: no change
+  Escape:
+    - r.0.0.0.0.0.0.2 Button "Show" description="Show" [expanded popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0 Menu ""
+    - r.0.0.0.0.0.0.2.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.2.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.2.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.2.0.0.0.0.0 MenuItemRadio "Document Sizes" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.1 MenuItemRadio "Document Profile" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.2 MenuItemRadio "Document Dimensions" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.3 MenuItemRadio "Measurement Scale" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.4 MenuItemRadio "Scratch Sizes" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.5 MenuItemRadio "Efficiency" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.6 MenuItemRadio "Timing" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.7 MenuItemRadio "Current Tool" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.8 MenuItemRadio "Layer Count" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.2 Button "Show" description="Show" [collapsed popup:Menu] actions=[Click,Focus]

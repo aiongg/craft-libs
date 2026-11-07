@@ -1,0 +1,109 @@
+story patterns/dialog/new-guide
+args
+  open = Bool(true)
+  ruler = Choice { options: ["pixels", "inches", "millimetres"], index: 0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+  r.1 Dialog "New Guide"
+    r.1.0 GenericContainer ""
+    r.1.1 GenericContainer ""
+      r.1.1.0 GenericContainer ""
+        r.1.1.0.0 GenericContainer ""
+          r.1.1.0.0.0 GenericContainer ""
+            r.1.1.0.0.0.0 GenericContainer ""
+              r.1.1.0.0.0.0.0 Heading "New Guide" value="New Guide"
+            r.1.1.0.0.0.1 Button "Close" description="Close" actions=[Click,Focus]
+            r.1.1.0.0.0.2 GenericContainer ""
+              r.1.1.0.0.0.2.0 GenericContainer ""
+                r.1.1.0.0.0.2.0.0 GenericContainer ""
+                  r.1.1.0.0.0.2.0.0.0 GenericContainer ""
+                    r.1.1.0.0.0.2.0.0.0.0 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.0.0.0 Label "" value="Orientation"
+                    r.1.1.0.0.0.2.0.0.0.1 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.0.1.0 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.0.1.0.0 RadioGroup "Orientation"
+                          r.1.1.0.0.0.2.0.0.0.1.0.0.0 RadioButton "Orientation" labelled_by=[r.1.1.0.0.0.2.0.0.0.0.0] [checked] actions=[Click,Focus]
+                          r.1.1.0.0.0.2.0.0.0.1.0.0.1 RadioButton "Vertical" [unchecked] actions=[Click,Focus]
+                    r.1.1.0.0.0.2.0.0.0.2 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.0.2.0 Label "" value="Position"
+                    r.1.1.0.0.0.2.0.0.0.3 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.0.3.0 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.0.3.0.0 SpinButton "Position" value="0 px" number=0 in -1000000..1000000 step 1 labelled_by=[r.1.1.0.0.0.2.0.0.0.2.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                          r.1.1.0.0.0.2.0.0.0.3.0.0.0 TextRun "" value="0"
+                    r.1.1.0.0.0.2.0.0.0.4 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.0.4.0 Label "" value="Color"
+                    r.1.1.0.0.0.2.0.0.0.5 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.0.5.0 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.0.5.0.0 ComboBox "Color" value="Cyan" labelled_by=[r.1.1.0.0.0.2.0.0.0.4.0] [collapsed popup:Listbox] actions=[Click,Focus]
+              r.1.1.0.0.0.2.1 GenericContainer ""
+              r.1.1.0.0.0.2.2 GenericContainer ""
+                r.1.1.0.0.0.2.2.0 Button "OK" description="Default" actions=[Click,Focus]
+                r.1.1.0.0.0.2.2.1 Button "Cancel" actions=[Click,Focus]
+tab
+  start: r.1.1.0.0.0.2.0.0.0.3.0.0 SpinButton "Position"
+  1: r.1.1.0.0.0.2.2.0 Button "OK"
+  2: r.1.1.0.0.0.2.2.1 Button "Cancel"
+  3: r.1.1.0.0.0.2.0.0.0.3.0.0 SpinButton "Position"
+  4: r.1.1.0.0.0.2.2.0 Button "OK"
+  cycle after 3 nodes
+drive: 7 actionable nodes
+drive r.1.1.0.0.0.1 Button "Close"
+  click:
+    focus: r.1.1.0.0.0.2.2.0 Button "OK" -> r Window ""
+    arg open: Bool(true) -> Bool(false)
+    - r.1 Dialog "New Guide"
+    - r.1.0 GenericContainer ""
+    - r.1.1 GenericContainer ""
+    - r.1.1.0 GenericContainer ""
+    - r.1.1.0.0 GenericContainer ""
+    - r.1.1.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0.0 Heading "New Guide" value="New Guide"
+    - r.1.1.0.0.0.1 Button "Close" description="Close" actions=[Click,Focus]
+    - r.1.1.0.0.0.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.0 Label "" value="Orientation"
+    - r.1.1.0.0.0.2.0.0.0.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.0.0 RadioGroup "Orientation"
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.0 RadioButton "Orientation" labelled_by=[r.1.1.0.0.0.2.0.0.0.0.0] [checked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.1 RadioButton "Vertical" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.2.0 Label "" value="Position"
+    - r.1.1.0.0.0.2.0.0.0.3 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.3.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.3.0.0 SpinButton "Position" value="0 px" number=0 in -1000000..1000000 step 1 labelled_by=[r.1.1.0.0.0.2.0.0.0.2.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.0.3.0.0.0 TextRun "" value="0"
+    - r.1.1.0.0.0.2.0.0.0.4 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.4.0 Label "" value="Color"
+    - r.1.1.0.0.0.2.0.0.0.5 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.5.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.5.0.0 ComboBox "Color" value="Cyan" labelled_by=[r.1.1.0.0.0.2.0.0.0.4.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.1 GenericContainer ""
+    - r.1.1.0.0.0.2.2 GenericContainer ""
+    - r.1.1.0.0.0.2.2.0 Button "OK" description="Default" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.2.1 Button "Cancel" actions=[Click,Focus]
+    + r.0.0.0.0.0 Label "" value="Result: Cancel" actions=[Click]
+    + r.0.0.0.0.0.0 TextRun "" value="Result: Cancel"
+  Space: node gone
+  Enter: node gone
+  Escape: node gone
+drive r.1.1.0.0.0.2.0.0.0.1.0.0.0 RadioButton "Orientation"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.1.0.0.1 RadioButton "Vertical"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.3.0.0 SpinButton "Position"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.5.0.0 ComboBox "Color"
+  all steps: node gone
+drive r.1.1.0.0.0.2.2.0 Button "OK"
+  all steps: node gone
+drive r.1.1.0.0.0.2.2.1 Button "Cancel"
+  all steps: node gone

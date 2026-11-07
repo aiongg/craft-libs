@@ -1,0 +1,119 @@
+story composites/tab/states
+args
+  large = Bool(false)
+  dividers = Bool(true)
+  width = Number { value: 180.0, min: 40.0, max: 320.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Tab "Inactive" [unselected] actions=[Click]
+          r.0.0.0.0.1 Tab "Active" [selected] actions=[Click]
+            r.0.0.0.0.1.0 GenericContainer ""
+              r.0.0.0.0.1.0.0 Button "Close Active" actions=[Click]
+          r.0.0.0.0.2 Tab "Modified, modified" [unselected] actions=[Click]
+            r.0.0.0.0.2.0 GenericContainer ""
+              r.0.0.0.0.2.0.0 Button "Close Modified" actions=[Click]
+          r.0.0.0.0.3 Tab "Detail, RGB/8" [unselected] actions=[Click]
+            r.0.0.0.0.3.0 GenericContainer ""
+              r.0.0.0.0.3.0.0 Button "Close Detail" actions=[Click]
+          r.0.0.0.0.4 Tab "Photo, RGB/8, modified" [selected] actions=[Click]
+            r.0.0.0.0.4.0 GenericContainer ""
+              r.0.0.0.0.4.0.0 Button "Close Photo" actions=[Click]
+          r.0.0.0.0.5 Tab "Opening" [unselected] actions=[Click]
+            r.0.0.0.0.5.0 GenericContainer ""
+              r.0.0.0.0.5.0.0 Button "Close Opening" actions=[Click]
+          r.0.0.0.0.6 Tab "A title too long for the tab to show whole, 50%" description="A title too long for the tab to show whole, 50%" [unselected] actions=[Click]
+            r.0.0.0.0.6.0 GenericContainer ""
+              r.0.0.0.0.6.0.0 Button "Close A title too long for the tab to show whole" actions=[Click]
+          r.0.0.0.0.7 Tab "Drop target" [unselected] actions=[Click]
+          r.0.0.0.0.8 Tab "Keyboard focus" [unselected] actions=[Click]
+tab
+  start: r Window ""
+  1: r Window ""
+  2: r Window ""
+  cycle after 1 nodes
+drive: 15 actionable nodes
+drive r.0.0.0.0.0 Tab "Inactive"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.1 Tab "Active"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.1.0.0 Button "Close Active"
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.2 Tab "Modified, modified"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.2.0.0 Button "Close Modified"
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.3 Tab "Detail, RGB/8"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.3.0.0 Button "Close Detail"
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.4 Tab "Photo, RGB/8, modified"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.4.0.0 Button "Close Photo"
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.5 Tab "Opening"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.5.0.0 Button "Close Opening"
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.6 Tab "A title too long for the tab to show whole, 50%"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.6.0.0 Button "Close A title too long for the tab to show whole"
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.7 Tab "Drop target"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.8 Tab "Keyboard focus"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change

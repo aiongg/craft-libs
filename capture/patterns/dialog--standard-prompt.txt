@@ -1,0 +1,69 @@
+story patterns/dialog/standard-prompt
+args
+  open = Bool(true)
+  kind = Choice { options: ["confirmdelete", "damagedfile", "changedondisk", "replacefile", "trashmask", "trashvectormask", "rasterize", "gpuwarning", "unsaved"], index: 0 }
+  several documents = Bool(false)
+  alternate form = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+  r.1 Dialog "Delete"
+    r.1.0 GenericContainer ""
+    r.1.1 GenericContainer ""
+      r.1.1.0 GenericContainer ""
+        r.1.1.0.0 GenericContainer ""
+          r.1.1.0.0.0 GenericContainer ""
+            r.1.1.0.0.0.0 GenericContainer ""
+              r.1.1.0.0.0.0.0 Heading "Delete" value="Delete"
+            r.1.1.0.0.0.1 Button "Close" description="Close" actions=[Click,Focus]
+            r.1.1.0.0.0.2 GenericContainer ""
+              r.1.1.0.0.0.2.0 GenericContainer ""
+                r.1.1.0.0.0.2.0.0 GenericContainer ""
+                  r.1.1.0.0.0.2.0.0.0 Label "" value="Delete Background?" actions=[Click]
+                    r.1.1.0.0.0.2.0.0.0.0 TextRun "" value="Delete Background?"
+              r.1.1.0.0.0.2.1 GenericContainer ""
+                r.1.1.0.0.0.2.1.0 Button "(D)elete" description="Default" shortcut="D" actions=[Click,Focus]
+                r.1.1.0.0.0.2.1.1 Button "(C)ancel" shortcut="C" actions=[Click,Focus]
+tab
+  start: r.1.1.0.0.0.2.1.0 Button "(D)elete"
+  1: r.1.1.0.0.0.2.1.1 Button "(C)ancel"
+  2: r.1.1.0.0.0.2.1.0 Button "(D)elete"
+  3: r.1.1.0.0.0.2.1.1 Button "(C)ancel"
+  cycle after 2 nodes
+drive: 4 actionable nodes
+drive r.1.1.0.0.0.1 Button "Close"
+  click:
+    focus: r.1.1.0.0.0.2.1.1 Button "(C)ancel" -> r Window ""
+    arg open: Bool(true) -> Bool(false)
+    - r.1 Dialog "Delete"
+    - r.1.0 GenericContainer ""
+    - r.1.1 GenericContainer ""
+    - r.1.1.0 GenericContainer ""
+    - r.1.1.0.0 GenericContainer ""
+    - r.1.1.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0.0 Heading "Delete" value="Delete"
+    - r.1.1.0.0.0.1 Button "Close" description="Close" actions=[Click,Focus]
+    - r.1.1.0.0.0.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0 Label "" value="Delete Background?" actions=[Click]
+    - r.1.1.0.0.0.2.0.0.0.0 TextRun "" value="Delete Background?"
+    - r.1.1.0.0.0.2.1 GenericContainer ""
+    - r.1.1.0.0.0.2.1.0 Button "(D)elete" description="Default" shortcut="D" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.1.1 Button "(C)ancel" shortcut="C" actions=[Click,Focus]
+    + r.0.0.0.0.0 Label "" value="Result: PromptAnswer { choice: Cancel, tag: false }" actions=[Click]
+    + r.0.0.0.0.0.0 TextRun "" value="Result: PromptAnswer { choice: Cancel, tag: false }"
+  Space: node gone
+  Enter: node gone
+  Escape: node gone
+drive r.1.1.0.0.0.2.0.0.0 Label ""
+  click: no change
+  Escape: no change
+drive r.1.1.0.0.0.2.1.0 Button "(D)elete"
+  all steps: node gone
+drive r.1.1.0.0.0.2.1.1 Button "(C)ancel"
+  all steps: node gone

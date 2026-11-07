@@ -1,0 +1,49 @@
+story controls/link/alone
+args
+  label = Text("Show all shortcuts")
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 Link "Show all shortcuts" actions=[Click,Focus]
+              r.0.0.0.0.0.0.1 Link "Privacy policy" actions=[Click,Focus]
+              r.0.0.0.0.0.0.2 Label "" value="Clicked 0 times" actions=[Click]
+                r.0.0.0.0.0.0.2.0 TextRun "" value="Clicked 0 times"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0 Link "Show all shortcuts"
+  2: r.0.0.0.0.0.0.1 Link "Privacy policy"
+  3: r.0.0.0.0.0.0.0 Link "Show all shortcuts"
+  cycle after 2 nodes
+drive: 3 actionable nodes
+drive r.0.0.0.0.0.0.0 Link "Show all shortcuts"
+  click:
+    - r.0.0.0.0.0.0.2 Label "" value="Clicked 0 times" actions=[Click]
+    - r.0.0.0.0.0.0.2.0 TextRun "" value="Clicked 0 times"
+    + r.0.0.0.0.0.0.2 Label "" value="Clicked 1 times" actions=[Click]
+    + r.0.0.0.0.0.0.2.0 TextRun "" value="Clicked 1 times"
+  Space:
+    - r.0.0.0.0.0.0.2 Label "" value="Clicked 1 times" actions=[Click]
+    - r.0.0.0.0.0.0.2.0 TextRun "" value="Clicked 1 times"
+    + r.0.0.0.0.0.0.2 Label "" value="Clicked 2 times" actions=[Click]
+    + r.0.0.0.0.0.0.2.0 TextRun "" value="Clicked 2 times"
+  Enter:
+    - r.0.0.0.0.0.0.2 Label "" value="Clicked 2 times" actions=[Click]
+    - r.0.0.0.0.0.0.2.0 TextRun "" value="Clicked 2 times"
+    + r.0.0.0.0.0.0.2 Label "" value="Clicked 3 times" actions=[Click]
+    + r.0.0.0.0.0.0.2.0 TextRun "" value="Clicked 3 times"
+  Escape:
+    focus: r.0.0.0.0.0.0.0 Link "Show all shortcuts" -> r Window ""
+drive r.0.0.0.0.0.0.1 Link "Privacy policy"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.1 Link "Privacy policy" -> r Window ""
+drive r.0.0.0.0.0.0.2 Label ""
+  click: no change
+  Escape: no change

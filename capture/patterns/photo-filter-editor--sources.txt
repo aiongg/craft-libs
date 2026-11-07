@@ -1,0 +1,339 @@
+story patterns/photo-filter-editor/sources
+args
+  dialog = Bool(true)
+  dynamic_colors = Bool(true)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Label "" value="A filter preset" actions=[Click]
+              r.0.0.0.0.0.0.0 TextRun "" value="A filter preset"
+            r.0.0.0.0.0.1 GenericContainer ""
+              r.0.0.0.0.0.1.0 GenericContainer ""
+                r.0.0.0.0.0.1.0.0 RadioGroup "Filter"
+                  r.0.0.0.0.0.1.0.0.0 GenericContainer ""
+                    r.0.0.0.0.0.1.0.0.0.0 RadioButton "Filter" [checked] actions=[Click,Focus]
+                  r.0.0.0.0.0.1.0.0.1 GenericContainer ""
+                    r.0.0.0.0.0.1.0.0.1.0 RadioButton "Color" [unchecked] actions=[Click,Focus]
+                r.0.0.0.0.0.1.0.1 GenericContainer ""
+                  r.0.0.0.0.0.1.0.1.0 ComboBox "Filter" value="Sepia" [collapsed popup:Listbox] actions=[Click,Focus]
+                r.0.0.0.0.0.1.0.2 GenericContainer ""
+                  r.0.0.0.0.0.1.0.2.0 ColorWell "Filter Color" value="#ac7a33" [disabled unselected] actions=[Click,Focus]
+                r.0.0.0.0.0.1.0.3 GenericContainer ""
+                  r.0.0.0.0.0.1.0.3.0 GenericContainer ""
+                    r.0.0.0.0.0.1.0.3.0.0 Label "" value="Density"
+                  r.0.0.0.0.0.1.0.3.1 GenericContainer ""
+                    r.0.0.0.0.0.1.0.3.1.0 SpinButton "Density" value="25%" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                      r.0.0.0.0.0.1.0.3.1.0.0 TextRun "" value="25"
+                  r.0.0.0.0.0.1.0.3.2 Slider "Density" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Focus,Decrement,Increment,SetValue]
+                r.0.0.0.0.0.1.0.4 CheckBox "Preserve Luminosity" [checked] actions=[Click,Focus]
+          r.0.0.0.0.1 GenericContainer ""
+            r.0.0.0.0.1.0 Label "" value="A custom color" actions=[Click]
+              r.0.0.0.0.1.0.0 TextRun "" value="A custom color"
+            r.0.0.0.0.1.1 GenericContainer ""
+              r.0.0.0.0.1.1.0 GenericContainer ""
+                r.0.0.0.0.1.1.0.0 RadioGroup "Filter"
+                  r.0.0.0.0.1.1.0.0.0 GenericContainer ""
+                    r.0.0.0.0.1.1.0.0.0.0 RadioButton "Filter" [unchecked] actions=[Click,Focus]
+                  r.0.0.0.0.1.1.0.0.1 GenericContainer ""
+                    r.0.0.0.0.1.1.0.0.1.0 RadioButton "Color" [checked] actions=[Click,Focus]
+                r.0.0.0.0.1.1.0.1 GenericContainer ""
+                  r.0.0.0.0.1.1.0.1.0 ComboBox "Filter" value="Custom" [disabled collapsed popup:Listbox] actions=[Click,Focus]
+                r.0.0.0.0.1.1.0.2 GenericContainer ""
+                  r.0.0.0.0.1.1.0.2.0 ColorWell "Filter Color" value="#339980" [unselected] actions=[Click,Focus]
+                r.0.0.0.0.1.1.0.3 GenericContainer ""
+                  r.0.0.0.0.1.1.0.3.0 GenericContainer ""
+                    r.0.0.0.0.1.1.0.3.0.0 Label "" value="Density"
+                  r.0.0.0.0.1.1.0.3.1 GenericContainer ""
+                    r.0.0.0.0.1.1.0.3.1.0 SpinButton "Density" value="25%" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                      r.0.0.0.0.1.1.0.3.1.0.0 TextRun "" value="25"
+                  r.0.0.0.0.1.1.0.3.2 Slider "Density" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Focus,Decrement,Increment,SetValue]
+                r.0.0.0.0.1.1.0.4 CheckBox "Preserve Luminosity" [checked] actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.1.0.0.0.0 RadioButton "Filter"
+  2: r.0.0.0.0.0.1.0.1.0 ComboBox "Filter"
+  3: r.0.0.0.0.0.1.0.0.1.0 RadioButton "Color"
+  4: r.0.0.0.0.0.1.0.3.1.0 SpinButton "Density"
+  5: r.0.0.0.0.0.1.0.3.2 Slider "Density"
+  6: r.0.0.0.0.0.1.0.4 CheckBox "Preserve Luminosity"
+  7: r.0.0.0.0.1.1.0.0.0.0 RadioButton "Filter"
+  8: r.0.0.0.0.1.1.0.0.1.0 RadioButton "Color"
+  9: r.0.0.0.0.1.1.0.2.0 ColorWell "Filter Color"
+  10: r.0.0.0.0.1.1.0.3.1.0 SpinButton "Density"
+  11: r.0.0.0.0.1.1.0.3.2 Slider "Density"
+  12: r.0.0.0.0.1.1.0.4 CheckBox "Preserve Luminosity"
+  13: r.0.0.0.0.0.1.0.0.0.0 RadioButton "Filter"
+  cycle after 12 nodes
+drive: 14 actionable nodes
+drive r.0.0.0.0.0.0 Label ""
+  click:
+    focus: r.0.0.0.0.0.1.0.0.0.0 RadioButton "Filter" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.0.1.0.0.0.0 RadioButton "Filter"
+  click: no change
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.1.0.0.0.0 RadioButton "Filter" -> r.0.0.0.0.0.1.0.0.1.0 RadioButton "Color"
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.1.0.0.0.0 RadioButton "Filter" -> r.0.0.0.0.0.1.0.1.0 ComboBox "Filter"
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.0.0 RadioButton "Filter" -> r Window ""
+drive r.0.0.0.0.0.1.0.0.1.0 RadioButton "Color"
+  click:
+    - r.0.0.0.0.0.1.0.0.0.0 RadioButton "Filter" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0 RadioButton "Filter" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.1.0 RadioButton "Color" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.1.0 RadioButton "Color" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.1.0 ComboBox "Filter" value="Sepia" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.1.0 ComboBox "Filter" value="Sepia" [disabled collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.2.0 ColorWell "Filter Color" value="#ac7a33" [disabled unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.2.0 ColorWell "Filter Color" value="#ac7a33" [unselected] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.1.0.0.1.0 RadioButton "Color" -> r.0.0.0.0.0.1.0.3.2 Slider "Density"
+  ArrowUp:
+    focus: r.0.0.0.0.0.1.0.0.1.0 RadioButton "Color" -> r.0.0.0.0.0.1.0.0.0.0 RadioButton "Filter"
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.1.0.0.1.0 RadioButton "Color" -> r.0.0.0.0.0.1.0.2.0 ColorWell "Filter Color"
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.1.0 RadioButton "Color" -> r Window ""
+drive r.0.0.0.0.0.1.0.1.0 ComboBox "Filter"
+  click: no change
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.1.0.3.1.0 SpinButton "Density"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.1.0.3.1.0 SpinButton "Density"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.1.0.3.1.0 SpinButton "Density" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.1.0.3.1.0 SpinButton "Density" value="25%" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.3.1.0.0 TextRun "" value="25"
+    - r.0.0.0.0.0.1.0.3.2 Slider "Density" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.3.1.0 SpinButton "Density" value="26%" number=26 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.3.1.0.0 TextRun "" value="26"
+    + r.0.0.0.0.0.1.0.3.2 Slider "Density" number=26 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.0.1.0.3.1.0 SpinButton "Density" value="26%" number=26 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.3.1.0.0 TextRun "" value="26"
+    - r.0.0.0.0.0.1.0.3.2 Slider "Density" number=26 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.3.1.0 SpinButton "Density" value="25%" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.3.1.0.0 TextRun "" value="25"
+    + r.0.0.0.0.0.1.0.3.2 Slider "Density" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.0.3.1.0 SpinButton "Density" -> r Window ""
+drive r.0.0.0.0.0.1.0.3.2 Slider "Density"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.0.1.0.3.1.0 SpinButton "Density" value="25%" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.3.1.0.0 TextRun "" value="25"
+    - r.0.0.0.0.0.1.0.3.2 Slider "Density" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.3.1.0 SpinButton "Density" value="24%" number=24 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.3.1.0.0 TextRun "" value="24"
+    + r.0.0.0.0.0.1.0.3.2 Slider "Density" number=24 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowRight:
+    - r.0.0.0.0.0.1.0.3.1.0 SpinButton "Density" value="24%" number=24 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.3.1.0.0 TextRun "" value="24"
+    - r.0.0.0.0.0.1.0.3.2 Slider "Density" number=24 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.3.1.0 SpinButton "Density" value="25%" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.3.1.0.0 TextRun "" value="25"
+    + r.0.0.0.0.0.1.0.3.2 Slider "Density" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowUp:
+    - r.0.0.0.0.0.1.0.3.1.0 SpinButton "Density" value="25%" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.3.1.0.0 TextRun "" value="25"
+    - r.0.0.0.0.0.1.0.3.2 Slider "Density" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.3.1.0 SpinButton "Density" value="26%" number=26 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.3.1.0.0 TextRun "" value="26"
+    + r.0.0.0.0.0.1.0.3.2 Slider "Density" number=26 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.0.1.0.3.1.0 SpinButton "Density" value="26%" number=26 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.3.1.0.0 TextRun "" value="26"
+    - r.0.0.0.0.0.1.0.3.2 Slider "Density" number=26 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.3.1.0 SpinButton "Density" value="25%" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.3.1.0.0 TextRun "" value="25"
+    + r.0.0.0.0.0.1.0.3.2 Slider "Density" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home:
+    - r.0.0.0.0.0.1.0.3.1.0 SpinButton "Density" value="25%" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.3.1.0.0 TextRun "" value="25"
+    - r.0.0.0.0.0.1.0.3.2 Slider "Density" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.3.1.0 SpinButton "Density" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.3.1.0.0 TextRun "" value="0"
+    + r.0.0.0.0.0.1.0.3.2 Slider "Density" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Focus,Increment,SetValue]
+  End:
+    - r.0.0.0.0.0.1.0.3.1.0 SpinButton "Density" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.3.1.0.0 TextRun "" value="0"
+    - r.0.0.0.0.0.1.0.3.2 Slider "Density" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.3.1.0 SpinButton "Density" value="100%" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.3.1.0.0 TextRun "" value="100"
+    + r.0.0.0.0.0.1.0.3.2 Slider "Density" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.3.0.0] actions=[Focus,Decrement,SetValue]
+  Escape:
+    focus: r.0.0.0.0.0.1.0.3.2 Slider "Density" -> r Window ""
+drive r.0.0.0.0.0.1.0.4 CheckBox "Preserve Luminosity"
+  click:
+    - r.0.0.0.0.0.1.0.4 CheckBox "Preserve Luminosity" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.4 CheckBox "Preserve Luminosity" [unchecked] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.0.1.0.4 CheckBox "Preserve Luminosity" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.4 CheckBox "Preserve Luminosity" [checked] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.0.1.0.4 CheckBox "Preserve Luminosity" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.4 CheckBox "Preserve Luminosity" [unchecked] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.1.0.4 CheckBox "Preserve Luminosity" -> r Window ""
+drive r.0.0.0.0.1.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.1.1.0.0.0.0 RadioButton "Filter"
+  click:
+    - r.0.0.0.0.1.1.0.0.0.0 RadioButton "Filter" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.1.0.0.0.0 RadioButton "Filter" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1.1.0.0.1.0 RadioButton "Color" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.1.0.0.1.0 RadioButton "Color" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1.1.0.1.0 ComboBox "Filter" value="Custom" [disabled collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.1.0.1.0 ComboBox "Filter" value="Custom" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1.1.0.2.0 ColorWell "Filter Color" value="#339980" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.1.1.0.2.0 ColorWell "Filter Color" value="#339980" [disabled unselected] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.1.1.0.0.0.0 RadioButton "Filter" -> r.0.0.0.0.1.1.0.0.1.0 RadioButton "Color"
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.1.1.0.0.0.0 RadioButton "Filter" -> r.0.0.0.0.0.1.0.3.1.0 SpinButton "Density"
+  ArrowRight:
+    focus: r.0.0.0.0.1.1.0.0.0.0 RadioButton "Filter" -> r.0.0.0.0.1.1.0.1.0 ComboBox "Filter"
+  Escape:
+    focus: r.0.0.0.0.1.1.0.0.0.0 RadioButton "Filter" -> r Window ""
+drive r.0.0.0.0.1.1.0.0.1.0 RadioButton "Color"
+  click:
+    - r.0.0.0.0.1.1.0.0.0.0 RadioButton "Filter" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.1.0.0.0.0 RadioButton "Filter" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1.1.0.0.1.0 RadioButton "Color" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.1.0.0.1.0 RadioButton "Color" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1.1.0.1.0 ComboBox "Filter" value="Custom" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.1.0.1.0 ComboBox "Filter" value="Custom" [disabled collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1.1.0.2.0 ColorWell "Filter Color" value="#339980" [disabled unselected] actions=[Click,Focus]
+    + r.0.0.0.0.1.1.0.2.0 ColorWell "Filter Color" value="#339980" [unselected] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.1.1.0.0.1.0 RadioButton "Color" -> r.0.0.0.0.1.1.0.3.2 Slider "Density"
+  ArrowUp:
+    focus: r.0.0.0.0.1.1.0.0.1.0 RadioButton "Color" -> r.0.0.0.0.1.1.0.0.0.0 RadioButton "Filter"
+  ArrowLeft:
+    focus: r.0.0.0.0.1.1.0.0.1.0 RadioButton "Color" -> r.0.0.0.0.0.1.0.3.1.0 SpinButton "Density"
+  ArrowRight:
+    focus: r.0.0.0.0.1.1.0.0.1.0 RadioButton "Color" -> r.0.0.0.0.1.1.0.2.0 ColorWell "Filter Color"
+  Escape:
+    focus: r.0.0.0.0.1.1.0.0.1.0 RadioButton "Color" -> r Window ""
+drive r.0.0.0.0.1.1.0.2.0 ColorWell "Filter Color"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1.1.0.2.0 ColorWell "Filter Color" -> r Window ""
+drive r.0.0.0.0.1.1.0.3.1.0 SpinButton "Density"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.1.0.3.1.0 SpinButton "Density"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.1.1.0.3.1.0 SpinButton "Density" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.1.1.0.3.1.0 SpinButton "Density" value="25%" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.3.1.0.0 TextRun "" value="25"
+    - r.0.0.0.0.1.1.0.3.2 Slider "Density" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.3.1.0 SpinButton "Density" value="26%" number=26 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.3.1.0.0 TextRun "" value="26"
+    + r.0.0.0.0.1.1.0.3.2 Slider "Density" number=26 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.1.1.0.3.1.0 SpinButton "Density" value="26%" number=26 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.3.1.0.0 TextRun "" value="26"
+    - r.0.0.0.0.1.1.0.3.2 Slider "Density" number=26 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.3.1.0 SpinButton "Density" value="25%" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.3.1.0.0 TextRun "" value="25"
+    + r.0.0.0.0.1.1.0.3.2 Slider "Density" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.1.1.0.3.1.0 SpinButton "Density" -> r Window ""
+drive r.0.0.0.0.1.1.0.3.2 Slider "Density"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.1.1.0.3.1.0 SpinButton "Density" value="25%" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.3.1.0.0 TextRun "" value="25"
+    - r.0.0.0.0.1.1.0.3.2 Slider "Density" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.3.1.0 SpinButton "Density" value="24%" number=24 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.3.1.0.0 TextRun "" value="24"
+    + r.0.0.0.0.1.1.0.3.2 Slider "Density" number=24 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowRight:
+    - r.0.0.0.0.1.1.0.3.1.0 SpinButton "Density" value="24%" number=24 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.3.1.0.0 TextRun "" value="24"
+    - r.0.0.0.0.1.1.0.3.2 Slider "Density" number=24 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.3.1.0 SpinButton "Density" value="25%" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.3.1.0.0 TextRun "" value="25"
+    + r.0.0.0.0.1.1.0.3.2 Slider "Density" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowUp:
+    - r.0.0.0.0.1.1.0.3.1.0 SpinButton "Density" value="25%" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.3.1.0.0 TextRun "" value="25"
+    - r.0.0.0.0.1.1.0.3.2 Slider "Density" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.3.1.0 SpinButton "Density" value="26%" number=26 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.3.1.0.0 TextRun "" value="26"
+    + r.0.0.0.0.1.1.0.3.2 Slider "Density" number=26 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.1.1.0.3.1.0 SpinButton "Density" value="26%" number=26 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.3.1.0.0 TextRun "" value="26"
+    - r.0.0.0.0.1.1.0.3.2 Slider "Density" number=26 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.3.1.0 SpinButton "Density" value="25%" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.3.1.0.0 TextRun "" value="25"
+    + r.0.0.0.0.1.1.0.3.2 Slider "Density" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home:
+    - r.0.0.0.0.1.1.0.3.1.0 SpinButton "Density" value="25%" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.3.1.0.0 TextRun "" value="25"
+    - r.0.0.0.0.1.1.0.3.2 Slider "Density" number=25 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.3.1.0 SpinButton "Density" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.3.1.0.0 TextRun "" value="0"
+    + r.0.0.0.0.1.1.0.3.2 Slider "Density" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Focus,Increment,SetValue]
+  End:
+    - r.0.0.0.0.1.1.0.3.1.0 SpinButton "Density" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.3.1.0.0 TextRun "" value="0"
+    - r.0.0.0.0.1.1.0.3.2 Slider "Density" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.3.1.0 SpinButton "Density" value="100%" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.3.1.0.0 TextRun "" value="100"
+    + r.0.0.0.0.1.1.0.3.2 Slider "Density" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.1.1.0.3.0.0] actions=[Focus,Decrement,SetValue]
+  Escape:
+    focus: r.0.0.0.0.1.1.0.3.2 Slider "Density" -> r Window ""
+drive r.0.0.0.0.1.1.0.4 CheckBox "Preserve Luminosity"
+  click:
+    - r.0.0.0.0.1.1.0.4 CheckBox "Preserve Luminosity" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.1.0.4 CheckBox "Preserve Luminosity" [unchecked] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.1.1.0.4 CheckBox "Preserve Luminosity" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.1.0.4 CheckBox "Preserve Luminosity" [checked] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.1.1.0.4 CheckBox "Preserve Luminosity" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.1.0.4 CheckBox "Preserve Luminosity" [unchecked] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.1.1.0.4 CheckBox "Preserve Luminosity" -> r Window ""

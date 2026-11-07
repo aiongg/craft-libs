@@ -1,0 +1,165 @@
+story controls/select/wheel-steps
+args
+  size = Choice { options: ["sm", "md"], index: 1 }
+  wheel steps = Bool(true)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 GenericContainer ""
+                  r.0.0.0.0.0.0.0.0.0 Label "" value="Blend mode"
+                r.0.0.0.0.0.0.0.1 GenericContainer ""
+                  r.0.0.0.0.0.0.0.1.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.1.0.0 ComboBox "Blend mode" value="Normal" labelled_by=[r.0.0.0.0.0.0.0.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+                r.0.0.0.0.0.0.0.2 GenericContainer ""
+                  r.0.0.0.0.0.0.0.2.0 Label "" value="Result"
+                r.0.0.0.0.0.0.0.3 GenericContainer ""
+                  r.0.0.0.0.0.0.0.3.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.3.0.0 ColorWell "Result" value="#608cd2" labelled_by=[r.0.0.0.0.0.0.0.2.0] [unselected] actions=[Click,Focus]
+              r.0.0.0.0.0.0.1 Label "" value="Normal, 0 undo steps" actions=[Click]
+                r.0.0.0.0.0.0.1.0 TextRun "" value="Normal, 0 undo steps"
+              r.0.0.0.0.0.0.2 GenericContainer ""
+                r.0.0.0.0.0.0.2.0 Label "" value="No events yet" actions=[Click]
+                  r.0.0.0.0.0.0.2.0.0 TextRun "" value="No events yet"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.1.0.0 ComboBox "Blend mode"
+  2: r.0.0.0.0.0.0.0.3.0.0 ColorWell "Result"
+  3: r.0.0.0.0.0.0.0.1.0.0 ComboBox "Blend mode"
+  cycle after 2 nodes
+drive: 4 actionable nodes
+drive r.0.0.0.0.0.0.0.1.0.0 ComboBox "Blend mode"
+  click:
+    focus: r.0.0.0.0.0.0.0.1.0.0 ComboBox "Blend mode" -> r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0 ListBoxOption "Normal"
+    - r.0.0.0.0.0.0.0.1.0.0 ComboBox "Blend mode" value="Normal" labelled_by=[r.0.0.0.0.0.0.0.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.0.0 ComboBox "Blend mode" value="Normal" labelled_by=[r.0.0.0.0.0.0.0.0.0] controls=[r.0.0.0.0.0.0.0.1.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.0.0.0 ListBox ""
+    + r.0.0.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.1 ListBoxOption "Darken" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.2 ListBoxOption "Multiply" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.3 ListBoxOption "Lighten" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.4 ListBoxOption "Screen" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.5 ListBoxOption "Overlay" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.6 ListBoxOption "Soft light" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.7 ListBoxOption "Difference" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.2.0 Label "" value="No events yet" actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0 TextRun "" value="No events yet"
+    + r.0.0.0.0.0.0.2.0 Label "" value="Begin #8" actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0 TextRun "" value="Begin #8"
+  Space:
+    focus: r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0 ListBoxOption "Normal" -> r.0.0.0.0.0.0.0.1.0.0 ComboBox "Blend mode"
+    - r.0.0.0.0.0.0.0.1.0.0 ComboBox "Blend mode" value="Normal" labelled_by=[r.0.0.0.0.0.0.0.0.0] controls=[r.0.0.0.0.0.0.0.1.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.1.0.0.0 ListBox ""
+    - r.0.0.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.1 ListBoxOption "Darken" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.2 ListBoxOption "Multiply" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.3 ListBoxOption "Lighten" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.4 ListBoxOption "Screen" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.5 ListBoxOption "Overlay" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.6 ListBoxOption "Soft light" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.7 ListBoxOption "Difference" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.1.0.0 ComboBox "Blend mode" value="Normal" labelled_by=[r.0.0.0.0.0.0.0.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0 Label "" value="Commit #8 \"Normal\", unchanged" actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0 TextRun "" value="Commit #8 \"Normal\", unchanged"
+  Enter:
+    focus: r.0.0.0.0.0.0.0.1.0.0 ComboBox "Blend mode" -> r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0 ListBoxOption "Normal"
+    - r.0.0.0.0.0.0.0.1.0.0 ComboBox "Blend mode" value="Normal" labelled_by=[r.0.0.0.0.0.0.0.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.0.0 ComboBox "Blend mode" value="Normal" labelled_by=[r.0.0.0.0.0.0.0.0.0] controls=[r.0.0.0.0.0.0.0.1.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.0.0.0 ListBox ""
+    + r.0.0.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.1 ListBoxOption "Darken" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.2 ListBoxOption "Multiply" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.3 ListBoxOption "Lighten" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.4 ListBoxOption "Screen" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.5 ListBoxOption "Overlay" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.6 ListBoxOption "Soft light" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.7 ListBoxOption "Difference" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.2.0 Label "" value="Begin #9" actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0 TextRun "" value="Begin #9"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0 ListBoxOption "Normal" -> r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.1 ListBoxOption "Darken"
+    - r.0.0.0.0.0.0.0.1.0.0 ComboBox "Blend mode" value="Normal" labelled_by=[r.0.0.0.0.0.0.0.0.0] controls=[r.0.0.0.0.0.0.0.1.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.0.0 ComboBox "Blend mode" value="Darken" labelled_by=[r.0.0.0.0.0.0.0.0.0] controls=[r.0.0.0.0.0.0.0.1.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.1 ListBoxOption "Darken" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.1 ListBoxOption "Darken" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.0.3.0.0 ColorWell "Result" value="#608cd2" labelled_by=[r.0.0.0.0.0.0.0.2.0] [unselected] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1 Label "" value="Normal, 0 undo steps" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="Normal, 0 undo steps"
+    + r.0.0.0.0.0.0.0.3.0.0 ColorWell "Result" value="#284678" labelled_by=[r.0.0.0.0.0.0.0.2.0] [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1 Label "" value="Darken, 1 undo steps" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="Darken, 1 undo steps"
+    + r.0.0.0.0.0.0.2.0 Label "" value="Update #9 \"Darken\"" actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0 TextRun "" value="Update #9 \"Darken\""
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.1 ListBoxOption "Darken" -> r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0 ListBoxOption "Normal"
+    - r.0.0.0.0.0.0.0.1.0.0 ComboBox "Blend mode" value="Darken" labelled_by=[r.0.0.0.0.0.0.0.0.0] controls=[r.0.0.0.0.0.0.0.1.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.0.0 ComboBox "Blend mode" value="Normal" labelled_by=[r.0.0.0.0.0.0.0.0.0] controls=[r.0.0.0.0.0.0.0.1.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.1 ListBoxOption "Darken" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.1 ListBoxOption "Darken" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.3.0.0 ColorWell "Result" value="#284678" labelled_by=[r.0.0.0.0.0.0.0.2.0] [unselected] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1 Label "" value="Darken, 1 undo steps" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="Darken, 1 undo steps"
+    + r.0.0.0.0.0.0.0.3.0.0 ColorWell "Result" value="#608cd2" labelled_by=[r.0.0.0.0.0.0.0.2.0] [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1 Label "" value="Normal, 2 undo steps" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="Normal, 2 undo steps"
+    + r.0.0.0.0.0.0.2.0 Label "" value="Update #9 \"Normal\"" actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0 TextRun "" value="Update #9 \"Normal\""
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0 ListBoxOption "Normal" -> r.0.0.0.0.0.0.0.1.0.0 ComboBox "Blend mode"
+    - r.0.0.0.0.0.0.0.1.0.0 ComboBox "Blend mode" value="Normal" labelled_by=[r.0.0.0.0.0.0.0.0.0] controls=[r.0.0.0.0.0.0.0.1.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.1.0.0.0 ListBox ""
+    - r.0.0.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.1 ListBoxOption "Darken" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.2 ListBoxOption "Multiply" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.3 ListBoxOption "Lighten" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.4 ListBoxOption "Screen" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.5 ListBoxOption "Overlay" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.6 ListBoxOption "Soft light" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.7 ListBoxOption "Difference" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.1.0.0 ComboBox "Blend mode" value="Normal" labelled_by=[r.0.0.0.0.0.0.0.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1 Label "" value="Normal, 2 undo steps" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="Normal, 2 undo steps"
+    + r.0.0.0.0.0.0.1 Label "" value="Normal, 0 undo steps" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="Normal, 0 undo steps"
+    + r.0.0.0.0.0.0.2.0 Label "" value="Cancel #9 Escape" actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0 TextRun "" value="Cancel #9 Escape"
+drive r.0.0.0.0.0.0.0.3.0.0 ColorWell "Result"
+  click:
+    focus: r.0.0.0.0.0.0.0.1.0.0 ComboBox "Blend mode" -> r Window ""
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.3.0.0 ColorWell "Result" -> r Window ""
+drive r.0.0.0.0.0.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.2.0 Label ""
+  click: no change
+  Escape: no change

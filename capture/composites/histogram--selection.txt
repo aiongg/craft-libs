@@ -1,0 +1,36 @@
+story composites/histogram/selection
+args
+  width = Number { value: 256.0, min: 80.0, max: 400.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Image "Histogram" value="Selected levels" actions=[Click,Focus]
+            r.0.0.0.0.0.1 Label "" value="Level: none" actions=[Click]
+              r.0.0.0.0.0.1.0 TextRun "" value="Level: none"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0 Image "Histogram"
+  2: r.0.0.0.0.0.0 Image "Histogram"
+  cycle after 1 nodes
+drive: 2 actionable nodes
+drive r.0.0.0.0.0.0 Image "Histogram"
+  click:
+    - r.0.0.0.0.0.1 Label "" value="Level: none" actions=[Click]
+    - r.0.0.0.0.0.1.0 TextRun "" value="Level: none"
+    + r.0.0.0.0.0.1 Label "" value="Level: 128" actions=[Click]
+    + r.0.0.0.0.0.1.0 TextRun "" value="Level: 128"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0 Image "Histogram" -> r Window ""
+drive r.0.0.0.0.0.1 Label ""
+  click:
+    - r.0.0.0.0.0.1 Label "" value="Level: 128" actions=[Click]
+    - r.0.0.0.0.0.1.0 TextRun "" value="Level: 128"
+    + r.0.0.0.0.0.1 Label "" value="Level: none" actions=[Click]
+    + r.0.0.0.0.0.1.0 TextRun "" value="Level: none"
+  Escape: no change

@@ -1,0 +1,1713 @@
+story composites/color/palette-table
+args
+  sixteen_columns = Bool(true)
+  width = Number { value: 240.0, min: 60.0, max: 480.0 }
+  disabled = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 ListBox "Color Table"
+            r.0.0.0.0.0.0 ListBoxOption "Index 0: #e6e6e6" value="#e6e6e6" description="Index 0: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.1 ListBoxOption "Index 1: #1159ee" value="#1159ee" description="Index 1: #1159ee" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.2 ListBoxOption "Index 2: #e6e6e6" value="#e6e6e6" description="Index 2: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.3 ListBoxOption "Index 3: #3359cc" value="#3359cc" description="Index 3: #3359cc" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.4 ListBoxOption "Index 4: #e6e6e6" value="#e6e6e6" description="Index 4: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.5 ListBoxOption "Index 5: #5559aa" value="#5559aa" description="Index 5: #5559aa" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.6 ListBoxOption "Index 6: #e6e6e6" value="#e6e6e6" description="Index 6: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.7 ListBoxOption "Index 7: #00000000" value="#00000000" description="Index 7: #00000000" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.8 ListBoxOption "Index 8: #e6e6e6" value="#e6e6e6" description="Index 8: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.9 ListBoxOption "Index 9: #995966" value="#995966" description="Index 9: #995966" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.10 ListBoxOption "Index 10: #e6e6e6" value="#e6e6e6" description="Index 10: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.11 ListBoxOption "Index 11: #bb5944" value="#bb5944" description="Index 11: #bb5944" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.12 ListBoxOption "Index 12: #e6e6e6" value="#e6e6e6" description="Index 12: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.13 ListBoxOption "Index 13: #dd5922" value="#dd5922" description="Index 13: #dd5922" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.14 ListBoxOption "Index 14: #e6e6e6" value="#e6e6e6" description="Index 14: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.15 ListBoxOption "Index 15: #ff5900" value="#ff5900" description="Index 15: #ff5900" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.16 ListBoxOption "Index 16: #e6e6e6" value="#e6e6e6" description="Index 16: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.17 ListBoxOption "Index 17: #1159ee" value="#1159ee" description="Index 17: #1159ee" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.18 ListBoxOption "Index 18: #e6e6e6" value="#e6e6e6" description="Index 18: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.19 ListBoxOption "Index 19: #3359cc" value="#3359cc" description="Index 19: #3359cc" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.20 ListBoxOption "Index 20: #e6e6e6" value="#e6e6e6" description="Index 20: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.21 ListBoxOption "Index 21: #5559aa" value="#5559aa" description="Index 21: #5559aa" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.22 ListBoxOption "Index 22: #e6e6e6" value="#e6e6e6" description="Index 22: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.23 ListBoxOption "Index 23: #775988" value="#775988" description="Index 23: #775988" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.24 ListBoxOption "Index 24: #e6e6e6" value="#e6e6e6" description="Index 24: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.25 ListBoxOption "Index 25: #995966" value="#995966" description="Index 25: #995966" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.26 ListBoxOption "Index 26: #e6e6e6" value="#e6e6e6" description="Index 26: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.27 ListBoxOption "Index 27: #bb5944" value="#bb5944" description="Index 27: #bb5944" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.28 ListBoxOption "Index 28: #e6e6e6" value="#e6e6e6" description="Index 28: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.29 ListBoxOption "Index 29: #dd5922" value="#dd5922" description="Index 29: #dd5922" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.30 ListBoxOption "Index 30: #e6e6e6" value="#e6e6e6" description="Index 30: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.31 ListBoxOption "Index 31: #ff5900" value="#ff5900" description="Index 31: #ff5900" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.32 ListBoxOption "Index 32: #e6e6e6" value="#e6e6e6" description="Index 32: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.33 ListBoxOption "Index 33: #1159ee" value="#1159ee" description="Index 33: #1159ee" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.34 ListBoxOption "Index 34: #e6e6e6" value="#e6e6e6" description="Index 34: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.35 ListBoxOption "Index 35: #3359cc" value="#3359cc" description="Index 35: #3359cc" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.36 ListBoxOption "Index 36: #e6e6e6" value="#e6e6e6" description="Index 36: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.37 ListBoxOption "Index 37: #5559aa" value="#5559aa" description="Index 37: #5559aa" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.38 ListBoxOption "Index 38: #e6e6e6" value="#e6e6e6" description="Index 38: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.39 ListBoxOption "Index 39: #775988" value="#775988" description="Index 39: #775988" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.40 ListBoxOption "Index 40: #e6e6e6" value="#e6e6e6" description="Index 40: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.41 ListBoxOption "Index 41: #995966" value="#995966" description="Index 41: #995966" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.42 ListBoxOption "Index 42: #e6e6e6" value="#e6e6e6" description="Index 42: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.43 ListBoxOption "Index 43: #bb5944" value="#bb5944" description="Index 43: #bb5944" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.44 ListBoxOption "Index 44: #e6e6e6" value="#e6e6e6" description="Index 44: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.45 ListBoxOption "Index 45: #dd5922" value="#dd5922" description="Index 45: #dd5922" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.46 ListBoxOption "Index 46: #e6e6e6" value="#e6e6e6" description="Index 46: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.47 ListBoxOption "Index 47: #ff5900" value="#ff5900" description="Index 47: #ff5900" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.48 ListBoxOption "Index 48: #e6e6e6" value="#e6e6e6" description="Index 48: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.49 ListBoxOption "Index 49: #1159ee" value="#1159ee" description="Index 49: #1159ee" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.50 ListBoxOption "Index 50: #e6e6e6" value="#e6e6e6" description="Index 50: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.51 ListBoxOption "Index 51: #3359cc" value="#3359cc" description="Index 51: #3359cc" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.52 ListBoxOption "Index 52: #e6e6e6" value="#e6e6e6" description="Index 52: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.53 ListBoxOption "Index 53: #5559aa" value="#5559aa" description="Index 53: #5559aa" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.54 ListBoxOption "Index 54: #e6e6e6" value="#e6e6e6" description="Index 54: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.55 ListBoxOption "Index 55: #775988" value="#775988" description="Index 55: #775988" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.56 ListBoxOption "Index 56: #e6e6e6" value="#e6e6e6" description="Index 56: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.57 ListBoxOption "Index 57: #995966" value="#995966" description="Index 57: #995966" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.58 ListBoxOption "Index 58: #e6e6e6" value="#e6e6e6" description="Index 58: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.59 ListBoxOption "Index 59: #bb5944" value="#bb5944" description="Index 59: #bb5944" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.60 ListBoxOption "Index 60: #e6e6e6" value="#e6e6e6" description="Index 60: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.61 ListBoxOption "Index 61: #dd5922" value="#dd5922" description="Index 61: #dd5922" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.62 ListBoxOption "Index 62: #e6e6e6" value="#e6e6e6" description="Index 62: #e6e6e6" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.63 ListBoxOption "Index 63: #ff5900" value="#ff5900" description="Index 63: #ff5900" [unselected] actions=[Click,Focus]
+          r.0.0.0.0.1 Label "" value="Last event: " actions=[Click]
+            r.0.0.0.0.1.0 TextRun "" value="Last event: "
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0 ListBoxOption "Index 0: #e6e6e6"
+  2: r.0.0.0.0.0.0 ListBoxOption "Index 0: #e6e6e6"
+  cycle after 1 nodes
+drive: 65 actionable nodes
+  the first 64 are driven
+drive r.0.0.0.0.0.0 ListBoxOption "Index 0: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.0 ListBoxOption "Index 0: #e6e6e6" value="#e6e6e6" description="Index 0: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0 ListBoxOption "Index 0: #e6e6e6" value="#e6e6e6" description="Index 0: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: " actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: "
+    + r.0.0.0.0.1 Label "" value="Last event: select 0" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 0"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 0" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 0"
+    + r.0.0.0.0.1 Label "" value="Last event: open 0" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 0"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0 ListBoxOption "Index 0: #e6e6e6" -> r.0.0.0.0.0.16 ListBoxOption "Index 16: #e6e6e6"
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.0 ListBoxOption "Index 0: #e6e6e6" -> r.0.0.0.0.0.1 ListBoxOption "Index 1: #1159ee"
+  Escape:
+    focus: r.0.0.0.0.0.0 ListBoxOption "Index 0: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.1 ListBoxOption "Index 1: #1159ee"
+  click:
+    - r.0.0.0.0.0.0 ListBoxOption "Index 0: #e6e6e6" value="#e6e6e6" description="Index 0: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.1 ListBoxOption "Index 1: #1159ee" value="#1159ee" description="Index 1: #1159ee" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0 ListBoxOption "Index 0: #e6e6e6" value="#e6e6e6" description="Index 0: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.1 ListBoxOption "Index 1: #1159ee" value="#1159ee" description="Index 1: #1159ee" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 0" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 0"
+    + r.0.0.0.0.1 Label "" value="Last event: select 1" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 1"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 1" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 1"
+    + r.0.0.0.0.1 Label "" value="Last event: open 1" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 1"
+  ArrowDown:
+    focus: r.0.0.0.0.0.1 ListBoxOption "Index 1: #1159ee" -> r.0.0.0.0.0.17 ListBoxOption "Index 17: #1159ee"
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.1 ListBoxOption "Index 1: #1159ee" -> r.0.0.0.0.0.0 ListBoxOption "Index 0: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.1 ListBoxOption "Index 1: #1159ee" -> r.0.0.0.0.0.2 ListBoxOption "Index 2: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.1 ListBoxOption "Index 1: #1159ee" -> r Window ""
+drive r.0.0.0.0.0.2 ListBoxOption "Index 2: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.1 ListBoxOption "Index 1: #1159ee" value="#1159ee" description="Index 1: #1159ee" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.2 ListBoxOption "Index 2: #e6e6e6" value="#e6e6e6" description="Index 2: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.1 ListBoxOption "Index 1: #1159ee" value="#1159ee" description="Index 1: #1159ee" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.2 ListBoxOption "Index 2: #e6e6e6" value="#e6e6e6" description="Index 2: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 1" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 1"
+    + r.0.0.0.0.1 Label "" value="Last event: select 2" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 2"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 2" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 2"
+    + r.0.0.0.0.1 Label "" value="Last event: open 2" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 2"
+  ArrowDown:
+    focus: r.0.0.0.0.0.2 ListBoxOption "Index 2: #e6e6e6" -> r.0.0.0.0.0.18 ListBoxOption "Index 18: #e6e6e6"
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.2 ListBoxOption "Index 2: #e6e6e6" -> r.0.0.0.0.0.1 ListBoxOption "Index 1: #1159ee"
+  ArrowRight:
+    focus: r.0.0.0.0.0.2 ListBoxOption "Index 2: #e6e6e6" -> r.0.0.0.0.0.3 ListBoxOption "Index 3: #3359cc"
+  Escape:
+    focus: r.0.0.0.0.0.2 ListBoxOption "Index 2: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.3 ListBoxOption "Index 3: #3359cc"
+  click:
+    - r.0.0.0.0.0.2 ListBoxOption "Index 2: #e6e6e6" value="#e6e6e6" description="Index 2: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.3 ListBoxOption "Index 3: #3359cc" value="#3359cc" description="Index 3: #3359cc" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.2 ListBoxOption "Index 2: #e6e6e6" value="#e6e6e6" description="Index 2: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.3 ListBoxOption "Index 3: #3359cc" value="#3359cc" description="Index 3: #3359cc" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 2" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 2"
+    + r.0.0.0.0.1 Label "" value="Last event: select 3" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 3"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 3" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 3"
+    + r.0.0.0.0.1 Label "" value="Last event: open 3" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 3"
+  ArrowDown:
+    focus: r.0.0.0.0.0.3 ListBoxOption "Index 3: #3359cc" -> r.0.0.0.0.0.19 ListBoxOption "Index 19: #3359cc"
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.3 ListBoxOption "Index 3: #3359cc" -> r.0.0.0.0.0.2 ListBoxOption "Index 2: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.3 ListBoxOption "Index 3: #3359cc" -> r.0.0.0.0.0.4 ListBoxOption "Index 4: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.3 ListBoxOption "Index 3: #3359cc" -> r Window ""
+drive r.0.0.0.0.0.4 ListBoxOption "Index 4: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.3 ListBoxOption "Index 3: #3359cc" value="#3359cc" description="Index 3: #3359cc" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.4 ListBoxOption "Index 4: #e6e6e6" value="#e6e6e6" description="Index 4: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.3 ListBoxOption "Index 3: #3359cc" value="#3359cc" description="Index 3: #3359cc" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.4 ListBoxOption "Index 4: #e6e6e6" value="#e6e6e6" description="Index 4: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 3" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 3"
+    + r.0.0.0.0.1 Label "" value="Last event: select 4" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 4"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 4" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 4"
+    + r.0.0.0.0.1 Label "" value="Last event: open 4" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 4"
+  ArrowDown:
+    focus: r.0.0.0.0.0.4 ListBoxOption "Index 4: #e6e6e6" -> r.0.0.0.0.0.20 ListBoxOption "Index 20: #e6e6e6"
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.4 ListBoxOption "Index 4: #e6e6e6" -> r.0.0.0.0.0.3 ListBoxOption "Index 3: #3359cc"
+  ArrowRight:
+    focus: r.0.0.0.0.0.4 ListBoxOption "Index 4: #e6e6e6" -> r.0.0.0.0.0.5 ListBoxOption "Index 5: #5559aa"
+  Escape:
+    focus: r.0.0.0.0.0.4 ListBoxOption "Index 4: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.5 ListBoxOption "Index 5: #5559aa"
+  click:
+    - r.0.0.0.0.0.4 ListBoxOption "Index 4: #e6e6e6" value="#e6e6e6" description="Index 4: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.5 ListBoxOption "Index 5: #5559aa" value="#5559aa" description="Index 5: #5559aa" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.4 ListBoxOption "Index 4: #e6e6e6" value="#e6e6e6" description="Index 4: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.5 ListBoxOption "Index 5: #5559aa" value="#5559aa" description="Index 5: #5559aa" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 4" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 4"
+    + r.0.0.0.0.1 Label "" value="Last event: select 5" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 5"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 5" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 5"
+    + r.0.0.0.0.1 Label "" value="Last event: open 5" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 5"
+  ArrowDown:
+    focus: r.0.0.0.0.0.5 ListBoxOption "Index 5: #5559aa" -> r.0.0.0.0.0.21 ListBoxOption "Index 21: #5559aa"
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.5 ListBoxOption "Index 5: #5559aa" -> r.0.0.0.0.0.4 ListBoxOption "Index 4: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.5 ListBoxOption "Index 5: #5559aa" -> r.0.0.0.0.0.6 ListBoxOption "Index 6: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.5 ListBoxOption "Index 5: #5559aa" -> r Window ""
+drive r.0.0.0.0.0.6 ListBoxOption "Index 6: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.5 ListBoxOption "Index 5: #5559aa" value="#5559aa" description="Index 5: #5559aa" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.6 ListBoxOption "Index 6: #e6e6e6" value="#e6e6e6" description="Index 6: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.5 ListBoxOption "Index 5: #5559aa" value="#5559aa" description="Index 5: #5559aa" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.6 ListBoxOption "Index 6: #e6e6e6" value="#e6e6e6" description="Index 6: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 5" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 5"
+    + r.0.0.0.0.1 Label "" value="Last event: select 6" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 6"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 6" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 6"
+    + r.0.0.0.0.1 Label "" value="Last event: open 6" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 6"
+  ArrowDown:
+    focus: r.0.0.0.0.0.6 ListBoxOption "Index 6: #e6e6e6" -> r.0.0.0.0.0.22 ListBoxOption "Index 22: #e6e6e6"
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.6 ListBoxOption "Index 6: #e6e6e6" -> r.0.0.0.0.0.5 ListBoxOption "Index 5: #5559aa"
+  ArrowRight:
+    focus: r.0.0.0.0.0.6 ListBoxOption "Index 6: #e6e6e6" -> r.0.0.0.0.0.7 ListBoxOption "Index 7: #00000000"
+  Escape:
+    focus: r.0.0.0.0.0.6 ListBoxOption "Index 6: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.7 ListBoxOption "Index 7: #00000000"
+  click:
+    - r.0.0.0.0.0.6 ListBoxOption "Index 6: #e6e6e6" value="#e6e6e6" description="Index 6: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.7 ListBoxOption "Index 7: #00000000" value="#00000000" description="Index 7: #00000000" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.6 ListBoxOption "Index 6: #e6e6e6" value="#e6e6e6" description="Index 6: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.7 ListBoxOption "Index 7: #00000000" value="#00000000" description="Index 7: #00000000" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 6" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 6"
+    + r.0.0.0.0.1 Label "" value="Last event: select 7" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 7"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 7" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 7"
+    + r.0.0.0.0.1 Label "" value="Last event: open 7" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 7"
+  ArrowDown:
+    focus: r.0.0.0.0.0.7 ListBoxOption "Index 7: #00000000" -> r.0.0.0.0.0.23 ListBoxOption "Index 23: #775988"
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.7 ListBoxOption "Index 7: #00000000" -> r.0.0.0.0.0.6 ListBoxOption "Index 6: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.7 ListBoxOption "Index 7: #00000000" -> r.0.0.0.0.0.8 ListBoxOption "Index 8: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.7 ListBoxOption "Index 7: #00000000" -> r Window ""
+drive r.0.0.0.0.0.8 ListBoxOption "Index 8: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.7 ListBoxOption "Index 7: #00000000" value="#00000000" description="Index 7: #00000000" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.8 ListBoxOption "Index 8: #e6e6e6" value="#e6e6e6" description="Index 8: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.7 ListBoxOption "Index 7: #00000000" value="#00000000" description="Index 7: #00000000" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.8 ListBoxOption "Index 8: #e6e6e6" value="#e6e6e6" description="Index 8: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 7" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 7"
+    + r.0.0.0.0.1 Label "" value="Last event: select 8" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 8"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 8" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 8"
+    + r.0.0.0.0.1 Label "" value="Last event: open 8" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 8"
+  ArrowDown:
+    focus: r.0.0.0.0.0.8 ListBoxOption "Index 8: #e6e6e6" -> r.0.0.0.0.0.24 ListBoxOption "Index 24: #e6e6e6"
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.8 ListBoxOption "Index 8: #e6e6e6" -> r.0.0.0.0.0.7 ListBoxOption "Index 7: #00000000"
+  ArrowRight:
+    focus: r.0.0.0.0.0.8 ListBoxOption "Index 8: #e6e6e6" -> r.0.0.0.0.0.9 ListBoxOption "Index 9: #995966"
+  Escape:
+    focus: r.0.0.0.0.0.8 ListBoxOption "Index 8: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.9 ListBoxOption "Index 9: #995966"
+  click:
+    - r.0.0.0.0.0.8 ListBoxOption "Index 8: #e6e6e6" value="#e6e6e6" description="Index 8: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.9 ListBoxOption "Index 9: #995966" value="#995966" description="Index 9: #995966" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.8 ListBoxOption "Index 8: #e6e6e6" value="#e6e6e6" description="Index 8: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.9 ListBoxOption "Index 9: #995966" value="#995966" description="Index 9: #995966" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 8" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 8"
+    + r.0.0.0.0.1 Label "" value="Last event: select 9" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 9"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 9" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 9"
+    + r.0.0.0.0.1 Label "" value="Last event: open 9" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 9"
+  ArrowDown:
+    focus: r.0.0.0.0.0.9 ListBoxOption "Index 9: #995966" -> r.0.0.0.0.0.25 ListBoxOption "Index 25: #995966"
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.9 ListBoxOption "Index 9: #995966" -> r.0.0.0.0.0.8 ListBoxOption "Index 8: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.9 ListBoxOption "Index 9: #995966" -> r.0.0.0.0.0.10 ListBoxOption "Index 10: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.9 ListBoxOption "Index 9: #995966" -> r Window ""
+drive r.0.0.0.0.0.10 ListBoxOption "Index 10: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.9 ListBoxOption "Index 9: #995966" value="#995966" description="Index 9: #995966" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.10 ListBoxOption "Index 10: #e6e6e6" value="#e6e6e6" description="Index 10: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.9 ListBoxOption "Index 9: #995966" value="#995966" description="Index 9: #995966" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.10 ListBoxOption "Index 10: #e6e6e6" value="#e6e6e6" description="Index 10: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 9" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 9"
+    + r.0.0.0.0.1 Label "" value="Last event: select 10" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 10"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 10" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 10"
+    + r.0.0.0.0.1 Label "" value="Last event: open 10" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 10"
+  ArrowDown:
+    focus: r.0.0.0.0.0.10 ListBoxOption "Index 10: #e6e6e6" -> r.0.0.0.0.0.26 ListBoxOption "Index 26: #e6e6e6"
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.10 ListBoxOption "Index 10: #e6e6e6" -> r.0.0.0.0.0.9 ListBoxOption "Index 9: #995966"
+  ArrowRight:
+    focus: r.0.0.0.0.0.10 ListBoxOption "Index 10: #e6e6e6" -> r.0.0.0.0.0.11 ListBoxOption "Index 11: #bb5944"
+  Escape:
+    focus: r.0.0.0.0.0.10 ListBoxOption "Index 10: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.11 ListBoxOption "Index 11: #bb5944"
+  click:
+    - r.0.0.0.0.0.10 ListBoxOption "Index 10: #e6e6e6" value="#e6e6e6" description="Index 10: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.11 ListBoxOption "Index 11: #bb5944" value="#bb5944" description="Index 11: #bb5944" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.10 ListBoxOption "Index 10: #e6e6e6" value="#e6e6e6" description="Index 10: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.11 ListBoxOption "Index 11: #bb5944" value="#bb5944" description="Index 11: #bb5944" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 10" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 10"
+    + r.0.0.0.0.1 Label "" value="Last event: select 11" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 11"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 11" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 11"
+    + r.0.0.0.0.1 Label "" value="Last event: open 11" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 11"
+  ArrowDown:
+    focus: r.0.0.0.0.0.11 ListBoxOption "Index 11: #bb5944" -> r.0.0.0.0.0.27 ListBoxOption "Index 27: #bb5944"
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.11 ListBoxOption "Index 11: #bb5944" -> r.0.0.0.0.0.10 ListBoxOption "Index 10: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.11 ListBoxOption "Index 11: #bb5944" -> r.0.0.0.0.0.12 ListBoxOption "Index 12: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.11 ListBoxOption "Index 11: #bb5944" -> r Window ""
+drive r.0.0.0.0.0.12 ListBoxOption "Index 12: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.11 ListBoxOption "Index 11: #bb5944" value="#bb5944" description="Index 11: #bb5944" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.12 ListBoxOption "Index 12: #e6e6e6" value="#e6e6e6" description="Index 12: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.11 ListBoxOption "Index 11: #bb5944" value="#bb5944" description="Index 11: #bb5944" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.12 ListBoxOption "Index 12: #e6e6e6" value="#e6e6e6" description="Index 12: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 11" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 11"
+    + r.0.0.0.0.1 Label "" value="Last event: select 12" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 12"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 12" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 12"
+    + r.0.0.0.0.1 Label "" value="Last event: open 12" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 12"
+  ArrowDown:
+    focus: r.0.0.0.0.0.12 ListBoxOption "Index 12: #e6e6e6" -> r.0.0.0.0.0.28 ListBoxOption "Index 28: #e6e6e6"
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.12 ListBoxOption "Index 12: #e6e6e6" -> r.0.0.0.0.0.11 ListBoxOption "Index 11: #bb5944"
+  ArrowRight:
+    focus: r.0.0.0.0.0.12 ListBoxOption "Index 12: #e6e6e6" -> r.0.0.0.0.0.13 ListBoxOption "Index 13: #dd5922"
+  Escape:
+    focus: r.0.0.0.0.0.12 ListBoxOption "Index 12: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.13 ListBoxOption "Index 13: #dd5922"
+  click:
+    - r.0.0.0.0.0.12 ListBoxOption "Index 12: #e6e6e6" value="#e6e6e6" description="Index 12: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.13 ListBoxOption "Index 13: #dd5922" value="#dd5922" description="Index 13: #dd5922" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.12 ListBoxOption "Index 12: #e6e6e6" value="#e6e6e6" description="Index 12: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.13 ListBoxOption "Index 13: #dd5922" value="#dd5922" description="Index 13: #dd5922" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 12" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 12"
+    + r.0.0.0.0.1 Label "" value="Last event: select 13" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 13"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 13" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 13"
+    + r.0.0.0.0.1 Label "" value="Last event: open 13" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 13"
+  ArrowDown:
+    focus: r.0.0.0.0.0.13 ListBoxOption "Index 13: #dd5922" -> r.0.0.0.0.0.29 ListBoxOption "Index 29: #dd5922"
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.13 ListBoxOption "Index 13: #dd5922" -> r.0.0.0.0.0.12 ListBoxOption "Index 12: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.13 ListBoxOption "Index 13: #dd5922" -> r.0.0.0.0.0.14 ListBoxOption "Index 14: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.13 ListBoxOption "Index 13: #dd5922" -> r Window ""
+drive r.0.0.0.0.0.14 ListBoxOption "Index 14: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.13 ListBoxOption "Index 13: #dd5922" value="#dd5922" description="Index 13: #dd5922" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.14 ListBoxOption "Index 14: #e6e6e6" value="#e6e6e6" description="Index 14: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.13 ListBoxOption "Index 13: #dd5922" value="#dd5922" description="Index 13: #dd5922" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.14 ListBoxOption "Index 14: #e6e6e6" value="#e6e6e6" description="Index 14: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 13" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 13"
+    + r.0.0.0.0.1 Label "" value="Last event: select 14" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 14"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 14" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 14"
+    + r.0.0.0.0.1 Label "" value="Last event: open 14" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 14"
+  ArrowDown:
+    focus: r.0.0.0.0.0.14 ListBoxOption "Index 14: #e6e6e6" -> r.0.0.0.0.0.30 ListBoxOption "Index 30: #e6e6e6"
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.14 ListBoxOption "Index 14: #e6e6e6" -> r.0.0.0.0.0.13 ListBoxOption "Index 13: #dd5922"
+  ArrowRight:
+    focus: r.0.0.0.0.0.14 ListBoxOption "Index 14: #e6e6e6" -> r.0.0.0.0.0.15 ListBoxOption "Index 15: #ff5900"
+  Escape:
+    focus: r.0.0.0.0.0.14 ListBoxOption "Index 14: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.15 ListBoxOption "Index 15: #ff5900"
+  click:
+    - r.0.0.0.0.0.14 ListBoxOption "Index 14: #e6e6e6" value="#e6e6e6" description="Index 14: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.15 ListBoxOption "Index 15: #ff5900" value="#ff5900" description="Index 15: #ff5900" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.14 ListBoxOption "Index 14: #e6e6e6" value="#e6e6e6" description="Index 14: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.15 ListBoxOption "Index 15: #ff5900" value="#ff5900" description="Index 15: #ff5900" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 14" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 14"
+    + r.0.0.0.0.1 Label "" value="Last event: select 15" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 15"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 15" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 15"
+    + r.0.0.0.0.1 Label "" value="Last event: open 15" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 15"
+  ArrowDown:
+    focus: r.0.0.0.0.0.15 ListBoxOption "Index 15: #ff5900" -> r.0.0.0.0.0.31 ListBoxOption "Index 31: #ff5900"
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.15 ListBoxOption "Index 15: #ff5900" -> r.0.0.0.0.0.14 ListBoxOption "Index 14: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.15 ListBoxOption "Index 15: #ff5900" -> r.0.0.0.0.0.16 ListBoxOption "Index 16: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.15 ListBoxOption "Index 15: #ff5900" -> r Window ""
+drive r.0.0.0.0.0.16 ListBoxOption "Index 16: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.15 ListBoxOption "Index 15: #ff5900" value="#ff5900" description="Index 15: #ff5900" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.16 ListBoxOption "Index 16: #e6e6e6" value="#e6e6e6" description="Index 16: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.15 ListBoxOption "Index 15: #ff5900" value="#ff5900" description="Index 15: #ff5900" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.16 ListBoxOption "Index 16: #e6e6e6" value="#e6e6e6" description="Index 16: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 15" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 15"
+    + r.0.0.0.0.1 Label "" value="Last event: select 16" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 16"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 16" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 16"
+    + r.0.0.0.0.1 Label "" value="Last event: open 16" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 16"
+  ArrowDown:
+    focus: r.0.0.0.0.0.16 ListBoxOption "Index 16: #e6e6e6" -> r.0.0.0.0.0.32 ListBoxOption "Index 32: #e6e6e6"
+  ArrowUp:
+    focus: r.0.0.0.0.0.16 ListBoxOption "Index 16: #e6e6e6" -> r.0.0.0.0.0.0 ListBoxOption "Index 0: #e6e6e6"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.16 ListBoxOption "Index 16: #e6e6e6" -> r.0.0.0.0.0.15 ListBoxOption "Index 15: #ff5900"
+  ArrowRight:
+    focus: r.0.0.0.0.0.16 ListBoxOption "Index 16: #e6e6e6" -> r.0.0.0.0.0.17 ListBoxOption "Index 17: #1159ee"
+  Escape:
+    focus: r.0.0.0.0.0.16 ListBoxOption "Index 16: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.17 ListBoxOption "Index 17: #1159ee"
+  click:
+    - r.0.0.0.0.0.16 ListBoxOption "Index 16: #e6e6e6" value="#e6e6e6" description="Index 16: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.17 ListBoxOption "Index 17: #1159ee" value="#1159ee" description="Index 17: #1159ee" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.16 ListBoxOption "Index 16: #e6e6e6" value="#e6e6e6" description="Index 16: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.17 ListBoxOption "Index 17: #1159ee" value="#1159ee" description="Index 17: #1159ee" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 16" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 16"
+    + r.0.0.0.0.1 Label "" value="Last event: select 17" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 17"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 17" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 17"
+    + r.0.0.0.0.1 Label "" value="Last event: open 17" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 17"
+  ArrowDown:
+    focus: r.0.0.0.0.0.17 ListBoxOption "Index 17: #1159ee" -> r.0.0.0.0.0.33 ListBoxOption "Index 33: #1159ee"
+  ArrowUp:
+    focus: r.0.0.0.0.0.17 ListBoxOption "Index 17: #1159ee" -> r.0.0.0.0.0.1 ListBoxOption "Index 1: #1159ee"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.17 ListBoxOption "Index 17: #1159ee" -> r.0.0.0.0.0.16 ListBoxOption "Index 16: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.17 ListBoxOption "Index 17: #1159ee" -> r.0.0.0.0.0.18 ListBoxOption "Index 18: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.17 ListBoxOption "Index 17: #1159ee" -> r Window ""
+drive r.0.0.0.0.0.18 ListBoxOption "Index 18: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.17 ListBoxOption "Index 17: #1159ee" value="#1159ee" description="Index 17: #1159ee" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.18 ListBoxOption "Index 18: #e6e6e6" value="#e6e6e6" description="Index 18: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.17 ListBoxOption "Index 17: #1159ee" value="#1159ee" description="Index 17: #1159ee" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.18 ListBoxOption "Index 18: #e6e6e6" value="#e6e6e6" description="Index 18: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 17" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 17"
+    + r.0.0.0.0.1 Label "" value="Last event: select 18" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 18"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 18" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 18"
+    + r.0.0.0.0.1 Label "" value="Last event: open 18" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 18"
+  ArrowDown:
+    focus: r.0.0.0.0.0.18 ListBoxOption "Index 18: #e6e6e6" -> r.0.0.0.0.0.34 ListBoxOption "Index 34: #e6e6e6"
+  ArrowUp:
+    focus: r.0.0.0.0.0.18 ListBoxOption "Index 18: #e6e6e6" -> r.0.0.0.0.0.2 ListBoxOption "Index 2: #e6e6e6"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.18 ListBoxOption "Index 18: #e6e6e6" -> r.0.0.0.0.0.17 ListBoxOption "Index 17: #1159ee"
+  ArrowRight:
+    focus: r.0.0.0.0.0.18 ListBoxOption "Index 18: #e6e6e6" -> r.0.0.0.0.0.19 ListBoxOption "Index 19: #3359cc"
+  Escape:
+    focus: r.0.0.0.0.0.18 ListBoxOption "Index 18: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.19 ListBoxOption "Index 19: #3359cc"
+  click:
+    - r.0.0.0.0.0.18 ListBoxOption "Index 18: #e6e6e6" value="#e6e6e6" description="Index 18: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.19 ListBoxOption "Index 19: #3359cc" value="#3359cc" description="Index 19: #3359cc" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.18 ListBoxOption "Index 18: #e6e6e6" value="#e6e6e6" description="Index 18: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.19 ListBoxOption "Index 19: #3359cc" value="#3359cc" description="Index 19: #3359cc" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 18" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 18"
+    + r.0.0.0.0.1 Label "" value="Last event: select 19" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 19"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 19" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 19"
+    + r.0.0.0.0.1 Label "" value="Last event: open 19" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 19"
+  ArrowDown:
+    focus: r.0.0.0.0.0.19 ListBoxOption "Index 19: #3359cc" -> r.0.0.0.0.0.35 ListBoxOption "Index 35: #3359cc"
+  ArrowUp:
+    focus: r.0.0.0.0.0.19 ListBoxOption "Index 19: #3359cc" -> r.0.0.0.0.0.3 ListBoxOption "Index 3: #3359cc"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.19 ListBoxOption "Index 19: #3359cc" -> r.0.0.0.0.0.18 ListBoxOption "Index 18: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.19 ListBoxOption "Index 19: #3359cc" -> r.0.0.0.0.0.20 ListBoxOption "Index 20: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.19 ListBoxOption "Index 19: #3359cc" -> r Window ""
+drive r.0.0.0.0.0.20 ListBoxOption "Index 20: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.19 ListBoxOption "Index 19: #3359cc" value="#3359cc" description="Index 19: #3359cc" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.20 ListBoxOption "Index 20: #e6e6e6" value="#e6e6e6" description="Index 20: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.19 ListBoxOption "Index 19: #3359cc" value="#3359cc" description="Index 19: #3359cc" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.20 ListBoxOption "Index 20: #e6e6e6" value="#e6e6e6" description="Index 20: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 19" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 19"
+    + r.0.0.0.0.1 Label "" value="Last event: select 20" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 20"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 20" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 20"
+    + r.0.0.0.0.1 Label "" value="Last event: open 20" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 20"
+  ArrowDown:
+    focus: r.0.0.0.0.0.20 ListBoxOption "Index 20: #e6e6e6" -> r.0.0.0.0.0.36 ListBoxOption "Index 36: #e6e6e6"
+  ArrowUp:
+    focus: r.0.0.0.0.0.20 ListBoxOption "Index 20: #e6e6e6" -> r.0.0.0.0.0.4 ListBoxOption "Index 4: #e6e6e6"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.20 ListBoxOption "Index 20: #e6e6e6" -> r.0.0.0.0.0.19 ListBoxOption "Index 19: #3359cc"
+  ArrowRight:
+    focus: r.0.0.0.0.0.20 ListBoxOption "Index 20: #e6e6e6" -> r.0.0.0.0.0.21 ListBoxOption "Index 21: #5559aa"
+  Escape:
+    focus: r.0.0.0.0.0.20 ListBoxOption "Index 20: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.21 ListBoxOption "Index 21: #5559aa"
+  click:
+    - r.0.0.0.0.0.20 ListBoxOption "Index 20: #e6e6e6" value="#e6e6e6" description="Index 20: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.21 ListBoxOption "Index 21: #5559aa" value="#5559aa" description="Index 21: #5559aa" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.20 ListBoxOption "Index 20: #e6e6e6" value="#e6e6e6" description="Index 20: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.21 ListBoxOption "Index 21: #5559aa" value="#5559aa" description="Index 21: #5559aa" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 20" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 20"
+    + r.0.0.0.0.1 Label "" value="Last event: select 21" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 21"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 21" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 21"
+    + r.0.0.0.0.1 Label "" value="Last event: open 21" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 21"
+  ArrowDown:
+    focus: r.0.0.0.0.0.21 ListBoxOption "Index 21: #5559aa" -> r.0.0.0.0.0.37 ListBoxOption "Index 37: #5559aa"
+  ArrowUp:
+    focus: r.0.0.0.0.0.21 ListBoxOption "Index 21: #5559aa" -> r.0.0.0.0.0.5 ListBoxOption "Index 5: #5559aa"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.21 ListBoxOption "Index 21: #5559aa" -> r.0.0.0.0.0.20 ListBoxOption "Index 20: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.21 ListBoxOption "Index 21: #5559aa" -> r.0.0.0.0.0.22 ListBoxOption "Index 22: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.21 ListBoxOption "Index 21: #5559aa" -> r Window ""
+drive r.0.0.0.0.0.22 ListBoxOption "Index 22: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.21 ListBoxOption "Index 21: #5559aa" value="#5559aa" description="Index 21: #5559aa" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.22 ListBoxOption "Index 22: #e6e6e6" value="#e6e6e6" description="Index 22: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.21 ListBoxOption "Index 21: #5559aa" value="#5559aa" description="Index 21: #5559aa" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.22 ListBoxOption "Index 22: #e6e6e6" value="#e6e6e6" description="Index 22: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 21" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 21"
+    + r.0.0.0.0.1 Label "" value="Last event: select 22" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 22"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 22" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 22"
+    + r.0.0.0.0.1 Label "" value="Last event: open 22" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 22"
+  ArrowDown:
+    focus: r.0.0.0.0.0.22 ListBoxOption "Index 22: #e6e6e6" -> r.0.0.0.0.0.38 ListBoxOption "Index 38: #e6e6e6"
+  ArrowUp:
+    focus: r.0.0.0.0.0.22 ListBoxOption "Index 22: #e6e6e6" -> r.0.0.0.0.0.6 ListBoxOption "Index 6: #e6e6e6"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.22 ListBoxOption "Index 22: #e6e6e6" -> r.0.0.0.0.0.21 ListBoxOption "Index 21: #5559aa"
+  ArrowRight:
+    focus: r.0.0.0.0.0.22 ListBoxOption "Index 22: #e6e6e6" -> r.0.0.0.0.0.23 ListBoxOption "Index 23: #775988"
+  Escape:
+    focus: r.0.0.0.0.0.22 ListBoxOption "Index 22: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.23 ListBoxOption "Index 23: #775988"
+  click:
+    - r.0.0.0.0.0.22 ListBoxOption "Index 22: #e6e6e6" value="#e6e6e6" description="Index 22: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.23 ListBoxOption "Index 23: #775988" value="#775988" description="Index 23: #775988" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.22 ListBoxOption "Index 22: #e6e6e6" value="#e6e6e6" description="Index 22: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.23 ListBoxOption "Index 23: #775988" value="#775988" description="Index 23: #775988" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 22" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 22"
+    + r.0.0.0.0.1 Label "" value="Last event: select 23" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 23"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 23" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 23"
+    + r.0.0.0.0.1 Label "" value="Last event: open 23" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 23"
+  ArrowDown:
+    focus: r.0.0.0.0.0.23 ListBoxOption "Index 23: #775988" -> r.0.0.0.0.0.39 ListBoxOption "Index 39: #775988"
+  ArrowUp:
+    focus: r.0.0.0.0.0.23 ListBoxOption "Index 23: #775988" -> r.0.0.0.0.0.7 ListBoxOption "Index 7: #00000000"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.23 ListBoxOption "Index 23: #775988" -> r.0.0.0.0.0.22 ListBoxOption "Index 22: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.23 ListBoxOption "Index 23: #775988" -> r.0.0.0.0.0.24 ListBoxOption "Index 24: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.23 ListBoxOption "Index 23: #775988" -> r Window ""
+drive r.0.0.0.0.0.24 ListBoxOption "Index 24: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.23 ListBoxOption "Index 23: #775988" value="#775988" description="Index 23: #775988" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.24 ListBoxOption "Index 24: #e6e6e6" value="#e6e6e6" description="Index 24: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.23 ListBoxOption "Index 23: #775988" value="#775988" description="Index 23: #775988" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.24 ListBoxOption "Index 24: #e6e6e6" value="#e6e6e6" description="Index 24: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 23" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 23"
+    + r.0.0.0.0.1 Label "" value="Last event: select 24" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 24"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 24" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 24"
+    + r.0.0.0.0.1 Label "" value="Last event: open 24" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 24"
+  ArrowDown:
+    focus: r.0.0.0.0.0.24 ListBoxOption "Index 24: #e6e6e6" -> r.0.0.0.0.0.40 ListBoxOption "Index 40: #e6e6e6"
+  ArrowUp:
+    focus: r.0.0.0.0.0.24 ListBoxOption "Index 24: #e6e6e6" -> r.0.0.0.0.0.8 ListBoxOption "Index 8: #e6e6e6"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.24 ListBoxOption "Index 24: #e6e6e6" -> r.0.0.0.0.0.23 ListBoxOption "Index 23: #775988"
+  ArrowRight:
+    focus: r.0.0.0.0.0.24 ListBoxOption "Index 24: #e6e6e6" -> r.0.0.0.0.0.25 ListBoxOption "Index 25: #995966"
+  Escape:
+    focus: r.0.0.0.0.0.24 ListBoxOption "Index 24: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.25 ListBoxOption "Index 25: #995966"
+  click:
+    - r.0.0.0.0.0.24 ListBoxOption "Index 24: #e6e6e6" value="#e6e6e6" description="Index 24: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.25 ListBoxOption "Index 25: #995966" value="#995966" description="Index 25: #995966" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.24 ListBoxOption "Index 24: #e6e6e6" value="#e6e6e6" description="Index 24: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.25 ListBoxOption "Index 25: #995966" value="#995966" description="Index 25: #995966" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 24" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 24"
+    + r.0.0.0.0.1 Label "" value="Last event: select 25" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 25"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 25" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 25"
+    + r.0.0.0.0.1 Label "" value="Last event: open 25" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 25"
+  ArrowDown:
+    focus: r.0.0.0.0.0.25 ListBoxOption "Index 25: #995966" -> r.0.0.0.0.0.41 ListBoxOption "Index 41: #995966"
+  ArrowUp:
+    focus: r.0.0.0.0.0.25 ListBoxOption "Index 25: #995966" -> r.0.0.0.0.0.9 ListBoxOption "Index 9: #995966"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.25 ListBoxOption "Index 25: #995966" -> r.0.0.0.0.0.24 ListBoxOption "Index 24: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.25 ListBoxOption "Index 25: #995966" -> r.0.0.0.0.0.26 ListBoxOption "Index 26: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.25 ListBoxOption "Index 25: #995966" -> r Window ""
+drive r.0.0.0.0.0.26 ListBoxOption "Index 26: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.25 ListBoxOption "Index 25: #995966" value="#995966" description="Index 25: #995966" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.26 ListBoxOption "Index 26: #e6e6e6" value="#e6e6e6" description="Index 26: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.25 ListBoxOption "Index 25: #995966" value="#995966" description="Index 25: #995966" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.26 ListBoxOption "Index 26: #e6e6e6" value="#e6e6e6" description="Index 26: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 25" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 25"
+    + r.0.0.0.0.1 Label "" value="Last event: select 26" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 26"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 26" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 26"
+    + r.0.0.0.0.1 Label "" value="Last event: open 26" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 26"
+  ArrowDown:
+    focus: r.0.0.0.0.0.26 ListBoxOption "Index 26: #e6e6e6" -> r.0.0.0.0.0.42 ListBoxOption "Index 42: #e6e6e6"
+  ArrowUp:
+    focus: r.0.0.0.0.0.26 ListBoxOption "Index 26: #e6e6e6" -> r.0.0.0.0.0.10 ListBoxOption "Index 10: #e6e6e6"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.26 ListBoxOption "Index 26: #e6e6e6" -> r.0.0.0.0.0.25 ListBoxOption "Index 25: #995966"
+  ArrowRight:
+    focus: r.0.0.0.0.0.26 ListBoxOption "Index 26: #e6e6e6" -> r.0.0.0.0.0.27 ListBoxOption "Index 27: #bb5944"
+  Escape:
+    focus: r.0.0.0.0.0.26 ListBoxOption "Index 26: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.27 ListBoxOption "Index 27: #bb5944"
+  click:
+    - r.0.0.0.0.0.26 ListBoxOption "Index 26: #e6e6e6" value="#e6e6e6" description="Index 26: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.27 ListBoxOption "Index 27: #bb5944" value="#bb5944" description="Index 27: #bb5944" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.26 ListBoxOption "Index 26: #e6e6e6" value="#e6e6e6" description="Index 26: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.27 ListBoxOption "Index 27: #bb5944" value="#bb5944" description="Index 27: #bb5944" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 26" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 26"
+    + r.0.0.0.0.1 Label "" value="Last event: select 27" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 27"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 27" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 27"
+    + r.0.0.0.0.1 Label "" value="Last event: open 27" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 27"
+  ArrowDown:
+    focus: r.0.0.0.0.0.27 ListBoxOption "Index 27: #bb5944" -> r.0.0.0.0.0.43 ListBoxOption "Index 43: #bb5944"
+  ArrowUp:
+    focus: r.0.0.0.0.0.27 ListBoxOption "Index 27: #bb5944" -> r.0.0.0.0.0.11 ListBoxOption "Index 11: #bb5944"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.27 ListBoxOption "Index 27: #bb5944" -> r.0.0.0.0.0.26 ListBoxOption "Index 26: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.27 ListBoxOption "Index 27: #bb5944" -> r.0.0.0.0.0.28 ListBoxOption "Index 28: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.27 ListBoxOption "Index 27: #bb5944" -> r Window ""
+drive r.0.0.0.0.0.28 ListBoxOption "Index 28: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.27 ListBoxOption "Index 27: #bb5944" value="#bb5944" description="Index 27: #bb5944" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.28 ListBoxOption "Index 28: #e6e6e6" value="#e6e6e6" description="Index 28: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.27 ListBoxOption "Index 27: #bb5944" value="#bb5944" description="Index 27: #bb5944" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.28 ListBoxOption "Index 28: #e6e6e6" value="#e6e6e6" description="Index 28: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 27" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 27"
+    + r.0.0.0.0.1 Label "" value="Last event: select 28" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 28"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 28" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 28"
+    + r.0.0.0.0.1 Label "" value="Last event: open 28" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 28"
+  ArrowDown:
+    focus: r.0.0.0.0.0.28 ListBoxOption "Index 28: #e6e6e6" -> r.0.0.0.0.0.44 ListBoxOption "Index 44: #e6e6e6"
+  ArrowUp:
+    focus: r.0.0.0.0.0.28 ListBoxOption "Index 28: #e6e6e6" -> r.0.0.0.0.0.12 ListBoxOption "Index 12: #e6e6e6"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.28 ListBoxOption "Index 28: #e6e6e6" -> r.0.0.0.0.0.27 ListBoxOption "Index 27: #bb5944"
+  ArrowRight:
+    focus: r.0.0.0.0.0.28 ListBoxOption "Index 28: #e6e6e6" -> r.0.0.0.0.0.29 ListBoxOption "Index 29: #dd5922"
+  Escape:
+    focus: r.0.0.0.0.0.28 ListBoxOption "Index 28: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.29 ListBoxOption "Index 29: #dd5922"
+  click:
+    - r.0.0.0.0.0.28 ListBoxOption "Index 28: #e6e6e6" value="#e6e6e6" description="Index 28: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.29 ListBoxOption "Index 29: #dd5922" value="#dd5922" description="Index 29: #dd5922" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.28 ListBoxOption "Index 28: #e6e6e6" value="#e6e6e6" description="Index 28: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.29 ListBoxOption "Index 29: #dd5922" value="#dd5922" description="Index 29: #dd5922" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 28" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 28"
+    + r.0.0.0.0.1 Label "" value="Last event: select 29" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 29"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 29" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 29"
+    + r.0.0.0.0.1 Label "" value="Last event: open 29" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 29"
+  ArrowDown:
+    focus: r.0.0.0.0.0.29 ListBoxOption "Index 29: #dd5922" -> r.0.0.0.0.0.45 ListBoxOption "Index 45: #dd5922"
+  ArrowUp:
+    focus: r.0.0.0.0.0.29 ListBoxOption "Index 29: #dd5922" -> r.0.0.0.0.0.13 ListBoxOption "Index 13: #dd5922"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.29 ListBoxOption "Index 29: #dd5922" -> r.0.0.0.0.0.28 ListBoxOption "Index 28: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.29 ListBoxOption "Index 29: #dd5922" -> r.0.0.0.0.0.30 ListBoxOption "Index 30: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.29 ListBoxOption "Index 29: #dd5922" -> r Window ""
+drive r.0.0.0.0.0.30 ListBoxOption "Index 30: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.29 ListBoxOption "Index 29: #dd5922" value="#dd5922" description="Index 29: #dd5922" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.30 ListBoxOption "Index 30: #e6e6e6" value="#e6e6e6" description="Index 30: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.29 ListBoxOption "Index 29: #dd5922" value="#dd5922" description="Index 29: #dd5922" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.30 ListBoxOption "Index 30: #e6e6e6" value="#e6e6e6" description="Index 30: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 29" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 29"
+    + r.0.0.0.0.1 Label "" value="Last event: select 30" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 30"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 30" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 30"
+    + r.0.0.0.0.1 Label "" value="Last event: open 30" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 30"
+  ArrowDown:
+    focus: r.0.0.0.0.0.30 ListBoxOption "Index 30: #e6e6e6" -> r.0.0.0.0.0.46 ListBoxOption "Index 46: #e6e6e6"
+  ArrowUp:
+    focus: r.0.0.0.0.0.30 ListBoxOption "Index 30: #e6e6e6" -> r.0.0.0.0.0.14 ListBoxOption "Index 14: #e6e6e6"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.30 ListBoxOption "Index 30: #e6e6e6" -> r.0.0.0.0.0.29 ListBoxOption "Index 29: #dd5922"
+  ArrowRight:
+    focus: r.0.0.0.0.0.30 ListBoxOption "Index 30: #e6e6e6" -> r.0.0.0.0.0.31 ListBoxOption "Index 31: #ff5900"
+  Escape:
+    focus: r.0.0.0.0.0.30 ListBoxOption "Index 30: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.31 ListBoxOption "Index 31: #ff5900"
+  click:
+    - r.0.0.0.0.0.30 ListBoxOption "Index 30: #e6e6e6" value="#e6e6e6" description="Index 30: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.31 ListBoxOption "Index 31: #ff5900" value="#ff5900" description="Index 31: #ff5900" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.30 ListBoxOption "Index 30: #e6e6e6" value="#e6e6e6" description="Index 30: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.31 ListBoxOption "Index 31: #ff5900" value="#ff5900" description="Index 31: #ff5900" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 30" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 30"
+    + r.0.0.0.0.1 Label "" value="Last event: select 31" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 31"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 31" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 31"
+    + r.0.0.0.0.1 Label "" value="Last event: open 31" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 31"
+  ArrowDown:
+    focus: r.0.0.0.0.0.31 ListBoxOption "Index 31: #ff5900" -> r.0.0.0.0.0.47 ListBoxOption "Index 47: #ff5900"
+  ArrowUp:
+    focus: r.0.0.0.0.0.31 ListBoxOption "Index 31: #ff5900" -> r.0.0.0.0.0.15 ListBoxOption "Index 15: #ff5900"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.31 ListBoxOption "Index 31: #ff5900" -> r.0.0.0.0.0.30 ListBoxOption "Index 30: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.31 ListBoxOption "Index 31: #ff5900" -> r.0.0.0.0.0.32 ListBoxOption "Index 32: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.31 ListBoxOption "Index 31: #ff5900" -> r Window ""
+drive r.0.0.0.0.0.32 ListBoxOption "Index 32: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.31 ListBoxOption "Index 31: #ff5900" value="#ff5900" description="Index 31: #ff5900" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.32 ListBoxOption "Index 32: #e6e6e6" value="#e6e6e6" description="Index 32: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.31 ListBoxOption "Index 31: #ff5900" value="#ff5900" description="Index 31: #ff5900" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.32 ListBoxOption "Index 32: #e6e6e6" value="#e6e6e6" description="Index 32: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 31" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 31"
+    + r.0.0.0.0.1 Label "" value="Last event: select 32" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 32"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 32" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 32"
+    + r.0.0.0.0.1 Label "" value="Last event: open 32" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 32"
+  ArrowDown:
+    focus: r.0.0.0.0.0.32 ListBoxOption "Index 32: #e6e6e6" -> r.0.0.0.0.0.48 ListBoxOption "Index 48: #e6e6e6"
+  ArrowUp:
+    focus: r.0.0.0.0.0.32 ListBoxOption "Index 32: #e6e6e6" -> r.0.0.0.0.0.16 ListBoxOption "Index 16: #e6e6e6"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.32 ListBoxOption "Index 32: #e6e6e6" -> r.0.0.0.0.0.31 ListBoxOption "Index 31: #ff5900"
+  ArrowRight:
+    focus: r.0.0.0.0.0.32 ListBoxOption "Index 32: #e6e6e6" -> r.0.0.0.0.0.33 ListBoxOption "Index 33: #1159ee"
+  Escape:
+    focus: r.0.0.0.0.0.32 ListBoxOption "Index 32: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.33 ListBoxOption "Index 33: #1159ee"
+  click:
+    - r.0.0.0.0.0.32 ListBoxOption "Index 32: #e6e6e6" value="#e6e6e6" description="Index 32: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.33 ListBoxOption "Index 33: #1159ee" value="#1159ee" description="Index 33: #1159ee" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.32 ListBoxOption "Index 32: #e6e6e6" value="#e6e6e6" description="Index 32: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.33 ListBoxOption "Index 33: #1159ee" value="#1159ee" description="Index 33: #1159ee" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 32" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 32"
+    + r.0.0.0.0.1 Label "" value="Last event: select 33" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 33"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 33" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 33"
+    + r.0.0.0.0.1 Label "" value="Last event: open 33" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 33"
+  ArrowDown:
+    focus: r.0.0.0.0.0.33 ListBoxOption "Index 33: #1159ee" -> r.0.0.0.0.0.49 ListBoxOption "Index 49: #1159ee"
+  ArrowUp:
+    focus: r.0.0.0.0.0.33 ListBoxOption "Index 33: #1159ee" -> r.0.0.0.0.0.17 ListBoxOption "Index 17: #1159ee"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.33 ListBoxOption "Index 33: #1159ee" -> r.0.0.0.0.0.32 ListBoxOption "Index 32: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.33 ListBoxOption "Index 33: #1159ee" -> r.0.0.0.0.0.34 ListBoxOption "Index 34: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.33 ListBoxOption "Index 33: #1159ee" -> r Window ""
+drive r.0.0.0.0.0.34 ListBoxOption "Index 34: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.33 ListBoxOption "Index 33: #1159ee" value="#1159ee" description="Index 33: #1159ee" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.34 ListBoxOption "Index 34: #e6e6e6" value="#e6e6e6" description="Index 34: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.33 ListBoxOption "Index 33: #1159ee" value="#1159ee" description="Index 33: #1159ee" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.34 ListBoxOption "Index 34: #e6e6e6" value="#e6e6e6" description="Index 34: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 33" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 33"
+    + r.0.0.0.0.1 Label "" value="Last event: select 34" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 34"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 34" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 34"
+    + r.0.0.0.0.1 Label "" value="Last event: open 34" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 34"
+  ArrowDown:
+    focus: r.0.0.0.0.0.34 ListBoxOption "Index 34: #e6e6e6" -> r.0.0.0.0.0.50 ListBoxOption "Index 50: #e6e6e6"
+  ArrowUp:
+    focus: r.0.0.0.0.0.34 ListBoxOption "Index 34: #e6e6e6" -> r.0.0.0.0.0.18 ListBoxOption "Index 18: #e6e6e6"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.34 ListBoxOption "Index 34: #e6e6e6" -> r.0.0.0.0.0.33 ListBoxOption "Index 33: #1159ee"
+  ArrowRight:
+    focus: r.0.0.0.0.0.34 ListBoxOption "Index 34: #e6e6e6" -> r.0.0.0.0.0.35 ListBoxOption "Index 35: #3359cc"
+  Escape:
+    focus: r.0.0.0.0.0.34 ListBoxOption "Index 34: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.35 ListBoxOption "Index 35: #3359cc"
+  click:
+    - r.0.0.0.0.0.34 ListBoxOption "Index 34: #e6e6e6" value="#e6e6e6" description="Index 34: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.35 ListBoxOption "Index 35: #3359cc" value="#3359cc" description="Index 35: #3359cc" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.34 ListBoxOption "Index 34: #e6e6e6" value="#e6e6e6" description="Index 34: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.35 ListBoxOption "Index 35: #3359cc" value="#3359cc" description="Index 35: #3359cc" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 34" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 34"
+    + r.0.0.0.0.1 Label "" value="Last event: select 35" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 35"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 35" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 35"
+    + r.0.0.0.0.1 Label "" value="Last event: open 35" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 35"
+  ArrowDown:
+    focus: r.0.0.0.0.0.35 ListBoxOption "Index 35: #3359cc" -> r.0.0.0.0.0.51 ListBoxOption "Index 51: #3359cc"
+  ArrowUp:
+    focus: r.0.0.0.0.0.35 ListBoxOption "Index 35: #3359cc" -> r.0.0.0.0.0.19 ListBoxOption "Index 19: #3359cc"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.35 ListBoxOption "Index 35: #3359cc" -> r.0.0.0.0.0.34 ListBoxOption "Index 34: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.35 ListBoxOption "Index 35: #3359cc" -> r.0.0.0.0.0.36 ListBoxOption "Index 36: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.35 ListBoxOption "Index 35: #3359cc" -> r Window ""
+drive r.0.0.0.0.0.36 ListBoxOption "Index 36: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.35 ListBoxOption "Index 35: #3359cc" value="#3359cc" description="Index 35: #3359cc" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.36 ListBoxOption "Index 36: #e6e6e6" value="#e6e6e6" description="Index 36: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.35 ListBoxOption "Index 35: #3359cc" value="#3359cc" description="Index 35: #3359cc" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.36 ListBoxOption "Index 36: #e6e6e6" value="#e6e6e6" description="Index 36: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 35" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 35"
+    + r.0.0.0.0.1 Label "" value="Last event: select 36" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 36"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 36" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 36"
+    + r.0.0.0.0.1 Label "" value="Last event: open 36" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 36"
+  ArrowDown:
+    focus: r.0.0.0.0.0.36 ListBoxOption "Index 36: #e6e6e6" -> r.0.0.0.0.0.52 ListBoxOption "Index 52: #e6e6e6"
+  ArrowUp:
+    focus: r.0.0.0.0.0.36 ListBoxOption "Index 36: #e6e6e6" -> r.0.0.0.0.0.20 ListBoxOption "Index 20: #e6e6e6"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.36 ListBoxOption "Index 36: #e6e6e6" -> r.0.0.0.0.0.35 ListBoxOption "Index 35: #3359cc"
+  ArrowRight:
+    focus: r.0.0.0.0.0.36 ListBoxOption "Index 36: #e6e6e6" -> r.0.0.0.0.0.37 ListBoxOption "Index 37: #5559aa"
+  Escape:
+    focus: r.0.0.0.0.0.36 ListBoxOption "Index 36: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.37 ListBoxOption "Index 37: #5559aa"
+  click:
+    - r.0.0.0.0.0.36 ListBoxOption "Index 36: #e6e6e6" value="#e6e6e6" description="Index 36: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.37 ListBoxOption "Index 37: #5559aa" value="#5559aa" description="Index 37: #5559aa" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.36 ListBoxOption "Index 36: #e6e6e6" value="#e6e6e6" description="Index 36: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.37 ListBoxOption "Index 37: #5559aa" value="#5559aa" description="Index 37: #5559aa" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 36" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 36"
+    + r.0.0.0.0.1 Label "" value="Last event: select 37" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 37"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 37" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 37"
+    + r.0.0.0.0.1 Label "" value="Last event: open 37" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 37"
+  ArrowDown:
+    focus: r.0.0.0.0.0.37 ListBoxOption "Index 37: #5559aa" -> r.0.0.0.0.0.53 ListBoxOption "Index 53: #5559aa"
+  ArrowUp:
+    focus: r.0.0.0.0.0.37 ListBoxOption "Index 37: #5559aa" -> r.0.0.0.0.0.21 ListBoxOption "Index 21: #5559aa"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.37 ListBoxOption "Index 37: #5559aa" -> r.0.0.0.0.0.36 ListBoxOption "Index 36: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.37 ListBoxOption "Index 37: #5559aa" -> r.0.0.0.0.0.38 ListBoxOption "Index 38: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.37 ListBoxOption "Index 37: #5559aa" -> r Window ""
+drive r.0.0.0.0.0.38 ListBoxOption "Index 38: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.37 ListBoxOption "Index 37: #5559aa" value="#5559aa" description="Index 37: #5559aa" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.38 ListBoxOption "Index 38: #e6e6e6" value="#e6e6e6" description="Index 38: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.37 ListBoxOption "Index 37: #5559aa" value="#5559aa" description="Index 37: #5559aa" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.38 ListBoxOption "Index 38: #e6e6e6" value="#e6e6e6" description="Index 38: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 37" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 37"
+    + r.0.0.0.0.1 Label "" value="Last event: select 38" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 38"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 38" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 38"
+    + r.0.0.0.0.1 Label "" value="Last event: open 38" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 38"
+  ArrowDown:
+    focus: r.0.0.0.0.0.38 ListBoxOption "Index 38: #e6e6e6" -> r.0.0.0.0.0.54 ListBoxOption "Index 54: #e6e6e6"
+  ArrowUp:
+    focus: r.0.0.0.0.0.38 ListBoxOption "Index 38: #e6e6e6" -> r.0.0.0.0.0.22 ListBoxOption "Index 22: #e6e6e6"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.38 ListBoxOption "Index 38: #e6e6e6" -> r.0.0.0.0.0.37 ListBoxOption "Index 37: #5559aa"
+  ArrowRight:
+    focus: r.0.0.0.0.0.38 ListBoxOption "Index 38: #e6e6e6" -> r.0.0.0.0.0.39 ListBoxOption "Index 39: #775988"
+  Escape:
+    focus: r.0.0.0.0.0.38 ListBoxOption "Index 38: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.39 ListBoxOption "Index 39: #775988"
+  click:
+    - r.0.0.0.0.0.38 ListBoxOption "Index 38: #e6e6e6" value="#e6e6e6" description="Index 38: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.39 ListBoxOption "Index 39: #775988" value="#775988" description="Index 39: #775988" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.38 ListBoxOption "Index 38: #e6e6e6" value="#e6e6e6" description="Index 38: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.39 ListBoxOption "Index 39: #775988" value="#775988" description="Index 39: #775988" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 38" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 38"
+    + r.0.0.0.0.1 Label "" value="Last event: select 39" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 39"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 39" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 39"
+    + r.0.0.0.0.1 Label "" value="Last event: open 39" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 39"
+  ArrowDown:
+    focus: r.0.0.0.0.0.39 ListBoxOption "Index 39: #775988" -> r.0.0.0.0.0.55 ListBoxOption "Index 55: #775988"
+  ArrowUp:
+    focus: r.0.0.0.0.0.39 ListBoxOption "Index 39: #775988" -> r.0.0.0.0.0.23 ListBoxOption "Index 23: #775988"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.39 ListBoxOption "Index 39: #775988" -> r.0.0.0.0.0.38 ListBoxOption "Index 38: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.39 ListBoxOption "Index 39: #775988" -> r.0.0.0.0.0.40 ListBoxOption "Index 40: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.39 ListBoxOption "Index 39: #775988" -> r Window ""
+drive r.0.0.0.0.0.40 ListBoxOption "Index 40: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.39 ListBoxOption "Index 39: #775988" value="#775988" description="Index 39: #775988" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.40 ListBoxOption "Index 40: #e6e6e6" value="#e6e6e6" description="Index 40: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.39 ListBoxOption "Index 39: #775988" value="#775988" description="Index 39: #775988" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.40 ListBoxOption "Index 40: #e6e6e6" value="#e6e6e6" description="Index 40: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 39" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 39"
+    + r.0.0.0.0.1 Label "" value="Last event: select 40" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 40"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 40" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 40"
+    + r.0.0.0.0.1 Label "" value="Last event: open 40" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 40"
+  ArrowDown:
+    focus: r.0.0.0.0.0.40 ListBoxOption "Index 40: #e6e6e6" -> r.0.0.0.0.0.56 ListBoxOption "Index 56: #e6e6e6"
+  ArrowUp:
+    focus: r.0.0.0.0.0.40 ListBoxOption "Index 40: #e6e6e6" -> r.0.0.0.0.0.24 ListBoxOption "Index 24: #e6e6e6"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.40 ListBoxOption "Index 40: #e6e6e6" -> r.0.0.0.0.0.39 ListBoxOption "Index 39: #775988"
+  ArrowRight:
+    focus: r.0.0.0.0.0.40 ListBoxOption "Index 40: #e6e6e6" -> r.0.0.0.0.0.41 ListBoxOption "Index 41: #995966"
+  Escape:
+    focus: r.0.0.0.0.0.40 ListBoxOption "Index 40: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.41 ListBoxOption "Index 41: #995966"
+  click:
+    - r.0.0.0.0.0.40 ListBoxOption "Index 40: #e6e6e6" value="#e6e6e6" description="Index 40: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.41 ListBoxOption "Index 41: #995966" value="#995966" description="Index 41: #995966" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.40 ListBoxOption "Index 40: #e6e6e6" value="#e6e6e6" description="Index 40: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.41 ListBoxOption "Index 41: #995966" value="#995966" description="Index 41: #995966" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 40" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 40"
+    + r.0.0.0.0.1 Label "" value="Last event: select 41" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 41"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 41" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 41"
+    + r.0.0.0.0.1 Label "" value="Last event: open 41" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 41"
+  ArrowDown:
+    focus: r.0.0.0.0.0.41 ListBoxOption "Index 41: #995966" -> r.0.0.0.0.0.57 ListBoxOption "Index 57: #995966"
+  ArrowUp:
+    focus: r.0.0.0.0.0.41 ListBoxOption "Index 41: #995966" -> r.0.0.0.0.0.25 ListBoxOption "Index 25: #995966"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.41 ListBoxOption "Index 41: #995966" -> r.0.0.0.0.0.40 ListBoxOption "Index 40: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.41 ListBoxOption "Index 41: #995966" -> r.0.0.0.0.0.42 ListBoxOption "Index 42: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.41 ListBoxOption "Index 41: #995966" -> r Window ""
+drive r.0.0.0.0.0.42 ListBoxOption "Index 42: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.41 ListBoxOption "Index 41: #995966" value="#995966" description="Index 41: #995966" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.42 ListBoxOption "Index 42: #e6e6e6" value="#e6e6e6" description="Index 42: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.41 ListBoxOption "Index 41: #995966" value="#995966" description="Index 41: #995966" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.42 ListBoxOption "Index 42: #e6e6e6" value="#e6e6e6" description="Index 42: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 41" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 41"
+    + r.0.0.0.0.1 Label "" value="Last event: select 42" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 42"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 42" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 42"
+    + r.0.0.0.0.1 Label "" value="Last event: open 42" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 42"
+  ArrowDown:
+    focus: r.0.0.0.0.0.42 ListBoxOption "Index 42: #e6e6e6" -> r.0.0.0.0.0.58 ListBoxOption "Index 58: #e6e6e6"
+  ArrowUp:
+    focus: r.0.0.0.0.0.42 ListBoxOption "Index 42: #e6e6e6" -> r.0.0.0.0.0.26 ListBoxOption "Index 26: #e6e6e6"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.42 ListBoxOption "Index 42: #e6e6e6" -> r.0.0.0.0.0.41 ListBoxOption "Index 41: #995966"
+  ArrowRight:
+    focus: r.0.0.0.0.0.42 ListBoxOption "Index 42: #e6e6e6" -> r.0.0.0.0.0.43 ListBoxOption "Index 43: #bb5944"
+  Escape:
+    focus: r.0.0.0.0.0.42 ListBoxOption "Index 42: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.43 ListBoxOption "Index 43: #bb5944"
+  click:
+    - r.0.0.0.0.0.42 ListBoxOption "Index 42: #e6e6e6" value="#e6e6e6" description="Index 42: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.43 ListBoxOption "Index 43: #bb5944" value="#bb5944" description="Index 43: #bb5944" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.42 ListBoxOption "Index 42: #e6e6e6" value="#e6e6e6" description="Index 42: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.43 ListBoxOption "Index 43: #bb5944" value="#bb5944" description="Index 43: #bb5944" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 42" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 42"
+    + r.0.0.0.0.1 Label "" value="Last event: select 43" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 43"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 43" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 43"
+    + r.0.0.0.0.1 Label "" value="Last event: open 43" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 43"
+  ArrowDown:
+    focus: r.0.0.0.0.0.43 ListBoxOption "Index 43: #bb5944" -> r.0.0.0.0.0.59 ListBoxOption "Index 59: #bb5944"
+  ArrowUp:
+    focus: r.0.0.0.0.0.43 ListBoxOption "Index 43: #bb5944" -> r.0.0.0.0.0.27 ListBoxOption "Index 27: #bb5944"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.43 ListBoxOption "Index 43: #bb5944" -> r.0.0.0.0.0.42 ListBoxOption "Index 42: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.43 ListBoxOption "Index 43: #bb5944" -> r.0.0.0.0.0.44 ListBoxOption "Index 44: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.43 ListBoxOption "Index 43: #bb5944" -> r Window ""
+drive r.0.0.0.0.0.44 ListBoxOption "Index 44: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.43 ListBoxOption "Index 43: #bb5944" value="#bb5944" description="Index 43: #bb5944" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.44 ListBoxOption "Index 44: #e6e6e6" value="#e6e6e6" description="Index 44: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.43 ListBoxOption "Index 43: #bb5944" value="#bb5944" description="Index 43: #bb5944" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.44 ListBoxOption "Index 44: #e6e6e6" value="#e6e6e6" description="Index 44: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 43" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 43"
+    + r.0.0.0.0.1 Label "" value="Last event: select 44" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 44"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 44" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 44"
+    + r.0.0.0.0.1 Label "" value="Last event: open 44" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 44"
+  ArrowDown:
+    focus: r.0.0.0.0.0.44 ListBoxOption "Index 44: #e6e6e6" -> r.0.0.0.0.0.60 ListBoxOption "Index 60: #e6e6e6"
+  ArrowUp:
+    focus: r.0.0.0.0.0.44 ListBoxOption "Index 44: #e6e6e6" -> r.0.0.0.0.0.28 ListBoxOption "Index 28: #e6e6e6"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.44 ListBoxOption "Index 44: #e6e6e6" -> r.0.0.0.0.0.43 ListBoxOption "Index 43: #bb5944"
+  ArrowRight:
+    focus: r.0.0.0.0.0.44 ListBoxOption "Index 44: #e6e6e6" -> r.0.0.0.0.0.45 ListBoxOption "Index 45: #dd5922"
+  Escape:
+    focus: r.0.0.0.0.0.44 ListBoxOption "Index 44: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.45 ListBoxOption "Index 45: #dd5922"
+  click:
+    - r.0.0.0.0.0.44 ListBoxOption "Index 44: #e6e6e6" value="#e6e6e6" description="Index 44: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.45 ListBoxOption "Index 45: #dd5922" value="#dd5922" description="Index 45: #dd5922" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.44 ListBoxOption "Index 44: #e6e6e6" value="#e6e6e6" description="Index 44: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.45 ListBoxOption "Index 45: #dd5922" value="#dd5922" description="Index 45: #dd5922" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 44" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 44"
+    + r.0.0.0.0.1 Label "" value="Last event: select 45" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 45"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 45" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 45"
+    + r.0.0.0.0.1 Label "" value="Last event: open 45" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 45"
+  ArrowDown:
+    focus: r.0.0.0.0.0.45 ListBoxOption "Index 45: #dd5922" -> r.0.0.0.0.0.61 ListBoxOption "Index 61: #dd5922"
+  ArrowUp:
+    focus: r.0.0.0.0.0.45 ListBoxOption "Index 45: #dd5922" -> r.0.0.0.0.0.29 ListBoxOption "Index 29: #dd5922"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.45 ListBoxOption "Index 45: #dd5922" -> r.0.0.0.0.0.44 ListBoxOption "Index 44: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.45 ListBoxOption "Index 45: #dd5922" -> r.0.0.0.0.0.46 ListBoxOption "Index 46: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.45 ListBoxOption "Index 45: #dd5922" -> r Window ""
+drive r.0.0.0.0.0.46 ListBoxOption "Index 46: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.45 ListBoxOption "Index 45: #dd5922" value="#dd5922" description="Index 45: #dd5922" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.46 ListBoxOption "Index 46: #e6e6e6" value="#e6e6e6" description="Index 46: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.45 ListBoxOption "Index 45: #dd5922" value="#dd5922" description="Index 45: #dd5922" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.46 ListBoxOption "Index 46: #e6e6e6" value="#e6e6e6" description="Index 46: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 45" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 45"
+    + r.0.0.0.0.1 Label "" value="Last event: select 46" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 46"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 46" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 46"
+    + r.0.0.0.0.1 Label "" value="Last event: open 46" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 46"
+  ArrowDown:
+    focus: r.0.0.0.0.0.46 ListBoxOption "Index 46: #e6e6e6" -> r.0.0.0.0.0.62 ListBoxOption "Index 62: #e6e6e6"
+  ArrowUp:
+    focus: r.0.0.0.0.0.46 ListBoxOption "Index 46: #e6e6e6" -> r.0.0.0.0.0.30 ListBoxOption "Index 30: #e6e6e6"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.46 ListBoxOption "Index 46: #e6e6e6" -> r.0.0.0.0.0.45 ListBoxOption "Index 45: #dd5922"
+  ArrowRight:
+    focus: r.0.0.0.0.0.46 ListBoxOption "Index 46: #e6e6e6" -> r.0.0.0.0.0.47 ListBoxOption "Index 47: #ff5900"
+  Escape:
+    focus: r.0.0.0.0.0.46 ListBoxOption "Index 46: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.47 ListBoxOption "Index 47: #ff5900"
+  click:
+    - r.0.0.0.0.0.46 ListBoxOption "Index 46: #e6e6e6" value="#e6e6e6" description="Index 46: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.47 ListBoxOption "Index 47: #ff5900" value="#ff5900" description="Index 47: #ff5900" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.46 ListBoxOption "Index 46: #e6e6e6" value="#e6e6e6" description="Index 46: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.47 ListBoxOption "Index 47: #ff5900" value="#ff5900" description="Index 47: #ff5900" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 46" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 46"
+    + r.0.0.0.0.1 Label "" value="Last event: select 47" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 47"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 47" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 47"
+    + r.0.0.0.0.1 Label "" value="Last event: open 47" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 47"
+  ArrowDown:
+    focus: r.0.0.0.0.0.47 ListBoxOption "Index 47: #ff5900" -> r.0.0.0.0.0.63 ListBoxOption "Index 63: #ff5900"
+  ArrowUp:
+    focus: r.0.0.0.0.0.47 ListBoxOption "Index 47: #ff5900" -> r.0.0.0.0.0.31 ListBoxOption "Index 31: #ff5900"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.47 ListBoxOption "Index 47: #ff5900" -> r.0.0.0.0.0.46 ListBoxOption "Index 46: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.47 ListBoxOption "Index 47: #ff5900" -> r.0.0.0.0.0.48 ListBoxOption "Index 48: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.47 ListBoxOption "Index 47: #ff5900" -> r Window ""
+drive r.0.0.0.0.0.48 ListBoxOption "Index 48: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.47 ListBoxOption "Index 47: #ff5900" value="#ff5900" description="Index 47: #ff5900" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.48 ListBoxOption "Index 48: #e6e6e6" value="#e6e6e6" description="Index 48: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.47 ListBoxOption "Index 47: #ff5900" value="#ff5900" description="Index 47: #ff5900" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.48 ListBoxOption "Index 48: #e6e6e6" value="#e6e6e6" description="Index 48: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 47" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 47"
+    + r.0.0.0.0.1 Label "" value="Last event: select 48" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 48"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 48" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 48"
+    + r.0.0.0.0.1 Label "" value="Last event: open 48" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 48"
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.0.48 ListBoxOption "Index 48: #e6e6e6" -> r.0.0.0.0.0.32 ListBoxOption "Index 32: #e6e6e6"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.48 ListBoxOption "Index 48: #e6e6e6" -> r.0.0.0.0.0.47 ListBoxOption "Index 47: #ff5900"
+  ArrowRight:
+    focus: r.0.0.0.0.0.48 ListBoxOption "Index 48: #e6e6e6" -> r.0.0.0.0.0.49 ListBoxOption "Index 49: #1159ee"
+  Escape:
+    focus: r.0.0.0.0.0.48 ListBoxOption "Index 48: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.49 ListBoxOption "Index 49: #1159ee"
+  click:
+    - r.0.0.0.0.0.48 ListBoxOption "Index 48: #e6e6e6" value="#e6e6e6" description="Index 48: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.49 ListBoxOption "Index 49: #1159ee" value="#1159ee" description="Index 49: #1159ee" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.48 ListBoxOption "Index 48: #e6e6e6" value="#e6e6e6" description="Index 48: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.49 ListBoxOption "Index 49: #1159ee" value="#1159ee" description="Index 49: #1159ee" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 48" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 48"
+    + r.0.0.0.0.1 Label "" value="Last event: select 49" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 49"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 49" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 49"
+    + r.0.0.0.0.1 Label "" value="Last event: open 49" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 49"
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.0.49 ListBoxOption "Index 49: #1159ee" -> r.0.0.0.0.0.33 ListBoxOption "Index 33: #1159ee"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.49 ListBoxOption "Index 49: #1159ee" -> r.0.0.0.0.0.48 ListBoxOption "Index 48: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.49 ListBoxOption "Index 49: #1159ee" -> r.0.0.0.0.0.50 ListBoxOption "Index 50: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.49 ListBoxOption "Index 49: #1159ee" -> r Window ""
+drive r.0.0.0.0.0.50 ListBoxOption "Index 50: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.49 ListBoxOption "Index 49: #1159ee" value="#1159ee" description="Index 49: #1159ee" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.50 ListBoxOption "Index 50: #e6e6e6" value="#e6e6e6" description="Index 50: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.49 ListBoxOption "Index 49: #1159ee" value="#1159ee" description="Index 49: #1159ee" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.50 ListBoxOption "Index 50: #e6e6e6" value="#e6e6e6" description="Index 50: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 49" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 49"
+    + r.0.0.0.0.1 Label "" value="Last event: select 50" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 50"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 50" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 50"
+    + r.0.0.0.0.1 Label "" value="Last event: open 50" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 50"
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.0.50 ListBoxOption "Index 50: #e6e6e6" -> r.0.0.0.0.0.34 ListBoxOption "Index 34: #e6e6e6"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.50 ListBoxOption "Index 50: #e6e6e6" -> r.0.0.0.0.0.49 ListBoxOption "Index 49: #1159ee"
+  ArrowRight:
+    focus: r.0.0.0.0.0.50 ListBoxOption "Index 50: #e6e6e6" -> r.0.0.0.0.0.51 ListBoxOption "Index 51: #3359cc"
+  Escape:
+    focus: r.0.0.0.0.0.50 ListBoxOption "Index 50: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.51 ListBoxOption "Index 51: #3359cc"
+  click:
+    - r.0.0.0.0.0.50 ListBoxOption "Index 50: #e6e6e6" value="#e6e6e6" description="Index 50: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.51 ListBoxOption "Index 51: #3359cc" value="#3359cc" description="Index 51: #3359cc" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.50 ListBoxOption "Index 50: #e6e6e6" value="#e6e6e6" description="Index 50: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.51 ListBoxOption "Index 51: #3359cc" value="#3359cc" description="Index 51: #3359cc" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 50" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 50"
+    + r.0.0.0.0.1 Label "" value="Last event: select 51" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 51"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 51" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 51"
+    + r.0.0.0.0.1 Label "" value="Last event: open 51" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 51"
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.0.51 ListBoxOption "Index 51: #3359cc" -> r.0.0.0.0.0.35 ListBoxOption "Index 35: #3359cc"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.51 ListBoxOption "Index 51: #3359cc" -> r.0.0.0.0.0.50 ListBoxOption "Index 50: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.51 ListBoxOption "Index 51: #3359cc" -> r.0.0.0.0.0.52 ListBoxOption "Index 52: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.51 ListBoxOption "Index 51: #3359cc" -> r Window ""
+drive r.0.0.0.0.0.52 ListBoxOption "Index 52: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.51 ListBoxOption "Index 51: #3359cc" value="#3359cc" description="Index 51: #3359cc" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.52 ListBoxOption "Index 52: #e6e6e6" value="#e6e6e6" description="Index 52: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.51 ListBoxOption "Index 51: #3359cc" value="#3359cc" description="Index 51: #3359cc" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.52 ListBoxOption "Index 52: #e6e6e6" value="#e6e6e6" description="Index 52: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 51" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 51"
+    + r.0.0.0.0.1 Label "" value="Last event: select 52" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 52"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 52" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 52"
+    + r.0.0.0.0.1 Label "" value="Last event: open 52" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 52"
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.0.52 ListBoxOption "Index 52: #e6e6e6" -> r.0.0.0.0.0.36 ListBoxOption "Index 36: #e6e6e6"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.52 ListBoxOption "Index 52: #e6e6e6" -> r.0.0.0.0.0.51 ListBoxOption "Index 51: #3359cc"
+  ArrowRight:
+    focus: r.0.0.0.0.0.52 ListBoxOption "Index 52: #e6e6e6" -> r.0.0.0.0.0.53 ListBoxOption "Index 53: #5559aa"
+  Escape:
+    focus: r.0.0.0.0.0.52 ListBoxOption "Index 52: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.53 ListBoxOption "Index 53: #5559aa"
+  click:
+    - r.0.0.0.0.0.52 ListBoxOption "Index 52: #e6e6e6" value="#e6e6e6" description="Index 52: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.53 ListBoxOption "Index 53: #5559aa" value="#5559aa" description="Index 53: #5559aa" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.52 ListBoxOption "Index 52: #e6e6e6" value="#e6e6e6" description="Index 52: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.53 ListBoxOption "Index 53: #5559aa" value="#5559aa" description="Index 53: #5559aa" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 52" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 52"
+    + r.0.0.0.0.1 Label "" value="Last event: select 53" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 53"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 53" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 53"
+    + r.0.0.0.0.1 Label "" value="Last event: open 53" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 53"
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.0.53 ListBoxOption "Index 53: #5559aa" -> r.0.0.0.0.0.37 ListBoxOption "Index 37: #5559aa"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.53 ListBoxOption "Index 53: #5559aa" -> r.0.0.0.0.0.52 ListBoxOption "Index 52: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.53 ListBoxOption "Index 53: #5559aa" -> r.0.0.0.0.0.54 ListBoxOption "Index 54: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.53 ListBoxOption "Index 53: #5559aa" -> r Window ""
+drive r.0.0.0.0.0.54 ListBoxOption "Index 54: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.53 ListBoxOption "Index 53: #5559aa" value="#5559aa" description="Index 53: #5559aa" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.54 ListBoxOption "Index 54: #e6e6e6" value="#e6e6e6" description="Index 54: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.53 ListBoxOption "Index 53: #5559aa" value="#5559aa" description="Index 53: #5559aa" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.54 ListBoxOption "Index 54: #e6e6e6" value="#e6e6e6" description="Index 54: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 53" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 53"
+    + r.0.0.0.0.1 Label "" value="Last event: select 54" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 54"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 54" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 54"
+    + r.0.0.0.0.1 Label "" value="Last event: open 54" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 54"
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.0.54 ListBoxOption "Index 54: #e6e6e6" -> r.0.0.0.0.0.38 ListBoxOption "Index 38: #e6e6e6"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.54 ListBoxOption "Index 54: #e6e6e6" -> r.0.0.0.0.0.53 ListBoxOption "Index 53: #5559aa"
+  ArrowRight:
+    focus: r.0.0.0.0.0.54 ListBoxOption "Index 54: #e6e6e6" -> r.0.0.0.0.0.55 ListBoxOption "Index 55: #775988"
+  Escape:
+    focus: r.0.0.0.0.0.54 ListBoxOption "Index 54: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.55 ListBoxOption "Index 55: #775988"
+  click:
+    - r.0.0.0.0.0.54 ListBoxOption "Index 54: #e6e6e6" value="#e6e6e6" description="Index 54: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.55 ListBoxOption "Index 55: #775988" value="#775988" description="Index 55: #775988" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.54 ListBoxOption "Index 54: #e6e6e6" value="#e6e6e6" description="Index 54: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.55 ListBoxOption "Index 55: #775988" value="#775988" description="Index 55: #775988" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 54" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 54"
+    + r.0.0.0.0.1 Label "" value="Last event: select 55" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 55"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 55" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 55"
+    + r.0.0.0.0.1 Label "" value="Last event: open 55" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 55"
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.0.55 ListBoxOption "Index 55: #775988" -> r.0.0.0.0.0.39 ListBoxOption "Index 39: #775988"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.55 ListBoxOption "Index 55: #775988" -> r.0.0.0.0.0.54 ListBoxOption "Index 54: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.55 ListBoxOption "Index 55: #775988" -> r.0.0.0.0.0.56 ListBoxOption "Index 56: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.55 ListBoxOption "Index 55: #775988" -> r Window ""
+drive r.0.0.0.0.0.56 ListBoxOption "Index 56: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.55 ListBoxOption "Index 55: #775988" value="#775988" description="Index 55: #775988" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.56 ListBoxOption "Index 56: #e6e6e6" value="#e6e6e6" description="Index 56: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.55 ListBoxOption "Index 55: #775988" value="#775988" description="Index 55: #775988" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.56 ListBoxOption "Index 56: #e6e6e6" value="#e6e6e6" description="Index 56: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 55" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 55"
+    + r.0.0.0.0.1 Label "" value="Last event: select 56" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 56"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 56" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 56"
+    + r.0.0.0.0.1 Label "" value="Last event: open 56" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 56"
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.0.56 ListBoxOption "Index 56: #e6e6e6" -> r.0.0.0.0.0.40 ListBoxOption "Index 40: #e6e6e6"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.56 ListBoxOption "Index 56: #e6e6e6" -> r.0.0.0.0.0.55 ListBoxOption "Index 55: #775988"
+  ArrowRight:
+    focus: r.0.0.0.0.0.56 ListBoxOption "Index 56: #e6e6e6" -> r.0.0.0.0.0.57 ListBoxOption "Index 57: #995966"
+  Escape:
+    focus: r.0.0.0.0.0.56 ListBoxOption "Index 56: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.57 ListBoxOption "Index 57: #995966"
+  click:
+    - r.0.0.0.0.0.56 ListBoxOption "Index 56: #e6e6e6" value="#e6e6e6" description="Index 56: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.57 ListBoxOption "Index 57: #995966" value="#995966" description="Index 57: #995966" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.56 ListBoxOption "Index 56: #e6e6e6" value="#e6e6e6" description="Index 56: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.57 ListBoxOption "Index 57: #995966" value="#995966" description="Index 57: #995966" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 56" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 56"
+    + r.0.0.0.0.1 Label "" value="Last event: select 57" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 57"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 57" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 57"
+    + r.0.0.0.0.1 Label "" value="Last event: open 57" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 57"
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.0.57 ListBoxOption "Index 57: #995966" -> r.0.0.0.0.0.41 ListBoxOption "Index 41: #995966"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.57 ListBoxOption "Index 57: #995966" -> r.0.0.0.0.0.56 ListBoxOption "Index 56: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.57 ListBoxOption "Index 57: #995966" -> r.0.0.0.0.0.58 ListBoxOption "Index 58: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.57 ListBoxOption "Index 57: #995966" -> r Window ""
+drive r.0.0.0.0.0.58 ListBoxOption "Index 58: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.57 ListBoxOption "Index 57: #995966" value="#995966" description="Index 57: #995966" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.58 ListBoxOption "Index 58: #e6e6e6" value="#e6e6e6" description="Index 58: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.57 ListBoxOption "Index 57: #995966" value="#995966" description="Index 57: #995966" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.58 ListBoxOption "Index 58: #e6e6e6" value="#e6e6e6" description="Index 58: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 57" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 57"
+    + r.0.0.0.0.1 Label "" value="Last event: select 58" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 58"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 58" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 58"
+    + r.0.0.0.0.1 Label "" value="Last event: open 58" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 58"
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.0.58 ListBoxOption "Index 58: #e6e6e6" -> r.0.0.0.0.0.42 ListBoxOption "Index 42: #e6e6e6"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.58 ListBoxOption "Index 58: #e6e6e6" -> r.0.0.0.0.0.57 ListBoxOption "Index 57: #995966"
+  ArrowRight:
+    focus: r.0.0.0.0.0.58 ListBoxOption "Index 58: #e6e6e6" -> r.0.0.0.0.0.59 ListBoxOption "Index 59: #bb5944"
+  Escape:
+    focus: r.0.0.0.0.0.58 ListBoxOption "Index 58: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.59 ListBoxOption "Index 59: #bb5944"
+  click:
+    - r.0.0.0.0.0.58 ListBoxOption "Index 58: #e6e6e6" value="#e6e6e6" description="Index 58: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.59 ListBoxOption "Index 59: #bb5944" value="#bb5944" description="Index 59: #bb5944" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.58 ListBoxOption "Index 58: #e6e6e6" value="#e6e6e6" description="Index 58: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.59 ListBoxOption "Index 59: #bb5944" value="#bb5944" description="Index 59: #bb5944" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 58" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 58"
+    + r.0.0.0.0.1 Label "" value="Last event: select 59" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 59"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 59" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 59"
+    + r.0.0.0.0.1 Label "" value="Last event: open 59" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 59"
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.0.59 ListBoxOption "Index 59: #bb5944" -> r.0.0.0.0.0.43 ListBoxOption "Index 43: #bb5944"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.59 ListBoxOption "Index 59: #bb5944" -> r.0.0.0.0.0.58 ListBoxOption "Index 58: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.59 ListBoxOption "Index 59: #bb5944" -> r.0.0.0.0.0.60 ListBoxOption "Index 60: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.59 ListBoxOption "Index 59: #bb5944" -> r Window ""
+drive r.0.0.0.0.0.60 ListBoxOption "Index 60: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.59 ListBoxOption "Index 59: #bb5944" value="#bb5944" description="Index 59: #bb5944" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.60 ListBoxOption "Index 60: #e6e6e6" value="#e6e6e6" description="Index 60: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.59 ListBoxOption "Index 59: #bb5944" value="#bb5944" description="Index 59: #bb5944" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.60 ListBoxOption "Index 60: #e6e6e6" value="#e6e6e6" description="Index 60: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 59" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 59"
+    + r.0.0.0.0.1 Label "" value="Last event: select 60" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 60"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 60" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 60"
+    + r.0.0.0.0.1 Label "" value="Last event: open 60" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 60"
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.0.60 ListBoxOption "Index 60: #e6e6e6" -> r.0.0.0.0.0.44 ListBoxOption "Index 44: #e6e6e6"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.60 ListBoxOption "Index 60: #e6e6e6" -> r.0.0.0.0.0.59 ListBoxOption "Index 59: #bb5944"
+  ArrowRight:
+    focus: r.0.0.0.0.0.60 ListBoxOption "Index 60: #e6e6e6" -> r.0.0.0.0.0.61 ListBoxOption "Index 61: #dd5922"
+  Escape:
+    focus: r.0.0.0.0.0.60 ListBoxOption "Index 60: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.61 ListBoxOption "Index 61: #dd5922"
+  click:
+    - r.0.0.0.0.0.60 ListBoxOption "Index 60: #e6e6e6" value="#e6e6e6" description="Index 60: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.61 ListBoxOption "Index 61: #dd5922" value="#dd5922" description="Index 61: #dd5922" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.60 ListBoxOption "Index 60: #e6e6e6" value="#e6e6e6" description="Index 60: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.61 ListBoxOption "Index 61: #dd5922" value="#dd5922" description="Index 61: #dd5922" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 60" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 60"
+    + r.0.0.0.0.1 Label "" value="Last event: select 61" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 61"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 61" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 61"
+    + r.0.0.0.0.1 Label "" value="Last event: open 61" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 61"
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.0.61 ListBoxOption "Index 61: #dd5922" -> r.0.0.0.0.0.45 ListBoxOption "Index 45: #dd5922"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.61 ListBoxOption "Index 61: #dd5922" -> r.0.0.0.0.0.60 ListBoxOption "Index 60: #e6e6e6"
+  ArrowRight:
+    focus: r.0.0.0.0.0.61 ListBoxOption "Index 61: #dd5922" -> r.0.0.0.0.0.62 ListBoxOption "Index 62: #e6e6e6"
+  Escape:
+    focus: r.0.0.0.0.0.61 ListBoxOption "Index 61: #dd5922" -> r Window ""
+drive r.0.0.0.0.0.62 ListBoxOption "Index 62: #e6e6e6"
+  click:
+    - r.0.0.0.0.0.61 ListBoxOption "Index 61: #dd5922" value="#dd5922" description="Index 61: #dd5922" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.62 ListBoxOption "Index 62: #e6e6e6" value="#e6e6e6" description="Index 62: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.61 ListBoxOption "Index 61: #dd5922" value="#dd5922" description="Index 61: #dd5922" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.62 ListBoxOption "Index 62: #e6e6e6" value="#e6e6e6" description="Index 62: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 61" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 61"
+    + r.0.0.0.0.1 Label "" value="Last event: select 62" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 62"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 62" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 62"
+    + r.0.0.0.0.1 Label "" value="Last event: open 62" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 62"
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.0.62 ListBoxOption "Index 62: #e6e6e6" -> r.0.0.0.0.0.46 ListBoxOption "Index 46: #e6e6e6"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.62 ListBoxOption "Index 62: #e6e6e6" -> r.0.0.0.0.0.61 ListBoxOption "Index 61: #dd5922"
+  ArrowRight:
+    focus: r.0.0.0.0.0.62 ListBoxOption "Index 62: #e6e6e6" -> r.0.0.0.0.0.63 ListBoxOption "Index 63: #ff5900"
+  Escape:
+    focus: r.0.0.0.0.0.62 ListBoxOption "Index 62: #e6e6e6" -> r Window ""
+drive r.0.0.0.0.0.63 ListBoxOption "Index 63: #ff5900"
+  click:
+    - r.0.0.0.0.0.62 ListBoxOption "Index 62: #e6e6e6" value="#e6e6e6" description="Index 62: #e6e6e6" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.63 ListBoxOption "Index 63: #ff5900" value="#ff5900" description="Index 63: #ff5900" [unselected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: open 62" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: open 62"
+    + r.0.0.0.0.0.62 ListBoxOption "Index 62: #e6e6e6" value="#e6e6e6" description="Index 62: #e6e6e6" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.63 ListBoxOption "Index 63: #ff5900" value="#ff5900" description="Index 63: #ff5900" [selected] actions=[Click,Focus]
+    + r.0.0.0.0.1 Label "" value="Last event: select 63" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: select 63"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: select 63" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: select 63"
+    + r.0.0.0.0.1 Label "" value="Last event: open 63" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: open 63"
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.0.63 ListBoxOption "Index 63: #ff5900" -> r.0.0.0.0.0.47 ListBoxOption "Index 47: #ff5900"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.63 ListBoxOption "Index 63: #ff5900" -> r.0.0.0.0.0.62 ListBoxOption "Index 62: #e6e6e6"
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.63 ListBoxOption "Index 63: #ff5900" -> r Window ""

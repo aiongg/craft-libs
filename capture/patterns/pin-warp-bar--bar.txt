@@ -1,0 +1,900 @@
+story patterns/pin-warp-bar/bar
+args
+  fixed = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Label "" value="No pin selected" actions=[Click]
+            r.0.0.0.0.0.0 TextRun "" value="No pin selected"
+          r.0.0.0.0.1 Toolbar "No pin selected"
+            r.0.0.0.0.1.0 GenericContainer ""
+              r.0.0.0.0.1.0.0 GenericContainer ""
+                r.0.0.0.0.1.0.0.0 GenericContainer ""
+                  r.0.0.0.0.1.0.0.0.0 GenericContainer ""
+                    r.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+                      r.0.0.0.0.1.0.0.0.0.0.0 Label "" value="Mode:"
+                      r.0.0.0.0.1.0.0.0.0.0.1 ComboBox "Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+                      r.0.0.0.0.1.0.0.0.0.0.2 Label "" value="Density:"
+                      r.0.0.0.0.1.0.0.0.0.0.3 ComboBox "Density" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+                      r.0.0.0.0.1.0.0.0.0.0.4 Label "" value="Expansion:"
+                      r.0.0.0.0.1.0.0.0.0.0.5 GenericContainer ""
+                        r.0.0.0.0.1.0.0.0.0.0.5.0 Unknown "" actions=[Click,Focus]
+                        r.0.0.0.0.1.0.0.0.0.0.5.1 SpinButton "Expansion" value="2 px" number=2 in -50..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                          r.0.0.0.0.1.0.0.0.0.0.5.1.0 TextRun "" value="2"
+                      r.0.0.0.0.1.0.0.0.0.0.6 CheckBox "Show Mesh" [checked] actions=[Click,Focus]
+                      r.0.0.0.0.1.0.0.0.0.0.7 Button "Remove All Pins" description="Remove All Pins" actions=[Click,Focus]
+              r.0.0.0.0.1.0.1 ScrollBar "" actions=[Click]
+            r.0.0.0.0.1.1 GenericContainer ""
+              r.0.0.0.0.1.1.0 Button "Cancel Puppet Warp" description="Cancel Puppet Warp" shortcut="Escape" actions=[Click,Focus]
+              r.0.0.0.0.1.1.1 Button "Commit Puppet Warp" description="Commit Puppet Warp" shortcut="Enter" actions=[Click,Focus]
+          r.0.0.0.0.2 Label "" value="A pin selected" actions=[Click]
+            r.0.0.0.0.2.0 TextRun "" value="A pin selected"
+          r.0.0.0.0.3 Toolbar "A pin selected"
+            r.0.0.0.0.3.0 GenericContainer ""
+              r.0.0.0.0.3.0.0 GenericContainer ""
+                r.0.0.0.0.3.0.0.0 GenericContainer ""
+                  r.0.0.0.0.3.0.0.0.0 GenericContainer ""
+                    r.0.0.0.0.3.0.0.0.0.0 GenericContainer ""
+                      r.0.0.0.0.3.0.0.0.0.0.0 Label "" value="Mode:"
+                      r.0.0.0.0.3.0.0.0.0.0.1 ComboBox "Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+                      r.0.0.0.0.3.0.0.0.0.0.2 Label "" value="Density:"
+                      r.0.0.0.0.3.0.0.0.0.0.3 ComboBox "Density" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+                      r.0.0.0.0.3.0.0.0.0.0.4 Label "" value="Expansion:"
+                      r.0.0.0.0.3.0.0.0.0.0.5 GenericContainer ""
+                        r.0.0.0.0.3.0.0.0.0.0.5.0 Unknown "" actions=[Click,Focus]
+                        r.0.0.0.0.3.0.0.0.0.0.5.1 SpinButton "Expansion" value="2 px" number=2 in -50..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                          r.0.0.0.0.3.0.0.0.0.0.5.1.0 TextRun "" value="2"
+                      r.0.0.0.0.3.0.0.0.0.0.6 CheckBox "Show Mesh" [checked] actions=[Click,Focus]
+                      r.0.0.0.0.3.0.0.0.0.0.7 Label "" value="Pin Depth:"
+                      r.0.0.0.0.3.0.0.0.0.0.8 Button "Bring the selected pin forward" description="Bring the selected pin forward" actions=[Click,Focus]
+                      r.0.0.0.0.3.0.0.0.0.0.9 Button "Send the selected pin backward" description="Send the selected pin backward" actions=[Click,Focus]
+                      r.0.0.0.0.3.0.0.0.0.0.10 Label "" value="Rotate:"
+                      r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" value="Auto" [collapsed popup:Listbox] actions=[Click,Focus]
+                      r.0.0.0.0.3.0.0.0.0.0.12 Button "Remove All Pins" description="Remove All Pins" actions=[Click,Focus]
+              r.0.0.0.0.3.0.1 ScrollBar "" actions=[Click]
+            r.0.0.0.0.3.1 GenericContainer ""
+              r.0.0.0.0.3.1.0 Button "Cancel Puppet Warp" description="Cancel Puppet Warp" shortcut="Escape" actions=[Click,Focus]
+              r.0.0.0.0.3.1.1 Button "Commit Puppet Warp" description="Commit Puppet Warp" shortcut="Enter" actions=[Click,Focus]
+          r.0.0.0.0.4 Label "" value="A refused remesh" actions=[Click]
+            r.0.0.0.0.4.0 TextRun "" value="A refused remesh"
+          r.0.0.0.0.5 Toolbar "A refused remesh"
+            r.0.0.0.0.5.0 GenericContainer ""
+              r.0.0.0.0.5.0.0 GenericContainer ""
+                r.0.0.0.0.5.0.0.0 GenericContainer ""
+                  r.0.0.0.0.5.0.0.0.0 GenericContainer ""
+                    r.0.0.0.0.5.0.0.0.0.0 GenericContainer ""
+                      r.0.0.0.0.5.0.0.0.0.0.0 Label "" value="Mode:"
+                      r.0.0.0.0.5.0.0.0.0.0.1 ComboBox "Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+                      r.0.0.0.0.5.0.0.0.0.0.2 Label "" value="Density:"
+                      r.0.0.0.0.5.0.0.0.0.0.3 ComboBox "Density" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+                      r.0.0.0.0.5.0.0.0.0.0.4 Label "" value="Expansion:"
+                      r.0.0.0.0.5.0.0.0.0.0.5 GenericContainer ""
+                        r.0.0.0.0.5.0.0.0.0.0.5.0 Unknown "" actions=[Click,Focus]
+                        r.0.0.0.0.5.0.0.0.0.0.5.1 SpinButton "Expansion" value="2 px" number=2 in -50..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                          r.0.0.0.0.5.0.0.0.0.0.5.1.0 TextRun "" value="2"
+                      r.0.0.0.0.5.0.0.0.0.0.6 CheckBox "Show Mesh" [checked] actions=[Click,Focus]
+                      r.0.0.0.0.5.0.0.0.0.0.7 Label "" value="Could not use Puppet Warp: no opaque pixels at this density and expansion" actions=[Click]
+                        r.0.0.0.0.5.0.0.0.0.0.7.0 TextRun "" value="Could not use Puppet Warp: no opaque pixels at this density and expansion"
+                      r.0.0.0.0.5.0.0.0.0.0.8 Label "" value="Pin Depth:"
+                      r.0.0.0.0.5.0.0.0.0.0.9 Button "Bring the selected pin forward" description="Bring the selected pin forward" actions=[Click,Focus]
+                      r.0.0.0.0.5.0.0.0.0.0.10 Button "Send the selected pin backward" description="Send the selected pin backward" actions=[Click,Focus]
+                      r.0.0.0.0.5.0.0.0.0.0.11 Label "" value="Rotate:"
+                      r.0.0.0.0.5.0.0.0.0.0.12 ComboBox "Rotation" value="Auto" [collapsed popup:Listbox] actions=[Click,Focus]
+                      r.0.0.0.0.5.0.0.0.0.0.13 Button "Remove All Pins" description="Remove All Pins" actions=[Click,Focus]
+              r.0.0.0.0.5.0.1 ScrollBar "" actions=[Click]
+            r.0.0.0.0.5.1 GenericContainer ""
+              r.0.0.0.0.5.1.0 Button "Cancel Puppet Warp" description="Cancel Puppet Warp" shortcut="Escape" actions=[Click,Focus]
+              r.0.0.0.0.5.1.1 Button "Commit Puppet Warp" description="Commit Puppet Warp" shortcut="Enter" actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.1.0.0.0.0.0.1 ComboBox "Mode"
+  2: r.0.0.0.0.1.0.0.0.0.0.3 ComboBox "Density"
+  3: r.0.0.0.0.1.0.0.0.0.0.5.0 Unknown ""
+  4: r.0.0.0.0.1.0.0.0.0.0.5.1 SpinButton "Expansion"
+  5: r.0.0.0.0.1.0.0.0.0.0.5.0 Unknown ""
+  cycle after 4 nodes
+drive: 37 actionable nodes
+drive r.0.0.0.0.0 Label ""
+  click:
+    focus: r.0.0.0.0.1.0.0.0.0.0.5.0 Unknown "" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.1.0.0.0.0.0.1 ComboBox "Mode"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal"
+    - r.0.0.0.0.1.0.0.0.0.0.1 ComboBox "Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.0.1 ComboBox "Mode" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.0.1.0 ListBox ""
+    + r.0.0.0.0.1.0.0.0.0.0.1.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Rigid" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Distort" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" -> r.0.0.0.0.1.0.0.0.0.0.1 ComboBox "Mode"
+    - r.0.0.0.0.1.0.0.0.0.0.1 ComboBox "Mode" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.0.1.0 ListBox ""
+    - r.0.0.0.0.1.0.0.0.0.0.1.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Rigid" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Distort" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.1 ComboBox "Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.1.0.0.0.0.0.1 ComboBox "Mode" -> r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal"
+    - r.0.0.0.0.1.0.0.0.0.0.1 ComboBox "Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.0.1 ComboBox "Mode" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.0.1.0 ListBox ""
+    + r.0.0.0.0.1.0.0.0.0.0.1.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Rigid" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Distort" [unselected] actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" -> r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Distort"
+    - r.0.0.0.0.1.0.0.0.0.0.1 ComboBox "Mode" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.0.1 ComboBox "Mode" value="Distort" controls=[r.0.0.0.0.1.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Distort" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Distort" [selected] actions=[Click]
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Distort" -> r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal"
+    - r.0.0.0.0.1.0.0.0.0.0.1 ComboBox "Mode" value="Distort" controls=[r.0.0.0.0.1.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.0.1 ComboBox "Mode" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Distort" [selected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Distort" [unselected] actions=[Click]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" -> r.0.0.0.0.1.0.0.0.0.0.1 ComboBox "Mode"
+    - r.0.0.0.0.1.0.0.0.0.0.1 ComboBox "Mode" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.0.1.0 ListBox ""
+    - r.0.0.0.0.1.0.0.0.0.0.1.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Rigid" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Distort" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.1 ComboBox "Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+drive r.0.0.0.0.1.0.0.0.0.0.3 ComboBox "Density"
+  click:
+    focus: r.0.0.0.0.1.0.0.0.0.0.1 ComboBox "Mode" -> r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal"
+    - r.0.0.0.0.1.0.0.0.0.0.3 ComboBox "Density" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.0.3 ComboBox "Density" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0.3.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.0.3.0 ListBox ""
+    + r.0.0.0.0.1.0.0.0.0.0.3.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.3.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0.0 ListBoxOption "Fewer Points" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0.2 ListBoxOption "More Points" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal" -> r.0.0.0.0.1.0.0.0.0.0.3 ComboBox "Density"
+    - r.0.0.0.0.1.0.0.0.0.0.3 ComboBox "Density" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0.3.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.0.3.0 ListBox ""
+    - r.0.0.0.0.1.0.0.0.0.0.3.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.3.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0.0 ListBoxOption "Fewer Points" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0.2 ListBoxOption "More Points" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.3 ComboBox "Density" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.1.0.0.0.0.0.3 ComboBox "Density" -> r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal"
+    - r.0.0.0.0.1.0.0.0.0.0.3 ComboBox "Density" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.0.3 ComboBox "Density" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0.3.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.0.3.0 ListBox ""
+    + r.0.0.0.0.1.0.0.0.0.0.3.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.3.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0.0 ListBoxOption "Fewer Points" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0.2 ListBoxOption "More Points" [unselected] actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal" -> r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0.2 ListBoxOption "More Points"
+    - r.0.0.0.0.1.0.0.0.0.0.3 ComboBox "Density" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0.3.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.0.3 ComboBox "Density" value="More Points" controls=[r.0.0.0.0.1.0.0.0.0.0.3.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0.2 ListBoxOption "More Points" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0.2 ListBoxOption "More Points" [selected] actions=[Click]
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0.2 ListBoxOption "More Points" -> r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal"
+    - r.0.0.0.0.1.0.0.0.0.0.3 ComboBox "Density" value="More Points" controls=[r.0.0.0.0.1.0.0.0.0.0.3.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.0.3 ComboBox "Density" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0.3.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0.2 ListBoxOption "More Points" [selected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0.2 ListBoxOption "More Points" [unselected] actions=[Click]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal" -> r.0.0.0.0.1.0.0.0.0.0.3 ComboBox "Density"
+    - r.0.0.0.0.1.0.0.0.0.0.3 ComboBox "Density" value="Normal" controls=[r.0.0.0.0.1.0.0.0.0.0.3.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.0.3.0 ListBox ""
+    - r.0.0.0.0.1.0.0.0.0.0.3.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.3.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0.0 ListBoxOption "Fewer Points" [unselected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.3.0.0.0.0.0.2 ListBoxOption "More Points" [unselected] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.3 ComboBox "Density" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+drive r.0.0.0.0.1.0.0.0.0.0.5.0 Unknown ""
+  click:
+    focus: r.0.0.0.0.1.0.0.0.0.0.3 ComboBox "Density" -> r.0.0.0.0.1.0.0.0.0.0.5.1 SpinButton "Expansion"
+  Space:
+    focus: r.0.0.0.0.1.0.0.0.0.0.5.0 Unknown "" -> r.0.0.0.0.1.0.0.0.0.0.5.1 SpinButton "Expansion"
+  Enter:
+    focus: r.0.0.0.0.1.0.0.0.0.0.5.0 Unknown "" -> r.0.0.0.0.1.0.0.0.0.0.5.1 SpinButton "Expansion"
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.0.5.0 Unknown "" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.0.5.1 SpinButton "Expansion"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.0.5.1 SpinButton "Expansion"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.1.0.0.0.0.0.5.1 SpinButton "Expansion" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.1.0.0.0.0.0.5.1 SpinButton "Expansion" value="2 px" number=2 in -50..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.0.0.0.0.0.5.1.0 TextRun "" value="2"
+    + r.0.0.0.0.1.0.0.0.0.0.5.1 SpinButton "Expansion" value="3 px" number=3 in -50..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.0.0.0.0.0.5.1.0 TextRun "" value="3"
+  ArrowDown:
+    - r.0.0.0.0.1.0.0.0.0.0.5.1 SpinButton "Expansion" value="3 px" number=3 in -50..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.0.0.0.0.0.5.1.0 TextRun "" value="3"
+    + r.0.0.0.0.1.0.0.0.0.0.5.1 SpinButton "Expansion" value="2 px" number=2 in -50..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.0.0.0.0.0.5.1.0 TextRun "" value="2"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.0.5.1 SpinButton "Expansion" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.0.6 CheckBox "Show Mesh"
+  click:
+    - r.0.0.0.0.1.0.0.0.0.0.6 CheckBox "Show Mesh" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.0.6 CheckBox "Show Mesh" [unchecked] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.1.0.0.0.0.0.6 CheckBox "Show Mesh" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.0.6 CheckBox "Show Mesh" [checked] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.1.0.0.0.0.0.6 CheckBox "Show Mesh" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.0.6 CheckBox "Show Mesh" [unchecked] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.0.6 CheckBox "Show Mesh" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.0.7 Button "Remove All Pins"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.0.7 Button "Remove All Pins" -> r Window ""
+drive r.0.0.0.0.1.0.1 ScrollBar ""
+  click: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown: no change
+  Home: no change
+  End: no change
+  Escape: no change
+drive r.0.0.0.0.1.1.0 Button "Cancel Puppet Warp"
+  click:
+    - r.0.0.0.0.1.0.0.0.0.0.6 CheckBox "Show Mesh" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.0.6 CheckBox "Show Mesh" [checked] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1.1.0 Button "Cancel Puppet Warp" -> r Window ""
+drive r.0.0.0.0.1.1.1 Button "Commit Puppet Warp"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1.1.1 Button "Commit Puppet Warp" -> r Window ""
+drive r.0.0.0.0.2 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.3.0.0.0.0.0.1 ComboBox "Mode"
+  click:
+    focus: r Window "" -> r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal"
+    - r.0.0.0.0.3.0.0.0.0.0.1 ComboBox "Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.1 ComboBox "Mode" value="Normal" controls=[r.0.0.0.0.3.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.1.0 ListBox ""
+    + r.0.0.0.0.3.0.0.0.0.0.1.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Rigid" [unselected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Distort" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" -> r.0.0.0.0.3.0.0.0.0.0.1 ComboBox "Mode"
+    - r.0.0.0.0.3.0.0.0.0.0.1 ComboBox "Mode" value="Normal" controls=[r.0.0.0.0.3.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.0.0.0.0.1.0 ListBox ""
+    - r.0.0.0.0.3.0.0.0.0.0.1.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Rigid" [unselected] actions=[Click]
+    - r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Distort" [unselected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.1 ComboBox "Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.3.0.0.0.0.0.1 ComboBox "Mode" -> r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal"
+    - r.0.0.0.0.3.0.0.0.0.0.1 ComboBox "Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.1 ComboBox "Mode" value="Normal" controls=[r.0.0.0.0.3.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.1.0 ListBox ""
+    + r.0.0.0.0.3.0.0.0.0.0.1.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Rigid" [unselected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Distort" [unselected] actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" -> r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Distort"
+    - r.0.0.0.0.3.0.0.0.0.0.1 ComboBox "Mode" value="Normal" controls=[r.0.0.0.0.3.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.1 ComboBox "Mode" value="Distort" controls=[r.0.0.0.0.3.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Distort" [unselected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" [unselected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Distort" [selected] actions=[Click]
+  ArrowUp:
+    focus: r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Distort" -> r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal"
+    - r.0.0.0.0.3.0.0.0.0.0.1 ComboBox "Mode" value="Distort" controls=[r.0.0.0.0.3.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.1 ComboBox "Mode" value="Normal" controls=[r.0.0.0.0.3.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" [unselected] actions=[Click]
+    - r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Distort" [selected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Distort" [unselected] actions=[Click]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" -> r.0.0.0.0.3.0.0.0.0.0.1 ComboBox "Mode"
+    - r.0.0.0.0.3.0.0.0.0.0.1 ComboBox "Mode" value="Normal" controls=[r.0.0.0.0.3.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.0.0.0.0.1.0 ListBox ""
+    - r.0.0.0.0.3.0.0.0.0.0.1.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Rigid" [unselected] actions=[Click]
+    - r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.3.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Distort" [unselected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.1 ComboBox "Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+drive r.0.0.0.0.3.0.0.0.0.0.3 ComboBox "Density"
+  click:
+    focus: r.0.0.0.0.3.0.0.0.0.0.1 ComboBox "Mode" -> r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal"
+    - r.0.0.0.0.3.0.0.0.0.0.3 ComboBox "Density" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.3 ComboBox "Density" value="Normal" controls=[r.0.0.0.0.3.0.0.0.0.0.3.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.3.0 ListBox ""
+    + r.0.0.0.0.3.0.0.0.0.0.3.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.3.0.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0.0 ListBoxOption "Fewer Points" [unselected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0.2 ListBoxOption "More Points" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal" -> r.0.0.0.0.3.0.0.0.0.0.3 ComboBox "Density"
+    - r.0.0.0.0.3.0.0.0.0.0.3 ComboBox "Density" value="Normal" controls=[r.0.0.0.0.3.0.0.0.0.0.3.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.0.0.0.0.3.0 ListBox ""
+    - r.0.0.0.0.3.0.0.0.0.0.3.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.3.0.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0.0 ListBoxOption "Fewer Points" [unselected] actions=[Click]
+    - r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0.2 ListBoxOption "More Points" [unselected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.3 ComboBox "Density" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.3.0.0.0.0.0.3 ComboBox "Density" -> r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal"
+    - r.0.0.0.0.3.0.0.0.0.0.3 ComboBox "Density" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.3 ComboBox "Density" value="Normal" controls=[r.0.0.0.0.3.0.0.0.0.0.3.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.3.0 ListBox ""
+    + r.0.0.0.0.3.0.0.0.0.0.3.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.3.0.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0.0 ListBoxOption "Fewer Points" [unselected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0.2 ListBoxOption "More Points" [unselected] actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal" -> r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0.2 ListBoxOption "More Points"
+    - r.0.0.0.0.3.0.0.0.0.0.3 ComboBox "Density" value="Normal" controls=[r.0.0.0.0.3.0.0.0.0.0.3.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.3 ComboBox "Density" value="More Points" controls=[r.0.0.0.0.3.0.0.0.0.0.3.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0.2 ListBoxOption "More Points" [unselected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal" [unselected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0.2 ListBoxOption "More Points" [selected] actions=[Click]
+  ArrowUp:
+    focus: r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0.2 ListBoxOption "More Points" -> r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal"
+    - r.0.0.0.0.3.0.0.0.0.0.3 ComboBox "Density" value="More Points" controls=[r.0.0.0.0.3.0.0.0.0.0.3.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.3 ComboBox "Density" value="Normal" controls=[r.0.0.0.0.3.0.0.0.0.0.3.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal" [unselected] actions=[Click]
+    - r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0.2 ListBoxOption "More Points" [selected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0.2 ListBoxOption "More Points" [unselected] actions=[Click]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal" -> r.0.0.0.0.3.0.0.0.0.0.3 ComboBox "Density"
+    - r.0.0.0.0.3.0.0.0.0.0.3 ComboBox "Density" value="Normal" controls=[r.0.0.0.0.3.0.0.0.0.0.3.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.0.0.0.0.3.0 ListBox ""
+    - r.0.0.0.0.3.0.0.0.0.0.3.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.3.0.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0.0 ListBoxOption "Fewer Points" [unselected] actions=[Click]
+    - r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.3.0.0.0.0.0.3.0.0.0.0.0.2 ListBoxOption "More Points" [unselected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.3 ComboBox "Density" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+drive r.0.0.0.0.3.0.0.0.0.0.5.0 Unknown ""
+  click:
+    focus: r.0.0.0.0.3.0.0.0.0.0.3 ComboBox "Density" -> r.0.0.0.0.3.0.0.0.0.0.5.1 SpinButton "Expansion"
+  Space:
+    focus: r.0.0.0.0.3.0.0.0.0.0.5.0 Unknown "" -> r.0.0.0.0.3.0.0.0.0.0.5.1 SpinButton "Expansion"
+  Enter:
+    focus: r.0.0.0.0.3.0.0.0.0.0.5.0 Unknown "" -> r.0.0.0.0.3.0.0.0.0.0.5.1 SpinButton "Expansion"
+  Escape:
+    focus: r.0.0.0.0.3.0.0.0.0.0.5.0 Unknown "" -> r Window ""
+drive r.0.0.0.0.3.0.0.0.0.0.5.1 SpinButton "Expansion"
+  click:
+    focus: r Window "" -> r.0.0.0.0.3.0.0.0.0.0.5.1 SpinButton "Expansion"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.3.0.0.0.0.0.5.1 SpinButton "Expansion" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.3.0.0.0.0.0.5.1 SpinButton "Expansion" value="2 px" number=2 in -50..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.0.0.0.0.5.1.0 TextRun "" value="2"
+    + r.0.0.0.0.3.0.0.0.0.0.5.1 SpinButton "Expansion" value="3 px" number=3 in -50..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.0.0.0.0.5.1.0 TextRun "" value="3"
+  ArrowDown:
+    - r.0.0.0.0.3.0.0.0.0.0.5.1 SpinButton "Expansion" value="3 px" number=3 in -50..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.0.0.0.0.5.1.0 TextRun "" value="3"
+    + r.0.0.0.0.3.0.0.0.0.0.5.1 SpinButton "Expansion" value="2 px" number=2 in -50..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.0.0.0.0.5.1.0 TextRun "" value="2"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.3.0.0.0.0.0.5.1 SpinButton "Expansion" -> r Window ""
+drive r.0.0.0.0.3.0.0.0.0.0.6 CheckBox "Show Mesh"
+  click:
+    - r.0.0.0.0.3.0.0.0.0.0.6 CheckBox "Show Mesh" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.6 CheckBox "Show Mesh" [unchecked] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.3.0.0.0.0.0.6 CheckBox "Show Mesh" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.6 CheckBox "Show Mesh" [checked] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.3.0.0.0.0.0.6 CheckBox "Show Mesh" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.6 CheckBox "Show Mesh" [unchecked] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.3.0.0.0.0.0.6 CheckBox "Show Mesh" -> r Window ""
+drive r.0.0.0.0.3.0.0.0.0.0.8 Button "Bring the selected pin forward"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.3.0.0.0.0.0.8 Button "Bring the selected pin forward" -> r Window ""
+drive r.0.0.0.0.3.0.0.0.0.0.9 Button "Send the selected pin backward"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.3.0.0.0.0.0.9 Button "Send the selected pin backward" -> r Window ""
+drive r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation"
+  click:
+    focus: r Window "" -> r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.0 ListBoxOption "Auto"
+    - r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" value="Auto" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" value="Auto" controls=[r.0.0.0.0.3.0.0.0.0.0.11.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.11.0 ListBox ""
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.0 ListBoxOption "Auto" [selected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.1 ListBoxOption "Fixed" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.0 ListBoxOption "Auto" -> r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation"
+    - r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" value="Auto" controls=[r.0.0.0.0.3.0.0.0.0.0.11.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.0.0.0.0.11.0 ListBox ""
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.0 ListBoxOption "Auto" [selected] actions=[Click]
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.1 ListBoxOption "Fixed" [unselected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" value="Auto" [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" -> r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.0 ListBoxOption "Auto"
+    - r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" value="Auto" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" value="Auto" controls=[r.0.0.0.0.3.0.0.0.0.0.11.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.11.0 ListBox ""
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.0 ListBoxOption "Auto" [selected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.1 ListBoxOption "Fixed" [unselected] actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.0 ListBoxOption "Auto" -> r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.1 ListBoxOption "Fixed"
+    - r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" value="Auto" controls=[r.0.0.0.0.3.0.0.0.0.0.11.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" value="Fixed" controls=[r.0.0.0.0.3.0.0.0.0.0.11.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.0 ListBoxOption "Auto" [selected] actions=[Click]
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.1 ListBoxOption "Fixed" [unselected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.0 ListBoxOption "Auto" [unselected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.1 ListBoxOption "Fixed" [selected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.12 Label "" value="Rotation:"
+    + r.0.0.0.0.3.0.0.0.0.0.13 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.13.0 Unknown "" actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.13.1 SpinButton "Rotation" value="0°" number=0 in -360..360 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.0.0.0.0.13.1.0 TextRun "" value="0"
+  ArrowUp:
+    focus: r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.1 ListBoxOption "Fixed" -> r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.0 ListBoxOption "Auto"
+    - r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" value="Fixed" controls=[r.0.0.0.0.3.0.0.0.0.0.11.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" value="Auto" controls=[r.0.0.0.0.3.0.0.0.0.0.11.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.0 ListBoxOption "Auto" [unselected] actions=[Click]
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.1 ListBoxOption "Fixed" [selected] actions=[Click]
+    - r.0.0.0.0.3.0.0.0.0.0.12 Label "" value="Rotation:"
+    - r.0.0.0.0.3.0.0.0.0.0.13 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.13.0 Unknown "" actions=[Click,Focus]
+    - r.0.0.0.0.3.0.0.0.0.0.13.1 SpinButton "Rotation" value="0°" number=0 in -360..360 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.0.0.0.0.13.1.0 TextRun "" value="0"
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.0 ListBoxOption "Auto" [selected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.1 ListBoxOption "Fixed" [unselected] actions=[Click]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.0 ListBoxOption "Auto" -> r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation"
+    - r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" value="Auto" controls=[r.0.0.0.0.3.0.0.0.0.0.11.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.0.0.0.0.11.0 ListBox ""
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.0 ListBoxOption "Auto" [selected] actions=[Click]
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.1 ListBoxOption "Fixed" [unselected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" value="Auto" [collapsed popup:Listbox] actions=[Click,Focus]
+drive r.0.0.0.0.3.0.0.0.0.0.12 Button "Remove All Pins"
+  click:
+    focus: r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" -> r Window ""
+    - r.0.0.0.0.3.0.0.0.0.0.7 Label "" value="Pin Depth:"
+    - r.0.0.0.0.3.0.0.0.0.0.8 Button "Bring the selected pin forward" description="Bring the selected pin forward" actions=[Click,Focus]
+    - r.0.0.0.0.3.0.0.0.0.0.9 Button "Send the selected pin backward" description="Send the selected pin backward" actions=[Click,Focus]
+    - r.0.0.0.0.3.0.0.0.0.0.10 Label "" value="Rotate:"
+    - r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" value="Auto" [collapsed popup:Listbox] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.0.7 Button "Remove All Pins" -> r Window ""
+drive r.0.0.0.0.3.0.1 ScrollBar ""
+  click: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown: no change
+  Home: no change
+  End: no change
+  Escape: no change
+drive r.0.0.0.0.3.1.0 Button "Cancel Puppet Warp"
+  click:
+    - r.0.0.0.0.3.0.0.0.0.0.6 CheckBox "Show Mesh" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.6 CheckBox "Show Mesh" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.7 Label "" value="Pin Depth:"
+    + r.0.0.0.0.3.0.0.0.0.0.8 Button "Bring the selected pin forward" description="Bring the selected pin forward" actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.9 Button "Send the selected pin backward" description="Send the selected pin backward" actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.10 Label "" value="Rotate:"
+    + r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" value="Auto" [collapsed popup:Listbox] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.3.1.0 Button "Cancel Puppet Warp" -> r Window ""
+drive r.0.0.0.0.3.1.1 Button "Commit Puppet Warp"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.3.1.1 Button "Commit Puppet Warp" -> r Window ""
+drive r.0.0.0.0.4 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.5.0.0.0.0.0.1 ComboBox "Mode"
+  click:
+    focus: r Window "" -> r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal"
+    - r.0.0.0.0.5.0.0.0.0.0.1 ComboBox "Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.5.0.0.0.0.0.1 ComboBox "Mode" value="Normal" controls=[r.0.0.0.0.5.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.5.0.0.0.0.0.1.0 ListBox ""
+    + r.0.0.0.0.5.0.0.0.0.0.1.0.0 GenericContainer ""
+    + r.0.0.0.0.5.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Rigid" [unselected] actions=[Click]
+    + r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Distort" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" -> r.0.0.0.0.5.0.0.0.0.0.1 ComboBox "Mode"
+    - r.0.0.0.0.5.0.0.0.0.0.1 ComboBox "Mode" value="Normal" controls=[r.0.0.0.0.5.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.5.0.0.0.0.0.1.0 ListBox ""
+    - r.0.0.0.0.5.0.0.0.0.0.1.0.0 GenericContainer ""
+    - r.0.0.0.0.5.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Rigid" [unselected] actions=[Click]
+    - r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Distort" [unselected] actions=[Click]
+    + r.0.0.0.0.5.0.0.0.0.0.1 ComboBox "Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.5.0.0.0.0.0.1 ComboBox "Mode" -> r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal"
+    - r.0.0.0.0.5.0.0.0.0.0.1 ComboBox "Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.5.0.0.0.0.0.1 ComboBox "Mode" value="Normal" controls=[r.0.0.0.0.5.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.5.0.0.0.0.0.1.0 ListBox ""
+    + r.0.0.0.0.5.0.0.0.0.0.1.0.0 GenericContainer ""
+    + r.0.0.0.0.5.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Rigid" [unselected] actions=[Click]
+    + r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Distort" [unselected] actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" -> r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Distort"
+    - r.0.0.0.0.5.0.0.0.0.0.1 ComboBox "Mode" value="Normal" controls=[r.0.0.0.0.5.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.5.0.0.0.0.0.1 ComboBox "Mode" value="Distort" controls=[r.0.0.0.0.5.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Distort" [unselected] actions=[Click]
+    + r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" [unselected] actions=[Click]
+    + r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Distort" [selected] actions=[Click]
+    - r.0.0.0.0.5.0.0.0.0.0.7 Label "" value="Could not use Puppet Warp: no opaque pixels at this density and expansion" actions=[Click]
+    - r.0.0.0.0.5.0.0.0.0.0.7.0 TextRun "" value="Could not use Puppet Warp: no opaque pixels at this density and expansion"
+  ArrowUp:
+    focus: r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Distort" -> r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal"
+    - r.0.0.0.0.5.0.0.0.0.0.1 ComboBox "Mode" value="Distort" controls=[r.0.0.0.0.5.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.5.0.0.0.0.0.1 ComboBox "Mode" value="Normal" controls=[r.0.0.0.0.5.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" [unselected] actions=[Click]
+    - r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Distort" [selected] actions=[Click]
+    + r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Distort" [unselected] actions=[Click]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" -> r.0.0.0.0.5.0.0.0.0.0.1 ComboBox "Mode"
+    - r.0.0.0.0.5.0.0.0.0.0.1 ComboBox "Mode" value="Normal" controls=[r.0.0.0.0.5.0.0.0.0.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.5.0.0.0.0.0.1.0 ListBox ""
+    - r.0.0.0.0.5.0.0.0.0.0.1.0.0 GenericContainer ""
+    - r.0.0.0.0.5.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0.0 ListBoxOption "Rigid" [unselected] actions=[Click]
+    - r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.5.0.0.0.0.0.1.0.0.0.0.0.2 ListBoxOption "Distort" [unselected] actions=[Click]
+    + r.0.0.0.0.5.0.0.0.0.0.1 ComboBox "Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+drive r.0.0.0.0.5.0.0.0.0.0.3 ComboBox "Density"
+  click:
+    focus: r.0.0.0.0.5.0.0.0.0.0.1 ComboBox "Mode" -> r.0.0.0.0.5.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal"
+    - r.0.0.0.0.5.0.0.0.0.0.3 ComboBox "Density" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.5.0.0.0.0.0.3 ComboBox "Density" value="Normal" controls=[r.0.0.0.0.5.0.0.0.0.0.3.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.5.0.0.0.0.0.3.0 ListBox ""
+    + r.0.0.0.0.5.0.0.0.0.0.3.0.0 GenericContainer ""
+    + r.0.0.0.0.5.0.0.0.0.0.3.0.0.0 GenericContainer ""
+    + r.0.0.0.0.5.0.0.0.0.0.3.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.5.0.0.0.0.0.3.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.5.0.0.0.0.0.3.0.0.0.0.0.0 ListBoxOption "Fewer Points" [unselected] actions=[Click]
+    + r.0.0.0.0.5.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.5.0.0.0.0.0.3.0.0.0.0.0.2 ListBoxOption "More Points" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.5.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal" -> r.0.0.0.0.5.0.0.0.0.0.3 ComboBox "Density"
+    - r.0.0.0.0.5.0.0.0.0.0.3 ComboBox "Density" value="Normal" controls=[r.0.0.0.0.5.0.0.0.0.0.3.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.5.0.0.0.0.0.3.0 ListBox ""
+    - r.0.0.0.0.5.0.0.0.0.0.3.0.0 GenericContainer ""
+    - r.0.0.0.0.5.0.0.0.0.0.3.0.0.0 GenericContainer ""
+    - r.0.0.0.0.5.0.0.0.0.0.3.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.5.0.0.0.0.0.3.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.5.0.0.0.0.0.3.0.0.0.0.0.0 ListBoxOption "Fewer Points" [unselected] actions=[Click]
+    - r.0.0.0.0.5.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.5.0.0.0.0.0.3.0.0.0.0.0.2 ListBoxOption "More Points" [unselected] actions=[Click]
+    + r.0.0.0.0.5.0.0.0.0.0.3 ComboBox "Density" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.5.0.0.0.0.0.3 ComboBox "Density" -> r.0.0.0.0.5.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal"
+    - r.0.0.0.0.5.0.0.0.0.0.3 ComboBox "Density" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.5.0.0.0.0.0.3 ComboBox "Density" value="Normal" controls=[r.0.0.0.0.5.0.0.0.0.0.3.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.5.0.0.0.0.0.3.0 ListBox ""
+    + r.0.0.0.0.5.0.0.0.0.0.3.0.0 GenericContainer ""
+    + r.0.0.0.0.5.0.0.0.0.0.3.0.0.0 GenericContainer ""
+    + r.0.0.0.0.5.0.0.0.0.0.3.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.5.0.0.0.0.0.3.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.5.0.0.0.0.0.3.0.0.0.0.0.0 ListBoxOption "Fewer Points" [unselected] actions=[Click]
+    + r.0.0.0.0.5.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.5.0.0.0.0.0.3.0.0.0.0.0.2 ListBoxOption "More Points" [unselected] actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.5.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal" -> r.0.0.0.0.5.0.0.0.0.0.3.0.0.0.0.0.2 ListBoxOption "More Points"
+    + r.0.0.0.0.5.0.0.0.0.0.7 Label "" value="Could not use Puppet Warp: no opaque pixels at this density and expansion" actions=[Click]
+    + r.0.0.0.0.5.0.0.0.0.0.7.0 TextRun "" value="Could not use Puppet Warp: no opaque pixels at this density and expansion"
+  ArrowUp:
+    focus: r.0.0.0.0.5.0.0.0.0.0.3.0.0.0.0.0.2 ListBoxOption "More Points" -> r.0.0.0.0.5.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.5.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal" -> r.0.0.0.0.5.0.0.0.0.0.3 ComboBox "Density"
+    - r.0.0.0.0.5.0.0.0.0.0.3 ComboBox "Density" value="Normal" controls=[r.0.0.0.0.5.0.0.0.0.0.3.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.5.0.0.0.0.0.3.0 ListBox ""
+    - r.0.0.0.0.5.0.0.0.0.0.3.0.0 GenericContainer ""
+    - r.0.0.0.0.5.0.0.0.0.0.3.0.0.0 GenericContainer ""
+    - r.0.0.0.0.5.0.0.0.0.0.3.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.5.0.0.0.0.0.3.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.5.0.0.0.0.0.3.0.0.0.0.0.0 ListBoxOption "Fewer Points" [unselected] actions=[Click]
+    - r.0.0.0.0.5.0.0.0.0.0.3.0.0.0.0.0.1 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.5.0.0.0.0.0.3.0.0.0.0.0.2 ListBoxOption "More Points" [unselected] actions=[Click]
+    + r.0.0.0.0.5.0.0.0.0.0.3 ComboBox "Density" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+drive r.0.0.0.0.5.0.0.0.0.0.5.0 Unknown ""
+  click:
+    focus: r.0.0.0.0.5.0.0.0.0.0.3 ComboBox "Density" -> r.0.0.0.0.5.0.0.0.0.0.5.1 SpinButton "Expansion"
+  Space:
+    focus: r.0.0.0.0.5.0.0.0.0.0.5.0 Unknown "" -> r.0.0.0.0.5.0.0.0.0.0.5.1 SpinButton "Expansion"
+  Enter:
+    focus: r.0.0.0.0.5.0.0.0.0.0.5.0 Unknown "" -> r.0.0.0.0.5.0.0.0.0.0.5.1 SpinButton "Expansion"
+  Escape:
+    focus: r.0.0.0.0.5.0.0.0.0.0.5.0 Unknown "" -> r Window ""
+drive r.0.0.0.0.5.0.0.0.0.0.5.1 SpinButton "Expansion"
+  click:
+    focus: r Window "" -> r.0.0.0.0.5.0.0.0.0.0.5.1 SpinButton "Expansion"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.5.0.0.0.0.0.5.1 SpinButton "Expansion" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown: no change
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.5.0.0.0.0.0.5.1 SpinButton "Expansion" -> r Window ""
+drive r.0.0.0.0.5.0.0.0.0.0.6 CheckBox "Show Mesh"
+  click:
+    - r.0.0.0.0.5.0.0.0.0.0.6 CheckBox "Show Mesh" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.5.0.0.0.0.0.7 Label "" value="Could not use Puppet Warp: no opaque pixels at this density and expansion" actions=[Click]
+    - r.0.0.0.0.5.0.0.0.0.0.7.0 TextRun "" value="Could not use Puppet Warp: no opaque pixels at this density and expansion"
+    + r.0.0.0.0.5.0.0.0.0.0.6 CheckBox "Show Mesh" [unchecked] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.5.0.0.0.0.0.6 CheckBox "Show Mesh" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.5.0.0.0.0.0.6 CheckBox "Show Mesh" [checked] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.5.0.0.0.0.0.6 CheckBox "Show Mesh" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.5.0.0.0.0.0.6 CheckBox "Show Mesh" [unchecked] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.5.0.0.0.0.0.6 CheckBox "Show Mesh" -> r Window ""
+drive r.0.0.0.0.5.0.0.0.0.0.7 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.5.0.0.0.0.0.9 Button "Bring the selected pin forward"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.3.0.0.0.0.0.8 Button "Bring the selected pin forward" -> r Window ""
+drive r.0.0.0.0.5.0.0.0.0.0.10 Button "Send the selected pin backward"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.3.0.0.0.0.0.9 Button "Send the selected pin backward" -> r Window ""
+drive r.0.0.0.0.5.0.0.0.0.0.12 ComboBox "Rotation"
+  click:
+    focus: r Window "" -> r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.0 ListBoxOption "Auto"
+    - r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" value="Auto" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" value="Auto" controls=[r.0.0.0.0.3.0.0.0.0.0.11.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.11.0 ListBox ""
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.0 ListBoxOption "Auto" [selected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.1 ListBoxOption "Fixed" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.0 ListBoxOption "Auto" -> r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation"
+    - r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" value="Auto" controls=[r.0.0.0.0.3.0.0.0.0.0.11.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.0.0.0.0.11.0 ListBox ""
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.0 ListBoxOption "Auto" [selected] actions=[Click]
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.1 ListBoxOption "Fixed" [unselected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" value="Auto" [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" -> r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.0 ListBoxOption "Auto"
+    - r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" value="Auto" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" value="Auto" controls=[r.0.0.0.0.3.0.0.0.0.0.11.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.11.0 ListBox ""
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.0 ListBoxOption "Auto" [selected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.1 ListBoxOption "Fixed" [unselected] actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.0 ListBoxOption "Auto" -> r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.1 ListBoxOption "Fixed"
+    - r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" value="Auto" controls=[r.0.0.0.0.3.0.0.0.0.0.11.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" value="Fixed" controls=[r.0.0.0.0.3.0.0.0.0.0.11.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.0 ListBoxOption "Auto" [selected] actions=[Click]
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.1 ListBoxOption "Fixed" [unselected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.0 ListBoxOption "Auto" [unselected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.1 ListBoxOption "Fixed" [selected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.12 Label "" value="Rotation:"
+    + r.0.0.0.0.3.0.0.0.0.0.13 GenericContainer ""
+    + r.0.0.0.0.3.0.0.0.0.0.13.0 Unknown "" actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.13.1 SpinButton "Rotation" value="0°" number=0 in -360..360 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.0.0.0.0.13.1.0 TextRun "" value="0"
+  ArrowUp:
+    focus: r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.1 ListBoxOption "Fixed" -> r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.0 ListBoxOption "Auto"
+    - r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" value="Fixed" controls=[r.0.0.0.0.3.0.0.0.0.0.11.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" value="Auto" controls=[r.0.0.0.0.3.0.0.0.0.0.11.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.0 ListBoxOption "Auto" [unselected] actions=[Click]
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.1 ListBoxOption "Fixed" [selected] actions=[Click]
+    - r.0.0.0.0.3.0.0.0.0.0.12 Label "" value="Rotation:"
+    - r.0.0.0.0.3.0.0.0.0.0.13 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.13.0 Unknown "" actions=[Click,Focus]
+    - r.0.0.0.0.3.0.0.0.0.0.13.1 SpinButton "Rotation" value="0°" number=0 in -360..360 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.0.0.0.0.13.1.0 TextRun "" value="0"
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.0 ListBoxOption "Auto" [selected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.1 ListBoxOption "Fixed" [unselected] actions=[Click]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.0 ListBoxOption "Auto" -> r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation"
+    - r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" value="Auto" controls=[r.0.0.0.0.3.0.0.0.0.0.11.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.0.0.0.0.11.0 ListBox ""
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.0 ListBoxOption "Auto" [selected] actions=[Click]
+    - r.0.0.0.0.3.0.0.0.0.0.11.0.0.0.0.0.1 ListBoxOption "Fixed" [unselected] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" value="Auto" [collapsed popup:Listbox] actions=[Click,Focus]
+drive r.0.0.0.0.5.0.0.0.0.0.13 Button "Remove All Pins"
+  click:
+    focus: r.0.0.0.0.3.0.0.0.0.0.11 ComboBox "Rotation" -> r Window ""
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.0.7 Button "Remove All Pins" -> r Window ""
+drive r.0.0.0.0.5.0.1 ScrollBar ""
+  click: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown: no change
+  Home: no change
+  End: no change
+  Escape: no change
+drive r.0.0.0.0.5.1.0 Button "Cancel Puppet Warp"
+  click:
+    - r.0.0.0.0.5.0.0.0.0.0.6 CheckBox "Show Mesh" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.5.0.0.0.0.0.6 CheckBox "Show Mesh" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.5.0.0.0.0.0.7 Label "" value="Could not use Puppet Warp: no opaque pixels at this density and expansion" actions=[Click]
+    + r.0.0.0.0.5.0.0.0.0.0.7.0 TextRun "" value="Could not use Puppet Warp: no opaque pixels at this density and expansion"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.5.1.0 Button "Cancel Puppet Warp" -> r Window ""
+drive r.0.0.0.0.5.1.1 Button "Commit Puppet Warp"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.5.1.1 Button "Commit Puppet Warp" -> r Window ""

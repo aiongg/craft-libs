@@ -1,0 +1,201 @@
+story composites/stroke-button/popover
+args
+  stroke = Bool(true)
+  closed = Bool(true)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Button "Stroke Options" value="Solid" description="Stroke Options" [collapsed popup:Dialog] actions=[Click,Focus]
+          r.0.0.0.0.1 Label "" value="No event yet" actions=[Click]
+            r.0.0.0.0.1.0 TextRun "" value="No event yet"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0 Button "Stroke Options"
+  2: r.0.0.0.0.0 Button "Stroke Options"
+  cycle after 1 nodes
+drive: 2 actionable nodes
+drive r.0.0.0.0.0 Button "Stroke Options"
+  click:
+    focus: r.0.0.0.0.0 Button "Stroke Options" -> r.1.0.1.0.0.0.0.1 RadioButton "Solid"
+    - r.0.0.0.0.0 Button "Stroke Options" value="Solid" description="Stroke Options" [collapsed popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0 Button "Stroke Options" value="Solid" description="Stroke Options" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.1 Dialog "Stroke Options"
+    + r.1.0 GenericContainer ""
+    + r.1.0.0 Label "" value="Stroke Options" actions=[Click]
+    + r.1.0.0.0 TextRun "" value="Stroke Options"
+    + r.1.0.1 GenericContainer ""
+    + r.1.0.1.0 GenericContainer ""
+    + r.1.0.1.0.0 GenericContainer ""
+    + r.1.0.1.0.0.0 RadioGroup "Stroke Options"
+    + r.1.0.1.0.0.0.0 GenericContainer ""
+    + r.1.0.1.0.0.0.0.0 GenericContainer ""
+    + r.1.0.1.0.0.0.0.1 RadioButton "Solid" [checked] actions=[Click,Focus]
+    + r.1.0.1.0.0.0.1 GenericContainer ""
+    + r.1.0.1.0.0.0.1.0 GenericContainer ""
+    + r.1.0.1.0.0.0.1.1 RadioButton "Dashed" [unchecked] actions=[Click,Focus]
+    + r.1.0.1.0.0.0.2 GenericContainer ""
+    + r.1.0.1.0.0.0.2.0 GenericContainer ""
+    + r.1.0.1.0.0.0.2.1 RadioButton "Dotted" [unchecked] actions=[Click,Focus]
+    + r.1.0.1.0.0.1 GenericContainer ""
+    + r.1.0.1.0.0.1.0 GenericContainer ""
+    + r.1.0.1.0.0.1.0.0 Label "" value="Alignment"
+    + r.1.0.1.0.0.1.1 GenericContainer ""
+    + r.1.0.1.0.0.1.1.0 GenericContainer ""
+    + r.1.0.1.0.0.1.1.0.0 ComboBox "Alignment" value="Center" labelled_by=[r.1.0.1.0.0.1.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.1.0.1.0.0.1.2 GenericContainer ""
+    + r.1.0.1.0.0.1.2.0 Label "" value="Caps" [disabled]
+    + r.1.0.1.0.0.1.3 GenericContainer ""
+    + r.1.0.1.0.0.1.3.0 GenericContainer ""
+    + r.1.0.1.0.0.1.3.0.0 ComboBox "Caps" value="Butt / Flat" labelled_by=[r.1.0.1.0.0.1.2.0] [disabled collapsed popup:Listbox] actions=[Click,Focus]
+    + r.1.0.1.0.0.1.4 GenericContainer ""
+    + r.1.0.1.0.0.1.4.0 Label "" value="Corners"
+    + r.1.0.1.0.0.1.5 GenericContainer ""
+    + r.1.0.1.0.0.1.5.0 GenericContainer ""
+    + r.1.0.1.0.0.1.5.0.0 ComboBox "Corners" value="Miter" labelled_by=[r.1.0.1.0.0.1.4.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.1.0.1.0.0.1.6 GenericContainer ""
+    + r.1.0.1.0.0.1.6.0 Label "" value="Miter limit"
+    + r.1.0.1.0.0.1.7 GenericContainer ""
+    + r.1.0.1.0.0.1.7.0 GenericContainer ""
+    + r.1.0.1.0.0.1.7.0.0 SpinButton "Miter limit" value="100×" number=100 in 1..500 step 1 labelled_by=[r.1.0.1.0.0.1.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.1.0.1.0.0.1.7.0.0.0 TextRun "" value="100"
+    + r.1.0.1.0.0.1.8 GenericContainer ""
+    + r.1.0.1.0.0.1.8.0 Label "" value="Opacity"
+    + r.1.0.1.0.0.1.9 GenericContainer ""
+    + r.1.0.1.0.0.1.9.0 GenericContainer ""
+    + r.1.0.1.0.0.1.9.0.0 SpinButton "Opacity" value="100%" number=100 in 0..100 step 1 labelled_by=[r.1.0.1.0.0.1.8.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.1.0.1.0.0.1.9.0.0.0 TextRun "" value="100"
+    + r.1.0.1.0.0.2 CheckBox "Dashed line" [unchecked] actions=[Click,Focus]
+    + r.1.0.1.0.0.3 Image "Solid"
+  Space:
+    - r.0.0.0.0.0 Button "Stroke Options" value="Solid" description="Stroke Options" [expanded popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="No event yet" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="No event yet"
+    + r.0.0.0.0.0 Button "Stroke Options" value="Dashed" description="Stroke Options" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.1 Label "" value="Last event: Set" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set"
+    - r.1.0.1.0.0.0.0.1 RadioButton "Solid" [checked] actions=[Click,Focus]
+    + r.1.0.1.0.0.0.0.1 RadioButton "Solid" [unchecked] actions=[Click,Focus]
+    - r.1.0.1.0.0.0.1.1 RadioButton "Dashed" [unchecked] actions=[Click,Focus]
+    + r.1.0.1.0.0.0.1.1 RadioButton "Dashed" [checked] actions=[Click,Focus]
+    - r.1.0.1.0.0.1.2.0 Label "" value="Caps" [disabled]
+    + r.1.0.1.0.0.1.2.0 Label "" value="Caps"
+    - r.1.0.1.0.0.1.3.0.0 ComboBox "Caps" value="Butt / Flat" labelled_by=[r.1.0.1.0.0.1.2.0] [disabled collapsed popup:Listbox] actions=[Click,Focus]
+    + r.1.0.1.0.0.1.3.0.0 ComboBox "Caps" value="Butt / Flat" labelled_by=[r.1.0.1.0.0.1.2.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.1.0.1.0.0.2 CheckBox "Dashed line" [unchecked] actions=[Click,Focus]
+    - r.1.0.1.0.0.3 Image "Solid"
+    + r.1.0.1.0.0.2 CheckBox "Dashed line" [checked] actions=[Click,Focus]
+    + r.1.0.1.0.0.3 Label "" value="Dash / gap lengths × stroke width" actions=[Click]
+    + r.1.0.1.0.0.3.0 TextRun "" value="Dash / gap lengths × stroke width"
+    + r.1.0.1.0.0.4 GenericContainer ""
+    + r.1.0.1.0.0.4.0 Label "" value="Dash" actions=[Click]
+    + r.1.0.1.0.0.4.0.0 TextRun "" value="Dash"
+    + r.1.0.1.0.0.4.1 SpinButton "Dash" value="4×" number=4 in 0..10000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.1.0.1.0.0.4.1.0 TextRun "" value="4"
+    + r.1.0.1.0.0.4.2 Label "" value="Gap" actions=[Click]
+    + r.1.0.1.0.0.4.2.0 TextRun "" value="Gap"
+    + r.1.0.1.0.0.4.3 SpinButton "Gap" value="2×" number=2 in 0..10000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.1.0.1.0.0.4.3.0 TextRun "" value="2"
+    + r.1.0.1.0.0.5 GenericContainer ""
+    + r.1.0.1.0.0.5.0 Button "Add pair" actions=[Click,Focus]
+    + r.1.0.1.0.0.5.1 Button "Remove pair" [disabled] actions=[Click,Focus]
+    + r.1.0.1.0.0.6 GenericContainer ""
+    + r.1.0.1.0.0.6.0 GenericContainer ""
+    + r.1.0.1.0.0.6.0.0 Label "" value="Dash offset"
+    + r.1.0.1.0.0.6.1 GenericContainer ""
+    + r.1.0.1.0.0.6.1.0 GenericContainer ""
+    + r.1.0.1.0.0.6.1.0.0 SpinButton "Dash offset" value="0×" number=0 in -1000000..1000000 step 1 labelled_by=[r.1.0.1.0.0.6.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.1.0.1.0.0.6.1.0.0.0 TextRun "" value="0"
+    + r.1.0.1.0.0.7 Image "Dashed"
+  Enter:
+    - r.0.0.0.0.0 Button "Stroke Options" value="Dashed" description="Stroke Options" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0 Button "Stroke Options" value="Solid" description="Stroke Options" [expanded popup:Dialog] actions=[Click,Focus]
+    - r.1.0.1.0.0.0.0.1 RadioButton "Solid" [unchecked] actions=[Click,Focus]
+    + r.1.0.1.0.0.0.0.1 RadioButton "Solid" [checked] actions=[Click,Focus]
+    - r.1.0.1.0.0.0.1.1 RadioButton "Dashed" [checked] actions=[Click,Focus]
+    + r.1.0.1.0.0.0.1.1 RadioButton "Dashed" [unchecked] actions=[Click,Focus]
+    - r.1.0.1.0.0.1.2.0 Label "" value="Caps"
+    + r.1.0.1.0.0.1.2.0 Label "" value="Caps" [disabled]
+    - r.1.0.1.0.0.1.3.0.0 ComboBox "Caps" value="Butt / Flat" labelled_by=[r.1.0.1.0.0.1.2.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.1.0.1.0.0.1.3.0.0 ComboBox "Caps" value="Butt / Flat" labelled_by=[r.1.0.1.0.0.1.2.0] [disabled collapsed popup:Listbox] actions=[Click,Focus]
+    - r.1.0.1.0.0.2 CheckBox "Dashed line" [checked] actions=[Click,Focus]
+    - r.1.0.1.0.0.3 Label "" value="Dash / gap lengths × stroke width" actions=[Click]
+    - r.1.0.1.0.0.3.0 TextRun "" value="Dash / gap lengths × stroke width"
+    - r.1.0.1.0.0.4 GenericContainer ""
+    - r.1.0.1.0.0.4.0 Label "" value="Dash" actions=[Click]
+    - r.1.0.1.0.0.4.0.0 TextRun "" value="Dash"
+    - r.1.0.1.0.0.4.1 SpinButton "Dash" value="4×" number=4 in 0..10000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.0.1.0.0.4.1.0 TextRun "" value="4"
+    - r.1.0.1.0.0.4.2 Label "" value="Gap" actions=[Click]
+    - r.1.0.1.0.0.4.2.0 TextRun "" value="Gap"
+    - r.1.0.1.0.0.4.3 SpinButton "Gap" value="2×" number=2 in 0..10000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.0.1.0.0.4.3.0 TextRun "" value="2"
+    - r.1.0.1.0.0.5 GenericContainer ""
+    - r.1.0.1.0.0.5.0 Button "Add pair" actions=[Click,Focus]
+    - r.1.0.1.0.0.5.1 Button "Remove pair" [disabled] actions=[Click,Focus]
+    - r.1.0.1.0.0.6 GenericContainer ""
+    - r.1.0.1.0.0.6.0 GenericContainer ""
+    - r.1.0.1.0.0.6.0.0 Label "" value="Dash offset"
+    - r.1.0.1.0.0.6.1 GenericContainer ""
+    - r.1.0.1.0.0.6.1.0 GenericContainer ""
+    - r.1.0.1.0.0.6.1.0.0 SpinButton "Dash offset" value="0×" number=0 in -1000000..1000000 step 1 labelled_by=[r.1.0.1.0.0.6.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.0.1.0.0.6.1.0.0.0 TextRun "" value="0"
+    - r.1.0.1.0.0.7 Image "Dashed"
+    + r.1.0.1.0.0.2 CheckBox "Dashed line" [unchecked] actions=[Click,Focus]
+    + r.1.0.1.0.0.3 Image "Solid"
+  Escape:
+    - r.0.0.0.0.0 Button "Stroke Options" value="Solid" description="Stroke Options" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0 Button "Stroke Options" value="Solid" description="Stroke Options" [collapsed popup:Dialog] actions=[Click,Focus]
+    - r.1 Dialog "Stroke Options"
+    - r.1.0 GenericContainer ""
+    - r.1.0.0 Label "" value="Stroke Options" actions=[Click]
+    - r.1.0.0.0 TextRun "" value="Stroke Options"
+    - r.1.0.1 GenericContainer ""
+    - r.1.0.1.0 GenericContainer ""
+    - r.1.0.1.0.0 GenericContainer ""
+    - r.1.0.1.0.0.0 RadioGroup "Stroke Options"
+    - r.1.0.1.0.0.0.0 GenericContainer ""
+    - r.1.0.1.0.0.0.0.0 GenericContainer ""
+    - r.1.0.1.0.0.0.0.1 RadioButton "Solid" [checked] actions=[Click,Focus]
+    - r.1.0.1.0.0.0.1 GenericContainer ""
+    - r.1.0.1.0.0.0.1.0 GenericContainer ""
+    - r.1.0.1.0.0.0.1.1 RadioButton "Dashed" [unchecked] actions=[Click,Focus]
+    - r.1.0.1.0.0.0.2 GenericContainer ""
+    - r.1.0.1.0.0.0.2.0 GenericContainer ""
+    - r.1.0.1.0.0.0.2.1 RadioButton "Dotted" [unchecked] actions=[Click,Focus]
+    - r.1.0.1.0.0.1 GenericContainer ""
+    - r.1.0.1.0.0.1.0 GenericContainer ""
+    - r.1.0.1.0.0.1.0.0 Label "" value="Alignment"
+    - r.1.0.1.0.0.1.1 GenericContainer ""
+    - r.1.0.1.0.0.1.1.0 GenericContainer ""
+    - r.1.0.1.0.0.1.1.0.0 ComboBox "Alignment" value="Center" labelled_by=[r.1.0.1.0.0.1.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.1.0.1.0.0.1.2 GenericContainer ""
+    - r.1.0.1.0.0.1.2.0 Label "" value="Caps" [disabled]
+    - r.1.0.1.0.0.1.3 GenericContainer ""
+    - r.1.0.1.0.0.1.3.0 GenericContainer ""
+    - r.1.0.1.0.0.1.3.0.0 ComboBox "Caps" value="Butt / Flat" labelled_by=[r.1.0.1.0.0.1.2.0] [disabled collapsed popup:Listbox] actions=[Click,Focus]
+    - r.1.0.1.0.0.1.4 GenericContainer ""
+    - r.1.0.1.0.0.1.4.0 Label "" value="Corners"
+    - r.1.0.1.0.0.1.5 GenericContainer ""
+    - r.1.0.1.0.0.1.5.0 GenericContainer ""
+    - r.1.0.1.0.0.1.5.0.0 ComboBox "Corners" value="Miter" labelled_by=[r.1.0.1.0.0.1.4.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.1.0.1.0.0.1.6 GenericContainer ""
+    - r.1.0.1.0.0.1.6.0 Label "" value="Miter limit"
+    - r.1.0.1.0.0.1.7 GenericContainer ""
+    - r.1.0.1.0.0.1.7.0 GenericContainer ""
+    - r.1.0.1.0.0.1.7.0.0 SpinButton "Miter limit" value="100×" number=100 in 1..500 step 1 labelled_by=[r.1.0.1.0.0.1.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.0.1.0.0.1.7.0.0.0 TextRun "" value="100"
+    - r.1.0.1.0.0.1.8 GenericContainer ""
+    - r.1.0.1.0.0.1.8.0 Label "" value="Opacity"
+    - r.1.0.1.0.0.1.9 GenericContainer ""
+    - r.1.0.1.0.0.1.9.0 GenericContainer ""
+    - r.1.0.1.0.0.1.9.0.0 SpinButton "Opacity" value="100%" number=100 in 0..100 step 1 labelled_by=[r.1.0.1.0.0.1.8.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.1.0.1.0.0.1.9.0.0.0 TextRun "" value="100"
+    - r.1.0.1.0.0.2 CheckBox "Dashed line" [unchecked] actions=[Click,Focus]
+    - r.1.0.1.0.0.3 Image "Solid"
+drive r.0.0.0.0.1 Label ""
+  click:
+    focus: r.0.0.0.0.0 Button "Stroke Options" -> r Window ""
+  Escape: no change

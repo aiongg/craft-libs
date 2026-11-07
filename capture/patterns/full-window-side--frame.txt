@@ -1,0 +1,161 @@
+story patterns/full-window-side/frame
+args
+  open = Bool(true)
+  footer top = Bool(false)
+  second side = Bool(false)
+  rtl = Bool(false)
+  width = Number { value: 760.0, min: 480.0, max: 1100.0 }
+  height = Number { value: 380.0, min: 280.0, max: 700.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+  r.1 Dialog "Liquify (Photo, 104%)"
+    r.1.0 GenericContainer ""
+    r.1.1 GenericContainer ""
+      r.1.1.0 GenericContainer ""
+        r.1.1.0.0 Header "Liquify (Photo, 104%)"
+        r.1.1.0.1 GenericContainer ""
+          r.1.1.0.1.0 GenericContainer ""
+            r.1.1.0.1.0.0 Label "" value="Liquify (Photo, 104%)"
+        r.1.1.0.2 GenericContainer ""
+        r.1.1.0.3 Toolbar "Tool options"
+          r.1.1.0.3.0 GenericContainer ""
+            r.1.1.0.3.0.0 GenericContainer ""
+              r.1.1.0.3.0.0.0 GenericContainer ""
+                r.1.1.0.3.0.0.0.0 GenericContainer ""
+                  r.1.1.0.3.0.0.0.0.0 Button "Brush" description="Brush" actions=[Click,Focus]
+                  r.1.1.0.3.0.0.0.0.1 Label "" value="Size" actions=[Click]
+                    r.1.1.0.3.0.0.0.0.1.0 TextRun "" value="Size"
+        r.1.1.0.4 Pane ""
+          r.1.1.0.4.0 GenericContainer ""
+            r.1.1.0.4.0.0 Toolbar "Tools"
+              r.1.1.0.4.0.0.0 GenericContainer ""
+                r.1.1.0.4.0.0.0.0 GenericContainer ""
+                  r.1.1.0.4.0.0.0.0.0 GenericContainer ""
+                    r.1.1.0.4.0.0.0.0.0.0 Button "Move" description="V" [checked] actions=[Click,Focus]
+                  r.1.1.0.4.0.0.0.0.1 GenericContainer ""
+                    r.1.1.0.4.0.0.0.0.1.0 Button "Brush" description="B" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+                  r.1.1.0.4.0.0.0.0.2 GenericContainer ""
+                    r.1.1.0.4.0.0.0.0.2.0 Button "Eraser" description="E" [unchecked] actions=[Click,Focus]
+                  r.1.1.0.4.0.0.0.0.3 GenericContainer ""
+                    r.1.1.0.4.0.0.0.0.3.0 Button "Hand" description="H" [unchecked] actions=[Click,Focus]
+                  r.1.1.0.4.0.0.0.0.4 GenericContainer ""
+                    r.1.1.0.4.0.0.0.0.4.0 Button "Zoom" description="Z" [unchecked] actions=[Click,Focus]
+              r.1.1.0.4.0.0.1 GenericContainer ""
+        r.1.1.0.5 Pane ""
+          r.1.1.0.5.0 GenericContainer ""
+            r.1.1.0.5.0.0 Group "Properties"
+              r.1.1.0.5.0.0.0 Header "Properties"
+              r.1.1.0.5.0.0.1 GenericContainer ""
+                r.1.1.0.5.0.0.1.0 GenericContainer ""
+                  r.1.1.0.5.0.0.1.0.0 Label "" value="Properties"
+              r.1.1.0.5.0.0.2 GenericContainer ""
+              r.1.1.0.5.0.0.3 GenericContainer ""
+                r.1.1.0.5.0.0.3.0 GenericContainer ""
+                  r.1.1.0.5.0.0.3.0.0 GenericContainer ""
+                    r.1.1.0.5.0.0.3.0.0.0 Slider "Size" number=50 in 1..100 step 0.99 actions=[Focus,Decrement,Increment,SetValue]
+                    r.1.1.0.5.0.0.3.0.0.1 Slider "Opacity" number=100 in 1..100 step 0.99 actions=[Focus,Decrement,SetValue]
+              r.1.1.0.5.0.0.4 GenericContainer ""
+                r.1.1.0.5.0.0.4.0 GenericContainer ""
+                  r.1.1.0.5.0.0.4.0.0 Button "OK" description="Default" actions=[Click,Focus]
+                  r.1.1.0.5.0.0.4.0.1 Button "Cancel" actions=[Click,Focus]
+        r.1.1.0.6 Canvas "Image" value="104%" actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.1.1.0.3.0.0.0.0.0 Button "Brush"
+  2: r.1.1.0.4.0.0.0.0.0.0 Button "Move"
+  3: r.1.1.0.4.0.0.0.0.1.0 Button "Brush"
+  4: r.1.1.0.4.0.0.0.0.2.0 Button "Eraser"
+  5: r.1.1.0.4.0.0.0.0.3.0 Button "Hand"
+  6: r.1.1.0.4.0.0.0.0.4.0 Button "Zoom"
+  7: r.1.1.0.5.0.0.3.0.0.0 Slider "Size"
+  8: r.1.1.0.5.0.0.3.0.0.1 Slider "Opacity"
+  9: r.1.1.0.5.0.0.4.0.0 Button "OK"
+  10: r.1.1.0.5.0.0.4.0.1 Button "Cancel"
+  11: r.1.1.0.6 Canvas "Image"
+  12: r.1.1.0.3.0.0.0.0.0 Button "Brush"
+  cycle after 11 nodes
+drive: 12 actionable nodes
+drive r.1.1.0.3.0.0.0.0.0 Button "Brush"
+  click: no change
+  Space: no change
+  Enter:
+    focus: r.1.1.0.3.0.0.0.0.0 Button "Brush" -> r Window ""
+    arg open: Bool(true) -> Bool(false)
+    - r.1 Dialog "Liquify (Photo, 104%)"
+    - r.1.0 GenericContainer ""
+    - r.1.1 GenericContainer ""
+    - r.1.1.0 GenericContainer ""
+    - r.1.1.0.0 Header "Liquify (Photo, 104%)"
+    - r.1.1.0.1 GenericContainer ""
+    - r.1.1.0.1.0 GenericContainer ""
+    - r.1.1.0.1.0.0 Label "" value="Liquify (Photo, 104%)"
+    - r.1.1.0.2 GenericContainer ""
+    - r.1.1.0.3 Toolbar "Tool options"
+    - r.1.1.0.3.0 GenericContainer ""
+    - r.1.1.0.3.0.0 GenericContainer ""
+    - r.1.1.0.3.0.0.0 GenericContainer ""
+    - r.1.1.0.3.0.0.0.0 GenericContainer ""
+    - r.1.1.0.3.0.0.0.0.0 Button "Brush" description="Brush" actions=[Click,Focus]
+    - r.1.1.0.3.0.0.0.0.1 Label "" value="Size" actions=[Click]
+    - r.1.1.0.3.0.0.0.0.1.0 TextRun "" value="Size"
+    - r.1.1.0.4 Pane ""
+    - r.1.1.0.4.0 GenericContainer ""
+    - r.1.1.0.4.0.0 Toolbar "Tools"
+    - r.1.1.0.4.0.0.0 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0.0 Button "Move" description="V" [checked] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.0.0.1 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.1.0 Button "Brush" description="B" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.0.0.2 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.2.0 Button "Eraser" description="E" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.0.0.3 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.3.0 Button "Hand" description="H" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.0.0.4 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.4.0 Button "Zoom" description="Z" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.1 GenericContainer ""
+    - r.1.1.0.5 Pane ""
+    - r.1.1.0.5.0 GenericContainer ""
+    - r.1.1.0.5.0.0 Group "Properties"
+    - r.1.1.0.5.0.0.0 Header "Properties"
+    - r.1.1.0.5.0.0.1 GenericContainer ""
+    - r.1.1.0.5.0.0.1.0 GenericContainer ""
+    - r.1.1.0.5.0.0.1.0.0 Label "" value="Properties"
+    - r.1.1.0.5.0.0.2 GenericContainer ""
+    - r.1.1.0.5.0.0.3 GenericContainer ""
+    - r.1.1.0.5.0.0.3.0 GenericContainer ""
+    - r.1.1.0.5.0.0.3.0.0 GenericContainer ""
+    - r.1.1.0.5.0.0.3.0.0.0 Slider "Size" number=50 in 1..100 step 0.99 actions=[Focus,Decrement,Increment,SetValue]
+    - r.1.1.0.5.0.0.3.0.0.1 Slider "Opacity" number=100 in 1..100 step 0.99 actions=[Focus,Decrement,SetValue]
+    - r.1.1.0.5.0.0.4 GenericContainer ""
+    - r.1.1.0.5.0.0.4.0 GenericContainer ""
+    - r.1.1.0.5.0.0.4.0.0 Button "OK" description="Default" actions=[Click,Focus]
+    - r.1.1.0.5.0.0.4.0.1 Button "Cancel" actions=[Click,Focus]
+    - r.1.1.0.6 Canvas "Image" value="104%" actions=[Click,Focus]
+  Escape: node gone
+drive r.1.1.0.3.0.0.0.0.1 Label ""
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.0.0 Button "Move"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.1.0 Button "Brush"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.2.0 Button "Eraser"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.3.0 Button "Hand"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.4.0 Button "Zoom"
+  all steps: node gone
+drive r.1.1.0.5.0.0.3.0.0.0 Slider "Size"
+  all steps: node gone
+drive r.1.1.0.5.0.0.3.0.0.1 Slider "Opacity"
+  all steps: node gone
+drive r.1.1.0.5.0.0.4.0.0 Button "OK"
+  all steps: node gone
+drive r.1.1.0.5.0.0.4.0.1 Button "Cancel"
+  all steps: node gone
+drive r.1.1.0.6 Canvas "Image"
+  all steps: node gone

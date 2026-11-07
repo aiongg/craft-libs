@@ -1,0 +1,1195 @@
+story composites/transform-session/session
+args
+  zoom = Number { value: 100.0, min: 10.0, max: 800.0 }
+  rotation = Number { value: 0.0, min: -180.0, max: 180.0 }
+  flip = Bool(false)
+  aspect = Number { value: 1.0, min: 0.5, max: 2.0 }
+  ppp = Choice { options: ["gallery", "1", "1.25", "1.5", "2"], index: 0 }
+  mode = Choice { options: ["free", "rotate", "skew", "distort", "perspective"], index: 0 }
+  scale rule = Choice { options: ["proportional", "free"], index: 0 }
+  reference point = Bool(true)
+  readout = Bool(true)
+  interpolation = Choice { options: ["bicubic", "bilinear", "Nearest Neighbor"], index: 0 }
+  width = Number { value: 240.0, min: 40.0, max: 600.0 }
+  height = Number { value: 160.0, min: 40.0, max: 380.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Canvas "Document" actions=[Click,Focus]
+          r.0.0.0.0.1 Group "Free Transform" actions=[Focus]
+            r.0.0.0.0.1.0 GenericContainer ""
+              r.0.0.0.0.1.0.0 GraphicsObject "Whole box" [unselected]
+              r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 120.0 px" [unselected]
+              r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 120.0 px" [unselected]
+              r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.0 px" [unselected]
+              r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.0 px" [unselected]
+              r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 120.0 px" [unselected]
+              r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 200.0 px" [unselected]
+              r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 280.0 px" [unselected]
+              r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 200.0 px" [unselected]
+              r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 200.0 px" [unselected]
+          r.0.0.0.0.2 Toolbar "Free Transform"
+            r.0.0.0.0.2.0 GenericContainer ""
+              r.0.0.0.0.2.0.0 GenericContainer ""
+                r.0.0.0.0.2.0.0.0 GenericContainer ""
+                  r.0.0.0.0.2.0.0.0.0 GenericContainer ""
+                    r.0.0.0.0.2.0.0.0.0.0 GenericContainer ""
+                      r.0.0.0.0.2.0.0.0.0.0.0 RadioGroup "Reference point" actions=[Click,Focus]
+                        r.0.0.0.0.2.0.0.0.0.0.0.0 GenericContainer ""
+                          r.0.0.0.0.2.0.0.0.0.0.0.0.0 RadioButton "Top left" [unchecked]
+                          r.0.0.0.0.2.0.0.0.0.0.0.0.1 RadioButton "Top" [unchecked]
+                          r.0.0.0.0.2.0.0.0.0.0.0.0.2 RadioButton "Top right" [unchecked]
+                          r.0.0.0.0.2.0.0.0.0.0.0.0.3 RadioButton "Left" [unchecked]
+                          r.0.0.0.0.2.0.0.0.0.0.0.0.4 RadioButton "Center" [checked]
+                          r.0.0.0.0.2.0.0.0.0.0.0.0.5 RadioButton "Right" [unchecked]
+                          r.0.0.0.0.2.0.0.0.0.0.0.0.6 RadioButton "Bottom left" [unchecked]
+                          r.0.0.0.0.2.0.0.0.0.0.0.0.7 RadioButton "Bottom" [unchecked]
+                          r.0.0.0.0.2.0.0.0.0.0.0.0.8 RadioButton "Bottom right" [unchecked]
+                      r.0.0.0.0.2.0.0.0.0.0.1 Label "" value="X:"
+                      r.0.0.0.0.2.0.0.0.0.0.2 GenericContainer ""
+                        r.0.0.0.0.2.0.0.0.0.0.2.0 Unknown "" actions=[Click,Focus]
+                        r.0.0.0.0.2.0.0.0.0.0.2.1 SpinButton "X position" value="320 px" number=320 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                          r.0.0.0.0.2.0.0.0.0.0.2.1.0 TextRun "" value="320"
+                      r.0.0.0.0.2.0.0.0.0.0.3 Label "" value="Y:"
+                      r.0.0.0.0.2.0.0.0.0.0.4 GenericContainer ""
+                        r.0.0.0.0.2.0.0.0.0.0.4.0 Unknown "" actions=[Click,Focus]
+                        r.0.0.0.0.2.0.0.0.0.0.4.1 SpinButton "Y position" value="200 px" number=200 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                          r.0.0.0.0.2.0.0.0.0.0.4.1.0 TextRun "" value="200"
+                      r.0.0.0.0.2.0.0.0.0.0.5 Label "" value="W:"
+                      r.0.0.0.0.2.0.0.0.0.0.6 GenericContainer ""
+                        r.0.0.0.0.2.0.0.0.0.0.6.0 Unknown "" actions=[Click,Focus]
+                        r.0.0.0.0.2.0.0.0.0.0.6.1 SpinButton "Width" value="100%" number=100 in -125000..125000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                          r.0.0.0.0.2.0.0.0.0.0.6.1.0 TextRun "" value="100"
+                      r.0.0.0.0.2.0.0.0.0.0.7 Button "Maintain aspect ratio" description="Maintain aspect ratio" [unchecked] actions=[Click,Focus]
+                      r.0.0.0.0.2.0.0.0.0.0.8 Label "" value="H:"
+                      r.0.0.0.0.2.0.0.0.0.0.9 GenericContainer ""
+                        r.0.0.0.0.2.0.0.0.0.0.9.0 Unknown "" actions=[Click,Focus]
+                        r.0.0.0.0.2.0.0.0.0.0.9.1 SpinButton "Height" value="100%" number=100 in -187500..187500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                          r.0.0.0.0.2.0.0.0.0.0.9.1.0 TextRun "" value="100"
+                      r.0.0.0.0.2.0.0.0.0.0.10 GenericContainer ""
+                        r.0.0.0.0.2.0.0.0.0.0.10.0 SpinButton "Angle" value="0°" number=0 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                          r.0.0.0.0.2.0.0.0.0.0.10.0.0 TextRun "" value="0"
+                      r.0.0.0.0.2.0.0.0.0.0.11 Label "" value="H:"
+                      r.0.0.0.0.2.0.0.0.0.0.12 GenericContainer ""
+                        r.0.0.0.0.2.0.0.0.0.0.12.0 Unknown "" actions=[Click,Focus]
+                        r.0.0.0.0.2.0.0.0.0.0.12.1 SpinButton "Horizontal skew" value="0°" number=-0 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                          r.0.0.0.0.2.0.0.0.0.0.12.1.0 TextRun "" value="0"
+                      r.0.0.0.0.2.0.0.0.0.0.13 Label "" value="V:"
+                      r.0.0.0.0.2.0.0.0.0.0.14 GenericContainer ""
+                        r.0.0.0.0.2.0.0.0.0.0.14.0 Unknown "" actions=[Click,Focus]
+                        r.0.0.0.0.2.0.0.0.0.0.14.1 SpinButton "Vertical skew" value="0°" number=0 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                          r.0.0.0.0.2.0.0.0.0.0.14.1.0 TextRun "" value="0"
+                      r.0.0.0.0.2.0.0.0.0.0.15 Label "" value="Interpolation:"
+                      r.0.0.0.0.2.0.0.0.0.0.16 ComboBox "Interpolation" value="Bicubic" [collapsed popup:Listbox] actions=[Click,Focus]
+                    r.0.0.0.0.2.0.0.0.0.1 CheckBox "Show Reference Point" [checked] actions=[Click,Focus]
+              r.0.0.0.0.2.0.1 ScrollBar "" actions=[Click]
+            r.0.0.0.0.2.1 GenericContainer ""
+              r.0.0.0.0.2.1.0 Button "Cancel transform" description="Cancel transform" shortcut="Escape" actions=[Click,Focus]
+              r.0.0.0.0.2.1.1 Button "Commit transform" description="Commit transform" shortcut="Enter" actions=[Click,Focus]
+              r.0.0.0.0.2.1.2 Button "Switch between free transform and warp modes" description="Switch between free transform and warp modes" [unchecked] actions=[Click,Focus]
+          r.0.0.0.0.3 GenericContainer ""
+            r.0.0.0.0.3.0 Button "Reset" actions=[Click,Focus]
+            r.0.0.0.0.3.1 Label "" value="Box" actions=[Click]
+              r.0.0.0.0.3.1.0 TextRun "" value="Box"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0 Canvas "Document"
+  2: r.0.0.0.0.1.0.0 GraphicsObject "Whole box"
+    - r.0.0.0.0.1.0.0 GraphicsObject "Whole box" [unselected]
+    + r.0.0.0.0.1.0.0 GraphicsObject "Whole box" [selected]
+  3: r.0.0.0.0.2.0.0.0.0.0.0.0.4 RadioButton "Center"
+  4: r.0.0.0.0.2.0.0.0.0.0.2.0 Unknown ""
+  5: r.0.0.0.0.2.0.0.0.0.0.2.1 SpinButton "X position"
+  6: r.0.0.0.0.2.0.0.0.0.0.2.0 Unknown ""
+  cycle after 5 nodes
+drive: 25 actionable nodes
+drive r.0.0.0.0.0 Canvas "Document"
+  click:
+    focus: r.0.0.0.0.2.0.0.0.0.0.2.0 Unknown "" -> r.0.0.0.0.1.0.9 GraphicsObject "Reference point"
+    - r.0.0.0.0.1.0.0 GraphicsObject "Whole box" [selected]
+    + r.0.0.0.0.1.0.0 GraphicsObject "Whole box" [unselected]
+    - r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 200.0 px" [selected]
+  Space: no change
+  Enter:
+    - r.0.0.0.0.3.1 Label "" value="Box" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box"
+    + r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+  Escape:
+    focus: r.0.0.0.0.0 Canvas "Document" -> r Window ""
+    - r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+    + r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+drive r.0.0.0.0.1 Group "Free Transform"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+    + r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+  Escape:
+    - r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+    + r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+drive r.0.0.0.0.2.0.0.0.0.0.0 RadioGroup "Reference point"
+  click:
+    focus: r.0.0.0.0.1.0.9 GraphicsObject "Reference point" -> r Window ""
+    - r.0.0.0.0.2.0.0.0.0.0.0 RadioGroup "Reference point" actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.0.0 RadioGroup "Reference point" description="Center" actions=[Click,Focus]
+  Space: no change
+  Enter:
+    - r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+    + r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+  ArrowDown:
+    - r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 200.0 px" [selected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 121.0 px" [unselected]
+    + r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 121.0 px" [unselected]
+    + r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 281.0 px" [unselected]
+    + r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 281.0 px" [unselected]
+    + r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 121.0 px" [unselected]
+    + r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 201.0 px" [unselected]
+    + r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 281.0 px" [unselected]
+    + r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 201.0 px" [unselected]
+    + r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 201.0 px" [selected]
+    - r.0.0.0.0.2.0.0.0.0.0.4.1 SpinButton "Y position" value="200 px" number=200 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.4.1.0 TextRun "" value="200"
+    + r.0.0.0.0.2.0.0.0.0.0.4.1 SpinButton "Y position" value="201 px" number=201 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.4.1.0 TextRun "" value="201"
+  ArrowUp:
+    - r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 121.0 px" [unselected]
+    - r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 121.0 px" [unselected]
+    - r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 281.0 px" [unselected]
+    - r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 281.0 px" [unselected]
+    - r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 121.0 px" [unselected]
+    - r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 201.0 px" [unselected]
+    - r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 281.0 px" [unselected]
+    - r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 201.0 px" [unselected]
+    - r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 201.0 px" [selected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 200.0 px" [selected]
+    - r.0.0.0.0.2.0.0.0.0.0.4.1 SpinButton "Y position" value="201 px" number=201 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.4.1.0 TextRun "" value="201"
+    + r.0.0.0.0.2.0.0.0.0.0.4.1 SpinButton "Y position" value="200 px" number=200 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.4.1.0 TextRun "" value="200"
+  ArrowLeft:
+    - r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 200.0 px" [selected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="199.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="439.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="439.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="199.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="319.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="439.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="319.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="199.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="319.0 px, 200.0 px" [selected]
+    - r.0.0.0.0.2.0.0.0.0.0.2.1 SpinButton "X position" value="320 px" number=320 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.2.1.0 TextRun "" value="320"
+    + r.0.0.0.0.2.0.0.0.0.0.2.1 SpinButton "X position" value="319 px" number=319 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.2.1.0 TextRun "" value="319"
+  ArrowRight:
+    - r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="199.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="439.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="439.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="199.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="319.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="439.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="319.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="199.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="319.0 px, 200.0 px" [selected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 200.0 px" [selected]
+    - r.0.0.0.0.2.0.0.0.0.0.2.1 SpinButton "X position" value="319 px" number=319 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.2.1.0 TextRun "" value="319"
+    + r.0.0.0.0.2.0.0.0.0.0.2.1 SpinButton "X position" value="320 px" number=320 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.2.1.0 TextRun "" value="320"
+  Escape:
+    focus: r.0.0.0.0.2.0.0.0.0.0.0.0.4 RadioButton "Center" -> r Window ""
+    - r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+    + r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+drive r.0.0.0.0.2.0.0.0.0.0.2.0 Unknown ""
+  click:
+    focus: r Window "" -> r.0.0.0.0.2.0.0.0.0.0.2.1 SpinButton "X position"
+    - r.0.0.0.0.2.0.0.0.0.0.0 RadioGroup "Reference point" description="Center" actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.0.0 RadioGroup "Reference point" actions=[Click,Focus]
+  Space:
+    focus: r.0.0.0.0.2.0.0.0.0.0.2.0 Unknown "" -> r.0.0.0.0.2.0.0.0.0.0.2.1 SpinButton "X position"
+  Enter:
+    - r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+    + r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+  Escape:
+    focus: r.0.0.0.0.2.0.0.0.0.0.2.0 Unknown "" -> r Window ""
+    - r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+    + r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+drive r.0.0.0.0.2.0.0.0.0.0.2.1 SpinButton "X position"
+  click:
+    focus: r Window "" -> r.0.0.0.0.2.0.0.0.0.0.2.1 SpinButton "X position"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.2.0.0.0.0.0.2.1 SpinButton "X position" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 200.0 px" [selected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="201.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="441.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="441.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="201.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="321.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="441.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="321.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="201.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="321.0 px, 200.0 px" [selected]
+    - r.0.0.0.0.2.0.0.0.0.0.2.1 SpinButton "X position" value="320 px" number=320 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.2.1.0 TextRun "" value="320"
+    + r.0.0.0.0.2.0.0.0.0.0.2.1 SpinButton "X position" value="321 px" number=321 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.2.1.0 TextRun "" value="321"
+  ArrowDown:
+    - r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="201.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="441.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="441.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="201.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="321.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="441.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="321.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="201.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="321.0 px, 200.0 px" [selected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 200.0 px" [selected]
+    - r.0.0.0.0.2.0.0.0.0.0.2.1 SpinButton "X position" value="321 px" number=321 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.2.1.0 TextRun "" value="321"
+    + r.0.0.0.0.2.0.0.0.0.0.2.1 SpinButton "X position" value="320 px" number=320 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.2.1.0 TextRun "" value="320"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.2.0.0.0.0.0.2.1 SpinButton "X position" -> r Window ""
+drive r.0.0.0.0.2.0.0.0.0.0.4.0 Unknown ""
+  click:
+    focus: r Window "" -> r.0.0.0.0.2.0.0.0.0.0.4.1 SpinButton "Y position"
+  Space:
+    focus: r.0.0.0.0.2.0.0.0.0.0.4.0 Unknown "" -> r.0.0.0.0.2.0.0.0.0.0.4.1 SpinButton "Y position"
+  Enter:
+    - r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+    + r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+  Escape:
+    focus: r.0.0.0.0.2.0.0.0.0.0.4.0 Unknown "" -> r Window ""
+    - r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+    + r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+drive r.0.0.0.0.2.0.0.0.0.0.4.1 SpinButton "Y position"
+  click:
+    focus: r Window "" -> r.0.0.0.0.2.0.0.0.0.0.4.1 SpinButton "Y position"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.2.0.0.0.0.0.4.1 SpinButton "Y position" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 200.0 px" [selected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 121.0 px" [unselected]
+    + r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 121.0 px" [unselected]
+    + r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 281.0 px" [unselected]
+    + r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 281.0 px" [unselected]
+    + r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 121.0 px" [unselected]
+    + r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 201.0 px" [unselected]
+    + r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 281.0 px" [unselected]
+    + r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 201.0 px" [unselected]
+    + r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 201.0 px" [selected]
+    - r.0.0.0.0.2.0.0.0.0.0.4.1 SpinButton "Y position" value="200 px" number=200 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.4.1.0 TextRun "" value="200"
+    + r.0.0.0.0.2.0.0.0.0.0.4.1 SpinButton "Y position" value="201 px" number=201 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.4.1.0 TextRun "" value="201"
+  ArrowDown:
+    - r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 121.0 px" [unselected]
+    - r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 121.0 px" [unselected]
+    - r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 281.0 px" [unselected]
+    - r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 281.0 px" [unselected]
+    - r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 121.0 px" [unselected]
+    - r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 201.0 px" [unselected]
+    - r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 281.0 px" [unselected]
+    - r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 201.0 px" [unselected]
+    - r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 201.0 px" [selected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 200.0 px" [selected]
+    - r.0.0.0.0.2.0.0.0.0.0.4.1 SpinButton "Y position" value="201 px" number=201 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.4.1.0 TextRun "" value="201"
+    + r.0.0.0.0.2.0.0.0.0.0.4.1 SpinButton "Y position" value="200 px" number=200 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.4.1.0 TextRun "" value="200"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.2.0.0.0.0.0.4.1 SpinButton "Y position" -> r Window ""
+drive r.0.0.0.0.2.0.0.0.0.0.6.0 Unknown ""
+  click:
+    focus: r Window "" -> r.0.0.0.0.2.0.0.0.0.0.6.1 SpinButton "Width"
+  Space:
+    focus: r.0.0.0.0.2.0.0.0.0.0.6.0 Unknown "" -> r.0.0.0.0.2.0.0.0.0.0.6.1 SpinButton "Width"
+  Enter:
+    - r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+    + r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+  Escape:
+    focus: r.0.0.0.0.2.0.0.0.0.0.6.0 Unknown "" -> r Window ""
+    - r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+    + r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+drive r.0.0.0.0.2.0.0.0.0.0.6.1 SpinButton "Width"
+  click:
+    focus: r Window "" -> r.0.0.0.0.2.0.0.0.0.0.6.1 SpinButton "Width"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.2.0.0.0.0.0.6.1 SpinButton "Width" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="198.8 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="441.2 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="441.2 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="198.8 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="441.2 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="198.8 px, 200.0 px" [unselected]
+    - r.0.0.0.0.2.0.0.0.0.0.6.1 SpinButton "Width" value="100%" number=100 in -125000..125000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.6.1.0 TextRun "" value="100"
+    + r.0.0.0.0.2.0.0.0.0.0.6.1 SpinButton "Width" value="101%" number=100.99999999999997 in -125000..125000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.6.1.0 TextRun "" value="101"
+  ArrowDown:
+    - r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="198.8 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="441.2 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="441.2 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="198.8 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="441.2 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="198.8 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.2.0.0.0.0.0.6.1 SpinButton "Width" value="101%" number=100.99999999999997 in -125000..125000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.6.1.0 TextRun "" value="101"
+    + r.0.0.0.0.2.0.0.0.0.0.6.1 SpinButton "Width" value="100%" number=100 in -125000..125000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.6.1.0 TextRun "" value="100"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.2.0.0.0.0.0.6.1 SpinButton "Width" -> r Window ""
+drive r.0.0.0.0.2.0.0.0.0.0.7 Button "Maintain aspect ratio"
+  click:
+    - r.0.0.0.0.2.0.0.0.0.0.7 Button "Maintain aspect ratio" description="Maintain aspect ratio" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.0.7 Button "Maintain aspect ratio" description="Maintain aspect ratio" [checked] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.2.0.0.0.0.0.7 Button "Maintain aspect ratio" description="Maintain aspect ratio" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.0.7 Button "Maintain aspect ratio" description="Maintain aspect ratio" [unchecked] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+    + r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+  Escape:
+    focus: r.0.0.0.0.2.0.0.0.0.0.7 Button "Maintain aspect ratio" -> r Window ""
+    - r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+    + r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+drive r.0.0.0.0.2.0.0.0.0.0.9.0 Unknown ""
+  click:
+    focus: r Window "" -> r.0.0.0.0.2.0.0.0.0.0.9.1 SpinButton "Height"
+  Space:
+    focus: r.0.0.0.0.2.0.0.0.0.0.9.0 Unknown "" -> r.0.0.0.0.2.0.0.0.0.0.9.1 SpinButton "Height"
+  Enter:
+    - r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+    + r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+  Escape:
+    focus: r.0.0.0.0.2.0.0.0.0.0.9.0 Unknown "" -> r Window ""
+    - r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+    + r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+drive r.0.0.0.0.2.0.0.0.0.0.9.1 SpinButton "Height"
+  click:
+    focus: r Window "" -> r.0.0.0.0.2.0.0.0.0.0.9.1 SpinButton "Height"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.2.0.0.0.0.0.9.1 SpinButton "Height" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 119.2 px" [unselected]
+    + r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 119.2 px" [unselected]
+    + r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.8 px" [unselected]
+    + r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.8 px" [unselected]
+    + r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 119.2 px" [unselected]
+    - r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 280.8 px" [unselected]
+    - r.0.0.0.0.2.0.0.0.0.0.9.1 SpinButton "Height" value="100%" number=100 in -187500..187500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.9.1.0 TextRun "" value="100"
+    + r.0.0.0.0.2.0.0.0.0.0.9.1 SpinButton "Height" value="101%" number=100.99999999999997 in -187500..187500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.9.1.0 TextRun "" value="101"
+  ArrowDown:
+    - r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 119.2 px" [unselected]
+    - r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 119.2 px" [unselected]
+    - r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.8 px" [unselected]
+    - r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.8 px" [unselected]
+    - r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 119.2 px" [unselected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 280.8 px" [unselected]
+    + r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.2.0.0.0.0.0.9.1 SpinButton "Height" value="101%" number=100.99999999999997 in -187500..187500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.9.1.0 TextRun "" value="101"
+    + r.0.0.0.0.2.0.0.0.0.0.9.1 SpinButton "Height" value="100%" number=100 in -187500..187500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.9.1.0 TextRun "" value="100"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.2.0.0.0.0.0.9.1 SpinButton "Height" -> r Window ""
+drive r.0.0.0.0.2.0.0.0.0.0.10.0 SpinButton "Angle"
+  click:
+    focus: r Window "" -> r.0.0.0.0.2.0.0.0.0.0.10.0 SpinButton "Angle"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.2.0.0.0.0.0.10.0 SpinButton "Angle" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="201.4 px, 117.9 px" [unselected]
+    + r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="441.4 px, 122.1 px" [unselected]
+    + r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="438.6 px, 282.1 px" [unselected]
+    + r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="198.6 px, 277.9 px" [unselected]
+    + r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="321.4 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 202.1 px" [unselected]
+    + r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="318.6 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 197.9 px" [unselected]
+    - r.0.0.0.0.2.0.0.0.0.0.6.1 SpinButton "Width" value="100%" number=100 in -125000..125000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.6.1 SpinButton "Width" value="100%" number=99.99999999999999 in -125000..125000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.9.1 SpinButton "Height" value="100%" number=100 in -187500..187500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.9.1 SpinButton "Height" value="100%" number=99.99999999999997 in -187500..187500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.10.0 SpinButton "Angle" value="0°" number=0 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.10.0.0 TextRun "" value="0"
+    + r.0.0.0.0.2.0.0.0.0.0.10.0 SpinButton "Angle" value="1°" number=1.0000000000000009 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.10.0.0 TextRun "" value="1"
+    - r.0.0.0.0.2.0.0.0.0.0.12.1 SpinButton "Horizontal skew" value="0°" number=-0 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.12.1 SpinButton "Horizontal skew" value="0°" number=-0.000000000000006361109362927035 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+  ArrowDown:
+    - r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="201.4 px, 117.9 px" [unselected]
+    - r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="441.4 px, 122.1 px" [unselected]
+    - r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="438.6 px, 282.1 px" [unselected]
+    - r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="198.6 px, 277.9 px" [unselected]
+    - r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="321.4 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 202.1 px" [unselected]
+    - r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="318.6 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 197.9 px" [unselected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.2.0.0.0.0.0.6.1 SpinButton "Width" value="100%" number=99.99999999999999 in -125000..125000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.6.1 SpinButton "Width" value="100%" number=100 in -125000..125000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.9.1 SpinButton "Height" value="100%" number=99.99999999999997 in -187500..187500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.9.1 SpinButton "Height" value="100%" number=99.99999999999993 in -187500..187500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.10.0 SpinButton "Angle" value="1°" number=1.0000000000000009 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.10.0.0 TextRun "" value="1"
+    + r.0.0.0.0.2.0.0.0.0.0.10.0 SpinButton "Angle" value="0°" number=-0.000000000000003392591660227751 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.10.0.0 TextRun "" value="0"
+    - r.0.0.0.0.2.0.0.0.0.0.12.1 SpinButton "Horizontal skew" value="0°" number=-0.000000000000006361109362927035 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.12.1 SpinButton "Horizontal skew" value="0°" number=-0.000000000000006785183320455509 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.2.0.0.0.0.0.10.0 SpinButton "Angle" -> r Window ""
+    - r.0.0.0.0.2.0.0.0.0.0.9.1 SpinButton "Height" value="100%" number=99.99999999999993 in -187500..187500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.9.1 SpinButton "Height" value="100%" number=100 in -187500..187500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.10.0 SpinButton "Angle" value="0°" number=-0.000000000000003392591660227751 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.10.0 SpinButton "Angle" value="0°" number=0 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.12.1 SpinButton "Horizontal skew" value="0°" number=-0.000000000000006785183320455509 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.12.1 SpinButton "Horizontal skew" value="0°" number=-0 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+drive r.0.0.0.0.2.0.0.0.0.0.12.0 Unknown ""
+  click:
+    focus: r Window "" -> r.0.0.0.0.2.0.0.0.0.0.12.1 SpinButton "Horizontal skew"
+  Space:
+    focus: r.0.0.0.0.2.0.0.0.0.0.12.0 Unknown "" -> r.0.0.0.0.2.0.0.0.0.0.12.1 SpinButton "Horizontal skew"
+  Enter:
+    - r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+    + r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+  Escape:
+    focus: r.0.0.0.0.2.0.0.0.0.0.12.0 Unknown "" -> r Window ""
+    - r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+    + r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+drive r.0.0.0.0.2.0.0.0.0.0.12.1 SpinButton "Horizontal skew"
+  click:
+    focus: r Window "" -> r.0.0.0.0.2.0.0.0.0.0.12.1 SpinButton "Horizontal skew"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.2.0.0.0.0.0.12.1 SpinButton "Horizontal skew" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="201.4 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="441.4 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="438.6 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="198.6 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="321.4 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="318.6 px, 280.0 px" [unselected]
+    - r.0.0.0.0.2.0.0.0.0.0.12.1 SpinButton "Horizontal skew" value="0°" number=-0 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.12.1.0 TextRun "" value="0"
+    + r.0.0.0.0.2.0.0.0.0.0.12.1 SpinButton "Horizontal skew" value="1°" number=0.9999999999999932 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.12.1.0 TextRun "" value="1"
+  ArrowDown:
+    - r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="201.4 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="441.4 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="438.6 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="198.6 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="321.4 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="318.6 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.2.0.0.0.0.0.12.1 SpinButton "Horizontal skew" value="1°" number=0.9999999999999932 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.12.1.0 TextRun "" value="1"
+    + r.0.0.0.0.2.0.0.0.0.0.12.1 SpinButton "Horizontal skew" value="0°" number=-0 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.12.1.0 TextRun "" value="0"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.2.0.0.0.0.0.12.1 SpinButton "Horizontal skew" -> r Window ""
+drive r.0.0.0.0.2.0.0.0.0.0.14.0 Unknown ""
+  click:
+    focus: r Window "" -> r.0.0.0.0.2.0.0.0.0.0.14.1 SpinButton "Vertical skew"
+  Space:
+    focus: r.0.0.0.0.2.0.0.0.0.0.14.0 Unknown "" -> r.0.0.0.0.2.0.0.0.0.0.14.1 SpinButton "Vertical skew"
+  Enter:
+    - r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+    + r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+  Escape:
+    focus: r.0.0.0.0.2.0.0.0.0.0.14.0 Unknown "" -> r Window ""
+    - r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+    + r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+drive r.0.0.0.0.2.0.0.0.0.0.14.1 SpinButton "Vertical skew"
+  click:
+    focus: r Window "" -> r.0.0.0.0.2.0.0.0.0.0.14.1 SpinButton "Vertical skew"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.2.0.0.0.0.0.14.1 SpinButton "Vertical skew" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 117.9 px" [unselected]
+    + r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 122.1 px" [unselected]
+    + r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 282.1 px" [unselected]
+    + r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 277.9 px" [unselected]
+    - r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 202.1 px" [unselected]
+    - r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 197.9 px" [unselected]
+    - r.0.0.0.0.2.0.0.0.0.0.14.1 SpinButton "Vertical skew" value="0°" number=0 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.14.1.0 TextRun "" value="0"
+    + r.0.0.0.0.2.0.0.0.0.0.14.1 SpinButton "Vertical skew" value="1°" number=1 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.14.1.0 TextRun "" value="1"
+  ArrowDown:
+    - r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 117.9 px" [unselected]
+    - r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 122.1 px" [unselected]
+    - r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 282.1 px" [unselected]
+    - r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 277.9 px" [unselected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 202.1 px" [unselected]
+    + r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 197.9 px" [unselected]
+    + r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.2.0.0.0.0.0.14.1 SpinButton "Vertical skew" value="1°" number=1 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.14.1.0 TextRun "" value="1"
+    + r.0.0.0.0.2.0.0.0.0.0.14.1 SpinButton "Vertical skew" value="0°" number=0 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.14.1.0 TextRun "" value="0"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.2.0.0.0.0.0.14.1 SpinButton "Vertical skew" -> r Window ""
+drive r.0.0.0.0.2.0.0.0.0.0.16 ComboBox "Interpolation"
+  click:
+    focus: r Window "" -> r.0.0.0.0.2.0.0.0.0.0.16.0.0.0.0.0.0 ListBoxOption "Bicubic"
+    - r.0.0.0.0.2.0.0.0.0.0.16 ComboBox "Interpolation" value="Bicubic" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.0.16 ComboBox "Interpolation" value="Bicubic" controls=[r.0.0.0.0.2.0.0.0.0.0.16.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.0.16.0 ListBox ""
+    + r.0.0.0.0.2.0.0.0.0.0.16.0.0 GenericContainer ""
+    + r.0.0.0.0.2.0.0.0.0.0.16.0.0.0 GenericContainer ""
+    + r.0.0.0.0.2.0.0.0.0.0.16.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.2.0.0.0.0.0.16.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.2.0.0.0.0.0.16.0.0.0.0.0.0 ListBoxOption "Bicubic" [selected] actions=[Click]
+    + r.0.0.0.0.2.0.0.0.0.0.16.0.0.0.0.0.1 ListBoxOption "Bilinear" [unselected] actions=[Click]
+    + r.0.0.0.0.2.0.0.0.0.0.16.0.0.0.0.0.2 ListBoxOption "Nearest Neighbor" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.2.0.0.0.0.0.16.0.0.0.0.0.0 ListBoxOption "Bicubic" -> r.0.0.0.0.2.0.0.0.0.0.16 ComboBox "Interpolation"
+    - r.0.0.0.0.2.0.0.0.0.0.16 ComboBox "Interpolation" value="Bicubic" controls=[r.0.0.0.0.2.0.0.0.0.0.16.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.2.0.0.0.0.0.16.0 ListBox ""
+    - r.0.0.0.0.2.0.0.0.0.0.16.0.0 GenericContainer ""
+    - r.0.0.0.0.2.0.0.0.0.0.16.0.0.0 GenericContainer ""
+    - r.0.0.0.0.2.0.0.0.0.0.16.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.2.0.0.0.0.0.16.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.2.0.0.0.0.0.16.0.0.0.0.0.0 ListBoxOption "Bicubic" [selected] actions=[Click]
+    - r.0.0.0.0.2.0.0.0.0.0.16.0.0.0.0.0.1 ListBoxOption "Bilinear" [unselected] actions=[Click]
+    - r.0.0.0.0.2.0.0.0.0.0.16.0.0.0.0.0.2 ListBoxOption "Nearest Neighbor" [unselected] actions=[Click]
+    + r.0.0.0.0.2.0.0.0.0.0.16 ComboBox "Interpolation" value="Bicubic" [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+    + r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+  ArrowDown:
+    - r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 200.0 px" [selected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 121.0 px" [unselected]
+    + r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 121.0 px" [unselected]
+    + r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 281.0 px" [unselected]
+    + r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 281.0 px" [unselected]
+    + r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 121.0 px" [unselected]
+    + r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 201.0 px" [unselected]
+    + r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 281.0 px" [unselected]
+    + r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 201.0 px" [unselected]
+    + r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 201.0 px" [selected]
+    - r.0.0.0.0.2.0.0.0.0.0.4.1 SpinButton "Y position" value="200 px" number=200 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.4.1.0 TextRun "" value="200"
+    + r.0.0.0.0.2.0.0.0.0.0.4.1 SpinButton "Y position" value="201 px" number=201 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.4.1.0 TextRun "" value="201"
+  ArrowUp:
+    - r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 121.0 px" [unselected]
+    - r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 121.0 px" [unselected]
+    - r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 281.0 px" [unselected]
+    - r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 281.0 px" [unselected]
+    - r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 121.0 px" [unselected]
+    - r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 201.0 px" [unselected]
+    - r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 281.0 px" [unselected]
+    - r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 201.0 px" [unselected]
+    - r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 201.0 px" [selected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 200.0 px" [selected]
+    - r.0.0.0.0.2.0.0.0.0.0.4.1 SpinButton "Y position" value="201 px" number=201 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.4.1.0 TextRun "" value="201"
+    + r.0.0.0.0.2.0.0.0.0.0.4.1 SpinButton "Y position" value="200 px" number=200 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.4.1.0 TextRun "" value="200"
+  ArrowLeft:
+    - r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 200.0 px" [selected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="199.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="439.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="439.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="199.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="319.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="439.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="319.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="199.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="319.0 px, 200.0 px" [selected]
+    - r.0.0.0.0.2.0.0.0.0.0.2.1 SpinButton "X position" value="320 px" number=320 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.2.1.0 TextRun "" value="320"
+    + r.0.0.0.0.2.0.0.0.0.0.2.1 SpinButton "X position" value="319 px" number=319 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.2.1.0 TextRun "" value="319"
+  ArrowRight:
+    - r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="199.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="439.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="439.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="199.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="319.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="439.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="319.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="199.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="319.0 px, 200.0 px" [selected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 200.0 px" [selected]
+    - r.0.0.0.0.2.0.0.0.0.0.2.1 SpinButton "X position" value="319 px" number=319 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.2.1.0 TextRun "" value="319"
+    + r.0.0.0.0.2.0.0.0.0.0.2.1 SpinButton "X position" value="320 px" number=320 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.2.1.0 TextRun "" value="320"
+  Escape:
+    focus: r.0.0.0.0.2.0.0.0.0.0.16 ComboBox "Interpolation" -> r Window ""
+    - r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+    + r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+drive r.0.0.0.0.2.0.0.0.0.1 CheckBox "Show Reference Point"
+  click:
+    - r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 200.0 px" [selected]
+    - r.0.0.0.0.2.0.0.0.0.1 CheckBox "Show Reference Point" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.1 CheckBox "Show Reference Point" [unchecked] actions=[Click,Focus]
+  Space:
+    + r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.2.0.0.0.0.1 CheckBox "Show Reference Point" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.1 CheckBox "Show Reference Point" [checked] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+    + r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+  Escape:
+    focus: r.0.0.0.0.2.0.0.0.0.1 CheckBox "Show Reference Point" -> r Window ""
+    - r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+    + r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+drive r.0.0.0.0.2.0.1 ScrollBar ""
+  click: no change
+  ArrowLeft:
+    - r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="199.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="439.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="439.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="199.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="319.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="439.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="319.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="199.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="319.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.2.0.0.0.0.0.2.1 SpinButton "X position" value="320 px" number=320 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.2.1.0 TextRun "" value="320"
+    + r.0.0.0.0.2.0.0.0.0.0.2.1 SpinButton "X position" value="319 px" number=319 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.2.1.0 TextRun "" value="319"
+  ArrowRight:
+    - r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="199.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="439.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="439.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="199.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="319.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="439.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="319.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="199.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="319.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.2.0.0.0.0.0.2.1 SpinButton "X position" value="319 px" number=319 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.2.1.0 TextRun "" value="319"
+    + r.0.0.0.0.2.0.0.0.0.0.2.1 SpinButton "X position" value="320 px" number=320 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.2.1.0 TextRun "" value="320"
+  ArrowUp:
+    - r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 119.0 px" [unselected]
+    + r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 119.0 px" [unselected]
+    + r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 279.0 px" [unselected]
+    + r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 279.0 px" [unselected]
+    + r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 119.0 px" [unselected]
+    + r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 199.0 px" [unselected]
+    + r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 279.0 px" [unselected]
+    + r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 199.0 px" [unselected]
+    + r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 199.0 px" [unselected]
+    - r.0.0.0.0.2.0.0.0.0.0.4.1 SpinButton "Y position" value="200 px" number=200 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.4.1.0 TextRun "" value="200"
+    + r.0.0.0.0.2.0.0.0.0.0.4.1 SpinButton "Y position" value="199 px" number=199 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.4.1.0 TextRun "" value="199"
+  ArrowDown:
+    - r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 119.0 px" [unselected]
+    - r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 119.0 px" [unselected]
+    - r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 279.0 px" [unselected]
+    - r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 279.0 px" [unselected]
+    - r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 119.0 px" [unselected]
+    - r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 199.0 px" [unselected]
+    - r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 279.0 px" [unselected]
+    - r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 199.0 px" [unselected]
+    - r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 199.0 px" [unselected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.2.0.0.0.0.0.4.1 SpinButton "Y position" value="199 px" number=199 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.4.1.0 TextRun "" value="199"
+    + r.0.0.0.0.2.0.0.0.0.0.4.1 SpinButton "Y position" value="200 px" number=200 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.4.1.0 TextRun "" value="200"
+  Home: no change
+  End: no change
+  Escape: no change
+drive r.0.0.0.0.2.1.0 Button "Cancel transform"
+  click: no change
+  Space: no change
+  Enter:
+    - r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+    + r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+  Escape:
+    focus: r.0.0.0.0.2.1.0 Button "Cancel transform" -> r Window ""
+    - r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+    + r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+drive r.0.0.0.0.2.1.1 Button "Commit transform"
+  click:
+    - r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+    + r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.2.1.1 Button "Commit transform" -> r Window ""
+    - r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+    + r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+drive r.0.0.0.0.2.1.2 Button "Switch between free transform and warp modes"
+  click:
+    - r.0.0.0.0.1 Group "Free Transform" actions=[Focus]
+    - r.0.0.0.0.1.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0 GraphicsObject "Whole box" [unselected]
+    - r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 280.0 px" [unselected]
+    - r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.2.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.2.0.0.0.0.0.0 RadioGroup "Reference point" actions=[Click,Focus]
+    - r.0.0.0.0.2.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.0 RadioButton "Top left" [unchecked]
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.1 RadioButton "Top" [unchecked]
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.2 RadioButton "Top right" [unchecked]
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.3 RadioButton "Left" [unchecked]
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.4 RadioButton "Center" [checked]
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.5 RadioButton "Right" [unchecked]
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.6 RadioButton "Bottom left" [unchecked]
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.7 RadioButton "Bottom" [unchecked]
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.8 RadioButton "Bottom right" [unchecked]
+    - r.0.0.0.0.2.0.0.0.0.0.1 Label "" value="X:"
+    - r.0.0.0.0.2.0.0.0.0.0.2 GenericContainer ""
+    - r.0.0.0.0.2.0.0.0.0.0.2.0 Unknown "" actions=[Click,Focus]
+    - r.0.0.0.0.2.0.0.0.0.0.2.1 SpinButton "X position" value="320 px" number=320 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.2.1.0 TextRun "" value="320"
+    - r.0.0.0.0.2.0.0.0.0.0.3 Label "" value="Y:"
+    - r.0.0.0.0.2.0.0.0.0.0.4 GenericContainer ""
+    - r.0.0.0.0.2.0.0.0.0.0.4.0 Unknown "" actions=[Click,Focus]
+    - r.0.0.0.0.2.0.0.0.0.0.4.1 SpinButton "Y position" value="200 px" number=200 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.4.1.0 TextRun "" value="200"
+    - r.0.0.0.0.2.0.0.0.0.0.5 Label "" value="W:"
+    - r.0.0.0.0.2.0.0.0.0.0.6 GenericContainer ""
+    - r.0.0.0.0.2.0.0.0.0.0.6.0 Unknown "" actions=[Click,Focus]
+    - r.0.0.0.0.2.0.0.0.0.0.6.1 SpinButton "Width" value="100%" number=100 in -125000..125000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.6.1.0 TextRun "" value="100"
+    - r.0.0.0.0.2.0.0.0.0.0.7 Button "Maintain aspect ratio" description="Maintain aspect ratio" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2.0.0.0.0.0.8 Label "" value="H:"
+    - r.0.0.0.0.2.0.0.0.0.0.9 GenericContainer ""
+    - r.0.0.0.0.2.0.0.0.0.0.9.0 Unknown "" actions=[Click,Focus]
+    - r.0.0.0.0.2.0.0.0.0.0.9.1 SpinButton "Height" value="100%" number=100 in -187500..187500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.9.1.0 TextRun "" value="100"
+    - r.0.0.0.0.2.0.0.0.0.0.10 GenericContainer ""
+    - r.0.0.0.0.2.0.0.0.0.0.10.0 SpinButton "Angle" value="0°" number=0 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.10.0.0 TextRun "" value="0"
+    - r.0.0.0.0.2.0.0.0.0.0.11 Label "" value="H:"
+    - r.0.0.0.0.2.0.0.0.0.0.12 GenericContainer ""
+    - r.0.0.0.0.2.0.0.0.0.0.12.0 Unknown "" actions=[Click,Focus]
+    - r.0.0.0.0.2.0.0.0.0.0.12.1 SpinButton "Horizontal skew" value="0°" number=-0 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.12.1.0 TextRun "" value="0"
+    - r.0.0.0.0.2.0.0.0.0.0.13 Label "" value="V:"
+    - r.0.0.0.0.2.0.0.0.0.0.14 GenericContainer ""
+    - r.0.0.0.0.2.0.0.0.0.0.14.0 Unknown "" actions=[Click,Focus]
+    - r.0.0.0.0.2.0.0.0.0.0.14.1 SpinButton "Vertical skew" value="0°" number=0 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0.0.0.0.14.1.0 TextRun "" value="0"
+    - r.0.0.0.0.2.0.0.0.0.0.15 Label "" value="Interpolation:"
+    - r.0.0.0.0.2.0.0.0.0.0.16 ComboBox "Interpolation" value="Bicubic" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.2.0.0.0.0.1 CheckBox "Show Reference Point" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2.0.1 ScrollBar "" actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0 Label "" value="Warp options" actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.0.0 TextRun "" value="Warp options"
+    - r.0.0.0.0.2.1.0 Button "Cancel transform" description="Cancel transform" shortcut="Escape" actions=[Click,Focus]
+    - r.0.0.0.0.2.1.1 Button "Commit transform" description="Commit transform" shortcut="Enter" actions=[Click,Focus]
+    - r.0.0.0.0.2.1.2 Button "Switch between free transform and warp modes" description="Switch between free transform and warp modes" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.1.0 Button "Cancel warp" description="Cancel warp" shortcut="Escape" actions=[Click,Focus]
+    + r.0.0.0.0.1.1.1 Button "Commit warp" description="Commit warp" shortcut="Enter" actions=[Click,Focus]
+    + r.0.0.0.0.1.1.2 Button "Reset warp" description="Reset warp" actions=[Click,Focus]
+    + r.0.0.0.0.1.1.3 Button "Switch between free transform and warp modes" description="Switch between free transform and warp modes" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+    + r.0.0.0.0.2.1 Label "" value="Warp · Discarded" actions=[Click]
+    + r.0.0.0.0.2.1.0 TextRun "" value="Warp · Discarded"
+  Space:
+    focus: r.0.0.0.0.1.1.3 Button "Switch between free transform and warp modes" -> r Window ""
+    + r.0.0.0.0.1 Group "Free Transform" actions=[Focus]
+    + r.0.0.0.0.1.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0 GraphicsObject "Whole box" [unselected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="200.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="440.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="440.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="200.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="440.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 280.0 px" [unselected]
+    + r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="200.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.1.0.9 GraphicsObject "Reference point" value="320.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.1.0.0.0.0.0 Label "" value="Warp options" actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.0.0 TextRun "" value="Warp options"
+    + r.0.0.0.0.2.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.2.0.0.0.0.0.0 RadioGroup "Reference point" actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.0 RadioButton "Top left" [unchecked]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.1 RadioButton "Top" [unchecked]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.2 RadioButton "Top right" [unchecked]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.3 RadioButton "Left" [unchecked]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.4 RadioButton "Center" [checked]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.5 RadioButton "Right" [unchecked]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.6 RadioButton "Bottom left" [unchecked]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.7 RadioButton "Bottom" [unchecked]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.8 RadioButton "Bottom right" [unchecked]
+    + r.0.0.0.0.2.0.0.0.0.0.1 Label "" value="X:"
+    + r.0.0.0.0.2.0.0.0.0.0.2 GenericContainer ""
+    + r.0.0.0.0.2.0.0.0.0.0.2.0 Unknown "" actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.0.2.1 SpinButton "X position" value="320 px" number=320 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.2.1.0 TextRun "" value="320"
+    + r.0.0.0.0.2.0.0.0.0.0.3 Label "" value="Y:"
+    + r.0.0.0.0.2.0.0.0.0.0.4 GenericContainer ""
+    + r.0.0.0.0.2.0.0.0.0.0.4.0 Unknown "" actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.0.4.1 SpinButton "Y position" value="200 px" number=200 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.4.1.0 TextRun "" value="200"
+    + r.0.0.0.0.2.0.0.0.0.0.5 Label "" value="W:"
+    + r.0.0.0.0.2.0.0.0.0.0.6 GenericContainer ""
+    + r.0.0.0.0.2.0.0.0.0.0.6.0 Unknown "" actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.0.6.1 SpinButton "Width" value="100%" number=100 in -125000..125000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.6.1.0 TextRun "" value="100"
+    + r.0.0.0.0.2.0.0.0.0.0.7 Button "Maintain aspect ratio" description="Maintain aspect ratio" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.0.8 Label "" value="H:"
+    + r.0.0.0.0.2.0.0.0.0.0.9 GenericContainer ""
+    + r.0.0.0.0.2.0.0.0.0.0.9.0 Unknown "" actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.0.9.1 SpinButton "Height" value="100%" number=100 in -187500..187500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.9.1.0 TextRun "" value="100"
+    + r.0.0.0.0.2.0.0.0.0.0.10 GenericContainer ""
+    + r.0.0.0.0.2.0.0.0.0.0.10.0 SpinButton "Angle" value="0°" number=0 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.10.0.0 TextRun "" value="0"
+    + r.0.0.0.0.2.0.0.0.0.0.11 Label "" value="H:"
+    + r.0.0.0.0.2.0.0.0.0.0.12 GenericContainer ""
+    + r.0.0.0.0.2.0.0.0.0.0.12.0 Unknown "" actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.0.12.1 SpinButton "Horizontal skew" value="0°" number=-0 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.12.1.0 TextRun "" value="0"
+    + r.0.0.0.0.2.0.0.0.0.0.13 Label "" value="V:"
+    + r.0.0.0.0.2.0.0.0.0.0.14 GenericContainer ""
+    + r.0.0.0.0.2.0.0.0.0.0.14.0 Unknown "" actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.0.14.1 SpinButton "Vertical skew" value="0°" number=0 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0.0.0.0.14.1.0 TextRun "" value="0"
+    + r.0.0.0.0.2.0.0.0.0.0.15 Label "" value="Interpolation:"
+    + r.0.0.0.0.2.0.0.0.0.0.16 ComboBox "Interpolation" value="Bicubic" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.1 CheckBox "Show Reference Point" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.2.0.1 ScrollBar "" actions=[Click]
+    - r.0.0.0.0.1.1.0 Button "Cancel warp" description="Cancel warp" shortcut="Escape" actions=[Click,Focus]
+    - r.0.0.0.0.1.1.1 Button "Commit warp" description="Commit warp" shortcut="Enter" actions=[Click,Focus]
+    - r.0.0.0.0.1.1.2 Button "Reset warp" description="Reset warp" actions=[Click,Focus]
+    - r.0.0.0.0.1.1.3 Button "Switch between free transform and warp modes" description="Switch between free transform and warp modes" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.2.1.0 Button "Cancel transform" description="Cancel transform" shortcut="Escape" actions=[Click,Focus]
+    + r.0.0.0.0.2.1.1 Button "Commit transform" description="Commit transform" shortcut="Enter" actions=[Click,Focus]
+    + r.0.0.0.0.2.1.2 Button "Switch between free transform and warp modes" description="Switch between free transform and warp modes" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2.1 Label "" value="Warp · Discarded" actions=[Click]
+    - r.0.0.0.0.2.1.0 TextRun "" value="Warp · Discarded"
+    + r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+  Enter:
+    - r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+    + r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+  Escape:
+    focus: r.0.0.0.0.2.1.2 Button "Switch between free transform and warp modes" -> r Window ""
+    - r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+    + r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+drive r.0.0.0.0.3.0 Button "Reset"
+  click:
+    - r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+    + r.0.0.0.0.3.1 Label "" value="Box" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.3.1 Label "" value="Box" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box"
+    + r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+  Escape:
+    focus: r.0.0.0.0.3.0 Button "Reset" -> r Window ""
+    - r.0.0.0.0.3.1 Label "" value="Box · Closed without changes" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Box · Closed without changes"
+    + r.0.0.0.0.3.1 Label "" value="Box · Discarded" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Box · Discarded"
+drive r.0.0.0.0.3.1 Label ""
+  click: no change
+  Escape: no change

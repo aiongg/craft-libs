@@ -1,0 +1,63 @@
+story patterns/crop-overlay-menu/menu
+args
+  guide = Choice { options: ["Rule of Thirds", "grid", "diagonal", "triangle", "Golden Ratio", "Golden Spiral"], index: 0 }
+  show = Choice { options: ["auto", "always", "never"], index: 0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Button "Set the overlay options for the Crop tool" value="Rule of Thirds" description="Set the overlay options for the Crop tool" [collapsed popup:Menu] actions=[Click,Focus]
+            r.0.0.0.0.0.1 Label "" value="Rule of Thirds · Auto Show Overlay · orientation 0" actions=[Click]
+              r.0.0.0.0.0.1.0 TextRun "" value="Rule of Thirds · Auto Show Overlay · orientation 0"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0 Button "Set the overlay options for the Crop tool"
+  2: r.0.0.0.0.0.0 Button "Set the overlay options for the Crop tool"
+  cycle after 1 nodes
+drive: 2 actionable nodes
+drive r.0.0.0.0.0.0 Button "Set the overlay options for the Crop tool"
+  click:
+    - r.0.0.0.0.0.0 Button "Set the overlay options for the Crop tool" value="Rule of Thirds" description="Set the overlay options for the Crop tool" [collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0 Button "Set the overlay options for the Crop tool" value="Rule of Thirds" description="Set the overlay options for the Crop tool" [expanded popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0 Menu ""
+    + r.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0 MenuItemCheckBox "Rule of Thirds" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.1 MenuItemCheckBox "Grid" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.2 MenuItemCheckBox "Diagonal" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.3 MenuItemCheckBox "Triangle" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.4 MenuItemCheckBox "Golden Ratio" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.5 MenuItemCheckBox "Golden Spiral" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.6 MenuItemCheckBox "Auto Show Overlay" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.7 MenuItemCheckBox "Always Show Overlay" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.8 MenuItemCheckBox "Never Show Overlay" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.9 MenuItem "Cycle Overlay" shortcut="O" actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.10 MenuItem "Cycle Orientation" shortcut="Shift+O" [disabled] actions=[Click]
+  Space: no change
+  Enter: no change
+  Escape:
+    - r.0.0.0.0.0.0 Button "Set the overlay options for the Crop tool" value="Rule of Thirds" description="Set the overlay options for the Crop tool" [expanded popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0 Menu ""
+    - r.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0 MenuItemCheckBox "Rule of Thirds" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.1 MenuItemCheckBox "Grid" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.2 MenuItemCheckBox "Diagonal" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.3 MenuItemCheckBox "Triangle" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.4 MenuItemCheckBox "Golden Ratio" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.5 MenuItemCheckBox "Golden Spiral" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.6 MenuItemCheckBox "Auto Show Overlay" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.7 MenuItemCheckBox "Always Show Overlay" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.8 MenuItemCheckBox "Never Show Overlay" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.9 MenuItem "Cycle Overlay" shortcut="O" actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.10 MenuItem "Cycle Orientation" shortcut="Shift+O" [disabled] actions=[Click]
+    + r.0.0.0.0.0.0 Button "Set the overlay options for the Crop tool" value="Rule of Thirds" description="Set the overlay options for the Crop tool" [collapsed popup:Menu] actions=[Click,Focus]
+drive r.0.0.0.0.0.1 Label ""
+  click:
+    focus: r.0.0.0.0.0.0 Button "Set the overlay options for the Crop tool" -> r Window ""
+  Escape: no change

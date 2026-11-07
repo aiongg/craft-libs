@@ -1,0 +1,164 @@
+story composites/toast/stack
+args
+  tone = Choice { options: ["neutral", "info", "good", "warn", "bad"], index: 0 }
+  auto_hide = Bool(false)
+  seconds = Number { value: 6.0, min: 1.0, max: 30.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+  r.1 GenericContainer ""
+    r.1.0 GenericContainer ""
+      r.1.0.0 Status "Pasted from the clipboard"
+        r.1.0.0.0 GenericContainer ""
+          r.1.0.0.0.0 GenericContainer ""
+            r.1.0.0.0.0.0 GenericContainer ""
+              r.1.0.0.0.0.0.0 Label "" value="Pasted from the clipboard" actions=[Click]
+                r.1.0.0.0.0.0.0.0 TextRun "" value="Pasted from the clipboard"
+            r.1.0.0.0.0.1 Button "Dismiss" description="Dismiss" actions=[Click,Focus]
+    r.1.1 GenericContainer ""
+      r.1.1.0 Status "Opened with 10 warnings, Warning 1, Warning 2, Warning 3, Warning 4, Warning 5, Warning 6, Warning 7, Warning 8, …and 2 more"
+        r.1.1.0.0 GenericContainer ""
+          r.1.1.0.0.0 GenericContainer ""
+            r.1.1.0.0.0.0 GenericContainer ""
+              r.1.1.0.0.0.0.0 Label "" value="Opened with 10 warnings" actions=[Click]
+                r.1.1.0.0.0.0.0.0 TextRun "" value="Opened with 10 warnings"
+            r.1.1.0.0.0.1 Button "Dismiss" description="Dismiss" actions=[Click,Focus]
+          r.1.1.0.0.1 GenericContainer ""
+            r.1.1.0.0.1.0 Label "" value="Warning 1" actions=[Click]
+              r.1.1.0.0.1.0.0 TextRun "" value="Warning 1"
+          r.1.1.0.0.2 GenericContainer ""
+            r.1.1.0.0.2.0 Label "" value="Warning 2" actions=[Click]
+              r.1.1.0.0.2.0.0 TextRun "" value="Warning 2"
+          r.1.1.0.0.3 GenericContainer ""
+            r.1.1.0.0.3.0 Label "" value="Warning 3" actions=[Click]
+              r.1.1.0.0.3.0.0 TextRun "" value="Warning 3"
+          r.1.1.0.0.4 GenericContainer ""
+            r.1.1.0.0.4.0 Label "" value="Warning 4" actions=[Click]
+              r.1.1.0.0.4.0.0 TextRun "" value="Warning 4"
+          r.1.1.0.0.5 GenericContainer ""
+            r.1.1.0.0.5.0 Label "" value="Warning 5" actions=[Click]
+              r.1.1.0.0.5.0.0 TextRun "" value="Warning 5"
+          r.1.1.0.0.6 GenericContainer ""
+            r.1.1.0.0.6.0 Label "" value="Warning 6" actions=[Click]
+              r.1.1.0.0.6.0.0 TextRun "" value="Warning 6"
+          r.1.1.0.0.7 GenericContainer ""
+            r.1.1.0.0.7.0 Label "" value="Warning 7" actions=[Click]
+              r.1.1.0.0.7.0.0 TextRun "" value="Warning 7"
+          r.1.1.0.0.8 GenericContainer ""
+            r.1.1.0.0.8.0 Label "" value="Warning 8" actions=[Click]
+              r.1.1.0.0.8.0.0 TextRun "" value="Warning 8"
+          r.1.1.0.0.9 Label "" value="…and 2 more" actions=[Click]
+            r.1.1.0.0.9.0 TextRun "" value="…and 2 more"
+    r.1.2 GenericContainer ""
+      r.1.2.0 Alert "Couldn't save the document, The disk is full."
+        r.1.2.0.0 GenericContainer ""
+          r.1.2.0.0.0 GenericContainer ""
+            r.1.2.0.0.0.0 GenericContainer ""
+              r.1.2.0.0.0.0.0 Label "" value="Couldn't save the document" actions=[Click]
+                r.1.2.0.0.0.0.0.0 TextRun "" value="Couldn't save the document"
+            r.1.2.0.0.0.1 Button "Dismiss" description="Dismiss" actions=[Click,Focus]
+          r.1.2.0.0.1 GenericContainer ""
+            r.1.2.0.0.1.0 Label "" value="The disk is full." actions=[Click]
+              r.1.2.0.0.1.0.0 TextRun "" value="The disk is full."
+tab
+  start: r Window ""
+  1: r.1.0.0.0.0.1 Button "Dismiss"
+  2: r.1.1.0.0.0.1 Button "Dismiss"
+  3: r.1.2.0.0.0.1 Button "Dismiss"
+  4: r.1.0.0.0.0.1 Button "Dismiss"
+  cycle after 3 nodes
+drive: 16 actionable nodes
+drive r.1.0.0.0.0.0.0 Label ""
+  click:
+    focus: r.1.0.0.0.0.1 Button "Dismiss" -> r Window ""
+  Escape: no change
+drive r.1.0.0.0.0.1 Button "Dismiss"
+  click:
+    - r.1.0.0 Status "Pasted from the clipboard"
+    - r.1.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0.0.0 Label "" value="Pasted from the clipboard" actions=[Click]
+    - r.1.0.0.0.0.0.0.0 TextRun "" value="Pasted from the clipboard"
+    - r.1.0.0.0.0.1 Button "Dismiss" description="Dismiss" actions=[Click,Focus]
+    - r.1.1 GenericContainer ""
+  Space:
+    - r.1.0.0 Status "Opened with 10 warnings, Warning 1, Warning 2, Warning 3, Warning 4, Warning 5, Warning 6, Warning 7, Warning 8, …and 2 more"
+    - r.1.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0.0.0 Label "" value="Opened with 10 warnings" actions=[Click]
+    - r.1.0.0.0.0.0.0.0 TextRun "" value="Opened with 10 warnings"
+    - r.1.0.0.0.0.1 Button "Dismiss" description="Dismiss" actions=[Click,Focus]
+    - r.1.0.0.0.1 GenericContainer ""
+    - r.1.0.0.0.1.0 Label "" value="Warning 1" actions=[Click]
+    - r.1.0.0.0.1.0.0 TextRun "" value="Warning 1"
+    - r.1.0.0.0.2 GenericContainer ""
+    - r.1.0.0.0.2.0 Label "" value="Warning 2" actions=[Click]
+    - r.1.0.0.0.2.0.0 TextRun "" value="Warning 2"
+    - r.1.0.0.0.3 GenericContainer ""
+    - r.1.0.0.0.3.0 Label "" value="Warning 3" actions=[Click]
+    - r.1.0.0.0.3.0.0 TextRun "" value="Warning 3"
+    - r.1.0.0.0.4 GenericContainer ""
+    - r.1.0.0.0.4.0 Label "" value="Warning 4" actions=[Click]
+    - r.1.0.0.0.4.0.0 TextRun "" value="Warning 4"
+    - r.1.0.0.0.5 GenericContainer ""
+    - r.1.0.0.0.5.0 Label "" value="Warning 5" actions=[Click]
+    - r.1.0.0.0.5.0.0 TextRun "" value="Warning 5"
+    - r.1.0.0.0.6 GenericContainer ""
+    - r.1.0.0.0.6.0 Label "" value="Warning 6" actions=[Click]
+    - r.1.0.0.0.6.0.0 TextRun "" value="Warning 6"
+    - r.1.0.0.0.7 GenericContainer ""
+    - r.1.0.0.0.7.0 Label "" value="Warning 7" actions=[Click]
+    - r.1.0.0.0.7.0.0 TextRun "" value="Warning 7"
+    - r.1.0.0.0.8 GenericContainer ""
+    - r.1.0.0.0.8.0 Label "" value="Warning 8" actions=[Click]
+    - r.1.0.0.0.8.0.0 TextRun "" value="Warning 8"
+    - r.1.0.0.0.9 Label "" value="…and 2 more" actions=[Click]
+    - r.1.0.0.0.9.0 TextRun "" value="…and 2 more"
+    - r.1.1 GenericContainer ""
+  Enter:
+    focus: r.1.0.0.0.0.1 Button "Dismiss" -> r Window ""
+    - r.1.0 GenericContainer ""
+    - r.1.0.0 Alert "Couldn't save the document, The disk is full."
+    - r.1.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0.0.0 Label "" value="Couldn't save the document" actions=[Click]
+    - r.1.0.0.0.0.0.0.0 TextRun "" value="Couldn't save the document"
+    - r.1.0.0.0.0.1 Button "Dismiss" description="Dismiss" actions=[Click,Focus]
+    - r.1.0.0.0.1 GenericContainer ""
+    - r.1.0.0.0.1.0 Label "" value="The disk is full." actions=[Click]
+    - r.1.0.0.0.1.0.0 TextRun "" value="The disk is full."
+  Escape: node gone
+drive r.1.1.0.0.0.0.0 Label ""
+  all steps: node gone
+drive r.1.1.0.0.0.1 Button "Dismiss"
+  all steps: node gone
+drive r.1.1.0.0.1.0 Label ""
+  all steps: node gone
+drive r.1.1.0.0.2.0 Label ""
+  all steps: node gone
+drive r.1.1.0.0.3.0 Label ""
+  all steps: node gone
+drive r.1.1.0.0.4.0 Label ""
+  all steps: node gone
+drive r.1.1.0.0.5.0 Label ""
+  all steps: node gone
+drive r.1.1.0.0.6.0 Label ""
+  all steps: node gone
+drive r.1.1.0.0.7.0 Label ""
+  all steps: node gone
+drive r.1.1.0.0.8.0 Label ""
+  all steps: node gone
+drive r.1.1.0.0.9 Label ""
+  all steps: node gone
+drive r.1.2.0.0.0.0.0 Label ""
+  all steps: node gone
+drive r.1.2.0.0.0.1 Button "Dismiss"
+  all steps: node gone
+drive r.1.2.0.0.1.0 Label ""
+  all steps: node gone

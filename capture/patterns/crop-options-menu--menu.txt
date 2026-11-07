@@ -1,0 +1,118 @@
+story patterns/crop-options-menu/menu
+args
+  classic mode = Bool(true)
+  shield = Bool(true)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Button "Set additional Crop options" description="Set additional Crop options" [collapsed popup:Dialog] actions=[Click,Focus]
+            r.0.0.0.0.0.1 Label "" value="Match Canvas · No event yet" actions=[Click]
+              r.0.0.0.0.0.1.0 TextRun "" value="Match Canvas · No event yet"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0 Button "Set additional Crop options"
+  2: r.0.0.0.0.0.0 Button "Set additional Crop options"
+  cycle after 1 nodes
+drive: 2 actionable nodes
+drive r.0.0.0.0.0.0 Button "Set additional Crop options"
+  click:
+    focus: r.0.0.0.0.0.0 Button "Set additional Crop options" -> r.1.0.0.0 CheckBox "Use Classic Mode"
+    - r.0.0.0.0.0.0 Button "Set additional Crop options" description="Set additional Crop options" [collapsed popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0 Button "Set additional Crop options" description="Set additional Crop options" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.1 Dialog "Set additional Crop options"
+    + r.1.0 GenericContainer ""
+    + r.1.0.0 GenericContainer ""
+    + r.1.0.0.0 CheckBox "Use Classic Mode" [checked] actions=[Click,Focus]
+    + r.1.0.0.1 GenericContainer ""
+    + r.1.0.0.1.0 Label "" value="P"
+    + r.1.0.1 GenericContainer ""
+    + r.1.0.1.0 GenericContainer ""
+    + r.1.0.1.0.0 CheckBox "Show Cropped Area" [disabled checked] actions=[Click,Focus]
+    + r.1.0.1.0.1 GenericContainer ""
+    + r.1.0.1.0.1.0 Label "" value="H" [disabled]
+    + r.1.0.1.1 CheckBox "Auto Center Preview" [disabled checked] actions=[Click,Focus]
+    + r.1.0.2 CheckBox "Enable Crop Shield" [checked] actions=[Click,Focus]
+    + r.1.0.3 GenericContainer ""
+    + r.1.0.3.0 GenericContainer ""
+    + r.1.0.3.0.0 GenericContainer ""
+    + r.1.0.3.0.0.0 Label "" value="Color:" actions=[Click]
+    + r.1.0.3.0.0.0.0 TextRun "" value="Color:"
+    + r.1.0.3.0.0.1 RadioGroup "Color"
+    + r.1.0.3.0.0.1.0 GenericContainer ""
+    + r.1.0.3.0.0.1.0.0 RadioButton "Match Canvas" [checked] actions=[Click,Focus]
+    + r.1.0.3.0.0.1.1 GenericContainer ""
+    + r.1.0.3.0.0.1.1.0 RadioButton "Custom…" [unchecked] actions=[Click,Focus]
+    + r.1.0.3.0.1 GenericContainer ""
+    + r.1.0.3.0.1.0 Label "" value="Opacity"
+    + r.1.0.3.0.2 GenericContainer ""
+    + r.1.0.3.0.2.0 SpinButton "Opacity" value="75%" number=75 in 0..100 step 1 labelled_by=[r.1.0.3.0.1.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.1.0.3.0.2.0.0 TextRun "" value="75"
+    + r.1.0.3.0.3 Slider "Opacity" number=75 in 0..100 step 1 labelled_by=[r.1.0.3.0.1.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.1.0.3.0.4 CheckBox "Auto Adjust Opacity" [checked] actions=[Click,Focus]
+  Space:
+    - r.1.0.2 CheckBox "Enable Crop Shield" [checked] actions=[Click,Focus]
+    + r.1.0.2 CheckBox "Enable Crop Shield" [unchecked] actions=[Click,Focus]
+    - r.1.0.3.0.0.0 Label "" value="Color:" actions=[Click]
+    + r.1.0.3.0.0.0 Label "" value="Color:" [disabled] actions=[Click]
+    - r.1.0.3.0.0.1.0.0 RadioButton "Match Canvas" [checked] actions=[Click,Focus]
+    + r.1.0.3.0.0.1.0.0 RadioButton "Match Canvas" [disabled checked] actions=[Click,Focus]
+    - r.1.0.3.0.0.1.1.0 RadioButton "Custom…" [unchecked] actions=[Click,Focus]
+    + r.1.0.3.0.0.1.1.0 RadioButton "Custom…" [disabled unchecked] actions=[Click,Focus]
+    - r.1.0.3.0.1.0 Label "" value="Opacity"
+    + r.1.0.3.0.1.0 Label "" value="Opacity" [disabled]
+    - r.1.0.3.0.2.0 SpinButton "Opacity" value="75%" number=75 in 0..100 step 1 labelled_by=[r.1.0.3.0.1.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.1.0.3.0.2.0 SpinButton "Opacity" value="75%" number=75 in 0..100 step - labelled_by=[r.1.0.3.0.1.0] [disabled]
+    - r.1.0.3.0.3 Slider "Opacity" number=75 in 0..100 step 1 labelled_by=[r.1.0.3.0.1.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.1.0.3.0.4 CheckBox "Auto Adjust Opacity" [checked] actions=[Click,Focus]
+    + r.1.0.3.0.3 Slider "Opacity" number=75 in 0..100 step 1 labelled_by=[r.1.0.3.0.1.0] [disabled] actions=[Focus]
+    + r.1.0.3.0.4 CheckBox "Auto Adjust Opacity" [disabled checked] actions=[Click,Focus]
+  Enter:
+    - r.1.0.0.0 CheckBox "Use Classic Mode" [checked] actions=[Click,Focus]
+    + r.1.0.0.0 CheckBox "Use Classic Mode" [unchecked] actions=[Click,Focus]
+    - r.1.0.1.0.0 CheckBox "Show Cropped Area" [disabled checked] actions=[Click,Focus]
+    + r.1.0.1.0.0 CheckBox "Show Cropped Area" [checked] actions=[Click,Focus]
+    - r.1.0.1.0.1.0 Label "" value="H" [disabled]
+    - r.1.0.1.1 CheckBox "Auto Center Preview" [disabled checked] actions=[Click,Focus]
+    + r.1.0.1.0.1.0 Label "" value="H"
+    + r.1.0.1.1 CheckBox "Auto Center Preview" [checked] actions=[Click,Focus]
+  Escape:
+    - r.0.0.0.0.0.0 Button "Set additional Crop options" description="Set additional Crop options" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0 Button "Set additional Crop options" description="Set additional Crop options" [collapsed popup:Dialog] actions=[Click,Focus]
+    - r.1 Dialog "Set additional Crop options"
+    - r.1.0 GenericContainer ""
+    - r.1.0.0 GenericContainer ""
+    - r.1.0.0.0 CheckBox "Use Classic Mode" [unchecked] actions=[Click,Focus]
+    - r.1.0.0.1 GenericContainer ""
+    - r.1.0.0.1.0 Label "" value="P"
+    - r.1.0.1 GenericContainer ""
+    - r.1.0.1.0 GenericContainer ""
+    - r.1.0.1.0.0 CheckBox "Show Cropped Area" [checked] actions=[Click,Focus]
+    - r.1.0.1.0.1 GenericContainer ""
+    - r.1.0.1.0.1.0 Label "" value="H"
+    - r.1.0.1.1 CheckBox "Auto Center Preview" [checked] actions=[Click,Focus]
+    - r.1.0.2 CheckBox "Enable Crop Shield" [unchecked] actions=[Click,Focus]
+    - r.1.0.3 GenericContainer ""
+    - r.1.0.3.0 GenericContainer ""
+    - r.1.0.3.0.0 GenericContainer ""
+    - r.1.0.3.0.0.0 Label "" value="Color:" [disabled] actions=[Click]
+    - r.1.0.3.0.0.0.0 TextRun "" value="Color:"
+    - r.1.0.3.0.0.1 RadioGroup "Color"
+    - r.1.0.3.0.0.1.0 GenericContainer ""
+    - r.1.0.3.0.0.1.0.0 RadioButton "Match Canvas" [disabled checked] actions=[Click,Focus]
+    - r.1.0.3.0.0.1.1 GenericContainer ""
+    - r.1.0.3.0.0.1.1.0 RadioButton "Custom…" [disabled unchecked] actions=[Click,Focus]
+    - r.1.0.3.0.1 GenericContainer ""
+    - r.1.0.3.0.1.0 Label "" value="Opacity" [disabled]
+    - r.1.0.3.0.2 GenericContainer ""
+    - r.1.0.3.0.2.0 SpinButton "Opacity" value="75%" number=75 in 0..100 step - labelled_by=[r.1.0.3.0.1.0] [disabled]
+    - r.1.0.3.0.2.0.0 TextRun "" value="75"
+    - r.1.0.3.0.3 Slider "Opacity" number=75 in 0..100 step 1 labelled_by=[r.1.0.3.0.1.0] [disabled] actions=[Focus]
+    - r.1.0.3.0.4 CheckBox "Auto Adjust Opacity" [disabled checked] actions=[Click,Focus]
+drive r.0.0.0.0.0.1 Label ""
+  click:
+    focus: r.0.0.0.0.0.0 Button "Set additional Crop options" -> r Window ""
+  Escape: no change

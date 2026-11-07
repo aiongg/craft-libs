@@ -1,0 +1,63 @@
+story patterns/canvas/selection-bar
+args
+  over = Bool(true)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+  r.1 Toolbar "Selection"
+    r.1.0 GenericContainer ""
+      r.1.0.0 GenericContainer ""
+        r.1.0.0.0 Button "Move Bar" actions=[Focus]
+        r.1.0.0.1 Button "Copy" description="Copy" actions=[Click,Focus]
+        r.1.0.0.2 Button "Delete" description="Delete" actions=[Click,Focus]
+        r.1.0.0.3 Button "More" description="More" [collapsed popup:Menu] actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.1.0.0.0 Button "Move Bar"
+  2: r.1.0.0.1 Button "Copy"
+  3: r.1.0.0.2 Button "Delete"
+  4: r.1.0.0.3 Button "More"
+  5: r.1.0.0.0 Button "Move Bar"
+  cycle after 4 nodes
+drive: 4 actionable nodes
+drive r.1.0.0.0 Button "Move Bar"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.1.0.0.0 Button "Move Bar" -> r Window ""
+drive r.1.0.0.1 Button "Copy"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.1.0.0.1 Button "Copy" -> r Window ""
+drive r.1.0.0.2 Button "Delete"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.1.0.0.2 Button "Delete" -> r Window ""
+drive r.1.0.0.3 Button "More"
+  click:
+    - r.1.0.0.3 Button "More" description="More" [collapsed popup:Menu] actions=[Click,Focus]
+    + r.1.0.0.3 Button "More" description="More" [expanded popup:Menu] actions=[Click,Focus]
+    + r.1.0.0.3.0 Menu ""
+    + r.1.0.0.3.0.0 GenericContainer ""
+    + r.1.0.0.3.0.0.0 GenericContainer ""
+    + r.1.0.0.3.0.0.0.0 GenericContainer ""
+    + r.1.0.0.3.0.0.0.0.0 MenuItem "Hide Bar" actions=[Click]
+    + r.1.0.0.3.0.0.0.0.1 MenuItem "Reset Bar Position" [disabled] actions=[Click]
+  Space: no change
+  Enter: no change
+  Escape:
+    - r.1.0.0.3 Button "More" description="More" [expanded popup:Menu] actions=[Click,Focus]
+    - r.1.0.0.3.0 Menu ""
+    - r.1.0.0.3.0.0 GenericContainer ""
+    - r.1.0.0.3.0.0.0 GenericContainer ""
+    - r.1.0.0.3.0.0.0.0 GenericContainer ""
+    - r.1.0.0.3.0.0.0.0.0 MenuItem "Hide Bar" actions=[Click]
+    - r.1.0.0.3.0.0.0.0.1 MenuItem "Reset Bar Position" [disabled] actions=[Click]
+    + r.1.0.0.3 Button "More" description="More" [collapsed popup:Menu] actions=[Click,Focus]

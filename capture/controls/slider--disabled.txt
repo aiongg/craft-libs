@@ -1,0 +1,50 @@
+story controls/slider/disabled
+args
+  size = Choice { options: ["sm", "md"], index: 1 }
+  disabled = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 Label "" value="Disabled 1"
+            r.0.0.0.0.0.1 GenericContainer ""
+              r.0.0.0.0.0.1.0 GenericContainer ""
+                r.0.0.0.0.0.1.0.0 GenericContainer ""
+                  r.0.0.0.0.0.1.0.0.0 Slider "Disabled 1" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.0.0] [disabled] actions=[Focus]
+                  r.0.0.0.0.0.1.0.0.1 Label "" value="0.0" actions=[Click]
+                    r.0.0.0.0.0.1.0.0.1.0 TextRun "" value="0.0"
+            r.0.0.0.0.0.2 GenericContainer ""
+              r.0.0.0.0.0.2.0 Label "" value="Disabled 2"
+            r.0.0.0.0.0.3 GenericContainer ""
+              r.0.0.0.0.0.3.0 GenericContainer ""
+                r.0.0.0.0.0.3.0.0 GenericContainer ""
+                  r.0.0.0.0.0.3.0.0.0 Slider "Disabled 2" number=30 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.2.0] [disabled] actions=[Focus]
+                  r.0.0.0.0.0.3.0.0.1 Label "" value="30.0" actions=[Click]
+                    r.0.0.0.0.0.3.0.0.1.0 TextRun "" value="30.0"
+            r.0.0.0.0.0.4 GenericContainer ""
+              r.0.0.0.0.0.4.0 Label "" value="Disabled 3"
+            r.0.0.0.0.0.5 GenericContainer ""
+              r.0.0.0.0.0.5.0 GenericContainer ""
+                r.0.0.0.0.0.5.0.0 GenericContainer ""
+                  r.0.0.0.0.0.5.0.0.0 Slider "Disabled 3" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.4.0] [disabled] actions=[Focus]
+                  r.0.0.0.0.0.5.0.0.1 Label "" value="100.0" actions=[Click]
+                    r.0.0.0.0.0.5.0.0.1.0 TextRun "" value="100.0"
+tab
+  start: r Window ""
+  1: r Window ""
+  2: r Window ""
+  cycle after 1 nodes
+drive: 3 actionable nodes
+drive r.0.0.0.0.0.1.0.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.3.0.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.5.0.0.1 Label ""
+  click: no change
+  Escape: no change

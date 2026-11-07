@@ -1,0 +1,39 @@
+story composites/brush-stroke-strip/strip
+args
+  diameter = Number { value: 18.0, min: 1.0, max: 60.0 }
+  narrow = Number { value: 160.0, min: 80.0, max: 600.0 }
+  medium = Number { value: 280.0, min: 80.0, max: 600.0 }
+  wide = Number { value: 420.0, min: 80.0, max: 600.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Label "" value="Narrow" actions=[Click]
+            r.0.0.0.0.0.0 TextRun "" value="Narrow"
+          r.0.0.0.0.1 GenericContainer ""
+            r.0.0.0.0.1.0 Image "Stroke preview"
+          r.0.0.0.0.2 Label "" value="Medium" actions=[Click]
+            r.0.0.0.0.2.0 TextRun "" value="Medium"
+          r.0.0.0.0.3 GenericContainer ""
+            r.0.0.0.0.3.0 Image "Stroke preview"
+          r.0.0.0.0.4 Label "" value="Wide" actions=[Click]
+            r.0.0.0.0.4.0 TextRun "" value="Wide"
+          r.0.0.0.0.5 GenericContainer ""
+            r.0.0.0.0.5.0 Image "Stroke preview"
+tab
+  start: r Window ""
+  1: r Window ""
+  2: r Window ""
+  cycle after 1 nodes
+drive: 3 actionable nodes
+drive r.0.0.0.0.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.2 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.4 Label ""
+  click: no change
+  Escape: no change

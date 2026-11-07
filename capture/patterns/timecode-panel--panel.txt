@@ -1,0 +1,65 @@
+story patterns/timecode-panel/panel
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Label "" value="Current Time · Program: 00;00;04;29" actions=[Click,Focus]
+            r.0.0.0.0.0.1 Label "" value="Duration · Program: 00;00;29;29" actions=[Click,Focus]
+            r.0.0.0.0.0.2 Label "" value="Remaining · Program: 00;00;24;29" actions=[Click,Focus]
+            r.0.0.0.0.0.3 GenericContainer ""
+              r.0.0.0.0.0.3.0 Button "Add a timecode row" description="Add a timecode row" actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0 Label ""
+  2: r.0.0.0.0.0.1 Label ""
+  3: r.0.0.0.0.0.2 Label ""
+  4: r.0.0.0.0.0.3.0 Button "Add a timecode row"
+  5: r.0.0.0.0.0.0 Label ""
+  cycle after 4 nodes
+drive: 4 actionable nodes
+drive r.0.0.0.0.0.0 Label ""
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0 Label "" -> r Window ""
+drive r.0.0.0.0.0.1 Label ""
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.1 Label "" -> r Window ""
+drive r.0.0.0.0.0.2 Label ""
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.2 Label "" -> r Window ""
+drive r.0.0.0.0.0.3.0 Button "Add a timecode row"
+  click:
+    + r.0.0.0.0.0.3 Label "" value="Duration · Program: 00;00;29;29" actions=[Click,Focus]
+    + r.0.0.0.0.1 Label "" value="Last event: [TimecodeRow { kind: CurrentTime, source: Program, display: None }, TimecodeRow { kind: Duration, source: Program, display: None }, TimecodeRow { kind: Remaining, source: Program, display: None }, TimecodeRow { kind: Duration, source: Program, display: None }]" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: [TimecodeRow { kind: CurrentTime, source: Program, display: None }, TimecodeRow { kind: "
+    + r.0.0.0.0.1.1 TextRun "" value="Duration, source: Program, display: None }, TimecodeRow { kind: Remaining, source: Program, display: None "
+    + r.0.0.0.0.1.2 TextRun "" value="}, TimecodeRow { kind: Duration, source: Program, display: None }]"
+  Space:
+    focus: r.0.0.0.0.0.4.0 Button "Add a timecode row" -> r Window ""
+    + r.0.0.0.0.0.4 Label "" value="Duration · Program: 00;00;29;29" actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: [TimecodeRow { kind: CurrentTime, source: Program, display: None }, TimecodeRow { kind: Duration, source: Program, display: None }, TimecodeRow { kind: Remaining, source: Program, display: None }, TimecodeRow { kind: Duration, source: Program, display: None }]" actions=[Click]
+    + r.0.0.0.0.1 Label "" value="Last event: [TimecodeRow { kind: CurrentTime, source: Program, display: None }, TimecodeRow { kind: Duration, source: Program, display: None }, TimecodeRow { kind: Remaining, source: Program, display: None }, TimecodeRow { kind: Duration, source: Program, display: None }, TimecodeRow { kind: Duration, source: Program, display: None }]" actions=[Click]
+    - r.0.0.0.0.1.2 TextRun "" value="}, TimecodeRow { kind: Duration, source: Program, display: None }]"
+    + r.0.0.0.0.1.2 TextRun "" value="}, TimecodeRow { kind: Duration, source: Program, display: None }, TimecodeRow { kind: Duration, source: "
+    + r.0.0.0.0.1.3 TextRun "" value="Program, display: None }]"
+  Enter:
+    focus: r.0.0.0.0.0.5.0 Button "Add a timecode row" -> r Window ""
+    + r.0.0.0.0.0.5 Label "" value="Duration · Program: 00;00;29;29" actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: [TimecodeRow { kind: CurrentTime, source: Program, display: None }, TimecodeRow { kind: Duration, source: Program, display: None }, TimecodeRow { kind: Remaining, source: Program, display: None }, TimecodeRow { kind: Duration, source: Program, display: None }, TimecodeRow { kind: Duration, source: Program, display: None }]" actions=[Click]
+    + r.0.0.0.0.1 Label "" value="Last event: [TimecodeRow { kind: CurrentTime, source: Program, display: None }, TimecodeRow { kind: Duration, source: Program, display: None }, TimecodeRow { kind: Remaining, source: Program, display: None }, TimecodeRow { kind: Duration, source: Program, display: None }, TimecodeRow { kind: Duration, source: Program, display: None }, TimecodeRow { kind: Duration, source: Program, display: None }]" actions=[Click]
+    - r.0.0.0.0.1.3 TextRun "" value="Program, display: None }]"
+    + r.0.0.0.0.1.3 TextRun "" value="Program, display: None }, TimecodeRow { kind: Duration, source: Program, display: None }]"
+  Escape:
+    focus: r.0.0.0.0.0.6.0 Button "Add a timecode row" -> r Window ""

@@ -1,0 +1,736 @@
+story patterns/comments-panel/panel
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Label "" value="Comments 6" actions=[Click]
+              r.0.0.0.0.0.0.0 TextRun "" value="Comments 6"
+            r.0.0.0.0.0.1 Label "" value="2 replies" actions=[Click]
+              r.0.0.0.0.0.1.0 TextRun "" value="2 replies"
+            r.0.0.0.0.0.2 SearchInput "Search comments" value="" placeholder="Search comments" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+              r.0.0.0.0.0.2.0 TextRun "" value=""
+            r.0.0.0.0.0.3 GenericContainer ""
+              r.0.0.0.0.0.3.0 Button "Sort by: Page" [collapsed popup:Menu] actions=[Click,Focus]
+              r.0.0.0.0.0.3.1 Button "Filter comments" description="Filter comments" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+              r.0.0.0.0.0.3.2 Button "Pages" description="Pages" [collapsed popup:Menu] actions=[Click,Focus]
+            r.0.0.0.0.0.4 TextInput "Add a comment" value="" placeholder="Add a comment" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+              r.0.0.0.0.0.4.0 TextRun "" value=""
+            r.0.0.0.0.0.5 List ""
+              r.0.0.0.0.0.5.0 GenericContainer ""
+                r.0.0.0.0.0.5.0.0 Button "Collapse" description="Collapse" actions=[Click,Focus]
+                r.0.0.0.0.0.5.0.1 Label "" value="Page 1" actions=[Click,Focus]
+                  r.0.0.0.0.0.5.0.1.0 TextRun "" value="Page 1"
+                r.0.0.0.0.0.5.0.2 GenericContainer ""
+                  r.0.0.0.0.0.5.0.2.0 Label "" value="2" actions=[Click]
+                    r.0.0.0.0.0.5.0.2.0.0 TextRun "" value="2"
+              r.0.0.0.0.0.5.1 ListItem "Ana Silva: Move the logo up to match the brand sheet." [unselected] actions=[Click,Focus]
+                r.0.0.0.0.0.5.1.0 GenericContainer ""
+                  r.0.0.0.0.0.5.1.0.0 GenericContainer ""
+                    r.0.0.0.0.0.5.1.0.0.0 GenericContainer ""
+                      r.0.0.0.0.0.5.1.0.0.0.0 Label "" value="Ana Silva" actions=[Click]
+                        r.0.0.0.0.0.5.1.0.0.0.0.0 TextRun "" value="Ana Silva"
+                      r.0.0.0.0.0.5.1.0.0.0.1 Label "" value="Oct 2, 2026" actions=[Click]
+                        r.0.0.0.0.0.5.1.0.0.0.1.0 TextRun "" value="Oct 2, 2026"
+                    r.0.0.0.0.0.5.1.0.0.1 GenericContainer ""
+                      r.0.0.0.0.0.5.1.0.0.1.0 Label "" value="Accepted" description="Accepted"
+                  r.0.0.0.0.0.5.1.0.1 Label "" value="Move the logo up to match the brand sheet." actions=[Click]
+                    r.0.0.0.0.0.5.1.0.1.0 TextRun "" value="Move the logo up to match the brand sheet."
+              r.0.0.0.0.0.5.2 ListItem "Bo Lindqvist: Is this figure final? The caption still says 2024." [selected] actions=[Click,Focus]
+                r.0.0.0.0.0.5.2.0 GenericContainer ""
+                  r.0.0.0.0.0.5.2.0.0 GenericContainer ""
+                    r.0.0.0.0.0.5.2.0.0.0 GenericContainer ""
+                      r.0.0.0.0.0.5.2.0.0.0.0 Label "" value="Bo Lindqvist" actions=[Click]
+                        r.0.0.0.0.0.5.2.0.0.0.0.0 TextRun "" value="Bo Lindqvist"
+                      r.0.0.0.0.0.5.2.0.0.0.1 Label "" value="Oct 3, 2026" actions=[Click]
+                        r.0.0.0.0.0.5.2.0.0.0.1.0 TextRun "" value="Oct 3, 2026"
+                    r.0.0.0.0.0.5.2.0.0.1 GenericContainer ""
+                      r.0.0.0.0.0.5.2.0.0.1.0 Button "More" description="More" [collapsed popup:Menu] actions=[Click,Focus]
+                      r.0.0.0.0.0.5.2.0.0.1.1 Button "Mark with checkmark" description="Mark with checkmark" [unchecked] actions=[Click,Focus]
+                  r.0.0.0.0.0.5.2.0.1 Label "" value="Is this figure final? The caption still says 2024." actions=[Click]
+                    r.0.0.0.0.0.5.2.0.1.0 TextRun "" value="Is this figure final? The caption still says 2024."
+                  r.0.0.0.0.0.5.2.0.2 MultilineTextInput "Add a reply" value="" placeholder="Add a reply" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+                    r.0.0.0.0.0.5.2.0.2.0 TextRun "" value=""
+                  r.0.0.0.0.0.5.2.0.3 Button "Post" [disabled] actions=[Click,Focus]
+              r.0.0.0.0.0.5.3 GenericContainer ""
+                r.0.0.0.0.0.5.3.0 Button "Collapse" description="Collapse" actions=[Click,Focus]
+                r.0.0.0.0.0.5.3.1 Label "" value="Page 2" actions=[Click,Focus]
+                  r.0.0.0.0.0.5.3.1.0 TextRun "" value="Page 2"
+                r.0.0.0.0.0.5.3.2 GenericContainer ""
+                  r.0.0.0.0.0.5.3.2.0 Label "" value="2" actions=[Click]
+                    r.0.0.0.0.0.5.3.2.0.0 TextRun "" value="2"
+              r.0.0.0.0.0.5.4 ListItem "Ana Silva: Check the margin on this side." [unselected] actions=[Click,Focus]
+                r.0.0.0.0.0.5.4.0 GenericContainer ""
+                  r.0.0.0.0.0.5.4.0.0 GenericContainer ""
+                    r.0.0.0.0.0.5.4.0.0.0 GenericContainer ""
+                      r.0.0.0.0.0.5.4.0.0.0.0 Label "" value="Ana Silva" actions=[Click]
+                        r.0.0.0.0.0.5.4.0.0.0.0.0 TextRun "" value="Ana Silva"
+                      r.0.0.0.0.0.5.4.0.0.0.1 Label "" value="Oct 4, 2026" actions=[Click]
+                        r.0.0.0.0.0.5.4.0.0.0.1.0 TextRun "" value="Oct 4, 2026"
+                    r.0.0.0.0.0.5.4.0.0.1 GenericContainer ""
+                      r.0.0.0.0.0.5.4.0.0.1.0 Label "" value="Marked" description="Marked"
+                  r.0.0.0.0.0.5.4.0.1 Label "" value="Check the margin on this side." actions=[Click]
+                    r.0.0.0.0.0.5.4.0.1.0 TextRun "" value="Check the margin on this side."
+              r.0.0.0.0.0.5.5 ListItem "Bo Lindqvist: Approved wording from legal." [unselected] actions=[Click,Focus]
+                r.0.0.0.0.0.5.5.0 GenericContainer ""
+                  r.0.0.0.0.0.5.5.0.0 GenericContainer ""
+                    r.0.0.0.0.0.5.5.0.0.0 GenericContainer ""
+                      r.0.0.0.0.0.5.5.0.0.0.0 Label "" value="Bo Lindqvist" actions=[Click]
+                        r.0.0.0.0.0.5.5.0.0.0.0.0 TextRun "" value="Bo Lindqvist"
+                      r.0.0.0.0.0.5.5.0.0.0.1 Label "" value="Oct 5, 2026" actions=[Click]
+                        r.0.0.0.0.0.5.5.0.0.0.1.0 TextRun "" value="Oct 5, 2026"
+                    r.0.0.0.0.0.5.5.0.0.1 GenericContainer ""
+                      r.0.0.0.0.0.5.5.0.0.1.0 Label "" value="Locked" description="Locked"
+                  r.0.0.0.0.0.5.5.0.1 Label "" value="Approved wording from legal." actions=[Click]
+                    r.0.0.0.0.0.5.5.0.1.0 TextRun "" value="Approved wording from legal."
+              r.0.0.0.0.0.5.6 GenericContainer ""
+                r.0.0.0.0.0.5.6.0 Button "Collapse" description="Collapse" actions=[Click,Focus]
+                r.0.0.0.0.0.5.6.1 Label "" value="Page 3" actions=[Click,Focus]
+                  r.0.0.0.0.0.5.6.1.0 TextRun "" value="Page 3"
+                r.0.0.0.0.0.5.6.2 GenericContainer ""
+                  r.0.0.0.0.0.5.6.2.0 Label "" value="2" actions=[Click]
+                    r.0.0.0.0.0.5.6.2.0.0 TextRun "" value="2"
+              r.0.0.0.0.0.5.7 ListItem "Bo Lindqvist: Can we shorten this paragraph?" [unselected] actions=[Click,Focus]
+                r.0.0.0.0.0.5.7.0 GenericContainer ""
+                  r.0.0.0.0.0.5.7.0.0 GenericContainer ""
+                    r.0.0.0.0.0.5.7.0.0.0 GenericContainer ""
+                      r.0.0.0.0.0.5.7.0.0.0.0 Label "" value="Bo Lindqvist" actions=[Click]
+                        r.0.0.0.0.0.5.7.0.0.0.0.0 TextRun "" value="Bo Lindqvist"
+                      r.0.0.0.0.0.5.7.0.0.0.1 Label "" value="Oct 6, 2026" actions=[Click]
+                        r.0.0.0.0.0.5.7.0.0.0.1.0 TextRun "" value="Oct 6, 2026"
+                    r.0.0.0.0.0.5.7.0.0.1 GenericContainer ""
+                  r.0.0.0.0.0.5.7.0.1 Label "" value="Can we shorten this paragraph?" actions=[Click]
+                    r.0.0.0.0.0.5.7.0.1.0 TextRun "" value="Can we shorten this paragraph?"
+                  r.0.0.0.0.0.5.7.0.2 GenericContainer ""
+                    r.0.0.0.0.0.5.7.0.2.0 GenericContainer ""
+                      r.0.0.0.0.0.5.7.0.2.0.0 GenericContainer ""
+                        r.0.0.0.0.0.5.7.0.2.0.0.0 Label "" value="Ana Silva" actions=[Click]
+                          r.0.0.0.0.0.5.7.0.2.0.0.0.0 TextRun "" value="Ana Silva"
+                        r.0.0.0.0.0.5.7.0.2.0.0.1 Label "" value="Oct 7, 2026" actions=[Click]
+                          r.0.0.0.0.0.5.7.0.2.0.0.1.0 TextRun "" value="Oct 7, 2026"
+                        r.0.0.0.0.0.5.7.0.2.0.0.2 GenericContainer ""
+                          r.0.0.0.0.0.5.7.0.2.0.0.2.0 Button "More" description="More" [collapsed popup:Menu] actions=[Click,Focus]
+                      r.0.0.0.0.0.5.7.0.2.0.1 Label "" value="I can cut it to two lines." actions=[Click]
+                        r.0.0.0.0.0.5.7.0.2.0.1.0 TextRun "" value="I can cut it to two lines."
+                  r.0.0.0.0.0.5.7.0.3 GenericContainer ""
+                    r.0.0.0.0.0.5.7.0.3.0 GenericContainer ""
+                      r.0.0.0.0.0.5.7.0.3.0.0 GenericContainer ""
+                        r.0.0.0.0.0.5.7.0.3.0.0.0 Label "" value="Bo Lindqvist" actions=[Click]
+                          r.0.0.0.0.0.5.7.0.3.0.0.0.0 TextRun "" value="Bo Lindqvist"
+                        r.0.0.0.0.0.5.7.0.3.0.0.1 Label "" value="Oct 8, 2026" actions=[Click]
+                          r.0.0.0.0.0.5.7.0.3.0.0.1.0 TextRun "" value="Oct 8, 2026"
+                        r.0.0.0.0.0.5.7.0.3.0.0.2 GenericContainer ""
+                          r.0.0.0.0.0.5.7.0.3.0.0.2.0 Button "More" description="More" [collapsed popup:Menu] actions=[Click,Focus]
+                      r.0.0.0.0.0.5.7.0.3.0.1 Label "" value="Please do, and keep the quote." actions=[Click]
+                        r.0.0.0.0.0.5.7.0.3.0.1.0 TextRun "" value="Please do, and keep the quote."
+              r.0.0.0.0.0.5.8 ListItem "Ana Silva: Typo in the heading." [unselected] actions=[Click,Focus]
+                r.0.0.0.0.0.5.8.0 GenericContainer ""
+                  r.0.0.0.0.0.5.8.0.0 GenericContainer ""
+                    r.0.0.0.0.0.5.8.0.0.0 GenericContainer ""
+                      r.0.0.0.0.0.5.8.0.0.0.0 Label "" value="Ana Silva" actions=[Click]
+                        r.0.0.0.0.0.5.8.0.0.0.0.0 TextRun "" value="Ana Silva"
+                      r.0.0.0.0.0.5.8.0.0.0.1 Label "" value="Oct 9, 2026" actions=[Click]
+                        r.0.0.0.0.0.5.8.0.0.0.1.0 TextRun "" value="Oct 9, 2026"
+                    r.0.0.0.0.0.5.8.0.0.1 GenericContainer ""
+                  r.0.0.0.0.0.5.8.0.1 Label "" value="Typo in the heading." actions=[Click]
+                    r.0.0.0.0.0.5.8.0.1.0 TextRun "" value="Typo in the heading."
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.2 SearchInput "Search comments"
+  2: r.0.0.0.0.0.3.0 Button "Sort by: Page"
+  3: r.0.0.0.0.0.3.1 Button "Filter comments"
+  4: r.0.0.0.0.0.3.2 Button "Pages"
+  5: r.0.0.0.0.0.4 TextInput "Add a comment"
+  6: r.0.0.0.0.0.5.0.0 Button "Collapse"
+  7: r.0.0.0.0.0.5.0.1 Label ""
+  8: r.0.0.0.0.0.5.1 ListItem "Ana Silva: Move the logo up to match the brand sheet."
+  9: r.0.0.0.0.0.5.2 ListItem "Bo Lindqvist: Is this figure final? The caption still says 2024."
+  10: r.0.0.0.0.0.5.2.0.0.1.0 Button "More"
+  11: r.0.0.0.0.0.5.2.0.0.1.1 Button "Mark with checkmark"
+  12: r.0.0.0.0.0.5.2.0.2 MultilineTextInput "Add a reply"
+  13: r.0.0.0.0.0.5.3.0 Button "Collapse"
+  14: r.0.0.0.0.0.5.3.1 Label ""
+  15: r.0.0.0.0.0.5.4 ListItem "Ana Silva: Check the margin on this side."
+  16: r.0.0.0.0.0.5.5 ListItem "Bo Lindqvist: Approved wording from legal."
+  17: r.0.0.0.0.0.5.6.0 Button "Collapse"
+  18: r.0.0.0.0.0.5.6.1 Label ""
+  19: r.0.0.0.0.0.5.7 ListItem "Bo Lindqvist: Can we shorten this paragraph?"
+  20: r.0.0.0.0.0.5.7.0.2.0.0.2.0 Button "More"
+  21: r.0.0.0.0.0.5.7.0.3.0.0.2.0 Button "More"
+  22: r.0.0.0.0.0.5.8 ListItem "Ana Silva: Typo in the heading."
+  23: r.0.0.0.0.0.2 SearchInput "Search comments"
+  cycle after 22 nodes
+drive: 51 actionable nodes
+drive r.0.0.0.0.0.0 Label ""
+  click:
+    focus: r.0.0.0.0.0.2 SearchInput "Search comments" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.2 SearchInput "Search comments"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.2 SearchInput "Search comments"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.2 SearchInput "Search comments" -> r Window ""
+  Escape:
+    focus: r.0.0.0.0.0.2 SearchInput "Search comments" -> r Window ""
+drive r.0.0.0.0.0.3.0 Button "Sort by: Page"
+  click:
+    - r.0.0.0.0.0.3.0 Button "Sort by: Page" [collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.3.0 Button "Sort by: Page" [expanded popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.3.0.0 Menu ""
+    + r.0.0.0.0.0.3.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.3.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.3.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.3.0.0.0.0.0.0 MenuItemRadio "Page" [checked] actions=[Click]
+    + r.0.0.0.0.0.3.0.0.0.0.0.1 MenuItemRadio "Author" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.3.0.0.0.0.0.2 MenuItemRadio "Date" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.3.0.0.0.0.0.3 MenuItemRadio "Type" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.3.0.0.0.0.0.4 MenuItemRadio "Color" [unchecked] actions=[Click]
+  Space: no change
+  Enter: no change
+  Escape:
+    - r.0.0.0.0.0.3.0 Button "Sort by: Page" [expanded popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.3.0.0 Menu ""
+    - r.0.0.0.0.0.3.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.3.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.3.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.3.0.0.0.0.0.0 MenuItemRadio "Page" [checked] actions=[Click]
+    - r.0.0.0.0.0.3.0.0.0.0.0.1 MenuItemRadio "Author" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.3.0.0.0.0.0.2 MenuItemRadio "Date" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.3.0.0.0.0.0.3 MenuItemRadio "Type" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.3.0.0.0.0.0.4 MenuItemRadio "Color" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.3.0 Button "Sort by: Page" [collapsed popup:Menu] actions=[Click,Focus]
+drive r.0.0.0.0.0.3.1 Button "Filter comments"
+  click:
+    focus: r.0.0.0.0.0.3.0 Button "Sort by: Page" -> r Window ""
+    - r.0.0.0.0.0.3.1 Button "Filter comments" description="Filter comments" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.3.1 Button "Filter comments" description="Filter comments" [unchecked expanded popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.3.1.0 Menu ""
+    + r.0.0.0.0.0.3.1.0.0 GenericContainer ""
+    + r.0.0.0.0.0.3.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.3.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.3.1.0.0.0.0.0 MenuItem "Type" [collapsed popup:Menu] actions=[Click]
+    + r.0.0.0.0.0.3.1.0.0.0.0.1 MenuItem "Author" [collapsed popup:Menu] actions=[Click]
+    + r.0.0.0.0.0.3.1.0.0.0.0.2 MenuItem "Status" [collapsed popup:Menu] actions=[Click]
+    + r.0.0.0.0.0.3.1.0.0.0.0.3 MenuItem "Color" [collapsed popup:Menu] actions=[Click]
+    + r.0.0.0.0.0.3.1.0.0.0.0.4 MenuItem "Checkmark" [collapsed popup:Menu] actions=[Click]
+  Space: no change
+  Enter: no change
+  Escape:
+    - r.0.0.0.0.0.3.1 Button "Filter comments" description="Filter comments" [unchecked expanded popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.3.1.0 Menu ""
+    - r.0.0.0.0.0.3.1.0.0 GenericContainer ""
+    - r.0.0.0.0.0.3.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.3.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.3.1.0.0.0.0.0 MenuItem "Type" [collapsed popup:Menu] actions=[Click]
+    - r.0.0.0.0.0.3.1.0.0.0.0.1 MenuItem "Author" [collapsed popup:Menu] actions=[Click]
+    - r.0.0.0.0.0.3.1.0.0.0.0.2 MenuItem "Status" [collapsed popup:Menu] actions=[Click]
+    - r.0.0.0.0.0.3.1.0.0.0.0.3 MenuItem "Color" [collapsed popup:Menu] actions=[Click]
+    - r.0.0.0.0.0.3.1.0.0.0.0.4 MenuItem "Checkmark" [collapsed popup:Menu] actions=[Click]
+    + r.0.0.0.0.0.3.1 Button "Filter comments" description="Filter comments" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+drive r.0.0.0.0.0.3.2 Button "Pages"
+  click:
+    focus: r.0.0.0.0.0.3.1 Button "Filter comments" -> r Window ""
+    - r.0.0.0.0.0.3.2 Button "Pages" description="Pages" [collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.3.2 Button "Pages" description="Pages" [expanded popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.3.2.0 Menu ""
+    + r.0.0.0.0.0.3.2.0.0 GenericContainer ""
+    + r.0.0.0.0.0.3.2.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.3.2.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.3.2.0.0.0.0.0 MenuItem "Collapse all pages" actions=[Click]
+    + r.0.0.0.0.0.3.2.0.0.0.0.1 MenuItem "Expand all pages" actions=[Click]
+  Space: no change
+  Enter: no change
+  Escape:
+    - r.0.0.0.0.0.3.2 Button "Pages" description="Pages" [expanded popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.3.2.0 Menu ""
+    - r.0.0.0.0.0.3.2.0.0 GenericContainer ""
+    - r.0.0.0.0.0.3.2.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.3.2.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.3.2.0.0.0.0.0 MenuItem "Collapse all pages" actions=[Click]
+    - r.0.0.0.0.0.3.2.0.0.0.0.1 MenuItem "Expand all pages" actions=[Click]
+    + r.0.0.0.0.0.3.2 Button "Pages" description="Pages" [collapsed popup:Menu] actions=[Click,Focus]
+drive r.0.0.0.0.0.4 TextInput "Add a comment"
+  click:
+    focus: r.0.0.0.0.0.3.2 Button "Pages" -> r.0.0.0.0.0.4 TextInput "Add a comment"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.4 TextInput "Add a comment" -> r Window ""
+  Escape:
+    focus: r.0.0.0.0.0.4 TextInput "Add a comment" -> r Window ""
+drive r.0.0.0.0.0.5.0.0 Button "Collapse"
+  click:
+    - r.0.0.0.0.0.5.0.0 Button "Collapse" description="Collapse" actions=[Click,Focus]
+    + r.0.0.0.0.0.5.0.0 Button "Expand" description="Expand" actions=[Click,Focus]
+    - r.0.0.0.0.0.5.1 ListItem "Ana Silva: Move the logo up to match the brand sheet." [unselected] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.1.0 GenericContainer ""
+    - r.0.0.0.0.0.5.1.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.1.0.0.0.0 Label "" value="Ana Silva" actions=[Click]
+    - r.0.0.0.0.0.5.1.0.0.0.0.0 TextRun "" value="Ana Silva"
+    - r.0.0.0.0.0.5.1.0.0.0.1 Label "" value="Oct 2, 2026" actions=[Click]
+    - r.0.0.0.0.0.5.1.0.0.0.1.0 TextRun "" value="Oct 2, 2026"
+    - r.0.0.0.0.0.5.1.0.0.1 GenericContainer ""
+    - r.0.0.0.0.0.5.1.0.0.1.0 Label "" value="Accepted" description="Accepted"
+    - r.0.0.0.0.0.5.1.0.1 Label "" value="Move the logo up to match the brand sheet." actions=[Click]
+    - r.0.0.0.0.0.5.1.0.1.0 TextRun "" value="Move the logo up to match the brand sheet."
+    - r.0.0.0.0.0.5.2 ListItem "Bo Lindqvist: Is this figure final? The caption still says 2024." [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.2.0 GenericContainer ""
+    - r.0.0.0.0.0.5.2.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.2.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.2.0.0.0.0 Label "" value="Bo Lindqvist" actions=[Click]
+    - r.0.0.0.0.0.5.2.0.0.0.0.0 TextRun "" value="Bo Lindqvist"
+    - r.0.0.0.0.0.5.2.0.0.0.1 Label "" value="Oct 3, 2026" actions=[Click]
+    - r.0.0.0.0.0.5.2.0.0.0.1.0 TextRun "" value="Oct 3, 2026"
+    - r.0.0.0.0.0.5.2.0.0.1 GenericContainer ""
+    - r.0.0.0.0.0.5.2.0.0.1.0 Button "More" description="More" [collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.2.0.0.1.1 Button "Mark with checkmark" description="Mark with checkmark" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.2.0.1 Label "" value="Is this figure final? The caption still says 2024." actions=[Click]
+    - r.0.0.0.0.0.5.2.0.1.0 TextRun "" value="Is this figure final? The caption still says 2024."
+    - r.0.0.0.0.0.5.2.0.2 MultilineTextInput "Add a reply" value="" placeholder="Add a reply" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.5.2.0.2.0 TextRun "" value=""
+    - r.0.0.0.0.0.5.2.0.3 Button "Post" [disabled] actions=[Click,Focus]
+  Space:
+    focus: r.0.0.0.0.0.5.1.0 Button "Collapse" -> r.0.0.0.0.0.5.1.0 Button "Expand"
+    - r.0.0.0.0.0.5.1.0 Button "Collapse" description="Collapse" actions=[Click,Focus]
+    + r.0.0.0.0.0.5.1.0 Button "Expand" description="Expand" actions=[Click,Focus]
+    - r.0.0.0.0.0.5.2 ListItem "Ana Silva: Check the margin on this side." [unselected] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.2.0 GenericContainer ""
+    - r.0.0.0.0.0.5.2.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.2.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.2.0.0.0.0 Label "" value="Ana Silva" actions=[Click]
+    - r.0.0.0.0.0.5.2.0.0.0.0.0 TextRun "" value="Ana Silva"
+    - r.0.0.0.0.0.5.2.0.0.0.1 Label "" value="Oct 4, 2026" actions=[Click]
+    - r.0.0.0.0.0.5.2.0.0.0.1.0 TextRun "" value="Oct 4, 2026"
+    - r.0.0.0.0.0.5.2.0.0.1 GenericContainer ""
+    - r.0.0.0.0.0.5.2.0.0.1.0 Label "" value="Marked" description="Marked"
+    - r.0.0.0.0.0.5.2.0.1 Label "" value="Check the margin on this side." actions=[Click]
+    - r.0.0.0.0.0.5.2.0.1.0 TextRun "" value="Check the margin on this side."
+    - r.0.0.0.0.0.5.3 ListItem "Bo Lindqvist: Approved wording from legal." [unselected] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.3.0 GenericContainer ""
+    - r.0.0.0.0.0.5.3.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.3.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.3.0.0.0.0 Label "" value="Bo Lindqvist" actions=[Click]
+    - r.0.0.0.0.0.5.3.0.0.0.0.0 TextRun "" value="Bo Lindqvist"
+    - r.0.0.0.0.0.5.3.0.0.0.1 Label "" value="Oct 5, 2026" actions=[Click]
+    - r.0.0.0.0.0.5.3.0.0.0.1.0 TextRun "" value="Oct 5, 2026"
+    - r.0.0.0.0.0.5.3.0.0.1 GenericContainer ""
+    - r.0.0.0.0.0.5.3.0.0.1.0 Label "" value="Locked" description="Locked"
+    - r.0.0.0.0.0.5.3.0.1 Label "" value="Approved wording from legal." actions=[Click]
+    - r.0.0.0.0.0.5.3.0.1.0 TextRun "" value="Approved wording from legal."
+  Enter:
+    focus: r.0.0.0.0.0.5.2.0 Button "Collapse" -> r.0.0.0.0.0.5.2.0 Button "Expand"
+    - r.0.0.0.0.0.5.2.0 Button "Collapse" description="Collapse" actions=[Click,Focus]
+    + r.0.0.0.0.0.5.2.0 Button "Expand" description="Expand" actions=[Click,Focus]
+    - r.0.0.0.0.0.5.3 ListItem "Bo Lindqvist: Can we shorten this paragraph?" [unselected] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.3.0 GenericContainer ""
+    - r.0.0.0.0.0.5.3.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.3.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.3.0.0.0.0 Label "" value="Bo Lindqvist" actions=[Click]
+    - r.0.0.0.0.0.5.3.0.0.0.0.0 TextRun "" value="Bo Lindqvist"
+    - r.0.0.0.0.0.5.3.0.0.0.1 Label "" value="Oct 6, 2026" actions=[Click]
+    - r.0.0.0.0.0.5.3.0.0.0.1.0 TextRun "" value="Oct 6, 2026"
+    - r.0.0.0.0.0.5.3.0.0.1 GenericContainer ""
+    - r.0.0.0.0.0.5.3.0.1 Label "" value="Can we shorten this paragraph?" actions=[Click]
+    - r.0.0.0.0.0.5.3.0.1.0 TextRun "" value="Can we shorten this paragraph?"
+    - r.0.0.0.0.0.5.3.0.2 GenericContainer ""
+    - r.0.0.0.0.0.5.3.0.2.0 GenericContainer ""
+    - r.0.0.0.0.0.5.3.0.2.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.3.0.2.0.0.0 Label "" value="Ana Silva" actions=[Click]
+    - r.0.0.0.0.0.5.3.0.2.0.0.0.0 TextRun "" value="Ana Silva"
+    - r.0.0.0.0.0.5.3.0.2.0.0.1 Label "" value="Oct 7, 2026" actions=[Click]
+    - r.0.0.0.0.0.5.3.0.2.0.0.1.0 TextRun "" value="Oct 7, 2026"
+    - r.0.0.0.0.0.5.3.0.2.0.0.2 GenericContainer ""
+    - r.0.0.0.0.0.5.3.0.2.0.0.2.0 Button "More" description="More" [collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.3.0.2.0.1 Label "" value="I can cut it to two lines." actions=[Click]
+    - r.0.0.0.0.0.5.3.0.2.0.1.0 TextRun "" value="I can cut it to two lines."
+    - r.0.0.0.0.0.5.3.0.3 GenericContainer ""
+    - r.0.0.0.0.0.5.3.0.3.0 GenericContainer ""
+    - r.0.0.0.0.0.5.3.0.3.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.3.0.3.0.0.0 Label "" value="Bo Lindqvist" actions=[Click]
+    - r.0.0.0.0.0.5.3.0.3.0.0.0.0 TextRun "" value="Bo Lindqvist"
+    - r.0.0.0.0.0.5.3.0.3.0.0.1 Label "" value="Oct 8, 2026" actions=[Click]
+    - r.0.0.0.0.0.5.3.0.3.0.0.1.0 TextRun "" value="Oct 8, 2026"
+    - r.0.0.0.0.0.5.3.0.3.0.0.2 GenericContainer ""
+    - r.0.0.0.0.0.5.3.0.3.0.0.2.0 Button "More" description="More" [collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.3.0.3.0.1 Label "" value="Please do, and keep the quote." actions=[Click]
+    - r.0.0.0.0.0.5.3.0.3.0.1.0 TextRun "" value="Please do, and keep the quote."
+    - r.0.0.0.0.0.5.4 ListItem "Ana Silva: Typo in the heading." [unselected] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.4.0 GenericContainer ""
+    - r.0.0.0.0.0.5.4.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.4.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.4.0.0.0.0 Label "" value="Ana Silva" actions=[Click]
+    - r.0.0.0.0.0.5.4.0.0.0.0.0 TextRun "" value="Ana Silva"
+    - r.0.0.0.0.0.5.4.0.0.0.1 Label "" value="Oct 9, 2026" actions=[Click]
+    - r.0.0.0.0.0.5.4.0.0.0.1.0 TextRun "" value="Oct 9, 2026"
+    - r.0.0.0.0.0.5.4.0.0.1 GenericContainer ""
+    - r.0.0.0.0.0.5.4.0.1 Label "" value="Typo in the heading." actions=[Click]
+    - r.0.0.0.0.0.5.4.0.1.0 TextRun "" value="Typo in the heading."
+  Escape: node gone
+drive r.0.0.0.0.0.5.0.1 Label ""
+  click:
+    focus: r.0.0.0.0.0.5.2.0 Button "Expand" -> r Window ""
+    - r.0.0.0.0.0.5.0.0 Button "Expand" description="Expand" actions=[Click,Focus]
+    + r.0.0.0.0.0.5.0.0 Button "Collapse" description="Collapse" actions=[Click,Focus]
+    + r.0.0.0.0.0.5.1 ListItem "Ana Silva: Move the logo up to match the brand sheet." [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.1.0 GenericContainer ""
+    + r.0.0.0.0.0.5.1.0.0 GenericContainer ""
+    + r.0.0.0.0.0.5.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.5.1.0.0.0.0 Label "" value="Ana Silva" actions=[Click]
+    + r.0.0.0.0.0.5.1.0.0.0.0.0 TextRun "" value="Ana Silva"
+    + r.0.0.0.0.0.5.1.0.0.0.1 Label "" value="Oct 2, 2026" actions=[Click]
+    + r.0.0.0.0.0.5.1.0.0.0.1.0 TextRun "" value="Oct 2, 2026"
+    + r.0.0.0.0.0.5.1.0.0.1 GenericContainer ""
+    + r.0.0.0.0.0.5.1.0.0.1.0 Label "" value="Accepted" description="Accepted"
+    + r.0.0.0.0.0.5.1.0.1 Label "" value="Move the logo up to match the brand sheet." actions=[Click]
+    + r.0.0.0.0.0.5.1.0.1.0 TextRun "" value="Move the logo up to match the brand sheet."
+    + r.0.0.0.0.0.5.2 ListItem "Bo Lindqvist: Is this figure final? The caption still says 2024." [selected] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.2.0 GenericContainer ""
+    + r.0.0.0.0.0.5.2.0.0 GenericContainer ""
+    + r.0.0.0.0.0.5.2.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.5.2.0.0.0.0 Label "" value="Bo Lindqvist" actions=[Click]
+    + r.0.0.0.0.0.5.2.0.0.0.0.0 TextRun "" value="Bo Lindqvist"
+    + r.0.0.0.0.0.5.2.0.0.0.1 Label "" value="Oct 3, 2026" actions=[Click]
+    + r.0.0.0.0.0.5.2.0.0.0.1.0 TextRun "" value="Oct 3, 2026"
+    + r.0.0.0.0.0.5.2.0.0.1 GenericContainer ""
+    + r.0.0.0.0.0.5.2.0.0.1.0 Button "More" description="More" [collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.2.0.0.1.1 Button "Mark with checkmark" description="Mark with checkmark" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.2.0.1 Label "" value="Is this figure final? The caption still says 2024." actions=[Click]
+    + r.0.0.0.0.0.5.2.0.1.0 TextRun "" value="Is this figure final? The caption still says 2024."
+    + r.0.0.0.0.0.5.2.0.2 MultilineTextInput "Add a reply" value="" placeholder="Add a reply" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.5.2.0.2.0 TextRun "" value=""
+    + r.0.0.0.0.0.5.2.0.3 Button "Post" [disabled] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.0.5.0.0 Button "Collapse" description="Collapse" actions=[Click,Focus]
+    + r.0.0.0.0.0.5.0.0 Button "Expand" description="Expand" actions=[Click,Focus]
+    - r.0.0.0.0.0.5.1 ListItem "Ana Silva: Move the logo up to match the brand sheet." [unselected] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.1.0 GenericContainer ""
+    - r.0.0.0.0.0.5.1.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.1.0.0.0.0 Label "" value="Ana Silva" actions=[Click]
+    - r.0.0.0.0.0.5.1.0.0.0.0.0 TextRun "" value="Ana Silva"
+    - r.0.0.0.0.0.5.1.0.0.0.1 Label "" value="Oct 2, 2026" actions=[Click]
+    - r.0.0.0.0.0.5.1.0.0.0.1.0 TextRun "" value="Oct 2, 2026"
+    - r.0.0.0.0.0.5.1.0.0.1 GenericContainer ""
+    - r.0.0.0.0.0.5.1.0.0.1.0 Label "" value="Accepted" description="Accepted"
+    - r.0.0.0.0.0.5.1.0.1 Label "" value="Move the logo up to match the brand sheet." actions=[Click]
+    - r.0.0.0.0.0.5.1.0.1.0 TextRun "" value="Move the logo up to match the brand sheet."
+    - r.0.0.0.0.0.5.2 ListItem "Bo Lindqvist: Is this figure final? The caption still says 2024." [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.2.0 GenericContainer ""
+    - r.0.0.0.0.0.5.2.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.2.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.2.0.0.0.0 Label "" value="Bo Lindqvist" actions=[Click]
+    - r.0.0.0.0.0.5.2.0.0.0.0.0 TextRun "" value="Bo Lindqvist"
+    - r.0.0.0.0.0.5.2.0.0.0.1 Label "" value="Oct 3, 2026" actions=[Click]
+    - r.0.0.0.0.0.5.2.0.0.0.1.0 TextRun "" value="Oct 3, 2026"
+    - r.0.0.0.0.0.5.2.0.0.1 GenericContainer ""
+    - r.0.0.0.0.0.5.2.0.0.1.0 Button "More" description="More" [collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.2.0.0.1.1 Button "Mark with checkmark" description="Mark with checkmark" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.2.0.1 Label "" value="Is this figure final? The caption still says 2024." actions=[Click]
+    - r.0.0.0.0.0.5.2.0.1.0 TextRun "" value="Is this figure final? The caption still says 2024."
+    - r.0.0.0.0.0.5.2.0.2 MultilineTextInput "Add a reply" value="" placeholder="Add a reply" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.5.2.0.2.0 TextRun "" value=""
+    - r.0.0.0.0.0.5.2.0.3 Button "Post" [disabled] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.0.5.0.0 Button "Expand" description="Expand" actions=[Click,Focus]
+    + r.0.0.0.0.0.5.0.0 Button "Collapse" description="Collapse" actions=[Click,Focus]
+    + r.0.0.0.0.0.5.1 ListItem "Ana Silva: Move the logo up to match the brand sheet." [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.1.0 GenericContainer ""
+    + r.0.0.0.0.0.5.1.0.0 GenericContainer ""
+    + r.0.0.0.0.0.5.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.5.1.0.0.0.0 Label "" value="Ana Silva" actions=[Click]
+    + r.0.0.0.0.0.5.1.0.0.0.0.0 TextRun "" value="Ana Silva"
+    + r.0.0.0.0.0.5.1.0.0.0.1 Label "" value="Oct 2, 2026" actions=[Click]
+    + r.0.0.0.0.0.5.1.0.0.0.1.0 TextRun "" value="Oct 2, 2026"
+    + r.0.0.0.0.0.5.1.0.0.1 GenericContainer ""
+    + r.0.0.0.0.0.5.1.0.0.1.0 Label "" value="Accepted" description="Accepted"
+    + r.0.0.0.0.0.5.1.0.1 Label "" value="Move the logo up to match the brand sheet." actions=[Click]
+    + r.0.0.0.0.0.5.1.0.1.0 TextRun "" value="Move the logo up to match the brand sheet."
+    + r.0.0.0.0.0.5.2 ListItem "Bo Lindqvist: Is this figure final? The caption still says 2024." [selected] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.2.0 GenericContainer ""
+    + r.0.0.0.0.0.5.2.0.0 GenericContainer ""
+    + r.0.0.0.0.0.5.2.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.5.2.0.0.0.0 Label "" value="Bo Lindqvist" actions=[Click]
+    + r.0.0.0.0.0.5.2.0.0.0.0.0 TextRun "" value="Bo Lindqvist"
+    + r.0.0.0.0.0.5.2.0.0.0.1 Label "" value="Oct 3, 2026" actions=[Click]
+    + r.0.0.0.0.0.5.2.0.0.0.1.0 TextRun "" value="Oct 3, 2026"
+    + r.0.0.0.0.0.5.2.0.0.1 GenericContainer ""
+    + r.0.0.0.0.0.5.2.0.0.1.0 Button "More" description="More" [collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.2.0.0.1.1 Button "Mark with checkmark" description="Mark with checkmark" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.2.0.1 Label "" value="Is this figure final? The caption still says 2024." actions=[Click]
+    + r.0.0.0.0.0.5.2.0.1.0 TextRun "" value="Is this figure final? The caption still says 2024."
+    + r.0.0.0.0.0.5.2.0.2 MultilineTextInput "Add a reply" value="" placeholder="Add a reply" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.5.2.0.2.0 TextRun "" value=""
+    + r.0.0.0.0.0.5.2.0.3 Button "Post" [disabled] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.5.0.1 Label "" -> r Window ""
+drive r.0.0.0.0.0.5.0.2.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.5.1 ListItem "Ana Silva: Move the logo up to match the brand sheet."
+  click: node has no finite bounds
+  Space:
+    - r.0.0.0.0.0.5.1 ListItem "Ana Silva: Move the logo up to match the brand sheet." [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.1 ListItem "Ana Silva: Move the logo up to match the brand sheet." [selected] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.1.0.0.1.0 Button "More" description="More" [collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.1.0.0.1.1 Button "Mark with checkmark" description="Mark with checkmark" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.2 ListItem "Bo Lindqvist: Is this figure final? The caption still says 2024." [selected] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.1.0.2 MultilineTextInput "Add a reply" value="" placeholder="Add a reply" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.5.1.0.2.0 TextRun "" value=""
+    + r.0.0.0.0.0.5.1.0.3 Button "Post" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.2 ListItem "Bo Lindqvist: Is this figure final? The caption still says 2024." [unselected] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.2.0.0.1.0 Button "More" description="More" [collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.2.0.0.1.1 Button "Mark with checkmark" description="Mark with checkmark" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.2.0.2 MultilineTextInput "Add a reply" value="" placeholder="Add a reply" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.5.2.0.2.0 TextRun "" value=""
+    - r.0.0.0.0.0.5.2.0.3 Button "Post" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.1 Label "" value="Last event: Select(ThreadId(1))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Select(ThreadId(1))"
+  Enter:
+    focus: r.0.0.0.0.0.5.1 ListItem "Ana Silva: Move the logo up to match the brand sheet." -> r.0.0.0.0.0.5.1.0.2 MultilineTextInput "Add a reply"
+  ArrowDown:
+    focus: r.0.0.0.0.0.5.1 ListItem "Ana Silva: Move the logo up to match the brand sheet." -> r.0.0.0.0.0.5.2 ListItem "Bo Lindqvist: Is this figure final? The caption still says 2024."
+    - r.0.0.0.0.0.5.1 ListItem "Ana Silva: Move the logo up to match the brand sheet." [selected] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.1 ListItem "Ana Silva: Move the logo up to match the brand sheet." [unselected] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.1.0.0.1.0 Button "More" description="More" [collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.1.0.0.1.1 Button "Mark with checkmark" description="Mark with checkmark" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.1.0.2 MultilineTextInput "Add a reply" value="" placeholder="Add a reply" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.5.1.0.2.0 TextRun "" value=""
+    - r.0.0.0.0.0.5.1.0.3 Button "Post" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.2 ListItem "Bo Lindqvist: Is this figure final? The caption still says 2024." [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.2 ListItem "Bo Lindqvist: Is this figure final? The caption still says 2024." [selected] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.2.0.0.1.0 Button "More" description="More" [collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.2.0.0.1.1 Button "Mark with checkmark" description="Mark with checkmark" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.2.0.2 MultilineTextInput "Add a reply" value="" placeholder="Add a reply" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.5.2.0.2.0 TextRun "" value=""
+    + r.0.0.0.0.0.5.2.0.3 Button "Post" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Select(ThreadId(1))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Select(ThreadId(1))"
+    + r.0.0.0.0.1 Label "" value="Last event: Select(ThreadId(2))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Select(ThreadId(2))"
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.5.1 ListItem "Ana Silva: Move the logo up to match the brand sheet." -> r Window ""
+drive r.0.0.0.0.0.5.1.0.0.0.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.5.1.0.0.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.5.1.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.5.2 ListItem "Bo Lindqvist: Is this figure final? The caption still says 2024."
+  click: node has no finite bounds
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.5.2 ListItem "Bo Lindqvist: Is this figure final? The caption still says 2024." -> r.0.0.0.0.0.5.2.0.2 MultilineTextInput "Add a reply"
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.0.5.2 ListItem "Bo Lindqvist: Is this figure final? The caption still says 2024." -> r.0.0.0.0.0.5.1 ListItem "Ana Silva: Move the logo up to match the brand sheet."
+    - r.0.0.0.0.0.5.1 ListItem "Ana Silva: Move the logo up to match the brand sheet." [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.1 ListItem "Ana Silva: Move the logo up to match the brand sheet." [selected] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.1.0.0.1.0 Button "More" description="More" [collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.1.0.0.1.1 Button "Mark with checkmark" description="Mark with checkmark" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.2 ListItem "Bo Lindqvist: Is this figure final? The caption still says 2024." [selected] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.1.0.2 MultilineTextInput "Add a reply" value="" placeholder="Add a reply" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.5.1.0.2.0 TextRun "" value=""
+    + r.0.0.0.0.0.5.1.0.3 Button "Post" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.2 ListItem "Bo Lindqvist: Is this figure final? The caption still says 2024." [unselected] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.2.0.0.1.0 Button "More" description="More" [collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.2.0.0.1.1 Button "Mark with checkmark" description="Mark with checkmark" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.2.0.2 MultilineTextInput "Add a reply" value="" placeholder="Add a reply" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.5.2.0.2.0 TextRun "" value=""
+    - r.0.0.0.0.0.5.2.0.3 Button "Post" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Select(ThreadId(2))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Select(ThreadId(2))"
+    + r.0.0.0.0.1 Label "" value="Last event: Select(ThreadId(1))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Select(ThreadId(1))"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.5.2 ListItem "Bo Lindqvist: Is this figure final? The caption still says 2024." -> r Window ""
+drive r.0.0.0.0.0.5.2.0.0.0.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.5.2.0.0.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.5.2.0.0.1.0 Button "More"
+  click:
+    - r.0.0.0.0.0.5.1.0.0.1.0 Button "More" description="More" [collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.1.0.0.1.0 Button "More" description="More" [expanded popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.1.0.0.1.0.0 Menu ""
+    + r.0.0.0.0.0.5.1.0.0.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.5.1.0.0.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.5.1.0.0.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.5.1.0.0.1.0.0.0.0.0.0 MenuItem "Edit" actions=[Click]
+    + r.0.0.0.0.0.5.1.0.0.1.0.0.0.0.0.1 MenuItem "Set status" [collapsed popup:Menu] actions=[Click]
+    + r.0.0.0.0.0.5.1.0.0.1.0.0.0.0.0.2 MenuItem "Delete" actions=[Click]
+  Space: no change
+  Enter: no change
+  Escape:
+    - r.0.0.0.0.0.5.1.0.0.1.0 Button "More" description="More" [expanded popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.1.0.0.1.0.0 Menu ""
+    - r.0.0.0.0.0.5.1.0.0.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.1.0.0.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.1.0.0.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.1.0.0.1.0.0.0.0.0.0 MenuItem "Edit" actions=[Click]
+    - r.0.0.0.0.0.5.1.0.0.1.0.0.0.0.0.1 MenuItem "Set status" [collapsed popup:Menu] actions=[Click]
+    - r.0.0.0.0.0.5.1.0.0.1.0.0.0.0.0.2 MenuItem "Delete" actions=[Click]
+    + r.0.0.0.0.0.5.1.0.0.1.0 Button "More" description="More" [collapsed popup:Menu] actions=[Click,Focus]
+drive r.0.0.0.0.0.5.2.0.0.1.1 Button "Mark with checkmark"
+  click:
+    focus: r.0.0.0.0.0.5.1.0.0.1.0 Button "More" -> r Window ""
+    - r.0.0.0.0.0.5.1.0.0.1.1 Button "Mark with checkmark" description="Mark with checkmark" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.1.0.0.1.1 Button "Remove checkmark" description="Remove checkmark" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Select(ThreadId(1))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Select(ThreadId(1))"
+    + r.0.0.0.0.1 Label "" value="Last event: Mark { thread: ThreadId(1), marked: true }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Mark { thread: ThreadId(1), marked: true }"
+  Space: node gone
+  Enter: node gone
+  Escape: node gone
+drive r.0.0.0.0.0.5.2.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.5.2.0.2 MultilineTextInput "Add a reply"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.5.1.0.2 MultilineTextInput "Add a reply"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.0.5.1.0.2 MultilineTextInput "Add a reply" value="" placeholder="Add a reply" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.5.1.0.2 MultilineTextInput "Add a reply" value="\n" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.5.1.0.2.0 TextRun "" value="\n"
+  Escape:
+    focus: r.0.0.0.0.0.5.1.0.2 MultilineTextInput "Add a reply" -> r Window ""
+    - r.0.0.0.0.0.5.1.0.2 MultilineTextInput "Add a reply" value="\n" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.5.1.0.2.0 TextRun "" value="\n"
+    + r.0.0.0.0.0.5.1.0.2 MultilineTextInput "Add a reply" value="" placeholder="Add a reply" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+drive r.0.0.0.0.0.5.3.0 Button "Collapse"
+  click:
+    - r.0.0.0.0.0.5.0.0 Button "Collapse" description="Collapse" actions=[Click,Focus]
+    + r.0.0.0.0.0.5.0.0 Button "Expand" description="Expand" actions=[Click,Focus]
+    - r.0.0.0.0.0.5.1 ListItem "Ana Silva: Move the logo up to match the brand sheet." [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.1.0 GenericContainer ""
+    - r.0.0.0.0.0.5.1.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.1.0.0.0.0 Label "" value="Ana Silva" actions=[Click]
+    - r.0.0.0.0.0.5.1.0.0.0.0.0 TextRun "" value="Ana Silva"
+    - r.0.0.0.0.0.5.1.0.0.0.1 Label "" value="Oct 2, 2026" actions=[Click]
+    - r.0.0.0.0.0.5.1.0.0.0.1.0 TextRun "" value="Oct 2, 2026"
+    - r.0.0.0.0.0.5.1.0.0.1 GenericContainer ""
+    - r.0.0.0.0.0.5.1.0.0.1.0 Button "More" description="More" [collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.1.0.0.1.1 Button "Remove checkmark" description="Remove checkmark" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.1.0.0.1.2 Label "" value="Accepted" description="Accepted"
+    - r.0.0.0.0.0.5.1.0.1 Label "" value="Move the logo up to match the brand sheet." actions=[Click]
+    - r.0.0.0.0.0.5.1.0.1.0 TextRun "" value="Move the logo up to match the brand sheet."
+    - r.0.0.0.0.0.5.1.0.2 MultilineTextInput "Add a reply" value="" placeholder="Add a reply" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.5.1.0.2.0 TextRun "" value=""
+    - r.0.0.0.0.0.5.1.0.3 Button "Post" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.2 ListItem "Bo Lindqvist: Is this figure final? The caption still says 2024." [unselected] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.2.0 GenericContainer ""
+    - r.0.0.0.0.0.5.2.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.2.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.2.0.0.0.0 Label "" value="Bo Lindqvist" actions=[Click]
+    - r.0.0.0.0.0.5.2.0.0.0.0.0 TextRun "" value="Bo Lindqvist"
+    - r.0.0.0.0.0.5.2.0.0.0.1 Label "" value="Oct 3, 2026" actions=[Click]
+    - r.0.0.0.0.0.5.2.0.0.0.1.0 TextRun "" value="Oct 3, 2026"
+    - r.0.0.0.0.0.5.2.0.0.1 GenericContainer ""
+    - r.0.0.0.0.0.5.2.0.1 Label "" value="Is this figure final? The caption still says 2024." actions=[Click]
+    - r.0.0.0.0.0.5.2.0.1.0 TextRun "" value="Is this figure final? The caption still says 2024."
+  Space: node gone
+  Enter: node gone
+  Escape: node gone
+drive r.0.0.0.0.0.5.3.1 Label ""
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape: no change
+drive r.0.0.0.0.0.5.3.2.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.5.4 ListItem "Ana Silva: Check the margin on this side."
+  all steps: node gone
+drive r.0.0.0.0.0.5.4.0.0.0.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.5.4.0.0.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.5.4.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.5.5 ListItem "Bo Lindqvist: Approved wording from legal."
+  all steps: node gone
+drive r.0.0.0.0.0.5.5.0.0.0.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.5.5.0.0.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.5.5.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.5.6.0 Button "Collapse"
+  all steps: node gone
+drive r.0.0.0.0.0.5.6.1 Label ""
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape: no change
+drive r.0.0.0.0.0.5.6.2.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.5.7 ListItem "Bo Lindqvist: Can we shorten this paragraph?"
+  all steps: node gone
+drive r.0.0.0.0.0.5.7.0.0.0.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.5.7.0.0.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.5.7.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.5.7.0.2.0.0.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.5.7.0.2.0.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.5.7.0.2.0.0.2.0 Button "More"
+  all steps: node gone
+drive r.0.0.0.0.0.5.7.0.2.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.5.7.0.3.0.0.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.5.7.0.3.0.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.5.7.0.3.0.0.2.0 Button "More"
+  all steps: node gone
+drive r.0.0.0.0.0.5.7.0.3.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.5.8 ListItem "Ana Silva: Typo in the heading."
+  all steps: node gone
+drive r.0.0.0.0.0.5.8.0.0.0.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.5.8.0.0.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.5.8.0.1 Label ""
+  click: no change
+  Escape: no change

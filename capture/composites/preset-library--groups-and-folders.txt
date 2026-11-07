@@ -1,0 +1,585 @@
+story composites/preset-library/groups-and-folders
+args
+  height = Number { value: 260.0, min: 120.0, max: 400.0 }
+  drag groups = Bool(true)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 SearchInput "Search" value="" placeholder="Search" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+              r.0.0.0.0.0.0.0 TextRun "" value=""
+          r.0.0.0.0.1 Button "Grid View" description="Grid View" [checked] actions=[Click,Focus]
+          r.0.0.0.0.2 Button "List View" description="List View" [unchecked] actions=[Click,Focus]
+          r.0.0.0.0.3 Tree "Preset library" actions=[Focus]
+            r.0.0.0.0.3.0 GenericContainer ""
+              r.0.0.0.0.3.0.0 GenericContainer ""
+                r.0.0.0.0.3.0.0.0 TreeItem "Preset 1" description="Preset 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.3.0.0.1 TreeItem "Preset 2" description="Preset 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.3.0.0.2 GenericContainer ""
+                  r.0.0.0.0.3.0.0.2.0 TreeItem "Warm" value="13 presets" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+                  r.0.0.0.0.3.0.0.2.1 Button "Collapse Warm" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+                  r.0.0.0.0.3.0.0.2.2 GenericContainer ""
+                    r.0.0.0.0.3.0.0.2.2.0 Label "" value="13" actions=[Click]
+                      r.0.0.0.0.3.0.0.2.2.0.0 TextRun "" value="13"
+                r.0.0.0.0.3.0.0.3 TreeItem "Preset 3" description="Preset 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.3.0.0.4 TreeItem "Preset 4" description="Preset 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.3.0.0.5 TreeItem "Preset 5" description="Preset 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.3.0.0.6 GenericContainer ""
+                  r.0.0.0.0.3.0.0.6.0 TreeItem "Pastel" value="5 presets" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+                  r.0.0.0.0.3.0.0.6.1 Button "Collapse Pastel" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+                  r.0.0.0.0.3.0.0.6.2 GenericContainer ""
+                    r.0.0.0.0.3.0.0.6.2.0 Label "" value="5" actions=[Click]
+                      r.0.0.0.0.3.0.0.6.2.0.0 TextRun "" value="5"
+                r.0.0.0.0.3.0.0.7 TreeItem "Preset 6" description="Preset 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.3.0.0.8 TreeItem "Preset 7" description="Preset 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.3.0.0.9 TreeItem "Preset 8" description="Preset 8" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.3.0.0.10 GenericContainer ""
+                  r.0.0.0.0.3.0.0.10.0 TreeItem "Standard" value="2 presets" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+                  r.0.0.0.0.3.0.0.10.1 Button "Collapse Standard" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+                  r.0.0.0.0.3.0.0.10.2 GenericContainer ""
+                    r.0.0.0.0.3.0.0.10.2.0 Label "" value="2" actions=[Click]
+                      r.0.0.0.0.3.0.0.10.2.0.0 TextRun "" value="2"
+                r.0.0.0.0.3.0.0.11 TreeItem "Preset 9" description="Preset 9" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.3.0.0.12 TreeItem "Preset 10" description="Preset 10" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.3.0.0.13 GenericContainer ""
+                  r.0.0.0.0.3.0.0.13.0 TreeItem "Deep" value="5 presets" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+                  r.0.0.0.0.3.0.0.13.1 Button "Collapse Deep" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+                  r.0.0.0.0.3.0.0.13.2 GenericContainer ""
+                    r.0.0.0.0.3.0.0.13.2.0 Label "" value="5" actions=[Click]
+                      r.0.0.0.0.3.0.0.13.2.0.0 TextRun "" value="5"
+                r.0.0.0.0.3.0.0.14 TreeItem "Preset 11" description="Preset 11" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.3.0.0.15 TreeItem "Preset 12" description="Preset 12" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.3.0.0.16 TreeItem "Preset 13" description="Preset 13" [unselected] actions=[Click,Focus,ScrollIntoView]
+            r.0.0.0.0.3.1 ScrollBar "" actions=[Click]
+          r.0.0.0.0.4 GenericContainer ""
+            r.0.0.0.0.4.0 GenericContainer ""
+              r.0.0.0.0.4.0.0 GenericContainer ""
+                r.0.0.0.0.4.0.0.0 Button "Delete" description="Delete" [disabled] actions=[Click,Focus]
+              r.0.0.0.0.4.0.1 Button "New" description="New" actions=[Click,Focus]
+              r.0.0.0.0.4.0.2 Button "New Group" description="New Group" actions=[Click,Focus]
+              r.0.0.0.0.4.0.3 GenericContainer ""
+                r.0.0.0.0.4.0.3.0 Slider "Thumbnail size" number=28 in 16..96 step 0.8 actions=[Focus,Decrement,Increment,SetValue]
+                r.0.0.0.0.4.0.3.1 Label "" value="28 presets" actions=[Click]
+                  r.0.0.0.0.4.0.3.1.0 TextRun "" value="28 presets"
+          r.0.0.0.0.5 Label "" value="Nothing selected." actions=[Click]
+            r.0.0.0.0.5.0 TextRun "" value="Nothing selected."
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0 SearchInput "Search"
+  2: r.0.0.0.0.1 Button "Grid View"
+  3: r.0.0.0.0.2 Button "List View"
+  4: r.0.0.0.0.3.0.0.0 TreeItem "Preset 1"
+  5: r.0.0.0.0.4.0.1 Button "New"
+  6: r.0.0.0.0.4.0.2 Button "New Group"
+  7: r.0.0.0.0.4.0.3.0 Slider "Thumbnail size"
+  8: r.0.0.0.0.0.0 SearchInput "Search"
+  cycle after 7 nodes
+drive: 35 actionable nodes
+drive r.0.0.0.0.0.0 SearchInput "Search"
+  click: no change
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0 SearchInput "Search" -> r Window ""
+  Escape:
+    focus: r.0.0.0.0.0.0 SearchInput "Search" -> r Window ""
+drive r.0.0.0.0.1 Button "Grid View"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1 Button "Grid View" -> r Window ""
+drive r.0.0.0.0.2 Button "List View"
+  click:
+    - r.0.0.0.0.1 Button "Grid View" description="Grid View" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Button "List View" description="List View" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1 Button "Grid View" description="Grid View" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.2 Button "List View" description="List View" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.0.0 TreeItem "Preset 1" description="Preset 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.1 TreeItem "Preset 2" description="Preset 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.0.0 TreeItem "Preset 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.1.0 TreeItem "Preset 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.2 GenericContainer ""
+    - r.0.0.0.0.3.0.0.3 TreeItem "Preset 3" description="Preset 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.4 TreeItem "Preset 4" description="Preset 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.5 TreeItem "Preset 5" description="Preset 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.3.0 TreeItem "Preset 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.4 GenericContainer ""
+    + r.0.0.0.0.3.0.0.4.0 TreeItem "Preset 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.5 GenericContainer ""
+    + r.0.0.0.0.3.0.0.5.0 TreeItem "Preset 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.6 GenericContainer ""
+    - r.0.0.0.0.3.0.0.7 TreeItem "Preset 6" description="Preset 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.8 TreeItem "Preset 7" description="Preset 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.9 TreeItem "Preset 8" description="Preset 8" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.10.0 TreeItem "Standard" value="2 presets" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.10.1 Button "Collapse Standard" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.3.0.0.10.2 GenericContainer ""
+    - r.0.0.0.0.3.0.0.10.2.0 Label "" value="2" actions=[Click]
+    - r.0.0.0.0.3.0.0.10.2.0.0 TextRun "" value="2"
+    - r.0.0.0.0.3.0.0.11 TreeItem "Preset 9" description="Preset 9" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.12 TreeItem "Preset 10" description="Preset 10" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.7.0 TreeItem "Preset 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.13.0 TreeItem "Deep" value="5 presets" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.13.1 Button "Collapse Deep" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.3.0.0.13.2 GenericContainer ""
+    - r.0.0.0.0.3.0.0.13.2.0 Label "" value="5" actions=[Click]
+    - r.0.0.0.0.3.0.0.13.2.0.0 TextRun "" value="5"
+    - r.0.0.0.0.3.0.0.14 TreeItem "Preset 11" description="Preset 11" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.15 TreeItem "Preset 12" description="Preset 12" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.16 TreeItem "Preset 13" description="Preset 13" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.8.0 TreeItem "Preset 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.2 Button "List View" -> r Window ""
+drive r.0.0.0.0.3 Tree "Preset library"
+  Space:
+    - r.0.0.0.0.3.0.0.0.0 TreeItem "Preset 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.0.0 TreeItem "Preset 1" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.4.0.0.0 Button "Delete" description="Delete" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.4.0.0.0 Button "Delete" description="Delete" actions=[Click,Focus]
+    - r.0.0.0.0.5 Label "" value="Nothing selected." actions=[Click]
+    - r.0.0.0.0.5.0 TextRun "" value="Nothing selected."
+    + r.0.0.0.0.5 Label "" value="Selected: Preset 1" actions=[Click]
+    + r.0.0.0.0.5.0 TextRun "" value="Selected: Preset 1"
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.3.0.0.0.0 TreeItem "Preset 1" -> r.0.0.0.0.3.0.0.1.0 TreeItem "Preset 2"
+  ArrowUp:
+    focus: r.0.0.0.0.3.0.0.1.0 TreeItem "Preset 2" -> r.0.0.0.0.3.0.0.0.0 TreeItem "Preset 1"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.3.0.0.0.0 TreeItem "Preset 1" -> r Window ""
+drive r.0.0.0.0.3.0.0.0 TreeItem "Preset 1"
+  click:
+    focus: r Window "" -> r.0.0.0.0.3.0.0.0.0 TreeItem "Preset 1"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.3.0.0.0.0 TreeItem "Preset 1" -> r.0.0.0.0.3.0.0.1.0 TreeItem "Preset 2"
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.3.0.0.0.0 TreeItem "Preset 1" -> r Window ""
+drive r.0.0.0.0.3.0.0.1 TreeItem "Preset 2"
+  click:
+    focus: r Window "" -> r.0.0.0.0.3.0.0.1.0 TreeItem "Preset 2"
+    - r.0.0.0.0.3.0.0.0.0 TreeItem "Preset 1" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.0.0 TreeItem "Preset 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.1.0 TreeItem "Preset 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.1.0 TreeItem "Preset 2" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.5 Label "" value="Selected: Preset 1" actions=[Click]
+    - r.0.0.0.0.5.0 TextRun "" value="Selected: Preset 1"
+    + r.0.0.0.0.5 Label "" value="Selected: Preset 2" actions=[Click]
+    + r.0.0.0.0.5.0 TextRun "" value="Selected: Preset 2"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.3.0.0.1.0 TreeItem "Preset 2" -> r.0.0.0.0.3.0.0.2.0 TreeItem "Warm"
+  ArrowUp:
+    focus: r.0.0.0.0.3.0.0.1.0 TreeItem "Preset 2" -> r.0.0.0.0.3.0.0.0.0 TreeItem "Preset 1"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.3.0.0.1.0 TreeItem "Preset 2" -> r Window ""
+drive r.0.0.0.0.3.0.0.2.0 TreeItem "Warm"
+  click:
+    focus: r Window "" -> r.0.0.0.0.3.0.0.2.0 TreeItem "Warm"
+    - r.0.0.0.0.3.0.0.2.0 TreeItem "Warm" value="13 presets" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.2.1 Button "Collapse Warm" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.3.0.0.2.0 TreeItem "Warm" value="13 presets" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.2.1 Button "Expand Warm" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.3.0 TreeItem "Preset 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.3.0 TreeItem "Cool" value="13 presets" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.3.1 Button "Collapse Cool" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.3.0.0.3.2 GenericContainer ""
+    + r.0.0.0.0.3.0.0.3.2.0 Label "" value="13" actions=[Click]
+    + r.0.0.0.0.3.0.0.3.2.0.0 TextRun "" value="13"
+    - r.0.0.0.0.3.0.0.4.0 TreeItem "Preset 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.4.0 TreeItem "Preset 16" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.5.0 TreeItem "Preset 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.5.0 TreeItem "Preset 17" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.6.0 TreeItem "Preset 18" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.7 GenericContainer ""
+    - r.0.0.0.0.3.0.0.6.2.0.0 TextRun "" value="5"
+    - r.0.0.0.0.3.0.0.7.0 TreeItem "Preset 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.8 GenericContainer ""
+    - r.0.0.0.0.3.0.0.8.0 TreeItem "Preset 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.8.0 TreeItem "Preset 19" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Space: no change
+  Enter:
+    - r.0.0.0.0.3.0.0.2.0 TreeItem "Warm" value="13 presets" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.2.1 Button "Expand Warm" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.2.2 GenericContainer ""
+    - r.0.0.0.0.3.0.0.2.2.0 Label "" value="13" actions=[Click]
+    - r.0.0.0.0.3.0.0.2.2.0.0 TextRun "" value="13"
+    - r.0.0.0.0.3.0.0.3 GenericContainer ""
+    - r.0.0.0.0.3.0.0.3.0 TreeItem "Cool" value="13 presets" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.3.1 Button "Collapse Cool" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.3.0.0.2.0 TreeItem "Warm" value="13 presets" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.2.1 Button "Collapse Warm" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.3.0.0.4.0 TreeItem "Preset 16" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.3.0 TreeItem "Preset 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.5.0 TreeItem "Preset 17" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.4.0 TreeItem "Preset 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.6.0 TreeItem "Preset 18" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.5.0 TreeItem "Preset 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.6.2.0.0 TextRun "" value="5"
+    - r.0.0.0.0.3.0.0.8.0 TreeItem "Preset 19" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.7.0 TreeItem "Preset 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.8 GenericContainer ""
+    + r.0.0.0.0.3.0.0.8.0 TreeItem "Preset 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowDown:
+    focus: r.0.0.0.0.3.0.0.2.0 TreeItem "Warm" -> r.0.0.0.0.3.0.0.3.0 TreeItem "Preset 3"
+  ArrowUp:
+    focus: r.0.0.0.0.3.0.0.2.0 TreeItem "Warm" -> r.0.0.0.0.3.0.0.1.0 TreeItem "Preset 2"
+  ArrowLeft:
+    - r.0.0.0.0.3.0.0.2.0 TreeItem "Warm" value="13 presets" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.2.1 Button "Collapse Warm" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.3.0.0.2.0 TreeItem "Warm" value="13 presets" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.2.1 Button "Expand Warm" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.3.0 TreeItem "Preset 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.3.0 TreeItem "Cool" value="13 presets" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.3.1 Button "Collapse Cool" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.3.0.0.3.2 GenericContainer ""
+    + r.0.0.0.0.3.0.0.3.2.0 Label "" value="13" actions=[Click]
+    + r.0.0.0.0.3.0.0.3.2.0.0 TextRun "" value="13"
+    - r.0.0.0.0.3.0.0.4.0 TreeItem "Preset 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.4.0 TreeItem "Preset 16" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.5.0 TreeItem "Preset 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.5.0 TreeItem "Preset 17" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.6.0 TreeItem "Preset 18" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.7 GenericContainer ""
+    - r.0.0.0.0.3.0.0.6.2.0.0 TextRun "" value="5"
+    - r.0.0.0.0.3.0.0.7.0 TreeItem "Preset 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.8 GenericContainer ""
+    - r.0.0.0.0.3.0.0.8.0 TreeItem "Preset 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.8.0 TreeItem "Preset 19" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowRight:
+    - r.0.0.0.0.3.0.0.2.0 TreeItem "Warm" value="13 presets" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.2.1 Button "Expand Warm" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.2.2 GenericContainer ""
+    - r.0.0.0.0.3.0.0.2.2.0 Label "" value="13" actions=[Click]
+    - r.0.0.0.0.3.0.0.2.2.0.0 TextRun "" value="13"
+    - r.0.0.0.0.3.0.0.3 GenericContainer ""
+    - r.0.0.0.0.3.0.0.3.0 TreeItem "Cool" value="13 presets" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.3.1 Button "Collapse Cool" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.3.0.0.2.0 TreeItem "Warm" value="13 presets" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.2.1 Button "Collapse Warm" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.3.0.0.4.0 TreeItem "Preset 16" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.3.0 TreeItem "Preset 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.5.0 TreeItem "Preset 17" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.4.0 TreeItem "Preset 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.6.0 TreeItem "Preset 18" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.5.0 TreeItem "Preset 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.6.2.0.0 TextRun "" value="5"
+    - r.0.0.0.0.3.0.0.8.0 TreeItem "Preset 19" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.7.0 TreeItem "Preset 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.8 GenericContainer ""
+    + r.0.0.0.0.3.0.0.8.0 TreeItem "Preset 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape:
+    focus: r.0.0.0.0.3.0.0.2.0 TreeItem "Warm" -> r Window ""
+drive r.0.0.0.0.3.0.0.2.1 Button "Collapse Warm"
+  click:
+    focus: r Window "" -> r.0.0.0.0.3.0.0.2.0 TreeItem "Warm"
+    - r.0.0.0.0.3.0.0.2.0 TreeItem "Warm" value="13 presets" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.2.1 Button "Collapse Warm" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.3.0.0.2.0 TreeItem "Warm" value="13 presets" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.2.1 Button "Expand Warm" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.3.0 TreeItem "Preset 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.3.0 TreeItem "Cool" value="13 presets" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.3.1 Button "Collapse Cool" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.3.0.0.3.2 GenericContainer ""
+    + r.0.0.0.0.3.0.0.3.2.0 Label "" value="13" actions=[Click]
+    + r.0.0.0.0.3.0.0.3.2.0.0 TextRun "" value="13"
+    - r.0.0.0.0.3.0.0.4.0 TreeItem "Preset 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.4.0 TreeItem "Preset 16" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.5.0 TreeItem "Preset 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.5.0 TreeItem "Preset 17" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.6.0 TreeItem "Preset 18" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.7 GenericContainer ""
+    - r.0.0.0.0.3.0.0.6.2.0.0 TextRun "" value="5"
+    - r.0.0.0.0.3.0.0.7.0 TreeItem "Preset 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.8 GenericContainer ""
+    - r.0.0.0.0.3.0.0.8.0 TreeItem "Preset 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.8.0 TreeItem "Preset 19" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape: node gone
+drive r.0.0.0.0.3.0.0.2.2.0 Label ""
+  click:
+    focus: r.0.0.0.0.3.0.0.2.0 TreeItem "Warm" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.3.0.0.3 TreeItem "Preset 3"
+  all steps: node gone
+drive r.0.0.0.0.3.0.0.4 TreeItem "Preset 4"
+  all steps: node gone
+drive r.0.0.0.0.3.0.0.5 TreeItem "Preset 5"
+  all steps: node gone
+drive r.0.0.0.0.3.0.0.6.0 TreeItem "Pastel"
+  click: no change
+  Space:
+    + r.0.0.0.0.3.0.0.7.2.0.0 TextRun "" value="5"
+  Enter:
+    - r.0.0.0.0.3.0.0.7.0 TreeItem "Pastel" value="5 presets" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.7.1 Button "Collapse Pastel" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.3.0.0.7.0 TreeItem "Pastel" value="5 presets" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.7.1 Button "Expand Pastel" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.8.0 TreeItem "Preset 19" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.8.0 TreeItem "Deep" value="5 presets" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.8.1 Button "Collapse Deep" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.3.0.0.8.2 GenericContainer ""
+    + r.0.0.0.0.3.0.0.8.2.0 Label "" value="5" actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.3.0.0.7.0 TreeItem "Pastel" -> r.0.0.0.0.3.0.0.8.0 TreeItem "Deep"
+    + r.0.0.0.0.3.0.0.8.2.0.0 TextRun "" value="5"
+    + r.0.0.0.0.3.0.0.9 GenericContainer ""
+    + r.0.0.0.0.3.0.0.9.0 TreeItem "Preset 24" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.3.0.0.7.0 TreeItem "Pastel" -> r.0.0.0.0.3.0.0.6.0 TreeItem "Preset 18"
+  ArrowLeft:
+    focus: r.0.0.0.0.3.0.0.7.0 TreeItem "Pastel" -> r.0.0.0.0.3.0.0.3.0 TreeItem "Cool"
+  ArrowRight:
+    - r.0.0.0.0.3.0.0.7.0 TreeItem "Pastel" value="5 presets" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.7.1 Button "Expand Pastel" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.7.0 TreeItem "Pastel" value="5 presets" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.7.1 Button "Collapse Pastel" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.3.0.0.8.0 TreeItem "Deep" value="5 presets" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.8.1 Button "Collapse Deep" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.3.0.0.8.2 GenericContainer ""
+    - r.0.0.0.0.3.0.0.8.2.0 Label "" value="5" actions=[Click]
+    - r.0.0.0.0.3.0.0.8.2.0.0 TextRun "" value="5"
+    + r.0.0.0.0.3.0.0.8.0 TreeItem "Preset 19" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.9.0 TreeItem "Preset 24" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.9.0 TreeItem "Preset 20" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape:
+    focus: r.0.0.0.0.3.0.0.7.0 TreeItem "Pastel" -> r Window ""
+drive r.0.0.0.0.3.0.0.6.1 Button "Collapse Pastel"
+  click:
+    focus: r Window "" -> r.0.0.0.0.3.0.0.7.0 TreeItem "Pastel"
+    - r.0.0.0.0.3.0.0.7.0 TreeItem "Pastel" value="5 presets" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.7.1 Button "Collapse Pastel" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.3.0.0.7.0 TreeItem "Pastel" value="5 presets" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.7.1 Button "Expand Pastel" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.8.0 TreeItem "Preset 19" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.8.0 TreeItem "Deep" value="5 presets" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.8.1 Button "Collapse Deep" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.3.0.0.8.2 GenericContainer ""
+    + r.0.0.0.0.3.0.0.8.2.0 Label "" value="5" actions=[Click]
+    + r.0.0.0.0.3.0.0.8.2.0.0 TextRun "" value="5"
+    - r.0.0.0.0.3.0.0.9.0 TreeItem "Preset 20" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.9.0 TreeItem "Preset 24" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape: node gone
+drive r.0.0.0.0.3.0.0.6.2.0 Label ""
+  click:
+    focus: r.0.0.0.0.3.0.0.7.0 TreeItem "Pastel" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.3.0.0.7 TreeItem "Preset 6"
+  all steps: node gone
+drive r.0.0.0.0.3.0.0.8 TreeItem "Preset 7"
+  all steps: node gone
+drive r.0.0.0.0.3.0.0.9 TreeItem "Preset 8"
+  all steps: node gone
+drive r.0.0.0.0.3.0.0.10.0 TreeItem "Standard"
+  all steps: node gone
+drive r.0.0.0.0.3.0.0.10.1 Button "Collapse Standard"
+  all steps: node gone
+drive r.0.0.0.0.3.0.0.10.2.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.3.0.0.11 TreeItem "Preset 9"
+  all steps: node gone
+drive r.0.0.0.0.3.0.0.12 TreeItem "Preset 10"
+  all steps: node gone
+drive r.0.0.0.0.3.0.0.13.0 TreeItem "Deep"
+  click:
+    focus: r Window "" -> r.0.0.0.0.3.0.0.8.0 TreeItem "Deep"
+    - r.0.0.0.0.3.0.0.8.0 TreeItem "Deep" value="5 presets" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.8.1 Button "Collapse Deep" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.3.0.0.8.0 TreeItem "Deep" value="5 presets" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.8.1 Button "Expand Deep" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.9 GenericContainer ""
+    - r.0.0.0.0.3.0.0.9.0 TreeItem "Preset 24" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Space: no change
+  Enter:
+    - r.0.0.0.0.3.0.0.8.0 TreeItem "Deep" value="5 presets" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.8.1 Button "Expand Deep" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.8.0 TreeItem "Deep" value="5 presets" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.8.1 Button "Collapse Deep" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.3.0.0.9 GenericContainer ""
+    + r.0.0.0.0.3.0.0.9.0 TreeItem "Preset 24" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowDown:
+    focus: r.0.0.0.0.3.0.0.8.0 TreeItem "Deep" -> r.0.0.0.0.3.0.0.8.0 TreeItem "Preset 24"
+    - r.0.0.0.0.3.0.0.0.0 TreeItem "Preset 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.9 GenericContainer ""
+    + r.0.0.0.0.3.0.0.9.0 TreeItem "Preset 25" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.3.0.0.7.0 TreeItem "Deep" -> r.0.0.0.0.3.0.0.6.0 TreeItem "Pastel"
+  ArrowLeft:
+    focus: r.0.0.0.0.3.0.0.7.0 TreeItem "Deep" -> r.0.0.0.0.3.0.0.8.0 TreeItem "Deep"
+    + r.0.0.0.0.3.0.0.0.0 TreeItem "Preset 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.1 GenericContainer ""
+    - r.0.0.0.0.3.0.0.7.0 TreeItem "Deep" value="5 presets" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.7.1 Button "Collapse Deep" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.3.0.0.8.0 TreeItem "Deep" value="5 presets" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.8.1 Button "Expand Deep" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.8 GenericContainer ""
+    - r.0.0.0.0.3.0.0.8.0 TreeItem "Preset 24" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.9 GenericContainer ""
+    - r.0.0.0.0.3.0.0.9.0 TreeItem "Preset 25" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowRight:
+    - r.0.0.0.0.3.0.0.8.0 TreeItem "Deep" value="5 presets" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.8.1 Button "Expand Deep" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.8.0 TreeItem "Deep" value="5 presets" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.8.1 Button "Collapse Deep" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.3.0.0.9 GenericContainer ""
+    + r.0.0.0.0.3.0.0.9.0 TreeItem "Preset 24" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape:
+    focus: r.0.0.0.0.3.0.0.8.0 TreeItem "Deep" -> r Window ""
+drive r.0.0.0.0.3.0.0.13.1 Button "Collapse Deep"
+  click:
+    focus: r Window "" -> r.0.0.0.0.3.0.0.8.0 TreeItem "Deep"
+    - r.0.0.0.0.3.0.0.8.0 TreeItem "Deep" value="5 presets" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.8.1 Button "Collapse Deep" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.3.0.0.8.0 TreeItem "Deep" value="5 presets" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.8.1 Button "Expand Deep" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.9 GenericContainer ""
+    - r.0.0.0.0.3.0.0.9.0 TreeItem "Preset 24" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape: node gone
+drive r.0.0.0.0.3.0.0.13.2.0 Label ""
+  click:
+    focus: r.0.0.0.0.3.0.0.8.0 TreeItem "Deep" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.3.0.0.14 TreeItem "Preset 11"
+  all steps: node gone
+drive r.0.0.0.0.3.0.0.15 TreeItem "Preset 12"
+  all steps: node gone
+drive r.0.0.0.0.3.0.0.16 TreeItem "Preset 13"
+  all steps: node gone
+drive r.0.0.0.0.3.1 ScrollBar ""
+  click: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown: no change
+  Home: no change
+  End: no change
+  Escape: no change
+drive r.0.0.0.0.4.0.1 Button "New"
+  click:
+    - r.0.0.0.0.3.0.0.1.0 TreeItem "Preset 2" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.1.0 TreeItem "Preset 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.2.0 TreeItem "Preset 29" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.3 GenericContainer ""
+    - r.0.0.0.0.3.0.0.8.2.0.0 TextRun "" value="5"
+    - r.0.0.0.0.4.0.3.1 Label "" value="28 presets" actions=[Click]
+    - r.0.0.0.0.4.0.3.1.0 TextRun "" value="28 presets"
+    - r.0.0.0.0.5 Label "" value="Selected: Preset 2" actions=[Click]
+    - r.0.0.0.0.5.0 TextRun "" value="Selected: Preset 2"
+    + r.0.0.0.0.4.0.3.1 Label "" value="29 presets" actions=[Click]
+    + r.0.0.0.0.4.0.3.1.0 TextRun "" value="29 presets"
+    + r.0.0.0.0.5 Label "" value="Selected: Preset 29" actions=[Click]
+    + r.0.0.0.0.5.0 TextRun "" value="Selected: Preset 29"
+  Space:
+    - r.0.0.0.0.3.0.0.2.0 TreeItem "Preset 29" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.2.0 TreeItem "Preset 29" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.3.0 TreeItem "Preset 30" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.4 GenericContainer ""
+    - r.0.0.0.0.3.0.0.8.2.0.0 TextRun "" value="5"
+    - r.0.0.0.0.3.0.0.9 GenericContainer ""
+    - r.0.0.0.0.3.0.0.9.0 TreeItem "Deep" value="5 presets" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.9.1 Button "Expand Deep" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.9.2 GenericContainer ""
+    - r.0.0.0.0.3.0.0.9.2.0 Label "" value="5" actions=[Click]
+    - r.0.0.0.0.4.0.3.1 Label "" value="29 presets" actions=[Click]
+    - r.0.0.0.0.4.0.3.1.0 TextRun "" value="29 presets"
+    - r.0.0.0.0.5 Label "" value="Selected: Preset 29" actions=[Click]
+    - r.0.0.0.0.5.0 TextRun "" value="Selected: Preset 29"
+    + r.0.0.0.0.4.0.3.1 Label "" value="30 presets" actions=[Click]
+    + r.0.0.0.0.4.0.3.1.0 TextRun "" value="30 presets"
+    + r.0.0.0.0.5 Label "" value="Selected: Preset 30" actions=[Click]
+    + r.0.0.0.0.5.0 TextRun "" value="Selected: Preset 30"
+  Enter:
+    - r.0.0.0.0.3.0.0.3.0 TreeItem "Preset 30" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.3.0 TreeItem "Preset 30" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.4.0 TreeItem "Preset 31" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.5 GenericContainer ""
+    - r.0.0.0.0.3.0.0.9 GenericContainer ""
+    - r.0.0.0.0.3.0.0.9.0 TreeItem "Pastel" value="5 presets" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.9.1 Button "Expand Pastel" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.9.2 GenericContainer ""
+    - r.0.0.0.0.3.0.0.9.2.0 Label "" value="5" actions=[Click]
+    - r.0.0.0.0.4.0.3.1 Label "" value="30 presets" actions=[Click]
+    - r.0.0.0.0.4.0.3.1.0 TextRun "" value="30 presets"
+    - r.0.0.0.0.5 Label "" value="Selected: Preset 30" actions=[Click]
+    - r.0.0.0.0.5.0 TextRun "" value="Selected: Preset 30"
+    + r.0.0.0.0.4.0.3.1 Label "" value="31 presets" actions=[Click]
+    + r.0.0.0.0.4.0.3.1.0 TextRun "" value="31 presets"
+    + r.0.0.0.0.5 Label "" value="Selected: Preset 31" actions=[Click]
+    + r.0.0.0.0.5.0 TextRun "" value="Selected: Preset 31"
+  Escape:
+    focus: r.0.0.0.0.4.0.1 Button "New" -> r Window ""
+drive r.0.0.0.0.4.0.2 Button "New Group"
+  click:
+    - r.0.0.0.0.3.0.0.4.0 TreeItem "Preset 31" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.4.0 TreeItem "Preset 31" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.5 Label "" value="Selected: Preset 31" actions=[Click]
+    - r.0.0.0.0.5.0 TextRun "" value="Selected: Preset 31"
+    + r.0.0.0.0.5 Label "" value="Selected: Group" actions=[Click]
+    + r.0.0.0.0.5.0 TextRun "" value="Selected: Group"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.4.0.2 Button "New Group" -> r Window ""
+drive r.0.0.0.0.4.0.3.0 Slider "Thumbnail size"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.4.0.3.0 Slider "Thumbnail size" number=28 in 16..96 step 0.8 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.4.0.3.0 Slider "Thumbnail size" number=27.200000762939453 in 16..96 step 0.8 actions=[Focus,Decrement,Increment,SetValue]
+  ArrowRight:
+    - r.0.0.0.0.4.0.3.0 Slider "Thumbnail size" number=27.200000762939453 in 16..96 step 0.8 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.4.0.3.0 Slider "Thumbnail size" number=28 in 16..96 step 0.8 actions=[Focus,Decrement,Increment,SetValue]
+  ArrowUp:
+    - r.0.0.0.0.4.0.3.0 Slider "Thumbnail size" number=28 in 16..96 step 0.8 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.4.0.3.0 Slider "Thumbnail size" number=28.799999237060547 in 16..96 step 0.8 actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.4.0.3.0 Slider "Thumbnail size" number=28.799999237060547 in 16..96 step 0.8 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.4.0.3.0 Slider "Thumbnail size" number=28 in 16..96 step 0.8 actions=[Focus,Decrement,Increment,SetValue]
+  Home:
+    - r.0.0.0.0.4.0.3.0 Slider "Thumbnail size" number=28 in 16..96 step 0.8 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.4.0.3.0 Slider "Thumbnail size" number=16 in 16..96 step 0.8 actions=[Focus,Increment,SetValue]
+  End:
+    - r.0.0.0.0.3.0.0.5 GenericContainer ""
+    - r.0.0.0.0.3.0.0.5.0 TreeItem "Warm" value="13 presets" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.5.1 Button "Expand Warm" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.5.2 GenericContainer ""
+    - r.0.0.0.0.3.0.0.5.2.0 Label "" value="13" actions=[Click]
+    - r.0.0.0.0.3.0.0.5.2.0.0 TextRun "" value="13"
+    - r.0.0.0.0.3.0.0.6 GenericContainer ""
+    - r.0.0.0.0.3.0.0.6.0 TreeItem "Cool" value="13 presets" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.6.1 Button "Collapse Cool" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.3.0.0.6.2 GenericContainer ""
+    - r.0.0.0.0.3.0.0.6.2.0 Label "" value="13" actions=[Click]
+    - r.0.0.0.0.3.0.0.6.2.0.0 TextRun "" value="13"
+    - r.0.0.0.0.3.0.0.7 GenericContainer ""
+    - r.0.0.0.0.3.0.0.7.0 TreeItem "Preset 16" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.8 GenericContainer ""
+    - r.0.0.0.0.3.0.0.8.0 TreeItem "Preset 17" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.9 GenericContainer ""
+    - r.0.0.0.0.3.0.0.9.0 TreeItem "Preset 18" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.4.0.3.0 Slider "Thumbnail size" number=16 in 16..96 step 0.8 actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.4.0.3.0 Slider "Thumbnail size" number=96 in 16..96 step 0.8 actions=[Focus,Decrement,SetValue]
+  Escape:
+    focus: r.0.0.0.0.4.0.3.0 Slider "Thumbnail size" -> r Window ""
+drive r.0.0.0.0.4.0.3.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.5 Label ""
+  click: no change
+  Escape: no change

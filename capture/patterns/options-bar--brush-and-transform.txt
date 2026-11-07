@@ -1,0 +1,221 @@
+story patterns/options-bar/brush-and-transform
+args
+  narrow = Bool(false)
+  session = Bool(true)
+  disabled = Bool(false)
+  two_rows = Bool(false)
+  width = Number { value: 640.0, min: 160.0, max: 1200.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Toolbar "Tool options"
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 GenericContainer ""
+                  r.0.0.0.0.0.0.0.0.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+                      r.0.0.0.0.0.0.0.0.0.0.0 Button "Home" description="Home" [unchecked] actions=[Click,Focus]
+                      r.0.0.0.0.0.0.0.0.0.0.1 Button "Brush" description="Brush" actions=[Click,Focus]
+                      r.0.0.0.0.0.0.0.0.0.0.2 Label "" value="Size:"
+                      r.0.0.0.0.0.0.0.0.0.0.3 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.0.0.3.0 SpinButton "Size" value="30 px" number=30 in 1..5000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                          r.0.0.0.0.0.0.0.0.0.0.3.0.0 TextRun "" value="30"
+                      r.0.0.0.0.0.0.0.0.0.0.4 Label "" value="Opacity:"
+                      r.0.0.0.0.0.0.0.0.0.0.5 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.0.0.5.0 SpinButton "Opacity" value="100%" number=100 in 1..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+                          r.0.0.0.0.0.0.0.0.0.0.5.0.0 TextRun "" value="100"
+                      r.0.0.0.0.0.0.0.0.0.0.6 Label "" value="Mode:"
+                      r.0.0.0.0.0.0.0.0.0.0.7 ComboBox "Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+                      r.0.0.0.0.0.0.0.0.0.0.8 Group ""
+                        r.0.0.0.0.0.0.0.0.0.0.8.0 GenericContainer ""
+                          r.0.0.0.0.0.0.0.0.0.0.8.0.0 CheckBox "Sample all layers" [unchecked] actions=[Click,Focus]
+                          r.0.0.0.0.0.0.0.0.0.0.8.0.1 Label "" value="Samples the visible image" actions=[Click]
+                r.0.0.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+              r.0.0.0.0.0.0.1 GenericContainer ""
+                r.0.0.0.0.0.0.1.0 Button "Cancel transform" description="Cancel transform" shortcut="Escape" actions=[Click,Focus]
+                r.0.0.0.0.0.0.1.1 Button "Commit transform" description="Commit transform" shortcut="Enter" actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0.0.0.0 Button "Home"
+  2: r.0.0.0.0.0.0.0.0.0.0.1 Button "Brush"
+  3: r.0.0.0.0.0.0.0.0.0.0.3.0 SpinButton "Size"
+  4: r.0.0.0.0.0.0.0.0.0.0.5.0 SpinButton "Opacity"
+  5: r.0.0.0.0.0.0.0.0.0.0.7 ComboBox "Mode"
+    + r.0.0.0.0.0.0.0.0.0.0.8.0.1.0 TextRun "" value="Samples the visible image"
+  6: r.0.0.0.0.0.0.0.0.0.0.8.0.0 CheckBox "Sample all layers"
+  7: r.0.0.0.0.0.0.1.0 Button "Cancel transform"
+  8: r.0.0.0.0.0.0.1.1 Button "Commit transform"
+  9: r.0.0.0.0.0.0.0.0.0.0.0 Button "Home"
+  cycle after 8 nodes
+drive: 10 actionable nodes
+drive r.0.0.0.0.0.0.0.0.0.0.0 Button "Home"
+  click:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0 Button "Home" -> r Window ""
+    - r.0.0.0.0.0.0.0.0.0.0.8.0.1.0 TextRun "" value="Samples the visible image"
+  Space:
+    - r.0.0.0.0.0.0.0.0.0.0.0 Button "Home" description="Home" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.0 Button "Home" description="Home" [checked] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.0.0.0.0.0.0.0 Button "Home" description="Home" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.0 Button "Home" description="Home" [unchecked] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0 Button "Home" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.1 Button "Brush"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.1 Button "Brush" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.3.0 SpinButton "Size"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0.3.0 SpinButton "Size"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.0.0.0.0.3.0 SpinButton "Size" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.0.0.0.3.0 SpinButton "Size" value="30 px" number=30 in 1..5000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.3.0.0 TextRun "" value="30"
+    + r.0.0.0.0.0.0.0.0.0.0.3.0 SpinButton "Size" value="31 px" number=31 in 1..5000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.3.0.0 TextRun "" value="31"
+  ArrowDown:
+    - r.0.0.0.0.0.0.0.0.0.0.3.0 SpinButton "Size" value="31 px" number=31 in 1..5000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.3.0.0 TextRun "" value="31"
+    + r.0.0.0.0.0.0.0.0.0.0.3.0 SpinButton "Size" value="30 px" number=30 in 1..5000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.3.0.0 TextRun "" value="30"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.3.0 SpinButton "Size" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.5.0 SpinButton "Opacity"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0.5.0 SpinButton "Opacity"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.0.0.0.0.5.0 SpinButton "Opacity" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown:
+    - r.0.0.0.0.0.0.0.0.0.0.5.0 SpinButton "Opacity" value="100%" number=100 in 1..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.5.0.0 TextRun "" value="100"
+    + r.0.0.0.0.0.0.0.0.0.0.5.0 SpinButton "Opacity" value="99%" number=99 in 1..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.5.0.0 TextRun "" value="99"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.5.0 SpinButton "Opacity" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.7 ComboBox "Mode"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0.0 ListBoxOption "Normal"
+    - r.0.0.0.0.0.0.0.0.0.0.7 ComboBox "Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.7 ComboBox "Mode" value="Normal" controls=[r.0.0.0.0.0.0.0.0.0.0.7.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.7.0 ListBox ""
+    + r.0.0.0.0.0.0.0.0.0.0.7.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.7.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0.1 ListBoxOption "Multiply" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0.2 ListBoxOption "Screen" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0.0 ListBoxOption "Normal" -> r.0.0.0.0.0.0.0.0.0.0.7 ComboBox "Mode"
+    - r.0.0.0.0.0.0.0.0.0.0.7 ComboBox "Mode" value="Normal" controls=[r.0.0.0.0.0.0.0.0.0.0.7.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.7.0 ListBox ""
+    - r.0.0.0.0.0.0.0.0.0.0.7.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.7.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0.1 ListBoxOption "Multiply" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0.2 ListBoxOption "Screen" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.7 ComboBox "Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.0.0.0.0.0.0.7 ComboBox "Mode" -> r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0.0 ListBoxOption "Normal"
+    - r.0.0.0.0.0.0.0.0.0.0.7 ComboBox "Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.7 ComboBox "Mode" value="Normal" controls=[r.0.0.0.0.0.0.0.0.0.0.7.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.7.0 ListBox ""
+    + r.0.0.0.0.0.0.0.0.0.0.7.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.7.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0.1 ListBoxOption "Multiply" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0.2 ListBoxOption "Screen" [unselected] actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0.0 ListBoxOption "Normal" -> r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0.1 ListBoxOption "Multiply"
+    - r.0.0.0.0.0.0.0.0.0.0.7 ComboBox "Mode" value="Normal" controls=[r.0.0.0.0.0.0.0.0.0.0.7.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.7 ComboBox "Mode" value="Multiply" controls=[r.0.0.0.0.0.0.0.0.0.0.7.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0.1 ListBoxOption "Multiply" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0.0 ListBoxOption "Normal" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0.1 ListBoxOption "Multiply" [selected] actions=[Click]
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0.1 ListBoxOption "Multiply" -> r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0.0 ListBoxOption "Normal"
+    - r.0.0.0.0.0.0.0.0.0.0.7 ComboBox "Mode" value="Multiply" controls=[r.0.0.0.0.0.0.0.0.0.0.7.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.7 ComboBox "Mode" value="Normal" controls=[r.0.0.0.0.0.0.0.0.0.0.7.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0.0 ListBoxOption "Normal" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0.1 ListBoxOption "Multiply" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0.1 ListBoxOption "Multiply" [unselected] actions=[Click]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0.0 ListBoxOption "Normal" -> r.0.0.0.0.0.0.0.0.0.0.7 ComboBox "Mode"
+    - r.0.0.0.0.0.0.0.0.0.0.7 ComboBox "Mode" value="Normal" controls=[r.0.0.0.0.0.0.0.0.0.0.7.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.7.0 ListBox ""
+    - r.0.0.0.0.0.0.0.0.0.0.7.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.7.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0.1 ListBoxOption "Multiply" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.7.0.0.0.0.0.2 ListBoxOption "Screen" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.7 ComboBox "Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+drive r.0.0.0.0.0.0.0.0.0.0.8.0.0 CheckBox "Sample all layers"
+  click:
+    focus: r.0.0.0.0.0.0.0.0.0.0.7 ComboBox "Mode" -> r Window ""
+    - r.0.0.0.0.0.0.0.0.0.0.8.0.0 CheckBox "Sample all layers" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.8.0.0 CheckBox "Sample all layers" [checked] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.0.0.0.0.0.0.8.0.0 CheckBox "Sample all layers" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.8.0.0 CheckBox "Sample all layers" [unchecked] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.0.0.0.0.0.0.8.0.0 CheckBox "Sample all layers" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.8.0.0 CheckBox "Sample all layers" [checked] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.8.0.0 CheckBox "Sample all layers" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.8.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.1 ScrollBar ""
+  click: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown: no change
+  Home: no change
+  End: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.1.0 Button "Cancel transform"
+  click:
+    + r.0.0.0.0.0.1 Label "" value="Cancelled" actions=[Click]
+    + r.0.0.0.0.0.1.0 TextRun "" value="Cancelled"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.1.0 Button "Cancel transform" -> r Window ""
+drive r.0.0.0.0.0.0.1.1 Button "Commit transform"
+  click:
+    - r.0.0.0.0.0.1 Label "" value="Cancelled" actions=[Click]
+    - r.0.0.0.0.0.1.0 TextRun "" value="Cancelled"
+    + r.0.0.0.0.0.1 Label "" value="Committed" actions=[Click]
+    + r.0.0.0.0.0.1.0 TextRun "" value="Committed"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.1.1 Button "Commit transform" -> r Window ""

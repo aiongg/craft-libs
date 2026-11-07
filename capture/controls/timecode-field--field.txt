@@ -1,0 +1,140 @@
+story controls/timecode-field/field
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 SpinButton "Timecode" value="00;00;04;29" actions=[Click,Focus]
+          r.0.0.0.0.1 SpinButton "Timecode" value="00;01;04;15" actions=[Click,Focus]
+          r.0.0.0.0.2 GenericContainer ""
+            r.0.0.0.0.2.0 TextInput "Timecode" value="00;00;05;29" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+              r.0.0.0.0.2.0.0 TextRun "" value="00;00;05;29"
+tab
+  start: r.0.0.0.0.2.0 TextInput "Timecode"
+  1: r.0.0.0.0.0 SpinButton "Timecode"
+    - r.0.0.0.0.2 GenericContainer ""
+    - r.0.0.0.0.2.0 TextInput "Timecode" value="00;00;05;29" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.2.0.0 TextRun "" value="00;00;05;29"
+    + r.0.0.0.0.2 SpinButton "Timecode" value="00;00;05;29" actions=[Click,Focus]
+  2: r.0.0.0.0.1 SpinButton "Timecode"
+  3: r.0.0.0.0.2 SpinButton "Timecode"
+  4: r.0.0.0.0.0 SpinButton "Timecode"
+  cycle after 3 nodes
+drive: 3 actionable nodes
+drive r.0.0.0.0.0 SpinButton "Timecode"
+  click:
+    focus: r.0.0.0.0.0 SpinButton "Timecode" -> r.0.0.0.0.0.0 TextInput "Timecode"
+    - r.0.0.0.0.0 SpinButton "Timecode" value="00;00;04;29" actions=[Click,Focus]
+    + r.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0 TextInput "Timecode" value="00;00;04;29" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0 TextRun "" value="00;00;04;29"
+  Space:
+    focus: r.0.0.0.0.1 SpinButton "Timecode" -> r.0.0.0.0.1.0 TextInput "Timecode"
+    - r.0.0.0.0.1 SpinButton "Timecode" value="00;01;04;15" actions=[Click,Focus]
+    + r.0.0.0.0.1 GenericContainer ""
+    + r.0.0.0.0.1.0 TextInput "Timecode" value="00;01;04;15" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.0.0 TextRun "" value="00;01;04;15"
+  Enter:
+    focus: r.0.0.0.0.0 SpinButton "Timecode" -> r.0.0.0.0.0.0 TextInput "Timecode"
+    - r.0.0.0.0.0 SpinButton "Timecode" value="00;00;04;29" actions=[Click,Focus]
+    + r.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0 TextInput "Timecode" value="00;00;04;29" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0 TextRun "" value="00;00;04;29"
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0 SpinButton "Timecode" value="00;00;04;29" actions=[Click,Focus]
+    + r.0.0.0.0.0 SpinButton "Timecode" value="00;00;05;00" actions=[Click,Focus]
+    + r.0.0.0.0.3 Label "" value="Last event: Set { value: Tick(1271350080000), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.3.0 TextRun "" value="Last event: Set { value: Tick(1271350080000), modifiers: Modifiers::NONE }"
+  ArrowDown:
+    - r.0.0.0.0.0 SpinButton "Timecode" value="00;00;05;00" actions=[Click,Focus]
+    + r.0.0.0.0.0 SpinButton "Timecode" value="00;00;04;29" actions=[Click,Focus]
+    - r.0.0.0.0.3 Label "" value="Last event: Set { value: Tick(1271350080000), modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.3.0 TextRun "" value="Last event: Set { value: Tick(1271350080000), modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.3 Label "" value="Last event: Set { value: Tick(1262874412800), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.3.0 TextRun "" value="Last event: Set { value: Tick(1262874412800), modifiers: Modifiers::NONE }"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0 SpinButton "Timecode" -> r Window ""
+drive r.0.0.0.0.1 SpinButton "Timecode"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0 TextInput "Timecode"
+    - r.0.0.0.0.1 SpinButton "Timecode" value="00;01;04;15" actions=[Click,Focus]
+    + r.0.0.0.0.1 GenericContainer ""
+    + r.0.0.0.0.1.0 TextInput "Timecode" value="00;01;04;15" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.0.0 TextRun "" value="00;01;04;15"
+  Space:
+    focus: r.0.0.0.0.0 SpinButton "Timecode" -> r.0.0.0.0.0.0 TextInput "Timecode"
+    - r.0.0.0.0.0 SpinButton "Timecode" value="00;00;04;29" actions=[Click,Focus]
+    + r.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0 TextInput "Timecode" value="00;00;04;29" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0 TextRun "" value="00;00;04;29"
+  Enter:
+    focus: r.0.0.0.0.1 SpinButton "Timecode" -> r.0.0.0.0.1.0 TextInput "Timecode"
+    - r.0.0.0.0.1 SpinButton "Timecode" value="00;01;04;15" actions=[Click,Focus]
+    + r.0.0.0.0.1 GenericContainer ""
+    + r.0.0.0.0.1.0 TextInput "Timecode" value="00;01;04;15" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.0.0 TextRun "" value="00;01;04;15"
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.1 SpinButton "Timecode" value="00;01;04;15" actions=[Click,Focus]
+    + r.0.0.0.0.1 SpinButton "Timecode" value="00;01;04;16" actions=[Click,Focus]
+    - r.0.0.0.0.3 Label "" value="Last event: Set { value: Tick(1262874412800), modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.3.0 TextRun "" value="Last event: Set { value: Tick(1262874412800), modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.3 Label "" value="Last event: Set { value: Tick(16391940364800), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.3.0 TextRun "" value="Last event: Set { value: Tick(16391940364800), modifiers: Modifiers::NONE }"
+  ArrowDown:
+    - r.0.0.0.0.1 SpinButton "Timecode" value="00;01;04;16" actions=[Click,Focus]
+    + r.0.0.0.0.1 SpinButton "Timecode" value="00;01;04;15" actions=[Click,Focus]
+    - r.0.0.0.0.3 Label "" value="Last event: Set { value: Tick(16391940364800), modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.3.0 TextRun "" value="Last event: Set { value: Tick(16391940364800), modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.3 Label "" value="Last event: Set { value: Tick(16383464697600), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.3.0 TextRun "" value="Last event: Set { value: Tick(16383464697600), modifiers: Modifiers::NONE }"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.1 SpinButton "Timecode" -> r Window ""
+drive r.0.0.0.0.2 SpinButton "Timecode"
+  click:
+    focus: r Window "" -> r.0.0.0.0.2.0 TextInput "Timecode"
+    - r.0.0.0.0.2 SpinButton "Timecode" value="00;00;05;29" actions=[Click,Focus]
+    + r.0.0.0.0.2 GenericContainer ""
+    + r.0.0.0.0.2.0 TextInput "Timecode" value="00;00;05;29" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0 TextRun "" value="00;00;05;29"
+  Space:
+    focus: r.0.0.0.0.0 SpinButton "Timecode" -> r.0.0.0.0.0.0 TextInput "Timecode"
+    - r.0.0.0.0.0 SpinButton "Timecode" value="00;00;04;29" actions=[Click,Focus]
+    + r.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0 TextInput "Timecode" value="00;00;04;29" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0 TextRun "" value="00;00;04;29"
+  Enter:
+    focus: r.0.0.0.0.2 SpinButton "Timecode" -> r.0.0.0.0.2.0 TextInput "Timecode"
+    - r.0.0.0.0.2 SpinButton "Timecode" value="00;00;05;29" actions=[Click,Focus]
+    + r.0.0.0.0.2 GenericContainer ""
+    + r.0.0.0.0.2.0 TextInput "Timecode" value="00;00;05;29" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.0.0 TextRun "" value="00;00;05;29"
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.2 SpinButton "Timecode" value="00;00;05;29" actions=[Click,Focus]
+    - r.0.0.0.0.3 Label "" value="Last event: Set { value: Tick(16383464697600), modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.3.0 TextRun "" value="Last event: Set { value: Tick(16383464697600), modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.2 SpinButton "Timecode" value="00;00;06;00" actions=[Click,Focus]
+    + r.0.0.0.0.3 Label "" value="Last event: Set { value: Tick(1525620096000), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.3.0 TextRun "" value="Last event: Set { value: Tick(1525620096000), modifiers: Modifiers::NONE }"
+  ArrowDown:
+    - r.0.0.0.0.2 SpinButton "Timecode" value="00;00;06;00" actions=[Click,Focus]
+    - r.0.0.0.0.3 Label "" value="Last event: Set { value: Tick(1525620096000), modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.3.0 TextRun "" value="Last event: Set { value: Tick(1525620096000), modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.2 SpinButton "Timecode" value="00;00;05;29" actions=[Click,Focus]
+    + r.0.0.0.0.3 Label "" value="Last event: Set { value: Tick(1517144428800), modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.3.0 TextRun "" value="Last event: Set { value: Tick(1517144428800), modifiers: Modifiers::NONE }"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.2 SpinButton "Timecode" -> r Window ""

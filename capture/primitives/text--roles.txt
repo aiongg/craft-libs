@@ -1,0 +1,88 @@
+story primitives/text/roles
+args
+  content = Choice { options: ["normal", "muted", "faint", "disabled", "accent", "on_accent", "on_status", "on_selected"], index: 0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 Label "" value="caption"
+            r.0.0.0.0.0.1 GenericContainer ""
+              r.0.0.0.0.0.1.0 GenericContainer ""
+                r.0.0.0.0.0.1.0.0 Label "caption" value="The quick brown fox" labelled_by=[r.0.0.0.0.0.0.0] actions=[Click]
+                  r.0.0.0.0.0.1.0.0.0 TextRun "" value="The quick brown fox"
+            r.0.0.0.0.0.2 GenericContainer ""
+              r.0.0.0.0.0.2.0 Label "" value="label"
+            r.0.0.0.0.0.3 GenericContainer ""
+              r.0.0.0.0.0.3.0 GenericContainer ""
+                r.0.0.0.0.0.3.0.0 Label "label" value="The quick brown fox" labelled_by=[r.0.0.0.0.0.2.0] actions=[Click]
+                  r.0.0.0.0.0.3.0.0.0 TextRun "" value="The quick brown fox"
+            r.0.0.0.0.0.4 GenericContainer ""
+              r.0.0.0.0.0.4.0 Label "" value="body"
+            r.0.0.0.0.0.5 GenericContainer ""
+              r.0.0.0.0.0.5.0 GenericContainer ""
+                r.0.0.0.0.0.5.0.0 Label "body" value="The quick brown fox" labelled_by=[r.0.0.0.0.0.4.0] actions=[Click]
+                  r.0.0.0.0.0.5.0.0.0 TextRun "" value="The quick brown fox"
+            r.0.0.0.0.0.6 GenericContainer ""
+              r.0.0.0.0.0.6.0 Label "" value="body_strong"
+            r.0.0.0.0.0.7 GenericContainer ""
+              r.0.0.0.0.0.7.0 GenericContainer ""
+                r.0.0.0.0.0.7.0.0 Label "body_strong" value="The quick brown fox" labelled_by=[r.0.0.0.0.0.6.0] actions=[Click]
+                  r.0.0.0.0.0.7.0.0.0 TextRun "" value="The quick brown fox"
+            r.0.0.0.0.0.8 GenericContainer ""
+              r.0.0.0.0.0.8.0 Label "" value="title"
+            r.0.0.0.0.0.9 GenericContainer ""
+              r.0.0.0.0.0.9.0 GenericContainer ""
+                r.0.0.0.0.0.9.0.0 Label "title" value="The quick brown fox" labelled_by=[r.0.0.0.0.0.8.0] actions=[Click]
+                  r.0.0.0.0.0.9.0.0.0 TextRun "" value="The quick brown fox"
+            r.0.0.0.0.0.10 GenericContainer ""
+              r.0.0.0.0.0.10.0 Label "" value="heading"
+            r.0.0.0.0.0.11 GenericContainer ""
+              r.0.0.0.0.0.11.0 GenericContainer ""
+                r.0.0.0.0.0.11.0.0 Label "heading" value="The quick brown fox" labelled_by=[r.0.0.0.0.0.10.0] actions=[Click]
+                  r.0.0.0.0.0.11.0.0.0 TextRun "" value="The quick brown fox"
+            r.0.0.0.0.0.12 GenericContainer ""
+              r.0.0.0.0.0.12.0 Label "" value="body_large"
+            r.0.0.0.0.0.13 GenericContainer ""
+              r.0.0.0.0.0.13.0 GenericContainer ""
+                r.0.0.0.0.0.13.0.0 Label "body_large" value="The quick brown fox" labelled_by=[r.0.0.0.0.0.12.0] actions=[Click]
+                  r.0.0.0.0.0.13.0.0.0 TextRun "" value="The quick brown fox"
+            r.0.0.0.0.0.14 GenericContainer ""
+              r.0.0.0.0.0.14.0 Label "" value="mono"
+            r.0.0.0.0.0.15 GenericContainer ""
+              r.0.0.0.0.0.15.0 GenericContainer ""
+                r.0.0.0.0.0.15.0.0 Label "mono" value="The quick brown fox" labelled_by=[r.0.0.0.0.0.14.0] actions=[Click]
+                  r.0.0.0.0.0.15.0.0.0 TextRun "" value="The quick brown fox"
+tab
+  start: r Window ""
+  1: r Window ""
+  2: r Window ""
+  cycle after 1 nodes
+drive: 8 actionable nodes
+drive r.0.0.0.0.0.1.0.0 Label "caption"
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.3.0.0 Label "label"
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.5.0.0 Label "body"
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.7.0.0 Label "body_strong"
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.9.0.0 Label "title"
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.11.0.0 Label "heading"
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.13.0.0 Label "body_large"
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.15.0.0 Label "mono"
+  click: no change
+  Escape: no change

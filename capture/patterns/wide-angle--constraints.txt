@@ -1,0 +1,268 @@
+story patterns/wide-angle/constraints
+args
+  open = Bool(true)
+  preview = Choice { options: ["Source", "Corrected"], index: 0 }
+  curvature = Number { value: 30.0, min: 0.0, max: 100.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+  r.1 Dialog "Adaptive Wide Angle (Photo, 17%)"
+    r.1.0 GenericContainer ""
+    r.1.1 GenericContainer ""
+      r.1.1.0 GenericContainer ""
+        r.1.1.0.0 Header "Adaptive Wide Angle (Photo, 17%)"
+        r.1.1.0.1 GenericContainer ""
+          r.1.1.0.1.0 GenericContainer ""
+            r.1.1.0.1.0.0 Label "" value="Adaptive Wide Angle (Photo, 17%)"
+        r.1.1.0.2 GenericContainer ""
+        r.1.1.0.3 Pane ""
+          r.1.1.0.3.0 GenericContainer ""
+            r.1.1.0.3.0.0 Toolbar "Tools"
+              r.1.1.0.3.0.0.0 GenericContainer ""
+                r.1.1.0.3.0.0.0.0 GenericContainer ""
+                  r.1.1.0.3.0.0.0.0.0 GenericContainer ""
+                    r.1.1.0.3.0.0.0.0.0.0 Button "Constraint Tool" description="A" [checked] actions=[Click,Focus]
+                  r.1.1.0.3.0.0.0.0.1 GenericContainer ""
+                    r.1.1.0.3.0.0.0.0.1.0 Button "Hand Tool" description="H" [unchecked] actions=[Click,Focus]
+                  r.1.1.0.3.0.0.0.0.2 GenericContainer ""
+                    r.1.1.0.3.0.0.0.0.2.0 Button "Zoom Tool" description="Z" [unchecked] actions=[Click,Focus]
+              r.1.1.0.3.0.0.1 GenericContainer ""
+        r.1.1.0.4 Pane ""
+          r.1.1.0.4.0 GenericContainer ""
+            r.1.1.0.4.0.0 Group "Settings"
+              r.1.1.0.4.0.0.0 GenericContainer ""
+                r.1.1.0.4.0.0.0.0 GenericContainer ""
+                  r.1.1.0.4.0.0.0.0.0 GenericContainer ""
+                    r.1.1.0.4.0.0.0.0.0.0 GenericContainer ""
+                      r.1.1.0.4.0.0.0.0.0.0.0 GenericContainer ""
+                        r.1.1.0.4.0.0.0.0.0.0.0.0 GenericContainer ""
+                          r.1.1.0.4.0.0.0.0.0.0.0.0.0 GenericContainer ""
+                            r.1.1.0.4.0.0.0.0.0.0.0.0.0.0 Label "" value="Correction"
+                        r.1.1.0.4.0.0.0.0.0.0.0.1 ComboBox "Correction" value="Auto" [collapsed popup:Listbox] actions=[Click,Focus]
+                        r.1.1.0.4.0.0.0.0.0.0.0.2 GenericContainer ""
+                          r.1.1.0.4.0.0.0.0.0.0.0.2.0 Label "" value="Scale"
+                        r.1.1.0.4.0.0.0.0.0.0.0.3 GenericContainer ""
+                          r.1.1.0.4.0.0.0.0.0.0.0.3.0 SpinButton "Scale" value="100%" number=100 in 50..150 step 1 labelled_by=[r.1.1.0.4.0.0.0.0.0.0.0.2.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                            r.1.1.0.4.0.0.0.0.0.0.0.3.0.0 TextRun "" value="100"
+                        r.1.1.0.4.0.0.0.0.0.0.0.4 Slider "Scale" number=100 in 50..150 step 1 labelled_by=[r.1.1.0.4.0.0.0.0.0.0.0.2.0] actions=[Focus,Decrement,Increment,SetValue]
+                        r.1.1.0.4.0.0.0.0.0.0.0.5 GenericContainer ""
+                          r.1.1.0.4.0.0.0.0.0.0.0.5.0 Label "" value="Focal Length"
+                        r.1.1.0.4.0.0.0.0.0.0.0.6 GenericContainer ""
+                          r.1.1.0.4.0.0.0.0.0.0.0.6.0 SpinButton "Focal Length" value="0 mm" number=0 in 0..200 step 1 labelled_by=[r.1.1.0.4.0.0.0.0.0.0.0.5.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+                            r.1.1.0.4.0.0.0.0.0.0.0.6.0.0 TextRun "" value="0"
+                        r.1.1.0.4.0.0.0.0.0.0.0.7 Slider "Focal Length" number=0 in 0..200 step 2 labelled_by=[r.1.1.0.4.0.0.0.0.0.0.0.5.0] actions=[Focus,Increment,SetValue]
+                        r.1.1.0.4.0.0.0.0.0.0.0.8 GenericContainer ""
+                          r.1.1.0.4.0.0.0.0.0.0.0.8.0 Label "" value="Crop Factor"
+                        r.1.1.0.4.0.0.0.0.0.0.0.9 GenericContainer ""
+                          r.1.1.0.4.0.0.0.0.0.0.0.9.0 SpinButton "Crop Factor" value="1" number=1 in 0.1..10 step 0.01 labelled_by=[r.1.1.0.4.0.0.0.0.0.0.0.8.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                            r.1.1.0.4.0.0.0.0.0.0.0.9.0.0 TextRun "" value="1"
+                        r.1.1.0.4.0.0.0.0.0.0.0.10 Slider "Crop Factor" number=1 in 0.1..10 step 0.099 labelled_by=[r.1.1.0.4.0.0.0.0.0.0.0.8.0] actions=[Focus,Decrement,Increment,SetValue]
+                        r.1.1.0.4.0.0.0.0.0.0.0.11 GenericContainer ""
+                          r.1.1.0.4.0.0.0.0.0.0.0.11.0 GenericContainer ""
+                            r.1.1.0.4.0.0.0.0.0.0.0.11.0.0 Label "" value="Constraints (3)"
+                        r.1.1.0.4.0.0.0.0.0.0.0.12 GenericContainer ""
+                          r.1.1.0.4.0.0.0.0.0.0.0.12.0 GenericContainer ""
+                            r.1.1.0.4.0.0.0.0.0.0.0.12.0.0 Label "" value="1" actions=[Click]
+                              r.1.1.0.4.0.0.0.0.0.0.0.12.0.0.0 TextRun "" value="1"
+                            r.1.1.0.4.0.0.0.0.0.0.0.12.0.1 ComboBox "Orientation of constraint 1" value="Horizontal" [collapsed popup:Listbox] actions=[Click,Focus]
+                            r.1.1.0.4.0.0.0.0.0.0.0.12.0.2 Button "Delete constraint 1" actions=[Click,Focus]
+                        r.1.1.0.4.0.0.0.0.0.0.0.13 GenericContainer ""
+                          r.1.1.0.4.0.0.0.0.0.0.0.13.0 GenericContainer ""
+                            r.1.1.0.4.0.0.0.0.0.0.0.13.0.0 Label "" value="2" actions=[Click]
+                              r.1.1.0.4.0.0.0.0.0.0.0.13.0.0.0 TextRun "" value="2"
+                            r.1.1.0.4.0.0.0.0.0.0.0.13.0.1 ComboBox "Orientation of constraint 2" value="Vertical" [collapsed popup:Listbox] actions=[Click,Focus]
+                            r.1.1.0.4.0.0.0.0.0.0.0.13.0.2 Button "Delete constraint 2" actions=[Click,Focus]
+                        r.1.1.0.4.0.0.0.0.0.0.0.14 GenericContainer ""
+                          r.1.1.0.4.0.0.0.0.0.0.0.14.0 GenericContainer ""
+                            r.1.1.0.4.0.0.0.0.0.0.0.14.0.0 Label "" value="3" actions=[Click]
+                              r.1.1.0.4.0.0.0.0.0.0.0.14.0.0.0 TextRun "" value="3"
+                            r.1.1.0.4.0.0.0.0.0.0.0.14.0.1 ComboBox "Orientation of constraint 3" value="Free" [collapsed popup:Listbox] actions=[Click,Focus]
+                            r.1.1.0.4.0.0.0.0.0.0.0.14.0.2 Button "Delete constraint 3" actions=[Click,Focus]
+                        r.1.1.0.4.0.0.0.0.0.0.0.15 CheckBox "Preview" [checked] actions=[Click,Focus]
+                        r.1.1.0.4.0.0.0.0.0.0.0.16 Label "" value="Drag on the image to add a constraint; Shift for horizontal/vertical; right-click a constraint to change or delete it." actions=[Click]
+                          r.1.1.0.4.0.0.0.0.0.0.0.16.0 TextRun "" value="Drag on the image to add a constraint; Shift for "
+                          r.1.1.0.4.0.0.0.0.0.0.0.16.1 TextRun "" value="horizontal/vertical; right-click a constraint to change or "
+                          r.1.1.0.4.0.0.0.0.0.0.0.16.2 TextRun "" value="delete it."
+              r.1.1.0.4.0.0.1 GenericContainer ""
+                r.1.1.0.4.0.0.1.0 GenericContainer ""
+                  r.1.1.0.4.0.0.1.0.0 Button "OK" description="Default" actions=[Click,Focus]
+                  r.1.1.0.4.0.0.1.0.1 Button "Cancel" actions=[Click,Focus]
+        r.1.1.0.5 Canvas "Image" value="17%" actions=[Click,Focus]
+        r.1.1.0.6 Group "Constraint lines" actions=[Focus]
+          r.1.1.0.6.0 GenericContainer ""
+            r.1.1.0.6.0.0 GraphicsObject "Constraint 1, Horizontal" [unselected]
+            r.1.1.0.6.0.1 GraphicsObject "Constraint 2, Vertical" [unselected]
+            r.1.1.0.6.0.2 GraphicsObject "Constraint 3, Free" [unselected]
+tab
+  start: r Window ""
+  1: r.1.1.0.3.0.0.0.0.0.0 Button "Constraint Tool"
+  2: r.1.1.0.3.0.0.0.0.1.0 Button "Hand Tool"
+  3: r.1.1.0.3.0.0.0.0.2.0 Button "Zoom Tool"
+  4: r.1.1.0.4.0.0.0.0.0.0.0.1 ComboBox "Correction"
+  5: r.1.1.0.4.0.0.0.0.0.0.0.3.0 SpinButton "Scale"
+  6: r.1.1.0.4.0.0.0.0.0.0.0.4 Slider "Scale"
+  7: r.1.1.0.4.0.0.0.0.0.0.0.6.0 SpinButton "Focal Length"
+  8: r.1.1.0.4.0.0.0.0.0.0.0.7 Slider "Focal Length"
+  9: r.1.1.0.4.0.0.0.0.0.0.0.9.0 SpinButton "Crop Factor"
+  10: r.1.1.0.4.0.0.0.0.0.0.0.10 Slider "Crop Factor"
+  11: r.1.1.0.4.0.0.0.0.0.0.0.12.0.1 ComboBox "Orientation of constraint 1"
+  12: r.1.1.0.4.0.0.0.0.0.0.0.12.0.2 Button "Delete constraint 1"
+  13: r.1.1.0.4.0.0.0.0.0.0.0.13.0.1 ComboBox "Orientation of constraint 2"
+  14: r.1.1.0.4.0.0.0.0.0.0.0.13.0.2 Button "Delete constraint 2"
+  15: r.1.1.0.4.0.0.0.0.0.0.0.14.0.1 ComboBox "Orientation of constraint 3"
+  16: r.1.1.0.4.0.0.0.0.0.0.0.14.0.2 Button "Delete constraint 3"
+  17: r.1.1.0.4.0.0.0.0.0.0.0.15 CheckBox "Preview"
+  18: r.1.1.0.4.0.0.1.0.0 Button "OK"
+  19: r.1.1.0.4.0.0.1.0.1 Button "Cancel"
+  20: r.1.1.0.5 Canvas "Image"
+  21: r.1.1.0.6.0.0 GraphicsObject "Constraint 1, Horizontal"
+    - r.1.1.0.6.0.0 GraphicsObject "Constraint 1, Horizontal" [unselected]
+    + r.1.1.0.6.0.0 GraphicsObject "Constraint 1, Horizontal" [selected]
+  22: r.1.1.0.3.0.0.0.0.0.0 Button "Constraint Tool"
+  cycle after 21 nodes
+drive: 25 actionable nodes
+drive r.1.1.0.3.0.0.0.0.0.0 Button "Constraint Tool"
+  click: no change
+  Space: no change
+  Enter:
+    focus: r.1.1.0.3.0.0.0.0.0.0 Button "Constraint Tool" -> r Window ""
+    arg open: Bool(true) -> Bool(false)
+    - r.1 Dialog "Adaptive Wide Angle (Photo, 17%)"
+    - r.1.0 GenericContainer ""
+    - r.1.1 GenericContainer ""
+    - r.1.1.0 GenericContainer ""
+    - r.1.1.0.0 Header "Adaptive Wide Angle (Photo, 17%)"
+    - r.1.1.0.1 GenericContainer ""
+    - r.1.1.0.1.0 GenericContainer ""
+    - r.1.1.0.1.0.0 Label "" value="Adaptive Wide Angle (Photo, 17%)"
+    - r.1.1.0.2 GenericContainer ""
+    - r.1.1.0.3 Pane ""
+    - r.1.1.0.3.0 GenericContainer ""
+    - r.1.1.0.3.0.0 Toolbar "Tools"
+    - r.1.1.0.3.0.0.0 GenericContainer ""
+    - r.1.1.0.3.0.0.0.0 GenericContainer ""
+    - r.1.1.0.3.0.0.0.0.0 GenericContainer ""
+    - r.1.1.0.3.0.0.0.0.0.0 Button "Constraint Tool" description="A" [checked] actions=[Click,Focus]
+    - r.1.1.0.3.0.0.0.0.1 GenericContainer ""
+    - r.1.1.0.3.0.0.0.0.1.0 Button "Hand Tool" description="H" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.3.0.0.0.0.2 GenericContainer ""
+    - r.1.1.0.3.0.0.0.0.2.0 Button "Zoom Tool" description="Z" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.3.0.0.1 GenericContainer ""
+    - r.1.1.0.4 Pane ""
+    - r.1.1.0.4.0 GenericContainer ""
+    - r.1.1.0.4.0.0 Group "Settings"
+    - r.1.1.0.4.0.0.0 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0.0 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0.0.0 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0.0.0.0.0.0 Label "" value="Correction"
+    - r.1.1.0.4.0.0.0.0.0.0.0.1 ComboBox "Correction" value="Auto" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.0.0.0.0.0.2 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0.0.0.2.0 Label "" value="Scale"
+    - r.1.1.0.4.0.0.0.0.0.0.0.3 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0.0.0.3.0 SpinButton "Scale" value="100%" number=100 in 50..150 step 1 labelled_by=[r.1.1.0.4.0.0.0.0.0.0.0.2.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.4.0.0.0.0.0.0.0.3.0.0 TextRun "" value="100"
+    - r.1.1.0.4.0.0.0.0.0.0.0.4 Slider "Scale" number=100 in 50..150 step 1 labelled_by=[r.1.1.0.4.0.0.0.0.0.0.0.2.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.1.1.0.4.0.0.0.0.0.0.0.5 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0.0.0.5.0 Label "" value="Focal Length"
+    - r.1.1.0.4.0.0.0.0.0.0.0.6 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0.0.0.6.0 SpinButton "Focal Length" value="0 mm" number=0 in 0..200 step 1 labelled_by=[r.1.1.0.4.0.0.0.0.0.0.0.5.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.4.0.0.0.0.0.0.0.6.0.0 TextRun "" value="0"
+    - r.1.1.0.4.0.0.0.0.0.0.0.7 Slider "Focal Length" number=0 in 0..200 step 2 labelled_by=[r.1.1.0.4.0.0.0.0.0.0.0.5.0] actions=[Focus,Increment,SetValue]
+    - r.1.1.0.4.0.0.0.0.0.0.0.8 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0.0.0.8.0 Label "" value="Crop Factor"
+    - r.1.1.0.4.0.0.0.0.0.0.0.9 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0.0.0.9.0 SpinButton "Crop Factor" value="1" number=1 in 0.1..10 step 0.01 labelled_by=[r.1.1.0.4.0.0.0.0.0.0.0.8.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.4.0.0.0.0.0.0.0.9.0.0 TextRun "" value="1"
+    - r.1.1.0.4.0.0.0.0.0.0.0.10 Slider "Crop Factor" number=1 in 0.1..10 step 0.099 labelled_by=[r.1.1.0.4.0.0.0.0.0.0.0.8.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.1.1.0.4.0.0.0.0.0.0.0.11 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0.0.0.11.0 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0.0.0.11.0.0 Label "" value="Constraints (3)"
+    - r.1.1.0.4.0.0.0.0.0.0.0.12 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0.0.0.12.0 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0.0.0.12.0.0 Label "" value="1" actions=[Click]
+    - r.1.1.0.4.0.0.0.0.0.0.0.12.0.0.0 TextRun "" value="1"
+    - r.1.1.0.4.0.0.0.0.0.0.0.12.0.1 ComboBox "Orientation of constraint 1" value="Horizontal" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.0.0.0.0.0.12.0.2 Button "Delete constraint 1" actions=[Click,Focus]
+    - r.1.1.0.4.0.0.0.0.0.0.0.13 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0.0.0.13.0 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0.0.0.13.0.0 Label "" value="2" actions=[Click]
+    - r.1.1.0.4.0.0.0.0.0.0.0.13.0.0.0 TextRun "" value="2"
+    - r.1.1.0.4.0.0.0.0.0.0.0.13.0.1 ComboBox "Orientation of constraint 2" value="Vertical" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.0.0.0.0.0.13.0.2 Button "Delete constraint 2" actions=[Click,Focus]
+    - r.1.1.0.4.0.0.0.0.0.0.0.14 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0.0.0.14.0 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0.0.0.14.0.0 Label "" value="3" actions=[Click]
+    - r.1.1.0.4.0.0.0.0.0.0.0.14.0.0.0 TextRun "" value="3"
+    - r.1.1.0.4.0.0.0.0.0.0.0.14.0.1 ComboBox "Orientation of constraint 3" value="Free" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.0.0.0.0.0.14.0.2 Button "Delete constraint 3" actions=[Click,Focus]
+    - r.1.1.0.4.0.0.0.0.0.0.0.15 CheckBox "Preview" [checked] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.0.0.0.0.0.16 Label "" value="Drag on the image to add a constraint; Shift for horizontal/vertical; right-click a constraint to change or delete it." actions=[Click]
+    - r.1.1.0.4.0.0.0.0.0.0.0.16.0 TextRun "" value="Drag on the image to add a constraint; Shift for "
+    - r.1.1.0.4.0.0.0.0.0.0.0.16.1 TextRun "" value="horizontal/vertical; right-click a constraint to change or "
+    - r.1.1.0.4.0.0.0.0.0.0.0.16.2 TextRun "" value="delete it."
+    - r.1.1.0.4.0.0.1 GenericContainer ""
+    - r.1.1.0.4.0.0.1.0 GenericContainer ""
+    - r.1.1.0.4.0.0.1.0.0 Button "OK" description="Default" actions=[Click,Focus]
+    - r.1.1.0.4.0.0.1.0.1 Button "Cancel" actions=[Click,Focus]
+    - r.1.1.0.5 Canvas "Image" value="17%" actions=[Click,Focus]
+    - r.1.1.0.6 Group "Constraint lines" actions=[Focus]
+    - r.1.1.0.6.0 GenericContainer ""
+    - r.1.1.0.6.0.0 GraphicsObject "Constraint 1, Horizontal" [selected]
+    - r.1.1.0.6.0.1 GraphicsObject "Constraint 2, Vertical" [unselected]
+    - r.1.1.0.6.0.2 GraphicsObject "Constraint 3, Free" [unselected]
+  Escape: node gone
+drive r.1.1.0.3.0.0.0.0.1.0 Button "Hand Tool"
+  all steps: node gone
+drive r.1.1.0.3.0.0.0.0.2.0 Button "Zoom Tool"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.0.0.0.1 ComboBox "Correction"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.0.0.0.3.0 SpinButton "Scale"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.0.0.0.4 Slider "Scale"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.0.0.0.6.0 SpinButton "Focal Length"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.0.0.0.7 Slider "Focal Length"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.0.0.0.9.0 SpinButton "Crop Factor"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.0.0.0.10 Slider "Crop Factor"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.0.0.0.12.0.0 Label ""
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.0.0.0.12.0.1 ComboBox "Orientation of constraint 1"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.0.0.0.12.0.2 Button "Delete constraint 1"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.0.0.0.13.0.0 Label ""
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.0.0.0.13.0.1 ComboBox "Orientation of constraint 2"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.0.0.0.13.0.2 Button "Delete constraint 2"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.0.0.0.14.0.0 Label ""
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.0.0.0.14.0.1 ComboBox "Orientation of constraint 3"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.0.0.0.14.0.2 Button "Delete constraint 3"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.0.0.0.15 CheckBox "Preview"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.0.0.0.16 Label ""
+  all steps: node gone
+drive r.1.1.0.4.0.0.1.0.0 Button "OK"
+  all steps: node gone
+drive r.1.1.0.4.0.0.1.0.1 Button "Cancel"
+  all steps: node gone
+drive r.1.1.0.5 Canvas "Image"
+  all steps: node gone
+drive r.1.1.0.6 Group "Constraint lines"
+  all steps: node gone

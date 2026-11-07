@@ -1,0 +1,21 @@
+story controls/tooltip/custom
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Button "Colour" actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0 Button "Colour"
+  2: r.0.0.0.0.0 Button "Colour"
+  cycle after 1 nodes
+drive: 1 actionable nodes
+drive r.0.0.0.0.0 Button "Colour"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0 Button "Colour" -> r Window ""

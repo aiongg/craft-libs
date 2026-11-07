@@ -1,0 +1,285 @@
+story patterns/actions-panel/button-mode
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 GenericContainer ""
+                  r.0.0.0.0.0.0.0.0.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.0.0.0 Button "None" actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.1 Button "Red" actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.2 Button "Orange" actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.3 Button "Yellow" actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.4 Button "Green" actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.5 Button "Blue" actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.6 Button "Violet" actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.7 Button "Gray" actions=[Click,Focus]
+                r.0.0.0.0.0.0.0.1 GenericContainer ""
+                  r.0.0.0.0.0.0.0.1.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.1.0.0 Button "Button Mode" description="Button Mode" [checked] actions=[Click,Focus]
+                  r.0.0.0.0.0.0.0.1.1 Button "Delete" description="Delete" [disabled] actions=[Click,Focus]
+                  r.0.0.0.0.0.0.0.1.2 GenericContainer ""
+                    r.0.0.0.0.0.0.0.1.2.0 Button "Create new action" description="Create new action" actions=[Click,Focus]
+                  r.0.0.0.0.0.0.0.1.3 GenericContainer ""
+                    r.0.0.0.0.0.0.0.1.3.0 Button "Create new set" description="Create new set" actions=[Click,Focus]
+                  r.0.0.0.0.0.0.0.1.4 GenericContainer ""
+                    r.0.0.0.0.0.0.0.1.4.0 Button "Play selection" description="Play selection" actions=[Click,Focus]
+                  r.0.0.0.0.0.0.0.1.5 GenericContainer ""
+                    r.0.0.0.0.0.0.0.1.5.0 Button "Begin recording" description="Begin recording" [unchecked] actions=[Click,Focus]
+                  r.0.0.0.0.0.0.0.1.6 GenericContainer ""
+                    r.0.0.0.0.0.0.0.1.6.0 Button "Stop playing/recording" description="Stop playing/recording" [disabled] actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0.0.0 Button "None"
+  2: r.0.0.0.0.0.0.0.0.0.1 Button "Red"
+  3: r.0.0.0.0.0.0.0.0.0.2 Button "Orange"
+  4: r.0.0.0.0.0.0.0.0.0.3 Button "Yellow"
+  5: r.0.0.0.0.0.0.0.0.0.4 Button "Green"
+  6: r.0.0.0.0.0.0.0.0.0.5 Button "Blue"
+  7: r.0.0.0.0.0.0.0.0.0.6 Button "Violet"
+  8: r.0.0.0.0.0.0.0.0.0.7 Button "Gray"
+  9: r.0.0.0.0.0.0.0.1.0.0 Button "Button Mode"
+  10: r.0.0.0.0.0.0.0.1.2.0 Button "Create new action"
+  11: r.0.0.0.0.0.0.0.1.3.0 Button "Create new set"
+  12: r.0.0.0.0.0.0.0.1.4.0 Button "Play selection"
+  13: r.0.0.0.0.0.0.0.1.5.0 Button "Begin recording"
+  14: r.0.0.0.0.0.0.0.0.0.0 Button "None"
+  cycle after 13 nodes
+drive: 13 actionable nodes
+drive r.0.0.0.0.0.0.0.0.0.0 Button "None"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0 Button "None" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.1 Button "Red"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.1 Button "Red" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.2 Button "Orange"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.2 Button "Orange" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.3 Button "Yellow"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.3 Button "Yellow" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.4 Button "Green"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.4 Button "Green" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.5 Button "Blue"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.5 Button "Blue" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.6 Button "Violet"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.6 Button "Violet" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.7 Button "Gray"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.7 Button "Gray" -> r Window ""
+drive r.0.0.0.0.0.0.0.1.0.0 Button "Button Mode"
+  click:
+    - r.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0 Tree "Actions" actions=[Focus]
+    - r.0.0.0.0.0.0.0.0.0.0 Button "None" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.1 Button "Red" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.2 Button "Orange" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.3 Button "Yellow" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.4 Button "Green" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.5 Button "Blue" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.6 Button "Violet" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.7 Button "Gray" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "None" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.1 Button "Expand None" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.2 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.2.0 Label "" value="0 steps"
+    + r.0.0.0.0.0.0.0.0.0.0.0.3 TreeItem "Red" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.4 Button "Expand Red" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.5 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.5.0 Label "" value="0 steps"
+    + r.0.0.0.0.0.0.0.0.0.0.0.6 TreeItem "Orange" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.7 Button "Expand Orange" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.8 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.8.0 Label "" value="0 steps"
+    + r.0.0.0.0.0.0.0.0.0.0.0.9 TreeItem "Yellow" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.10 Button "Expand Yellow" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.11 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.11.0 Label "" value="0 steps"
+    + r.0.0.0.0.0.0.0.0.0.0.0.12 TreeItem "Green" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.13 Button "Expand Green" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.14 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.14.0 Label "" value="0 steps"
+    + r.0.0.0.0.0.0.0.0.0.0.0.15 TreeItem "Blue" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.16 Button "Expand Blue" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.17 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.17.0 Label "" value="0 steps"
+    + r.0.0.0.0.0.0.0.0.0.0.0.18 TreeItem "Violet" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.19 Button "Expand Violet" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.20 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.20.0 Label "" value="0 steps"
+    + r.0.0.0.0.0.0.0.0.0.0.0.21 TreeItem "Gray" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.22 Button "Expand Gray" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.23 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.23.0 Label "" value="0 steps"
+    - r.0.0.0.0.0.0.0.1.0.0 Button "Button Mode" description="Button Mode" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.0.0 Button "Button Mode" description="Button Mode" [unchecked] actions=[Click,Focus]
+  Space:
+    focus: r.0.0.0.0.0.0.0.1.0.0 Button "Button Mode" -> r Window ""
+    - r.0.0.0.0.0.0.0.0 Tree "Actions" actions=[Focus]
+    + r.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "None" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.1 Button "Expand None" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.2 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.2.0 Label "" value="0 steps"
+    - r.0.0.0.0.0.0.0.0.0.0.0.3 TreeItem "Red" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.4 Button "Expand Red" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.5 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.5.0 Label "" value="0 steps"
+    - r.0.0.0.0.0.0.0.0.0.0.0.6 TreeItem "Orange" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.7 Button "Expand Orange" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.8 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.8.0 Label "" value="0 steps"
+    - r.0.0.0.0.0.0.0.0.0.0.0.9 TreeItem "Yellow" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.10 Button "Expand Yellow" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.11 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.11.0 Label "" value="0 steps"
+    - r.0.0.0.0.0.0.0.0.0.0.0.12 TreeItem "Green" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.13 Button "Expand Green" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.14 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.14.0 Label "" value="0 steps"
+    - r.0.0.0.0.0.0.0.0.0.0.0.15 TreeItem "Blue" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.16 Button "Expand Blue" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.17 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.17.0 Label "" value="0 steps"
+    - r.0.0.0.0.0.0.0.0.0.0.0.18 TreeItem "Violet" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.19 Button "Expand Violet" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.20 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.20.0 Label "" value="0 steps"
+    - r.0.0.0.0.0.0.0.0.0.0.0.21 TreeItem "Gray" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.0.22 Button "Expand Gray" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.23 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.23.0 Label "" value="0 steps"
+    + r.0.0.0.0.0.0.0.0.0.0 Button "None" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.1 Button "Red" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.2 Button "Orange" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.3 Button "Yellow" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.4 Button "Green" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.5 Button "Blue" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.6 Button "Violet" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.7 Button "Gray" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.1.0.0 Button "Button Mode" description="Button Mode" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.0.0 Button "Button Mode" description="Button Mode" [checked] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.0.0.0.1.0.0 Button "Button Mode" -> r Window ""
+    - r.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0 Tree "Actions" actions=[Focus]
+    - r.0.0.0.0.0.0.0.0.0.0 Button "None" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.1 Button "Red" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.2 Button "Orange" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.3 Button "Yellow" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.4 Button "Green" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.5 Button "Blue" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.6 Button "Violet" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.7 Button "Gray" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.0 TreeItem "None" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.1 Button "Expand None" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.2 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.2.0 Label "" value="0 steps"
+    + r.0.0.0.0.0.0.0.0.0.0.0.3 TreeItem "Red" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.4 Button "Expand Red" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.5 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.5.0 Label "" value="0 steps"
+    + r.0.0.0.0.0.0.0.0.0.0.0.6 TreeItem "Orange" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.7 Button "Expand Orange" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.8 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.8.0 Label "" value="0 steps"
+    + r.0.0.0.0.0.0.0.0.0.0.0.9 TreeItem "Yellow" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.10 Button "Expand Yellow" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.11 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.11.0 Label "" value="0 steps"
+    + r.0.0.0.0.0.0.0.0.0.0.0.12 TreeItem "Green" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.13 Button "Expand Green" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.14 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.14.0 Label "" value="0 steps"
+    + r.0.0.0.0.0.0.0.0.0.0.0.15 TreeItem "Blue" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.16 Button "Expand Blue" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.17 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.17.0 Label "" value="0 steps"
+    + r.0.0.0.0.0.0.0.0.0.0.0.18 TreeItem "Violet" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.19 Button "Expand Violet" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.20 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.20.0 Label "" value="0 steps"
+    + r.0.0.0.0.0.0.0.0.0.0.0.21 TreeItem "Gray" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.22 Button "Expand Gray" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.23 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.23.0 Label "" value="0 steps"
+    - r.0.0.0.0.0.0.0.1.0.0 Button "Button Mode" description="Button Mode" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.0.0 Button "Button Mode" description="Button Mode" [unchecked] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.0.0.1.0.0 Button "Button Mode" -> r Window ""
+drive r.0.0.0.0.0.0.0.1.2.0 Button "Create new action"
+  click:
+    + r.0.0.0.0.0.0.0.0.0.0.0.24 TreeItem "Action 9, recording" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0.25 Button "Collapse Action 9" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.26 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.26.0 Label "" value="0 steps"
+    + r.0.0.0.0.0.0.0.0.0.0.0.27 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.0.0 Button "Button Mode" description="Button Mode" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.0.0 Button "Button Mode" description="Button Mode" [disabled unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.1.2.0 Button "Create new action" description="Create new action" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.2.0 Button "Create new action" description="Create new action" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.1.3.0 Button "Create new set" description="Create new set" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.3.0 Button "Create new set" description="Create new set" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.1.4.0 Button "Play selection" description="Play selection" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.4.0 Button "Play selection" description="Play selection" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.1.5.0 Button "Begin recording" description="Begin recording" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.5.0 Button "Begin recording" description="Begin recording" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.1.6.0 Button "Stop playing/recording" description="Stop playing/recording" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.6.0 Button "Stop playing/recording" description="Stop playing/recording" actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.1.3.0 Button "Create new set"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.1.4.0 Button "Play selection"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.1.5.0 Button "Begin recording"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.1.5.0 Button "Begin recording" -> r Window ""

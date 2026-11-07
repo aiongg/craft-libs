@@ -1,0 +1,29 @@
+story composites/table-size-picker/grid
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Grid "Insert Table" value="4×3 Table" actions=[Click,Focus]
+          r.0.0.0.0.1 GenericContainer ""
+            r.0.0.0.0.1.0 Label "" value="4×3 Table" actions=[Click]
+              r.0.0.0.0.1.0.0 TextRun "" value="4×3 Table"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0 Grid "Insert Table"
+  2: r.0.0.0.0.0 Grid "Insert Table"
+  cycle after 1 nodes
+drive: 2 actionable nodes
+drive r.0.0.0.0.0 Grid "Insert Table"
+  click:
+    + r.0.0.0.0.2 Label "" value="Last event: (3, 4)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: (3, 4)"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0 Grid "Insert Table" -> r Window ""
+drive r.0.0.0.0.1.0 Label ""
+  click: no change
+  Escape: no change

@@ -1,0 +1,709 @@
+story patterns/transform-bar/bar
+args
+  phase = Choice { options: ["free", "Content-Aware", "warp"], index: 0 }
+  size menu = Bool(true)
+  width = Number { value: 240.0, min: 40.0, max: 600.0 }
+  height = Number { value: 160.0, min: 40.0, max: 380.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Toolbar "Free Transform"
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 GenericContainer ""
+                  r.0.0.0.0.0.0.0.0.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+                      r.0.0.0.0.0.0.0.0.0.0.0 RadioGroup "Reference point" actions=[Click,Focus]
+                        r.0.0.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+                          r.0.0.0.0.0.0.0.0.0.0.0.0.0 RadioButton "Top left" [unchecked]
+                          r.0.0.0.0.0.0.0.0.0.0.0.0.1 RadioButton "Top" [unchecked]
+                          r.0.0.0.0.0.0.0.0.0.0.0.0.2 RadioButton "Top right" [unchecked]
+                          r.0.0.0.0.0.0.0.0.0.0.0.0.3 RadioButton "Left" [unchecked]
+                          r.0.0.0.0.0.0.0.0.0.0.0.0.4 RadioButton "Center" [checked]
+                          r.0.0.0.0.0.0.0.0.0.0.0.0.5 RadioButton "Right" [unchecked]
+                          r.0.0.0.0.0.0.0.0.0.0.0.0.6 RadioButton "Bottom left" [unchecked]
+                          r.0.0.0.0.0.0.0.0.0.0.0.0.7 RadioButton "Bottom" [unchecked]
+                          r.0.0.0.0.0.0.0.0.0.0.0.0.8 RadioButton "Bottom right" [unchecked]
+                      r.0.0.0.0.0.0.0.0.0.0.1 Label "" value="X:"
+                      r.0.0.0.0.0.0.0.0.0.0.2 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.0.0.2.0 Unknown "" actions=[Click,Focus]
+                        r.0.0.0.0.0.0.0.0.0.0.2.1 SpinButton "X position" value="320 px" number=320 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                          r.0.0.0.0.0.0.0.0.0.0.2.1.0 TextRun "" value="320"
+                      r.0.0.0.0.0.0.0.0.0.0.3 Label "" value="Y:"
+                      r.0.0.0.0.0.0.0.0.0.0.4 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.0.0.4.0 Unknown "" actions=[Click,Focus]
+                        r.0.0.0.0.0.0.0.0.0.0.4.1 SpinButton "Y position" value="200 px" number=200 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                          r.0.0.0.0.0.0.0.0.0.0.4.1.0 TextRun "" value="200"
+                      r.0.0.0.0.0.0.0.0.0.0.5 Label "" value="W:"
+                      r.0.0.0.0.0.0.0.0.0.0.6 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.0.0.6.0 Unknown "" actions=[Click,Focus]
+                        r.0.0.0.0.0.0.0.0.0.0.6.1 SpinButton "Width" value="100%" number=100 in -125000..125000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                          r.0.0.0.0.0.0.0.0.0.0.6.1.0 TextRun "" value="100"
+                      r.0.0.0.0.0.0.0.0.0.0.7 Button "Maintain aspect ratio" description="Maintain aspect ratio" [unchecked] actions=[Click,Focus]
+                      r.0.0.0.0.0.0.0.0.0.0.8 Label "" value="H:"
+                      r.0.0.0.0.0.0.0.0.0.0.9 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.0.0.9.0 Unknown "" actions=[Click,Focus]
+                        r.0.0.0.0.0.0.0.0.0.0.9.1 SpinButton "Height" value="100%" number=100 in -187500..187500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                          r.0.0.0.0.0.0.0.0.0.0.9.1.0 TextRun "" value="100"
+                      r.0.0.0.0.0.0.0.0.0.0.10 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.0.0.10.0 SpinButton "Angle" value="0°" number=0 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                          r.0.0.0.0.0.0.0.0.0.0.10.0.0 TextRun "" value="0"
+                      r.0.0.0.0.0.0.0.0.0.0.11 Label "" value="H:"
+                      r.0.0.0.0.0.0.0.0.0.0.12 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.0.0.12.0 Unknown "" actions=[Click,Focus]
+                        r.0.0.0.0.0.0.0.0.0.0.12.1 SpinButton "Horizontal skew" value="0°" number=-0 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                          r.0.0.0.0.0.0.0.0.0.0.12.1.0 TextRun "" value="0"
+                      r.0.0.0.0.0.0.0.0.0.0.13 Label "" value="V:"
+                      r.0.0.0.0.0.0.0.0.0.0.14 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.0.0.14.0 Unknown "" actions=[Click,Focus]
+                        r.0.0.0.0.0.0.0.0.0.0.14.1 SpinButton "Vertical skew" value="0°" number=0 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                          r.0.0.0.0.0.0.0.0.0.0.14.1.0 TextRun "" value="0"
+                      r.0.0.0.0.0.0.0.0.0.0.15 Label "" value="Interpolation:"
+                      r.0.0.0.0.0.0.0.0.0.0.16 ComboBox "Interpolation" value="Bicubic" [collapsed popup:Listbox] actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.1 CheckBox "Show Reference Point" [checked] actions=[Click,Focus]
+              r.0.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+            r.0.0.0.0.0.1 GenericContainer ""
+              r.0.0.0.0.0.1.0 Button "Cancel transform" description="Cancel transform" shortcut="Escape" actions=[Click,Focus]
+              r.0.0.0.0.0.1.1 Button "Commit transform" description="Commit transform" shortcut="Enter" actions=[Click,Focus]
+              r.0.0.0.0.0.1.2 Button "Switch between free transform and warp modes" description="Switch between free transform and warp modes" [unchecked] actions=[Click,Focus]
+          r.0.0.0.0.1 GenericContainer ""
+            r.0.0.0.0.1.0 Button "Reset" actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0.0.0.0.0.4 RadioButton "Center"
+  2: r.0.0.0.0.0.0.0.0.0.0.2.0 Unknown ""
+  3: r.0.0.0.0.0.0.0.0.0.0.2.1 SpinButton "X position"
+  4: r.0.0.0.0.0.0.0.0.0.0.2.0 Unknown ""
+  cycle after 3 nodes
+drive: 22 actionable nodes
+drive r.0.0.0.0.0.0.0.0.0.0.0 RadioGroup "Reference point"
+  click:
+    focus: r.0.0.0.0.0.0.0.0.0.0.2.0 Unknown "" -> r Window ""
+    - r.0.0.0.0.0.0.0.0.0.0.0 RadioGroup "Reference point" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.0 RadioGroup "Reference point" description="Center" actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.0.4 RadioButton "Center" -> r.0.0.0.0.0.0.0.0.0.0.0.0.7 RadioButton "Bottom"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.0.7 RadioButton "Bottom" -> r.0.0.0.0.0.0.0.0.0.0.0.0.4 RadioButton "Center"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.0.4 RadioButton "Center" -> r.0.0.0.0.0.0.0.0.0.0.0.0.3 RadioButton "Left"
+  ArrowRight:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.0.3 RadioButton "Left" -> r.0.0.0.0.0.0.0.0.0.0.0.0.4 RadioButton "Center"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.0.4 RadioButton "Center" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.2.0 Unknown ""
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0.2.1 SpinButton "X position"
+    - r.0.0.0.0.0.0.0.0.0.0.0 RadioGroup "Reference point" description="Center" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.0 RadioGroup "Reference point" actions=[Click,Focus]
+  Space:
+    focus: r.0.0.0.0.0.0.0.0.0.0.2.0 Unknown "" -> r.0.0.0.0.0.0.0.0.0.0.2.1 SpinButton "X position"
+  Enter:
+    focus: r.0.0.0.0.0.0.0.0.0.0.2.0 Unknown "" -> r.0.0.0.0.0.0.0.0.0.0.2.1 SpinButton "X position"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.2.0 Unknown "" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.2.1 SpinButton "X position"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0.2.1 SpinButton "X position"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.0.0.0.0.2.1 SpinButton "X position" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.0.0.0.2.1 SpinButton "X position" value="320 px" number=320 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.2.1.0 TextRun "" value="320"
+    + r.0.0.0.0.0.0.0.0.0.0.2.1 SpinButton "X position" value="321 px" number=321 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.2.1.0 TextRun "" value="321"
+  ArrowDown:
+    - r.0.0.0.0.0.0.0.0.0.0.2.1 SpinButton "X position" value="321 px" number=321 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.2.1.0 TextRun "" value="321"
+    + r.0.0.0.0.0.0.0.0.0.0.2.1 SpinButton "X position" value="320 px" number=320 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.2.1.0 TextRun "" value="320"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.2.1 SpinButton "X position" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.4.0 Unknown ""
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0.4.1 SpinButton "Y position"
+  Space:
+    focus: r.0.0.0.0.0.0.0.0.0.0.4.0 Unknown "" -> r.0.0.0.0.0.0.0.0.0.0.4.1 SpinButton "Y position"
+  Enter:
+    focus: r.0.0.0.0.0.0.0.0.0.0.4.0 Unknown "" -> r.0.0.0.0.0.0.0.0.0.0.4.1 SpinButton "Y position"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.4.0 Unknown "" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.4.1 SpinButton "Y position"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0.4.1 SpinButton "Y position"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.0.0.0.0.4.1 SpinButton "Y position" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.0.0.0.4.1 SpinButton "Y position" value="200 px" number=200 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.4.1.0 TextRun "" value="200"
+    + r.0.0.0.0.0.0.0.0.0.0.4.1 SpinButton "Y position" value="201 px" number=201 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.4.1.0 TextRun "" value="201"
+  ArrowDown:
+    - r.0.0.0.0.0.0.0.0.0.0.4.1 SpinButton "Y position" value="201 px" number=201 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.4.1.0 TextRun "" value="201"
+    + r.0.0.0.0.0.0.0.0.0.0.4.1 SpinButton "Y position" value="200 px" number=200 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.4.1.0 TextRun "" value="200"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.4.1 SpinButton "Y position" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.6.0 Unknown ""
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0.6.1 SpinButton "Width"
+  Space:
+    focus: r.0.0.0.0.0.0.0.0.0.0.6.0 Unknown "" -> r.0.0.0.0.0.0.0.0.0.0.6.1 SpinButton "Width"
+  Enter:
+    focus: r.0.0.0.0.0.0.0.0.0.0.6.0 Unknown "" -> r.0.0.0.0.0.0.0.0.0.0.6.1 SpinButton "Width"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.6.0 Unknown "" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.6.1 SpinButton "Width"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0.6.1 SpinButton "Width"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.0.0.0.0.6.1 SpinButton "Width" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.0.0.0.6.1 SpinButton "Width" value="100%" number=100 in -125000..125000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.6.1.0 TextRun "" value="100"
+    + r.0.0.0.0.0.0.0.0.0.0.6.1 SpinButton "Width" value="101%" number=100.99999999999997 in -125000..125000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.6.1.0 TextRun "" value="101"
+  ArrowDown:
+    - r.0.0.0.0.0.0.0.0.0.0.6.1 SpinButton "Width" value="101%" number=100.99999999999997 in -125000..125000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.6.1.0 TextRun "" value="101"
+    + r.0.0.0.0.0.0.0.0.0.0.6.1 SpinButton "Width" value="100%" number=100 in -125000..125000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.6.1.0 TextRun "" value="100"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.6.1 SpinButton "Width" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.7 Button "Maintain aspect ratio"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.0.7 Button "Maintain aspect ratio" description="Maintain aspect ratio" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.7 Button "Maintain aspect ratio" description="Maintain aspect ratio" [checked] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.0.0.0.0.0.0.7 Button "Maintain aspect ratio" description="Maintain aspect ratio" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.7 Button "Maintain aspect ratio" description="Maintain aspect ratio" [unchecked] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.0.0.0.0.0.0.7 Button "Maintain aspect ratio" description="Maintain aspect ratio" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.7 Button "Maintain aspect ratio" description="Maintain aspect ratio" [checked] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.7 Button "Maintain aspect ratio" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.9.0 Unknown ""
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0.9.1 SpinButton "Height"
+  Space:
+    focus: r.0.0.0.0.0.0.0.0.0.0.9.0 Unknown "" -> r.0.0.0.0.0.0.0.0.0.0.9.1 SpinButton "Height"
+  Enter:
+    focus: r.0.0.0.0.0.0.0.0.0.0.9.0 Unknown "" -> r.0.0.0.0.0.0.0.0.0.0.9.1 SpinButton "Height"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.9.0 Unknown "" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.9.1 SpinButton "Height"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0.9.1 SpinButton "Height"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.0.0.0.0.9.1 SpinButton "Height" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.0.0.0.6.1 SpinButton "Width" value="100%" number=100 in -125000..125000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.6.1.0 TextRun "" value="100"
+    + r.0.0.0.0.0.0.0.0.0.0.6.1 SpinButton "Width" value="101%" number=101 in -125000..125000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.6.1.0 TextRun "" value="101"
+    - r.0.0.0.0.0.0.0.0.0.0.9.1 SpinButton "Height" value="100%" number=100 in -187500..187500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.9.1.0 TextRun "" value="100"
+    + r.0.0.0.0.0.0.0.0.0.0.9.1 SpinButton "Height" value="101%" number=100.99999999999997 in -187500..187500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.9.1.0 TextRun "" value="101"
+  ArrowDown:
+    - r.0.0.0.0.0.0.0.0.0.0.6.1 SpinButton "Width" value="101%" number=101 in -125000..125000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.6.1.0 TextRun "" value="101"
+    + r.0.0.0.0.0.0.0.0.0.0.6.1 SpinButton "Width" value="100%" number=100.00000000000003 in -125000..125000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.6.1.0 TextRun "" value="100"
+    - r.0.0.0.0.0.0.0.0.0.0.9.1 SpinButton "Height" value="101%" number=100.99999999999997 in -187500..187500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.9.1.0 TextRun "" value="101"
+    + r.0.0.0.0.0.0.0.0.0.0.9.1 SpinButton "Height" value="100%" number=100 in -187500..187500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.9.1.0 TextRun "" value="100"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.9.1 SpinButton "Height" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.10.0 SpinButton "Angle"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0.10.0 SpinButton "Angle"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.0.0.0.0.10.0 SpinButton "Angle" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.0.0.0.10.0 SpinButton "Angle" value="0°" number=0 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.10.0.0 TextRun "" value="0"
+    + r.0.0.0.0.0.0.0.0.0.0.10.0 SpinButton "Angle" value="1°" number=0.999999999999997 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.10.0.0 TextRun "" value="1"
+    - r.0.0.0.0.0.0.0.0.0.0.12.1 SpinButton "Horizontal skew" value="0°" number=-0 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.12.1 SpinButton "Horizontal skew" value="0°" number=-0.0000000000000029817700138720468 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+  ArrowDown:
+    - r.0.0.0.0.0.0.0.0.0.0.6.1 SpinButton "Width" value="100%" number=100.00000000000003 in -125000..125000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.6.1 SpinButton "Width" value="100%" number=100.00000000000007 in -125000..125000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.9.1 SpinButton "Height" value="100%" number=100 in -187500..187500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.9.1 SpinButton "Height" value="100%" number=99.99999999999997 in -187500..187500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.10.0 SpinButton "Angle" value="1°" number=0.999999999999997 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.10.0.0 TextRun "" value="1"
+    + r.0.0.0.0.0.0.0.0.0.0.10.0 SpinButton "Angle" value="0°" number=0.000000000000003392591660227749 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.10.0.0 TextRun "" value="0"
+    - r.0.0.0.0.0.0.0.0.0.0.12.1 SpinButton "Horizontal skew" value="0°" number=-0.0000000000000029817700138720468 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.12.1 SpinButton "Horizontal skew" value="0°" number=-0.000000000000013570366640911008 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.10.0 SpinButton "Angle" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.12.0 Unknown ""
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0.12.1 SpinButton "Horizontal skew"
+  Space:
+    focus: r.0.0.0.0.0.0.0.0.0.0.12.0 Unknown "" -> r.0.0.0.0.0.0.0.0.0.0.12.1 SpinButton "Horizontal skew"
+  Enter:
+    focus: r.0.0.0.0.0.0.0.0.0.0.12.0 Unknown "" -> r.0.0.0.0.0.0.0.0.0.0.12.1 SpinButton "Horizontal skew"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.12.0 Unknown "" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.12.1 SpinButton "Horizontal skew"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0.12.1 SpinButton "Horizontal skew"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.0.0.0.0.12.1 SpinButton "Horizontal skew" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.0.0.0.10.0 SpinButton "Angle" value="0°" number=0.000000000000003392591660227749 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.10.0 SpinButton "Angle" value="0°" number=0 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.12.1 SpinButton "Horizontal skew" value="0°" number=-0.000000000000013570366640911008 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.12.1.0 TextRun "" value="0"
+    + r.0.0.0.0.0.0.0.0.0.0.12.1 SpinButton "Horizontal skew" value="1°" number=0.9999999999999937 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.12.1.0 TextRun "" value="1"
+  ArrowDown:
+    - r.0.0.0.0.0.0.0.0.0.0.12.1 SpinButton "Horizontal skew" value="1°" number=0.9999999999999937 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.12.1.0 TextRun "" value="1"
+    + r.0.0.0.0.0.0.0.0.0.0.12.1 SpinButton "Horizontal skew" value="0°" number=-0 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.12.1.0 TextRun "" value="0"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.12.1 SpinButton "Horizontal skew" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.14.0 Unknown ""
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0.14.1 SpinButton "Vertical skew"
+  Space:
+    focus: r.0.0.0.0.0.0.0.0.0.0.14.0 Unknown "" -> r.0.0.0.0.0.0.0.0.0.0.14.1 SpinButton "Vertical skew"
+  Enter:
+    focus: r.0.0.0.0.0.0.0.0.0.0.14.0 Unknown "" -> r.0.0.0.0.0.0.0.0.0.0.14.1 SpinButton "Vertical skew"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.14.0 Unknown "" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.14.1 SpinButton "Vertical skew"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0.14.1 SpinButton "Vertical skew"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.0.0.0.0.14.1 SpinButton "Vertical skew" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.0.0.0.10.0 SpinButton "Angle" value="0°" number=0 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.10.0 SpinButton "Angle" value="0°" number=-0.0000000000000005963540027744094 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.12.1 SpinButton "Horizontal skew" value="0°" number=-0 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.12.1 SpinButton "Horizontal skew" value="0°" number=0.0000000000000005963540027744094 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.14.1 SpinButton "Vertical skew" value="0°" number=0 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.14.1.0 TextRun "" value="0"
+    + r.0.0.0.0.0.0.0.0.0.0.14.1 SpinButton "Vertical skew" value="1°" number=1 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.14.1.0 TextRun "" value="1"
+  ArrowDown:
+    - r.0.0.0.0.0.0.0.0.0.0.9.1 SpinButton "Height" value="100%" number=99.99999999999997 in -187500..187500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.9.1 SpinButton "Height" value="100%" number=100 in -187500..187500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.10.0 SpinButton "Angle" value="0°" number=-0.0000000000000005963540027744094 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.10.0 SpinButton "Angle" value="0°" number=0 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.12.1 SpinButton "Horizontal skew" value="0°" number=0.0000000000000005963540027744094 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.12.1 SpinButton "Horizontal skew" value="0°" number=-0 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.14.1 SpinButton "Vertical skew" value="1°" number=1 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.14.1.0 TextRun "" value="1"
+    + r.0.0.0.0.0.0.0.0.0.0.14.1 SpinButton "Vertical skew" value="0°" number=0 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.14.1.0 TextRun "" value="0"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.14.1 SpinButton "Vertical skew" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.16 ComboBox "Interpolation"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0.0 ListBoxOption "Bicubic"
+    - r.0.0.0.0.0.0.0.0.0.0.16 ComboBox "Interpolation" value="Bicubic" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.16 ComboBox "Interpolation" value="Bicubic" controls=[r.0.0.0.0.0.0.0.0.0.0.16.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.16.0 ListBox ""
+    + r.0.0.0.0.0.0.0.0.0.0.16.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.16.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0.0 ListBoxOption "Bicubic" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0.1 ListBoxOption "Bilinear" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0.2 ListBoxOption "Nearest Neighbor" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0.0 ListBoxOption "Bicubic" -> r.0.0.0.0.0.0.0.0.0.0.16 ComboBox "Interpolation"
+    - r.0.0.0.0.0.0.0.0.0.0.16 ComboBox "Interpolation" value="Bicubic" controls=[r.0.0.0.0.0.0.0.0.0.0.16.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.16.0 ListBox ""
+    - r.0.0.0.0.0.0.0.0.0.0.16.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.16.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0.0 ListBoxOption "Bicubic" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0.1 ListBoxOption "Bilinear" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0.2 ListBoxOption "Nearest Neighbor" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.16 ComboBox "Interpolation" value="Bicubic" [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.0.0.0.0.0.0.16 ComboBox "Interpolation" -> r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0.0 ListBoxOption "Bicubic"
+    - r.0.0.0.0.0.0.0.0.0.0.16 ComboBox "Interpolation" value="Bicubic" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.16 ComboBox "Interpolation" value="Bicubic" controls=[r.0.0.0.0.0.0.0.0.0.0.16.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.16.0 ListBox ""
+    + r.0.0.0.0.0.0.0.0.0.0.16.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.16.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0.0 ListBoxOption "Bicubic" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0.1 ListBoxOption "Bilinear" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0.2 ListBoxOption "Nearest Neighbor" [unselected] actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0.0 ListBoxOption "Bicubic" -> r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0.1 ListBoxOption "Bilinear"
+    - r.0.0.0.0.0.0.0.0.0.0.16 ComboBox "Interpolation" value="Bicubic" controls=[r.0.0.0.0.0.0.0.0.0.0.16.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.16 ComboBox "Interpolation" value="Bilinear" controls=[r.0.0.0.0.0.0.0.0.0.0.16.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0.0 ListBoxOption "Bicubic" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0.1 ListBoxOption "Bilinear" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0.0 ListBoxOption "Bicubic" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0.1 ListBoxOption "Bilinear" [selected] actions=[Click]
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0.1 ListBoxOption "Bilinear" -> r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0.0 ListBoxOption "Bicubic"
+    - r.0.0.0.0.0.0.0.0.0.0.16 ComboBox "Interpolation" value="Bilinear" controls=[r.0.0.0.0.0.0.0.0.0.0.16.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.16 ComboBox "Interpolation" value="Bicubic" controls=[r.0.0.0.0.0.0.0.0.0.0.16.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0.0 ListBoxOption "Bicubic" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0.1 ListBoxOption "Bilinear" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0.0 ListBoxOption "Bicubic" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0.1 ListBoxOption "Bilinear" [unselected] actions=[Click]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0.0 ListBoxOption "Bicubic" -> r.0.0.0.0.0.0.0.0.0.0.16 ComboBox "Interpolation"
+    - r.0.0.0.0.0.0.0.0.0.0.16 ComboBox "Interpolation" value="Bicubic" controls=[r.0.0.0.0.0.0.0.0.0.0.16.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.16.0 ListBox ""
+    - r.0.0.0.0.0.0.0.0.0.0.16.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.16.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0.0 ListBoxOption "Bicubic" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0.1 ListBoxOption "Bilinear" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.16.0.0.0.0.0.2 ListBoxOption "Nearest Neighbor" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.16 ComboBox "Interpolation" value="Bicubic" [collapsed popup:Listbox] actions=[Click,Focus]
+drive r.0.0.0.0.0.0.0.0.0.1 CheckBox "Show Reference Point"
+  click:
+    focus: r.0.0.0.0.0.0.0.0.0.0.16 ComboBox "Interpolation" -> r Window ""
+    - r.0.0.0.0.0.0.0.0.0.1 CheckBox "Show Reference Point" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.1 CheckBox "Show Reference Point" [unchecked] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.0.0.0.0.0.1 CheckBox "Show Reference Point" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.1 CheckBox "Show Reference Point" [checked] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.0.0.0.0.0.1 CheckBox "Show Reference Point" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.1 CheckBox "Show Reference Point" [unchecked] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.1 CheckBox "Show Reference Point" -> r Window ""
+drive r.0.0.0.0.0.0.1 ScrollBar ""
+  click: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown: no change
+  Home: no change
+  End: no change
+  Escape: no change
+drive r.0.0.0.0.0.1.0 Button "Cancel transform"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.0.6.1 SpinButton "Width" value="100%" number=100.00000000000007 in -125000..125000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.6.1 SpinButton "Width" value="100%" number=100 in -125000..125000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1 Label "" value="Discarded" actions=[Click]
+    + r.0.0.0.0.1.1.0 TextRun "" value="Discarded"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.0 Button "Cancel transform" -> r Window ""
+drive r.0.0.0.0.0.1.1 Button "Commit transform"
+  click:
+    - r.0.0.0.0.1.1 Label "" value="Discarded" actions=[Click]
+    - r.0.0.0.0.1.1.0 TextRun "" value="Discarded"
+    + r.0.0.0.0.1.1 Label "" value="Closed without changes" actions=[Click]
+    + r.0.0.0.0.1.1.0 TextRun "" value="Closed without changes"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.1 Button "Commit transform" -> r Window ""
+drive r.0.0.0.0.0.1.2 Button "Switch between free transform and warp modes"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0 RadioGroup "Reference point" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.0.0 RadioButton "Top left" [unchecked]
+    - r.0.0.0.0.0.0.0.0.0.0.0.0.1 RadioButton "Top" [unchecked]
+    - r.0.0.0.0.0.0.0.0.0.0.0.0.2 RadioButton "Top right" [unchecked]
+    - r.0.0.0.0.0.0.0.0.0.0.0.0.3 RadioButton "Left" [unchecked]
+    - r.0.0.0.0.0.0.0.0.0.0.0.0.4 RadioButton "Center" [checked]
+    - r.0.0.0.0.0.0.0.0.0.0.0.0.5 RadioButton "Right" [unchecked]
+    - r.0.0.0.0.0.0.0.0.0.0.0.0.6 RadioButton "Bottom left" [unchecked]
+    - r.0.0.0.0.0.0.0.0.0.0.0.0.7 RadioButton "Bottom" [unchecked]
+    - r.0.0.0.0.0.0.0.0.0.0.0.0.8 RadioButton "Bottom right" [unchecked]
+    - r.0.0.0.0.0.0.0.0.0.0.1 Label "" value="X:"
+    - r.0.0.0.0.0.0.0.0.0.0.2 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.2.0 Unknown "" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.2.1 SpinButton "X position" value="320 px" number=320 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.2.1.0 TextRun "" value="320"
+    - r.0.0.0.0.0.0.0.0.0.0.3 Label "" value="Y:"
+    - r.0.0.0.0.0.0.0.0.0.0.4 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.4.0 Unknown "" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.4.1 SpinButton "Y position" value="200 px" number=200 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.4.1.0 TextRun "" value="200"
+    - r.0.0.0.0.0.0.0.0.0.0.5 Label "" value="W:"
+    - r.0.0.0.0.0.0.0.0.0.0.6 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.6.0 Unknown "" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.6.1 SpinButton "Width" value="100%" number=100 in -125000..125000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.6.1.0 TextRun "" value="100"
+    - r.0.0.0.0.0.0.0.0.0.0.7 Button "Maintain aspect ratio" description="Maintain aspect ratio" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.8 Label "" value="H:"
+    - r.0.0.0.0.0.0.0.0.0.0.9 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.9.0 Unknown "" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.9.1 SpinButton "Height" value="100%" number=100 in -187500..187500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.9.1.0 TextRun "" value="100"
+    - r.0.0.0.0.0.0.0.0.0.0.10 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.10.0 SpinButton "Angle" value="0°" number=0 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.10.0.0 TextRun "" value="0"
+    - r.0.0.0.0.0.0.0.0.0.0.11 Label "" value="H:"
+    - r.0.0.0.0.0.0.0.0.0.0.12 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.12.0 Unknown "" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.12.1 SpinButton "Horizontal skew" value="0°" number=-0 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.12.1.0 TextRun "" value="0"
+    - r.0.0.0.0.0.0.0.0.0.0.13 Label "" value="V:"
+    - r.0.0.0.0.0.0.0.0.0.0.14 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.14.0 Unknown "" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.14.1 SpinButton "Vertical skew" value="0°" number=0 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.14.1.0 TextRun "" value="0"
+    - r.0.0.0.0.0.0.0.0.0.0.15 Label "" value="Interpolation:"
+    - r.0.0.0.0.0.0.0.0.0.0.16 ComboBox "Interpolation" value="Bicubic" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.1 CheckBox "Show Reference Point" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0 Label "" value="Warp options" actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0 TextRun "" value="Warp options"
+    - r.0.0.0.0.0.1.0 Button "Cancel transform" description="Cancel transform" shortcut="Escape" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.1 Button "Commit transform" description="Commit transform" shortcut="Enter" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.2 Button "Switch between free transform and warp modes" description="Switch between free transform and warp modes" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0 Button "Cancel warp" description="Cancel warp" shortcut="Escape" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.1 Button "Commit warp" description="Commit warp" shortcut="Enter" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.2 Button "Reset warp" description="Reset warp" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.3 Button "Switch between free transform and warp modes" description="Switch between free transform and warp modes" [checked] actions=[Click,Focus]
+  Space:
+    focus: r.0.0.0.0.0.1.3 Button "Switch between free transform and warp modes" -> r Window ""
+    - r.0.0.0.0.0.0.0.0.0.0 Label "" value="Warp options" actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0 TextRun "" value="Warp options"
+    + r.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0 RadioGroup "Reference point" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.0.0 RadioButton "Top left" [unchecked]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0.1 RadioButton "Top" [unchecked]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0.2 RadioButton "Top right" [unchecked]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0.3 RadioButton "Left" [unchecked]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0.4 RadioButton "Center" [checked]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0.5 RadioButton "Right" [unchecked]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0.6 RadioButton "Bottom left" [unchecked]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0.7 RadioButton "Bottom" [unchecked]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0.8 RadioButton "Bottom right" [unchecked]
+    + r.0.0.0.0.0.0.0.0.0.0.1 Label "" value="X:"
+    + r.0.0.0.0.0.0.0.0.0.0.2 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.2.0 Unknown "" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.2.1 SpinButton "X position" value="320 px" number=320 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.2.1.0 TextRun "" value="320"
+    + r.0.0.0.0.0.0.0.0.0.0.3 Label "" value="Y:"
+    + r.0.0.0.0.0.0.0.0.0.0.4 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.4.0 Unknown "" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.4.1 SpinButton "Y position" value="200 px" number=200 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.4.1.0 TextRun "" value="200"
+    + r.0.0.0.0.0.0.0.0.0.0.5 Label "" value="W:"
+    + r.0.0.0.0.0.0.0.0.0.0.6 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.6.0 Unknown "" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.6.1 SpinButton "Width" value="100%" number=100 in -125000..125000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.6.1.0 TextRun "" value="100"
+    + r.0.0.0.0.0.0.0.0.0.0.7 Button "Maintain aspect ratio" description="Maintain aspect ratio" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.8 Label "" value="H:"
+    + r.0.0.0.0.0.0.0.0.0.0.9 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.9.0 Unknown "" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.9.1 SpinButton "Height" value="100%" number=100 in -187500..187500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.9.1.0 TextRun "" value="100"
+    + r.0.0.0.0.0.0.0.0.0.0.10 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.10.0 SpinButton "Angle" value="0°" number=0 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.10.0.0 TextRun "" value="0"
+    + r.0.0.0.0.0.0.0.0.0.0.11 Label "" value="H:"
+    + r.0.0.0.0.0.0.0.0.0.0.12 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.12.0 Unknown "" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.12.1 SpinButton "Horizontal skew" value="0°" number=-0 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.12.1.0 TextRun "" value="0"
+    + r.0.0.0.0.0.0.0.0.0.0.13 Label "" value="V:"
+    + r.0.0.0.0.0.0.0.0.0.0.14 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.14.0 Unknown "" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.14.1 SpinButton "Vertical skew" value="0°" number=0 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.14.1.0 TextRun "" value="0"
+    + r.0.0.0.0.0.0.0.0.0.0.15 Label "" value="Interpolation:"
+    + r.0.0.0.0.0.0.0.0.0.0.16 ComboBox "Interpolation" value="Bicubic" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.1 CheckBox "Show Reference Point" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    - r.0.0.0.0.0.1.0 Button "Cancel warp" description="Cancel warp" shortcut="Escape" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.1 Button "Commit warp" description="Commit warp" shortcut="Enter" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.2 Button "Reset warp" description="Reset warp" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.3 Button "Switch between free transform and warp modes" description="Switch between free transform and warp modes" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0 Button "Cancel transform" description="Cancel transform" shortcut="Escape" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.1 Button "Commit transform" description="Commit transform" shortcut="Enter" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.2 Button "Switch between free transform and warp modes" description="Switch between free transform and warp modes" [unchecked] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.0.1.2 Button "Switch between free transform and warp modes" -> r Window ""
+    - r.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0 RadioGroup "Reference point" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.0.0 RadioButton "Top left" [unchecked]
+    - r.0.0.0.0.0.0.0.0.0.0.0.0.1 RadioButton "Top" [unchecked]
+    - r.0.0.0.0.0.0.0.0.0.0.0.0.2 RadioButton "Top right" [unchecked]
+    - r.0.0.0.0.0.0.0.0.0.0.0.0.3 RadioButton "Left" [unchecked]
+    - r.0.0.0.0.0.0.0.0.0.0.0.0.4 RadioButton "Center" [checked]
+    - r.0.0.0.0.0.0.0.0.0.0.0.0.5 RadioButton "Right" [unchecked]
+    - r.0.0.0.0.0.0.0.0.0.0.0.0.6 RadioButton "Bottom left" [unchecked]
+    - r.0.0.0.0.0.0.0.0.0.0.0.0.7 RadioButton "Bottom" [unchecked]
+    - r.0.0.0.0.0.0.0.0.0.0.0.0.8 RadioButton "Bottom right" [unchecked]
+    - r.0.0.0.0.0.0.0.0.0.0.1 Label "" value="X:"
+    - r.0.0.0.0.0.0.0.0.0.0.2 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.2.0 Unknown "" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.2.1 SpinButton "X position" value="320 px" number=320 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.2.1.0 TextRun "" value="320"
+    - r.0.0.0.0.0.0.0.0.0.0.3 Label "" value="Y:"
+    - r.0.0.0.0.0.0.0.0.0.0.4 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.4.0 Unknown "" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.4.1 SpinButton "Y position" value="200 px" number=200 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.4.1.0 TextRun "" value="200"
+    - r.0.0.0.0.0.0.0.0.0.0.5 Label "" value="W:"
+    - r.0.0.0.0.0.0.0.0.0.0.6 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.6.0 Unknown "" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.6.1 SpinButton "Width" value="100%" number=100 in -125000..125000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.6.1.0 TextRun "" value="100"
+    - r.0.0.0.0.0.0.0.0.0.0.7 Button "Maintain aspect ratio" description="Maintain aspect ratio" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.8 Label "" value="H:"
+    - r.0.0.0.0.0.0.0.0.0.0.9 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.9.0 Unknown "" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.9.1 SpinButton "Height" value="100%" number=100 in -187500..187500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.9.1.0 TextRun "" value="100"
+    - r.0.0.0.0.0.0.0.0.0.0.10 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.10.0 SpinButton "Angle" value="0°" number=0 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.10.0.0 TextRun "" value="0"
+    - r.0.0.0.0.0.0.0.0.0.0.11 Label "" value="H:"
+    - r.0.0.0.0.0.0.0.0.0.0.12 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.12.0 Unknown "" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.12.1 SpinButton "Horizontal skew" value="0°" number=-0 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.12.1.0 TextRun "" value="0"
+    - r.0.0.0.0.0.0.0.0.0.0.13 Label "" value="V:"
+    - r.0.0.0.0.0.0.0.0.0.0.14 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.14.0 Unknown "" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.14.1 SpinButton "Vertical skew" value="0°" number=0 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.0.0.0.14.1.0 TextRun "" value="0"
+    - r.0.0.0.0.0.0.0.0.0.0.15 Label "" value="Interpolation:"
+    - r.0.0.0.0.0.0.0.0.0.0.16 ComboBox "Interpolation" value="Bicubic" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.1 CheckBox "Show Reference Point" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0 Label "" value="Warp options" actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0 TextRun "" value="Warp options"
+    - r.0.0.0.0.0.1.0 Button "Cancel transform" description="Cancel transform" shortcut="Escape" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.1 Button "Commit transform" description="Commit transform" shortcut="Enter" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.2 Button "Switch between free transform and warp modes" description="Switch between free transform and warp modes" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0 Button "Cancel warp" description="Cancel warp" shortcut="Escape" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.1 Button "Commit warp" description="Commit warp" shortcut="Enter" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.2 Button "Reset warp" description="Reset warp" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.3 Button "Switch between free transform and warp modes" description="Switch between free transform and warp modes" [checked] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.1.3 Button "Switch between free transform and warp modes" -> r Window ""
+drive r.0.0.0.0.1.0 Button "Reset"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.0 Label "" value="Warp options" actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0 TextRun "" value="Warp options"
+    + r.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0 RadioGroup "Reference point" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.0.0 RadioButton "Top left" [unchecked]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0.1 RadioButton "Top" [unchecked]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0.2 RadioButton "Top right" [unchecked]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0.3 RadioButton "Left" [unchecked]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0.4 RadioButton "Center" [checked]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0.5 RadioButton "Right" [unchecked]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0.6 RadioButton "Bottom left" [unchecked]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0.7 RadioButton "Bottom" [unchecked]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0.8 RadioButton "Bottom right" [unchecked]
+    + r.0.0.0.0.0.0.0.0.0.0.1 Label "" value="X:"
+    + r.0.0.0.0.0.0.0.0.0.0.2 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.2.0 Unknown "" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.2.1 SpinButton "X position" value="320 px" number=320 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.2.1.0 TextRun "" value="320"
+    + r.0.0.0.0.0.0.0.0.0.0.3 Label "" value="Y:"
+    + r.0.0.0.0.0.0.0.0.0.0.4 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.4.0 Unknown "" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.4.1 SpinButton "Y position" value="200 px" number=200 in -300000..300000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.4.1.0 TextRun "" value="200"
+    + r.0.0.0.0.0.0.0.0.0.0.5 Label "" value="W:"
+    + r.0.0.0.0.0.0.0.0.0.0.6 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.6.0 Unknown "" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.6.1 SpinButton "Width" value="100%" number=100 in -125000..125000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.6.1.0 TextRun "" value="100"
+    + r.0.0.0.0.0.0.0.0.0.0.7 Button "Maintain aspect ratio" description="Maintain aspect ratio" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.8 Label "" value="H:"
+    + r.0.0.0.0.0.0.0.0.0.0.9 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.9.0 Unknown "" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.9.1 SpinButton "Height" value="100%" number=100 in -187500..187500 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.9.1.0 TextRun "" value="100"
+    + r.0.0.0.0.0.0.0.0.0.0.10 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.10.0 SpinButton "Angle" value="0°" number=0 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.10.0.0 TextRun "" value="0"
+    + r.0.0.0.0.0.0.0.0.0.0.11 Label "" value="H:"
+    + r.0.0.0.0.0.0.0.0.0.0.12 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.12.0 Unknown "" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.12.1 SpinButton "Horizontal skew" value="0°" number=-0 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.12.1.0 TextRun "" value="0"
+    + r.0.0.0.0.0.0.0.0.0.0.13 Label "" value="V:"
+    + r.0.0.0.0.0.0.0.0.0.0.14 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.14.0 Unknown "" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.14.1 SpinButton "Vertical skew" value="0°" number=0 in -89..89 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0.0.14.1.0 TextRun "" value="0"
+    + r.0.0.0.0.0.0.0.0.0.0.15 Label "" value="Interpolation:"
+    + r.0.0.0.0.0.0.0.0.0.0.16 ComboBox "Interpolation" value="Bicubic" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.1 CheckBox "Show Reference Point" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    - r.0.0.0.0.0.1.0 Button "Cancel warp" description="Cancel warp" shortcut="Escape" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.1 Button "Commit warp" description="Commit warp" shortcut="Enter" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.2 Button "Reset warp" description="Reset warp" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.3 Button "Switch between free transform and warp modes" description="Switch between free transform and warp modes" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0 Button "Cancel transform" description="Cancel transform" shortcut="Escape" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.1 Button "Commit transform" description="Commit transform" shortcut="Enter" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.2 Button "Switch between free transform and warp modes" description="Switch between free transform and warp modes" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1.1 Label "" value="Closed without changes" actions=[Click]
+    - r.0.0.0.0.1.1.0 TextRun "" value="Closed without changes"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1.0 Button "Reset" -> r Window ""

@@ -1,0 +1,177 @@
+story composites/preset-picker/pattern-grid
+args
+  columns = Number { value: 6.0, min: 2.0, max: 10.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Button "Pattern: Pattern 3" [collapsed popup:Dialog] actions=[Click,Focus]
+          r.0.0.0.0.1 Label "" value="Selected: Pattern 3" actions=[Click]
+            r.0.0.0.0.1.0 TextRun "" value="Selected: Pattern 3"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0 Button "Pattern: Pattern 3"
+  2: r.0.0.0.0.0 Button "Pattern: Pattern 3"
+  cycle after 1 nodes
+drive: 2 actionable nodes
+drive r.0.0.0.0.0 Button "Pattern: Pattern 3"
+  click:
+    focus: r.0.0.0.0.0 Button "Pattern: Pattern 3" -> r.1.0.0.0.0.2 ListBoxOption "Pattern 3"
+    - r.0.0.0.0.0 Button "Pattern: Pattern 3" [collapsed popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0 Button "Pattern: Pattern 3" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.1 Dialog "Pattern"
+    + r.1.0 GenericContainer ""
+    + r.1.0.0 ListBox "Pattern" actions=[Focus]
+    + r.1.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0.0 ListBoxOption "Pattern 1" description="Pattern 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.1 ListBoxOption "Pattern 2" description="Pattern 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.2 ListBoxOption "Pattern 3" description="Pattern 3" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.3 ListBoxOption "Pattern 4" description="Pattern 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.4 ListBoxOption "Pattern 5" description="Pattern 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.5 ListBoxOption "Pattern 6" description="Pattern 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.6 ListBoxOption "Pattern 7" description="Pattern 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.7 ListBoxOption "Pattern 8" description="Pattern 8" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.8 ListBoxOption "Pattern 9" description="Pattern 9" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.9 ListBoxOption "Pattern 10" description="Pattern 10" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.10 ListBoxOption "Pattern 11" description="Pattern 11" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.11 ListBoxOption "Pattern 12" description="Pattern 12" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.12 ListBoxOption "Pattern 13" description="Pattern 13" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.13 ListBoxOption "Pattern 14" description="Pattern 14" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.14 ListBoxOption "Pattern 15" description="Pattern 15" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.15 ListBoxOption "Pattern 16" description="Pattern 16" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.16 ListBoxOption "Pattern 17" description="Pattern 17" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.17 ListBoxOption "Pattern 18" description="Pattern 18" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.18 ListBoxOption "Pattern 19" description="Pattern 19" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.19 ListBoxOption "Pattern 20" description="Pattern 20" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.20 ListBoxOption "Pattern 21" description="Pattern 21" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.21 ListBoxOption "Pattern 22" description="Pattern 22" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.22 ListBoxOption "Pattern 23" description="Pattern 23" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.23 ListBoxOption "Pattern 24" description="Pattern 24" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.24 ListBoxOption "Pattern 25" description="Pattern 25" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.25 ListBoxOption "Pattern 26" description="Pattern 26" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.26 ListBoxOption "Pattern 27" description="Pattern 27" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.27 ListBoxOption "Pattern 28" description="Pattern 28" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.28 ListBoxOption "Pattern 29" description="Pattern 29" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.29 ListBoxOption "Pattern 30" description="Pattern 30" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Space:
+    - r.0.0.0.0.0 Button "Pattern: Pattern 3" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0 Button "Pattern: Pattern 3" [collapsed popup:Dialog] actions=[Click,Focus]
+    - r.1 Dialog "Pattern"
+    - r.1.0 GenericContainer ""
+    - r.1.0.0 ListBox "Pattern" actions=[Focus]
+    - r.1.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0.0 ListBoxOption "Pattern 1" description="Pattern 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.1 ListBoxOption "Pattern 2" description="Pattern 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.2 ListBoxOption "Pattern 3" description="Pattern 3" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.3 ListBoxOption "Pattern 4" description="Pattern 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.4 ListBoxOption "Pattern 5" description="Pattern 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.5 ListBoxOption "Pattern 6" description="Pattern 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.6 ListBoxOption "Pattern 7" description="Pattern 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.7 ListBoxOption "Pattern 8" description="Pattern 8" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.8 ListBoxOption "Pattern 9" description="Pattern 9" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.9 ListBoxOption "Pattern 10" description="Pattern 10" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.10 ListBoxOption "Pattern 11" description="Pattern 11" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.11 ListBoxOption "Pattern 12" description="Pattern 12" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.12 ListBoxOption "Pattern 13" description="Pattern 13" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.13 ListBoxOption "Pattern 14" description="Pattern 14" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.14 ListBoxOption "Pattern 15" description="Pattern 15" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.15 ListBoxOption "Pattern 16" description="Pattern 16" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.16 ListBoxOption "Pattern 17" description="Pattern 17" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.17 ListBoxOption "Pattern 18" description="Pattern 18" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.18 ListBoxOption "Pattern 19" description="Pattern 19" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.19 ListBoxOption "Pattern 20" description="Pattern 20" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.20 ListBoxOption "Pattern 21" description="Pattern 21" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.21 ListBoxOption "Pattern 22" description="Pattern 22" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.22 ListBoxOption "Pattern 23" description="Pattern 23" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.23 ListBoxOption "Pattern 24" description="Pattern 24" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.24 ListBoxOption "Pattern 25" description="Pattern 25" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.25 ListBoxOption "Pattern 26" description="Pattern 26" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.26 ListBoxOption "Pattern 27" description="Pattern 27" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.27 ListBoxOption "Pattern 28" description="Pattern 28" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.28 ListBoxOption "Pattern 29" description="Pattern 29" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.29 ListBoxOption "Pattern 30" description="Pattern 30" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Enter:
+    focus: r.0.0.0.0.0 Button "Pattern: Pattern 3" -> r.1.0.0.0.0.2 ListBoxOption "Pattern 3"
+    - r.0.0.0.0.0 Button "Pattern: Pattern 3" [collapsed popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0 Button "Pattern: Pattern 3" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.1 Dialog "Pattern"
+    + r.1.0 GenericContainer ""
+    + r.1.0.0 ListBox "Pattern" actions=[Focus]
+    + r.1.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0.0 ListBoxOption "Pattern 1" description="Pattern 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.1 ListBoxOption "Pattern 2" description="Pattern 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.2 ListBoxOption "Pattern 3" description="Pattern 3" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.3 ListBoxOption "Pattern 4" description="Pattern 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.4 ListBoxOption "Pattern 5" description="Pattern 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.5 ListBoxOption "Pattern 6" description="Pattern 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.6 ListBoxOption "Pattern 7" description="Pattern 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.7 ListBoxOption "Pattern 8" description="Pattern 8" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.8 ListBoxOption "Pattern 9" description="Pattern 9" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.9 ListBoxOption "Pattern 10" description="Pattern 10" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.10 ListBoxOption "Pattern 11" description="Pattern 11" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.11 ListBoxOption "Pattern 12" description="Pattern 12" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.12 ListBoxOption "Pattern 13" description="Pattern 13" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.13 ListBoxOption "Pattern 14" description="Pattern 14" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.14 ListBoxOption "Pattern 15" description="Pattern 15" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.15 ListBoxOption "Pattern 16" description="Pattern 16" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.16 ListBoxOption "Pattern 17" description="Pattern 17" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.17 ListBoxOption "Pattern 18" description="Pattern 18" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.18 ListBoxOption "Pattern 19" description="Pattern 19" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.19 ListBoxOption "Pattern 20" description="Pattern 20" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.20 ListBoxOption "Pattern 21" description="Pattern 21" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.21 ListBoxOption "Pattern 22" description="Pattern 22" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.22 ListBoxOption "Pattern 23" description="Pattern 23" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.23 ListBoxOption "Pattern 24" description="Pattern 24" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.24 ListBoxOption "Pattern 25" description="Pattern 25" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.25 ListBoxOption "Pattern 26" description="Pattern 26" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.26 ListBoxOption "Pattern 27" description="Pattern 27" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.27 ListBoxOption "Pattern 28" description="Pattern 28" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.28 ListBoxOption "Pattern 29" description="Pattern 29" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.29 ListBoxOption "Pattern 30" description="Pattern 30" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape:
+    - r.0.0.0.0.0 Button "Pattern: Pattern 3" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0 Button "Pattern: Pattern 3" [collapsed popup:Dialog] actions=[Click,Focus]
+    - r.1 Dialog "Pattern"
+    - r.1.0 GenericContainer ""
+    - r.1.0.0 ListBox "Pattern" actions=[Focus]
+    - r.1.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0.0 ListBoxOption "Pattern 1" description="Pattern 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.1 ListBoxOption "Pattern 2" description="Pattern 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.2 ListBoxOption "Pattern 3" description="Pattern 3" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.3 ListBoxOption "Pattern 4" description="Pattern 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.4 ListBoxOption "Pattern 5" description="Pattern 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.5 ListBoxOption "Pattern 6" description="Pattern 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.6 ListBoxOption "Pattern 7" description="Pattern 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.7 ListBoxOption "Pattern 8" description="Pattern 8" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.8 ListBoxOption "Pattern 9" description="Pattern 9" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.9 ListBoxOption "Pattern 10" description="Pattern 10" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.10 ListBoxOption "Pattern 11" description="Pattern 11" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.11 ListBoxOption "Pattern 12" description="Pattern 12" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.12 ListBoxOption "Pattern 13" description="Pattern 13" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.13 ListBoxOption "Pattern 14" description="Pattern 14" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.14 ListBoxOption "Pattern 15" description="Pattern 15" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.15 ListBoxOption "Pattern 16" description="Pattern 16" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.16 ListBoxOption "Pattern 17" description="Pattern 17" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.17 ListBoxOption "Pattern 18" description="Pattern 18" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.18 ListBoxOption "Pattern 19" description="Pattern 19" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.19 ListBoxOption "Pattern 20" description="Pattern 20" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.20 ListBoxOption "Pattern 21" description="Pattern 21" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.21 ListBoxOption "Pattern 22" description="Pattern 22" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.22 ListBoxOption "Pattern 23" description="Pattern 23" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.23 ListBoxOption "Pattern 24" description="Pattern 24" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.24 ListBoxOption "Pattern 25" description="Pattern 25" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.25 ListBoxOption "Pattern 26" description="Pattern 26" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.26 ListBoxOption "Pattern 27" description="Pattern 27" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.27 ListBoxOption "Pattern 28" description="Pattern 28" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.28 ListBoxOption "Pattern 29" description="Pattern 29" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.29 ListBoxOption "Pattern 30" description="Pattern 30" [unselected] actions=[Click,Focus,ScrollIntoView]
+drive r.0.0.0.0.1 Label ""
+  click:
+    focus: r.0.0.0.0.0 Button "Pattern: Pattern 3" -> r Window ""
+  Escape: no change

@@ -1,0 +1,260 @@
+story patterns/font-picker/filters
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 TextInput "Search fonts" value="Hack" [expanded popup:Dialog] actions=[Click,Focus,SetValue,ReplaceSelectedText]
+            r.0.0.0.0.0.0 TextRun "" value="Hack"
+          r.0.0.0.0.1 Button "Fonts" actions=[Click,Focus]
+  r.1 Dialog "Fonts"
+    r.1.0 GenericContainer ""
+      r.1.0.0 GenericContainer ""
+        r.1.0.0.0 Button "Hide Font Classes" description="Hide Font Classes" [unchecked] actions=[Click,Focus]
+        r.1.0.0.1 Button "Show variable fonts" description="Show variable fonts" [unchecked] actions=[Click,Focus]
+        r.1.0.0.2 Button "Show favorite fonts" description="Show favorite fonts" [checked] actions=[Click,Focus]
+        r.1.0.0.3 Button "Show similar fonts" description="Show similar fonts" [unchecked] actions=[Click,Focus]
+        r.1.0.0.4 Button "Clear All" actions=[Click,Focus]
+      r.1.0.1 GenericContainer ""
+        r.1.0.1.0 GenericContainer ""
+          r.1.0.1.0.0 ListBox "Filter by class" actions=[Focus]
+            r.1.0.1.0.0.0 GenericContainer ""
+              r.1.0.1.0.0.0.0 GenericContainer ""
+                r.1.0.1.0.0.0.0.0 GenericContainer ""
+                  r.1.0.1.0.0.0.0.0.0 ListBoxOption "All Classes" [selected] actions=[Click,Focus,ScrollIntoView]
+                  r.1.0.1.0.0.0.0.0.1 ListBoxOption "Serif" [unselected] actions=[Click,Focus,ScrollIntoView]
+                  r.1.0.1.0.0.0.0.0.2 ListBoxOption "Slab Serif" [unselected] actions=[Click,Focus,ScrollIntoView]
+                  r.1.0.1.0.0.0.0.0.3 ListBoxOption "Sans Serif" [unselected] actions=[Click,Focus,ScrollIntoView]
+            r.1.0.1.0.0.1 ScrollBar "Scroll bar" actions=[Click]
+        r.1.0.1.1 GenericContainer ""
+          r.1.0.1.1.0 ListBox "Fonts" actions=[Focus]
+            r.1.0.1.1.0.0 GenericContainer ""
+              r.1.0.1.1.0.0.0 GenericContainer ""
+                r.1.0.1.1.0.0.0.0 GenericContainer ""
+                  r.1.0.1.1.0.0.0.0.0 ListBoxOption "Hack" [selected] actions=[Click,Focus,ScrollIntoView]
+                  r.1.0.1.1.0.0.0.0.1 Button "Favorite Hack" [checked] actions=[Click]
+                  r.1.0.1.1.0.0.0.0.2 GenericContainer ""
+                    r.1.0.1.1.0.0.0.0.2.0 Label "" value="Mo" description="Monospace" actions=[Click]
+                      r.1.0.1.1.0.0.0.0.2.0.0 TextRun "" value="Mo"
+                  r.1.0.1.1.0.0.0.0.3 GenericContainer ""
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0 TextInput "Search fonts"
+  2: r.0.0.0.0.1 Button "Fonts"
+  3: r.1.0.0.0 Button "Hide Font Classes"
+  4: r.1.0.0.1 Button "Show variable fonts"
+  5: r.1.0.0.2 Button "Show favorite fonts"
+  6: r.1.0.0.3 Button "Show similar fonts"
+  7: r.1.0.0.4 Button "Clear All"
+  8: r.1.0.1.0.0.0.0.0.0 ListBoxOption "All Classes"
+  9: r.1.0.1.1.0.0.0.0.0 ListBoxOption "Hack"
+  10: r.0.0.0.0.0 TextInput "Search fonts"
+  cycle after 9 nodes
+drive: 17 actionable nodes
+drive r.0.0.0.0.0 TextInput "Search fonts"
+  click: no change
+  Space: no change
+  Enter:
+    - r.0.0.0.0.0 TextInput "Search fonts" value="Hack" [expanded popup:Dialog] actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0 TextInput "Search fonts" value="Hack" [collapsed popup:Dialog] actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.1 Dialog "Fonts"
+    - r.1.0 GenericContainer ""
+    - r.1.0.0 GenericContainer ""
+    - r.1.0.0.0 Button "Hide Font Classes" description="Hide Font Classes" [unchecked] actions=[Click,Focus]
+    - r.1.0.0.1 Button "Show variable fonts" description="Show variable fonts" [unchecked] actions=[Click,Focus]
+    - r.1.0.0.2 Button "Show favorite fonts" description="Show favorite fonts" [checked] actions=[Click,Focus]
+    - r.1.0.0.3 Button "Show similar fonts" description="Show similar fonts" [unchecked] actions=[Click,Focus]
+    - r.1.0.0.4 Button "Clear All" actions=[Click,Focus]
+    - r.1.0.1 GenericContainer ""
+    - r.1.0.1.0 GenericContainer ""
+    - r.1.0.1.0.0 ListBox "Filter by class" actions=[Focus]
+    - r.1.0.1.0.0.0 GenericContainer ""
+    - r.1.0.1.0.0.0.0 GenericContainer ""
+    - r.1.0.1.0.0.0.0.0 GenericContainer ""
+    - r.1.0.1.0.0.0.0.0.0 ListBoxOption "All Classes" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.1.0.0.0.0.0.1 ListBoxOption "Serif" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.1.0.0.0.0.0.2 ListBoxOption "Slab Serif" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.1.0.0.0.0.0.3 ListBoxOption "Sans Serif" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.1.0.0.1 ScrollBar "Scroll bar" actions=[Click]
+    - r.1.0.1.1 GenericContainer ""
+    - r.1.0.1.1.0 ListBox "Fonts" actions=[Focus]
+    - r.1.0.1.1.0.0 GenericContainer ""
+    - r.1.0.1.1.0.0.0 GenericContainer ""
+    - r.1.0.1.1.0.0.0.0 GenericContainer ""
+    - r.1.0.1.1.0.0.0.0.0 ListBoxOption "Hack" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.1.1.0.0.0.0.1 Button "Favorite Hack" [checked] actions=[Click]
+    - r.1.0.1.1.0.0.0.0.2 GenericContainer ""
+    - r.1.0.1.1.0.0.0.0.2.0 Label "" value="Mo" description="Monospace" actions=[Click]
+    - r.1.0.1.1.0.0.0.0.2.0.0 TextRun "" value="Mo"
+    - r.1.0.1.1.0.0.0.0.3 GenericContainer ""
+  Escape:
+    focus: r.0.0.0.0.0 TextInput "Search fonts" -> r Window ""
+drive r.0.0.0.0.1 Button "Fonts"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0 TextInput "Search fonts"
+    - r.0.0.0.0.0 TextInput "Search fonts" value="Hack" [collapsed popup:Dialog] actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0 TextInput "Search fonts" value="Hack" [expanded popup:Dialog] actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.1 Dialog "Fonts"
+    + r.1.0 GenericContainer ""
+    + r.1.0.0 GenericContainer ""
+    + r.1.0.0.0 Button "Hide Font Classes" description="Hide Font Classes" [unchecked] actions=[Click,Focus]
+    + r.1.0.0.1 Button "Show variable fonts" description="Show variable fonts" [unchecked] actions=[Click,Focus]
+    + r.1.0.0.2 Button "Show favorite fonts" description="Show favorite fonts" [checked] actions=[Click,Focus]
+    + r.1.0.0.3 Button "Show similar fonts" description="Show similar fonts" [unchecked] actions=[Click,Focus]
+    + r.1.0.0.4 Button "Clear All" actions=[Click,Focus]
+    + r.1.0.1 GenericContainer ""
+    + r.1.0.1.0 GenericContainer ""
+    + r.1.0.1.0.0 ListBox "Filter by class" actions=[Focus]
+    + r.1.0.1.0.0.0 GenericContainer ""
+    + r.1.0.1.0.0.0.0 GenericContainer ""
+    + r.1.0.1.0.0.0.0.0 GenericContainer ""
+    + r.1.0.1.0.0.0.0.0.0 ListBoxOption "All Classes" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.1.0.0.0.0.0.1 ListBoxOption "Serif" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.1.0.0.0.0.0.2 ListBoxOption "Slab Serif" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.1.0.0.0.0.0.3 ListBoxOption "Sans Serif" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.1.0.0.1 ScrollBar "Scroll bar" actions=[Click]
+    + r.1.0.1.1 GenericContainer ""
+    + r.1.0.1.1.0 ListBox "Fonts" actions=[Focus]
+    + r.1.0.1.1.0.0 GenericContainer ""
+    + r.1.0.1.1.0.0.0 GenericContainer ""
+    + r.1.0.1.1.0.0.0.0 GenericContainer ""
+    + r.1.0.1.1.0.0.0.0.0 ListBoxOption "Hack" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.1.1.0.0.0.0.1 Button "Favorite Hack" [checked] actions=[Click]
+    + r.1.0.1.1.0.0.0.0.2 GenericContainer ""
+    + r.1.0.1.1.0.0.0.0.2.0 Label "" value="Mo" description="Monospace" actions=[Click]
+    + r.1.0.1.1.0.0.0.0.2.0.0 TextRun "" value="Mo"
+    + r.1.0.1.1.0.0.0.0.3 GenericContainer ""
+  Space:
+    focus: r.0.0.0.0.1 Button "Fonts" -> r.0.0.0.0.0 TextInput "Search fonts"
+    - r.0.0.0.0.0 TextInput "Search fonts" value="Hack" [expanded popup:Dialog] actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0 TextInput "Search fonts" value="Hack" [collapsed popup:Dialog] actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.1 Dialog "Fonts"
+    - r.1.0 GenericContainer ""
+    - r.1.0.0 GenericContainer ""
+    - r.1.0.0.0 Button "Hide Font Classes" description="Hide Font Classes" [unchecked] actions=[Click,Focus]
+    - r.1.0.0.1 Button "Show variable fonts" description="Show variable fonts" [unchecked] actions=[Click,Focus]
+    - r.1.0.0.2 Button "Show favorite fonts" description="Show favorite fonts" [checked] actions=[Click,Focus]
+    - r.1.0.0.3 Button "Show similar fonts" description="Show similar fonts" [unchecked] actions=[Click,Focus]
+    - r.1.0.0.4 Button "Clear All" actions=[Click,Focus]
+    - r.1.0.1 GenericContainer ""
+    - r.1.0.1.0 GenericContainer ""
+    - r.1.0.1.0.0 ListBox "Filter by class" actions=[Focus]
+    - r.1.0.1.0.0.0 GenericContainer ""
+    - r.1.0.1.0.0.0.0 GenericContainer ""
+    - r.1.0.1.0.0.0.0.0 GenericContainer ""
+    - r.1.0.1.0.0.0.0.0.0 ListBoxOption "All Classes" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.1.0.0.0.0.0.1 ListBoxOption "Serif" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.1.0.0.0.0.0.2 ListBoxOption "Slab Serif" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.1.0.0.0.0.0.3 ListBoxOption "Sans Serif" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.1.0.0.1 ScrollBar "Scroll bar" actions=[Click]
+    - r.1.0.1.1 GenericContainer ""
+    - r.1.0.1.1.0 ListBox "Fonts" actions=[Focus]
+    - r.1.0.1.1.0.0 GenericContainer ""
+    - r.1.0.1.1.0.0.0 GenericContainer ""
+    - r.1.0.1.1.0.0.0.0 GenericContainer ""
+    - r.1.0.1.1.0.0.0.0.0 ListBoxOption "Hack" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.1.1.0.0.0.0.1 Button "Favorite Hack" [checked] actions=[Click]
+    - r.1.0.1.1.0.0.0.0.2 GenericContainer ""
+    - r.1.0.1.1.0.0.0.0.2.0 Label "" value="Mo" description="Monospace" actions=[Click]
+    - r.1.0.1.1.0.0.0.0.2.0.0 TextRun "" value="Mo"
+    - r.1.0.1.1.0.0.0.0.3 GenericContainer ""
+  Enter:
+    focus: r.0.0.0.0.1 Button "Fonts" -> r.0.0.0.0.0 TextInput "Search fonts"
+    - r.0.0.0.0.0 TextInput "Search fonts" value="Hack" [collapsed popup:Dialog] actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0 TextInput "Search fonts" value="Hack" [expanded popup:Dialog] actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.1 Dialog "Fonts"
+    + r.1.0 GenericContainer ""
+    + r.1.0.0 GenericContainer ""
+    + r.1.0.0.0 Button "Hide Font Classes" description="Hide Font Classes" [unchecked] actions=[Click,Focus]
+    + r.1.0.0.1 Button "Show variable fonts" description="Show variable fonts" [unchecked] actions=[Click,Focus]
+    + r.1.0.0.2 Button "Show favorite fonts" description="Show favorite fonts" [checked] actions=[Click,Focus]
+    + r.1.0.0.3 Button "Show similar fonts" description="Show similar fonts" [unchecked] actions=[Click,Focus]
+    + r.1.0.0.4 Button "Clear All" actions=[Click,Focus]
+    + r.1.0.1 GenericContainer ""
+    + r.1.0.1.0 GenericContainer ""
+    + r.1.0.1.0.0 ListBox "Filter by class" actions=[Focus]
+    + r.1.0.1.0.0.0 GenericContainer ""
+    + r.1.0.1.0.0.0.0 GenericContainer ""
+    + r.1.0.1.0.0.0.0.0 GenericContainer ""
+    + r.1.0.1.0.0.0.0.0.0 ListBoxOption "All Classes" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.1.0.0.0.0.0.1 ListBoxOption "Serif" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.1.0.0.0.0.0.2 ListBoxOption "Slab Serif" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.1.0.0.0.0.0.3 ListBoxOption "Sans Serif" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.1.0.0.1 ScrollBar "Scroll bar" actions=[Click]
+    + r.1.0.1.1 GenericContainer ""
+    + r.1.0.1.1.0 ListBox "Fonts" actions=[Focus]
+    + r.1.0.1.1.0.0 GenericContainer ""
+    + r.1.0.1.1.0.0.0 GenericContainer ""
+    + r.1.0.1.1.0.0.0.0 GenericContainer ""
+    + r.1.0.1.1.0.0.0.0.0 ListBoxOption "Hack" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.1.1.0.0.0.0.1 Button "Favorite Hack" [checked] actions=[Click]
+    + r.1.0.1.1.0.0.0.0.2 GenericContainer ""
+    + r.1.0.1.1.0.0.0.0.2.0 Label "" value="Mo" description="Monospace" actions=[Click]
+    + r.1.0.1.1.0.0.0.0.2.0.0 TextRun "" value="Mo"
+    + r.1.0.1.1.0.0.0.0.3 GenericContainer ""
+  Escape:
+    focus: r.0.0.0.0.1 Button "Fonts" -> r.0.0.0.0.0 TextInput "Search fonts"
+    - r.0.0.0.0.0 TextInput "Search fonts" value="Hack" [expanded popup:Dialog] actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0 TextInput "Search fonts" value="Hack" [collapsed popup:Dialog] actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.1 Dialog "Fonts"
+    - r.1.0 GenericContainer ""
+    - r.1.0.0 GenericContainer ""
+    - r.1.0.0.0 Button "Hide Font Classes" description="Hide Font Classes" [unchecked] actions=[Click,Focus]
+    - r.1.0.0.1 Button "Show variable fonts" description="Show variable fonts" [unchecked] actions=[Click,Focus]
+    - r.1.0.0.2 Button "Show favorite fonts" description="Show favorite fonts" [checked] actions=[Click,Focus]
+    - r.1.0.0.3 Button "Show similar fonts" description="Show similar fonts" [unchecked] actions=[Click,Focus]
+    - r.1.0.0.4 Button "Clear All" actions=[Click,Focus]
+    - r.1.0.1 GenericContainer ""
+    - r.1.0.1.0 GenericContainer ""
+    - r.1.0.1.0.0 ListBox "Filter by class" actions=[Focus]
+    - r.1.0.1.0.0.0 GenericContainer ""
+    - r.1.0.1.0.0.0.0 GenericContainer ""
+    - r.1.0.1.0.0.0.0.0 GenericContainer ""
+    - r.1.0.1.0.0.0.0.0.0 ListBoxOption "All Classes" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.1.0.0.0.0.0.1 ListBoxOption "Serif" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.1.0.0.0.0.0.2 ListBoxOption "Slab Serif" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.1.0.0.0.0.0.3 ListBoxOption "Sans Serif" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.1.0.0.1 ScrollBar "Scroll bar" actions=[Click]
+    - r.1.0.1.1 GenericContainer ""
+    - r.1.0.1.1.0 ListBox "Fonts" actions=[Focus]
+    - r.1.0.1.1.0.0 GenericContainer ""
+    - r.1.0.1.1.0.0.0 GenericContainer ""
+    - r.1.0.1.1.0.0.0.0 GenericContainer ""
+    - r.1.0.1.1.0.0.0.0.0 ListBoxOption "Hack" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.1.1.0.0.0.0.1 Button "Favorite Hack" [checked] actions=[Click]
+    - r.1.0.1.1.0.0.0.0.2 GenericContainer ""
+    - r.1.0.1.1.0.0.0.0.2.0 Label "" value="Mo" description="Monospace" actions=[Click]
+    - r.1.0.1.1.0.0.0.0.2.0.0 TextRun "" value="Mo"
+    - r.1.0.1.1.0.0.0.0.3 GenericContainer ""
+drive r.1.0.0.0 Button "Hide Font Classes"
+  all steps: node gone
+drive r.1.0.0.1 Button "Show variable fonts"
+  all steps: node gone
+drive r.1.0.0.2 Button "Show favorite fonts"
+  all steps: node gone
+drive r.1.0.0.3 Button "Show similar fonts"
+  all steps: node gone
+drive r.1.0.0.4 Button "Clear All"
+  all steps: node gone
+drive r.1.0.1.0.0 ListBox "Filter by class"
+  all steps: node gone
+drive r.1.0.1.0.0.0.0.0.0 ListBoxOption "All Classes"
+  all steps: node gone
+drive r.1.0.1.0.0.0.0.0.1 ListBoxOption "Serif"
+  all steps: node gone
+drive r.1.0.1.0.0.0.0.0.2 ListBoxOption "Slab Serif"
+  all steps: node gone
+drive r.1.0.1.0.0.0.0.0.3 ListBoxOption "Sans Serif"
+  all steps: node gone
+drive r.1.0.1.0.0.1 ScrollBar "Scroll bar"
+  all steps: node gone
+drive r.1.0.1.1.0 ListBox "Fonts"
+  all steps: node gone
+drive r.1.0.1.1.0.0.0.0.0 ListBoxOption "Hack"
+  all steps: node gone
+drive r.1.0.1.1.0.0.0.0.1 Button "Favorite Hack"
+  all steps: node gone
+drive r.1.0.1.1.0.0.0.0.2.0 Label ""
+  all steps: node gone
