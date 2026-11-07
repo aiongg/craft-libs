@@ -1,0 +1,68 @@
+//! `SplitButton`: the main part runs the action and never opens the menu, the arrow and Alt+Down open it, a pick
+//! reports the entry as one choice and closes the menu.
+
+use craft_ui::buttons::SplitButton;
+use craft_ui::contract::{Role, Show as _};
+use craft_ui::controls::select::SelectOption;
+use craft_ui::testing::{Fixture, trial};
+use egui::{Key, Modifiers};
+use std::cell::Cell;
+use std::rc::Rc;
+
+struct Rig {
+    fixture: Fixture,
+    clicks: Rc<Cell<u32>>,
+    chosen: Rc<Cell<Option<u8>>>,
+}
+
+fn rig() -> Rig {
+    let (clicks, chosen) = (Rc::new(Cell::new(0)), Rc::new(Cell::new(None)));
+    let (shown_clicks, shown_chosen) = (clicks.clone(), chosen.clone());
+    let mut fixture = Fixture::new(move |ui| {
+        let entries = [SelectOption::new(7u8, "Colour"), SelectOption::new(9, "Grayscale")];
+        let out = SplitButton::new("Trace", &entries).show(ui);
+        if out.response.clicked() {
+            shown_clicks.set(shown_clicks.get() + 1);
+        }
+        if out.chosen.is_some() {
+            shown_chosen.set(out.chosen);
+        }
+    });
+    fixture.settle();
+    Rig { fixture, clicks, chosen }
+}
+
+impl Rig {
+    fn menu_shown(&self) -> bool {
+        !self.fixture.by_role(Role::LIST_BOX).is_empty()
+    }
+
+    fn press(&mut self, key: Key, modifiers: Modifiers) {
+        self.fixture.key(key, modifiers);
+        self.fixture.idle(2);
+    }
+}
+
+/// Enter on the focused button runs the action and leaves the menu closed.
+#[trial]
+fn a_split_button_runs_its_action_without_opening_the_menu() {
+    let mut rig = rig();
+    rig.press(Key::Tab, Modifiers::NONE);
+    rig.press(Key::Enter, Modifiers::NONE);
+    assert_eq!(rig.clicks.get(), 1);
+    assert!(!rig.menu_shown());
+}
+
+/// Alt+Down opens the menu with its first row active; Enter picks it once and closes the menu without running the
+/// action.
+#[trial]
+fn a_split_button_opens_from_the_keyboard_and_reports_the_pick() {
+    let mut rig = rig();
+    rig.press(Key::Tab, Modifiers::NONE);
+    rig.press(Key::ArrowDown, Modifiers::ALT);
+    assert!(rig.menu_shown(), "Alt+Down opens the menu");
+    rig.press(Key::Enter, Modifiers::NONE);
+    assert_eq!(rig.chosen.get(), Some(7), "the first row was active");
+    assert!(!rig.menu_shown(), "a pick closes the menu");
+    assert_eq!(rig.clicks.get(), 0, "a pick is not the action");
+}
