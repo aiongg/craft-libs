@@ -255,7 +255,9 @@ impl Opener {
         let (fired, by_pointer, pressed) = pointer::with_pass_pointer(&anchor.ctx, |pass| {
             let Some(frame) = pass.frame.as_ref() else { return (false, false, false) };
             let on_opener = pass.press_targets.click == Some(anchor.id);
-            let inside = frame.pos.is_some_and(|pos| anchor.rect.contains(pos));
+            let inside = frame
+                .pos
+                .is_some_and(|pos| anchor.rect.contains(areas::layer_map(&anchor.ctx, anchor.layer_id).map_or(pos, |map| map.to_layer(pos))));
             let by_pointer = inside && frame.release == Some(PointerButton::Secondary);
             let fired = match trigger {
                 Trigger::Click => on_opener && inside && frame.release == Some(PointerButton::Primary),
