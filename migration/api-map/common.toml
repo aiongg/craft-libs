@@ -74,16 +74,16 @@ new = "Env::dates()"
 note = "The scope's `Arc<DateFormat>`: the host's, else the system region's, held by the env."
 
 [[call]]
-old = "DatePicker::today fed by an app clock"
-new = "RootEnv::today(date) and Env::today()"
-note = "The host gives today's `CalendarDate` in its time zone; the runtime reads no wall clock."
+old = "DatePicker::today(date)"
+new = "RootEnv::today(date)"
+note = "Read back with `Env::today()`. The host gives today's `CalendarDate` in its time zone; the runtime reads no wall clock."
 
 [[call]]
-old = "NumberField + Select<String> for ppi and ppcm; \"{n} minutes\" labels"
-new = "UnitKind::PixelsPerInch, UnitKind::PixelsPerCentimetre, UnitKind::Minutes"
-note = "New `UnitKind` variants with translated unit words."
+old = "UnitKind::Pixels"
+new = "UnitKind::PixelsPerInch"
+note = "Also `UnitKind::PixelsPerCentimetre` and `UnitKind::Minutes`. New `UnitKind` variants with translated unit words."
 
 [[call]]
-old = "Fixture command state through CommandInput by hand"
+old = "CommandInput::new(command).state(state)"
 new = "Fixture::command_state(command, state)"
 note = "Gives an app-scope command a state in every following pass of a fixture."

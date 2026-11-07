@@ -66,7 +66,7 @@ status = "moved"
 note = "`id` and `label` (was `title`) are given to `DocumentTab::new`; `modified` and `closable` are setters taking a bool."
 
 [[type]]
-name = "DocumentTabEvent"
+name = "DocumentTabsEvent"
 old = "craft_ui::docking::document_tabs::DocumentTabEvent"
 new = "craft_ui::tabs::DocumentTabsEvent"
 status = "moved"

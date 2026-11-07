@@ -83,5 +83,6 @@ fn a_long_ancestor_elides_and_keeps_its_name() {
     let (fixture, _) = bar(&[long, "child"], WIDE);
     assert!(fixture.by_label(long).is_some(), "the node is named by the whole text");
     let shown = fixture.texts().iter().find(|text| text.text.starts_with("an-")).expect("the crumb paints text");
-    assert!(shown.text.chars().count() < long.chars().count(), "the painted text is cut: {}", shown.text);
+    assert!(shown.elided, "the painted text is cut: {}", shown.text);
+    assert_eq!(shown.text, long, "an elided run reports its full text");
 }
