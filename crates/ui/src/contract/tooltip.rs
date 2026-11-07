@@ -285,11 +285,17 @@ pub struct TipStyle {
 
 /// The text of a tooltip, on a popup surface.
 #[derive(crate::contract::Component)]
-#[component(exempt(case = "face-only", reason = "The tooltip text is shown by the overlay host, never stand-alone."))]
+#[component(sample = TipText::sample)]
 pub(crate) struct TipText<'a> {
     #[common]
     common: Common,
     text: &'a str,
+}
+
+impl TipText<'static> {
+    fn sample() -> Self {
+        TipText { common: Common::default(), text: "Hides the layer" }
+    }
 }
 
 impl Component for TipText<'_> {

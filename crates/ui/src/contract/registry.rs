@@ -206,10 +206,17 @@ impl Probe {
         self
     }
 
-    /// Shows the leaf `sample` in the flow of `ui`: the body of a sample story.
+    /// Shows the leaf `sample` in the flow of `ui`: the body of a sample story. A leaf that measures to nothing is sized
+    /// by its host (a header cell, a thumbnail slot), so the story gives it a cell of the interact size.
     #[cfg(feature = "testing")]
-    pub fn show_sample<T: Component + Meta<Shape = shape::Leaf> + 'static>(ui: &mut Ui, sample: T) -> crate::testing::StoryOutput {
-        sample.show(ui).response().clone().into()
+    pub fn show_sample<T: Component + Meta<Shape = shape::Leaf> + 'static>(ui: &mut Ui, mut sample: T) -> crate::testing::StoryOutput {
+        let ideal = sample.measure_in(ui, craft_behavior::Proposal::Ideal);
+        if ideal.x > 0.0 && ideal.y > 0.0 {
+            return sample.show(ui).response().clone().into();
+        }
+        let cell = Rect::from_min_size(ui.cursor().min, ui.spacing().interact_size);
+        ui.allocate_rect(cell, egui::Sense::hover());
+        sample.show_at(ui, cell).response().clone().into()
     }
 
     /// The type's name, with its type arguments.

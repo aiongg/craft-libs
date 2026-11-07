@@ -19,7 +19,7 @@ pub(crate) struct FrameResult {
     pub copied: Vec<String>,
     /// The text runs the frame painted.
     pub texts: Vec<PaintedText>,
-    /// The visual bounds of every shape the frame painted. A shape with no extent (egui reports an empty galley's
+    /// The visual bounds of every shape the frame painted, within its clip rect. A shape with no extent (egui reports an empty galley's
     /// bounds as NaN) has none.
     pub bounds: Vec<Rect>,
 }
@@ -79,12 +79,19 @@ pub(crate) fn run_frame(ctx: &Context, time: f64, events: Vec<Event>, files: OsF
     output.textures_delta.clear();
     let mut flat = Vec::new();
     for clipped in &output.shapes {
-        flatten_ref(&clipped.shape, &mut flat);
+        let mut shapes = Vec::new();
+        flatten_ref(&clipped.shape, &mut shapes);
+        flat.extend(shapes.into_iter().map(|shape| (shape, clipped.clip_rect)));
     }
-    let bounds = flat.iter().map(|shape| shape.visual_bounding_rect()).filter(|rect| rect.is_finite()).collect();
+    // A shape shows only inside its clip rect.
+    let bounds = flat
+        .iter()
+        .map(|(shape, clip)| shape.visual_bounding_rect().intersect(*clip))
+        .filter(|rect| rect.is_finite() && rect.min.x <= rect.max.x && rect.min.y <= rect.max.y)
+        .collect();
     let texts = flat
         .iter()
-        .filter_map(|shape| match shape {
+        .filter_map(|(shape, _)| match shape {
             Shape::Text(text) => Some(PaintedText {
                 rect: text.galley.rect.translate(text.pos.to_vec2()),
                 elided: text.galley.elided,

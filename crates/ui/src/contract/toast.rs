@@ -79,11 +79,17 @@ pub struct CardStyle {
 /// One toast's text on a floating surface.
 // F8-LATER: `Notice` shows the card (tone, icon, actions).
 #[derive(crate::contract::Component)]
-#[component(exempt(case = "face-only", reason = "The toast card is shown by the toast host, never stand-alone."))]
+#[component(sample = ToastCard::sample)]
 struct ToastCard<'a> {
     #[common]
     common: Common,
     text: &'a str,
+}
+
+impl ToastCard<'static> {
+    fn sample() -> Self {
+        ToastCard { common: Common::default(), text: "Saved" }
+    }
 }
 
 impl Component for ToastCard<'_> {

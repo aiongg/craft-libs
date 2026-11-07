@@ -225,13 +225,17 @@ pub(super) struct EmptyNoteStyle {
 /// The text of an empty list.
 // F8-MERGE: Notice (display family) replaces this note.
 #[derive(crate::contract::Component)]
-#[component(exempt(case = "face-only", reason = "The empty state of `FindingsList`, shown by its empty story."))]
+#[component(sample = EmptyNote::sample)]
 pub(super) struct EmptyNote {
     #[common]
     common: Common,
 }
 
 impl EmptyNote {
+    fn sample() -> Self {
+        EmptyNote::new().label("No findings")
+    }
+
     pub(super) fn new() -> Self {
         EmptyNote { common: Common::new() }
     }
