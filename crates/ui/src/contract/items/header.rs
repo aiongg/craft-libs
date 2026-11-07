@@ -2,7 +2,9 @@
 //! header commands, in one roving group of focusable parts.
 
 use super::ItemsHooks;
-use crate::contract::collection::{CollectionEvent, CollectionProps, ColumnEvent, ColumnSort, ColumnSpec, HeaderMenuRequest};
+use crate::contract::collection::{
+    CollectionEvent, CollectionProps, ColumnEvent, ColumnKind, ColumnSort, ColumnSpec, HeaderMenuRequest, ToggleColumn,
+};
 use crate::contract::{Collection, Common, Component, Cx, Focus as _, PaintUi, PartsCx, Pointer as _, Props as _, Role, Show as _};
 use crate::primitives::{IconSpec, TextRun};
 use crate::runtime::access::items::{HeaderCell, report_header};
@@ -81,6 +83,8 @@ pub(super) struct Header {
     specs: Vec<ColumnSpec>,
     /// The app's sort, drawn on the header and advanced by a press.
     sort: Option<ColumnSort>,
+    /// `CollectionProps.header`: the row is built when some column has a header text.
+    on: bool,
     /// The control height, the unit of `ColumnWidth::Controls`.
     unit: f32,
     cells: Vec<Cell>,
@@ -101,6 +105,7 @@ impl Header {
     pub(super) fn read(&mut self, stage: &mut MemoryStage, id: Id, props: &CollectionProps) {
         self.memory = stage.session::<HeaderMemory>(sub(id, "columns")).clone();
         self.sort = props.sort.clone();
+        self.on = props.header;
         let mut specs = props.columns.to_vec();
         let order = &self.memory.order;
         specs.sort_by_key(|spec| order.iter().position(|key| *key == spec.key).unwrap_or(usize::MAX));
@@ -111,8 +116,8 @@ impl Header {
     pub(super) fn measure(&mut self, scx: &StyleCx<'_>) {
         let control = scx.control();
         self.unit = control.height;
-        // The row shows only when some column has a header to show (17.3).
-        self.height = if self.specs.iter().all(|spec| spec.header.as_str().is_empty()) { 0.0 } else { control.height };
+        // The row shows only when the props ask for it and some column has a header to show (17.3).
+        self.height = if !self.on || self.specs.iter().all(|spec| spec.header.as_str().is_empty()) { 0.0 } else { control.height };
         self.min = control.height * MIN_COLUMN;
         self.step = control.height;
         self.inset = control.gap;
@@ -135,6 +140,14 @@ impl Header {
     /// Whether the collection declares columns.
     pub(super) fn has_columns(&self) -> bool {
         !self.specs.is_empty()
+    }
+
+    /// The toggle columns in display order.
+    pub(super) fn toggle_columns(&self) -> impl Iterator<Item = (ColumnKey, ToggleColumn)> + '_ {
+        self.specs.iter().filter_map(|spec| match spec.kind {
+            ColumnKind::Toggle(toggle) => Some((spec.key.clone(), toggle)),
+            _ => None,
+        })
     }
 
     /// The columns with their widths for the item layout.
@@ -193,7 +206,10 @@ impl Header {
     }
 
     fn sort(&mut self, key: &ColumnKey) {
-        let descending = matches!(&self.sort, Some(sort) if sort.key == *key && !sort.descending);
+        let descending = match &self.sort {
+            Some(sort) if sort.key == *key => !sort.descending,
+            _ => self.specs.iter().any(|spec| spec.key == *key && spec.first_descending),
+        };
         self.events.push(ColumnEvent::Sort { key: key.clone(), descending });
     }
 

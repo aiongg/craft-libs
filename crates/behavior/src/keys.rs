@@ -12,8 +12,8 @@ use craft_keymap::{Key, Mods};
 pub struct KeyRole {
     /// A value control with a reset value and no text part: Delete resets it.
     pub resettable: bool,
-    /// A `Multi` or `Cells` collection: Space toggles the lead.
-    pub multi: bool,
+    /// A collection: Space is its own intent (`Intent::Space`), which the item step turns into its `SpaceAction`.
+    pub space: bool,
     /// A reorderable collection: Alt+Up and Alt+Down move the lead item.
     pub reorderable: bool,
     /// A collection with `CollectionProps.rename`.
@@ -24,6 +24,8 @@ pub struct KeyRole {
     pub nudge: bool,
     /// Typed letters reach the component as `Intent::Text` (type-ahead).
     pub type_ahead: bool,
+    /// Typed digits reach the component as `Intent::Digit`; the other typed text stays `Intent::Text`.
+    pub digits: bool,
     /// A value control: Alt with an arrow is a fine move.
     pub value: bool,
     /// The stop is a text part: Alt+Left and Alt+Right keep their word-move rows.
@@ -35,12 +37,13 @@ impl KeyRole {
     pub const fn new() -> KeyRole {
         KeyRole {
             resettable: false,
-            multi: false,
+            space: false,
             reorderable: false,
             rename: false,
             pages: false,
             nudge: false,
             type_ahead: false,
+            digits: false,
             value: false,
             text: false,
         }
@@ -52,9 +55,9 @@ impl KeyRole {
         self
     }
 
-    /// Space toggles the lead.
-    pub const fn multi(mut self, on: bool) -> Self {
-        self.multi = on;
+    /// Space is the component's own intent.
+    pub const fn space(mut self, on: bool) -> Self {
+        self.space = on;
         self
     }
 
@@ -85,6 +88,12 @@ impl KeyRole {
     /// Typed letters are delivered as text.
     pub const fn type_ahead(mut self, on: bool) -> Self {
         self.type_ahead = on;
+        self
+    }
+
+    /// Typed digits are delivered as digits.
+    pub const fn digits(mut self, on: bool) -> Self {
+        self.digits = on;
         self
     }
 
@@ -125,6 +134,12 @@ pub fn drop_operation(os: Os, mods: Mods) -> DropOperation {
     }
 }
 
+/// Typed `text` split for a role that takes digits: the ASCII digits it holds, in order, and the text without them.
+pub fn split_digits(text: &str) -> (Vec<u8>, String) {
+    let digits = text.chars().filter_map(|letter| letter.to_digit(10)).map(|digit| digit as u8).collect();
+    (digits, text.chars().filter(|letter| !letter.is_ascii_digit()).collect())
+}
+
 fn is_arrow(key: Key) -> bool {
     matches!(key, Key::Up | Key::Down | Key::Left | Key::Right)
 }
@@ -143,7 +158,7 @@ pub fn intent(os: Os, key: Key, mods: Mods, role: KeyRole) -> Option<Intent> {
     }
     match key {
         Key::Delete | Key::Backspace if plain && role.resettable => return Some(Intent::Reset),
-        Key::Space if plain && role.multi => return Some(Intent::Toggle),
+        Key::Space if plain && role.space => return Some(Intent::Space),
         Key::Menu if plain && !mac => return Some(Intent::ContextMenu),
         Key::F10 if only(Mods::SHIFT) => return Some(Intent::ContextMenu),
         Key::F2 if plain && role.rename && !mac => return Some(Intent::Rename),
@@ -237,7 +252,7 @@ mod tests {
 
     #[test]
     fn table_rows_follow_the_role_and_the_os() {
-        let list = KeyRole::new().reorderable(true).multi(true);
+        let list = KeyRole::new().reorderable(true).space(true);
         let any = KeyRole::new();
         let rename = KeyRole::new().rename(true);
         let pages = KeyRole::new().pages(true);
@@ -250,7 +265,7 @@ mod tests {
             check(os, Key::Up, alt_mods, list, Some(Intent::move_item(false)));
             check(os, Key::Down, alt_mods, any, Some(Intent::Open));
             check(os, Key::Up, alt_mods, any, Some(Intent::Close));
-            check(os, Key::Space, NONE, list, Some(Intent::Toggle));
+            check(os, Key::Space, NONE, list, Some(Intent::Space));
             check(os, Key::Space, NONE, any, None);
             check(os, Key::PageDown, Mods::CMD, any, Some(Intent::switch_page(true)));
             check(os, Key::Enter, Mods::CMD, any, Some(Intent::SubmitForce));
@@ -305,6 +320,13 @@ mod tests {
         check(Os::Mac, Key::Left, Mods::ALT, text, Some(Intent::Move(NavMove::Back, word)));
         check(Os::Mac, Key::Left, Mods::ALT, number, Some(Intent::Move(NavMove::Back, word)));
         check(Os::Linux, Key::Right, Mods::ALT, number, None);
+    }
+
+    #[test]
+    fn typed_text_splits_into_digits_and_the_rest() {
+        assert_eq!(split_digits("a3b"), (vec![3], "ab".to_owned()));
+        assert_eq!(split_digits("42"), (vec![4, 2], String::new()));
+        assert_eq!(split_digits("cd"), (Vec::new(), "cd".to_owned()));
     }
 
     #[test]

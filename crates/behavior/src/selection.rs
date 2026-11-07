@@ -101,6 +101,13 @@ impl<K> Selection<K> {
     }
 }
 
+impl<K: Clone> Selection<K> {
+    /// A selection of `key` alone, which is also its lead and its anchor.
+    pub fn single(key: K) -> Self {
+        Selection { items: vec![key.clone()], lead: Some(key.clone()), anchor: Some(key) }
+    }
+}
+
 impl<K> Default for Selection<K> {
     fn default() -> Self {
         Selection { items: Vec::new(), lead: None, anchor: None }

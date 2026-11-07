@@ -89,6 +89,12 @@ pub trait ItemSource<K>: DisplayOrder<K> {
     fn toggled(&self, _at: usize, _column: &ColumnKey) -> bool {
         false
     }
+
+    /// Whether the cell of entry `at` in the toggle column `column` can be flipped: a locked field's cell shows its
+    /// value and takes neither a press, a sweep nor the Space key.
+    fn toggle_enabled(&self, _at: usize, _column: &ColumnKey) -> bool {
+        true
+    }
 }
 
 /// `DisplayOrder` as the key-free outline the navigation core steps over.

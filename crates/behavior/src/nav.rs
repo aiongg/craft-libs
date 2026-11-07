@@ -152,6 +152,9 @@ pub fn step(shape: NavShape, outline: &dyn NavOutline, state: &mut NavState, mv:
         return first_move(outline, state, mv, mods);
     };
     let lead = lead.min(len - 1);
+    if let Some(step) = header_rule(shape, outline, lead, mv) {
+        return step;
+    }
     let result = match shape {
         NavShape::Flat => linear(outline, state, lead, mv),
         NavShape::Tree => tree(outline, state, lead, mv),
@@ -171,6 +174,19 @@ pub fn step(shape: NavShape, outline: &dyn NavOutline, state: &mut NavState, mv:
         }
     }
     result
+}
+
+/// A lead on a group header (a section with children, which moves skip but a press can reach): Forward opens it and
+/// Back closes it, the tree rule in every shape that reads Left and Right as steps.
+fn header_rule(shape: NavShape, outline: &dyn NavOutline, lead: usize, mv: NavMove) -> Option<NavStep> {
+    if matches!(shape, NavShape::Cell | NavShape::Spatial) || !outline.is_section(lead) || !outline.has_children(lead) {
+        return None;
+    }
+    match mv {
+        NavMove::Forward if !outline.open(lead) => Some(NavStep::Expand(lead)),
+        NavMove::Back if outline.open(lead) => Some(NavStep::Collapse(lead)),
+        _ => None,
+    }
 }
 
 /// The first move from no lead: forward moves land on the first position, backward moves on the last.

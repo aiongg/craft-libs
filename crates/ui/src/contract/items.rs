@@ -3,8 +3,8 @@
 pub(super) mod rows;
 
 use super::collection::{
-    ActivateOn, CollectionEvent, CollectionProps, CollectionResponse, ContextMenuRequest, Gestures, LeadOnOpen, OpenChange, Rename, ReorderMove,
-    RowState, SelectMode,
+    ActivateOn, CollectionEvent, CollectionProps, CollectionResponse, ContextMenuRequest, Gestures, LeadOnOpen, LeadSource, OpenChange, Rename,
+    ReorderMove, RowState, SelectMode, SpaceAction,
 };
 use super::cx::BodyCx;
 use super::run::{ShapeHooks, ShowAt};
@@ -24,9 +24,11 @@ use craft_behavior::{
 use egui::{Context, Id, Pos2, Rect, Ui, UiBuilder, Vec2};
 use std::ops::Range;
 use std::rc::Rc;
+use std::sync::Arc;
 
 mod drag;
 mod header;
+mod marquee;
 
 pub use header::ColumnCommands;
 
@@ -87,6 +89,16 @@ impl<K> Default for Renaming<K> {
 #[derive(Clone, Default)]
 struct Typing(TypeAhead);
 
+/// The item layout of the last pass, kept per collection in session memory.
+#[derive(Clone)]
+struct LastLayout<L>(Option<Arc<L>>);
+
+impl<L> Default for LastLayout<L> {
+    fn default() -> Self {
+        LastLayout(None)
+    }
+}
+
 #[derive(Clone)]
 struct Held<S>(S);
 
@@ -99,7 +111,9 @@ impl<S: Default> Default for Held<S> {
 pub(super) struct ItemsHooks<'s, 'r, C: Collection> {
     source: &'s dyn ItemSource<C::Key>,
     item: &'s mut ItemFn<'r, C>,
-    layout: Option<Rc<C::ItemLayout>>,
+    layout: Option<Arc<C::ItemLayout>>,
+    /// The layout of the last pass, which `Collection::item_layout_from` may reuse.
+    previous: Option<Arc<C::ItemLayout>>,
     content: Vec2,
     room: Vec2,
     scrolls: bool,
@@ -137,6 +151,7 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
             source,
             item,
             layout: None,
+            previous: None,
             content: Vec2::ZERO,
             room: Vec2::ZERO,
             scrolls: true,
@@ -198,11 +213,11 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
         if from <= to { keys.collect() } else { keys.rev().collect() }
     }
 
-    fn move_lead(&mut self, to: usize) {
+    fn move_lead(&mut self, to: usize, by: LeadSource) {
         let key = self.source.key(to);
         self.lead.key = Some(key.clone());
         self.lead.at = to;
-        self.events.push(CollectionEvent::LeadMoved(key));
+        self.events.push(CollectionEvent::LeadMoved { key, by });
     }
 
     /// The position of `key`: the lead's last position is tried first, so the common lookups of a pass do not scan.
@@ -260,11 +275,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
 
     fn key_role(&self, comp: &C) -> craft_behavior::KeyRole {
         let props = comp.items();
-        craft_behavior::KeyRole::new()
-            .multi(props.select != SelectMode::None)
-            .reorderable(props.reorder.is_some())
-            .rename(props.rename)
-            .type_ahead(true)
+        craft_behavior::KeyRole::new().reorderable(props.reorder.is_some()).rename(props.rename).type_ahead(true).digits(props.digit_keys).space(true)
     }
 
     fn instance_scope(&self, comp: &C) -> Option<crate::runtime::commands::CommandScope> {
@@ -283,6 +294,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             None => stage.session::<Held<C::Selection>>(sub(id, "selection")).0.clone(),
         };
         self.selection_at_read = self.selection.clone();
+        self.previous = stage.session::<LastLayout<C::ItemLayout>>(sub(id, "item_layout")).0.take();
         self.header.read(stage, id, comp.items());
         self.drags = stage.session::<Drags<C::Key>>(sub(id, "drags")).clone();
         self.lead = stage.session::<Lead<C::Key>>(sub(id, "lead")).clone();
@@ -342,7 +354,8 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 rows::widest_row(ui.ctx(), id).map_or(room.x, |widest| widest.max(floor).min(room.x))
             }
         };
-        let mut layout = comp.item_layout(self.source, width, scx);
+        let previous = self.layout.take().or_else(|| self.previous.take()).map(|held| Arc::try_unwrap(held).unwrap_or_else(|held| (*held).clone()));
+        let mut layout = comp.item_layout_from(previous, self.source, width, scx);
         if self.header.has_columns() {
             layout.set_columns(&self.header.columns(width));
         }
@@ -350,7 +363,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         rows::measured_heights(ctx, |height| layout.measured(&|at| height(rows::measured_id(id, &self.source.key(at)))));
         let content = layout.content_size();
         self.content = Vec2::new(content.x as f32, content.y as f32);
-        self.layout = Some(Rc::new(layout));
+        self.layout = Some(Arc::new(layout));
         let empty = if self.source.is_empty() { comp.empty_height(width, scx) } else { 0.0 };
         let height = self.content.y.max(empty) + self.header.height;
         if !(self.scrolls && room.y.is_finite()) {
@@ -377,7 +390,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let view = self.below_header(content);
         let offset = ScrollPos { x: self.offset_x, y: self.offset.clamp(0.0, self.max_offset(view.height())) };
         let mut layout = self.layout.take()?;
-        Rc::make_mut(&mut layout).set_view(view.size(), offset);
+        Arc::make_mut(&mut layout).set_view(view.size(), offset);
         let (_, order) = self.built(&layout, view, offset);
         let rects = order.into_iter().map(|at| (self.source.key(at), self.screen(&layout, view, at, offset, rtl))).collect();
         self.layout = Some(layout);
@@ -402,6 +415,10 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let span = ScrollSpan::new(0.0..content, self.offset..self.offset + f64::from(view.height()));
         pcx.scroll(SCROLL, track, Axis::Y, span);
         wheel::register(&ctx, WheelTaker::new(pcx.id, view).vertical(true).horizontal(self.content.x > view.width()));
+    }
+
+    fn sensed(&mut self, _: &mut C, cx: &mut Cx<'_, C>) {
+        cx.core.collection_selection = Some(Box::new(self.selection.clone()));
     }
 
     fn updated(&mut self, comp: &mut C, cx: &mut Cx<'_, C>) {
@@ -430,9 +447,10 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             self.hover_lead(comp, cx, &layout, seen);
         }
         self.drag_step(comp, cx, &layout, (rect, offset, rtl), &props);
+        self.marquee_step(comp, cx, &layout, (rect, offset, rtl), &props);
         self.navigate(comp, cx, &layout, view, header_held);
         let lead_at = self.lead.key.as_ref().and_then(|key| self.index_of(key)).or(lead_at);
-        self.intent_actions(comp, cx, &layout, at, lead_at, header_held);
+        self.intent_actions(comp, cx, &props, &layout, at, lead_at, header_held);
         self.reorder_and_rename(comp, cx, &props, lead_at);
         self.type_ahead(comp, cx, &layout, view, lead_at);
         self.layout = Some(layout);
@@ -461,7 +479,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let rtl = env.direction.is_rtl();
         let node = matches!(C::ROLE, Role::Node(_));
         let offset = ScrollPos { x: self.offset_x, y: self.offset };
-        Rc::make_mut(&mut layout).set_view(rect.size(), offset);
+        Arc::make_mut(&mut layout).set_view(rect.size(), offset);
         let sheet = Self::selects_cells(comp);
         let columns: Vec<u64> = match layout.grid() {
             Some(grid) => grid.sections.iter().flat_map(|section| section.columns.clone().map(u64::from)).collect(),
@@ -485,6 +503,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let lead = self.lead.key.clone();
         let mut lead_child = None;
         let striped = comp.items().striped;
+        let mut stripe: Option<(usize, usize)> = None;
         let transform = comp.props(Internal::new()).transform;
         let (parent, clip) = (ui.layer_id(), rect.intersect(ui.clip_rect()));
         let forward =
@@ -503,7 +522,11 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     selected: self.selection.contains(&key),
                     lead: lead.as_ref() == Some(&key),
                     renaming: self.renaming.key.as_ref() == Some(&key),
-                    striped: striped && at % 2 == 1,
+                    striped: striped && {
+                        let run = self.stripe_run(stripe, at);
+                        stripe = Some((at, run));
+                        run % 2 == 0 && !self.source.is_section(at)
+                    },
                     dragging: self.drags.grabbed.as_ref() == Some(&key),
                     drop_target: self.drags.over.as_ref() == Some(&key),
                     open: self.source.has_children(at) && self.source.open(at),
@@ -570,7 +593,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     let measured = item.measure_in(&row_ui, Proposal::Width(row.width())).y;
                     rows::record_measure(&ctx, rows::measured_id(id, &key), Vec2::new(row.width(), measured));
                     if measured != row.height() {
-                        Rc::make_mut(&mut layout).set_height(at, measured);
+                        Arc::make_mut(&mut layout).set_height(at, measured);
                         row = self.screen(&layout, rect, at, offset, rtl);
                     }
                 }
@@ -624,6 +647,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             }
             None => place_rows(ui),
         }
+        self.paint_marquee(ui, env, &layout, (rect, offset, rtl));
         focus::register_row_groups(&ctx, id, rtl, row_groups);
         if content_sized {
             rows::record_widest(&ctx, id, widest);
@@ -683,6 +707,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             (scrolled.y, scrolled.x) = (self.offset, self.offset_x);
         }
         *cx.core.memory.session::<Lead<C::Key>>(sub(id, "lead")) = self.lead.clone();
+        cx.core.memory.session::<LastLayout<C::ItemLayout>>(sub(id, "item_layout")).0 = self.layout.clone();
         *cx.core.memory.session::<HeaderMemory>(sub(id, "columns")) = self.header.persist();
         *cx.core.memory.session::<Drags<C::Key>>(sub(id, "drags")) = self.drags.clone();
         self.header.report(&cx.core.ctx, id, cx);
@@ -706,7 +731,8 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         layout.visible(offset, view.size(), &mut shown);
         let keep = [self.lead.key.as_ref(), self.selection.anchor(), self.renaming.key.as_ref(), self.drags.grabbed.as_ref()];
         let mut extra: Vec<usize> = Vec::new();
-        for at in keep.into_iter().flatten().filter_map(|key| self.index_of(key)) {
+        // An item of a closed group has no rect: it is never built.
+        for at in keep.into_iter().flatten().filter_map(|key| self.index_of(key)).filter(|&at| layout.shown(at)) {
             if !shown.contains(&at) && !extra.contains(&at) {
                 extra.push(at);
             }
@@ -715,12 +741,22 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         (shown, order)
     }
 
+    /// The rows since the last section row up to and including `at` (0 for a section row), continuing from `last`, the
+    /// result for an earlier row: stripes start again after a section.
+    fn stripe_run(&self, last: Option<(usize, usize)>, at: usize) -> usize {
+        match last {
+            Some((from, run)) if from <= at => (from + 1..=at).fold(run, |run, row| if self.source.is_section(row) { 0 } else { run + 1 }),
+            _ => (0..=at).rev().take_while(|&row| !self.source.is_section(row)).count(),
+        }
+    }
+
     /// The lead of a collection that shows rows for the first time, or in a layer that opens: the first row that can
     /// be picked when the props ask for it.
     fn open_lead(&mut self, comp: &C) {
         if self.lead.key.is_none()
             && comp.items().lead_on_open == LeadOnOpen::First
-            && let Some(at) = (0..self.source.len()).find(|&at| self.source.enabled(at) && !self.source.is_section(at))
+            && let Some(at) = (0..self.source.len())
+                .find(|&at| self.source.enabled(at) && !self.source.is_section(at) && self.layout.as_ref().is_none_or(|layout| layout.shown(at)))
         {
             self.lead.key = Some(self.source.key(at));
             self.lead.at = at;
@@ -744,10 +780,10 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         } else {
             local
         };
-        if let Some(row) = layout.hit(local, offset).filter(|&row| self.source.enabled(row) && !self.source.is_section(row))
+        if let Some(row) = layout.hit(local, offset).filter(|&row| self.source.enabled(row) && !self.source.is_section(row) && layout.shown(row))
             && self.lead.key.as_ref() != Some(&self.source.key(row))
         {
-            self.move_lead(row);
+            self.move_lead(row, LeadSource::Pointer);
             self.pick(comp, row, false, false);
         }
     }
@@ -761,7 +797,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             self.lead.key = None;
             if len > 0 {
                 let to = self.lead.at.min(len - 1);
-                self.move_lead(to);
+                self.move_lead(to, LeadSource::Keys);
                 if self.selection.contains(&key) {
                     self.pick(comp, to, false, false);
                 }
@@ -782,11 +818,12 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             let at = xf.map_or(at, |map| map.to_layer(at)) - rect.min.to_vec2();
             if layout.mirrors() && rtl { flow.to_physical(Rect::from_min_size(at, Vec2::ZERO)).min } else { at }
         };
+        let mods_now = crate::runtime::pointer::frame(&ctx).mods;
         if let PressPhase::Down { start, .. } = cx.core.press.phase
             && local(start.origin).y >= 0.0
         {
             let primary = start.button == craft_behavior::PointerButton::Primary;
-            if let Some(at) = layout.hit(local(start.origin), offset).filter(|&at| self.source.enabled(at)) {
+            if let Some(at) = layout.hit(local(start.origin), offset).filter(|&at| self.source.enabled(at) && layout.shown(at)) {
                 let toggle = self.toggle_cell(props, layout, at, offset, local(start.origin)).filter(|_| primary);
                 if let Some((column, toggle)) = toggle {
                     self.begin_toggle(cx, at, column, toggle);
@@ -808,7 +845,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                         None if hold => self.drags.collapse = Some(key.clone()),
                         None => self.pick(comp, at, mods.shift, mods.cmd),
                     }
-                    self.move_lead(at);
+                    self.move_lead(at, LeadSource::Pointer);
                     let activates = match props.activate {
                         ActivateOn::DoubleClick => start.clicks == 2,
                         ActivateOn::Click => primary && start.clicks == 1,
@@ -819,6 +856,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 }
             } else if primary
                 && props.allow_empty
+                && !(props.marquee && (mods_now.shift || mods_now.cmd || mods_now.alt))
                 && !matches!(Self::select_mode(comp), SelectMode::None)
                 && self.selection != C::Selection::default()
             {
@@ -831,9 +869,9 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             && target.owner != cx.core.id
             && target.part.is_some()
             && local(start.origin).y >= 0.0
-            && let Some(at) = layout.hit(local(start.origin), offset).filter(|&at| self.source.enabled(at))
+            && let Some(at) = layout.hit(local(start.origin), offset).filter(|&at| self.source.enabled(at) && layout.shown(at))
         {
-            self.move_lead(at);
+            self.move_lead(at, LeadSource::Pointer);
         }
         match cx.core.press.phase {
             PressPhase::Release { click, .. } => {
@@ -870,7 +908,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     None => self.pick(comp, at, false, false),
                 }
             }
-            self.move_lead(at);
+            self.move_lead(at, LeadSource::Pointer);
             let place = self.on_screen(self.screen(layout, rect, at, offset, rtl).left_bottom());
             self.events.push(CollectionEvent::ContextMenu(ContextMenuRequest { key, at: place }));
         }
@@ -887,6 +925,9 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         while !header_held && let Some((mv, mods)) = cx.core.intents.take_move() {
             if len == 0 {
                 break;
+            }
+            if self.row_child_move(cx, &Intent::Move(mv, mods)) {
+                continue;
             }
             let lead = self.lead.key.as_ref().and_then(|key| self.index_of(key));
             if rows::is_forward(mv, mods)
@@ -911,7 +952,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 }
                 NavStep::Column(column) => self.lead.column = column,
                 NavStep::Moved(to) => {
-                    self.move_lead(to);
+                    self.move_lead(to, LeadSource::Keys);
                     if mods.extend && matches!(mode, SelectMode::Multi | SelectMode::Cells) {
                         let anchor = state.anchor.unwrap_or(to);
                         self.change(SelectionChange::Set(self.range(anchor, to)));
@@ -928,13 +969,21 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     }
 
     /// Toggle, activate and context menu at the lead.
-    fn intent_actions(&mut self, comp: &C, cx: &mut Cx<'_, C>, layout: &C::ItemLayout, at: Placement, lead_at: Option<usize>, header_held: bool) {
-        let mode = Self::select_mode(comp);
+    fn intent_actions(
+        &mut self,
+        comp: &C,
+        cx: &mut Cx<'_, C>,
+        props: &CollectionProps,
+        layout: &C::ItemLayout,
+        at: Placement,
+        lead_at: Option<usize>,
+        header_held: bool,
+    ) {
         if !header_held
-            && cx.core.intents.take(Intent::Toggle)
+            && cx.core.intents.take(Intent::Space)
             && let Some(row) = lead_at
         {
-            self.pick(comp, row, false, mode != SelectMode::Single);
+            self.space_key(comp, cx, props, row);
         }
         // The pass's `update_inputs` turned an `Activate` intent into the keyed activation.
         let activated = cx.core.intents.take(Intent::Activate) || cx.core.activation.is_some_and(|activation| activation.by_key);
@@ -952,15 +1001,49 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         }
     }
 
+    /// Space on the lead row `row`, as `CollectionProps.space` says.
+    fn space_key(&mut self, comp: &C, cx: &mut Cx<'_, C>, props: &CollectionProps, row: usize) {
+        match props.space {
+            SpaceAction::Activate => match Self::select_mode(comp) {
+                SelectMode::None => self.events.push(CollectionEvent::Activate(self.source.key(row))),
+                mode => self.pick(comp, row, false, mode != SelectMode::Single),
+            },
+            SpaceAction::ToggleCell => self.toggle_by_key(cx, row),
+            SpaceAction::None => {}
+        }
+    }
+
+    /// Flips the first enabled toggle cell of row `row`; when the row is selected, the same cell of every selected row
+    /// follows to the value the row took, as a sweep would.
+    fn toggle_by_key(&mut self, cx: &mut Cx<'_, C>, row: usize) {
+        let Some((column, toggle)) = self.header.toggle_columns().find(|(column, _)| self.source.toggle_enabled(row, column)) else { return };
+        let selected = self.selection.contains(&self.source.key(row));
+        let others: Vec<usize> = if selected && !toggle.exclusive {
+            (0..self.source.len()).filter(|&at| at != row && self.selection.contains(&self.source.key(at))).collect()
+        } else {
+            Vec::new()
+        };
+        let on = self.flip_toggle(cx, row, column.clone(), toggle);
+        for at in others {
+            if self.source.enabled(at)
+                && !self.source.is_section(at)
+                && self.source.toggle_enabled(at, &column)
+                && self.source.toggled(at, &column) != on
+            {
+                self.flip_toggle(cx, at, column.clone(), toggle);
+            }
+        }
+    }
+
     /// Alt+arrow moves the lead's row; the rename command starts an edit of its name.
     fn reorder_and_rename(&mut self, comp: &C, cx: &mut Cx<'_, C>, props: &CollectionProps, lead_at: Option<usize>) {
         let (ctx, len) = (cx.core.ctx.clone(), self.source.len());
-        if let Some(forward) = take_move_item(&mut cx.core.intents)
+        if let Some(forward) = crate::contract::reorder::take_move_item(&mut cx.core.intents)
             && props.reorder.is_some()
             && let Some(at) = lead_at
             && comp.can_drag(&self.source.key(at))
         {
-            let to = if forward { (at + 1).min(len - 1) } else { at.saturating_sub(1) };
+            let to = crate::contract::reorder::move_to(at, if forward { (at + 2).min(len) } else { at.saturating_sub(1) });
             if to != at {
                 let key = self.source.key(at);
                 let id = crate::runtime::edit::next_gesture_id(&ctx);
@@ -997,7 +1080,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             cx.core.memory.session::<Typing>(sub(id, "typing")).0 = typing;
             let source = self.source;
             if let Some(to) = TypeAhead::pick(&prefix, lead_at, len, |at| source.text(at).unwrap_or_default()) {
-                self.move_lead(to);
+                self.move_lead(to, LeadSource::Keys);
                 self.pick(comp, to, false, false);
                 self.reveal_with(layout, to, view);
             }
@@ -1005,6 +1088,9 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     }
 
     fn reveal_with(&mut self, layout: &C::ItemLayout, at: usize, view: f32) {
+        if !layout.shown(at) {
+            return;
+        }
         let rect = layout.rect(at, ScrollPos { x: 0.0, y: self.offset });
         if rect.min.y < 0.0 {
             self.offset += f64::from(rect.min.y);
@@ -1036,16 +1122,6 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     }
 }
 
-fn take_move_item(intents: &mut crate::runtime::keys::Intents) -> Option<bool> {
-    if intents.take(Intent::move_item(true)) {
-        Some(true)
-    } else if intents.take(Intent::move_item(false)) {
-        Some(false)
-    } else {
-        None
-    }
-}
-
 fn key_hash<K: std::hash::Hash>(key: &K) -> u64 {
     use std::hash::Hasher;
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
@@ -1054,6 +1130,12 @@ fn key_hash<K: std::hash::Hash>(key: &K) -> u64 {
 }
 
 impl<C: Collection> Cx<'_, C> {
+    /// The selection the item step holds this pass, for the collection's own `update`: the app's binding when it
+    /// has one, else the one the item step keeps.
+    pub fn collection_selection(&self) -> Option<&C::Selection> {
+        self.core.collection_selection.as_ref().and_then(|held| held.downcast_ref::<C::Selection>())
+    }
+
     /// The output of a collection: its response, every event in drawing order and the positions it showed.
     pub fn collection_response(&mut self) -> CollectionResponse<C::Key, C::ItemEvent> {
         let events = self
