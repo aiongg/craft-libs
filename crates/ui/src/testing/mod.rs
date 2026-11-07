@@ -1,5 +1,7 @@
 //! The fixture, the suite runner and the story helpers.
 //!
+//! `Fixture` shows a closure or a story over [`Frames`]; `suite` runs the shared cases over every registered type.
+//!
 //! The registration half of the kit: `#[trial]` functions list themselves in [`TRIALS`], and the integration
 //! binary's runner collects them. The fixture half drives frames ([`Frames`]) and reaches the runtime's
 //! crate-private services the trials check.
@@ -7,6 +9,7 @@
 pub mod access;
 pub mod contract;
 pub mod dump;
+pub mod fixture;
 pub mod focus;
 pub mod frames;
 pub mod input;
@@ -14,14 +17,22 @@ pub mod layout;
 pub mod memory;
 pub mod parity;
 pub mod pointer;
+pub mod relations;
 pub mod sensing;
+mod stories;
+pub mod story;
 pub mod style;
 pub mod surface;
+pub mod suite;
 pub mod wheel;
 
 pub use crate::contract::{Exemption, Probe, Registration};
-pub use craft_ui_macros::trial;
+pub use craft_ui_macros::{story, trial};
+pub use fixture::{Fixture, Target};
 pub use frames::Frames;
+#[doc(hidden)]
+pub use story::STORIES;
+pub use story::{Drive, EditKind, Required, Story, StoryData, StoryOutput, StoryRegistration, StorySnapshot};
 
 /// One registered trial.
 #[derive(Clone, Copy, Debug)]

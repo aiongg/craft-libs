@@ -497,17 +497,25 @@ fn motion_mode(ctx: &Context, root: &RootEnv) -> MotionMode {
     if repaint::animation_time(ctx) > 0.0 { root.motion } else { root.motion.lowered_by(MotionMode::Off) }
 }
 
+/// The newest few root-token inputs are kept; an app swaps its sizes rarely.
+const KEPT_ROOT_TOKENS: usize = 4;
+
+#[derive(Default)]
+struct RootTokenCache {
+    entries: Vec<(TokenInputs, Arc<UiTokens>)>,
+}
+
+/// How many root-token entries the context holds.
+#[cfg(feature = "testing")]
+pub(crate) fn root_token_entries(ctx: &Context) -> usize {
+    Service::<RootTokenCache>::of(ctx).with(|cache| cache.entries.len())
+}
+
 /// The tokens the root resolves to, cached by the inputs that determine them.
 fn root_tokens(ctx: &Context, root: &RootEnv) -> Arc<UiTokens> {
-    /// The newest few inputs; an app swaps its sizes rarely.
-    const KEPT: usize = 4;
-    #[derive(Default)]
-    struct Cache {
-        entries: Vec<(TokenInputs, Arc<UiTokens>)>,
-    }
     let inputs =
         TokenInputs { sizes: root.sizes.clone(), mode: root.mode, contrast: root.contrast, density: root.density, text_size: root.text_size };
-    let service = Service::<Cache>::of(ctx);
+    let service = Service::<RootTokenCache>::of(ctx);
     if let Some(hit) = service.with(|cache| cache.entries.iter().find(|(key, _)| key.same(&inputs)).map(|(_, tokens)| tokens.clone())) {
         return hit;
     }
@@ -516,7 +524,7 @@ fn root_tokens(ctx: &Context, root: &RootEnv) -> Arc<UiTokens> {
     let theme: &ThemeDef = themes.iter().find(|theme| theme.id.as_str() == SUITE_DEFAULT).unwrap_or(&themes[0]);
     let tokens = Arc::new(UiTokens::new(Arc::new(resolve_sized(theme, appearance, None, &root.sizes).tokens)));
     service.with(|cache| {
-        if cache.entries.len() == KEPT {
+        if cache.entries.len() == KEPT_ROOT_TOKENS {
             cache.entries.remove(0);
         }
         cache.entries.push((inputs, tokens.clone()));

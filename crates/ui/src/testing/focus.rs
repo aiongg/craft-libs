@@ -50,6 +50,11 @@ pub fn access_request(kind: AccessActionKind, target: Id) -> Event {
     fixture::access_request(kind, target)
 }
 
+/// An AccessKit `SetValue` request of `value` for the node of `target`.
+pub fn set_value(target: Id, value: f64) -> Event {
+    fixture::access_set_value(target, value)
+}
+
 /// A globally unique id named by `name`.
 pub fn named_id(name: &str) -> Id {
     fixture::named_id(name)

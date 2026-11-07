@@ -18,6 +18,8 @@ pub struct TypeFacts {
     pub public: bool,
     /// Derived, attributed or implemented as a `Component`.
     pub component: bool,
+    /// Carries `#[derive(Component)]`, which registers the type.
+    pub derives_component: bool,
     /// Derives `Props` or has a `#[prop]` field.
     pub props: bool,
     /// Implements or derives the `Pattern` marker.
@@ -138,6 +140,7 @@ pub(crate) fn definition(item: &Item) -> Option<(String, TypeFacts)> {
         defined: true,
         public: is_public(vis),
         component: derived.iter().any(|d| d == "Component") || attrs.iter().any(|a| a.path().is_ident("component")),
+        derives_component: derived.iter().any(|d| d == "Component"),
         props: derived.iter().any(|d| d == "Props") || has_prop_field,
         pattern: derived.iter().any(|d| d == "Pattern"),
         overlay_attr: attrs.iter().any(|a| attr_names(a, "component", "overlay")),

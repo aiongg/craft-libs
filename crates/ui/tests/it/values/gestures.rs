@@ -6,11 +6,12 @@ use craft_behavior::{CancelReason, EditEvent, Mixed, Sense};
 use craft_ui::contract::{Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Props as _, Role, Show as _};
 use craft_ui::runtime::edit::cancel_all;
 use craft_ui::style::StyleCx;
+use craft_ui::testing::focus::set_value;
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Frames, trial};
 use egui::{Key, Modifiers, Pos2, Ui, Vec2};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 fn start() -> Pos2 {
     Pos2::new(AT.left() + 10.0, AT.center().y)
@@ -280,4 +281,26 @@ fn a_gesture_whose_component_was_not_drawn_cancels_removed_once() {
     assert_eq!(events, vec![Ev::Cancel(CancelReason::Removed)], "{events:?}");
     drop(show);
     assert!(near(value, INITIAL), "the value is back where the gesture began: {value}");
+}
+
+/// An AccessKit `SetValue` during a running drag is a `Set` with a gesture id of its own, not the drag's.
+#[trial]
+fn a_set_during_a_drag_takes_a_gesture_id_of_its_own() {
+    let mut frames = Frames::new();
+    let mut value = INITIAL;
+    let events = RefCell::new(Vec::new());
+    let target = Cell::new(None);
+    let mut show = |ui: &mut Ui| {
+        let out = Scrub::new(Bind::bound(&mut value)).set_by_access().id_salt("scrub").show_at(ui, AT);
+        target.set(Some(out.response.id));
+        events.borrow_mut().extend(out.event.clone());
+    };
+    dragging(&mut frames, &mut show);
+    let drag_id = events.borrow().iter().find(|event| matches!(event, EditEvent::Begin { .. })).map(EditEvent::id).expect("the drag began");
+    events.borrow_mut().clear();
+    frames.frame(vec![set_value(target.get().expect("the component showed"), f64::from(APP_VALUE))], &mut show);
+    frames.idle(2, &mut show);
+    let sets: Vec<_> = events.borrow().iter().filter(|event| matches!(event, EditEvent::Set { .. })).map(EditEvent::id).collect();
+    assert_eq!(sets.len(), 1, "one Set: {:?}", events.borrow().len());
+    assert_ne!(sets[0], drag_id, "the Set does not reuse the running gesture's id");
 }

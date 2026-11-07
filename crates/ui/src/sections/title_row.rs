@@ -76,6 +76,7 @@ pub struct TitleRowStyle {
 /// A title with an optional subtitle, a lead (a disclosure bound to the container's open state, or a check box
 /// bound to its gate) and action parts.
 #[derive(crate::contract::Component, crate::contract::Props)]
+#[component(exempt(case = "stories", reason = "The title row is shown by a container's header; the sections family writes its stories."))]
 pub struct TitleRow<'a> {
     #[common]
     common: Common,
@@ -248,6 +249,7 @@ fn title_run<'t>(row: &'t TitleRow<'_>, role: TypeRole, title: &'t str) -> TextR
 /// The look of a gate: a box with a check mark.
 // F8-LATER: `Checkbox` of the choice family replaces this face.
 #[derive(crate::contract::Component)]
+#[component(exempt(case = "stories", reason = "A face of the title row's check lead, shown only inside it."))]
 struct CheckFace {
     #[common]
     common: Common,
@@ -310,6 +312,7 @@ impl Component for CheckFace {
 /// The look of an action part.
 // F8-LATER: `IconButton` with the icon set replaces this face.
 #[derive(crate::contract::Component)]
+#[component(exempt(case = "stories", reason = "A face of the title row's action parts, shown only inside it."))]
 struct ActionFace {
     #[common]
     common: Common,

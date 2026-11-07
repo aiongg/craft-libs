@@ -34,7 +34,7 @@ default = []
 # `shell::app`: the eframe entry point.
 app = ["dep:eframe"]
 # `craft_ui::testing`: the fixture and suite runner, on egui_kittest.
-testing = ["dep:egui_kittest"]
+testing = ["dep:egui_kittest", "dep:libtest-mimic"]
 # GPU-rendered tests.
 testing-gpu = ["testing", "egui_kittest/wgpu"]
 
@@ -48,6 +48,7 @@ craft-ui-macros = { workspace = true }
 egui = { workspace = true }
 eframe = { version = "0.37", default-features = false, features = ["wgpu", "x11", "default_fonts"], optional = true }
 egui_kittest = { version = "0.37", default-features = false, optional = true }
+libtest-mimic = { version = "0.8", optional = true }
 craft-host = { workspace = true }
 craft-i18n = { workspace = true }
 log = "0.4"
@@ -56,7 +57,6 @@ linkme = "0.3"
 serde = { workspace = true }
 
 [dev-dependencies]
-libtest-mimic = "0.8"
 craft-ui = { path = ".", features = ["testing"] }
 
 [[test]]

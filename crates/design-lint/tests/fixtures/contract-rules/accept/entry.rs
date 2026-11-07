@@ -67,3 +67,9 @@ impl Component for Menu {
 impl Widget for Chip {}
 
 impl SomeTrait for Chip {}
+
+pub struct Plain;
+
+impl Component for Plain {}
+
+register_contract!(Plain);

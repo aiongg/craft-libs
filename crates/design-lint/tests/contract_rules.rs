@@ -31,7 +31,7 @@ fn rules_at(src: &str, path: &str, scope: &StaticScope) -> Vec<&'static str> {
 }
 
 /// Reject fixtures: file and the rules it must trigger (all of them, nothing else).
-const REJECT: [(&str, &[&str]); 18] = [
+const REJECT: [(&str, &[&str]); 19] = [
     ("behavior-pipeline-only.rs", &["behavior/pipeline-only"]),
     ("props-reserved-setter.rs", &["props/reserved-setter"]),
     ("props-hand-setter.rs", &["props/hand-setter"]),
@@ -50,6 +50,7 @@ const REJECT: [(&str, &[&str]); 18] = [
     ("contract-widget.rs", &["contract/widget"]),
     ("contract-overlay-flag.rs", &["contract/overlay-flag"]),
     ("contract-unsafe-allow.rs", &["contract/unsafe-allow"]),
+    ("contract-registration.rs", &["contract/registration"]),
 ];
 
 #[test]
@@ -76,6 +77,7 @@ fn each_reject_fixture_reports_every_shape() {
     assert_eq!(count("style-state-pick.rs", "style/state-pick"), 4, "`if`, `then_some`, tuple `match`, egui `interact`");
     assert_eq!(count("contract-entry.rs", "contract/entry"), 4, "`show`, a free function, an associated function and a method; not the private one");
     assert_eq!(count("contract-widget.rs", "contract/widget"), 4, "imported, qualified, renamed and on `&mut`");
+    assert_eq!(count("contract-registration.rs", "contract/registration"), 1, "`Plain` is registered by the macro; `Manual` is not");
     assert_eq!(count("contract-overlay-flag.rs", "contract/overlay-flag"), 2, "`overlay` inside `exempt(..)` is not the flag");
 }
 

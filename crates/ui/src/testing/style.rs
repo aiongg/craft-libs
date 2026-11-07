@@ -76,3 +76,8 @@ pub fn paint_frame(
     let record = record.into_inner();
     (shapes, Recorded { elided: record.elided, baseline: record.baseline })
 }
+
+/// How many root-token entries the root env cache of `ctx` holds.
+pub fn root_token_entries(ctx: &Context) -> usize {
+    crate::runtime::env::root_token_entries(ctx)
+}

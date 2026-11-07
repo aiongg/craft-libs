@@ -20,12 +20,12 @@ mod sections;
 mod style;
 mod values;
 
-use craft_ui::testing::TRIALS;
+use craft_ui::testing::{TRIALS, registered, suite};
 use libtest_mimic::{Arguments, Trial};
 
 fn main() {
     let args = Arguments::from_args();
-    let trials: Vec<Trial> = TRIALS
+    let mut trials: Vec<Trial> = TRIALS
         .iter()
         .map(|trial| {
             let run = trial.run;
@@ -35,5 +35,6 @@ fn main() {
             })
         })
         .collect();
+    trials.extend(suite::trials(env!("CARGO_PKG_NAME"), &registered()));
     libtest_mimic::run(&args, trials).exit();
 }
