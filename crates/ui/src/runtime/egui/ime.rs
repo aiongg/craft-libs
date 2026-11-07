@@ -5,13 +5,11 @@ use egui::{Context, Event, ImeEvent, Rect, ViewportId};
 /// An IME event as the engine reads it.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Raw {
-    Enabled,
     Preedit {
         text: String,
         cursor_chars: Option<std::ops::Range<usize>>,
     },
     Commit(String),
-    Disabled,
     /// The OS finished the reset the engine asked for.
     ResetCompleted,
 }
@@ -22,12 +20,10 @@ pub(crate) fn take_events(events: &mut Vec<Event>) -> Vec<Raw> {
     events.retain(|event| match event {
         Event::Ime(ime) => {
             match ime {
-                ImeEvent::Enabled => taken.push(Raw::Enabled),
                 ImeEvent::Preedit { text, active_range_chars } => {
                     taken.push(Raw::Preedit { text: text.clone(), cursor_chars: active_range_chars.clone() })
                 }
                 ImeEvent::Commit(text) => taken.push(Raw::Commit(text.clone())),
-                ImeEvent::Disabled => taken.push(Raw::Disabled),
                 _ => {}
             }
             false

@@ -80,7 +80,7 @@ pub(crate) fn begin(ctx: &Context, owner: Option<Id>) {
         }
         for raw in std::mem::take(&mut engine.queue) {
             match raw {
-                os::Raw::ResetCompleted | os::Raw::Disabled | os::Raw::Enabled => engine.stale = false,
+                os::Raw::ResetCompleted => engine.stale = false,
                 _ if engine.stale || engine.owner.is_none() => {}
                 os::Raw::Preedit { text, cursor_chars } => {
                     engine.composing = !text.is_empty();
