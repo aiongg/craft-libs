@@ -179,9 +179,9 @@ note = "`show_cells` is gone; a host that lays the fields out itself shows `Numb
 [[type]]
 name = "LinkedFieldsLabels"
 old = "craft_ui::controls::linked::LinkedFieldsLabels"
-new = "craft_ui::text::LinkedWords"
+new = ""
 status = "replaced"
-note = "The words of the link toggle are `LinkedWords`, read from the installed words; `LinkMode::label(&words)` picks one."
+note = "`craft_ui::text::LinkedWords` replaces it: the words of the link toggle are read from the installed words; `LinkMode::label(&words)` picks one."
 
 [[type]]
 name = "LinkButton"
