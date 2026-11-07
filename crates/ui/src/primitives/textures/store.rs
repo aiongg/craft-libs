@@ -334,7 +334,7 @@ impl<K: TextureKey> TextureStore<K> {
         });
         // The upload runs outside the service lock: it does not call back into the store.
         let handle = match (existing, name) {
-            (Some(handle), _) => {
+            (Some(mut handle), _) => {
                 handle.set(image, filter);
                 handle
             }
@@ -363,7 +363,7 @@ impl<K: TextureKey> TextureStore<K> {
     pub fn put_region(&self, ctx: &Context, key: &K, revision: Revision, origin: [u32; 2], image: ColorImage) -> Option<CachedTexture> {
         let frame = pass::root_frame_nr(ctx);
         let extent = texels(image.size);
-        let (handle, source, factor, filter) = self.with(ctx, |inner| {
+        let (mut handle, source, factor, filter) = self.with(ctx, |inner| {
             inner.roll_uploads(frame);
             inner.region_target(key, origin, extent)
         })?;

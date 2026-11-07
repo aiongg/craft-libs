@@ -107,9 +107,9 @@ impl LoadFailure {
     /// The failure tooltip in the words of the scope (`cx.words::<TextureWords>()`).
     pub fn text<'a>(&'a self, words: &'a TextureWords) -> &'a str {
         match self {
-            Self::Missing => &words.missing,
-            Self::Unreadable => &words.unreadable,
-            Self::Panicked => &words.panicked,
+            Self::Missing => words.missing.as_str(),
+            Self::Unreadable => words.unreadable.as_str(),
+            Self::Panicked => words.panicked.as_str(),
             Self::Message(message) => message,
         }
     }
