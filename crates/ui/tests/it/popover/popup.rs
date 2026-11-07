@@ -345,17 +345,19 @@ impl DisplayOrder<usize> for Names {
 
 impl ItemSource<usize> for Names {}
 
-const WIDE_BUTTON: Rect = Rect { min: Pos2::new(20.0, 20.0), max: Pos2::new(420.0, 44.0) };
+const NARROW_BUTTON: Rect = Rect { min: Pos2::new(20.0, 20.0), max: Pos2::new(220.0, 44.0) };
+/// Wider than the opener and narrower than the cap (half the window, which is 400 wide).
+const MEDIUM_ROW: &str = "A brush tip whose name runs on";
 const LONG_ROW: &str = "A brush tip whose name runs on and on, well past the width of the button it hangs from";
 const LONGER_ROW: &str = "A brush tip whose name runs on and on, well past the width of the button it hangs from, and then keeps going as far again";
 
-/// The width of a `PopupList` holding a content-sized `List::options` of `rows`, opened from a wide button.
+/// The width of a `PopupList` holding a content-sized `List::options` of `rows`, opened from a narrow button.
 fn popup_width(rows: &[&str]) -> (f32, f32) {
     let rows = Names(rows.iter().map(|row| row.to_string()).collect());
     let open = Rc::new(Cell::new(false));
     let shown_open = open.clone();
     let mut fixture = Fixture::new(move |ui| {
-        let opener = Button::new("Brush tip").show_at(ui, WIDE_BUTTON);
+        let opener = Button::new("Brush tip").show_at(ui, NARROW_BUTTON);
         let mut is_open = shown_open.get();
         PopupList::new("Brush popup", Bind::bound(&mut is_open)).opened_by(&opener).show(ui, |ui, _| {
             List::<usize>::options("Brush rows")
@@ -369,7 +371,7 @@ fn popup_width(rows: &[&str]) -> (f32, f32) {
     open.set(true);
     fixture.idle(6);
     let popup = fixture.by_label("Brush popup").expect("the open popup is a node");
-    (popup.rect.width(), WIDE_BUTTON.width())
+    (popup.rect.width(), NARROW_BUTTON.width())
 }
 
 /// A content-sized dropdown is as wide as its widest row: as wide as the opener when the rows are short, as wide as
@@ -378,8 +380,10 @@ fn popup_width(rows: &[&str]) -> (f32, f32) {
 fn a_content_sized_popup_list_is_as_wide_as_its_widest_row() {
     let (short, button) = popup_width(&["Round", "Square", "Chisel"]);
     assert!((short - button).abs() < 1.0, "short rows leave the popup as wide as the button: {short} against {button}");
+    let (medium, _) = popup_width(&["Round", MEDIUM_ROW]);
+    assert!(medium > button, "a row longer than the button widens the popup past it: {medium} against {button}");
     let (long, _) = popup_width(&["Round", LONG_ROW]);
-    assert!(long > button, "a row longer than the button widens the popup past it: {long} against {button}");
+    assert!(long > medium, "a longer row widens the popup further, up to the cap: {long} against {medium}");
     let (longer, _) = popup_width(&["Round", LONGER_ROW]);
     assert!(longer >= long, "a longer row does not narrow the popup");
     let (longest, _) = popup_width(&["Round", &LONGER_ROW.repeat(4)]);
