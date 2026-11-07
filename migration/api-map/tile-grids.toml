@@ -418,3 +418,9 @@ type = "TileGrid"
 old = "file_drops(bool)"
 new = "takes_files(bool)"
 note = "A drop reports `CollectionEvent::FilesDropped`."
+
+[[setter]]
+type = "TileGrid"
+old = "GroupPicked / GroupContextMenu by pointer only"
+new = "GridEvent::GroupPicked / GridEvent::GroupMenu from the keyboard"
+note = "A group header is a focusable part: Left and Right close and open a collapsible group, Enter picks it, the context-menu key and Shift+F10 open its menu."

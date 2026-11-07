@@ -1,7 +1,7 @@
 //! `TileGrid`: a collection of `Tile`s in wrapped cards or justified rows, under optional group headers. The item step
 //! does the work: virtualisation, lead and selection rules, arrow, Home, End and page keys over the layout, type-ahead,
 //! drag with drop marks, OS file drops, the rename lifecycle and the context-menu request. The grid adds the layout,
-//! the pinned group headers with their parts, and the rating keys. It owns what its cards have in common: where the
+//! the pinned group headers with their focusable parts and keys, and the rating keys. It owns what its cards have in common: where the
 //! caption goes, whether a detail line is reserved, and the zoom.
 
 #[cfg(feature = "testing")]
@@ -22,8 +22,8 @@ use crate::runtime::access::Name;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, RuleKind, StyleColor, StyleCx};
 use craft_behavior::{
-    ColumnKey, ColumnWidth, EditEvent, HitLevel, HitPriority, Intent, ItemSource, Metrics, Mixed, PartKey, PointerButton, PressPhase, Selection,
-    Sense,
+    ColumnKey, ColumnWidth, EditEvent, HitLevel, HitPriority, Intent, ItemSource, Metrics, Mixed, MoveMods, NavMove, PartKey, PointerButton,
+    PressPhase, Selection, Sense,
 };
 use craft_keymap::Mods;
 use egui::{CornerRadius, Id, Pos2, Rect, Response, Ui, pos2, vec2};
@@ -62,7 +62,7 @@ pub enum GridEvent<K> {
         /// The rating.
         rating: u8,
     },
-    /// A group header was clicked.
+    /// A group header was clicked or took Enter.
     #[non_exhaustive]
     GroupPicked {
         /// The group's index in the list the grid was given.
@@ -78,7 +78,7 @@ pub enum GridEvent<K> {
         /// The state asked for.
         open: bool,
     },
-    /// A group header asks for its context menu.
+    /// A group header asks for its context menu: a secondary click, the context-menu key or Shift+F10.
     #[non_exhaustive]
     GroupMenu {
         /// The group's index.
@@ -339,6 +339,34 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
         layout
     }
 
+    /// The keys of the focused group header: Forward opens a collapsible group and Back closes it, Enter picks the
+    /// group, the context-menu key asks for its menu, and a move along the list hands focus to the tiles.
+    fn header_keys(&mut self, cx: &mut Cx<'_, Self>) {
+        let Some(active) = cx.active_part() else { return };
+        let Some(Placed { group, rect, .. }) = self.placed.iter().copied().find(|placed| GROUP.at(placed.group as u64) == active) else { return };
+        let open = self.groups.get(group).is_some_and(|held| held.open);
+        if self.collapsible {
+            if cx.intents().take_exact(&Intent::Move(NavMove::Forward, MoveMods::PLAIN)) && !open {
+                self.events.push(GridEvent::GroupOpen { group, open: true });
+            }
+            if cx.intents().take_exact(&Intent::Move(NavMove::Back, MoveMods::PLAIN)) && open {
+                self.events.push(GridEvent::GroupOpen { group, open: false });
+            }
+        }
+        // `update_inputs` turned the Enter into the activation; the lead tile does not take it.
+        if cx.core.activation.is_some_and(|activation| activation.by_key) {
+            cx.core.activation = None;
+            self.events.push(GridEvent::GroupPicked { group, mods: Mods::NONE });
+        }
+        if cx.intents().take(Intent::ContextMenu) {
+            let at = if cx.flow.is_rtl() { rect.right_bottom() } else { rect.left_bottom() };
+            self.events.push(GridEvent::GroupMenu { group, at });
+        }
+        if cx.intents().take_move().is_some() {
+            cx.focus_own();
+        }
+    }
+
     fn group_rect(rect: Rect, view: Rect, rtl: bool) -> Rect {
         if rtl {
             Rect::from_min_max(pos2(view.min.x + view.max.x - rect.max.x, rect.min.y), pos2(view.min.x + view.max.x - rect.min.x, rect.max.y))
@@ -391,10 +419,10 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
             }
             self.placed.push(Placed { group, rect, pinned: held });
             let priority = HitPriority::new(HitLevel::Edge, 0);
-            cx.part(GROUP.at(group as u64), rect).sense(Sense::CLICK).priority(priority).over().pointer_only(HEADER_REASON);
+            cx.part(GROUP.at(group as u64), rect).sense(Sense::CLICK | Sense::FOCUS).focusable().priority(priority).over();
             if self.collapsible {
                 let column = Self::toggle_rect(rect, cx.style, rtl);
-                cx.part(TOGGLE.at(group as u64), column).sense(Sense::CLICK).priority(priority).over().pointer_only(HEADER_REASON);
+                cx.part(TOGGLE.at(group as u64), column).sense(Sense::CLICK).priority(priority).over().keyboard_via(GROUP);
             }
         }
     }
@@ -433,6 +461,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
                 self.events.push(GridEvent::GroupOpen { group, open: !open });
             }
         }
+        self.header_keys(cx);
         if self.collapsible {
             while let Some(request) = cx.intents().take_access() {
                 let Some(target) = request.target else { continue };
@@ -510,8 +539,6 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
 
 /// The highest rating a digit key sets.
 const MAX_RATING: u8 = 5;
-
-const HEADER_REASON: &str = "group headers pick, open their menu, open and close by pointer; AccessKit Expand and Collapse also open and close them";
 
 impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for TileGrid<'_, K> {
     type Key = K;

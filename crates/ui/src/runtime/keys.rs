@@ -409,11 +409,11 @@ pub(crate) fn begin(ctx: &Context, press_captured: bool) -> bool {
     let mut routed: HashMap<Option<Id>, Routed> = HashMap::new();
     let mut activated = HashMap::new();
     let mut consumed = vec![false; batch.presses.len()];
-    let dropdown = target.as_ref().and_then(|rec| Dropdown::of(ctx, rec));
-    let field_list = target.as_ref().filter(|_| dropdown.is_none()).and_then(|rec| list_of_field(ctx, rec));
+    let driven = target.as_ref().and_then(|rec| Driven::of(ctx, rec));
+    let field_list = target.as_ref().filter(|_| driven.is_none()).and_then(|rec| list_of_field(ctx, rec));
     if let Some(rec) = &target {
         for (press, taken) in batch.presses.iter().zip(&mut consumed) {
-            *taken = stale_repeat(&mut stale, press) || route_press(ctx, os, rec, press, dropdown.or(field_list), &mut routed, &mut activated);
+            *taken = stale_repeat(&mut stale, press) || route_press(ctx, os, rec, press, driven.or(field_list), &mut routed, &mut activated);
         }
         for text in &batch.texts {
             let digits;
@@ -431,9 +431,9 @@ pub(crate) fn begin(ctx: &Context, press_captured: bool) -> bool {
                 continue;
             }
             let typed = rec.stop.role.type_ahead && !text.trim().is_empty();
-            let to_list = dropdown.filter(|dropdown| !dropdown.text && !text.trim().is_empty());
-            if let Some(dropdown) = to_list {
-                push(&mut routed, Some(dropdown.list), Intent::Text(Arc::from(text.as_str())), false);
+            let to_list = driven.filter(|driven| !driven.text && !text.trim().is_empty());
+            if let Some(driven) = to_list {
+                push(&mut routed, Some(driven.list), Intent::Text(Arc::from(text.as_str())), false);
             } else if matches!(rec.stop.keys.owner, OwnerClass::Text) || typed {
                 routed.entry(Some(rec.stop.id)).or_default().items.push(Item { intent: Intent::Text(Arc::from(text.as_str())), horizontal: false });
             } else if let Some(menu) = focus::menu_scope(ctx, rec).filter(|_| !text.trim().is_empty()) {
@@ -468,8 +468,8 @@ pub(crate) fn begin(ctx: &Context, press_captured: bool) -> bool {
     // A text opener's list keys arrive as claimed chords, withheld from its text part: they go to the list.
     let mut claimed = Vec::new();
     for chord in &batch.claimed {
-        match dropdown.and_then(|dropdown| dropdown.intent_of(chord)) {
-            Some(intent) => push(&mut routed, dropdown.map(|dropdown| dropdown.list), intent, false),
+        match driven.and_then(|driven| driven.intent_of(chord)) {
+            Some(intent) => push(&mut routed, driven.map(|driven| driven.list), intent, false),
             None => claimed.extend(captures.iter().find(|(_, held)| held == chord).map(|(owner, _)| *owner).or(focused).map(|id| (id, *chord))),
         }
     }
@@ -491,8 +491,13 @@ pub(crate) fn begin(ctx: &Context, press_captured: bool) -> bool {
         if let Some(down) = batch.enter_down {
             stage.enter_down = down;
         }
-        if let (Some(_), Some(rec)) = (dropdown.filter(|dropdown| dropdown.text), &target) {
-            stage.claims.extend(LIST_KEYS.iter().filter(|key| dropdown_intent(**key, true).is_some()).map(|key| (rec.stop.id, Chord::plain(*key))));
+        if let (Some(_), Some(rec)) = (driven.filter(|driven| driven.text), &target) {
+            stage.claims.extend(
+                LIST_KEYS
+                    .iter()
+                    .filter(|key| driven.is_some_and(|driven| driven.intent(**key).is_some()))
+                    .map(|key| (rec.stop.id, Chord::plain(*key))),
+            );
         }
     });
     escapes.cancels_press
@@ -580,76 +585,93 @@ pub(crate) fn pasted_text(ctx: &Context, id: Id) -> Option<Arc<str>> {
     current(ctx, |stage| stage.pasted.as_ref().filter(|(owner, _)| *owner == id).map(|(_, text)| Arc::clone(text)))
 }
 
-/// The collection of an open `KeepAnchor` dropdown whose opener has the key focus.
+/// The collection that takes the list keys of the focused stop: the collection of an open `KeepAnchor` dropdown whose
+/// opener has the key focus, or the collection a text field drives.
 #[derive(Clone, Copy)]
-struct Dropdown {
-    /// The dropdown's layer.
-    layer: Id,
-    /// The collection inside the dropdown's layer.
+struct Driven {
+    /// The dropdown layer the keys belong to, which Escape closes; `None` for a field outside any dropdown layer.
+    layer: Option<Id>,
+    /// The collection that takes the keys.
     list: Id,
-    /// The opener is a text owner: its typing and caret keys stay with it, and Tab goes to the list.
+    /// The focused stop is a text opener: its typing and caret keys stay with it, and Tab goes to the list.
     text: bool,
+    /// Home and End go to the list; a text stop keeps them for its caret while it holds text.
+    ends: bool,
+    /// Left and Right go to the list too (a tree): a text stop keeps them for its caret while it holds text.
+    tree: bool,
 }
 
-/// The dropdown a text stop inside an open dropdown layer (a search field) hands its list keys to: the layer is the
-/// innermost `KeepAnchor` scope above the stop, and the list is found as for the layer's opener. Typed text stays
-/// with the field, so the result's `text` is false.
-fn list_of_field(ctx: &Context, rec: &StopRec) -> Option<Dropdown> {
+/// The collection a text stop inside an open `KeepAnchor` dropdown layer (a search field) or a text field that drives
+/// one hands its list keys to. The layer is the innermost `KeepAnchor` scope above the stop; without a driven
+/// collection the list is found as for the layer's opener, and Home and End go to it. Typed text stays with the
+/// field, so the result's `text` is false.
+fn list_of_field(ctx: &Context, rec: &StopRec) -> Option<Driven> {
     if !matches!(rec.stop.keys.owner, OwnerClass::Text) {
         return None;
     }
-    let opener = focus::scope_chain(ctx, rec).into_iter().find_map(|scope| {
+    let layer = focus::scope_chain(ctx, rec).into_iter().find_map(|scope| {
         focus::with(ctx, |state| {
             let record = state.last_scopes.get(&scope)?;
-            (record.policy.initial == focus::Initial::KeepAnchor).then_some(record.opener).flatten()
+            (record.policy.initial == focus::Initial::KeepAnchor).then_some((scope, record.opener?))
         })
-    })?;
-    let (layer, list) = focus::registration::dropdown_target(ctx, opener)?;
-    Some(Dropdown { layer, list, text: false })
+    });
+    match (focus::registration::driven(ctx, rec.stop.id), layer) {
+        (Some(drive), layer) => {
+            Some(Driven { layer: layer.map(|(layer, _)| layer), list: drive.list, text: false, ends: drive.empty, tree: drive.tree && drive.empty })
+        }
+        (None, Some((_, opener))) => {
+            let (layer, list) = focus::registration::dropdown_target(ctx, opener)?;
+            Some(Driven { layer: Some(layer), list, text: false, ends: true, tree: false })
+        }
+        (None, None) => None,
+    }
 }
 
 /// The keys an opener hands to its dropdown's list. Left, Right and Space stay with the opener.
 const LIST_KEYS: [Key; 8] = [Key::Up, Key::Down, Key::PageUp, Key::PageDown, Key::Home, Key::End, Key::Enter, Key::Tab];
 
-impl Dropdown {
-    fn of(ctx: &Context, opener: &StopRec) -> Option<Dropdown> {
+impl Driven {
+    fn of(ctx: &Context, opener: &StopRec) -> Option<Driven> {
         let (layer, list) = focus::registration::dropdown_target(ctx, opener.stop.key())?;
-        Some(Dropdown { layer, list, text: matches!(opener.stop.keys.owner, OwnerClass::Text) })
+        let text = matches!(opener.stop.keys.owner, OwnerClass::Text);
+        Some(Driven { layer: Some(layer), list, text, ends: !text, tree: false })
     }
 
     /// The intent a claimed chord of the opener becomes for the list.
     fn intent_of(self, chord: &Chord) -> Option<Intent> {
-        chord.mods.is_none().then(|| dropdown_intent(chord.key, self.text)).flatten()
+        chord.mods.is_none().then(|| self.intent(chord.key)).flatten()
+    }
+
+    /// The list intent of a plain key the focused stop hands on: vertical moves and Page keys, Home and End where
+    /// `ends` says, Left and Right of a tree, and Enter as the activation. A text opener's Tab accepts the lead too:
+    /// there Tab is not the way to the next stop while the list is open.
+    fn intent(self, key: Key) -> Option<Intent> {
+        let moved = |mv| Some(Intent::Move(mv, MoveMods::PLAIN));
+        match key {
+            Key::Up => moved(NavMove::Up),
+            Key::Down => moved(NavMove::Down),
+            Key::PageUp => moved(NavMove::PageUp),
+            Key::PageDown => moved(NavMove::PageDown),
+            Key::Home if self.ends => moved(NavMove::Start),
+            Key::End if self.ends => moved(NavMove::End),
+            Key::Left if self.tree => moved(NavMove::Back),
+            Key::Right if self.tree => moved(NavMove::Forward),
+            Key::Enter => Some(Intent::Activate),
+            Key::Tab if self.text => Some(Intent::Activate),
+            _ => None,
+        }
     }
 }
 
-/// The list intent of a plain key the opener hands on: vertical moves and Page keys, Home and End (a text opener
-/// keeps them for its caret), and Enter as the activation. A text opener's Tab accepts the lead too: there Tab is
-/// not the way to the next stop while the list is open.
-fn dropdown_intent(key: Key, text: bool) -> Option<Intent> {
-    let moved = |mv| Some(Intent::Move(mv, MoveMods::PLAIN));
-    match key {
-        Key::Up => moved(NavMove::Up),
-        Key::Down => moved(NavMove::Down),
-        Key::PageUp => moved(NavMove::PageUp),
-        Key::PageDown => moved(NavMove::PageDown),
-        Key::Home if !text => moved(NavMove::Start),
-        Key::End if !text => moved(NavMove::End),
-        Key::Enter => Some(Intent::Activate),
-        Key::Tab if text => Some(Intent::Activate),
-        _ => None,
-    }
-}
-
-/// One key press of the focused component: the table's row, else the activation keys, else a nudge. The keys of
-/// an open dropdown's list (`LIST_KEYS`) go to the dropdown's collection first. Returns whether the component's
+/// One key press of the focused component: the table's row, else the activation keys, else a nudge. The list keys
+/// of the focused stop's `Driven` collection go to it first. Returns whether the component's
 /// intents took the press.
 fn route_press(
     ctx: &Context,
     os: Os,
     rec: &StopRec,
     press: &Press,
-    dropdown: Option<Dropdown>,
+    driven: Option<Driven>,
     routed: &mut HashMap<Option<Id>, Routed>,
     activated: &mut HashMap<Id, Id>,
 ) -> bool {
@@ -657,11 +679,11 @@ fn route_press(
     let id = Some(stop.id);
     let horizontal = matches!(press.key, Key::Left | Key::Right);
     let plain = press.mods.is_none();
-    if let Some(dropdown) = dropdown
+    if let Some(driven) = driven
         && plain
-        && let Some(intent) = dropdown_intent(press.key, dropdown.text)
+        && let Some(intent) = driven.intent(press.key)
     {
-        push(routed, Some(dropdown.list), intent, false);
+        push(routed, Some(driven.list), intent, false);
         return true;
     }
     match keys::intent(os, press.key, press.mods, stop.role) {
@@ -675,9 +697,9 @@ fn route_press(
             }
         }
         Some(Intent::Activate) => route_activate(ctx, rec, routed, activated),
-        Some(Intent::Close) => match dropdown {
-            Some(dropdown) => overlay::request_close(ctx, dropdown.layer, overlay::CloseReason::Requested),
-            None => push(routed, id, Intent::Close, false),
+        Some(Intent::Close) => match driven {
+            Some(Driven { layer: Some(layer), .. }) => overlay::request_close(ctx, layer, overlay::CloseReason::Requested),
+            _ => push(routed, id, Intent::Close, false),
         },
         Some(intent) => push(routed, id, intent, false),
         None if press.key == Key::Enter && plain => {

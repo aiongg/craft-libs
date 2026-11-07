@@ -70,20 +70,18 @@ fn a_wrapping_value_makes_its_row_taller() {
     assert!(wrapped.rect.height() > short.rect.height(), "the wrapped row is taller than the one-line row");
 }
 
-/// ArrowDown in the filter field moves focus to the rows with the first field as the lead, which Enter activates.
+/// ArrowDown in the filter field leads the first field in the rows while the filter keeps focus, and Enter activates
+/// the lead.
 #[trial]
 fn arrow_down_from_the_filter_leads_into_the_rows() {
     let seen = Rc::new(Seen::default());
     let mut fixture = table(camera(), &seen, true, false);
     let filter = fixture.by_role(Role::TEXT_INPUT).into_iter().next().expect("the filter field");
     fixture.click(&filter);
-    let table_rect = fixture.by_role(Role::TABLE).into_iter().next().expect("the table").rect;
-    let focused = fixture.focused().and_then(|id| fixture.node_of(id)).expect("the filter holds focus");
-    assert_eq!(focused.rect, filter.rect);
     fixture.key(Key::ArrowDown, Modifiers::NONE);
     fixture.idle(2);
     let focused = fixture.focused().and_then(|id| fixture.node_of(id)).expect("focus is somewhere");
-    assert_eq!(focused.rect, table_rect, "focus moved to the table");
+    assert_eq!(focused.rect, filter.rect, "the filter keeps focus");
     fixture.key(Key::Enter, Modifiers::NONE);
     fixture.idle(1);
     let activated: Vec<_> =

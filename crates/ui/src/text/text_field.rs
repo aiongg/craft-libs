@@ -12,7 +12,7 @@ use crate::contract::{
 use crate::primitives::{Completer, IconSpec, TextOptions, TextRun};
 use crate::runtime::env::Label;
 use craft_behavior::{Codec, IconId, PartKey, PlainText, Sense};
-use egui::{Rect, Vec2};
+use egui::{Id, Rect, Vec2};
 use smallvec::SmallVec;
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -39,6 +39,8 @@ pub struct TextField<'a, C: Codec + Clone + 'static = PlainText> {
     leading: Vec<Adornment>,
     /// The field reserves and paints a chevron at the end, for the host's popup.
     arrow: bool,
+    /// The collection the field hands its list keys to, and whether Left and Right go to it too.
+    drives: Option<(Id, bool)>,
 }
 
 impl<'a> TextField<'a, PlainText> {
@@ -71,6 +73,7 @@ impl<'a, C: Codec + Clone + 'static> TextField<'a, C> {
             search: false,
             leading: Vec::new(),
             arrow: false,
+            drives: None,
         }
         .label(label)
     }
@@ -94,6 +97,24 @@ impl<'a, C: Codec + Clone + 'static> TextField<'a, C> {
     #[must_use]
     pub fn trailing_arrow(mut self) -> Self {
         self.arrow = true;
+        self
+    }
+
+    /// The field drives the collection `list`: Up, Down, Page Up, Page Down and Enter go from the field to it, in a
+    /// layer or inline, and typed text stays with the field. While the field is empty Home and End go to the
+    /// collection too; with text they move the caret. `list` is the id the collection is built with
+    /// (`Props::id`), so a pattern can name a collection it shows after the field.
+    #[must_use]
+    pub fn drives(mut self, list: Id) -> Self {
+        self.drives = Some((list, false));
+        self
+    }
+
+    /// As `drives`, for a tree: while the field is empty Left and Right go to the collection too, to open and close
+    /// rows.
+    #[must_use]
+    pub fn drives_tree(mut self, list: Id) -> Self {
+        self.drives = Some((list, true));
         self
     }
 
@@ -223,6 +244,10 @@ impl<C: Codec + Clone + 'static> Component for TextField<'_, C> {
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        if let Some((list, tree)) = self.drives {
+            let empty = cx.value().is_none_or(|value| self.codec.format(value).is_empty());
+            crate::runtime::focus::registration::drive(&cx.core.ctx, cx.core.id, list, tree, empty);
+        }
         if cx.part_if_declared(CLEAR).is_some_and(|part| part.press.phase.is_click())
             && let Some(empty) = self.empty.clone()
         {

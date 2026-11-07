@@ -244,3 +244,32 @@ fn activate_on_click_reports_the_clicked_tile() {
     assert!(activated(&seen).is_empty(), "a single click only selects by default");
     assert_eq!(seen.borrow().selection.lead, Some(2));
 }
+
+/// A focused group header takes the keys of its row: Left closes an open group, Right opens a closed one, and Enter
+/// picks the group.
+#[trial]
+fn a_focused_group_header_collapses_opens_and_picks_by_key() {
+    let groups: &'static [TileGroup] = Box::leak(Box::new([TileGroup::new(0, 6, "First"), TileGroup::new(6, 6, "Second").open(false)]));
+    let (mut fixture, seen) = rig(12, move |grid| grid.groups(groups).collapsible(true), plain);
+    let header = |fixture: &Fixture, label: &str| fixture.by_label(label).unwrap_or_else(|| panic!("{label} is a node"));
+    let target = header(&fixture, "First");
+    fixture.click(&target);
+    fixture.idle(2);
+    seen.borrow_mut().grid.clear();
+    fixture.key(Key::ArrowLeft, Modifiers::NONE);
+    fixture.idle(2);
+    assert_eq!(seen.borrow().grid, [GridEvent::GroupOpen { group: 0, open: false }], "Left closes the open group");
+    seen.borrow_mut().grid.clear();
+    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.idle(2);
+    let picked: Vec<_> =
+        seen.borrow().grid.iter().filter_map(|event| if let GridEvent::GroupPicked { group, .. } = event { Some(*group) } else { None }).collect();
+    assert_eq!(picked, [0], "Enter picks the focused group");
+    let target = header(&fixture, "Second");
+    fixture.click(&target);
+    fixture.idle(2);
+    seen.borrow_mut().grid.clear();
+    fixture.key(Key::ArrowRight, Modifiers::NONE);
+    fixture.idle(2);
+    assert_eq!(seen.borrow().grid, [GridEvent::GroupOpen { group: 1, open: true }], "Right opens the closed group");
+}

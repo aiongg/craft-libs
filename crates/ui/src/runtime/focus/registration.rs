@@ -178,3 +178,32 @@ pub(crate) fn dropdown_target(ctx: &Context, opener: StopKey) -> Option<(Id, Id)
         state.last_stops.iter().find(|rec| rec.stop.role.type_ahead && inside(rec)).map(|rec| (layer, rec.stop.id))
     })
 }
+
+/// What a text stop hands to the collection it drives: set by the field each pass it is shown.
+#[derive(Clone, Copy)]
+pub(crate) struct Drive {
+    /// The collection that takes the field's list keys.
+    pub(crate) list: Id,
+    /// The collection is a tree: Left and Right go to it as well.
+    pub(crate) tree: bool,
+    /// The field holds no text, so Home and End leave the caret and go to the collection.
+    pub(crate) empty: bool,
+    pass: u64,
+}
+
+fn drive_slot(field: Id) -> Id {
+    sub(field, "drives")
+}
+
+/// Records that the text field `field` drives the collection `list` in this pass.
+pub(crate) fn drive(ctx: &Context, field: Id, list: Id, tree: bool, empty: bool) {
+    let slot = drive_slot(field);
+    store::put(ctx, slot, Drive { list, tree, empty, pass: crate::runtime::pointer::pass_of(ctx) });
+    crate::runtime::memory::adopt::<Drive>(ctx, field, slot);
+}
+
+/// The collection the text field `field` drove in this pass or the one before.
+pub(crate) fn driven(ctx: &Context, field: Id) -> Option<Drive> {
+    let drive = store::peek_clone::<Drive>(ctx, drive_slot(field))?;
+    (drive.pass.saturating_add(1) >= crate::runtime::pointer::pass_of(ctx)).then_some(drive)
+}

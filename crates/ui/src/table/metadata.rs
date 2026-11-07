@@ -9,11 +9,10 @@ use crate::contract::{
 };
 use crate::list::{ListRow, RowEvent, ToggleCell, ToggleState};
 use crate::runtime::env::{Env, Label};
-use crate::runtime::focus::{self, FocusTarget};
 use crate::text::TextField;
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, GestureId, ItemSource, Mixed};
 use craft_i18n::matcher::Matcher;
-use egui::{Key, Modifiers, Response, Ui};
+use egui::{Response, Ui};
 use std::borrow::Cow;
 use std::sync::Arc;
 
@@ -126,8 +125,8 @@ impl Outcome for MetadataTableOutput {
 }
 
 /// A key and value table in groups: a search field over the rows keeps the fields whose name or value matches the
-/// typed text, and a check column marks the keys the app shows as columns. ArrowDown in the search field moves
-/// focus to the first row.
+/// typed text, and a check column marks the keys the app shows as columns. The search field drives the rows: ArrowDown moves
+/// the lead to the first row and Enter activates it, while focus stays in the field.
 ///
 /// ```ignore
 /// let out = MetadataTable::new("All metadata", &groups).filter(Bind::bound(&mut dialog.search)).show(ui);
@@ -209,14 +208,13 @@ impl<'a> MetadataTable<'a> {
         let words = env.words::<MetadataWords>();
         let mut query = String::new();
         let mut filter_changed = false;
-        let mut into_rows = false;
+        let rows = ui.scope_id().with("rows");
         if let Some(text) = filter {
-            let edit = TextField::search(words.filter.clone(), text).placeholder(words.filter.clone()).show(ui);
+            let edit = TextField::search(words.filter.clone(), text).placeholder(words.filter.clone()).drives(rows).show(ui);
             filter_changed = edit.event.is_some();
             if let Some(Mixed::Same(shown)) = &edit.shown {
                 query.clone_from(&**shown);
             }
-            into_rows = edit.response.has_focus() && ui.input_mut(|input| input.consume_key(Modifiers::NONE, Key::ArrowDown));
         }
         let query = query.trim();
         let matcher = (!query.is_empty()).then(|| Matcher::new(&env.folder(), query));
@@ -255,6 +253,7 @@ impl<'a> MetadataTable<'a> {
         let source = Fields { keys, entries, chosen: held.as_deref() };
         let checks = choose.is_some();
         let table = Table::<FieldKey>::new(label.clone(), columns)
+            .id(rows)
             .select(SelectMode::Single)
             .striped(true)
             .header(false)
@@ -277,9 +276,6 @@ impl<'a> MetadataTable<'a> {
                 }
             });
         drop(source);
-        if into_rows {
-            focus::request(ui.ctx(), FocusTarget::Id(table.response.id));
-        }
 
         let mut checked = Vec::new();
         if let (Some(mut choose), Some(before)) = (choose, held) {

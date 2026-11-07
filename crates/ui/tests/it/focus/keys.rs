@@ -457,3 +457,78 @@ fn a_held_enter_that_opened_a_modal_does_not_answer_it() {
     frames.idle(3, &mut show);
     assert!(!open.get(), "a fresh Enter answers the alert");
 }
+
+/// A search field over a list it drives, inline or in a dialog, and the keys of the rows the list activated.
+fn drive_fixture(in_modal: bool) -> (craft_ui::testing::Fixture, std::rc::Rc<RefCell<Vec<usize>>>) {
+    use craft_behavior::{DisplayOrder, ItemSource};
+    use craft_ui::contract::{Bind, CollectionEvent, Props as _, SelectMode, ShowCollection as _, ShowContainer as _};
+    use craft_ui::dialog::Dialog;
+    use craft_ui::list::{List, ListRow};
+    use craft_ui::runtime::env::Label;
+    use craft_ui::sections::{DialogRole, FooterButton};
+    use craft_ui::testing::Fixture;
+    use craft_ui::text::TextField;
+
+    const NAMES: [&str; 4] = ["Normal", "Burn", "Blur", "Screen"];
+    struct Names;
+    impl DisplayOrder<usize> for Names {
+        fn len(&self) -> usize {
+            NAMES.len()
+        }
+        fn key(&self, at: usize) -> usize {
+            at
+        }
+    }
+    impl ItemSource<usize> for Names {}
+
+    let activated = std::rc::Rc::new(RefCell::new(Vec::new()));
+    let sink = activated.clone();
+    let query = std::rc::Rc::new(RefCell::new(String::new()));
+    let fixture = Fixture::new(move |ui| {
+        let list_id = ui.scope_id().with("names");
+        let body = |ui: &mut egui::Ui| {
+            let mut text = query.borrow().clone();
+            TextField::search("Search", Bind::bound(&mut text)).drives(list_id).show(ui);
+            let out = List::new("Names").id(list_id).select(SelectMode::Single).filter(&text, |key: &usize| Label::from(NAMES[*key])).show_items(
+                ui,
+                &Names,
+                &mut |key, _| ListRow::new(NAMES[*key]),
+            );
+            sink.borrow_mut().extend(out.response.events.iter().filter_map(|event| match event {
+                CollectionEvent::Activate(key) => Some(*key),
+                _ => None,
+            }));
+            *query.borrow_mut() = text;
+        };
+        if in_modal {
+            let mut open = true;
+            Dialog::new("Pick").opened(Bind::bound(&mut open)).buttons([FooterButton::new("Cancel", DialogRole::Cancel)]).show(ui, |ui, _| body(ui));
+        } else {
+            body(ui);
+        }
+    });
+    (fixture, activated)
+}
+
+/// A text field that drives a list hands it Down and Enter inline and in a modal layer, and keeps the typed text.
+#[trial]
+fn a_field_that_drives_a_list_hands_it_its_list_keys_inline_and_in_a_modal() {
+    for in_modal in [false, true] {
+        let (mut fixture, activated) = drive_fixture(in_modal);
+        fixture.settle();
+        let field = fixture.by_role(Role::TEXT_INPUT).pop().expect("the search field shows");
+        fixture.click(&field);
+        fixture.idle(2);
+        fixture.type_text("b");
+        fixture.idle(2);
+        for _ in 0..2 {
+            fixture.key(Key::ArrowDown, Modifiers::NONE);
+            fixture.idle(2);
+        }
+        let typed = fixture.focused().and_then(|id| fixture.tree().value(id).map(str::to_owned));
+        assert_eq!(typed.as_deref(), Some("b"), "the arrows left the typed text in the field (modal: {in_modal})");
+        fixture.key(Key::Enter, Modifiers::NONE);
+        fixture.idle(4);
+        assert_eq!(*activated.borrow(), [2], "Enter picks the second match (modal: {in_modal})");
+    }
+}
