@@ -134,15 +134,15 @@ A story shows one registered type in one state. `#[story(Type, covers = [..])]` 
 | `#[component(overlay)]` | `Open` |
 | items | `Empty`, `One`, `Many` |
 
-A value a story edits comes from `StoryData::value(name, init)`. The suite fails when a required state has no story. `Drive::Auto` picks how the suite changes the value; a story names another drive (`Drive::Drag(part)`, `Drive::Pick(row)`, `Drive::Custom(f)`) only when the default does not fit. The suite runs these cases over every story: `stories` (each required state has one), `shows`, `access`, `text-size`, `values`, `tab` and `body-regions`. It shows each story as written; it adds no disabled, right-to-left or narrow-room variant, so a story that must be checked in such a state is written for it.
+A value a story edits comes from `StoryData::value(name, init)`. The suite fails when a required state has no story. `Drive::Auto` picks how the suite changes the value; a story names another drive (`Drive::Drag(part)`, `Drive::Pick { row }`, `Drive::Custom(f)`) only when the default does not fit. The runner makes the disabled, read-only, right-to-left and narrow-room variants of each story itself, so a story shows only the type in its state. The cases the runner runs are the `Case::new` entries in `crates/ui/src/testing/suite.rs` and its `suite/` modules: required states, shows, access, tab, values, mixed, activation, text size, themes, motion, language, text input, and the container and collection cases for the shapes that have them.
 
 A type that cannot meet a shared case lists it, with a reason:
 
 ```rust
-#[component(exempt(case = "stories", reason = "A face of the title row, shown only inside it."))]
+#[component(exempt(case = "face-only", reason = "A face of the title row, shown only inside it."))]
 ```
 
-Each exemption is an entry of kind `probe` in `design/exceptions/<crate>/<family>.toml`, with the rule `probe/exempt/<case>` and the file that declares it. `craft-design-lint structure` reads the `exempt(..)` declarations from the sources, rejects one without a reason, and fails when a declaration has no entry or an entry lists more than exist; the count cannot rise.
+Each exemption is an entry of kind `probe` in `design/exceptions/<crate>/<family>.toml`, with the rule `probe/exempt/<case>` and the file that declares it. A case is a case name of the runner, `face-only` (a type shown only inside another type's stories) or `state:<Required>` (one required state the type cannot show, such as `state:Mixed`). `craft-design-lint structure` reads the `exempt(..)` declarations from the sources, rejects one without a reason, and fails when a declaration has no entry or an entry lists more than exist; the count cannot rise.
 
 ## Seeing and checking the result
 
