@@ -618,23 +618,36 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 self.begin_toggle(cx, at, column, sweepable);
             } else {
                 let mods = crate::runtime::pointer::frame(&ctx).mods;
-                let secondary = start.button == craft_behavior::PointerButton::Secondary;
                 let key = self.source.key(at);
                 let column = if Self::selects_cells(comp) { layout.column_at(local(start.origin), offset) } else { None };
-                if !secondary || !self.selection.contains(&key) {
-                    match column {
-                        Some(column) => self.cell_press(layout, at, column, mods.shift, mods.cmd),
-                        None => self.pick(comp, at, mods.shift, mods.cmd),
-                    }
+                match column {
+                    Some(column) => self.cell_press(layout, at, column, mods.shift, mods.cmd),
+                    None => self.pick(comp, at, mods.shift, mods.cmd),
                 }
                 self.move_lead(at);
-                if secondary {
-                    let place = self.screen(layout, rect, at, offset, rtl).left_bottom();
-                    self.events.push(CollectionEvent::ContextMenu(ContextMenuRequest { key: key.clone(), at: place }));
-                } else if start.clicks == 2 {
+                if start.clicks == 2 {
                     self.events.push(CollectionEvent::Activate(key));
                 }
             }
+        }
+        // A secondary release on a row asks for its menu (9.2 rule 3); the row joins the selection unless it is in it.
+        let released = crate::runtime::pointer::frame(&ctx);
+        if released.release == Some(craft_behavior::PointerButton::Secondary)
+            && let Some(pos) = released.pos.filter(|pos| rect.contains(*pos))
+            && let Some(at) = layout.hit(local(pos), offset)
+            && self.source.enabled(at)
+        {
+            let key = self.source.key(at);
+            if !self.selection.contains(&key) {
+                let column = if Self::selects_cells(comp) { layout.column_at(local(pos), offset) } else { None };
+                match column {
+                    Some(column) => self.cell_press(layout, at, column, false, false),
+                    None => self.pick(comp, at, false, false),
+                }
+            }
+            self.move_lead(at);
+            let place = self.screen(layout, rect, at, offset, rtl).left_bottom();
+            self.events.push(CollectionEvent::ContextMenu(ContextMenuRequest { key, at: place }));
         }
     }
 

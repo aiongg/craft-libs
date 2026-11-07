@@ -1,8 +1,8 @@
 //! The list trials: wheel and thumb, keys and selection, rename, the empty state, trees and large sources.
 
-use super::kit::{Count, Dismissed, List, Row, Words, ROW_H};
+use super::kit::{Count, Dismissed, List, ROW_H, Row, Words};
 use craft_behavior::{CancelReason, EditEvent, Selection, SelectionChange};
-use craft_ui::contract::{Show as _, Bind, CollectionEvent, CollectionResponse, Props as _, SelectMode, ShowCollection as _};
+use craft_ui::contract::{Bind, CollectionEvent, CollectionResponse, Props as _, SelectMode, Show as _, ShowCollection as _};
 use craft_ui::runtime::focus::{FocusTarget, request};
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::{Frames, input, pointer, trial};
@@ -27,12 +27,7 @@ struct Seen {
 
 impl Default for Seen {
     fn default() -> Self {
-        Seen {
-            id: Cell::new(None),
-            rect: Cell::new(Rect::NOTHING),
-            visible: Cell::new((0, 0)),
-            events: RefCell::new(Vec::new()),
-        }
+        Seen { id: Cell::new(None), rect: Cell::new(Rect::NOTHING), visible: Cell::new((0, 0)), events: RefCell::new(Vec::new()) }
     }
 }
 
@@ -57,7 +52,11 @@ impl Seen {
     }
 
     fn selections(&self) -> Vec<SelectionChange<usize>> {
-        self.events.borrow().iter().filter_map(|event| if let CollectionEvent::Selection(change) = event { Some(change.clone()) } else { None }).collect()
+        self.events
+            .borrow()
+            .iter()
+            .filter_map(|event| if let CollectionEvent::Selection(change) = event { Some(change.clone()) } else { None })
+            .collect()
     }
 }
 
@@ -182,7 +181,11 @@ fn shift_f10_opens_the_focused_rows_context_menu() {
     frames.idle(2, &mut show);
     focus_list(&mut frames, &seen, &mut show);
     let menus = || -> Vec<(usize, Pos2)> {
-        seen.events.borrow().iter().filter_map(|event| if let CollectionEvent::ContextMenu(request) = event { Some((request.key, request.at)) } else { None }).collect()
+        seen.events
+            .borrow()
+            .iter()
+            .filter_map(|event| if let CollectionEvent::ContextMenu(request) = event { Some((request.key, request.at)) } else { None })
+            .collect()
     };
     press(&mut frames, Key::F10, Modifiers::SHIFT, &mut show);
     assert!(menus().is_empty(), "no lead yet, no menu");
@@ -193,7 +196,10 @@ fn shift_f10_opens_the_focused_rows_context_menu() {
     let asked = menus();
     assert_eq!(asked.iter().map(|menu| menu.0).collect::<Vec<_>>(), [0, 1], "one request per chord, for the lead at the time");
     assert!(asked[1].1.y > asked[0].1.y, "the request sits below its own row: {asked:?}");
-    assert!(seen.rect.get().contains_rect(Rect::from_min_size(asked[0].1, Vec2::ZERO)) || seen.rect.get().contains(asked[0].1), "inside the list: {asked:?}");
+    assert!(
+        seen.rect.get().contains_rect(Rect::from_min_size(asked[0].1, Vec2::ZERO)) || seen.rect.get().contains(asked[0].1),
+        "inside the list: {asked:?}"
+    );
     press(&mut frames, Key::F10, Modifiers::NONE, &mut show);
     assert_eq!(menus().len(), 2, "F10 alone opens nothing");
 }
@@ -306,7 +312,11 @@ fn a_tree_expands_and_collapses_by_key() {
     focus_list(&mut frames, &seen, &mut show);
     press(&mut frames, Key::ArrowDown, Modifiers::NONE, &mut show);
     let opens = || -> Vec<(usize, bool)> {
-        seen.events.borrow().iter().filter_map(|event| if let CollectionEvent::Open(change) = event { Some((change.key, change.open)) } else { None }).collect()
+        seen.events
+            .borrow()
+            .iter()
+            .filter_map(|event| if let CollectionEvent::Open(change) = event { Some((change.key, change.open)) } else { None })
+            .collect()
     };
     press(&mut frames, Key::ArrowRight, Modifiers::NONE, &mut show);
     assert_eq!(opens(), [(0, true)]);
@@ -367,6 +377,60 @@ fn an_item_part_reports_through_the_collection() {
     frames.idle(3, &mut show);
     let hit = rows[1].get().min + Vec2::splat(ROW_H / 2.0);
     pointer::click(&mut frames, hit, &mut show);
-    let items: Vec<_> = seen.events.borrow().iter().filter_map(|event| if let CollectionEvent::Item(key, item) = event { Some((*key, item.clone())) } else { None }).collect();
+    let items: Vec<_> = seen
+        .events
+        .borrow()
+        .iter()
+        .filter_map(|event| if let CollectionEvent::Item(key, item) = event { Some((*key, item.clone())) } else { None })
+        .collect();
     assert_eq!(items, [(1, Dismissed::Row)]);
+}
+
+/// A text field renaming a row keeps Escape while its draft is open: the first Escape cancels the edit and focus
+/// goes back to the list, not to the row before the cancel.
+#[trial]
+fn escape_reaches_a_text_part_with_an_open_draft_before_the_row() {
+    let words = Words::flat(&["one", "two"]);
+    let seen = Seen::default();
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| show_words(ui, List::new(SelectMode::Single).rename().text_editor(), &words, &seen);
+    frames.idle(2, &mut show);
+    focus_list(&mut frames, &seen, &mut show);
+    press(&mut frames, Key::ArrowDown, Modifiers::NONE, &mut show);
+    press(&mut frames, Key::F2, Modifiers::NONE, &mut show);
+    frames.idle(2, &mut show);
+    frames.frame(vec![Event::Text("x".into())], &mut show);
+    frames.idle(1, &mut show);
+    press(&mut frames, Key::Escape, Modifiers::NONE, &mut show);
+    let cancels = seen
+        .events
+        .borrow()
+        .iter()
+        .filter(|event| matches!(event, CollectionEvent::Rename(EditEvent::Cancel { reason: CancelReason::Escape, .. })))
+        .count();
+    assert_eq!(cancels, 1, "the text part took the first Escape");
+}
+
+/// A right-click on a row asks for its menu on the release, selects the row when it was not selected, and names it.
+#[trial]
+fn a_secondary_release_on_a_row_asks_for_its_context_menu() {
+    let words = Words::flat(&["a", "b", "c"]);
+    let seen = Seen::default();
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| show_words(ui, List::new(SelectMode::Single), &words, &seen);
+    frames.idle(3, &mut show);
+    let at = ORIGIN + Vec2::new(30.0, ROW_H * 1.5);
+    frames.frame(vec![pointer::moved(at)], &mut show);
+    frames.frame(vec![pointer::secondary(at, true)], &mut show);
+    assert!(!seen.events.borrow().iter().any(|event| matches!(event, CollectionEvent::ContextMenu(_))), "nothing opens on the press");
+    frames.frame(vec![pointer::secondary(at, false)], &mut show);
+    frames.idle(1, &mut show);
+    let menus: Vec<usize> = seen
+        .events
+        .borrow()
+        .iter()
+        .filter_map(|event| if let CollectionEvent::ContextMenu(request) = event { Some(request.key) } else { None })
+        .collect();
+    assert_eq!(menus, [1]);
+    assert!(seen.leads().contains(&1), "the row under the pointer holds the lead");
 }

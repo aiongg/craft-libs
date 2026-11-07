@@ -172,6 +172,7 @@ pub struct List<'a> {
     selection: Option<Bind<'a, Selection<usize>>>,
     tree: bool,
     on_empty: Option<&'a Cell<Rect>>,
+    text_editor: bool,
 }
 
 impl<'a> List<'a> {
@@ -183,7 +184,14 @@ impl<'a> List<'a> {
             selection: None,
             tree: false,
             on_empty: None,
+            text_editor: false,
         }
+    }
+
+    /// Renames in a library text field, whose open draft owns Escape.
+    pub fn text_editor(mut self) -> Self {
+        self.text_editor = true;
+        self
     }
 
     pub fn rename(mut self) -> Self {
@@ -242,6 +250,10 @@ impl Collection for List<'_> {
     }
 
     fn rename_editor(&mut self, ui: &mut Ui, draft: Bind<'_, String>) -> Option<EditResponse<String>> {
+        if self.text_editor {
+            use craft_ui::contract::Show as _;
+            return Some(craft_ui::text::TextField::new("Name", draft).show(ui));
+        }
         Some(NameEditor::new(draft).shown(ui))
     }
 
