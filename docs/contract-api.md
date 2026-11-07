@@ -883,6 +883,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `type Style`. The style type.
   - `type Output`. `Response`, `EditResponse<T>` or a richer type.
   - `fn shows_label(&self) -> bool`. Whether this instance paints its label as visible text; `SHOWS_LABEL` unless an instance prop decides, as
+  - `fn paint_outset(_tokens: &crate::style::UiTokens) -> f32`. How far the component paints outside its rect by design, in points (a graph node's ports sit on its edge).
   - `fn style(cx: &StyleCx<'_>, key: Self::StyleKey) -> Self::Style`. Pure function of the resolved context and the key.
   - `fn measure(&mut self, _cx: &MeasureCx<'_, Self>) -> Vec2`. Content size only; the pipeline adds padding and minimum size.
   - `fn sense(&self) -> Sense`. The root's sense; the shape's default unless a canvas control.
@@ -1800,6 +1801,7 @@ The focus service: stops, scopes and roving groups registered per pass, the focu
   - `pub const fn of(input: Input) -> KeyUse`. The default key use of a component that takes `input`. The only place egui key filters start from.
   - `pub const fn with_claims(mut self, claims: &'static [Chord]) -> Self`. The same use claiming `claims`.
   - `pub const fn with_edits(mut self, edits: EditSet) -> Self`. The same use listing `edits`.
+  - `pub const fn with_activate(mut self, activate: ActivateKeys) -> Self`. The same use with `activate` as the keys that activate: a value control that arrow and Page keys step takes none.
   - `pub fn claims_chord(&self, chord: &Chord) -> bool`. Whether the component claims `chord`.
 - `craft_ui::runtime::focus::Letters`: re-export of `craft_behavior::nav::Letters`.
 - `craft_ui::runtime::focus::Roving`: re-export of `craft_behavior::nav::Roving`.
@@ -2242,6 +2244,7 @@ Text dumps for tests: ordered `key = value` lines compared exactly with a file, 
   - `pub fn click_part(&self) -> Option<PartRef>`. The first part of the shown component that senses a click: what a click activates when the component has
   - `pub fn texts(&self) -> &[fixture::PaintedText]`. The text runs the latest frame painted.
   - `pub fn shape_bounds(&self) -> &[Rect]`. The visual bounds of the shapes the latest frame painted.
+  - `pub fn shape_overshoot(&self) -> &[f32]`. Half the stroke width of the shape behind each of `shape_bounds`.
   - `pub fn repaint_requested(&self) -> bool`. Whether anything asked for another pass since the latest frame ended.
   - `pub fn ime(&self) -> Option<&fixture::ImeSeen>`. The IME output of the latest frame.
   - `pub fn shown(&self) -> Rect`. The area the latest pass allocated.
@@ -2345,6 +2348,7 @@ A fixed-rate frame driver over a context.
   - `pub fn copied(&self) -> &[String]`. The texts the last frame put on the clipboard.
   - `pub fn texts(&self) -> &[fixture::PaintedText]`. The text runs the last frame painted.
   - `pub fn shape_bounds(&self) -> &[egui::Rect]`. The visual bounds of the shapes the last frame painted.
+  - `pub fn shape_overshoot(&self) -> &[f32]`. Half the stroke width of the shape behind each of `shape_bounds`.
   - `pub fn tree(&mut self) -> AccessTree`. The AccessKit tree the last frame produced.
   - `pub fn repaint_delay(&self) -> Option<Duration>`. The wait the last frame asked for before the next pass: `Duration::ZERO` for an immediate repaint,
   - `pub fn repaint_requested(&self) -> bool`. Whether anything asked for a pass since the last frame ended.
@@ -2515,11 +2519,13 @@ Stories: named ways to show one registered type, and the data and output the run
 - `craft_ui::testing::story::EditKind`: `pub enum EditKind { Begin, Update, Commit, Cancel, Set }`. The kind of an edit event.
   - `pub fn of<T>(event: &EditEvent<T>) -> Option<EditKind>`. The kind of `event`.
 - `craft_ui::testing::story::Required`: `pub enum Required { Default, Mixed, Invalid, LongText, Open, Empty, One, Many }`. A state a registered type must show in some story.
-- `craft_ui::testing::story::Story`: `pub struct Story { pub name: &'static str, pub covers: &'static [Required], pub show: fn(&mut Ui, &mut StoryData) -> StoryOutput, pub drive: Drive }`. A named way to show one registered type.
+- `craft_ui::testing::story::Story`: `pub struct Story { pub name: &'static str, pub covers: &'static [Required], pub show: fn(&mut Ui, &mut StoryData) -> StoryOutput, pub drive: Drive, pub disabled_text: Option<&'static str> }`. A named way to show one registered type.
   - `pub const fn new(name: &'static str, show: fn(&mut Ui, &mut StoryData) -> StoryOutput) -> Self`. A story that shows with `show`.
   - `pub const fn covers(mut self, covers: &'static [Required]) -> Self`. The states the story shows.
+  - `pub const fn disabled_text(mut self, text: &'static str) -> Self`. The reason the story's control shows while disabled. The story gives its tooltip this text through
   - `pub const fn drive(mut self, drive: Drive) -> Self`. The drive the story names.
 - `craft_ui::testing::story::StoryData`: `pub struct StoryData`. The values a story shows, by name. Each is a `Value`, so the runner compares them before and after a drive.
+  - `pub fn tooltip(&self, text: &'static str) -> TooltipSpec`. A tooltip of `text`, with the story's `disabled_text` as the text it shows while disabled.
   - `pub fn value<T: Value>(&mut self, name: &'static str, init: T) -> &mut T`. The value named `name` of type `T`, created from `init` on first use. A name used with two types names two
   - `pub fn shown<T: Value + std::fmt::Debug>(&mut self, name: &'static str, init: T) -> &mut T`. Like [`StoryData::value`], and the value is one of the story's args in the parity replay, shown as its `Debug`
   - `pub fn changed_since(&self, before: &StorySnapshot) -> Vec<&'static str>`. The names of the values that differ from `before`; a value added since counts as changed.
@@ -2533,13 +2539,14 @@ Stories: named ways to show one registered type, and the data and output the run
 Style and paint helpers: token sets, a `StyleCx`, the style cache and a `Draw` over a frame.
 
 - `craft_ui::testing::style::Recorded`: `pub struct Recorded { pub elided: Option<String>, pub baseline: Option<f32> }`. What `Draw` recorded in one frame.
-- `craft_ui::testing::style::StyleLooks`: `pub struct StyleLooks { pub variants: &'static [craft_theme::Variant], pub surface: Option<crate::style::SurfaceLook>, pub focus: Option<crate::style::FocusLook> }`. A resolved style as the style cases read it: the variants its type lists and the looks that state colours
+- `craft_ui::testing::style::StyleLooks`: `pub struct StyleLooks { pub variants: &'static [craft_theme::Variant], pub surface: Option<crate::style::SurfaceLook>, pub focus: Option<crate::style::FocusLook>, pub texts: Vec<crate::style::TextLook>, pub icons: Vec<crate::style::IconLook> }`. A resolved style as the style cases read it: the variants its type lists and the looks that state colours
   - `pub fn same_as(&self, other: &StyleLooks) -> bool`. Whether `other` is the same style, in every field.
 - `craft_ui::testing::style::env_key`: `pub fn env_key(tokens: &UiTokens) -> EnvKey`. The `EnvKey` of `tokens` in a left-to-right Linux window at scale 1 with no style-affecting app values.
 - `craft_ui::testing::style::face_id`: `pub fn face_id(composite: &str, part: craft_behavior::PartRef) -> egui::Id`. The base id of the face painted for `part` of the composite `id`.
 - `craft_ui::testing::style::paint_frame`: `pub fn paint_frame(frames: &mut Frames, tokens: &UiTokens, direction: Direction, ink: Ink, mut paint: impl FnMut(&Draw<'_>),) -> (Vec<Shape>, Recorded)`. Runs one frame in which `paint` draws through a `Draw` over the root `Ui`'s painter, in `direction` and on
 - `craft_ui::testing::style::root_token_entries`: `pub fn root_token_entries(ctx: &Context) -> usize`. How many root-token entries the root env cache of `ctx` holds.
 - `craft_ui::testing::style::style_of`: `pub fn style_of<K: StyleKey, S: ComponentStyle>(ctx: &Context, cx: &StyleCx<'_>, key: K, default: for<'a> fn(&StyleCx<'a>, K) -> S) -> Arc<S>`. The cached style for `key` in `cx`, built by `default` on a miss.
+- `craft_ui::testing::style::themes_at`: `pub fn themes_at(contrast: Contrast) -> Vec<(String, UiTokens)>`. Every built-in theme in each mode it has, at `contrast`, as (`<theme>.<mode>`, tokens).
 - `craft_ui::testing::style::tokens`: `pub fn tokens(mode: Mode, contrast: Contrast) -> UiTokens`. The suite's default built-in theme resolved for `mode` and `contrast`.
 - `craft_ui::testing::style::tokens_named`: `pub fn tokens_named(name: &str, mode: Mode, contrast: Contrast) -> UiTokens`. The built-in theme `craft.<name>` resolved for `mode` and `contrast`.
 - `craft_ui::testing::style::with_cx`: `pub fn with_cx<R>(ctx: &Context, tokens: &UiTokens, variant: Variant, size: ControlSize, f: impl FnOnce(&StyleCx<'_>) -> R) -> R`. Runs `f` with a `StyleCx` over `tokens` in a left-to-right Linux window at scale 1.
