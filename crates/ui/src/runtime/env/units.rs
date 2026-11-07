@@ -1,7 +1,7 @@
 //! `Units`: what typed number input and unit readouts need from the env (core 2.1): the locale's separators and the
 //! unit spellings of a number's kind in the user's language.
 
-use craft_behavior::quantity::Reader;
+use craft_behavior::quantity::{Reader, is_unit_spelling};
 use craft_i18n::{Format, WordSet as _};
 use std::ops::RangeInclusive;
 use std::sync::Arc;
@@ -114,23 +114,50 @@ impl Units {
         self.template(kind).replace("{n}", "").trim().to_owned()
     }
 
-    /// `n` of `kind` with between the least and most digits of `decimals` after the decimal mark, in the user's
-    /// language and digits.
-    pub fn text(&self, kind: UnitKind, n: f64, decimals: RangeInclusive<usize>) -> String {
+    /// The digits after the decimal mark `n` needs within `decimals`: the fewest that show it as it rounds at the most.
+    fn digits(n: f64, decimals: &RangeInclusive<usize>) -> usize {
         let (least, most) = (*decimals.start(), *decimals.end());
         let scale = 10f64.powi(i32::try_from(most).unwrap_or(0));
         let target = (n * scale).round();
-        let digits = (least..=most).find(|d| {
-            let at = 10f64.powi(i32::try_from(*d).unwrap_or(0));
-            ((n * at).round() / at * scale).round() == target
-        });
-        let number = self.format.number_ungrouped(n, digits.unwrap_or(most));
+        (least..=most)
+            .find(|d| {
+                let at = 10f64.powi(i32::try_from(*d).unwrap_or(0));
+                ((n * at).round() / at * scale).round() == target
+            })
+            .unwrap_or(most)
+    }
+
+    /// `n` of `kind` with between the least and most digits of `decimals` after the decimal mark, in the user's
+    /// language and digits.
+    pub fn text(&self, kind: UnitKind, n: f64, decimals: RangeInclusive<usize>) -> String {
+        let number = self.format.number_ungrouped(n, Self::digits(n, &decimals));
         craft_i18n::fmt(self.template(kind), &[("n", &number)])
     }
 
     /// `n` of `kind` with its default digits ([`UnitKind::decimals`]).
     pub fn show(&self, kind: UnitKind, n: f64) -> String {
         self.text(kind, n, kind.decimals())
+    }
+
+    /// `n` pixels: `12 px`.
+    pub fn pixels(&self, n: f64) -> String {
+        self.show(UnitKind::Pixels, n)
+    }
+
+    /// `n` percent: `12%`.
+    pub fn percent(&self, n: f64) -> String {
+        self.show(UnitKind::Percent, n)
+    }
+
+    /// `n` degrees: `12°`.
+    pub fn degrees(&self, n: f64) -> String {
+        self.show(UnitKind::Degrees, n)
+    }
+
+    /// `n` with digit groups and between the least and most digits of `decimals` after the decimal mark, in the
+    /// user's language and digits, with no unit.
+    pub fn number(&self, n: f64, decimals: RangeInclusive<usize>) -> String {
+        self.format.number(n, Self::digits(n, &decimals))
     }
 
     /// A reader for numbers of `kind` (plain numbers when `None`): the locale's decimal and group separators and
@@ -151,7 +178,7 @@ impl Units {
                 _ => continue,
             };
             for spelling in [self.symbol(other), english.symbol(other)] {
-                if !spelling.is_empty() && spelling.chars().all(char::is_alphabetic) {
+                if is_unit_spelling(&spelling) {
                     reader = reader.unit(&spelling, factor);
                 }
             }

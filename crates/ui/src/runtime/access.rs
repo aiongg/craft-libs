@@ -413,6 +413,8 @@ pub struct SubNode {
     pub description: Option<String>,
     /// A numeric value.
     pub numeric: Option<Numeric>,
+    /// Whether the node's popup or region is open; the node is expandable when this or its face says.
+    pub expanded: Option<bool>,
     /// The place in a closed set.
     pub position: Option<SetPosition>,
     /// The indexes of a cell.
@@ -431,6 +433,7 @@ impl SubNode {
             name: Name::FromLabel,
             description: None,
             numeric: None,
+            expanded: None,
             position: None,
             grid: GridPlace::default(),
             sort: None,

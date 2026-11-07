@@ -16,7 +16,7 @@ pub use alt_text::{AltText, AltTextField, AltTextFieldStyle, AltTextWords};
 pub use apply::{ApplyRow, ApplyRowStyle};
 pub use chips::{ChipCodec, ChipField, ChipFieldStyle, ChipWords};
 pub use linked::{LinkMode, LinkedFields, LinkedFieldsStyle, LinkedLayout, LinkedOutput, LinkedWords, follow_equal, follow_ratio, link_toggle};
-pub use number::{NumberField, NumberOutput, NumberStyle, Preset};
+pub use number::{NumberField, NumberOutput, NumberPick, NumberStyle};
 pub use selectable_text::{SelectableStyle, SelectableText};
 pub use text_field::TextField;
 
