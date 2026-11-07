@@ -65,7 +65,7 @@ pub struct ReferencePointStyle {
 /// neither does the grid. With [`growth`](ReferencePoint::growth) the cells next to the pick show arrows toward where
 /// the box grows.
 #[derive(crate::contract::Component, crate::contract::Props)]
-#[component]
+#[component(exempt(case = "rtl", reason = "The nine points are positions in a box, not reading order: the left point stays on the left."))]
 pub struct ReferencePoint<'a> {
     #[common]
     common: Common,
