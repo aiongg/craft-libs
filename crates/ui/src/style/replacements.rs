@@ -61,11 +61,11 @@ impl Frozen {
 
     /// Stores `self` as the context's replacements.
     pub(crate) fn store(self, ctx: &egui::Context) {
-        Service::<Frozen>::of(ctx).with(|slot| *slot = self);
+        Service::<Frozen>::run(ctx, |slot| *slot = self);
     }
 
     /// The replacement for `K` in `ctx`.
     pub(crate) fn of<K: StyleKey, S: ComponentStyle>(ctx: &egui::Context) -> Option<Replacement<K, S>> {
-        Service::<Frozen>::of(ctx).with(|frozen| frozen.get::<K, S>())
+        Service::<Frozen>::run(ctx, |frozen| frozen.get::<K, S>())
     }
 }

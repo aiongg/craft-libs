@@ -195,13 +195,32 @@ impl<S: Default + Send + 'static> Service<S> {
         static SLOT: OnceLock<Id> = OnceLock::new();
         let slot = *SLOT.get_or_init(|| unique("craft_ui.service"));
         let handle = locked(ctx, |data| data.get_temp_mut_or_default::<Service<S>>(slot).clone());
+        // A lookup made from inside `with` holds the cache shared, and that one stays uncached.
         HANDLES.with(|handles| {
-            let mut handles = handles.borrow_mut();
-            if handles.owner.as_ref().is_some_and(|(owner, _)| owner.ptr_eq(ctx)) {
+            if let Ok(mut handles) = handles.try_borrow_mut()
+                && handles.owner.as_ref().is_some_and(|(owner, _)| owner.ptr_eq(ctx))
+            {
                 handles.map.insert(TypeId::of::<S>(), Box::new(handle.clone()));
             }
         });
         handle
+    }
+
+    /// Runs `f` on the context's service of type `S`, created on first use. A cached handle is used in place, with no
+    /// clone of it.
+    pub(crate) fn run<R>(ctx: &Context, f: impl FnOnce(&mut S) -> R) -> R {
+        let mut f = Some(f);
+        let cached = HANDLES.with(|handles| {
+            let handles = handles.borrow();
+            let mine = handles.owner.as_ref().is_some_and(|(owner, _)| owner.ptr_eq(ctx));
+            let handle = mine.then(|| handles.map.get(&TypeId::of::<S>())).flatten().and_then(|handle| handle.downcast_ref::<Service<S>>())?;
+            f.take().map(|f| handle.with(f))
+        });
+        match (cached, f) {
+            (Some(out), _) => out,
+            (None, Some(f)) => Self::of(ctx).with(f),
+            (None, None) => unreachable!("the closure runs once"),
+        }
     }
 
     /// Runs `f` on the state under the service's lock.
@@ -212,7 +231,7 @@ impl<S: Default + Send + 'static> Service<S> {
 
 /// Runs `f` on the context's service of type `S`.
 pub(crate) fn with<S: Default + Send + 'static, R>(ctx: &Context, f: impl FnOnce(&mut S) -> R) -> R {
-    Service::<S>::of(ctx).with(f)
+    Service::<S>::run(ctx, f)
 }
 
 /// Runs `f` on a child `Ui` of `ui` whose auto ids start from `salt`: equal widgets under different salts never meet.

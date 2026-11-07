@@ -203,7 +203,7 @@ struct PendingState {
 }
 
 fn queue_of(ctx: &Context, jobs: &Arc<dyn Jobs>) -> Arc<JobQueue<Id, ()>> {
-    Service::<PendingState>::of(ctx).with(|state| match &state.queue {
+    Service::<PendingState>::run(ctx, |state| match &state.queue {
         Some((current, queue)) if Arc::ptr_eq(current, jobs) => queue.clone(),
         _ => {
             let wake_ctx = ctx.clone();
@@ -220,7 +220,7 @@ fn track<T: Clone + Send + Sync + 'static, E: Clone + Send + Sync + 'static>(ctx
     let viewport = pass::current_viewport(ctx);
     let pass = pass::pass_nr(ctx, viewport);
     frame::register_end_sweep(ctx, TypeId::of::<PendingState>(), sweep);
-    Service::<PendingState>::of(ctx).with(|state| {
+    Service::<PendingState>::run(ctx, |state| {
         state.tracked.insert(id, Tracked { owner, viewport, pass, dispose: memory::dispose_shown::<PendingSlot<T, E>> });
     });
 }

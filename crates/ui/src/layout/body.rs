@@ -148,14 +148,14 @@ pub(crate) fn run_body<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap: Vec2, b
             let inner = child::block(ui, None, child::column_layout(rtl), |ui| {
                 let last = last_measure(&ctx, id, columns.len());
                 let cursor = GridCursor::new(Flow::new(ui.available_rect_before_wrap(), rtl), columns, gap, &last);
-                Service::<Cursors>::of(&ctx).with(|cursors| cursors.0.insert(id, cursor));
+                Service::<Cursors>::run(&ctx, |cursors| cursors.0.insert(id, cursor));
                 let installed = Env::install_for(ui, Env::of(ui).derive_local(|scoped| scoped.grid = Some(id)));
                 let inner = body(ui);
                 Env::restore(&ctx, installed);
                 inner
             })
             .0;
-            if let Some(cursor) = Service::<Cursors>::of(&ctx).with(|cursors| cursors.0.remove(&id)) {
+            if let Some(cursor) = Service::<Cursors>::run(&ctx, |cursors| cursors.0.remove(&id)) {
                 let measured = cursor.measured();
                 for (i, width) in measured.columns.iter().enumerate() {
                     layout_memory::record(&ctx, column_id(id, i), Vec2::new(*width, 0.0));

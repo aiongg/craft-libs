@@ -764,9 +764,9 @@ fn route_to_scroll_owner(core: &mut CxCore<'_>) {
         return;
     }
     let Some(owner) = core.env.scroll_owner().or_else(|| wheel::nearest_scroll_owner(&core.ctx, core.rect)) else { return };
-    store::Service::<ScrollMoves>::of(&core.ctx).with(|queue| queue.0.extend(moves.into_iter().map(|mv| (owner, mv))));
+    store::Service::<ScrollMoves>::run(&core.ctx, |queue| queue.0.extend(moves.into_iter().map(|mv| (owner, mv))));
     if reveal {
-        store::Service::<Reveals>::of(&core.ctx).with(|reveals| reveals.0.push(Reveal { owner, rect: core.rect }));
+        store::Service::<Reveals>::run(&core.ctx, |reveals| reveals.0.push(Reveal { owner, rect: core.rect }));
     }
     repaint::request(&core.ctx);
 }
@@ -1091,7 +1091,7 @@ struct Reveals(Vec<Reveal>);
 
 /// The reveal request addressed to `owner`, once.
 pub(crate) fn take_reveal(ctx: &Context, owner: Id) -> Option<Rect> {
-    store::Service::<Reveals>::of(ctx).with(|reveals| {
+    store::Service::<Reveals>::run(ctx, |reveals| {
         let at = reveals.0.iter().position(|reveal| reveal.owner == owner)?;
         Some(reveals.0.remove(at).rect)
     })
@@ -1103,7 +1103,7 @@ struct ScrollMoves(Vec<(Id, NavMove)>);
 
 /// The scroll moves addressed to `owner`, in the order they arrived.
 pub(crate) fn take_scroll_moves(ctx: &Context, owner: Id) -> Vec<NavMove> {
-    store::Service::<ScrollMoves>::of(ctx).with(|moves| {
+    store::Service::<ScrollMoves>::run(ctx, |moves| {
         let (mine, rest) = std::mem::take(&mut moves.0).into_iter().partition(|(id, _)| *id == owner);
         moves.0 = rest;
         mine.into_iter().map(|(_, mv)| mv).collect()
@@ -1127,7 +1127,7 @@ pub(crate) fn settle<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
     if let Some(rect) = cx.core.reveal.take()
         && let Some(owner) = cx.core.env.scroll_owner().or_else(|| wheel::nearest_scroll_owner(&cx.core.ctx, rect))
     {
-        store::Service::<Reveals>::of(&cx.core.ctx).with(|reveals| reveals.0.push(Reveal { owner, rect }));
+        store::Service::<Reveals>::run(&cx.core.ctx, |reveals| reveals.0.push(Reveal { owner, rect }));
         repaint::request(&cx.core.ctx);
     }
 }

@@ -216,7 +216,7 @@ impl RootEnv {
     pub(crate) fn fallback(ctx: &Context) -> RootEnv {
         #[derive(Default)]
         struct Fallback(Option<RootEnv>);
-        Service::<Fallback>::of(ctx).with(|fallback| fallback.0.get_or_insert_with(RootEnv::default).clone())
+        Service::<Fallback>::run(ctx, |fallback| fallback.0.get_or_insert_with(RootEnv::default).clone())
     }
 
     /// A root with every value at its default.
@@ -591,7 +591,7 @@ struct RootTokenCache {
 /// How many root-token entries the context holds.
 #[cfg(feature = "testing")]
 pub(crate) fn root_token_entries(ctx: &Context) -> usize {
-    Service::<RootTokenCache>::of(ctx).with(|cache| cache.entries.len())
+    Service::<RootTokenCache>::run(ctx, |cache| cache.entries.len())
 }
 
 /// The tokens the root resolves to, cached by the inputs that determine them.
@@ -791,7 +791,7 @@ struct HostWords {
 
 /// The catalogs of `host` in its language, English without a host or a catalog.
 fn host_words(ctx: &Context, host: Option<&Arc<Host>>) -> Arc<Words> {
-    Service::<HostWords>::of(ctx).with(|cached| {
+    Service::<HostWords>::run(ctx, |cached| {
         let same = match (&cached.host, host) {
             (Some(kept), Some(host)) => std::sync::Weak::ptr_eq(kept, &Arc::downgrade(host)),
             (None, None) => true,
@@ -833,7 +833,7 @@ fn overlaid_words(ctx: &Context, words: &Arc<Words>, rows: WordRows) -> Arc<Word
     }
     #[derive(Default)]
     struct Overlays(Vec<Entry>);
-    Service::<Overlays>::of(ctx).with(|cache| {
+    Service::<Overlays>::run(ctx, |cache| {
         cache.0.retain(|entry| entry.inherited.strong_count() > 0);
         let inherited = Arc::downgrade(words);
         if let Some(entry) = cache.0.iter().find(|entry| std::sync::Weak::ptr_eq(&entry.inherited, &inherited) && entry.rows == rows) {

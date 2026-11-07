@@ -242,13 +242,13 @@ pub fn is_open(ctx: &Context, id: Id) -> bool {
 /// step 15 writes it.
 pub fn request_close(ctx: &Context, id: Id, why: CloseReason) {
     let frame = pass::root_frame_nr(ctx);
-    Service::<Closes>::of(ctx).with(|closes| closes.0.push((id, why, frame)));
+    Service::<Closes>::run(ctx, |closes| closes.0.push((id, why, frame)));
     crate::runtime::egui::repaint::request_of(ctx, crate::runtime::egui::pass::current_viewport(ctx));
 }
 
 /// The queued close of `id`, once.
 pub(crate) fn take_close(ctx: &Context, id: Id) -> Option<CloseReason> {
-    Service::<Closes>::of(ctx).with(|closes| {
+    Service::<Closes>::run(ctx, |closes| {
         let at = closes.0.iter().position(|(closed, ..)| *closed == id)?;
         let reason = closes.0[at].1;
         closes.0.retain(|(closed, ..)| *closed != id);
@@ -453,7 +453,7 @@ pub(crate) fn end_pass(ctx: &Context) {
     areas::set_layer_order(ctx, &order);
     // An owner takes a close in the frame after the request at the latest; one nobody took is for a layer that is not shown.
     let now = pass::root_frame_nr(ctx);
-    Service::<Closes>::of(ctx).with(|closes| closes.0.retain(|(.., queued)| queued + 1 >= now));
+    Service::<Closes>::run(ctx, |closes| closes.0.retain(|(.., queued)| queued + 1 >= now));
     let top_modal = current.iter().rev().find(|entry| entry.rank.is_modal() && !entry.exiting);
     if let Some(entry) = top_modal.filter(|entry| !entry.window) {
         areas::set_modal_layer(ctx, entry.layer);

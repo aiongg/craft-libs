@@ -103,7 +103,7 @@ struct Geometry {
 }
 
 fn shared<R>(ctx: &Context, f: impl FnOnce(&mut Shared) -> R) -> R {
-    Service::<Shared>::of(ctx).with(f)
+    Service::<Shared>::run(ctx, f)
 }
 
 /// Called by `install`: keeps the shell, the OS services and the placement store.

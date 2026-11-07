@@ -115,7 +115,7 @@ pub(crate) fn report_text(ctx: &Context, owner: Id, facts: &TextFacts) {
     });
     let value = if facts.masked { "\u{2022}".repeat(facts.text.chars().count()) } else { facts.text.clone() };
     adapter::write_text(ctx, owner, &TextNode { value: &value, editable: facts.editable, selection });
-    Service::<Tables>::of(ctx).with(|tables| tables.0.insert(owner, entries));
+    Service::<Tables>::run(ctx, |tables| tables.0.insert(owner, entries));
 }
 
 /// Whether `request` is a text request the text adapter serves: `SetValue` with text or `SetTextSelection`.
@@ -131,7 +131,7 @@ pub(crate) fn requested_value(request: &AccessRequest) -> Option<String> {
 /// The selection a `SetTextSelection` request names, as line and byte positions of the last report.
 pub(crate) fn requested_selection(ctx: &Context, owner: Id, request: &AccessRequest) -> Option<(TextPos, TextPos)> {
     let (anchor, focus) = adapter::requested_selection(request)?;
-    Service::<Tables>::of(ctx).with(|tables| {
+    Service::<Tables>::run(ctx, |tables| {
         let entries = tables.0.get(&owner)?;
         let pos = |end: NodeEnd| {
             let entry = entries.iter().find(|entry| entry.node == end.node)?;

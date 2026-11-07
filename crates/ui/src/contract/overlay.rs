@@ -474,7 +474,7 @@ struct Popups {
 }
 
 fn with_popups<R>(ctx: &Context, f: impl FnOnce(&mut Popups) -> R) -> R {
-    Service::<Popups>::of(ctx).with(f)
+    Service::<Popups>::run(ctx, f)
 }
 
 /// Step 8b, before the text part runs: the popups `owner` registers are registered again.
