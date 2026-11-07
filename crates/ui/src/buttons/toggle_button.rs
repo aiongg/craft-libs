@@ -7,7 +7,7 @@ use crate::runtime::commands::CommandRef;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, FocusLook, IconLook, StyleCx, SurfaceLook, TextLook, TypeRole};
 use craft_behavior::{Metrics, Sense};
-use craft_theme::{States, Variant};
+use craft_theme::Variant;
 use egui::Vec2;
 
 /// The style of a toggle button.
@@ -95,12 +95,8 @@ impl Component for ToggleButton<'_> {
         surface.fill = off.fill.clone().on(on.fill.off);
         surface.border = off.edge.clone().map(|edge| edge.on(on.edge.as_ref().map_or(on.fill.off, |edge| edge.off)));
         let (mut text, mut icon) = face::ink(cx);
-        // The on fill is the soft accent fill; a theme may pin it to a grey `accent.text` does not read on, so the ink is
-        // the theme's normal text there.
-        let normal = cx.color(cx.tokens.color.text.normal);
-        let on_ink = States { rest: normal, hover: normal, pressed: normal, disabled: on.text.off.disabled };
-        text.color = text.color.on(on_ink);
-        icon.color = icon.color.on(on_ink);
+        text.color = text.color.on(on.text.off);
+        icon.color = icon.color.on(on.text.off);
         let metrics = if key.icon_only { Metrics::new().min_size(Vec2::splat(control.height)) } else { control.metrics() };
         ToggleButtonStyle { surface, metrics, focus: face::focus(cx), text, icon, face: FaceLook::of(cx) }
     }

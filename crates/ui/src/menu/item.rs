@@ -12,7 +12,7 @@ use crate::runtime::frame;
 use crate::style::{ComponentStyle, Flags, FocusLook, IconLook, StyleCx, SurfaceLook, TextLook, TypeRole, UiTokens};
 use craft_behavior::{Flow, IconId, Metrics, NavMove, PartKey, Sense};
 use craft_keymap::mnemonic;
-use craft_theme::{Rgba, Stateful, States};
+use craft_theme::{Rgba, States};
 use egui::{Id, Pos2, Rect, Response, Vec2, pos2};
 use std::borrow::Cow;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -536,7 +536,7 @@ impl Component for MenuItem<'_> {
         let text = &tokens.color.text;
         let c = |rgba: Rgba| cx.color(rgba);
         let surface = SurfaceLook::new(crate::list::row_surface(cx)).radius(UiTokens::corner(tokens.shape.radius.sm));
-        let ink = |base: Rgba| Stateful::new(c(base)).off(States::new(c(base), c(base), c(base), c(text.disabled)));
+        let ink = |base: Rgba| crate::list::row_ink(cx, base).off(States::new(c(base), c(base), c(base), c(text.disabled)));
         let control = cx.control();
         MenuItemStyle {
             surface,
