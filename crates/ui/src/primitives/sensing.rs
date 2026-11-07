@@ -13,9 +13,10 @@ use crate::runtime::frame::PerViewport;
 use crate::runtime::memory::sub;
 use crate::runtime::pointer;
 use craft_behavior::{
-    CursorIcon, HitLevel, HitPriority, HitShape, PartKey, PartRef, PassInput, PressMachine, PressPhase, PressState, ResolveFor, Sense, Shape,
-    resolve_mapped,
+    CursorIcon, HitLevel, HitPriority, HitShape, PartKey, PartRef, PassInput, PointerSample, PressMachine, PressPhase, PressState, ResolveFor, Sense,
+    Shape, resolve_mapped,
 };
+use craft_keymap::Mods;
 use craft_theme::Flags;
 use egui::{Context, Id, Pos2, Rect, Response, Ui};
 use std::collections::HashMap;
@@ -243,27 +244,6 @@ fn candidates(state: &ArenaState, target: f32) -> Vec<Shape<Id>> {
     shapes
 }
 
-/// Joins `decl` to `arena`: a member registers its root shape and parts at its show-order position.
-/// Returns whether its shapes lie in the arena's body layer.
-pub(crate) fn join(ctx: &Context, arena: ArenaId, layer: Layer, mut decl: MemberDecl) -> bool {
-    let pass_nr = pass::pass_nr(ctx, pass::current_viewport(ctx));
-    let target = pointer::frame(ctx).target;
-    let (local, shapes) = with_arena(ctx, arena, pass_nr, |state| {
-        rotate(state, pass_nr);
-        decl.local = state.layer == Some(layer);
-        let shapes = member_shapes(&decl, 1 + state.members.len() as u32, target);
-        state.union_sense |= decl.sense;
-        for part in &decl.parts {
-            state.union_sense |= part.sense;
-        }
-        let local = decl.local;
-        state.members.push(decl);
-        (local, shapes)
-    });
-    pointer::record_shapes(ctx, layer, arena.0, shapes);
-    local
-}
-
 /// Records the transformed body's egui layer.
 pub(crate) fn set_layer(ctx: &Context, arena: ArenaId, layer: Layer) {
     let pass_nr = pass::pass_nr(ctx, pass::current_viewport(ctx));
@@ -366,14 +346,33 @@ pub(crate) struct MemberResult {
 
 pub(crate) fn sense_member(ui: &Ui, arena: ArenaId, spec: MemberSpec<'_>) -> MemberResult {
     let ctx = ui.ctx();
-    let local = join(ctx, arena, ui.layer_id(), MemberDecl::new(spec.id, spec.rect, spec.sense, spec.parts.to_vec()));
-    let outcome = read_outcome(ctx, arena);
-    let pointer_pos = pointer::pass_pointer(ctx).hover;
+    let layer = ui.layer_id();
+    let pass_nr = pass::pass_nr(ctx, pass::current_viewport(ctx));
+    // One read of the pointer and one of the arena serve the join, the outcome and the part results.
+    let (pointer_pos, target, mods, sample) = pointer::with_frame(ctx, |frame, hover| {
+        (hover, frame.map_or(0.0, |frame| frame.target), frame.map_or(Mods::NONE, |frame| frame.mods), frame.and_then(|frame| frame.sample))
+    });
+    let mut decl = MemberDecl::new(spec.id, spec.rect, spec.sense, spec.parts.to_vec());
+    let (local, shapes, outcome, known) = with_arena(ctx, arena, pass_nr, |state| {
+        rotate(state, pass_nr);
+        decl.local = state.layer == Some(layer);
+        let shapes = member_shapes(&decl, 1 + state.members.len() as u32, target);
+        state.union_sense |= decl.sense;
+        for part in &decl.parts {
+            state.union_sense |= part.sense;
+        }
+        let local = decl.local;
+        state.members.push(decl);
+        let outcome = state.outcome.filter(|outcome| outcome.pass == pass_nr).unwrap_or_default();
+        let known = known_in(state, spec.id);
+        (local, shapes, outcome, known)
+    });
+    pointer::record_shapes(ctx, layer, arena.0, shapes);
     let view = member_view(&outcome, spec.id, local, pointer_pos);
     MemberResult {
         response: response::member(ui, spec.id, spec.rect, spec.enabled, view),
-        parts: part_results(ctx, arena, spec.id, spec.parts),
-        press: shape_press(ctx, arena, spec.id),
+        parts: part_results_in(&outcome, &known, mods, sample, spec.id, spec.parts),
+        press: shape_press_in(&outcome, mods, sample, spec.id),
         activated: outcome.activated.is_some_and(|hit| hit.owner == spec.id),
     }
 }
@@ -519,16 +518,18 @@ fn in_owner_space(phase: PressPhase, target: &Hit, xf: Option<LayerMap>) -> Pres
     }
 }
 
+fn known_in(state: &ArenaState, owner: Id) -> Vec<(PartKey, Option<u64>)> {
+    let parts: &[PartDecl] = if state.root.is_some_and(|root| root.id == owner) {
+        &state.previous_own
+    } else {
+        state.previous.iter().find(|member| member.id == owner).map_or(&[], |member| member.parts.as_slice())
+    };
+    parts.iter().map(|part| (part.key, part.index)).collect()
+}
+
 fn known_parts(ctx: &Context, arena: ArenaId, owner: Id) -> Vec<(PartKey, Option<u64>)> {
     let pass_nr = pass::pass_nr(ctx, pass::current_viewport(ctx));
-    with_arena(ctx, arena, pass_nr, |state| {
-        let parts: Vec<&PartDecl> = if state.root.is_some_and(|root| root.id == owner) {
-            state.previous_own.iter().collect()
-        } else {
-            state.previous.iter().find(|member| member.id == owner).map(|member| member.parts.iter().collect()).unwrap_or_default()
-        };
-        parts.into_iter().map(|part| (part.key, part.index)).collect()
-    })
+    with_arena(ctx, arena, pass_nr, |state| known_in(state, owner))
 }
 
 /// The part results of one owner: a part reads the press phase when it is the press winner, `Hover` when it is
@@ -537,7 +538,18 @@ fn known_parts(ctx: &Context, arena: ArenaId, owner: Id) -> Vec<(PartKey, Option
 pub(crate) fn part_results(ctx: &Context, arena: ArenaId, owner: Id, decls: &[PartDecl]) -> PartResults {
     let outcome = read_outcome(ctx, arena);
     let known = known_parts(ctx, arena, owner);
-    let frame = pointer::frame(ctx);
+    let (mods, sample) = pointer::with_frame(ctx, |frame, _| (frame.map_or(Mods::NONE, |frame| frame.mods), frame.and_then(|frame| frame.sample)));
+    part_results_in(&outcome, &known, mods, sample, owner, decls)
+}
+
+fn part_results_in(
+    outcome: &Outcome,
+    known: &[(PartKey, Option<u64>)],
+    mods: Mods,
+    sample: Option<PointerSample>,
+    owner: Id,
+    decls: &[PartDecl],
+) -> PartResults {
     decls
         .iter()
         .map(|decl| {
@@ -552,7 +564,7 @@ pub(crate) fn part_results(ctx: &Context, arena: ArenaId, owner: Id, decls: &[Pa
                 _ => PressPhase::Idle,
             };
             let captured = won.is_some() && outcome.dragging && phase.is_drag();
-            let press = PressState::new(phase).mods(frame.mods).sample(frame.sample).captured(captured);
+            let press = PressState::new(phase).mods(mods).sample(sample).captured(captured);
             (key, PartResult { rect: decl.shape.bounds(), press, hovered, flags: decl.flags })
         })
         .collect()
@@ -561,7 +573,11 @@ pub(crate) fn part_results(ctx: &Context, arena: ArenaId, owner: Id, decls: &[Pa
 /// The owner's own shape's press state: a member's root shape or the root background. `Idle` unless it won.
 pub(crate) fn shape_press(ctx: &Context, arena: ArenaId, owner: Id) -> PressState {
     let outcome = read_outcome(ctx, arena);
-    let frame = pointer::frame(ctx);
+    let (mods, sample) = pointer::with_frame(ctx, |frame, _| (frame.map_or(Mods::NONE, |frame| frame.mods), frame.and_then(|frame| frame.sample)));
+    shape_press_in(&outcome, mods, sample, owner)
+}
+
+fn shape_press_in(outcome: &Outcome, mods: Mods, sample: Option<PointerSample>, owner: Id) -> PressState {
     let won = outcome.target.filter(|target| target.owner == owner && target.part.is_none());
     let phase = match (won, outcome.phase) {
         (Some(target), Some(phase)) => in_owner_space(phase, &target, outcome.xf),
@@ -569,7 +585,7 @@ pub(crate) fn shape_press(ctx: &Context, arena: ArenaId, owner: Id) -> PressStat
         _ => PressPhase::Idle,
     };
     let captured = won.is_some() && phase.is_drag();
-    PressState::new(phase).mods(frame.mods).sample(frame.sample).captured(captured)
+    PressState::new(phase).mods(mods).sample(sample).captured(captured)
 }
 
 /// The cursor a hovered part of `decls` declares, if any: the sensing core's request for the cursor service.

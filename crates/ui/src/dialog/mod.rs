@@ -2,10 +2,10 @@
 //! dialogs by (`DialogStack`, `DialogHost`). Prompts and form dialogs build on them.
 
 mod blocking;
-mod modal;
 mod frame;
 mod full_window;
 mod host;
+mod modal;
 mod stack;
 #[cfg(feature = "testing")]
 mod stories;
@@ -14,8 +14,8 @@ mod trials;
 mod words;
 
 pub use blocking::{BlockingOverlay, BlockingOverlayStyle};
-pub use modal::{Dialog, DialogStyle};
 pub use frame::{CloseHandler, DialogFrame, DialogFrameStyle, FooterCx};
 pub use full_window::{FullWindowDialog, FullWindowDialogStyle};
 pub use host::{DialogHost, DialogResult, StackDialog, StartupStage};
+pub use modal::{Dialog, DialogStyle};
 pub use stack::{DialogId, DialogStack, dialog_id};

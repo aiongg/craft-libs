@@ -53,41 +53,20 @@ pub struct ToggleButton<'a> {
 impl<'a> ToggleButton<'a> {
     /// A button named `label` that edits `value`.
     pub fn new(label: impl Into<Label>, value: Bind<'a, bool>) -> Self {
-        ToggleButton {
-            common: Common::new(),
-            value: Some(value),
-            icon: None,
-            on_icon: None,
-            trailing_icon: None,
-            role: None,
-            icon_only: false,
-        }
-        .label(label)
+        ToggleButton { common: Common::new(), value: Some(value), icon: None, on_icon: None, trailing_icon: None, role: None, icon_only: false }
+            .label(label)
     }
 
     /// A button bound to a toggle `command`: its label, enabled state and checked state follow the command.
     pub fn command(command: impl Into<CommandRef>) -> Self {
-        let button = ToggleButton {
-            common: Common::new(),
-            value: None,
-            icon: None,
-            on_icon: None,
-            trailing_icon: None,
-            role: None,
-            icon_only: false,
-        };
+        let button =
+            ToggleButton { common: Common::new(), value: None, icon: None, on_icon: None, trailing_icon: None, role: None, icon_only: false };
         <ToggleButton as Props>::command(button, command)
     }
 
     fn spec<'s>(&'s self, label: &'s str, on: bool) -> FaceSpec<'s> {
         let lead = if on { self.on_icon.as_ref().or(self.icon.as_ref()) } else { self.icon.as_ref() };
-        FaceSpec {
-            label: if self.icon_only { "" } else { label },
-            role: self.role,
-            lead,
-            trail: self.trailing_icon.as_ref(),
-            loading: false,
-        }
+        FaceSpec { label: if self.icon_only { "" } else { label }, role: self.role, lead, trail: self.trailing_icon.as_ref(), loading: false }
     }
 }
 

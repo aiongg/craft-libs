@@ -26,7 +26,8 @@ impl Loaded {
         if excess == 0 {
             return;
         }
-        let mut stale: Vec<(u64, u64)> = self.handles.iter().filter(|(_, entry)| entry.used < frame).map(|(hash, entry)| (entry.used, *hash)).collect();
+        let mut stale: Vec<(u64, u64)> =
+            self.handles.iter().filter(|(_, entry)| entry.used < frame).map(|(hash, entry)| (entry.used, *hash)).collect();
         stale.sort_unstable();
         for (_, hash) in stale.into_iter().take(excess) {
             self.handles.remove(&hash);

@@ -39,7 +39,9 @@ pub(crate) fn interactive(ctx: &Context) -> Vec<Id> {
         let widgets = &viewport.prev_pass.widgets;
         let mut found = Vec::new();
         for (layer, rects) in widgets.layers() {
-            found.extend(rects.iter().filter(|rect| rect.id != layer.id && (rect.sense.interactive() || rect.sense.is_focusable())).map(|rect| rect.id));
+            found.extend(
+                rects.iter().filter(|rect| rect.id != layer.id && (rect.sense.interactive() || rect.sense.is_focusable())).map(|rect| rect.id),
+            );
         }
         found
     })

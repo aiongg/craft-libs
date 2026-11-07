@@ -44,6 +44,11 @@ pub(crate) fn peek_clone<T: Any + Clone + Send + Sync>(ctx: &Context, id: Id) ->
     Some(copy)
 }
 
+/// Whether a slot of type `T` is stored under `id`.
+pub(crate) fn exists<T: Any + Send + Sync>(ctx: &Context, id: Id) -> bool {
+    ctx.data(|data| data.get_temp_raw(RawKey::new::<T>(id)).is_some())
+}
+
 /// Runs `f` on the context's data under its lock; `f` runs no app code and makes no call that reaches the context.
 pub(crate) fn locked<R>(ctx: &Context, f: impl FnOnce(&mut Map) -> R) -> R {
     ctx.data_mut(f)

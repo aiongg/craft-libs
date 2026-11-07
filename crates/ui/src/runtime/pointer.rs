@@ -169,14 +169,24 @@ pub(crate) fn pass_of(ctx: &Context) -> u64 {
 
 /// What the begin hook read of the running pass.
 pub(crate) fn pass_pointer(ctx: &Context) -> PassPointer {
+    with_pass_pointer(ctx, |pointer| pointer.clone())
+}
+
+/// Reads what the begin hook read of the running pass in place, without cloning its events.
+pub(crate) fn with_pass_pointer<R>(ctx: &Context, f: impl FnOnce(&PassPointer) -> R) -> R {
     let viewport = pass::current_viewport(ctx);
     let pass_nr = pass::pass_nr(ctx, viewport);
-    PerViewport::<Stamped<PassPointer>>::with_pass(ctx, viewport, pass_nr, |_, _| {}, |record| record.clone())
+    PerViewport::<Stamped<PassPointer>>::with_pass(ctx, viewport, pass_nr, |_, _| {}, |record| f(record))
+}
+
+/// Reads the running pass's pointer frame, `None` before the begin hook, and its hover position in place.
+pub(crate) fn with_frame<R>(ctx: &Context, f: impl FnOnce(Option<&PointerFrame>, Option<Pos2>) -> R) -> R {
+    with_pass_pointer(ctx, |pointer| f(pointer.frame.as_ref(), pointer.hover))
 }
 
 /// The running pass's pointer input.
 pub fn frame(ctx: &Context) -> PointerFrame {
-    pass_pointer(ctx).frame.unwrap_or_else(|| PointerFrame {
+    with_pass_pointer(ctx, |pointer| pointer.frame.clone()).unwrap_or_else(|| PointerFrame {
         pos: None,
         delta: Vec2::ZERO,
         buttons: Buttons::empty(),
@@ -218,7 +228,7 @@ pub(crate) fn cancel_of_pass(ctx: &Context) -> Option<PressCancel> {
     let viewport = pass::current_viewport(ctx);
     let pass_nr = pass::pass_nr(ctx, viewport);
     let requested = PerViewport::<Memory>::with(ctx, viewport, |memory| memory.requested.filter(|(nr, _)| *nr == pass_nr).map(|(_, reason)| reason));
-    requested.or_else(|| pass_pointer(ctx).focus_lost.then_some(PressCancel::FocusLost))
+    requested.or_else(|| with_pass_pointer(ctx, |pointer| pointer.focus_lost).then_some(PressCancel::FocusLost))
 }
 
 /// Writes `shapes` of the arena rooted at `root` into the running pass's shape record under `layer`. Stack
@@ -257,7 +267,12 @@ pub(crate) fn drag_parts(ctx: &Context, root: Id) -> Vec<craft_behavior::PartRef
 #[cfg(feature = "testing")]
 pub(crate) fn registered_widgets(ctx: &Context) -> std::collections::HashSet<Id> {
     PerViewport::<Shapes>::with(ctx, egui::ViewportId::ROOT, |record| {
-        record.this.values().flat_map(|roots| roots.iter()).flat_map(|(root, rec)| std::iter::once(*root).chain(rec.widgets.iter().copied())).collect()
+        record
+            .this
+            .values()
+            .flat_map(|roots| roots.iter())
+            .flat_map(|(root, rec)| std::iter::once(*root).chain(rec.widgets.iter().copied()))
+            .collect()
     })
 }
 

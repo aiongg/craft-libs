@@ -187,7 +187,7 @@ pub fn cancel(ctx: &Context, reason: CancelReason) {
 
 /// The begin hook: the window losing focus ends the session.
 pub(crate) fn begin(ctx: &Context) {
-    if source_viewport(ctx) == Some(pass::current_viewport(ctx)) && pointer::pass_pointer(ctx).focus_lost {
+    if source_viewport(ctx) == Some(pass::current_viewport(ctx)) && pointer::with_pass_pointer(ctx, |pointer| pointer.focus_lost) {
         cancel(ctx, CancelReason::Blur);
     }
 }
@@ -294,7 +294,7 @@ pub(crate) fn end_pass(ctx: &Context) {
     });
     let op = current_operation(ctx);
     let over_this_window = pointer::frame(ctx).pos.is_some();
-    let primary_down = pointer::pass_pointer(ctx).primary_down;
+    let primary_down = pointer::with_pass_pointer(ctx, |pointer| pointer.primary_down);
     let buttons = pointer::frame(ctx).buttons;
     let held = board(ctx, |board| board.session.as_ref().map(|session| session.button))
         .is_none_or(|button| if button == PointerButton::Primary { primary_down } else { buttons.contains(Buttons::of(button)) });

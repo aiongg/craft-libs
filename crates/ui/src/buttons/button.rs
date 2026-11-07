@@ -2,11 +2,14 @@
 
 use super::face::{self, FaceLook, FaceSpec};
 use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Pointer as _, Props, Role};
-use crate::runtime::env::Label;
 use crate::runtime::commands::CommandRef;
+use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, FocusLook, StyleCx, SurfaceLook};
 use craft_behavior::{IconId, Metrics, Sense};
-use craft_theme::{Variant, variant::{Emphasis, Tone}};
+use craft_theme::{
+    Variant,
+    variant::{Emphasis, Tone},
+};
 use egui::{Response, Vec2};
 
 /// The style of a push button.

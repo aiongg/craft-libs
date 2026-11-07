@@ -309,7 +309,7 @@ impl MemoryStage {
 
     /// Debug assertion: no id is the base of two open stages in one pass of its viewport.
     pub(crate) fn claim(&self, base: Id) {
-        if self.peek_only || self.claimed.borrow().contains(&base) {
+        if self.peek_only || !cfg!(debug_assertions) || self.claimed.borrow().contains(&base) {
             return;
         }
         self.claimed.borrow_mut().push(base);
@@ -359,19 +359,16 @@ impl MemoryStage {
         let ctx = &self.ctx;
         let peek = self.peek_only;
         let entry = self.entries.entry((TIER, TypeId::of::<T>(), id)).or_insert_with(|| {
-            let loaded: Wrapped<TIER, T> = if peek {
-                store::peek_clone::<Wrapped<TIER, T>>(ctx, id).unwrap_or_default()
+            let value: Box<dyn Any + Send + Sync> = if peek {
+                Box::new(store::peek_clone::<Wrapped<TIER, T>>(ctx, id).unwrap_or_default())
             } else {
-                store::take::<Wrapped<TIER, T>>(ctx, id).unwrap_or_default()
+                // The box the slot was stored in stays the entry's value.
+                match ctx.data_mut(|data| take_raw::<Wrapped<TIER, T>>(data, id)) {
+                    Some(boxed) if boxed.is::<Wrapped<TIER, T>>() => boxed,
+                    _ => Box::new(Wrapped::<TIER, T>::default()),
+                }
             };
-            Entry {
-                value: Box::new(loaded),
-                write_back: write_back::<TIER, T>,
-                remove: remove_slot::<TIER, T>,
-                tier: TIER,
-                ty: TypeId::of::<T>(),
-                ended: None,
-            }
+            Entry { value, write_back: write_back::<TIER, T>, remove: remove_slot::<TIER, T>, tier: TIER, ty: TypeId::of::<T>(), ended: None }
         });
         match entry.value.downcast_mut::<Wrapped<TIER, T>>() {
             Some(wrapped) => &mut wrapped.0,
