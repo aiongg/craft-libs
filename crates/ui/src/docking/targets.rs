@@ -296,7 +296,8 @@ impl<P: Clone + Send + 'static> DockTargets<P> {
     }
 }
 
-/// What a dragged group (the bar or top border of a group) carries, beside `PanelDrag` for one tab.
+/// What a dragged group (the bar or top border of a group) carries, beside `PanelDrag` for one tab. Only a group's
+/// drag bar starts one, so the type is `non_exhaustive` and only the crate builds it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct GroupDrag<P> {
@@ -304,11 +305,4 @@ pub struct GroupDrag<P> {
     pub anchor: P,
     /// The panel the group shows, for the drag's preview.
     pub active: PanelKey,
-}
-
-impl<P> GroupDrag<P> {
-    /// A drag of the group of `anchor` showing `active`. Only a group's drag bar starts one.
-    pub(crate) const fn new(anchor: P, active: PanelKey) -> Self {
-        GroupDrag { anchor, active }
-    }
 }
