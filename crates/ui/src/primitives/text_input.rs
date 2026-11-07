@@ -33,7 +33,7 @@ impl<V> TextKey<V> {
 }
 
 /// How a text part behaves beyond its codec.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 #[non_exhaustive]
 pub struct TextOptions {
     /// Shown while the text is empty.
@@ -56,6 +56,31 @@ pub struct TextOptions {
     pub complete: Option<Arc<dyn Completer>>,
     /// Text that replaces the selection in the pass it is set (the caret inserts it).
     pub replace_selection: Option<String>,
+    /// Typing one of these characters commits the draft, as Enter does without submitting; the character is not
+    /// inserted. Pasted and composed text is not typing.
+    pub commit_on: &'static [char],
+    /// Whether the part edits and takes focus. A disabled part shows its text in the disabled text colour while the
+    /// rest of the component stays enabled.
+    pub enabled: bool,
+}
+
+impl Default for TextOptions {
+    fn default() -> Self {
+        TextOptions {
+            placeholder: None,
+            lines: None,
+            limit: None,
+            mask: false,
+            live: false,
+            clear_on_escape: false,
+            mono: false,
+            tab_inserts: false,
+            complete: None,
+            replace_selection: None,
+            commit_on: &[],
+            enabled: true,
+        }
+    }
 }
 
 impl TextOptions {
