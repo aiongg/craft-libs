@@ -209,17 +209,17 @@ impl<S: Default + Send + 'static> Service<S> {
     /// Runs `f` on the context's service of type `S`, created on first use. A cached handle is used in place, with no
     /// clone of it.
     pub(crate) fn run<R>(ctx: &Context, f: impl FnOnce(&mut S) -> R) -> R {
-        let mut f = Some(f);
         let cached = HANDLES.with(|handles| {
             let handles = handles.borrow();
             let mine = handles.owner.as_ref().is_some_and(|(owner, _)| owner.ptr_eq(ctx));
-            let handle = mine.then(|| handles.map.get(&TypeId::of::<S>())).flatten().and_then(|handle| handle.downcast_ref::<Service<S>>())?;
-            f.take().map(|f| handle.with(f))
+            match mine.then(|| handles.map.get(&TypeId::of::<S>())).flatten().and_then(|handle| handle.downcast_ref::<Service<S>>()) {
+                Some(handle) => Ok(handle.with(f)),
+                None => Err(f),
+            }
         });
-        match (cached, f) {
-            (Some(out), _) => out,
-            (None, Some(f)) => Self::of(ctx).with(f),
-            (None, None) => unreachable!("the closure runs once"),
+        match cached {
+            Ok(out) => out,
+            Err(f) => Self::of(ctx).with(f),
         }
     }
 
