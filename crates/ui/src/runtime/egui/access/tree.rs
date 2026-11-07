@@ -228,19 +228,7 @@ impl AccessTree {
     /// The nodes of `role`.
     pub fn with_role(&self, role: Role) -> Vec<NodeKey> {
         let Role::Node(role) = role else { return Vec::new() };
-        self.update.nodes.iter().filter(|(key, node)| node.role() == role && !self.under_hidden(*key)).map(|(key, _)| NodeKey(key.0)).collect()
-    }
-
-    /// Whether a node sits below a node hidden from assistive technology, such as a layer that is fading out.
-    fn under_hidden(&self, id: NodeId) -> bool {
-        let mut at = id;
-        while let Some((parent, _)) = self.update.nodes.iter().find(|(_, node)| node.children().contains(&at)) {
-            if self.lookup(*parent).is_some_and(Node::is_hidden) {
-                return true;
-            }
-            at = *parent;
-        }
-        false
+        self.update.nodes.iter().filter(|(_, node)| node.role() == role).map(|(key, _)| NodeKey(key.0)).collect()
     }
 
     /// The name of a node by key.
