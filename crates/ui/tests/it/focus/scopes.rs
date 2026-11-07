@@ -162,3 +162,42 @@ fn focus_moves_to_the_next_stop_when_the_focused_one_is_not_shown_else_the_previ
     frames.idle(2, &mut show);
     assert_eq!(focused(&frames.ctx), Some(id("one")), "no stop after it: the one before");
 }
+
+/// A disabled component takes no activation, but with a `disabled_text` it stays a Tab stop that shows the reason.
+#[trial]
+fn a_disabled_button_with_a_reason_is_a_tab_stop_that_does_not_activate() {
+    use craft_ui::buttons::Button;
+    use craft_ui::contract::tooltip::DELAY;
+    use craft_ui::contract::{Props as _, Show as _, TooltipSpec};
+    use craft_ui::runtime::overlay::{OpenFilter, any_open};
+    use craft_ui::testing::Fixture;
+    use std::rc::Rc;
+
+    let ids = Rc::new(Cell::new([None; 3]));
+    let clicks = Rc::new(Cell::new(0));
+    let (seen, counted) = (ids.clone(), clicks.clone());
+    let mut fixture = Fixture::new(move |ui| {
+        let mut shown = [None; 3];
+        let silent = Button::new("Silent").enabled(false).show(ui);
+        let reasoned = Button::new("Reasoned").enabled(false).tooltip(TooltipSpec::new("Go").disabled_text("Needs a selection")).show(ui);
+        let last = Button::new("Last").show(ui);
+        for (slot, response) in shown.iter_mut().zip([&silent, &reasoned, &last]) {
+            *slot = Some(response.id);
+        }
+        seen.set(shown);
+        counted.set(counted.get() + [&silent, &reasoned].iter().filter(|response| craft_ui::testing::contract::clicked(response)).count());
+    });
+    fixture.settle();
+    let [silent, reasoned, last] = ids.get();
+    fixture.key(Key::Tab, Modifiers::NONE);
+    assert_eq!(fixture.focused(), reasoned, "Tab skips the disabled button without a reason and reaches the one with a reason");
+    fixture.advance(DELAY);
+    fixture.idle(3);
+    assert!(any_open(fixture.ctx(), OpenFilter::Any), "its tooltip shows the reason on keyboard focus");
+    fixture.key(Key::Space, Modifiers::NONE);
+    fixture.key(Key::Enter, Modifiers::NONE);
+    assert_eq!(clicks.get(), 0, "a disabled button gives no click");
+    fixture.key(Key::Tab, Modifiers::NONE);
+    assert_eq!(fixture.focused(), last, "the next Tab reaches the enabled button");
+    assert_ne!(fixture.focused(), silent);
+}

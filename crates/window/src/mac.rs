@@ -138,20 +138,24 @@ impl TrafficLights {
     }
 }
 
-#[cfg(all(feature = "ui", target_os = "macos"))]
-fn os_default() -> MacInset {
+/// The inset for the running macOS version before a window exists to measure; [`MacInset::default`] elsewhere.
+#[cfg(all(feature = "appkit", target_os = "macos"))]
+pub fn os_default() -> MacInset {
     use objc2_foundation::NSProcessInfo;
     let major = NSProcessInfo::processInfo().operatingSystemVersion().majorVersion;
     default_inset(u32::try_from(major).unwrap_or(0))
 }
 
-#[cfg(all(feature = "ui", not(target_os = "macos")))]
-fn os_default() -> MacInset {
+/// The inset for the running macOS version before a window exists to measure; [`MacInset::default`] elsewhere.
+#[cfg(not(all(feature = "appkit", target_os = "macos")))]
+pub fn os_default() -> MacInset {
     MacInset::default()
 }
 
-#[cfg(all(feature = "ui", target_os = "macos"))]
-fn measure() -> Option<MacInset> {
+/// One measurement of the first titled full-size-content window, without the cache. `None` when no such window
+/// exists, off the main thread, and off macOS.
+#[cfg(all(feature = "appkit", target_os = "macos"))]
+pub fn measure() -> Option<MacInset> {
     use objc2::MainThreadMarker;
     use objc2_app_kit::{NSApplication, NSWindowButton, NSWindowStyleMask};
 
@@ -179,8 +183,10 @@ fn measure() -> Option<MacInset> {
     })
 }
 
-#[cfg(all(feature = "ui", not(target_os = "macos")))]
-fn measure() -> Option<MacInset> {
+/// One measurement of the first titled full-size-content window, without the cache. `None` when no such window
+/// exists, off the main thread, and off macOS.
+#[cfg(not(all(feature = "appkit", target_os = "macos")))]
+pub fn measure() -> Option<MacInset> {
     None
 }
 

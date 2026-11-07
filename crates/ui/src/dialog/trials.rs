@@ -164,7 +164,7 @@ fn a_footer_button_closes_the_dialog_by_its_role() {
 }
 
 #[trial]
-fn a_blocking_overlays_cancel_button_closes_it() {
+fn a_blocking_overlays_cancel_button_closes_it_once_placed() {
     let seen = std::rc::Rc::new(Cell::new(None));
     let sink = seen.clone();
     let mut fixture = Fixture::new(move |ui| {
@@ -174,7 +174,7 @@ fn a_blocking_overlays_cancel_button_closes_it() {
             sink.set(shown.output.closed);
         }
     });
-    fixture.settle();
+    fixture.idle(6);
     let button = fixture.by_label("Stop");
     assert!(button.is_some(), "the cancel button is shown");
     if let Some(button) = button {

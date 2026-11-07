@@ -583,8 +583,7 @@ impl PopupHandle {
         debug_assert!(C::OVERLAYS, "`{}` hosts a popup but sets `OVERLAYS = false`", std::any::type_name::<C>());
         let core = &mut cx.core;
         let ctx = core.ctx.clone();
-        // Step 12 fills the state flags, so the focus facts come from the focus service.
-        let resting = core.response.hovered() || focus::focus_visible(&ctx, core.id);
+        let resting = core.response.hovered() || core.focus.visible;
         let toggled = match trigger {
             Trigger::Click => core.activation.is_some(),
             Trigger::Press => core.press.phase.is_press(),

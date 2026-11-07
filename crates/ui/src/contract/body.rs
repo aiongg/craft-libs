@@ -256,8 +256,8 @@ impl BodyHooks<'_> {
     }
 
     /// The `window.Move` and `window.Size` commands and the keys of the mode they start (16.3): arrows move or
-    /// resize by a step (Shift: four steps), Enter or the command again keeps the placement, Escape restores it,
-    /// and focus leaving the container ends the mode. The mode holds its chords through the key stage, so no
+    /// resize by a step (Shift: four steps), Enter, the command again or a primary press keeps the placement, Escape
+    /// restores it, and focus leaving the container ends the mode. The mode holds its chords through the key stage, so no
     /// component under focus sees them.
     fn window_keys<C: Container>(&mut self, props: &ContainerProps, cx: &mut Cx<'_, C>) {
         let (id, ctx) = (cx.core.id, cx.core.ctx.clone());
@@ -272,7 +272,9 @@ impl BodyHooks<'_> {
             };
             mode = if mode.kind == Some(kind) { WindowMode::default() } else { WindowMode { kind: Some(kind), restore: slot.clone() } };
         }
-        if mode.kind.is_some() && !commands::focus_within(&ctx, id) {
+        // A primary press ends the mode and keeps the placement reached, like Enter.
+        let pressed = || pointer::with_frame(&ctx, |frame, _| frame.is_some_and(|frame| frame.press.is_some()));
+        if mode.kind.is_some() && (!commands::focus_within(&ctx, id) || pressed()) {
             mode = WindowMode::default();
         }
         if let Some(kind) = mode.kind {

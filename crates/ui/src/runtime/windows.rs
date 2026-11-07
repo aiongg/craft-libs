@@ -8,7 +8,7 @@ use crate::runtime::egui::memory::Service;
 use crate::runtime::egui::{pass, viewports};
 use crate::runtime::frame::PerViewport;
 use crate::runtime::overlay;
-use craft_host::target::{Caps, MenuPlacement, Os, Runtime, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
+use craft_host::target::{Caps, EdgeInsets, MenuPlacement, Os, Runtime, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
 use craft_window::restore::{Placement, Store};
 use craft_window::system::WindowSystem;
 use egui::{Context, Id, Pos2, Rect, Ui, Vec2, ViewportId};
@@ -78,6 +78,10 @@ struct Shared {
 #[derive(Default)]
 struct Record {
     facts: Option<viewports::Facts>,
+    /// The measured traffic-lights inset, kept until the scale changes or full screen ends.
+    lights: craft_window::mac::Cache,
+    /// What the OS reserves at the window's edges, once measured.
+    insets: Option<EdgeInsets>,
     kind: Option<WindowKind>,
     chrome: Option<WindowChrome>,
     /// H4: whether the primary button is down as the viewport's events left the input hook.
@@ -148,13 +152,17 @@ fn state_of(facts: &viewports::Facts) -> WindowState {
 
 /// `viewport`'s window facts.
 fn window_info(ctx: &Context, viewport: ViewportId, base: &ShellInfo) -> WindowInfo {
-    let (facts, kind, chrome) = PerViewport::<Record>::with(ctx, viewport, |record| (record.facts, record.kind, record.chrome));
+    let (facts, kind, chrome, insets) =
+        PerViewport::<Record>::with(ctx, viewport, |record| (record.facts, record.kind, record.chrome, record.insets));
     let mut info = if viewport == ViewportId::ROOT { (*base.window).clone() } else { WindowInfo::new(WindowKind::Tool) };
     if let Some(kind) = kind {
         info.kind = kind;
     }
     if let Some(chrome) = chrome {
         info.chrome = chrome;
+    }
+    if let Some(insets) = insets {
+        info.insets = insets;
     }
     if let Some(facts) = facts {
         info.active = facts.focused;
@@ -170,8 +178,28 @@ pub(crate) fn shell_of(ctx: &Context, viewport: ViewportId) -> ShellInfo {
     shell
 }
 
+/// Stores `facts` as the viewport's window facts and, on macOS where the app draws the title bar, measures the
+/// traffic lights for `WindowInfo.insets` (21.2). The measurement is AppKit's, so it runs here, outside every egui lock.
 fn refresh(ctx: &Context, viewport: ViewportId, facts: viewports::Facts) {
-    PerViewport::<Record>::with(ctx, viewport, |record| record.facts = Some(facts));
+    let mut lights = PerViewport::<Record>::with(ctx, viewport, |record| {
+        record.facts = Some(facts);
+        std::mem::take(&mut record.lights)
+    });
+    let lights_over_content = os_of(ctx) == Os::Mac && window_info(ctx, viewport, &base_shell(ctx)).chrome != WindowChrome::Native;
+    let insets = lights_over_content
+        .then(|| {
+            let scale = facts.native_scale.unwrap_or(1.0);
+            lights.inset(scale, facts.fullscreen, craft_window::mac::os_default, craft_window::mac::measure)
+        })
+        .map(|inset| {
+            let mut insets = EdgeInsets::all(0.0);
+            insets.left = inset.map_or(0.0, |inset| inset.leading);
+            insets
+        });
+    PerViewport::<Record>::with(ctx, viewport, |record| {
+        record.lights = lights;
+        record.insets = insets;
+    });
 }
 
 /// Before the pass, from `set_input`, outside every egui lock: reads the OS services and refreshes the window
