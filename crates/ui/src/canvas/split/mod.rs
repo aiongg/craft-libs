@@ -323,7 +323,7 @@ impl Component for SplitViews<'_> {
     type Style = SplitStyle;
     type Output = SplitOutput;
 
-    fn style(cx: &StyleCx<'_>, _: SplitStyleKey) -> SplitStyle {
+    fn style(cx: &StyleCx<'_>, _: SplitViewsStyleKey) -> SplitStyle {
         let control = cx.control();
         SplitStyle {
             metrics: Metrics::new(),
