@@ -1,11 +1,11 @@
 //! `IconButton`: a square ghost button that shows only an icon.
 
-use super::face;
+use super::face::{self, tinted};
 use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Props, Role, Styled as _};
 use crate::primitives::{IconSpec, PaintShape, StrokeWidth};
 use crate::runtime::commands::CommandRef;
 use crate::style::{ComponentStyle, DataColor, FocusLook, IconLook, StyleColor, StyleCx, SurfaceLook};
-use craft_behavior::{IconId, Metrics, Sense};
+use craft_behavior::{Metrics, Sense};
 use craft_theme::{
     Srgba, Variant,
     variant::{Emphasis, Tone},
@@ -45,10 +45,10 @@ pub struct IconButtonStyle {
 /// A square button showing only an icon. Its label is its accessible name; a tooltip is the caller's. A selected
 /// button (`selected(true)`) shows the on look: the host owns the state and a click is reported in the response.
 #[derive(crate::contract::Component, crate::contract::Props)]
-pub struct IconButton {
+pub struct IconButton<'a> {
     #[common]
     common: Common,
-    icon: IconId,
+    icon: IconSpec<'a>,
     /// Whether the button is a Tab stop; off for a button that repeats a key of the control it sits in, as a search
     /// field's clear button repeats Escape.
     #[prop]
@@ -59,19 +59,19 @@ pub struct IconButton {
     badge: Option<Srgba>,
 }
 
-impl IconButton {
+impl<'a> IconButton<'a> {
     /// An icon button showing `icon`; `label` it with the accessible name.
-    pub fn new(icon: IconId) -> Self {
-        IconButton { common: Common::new(), icon, focusable: true, badge: None }
+    pub fn new(icon: impl Into<IconSpec<'a>>) -> Self {
+        IconButton { common: Common::new(), icon: icon.into(), focusable: true, badge: None }
     }
 
     /// An icon button bound to `command`: its label, enabled state and activation follow the command.
-    pub fn command(icon: IconId, command: impl Into<CommandRef>) -> Self {
+    pub fn command(icon: impl Into<IconSpec<'a>>, command: impl Into<CommandRef>) -> Self {
         <IconButton as Props>::command(IconButton::new(icon), command)
     }
 }
 
-impl Component for IconButton {
+impl Component for IconButton<'_> {
     const ROLE: Role = Role::BUTTON;
     const SHOWS_LABEL: bool = false;
     const OVERLAYS: bool = false;
@@ -109,7 +109,7 @@ impl Component for IconButton {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let glyph = egui::Rect::from_center_size(cx.rect.center(), Vec2::splat(cx.style.glyph.side));
         let draw = ui.draw();
-        draw.icon(glyph, &IconSpec::svg(self.icon.clone()).color(cx.resolve(&cx.style.glyph.color)));
+        draw.icon(glyph, &tinted(&self.icon, cx.resolve(&cx.style.glyph.color)));
         if let Some(badge) = self.badge {
             let radius = cx.style.badge / 2.0;
             let x = if cx.flow.is_rtl() { glyph.left() + radius } else { glyph.right() - radius };

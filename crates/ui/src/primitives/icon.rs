@@ -34,6 +34,7 @@ pub trait Glyph {
 }
 
 /// Where an icon's drawing comes from.
+#[derive(Clone)]
 #[non_exhaustive]
 pub enum IconSource<'a> {
     /// An SVG-set or tool icon, by its egui-free key.
@@ -42,7 +43,28 @@ pub enum IconSource<'a> {
     Glyph(&'a dyn Glyph),
 }
 
+impl std::fmt::Debug for IconSource<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            IconSource::Svg(id) => f.debug_tuple("Svg").field(id).finish(),
+            IconSource::Glyph(_) => f.write_str("Glyph(..)"),
+        }
+    }
+}
+
+/// Two sources are equal when they name the same SVG icon or hold the same glyph object.
+impl PartialEq for IconSource<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (IconSource::Svg(a), IconSource::Svg(b)) => a == b,
+            (IconSource::Glyph(a), IconSource::Glyph(b)) => std::ptr::addr_eq(*a, *b),
+            _ => false,
+        }
+    }
+}
+
 /// An icon to paint.
+#[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct IconSpec<'a> {
     /// The drawing.
@@ -90,6 +112,12 @@ impl<'a> IconSpec<'a> {
     pub fn set(mut self, set: IconSet) -> Self {
         self.set = set;
         self
+    }
+}
+
+impl From<IconId> for IconSpec<'_> {
+    fn from(id: IconId) -> Self {
+        IconSpec::svg(id)
     }
 }
 

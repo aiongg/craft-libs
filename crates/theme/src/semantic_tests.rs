@@ -607,6 +607,17 @@ fn single_variant_theme_resolves_both_modes() {
 }
 
 #[test]
+fn length_sizes_form_a_ladder_in_every_density() {
+    let def = grey_blue();
+    for size in [Size::Compact, Size::Comfortable] {
+        let tokens = resolve(&def, Appearance { size, ..app(Mode::Light, Contrast::Standard) }, None).tokens.size;
+        let length = tokens.length;
+        assert!(length.short < length.track && length.track < length.field, "{size:?}: short, track and field lengths keep their order");
+        assert!(tokens.groove < tokens.control.sm, "{size:?}: a groove is thinner than a control");
+    }
+}
+
+#[test]
 fn size_presets_text_size_shape_and_motion() {
     let def = grey_blue();
     let at = |size, text_size| resolve(&def, Appearance { size, text_size, ..app(Mode::Light, Contrast::Standard) }, None).tokens;

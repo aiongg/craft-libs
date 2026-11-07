@@ -713,6 +713,8 @@ pub struct Pads {
     pub panel: f32,
     /// Inside dialogs.
     pub dialog: f32,
+    /// Inside badges, key caps and chips: tighter than a control.
+    pub chip: f32,
 }
 
 /// Spacing.
@@ -787,10 +789,28 @@ pub struct SizeTokens {
     pub hit: HitSizes,
     /// Side of a checkerboard cell in UI swatches and thumbnails.
     pub checker: f32,
-    /// Side of a dial control (an angle dial).
+    /// The side of a rotary control: the dial of an angle dial.
     pub dial: f32,
-    /// The well of a two-axis picker (a point picker), before the picker's own fitting.
+    /// The least size of a plot or two-dimensional value area: the well of a point picker, before the
+    /// picker's own fitting.
     pub plot: PlotSizes,
+    /// Lengths of controls that stretch along one axis.
+    pub length: LengthSizes,
+    /// The thickness of the groove of a value track (a slider, a range slider, a progress bar).
+    pub groove: f32,
+    /// The long side of the track of a two-state toggle (a switch).
+    pub toggle: f32,
+}
+
+/// Lengths of controls that stretch along one axis, in logical pixels.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct LengthSizes {
+    /// The width of a text or value field.
+    pub field: f32,
+    /// The length of a value track (a slider, a range slider, a thumb row).
+    pub track: f32,
+    /// The width of a short field, such as a number beside a slider.
+    pub short: f32,
 }
 
 /// Plot sizes, in logical pixels.
@@ -818,6 +838,8 @@ pub struct HitSizes {
     pub slop: f32,
     /// The least hit size of a part, in logical pixels; a thin handle or line is padded to it.
     pub target: f32,
+    /// How far from the centre of a rotary control a press sets no value.
+    pub dead_zone: f32,
 }
 
 /// Line widths, dash lengths and gaps, in points.

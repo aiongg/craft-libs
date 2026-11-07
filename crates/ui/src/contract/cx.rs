@@ -1320,6 +1320,13 @@ impl<C: Component> MeasureCx<'_, C> {
         super::measure_under(child, self.ui, Some(id), proposal, Some(self.enabled_size))
     }
 
+    /// The size `face` has when `PaintUi::face` shows it as the look of a part: steps 1, 2 and 4 of the face run
+    /// under the composite's resolved `enabled` and `size`, with no proposal.
+    pub fn face<S: Show>(&self, mut face: S) -> Vec2 {
+        let id = self.id.with("face");
+        super::measure_under(&mut face, self.ui, Some(id), Proposal::Ideal, Some(self.enabled_size))
+    }
+
     /// The icon side of the component's size.
     pub fn icon(&self) -> f32 {
         crate::style::control_metrics(self.tokens, self.resolved.size).icon

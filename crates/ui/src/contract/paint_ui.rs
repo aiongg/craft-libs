@@ -11,7 +11,7 @@ use crate::runtime::access;
 use crate::runtime::egui::{alloc, child};
 use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::sub;
-use crate::style::{Ink, StyleCx};
+use crate::style::{Flags, Ink, Stateful, StyleColor, StyleCx};
 use craft_behavior::PartRef;
 use craft_theme::{ControlSize, Variant};
 use egui::{Id, Rect, Response, Ui};
@@ -32,6 +32,10 @@ pub struct PaintUi<'a> {
     pub(crate) results: &'a PartResults,
     pub(crate) response: &'a Response,
     pub(crate) active: Option<(PartRef, bool)>,
+    /// The composite's text colour, which its faces take as their host ink.
+    pub(crate) text: Option<&'a Stateful<StyleColor>>,
+    /// The composite's validity flags, which its faces carry.
+    pub(crate) flags: Flags,
     /// The composite's resolved enabled state and size, which the children it builds inherit.
     pub(crate) enabled: bool,
     pub(crate) size: ControlSize,
@@ -94,7 +98,8 @@ impl PaintUi<'_> {
     }
 
     /// Paints `face` as the look of `part`: its style, surface and state fill from the part's state merged with the
-    /// instance's `flags()`, then its own `paint`. It registers no id, senses nothing, opens no memory stage and
+    /// instance's `flags()` and the host's validity flags, then its own `paint`. The face reads the host's text
+    /// colour through `StyleCx::host_ink`. It registers no id, senses nothing, opens no memory stage and
     /// fires nothing.
     pub fn face<C: Show>(&mut self, part: impl Into<PartRef>, face: C) {
         let part = part.into();
@@ -103,7 +108,7 @@ impl PaintUi<'_> {
             return;
         };
         let focus = self.active.filter(|(active, _)| *active == part).map(|(_, visible)| visible);
-        let source = FaceSource { id: self.id, result, focus, response: self.response };
+        let source = FaceSource { id: self.id, result, focus, response: self.response, ink: self.text, flags: self.flags };
         let record = run::paint_face(self.ui, &source, part, face);
         self.record.borrow_mut().faces.push(record);
     }

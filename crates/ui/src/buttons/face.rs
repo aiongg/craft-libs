@@ -3,8 +3,8 @@
 
 use crate::contract::{Component, Cx, MeasureCx, PaintUi, Styled as _};
 use crate::primitives::{IconSpec, TextRun};
-use crate::style::{FocusLook, IconLook, StyleCx, SurfaceKind, SurfaceLook, TextLook, TypeRole, VariantParts};
-use craft_behavior::{Flow, IconId};
+use crate::style::{FocusLook, IconLook, StyleColor, StyleCx, SurfaceKind, SurfaceLook, TextLook, TypeRole, VariantParts};
+use craft_behavior::Flow;
 use craft_theme::{
     Variant,
     variant::{Emphasis, Tone},
@@ -35,8 +35,8 @@ pub(super) fn ink(cx: &StyleCx<'_>) -> (TextLook, IconLook) {
 pub(super) struct FaceSpec<'a> {
     pub label: &'a str,
     pub role: Option<TypeRole>,
-    pub lead: Option<&'a IconId>,
-    pub trail: Option<&'a IconId>,
+    pub lead: Option<&'a IconSpec<'a>>,
+    pub trail: Option<&'a IconSpec<'a>>,
     /// A spinner takes the place of the leading icon, or of the label when there is no leading icon: the face keeps
     /// the slot empty and the button shows a `Spinner` there.
     pub loading: bool,
@@ -88,6 +88,12 @@ pub(super) fn measure<C: Component>(cx: &MeasureCx<'_, C>, spec: &FaceSpec<'_>) 
     let text = if spec.label.is_empty() { Vec2::ZERO } else { cx.layout(&spec.run()).size() };
     let icon = cx.icon();
     Vec2::new(text.x + icon * spec.icons() as f32 + cx.gap() * spec.gaps() as f32, text.y.max(icon))
+}
+
+/// `icon` in `color`, unless the spec names a colour of its own.
+pub(super) fn tinted<'a>(icon: &IconSpec<'a>, color: StyleColor) -> IconSpec<'a> {
+    let icon = icon.clone();
+    if icon.color.is_some() { icon } else { icon.color(color) }
 }
 
 /// The slots of the parts a face shows, centred in an area.
@@ -147,7 +153,7 @@ pub(super) fn paint<C: Component>(ui: &PaintUi<'_>, cx: &Cx<'_, C>, ink: (&TextL
     if let (Some(lead), Some(slot)) = (spec.lead, slots.lead)
         && !spec.loading
     {
-        draw.icon(icon_at(slot, area, side), &IconSpec::svg(lead.clone()).color(icon_color));
+        draw.icon(icon_at(slot, area, side), &tinted(lead, icon_color));
     }
     if let (Some(text), Some(slot)) = (&text, slots.text)
         && !(spec.loading && spec.lead.is_none())
@@ -155,7 +161,7 @@ pub(super) fn paint<C: Component>(ui: &PaintUi<'_>, cx: &Cx<'_, C>, ink: (&TextL
         draw.galley(pos2(slot.min.x, area.center().y - text.size().y / 2.0), text);
     }
     if let (Some(trail), Some(slot)) = (spec.trail, slots.trail) {
-        draw.icon(icon_at(slot, area, side), &IconSpec::svg(trail.clone()).color(icon_color));
+        draw.icon(icon_at(slot, area, side), &tinted(trail, icon_color));
     }
 }
 

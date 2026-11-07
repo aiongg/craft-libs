@@ -7,8 +7,8 @@ use std::fmt::Write as _;
 
 use crate::{
     BarSizes, BySize, ColorToken, ComponentTokens, ControlSizes, Easing, Edge, Elevation, ElevationTokens, FontSlot, Gaps, HandleSizes, HitSizes,
-    IconSizes, Motion, MotionTokens, Pads, PlotSizes, RadiusSet, RailSizes, Rgba, RowStyle, ShapeTokens, SizeTokens, SliderTokens, SpaceTokens,
-    StrokeTokens, ThumbSizes, Tokens, TypeStyle, TypeTokens,
+    IconSizes, LengthSizes, Motion, MotionTokens, Pads, PlotSizes, RadiusSet, RailSizes, Rgba, RowStyle, ShapeTokens, SizeTokens, SliderTokens,
+    SpaceTokens, StrokeTokens, ThumbSizes, Tokens, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -88,14 +88,14 @@ fn space_lines(out: &mut Lines, space: &SpaceTokens) {
     for (k, v) in [("tight", tight), ("inline", inline), ("row", row), ("stack", stack), ("section", section)] {
         out.line(&format!("space.gap.{k}"), len(*v));
     }
-    let Pads { control, panel, dialog } = pad;
-    for (k, v) in [("control", control), ("panel", panel), ("dialog", dialog)] {
+    let Pads { control, panel, dialog, chip } = pad;
+    for (k, v) in [("control", control), ("panel", panel), ("dialog", dialog), ("chip", chip)] {
         out.line(&format!("space.pad.{k}"), len(*v));
     }
 }
 
 fn size_lines(out: &mut Lines, size: &SizeTokens) {
-    let SizeTokens { control, icon, rail, bar, panel_header, thumb: thumbs, handle, hit, checker, dial, plot } = size;
+    let SizeTokens { control, icon, rail, bar, panel_header, thumb: thumbs, handle, hit, checker, dial, plot, length, groove, toggle } = size;
     let ControlSizes { sm, md } = control;
     out.line("size.control.sm", len(*sm));
     out.line("size.control.md", len(*md));
@@ -118,14 +118,21 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
     let HandleSizes { sm, md } = handle;
     out.line("size.handle.sm", len(*sm));
     out.line("size.handle.md", len(*md));
-    let HitSizes { slop, target } = hit;
+    let HitSizes { slop, target, dead_zone } = hit;
     out.line("size.hit.slop", len(*slop));
     out.line("size.hit.target", len(*target));
+    out.line("size.hit.dead_zone", len(*dead_zone));
     out.line("size.checker", len(*checker));
     out.line("size.dial", len(*dial));
     let PlotSizes { width, height } = plot;
     out.line("size.plot.width", len(*width));
     out.line("size.plot.height", len(*height));
+    let LengthSizes { field, track, short } = length;
+    out.line("size.length.field", len(*field));
+    out.line("size.length.track", len(*track));
+    out.line("size.length.short", len(*short));
+    out.line("size.groove", len(*groove));
+    out.line("size.toggle", len(*toggle));
 }
 
 fn slot(s: FontSlot) -> &'static str {

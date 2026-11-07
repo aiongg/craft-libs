@@ -5,6 +5,7 @@ mod collection;
 mod container;
 mod cx;
 pub(crate) mod editor;
+mod entry;
 pub mod ghost;
 mod group;
 mod items;
@@ -38,6 +39,7 @@ pub use container::{
 };
 pub use craft_ui_macros::{CommandSet, Component, Pattern, Props, register_contract};
 pub use cx::{Accessible, Activation, BodyCx, Cx, CxCore, Edit, Focus, ItemCx, MeasureCx, PartBuilder, PartsCx, Pointer, Styled, WordSetCx};
+pub use entry::Entry;
 pub use group::{GroupHandle, GroupKind, GroupState};
 pub use items::ColumnCommands;
 pub use label::{CellWidth, FieldLabelRole, FieldLayout, LabelKind, Scrub, SideLabel};
@@ -49,7 +51,7 @@ pub use props::{Common, Props, Resolved, Tooltip, TooltipAt, TooltipSpec, Toolti
 #[cfg(feature = "testing")]
 pub use registry::REGISTRATIONS;
 #[doc(hidden)]
-pub use registry::{CollectionEntry, ContainerEntry, Entry, Exemption, LeafEntry, PatternProbe, Probe, Registration};
+pub use registry::{CollectionEntry, ContainerEntry, Exemption, LeafEntry, PatternProbe, Probe, Registration};
 pub use values::{Bind, BindMut, EditResponse, ItemOutput, NoValue, Outcome, Validity, ValueOf, clicked};
 
 use crate::runtime::overlay::CloseReason;

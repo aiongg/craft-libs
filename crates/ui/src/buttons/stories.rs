@@ -1,28 +1,28 @@
 //! Stories of the buttons.
 
-use super::{Button, IconButton, Link, MenuEntry, SplitButton, ToggleButton};
-use crate::contract::{Bind, Props as _, Show as _, Validity};
+use super::{Button, IconButton, Link, SplitButton, ToggleButton};
+use crate::contract::{Bind, Entry, Props as _, Show as _, Validity};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::{IconId, Mixed};
 use egui::{Key, Modifiers, Ui};
 
-#[story(Button, covers = [Default])]
+#[story(Button<'static>, covers = [Default])]
 fn button(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     Button::new("Save the document as a copy").icon(IconId::new("save")).show(ui).into()
 }
 
-#[story(Button, covers = [], disabled_text = "Nothing to save")]
+#[story(Button<'static>, covers = [], disabled_text = "Nothing to save")]
 fn button_with_reason(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     Button::new("Save").tooltip(data.tooltip("Save the document")).show(ui).into()
 }
 
-#[story(Button, covers = [], drive = Drive::Never)]
+#[story(Button<'static>, covers = [], drive = Drive::Never)]
 fn button_loading(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     Button::new("Saving").icon(IconId::new("save")).loading(true).show(ui).into()
 }
 
-#[story(IconButton, covers = [Default])]
+#[story(IconButton<'static>, covers = [Default])]
 fn icon_button(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     IconButton::new(IconId::new("settings")).label("Settings").show(ui).into()
 }
@@ -43,8 +43,13 @@ fn toggle_button_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     ToggleButton::new("Snap to grid", Bind::bound(data.value("invalid", true)).check(refuse_on)).show(ui).into()
 }
 
-fn presets() -> [MenuEntry<u8>; 3] {
-    [MenuEntry::new(0, "Black and white"), MenuEntry::new(1, "Colour"), MenuEntry::new(2, "Grayscale")]
+fn presets() -> [Entry<u8>; 4] {
+    [
+        Entry::new(0, "Black and white").icon(IconId::new("eye")).checked(true),
+        Entry::new(1, "Colour"),
+        Entry::separator(),
+        Entry::new(2, "Grayscale").enabled(false),
+    ]
 }
 
 #[story(SplitButton<'static, u8>, covers = [Default], drive = Drive::Activate)]

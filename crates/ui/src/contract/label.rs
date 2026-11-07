@@ -14,7 +14,7 @@ use crate::runtime::env::{Env, Label};
 use crate::runtime::keys;
 use crate::runtime::memory::sub;
 use crate::style::{ComponentStyle, ResetMarkLook, StyleColor, StyleCx};
-use craft_behavior::{ColumnWidth, Flow, IconId, LabelColumn, Metrics, PartKey, PressPhase, PressState, Sense, ValueDrag};
+use craft_behavior::{ColumnWidth, Flow, LabelColumn, Metrics, PartKey, PressPhase, PressState, Sense, ValueDrag};
 use egui::{Id, Rect, Response, Ui, UiBuilder, Vec2};
 use std::cell::Cell;
 use std::sync::Arc;
@@ -61,7 +61,7 @@ pub struct SideLabel {
     /// Dragging the label scrubs the control's value.
     pub scrub: bool,
     /// An icon before the text, as large as the control's icons.
-    pub icon: Option<IconId>,
+    pub icon: Option<IconSpec<'static>>,
     /// A line after the text in the muted text colour. It joins the control's description, not its name.
     pub detail: Option<Label>,
 }
@@ -102,8 +102,8 @@ impl SideLabel {
 
     /// Shows `icon` before the text.
     #[must_use]
-    pub fn icon(mut self, icon: IconId) -> Self {
-        self.icon = Some(icon);
+    pub fn icon(mut self, icon: impl Into<IconSpec<'static>>) -> Self {
+        self.icon = Some(icon.into());
         self
     }
 
@@ -183,7 +183,7 @@ struct LabelLeaf {
     differs: bool,
     /// The width the dot's slot takes at the end of the label, 0 without one.
     slot: f32,
-    icon: Option<IconId>,
+    icon: Option<IconSpec<'static>>,
     /// The detail, resolved in the scope's language.
     detail: Option<Label>,
     baseline: Cell<f32>,
@@ -285,7 +285,7 @@ impl Component for LabelLeaf {
         let centred = |rect: Rect, height: f32| Rect::from_min_size(egui::pos2(rect.min.x, middle - height / 2.0), Vec2::new(rect.width(), height));
         if let Some(icon) = &self.icon {
             let (cell, after) = rest.take_start(cx.style.icon);
-            draw.icon(centred(cell, cx.style.icon), &IconSpec::svg(icon.clone()));
+            draw.icon(centred(cell, cx.style.icon), icon);
             rest = after.take_start(cx.style.gap).1;
         }
         let run = TextRun::new(cx.core.resolved.label);

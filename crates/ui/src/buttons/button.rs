@@ -3,10 +3,11 @@
 use super::face::{self, FaceLook, FaceSpec};
 use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, PartsCx, Pointer as _, Props, Role};
 use crate::display::Spinner;
+use crate::primitives::IconSpec;
 use crate::runtime::commands::CommandRef;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, FocusLook, IconLook, StyleCx, SurfaceLook, TextLook};
-use craft_behavior::{IconId, Metrics, PartKey, Sense};
+use craft_behavior::{Metrics, PartKey, Sense};
 use craft_theme::{
     Variant,
     variant::{Emphasis, Tone},
@@ -55,21 +56,21 @@ impl ButtonStyle {
 /// a spinner takes the place of the icon (of the label, without an icon) at the same width, the button ignores
 /// activation, keeps focus and reports busy.
 #[derive(crate::contract::Component, crate::contract::Props)]
-pub struct Button {
+pub struct Button<'a> {
     #[common]
     common: Common,
     /// A leading icon; it mirrors under right-to-left when it has a direction.
-    #[prop]
-    icon: Option<IconId>,
+    #[prop(into)]
+    icon: Option<IconSpec<'a>>,
     /// An icon at the reading end: the chevron of a button that opens a menu.
-    #[prop]
-    trailing_icon: Option<IconId>,
+    #[prop(into)]
+    trailing_icon: Option<IconSpec<'a>>,
     /// Working: a spinner, no activation, AccessKit busy.
     #[prop]
     loading: bool,
 }
 
-impl Button {
+impl<'a> Button<'a> {
     /// A button showing `label`, which is also its accessible name.
     pub fn new(label: impl Into<Label>) -> Self {
         Button { common: Common::new(), icon: None, trailing_icon: None, loading: false }.label(label)
@@ -80,12 +81,12 @@ impl Button {
         <Button as Props>::command(Button::new(Label::Empty), command)
     }
 
-    fn spec<'a>(&'a self, label: &'a str) -> FaceSpec<'a> {
+    fn spec<'s>(&'s self, label: &'s str) -> FaceSpec<'s> {
         FaceSpec { label, role: None, lead: self.icon.as_ref(), trail: self.trailing_icon.as_ref(), loading: self.loading }
     }
 }
 
-impl Component for Button {
+impl Component for Button<'_> {
     const ROLE: Role = Role::BUTTON;
     const OVERLAYS: bool = false;
     type Style = ButtonStyle;

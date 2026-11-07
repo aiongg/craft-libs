@@ -38,4 +38,12 @@ impl EnvKey {
         values.hash(&mut hasher);
         EnvKey(hasher.finish())
     }
+
+    /// This key with one more input folded in: a face's styles depend on the host's ink as well.
+    pub(crate) fn folded(self, input: u64) -> Self {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        self.0.hash(&mut hasher);
+        input.hash(&mut hasher);
+        EnvKey(hasher.finish())
+    }
 }
