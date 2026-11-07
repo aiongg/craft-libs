@@ -11,7 +11,92 @@ new_module = "craft_ui::canvas"
 name = "ToolHost"
 old = "craft_ui::canvas::tool_host::ToolHost"
 new = "craft_ui::canvas::ToolHost"
-status = "pending"
+status = "moved"
+note = "`ToolHost::new(label).run(ui, &canvas_output, &mut tool)` after `Canvas::show`; `ToolHost::new(CanvasId)`, `snap(..)`, `document(..)`, `pen(..)`, `navigation(..)` and `keys(..)` are gone. Call `capture_values(ui)` inside the canvas body so tools read the canvas's space with `ToolContext::value`. `inject`, `cancel` and `in_gesture` take the host's label in place of a `CanvasId`; `cancel` returns whether a gesture was cancelled. `ToolHost::sample` and `snap_tolerance` are gone: a tool maps points through `CanvasSpace` and holds its own snap targets."
+
+[[type]]
+name = "CanvasTool"
+old = "craft_ui::canvas::tool_host::CanvasTool"
+new = "craft_ui::canvas::CanvasTool"
+status = "moved"
+note = "The trait keeps `press`, `drag`, `release`, `hover`, `cancel`, `key`, `paint`, `cursor`, `takes`, `autoscrolls` and `each_pass`, and adds `command_form() -> ToolPath`. Pointers are screen points (`ToolPointer::pos`); `paint` takes `&Draw`; `cursor` returns `craft_behavior::Cursor`. `parts`, `picked`, `pick`, `node`, `snap_gesture` and `button` are gone: a tool made of parts is a canvas control, a tool holds its snap targets, and `takes` decides the button."
+
+[[type]]
+name = "ToolPointer"
+old = "craft_ui::canvas::tool_host::ToolPointer"
+new = "craft_ui::canvas::ToolPointer"
+status = "moved"
+note = "Screen position only (`pos`): `doc`, `raw`, `snapped` and `screen` are gone; `modifiers` is `mods: Mods`; the pen reading is `sample: PointerSample` (radians); `button`, `clicks` and `time` stay."
+
+[[type]]
+name = "ToolKey"
+old = "craft_ui::canvas::tool_host::ToolKey"
+new = "craft_ui::canvas::ToolKey"
+status = "moved"
+note = "An enum of the intents the canvas holds (`Nudge`, `Delete`, `Submit`, `Cancel`) and the plain keys a tool kept with `ToolContext::keep_keys` (`Kept(Chord)`); the raw `key`, `modifiers`, `pressed` and `repeat` fields are gone."
+
+[[type]]
+name = "ToolContext"
+old = "craft_ui::canvas::tool_host::ToolContext"
+new = "craft_ui::canvas::ToolContext"
+status = "moved"
+note = "`pointer`, `mods` (was `modifiers`), `rect` and `time`; `value::<T>()` reads the canvas's published app values (the view); `readout(rows)`, `request_repaint()` and `keep_keys()` stay. `canvas_id`, `view`, `canvas`, `snap`, `snap_tolerance`, `tokens`, `numbers`, `direction`, `caps_lock`, `parts_focused`, `set_view` and `set_cursor` are gone."
+
+[[type]]
+name = "ToolAction"
+old = "craft_ui::canvas::tool_host::ToolAction"
+new = "craft_ui::canvas::ToolAction"
+status = "moved"
+note = "The variants are unchanged."
+
+[[type]]
+name = "ToolHostResponse"
+old = "craft_ui::canvas::tool_host::ToolHostResponse"
+new = "craft_ui::canvas::ToolHostResponse"
+status = "moved"
+note = "`gesture` is `Option<GesturePhase>`; `scrolled_by` and `view` are gone (the host moves no view): `past_edge` reports the pointer past the canvas edge; `cursor` is `Option<Cursor>`; `readout` is new; `id` is gone."
+
+[[type]]
+name = "ToolInput"
+old = "craft_ui::canvas::tool_host::ToolInput"
+new = "craft_ui::canvas::ToolInput"
+status = "moved"
+note = "Positions are screen points (`pos`), the pen reading is `sample: PointerSample`, and `modifiers` is `mods: Mods`."
+
+[[type]]
+name = "ToolGesture"
+old = "craft_ui::canvas::tool_host::ToolGesture"
+new = ""
+status = "removed"
+note = "Replaced by `craft_behavior::GesturePhase` (`Begin`, `Update`, `Commit`, `Cancel`)."
+
+[[type]]
+name = "ToolParts"
+old = "craft_ui::canvas::tool_host::ToolParts"
+new = ""
+status = "removed"
+note = "A tool made of keyboard parts is a canvas control with focusable parts."
+
+[[type]]
+name = "ToolNode"
+old = "craft_ui::canvas::tool_host::ToolNode"
+new = ""
+status = "removed"
+note = "A tool's accessible description is a canvas control's part or node."
+
+[[type]]
+name = "PickStep"
+old = ""
+new = "craft_ui::canvas::PickStep"
+status = "replaced"
+note = "`ToolRail::pick_by_key` letter cycling is `tool_pick(tools, slot, current, &last_used, PickStep::Last | PickStep::Next, enabled)`: the app binds a pick command to the letter and a cycle command to Shift with the letter."
+
+[[type]]
+name = "ToolReadout"
+old = ""
+new = "craft_ui::canvas::ToolReadout"
+status = "replaced"
+note = "The values a tool hands to `ToolContext::readout`, reported in `ToolHostResponse::readout` for the canvas readout overlay."
 
 [[type]]
 name = "Pasteboard"

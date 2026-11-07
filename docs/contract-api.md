@@ -2451,6 +2451,7 @@ The fixture, the suite runner and the story helpers.
 - `craft_ui::testing::Fixture`: re-export of `craft_ui::testing::fixture::Fixture`.
 - `craft_ui::testing::Frames`: re-export of `craft_ui::testing::frames::Frames`.
 - `craft_ui::testing::Target`: re-export of `craft_ui::testing::fixture::Target`.
+- `craft_ui::testing::ToolFixture`: re-export of `craft_ui::testing::tool_fixture::ToolFixture`.
 - `craft_ui::testing::install_spec`: re-export of `craft_ui::testing::windows::install_spec`.
 - `craft_ui::testing::story`: re-export of `craft_ui_macros::story` (outside these crates).
 - `craft_ui::testing::trial`: re-export of `craft_ui_macros::trial` (outside these crates).
@@ -3006,6 +3007,30 @@ Reading text parts in trials: the widget id, the caret and the text a frame pain
 - `craft_ui::testing::text::ime_preedit`: `pub fn ime_preedit(text: &str) -> Event`. An IME preedit event of `text` with no cursor range.
 - `craft_ui::testing::text::set_value_request`: `pub fn set_value_request(target: egui::Id, text: &str) -> Event`. An AccessKit `SetValue` request carrying `text` for the node of `target`.
 - `craft_ui::testing::text::text_selection_request`: `pub fn text_selection_request(target: egui::Id, anchor:(egui::Id, usize), focus:(egui::Id, usize)) -> Event`. An AccessKit `SetTextSelection` request for the node of `target`, from character `anchor.1` of the run node
+
+## `craft_ui::testing::tool_fixture`
+
+`ToolFixture` (22.4, the tool row): drives a [`CanvasTool`] on a [`Canvas`] through press, drag, release and Escape, and checks what every tool owes the canvas.
+
+- `craft_ui::testing::tool_fixture::FREEHAND_RULE`: `pub const FREEHAND_RULE: &str`. The rule of the `probe` entry that names a freehand tool in `design/exceptions/<crate>/<family>.toml`; the entry's `name` is the fixture's label.
+- `craft_ui::testing::tool_fixture::ToolFixture`: `pub struct ToolFixture<T: CanvasTool + 'static>`. A tool shown on a canvas that fills the fixture's room, with the gesture phases the host reported.
+  - `pub fn new(label: &'static str, tool: T) -> Self`. A canvas named `label` whose active tool is `tool`.
+  - `pub fn with_body(label: &'static str, tool: T, body: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'static) -> Self`. A canvas named `label` whose body `body` fills: canvas controls shown at the body's rect join the canvas's arena, and a press on one of their parts never reaches the tool.
+  - `pub fn fixture(&mut self) -> &mut Fixture`. The fixture underneath, for input the helpers here do not cover.
+  - `pub fn tool(&self) -> Ref<'_, T>`. The tool.
+  - `pub fn tool_mut(&self) -> RefMut<'_, T>`. The tool, to change its options between gestures.
+  - `pub fn canvas(&self) -> Target`. The canvas's node.
+  - `pub fn gestures(&self) -> Vec<GesturePhase>`. The gesture phases the host reported, one per pass that began, moved or ended a gesture, since the last [`ToolFixture::forget`].
+  - `pub fn forget(&mut self) -> &mut Self`. Forgets the phases reported so far.
+  - `pub fn press_at(&mut self, at: Pos2) -> &mut Self`. Hover and press at `at` with the primary button, in separate frames.
+  - `pub fn move_to(&mut self, to: Pos2) -> &mut Self`. Moves to `to` in one frame.
+  - `pub fn release_at(&mut self, at: Pos2) -> &mut Self`. Releases the primary button at `at`, then one idle frame.
+  - `pub fn drag_from(&mut self, from: Pos2, by: Vec2) -> &mut Self`. Presses at `from`, moves by `by` in four steps and releases.
+  - `pub fn drag(&mut self, by: Vec2) -> &mut Self`. [`ToolFixture::drag_from`] from the middle of the canvas.
+  - `pub fn middle_drag_from(&mut self, from: Pos2, by: Vec2) -> &mut Self`. [`ToolFixture::drag_from`] with the middle button, which a canvas keeps for panning.
+  - `pub fn drag_and_escape_from(&mut self, from: Pos2, by: Vec2) -> &mut Self`. Presses at `from`, moves halfway by `by`, presses Escape, moves the rest of the way and releases.
+  - `pub fn escape(&mut self) -> &mut Self`. Presses Escape.
+  - `pub fn check(&mut self)`. The checks every tool owes the canvas, on a drag from the middle of the canvas:
 
 ## `craft_ui::testing::wheel`
 
