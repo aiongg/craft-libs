@@ -440,8 +440,7 @@ pub(crate) fn guard(size: Vec2, shape: ShapeKind) -> bool {
 /// Step 6, place: in flow one allocation with no widget, at a rect none.
 pub(crate) fn place(ui: &mut Ui, at: super::run::ShowAt, size: Vec2) -> Rect {
     match at {
-        // F5-LATER: the `Grid` cursor places a child in flow under a grid body (16.3).
-        super::run::ShowAt::Flow => crate::runtime::egui::alloc::space(ui, size),
+        super::run::ShowAt::Flow => crate::layout::place_in_flow(ui, size),
         super::run::ShowAt::Rect(rect) => rect,
     }
 }
@@ -450,6 +449,7 @@ pub(crate) fn place(ui: &mut Ui, at: super::run::ShowAt, size: Vec2) -> Rect {
 pub(crate) struct PartsStep {
     pub decls: Decls,
     pub rovings: Vec<Roving>,
+    pub scrolls: Vec<super::cx::ScrollDecl>,
 }
 
 /// The parts of last pass's complete set in which this pass's results are read; first-frame parts read idle.

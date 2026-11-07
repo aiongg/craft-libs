@@ -286,6 +286,8 @@ fn blank_core<'a>(
         claims: Vec::new(),
         reveal: None,
         press_cancel: None,
+        scroll_moves: Vec::new(),
+        root_sense: Sense::empty(),
     }
 }
 
@@ -353,7 +355,7 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
     // 7 parts
     p.trace.mark(Step::Parts);
     let flow = Flow::new(rect, rtl);
-    let mut parts = PartsStep { decls: Vec::new(), rovings: Vec::new() };
+    let mut parts = PartsStep { decls: Vec::new(), rovings: Vec::new(), scrolls: Vec::new() };
     if !inert {
         let last = *cx.core.memory.shown::<steps::LastState>(sub(id, "last_state"));
         let input = MeasureIn { ui: &*ui, env, proposal: Proposal::Ideal, room: p.room };
@@ -363,6 +365,7 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
             flow,
             decls: &mut parts.decls,
             rovings: &mut parts.rovings,
+            scrolls: &mut parts.scrolls,
             last_state: (last.0, last.1),
             measure,
         };
@@ -394,14 +397,14 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
     p.trace.mark(Step::Sense);
     let decls: Vec<PartDecl> = parts.decls.iter().map(|(decl, _)| decl.clone()).collect();
     let enabled = resolved.enabled && !inert;
-    let (response, results, press, activation, activated_member) = match member {
+    let (response, results, press, activation, activated_member, root_sense) = match member {
         Some(arena) => {
             let sensed = sensing::sense_member(ui, arena, MemberSpec { id, rect, sense: own, parts: &decls, enabled });
-            (sensed.response, sensed.parts, sensed.press, sensed.activated, None)
+            (sensed.response, sensed.parts, sensed.press, sensed.activated, None, Sense::empty())
         }
         None => {
             let sensed = sensing::sense_root(ui, RootSpec { id, rect, own_sense: own, own: &decls, enabled });
-            (sensed.response, sensed.parts, sensed.press, sensed.activation, sensed.activated_member)
+            (sensed.response, sensed.parts, sensed.press, sensed.activation, sensed.activated_member, sensed.sense)
         }
     };
     // The node exists before any child `Ui` runs, so the children find their parent (12.2). A member has no egui
@@ -420,7 +423,9 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
     cx.core.response = response;
     // The focus service holds last pass's registration: a part that is not in this pass's results is not active.
     cx.core.active = focus::active_part(&ctx, id).filter(|part| results.contains_key(&(part.key, part.index)));
+    cx.core.scroll_moves = super::cx::scroll_moves(&parts.scrolls, &results);
     cx.core.results = results;
+    cx.core.root_sense = root_sense;
     cx.core.press = press;
     cx.core.member_of = member.map(|arena| arena.0);
     cx.core.activation = activation.then_some(Activation { by_key: false });

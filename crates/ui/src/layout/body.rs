@@ -1,6 +1,7 @@
 //! `BodyLayout` and the layout of a body: the physical egui layout, the measured placement of `Row` End and
 //! Center, and the `Grid` cursor.
 
+use crate::runtime::egui::memory::Service;
 use crate::runtime::egui::{alloc, child};
 use crate::runtime::env::Env;
 use crate::runtime::layout_memory;
@@ -8,6 +9,7 @@ use crate::runtime::memory::sub;
 use craft_behavior::{ColumnWidth, Flow, GridCursor, GridMeasure};
 use egui::{Id, Rect, Ui, Vec2};
 use std::borrow::Cow;
+use std::collections::HashMap;
 
 /// How a body lays out its children, in reading order: mirrored under a right-to-left direction.
 #[derive(Clone, Debug, PartialEq)]
@@ -77,40 +79,45 @@ impl BodyLayout {
     }
 }
 
+/// The cursors of the `Grid` bodies running this pass, by body id.
+#[derive(Default)]
+struct Cursors(HashMap<Id, GridCursor>);
+
 /// The cells of a body: step 6 of a child in flow asks for its rect here.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the body step"))]
-pub(crate) struct Cells {
-    cursor: Option<GridCursor>,
-}
+pub(crate) struct Cells;
 
 impl Cells {
     /// The rect a child of measured `size` takes in flow: the next cell of a `Grid` body, else the next
     /// allocation of the body's layout.
-    #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the body step"))]
     pub(crate) fn place(&mut self, ui: &mut Ui, size: Vec2) -> Rect {
-        match &mut self.cursor {
-            Some(cursor) => {
-                let cell = cursor.cell(size);
-                alloc::advance_past(ui, cell);
-                cell
-            }
-            None => alloc::space(ui, size),
-        }
+        place_in_flow(ui, size)
     }
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the body step"))]
+/// The rect a child of measured `size` takes in flow in `ui`: the next cell of the `Grid` body that encloses it
+/// directly, else the next allocation of `ui`'s layout.
+pub(crate) fn place_in_flow(ui: &mut Ui, size: Vec2) -> Rect {
+    let cell = Env::of(ui)
+        .grid
+        .and_then(|grid| Service::<Cursors>::of(ui.ctx()).with(|cursors| cursors.0.get_mut(&grid).map(|cursor| cursor.cell(size))));
+    match cell {
+        Some(cell) => {
+            alloc::advance_past(ui, cell);
+            cell
+        }
+        None => alloc::space(ui, size),
+    }
+}
+
 fn column_id(grid: Id, index: usize) -> Id {
     sub(grid, ("column", index))
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the body step"))]
 fn row_id(grid: Id, index: usize) -> Id {
     sub(grid, ("row", index))
 }
 
 /// What the grid measured last pass; each entry is read as a placement that used it.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the body step"))]
 fn last_measure(ctx: &egui::Context, grid: Id, columns: usize) -> GridMeasure {
     let rows = layout_memory::read(ctx, sub(grid, "rows")).map_or(0, |count| count.x as usize);
     GridMeasure::new(
@@ -125,12 +132,11 @@ fn last_measure(ctx: &egui::Context, grid: Id, columns: usize) -> GridMeasure {
 /// `Row` with `End` or `Center` places its block from the size it took last pass, and `Grid` places its
 /// cells from last pass's widest child per column and tallest per row. A change of those sizes asks for one
 /// discard pass under the tolerance rule.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the body step"))]
 pub(crate) fn run_body<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap: Vec2, body: impl FnOnce(&mut Ui, &mut Cells) -> R) -> R {
     let rtl = Env::of(ui).direction.is_rtl();
     let ctx = ui.ctx().clone();
     match layout {
-        BodyLayout::Stack => child::block(ui, None, child::column_layout(rtl), |ui| body(ui, &mut Cells { cursor: None })).0,
+        BodyLayout::Stack => child::block(ui, None, child::column_layout(rtl), |ui| body(ui, &mut Cells)).0,
         BodyLayout::Row { wrap, align } => {
             let room = ui.available_rect_before_wrap();
             let rect = match *align {
@@ -144,22 +150,24 @@ pub(crate) fn run_body<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap: Vec2, b
                     })
                 }
             };
-            let (inner, took) = child::block(ui, rect, child::row_layout(rtl, *wrap), |ui| body(ui, &mut Cells { cursor: None }));
+            let (inner, took) = child::block(ui, rect, child::row_layout(rtl, *wrap), |ui| body(ui, &mut Cells));
             if *align != RowAlign::Start {
                 layout_memory::record(&ctx, id, took.size());
             }
             inner
         }
         BodyLayout::Grid { columns } => {
-            let (inner, cursor) = child::block(ui, None, child::column_layout(rtl), |ui| {
+            let inner = child::block(ui, None, child::column_layout(rtl), |ui| {
                 let last = last_measure(&ctx, id, columns.len());
                 let cursor = GridCursor::new(Flow::new(ui.available_rect_before_wrap(), rtl), columns, gap, &last);
-                let mut cells = Cells { cursor: Some(cursor) };
-                let inner = body(ui, &mut cells);
-                (inner, cells.cursor)
+                Service::<Cursors>::of(&ctx).with(|cursors| cursors.0.insert(id, cursor));
+                let installed = Env::install_for(ui, Env::of(ui).derive(|scoped| scoped.grid = Some(id)));
+                let inner = body(ui, &mut Cells);
+                Env::restore(&ctx, installed);
+                inner
             })
             .0;
-            if let Some(cursor) = cursor {
+            if let Some(cursor) = Service::<Cursors>::of(&ctx).with(|cursors| cursors.0.remove(&id)) {
                 let measured = cursor.measured();
                 for (i, width) in measured.columns.iter().enumerate() {
                     layout_memory::record(&ctx, column_id(id, i), Vec2::new(*width, 0.0));

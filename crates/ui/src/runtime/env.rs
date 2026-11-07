@@ -286,6 +286,10 @@ pub struct Scoped {
     pub arena: Option<ArenaId>,
     /// From `ContainerProps.transform`.
     pub transform: Option<CanvasTransform>,
+    /// The `Grid` body whose cursor places the children in flow.
+    pub(crate) grid: Option<Id>,
+    /// A scrolling body encloses the scope: a collection under it owns no scroll of its own.
+    pub(crate) in_scroll: bool,
     /// The container instances above that receive scoped commands.
     pub(crate) commands: CommandChain,
     pub(crate) host: Option<Arc<Host>>,
@@ -358,6 +362,8 @@ impl Env {
                 scale,
                 arena: None,
                 transform: None,
+                grid: None,
+                in_scroll: false,
                 commands: CommandChain::default(),
                 words: host_words(ctx, host.as_ref()),
                 host,
@@ -395,6 +401,8 @@ impl Env {
         EnvCapture(self.derive(|s| {
             s.arena = None;
             s.transform = None;
+            s.grid = None;
+            s.in_scroll = false;
             s.ink = Ink::default();
         }))
     }

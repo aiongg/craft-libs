@@ -14,8 +14,8 @@ use crate::runtime::motion::{Driver, Drives};
 use crate::runtime::{cursor, frame, pointer, wheel};
 use crate::style::{ComponentStyle as _, Ink, Mix, StateSet, Stateful, UiTokens};
 use craft_behavior::{
-    CancelReason, Cursor, CursorIcon, CursorPriority, EditEvent, Flow, Gesture, GesturePhase, HitLevel, HitPriority, HitShape, Mixed, PartRef,
-    PressCancel, PressPhase, PressState, Proposal, Roving, Sense, Value, Wheel,
+    Axis, CancelReason, Cursor, CursorIcon, CursorPriority, EditEvent, Flow, Gesture, GesturePhase, HitLevel, HitPriority, HitShape, Mixed, PartRef,
+    PartKey, PressCancel, PressPhase, PressState, Proposal, Roving, ScrollSpan, Sense, Value, Wheel,
 };
 use craft_i18n::WordSet;
 use craft_keymap::Chord;
@@ -24,7 +24,7 @@ use egui::{Context, Id, Rect, Response, Ui, Vec2};
 use std::cell::RefCell;
 use std::fmt::Debug;
 use std::hash::Hash;
-use std::ops::Deref;
+use std::ops::{Deref, Range};
 use std::sync::Arc;
 
 /// How a component was activated this pass.
@@ -85,6 +85,10 @@ pub struct CxCore<'a> {
     pub(crate) claims: Vec<Chord>,
     pub(crate) reveal: Option<Rect>,
     pub(crate) press_cancel: Option<PressCancel>,
+    /// The visible range each scroll part moved to this pass, from step 8's results.
+    pub(crate) scroll_moves: Vec<(PartKey, Range<f64>)>,
+    /// The sense the root's egui widget carries, for the forwarding widget of a transformed body.
+    pub(crate) root_sense: Sense,
 }
 
 impl sealed::Sealed for CxCore<'_> {}
@@ -171,6 +175,8 @@ pub trait Pointer {
     fn cursor(&mut self, cursor: impl Into<Cursor>, priority: CursorPriority);
     /// Ends every captured press of this viewport.
     fn cancel_press(&mut self, reason: PressCancel);
+    /// The visible range the scroll part `key` moved to this pass (thumb or end drag, page press).
+    fn scroll_moved(&self, key: PartKey) -> Option<Range<f64>>;
 }
 
 impl Pointer for CxCore<'_> {
@@ -216,6 +222,10 @@ impl Pointer for CxCore<'_> {
         frame::note_cancelled_press(&self.ctx);
         self.press_cancel = Some(reason);
     }
+
+    fn scroll_moved(&self, key: PartKey) -> Option<Range<f64>> {
+        self.scroll_moves.iter().find(|(moved, _)| *moved == key).map(|(_, range)| range.clone())
+    }
 }
 
 impl<C: Component> Pointer for Cx<'_, C> {
@@ -249,6 +259,10 @@ impl<C: Component> Pointer for Cx<'_, C> {
 
     fn cancel_press(&mut self, reason: PressCancel) {
         self.core.cancel_press(reason);
+    }
+
+    fn scroll_moved(&self, key: PartKey) -> Option<Range<f64>> {
+        self.core.scroll_moved(key)
     }
 }
 
@@ -1002,6 +1016,7 @@ pub struct PartsCx<'a, C: Component> {
     pub flow: Flow,
     pub(crate) decls: &'a mut Decls,
     pub(crate) rovings: &'a mut Vec<Roving>,
+    pub(crate) scrolls: &'a mut Vec<ScrollDecl>,
     pub(crate) last_state: (bool, bool),
     pub(crate) measure: MeasureCx<'a, C>,
 }
@@ -1041,6 +1056,75 @@ impl<C: Component> PartsCx<'_, C> {
     pub fn roving(&mut self, roving: Roving) {
         self.rovings.push(roving);
     }
+
+    /// Declares one axis's scroll bar: the track as part `key` and the thumb as part `key.at(THUMB)`, inside
+    /// `rect`. The pipeline runs thumb drag, end drag when the span resizes its ends, and page press on the
+    /// track; `Pointer::scroll_moved(key)` reads the range the part moved to.
+    pub fn scroll(&mut self, key: PartKey, rect: Rect, axis: Axis, span: ScrollSpan) {
+        let rtl = self.flow.is_rtl();
+        let min_thumb = crate::style::scroll_bar_look(self.measure.tokens).min_thumb;
+        let (at, len) = craft_behavior::scroll::thumb(&span, track_length(rect, axis), min_thumb);
+        let thumb = thumb_rect(rect, axis, rtl, at, len);
+        self.part(key, rect).sense(Sense::CLICK).priority(HitPriority::new(HitLevel::Body, 0)).pointer_only("Page Up and Page Down scroll the region");
+        self.part(key.at(THUMB), thumb).sense(Sense::DRAG).priority(HitPriority::new(HitLevel::Body, 1)).pointer_only("Page Up and Page Down scroll the region");
+        self.scrolls.push(ScrollDecl { key, axis, rtl, track: rect, thumb, span, min_thumb });
+    }
+}
+
+/// The index of a scroll bar's thumb part.
+pub(crate) const THUMB: u64 = 0;
+
+/// One axis's scroll bar, declared by `PartsCx::scroll`.
+pub(crate) struct ScrollDecl {
+    pub key: PartKey,
+    pub axis: Axis,
+    pub rtl: bool,
+    pub track: Rect,
+    pub thumb: Rect,
+    pub span: ScrollSpan,
+    pub min_thumb: f32,
+}
+
+fn track_length(rect: Rect, axis: Axis) -> f32 {
+    match axis {
+        Axis::X => rect.width(),
+        _ => rect.height(),
+    }
+}
+
+/// The thumb `at` points from the start edge of `track`, `len` long; the start edge of the x axis is the right
+/// edge under right-to-left.
+pub(crate) fn thumb_rect(track: Rect, axis: Axis, rtl: bool, at: f32, len: f32) -> Rect {
+    match axis {
+        Axis::X if rtl => Rect::from_min_size(egui::pos2(track.max.x - at - len, track.min.y), Vec2::new(len, track.height())),
+        Axis::X => Rect::from_min_size(egui::pos2(track.min.x + at, track.min.y), Vec2::new(len, track.height())),
+        _ => Rect::from_min_size(egui::pos2(track.min.x, track.min.y + at), Vec2::new(track.width(), len)),
+    }
+}
+
+/// The ranges this pass's scroll-part presses moved, from step 8's results.
+pub(crate) fn scroll_moves(decls: &[ScrollDecl], results: &PartResults) -> Vec<(PartKey, Range<f64>)> {
+    let mut moves = Vec::new();
+    for decl in decls {
+        let sign = if decl.axis == Axis::X && decl.rtl { -1.0 } else { 1.0 };
+        let along = |delta: Vec2| sign * if decl.axis == Axis::X { delta.x } else { delta.y };
+        let length = track_length(decl.track, decl.axis);
+        let thumb = results.get(&(decl.key, Some(THUMB))).map(|result| result.press.phase);
+        let track = results.get(&(decl.key, None)).map(|result| result.press.phase);
+        let moved = match (thumb, track) {
+            (Some(PressPhase::Drag { delta, .. }), _) => Some(craft_behavior::scroll::drag(&decl.span, length, decl.min_thumb, along(delta))),
+            (_, Some(PressPhase::Down { start, .. })) => {
+                let at = if decl.axis == Axis::X { start.origin.x } else { start.origin.y };
+                let thumb_at = if decl.axis == Axis::X { decl.thumb.center().x } else { decl.thumb.center().y };
+                Some(craft_behavior::scroll::page(&decl.span, sign * (at - thumb_at) > 0.0))
+            }
+            _ => None,
+        };
+        if let Some(range) = moved {
+            moves.push((decl.key, range));
+        }
+    }
+    moves
 }
 
 /// The cursor requests of the hovered parts' declared cursors, in registration order.
