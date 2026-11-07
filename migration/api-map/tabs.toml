@@ -14,19 +14,6 @@ new = "craft_ui::tabs::TabStrip"
 status = "pending"
 
 [[type]]
-name = "Tab"
-old = "craft_ui::tab_strip::tab::Tab"
-new = "craft_ui::tabs::Tab"
-status = "pending"
-
-[[type]]
-name = "fit"
-old = ""
-# found in: craft_ui::tabs::fit, craft_ui::controls::select::fit, craft_ui::canvas::textures::thumb::fit
-new = "craft_behavior::fit::fit"
-status = "pending"
-
-[[type]]
 name = "DocumentTabs"
 old = "craft_ui::docking::document_tabs::DocumentTabs"
 new = "craft_ui::tabs::DocumentTabs"
@@ -38,14 +25,280 @@ status = "pending"
 # old = ""
 # new = ""
 
+# Tab and the strip rules.
+
+[[type]]
+name = "Tab"
+old = "craft_ui::tab_strip::tab::Tab"
+new = "craft_ui::tabs::Tab"
+status = "moved"
+note = "The item leaf of a strip: no key type parameter (the collection keys its items), no `show_at`; a strip shows it through `TabStrip::show_items`."
+
+[[type]]
+name = "TabOutput"
+old = ""
+new = "craft_ui::tabs::TabOutput"
+status = "replaced"
+note = "Replaces `TabResponse`: the response and the part event."
+
+[[type]]
+name = "TabPartEvent"
+old = ""
+new = "craft_ui::tabs::TabPartEvent"
+status = "replaced"
+note = "What a tab's close button reports (`Close`); replaces the `close` response of `TabResponse`."
+
+[[type]]
+name = "TabStyle"
+old = "craft_ui::tab_strip::tab::TabStyle"
+new = "craft_ui::tabs::TabStyle"
+status = "moved"
+note = "Fields are private: the look comes from the theme through the style key (kind, large)."
+
+[[type]]
+name = "TabMetrics"
+old = "craft_ui::tab_strip::tab::TabMetrics"
+new = ""
+status = "removed"
+note = "The tab measures its own text."
+
+[[type]]
+name = "TabParts"
+old = "craft_ui::tab_strip::tab::TabParts"
+new = ""
+status = "removed"
+note = "The tab declares its parts itself."
+
+[[type]]
+name = "TabLayout"
+old = "craft_ui::tab_strip::tab::TabLayout"
+new = ""
+status = "removed"
+note = "The tab places its parts in the rect the strip gives it."
+
+[[type]]
+name = "TabView"
+old = "craft_ui::tab_strip::tab::TabView"
+new = ""
+status = "removed"
+note = "Active, focus, position and drop outline come from the collection; `kind` and `large` are props of `Tab`."
+
+[[type]]
+name = "TabResponse"
+old = "craft_ui::tab_strip::tab::TabResponse"
+new = ""
+status = "removed"
+note = "Replaced by `TabOutput` with `TabPartEvent`."
+
+[[type]]
+name = "TabStripText"
+old = "craft_ui::tab_strip::tab::TabStripText"
+new = ""
+status = "removed"
+note = "Replaced by `TabWords` (close and modified); the overflow button's name is the strip's."
+
+[[type]]
+name = "TabWords"
+old = ""
+new = "craft_ui::tabs::TabWords"
+status = "replaced"
+note = "Replaces `TabStripText`: `tabs.tabClose` and `tabs.tabModified`."
+
+[[type]]
+name = "TabKind"
+old = "craft_ui::tab_strip::layout::TabKind"
+new = "craft_ui::tabs::TabKind"
+status = "moved"
+note = "Now a style key of `Tab` and the strip; `overflow_menu` and the other per-kind rules are unchanged."
+
+[[type]]
+name = "FitMode"
+old = "craft_ui::tab_strip::layout::FitMode"
+new = "craft_ui::tabs::FitMode"
+status = "moved"
+note = "Gains `FitMode::fit`, which calls `craft_behavior::fit::{fit, fit_whole}`."
+
+[[type]]
+name = "OverflowPlace"
+old = "craft_ui::tab_strip::layout::OverflowPlace"
+new = "craft_ui::tabs::OverflowPlace"
+status = "moved"
+
+[[type]]
+name = "OverflowMenu"
+old = "craft_ui::tab_strip::layout::OverflowMenu"
+new = "craft_ui::tabs::OverflowMenu"
+status = "moved"
+
+[[type]]
+name = "CloseSide"
+old = "craft_ui::tab_strip::layout::CloseSide"
+new = "craft_ui::tabs::CloseSide"
+status = "moved"
+
+[[type]]
+name = "close_side"
+old = "craft_ui::tab_strip::layout::close_side"
+new = "craft_ui::tabs::close_side"
+status = "moved"
+note = "Takes `craft_host::target::Os` in place of egui's operating system."
+
+[[type]]
+name = "fit"
+old = "craft_ui::tabs::fit"
+new = "craft_behavior::fit::fit"
+status = "moved"
+
 [[type]]
 name = "fit_whole"
-old = ""
+old = "craft_ui::tabs::fit_whole"
 new = "craft_behavior::fit::fit_whole"
-status = "pending"
+status = "moved"
 
 [[type]]
 name = "TabFit"
-old = ""
+old = "craft_ui::tabs::TabFit"
 new = "craft_behavior::fit::TabFit"
-status = "pending"
+status = "moved"
+
+[[type]]
+name = "StripPlanInput"
+old = "craft_ui::tab_strip::layout::StripPlanInput"
+new = ""
+status = "removed"
+note = "The strip is a collection: its item layout places the tabs from `FitMode::fit`."
+
+[[type]]
+name = "StripPlan"
+old = "craft_ui::tab_strip::layout::StripPlan"
+new = ""
+status = "removed"
+note = "The strip is a collection: its item layout places the tabs from `FitMode::fit`."
+
+[[type]]
+name = "PlacedTab"
+old = "craft_ui::tab_strip::layout::PlacedTab"
+new = ""
+status = "removed"
+note = "Part of `StripPlan`."
+
+[[type]]
+name = "DragZone"
+old = "craft_ui::tab_strip::layout::DragZone"
+new = ""
+status = "removed"
+note = "Tear-off is a drop outside the strip (`TabStrip`'s drag session)."
+
+[[type]]
+name = "drag_zone"
+old = "craft_ui::tab_strip::layout::drag_zone"
+new = ""
+status = "removed"
+note = "Tear-off is a drop outside the strip (`TabStrip`'s drag session)."
+
+[[type]]
+name = "strip_key"
+old = "craft_ui::tab_strip::layout::strip_key"
+new = ""
+status = "removed"
+note = "The collection's reorder keys (`Intent::MoveItem`) replace the strip's key map."
+
+[[type]]
+name = "reorder_key"
+old = "craft_ui::tab_strip::layout::reorder_key"
+new = ""
+status = "removed"
+note = "The collection's reorder keys (`Intent::MoveItem`) replace the strip's key map."
+
+[[type]]
+name = "FocusSpot"
+old = "craft_ui::tab_strip::layout::FocusSpot"
+new = ""
+status = "removed"
+note = "The collection's roving focus replaces the strip's focus walk."
+
+[[type]]
+name = "FocusMove"
+old = "craft_ui::tab_strip::layout::FocusMove"
+new = ""
+status = "removed"
+note = "The collection's roving focus replaces the strip's focus walk."
+
+[[type]]
+name = "focus_move"
+old = "craft_ui::tab_strip::layout::focus_move"
+new = ""
+status = "removed"
+note = "The collection's roving focus replaces the strip's focus walk."
+
+[[type]]
+name = "step_focus"
+old = "craft_ui::tab_strip::layout::step_focus"
+new = ""
+status = "removed"
+note = "The collection's roving focus replaces the strip's focus walk."
+
+[[type]]
+name = "focus_spot"
+old = "craft_ui::tab_strip::layout::focus_spot"
+new = ""
+status = "removed"
+note = "The collection's roving focus replaces the strip's focus walk."
+
+[[setter]]
+type = "Tab"
+old = "new(key, label)"
+new = "new(label)"
+note = "The key moves to the strip's `show_items` closure."
+
+[[setter]]
+type = "Tab"
+old = "detail(impl Into<String>)"
+new = "detail(impl Into<Label>)"
+
+[[setter]]
+type = "Tab"
+old = "icon(Icon)"
+new = "icon(impl Into<IconSpec>)"
+note = "An `IconId` converts."
+
+[[setter]]
+type = "Tab"
+old = "modified(bool)"
+new = "modified()"
+note = "A flag. The mark is a dot in the close button's place until the pointer is over the tab, not a `*`."
+
+[[setter]]
+type = "Tab"
+old = "closable(bool)"
+new = "closable(bool)"
+note = "Unset, the kind decides (`TabKind::shows_close`); a panel tab never shows the button."
+
+[[setter]]
+type = "Tab"
+old = "progress(Option<f32>)"
+new = "progress(f32)"
+note = "Leave it unset for none; the bar is a `Progress` face."
+
+[[setter]]
+type = "Tab"
+old = "close_label(impl Into<String>)"
+new = "close_label(impl Into<Label>)"
+
+[[setter]]
+type = "Tab"
+old = "with_id(Id)"
+new = ""
+note = "Removed: the collection derives each item's id from its key."
+
+[[setter]]
+type = "Tab"
+old = "shaped(Arc<Galley>)"
+new = ""
+note = "Removed: the label is the `Common` label, shaped and elided by the text primitive."
+
+[[setter]]
+type = "Tab"
+old = "show_at(ui, rect, view)"
+new = ""
+note = "Removed: a strip shows tabs through `TabStrip::show_items`."
