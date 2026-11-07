@@ -15,7 +15,7 @@ pub use crate::runtime::memory::{Remember, Savable, SaveKey, Slot};
 pub use crate::runtime::motion::{Animate, Interpolate, MotionSpec, Presence, Tween, spec};
 pub use crate::runtime::pending::{Job, Pending, Progress};
 pub use craft_ui_macros::{Component, Props, register_contract};
-pub use cx::{Activation, BodyCx, Cx, CxCore, Focus, ItemCx, MeasureCx, PartBuilder, PartsCx, Pointer, Styled, WordSetCx};
+pub use cx::{Activation, BodyCx, Cx, CxCore, Edit, Focus, ItemCx, MeasureCx, PartBuilder, PartsCx, Pointer, Styled, WordSetCx};
 pub use looks::Looks;
 pub use paint_ui::PaintUi;
 pub use props::{Common, Props, Resolved, Tooltip, TooltipAt, TooltipSpec, TooltipWhen};
@@ -25,7 +25,7 @@ pub use registry::REGISTRATIONS;
 #[doc(hidden)]
 pub use registry::{CollectionEntry, ContainerEntry, Entry, Exemption, LeafEntry, Probe, Registration};
 pub use shell::{CollectionProps, ContainerProps, OverlayUi};
-pub use values::{Bind, BindMut, EditResponse, ItemOutput, NoValue, Outcome, ValueOf};
+pub use values::{Bind, BindMut, EditResponse, ItemOutput, NoValue, Outcome, Validity, ValueOf};
 
 use crate::style::{ComponentStyle, Flags, StyleCx, StyleKey};
 pub use craft_behavior::Input;

@@ -29,5 +29,5 @@ pub use surface::Surface;
 pub use text::{ChordText, LayoutRun, Span, TextLayout, TextRun, Wrap};
 
 pub(crate) use draw::DrawEnv;
-pub(crate) use record::{FaceRecord, PaintRecord, face_id};
+pub(crate) use record::{Adopted, FaceRecord, PaintRecord, face_id};
 pub(crate) use text::TextEnv;

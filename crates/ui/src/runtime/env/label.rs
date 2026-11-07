@@ -76,3 +76,27 @@ impl From<Label> for Cow<'static, str> {
         }
     }
 }
+
+/// The text of a `Validity`: a label and an optional tone override. `Warn` defaults to `Tone::Warn`, `Refuse` to
+/// `Tone::Bad`.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct Message {
+    /// The text.
+    pub text: Label,
+    /// The tone, when it is not the one the kind of validity implies.
+    pub tone: Option<craft_theme::Tone>,
+}
+
+impl Message {
+    /// A message with the default tone.
+    pub fn new(text: impl Into<Label>) -> Self {
+        Message { text: text.into(), tone: None }
+    }
+
+    /// The message in `tone`.
+    pub fn tone(mut self, tone: craft_theme::Tone) -> Self {
+        self.tone = Some(tone);
+        self
+    }
+}

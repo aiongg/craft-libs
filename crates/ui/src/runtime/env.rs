@@ -2,7 +2,7 @@
 
 mod label;
 
-pub use label::{Label, Word};
+pub use label::{Label, Message, Word};
 
 use crate::runtime::egui::memory::Service;
 use crate::runtime::egui::{child, input as raw_input, pass, repaint, scale, stack, style};

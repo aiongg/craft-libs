@@ -152,7 +152,6 @@ pub struct Resolved<'p> {
     #[expect(dead_code, reason = "read by the label-scope patch of step 16 (F4)")]
     pub(crate) keeps_name: bool,
     /// The undo adapter's key for edits of this component.
-    #[expect(dead_code, reason = "read by the undo adapter (F4)")]
     pub(crate) doc_key: Option<DocKey>,
 }
 

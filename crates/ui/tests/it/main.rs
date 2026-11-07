@@ -9,6 +9,7 @@ mod motion;
 mod paint;
 mod runtime;
 mod style;
+mod values;
 
 use craft_ui::testing::TRIALS;
 use libtest_mimic::{Arguments, Trial};
