@@ -196,7 +196,7 @@ fn text_and_icons_meet_the_text_minimum(subject: &Subject) -> Result<(), String>
 fn measure_contrast(subject: &Subject, source: &Source, reachable: Flags) -> Result<(), String> {
     for contrast in [Contrast::Standard, Contrast::High] {
         for (theme, tokens) in themes_at(contrast) {
-            let pairs = declared_pairs(&theme, contrast);
+            let table = PairTable::of(&theme, contrast);
             let Some(first) = looks_in(subject, source, &tokens, craft_theme::Variant::SECONDARY) else {
                 continue;
             };
@@ -222,9 +222,12 @@ fn measure_contrast(subject: &Subject, source: &Source, reachable: Flags) -> Res
                                 None => grounds.iter().map(|(name, ground)| (format!("{name} ground"), *ground)).collect(),
                             };
                             for (name, ground) in under {
-                                if !pairs.contains(&(Rgba::from(paint), Rgba::from(ground))) {
+                                let (ink, ground) = (Rgba::from(paint), Rgba::from(ground));
+                                if !table.lists(ink, ground) {
                                     return Err(format!(
-                                        "{theme} {contrast:?} {variant:?}: {what} {paint:?} on {name} {ground:?} in {state:?} with {flags:?} is no pair of the theme's table, so the component needs a paired ink"
+                                        "{theme} {contrast:?} {variant:?}: {what} {paint:?} ({}) on {name} {ground:?} ({}) in {state:?} with {flags:?} is no pair of the theme's table, so the component needs a paired ink",
+                                        table.names(ink),
+                                        table.names(ground)
                                     ));
                                 }
                             }
@@ -237,23 +240,43 @@ fn measure_contrast(subject: &Subject, source: &Source, reachable: Flags) -> Res
     Ok(())
 }
 
-/// The (ink, ground) colours of the colour pairs the built-in theme `theme` (`<name>.<mode>`) declares at `contrast`.
-fn declared_pairs(theme: &str, contrast: Contrast) -> Vec<(Rgba, Rgba)> {
-    let (name, mode) = theme.rsplit_once('.').unwrap_or((theme, "light"));
-    let mode = if mode == "light" { Mode::Light } else { Mode::Dark };
-    let id = format!("craft.{name}");
-    let appearance = Appearance { mode, contrast, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false };
-    let Some(def) = builtins().iter().find(|def| def.id.as_str() == id) else {
-        return Vec::new();
-    };
-    let explained = explain(def, appearance, None);
-    let colors = &explained.resolved.tokens.color;
-    explained
-        .pairs
-        .iter()
-        .filter_map(|report| match (report.pair.fg, report.pair.bg) {
-            (TokenRef::Color(fg), TokenRef::Color(bg)) => Some((colors.get(fg), colors.get(bg))),
-            _ => None,
-        })
-        .collect()
+/// The colour pairs a built-in theme declares at one contrast, as colours.
+struct PairTable {
+    pairs: Vec<(Rgba, Rgba)>,
+    colors: Vec<(String, Rgba)>,
+}
+
+impl PairTable {
+    /// The built-in theme `theme` (`<name>.<mode>`) at `contrast`.
+    fn of(theme: &str, contrast: Contrast) -> Self {
+        let (name, mode) = theme.rsplit_once('.').unwrap_or((theme, "light"));
+        let mode = if mode == "light" { Mode::Light } else { Mode::Dark };
+        let id = format!("craft.{name}");
+        let appearance = Appearance { mode, contrast, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false };
+        let Some(def) = builtins().iter().find(|def| def.id.as_str() == id) else {
+            return PairTable { pairs: Vec::new(), colors: Vec::new() };
+        };
+        let explained = explain(def, appearance, None);
+        let colors = &explained.resolved.tokens.color;
+        let pairs = explained
+            .pairs
+            .iter()
+            .filter_map(|report| match (report.pair.fg, report.pair.bg) {
+                (TokenRef::Color(fg), TokenRef::Color(bg)) => Some((colors.get(fg), colors.get(bg))),
+                _ => None,
+            })
+            .collect();
+        let colors = ColorToken::ALL.iter().map(|&token| (token.path(), colors.get(token))).collect();
+        PairTable { pairs, colors }
+    }
+
+    fn lists(&self, ink: Rgba, ground: Rgba) -> bool {
+        self.pairs.contains(&(ink, ground))
+    }
+
+    /// The tokens with colour `color`, for messages.
+    fn names(&self, color: Rgba) -> String {
+        let names: Vec<&str> = self.colors.iter().filter(|(_, value)| *value == color).map(|(name, _)| name.as_str()).collect();
+        if names.is_empty() { "no token".to_owned() } else { names.join("/") }
+    }
 }
