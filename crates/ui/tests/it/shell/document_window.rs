@@ -83,11 +83,11 @@ fn raise_brings_the_window_forward_in_the_pass_it_is_set() {
     for _ in 0..SETTLED_FRAMES {
         frame(false);
     }
-    let raised = |out: &crate::windows_kit::Out| {
-        let child =
-            out.titles.iter().map(|(viewport, _)| *viewport).find(|viewport| *viewport != ViewportId::ROOT).expect("the document window is open");
-        out.commands.contains(&(child, ViewportCommand::Focus))
+    let child_of = |out: &crate::windows_kit::Out| {
+        out.titles.iter().map(|(viewport, _)| *viewport).find(|viewport| *viewport != ViewportId::ROOT).expect("the document window is open")
     };
-    assert!(!raised(&frame(false)));
-    assert!(raised(&frame(true)));
+    let quiet = frame(false);
+    assert!(!quiet.commands.contains(&(child_of(&quiet), ViewportCommand::Focus)), "no focus command without a request");
+    let raised = frame(true);
+    assert!(raised.commands.contains(&(child_of(&raised), ViewportCommand::Focus)), "the request raised the window: {:?}", raised.commands);
 }
