@@ -25,8 +25,6 @@ const PROPERTIES: usize = 10;
 
 mod columns;
 
-const NEW_GROUP: GroupId = GroupId::new(2);
-
 fn two_columns() -> Layout<usize> {
     let root = Node::split(Axis::X, SplitSize::Ratio(0.33), Node::tabs(vec![LAYERS, CHANNELS], 0), Node::tabs(vec![PROPERTIES], 0));
     Layout::new(Some(root), Vec::new())

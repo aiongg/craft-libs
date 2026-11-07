@@ -26,7 +26,7 @@ use craft_ui::menu::{Menu, MenuItem};
 use craft_ui::patterns::form_dialogs::{ExportAsDialog, ExportPreview, PreviewState, SizeEstimate};
 use craft_ui::primitives::{Revision, TextureCache};
 use craft_ui::runtime::env::RootEnv;
-use craft_ui::runtime::env::{Env, UnitKind};
+use craft_ui::runtime::env::UnitKind;
 use craft_ui::runtime::frame::{FrameInput, set_input};
 use craft_ui::runtime::{InstallSpec, install};
 use craft_ui::table::Table;
@@ -434,8 +434,8 @@ impl RasterSource for Wide {
         let [width, height] = out.size;
         for row in 0..height {
             for column in 0..width {
-                let x = region.x0 + column as u32 * factor;
-                let y = region.y0 + row as u32 * factor;
+                let x = region.x0 + (column as u32 * factor) as i32;
+                let y = region.y0 + (row as u32 * factor) as i32;
                 out.pixels[row * width + column] = Color32::from_rgb((x / 16) as u8, (y / 16) as u8, ((x + y) / 32) as u8);
             }
         }
@@ -460,7 +460,7 @@ impl Scene for CanvasViewScene {
     fn show(&mut self, ui: &mut Ui, _frame: u64) {
         static SOURCE: Wide = Wide;
         let Self { view, hand, guides, zero } = self;
-        let content = Rulers::content_rect(&Env::of(ui).tokens, ui.available_rect_before_wrap());
+        let content = ui.available_rect_before_wrap();
         let view = view.get_or_insert_with(|| {
             let mut view = CanvasView::new(content, Point::new(2048.0, 2048.0), 0.5);
             view.rotation = 30.0;

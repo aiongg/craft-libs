@@ -101,10 +101,10 @@ fn the_middle_of_a_group_joins_it_but_never_its_own_group() {
 
 #[trial]
 fn permissions_refuse_a_drop_the_destination_or_the_unit_does_not_allow() {
-    let no_tabs = |panel: &u32| if *panel == TOP_GROUP { Permissions::new(true, true, true, false, true) } else { Permissions::default() };
+    let no_tabs = |panel: &u32| if *panel == TOP_GROUP { Permissions::ALL.accepts_tabs(false) } else { Permissions::default() };
     assert_eq!(drop_of(DragUnit::Panel(LOWER_GROUP), at(100.0, 60.0), no_tabs), None, "the group takes no tabs");
     assert!(drop_of(DragUnit::Panel(LOWER_GROUP), at(100.0, 136.0), no_tabs).is_some(), "it still takes a new group beside it");
-    let pinned = |panel: &u32| if *panel == LOWER_GROUP { Permissions::new(false, true, true, true, true) } else { Permissions::default() };
+    let pinned = |panel: &u32| if *panel == LOWER_GROUP { Permissions::ALL.movable(false) } else { Permissions::default() };
     assert_eq!(drop_of(DragUnit::Panel(LOWER_GROUP), at(100.0, 60.0), pinned), None, "a panel that cannot move is not dropped");
 }
 
@@ -122,6 +122,6 @@ fn a_float_drop_puts_the_window_under_the_pointer_inside_the_area() {
     let space = FloatSpace::<u32>::new(area, &sizes);
     let dropped = float_drop(&DragUnit::Panel(LOWER_GROUP), &space, at(790.0, 590.0));
     let Action::Float { rect, .. } = dropped.action else { panic!("a panel floats alone") };
-    let window = Rect::from_min_size(at(rect[0], rect[1]), Vec2::new(rect[2], rect[3]));
+    let window = rect;
     assert!(area.contains_rect(window), "the window is pulled back inside the area: {window:?}");
 }
