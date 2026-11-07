@@ -6,7 +6,7 @@ use crate::contract::{Show as _, ShowContainer as _};
 use crate::testing::{StoryData, StoryOutput, story};
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Rect as DocRect};
-use egui::{Rect, Response, Ui, vec2};
+use egui::{Rect, Response, Ui};
 
 /// Screen points per document unit.
 const ZOOM: f64 = 2.0;
@@ -20,9 +20,8 @@ const SOFT: f64 = 0.4;
 const START: BrushDimensions = BrushDimensions::new(40.0, 0.5);
 /// The largest diameter the resize accepts, in document units.
 const MAX_DIAMETER: f64 = 400.0;
-/// How far the resize story drags the pointer from the press, in screen points, across and down.
-const DRAG_ACROSS: f32 = 30.0;
-const DRAG_DOWN: f32 = 40.0;
+/// How far the resize story drags the pointer from the press, as a share of the canvas size.
+const DRAG_SHARE: f32 = 0.05;
 /// The aliased tip's cell: its corners in document units.
 const CELL: DocRect = DocRect::new(96.0, 96.0, 104.0, 104.0);
 
@@ -51,7 +50,7 @@ fn resize_in_progress(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
         let mut resize = BrushResize::default();
         let press = view.to_screen(CENTRE);
         resize.begin(view, press, START, &BrushResizeOptions::new(MAX_DIAMETER));
-        resize.track(view, press + vec2(DRAG_ACROSS, DRAG_DOWN));
+        resize.track(view, press + view.rect.size() * DRAG_SHARE);
         let now = resize.dimensions().unwrap_or(START);
         let falloff = TipFalloff::from_hardness(now.diameter / 2.0, now.level);
         match resize.preview(&falloff) {

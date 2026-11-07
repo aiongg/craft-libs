@@ -61,12 +61,12 @@ fn the_painting_cursor_follows_the_preferences() {
     let tip = BrushTip::round(DIAMETER, NORMAL);
     let brush = BrushCursor::new(&tip);
     let view = view();
-    let show = |cursor: &BrushCursor<'_>, options: &BrushCursorOptions, caps: bool| painted(cursor.cursor(options, &view, caps));
+    let pick = |cursor: &BrushCursor<'_>, options: &BrushCursorOptions, caps: bool| painted(cursor.cursor(options, &view, caps));
 
-    assert!(matches!(show(&brush, &options(PaintingCursor::Standard), false), PaintedCursor::Tool { .. }));
-    assert_eq!(show(&brush, &options(PaintingCursor::Precise), false), PaintedCursor::Crosshair);
-    let normal = radius(&show(&brush, &options(PaintingCursor::NormalBrushTip), false));
-    let full = radius(&show(&brush, &options(PaintingCursor::FullSizeBrushTip), false));
+    assert!(matches!(pick(&brush, &options(PaintingCursor::Standard), false), PaintedCursor::Tool { .. }));
+    assert_eq!(pick(&brush, &options(PaintingCursor::Precise), false), PaintedCursor::Crosshair);
+    let normal = radius(&pick(&brush, &options(PaintingCursor::NormalBrushTip), false));
+    let full = radius(&pick(&brush, &options(PaintingCursor::FullSizeBrushTip), false));
     // The two outlines are in the proportion of the tip's radii, and zooming in scales them.
     assert!((full / normal - (DIAMETER / 2.0 / NORMAL) as f32).abs() < SLACK);
     let zoomed = BrushCursor::new(&tip).cursor(&options(PaintingCursor::NormalBrushTip), &view_at(2.0 * ZOOM), false);
@@ -74,14 +74,14 @@ fn the_painting_cursor_follows_the_preferences() {
 
     // Caps Lock gives the crosshair over every preference, unless the preference turns it off.
     for painting in [PaintingCursor::Standard, PaintingCursor::NormalBrushTip] {
-        assert_eq!(show(&brush, &options(painting), true), PaintedCursor::Crosshair);
+        assert_eq!(pick(&brush, &options(painting), true), PaintedCursor::Crosshair);
     }
-    assert!(matches!(show(&brush, &options(PaintingCursor::NormalBrushTip).caps_lock_precise(false), true), PaintedCursor::Circle { .. }));
+    assert!(matches!(pick(&brush, &options(PaintingCursor::NormalBrushTip).caps_lock_precise(false), true), PaintedCursor::Circle { .. }));
 
     // Show Only Crosshair While Painting applies to a stroke only.
     let only = options(PaintingCursor::NormalBrushTip).show_only_crosshair_while_painting(true);
-    assert_eq!(show(&BrushCursor::new(&tip).painting(true), &only, false), PaintedCursor::Crosshair);
-    assert!(matches!(show(&brush, &only, false), PaintedCursor::Circle { .. }));
+    assert_eq!(pick(&BrushCursor::new(&tip).painting(true), &only, false), PaintedCursor::Crosshair);
+    assert!(matches!(pick(&brush, &only, false), PaintedCursor::Circle { .. }));
 }
 
 #[trial]
