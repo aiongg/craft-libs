@@ -1,8 +1,42 @@
 //! The per-shape cases: they run once, on one sample component, because only shared code can break them.
 
+use super::{ANY, Case, Subject};
 use crate::testing::fixture::Fixture;
+use crate::testing::story::Required;
 use egui::{Pos2, Rect, Vec2};
 use libtest_mimic::{Failed, Trial};
+
+pub(super) const CASES: &[Case] = &[Case::new("paints-inside", ANY, small_rooms_paint_inside_the_shown_rect)];
+
+/// The slack between a painted bound and the shown rect: the rounding of the layout, as the layout cases allow.
+const ROUNDING: f32 = 0.5;
+
+/// A story shown in a room of 1 by 1 and in a room of half its settled size does not panic, paints only inside the
+/// rect it allocated and registers finite part shapes. A story that shows an open popup is skipped: the popup is
+/// another layer, with a rect of its own.
+fn small_rooms_paint_inside_the_shown_rect(subject: &Subject) -> Result<(), String> {
+    for story in subject.stories.iter().filter(|story| !story.covers.contains(&Required::Open)) {
+        let settled = {
+            let mut fixture = Fixture::story(story);
+            fixture.settle();
+            fixture.shown().size()
+        };
+        for room in [Vec2::splat(1.0), settled / 2.0] {
+            let mut fixture = Fixture::story(story);
+            fixture.room(room);
+            fixture.settle();
+            let shown = fixture.shown().expand(ROUNDING);
+            if let Some(outside) = fixture.shape_bounds().iter().find(|bounds| !shown.contains_rect(**bounds)) {
+                return Err(format!("{}: in a room of {room:?} a shape paints at {outside:?}, outside {:?}", story.name, fixture.shown()));
+            }
+            let tree = fixture.tree();
+            if tree.keys().into_iter().filter_map(|key| tree.bounds_of(key)).any(|bounds| !(bounds.min.is_finite() && bounds.max.is_finite())) {
+                return Err(format!("{}: in a room of {room:?} a part has non-finite bounds", story.name));
+            }
+        }
+    }
+    Ok(())
+}
 
 /// The trials that run once, beside the per-type trials of `craft-ui`'s own package.
 pub(super) fn trials(package: &'static str) -> Vec<Trial> {
