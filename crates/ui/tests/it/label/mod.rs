@@ -230,7 +230,7 @@ fn a_label_that_describes_leaves_the_control_its_name() {
     let mut value = 1.0;
     let describes = SideLabel::new().role(FieldLabelRole::Describes);
     frames.idle(2, |ui| {
-        Field::new("Opacity", describes).id_salt("describes").show_at(ui, ROW_A, |ui, _| {
+        Field::new("Opacity", describes.clone()).id_salt("describes").show_at(ui, ROW_A, |ui, _| {
             Dial::new(&mut value, &seen).label("Alpha").show(ui);
         });
     });
@@ -286,7 +286,7 @@ fn a_label_with_an_icon_and_detail_names_by_text_and_describes_by_detail() {
     let seen = RefCell::new(Seen::default());
     let mut value = 1.0;
     let side = SideLabel::new().icon(craft_behavior::IconId::new("eye")).detail("12 layers");
-    let mut row = |ui: &mut Ui, value: &mut f64| {
+    let row = |ui: &mut Ui, value: &mut f64| {
         Field::new("Opacity", side.clone()).id_salt("detailed").show_at(ui, ROW_A, |ui, _| {
             Dial::new(value, &seen).show(ui);
         });

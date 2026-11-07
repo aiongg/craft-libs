@@ -211,7 +211,7 @@ fn radio_rows_labelled_through_the_body_select_on_click() {
     let mut frames = Frames::new();
     let mut value = 1u8;
     let radios = RefCell::new(Vec::<(Rect, Id)>::new());
-    let mut show = |ui: &mut Ui, value: &mut u8| {
+    let show = |ui: &mut Ui, value: &mut u8| {
         radios.borrow_mut().clear();
         RadioGroup::new("Show", Bind::bound(value)).id_salt("group").show(ui, |ui, cx| {
             for (v, text, count) in [(1u8, "Layers", "12"), (2, "Pages", "4")] {

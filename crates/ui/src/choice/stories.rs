@@ -83,7 +83,13 @@ fn radio_group_with_icons_and_counts(ui: &mut Ui, data: &mut StoryData) -> Story
     RadioGroup::new("Show", Bind::bound(data.value("show", 1u8)))
         .show(ui, |ui, cx| {
             for (value, label, icon, count) in rows {
-                cx.labelled(ui, value, label.into(), SideLabel::new().icon(IconId::new(icon)).detail(count), Radio::new(value));
+                cx.labelled(
+                    ui,
+                    value,
+                    label.into(),
+                    SideLabel::new().icon(IconId::new(icon)).detail(count),
+                    Radio::new(value).label(label).keeps_name(true),
+                );
             }
         })
         .into()
