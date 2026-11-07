@@ -37,7 +37,7 @@ use crate::report::Finding;
 use sites::Site;
 
 /// Every rule id of this module, for the marker and exemption validation in [`crate::RULES`].
-pub(crate) const IDS: [&str; 36] = [
+pub(crate) const IDS: [&str; 37] = [
     egui_import::ID,
     allocate::ID,
     egui_widget::ID,
@@ -73,6 +73,7 @@ pub(crate) const IDS: [&str; 36] = [
     shape::SHADOW,
     shape::WIDGET,
     shape::OVERLAY_FLAG,
+    shape::REGISTRATION,
     unsafe_allow::ID,
 ];
 

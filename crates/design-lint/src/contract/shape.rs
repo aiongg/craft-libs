@@ -1,5 +1,6 @@
 //! `contract/shadow`, `contract/widget`, `contract/overlay-flag`: what the derive writes is not written by hand (spec 1.2).
 
+use proc_macro2::TokenTree;
 use syn::{ImplItem, Item};
 
 use crate::report::Finding;
@@ -15,11 +16,57 @@ pub const SHADOW: &str = "contract/shadow";
 pub const WIDGET: &str = "contract/widget";
 /// An overridden `overlay` on a type without `#[component(overlay)]`.
 pub const OVERLAY_FLAG: &str = "contract/overlay-flag";
+/// An `impl Component for` a type that neither derives `Component` nor appears in `register_contract!`.
+pub const REGISTRATION: &str = "contract/registration";
 
 /// The names of the sealed show traits' functions; an inherent function of one of them hides the trait's.
 const SHOW_NAMES: [&str; 5] = ["show", "show_at", "show_in", "show_with_tip", "show_at_with_tip"];
 
+/// The identifiers inside the file's `register_contract!(..)` invocations.
+fn registered_names(cx: &Cx<'_>) -> Vec<String> {
+    let mut names = Vec::new();
+    for item in flat_items(&cx.file.items) {
+        let Item::Macro(m) = item else { continue };
+        if m.mac.path.segments.last().is_some_and(|s| s.ident == "register_contract") {
+            collect_idents(m.mac.tokens.clone(), &mut names);
+        }
+    }
+    names
+}
+
+fn collect_idents(tokens: proc_macro2::TokenStream, names: &mut Vec<String>) {
+    for token in tokens {
+        match token {
+            TokenTree::Ident(ident) => names.push(ident.to_string()),
+            TokenTree::Group(group) => collect_idents(group.stream(), names),
+            _ => {}
+        }
+    }
+}
+
+fn check_registration(cx: &Cx<'_>, out: &mut Vec<Finding>) {
+    let registered = registered_names(cx);
+    for item in flat_items(&cx.file.items) {
+        let Item::Impl(imp) = item else { continue };
+        if trait_name(imp).as_deref() != Some("Component") {
+            continue;
+        }
+        let Some(owner) = self_name(imp) else { continue };
+        let unregistered = cx.types.get(&owner).is_some_and(|f| f.defined && !f.derives_component) && !registered.contains(&owner);
+        if unregistered {
+            cx.flag_span(
+                out,
+                REGISTRATION,
+                REGISTRATION,
+                imp.impl_token.span,
+                format!("`impl Component for {owner}` without `#[derive(Component)]`: register it with `register_contract!({owner})`"),
+            );
+        }
+    }
+}
+
 pub(super) fn check(cx: &Cx<'_>, out: &mut Vec<Finding>) {
+    check_registration(cx, out);
     let widget_names = egui_widget_names(cx);
     for item in flat_items(&cx.file.items) {
         let Item::Impl(imp) = item else { continue };
