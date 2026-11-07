@@ -9,10 +9,18 @@ description = "Story viewer over craft-ui's registered stories"
 publish = false
 autotests = false
 
+[lib]
+path = "src/lib.rs"
+
 [[bin]]
 name = "craft-ui-gallery"
 path = "src/main.rs"
 test = false
+
+[[test]]
+name = "it"
+path = "tests/it/main.rs"
+harness = false
 
 [lints]
 workspace = true
@@ -27,3 +35,12 @@ eframe = { version = "0.37", default-features = false }
 proc-macro2 = "1"
 quote = "1"
 syn = { version = "2", features = ["full"] }
+
+# The viewer's saved settings and its panel layout.
+craft-behavior = { workspace = true }
+craft-settings = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+libtest-mimic = "0.8"

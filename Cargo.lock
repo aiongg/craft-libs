@@ -1754,14 +1754,19 @@ dependencies = [
 name = "craft-ui-gallery"
 version = "0.1.0"
 dependencies = [
+ "craft-behavior",
  "craft-i18n",
+ "craft-settings",
  "craft-theme",
  "craft-ui",
  "craft-window",
  "eframe",
  "egui",
+ "libtest-mimic",
  "proc-macro2",
  "quote",
+ "serde",
+ "serde_json",
  "syn 2.0.119",
 ]
 

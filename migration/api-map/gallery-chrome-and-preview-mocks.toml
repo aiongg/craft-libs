@@ -2,7 +2,7 @@
 # Filled in by the family track; the codemods and the app scan read it.
 
 family = "Gallery chrome and preview mocks"
-new_module = ""
+new_module = "craft_ui_gallery"
 
 # One entry per public type: `old` is the path an app calls today, `new` the path after migration.
 # `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
@@ -12,3 +12,45 @@ new_module = ""
 # type = ""
 # old = ""
 # new = ""
+
+[[type]]
+name = "Gallery"
+old = "craft_ui_gallery_legacy::Gallery"
+new = "craft_ui_gallery::chrome::Gallery"
+status = "moved"
+note = "The root of the viewer window, a `ShellApp`: `Gallery::open()` reads the gallery's config.toml and shows the registered stories. The eframe `App` with its storage is gone; settings go through craft_settings."
+
+[[type]]
+name = "Appearance"
+old = "craft_ui_gallery_legacy::Appearance"
+new = "craft_ui_gallery::viewer::Appearance"
+status = "moved"
+note = "Holds the fields `RootEnv` has a home for: mode, contrast, text size, density, motion, scale, and the direction and control size the cells show. The theme id, interface and mono faces, icon set and language have no home in `RootEnv`; `Appearance::root_env` returns the root values."
+
+[[type]]
+name = "PanelId"
+old = "craft_ui_gallery_legacy::layout::PanelId"
+new = ""
+status = "removed"
+note = "The viewer has four panels, one `GroupId` each: `viewer::{COMPONENTS, STORIES, FACTS, RECORD}`."
+
+[[type]]
+name = "GalleryWorkspace"
+old = "craft_ui_gallery_legacy::layout::GalleryWorkspace"
+new = ""
+status = "removed"
+note = "The viewer has one workspace. The Theme workspace belongs to the theme panels of the gallery-c track."
+
+[[type]]
+name = "PreviewView"
+old = "craft_ui_gallery_legacy::layout::PreviewView"
+new = ""
+status = "removed"
+note = "The story panel shows the selected component's stories in a direction by control size grid."
+
+[[type]]
+name = "VariantAxis"
+old = "craft_ui_gallery_legacy::layout::VariantAxis"
+new = ""
+status = "removed"
+note = "The Variants axes theme, mode and contrast are the options bar's choices; a per-cell override of them needs `Overrides` to carry mode and contrast."
