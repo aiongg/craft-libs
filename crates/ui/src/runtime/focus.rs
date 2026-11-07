@@ -95,7 +95,6 @@ pub(crate) struct State {
     pub(super) pending: Option<FocusTarget>,
     pub(super) docs: HashMap<DocKey, Id>,
     pub(super) revealed: Option<StopKey>,
-    #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
     pub(super) seen: HashMap<Id, u64>,
     pub(crate) visible: bool,
     pub(crate) record: FocusedRecord,
@@ -140,7 +139,6 @@ pub(crate) fn register_group(ctx: &Context, group: Group) {
 }
 
 /// Opens the scope `id` for the stops registered until the matching [`pop_scope`].
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 pub(crate) fn push_scope(ctx: &Context, id: Id, policy: FocusPolicy, label: Option<Arc<str>>) {
     let focused = egui_focus::focused(ctx);
     with(ctx, |state| {
@@ -156,7 +154,6 @@ pub(crate) fn push_scope(ctx: &Context, id: Id, policy: FocusPolicy, label: Opti
 
 /// Closes the innermost open scope. A scope pushed for the first time (or again after a gap of a frame)
 /// moves focus to its initial stop, in this pass.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 pub(crate) fn pop_scope(ctx: &Context) {
     let frame = crate::runtime::egui::pass::frame_nr(ctx, viewport(ctx));
     let acts = with(ctx, |state| nav::initial_focus(state, frame));

@@ -9,7 +9,6 @@ fn stack_layout(right_to_left: bool) -> Layout {
 }
 
 /// The physical layout of a `Row` body: left to right, right to left under RTL, items on the top line.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 pub(crate) fn row_layout(right_to_left: bool, wrap: bool) -> Layout {
     let layout = if right_to_left { Layout::right_to_left(Align::Min) } else { Layout::left_to_right(Align::Min) };
     layout.with_main_wrap(wrap)
@@ -23,7 +22,6 @@ pub(crate) fn pinned_layout() -> Layout {
 
 /// Runs `body` in a child `Ui` with an explicit layout and returns what it produced with the rect the child
 /// took in `ui`. `rect` bounds the child; `None` gives it the rest of the parent.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 pub(crate) fn block<R>(ui: &mut Ui, rect: Option<Rect>, layout: Layout, body: impl FnOnce(&mut Ui) -> R) -> (R, Rect) {
     let mut builder = UiBuilder::new().layout(layout);
     if let Some(rect) = rect {

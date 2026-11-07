@@ -783,12 +783,48 @@ pub struct BodyCx<'a> {
     /// The body's rect.
     pub rect: Rect,
     pub(crate) memory: &'a mut MemoryStage,
+    open: &'a mut bool,
+    gate: Option<&'a mut bool>,
+    close: bool,
 }
 
 impl<'a> BodyCx<'a> {
-    pub(crate) fn new(id: Id, env: EnvView<'a>, resolved: &'a Resolved<'a>, rect: Rect, memory: &'a mut MemoryStage) -> Self {
+    pub(crate) fn new(
+        id: Id,
+        env: EnvView<'a>,
+        resolved: &'a Resolved<'a>,
+        rect: Rect,
+        memory: &'a mut MemoryStage,
+        open: &'a mut bool,
+        gate: Option<&'a mut bool>,
+    ) -> Self {
         memory.claim(id);
-        BodyCx { id, env, resolved, rect, memory }
+        BodyCx { id, env, resolved, rect, memory, open, gate, close: false }
+    }
+
+    /// Whether the body is open.
+    pub fn is_open(&self) -> bool {
+        *self.open
+    }
+
+    /// The open state: a title row's disclosure binds to it, and step 15 writes a change to its owner.
+    pub fn open(&mut self) -> &mut bool {
+        self.open
+    }
+
+    /// The gate's shown copy, for a container whose value is a bool: a title row's check box binds to it, and
+    /// step 15 applies a change. Under a gate that is off the body is disabled.
+    pub fn gate(&mut self) -> Option<&mut bool> {
+        self.gate.as_deref_mut()
+    }
+
+    /// Asks the container to close: step 15 closes it.
+    pub fn request_close(&mut self) {
+        self.close = true;
+    }
+
+    pub(crate) fn close_requested(&self) -> bool {
+        self.close
     }
 }
 

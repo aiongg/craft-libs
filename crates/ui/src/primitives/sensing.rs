@@ -243,7 +243,6 @@ pub(crate) fn join(ctx: &Context, arena: ArenaId, layer: Layer, mut decl: Member
 }
 
 /// Records the transformed body's egui layer.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 pub(crate) fn set_layer(ctx: &Context, arena: ArenaId, layer: Layer) {
     let pass_nr = pass::pass_nr(ctx, pass::current_viewport(ctx));
     with_arena(ctx, arena, pass_nr, |state| state.layer = Some(layer));
@@ -259,7 +258,6 @@ pub(crate) struct RootSpec<'a> {
 }
 
 /// What a root reads back: the response, the lifecycle outcome and the owner's own results.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 pub(crate) struct RootResult {
     pub response: Response,
     pub parts: PartResults,

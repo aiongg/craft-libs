@@ -1,8 +1,10 @@
 //! The component traits, context types, `PaintUi`, `Looks`, the pipeline and its step functions, the label, body and item steps, the mount and overlay hosts and `contract::tooltip`.
 
+mod body;
 mod container;
 mod cx;
 mod looks;
+mod mount;
 mod paint_ui;
 mod props;
 mod registry;
@@ -27,7 +29,8 @@ pub use registry::REGISTRATIONS;
 #[doc(hidden)]
 pub use registry::{CollectionEntry, ContainerEntry, Entry, Exemption, LeafEntry, Probe, Registration};
 pub use container::{
-    Collapse, ContainerProps, DragBand, FooterRegion, Gap, HeaderRegion, Mount, Notch, Overlay, Pad, Scroll, ScrollAnchor, ScrollAxes, ShellPane,
+    Collapse, ContainerProps, DragBand, FooterRegion, Gap, HeaderRegion, Mount, Notch, Overlay, Pad, PaneEdge, Scroll, ScrollAnchor, ScrollAxes,
+    ShellPane,
     SideLabel, Sizing, ThemeScope,
 };
 pub use shell::{CollectionProps, OverlayUi};

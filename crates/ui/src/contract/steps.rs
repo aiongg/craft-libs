@@ -848,7 +848,6 @@ pub(crate) struct Reveal {
 struct Reveals(Vec<Reveal>);
 
 /// The reveal request addressed to `owner`, once.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "read by the body and item scroll (F5, F6)"))]
 pub(crate) fn take_reveal(ctx: &Context, owner: Id) -> Option<Rect> {
     store::Service::<Reveals>::of(ctx).with(|reveals| {
         let at = reveals.0.iter().position(|reveal| reveal.owner == owner)?;

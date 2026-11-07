@@ -39,15 +39,43 @@ impl Mount {
     }
 }
 
+/// Where a shell pane sits.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum PaneEdge {
+    /// What the edge panes leave.
+    #[default]
+    Center,
+    /// The start edge: left in reading order, right under right-to-left.
+    Start,
+    /// The end edge.
+    End,
+    /// The top edge.
+    Top,
+    /// The bottom edge.
+    Bottom,
+}
+
 /// One of `AppShell`'s panes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
-pub struct ShellPane(pub &'static str);
+pub struct ShellPane {
+    /// The pane's name.
+    pub name: &'static str,
+    /// The edge the pane sits on.
+    pub edge: PaneEdge,
+}
 
 impl ShellPane {
-    /// The pane named `name`.
+    /// The central pane named `name`.
     pub const fn new(name: &'static str) -> Self {
-        ShellPane(name)
+        ShellPane { name, edge: PaneEdge::Center }
+    }
+
+    /// The pane at `edge`.
+    pub const fn edge(mut self, edge: PaneEdge) -> Self {
+        self.edge = edge;
+        self
     }
 }
 
@@ -58,12 +86,20 @@ impl ShellPane {
 pub struct Overlay {
     /// The focus scope of the layer.
     pub focus: FocusPolicy,
+    /// Edge grips resize the layer.
+    pub resizable: bool,
 }
 
 impl Overlay {
     /// A layer with no focus scope of its own.
     pub const fn new() -> Self {
-        Overlay { focus: FocusPolicy::NONE }
+        Overlay { focus: FocusPolicy::NONE, resizable: false }
+    }
+
+    /// Whether edge grips resize the layer.
+    pub const fn resizable(mut self, on: bool) -> Self {
+        self.resizable = on;
+        self
     }
 
     /// The layer's focus scope.

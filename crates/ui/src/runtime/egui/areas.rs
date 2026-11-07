@@ -46,13 +46,11 @@ pub(crate) fn layer_at(ctx: &Context, point: Pos2) -> Option<LayerId> {
     ctx.layer_id_at(point)
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the F5 mount host"))]
 /// The layer of a transformed body: a sublayer of `parent` in the parent's order, named by `root`.
 pub(crate) fn body_layer(parent: LayerId, root: Id) -> LayerId {
     LayerId::new(parent.order, crate::runtime::memory::sub(root, "body_layer"))
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the F5 mount host"))]
 /// What a transformed body's forwarding widget carries: the root's sense and interact rect, in screen space.
 pub(crate) struct Forward {
     pub id: Id,
@@ -60,7 +58,6 @@ pub(crate) struct Forward {
     pub rect: Rect,
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the F5 mount host"))]
 /// Shows a transformed body: `layer` is shown through `transform`, a sublayer of `parent`, with its top left
 /// at `at` in its own space. The forwarding widget, when given, is registered on the layer first, so an
 /// allocating `Ui` on the layer cannot hide the root under egui's layer-cover rule.
@@ -92,3 +89,8 @@ pub(crate) fn show_body_layer<R>(
 
 /// An egui layer, as the runtime's shape records name it.
 pub type LayerKey = egui::LayerId;
+
+/// Shows `body` on its own layer with its top left at `at`, in the foreground order.
+pub(crate) fn show_layer<R>(ctx: &Context, id: Id, at: Pos2, body: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    egui::Area::new(id).order(egui::Order::Foreground).pivot(egui::Align2::LEFT_TOP).fixed_pos(at).constrain(false).show(ctx, body).inner
+}
