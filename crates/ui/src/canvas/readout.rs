@@ -1,7 +1,7 @@
 //! The readout: values beside the pointer during a canvas gesture ("W 120 px", "Angle 15 deg").
 
+use crate::contract::ghost;
 use crate::primitives::{Draw, DrawEnv, PaintRecord, TextRun};
-use crate::runtime::egui::areas;
 use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::StageAccess;
 use crate::style::{Corners, Ink, SurfaceKind};
@@ -20,7 +20,7 @@ pub fn readout(cx: &impl StageAccess, at: Pos2, rows: &[(Label, String)]) {
     }
     let ctx = cx.stage().ctx();
     let env = Env::of_root(ctx);
-    let painter = areas::ghost_painter(ctx);
+    let painter = ghost::painter(ctx);
     let record = RefCell::new(PaintRecord::default());
     let draw = Draw::new(&painter, &record, DrawEnv { tokens: &env.tokens, direction: env.direction, ink: Ink::OnPanel });
     let view = env.view();

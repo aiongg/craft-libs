@@ -1,30 +1,77 @@
-//! The ghost layer's content (8.4, 8.5): the running drag's preview badge beside the pointer and the mark of the drop
-//! target that would take the payload. Both come from the drag session's data; the layer takes no input.
+//! The ghost layer's content (8.4, 8.5): the running drag's preview beside the pointer, the mark of the drop target that
+//! would take the payload, and the painted pointer the cursor service settled on. They come from the drag session's
+//! data and the cursor record; the layer takes no input.
+
+mod pointers;
 
 use crate::primitives::{Draw, DrawEnv, PaintRecord, PaintShape, RuleKind, TextRun, outline};
 use crate::runtime::drag::{self, DragPreview, DropMark};
 use crate::runtime::egui::areas;
 use crate::runtime::env::Env;
-use crate::runtime::pointer;
+use crate::runtime::{cursor, pointer};
 use crate::style::{Corners, Ink, SurfaceKind};
 use egui::{Context, CornerRadius, Pos2, Rect, Vec2};
 use std::cell::RefCell;
 
 /// The end hook's painter of the ghost layer: pass it to `InstallSpec::frame_layers`.
 pub fn paint(ctx: &Context) {
-    let Some(session) = drag::ghost(ctx) else { return };
     let env = Env::of_root(ctx);
-    let painter = areas::ghost_painter(ctx);
+    let painter = painter(ctx);
     let record = RefCell::new(PaintRecord::default());
     let draw = Draw::new(&painter, &record, DrawEnv { tokens: &env.tokens, direction: env.direction, ink: Ink::OnPanel });
+    paint_pointer(ctx, &env, &painter);
+    if let Some(session) = drag::ghost(ctx) {
+        paint_drag(ctx, &env, &painter, &draw, &session);
+    }
+}
+
+/// The painter of the ghost layer, over the whole screen and above every popup. The layer takes no input.
+pub(crate) fn painter(ctx: &Context) -> egui::Painter {
+    areas::ghost_painter(ctx)
+}
+
+/// The painted pointer. A circle or crosshair is painted by the overlay host (`areas::paint_cursor`); the others are
+/// here, where the primitives that draw icons are reachable.
+fn paint_pointer(ctx: &Context, env: &Env, painter: &egui::Painter) {
+    use craft_behavior::{Cursor, PaintedCursor};
+    let Some(at) = areas::pointer_pos(ctx) else { return };
+    let Some(Cursor::Painted(cursor)) = cursor::current(ctx) else { return };
+    let overlay = &env.tokens.color.overlay;
+    let pen = pointers::Pen {
+        painter,
+        at,
+        fill: crate::style::rgba_color(overlay.stroke),
+        halo: crate::style::rgba_color(overlay.halo),
+        thin: env.tokens.stroke.thin,
+    };
+    match &cursor {
+        PaintedCursor::Outline { rings, .. } => pointers::outline(&pen, rings),
+        PaintedCursor::Hand => pointers::hand(&pen),
+        PaintedCursor::Zoom { out, .. } => pointers::zoom(&pen, *out),
+        PaintedCursor::Tool { icon, hotspot, badge, .. } => {
+            let record = RefCell::new(PaintRecord::default());
+            let on_dark = Draw::new(painter, &record, DrawEnv { tokens: &env.tokens, direction: env.direction, ink: Ink::OnDark });
+            pointers::tool(&pen, &on_dark, icon, *hotspot, *badge, env.tokens.size.icon.md);
+        }
+        PaintedCursor::Badged { badge, .. } => pointers::badge_beside(&pen, *badge),
+        PaintedCursor::Turn { toward, .. } => pointers::turn(&pen, *toward),
+        PaintedCursor::Distort { dir, .. } => pointers::distort(&pen, *dir),
+        PaintedCursor::Skew { dir, .. } => pointers::skew(&pen, *dir),
+        // `Hidden` paints nothing; a circle and a crosshair are the overlay host's.
+        _ => {}
+    }
+}
+
+/// The drag preview and the drop mark of the running drag.
+fn paint_drag(ctx: &Context, env: &Env, painter: &egui::Painter, draw: &Draw<'_>, session: &drag::Ghost) {
     if let Some(mark) = session.mark {
-        paint_mark(&draw, mark);
+        paint_mark(draw, mark);
     }
     let Some(at) = pointer::frame(ctx).pos else { return };
     match &session.preview {
         DragPreview::Badge(label) => {
             let label = env.view().resolve(label);
-            paint_badge(&draw, &env, at, label.as_str());
+            paint_badge(draw, env, at, label.as_str());
         }
         DragPreview::Frame { size, label } => {
             let frame = Rect::from_center_size(at, *size);
