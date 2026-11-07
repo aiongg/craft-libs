@@ -1,6 +1,6 @@
 //! `SelectFace`: the closed box of a dropdown picker, the text and a trailing chevron.
 
-use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role, Styled as _};
+use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Pointer as _, PopupHandle, Props as _, Role, Styled as _};
 use crate::primitives::{IconSpec, TextRun};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, IconLook, Ink, StyleCx, TextLook, TypeRole};
@@ -77,7 +77,7 @@ impl Component for SelectFace {
         SelectFaceStyle {
             metrics: field.metrics(),
             text: TextLook::new(TypeRole::Body, cx.host_ink(Stateful::new(cx.ink(Ink::OnPanel)))),
-            placeholder: TextLook::new(TypeRole::Body, Stateful::new(muted)),
+            placeholder: TextLook::new(TypeRole::Body, cx.host_ink(Stateful::new(muted))),
             chevron: IconLook::new(field.glyph().side, cx.host_ink(Stateful::new(cx.ink(Ink::OnPanel)))),
             field,
         }
@@ -105,5 +105,17 @@ impl Component for SelectFace {
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {
         cx.response.clone()
+    }
+}
+
+/// Opens the popup of a picker whose face part toggles it, from the keyboard: Enter and Space (an activation by key)
+/// toggle it. A click on the face reaches the popup through the part's `toggles`, so the pointer is not read here.
+pub(super) fn toggle_on_key<C: Component>(cx: &mut Cx<'_, C>, popup: PopupHandle) {
+    if cx.activation().is_some_and(|activation| activation.by_key) {
+        if popup.is_open(cx) {
+            popup.close(cx);
+        } else {
+            popup.open(cx);
+        }
     }
 }

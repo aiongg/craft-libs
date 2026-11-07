@@ -143,3 +143,50 @@ fn arrows_on_a_closed_select_skip_disabled_entries() {
     fixture.idle(2);
     assert_eq!(value.get(), 0);
 }
+
+/// A focused, searchable select over `names` with its list open.
+fn searchable(names: &'static [&'static str]) -> Rig {
+    let (value, id) = (Rc::new(Cell::new(0u8)), Rc::new(Cell::new(Id::NULL)));
+    let (shown_value, shown_id) = (value.clone(), id.clone());
+    let mut fixture = Fixture::new(move |ui| {
+        let entries: Vec<Entry<u8>> = names.iter().zip(0u8..).map(|(name, at)| Entry::new(at, *name)).collect();
+        let mut picked = shown_value.get();
+        let out = Select::new("Fruit", Bind::bound(&mut picked), &entries).searchable().id_salt("fruit").show(ui);
+        shown_value.set(picked);
+        shown_id.set(out.response.id);
+    });
+    fixture.settle();
+    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.idle(2);
+    let mut rig = Rig { fixture, value, id };
+    rig.open();
+    rig
+}
+
+impl Rig {
+    /// The names of the option rows the list shows, in order.
+    fn listed(&self) -> Vec<String> {
+        let tree = self.fixture.tree();
+        tree.with_role(Role::LIST_BOX_OPTION).iter().filter_map(|key| tree.name_of(*key)).map(str::to_owned).collect()
+    }
+}
+
+/// The filter folds accents: "cafe" lists "Café".
+#[trial]
+fn a_searchable_select_finds_accented_names() {
+    let mut rig = searchable(&["Apple", "Café", "Cherry"]);
+    rig.fixture.type_text("cafe");
+    rig.fixture.idle(4);
+    assert_eq!(rig.listed(), ["Café"]);
+}
+
+/// Typing "b" narrows the list to the entries that match, Down moves the lead to the first of them and Enter picks it.
+#[trial]
+fn typing_then_down_and_enter_picks_the_first_match() {
+    let mut rig = searchable(&["Apple", "Banana", "Cherry", "Blueberry"]);
+    rig.fixture.type_text("b");
+    rig.fixture.idle(4);
+    rig.press(Key::ArrowDown);
+    rig.press(Key::Enter);
+    assert_eq!(rig.value.get(), 1, "Banana is the first entry that matches");
+}
