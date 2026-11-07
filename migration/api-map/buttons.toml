@@ -1,0 +1,45 @@
+# API map of the "Buttons" family: old path to new path and setter renames.
+# Filled in by the family track; the codemods and the app scan read it.
+
+family = "Buttons"
+new_module = "craft_ui::buttons"
+
+# One entry per public type: `old` is the path an app calls today, `new` the path after migration.
+# `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
+
+[[type]]
+name = "Button"
+old = "craft_ui::controls::button::Button"
+new = "craft_ui::buttons::Button"
+status = "pending"
+
+[[type]]
+name = "IconButton"
+old = ""
+# found in: craft_ui::controls::icon_button::IconButton, craft_ui::buttons::IconButton
+new = "craft_ui::buttons::IconButton"
+status = "pending"
+
+[[type]]
+name = "ToggleButton"
+old = "craft_ui::controls::toggle_button::ToggleButton"
+new = "craft_ui::buttons::ToggleButton"
+status = "pending"
+
+[[type]]
+name = "SplitButton"
+old = "craft_ui::controls::split_button::SplitButton"
+new = "craft_ui::buttons::SplitButton"
+status = "pending"
+
+[[type]]
+name = "Link"
+old = "craft_ui::controls::link::Link"
+new = "craft_ui::buttons::Link"
+status = "pending"
+
+# One entry per renamed, removed or reshaped setter or constructor.
+# [[setter]]
+# type = ""
+# old = ""
+# new = ""

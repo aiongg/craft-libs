@@ -1,0 +1,56 @@
+# API map of the "Bars" family: old path to new path and setter renames.
+# Filled in by the family track; the codemods and the app scan read it.
+
+family = "Bars"
+new_module = "craft_ui::bars"
+
+# One entry per public type: `old` is the path an app calls today, `new` the path after migration.
+# `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
+
+[[type]]
+name = "Toolbar"
+old = "craft_ui::patterns::toolbar::Toolbar"
+new = "craft_ui::bars::Toolbar"
+status = "pending"
+
+[[type]]
+name = "OptionsBar"
+old = "craft_ui::patterns::options_bar::OptionsBar"
+new = "craft_ui::bars::OptionsBar"
+status = "pending"
+
+[[type]]
+name = "StatusBar"
+old = "craft_ui::patterns::status_bar::StatusBar"
+new = "craft_ui::bars::StatusBar"
+status = "pending"
+
+[[type]]
+name = "StatusReadout"
+old = "craft_ui::patterns::status_readout::StatusReadout"
+new = "craft_ui::bars::StatusReadout"
+status = "pending"
+
+[[type]]
+name = "AlignBar"
+old = "craft_ui::patterns::align::AlignBar"
+new = "craft_ui::bars::AlignBar"
+status = "pending"
+
+[[type]]
+name = "PanelFooter"
+old = "craft_ui::composites::panel_footer::PanelFooter"
+new = "craft_ui::bars::PanelFooter"
+status = "pending"
+
+[[type]]
+name = "BreadcrumbBar"
+old = "craft_ui::controls::breadcrumb::BreadcrumbBar"
+new = "craft_ui::bars::BreadcrumbBar"
+status = "pending"
+
+# One entry per renamed, removed or reshaped setter or constructor.
+# [[setter]]
+# type = ""
+# old = ""
+# new = ""

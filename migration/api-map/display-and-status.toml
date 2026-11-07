@@ -1,0 +1,64 @@
+# API map of the "Display and status" family: old path to new path and setter renames.
+# Filled in by the family track; the codemods and the app scan read it.
+
+family = "Display and status"
+new_module = "craft_ui::display"
+
+# One entry per public type: `old` is the path an app calls today, `new` the path after migration.
+# `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
+
+[[type]]
+name = "Badge"
+old = "craft_ui::controls::badge::Badge"
+new = "craft_ui::display::Badge"
+status = "pending"
+
+[[type]]
+name = "Kbd"
+old = "craft_ui::controls::kbd::Kbd"
+new = "craft_ui::display::Kbd"
+status = "pending"
+
+[[type]]
+name = "Progress"
+old = "craft_ui::controls::progress::Progress"
+new = "craft_ui::display::Progress"
+status = "pending"
+
+[[type]]
+name = "Spinner"
+old = "craft_ui::controls::spinner::Spinner"
+new = "craft_ui::display::Spinner"
+status = "pending"
+
+[[type]]
+name = "SectionLabel"
+old = "craft_ui::composites::section_label::SectionLabel"
+new = "craft_ui::display::SectionLabel"
+status = "pending"
+
+[[type]]
+name = "Text"
+old = "craft_ui::primitives::text::Text"
+new = "craft_ui::display::Text"
+status = "pending"
+
+[[type]]
+name = "Icon"
+old = ""
+# found in: craft_ui::direction::Icon, craft_ui::primitives::icon::Icon
+new = "craft_ui::display::Icon"
+status = "pending"
+
+[[type]]
+name = "Divider"
+old = ""
+# found in: craft_ui::docking::hits::Divider, craft_ui::primitives::divider::Divider
+new = "craft_ui::display::Divider"
+status = "pending"
+
+# One entry per renamed, removed or reshaped setter or constructor.
+# [[setter]]
+# type = ""
+# old = ""
+# new = ""

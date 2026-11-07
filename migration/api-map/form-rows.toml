@@ -1,0 +1,57 @@
+# API map of the "Form rows" family: old path to new path and setter renames.
+# Filled in by the family track; the codemods and the app scan read it.
+
+family = "Form rows"
+new_module = "craft_ui::form"
+
+# One entry per public type: `old` is the path an app calls today, `new` the path after migration.
+# `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
+
+[[type]]
+name = "Field"
+old = "craft_ui::composites::field::Field"
+new = "craft_ui::form::Field"
+status = "pending"
+
+[[type]]
+name = "FieldGroup"
+old = "craft_ui::composites::field::FieldGroup"
+new = "craft_ui::form::FieldGroup"
+status = "pending"
+
+[[type]]
+name = "PropertyRow"
+old = ""
+# found in: craft_ui::dialog::properties::PropertyRow, craft_ui::composites::property_row::PropertyRow
+new = "craft_ui::form::PropertyRow"
+status = "pending"
+
+[[type]]
+name = "PropertyPair"
+old = "craft_ui::composites::property_row::PropertyPair"
+new = "craft_ui::form::PropertyPair"
+status = "pending"
+
+[[type]]
+name = "PropertyGroup"
+old = "craft_ui::composites::property_row::PropertyGroup"
+new = "craft_ui::form::PropertyGroup"
+status = "pending"
+
+[[type]]
+name = "FormGrid"
+old = "craft_ui::composites::form_grid::FormGrid"
+new = "craft_ui::form::FormGrid"
+status = "pending"
+
+[[type]]
+name = "SliderRow"
+old = "craft_ui::composites::slider_row::SliderRow"
+new = "craft_ui::form::SliderRow"
+status = "pending"
+
+# One entry per renamed, removed or reshaped setter or constructor.
+# [[setter]]
+# type = ""
+# old = ""
+# new = ""

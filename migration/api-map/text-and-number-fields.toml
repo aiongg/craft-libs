@@ -1,0 +1,57 @@
+# API map of the "Text and number fields" family: old path to new path and setter renames.
+# Filled in by the family track; the codemods and the app scan read it.
+
+family = "Text and number fields"
+new_module = "craft_ui::text"
+
+# One entry per public type: `old` is the path an app calls today, `new` the path after migration.
+# `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
+
+[[type]]
+name = "TextField"
+old = "craft_ui::controls::text_field::TextField"
+new = "craft_ui::text::TextField"
+status = "pending"
+
+[[type]]
+name = "SearchField"
+old = "craft_ui::controls::text_field::SearchField"
+new = "craft_ui::text::SearchField"
+status = "pending"
+
+[[type]]
+name = "AltTextField"
+old = "craft_ui::controls::alt_text::AltTextField"
+new = "craft_ui::text::AltTextField"
+status = "pending"
+
+[[type]]
+name = "NumberField"
+old = ""
+# found in: craft_ui::controls::number_field::NumberField, craft_ui::localized::NumberField
+new = "craft_ui::text::NumberField"
+status = "pending"
+
+[[type]]
+name = "ChipField"
+old = "craft_ui::controls::chips::ChipField"
+new = "craft_ui::text::ChipField"
+status = "pending"
+
+[[type]]
+name = "LinkedFields"
+old = "craft_ui::controls::linked::LinkedFields"
+new = "craft_ui::text::LinkedFields"
+status = "pending"
+
+[[type]]
+name = "ApplyRow"
+old = "craft_ui::controls::mixed::ApplyRow"
+new = "craft_ui::text::ApplyRow"
+status = "pending"
+
+# One entry per renamed, removed or reshaped setter or constructor.
+# [[setter]]
+# type = ""
+# old = ""
+# new = ""

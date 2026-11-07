@@ -1,0 +1,44 @@
+# API map of the "Notices" family: old path to new path and setter renames.
+# Filled in by the family track; the codemods and the app scan read it.
+
+family = "Notices"
+new_module = "craft_ui::notices"
+
+# One entry per public type: `old` is the path an app calls today, `new` the path after migration.
+# `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
+
+[[type]]
+name = "Notice"
+old = "craft_ui::composites::notice::Notice"
+new = "craft_ui::notices::Notice"
+status = "pending"
+
+[[type]]
+name = "SettingsNotices"
+old = "craft_ui::composites::settings_notice::SettingsNotices"
+new = "craft_ui::notices::SettingsNotices"
+status = "pending"
+
+[[type]]
+name = "NoticeCenter"
+old = "craft_ui::composites::notice_center::NoticeCenter"
+new = "craft_ui::notices::NoticeCenter"
+status = "pending"
+
+[[type]]
+name = "ToastStack"
+old = "craft_ui::composites::toast::ToastStack"
+new = "craft_ui::notices::ToastStack"
+status = "pending"
+
+[[type]]
+name = "EmptyState"
+old = "craft_ui::composites::empty_state::EmptyState"
+new = "craft_ui::notices::EmptyState"
+status = "pending"
+
+# One entry per renamed, removed or reshaped setter or constructor.
+# [[setter]]
+# type = ""
+# old = ""
+# new = ""

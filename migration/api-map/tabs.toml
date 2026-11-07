@@ -1,0 +1,39 @@
+# API map of the "Tabs" family: old path to new path and setter renames.
+# Filled in by the family track; the codemods and the app scan read it.
+
+family = "Tabs"
+new_module = "craft_ui::tabs"
+
+# One entry per public type: `old` is the path an app calls today, `new` the path after migration.
+# `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
+
+[[type]]
+name = "TabStrip"
+old = "craft_ui::tab_strip::strip::TabStrip"
+new = "craft_ui::tabs::TabStrip"
+status = "pending"
+
+[[type]]
+name = "Tab"
+old = "craft_ui::tab_strip::tab::Tab"
+new = "craft_ui::tabs::Tab"
+status = "pending"
+
+[[type]]
+name = "fit"
+old = ""
+# found in: craft_ui::tabs::fit, craft_ui::controls::select::fit, craft_ui::canvas::textures::thumb::fit
+new = "craft_ui::tabs::fit"
+status = "pending"
+
+[[type]]
+name = "DocumentTabs"
+old = "craft_ui::docking::document_tabs::DocumentTabs"
+new = "craft_ui::tabs::DocumentTabs"
+status = "pending"
+
+# One entry per renamed, removed or reshaped setter or constructor.
+# [[setter]]
+# type = ""
+# old = ""
+# new = ""

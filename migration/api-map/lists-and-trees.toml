@@ -1,0 +1,44 @@
+# API map of the "Lists and trees" family: old path to new path and setter renames.
+# Filled in by the family track; the codemods and the app scan read it.
+
+family = "Lists and trees"
+new_module = "craft_ui::list"
+
+# One entry per public type: `old` is the path an app calls today, `new` the path after migration.
+# `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
+
+[[type]]
+name = "List"
+old = "craft_ui::list::view::List"
+new = "craft_ui::list::List"
+status = "pending"
+
+[[type]]
+name = "ListRow"
+old = "craft_ui::list::row::ListRow"
+new = "craft_ui::list::ListRow"
+status = "pending"
+
+[[type]]
+name = "TreeRow"
+old = "craft_ui::list::tree::TreeRow"
+new = "craft_ui::list::TreeRow"
+status = "pending"
+
+[[type]]
+name = "FindingsList"
+old = "craft_ui::list::findings::FindingsList"
+new = "craft_ui::list::FindingsList"
+status = "pending"
+
+[[type]]
+name = "EventLog"
+old = "craft_ui::list::events::EventLog"
+new = "craft_ui::list::EventLog"
+status = "pending"
+
+# One entry per renamed, removed or reshaped setter or constructor.
+# [[setter]]
+# type = ""
+# old = ""
+# new = ""

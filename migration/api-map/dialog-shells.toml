@@ -1,0 +1,44 @@
+# API map of the "Dialog shells" family: old path to new path and setter renames.
+# Filled in by the family track; the codemods and the app scan read it.
+
+family = "Dialog shells"
+new_module = "craft_ui::dialog"
+
+# One entry per public type: `old` is the path an app calls today, `new` the path after migration.
+# `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
+
+[[type]]
+name = "Dialog"
+old = "craft_ui::dialog::dialog::Dialog"
+new = "craft_ui::dialog::Dialog"
+status = "pending"
+
+[[type]]
+name = "DialogFrame"
+old = "craft_ui::dialog::frame::DialogFrame"
+new = "craft_ui::dialog::DialogFrame"
+status = "pending"
+
+[[type]]
+name = "FullWindowDialog"
+old = "craft_ui::dialog::full_window::FullWindowDialog"
+new = "craft_ui::dialog::FullWindowDialog"
+status = "pending"
+
+[[type]]
+name = "DialogHost"
+old = "craft_ui::dialog::dialog_host::DialogHost"
+new = "craft_ui::dialog::DialogHost"
+status = "pending"
+
+[[type]]
+name = "BlockingOverlay"
+old = "craft_ui::dialog::blocking::BlockingOverlay"
+new = "craft_ui::dialog::BlockingOverlay"
+status = "pending"
+
+# One entry per renamed, removed or reshaped setter or constructor.
+# [[setter]]
+# type = ""
+# old = ""
+# new = ""

@@ -1,0 +1,44 @@
+# API map of the "Canvas core" family: old path to new path and setter renames.
+# Filled in by the family track; the codemods and the app scan read it.
+
+family = "Canvas core"
+new_module = "craft_ui::canvas"
+
+# One entry per public type: `old` is the path an app calls today, `new` the path after migration.
+# `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
+
+[[type]]
+name = "ToolHost"
+old = "craft_ui::canvas::tool_host::ToolHost"
+new = "craft_ui::canvas::ToolHost"
+status = "pending"
+
+[[type]]
+name = "Pasteboard"
+old = "craft_ui::canvas::pasteboard::Pasteboard"
+new = "craft_ui::canvas::Pasteboard"
+status = "pending"
+
+[[type]]
+name = "SplitViews"
+old = "craft_ui::canvas::split::SplitViews"
+new = "craft_ui::canvas::SplitViews"
+status = "pending"
+
+[[type]]
+name = "Rulers"
+old = "craft_ui::canvas::rulers::Rulers"
+new = "craft_ui::canvas::Rulers"
+status = "pending"
+
+[[type]]
+name = "Navigator"
+old = "craft_ui::canvas::navigator::preview::Navigator"
+new = "craft_ui::canvas::Navigator"
+status = "pending"
+
+# One entry per renamed, removed or reshaped setter or constructor.
+# [[setter]]
+# type = ""
+# old = ""
+# new = ""

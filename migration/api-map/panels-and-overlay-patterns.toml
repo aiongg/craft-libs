@@ -1,0 +1,38 @@
+# API map of the "Panels and overlay patterns" family: old path to new path and setter renames.
+# Filled in by the family track; the codemods and the app scan read it.
+
+family = "Panels and overlay patterns"
+new_module = "craft_ui::patterns::panels"
+
+# One entry per public type: `old` is the path an app calls today, `new` the path after migration.
+# `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
+
+[[type]]
+name = "Panel"
+old = "craft_ui::patterns::panel::Panel"
+new = "craft_ui::patterns::panels::Panel"
+status = "pending"
+
+[[type]]
+name = "Inspector"
+old = "craft_ui::patterns::inspector::Inspector"
+new = "craft_ui::patterns::panels::Inspector"
+status = "pending"
+
+[[type]]
+name = "CommandPalette"
+old = "craft_ui::patterns::command_palette::CommandPalette"
+new = "craft_ui::patterns::panels::CommandPalette"
+status = "pending"
+
+[[type]]
+name = "Tour"
+old = "craft_ui::patterns::tour::Tour"
+new = "craft_ui::patterns::panels::Tour"
+status = "pending"
+
+# One entry per renamed, removed or reshaped setter or constructor.
+# [[setter]]
+# type = ""
+# old = ""
+# new = ""

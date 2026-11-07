@@ -1,0 +1,26 @@
+# API map of the "Adjust editors and plots" family: old path to new path and setter renames.
+# Filled in by the family track; the codemods and the app scan read it.
+
+family = "Adjust editors and plots"
+new_module = ""
+
+# One entry per public type: `old` is the path an app calls today, `new` the path after migration.
+# `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
+
+[[type]]
+name = "CurveEditor"
+old = "craft_ui::composites::curve_editor::CurveEditor"
+new = ""
+status = "pending"
+
+[[type]]
+name = "Histogram"
+old = "craft_ui::composites::histogram::Histogram"
+new = ""
+status = "pending"
+
+# One entry per renamed, removed or reshaped setter or constructor.
+# [[setter]]
+# type = ""
+# old = ""
+# new = ""

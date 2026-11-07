@@ -1,0 +1,38 @@
+# API map of the "Presets" family: old path to new path and setter renames.
+# Filled in by the family track; the codemods and the app scan read it.
+
+family = "Presets"
+new_module = "craft_ui::patterns::presets"
+
+# One entry per public type: `old` is the path an app calls today, `new` the path after migration.
+# `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
+
+[[type]]
+name = "PresetBrowser"
+old = "craft_ui::presets::PresetBrowser"
+new = "craft_ui::patterns::presets::PresetBrowser"
+status = "pending"
+
+[[type]]
+name = "PresetPicker"
+old = "craft_ui::presets::picker::PresetPicker"
+new = "craft_ui::patterns::presets::PresetPicker"
+status = "pending"
+
+[[type]]
+name = "PresetFooter"
+old = "craft_ui::presets::footer::PresetFooter"
+new = "craft_ui::patterns::presets::PresetFooter"
+status = "pending"
+
+[[type]]
+name = "NamedPresetRow"
+old = "craft_ui::presets::menu::named::NamedPresetRow"
+new = "craft_ui::patterns::presets::NamedPresetRow"
+status = "pending"
+
+# One entry per renamed, removed or reshaped setter or constructor.
+# [[setter]]
+# type = ""
+# old = ""
+# new = ""

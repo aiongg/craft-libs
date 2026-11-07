@@ -1,0 +1,38 @@
+# API map of the "Sections and title rows" family: old path to new path and setter renames.
+# Filled in by the family track; the codemods and the app scan read it.
+
+family = "Sections and title rows"
+new_module = "craft_ui::sections"
+
+# One entry per public type: `old` is the path an app calls today, `new` the path after migration.
+# `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
+
+[[type]]
+name = "SectionHeader"
+old = "craft_ui::composites::section_header::SectionHeader"
+new = "craft_ui::sections::SectionHeader"
+status = "pending"
+
+[[type]]
+name = "GroupBox"
+old = "craft_ui::composites::group_box::GroupBox"
+new = "craft_ui::sections::GroupBox"
+status = "pending"
+
+[[type]]
+name = "PanelHeader"
+old = "craft_ui::composites::panel_header::PanelHeader"
+new = "craft_ui::sections::PanelHeader"
+status = "pending"
+
+[[type]]
+name = "InspectorHeader"
+old = "craft_ui::patterns::inspector::InspectorHeader"
+new = "craft_ui::sections::InspectorHeader"
+status = "pending"
+
+# One entry per renamed, removed or reshaped setter or constructor.
+# [[setter]]
+# type = ""
+# old = ""
+# new = ""

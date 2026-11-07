@@ -1,0 +1,45 @@
+# API map of the "Docking and panes" family: old path to new path and setter renames.
+# Filled in by the family track; the codemods and the app scan read it.
+
+family = "Docking and panes"
+new_module = "craft_ui::docking"
+
+# One entry per public type: `old` is the path an app calls today, `new` the path after migration.
+# `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
+
+[[type]]
+name = "DockArea"
+old = "craft_ui::docking::surface::DockArea"
+new = "craft_ui::docking::DockArea"
+status = "pending"
+
+[[type]]
+name = "FloatingFrame"
+old = "craft_ui::docking::chrome::FloatingFrame"
+new = "craft_ui::docking::FloatingFrame"
+status = "pending"
+
+[[type]]
+name = "TitleBar"
+old = ""
+# found in: craft_ui::docking::chrome::TitleBar, craft_ui::title_bar::TitleBar
+new = "craft_ui::docking::TitleBar"
+status = "pending"
+
+[[type]]
+name = "PaneHost"
+old = "craft_ui::panes::PaneHost"
+new = "craft_ui::docking::PaneHost"
+status = "pending"
+
+[[type]]
+name = "ResizeHandle"
+old = "craft_ui::layout::resize::ResizeHandle"
+new = "craft_ui::docking::ResizeHandle"
+status = "pending"
+
+# One entry per renamed, removed or reshaped setter or constructor.
+# [[setter]]
+# type = ""
+# old = ""
+# new = ""

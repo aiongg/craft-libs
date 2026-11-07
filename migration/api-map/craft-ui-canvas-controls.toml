@@ -1,0 +1,38 @@
+# API map of the "craft-ui canvas controls" family: old path to new path and setter renames.
+# Filled in by the family track; the codemods and the app scan read it.
+
+family = "craft-ui canvas controls"
+new_module = "craft_ui::canvas_controls"
+
+# One entry per public type: `old` is the path an app calls today, `new` the path after migration.
+# `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
+
+[[type]]
+name = "Guides"
+old = "craft_ui::canvas::guides::Guides"
+new = "craft_ui::canvas_controls::Guides"
+status = "pending"
+
+[[type]]
+name = "SelectionFrame"
+old = "craft_ui::canvas::selection::frame::SelectionFrame"
+new = "craft_ui::canvas_controls::SelectionFrame"
+status = "pending"
+
+[[type]]
+name = "GripSet"
+old = "craft_ui::canvas::selection::grips::GripSet"
+new = "craft_ui::canvas_controls::GripSet"
+status = "pending"
+
+[[type]]
+name = "Marquee"
+old = "craft_ui::canvas::marquee::Marquee"
+new = "craft_ui::canvas_controls::Marquee"
+status = "pending"
+
+# One entry per renamed, removed or reshaped setter or constructor.
+# [[setter]]
+# type = ""
+# old = ""
+# new = ""

@@ -1,0 +1,26 @@
+# API map of the "Form dialogs" family: old path to new path and setter renames.
+# Filled in by the family track; the codemods and the app scan read it.
+
+family = "Form dialogs"
+new_module = "craft_ui::patterns::form_dialogs"
+
+# One entry per public type: `old` is the path an app calls today, `new` the path after migration.
+# `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
+
+[[type]]
+name = "ParamDialog"
+old = "craft_ui::dialog::params::ParamDialog"
+new = "craft_ui::patterns::form_dialogs::ParamDialog"
+status = "pending"
+
+[[type]]
+name = "CommandForm"
+old = "craft_ui::dialog::command_form::CommandForm"
+new = "craft_ui::patterns::form_dialogs::CommandForm"
+status = "pending"
+
+# One entry per renamed, removed or reshaped setter or constructor.
+# [[setter]]
+# type = ""
+# old = ""
+# new = ""

@@ -1,0 +1,26 @@
+# API map of the "Tile grids" family: old path to new path and setter renames.
+# Filled in by the family track; the codemods and the app scan read it.
+
+family = "Tile grids"
+new_module = "craft_ui::tile_grid"
+
+# One entry per public type: `old` is the path an app calls today, `new` the path after migration.
+# `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
+
+[[type]]
+name = "TileGrid"
+old = "craft_ui::list::tiles::TileGrid"
+new = "craft_ui::tile_grid::TileGrid"
+status = "pending"
+
+[[type]]
+name = "ThumbnailSlider"
+old = "craft_ui::list::tiles::zoom::ThumbnailSlider"
+new = "craft_ui::tile_grid::ThumbnailSlider"
+status = "pending"
+
+# One entry per renamed, removed or reshaped setter or constructor.
+# [[setter]]
+# type = ""
+# old = ""
+# new = ""

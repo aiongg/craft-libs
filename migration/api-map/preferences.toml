@@ -1,0 +1,20 @@
+# API map of the "Preferences" family: old path to new path and setter renames.
+# Filled in by the family track; the codemods and the app scan read it.
+
+family = "Preferences"
+new_module = "craft_ui::patterns::preferences"
+
+# One entry per public type: `old` is the path an app calls today, `new` the path after migration.
+# `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
+
+[[type]]
+name = "PreferencesWindow"
+old = "craft_ui::preferences::window::PreferencesWindow"
+new = "craft_ui::patterns::preferences::PreferencesWindow"
+status = "pending"
+
+# One entry per renamed, removed or reshaped setter or constructor.
+# [[setter]]
+# type = ""
+# old = ""
+# new = ""

@@ -1,0 +1,45 @@
+# API map of the "Rails" family: old path to new path and setter renames.
+# Filled in by the family track; the codemods and the app scan read it.
+
+family = "Rails"
+new_module = "craft_ui::rails"
+
+# One entry per public type: `old` is the path an app calls today, `new` the path after migration.
+# `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
+
+[[type]]
+name = "PanelRail"
+old = ""
+# found in: craft_ui::patterns::rail::panel_rail::PanelRail, craft_ui::shell::canvas::PanelRail
+new = "craft_ui::rails::PanelRail"
+status = "pending"
+
+[[type]]
+name = "ToolRail"
+old = "craft_ui::patterns::rail::tool::ToolRail"
+new = "craft_ui::rails::ToolRail"
+status = "pending"
+
+[[type]]
+name = "FlyoutButton"
+old = "craft_ui::patterns::rail::flyout::FlyoutButton"
+new = "craft_ui::rails::FlyoutButton"
+status = "pending"
+
+[[type]]
+name = "ToolbarDrawer"
+old = "craft_ui::patterns::toolbar_drawer::ToolbarDrawer"
+new = "craft_ui::rails::ToolbarDrawer"
+status = "pending"
+
+[[type]]
+name = "Rail"
+old = "craft_ui::panes::rail::Rail"
+new = "craft_ui::rails::Rail"
+status = "pending"
+
+# One entry per renamed, removed or reshaped setter or constructor.
+# [[setter]]
+# type = ""
+# old = ""
+# new = ""

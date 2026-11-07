@@ -1,0 +1,51 @@
+# API map of the "Menus" family: old path to new path and setter renames.
+# Filled in by the family track; the codemods and the app scan read it.
+
+family = "Menus"
+new_module = "craft_ui::menu"
+
+# One entry per public type: `old` is the path an app calls today, `new` the path after migration.
+# `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
+
+[[type]]
+name = "MenuBar"
+old = "craft_ui::menu::bar::MenuBar"
+new = "craft_ui::menu::MenuBar"
+status = "pending"
+
+[[type]]
+name = "PressMenu"
+old = "craft_ui::menu::press::PressMenu"
+new = "craft_ui::menu::PressMenu"
+status = "pending"
+
+[[type]]
+name = "ContextMenu"
+old = "craft_ui::menu::context::ContextMenu"
+new = "craft_ui::menu::ContextMenu"
+status = "pending"
+
+[[type]]
+name = "Menu"
+old = ""
+# found in: craft_ui::combo::Menu, craft_ui::menu::popup::Menu
+new = "craft_ui::menu::Menu"
+status = "pending"
+
+[[type]]
+name = "EditMenu"
+old = "craft_ui::behavior::edit_menu::EditMenu"
+new = "craft_ui::menu::EditMenu"
+status = "pending"
+
+[[type]]
+name = "PanelMenu"
+old = "craft_ui::docking::panel_menu::PanelMenu"
+new = "craft_ui::menu::PanelMenu"
+status = "pending"
+
+# One entry per renamed, removed or reshaped setter or constructor.
+# [[setter]]
+# type = ""
+# old = ""
+# new = ""

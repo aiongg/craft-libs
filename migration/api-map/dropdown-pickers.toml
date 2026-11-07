@@ -1,0 +1,51 @@
+# API map of the "Dropdown pickers" family: old path to new path and setter renames.
+# Filled in by the family track; the codemods and the app scan read it.
+
+family = "Dropdown pickers"
+new_module = "craft_ui::pickers"
+
+# One entry per public type: `old` is the path an app calls today, `new` the path after migration.
+# `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
+
+[[type]]
+name = "Select"
+old = "craft_ui::controls::select::Select"
+new = "craft_ui::pickers::Select"
+status = "pending"
+
+[[type]]
+name = "ComboBox"
+old = ""
+# found in: craft_ui::combo::ComboBox, craft_ui::controls::combo_box::ComboBox
+new = "craft_ui::pickers::ComboBox"
+status = "pending"
+
+[[type]]
+name = "TreePicker"
+old = "craft_ui::controls::tree_picker::TreePicker"
+new = "craft_ui::pickers::TreePicker"
+status = "pending"
+
+[[type]]
+name = "Autocomplete"
+old = "craft_ui::controls::autocomplete::Autocomplete"
+new = "craft_ui::pickers::Autocomplete"
+status = "pending"
+
+[[type]]
+name = "DatePicker"
+old = "craft_ui::controls::date::DatePicker"
+new = "craft_ui::pickers::DatePicker"
+status = "pending"
+
+[[type]]
+name = "IconPicker"
+old = "craft_ui::controls::icon_picker::IconPicker"
+new = "craft_ui::pickers::IconPicker"
+status = "pending"
+
+# One entry per renamed, removed or reshaped setter or constructor.
+# [[setter]]
+# type = ""
+# old = ""
+# new = ""

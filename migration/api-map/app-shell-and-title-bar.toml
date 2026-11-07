@@ -1,0 +1,45 @@
+# API map of the "App shell and title bar" family: old path to new path and setter renames.
+# Filled in by the family track; the codemods and the app scan read it.
+
+family = "App shell and title bar"
+new_module = "craft_ui::shell"
+
+# One entry per public type: `old` is the path an app calls today, `new` the path after migration.
+# `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
+
+[[type]]
+name = "AppShell"
+old = "craft_ui::shell::AppShell"
+new = "craft_ui::shell::AppShell"
+status = "pending"
+
+[[type]]
+name = "CanvasShell"
+old = "craft_ui::shell::canvas::CanvasShell"
+new = "craft_ui::shell::CanvasShell"
+status = "pending"
+
+[[type]]
+name = "StartScreen"
+old = "craft_ui::shell::start::StartScreen"
+new = "craft_ui::shell::StartScreen"
+status = "pending"
+
+[[type]]
+name = "TitleBar"
+old = ""
+# found in: craft_ui::docking::chrome::TitleBar, craft_ui::title_bar::TitleBar
+new = "craft_ui::shell::TitleBar"
+status = "pending"
+
+[[type]]
+name = "ViewportWindow"
+old = "craft_ui::viewport::window::ViewportWindow"
+new = "craft_ui::shell::ViewportWindow"
+status = "pending"
+
+# One entry per renamed, removed or reshaped setter or constructor.
+# [[setter]]
+# type = ""
+# old = ""
+# new = ""

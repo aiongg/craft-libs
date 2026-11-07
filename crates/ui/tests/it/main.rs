@@ -10,6 +10,7 @@ mod controls;
 mod drag;
 mod egui_surface;
 mod focus;
+mod glossary;
 mod label;
 mod layout;
 mod motion;

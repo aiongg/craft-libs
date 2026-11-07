@@ -1,0 +1,44 @@
+# API map of the "Overlays" family: old path to new path and setter renames.
+# Filled in by the family track; the codemods and the app scan read it.
+
+family = "Overlays"
+new_module = "craft_ui::popover"
+
+# One entry per public type: `old` is the path an app calls today, `new` the path after migration.
+# `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
+
+[[type]]
+name = "Popover"
+old = "craft_ui::popover::Popover"
+new = "craft_ui::popover::Popover"
+status = "pending"
+
+[[type]]
+name = "PopupList"
+old = "craft_ui::popup_list::PopupList"
+new = "craft_ui::popover::PopupList"
+status = "pending"
+
+[[type]]
+name = "Tooltip"
+old = "craft_ui::controls::tooltip::Tooltip"
+new = "craft_ui::popover::Tooltip"
+status = "pending"
+
+[[type]]
+name = "DragBadge"
+old = "craft_ui::behavior::drag_feedback::DragBadge"
+new = "craft_ui::popover::DragBadge"
+status = "pending"
+
+[[type]]
+name = "DropVeil"
+old = "craft_ui::behavior::drag_feedback::DropVeil"
+new = "craft_ui::popover::DropVeil"
+status = "pending"
+
+# One entry per renamed, removed or reshaped setter or constructor.
+# [[setter]]
+# type = ""
+# old = ""
+# new = ""

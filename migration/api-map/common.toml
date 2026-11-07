@@ -1,0 +1,58 @@
+# API changes that are not tied to one family: calls every migrated caller meets.
+# The codemods read this file beside the family files.
+
+[[call]]
+old = "|ui| { .. }"
+new = "|ui, cx| { .. }"
+note = "Body and item closures take the context as a second argument."
+
+[[call]]
+old = "Tokens::of(ui)"
+new = ""
+note = "Removed: a component reads tokens through its style function."
+
+[[call]]
+old = "Host::of(ctx)"
+new = "EnvView::host()"
+note = "The host is read from the env view."
+
+[[call]]
+old = "craft_ui::docking::DropTarget"
+new = "craft_ui::docking::DockDrop"
+note = "The app-built struct is renamed."
+
+[[call]]
+old = "the label setter on a component that shows a visible label"
+new = "Common.label through the label setter of Props"
+note = "The label is owned by Common; containers hold only its kind and layout."
+
+[[token]]
+old = "space.pad.panel"
+new = ""
+note = "Waits for cut-over; see the cut-over list."
+
+[[token]]
+old = "space.pad.dialog"
+new = ""
+note = "Waits for cut-over."
+
+[[token]]
+old = "pad.bar"
+new = ""
+note = "Waits for cut-over."
+
+[[token]]
+old = "radius.popup"
+new = ""
+note = "Waits for cut-over."
+
+[[token]]
+old = "radius.panel"
+new = ""
+note = "Waits for cut-over."
+
+[[type]]
+name = "Tone"
+old = "craft_theme::Tone"
+new = "craft_theme::variant::Tone"
+status = "moved"
