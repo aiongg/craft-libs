@@ -328,7 +328,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         if self.lead.key.is_none() {
             self.lead.key = self.selection.lead().cloned();
         }
-        eprintln!("DIAG read lead={} at={} stamp={} want={} sel={}", self.lead.key.is_some(), self.lead.at, self.lead.stamp, stamp, self.selection.lead().is_some());
+        eprintln!("DIAG read lead={:?} at={} stamp={} want={} sel={:?}", self.lead.key, self.lead.at, self.lead.stamp, stamp, self.selection.lead());
         self.renaming = stage.session::<Renaming<C::Key>>(sub(id, "rename")).clone();
         self.last = stage.recall::<View>(sub(id, "view"));
         let scrolled = stage.session::<Scrolled>(sub(id, "scroll")).clone();
@@ -752,7 +752,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             let scrolled = cx.core.memory.session::<Scrolled>(sub(id, "scroll"));
             (scrolled.y, scrolled.x) = (self.offset, self.offset_x);
         }
-        eprintln!("DIAG settle lead={} at={}", self.lead.key.is_some(), self.lead.at);
+        eprintln!("DIAG settle lead={:?} at={}", self.lead.key, self.lead.at);
         *cx.core.memory.session::<Lead<C::Key>>(sub(id, "lead")) = self.lead.clone();
         cx.core.memory.session::<LastLayout<C::ItemLayout>>(sub(id, "item_layout")).0 = self.layout.clone();
         *cx.core.memory.session::<HeaderMemory>(sub(id, "columns")) = self.header.persist();
