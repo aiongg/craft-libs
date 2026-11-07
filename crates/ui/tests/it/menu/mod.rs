@@ -58,7 +58,8 @@ fn a_typed_letter_runs_a_row_of_a_menu_opened_by_the_pointer() {
     fixture.settle();
     let opener = fixture.by_label("File").expect("the opener has a node");
     fixture.click(&opener);
-    fixture.idle(4);
+    // The closed menu fades out before its nodes leave the tree.
+    fixture.idle(30);
     assert!(menu_shown(&fixture), "a press of the opener opens the menu");
     fixture.type_text("a");
     fixture.idle(30);
