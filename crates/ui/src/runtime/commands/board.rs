@@ -144,6 +144,7 @@ impl Board {
             chord,
             enabled: flags.enabled && modal && live,
             checked: flags.checked,
+            marked: state.is_some_and(CommandState::is_marked),
             hint: state.and_then(|s| s.hint_ref().cloned()),
             kind: def.map_or(CommandKind::Command, |def| def.kind.clone()),
             command: command.clone(),

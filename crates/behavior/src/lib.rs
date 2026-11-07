@@ -14,6 +14,7 @@ pub mod dock;
 pub mod edit_history;
 pub mod editor;
 pub mod eviction;
+pub mod fit;
 pub mod flow;
 pub mod focus;
 pub mod grid;

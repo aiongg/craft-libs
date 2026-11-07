@@ -120,6 +120,30 @@ status = "replaced"
 note = "The `NumberField`'s `EditResponse` inside a `Field`; the unit is `NumberField::unit_kind(UnitKind)`."
 
 # One entry per renamed, removed or reshaped setter or constructor.
+[[type]]
+name = "fit_items"
+old = ""
+new = "craft_behavior::fit::fit_items"
+status = "pending"
+
+[[type]]
+name = "FitItem"
+old = ""
+new = "craft_behavior::fit::FitItem"
+status = "pending"
+
+[[type]]
+name = "FitKeep"
+old = ""
+new = "craft_behavior::fit::FitKeep"
+status = "pending"
+
+[[type]]
+name = "Fit"
+old = ""
+new = "craft_behavior::fit::Fit"
+status = "pending"
+
 [[setter]]
 type = "Toolbar"
 old = "new(id_salt, orientation)"

@@ -2,10 +2,11 @@
 //! align commands, then the eight distribute commands after a rule, which overflow into the "More" menu or live in
 //! it.
 
-use super::items::{BarItem, BarItems, FitKeep};
+use super::items::{BarItem, BarItems};
 use super::words::BarWords;
 use crate::contract::{NoValue, Outcome, Props as _, Show as _};
 use crate::runtime::env::Env;
+use craft_behavior::fit::FitKeep;
 use egui::{Response, Ui};
 
 #[cfg(feature = "testing")]

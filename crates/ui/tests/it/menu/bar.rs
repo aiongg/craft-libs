@@ -1,11 +1,12 @@
 //! The menu bar: which titles show in a room, how a title's menu opens, runs a row and hands over to its neighbour,
 //! how F10 takes focus and returns it, what a title reports to assistive technology, and what the help search finds.
 
-use craft_i18n::Direction;
+use craft_i18n::{Direction, Folder};
 use craft_ui::buttons::Button;
 use craft_ui::contract::{PopupKind, Show as _};
 use craft_ui::menu::MenuItem;
-use craft_ui::menu::bar::{HelpEntry, MenuBar, MenuHelp, MenuTitle, TitleFit, fit_titles};
+use craft_ui::menu::bar::{MenuBar, MenuHelp, MenuTitle, TitleFit, fit_titles};
+use craft_ui::menu::search::{HelpEntry, search_order};
 use craft_ui::runtime::commands::EditCommands;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Id, Key, Modifiers};
@@ -38,9 +39,9 @@ struct Rig {
 fn entries() -> Vec<HelpEntry> {
     // The help rows show their command's label, so each entry has its own command.
     vec![
-        HelpEntry::new(EditCommands::Paste, "Café").path(["Edit"]),
-        HelpEntry::new(EditCommands::Copy, "Copy").english("Duplicate").path(["Edit"]),
-        HelpEntry::new(EditCommands::Cut, "Cut").path(["Edit", "Clipboard"]),
+        HelpEntry::new(EditCommands::Paste, "Café").with_path(["Edit"]),
+        HelpEntry::new(EditCommands::Copy, "Copy").with_english("Duplicate").with_path(["Edit"]),
+        HelpEntry::new(EditCommands::Cut, "Cut").with_path(["Edit", "Clipboard"]),
     ]
 }
 
@@ -164,4 +165,12 @@ fn help_search_ignores_accents_and_matches_the_english_label_and_the_path() {
         assert!(rig.open(found), "{typed:?} finds the entry whose command row reads {found:?}");
         assert!(!rig.open(absent), "{typed:?} leaves {absent:?} out");
     }
+}
+
+/// An entry found by its label ranks before one found only through its menu path, whatever their order.
+#[trial]
+fn a_label_match_ranks_before_a_path_only_match() {
+    let texts = [["Zoom", "", "Window"], ["Window", "", "View"], ["Tile", "", "Window"]];
+    assert_eq!(search_order(&Folder::new("en"), "window", &texts), vec![1, 0, 2]);
+    assert!(search_order(&Folder::new("en"), "  ", &texts).is_empty());
 }

@@ -1,8 +1,8 @@
 //! Stories of the menu bar, the edit menu and the panel menu.
 
-use super::{HelpEntry, MenuBar, MenuHelp, MenuTitle};
+use super::{MenuBar, MenuHelp, MenuTitle};
 use crate::contract::{Bind, Entry, Show as _, ShowContainer as _};
-use crate::menu::{EditMenu, GroupItem, Menu, MenuItem, PanelMenu, PanelRow};
+use crate::menu::{EditMenu, GroupItem, HelpEntry, Menu, MenuItem, PanelMenu, PanelRow};
 use crate::runtime::commands::EditCommands;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use egui::Ui;
@@ -20,7 +20,7 @@ fn view(ui: &mut Ui) {
 }
 
 static HELP: LazyLock<Vec<HelpEntry>> = LazyLock::new(|| {
-    vec![HelpEntry::new(EditCommands::Undo, "Undo").path(["Edit"]), HelpEntry::new(EditCommands::SelectAll, "Select All").path(["Edit"])]
+    vec![HelpEntry::new(EditCommands::Undo, "Undo").with_path(["Edit"]), HelpEntry::new(EditCommands::SelectAll, "Select All").with_path(["Edit"])]
 });
 
 fn titles() -> Vec<MenuTitle<'static>> {

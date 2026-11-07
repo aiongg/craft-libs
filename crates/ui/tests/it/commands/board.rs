@@ -333,6 +333,18 @@ fn a_surface_resolves_a_command_against_its_target() {
     assert_eq!(resolve(&frames.ctx, AppCommand::Brush).kind, CommandKind::Tool { group: Some("tools".into()) });
 }
 
+/// A command whose state is marked resolves marked, with the state's hint as the marker's description.
+#[trial]
+fn a_marked_command_resolves_marked() {
+    let mut frames = Frames::new();
+    frames.commands(CommandInput::new().state(AppCommand::Save, CommandState::new().marked(true).hint("Two comments")));
+    frames.idle(2, |_| {});
+    let save = resolve(&frames.ctx, AppCommand::Save);
+    assert!(save.marked);
+    assert_eq!(save.hint.as_deref(), Some("Two comments"));
+    assert!(!resolve(&frames.ctx, AppCommand::Grid).marked, "a command with no state is not marked");
+}
+
 /// 1.8 and 7.2: the gate is app code, so it runs with no runtime lock held and may use the board.
 #[trial]
 fn the_gate_may_resolve_commands() {

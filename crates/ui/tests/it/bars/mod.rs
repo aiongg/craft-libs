@@ -2,4 +2,3 @@
 
 mod bar;
 mod breadcrumb;
-mod items;

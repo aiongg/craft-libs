@@ -23,7 +23,7 @@ status = "pending"
 name = "fit"
 old = ""
 # found in: craft_ui::tabs::fit, craft_ui::controls::select::fit, craft_ui::canvas::textures::thumb::fit
-new = "craft_ui::tabs::fit"
+new = "craft_behavior::fit::fit"
 status = "pending"
 
 [[type]]
@@ -37,3 +37,15 @@ status = "pending"
 # type = ""
 # old = ""
 # new = ""
+
+[[type]]
+name = "fit_whole"
+old = ""
+new = "craft_behavior::fit::fit_whole"
+status = "pending"
+
+[[type]]
+name = "TabFit"
+old = ""
+new = "craft_behavior::fit::TabFit"
+status = "pending"
