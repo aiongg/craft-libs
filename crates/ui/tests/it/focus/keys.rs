@@ -566,10 +566,12 @@ fn a_field_that_drives_a_tree_opens_and_closes_rows_by_arrows() {
 
     let opened = Rc::new(Cell::new(false));
     let shared = opened.clone();
+    let query = Rc::new(std::cell::RefCell::new(String::new()));
     let mut fixture = Fixture::new(move |ui| {
         let list_id = ui.scope_id().with("folders");
-        let mut text = String::new();
+        let mut text = query.borrow().clone();
         TextField::search("Search", Bind::bound(&mut text)).drives(list_id).show(ui);
+        *query.borrow_mut() = text;
         let out = List::new("Folders")
             .id(list_id)
             .tree(true)
