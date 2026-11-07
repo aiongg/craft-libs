@@ -81,6 +81,12 @@ impl UnitKind {
     }
 }
 
+/// The English unit words, built once for the process.
+fn english_words() -> Arc<UnitWords> {
+    static ENGLISH: OnceLock<Arc<UnitWords>> = OnceLock::new();
+    ENGLISH.get_or_init(|| Arc::new(UnitWords::english())).clone()
+}
+
 /// Reads and writes numbers with their unit in the user's language and digits. Build it with `Env::units` or
 /// `EnvView::units`.
 #[derive(Clone, Debug)]
@@ -180,7 +186,7 @@ impl Units {
             reader = reader.group(group);
         }
         let Some(kind) = kind else { return reader };
-        let english = Units::new(self.format.clone(), Arc::new(UnitWords::english()));
+        let english = Units::new(self.format.clone(), english_words());
         for other in UnitKind::ALL {
             let factor = match (kind.millimetres(), other.millimetres()) {
                 (Some(of), Some(per)) => per / of,
