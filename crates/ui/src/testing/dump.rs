@@ -13,8 +13,8 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use crate::style::{ComponentStyle, StyleCx, StyleKey, UiTokens, Variant};
-use crate::testing::style::{style_of, tokens_named, with_cx};
-use craft_theme::{Contrast, ControlSize, Mode, Variants, builtins};
+use crate::testing::style::{style_of, with_cx};
+use craft_theme::{Contrast, ControlSize};
 use egui::{Color32, CornerRadius, FontFamily, FontId, Margin, Rangef, Shadow, Stroke, Vec2};
 
 /// Ordered `key = value` lines.
@@ -361,21 +361,7 @@ pub fn flatten_debug(value: &dyn std::fmt::Debug) -> Entries {
 
 /// Every built-in theme in each mode it has, at standard contrast, as (`<theme>.<mode>`, tokens).
 pub fn themes() -> Vec<(String, UiTokens)> {
-    let mut out = Vec::new();
-    for theme in builtins() {
-        let modes = match theme.variants {
-            Variants::Both => &[Mode::Light, Mode::Dark][..],
-            Variants::LightOnly => &[Mode::Light],
-            Variants::DarkOnly => &[Mode::Dark],
-        };
-        let id = theme.id.as_str();
-        let name = id.strip_prefix("craft.").unwrap_or(id);
-        for &mode in modes {
-            let mode_name = if mode == Mode::Light { "light" } else { "dark" };
-            out.push((format!("{name}.{mode_name}"), tokens_named(name, mode, Contrast::Standard)));
-        }
-    }
-    out
+    super::style::themes_at(Contrast::Standard)
 }
 
 /// The resolved style of the component whose `style` function is `default`, for each of `variants` and in every

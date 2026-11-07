@@ -232,6 +232,7 @@ pub(super) struct EmptyNote {
 }
 
 impl EmptyNote {
+    #[cfg(feature = "testing")]
     fn sample() -> Self {
         EmptyNote::new().label("No findings")
     }

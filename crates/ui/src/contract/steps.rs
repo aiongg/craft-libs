@@ -964,20 +964,20 @@ fn ease(core: &CxCore<'_>, targets: [bool; 3]) -> StateMix {
     StateMix::new(hover, press, on)
 }
 
-/// Step 12, state: flags first (CHECKED from a shown `bool` or a command's checked state, MIXED from a mixed binding), then `state`; animates hover, press and on; the ink of the surface, else `inherited`.
-pub(crate) fn state<C: Component>(comp: &C, cx: &mut Cx<'_, C>, open: bool, inherited: Ink) {
+/// Step 12, state: flags first (OPEN from a popup shown this pass, EXPANDED from the container's own open body; CHECKED from a shown `bool` or a command's checked state, MIXED from a mixed binding), then `state`; animates hover, press and on; the ink of the surface, else `inherited`.
+pub(crate) fn state<C: Component>(comp: &C, cx: &mut Cx<'_, C>, open: bool, expanded: bool, inherited: Ink) {
     let mut flags = comp.flags();
     if open {
         flags |= Flags::OPEN;
+    }
+    if expanded {
+        flags |= Flags::EXPANDED;
     }
     if cx.core.resolved.read_only {
         flags |= Flags::READ_ONLY;
     }
     if cx.core.resolved.selected == Some(true) {
         flags |= Flags::SELECTED;
-    }
-    if cx.core.command.as_deref().is_some_and(|command| command.checked == Some(true)) {
-        flags |= Flags::ON;
     }
     let shown_on = cx.shown.as_deref().and_then(|value| (value as &dyn std::any::Any).downcast_ref::<bool>()).copied();
     let command_on = cx.core.command.as_deref().and_then(|command| command.checked);

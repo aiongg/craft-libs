@@ -87,6 +87,7 @@ struct ToastCard<'a> {
 }
 
 impl ToastCard<'static> {
+    #[cfg(feature = "testing")]
     fn sample() -> Self {
         ToastCard { common: Common::default(), text: "Saved" }
     }

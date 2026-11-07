@@ -156,6 +156,7 @@ struct LabelLeaf {
 }
 
 impl LabelLeaf {
+    #[cfg(feature = "testing")]
     fn sample() -> Self {
         LabelLeaf::new(Label::from("Opacity"), 0.0)
     }

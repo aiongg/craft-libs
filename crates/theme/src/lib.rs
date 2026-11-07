@@ -78,7 +78,7 @@ pub use color_model::{
     Channel, ColorModel, DefaultOn, HsbModel, LabModel, MAX_CHANNELS, ModelValues, OklchModel, RgbModel, builtin_models, kept_or_converted,
 };
 pub use components::{ComponentField, ComponentTokens, OverrideError, SliderTokens};
-pub use contrast::{contrast_ratio, ensure_contrast, relative_luminance};
+pub use contrast::{contrast_ratio, ensure_contrast, relative_luminance, text_contrast_min};
 pub use derive::{Anchoring, ContrastCheck, PassMove, Ramps, over};
 pub use explain::{ColorOrigin, Explained, PairReport, SizeLayer, SizeOrigin, explain, explain_sized};
 pub use id::{APP_DEFAULT, AppId, IdError, RESERVED_PREFIX, SUITE_DEFAULT, ThemeId};

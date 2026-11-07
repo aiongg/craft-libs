@@ -249,6 +249,7 @@ pub(crate) fn record_widgets(ctx: &Context, layer: Layer, root: Id, widgets: &[I
 }
 
 /// The parts of the root `root` that sense `sense` in last pass's shape record, in registration order.
+#[cfg(feature = "testing")]
 pub(crate) fn sensing_parts(ctx: &Context, root: Id, sense: craft_behavior::Sense) -> Vec<craft_behavior::PartRef> {
     let viewport = pass::current_viewport(ctx);
     PerViewport::<Shapes>::with(ctx, viewport, |record| {

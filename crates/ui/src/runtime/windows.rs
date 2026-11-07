@@ -8,7 +8,9 @@ use crate::runtime::egui::memory::Service;
 use crate::runtime::egui::{pass, viewports};
 use crate::runtime::frame::PerViewport;
 use crate::runtime::overlay;
-use craft_host::target::{Caps, EdgeInsets, MenuPlacement, Os, Runtime, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
+use craft_host::target::{Caps, EdgeInsets, Os, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
+#[cfg(feature = "testing")]
+use craft_host::target::{MenuPlacement, Runtime};
 use craft_window::restore::{Placement, Store};
 use craft_window::system::WindowSystem;
 use egui::{Context, Id, Pos2, Rect, Ui, Vec2, ViewportId};
@@ -127,6 +129,7 @@ pub(crate) fn os_of(ctx: &Context) -> Os {
 
 /// Makes the shell run on `os`, as a test of the OS matrix does: the capabilities and the menu placement of a
 /// native build follow it. egui's own OS is the caller's to set.
+#[cfg(feature = "testing")]
 pub(crate) fn set_os(ctx: &Context, os: Os) {
     shared(ctx, |shared| {
         let shell = shared.shell.get_or_insert_with(ShellInfo::default);
