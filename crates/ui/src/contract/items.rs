@@ -928,17 +928,10 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             if len == 0 {
                 break;
             }
-            if self.row_child_move(cx, &Intent::Move(mv, mods)) {
+            if self.row_child_move(cx, layout, mv, mods) {
                 continue;
             }
             let lead = self.lead.key.as_ref().and_then(|key| self.index_of(key));
-            if rows::is_forward(mv, mods)
-                && let Some(at) = lead
-                && !matches!(layout.nav(), craft_behavior::NavShape::Cell)
-                && self.enter_children(&ctx, id, at)
-            {
-                continue;
-            }
             let mut state = NavState::new().page(page).column(self.lead.column);
             state.lead = lead;
             state.anchor = lead.map(|at| self.anchor_at(at)).filter(|_| mods.extend);

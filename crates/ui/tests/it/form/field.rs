@@ -1,7 +1,7 @@
 //! `Field`: the help line is part of the field, and a field without help shows none.
 
 use craft_theme::variant::Tone;
-use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _, Validity};
+use craft_ui::contract::{Bind, Props as _, Role, Show as _, ShowContainer as _, Validity};
 use craft_ui::display::Text;
 use craft_ui::form::{Field, Help};
 use craft_ui::runtime::env::Message;

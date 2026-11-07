@@ -85,7 +85,7 @@ fn rest_on(fixture: &mut Fixture, row: &str) {
 
 #[trial]
 fn resting_on_a_second_submenu_row_closes_the_first_submenu() {
-    let submenu = |label: &str, inner: &str| PanelRow::Submenu(label.into(), vec![PanelRow::Item(Entry::new(GroupItem::Float, inner.to_owned()))]);
+    let submenu = |label: &str, inner: &str| PanelRow::Submenu(label.to_owned().into(), vec![PanelRow::Item(Entry::new(GroupItem::Float, inner.to_owned()))]);
     let mut fixture = Fixture::new(move |ui| {
         let opener = Button::new("Panel").show(ui);
         Menu::new("Panel").opened_by(&opener, Trigger::Press).show(ui, |ui, _| {

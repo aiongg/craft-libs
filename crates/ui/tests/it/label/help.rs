@@ -2,7 +2,7 @@
 
 use super::group::Group;
 use super::kit::{Dial, Seen};
-use craft_ui::contract::{ContainerProps, Props as _, ShowContainer as _, SideLabel};
+use craft_ui::contract::{ContainerProps, Props as _, Show as _, ShowContainer as _, SideLabel};
 use craft_ui::testing::{Frames, trial};
 use egui::{Pos2, Rect};
 use std::cell::RefCell;

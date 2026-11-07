@@ -1,7 +1,7 @@
 //! `EntryRows`: the entries of a picker as the rows of its option list.
 
 use super::dress::RowDress;
-use crate::contract::Entry;
+use crate::contract::{Entry, Props as _};
 use crate::list::ListRow;
 use crate::runtime::env::Label;
 use craft_behavior::{DisplayOrder, ItemSource};
@@ -21,7 +21,7 @@ impl<'a, T> EntryRows<'a, T> {
 
     /// The row of the entry at `at`: its label and icon as an option, a spacer for a separator, the host's dress over
     /// the rest.
-    pub(super) fn row(&self, at: usize, dress: Option<&RowDress<'a, T>>) -> ListRow<'a> {
+    pub(super) fn row<'r>(&self, at: usize, dress: Option<&RowDress<'r, T>>) -> ListRow<'r> {
         let entry = &self.entries[at];
         let Some(value) = entry.value() else {
             return ListRow::spacer();

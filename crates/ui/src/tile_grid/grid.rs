@@ -542,7 +542,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for TileGrid<'_, K
     }
 
     /// Every tile gets the grid's caption place and detail line, and its row's rename state.
-    fn dress<'r>(&self, tile: Tile<'r>, row: &RowState) -> Tile<'r> {
+    fn dress<'r>(&self, tile: Self::Item<'r>, row: &RowState) -> Self::Item<'r> {
         tile.caption(self.caption).detail_line(self.detail_line).renaming(row.renaming)
     }
 

@@ -22,18 +22,18 @@ pub fn gap_at(rects: &[Rect], axis: Axis, at: Pos2) -> Option<Gap> {
     let (first, last) = (rects.first()?, rects.last()?);
     let along = |point: Pos2| match axis {
         Axis::X => point.x,
-        Axis::Y => point.y,
+        _ => point.y,
     };
     let pointer = along(at);
     let insert = rects.iter().position(|rect| pointer < along(rect.center())).unwrap_or(rects.len());
     let mark = match axis {
-        Axis::Y => {
-            let y = rects.get(insert).map_or(last.max.y, |rect| rect.min.y);
-            DropMark::line(Pos2::new(first.min.x, y), Pos2::new(first.max.x, y))
-        }
         Axis::X => {
             let x = rects.get(insert).map_or(last.max.x, |rect| rect.min.x);
             DropMark::line(Pos2::new(x, first.min.y), Pos2::new(x, first.max.y))
+        }
+        _ => {
+            let y = rects.get(insert).map_or(last.max.y, |rect| rect.min.y);
+            DropMark::line(Pos2::new(first.min.x, y), Pos2::new(first.max.x, y))
         }
     };
     Some(Gap { insert, mark })

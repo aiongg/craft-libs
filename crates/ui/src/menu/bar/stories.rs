@@ -1,7 +1,7 @@
 //! Stories of the menu bar, the edit menu and the panel menu.
 
 use super::{HelpEntry, MenuBar, MenuHelp, MenuTitle};
-use crate::contract::{Bind, Show as _, ShowContainer as _};
+use crate::contract::{Bind, Entry, Show as _, ShowContainer as _};
 use crate::menu::{EditMenu, GroupItem, Menu, MenuItem, PanelMenu, PanelRow};
 use crate::runtime::commands::EditCommands;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
@@ -26,7 +26,9 @@ static HELP: LazyLock<Vec<HelpEntry>> = LazyLock::new(|| {
 fn titles() -> Vec<MenuTitle<'static>> {
     vec![
         MenuTitle::new("&File", file),
-        MenuTitle::new("&Edit", EditMenu::show),
+        MenuTitle::new("&Edit", |ui| {
+            EditMenu.show(ui);
+        }),
         MenuTitle::new("&View", view),
         MenuTitle::new("&Help", |ui| {
             MenuItem::new("&About").show(ui);
@@ -57,13 +59,15 @@ fn menu_bar_with_help_search(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 
 #[story(EditMenu, covers = [Default], drive = Drive::Never)]
 fn edit_menu(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    StoryOutput::from(Menu::new("Edit").open(Bind::bound(data.value("open", true))).show(ui, |ui, _| EditMenu::show(ui)).output)
+    StoryOutput::from(Menu::new("Edit").open(Bind::bound(data.value("open", true))).show(ui, |ui, _| EditMenu.show(ui)).output)
 }
 
 #[story(PanelMenu, covers = [Default], drive = Drive::Never)]
 fn panel_menu(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let host = vec![PanelRow::Command(EditCommands::Undo.into()), PanelRow::Separator];
-    let group = vec![PanelRow::Item(GroupItem::Float, "Float".into()), PanelRow::Item(GroupItem::Close, "Close".into())];
-    let menu = PanelMenu::new(host, group);
-    StoryOutput::from(Menu::new("Panel menu").open(Bind::bound(data.value("open", true))).show(ui, |ui, cx| menu.show(ui, cx)).output)
+    let panel = || {
+        let host = vec![PanelRow::Command(EditCommands::Undo.into()), PanelRow::Separator];
+        let group = vec![PanelRow::Item(Entry::new(GroupItem::Float, "Float")), PanelRow::Item(Entry::new(GroupItem::Close, "Close"))];
+        PanelMenu::new(host, group)
+    };
+    StoryOutput::from(Menu::new("Panel menu").open(Bind::bound(data.value("open", true))).show(ui, |ui, _| panel().show(ui)).output)
 }

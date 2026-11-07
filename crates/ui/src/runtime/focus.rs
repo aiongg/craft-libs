@@ -113,6 +113,8 @@ pub(crate) struct State {
     pub(crate) visible: bool,
     pub(crate) record: FocusedRecord,
     pub(super) menu_bar: bool,
+    /// The stop a menu bar took focus from, for the bar to give back.
+    pub(super) bar_return: Option<StopKey>,
     pub(crate) press: press::PressState,
 }
 

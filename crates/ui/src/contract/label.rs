@@ -594,7 +594,7 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Placed {
     let (column, stack_below) = match input.side.layout {
         FieldLayout::Beside => {
             let own = natural.x;
-            let width = crate::layout::ambient_width(&ctx, if glyph { &crate::layout::GLYPHS } else { &crate::layout::LABELS }, own)
+            let width = crate::layout::ambient_width(&ctx, &if glyph { crate::layout::GLYPHS } else { crate::layout::LABELS }, own)
                 .filter(|width| *width > 0.0)
                 .unwrap_or(own);
             (width, width + gap + input.control_min)

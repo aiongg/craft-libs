@@ -179,7 +179,7 @@ impl FileSize {
     }
 
     /// The text of `bytes`: `unit_row` gives a unit template's translation, `count` the byte count in words.
-    fn render(&self, bytes: u64, format: &Format, unit_row: impl Fn(&str) -> String, count: impl Fn(u64) -> String) -> String {
+    fn render(&self, bytes: u64, format: &Format, unit_row: impl Fn(&'static str) -> String, count: impl Fn(u64) -> String) -> String {
         let (unit, n, decimals) = self.parts(bytes);
         if unit == SizeUnit::Byte && !self.byte_symbol {
             return count(bytes);

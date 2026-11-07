@@ -110,7 +110,7 @@ impl<'a, K: Clone + PartialEq + std::hash::Hash + Send + Sync + 'static> Section
         let shown = ShowContainer::show(self, ui, move |ui, _| {
             let mut rows = Vec::with_capacity(order.len());
             for (index, key) in order.iter().enumerate() {
-                let slot = StackSlot { position: SetPosition::new(index).of(order.len()), salt: Id::new(key) };
+                let slot = StackSlot { position: SetPosition::new(index).of(order.len()), salt: Id::unique(("section", slot_hash(key))) };
                 let out = each(ui, key, slot);
                 rows.push(Seen { key: key.clone(), rect: out.response.rect, grabbed: out.grabbed, nudged: out.nudged });
             }
@@ -191,3 +191,10 @@ impl<K: Clone + PartialEq + std::hash::Hash + Send + Sync + 'static> Component f
 }
 
 impl<K: Clone + PartialEq + std::hash::Hash + Send + Sync + 'static> Container for SectionStack<'_, K> {}
+
+fn slot_hash<K: std::hash::Hash>(key: &K) -> u64 {
+    use std::hash::Hasher;
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    key.hash(&mut hasher);
+    hasher.finish()
+}

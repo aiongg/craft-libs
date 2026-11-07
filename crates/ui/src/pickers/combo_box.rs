@@ -20,7 +20,7 @@ use crate::primitives::{IconSpec, TextKey, TextOptions, TextRun};
 use crate::runtime::env::Label;
 use crate::text::{Adornment, place, reserve};
 use craft_behavior::{HitLevel, HitPriority, IconId, NavMove, PartKey, PlainText, Selection, Sense};
-use craft_i18n::Matcher;
+use craft_i18n::matcher::Matcher;
 use egui::{Rect, Vec2};
 
 /// The text part.

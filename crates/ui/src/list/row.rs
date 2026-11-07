@@ -187,6 +187,9 @@ pub struct ListRow<'a> {
     #[style_key]
     #[prop(flag)]
     pub(super) heading: bool,
+    /// Whether the row is its own AccessKit node; a face inside another component's part turns it off.
+    #[prop]
+    pub(super) node: bool,
     /// How strongly the label reads. A dimmed row wins over a muted one.
     #[style_key]
     #[prop]
@@ -277,6 +280,8 @@ impl<'a> ListRow<'a> {
         ListRow {
             common: Common::new(),
             strong: false,
+            heading: false,
+            node: true,
             ink: RowInk::Normal,
             tone: Tone::Neutral,
             layer: false,
@@ -987,6 +992,10 @@ impl Component for ListRow<'_> {
     }
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
+        if !self.node {
+            access.role(Role::None);
+            return;
+        }
         if self.spacer {
             access.name(Name::Decorative);
             return;

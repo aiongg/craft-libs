@@ -9,7 +9,7 @@ use crate::contract::{Bind, NoValue, Outcome};
 use crate::runtime::env::{Env, Label};
 use crate::runtime::overlay::CloseReason;
 use crate::sections::DialogRole;
-use craft_i18n::age::AgeStyle;
+use craft_i18n::AgeStyle;
 use egui::{Context, Response, Ui};
 use std::time::Duration;
 

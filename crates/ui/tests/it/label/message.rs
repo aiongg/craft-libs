@@ -5,7 +5,7 @@ use craft_behavior::Sense;
 use craft_theme::variant::Tone;
 use craft_ui::contract::{
     Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, HeaderRegion, Props as _, Role,
-    ShowContainer as _, SideLabel, Validity,
+    Show as _, ShowContainer as _, SideLabel, Validity,
 };
 use craft_ui::runtime::env::Message;
 use craft_ui::style::StyleCx;
@@ -15,7 +15,7 @@ use std::cell::Cell;
 
 use super::kit::PlainStyle;
 
-const AT: Rect = Rect::from_min_size(egui::pos2(0.0, 0.0), Vec2::new(300.0, 60.0));
+const AT: Rect = Rect { min: egui::pos2(0.0, 0.0), max: egui::pos2(300.0, 60.0) };
 
 /// A control whose value is always checked with `check`.
 #[derive(craft_ui::contract::Component)]

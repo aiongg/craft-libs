@@ -50,7 +50,7 @@ fn rig(direction: Direction) -> Rig {
     let shown = (ran.clone(), button.clone(), bar.clone());
     let mut fixture = Fixture::new(move |ui| {
         let (ran, button, bar) = &shown;
-        button.set(Some(Button::new("Apply").show(ui).response.id));
+        button.set(Some(Button::new("Apply").show(ui).id));
         let log = ran.clone();
         let titles = vec![
             MenuTitle::new("&File", move |ui| {

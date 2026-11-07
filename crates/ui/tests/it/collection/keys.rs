@@ -7,7 +7,7 @@ use crate::contract::kit::PlainStyle;
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, ItemLayout, ItemSource, NavShape, ScrollPos, Selection, SelectionChange};
 use craft_ui::contract::{
     Collection, CollectionEvent, CollectionProps, CollectionResponse, ColumnEvent, ColumnKind, ColumnSpec, Common, Component, ContainerProps, Cx,
-    LeadSource, Role, SelectMode, ShowCollection as _, SpaceAction, ToggleColumn,
+    Focus as _, LeadSource, Props as _, Role, SelectMode, ShowCollection as _, SpaceAction, ToggleColumn,
 };
 use craft_ui::runtime::focus::{FocusTarget, request};
 use craft_ui::style::StyleCx;
@@ -152,7 +152,7 @@ fn space_toggles_the_lead_rows_cell_and_enter_activates() {
     };
     frames.idle(3, &mut show);
     focus(&mut frames, &seen, &mut show);
-    press(&mut frames, Key::Down, &mut show);
+    press(&mut frames, Key::ArrowDown, &mut show);
     press(&mut frames, Key::Space, &mut show);
     assert_eq!(seen.toggles(), vec![(0, true)], "one Toggle edit on the lead row");
     assert!(seen.activations().is_empty(), "Space does not activate");
@@ -295,9 +295,9 @@ fn down_in_a_ragged_grid_moves_to_the_item_below() {
     let mut show = |ui: &mut Ui| show_probe(ui, CollectionProps::new().select(SelectMode::Single), &layout, &source, &seen);
     frames.idle(3, &mut show);
     focus(&mut frames, &seen, &mut show);
-    press(&mut frames, Key::Down, &mut show);
-    press(&mut frames, Key::Right, &mut show);
-    press(&mut frames, Key::Down, &mut show);
+    press(&mut frames, Key::ArrowDown, &mut show);
+    press(&mut frames, Key::ArrowRight, &mut show);
+    press(&mut frames, Key::ArrowDown, &mut show);
     assert_eq!(seen.lead_keys(), vec![0, 1, 4], "the second item of the first row goes to the second item of the second");
 }
 
@@ -311,7 +311,7 @@ fn end_skips_the_items_of_a_closed_group() {
     frames.idle(3, &mut show);
     focus(&mut frames, &seen, &mut show);
     press(&mut frames, Key::End, &mut show);
-    press(&mut frames, Key::Down, &mut show);
+    press(&mut frames, Key::ArrowDown, &mut show);
     assert_eq!(seen.lead_keys(), vec![4], "End takes the last shown item, and Down past it stays");
     let rows = seen.rows.borrow();
     assert!(rows.iter().all(|(key, rect)| *key < 5 && rect.is_finite()), "only shown items are built: {rows:?}");
@@ -357,7 +357,7 @@ fn the_lead_reports_what_moved_it() {
     let mut show = |ui: &mut Ui| show_table(ui, CollectionProps::new().select(SelectMode::Single).lead_follows_hover(true), &source, &seen);
     frames.idle(3, &mut show);
     focus(&mut frames, &seen, &mut show);
-    press(&mut frames, Key::Down, &mut show);
+    press(&mut frames, Key::ArrowDown, &mut show);
     assert_eq!(seen.leads(), vec![(0, LeadSource::Keys)]);
     let (first, second) = (seen.row(1).center(), seen.row(2).center());
     frames.frame(vec![pointer::moved(first)], &mut show);

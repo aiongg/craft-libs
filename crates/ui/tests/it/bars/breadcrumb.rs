@@ -14,7 +14,7 @@ const WIDE: Vec2 = Vec2::new(900.0, 80.0);
 const NARROW: Vec2 = Vec2::new(170.0, 80.0);
 
 fn bar(names: &[&str], room: Vec2) -> (Fixture, Rc<Cell<Option<u8>>>) {
-    let crumbs: Vec<Entry<u8>> = names.iter().zip(0u8..).map(|(name, at)| Entry::new(at, *name)).collect();
+    let crumbs: Vec<Entry<u8>> = names.iter().zip(0u8..).map(|(name, at)| Entry::new(at, (*name).to_owned())).collect();
     let picked = Rc::new(Cell::new(None));
     let seen = picked.clone();
     let mut fixture = Fixture::new(move |ui| {

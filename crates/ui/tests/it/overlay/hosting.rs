@@ -12,6 +12,7 @@ use craft_ui::contract::{
 use craft_ui::menu::{Menu, MenuItem};
 use craft_ui::runtime::commands::{FireSource, Fired};
 use craft_ui::runtime::frame::take_output;
+use craft_ui::runtime::memory::Remember as _;
 use craft_ui::style::StyleCx;
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::{click, moved, press, release};

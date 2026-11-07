@@ -611,12 +611,13 @@ impl Component for MenuItem<'_> {
         let moving = ctx.input(|input| input.pointer.delta() != Vec2::ZERO);
         let hovered = cx.response.hovered();
         let focused = cx.is_focused();
+        let aimed = moving && level.aimed(cx.id);
         let (waited, focus_gained) = {
             let rest = cx.memory::<Rest>();
             let gained = focused && !rest.focused;
             rest.focused = focused;
             // The pointer heading for the open submenu does not count as resting on this row.
-            if hovered && !(moving && level.aimed(cx.id)) {
+            if hovered && !aimed {
                 (now - *rest.since.get_or_insert(now), gained)
             } else {
                 rest.since = None;

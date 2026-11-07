@@ -86,7 +86,7 @@ impl Component for Badge {
 
     fn style(cx: &StyleCx<'_>, _: BadgeStyleKey) -> BadgeStyle {
         let mut parts = cx.variant_look();
-        if matches!(cx.variant, Variant::Look { emphasis: Emphasis::Soft, tone: Tone::Accent }) {
+        if matches!(cx.variant, Variant::Look { emphasis: Emphasis::Soft, tone: Tone::Accent, .. }) {
             parts.text.off = on_soft_accent_ink(cx, parts.text.off);
         }
         let control = cx.control();

@@ -23,7 +23,7 @@ use super::{Menu, MenuItem, MenuStep};
 use crate::buttons::ToggleButton;
 use crate::contract::{
     Access, Bind, Common, Component, Cx, Focus as _, MeasureCx, MenuKey, Name, NoValue, Outcome, OverlayUi, Overlays as _, PaintUi, PartsCx,
-    Pointer as _, PopupHandle, PopupKind, Props as _, Role, SetPosition, Show as _, ShowContainer as _,
+    Pointer as _, PopupHandle, PopupKind, Props as _, Role, SetPosition, Show as _, ShowContainer as _, Styled as _,
 };
 use crate::display::{Divider, Text};
 use crate::primitives::{PaintShape, StrokeWidth, TextRun};
@@ -36,7 +36,7 @@ use crate::style::{ComponentStyle, StyleCx, TextLook, TypeRole};
 use crate::text::TextField;
 use craft_behavior::{Axis, Flow, Intent, Metrics, NavShape, PartKey, PartRef, Roving, Sense};
 use craft_host::target::MenuPlacement;
-use craft_i18n::fold::Folder;
+use craft_i18n::Folder;
 use craft_i18n::matcher::Matcher;
 use craft_keymap::mnemonic;
 use craft_theme::Stateful;
@@ -216,10 +216,10 @@ pub fn search_order(folder: &Folder, query: &str, texts: &[[&str; 3]]) -> Vec<us
         .iter()
         .enumerate()
         .filter_map(|(at, [label, english, path])| {
-            let named = [label, english].into_iter().filter_map(|text| matcher.score(text)).min();
+            let named = [label, english].into_iter().filter_map(|text| matcher.score(text)).map(|found| found.rank).min();
             match named {
                 Some(found) => Some((0_u8, found, at)),
-                None => matcher.score(path).map(|found| (1, found, at)),
+                None => matcher.score(path).map(|found| (1, found.rank, at)),
             }
         })
         .collect();
@@ -542,9 +542,7 @@ impl Component for MenuBar<'_> {
                         }
                         Open::More => {
                             for (at, title) in titles.iter_mut().enumerate().skip(found.shown) {
-                                let mut open = *body.memory_at::<bool>(("submenu", at));
-                                super::popup::submenu_rows(ui, title.label.clone(), &mut open, |ui, _| (title.body)(ui));
-                                *body.memory_at::<bool>(("submenu", at)) = open;
+                                super::popup::submenu_rows(ui, title.label.clone(), |ui, _| (title.body)(ui));
                             }
                         }
                     })

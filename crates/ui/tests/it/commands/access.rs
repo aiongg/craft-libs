@@ -4,7 +4,7 @@
 use super::kit::{AppCommand, FixedStyle, Pane, PaneCommand};
 use craft_behavior::{NavShape, PartKey, Roving, Sense};
 use craft_ui::contract::{Common, Component, Cx, Input, MeasureCx, PartsCx, Props as _, Role, Show as _, ShowContainer as _};
-use craft_ui::runtime::commands::{CommandInput, CommandRef, CommandState, FireSource};
+use craft_ui::runtime::commands::{CommandInput, CommandRef, CommandState, Commands as _, FireSource};
 use craft_ui::runtime::focus::{ActivateKeys, KeyUse};
 use craft_ui::runtime::frame::take_output;
 use craft_ui::testing::input::key_press;
@@ -159,9 +159,9 @@ impl Component for Pair<'_> {
 fn part_activated_names_the_part_and_the_source() {
     let mut frames = Frames::new();
     let seen = RefCell::new(Vec::new());
-    let mut origin = Pos2::ZERO;
+    let origin = RefCell::new(Pos2::ZERO);
     let mut show = |ui: &mut Ui| {
-        origin = Pair { common: Common::new(), seen: &seen }.show(ui).rect.min;
+        *origin.borrow_mut() = Pair { common: Common::new(), seen: &seen }.show(ui).rect.min;
     };
     frames.idle(3, &mut show);
     frames.frame(vec![key_press(Key::Tab, Modifiers::NONE)], &mut show);
@@ -172,7 +172,7 @@ fn part_activated_names_the_part_and_the_source() {
     assert!(seen.borrow().iter().all(|(_, right)| right.is_none()), "never the right part: {:?}", seen.borrow());
 
     seen.borrow_mut().clear();
-    let at = origin + Vec2::new(60.0, 10.0);
+    let at = *origin.borrow() + Vec2::new(60.0, 10.0);
     click(&mut frames, at, &mut show);
     assert!(seen.borrow().contains(&(None, Some(FireSource::Pointer))), "a click on the right part: {:?}", seen.borrow());
     assert!(seen.borrow().iter().all(|(left, _)| left.is_none()), "never the left part: {:?}", seen.borrow());

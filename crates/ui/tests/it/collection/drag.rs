@@ -3,7 +3,7 @@
 use super::kit::{Count, Dismissed, Row};
 use super::table::Table;
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, ItemSource, Selection, SelectionModel};
-use craft_ui::contract::{CollectionEvent, CollectionProps, ColumnKind, ColumnSpec, SelectMode, ShowCollection as _, ToggleColumn};
+use craft_ui::contract::{CollectionEvent, CollectionProps, ColumnKind, ColumnSpec, Props as _, SelectMode, ShowCollection as _, ToggleColumn};
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::{Frames, pointer, trial};
 use egui::{Modifiers, Pos2, Rect, Ui, Vec2};
@@ -110,6 +110,10 @@ impl DisplayOrder<usize> for Switches {
     fn index_of(&self, key: &usize) -> Option<usize> {
         (*key < self.len()).then_some(*key)
     }
+
+    fn is_section(&self, at: usize) -> bool {
+        self.sections.contains(&at)
+    }
 }
 
 impl ItemSource<usize> for Switches {
@@ -119,10 +123,6 @@ impl ItemSource<usize> for Switches {
 
     fn toggle_enabled(&self, at: usize, _: &ColumnKey) -> bool {
         !self.locked.contains(&at)
-    }
-
-    fn is_section(&self, at: usize) -> bool {
-        self.sections.contains(&at)
     }
 }
 
