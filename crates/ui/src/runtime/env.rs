@@ -763,9 +763,8 @@ fn host_format(ctx: &Context, host: Option<&Arc<Host>>) -> Arc<Format> {
     }
     #[derive(Default)]
     struct System(Option<Arc<Format>>);
-    Service::<System>::of(ctx).with(|system| {
-        Arc::clone(system.0.get_or_insert_with(|| Arc::new(Format::new(&craft_i18n::Region::system(), craft_i18n::Digits::Locale))))
-    })
+    Service::<System>::of(ctx)
+        .with(|system| Arc::clone(system.0.get_or_insert_with(|| Arc::new(Format::new(&craft_i18n::Region::system(), craft_i18n::Digits::Locale)))))
 }
 
 /// `words` with `rows` over them, built once per (inherited words, rows): a clone of a `Words` starts with an

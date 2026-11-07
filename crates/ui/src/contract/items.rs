@@ -556,8 +556,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                             self.renaming.focused = true;
                         }
                         let gesture = self.renaming.gesture;
-                        let before =
-                            Mixed::Same(Rename { key: key.clone(), name });
+                        let before = Mixed::Same(Rename { key: key.clone(), name });
                         if matches!(editor.event, Some(EditEvent::Commit { .. } | EditEvent::Cancel { .. })) {
                             self.refocus = focus::is_focused(&ctx, editor.response.id);
                         }

@@ -184,7 +184,9 @@ fn button_widths(body: &str, names: [&'static str; 3]) -> [f32; 3] {
         let (mut open, mut snap) = (true, false);
         Dialog::new("Options")
             .opened(Bind::bound(&mut open))
-            .buttons(names.into_iter().zip([DialogRole::Other, DialogRole::Cancel, DialogRole::Accept]).map(|(name, role)| FooterButton::new(name, role)))
+            .buttons(
+                names.into_iter().zip([DialogRole::Other, DialogRole::Cancel, DialogRole::Accept]).map(|(name, role)| FooterButton::new(name, role)),
+            )
             .show(ui, |ui, _| {
                 Checkbox::new(Bind::bound(&mut snap)).label(body.to_owned()).show(ui);
             });
