@@ -41,11 +41,10 @@ fn shift_pressed_after_the_press_squares_at_once() {
 }
 
 #[test]
-fn the_gesture_begins_past_the_slop() {
+fn the_gesture_begins_once() {
     let mut gesture = MarqueeGesture::press(pos2(0.0, 0.0), Point::ZERO, Mods::NONE);
-    gesture.follow(Some(pos2(2.0, 0.0)), Mods::NONE);
-    assert!(!gesture.begin_past(4.0, Constraint::Free));
-    gesture.follow(Some(pos2(9.0, 0.0)), Mods::NONE);
-    assert!(gesture.begin_past(4.0, Constraint::Free));
-    assert!(!gesture.begin_past(4.0, Constraint::Free));
+    assert!(!gesture.has_begun());
+    assert!(gesture.begin());
+    assert!(gesture.has_begun());
+    assert!(!gesture.begin());
 }

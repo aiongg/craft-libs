@@ -105,18 +105,17 @@ pub fn square_pixels(r: Rect, start: Point, end: Point) -> Rect {
     Rect::new(x0, y0, x1, y1)
 }
 
-/// The rules of a marquee drag: the click slop, ⇧ and ⌥ counted only when pressed after the
+/// The rules of a marquee drag: ⇧ and ⌥ counted only when pressed after the
 /// press (or released and pressed again), Space moving the whole marquee, and the options bar's
 /// [`Constraint`]. A canvas tool runs it from its pointer and key calls.
 ///
 /// One press is one value: [`press`](Self::press) at the press, then each pass
-/// [`follow`](Self::follow) the pointer and mods, [`begin_past`](Self::begin_past) the slop,
+/// [`follow`](Self::follow) the pointer and mods, [`begin`](Self::begin) on the tool's first drag call,
 /// and once begun [`size_to`](Self::size_to) the pointer's document point. Esc, the release and
-/// the click are the caller's: a release before the gesture began is a click.
+/// the click are the caller's: a press that never dragged is a click.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MarqueeGesture {
-    /// Where the press went down on the screen, and where the pointer is now.
-    origin: Pos2,
+    /// Where the pointer is now, on the screen.
     pointer: Pos2,
     /// The mods held at the press, and now.
     at_press: Mods,
@@ -134,17 +133,7 @@ impl MarqueeGesture {
     /// A press at `screen` (screen points) and `at` (document units, snapped by the host) with
     /// `mods` held: they choose the selection mode, not square or centre.
     pub fn press(screen: Pos2, at: Point, mods: Mods) -> Self {
-        Self {
-            origin: screen,
-            pointer: screen,
-            at_press: mods,
-            live: mods,
-            released_shift: false,
-            released_alt: false,
-            start: at,
-            end: at,
-            begun: false,
-        }
+        Self { pointer: screen, at_press: mods, live: mods, released_shift: false, released_alt: false, start: at, end: at, begun: false }
     }
 
     /// The mods held at the press, for the host's selection mode (add, subtract).
@@ -157,7 +146,7 @@ impl MarqueeGesture {
         self.pointer
     }
 
-    /// The gesture left the click slop (or began at the press with [`Constraint::Size`]).
+    /// The tool began the gesture with its first drag call.
     pub fn has_begun(&self) -> bool {
         self.begun
     }
@@ -173,16 +162,10 @@ impl MarqueeGesture {
         }
     }
 
-    /// Begins the gesture once the pointer is more than `slop` screen points from the press, or at
-    /// once with [`Constraint::Size`]. True on the call that begins it, so the caller begins its
-    /// edit gesture there.
-    pub fn begin_past(&mut self, slop: f32, constraint: Constraint) -> bool {
-        let at_press = matches!(constraint, Constraint::Size(..));
-        if !self.begun && (at_press || self.pointer.distance(self.origin) > slop) {
-            self.begun = true;
-            return true;
-        }
-        false
+    /// Begins the gesture: the tool calls it on its first `drag`, the press arena having separated the drag from a
+    /// click. True on the call that begins it, so the caller begins its edit gesture there.
+    pub fn begin(&mut self) -> bool {
+        !std::mem::replace(&mut self.begun, true)
     }
 
     /// ⇧ (square) and ⌥ (from the centre) for the marquee: held now, and either not held at the
