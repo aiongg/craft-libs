@@ -1,10 +1,14 @@
 //! Per-viewport frame and pass counters and the viewport list.
 
+use crate::runtime::frame;
 use egui::{Context, ViewportId};
 
 /// The pass number of `viewport`; it counts every pass, discard passes included.
 pub(crate) fn pass_nr(ctx: &Context, viewport: ViewportId) -> u64 {
-    ctx.cumulative_pass_nr_for(viewport)
+    match frame::running() {
+        Some(facts) if facts.viewport == viewport => facts.pass_nr,
+        _ => ctx.cumulative_pass_nr_for(viewport),
+    }
 }
 
 /// The frame number of `viewport`.
@@ -20,7 +24,10 @@ pub(crate) fn root_frame_nr(ctx: &Context) -> u64 {
 
 /// The viewport whose pass is running.
 pub(crate) fn current_viewport(ctx: &Context) -> ViewportId {
-    ctx.viewport_id()
+    match frame::running() {
+        Some(facts) => facts.viewport,
+        None => ctx.viewport_id(),
+    }
 }
 
 /// The viewports egui reports for the running pass.

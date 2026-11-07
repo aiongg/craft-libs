@@ -52,6 +52,10 @@ impl Library for Legacy {
                 (Box::new(AutoHeightScene::new()), "list::List::measured over 10,000 rows of 0 to 3 wrapped lines, mouse wheel every frame")
             }
             "second-viewport" => (Box::new(ViewportScene), "viewport::ViewportWindow, embedded (egui's default without a native backend)"),
+            "dialog-20-fields" => (
+                Box::new(DialogScene::new()),
+                "dialog::Dialog modal, open from the first frame, over 10 NumberFields and 10 TextFields in Field rows",
+            ),
             "readout-and-content-column" => {
                 (Box::new(ReadoutScene), "patterns::StatusBar trailing slot and a FieldGroup label column whose text changes width every frame")
             }
@@ -305,6 +309,46 @@ impl Scene for AutoHeightScene {
                     lines => row.detail("Today").lines(WRAPPED, lines),
                 }
             });
+    }
+}
+
+#[derive(Clone, PartialEq)]
+struct DialogFields {
+    values: Vec<f64>,
+    texts: Vec<String>,
+}
+
+struct DialogScene {
+    numbers: LocaleNumbers,
+    state: craft_ui_legacy::dialog::DialogState<DialogFields>,
+    fields: DialogFields,
+}
+
+impl DialogScene {
+    fn new() -> Self {
+        Self {
+            numbers: LocaleNumbers::from_tag("en"),
+            state: craft_ui_legacy::dialog::DialogState::new(),
+            fields: DialogFields { values: (0..10).map(f64::from).collect(), texts: (0..10).map(|i| format!("Value {i}")).collect() },
+        }
+    }
+}
+
+impl Scene for DialogScene {
+    fn size(&self) -> Vec2 {
+        vec2(800.0, 900.0)
+    }
+
+    fn show(&mut self, ui: &mut Ui, _frame: u64) {
+        let ctx = ui.ctx().clone();
+        let numbers = &self.numbers;
+        let _ = craft_ui_legacy::dialog::Dialog::new("dialog", "Settings").show(&ctx, &mut self.state, &mut self.fields, |ui, fields| {
+            for i in 0..10 {
+                let _ = Field::new(format!("Number {i}:"))
+                    .show(ui, |ui, _| NumberField::new(("number", i), "Number", fields.values[i], numbers).show(ui));
+                let _ = Field::new(format!("Text {i}:")).show(ui, |ui, _| TextField::new(("text", i), "Text", &fields.texts[i]).show(ui));
+            }
+        });
     }
 }
 

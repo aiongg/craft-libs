@@ -3,9 +3,12 @@
 
 use crate::contract::{Animate as _, Component, Cx, MeasureCx, PaintUi, Styled as _};
 use crate::primitives::{IconSpec, PaintShape, StrokeWidth, TextRun};
-use crate::style::{FocusLook, StyleColor, StyleCx, Stateful, SurfaceKind, SurfaceLook, TypeRole, VariantParts};
+use crate::style::{FocusLook, Stateful, StyleColor, StyleCx, SurfaceKind, SurfaceLook, TypeRole, VariantParts};
 use craft_behavior::{Flow, IconId};
-use craft_theme::{Variant, variant::{Emphasis, Tone}};
+use craft_theme::{
+    Variant,
+    variant::{Emphasis, Tone},
+};
 use egui::{Pos2, Rect, Vec2, pos2, vec2};
 use std::f32::consts::{PI, TAU};
 
@@ -33,12 +36,7 @@ impl FaceLook {
     /// The face look of the instance's variant: the variant's text colours, the control's icon and gap.
     pub(super) fn of(cx: &StyleCx<'_>) -> FaceLook {
         let control = cx.control();
-        FaceLook {
-            text: cx.variant_look().text,
-            icon: control.icon,
-            gap: control.gap,
-            ring: control.icon / 2.0 - cx.tokens.space.gap.tight,
-        }
+        FaceLook { text: cx.variant_look().text, icon: control.icon, gap: control.gap, ring: control.icon / 2.0 - cx.tokens.space.gap.tight }
     }
 }
 

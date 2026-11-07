@@ -5,9 +5,7 @@ mod completions;
 mod stories;
 mod words;
 
-use crate::contract::{
-    Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, OverlayUi, PartsCx, Props as _, Role, Scrub,
-};
+use crate::contract::{Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, OverlayUi, PartsCx, Props as _, Role, Scrub};
 use crate::primitives::{Completer, TextKey, TextOptions, TextRun};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx, SurfaceLook};

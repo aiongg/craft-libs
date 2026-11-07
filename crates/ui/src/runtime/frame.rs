@@ -12,6 +12,7 @@ use craft_host::target::Os;
 use craft_theme::{AppSizes, Appearance, Contrast, HitSizes, Mode, SUITE_DEFAULT, Size, TextSize, ThemeDef, builtins, resolve_sized};
 use egui::{Context, Ui, ViewportId};
 use std::any::TypeId;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -89,13 +90,14 @@ struct FrameState {
 /// Records of one runtime service, one per viewport. A viewport egui stops reporting has its record dropped
 /// at once, by the frame loop's end hook.
 pub(crate) struct PerViewport<T> {
-    records: HashMap<ViewportId, T>,
+    /// One or two entries: a linear search beats hashing.
+    records: Vec<(ViewportId, T)>,
     pruning: bool,
 }
 
 impl<T> Default for PerViewport<T> {
     fn default() -> Self {
-        PerViewport { records: HashMap::new(), pruning: false }
+        PerViewport { records: Vec::new(), pruning: false }
     }
 }
 
@@ -114,13 +116,25 @@ pub(crate) struct Stamped<T> {
     value: T,
 }
 
+impl<T: Default> PerViewport<T> {
+    fn record(&mut self, viewport: ViewportId) -> &mut T {
+        let at = match self.records.iter().position(|(id, _)| *id == viewport) {
+            Some(at) => at,
+            None => {
+                self.records.push((viewport, T::default()));
+                self.records.len() - 1
+            }
+        };
+        &mut self.records[at].1
+    }
+}
+
 impl<T: Default + Send + 'static> PerViewport<T> {
     /// Runs `f` on the record of `viewport`, created on first use.
     pub(crate) fn with<R>(ctx: &Context, viewport: ViewportId, f: impl FnOnce(&mut T) -> R) -> R {
         let service = Service::<PerViewport<T>>::of(ctx);
         // The prune registration runs outside the service's lock: it reaches the context.
-        let (registered, out) =
-            service.with(|records| (std::mem::replace(&mut records.pruning, true), f(records.records.entry(viewport).or_default())));
+        let (registered, out) = service.with(|records| (std::mem::replace(&mut records.pruning, true), f(records.record(viewport))));
         if !registered {
             Self::register_prune(ctx);
         }
@@ -129,7 +143,7 @@ impl<T: Default + Send + 'static> PerViewport<T> {
 
     fn register_prune(ctx: &Context) {
         fn prune<T: Default + Send + 'static>(ctx: &Context, live: &[ViewportId]) {
-            Service::<PerViewport<T>>::of(ctx).with(|records| records.records.retain(|viewport, _| live.contains(viewport)));
+            Service::<PerViewport<T>>::of(ctx).with(|records| records.records.retain(|(viewport, _)| live.contains(viewport)));
         }
         register_prune(ctx, TypeId::of::<T>(), prune::<T>);
     }
@@ -265,9 +279,31 @@ struct ViewportRecord {
     now: f64,
 }
 
+/// What the begin hook read of the running pass; steps read it, none writes it.
+#[derive(Clone, Copy)]
+pub(crate) struct PassFacts {
+    pub viewport: ViewportId,
+    pub pass_nr: u64,
+    /// The pass's time in seconds.
+    pub now: f64,
+}
+
+thread_local! {
+    /// The passes between their begin and end hooks on this thread, innermost last: nested viewport passes stack.
+    static RUNNING: RefCell<Vec<PassFacts>> = const { RefCell::new(Vec::new()) };
+}
+
+/// The facts of the innermost running pass on this thread, `None` outside every pass.
+pub(crate) fn running() -> Option<PassFacts> {
+    RUNNING.with(|running| running.borrow().last().copied())
+}
+
 /// The running pass's time in seconds, read once by the begin hook.
 pub(crate) fn clock(ctx: &Context) -> f64 {
-    PerViewport::<ViewportRecord>::with(ctx, pass::current_viewport(ctx), |record| record.now)
+    match running() {
+        Some(facts) => facts.now,
+        None => PerViewport::<ViewportRecord>::with(ctx, pass::current_viewport(ctx), |record| record.now),
+    }
 }
 
 /// Records that the runtime cancelled the captured press of the running viewport; the next begin hook ends
@@ -302,7 +338,8 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) {
 /// The begin hook, where the viewport is current.
 pub(crate) fn begin_pass(ui: &mut Ui) {
     let ctx = ui.ctx().clone();
-    let viewport = pass::current_viewport(&ctx);
+    // The pass this hook begins is not on the running stack yet.
+    let viewport = ctx.viewport_id();
     let root_pass = (viewport == ViewportId::ROOT).then(|| pass::pass_nr(&ctx, viewport));
     let frame_input = store::with::<FrameState, _>(&ctx, |state| {
         state.passes_open += 1;
@@ -313,6 +350,8 @@ pub(crate) fn begin_pass(ui: &mut Ui) {
     });
     // H5: read the clock once; the runtime cancelled a captured press since this viewport's last pass.
     let now = pass::now(&ctx);
+    let pass_nr = pass::pass_nr(&ctx, viewport);
+    RUNNING.with(|running| running.borrow_mut().push(PassFacts { viewport, pass_nr, now }));
     let cancelled = PerViewport::<ViewportRecord>::with(&ctx, viewport, |record| {
         record.now = now;
         std::mem::take(&mut record.press_cancelled)
@@ -377,4 +416,5 @@ pub(crate) fn end_pass(ui: &mut Ui) {
     for prune in prunes {
         prune(&ctx, &live);
     }
+    RUNNING.with(|running| running.borrow_mut().pop());
 }

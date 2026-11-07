@@ -140,7 +140,8 @@ fn generate(root: &str, sets: &[Set], icons: &[Entry]) -> String {
     let base = sets.iter().find(|s| s.base).expect("a base set");
 
     let _ = writeln!(out, "/// The names of the catalog's icons, sorted: the manifest's `[[icon]]` names.");
-    let _ = writeln!(out, "pub(super) const NAMES: [&str; {n}] = [{}];\n", icons.iter().map(|i| format!("{:?}", i.name)).collect::<Vec<_>>().join(", "));
+    let _ =
+        writeln!(out, "pub(super) const NAMES: [&str; {n}] = [{}];\n", icons.iter().map(|i| format!("{:?}", i.name)).collect::<Vec<_>>().join(", "));
     let _ = writeln!(
         out,
         "/// Whether each icon points along the reading direction, by index in `NAMES`.\npub(super) const DIRECTIONAL: [bool; {n}] = [{}];\n",

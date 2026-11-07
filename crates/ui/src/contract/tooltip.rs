@@ -141,7 +141,7 @@ pub(crate) fn run<C: Component>(cx: &Cx<'_, C>, input: TipIn<'_>) {
         owner: core.memory.owner(),
         id: core.id,
         env: input.env,
-        to_screen: areas::layer_to_screen(&core.ctx, input.ui.layer_id()),
+        layer: input.ui.layer_id(),
         rect,
         text,
         rich: if part.is_some() { None } else { input.rich },
@@ -166,7 +166,7 @@ pub fn attach(response: &egui::Response, tooltip: &Tooltip) {
         owner: response.id,
         id: response.id,
         env: &env,
-        to_screen: areas::layer_to_screen(ctx, response.layer_id),
+        layer: response.layer_id,
         rect: response.rect,
         text: Some(text),
         rich: None,
@@ -185,7 +185,8 @@ struct TipCall<'a> {
     owner: egui::Id,
     id: egui::Id,
     env: &'a Env,
-    to_screen: egui::emath::TSTransform,
+    /// The layer the rect is in.
+    layer: egui::LayerId,
     /// The rect the tooltip hangs from, in the layer's space.
     rect: Rect,
     text: Option<String>,
@@ -198,10 +199,14 @@ struct TipCall<'a> {
 }
 
 fn show_tip(call: TipCall<'_>) {
-    let TipCall { ctx, owner, id, env, to_screen, rect, text, rich, spec, wants_input, pressed, subject } = call;
-    let now = frame::clock(ctx);
+    let TipCall { ctx, owner, id, env, layer: rect_layer, rect, text, rich, spec, wants_input, pressed, subject } = call;
     let state_id = sub(id, "tip_state");
     let has_content = text.is_some() || rich.is_some();
+    // A component with no tooltip content and no timer or fading layer left from before has nothing to advance.
+    if !(has_content && wants_input) && !store::exists::<TipState>(ctx, state_id) {
+        return;
+    }
+    let now = frame::clock(ctx);
     let mut state = store::take::<TipState>(ctx, state_id).unwrap_or_else(|| {
         memory::adopt::<TipState>(ctx, owner, state_id);
         TipState::default()
@@ -230,9 +235,11 @@ fn show_tip(call: TipCall<'_>) {
         Service::<Grace>::of(ctx).with(|grace| grace.0 = Some(now));
     }
     state.shown = show;
-    store::put(ctx, state_id, state);
     let tip_id = sub(id, "tip");
     let presence = motion::layer_presence(ctx, tip_id, owner, env.motion, show, overlay_motion());
+    if state.shown || state.since.is_some() || presence.visible {
+        store::put(ctx, state_id, state);
+    }
     if !presence.visible {
         overlay::forget_layer(ctx, tip_id, owner);
         return;
@@ -244,7 +251,8 @@ fn show_tip(call: TipCall<'_>) {
         Place::anchored(Anchor::Rect(rect), Side::Below, Align::Start)
     };
     let tooltip = Overlay::tooltip().place(place);
-    let layer = Layer { id: tip_id, owner, overlay: &tooltip, anchor: to_screen * rect, env, exiting: !show, fade: presence.t };
+    let layer =
+        Layer { id: tip_id, owner, overlay: &tooltip, anchor: areas::layer_to_screen(ctx, rect_layer) * rect, env, exiting: !show, fade: presence.t };
     let mut rich = rich;
     overlay::host(ctx, &layer, &mut |ui| match rich.take() {
         Some(content) => content(ui),

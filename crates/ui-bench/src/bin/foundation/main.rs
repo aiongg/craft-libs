@@ -13,7 +13,9 @@ use craft_host::target::ShellInfo;
 use craft_ui::contract::{
     Bind, Collapse, ContainerProps, Mount, Overlay, Props as _, SelectMode, Show as _, ShowCollection as _, ShowContainer as _, Sizing,
 };
+use craft_ui::dialog::Dialog;
 use craft_ui::layout::ColumnGroup;
+use craft_ui::list::{List, ListRow};
 use craft_ui::runtime::env::RootEnv;
 use craft_ui::runtime::frame::{FrameInput, set_input};
 use craft_ui::runtime::{InstallSpec, install};
@@ -55,21 +57,23 @@ impl Library for Foundation {
                 // F8-MERGE: family (Field row): the field's own side label stands in for the `Field` row.
                 "500 rows alternating NumberField and TextField, each with its side label (no Field row component yet)",
             ),
-            "virtual-list-10000" => (Box::new(ListScene::new(Selected::None)), "BenchList over 10,000 rows, one selected row"),
+            "virtual-list-10000" => (Box::new(ListScene::new(Selected::None)), "List over 10,000 ListRow rows, one selected row"),
             "sheet-50x200" => (Box::new(SheetScene), "BenchList of 200 rows, each with 50 cell parts that paint their text"),
             // F8-MERGE: canvas: the canvas component and its declared controls.
             "canvas-50-controls" => (Box::new(CanvasScene), "a leaf with 50 control parts painted as knobs"),
             // F8-MERGE: menu: the menu component.
-            "menu-40-rows" => (Box::new(MenuScene), "a container on the menu layer, open from the first frame, over a BenchList of 40 labelled rows"),
+            "menu-40-rows" => (Box::new(MenuScene), "a container on the menu layer, open from the first frame, over a List of 40 ListRow rows"),
             "text-field-100kb" => (Box::new(TextScene::new()), "TextField::lines(30) bound with Bind::bound over a 100 KB String"),
-            "list-10000-selected" => (Box::new(ListScene::new(Selected::All)), "BenchList over 10,000 rows, all 10,000 keys in the Selection"),
+            "list-10000-selected" => (Box::new(ListScene::new(Selected::All)), "List over 10,000 ListRow rows, all 10,000 keys in the Selection"),
             "collapse-in-content-sized-panel" => {
                 (Box::new(CollapseScene::new()), "a content-sized, animated-collapse container whose open state the scene toggles")
             }
-            "auto-height-list-scroll-10000" => {
-                (Box::new(AutoHeightScene::new()), "BenchList::auto_height over 10,000 rows of one to four row heights, mouse wheel every frame")
-            }
+            "auto-height-list-scroll-10000" => (
+                Box::new(AutoHeightScene::new()),
+                "List over 10,000 ListRow rows of one to four row heights (detail line and wrapped lines on three in four), mouse wheel every frame",
+            ),
             "second-viewport" => (Box::new(ViewportScene), "a container with Mount::viewport (the fallback layer, as under an embedded backend)"),
+            "dialog-20-fields" => (Box::new(DialogScene::new()), "a modal Dialog open from the first frame over 10 NumberFields and 10 TextFields"),
             "readout-and-content-column" => (
                 Box::new(ReadoutScene),
                 // F8-MERGE: layout: the grid's `Content` column and the status bar's end slot.
@@ -133,8 +137,8 @@ impl ListScene {
 
 impl Scene for ListScene {
     fn show(&mut self, ui: &mut Ui, _frame: u64) {
-        let list = BenchList::new(SelectMode::Multi).selection(Bind::bound(&mut self.selection));
-        let _ = list.id_salt("list").show_items(ui, &self.source, &mut |&key, _| Row::new(RowKind::Plain { key }));
+        let list = List::new("Items").select(SelectMode::Multi).selection(Bind::bound(&mut self.selection));
+        let _ = list.id_salt("list").show_items(ui, &self.source, &mut |&key, _| ListRow::new(format!("Item {key}")));
     }
 }
 
@@ -180,7 +184,10 @@ impl Scene for MenuScene {
         let mut open = true;
         let props = ContainerProps::new().mount(Mount::Layer(Overlay::menu())).sizing(Sizing::Content);
         let _ = Panel::new(props).headerless().bind_open(Bind::bound(&mut open)).id_salt("menu").show(ui, |ui, _| {
-            let _ = BenchList::new(SelectMode::Single).id_salt("rows").show_items(ui, &rows, &mut |&key, _| Row::new(RowKind::Plain { key }));
+            let _ = List::new("Items")
+                .select(SelectMode::Single)
+                .id_salt("rows")
+                .show_items(ui, &rows, &mut |&key, _| ListRow::new(format!("Item {key}")));
         });
     }
 }
@@ -235,6 +242,8 @@ impl Scene for CollapseScene {
     }
 }
 
+const WRAPPED: &str = "A longer description of the row that wraps onto more lines when the list is narrow, to give rows different heights.";
+
 struct AutoHeightScene {
     source: Count,
     selection: Selection<usize>,
@@ -265,8 +274,11 @@ impl Scene for AutoHeightScene {
     }
 
     fn show(&mut self, ui: &mut Ui, _frame: u64) {
-        let list = BenchList::new(SelectMode::Single).auto_height().selection(Bind::bound(&mut self.selection));
-        let _ = list.id_salt("auto").show_items(ui, &self.source, &mut |&key, _| Row::new(RowKind::Auto { key }));
+        let list = List::new("Versions").select(SelectMode::Single).selection(Bind::bound(&mut self.selection));
+        let _ = list.id_salt("auto").show_items(ui, &self.source, &mut |&key, _| {
+            let row = ListRow::new(format!("Row {key}"));
+            if key % 4 == 0 { row } else { row.detail("Today").lines(WRAPPED) }
+        });
     }
 }
 
@@ -279,6 +291,33 @@ impl Scene for ViewportScene {
         let _ = Panel::new(props).id_salt("second").show(ui, |ui, _| {
             for i in 0..20 {
                 let _ = Block::new(PANEL_ROW).id_salt(i).show(ui);
+            }
+        });
+    }
+}
+
+struct DialogScene {
+    values: Vec<Option<f64>>,
+    texts: Vec<String>,
+}
+
+impl DialogScene {
+    fn new() -> Self {
+        Self { values: (0..10).map(|i| Some(f64::from(i))).collect(), texts: (0..10).map(|i| format!("Value {i}")).collect() }
+    }
+}
+
+impl Scene for DialogScene {
+    fn size(&self) -> Vec2 {
+        vec2(800.0, 900.0)
+    }
+
+    fn show(&mut self, ui: &mut Ui, _frame: u64) {
+        let Self { values, texts } = self;
+        let _ = Dialog::new("Settings").id_salt("dialog").show(ui, |ui, _| {
+            for (i, (value, text)) in values.iter_mut().zip(texts.iter_mut()).enumerate() {
+                let _ = NumberField::new(format!("Number {i}:"), Bind::bound(value)).id_salt(("number", i)).show(ui);
+                let _ = TextField::new(format!("Text {i}:"), Bind::bound(text)).id_salt(("text", i)).show(ui);
             }
         });
     }

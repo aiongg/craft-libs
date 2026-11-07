@@ -3,7 +3,7 @@
 
 mod kit;
 mod list;
+mod review;
 mod rows;
 mod table;
 mod table_trials;
-mod review;
