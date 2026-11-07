@@ -30,6 +30,12 @@ pub use tool_host::{ToolHost, ToolHostResponse, ToolInput, ToolReadout};
 mod raster_source;
 pub use raster_source::{PixelRect, RasterSource};
 
+mod pasteboard;
+mod split;
+pub use pasteboard::{PageBorder, PageFrame, Pasteboard, PasteboardColor, PasteboardOutput, PasteboardStyle};
+pub use split::{SplitAt, SplitLayout, SplitOutput, SplitPane, SplitStyle, SplitViews};
+pub use words::SplitWords;
+
 use crate::contract::{Common, Component, Container, ContainerProps, Cx, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role, Sizing};
 use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;

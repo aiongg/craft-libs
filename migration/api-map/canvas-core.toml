@@ -99,18 +99,6 @@ status = "replaced"
 note = "The values a tool hands to `ToolContext::readout`, reported in `ToolHostResponse::readout` for the canvas readout overlay."
 
 [[type]]
-name = "Pasteboard"
-old = "craft_ui::canvas::pasteboard::Pasteboard"
-new = "craft_ui::canvas::Pasteboard"
-status = "pending"
-
-[[type]]
-name = "SplitViews"
-old = "craft_ui::canvas::split::SplitViews"
-new = "craft_ui::canvas::SplitViews"
-status = "pending"
-
-[[type]]
 name = "Rulers"
 old = "craft_ui::canvas::rulers::Rulers"
 new = "craft_ui::canvas::Rulers"
@@ -216,8 +204,203 @@ new = "craft_ui::primitives::marching_ants"
 status = "replaced"
 note = "The one pixel-aligned painter: `marching_ants(tokens, points, closed, phase, clip, pixels_per_point)`, or `ContentPainterCx::marching_ants`. `phase` is in points along the path; `Ants::new(ppp, time, ..)` and `draw` are gone."
 
+# canvas-pasteboard-a: Pasteboard, SplitViews, ToolPill and the crisp-edge rules.
+
+[[type]]
+name = "Pasteboard"
+old = "craft_ui::canvas::pasteboard::Pasteboard"
+new = "craft_ui::canvas::Pasteboard"
+status = "moved"
+note = "A canvas control: `Pasteboard::new(label, &pages).color(..).border(..).show_at(ui, body.rect)` inside the `Canvas` body, which must be given a view (`Canvas::view`); the view and interface scale come from `canvas_space`, so `show(ui, &view)` is gone. `Pasteboard::quads` and `Pasteboard::page_at` stay pure associated functions over `craft_behavior::kurbo` geometry. The output is `PasteboardOutput`; `context_at` is a secondary release on the pasteboard away from pages and names (the Menu key is the app's pasteboard menu command). The drop shadow is an offset fill without blur."
+
+[[type]]
+name = "PasteboardColor"
+old = "craft_ui::canvas::pasteboard::PasteboardColor"
+new = "craft_ui::canvas::PasteboardColor"
+status = "moved"
+note = "`#[non_exhaustive]`; `Custom` holds a `craft_ui::style::DataColor` and `fill()` returns `Option<DataColor>`."
+
+[[type]]
+name = "PageBorder"
+old = "craft_ui::canvas::pasteboard::PageBorder"
+new = "craft_ui::canvas::PageBorder"
+status = "moved"
+note = "`#[non_exhaustive]`."
+
+[[type]]
+name = "PageFrame"
+old = "craft_ui::canvas::pasteboard::PageFrame"
+new = "craft_ui::canvas::PageFrame"
+status = "moved"
+note = "`rect` is `craft_behavior::kurbo::Rect`; `fill` is `Option<DataColor>` (`fill(DataColor)`); the struct is `#[non_exhaustive]`, built with `PageFrame::new(rect)`."
+
+[[type]]
+name = "PasteboardStyle"
+old = "craft_ui::canvas::pasteboard::PasteboardStyle"
+new = "craft_ui::canvas::PasteboardStyle"
+status = "replaced"
+note = "The type's `ComponentStyle`, resolved from tokens in `style`; `Pasteboard::style(tokens, color)` is gone."
+
+[[type]]
+name = "PasteboardResponse"
+old = "craft_ui::canvas::pasteboard::PasteboardResponse"
+new = ""
+status = "removed"
+note = "Replaced by `PasteboardOutput { response, name_clicked, context_at }`."
+
+[[type]]
+name = "PasteboardOutput"
+old = ""
+new = "craft_ui::canvas::PasteboardOutput"
+status = "replaced"
+note = "Replaces `PasteboardResponse`; `context_at` is a `craft_behavior::kurbo::Point`."
+
+[[type]]
+name = "SplitViews"
+old = "craft_ui::canvas::split::SplitViews"
+new = "craft_ui::canvas::SplitViews"
+status = "moved"
+note = "A container: `SplitViews::new(label, layout, Bind::bound(&mut split_at)).active(n).show(ui, |ui, body| ..)`; the body shows one view per pane at `layout.rects(split_at, body.rect)`, in `layout.draw_order(first)` for `first(n)`. The dividers move with the pointer and the arrow keys through the bound `SplitAt`; the pane gap is gone. `follow` is unchanged."
+
+[[type]]
+name = "SplitLayout"
+old = "craft_ui::canvas::split::SplitLayout"
+new = "craft_ui::canvas::SplitLayout"
+status = "moved"
+note = "`#[non_exhaustive]`; `rects(at: SplitAt, full)` replaces `rects(gap, full)`; `reading_order()` and `draw_order(first)` are new."
+
+[[type]]
+name = "SplitPane"
+old = "craft_ui::canvas::split::SplitPane"
+new = "craft_ui::canvas::SplitPane"
+status = "moved"
+note = "`#[non_exhaustive]`, built with `SplitPane::new(view, linked)`."
+
+[[type]]
+name = "SplitResponse"
+old = "craft_ui::canvas::split::SplitResponse"
+new = ""
+status = "removed"
+note = "Replaced by `SplitOutput { edit, activated }`."
+
+[[type]]
+name = "SplitOutput"
+old = ""
+new = "craft_ui::canvas::SplitOutput"
+status = "replaced"
+note = "Replaces `SplitResponse`; `edit` carries the divider edits and the response."
+
+[[type]]
+name = "SplitAt"
+old = ""
+new = "craft_ui::canvas::SplitAt"
+status = "replaced"
+note = "New: where the dividers lie, as fractions of the area. Replaces the fixed pane gap."
+
+[[type]]
+name = "SplitLabels"
+old = "craft_ui::canvas::split::SplitLabels"
+new = ""
+status = "removed"
+note = "Words: `SplitWords` (`canvas.splitView`, `canvas.splitResize`)."
+
+[[type]]
+name = "ToolPill"
+old = "craft_ui::canvas::tool_pill::ToolPill"
+new = ""
+status = "removed"
+note = "No caller in craft-libs or the app checkouts; not built."
+
+[[type]]
+name = "PillPlace"
+old = "craft_ui::canvas::tool_pill::PillPlace"
+new = ""
+status = "removed"
+note = "No caller; see `ToolPill`."
+
+[[type]]
+name = "ToolPillResponse"
+old = "craft_ui::canvas::tool_pill::ToolPillResponse"
+new = ""
+status = "removed"
+note = "No caller; see `ToolPill`."
+
+[[type]]
+name = "ToolPillLabels"
+old = "craft_ui::canvas::tool_pill::ToolPillLabels"
+new = ""
+status = "removed"
+note = "No caller; see `ToolPill`."
+
+[[type]]
+name = "crisp"
+old = "craft_ui::canvas::crisp::crisp"
+new = ""
+status = "removed"
+note = "Lines on whole device pixels are `craft_ui::primitives::Rule::shapes(look, from, to, pixels_per_point)`; `Draw::rule` and the kit's `grid_lines` use it."
+
+[[type]]
+name = "crisp_shape"
+old = "craft_ui::canvas::crisp::crisp_shape"
+new = ""
+status = "removed"
+note = "See `crisp`."
+
+[[type]]
+name = "CanvasId"
+old = "craft_ui::canvas::canvas_id::CanvasId"
+new = ""
+status = "removed"
+note = "The canvas's id is `Props::id` and `CanvasOutput::response.id`."
+
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]
 # type = ""
 # old = ""
 # new = ""
+
+# canvas-pasteboard-a setters.
+[[setter]]
+type = "Pasteboard"
+old = "color(PasteboardColor)"
+new = "color(PasteboardColor)"
+
+[[setter]]
+type = "Pasteboard"
+old = "border(PageBorder)"
+new = "border(PageBorder)"
+
+[[setter]]
+type = "Pasteboard"
+old = "canvas(CanvasId)"
+new = ""
+note = "The Menu key is the app's pasteboard menu command; `context_at` reports the pointer."
+
+[[setter]]
+type = "Pasteboard"
+old = "show(ui, &view)"
+new = "show_at(ui, body.rect)"
+note = "Inside a `Canvas` body that has a view."
+
+[[setter]]
+type = "SplitViews"
+old = "labels(SplitLabels)"
+new = ""
+note = "Words: `SplitWords`."
+
+[[setter]]
+type = "SplitViews"
+old = "active(usize)"
+new = "active(usize)"
+
+[[setter]]
+type = "SplitViews"
+old = "first(usize)"
+new = "SplitLayout::draw_order(first)"
+note = "The body shows the panes; the caller walks `draw_order`."
+
+[[setter]]
+type = "SplitViews"
+old = "show(ui, rect, |ui, pane, rect| ..)"
+new = "show(ui, |ui, body| ..)"
+note = "The pane rects are `layout.rects(split_at, body.rect)`."
