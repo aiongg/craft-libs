@@ -1,11 +1,12 @@
 //! Stories: named ways to show one registered type, and the data and output the runner reads from them.
 
 use super::Fixture;
-use crate::contract::{EditResponse, Inner};
+use crate::contract::{CollectionEvent, EditResponse, Inner};
 use craft_behavior::{EditEvent, PartKey, Value};
 use egui::{Id, Response, Ui};
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
+use std::ops::Range;
 
 /// A state a registered type must show in some story.
 #[non_exhaustive]
@@ -43,8 +44,11 @@ pub enum Drive {
     Drag(PartKey),
     /// Typed text.
     Type(&'static str),
-    /// Open, then Down and Enter on the row.
-    Pick(usize),
+    /// Open, then Down and Enter on the row; a second run clicks the row.
+    Pick {
+        /// The row to pick.
+        row: usize,
+    },
     /// The story's own drive.
     Custom(fn(&mut Fixture)),
     /// The story shows a state and changes nothing.
@@ -209,7 +213,61 @@ impl EditKind {
     }
 }
 
-/// What a story showed, type-erased: the response id and the kinds of its edit events.
+/// The kind of a collection event, with the edit kind of the events that carry one.
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CollectionKind {
+    /// The selection changed.
+    Selection,
+    /// The lead moved.
+    LeadMoved,
+    /// Enter or a double click on an item.
+    Activate,
+    /// A context menu was asked for.
+    ContextMenu,
+    /// A tree row opened or closed.
+    Open,
+    /// An item moved to another place.
+    Reorder(EditKind),
+    /// The selected items of a free layout moved.
+    Move(EditKind),
+    /// A drop onto an item.
+    Dropped,
+    /// A rename started, committed or was cancelled.
+    Rename(EditKind),
+    /// A toggle column's cell flipped.
+    Toggle(EditKind),
+    /// A column changed.
+    Column,
+    /// A column header's context menu was asked for.
+    HeaderMenu,
+    /// An item reported an event.
+    Item,
+}
+
+impl CollectionKind {
+    /// The kind of `event`, `None` for an edit event of a kind the runner does not know.
+    pub fn of<K, E>(event: &CollectionEvent<K, E>) -> Option<CollectionKind> {
+        Some(match event {
+            CollectionEvent::Selection(_) => CollectionKind::Selection,
+            CollectionEvent::LeadMoved(_) => CollectionKind::LeadMoved,
+            CollectionEvent::Activate(_) => CollectionKind::Activate,
+            CollectionEvent::ContextMenu(_) => CollectionKind::ContextMenu,
+            CollectionEvent::Open(_) => CollectionKind::Open,
+            CollectionEvent::Reorder(edit) => CollectionKind::Reorder(EditKind::of(edit)?),
+            CollectionEvent::Move(edit) => CollectionKind::Move(EditKind::of(edit)?),
+            CollectionEvent::Dropped { .. } => CollectionKind::Dropped,
+            CollectionEvent::Rename(edit) => CollectionKind::Rename(EditKind::of(edit)?),
+            CollectionEvent::Toggle(edit) => CollectionKind::Toggle(EditKind::of(edit)?),
+            CollectionEvent::Column(_) => CollectionKind::Column,
+            CollectionEvent::HeaderMenu(_) => CollectionKind::HeaderMenu,
+            CollectionEvent::Item(..) => CollectionKind::Item,
+            _ => return None,
+        })
+    }
+}
+
+/// What a story showed, type-erased: the response id, the kinds of its edit events and of its collection events.
 #[non_exhaustive]
 #[derive(Clone, Debug, Default)]
 pub struct StoryOutput {
@@ -217,23 +275,32 @@ pub struct StoryOutput {
     pub id: Option<Id>,
     /// The edit events' kinds, in order.
     pub edits: Vec<EditKind>,
+    /// The collection events' kinds, in drawing order.
+    pub collection: Vec<CollectionKind>,
+    /// The positions a collection showed.
+    pub visible: Option<Range<usize>>,
 }
 
 impl From<Response> for StoryOutput {
     fn from(response: Response) -> Self {
-        StoryOutput { id: Some(response.id), edits: Vec::new() }
+        StoryOutput { id: Some(response.id), ..StoryOutput::default() }
     }
 }
 
 impl<K, E> From<crate::contract::CollectionResponse<K, E>> for StoryOutput {
     fn from(response: crate::contract::CollectionResponse<K, E>) -> Self {
-        StoryOutput { id: Some(response.response.id), edits: Vec::new() }
+        StoryOutput {
+            id: Some(response.response.id),
+            collection: response.events.iter().filter_map(CollectionKind::of).collect(),
+            visible: Some(response.visible),
+            ..StoryOutput::default()
+        }
     }
 }
 
 impl<T> From<EditResponse<T>> for StoryOutput {
     fn from(response: EditResponse<T>) -> Self {
-        StoryOutput { id: Some(response.response.id), edits: response.event.iter().filter_map(EditKind::of).collect() }
+        StoryOutput { id: Some(response.response.id), edits: response.event.iter().filter_map(EditKind::of).collect(), ..StoryOutput::default() }
     }
 }
 
