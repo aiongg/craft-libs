@@ -189,6 +189,8 @@ struct Pass {
     drawing: Vec<Id>,
     /// The layers a component inside was activated in, this pass.
     activated: Vec<Id>,
+    /// The layers a primary press landed outside of, this pass, while their dismissal keeps them open.
+    pressed_outside: Vec<Id>,
 }
 
 #[derive(Default)]
@@ -205,6 +207,8 @@ struct Persist {
     absorb_zone: Option<Vec<Rect>>,
     /// An outside press the input hook removed for the running pass.
     outside_press: Option<Pos2>,
+    /// The root frame each shown layer first ran its body in; gone with the layer's last entry.
+    appeared: HashMap<Id, u64>,
 }
 
 /// The closes queued and not yet taken, each with the root frame that queued it.
@@ -224,6 +228,7 @@ fn with_pass<R>(ctx: &Context, f: impl FnOnce(&mut Pass) -> R) -> R {
             }
             pass.drawing.clear();
             pass.activated.clear();
+            pass.pressed_outside.clear();
         },
         f,
     )
@@ -314,6 +319,35 @@ pub(crate) fn drawing_parent(ctx: &Context) -> Option<Id> {
 /// Marks the layer `id`'s body as running, so layers opened from inside it become its children.
 pub(crate) fn begin_layer(ctx: &Context, id: Id) {
     with_pass(ctx, |pass| pass.drawing.push(id));
+    let frame = pass::root_frame_nr(ctx);
+    with_persist(ctx, pass::current_viewport(ctx), |persist| {
+        persist.appeared.entry(id).or_insert(frame);
+    });
+}
+
+/// Whether the layer `id` is in the frame it first shows: true in every pass of that frame, the discard passes
+/// included, and false from the next frame on.
+pub(crate) fn opening(ctx: &Context, id: Id) -> bool {
+    let frame = pass::root_frame_nr(ctx);
+    with_persist(ctx, pass::current_viewport(ctx), |persist| persist.appeared.get(&id) == Some(&frame))
+}
+
+/// Queues a close of every layer opened from inside the layer `id`, so the open state of a popup in its body does
+/// not outlive it.
+pub(crate) fn close_descendants(ctx: &Context, id: Id) {
+    for descendant in family(ctx, id).into_iter().filter(|member| *member != id) {
+        request_close(ctx, descendant, CloseReason::Requested);
+    }
+}
+
+/// Records that a primary press landed outside the layer `id`, its anchor and its family in this pass.
+pub(crate) fn note_pressed_outside(ctx: &Context, id: Id) {
+    with_pass(ctx, |pass| pass.pressed_outside.push(id));
+}
+
+/// Whether a primary press landed outside the layer `id` in this pass while its dismissal kept it open.
+pub(crate) fn pressed_outside(ctx: &Context, id: Id) -> bool {
+    with_pass(ctx, |pass| pass.pressed_outside.contains(&id))
 }
 
 /// Ends the body `begin_layer` started.
@@ -419,6 +453,7 @@ pub(crate) fn end_pass(ctx: &Context) {
             }
         }
         persist.raised.retain(|id, _| roots.contains(id));
+        persist.appeared.retain(|id, _| current.iter().any(|entry| entry.id == *id));
         let before = families(&current, &persist.raised);
         if let Some(point) = pressed
             && let Some(hit) = before
