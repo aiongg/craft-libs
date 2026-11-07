@@ -53,8 +53,6 @@ pub mod wheel;
 
 pub mod geometry;
 
-pub mod pixel_size;
-
 pub use accesskit::{Action as AccessAction, ActionData as AccessData};
 
 pub use anchor::Anchor9;
@@ -107,5 +105,3 @@ pub use typing::{EditRun, Ended, EscapeRule, Escaped, Typed, TypingRun};
 pub use value::{Applied, CancelReason, EditEvent, EditPolicy, Gesture, GestureId, GesturePhase, Mixed, Validity, Value};
 pub use value_drag::{DragWarp, ValueDrag};
 pub use wheel::{Wheel, WheelNotch, WheelPhase, WheelTaker, WheelUnit};
-
-pub use pixel_size::PixelSize;
