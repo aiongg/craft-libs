@@ -67,6 +67,12 @@ struct SaveSpec<T> {
     store: fn(&mut MemoryStage, &SaveKey, T),
 }
 
+impl<T> Clone for SaveSpec<T> {
+    fn clone(&self) -> Self {
+        SaveSpec { key: self.key.clone(), load: self.load, store: self.store }
+    }
+}
+
 type Check<'a, T> = dyn Fn(&T) -> Validity<T> + 'a;
 
 /// Where a binding's value lives.
@@ -147,6 +153,20 @@ impl<'a, T: Value> Bind<'a, T> {
     pub fn reset(mut self, default: T) -> Self {
         self.reset = Some(default);
         self
+    }
+
+    /// A binding with the same source, check, policy and reset that borrows this one, so a composite can hand its
+    /// own binding to a child component for the length of one pass. A given value is copied; a write-through
+    /// source is the same place.
+    pub fn reborrowed(&mut self) -> Bind<'_, T> {
+        let source = match &mut self.source {
+            Source::Given(value) => Source::Given(value.clone()),
+            Source::Mut(value) => Source::Mut(&mut **value),
+            Source::MutMixed(value) => Source::MutMixed(&mut **value),
+            Source::Kept => Source::Kept,
+        };
+        let check = self.check.as_deref().map(|check| Box::new(move |value: &T| check(value)) as Box<Check<'_, T>>);
+        Bind { source, policy: self.policy, check, save: self.save.clone(), reset: self.reset.clone() }
     }
 
     /// The binding as the pipeline reads and writes it.
@@ -262,11 +282,14 @@ pub struct EditResponse<T> {
     pub escaped: bool,
     /// What the binding's check says about the shown value.
     pub validity: Validity<T>,
+    /// The value the component showed after the pass, with the pass's edits applied; `None` for a component with
+    /// no value to show. A composite reads a child's new state here in the pass it changes.
+    pub shown: Option<Mixed<T>>,
 }
 
 impl<T> EditResponse<T> {
     pub(crate) fn new(response: Response, event: Option<EditEvent<T>>, validity: Validity<T>) -> Self {
-        EditResponse { response, event, submitted: false, escaped: false, validity }
+        EditResponse { response, event, submitted: false, escaped: false, validity, shown: None }
     }
 }
 

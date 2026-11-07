@@ -24,9 +24,10 @@ pub struct ValueDrag {
     warp: bool,
     hide_cursor: bool,
     fine: f64,
+    coarse: Option<f64>,
 }
 
-/// The factor Shift applies to travel when a drag sets none.
+/// The factor Alt (Option) applies to travel when a drag sets none.
 const FINE: f64 = 0.1;
 
 /// How close to an edge of the window, in points, the pointer warps.
@@ -39,12 +40,30 @@ impl ValueDrag {
     /// The value follows the pointer on `track`: `range.start()` at `track.start`, `range.end()` at `track.end`.
     /// A track whose `start` lies after its `end` runs backwards, as a vertical slider's does.
     pub fn absolute(track: Range<f32>, range: RangeInclusive<f64>) -> Self {
-        ValueDrag { mapping: Mapping::Absolute { track }, axis: Axis::X, range, wrap_range: false, warp: false, hide_cursor: false, fine: FINE }
+        ValueDrag {
+            mapping: Mapping::Absolute { track },
+            axis: Axis::X,
+            range,
+            wrap_range: false,
+            warp: false,
+            hide_cursor: false,
+            fine: FINE,
+            coarse: None,
+        }
     }
 
     /// The value changes by `rate` units per point of travel from the press. Vertical travel upwards increases it.
     pub fn relative(rate: f64, range: RangeInclusive<f64>) -> Self {
-        ValueDrag { mapping: Mapping::Relative { rate }, axis: Axis::X, range, wrap_range: false, warp: false, hide_cursor: false, fine: FINE }
+        ValueDrag {
+            mapping: Mapping::Relative { rate },
+            axis: Axis::X,
+            range,
+            wrap_range: false,
+            warp: false,
+            hide_cursor: false,
+            fine: FINE,
+            coarse: None,
+        }
     }
 
     /// The axis the pointer travels on; the default is horizontal.
@@ -53,9 +72,16 @@ impl ValueDrag {
         self
     }
 
-    /// The factor Shift applies to travel.
+    /// The factor Alt (Option) applies to travel.
     pub const fn fine(mut self, factor: f64) -> Self {
         self.fine = factor;
+        self
+    }
+
+    /// The factor Shift applies to travel. A drag sets none by default: on an absolute drag such as a slider's a
+    /// larger step has no meaning, so Shift changes nothing.
+    pub const fn coarse(mut self, factor: f64) -> Self {
+        self.coarse = Some(factor);
         self
     }
 
@@ -127,7 +153,13 @@ impl ValueDrag {
             _ => return None,
         };
         let pos = pos - shift;
-        let fine = if press.mods.shift { self.fine } else { 1.0 };
+        let fine = if press.mods.alt {
+            self.fine
+        } else if press.mods.shift {
+            self.coarse.unwrap_or(1.0)
+        } else {
+            1.0
+        };
         let raw = match &self.mapping {
             Mapping::Absolute { track } => {
                 let at = |point: Pos2| self.fraction(point, track, rtl) * (self.range.end() - self.range.start()) + self.range.start();
@@ -227,10 +259,22 @@ mod tests {
     }
 
     #[test]
-    fn shift_makes_the_travel_fine_from_the_value_at_the_start() {
+    fn alt_makes_the_travel_fine_from_the_value_at_the_start() {
         let slider = ValueDrag::absolute(100.0..300.0, 0.0..=10.0);
-        let fine = slider.value(4.0, &drag(pos2(150.0, 0.0), pos2(250.0, 0.0), Mods::SHIFT), false);
+        let fine = slider.value(4.0, &drag(pos2(150.0, 0.0), pos2(250.0, 0.0), Mods::ALT), false);
         assert_eq!(fine, Some(4.0 + 5.0 * 0.1));
+    }
+
+    #[test]
+    fn shift_is_coarse_only_when_the_drag_sets_a_coarse_factor() {
+        let travel =
+            |drag_: &ValueDrag, mods| drag_.value(10.0, &drag(pos2(0.0, 0.0), pos2(4.0, 0.0), mods), false).map(|v| ((v - 10.0) * 1e9).round() / 1e9);
+        let plain = ValueDrag::relative(1.0, 0.0..=1000.0);
+        let scrub = plain.clone().coarse(10.0).fine(0.1);
+        assert_eq!(travel(&scrub, Mods::NONE), Some(4.0));
+        assert_eq!(travel(&scrub, Mods::SHIFT), Some(40.0), "Shift moves ten times a plain drag");
+        assert_eq!(travel(&scrub, Mods::ALT), Some(0.4), "Alt moves by the fine factor");
+        assert_eq!(travel(&plain, Mods::SHIFT), Some(4.0), "without coarse, Shift changes nothing");
     }
 
     #[test]

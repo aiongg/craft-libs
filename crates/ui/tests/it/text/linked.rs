@@ -1,10 +1,11 @@
 //! `LinkedFields`: the ratio and equal rules, and a typed edit keeping the gesture's starting ratio.
 
+use craft_behavior::EditEvent;
 use craft_ui::contract::{Bind, Show as _};
 use craft_ui::testing::{Fixture, trial};
 use craft_ui::text::{LinkedFields, follow_equal, follow_ratio};
 use egui::{Key, Modifiers};
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::ops::RangeInclusive;
 use std::rc::Rc;
 
@@ -64,4 +65,39 @@ fn escape_restores_every_linked_field() {
     fixture.key(Key::Escape, Modifiers::NONE);
     fixture.idle(2);
     assert_eq!(values.get(), [Some(400.0), Some(300.0)]);
+}
+
+/// Clicking the link writes the bound bool through the child: one edit event with the link's label.
+#[trial]
+fn clicking_the_link_writes_the_bool_through_the_child() {
+    let linked = Rc::new(Cell::new(false));
+    let events = Rc::new(RefCell::new(Vec::new()));
+    let (shown, seen) = (linked.clone(), events.clone());
+    let mut fixture = Fixture::new(move |ui| {
+        let mut on = shown.get();
+        let out = LinkedFields::new("Size", Bind::given([Some(10.0), Some(20.0)]), Bind::bound(&mut on)).captions(["W", "H"]).show(ui);
+        shown.set(on);
+        if let Some(event) = out.link {
+            seen.borrow_mut().push(event);
+        }
+    });
+    fixture.settle();
+    let toggle = fixture.by_label("Maintain aspect ratio").expect("the link toggle is named");
+    fixture.click(&toggle);
+    fixture.idle(2);
+    assert!(linked.get(), "the bound bool is written");
+    let events = events.borrow();
+    assert_eq!(events.len(), 1, "one edit event: {events:?}");
+    assert!(matches!(&events[0], EditEvent::Set { label, .. } if &**label == "Maintain aspect ratio"), "the link's label: {events:?}");
+}
+
+/// With the link on, editing one field moves the other.
+#[trial]
+fn with_the_link_on_editing_one_field_moves_the_other() {
+    let values: Values = Rc::new(Cell::new([Some(100.0), Some(50.0)]));
+    let mut fixture = rig(&values);
+    fixture.type_text("200");
+    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.idle(2);
+    assert_eq!(values.get(), [Some(200.0), Some(100.0)]);
 }

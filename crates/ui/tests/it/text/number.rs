@@ -1,9 +1,12 @@
 //! The number field's own logic: stepping, the range on typed values, presets and the label scrub across a pointer warp.
 
 use crate::label::kit::Field;
+use craft_behavior::{NumberCodec, Reader};
 use craft_host::target::ShellInfo;
+use craft_host::{AppInfo, Host};
 use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _, SideLabel};
 use craft_ui::runtime::InstallSpec;
+use craft_ui::runtime::env::UnitKind;
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::{click, moved, press};
 use craft_ui::testing::windows::FakeSystem;
@@ -190,4 +193,80 @@ fn a_wrapped_scrub_keeps_its_value_continuous() {
         (value.unwrap_or_default() - before - f64::from(DRAG)).abs() < SAME,
         "the drag goes on from the value before the warp: {before} -> {value:?}"
     );
+}
+
+/// A field of `kind` (plain without one) under `host`'s locale, with `text` typed over its value and committed.
+fn typed(host: Option<Arc<Host>>, kind: Option<UnitKind>, text: &str) -> Option<f64> {
+    let mut frames = Frames::new();
+    if let Some(host) = host {
+        frames.host(host);
+    }
+    let value = RefCell::new(Some(START));
+    let at = Cell::new(Pos2::ZERO);
+    let mut show = |ui: &mut Ui| {
+        let mut guard = value.borrow_mut();
+        let mut field = NumberField::new("Size", Bind::bound(&mut *guard)).id_salt("size");
+        if let Some(kind) = kind {
+            field = field.unit_kind(kind);
+        }
+        at.set(field.show(ui).response.rect.center());
+    };
+    frames.idle(3, &mut show);
+    click(&mut frames, at.get(), &mut show);
+    frames.frame(vec![key_press(Key::A, Modifiers::COMMAND)], &mut show);
+    frames.frame(vec![Event::Text(text.into())], &mut show);
+    frames.idle(1, &mut show);
+    frames.frame(vec![key_press(Key::Enter, Modifiers::NONE)], &mut show);
+    frames.idle(3, &mut show);
+    value.into_inner()
+}
+
+/// A unit spelling of the field's kind types in and converts to the field's unit.
+#[trial]
+fn a_unit_spelling_types_in() {
+    assert_eq!(typed(None, Some(UnitKind::Millimetres), "12 mm"), Some(12.0));
+    assert_eq!(typed(None, Some(UnitKind::Millimetres), "1cm"), Some(10.0));
+}
+
+/// Under a decimal-comma locale the comma is the decimal separator.
+#[trial]
+fn a_localised_decimal_types_in() {
+    let (i18n, problems) = craft_i18n::I18n::from_owned([("de".to_owned(), String::new(), "@id\ttrial.save\tSpeichern\n".to_owned())], &["de"]);
+    assert!(problems.is_empty(), "{problems:?}");
+    i18n.set_format(craft_i18n::Format::from_tag("de"));
+    let host = Arc::new(Host::builder(AppInfo { id: "trial", name: "Trial", version: "0" }).i18n(Arc::new(i18n)).build());
+    assert_eq!(typed(Some(host), None, "12,5"), Some(12.5));
+}
+
+/// A scrub over a two-decimal field gives values with at most two decimals.
+#[trial]
+fn a_scrub_rounds_to_the_fields_decimals() {
+    let system = Arc::new(FakeSystem::new());
+    let mut frames = Frames::uninstalled();
+    let installed = craft_ui::install(&frames.ctx, InstallSpec::new(ShellInfo::default(), system.clone()));
+    assert!(installed.is_ok(), "the context takes the runtime once");
+    let mut value = Some(START);
+    let show = |ui: &mut Ui, value: &mut Option<f64>| {
+        Field::new("Size", SideLabel::new()).id_salt("round").show_at(ui, ROW, |ui, _| {
+            let codec = NumberCodec::new(Reader::new(), 2);
+            NumberField::new("Size", Bind::bound(&mut *value)).codec(codec).scrub_by_label().id_salt("scrubbed").show(ui);
+        });
+    };
+    frames.idle(4, |ui| show(ui, &mut value));
+    let from = ROW.min + Vec2::new(4.0, 12.0);
+    let step = |frames: &mut Frames, value: &mut Option<f64>, events: Vec<Event>, at: Pos2| {
+        system.set_pointer(Some([at.x, at.y]));
+        frames.frame(events, |ui| show(ui, value));
+    };
+    step(&mut frames, &mut value, vec![moved(from)], from);
+    step(&mut frames, &mut value, vec![press(from)], from);
+    let along = from + Vec2::new(20.0, 0.0);
+    step(&mut frames, &mut value, vec![moved(along)], along);
+    for travel in [23.37_f32, 29.173, 36.3571] {
+        let at = from + Vec2::new(travel, 0.0);
+        step(&mut frames, &mut value, vec![moved(at)], at);
+        let number = value.unwrap_or_default();
+        assert!(number > START, "the drag moved the value: {number}");
+        assert_eq!((number * 100.0).round() / 100.0, number, "at most two decimals: {number}");
+    }
 }

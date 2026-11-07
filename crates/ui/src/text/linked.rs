@@ -75,11 +75,14 @@ pub struct LinkedFieldsStyle {
 }
 
 /// What linked fields remember between passes: the values a gesture began with, so every value it reports is built
-/// from them, and the link state of the last pass, to see the link turn on.
+/// from them, and the link state of the last passes, to see the link turn on.
 #[derive(Clone, Default)]
 struct Memo<const N: usize> {
     base: Option<[Option<f64>; N]>,
-    linked: Option<bool>,
+    /// The link state the last pass ended with, as the link child showed it.
+    seen: Option<bool>,
+    /// What `seen` held when the last pass began, to see the link turn on.
+    before: Option<bool>,
 }
 
 /// The output of linked fields: the values' edit, and the link's edit when the toggle was clicked.
@@ -128,7 +131,9 @@ pub struct LinkedFields<'a, const N: usize> {
     common: Common,
     values: Bind<'a, [Option<f64>; N]>,
     link: Bind<'a, bool>,
+    /// The link child's event of this pass and the state it showed, kept from `paint` to `finish`.
     link_event: Option<EditEvent<bool>>,
+    link_shown: Option<bool>,
     /// What the link keeps.
     #[prop]
     mode: LinkMode,
@@ -149,6 +154,7 @@ impl<'a, const N: usize> LinkedFields<'a, N> {
             values,
             link,
             link_event: None,
+            link_shown: None,
             mode: LinkMode::Ratio,
             layout: LinkedLayout::Row,
             captions: None,
@@ -170,10 +176,6 @@ impl<'a, const N: usize> LinkedFields<'a, N> {
     pub fn range(mut self, range: RangeInclusive<f64>) -> Self {
         self.ranges = Some(std::array::from_fn(|_| range.clone()));
         self
-    }
-
-    fn linked(&mut self) -> bool {
-        matches!(self.link.reborrow().get(), Some(Mixed::Same(true)))
     }
 
     fn range_of(&self, i: usize) -> RangeInclusive<f64> {
@@ -239,15 +241,14 @@ impl<const N: usize> Component for LinkedFields<'_, N> {
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        let linked = self.linked();
         let shown = cx.value().copied();
         let running = cx.gesture().is_some();
         let memo = cx.memory::<Memo<N>>();
         if !running {
             memo.base = shown;
         }
-        let was = memo.linked.replace(linked);
-        let turned_on = linked && was == Some(false);
+        let was = std::mem::replace(&mut memo.before, memo.seen);
+        let turned_on = memo.seen == Some(true) && was == Some(false);
         if let (true, LinkMode::Equal, Some(values)) = (turned_on, self.mode, shown)
             && let Some(first) = values[0]
             && values.iter().any(|value| *value != Some(first))
@@ -258,7 +259,6 @@ impl<const N: usize> Component for LinkedFields<'_, N> {
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let shown = cx.value().copied().unwrap_or([None; N]);
-        let linked = self.linked();
         let base = cx.recall::<Memo<N>>().base.unwrap_or(shown);
         let group = cx.label();
         let words = cx.words::<LinkedWords>();
@@ -268,23 +268,37 @@ impl<const N: usize> Component for LinkedFields<'_, N> {
         let flow = Flow::new(cx.rect, cx.env.direction().is_rtl());
         let place = |logical: Rect| flow.to_physical(logical.translate(cx.rect.min.to_vec2()));
 
-        for (i, cell) in cells.into_iter().enumerate() {
-            let field = self.field(i, &group, shown[i]);
-            let child = match &self.captions {
-                Some(captions) => ui.labelled(("field", i), place(cell), captions[i].clone(), SideLabel::new().scrub(true), field.scrub_by_label()),
-                None => ui.child(("field", i), place(cell), field),
-            };
-            cx.adopt(&child, |value, mine| *mine = follow(mode, linked, base, i, *value, &ranges));
-        }
-
-        let toggle = link_toggle(mode.label(&words), Bind::given(linked));
-        if let Some(event) = ui.child("link", place(link_cell), toggle).event {
-            self.link.reborrow().apply(&event);
-            self.link_event = EditEvent::fold(self.link_event.take(), event);
+        // The fields are shown first, so the Tab order is the fields, then the link. The link's own pipeline reads,
+        // applies and records its edit; the fields follow the state it shows after the pass, so their edits are
+        // adopted once the link has been shown.
+        let children: Vec<_> = cells
+            .into_iter()
+            .enumerate()
+            .map(|(i, cell)| {
+                let field = self.field(i, &group, shown[i]);
+                match &self.captions {
+                    Some(captions) => ui.labelled(
+                        ("field", i),
+                        place(cell),
+                        captions[i].clone(),
+                        SideLabel::new().scrub(true),
+                        field.scrub_by_label().keeps_name(true),
+                    ),
+                    None => ui.child(("field", i), place(cell), field),
+                }
+            })
+            .collect();
+        let link = ui.child("link", place(link_cell), link_toggle(mode.label(&words), self.link.reborrowed()));
+        let linked = matches!(link.shown, Some(Mixed::Same(true)));
+        self.link_shown = link.shown.as_ref().map(|shown| matches!(shown, Mixed::Same(true)));
+        self.link_event = link.event;
+        for (i, child) in children.iter().enumerate() {
+            cx.adopt(child, |value, mine| *mine = follow(mode, linked, base, i, *value, &ranges));
         }
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> LinkedOutput<N> {
+    fn finish(self, mut cx: Cx<'_, Self>) -> LinkedOutput<N> {
+        cx.memory::<Memo<N>>().seen = self.link_shown;
         LinkedOutput { edit: cx.edit_response(), link: self.link_event }
     }
 }

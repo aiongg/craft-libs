@@ -1,8 +1,10 @@
 //! `Env` and scopes, app values and `content_env`.
 
 mod label;
+mod units;
 
 pub use label::{Label, Message, Word};
+pub use units::{UnitKind, UnitWords, Units};
 
 use crate::runtime::commands::CommandChain;
 use crate::runtime::egui::memory::{FastMap, Service};
@@ -397,6 +399,11 @@ impl Env {
         &self.format
     }
 
+    /// The scope's number format and unit words, to read and write numbers with their unit.
+    pub fn units(&self) -> Units {
+        Units::new(self.format.clone(), self.words::<UnitWords>())
+    }
+
     /// The root env of a frame: the app's values with the pixels per point read back from egui.
     pub(crate) fn from_root(ctx: &Context, root: &RootEnv, host: Option<Arc<Host>>, pixels_per_point: f32) -> Env {
         let tokens = root_tokens(ctx, root);
@@ -700,6 +707,11 @@ impl<'a> EnvView<'a> {
     /// How the scope writes numbers: locale digits, separators and grouping.
     pub fn format(&self) -> &'a Format {
         &self.scoped.format
+    }
+
+    /// The scope's number format and unit words, to read and write numbers with their unit.
+    pub fn units(&self) -> Units {
+        Units::new(self.scoped.format.clone(), self.words::<UnitWords>())
     }
 
     /// `label` with a `Word` replaced by its text in the scope's language.
