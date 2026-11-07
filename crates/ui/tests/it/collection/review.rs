@@ -72,7 +72,7 @@ fn a_three_option_select_list_is_three_rows_tall() {
     let options = fixture.by_role(Role::LIST_BOX_OPTION);
     assert_eq!(options.len(), 3);
     let rows: f32 = options.iter().map(|option| option.rect.height()).sum();
-    assert!((list.rect.height() - rows).abs() < 1.0, "the list is as tall as its rows: {} against {rows}", list.rect.height());
+    assert_eq!(list.rect.height().round(), rows.round(), "the list is as tall as its rows: {} against {rows}", list.rect.height());
 }
 
 /// A secondary release inside something that covers the list asks the list for no menu.
@@ -86,9 +86,7 @@ fn a_secondary_release_under_a_cover_asks_for_no_menu() {
             run.take(List::new(SelectMode::Single).id_salt("list").show_items(ui, &words, &mut |_, _| Row::new()));
         });
         if covered.get() {
-            egui::Area::new(Id::new("cover")).order(egui::Order::Foreground).fixed_pos(ORIGIN).interactable(true).show(ui.ctx(), |ui| {
-                ui.allocate_exact_size(VIEW, egui::Sense::click());
-            });
+            craft_ui::testing::sensing::cover(ui.ctx(), VIEW);
         }
     };
     frames.idle(3, &mut show);
