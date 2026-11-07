@@ -4,14 +4,14 @@
 
 use super::words::PickerWords;
 use crate::contract::{
-    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Name, PaintUi, PartsCx, Props as _, Role,
-    SetPosition, Styled as _, WordSetCx as _,
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Input, MeasureCx, Name, PaintUi, PartsCx, Props as _, Role, SetPosition,
+    Styled as _, WordSetCx as _,
 };
 use crate::primitives::{PaintShape, StrokeWidth};
 use crate::runtime::env::Label;
 use crate::runtime::focus::{ActivateKeys, KeyUse};
 use crate::style::{ComponentStyle, Flags, FocusLook, Stateful, States, StyleColor, StyleCx, SurfaceKind, SurfaceLook, UiTokens};
-use craft_behavior::{Anchor9, Arrows, Metrics, NavMove, NavShape, PartKey, PartRef, Roving, Sense};
+use craft_behavior::{Anchor9, Metrics, NavShape, PartKey, PartRef, Roving, Sense};
 use egui::{Pos2, Rect, Vec2, vec2};
 
 #[cfg(feature = "testing")]
@@ -173,28 +173,15 @@ impl Component for ReferencePoint<'_> {
                 part.flags(Flags::CHECKED).selected();
             }
         }
-        cx.roving(Roving::new(NavShape::wrapped_grid(GRID)).arrows(Arrows::Vertical));
+        cx.roving(Roving::new(NavShape::bounded_grid(GRID)));
     }
 
     fn bind(&mut self) -> Option<BindMut<'_, Anchor9>> {
         Some(self.value.reborrow())
     }
 
-    /// Left and Right move the focus along the row and stop at its ends (the roving group takes Up and Down, Home and
-    /// End); a click, Space or Enter on a point picks it.
+    /// The roving group moves the focus and stops at the grid's edges; a click, Space or Enter on a point picks it.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        while let Some((step, _)) = cx.intents().take_move() {
-            let focused = cx.active_part().filter(|part| part.key == CELL).and_then(|part| part.index);
-            let Some((column, row)) = focused.map(|at| Anchor9::ALL[at as usize].cell()) else { continue };
-            let target = match step {
-                NavMove::Back if column > 0 => Anchor9::from_cell(column - 1, row),
-                NavMove::Forward if column + 1 < GRID => Anchor9::from_cell(column + 1, row),
-                _ => continue,
-            };
-            if let Some(at) = Self::position_of(Some(&target)) {
-                cx.focus_part(Self::part(at));
-            }
-        }
         let current = Self::position_of(cx.value());
         let activated = (0..Anchor9::ALL.len()).find(|at| cx.part_activated(Self::part(*at)).is_some());
         if let Some(at) = activated.filter(|at| current != Some(*at)) {

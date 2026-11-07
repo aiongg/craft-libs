@@ -19,6 +19,13 @@ pub enum NavShape {
         /// Cells per row.
         columns: usize,
     },
+    /// Equal-width cells in `columns` columns whose Left and Right stop at the row ends; Up and Down stop at the first
+    /// and last rows.
+    #[non_exhaustive]
+    BoundedGrid {
+        /// Cells per row.
+        columns: usize,
+    },
     /// Rows of different lengths.
     RaggedGrid,
     /// Cells of a sheet.
@@ -31,6 +38,11 @@ impl NavShape {
     /// Equal-width cells that wrap at `columns`.
     pub const fn wrapped_grid(columns: usize) -> Self {
         Self::WrappedGrid { columns }
+    }
+
+    /// Equal-width cells in `columns` columns whose Left and Right stop at the row ends.
+    pub const fn bounded_grid(columns: usize) -> Self {
+        Self::BoundedGrid { columns }
     }
 }
 
@@ -165,7 +177,8 @@ pub fn step(shape: NavShape, outline: &dyn NavOutline, state: &mut NavState, mv:
     let result = match shape {
         NavShape::Flat => linear(outline, state, lead, mv),
         NavShape::Tree => tree(outline, state, lead, mv),
-        NavShape::WrappedGrid { columns } => grid(outline, state, lead, mv, mods, columns.max(1)),
+        NavShape::WrappedGrid { columns } => grid(outline, state, lead, mv, mods, columns.max(1), true),
+        NavShape::BoundedGrid { columns } => grid(outline, state, lead, mv, mods, columns.max(1), false),
         NavShape::RaggedGrid => ragged(outline, state, lead, mv),
         NavShape::Cell => cell(outline, state, lead, mv, mods),
         NavShape::Spatial => spatial(outline, lead, mv),
@@ -366,7 +379,7 @@ fn spatial(outline: &dyn NavOutline, lead: usize, mv: NavMove) -> NavStep {
     moved(nearest.map(|(at, _)| at))
 }
 
-fn grid(outline: &dyn NavOutline, state: &NavState, lead: usize, mv: NavMove, mods: MoveMods, columns: usize) -> NavStep {
+fn grid(outline: &dyn NavOutline, state: &NavState, lead: usize, mv: NavMove, mods: MoveMods, columns: usize, wraps: bool) -> NavStep {
     let len = outline.len();
     let blanks = outline.first_column().map_or(0, |column| column % columns);
     // Members sit after `blanks` blank cells of the first row.
@@ -378,9 +391,13 @@ fn grid(outline: &dyn NavOutline, state: &NavState, lead: usize, mv: NavMove, mo
         to.filter(|&at| selectable(outline, at))
     };
     let row_start = (lead + blanks) / columns * columns;
+    let beside = |forward: bool| {
+        let at_row_end = if forward { column + 1 == columns } else { column == 0 };
+        if !wraps && at_row_end { None } else { neighbour(outline, state, lead, forward) }
+    };
     match mv {
-        NavMove::Back => moved(neighbour(outline, state, lead, false)),
-        NavMove::Forward => moved(neighbour(outline, state, lead, true)),
+        NavMove::Back => moved(beside(false)),
+        NavMove::Forward => moved(beside(true)),
         NavMove::Up => moved(vertical(false, 1)),
         NavMove::Down => moved(vertical(true, 1)),
         NavMove::PageUp => {
@@ -777,6 +794,19 @@ mod tests {
         assert_eq!(go(shape, &rows, &mut state, NavMove::PageDown), NavStep::Moved(9), "a short last row takes the last position");
         assert_eq!(go(shape, &rows, &mut state, NavMove::Forward), NavStep::Stay);
         assert_eq!(go(shape, &rows, &mut state, NavMove::Back), NavStep::Moved(8));
+    }
+
+    #[test]
+    fn bounded_grids_stop_left_and_right_at_the_row_ends() {
+        let rows = Rows::flat(9);
+        let shape = NavShape::bounded_grid(3);
+        let mut state = NavState::at(2);
+        assert_eq!(go(shape, &rows, &mut state, NavMove::Forward), NavStep::Stay, "the end of a row does not continue on the next");
+        assert_eq!(go(shape, &rows, &mut state, NavMove::Down), NavStep::Moved(5));
+        let mut state = NavState::at(3);
+        assert_eq!(go(shape, &rows, &mut state, NavMove::Back), NavStep::Stay, "the start of a row does not continue on the previous");
+        assert_eq!(go(shape, &rows, &mut state, NavMove::Forward), NavStep::Moved(4));
+        assert_eq!(go(shape, &rows, &mut NavState::at(0), NavMove::Up), NavStep::Stay, "no row above");
     }
 
     /// Rows of 3, 1 and 2 positions; a sheet of 3 rows by 4 columns; four items at free positions.

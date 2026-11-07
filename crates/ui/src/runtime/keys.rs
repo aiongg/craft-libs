@@ -862,6 +862,7 @@ fn route_access(
 #[derive(Clone, Debug, Default)]
 pub struct Intents {
     items: Vec<(Intent, bool)>,
+    took_arrows: Vec<NavMove>,
     nudge: Option<(Vec2, Mods)>,
     set_value: Option<(Option<PartRef>, f64)>,
     whole_reset: bool,
@@ -931,9 +932,19 @@ impl Intents {
         let at = self.items.iter().position(|(item, taken)| !taken && matches!(item, Intent::Move(..)))?;
         self.items[at].1 = true;
         match self.items[at].0 {
-            Intent::Move(mv, mods) => Some((mv, mods)),
+            Intent::Move(mv, mods) => {
+                if matches!(mv, NavMove::Back | NavMove::Forward | NavMove::Up | NavMove::Down) {
+                    self.took_arrows.push(mv);
+                }
+                Some((mv, mods))
+            }
             _ => None,
         }
+    }
+
+    /// The arrow moves `take_move` took this pass: the run step checks that the component holds those keys.
+    pub(crate) fn taken_arrow_moves(&self) -> &[NavMove] {
+        &self.took_arrows
     }
 
     /// Takes the next move that scrolls (page up or down, start, end): what a focused component that does not
@@ -1088,7 +1099,7 @@ pub(crate) fn intents_of(ctx: &Context, id: Option<Id>, rtl: bool) -> Intents {
             intent => (intent, false),
         })
         .collect();
-    Intents { items, nudge: routed.nudge, set_value: routed.set_value, whole_reset: routed.whole_reset }
+    Intents { items, took_arrows: Vec::new(), nudge: routed.nudge, set_value: routed.set_value, whole_reset: routed.whole_reset }
 }
 
 /// Writes back what a component left untaken, so a scope's `Submit` and `Cancel` rules see it.

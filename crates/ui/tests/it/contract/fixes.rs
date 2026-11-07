@@ -5,8 +5,8 @@ use super::kit::{PartSpec, PlainStyle, Probe, Seen};
 use craft_behavior::{Proposal, Sense};
 use craft_theme::Stateful;
 use craft_ui::contract::{
-    Common, Component, Container, ContainerProps, Cx, Looks, MeasureCx, OverlayUi, PaintUi, PartsCx, Props as _, Role, Show as _, ShowContainer as _,
-    Sizing,
+    Common, Component, Container, ContainerProps, Cx, Focus as _, Looks, MeasureCx, OverlayUi, PaintUi, PartsCx, Props as _, Role, Show as _,
+    ShowContainer as _, Sizing,
 };
 use craft_ui::runtime::env::{AppValues, EnvValue};
 use craft_ui::runtime::install;
@@ -406,6 +406,49 @@ fn a_component_that_declares_no_parts_and_declares_one_is_a_debug_assertion() {
         });
     }));
     assert_eq!(shown.is_err(), cfg!(debug_assertions), "the declaration `PARTS = false` is checked in debug builds");
+}
+
+/// A focusable leaf that takes the arrow moves routed to it and declares no `moves`.
+#[derive(Component)]
+struct Stepper {
+    #[common]
+    common: Common,
+}
+
+impl Component for Stepper {
+    const ROLE: Role = Role::BUTTON;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: StepperStyleKey) -> PlainStyle {
+        PlainStyle::min(Vec2::splat(10.0))
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::CLICK | Sense::FOCUS
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        while cx.intents().take_move().is_some() {}
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+#[trial]
+fn a_component_that_takes_an_arrow_move_without_declaring_moves_is_a_debug_assertion() {
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        Stepper { common: Common::new() }.id_salt("stepper").show(ui);
+    };
+    frames.frame(vec![], &mut show);
+    frames.frame(vec![key_press(Key::Tab, Modifiers::NONE)], &mut show);
+    let moved = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        frames.frame(vec![key_press(Key::ArrowRight, Modifiers::NONE)], &mut show);
+    }));
+    assert_eq!(moved.is_err(), cfg!(debug_assertions), "taking `Intent::Move` needs `moves` in the key use, checked in debug builds");
 }
 
 /// A leaf whose width follows `Tone`.
