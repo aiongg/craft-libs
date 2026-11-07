@@ -1,5 +1,6 @@
 //! The viewer's integration tests: one binary, run by `libtest-mimic` over the registered trials.
 
+mod theme;
 mod viewer;
 
 use craft_ui::testing::TRIALS;

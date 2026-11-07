@@ -2,3 +2,6 @@
 
 pub mod chrome;
 pub mod viewer;
+
+// The theme workspace.
+pub mod theme;
