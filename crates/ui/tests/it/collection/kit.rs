@@ -13,6 +13,7 @@ use std::cell::{Cell, RefCell};
 
 /// The payload a list maps its row drag to for other drop targets.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct RowKey(pub usize);
 
 /// Row height of every list of the trials.
