@@ -1,11 +1,13 @@
 //! The integration binary of craft-ui: every test is a registered trial.
 
 mod access;
+mod api_map;
 pub(crate) mod body;
 mod buttons;
 mod callsites;
 mod canvas;
 mod collection;
+mod components_index;
 mod commands;
 mod contract;
 mod controls;

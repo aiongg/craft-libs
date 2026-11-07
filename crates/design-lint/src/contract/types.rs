@@ -20,6 +20,8 @@ pub struct TypeFacts {
     pub component: bool,
     /// Carries `#[derive(Component)]`, which registers the type.
     pub derives_component: bool,
+    /// Named in a `register_contract!(..)` anywhere in its crate.
+    pub registered: bool,
     /// Derives `Props` or has a `#[prop]` field.
     pub props: bool,
     /// Implements or derives the `Pattern` marker.
@@ -141,6 +143,7 @@ pub(crate) fn definition(item: &Item) -> Option<(String, TypeFacts)> {
         public: is_public(vis),
         component: derived.iter().any(|d| d == "Component") || attrs.iter().any(|a| a.path().is_ident("component")),
         derives_component: derived.iter().any(|d| d == "Component"),
+        registered: false,
         props: derived.iter().any(|d| d == "Props") || has_prop_field,
         pattern: derived.iter().any(|d| d == "Pattern"),
         overlay_attr: attrs.iter().any(|a| attr_names(a, "component", "overlay")),
@@ -168,6 +171,28 @@ pub(crate) fn add_impl(facts: &mut TypeFacts, imp: &ItemImpl) {
     }
 }
 
+/// The identifiers inside the `register_contract!(..)` invocations among `items`.
+pub(crate) fn registered_idents(items: &[Item]) -> Vec<String> {
+    fn idents(tokens: proc_macro2::TokenStream, names: &mut Vec<String>) {
+        for token in tokens {
+            match token {
+                proc_macro2::TokenTree::Ident(ident) => names.push(ident.to_string()),
+                proc_macro2::TokenTree::Group(group) => idents(group.stream(), names),
+                _ => {}
+            }
+        }
+    }
+    let mut names = Vec::new();
+    for item in flat_items(items) {
+        if let Item::Macro(m) = item
+            && m.mac.path.segments.last().is_some_and(|s| s.ident == "register_contract")
+        {
+            idents(m.mac.tokens.clone(), &mut names);
+        }
+    }
+    names
+}
+
 /// Facts from this file alone: the fallback when no crate-wide facts are known.
 pub(crate) fn collect(file: &syn::File) -> Types {
     let mut types = Types::default();
@@ -180,6 +205,11 @@ pub(crate) fn collect(file: &syn::File) -> Types {
             && let Some(name) = self_name(imp)
         {
             add_impl(types.by_name.entry(name).or_default(), imp);
+        }
+    }
+    for name in registered_idents(&file.items) {
+        if let Some(facts) = types.by_name.get_mut(&name) {
+            facts.registered = true;
         }
     }
     types

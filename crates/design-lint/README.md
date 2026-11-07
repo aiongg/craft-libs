@@ -54,8 +54,10 @@ reason = "document-space drawing"
 | Rule | Flags |
 |---|---|
 | `contract/egui-import` | egui paths into memory, layers, `Order`, AccessKit, options, input and pass control; `memory`, `options`, `input_mut` closures, `begin_pass`, `end_pass`, `add_plugin`, `move_focus` |
+| `contract/runtime-egui` | a layer 5 or 6 module naming `runtime::egui` |
+| `contract/text-edit` | `runtime::egui::text_edit` outside `primitives::text_adapter` (and the adapter's own module and the test kit) |
 | `contract/allocate` | `allocate_*`, `interact`, `interact_opt`, `put`, `add_sized`, `new_child` with `max_rect` |
-| `contract/egui-widget` | `button`, `checkbox`, `selectable_*`, `radio*`, `hyperlink*`, `separator`, `image`, egui `Button`, `TextEdit`, `DragValue`, `Slider`, `ComboBox` constructors, `add_space` with an argument that is neither a literal nor a token read |
+| `contract/egui-widget` | `button`, `checkbox`, `selectable_*`, `radio*`, `hyperlink*`, `separator`, `image`, `ui.label`, `heading`, `monospace`, `colored_label`, `code`, `small`, `text_edit_*` and egui `RichText`/`Label` in layer-mapped modules, egui `Button`, `TextEdit`, `DragValue`, `Slider`, `ComboBox` constructors, `add_space` with an argument that is neither a literal nor a token read |
 | `contract/access` | `widget_info`, `labelled_by`, `accesskit_*`, `accessibility_*`, live settings |
 | `contract/layers` | `Area`, `Popup`, `Modal` calls, `Order`, `move_to_top`, `set_sublayer`, `set_transform_layer`, `on_hover_text`, `menu_button`, `context_menu`; `swallow_outside_press` in every file |
 | `contract/memory` | `get_temp`, `insert_temp`, `remove_temp*`, `data_mut`, `data`/`scope` closures, `make_persistent_id`, `next_auto_id`, `push_id`, `Id::unique`, `UiBuilder::id_salt`, `scope_builder` with an id salt |

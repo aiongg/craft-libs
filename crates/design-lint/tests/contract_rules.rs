@@ -180,3 +180,12 @@ fn response_events_are_not_state_picks() {
     let hover = "fn f(r: &Response) -> Color32 { if r.hovered() { hover_color } else { rest_color } }";
     assert_eq!(rules_at(hover, "crates/x/src/prims/a.rs", &primitives), ["style/state-pick"], "layers 3 and 4 are read");
 }
+
+#[test]
+fn registration_reads_the_whole_crate() {
+    let root = Path::new(FIXTURES).join("registration-tree");
+    let scope = scope().crate_tree(&root, "fx", "src/lib.rs").unwrap();
+    let report = check_with_scope(&Config::new(["src"]), &root, &scope).unwrap();
+    let hits: Vec<_> = report.findings.iter().map(|f| (f.path.display().to_string(), f.rule, f.line)).collect();
+    assert_eq!(hits, [("src/b.rs".to_owned(), "contract/registration", 5)], "`Listed` is registered in another file; `Loose` is not");
+}

@@ -1,1 +1,29 @@
 config_version = 1
+
+[[exception]]
+name = "toast-card-stories"
+kind = "probe"
+rule = "probe/exempt/stories"
+path = "crates/ui/src/contract/toast.rs"
+reason = "The toast card is shown by the toast host, never stand-alone."
+
+[[exception]]
+name = "label-leaf-stories"
+kind = "probe"
+rule = "probe/exempt/stories"
+path = "crates/ui/src/contract/label.rs"
+reason = "The label leaf is shown by the label step, never stand-alone."
+
+[[exception]]
+name = "tooltip-text-stories"
+kind = "probe"
+rule = "probe/exempt/stories"
+path = "crates/ui/src/contract/tooltip.rs"
+reason = "The tooltip text is shown by the overlay host, never stand-alone."
+
+[[exception]]
+name = "header-text-stories"
+kind = "probe"
+rule = "probe/exempt/stories"
+path = "crates/ui/src/contract/items/header.rs"
+reason = "The header text is shown by a collection's header row, never stand-alone."

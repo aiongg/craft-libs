@@ -21,6 +21,27 @@ mod stories {
 
 Tests that need more than the shared cases go in `crates/ui/tests/it/<family>/` as `#[craft_ui::testing::trial]` functions.
 
+A family trial drives frames through `Fixture` (`Fixture::new` or `Fixture::story`, then `click`, `drag`, `key`, `by_label`, `part` and the other helpers), the kit's one frame driver. It writes no click or drag helper of its own.
+
+## A new crate with components
+
+A crate that holds contract types has its own `testing` feature, enables it on itself, and runs the suite from one integration binary:
+
+```toml
+[features]
+testing = ["craft-ui/testing"]
+
+[dev-dependencies]
+my-crate = { path = ".", features = ["testing"] }
+
+[[test]]
+name = "it"
+path = "tests/it/main.rs"
+harness = false
+```
+
+The crate's `testing` module calls `craft_ui::testing_registered!()` once, which writes `registered()` for the package. The binary's `main` collects the `#[trial]` functions and adds `suite::trials(env!("CARGO_PKG_NAME"), &my_crate::testing::registered())`, as `crates/ui/tests/it/main.rs` does. The derive writes registrations and stories only under `feature = "testing"`, so release builds carry none.
+
 ## Shapes
 
 The shape is a fact of the type, set by what the caller supplies:
@@ -113,7 +134,7 @@ A story shows one registered type in one state. `#[story(Type, covers = [..])]` 
 | `#[component(overlay)]` | `Open` |
 | items | `Empty`, `One`, `Many` |
 
-A value a story edits comes from `StoryData::value(name, init)`. The suite fails when a required state has no story. `Drive::Auto` picks how the suite changes the value; a story names another drive (`Drive::Drag(part)`, `Drive::Pick { row }`, `Drive::Custom(f)`) only when the default does not fit. The suite makes the disabled, right-to-left and narrow-room variants itself.
+A value a story edits comes from `StoryData::value(name, init)`. The suite fails when a required state has no story. `Drive::Auto` picks how the suite changes the value; a story names another drive (`Drive::Drag(part)`, `Drive::Pick(row)`, `Drive::Custom(f)`) only when the default does not fit. The suite runs these cases over every story: `stories` (each required state has one), `shows`, `access`, `text-size`, `values`, `tab` and `body-regions`. It shows each story as written; it adds no disabled, right-to-left or narrow-room variant, so a story that must be checked in such a state is written for it.
 
 A type that cannot meet a shared case lists it, with a reason:
 
@@ -121,7 +142,7 @@ A type that cannot meet a shared case lists it, with a reason:
 #[component(exempt(case = "stories", reason = "A face of the title row, shown only inside it."))]
 ```
 
-Exemptions are counted in `design/exceptions/<crate>/` and the count cannot rise.
+Each exemption is an entry of kind `probe` in `design/exceptions/<crate>/<family>.toml`, with the rule `probe/exempt/<case>` and the file that declares it. `craft-design-lint structure` reads the `exempt(..)` declarations from the sources, rejects one without a reason, and fails when a declaration has no entry or an entry lists more than exist; the count cannot rise.
 
 ## Seeing and checking the result
 
@@ -129,3 +150,17 @@ Exemptions are counted in `design/exceptions/<crate>/` and the count cannot rise
 - `cargo test -p craft-ui --features testing --test it` runs the shared cases and the trials.
 - `cargo run -p craft-design-lint -- structure` checks the layer map, imports, exceptions and clones; `check` reports the source rules.
 - `cargo run -p craft-ui-gallery --bin components-index` rewrites `docs/components-index.md`, the list of what exists. Read it before writing a type, to avoid a second copy of one that exists.
+
+## Decisions an author meets
+
+- **One press per pass.** A pass carries at most one press. The press is classified once from the hit list, and a focused text field commits in the press pass, so a click handler elsewhere sees the committed text.
+- **Popups close on an outside press by default.** `Outside::Close` closes the layer and the press reaches the widget below; `Outside::Keep` ignores the press. A dialog and a floating panel keep.
+- **A popup or layer body sees the opener's environment.** The overlay host installs the opener's captured values (tokens, size, app values) and resets the layer-local ones: the arena, the transform, the row, the in-scroll flag and the ink.
+- **`content_env` reaches the body and the items only.** A child shown by `PaintUi` inherits the composite's environment with the composite's resolved `enabled` and size, not the values `content_env` set.
+- **A new body measures zero once.** A container with no `LayoutMemory` entry measures zero in its first pass, records its real size, and the pass is discarded once. A `measure` that returns the content size avoids the discard.
+- **A roving group is one Tab stop.** A container with `ContainerProps.roving` puts its group id in the body environment; its members join that stop, arrows move between them, and the group's pick arrives through `activated_member()`.
+- **Reading a text outcome.** `PartsCx::text` returns `&TextOutcome<V>`: an idle outcome for a part first registered in this pass. A key that was never registered panics, like `part`.
+- **Memory and animation share an owner.** An animation slot is keyed by `("anim", name)` under the component's id and goes with the owner's entries on eviction. A press entry is dropped when its press ends.
+- **A face registers no parts.** A component worn by `ui.face(KEY, ..)` runs its own `access` for the wearing part's node. Its `paint` computes what its parts would hold from the value, because the part registry is not read in face mode.
+- **A story output has one edit kind at most**, because `EditResponse` holds one event.
+- **A content painter's context owns its painter.** `ContentPainterCx` has no lifetime parameter; its painter is clipped to the component's rect.

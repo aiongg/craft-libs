@@ -14,6 +14,7 @@ pub mod examples;
 pub mod fixture;
 pub mod focus;
 pub mod frames;
+pub mod index;
 pub mod input;
 pub mod layout;
 pub mod memory;

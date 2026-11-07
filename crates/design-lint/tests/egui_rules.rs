@@ -154,7 +154,11 @@ fn literal_sizes_may_fill_the_testing_module_like_tests() {
     config.include_tests = true;
     let report = check_with_scope(&config, &root, &scope).unwrap();
     let hits: Vec<_> = report.findings.iter().map(|f| (f.path.display().to_string(), f.rule, f.line)).collect();
-    assert_eq!(hits, [("src/other.rs".to_owned(), "literal-size/vec2", 2)]);
+    assert_eq!(
+        hits,
+        [("src/other.rs".to_owned(), "literal-size/vec2", 2), ("src/testing/examples/sheet.rs".to_owned(), "literal-size/vec2", 2)],
+        "the kit may fill literal sizes; the examples may not"
+    );
 }
 
 #[test]
@@ -171,4 +175,48 @@ fn layer_one_names_accesskit_data_types_and_no_other_layer_does() {
     assert!(rules_at(&src, "crates/data/src/intent.rs", &layered).is_empty());
     assert_eq!(rules_at(&src, "crates/data/src/intent.rs", &StaticScope::new().layer("crates/data", 2)), ["contract/egui-import"]);
     assert_eq!(rules_at(&src, "crates/data/src/intent.rs", &StaticScope::new()), ["contract/egui-import"]);
+}
+
+#[test]
+fn family_modules_neither_import_runtime_egui_nor_build_egui_text() {
+    let src = fixture("reject", "family-raw-egui.rs");
+    let layered = StaticScope::new().layer("crates/x/src/text", 5).layer("crates/x/src/shell", 7);
+    let findings = analyze_contract(&src, Path::new("crates/x/src/text/mod.rs"), &layered, false);
+    let hits: Vec<_> = findings.iter().map(|f| (f.rule, f.line)).collect();
+    assert_eq!(
+        hits,
+        [
+            ("contract/runtime-egui", 1),
+            ("contract/text-edit", 1),
+            ("contract/egui-widget", 5),
+            ("contract/egui-widget", 7),
+            ("contract/egui-widget", 8),
+            ("contract/runtime-egui", 9),
+            ("contract/text-edit", 9),
+        ]
+    );
+    let shell = analyze_contract(&src, Path::new("crates/x/src/shell/app.rs"), &layered, false);
+    assert!(shell.iter().all(|f| f.rule != "contract/runtime-egui"), "layer 7 hosts the adapter");
+}
+
+#[test]
+fn only_the_text_adapter_may_call_text_edit() {
+    let src = fixture("reject", "family-raw-egui.rs");
+    let adapter = StaticScope::new().allow("contract/text-edit", "crates/x/src/primitives/text_adapter.rs");
+    let at = |path: &str| analyze_contract(&src, Path::new(path), &adapter, false).iter().any(|f| f.rule == "contract/text-edit");
+    assert!(!at("crates/x/src/primitives/text_adapter.rs"));
+    assert!(at("crates/x/src/contract/text.rs"));
+}
+
+#[test]
+fn tools_without_a_layer_may_draw_egui_text() {
+    let src = fixture("reject", "family-raw-egui.rs");
+    let rules = rules_at(&src, "crates/gallery/src/main.rs", &StaticScope::new());
+    assert!(!rules.contains(&"contract/egui-widget"), "{rules:?}");
+}
+
+#[test]
+fn text_shortcuts_on_builders_are_not_ui_calls() {
+    let src = "fn f(field: Field) { let _ = field.label(\"x\"); }";
+    assert!(rules_at(src, "src/a.rs", &StaticScope::new()).is_empty());
 }

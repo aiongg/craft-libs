@@ -69,6 +69,10 @@ toml = { version = "1.1", default-features = false, features = ["std", "parse", 
 
 [dev-dependencies]
 craft-ui = { path = ".", features = ["testing"] }
+# The glossary and api-map trials parse the workspace's sources.
+proc-macro2 = "1"
+syn = { version = "2", features = ["full"] }
+toml = { version = "1.1", default-features = false, features = ["std", "parse", "serde"] }
 
 [[test]]
 name = "it"

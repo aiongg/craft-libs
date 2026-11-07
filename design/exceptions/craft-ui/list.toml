@@ -1,1 +1,8 @@
 config_version = 1
+
+[[exception]]
+name = "empty-note-stories"
+kind = "probe"
+rule = "probe/exempt/stories"
+path = "crates/ui/src/list/findings.rs"
+reason = "The empty state of FindingsList, shown by its empty story; a worked example, so the exemption goes when the story covers it."

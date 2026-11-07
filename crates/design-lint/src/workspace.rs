@@ -45,6 +45,7 @@ fn places(key: &str) -> Vec<Place> {
     match key {
         k if EGUI_KEYS.contains(&k) => vec![place("craft-ui", &["runtime", "egui"])],
         "style-mutation" => vec![place("craft-ui", &["runtime", "egui", "style"]), place("craft-ui", &["runtime", "egui", "scale"])],
+        "contract/text-edit" => vec![place("craft-ui", &["runtime", "egui"]), place("craft-ui", &["primitives", "text_adapter"]), place("craft-ui", &["testing"])],
         "contract/memory" => vec![place("craft-ui", &["runtime", "egui", "memory"])],
         "contract/layers" => vec![place("craft-ui", &["runtime", "egui", "areas"])],
         "contract/motion:clock" => vec![place("craft-ui", &["runtime", "motion"])],

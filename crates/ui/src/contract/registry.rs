@@ -104,6 +104,8 @@ pub struct Probe {
     pub overlay: bool,
     /// The shared cases the type is exempt from.
     pub exempt: &'static [Exemption],
+    /// The first sentence of the type's doc comment.
+    pub purpose: &'static str,
     name: fn() -> &'static str,
     value: fn() -> bool,
 }
@@ -162,9 +164,17 @@ impl Probe {
             canvas_control: T::CANVAS_CONTROL,
             overlay,
             exempt,
+            purpose: "",
             name: std::any::type_name::<T>,
             value: carries_value::<T>,
         }
+    }
+
+    /// The probe with the type's `purpose`.
+    #[must_use]
+    pub const fn with_purpose(mut self, purpose: &'static str) -> Self {
+        self.purpose = purpose;
+        self
     }
 
     /// The type's name, with its type arguments.
@@ -226,12 +236,12 @@ impl Registration {
 pub static REGISTRATIONS: [Registration];
 
 /// Registers the component type `$ty` of shape `$shape` (`leaf`, `container` or `collection`) with its declarations:
-/// `$overlay`, and the `($case, $reason)` exemptions.
+/// `$overlay`, the `($case, $reason)` exemptions and the `$purpose` line of its doc comment.
 #[doc(hidden)]
 #[macro_export]
 #[cfg(feature = "testing")]
 macro_rules! __register_contract {
-    ($ty:ty, $shape:ident, $overlay:expr, [$(($case:expr, $reason:expr)),*]) => {
+    ($ty:ty, $shape:ident, $overlay:expr, [$(($case:expr, $reason:expr)),*], $purpose:expr) => {
         const _: () = {
             const EXEMPT: &[$crate::contract::Exemption] = &[$($crate::contract::Exemption::new($case, $reason)),*];
             #[$crate::__private::linkme::distributed_slice($crate::contract::REGISTRATIONS)]
@@ -242,7 +252,7 @@ macro_rules! __register_contract {
                 module_path!(),
                 $overlay,
                 EXEMPT,
-            ));
+            ).with_purpose($purpose));
         };
     };
 }
@@ -252,5 +262,5 @@ macro_rules! __register_contract {
 #[macro_export]
 #[cfg(not(feature = "testing"))]
 macro_rules! __register_contract {
-    ($ty:ty, $shape:ident, $overlay:expr, [$(($case:expr, $reason:expr)),*]) => {};
+    ($ty:ty, $shape:ident, $overlay:expr, [$(($case:expr, $reason:expr)),*], $purpose:expr) => {};
 }
