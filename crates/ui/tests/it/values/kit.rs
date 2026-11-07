@@ -1,7 +1,9 @@
 //! A value component for the trials: a track that scrubs an `f32`, written with the derives.
 
 use craft_behavior::{CancelReason, EditEvent, GesturePhase, PartKey, PressPhase, Sense};
-use craft_ui::contract::{Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PartsCx, Pointer as _, Role, Styled as _};
+use craft_ui::contract::{
+    Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, PartsCx, Pointer as _, Role, Styled as _,
+};
 use craft_ui::style::{ComponentStyle, Flags, StyleCx};
 use egui::{Pos2, Rect, Vec2};
 use std::cell::Cell;
@@ -54,17 +56,24 @@ pub struct Scrub<'a> {
     common: Common,
     value: Bind<'a, f32>,
     one_pass: bool,
+    set_by_access: bool,
     seen: Option<&'a Seen>,
 }
 
 impl<'a> Scrub<'a> {
     pub fn new(value: Bind<'a, f32>) -> Self {
-        Scrub { common: Common::new(), value, one_pass: false, seen: None }
+        Scrub { common: Common::new(), value, one_pass: false, set_by_access: false, seen: None }
     }
 
     /// A click begins, proposes and commits a step in one pass.
     pub fn one_pass(mut self) -> Self {
         self.one_pass = true;
+        self
+    }
+
+    /// An AccessKit `SetValue` request sets the value.
+    pub fn set_by_access(mut self) -> Self {
+        self.set_by_access = true;
         self
     }
 
@@ -102,6 +111,11 @@ impl Component for Scrub<'_> {
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let left = cx.rect.left();
         let phase = cx.part(TRACK).press.phase;
+        if self.set_by_access
+            && let Some(requested) = cx.intents().take_set_value()
+        {
+            cx.set(requested as f32);
+        }
         if self.one_pass {
             if matches!(phase, PressPhase::Release { .. }) {
                 cx.begin();

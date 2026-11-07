@@ -142,6 +142,8 @@ pub(crate) fn key_release(key: Key, modifiers: Modifiers) -> Event {
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
 pub enum AccessActionKind {
+    /// AccessKit `Focus`.
+    Focus,
     /// AccessKit `Click`.
     Click,
     /// AccessKit `Increment`.
@@ -158,6 +160,7 @@ impl AccessActionKind {
 
     fn action(self) -> accesskit::Action {
         match self {
+            AccessActionKind::Focus => accesskit::Action::Focus,
             AccessActionKind::Click => accesskit::Action::Click,
             AccessActionKind::Increment => accesskit::Action::Increment,
             AccessActionKind::Expand => accesskit::Action::Expand,
@@ -170,6 +173,47 @@ pub(crate) fn access_request(kind: AccessActionKind, target: egui::Id) -> Event 
     let action = kind.action();
     let target_node = accesskit::NodeId(crate::runtime::egui::access::node_key(target));
     Event::AccessKitActionRequest(accesskit::ActionRequest { action, target_tree: accesskit::TreeId::ROOT, target_node, data: None })
+}
+
+/// An AccessKit action request for the node `target`.
+pub(crate) fn access_request_node(kind: AccessActionKind, target: crate::runtime::egui::access::NodeKey) -> Event {
+    let target_node = accesskit::NodeId(target.raw());
+    Event::AccessKitActionRequest(accesskit::ActionRequest { action: kind.action(), target_tree: accesskit::TreeId::ROOT, target_node, data: None })
+}
+
+/// An AccessKit `SetValue` request carrying `value` for the node of `target`.
+pub(crate) fn access_set_value(target: egui::Id, value: f64) -> Event {
+    let target_node = accesskit::NodeId(crate::runtime::egui::access::node_key(target));
+    Event::AccessKitActionRequest(accesskit::ActionRequest {
+        action: accesskit::Action::SetValue,
+        target_tree: accesskit::TreeId::ROOT,
+        target_node,
+        data: Some(accesskit::ActionData::NumericValue(value)),
+    })
+}
+
+/// Tells the context which operating system it runs on.
+pub(crate) fn set_os(ctx: &Context, os: craft_host::target::Os) {
+    ctx.set_os(match os {
+        craft_host::target::Os::Mac => egui::os::OperatingSystem::Mac,
+        craft_host::target::Os::Windows => egui::os::OperatingSystem::Windows,
+        craft_host::target::Os::Linux => egui::os::OperatingSystem::Nix,
+    });
+}
+
+/// The id of the widget egui has focused.
+pub(crate) fn focused(ctx: &Context) -> Option<egui::Id> {
+    ctx.memory(|memory| memory.focused())
+}
+
+/// The area `ui` has allocated so far.
+pub(crate) fn used_rect(ui: &Ui) -> Rect {
+    ui.min_rect()
+}
+
+/// Typed text.
+pub(crate) fn text_event(text: &str) -> Event {
+    Event::Text(text.to_owned())
 }
 
 /// A globally unique id named by `name`.

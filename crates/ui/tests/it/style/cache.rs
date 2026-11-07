@@ -3,10 +3,10 @@
 use craft_host::target::Os;
 use craft_i18n::Direction;
 use craft_theme::{Contrast, ControlSize, Mode, Variant};
-use craft_ui::runtime::env::Scale;
+use craft_ui::runtime::env::{RootEnv, Scale};
 use craft_ui::runtime::{InstallError, InstallSpec, install};
 use craft_ui::style::{ComponentStyle, EnvKey, Metrics, StyleCx, StyleKey, StyleReplacements};
-use craft_ui::testing::style::{style_of, tokens, with_cx};
+use craft_ui::testing::style::{root_token_entries, style_of, tokens, with_cx};
 use craft_ui::testing::{Frames, trial};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -129,4 +129,16 @@ fn equal_token_sets_share_a_key_and_different_ones_do_not() {
     let mut values = craft_theme::GroupValues::new();
     values.set_color("clip", "audio", craft_theme::Rgba::rgb(200, 100, 50));
     assert_ne!(light.key(), light.with_groups(values).key(), "token group values are part of the set");
+}
+
+/// An app that builds a fresh `RootEnv` (and so a fresh sizes table) every frame leaves a bounded root-token cache.
+#[trial]
+fn root_tokens_are_cached_for_a_bounded_number_of_inputs() {
+    let mut frames = Frames::new();
+    for _ in 0..20 {
+        frames.root(RootEnv::default());
+        frames.idle(1, |_| {});
+    }
+    let kept = root_token_entries(&frames.ctx);
+    assert!(kept > 0 && kept < 20, "{kept} entries after 20 frames with 20 distinct roots");
 }

@@ -6,13 +6,13 @@
 
 use super::overlay::{self, Anchor, Layer, Overlay, Place};
 use super::{Common, Component, Cx, Props as _, Show, TipFn, TooltipAt, TooltipWhen};
+use crate::primitives::{TextRun, Wrap};
 use crate::runtime::egui::memory::{self as store, Service};
 use crate::runtime::egui::{areas, pass, repaint};
 use crate::runtime::env::Env;
 use crate::runtime::memory::{self, sub};
 use crate::runtime::motion;
 use crate::runtime::{frame, pointer};
-use crate::primitives::{TextRun, Wrap};
 use crate::style::{ComponentStyle, Flags, StyleColor, StyleCx, SurfaceKind, SurfaceLook};
 use craft_behavior::overlay::{Align, Side};
 use craft_behavior::{Metrics, OwnerClass};
@@ -81,9 +81,7 @@ pub(crate) fn run<C: Component>(cx: &Cx<'_, C>, input: TipIn<'_>) {
     let when_now = spec.is_some_and(|spec| spec.when == TooltipWhen::Now);
     let keyboard = core.state.flags.contains(Flags::FOCUS_VISIBLE);
     let wants = has_content && (core.response.hovered() || keyboard);
-    let suppressed = core.press.phase.is_press()
-        || overlay_blocks(ctx)
-        || pointer::press_captured(ctx);
+    let suppressed = core.press.phase.is_press() || overlay_blocks(ctx) || pointer::press_captured(ctx);
     if wants {
         state.since.get_or_insert(now);
     } else {
@@ -149,6 +147,7 @@ pub struct TipStyle {
 
 /// The text of a tooltip, on a popup surface.
 #[derive(crate::contract::Component)]
+#[component(exempt(case = "stories", reason = "The tooltip text is shown by the overlay host, never stand-alone."))]
 pub(crate) struct TipText<'a> {
     #[common]
     common: Common,

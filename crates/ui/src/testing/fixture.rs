@@ -1,0 +1,275 @@
+//! `Fixture`: one story or closure shown over [`Frames`], with the env a test varies and input by AccessKit query or part.
+
+use super::Frames;
+use super::story::{Story, StoryData, StoryOutput};
+use crate::runtime::access::Role;
+use crate::runtime::egui::access::{AccessTree, NodeKey};
+use crate::runtime::egui::fixture::{self, AccessActionKind};
+use crate::runtime::env::{Direction, RootEnv, Scale};
+use craft_behavior::{MotionMode, PartRef};
+use craft_host::target::Os;
+use craft_theme::{Contrast, Mode, Size, TextSize};
+use egui::{Event, Id, Key, Modifiers, Pos2, Rect, Ui, Vec2};
+use std::cell::RefCell;
+use std::rc::Rc;
+
+/// A node of the AccessKit tree, as input addresses it.
+#[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
+pub struct Target {
+    /// The node.
+    pub node: NodeKey,
+    /// Its bounds in points.
+    pub rect: Rect,
+}
+
+impl Target {
+    /// The middle of the node's bounds.
+    pub fn center(&self) -> Pos2 {
+        self.rect.center()
+    }
+}
+
+/// A closure or story shown frame by frame.
+#[non_exhaustive]
+pub struct Fixture {
+    frames: Frames,
+    show: Box<dyn FnMut(&mut Ui)>,
+    root: RootEnv,
+    room: Vec2,
+    tree: AccessTree,
+    shown: Rect,
+    data: Rc<RefCell<StoryData>>,
+    outputs: Rc<RefCell<Vec<StoryOutput>>>,
+    passes: usize,
+}
+
+impl Fixture {
+    /// A fixture that shows `show` in a room of 400 by 300 points.
+    pub fn new(show: impl FnMut(&mut Ui) + 'static) -> Self {
+        Fixture {
+            frames: Frames::new(),
+            show: Box::new(show),
+            root: RootEnv::default(),
+            room: Vec2::new(400.0, 300.0),
+            tree: AccessTree::none(),
+            shown: Rect::NOTHING,
+            data: Rc::default(),
+            outputs: Rc::default(),
+            passes: 0,
+        }
+    }
+
+    /// A fixture that shows `story`; its data and outputs are read with [`Fixture::data`] and [`Fixture::take_outputs`].
+    pub fn story(story: &Story) -> Self {
+        let data = Rc::new(RefCell::new(StoryData::default()));
+        let outputs = Rc::new(RefCell::new(Vec::new()));
+        let (shared_data, shared_outputs, show) = (data.clone(), outputs.clone(), story.show);
+        let mut fixture = Fixture::new(move |ui| {
+            let output = show(ui, &mut shared_data.borrow_mut());
+            shared_outputs.borrow_mut().push(output);
+        });
+        fixture.data = data;
+        fixture.outputs = outputs;
+        fixture
+    }
+
+    fn set_root(&mut self, change: impl FnOnce(&mut RootEnv)) -> &mut Self {
+        change(&mut self.root);
+        self.frames.root(self.root.clone());
+        self
+    }
+
+    /// The room the story is shown in.
+    pub fn room(&mut self, room: Vec2) -> &mut Self {
+        self.room = room;
+        self
+    }
+
+    /// The layout direction.
+    pub fn direction(&mut self, direction: Direction) -> &mut Self {
+        self.set_root(|root| root.direction = direction)
+    }
+
+    /// Light or dark, and standard or high contrast.
+    pub fn theme(&mut self, mode: Mode, contrast: Contrast) -> &mut Self {
+        self.set_root(|root| {
+            root.mode = mode;
+            root.contrast = contrast;
+        })
+    }
+
+    /// The motion mode.
+    pub fn motion(&mut self, motion: MotionMode) -> &mut Self {
+        self.set_root(|root| root.motion = motion)
+    }
+
+    /// The text-size step.
+    pub fn text_size(&mut self, text_size: TextSize) -> &mut Self {
+        self.set_root(|root| root.text_size = text_size)
+    }
+
+    /// The density preset.
+    pub fn density(&mut self, density: Size) -> &mut Self {
+        self.set_root(|root| root.density = density)
+    }
+
+    /// The interface scale.
+    pub fn scale(&mut self, scale: Scale) -> &mut Self {
+        self.set_root(|root| root.scale = scale)
+    }
+
+    /// The operating system the keys and chrome follow.
+    pub fn os(&mut self, os: Os) -> &mut Self {
+        fixture::set_os(&self.frames.ctx, os);
+        self
+    }
+
+    /// The manual clock, moved on by `seconds` before the next frame.
+    pub fn advance(&mut self, seconds: f64) -> &mut Self {
+        self.frames.advance(seconds);
+        self
+    }
+
+    /// The frames' context.
+    pub fn ctx(&self) -> &egui::Context {
+        &self.frames.ctx
+    }
+
+    /// The story's data.
+    pub fn data(&self) -> std::cell::RefMut<'_, StoryData> {
+        self.data.borrow_mut()
+    }
+
+    /// The outputs the story gave since the last call, one per pass.
+    pub fn take_outputs(&mut self) -> Vec<StoryOutput> {
+        std::mem::take(&mut *self.outputs.borrow_mut())
+    }
+
+    /// The component id of the latest shown output.
+    pub fn root_id(&self) -> Option<Id> {
+        self.outputs.borrow().last().and_then(|output| output.id)
+    }
+
+    /// The area the latest pass allocated.
+    pub fn shown(&self) -> Rect {
+        self.shown
+    }
+
+    /// The passes the latest frame ran.
+    pub fn passes(&self) -> usize {
+        self.passes
+    }
+
+    /// One frame with `events`.
+    pub fn frame(&mut self, events: Vec<Event>) -> &mut Self {
+        let room = Rect::from_min_size(Pos2::ZERO, self.room);
+        let (show, shown) = (&mut self.show, &mut self.shown);
+        self.passes = self.frames.frame(events, |ui| {
+            let used = super::layout::in_region(ui, room, |ui| {
+                show(ui);
+                fixture::used_rect(ui)
+            });
+            *shown = used;
+        });
+        self.tree = self.frames.tree();
+        self
+    }
+
+    /// `n` frames with no events.
+    pub fn idle(&mut self, n: usize) -> &mut Self {
+        for _ in 0..n {
+            self.frame(Vec::new());
+        }
+        self
+    }
+
+    /// Frames until ids, sizes and the AccessKit tree have settled.
+    pub fn settle(&mut self) -> &mut Self {
+        self.idle(4)
+    }
+
+    /// The AccessKit tree of the latest frame.
+    pub fn tree(&self) -> &AccessTree {
+        &self.tree
+    }
+
+    fn target(&self, node: NodeKey) -> Option<Target> {
+        Some(Target { node, rect: self.tree.bounds_of(node)? })
+    }
+
+    /// The node named `label`.
+    pub fn by_label(&self, label: &str) -> Option<Target> {
+        let node = self.tree.keys().into_iter().find(|key| self.tree.name_of(*key) == Some(label))?;
+        self.target(node)
+    }
+
+    /// The nodes of `role`.
+    pub fn by_role(&self, role: Role) -> Vec<Target> {
+        self.tree.with_role(role).into_iter().filter_map(|node| self.target(node)).collect()
+    }
+
+    /// The sub-node of `part` below the component `component`.
+    pub fn part(&self, component: Id, part: impl Into<PartRef>) -> Option<Target> {
+        let id = crate::runtime::egui::access::sub_node_id(component, part.into());
+        self.target(NodeKey::of(id))
+    }
+
+    /// The node of the component `component`.
+    pub fn node_of(&self, component: Id) -> Option<Target> {
+        self.target(NodeKey::of(component))
+    }
+
+    /// Hover, press and release on `target`, in separate frames, then one idle frame.
+    pub fn click(&mut self, target: &Target) -> &mut Self {
+        let at = target.center();
+        self.frame(vec![super::pointer::moved(at)]);
+        self.frame(vec![super::pointer::press(at)]);
+        self.frame(vec![super::pointer::release(at)]);
+        self.frame(Vec::new())
+    }
+
+    /// Press on `target`.
+    pub fn press(&mut self, target: &Target) -> &mut Self {
+        let at = target.center();
+        self.frame(vec![super::pointer::moved(at)]);
+        self.frame(vec![super::pointer::press(at)])
+    }
+
+    /// Release at the middle of `target`.
+    pub fn release(&mut self, target: &Target) -> &mut Self {
+        self.frame(vec![super::pointer::release(target.center())])
+    }
+
+    /// Press on `target`, move by `by` in four steps, release.
+    pub fn drag(&mut self, target: &Target, by: Vec2) -> &mut Self {
+        let from = target.center();
+        self.frame(vec![super::pointer::moved(from)]);
+        self.frame(vec![super::pointer::press(from)]);
+        for step in 1..=4 {
+            self.frame(vec![super::pointer::moved(from + by * (step as f32 / 4.0))]);
+        }
+        self.frame(vec![super::pointer::release(from + by)]);
+        self.frame(Vec::new())
+    }
+
+    /// A key press and release with `modifiers`, in one frame.
+    pub fn key(&mut self, key: Key, modifiers: Modifiers) -> &mut Self {
+        self.frame(vec![fixture::key_press(key, modifiers), fixture::key_release(key, modifiers)])
+    }
+
+    /// Typed `text`.
+    pub fn type_text(&mut self, text: &str) -> &mut Self {
+        self.frame(vec![fixture::text_event(text)])
+    }
+
+    /// An AccessKit action on `target`.
+    pub fn access(&mut self, kind: AccessActionKind, target: &Target) -> &mut Self {
+        self.frame(vec![fixture::access_request_node(kind, target.node)])
+    }
+
+    /// The id of the widget egui has focused.
+    pub fn focused(&self) -> Option<Id> {
+        fixture::focused(&self.frames.ctx)
+    }
+}

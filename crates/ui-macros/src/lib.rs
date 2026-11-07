@@ -15,7 +15,9 @@ mod tests;
 
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::{ItemFn, ReturnType, parse_macro_input};
+use syn::parse::{Parse, ParseStream};
+use syn::punctuated::Punctuated;
+use syn::{Expr, Ident, ItemFn, ReturnType, Token, Type, parse_macro_input};
 
 fn expanded(result: syn::Result<proc_macro2::TokenStream>) -> TokenStream {
     result.unwrap_or_else(syn::Error::into_compile_error).into()
@@ -113,6 +115,69 @@ pub fn trial(attr: TokenStream, item: TokenStream) -> TokenStream {
         #[linkme(crate = ::craft_ui::testing::__private::linkme)]
         #[doc(hidden)]
         static #registration: ::craft_ui::testing::Trial = ::craft_ui::testing::Trial::new(module_path!(), #name, #ident);
+    }
+    .into()
+}
+
+/// The arguments of `#[story(Type, covers = [..], drive = ..)]`.
+struct StoryArgs {
+    ty: Type,
+    covers: Vec<Ident>,
+    drive: Option<Expr>,
+}
+
+impl Parse for StoryArgs {
+    fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
+        let ty: Type = input.parse()?;
+        let (mut covers, mut drive) = (Vec::new(), None);
+        while input.peek(Token![,]) {
+            input.parse::<Token![,]>()?;
+            if input.is_empty() {
+                break;
+            }
+            let key: Ident = input.parse()?;
+            input.parse::<Token![=]>()?;
+            if key == "covers" {
+                let list;
+                syn::bracketed!(list in input);
+                covers = Punctuated::<Ident, Token![,]>::parse_terminated(&list)?.into_iter().collect();
+            } else if key == "drive" {
+                drive = Some(input.parse::<Expr>()?);
+            } else {
+                return Err(syn::Error::new(key.span(), "`story` takes `covers = [..]` and `drive = ..`"));
+            }
+        }
+        Ok(StoryArgs { ty, covers, drive })
+    }
+}
+
+/// Registers a function as a story of a component type: `#[story(Slider, covers = [Default, Mixed])]` on
+/// `fn(&mut Ui, &mut StoryData) -> StoryOutput`. `drive = Drive::Step` names a drive other than the automatic one.
+/// The type's registration and the story meet by the type's registered name.
+#[proc_macro_attribute]
+pub fn story(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(attr as StoryArgs);
+    let func = parse_macro_input!(item as ItemFn);
+    let ident = &func.sig.ident;
+    let name = ident.to_string();
+    let registration = format_ident!("__CRAFT_STORY_{}", name.to_uppercase());
+    let ty = &args.ty;
+    let covers = &args.covers;
+    let drive = args.drive.as_ref().map(|drive| quote!(.drive(#drive)));
+    let allow = util::in_craft_ui().then(|| quote!(#[allow(unsafe_code)]));
+    quote! {
+        #func
+
+        #allow
+        #[::craft_ui::testing::__private::linkme::distributed_slice(::craft_ui::testing::STORIES)]
+        #[linkme(crate = ::craft_ui::testing::__private::linkme)]
+        #[doc(hidden)]
+        static #registration: ::craft_ui::testing::StoryRegistration = ::craft_ui::testing::StoryRegistration::new(
+            env!("CARGO_PKG_NAME"),
+            env!("CARGO_CRATE_NAME"),
+            ::std::any::type_name::<#ty>,
+            ::craft_ui::testing::Story::new(#name, #ident).covers(&[#(::craft_ui::testing::Required::#covers),*]) #drive,
+        );
     }
     .into()
 }

@@ -10,6 +10,11 @@ use egui::Id;
 pub struct NodeKey(u64);
 
 impl NodeKey {
+    /// The AccessKit node number.
+    pub(crate) fn raw(self) -> u64 {
+        self.0
+    }
+
     /// The key of the node of `id`.
     pub fn of(id: Id) -> NodeKey {
         NodeKey(node_key(id))
@@ -170,5 +175,33 @@ impl AccessTree {
             }
             at = *parent;
         }
+    }
+}
+
+impl AccessTree {
+    /// Every node.
+    pub fn keys(&self) -> Vec<NodeKey> {
+        self.update.nodes.iter().map(|(key, _)| NodeKey(key.0)).collect()
+    }
+
+    /// The role of a node by key.
+    pub fn role_of(&self, key: NodeKey) -> Option<Role> {
+        self.lookup(NodeId(key.0)).map(|node| Role::Node(node.role()))
+    }
+
+    /// The bounds of a node by key, in points.
+    pub fn bounds_of(&self, key: NodeKey) -> Option<egui::Rect> {
+        let bounds = self.lookup(NodeId(key.0))?.bounds()?;
+        Some(egui::Rect::from_min_max(egui::pos2(bounds.x0 as f32, bounds.y0 as f32), egui::pos2(bounds.x1 as f32, bounds.y1 as f32)))
+    }
+
+    /// Whether a node by key declares `action`.
+    pub fn declares_key(&self, key: NodeKey, action: Declared) -> bool {
+        self.lookup(NodeId(key.0)).is_some_and(|node| node.supports_action(action.action()))
+    }
+
+    /// The children of a node by key.
+    pub fn children_of(&self, key: NodeKey) -> Vec<NodeKey> {
+        self.lookup(NodeId(key.0)).map_or_else(Vec::new, |node| node.children().iter().map(|child| NodeKey(child.0)).collect())
     }
 }
