@@ -137,3 +137,21 @@ fn textures_nobody_asks_for_are_freed_once_the_cache_is_over_capacity() {
     });
     assert_eq!(TextureCache::len(&ctx), TextureCache::CAPACITY, "the oldest unused textures are freed down to the capacity");
 }
+
+/// How many textures painting the icon `name` in each direction loads.
+fn textures_for_both_directions(name: &'static str) -> usize {
+    let mut frames = Frames::new();
+    let tokens = tokens(Mode::Light, Contrast::Standard);
+    let spec = IconSpec::svg(craft_behavior::IconId::new(name));
+    for direction in [Direction::Ltr, Direction::Rtl] {
+        let (shapes, _) = paint_frame(&mut frames, &tokens, direction, Ink::OnPanel, |draw| draw.icon(RECT, &spec));
+        assert!(!shapes.is_empty(), "{name} paints in {direction:?}");
+    }
+    TextureCache::len(&frames.ctx)
+}
+
+#[trial]
+fn a_directional_svg_icon_mirrors_under_rtl_and_another_stays() {
+    assert_eq!(textures_for_both_directions("chevron_right"), 2, "the mirrored raster is its own texture");
+    assert_eq!(textures_for_both_directions("close"), 1, "an icon that does not point along the reading direction keeps one texture");
+}

@@ -1,3 +1,4 @@
+mod bypass;
 mod cursor;
 mod env;
 mod frame;
