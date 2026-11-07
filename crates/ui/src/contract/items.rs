@@ -321,7 +321,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 self.events.push(CollectionEvent::Activate(key));
             }
         }
-        let outline = Outline(self.source);
+        let outline = Outline::new(self.source);
         let page = self.page_rows(&layout, view);
         while let Some((mv, mods)) = cx.core.intents.take_move() {
             if len == 0 {

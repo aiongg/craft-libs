@@ -318,11 +318,13 @@ fn cell(outline: &dyn NavOutline, state: &mut NavState, lead: usize, mv: NavMove
     }
 }
 
+type Axis = fn(emath::Vec2) -> f32;
+
 /// Items at free positions: the nearest item whose centre lies beyond the lead's in the move's direction, with
 /// the off-axis distance counting double. Back and Forward are toward lower and higher x.
 fn spatial(outline: &dyn NavOutline, lead: usize, mv: NavMove) -> NavStep {
     let Some(from) = outline.rect(lead).map(|rect| rect.center()) else { return NavStep::Unhandled };
-    let (along, across): (fn(emath::Vec2) -> f32, fn(emath::Vec2) -> f32) = match mv {
+    let (along, across): (Axis, Axis) = match mv {
         NavMove::Back => (|d| -d.x, |d| d.y),
         NavMove::Forward => (|d| d.x, |d| d.y),
         NavMove::Up | NavMove::PageUp => (|d| -d.y, |d| d.x),

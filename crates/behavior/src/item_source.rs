@@ -85,7 +85,14 @@ pub trait ItemSource<K>: DisplayOrder<K> {
 }
 
 /// `DisplayOrder` as the key-free outline the navigation core steps over.
-pub struct Outline<'a, K>(pub &'a dyn DisplayOrder<K>);
+pub struct Outline<'a, K>(&'a dyn DisplayOrder<K>);
+
+impl<'a, K> Outline<'a, K> {
+    /// The outline of `order`.
+    pub fn new(order: &'a dyn DisplayOrder<K>) -> Self {
+        Outline(order)
+    }
+}
 
 impl<K> NavOutline for Outline<'_, K> {
     fn len(&self) -> usize {

@@ -14,6 +14,7 @@ use std::cell::{Cell, RefCell};
 /// Row height of every list of the trials.
 pub const ROW_H: f32 = 20.0;
 
+#[non_exhaustive]
 /// Words in display order; rows with children and their open state come from the tree fields.
 pub struct Words {
     pub words: Vec<&'static str>,
@@ -61,6 +62,7 @@ impl DisplayOrder<usize> for Words {
 impl ItemSource<usize> for Words {}
 
 /// `n` rows with no text.
+#[non_exhaustive]
 pub struct Count(pub usize);
 
 impl DisplayOrder<usize> for Count {
@@ -169,7 +171,6 @@ pub struct List<'a> {
     items: CollectionProps,
     selection: Option<Bind<'a, Selection<usize>>>,
     tree: bool,
-    dismissable: bool,
     on_empty: Option<&'a Cell<Rect>>,
 }
 
@@ -181,7 +182,6 @@ impl<'a> List<'a> {
             items: CollectionProps::new().select(select),
             selection: None,
             tree: false,
-            dismissable: false,
             on_empty: None,
         }
     }
@@ -201,18 +201,9 @@ impl<'a> List<'a> {
         self
     }
 
-    pub fn dismissable(mut self) -> Self {
-        self.dismissable = true;
-        self
-    }
-
     pub fn on_empty(mut self, seen: &'a Cell<Rect>) -> Self {
         self.on_empty = Some(seen);
         self
-    }
-
-    pub fn is_dismissable(&self) -> bool {
-        self.dismissable
     }
 }
 
@@ -251,7 +242,7 @@ impl Collection for List<'_> {
     }
 
     fn rename_editor(&mut self, ui: &mut Ui, draft: Bind<'_, String>) -> Option<EditResponse<String>> {
-        Some(NameEditor::new(draft).show_in(ui))
+        Some(NameEditor::new(draft).shown(ui))
     }
 
     fn empty(&mut self, ui: &mut Ui, cx: &mut craft_ui::contract::BodyCx<'_>) {
@@ -277,7 +268,7 @@ impl<'a> NameEditor<'a> {
         NameEditor { common: Common::new(), draft }
     }
 
-    fn show_in(self, ui: &mut Ui) -> EditResponse<String> {
+    fn shown(self, ui: &mut Ui) -> EditResponse<String> {
         use craft_ui::contract::Show as _;
         self.show(ui)
     }

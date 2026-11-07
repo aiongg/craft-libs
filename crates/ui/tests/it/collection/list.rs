@@ -193,7 +193,7 @@ fn shift_f10_opens_the_focused_rows_context_menu() {
     let asked = menus();
     assert_eq!(asked.iter().map(|menu| menu.0).collect::<Vec<_>>(), [0, 1], "one request per chord, for the lead at the time");
     assert!(asked[1].1.y > asked[0].1.y, "the request sits below its own row: {asked:?}");
-    assert!(seen.rect.get().contains(asked[0].1 - Vec2::new(0.0, 1.0)), "inside the list: {asked:?}");
+    assert!(seen.rect.get().contains_rect(Rect::from_min_size(asked[0].1, Vec2::ZERO)) || seen.rect.get().contains(asked[0].1), "inside the list: {asked:?}");
     press(&mut frames, Key::F10, Modifiers::NONE, &mut show);
     assert_eq!(menus().len(), 2, "F10 alone opens nothing");
 }
