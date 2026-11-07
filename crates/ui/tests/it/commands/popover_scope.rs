@@ -1,7 +1,7 @@
 //! A command scoped to a popover runs on its chord while the focus is on a control inside the popover.
 
 use craft_ui::buttons::Button;
-use craft_ui::contract::{Bind, CommandSet, Entry, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, CommandSet, Entry, Props as _, Show as _, ShowContainer as _};
 use craft_ui::pickers::Select;
 use craft_ui::popover::Popover;
 use craft_ui::runtime::commands::{CommandScope, Commands as _};
