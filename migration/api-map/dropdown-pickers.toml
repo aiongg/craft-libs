@@ -96,7 +96,7 @@ name = "IconPicker"
 old = "craft_ui::controls::icon_picker::IconPicker"
 new = "craft_ui::pickers::IconPicker"
 status = "moved"
-note = "A pattern over `TextField::search` and `TileGrid`, shown with its own `show(ui) -> IconPickerOutput<K>`. `IconPicker::new(label, Bind<Option<K>>, &[IconPickerGroup<K>])`; the host paints each icon with `paint`."
+note = "A pattern over `TextField::search` and `TileGrid`, shown with its own `show(ui) -> IconPickerOutput<K>`. `IconPicker::new(label, Bind<Option<K>>, &[IconPickerGroup<K>])`; each item names its icon."
 
 [[type]]
 name = "ComboState"

@@ -28,7 +28,7 @@ pub(super) struct ShownRow {
 #[derive(Clone, Debug)]
 pub(super) enum Kind {
     Bool(bool),
-    Choice { value: String, options: Vec<Entry<String>> },
+    Choice { value: String, options: Vec<Entry<String>>, unit: Option<UnitKind> },
     Color(Rgba),
     Int { value: i64, range: RangeInclusive<i64>, unit: Option<UnitKind> },
     Float { value: f64, range: RangeInclusive<f64>, decimals: u8, step: Option<f64>, unit: Option<UnitKind> },
@@ -40,7 +40,8 @@ impl ShownRow {
     pub fn of(row: &RowSpec<'_>) -> Self {
         let kind = match &row.kind {
             RowKind::Bool(value) => Kind::Bool(*value),
-            RowKind::Choice { value, options, .. } => Kind::Choice {
+            RowKind::Choice { value, options, unit } => Kind::Choice {
+                unit: *unit,
                 value: (*value).to_owned(),
                 options: options
                     .iter()
@@ -93,6 +94,14 @@ fn number(units: &Units, label: &Label, value: f64, unit: Option<UnitKind>, deci
     NumberField::new(label.clone(), Bind::given(Some(value))).codec(NumberCodec::new(units.reader(unit), decimals))
 }
 
+/// `option` labelled as its id counted in `kind`; an option whose id is not a number keeps its label.
+fn counted_option(units: &Units, kind: UnitKind, option: &Entry<String>) -> Entry<String> {
+    match option.value().map(|id| (id, id.parse::<f64>())) {
+        Some((id, Ok(n))) => Entry::new(id.clone(), units.show(kind, n)).enabled(option.is_enabled()),
+        _ => option.clone(),
+    }
+}
+
 /// Shows `row` and records what it edited in `out`.
 pub(super) fn show_row<H: PreferencesModel + ?Sized>(ui: &mut Ui, host: &mut H, row: &ShownRow, units: &Units, out: &mut RowsOut) {
     let key = row.key.as_str();
@@ -117,8 +126,16 @@ pub(super) fn show_row<H: PreferencesModel + ?Sized>(ui: &mut Ui, host: &mut H, 
             });
             record(next.map(PrefValue::Bool));
         }
-        Kind::Choice { value, options } => {
+        Kind::Choice { value, options, unit } => {
             let mut next = None;
+            let counted: Vec<Entry<String>>;
+            let options = match unit {
+                Some(kind) => {
+                    counted = options.iter().map(|option| counted_option(units, *kind, option)).collect();
+                    &counted
+                }
+                None => options,
+            };
             field().show(ui, |ui, _| {
                 next = edited(&Select::new(label.clone(), Bind::given(value.clone()), options).show(ui));
             });

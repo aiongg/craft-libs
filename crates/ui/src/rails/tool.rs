@@ -10,7 +10,7 @@ use crate::contract::{
 use crate::contract::{BodyCx, BodyLayout};
 use crate::layout_components::Row;
 use crate::runtime::access::Name;
-use crate::runtime::commands;
+use crate::runtime::commands::Commands as _;
 use crate::runtime::env::{Env, Label};
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::overlay::Side;
@@ -190,12 +190,11 @@ impl<'a, T: Value + 'static> ToolRail<'a, T> {
         let opens = if self.at_end() { Side::Start } else { Side::End };
         let last = remembered(slots, current, last_used);
         let mut collected = Collected::default();
-        let shown = self.show(ui, |ui, _| {
+        let shown = self.show(ui, |ui, cx| {
             collected = Collected::default();
             let visible = visible_slots(slots, hidden);
             let cells = visible.len() + usize::from(edit_label.is_some());
-            let ctx = ui.ctx().clone();
-            let enabled = |tool: &RailTool<T>| commands::resolve(&ctx, tool.command.clone()).enabled;
+            let enabled = |tool: &RailTool<T>| cx.resolve_command(tool.command.clone()).is_some_and(|resolved| resolved.enabled);
             let rows: Vec<usize> = (0..cells).step_by(columns).collect();
             for first in rows {
                 Row::new().gap(Gap::Tight).show(ui, |ui, _| {

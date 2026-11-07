@@ -8,7 +8,7 @@ use crate::choice::Checkbox;
 use crate::contract::{Bind, EditResponse, Entry, NoValue, Outcome, Props as _, Remember as _, Show as _, ShowContainer as _, clicked};
 use crate::form::{Field, FieldGroup, SliderField};
 use crate::layout_components::{Row, Stack};
-use crate::pickers::Select;
+use crate::pickers::{Select, UnitSelect};
 use crate::runtime::env::{Env, Label, UnitKind, Units};
 use crate::sections::Section;
 use crate::text::{NumberField, TextField};
@@ -269,29 +269,31 @@ impl<'p> Pass<'p> {
 
     /// A number row with a unit menu: the field shows the base value in the chosen unit.
     fn with_units(&mut self, ui: &mut Ui, line: &Line<'_>) {
-        let ParamKind::Number { min, max, step, decimals, .. } = &line.param.kind else { return };
+        let ParamKind::Number { min, max, .. } = &line.param.kind else { return };
         let option = line.param.option();
         let Some(choices) = option.units() else { return };
         let base = self.work.number(line.key).unwrap_or(0.0);
         let at = self.work.text(choices.key()).and_then(|id| choices.list().iter().position(|unit| unit.id == id)).unwrap_or(choices.initial());
-        let (id, factor) = choices.list().get(at).map_or((String::new(), 1.0), |unit| (unit.id.clone(), unit.factor));
+        let Some(chosen) = choices.list().get(at) else { return };
+        let factor = chosen.factor;
         let range = bounds(min.map(|m| m / factor), max.map(|m| m / factor));
-        let entries: Vec<Entry<String>> = choices.list().iter().map(|unit| Entry::new(unit.id.clone(), unit.label.clone())).collect();
+        let entries: Vec<Entry<UnitKind>> = choices.list().iter().map(|unit| Entry::new(unit.kind, unit.label.clone())).collect();
         let unit_name = self.words.unit.clone();
         line.show(ui, |ui| {
-            beside(ui, |ui| {
-                let mut field = number_field(self.units, line.name.clone(), Some(base / factor), *decimals, line.param.unit).step(*step);
-                if let Some(range) = range.clone() {
-                    field = field.range(range);
-                }
-                if let Some(v) = edited(&field.id_salt("field").show(ui).edit).flatten() {
-                    self.work.set(line.key, FieldValue::Number(v * factor));
-                }
-                let select = Select::new(unit_name.clone(), Bind::given(id.clone()), &entries).id_salt("unit").show(ui);
-                if let Some(picked) = edited(&select) {
-                    self.work.set(choices.key(), FieldValue::Text(picked));
-                }
-            });
+            let mut field = UnitSelect::new(line.name.clone(), Bind::given(Some(base / factor)), Bind::given(chosen.kind), &entries)
+                .unit_label(unit_name.clone())
+                .id_salt("field");
+            if let Some(range) = range.clone() {
+                field = field.range(range);
+            }
+            let shown = field.show(ui);
+            if let Some(v) = edited(&shown.edit).flatten() {
+                self.work.set(line.key, FieldValue::Number(v * factor));
+            }
+            let picked = shown.unit.as_ref().and_then(|event| event.value().copied());
+            if let Some(unit) = picked.and_then(|kind| choices.list().iter().find(|unit| unit.kind == kind)) {
+                self.work.set(choices.key(), FieldValue::Text(unit.id.clone()));
+            }
         });
     }
 
