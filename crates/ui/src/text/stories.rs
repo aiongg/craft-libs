@@ -1,6 +1,6 @@
-//! Stories of the text family: `TextField<PlainText>`, `NumberField` and `SelectableText`.
+//! Stories of the text family: `TextField<PlainText>` and `SelectableText`.
 
-use super::{NumberField, SelectableText, TextField};
+use super::{SelectableText, TextField};
 use crate::contract::{Bind, Props as _, Show as _, Validity};
 use crate::primitives::{Completer, Completion};
 use crate::runtime::env::Message;
@@ -71,33 +71,6 @@ fn text_field_open(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     TextField::new("Name", Bind::given(String::new())).complete(Prefixes).show(ui).into()
 }
 
-const SIZE: f64 = 12.5;
-const HUGE: f64 = 123_456_789_012_345.0;
-
-#[story(NumberField<'static>, covers = [Default], drive = Drive::Type("42"))]
-fn number_field(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    NumberField::new("Size", Bind::bound(data.value("size", Some(SIZE)))).show(ui).into()
-}
-
-#[story(NumberField<'static>, covers = [LongText], drive = Drive::Never)]
-fn number_field_long(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    NumberField::new("Size", Bind::bound(data.value("long", Some(HUGE)))).show(ui).into()
-}
-
-#[story(NumberField<'static>, covers = [Mixed], drive = Drive::Never)]
-fn number_field_mixed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    NumberField::new("Size", Bind::bound_mixed(data.value("mixed", Mixed::<Option<f64>>::Mixed))).show(ui).into()
-}
-
-#[story(NumberField<'static>, covers = [Invalid], drive = Drive::Never)]
-fn number_field_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let refuse_negative = |size: &Option<f64>| match size {
-        Some(size) if *size < 0.0 => Validity::Refuse(Message::new("Size cannot be negative")),
-        _ => Validity::Ok,
-    };
-    NumberField::new("Size", Bind::bound(data.value("negative", Some(-SIZE))).check(refuse_negative)).show(ui).into()
-}
-
 #[story(SelectableText<'static>, covers = [Default], drive = Drive::Never)]
 fn selectable_text(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     SelectableText::new("Path", "/projects/poster.indd").show(ui).into()
@@ -106,4 +79,9 @@ fn selectable_text(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 #[story(SelectableText<'static>, covers = [LongText], drive = Drive::Never)]
 fn selectable_text_long(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     SelectableText::new("Path", LONG).show(ui).into()
+}
+
+#[story(TextField<'static, PlainText>, covers = [], drive = Drive::Never)]
+fn text_field_search_filled(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    TextField::search("Search", Bind::bound(data.value("filled", "poster".to_owned()))).placeholder("Search").show(ui).into()
 }
