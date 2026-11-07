@@ -386,7 +386,7 @@ impl<'a> NumberField<'a> {
         let current = cx.value().and_then(|value| *value);
         let held = |at: usize| match rows[at].value() {
             Some(NumberPick::Number(value)) => current.is_some_and(|current| (current - value).abs() <= 1e-4 * current.abs().max(1.0)),
-            Some(NumberPick::Choice(_)) => rows[at].checked(),
+            Some(NumberPick::Choice(_)) => rows[at].is_checked(),
             None => false,
         };
         let marked = (0..rows.len()).find(|at| held(*at));
@@ -397,7 +397,11 @@ impl<'a> NumberField<'a> {
             List::<usize>::options(name.clone())
                 .selection(Bind::given(selection))
                 .show_items(ui, &source, &mut |at, _| {
-                    if rows[*at].is_separator() { ListRow::spacer() } else { ListRow::new(labels[*at].clone()).enabled(rows[*at].enabled()).option() }
+                    if rows[*at].is_separator() {
+                        ListRow::spacer()
+                    } else {
+                        ListRow::new(labels[*at].clone()).enabled(rows[*at].is_enabled()).option()
+                    }
                 })
                 .events
         });

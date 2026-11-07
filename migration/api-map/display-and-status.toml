@@ -54,7 +54,7 @@ name = "SectionLabel"
 old = "craft_ui::composites::section_label::SectionLabel"
 new = ""
 status = "replaced"
-note = "`SectionLabel::new(text).show(ui)` is `Text::section(text).show(ui)`: label type in the faint shade."
+note = "`SectionLabel::new(text).show(ui)` is `Section::fixed(text).strength(HeaderStrength::Caption)`: a caption title in the faint shade."
 
 [[type]]
 name = "Text"

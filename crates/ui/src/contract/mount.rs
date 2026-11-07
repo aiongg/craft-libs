@@ -140,6 +140,13 @@ impl Host for LayerHost {
         let ctx = parent.ctx().clone();
         let placement = placement_of(&ctx, id, self.save.as_ref());
         let mut overlay = self.overlay.clone();
+        // A resizable popover's default size is held as its minimum until the user resizes it.
+        if overlay.fit == overlay::OverlayFit::Resizable && placement.size.is_none() {
+            overlay.min_size = match (overlay.size, overlay.min_size) {
+                (Some(size), Some(min)) => Some(size.max(min)),
+                (size, min) => size.or(min),
+            };
+        }
         if let Some(pos) = placement.pos {
             overlay.place = Place::Float(FloatPlace::at(Pos2::from(pos)));
         }

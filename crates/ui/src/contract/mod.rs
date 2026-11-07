@@ -319,6 +319,9 @@ pub trait Container: Component + HasProps + Meta<Shape = shape::Body> {
     /// Fills the header region the body step laid out.
     fn header(&mut self, _ui: &mut Ui, _cx: &mut BodyCx<'_>) {}
 
+    /// Fills the header's trailing region.
+    fn controls(&mut self, _ui: &mut Ui, _cx: &mut BodyCx<'_>) {}
+
     /// Fills the footer region.
     fn footer(&mut self, _ui: &mut Ui, _cx: &mut BodyCx<'_>) {}
 

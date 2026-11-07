@@ -49,12 +49,7 @@ impl FieldStyle {
             .padding(Insets::new(control.pad_x, 0.0, control.pad_x, 0.0))
             .gap(control.gap)
             .min_size(Vec2::new(cx.tokens.size.length.field, control.height));
-        FieldStyle {
-            surface: cx.field(),
-            metrics,
-            glyph: IconLook::new(control.icon, Stateful::new(cx.ink(Ink::OnPanel))),
-            button: control.height,
-        }
+        FieldStyle { surface: cx.field(), metrics, glyph: IconLook::new(control.icon, Stateful::new(cx.ink(Ink::OnPanel))), button: control.height }
     }
 }
 

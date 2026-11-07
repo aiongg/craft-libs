@@ -249,7 +249,7 @@ pub(crate) fn run(state: &mut TextState, mut input: AdapterIn<'_>) -> AdapterOut
     let focused_before = input.focused;
     let mut base = state.draft.clone().or_else(|| state.normalised.take()).unwrap_or_else(|| input.shown.to_owned());
     let mut edited = apply(&mut input, state, &mut base, widget);
-    if let Some((range, insert)) = state.completions.take(ctx, input.id, &base) {
+    if let Some((range, insert)) = state.completions.take(&base) {
         let chars = |byte: usize| base.get(..byte).map_or_else(|| base.chars().count(), |head| head.chars().count());
         let selection = (chars(range.start), chars(range.end));
         replace_selection(ctx, widget, &mut base, selection, &insert);
@@ -258,7 +258,7 @@ pub(crate) fn run(state: &mut TextState, mut input: AdapterIn<'_>) -> AdapterOut
     // A clearing field takes Escape while it shows text, with or without a draft, and passes it on once it is empty.
     let takes_escape =
         if input.options.clear_on_escape { !base.is_empty() || state.preedit.is_some() } else { state.draft.is_some() || state.preedit.is_some() };
-    if focused_before && takes_escape && input.intents.take(Intent::Cancel) {
+    if focused_before && takes_escape && !state.completions.open && input.intents.take(Intent::Cancel) {
         // Escape over a composition alone ends the composition and leaves the text.
         if state.draft.is_some() || state.preedit.is_none() {
             state.end = Some(End::Escape);
@@ -309,7 +309,7 @@ pub(crate) fn run(state: &mut TextState, mut input: AdapterIn<'_>) -> AdapterOut
     }
     let typing = shown.focused && state.preedit.is_none() && !input.read_only;
     let at = state.draft.as_deref().filter(|_| typing).map(|text| (text, caret.unwrap_or_else(|| text.chars().count())));
-    state.completions.refresh(ctx, input.id, input.options.complete.as_deref(), at);
+    state.completions.refresh(input.options.complete.as_deref(), at);
     if shown.entered && shown.focused && !input.options.multiline() {
         state.end = Some(End::Submit);
     } else if separated {

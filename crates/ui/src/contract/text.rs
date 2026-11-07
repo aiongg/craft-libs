@@ -348,14 +348,13 @@ pub(crate) fn run<C: Component>(
     if state.draft.is_some() || (decl.options.clear_on_escape && !out.layout.full.is_empty()) {
         keys::hold_escape(&ctx, id);
     }
-    let (completions, completion_index) = (state.completions.items.clone(), state.completions.index);
+    let completions = state.completions.items.clone();
     *cx.core.memory.shown::<TextState>(state_id) = state;
     let mut outcome = resolved.outcome;
     outcome.layout = Some(out.layout);
     outcome.caret_visible = caret_visible;
     outcome.composing = crate::runtime::ime::composing(&ctx, widget);
     outcome.completions = completions;
-    outcome.completion_index = completion_index;
     cx.core.texts = Some((decl.key, Box::new(outcome)));
     let committed = apply_events(cx, resolved.events);
     (decl.values.note)(cx.core.memory.shown::<TextState>(state_id), cx.shown.as_deref().map(|value| value as &dyn Any));

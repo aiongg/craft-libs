@@ -28,6 +28,7 @@ mod motion;
 mod overlay;
 mod paint;
 mod parity;
+mod popover;
 mod runtime;
 mod sections;
 mod style;

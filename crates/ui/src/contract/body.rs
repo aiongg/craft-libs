@@ -96,6 +96,11 @@ fn overlay_of(props: &ContainerProps) -> Option<&super::Overlay> {
     }
 }
 
+/// The floor of a resizable layer's size: the larger of the style minimum and the overlay's `min_size`.
+fn window_min(props: &ContainerProps, style_min: Vec2) -> Vec2 {
+    overlay_of(props).and_then(|overlay| overlay.min_size).map_or(style_min, |min| style_min.max(min))
+}
+
 /// The instance id of the `window` command scope a movable or resizable layer container holds (16.3), whatever
 /// scope its own commands use: the container's id when it publishes the window scope itself, else a sub-id.
 fn window_instance(props: &ContainerProps, id: Id) -> Option<Id> {
@@ -281,7 +286,7 @@ impl BodyHooks<'_> {
         }
         if let Some(kind) = mode.kind {
             let step = self.nudge;
-            let min = cx.style.metrics().min_size;
+            let min = window_min(props, cx.style.metrics().min_size);
             let rect = cx.core.rect;
             let mut placement = slot;
             for (key, direction) in MODE_ARROWS {
@@ -804,7 +809,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         }
         self.window_keys(props, cx);
         let id = cx.core.id;
-        let min = cx.style.metrics().min_size;
+        let min = window_min(props, cx.style.metrics().min_size);
         let rect = cx.core.rect;
         // A part the container did not declare this pass (no band, no grips) has no result.
         let phase = |key: (PartKey, Option<u64>)| cx.core.results.get(&key).map(|result| result.press.phase);

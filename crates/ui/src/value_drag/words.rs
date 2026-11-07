@@ -5,8 +5,6 @@ craft_ui::words! {
     pub struct ValueDragWords {
         lower: "rangeSlider.lower" = "Minimum";
         upper: "rangeSlider.upper" = "Maximum";
-        axis_x: "pointPicker.axisX" = "X";
-        axis_y: "pointPicker.axisY" = "Y";
         thumb_low: template "thumbRow.low" = "{name} low";
         thumb_high: template "thumbRow.high" = "{name} high";
     }

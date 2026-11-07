@@ -61,7 +61,7 @@ name = "SplitButton"
 old = "craft_ui::controls::split_button::SplitButton"
 new = "craft_ui::buttons::SplitButton"
 status = "moved"
-note = "`new(label, &[SelectOption<T>])`; the id salt is `.id_salt(..)`. `show(ui)` returns `SplitOutput<T>`: `response.clicked()` runs the action (was `main.clicked()`) and `chosen` is the picked entry (was `menu.chosen`). `MenuEntry<T>` becomes `SelectOption<T>` until the menu family lands."
+note = "`new(label, &[Entry<T>])`; the id salt is `.id_salt(..)`. `show(ui)` returns `SplitOutput<T>`: `response.clicked()` runs the action (was `main.clicked()`) and `chosen` is the picked entry (was `menu.chosen`). `MenuEntry<T>` becomes `craft_ui::contract::Entry<T>`."
 
 [[type]]
 name = "Link"
@@ -186,7 +186,7 @@ new = "icon(IconId), trailing_icon(IconId)"
 [[setter]]
 type = "SplitButton"
 old = "new(id_salt, label, entries)"
-new = "new(label, &[SelectOption<T>]).id_salt(id_salt)"
+new = "new(label, &[Entry<T>]).id_salt(id_salt)"
 
 [[setter]]
 type = "SplitButton"

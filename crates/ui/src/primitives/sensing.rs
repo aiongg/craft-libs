@@ -60,24 +60,12 @@ pub struct TextOutcome<V> {
     pub composing: bool,
     /// The completion candidates the list shows; empty while it is closed.
     pub completions: Vec<super::Completion>,
-    /// The highlighted candidate.
-    pub completion_index: usize,
 }
 
 impl<V> TextOutcome<V> {
     /// An outcome over `rect` with no draft or value.
     pub const fn new(rect: Rect) -> Self {
-        TextOutcome {
-            rect,
-            draft: None,
-            value: None,
-            layout: None,
-            caret_visible: true,
-            invalid: false,
-            composing: false,
-            completions: Vec::new(),
-            completion_index: 0,
-        }
+        TextOutcome { rect, draft: None, value: None, layout: None, caret_visible: true, invalid: false, composing: false, completions: Vec::new() }
     }
 }
 

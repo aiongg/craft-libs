@@ -19,7 +19,7 @@ name = "SearchField"
 old = "craft_ui::controls::text_field::SearchField"
 new = ""
 status = "replaced"
-note = "`TextField::search(label, Bind<String>)`: a leading search glyph, a clear part while there is text, Escape clears first. The clear button's name is the library word `text.clear`, not an argument."
+note = "`TextField::search(label, Bind<String>)`: a leading search glyph, a clear part while there is text, Escape clears the text and commits the empty value. The clear button's name is the library word `textField.clear`, not an argument."
 
 [[type]]
 name = "TextFieldOutput"
@@ -73,7 +73,7 @@ note = "A `Component` over one `Bind<[Option<f64>; N]>` and a link `Bind<bool>`;
 [[type]]
 name = "ApplyRow"
 old = "craft_ui::controls::mixed::ApplyRow"
-new = "craft_ui::text::ApplyRow"
+new = "craft_ui::sections::ApplyRow"
 status = "moved"
 note = "A container: `ApplyRow::new(label, Bind<bool>).show(ui, |ui, _| field)`. The check box is in the header and the body is enabled while `apply` is on. The field binds a `Mixed<T>` itself."
 
@@ -82,21 +82,21 @@ name = "NumberOutput"
 old = "craft_ui::controls::number_field::NumberFieldOutput"
 new = "craft_ui::text::NumberOutput"
 status = "moved"
-note = "The edit response of the value is `.edit` (and derefs); `preset` is the position of a picked `Preset::Choice` row."
+note = "The edit response of the value is `.edit` (and derefs); `preset` is the `NumberPick` of a picked row: `Number(f64)` or `Choice(u32)`."
 
 [[type]]
 name = "Preset"
 old = "craft_ui::controls::number_field::Preset"
-new = "craft_ui::text::Preset"
-status = "moved"
-note = "`Preset::value(label, number)`, `Preset::choice(label, checked)` and `Preset::Separator`; labels are `Label`s. The rows go to `NumberField::presets(&[Preset])`."
+new = ""
+status = "removed"
+note = "Replaced by `craft_ui::contract::Entry<NumberPick>`: `Entry::new(NumberPick::Number(n), label)`, `Entry::new(NumberPick::Choice(id), label).checked(bool)` and `Entry::separator()`; labels are `Label`s. The rows go to `NumberField::presets(&[Entry<NumberPick>])`."
 
 [[type]]
 name = "PresetSource"
 old = "craft_ui::controls::number_field::PresetSource"
 new = ""
 status = "removed"
-note = "Private in legacy; the three preset builders it served (`presets(&[(label, value)])`, `preset_rows`, `preset_list`) are one `presets(&[Preset])`."
+note = "Private in legacy; the three preset builders it served (`presets(&[(label, value)])`, `preset_rows`, `preset_list`) are one `presets(&[Entry<NumberPick>])`."
 
 [[type]]
 name = "FieldRule"
@@ -484,18 +484,18 @@ note = "Removed: a unit choice is a `Select` beside the field."
 [[setter]]
 type = "NumberField"
 old = "presets(&[(String, f64)])"
-new = "presets(&[Preset])"
+new = "presets(&[Entry<NumberPick>])"
 
 [[setter]]
 type = "NumberField"
 old = "preset_rows(labels, picked)"
-new = "presets(&[Preset])"
-note = "Rows are `Preset::choice(..)`; the pick is `NumberOutput::preset`."
+new = "presets(&[Entry<NumberPick>])"
+note = "Rows are `Entry::new(NumberPick::Choice(..), ..)`; the pick is `NumberOutput::preset`."
 
 [[setter]]
 type = "NumberField"
 old = "preset_list(rows, picked)"
-new = "presets(&[Preset])"
+new = "presets(&[Entry<NumberPick>])"
 note = "The pick of a choice row is `NumberOutput::preset`."
 
 [[setter]]

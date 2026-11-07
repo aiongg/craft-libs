@@ -57,8 +57,8 @@ impl<'a, T: Value + 'static> Segmented<'a, T> {
 
     /// The face segment `entry` wears: a toggle button, icon only when the entry has an icon.
     fn face(entry: &Entry<T>, checked: bool) -> ToggleButton<'static> {
-        let face = ToggleButton::new(entry.label().clone(), Bind::given(checked)).enabled(entry.enabled());
-        match entry.icon() {
+        let face = ToggleButton::new(entry.label().clone(), Bind::given(checked)).enabled(entry.is_enabled());
+        match entry.icon_spec() {
             Some(icon) => face.icon(icon.clone()).icon_only(),
             None => face,
         }
@@ -106,10 +106,10 @@ impl<T: Value + 'static> Component for Segmented<'_, T> {
             let (cell, rest) = flow.take_start(width);
             flow = rest.take_start(gap).1;
             let mut part = cx.part(Self::part(at), cell);
-            if entry.icon().is_some() {
+            if entry.icon_spec().is_some() {
                 part = part.tooltip(entry.label().clone());
             }
-            if !entry.enabled() {
+            if !entry.is_enabled() {
                 continue;
             }
             let part = part.sense(Sense::CLICK | Sense::FOCUS).focusable();
@@ -129,7 +129,7 @@ impl<T: Value + 'static> Component for Segmented<'_, T> {
         let by_key = cx.activation().filter(|activation| activation.by_key).and(cx.active_part());
         for (at, entry) in self.entries.iter().enumerate() {
             let hit = cx.part(Self::part(at)).press.phase.is_click() || by_key == Some(Self::part(at));
-            if let Some(value) = entry.value().filter(|_| entry.enabled() && hit && current != Some(at)) {
+            if let Some(value) = entry.value().filter(|_| entry.is_enabled() && hit && current != Some(at)) {
                 cx.set(value.clone());
             }
         }

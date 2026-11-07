@@ -12,7 +12,7 @@ name = "SectionHeader"
 old = "craft_ui::composites::section_header::SectionHeader"
 new = ""
 status = "replaced"
-note = "`craft_ui::sections::Section`, a container: `SectionHeader::new(salt, title).open(&mut open).show(ui, body)` is `Section::new(title, Bind::bound(&mut open)).id_salt(salt).show(ui, |ui, _| body(ui))`. Without a binding the open state is `Section::saved(title, SaveKey)`; `collapsible(false)` is `Section::fixed(title)`. The header is a `TitleRow` with a disclosure lead and a rule under it; the hairline above the row is gone."
+note = "`craft_ui::sections::Section`, a container: `SectionHeader::new(salt, title).open(&mut open).show(ui, body)` is `Section::new(title).open(Bind::bound(&mut open)).id_salt(salt).show(ui, |ui, _| body(ui))`. Without a binding the open state is a session slot, kept across runs with `.remember(SaveKey)`; `collapsible(false)` is `Section::fixed(title)`. The header is a `TitleRow` with a disclosure lead and a rule under it; the hairline above the row is gone."
 
 [[type]]
 name = "SectionStyle"
@@ -98,7 +98,7 @@ note = "Trailing controls are the `HeaderAction` parts; a section count or info 
 type = "SectionHeader"
 old = "caption(true)"
 new = ""
-note = "A caption title is `Text::section(label)` in the body; a section header has the section strength."
+note = "A caption title is `HeaderStrength::Caption`; a section header has the section strength."
 
 [[setter]]
 type = "SectionHeader"

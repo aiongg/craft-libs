@@ -1,6 +1,6 @@
 //! Popups: opening, staying open, and the dismissal rules.
 
-use super::kit::{Leaf, Opened, Opener, Seen};
+use crate::overlay::kit::{Leaf, Opened, Opener, Seen};
 use craft_behavior::{DisplayOrder, ItemSource};
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Bind, CollectionEvent, Overlay, Props as _, Show as _, ShowCollection as _, ShowContainer as _, Trigger};

@@ -1,7 +1,7 @@
 //! `DropVeil`: files dropped anywhere in the window reach the output once, a hover that ends without a drop reports
 //! nothing, a modal blocks the veil behind it, and the veil shows only while it is the target that wins.
 
-use super::kit::{Opened, Opener, PlainStyle, Seen};
+use crate::overlay::kit::{Opened, Opener, PlainStyle, Seen};
 use craft_behavior::DropOperation;
 use craft_ui::choice::Checkbox;
 use craft_ui::contract::{

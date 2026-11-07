@@ -82,14 +82,7 @@ name = "Segmented"
 old = "craft_ui::controls::segmented::Segmented"
 new = "craft_ui::choice::Segmented"
 status = "moved"
-note = "A leaf over `Bind<T>` and a slice of `Segment<T>`: `Segmented::new(Bind::bound(&mut value), &segments).label(name).show(ui)`. `item(value, label)` is `Segment::new(value, label)`; `icon_item(value, icon, label)` is `Segment::new(value, label).icon(IconId)`; `item_enabled(false)` is `Segment::enabled(false)`. Each segment is a part wearing a toggle button's face."
-
-[[type]]
-name = "Segment"
-old = "craft_ui::controls::segmented::Segment"
-new = "craft_ui::choice::Segment"
-status = "moved"
-note = "New in this family: one option of a `Segmented`. It was the private `Item` of the legacy type."
+note = "A leaf over `Bind<T>` and a slice of `Entry<T>`: `Segmented::new(label, Bind::bound(&mut value), &entries).show(ui)`. `item(value, label)` is `Entry::new(value, label)`; `icon_item(value, icon, label)` is `Entry::new(value, label).icon(IconId)`; `item_enabled(false)` is `Entry::enabled(false)`. Each entry is a part wearing a toggle button's face; separators are not allowed."
 
 [[type]]
 name = "Rating"
@@ -159,22 +152,22 @@ new = "Radio::enabled(bool)"
 [[setter]]
 type = "Segmented"
 old = "new(id_salt, label, &mut T)"
-new = "new(Bind<T>, &[Segment<T>]).label(label).id_salt(..)"
+new = "new(label, Bind<T>, &[Entry<T>]).id_salt(..)"
 
 [[setter]]
 type = "Segmented"
 old = "item(value, label)"
-new = "Segment::new(value, label)"
+new = "Entry::new(value, label)"
 
 [[setter]]
 type = "Segmented"
 old = "icon_item(value, Icon, label)"
-new = "Segment::new(value, label).icon(IconId)"
+new = "Entry::new(value, label).icon(IconId)"
 
 [[setter]]
 type = "Segmented"
 old = "item_enabled(bool)"
-new = "Segment::enabled(bool)"
+new = "Entry::enabled(bool)"
 
 [[setter]]
 type = "Rating"

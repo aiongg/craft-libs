@@ -239,6 +239,16 @@ impl AccessTree {
         self.lookup(NodeId(key.0))?.label()
     }
 
+    /// The toggled state of a node by key.
+    pub fn toggled_of(&self, key: NodeKey) -> Option<accesskit::Toggled> {
+        self.lookup(NodeId(key.0))?.data().toggled()
+    }
+
+    /// The expanded state of a node by key.
+    pub fn expanded_of(&self, key: NodeKey) -> Option<bool> {
+        self.lookup(NodeId(key.0))?.data().is_expanded()
+    }
+
     /// The nearest ancestor of `id` that screen readers see: AccessKit's consumer drops generic containers.
     pub fn parent_of(&self, id: Id) -> Option<NodeKey> {
         self.parent_of_key(NodeKey::of(id))

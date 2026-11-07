@@ -1,7 +1,7 @@
 //! Roles, names and sub-nodes of the nodes the pipeline emits, and announcements.
 
 use crate::contract::kit::{Panel, Probe, RowProbe, Rows, Seen, Table};
-use craft_behavior::{PartKey, Sense};
+use craft_behavior::{Mixed, PartKey, Sense};
 use craft_ui::contract::Bind;
 use craft_ui::contract::announce;
 use craft_ui::contract::{
@@ -260,7 +260,7 @@ fn expand_is_declared_only_where_the_node_has_an_open_state() {
 fn a_set_value_on_a_thumb_sub_node_sets_that_thumb_while_another_holds_focus() {
     fn levels(ui: &mut egui::Ui, data: &mut craft_ui::testing::StoryData) -> craft_ui::testing::StoryOutput {
         let thumbs = [Thumb::new("Black"), Thumb::new("White")];
-        ThumbRow::new(Bind::bound(data.value("row", [20.0, 80.0])), 0.0..=100.0).step(1.0).thumbs(thumbs).label("Levels").show(ui).into()
+        ThumbRow::new(Bind::bound(data.value("row", Mixed::each([20.0, 80.0]))), 0.0..=100.0).step(1.0).thumbs(thumbs).label("Levels").show(ui).into()
     }
     let mut fixture = Fixture::story(&Story::new("levels", levels));
     fixture.settle();
@@ -272,6 +272,6 @@ fn a_set_value_on_a_thumb_sub_node_sets_that_thumb_while_another_holds_focus() {
     let second = thumb(&fixture, 1);
     fixture.access(AccessActionKind::SetValue(60.0), &second);
     fixture.idle(2);
-    let expected = [20.0, 60.0];
-    assert_eq!(*fixture.data().value("row", [f64::NAN; 2]), expected);
+    let expected = Mixed::each([20.0, 60.0]);
+    assert_eq!(*fixture.data().value("row", Mixed::each([f64::NAN; 2])), expected);
 }

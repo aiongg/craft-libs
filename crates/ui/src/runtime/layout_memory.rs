@@ -39,8 +39,6 @@ struct Entries {
     entries: HashMap<Id, Entry>,
     ask: bool,
     asked: Option<u64>,
-    /// Blocks placed without an entry so far, in every pass of the viewport.
-    unknown: u64,
 }
 
 /// The pass, frame and clock of the running viewport, read before the service lock is taken.
@@ -75,19 +73,6 @@ pub(crate) fn read(ctx: &Context, id: Id) -> Option<Vec2> {
         }
         value
     })
-}
-
-/// Notes that a block took its place without a size entry, which leaves the size of whatever contains it unknown.
-pub(crate) fn note_unknown(ctx: &Context) {
-    let moment = Moment::of(ctx);
-    with(ctx, &moment, |memory| memory.unknown += 1);
-}
-
-/// How many blocks have been placed without an entry; a container that sees it grow while its content runs
-/// measured that content with a placeholder.
-pub(crate) fn unknown_count(ctx: &Context) -> u64 {
-    let moment = Moment::of(ctx);
-    with(ctx, &moment, |memory| memory.unknown)
 }
 
 /// The size entry under `id` without a placement using it.

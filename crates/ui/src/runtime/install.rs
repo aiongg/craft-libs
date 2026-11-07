@@ -1,6 +1,6 @@
 //! `runtime::install`: adds the runtime plugin once and sets the egui options the runtime owns.
 
-use crate::runtime::egui::{focus, input, plugin};
+use crate::runtime::egui::{focus, fonts, input, plugin};
 use crate::runtime::{commands, frame, windows};
 use crate::style::{DuplicateStyle, StyleReplacements};
 use craft_host::target::ShellInfo;
@@ -86,6 +86,7 @@ pub fn install(ctx: &Context, spec: InstallSpec) -> Result<(), InstallError> {
     looks.store(ctx);
     focus::never_surrender_focus(ctx);
     input::clear_shortcuts(ctx);
+    fonts::lay_out_unhinted(ctx);
     windows::install(ctx, spec.shell_info, spec.window_system, spec.placement);
     frame::set_frame_layers(ctx, spec.frame_layers);
     frame::seed_hooked_passes(ctx);
