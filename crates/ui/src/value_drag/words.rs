@@ -5,5 +5,7 @@ craft_ui::words! {
     pub struct ValueDragWords {
         lower: "value_drag.lower" = "Minimum";
         upper: "value_drag.upper" = "Maximum";
+        thumb_low: "thumbRow.low" = "{name} low";
+        thumb_high: "thumbRow.high" = "{name} high";
     }
 }

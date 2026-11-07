@@ -17,6 +17,11 @@ fn button_with_reason(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     Button::new("Save").tooltip(data.tooltip("Save the document")).show(ui).into()
 }
 
+#[story(Button, covers = [], drive = Drive::Never)]
+fn button_loading(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    Button::new("Saving").icon(IconId::new("save")).loading(true).show(ui).into()
+}
+
 #[story(IconButton, covers = [Default])]
 fn icon_button(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     IconButton::new(IconId::new("settings")).label("Settings").show(ui).into()

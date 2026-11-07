@@ -6,7 +6,8 @@
 use super::predicate::{DropTest, RowTest, SourceTest};
 use super::{ListRow, RowEvent};
 use crate::contract::{
-    Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, EditResponse, ListDrag, Props as _,
+    ActivateOn, Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, EditResponse, LeadOnOpen, ListDrag,
+    Props as _,
     ReorderRule, Role, SelectMode, Show as _, Sizing,
 };
 use crate::runtime::commands::CommandScope;
@@ -124,6 +125,34 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
     #[must_use]
     pub fn focus_on_press(mut self, on: bool) -> Self {
         self.items = self.items.focus_on_press(on);
+        self
+    }
+
+    /// Which gesture activates a row.
+    #[must_use]
+    pub fn activate(mut self, on: ActivateOn) -> Self {
+        self.items = self.items.activate(on);
+        self
+    }
+
+    /// Where the lead lands when the list opens.
+    #[must_use]
+    pub fn lead_on_open(mut self, at: LeadOnOpen) -> Self {
+        self.items = self.items.lead_on_open(at);
+        self
+    }
+
+    /// The lead follows the pointer over the rows.
+    #[must_use]
+    pub fn lead_follows_hover(mut self, on: bool) -> Self {
+        self.items = self.items.lead_follows_hover(on);
+        self
+    }
+
+    /// How the list takes its size: to its content or to the room it has.
+    #[must_use]
+    pub fn sizing(mut self, sizing: Sizing) -> Self {
+        self.props = self.props.sizing(sizing);
         self
     }
 

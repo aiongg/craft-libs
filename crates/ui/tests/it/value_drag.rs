@@ -1,6 +1,9 @@
 //! `Slider` and `RangeSlider`: the value maths that is the family's own: stepping in the reading direction, the scales
 //! that spread a range over a track, and thumbs that never cross.
 
+mod dials;
+mod thumb_row;
+
 use craft_i18n::Direction;
 use craft_ui::contract::{Bind, Props as _, Show as _};
 use craft_ui::value_drag::{RangeSlider, Slider, SliderScale};

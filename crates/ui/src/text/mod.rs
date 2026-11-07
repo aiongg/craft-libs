@@ -1,9 +1,20 @@
 //! Text and number fields: `TextField<C>` and `NumberField` on the text part (18.3).
 
+mod alt_text;
+mod apply;
+mod chips;
 mod completions;
+mod linked;
+mod number;
 #[cfg(feature = "testing")]
 mod stories;
 mod words;
+
+pub use alt_text::{AltText, AltTextField, AltTextFieldStyle, AltTextWords};
+pub use apply::{ApplyRow, ApplyRowStyle};
+pub use chips::{ChipCodec, ChipField, ChipFieldStyle, ChipWords};
+pub use linked::{LinkMode, LinkedFields, LinkedFieldsStyle, LinkedLayout, LinkedOutput, LinkedWords, follow_equal, follow_ratio, link_toggle};
+pub use number::{NumberField, NumberOutput, NumberStyle, Preset};
 
 use crate::buttons::IconButton;
 use crate::contract::{

@@ -730,7 +730,7 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
         };
         ThumbRowStyle {
             metrics: Metrics::new().min_size(Vec2::new(control.icon * LENGTH_IN_ICONS, control.height)),
-            focus: super::focus_look(cx),
+            focus: crate::controls::focus_look(cx),
             face: fixed(colors.surface.knob, colors.state.disabled_fill),
             edge: fixed(colors.text.muted, colors.text.disabled),
             ring: Stateful::new(cx.color(clear)).off(States::new(cx.color(clear), cx.color(soft), cx.color(accent), cx.color(clear))),

@@ -2,7 +2,7 @@
 
 use super::{Popover, PopupList};
 use crate::buttons::Button;
-use crate::contract::{Bind, SelectMode, Show as _, ShowCollection as _, ShowContainer as _};
+use crate::contract::{ActivateOn, Bind, LeadOnOpen, SelectMode, Show as _, ShowCollection as _, ShowContainer as _};
 use crate::layout_components::Stack;
 use crate::list::{List, ListRow};
 use crate::runtime::focus::Initial;
@@ -65,6 +65,9 @@ fn popup_list(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
         .show(ui, |ui, _| {
             List::<usize>::new("Brush tips")
                 .select(SelectMode::Single)
+                .activate(ActivateOn::Click)
+                .lead_on_open(LeadOnOpen::First)
+                .lead_follows_hover(true)
                 .focus_on_press(false)
                 .show_items(ui, &Names(&names), &mut |key, _| ListRow::new(names[*key]));
         })
