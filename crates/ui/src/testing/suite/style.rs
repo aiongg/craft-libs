@@ -221,15 +221,22 @@ fn measure_contrast(subject: &Subject, source: &Source, reachable: Flags) -> Res
                                 }
                                 None => grounds.iter().map(|(name, ground)| (format!("{name} ground"), *ground)).collect(),
                             };
-                            for (name, ground) in under {
-                                let (ink, ground) = (Rgba::from(paint), Rgba::from(ground));
-                                if !table.lists(ink, ground) {
-                                    return Err(format!(
-                                        "{theme} {contrast:?} {variant:?}: {what} {paint:?} ({}) on {name} {ground:?} ({}) in {state:?} with {flags:?} is no pair of the theme's table, so the component needs a paired ink",
-                                        table.names(ink),
-                                        table.names(ground)
-                                    ));
-                                }
+                            let ink = Rgba::from(paint);
+                            let opaque_fill = fill.is_some_and(|fill| fill.a() == 255);
+                            let listed = |ground: &egui::Color32| table.lists(ink, Rgba::from(*ground));
+                            // An ink on a fill of its own must pair with that fill; on a ground it does not choose, it
+                            // must pair with at least one.
+                            let unpaired = if opaque_fill {
+                                under.iter().find(|(_, ground)| !listed(ground))
+                            } else {
+                                under.iter().all(|(_, ground)| !listed(ground)).then_some(&under[0])
+                            };
+                            if let Some((name, ground)) = unpaired {
+                                return Err(format!(
+                                    "{theme} {contrast:?} {variant:?}: {what} {paint:?} ({}) on {name} {ground:?} ({}) in {state:?} with {flags:?} is no pair of the theme's table, so the component needs a paired ink",
+                                    table.names(ink),
+                                    table.names(Rgba::from(*ground))
+                                ));
                             }
                         }
                     }
