@@ -102,7 +102,6 @@ pub(crate) fn leaves(b: &mut Preset) -> Vec<Leaf<'_>> {
         "base.size.icon.lg" Num 10.0..=32.0 => s.icon.lg;
         "base.size.rail.width" Num 24.0..=96.0 => s.rail.width;
         "base.size.rail.button" Num 16.0..=64.0 => s.rail.button;
-        "base.size.rail.width_double" Num 48.0..=192.0 => s.rail.width_double;
         "base.size.bar.title" Num 16.0..=80.0 => s.bar.title;
         "base.size.bar.tab" Num 16.0..=64.0 => s.bar.tab;
         "base.size.bar.status" Num 16.0..=64.0 => s.bar.status;

@@ -119,7 +119,6 @@ size.icon.sm = 14
 size.icon.md = 18
 size.icon.lg = 22
 size.rail.width = 50
-size.rail.width_double = 100
 size.rail.button = 36
 size.bar.title = 38
 size.bar.tab = 30

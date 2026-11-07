@@ -753,8 +753,6 @@ pub struct RailSizes {
     pub width: f32,
     /// Square button inside the rail.
     pub button: f32,
-    /// Width of a rail with two columns of buttons.
-    pub width_double: f32,
 }
 
 /// Bar heights, in logical pixels.

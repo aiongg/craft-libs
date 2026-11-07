@@ -105,7 +105,6 @@ size.plot.height
 size.plot.width
 size.rail.button
 size.rail.width
-size.rail.width_double
 size.thumb.lg
 size.thumb.md
 size.thumb.sm

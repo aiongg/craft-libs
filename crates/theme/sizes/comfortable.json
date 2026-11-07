@@ -55,8 +55,7 @@
       },
       "rail": {
         "button": 36.0,
-        "width": 50.0,
-        "width_double": 100.0
+        "width": 50.0
       },
       "thumb": {
         "lg": 48.0,

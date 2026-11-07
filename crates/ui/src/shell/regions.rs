@@ -18,10 +18,8 @@ pub enum SlotSize {
     OptionsBar,
     /// `size.bar.options_narrow`: the options bar of a window too small for the full bar.
     OptionsBarNarrow,
-    /// `size.rail.width`: a rail with one column of buttons.
+    /// `size.rail.width`: one column of a rail; [`Slot::columns`] says how many columns the slot lays out.
     RailWidth,
-    /// `size.rail.width_double`: a rail with two columns of buttons.
-    RailWidthDouble,
 }
 
 impl SlotSize {
@@ -35,7 +33,6 @@ impl SlotSize {
             SlotSize::OptionsBar => size.bar.options,
             SlotSize::OptionsBarNarrow => size.bar.options_narrow,
             SlotSize::RailWidth => size.rail.width,
-            SlotSize::RailWidthDouble => size.rail.width_double,
         }
     }
 }
@@ -47,6 +44,7 @@ impl SlotSize {
 pub struct Slot {
     key: SlotKey,
     size: Option<SlotSize>,
+    columns: usize,
     visible: bool,
     reveal: bool,
     label: Option<Label>,
@@ -56,12 +54,19 @@ impl Slot {
     /// A slot with a key that is stable and unique in the window. It is visible and does not show in a reveal. Without a
     /// [`size`](Self::size) it takes the default of its edge: the title bar, options bar, status bar or rail width.
     pub fn new(key: SlotKey) -> Self {
-        Self { key, size: None, visible: true, reveal: false, label: None }
+        Self { key, size: None, columns: 1, visible: true, reveal: false, label: None }
     }
 
     /// The size along the slot's edge, in place of the default of the edge.
     pub fn size(mut self, size: SlotSize) -> Self {
         self.size = Some(size);
+        self
+    }
+
+    /// The number of rail columns of a start or end slot, clamped to 1 and 2. The slot keeps [`SlotSize::RailWidth`] per
+    /// column and the shell lays the columns out side by side, so the slot's extent is its columns wide.
+    pub fn columns(mut self, columns: usize) -> Self {
+        self.columns = columns.clamp(1, 2);
         self
     }
 
@@ -98,6 +103,11 @@ impl Slot {
     /// The size set by [`size`](Self::size), if any.
     pub fn slot_size(&self) -> Option<SlotSize> {
         self.size
+    }
+
+    /// The number of rail columns, 1 or 2.
+    pub fn column_count(&self) -> usize {
+        self.columns
     }
 
     /// The host's visibility flag for normal mode.
