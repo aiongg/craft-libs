@@ -135,16 +135,12 @@ impl Component for Canvas {
     }
 
     fn sense(&self) -> Sense {
-        Sense::FOCUS | Sense::TAKE_FOCUS
+        Sense::FOCUS | Sense::TAKE_FOCUS | Sense::WHEEL
     }
 
-    /// The wheel share of this pass, kept for `finish`, and the taker for the next pass's split. A container root
-    /// registers a wheel taker only for a scroll body, so the canvas registers its own: it takes vertical and
-    /// horizontal scroll and zoom over its rect, with no focus needed.
+    /// The wheel share of this pass, kept for `finish`.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         self.wheel = cx.take_wheel();
-        let taker = WheelTaker::new(cx.id, cx.rect).vertical(true).horizontal(true).zoom(true);
-        crate::runtime::wheel::register(&cx.ctx, taker);
     }
 
     /// The canvas's [`CanvasSpace`] for its body; a canvas without a view hides an outer canvas's.

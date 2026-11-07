@@ -88,7 +88,7 @@ impl RulerText {
     /// no unit.
     pub fn tick_label(&self, numbers: &Units, value: f64, step: f64) -> String {
         let digits = self.units.label_decimals(step);
-        numbers.number(self.units.label_value(value, step), digits..=digits)
+        numbers.number_ungrouped(self.units.label_value(value, step), digits..=digits)
     }
 
     /// The unit's short name: `px`.

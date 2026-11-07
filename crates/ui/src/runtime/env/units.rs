@@ -222,6 +222,12 @@ impl Units {
         self.format.number(n, Self::digits(n, &decimals))
     }
 
+    /// `n` with between the least and most digits of `decimals` after the decimal mark, in the user's language and
+    /// digits, with no digit groups and no unit.
+    pub fn number_ungrouped(&self, n: f64, decimals: RangeInclusive<usize>) -> String {
+        self.format.number_ungrouped(n, Self::digits(n, &decimals))
+    }
+
     /// A reader for numbers of `kind` (plain numbers when `None`): the locale's decimal and group separators and
     /// the unit spellings that convert to `kind`, in the user's language and in English.
     pub fn reader(&self, kind: Option<UnitKind>) -> Reader {

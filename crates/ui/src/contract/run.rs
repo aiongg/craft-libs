@@ -516,8 +516,9 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     let arena = p.hooks.arena(comp);
     let member = if arena || matches!(C::INPUT, Input::Text | Input::Editor) { None } else { env.arena };
     stops_step::<C>(StopsStep { ctx: &ctx, id, rtl, env, resolved, inert, holder_widget, member, own, text_keys }, &*p.hooks, comp, &parts);
-    // A body's wheel share is its scroll taker (body step, step 7); the gate value does not take the wheel.
-    if !inert && p.hooks.shape() != ShapeKind::Body {
+    // A body's wheel share is its scroll taker (body step, step 7); the gate value does not take the wheel. A body root that
+    // senses the wheel itself (a canvas) registers like any other component.
+    if !inert && (p.hooks.shape() != ShapeKind::Body || own.intersects(Sense::WHEEL | Sense::WHEEL_X)) {
         steps::register_wheel(&ctx, id, rect, own, comp.bind().is_some());
     }
     // 8 sense

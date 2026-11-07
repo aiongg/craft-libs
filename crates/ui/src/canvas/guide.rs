@@ -46,13 +46,11 @@ impl GuideAxis {
         }
     }
 
-    /// The document direction a guide moves in: x for a vertical guide. `resize_cursor` takes it for the arrow
-    /// across a guide.
+    /// The document direction a guide moves in, in document units: x for a vertical guide. A screen caller maps it
+    /// through `CanvasView::map_vec`; `resize_cursor` takes it as is.
     pub fn across(self) -> Vec2 {
-        match self {
-            GuideAxis::Horizontal => Vec2::from((0.0, 1.0)),
-            GuideAxis::Vertical => Vec2::from((1.0, 0.0)),
-        }
+        let vertical = f64::from(u8::from(self == GuideAxis::Vertical));
+        Vec2::new(vertical, 1.0 - vertical)
     }
 
     /// The coordinate of `p` a guide is placed by: x for a vertical guide.
