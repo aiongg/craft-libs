@@ -199,7 +199,7 @@ impl ToolHost {
     }
 
     /// Delivers the pass's pointer and key events to `tool` and paints it over the canvas.
-    pub fn run(self, ui: &mut Ui, canvas: &CanvasOutput, tool: &mut dyn CanvasTool) -> ToolHostResponse {
+    pub fn run(self, ui: &Ui, canvas: &CanvasOutput, tool: &mut dyn CanvasTool) -> ToolHostResponse {
         let ctx = ui.ctx().clone();
         let env = Env::of(ui);
         let key = state_id(&self.label);
