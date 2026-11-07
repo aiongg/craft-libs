@@ -45,7 +45,7 @@ fn show_layer(rect: &Cell<Rect>, overlay: &Overlay) -> impl FnMut(&mut Ui) {
 fn a_layer_container_moves_by_its_header_band() {
     let rect = Cell::new(Rect::NOTHING);
     let mut frames = Frames::new();
-    let overlay = Overlay::floating();
+    let overlay = Overlay::floating().movable(true);
     let mut show = show_layer(&rect, &overlay);
     frames.idle(4, &mut show);
     let before = rect.get();
