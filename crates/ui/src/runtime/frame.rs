@@ -241,29 +241,29 @@ pub(crate) fn begin_pass(ui: &mut Ui) {
     if cancelled {
         raw_input::stop_dragging(&ctx);
     }
-    // H5, H7: the pointer snapshot and the wheel split, before any component runs.
+    // H5: the pointer snapshot, before any component runs.
     let input = frame_input.unwrap_or_else(|| FrameInput::new(RootEnv::default()));
     pointer::begin(&ctx, input.root.hit);
-    wheel::begin(&ctx);
     // H5: install the root `Env` and the theme styles' direction from `FrameInput.root`.
     let env = Env::from_root(&input.root, input.host, scale::pixels_per_point(&ctx));
     style::set_theme_direction(&ctx, ui, env.direction.is_rtl());
     Env::set_root(&ctx, viewport, env.clone());
     drop(Env::install_for(ui, env));
-    // H7: focus moves and the pass's intents.
+    // H7: focus moves and the press classification, then the pass's intents, then the wheel split.
     focus::begin(&ctx, input.root.tab_all_controls || raw_input::os(&ctx) != Os::Mac);
     keys::begin(&ctx);
+    wheel::begin(&ctx);
 }
 
 /// The end hook.
 pub(crate) fn end_pass(ui: &mut Ui) {
     let ctx = ui.ctx().clone();
-    focus::end(&ctx);
+    cursor::end_pass(&ctx);
     let painter = store::with::<FrameState, _>(&ctx, |state| state.frame_layers);
     if let Some(paint_frame_layers) = painter {
         paint_frame_layers(&ctx);
     }
-    cursor::end_pass(&ctx);
+    focus::end(&ctx);
     // Evict shown memory by id and queue the evicted slots (7.2).
     memory::evict(&ctx);
     layout_memory::end_hook(&ctx);

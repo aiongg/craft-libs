@@ -11,12 +11,12 @@ pub fn moved(pos: Pos2) -> Event {
 
 /// The primary button going down at `pos`.
 pub fn press(pos: Pos2) -> Event {
-    fixture::button(pos, true)
+    fixture::primary_button(pos, true)
 }
 
 /// The primary button going up at `pos`.
 pub fn release(pos: Pos2) -> Event {
-    fixture::button(pos, false)
+    fixture::primary_button(pos, false)
 }
 
 /// The pointer leaving the window.

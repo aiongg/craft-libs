@@ -100,7 +100,7 @@ pub(crate) fn layer_of(ui: &Ui) -> egui::LayerId {
     ui.layer_id()
 }
 
-/// A pointer press or release of the primary button at `pos`.
+/// The primary button going down or up at `pos`.
 pub(crate) fn primary_button(pos: Pos2, pressed: bool) -> Event {
     Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE }
 }
@@ -173,11 +173,6 @@ pub(crate) fn wheel_event(dy: f32) -> Event {
         modifiers: Modifiers::NONE,
         source: egui::MouseWheelSource::Wheel,
     }
-}
-
-/// The primary button going down or up at `pos`.
-pub(crate) fn button(pos: Pos2, pressed: bool) -> Event {
-    Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE }
 }
 
 /// The pointer moving to `pos`.
