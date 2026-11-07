@@ -215,7 +215,7 @@ impl Probe {
             return sample.show(ui).response().clone().into();
         }
         let cell = Rect::from_min_size(ui.cursor().min, ui.spacing().interact_size);
-        ui.allocate_rect(cell, egui::Sense::hover());
+        crate::runtime::egui::alloc::advance_past(ui, cell);
         sample.show_at(ui, cell).response().clone().into()
     }
 
