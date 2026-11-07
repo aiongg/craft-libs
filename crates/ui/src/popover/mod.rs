@@ -3,8 +3,6 @@
 mod anchored;
 mod drop_veil;
 mod popup_list;
-#[cfg(feature = "testing")]
-mod stories;
 mod words;
 
 pub use anchored::{Popover, PopoverOutput, PopoverStyle};
