@@ -130,13 +130,13 @@ fn a_registration_records_the_facts_the_contract_types_state() {
         assert!(probe.carries_value() && !probe.overlay && !probe.canvas_control && probe.exempt.is_empty());
     }
 
-    let handle = named("::Handle");
+    let handle = named("derives::Handle");
     assert_eq!(handle.len(), 1);
     assert!(handle[0].canvas_control && !handle[0].carries_value());
     assert_eq!((handle[0].exempt[0].case, handle[0].exempt[0].reason), ("sizes", "fills the canvas"));
 
     assert_eq!(named("::Panel<")[0].shape, ShapeKind::Body);
-    assert_eq!(named("::Table")[0].shape, ShapeKind::Items);
+    assert_eq!(named("kit::Table")[0].shape, ShapeKind::Items);
     assert!(named("::Hooked<")[0].overlay, "`#[component(container, overlay)]` declares the open state");
 }
 
@@ -184,7 +184,7 @@ fn each_shape_has_an_entry_that_shows_an_instance() {
                     let response = entry(ui, room, Box::new(Panel::new()), &mut |_, _| body_ran = true);
                     shown.push((name, response.is_some() && body_ran));
                 }
-                (name, Entry::Collection(entry)) if name.ends_with("::Table") => {
+                (name, Entry::Collection(entry)) if name.ends_with("kit::Table") => {
                     let source: Box<dyn ItemSource<usize>> = Box::new(Rows(3));
                     let mut item: Box<ItemFn<'static, Table>> = Box::new(|key, _| RowProbe::new(*key, &ROWS));
                     shown.push((name, entry(ui, Box::new(Table::new(20.0)), &source, &mut item).is_some()));

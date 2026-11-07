@@ -135,6 +135,9 @@ struct Stage {
     queued_edits: Vec<EditCommand>,
     /// The components that asked for a context menu in this pass, with the rect it opens at.
     contexts: Vec<(Id, egui::Rect)>,
+    /// Components with an open edit run this pass: Escape cancels the run before it leaves a row's child.
+    open_edits: Vec<Id>,
+    last_open_edits: Vec<Id>,
 }
 
 fn with<R>(ctx: &Context, viewport: ViewportId, f: impl FnOnce(&mut Stage) -> R) -> R {
@@ -364,6 +367,7 @@ pub(crate) fn begin(ctx: &Context, press_captured: bool) -> bool {
         stage.claimed.clear();
         stage.activated.clear();
         stage.claims.clear();
+        stage.last_open_edits = std::mem::take(&mut stage.open_edits);
         stage.last_nodes = std::mem::take(&mut stage.nodes);
         (std::mem::take(&mut stage.batch), stage.last_nodes.clone(), std::mem::take(&mut stage.captures))
     });
@@ -397,7 +401,9 @@ pub(crate) fn begin(ctx: &Context, press_captured: bool) -> bool {
     let escapes = craft_behavior::focus::route_escapes(batch.escapes, press_captured);
     for _ in 0..escapes.to_components {
         // A row's child that claims Escape keeps it; any other returns focus to its row.
-        let claims_escape = target.as_ref().is_some_and(|rec| rec.stop.keys.claims.iter().any(|chord| chord.key == Key::Escape));
+        let claims_escape = target.as_ref().is_some_and(|rec| {
+            rec.stop.keys.claims.iter().any(|chord| chord.key == Key::Escape) || current(ctx, |stage| stage.last_open_edits.contains(&rec.stop.id))
+        });
         if !claims_escape && target.as_ref().is_some_and(|rec| focus::leave_row(ctx, rec.stop.key()).is_some()) {
             continue;
         }
@@ -819,6 +825,11 @@ pub(crate) fn take_claimed(ctx: &Context, id: Id, chord: Chord) -> bool {
         }
         None => false,
     })
+}
+
+/// Records that `owner` has an open edit run: the next Escape cancels the run and stays with the component.
+pub(crate) fn hold_escape(ctx: &Context, owner: Id) {
+    current(ctx, |stage| stage.open_edits.push(owner));
 }
 
 /// A state-dependent claim of `owner`, held from the next frame's input hook on while `owner` is the focused

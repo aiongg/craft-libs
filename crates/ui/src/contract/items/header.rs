@@ -246,9 +246,7 @@ impl Header {
             if sortable && ((phase.is_click() && primary) || (keyed && active == Some(at))) {
                 self.sort(&key);
             }
-            if let PressPhase::Down { start, .. } = phase
-                && start.button == PointerButton::Secondary
-            {
+            if cx.part(HEADER.at(hash)).hovered && crate::runtime::pointer::frame(&ctx).release == Some(PointerButton::Secondary) {
                 self.memory.menu = Some(key.clone());
                 self.menus.push(HeaderMenuRequest { column: key.clone(), at: rect.left_bottom() });
             }

@@ -179,7 +179,7 @@ impl<C: Codec + Clone + 'static> Component for TextField<'_, C> {
         let widget = text_id(id, TEXT);
         let popup = cx.popup("completions");
         popup.trigger(Trigger::Manual, cx);
-        let draft = cx.text(&text_part::<C::Value>()).draft.clone();
+        let draft = cx.text(&text_part::<C::Value>()).and_then(|outcome| outcome.draft.clone());
         let mut items = Vec::new();
         let range = match &draft {
             Some(text) if cx.is_focused() => {

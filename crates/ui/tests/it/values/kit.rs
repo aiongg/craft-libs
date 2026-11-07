@@ -111,11 +111,6 @@ impl Component for Scrub<'_> {
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let left = cx.rect.left();
         let phase = cx.part(TRACK).press.phase;
-        if self.set_by_access
-            && let Some(requested) = cx.intents().take_set_value()
-        {
-            cx.set(requested as f32);
-        }
         if self.one_pass {
             if matches!(phase, PressPhase::Release { .. }) {
                 cx.begin();
@@ -133,6 +128,12 @@ impl Component for Scrub<'_> {
             PressPhase::Drag { pos, .. } => cx.propose(pos.x - left),
             PressPhase::Release { .. } if cx.gesture().is_some() => cx.commit(),
             _ => {}
+        }
+        // After the drag's proposal: the pass's one response event is the later one (10.3).
+        if self.set_by_access
+            && let Some(requested) = cx.intents().take_set_value()
+        {
+            cx.set(requested as f32);
         }
     }
 
