@@ -21,8 +21,6 @@ craft-host = { workspace = true }
 craft-keymap = { workspace = true }
 craft-theme = { workspace = true }
 
-kurbo = { workspace = true }
-
 # The dock layout is a persisted shape.
 serde = { workspace = true }
 
