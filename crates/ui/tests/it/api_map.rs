@@ -46,9 +46,10 @@ fn check_types(name: &str, file: &toml::Table, problems: &mut Vec<String>) {
         if !is_path(old) || !is_path(new) {
             problems.push(format!("{at}: `old` and `new` are paths"));
         }
-        let last = if new.is_empty() { old } else { new }.rsplit("::").next().unwrap_or_default();
-        if !last.is_empty() && last != item {
-            problems.push(format!("{at}: the paths end in `{last}`"));
+        // A renamed type keeps one of its two names as the entry's name; the removed one ends only `old`.
+        let ends = |path: &str| path.rsplit("::").next().unwrap_or_default() == item;
+        if !(ends(old) || ends(new)) && !old.is_empty() {
+            problems.push(format!("{at}: neither path ends in `{item}`"));
         }
         let consistent = match status {
             "same" => !old.is_empty() && old == new,
