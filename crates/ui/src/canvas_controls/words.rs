@@ -22,3 +22,14 @@ craft_ui::words! {
         bounds: template "marquee.bounds" = "{width} × {height} at {x}, {y}";
     }
 }
+
+// Brush overlays.
+craft_ui::words! {
+    /// The words of the brush overlays: the row labels of the resize readout.
+    pub struct BrushWords {
+        diameter: "brushResize.diameter" = "Diameter:";
+        hardness: "brushResize.hardness" = "Hardness:";
+        opacity: "brushResize.opacity" = "Opacity:";
+        density: "brushResize.density" = "Density:";
+    }
+}

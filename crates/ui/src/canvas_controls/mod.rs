@@ -26,3 +26,7 @@ pub use outline::{HoverMask, HoverOutline, HoverShape, OutlineStyle, SelectionOu
 pub use pixel_grid::{GridSegment, PixelGrid, PixelGridStyle};
 pub use words::SelectionWords;
 // End of canvas-controls-b.
+
+// Brush overlays.
+pub mod brush;
+pub use words::BrushWords;

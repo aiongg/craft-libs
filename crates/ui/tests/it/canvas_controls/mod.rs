@@ -8,3 +8,8 @@ mod guides;
 mod grid;
 mod marquee;
 // End of canvas-controls-b.
+
+//! The canvas controls family.
+
+// Brush overlays.
+mod brush;
