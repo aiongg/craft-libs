@@ -22,7 +22,9 @@ fn tab_inside_an_open_dialog_toggles_nothing() {
         Alert::new("Error", "The name is taken.").opened(Bind::bound(&mut open)).show(ui);
     };
     let mut frames = Frames::new();
-    frames.root(RootEnv { tab_toggles_chrome: true, ..RootEnv::default() });
+    let mut root = RootEnv::default();
+    root.tab_toggles_chrome = true;
+    frames.root(root);
     frames.frame(Vec::new(), &mut show);
     frames.frame(Vec::new(), &mut show);
     take_output(&frames.ctx);
