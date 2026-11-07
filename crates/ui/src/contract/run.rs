@@ -733,8 +733,12 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
         scope::record_control_min(&ctx, min.x);
     }
     let size = hooks.sized(&comp, ui, size);
-    // A component shown at a rect fills it, so the rect is as much its size as the measure is.
-    let inert = !steps::guard(size, shape) || matches!(at, ShowAt::Rect(rect) if !steps::guard(rect.size(), shape));
+    // A component shown at a rect fills it: the rect is its size, and a leaf that measures nothing (a content
+    // painter) still shows there.
+    let inert = match at {
+        ShowAt::Rect(rect) => !steps::guard(size, ShapeKind::Body) || !steps::guard(rect.size(), shape),
+        ShowAt::Flow => !steps::guard(size, shape),
+    };
     if inert && size != Vec2::ZERO {
         let now = crate::runtime::frame::clock(&ctx);
         let log = stage.shown::<SizeLog>(sub(id, "size_log"));
