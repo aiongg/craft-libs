@@ -45,3 +45,8 @@ pub use caption_button::{CaptionButton, CaptionEnd, CaptionMetrics, CaptionPlan,
 pub use caption_icons::{CaptionIcon, CaptionIcons, CaptionMask, IconThemeChain, RenderIconFn, ThemeFiles, base_dirs, caption_icon_theme};
 pub use craft_window::policy::{CaptionFamily, Captions, Frame, MacInset};
 pub use words::CaptionLabels;
+
+// A document's window: a container in its own OS viewport.
+mod document_window;
+
+pub use document_window::{DocumentWindow, DocumentWindowOutput, DocumentWindowStyle};

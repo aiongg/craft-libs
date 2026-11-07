@@ -7,6 +7,8 @@ use crate::runtime::InstallSpec;
 use crate::runtime::frame::{FrameInput, FrameOutput, set_input, take_output};
 use crate::runtime::windows;
 use craft_host::target::ShellInfo;
+use craft_window::desktop::fit_window;
+use craft_window::policy::{Decision, apply};
 use craft_window::restore::{Defaults, MAIN, Store, place};
 use craft_window::system::{NoWindows, WindowSystem};
 use egui::{Context, Pos2, Ui, ViewportBuilder};
@@ -27,6 +29,8 @@ pub struct AppSpec {
     pub placement: Arc<Mutex<Store>>,
     /// The OS services the window host reads: the system pointer and its warp.
     pub window_system: Arc<dyn WindowSystem>,
+    /// Who draws the root window's frame (`craft_window::policy::decide_for`). Unset: the OS draws it.
+    pub frame: Option<Decision>,
 }
 
 impl AppSpec {
@@ -39,6 +43,7 @@ impl AppSpec {
             defaults,
             placement: Arc::new(Mutex::new(Store::in_memory())),
             window_system: Arc::new(NoWindows),
+            frame: None,
         }
     }
 
@@ -51,6 +56,13 @@ impl AppSpec {
     /// Sets the OS services the window host reads.
     pub fn window_system(mut self, window_system: Arc<dyn WindowSystem>) -> Self {
         self.window_system = window_system;
+        self
+    }
+
+    /// Sets the decision on who draws the root window's frame. The native options decorate the window by it and
+    /// the runtime reads the window's chrome from it.
+    pub fn frame(mut self, decision: Decision) -> Self {
+        self.frame = Some(decision);
         self
     }
 
@@ -118,6 +130,8 @@ impl<A: ShellApp> eframe::App for Driver<A> {
     }
 
     fn ui(&mut self, ui: &mut Ui, _: &mut eframe::Frame) {
+        // The monitor is known only once the window exists, so the fit runs from the first passes, and once.
+        fit_window(ui.ctx());
         self.app.ui(ui);
         super::title_bar::sync_movable(ui.ctx(), &mut self.movable);
     }
@@ -139,6 +153,9 @@ pub fn native_options(spec: &AppSpec) -> eframe::NativeOptions {
     if let Some([x, y]) = placed.position_px {
         viewport = viewport.with_position(Pos2::new(x as f32 / scale, y as f32 / scale));
     }
+    if let Some(decision) = &spec.frame {
+        viewport = apply(viewport, &decision.frame);
+    }
     eframe::NativeOptions { viewport, ..eframe::NativeOptions::default() }
 }
 
@@ -151,7 +168,10 @@ pub fn run<A: ShellApp + 'static>(spec: AppSpec, make: impl FnOnce(&Context) -> 
         &title,
         options,
         Box::new(move |cc| {
-            let install = InstallSpec::new(spec.shell_info, spec.window_system).placement(spec.placement);
+            let mut install = InstallSpec::new(spec.shell_info, spec.window_system).placement(spec.placement);
+            if let Some(decision) = spec.frame {
+                install = install.frame(decision);
+            }
             crate::install(&cc.egui_ctx, install).map_err(|error| format!("the runtime could not be installed: {error}"))?;
             Ok(Box::new(Driver { app: make(&cc.egui_ctx), movable: None }))
         }),

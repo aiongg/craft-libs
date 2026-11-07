@@ -84,3 +84,6 @@ fn a_body_reads_the_shell_the_root_values_hold() {
 }
 
 mod app_shell;
+
+mod document_window;
+mod window_parts;
