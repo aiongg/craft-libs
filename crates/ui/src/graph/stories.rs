@@ -133,6 +133,20 @@ fn wired_nodes(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     graph(ui, data, 4, &[(0, 1), (1, 2), (2, 3)], None)
 }
 
+/// Nodes that report no edits: the graph of the component's own edit type.
+#[story(NodeGraph<'static, ()>, covers = [Many], drive = Drive::Custom(click_first_node))]
+fn plain_nodes(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    let kinds: Vec<&dyn NodeKind<()>> = vec![&MIX; 3];
+    let positions: Vec<Rect> = (0..3).map(place).collect();
+    let ids: Vec<NodeId> = (0..3).map(NodeId).collect();
+    let wires =
+        [Wire::new(0, PortRef::new(NodeId(0), 2), PortRef::new(NodeId(1), 0)), Wire::new(1, PortRef::new(NodeId(1), 2), PortRef::new(NodeId(2), 0))];
+    let source = keyed(&ids, |id| *id);
+    let response =
+        NodeGraph::new(&positions, &kinds, &wires).label("Graph").show_items(ui, &source, &mut |id, _| Node::new(*id, kinds[id.0 as usize]));
+    response.into()
+}
+
 #[story(NodeGraph<'static, ()>, covers = [Many], drive = Drive::Custom(click_first_node))]
 fn zoomed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     graph(ui, data, 4, &[(0, 1), (1, 2), (2, 3)], Some(CanvasTransform::new(ZOOM, Vec2::ZERO)))

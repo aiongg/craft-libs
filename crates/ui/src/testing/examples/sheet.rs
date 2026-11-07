@@ -223,7 +223,7 @@ impl Component for SheetGrid<'_> {
     fn style(cx: &StyleCx<'_>, _: SheetGridStyleKey) -> SheetStyle {
         let control = cx.control();
         SheetStyle {
-            surface: cx.field(),
+            surface: cx.text_well(),
             metrics: Metrics::new(),
             row_height: control.height,
             column_width: control.height * COLUMN_IN_HEIGHTS,

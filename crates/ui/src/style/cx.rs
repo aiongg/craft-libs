@@ -142,14 +142,22 @@ impl<'a> StyleCx<'a> {
         surface_style(self.tokens, kind)
     }
 
-    /// The look of a text or value field: the well surface with an edge over it that takes the focus colour while
-    /// the field holds focus, in any modality, and the failure colour while its value is invalid.
-    pub fn field(&self) -> SurfaceLook {
+    /// The look of a text well: the well surface with an edge over it that takes the focus colour while the well
+    /// holds focus, in any modality. A component that carries no value, so is never invalid, uses it as it is.
+    pub fn text_well(&self) -> SurfaceLook {
         let well = self.surface(SurfaceKind::Well);
-        let line = &self.tokens.color.line;
-        let edge =
-            Stateful::new(self.color(Rgba::TRANSPARENT)).when(Flags::INVALID, self.tone(Tone::Bad)).when(Flags::FOCUSED, self.color(line.focus));
+        let edge = Stateful::new(self.color(Rgba::TRANSPARENT)).when(Flags::FOCUSED, self.color(self.tokens.color.line.focus));
         SurfaceLook::new(Stateful::new(StyleColor(well.fill))).kind(SurfaceKind::Well).radius(well.radius).border(edge, StrokeStep::W1.width(1.0))
+    }
+
+    /// The look of a text or value field: the text well with the failure colour on its edge while its value is
+    /// invalid, which wins over the focus colour.
+    pub fn field(&self) -> SurfaceLook {
+        let mut look = self.text_well();
+        if let Some(edge) = &mut look.border {
+            edge.when.insert(0, (Flags::INVALID.into(), self.tone(Tone::Bad)));
+        }
+        look
     }
 
     /// The line a rule of `kind` draws.

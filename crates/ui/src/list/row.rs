@@ -660,7 +660,9 @@ impl Component for ListRow<'_> {
             surface = surface.border(Stateful::new(c(clear)).when(Flags::SELECTED, c(colors.accent.solid)), tokens.stroke.thin);
         }
         let on_selected = c(text.on_selected);
-        let ink = |base: Rgba| Stateful::new(c(base)).on(States::new(on_selected, on_selected, on_selected, on_selected));
+        // An emphasized row keeps its hover-like fill when selected, so its ink stays the base colour.
+        let ink =
+            |base: Rgba| Stateful::new(c(base)).on(States::new(on_selected, on_selected, on_selected, on_selected)).when(Flags::EMPHASIZED, c(base));
         let base = match key.ink {
             RowInk::Normal => text.normal,
             RowInk::Muted => text.muted,
@@ -675,7 +677,9 @@ impl Component for ListRow<'_> {
                 sizes.icon,
                 match key.tone {
                     Tone::Neutral => ink(base),
-                    tone => Stateful::new(cx.tone(tone)).on(States::new(on_selected, on_selected, on_selected, on_selected)),
+                    tone => Stateful::new(cx.tone(tone))
+                        .on(States::new(on_selected, on_selected, on_selected, on_selected))
+                        .when(Flags::EMPHASIZED, cx.tone(tone)),
                 },
             ),
             detail: TextLook::new(TypeRole::Caption, ink(text.faint)),
