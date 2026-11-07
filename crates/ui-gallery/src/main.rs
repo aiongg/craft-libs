@@ -10,6 +10,7 @@ use craft_ui::controls::radio::{Radio, RadioGroup};
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::runtime::env::{RootEnv, with_env};
 use craft_ui::runtime::frame::FrameInput;
+use craft_ui::text::TextField;
 use craft_ui::shell::app::{AppSpec, ShellApp, run};
 use craft_ui::testing::{STORIES, StoryData, StoryRegistration, registered};
 use craft_window::restore::Defaults;
@@ -90,8 +91,7 @@ impl Viewer {
     }
 
     fn side(&mut self, ui: &mut Ui) {
-        ui.label("Filter");
-        ui.text_edit_singleline(&mut self.filter);
+        TextField::new("Filter", Bind::bound(&mut self.filter)).show(ui);
         choose(ui, "Theme", &mut self.mode, &[(Mode::Light, "Light"), (Mode::Dark, "Dark")]);
         choose(ui, "Direction", &mut self.direction, &[(None, "Both"), (Some(Direction::Ltr), "LTR"), (Some(Direction::Rtl), "RTL")]);
         choose(ui, "Control size", &mut self.size, &[(None, "Both"), (Some(ControlSize::Sm), "Sm"), (Some(ControlSize::Md), "Md")]);
@@ -117,7 +117,8 @@ impl Viewer {
                     for direction in &directions {
                         for size in &sizes {
                             let cell = data.entry((index, *direction, *size)).or_default();
-                            Self::cell(ui, entry, *direction, *size, cell);
+                            // Each cell is its own id scope: a story's `id_salt` and auto ids must not meet in another cell.
+                            ui.push_id((index, label_of(*direction, *size)), |ui| Self::cell(ui, entry, *direction, *size, cell));
                         }
                     }
                 });

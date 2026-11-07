@@ -7,6 +7,7 @@
 //! crate-private services the trials check.
 
 pub mod access;
+pub mod bypass;
 pub mod contract;
 pub mod dump;
 pub mod examples;

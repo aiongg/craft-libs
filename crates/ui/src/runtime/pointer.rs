@@ -238,6 +238,15 @@ pub(crate) fn record_widgets(ctx: &Context, layer: Layer, root: Id, widgets: &[I
     });
 }
 
+/// The roots and egui widgets the root viewport's latest pass registered: what bypass detection counts as made by
+/// components.
+#[cfg(feature = "testing")]
+pub(crate) fn registered_widgets(ctx: &Context) -> std::collections::HashSet<Id> {
+    PerViewport::<Shapes>::with(ctx, egui::ViewportId::ROOT, |record| {
+        record.this.values().flat_map(|roots| roots.iter()).flat_map(|(root, rec)| std::iter::once(*root).chain(rec.widgets.iter().copied())).collect()
+    })
+}
+
 /// The winner of a press at `at` among last pass's shapes of the root egui hands the press to, on the topmost
 /// layer under it, with that root: what the focus service classifies the press by (8.3, H7). A press whose egui
 /// target is no root's widget has no winner. Shapes of transformed bodies lie on their own layers.

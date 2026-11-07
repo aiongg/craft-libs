@@ -49,6 +49,7 @@ fn word_starts(text: &str) -> Vec<u8> {
 /// Creates and fills the `TextRun` node of `run` below its parent.
 pub(crate) fn write_run(ctx: &Context, run: &RunNode<'_>) {
     super::register_parent(ctx, run.id, run.parent);
+    crate::runtime::egui::widgets::note_node(ctx, run.id);
     ctx.accesskit_node_builder(run.id, |node| {
         node.set_role(accesskit::Role::TextRun);
         node.set_bounds(accesskit::Rect {
