@@ -5,16 +5,14 @@ use super::rows::{RowsOut, ShownRow, reset_button, show_row};
 use super::search::{self, Listed};
 use super::window::PreferencesState;
 use super::words::PreferencesWords;
-use crate::contract::{
-    ActivateOn, Bind, CollectionEvent, Props as _, Scroll, SelectMode, Show as _, ShowCollection as _, ShowContainer as _, Sizing,
-};
+use crate::contract::{ActivateOn, Bind, CollectionEvent, Props as _, SelectMode, Show as _, ShowCollection as _, ShowContainer as _, Sizing};
 use crate::display::{Shade, Text};
 use crate::form::FieldGroup;
 use crate::layout_components::{Row, Stack};
 use crate::list::{List, ListRow, RowInk};
 use crate::notices::{Notice, NoticeLayout};
 use crate::runtime::env::{Label, Units};
-use crate::sections::Section;
+use crate::sections::{Panel, Section};
 use crate::style::TypeRole;
 use crate::text::TextField;
 use craft_behavior::{DisplayOrder, ItemSource, Selection, SelectionChange};
@@ -157,11 +155,7 @@ pub(super) fn show_body<H: PreferencesModel + ?Sized>(
                 state.selected = key;
             }
         }
-        Stack::new()
-            .fill()
-            .scroll(Scroll::vertical())
-            .label(page.title.clone())
-            .show(ui, |ui, _| show_page(ui, host, page, snap.searching, words, units, out));
+        Panel::new(page.title.clone()).headerless().show(ui, |ui, _| show_page(ui, host, page, snap.searching, words, units, out));
     });
 }
 

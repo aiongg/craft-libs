@@ -159,12 +159,8 @@ impl<'a> PreferencesWindow<'a> {
             page: None,
             applied: false,
         });
-        let mut dialog = Dialog::new(title.clone())
-            .collection_body()
-            .modeless()
-            .resizable(true)
-            .close_on_enter(can_ok)
-            .close_guard(|at, cx| match at {
+        let mut dialog =
+            Dialog::new(title.clone()).collection_body().modeless().resizable(true).close_on_enter(can_ok).close_guard(|at, cx| match at {
                 OK_AT => session.borrow_mut().apply(cx),
                 APPLY_AT => {
                     if !nested {
