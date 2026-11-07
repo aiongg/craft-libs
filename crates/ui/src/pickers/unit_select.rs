@@ -56,7 +56,7 @@ impl Outcome for UnitSelectOutput {
 }
 
 /// A number field with a select of units after it. The select picks the unit kind the field reads typed text in and
-/// shows its number with; the number itself is the field's value, and the unit goes to its own binding, so the app
+/// shows its number with, and the kind sets the digits and the step of the number; the number itself is the field's value, and the unit goes to its own binding, so the app
 /// converts the number when the unit changes.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component]
@@ -89,7 +89,7 @@ impl<'a> UnitSelect<'a> {
             None => field,
         };
         match kind {
-            Some(kind) => field.unit_kind(kind),
+            Some(kind) => field.unit_kind(kind).step(kind.step()),
             None => field,
         }
     }

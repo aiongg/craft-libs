@@ -75,9 +75,23 @@ impl UnitKind {
     pub const fn decimals(self) -> RangeInclusive<usize> {
         match self {
             UnitKind::Pixels | UnitKind::Minutes => 0..=0,
-            UnitKind::Percent | UnitKind::Degrees | UnitKind::Points | UnitKind::PixelsPerInch | UnitKind::PixelsPerCentimetre => 0..=1,
-            UnitKind::Times | UnitKind::Centimetres | UnitKind::Millimetres | UnitKind::Picas => 0..=2,
+            UnitKind::Percent | UnitKind::Degrees | UnitKind::Points => 0..=1,
+            UnitKind::Times
+            | UnitKind::Centimetres
+            | UnitKind::Millimetres
+            | UnitKind::Picas
+            | UnitKind::PixelsPerInch
+            | UnitKind::PixelsPerCentimetre => 0..=2,
             UnitKind::Inches => 0..=3,
+        }
+    }
+
+    /// What one arrow press, wheel notch or scrub point changes a number of this kind by, where the control that shows
+    /// the kind steps by the kind's rule.
+    pub const fn step(self) -> f64 {
+        match self {
+            UnitKind::Times | UnitKind::Inches | UnitKind::Centimetres => 0.1,
+            _ => 1.0,
         }
     }
 

@@ -5,3 +5,5 @@ mod params;
 mod dialog;
 
 mod preview;
+
+mod rows;

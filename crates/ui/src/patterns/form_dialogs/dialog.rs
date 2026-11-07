@@ -253,11 +253,9 @@ impl<'a> ParamDialog<'a> {
         let alt = crate::runtime::pointer::frame(ui.ctx()).mods.alt;
         let unbound = bound.is_none();
         let mut bound = bound;
-        let before = match bound.as_mut().and_then(|bind| bind.reborrow().get()) {
-            Some(Mixed::Same(held)) => held,
-            _ => DialogFields::new(),
-        };
-        let work = RefCell::new(before.clone());
+        let mut before = DialogFields::new();
+        let mut written = DialogFields::new();
+        let work = RefCell::new(DialogFields::new());
         let opened = Cell::new(false);
 
         let mut dialog = Dialog::new(title.clone()).closable(closable).close_on_enter(ok_enabled);
@@ -302,9 +300,11 @@ impl<'a> ParamDialog<'a> {
         let mut rows = None;
         let shown = dialog.show(ui, |ui, cx| {
             let first = cx.appeared();
-            if unbound && !first {
-                *work.borrow_mut() = cx.memory::<Held>().0.clone();
-            }
+            before = match bound.as_mut().and_then(|bind| bind.reborrow().read(cx)) {
+                Some(Mixed::Same(held)) => held,
+                _ => DialogFields::new(),
+            };
+            *work.borrow_mut() = if unbound && !first { cx.memory::<Held>().0.clone() } else { before.clone() };
             if first {
                 let mut values = work.borrow_mut();
                 if let Some(key) = &remember
@@ -345,6 +345,14 @@ impl<'a> ParamDialog<'a> {
             if unbound {
                 cx.memory::<Held>().0 = work.borrow().clone();
             }
+            if let Some(bind) = bound.as_mut() {
+                let after = work.borrow().clone();
+                written = after.clone();
+                if after != before || opened.get() {
+                    let name: Arc<str> = title.as_str().into();
+                    let _ = bind.reborrow().write(cx, &EditEvent::set(GestureId::default(), Mixed::Same(before.clone()), after, name, None));
+                }
+            }
         });
 
         let DialogOutput { response, closed, .. } = shown.output;
@@ -357,9 +365,11 @@ impl<'a> ParamDialog<'a> {
             _ => None,
         };
         let values = (after != before || opened.get()).then_some(after);
-        if let (Some(after), Some(bind)) = (&values, bound.as_mut()) {
+        if let (Some(after), Some(bind)) = (&values, bound.as_mut())
+            && *after != written
+        {
             let name: Arc<str> = title.as_str().into();
-            let _ = bind.reborrow().apply(&EditEvent::set(GestureId::default(), Mixed::Same(before), after.clone(), name, None));
+            let _ = bind.reborrow().apply(&EditEvent::set(GestureId::default(), Mixed::Same(written), after.clone(), name, None));
         }
         ParamDialogOutput { response, closed, result, rows, values, preview_on: preview.is_some() && live.on }
     }
