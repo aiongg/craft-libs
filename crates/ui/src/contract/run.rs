@@ -48,6 +48,8 @@ pub(crate) struct HostCx<'a> {
     pub ui: &'a Ui,
     pub env: &'a Env,
     pub id: Id,
+    /// The component's label after step 1: a window's title.
+    pub label: &'a crate::runtime::env::Label,
 }
 
 /// The parent `Ui` is the host `Ui`.
@@ -558,7 +560,7 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
         validity: Validity::Ok,
     };
     // 6 to 16, in the host's `Ui`, once per call of the host.
-    let mut host = hooks.host(&comp, HostCx { ui: &*ui, env: &env, id });
+    let mut host = hooks.host(&comp, HostCx { ui: &*ui, env: &env, id, label: &step1.label });
     let mut run = Pass {
         comp: &mut comp,
         cx: &mut cx,

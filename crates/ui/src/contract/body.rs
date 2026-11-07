@@ -463,7 +463,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
     }
 
     fn host(&mut self, comp: &C, at: super::run::HostCx<'_>) -> Box<dyn super::run::Host> {
-        let mounted = super::mount::host(comp.props(Internal::new()), &at, self.open, &comp.common(Internal::new()).label);
+        let mounted = super::mount::host(comp.props(Internal::new()), &at, self.open, at.label);
         if mounted.exiting {
             self.exiting = true;
             self.open = true;
