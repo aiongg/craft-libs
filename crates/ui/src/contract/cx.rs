@@ -1418,7 +1418,7 @@ pub(crate) fn write_cursor(core: &CxCore<'_>) {
 
 /// An env derived for children `PaintUi` builds: the composite's resolved `enabled` and `size`.
 pub(crate) fn child_env(env: &Env, enabled: bool, size: craft_theme::ControlSize) -> Env {
-    env.derive(|scoped| {
+    env.derive_local(|scoped| {
         scoped.enabled &= enabled;
         scoped.size = size;
     })

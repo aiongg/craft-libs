@@ -52,6 +52,7 @@ impl PanelTab {
 
 impl Component for PanelTab {
     const ROLE: Role = Role::BUTTON;
+    const OVERLAYS: bool = false;
     type Style = TabStyle;
     type Output = TabOut;
 

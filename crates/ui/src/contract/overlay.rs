@@ -580,6 +580,7 @@ impl<C: Component> Overlays for Cx<'_, C> {
 impl PopupHandle {
     /// Toggles or opens the popup from `trigger` at step 9, as the pass's pending open change.
     pub fn trigger<C: Component>(self, trigger: Trigger, cx: &mut Cx<'_, C>) {
+        debug_assert!(C::OVERLAYS, "`{}` hosts a popup but sets `OVERLAYS = false`", std::any::type_name::<C>());
         let core = &mut cx.core;
         let ctx = core.ctx.clone();
         // Step 12 fills the state flags, so the focus facts come from the focus service.
@@ -626,16 +627,19 @@ impl PopupHandle {
 
     /// Queues an open that step 15 writes. For `Trigger::Manual` this and the binding are the only ways it opens.
     pub fn open<C: Component>(self, cx: &mut Cx<'_, C>) {
+        debug_assert!(C::OVERLAYS, "`{}` hosts a popup but sets `OVERLAYS = false`", std::any::type_name::<C>());
         queue(&cx.core.ctx, self.id, OpenOp::Open);
     }
 
     /// Queues a close; step 15 writes the slot, so this pass still shows the popup open.
     pub fn close<C: Component>(self, cx: &mut Cx<'_, C>) {
+        debug_assert!(C::OVERLAYS, "`{}` hosts a popup but sets `OVERLAYS = false`", std::any::type_name::<C>());
         queue(&cx.core.ctx, self.id, OpenOp::Close);
     }
 
     /// Whether the popup is open in this pass: valid from step 8, with the changes queued so far applied.
     pub fn is_open<C: Component>(self, cx: &mut Cx<'_, C>) -> bool {
+        debug_assert!(C::OVERLAYS, "`{}` hosts a popup but sets `OVERLAYS = false`", std::any::type_name::<C>());
         open_now(cx.core.memory, self.id)
     }
 }

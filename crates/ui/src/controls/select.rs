@@ -317,6 +317,7 @@ impl<'r> OptionRow<'r> {
 
 impl Component for OptionRow<'_> {
     const ROLE: Role = Role::LIST_BOX_OPTION;
+    const OVERLAYS: bool = false;
     type Style = OptionRowStyle;
     type Output = Response;
 

@@ -596,6 +596,7 @@ impl ListRow<'_> {
 
 impl Component for ListRow<'_> {
     const ROLE: Role = Role::LIST_ITEM;
+    const OVERLAYS: bool = false;
     const ALT_ROLES: &'static [Role] = &[Role::TREE_ITEM];
     type Style = ListRowStyle;
     type Output = RowOutput;
@@ -968,6 +969,7 @@ impl<'a> RowThumb<'a> {
 
 impl Component for RowThumb<'_> {
     const ROLE: Role = Role::None;
+    const OVERLAYS: bool = false;
     type Style = RowThumbStyle;
     type Output = Response;
 

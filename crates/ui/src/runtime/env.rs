@@ -96,9 +96,30 @@ pub trait StyleValue: EnvValue + Hash {}
 /// innermost wins.
 #[derive(Clone, Default)]
 pub struct AppValues {
+    entries: Arc<ValueEntries>,
+}
+
+#[derive(Clone, Default)]
+struct ValueEntries {
     map: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
     /// The hash of each style-affecting value, by type.
     style: HashMap<TypeId, u64>,
+    /// The hash of every style-affecting value, independent of the order they were set in.
+    style_hash: u64,
+}
+
+impl ValueEntries {
+    fn rehash(&mut self) {
+        self.style_hash = self
+            .style
+            .iter()
+            .map(|(ty, hash)| {
+                let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                (ty, hash).hash(&mut hasher);
+                hasher.finish()
+            })
+            .fold(0, u64::wrapping_add);
+    }
 }
 
 impl AppValues {
@@ -109,40 +130,40 @@ impl AppValues {
             "{} sets AFFECTS_STYLE but gives no style hash: use `#[env(style)]`",
             std::any::type_name::<T>()
         );
+        let entries = Arc::make_mut(&mut self.entries);
         match value.style_hash().filter(|_| T::AFFECTS_STYLE) {
-            Some(hash) => self.style.insert(TypeId::of::<T>(), hash),
-            None => self.style.remove(&TypeId::of::<T>()),
+            Some(hash) => entries.style.insert(TypeId::of::<T>(), hash),
+            None => entries.style.remove(&TypeId::of::<T>()),
         };
-        self.map.insert(TypeId::of::<T>(), Arc::new(value));
+        entries.map.insert(TypeId::of::<T>(), Arc::new(value));
+        entries.rehash();
         self
     }
 
     /// The hash of every style-affecting value, independent of the order they were set in.
     pub(crate) fn style_hash(&self) -> u64 {
-        self.style
-            .iter()
-            .map(|(ty, hash)| {
-                let mut hasher = std::collections::hash_map::DefaultHasher::new();
-                (ty, hash).hash(&mut hasher);
-                hasher.finish()
-            })
-            .fold(0, u64::wrapping_add)
+        self.entries.style_hash
     }
 
     /// A clone of the value, else `T::root()`.
     pub(crate) fn get<T: EnvValue>(&self) -> T {
-        self.map.get(&TypeId::of::<T>()).and_then(|value| value.downcast_ref::<T>()).cloned().unwrap_or_else(T::root)
+        self.entries.map.get(&TypeId::of::<T>()).and_then(|value| value.downcast_ref::<T>()).cloned().unwrap_or_else(T::root)
     }
 
     /// Takes every value `other` sets over this set's.
     pub(crate) fn extend(&mut self, other: &AppValues) {
-        for (ty, value) in &other.map {
-            self.map.insert(*ty, Arc::clone(value));
-            match other.style.get(ty) {
-                Some(hash) => self.style.insert(*ty, *hash),
-                None => self.style.remove(ty),
+        if other.entries.map.is_empty() {
+            return;
+        }
+        let entries = Arc::make_mut(&mut self.entries);
+        for (ty, value) in &other.entries.map {
+            entries.map.insert(*ty, Arc::clone(value));
+            match other.entries.style.get(ty) {
+                Some(hash) => entries.style.insert(*ty, *hash),
+                None => entries.style.remove(ty),
             };
         }
+        entries.rehash();
     }
 }
 
@@ -302,10 +323,28 @@ pub struct Scoped {
     /// The roving group of the collection row the scope shows: the stops of its components and parts join it, so
     /// Tab leaves the collection and Forward enters the row (17.5).
     pub(crate) row: Option<Id>,
+    /// What the collection's item step recorded for the item it shows this pass.
+    pub(crate) item_facts: Option<ItemFacts>,
     /// The container instances above that receive scoped commands.
     pub(crate) commands: CommandChain,
     pub(crate) host: Option<Arc<Host>>,
     pub(crate) values: AppValues,
+}
+
+/// What a collection records for one of its items in a pass: the row flags the item folds into its state (step 12)
+/// and its place in the set (step 16). The collection owns the record; a component reads it from its env.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ItemFacts {
+    pub(crate) item: Id,
+    pub(crate) flags: crate::style::Flags,
+    pub(crate) position: crate::runtime::access::SetPosition,
+}
+
+impl Scoped {
+    /// The facts the collection recorded for the item `id`.
+    pub(crate) fn facts_of(&self, id: Id) -> Option<&ItemFacts> {
+        self.item_facts.as_ref().filter(|facts| facts.item == id)
+    }
 }
 
 /// Token-changing values for a container's body: the body and everything under it resolve their styles from
@@ -380,6 +419,7 @@ impl Env {
                 scroll_owner: None,
                 item: None,
                 row: None,
+                item_facts: None,
                 commands: CommandChain::default(),
                 words: host_words(ctx, host.as_ref()),
                 host,
@@ -399,7 +439,7 @@ impl Env {
             stack::nearest(ui, |node| envs.entries.get(&node).cloned()).or_else(|| envs.root.clone())
         });
         let env = found.unwrap_or_else(|| Env::from_root(ctx, &RootEnv::fallback(ctx), None, scale::pixels_per_point(ctx)));
-        if style::is_enabled(ui) { env } else { env.derive(|s| s.enabled = false) }
+        if style::is_enabled(ui) { env } else { env.derive_local(|s| s.enabled = false) }
     }
 
     /// The running viewport's root env: what code with no `Ui` (the ghost layer) paints with.
@@ -429,6 +469,7 @@ impl Env {
             s.scroll_owner = None;
             s.item = None;
             s.row = None;
+            s.item_facts = None;
             s.ink = Ink::default();
         }))
     }
@@ -443,6 +484,14 @@ impl Env {
         let mut scoped = (*self.scoped).clone();
         f(&mut scoped);
         scoped.key = EnvKey::new(scoped.tokens.key(), scoped.direction, scoped.scale, scoped.os, scoped.active, scoped.values.style_hash());
+        Env { scoped: Arc::new(scoped) }
+    }
+
+    /// A child entry that changes layer-local fields only (arena, item, row, roving, grid, scroll owner,
+    /// transform, ink): the key carries over, because none of its inputs change.
+    pub(crate) fn derive_local(&self, f: impl FnOnce(&mut Scoped)) -> Env {
+        let mut scoped = (*self.scoped).clone();
+        f(&mut scoped);
         Env { scoped: Arc::new(scoped) }
     }
 
@@ -584,6 +633,11 @@ pub struct EnvView<'a> {
 }
 
 impl<'a> EnvView<'a> {
+    /// The facts the collection recorded for the item `id`.
+    pub(crate) fn facts_of(&self, id: Id) -> Option<&ItemFacts> {
+        self.scoped.facts_of(id)
+    }
+
     /// The innermost scrolling body around the component.
     pub(crate) fn scroll_owner(&self) -> Option<Id> {
         self.scoped.scroll_owner

@@ -371,7 +371,7 @@ impl Header {
             let builder = UiBuilder::new().max_rect(cell.rect).layout(child::column_layout(rtl)).scope_id(sub(id, ("header_cell", cell.hash)));
             let mut cell_ui = alloc::child(ui, builder);
             cell_ui.set_clip_rect(cell.rect.intersect(ui.clip_rect()));
-            let installed = Env::install_for(&cell_ui, env.derive(|scoped| scoped.arena = None));
+            let installed = Env::install_for(&cell_ui, env.derive_local(|scoped| scoped.arena = None));
             let label = HeaderText::new(Label::from(text), self.inset, sort).id(sub(id, ("header_text", cell.hash)));
             label.show_at(&mut cell_ui, cell.rect);
             Env::restore(&ctx, installed);

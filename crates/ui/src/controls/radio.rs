@@ -136,6 +136,7 @@ impl<T: Value + 'static> Radio<T> {
 
 impl<T: Value + 'static> Component for Radio<T> {
     const ROLE: Role = Role::RADIO_BUTTON;
+    const OVERLAYS: bool = false;
     type Style = RadioStyle;
     type Output = egui::Response;
 

@@ -426,7 +426,9 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     steps::update_inputs(&mut cx.core);
     steps::edit_intents(comp, cx);
     steps::scrub_by_label(comp, cx);
-    overlay::begin_owner(&ctx, id);
+    if C::OVERLAYS {
+        overlay::begin_owner(&ctx, id);
+    }
     comp.update(cx);
     p.hooks.updated(comp, cx);
     steps::record_context(&cx.core);
@@ -435,10 +437,12 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     }
     // 10 overlay
     p.trace.mark(Step::Overlay);
-    let open = overlay::open_map(&mut *cx.core.memory, id);
-    let mut overlays = OverlayUi::new(&ctx, id, rect, &*ui, resolved, env.clone(), open);
-    comp.overlay(&mut overlays, cx);
-    overlay::apply_closes(&ctx, overlays.closed);
+    if C::OVERLAYS {
+        let open = overlay::open_map(&mut *cx.core.memory, id);
+        let mut overlays = OverlayUi::new(&ctx, id, rect, &*ui, resolved, env.clone(), open);
+        comp.overlay(&mut overlays, cx);
+        overlay::apply_closes(&ctx, overlays.closed);
+    }
     // What `update` and `overlay` left untaken goes back to the key service.
     steps::after_update(&mut cx.core);
     // 11 apply
@@ -448,7 +452,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     steps::register_reset(comp, cx);
     // 12 state
     p.trace.mark(Step::State);
-    steps::state(comp, cx, overlay::popup_shown(&ctx, id), env.ink);
+    steps::state(comp, cx, C::OVERLAYS && overlay::popup_shown(&ctx, id), env.ink);
     if cx.core.state.flags.contains(crate::style::Flags::FOCUSED) {
         commands::note_focus(&ctx, id, &env.commands);
     }
@@ -528,7 +532,7 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     let (shown, mixed) = (value.value, value.mixed);
     let cancelled: Vec<_> = value.cancelled.into_iter().collect();
     hooks.read(&mut comp, &mut stage, id, &env);
-    let own_env = hooks.instance_scope(&comp).map(|scope| env.derive(|scoped| scoped.commands = scoped.commands.pushed(scope, id)));
+    let own_env = hooks.instance_scope(&comp).map(|scope| env.derive_local(|scoped| scoped.commands = scoped.commands.pushed(scope, id)));
     let env = own_env.as_ref().unwrap_or(&env);
     trace.mark(Step::Value);
     // 5 measure

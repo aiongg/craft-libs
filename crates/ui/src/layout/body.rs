@@ -149,7 +149,7 @@ pub(crate) fn run_body<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap: Vec2, b
                 let last = last_measure(&ctx, id, columns.len());
                 let cursor = GridCursor::new(Flow::new(ui.available_rect_before_wrap(), rtl), columns, gap, &last);
                 Service::<Cursors>::of(&ctx).with(|cursors| cursors.0.insert(id, cursor));
-                let installed = Env::install_for(ui, Env::of(ui).derive(|scoped| scoped.grid = Some(id)));
+                let installed = Env::install_for(ui, Env::of(ui).derive_local(|scoped| scoped.grid = Some(id)));
                 let inner = body(ui);
                 Env::restore(&ctx, installed);
                 inner

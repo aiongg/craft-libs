@@ -12,8 +12,8 @@ use super::steps::ShapeKind;
 use super::{Bind, Collection, Cx, Internal, ItemCx, ItemFn, ItemOutput as _, PartsCx, Props, Show as _, Sizing};
 use crate::primitives::ScrollBar;
 use crate::runtime::access::{self, Role, SetPosition};
-use crate::runtime::egui::{alloc, areas, child, memory as store, response};
-use crate::runtime::env::{AppValues, ArenaId, Env};
+use crate::runtime::egui::{alloc, areas, child, response};
+use crate::runtime::env::{AppValues, ArenaId, Env, ItemFacts};
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::{focus, frame, wheel};
 use crate::style::{StyleCx, scroll_bar_look};
@@ -40,14 +40,6 @@ pub(super) struct Rows<K> {
 }
 
 const SCROLL: craft_behavior::PartKey = craft_behavior::PartKey::new("items_scroll");
-
-/// The flags the item step gives an item at step 12.
-#[derive(Clone, Copy)]
-struct RowFlags(crate::style::Flags);
-
-pub(super) fn row_flags(ctx: &Context, id: Id) -> crate::style::Flags {
-    store::peek_clone::<RowFlags>(ctx, sub(id, "row_flags")).map_or(crate::style::Flags::empty(), |flags| flags.0)
-}
 
 #[derive(Clone, Default)]
 struct Scrolled {
@@ -485,12 +477,10 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 flags.set(crate::style::Flags::OPEN, state.open);
                 flags.set(crate::style::Flags::DRAGGING, state.dragging);
                 flags.set(crate::style::Flags::DROP_TARGET, state.drop_target);
-                store::put(&ctx, sub(item_id, "row_flags"), RowFlags(flags));
                 let mut position = SetPosition::new(at).of(len);
                 if tree {
                     position = position.level(self.source.depth(at) + 1);
                 }
-                crate::runtime::access::put_item_position(&ctx, item_id, position);
                 let mut cells = Vec::new();
                 layout.cells(at, offset, &mut cells);
                 for (_, cell) in &mut cells {
@@ -523,9 +513,10 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 row_ui.set_clip_rect(rect.intersect(ui.clip_rect()));
                 let installed = Env::install_for(
                     &row_ui,
-                    base_env.derive(|scoped| {
+                    base_env.derive_local(|scoped| {
                         scoped.item = Some(item_id);
                         scoped.row = Some(row_group);
+                        scoped.item_facts = Some(ItemFacts { item: item_id, flags, position });
                     }),
                 );
                 item = Props::id(item, item_id);

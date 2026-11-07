@@ -94,6 +94,7 @@ impl<'a> Slider<'a> {
 
 impl Component for Slider<'_> {
     const ROLE: Role = Role::SLIDER;
+    const OVERLAYS: bool = false;
     const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_keep(KeepKeys::BlockArrows);
     type Style = SliderStyle;
     type Output = EditResponse<f64>;

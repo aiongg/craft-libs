@@ -76,6 +76,7 @@ impl<'a> Disclosure<'a> {
 
 impl Component for Disclosure<'_> {
     const ROLE: Role = Role::BUTTON;
+    const OVERLAYS: bool = false;
     const ALT_ROLES: &'static [Role] = &[Role::None];
     type Style = DisclosureStyle;
     type Output = EditResponse<bool>;
