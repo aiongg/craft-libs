@@ -11,6 +11,8 @@ use std::rc::Rc;
 mod spec;
 mod targets;
 
+mod columns;
+
 const NEW_GROUP: GroupId = GroupId::new(2);
 
 fn two_columns() -> DockTree {
