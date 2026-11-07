@@ -17,10 +17,181 @@ status = "pending"
 name = "ThumbnailSlider"
 old = "craft_ui::list::tiles::zoom::ThumbnailSlider"
 new = "craft_ui::tile_grid::ThumbnailSlider"
-status = "pending"
+status = "moved"
+note = "A leaf over Bind<f64> that composes two IconButton faces and a Slider; the value is f64."
+
+[[type]]
+name = "TileZoom"
+old = "craft_ui::list::tiles::TileZoom"
+new = "craft_ui::tile_grid::TileZoom"
+status = "moved"
+note = "Values are f64. A continuous zoom is built with TileZoom::bounded(min, max, step, default). TileZoom::step takes and returns f64; default_value() reads the Reset value."
+
+[[type]]
+name = "ZoomStep"
+old = "craft_ui::list::tiles::ZoomStep"
+new = "craft_ui::tile_grid::ZoomStep"
+status = "moved"
+
+[[type]]
+name = "TileStyle"
+old = "craft_ui::list::tiles::TileStyle"
+new = "craft_ui::tile_grid::TileStyle"
+status = "moved"
+note = "The tile's look as a component style: its fields are no public contract; sizes and colours come from tokens."
+
+[[type]]
+name = "TileLook"
+old = "craft_ui::list::tiles::TileLook"
+new = ""
+status = "removed"
+note = "Replaced by the Tile component: its picture, caption, check, rating and flags are Tile setters, and selection, hover and focus come from the item step."
+
+[[type]]
+name = "TileFace"
+old = "craft_ui::list::tiles::TileFace"
+new = ""
+status = "removed"
+note = "Replaced by Tile::folder(); the picture is the content painter given to Tile::thumb."
+
+[[type]]
+name = "paint_tile"
+old = "craft_ui::list::tiles::paint_tile"
+new = ""
+status = "removed"
+note = "Replaced by the Tile component, shown as a collection item or on its own."
+
+[[type]]
+name = "stack_text"
+old = "craft_ui::list::tiles::stack_text"
+new = ""
+status = "removed"
+note = "The stack badge is Tile::stack(n); its text is the word tileGrid.stack."
+
+[[type]]
+name = "show_tile_rename"
+old = "craft_ui::list::tiles::show_tile_rename"
+new = ""
+status = "removed"
+note = "Rename is the item step's lifecycle: the tile reports its caption band through TileOutput::caption and the collection shows its rename editor there."
+
+[[type]]
+name = "TileRename"
+old = "craft_ui::list::tiles::TileRename"
+new = ""
+status = "removed"
+note = "The collection keeps the open rename."
+
+[[type]]
+name = "TileRenameOutcome"
+old = "craft_ui::list::tiles::TileRenameOutcome"
+new = ""
+status = "removed"
+note = "The collection reports how a rename ended."
+
+[[type]]
+name = "TileContent"
+old = "craft_ui::list::tiles::TileContent"
+new = ""
+status = "removed"
+note = "Replaced by Tile setters: name is the label, detail, accessible_name, rating, flag, label_color, label_name, status, range, enabled (Props::enabled), dimmed, rejected, hidden, stack, badge and mark. The tile's tooltip is Props::tooltip."
+
+[[type]]
+name = "TileFlag"
+old = "craft_ui::list::tiles::TileFlag"
+new = "craft_ui::tile_grid::TileFlag"
+status = "moved"
+
+[[type]]
+name = "BadgeKind"
+old = "craft_ui::list::tiles::BadgeKind"
+new = "craft_ui::tile_grid::BadgeKind"
+status = "moved"
+note = "Glyph takes an IconId and Text a Label."
+
+[[type]]
+name = "BadgeSlot"
+old = "craft_ui::list::tiles::BadgeSlot"
+new = "craft_ui::tile_grid::BadgeSlot"
+status = "moved"
+
+[[type]]
+name = "TileBadge"
+old = "craft_ui::list::tiles::TileBadge"
+new = "craft_ui::tile_grid::TileBadge"
+status = "moved"
+note = "Built with TileBadge::new(slot, kind, tone, tip); the tone is craft_theme::variant::Tone and the tip an Option<Label>."
+
+[[type]]
+name = "TileStatus"
+old = "craft_ui::list::tiles::TileStatus"
+new = "craft_ui::tile_grid::TileStatus"
+status = "moved"
+note = "Offline holds an Option<Label>: None shows the word Offline."
+
+[[type]]
+name = "BadgeVisibility"
+old = "craft_ui::list::tiles::BadgeVisibility"
+new = "craft_ui::tile_grid::BadgeVisibility"
+status = "moved"
+note = "Set with Tile::bar(..). Auto shows the bar on hover or when a value is set."
+
+[[type]]
+name = "CaptionPlace"
+old = "craft_ui::list::tiles::CaptionPlace"
+new = "craft_ui::tile_grid::CaptionPlace"
+status = "moved"
+note = "New variant None: no caption."
+
+[[type]]
+name = "TileMark"
+old = "craft_ui::list::tiles::TileMark"
+new = "craft_ui::tile_grid::TileMark"
+status = "moved"
+note = "Built with TileMark::new(icon: IconId, tip)."
+
+[[type]]
+name = "fit_name"
+old = "craft_ui::list::tiles::fit_name"
+new = ""
+status = "removed"
+note = "The caption cuts its name in the middle through TextRun with Wrap::ElidePath."
+
+[[type]]
+name = "card_size"
+old = "craft_ui::list::tiles::card_size"
+new = ""
+status = "removed"
+note = "A grid sizes a card as its picture plus Tile::around_picture."
 
 # One entry per renamed, removed or reshaped setter or constructor.
-# [[setter]]
-# type = ""
-# old = ""
-# new = ""
+[[setter]]
+type = "ThumbnailSlider"
+old = "new(id_salt, value: f32, zoom)"
+new = "new(label, Bind<f64>, zoom)"
+
+[[setter]]
+type = "ThumbnailSlider"
+old = "labels(&TileLabels)"
+new = "removed: the words are TileWords, read from the scope"
+
+[[setter]]
+type = "ThumbnailSlider"
+old = "width(f32)"
+new = "removed: the slider is size.length.track long"
+
+[[setter]]
+type = "ThumbnailSlider"
+old = "extent(ui)"
+new = "removed: a footer fits the control by its measured size"
+
+[[setter]]
+type = "ThumbnailSlider"
+old = "show(ui) -> EditResponse<f64>"
+new = "show(ui) -> EditResponse<f64> through Show"
+
+[[setter]]
+type = "TileZoom"
+old = "Range { min, max, step, default }"
+new = "bounded(min, max, step, default)"
+
