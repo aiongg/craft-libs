@@ -33,8 +33,7 @@ fn rust_files(dir: &Path, found: &mut Vec<PathBuf>) {
 /// The identifier after `keyword` when `line` defines an item with it.
 fn defined_name<'a>(line: &'a str, keyword: &str) -> Option<&'a str> {
     let at = line.find(keyword)?;
-    let before = line[..at].trim_end();
-    let boundary = before.is_empty() || !before.ends_with(|c: char| c.is_alphanumeric() || c == '_');
+    let boundary = !line[..at].ends_with(|c: char| c.is_alphanumeric() || c == '_');
     let rest = &line[at + keyword.len()..];
     let end = rest.find(|c: char| !c.is_alphanumeric() && c != '_').unwrap_or(rest.len());
     (boundary && end > 0).then(|| &rest[..end])
