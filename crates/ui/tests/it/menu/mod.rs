@@ -55,7 +55,7 @@ fn a_typed_letter_runs_a_row_of_a_menu_opened_by_the_pointer() {
         let opener = Button::new("File").show(ui);
         Menu::new("File").opened_by(&opener, Trigger::Press).show(ui, |ui, _| rows(ui, &shown_ran));
     });
-    fixture.idle(4);
+    fixture.settle();
     let opener = fixture.by_label("File").expect("the opener has a node");
     fixture.click(&opener);
     fixture.idle(4);
