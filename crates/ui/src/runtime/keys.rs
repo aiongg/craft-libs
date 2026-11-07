@@ -707,11 +707,13 @@ impl Intents {
 
     /// Takes the next intent an editor reads as input: typed text, a move, a delete, an edit command, Enter as a
     /// newline, Tab, and Escape as a cancel. An arrow move the editor's `keep` does not keep stays for the
-    /// component's navigation (18.4).
+    /// component's navigation (18.4), and with `KeepKeys::None` so do Home, End and the page keys: the editor is
+    /// a part of a grid that navigates until a cell opens.
     pub(crate) fn take_editor_input(&mut self, keep: focus::KeepKeys) -> Option<EditorInput> {
         let kept = |item: &Intent| match item {
             Intent::Move(NavMove::Up | NavMove::Down, _) => matches!(keep, focus::KeepKeys::BlockArrows | focus::KeepKeys::Tab),
             Intent::Move(NavMove::Back | NavMove::Forward, _) => keep != focus::KeepKeys::None,
+            Intent::Move(NavMove::Start | NavMove::End | NavMove::PageUp | NavMove::PageDown, _) => keep != focus::KeepKeys::None,
             _ => true,
         };
         let at = self.items.iter().position(|(item, taken)| !taken && kept(item) && editor_input_of(item).is_some())?;

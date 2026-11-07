@@ -21,8 +21,8 @@ use crate::primitives::{EditorLine, EditorPurpose, EditorState, PaintShape, Stro
 use crate::runtime::focus::{KeepKeys, KeyUse};
 use crate::style::{ComponentStyle, Flags, Stateful, StyleColor, StyleCx, SurfaceLook};
 use craft_behavior::{
-    CellSelection, ColumnKey, DisplayOrder, EditorInput, Flow, Insets, ItemSource, Metrics, Mixed, MoveMods, NavMove, PartKey, SelectionModel as _,
-    SheetLayout,
+    CellSelection, ColumnKey, DisplayOrder, EditorInput, Flow, Granularity, Insets, ItemSource, Metrics, Mixed, MoveMods, NavMove, PartKey,
+    SelectionModel as _, SheetLayout,
 };
 use craft_keymap::{Chord, Key};
 use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
@@ -36,6 +36,9 @@ const COLUMN_IN_HEIGHTS: f32 = 5.0;
 const OPERATORS: &str = "=+-*/(,";
 /// The arrows with the row and column step each takes in a left-to-right sheet.
 const ARROWS: [(Key, isize, isize); 4] = [(Key::Up, -1, 0), (Key::Down, 1, 0), (Key::Left, 0, -1), (Key::Right, 0, 1)];
+
+/// Home and End with the caret move each takes while a cell is open for editing.
+const LINE_ENDS: [(Key, NavMove); 2] = [(Key::Home, NavMove::Start), (Key::End, NavMove::End)];
 
 /// A draft the grid committed: the cell it was for and its text.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -241,6 +244,7 @@ impl Component for SheetGrid<'_> {
         let enter = cx.take_claimed(Chord::plain(Key::Enter));
         let f2 = cx.take_claimed(Chord::plain(Key::F2));
         let arrows = ARROWS.map(|(key, ..)| cx.take_claimed(Chord::plain(key)));
+        let line_ends = LINE_ENDS.map(|(key, _)| cx.take_claimed(Chord::plain(key)));
         if state.mode != Mode::Ready && lead.is_some_and(|lead| lead != state.cell) {
             self.commit(&mut state);
         }
@@ -281,6 +285,13 @@ impl Component for SheetGrid<'_> {
                 }
             }
         }
+        if state.mode == Mode::Edit {
+            for ((_, mv), taken) in LINE_ENDS.iter().zip(line_ends) {
+                if taken {
+                    state.draft.apply(EditorInput::Move(*mv, MoveMods::new(false, false, Granularity::Line)));
+                }
+            }
+        }
         let pointing = state.pointing();
         for input in cx.editor_input().collect::<Vec<_>>() {
             match (state.mode, input) {
@@ -314,6 +325,11 @@ impl Component for SheetGrid<'_> {
         };
         for at in claimed {
             cx.claim(Chord::plain(ARROWS[*at].0));
+        }
+        if state.mode == Mode::Edit {
+            for (key, _) in LINE_ENDS {
+                cx.claim(Chord::plain(key));
+            }
         }
         *cx.memory::<EditState>() = state;
     }
