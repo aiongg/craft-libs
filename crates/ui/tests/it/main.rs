@@ -41,6 +41,7 @@ mod runtime;
 mod sections;
 mod style;
 mod table;
+mod tabs;
 mod text;
 mod tile_grid;
 mod value_drag;
