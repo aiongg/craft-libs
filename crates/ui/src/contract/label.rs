@@ -4,7 +4,7 @@
 
 use super::{Component, Props};
 use super::{Cx, MeasureCx, PaintUi, PartsCx, Show};
-use crate::primitives::{IconSpec, TextRun};
+use crate::primitives::{IconSpec, TextRun, Wrap};
 use crate::runtime::access::{
     self,
     scope::{self, FieldLabel},
@@ -198,7 +198,7 @@ struct LabelLeaf {
 
 impl LabelLeaf {
     fn detail_run<'a>(&self, detail: &'a Label, style: &LabelStyle) -> TextRun<'a> {
-        TextRun::new(detail.as_str()).color(style.muted)
+        TextRun::new(detail.as_str()).color(style.muted).wrap(Wrap::Wrap)
     }
 
     #[cfg(feature = "testing")]
@@ -248,7 +248,13 @@ impl Component for LabelLeaf {
             height = height.max(cx.style.icon);
         }
         if let Some(detail) = &self.detail {
-            let detail = cx.layout(&self.detail_run(detail, cx.style)).size();
+            // The detail wraps in the room the name and the gap leave.
+            let room = match cx.proposal {
+                craft_behavior::Proposal::Width(width) => Some(width),
+                _ => cx.room,
+            };
+            let left = room.map_or(f32::INFINITY, |room| (room - self.slot - width - cx.style.gap).max(0.0));
+            let detail = cx.layout_at(&self.detail_run(detail, cx.style), left).size();
             width += cx.style.gap + detail.x;
             height = height.max(detail.y);
         }
@@ -454,7 +460,14 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Placed {
     let mut kids = alloc::child(ui, builder);
     let kid_env = super::cx::child_env(env, input.enabled, input.size);
     let installed = Env::install_for(&kids, kid_env);
-    let natural = leaf.measure_in(&kids, craft_behavior::Proposal::Ideal);
+    let mut natural = leaf.measure_in(&kids, craft_behavior::Proposal::Ideal);
+    if input.side.layout == FieldLayout::After {
+        // The label takes the room the control and the gap leave, and its detail wraps there.
+        let room = (input.row.width() - input.control_min - gap).max(0.0);
+        if natural.x > room {
+            natural = leaf.measure_in(&kids, craft_behavior::Proposal::Width(room));
+        }
+    }
     let baseline = leaf.baseline.get();
     let (column, stack_below) = match input.side.layout {
         FieldLayout::Beside => {

@@ -170,13 +170,27 @@ fn custom_actions(spec: &mut NodeSpec, actions: &[(i32, Label)]) {
     spec.custom_actions = actions.iter().map(|(id, label)| (*id, label.as_str().to_owned())).collect();
 }
 
-fn report_violations(ctx: &Context, component: &'static str, rule: &RoleRule<'_>) {
+/// Reports what `rule` finds wrong with a node of `component`. A missing name is returned instead when the node
+/// may still get one from the label or merge scope it sits in; the scope reports it if the node stays unnamed.
+fn report_violations(ctx: &Context, component: &'static str, rule: &RoleRule<'_>, nameable: bool) -> Option<Finding> {
+    let mut unnamed = None;
     for missing in role_violations(rule) {
-        if cfg!(debug_assertions) {
-            log::warn!("{component}: a node of role {:?} needs {missing}", rule.role);
+        let finding = Finding { rule: "RoleRule", component, subject: format!("{:?}: {missing}", rule.role) };
+        if nameable && missing == "a name" {
+            unnamed = Some(finding);
+        } else {
+            report_finding(ctx, finding);
         }
-        inspect::finding(ctx, Finding { rule: "RoleRule", component, subject: format!("{:?}: {missing}", rule.role) });
     }
+    unnamed
+}
+
+/// Records a finding, and logs it in debug builds.
+pub(crate) fn report_finding(ctx: &Context, finding: Finding) {
+    if cfg!(debug_assertions) {
+        log::warn!("{}: a node needs {}", finding.component, finding.subject);
+    }
+    inspect::finding(ctx, finding);
 }
 
 /// Fills the node step 8 created for `own`, registers it for action routing and in the label scope.
@@ -231,7 +245,7 @@ pub(crate) fn report(ctx: &Context, own: &Own<'_>) {
     declare_scroll_actions(&mut spec, own.scrolls);
     custom_actions(&mut spec, &access.custom_actions);
     write_node(ctx, own.id, &spec);
-    report_violations(
+    let unnamed = report_violations(
         ctx,
         own.component,
         &RoleRule::new(own.role)
@@ -242,10 +256,14 @@ pub(crate) fn report(ctx: &Context, own: &Own<'_>) {
             .leveled(access.level.is_some())
             .expanded(expanded)
             .controls(!relations.controls.is_empty()),
+        true,
     );
     keys::register_node(ctx, own.id, own.id, None, own.focusable);
     keys::register_expanded(ctx, own.id, expanded);
-    scope::register(ctx, scope::ScopeNode { id: own.id, keeps_name: own.keeps_name, name: name.text.clone(), description: spec.description.clone() });
+    scope::register(
+        ctx,
+        scope::ScopeNode { id: own.id, keeps_name: own.keeps_name, name: name.text.clone(), description: spec.description.clone(), unnamed },
+    );
 }
 
 /// Creates and fills the sub-node of `decl`.
@@ -288,6 +306,7 @@ pub(crate) fn report_sub(ctx: &Context, decl: &SubDecl<'_>) {
             .positioned(node.position.is_some())
             .grid(spec.grid.facts())
             .expanded(expanded),
+        false,
     );
     keys::register_node(ctx, id, decl.owner, Some(node.part), decl.focusable);
     keys::register_expanded(ctx, id, expanded);

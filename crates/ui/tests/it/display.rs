@@ -62,7 +62,13 @@ fn keycaps_of(fixture: &Fixture) -> Vec<(String, usize)> {
         .texts()
         .iter()
         .map(|text| {
-            let boxes: Vec<&Rect> = fixture.shape_bounds().iter().filter(|b| b.contains_rect(text.rect) && b.area() > text.rect.area()).collect();
+            // A keycap paints its fill and its border over one rect; count each rect once.
+            let mut boxes: Vec<&Rect> = Vec::new();
+            for bounds in fixture.shape_bounds().iter().filter(|b| b.contains_rect(text.rect) && b.area() > text.rect.area()) {
+                if !boxes.contains(&bounds) {
+                    boxes.push(bounds);
+                }
+            }
             (text.text.clone(), boxes.len())
         })
         .collect()

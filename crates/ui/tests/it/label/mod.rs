@@ -339,7 +339,8 @@ fn a_body_labelled_row_takes_the_height_of_its_placement() {
         Field::new("Group", SideLabel::new().kind(craft_ui::contract::LabelKind::Hidden)).id_salt("body").show_at(ui, ROW_A, |ui, cx| {
             let before = ui.available_rect_before_wrap().min.y;
             cx.labelled(ui, "dial", "Opacity".into(), SideLabel::new(), Dial::new(&mut value, &seen));
-            used.set(ui.available_rect_before_wrap().min.y - before);
+            // The body's gap follows every row; the row itself ends before it.
+            used.set(ui.available_rect_before_wrap().min.y - before - ui.spacing().item_spacing.y);
         });
     });
     assert!(
