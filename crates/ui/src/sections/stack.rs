@@ -156,8 +156,8 @@ impl<'a, K: Clone + PartialEq + std::hash::Hash + Send + Sync + 'static> Section
             return;
         }
         let gesture = crate::runtime::edit::next_gesture_id(&cx.core.ctx);
-        let before = ReorderMove { key: key.clone(), keys: vec![key.clone()], to: from, copy: false };
-        let after = ReorderMove { key: key.clone(), keys: vec![key.clone()], to, copy: false };
+        let before = ReorderMove::new(key.clone(), vec![key.clone()], from, false);
+        let after = ReorderMove::new(key.clone(), vec![key.clone()], to, false);
         self.moves.push(EditEvent::set(gesture, Mixed::Same(before), after, cx.core.label_arc(), None));
     }
 }

@@ -11,6 +11,11 @@ use egui::{Rect, Response, Ui, Vec2};
 use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 
+/// The payload a list maps its row drag to for other drop targets.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct RowKey(pub usize);
+
 /// Row height of every list of the trials.
 pub const ROW_H: f32 = 20.0;
 
@@ -199,6 +204,18 @@ impl<'a> List<'a> {
 
     pub fn reorder(mut self) -> Self {
         self.items = self.items.reorder(craft_ui::contract::ReorderRule::new());
+        self
+    }
+
+    /// Reordering may land inside the groups of a tree.
+    pub fn reorder_into_groups(mut self) -> Self {
+        self.items = self.items.reorder(craft_ui::contract::ReorderRule::new().into_groups());
+        self
+    }
+
+    /// A row drag also carries the dragged row's key as a `RowKey`.
+    pub fn row_key_payload(mut self) -> Self {
+        self.items = self.items.drag_payload(|drag: &craft_ui::contract::ListDrag<usize>| RowKey(drag.grabbed));
         self
     }
 
