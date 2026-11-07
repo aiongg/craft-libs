@@ -9,7 +9,8 @@
 use super::{DatePrecision, LAST_YEAR, PickedDate, dates_of};
 use crate::buttons::IconButton;
 use crate::contract::{
-    Access, Common, Component, Cx, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role, Styled as _, WordSetCx as _,
+    Access, Common, Component, Cx, Focus as _, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role, Styled as _,
+    WordSetCx as _,
 };
 use crate::pickers::words::PickerWords;
 use crate::primitives::{HAlign, PaintShape, StrokeWidth, TextRun};
@@ -527,7 +528,7 @@ impl Calendar {
     }
 
     /// Whether the value is the cell's, or for a navigation cell falls within it.
-    fn selected(&self, cell: &Cell) -> bool {
+    fn holds_value(&self, cell: &Cell) -> bool {
         if cell.nav {
             self.value.is_some_and(|c| (cell.span.0.day_key()..=cell.span.1.day_key()).contains(&c.first_day().day_key()))
         } else {
@@ -669,7 +670,7 @@ impl Component for Calendar {
             } else {
                 part.sense(Sense::CLICK | Sense::HOVER).keyboard_via(ACTIVE)
             };
-            if self.selected(cell) {
+            if self.holds_value(cell) {
                 part.flags(Flags::SELECTED);
             }
         };
@@ -778,7 +779,7 @@ impl Component for Calendar {
             let permitted = self.permitted(cell);
             let hovered = cx.part(part_of(&self.view, cell.key)).hovered;
             let shape = PaintShape::Rect(rect, style.radius);
-            match (self.selected(cell) && permitted, hovered && permitted) {
+            match (self.holds_value(cell) && permitted, hovered && permitted) {
                 (true, true) => draw.fill(&shape, style.selected_hover),
                 (true, false) => draw.fill(&shape, style.selected),
                 (false, true) => draw.fill(&shape, style.hover),
