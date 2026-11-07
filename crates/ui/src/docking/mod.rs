@@ -5,6 +5,7 @@
 //! `PanelDrag`; `SplitArea` is the drop target that says which group and side it lands on.
 
 mod config;
+mod drop;
 mod event;
 mod panels;
 mod spec;
@@ -16,6 +17,7 @@ pub mod targets;
 mod words;
 
 pub use config::{DockConfig, DockSides};
+pub use drop::{DockDrag, DockDropTarget, DockDropped, DragUnit, cancel_on_replacement, float_drop, panel_key, resolve_drop, start_group_drag};
 pub use event::{DockEvent, FloatSpace, HidePanels};
 pub use panels::DockPanels;
 pub use spec::{DockHeights, PanelLimits, PanelSpec};

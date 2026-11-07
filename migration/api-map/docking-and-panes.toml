@@ -372,3 +372,82 @@ new = "Overlay::opacity(f32)"
 type = "FrameResponse"
 old = "resized, resize_started"
 new = "Container::placement_changed(&PlacementChange): phase Begin starts a resize, rect is the rect it asks for"
+
+# Drop resolution (dock-drop-a).
+
+[[type]]
+name = "DropProposal"
+old = "craft_ui::docking::DropProposal"
+new = ""
+status = "replaced"
+note = "`DockDropped<P> { action: Action<P>, mark: DropMark }`: the model action a drop makes and the mark the ghost paints."
+
+[[type]]
+name = "DockDropped"
+old = ""
+new = "craft_ui::docking::DockDropped"
+status = "replaced"
+note = "Replaces `DropProposal`."
+
+[[type]]
+name = "resolve_drop"
+old = "craft_ui::docking::resolve_drop"
+new = "craft_ui::docking::resolve_drop"
+status = "same"
+note = "`resolve_drop(ctx, dock, &Layout<P>, at, &impl DockDrag<P>, &permissions) -> Option<Action<P>>` reads the dock's `DockTargets` and returns the model action; it runs inside the dock's `DropTarget::accept`."
+
+[[type]]
+name = "resolve_drop_by"
+old = "craft_ui::docking::resolve_drop_by"
+new = ""
+status = "removed"
+note = "`resolve_drop` takes the permissions as a closure."
+
+[[type]]
+name = "DockDropTarget"
+old = ""
+new = "craft_ui::docking::DockDropTarget"
+status = "replaced"
+note = "`DropTarget<PanelDrag>` and `DropTarget<GroupDrag<P>>` for one dock; replaces the legacy `DropTarget` geometry and `resolve_drop`'s hit testing."
+
+[[type]]
+name = "tab_insertion_marker"
+old = "craft_ui::docking::tab_insertion_marker"
+new = ""
+status = "removed"
+note = "Group rendering registers `DockSpot::tab(anchor, index)` over the strip gap; `DockSpot::mark` gives the insertion line."
+
+[[type]]
+name = "zone_rect"
+old = "craft_ui::docking::zone_rect"
+new = ""
+status = "removed"
+note = "`ZoneRule::zones(body, &DockSizes, rtl)` gives the rects; `DockSpot::mark` gives the highlight."
+
+[[type]]
+name = "zone_shape"
+old = "craft_ui::docking::zone_shape"
+new = ""
+status = "removed"
+note = "Zones are rects; there are no polygon zones."
+
+[[type]]
+name = "drop_zone"
+old = "craft_ui::docking::drop_zone"
+new = ""
+status = "removed"
+note = "`ZoneRule::zones` and `DockTargets::resolve`."
+
+[[type]]
+name = "body_zone"
+old = "craft_ui::docking::body_zone"
+new = ""
+status = "removed"
+note = "`ZoneRule::zones` and `DockTargets::resolve`."
+
+[[type]]
+name = "SIDE_EDGE_ZONE_DEPTH"
+old = "craft_ui::docking::SIDE_EDGE_ZONE_DEPTH"
+new = ""
+status = "removed"
+note = "`DockSizes::zone_depth`, from the rail width token."
