@@ -422,6 +422,11 @@ pub struct SubNode {
     /// The heading level or tree depth.
     pub level: Option<usize>,
     pub(crate) sort: Option<bool>,
+    /// The column of a cell, which the item step turns into the cell's column index.
+    pub(crate) column: Option<craft_behavior::ColumnKey>,
+    pub(crate) access_key: Option<char>,
+    pub(crate) has_popup: Option<PopupKind>,
+    pub(crate) current: bool,
     pub(crate) part: PartRef,
     pub(crate) role: Role,
     pub(crate) under: Option<PartRef>,
@@ -440,6 +445,10 @@ impl SubNode {
             grid: GridPlace::default(),
             level: None,
             sort: None,
+            column: None,
+            access_key: None,
+            has_popup: None,
+            current: false,
             part,
             role,
             under: None,
@@ -451,6 +460,37 @@ impl SubNode {
     /// The heading level or tree depth.
     pub fn level(&mut self, level: usize) -> &mut Self {
         self.level = Some(level);
+        self
+    }
+
+    /// The column of a cell of an item row; the item step reads the cell's column index from the collection's
+    /// columns.
+    pub fn column(&mut self, key: craft_behavior::ColumnKey) -> &mut Self {
+        self.column = Some(key);
+        self
+    }
+
+    /// The mnemonic letter.
+    pub fn access_key(&mut self, key: char) -> &mut Self {
+        self.access_key = Some(key);
+        self
+    }
+
+    /// What kind of popup the sub-node opens.
+    pub fn has_popup(&mut self, kind: PopupKind) -> &mut Self {
+        self.has_popup = Some(kind);
+        self
+    }
+
+    /// Whether the sub-node's popup or region is open.
+    pub fn expanded(&mut self, on: bool) -> &mut Self {
+        self.expanded = Some(on);
+        self
+    }
+
+    /// The sub-node is the current one of its set: the current page of a trail.
+    pub fn current(&mut self, on: bool) -> &mut Self {
+        self.current = on;
         self
     }
 

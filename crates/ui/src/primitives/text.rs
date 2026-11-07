@@ -5,7 +5,7 @@ use crate::style::{StyleColor, TypeRole, UiTokens};
 use craft_i18n::Direction;
 use egui::epaint::text::{FontId, TextDirection};
 use egui::text::{LayoutJob, TextFormat, TextWrapping};
-use egui::{Color32, Context, Galley};
+use egui::{Align, Color32, Context, Galley};
 use std::borrow::Cow;
 use std::ops::Range;
 use std::sync::Arc;
@@ -23,6 +23,19 @@ pub enum Wrap {
     Elide,
     /// One line, cut with an ellipsis in the middle, so the end of a path stays.
     ElidePath,
+}
+
+/// Where the lines of a multi-line run sit within the run's width.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum HAlign {
+    /// At the start edge: left, right in a right-to-left interface.
+    #[default]
+    Start,
+    /// Centred.
+    Center,
+    /// At the end edge: right, left in a right-to-left interface.
+    End,
 }
 
 /// One styled stretch of a run.
@@ -102,17 +115,19 @@ pub struct TextRun<'a> {
     pub wrap: Wrap,
     /// Laid out left to right whatever the env's direction (a chord).
     pub ltr: bool,
+    /// Where the lines sit within the run's width.
+    pub align: HAlign,
 }
 
 impl<'a> TextRun<'a> {
     /// A one-span run in the label role.
     pub fn new(text: impl Into<Cow<'a, str>>) -> Self {
-        TextRun { spans: vec![Span::new(text)], role: TypeRole::Label, color: None, wrap: Wrap::Line, ltr: false }
+        TextRun { spans: vec![Span::new(text)], role: TypeRole::Label, color: None, wrap: Wrap::Line, ltr: false, align: HAlign::Start }
     }
 
     /// A run of `spans`.
     pub fn spans(spans: Vec<Span<'a>>) -> Self {
-        TextRun { spans, role: TypeRole::Label, color: None, wrap: Wrap::Line, ltr: false }
+        TextRun { spans, role: TypeRole::Label, color: None, wrap: Wrap::Line, ltr: false, align: HAlign::Start }
     }
 
     /// Sets the type role.
@@ -133,6 +148,12 @@ impl<'a> TextRun<'a> {
         self
     }
 
+    /// Sets where the lines sit within the run's width.
+    pub fn align(mut self, align: HAlign) -> Self {
+        self.align = align;
+        self
+    }
+
     /// Cuts the run with an ellipsis at the end.
     pub fn elide(self) -> Self {
         self.wrap(Wrap::Elide)
@@ -142,6 +163,23 @@ impl<'a> TextRun<'a> {
     pub fn full_text(&self) -> String {
         self.spans.iter().map(|s| s.text.as_ref()).collect()
     }
+}
+
+/// The galley moved so its rect starts at x = 0: egui anchors a centred or right-aligned galley at its centre or
+/// right edge, while every caller places a layout by its top-left corner.
+fn anchored_at_start(mut galley: Arc<Galley>) -> Arc<Galley> {
+    let shift = -galley.rect.min.x;
+    if shift == 0.0 {
+        return galley;
+    }
+    let galley_mut = Arc::make_mut(&mut galley);
+    let by = egui::vec2(shift, 0.0);
+    for placed in &mut galley_mut.rows {
+        placed.pos.x += shift;
+    }
+    galley_mut.rect = galley_mut.rect.translate(by);
+    galley_mut.mesh_bounds = galley_mut.mesh_bounds.translate(by);
+    galley
 }
 
 /// What a layout reads from the env: the tokens, the direction and the ink colour.
@@ -163,16 +201,26 @@ impl TextRun<'_> {
             _ => text_layout::layout(ctx, self.job(env, self.spans.iter().map(|s| (s, s.text.as_ref())), max_width)),
         };
         let elided = galley.elided || self.wrap == Wrap::ElidePath && galley.job.text != full;
-        TextLayout::new(galley, elided, full)
+        TextLayout::new(anchored_at_start(galley), elided, full)
     }
 
     fn job<'s>(&self, env: &TextEnv<'_>, parts: impl Iterator<Item = (&'s Span<'s>, &'s str)>, max_width: f32) -> LayoutJob {
         let elide = matches!(self.wrap, Wrap::Elide | Wrap::ElidePath);
+        let direction = match (self.ltr, env.direction) {
+            (false, Direction::Rtl) => TextDirection::RightToLeft,
+            _ => TextDirection::LeftToRight,
+        };
+        let rtl = matches!(direction, TextDirection::RightToLeft);
         let mut job = LayoutJob {
-            direction: match (self.ltr, env.direction) {
-                (false, Direction::Rtl) => TextDirection::RightToLeft,
-                _ => TextDirection::LeftToRight,
+            direction,
+            halign: match (self.align, rtl) {
+                (HAlign::Center, _) => Align::Center,
+                (HAlign::End, false) => Align::RIGHT,
+                _ => Align::LEFT,
             },
+            // Start follows the paragraph's direction; an end-aligned run in a right-to-left interface puts every
+            // line on the left.
+            halign_min_is_start: !(self.align == HAlign::End && rtl),
             wrap: TextWrapping {
                 max_width: if self.wrap == Wrap::Line { f32::INFINITY } else { max_width },
                 max_rows: if elide { 1 } else { usize::MAX },

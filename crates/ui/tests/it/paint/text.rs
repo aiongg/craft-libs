@@ -2,7 +2,7 @@
 
 use craft_i18n::Direction;
 use craft_theme::{Contrast, Mode};
-use craft_ui::primitives::{ChordText, Span, TextRun, Wrap};
+use craft_ui::primitives::{ChordText, HAlign, Span, TextRun, Wrap};
 use craft_ui::style::Ink;
 use craft_ui::testing::style::{paint_frame, tokens};
 use craft_ui::testing::{Frames, trial};
@@ -86,4 +86,31 @@ fn spans_style_a_run_without_splitting_its_text() {
         assert_eq!(layout.galley.job.sections.len(), 2, "the shortcut has its own format");
         assert!(!layout.elided);
     });
+}
+
+/// The first and last row's start and end, from the layout's left edge.
+fn row_edges(direction: Direction, align: HAlign) -> [(f32, f32); 2] {
+    let tokens = tokens(Mode::Light, Contrast::Standard);
+    let mut frames = Frames::new();
+    let mut edges = [(0.0, 0.0); 2];
+    paint_frame(&mut frames, &tokens, direction, Ink::OnPanel, |draw| {
+        let layout = draw.text(RECT, &TextRun::new("A wide first line\nshort").align(align));
+        for (edge, placed) in edges.iter_mut().zip(&layout.galley.rows) {
+            *edge = (placed.pos.x, placed.pos.x + placed.row.size.x);
+        }
+    });
+    edges
+}
+
+#[trial]
+fn lines_of_a_run_align_at_the_start_the_centre_or_the_end_and_mirror() {
+    let close = |a: f32, b: f32| (a - b).abs() <= SLACK;
+    let [wide, short] = row_edges(Direction::Ltr, HAlign::Center);
+    assert!(close((wide.0 + wide.1) / 2.0, (short.0 + short.1) / 2.0) && short.0 > wide.0, "centred lines share a centre");
+    let [wide, short] = row_edges(Direction::Ltr, HAlign::End);
+    assert!(close(wide.1, short.1) && short.0 > wide.0, "end-aligned lines share their right edge in LTR");
+    let [wide, short] = row_edges(Direction::Rtl, HAlign::End);
+    assert!(close(wide.0, short.0) && short.1 < wide.1, "end-aligned lines share their left edge in RTL");
+    let [wide, short] = row_edges(Direction::Ltr, HAlign::Start);
+    assert!(close(wide.0, short.0), "start-aligned lines share their left edge in LTR");
 }
