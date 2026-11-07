@@ -87,9 +87,11 @@ fn scrolling(ui: &mut Ui, props: ContainerProps, seen: &Seen2, probes: &RefCell<
         let out = Holder::new(props, &close).id_salt("panel").show(ui, |ui, cx| {
             seen.view.set(Some(cx.rect));
             for line in 0..40 {
+                // The cursor, not the response: a response's rect is clipped to the view once the line scrolls out.
+                let top = ui.next_widget_position().y;
                 let response = Probe::new(probes).id_salt(line).size(LINE).show(ui);
                 if line == 0 {
-                    seen.first_top.set(response.rect.min.y);
+                    seen.first_top.set(top);
                     seen.focus_id.set(Some(response.id));
                 }
             }

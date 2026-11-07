@@ -846,7 +846,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 }
                 scoped.transform = props.transform;
                 scoped.enabled &= enabled;
-                scoped.in_scroll |= scroll.is_some();
+                if scroll.is_some() {
+                    scoped.scroll_owner = Some(id);
+                }
                 if let Some(size) = props.child_size {
                     scoped.size = size;
                 }

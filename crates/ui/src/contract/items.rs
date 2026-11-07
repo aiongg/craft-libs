@@ -229,8 +229,8 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
 
     fn read(&mut self, comp: &mut C, stage: &mut MemoryStage, id: Id, env: &Env) {
         let ctx = stage.ctx().clone();
-        debug_assert!(!env.in_scroll, "a collection owns its scroll: show it outside a scrolling body (16.3)");
-        self.scrolls = !env.in_scroll;
+        debug_assert!(env.scroll_owner.is_none(), "a collection owns its scroll: show it outside a scrolling body (16.3)");
+        self.scrolls = env.scroll_owner.is_none();
         self.selection = match comp.selection() {
             Some(bind) => match bind.get() {
                 Some(Mixed::Same(held)) => held,

@@ -294,8 +294,9 @@ pub struct Scoped {
     pub transform: Option<CanvasTransform>,
     /// The `Grid` body whose cursor places the children in flow.
     pub(crate) grid: Option<Id>,
-    /// A scrolling body encloses the scope: a collection under it owns no scroll of its own.
-    pub(crate) in_scroll: bool,
+    /// The innermost scrolling body that encloses the scope: a collection under it owns no scroll of its own, and
+    /// page and end moves a component leaves untaken go to it.
+    pub(crate) scroll_owner: Option<Id>,
     /// The id of the collection item the scope shows: its root is not a Tab stop (17.3).
     pub(crate) item: Option<Id>,
     /// The roving group of the collection row the scope shows: the stops of its components and parts join it, so
@@ -376,7 +377,7 @@ impl Env {
                 roving: None,
                 transform: None,
                 grid: None,
-                in_scroll: false,
+                scroll_owner: None,
                 item: None,
                 row: None,
                 commands: CommandChain::default(),
@@ -425,7 +426,7 @@ impl Env {
             s.roving = None;
             s.transform = None;
             s.grid = None;
-            s.in_scroll = false;
+            s.scroll_owner = None;
             s.item = None;
             s.row = None;
             s.ink = Ink::default();
@@ -572,6 +573,11 @@ pub struct EnvView<'a> {
 }
 
 impl<'a> EnvView<'a> {
+    /// The innermost scrolling body around the component.
+    pub(crate) fn scroll_owner(&self) -> Option<Id> {
+        self.scoped.scroll_owner
+    }
+
     /// The roving group of the innermost body with `ContainerProps.roving`.
     pub(crate) fn roving(&self) -> Option<Id> {
         self.scoped.roving
