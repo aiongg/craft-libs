@@ -1288,7 +1288,7 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
         scrolls: input.scrolls,
         access: &access,
         popups: &if C::OVERLAYS { super::overlay::popups_shown(ctx, id) } else { Vec::new() },
-        popups_by_part: !core.toggles.is_empty(),
+        popups_by_part: super::overlay::has_toggle_nodes(&core.toggles, &access.nodes),
     };
     access::report(ctx, &own);
     if let Some(facts) = core.text_access.take() {
