@@ -5,4 +5,5 @@ mod kit;
 mod list;
 mod table;
 mod table_trials;
+mod review;
 mod rows;

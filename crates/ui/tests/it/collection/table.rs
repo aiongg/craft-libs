@@ -20,7 +20,7 @@ pub struct Table {
 
 impl Table {
     pub fn new(items: CollectionProps) -> Self {
-        Table { common: Common::new(), props: ContainerProps::new(), items }
+        Table { common: Common::new(), props: ContainerProps::new().sizing(craft_ui::contract::Sizing::Fill), items }
     }
 }
 
@@ -68,7 +68,12 @@ pub struct Free {
 
 impl Free {
     pub fn new(rects: Vec<Rect>) -> Self {
-        Free { common: Common::new(), props: ContainerProps::new(), items: CollectionProps::new().select(SelectMode::Multi), rects }
+        Free {
+            common: Common::new(),
+            props: ContainerProps::new().sizing(craft_ui::contract::Sizing::Fill),
+            items: CollectionProps::new().select(SelectMode::Multi),
+            rects,
+        }
     }
 }
 

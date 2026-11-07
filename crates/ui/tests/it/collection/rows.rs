@@ -150,7 +150,7 @@ impl<'a> Probe<'a> {
     fn new(select: SelectMode, log: &'static Log) -> Self {
         Probe {
             common: Common::new(),
-            props: ContainerProps::new(),
+            props: ContainerProps::new().sizing(craft_ui::contract::Sizing::Fill),
             items: CollectionProps::new().select(select),
             selection: None,
             auto: false,
@@ -227,7 +227,12 @@ const COLUMNS: [&str; 6] = ["a", "b", "c", "d", "e", "f"];
 
 impl<'a> Sheet<'a> {
     fn new() -> Self {
-        Sheet { common: Common::new(), props: ContainerProps::new(), items: CollectionProps::new().select(SelectMode::Cells), selection: None }
+        Sheet {
+            common: Common::new(),
+            props: ContainerProps::new().sizing(craft_ui::contract::Sizing::Fill),
+            items: CollectionProps::new().select(SelectMode::Cells),
+            selection: None,
+        }
     }
 
     fn selection(mut self, selection: Bind<'a, CellSelection<usize>>) -> Self {
