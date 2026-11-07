@@ -1,11 +1,11 @@
-//! `Text`: static text in a type role and a shade.
+//! `Text`: static text in a type role, a shade and optionally a tone.
 
 use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role, Styled as _};
 use crate::primitives::{TextRun, Wrap};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx, TextLook, TypeRole};
 use craft_behavior::{Metrics, Sense};
-use craft_theme::{Stateful, States};
+use craft_theme::{Stateful, States, variant::Tone};
 use egui::{Response, Vec2};
 
 #[cfg(feature = "testing")]
@@ -48,7 +48,7 @@ pub struct TextStyle {
     text: TextLook,
 }
 
-/// Text in a type role (body by default) and a shade (normal by default). It wraps at the room's width unless
+/// Text in a type role (body by default) and a shade (normal by default), or in the colour of a tone. It wraps at the room's width unless
 /// `elide` keeps it on one line; a line that is cut shows whole in a tooltip. It takes no focus and cannot be
 /// selected; `SelectableText` is the focusable form.
 #[derive(crate::contract::Component, crate::contract::Props)]
@@ -59,6 +59,10 @@ pub struct Text {
     #[style_key]
     #[prop]
     shade: Shade,
+    /// The tone the text takes its colour from, in place of the shade's.
+    #[style_key]
+    #[prop]
+    tone: Option<Tone>,
     /// The type role.
     #[style_key]
     #[prop]
@@ -71,7 +75,7 @@ pub struct Text {
 impl Text {
     /// `text`, which is also its accessible name, in body type and the normal shade.
     pub fn new(text: impl Into<Label>) -> Self {
-        Text { common: Common::new(), shade: Shade::Normal, role: TypeRole::Body, elide: Elide::Off }.label(text)
+        Text { common: Common::new(), shade: Shade::Normal, tone: None, role: TypeRole::Body, elide: Elide::Off }.label(text)
     }
 
     fn run<'a>(&self, role: TypeRole, label: &'a str) -> TextRun<'a> {
@@ -93,11 +97,14 @@ impl Component for Text {
 
     fn style(cx: &StyleCx<'_>, key: TextStyleKey) -> TextStyle {
         let text = &cx.tokens.color.text;
-        let color = cx.color(match key.shade {
-            Shade::Normal => text.normal,
-            Shade::Muted => text.muted,
-            Shade::Faint => text.faint,
-        });
+        let color = match key.tone {
+            Some(tone) => cx.tone(tone),
+            None => cx.color(match key.shade {
+                Shade::Normal => text.normal,
+                Shade::Muted => text.muted,
+                Shade::Faint => text.faint,
+            }),
+        };
         let off = States::new(color, color, color, cx.color(text.disabled));
         TextStyle { metrics: Metrics::new(), text: TextLook::new(key.role, Stateful::new(color).off(off)) }
     }

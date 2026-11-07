@@ -10,7 +10,7 @@ use crate::primitives::{FaceRecord, FocusKind, FocusRing, PaintShape, StateLayer
 use crate::runtime::access::{self, Access, FaceFacts, Own, Politeness, Role, SubDecl, SubNode, scope};
 use crate::runtime::commands::{self, CommandKind, ResolvedCommand};
 use crate::runtime::egui::{memory as store, pass, repaint, response};
-use crate::runtime::env::{Env, Label};
+use crate::runtime::env::{Env, Label, Message};
 use crate::runtime::focus::{self, Group, Stop};
 use crate::runtime::frame::{PerViewport, Stamped};
 use crate::runtime::memory::{MemoryStage, sub};
@@ -1179,12 +1179,17 @@ fn command_facts(command: &ResolvedCommand, platform: craft_keymap::Platform) ->
     (command.hint.as_deref(), command.chord.as_ref().map(|chord| chord.display(platform)))
 }
 
-/// The message of a validity that warns or refuses; the node's description when the component gives none.
-fn validity_message<C: Component>(cx: &Cx<'_, C>) -> Option<String> {
+/// The message of a validity that warns or refuses.
+fn validity_of<C: Component>(cx: &Cx<'_, C>) -> Option<&Message> {
     match &cx.validity {
-        Validity::Warn(message) | Validity::Refuse(message) => Some(cx.core.env.resolve(&message.text).as_str().to_owned()),
+        Validity::Warn(message) | Validity::Refuse(message) => Some(message),
         _ => None,
     }
+}
+
+/// The message of a validity that warns or refuses as text; the node's description when the component gives none.
+fn validity_message<C: Component>(cx: &Cx<'_, C>) -> Option<String> {
+    validity_of(cx).map(|message| cx.core.env.resolve(&message.text).as_str().to_owned())
 }
 
 /// Step 16, report: the AccessKit node filled with its sub-nodes, the label-scope patch and the merge, then the
@@ -1219,6 +1224,9 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
         *label = core.env.resolve(label);
     }
     let validity = validity_message(cx);
+    if let (Some(message), Some(text)) = (validity_of(cx), &validity) {
+        scope::register_message(ctx, message, text.clone());
+    }
     let tooltip_text = resolved.tooltip.map(|tooltip| core.env.resolve(&tooltip.spec().text));
     let tooltip = tooltip_text.as_ref().map(Label::as_str);
     if access.live.is_none() {

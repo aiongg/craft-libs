@@ -5,7 +5,7 @@ use super::cx::BodyCx;
 use super::label::{self, LabelIn};
 use super::run::{ShapeHooks, ShowAt};
 use super::{Container, ContainerProps, Cx, Gap, Internal, Mount, Notch, Pad, PartsCx, Scroll, Sizing};
-use crate::layout;
+use crate::layout::{self, ColumnGroup};
 use crate::primitives::{Rule, ScrollBar, Surface};
 use crate::runtime::access::scope;
 use crate::runtime::access::{self, Politeness, Role};
@@ -896,9 +896,11 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let mut open = self.open;
         let mut gate = self.gate;
         let mut close: Option<CloseReason> = None;
+        let field_message = if props.label.is_some() { scope::last_message(&ctx, id) } else { None };
         // B1 header
         if props.header.is_some() {
-            let mut bcx = BodyCx::new(body_id, env_view, resolved, regions.header, &mut *cx.core.memory, &mut open, gate.as_mut());
+            let mut bcx = BodyCx::new(body_id, env_view, resolved, regions.header, &mut *cx.core.memory, &mut open, gate.as_mut())
+                .with_field_message(field_message.clone());
             let mut header_rect = regions.header;
             let mut controls = Vec2::ZERO;
             if props.header.is_some_and(|header| header.trailing) {
@@ -979,7 +981,8 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                     scoped.commands = scoped.commands.pushed(scope, id);
                 }
             });
-            let mut bcx = BodyCx::new(body_id, body_env.view(), resolved, body_rect, &mut *cx.core.memory, &mut open, gate.as_mut());
+            let mut bcx = BodyCx::new(body_id, body_env.view(), resolved, body_rect, &mut *cx.core.memory, &mut open, gate.as_mut())
+                .with_field_message(field_message.clone());
             let gap = Vec2::splat(gap_of(&env.tokens, props.body_gap));
             let layout_id = sub(id, "layout");
             // While the body opens or closes, it shows only the part of its last height that the presence reaches.
@@ -990,6 +993,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 )
             });
             let (layout, body) = (&props.layout, &mut *self.body);
+            let label_column = props.label_column;
             let mut run = |parent: &mut Ui, at: Rect, bcx: &mut BodyCx<'_>| -> Option<Vec2> {
                 let mut body_ui = alloc::child(parent, {
                     let builder = UiBuilder::new().max_rect(at).layout(child::column_layout(rtl)).scope_id(body_id);
@@ -1024,13 +1028,13 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                         let mut region_ui =
                             alloc::child(&mut body_ui, UiBuilder::new().scope_id(sub(id, "scroll_region")).layout(layout_of).max_rect(max));
                         region_ui.set_clip_rect(at.intersect(body_ui.clip_rect()));
-                        layout::run_body(&mut region_ui, layout_id, layout, gap, |ui| body(ui, bcx));
+                        layout::run_body(&mut region_ui, layout_id, layout, gap, |ui| shared_labels(ui, id, label_column, |ui| body(ui, bcx)));
                         let extent = region_ui.min_rect().size();
                         self.extent = Some(extent);
                         Some((extent + inset).min(at.size()))
                     }
                     None => {
-                        layout::run_body(&mut body_ui, layout_id, layout, gap, |ui| body(ui, bcx));
+                        layout::run_body(&mut body_ui, layout_id, layout, gap, |ui| shared_labels(ui, id, label_column, |ui| body(ui, bcx)));
                         None
                     }
                 };
@@ -1078,7 +1082,8 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         }
         // B4 footer
         if props.footer.is_some() {
-            let mut bcx = BodyCx::new(body_id, env_view, resolved, regions.footer, &mut *cx.core.memory, &mut open, gate.as_mut());
+            let mut bcx = BodyCx::new(body_id, env_view, resolved, regions.footer, &mut *cx.core.memory, &mut open, gate.as_mut())
+                .with_field_message(field_message);
             let mut footer_ui = alloc::child(ui, region("footer", regions.footer));
             let installed = Env::install_for(&footer_ui, region_env.clone());
             comp.footer(&mut footer_ui, &mut bcx);
@@ -1230,4 +1235,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             stage.session::<ScrollState>(sub(id, "scroll")).follow_end = Some(at_end);
         }
     }
+}
+
+/// Runs `body` in a column group named `labels` under the container `id` when `shared` is set, so the labelled
+/// rows inside share the widest label.
+fn shared_labels<R>(ui: &mut Ui, id: Id, shared: bool, body: impl FnOnce(&mut Ui) -> R) -> R {
+    if shared { ColumnGroup::scope(ui, sub(id, "labels"), |ui, _| body(ui)) } else { body(ui) }
 }

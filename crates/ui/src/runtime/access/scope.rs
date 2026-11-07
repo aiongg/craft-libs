@@ -4,6 +4,7 @@
 //! one child's node.
 
 use super::emit;
+use crate::runtime::env::Message;
 use crate::runtime::egui::{access as adapter, memory as store, memory::Service};
 use crate::runtime::inspect::Finding;
 use crate::runtime::layout_memory;
@@ -105,6 +106,8 @@ struct Scope {
     baseline: Option<f32>,
     /// The control that registered a reset value and whether its value differs from it.
     reset: Option<ResetFact>,
+    /// The first message a control inside reported, with its resolved text.
+    message: Option<(Message, String)>,
     /// The narrowest width of the first control.
     control_min: Option<f32>,
     /// A control inside scrubs by the label.
@@ -146,6 +149,7 @@ pub(crate) fn begin(ctx: &Context, container: Id, owner: Id, kind: Kind) {
             open: Vec::new(),
             baseline: None,
             reset: None,
+            message: None,
             control_min: None,
             scrub: false,
         })
@@ -236,6 +240,26 @@ pub(crate) fn register_reset(ctx: &Context, control: Id, differs: bool) {
             scope.reset.get_or_insert(ResetFact { control, differs });
         }
     });
+}
+
+/// Registers the validity message of a control with the innermost label scope; `text` is the message resolved.
+/// The first message wins.
+pub(crate) fn register_message(ctx: &Context, message: &Message, text: String) {
+    Service::<Stack>::run(ctx, |stack| {
+        if let Some(scope) = stack.0.iter_mut().rev().find(|scope| matches!(scope.kind, Kind::Label(_))) {
+            scope.message.get_or_insert_with(|| (message.clone(), text));
+        }
+    });
+}
+
+/// The message the label scope of `container` recorded last frame.
+pub(crate) fn last_message(ctx: &Context, container: Id) -> Option<Message> {
+    store::peek_clone::<Message>(ctx, message_slot(container))
+}
+
+/// The slot of a container's message; it goes with the scope's owner.
+fn message_slot(container: Id) -> Id {
+    sub(container, "field_message")
 }
 
 /// Registers that a control of the innermost label scope scrubs by the label, so the label senses a drag.
@@ -389,6 +413,15 @@ pub(crate) fn finish(ctx: &Context, container: Id, merged: Option<Merged>) {
                     memory::adopt::<ResetFact>(ctx, scope.owner, slot);
                 }
                 None => drop(store::take::<ResetFact>(ctx, slot)),
+            }
+            let message_slot = message_slot(scope.container);
+            match scope.message {
+                Some((message, text)) => {
+                    store::put(ctx, message_slot, message);
+                    memory::adopt::<Message>(ctx, scope.owner, message_slot);
+                    adapter::write_label_patch(ctx, &LabelPatch::Detail { node: scope.container, text });
+                }
+                None => drop(store::take::<Message>(ctx, message_slot)),
             }
             let scrub_slot = scrub_slot(scope.container);
             if scope.scrub {
