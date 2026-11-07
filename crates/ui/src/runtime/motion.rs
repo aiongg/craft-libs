@@ -83,6 +83,9 @@ pub mod spec {
     pub const BLINK: MotionSpec = MotionSpec::new(Token::Caret, MotionKind::Blink, Curve::Tween);
 }
 
+/// How long a blinking caret shows or hides its stroke, in seconds: the platform's usual caret rate.
+const BLINK_HALF_PERIOD: f64 = 0.53;
+
 /// A value a tween can run over.
 pub trait Interpolate: Copy + PartialEq + Send + Sync + 'static {
     /// The value `t` of the way from `a` to `b`; `t` is 0 to 1.
@@ -353,6 +356,19 @@ impl Driver<'_> {
         }
     }
 
+    /// Whether a caret that last moved or was typed at `restart` shows its stroke now. It shows solid for a
+    /// half period after `restart`, then alternates; a mode whose Blink row is solid never hides it.
+    pub(crate) fn blink(&self, restart: f64) -> bool {
+        if self.policy.mode.playback(spec::BLINK.kind()) != Playback::Run {
+            return true;
+        }
+        let now = frame::clock(self.stage.ctx());
+        let since = (now - restart).max(0.0);
+        let step = (since / BLINK_HALF_PERIOD).floor();
+        self.wake_at(restart + (step + 1.0) * BLINK_HALF_PERIOD);
+        step % 2.0 == 0.0
+    }
+
     pub(crate) fn now(&self) -> f64 {
         frame::clock(self.stage.ctx())
     }
@@ -377,6 +393,9 @@ pub trait Animate: crate::runtime::memory::sealed::Sealed {
     /// The 0 to 1 position of a loop of `period` seconds, stepped every `tick` seconds when given; `None` when
     /// the mode asks for the still frame.
     fn phase(&self, period: f64, tick: Option<f64>) -> Option<f32>;
+    /// Whether a caret last moved at `restart` (a pass time) shows now: solid right after `restart`, then
+    /// blinking; always solid where the motion table's Blink row is solid.
+    fn blink(&self, restart: f64) -> bool;
     /// The pass's time in seconds, read once per frame.
     fn now(&self) -> f64;
     /// Asks for a pass at `at` (timers, holds, polls), whatever the motion mode.
@@ -407,6 +426,10 @@ impl<X: Drives + crate::runtime::memory::sealed::Sealed> Animate for X {
 
     fn phase(&self, period: f64, tick: Option<f64>) -> Option<f32> {
         self.driver().phase(period, tick)
+    }
+
+    fn blink(&self, restart: f64) -> bool {
+        self.driver().blink(restart)
     }
 
     fn now(&self) -> f64 {

@@ -262,7 +262,7 @@ impl KeyUse {
         self
     }
 
-    const fn with_keep(mut self, keep: KeepKeys) -> Self {
+    pub(crate) const fn with_keep(mut self, keep: KeepKeys) -> Self {
         self.keep = keep;
         self
     }

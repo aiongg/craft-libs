@@ -13,6 +13,8 @@ pub(crate) mod sensing;
 mod state_layer;
 mod surface;
 mod text;
+pub(crate) mod text_adapter;
+mod text_input;
 pub mod textures;
 
 pub use content::{ContentPainterCx, DocRun, DocText};
@@ -26,6 +28,7 @@ pub use scroll_bar::{BarAxis, ScrollBar};
 pub use sensing::{PartResult, TextOutcome};
 pub use state_layer::{StateLayer, StateLayerKind};
 pub use surface::Surface;
+pub use text_input::{Completer, Completion, EditorLine, EditorPurpose, EditorRun, EditorState, TextKey, TextOptions};
 pub use text::{ChordText, LayoutRun, Span, TextLayout, TextRun, Wrap};
 
 pub(crate) use draw::DrawEnv;

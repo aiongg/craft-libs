@@ -294,6 +294,21 @@ fn queue(ctx: &Context, fired: Fired) {
     repaint::request_of(ctx, ViewportId::ROOT);
 }
 
+/// An undo or redo a text part or editor had nothing to do for goes to the app command of the same id (11.3).
+pub(crate) fn fall_through(ctx: &Context, command: craft_behavior::EditCommand) {
+    let Some(command) = EditCommands::of(command) else { return };
+    let fired = Fired {
+        command: CommandRef::from(command),
+        target: None,
+        source: FireSource::Key,
+        phase: FirePhase::Press,
+        cycle: false,
+        alt_variant: false,
+    };
+    with(ctx, |board| board.out.push(fired));
+    repaint::request_of(ctx, ViewportId::ROOT);
+}
+
 /// Step 17: the command of a component that was activated and enabled.
 pub(crate) fn fire_bound(ctx: &Context, command: &ResolvedCommand) {
     if !command.enabled {

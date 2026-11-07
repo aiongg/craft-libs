@@ -15,6 +15,7 @@ mod registry;
 mod run;
 mod shell;
 mod steps;
+pub(crate) mod text;
 pub mod toast;
 pub mod tooltip;
 mod values;

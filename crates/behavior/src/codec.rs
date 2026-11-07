@@ -59,6 +59,39 @@ pub trait Codec {
     }
 }
 
+impl<C: Codec + ?Sized> Codec for &C {
+    type Value = C::Value;
+    const DRAFTS_ARE_VALUES: bool = C::DRAFTS_ARE_VALUES;
+
+    fn format(&self, v: &Self::Value) -> String {
+        (**self).format(v)
+    }
+
+    fn parse(&self, text: &str, start: &Self::Value) -> Result<Self::Value, NotAValue> {
+        (**self).parse(text, start)
+    }
+
+    fn applies_as_typed(&self, text: &str) -> bool {
+        (**self).applies_as_typed(text)
+    }
+
+    fn filter(&self, c: char) -> bool {
+        (**self).filter(c)
+    }
+
+    fn normalise(&self, text: &str, v: &Self::Value) -> String {
+        (**self).normalise(text, v)
+    }
+
+    fn caret_on_focus(&self, text: &str) -> Caret {
+        (**self).caret_on_focus(text)
+    }
+
+    fn sample(&self, current: &Self::Value) -> Cow<'_, str> {
+        (**self).sample(current)
+    }
+}
+
 /// Plain text: every draft is a value.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PlainText;

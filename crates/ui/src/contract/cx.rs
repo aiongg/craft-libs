@@ -93,6 +93,12 @@ pub struct CxCore<'a> {
     pub(crate) root_sense: Sense,
     /// The member of the container's roving group Tab arrives at, set by the group's pick.
     pub(crate) roving_arrival: Option<Id>,
+    /// The text part's result of this pass, from step 8b.
+    pub(crate) texts: Option<(PartKey, Box<dyn std::any::Any>)>,
+    /// Enter was pressed in the text part.
+    pub(crate) submitted: bool,
+    /// Escape abandoned the text part's edit.
+    pub(crate) escaped: bool,
 }
 
 impl<C: Component> Cx<'_, C> {
@@ -684,7 +690,8 @@ impl<C: Component> Edit for Cx<'_, C> {
     fn edit_response(&self) -> EditResponse<ValueOf<C>> {
         let event = self.events.iter().cloned().fold(None, EditEvent::fold);
         let mut response = EditResponse::new(self.core.response.clone(), event, self.validity.clone());
-        response.escaped = matches!(self.events.last(), Some(EditEvent::Cancel { reason: CancelReason::Escape, .. }));
+        response.escaped = self.core.escaped || matches!(self.events.last(), Some(EditEvent::Cancel { reason: CancelReason::Escape, .. }));
+        response.submitted = self.core.submitted;
         response
     }
 
@@ -1189,6 +1196,7 @@ pub struct PartsCx<'a, C: Component> {
     pub(crate) decls: &'a mut Decls,
     pub(crate) rovings: &'a mut Vec<Roving>,
     pub(crate) scrolls: &'a mut Vec<ScrollDecl>,
+    pub(crate) text: &'a mut super::text::TextStep,
     pub(crate) last_state: (bool, bool),
     pub(crate) measure: MeasureCx<'a, C>,
 }

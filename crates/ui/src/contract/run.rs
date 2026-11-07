@@ -236,6 +236,9 @@ fn blank_core<'a>(
         scroll_moves: Vec::new(),
         root_sense: Sense::empty(),
         roving_arrival: None,
+        texts: None,
+        submitted: false,
+        escaped: false,
     }
 }
 
@@ -315,7 +318,12 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     // 7 parts
     p.trace.mark(Step::Parts);
     let flow = Flow::new(rect, rtl);
-    let mut parts = PartsStep { decls: Vec::new(), rovings: Vec::new(), scrolls: Vec::new() };
+    let mut parts = PartsStep { decls: Vec::new(), rovings: Vec::new(), scrolls: Vec::new(), text: super::text::TextStep::default() };
+    let text_state_id = crate::runtime::memory::sub(id, "text_state");
+    if !inert && C::INPUT == Input::Text {
+        parts.text.state = cx.core.memory.shown::<crate::primitives::text_adapter::TextState>(text_state_id).clone();
+        parts.text.commit_now = focus::commit_now(&ctx) == Some(id);
+    }
     if !inert {
         let last = *cx.core.memory.shown::<steps::LastState>(sub(id, "last_state"));
         let input = MeasureIn { ui: &*ui, env, proposal: Proposal::Ideal, room: p.room };
@@ -326,6 +334,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
             decls: &mut parts.decls,
             rovings: &mut parts.rovings,
             scrolls: &mut parts.scrolls,
+            text: &mut parts.text,
             last_state: (last.0, last.1),
             measure,
         };
@@ -336,6 +345,11 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
         inspect::canvas_control(&ctx, std::any::type_name::<C>());
     }
     steps::check_parts(&ctx, std::any::type_name::<C>(), &parts);
+    let text_keys = parts.text.decl.as_ref().map(|decl| crate::primitives::text_adapter::keys_of(C::KEYS, &decl.options));
+    let text_widget = parts.text.decl.as_ref().map(|decl| crate::primitives::text_adapter::text_id(id, decl.key));
+    if text_widget.is_some() {
+        *cx.core.memory.shown::<crate::primitives::text_adapter::TextState>(text_state_id) = parts.text.state.clone();
+    }
     let own = if inert || !resolved.enabled { Sense::HOVER } else { comp.sense() };
     let arena = p.hooks.arena(comp);
     let member = if arena || matches!(C::INPUT, Input::Text | Input::Editor) { None } else { env.arena };
@@ -343,9 +357,10 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     steps::register_stops(&StopsIn {
         ctx: &ctx,
         id,
-        holder: member.map_or(id, |arena| arena.0),
+        holder: text_widget.unwrap_or_else(|| member.map_or(id, |arena| arena.0)),
         focusable: !inert && resolved.enabled && own.contains(Sense::FOCUS),
-        keys: C::KEYS,
+        text: text_widget.is_some(),
+        keys: text_keys.unwrap_or(C::KEYS),
         role: KeyRole::new().resettable(resettable),
         rtl,
         parts: &parts,
@@ -403,6 +418,11 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
             steps::report_inert(cx);
         }
         return;
+    }
+    // 8b text part
+    if text_widget.is_some() {
+        let ink = crate::style::ink_color(&env.tokens, env.ink);
+        super::text::run(cx, ui, &mut parts.text, text_keys.unwrap_or(C::KEYS), rtl, ink);
     }
     // 9 update
     p.trace.mark(Step::Update);

@@ -5,7 +5,7 @@ use crate::runtime::egui::input::{self as raw_input, HeldInput, RawInput};
 use crate::runtime::egui::memory::{self as store, Service};
 use crate::runtime::egui::{pass, scale, style};
 use crate::runtime::env::{Env, RootEnv};
-use crate::runtime::{access, cursor, drag, focus, keys, layout_memory, memory, motion, overlay, pointer, toast, wheel};
+use crate::runtime::{access, cursor, drag, focus, ime, keys, layout_memory, memory, motion, overlay, pointer, toast, wheel};
 use craft_host::Host;
 use craft_host::target::Os;
 use craft_theme::{AppSizes, Appearance, Contrast, HitSizes, Mode, SUITE_DEFAULT, Size, TextSize, ThemeDef, builtins, resolve_sized};
@@ -270,6 +270,7 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) {
     // H2: click options.
     raw_input::set_click_options(ctx, frame_hit(ctx).slop);
     // H3: the key stage strips what the runtime owns; egui decides on a repaint from the events left.
+    ime::input_hook(ctx, &mut input.events, viewport);
     let stripped = keys::input_hook(ctx, input);
     if held_back || stripped {
         raw_input::request_repaint_of(ctx, viewport);
@@ -308,6 +309,7 @@ pub(crate) fn begin_pass(ui: &mut Ui) {
     drop(Env::install_for(ui, env));
     // H7: focus moves and the press classification, then the pass's intents, then the wheel split.
     focus::begin(&ctx, input.root.tab_all_controls || raw_input::os(&ctx) != Os::Mac);
+    ime::begin(&ctx, focus::focused_rec(&ctx).filter(|rec| rec.stop.text).map(|rec| rec.stop.root));
     // Lead-1: an Escape over a captured press cancels the press and reaches no component.
     if keys::begin(&ctx, pointer::press_captured(&ctx) || drag::running(&ctx)) {
         pointer::cancel_press(&ctx, craft_behavior::PressCancel::Escape);
@@ -341,6 +343,7 @@ pub(crate) fn end_pass(ui: &mut Ui) {
     memory::evict(&ctx);
     layout_memory::end_hook(&ctx);
     motion::end_pass(&ctx);
+    ime::end_pass(&ctx);
     let live = pass::live_viewports(&ctx);
     let prunes: Vec<fn(&Context, &[ViewportId])> = store::with::<FrameState, _>(&ctx, |state| {
         state.passes_open = state.passes_open.saturating_sub(1);

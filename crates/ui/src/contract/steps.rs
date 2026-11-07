@@ -473,6 +473,7 @@ pub(crate) struct PartsStep {
     pub decls: Decls,
     pub rovings: Vec<Roving>,
     pub scrolls: Vec<super::cx::ScrollDecl>,
+    pub text: super::text::TextStep,
 }
 
 /// The parts of last pass's complete set in which this pass's results are read; first-frame parts read idle.
@@ -484,6 +485,8 @@ pub(crate) struct StopsIn<'a> {
     /// The egui widget that holds key focus: the component, or an arena member's root.
     pub holder: Id,
     pub focusable: bool,
+    /// The component's one stop is a text part, whose egui widget holds focus.
+    pub text: bool,
     pub keys: focus::KeyUse,
     pub role: KeyRole,
     pub rtl: bool,
@@ -523,7 +526,10 @@ pub(crate) fn register_stops(input: &StopsIn<'_>) {
     if let (Some(group), Some(roving)) = (group, input.parts.rovings.first()) {
         focus::register_group(ctx, Group::new(group, *roving).rtl(input.rtl));
     }
-    let own = || Stop::new(input.id, input.keys).root(input.holder).role(input.role);
+    let own = || {
+        let stop = Stop::new(input.id, input.keys).root(input.holder).role(input.role);
+        if input.text { stop.text() } else { stop }
+    };
     if input.focusable {
         focus::register_stop(ctx, if let Some(group) = input.group { own().in_group(group) } else { own() });
     }
