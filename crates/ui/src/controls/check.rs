@@ -4,7 +4,7 @@
 use crate::contract::{Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Pointer as _, Role, Styled as _};
 use crate::primitives::{PaintShape, StrokeWidth};
 use crate::style::{ComponentStyle, Flags, FocusLook, StyleColor, StyleCx, SurfaceKind};
-use craft_behavior::{Metrics, Mixed, Sense};
+use craft_behavior::{Metrics, Sense};
 use craft_theme::{Stateful, States, variant::Tone};
 use egui::{CornerRadius, Pos2, Rect, Vec2};
 
@@ -37,23 +37,12 @@ pub struct Checkbox<'a> {
     #[common]
     common: Common,
     value: Bind<'a, bool>,
-    /// The value `flags` reads: the pass's shown value once `update` ran.
-    shown: Option<Mixed<bool>>,
 }
 
 impl<'a> Checkbox<'a> {
     /// A check box of `value`.
     pub fn new(value: Bind<'a, bool>) -> Self {
-        Checkbox { common: Common::new(), value, shown: None }
-    }
-
-    fn held(&self) -> Option<Mixed<bool>> {
-        self.shown.clone().or_else(|| {
-            self.value.current().map(|held| match held {
-                Mixed::Same(value) => Mixed::Same(*value),
-                Mixed::Mixed => Mixed::Mixed,
-            })
-        })
+        Checkbox { common: Common::new(), value }
     }
 }
 
@@ -99,15 +88,6 @@ impl Component for Checkbox<'_> {
         if cx.activation().is_some() {
             let on = cx.value().copied().unwrap_or(false);
             cx.set(!on);
-        }
-        self.shown = Some(cx.value().map_or(Mixed::Mixed, |value| Mixed::Same(*value)));
-    }
-
-    fn flags(&self) -> Flags {
-        match self.held() {
-            Some(Mixed::Same(true)) => Flags::CHECKED,
-            Some(Mixed::Mixed) => Flags::MIXED,
-            _ => Flags::empty(),
         }
     }
 

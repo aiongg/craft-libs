@@ -4,8 +4,8 @@ use super::face::{self, FaceLook, FaceSpec};
 use crate::contract::{Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Pointer as _, Props, Role};
 use crate::runtime::commands::CommandRef;
 use crate::runtime::env::Label;
-use crate::style::{ComponentStyle, Flags, FocusLook, StyleCx, SurfaceLook, TypeRole};
-use craft_behavior::{IconId, Metrics, Mixed, Sense};
+use crate::style::{ComponentStyle, FocusLook, StyleCx, SurfaceLook, TypeRole};
+use craft_behavior::{IconId, Metrics, Sense};
 use craft_theme::Variant;
 use egui::Vec2;
 
@@ -48,8 +48,6 @@ pub struct ToggleButton<'a> {
     #[style_key]
     #[prop(flag)]
     icon_only: bool,
-    /// The value `flags` reads: the pass's shown value once `update` ran.
-    shown: Option<Mixed<bool>>,
 }
 
 impl<'a> ToggleButton<'a> {
@@ -63,7 +61,6 @@ impl<'a> ToggleButton<'a> {
             trailing_icon: None,
             role: None,
             icon_only: false,
-            shown: None,
         }
         .label(label)
     }
@@ -78,18 +75,8 @@ impl<'a> ToggleButton<'a> {
             trailing_icon: None,
             role: None,
             icon_only: false,
-            shown: None,
         };
         <ToggleButton as Props>::command(button, command)
-    }
-
-    fn held(&self) -> Option<Mixed<bool>> {
-        self.shown.clone().or_else(|| {
-            self.value.as_ref().and_then(Bind::current).map(|held| match held {
-                Mixed::Same(value) => Mixed::Same(*value),
-                Mixed::Mixed => Mixed::Mixed,
-            })
-        })
     }
 
     fn spec<'s>(&'s self, label: &'s str, on: bool) -> FaceSpec<'s> {
@@ -138,19 +125,6 @@ impl Component for ToggleButton<'_> {
         if cx.activation().is_some() && self.value.is_some() {
             let on = cx.value().copied().unwrap_or(false);
             cx.set(!on);
-        }
-        self.shown = match cx.value() {
-            Some(value) => Some(Mixed::Same(*value)),
-            None if cx.mixed => Some(Mixed::Mixed),
-            None => None,
-        };
-    }
-
-    fn flags(&self) -> Flags {
-        match self.held() {
-            Some(Mixed::Same(true)) => Flags::CHECKED,
-            Some(Mixed::Mixed) => Flags::MIXED,
-            _ => Flags::empty(),
         }
     }
 
