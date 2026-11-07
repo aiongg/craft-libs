@@ -232,6 +232,10 @@ pub trait Pointer {
     /// Registers `target` over this component's rect for this pass, in `update`. Returns the drop released over it this
     /// pass, when it was the topmost accepting target under the pointer last pass and accepts now.
     fn drop_target<P: Send + Sync + 'static, T: DropTarget<P>>(&mut self, target: &T) -> Option<T::Drop>;
+    /// Registers `target` over the whole window of the running viewport for this pass, in `update`; a target over a
+    /// component beats it wherever that accepts. `at` is the pointer in this component's egui layer space. OS file drops
+    /// (`OsFiles`) land on it wherever no other target takes them.
+    fn window_drop_target<P: Send + Sync + 'static, T: DropTarget<P>>(&mut self, target: &T) -> Option<T::Drop>;
     /// The operation of a drop of this component's payload, in the pass after the drop; `None` while dragging, when the
     /// drag was cancelled and when no target took it.
     fn drag_ended<P: Send + Sync + 'static>(&self) -> Option<DropOperation>;
@@ -303,7 +307,16 @@ impl Pointer for CxCore<'_> {
         let op = drag::current_operation(&self.ctx);
         let drop = target.accept(&payload, at, op)?;
         let ordinal = drag::next_ordinal(&self.ctx, self.id);
-        drag::register(&self.ctx, self.id, self.response.layer_id, target.mark(&drop));
+        drag::register(&self.ctx, self.id, self.response.layer_id, target.mark(&drop), false);
+        drag::take_drop::<P>(&self.ctx, self.id, ordinal, op).then_some(drop)
+    }
+
+    fn window_drop_target<P: Send + Sync + 'static, T: DropTarget<P>>(&mut self, target: &T) -> Option<T::Drop> {
+        let (payload, at) = self.dragging::<P>()?;
+        let op = drag::current_operation(&self.ctx);
+        let drop = target.accept(&payload, at, op)?;
+        let ordinal = drag::next_ordinal(&self.ctx, self.id);
+        drag::register(&self.ctx, self.id, self.response.layer_id, target.mark(&drop), true);
         drag::take_drop::<P>(&self.ctx, self.id, ordinal, op).then_some(drop)
     }
 
@@ -359,6 +372,10 @@ impl<C: Component> Pointer for Cx<'_, C> {
 
     fn drop_target<P: Send + Sync + 'static, T: DropTarget<P>>(&mut self, target: &T) -> Option<T::Drop> {
         self.core.drop_target(target)
+    }
+
+    fn window_drop_target<P: Send + Sync + 'static, T: DropTarget<P>>(&mut self, target: &T) -> Option<T::Drop> {
+        self.core.window_drop_target(target)
     }
 
     fn drag_ended<P: Send + Sync + 'static>(&self) -> Option<DropOperation> {

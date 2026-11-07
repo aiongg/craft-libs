@@ -47,10 +47,20 @@ pub struct ImeSeen {
     pub caret: Rect,
 }
 
-/// Runs one frame at `time` seconds with `events` and drops its texture changes.
-pub(crate) fn run_frame(ctx: &Context, time: f64, events: Vec<Event>, ui: impl FnMut(&mut Ui)) -> FrameResult {
+/// The files the OS hovers over or drops on a frame's window, by name.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct OsFiles {
+    pub hovered: Vec<String>,
+    pub dropped: Vec<String>,
+}
+
+/// Runs one frame at `time` seconds with `events` and `files`, and drops its texture changes.
+pub(crate) fn run_frame(ctx: &Context, time: f64, events: Vec<Event>, files: OsFiles, ui: impl FnMut(&mut Ui)) -> FrameResult {
     let screen = Rect::from_min_max(Pos2::ZERO, Pos2::new(800.0, 600.0));
-    let input = RawInput { screen_rect: Some(screen), time: Some(time), events, ..RawInput::default() };
+    let hovered_files = files.hovered.iter().map(|name| egui::HoveredFile { path: Some(name.into()), ..egui::HoveredFile::default() }).collect();
+    let dropped_files =
+        files.dropped.iter().map(|name| egui::DroppedFile { path: Some(name.into()), name: name.clone(), ..egui::DroppedFile::default() }).collect();
+    let input = RawInput { screen_rect: Some(screen), time: Some(time), events, hovered_files, dropped_files, ..RawInput::default() };
     let mut output = ctx.run_ui(input, ui);
     output.textures_delta.clear();
     let mut flat = Vec::new();

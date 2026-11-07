@@ -31,6 +31,8 @@ pub struct Frames {
     modifiers: egui::Modifiers,
     /// The modifiers the context was last told about.
     told: egui::Modifiers,
+    /// The OS files hovering over the window in every following frame.
+    files: fixture::OsFiles,
 }
 
 impl Default for Frames {
@@ -64,6 +66,7 @@ impl Frames {
             bounds: Vec::new(),
             modifiers: egui::Modifiers::NONE,
             told: egui::Modifiers::NONE,
+            files: fixture::OsFiles::default(),
         }
     }
 
@@ -132,6 +135,23 @@ impl Frames {
         self.modifiers = modifiers;
     }
 
+    /// Files named `names` are dragged over the window from the OS, in this frame and every following one until they
+    /// drop or leave.
+    pub fn hover_files(&mut self, names: &[&str]) {
+        self.files.hovered = names.iter().map(|name| (*name).to_owned()).collect();
+    }
+
+    /// The hovering files leave the window without a drop.
+    pub fn leave_files(&mut self) {
+        self.files.hovered.clear();
+    }
+
+    /// The hovering files drop on the window in the next frame; `names` are what the OS reports as dropped.
+    pub fn drop_files(&mut self, names: &[&str]) {
+        self.files.hovered.clear();
+        self.files.dropped = names.iter().map(|name| (*name).to_owned()).collect();
+    }
+
     /// Moves the clock on by `seconds` before the next frame.
     pub fn advance(&mut self, seconds: f64) {
         self.time += seconds;
@@ -150,7 +170,8 @@ impl Frames {
             self.told = self.modifiers;
             events.insert(0, fixture::modifiers_changed(self.modifiers));
         }
-        let result = fixture::run_frame(&self.ctx, self.time, events, ui);
+        let files = fixture::OsFiles { hovered: self.files.hovered.clone(), dropped: std::mem::take(&mut self.files.dropped) };
+        let result = fixture::run_frame(&self.ctx, self.time, events, files, ui);
         self.cursor = result.cursor;
         self.repaint_delay = result.repaint_delay;
         self.tree = result.tree;

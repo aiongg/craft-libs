@@ -2,7 +2,9 @@
 
 use crate::windows_kit::Windows;
 use craft_behavior::{DropOperation, PartKey, PressPhase};
-use craft_ui::contract::{Common, Component, Cx, DragPreview, DropMark, DropTarget, MeasureCx, PartsCx, Pointer as _, Props as _, Role, Show as _};
+use craft_ui::contract::{
+    Common, Component, Cx, DragPreview, DropMark, DropTarget, MeasureCx, OsFiles, PartsCx, Pointer as _, Props as _, Role, Show as _,
+};
 use craft_ui::runtime::drag;
 use craft_ui::runtime::env::Label;
 use craft_ui::style::{ComponentStyle, StyleCx};
@@ -315,4 +317,134 @@ fn a_drag_crosses_windows_and_the_target_in_the_other_window_takes_the_drop() {
     let seen = seen.borrow();
     assert_eq!(seen.dropped, vec![(7, DropOperation::Move)], "the other window's target took the drop once");
     assert_eq!(seen.ended, vec![DropOperation::Move], "the source saw the operation once");
+}
+
+const LIST: Rect = Rect { min: Pos2::new(20.0, 100.0), max: Pos2::new(220.0, 220.0) };
+const ROW: f32 = 30.0;
+const WINDOW: Rect = Rect { min: Pos2::ZERO, max: Pos2::new(800.0, 600.0) };
+
+/// Where files landed: the row of the list, or the window.
+#[derive(Default)]
+struct Landed {
+    rows: Vec<(usize, Vec<String>)>,
+    window: Vec<Vec<String>>,
+}
+
+fn names(files: &OsFiles) -> Vec<String> {
+    files.files.iter().map(|file| file.name.clone()).collect()
+}
+
+/// A drop of files on the row under the pointer.
+struct OnRow;
+
+impl DropTarget<OsFiles> for OnRow {
+    type Drop = (usize, Vec<String>);
+
+    fn accept(&self, files: &OsFiles, at: Pos2, _: DropOperation) -> Option<Self::Drop> {
+        LIST.contains(at).then(|| (((at.y - LIST.min.y) / ROW) as usize, names(files)))
+    }
+
+    fn mark(&self, (row, _): &Self::Drop) -> DropMark {
+        DropMark::Into(Rect::from_min_size(LIST.min + Vec2::new(0.0, *row as f32 * ROW), Vec2::new(LIST.width(), ROW)))
+    }
+}
+
+/// A drop of files anywhere in the window.
+struct OnWindow;
+
+impl DropTarget<OsFiles> for OnWindow {
+    type Drop = Vec<String>;
+
+    fn accept(&self, files: &OsFiles, _: Pos2, _: DropOperation) -> Option<Self::Drop> {
+        Some(names(files))
+    }
+
+    fn mark(&self, _: &Self::Drop) -> DropMark {
+        DropMark::Into(WINDOW)
+    }
+}
+
+/// A list of rows that takes files on a row, with the window as the target of every other drop.
+#[derive(Component)]
+struct FileList<'a> {
+    #[common]
+    common: Common,
+    landed: &'a RefCell<Landed>,
+}
+
+impl Component for FileList<'_> {
+    const ROLE: Role = Role::GROUP;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: FileListStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+        LIST.size()
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        if let Some(row) = cx.drop_target(&OnRow) {
+            self.landed.borrow_mut().rows.push(row);
+        }
+        if let Some(files) = cx.window_drop_target(&OnWindow) {
+            self.landed.borrow_mut().window.push(files);
+        }
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+/// Files held over `at` and dropped there.
+fn drop_files_at(at: Pos2, files: &[&str]) -> Landed {
+    let landed = RefCell::new(Landed::default());
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        FileList { common: Common::new(), landed: &landed }.id_salt("files").show_at(ui, LIST);
+    };
+    frames.idle(2, &mut show);
+    frames.hover_files(files);
+    frames.frame(vec![moved(at)], &mut show);
+    frames.frame(vec![moved(at)], &mut show);
+    frames.drop_files(files);
+    frames.frame(vec![moved(at)], &mut show);
+    frames.idle(1, &mut show);
+    landed.into_inner()
+}
+
+#[trial]
+fn a_file_drop_on_a_list_lands_at_the_pointer() {
+    let files = ["a.png", "b.png"];
+    let third_row = Pos2::new(60.0, LIST.min.y + 2.0 * ROW + 5.0);
+    let landed = drop_files_at(third_row, &files);
+    assert_eq!(landed.rows, vec![(2, files.map(String::from).to_vec())], "the files land on the row under the pointer");
+    assert!(landed.window.is_empty(), "the window target does not take what a target over a component took");
+}
+
+#[trial]
+fn a_file_drop_outside_every_component_lands_on_the_window_target() {
+    let landed = drop_files_at(Pos2::new(500.0, 400.0), &["a.png"]);
+    assert!(landed.rows.is_empty(), "the list takes no drop outside its rows");
+    assert_eq!(landed.window, vec![vec![String::from("a.png")]], "the window target takes it");
+}
+
+#[trial]
+fn files_that_leave_the_window_end_the_drag_without_a_drop() {
+    let landed = RefCell::new(Landed::default());
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        FileList { common: Common::new(), landed: &landed }.id_salt("files").show_at(ui, LIST);
+    };
+    frames.idle(2, &mut show);
+    frames.hover_files(&["a.png"]);
+    frames.frame(vec![moved(LIST.center())], &mut show);
+    assert!(drag::active::<OsFiles>(&frames.ctx).is_some(), "hovering files are the active payload");
+    frames.leave_files();
+    frames.frame(vec![moved(LIST.center())], &mut show);
+    assert!(drag::active::<OsFiles>(&frames.ctx).is_none(), "the drag ends when the files leave");
+    assert!(landed.borrow().rows.is_empty() && landed.borrow().window.is_empty(), "nothing landed");
 }
