@@ -431,6 +431,10 @@ pub(crate) fn begin(ctx: &Context) {
                     continue;
                 };
                 let (app, instance) = with(ctx, |board| board.target_of(ctx, &hit.command));
+                // A widget that only took the press as a move leaves it to the scoped commands around the focus.
+                if app && shortcut.moved {
+                    continue;
+                }
                 if !resolve_in(ctx, &hit.command, instance).enabled {
                     continue;
                 }

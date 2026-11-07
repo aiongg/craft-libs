@@ -52,6 +52,20 @@ pub(crate) struct Shortcut {
     typed: bool,
     /// The index of the press in `Batch::presses`.
     press: Option<usize>,
+    /// The focused widget only routed the press to itself as a move, which it may not use: a command scoped to a
+    /// container around the focus takes the press, an app command does not.
+    pub(crate) moved: bool,
+}
+
+/// What the intent routing did with one press.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Taken {
+    /// Nothing: the press is a shortcut candidate.
+    No,
+    /// The press became a move routed to the focused stop itself, which takes it only if it moves something.
+    Moved,
+    /// The press became an intent, a focus move or an activation.
+    Yes,
 }
 
 /// The key events the owner leaves to the app this pass, with the facts the matching needs.
@@ -191,7 +205,7 @@ impl Strip<'_> {
                 if input.physical.or(input.typed) == Some(Key::Enter) {
                     batch.enter_down = Some(false);
                 }
-                batch.shortcuts.push(Shortcut { input, phase: FirePhase::Release, typed: false, press: None });
+                batch.shortcuts.push(Shortcut { input, phase: FirePhase::Release, typed: false, press: None, moved: false });
                 true
             }
             KeyEvent::Text(text) => {
@@ -228,7 +242,7 @@ impl Strip<'_> {
                     .iter()
                     .any(|shortcut| shortcut.phase == FirePhase::Press && shortcut.input.mods == Mods::CMD && shortcut.input.typed == Some(key));
                 if !sent {
-                    batch.shortcuts.push(Shortcut { input, phase: FirePhase::Press, typed: false, press: None });
+                    batch.shortcuts.push(Shortcut { input, phase: FirePhase::Press, typed: false, press: None, moved: false });
                 }
                 // The event stands for the chord, so the shortcut path is its only reader: egui does not copy or paste
                 // on top of the command.
@@ -300,7 +314,13 @@ impl Strip<'_> {
         } else {
             batch.presses.push(Press { key, mods, repeat });
             if !repeat {
-                batch.shortcuts.push(Shortcut { input: *input, phase: FirePhase::Press, typed: false, press: Some(batch.presses.len() - 1) });
+                batch.shortcuts.push(Shortcut {
+                    input: *input,
+                    phase: FirePhase::Press,
+                    typed: false,
+                    press: Some(batch.presses.len() - 1),
+                    moved: false,
+                });
             }
             true
         }
@@ -408,12 +428,16 @@ pub(crate) fn begin(ctx: &Context, press_captured: bool) -> bool {
     });
     let mut routed: HashMap<Option<Id>, Routed> = HashMap::new();
     let mut activated = HashMap::new();
-    let mut consumed = vec![false; batch.presses.len()];
+    let mut consumed = vec![Taken::No; batch.presses.len()];
     let driven = target.as_ref().and_then(|rec| Driven::of(ctx, rec));
     let field_list = target.as_ref().filter(|_| driven.is_none()).and_then(|rec| list_of_field(ctx, rec));
     if let Some(rec) = &target {
         for (press, taken) in batch.presses.iter().zip(&mut consumed) {
-            *taken = stale_repeat(&mut stale, press) || route_press(ctx, os, rec, press, driven.or(field_list), &mut routed, &mut activated);
+            *taken = if stale_repeat(&mut stale, press) {
+                Taken::Yes
+            } else {
+                route_press(ctx, os, rec, press, driven.or(field_list), &mut routed, &mut activated)
+            };
         }
         for text in &batch.texts {
             let digits;
@@ -512,7 +536,7 @@ fn push(routed: &mut HashMap<Option<Id>, Routed>, target: Option<Id>, intent: In
 /// the component's. `Menu` and `Recorder` keep every key; a `Widget` or popup keeps the keys
 /// it activates with, the keys of its intents and the keys its filter keeps from the key stage; a text field
 /// keeps the text its presses typed.
-fn owned_shortcuts(ctx: &Context, target: Option<&StopRec>, batch: &Batch, consumed: &[bool]) -> Shortcuts {
+fn owned_shortcuts(ctx: &Context, target: Option<&StopRec>, batch: &Batch, consumed: &[Taken]) -> Shortcuts {
     let layer = overlay::key_layer(ctx, &target.map(|rec| focus::scope_chain(ctx, rec)).unwrap_or_default());
     let own = target.map(|rec| rec.stop.keys.owner);
     let mut present: Vec<OwnerClass> = own.into_iter().collect();
@@ -520,17 +544,21 @@ fn owned_shortcuts(ctx: &Context, target: Option<&StopRec>, batch: &Batch, consu
         present.push(class);
     }
     let owner = key_owner(layer == overlay::LayerKeys::Blocked, &present);
-    let held_by = |keys: Option<&focus::KeyUse>, at: usize| {
-        let Some(keys) = keys else { return false };
+    let kept = |keys: &focus::KeyUse, at: usize| {
         let key = batch.presses[at].key;
-        let kept = match keys.keep {
+        match keys.keep {
             focus::KeepKeys::Tab => key == Key::Tab,
             focus::KeepKeys::InlineArrows => matches!(key, Key::Left | Key::Right),
             focus::KeepKeys::BlockArrows => matches!(key, Key::Left | Key::Right | Key::Up | Key::Down),
             _ => false,
-        };
-        consumed[at] || kept
+        }
     };
+    let held_by = |keys: Option<&focus::KeyUse>, at: usize| {
+        let Some(keys) = keys else { return false };
+        consumed[at] == Taken::Yes || kept(keys, at)
+    };
+    // A move the widget did not declare it keeps (`KeyUse::keep`) stays a candidate for the scoped commands.
+    let only_moved = |keys: Option<&focus::KeyUse>, at: usize| consumed[at] == Taken::Moved && keys.is_some_and(|keys| !kept(keys, at));
     let silent = matches!(owner, KeyOwner::Class(OwnerClass::Menu | OwnerClass::Recorder));
     let dialog = owner == KeyOwner::Class(OwnerClass::Dialog);
     // The focused component keeps its own keys inside a dialog: a text field its typing, a widget its activation.
@@ -546,7 +574,7 @@ fn owned_shortcuts(ctx: &Context, target: Option<&StopRec>, batch: &Batch, consu
             .iter()
             .filter(|shortcut| !(typing && shortcut.typed))
             .filter(|shortcut| !(widget && shortcut.press.is_some_and(|at| held_by(owner_keys, at))))
-            .copied()
+            .map(|shortcut| Shortcut { moved: widget && shortcut.press.is_some_and(|at| only_moved(owner_keys, at)), ..*shortcut })
             .collect()
     };
     Shortcuts { keys, typing, dialog, layout: Layout::default() }
@@ -678,7 +706,7 @@ fn route_press(
     driven: Option<Driven>,
     routed: &mut HashMap<Option<Id>, Routed>,
     activated: &mut HashMap<Id, Id>,
-) -> bool {
+) -> Taken {
     let stop = &rec.stop;
     let id = Some(stop.id);
     let horizontal = matches!(press.key, Key::Left | Key::Right);
@@ -688,8 +716,9 @@ fn route_press(
         && let Some(intent) = driven.intent(press.key)
     {
         push(routed, Some(driven.list), intent, false);
-        return true;
+        return Taken::Yes;
     }
+    let mut taken = Taken::Yes;
     match keys::intent(os, press.key, press.mods, stop.role) {
         Some(Intent::Move(mv, mods)) => {
             // Up, Down, Page, Home and End leave a row's children: the collection takes the move.
@@ -698,6 +727,7 @@ fn route_press(
                 push(routed, Some(owner), Intent::Move(mv, mods), horizontal);
             } else if focus::roving_move(ctx, rec.stop.key(), mv, mods, horizontal).is_none() {
                 push(routed, id, Intent::Move(mv, mods), horizontal);
+                taken = Taken::Moved;
             }
         }
         Some(Intent::Activate) => route_activate(ctx, rec, routed, activated),
@@ -716,12 +746,12 @@ fn route_press(
         None if press.key == Key::Space && plain && stop.keys.activate.space() => route_activate(ctx, rec, routed, activated),
         None if press.key == Key::Tab && plain && stop.keys.keep == focus::KeepKeys::Tab => push(routed, id, Intent::Tab, false),
         None if stop.role.nudge => {
-            let Some(nudge) = nudge_of(press.key, press.mods) else { return false };
+            let Some(nudge) = nudge_of(press.key, press.mods) else { return Taken::No };
             routed.entry(id).or_default().nudge = Some(nudge);
         }
-        None => return false,
+        None => return Taken::No,
     }
-    true
+    taken
 }
 
 /// `Activate` of a group member goes to the group's root, which reads `activated_member`. A child or part of a
