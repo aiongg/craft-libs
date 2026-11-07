@@ -430,8 +430,9 @@ fn a_window_is_kept_where_its_bar_can_be_grabbed() {
     assert_eq!(kept_reachable(rect(-370.0, 100.0, 400.0, 300.0), &monitors, BAR), rect(0.0, 100.0, 400.0, 300.0));
     assert_eq!(kept_reachable(rect(500.0, 1075.0, 400.0, 300.0), &monitors, BAR), rect(500.0, 780.0, 400.0, 300.0));
     assert_eq!(kept_reachable(rect(9000.0, 100.0, 400.0, 300.0), &monitors, BAR), rect(4080.0, 100.0, 400.0, 300.0));
-    // No monitor list: only made safe.
-    assert_eq!(kept_reachable(rect(9000.0, f32::NAN, 400.0, 300.0), &[], BAR), rect(9000.0, 0.0, 400.0, 300.0));
+    // No monitor list: only made safe. A non-finite edge leaves that extent unknown, so it falls
+    // back.
+    assert_eq!(kept_reachable(rect(9000.0, f32::NAN, 400.0, 300.0), &[], BAR), rect(9000.0, 0.0, 400.0, 320.0));
 }
 
 #[test]
@@ -472,8 +473,10 @@ fn without_a_monitor_list_the_window_goes_on_the_main_window_monitor_by_size() {
     assert_eq!(restore_rect(saved, None, space(&[], main_at(2000.0, 100.0), size)), saved);
     assert_eq!(restore_rect(saved, None, space(&[], main_at(-1500.0, 100.0), size)), rect(-400.0, 300.0, 400.0, 500.0));
     // Nothing known: the saved rect, made safe.
-    let hostile = Rect::from_min_size(pos2(f32::NAN, 1e9), vec2(10.0, 400.0));
-    assert_eq!(restore_rect(hostile, None, space(&[], None, None)), rect(0.0, 100_000.0, 160.0, 400.0));
+    let far = Rect::from_min_size(pos2(50.0, 1e6), vec2(10.0, 400.0));
+    assert_eq!(restore_rect(far, None, space(&[], None, None)), rect(50.0, 100_000.0, 160.0, 400.0));
+    let hostile = Rect::from_min_size(pos2(f32::NAN, 1e6), vec2(10.0, 400.0));
+    assert_eq!(restore_rect(hostile, None, space(&[], None, None)), rect(0.0, 100_000.0, 420.0, 400.0));
 }
 
 #[test]
