@@ -189,7 +189,7 @@ fn the_default_action_of_a_notice_takes_the_focus_of_an_opening_layer() {
                 .action(NoticeAction::new("Next").default_action())
                 .id_salt("tour-notice")
                 .show(ui);
-            seen.set((Some(notice.response.id), notice.output.action.or(seen.get().1)));
+            seen.set((Some(notice.response.id), notice.action.or(seen.get().1)));
         });
     });
     fixture.settle();
