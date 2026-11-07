@@ -9,21 +9,21 @@ use craft_ui::testing::trial;
 /// The artboards of the document the ranges are checked against.
 const ARTBOARDS: usize = 5;
 
-fn range_error(text: &str) -> Result<(), RangeError> {
-    check_range(text, ARTBOARDS)
+fn refused(text: &str) -> Option<RangeError> {
+    check_range(text, ARTBOARDS).err()
 }
 
 /// A range is numbers and spans of numbers inside the document; open ends run to the first or last artboard.
 #[trial]
 fn a_range_names_artboards_of_the_document() {
-    assert_eq!(range_error("1-3, 5"), Ok(()));
-    assert_eq!(range_error("3-"), Ok(()));
-    assert_eq!(range_error("All"), Ok(()));
-    assert_eq!(range_error("6"), Err(RangeError::NotANumber { part: "6".to_owned() }));
-    assert_eq!(range_error("+2"), Err(RangeError::NotANumber { part: "+2".to_owned() }));
-    assert_eq!(range_error("4-2"), Err(RangeError::Backwards { part: "4-2".to_owned() }));
-    assert_eq!(range_error("-"), Err(RangeError::NoNumber { part: "-".to_owned() }));
-    assert_eq!(range_error(" , "), Err(RangeError::Empty));
+    for accepted in ["1-3, 5", "3-", "All"] {
+        assert_eq!(refused(accepted), None, "{accepted}");
+    }
+    assert!(matches!(refused("6"), Some(RangeError::NotANumber { part, .. }) if part == "6"));
+    assert!(matches!(refused("+2"), Some(RangeError::NotANumber { part, .. }) if part == "+2"));
+    assert!(matches!(refused("4-2"), Some(RangeError::Backwards { part, .. }) if part == "4-2"));
+    assert!(matches!(refused("-"), Some(RangeError::NoNumber { part, .. }) if part == "-"));
+    assert_eq!(refused(" , "), Some(RangeError::Empty));
 }
 
 /// The Summary lists every option that differs from the preset, in the words of its row, and nothing for equal
