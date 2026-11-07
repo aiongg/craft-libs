@@ -222,3 +222,16 @@ use crate::runtime::focus::KeyUse;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::{CanvasTransform, CanvasView, HitLevel, HitPriority, Metrics, PartKey, PointerButton, PressPhase, PressState, Sense, Wheel};
 use egui::{Pos2, Rect, Response, Vec2};
+
+// canvas-navigate-a
+mod momentary;
+mod navigate;
+mod rotate;
+mod tools;
+mod zoom_motion;
+
+pub use momentary::{Momentary, MomentaryCommand, MomentaryTool};
+pub use navigate::{Autoscroll, FlickPan, NavigationOptions, PageKey, TouchpadGlide, WheelAction, WheelInput, WheelNavigation, pan};
+pub use rotate::{CompassOutput, RotateView, RotateViewStyle, ViewTurn};
+pub use tools::{HandTool, RotateViewTool, ViewChange, ViewCommand, ZoomTool};
+pub use zoom_motion::{HoldZoom, ZoomAnimation, ZoomDrag};

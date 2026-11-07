@@ -3,6 +3,10 @@
 mod tool;
 mod readout;
 
+// canvas-navigate-a
+mod navigate;
+mod tools;
+
 use craft_ui::canvas::{Canvas, CropOverlay, ToolPath};
 use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, trial};

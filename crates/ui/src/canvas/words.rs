@@ -7,6 +7,8 @@ craft_ui::words! {
         crop_top_right: "canvas.cropTopRight" = "Crop corner, top right";
         crop_bottom_left: "canvas.cropBottomLeft" = "Crop corner, bottom left";
         crop_bottom_right: "canvas.cropBottomRight" = "Crop corner, bottom right";
+        // canvas-navigate-a
+        rotate_compass: "canvas.rotateCompass" = "Rotation compass";
     }
 }
 

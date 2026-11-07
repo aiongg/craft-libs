@@ -591,3 +591,235 @@ new = "paint(&content_painter, rect, &TextureState::Missing, &paint)"
 type = "Thumbnails"
 old = "retain(keep)"
 new = "retain(ctx, keep)"
+
+# canvas-navigate-a: navigation input, the view tools, momentary tools and zoom motion.
+
+[[type]]
+name = "NavigationOptions"
+old = "craft_ui::canvas::navigate::NavigationOptions"
+new = "craft_ui::canvas::NavigationOptions"
+status = "moved"
+note = "Plain data, `#[non_exhaustive]`: build it with `NavigationOptions::default()` and assign the fields. The fields and their defaults are unchanged."
+
+[[type]]
+name = "WheelNavigation"
+old = "craft_ui::canvas::navigate::WheelNavigation"
+new = "craft_ui::canvas::WheelNavigation"
+status = "moved"
+note = "A value that keeps the unfinished part of a ladder-step notch: `WheelNavigation::default()`, then `read(&mut self, &Wheel, &NavigationOptions)` or `classify(&mut self, WheelInput, &NavigationOptions)`. The input is the wheel share `CanvasOutput::wheel`; `read(ctx, response, prefs)`, `read_page`, `classify_page`, `settle`, `configure` and `fold_legacy_pinch` are gone (the wheel service owns the device reads and the modifier mapping). `apply(view, action, pointer, size, pixels_per_point)` no longer takes the options or clamps: with Overscroll off the caller clamps with `CanvasScrollbars::clamp`."
+
+[[type]]
+name = "WheelAction"
+old = "craft_ui::canvas::navigate::WheelAction"
+new = "craft_ui::canvas::WheelAction"
+status = "moved"
+note = "Same variants (`Zoom`, `SnapZoom`, `Pan`)."
+
+[[type]]
+name = "WheelInput"
+old = "craft_ui::canvas::navigate::WheelInput"
+new = "craft_ui::canvas::WheelInput"
+status = "moved"
+note = "Built with `WheelInput::of(&Wheel)`; fields `scroll`, `zoom`, `mods`, `notch`. The smoothed and raw scroll pair, `alt` and `shift` are gone: the modifiers are `mods`."
+
+[[type]]
+name = "PageKey"
+old = "craft_ui::canvas::navigate::PageKey"
+new = "craft_ui::canvas::PageKey"
+status = "moved"
+note = "`PageKey::of(NavMove, MoveMods, canvas: Vec2)` reads the move a focused canvas takes (`Intents::take_move`) instead of an egui key; `handle`, `handle_where` and `apply(view, size, overscroll)` become `apply(view, size)` (the caller clamps)."
+
+[[type]]
+name = "FlickPan"
+old = "craft_ui::canvas::navigate::FlickPan"
+new = "craft_ui::canvas::FlickPan"
+status = "moved"
+note = "A value the Hand tool or the app keeps: `drag(now, delta)`, `release(now, enabled)`, `advance(now) -> Option<Vec2>`, `gliding()`, `stop()`. It holds no egui memory; `frame`, `advance_view` and the `CanvasId` key are gone."
+
+[[type]]
+name = "TouchpadGlide"
+old = "craft_ui::canvas::navigate::TouchpadGlide"
+new = "craft_ui::canvas::TouchpadGlide"
+status = "moved"
+note = "`TouchpadGlide::new(enabled)` (the app decides the platform) and `read(&Wheel, now, glide)`; it reads the wheel share, not egui events. `default()` is gone."
+
+[[type]]
+name = "Autoscroll"
+old = "craft_ui::canvas::navigate::Autoscroll"
+new = "craft_ui::canvas::Autoscroll"
+status = "moved"
+note = "`edge_step` and `scroll` are unchanged; the app runs them from `ToolHostResponse::past_edge`."
+
+[[type]]
+name = "RotateView"
+old = "craft_ui::canvas::navigate::RotateView"
+new = "craft_ui::canvas::RotateView"
+status = "replaced"
+note = "`RotateView` is now the compass, a canvas control: `RotateView::new(label, Bind<f64>, flip_x)` shown with `show_at(ui, RotateView::compass_rect(ui, canvas))` while `RotateView::visible(rotation)`; it returns `CompassOutput`. The drag maths (`begin`, `drag`, `wrap_deg`, `snap_deg`, `screen_delta`) is `ViewTurn`. `trackpad_delta` is gone (the wheel share carries no twist)."
+
+[[type]]
+name = "ViewTurn"
+old = ""
+new = "craft_ui::canvas::ViewTurn"
+status = "replaced"
+note = "The Rotate View drag maths that was `RotateView::{begin, drag, wrap_deg, snap_deg, screen_delta}`."
+
+[[type]]
+name = "CompassResponse"
+old = "craft_ui::canvas::navigate::CompassResponse"
+new = ""
+status = "removed"
+note = "Replaced by `CompassOutput { rotation: EditResponse<f64>, reset: bool }`."
+
+[[type]]
+name = "CompassOutput"
+old = ""
+new = "craft_ui::canvas::CompassOutput"
+status = "replaced"
+note = "The compass' output: the angle's edits and whether a double click reset it."
+
+[[type]]
+name = "HandTool"
+old = "craft_ui::canvas::navigate::HandTool"
+new = "craft_ui::canvas::HandTool"
+status = "moved"
+note = "`HandTool::new(options)` (the document size is gone). The tool leaves the view it asks for in `take_change() -> Option<ViewChange>` for the app to copy; `glide(view, now)` and `stop_glide()` serve a flick released with the momentary Hand."
+
+[[type]]
+name = "ZoomTool"
+old = "craft_ui::canvas::navigate::ZoomTool"
+new = "craft_ui::canvas::ZoomTool"
+status = "moved"
+note = "`ZoomTool::new(size, options)`; `take_change()` as for the Hand tool. A click's change is eased (`ViewChange::eased`) under Animated Zoom."
+
+[[type]]
+name = "RotateViewTool"
+old = "craft_ui::canvas::navigate::RotateViewTool"
+new = "craft_ui::canvas::RotateViewTool"
+status = "moved"
+note = "`take_change()` as for the Hand tool."
+
+[[type]]
+name = "ViewChange"
+old = ""
+new = "craft_ui::canvas::ViewChange"
+status = "replaced"
+note = "What a view tool asks the app's view to become: `view`, `anchor` and `eased`. It replaces `ToolContext::set_view`."
+
+[[type]]
+name = "ViewCommand"
+old = ""
+new = "craft_ui::canvas::ViewCommand"
+status = "replaced"
+note = "The `canvas.view.*` commands (Zoom In, Zoom Out, Fit on Screen, Fill Screen, Rotate View clockwise and counterclockwise, Reset Rotation) with `apply(view, size, pixels_per_point)`."
+
+[[type]]
+name = "NavigationLabels"
+old = "craft_ui::canvas::navigate::NavigationLabels"
+new = ""
+status = "removed"
+note = "Words: `CanvasWords::rotate_compass` (`canvas.rotateCompass`). Go Back and Go Forward belong to the navigator."
+
+[[type]]
+name = "MomentaryKeys"
+old = "craft_ui::canvas::momentary::MomentaryKeys"
+new = ""
+status = "removed"
+note = "Replaced by the `MomentaryCommand` set (`Kind::Momentary`) and `Momentary`."
+
+[[type]]
+name = "MomentaryCommand"
+old = ""
+new = "craft_ui::canvas::MomentaryCommand"
+status = "replaced"
+note = "`canvas.momentary.hand`, `canvas.momentary.zoom_in` and `canvas.momentary.zoom_out`, bound to Space, Cmd+Space and Alt+Space."
+
+[[type]]
+name = "Momentary"
+old = ""
+new = "craft_ui::canvas::Momentary"
+status = "replaced"
+note = "The momentary tool in effect, kept by the app: `fired(MomentaryCommand, FirePhase)` and `tool(mods, in_gesture) -> Option<MomentaryTool>`."
+
+[[type]]
+name = "MomentaryTool"
+old = "craft_ui::canvas::momentary::MomentaryTool"
+new = "craft_ui::canvas::MomentaryTool"
+status = "moved"
+note = "Same variants; `command_id` is gone (the command is `MomentaryCommand`)."
+
+[[type]]
+name = "SpringTool"
+old = "craft_ui::canvas::momentary::SpringTool"
+new = ""
+status = "removed"
+note = "Not ported: no caller in craft-libs or the apps. A tool letter held for a moment would be a `Kind::Momentary` command of the app's own."
+
+[[type]]
+name = "ZoomAnimation"
+old = "craft_ui::canvas::zoom::ZoomAnimation"
+new = "craft_ui::canvas::ZoomAnimation"
+status = "moved"
+note = "A value the component that shows the view keeps. It holds no clock or egui memory: the owner drives `Animate::anim(\"zoom\", animation.target(), spec::MOVE)` and passes the progress to `shown`. `begin(&from, anchor, progress)`, `shown(&target, progress)`, `running()`, `stop()`."
+
+[[type]]
+name = "HoldZoom"
+old = "craft_ui::canvas::zoom::HoldZoom"
+new = "craft_ui::canvas::HoldZoom"
+status = "moved"
+note = "`advance` takes the document size and pixels per point as before; `waiting(time)` is new."
+
+[[type]]
+name = "ZoomDrag"
+old = "craft_ui::canvas::zoom::ZoomDrag"
+new = "craft_ui::canvas::ZoomDrag"
+status = "moved"
+note = "`paint` is gone (the Zoom tool paints the rectangle); `is_click(pointer)` is new."
+
+[[type]]
+name = "turn_cursor"
+old = "craft_ui::canvas::turn::turn_cursor"
+new = ""
+status = "removed"
+note = "`PaintedCursor::turn(toward)`."
+
+[[type]]
+name = "distort_cursor"
+old = "craft_ui::canvas::turn::distort_cursor"
+new = ""
+status = "removed"
+note = "`PaintedCursor::distort(dir)`."
+
+[[type]]
+name = "skew_cursor"
+old = "craft_ui::canvas::turn::skew_cursor"
+new = ""
+status = "removed"
+note = "`PaintedCursor::skew(dir)`."
+
+[[type]]
+name = "selection_cursor"
+old = "craft_ui::canvas::turn::selection_cursor"
+new = ""
+status = "removed"
+note = "`PaintedCursor::Badged` through `PaintedCursor::badged(base, badge)`."
+
+[[setter]]
+type = "WheelNavigation"
+old = "read(ctx, canvas, prefs)"
+new = "read(&mut self, &Wheel, &NavigationOptions)"
+
+[[setter]]
+type = "HandTool"
+old = "new(size, prefs)"
+new = "new(options)"
+
+[[setter]]
+type = "ZoomTool"
+old = "new(size, prefs)"
+new = "new(size, options)"
+
+[[setter]]
+type = "RotateView"
+old = "compass_with(ui, view, tokens, labels)"
+new = "new(label, Bind<f64>, flip_x)"
