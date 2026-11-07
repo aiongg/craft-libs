@@ -2,7 +2,7 @@
 //! and where AccessKit focus goes inside a collection.
 
 use super::emit::{SubDecl, report_sub};
-use super::{Name, Role, SubNode, sub_node_id};
+use super::{GridPlace, Name, Role, SubNode, sub_node_id};
 use crate::runtime::focus::StopKey;
 use craft_behavior::{PartKey, PartRef};
 use egui::{Context, Id, Rect};
@@ -16,6 +16,19 @@ pub(crate) struct HeaderCell<'a> {
     pub clickable: bool,
     /// The cell holds the collection's keyboard focus.
     pub active: bool,
+    /// The column is the sorted one: `true` when it sorts descending.
+    pub sort: Option<bool>,
+}
+
+/// Records the row and column counts of the collection `owner` for its node, which step 16 writes after the item
+/// step.
+pub(crate) fn put_grid(ctx: &Context, owner: Id, grid: GridPlace) {
+    ctx.data_mut(|data| data.insert_temp(owner.with("grid"), grid));
+}
+
+/// The counts `put_grid` recorded this pass.
+pub(crate) fn take_grid(ctx: &Context, owner: Id) -> GridPlace {
+    ctx.data_mut(|data| data.remove_temp::<GridPlace>(owner.with("grid"))).unwrap_or_default()
 }
 
 /// The `ColumnHeader` sub-nodes of the collection `owner`. Every cell is a focus stop of the header's roving group.
@@ -23,6 +36,7 @@ pub(crate) fn report_header(ctx: &Context, owner: Id, enabled: bool, cells: &[He
     for cell in cells {
         let mut node = SubNode::new(cell.part, Role::COLUMN_HEADER);
         node.name = Name::Text(cell.name.to_owned());
+        node.sort = cell.sort;
         report_sub(
             ctx,
             &SubDecl {

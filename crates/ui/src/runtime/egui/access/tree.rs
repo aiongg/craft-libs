@@ -1,7 +1,7 @@
 //! A finished AccessKit tree update, read by trials without naming AccessKit.
 
 use super::{NodeRole, node_key};
-use crate::runtime::access::{Numeric, Politeness, PopupKind, Role};
+use crate::runtime::access::{GridPlace, Numeric, Politeness, PopupKind, Role};
 use accesskit::{Action, Node, NodeId, TreeUpdate};
 use egui::Id;
 
@@ -144,6 +144,25 @@ impl AccessTree {
     pub fn position(&self, id: Id) -> Option<(usize, usize)> {
         let node = self.node(id)?;
         Some((node.position_in_set()?, node.size_of_set()?))
+    }
+
+    /// The row and column indexes and counts of a node by key.
+    pub fn grid_of(&self, key: NodeKey) -> GridPlace {
+        self.lookup(NodeId(key.0)).map_or_else(GridPlace::default, |node| {
+            let data = node.data();
+            GridPlace {
+                row_index: data.row_index(),
+                row_count: data.row_count(),
+                column_index: data.column_index(),
+                column_count: data.column_count(),
+            }
+        })
+    }
+
+    /// The sort order a column header node by key shows: `true` descending.
+    pub fn sort_of(&self, key: NodeKey) -> Option<bool> {
+        let order = self.lookup(NodeId(key.0))?.sort_direction()?;
+        Some(order == accesskit::SortDirection::Descending)
     }
 
     /// The expanded state of the node of `id`.

@@ -66,6 +66,9 @@ pub(crate) struct NodeSpec {
     /// The index in the set and the size of the set.
     pub position: Option<(usize, Option<usize>)>,
     pub level: Option<usize>,
+    pub grid: crate::runtime::access::GridPlace,
+    /// The header cell's sort order: `true` descending.
+    pub sort: Option<bool>,
     pub labelled_by: Vec<Id>,
     pub described_by: Vec<Id>,
     pub controls: Vec<Id>,
@@ -106,6 +109,8 @@ impl NodeSpec {
             has_popup: None,
             position: None,
             level: None,
+            grid: crate::runtime::access::GridPlace::default(),
+            sort: None,
             labelled_by: Vec::new(),
             described_by: Vec::new(),
             controls: Vec::new(),
@@ -187,6 +192,22 @@ fn write_identity(node: &mut accesskit::Node, spec: &NodeSpec) {
     }
     if let Some(level) = spec.level {
         node.set_level(level);
+    }
+    let grid = &spec.grid;
+    if let Some(index) = grid.row_index {
+        node.set_row_index(index);
+    }
+    if let Some(count) = grid.row_count {
+        node.set_row_count(count);
+    }
+    if let Some(index) = grid.column_index {
+        node.set_column_index(index);
+    }
+    if let Some(count) = grid.column_count {
+        node.set_column_count(count);
+    }
+    if let Some(descending) = spec.sort {
+        node.set_sort_direction(if descending { accesskit::SortDirection::Descending } else { accesskit::SortDirection::Ascending });
     }
 }
 

@@ -51,14 +51,6 @@ pub struct SelectStyle {
     chevron: IconLook,
 }
 
-/// The option last highlighted in the open listbox and how often the listbox has opened, remembered while the
-/// select shows. Each opening gives the list a new id, so its lead starts on the picked option.
-#[derive(Clone, Copy, Default)]
-struct Highlight {
-    at: Option<usize>,
-    opened: u32,
-}
-
 /// A field that shows the picked option and opens a listbox of all of them.
 #[derive(crate::contract::Component)]
 #[component(overlay, probe(Select<'static, u8>))]
@@ -104,12 +96,7 @@ impl<T: Value + 'static> Component for Select<'_, T> {
     /// and End step through the options.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let list = cx.popup("list");
-        let was_open = list.is_open(cx);
         list.trigger(Trigger::Click, cx);
-        if list.is_open(cx) && !was_open {
-            let held = cx.memory::<Highlight>();
-            *held = Highlight { at: None, opened: held.opened + 1 };
-        }
         if list.is_open(cx) || self.options.is_empty() {
             return;
         }
@@ -145,14 +132,13 @@ impl<T: Value + 'static> Component for Select<'_, T> {
         access.numeric(numeric.step(1.0));
     }
 
-    /// The listbox: one row per option, the highlighted row selected. A pick comes back from the list as `Activate`
+    /// The listbox: one row per option, the picked option's row selected. A pick comes back from the list as `Activate`
     /// (Enter) or a click on a row, and goes to the binding as one change.
     fn overlay(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>) {
         let popup = cx.popup("list");
         let labels: Vec<Label> = self.options.iter().map(|option| cx.env.resolve(&option.label)).collect();
-        let Highlight { at, opened } = cx.recall::<Highlight>();
         let name = cx.label();
-        let held = at.or_else(|| self.position(cx.value()));
+        let held = self.position(cx.value());
         let overlay = Overlay::dropdown().focus(FocusPolicy::POPUP.initial(Initial::First));
         let events = ui.show(popup, overlay, |ui, _| {
             let selection = held.map_or_else(Selection::default, |at| Selection::new(vec![at], Some(at), Some(at)));
@@ -160,19 +146,14 @@ impl<T: Value + 'static> Component for Select<'_, T> {
             OptionList::new(Bind::given(selection))
                 .lead_on_open(LeadOnOpen::First)
                 .lead_follows_hover(true)
-                .id_salt(opened)
                 .label(name.clone())
                 .show_items(ui, &choices, &mut |key, _| OptionRow::new(labels[*key].as_str()))
                 .events
         });
-        let mut picked = None;
-        for event in events.into_iter().flatten() {
-            match event {
-                CollectionEvent::LeadMoved(at) => cx.memory::<Highlight>().at = Some(at),
-                CollectionEvent::Activate(at) => picked = Some(at),
-                _ => {}
-            }
-        }
+        let picked = events.into_iter().flatten().find_map(|event| match event {
+            CollectionEvent::Activate(at) => Some(at),
+            _ => None,
+        });
         if let Some(at) = picked {
             cx.set(self.options[at].value.clone());
             popup.close(cx);

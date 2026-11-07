@@ -1,6 +1,6 @@
 //! Step 16's fill of the nodes step 8 created, and of the sub-nodes below them (12.2).
 
-use super::{Access, Name, Numeric, PopupKind, Role, SetPosition, SubNode, scope};
+use super::{Access, GridPlace, Name, Numeric, PopupKind, Role, SetPosition, SubNode, scope};
 use crate::runtime::egui::access::{self as adapter, NodeAction, NodeRole, NodeSpec, Toggle, write_node};
 use crate::runtime::env::Label;
 use crate::runtime::inspect::{self, Finding};
@@ -131,6 +131,9 @@ fn write_states(spec: &mut NodeSpec, flags: Flags, enabled: bool, read_only: boo
 fn write_position(spec: &mut NodeSpec, position: Option<SetPosition>, level: Option<usize>) {
     spec.position = position.map(|position| (position.index, position.size));
     spec.level = level.or_else(|| position.and_then(|position| position.level));
+    if let Some(position) = position.filter(|_| spec.role == accesskit::Role::Row) {
+        spec.grid = GridPlace { row_index: Some(position.index), row_count: position.size, column_index: None, column_count: position.columns };
+    }
 }
 
 /// The actions the interaction and the numeric facts declare.
@@ -213,6 +216,12 @@ pub(crate) fn report(ctx: &Context, own: &Own<'_>) {
     spec.flow_to = relations.flow_to.clone();
     spec.live = access.live;
     write_position(&mut spec, access.position, access.level);
+    spec.grid = GridPlace {
+        row_index: spec.grid.row_index.or(access.grid.row_index),
+        row_count: spec.grid.row_count.or(access.grid.row_count),
+        column_index: spec.grid.column_index.or(access.grid.column_index),
+        column_count: spec.grid.column_count.or(access.grid.column_count),
+    };
     write_states(&mut spec, own.flags, own.enabled, own.read_only);
     spec.busy |= access.busy;
     if let Some(expanded) = expanded {
@@ -229,6 +238,7 @@ pub(crate) fn report(ctx: &Context, own: &Own<'_>) {
             .named(name.text.is_some() || !relations.labelled_by.is_empty() || name.hidden)
             .range(numeric.map(|numeric| &numeric.range))
             .positioned(access.position.is_some())
+            .grid(spec.grid.facts())
             .leveled(access.level.is_some())
             .expanded(expanded)
             .controls(!relations.controls.is_empty()),
@@ -262,6 +272,8 @@ pub(crate) fn report_sub(ctx: &Context, decl: &SubDecl<'_>) {
         spec.actions.push(if expanded { NodeAction::Collapse } else { NodeAction::Expand });
     }
     write_position(&mut spec, node.position, None);
+    spec.grid = node.grid;
+    spec.sort = node.sort;
     write_states(&mut spec, flags, decl.enabled, false);
     declare_actions(&mut spec, decl.focusable, decl.clickable, numeric);
     custom_actions(&mut spec, &node.custom_actions);
@@ -274,6 +286,7 @@ pub(crate) fn report_sub(ctx: &Context, decl: &SubDecl<'_>) {
             .named(name.text.is_some() || !name.labelled_by.is_empty())
             .range(numeric.map(|numeric| &numeric.range))
             .positioned(node.position.is_some())
+            .grid(spec.grid.facts())
             .expanded(expanded),
     );
     keys::register_node(ctx, id, decl.owner, Some(node.part), decl.focusable);

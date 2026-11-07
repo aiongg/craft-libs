@@ -132,12 +132,21 @@ pub struct SetPosition {
     pub size: Option<usize>,
     /// The depth in a tree.
     pub level: Option<usize>,
+    /// The number of columns, when the item is a row of a grid.
+    pub columns: Option<usize>,
 }
 
 impl SetPosition {
     /// Position `index`.
     pub const fn new(index: usize) -> Self {
-        SetPosition { index, size: None, level: None }
+        SetPosition { index, size: None, level: None, columns: None }
+    }
+
+    /// In a grid of `columns` columns.
+    #[must_use]
+    pub const fn columns(mut self, columns: usize) -> Self {
+        self.columns = Some(columns);
+        self
     }
 
     /// In a set of `size`.
@@ -152,6 +161,41 @@ impl SetPosition {
     pub const fn level(mut self, level: usize) -> Self {
         self.level = Some(level);
         self
+    }
+}
+
+/// The indexes and counts of a grid, table, row or cell node (12.3).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct GridPlace {
+    /// The zero-based row.
+    pub row_index: Option<usize>,
+    /// The number of rows.
+    pub row_count: Option<usize>,
+    /// The zero-based column.
+    pub column_index: Option<usize>,
+    /// The number of columns.
+    pub column_count: Option<usize>,
+}
+
+impl GridPlace {
+    /// A grid of `rows` rows and `columns` columns.
+    pub const fn grid(rows: usize, columns: usize) -> Self {
+        GridPlace { row_index: None, row_count: Some(rows), column_index: None, column_count: Some(columns) }
+    }
+
+    /// The cell at `row` and `column`.
+    pub const fn cell(row: usize, column: usize) -> Self {
+        GridPlace { row_index: Some(row), row_count: None, column_index: Some(column), column_count: None }
+    }
+
+    /// The facts a rule reads.
+    pub(crate) const fn facts(&self) -> craft_behavior::GridFacts {
+        craft_behavior::GridFacts::new()
+            .row_index(self.row_index.is_some())
+            .row_count(self.row_count.is_some())
+            .column_index(self.column_index.is_some())
+            .column_count(self.column_count.is_some())
     }
 }
 
@@ -204,6 +248,7 @@ pub struct Access {
     pub(crate) has_popup: Option<PopupKind>,
     pub(crate) level: Option<usize>,
     pub(crate) position: Option<SetPosition>,
+    pub(crate) grid: GridPlace,
     pub(crate) required: bool,
     pub(crate) url: Option<String>,
     pub(crate) shortcut: Option<String>,
@@ -267,6 +312,12 @@ impl Access {
     /// The heading level or tree depth.
     pub fn level(&mut self, level: usize) -> &mut Self {
         self.level = Some(level);
+        self
+    }
+
+    /// The row and column counts of a grid or table node. A collection's item step fills them for its own node.
+    pub fn grid(&mut self, grid: GridPlace) -> &mut Self {
+        self.grid = grid;
         self
     }
 
@@ -364,6 +415,9 @@ pub struct SubNode {
     pub numeric: Option<Numeric>,
     /// The place in a closed set.
     pub position: Option<SetPosition>,
+    /// The indexes of a cell.
+    pub grid: GridPlace,
+    pub(crate) sort: Option<bool>,
     pub(crate) part: PartRef,
     pub(crate) role: Role,
     pub(crate) under: Option<PartRef>,
@@ -378,6 +432,8 @@ impl SubNode {
             description: None,
             numeric: None,
             position: None,
+            grid: GridPlace::default(),
+            sort: None,
             part,
             role,
             under: None,

@@ -222,7 +222,6 @@ pub(crate) fn pop_scope(ctx: &Context) {
 }
 
 /// Registers that a menu bar can take the menu-bar keys of the next input hook (spec 9.7).
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 pub(crate) fn register_menu_bar(ctx: &Context) {
     with(ctx, |state| state.menu_bar = true);
 }

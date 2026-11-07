@@ -23,6 +23,7 @@ pub struct Common {
     pub(crate) command: Option<CommandRef>,
     /// Step 16 reads it into `Access` for the label-scope patch (`described_by` instead of `labelled_by`).
     pub(crate) keeps_name: bool,
+    pub(crate) access_key: Option<char>,
     pub(crate) doc_key: Option<DocKey>,
 }
 
@@ -41,6 +42,7 @@ impl Common {
             selected: None,
             command: None,
             keeps_name: false,
+            access_key: None,
             doc_key: None,
         }
     }
@@ -120,6 +122,13 @@ pub trait Props: Meta + Sized {
         self
     }
 
+    /// The letter that activates the component from the keyboard, reported as its AccessKit `access_key`. The
+    /// component that owns the key handling reads the letter; the node only reports it.
+    fn access_key(mut self, key: char) -> Self {
+        self.common_mut(Internal::new()).access_key = Some(key);
+        self
+    }
+
     /// The semantic key of the component.
     fn doc_key(mut self, key: DocKey) -> Self {
         self.common_mut(Internal::new()).doc_key = Some(key);
@@ -151,6 +160,8 @@ pub struct Resolved<'p> {
     pub selected: Option<bool>,
     /// Read by the label-scope patch: the name stays and the field label describes.
     pub(crate) keeps_name: bool,
+    /// `Common.access_key`.
+    pub(crate) access_key: Option<char>,
     /// `Common.description`.
     pub(crate) description: Option<&'p str>,
     /// `Common.tooltip`.

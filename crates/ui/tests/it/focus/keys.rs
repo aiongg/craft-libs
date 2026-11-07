@@ -1,11 +1,14 @@
 //! The key stage: what egui never sees, what components receive, claims and menu-bar keys.
 
 use super::{control, event_is_key, focus, focused, id, stop_with, tap};
+use crate::contract::kit::PlainStyle;
 use craft_behavior::{AccessRequest, EditCommand, Input, Intent, KeyRole, NavMove, PartKey};
 use craft_keymap::{Chord, Mods};
+use craft_ui::contract::{Common, Component, Cx, Focus as _, MeasureCx, MenuKey, Props as _, Role, Show as _};
 use craft_ui::runtime::focus::{EditSet, KeyUse};
+use craft_ui::style::StyleCx;
 use craft_ui::testing::focus::Stop;
-use craft_ui::testing::focus::{MenuKey, claim, intents_of, register_menu_bar, register_stop, take_claimed, take_menu_keys, widget};
+use craft_ui::testing::focus::{claim, intents_of, register_stop, take_claimed, widget};
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::{Frames, trial};
 use egui::{Event, Key, Modifiers};
@@ -201,6 +204,49 @@ fn accesskit_requests_reach_the_owner_of_their_node() {
     assert_eq!(access.as_ref().map(|r: &AccessRequest| (Action::Expand.is(r), r.target)), Some((true, Some(other.into()))));
 }
 
+/// A component that registers as a menu bar and reads the menu keys through its context.
+#[derive(craft_ui::contract::Component)]
+struct MenuBarProbe<'a> {
+    #[common]
+    common: Common,
+    registers: bool,
+    reads: bool,
+    keys: &'a RefCell<Vec<MenuKey>>,
+}
+
+impl<'a> MenuBarProbe<'a> {
+    fn new(keys: &'a RefCell<Vec<MenuKey>>, registers: bool, reads: bool) -> Self {
+        MenuBarProbe { common: Common::new(), registers, reads, keys }.label("Menu bar")
+    }
+}
+
+impl Component for MenuBarProbe<'_> {
+    const ROLE: Role = Role::MENU_BAR;
+    type Style = PlainStyle;
+    type Output = egui::Response;
+
+    fn style(_: &StyleCx<'_>, _: MenuBarProbeStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> egui::Vec2 {
+        egui::Vec2::new(40.0, 20.0)
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        if self.registers {
+            cx.register_menu_bar();
+        }
+        if self.reads {
+            self.keys.borrow_mut().extend(cx.take_menu_keys());
+        }
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> egui::Response {
+        cx.response.clone()
+    }
+}
+
 /// 9.7: F10, a lone Alt press and Alt with a letter are the menu bar's, only while a menu bar is registered.
 #[trial]
 fn menu_bar_keys_reach_a_registered_menu_bar_only() {
@@ -209,10 +255,7 @@ fn menu_bar_keys_reach_a_registered_menu_bar_only() {
     let bar = Cell::new(true);
     let mut show = |ui: &mut egui::Ui| {
         control(ui, "a");
-        if bar.get() {
-            register_menu_bar(ui.ctx());
-        }
-        keys.borrow_mut().extend(take_menu_keys(ui.ctx()));
+        MenuBarProbe::new(&keys, bar.get(), true).show(ui);
     };
     let alt = Modifiers { alt: true, ..Modifiers::NONE };
     frames.idle(3, &mut show);
@@ -333,10 +376,7 @@ fn unread_menu_keys_do_not_pile_up_across_passes() {
     let keys = RefCell::new(Vec::new());
     let mut show = |ui: &mut egui::Ui| {
         control(ui, "a");
-        register_menu_bar(ui.ctx());
-        if read.get() {
-            keys.borrow_mut().extend(take_menu_keys(ui.ctx()));
-        }
+        MenuBarProbe::new(&keys, true, read.get()).show(ui);
     };
     frames.idle(3, &mut show);
     frames.frame(vec![craft_ui::testing::input::key_press(Key::F10, Modifiers::NONE)], &mut show);

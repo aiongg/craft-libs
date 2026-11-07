@@ -145,6 +145,7 @@ pub mod import;
 pub mod keymap;
 pub mod layout;
 mod matcher;
+pub mod mnemonic;
 mod parity;
 #[cfg(test)]
 mod parity_tests;

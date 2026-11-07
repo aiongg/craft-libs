@@ -24,14 +24,15 @@ pub mod tooltip;
 mod values;
 
 pub use crate::layout::{BodyLayout, RowAlign};
-pub use crate::runtime::access::{Access, FieldLabel, Name, Numeric, Politeness, PopupKind, Role, SetPosition, SubNode, announce};
+pub use crate::runtime::access::{Access, FieldLabel, GridPlace, Name, Numeric, Politeness, PopupKind, Role, SetPosition, SubNode, announce};
 pub use crate::runtime::commands::{CommandSet, Commands};
+pub use crate::runtime::keys::MenuKey;
 pub use crate::runtime::memory::{Remember, Savable, SaveKey, Slot};
 pub use crate::runtime::motion::{Animate, Interpolate, MotionSpec, Presence, Tween, spec};
 pub use crate::runtime::pending::{Job, Pending, Progress};
 pub use collection::{
-    ActivateOn, CollectionEvent, CollectionProps, CollectionResponse, ColumnEvent, ColumnKind, ColumnSpec, ContextMenuRequest, HeaderMenuRequest,
-    LeadOnOpen, ListDrag, OpenChange, Rename, ReorderMove, ReorderRule, RowState, SelectMode, ToggleColumn, ToggleEdit,
+    ActivateOn, CollectionEvent, CollectionProps, CollectionResponse, ColumnEvent, ColumnKind, ColumnSort, ColumnSpec, ContextMenuRequest,
+    HeaderMenuRequest, LeadOnOpen, ListDrag, OpenChange, Rename, ReorderMove, ReorderRule, RowState, SelectMode, ToggleColumn, ToggleEdit,
 };
 pub use container::{
     Collapse, ContainerProps, DragBand, FooterRegion, Gap, HeaderRegion, Mount, Notch, Pad, PaneEdge, Scroll, ScrollAnchor, ScrollAxes, ShellPane,
