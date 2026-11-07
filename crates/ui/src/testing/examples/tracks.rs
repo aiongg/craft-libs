@@ -13,7 +13,6 @@ use crate::contract::{
     Access, Collection, CollectionProps, CollectionResponse, ColumnKind, ColumnSpec, Common, Component, ContainerProps, Cx, Focus as _, ItemOutput,
     MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role, SelectMode, Styled as _, ToggleColumn,
 };
-use crate::pickers::row_look;
 use crate::primitives::{PaintShape, TextRun};
 use crate::style::{ComponentStyle, Flags, Ink, Stateful, States, StyleColor, StyleCx, SurfaceLook, TextLook, TypeRole};
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, Flow, Insets, ItemSource, Metrics, PartKey, PressPhase, Selection, Sense, SpanLayout};
@@ -267,7 +266,7 @@ impl Component for TrackRow<'_> {
         let on_selected = cx.color(cx.tokens.color.text.on_selected);
         let on = || States::new(on_selected, on_selected, on_selected, on_selected);
         TrackRowStyle {
-            surface: row_look(cx),
+            surface: SurfaceLook::new(crate::list::row_surface(cx)),
             metrics: Metrics::new(),
             ink: TextLook::new(TypeRole::Label, Stateful::new(cx.ink(Ink::OnPanel)).on(on())),
             dim: TextLook::new(TypeRole::Label, Stateful::new(cx.color(cx.tokens.color.text.faint)).on(on())),

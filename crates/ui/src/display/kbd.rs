@@ -144,7 +144,7 @@ impl Component for Kbd {
         let (keycap, metrics, ink) = if key.single {
             let raised = cx.surface(SurfaceKind::Raised);
             let look = SurfaceLook::new(Stateful::new(StyleColor(raised.fill))).kind(SurfaceKind::Raised).radius(raised.radius);
-            (Some(look), Metrics::new().padding(key_pad), muted)
+            (Some(look), Metrics::new().padding(key_pad), Stateful::new(cx.color(tokens.color.text.normal)))
         } else {
             (None, Metrics::new(), cx.host_ink(muted))
         };

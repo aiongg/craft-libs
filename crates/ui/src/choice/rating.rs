@@ -135,9 +135,8 @@ impl Component for Rating<'_> {
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let current = self.current(cx.value());
-        let by_key = cx.activation().filter(|activation| activation.by_key).and(cx.active_part());
         for at in 0..self.max {
-            if cx.part(Self::star(at)).press.phase.is_click() || by_key == Some(Self::star(at)) {
+            if cx.part_activated(Self::star(at)).is_some() {
                 cx.set(if at + 1 == current { 0 } else { at + 1 });
             }
         }
