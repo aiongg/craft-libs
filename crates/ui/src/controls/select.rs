@@ -9,12 +9,12 @@ use super::words::ControlWords;
 use crate::contract::{
     ActivateOn, Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Edit as _,
     EditResponse, Focus as _, LeadOnOpen, MeasureCx, Overlay, OverlayUi, Overlays as _, PaintUi, Props as _, Remember as _, Role, SelectMode,
-    ShowCollection as _, Sizing, Trigger, WordSetCx as _,
+    ShowCollection as _, Sizing, Styled as _, Trigger, WordSetCx as _,
 };
 use crate::primitives::{PaintShape, StrokeWidth, TextRun};
 use crate::runtime::env::Label;
 use crate::runtime::focus::{FocusPolicy, Initial};
-use crate::style::{ComponentStyle, Ink, StyleColor, StyleCx, SurfaceLook};
+use crate::style::{ComponentStyle, IconLook, Ink, StyleCx, SurfaceLook, TextLook, TypeRole};
 use craft_behavior::{DisplayOrder, Flow, ItemSource, Metrics, NavMove, Selection, SpanLayout, Value};
 use craft_theme::{Rgba, Stateful, States};
 use egui::{Response, Vec2};
@@ -46,8 +46,9 @@ pub struct SelectStyle {
     surface: SurfaceLook,
     #[style(metrics)]
     metrics: Metrics,
-    ink: StyleColor,
-    icon: f32,
+    /// The chevron.
+    #[style(icon)]
+    chevron: IconLook,
 }
 
 /// The option last highlighted in the open listbox and how often the listbox has opened, remembered while the
@@ -86,7 +87,7 @@ impl<T: Value + 'static> Component for Select<'_, T> {
 
     fn style(cx: &StyleCx<'_>, _: SelectStyleKey<T>) -> SelectStyle {
         let control = cx.control();
-        SelectStyle { surface: cx.field(), metrics: control.metrics(), ink: cx.ink(Ink::OnPanel), icon: control.icon }
+        SelectStyle { surface: cx.field(), metrics: control.metrics(), chevron: IconLook::new(control.icon, Stateful::new(cx.ink(Ink::OnPanel))) }
     }
 
     /// The widest option, so the field keeps its size whichever option is picked.
@@ -164,7 +165,7 @@ impl<T: Value + 'static> Component for Select<'_, T> {
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let rtl = cx.env.direction().is_rtl();
-        let (chevron, rest) = Flow::new(cx.content_rect, rtl).take_end(cx.style.icon);
+        let (chevron, rest) = Flow::new(cx.content_rect, rtl).take_end(cx.style.chevron.side);
         let (_, text) = rest.take_end(cx.style.metrics.gap);
         let label = match self.position(cx.value()) {
             Some(at) => cx.env.resolve(&self.options[at].label),
@@ -173,7 +174,11 @@ impl<T: Value + 'static> Component for Select<'_, T> {
         };
         let draw = ui.draw();
         draw.text(text.rect(), &TextRun::new(label.as_str()).elide());
-        draw.stroke(&PaintShape::Path(DisclosureGlyph::new(1.0, cx.env.direction()).path(chevron)), StrokeWidth::Medium, cx.style.ink);
+        draw.stroke(
+            &PaintShape::Path(DisclosureGlyph::new(1.0, cx.env.direction()).path(chevron)),
+            StrokeWidth::Medium,
+            cx.resolve(&cx.style.chevron.color),
+        );
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> EditResponse<T> {
@@ -304,7 +309,9 @@ pub struct OptionRowStyle {
     surface: SurfaceLook,
     #[style(metrics)]
     metrics: Metrics,
-    ink: StyleColor,
+    /// The option's label.
+    #[style(text)]
+    text: TextLook,
 }
 
 // F8-MERGE: F8a. The list family owns the row look with `ListRow`.
@@ -345,7 +352,11 @@ impl Component for OptionRow<'_> {
     type Output = Response;
 
     fn style(cx: &StyleCx<'_>, _: OptionRowStyleKey) -> OptionRowStyle {
-        OptionRowStyle { surface: row_look(cx), metrics: cx.control().metrics(), ink: cx.ink(Ink::OnPanel) }
+        OptionRowStyle {
+            surface: row_look(cx),
+            metrics: cx.control().metrics(),
+            text: TextLook::new(TypeRole::Label, Stateful::new(cx.ink(Ink::OnPanel))),
+        }
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
@@ -353,7 +364,7 @@ impl Component for OptionRow<'_> {
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        ui.draw().text(cx.content_rect, &TextRun::new(self.label).elide().color(cx.style.ink));
+        ui.draw().text(cx.content_rect, &TextRun::new(self.label).elide().color(cx.resolve(&cx.style.text.color)));
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {

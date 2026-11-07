@@ -4,7 +4,7 @@ use super::face::{self, FaceLook, FaceSpec};
 use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Pointer as _, Props, Role};
 use crate::runtime::commands::CommandRef;
 use crate::runtime::env::Label;
-use crate::style::{ComponentStyle, FocusLook, StyleCx, SurfaceLook};
+use crate::style::{ComponentStyle, FocusLook, IconLook, StyleCx, SurfaceLook, TextLook};
 use craft_behavior::{IconId, Metrics, Sense};
 use craft_theme::{
     Variant,
@@ -23,16 +23,25 @@ pub struct ButtonStyle {
     metrics: Metrics,
     #[style(focus)]
     focus: FocusLook,
+    /// The label.
+    #[style(text)]
+    text: TextLook,
+    /// The leading and trailing icons.
+    #[style(icon)]
+    icon: IconLook,
     face: FaceLook,
 }
 
 impl ButtonStyle {
     /// The style of a push button in `cx`; the split button shares it.
     pub(super) fn of(cx: &StyleCx<'_>) -> ButtonStyle {
+        let (text, icon) = face::ink(cx);
         ButtonStyle {
             surface: face::surface(cx, &cx.variant_look()),
             metrics: cx.control().metrics(),
             focus: face::focus(cx),
+            text,
+            icon,
             face: FaceLook::of(cx),
         }
     }
@@ -103,7 +112,7 @@ impl Component for Button {
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        face::paint(ui, cx, &cx.style.face, &self.spec(cx.resolved.label), cx.content_rect);
+        face::paint(ui, cx, (&cx.style.text, &cx.style.icon), &cx.style.face, &self.spec(cx.resolved.label), cx.content_rect);
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {

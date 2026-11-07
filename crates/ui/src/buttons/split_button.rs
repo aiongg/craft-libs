@@ -8,7 +8,7 @@ use crate::contract::{
 use crate::controls::select::{OptionList, OptionRow};
 use crate::primitives::{IconSpec, PaintShape, StrokeWidth};
 use crate::runtime::env::Label;
-use crate::style::{ComponentStyle, Corners, FocusLook, Stateful, StyleColor, StyleCx, SurfaceLook};
+use crate::style::{ComponentStyle, Corners, FocusLook, IconLook, Stateful, StyleColor, StyleCx, SurfaceLook, TextLook};
 use craft_behavior::{DisplayOrder, Flow, HitLevel, HitPriority, IconId, Intent, ItemSource, Metrics, NavMove, PartKey, Selection, Sense, Value};
 use craft_theme::{
     States, Variant,
@@ -30,6 +30,12 @@ pub struct SplitButtonStyle {
     metrics: Metrics,
     #[style(focus)]
     focus: FocusLook,
+    /// The label.
+    #[style(text)]
+    text: TextLook,
+    /// The leading icon.
+    #[style(icon)]
+    icon: IconLook,
     face: FaceLook,
     /// What each part adds over the surface: clear at rest, the variant's hover and pressed fills.
     part_fill: Stateful<StyleColor>,
@@ -115,10 +121,13 @@ impl<T: Value + 'static> Component for SplitButton<'_, T> {
         let (fill, clear) = (parts.fill.off, cx.color(craft_theme::Rgba::TRANSPARENT));
         surface.fill = Stateful::new(fill.rest).off(States::new(fill.rest, fill.rest, fill.rest, fill.disabled));
         let divider = parts.edge.unwrap_or_else(|| Stateful::new(clear));
+        let (text, icon) = face::ink(cx);
         SplitButtonStyle {
             surface,
             metrics: cx.control().metrics(),
             focus: face::focus(cx),
+            text,
+            icon,
             face: FaceLook::of(cx),
             part_fill: Stateful::new(clear).off(States::new(clear, fill.hover, fill.pressed, clear)),
             divider,
@@ -201,18 +210,18 @@ impl<T: Value + 'static> Component for SplitButton<'_, T> {
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let (rtl, direction) = (cx.flow.is_rtl(), cx.env.direction());
-        let (arrow, main) = Flow::new(cx.rect, rtl).take_end(cx.style.face.icon);
+        let (arrow, main) = Flow::new(cx.rect, rtl).take_end(cx.style.icon.side);
         let main = main.rect();
         let main_fill = cx.root_state().resolve(&cx.style.part_fill);
         let draw = ui.draw();
         draw.fill(&PaintShape::Rect(main, Corners::Start.apply(cx.style.radius, direction)), main_fill);
         draw.fill(&PaintShape::Rect(arrow, Corners::End.apply(cx.style.radius, direction)), cx.resolve_part(ARROW, &cx.style.part_fill));
         let area = Flow::new(main, rtl).inset(cx.style.metrics.padding);
-        face::paint(ui, cx, &cx.style.face, &self.spec(cx.resolved.label), area);
+        face::paint(ui, cx, (&cx.style.text, &cx.style.icon), &cx.style.face, &self.spec(cx.resolved.label), area);
         let draw = ui.draw();
-        let side = cx.style.face.icon;
+        let side = cx.style.icon.side;
         let chevron = Rect::from_center_size(arrow.center(), Vec2::splat(side));
-        draw.icon(chevron, &IconSpec::svg(IconId::new("chevron_down")).color(cx.resolve(&cx.style.face.text)));
+        draw.icon(chevron, &IconSpec::svg(IconId::new("chevron_down")).color(cx.resolve(&cx.style.icon.color)));
         let x = if rtl { arrow.right() } else { arrow.left() };
         let inset = cx.style.divider_inset;
         draw.stroke(

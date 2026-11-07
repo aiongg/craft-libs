@@ -4,7 +4,7 @@ use super::face::{self, FaceLook, FaceSpec};
 use crate::contract::{Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Pointer as _, Props, Role};
 use crate::runtime::commands::CommandRef;
 use crate::runtime::env::Label;
-use crate::style::{ComponentStyle, FocusLook, StyleCx, SurfaceLook, TypeRole};
+use crate::style::{ComponentStyle, FocusLook, IconLook, StyleCx, SurfaceLook, TextLook, TypeRole};
 use craft_behavior::{IconId, Metrics, Sense};
 use craft_theme::Variant;
 use egui::Vec2;
@@ -20,6 +20,12 @@ pub struct ToggleButtonStyle {
     metrics: Metrics,
     #[style(focus)]
     focus: FocusLook,
+    /// The label.
+    #[style(text)]
+    text: TextLook,
+    /// The leading and trailing icons.
+    #[style(icon)]
+    icon: IconLook,
     face: FaceLook,
 }
 
@@ -86,10 +92,11 @@ impl Component for ToggleButton<'_> {
         let mut surface = face::surface(cx, &off);
         surface.fill = off.fill.clone().on(on.fill.off);
         surface.border = off.edge.clone().map(|edge| edge.on(on.edge.as_ref().map_or(on.fill.off, |edge| edge.off)));
-        let mut look = FaceLook::of(cx);
-        look.text = look.text.clone().on(on.text.off);
+        let (mut text, mut icon) = face::ink(cx);
+        text.color = text.color.on(on.text.off);
+        icon.color = icon.color.on(on.text.off);
         let metrics = if key.icon_only { Metrics::new().min_size(Vec2::splat(control.height)) } else { control.metrics() };
-        ToggleButtonStyle { surface, metrics, focus: face::focus(cx), face: look }
+        ToggleButtonStyle { surface, metrics, focus: face::focus(cx), text, icon, face: FaceLook::of(cx) }
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
@@ -114,7 +121,7 @@ impl Component for ToggleButton<'_> {
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let on = cx.value().copied().unwrap_or(false);
-        face::paint(ui, cx, &cx.style.face, &self.spec(cx.resolved.label, on), cx.content_rect);
+        face::paint(ui, cx, (&cx.style.text, &cx.style.icon), &cx.style.face, &self.spec(cx.resolved.label, on), cx.content_rect);
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> EditResponse<bool> {

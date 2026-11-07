@@ -1,8 +1,10 @@
 //! `Disclosure`: the open/closed toggle of a section, a title row's lead and a tree row's expander.
 
-use crate::contract::{Animate as _, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Pointer as _, Role, spec};
+use crate::contract::{
+    Animate as _, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Pointer as _, Role, Styled as _, spec,
+};
 use crate::primitives::{PaintShape, StrokeWidth};
-use crate::style::{ComponentStyle, Ink, StyleColor, StyleCx};
+use crate::style::{ComponentStyle, IconLook, Ink, Stateful, StyleCx};
 use craft_behavior::{Metrics, Sense};
 use craft_i18n::Direction;
 use egui::{Pos2, Rect, Vec2};
@@ -53,7 +55,9 @@ impl DisclosureGlyph {
 pub struct DisclosureStyle {
     #[style(metrics)]
     metrics: Metrics,
-    ink: StyleColor,
+    /// The chevron.
+    #[style(icon)]
+    glyph: IconLook,
 }
 
 /// A button bound to an open state, with the expanded state. A face shown by a title row or a tree row has no node.
@@ -83,7 +87,7 @@ impl Component for Disclosure<'_> {
 
     fn style(cx: &StyleCx<'_>, _: DisclosureStyleKey) -> DisclosureStyle {
         let side = cx.control().icon;
-        DisclosureStyle { metrics: Metrics::new().min_size(Vec2::splat(side)), ink: cx.ink(Ink::OnPanel) }
+        DisclosureStyle { metrics: Metrics::new().min_size(Vec2::splat(side)), glyph: IconLook::new(side, Stateful::new(cx.ink(Ink::OnPanel))) }
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
@@ -115,7 +119,7 @@ impl Component for Disclosure<'_> {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let open = cx.anim_bool("open", cx.value().copied().unwrap_or(false), spec::OPEN_RISE);
         let glyph = DisclosureGlyph::new(open, cx.env.direction());
-        ui.draw().stroke(&PaintShape::Path(glyph.path(cx.rect)), StrokeWidth::Medium, cx.style.ink);
+        ui.draw().stroke(&PaintShape::Path(glyph.path(cx.rect)), StrokeWidth::Medium, cx.resolve(&cx.style.glyph.color));
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> EditResponse<bool> {

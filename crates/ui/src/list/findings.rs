@@ -6,10 +6,10 @@ use super::words::ListWords;
 use super::{ListRow, RowEvent};
 use crate::contract::{
     Bind, BindMut, BodyCx, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, MeasureCx, PaintUi, Props as _,
-    Role, SelectMode, Show as _, Sizing, WordSetCx as _,
+    Role, SelectMode, Show as _, Sizing, Styled as _, WordSetCx as _,
 };
 use crate::primitives::{IconSpec, Span, TextRun};
-use crate::style::{ComponentStyle, StyleColor, StyleCx, SurfaceKind};
+use crate::style::{ComponentStyle, IconLook, Stateful, StyleCx, SurfaceKind, TextLook, TypeRole};
 use craft_behavior::{DisplayOrder, Flow, IconId, Insets, ItemSource, Metrics, Selection, Sense, SpanLayout};
 use craft_i18n::Format;
 use craft_theme::variant::Tone;
@@ -274,10 +274,14 @@ impl Component for EmptyNote {
 pub struct FindingsSummaryStyle {
     #[style(metrics)]
     metrics: Metrics,
-    text: StyleColor,
-    icon: f32,
-    good: StyleColor,
-    bad: StyleColor,
+    #[style(text)]
+    text: TextLook,
+    /// The icon when there are no errors.
+    #[style(icon)]
+    good: IconLook,
+    /// The icon when there are errors.
+    #[style(icon)]
+    bad: IconLook,
 }
 
 /// The line over a list of findings: an icon that says whether there are errors, then the counts.
@@ -316,10 +320,9 @@ impl Component for FindingsSummary<'_> {
         let control = cx.control();
         FindingsSummaryStyle {
             metrics: Metrics::new().padding(Insets::horizontal(control.pad_x)).gap(control.gap),
-            text: cx.color(cx.tokens.color.text.normal),
-            icon: control.icon,
-            good: cx.tone(Tone::Good),
-            bad: cx.tone(Tone::Bad),
+            text: TextLook::new(TypeRole::Label, Stateful::new(cx.color(cx.tokens.color.text.normal))),
+            good: IconLook::new(control.icon, Stateful::new(cx.tone(Tone::Good))),
+            bad: IconLook::new(control.icon, Stateful::new(cx.tone(Tone::Bad))),
         }
     }
 
@@ -335,13 +338,13 @@ impl Component for FindingsSummary<'_> {
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let rtl = cx.env.direction().is_rtl();
-        let (glyph, rest) = Flow::new(cx.content_rect, rtl).take_start(cx.style.icon);
+        let (glyph, rest) = Flow::new(cx.content_rect, rtl).take_start(cx.style.good.side);
         let (_, rest) = rest.take_start(cx.style.metrics.gap);
         let draw = ui.draw();
-        let tone = if self.has_errors() { cx.style.bad } else { cx.style.good };
-        draw.icon(Rect::from_center_size(glyph.center(), Vec2::splat(cx.style.icon)), &IconSpec::svg(self.icon()).color(tone));
+        let look = if self.has_errors() { &cx.style.bad } else { &cx.style.good };
+        draw.icon(Rect::from_center_size(glyph.center(), Vec2::splat(look.side)), &IconSpec::svg(self.icon()).color(cx.resolve(&look.color)));
         let words = cx.words::<FindingsWords>();
-        draw.text(rest.rect(), &TextRun::new(self.text(&words, cx.format())).color(cx.style.text).elide());
+        draw.text(rest.rect(), &TextRun::new(self.text(&words, cx.format())).color(cx.resolve(&cx.style.text.color)).elide());
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {

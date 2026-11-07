@@ -17,7 +17,7 @@ use crate::controls::check::Checkbox;
 use crate::controls::disclosure::Disclosure;
 use crate::primitives::{ContentPainterCx, Draw, IconSpec, PaintShape, RuleKind, Span, StrokeWidth, TextRun, Wrap};
 use crate::runtime::env::Label;
-use crate::style::{ComponentStyle, Flags, Ink, StyleColor, StyleCx, SurfaceLook, UiTokens};
+use crate::style::{ComponentStyle, Flags, IconLook, Ink, StyleColor, StyleCx, SurfaceLook, TextLook, UiTokens};
 use craft_behavior::{ColumnKey, Flow, IconId, Metrics, Mixed, NavShape, PartKey, PressPhase, Proposal, Roving, Sense};
 use craft_theme::variant::Tone;
 use craft_theme::{ControlSize, Rgba, RowStyle, Stateful, States, TypeRole, over};
@@ -447,12 +447,17 @@ pub struct ListRowStyle {
     surface: SurfaceLook,
     #[style(metrics)]
     metrics: Metrics,
-    text: Stateful<StyleColor>,
-    icon: Stateful<StyleColor>,
-    detail: Stateful<StyleColor>,
+    /// The label.
+    #[style(text)]
+    text: TextLook,
+    /// The row's icon.
+    #[style(icon)]
+    icon: IconLook,
+    /// The detail line.
+    #[style(text)]
+    detail: TextLook,
     thumb_edge: StyleColor,
     thumb_radius: CornerRadius,
-    role: TypeRole,
     sizes: Sizes,
     dividers: bool,
 }
@@ -665,15 +670,17 @@ impl Component for ListRow<'_> {
         ListRowStyle {
             surface,
             metrics: Metrics::new().min_size(Vec2::new(0.0, sizes.row)).gap(sizes.gap),
-            text: ink(base),
-            icon: match key.tone {
-                Tone::Neutral => ink(base),
-                tone => Stateful::new(cx.tone(tone)).on(States::new(on_selected, on_selected, on_selected, on_selected)),
-            },
-            detail: ink(text.faint),
+            text: TextLook::new(if key.strong { TypeRole::BodyStrong } else { TypeRole::Body }, ink(base)),
+            icon: IconLook::new(
+                sizes.icon,
+                match key.tone {
+                    Tone::Neutral => ink(base),
+                    tone => Stateful::new(cx.tone(tone)).on(States::new(on_selected, on_selected, on_selected, on_selected)),
+                },
+            ),
+            detail: TextLook::new(TypeRole::Caption, ink(text.faint)),
             thumb_edge: c(colors.line.border),
             thumb_radius: UiTokens::corner(tokens.shape.radius.sm),
-            role: if key.strong { TypeRole::BodyStrong } else { TypeRole::Body },
             sizes,
             dividers: tokens.shape.rows == RowStyle::Divided,
         }
@@ -698,7 +705,7 @@ impl Component for ListRow<'_> {
         let probe_min = probe.min_width + toggles;
         let band = cx.room.map_or(f32::INFINITY, |_| (probe.label.width() - toggles).max(0.0));
         let wrapped = self.lines.as_ref().map_or(0.0, |text| {
-            let run = TextRun::new(text.as_str()).role(TypeRole::Caption).wrap(Wrap::Wrap);
+            let run = TextRun::new(text.as_str()).role(cx.style.detail.role).wrap(Wrap::Wrap);
             sizes.gap + cx.layout_at(&run, band).size().y
         });
         let detail = if self.detail.is_some() { sizes.detail_line } else { 0.0 };
@@ -707,7 +714,7 @@ impl Component for ListRow<'_> {
         if cx.proposal == Proposal::Min {
             return Vec2::new(probe_min, height);
         }
-        let label = cx.layout(&TextRun::new(cx.resolved.label).role(cx.style.role)).size().x;
+        let label = cx.layout(&TextRun::new(cx.resolved.label).role(cx.style.text.role)).size().x;
         Vec2::new(probe_min - sizes.min_label + label.max(sizes.min_label) + self.indent_full(sizes), height)
     }
 
@@ -856,7 +863,7 @@ impl Component for ListRow<'_> {
             }
         }
         self.paint_toggles(ui, cx, &placed);
-        let ink = cx.resolve(&style.text);
+        let ink = cx.resolve(&style.text.color);
         if let Some(open) = self.group
             && placed.disclosure.is_some()
         {
@@ -870,7 +877,7 @@ impl Component for ListRow<'_> {
             if let Some(slot) = placed.icon
                 && let Some(icon) = self.icon.as_mut()
             {
-                icon.color.get_or_insert(cx.resolve(&style.icon));
+                icon.color.get_or_insert(cx.resolve(&style.icon.color));
                 draw.icon(Rect::from_center_size(slot.center(), Vec2::splat(sizes.icon)), icon);
             }
         }
@@ -956,7 +963,7 @@ impl ListRow<'_> {
         let style = cx.style;
         let sizes = &style.sizes;
         let wrapped = self.lines.as_ref().map(|text| {
-            let run = TextRun::new(text.as_str()).role(TypeRole::Caption).color(cx.resolve(&style.detail)).wrap(Wrap::Wrap);
+            let run = TextRun::new(text.as_str()).role(style.detail.role).color(cx.resolve(&style.detail.color)).wrap(Wrap::Wrap);
             draw.layout(&run, label.width())
         });
         let detail = if self.detail.is_some() { sizes.detail_line } else { 0.0 };
@@ -966,12 +973,12 @@ impl ListRow<'_> {
         if !self.renaming {
             let mut span = Span::new(cx.resolved.label);
             span.italic = self.italic;
-            let run = TextRun::spans(vec![span]).role(style.role).color(cx.resolve(&style.text)).elide();
+            let run = TextRun::spans(vec![span]).role(style.text.role).color(cx.resolve(&style.text.color)).elide();
             draw.text(Rect::from_min_size(Pos2::new(label.left(), top), Vec2::new(label.width(), sizes.label_line)), &run);
         }
         top += sizes.label_line;
         if let Some(detail) = &self.detail {
-            let run = TextRun::new(detail.as_str()).role(TypeRole::Caption).color(cx.resolve(&style.detail)).elide();
+            let run = TextRun::new(detail.as_str()).role(style.detail.role).color(cx.resolve(&style.detail.color)).elide();
             draw.text(Rect::from_min_size(Pos2::new(label.left(), top), Vec2::new(label.width(), sizes.detail_line)), &run);
             top += sizes.detail_line;
         }

@@ -4,7 +4,7 @@ use super::face;
 use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Props, Role, Styled as _};
 use crate::primitives::{IconSpec, PaintShape, StrokeWidth};
 use crate::runtime::commands::CommandRef;
-use crate::style::{ComponentStyle, DataColor, FocusLook, Stateful, StyleColor, StyleCx, SurfaceLook};
+use crate::style::{ComponentStyle, DataColor, FocusLook, IconLook, StyleColor, StyleCx, SurfaceLook};
 use craft_behavior::{IconId, Metrics, Sense};
 use craft_theme::{
     Srgba, Variant,
@@ -33,10 +33,9 @@ pub struct IconButtonStyle {
     metrics: Metrics,
     #[style(focus)]
     focus: FocusLook,
-    /// The glyph colour per state; the on look takes the accent text.
-    color: Stateful<StyleColor>,
-    /// The side of the glyph.
-    glyph: f32,
+    /// The glyph: its side, and its colour per state (the on look takes the accent text).
+    #[style(icon)]
+    glyph: IconLook,
     /// The badge dot's diameter.
     badge: f32,
     /// The ring around the badge dot.
@@ -89,15 +88,14 @@ impl Component for IconButton {
             surface,
             metrics: Metrics::new().min_size(Vec2::splat(control.height)),
             focus: face::focus(cx),
-            color: off.text.clone().on(on.text.off),
-            glyph: control.icon,
+            glyph: IconLook::new(control.icon, off.text.clone().on(on.text.off)),
             badge: control.icon * BADGE_RATIO,
             badge_edge: cx.color(cx.tokens.color.line.mark),
         }
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        Vec2::splat(cx.style.glyph)
+        Vec2::splat(cx.style.glyph.side)
     }
 
     fn sense(&self) -> Sense {
@@ -109,9 +107,9 @@ impl Component for IconButton {
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let glyph = egui::Rect::from_center_size(cx.rect.center(), Vec2::splat(cx.style.glyph));
+        let glyph = egui::Rect::from_center_size(cx.rect.center(), Vec2::splat(cx.style.glyph.side));
         let draw = ui.draw();
-        draw.icon(glyph, &IconSpec::svg(self.icon.clone()).color(cx.resolve(&cx.style.color)));
+        draw.icon(glyph, &IconSpec::svg(self.icon.clone()).color(cx.resolve(&cx.style.glyph.color)));
         if let Some(badge) = self.badge {
             let radius = cx.style.badge / 2.0;
             let x = if cx.flow.is_rtl() { glyph.left() + radius } else { glyph.right() - radius };
