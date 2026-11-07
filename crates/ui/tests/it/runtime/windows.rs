@@ -27,6 +27,20 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 const HANDLE: Rect = Rect { min: Pos2::new(10.0, 10.0), max: Pos2::new(90.0, 50.0) };
+/// The least size a tool window in the trials is asked to keep.
+const TOOL_MIN: Vec2 = Vec2::new(160.0, 100.0);
+/// Where a palette's window stands before the trial moves it, and a point inside it.
+const PLACED: Rect = Rect { min: Pos2::new(100.0, 100.0), max: Pos2::new(500.0, 400.0) };
+const IN_PLACED: Pos2 = Pos2::new(150.0, 150.0);
+/// Where the trial moves the window to and the size it gives it, with the rect that makes and a point inside it.
+const MOVE_TO: Pos2 = Pos2::new(500.0, 400.0);
+const SIZE_TO: Vec2 = Vec2::new(320.0, 240.0);
+const MOVED: Rect = Rect { min: MOVE_TO, max: Pos2::new(820.0, 640.0) };
+const IN_MOVED: Pos2 = Pos2::new(510.0, 410.0);
+const NOWHERE: Pos2 = Pos2::new(900.0, 700.0);
+/// The trial's monitor: 3840 by 2160 pixels at two pixels per point.
+const MONITOR_POINTS: Rect = Rect { min: Pos2::ZERO, max: Pos2::new(1920.0, 1080.0) };
+const MONITOR_SCALE: f32 = 2.0;
 
 fn child() -> ViewportId {
     ViewportId::from_hash_of("child")
@@ -303,7 +317,7 @@ fn builder_titled<'a>(out: &'a crate::windows_kit::Out, title: &str) -> (Viewpor
 fn a_viewport_mount_opens_as_its_spec_says() {
     let windows = Windows::new();
     let seen = RefCell::new(None);
-    let tool = || WindowSpec::tool().min_size(Vec2::new(160.0, 100.0));
+    let tool = || WindowSpec::tool().min_size(TOOL_MIN);
     let mut out = None;
     for _ in 0..3 {
         out = Some(windows.frame(vec![], vec![], |ui| {
@@ -317,7 +331,7 @@ fn a_viewport_mount_opens_as_its_spec_says() {
     let out = out.expect("frames ran");
     let (_, tool) = builder_titled(&out, "tool");
     assert_eq!(tool.decorations, Some(false), "the tool window is undecorated");
-    assert_eq!(tool.min_inner_size, Some(Vec2::new(160.0, 100.0)));
+    assert_eq!(tool.min_inner_size, Some(TOOL_MIN));
     assert_eq!(tool.window_level, Some(egui::WindowLevel::AlwaysOnTop), "a palette is above the app's windows while the app is active");
     assert_eq!(tool.taskbar, Some(false));
     let (_, plain) = builder_titled(&out, "plain");
@@ -358,13 +372,9 @@ fn a_palette_drops_its_level_while_the_app_is_inactive() {
 #[trial]
 fn window_actions_and_queries_follow_the_window_system() {
     let system = Arc::new(FakeSystem::new());
-    system.set_monitors(vec![Monitor::new(MonitorKey::new("DP-1", [3840, 2160]), [0, 0], [3840, 2160], 2.0)]);
+    system.set_monitors(vec![Monitor::new(MonitorKey::new("DP-1", [3840, 2160]), [0, 0], [3840, 2160], MONITOR_SCALE)]);
     let windows = Windows::with(InstallSpec::new(ShellInfo::default(), system));
-    windows.child_info(ViewportInfo {
-        inner_rect: Some(Rect::from_min_size(Pos2::new(100.0, 100.0), Vec2::new(400.0, 300.0))),
-        outer_rect: Some(Rect::from_min_size(Pos2::new(100.0, 100.0), Vec2::new(400.0, 300.0))),
-        ..ViewportInfo::default()
-    });
+    windows.child_info(ViewportInfo { inner_rect: Some(PLACED), outer_rect: Some(PLACED), ..ViewportInfo::default() });
     let frame = || {
         windows.frame(vec![], vec![], |ui| {
             Palette::new("tool", Some(WindowSpec::tool())).show(ui, |_, _| {});
@@ -373,19 +383,19 @@ fn window_actions_and_queries_follow_the_window_system() {
     let out = (0..3).map(|_| frame()).last().expect("frames ran");
     let (viewport, _) = builder_titled(&out, "tool");
     let host = WindowHost::of(&windows.ctx);
-    assert_eq!(host.facts(viewport).map(|facts| facts.inner.min), Some(Pos2::new(100.0, 100.0)));
-    assert_eq!(host.viewport_at(Pos2::new(150.0, 150.0)), Some(viewport));
-    assert_eq!(host.viewport_at(Pos2::new(900.0, 700.0)), None, "nothing is there");
+    assert_eq!(host.facts(viewport).map(|facts| facts.inner), Some(PLACED));
+    assert_eq!(host.viewport_at(IN_PLACED), Some(viewport));
+    assert_eq!(host.viewport_at(NOWHERE), None, "nothing is there");
     let monitors: Vec<_> = host.monitors().into_iter().map(|monitor| (monitor.name, monitor.rect, monitor.scale)).collect();
-    assert_eq!(monitors, [("DP-1".to_owned(), Rect::from_min_size(Pos2::ZERO, Vec2::new(1920.0, 1080.0)), 2.0)], "monitors in points");
-    assert!(act(&windows.ctx, viewport, WindowAction::SetOuterPosition(Pos2::new(500.0, 400.0))));
-    assert!(act(&windows.ctx, viewport, WindowAction::SetInnerSize(Vec2::new(320.0, 240.0))));
+    assert_eq!(monitors, [("DP-1".to_owned(), MONITOR_POINTS, MONITOR_SCALE)], "monitors in points");
+    assert!(act(&windows.ctx, viewport, WindowAction::SetOuterPosition(MOVE_TO)));
+    assert!(act(&windows.ctx, viewport, WindowAction::SetInnerSize(SIZE_TO)));
     frame();
     frame();
     let facts = host.facts(viewport).expect("the window reported");
-    assert_eq!(facts.inner, Rect::from_min_size(Pos2::new(500.0, 400.0), Vec2::new(320.0, 240.0)));
-    assert_eq!(host.viewport_at(Pos2::new(150.0, 150.0)), None, "the window left that place");
-    assert_eq!(host.viewport_at(Pos2::new(510.0, 410.0)), Some(viewport));
+    assert_eq!(facts.inner, MOVED);
+    assert_eq!(host.viewport_at(IN_PLACED), None, "the window left that place");
+    assert_eq!(host.viewport_at(IN_MOVED), Some(viewport));
     assert!(act(&windows.ctx, viewport, WindowAction::SetTitle("Tools".into())));
     assert!(act(&windows.ctx, viewport, WindowAction::SetLevel(WindowLevel::Normal)));
 }

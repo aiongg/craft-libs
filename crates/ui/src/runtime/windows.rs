@@ -254,6 +254,7 @@ pub enum WindowAction {
 
 /// What the OS tells about a window, in desktop points.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct WindowFacts {
     /// The inner rect.
     pub inner: Rect,
@@ -847,11 +848,12 @@ pub(crate) fn show_viewport(ctx: &Context, open: &ViewportOpen<'_>, mut body: im
     };
     let spec = open.spec;
     let active = !shared(ctx, |shared| shared.away);
+    let os = os_of(ctx);
     let level = PerViewport::<Record>::with(ctx, viewport, |record| {
         record.kind = Some(spec.kind);
         record.chrome = Some(spec.chrome);
         record.captions = spec.captions.clone();
-        record.level.get_or_insert(spec.level).for_egui(active)
+        record.level.get_or_insert(spec.level).for_egui(active, os)
     });
     let opens = viewports::Spec {
         title: open.title,

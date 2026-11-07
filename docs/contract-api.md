@@ -1217,8 +1217,9 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub fn gap(&self) -> f32`. The gap between the component's items.
 - `craft_ui::contract::MenuKey`: re-export of `craft_ui::runtime::keys::MenuKey`.
 - `craft_ui::contract::MotionSpec`: re-export of `craft_ui::runtime::motion::MotionSpec`.
-- `craft_ui::contract::Mount`: `pub enum Mount { Inline, Pane(ShellPane), Layer(Overlay), FullWindow, Viewport { fallback: Overlay } }`. Where a container lives.
-  - `pub const fn viewport(fallback: Overlay) -> Mount`. An OS viewport that falls back to `fallback`.
+- `craft_ui::contract::Mount`: `pub enum Mount { Inline, Pane(ShellPane), Layer(Overlay), FullWindow, Viewport { fallback: Overlay, spec: Option<WindowSpec> } }`. Where a container lives.
+  - `pub const fn viewport(fallback: Overlay) -> Mount`. An OS viewport that falls back to `fallback`, and opens as a dialog or tool window by the fallback's rank.
+  - `pub fn viewport_with(fallback: Overlay, spec: WindowSpec) -> Mount`. An OS viewport that falls back to `fallback` and opens as `spec` says.
 - `craft_ui::contract::Name`: re-export of `craft_ui::runtime::access::Name`.
 - `craft_ui::contract::NoValue`: `pub struct NoValue`. The value type of a component with no value.
 - `craft_ui::contract::Notch`: `pub enum Notch { Lines(f32), ViewShare(f32) }`. The distance of one wheel notch.
@@ -2011,10 +2012,11 @@ The frame plugin: the per-pass and per-frame steps, with the inputs the app sets
 `runtime::install`: adds the runtime plugin once and sets the egui options the runtime owns.
 
 - `craft_ui::runtime::install::InstallError`: `pub enum InstallError { AlreadyInstalled, DuplicateStyle(DuplicateStyle), Commands(commands::CommandDefError) }`. Why `install` refused a spec.
-- `craft_ui::runtime::install::InstallSpec`: `pub struct InstallSpec { pub shell_info: ShellInfo, pub window_system: Arc<dyn WindowSystem>, pub placement: Option<Arc<Mutex<Store>>>, pub frame_layers: Option<fn(&Context)>, pub looks: StyleReplacements }`. What `install` takes.
+- `craft_ui::runtime::install::InstallSpec`: `pub struct InstallSpec { pub shell_info: ShellInfo, pub window_system: Arc<dyn WindowSystem>, pub placement: Option<Arc<Mutex<Store>>>, pub frame_layers: Option<fn(&Context)>, pub looks: StyleReplacements, pub frame: Option<Decision> }`. What `install` takes.
   - `pub fn new(shell_info: ShellInfo, window_system: Arc<dyn WindowSystem>) -> Self`. A spec for `shell_info` and `window_system`, with no ghost-layer painter.
   - `pub fn placement(mut self, store: Arc<Mutex<Store>>) -> Self`. Sets the store viewport mounts save their window placement in.
   - `pub fn looks(mut self, looks: impl Into<StyleReplacements>) -> Self`. Sets the app's style replacements.
+  - `pub fn frame(mut self, decision: Decision) -> Self`. Sets the root window's decided frame (`craft_window::policy::decide_for`).
   - `pub fn frame_layers(mut self, painter: Option<fn(&Context)>) -> Self`. Sets the end hook's ghost-layer painter.
 - `craft_ui::runtime::install::install`: `pub fn install(ctx: &Context, spec: InstallSpec) -> Result<(), InstallError>`. Adds the runtime plugin to `ctx` and sets the egui options the runtime owns: focus on press is the
 
@@ -2163,7 +2165,15 @@ The toast queue: one per viewport, filled from any code with a `Context`.
 `WindowHost`: the one multi-window driver. It owns `ShellInfo`, refreshes each viewport's `WindowInfo`, releases
 
 - `craft_ui::runtime::windows::ResizeEdge`: `pub enum ResizeEdge { Top, Bottom, Left, Right, TopLeft, TopRight, BottomLeft, BottomRight }`. An edge or corner a window resize starts from.
-- `craft_ui::runtime::windows::WindowAction`: `pub enum WindowAction { Close, Minimize, ToggleMaximize, ToggleFullscreen, Focus, StartMove, StartResize(ResizeEdge) }`. A window command `act` sends.
+- `craft_ui::runtime::windows::MonitorInfo`: `pub struct MonitorInfo { pub name: String, pub rect: Rect, pub scale: f32 }`. A connected monitor, in desktop points.
+- `craft_ui::runtime::windows::WindowAction`: `pub enum WindowAction { Close, Minimize, ToggleMaximize, ToggleFullscreen, Focus, StartMove, StartResize(ResizeEdge), SetOuterPosition(Pos2), SetInnerSize(Vec2), SetLevel(WindowLevel), SetTitle(String) }`. A window command `act` sends.
+- `craft_ui::runtime::windows::WindowFacts`: `pub struct WindowFacts { pub inner: Rect, pub outer: Option<Rect>, pub scale: f32, pub state: WindowState, pub focused: bool }`. What the OS tells about a window, in desktop points.
+- `craft_ui::runtime::windows::WindowLevel`: `pub enum WindowLevel { Normal, Palette, AlwaysOnTop }`. Where a window stands in the stack of windows.
+- `craft_ui::runtime::windows::WindowSpec`: `pub struct WindowSpec { pub kind: WindowKind, pub chrome: WindowChrome, pub captions: Option<Captions>, pub level: WindowLevel, pub min_size: Option<Vec2>, pub max_size: Option<Vec2>, pub resizable: bool, pub position: Option<Pos2>, pub taskbar: bool }`. How an OS window opens.
+  - `pub fn tool() -> Self`. A tool window: the app's own bar without caption buttons, a palette level, no taskbar entry.
+  - `pub fn document() -> Self`. A document window with the OS's frame.
+  - `pub fn dialog() -> Self`. A dialog window with the OS's frame.
+  - `pub fn kind(self, kind: WindowKind) -> Self`, `chrome`, `captions(Option<Captions>)`, `frame(&Frame)`, `level`, `min_size`, `max_size`, `resizable`, `position`, `taskbar`: builders.
 - `craft_ui::runtime::windows::WindowHost`: `pub struct WindowHost`. The multi-window driver of one context.
   - `pub fn of(ctx: &Context) -> Self`. The window host of `ctx`.
   - `pub fn shell(&self) -> ShellInfo`. The shell as the running viewport sees it.
@@ -2173,6 +2183,12 @@ The toast queue: one per viewport, filled from any code with a `Context`.
   - `pub fn act(&self, viewport: ViewportId, action: WindowAction) -> bool`. Sends `action` to `viewport`; see [`act`].
   - `pub fn desktop_pointer(&self) -> Option<Pos2>`. The system pointer in desktop points, as the platform tells it or, failing that, as the window a drag
   - `pub fn warp_pointer(&self, to: Pos2) -> bool`. Moves the system pointer to `to` in desktop points; false where the platform cannot.
+  - `pub fn facts(&self, viewport: ViewportId) -> Option<WindowFacts>`. `viewport`'s window facts, once it has reported its inner rect.
+  - `pub fn monitors(&self) -> Vec<MonitorInfo>`. The connected monitors in desktop points; none where the platform does not list them.
+  - `pub fn set_outer(&self, viewport: ViewportId, outer: Rect) -> bool`. Places `viewport`'s outer rect at `outer`: its position, and the inner size that leaves the window's decoration as it is.
+  - `pub fn viewport_of(&self, id: Id) -> Option<ViewportId>`. The viewport of the container `id` while its window is open.
+  - `pub fn viewport_at(&self, at: Pos2) -> Option<ViewportId>`. The window under the desktop point `at`: the focused one where windows overlap, else the smallest.
+  - `pub fn frame(&self) -> Frame`. Who draws the running viewport's frame, and the caption buttons it shows.
   - `pub fn pointer_in(&self, viewport: ViewportId) -> Option<Pos2>`. The desktop pointer in the coordinates of `viewport`, when it lies inside that window.
 - `craft_ui::runtime::windows::act`: `pub fn act(ctx: &Context, viewport: ViewportId, action: WindowAction) -> bool`. Sends `action` to `viewport`. It is the only sender of window commands: it checks the capabilities and the
 
