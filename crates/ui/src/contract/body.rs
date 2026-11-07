@@ -17,7 +17,7 @@ use crate::runtime::focus::FocusPolicy;
 use crate::runtime::memory::{MemoryStage, SaveKey, sub};
 use crate::runtime::motion::{Driver, Presence, spec};
 use crate::runtime::overlay::CloseReason;
-use crate::runtime::windows::{self, ResizeEdge, WindowAction};
+use crate::runtime::windows::{self, ResizeEdge, WindowAction, WindowHit};
 use crate::runtime::{keys, layout_memory, pointer, wheel};
 use crate::style::ComponentStyle as _;
 use crate::style::{Corners, RuleKind, StyleCx, UiTokens, rule_look, scroll_bar_look, surface_style};
@@ -1129,7 +1129,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             pcx.part(MOVE_BAND, regions.header)
                 .sense(craft_behavior::Sense::DRAG)
                 .priority(HitPriority::new(HitLevel::Edge, 0))
-                .exclusive()
+                .exclusive(WindowHit::Move)
                 .cursor(CursorIcon::Grab)
                 .drag_cursor(CursorIcon::Grabbing)
                 .pointer_only(reason);
@@ -1158,7 +1158,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 pcx.part(GRIP.at(index as u64), Rect::from_min_max(Pos2::new(x0, y0), Pos2::new(x1, y1)))
                     .sense(craft_behavior::Sense::DRAG)
                     .priority(HitPriority::new(level, 0))
-                    .exclusive()
+                    .exclusive(WindowHit::Resize(edge_of(dx, dy)))
                     .cursor(cursor)
                     .pointer_only(reason);
             }

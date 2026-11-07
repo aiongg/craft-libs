@@ -12,7 +12,7 @@ use craft_ui::runtime::InstallSpec;
 use craft_ui::runtime::commands::FireSource;
 use craft_ui::runtime::env::Env;
 use craft_ui::runtime::frame::take_output;
-use craft_ui::runtime::windows::{WindowAction, WindowHost, WindowLevel, WindowSpec, act};
+use craft_ui::runtime::windows::{ResizeEdge, WindowAction, WindowHost, WindowLevel, WindowSpec, act};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::{moved, press, release};
@@ -39,7 +39,7 @@ const MOVED: Rect = Rect { min: MOVE_TO, max: Pos2::new(820.0, 640.0) };
 const IN_MOVED: Pos2 = Pos2::new(510.0, 410.0);
 const NOWHERE: Pos2 = Pos2::new(900.0, 700.0);
 /// The trial's monitor: 3840 by 2160 pixels at two pixels per point.
-const MONITOR_POINTS: Rect = Rect { min: Pos2::ZERO, max: Pos2::new(1920.0, 1080.0) };
+const MONITOR_PIXELS: Rect = Rect { min: Pos2::ZERO, max: Pos2::new(3840.0, 2160.0) };
 const MONITOR_SCALE: f32 = 2.0;
 
 fn child() -> ViewportId {
@@ -282,9 +282,14 @@ struct Palette {
 
 impl Palette {
     fn new(title: &'static str, spec: Option<WindowSpec>) -> Self {
+        Self::in_overlay(title, spec, Overlay::floating())
+    }
+
+    /// A palette whose fallback layer, and so whose window's limits, position and resizability, is `overlay`.
+    fn in_overlay(title: &'static str, spec: Option<WindowSpec>, overlay: Overlay) -> Self {
         let mount = match spec {
-            Some(spec) => Mount::viewport_with(Overlay::floating(), spec),
-            None => Mount::viewport(Overlay::floating()),
+            Some(spec) => Mount::viewport_with(overlay, spec),
+            None => Mount::viewport(overlay),
         };
         Palette { common: Common::new(), props: ContainerProps::new().mount(mount) }.label(title).id_salt(title)
     }
@@ -311,37 +316,77 @@ fn builder_titled<'a>(out: &'a crate::windows_kit::Out, title: &str) -> (Viewpor
     (*id, builder)
 }
 
-/// A tool spec opens an undecorated palette window with its minimum size; a mount without a spec opens as before
-/// (the OS's frame, an ordinary level), and the window records what it was opened as.
+/// A decision that has the app draw the frame, with the Windows caption layout.
+fn app_drawn() -> Decision {
+    let desktop = Desktop { kind: DesktopKind::Other, ssd: None, gtk_theme: None, icon_theme: None };
+    let captions = Captions { family: CaptionFamily::Windows, layout: craft_window::Layout::default() };
+    Decision { frame: Frame::Integrated(captions), overridden: None, desktop }
+}
+
+/// A decision that leaves the frame to the OS (the system title bar).
+fn system_drawn() -> Decision {
+    let desktop = Desktop { kind: DesktopKind::Other, ssd: None, gtk_theme: None, icon_theme: None };
+    Decision { frame: Frame::Native, overridden: Some(false), desktop }
+}
+
+/// A tool window, with or without a spec, and a window with no spec opened by a non-modal mount take the chrome and
+/// the captions of the installed decision for their kind; an explicit chrome overrides it. A tool window shows no
+/// caption buttons under either decision.
 #[trial]
-fn a_viewport_mount_opens_as_its_spec_says() {
+fn a_tool_window_follows_the_installed_decision() {
+    let cases = [(app_drawn(), WindowChrome::Integrated, Some(false), Some(false)), (system_drawn(), WindowChrome::Native, Some(true), None)];
+    for (decision, chrome, decorations, buttons) in cases {
+        let windows = Windows::with(InstallSpec::new(ShellInfo::default(), Arc::new(FakeSystem::new())).frame(decision));
+        let seen = RefCell::new(None);
+        let mut out = None;
+        for _ in 0..3 {
+            out = Some(windows.frame(vec![], vec![], |ui| {
+                Palette::new("tool", Some(WindowSpec::tool())).show(ui, |ui, _| {
+                    let host = WindowHost::of(ui.ctx());
+                    *seen.borrow_mut() = Some((Env::of(ui).view().shell().window.clone(), host.frame()));
+                });
+                Palette::new("plain", None).show(ui, |_, _| {});
+                Palette::new("forced", Some(WindowSpec::tool().chrome(WindowChrome::Native))).show(ui, |_, _| {});
+            }));
+        }
+        let out = out.expect("frames ran");
+        for title in ["tool", "plain"] {
+            let (_, builder) = builder_titled(&out, title);
+            assert_eq!((builder.decorations, builder.titlebar_buttons_shown), (decorations, buttons), "{chrome:?}: the {title} window");
+        }
+        assert_eq!(builder_titled(&out, "forced").1.decorations, Some(true), "{chrome:?}: a spec's own chrome wins");
+        let (window, frame) = seen.take().expect("the tool window ran");
+        assert_eq!((window.kind, window.chrome), (WindowKind::Tool, chrome), "the window info follows the decision");
+        assert!(
+            matches!(&frame, Frame::Native) || matches!(&frame, Frame::Integrated(captions) if captions.is_empty()),
+            "a tool window shows no caption buttons: {frame:?}"
+        );
+    }
+}
+
+/// A viewport container's size limits, position and resizability are its fallback overlay's: the window opens with
+/// them, and a window that is not resizable refuses a resize the OS would start.
+#[trial]
+fn a_viewport_window_takes_its_limits_and_position_from_the_overlay() {
     let windows = Windows::new();
-    let seen = RefCell::new(None);
-    let tool = || WindowSpec::tool().min_size(TOOL_MIN);
+    let overlay = || Overlay::floating().size_limits(TOOL_MIN, SIZE_TO).placed(PLACED);
     let mut out = None;
     for _ in 0..3 {
         out = Some(windows.frame(vec![], vec![], |ui| {
-            Palette::new("tool", Some(tool())).show(ui, |ui, _| {
-                let host = WindowHost::of(ui.ctx());
-                *seen.borrow_mut() = Some((Env::of(ui).view().shell().window.clone(), host.frame()));
-            });
-            Palette::new("plain", None).show(ui, |_, _| {});
+            Palette::in_overlay("fixed", Some(WindowSpec::tool()), overlay()).show(ui, |_, _| {});
+            Palette::in_overlay("grips", None, overlay().resizable(true)).show(ui, |_, _| {});
         }));
     }
     let out = out.expect("frames ran");
-    let (_, tool) = builder_titled(&out, "tool");
-    assert_eq!(tool.decorations, Some(false), "the tool window is undecorated");
-    assert_eq!(tool.min_inner_size, Some(TOOL_MIN));
-    assert_eq!(tool.window_level, Some(egui::WindowLevel::AlwaysOnTop), "a palette is above the app's windows while the app is active");
-    assert_eq!(tool.taskbar, Some(false));
-    assert_eq!(tool.titlebar_buttons_shown, Some(false), "no OS caption buttons on a tool window");
-    let (_, plain) = builder_titled(&out, "plain");
-    assert_eq!(plain.decorations, Some(true), "a mount without a spec keeps the OS's frame");
-    assert_eq!(plain.titlebar_buttons_shown, None, "an ordinary window keeps the OS's buttons");
-    assert_eq!((plain.min_inner_size, plain.window_level), (None, Some(egui::WindowLevel::Normal)));
-    let (window, frame) = seen.take().expect("the tool window ran");
-    assert_eq!((window.kind, window.chrome), (WindowKind::Tool, WindowChrome::Integrated), "the window info follows the spec");
-    assert!(matches!(&frame, Frame::Integrated(captions) if captions.is_empty()), "a tool window shows no caption buttons: {frame:?}");
+    let (fixed_id, fixed) = builder_titled(&out, "fixed");
+    let (grips_id, grips) = builder_titled(&out, "grips");
+    for builder in [fixed, grips] {
+        assert_eq!((builder.min_inner_size, builder.max_inner_size), (Some(TOOL_MIN), Some(SIZE_TO)));
+        assert_eq!(builder.position, Some(PLACED.min));
+    }
+    assert_eq!((fixed.resizable, grips.resizable), (Some(false), Some(true)));
+    assert!(!act(&windows.ctx, fixed_id, WindowAction::StartResize(ResizeEdge::Left)), "a window that cannot be resized starts no resize");
+    assert!(act(&windows.ctx, grips_id, WindowAction::StartResize(ResizeEdge::Left)));
 }
 
 /// A palette stays above the app's windows while one has focus and drops to the normal level once none has had it
@@ -388,8 +433,8 @@ fn window_actions_and_queries_follow_the_window_system() {
     assert_eq!(host.facts(viewport).map(|facts| facts.inner), Some(PLACED));
     assert_eq!(host.viewport_at(IN_PLACED), Some(viewport));
     assert_eq!(host.viewport_at(NOWHERE), None, "nothing is there");
-    let monitors: Vec<_> = host.monitors().into_iter().map(|monitor| (monitor.name, monitor.rect, monitor.scale)).collect();
-    assert_eq!(monitors, [("DP-1".to_owned(), MONITOR_POINTS, MONITOR_SCALE)], "monitors in points");
+    let monitors: Vec<_> = host.monitors().into_iter().map(|monitor| (monitor.name, monitor.pixels, monitor.scale)).collect();
+    assert_eq!(monitors, [("DP-1".to_owned(), MONITOR_PIXELS, MONITOR_SCALE)], "monitors in pixels");
     assert!(act(&windows.ctx, viewport, WindowAction::SetOuterPosition(MOVE_TO)));
     assert!(act(&windows.ctx, viewport, WindowAction::SetInnerSize(SIZE_TO)));
     frame();
@@ -400,6 +445,70 @@ fn window_actions_and_queries_follow_the_window_system() {
     assert_eq!(host.viewport_at(IN_MOVED), Some(viewport));
     assert!(act(&windows.ctx, viewport, WindowAction::SetTitle("Tools".into())));
     assert!(act(&windows.ctx, viewport, WindowAction::SetLevel(WindowLevel::Normal)));
+    let sent = [frame(), frame()];
+    assert!(
+        sent.iter().any(|out| out.commands.contains(&(viewport, ViewportCommand::Title("Tools".into())))),
+        "the title command went out: {:?}",
+        sent.iter().map(|out| &out.commands).collect::<Vec<_>>()
+    );
+    assert_eq!(builder_titled(&sent[1], "tool").1.window_level, Some(egui::WindowLevel::Normal), "the palette left its level");
+}
+
+/// Monitors of different scales that touch in pixels touch in the points of any one window's scale: no gap, no
+/// overlap.
+#[trial]
+fn monitors_of_different_scales_touch_in_one_window_scale() {
+    let system = Arc::new(FakeSystem::new());
+    system.set_monitors(vec![
+        Monitor::new(MonitorKey::new("DP-1", [3840, 2160]), [0, 0], [3840, 2160], 2.0),
+        Monitor::new(MonitorKey::new("DP-2", [1920, 1080]), [3840, 0], [1920, 1080], 1.0),
+    ]);
+    let windows = Windows::with(InstallSpec::new(ShellInfo::default(), system));
+    let monitors = WindowHost::of(&windows.ctx).monitors();
+    for scale in [1.0, 1.5, 2.0] {
+        let [left, right] = [&monitors[0], &monitors[1]].map(|monitor| monitor.points_at(scale));
+        assert_eq!(left.max.x, right.min.x, "the monitors touch at scale {scale}");
+        assert_eq!((left.min.y, right.min.y), (0.0, 0.0));
+    }
+}
+
+/// `SetLevel` on a window the runtime did not open (the root) sends the level command.
+#[trial]
+fn set_level_on_the_root_window_sends_the_level_command() {
+    let windows = Windows::new();
+    windows.frame(vec![], vec![], |_| {});
+    assert!(act(&windows.ctx, ViewportId::ROOT, WindowAction::SetLevel(WindowLevel::AlwaysOnTop)));
+    let out = windows.frame(vec![], vec![], |_| {});
+    assert!(
+        out.commands.contains(&(ViewportId::ROOT, ViewportCommand::WindowLevel(egui::WindowLevel::AlwaysOnTop))),
+        "the level command went out: {:?}",
+        out.commands
+    );
+}
+
+/// After a move or resize is handed to the OS, the next input without a release ends the press, in any chrome.
+#[trial]
+fn the_press_handed_to_the_os_is_released_on_the_next_input() {
+    let windows = Windows::new();
+    let (down, hand_off) = (Cell::new(false), Cell::new(false));
+    let frame = |events: Vec<Event>| {
+        windows.frame(events, vec![], |ui| {
+            if hand_off.take() {
+                assert!(act(ui.ctx(), ViewportId::ROOT, WindowAction::StartMove));
+            }
+            down.set(ui.ctx().input(|input| input.pointer.any_down()));
+        });
+    };
+    let at = HANDLE.center();
+    frame(vec![]);
+    frame(vec![moved(at)]);
+    frame(vec![press(at)]);
+    assert!(down.get(), "the press is down");
+    hand_off.set(true);
+    frame(vec![moved(at + Vec2::splat(30.0))]);
+    assert!(down.get(), "egui still holds the press in the pass that handed it to the OS");
+    frame(vec![moved(at + Vec2::splat(40.0))]);
+    assert!(!down.get(), "the press ended on the next input");
 }
 
 /// The frame decided at install is the root window's chrome and captions.

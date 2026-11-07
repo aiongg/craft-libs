@@ -1488,6 +1488,9 @@ pub(crate) struct Toggle {
 pub struct PartBuilder<'a> {
     pub(super) decl: &'a mut PartDecl,
     pub(super) declared: &'a mut PartExtras,
+    /// The context and component id the exclusive list is written under; none in a sizing pass, which declares
+    /// the same parts again in the real one.
+    pub(super) window: Option<(&'a egui::Context, Id)>,
 }
 
 /// The parts a component declared, each with what it declares beyond the sensing core's `PartDecl`.
@@ -1497,7 +1500,6 @@ pub(crate) type Decls = Vec<(PartDecl, PartExtras)>;
 #[derive(Clone, Debug, Default)]
 pub(crate) struct PartExtras {
     pub focusable: bool,
-    pub exclusive: bool,
     pub focus_shape: Option<FocusShape>,
     pub drag_cursor: Option<CursorIcon>,
     pub tooltip: Option<Tooltip>,
@@ -1554,10 +1556,15 @@ impl PartBuilder<'_> {
         self
     }
 
-    /// The part joins the exclusive hit list, written per egui layer and read next frame. The list feeds only the
-    /// Windows hit-test sink; presses inside the app on the part follow the press-target rule.
-    pub fn exclusive(self) -> Self {
-        self.declared.exclusive = true;
+    /// The part is what `hit` says for the OS window: its move area, one of its edge zones or a caption button. It
+    /// joins the exclusive list of the window's viewport, which `WindowHost::caption_regions` reads for the Windows
+    /// hit-test sink. The rect is the part's shape bounds, which lie in viewport points for a window's own content;
+    /// presses inside the app on the part follow the press-target rule.
+    pub fn exclusive(self, hit: crate::runtime::windows::WindowHit) -> Self {
+        if let Some((ctx, owner)) = self.window {
+            let part = PartRef { key: self.decl.key, index: self.decl.index };
+            crate::runtime::windows::note_exclusive(ctx, owner, part, hit, self.decl.shape.bounds());
+        }
         self
     }
 
@@ -1687,7 +1694,8 @@ impl<C: Component> PartsCx<'_, C> {
         let at = self.decls.len();
         self.decls.push((decl, PartExtras::default()));
         let (decl, declared) = &mut self.decls[at];
-        PartBuilder { decl, declared }
+        let window = (!self.measure.ui.is_sizing_pass()).then(|| (self.measure.ui.ctx(), self.measure.id));
+        PartBuilder { decl, declared, window }
     }
 
     /// Declares a roving group over part and child keys.

@@ -274,6 +274,7 @@ fn parse_override(value: Option<&str>) -> Option<bool> {
 
 /// A window button.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Button {
     #[allow(missing_docs)]
     Minimize,
