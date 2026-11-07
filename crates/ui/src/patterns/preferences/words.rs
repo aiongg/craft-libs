@@ -15,6 +15,7 @@ craft_ui::words! {
         reset_section: "preferences.resetSection" = "Reset Section";
         hex_label: "preferences.hexLabel" = "Hex color";
         default_hint: "preferences.defaultHint" = "Default";
+        cannot_ok: "preferences.cannotOk" = "These settings can't be applied yet.";
     }
 }
 
