@@ -37,7 +37,7 @@ pub struct FooterBarStyle {
 }
 
 /// A footer region's content: its body is the caller's closure, and its members are one roving group.
-#[derive(crate::contract::Component)]
+#[derive(crate::contract::Component, crate::contract::Props)]
 #[component(container)]
 pub struct FooterBar {
     #[common]
@@ -45,7 +45,9 @@ pub struct FooterBar {
     #[container]
     props: ContainerProps,
     content: Content,
-    /// Whether an Enter the focused part left untaken activates the default button.
+    /// Whether an Enter that the focused part left untaken, pressed with the focus inside the open layer, activates the
+    /// default button (the first enabled `Accept` one) like a click on it.
+    #[prop(name = "enter_activates")]
     enter: bool,
 }
 
@@ -502,14 +504,6 @@ impl FooterBar {
     /// `show_footer`.
     pub fn buttons(buttons: impl IntoIterator<Item = FooterButton>) -> Self {
         FooterBar { content: Content::Buttons(buttons.into_iter().collect()), ..FooterBar::body() }
-    }
-
-    /// Whether an Enter that the focused part left untaken, pressed with the focus inside the open layer, activates the
-    /// default button (the first enabled `Accept` one) like a click on it.
-    #[must_use]
-    pub(crate) fn enter_activates(mut self, on: bool) -> Self {
-        self.enter = on;
-        self
     }
 
     /// Shows the bar with the actions or buttons it was made with and reports what happened to them.

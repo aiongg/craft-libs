@@ -3,6 +3,7 @@
 use craft_behavior::{DisplayOrder, ItemSource};
 use craft_ui::contract::{Bind, Role, SelectMode, Show as _, ShowCollection as _, ShowContainer as _};
 use craft_ui::dialog::Dialog;
+use craft_ui::display::Text;
 use craft_ui::list::{List, ListRow};
 use craft_ui::runtime::focus::Initial;
 use craft_ui::runtime::overlay::CloseReason;
@@ -84,14 +85,17 @@ fn the_host_can_refuse_the_close_of_ok_but_not_of_cancel() {
 
 /// The size the dialogs below open at, and the screen they are shown on.
 const OPENING: Vec2 = Vec2::new(420.0, 300.0);
+const LINES: usize = 200;
 const SCREEN: Vec2 = Vec2::new(800.0, 600.0);
 
 /// The rect of a resizable dialog opened at `OPENING` whose body is `body` tall.
-fn opened_rect(body: f32) -> Rect {
+fn opened_rect(lines: usize) -> Rect {
     let mut fixture = Fixture::new(move |ui| {
         let mut open = true;
         Dialog::new("Sized").resizable(true).overlay(|overlay| overlay.size(OPENING)).opened(Bind::bound(&mut open)).show(ui, |ui, _| {
-            ui.allocate_space(Vec2::new(10.0, body));
+            for _ in 0..lines {
+                Text::new("Line").show(ui);
+            }
         });
     });
     fixture.room(SCREEN);
@@ -102,9 +106,9 @@ fn opened_rect(body: f32) -> Rect {
 #[trial]
 fn a_resizable_dialog_opens_at_its_default_size_within_the_screen() {
     let screen = Rect::from_min_size(egui::Pos2::ZERO, SCREEN);
-    let small = opened_rect(10.0);
+    let small = opened_rect(1);
     assert!(small.width() >= OPENING.x && small.height() >= OPENING.y, "short content does not shrink the dialog: {small:?}");
-    let tall = opened_rect(SCREEN.y * 3.0);
+    let tall = opened_rect(LINES);
     assert!(screen.contains_rect(tall), "tall content does not push the dialog off the screen: {tall:?}");
 }
 
