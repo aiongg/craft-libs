@@ -3,7 +3,7 @@
 use super::{PresetBrowser, PresetReorder};
 use crate::contract::Bind;
 use crate::list::ThumbAspect;
-use crate::patterns::presets::{PresetRow, PresetState};
+use crate::patterns::presets::{PresetFooterOptions, PresetRow, PresetState};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
@@ -29,7 +29,7 @@ fn preset_browser(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
         .selected(11)
         .toolbar(true)
         .reorder(PresetReorder::items_and_groups().nest(1))
-        .footer(|footer| footer)
+        .footer(PresetFooterOptions::new())
         .show(ui)
         .into()
 }

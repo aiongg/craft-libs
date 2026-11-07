@@ -17,16 +17,16 @@ mod state;
 mod named;
 mod picker;
 
-pub use browser::{FooterSetup, PresetBrowser, PresetItemCommands, PresetReorder, ThumbPainter};
+pub use browser::{PresetBrowser, PresetItemCommands, PresetReorder, ThumbPainter};
 pub use event::{PresetEvent, PresetOutput};
 pub use files::{PresetExport, PresetFileEvent, PresetFileFailure, PresetFileRequest, PresetFiles};
-pub use footer::{PresetFooter, PresetFooterEvent, PresetFooterOutput};
+pub use footer::{PresetFooter, PresetFooterEvent, PresetFooterOptions, PresetFooterOutput};
 pub use model::{
     CellShape, GroupPath, PresetChange, PresetError, PresetGroup, PresetId, PresetItem, PresetKey, PresetKind, PresetLibrary, PresetRow, Preview,
     PreviewPaint, ThumbInfo, children_end, has_captions, nest_allowed,
 };
-pub use panel_menu::{PresetCommands, PresetMenuAction, PresetPanelMenu};
-pub use state::{DefaultOpen, PresetState, PresetView, default_is_open};
 pub use named::{NameCheck, NamedPresetCommands, NamedPresetEvent, NamedPresetOutput, NamedPresetRow};
+pub use panel_menu::{PresetCommands, PresetMenuAction, PresetPanelMenu};
 pub use picker::{PickerField, PresetPicker, PresetPickerOutput, PresetPickerStyle};
+pub use state::{DefaultOpen, PresetState, PresetView, default_is_open};
 pub use words::PresetWords;

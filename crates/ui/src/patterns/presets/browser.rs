@@ -12,7 +12,7 @@ mod stories;
 pub use reorder::PresetReorder;
 
 use super::event::{PresetEvent, PresetOutput};
-use super::footer::PresetFooter;
+use super::footer::{PresetFooter, PresetFooterEvent, PresetFooterOptions};
 use super::model::{CellShape, PresetRow, ThumbInfo, children_end, has_captions};
 use super::state::{DefaultOpen, PresetState, PresetView};
 use super::words::PresetWords;
@@ -29,7 +29,7 @@ use crate::menu::{Menu, MenuItem};
 use crate::notices::{Notice, NoticeLayout};
 use crate::primitives::ContentPainterCx;
 use crate::runtime::env::{Env, Label};
-use crate::runtime::memory::StageAccess;
+use crate::runtime::memory::Remember as _;
 use crate::text::TextField;
 use crate::tile_grid::{CaptionPlace, GridEvent, Tile, TileGrid, TileGroup, TileZoom};
 use craft_behavior::{DisplayOrder, EditEvent, GestureId, GesturePhase, IconId, ItemSource, Mixed, Selection, SelectionChange};
@@ -74,16 +74,6 @@ impl<'a, K> ThumbPainter<'a, K> {
     }
 }
 
-/// Adds the host's buttons to the footer the browser makes.
-pub struct FooterSetup<'a, K>(Box<dyn for<'f> Fn(PresetFooter<'f, K>) -> PresetFooter<'f, K> + 'a>);
-
-impl<'a, K> FooterSetup<'a, K> {
-    /// The setup that runs `setup`.
-    pub fn new(setup: impl for<'f> Fn(PresetFooter<'f, K>) -> PresetFooter<'f, K> + 'a) -> Self {
-        FooterSetup(Box::new(setup))
-    }
-}
-
 /// A library of named presets shown as thumbnails.
 ///
 /// - **Rows.** The host's flat display list: groups with their depth, then presets. The grid view shows each group as
@@ -94,8 +84,8 @@ impl<'a, K> FooterSetup<'a, K> {
 ///   a group, and a drag reorders by the `reorder` rules. The host performs the delete, rename and move it is told of.
 /// - **Search.** The toolbar's field keeps the presets whose name matches, with their groups, all open; Up, Down and
 ///   Enter go from the field to the presets.
-/// - **Row menu.** Rename, Move to, Delete and the host's `extra_items` act on the row the menu was asked for in this pass, else on
-///   `selected`.
+/// - **Row menu.** Rename, Move to, Delete and the host's `extra_items` act on the row the menu was asked for, which the
+///   browser keeps until the menu closes, else on `selected`.
 ///
 /// ```ignore
 /// let out = PresetBrowser::new("Swatches", Bind::bound(&mut state), &rows).selected(chosen.clone()).toolbar(true).show(ui);
@@ -146,10 +136,10 @@ pub struct PresetBrowser<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     #[prop]
     reorder: Option<PresetReorder<'a, K>>,
     extra_items: Vec<Entry<String>>,
-    /// A footer under the presets. The closure receives it with the browser's zoom bound to its slider and the count
-    /// of presets, and adds the host's buttons and options.
-    #[prop(func = "for<'f> Fn(PresetFooter<'f, K>) -> PresetFooter<'f, K>")]
-    footer: Option<FooterSetup<'a, K>>,
+    /// A footer under the presets, made from these options with the browser's zoom bound to its slider and the count
+    /// of presets.
+    #[prop]
+    footer: Option<PresetFooterOptions<'a>>,
 }
 
 impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'a, K> {
@@ -365,34 +355,34 @@ fn seen<K, E>(events: Vec<CollectionEvent<K, E>>) -> Vec<Seen<K>> {
         .collect()
 }
 
-/// The browser's view settings across the passes of its body and footer: the state as read, the state as the
-/// pass changes it, and the events in order. Its binding is written once, by the last region that runs.
-struct Session<'a, K> {
-    state: Bind<'a, PresetState<K>>,
+/// What the browser keeps in its container's memory: the row the open menu was asked for, and the state as read and
+/// as the pass changes it, which the body and the footer region share. The binding is written once, by the last
+/// region that runs.
+#[derive(Clone)]
+struct BrowserMemory<K> {
+    menu_target: Option<K>,
     before: PresetState<K>,
     local: PresetState<K>,
-    events: Vec<PresetEvent<K>>,
 }
 
-impl<K: Clone + Eq + Hash + Send + Sync + 'static> Session<'_, K> {
-    /// Starts a pass: reads the state and clears the events of an earlier run of the body.
-    fn begin(&mut self, cx: &mut impl StageAccess, thumb_range: &TileZoom) {
-        self.before = match self.state.reborrow().read(cx) {
-            Some(Mixed::Same(held)) => held,
-            _ => PresetState::new(),
-        };
-        self.local = self.before.clone();
-        self.local.zoom = self.local.zoom_in(thumb_range);
-        self.events.clear();
+impl<K> Default for BrowserMemory<K> {
+    fn default() -> Self {
+        BrowserMemory { menu_target: None, before: PresetState::new(), local: PresetState::new() }
     }
+}
 
-    /// Writes the state the pass changed through the binding.
-    fn commit(&mut self, cx: &mut impl StageAccess, rows: &[PresetRow<K>], name: &str) {
-        self.local.retain_groups(rows);
-        if self.local != self.before {
-            let event = EditEvent::set(GestureId::default(), Mixed::Same(self.before.clone()), self.local.clone(), Arc::from(name), None);
-            let _ = self.state.reborrow().write(cx, &event);
-        }
+type StateBind<'a, K> = RefCell<Bind<'a, PresetState<K>>>;
+
+/// Writes the state the pass changed through the binding.
+fn commit<K: Clone + Eq + Hash + Send + Sync + 'static>(cx: &mut BodyCx<'_>, state: &StateBind<'_, K>, rows: &[PresetRow<K>], name: &str) {
+    let (before, mut local) = {
+        let memory = cx.keep::<BrowserMemory<K>>();
+        (memory.before.clone(), memory.local.clone())
+    };
+    local.retain_groups(rows);
+    if local != before {
+        let event = EditEvent::set(GestureId::default(), Mixed::Same(before), local, Arc::from(name), None);
+        let _ = state.borrow_mut().reborrow().write(cx, &event);
     }
 }
 
@@ -423,11 +413,22 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
         let list_id = ui.scope_id().with("browser-rows");
         let name = label.as_str().to_owned();
         let has_footer = footer.is_some();
-        let session = RefCell::new(Session { state, before: PresetState::new(), local: PresetState::new(), events: Vec::new() });
+        let state = RefCell::new(state);
+        let footer_events: RefCell<Vec<PresetFooterEvent<K>>> = RefCell::new(Vec::new());
 
         let body = |ui: &mut Ui, cx: &mut BodyCx<'_>| {
-            session.borrow_mut().begin(cx, &thumb_range);
-            let mut local = session.borrow().local.clone();
+            let before = match state.borrow_mut().reborrow().read(cx) {
+                Some(Mixed::Same(held)) => held,
+                _ => PresetState::new(),
+            };
+            let mut local = before.clone();
+            local.zoom = local.zoom_in(&thumb_range);
+            let mut menu_target = {
+                let memory = cx.keep::<BrowserMemory<K>>();
+                memory.before = before;
+                memory.local = local.clone();
+                memory.menu_target.clone()
+            };
             let mut events: Vec<PresetEvent<K>> = Vec::new();
 
             if toolbar {
@@ -477,7 +478,6 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
                 }
             };
 
-            let mut menu_target: Option<K> = None;
             let mut hovered: Option<K> = None;
             let (response, displayed, pass) = if shown.is_empty() {
                 let message = if query.is_empty() { words.empty.clone() } else { words.no_match.clone() };
@@ -594,7 +594,9 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
                         }
                     }
                     GridEvent::GroupMenu { group, .. } => {
-                        menu_target = grid_group_row(&shown, rows, group).map(|&at| rows[at].key.clone());
+                        if let Some(&at) = grid_group_row(&shown, rows, group) {
+                            menu_target = Some(rows[at].key.clone());
+                        }
                     }
                     _ => {}
                 }
@@ -637,7 +639,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
                 }
             }
 
-            if row_menu && let Some(target) = menu_target.or_else(|| selected.clone()).filter(|key| row_of(key).is_some()) {
+            if row_menu && let Some(target) = menu_target.clone().or_else(|| selected.clone()).filter(|key| row_of(key).is_some()) {
                 let at = row_of(&target).unwrap_or_default();
                 let group = rows[at].is_group();
                 let deletable = can_delete.as_ref().is_none_or(|test| test.passes(&target));
@@ -646,7 +648,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
                 let home = rows[..at].iter().rposition(|row| row.is_group() && row.depth < rows[at].depth);
                 let destinations: Vec<usize> = (0..rows.len()).filter(|&to| rows[to].is_group() && Some(to) != home).collect();
                 let mut ran: Vec<PresetEvent<K>> = Vec::new();
-                let _ = Menu::context(words.menu.clone(), &response).show(ui, |ui, _| {
+                let menu = Menu::context(words.menu.clone(), &response).show(ui, |ui, _| {
                     let (rename, delete) = if group {
                         (PresetItemCommands::RenameGroup, PresetItemCommands::DeleteGroup)
                     } else {
@@ -681,35 +683,36 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
                         }
                     }
                 });
+                if menu.output.closed.is_some() {
+                    menu_target = None;
+                }
                 events.extend(ran);
             }
 
-            let mut shared = session.borrow_mut();
-            shared.local = local;
-            shared.events = events;
+            let memory = cx.keep::<BrowserMemory<K>>();
+            memory.local = local;
+            memory.menu_target = menu_target;
             if !has_footer {
-                shared.commit(cx, rows, &name);
+                commit(cx, &state, rows, &name);
             }
-            (response, hovered)
+            (response, hovered, events)
         };
 
         let footer_region = |ui: &mut Ui, cx: &mut BodyCx<'_>| {
-            let Some(setup) = footer.as_ref() else { return };
-            let mut shared = session.borrow_mut();
-            let mut zoom = shared.local.zoom;
+            let Some(options) = footer.as_ref() else { return };
+            let mut zoom = cx.keep::<BrowserMemory<K>>().local.zoom;
             let count = rows.iter().filter(|row| !row.is_group()).count();
-            let bar = (setup.0)(PresetFooter::new(Bind::bound(&mut zoom)).range(thumb_range).count(count));
-            let events = bar.show(ui).events;
-            shared.local.zoom = zoom;
-            shared.events.extend(events.into_iter().map(PresetEvent::Footer));
-            shared.commit(cx, rows, &name);
+            let bar = PresetFooter::new(Bind::bound(&mut zoom)).range(thumb_range).count(count).options(options.clone());
+            *footer_events.borrow_mut() = bar.show(ui).events;
+            cx.keep::<BrowserMemory<K>>().local.zoom = zoom;
+            commit(cx, &state, rows, &name);
         };
 
         let stack = Stack::new().fill();
         let stack = if has_footer { stack.footer(footer_region) } else { stack };
         let shown = stack.show(ui, body);
-        let (response, hovered) = shown.inner.unwrap_or_else(|| (shown.output.clone(), None));
-        let events = std::mem::take(&mut session.borrow_mut().events);
+        let (response, hovered, mut events) = shown.inner.unwrap_or_else(|| (shown.output.clone(), None, Vec::new()));
+        events.extend(footer_events.take().into_iter().map(PresetEvent::Footer));
         let drag = crate::runtime::drag::active::<ListDrag<K>>(ui.ctx()).filter(|drag| drag.list == list_id).map(|drag| (*drag).clone());
         PresetOutput::new(response, events, drag, hovered)
     }

@@ -11,6 +11,7 @@ use crate::tile_grid::{ThumbnailSlider, TileZoom};
 use craft_behavior::IconId;
 use egui::{Response, Ui};
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 #[cfg(feature = "testing")]
 mod stories;
@@ -68,7 +69,63 @@ impl<K> Outcome for PresetFooterOutput<K> {
     }
 }
 
-type Leading<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
+type Leading<'a> = Arc<dyn Fn(&mut Ui) + 'a>;
+
+/// The host's choices for a preset footer: the pieces it shows and the actions it adds. A plain value, so the footer
+/// can be built from it each time its region runs.
+#[derive(Clone)]
+#[must_use]
+pub struct PresetFooterOptions<'a> {
+    slider: bool,
+    leading: Option<Leading<'a>>,
+    can_delete: bool,
+    new_group: bool,
+    actions: Vec<FooterAction>,
+}
+
+impl Default for PresetFooterOptions<'_> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<'a> PresetFooterOptions<'a> {
+    /// The footer with the slider, Delete, New and New Group.
+    pub fn new() -> Self {
+        PresetFooterOptions { slider: true, leading: None, can_delete: true, new_group: true, actions: Vec::new() }
+    }
+
+    /// Whether the size slider is shown (default yes).
+    pub fn slider(mut self, slider: bool) -> Self {
+        self.slider = slider;
+        self
+    }
+
+    /// The host's own controls before the slider (a "Current Tool Only" check box). The footer runs it each time its
+    /// region runs.
+    pub fn leading(mut self, add: impl Fn(&mut Ui) + 'a) -> Self {
+        self.leading = Some(Arc::new(add));
+        self
+    }
+
+    /// Whether Delete can be clicked, which is when something is selected (default yes).
+    pub fn can_delete(mut self, can_delete: bool) -> Self {
+        self.can_delete = can_delete;
+        self
+    }
+
+    /// Whether the New Group button is shown (default yes).
+    pub fn new_group(mut self, new_group: bool) -> Self {
+        self.new_group = new_group;
+        self
+    }
+
+    /// A host action before New Group, reported as [`PresetFooterEvent::Custom`] with its index.
+    pub fn action(mut self, action: FooterAction) -> Self {
+        self.actions.push(action);
+        self
+    }
+}
 
 /// The footer of a preset panel: the host's own controls, the thumbnail size slider and the count, then the action
 /// buttons Delete, New and New Group and the host's own actions.
@@ -78,48 +135,28 @@ type Leading<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
 /// - **Host actions.** A disabled action takes no click. An action that `accepts_drops` takes presets dragged from
 ///   any preset list and reports [`PresetFooterEvent::CustomDrop`].
 /// - **Slider.** Edits the zoom binding within `range` (the ladder by default); omitted by `slider(false)`.
+/// - **Options.** The host's choices come as one [`PresetFooterOptions`] value.
 #[must_use = "show the footer with `show`"]
 #[derive(crate::contract::Pattern)]
 #[pattern(probe(PresetFooter<'static, u32>))]
 pub struct PresetFooter<'a, K> {
     zoom: Bind<'a, f64>,
     range: TileZoom,
-    slider: bool,
     count: Option<usize>,
-    leading: Option<Leading<'a>>,
-    can_delete: bool,
-    new_group: bool,
-    actions: Vec<FooterAction>,
+    options: PresetFooterOptions<'a>,
     keys: PhantomData<fn() -> K>,
 }
 
 impl<'a, K> PresetFooter<'a, K> {
     /// A footer whose slider edits the thumbnail zoom `zoom` (`PresetState::zoom`).
     pub fn new(zoom: Bind<'a, f64>) -> Self {
-        PresetFooter {
-            zoom,
-            range: TileZoom::Ladder,
-            slider: true,
-            count: None,
-            leading: None,
-            can_delete: true,
-            new_group: true,
-            actions: Vec::new(),
-            keys: PhantomData,
-        }
+        PresetFooter { zoom, range: TileZoom::Ladder, count: None, options: PresetFooterOptions::new(), keys: PhantomData }
     }
 
     /// How the slider steps and what it spans; use the browser's.
     #[must_use]
     pub fn range(mut self, range: TileZoom) -> Self {
         self.range = range;
-        self
-    }
-
-    /// Whether the size slider is shown (default yes).
-    #[must_use]
-    pub fn slider(mut self, slider: bool) -> Self {
-        self.slider = slider;
         self
     }
 
@@ -130,31 +167,10 @@ impl<'a, K> PresetFooter<'a, K> {
         self
     }
 
-    /// The host's own controls before the slider (a "Current Tool Only" check box).
+    /// The host's pieces and actions.
     #[must_use]
-    pub fn leading(mut self, add: impl FnOnce(&mut Ui) + 'a) -> Self {
-        self.leading = Some(Box::new(add));
-        self
-    }
-
-    /// Whether Delete can be clicked, which is when something is selected (default yes).
-    #[must_use]
-    pub fn can_delete(mut self, can_delete: bool) -> Self {
-        self.can_delete = can_delete;
-        self
-    }
-
-    /// Whether the New Group button is shown (default yes).
-    #[must_use]
-    pub fn new_group(mut self, new_group: bool) -> Self {
-        self.new_group = new_group;
-        self
-    }
-
-    /// A host action before New Group, reported as [`PresetFooterEvent::Custom`] with its index.
-    #[must_use]
-    pub fn action(mut self, action: FooterAction) -> Self {
-        self.actions.push(action);
+    pub fn options(mut self, options: PresetFooterOptions<'a>) -> Self {
+        self.options = options;
         self
     }
 }
@@ -171,7 +187,8 @@ enum Slot {
 impl<K: Clone + Send + Sync + 'static> PresetFooter<'_, K> {
     /// Shows the footer across the available width and reports what was pressed, in order.
     pub fn show(self, ui: &mut Ui) -> PresetFooterOutput<K> {
-        let PresetFooter { mut zoom, range, slider, count, leading, can_delete, new_group, actions, .. } = self;
+        let PresetFooter { mut zoom, range, count, options, .. } = self;
+        let PresetFooterOptions { slider, leading, can_delete, new_group, actions } = options;
         let env = Env::of(ui);
         let words = env.words::<PresetWords>();
         let mut shown = Vec::with_capacity(actions.len() + 3);
@@ -189,9 +206,8 @@ impl<K: Clone + Send + Sync + 'static> PresetFooter<'_, K> {
         shown.push(FooterAction::new(IconId::new("trash"), words.delete_button.clone()).enabled(can_delete));
         slots.push(Slot::Delete);
 
-        let mut leading = leading;
         let row = Row::new().fill().align(RowAlign::End).show(ui, |ui, _| {
-            if let Some(add) = leading.take() {
+            if let Some(add) = &leading {
                 add(ui);
             }
             let edit = slider.then(|| ThumbnailSlider::new(words.thumb_size.clone(), zoom.reborrowed(), range).show(ui));

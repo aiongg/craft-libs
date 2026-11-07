@@ -74,9 +74,9 @@ fn deleting_picker() -> (Fixture, Rc<RefCell<Vec<PresetEvent<u32>>>>) {
     (fixture, seen)
 }
 
-/// Opens the popover, opens the row menu of the preset named `label` and runs its Delete row; whether the picker
-/// reported the delete.
-fn deleted_from_menu(label: &str, key: u32) -> bool {
+/// Opens the popover, opens the row menu of the preset named `label` and runs its Delete row; what the picker
+/// reported.
+fn events_after_menu_delete(label: &str) -> Vec<PresetEvent<u32>> {
     let (mut fixture, seen) = deleting_picker();
     open(&mut fixture);
     let at = fixture.by_label(label).expect("the preset's tile").rect.center();
@@ -87,18 +87,20 @@ fn deleted_from_menu(label: &str, key: u32) -> bool {
     let delete = fixture.by_label("Delete").expect("a secondary click on a preset opens the row menu");
     fixture.click(&delete);
     fixture.idle(3);
-    let reported = seen.borrow().contains(&PresetEvent::Delete(key));
+    let reported = seen.borrow().clone();
     reported
 }
 
 /// The row menu deletes a preset that `can_delete` passes.
 #[trial]
 fn the_row_menu_deletes_a_preset_can_delete_passes() {
-    assert!(deleted_from_menu("Amber", AMBER));
+    assert!(events_after_menu_delete("Amber").contains(&PresetEvent::Delete(AMBER)));
 }
 
-/// The row menu's Delete row does nothing for a preset that `can_delete` refuses.
+/// The row menu of a preset that `can_delete` refuses opens, and its Delete row reports no delete, neither for that
+/// preset nor for the selected one.
 #[trial]
 fn the_row_menu_cannot_delete_a_preset_can_delete_refuses() {
-    assert!(!deleted_from_menu("Coral", CORAL));
+    let events = events_after_menu_delete("Coral");
+    assert!(!events.iter().any(|event| matches!(event, PresetEvent::Delete(_))), "no delete was reported: {events:?}");
 }

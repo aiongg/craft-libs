@@ -1,6 +1,6 @@
 //! Stories of `PresetFooter`.
 
-use super::PresetFooter;
+use super::{PresetFooter, PresetFooterOptions};
 use crate::contract::Bind;
 use crate::sections::FooterAction;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
@@ -11,8 +11,7 @@ use egui::Ui;
 fn preset_footer(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     PresetFooter::<u32>::new(Bind::bound(data.value("zoom", 1.0f64)))
         .count(12)
-        .can_delete(false)
-        .action(FooterAction::new(IconId::new("settings"), "Preset settings"))
+        .options(PresetFooterOptions::new().can_delete(false).action(FooterAction::new(IconId::new("settings"), "Preset settings")))
         .show(ui)
         .into()
 }
