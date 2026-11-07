@@ -14,7 +14,7 @@ use crate::runtime::layout_memory;
 use crate::runtime::memory::{SaveKey, sub};
 use crate::runtime::motion::{self, Presence};
 use crate::runtime::overlay::{Backdrop, CloseReason, Rank};
-use crate::runtime::windows::{self, ViewportOpen, WindowHost};
+use crate::runtime::windows::{self, ViewportOpen, WindowHost, WindowSpec};
 use craft_host::target::WindowKind;
 use egui::{Id, Pos2, Rect, Ui, Vec2};
 
@@ -48,7 +48,7 @@ pub(super) fn host(props: &ContainerProps, at: &HostCx<'_>, open: bool, title: &
             (Some(fade), exiting) => Mounted { host: Box::new(FullWindowHost { focus: props.focus, exiting, fade, dismissed: None }), exiting },
             (None, _) => closed(),
         },
-        Mount::Viewport { fallback } => {
+        Mount::Viewport { fallback, spec } => {
             if !WindowHost::of(ctx).viewports_available() {
                 return match layer(fallback) {
                     (Some(fade), exiting) => Mounted { host: Box::new(LayerHost::new(fallback.clone(), props.save.clone(), exiting, fade)), exiting },
@@ -60,6 +60,7 @@ pub(super) fn host(props: &ContainerProps, at: &HostCx<'_>, open: bool, title: &
                     overlay: fallback.clone(),
                     title: title.clone(),
                     save: props.save.as_ref().map(|key| key.as_str().to_owned()),
+                    spec: spec.clone(),
                     dismissed: None,
                 };
                 Mounted { host: Box::new(viewport), exiting: false }
@@ -208,6 +209,8 @@ struct ViewportHost {
     title: Label,
     /// The key the window's placement is saved under.
     save: Option<String>,
+    /// How the window opens; none opens by the fallback's rank.
+    spec: Option<WindowSpec>,
     dismissed: Option<CloseReason>,
 }
 
@@ -218,9 +221,10 @@ impl Host for ViewportHost {
         let mut window_rules = self.overlay.clone();
         window_rules.dismiss.outside = Outside::Keep;
         let title = env.view().resolve(&self.title);
-        // A modal fallback is a dialog window, anything else a tool window.
-        let kind = if self.overlay.rank.is_modal() { WindowKind::Dialog } else { WindowKind::Tool };
-        let open = ViewportOpen { id, title: title.as_str(), size: layout_memory::read(&ctx, id), save: self.save.as_deref(), kind };
+        // Without a spec, a modal fallback is a dialog window and anything else a tool window.
+        let by_rank = || WindowSpec::dialog().kind(if self.overlay.rank.is_modal() { WindowKind::Dialog } else { WindowKind::Tool });
+        let spec = self.spec.clone().unwrap_or_else(by_rank);
+        let open = ViewportOpen { id, title: title.as_str(), size: layout_memory::read(&ctx, id), save: self.save.as_deref(), spec: &spec };
         let dismissed = &mut self.dismissed;
         windows::show_viewport(&ctx, &open, |ui| {
             // The container's scope on the child viewport's own root: its scale, active state and window facts.

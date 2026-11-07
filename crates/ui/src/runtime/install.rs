@@ -4,6 +4,7 @@ use crate::runtime::egui::{focus, fonts, input, plugin};
 use crate::runtime::{commands, frame, windows};
 use crate::style::{DuplicateStyle, StyleReplacements};
 use craft_host::target::ShellInfo;
+use craft_window::policy::Decision;
 use craft_window::restore::Store;
 use craft_window::system::WindowSystem;
 use egui::Context;
@@ -23,12 +24,15 @@ pub struct InstallSpec {
     pub frame_layers: Option<fn(&Context)>,
     /// The app's style replacements, frozen at install.
     pub looks: StyleReplacements,
+    /// The frame decided for the root window; `runtime::windows` takes its chrome and captions and keeps the
+    /// caption layout current on focus gain.
+    pub frame: Option<Decision>,
 }
 
 impl InstallSpec {
     /// A spec for `shell_info` and `window_system`, with no ghost-layer painter.
     pub fn new(shell_info: ShellInfo, window_system: Arc<dyn WindowSystem>) -> Self {
-        InstallSpec { shell_info, window_system, placement: None, frame_layers: None, looks: StyleReplacements::new() }
+        InstallSpec { shell_info, window_system, placement: None, frame_layers: None, looks: StyleReplacements::new(), frame: None }
     }
 
     /// Sets the store viewport mounts save their window placement in.
@@ -40,6 +44,12 @@ impl InstallSpec {
     /// Sets the app's style replacements.
     pub fn looks(mut self, looks: impl Into<StyleReplacements>) -> Self {
         self.looks = looks.into();
+        self
+    }
+
+    /// Sets the root window's decided frame (`craft_window::policy::decide_for`).
+    pub fn frame(mut self, decision: Decision) -> Self {
+        self.frame = Some(decision);
         self
     }
 
@@ -87,7 +97,7 @@ pub fn install(ctx: &Context, spec: InstallSpec) -> Result<(), InstallError> {
     focus::never_surrender_focus(ctx);
     input::clear_shortcuts(ctx);
     fonts::lay_out_unhinted(ctx);
-    windows::install(ctx, spec.shell_info, spec.window_system, spec.placement);
+    windows::install(ctx, spec.shell_info, spec.window_system, spec.placement, spec.frame);
     frame::set_frame_layers(ctx, spec.frame_layers);
     frame::seed_hooked_passes(ctx);
     plugin::register(ctx);

@@ -9,8 +9,8 @@ use craft_ui::runtime::frame::{FrameInput, set_input};
 use craft_ui::testing::Frames;
 use craft_ui::testing::windows::FakeSystem;
 use craft_ui::testing::windows::{FullOutput, RawInput};
-use egui::{Context, Event, Pos2, Rect, Ui, Vec2, ViewportCommand, ViewportId, ViewportInfo};
-use std::cell::RefCell;
+use egui::{Context, Event, Pos2, Rect, Ui, Vec2, ViewportBuilder, ViewportCommand, ViewportId, ViewportInfo};
+use std::cell::{Cell, RefCell};
 use std::sync::Arc;
 
 const ROOT_SIZE: Vec2 = Vec2::new(800.0, 600.0);
@@ -27,13 +27,40 @@ thread_local! {
     static CHILDREN: RefCell<Vec<ViewportId>> = const { RefCell::new(Vec::new()) };
     /// The window commands every pass's output carried since the last frame.
     static COMMANDS: RefCell<Vec<(ViewportId, ViewportCommand)>> = const { RefCell::new(Vec::new()) };
+    /// The time every pass of the frame runs at.
+    static NOW: Cell<f64> = const { Cell::new(0.0) };
+}
+
+/// Seconds between two frames.
+const FRAME_SECONDS: f64 = 1.0 / 60.0;
+
+/// The window system's answer to a move or a resize: the children's facts follow the commands (the fake window
+/// has no decoration, so its inner and outer rects are one). Every child shares one set of facts.
+fn os_applies(id: ViewportId, command: &ViewportCommand) {
+    if id == ViewportId::ROOT {
+        return;
+    }
+    CHILD_INFO.with(|info| {
+        let mut info = info.borrow_mut();
+        let current = info.outer_rect.or(info.inner_rect).unwrap_or_else(|| Rect::from_min_size(Pos2::ZERO, CHILD_SIZE));
+        let moved = match command {
+            ViewportCommand::OuterPosition(pos) => Rect::from_min_size(*pos, current.size()),
+            ViewportCommand::InnerSize(size) => Rect::from_min_size(current.min, *size),
+            _ => return,
+        };
+        info.outer_rect = Some(moved);
+        info.inner_rect = Some(moved);
+    });
 }
 
 fn keep_commands(output: &FullOutput) {
     COMMANDS.with(|kept| {
         let mut kept = kept.borrow_mut();
         for (id, viewport) in &output.viewport_output {
-            kept.extend(viewport.commands.iter().map(|command| (*id, command.clone())));
+            for command in &viewport.commands {
+                os_applies(*id, command);
+                kept.push((*id, command.clone()));
+            }
         }
     });
 }
@@ -58,6 +85,7 @@ fn render_child(ctx: &Context, viewport: egui::ImmediateViewport<'_>) {
     info.parent = Some(viewport.ids.parent);
     let mut input =
         RawInput { viewport_id: viewport.ids.this, events, screen_rect: Some(Rect::from_min_size(Pos2::ZERO, CHILD_SIZE)), ..RawInput::default() };
+    input.time = Some(NOW.with(Cell::get));
     CHILDREN.with(|children| {
         let mut children = children.borrow_mut();
         if !children.contains(&viewport.ids.this) {
@@ -77,6 +105,8 @@ pub struct Out {
     pub titles: Vec<(ViewportId, String)>,
     /// The window commands of every pass of the frame.
     pub commands: Vec<(ViewportId, ViewportCommand)>,
+    /// How each viewport asked to open or change its window.
+    pub builders: Vec<(ViewportId, ViewportBuilder)>,
 }
 
 /// A context with the runtime installed whose child viewports are OS windows.
@@ -102,12 +132,18 @@ impl Windows {
         CHILD_INFO.with(|info| *info.borrow_mut() = ViewportInfo::default());
         CHILDREN.with(|children| children.borrow_mut().clear());
         COMMANDS.with(|kept| kept.borrow_mut().clear());
+        NOW.with(|now| now.set(0.0));
         Windows { ctx, root_info: RefCell::new(ViewportInfo::default()) }
     }
 
     /// The window facts child passes report from now on.
     pub fn child_info(&self, info: ViewportInfo) {
         CHILD_INFO.with(|kept| *kept.borrow_mut() = info);
+    }
+
+    /// Lets `seconds` pass before the next frame.
+    pub fn advance(&self, seconds: f64) {
+        NOW.with(|now| now.set(now.get() + seconds));
     }
 
     /// The window facts the root viewport reports from now on.
@@ -121,12 +157,17 @@ impl Windows {
         CHILD_EVENTS.with(|events| *events.borrow_mut() = child);
         set_input(&self.ctx, FrameInput::new(RootEnv::default()));
         let mut input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, ROOT_SIZE)), events: root, ..RawInput::default() };
+        input.time = Some(NOW.with(|now| {
+            now.set(now.get() + FRAME_SECONDS);
+            now.get()
+        }));
         ROOT_INFO.with(|info| *info.borrow_mut() = self.root_info.borrow().clone());
         input.viewports = all_viewports(CHILD_INFO.with(|info| info.borrow().clone()));
         let mut output = self.ctx.run_ui(input, ui);
         output.textures_delta.clear();
         keep_commands(&output);
         let titles = output.viewport_output.iter().map(|(id, viewport)| (*id, viewport.builder.title.clone().unwrap_or_default())).collect();
-        Out { titles, commands: COMMANDS.with(|kept| std::mem::take(&mut *kept.borrow_mut())) }
+        let builders = output.viewport_output.iter().map(|(id, viewport)| (*id, viewport.builder.clone())).collect();
+        Out { titles, commands: COMMANDS.with(|kept| std::mem::take(&mut *kept.borrow_mut())), builders }
     }
 }

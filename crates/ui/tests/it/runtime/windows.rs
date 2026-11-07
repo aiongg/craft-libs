@@ -6,18 +6,23 @@ use crate::windows_kit::Windows;
 use craft_behavior::{PressCancel, Sense};
 use craft_host::target::{Caps, Os, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
 use craft_ui::contract::{
-    Common, Component, Container, ContainerProps, Cx, Mount, Overlay, Pointer as _, Props as _, Role, Show as _, ShowContainer as _,
+    Bind, Common, Component, Container, ContainerProps, Cx, Mount, Overlay, Pointer as _, Props as _, Role, Show as _, ShowContainer as _,
 };
 use craft_ui::runtime::InstallSpec;
+use craft_ui::runtime::commands::FireSource;
 use craft_ui::runtime::env::Env;
-use craft_ui::runtime::windows::{WindowAction, act};
+use craft_ui::runtime::frame::take_output;
+use craft_ui::runtime::windows::{WindowAction, WindowHost, WindowLevel, WindowSpec, act};
 use craft_ui::style::StyleCx;
-use craft_ui::testing::pointer::{moved, press};
-use craft_ui::testing::windows::{NoWindows, dragged_id, record_input_hooks};
+use craft_ui::testing::input::key_press;
+use craft_ui::testing::pointer::{moved, press, release};
+use craft_ui::testing::windows::{FakeSystem, NoWindows, dragged_id, record_input_hooks};
 use craft_ui::testing::{Fixture, trial};
-use craft_window::restore::{MAIN, Placement, Store};
-use egui::{Event, Pos2, Rect, Response, Vec2, ViewportBuilder, ViewportCommand, ViewportId, ViewportInfo};
-use std::cell::Cell;
+use craft_ui::text::TextField;
+use craft_window::policy::{CaptionFamily, Captions, Decision, Desktop, DesktopKind, Frame};
+use craft_window::restore::{MAIN, Monitor, MonitorKey, Placement, Store};
+use egui::{Event, Key, Modifiers, Pos2, Rect, Response, Vec2, ViewportBuilder, ViewportCommand, ViewportId, ViewportInfo};
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
@@ -249,4 +254,185 @@ fn act_sends_window_commands_only_where_the_capability_is_on() {
     assert!(act(&native.ctx, ViewportId::ROOT, WindowAction::Minimize), "a native build sends the command");
     assert!(!act(&web.ctx, ViewportId::ROOT, WindowAction::Minimize), "a browser build has no window commands");
     assert!(!act(&web.ctx, ViewportId::ROOT, WindowAction::ToggleFullscreen));
+}
+
+/// A container mounted in an OS viewport that opens as `spec`, with a body the trial gives it.
+#[derive(craft_ui::contract::Component)]
+#[component(container)]
+struct Palette {
+    #[common]
+    common: Common,
+    #[container]
+    props: ContainerProps,
+}
+
+impl Palette {
+    fn new(title: &'static str, spec: Option<WindowSpec>) -> Self {
+        let mount = match spec {
+            Some(spec) => Mount::viewport_with(Overlay::floating(), spec),
+            None => Mount::viewport(Overlay::floating()),
+        };
+        Palette { common: Common::new(), props: ContainerProps::new().mount(mount) }.label(title).id_salt(title)
+    }
+}
+
+impl Component for Palette {
+    const ROLE: Role = Role::GROUP;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: PaletteStyleKey) -> PlainStyle {
+        PlainStyle::min(Vec2::new(120.0, 60.0))
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+impl Container for Palette {}
+
+fn builder_titled<'a>(out: &'a crate::windows_kit::Out, title: &str) -> (ViewportId, &'a ViewportBuilder) {
+    let (id, builder) = out.builders.iter().find(|(_, builder)| builder.title.as_deref() == Some(title)).expect("the window asked to open");
+    (*id, builder)
+}
+
+/// A tool spec opens an undecorated palette window with its minimum size; a mount without a spec opens as before
+/// (the OS's frame, an ordinary level), and the window records what it was opened as.
+#[trial]
+fn a_viewport_mount_opens_as_its_spec_says() {
+    let windows = Windows::new();
+    let seen = RefCell::new(None);
+    let tool = || WindowSpec::tool().min_size(Vec2::new(160.0, 100.0));
+    let mut out = None;
+    for _ in 0..3 {
+        out = Some(windows.frame(vec![], vec![], |ui| {
+            Palette::new("tool", Some(tool())).show(ui, |ui, _| {
+                let host = WindowHost::of(ui.ctx());
+                *seen.borrow_mut() = Some((Env::of(ui).view().shell().window.clone(), host.frame()));
+            });
+            Palette::new("plain", None).show(ui, |_, _| {});
+        }));
+    }
+    let out = out.expect("frames ran");
+    let (_, tool) = builder_titled(&out, "tool");
+    assert_eq!(tool.decorations, Some(false), "the tool window is undecorated");
+    assert_eq!(tool.min_inner_size, Some(Vec2::new(160.0, 100.0)));
+    assert_eq!(tool.window_level, Some(egui::WindowLevel::AlwaysOnTop), "a palette is above the app's windows while the app is active");
+    assert_eq!(tool.taskbar, Some(false));
+    let (_, plain) = builder_titled(&out, "plain");
+    assert_eq!(plain.decorations, Some(true), "a mount without a spec keeps the OS's frame");
+    assert_eq!((plain.min_inner_size, plain.window_level), (None, Some(egui::WindowLevel::Normal)));
+    let (window, frame) = seen.take().expect("the tool window ran");
+    assert_eq!((window.kind, window.chrome), (WindowKind::Tool, WindowChrome::Integrated), "the window info follows the spec");
+    assert!(matches!(&frame, Frame::Integrated(captions) if captions.is_empty()), "a tool window shows no caption buttons: {frame:?}");
+}
+
+/// A palette stays above the app's windows while one has focus and drops to the normal level once none has had it
+/// for a moment; focus coming back raises it again.
+#[trial]
+fn a_palette_drops_its_level_while_the_app_is_inactive() {
+    let windows = Windows::new();
+    let level = |windows: &Windows| {
+        let mut out = None;
+        for _ in 0..3 {
+            out = Some(windows.frame(vec![], vec![], |ui| {
+                Palette::new("tool", Some(WindowSpec::tool())).show(ui, |_, _| {});
+            }));
+        }
+        builder_titled(&out.expect("frames ran"), "tool").1.window_level
+    };
+    let focus = |on| ViewportInfo { focused: Some(on), ..ViewportInfo::default() };
+    windows.root_info(focus(true));
+    windows.child_info(focus(false));
+    assert_eq!(level(&windows), Some(egui::WindowLevel::AlwaysOnTop), "the main window has focus");
+    windows.root_info(focus(false));
+    windows.advance(1.0);
+    assert_eq!(level(&windows), Some(egui::WindowLevel::Normal), "no window of the app has focus");
+    windows.root_info(focus(true));
+    assert_eq!(level(&windows), Some(egui::WindowLevel::AlwaysOnTop), "the app is active again");
+}
+
+/// `SetOuterPosition` and `SetInnerSize` move and size the window as the facts show; the window host lists the
+/// system's monitors in points and finds the window under a desktop point.
+#[trial]
+fn window_actions_and_queries_follow_the_window_system() {
+    let system = Arc::new(FakeSystem::new());
+    system.set_monitors(vec![Monitor::new(MonitorKey::new("DP-1", [3840, 2160]), [0, 0], [3840, 2160], 2.0)]);
+    let windows = Windows::with(InstallSpec::new(ShellInfo::default(), system));
+    windows.child_info(ViewportInfo {
+        inner_rect: Some(Rect::from_min_size(Pos2::new(100.0, 100.0), Vec2::new(400.0, 300.0))),
+        outer_rect: Some(Rect::from_min_size(Pos2::new(100.0, 100.0), Vec2::new(400.0, 300.0))),
+        ..ViewportInfo::default()
+    });
+    let frame = || {
+        windows.frame(vec![], vec![], |ui| {
+            Palette::new("tool", Some(WindowSpec::tool())).show(ui, |_, _| {});
+        })
+    };
+    let out = (0..3).map(|_| frame()).last().expect("frames ran");
+    let (viewport, _) = builder_titled(&out, "tool");
+    let host = WindowHost::of(&windows.ctx);
+    assert_eq!(host.facts(viewport).map(|facts| facts.inner.min), Some(Pos2::new(100.0, 100.0)));
+    assert_eq!(host.viewport_at(Pos2::new(150.0, 150.0)), Some(viewport));
+    assert_eq!(host.viewport_at(Pos2::new(900.0, 700.0)), None, "nothing is there");
+    let monitors: Vec<_> = host.monitors().into_iter().map(|monitor| (monitor.name, monitor.rect, monitor.scale)).collect();
+    assert_eq!(monitors, [("DP-1".to_owned(), Rect::from_min_size(Pos2::ZERO, Vec2::new(1920.0, 1080.0)), 2.0)], "monitors in points");
+    assert!(act(&windows.ctx, viewport, WindowAction::SetOuterPosition(Pos2::new(500.0, 400.0))));
+    assert!(act(&windows.ctx, viewport, WindowAction::SetInnerSize(Vec2::new(320.0, 240.0))));
+    frame();
+    frame();
+    let facts = host.facts(viewport).expect("the window reported");
+    assert_eq!(facts.inner, Rect::from_min_size(Pos2::new(500.0, 400.0), Vec2::new(320.0, 240.0)));
+    assert_eq!(host.viewport_at(Pos2::new(150.0, 150.0)), None, "the window left that place");
+    assert_eq!(host.viewport_at(Pos2::new(510.0, 410.0)), Some(viewport));
+    assert!(act(&windows.ctx, viewport, WindowAction::SetTitle("Tools".into())));
+    assert!(act(&windows.ctx, viewport, WindowAction::SetLevel(WindowLevel::Normal)));
+}
+
+/// The frame decided at install is the root window's chrome and captions.
+#[trial]
+fn the_installed_frame_is_the_root_windows() {
+    let desktop = Desktop { kind: DesktopKind::Other, ssd: None, gtk_theme: None, icon_theme: None };
+    let captions = Captions { family: CaptionFamily::Windows, layout: craft_window::Layout::default() };
+    let decision = Decision { frame: Frame::Integrated(captions), overridden: None, desktop };
+    let windows = Windows::with(InstallSpec::new(ShellInfo::default(), Arc::new(NoWindows)).frame(decision.clone()));
+    let seen = RefCell::new(None);
+    windows.frame(vec![], vec![], |ui| {
+        *seen.borrow_mut() = Some((Env::of(ui).view().shell().window.chrome, WindowHost::of(ui.ctx()).frame()));
+    });
+    assert_eq!(seen.take(), Some((WindowChrome::Integrated, decision.frame)));
+}
+
+/// What typing in a tool window does: a shortcut chord pressed there fires its command once, and text typed there
+/// reaches the text part focused in that window.
+#[trial]
+fn typing_in_a_tool_viewport_reaches_the_command_board_and_its_focused_text() {
+    let windows = Windows::new();
+    let text = RefCell::new(String::new());
+    let field = Cell::new(Rect::ZERO);
+    let frame = |child: Vec<Event>| {
+        windows.frame(vec![], child, |ui| {
+            Palette::new("tool", Some(WindowSpec::tool())).show(ui, |ui, _| {
+                let shown = TextField::new("Name", Bind::bound(&mut *text.borrow_mut())).id_salt("name").show(ui);
+                field.set(shown.response.rect);
+            });
+        });
+    };
+    for _ in 0..4 {
+        frame(vec![]);
+    }
+    take_output(&windows.ctx);
+    frame(vec![key_press(Key::K, Modifiers::COMMAND)]);
+    frame(vec![]);
+    let fired = take_output(&windows.ctx).fired;
+    let ids: Vec<_> = fired.iter().map(|fired| (fired.command.id.as_str(), fired.source)).collect();
+    assert_eq!(ids, [("trial.save", FireSource::Key)], "the chord fires its command once");
+    let at = field.get().center();
+    frame(vec![moved(at)]);
+    frame(vec![press(at)]);
+    frame(vec![release(at)]);
+    frame(vec![Event::Text("tool".into())]);
+    frame(vec![]);
+    assert_eq!(*text.borrow(), "tool", "the text reached the field focused in the tool window");
 }

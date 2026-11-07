@@ -97,7 +97,7 @@ impl<'a> Dialog<'a> {
     pub fn overlay(mut self, change: impl FnOnce(Overlay) -> Overlay) -> Self {
         self.props = match std::mem::take(&mut self.props.mount) {
             Mount::Layer(overlay) => self.props.mount(Mount::Layer(change(overlay))),
-            Mount::Viewport { fallback } => self.props.mount(Mount::viewport(change(fallback))),
+            Mount::Viewport { fallback, spec } => self.props.mount(Mount::Viewport { fallback: change(fallback), spec }),
             _ => self.props.mount(Mount::Layer(change(Overlay::dialog().resizable(false)))),
         };
         self

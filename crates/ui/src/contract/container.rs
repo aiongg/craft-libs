@@ -8,6 +8,7 @@ use crate::runtime::commands::CommandScope;
 use crate::runtime::env::Label;
 use crate::runtime::focus::FocusPolicy;
 use crate::runtime::memory::SaveKey;
+use crate::runtime::windows::WindowSpec;
 use crate::style::SurfaceKind;
 use craft_behavior::{CanvasTransform, Roving};
 use craft_theme::ControlSize;
@@ -32,13 +33,21 @@ pub enum Mount {
     Viewport {
         /// The layer used in place of the viewport.
         fallback: Overlay,
+        /// How the window opens; none opens a dialog window for a modal fallback and a tool window otherwise,
+        /// with the OS's frame.
+        spec: Option<WindowSpec>,
     },
 }
 
 impl Mount {
-    /// An OS viewport that falls back to `fallback`.
+    /// An OS viewport that falls back to `fallback`, and opens as a dialog or tool window by the fallback's rank.
     pub const fn viewport(fallback: Overlay) -> Mount {
-        Mount::Viewport { fallback }
+        Mount::Viewport { fallback, spec: None }
+    }
+
+    /// An OS viewport that falls back to `fallback` and opens as `spec` says.
+    pub fn viewport_with(fallback: Overlay, spec: WindowSpec) -> Mount {
+        Mount::Viewport { fallback, spec: Some(spec) }
     }
 }
 

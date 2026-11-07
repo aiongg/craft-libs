@@ -92,7 +92,7 @@ pub(crate) fn placement_of(ctx: &Context, id: Id, save: Option<&SaveKey>) -> Pla
 /// The overlay a layer-like mount shows its container in.
 fn overlay_of(props: &ContainerProps) -> Option<&super::Overlay> {
     match &props.mount {
-        Mount::Layer(overlay) | Mount::Viewport { fallback: overlay } => Some(overlay),
+        Mount::Layer(overlay) | Mount::Viewport { fallback: overlay, .. } => Some(overlay),
         _ => None,
     }
 }
@@ -913,7 +913,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let reason = "the Move and Size commands of the window command set do the same";
         // A layer moves when its overlay says so; other mounts follow the header's band.
         let movable = match &props.mount {
-            Mount::Layer(overlay) | Mount::Viewport { fallback: overlay } => overlay.movable,
+            Mount::Layer(overlay) | Mount::Viewport { fallback: overlay, .. } => overlay.movable,
             _ => props.header.is_some_and(|header| header.band == super::DragBand::Move),
         };
         if props.header.is_some() && movable && regions.header.height() > 0.0 {
@@ -934,7 +934,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 .drag_cursor(CursorIcon::Grabbing)
                 .pointer_only("Alt+Up and Alt+Down move the section");
         }
-        if let Mount::Layer(overlay) | Mount::Viewport { fallback: overlay } = &props.mount
+        if let Mount::Layer(overlay) | Mount::Viewport { fallback: overlay, .. } = &props.mount
             && overlay.resize.grips
         {
             for (index, (dx, dy, cursor)) in GRIPS.into_iter().enumerate() {

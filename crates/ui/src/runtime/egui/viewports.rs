@@ -1,6 +1,7 @@
 //! `show_viewport_immediate`, viewport-builder conversion, viewport facts and window commands.
 
-use egui::{Context, Pos2, Rect, Ui, Vec2, ViewportBuilder, ViewportCommand, ViewportId, ViewportInfo};
+use craft_host::target::WindowChrome;
+use egui::{Context, Pos2, Rect, Ui, Vec2, ViewportBuilder, ViewportCommand, ViewportId, ViewportInfo, WindowLevel};
 
 /// Whether the integration opens OS viewports: false where egui embeds them in the root (web, tests).
 pub(crate) fn available(ctx: &Context) -> bool {
@@ -15,15 +16,37 @@ pub(crate) struct Spec<'a> {
     pub size: Option<Vec2>,
     /// The outer position in desktop points.
     pub pos: Option<Pos2>,
-    /// Whether the OS draws the frame.
-    pub decorated: bool,
+    /// Who draws the frame.
+    pub chrome: WindowChrome,
+    /// The smallest inner size.
+    pub min_size: Option<Vec2>,
+    /// The largest inner size.
+    pub max_size: Option<Vec2>,
+    /// The window level.
+    pub level: WindowLevel,
+    /// Whether the user can resize the window.
+    pub resizable: bool,
+    /// Whether the window has a taskbar or Dock entry.
+    pub taskbar: bool,
 }
 
 /// Opens (or keeps) the OS viewport `id` and runs `body` once for each pass the viewport gets in this call.
 pub(crate) fn show_immediate<T>(ctx: &Context, id: ViewportId, spec: &Spec<'_>, mut body: impl FnMut(&mut Ui) -> T) -> T {
-    let mut builder = ViewportBuilder::default().with_title(spec.title).with_decorations(spec.decorated);
+    let mut builder =
+        ViewportBuilder::default().with_title(spec.title).with_resizable(spec.resizable).with_taskbar(spec.taskbar).with_window_level(spec.level);
+    builder = match spec.chrome {
+        WindowChrome::Integrated => builder.with_decorations(false),
+        WindowChrome::Inset => builder.with_decorations(true).with_fullsize_content_view(true).with_title_shown(false).with_titlebar_shown(false),
+        _ => builder.with_decorations(true),
+    };
     if let Some(size) = spec.size {
         builder = builder.with_inner_size(size);
+    }
+    if let Some(size) = spec.min_size {
+        builder = builder.with_min_inner_size(size);
+    }
+    if let Some(size) = spec.max_size {
+        builder = builder.with_max_inner_size(size);
     }
     if let Some(pos) = spec.pos {
         builder = builder.with_position(pos);

@@ -26,6 +26,7 @@
 pub use crate::desktop::{Backend, Desktop, DesktopKind};
 pub use crate::layout::LayoutWatch;
 use crate::{Layout, Prefix, layout};
+pub use craft_host::target::{Os, Runtime, WindowKind};
 
 /// Whether KDE, COSMIC, Xfce, Cinnamon, MATE and X11 window managers, which draw their own frame,
 /// get the app's bar by default. Set to `false` for [`Frame::Native`] on those desktops instead;
@@ -40,34 +41,6 @@ pub enum TitleBarPref {
     Integrated,
     /// The OS, window manager or compositor draws it.
     System,
-}
-
-/// The operating system family. Linux stands for Linux and the BSDs.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Os {
-    #[allow(missing_docs)]
-    Mac,
-    #[allow(missing_docs)]
-    Windows,
-    #[allow(missing_docs)]
-    Linux,
-    #[allow(missing_docs)]
-    Web,
-}
-
-impl Os {
-    /// The OS this build runs on.
-    pub const fn current() -> Os {
-        if cfg!(target_os = "macos") {
-            Os::Mac
-        } else if cfg!(target_os = "windows") {
-            Os::Windows
-        } else if cfg!(target_arch = "wasm32") {
-            Os::Web
-        } else {
-            Os::Linux
-        }
-    }
 }
 
 /// The look of the caption buttons.
@@ -103,6 +76,13 @@ pub struct Captions {
     pub family: CaptionFamily,
     /// Which buttons go on which end.
     pub layout: Layout,
+}
+
+impl Captions {
+    /// Whether no button is shown.
+    pub fn is_empty(&self) -> bool {
+        self.layout.left.is_empty() && self.layout.right.is_empty()
+    }
 }
 
 /// Where macOS puts the traffic lights over the app's bar, in points. [`crate::mac`] measures the
@@ -147,30 +127,44 @@ pub struct Decision {
     pub desktop: Desktop,
 }
 
-/// The decision, pure. `env` is the value of `<PREFIX>_TITLEBAR` (`app`, `system` or `desktop`);
-/// it wins over `pref`. Caption layouts are each family's default; [`decide_for`] fills in the
-/// desktop's own.
-pub fn decide(os: Os, backend: Backend, desktop: &Desktop, pref: TitleBarPref, env: Option<&str>) -> Decision {
-    decide_with(os, backend, desktop, pref, env, &layout::default_layout)
+/// The decision for a window of `kind`, pure. `env` is the value of `<PREFIX>_TITLEBAR` (`app`, `system`
+/// or `desktop`); it wins over `pref`. Caption layouts are each family's default; [`decide_for`] fills in
+/// the desktop's own. A browser draws no frame code ([`Frame::Native`]). A tool window has the frame the
+/// others have but no caption buttons: its captions have an empty layout.
+pub fn decide(os: Os, runtime: Runtime, backend: Backend, desktop: &Desktop, kind: WindowKind, pref: TitleBarPref, env: Option<&str>) -> Decision {
+    decide_with(&Inputs { os, runtime, backend, desktop, kind, pref, env }, &layout::default_layout)
+}
+
+/// What a decision reads.
+struct Inputs<'a> {
+    os: Os,
+    runtime: Runtime,
+    backend: Backend,
+    desktop: &'a Desktop,
+    kind: WindowKind,
+    pref: TitleBarPref,
+    env: Option<&'a str>,
 }
 
 /// `layout` supplies the caption layout for a desktop kind; it is called only when the frame comes
 /// out integrated.
-fn decide_with(
-    os: Os,
-    backend: Backend,
-    desktop: &Desktop,
-    pref: TitleBarPref,
-    env: Option<&str>,
-    layout: &dyn Fn(DesktopKind) -> Layout,
-) -> Decision {
+fn decide_with(inputs: &Inputs<'_>, layout: &dyn Fn(DesktopKind) -> Layout) -> Decision {
+    let Inputs { os, runtime, backend, desktop, kind, pref, env } = *inputs;
     let overridden = crate::parse_override(env);
     let integrated = match (overridden, pref) {
         (Some(app), _) => app,
         (None, pref) => pref == TitleBarPref::Integrated,
     };
-    let frame =
-        if integrated { integrated_frame(os, backend, desktop, overridden.is_some(), INTEGRATED_ON_SSD_DESKTOPS, layout) } else { Frame::Native };
+    let mut frame = if integrated && runtime == Runtime::Native {
+        integrated_frame(os, backend, desktop, overridden.is_some(), INTEGRATED_ON_SSD_DESKTOPS, layout)
+    } else {
+        Frame::Native
+    };
+    if kind == WindowKind::Tool
+        && let Frame::Integrated(captions) = &mut frame
+    {
+        captions.layout = Layout { left: Vec::new(), right: Vec::new() };
+    }
     Decision { frame, overridden, desktop: desktop.clone() }
 }
 
@@ -190,10 +184,10 @@ fn integrated_frame(
         Frame::Integrated(Captions { family, layout: layout(kind) })
     };
     match os {
-        Os::Web => Frame::Native,
         Os::Mac => Frame::Inset(MacInset::default()),
         Os::Windows => captions(CaptionFamily::Windows),
-        Os::Linux => {
+        // Linux and every other system.
+        _ => {
             let no_ssd = backend == Backend::Wayland && desktop.ssd == Some(false);
             match desktop.kind {
                 DesktopKind::Tiling if !forced => Frame::Native,
@@ -215,11 +209,18 @@ fn integrated_frame(
 /// applies. `backend` is the one the app opens its window on, [`Backend::from_env`]
 /// unless the app forces X11.
 pub fn decide_for(prefix: Prefix, backend: Backend, pref: TitleBarPref) -> Decision {
+    decide_for_kind(prefix, backend, WindowKind::Main, pref)
+}
+
+/// [`decide_for`] for a window of `kind`.
+pub fn decide_for_kind(prefix: Prefix, backend: Backend, kind: WindowKind, pref: TitleBarPref) -> Decision {
     let os = Os::current();
+    let runtime = Runtime::current();
     let env = std::env::var(prefix.var_name()).or_else(|_| std::env::var(Prefix::default().var_name())).ok();
     let desktop =
         if os == Os::Linux { Desktop::detect(backend) } else { Desktop { kind: DesktopKind::Other, ssd: None, gtk_theme: None, icon_theme: None } };
-    decide_with(os, backend, &desktop, pref, env.as_deref(), &|kind| desktop_layout(os, kind))
+    let inputs = Inputs { os, runtime, backend, desktop: &desktop, kind, pref, env: env.as_deref() };
+    decide_with(&inputs, &|kind| desktop_layout(os, kind))
 }
 
 /// The desktop's window-button layout, where it names one.
@@ -265,6 +266,10 @@ mod tests {
         Desktop { kind, ssd, gtk_theme: theme.map(str::to_string), icon_theme: None }
     }
 
+    fn decide_main(os: Os, backend: Backend, desktop: &Desktop, pref: TitleBarPref, env: Option<&str>) -> Decision {
+        decide(os, Runtime::Native, backend, desktop, WindowKind::Main, pref, env)
+    }
+
     fn family_of(d: &Decision) -> Option<CaptionFamily> {
         match &d.frame {
             Frame::Integrated(c) => Some(c.family),
@@ -289,18 +294,36 @@ mod tests {
             (Os::Linux, Backend::Wayland, desk(Tiling, Some(true), None), None),
             (Os::Linux, Backend::X11, desk(Tiling, None, None), None),
             (Os::Linux, Backend::Wayland, desk(Other, Some(false), Some("Adwaita")), Some(Generic)),
-            (Os::Web, Backend::X11, desk(Other, None, None), None),
         ];
         for (os, backend, d, want) in rows {
-            let got = decide(os, backend, &d, Int, None);
+            let got = decide_main(os, backend, &d, Int, None);
             assert_eq!(family_of(&got), want, "{os:?} {backend:?} {d:?}");
             assert_eq!(got.overridden, None);
             if want.is_none() {
                 assert_eq!(got.frame, Frame::Native);
             }
-            let system = decide(os, backend, &d, System, None);
+            let system = decide_main(os, backend, &d, System, None);
             assert_eq!(system.frame, Frame::Native, "system bar: {os:?} {d:?}");
         }
+    }
+
+    #[test]
+    fn a_browser_has_no_frame_code() {
+        let d = desk(DesktopKind::Other, None, None);
+        assert_eq!(decide(Os::Linux, Runtime::Web, Backend::X11, &d, WindowKind::Main, Int, Some("app")).frame, Frame::Native);
+    }
+
+    #[test]
+    fn a_tool_window_has_no_captions_and_a_document_window_its_families() {
+        let gnome = desk(DesktopKind::Gnome, Some(false), None);
+        let for_kind = |os, kind| decide(os, Runtime::Native, Backend::Wayland, &gnome, kind, Int, None).frame;
+        for (os, family) in [(Os::Windows, Windows), (Os::Linux, Adwaita)] {
+            let Frame::Integrated(tool) = for_kind(os, WindowKind::Tool) else { panic!("{os:?}: a tool window's bar is the app's") };
+            assert_eq!((tool.family, tool.is_empty()), (family, true), "{os:?} tool");
+            let Frame::Integrated(document) = for_kind(os, WindowKind::Document) else { panic!("{os:?}: a document window's bar is the app's") };
+            assert_eq!((document.family, document.is_empty()), (family, false), "{os:?} document");
+        }
+        assert_eq!(for_kind(Os::Mac, WindowKind::Tool), Frame::Inset(MacInset::default()), "the OS draws the traffic lights");
     }
 
     #[test]
@@ -317,39 +340,39 @@ mod tests {
     #[test]
     fn the_decision_carries_the_desktop() {
         let d = desk(DesktopKind::Tiling, Some(true), None);
-        assert_eq!(decide(Os::Linux, Backend::Wayland, &d, Int, None).desktop, d);
+        assert_eq!(decide_main(Os::Linux, Backend::Wayland, &d, Int, None).desktop, d);
     }
 
     #[test]
     fn macos_gets_the_inset() {
-        let d = decide(Os::Mac, Backend::X11, &desk(DesktopKind::Other, None, None), Int, None);
+        let d = decide_main(Os::Mac, Backend::X11, &desk(DesktopKind::Other, None, None), Int, None);
         assert_eq!(d.frame, Frame::Inset(MacInset::default()));
-        assert_eq!(decide(Os::Mac, Backend::X11, &desk(DesktopKind::Other, None, None), System, None).frame, Frame::Native);
+        assert_eq!(decide_main(Os::Mac, Backend::X11, &desk(DesktopKind::Other, None, None), System, None).frame, Frame::Native);
     }
 
     #[test]
     fn the_override_wins_over_the_setting_both_ways() {
         let kde = desk(DesktopKind::Kde, Some(true), None);
-        let system = decide(Os::Linux, Backend::Wayland, &kde, Int, Some("system"));
+        let system = decide_main(Os::Linux, Backend::Wayland, &kde, Int, Some("system"));
         assert_eq!((system.frame, system.overridden), (Frame::Native, Some(false)));
-        let desktop = decide(Os::Linux, Backend::Wayland, &kde, Int, Some("desktop"));
+        let desktop = decide_main(Os::Linux, Backend::Wayland, &kde, Int, Some("desktop"));
         assert_eq!((desktop.frame, desktop.overridden), (Frame::Native, Some(false)));
-        let app = decide(Os::Linux, Backend::Wayland, &kde, System, Some("app"));
+        let app = decide_main(Os::Linux, Backend::Wayland, &kde, System, Some("app"));
         assert_eq!(app.overridden, Some(true));
         assert_eq!(family_of(&app), Some(Breeze));
         // `app` also forces the bar on a tiling compositor, which would otherwise be native.
         let tiling = desk(DesktopKind::Tiling, Some(true), None);
-        assert_eq!(family_of(&decide(Os::Linux, Backend::Wayland, &tiling, Int, Some("app"))), Some(Generic));
+        assert_eq!(family_of(&decide_main(Os::Linux, Backend::Wayland, &tiling, Int, Some("app"))), Some(Generic));
         // An unknown value is no override.
-        let unknown = decide(Os::Linux, Backend::Wayland, &kde, System, Some("maybe"));
+        let unknown = decide_main(Os::Linux, Backend::Wayland, &kde, System, Some("maybe"));
         assert_eq!((unknown.frame, unknown.overridden), (Frame::Native, None));
     }
 
     #[test]
     fn default_layouts_follow_the_family() {
-        let gnome = decide(Os::Linux, Backend::Wayland, &desk(DesktopKind::Gnome, Some(false), None), Int, None);
+        let gnome = decide_main(Os::Linux, Backend::Wayland, &desk(DesktopKind::Gnome, Some(false), None), Int, None);
         assert!(matches!(gnome.frame, Frame::Integrated(c) if c.layout.right == vec![crate::Button::Close]));
-        let win = decide(Os::Windows, Backend::X11, &desk(DesktopKind::Other, None, None), Int, None);
+        let win = decide_main(Os::Windows, Backend::X11, &desk(DesktopKind::Other, None, None), Int, None);
         assert!(matches!(win.frame, Frame::Integrated(c) if c.layout == Layout::default()));
     }
 
