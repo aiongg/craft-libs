@@ -59,18 +59,35 @@ fn spec_text(env: &crate::runtime::env::EnvView<'_>, spec: &TooltipSpec, enabled
 }
 
 /// The text the component's own tooltip shows, or `None` when it has none: the tooltip's text, or its disabled text
-/// while disabled, with the bound command's chord; else the full label when the paint cut it.
+/// while disabled, with the bound command's chord; else the full label when the paint cut it, or when a leaf painted
+/// no text and no field label names it.
 fn text_of<C: Component>(cx: &Cx<'_, C>) -> Option<String> {
     let core = &cx.core;
     let base = match core.resolved.tooltip.map(|tooltip| tooltip.spec()) {
         Some(spec) => spec_text(&core.env, spec, core.resolved.enabled),
-        None => core.paint.borrow().elided.clone()?,
+        None => {
+            let paint = core.paint.borrow();
+            match paint.elided.clone() {
+                Some(full) => full,
+                None if shows_no_text::<C>(core, paint.baseline) => core.resolved.label.to_owned(),
+                None => return None,
+            }
+        }
     };
     let platform = craft_keymap::egui::platform(&core.ctx);
     Some(match core.command.as_deref().and_then(|command| command.chord.as_ref()) {
         Some(chord) => format!("{base} ({})", chord.display(platform)),
         None => base,
     })
+}
+
+/// Whether a leaf painted no text (its paint recorded no baseline) and no field label shows its name, so its label
+/// is the only visible name the tooltip can give.
+fn shows_no_text<C: Component>(core: &super::CxCore<'_>, baseline: Option<f32>) -> bool {
+    <C::Shape as super::ShowShape>::KIND == super::ShapeKind::Leaf
+        && baseline.is_none()
+        && !core.resolved.label.is_empty()
+        && crate::runtime::access::scope::field_label(&core.ctx).is_none()
 }
 
 /// A part's tooltip, for the part the pointer is over or the keyboard is on.
