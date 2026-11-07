@@ -79,6 +79,15 @@ pub(crate) struct BeginIn {
     pub(crate) tab_all_controls: bool,
 }
 
+/// The row groups of one collection's visible rows in a pass: every one is a flat roving group of the same owner
+/// and direction, so the collection registers them as one record.
+pub(crate) struct RowGroups {
+    owner: Id,
+    rtl: bool,
+    /// Sorted.
+    ids: Vec<Id>,
+}
+
 #[derive(Default)]
 pub(crate) struct State {
     pub(crate) stops: Vec<StopRec>,
@@ -90,6 +99,8 @@ pub(crate) struct State {
     pub(super) open: Vec<(Id, usize)>,
     pub(crate) groups: HashMap<Id, Group>,
     pub(crate) last_groups: HashMap<Id, Group>,
+    pub(crate) row_sets: Vec<RowGroups>,
+    pub(crate) last_row_sets: Vec<RowGroups>,
     pub(crate) focused: HashMap<Id, StopKey>,
     pub(crate) focus_now: Option<Id>,
     pub(super) pending: Option<FocusTarget>,
@@ -136,6 +147,12 @@ pub(crate) fn register_group(ctx: &Context, group: Group) {
     with(ctx, |state| {
         state.groups.insert(group.id, group);
     });
+}
+
+/// Registers the row groups `ids` of the collection `owner` for the running pass.
+pub(crate) fn register_row_groups(ctx: &Context, owner: Id, rtl: bool, mut ids: Vec<Id>) {
+    ids.sort_unstable_by_key(|id| id.value());
+    with(ctx, |state| state.row_sets.push(RowGroups { owner, rtl, ids }));
 }
 
 /// The place of the component `id`'s own stop among last pass's members of the roving group `group`.
@@ -231,13 +248,13 @@ pub(crate) fn focused_rec(ctx: &Context) -> Option<StopRec> {
 pub(crate) fn in_row_child(ctx: &Context) -> bool {
     with(ctx, |state| {
         let group = state.stop_of_focus().and_then(|rec| rec.stop.group);
-        group.and_then(|group| state.last_groups.get(&group)).is_some_and(|group| group.row)
+        group.and_then(|group| state.group(group)).is_some_and(|group| group.row)
     })
 }
 
 /// Whether the stop `stop` is a child or part of a collection row's roving group: it activates itself.
 pub(crate) fn is_row_child(ctx: &Context, stop: &Stop) -> bool {
-    with(ctx, |state| stop.group.and_then(|group| state.last_groups.get(&group)).is_some_and(|group| group.row))
+    with(ctx, |state| stop.group.and_then(|group| state.group(group)).is_some_and(|group| group.row))
 }
 
 /// Whether the focus stop is the component `id`: the focused member or item of its arena, or a root that

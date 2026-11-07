@@ -449,15 +449,13 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let (parent, clip) = (ui.layer_id(), rect.intersect(ui.clip_rect()));
         let forward =
             areas::Forward { id: sub(id, "transform"), sense: response::to_egui(cx.core.root_sense), rect: cx.core.rect.intersect(ui.clip_rect()) };
+        let mut row_groups = Vec::with_capacity(order.len());
         let place_rows = |ui: &mut Ui| {
             for at in order {
                 let key = self.source.key(at);
                 let item_id = sub(id, ("key", key_hash(&key)));
                 let row_group = rows::row_group(item_id);
-                focus::register_group(
-                    &ctx,
-                    focus::Group::new(row_group, craft_behavior::Roving::new(craft_behavior::NavShape::Flat)).row(id).rtl(rtl),
-                );
+                row_groups.push(row_group);
                 let mut row = self.screen(&layout, rect, at, offset, rtl);
                 let state = RowState {
                     selected: self.selection.contains(&key),
@@ -578,6 +576,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             }
             None => place_rows(ui),
         }
+        focus::register_row_groups(&ctx, id, rtl, row_groups);
         let size = layout.content_size();
         self.content = Vec2::new(size.x as f32, size.y as f32);
         if self.ended_rename {

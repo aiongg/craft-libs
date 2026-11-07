@@ -348,8 +348,10 @@ where
     C: crate::contract::Component + crate::contract::Props + crate::contract::Show,
 {
     let id = ui.scope_id().with("only item");
-    let facts = crate::runtime::env::ItemFacts { item: id, flags: crate::style::Flags::empty(), position: crate::runtime::access::SetPosition::new(0).of(1) };
-    let installed = crate::runtime::env::Env::install_for(ui, crate::runtime::env::Env::of(ui).derive_local(|scoped| scoped.item_facts = Some(facts)));
+    let facts =
+        crate::runtime::env::ItemFacts { item: id, flags: crate::style::Flags::empty(), position: crate::runtime::access::SetPosition::new(0).of(1) };
+    let installed =
+        crate::runtime::env::Env::install_for(ui, crate::runtime::env::Env::of(ui).derive_local(|scoped| scoped.item_facts = Some(facts)));
     let shown = row.id(id).show(ui);
     crate::runtime::env::Env::restore(ui.ctx(), installed);
     shown
