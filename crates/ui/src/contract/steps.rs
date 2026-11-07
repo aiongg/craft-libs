@@ -641,6 +641,12 @@ pub(crate) fn update_inputs(core: &mut CxCore<'_>) {
     if core.intents.take(craft_behavior::Intent::Activate) && takes_activation(core.resolved) {
         core.activation = Some(super::Activation { by_key: true });
     }
+    // An AccessKit click on a part is a click on the component as a pointer click on the part is: the response
+    // reports it, and a toggling part or a part reader takes it as it takes the pointer's.
+    if core.intents.any_access_click() && takes_activation(core.resolved) {
+        core.activation.get_or_insert(super::Activation { by_key: false });
+        core.part_clicked = true;
+    }
 }
 
 /// Step 9, before the component: a gesture cancelled under its press is live again once the press is released, and a
@@ -1393,7 +1399,7 @@ pub(crate) fn report_inert<C: Component>(cx: &Cx<'_, C>) {
 /// carries them.
 pub(crate) fn before_finish<C: Component>(cx: &mut Cx<'_, C>, activated: bool) {
     let by_key = activated && cx.core.activation.is_some_and(|activation| activation.by_key);
-    response::rewrite_clicks(&mut cx.core.response, by_key, cx.core.command.is_some());
+    response::rewrite_clicks(&mut cx.core.response, by_key || cx.core.part_clicked, cx.core.command.is_some());
     // The response reports a change for a `Set` or a `Commit` that moved the value: the pass's last event decides, because
     // `EditEvent::fold` yields one of them exactly when the last event is one.
     let changed = match cx.events.last() {

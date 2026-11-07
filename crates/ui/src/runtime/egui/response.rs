@@ -122,7 +122,7 @@ pub(crate) fn keep_press_flags(response: &mut Response, own: bool) {
 }
 
 /// Rewrites the click flags of the root's `Response` at step 17: egui's fake click on Enter, Space or AccessKit
-/// `Click` is cleared, and set again only when the pipeline activated the component by key. A command-bound
+/// `Click` is cleared, and set again only when the pipeline activated the component by key or by an AccessKit click on a part. A command-bound
 /// component reports no click, because the command fires instead.
 pub(crate) fn rewrite_clicks(response: &mut Response, activated_by_key: bool, command_bound: bool) {
     response.flags.remove(Flags::FAKE_PRIMARY_CLICKED);

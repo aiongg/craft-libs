@@ -963,6 +963,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             self.access_scroll(props, cx);
         }
         self.reorder_keys(props, cx);
+        // AccessKit Expand, Collapse and Click reach a collapsible container as an activation: it folds or unfolds.
+        if props.collapse.is_some() && cx.activation().is_some_and(|activation| activation.by_key) {
+            self.open = !self.open;
+        }
         if !layer {
             return;
         }

@@ -672,10 +672,8 @@ impl Component for Tile<'_> {
             let current = self.rating.unwrap_or(0);
             self.event = Some(TilePartEvent::Rate(if star == current { 0 } else { star }));
         }
-        if let Some(result) = cx.part_if_declared(CHECK)
-            && result.press.phase.is_click()
-        {
-            self.event = Some(TilePartEvent::Check { mods: result.press.mods });
+        if cx.part_activated(CHECK).is_some() {
+            self.event = Some(TilePartEvent::Check { mods: cx.part(CHECK).press.mods });
         }
         let current = self.rating.unwrap_or(0);
         while let Some(request) = cx.intents().take_access() {
