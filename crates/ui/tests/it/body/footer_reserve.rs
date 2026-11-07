@@ -1,7 +1,7 @@
 //! A content-sized layer reserves its footer under a body that fills.
 
 use craft_behavior::{DisplayOrder, ItemSource};
-use craft_ui::contract::{Bind, Show as _, ShowCollection as _, ShowContainer as _};
+use craft_ui::contract::{Bind, ShowCollection as _, ShowContainer as _};
 use craft_ui::dialog::Dialog;
 use craft_ui::layout_components::Row;
 use craft_ui::list::{List, ListRow};
@@ -45,7 +45,7 @@ fn a_dialog_with_a_filling_body_keeps_its_footer_below_the_body_and_inside_the_s
             });
     });
     fixture.settle();
-    let screen = fixture.ctx().screen_rect();
+    let screen = fixture.ctx().content_rect();
     let body = body.get();
     for label in ["Apply", "Cancel"] {
         let button = fixture.by_label(label).expect("the footer button is shown");

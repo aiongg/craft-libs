@@ -114,8 +114,9 @@ fn manual_and_context(open_bound: bool) -> (Fixture, Rc<Ids>) {
         shown.button.set(Some(menu_button.id));
         shown.area.set(Some(target.id));
         let mut menu = Menu::new("Actions").opened_by(&target, Trigger::Manual).anchor(Anchor::Rect(menu_button.rect));
+        let mut open = true;
         if open_bound {
-            menu = menu.open(Bind::bound(true));
+            menu = menu.open(Bind::bound(&mut open));
         }
         menu.opened_by(&target, Trigger::Context).show(ui, |ui, _| {
             MenuItem::new("Open").show(ui);
