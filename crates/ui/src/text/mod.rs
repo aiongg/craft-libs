@@ -5,11 +5,16 @@ mod completions;
 mod stories;
 mod words;
 
-use crate::contract::{Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, OverlayUi, PartsCx, Props as _, Role, Scrub};
-use crate::primitives::{Completer, TextKey, TextOptions, TextRun};
+use crate::buttons::IconButton;
+use crate::contract::{
+    Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, OverlayUi, PaintUi, PartsCx, Pointer as _, Props as _, Role, Scrub,
+    Styled as _, WordSetCx as _,
+};
+use crate::primitives::{Completer, IconSpec, TextKey, TextOptions, TextRun};
 use crate::runtime::env::Label;
-use crate::style::{ComponentStyle, StyleCx, SurfaceLook};
-use craft_behavior::{Codec, Insets, Metrics, NumberCodec, PartKey, PlainText, Sense, ValueDrag};
+use crate::style::{ComponentStyle, IconLook, Ink, StyleCx, SurfaceLook};
+use craft_behavior::{Codec, Flow, IconId, Insets, Metrics, NumberCodec, PartKey, PlainText, Sense, ValueDrag};
+use craft_theme::Stateful;
 use egui::{Rect, Vec2};
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -25,6 +30,9 @@ pub struct FieldStyle {
     surface: SurfaceLook,
     #[style(metrics)]
     metrics: Metrics,
+    /// The search glyph.
+    #[style(icon)]
+    glyph: IconLook,
 }
 
 impl FieldStyle {
@@ -32,13 +40,17 @@ impl FieldStyle {
         let control = cx.control();
         let metrics = Metrics::new()
             .padding(Insets::new(control.pad_x, 0.0, control.pad_x, 0.0))
+            .gap(control.gap)
             .min_size(Vec2::new(control.height * MIN_WIDTH_IN_HEIGHTS, control.height));
-        FieldStyle { surface: cx.field(), metrics }
+        FieldStyle { surface: cx.field(), metrics, glyph: IconLook::new(control.icon, Stateful::new(cx.ink(Ink::OnPanel))) }
     }
 }
 
 /// The part key of the one text part.
 const TEXT: PartKey = PartKey::new("text");
+
+/// The clear part of a search field.
+const CLEAR: PartKey = PartKey::new("clear");
 
 fn text_part<V>() -> TextKey<V> {
     TextKey::new(TEXT)
@@ -53,18 +65,26 @@ pub struct TextField<'a, C: Codec + Clone + 'static = PlainText> {
     value: Bind<'a, C::Value>,
     codec: C,
     options: TextOptions,
+    /// The value of an empty field: the text a mixed field shows and what the clear part sets.
+    empty: Option<C::Value>,
+    /// The search form: a leading glyph and a clear part, and Escape clears the text first.
+    search: bool,
 }
 
 impl<'a> TextField<'a, PlainText> {
     /// A plain text field named `label`.
     pub fn new(label: impl Into<Label>, value: Bind<'a, String>) -> Self {
-        TextField::with_codec(label, value, PlainText)
+        let mut field = TextField::with_codec(label, value, PlainText);
+        field.empty = Some(String::new());
+        field
     }
 
-    /// A search field: Escape clears the text first.
+    /// A search field: a search glyph before the text, a clear part after it while there is text, and Escape
+    /// clears the text first.
     pub fn search(label: impl Into<Label>, value: Bind<'a, String>) -> Self {
         let mut field = TextField::new(label, value);
         field.options.clear_on_escape = true;
+        field.search = true;
         field
     }
 }
@@ -72,7 +92,15 @@ impl<'a> TextField<'a, PlainText> {
 impl<'a, C: Codec + Clone + 'static> TextField<'a, C> {
     /// A field named `label` that shows `value` through `codec`.
     pub fn with_codec(label: impl Into<Label>, value: Bind<'a, C::Value>, codec: C) -> Self {
-        TextField { common: Common::new(), value, codec, options: TextOptions::default() }.label(label)
+        TextField { common: Common::new(), value, codec, options: TextOptions::default(), empty: None, search: false }.label(label)
+    }
+
+    /// The value of an empty field, for a codec whose values have no natural empty: a mixed field shows its text and
+    /// the clear part of a search field sets it.
+    #[must_use]
+    pub fn empty(mut self, value: C::Value) -> Self {
+        self.empty = Some(value);
+        self
     }
 
     /// Shown while the text is empty.
@@ -132,6 +160,22 @@ impl<'a, C: Codec + Clone + 'static> TextField<'a, C> {
     }
 }
 
+impl<C: Codec + Clone + 'static> TextField<'_, C> {
+    /// The rects of the search form's glyph, clear part and text inside `rect`.
+    fn search_rects(rect: Rect, rtl: bool, glyph: f32, gap: f32) -> (Rect, Rect, Rect) {
+        let (lead, rest) = Flow::new(rect, rtl).take_start(glyph);
+        let (_, rest) = rest.take_start(gap);
+        let (clear, rest) = rest.take_end(rect.height());
+        let (_, rest) = rest.take_end(gap);
+        (lead, clear, rest.rect())
+    }
+
+    /// The clear part shows while the field has text.
+    fn clear_shown(&self, value: Option<&C::Value>) -> bool {
+        self.search && value.is_some_and(|value| !self.codec.format(value).is_empty())
+    }
+}
+
 impl<C: Codec + Clone + 'static> Component for TextField<'_, C> {
     const ROLE: Role = Role::TEXT_INPUT;
     const INPUT: crate::contract::Input = crate::contract::Input::Text;
@@ -152,17 +196,51 @@ impl<C: Codec + Clone + 'static> Component for TextField<'_, C> {
             None => Cow::Borrowed(""),
         };
         let text = if sample.is_empty() { self.options.placeholder.as_ref().map_or("", Label::as_str) } else { sample.as_ref() };
-        cx.layout(&TextRun::new(text)).size()
+        let mut size = cx.layout(&TextRun::new(text)).size();
+        if self.search {
+            size.x += cx.style.glyph.side + cx.style.metrics.min_size.y + 2.0 * cx.style.metrics.gap;
+        }
+        size
     }
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
-        if let Some(value) = cx.value() {
-            cx.text(text_part::<C::Value>(), rect, &self.codec, value, &self.options);
+        let value = cx.value();
+        let mut text = rect;
+        if self.search {
+            let (_, clear, rest) = Self::search_rects(rect, cx.flow.is_rtl(), cx.style.glyph.side, cx.style.metrics.gap);
+            text = rest;
+            if self.clear_shown(value) {
+                cx.part(CLEAR, clear).sense(Sense::CLICK | Sense::KEEP_FOCUS).pointer_only("Escape clears the text");
+            }
+        }
+        if let Some(value) = value.or(self.empty.as_ref()) {
+            cx.text(text_part::<C::Value>(), text, &self.codec, value, &self.options);
         }
     }
 
     fn bind(&mut self) -> Option<BindMut<'_, C::Value>> {
         Some(self.value.reborrow())
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        if cx.part_if_declared(CLEAR).is_some_and(|part| part.press.phase.is_click())
+            && let Some(empty) = self.empty.clone()
+        {
+            cx.set(empty);
+        }
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        if !self.search {
+            return;
+        }
+        let glyph = &cx.style.glyph;
+        let (lead, _, _) = Self::search_rects(cx.content_rect, cx.env.direction().is_rtl(), glyph.side, cx.style.metrics.gap);
+        ui.draw().icon(lead, &IconSpec::svg(IconId::new("search")).color(cx.resolve(&glyph.color)));
+        if cx.part_if_declared(CLEAR).is_some() {
+            let label = cx.words::<words::TextWords>().clear.clone();
+            ui.face(CLEAR, IconButton::new(IconId::new("close")).label(label));
+        }
     }
 
     /// The completion list under the field, over what the text adapter holds.

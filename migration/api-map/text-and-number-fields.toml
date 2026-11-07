@@ -11,13 +11,36 @@ new_module = "craft_ui::text"
 name = "TextField"
 old = "craft_ui::controls::text_field::TextField"
 new = "craft_ui::text::TextField"
-status = "pending"
+status = "moved"
+note = "Generic over a `Codec` (`TextField::with_codec`); `TextField::new(label, Bind<String>)` is the plain field. The value is a `Bind`, not `&str`; the id salt is `.id_salt(..)`."
 
 [[type]]
 name = "SearchField"
 old = "craft_ui::controls::text_field::SearchField"
-new = "craft_ui::text::SearchField"
-status = "pending"
+new = ""
+status = "replaced"
+note = "`TextField::search(label, Bind<String>)`: a leading search glyph, a clear part while there is text, Escape clears first. The clear button's name is the library word `text.clear`, not an argument."
+
+[[type]]
+name = "TextFieldOutput"
+old = "craft_ui::controls::text_field::TextFieldOutput"
+new = ""
+status = "replaced"
+note = "`TextField` shows to `EditResponse<String>`: `submitted`, `escaped` and the edit events are fields of it."
+
+[[type]]
+name = "TextFieldStyle"
+old = "craft_ui::controls::text_field::TextFieldStyle"
+new = ""
+status = "replaced"
+note = "Read-only style struct; the field look is `craft_ui::text::FieldStyle`, resolved from the tokens. A field's look is a custom variant."
+
+[[type]]
+name = "field_box"
+old = "craft_ui::controls::text_field::field_box"
+new = ""
+status = "removed"
+note = "The box is the component's surface; a widget that wants a field look shows a `TextField` or reuses `FieldStyle`."
 
 [[type]]
 name = "AltTextField"
@@ -55,3 +78,103 @@ status = "pending"
 # type = ""
 # old = ""
 # new = ""
+
+[[setter]]
+type = "TextField"
+old = "new(id_salt, label, &str)"
+new = "new(label, Bind<String>)"
+
+[[setter]]
+type = "TextField"
+old = "monospace()"
+new = "mono()"
+
+[[setter]]
+type = "TextField"
+old = "password(bool)"
+new = "masked()"
+
+[[setter]]
+type = "TextField"
+old = "secret(bool)"
+new = ""
+
+[[setter]]
+type = "TextField"
+old = "char_limit(usize)"
+new = "limit(usize)"
+
+[[setter]]
+type = "TextField"
+old = "multiline(rows)"
+new = "lines(usize)"
+
+[[setter]]
+type = "TextField"
+old = "enabled(bool)"
+new = "enabled(bool)"
+
+[[setter]]
+type = "TextField"
+old = "invalid(bool)"
+new = "Bind::check(..)"
+
+[[setter]]
+type = "TextField"
+old = "leading(Icon)"
+new = ""
+
+[[setter]]
+type = "TextField"
+old = "policy(EditPolicy)"
+new = ""
+
+[[setter]]
+type = "TextField"
+old = "size(ControlSize)"
+new = "size(ControlSize)"
+
+[[setter]]
+type = "TextField"
+old = "role(TypeRole)"
+new = ""
+
+[[setter]]
+type = "TextField"
+old = "keep_focus(bool)"
+new = ""
+
+[[setter]]
+type = "TextField"
+old = "edit_menu(bool)"
+new = ""
+
+[[setter]]
+type = "TextField"
+old = "width(f32)"
+new = ""
+
+[[setter]]
+type = "TextField"
+old = "trailing_arrow(bool)"
+new = ""
+
+[[setter]]
+type = "TextField"
+old = "layouter(..)"
+new = ""
+
+[[setter]]
+type = "TextField"
+old = "show_full(ui)"
+new = "show(ui)"
+
+[[setter]]
+type = "SearchField"
+old = "new(id_salt, label, &str, clear_label)"
+new = "TextField::search(label, Bind<String>)"
+
+[[setter]]
+type = "SearchField"
+old = "placeholder(..)"
+new = "TextField::placeholder(..)"
