@@ -18,6 +18,8 @@ pub(crate) struct Spec<'a> {
     pub pos: Option<Pos2>,
     /// Who draws the frame.
     pub chrome: WindowChrome,
+    /// Whether the OS draws caption buttons (the traffic lights on macOS) where it draws a title bar.
+    pub os_buttons: bool,
     /// The smallest inner size.
     pub min_size: Option<Vec2>,
     /// The largest inner size.
@@ -39,6 +41,9 @@ pub(crate) fn show_immediate<T>(ctx: &Context, id: ViewportId, spec: &Spec<'_>, 
         WindowChrome::Inset => builder.with_decorations(true).with_fullsize_content_view(true).with_title_shown(false).with_titlebar_shown(false),
         _ => builder.with_decorations(true),
     };
+    if !spec.os_buttons {
+        builder = builder.with_titlebar_buttons_shown(false);
+    }
     if let Some(size) = spec.size {
         builder = builder.with_inner_size(size);
     }

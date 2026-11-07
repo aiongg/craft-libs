@@ -334,8 +334,10 @@ fn a_viewport_mount_opens_as_its_spec_says() {
     assert_eq!(tool.min_inner_size, Some(TOOL_MIN));
     assert_eq!(tool.window_level, Some(egui::WindowLevel::AlwaysOnTop), "a palette is above the app's windows while the app is active");
     assert_eq!(tool.taskbar, Some(false));
+    assert_eq!(tool.titlebar_buttons_shown, Some(false), "no OS caption buttons on a tool window");
     let (_, plain) = builder_titled(&out, "plain");
     assert_eq!(plain.decorations, Some(true), "a mount without a spec keeps the OS's frame");
+    assert_eq!(plain.titlebar_buttons_shown, None, "an ordinary window keeps the OS's buttons");
     assert_eq!((plain.min_inner_size, plain.window_level), (None, Some(egui::WindowLevel::Normal)));
     let (window, frame) = seen.take().expect("the tool window ran");
     assert_eq!((window.kind, window.chrome), (WindowKind::Tool, WindowChrome::Integrated), "the window info follows the spec");

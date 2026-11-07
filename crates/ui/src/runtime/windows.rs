@@ -859,6 +859,8 @@ pub(crate) fn show_viewport(ctx: &Context, open: &ViewportOpen<'_>, mut body: im
         size,
         pos: pos.or(spec.position),
         chrome: spec.chrome,
+        // A tool window has no OS caption buttons; its panel's title row carries a close action.
+        os_buttons: !(spec.kind == WindowKind::Tool && spec.captions.is_none()),
         min_size: spec.min_size,
         max_size: spec.max_size,
         level,
