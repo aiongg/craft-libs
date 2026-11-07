@@ -66,6 +66,8 @@ pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
     };
     let hint_text = hint.map(|hint| egui::RichText::new(hint).font(FontId::proportional(font_id.size)));
     let output = ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
+        // The text shows only inside the text part, however wide the line is.
+        ui.set_clip_rect(rect.intersect(ui.clip_rect()));
         super::style::set_text_cursor(ui, caret_visible);
         let mut read = text.as_str();
         macro_rules! build {
