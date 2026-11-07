@@ -2,6 +2,7 @@
 
 mod access;
 pub(crate) mod body;
+mod buttons;
 mod callsites;
 mod canvas;
 mod collection;
