@@ -1,7 +1,7 @@
 //! The mount host (16.2): where steps 6 to 16 of a container run. `Inline` runs in the parent's `Ui`; the others
 //! open a `Ui` of their own and call `pass` once for each pass that `Ui` gets.
 
-use super::body::placement_of;
+use super::body::shown_placement;
 use super::container::PaneEdge;
 use super::overlay::{self, FloatPlace, Layer, Outside, Overlay, Place};
 use super::run::{Host, HostCx, HostPass, ShowAt};
@@ -138,9 +138,11 @@ impl Host for LayerHost {
             return;
         }
         let ctx = parent.ctx().clone();
-        let placement = placement_of(&ctx, id, self.save.as_ref());
+        // A resizable layer with a default size is placed by it until the user or the caller sizes it.
+        let placement = shown_placement(&ctx, id, self.save.as_ref(), &self.overlay, env.tokens.space.pad.dialog);
         let mut overlay = self.overlay.clone();
-        // A resizable popover's default size is held as its minimum until the user resizes it.
+        // An anchored resizable layer has no position to seed: its default size is held as its minimum until the
+        // user resizes it.
         if overlay.fit == overlay::OverlayFit::Resizable && placement.size.is_none() {
             overlay.min_size = match (overlay.size, overlay.min_size) {
                 (Some(size), Some(min)) => Some(size.max(min)),

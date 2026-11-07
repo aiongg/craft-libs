@@ -357,6 +357,11 @@ pub trait Container: Component + HasProps + Meta<Shape = shape::Body> {
     /// `BodyCx::request_close_as`, `overlay::request_close`, or the OS closing its window. Called once for a close,
     /// at step 15 or, for a dismissal rule, right after the pass.
     fn closed(&mut self, _why: CloseReason) {}
+
+    /// The user moved or resized the container's layer: by the move band, a grip or the keyboard Move and Size
+    /// modes. Called for each step of the gesture, so a container whose layer the caller places (`Overlay::placed`)
+    /// can take the rect it reports.
+    fn placement_changed(&mut self, _change: &overlay::PlacementChange) {}
 }
 
 /// A component that shows an item per visible entry of a source.

@@ -954,6 +954,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `fn controls(&mut self, _ui: &mut Ui, _cx: &mut BodyCx<'_>)`. Fills the header's trailing region.
   - `fn footer(&mut self, _ui: &mut Ui, _cx: &mut BodyCx<'_>)`. Fills the footer region.
   - `fn end(&mut self, _ui: &mut Ui, _cx: &mut BodyCx<'_>)`. Fills the end region, after the body.
+  - `fn placement_changed(&mut self, _change: &overlay::PlacementChange)`. The user moved or resized the container's layer: by the move band, a grip or the keyboard Move and Size modes. Called for each step of the gesture, so a container whose layer the caller places (`Overlay::placed`) can take the rect it reports.
   - `fn closed(&mut self, _why: CloseReason)`. The container closed, and why: a layer's dismissal rule, a close the body or footer asked for with
 - `craft_ui::contract::ContentPainter`: `pub trait ContentPainter: Component`. Implemented by the allowlisted components that paint content with a raw painter (a preview, a waveform).
 - `craft_ui::contract::HasProps`: `pub trait HasProps`. Written by the derive from a `#[container]` field, for containers and collections.
@@ -1396,7 +1397,7 @@ Chapter 15: the `Overlay` data, its presets, popup handles, `OverlayUi` and the 
 - `craft_ui::contract::overlay::HOLD`: `pub const HOLD: f64`. The seconds a press must be held for `Trigger::Hold`.
 - `craft_ui::contract::overlay::Opener`: `pub struct Opener { pub id: Id, pub rect: Rect, pub layer: areas::Layer, pub trigger: Trigger, pub enabled: bool }`. The component that opens a free-standing popup, and how.
 - `craft_ui::contract::overlay::Outside`: `pub enum Outside { Close, Keep, Absorb }`. What a press outside the layer and its anchor does.
-- `craft_ui::contract::overlay::Overlay`: `pub struct Overlay { pub place: Place, pub fit: OverlayFit, pub min_width: MinWidth, pub movable: bool, pub resize: Resize, pub rank: Rank, pub keys: OwnerClass, pub focus: FocusPolicy, pub dismiss: Dismiss, pub motion: MotionSpec, pub opener: Option<Opener>, pub popup: PopupKind, pub size: Option<Vec2>, pub min_size: Option<Vec2> }`. Data describing an egui layer. Presets fill focus and dismissal; builders change single fields.
+- `craft_ui::contract::overlay::Overlay`: `pub struct Overlay { pub place: Place, pub fit: OverlayFit, pub min_width: MinWidth, pub movable: bool, pub resize: Resize, pub rank: Rank, pub keys: OwnerClass, pub focus: FocusPolicy, pub dismiss: Dismiss, pub motion: MotionSpec, pub opener: Option<Opener>, pub popup: PopupKind, pub size: Option<Vec2>, pub min_size: Option<Vec2>, pub max_size: Option<Vec2>, pub placed: Option<Rect>, pub bounds: Option<Rect>, pub opacity: f32 }`. Data describing an egui layer. Presets fill focus and dismissal; builders change single fields.
   - `pub fn popover() -> Overlay`. A popover: a popup anchored below, taking focus in. It closes when the focus moves out of it.
   - `pub fn dropdown() -> Overlay`. A dropdown list: from its content, at least as wide as its anchor and capped, focus stays on the anchor. It
   - `pub fn menu() -> Overlay`. A menu: a popup the arrow keys move through. A press outside closes it and goes no further.
@@ -1413,6 +1414,10 @@ Chapter 15: the `Overlay` data, its presets, popup handles, `OverlayUi` and the 
   - `pub fn anchor(mut self, anchor: Anchor) -> Overlay`. Hangs the layer from `anchor` on the side and alignment its preset gave. Without an opener, a point is in the
   - `pub fn size(mut self, size: Vec2) -> Overlay`. Sets the size a resizable layer has before the user resizes it.
   - `pub fn min_size(mut self, min_size: Vec2) -> Overlay`. Sets the least a resizable layer may be resized to.
+  - `pub fn size_limits(mut self, min: Vec2, max: Vec2) -> Overlay`. Sets the least and the most a resizable layer may be resized to.
+  - `pub fn placed(mut self, rect: Rect) -> Overlay`. Places the layer at `rect` in its parent's space. The container reports the moves and resizes the user makes as `PlacementChange`s to `Container::placement_changed`; the caller decides the next rect. A placed rect wins over a saved placement.
+  - `pub fn bounds(mut self, bounds: Rect) -> Overlay`. Sets the rect a move or resize keeps the layer inside.
+  - `pub fn opacity(mut self, opacity: f32) -> Overlay`. Sets the layer's opacity, from 0 (invisible) to 1.
   - `pub fn min_width(mut self, min_width: MinWidth) -> Overlay`. Sets the narrowest width.
   - `pub fn movable(mut self, on: bool) -> Overlay`. Sets whether the user may move it.
   - `pub fn focus(mut self, focus: FocusPolicy) -> Overlay`. Sets the focus scope.
@@ -1427,6 +1432,8 @@ Chapter 15: the `Overlay` data, its presets, popup handles, `OverlayUi` and the 
   - `fn popup(&mut self, name: &'static str) -> PopupHandle`. Registers the popup `name` of this component for this pass and returns its handle. A component registers every
 - `craft_ui::contract::overlay::Place`: `pub enum Place { Anchored { anchor: Anchor, side: Side, align: Align }, Float(FloatPlace) }`. Where an egui layer sits.
   - `pub const fn anchored(anchor: Anchor, side: Side, align: Align) -> Self`. An anchored place.
+- `craft_ui::contract::overlay::PlacementChange`: `pub struct PlacementChange { pub rect: Rect, pub phase: GesturePhase, pub pointer: Option<Pos2>, pub kind: PlacementKind }`. A move or resize of a layer the user made, reported to `Container::placement_changed`. `rect` is kept inside the overlay's `bounds` and `size_limits`; on `Cancel` it is the rect from before the gesture.
+- `craft_ui::contract::overlay::PlacementKind`: `pub enum PlacementKind { Move, Size(ResizeEdge), Keyboard }`. What kind of gesture a `PlacementChange` reports.
 - `craft_ui::contract::overlay::Popup`: `pub struct Popup`. The open state of a container's layer that has an opener and no binding, driven from the opener's side.
   - `pub fn open<C: Component>(opener: impl Into<Id>, cx: &mut Cx<'_, C>)`. Opens the container hung from `opener` (a [`PopupHandle`] or the id of the opener's response).
   - `pub fn close<C: Component>(opener: impl Into<Id>, cx: &mut Cx<'_, C>)`. Closes the container hung from `opener`.
