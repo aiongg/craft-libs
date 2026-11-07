@@ -173,6 +173,11 @@ pub struct ColumnSort {
 }
 
 impl ColumnSort {
+    /// Rows sorted by `key`, descending when `descending`.
+    pub const fn new(key: ColumnKey, descending: bool) -> Self {
+        ColumnSort { key, descending }
+    }
+
     /// Rows sorted by `key`, ascending.
     pub const fn ascending(key: ColumnKey) -> Self {
         ColumnSort { key, descending: false }

@@ -103,3 +103,17 @@ fn a_select_reports_its_popup_state() {
     rig.press(Key::Escape);
     assert_eq!(rig.fixture.tree().expanded(id), Some(false));
 }
+
+/// The lead of the list starts again at every opening: a lead moved to the last row and abandoned with Escape does
+/// not come back when the list opens next.
+#[trial]
+fn a_reopened_select_list_starts_its_lead_again() {
+    let mut rig = rig();
+    rig.open();
+    rig.press(Key::ArrowDown);
+    rig.press(Key::ArrowDown);
+    rig.press(Key::Escape);
+    rig.open();
+    rig.press(Key::Enter);
+    assert_eq!(rig.value.get(), 0, "the lead began on the picked option, not on the last row");
+}

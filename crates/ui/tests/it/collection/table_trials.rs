@@ -4,8 +4,8 @@ use super::kit::{Count, Dismissed, Row};
 use super::table::{Free, Table};
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, GesturePhase, ItemSource};
 use craft_ui::contract::{
-    CollectionEvent, CollectionProps, CollectionResponse, ColumnCommands, ColumnEvent, ColumnKind, ColumnSpec, DropMark, ListDrag, Props as _,
-    ReorderRule, SelectMode, ShowCollection as _, ToggleColumn,
+    CollectionEvent, CollectionProps, CollectionResponse, ColumnCommands, ColumnEvent, ColumnKind, ColumnSort, ColumnSpec, DropMark, ListDrag,
+    Props as _, ReorderRule, Role, SelectMode, ShowCollection as _, ToggleColumn,
 };
 use craft_ui::runtime::commands::{self, FireSource};
 use craft_ui::runtime::drag;
@@ -123,12 +123,16 @@ fn file_columns(width: f32) -> CollectionProps {
     ])
 }
 
-/// A header click sorts the column, and the next click on it reverses the order.
+/// A header click reports the column's next order, and the app's sort value comes back as the order the next click
+/// reverses.
 #[trial]
 fn a_header_click_sorts_and_the_next_click_reverses() {
     let (scene, source) = (Scene::default(), Count(4));
     let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| show_table(ui, file_columns(COL), &source, &scene);
+    let mut show = |ui: &mut Ui| {
+        let sort = scene.sorts().last().map(|(key, descending)| ColumnSort::new(key.clone(), *descending));
+        show_table(ui, file_columns(COL).sort(sort), &source, &scene);
+    };
     frames.idle(3, &mut show);
     let widths = [COL; 3];
     for _ in 0..2 {
@@ -138,6 +142,24 @@ fn a_header_click_sorts_and_the_next_click_reverses() {
     assert_eq!(scene.sorts(), vec![(NAME, false), (NAME, true)]);
     pointer::click(&mut frames, scene.header_cell(2, &widths), &mut show);
     assert_eq!(scene.sorts().len(), 2, "a column that is not sortable reports no sort");
+}
+
+/// The sort the app gives is the one the header shows and the nodes report, and a click on that column reports the
+/// opposite order.
+#[trial]
+fn the_header_shows_the_apps_sort_and_a_click_reports_the_opposite_order() {
+    let (scene, source) = (Scene::default(), Count(4));
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| show_table(ui, file_columns(COL).sort(ColumnSort::descending(SIZE)), &source, &scene);
+    frames.idle(3, &mut show);
+    let tree = frames.tree();
+    let order = |name: &str| {
+        let header = tree.with_role(Role::COLUMN_HEADER).into_iter().find(|key| tree.name_of(*key) == Some(name));
+        header.map(|key| tree.sort_of(key))
+    };
+    assert_eq!((order("Size"), order("Name"), order("Date")), (Some(Some(true)), Some(None), Some(None)), "only the sorted header carries an order");
+    pointer::click(&mut frames, scene.header_cell(1, &[COL; 3]), &mut show);
+    assert_eq!(scene.sorts(), vec![(SIZE, false)], "a click on the descending column asks for ascending");
 }
 
 /// Dragging a header's edge resizes a column the app owns the width of; dragging the header moves it.

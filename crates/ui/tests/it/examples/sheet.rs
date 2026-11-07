@@ -145,3 +145,28 @@ fn ctrl_click_toggles_one_cell_and_keeps_the_others() {
     rig.ctrl_click(grid.center());
     assert!(!cell(&rig, first) && cell(&rig, second), "a Ctrl-click on a selected cell takes only that cell out");
 }
+
+/// The table carries its row and column counts, each row its index and the counts, and each cell its row and column.
+#[trial]
+fn the_table_rows_and_cells_carry_their_indexes_and_counts() {
+    let rig = rig();
+    let (fixture, tree) = (&rig.fixture, rig.fixture.tree());
+    let by_place = |role: Role| {
+        let mut found = fixture.by_role(role);
+        found.sort_by(|a, b| (a.rect.min.y, a.rect.min.x).partial_cmp(&(b.rect.min.y, b.rect.min.x)).unwrap_or(std::cmp::Ordering::Equal));
+        found
+    };
+    let table = fixture.by_role(Role::TABLE).first().copied().expect("the table showed");
+    let counts = tree.grid_of(table.node);
+    assert_eq!((counts.row_count, counts.column_count), (Some(ROWS), Some(COLUMNS.len())));
+    for (at, row) in by_place(Role::ROW).iter().enumerate() {
+        let place = tree.grid_of(row.node);
+        assert_eq!((place.row_index, place.row_count, place.column_count), (Some(at), Some(ROWS), Some(COLUMNS.len())), "row {at}");
+    }
+    let cells = by_place(Role::CELL);
+    assert!(cells.len() >= COLUMNS.len(), "the first row's cells showed");
+    for (at, cell) in cells.iter().enumerate() {
+        let place = tree.grid_of(cell.node);
+        assert_eq!((place.row_index, place.column_index), (Some(at / COLUMNS.len()), Some(at % COLUMNS.len())), "cell {at}");
+    }
+}
