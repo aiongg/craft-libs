@@ -4,6 +4,7 @@ use super::{ParamDialog, ParamLayout};
 use crate::contract::Bind;
 use crate::patterns::form_dialogs::Param;
 use crate::primitives::TextureCache;
+use crate::runtime::env::Label;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use egui::load::SizedTexture;
 use egui::{Color32, ColorImage, Ui, Vec2};
@@ -36,6 +37,16 @@ fn param_dialog_with_preview_below(ui: &mut Ui, data: &mut StoryData) -> StoryOu
         .opened(Bind::bound(data.value("open", true)))
         .preview(texture)
         .layout(ParamLayout::Below)
+        .show(ui)
+        .into()
+}
+
+#[story(ParamDialog<'static>, covers = [], drive = Drive::Never)]
+fn param_dialog_close_without_reset(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    ParamDialog::new("blur", "Blur", Param::parse_list(SPEC))
+        .opened(Bind::bound(data.value("open", true)))
+        .cancel_label(Label::from("Close"))
+        .alt_resets(false)
         .show(ui)
         .into()
 }

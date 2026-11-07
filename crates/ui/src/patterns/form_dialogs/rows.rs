@@ -9,7 +9,7 @@ use crate::contract::{Bind, EditResponse, Entry, NoValue, Outcome, Props as _, R
 use crate::form::{Field, FieldGroup, SliderField};
 use crate::layout_components::{Row, Stack};
 use crate::pickers::{Select, UnitSelect};
-use crate::runtime::env::{Env, Label, UnitKind, Units};
+use crate::runtime::env::{Env, Label, UnitKind, Units, with_env};
 use crate::sections::Section;
 use crate::text::{NumberField, TextField};
 use crate::value_drag::{AngleDial, PointPicker, SliderScale};
@@ -73,6 +73,8 @@ impl Outcome for ParamRowsOutput {
 /// - **Requests.** A colour press, a Browse press and the eyedropper toggle come back in [`ParamRowsOutput`].
 /// - **Random.** The Random button of an int row draws from a sequence seeded by `seed`'s binding; without one the
 ///   sequence starts the same in every run.
+/// - **Read only.** With `read_only(true)` every row shows its value and refuses edits, as a read-only text field
+///   does: the rows keep focus, selection and their accessible values, and raise no host request.
 #[must_use = "show the rows with `show`"]
 #[derive(crate::contract::Pattern)]
 pub struct ParamRows<'a> {
@@ -80,12 +82,13 @@ pub struct ParamRows<'a> {
     params: &'a [Param],
     fields: Bind<'a, DialogFields>,
     seed: Option<Bind<'a, u64>>,
+    read_only: bool,
 }
 
 impl<'a> ParamRows<'a> {
     /// Rows for `params` over `fields`, the group named `label`.
     pub fn new(label: impl Into<Label>, params: &'a [Param], fields: Bind<'a, DialogFields>) -> Self {
-        ParamRows { label: label.into(), params, fields, seed: None }
+        ParamRows { label: label.into(), params, fields, seed: None, read_only: false }
     }
 
     /// The state of the Random button's sequence: each press reads it and writes the next.
@@ -95,9 +98,16 @@ impl<'a> ParamRows<'a> {
         self
     }
 
+    /// Whether the rows only show their values.
+    #[must_use]
+    pub fn read_only(mut self, on: bool) -> Self {
+        self.read_only = on;
+        self
+    }
+
     /// Shows the rows across the width offered.
     pub fn show(self, ui: &mut Ui) -> ParamRowsOutput {
-        let ParamRows { label, params, mut fields, mut seed } = self;
+        let ParamRows { label, params, mut fields, mut seed, read_only } = self;
         let env = Env::of(ui);
         let words = env.words::<ParamWords>();
         let units = env.units();
@@ -105,32 +115,36 @@ impl<'a> ParamRows<'a> {
         let mut pass = Pass::new(&words, &units);
         let mut changed = false;
         let mut values = None;
-        let shown = FieldGroup::new(label.clone()).show(ui, |ui, cx| {
-            let before = match fields.reborrow().read(cx) {
-                Some(Mixed::Same(held)) => held,
-                _ => DialogFields::new(),
-            };
-            let mut filled = before.clone();
-            fill_defaults(params, &mut filled);
-            let state = match seed.as_mut().and_then(|seed| seed.reborrow().read(cx)) {
-                Some(Mixed::Same(state)) => Some(state),
-                _ => None,
-            };
-            pass.begin(&filled, state, cx.keep::<Memo>().clone());
-            pass.rows(ui, params);
-            *cx.keep::<Memo>() = pass.memo.clone();
-            changed = pass.work != filled;
-            values = (pass.work != before).then(|| pass.work.clone());
-            if let Some(after) = &values {
-                let event = EditEvent::set(GestureId::default(), Mixed::Same(before), after.clone(), name.clone(), None);
-                let _ = fields.reborrow().write(cx, &event);
-            }
-            if let (Some(bind), Some(next)) = (seed.as_mut(), pass.seed) {
-                let held = Mixed::Same(state.unwrap_or(SEED_START));
-                let _ = bind.reborrow().write(cx, &EditEvent::set(GestureId::default(), held, next, name.clone(), None));
-            }
-        });
-        ParamRowsOutput { response: shown.output, changed, values, pick_color: pass.color, path: pass.path, eyedropper: pass.eyedropper }
+        let mut group = |ui: &mut Ui| {
+            FieldGroup::new(label.clone()).show(ui, |ui, cx| {
+                let before = match fields.reborrow().read(cx) {
+                    Some(Mixed::Same(held)) => held,
+                    _ => DialogFields::new(),
+                };
+                let mut filled = before.clone();
+                fill_defaults(params, &mut filled);
+                let state = match seed.as_mut().and_then(|seed| seed.reborrow().read(cx)) {
+                    Some(Mixed::Same(state)) => Some(state),
+                    _ => None,
+                };
+                pass.begin(&filled, state, cx.keep::<Memo>().clone());
+                pass.rows(ui, params);
+                *cx.keep::<Memo>() = pass.memo.clone();
+                changed = pass.work != filled;
+                values = (pass.work != before).then(|| pass.work.clone());
+                if let Some(after) = &values {
+                    let event = EditEvent::set(GestureId::default(), Mixed::Same(before), after.clone(), name.clone(), None);
+                    let _ = fields.reborrow().write(cx, &event);
+                }
+                if let (Some(bind), Some(next)) = (seed.as_mut(), pass.seed) {
+                    let held = Mixed::Same(state.unwrap_or(SEED_START));
+                    let _ = bind.reborrow().write(cx, &EditEvent::set(GestureId::default(), held, next, name.clone(), None));
+                }
+            })
+        };
+        let shown = if read_only { with_env(ui, |scope| scope.read_only = Some(true), group) } else { group(ui) };
+        let (pick_color, path, eyedropper) = if read_only { Default::default() } else { (pass.color, pass.path, pass.eyedropper) };
+        ParamRowsOutput { response: shown.output, changed, values, pick_color, path, eyedropper }
     }
 }
 

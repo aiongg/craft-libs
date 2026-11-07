@@ -15,10 +15,14 @@ pub use rows::{ParamRows, ParamRowsOutput};
 pub use words::ParamWords;
 
 mod dialog;
+mod host_requests;
 mod preview;
 
-pub use dialog::{BelowRows, FooterExtra, HostedParamDialog, ParamDialog, ParamDialogOutput, ParamDialogWords, ParamLayout, ParamResult};
-pub use preview::{PreviewOutput, PreviewPane, PreviewPaneStyle, PreviewWords, PreviewZoom, PreviewZoomOutput};
+pub use dialog::{
+    BelowRows, FooterExtra, HostedParamDialog, ParamDialog, ParamDialogOutput, ParamDialogWords, ParamLayout, ParamResult, ResetFooter, ResetPick,
+};
+pub use host_requests::HostRequests;
+pub use preview::{PreviewOutput, PreviewPane, PreviewPaneStyle, PreviewState, PreviewWords, PreviewZoom, PreviewZoomOutput};
 
 pub mod size_model;
 
