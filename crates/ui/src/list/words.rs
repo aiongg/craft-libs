@@ -9,7 +9,6 @@ craft_ui::words! {
         thumb_small: "list.thumbSmall" = "Small";
         thumb_medium: "list.thumbMedium" = "Medium";
         thumb_large: "list.thumbLarge" = "Large";
-        thumb_custom: "list.thumbCustom" = "Custom";
         expand: "preset.expand" = "Expand {row}";
         collapse: "preset.collapse" = "Collapse {row}";
     }

@@ -7,7 +7,7 @@ use craft_ui::testing::trial;
 
 #[trial]
 fn optional_items_drop_out_before_the_label_gets_too_narrow() {
-    let row = ListRow::new("Layer").trailing(1.0, |_, _| {}).optional(2.0, |_, _| {});
+    let row = ListRow::new("Layer").trailing("ab").optional("abcd");
     assert!(place(&row, 150.0, false).items.iter().all(Option::is_some));
     let narrow = place(&row, 120.0, false);
     assert!(narrow.items[0].is_some() && narrow.items[1].is_none());
@@ -16,7 +16,7 @@ fn optional_items_drop_out_before_the_label_gets_too_narrow() {
 
 #[trial]
 fn a_row_too_narrow_for_its_required_parts_keeps_the_label_at_its_least_width() {
-    let row = ListRow::new("Layer").trailing(1.0, |_, _| {});
+    let row = ListRow::new("Layer").trailing("ab");
     let placed = place(&row, 60.0, false);
     assert_eq!(placed.label.width(), placed.min_label);
     assert!(placed.items[0].is_some_and(|item| item.right() > 60.0), "the item moves out with the label and the row's edge cuts it");
@@ -34,7 +34,7 @@ fn the_indent_shrinks_before_the_label_does_and_the_disclosure_column_keeps_its_
 
 #[trial]
 fn the_row_mirrors_under_right_to_left() {
-    let row = ListRow::new("Layer").trailing(1.0, |_, _| {});
+    let row = ListRow::new("Layer").trailing("ab");
     let (ltr, rtl) = (place(&row, 200.0, false), place(&row, 200.0, true));
     assert_eq!(ltr.label.left(), 200.0 - rtl.label.right());
     assert_eq!(ltr.items[0].map(|item| item.left()), rtl.items[0].map(|item| 200.0 - item.right()));

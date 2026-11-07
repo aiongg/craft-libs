@@ -5,15 +5,15 @@
 
 use super::{ListRow, RowEvent};
 use crate::contract::{
-    Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, EditResponse, Props as _, ReorderRule,
-    Role, SelectMode, Show as _, Sizing,
+    Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, EditResponse, ListDrag, Props as _,
+    ReorderRule, Role, SelectMode, Show as _, Sizing,
 };
 use crate::runtime::commands::CommandScope;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use crate::text::TextField;
 use craft_behavior::{ItemSource, Metrics, Selection, SpanLayout};
-use egui::{Rect, Ui};
+use egui::{Id, Rect, Ui};
 use std::hash::Hash;
 
 /// The style of the list: it has no look of its own beyond its container's surface.
@@ -47,7 +47,14 @@ pub struct List<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     /// A tree: rows are indented by depth and groups open and close.
     #[prop]
     tree: bool,
+    can_rename: Option<KeyTest<'a, K>>,
+    can_drag: Option<KeyTest<'a, K>>,
+    accept_from: Option<Box<dyn Fn(Id) -> bool + 'a>>,
+    accepts: Option<DropTest<'a, K>>,
 }
+
+type KeyTest<'a, K> = Box<dyn Fn(&K) -> bool + 'a>;
+type DropTest<'a, K> = Box<dyn Fn(&ListDrag<K>, &K, usize) -> bool + 'a>;
 
 impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
     /// A list named `label`, with multiple selection.
@@ -59,6 +66,10 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
             selection: None,
             reveal: None,
             tree: false,
+            can_rename: None,
+            can_drag: None,
+            accept_from: None,
+            accepts: None,
         }
         .label(label)
     }
@@ -81,6 +92,49 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
     #[must_use]
     pub fn rename(mut self, on: bool) -> Self {
         self.items = self.items.rename(on);
+        self
+    }
+
+    /// Odd rows are tinted: the item reads `ItemCx::row.striped`.
+    #[must_use]
+    pub fn striped(mut self, on: bool) -> Self {
+        self.items = self.items.striped(on);
+        self
+    }
+
+    /// A press on the empty space below the rows empties the selection.
+    #[must_use]
+    pub fn allow_empty(mut self, on: bool) -> Self {
+        self.items = self.items.allow_empty(on);
+        self
+    }
+
+    /// Which rows may be renamed; a rename request on another row does nothing.
+    #[must_use]
+    pub fn can_rename(mut self, test: impl Fn(&K) -> bool + 'a) -> Self {
+        self.can_rename = Some(Box::new(test));
+        self
+    }
+
+    /// Which rows may be dragged.
+    #[must_use]
+    pub fn can_drag(mut self, test: impl Fn(&K) -> bool + 'a) -> Self {
+        self.can_drag = Some(Box::new(test));
+        self
+    }
+
+    /// Which collections a drag may come from: `test` gets the id of the list the drag started in.
+    #[must_use]
+    pub fn accept_from(mut self, test: impl Fn(Id) -> bool + 'a) -> Self {
+        self.accept_from = Some(Box::new(test));
+        self
+    }
+
+    /// Where a drag may land: `test` gets the drag, the row under the pointer and the position before which the
+    /// dragged rows would go. A refused spot shows no drop mark.
+    #[must_use]
+    pub fn accepts(mut self, test: impl Fn(&ListDrag<K>, &K, usize) -> bool + 'a) -> Self {
+        self.accepts = Some(Box::new(test));
         self
     }
 
@@ -142,6 +196,22 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for List<'_, K> {
     fn item_layout(&self, source: &dyn ItemSource<K>, width: f32, cx: &StyleCx<'_>) -> SpanLayout {
         let layout = SpanLayout::sized(source, width, cx.control().height);
         if self.tree { layout.tree() } else { layout }
+    }
+
+    fn can_rename(&self, key: &K) -> bool {
+        self.can_rename.as_ref().is_none_or(|test| test(key))
+    }
+
+    fn can_drag(&self, key: &K) -> bool {
+        self.can_drag.as_ref().is_none_or(|test| test(key))
+    }
+
+    fn accept_from(&self, from: Id) -> bool {
+        self.accept_from.as_ref().is_none_or(|test| test(from))
+    }
+
+    fn accepts(&self, drag: &ListDrag<K>, over: &K, insert: usize) -> bool {
+        self.accepts.as_ref().is_none_or(|test| test(drag, over, insert))
     }
 
     fn rename_editor(&mut self, ui: &mut Ui, draft: Bind<'_, String>, label: Rect) -> Option<EditResponse<String>> {

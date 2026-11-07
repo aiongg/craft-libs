@@ -7,11 +7,11 @@ use crate::contract::{
     Bind, BindMut, BodyCx, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Props as _, Role, SelectMode,
     Show as _, Sizing, WordSetCx as _,
 };
-use crate::primitives::{IconSpec, Span, TextRun};
+use crate::primitives::IconSpec;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::{DisplayOrder, IconId, ItemSource, Metrics, Selection, SpanLayout};
-use craft_theme::TypeRole;
+use craft_theme::variant::Tone;
 use egui::Ui;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
@@ -38,6 +38,14 @@ impl EventLevel {
         }
     }
 
+    fn tone(self) -> Tone {
+        match self {
+            EventLevel::Info => Tone::Info,
+            EventLevel::Warning => Tone::Warn,
+            EventLevel::Error => Tone::Bad,
+        }
+    }
+
     fn word(self, words: &EventWords) -> &str {
         match self {
             EventLevel::Info => words.info.as_str(),
@@ -46,9 +54,6 @@ impl EventLevel {
         }
     }
 }
-
-/// The room of a row's age, in control heights.
-const AGE_HEIGHTS: f32 = 5.0;
 
 /// One event, in the app's words.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -95,14 +100,12 @@ impl LogEvent {
     }
 
     /// The event as a list row: its level icon, its message with the repeat count and, at the end, `age` in the
-    /// caption role. A screen reader reads the level, message and age. `striped` tints an odd row.
+    /// caption role. A screen reader reads the message, the level and the age. `striped` is `ItemCx::row.striped`.
     pub fn row(&self, age: &str, words: &EventWords, striped: bool) -> ListRow<'static> {
         let message = self.message_with_count(words);
         let name = words.row_name.fill(&[("level", self.level.word(words)), ("message", message.as_str()), ("age", age)]);
         let age = age.to_owned();
-        ListRow::new(message).accessible_name(name).icon(IconSpec::svg(self.level.icon())).striped(striped).trailing(AGE_HEIGHTS, move |ui, rect| {
-            ui.draw().text(rect, &TextRun::spans(vec![Span::new(age).muted()]).role(TypeRole::Caption));
-        })
+        ListRow::new(message).accessible_name(name).icon(IconSpec::svg(self.level.icon())).tone(self.level.tone()).striped(striped).trailing(age)
     }
 
     /// The details line over the selected event's message: "Warning \u{b7} Render \u{b7} 2 min ago".
@@ -208,7 +211,7 @@ impl<'a> EventList<'a> {
         EventList {
             common: Common::new(),
             props: ContainerProps::new().surface(SurfaceKind::Sunken).sizing(Sizing::Fill),
-            items: CollectionProps::new().select(SelectMode::Single),
+            items: CollectionProps::new().select(SelectMode::Single).striped(true),
             selection: None,
         }
         .label(label)

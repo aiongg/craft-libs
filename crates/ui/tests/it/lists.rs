@@ -44,9 +44,9 @@ fn a_repeated_event_shows_its_count_and_a_future_event_is_new() {
 
 fn sample() -> Vec<Finding> {
     vec![
-        Finding::new(Severity::Error, "Missing font"),
-        Finding::new(Severity::Warning, "Low resolution").detail("page 2"),
-        Finding::new(Severity::Warning, "Overset text"),
+        Finding::new(1, Severity::Error, "Missing font"),
+        Finding::new(2, Severity::Warning, "Low resolution").detail("page 2"),
+        Finding::new(3, Severity::Warning, "Overset text"),
     ]
 }
 

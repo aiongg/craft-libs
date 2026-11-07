@@ -3,7 +3,7 @@
 use super::{ListRow, RowInk};
 use crate::contract::Show as _;
 use crate::primitives::IconSpec;
-use crate::testing::{Drive, StoryData, StoryOutput, story};
+use crate::testing::{Drive, StoryData, StoryOutput, show_as_only_item, story};
 use egui::Ui;
 
 #[story(ListRow<'static>, covers = [Default], drive = Drive::Activate)]
@@ -19,7 +19,7 @@ fn list_row_long_text(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 
 #[story(ListRow<'static>, covers = [], drive = Drive::Never)]
 fn list_row_tree_group(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    ListRow::new("Group 1").depth(1).group(true).icon(IconSpec::svg(craft_behavior::IconId::new("eye"))).show(ui).response.into()
+    show_as_only_item(ui, ListRow::new("Group 1").depth(1).group(true).icon(IconSpec::svg(craft_behavior::IconId::new("eye")))).response.into()
 }
 
 #[story(ListRow<'static>, covers = [], drive = Drive::Never)]

@@ -47,7 +47,7 @@ name = "RowEvent"
 old = "craft_ui::list::row::RowEvent"
 new = "craft_ui::list::RowEvent"
 status = "replaced"
-note = "Only what a row's own parts report remains: `Open { open }`, `LinkToggled { thumb, linked }`, `ThumbClicked(ThumbTarget)`, `ThumbDrag(ThumbTarget)`. `Toggle`, `Renamed`, `RenameStarted`, `RenameEnded`, `Menu` and `LabelDoubleClicked` are `CollectionEvent::Toggle`, `CollectionEvent::Rename`, `CollectionEvent::ContextMenu` and `CollectionEvent::Activate`."
+note = "Only what a row's own parts report remains: `Open { open, all }` (`all` while Alt is held), `LinkToggled { thumb, linked }`, `ThumbClicked(ThumbTarget)`, `ThumbDrag(ThumbTarget)`. `Toggle`, `Renamed`, `RenameStarted`, `RenameEnded`, `Menu` and `LabelDoubleClicked` are `CollectionEvent::Toggle`, `CollectionEvent::Rename`, `CollectionEvent::ContextMenu` and `CollectionEvent::Activate`."
 
 [[type]]
 name = "ThumbSize"
@@ -93,9 +93,9 @@ note = "The row's menu is the app's (`CollectionEvent::ContextMenu`); a rename e
 [[type]]
 name = "TrailingItem"
 old = "craft_ui::list::row::TrailingItem"
-new = "craft_ui::list::TrailingPaint"
+new = "ListRow::trailing(text)"
 status = "replaced"
-note = "`ListRow::trailing(heights, |ui, rect| ui.child(key, rect, component))` and `ListRow::optional(..)`."
+note = "A trailing item is a caption-role text as wide as it measures: `ListRow::trailing(text)` and `ListRow::optional(text)`; the optional one drops out when the label would get narrower than its least width. `TrailingPaint` is removed."
 
 [[type]]
 name = "TreeState"
@@ -133,18 +133,25 @@ status = "replaced"
 note = "`TreeRow::new(row, depth, has_children, open)` is `row.depth(depth)` plus `.group(open)` for a row that has children: one component, no wrapper. `TreeRow::text` is `ListWords`; `into_row` and `show` are gone."
 
 [[type]]
+name = "UndoRowEvent, UndoRowOutput"
+old = "craft_ui::list::{UndoRowEvent, UndoRowOutput}"
+new = "craft_ui::contract::CollectionEvent"
+status = "removed"
+note = "An undo row reports nothing of its own: a press on the row is `CollectionEvent::Activate`, which `undo_count(&events)` reads."
+
+[[type]]
 name = "FindingsList"
 old = "craft_ui::list::findings::FindingsList"
 new = "craft_ui::list::FindingsList"
 status = "moved"
-note = "A `Collection`: `FindingsList::new(label).show_items(ui, &Findings::new(&findings), &mut |key, icx| findings[*key].row(&icx.words::<FindingsWords>()))`. `FindingLevel` is `Severity` (with `Info`), `Finding::message` is `text`, `Finding::page` is `detail` (the app writes the words), `Finding::target` stays in the app (filter `Activate` events by it). The summary line is `FindingsSummary::new(&findings)`; `findings_summary(ctx, findings, labels)` is `summary_text(&FindingsWords, findings)`."
+note = "A `Collection`: `FindingsList::new(label).show_items(ui, &Findings::new(&findings), &mut |key, icx| findings[*key].row(&icx.words::<FindingsWords>()))`. `FindingLevel` is `Severity` (with `Info`), `Finding::message` is `text`, `Finding::page` is `detail` (the app writes the words), `Finding::target` stays in the app (filter `Activate` events by it). The list is keyed by `Finding::id` (`Finding::new(id, severity, text)`), so the selection survives findings that come and go. The summary line is `FindingsSummary::new(&findings)`; `findings_summary(ctx, findings, labels)` is `summary_text(&FindingsWords, findings)`."
 
 [[type]]
 name = "EventLog"
 old = "craft_ui::list::events::EventLog"
 new = "craft_ui::list::EventLog"
 status = "replaced"
-note = "`EventLog` is the item source (events at or above `EventLogState::min_level`, newest first, keyed by event id) shown by `EventList` with `LogEvent::row(age, words, striped)`. The bar (level select, counts, Clear All) and the details box are not ported: they need `Button`, `Select`, `Notice` and a `Pattern` type that this revision lacks. `EventLogState::selected` is the app's `Selection<u64>`; `EventLogOutput::clear_all` goes with the bar. `EventLogLabels` is `EventWords`."
+note = "`EventLog` is the item source (events at or above `EventLogState::min_level`, newest first, keyed by event id) shown by `EventList`, which is striped, with `LogEvent::row(age, words, icx.row.striped)`. The bar (level select, counts, Clear All) and the details box are not ported: they need `Button`, `Select`, `Notice` and a `Pattern` type that this revision lacks. `EventLogState::selected` is the app's `Selection<u64>`; `EventLogOutput::clear_all` goes with the bar. `EventLogLabels` is `EventWords`."
 
 [[type]]
 name = "UndoList"
@@ -221,8 +228,13 @@ new = "thumb(size, paint(&ContentPainterCx, Rect))"
 
 [[setter]]
 type = "ListRow"
-old = "thumb_sized(Vec2, paint), extra_thumb(paint), thumb_link(linked, name), thumb_target(target)"
+old = "extra_thumb(paint), thumb_link(linked, name), thumb_target(target)"
 new = "same names; `paint` takes `&ContentPainterCx`"
+
+[[setter]]
+type = "ListRow"
+old = "thumb_sized(Vec2, paint), ThumbSize::Px(u16)"
+new = "thumb_aspect(size, aspect, paint): the height is a `ThumbSize` token step and the width is `aspect` times it; `ThumbSize::Px` is removed"
 
 [[setter]]
 type = "ListRow"
@@ -232,7 +244,7 @@ new = "toggle(ToggleCell) with `.cells(icx.cells())`"
 [[setter]]
 type = "ListRow"
 old = "trailing_item(width, add(&mut Ui)), optional_item(width, add)"
-new = "trailing(heights, show(&mut PaintUi, Rect)), optional(heights, show): the width is in control heights"
+new = "trailing(text), optional(text): the item is a caption-role text measured by the row"
 
 [[setter]]
 type = "ListRow"
@@ -242,7 +254,7 @@ new = "depth(usize); `indent` and `indented_toggles` are removed"
 [[setter]]
 type = "ListRow"
 old = "body(add(&mut Ui))"
-new = "removed: use `trailing` or a second line"
+new = "removed: use `trailing(text)` or a second line"
 
 [[setter]]
 type = "ListRow"
