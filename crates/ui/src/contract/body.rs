@@ -930,9 +930,15 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                         sense: response::to_egui(cx.core.root_sense),
                         rect: rect.intersect(ui.clip_rect()),
                     };
-                    areas::show_body_layer(&ctx, parent, layer, tf, body_rect.min, Some(forward), body_rect.intersect(ui.clip_rect()), |area_ui| {
-                        run(area_ui, body_rect, &mut bcx)
-                    })
+                    let body_layer = areas::BodyLayer {
+                        parent,
+                        layer,
+                        transform: tf,
+                        at: body_rect.min,
+                        clip: body_rect.intersect(ui.clip_rect()),
+                        forward: Some(forward),
+                    };
+                    areas::show_body_layer(&ctx, body_layer, |area_ui| run(area_ui, body_rect, &mut bcx))
                 }
                 None => run(ui, body_rect, &mut bcx),
             };

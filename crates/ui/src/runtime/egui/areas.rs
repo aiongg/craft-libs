@@ -69,19 +69,22 @@ pub(crate) struct Forward {
     pub rect: Rect,
 }
 
-/// Shows a transformed body: `layer` is shown through `transform`, a sublayer of `parent`, with its top left
-/// at `at` in its own space. The forwarding widget, when given, is registered on the layer first, so an
-/// allocating `Ui` on the layer cannot hide the root under egui's layer-cover rule.
-pub(crate) fn show_body_layer<R>(
-    ctx: &Context,
-    parent: LayerId,
-    layer: LayerId,
-    transform: TSTransform,
-    at: Pos2,
-    forward: Option<Forward>,
-    clip: Rect,
-    body: impl FnOnce(&mut egui::Ui) -> R,
-) -> R {
+/// A transformed body's layer: `layer` is shown through `transform`, a sublayer of `parent`, with its top left at
+/// `at` in its own space and clipped to `clip` in screen space.
+pub(crate) struct BodyLayer {
+    pub parent: LayerId,
+    pub layer: LayerId,
+    pub transform: TSTransform,
+    pub at: Pos2,
+    pub clip: Rect,
+    /// Registered on the layer first, so an allocating `Ui` on the layer cannot hide the root under egui's
+    /// layer-cover rule.
+    pub forward: Option<Forward>,
+}
+
+/// Shows a transformed body in its layer.
+pub(crate) fn show_body_layer<R>(ctx: &Context, body_layer: BodyLayer, body: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    let BodyLayer { parent, layer, transform, at, clip, forward } = body_layer;
     ctx.set_transform_layer(layer, transform);
     ctx.set_sublayer(parent, layer);
     egui::Area::new(layer.id)
