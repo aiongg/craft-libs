@@ -449,6 +449,12 @@ impl FooterButton {
         self.role == DialogRole::Cancel || !self.stays_open
     }
 
+    /// Sets whether the button can be activated, for a rule that runs while the footer is shown
+    /// (`Dialog::settle_buttons`).
+    pub fn set_enabled(&mut self, on: bool) {
+        self.enabled = on;
+    }
+
     /// Whether the button can be activated.
     pub(crate) const fn is_enabled(&self) -> bool {
         self.enabled

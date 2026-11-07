@@ -41,6 +41,9 @@ pub struct FullWindowDialog<'a> {
     /// reporting the pick; the host shows why. A button marked `stays_open` never closes, whatever it returns.
     #[prop(boxed, name = "close_guard")]
     guard: Option<Box<dyn FnMut(usize, &mut BodyCx<'_>) -> bool + 'a>>,
+    /// Sets the buttons' state each pass; see `Dialog::settle_buttons`.
+    #[prop(boxed, name = "settle_buttons")]
+    settle: Option<Box<dyn FnMut(&mut BodyCx<'_>, &mut [FooterButton]) + 'a>>,
     buttons: Vec<FooterButton>,
     /// Whether the title row has a close action.
     #[prop]
@@ -64,6 +67,7 @@ impl<'a> FullWindowDialog<'a> {
             open: None,
             footer: None,
             guard: None,
+            settle: None,
             buttons: Vec::new(),
             closable: false,
             closed: None,
@@ -149,7 +153,14 @@ impl Container for FullWindowDialog<'_> {
     }
 
     fn footer(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
-        frame::footer(ui, cx, &mut self.footer, &self.buttons, false, &mut self.picked, &mut self.guard);
+        frame::footer(
+            ui,
+            cx,
+            &mut self.footer,
+            &self.buttons,
+            false,
+            frame::FooterHost { picked: &mut self.picked, guard: &mut self.guard, settle: &mut self.settle },
+        );
     }
 
     fn closed(&mut self, why: CloseReason) {

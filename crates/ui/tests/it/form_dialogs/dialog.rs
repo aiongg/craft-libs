@@ -6,10 +6,11 @@ use craft_ui::dialog::Dialog;
 use craft_ui::patterns::form_dialogs::{
     DialogFields, FieldValue, HostRequests, Param, ParamDialog, ParamKind, ParamRows, PreviewPane, ResetFooter, ResetPick,
 };
+use craft_ui::runtime::focus::Initial;
 use craft_ui::sections::{DialogRole, FooterButton};
 use craft_ui::testing::{Fixture, trial};
 use craft_ui::value_drag::SliderScale;
-use egui::{Modifiers, Vec2};
+use egui::{Key, Modifiers, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -138,7 +139,7 @@ fn alt_turns_cancel_into_reset_and_reset_keeps_the_dialog_open() {
     assert!(open.get(), "Reset keeps the dialog open");
 }
 
-/// A second dialog built on `ResetFooter` swaps its button the same way.
+/// A second dialog built on `ResetFooter` swaps its button the same way and reads the pick from `DialogOutput::picked`.
 #[trial]
 fn the_shared_reset_footer_serves_any_dialog() {
     let picked = Rc::new(Cell::new(None));
@@ -146,15 +147,14 @@ fn the_shared_reset_footer_serves_any_dialog() {
         let seen = Rc::clone(&picked);
         let mut fixture = Fixture::new(move |ui| {
             let mut open = true;
-            Dialog::new("Other")
+            let footer = ResetFooter::new(ui, None, true);
+            let shown = Dialog::new("Other")
                 .opened(Bind::bound(&mut open))
-                .footer(|ui, _| {
-                    let footer = ResetFooter::new(ui, None, true);
-                    if let Some(pick) = footer.buttons(ui, FooterButton::new("OK", DialogRole::Accept), true) {
-                        seen.set(Some(pick));
-                    }
-                })
+                .buttons(footer.buttons(FooterButton::new("OK", DialogRole::Accept), true))
                 .show(ui, |_, _| {});
+            if let Some(pick) = footer.pick(shown.output.picked) {
+                seen.set(Some(pick));
+            }
         });
         fixture.hold(if alt { Modifiers::ALT } else { Modifiers::NONE });
         fixture.settle();
@@ -165,4 +165,58 @@ fn the_shared_reset_footer_serves_any_dialog() {
         fixture.idle(2);
         assert_eq!(picked.get(), Some(if alt { ResetPick::Reset } else { ResetPick::Cancel }), "the footer answers with the pick (alt: {alt})");
     }
+}
+
+/// A fixture with a `ParamDialog` whose `close_guard` answers `allow` and counts its calls.
+fn guarded_rig(allow: bool) -> (Fixture, Rc<Cell<usize>>, Rc<Cell<bool>>) {
+    let params = vec![Param::new("note", "Note", ParamKind::text(""))];
+    let fields = Rc::new(RefCell::new(DialogFields::new()));
+    let open = Rc::new(Cell::new(true));
+    let asked = Rc::new(Cell::new(0));
+    let (state, counted) = (Rc::clone(&open), Rc::clone(&asked));
+    let mut fixture = Fixture::new(move |ui| {
+        let mut fields = fields.borrow_mut();
+        let mut now = state.get();
+        let counted = Rc::clone(&counted);
+        ParamDialog::new("size", "Size", params.clone())
+            .values(Bind::bound(&mut *fields))
+            .opened(Bind::bound(&mut now))
+            .shaped(move |dialog| {
+                dialog.initial_focus(Initial::First).close_guard(move |_, _| {
+                    counted.set(counted.get() + 1);
+                    allow
+                })
+            })
+            .show(ui);
+        state.set(now);
+    });
+    fixture.settle();
+    (fixture, asked, open)
+}
+
+/// OK and Enter take the same way through the dialog's buttons: the `close_guard` is asked for both, also for Enter
+/// right after a click on OK, and a refusal keeps the dialog open.
+#[trial]
+fn param_dialog_ok_and_enter_go_through_the_close_guard() {
+    let (mut clicked, asked, open) = guarded_rig(false);
+    let ok = clicked.by_label("OK").expect("the OK button is shown");
+    clicked.click(&ok);
+    let after_click = (asked.get(), open.get());
+    clicked.key(Key::Enter, Modifiers::NONE);
+    let after_enter = (asked.get(), open.get());
+
+    let (mut fresh, asked, open) = guarded_rig(false);
+    fresh.key(Key::Enter, Modifiers::NONE);
+    let fresh_enter = (asked.get(), open.get());
+
+    let (mut allowed, asked, open) = guarded_rig(true);
+    allowed.key(Key::Enter, Modifiers::NONE);
+    allowed.idle(1);
+    let allowed_enter = (asked.get(), open.get());
+
+    assert_eq!(
+        (after_click, after_enter, fresh_enter, allowed_enter),
+        ((1, true), (2, true), (1, true), (1, false)),
+        "(asked, open) after a refused click, then Enter; after a refused Enter; after an allowed Enter"
+    );
 }

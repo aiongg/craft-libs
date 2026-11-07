@@ -80,6 +80,17 @@ pub(super) type FooterFn<'a> = Box<dyn FnMut(&mut Ui, &mut FooterCx<'_, '_>) + '
 /// may close.
 pub(super) type CloseGuard<'a> = Box<dyn FnMut(usize, &mut BodyCx<'_>) -> bool + 'a>;
 
+/// The host's rule for the enabled state of the buttons: given the dialog's body context and the buttons, it runs
+/// when the footer is shown, after the body, so it reads what the body wrote in the same pass.
+pub(super) type ButtonState<'a> = Box<dyn FnMut(&mut BodyCx<'_>, &mut [FooterButton]) + 'a>;
+
+/// What the host of a dialog shell decides about its footer buttons, and where the pick goes.
+pub(super) struct FooterHost<'s, 'a> {
+    pub(super) picked: &'s mut Option<usize>,
+    pub(super) guard: &'s mut Option<CloseGuard<'a>>,
+    pub(super) settle: &'s mut Option<ButtonState<'a>>,
+}
+
 /// Fills the header region: the title and, for a closable shell, the close action.
 pub(super) fn header(ui: &mut Ui, cx: &mut BodyCx<'_>, actions: &[HeaderAction]) {
     let shown = TitleRow::new(cx.label()).strength(HeaderStrength::Strong).level(TITLE_LEVEL).actions(actions.iter().copied()).show(ui);
@@ -91,7 +102,7 @@ pub(super) fn header(ui: &mut Ui, cx: &mut BodyCx<'_>, actions: &[HeaderAction])
 /// Fills the footer region: the caller's content closure in a footer bar, and under it the dialog buttons, whose
 /// roles decide the close reason (`Accept` and the other outcomes close as `Activated`, `Cancel` as `Requested`). A
 /// button that stays open never closes; `guard` runs for every picked button but Cancel and can refuse the close of
-/// one that closes. With `enter`, an
+/// one that closes. `settle` may change the buttons' state first. With `enter`, an
 /// Enter the focused part left untaken picks the default button, so it takes the way of a click on it, guard included.
 pub(super) fn footer(
     ui: &mut Ui,
@@ -99,9 +110,18 @@ pub(super) fn footer(
     content: &mut Option<FooterFn<'_>>,
     buttons: &[FooterButton],
     enter: bool,
-    picked: &mut Option<usize>,
-    guard: &mut Option<CloseGuard<'_>>,
+    host: FooterHost<'_, '_>,
 ) {
+    let FooterHost { picked, guard, settle } = host;
+    let mut settled;
+    let buttons = match settle.as_mut() {
+        Some(settle) => {
+            settled = buttons.to_vec();
+            settle(cx, &mut settled);
+            &settled[..]
+        }
+        None => buttons,
+    };
     let mut close = None;
     if let Some(content) = content.as_mut() {
         FooterBar::body().show(ui, |ui, bar| content(ui, &mut FooterCx { bar, close: &mut close }));
@@ -209,6 +229,6 @@ impl Container for DialogFrame<'_> {
     }
 
     fn footer(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
-        footer(ui, cx, &mut self.footer, &[], false, &mut None, &mut None);
+        footer(ui, cx, &mut self.footer, &[], false, FooterHost { picked: &mut None, guard: &mut None, settle: &mut None });
     }
 }

@@ -14,7 +14,7 @@ use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::{MemoryStage, unique};
 use crate::runtime::overlay::CloseReason;
 use crate::runtime::words::CommonWords;
-use crate::sections::{DialogRole, FooterBar, FooterButton};
+use crate::sections::{DialogRole, FooterButton};
 use craft_behavior::{CanvasTransform, EditEvent, GestureId, Mixed};
 use egui::load::SizedTexture;
 use egui::{Response, Ui, Vec2};
@@ -83,6 +83,11 @@ impl Default for Live {
 /// The values of a dialog that has no binding for them, between passes.
 #[derive(Clone, Default)]
 struct Held(DialogFields);
+
+/// Whether the values differ from the ones the dialog opened with: the body writes it each pass and the footer reads
+/// it, so Reset's enabled state follows the rows shown in the same pass.
+#[derive(Clone, Copy, Default)]
+struct Changed(bool);
 
 /// What a parameter dialog reports.
 #[derive(Debug)]
@@ -259,6 +264,21 @@ impl<'a> ParamDialog<'a> {
         values
     }
 
+    /// Sets `values` to `target`, key by key (keys the target lacks keep their value), or to the values they
+    /// opened with when there is no target.
+    fn restore(values: &mut DialogFields, target: Option<&DialogFields>) {
+        match target {
+            Some(target) => {
+                for (key, value) in target.iter() {
+                    values.set(key, value.clone());
+                }
+            }
+            None => {
+                values.reset();
+            }
+        }
+    }
+
     /// Shows the dialog.
     pub fn show(self, ui: &mut Ui) -> ParamDialogOutput {
         let ParamDialog {
@@ -279,7 +299,7 @@ impl<'a> ParamDialog<'a> {
             layout,
             closable,
             preview,
-            mut footer_extra,
+            footer_extra,
             below,
             shaped,
         } = self;
@@ -293,33 +313,32 @@ impl<'a> ParamDialog<'a> {
         let work = RefCell::new(DialogFields::new());
         let opened = Cell::new(false);
 
-        let mut dialog = Dialog::new(title.clone()).closable(closable).close_on_enter(ok_enabled).outer_gesture(outer_gesture);
+        let reset = ResetFooter::new(ui, cancel_label.clone(), alt_resets);
+        let mut accept = FooterButton::new(ok_label.clone().unwrap_or_else(|| common.ok.clone()), DialogRole::Accept).enabled(ok_enabled);
+        if let (false, Some(reason)) = (ok_enabled, &ok_reason) {
+            accept = accept.disabled_reason(reason.clone());
+        }
+        let mut dialog = Dialog::new(title.clone())
+            .closable(closable)
+            .close_on_enter(ok_enabled)
+            .outer_gesture(outer_gesture)
+            .buttons(reset.buttons(accept, false))
+            .settle_buttons({
+                let reset = reset.clone();
+                move |cx, buttons| reset.settle(buttons, cx.memory::<Changed>().0)
+            });
         if let Some(open) = open {
             dialog = dialog.opened(open);
         }
         if collection_body {
             dialog = dialog.collection_body();
         }
+        if let Some(FooterExtra(mut extra)) = footer_extra {
+            dialog = dialog.footer(move |ui, _| extra(ui));
+        }
         if let Some(Shaped(shape)) = shaped {
             dialog = shape(dialog);
         }
-        let dialog = dialog.footer(|ui, footer| {
-            if let Some(FooterExtra(extra)) = footer_extra.as_mut() {
-                extra(ui);
-            }
-            let mut accept = FooterButton::new(ok_label.clone().unwrap_or_else(|| common.ok.clone()), DialogRole::Accept).enabled(ok_enabled);
-            if let (false, Some(reason)) = (ok_enabled, &ok_reason) {
-                accept = accept.disabled_reason(reason.clone());
-            }
-            let reset = ResetFooter::new(ui, cancel_label.clone(), alt_resets);
-            let changed = work.borrow().changed();
-            match reset.buttons(ui, accept, changed) {
-                Some(ResetPick::Accept) => footer.request_close_as(CloseReason::Activated),
-                Some(ResetPick::Reset) => ResetFooter::restore(&mut work.borrow_mut(), reset_to.as_ref()),
-                Some(ResetPick::Cancel) => footer.request_close_as(CloseReason::Requested),
-                None => {}
-            }
-        });
 
         let mut live = Live::default();
         let mut rows = None;
@@ -367,6 +386,7 @@ impl<'a> ParamDialog<'a> {
                 draw(ui, &work.borrow());
             }
             *cx.memory::<Live>() = live.clone();
+            cx.memory::<Changed>().0 = work.borrow().changed();
             if unbound {
                 cx.memory::<Held>().0 = work.borrow().clone();
             }
@@ -380,7 +400,11 @@ impl<'a> ParamDialog<'a> {
             }
         });
 
-        let DialogOutput { response, closed, .. } = shown.output;
+        let DialogOutput { response, closed, picked } = shown.output;
+        if reset.pick(picked) == Some(ResetPick::Reset) {
+            Self::restore(&mut work.borrow_mut(), reset_to.as_ref());
+            crate::runtime::frame::request_repaint(ui.ctx());
+        }
         let after = work.into_inner();
         let result = match closed {
             Some(CloseReason::Enter | CloseReason::Activated) if ok_enabled => {
@@ -412,15 +436,19 @@ pub enum ResetPick {
     Cancel,
 }
 
-/// The footer of a dialog whose Cancel turns into Reset while Alt is held: Reset restores the values from when the
-/// dialog opened (or a target) and keeps the dialog open. `ParamDialog` and every other dialog with this behaviour
-/// build their footer with it.
+/// The two footer buttons of a dialog whose Cancel turns into Reset while Alt is held. Reset restores the values from
+/// when the dialog opened and keeps the dialog open (`FooterButton::stays_open`). The dialog takes them through
+/// `Dialog::buttons`, so close reasons, `close_guard`, Enter and `DialogOutput::picked` work as for any other buttons;
+/// [`pick`](ResetFooter::pick) reads which one was picked. `ParamDialog` builds its footer with it, and so does any
+/// other dialog with this behaviour.
 ///
 /// ```ignore
 /// let footer = ResetFooter::new(ui, None, true);
-/// match footer.buttons(ui, FooterButton::new(common.ok.clone(), DialogRole::Accept), values.changed()) {
-///     Some(ResetPick::Reset) => ResetFooter::restore(&mut values, None),
-///     _ => {}
+/// let accept = FooterButton::new(common.ok.clone(), DialogRole::Accept);
+/// let dialog = Dialog::new("Levels").buttons(footer.buttons(accept, values.changed()));
+/// let shown = dialog.show(ui, |ui, cx| { /* rows */ });
+/// if footer.pick(shown.output.picked) == Some(ResetPick::Reset) {
+///     values.reset();
 /// }
 /// ```
 #[derive(Clone, Debug)]
@@ -447,37 +475,31 @@ impl ResetFooter {
         self.resetting
     }
 
-    /// Lays out `accept` and the second button, which is Reset (enabled while `changed`) or Cancel, and answers with
-    /// the one pressed.
-    pub fn buttons(&self, ui: &mut Ui, accept: FooterButton, changed: bool) -> Option<ResetPick> {
+    /// `accept` and the second button, for `Dialog::buttons`. The second is Reset (role `Other`, stays open, enabled
+    /// while `changed`) or Cancel.
+    pub fn buttons(&self, accept: FooterButton, changed: bool) -> [FooterButton; 2] {
         let second = if self.resetting {
-            FooterButton::new(self.reset.clone(), DialogRole::Other).enabled(changed)
+            FooterButton::new(self.reset.clone(), DialogRole::Other).stays_open(true).enabled(changed)
         } else {
             FooterButton::new(self.cancel.clone(), DialogRole::Cancel)
         };
-        match FooterBar::buttons([accept, second]).show_footer(ui).picked {
-            Some(0) => Some(ResetPick::Accept),
-            Some(_) if self.resetting => {
-                crate::runtime::frame::request_repaint(ui.ctx());
-                Some(ResetPick::Reset)
-            }
-            Some(_) => Some(ResetPick::Cancel),
-            None => None,
+        [accept, second]
+    }
+
+    /// Sets the Reset button's enabled state to `changed` in `buttons` as `buttons` made them; the rule for
+    /// `Dialog::settle_buttons`, for a dialog whose rows decide `changed` in the same pass.
+    pub fn settle(&self, buttons: &mut [FooterButton], changed: bool) {
+        if let (true, Some(second)) = (self.resetting, buttons.get_mut(1)) {
+            second.set_enabled(changed);
         }
     }
 
-    /// Sets `values` to `target`, key by key (keys the target lacks keep their value), or to the values they
-    /// opened with when there is no target.
-    pub fn restore(values: &mut DialogFields, target: Option<&DialogFields>) {
-        match target {
-            Some(target) => {
-                for (key, value) in target.iter() {
-                    values.set(key, value.clone());
-                }
-            }
-            None => {
-                values.reset();
-            }
+    /// Which button `DialogOutput::picked` names, for the buttons of this footer.
+    pub fn pick(&self, picked: Option<usize>) -> Option<ResetPick> {
+        match picked? {
+            0 => Some(ResetPick::Accept),
+            _ if self.resetting => Some(ResetPick::Reset),
+            _ => Some(ResetPick::Cancel),
         }
     }
 }

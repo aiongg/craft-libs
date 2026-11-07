@@ -73,6 +73,9 @@ impl State {
                     self.focused.remove(&focused.unwrap_or(pane));
                     vec![Act::Focus(pane, Default::default())]
                 }
+                // A dialog is its own pane: focus stays inside it, so Enter after a click on one of its buttons still
+                // reaches the default button.
+                None if self.in_trapping_scope() => Vec::new(),
                 None => focused.map(Act::Surrender).into_iter().collect(),
             },
             PressFocus::Unclaimed if focused == self.press.focus_at_begin && !self.in_trapping_scope() => {
