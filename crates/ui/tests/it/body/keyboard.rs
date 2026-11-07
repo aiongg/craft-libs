@@ -22,6 +22,14 @@ const LINE: Vec2 = Vec2::new(100.0, 20.0);
 const VIEW: Vec2 = Vec2::new(300.0, 200.0);
 const ORIGIN: Pos2 = Pos2::new(10.0, 10.0);
 const SAME: f32 = 0.5;
+/// A line step is half the view.
+const HALF: f32 = 0.5;
+/// The views of content End has to pass.
+const TWO_VIEWS: f32 = 2.0;
+/// Shift multiplies a step by this.
+const SHIFT_STEPS: f32 = 4.0;
+/// How much shorter than open a collapsed container is at least.
+const COLLAPSED_BY: f32 = 70.0;
 
 /// A container whose header closes it on request, so a trial closes a collapsible body.
 #[derive(craft_ui::contract::Component)]
@@ -56,7 +64,7 @@ impl Component for Holder<'_> {
 
 impl Container for Holder<'_> {
     fn header(&mut self, ui: &mut Ui, bcx: &mut BodyCx<'_>) {
-        ui.allocate_space(Vec2::new(100.0, 10.0));
+        Block::new(Vec2::new(100.0, 10.0)).show(ui);
         if self.close.replace(false) {
             bcx.request_close();
         }
@@ -106,7 +114,7 @@ fn a_wheel_line_scrolls_the_distance_of_the_bodys_notch() {
     frames.frame(vec![pointer::moved(centre)], &mut show);
     frames.frame(vec![pointer::wheel_lines(-1.0)], &mut show);
     let moved = top0 - seen.first_top.get();
-    assert!((moved - VIEW.y / 2.0).abs() < SAME, "one line scrolled half the view: {moved}");
+    assert!((moved - VIEW.y * HALF).abs() < SAME, "one line scrolled half the view: {moved}");
 }
 
 #[trial]
@@ -125,7 +133,7 @@ fn page_down_and_end_scroll_the_body_around_the_focused_component() {
     assert!((page - VIEW.y).abs() < SAME, "Page Down moved one view: {page}");
     frames.frame(vec![key_press(Key::End, Modifiers::NONE)], &mut show);
     let end = moved_by(&mut frames, top0, &seen, &mut show);
-    assert!(end > 2.0 * VIEW.y, "End reached the end of the 800 points of content: {end}");
+    assert!(end > TWO_VIEWS * VIEW.y, "End reached the end of the 800 points of content: {end}");
     frames.frame(vec![key_press(Key::Home, Modifiers::NONE)], &mut show);
     let home = moved_by(&mut frames, top0, &seen, &mut show);
     assert!(home.abs() < SAME, "Home returned to the start: {home}");
@@ -177,7 +185,7 @@ fn the_window_move_mode_moves_the_layer_by_arrows_and_escape_restores_it() {
     frames.frame(vec![key_press(Key::ArrowRight, Modifiers::SHIFT)], &mut show);
     frames.idle(2, &mut show);
     let large = rect.get().min - start - step;
-    assert!((large.x - 4.0 * step.x).abs() < SAME, "Shift moves four steps: {large:?} against {step:?}");
+    assert!((large.x - SHIFT_STEPS * step.x).abs() < SAME, "Shift moves four steps: {large:?} against {step:?}");
     frames.frame(vec![key_press(Key::Escape, Modifiers::NONE)], &mut show);
     frames.idle(2, &mut show);
     assert!((rect.get().min - start).abs().max_elem() < SAME, "Escape restored the placement: {:?} {start:?}", rect.get().min);
@@ -261,5 +269,5 @@ fn an_animated_collapse_keeps_the_body_while_it_closes() {
     frames.advance(5.0);
     frames.idle(3, &mut show);
     assert!(!ran.get(), "the body stops once the presence reaches closed");
-    assert!(height.get() < open - 70.0, "the container is as high as its header: {} of {open}", height.get());
+    assert!(height.get() < open - COLLAPSED_BY, "the container is as high as its header: {} of {open}", height.get());
 }

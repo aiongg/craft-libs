@@ -4,7 +4,7 @@ use crate::primitives::text_adapter;
 use craft_behavior::PartKey;
 use egui::{Context, Id, Shape};
 
-pub use crate::runtime::egui::fixture::{ImeSeen, set_value_request, text_selection_request};
+pub use crate::runtime::egui::fixture::{ImeSeen, ime_preedit, set_value_request, text_selection_request};
 
 /// The run node and character index a position maps to among runs given as `(line, bytes, text)`.
 pub fn run_end(owner: Id, runs: &[(usize, std::ops::Range<usize>, &str)], pos: craft_behavior::TextPos) -> Option<(Id, usize)> {

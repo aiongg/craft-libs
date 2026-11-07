@@ -14,8 +14,8 @@ use craft_ui::runtime::windows::{WindowAction, act};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::pointer::{moved, press};
 use craft_ui::testing::trial;
-use craft_ui::testing::windows::NoWindows;
-use egui::{Context, Event, Pos2, RawInput, Rect, Response, Ui, Vec2, ViewportBuilder, ViewportCommand, ViewportId, ViewportInfo};
+use craft_ui::testing::windows::{NoWindows, dragged_id, record_input_hooks};
+use egui::{Event, Pos2, Rect, Response, Ui, Vec2, ViewportBuilder, ViewportCommand, ViewportId, ViewportInfo};
 use std::cell::Cell;
 use std::sync::{Arc, Mutex};
 
@@ -47,7 +47,7 @@ impl Component for Handle {
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        if self.cancels && cx.response.dragged() {
+        if self.cancels && cx.press().phase.is_drag() {
             cx.cancel_press(PressCancel::Escape);
         }
     }
@@ -87,19 +87,9 @@ impl Container for Modal {}
 /// runtime's hook steps read only the raw input and records keyed by `RawInput.viewport_id`.
 #[trial]
 fn a_child_viewports_input_hook_runs_with_the_parent_as_current_viewport() {
-    struct Rec(Arc<Mutex<Vec<(ViewportId, ViewportId)>>>);
-    impl egui::Plugin for Rec {
-        fn debug_name(&self) -> &'static str {
-            "rec"
-        }
-
-        fn input_hook(&mut self, ctx: &Context, input: &mut RawInput) {
-            self.0.lock().unwrap().push((input.viewport_id, ctx.viewport_id()));
-        }
-    }
     let windows = Windows::new();
     let log = Arc::new(Mutex::new(Vec::new()));
-    windows.ctx.add_plugin(Rec(log.clone()));
+    record_input_hooks(&windows.ctx, log.clone());
     for _ in 0..2 {
         windows.frame(vec![], vec![], |ui| {
             ui.ctx().show_viewport_immediate(child(), ViewportBuilder::default(), |_, _| {});
@@ -121,9 +111,9 @@ fn a_cancelled_press_in_a_child_viewport_ends_the_childs_drag_not_the_main_windo
             Handle { common: Common::new(), cancels: false }.id_salt("root").show_at(ui, HANDLE);
             ui.ctx().show_viewport_immediate(child(), ViewportBuilder::default(), |cui, _| {
                 Handle { common: Common::new(), cancels: true }.id_salt("child").show_at(cui, HANDLE);
-                child_dragged.set(cui.ctx().dragged_id());
+                child_dragged.set(dragged_id(cui.ctx()));
             });
-            root_dragged.set(ui.ctx().dragged_id());
+            root_dragged.set(dragged_id(ui.ctx()));
         });
     };
     for _ in 0..3 {

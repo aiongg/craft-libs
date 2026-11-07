@@ -6,6 +6,7 @@ use craft_ui::contract::{Common, Component, Cx, DragPreview, DropMark, DropTarge
 use craft_ui::runtime::drag;
 use craft_ui::runtime::env::Label;
 use craft_ui::style::{ComponentStyle, StyleCx};
+use craft_ui::testing::layout::Block;
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Frames, trial};
@@ -235,7 +236,7 @@ fn a_target_under_another_layer_takes_no_drop() {
         scene(&seen)(ui);
         if covered.get() {
             craft_ui::testing::frames::show_area(ui.ctx(), "cover", |cover| {
-                cover.allocate_exact_size(Vec2::new(400.0, 100.0), egui::Sense::hover());
+                Block::new(Vec2::new(400.0, 100.0)).show(cover);
             });
         }
     };

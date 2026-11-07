@@ -16,6 +16,10 @@ use std::cell::RefCell;
 const DRAG: f32 = 30.0;
 /// How far a scrub may differ from the drag: pixel rounding.
 const ROUNDING: f64 = 1.5;
+/// How far right of the row start a label beside its control begins at least.
+const BESIDE: f32 = 20.0;
+/// How far below the row start a stacked label begins at least.
+const STACKED: f32 = 5.0;
 /// The value the double-click trial starts from.
 const START: f64 = 10.0;
 
@@ -219,9 +223,9 @@ fn a_label_stays_beside_a_fill_width_control_and_follows_the_row_width() {
         rect.get()
     };
     let wide = at(&mut frames, 300.0, 6);
-    assert!(wide.min.x > ROW_A.min.x + 20.0, "a wide row keeps the label beside a control that fills its width: {wide:?}");
+    assert!(wide.min.x > ROW_A.min.x + BESIDE, "a wide row keeps the label beside a control that fills its width: {wide:?}");
     let narrow = at(&mut frames, 80.0, 4);
-    assert!(narrow.min.y > ROW_A.min.y + 5.0, "a row narrower than label, gap and the control's minimum stacks the label: {narrow:?}");
+    assert!(narrow.min.y > ROW_A.min.y + STACKED, "a row narrower than label, gap and the control's minimum stacks the label: {narrow:?}");
     let again = at(&mut frames, 300.0, 4);
-    assert!(again.min.x > ROW_A.min.x + 20.0, "the label returns beside the control when the row widens: {again:?}");
+    assert!(again.min.x > ROW_A.min.x + BESIDE, "the label returns beside the control when the row widens: {again:?}");
 }

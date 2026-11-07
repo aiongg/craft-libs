@@ -17,6 +17,8 @@ use std::cell::RefCell;
 const ORIGIN: Pos2 = Pos2::new(10.0, 10.0);
 const VIEW: Vec2 = Vec2::new(400.0, 240.0);
 const COL: f32 = 100.0;
+/// How far a measured position may differ from the expected one.
+const CLOSE: f32 = 1.0;
 const NAME: ColumnKey = ColumnKey::new("name");
 const SIZE: ColumnKey = ColumnKey::new("size");
 const DATE: ColumnKey = ColumnKey::new("date");
@@ -253,7 +255,7 @@ fn a_dragged_row_shows_the_mark_and_reports_one_reorder() {
     assert!(drag::active::<ListDrag<usize>>(&frames.ctx).is_some_and(|payload| payload.grabbed == 1));
     match drag::mark(&frames.ctx) {
         Some(DropMark::Line { from, to, .. }) => {
-            assert!((from.y - below.max.y).abs() < 1.0 && (to.y - below.max.y).abs() < 1.0, "the mark lies under row 3")
+            assert!((from.y - below.max.y).abs() < CLOSE && (to.y - below.max.y).abs() < CLOSE, "the mark lies under row 3")
         }
         other => panic!("the drag shows an insertion line, found {other:?}"),
     }
@@ -287,6 +289,6 @@ fn a_free_layout_item_moves_by_drag() {
     assert_eq!(moves.first().and_then(EditEvent::phase), Some(GesturePhase::Begin));
     assert_eq!(moves.last().and_then(EditEvent::phase), Some(GesturePhase::Commit));
     let offset = moves.last().and_then(|edit| edit.value().copied()).expect("the commit carries the offset");
-    assert!((offset - by).length() < 1.0, "the commit is the pointer's offset: {offset:?}");
+    assert!((offset - by).length() < CLOSE, "the commit is the pointer's offset: {offset:?}");
     assert_eq!(moves.iter().filter(|edit| edit.phase() == Some(GesturePhase::Commit)).count(), 1);
 }

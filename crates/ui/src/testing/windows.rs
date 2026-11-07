@@ -4,6 +4,8 @@ use crate::runtime::InstallSpec;
 use craft_host::target::ShellInfo;
 use std::sync::Arc;
 
+pub use crate::runtime::egui::fixture::{FullOutput, RawInput, dragged_id, record_input_hooks};
+
 pub use craft_window::system::{FakeSystem, NoWindows};
 
 /// An install spec for the running build's shell and a system with no OS services.

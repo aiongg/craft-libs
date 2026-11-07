@@ -5,13 +5,13 @@ use super::kit::TEXT;
 use craft_ui::contract::{Bind, Props as _, Show as _};
 use craft_ui::testing::Frames;
 use craft_ui::testing::pointer::{click, middle, moved, press, release};
-use craft_ui::testing::text::widget_id;
+use craft_ui::testing::text::{ime_preedit, widget_id};
 use craft_ui::testing::trial;
 use craft_ui::text::TextField;
 use egui::{Event, ImeEvent};
 
 fn preedit(text: &str) -> Event {
-    Event::Ime(ImeEvent::Preedit { text: text.into(), active_range_chars: None })
+    ime_preedit(text)
 }
 
 /// The preedit shows inline, commits once as typed text, and the pass writes the engine's IME output.

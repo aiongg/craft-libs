@@ -11,6 +11,9 @@ use craft_ui::text::{NumberField, SelectableText};
 use egui::{Event, Key, Modifiers};
 use std::cell::{Cell, RefCell};
 
+/// The value a refused commit leaves.
+const KEPT: f64 = 1.0;
+
 /// A position maps to the run that holds its byte and the character index in it.
 #[trial]
 fn a_position_maps_to_the_run_that_holds_its_byte_and_the_character_index_in_it() {
@@ -68,7 +71,7 @@ fn a_rejected_draft_shows_invalid_until_it_is_restored() {
     frames.frame(vec![key_press(Key::Enter, Modifiers::NONE)], &mut show);
     frames.frame(vec![], &mut show);
     assert!(frames.tree().invalid(seen.get()), "a refused commit keeps the run open and the field invalid");
-    assert_eq!(*value.borrow(), Some(1.0), "and leaves the value");
+    assert_eq!(*value.borrow(), Some(KEPT), "and leaves the value");
     frames.frame(vec![key_press(Key::Escape, Modifiers::NONE)], &mut show);
     frames.frame(vec![], &mut show);
     assert!(!frames.tree().invalid(seen.get()), "Escape restores the value and clears the mark");

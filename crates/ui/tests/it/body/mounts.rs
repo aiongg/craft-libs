@@ -21,6 +21,8 @@ use std::sync::{Arc, Mutex};
 const MOVE: Vec2 = Vec2::new(40.0, 30.0);
 const GROW: Vec2 = Vec2::new(30.0, 20.0);
 const SLACK: f32 = 1.5;
+/// The inner size of the exported window, in points.
+const INNER: [f32; 2] = [420.0, 310.0];
 /// The body the layers show.
 const BODY: Vec2 = Vec2::new(120.0, 60.0);
 
@@ -181,7 +183,7 @@ fn a_viewport_mount_saves_its_window_placement_in_the_store() {
     let spec = InstallSpec::new(ShellInfo::default(), Arc::new(NoWindows)).placement(store.clone());
     let windows = Windows::with(spec);
     windows.child_info(ViewportInfo {
-        inner_rect: Some(Rect::from_min_size(Pos2::new(120.0, 90.0), Vec2::new(420.0, 310.0))),
+        inner_rect: Some(Rect::from_min_size(Pos2::new(120.0, 90.0), Vec2::from(INNER))),
         outer_rect: Some(Rect::from_min_size(Pos2::new(118.0, 60.0), Vec2::new(424.0, 342.0))),
         native_pixels_per_point: Some(2.0),
         ..ViewportInfo::default()
@@ -198,7 +200,7 @@ fn a_viewport_mount_saves_its_window_placement_in_the_store() {
         });
     }
     let saved = store.lock().unwrap().get("craft_ui_tests.export_window").expect("the window's placement was saved");
-    assert_eq!(saved.normal.size, [420.0, 310.0], "the inner size in points");
+    assert_eq!(saved.normal.size, INNER, "the inner size in points");
     assert_eq!(saved.position_px, Some([236, 120]), "the outer position in physical pixels");
 }
 

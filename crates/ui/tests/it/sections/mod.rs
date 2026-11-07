@@ -18,6 +18,8 @@ use std::cell::RefCell;
 const ROW: Rect = Rect { min: Pos2::new(10.0, 10.0), max: Pos2::new(310.0, 40.0) };
 const ACTION: PartKey = PartKey::new("action");
 const LEAD: PartKey = PartKey::new("lead");
+/// How much wider than the body the container may be.
+const WIDER: f32 = 20.0;
 
 #[derive(Default)]
 struct Out {
@@ -181,5 +183,5 @@ fn a_footer_bar_leaves_a_content_sized_container_as_wide_as_its_body() {
             width.set(out.output.rect.width());
         });
     });
-    assert!(width.get() < BODY + 20.0, "the footer's End-aligned row does not widen the container to the room: {}", width.get());
+    assert!(width.get() < BODY + WIDER, "the footer's End-aligned row does not widen the container to the room: {}", width.get());
 }

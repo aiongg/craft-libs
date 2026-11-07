@@ -16,6 +16,11 @@ use craft_ui::text::{NumberField, TextField};
 use egui::{Event, Key, Modifiers};
 use std::ops::Range;
 
+/// What `2+3` evaluates to.
+const SUM: f64 = 5.0;
+/// The value a scrubbed field starts at.
+const SCRUB_START: f64 = 10.0;
+
 /// Typing then Ctrl+Z undoes the whole run; Ctrl+Z with nothing to undo fires the app's Undo.
 #[trial]
 fn typing_then_undo_takes_back_the_whole_run_and_an_empty_stack_reaches_the_app() {
@@ -142,9 +147,9 @@ fn number_field_parses_through_its_codec_and_rejects_bad_text() {
         }
     };
     typed(&mut frames, "2+3", &mut show);
-    assert_eq!(*value.borrow(), Some(5.0), "an expression parses on commit");
+    assert_eq!(*value.borrow(), Some(SUM), "an expression parses on commit");
     typed(&mut frames, "x1", &mut show);
-    assert_eq!(*value.borrow(), Some(5.0), "text that is no number leaves the value");
+    assert_eq!(*value.borrow(), Some(SUM), "text that is no number leaves the value");
 }
 
 /// The caret blinks while it can and stays solid when motion is off.
@@ -177,7 +182,7 @@ fn a_number_field_scrubs_by_its_label() {
     const DRAG: f32 = 30.0;
     const ROUNDING: f64 = 1.5;
     let mut frames = craft_ui::testing::Frames::new();
-    let value = std::cell::RefCell::new(Some(10.0f64));
+    let value = std::cell::RefCell::new(Some(SCRUB_START));
     let mut show = |ui: &mut egui::Ui| {
         Field::new("Opacity", SideLabel::new()).id_salt("row").show_at(ui, ROW, |ui, _| {
             NumberField::new("Opacity", Bind::bound(&mut *value.borrow_mut())).scrub_by_label().id_salt("scrubbed").show(ui);
@@ -186,5 +191,5 @@ fn a_number_field_scrubs_by_its_label() {
     frames.idle(4, &mut show);
     drag(&mut frames, ROW.min + egui::vec2(4.0, 12.0), egui::vec2(DRAG, 0.0), &mut show);
     let scrubbed = value.borrow().unwrap_or_default();
-    assert!((scrubbed - 10.0 - f64::from(DRAG)).abs() < ROUNDING, "a drag on the label scrubs by its length: {scrubbed}");
+    assert!((scrubbed - SCRUB_START - f64::from(DRAG)).abs() < ROUNDING, "a drag on the label scrubs by its length: {scrubbed}");
 }
