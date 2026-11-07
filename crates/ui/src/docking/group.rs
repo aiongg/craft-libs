@@ -62,6 +62,7 @@ pub struct GroupGrip {
     common: Common,
     anchor: PanelKey,
     active: PanelKey,
+    /// A drag on the grip drags the group.
     #[prop]
     movable: bool,
     double: bool,
