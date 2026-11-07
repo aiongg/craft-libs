@@ -2,19 +2,20 @@
 //! faces in one part roving group. The leading crumbs that do not fit stand behind an ellipsis part that opens a menu
 //! of them.
 
+use super::items::{FitItem, FitKeep, fit_items};
 use super::words::BreadcrumbWords;
 use crate::buttons::Link;
 use crate::contract::{
-    Access, ActivateOn, Bind, CollectionEvent, Common, Component, Cx, Entry, Focus as _, LeadOnOpen, MeasureCx, Name, Outcome, Overlay, OverlayUi,
-    Overlays as _, PaintUi, PartsCx, Pointer as _, Props as _, Role, SelectMode, ShowCollection as _, Styled as _, WordSetCx as _,
+    Access, Common, Component, Cx, Entry, MeasureCx, Name, Outcome, OverlayUi, Overlays as _, PaintUi, PartsCx, Props as _, Role, Styled as _,
+    WordSetCx as _,
 };
 use crate::display::{Elide, Shade, Text};
-use crate::list::{List, ListRow};
-use crate::primitives::IconSpec;
+use crate::menu::Menu;
+use crate::primitives::{IconSpec, Wrap};
 use crate::runtime::env::Label;
 use crate::runtime::focus::{ActivateKeys, KeyUse};
 use crate::style::{ComponentStyle, FocusLook, IconLook, Stateful, StyleCx, TypeRole};
-use craft_behavior::{Axis, DisplayOrder, Flow, IconId, ItemSource, Metrics, NavShape, PartKey, PartRef, Roving, Selection, Sense, Value};
+use craft_behavior::{Axis, Flow, IconId, Metrics, NavShape, PartKey, PartRef, Roving, Sense, Value};
 use egui::{Rect, Response, Vec2};
 
 #[cfg(feature = "testing")]
@@ -22,9 +23,6 @@ mod stories;
 
 const HIDDEN: PartKey = PartKey::new("hidden");
 const CRUMB: PartKey = PartKey::new("crumb");
-
-/// The most crumbs shown before the rest go behind the ellipsis.
-const MOST_SHOWN: usize = 4;
 
 /// What separates crumbs in the whole path a tooltip shows.
 const PATH_JOINT: &str = " \u{203a} ";
@@ -40,10 +38,14 @@ pub struct BreadcrumbBarStyle {
     /// The chevron between crumbs.
     #[style(icon)]
     separator: IconLook,
-    /// Around each separator and the ellipsis.
+    /// On each side of a separator and of the ellipsis.
     gap: f32,
-    /// The least room a shown crumb is given; the bar shows as many crumbs as fit at this width, at most four.
-    min_crumb: f32,
+    /// A separator with its gaps on both sides: the room between neighbouring crumbs.
+    joint: f32,
+    /// The width of the ellipsis part beyond its glyph.
+    ellipsis_pad: f32,
+    /// The most room an ancestor crumb asks for; a longer name elides.
+    crumb_cap: f32,
     height: f32,
 }
 
@@ -108,15 +110,21 @@ impl<'a, K: Value + 'static> BreadcrumbBar<'a, K> {
         if self.is_last(at) {
             CrumbFace::Current(Text::new(label.clone()).role(TypeRole::BodyStrong).elide(Elide::End))
         } else {
-            CrumbFace::Ancestor(Link::new(label.clone()))
+            CrumbFace::Ancestor(Link::new(label.clone()).wrap(Wrap::ElidePath))
         }
     }
 
+    /// The width crumb `at` shows whole.
     fn natural(&self, at: usize, cx: &MeasureCx<'_, Self>) -> f32 {
         match self.crumb_face(at, self.crumbs[at].label()) {
             CrumbFace::Current(text) => cx.face(text).x,
             CrumbFace::Ancestor(link) => cx.face(link).x,
         }
+    }
+
+    /// The width crumb `at` asks for: its natural width, an ancestor's capped so a long name elides.
+    fn wanted(&self, at: usize, natural: f32, cap: f32) -> f32 {
+        if self.is_last(at) { natural } else { natural.min(cap) }
     }
 }
 
@@ -164,20 +172,23 @@ pub fn path_crumbs(path: &str) -> Vec<Entry<String>> {
 }
 
 impl<K: Value + 'static> Component for BreadcrumbBar<'_, K> {
-    const ROLE: Role = Role::GROUP;
+    const ROLE: Role = Role::NAVIGATION;
     const KEYS: KeyUse = KeyUse::of(crate::contract::Input::Pointer).with_activate(ActivateKeys::Both);
     type Style = BreadcrumbBarStyle;
     type Output = BreadcrumbOutput<K>;
 
     fn style(cx: &StyleCx<'_>, _: BreadcrumbBarStyleKey<K>) -> BreadcrumbBarStyle {
         let control = cx.control();
+        let gap = cx.tokens.space.gap.tight;
         let muted = cx.color(cx.tokens.color.text.muted);
         BreadcrumbBarStyle {
             metrics: Metrics::new().min_size(Vec2::new(0.0, control.height)),
             focus: cx.focus_look(),
             separator: IconLook::new(control.icon, Stateful::new(muted)),
-            gap: cx.tokens.space.gap.tight,
-            min_crumb: cx.tokens.size.length.short,
+            gap,
+            joint: control.icon + 2.0 * gap,
+            ellipsis_pad: 2.0 * gap,
+            crumb_cap: cx.tokens.size.length.field,
             height: control.height,
         }
     }
@@ -185,7 +196,7 @@ impl<K: Value + 'static> Component for BreadcrumbBar<'_, K> {
     /// The width of the whole path with every crumb and separator; the bar fills the room it is given.
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         let crumbs: f32 = (0..self.crumbs.len()).map(|at| self.natural(at, cx)).sum();
-        let joints = self.crumbs.len().saturating_sub(1) as f32 * (cx.style.separator.side + 2.0 * cx.style.gap);
+        let joints = self.crumbs.len().saturating_sub(1) as f32 * cx.style.joint;
         Vec2::new(crumbs + joints, cx.style.height)
     }
 
@@ -198,34 +209,37 @@ impl<K: Value + 'static> Component for BreadcrumbBar<'_, K> {
     }
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
-        let (gap, joint) = (cx.style.gap, cx.style.separator.side);
+        let (gap, chevron_side) = (cx.style.gap, cx.style.separator.side);
         let total = self.crumbs.len();
-        let shown = ((rect.width() / cx.style.min_crumb) as usize).clamp(1, MOST_SHOWN).min(total);
-        let hidden = total - shown;
         let labels: Vec<String> = self.crumbs.iter().map(|crumb| cx.env.resolve(crumb.label()).as_str().to_owned()).collect();
         self.whole = Label::from(labels.join(PATH_JOINT));
+        let ellipsis_width = cx.face(Text::new("\u{2026}")).x + cx.style.ellipsis_pad;
+        let full: Vec<f32> = (0..total).map(|at| self.natural(at, cx)).collect();
+        let wanted: Vec<f32> = (0..total).map(|at| self.wanted(at, full[at], cx.style.crumb_cap)).collect();
+        // The fit runs from the current crumb back, so the root end overflows first.
+        let backwards: Vec<FitItem> =
+            (0..total).rev().map(|at| FitItem::new(wanted[at], 0, if self.is_last(at) { FitKeep::Pinned } else { FitKeep::Free })).collect();
+        let hidden = fit_items(&backwards, rect.width(), cx.style.joint, cx.style.joint, ellipsis_width).overflow.len();
+        let shown = total - hidden;
         let mut laid = Laid { hidden, ..Laid::default() };
         let mut flow = Flow::new(rect, cx.flow.is_rtl());
         if hidden > 0 {
-            let width = cx.face(Text::new("\u{2026}")).x + 2.0 * gap;
-            let (cell, rest) = flow.take_start(width);
+            let (cell, rest) = flow.take_start(ellipsis_width);
             laid.ellipsis = Some(cell);
             let (_, rest) = rest.take_start(gap);
-            let (chevron, rest) = rest.take_start(joint);
+            let (chevron, rest) = rest.take_start(chevron_side);
             laid.separators.push(chevron);
             flow = rest.take_start(gap).1;
         }
-        let natural: Vec<f32> = (hidden..total).map(|at| self.natural(at, cx)).collect();
-        let joints = (shown - 1) as f32 * (joint + 2.0 * gap);
-        let room = (flow.rect().width() - joints).max(0.0);
-        let widths = fair_widths(&natural, room);
-        for (at, (width, wanted)) in (hidden..total).zip(widths.into_iter().zip(&natural)) {
+        let room = (flow.rect().width() - shown.saturating_sub(1) as f32 * cx.style.joint).max(0.0);
+        let widths = fair_widths(&wanted[hidden..], room);
+        for (at, width) in (hidden..total).zip(widths) {
             let (cell, rest) = flow.take_start(width);
-            laid.cells.push((cell, width < *wanted));
+            laid.cells.push((cell, width < full[at]));
             flow = rest;
             if !self.is_last(at) {
                 let (_, rest) = flow.take_start(gap);
-                let (chevron, rest) = rest.take_start(joint);
+                let (chevron, rest) = rest.take_start(chevron_side);
                 laid.separators.push(chevron);
                 flow = rest.take_start(gap).1;
             }
@@ -250,49 +264,35 @@ impl<K: Value + 'static> Component for BreadcrumbBar<'_, K> {
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        let by_key = cx.activation().filter(|activation| activation.by_key).and(cx.active_part());
         for at in self.laid.hidden..self.crumbs.len().saturating_sub(1) {
-            let part = Self::part(at);
-            if cx.part(part).press.phase.is_click() || by_key == Some(part) {
+            if cx.part_activated(Self::part(at)).is_some() {
                 self.picked = self.crumbs[at].value().cloned();
             }
         }
     }
 
-    /// The menu of the hidden crumbs, the nearest last. A pick comes back from the list as Enter or a click on a row.
+    /// The menu of the hidden crumbs, the root first: one row per crumb.
     fn overlay(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>) {
+        if self.laid.ellipsis.is_none() {
+            return;
+        }
         let popup = cx.popup("hidden");
         let hidden = &self.crumbs[..self.laid.hidden];
-        let labels: Vec<Label> = hidden.iter().map(|crumb| cx.env.resolve(crumb.label())).collect();
         let name = cx.words::<BreadcrumbWords>().hidden.clone();
-        let events = ui.show(popup, Overlay::menu(), |ui, _| {
-            let rows = Hidden { labels: &labels };
-            List::<usize>::new(name.clone())
-                .select(SelectMode::Single)
-                .activate(ActivateOn::Click)
-                .lead_on_open(LeadOnOpen::First)
-                .lead_follows_hover(true)
-                .listbox()
-                .selection(Bind::given(Selection::new(Vec::new(), None, None)))
-                .show_items(ui, &rows, &mut |at, _| ListRow::new(labels[*at].clone()).option())
-                .events
-        });
-        let mut chosen = None;
-        for event in events.into_iter().flatten() {
-            if let CollectionEvent::Activate(at) = event {
-                chosen = Some(at);
-            }
-        }
-        if let Some(value) = chosen.and_then(|at| hidden.get(at)).and_then(Entry::value) {
-            self.picked = Some(value.clone());
-            popup.close(cx);
+        let picked = ui.show(popup, crate::menu::layer(false), |ui, _| Menu::inline(name.clone()).pick(ui, hidden).picked).flatten();
+        if picked.is_some() {
+            self.picked = picked;
         }
     }
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         for (at, crumb) in self.crumbs.iter().enumerate().skip(self.laid.hidden) {
-            let role = if self.is_last(at) { Role::LABEL } else { Role::LINK };
-            access.node(Self::part(at), role).name = Name::Text(cx.env.resolve(crumb.label()).as_str().to_owned());
+            let current = self.is_last(at);
+            let node = access.node(Self::part(at), if current { Role::LABEL } else { Role::LINK });
+            node.name = Name::Text(cx.env.resolve(crumb.label()).as_str().to_owned());
+            if current {
+                node.current(true);
+            }
         }
         if self.laid.ellipsis.is_some() {
             access.node(HIDDEN, Role::BUTTON).name = Name::Text(cx.words::<BreadcrumbWords>().hidden.as_str().to_owned());
@@ -321,28 +321,3 @@ impl<K: Value + 'static> Component for BreadcrumbBar<'_, K> {
         BreadcrumbOutput { response: cx.response.clone(), picked: self.picked }
     }
 }
-
-/// The hidden crumbs as a collection source, keyed by position.
-struct Hidden<'a> {
-    labels: &'a [Label],
-}
-
-impl DisplayOrder<usize> for Hidden<'_> {
-    fn len(&self) -> usize {
-        self.labels.len()
-    }
-
-    fn key(&self, at: usize) -> usize {
-        at
-    }
-
-    fn index_of(&self, key: &usize) -> Option<usize> {
-        (*key < self.labels.len()).then_some(*key)
-    }
-
-    fn text(&self, at: usize) -> Option<std::borrow::Cow<'_, str>> {
-        Some(std::borrow::Cow::Borrowed(self.labels[at].as_str()))
-    }
-}
-
-impl ItemSource<usize> for Hidden<'_> {}
