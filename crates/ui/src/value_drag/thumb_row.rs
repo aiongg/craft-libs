@@ -1,8 +1,13 @@
 //! `ThumbRow`: triangle thumbs on one row, each setting a value of its own, as the input and output rows of a levels
-//! editor do. One leaf with a focusable thumb part per value. A drag or press anywhere on the row moves the thumb it
-//! picks; arrows, the wheel and AccessKit step the focused thumb. The row's rules (order, wrap, split halves) are
+//! editor do. One leaf with a focusable thumb part per value. A press on a thumb grabs it and a drag moves it by the
+//! pointer's travel; a press elsewhere on the row jumps the nearest thumb there; arrows, the wheel and AccessKit step
+//! the focused thumb. Each value is mixed or not on its own. The row's rules (order, wrap, split halves) are
 //! `RowRules`.
+//!
+//! Alt keeps the meaning it has in Photoshop's levels: a drag that begins with Alt held moves one half of a split
+//! thumb alone, at full rate. On a thumb that is not split, Alt scales a drag finer as on every value control.
 
+use super::track::{self, Pick, Press, Scale, SliderScale, TrackFace, Travel};
 use super::words::ValueDragWords;
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Numeric, PaintUi, PartsCx, Pointer as _,
@@ -10,11 +15,12 @@ use crate::contract::{
 };
 use crate::primitives::{PaintShape, StrokeWidth};
 use crate::runtime::access::Name;
+use crate::runtime::env::Label;
 use crate::runtime::focus::{ActivateKeys, FocusShape, KeepKeys, KeyUse};
-use crate::style::{ComponentStyle, DataColor, FocusLook, StyleColor, StyleCx};
-use craft_behavior::nav::{StepResult, ValueAxes, ValueSteps, step_value};
+use crate::style::{ComponentStyle, DataColor, FocusLook, StyleColor, StyleCx, TrackLook};
+use craft_behavior::nav::{LARGE_STEPS, StepResult, ValueAxes, ValueSteps, step_value};
 use craft_behavior::part::PartRef;
-use craft_behavior::{HitLevel, HitPriority, Metrics, MoveMods, NavMove, PartKey, PressPhase, PressState, Sense, ValueDrag};
+use craft_behavior::{HitLevel, HitPriority, Metrics, Mixed, MoveMods, NavMove, PartKey, PressPhase, PressState, Sense, Wheel, wheel_step};
 use craft_theme::{Rgba, Stateful, States};
 use egui::{Pos2, Rect, Vec2, pos2};
 use std::ops::RangeInclusive;
@@ -26,13 +32,6 @@ mod stories;
 pub(crate) const ROW: PartKey = PartKey::new("row");
 /// One thumb, `THUMB.at(i)`.
 pub(crate) const THUMB: PartKey = PartKey::new("thumb");
-
-/// The room a row asks for along its axis, in icon sides.
-const LENGTH_IN_ICONS: f32 = 8.0;
-/// How many small steps a large step is.
-const LARGE_STEPS: f64 = 10.0;
-/// An arrow press steps this share of the range when the row has no step.
-const STEP_SHARE: f64 = 0.01;
 
 /// The style of a thumb row.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
@@ -54,6 +53,10 @@ pub struct ThumbRowStyle {
     hit: f32,
     /// The side of a thumb's triangle.
     thumb: f32,
+    /// The track a track face paints.
+    track: TrackLook,
+    /// The length a row asks for along its axis.
+    length: f32,
 }
 
 /// How a thumb's value is kept among the row's other values.
@@ -100,54 +103,11 @@ impl Follow {
     }
 }
 
-/// A range with an optional step: where values may go and how keys move them.
-#[derive(Clone, Copy, Debug, PartialEq)]
-struct Scale {
-    min: f64,
-    max: f64,
-    step: Option<f64>,
-}
-
-impl Scale {
-    fn new(range: &RangeInclusive<f64>, step: Option<f64>) -> Self {
-        let (a, b) = (*range.start(), *range.end());
-        let (min, max) = if a <= b { (a, b) } else { (b, a) };
-        Scale { min, max, step: step.filter(|s| s.is_finite() && *s > 0.0) }
-    }
-
-    fn span(&self) -> f64 {
-        self.max - self.min
-    }
-
-    /// Where `value` is drawn: in the range, and at the start when it is not a finite number.
-    fn place(&self, value: f64) -> f64 {
-        if value.is_finite() { value.clamp(self.min, self.max) } else { self.min }
-    }
-
-    /// `value` on the nearest stop, when there is a step: a multiple of the step from the start, or the end.
-    fn snap(&self, value: f64) -> f64 {
-        let value = self.place(value);
-        let Some(step) = self.step else { return value };
-        let at = (value - self.min) / step;
-        if value == self.max || (at - at.round()).abs() < 1e-9 {
-            return value;
-        }
-        let below = (self.min + at.floor() * step).min(self.max);
-        let above = (below + step).min(self.max);
-        if value - below < above - value { below } else { above }
-    }
-
-    /// One arrow press: the step, or a hundredth of the range.
-    fn key_step(&self) -> f64 {
-        self.step.unwrap_or(self.span() * STEP_SHARE)
-    }
-}
-
 /// One thumb of a [`ThumbRow`].
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct Thumb {
-    label: String,
+    label: Label,
     face: Option<DataColor>,
     scale: Option<Scale>,
     follow: Option<Follow>,
@@ -160,8 +120,8 @@ pub struct Thumb {
 
 impl Thumb {
     /// A thumb named `label`, free among the others, with the row's range and step. The label is the accessible
-    /// name, a whole phrase the app translates.
-    pub fn new(label: impl Into<String>) -> Self {
+    /// name, a whole phrase the app translates; the row's own label comes before it.
+    pub fn new(label: impl Into<Label>) -> Self {
         Thumb {
             label: label.into(),
             face: None,
@@ -192,12 +152,12 @@ impl Thumb {
     /// A value with its own `range` and `step`, which `follow` places on the row.
     #[must_use]
     pub fn follows(mut self, range: &RangeInclusive<f64>, step: f64, follow: Follow) -> Self {
-        self.scale = Some(Scale::new(range, Some(step)));
+        self.scale = Some(Scale::new(range, Some(step), SliderScale::Linear));
         self.follow = Some(follow);
         self
     }
 
-    /// Where a value that is not a finite number is drawn; the start of its range by default.
+    /// Where a mixed value, or one that is not a finite number, is drawn; the start of its range by default.
     #[must_use]
     pub fn unset_at(mut self, value: f64) -> Self {
         self.unset = Some(value);
@@ -217,7 +177,7 @@ impl Thumb {
     /// values `[low, high]` sit in consecutive entries with `low <= high`.
     ///
     /// A press that begins without Alt moves the pair together, keeping the spread; with Alt it moves only the half
-    /// it grabs. Where the halves coincide they draw as one triangle. Keys, the wheel and AccessKit move one half. A
+    /// it grabs, at full rate (Alt is not the fine scale on that drag). Where the halves coincide they draw as one triangle. Keys, the wheel and AccessKit move one half. A
     /// row does not combine a split thumb with wrapping.
     #[must_use]
     pub fn split(mut self) -> Self {
@@ -260,6 +220,9 @@ pub enum ThumbOp {
     Move(NavMove, MoveMods),
     /// Sets the value.
     Set(f64),
+    /// A wheel event: one notch is one step, Shift scales it larger and Alt finer. The flag is whether the row reads
+    /// right to left.
+    Wheel(Wheel, bool),
 }
 
 /// An operation on one thumb of a row.
@@ -311,13 +274,13 @@ impl<const N: usize> RowRules<'_, N> {
         self.wrap.map_or(delta, |period| delta - period * (delta / period).round())
     }
 
-    /// The values as drawn: each in its range, and one that is not finite where its thumb says.
-    pub fn placed(&self, value: &[f64; N]) -> [f64; N] {
+    /// The values as drawn: each in its range, and one that is mixed or not finite where its thumb says.
+    pub fn placed(&self, value: &[Mixed<f64>; N]) -> [f64; N] {
         std::array::from_fn(|i| {
             let scale = self.scale_of(i);
             let place = |v: f64| if self.wrap.is_some() { self.wrapped(&scale, v) } else { scale.place(v) };
-            match value[i] {
-                v if v.is_finite() => place(v),
+            match value[i].same() {
+                Some(&v) if v.is_finite() => place(v),
                 _ => self.thumbs[i].unset.map_or(scale.min, place),
             }
         })
@@ -417,30 +380,34 @@ impl<const N: usize> RowRules<'_, N> {
         wrap(scale.snap(wrap(value.clamp(lo, hi))))
     }
 
-    /// `row` with `op` applied to its thumb: from where the thumb is drawn (an unset gamma steps from where it
-    /// sits), on its stops and within its bounds among the others, so the order and the gap hold. The other thumbs
-    /// keep `row`'s values.
-    pub fn apply(&self, op: &RowOp, row: &[f64; N]) -> [f64; N] {
+    /// `row` with `op` applied to its thumb: from where the thumb is drawn (an unset or mixed thumb steps from where
+    /// it sits), on its stops and within its bounds among the others, so the order and the gap hold. The thumb takes
+    /// a number; the other thumbs keep `row`'s values, mixed or not.
+    pub fn apply(&self, op: &RowOp, row: &[Mixed<f64>; N]) -> [Mixed<f64>; N] {
         let values = self.placed(row);
         let i = op.thumb;
-        let mut out = *row;
-        out[i] = if self.wrap.is_some() { self.apply_wrapped(&op.op, &values, i) } else { self.apply_plain(&op.op, &values, i) };
+        let mut out = row.clone();
+        out[i] = Mixed::Same(if self.wrap.is_some() { self.apply_wrapped(&op.op, &values, i) } else { self.apply_plain(&op.op, &values, i) });
         out
+    }
+
+    /// What `op` does to the step maths: a move or a wheel event gives the new value from `steps`.
+    fn stepped(op: &ThumbOp, steps: &ValueSteps) -> StepResult {
+        match op {
+            ThumbOp::Move(mv, mods) => step_value(steps, ValueAxes::Both, *mv, *mods),
+            ThumbOp::Wheel(wheel, rtl) => wheel_step(steps, ValueAxes::Both, wheel, *rtl),
+            ThumbOp::Set(value) => StepResult::Set(*value),
+        }
     }
 
     fn apply_plain(&self, op: &ThumbOp, values: &[f64; N], i: usize) -> f64 {
         let scale = self.scale_of(i);
         let bounds = self.bounds(values, i);
-        match op {
-            ThumbOp::Set(value) => scale.snap(*value).clamp(bounds.0, bounds.1),
-            ThumbOp::Move(mv, mods) => {
-                let small = scale.key_step();
-                let steps = ValueSteps::new(values[i], bounds.0, bounds.1, small, small * LARGE_STEPS);
-                match step_value(&steps, ValueAxes::Both, *mv, *mods) {
-                    StepResult::Set(next) => scale.snap(next).clamp(bounds.0, bounds.1),
-                    _ => values[i],
-                }
-            }
+        let small = scale.small();
+        let steps = ValueSteps::new(values[i], bounds.0, bounds.1, small, small * LARGE_STEPS);
+        match Self::stepped(op, &steps) {
+            StepResult::Set(next) => scale.snap(next).clamp(bounds.0, bounds.1),
+            StepResult::Ignored => values[i],
         }
     }
 
@@ -456,41 +423,15 @@ impl<const N: usize> RowRules<'_, N> {
             ThumbOp::Move(NavMove::Start, _) if bounds.0.is_finite() => bounds.0,
             ThumbOp::Move(NavMove::Start, _) => scale.min,
             ThumbOp::Move(NavMove::End, _) if bounds.1.is_finite() => bounds.1,
-            ThumbOp::Move(NavMove::End, _) => scale.max - scale.key_step(),
-            ThumbOp::Move(mv, mods) => {
-                let small = scale.key_step();
+            ThumbOp::Move(NavMove::End, _) => scale.max - scale.small(),
+            ThumbOp::Move(..) | ThumbOp::Wheel(..) => {
+                let small = scale.small();
                 let steps = ValueSteps::new(0.0, f64::MIN, f64::MAX, small, small * LARGE_STEPS);
-                let delta = match step_value(&steps, ValueAxes::Both, *mv, *mods) {
-                    StepResult::Set(delta) => delta,
-                    _ => return values[i],
-                };
+                let StepResult::Set(delta) = Self::stepped(op, &steps) else { return values[i] };
                 from.clamp(bounds.0, bounds.1) + delta
             }
         };
         self.settle(i, target, bounds)
-    }
-}
-
-/// What a press at a point moves.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Press {
-    /// The thumb under the press, by the pointer's movement.
-    Grab(usize),
-    /// The nearest thumb, to the pointer: the press is off the thumbs.
-    Jump(usize),
-    /// Overlapping thumbs under the press: a left drag moves the first of them, a right drag the last.
-    Either { first: usize, last: usize },
-}
-
-impl Press {
-    /// The thumb the press moves with the pointer at `x`, from `origin`.
-    fn thumb(self, origin: f32, x: f32) -> Option<usize> {
-        match self {
-            Press::Grab(i) | Press::Jump(i) => Some(i),
-            Press::Either { first, .. } if x < origin => Some(first),
-            Press::Either { last, .. } if x > origin => Some(last),
-            Press::Either { .. } => None,
-        }
     }
 }
 
@@ -500,30 +441,25 @@ struct Layout<'r, const N: usize> {
     left: f32,
     right: f32,
     rtl: bool,
-    /// A press within this distance of a thumb's centre grabs it.
-    reach: f32,
-    /// Thumbs whose centres are closer than this overlap: a triangle's width.
-    overlap: f32,
+    /// Which thumb a press at a point moves.
+    pick: Pick,
     /// The press moves only the half of a split thumb it grabs.
     alone: bool,
-    /// A wrapping row's period in points; 0 when the row does not wrap.
-    period: f32,
 }
 
 impl<'r, const N: usize> Layout<'r, N> {
     fn new(rules: RowRules<'r, N>, rect: Rect, thumb: Vec2, rtl: bool, reach: f32, alone: bool) -> Self {
         let (left, right) = (rect.left() + thumb.x / 2.0, rect.right() - thumb.x / 2.0);
-        let mut layout = Layout { rules, left, right, rtl, reach, overlap: thumb.x, alone, period: 0.0 };
-        layout.period = match rules.wrap {
+        // A wrapping row's period in points; 0 when the row does not wrap.
+        let period = match rules.wrap {
             Some(period) if rules.scale.span() > 0.0 => ((right - left) as f64 * period / rules.scale.span()) as f32,
             _ => 0.0,
         };
-        layout
+        Layout { rules, left, right, rtl, pick: Pick { reach, overlap: thumb.x, period }, alone }
     }
 
     fn x_of(&self, value: f64) -> f32 {
-        let scale = &self.rules.scale;
-        let fraction = if scale.span() > 0.0 { ((value - scale.min) / scale.span()).clamp(0.0, 1.0) as f32 } else { 0.0 };
+        let fraction = self.rules.scale.position(value) as f32;
         self.left + (self.right - self.left) * if self.rtl { 1.0 - fraction } else { fraction }
     }
 
@@ -536,80 +472,52 @@ impl<'r, const N: usize> Layout<'r, N> {
         std::array::from_fn(|i| self.x_of(self.at(values, i)))
     }
 
-    /// `a - b` in points, the short way round in a wrapping row.
-    fn dx(&self, a: f32, b: f32) -> f32 {
-        let d = a - b;
-        if self.period > 0.0 { d - self.period * (d / self.period).round() } else { d }
-    }
-
     /// What a press at `x` moves, with the thumbs at `values`.
     fn press(&self, values: &[f64; N], x: f32) -> Option<Press> {
-        let xs = self.xs(values);
-        let d = |i: usize| self.dx(x, xs[i]).abs();
-        let nearest = (0..N).min_by(|&a, &b| d(a).total_cmp(&d(b)))?;
-        let at = xs[nearest];
-        let on = d(nearest) <= self.reach;
-        // Thumbs stacked at one place: the side of the press picks, as a drag's direction does on them.
-        let group = |i: usize| if on { d(i) <= self.reach && self.dx(xs[i], at).abs() < self.overlap } else { self.dx(xs[i], at) == 0.0 };
-        let first = (0..N).find(|&i| group(i)).unwrap_or(nearest);
-        let last = (0..N).rev().find(|&i| group(i)).unwrap_or(nearest);
-        Some(match (on, first == last) {
-            (true, true) => Press::Grab(nearest),
-            (true, false) => Press::Either { first, last },
-            (false, _) if self.dx(x, at) < 0.0 => Press::Jump(first),
-            (false, _) => Press::Jump(last),
-        })
+        self.pick.press(&self.xs(values), x)
     }
 
     /// The values with `press` dragged to the position `state` holds: the moved thumb from where it was at `anchor`
-    /// (the values the gesture began from), the others as they were. A grabbed thumb moves by the pointer's travel
-    /// and stays while the pointer is still; a jumping one goes to the pointer. The moved value snaps to its step
-    /// and stays in its bounds among the others. A half of a split thumb takes its partner along, keeping the
-    /// spread, unless the press moves it alone.
-    fn moved(&self, anchor: &[f64; N], press: Press, state: &PressState) -> [f64; N] {
-        let (origin, pos) = match state.phase {
-            PressPhase::DragStart { start, pos, .. } | PressPhase::Drag { start, pos, .. } | PressPhase::Release { start, pos, .. } => {
-                (start.origin, pos)
-            }
-            _ => return *anchor,
-        };
-        let Some(i) = press.thumb(origin.x, pos.x) else { return *anchor };
-        let grab = !matches!(press, Press::Jump(_));
-        let mut out = *anchor;
-        if grab && pos.x == origin.x {
+    /// (the values the gesture began from), the others as they were, mixed or not. A grabbed thumb moves by the
+    /// pointer's travel and stays while the pointer is still; a jumping one goes to the pointer. The moved value
+    /// snaps to its step and stays in its bounds among the others. A half of a split thumb takes its partner along,
+    /// keeping the spread, unless the press moves it alone. `click` is a release that was not a drag: Alt does not
+    /// scale it.
+    fn moved(&self, anchor: &[Mixed<f64>; N], press: Press, state: &PressState, click: bool) -> [Mixed<f64>; N] {
+        let mut out = anchor.clone();
+        let Some((origin, pos)) = track::pointer(state) else { return out };
+        let Some(i) = press.thumb(origin.x, pos.x) else { return out };
+        if press.grabs() && pos.x == origin.x {
             return out;
         }
         let rules = &self.rules;
         let from = rules.placed(anchor);
         let placed_at = if rules.anchored.is_some() { rules.aim(&from, i, self.at(&from, i)) } else { self.at(&from, i) };
-        let track = self.left..self.right;
-        let drag = if grab {
-            let rate = if track.end > track.start { rules.scale.span() / f64::from(track.end - track.start) } else { 0.0 };
-            ValueDrag::relative(rate, f64::NEG_INFINITY..=f64::INFINITY)
-        } else {
-            ValueDrag::absolute(track, rules.scale.min..=rules.scale.max)
-        };
-        let Some(at) = drag.value(placed_at, state, self.rtl) else { return out };
+        let travel = Travel { track: self.left..self.right, units: rules.scale.min..=rules.scale.max, rtl: self.rtl };
+        let half = rules.partner(i).filter(|_| !self.alone);
+        // Alt moves one half of a split thumb alone: that drag is not scaled finer.
+        let fine = !click && !(self.alone && rules.partner(i).is_some());
+        let Some(at) = travel.value(press, placed_at, state, fine) else { return out };
         let value = rules.thumbs[i].follow.map_or(at, |f| (f.value_at)(&from, at));
         // A jump in a wrapping row goes the short way round, in an anchored row forward from the first thumb.
-        let value = if grab || rules.wrap.is_none() {
+        let value = if press.grabs() || rules.wrap.is_none() {
             value
         } else if rules.anchored.is_some() {
             rules.aim(&from, i, value)
         } else {
             from[i] + rules.short(value - from[i])
         };
-        if let Some(j) = rules.partner(i).filter(|_| !self.alone) {
+        if let Some(j) = half {
             let (lo_i, hi_i) = rules.order_bounds(&from, i);
             let (lo_j, hi_j) = rules.order_bounds(&from, j);
             let (lo, hi) = ((lo_i - from[i]).max(lo_j - from[j]), (hi_i - from[i]).min(hi_j - from[j]));
             let lo = lo.min(hi);
             let moved = rules.scale_of(i).snap(from[i] + (value - from[i]).clamp(lo, hi)).clamp(from[i] + lo, from[i] + hi);
-            out[i] = moved;
-            out[j] = from[j] + (moved - from[i]);
+            out[i] = Mixed::Same(moved);
+            out[j] = Mixed::Same(from[j] + (moved - from[i]));
             return out;
         }
-        out[i] = rules.settle(i, value, rules.bounds(&from, i));
+        out[i] = Mixed::Same(rules.settle(i, value, rules.bounds(&from, i)));
         out
     }
 }
@@ -660,7 +568,7 @@ fn grown(points: &[Pos2], out: f32) -> Vec<Pos2> {
 /// The values of the running drag when it began, the press it resolved to, and whether it moves a half alone.
 #[derive(Clone, Default)]
 struct Held {
-    anchor: Vec<f64>,
+    anchor: Vec<Mixed<f64>>,
     press: Option<Press>,
     alone: bool,
 }
@@ -686,7 +594,7 @@ fn against(mv: NavMove) -> NavMove {
 pub struct ThumbRow<'a, const N: usize> {
     #[common]
     common: Common,
-    value: Bind<'a, [f64; N]>,
+    value: Bind<'a, [Mixed<f64>; N]>,
     range: RangeInclusive<f64>,
     /// The thumbs, one per value; unnamed free thumbs by default.
     #[prop]
@@ -702,17 +610,49 @@ pub struct ThumbRow<'a, const N: usize> {
     /// thumb of an anchored row has no meaning and stays `Free`.
     #[prop]
     anchor: Option<Anchor>,
+    /// Paints a groove above the thumbs with `face`, a component shown as the look of the track (a colour gradient);
+    /// the thumbs point up at it.
+    #[prop]
+    track_face: Option<TrackFace<'a>>,
+}
+
+/// The values of a row whose binding is mixed as a whole: every part is mixed.
+fn all_mixed<const N: usize>() -> [Mixed<f64>; N] {
+    std::array::from_fn(|_| Mixed::Mixed)
+}
+
+/// The part of `rect` the thumbs use: all of it, less the groove of a track face above them.
+fn band(rect: Rect, groove: Option<f32>) -> Rect {
+    Rect::from_min_max(pos2(rect.left(), rect.top() + groove.unwrap_or(0.0)), rect.max)
+}
+
+/// The accessible name of a thumb: the row's label, then the thumb's own.
+fn named(row: &str, thumb: String) -> Name {
+    match (row.is_empty(), thumb.is_empty()) {
+        (true, _) => Name::Text(thumb),
+        (false, true) => Name::Text(row.to_owned()),
+        (false, false) => Name::Joined(vec![row.to_owned(), thumb]),
+    }
 }
 
 impl<'a, const N: usize> ThumbRow<'a, N> {
     /// A row editing `value` over `range`.
-    pub fn new(value: Bind<'a, [f64; N]>, range: RangeInclusive<f64>) -> Self {
-        ThumbRow { common: Common::new(), value, range, thumbs: std::array::from_fn(|_| Thumb::new("")), step: None, wrap: false, anchor: None }
+    pub fn new(value: Bind<'a, [Mixed<f64>; N]>, range: RangeInclusive<f64>) -> Self {
+        ThumbRow {
+            common: Common::new(),
+            value,
+            range,
+            thumbs: std::array::from_fn(|_| Thumb::new("")),
+            step: None,
+            wrap: false,
+            anchor: None,
+            track_face: None,
+        }
     }
 
     /// What the values of this row may be.
     pub fn rules(&self) -> RowRules<'_, N> {
-        let scale = Scale::new(&self.range, self.step);
+        let scale = Scale::new(&self.range, self.step, SliderScale::Linear);
         let wrap = (self.wrap || self.anchor.is_some()).then_some(scale.span()).filter(|period| *period > 0.0);
         let anchored = self.anchor.filter(|a| wrap.is_some() && a.first < N);
         RowRules { thumbs: &self.thumbs, scale, wrap, anchored }
@@ -731,17 +671,18 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
     const OVERLAYS: bool = false;
     const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_keep(KeepKeys::BlockArrows).with_activate(ActivateKeys::Neither);
     type Style = ThumbRowStyle;
-    type Output = EditResponse<[f64; N]>;
+    type Output = EditResponse<[Mixed<f64>; N]>;
 
     fn style(cx: &StyleCx<'_>, _: ThumbRowStyleKey<N>) -> ThumbRowStyle {
         let control = cx.control();
         let colors = &cx.tokens.color;
+        let length = cx.tokens.size.length.track;
         let (clear, soft, accent) = (Rgba::TRANSPARENT, colors.accent.soft, colors.accent.strong);
         let fixed = |rest: Rgba, disabled: Rgba| {
             Stateful::new(cx.color(rest)).off(States::new(cx.color(rest), cx.color(rest), cx.color(rest), cx.color(disabled)))
         };
         ThumbRowStyle {
-            metrics: Metrics::new().min_size(Vec2::new(control.icon * LENGTH_IN_ICONS, control.height)),
+            metrics: Metrics::new().min_size(Vec2::new(length, control.height)),
             focus: cx.focus_look(),
             face: fixed(colors.surface.knob, colors.state.disabled_fill),
             edge: fixed(colors.text.muted, colors.text.disabled),
@@ -749,11 +690,14 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
             ring_width: cx.tokens.stroke.thick,
             hit: cx.tokens.size.hit.target,
             thumb: cx.tokens.size.handle.md,
+            track: cx.track(),
+            length,
         }
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        Vec2::new(cx.icon() * LENGTH_IN_ICONS, cx.icon())
+        let groove = if self.track_face.is_some() { cx.style.track.thickness } else { 0.0 };
+        Vec2::new(cx.style.length, cx.icon() + groove)
     }
 
     fn sense(&self) -> Sense {
@@ -770,13 +714,18 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
             rules.thumbs.iter().enumerate().all(|(i, t)| !t.split || (i + 1 < N && !rules.thumbs[i + 1].split && rules.wrap.is_none())),
             "a split thumb needs a high half after it, which is not split itself, in a row that does not wrap"
         );
-        let row = cx.value().copied().unwrap_or([f64::NAN; N]);
+        let row = cx.value().cloned().unwrap_or_else(all_mixed);
         let shown = rules.placed(&row);
         let size = Vec2::splat(cx.style.thumb);
         let layout = Layout::new(rules, rect, size, cx.flow.is_rtl(), 0.0, false);
         let xs = layout.xs(&shown);
-        let top = rect.top() + (rect.height() - size.y) / 2.0;
+        let groove = self.track_face.is_some().then_some(cx.style.track.thickness);
+        let thumbs = band(rect, groove);
+        let top = thumbs.top() + (thumbs.height() - size.y) / 2.0;
         let halves = self.halves(&rules, &shown);
+        if let Some(thickness) = groove {
+            cx.part(track::GROOVE, Rect::from_min_size(rect.min, Vec2::new(rect.width(), thickness)));
+        }
         cx.part(ROW, rect).sense(Sense::CLICK | Sense::DRAG).value_part().pointer_only("the arrow keys step the focused thumb");
         for i in 0..N {
             let (left, right) = span(xs[i], size.x, halves[i], cx.flow.is_rtl());
@@ -794,24 +743,20 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
         }
     }
 
-    fn bind(&mut self) -> Option<BindMut<'_, [f64; N]>> {
+    fn bind(&mut self) -> Option<BindMut<'_, [Mixed<f64>; N]>> {
         Some(self.value.reborrow())
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        if cx.resolved.read_only || !cx.resolved.enabled {
-            return;
-        }
         let rules = self.rules();
         let (rect, rtl, reach) = (cx.rect, cx.flow.is_rtl(), cx.style.hit);
         let size = Vec2::splat(cx.style.thumb);
-        let row = cx.value().copied().unwrap_or([f64::NAN; N]);
-        let finite = row.iter().all(|v| v.is_finite());
+        let row = cx.value().cloned().unwrap_or_else(all_mixed);
         let parts: Vec<PartRef> = std::iter::once(PartRef::from(ROW)).chain((0..N).map(|i| THUMB.at(i as u64))).collect();
         for part in parts {
             let press = cx.part(part).press;
             match press.phase {
-                PressPhase::DragStart { start, pos, .. } if finite => {
+                PressPhase::DragStart { start, pos, .. } => {
                     let layout = Layout::new(rules, rect, size, rtl, reach, press.mods.alt);
                     if let Some(picked) = layout.press(&rules.placed(&row), start.origin.x) {
                         *cx.memory::<Held>() = Held { anchor: row.to_vec(), press: Some(picked), alone: press.mods.alt };
@@ -819,30 +764,31 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
                             cx.focus_part(THUMB.at(thumb as u64));
                         }
                         cx.begin();
-                        cx.propose(layout.moved(&row, picked, &press));
+                        cx.propose(layout.moved(&row, picked, &press, false));
                     }
                 }
                 PressPhase::Drag { .. } => {
                     let held = cx.memory::<Held>().clone();
-                    if let (Some(picked), Ok(anchor)) = (held.press, <[f64; N]>::try_from(held.anchor)) {
+                    if let (Some(picked), Ok(anchor)) = (held.press, <[Mixed<f64>; N]>::try_from(held.anchor)) {
                         let layout = Layout::new(rules, rect, size, rtl, reach, held.alone);
-                        cx.propose(layout.moved(&anchor, picked, &press));
+                        cx.propose(layout.moved(&anchor, picked, &press, false));
                     }
                 }
                 PressPhase::Release { start, click, .. } => {
                     if cx.gesture().is_some() {
                         let held = cx.memory::<Held>().clone();
-                        if let (Some(picked), Ok(anchor)) = (held.press, <[f64; N]>::try_from(held.anchor)) {
+                        if let (Some(picked), Ok(anchor)) = (held.press, <[Mixed<f64>; N]>::try_from(held.anchor)) {
                             let layout = Layout::new(rules, rect, size, rtl, reach, held.alone);
-                            cx.propose(layout.moved(&anchor, picked, &press));
+                            cx.propose(layout.moved(&anchor, picked, &press, false));
                         }
                         cx.commit();
-                    } else if click && finite && start.clicks < 2 {
+                    } else if click && start.clicks < 2 {
                         // A tap off the thumbs moves the nearest one there; a tap on a thumb moves none. A second
                         // click is the reset, which the pipeline applies.
                         let layout = Layout::new(rules, rect, size, rtl, reach, false);
-                        if let Some(picked @ Press::Jump(thumb)) = layout.press(&rules.placed(&row), start.origin.x) {
-                            let target = layout.moved(&row, picked, &press)[thumb];
+                        if let Some(picked @ Press::Jump(thumb)) = layout.press(&rules.placed(&row), start.origin.x)
+                            && let Some(&target) = layout.moved(&row, picked, &press, true)[thumb].same()
+                        {
                             cx.set(rules.apply(&RowOp::new(thumb, ThumbOp::Set(target)), &row));
                             cx.focus_part(THUMB.at(thumb as u64));
                         }
@@ -851,60 +797,57 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
                 _ => {}
             }
         }
+        let current = |cx: &Cx<'_, Self>| cx.value().cloned().unwrap_or_else(all_mixed);
         if let Some(part) = cx.reset_part().filter(|part| part.key == THUMB)
             && let Some(thumb) = part.index.map(|i| i as usize).filter(|i| *i < N)
             && let Some(value) = rules.thumbs[thumb].reset
         {
-            let current = cx.value().copied().unwrap_or(row);
-            cx.set(rules.apply(&RowOp::new(thumb, ThumbOp::Set(value)), &current));
+            cx.set(rules.apply(&RowOp::new(thumb, ThumbOp::Set(value)), &current(&*cx)));
         }
+        // A running drag is one edit: keys, the wheel and SetValue wait for it.
+        let running = cx.gesture().is_some();
         for thumb in 0..N {
-            if let Some(next) = cx.intents().take_set_value_at(THUMB.at(thumb as u64)) {
-                let current = cx.value().copied().unwrap_or(row);
-                cx.set(rules.apply(&RowOp::new(thumb, ThumbOp::Set(next)), &current));
+            if let Some(next) = cx.intents().take_set_value_at(THUMB.at(thumb as u64)).filter(|_| !running) {
+                cx.set(rules.apply(&RowOp::new(thumb, ThumbOp::Set(next)), &current(&*cx)));
             }
         }
         let focused = cx.active_part().filter(|part| part.key == THUMB).and_then(|part| part.index).map(|i| i as usize).filter(|i| *i < N);
         let Some(thumb) = focused else { return };
-        let direction = |mv: NavMove| if rules.thumbs[thumb].falling { against(mv) } else { mv };
+        let falling = rules.thumbs[thumb].falling;
+        let direction = |mv: NavMove| if falling { against(mv) } else { mv };
         while let Some((mv, mods)) = cx.intents().take_move() {
-            let current = cx.value().copied().unwrap_or(row);
-            cx.set(rules.apply(&RowOp::new(thumb, ThumbOp::Move(direction(mv), mods)), &current));
+            if !running {
+                cx.set(rules.apply(&RowOp::new(thumb, ThumbOp::Move(direction(mv), mods)), &current(&*cx)));
+            }
         }
-        if let Some(wheel) = cx.take_wheel() {
-            let along = if wheel.scroll.y != 0.0 {
-                wheel.scroll.y
-            } else if rtl {
-                -wheel.scroll.x
-            } else {
-                wheel.scroll.x
-            };
-            let mv = if along > 0.0 { NavMove::Forward } else { NavMove::Back };
-            let current = cx.value().copied().unwrap_or(row);
-            cx.set(rules.apply(&RowOp::new(thumb, ThumbOp::Move(direction(mv), MoveMods::PLAIN)), &current));
+        if let Some(wheel) = cx.take_wheel().filter(|_| !running) {
+            // A falling thumb moves the way the wheel points, so its value goes the other way.
+            let wheel = if falling { Wheel::new(-wheel.scroll, wheel.mods, wheel.unit, wheel.phase) } else { wheel };
+            cx.set(rules.apply(&RowOp::new(thumb, ThumbOp::Wheel(wheel, rtl)), &current(&*cx)));
         }
     }
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let rules = self.rules();
         let words = cx.words::<ValueDragWords>();
-        let row = cx.value().copied();
-        let shown = rules.placed(&row.unwrap_or([f64::NAN; N]));
+        let row = cx.value().cloned().unwrap_or_else(all_mixed);
+        let shown = rules.placed(&row);
+        let text = |thumb: &Thumb| cx.env.resolve(&thumb.label).as_str().to_owned();
         for i in 0..N {
             let (lo, hi) = rules.reported_bounds(&shown, i);
-            let label = &rules.thumbs[i].label;
+            let own = text(&rules.thumbs[i]);
             let name = match rules.partner(i) {
-                Some(j) if j > i => words.thumb_low.fill(&[("name", label.as_str())]),
-                Some(j) => words.thumb_high.fill(&[("name", rules.thumbs[j].label.as_str())]),
-                None => label.clone(),
+                Some(j) if j > i => words.thumb_low.fill(&[("name", own.as_str())]),
+                Some(j) => words.thumb_high.fill(&[("name", text(&rules.thumbs[j]).as_str())]),
+                None => own,
             };
-            let step = rules.scale_of(i).key_step();
-            let numeric = match row {
-                Some(row) if row[i].is_finite() => Numeric::new(shown[i], lo..=hi),
+            let step = rules.scale_of(i).small();
+            let numeric = match row[i].same() {
+                Some(value) if value.is_finite() => Numeric::new(shown[i], lo..=hi),
                 _ => Numeric::empty(lo..=hi),
             };
             let node = access.node(THUMB.at(i as u64), Role::SLIDER);
-            node.name = Name::Text(name);
+            node.name = named(cx.resolved.label, name);
             node.numeric = Some(numeric.step(step));
         }
     }
@@ -912,13 +855,17 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let rules = self.rules();
         let style = cx.style;
+        if let Some(face) = &self.track_face {
+            face.paint(ui);
+        }
         let draw = ui.draw();
-        let row = cx.value().copied().unwrap_or([f64::NAN; N]);
+        let row = cx.value().cloned().unwrap_or_else(all_mixed);
         let shown = rules.placed(&row);
         let size = Vec2::splat(style.thumb);
         let layout = Layout::new(rules, cx.rect, size, cx.flow.is_rtl(), 0.0, false);
         let xs = layout.xs(&shown);
-        let top = cx.rect.top() + (cx.rect.height() - size.y) / 2.0;
+        let thumbs = band(cx.rect, self.track_face.is_some().then_some(style.track.thickness));
+        let top = thumbs.top() + (thumbs.height() - size.y) / 2.0;
         let halves = self.halves(&rules, &shown);
         for i in 0..N {
             // Coinciding halves are one triangle, which the low half draws.
@@ -937,7 +884,7 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
         }
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> EditResponse<[f64; N]> {
+    fn finish(self, cx: Cx<'_, Self>) -> EditResponse<[Mixed<f64>; N]> {
         cx.edit_response()
     }
 }

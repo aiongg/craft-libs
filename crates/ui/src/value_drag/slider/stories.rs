@@ -2,8 +2,10 @@
 
 use super::{Slider, SliderScale, SliderThumb, THUMB};
 use crate::contract::{Bind, Props as _, Show as _, Validity};
+use crate::display::Progress;
 use crate::runtime::env::Message;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
+use crate::value_drag::TrackFace;
 use craft_behavior::Mixed;
 use egui::Ui;
 
@@ -65,4 +67,9 @@ fn slider_unfilled(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(Slider<'static>, covers = [], drive = Drive::Never)]
 fn slider_value_text(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     Slider::new(Bind::bound(data.value("value", 40.0)), RANGE).value_text("40 percent").label("Opacity").show(ui).into()
+}
+
+#[story(Slider<'static>, covers = [], drive = Drive::Never)]
+fn slider_track_face(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    Slider::new(Bind::bound(data.value("value", 40.0)), RANGE).track_face(TrackFace::new(Progress::new(1.0))).label("Hue").show(ui).into()
 }
