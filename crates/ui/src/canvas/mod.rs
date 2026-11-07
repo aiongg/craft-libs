@@ -168,11 +168,12 @@ impl Component for Canvas {
         space::publish(values, self.space(cx.env.scale().0));
     }
 
-    /// The background part the active tool gets. It sits in the canvas root's space, the parent layer's.
+    /// The background part the active tool gets. It sits in the canvas root's space, the parent layer's. A press on it
+    /// focuses the canvas, so the keys the tool reads reach it.
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         cx.part(BACKGROUND, rect)
             .priority(HitPriority::new(HitLevel::Background, 0))
-            .sense(Sense::CLICK | Sense::DRAG)
+            .sense(Sense::CLICK | Sense::DRAG | Sense::TAKE_FOCUS)
             .pointer_only(self.path.reason());
     }
 
