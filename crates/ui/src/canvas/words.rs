@@ -9,3 +9,13 @@ craft_ui::words! {
         crop_bottom_right: "canvas.cropBottomRight" = "Crop corner, bottom right";
     }
 }
+
+craft_ui::words! {
+    /// The words of the split views.
+    pub struct SplitWords {
+        /// A pane's accessible name. `{n}` stands for its number, counted from 1 in reading order.
+        view: template "canvas.splitView" = "View {n}";
+        /// The name of a divider between panes.
+        resize: "canvas.splitResize" = "Resize views";
+    }
+}
