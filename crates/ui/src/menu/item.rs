@@ -4,9 +4,9 @@ use crate::contract::{
     Access, Common, Component, Cx, Focus as _, MeasureCx, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props, Remember as _, Role, Styled as _,
 };
 use crate::display::Kbd;
-use crate::primitives::{IconSpec, PaintShape, StrokeWidth, TextRun};
+use crate::primitives::{IconSpec, PaintShape, StrokeWidth, TextLayout, TextRun, glyph};
 use crate::runtime::access::PopupKind;
-use crate::runtime::commands::{self, CommandRef, FireSource, ResolvedCommand};
+use crate::runtime::commands::{CommandRef, FireSource, ResolvedCommand};
 use crate::runtime::env::{AppValues, EnvValue, Label};
 use crate::runtime::frame;
 use crate::style::{ComponentStyle, Flags, FocusLook, IconLook, StyleCx, SurfaceLook, TextLook, TypeRole, UiTokens};
@@ -20,35 +20,8 @@ use std::sync::{Arc, Mutex, PoisonError};
 /// The part a row's shortcut text shows in, as the face of a `Kbd`.
 const SHORTCUT: PartKey = PartKey::new("shortcut");
 
-/// The seconds the pointer rests on a submenu row before the row asks for its submenu.
-const SUBMENU_DELAY: f64 = 0.3;
-
-/// The points of a tick in a unit square, as a path.
-const TICK: [(f32, f32); 3] = [(0.2, 0.5), (0.42, 0.72), (0.8, 0.28)];
-
-/// The radius of a radio mark, as a share of the icon side.
-const DOT_RADIUS: f32 = 0.2;
-
-/// The label of a row as the level and the paint read it: the words row's `&` marker names the letter.
-fn marker_at(label: &str) -> Option<usize> {
-    let mut chars = label.chars().peekable();
-    let mut at = 0;
-    while let Some(c) = chars.next() {
-        if c != '&' {
-            at += 1;
-            continue;
-        }
-        match chars.peek() {
-            Some('&') => {
-                chars.next();
-                at += 1;
-            }
-            Some(next) if next.is_ascii_alphanumeric() => return Some(at),
-            _ => {}
-        }
-    }
-    None
-}
+/// The seconds the pointer rests on a row before the row opens its submenu, or closes the open submenu.
+const DWELL: f64 = 0.3;
 
 /// `label` with a `&` marker before the first character that is `letter`, so the level's assignment honours a row's
 /// own mnemonic; a label without that letter is left as it is.
@@ -59,19 +32,29 @@ fn with_marker(label: &str, letter: char) -> String {
     }
 }
 
-/// What a row shows as text and the character index its mnemonic underlines: a label with no `letter` of its own
-/// shows the letter after it in parentheses.
-fn shown(label: &str, letter: Option<char>) -> (String, Option<usize>) {
-    let (text, _) = mnemonic::marked(label);
-    let Some(letter) = letter else { return (text, None) };
-    let at = marker_at(label).or_else(|| text.chars().position(|c| c.eq_ignore_ascii_case(&letter)));
-    match at {
-        Some(at) => (text, Some(at)),
-        None => {
-            let at = text.chars().count() + 2;
-            (format!("{text} ({letter})"), Some(at))
-        }
+/// The mark a row shows in its mark column.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Mark {
+    /// A check mark, shown while the value is true.
+    Check(bool),
+    /// A radio mark, shown while the value is true.
+    Radio(bool),
+}
+
+impl Mark {
+    fn on(self) -> bool {
+        matches!(self, Mark::Check(true) | Mark::Radio(true))
     }
+}
+
+/// Whether the pointer at `now`, having come from `from`, heads for `submenu`: it lies inside the triangle from
+/// `from` to the submenu's edge nearer to it.
+fn heads_toward(from: Pos2, now: Pos2, submenu: Rect) -> bool {
+    let near = if from.x <= submenu.center().x { submenu.min.x } else { submenu.max.x };
+    let (a, b) = (pos2(near, submenu.min.y), pos2(near, submenu.max.y));
+    let side = |p: Pos2, q: Pos2, r: Pos2| (p.x - r.x) * (q.y - r.y) - (q.x - r.x) * (p.y - r.y);
+    let (d1, d2, d3) = (side(now, from, a), side(now, a, b), side(now, b, from));
+    !((d1 < 0.0 || d2 < 0.0 || d3 < 0.0) && (d1 > 0.0 || d2 > 0.0 || d3 > 0.0))
 }
 
 /// A row as it registered with its level in one pass.
@@ -79,15 +62,23 @@ struct Row {
     id: Id,
     text: String,
     enabled: bool,
-    mark: bool,
+    mark: Option<Mark>,
     icon: bool,
 }
 
-/// A row's mnemonic as the level assigned it from the last pass's registrations.
+/// A row's mnemonic as the level assigned it from the last pass's registrations: the letter and its character index
+/// in the row's text.
 struct Assigned {
     id: Id,
-    letter: Option<char>,
+    mnemonic: Option<(char, usize)>,
     enabled: bool,
+    checked: bool,
+}
+
+/// The one open submenu of a level.
+struct OpenSubmenu {
+    row: Id,
+    rect: Option<Rect>,
 }
 
 #[derive(Default)]
@@ -97,13 +88,21 @@ struct LevelState {
     marks: bool,
     icons: bool,
     keyboard: bool,
-    pending: Option<Id>,
+    /// A value menu: every row is a radio item.
+    values: bool,
+    /// The row a typed letter runs in this pass.
+    run: Option<Id>,
     close: bool,
     submenu: bool,
+    open_submenu: Option<OpenSubmenu>,
+    active: Option<Id>,
+    pointer: Option<Pos2>,
+    previous_pointer: Option<Pos2>,
 }
 
 /// The rows of one menu level: each registers its label, and the level gives every row its mnemonic from the
-/// registrations of the pass before. Rows outside any menu get an inert level.
+/// registrations of the pass before. It also holds the level's one open submenu row and its active row. Rows
+/// outside any menu get an inert level.
 #[derive(Clone)]
 pub(crate) struct MenuLevel {
     state: Option<Arc<Mutex<LevelState>>>,
@@ -116,6 +115,12 @@ impl PartialEq for MenuLevel {
             (None, None) => true,
             _ => false,
         }
+    }
+}
+
+impl std::fmt::Debug for MenuLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MenuLevel").finish_non_exhaustive()
     }
 }
 
@@ -145,18 +150,28 @@ impl MenuLevel {
 
     /// Starts a pass over the level: the rows that registered last pass get their letters, and the rows of this pass
     /// register again.
-    fn begin(&self, submenu: bool, keyboard: bool) {
+    fn begin(&self, submenu: bool, values: bool, keyboard: bool, pointer: Option<Pos2>) {
         self.with(|state| {
             let letters = {
                 let labels: Vec<&str> = state.now.iter().map(|row| row.text.as_str()).collect();
                 mnemonic::assign(&labels)
             };
-            state.shown = state.now.iter().zip(letters).map(|(row, letter)| Assigned { id: row.id, letter, enabled: row.enabled }).collect();
-            state.marks = state.now.iter().any(|row| row.mark);
+            state.shown = state
+                .now
+                .iter()
+                .zip(letters)
+                .map(|(row, mnemonic)| Assigned { id: row.id, mnemonic, enabled: row.enabled, checked: row.mark.is_some_and(Mark::on) })
+                .collect();
+            state.marks = state.now.iter().any(|row| row.mark.is_some());
             state.icons = state.now.iter().any(|row| row.icon);
             state.keyboard = keyboard;
             state.now.clear();
             state.submenu = submenu;
+            state.values = values;
+            if state.pointer != pointer {
+                state.previous_pointer = state.pointer;
+                state.pointer = pointer;
+            }
         });
     }
 
@@ -169,14 +184,14 @@ impl MenuLevel {
         });
     }
 
-    fn letter_of(&self, id: Id) -> Option<char> {
-        self.with(|state| state.shown.iter().find(|row| row.id == id).and_then(|row| row.letter))
+    fn mnemonic_of(&self, id: Id) -> Option<(char, usize)> {
+        self.with(|state| state.shown.iter().find(|row| row.id == id).and_then(|row| row.mnemonic))
     }
 
     /// The enabled row `typed` runs.
     pub(crate) fn target(&self, typed: char) -> Option<Id> {
         let typed = typed.to_ascii_uppercase();
-        self.with(|state| state.shown.iter().find(|row| row.enabled && row.letter == Some(typed)).map(|row| row.id))
+        self.with(|state| state.shown.iter().find(|row| row.enabled && row.mnemonic.is_some_and(|(letter, _)| letter == typed)).map(|row| row.id))
     }
 
     fn marks(&self) -> bool {
@@ -187,23 +202,33 @@ impl MenuLevel {
         self.with(|state| state.icons)
     }
 
+    fn values(&self) -> bool {
+        self.with(|state| state.values)
+    }
+
     /// Whether the keyboard drives a menu: the mnemonics show.
     fn keyboard(&self) -> bool {
         self.with(|state| state.keyboard)
     }
 
-    pub(crate) fn set_pending(&self, id: Id) {
-        self.with(|state| state.pending = Some(id));
+    /// The container's typed letter names the row `id` to run in this pass.
+    pub(crate) fn run(&self, id: Id) {
+        self.with(|state| state.run = Some(id));
     }
 
-    fn take_pending(&self, id: Id) -> bool {
+    fn take_run(&self, id: Id) -> bool {
         self.with(|state| {
-            let mine = state.pending == Some(id);
+            let mine = state.run == Some(id);
             if mine {
-                state.pending = None;
+                state.run = None;
             }
             mine
         })
+    }
+
+    /// The checked row of a value menu: the lead starts on it when the menu opens.
+    pub(crate) fn checked_row(&self) -> Option<Id> {
+        self.with(|state| state.shown.iter().find(|row| row.checked).map(|row| row.id))
     }
 
     fn is_submenu(&self) -> bool {
@@ -218,12 +243,64 @@ impl MenuLevel {
     pub(crate) fn take_close(&self) -> bool {
         self.with(|state| std::mem::take(&mut state.close))
     }
+
+    /// The submenu row `id` is the level's open submenu, in place of any other. Returns whether that changed it.
+    fn open_submenu(&self, id: Id) -> bool {
+        self.with(|state| {
+            let changed = state.open_submenu.as_ref().map(|open| open.row) != Some(id);
+            if changed {
+                state.open_submenu = Some(OpenSubmenu { row: id, rect: None });
+            }
+            changed
+        })
+    }
+
+    /// Closes the open submenu: a row that is not a submenu row rested under the pointer. Returns whether one was open.
+    fn clear_submenu(&self) -> bool {
+        self.with(|state| state.open_submenu.take().is_some())
+    }
+
+    fn submenu_open(&self, id: Id) -> bool {
+        self.with(|state| state.open_submenu.as_ref().is_some_and(|open| open.row == id))
+    }
+
+    /// The submenu of row `id` was shown at `rect`, or closed itself.
+    fn note_submenu(&self, id: Id, open: bool, rect: Rect) {
+        self.with(|state| match &mut state.open_submenu {
+            Some(known) if known.row == id && open => known.rect = Some(rect),
+            Some(known) if known.row == id => state.open_submenu = None,
+            _ => {}
+        });
+    }
+
+    /// The row `id` is the level's active row. Returns whether that changed it.
+    fn activate_row(&self, id: Id) -> bool {
+        self.with(|state| {
+            let changed = state.active != Some(id);
+            state.active = Some(id);
+            changed
+        })
+    }
+
+    fn is_active(&self, id: Id) -> bool {
+        self.with(|state| state.active == Some(id))
+    }
+
+    /// Whether the pointer heads for the open submenu, which is not the one of row `id`.
+    fn aimed(&self, id: Id) -> bool {
+        self.with(|state| {
+            let Some(OpenSubmenu { row, rect: Some(rect) }) = &state.open_submenu else { return false };
+            let (Some(now), Some(from)) = (state.pointer, state.previous_pointer.or(state.pointer)) else { return false };
+            *row != id && heads_toward(from, now, *rect)
+        })
+    }
 }
 
 /// The level a menu container puts into its body's env: the rows of the body register with it.
-pub(crate) fn level_env<C: Component>(cx: &Cx<'_, C>, values: &mut AppValues, submenu: bool) {
+pub(crate) fn level_env<C: Component>(cx: &Cx<'_, C>, values: &mut AppValues, submenu: bool, valued: bool) {
     let level = MenuLevel::of(&cx.recall::<LevelMemory>());
-    level.begin(submenu, crate::runtime::focus::keyboard_in_menu(&cx.core.ctx));
+    let pointer = cx.core.ctx.input(|input| input.pointer.latest_pos());
+    level.begin(submenu, valued, crate::runtime::focus::keyboard_in_menu(&cx.core.ctx), pointer);
     values.set(level);
 }
 
@@ -260,6 +337,17 @@ pub struct MenuItemOutput {
     /// A submenu row asks for its submenu to open: the pointer rested on it, Forward (Right, mirrored under
     /// right-to-left) was pressed on it, or it was activated.
     pub opens_submenu: bool,
+    /// A submenu row's submenu is the open one of its level: show the `Menu` after the row.
+    pub submenu_open: bool,
+    level: MenuLevel,
+    id: Id,
+}
+
+impl MenuItemOutput {
+    /// A submenu row's menu was shown at `rect` (`open`), or closed itself (`!open`).
+    pub(crate) fn note_submenu(&self, open: bool, rect: Rect) {
+        self.level.note_submenu(self.id, open, rect);
+    }
 }
 
 impl Outcome for MenuItemOutput {
@@ -298,8 +386,10 @@ struct Placed {
 /// - Running a row (click, Enter or Space, its mnemonic letter) closes the whole chain of menus it sits in.
 /// - A submenu row opens a submenu instead: the output's `opens_submenu` asks the caller to open the `Menu` it shows
 ///   after the row.
-/// - The mnemonic is the `&` letter of the label, else the first letter no earlier row of the level uses.
-///   Underlines show while the keyboard drives the menu, never on macOS.
+/// - [`keep_open`](MenuItem::keep_open) keeps the menus open when the row runs (a check row that toggles).
+/// - The mnemonic is the `&` letter of the label, else the first letter no earlier row of the level uses. The
+///   underline sits under that letter while Alt is held or the keyboard drives the menu, never on macOS.
+/// - The pointer moves the level's active row; the row under it paints with the shared row fill.
 #[derive(crate::contract::Component, crate::contract::Props)]
 pub struct MenuItem<'a> {
     #[common]
@@ -324,8 +414,15 @@ pub struct MenuItem<'a> {
     /// Shortcut text at the end of the row, written by the caller; a command row shows its chord.
     #[prop(into)]
     shortcut: Option<Label>,
+    /// Running the row leaves the menus open.
+    #[prop]
+    keep_open: bool,
+    /// The checked state of the entry the row shows: a radio mark in a value menu, a check mark elsewhere while true.
+    entry: Option<bool>,
     ran: bool,
     opens: bool,
+    open: bool,
+    active: bool,
 }
 
 impl<'a> MenuItem<'a> {
@@ -341,8 +438,12 @@ impl<'a> MenuItem<'a> {
             mnemonic: None,
             detail: None,
             shortcut: None,
+            keep_open: false,
+            entry: None,
             ran: false,
             opens: false,
+            open: false,
+            active: false,
         }
         .label(label)
     }
@@ -373,8 +474,28 @@ impl<'a> MenuItem<'a> {
         self.icon.clone().or_else(|| MenuItem::command_icon(command))
     }
 
-    fn marked_row(&self, command: Option<&ResolvedCommand>) -> bool {
-        self.check.is_some() || self.radio_mark.is_some() || command.is_some_and(|command| command.checked.is_some())
+    /// The entry's checked state, as the entries of a menu show it.
+    pub(crate) fn entry_checked(mut self, checked: bool) -> Self {
+        self.entry = Some(checked);
+        self
+    }
+
+    /// The mark in the mark column: the caller's own, the bound command's, or the entry's.
+    fn mark(&self, command: Option<&ResolvedCommand>, level: &MenuLevel) -> Option<Mark> {
+        if let Some(on) = self.radio_mark {
+            return Some(Mark::Radio(on));
+        }
+        if let Some(on) = self.check {
+            return Some(Mark::Check(on));
+        }
+        if let Some(on) = command.and_then(|command| command.checked) {
+            return Some(Mark::Check(on));
+        }
+        match self.entry {
+            Some(on) if level.values() => Some(Mark::Radio(on)),
+            Some(true) => Some(Mark::Check(true)),
+            _ => None,
+        }
     }
 
     /// The shortcut as the `Kbd` that shows it.
@@ -397,7 +518,7 @@ impl<'a> MenuItem<'a> {
     fn columns(&self, cx: &MeasureCx<'_, Self>, level: &MenuLevel) -> Columns {
         let side = cx.icon();
         let command = cx.command();
-        let marked = self.marked_row(command) || level.marks();
+        let marked = self.mark(command, &level).is_some() || level.marks();
         let iconed = self.lead_icon(command).is_some() || level.icons();
         let detail = self.detail.as_ref().map_or(0.0, |detail| {
             let detail = cx.env.resolve(detail);
@@ -417,11 +538,9 @@ impl Component for MenuItem<'_> {
 
     fn style(cx: &StyleCx<'_>, _: MenuItemStyleKey) -> MenuItemStyle {
         let tokens = cx.tokens;
-        let (state, text) = (&tokens.color.state, &tokens.color.text);
+        let text = &tokens.color.text;
         let c = |rgba: Rgba| cx.color(rgba);
-        let clear = Rgba::TRANSPARENT;
-        let fill = Stateful::new(c(clear)).off(States::new(c(clear), c(state.hover), c(state.pressed), c(clear)));
-        let surface = SurfaceLook::new(fill).radius(UiTokens::corner(tokens.shape.radius.sm));
+        let surface = SurfaceLook::new(crate::list::row_surface(cx)).radius(UiTokens::corner(tokens.shape.radius.sm));
         let ink = |base: Rgba| Stateful::new(c(base)).off(States::new(c(base), c(base), c(base), c(text.disabled)));
         let control = cx.control();
         MenuItemStyle {
@@ -437,7 +556,7 @@ impl Component for MenuItem<'_> {
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         let level = cx.env.get::<MenuLevel>();
         let columns = self.columns(cx, &level);
-        let (text, _) = shown(cx.resolved.label, level.letter_of(cx.id));
+        let text = mnemonic::marked(cx.resolved.label).0;
         let run = TextRun::new(text.as_str()).role(cx.style.text.role);
         let label = if text.is_empty() { Vec2::ZERO } else { cx.layout_at(&run, f32::INFINITY).size() };
         let gap = cx.gap();
@@ -475,14 +594,8 @@ impl Component for MenuItem<'_> {
             Some(letter) => with_marker(cx.resolved.label, letter),
             None => cx.resolved.label.to_owned(),
         };
-        level.register(Row {
-            id: cx.id,
-            text: label,
-            enabled,
-            mark: self.marked_row(command.as_deref()),
-            icon: self.lead_icon(command.as_deref()).is_some(),
-        });
-        let mut ran = enabled && cx.activation().is_some();
+        let mark = self.mark(command.as_deref(), &level);
+        level.register(Row { id: cx.id, text: label, enabled, mark, icon: self.lead_icon(command.as_deref()).is_some() });
         let (mut forward, mut back) = (false, false);
         while let Some((step, _)) = cx.intents().take_move() {
             match step {
@@ -491,48 +604,64 @@ impl Component for MenuItem<'_> {
                 _ => {}
             }
         }
-        if enabled && level.take_pending(cx.id) {
-            ran = true;
-        }
         if back && level.is_submenu() {
             level.request_close();
         }
+        let now = frame::clock(&ctx);
+        let moving = ctx.input(|input| input.pointer.delta() != Vec2::ZERO);
+        let hovered = cx.response.hovered();
+        let focused = cx.is_focused();
+        let (waited, focus_gained) = {
+            let rest = cx.memory::<Rest>();
+            let gained = focused && !rest.focused;
+            rest.focused = focused;
+            // The pointer heading for the open submenu does not count as resting on this row.
+            if hovered && !(moving && level.aimed(cx.id)) {
+                (now - *rest.since.get_or_insert(now), gained)
+            } else {
+                rest.since = None;
+                (0.0, gained)
+            }
+        };
+        if enabled && ((hovered && moving) || focus_gained) && level.activate_row(cx.id) {
+            frame::request_repaint(&ctx);
+        }
+        self.active = level.is_active(cx.id);
+        if hovered && waited < DWELL {
+            frame::request_repaint(&ctx);
+        }
+        let typed = enabled && level.take_run(cx.id);
+        let asked = enabled && (typed || cx.activation().is_some());
         if self.submenu {
-            let hovered = enabled && cx.response.hovered();
-            let now = frame::clock(&ctx);
-            let waited = {
-                let dwell = cx.memory::<Dwell>();
-                if hovered {
-                    now - *dwell.since.get_or_insert(now)
-                } else {
-                    dwell.since = None;
-                    0.0
-                }
-            };
-            if hovered && waited < SUBMENU_DELAY {
+            let rested = enabled && hovered && waited >= DWELL;
+            self.opens = asked || (enabled && forward) || rested;
+            if self.opens && level.open_submenu(cx.id) {
                 frame::request_repaint(&ctx);
             }
-            self.opens = ran || (enabled && forward) || (hovered && waited >= SUBMENU_DELAY);
+            self.open = level.submenu_open(cx.id);
             return;
         }
-        if ran {
-            if let Some(reference) = self.command_ref.clone() {
-                commands::fire(&ctx, reference, FireSource::Menu);
-            }
-            crate::runtime::overlay::note_activated(&ctx, cx.id);
-            self.ran = true;
+        if hovered && waited >= DWELL && level.clear_submenu() {
+            frame::request_repaint(&ctx);
         }
+        if typed {
+            cx.activate(FireSource::Menu);
+        }
+        if asked && self.keep_open {
+            cx.keep_open();
+        }
+        self.ran = asked;
     }
 
-    /// Running a row is reported through the output and closes the menus here, so the pipeline's own click and
-    /// command firing stay off.
-    fn activated(&self, _: &Cx<'_, Self>) -> bool {
-        false
+    /// A submenu row never runs: it opens its submenu, and the menus stay open.
+    fn activated(&self, cx: &Cx<'_, Self>) -> bool {
+        !self.submenu && cx.activation().is_some()
     }
 
     fn flags(&self) -> Flags {
         let mut flags = Flags::empty();
-        flags.set(Flags::CHECKED, self.check == Some(true) || self.radio_mark == Some(true));
+        flags.set(Flags::CHECKED, self.check == Some(true) || self.radio_mark == Some(true) || self.entry == Some(true));
+        flags.set(Flags::LEAD, self.active);
         flags
     }
 
@@ -540,9 +669,10 @@ impl Component for MenuItem<'_> {
         let (rtl, side, gap) = (cx.flow.is_rtl(), cx.style.icon.side, cx.style.metrics.gap);
         let level = cx.env.get::<MenuLevel>();
         let command = cx.command.as_deref();
-        let marked = self.marked_row(command) || level.marks();
+        let marked = self.mark(command, &level).is_some() || level.marks();
         let iconed = self.lead_icon(command).is_some() || level.icons();
-        let (text, underline) = shown(cx.resolved.label, level.letter_of(cx.id));
+        let text = mnemonic::marked(cx.resolved.label).0;
+        let mark = self.mark(command, &level);
         let draw = ui.draw();
         let detail = self.detail.as_ref().map(|detail| cx.env.resolve(detail));
         let detail_run =
@@ -552,17 +682,13 @@ impl Component for MenuItem<'_> {
         let columns = Columns { mark: if marked { side } else { 0.0 }, icon: if iconed { side } else { 0.0 }, detail: detail_width, trail };
         let placed = self.place(&columns, cx.content_rect, rtl, gap);
         let ink = cx.resolve(&cx.style.icon.color);
-        let glyph = |slot: Rect| Rect::from_center_size(slot.center(), Vec2::splat(side));
+        let centred = |slot: Rect| Rect::from_center_size(slot.center(), Vec2::splat(side));
         if columns.mark > 0.0 {
             let square = Rect::from_center_size(Flow::new(placed.mark, rtl).take_start(side).0.center(), Vec2::splat(side));
-            let checked = self.check.or(self.radio_mark).or_else(|| command.and_then(|command| command.checked)) == Some(true);
-            if checked {
-                if self.radio_mark.is_some() {
-                    draw.fill(&PaintShape::Circle(square.center(), side * DOT_RADIUS), ink);
-                } else {
-                    let at = |(x, y): (f32, f32)| -> Pos2 { square.min + Vec2::new(x, y) * side };
-                    draw.stroke(&PaintShape::Path(TICK.map(at).to_vec()), StrokeWidth::Medium, ink);
-                }
+            match mark {
+                Some(Mark::Radio(true)) => draw.fill(&glyph::dot(square.center(), side), ink),
+                Some(Mark::Check(true)) => draw.stroke(&glyph::check(square), StrokeWidth::Medium, ink),
+                _ => {}
             }
         }
         if columns.icon > 0.0
@@ -570,7 +696,7 @@ impl Component for MenuItem<'_> {
         {
             let slot = Flow::new(placed.icon, rtl).take_start(side).0;
             let icon = if icon.color.is_some() { icon } else { icon.color(ink) };
-            draw.icon(glyph(slot), &icon);
+            draw.icon(centred(slot), &icon);
         }
         let run = TextRun::new(text.as_str()).elide().role(cx.style.text.role).color(cx.resolve(&cx.style.text.color));
         let layout = draw.layout(&run, placed.label.width());
@@ -578,13 +704,15 @@ impl Component for MenuItem<'_> {
         let x = if rtl { placed.label.max.x - size.x } else { placed.label.min.x };
         let y = placed.label.center().y - size.y / 2.0;
         draw.galley(pos2(x, y), &layout);
-        if let Some(at) = underline.filter(|_| !rtl && level.keyboard() && !cx.env.shell().os.is_mac()) {
-            let before: String = text.chars().take(at).collect();
-            let letter: String = text.chars().skip(at).take(1).collect();
-            let measure = |s: &str| if s.is_empty() { 0.0 } else { draw.layout(&TextRun::new(s).role(cx.style.text.role), f32::INFINITY).size().x };
-            let (from, width) = (x + measure(&before), measure(&letter));
+        let underlined = level.keyboard() || cx.modifiers().alt;
+        if underlined
+            && !cx.env.shell().os.is_mac()
+            && let Some((_, at)) = level.mnemonic_of(cx.id)
+            && let Some((from, width)) = glyph_span(&layout, at)
+        {
             let line = y + size.y;
-            draw.stroke(&PaintShape::Path(vec![pos2(from, line), pos2(from + width, line)]), StrokeWidth::Thin, cx.resolve(&cx.style.text.color));
+            let (from, to) = (x + from, x + from + width);
+            draw.stroke(&PaintShape::Path(vec![pos2(from, line), pos2(to, line)]), StrokeWidth::Thin, cx.resolve(&cx.style.text.color));
         }
         if let Some(run) = &detail_run {
             let layout = draw.layout(run, f32::INFINITY);
@@ -594,7 +722,7 @@ impl Component for MenuItem<'_> {
         }
         if self.submenu {
             let slot = Flow::new(placed.trail, rtl).take_end(side).0;
-            draw.icon(glyph(slot), &IconSpec::svg(IconId::new("chevron_right")).color(ink));
+            draw.icon(centred(slot), &IconSpec::svg(IconId::new("chevron_right")).color(ink));
         } else if cx.part_if_declared(SHORTCUT).is_some()
             && let Some(keys) = self.keys(command)
         {
@@ -603,15 +731,20 @@ impl Component for MenuItem<'_> {
     }
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
-        if self.radio_mark.is_some() {
-            access.role(Role::MENU_ITEM_RADIO);
-        } else if self.check.is_some() || cx.command.as_deref().is_some_and(|command| command.checked.is_some()) {
-            access.role(Role::MENU_ITEM_CHECK_BOX);
+        let level = cx.env.get::<MenuLevel>();
+        match self.mark(cx.command.as_deref(), &level) {
+            Some(Mark::Radio(_)) => {
+                access.role(Role::MENU_ITEM_RADIO);
+            }
+            Some(Mark::Check(_)) => {
+                access.role(Role::MENU_ITEM_CHECK_BOX);
+            }
+            None => {}
         }
         if self.submenu {
             access.has_popup(PopupKind::Menu);
         }
-        if let Some(letter) = cx.env.get::<MenuLevel>().letter_of(cx.id) {
+        if let Some((letter, _)) = level.mnemonic_of(cx.id) {
             access.access_key(letter);
         }
         if let Some(text) = &self.shortcut {
@@ -620,12 +753,38 @@ impl Component for MenuItem<'_> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> MenuItemOutput {
-        MenuItemOutput { response: cx.response.clone(), ran: self.ran, opens_submenu: self.opens }
+        let level = cx.env.get::<MenuLevel>();
+        MenuItemOutput { response: cx.response.clone(), ran: self.ran, opens_submenu: self.opens, submenu_open: self.open, level, id: cx.id }
     }
 }
 
-/// How long the pointer has rested on a submenu row.
+/// The span of the glyph for character `at` of a single-row layout: its start from the layout's left edge and its
+/// advance. The glyph rects are in display order, so an underline taken from them is right in right-to-left text
+/// too. `None` when the layout cut the character off.
+fn glyph_span(layout: &TextLayout, at: usize) -> Option<(f32, f32)> {
+    let row = layout.galley.rows.first()?;
+    let glyph = row.row.glyphs.get(at)?;
+    Some((row.pos.x + glyph.pos.x, glyph.advance_width))
+}
+
+/// How long the pointer has rested on a row, and whether the row had the focus in the last pass.
 #[derive(Clone, Default)]
-struct Dwell {
+struct Rest {
     since: Option<f64>,
+    focused: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_pointer_heads_for_the_submenu_inside_the_triangle_to_its_near_edge() {
+        let submenu = Rect::from_min_max(pos2(100.0, 0.0), pos2(200.0, 100.0));
+        let from = pos2(0.0, 50.0);
+        assert!(heads_toward(from, pos2(50.0, 50.0), submenu));
+        assert!(heads_toward(from, pos2(50.0, 30.0), submenu));
+        assert!(!heads_toward(from, pos2(50.0, 200.0), submenu));
+        assert!(!heads_toward(from, pos2(-20.0, 50.0), submenu));
+    }
 }

@@ -2,14 +2,12 @@
 //! or `PaintUi::labelled`'s); the control draws only the box and its label names it.
 
 use crate::contract::{Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Pointer as _, Role, Styled as _};
-use crate::primitives::{PaintShape, StrokeWidth};
+use crate::primitives::{PaintShape, StrokeWidth, glyph};
 use crate::style::{ComponentStyle, Flags, FocusLook, StyleColor, StyleCx, SurfaceKind};
 use craft_behavior::{Metrics, Sense};
 use craft_theme::{Stateful, variant::Tone};
-use egui::{CornerRadius, Pos2, Rect, Vec2};
+use egui::{CornerRadius, Rect, Vec2};
 
-/// The check mark's corner and tip, as shares of the box's side from its top-left.
-const TICK: [(f32, f32); 3] = [(0.22, 0.52), (0.42, 0.72), (0.78, 0.30)];
 /// The mixed dash's half-length as a share of the box's side.
 const DASH: f32 = 0.25;
 
@@ -95,13 +93,12 @@ impl Component for Checkbox<'_> {
         let shape = PaintShape::Rect(square, cx.style.radius);
         draw.fill(&shape, cx.resolve(&cx.style.fill));
         draw.stroke(&shape, StrokeWidth::Thin, cx.resolve(&cx.style.edge));
-        let at = |(x, y): (f32, f32)| -> Pos2 { square.min + Vec2::new(x, y) * cx.style.side };
         if cx.mixed {
             let c = square.center();
             let half = Vec2::new(cx.style.side * DASH, 0.0);
             draw.stroke(&PaintShape::Path(vec![c - half, c + half]), StrokeWidth::Medium, cx.style.mark);
         } else if cx.value().copied().unwrap_or(false) {
-            draw.stroke(&PaintShape::Path(TICK.map(at).to_vec()), StrokeWidth::Medium, cx.style.mark);
+            draw.stroke(&glyph::check(square), StrokeWidth::Medium, cx.style.mark);
         }
     }
 

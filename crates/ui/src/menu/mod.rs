@@ -10,9 +10,9 @@ mod stories;
 mod words;
 
 pub use bar::{HelpEntry, MenuBar, MenuBarOutput, MenuBarStyle, MenuHelp, MenuTitle};
-pub use edit::EditMenu;
+pub use edit::{EditMenu, EditMenuOutput};
 pub use item::{MenuItem, MenuItemOutput, MenuItemStyle};
-pub use panel::{GroupItem, PanelMenu, PanelRow};
+pub use panel::{GroupItem, PanelMenu, PanelMenuOutput, PanelRow};
 pub use popup::{Menu, MenuOutput, MenuPick, MenuStyle};
-pub(crate) use popup::{entry_rows, layer, pick_from};
-pub use words::{MenuBarWords, PanelMenuWords};
+pub(crate) use popup::{entry_rows, layer, pick_from, pick_values_from};
+pub use words::MenuWords;
