@@ -1,6 +1,7 @@
 //! Where a collection's items come from: the data traits and the one way to show a slice.
 
 use crate::columns::ColumnKey;
+use crate::item_layout::ItemLayout;
 use crate::nav::NavOutline;
 use emath::Vec2;
 use std::borrow::Cow;
@@ -94,12 +95,20 @@ pub trait ItemSource<K>: DisplayOrder<K> {
 pub struct Outline<'a, K> {
     order: &'a dyn DisplayOrder<K>,
     columns: usize,
+    layout: Option<&'a dyn ItemLayout>,
 }
 
 impl<'a, K> Outline<'a, K> {
     /// The outline of `order`.
     pub fn new(order: &'a dyn DisplayOrder<K>) -> Self {
-        Outline { order, columns: 1 }
+        Outline { order, columns: 1, layout: None }
+    }
+
+    /// The rows and hidden items of `layout`, for ragged-grid navigation.
+    #[must_use]
+    pub fn layout(mut self, layout: &'a dyn ItemLayout) -> Self {
+        self.layout = Some(layout);
+        self
     }
 
     /// The cells of every position, for a sheet's cell navigation.
@@ -132,7 +141,11 @@ impl<K> NavOutline for Outline<'_, K> {
     }
 
     fn enabled(&self, at: usize) -> bool {
-        self.order.enabled(at)
+        self.order.enabled(at) && self.layout.is_none_or(|layout| layout.shown(at))
+    }
+
+    fn row_len(&self, row: usize) -> Option<usize> {
+        self.layout.and_then(|layout| layout.row_len(row))
     }
 
     fn columns(&self) -> usize {

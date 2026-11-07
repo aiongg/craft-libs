@@ -31,6 +31,17 @@ pub trait ItemLayout {
     /// How arrow keys move through the items.
     fn nav(&self) -> NavShape;
 
+    /// `NavShape::RaggedGrid`: the number of items in `row`, rows holding consecutive items and a run of hidden items
+    /// counting as a row of its own; `None` past the last row.
+    fn row_len(&self, _row: usize) -> Option<usize> {
+        None
+    }
+
+    /// Whether item `at` takes a place in the layout; a hidden item (in a closed group) cannot take the lead.
+    fn shown(&self, _at: usize) -> bool {
+        true
+    }
+
     /// The cells of item `at`, with their rects.
     fn cells(&self, _at: usize, _offset: ScrollPos, _out: &mut Vec<(ColumnKey, Rect)>) {}
 

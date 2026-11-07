@@ -117,9 +117,21 @@ impl TileArrangement {
         first..first + count
     }
 
-    /// The tile counts of the rows.
+    /// The tile counts of the rows in order, with each run of tiles of a closed group as a row of its own.
     pub fn row_lengths(&self) -> Vec<usize> {
-        self.rows.iter().map(|r| r.tiles.len()).collect()
+        let mut lengths = Vec::with_capacity(self.rows.len());
+        let mut next = 0;
+        for row in &self.rows {
+            if row.tiles.start > next {
+                lengths.push(row.tiles.start - next);
+            }
+            lengths.push(row.tiles.len());
+            next = row.tiles.end;
+        }
+        if next < self.tiles.len() {
+            lengths.push(self.tiles.len() - next);
+        }
+        lengths
     }
 
     /// The row holding tile `at`.
@@ -284,7 +296,7 @@ enum Kind {
     /// Equal cards in no group, `inset` from every edge.
     Equal { tiles: EqualTiles, inset: f32 },
     /// An arrangement; each card also holds the `start` column left of its picture.
-    Arranged { arrangement: Arc<TileArrangement>, width: f32, start: f32 },
+    Arranged { arrangement: Arc<TileArrangement>, rows: Arc<[usize]>, width: f32, start: f32 },
 }
 
 impl GridLayout {
@@ -296,7 +308,8 @@ impl GridLayout {
 
     /// The layout `arrangement` makes in `width`; cards hold their `start` column.
     pub fn arranged(arrangement: TileArrangement, width: f32, start: f32) -> Self {
-        GridLayout { kind: Kind::Arranged { arrangement: Arc::new(arrangement), width, start } }
+        let rows = arrangement.row_lengths().into();
+        GridLayout { kind: Kind::Arranged { arrangement: Arc::new(arrangement), rows, width, start } }
     }
 
     /// The arrangement behind the layout, when it is not a plain equal grid.
@@ -372,5 +385,16 @@ impl ItemLayout for GridLayout {
             Kind::Equal { tiles, .. } => tiles.nav(),
             Kind::Arranged { .. } => NavShape::RaggedGrid,
         }
+    }
+
+    fn row_len(&self, row: usize) -> Option<usize> {
+        match &self.kind {
+            Kind::Arranged { rows, .. } => rows.get(row).copied(),
+            Kind::Equal { .. } => None,
+        }
+    }
+
+    fn shown(&self, at: usize) -> bool {
+        self.arrangement().is_none_or(|arrangement| arrangement.tiles.get(at).is_some_and(|tile| *tile != Rect::NOTHING))
     }
 }

@@ -11,8 +11,8 @@ use super::toggle::{ToggleCell, ToggleFace, ToggleState};
 use super::words::ListWords;
 use crate::choice::Checkbox;
 use crate::contract::{
-    Access, Bind, Common, Component, Cx, Focus as _, GridPlace, ItemOutput, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role,
-    Styled as _, WordSetCx as _,
+    Access, Bind, Common, Component, Cx, Focus as _, GridPlace, ItemOutput, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _,
+    Props as _, Role, Styled as _, WordSetCx as _,
 };
 use crate::controls::disclosure::Disclosure;
 use crate::primitives::{ContentPainterCx, Draw, IconSpec, PaintShape, RuleKind, Span, StrokeWidth, TextRun, Wrap};
@@ -892,12 +892,15 @@ impl Component for ListRow<'_> {
             let role = if toggle.check_box { Role::CHECK_BOX } else { Role::BUTTON };
             access.node(TOGGLE.at(at as u64), role).name = Name::Text(toggle.name.as_str().replace("{row}", label));
         }
+        let selected =
+            cx.resolved.selected == Some(true) || cx.env.facts_of(cx.resolved.id).is_some_and(|facts| facts.flags.contains(Flags::SELECTED));
         for text in &self.texts {
             let Some(position) = self.cells.iter().position(|(column, _)| *column == text.column) else { continue };
             // The item step adds the row index; the part index is the column's position.
             let node = access.node(TEXT_CELL.at(position as u64), Role::CELL);
             node.name = Name::Text(text.text.as_str().to_owned());
             node.grid = GridPlace { column_index: Some(position), ..GridPlace::default() };
+            node.flags.set(Flags::SELECTED, selected);
         }
         for (at, thumb) in self.extras.iter().enumerate() {
             if let Some((_, name)) = &thumb.link {
