@@ -1262,6 +1262,9 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
         access.position =
             input.group.and_then(|group| focus::group_position(ctx, id, group)).or_else(|| core.env.facts_of(id).map(|facts| facts.position));
     }
+    if role == Role::TAB && access.position.is_none() {
+        eprintln!("DBGPOS id={:?} group={:?} facts_any={:?}", id, input.group, core.env.facts_of(id).is_some());
+    }
     let paint = core.paint.borrow();
     if role == Role::Merged {
         let facts = scope::Merged {

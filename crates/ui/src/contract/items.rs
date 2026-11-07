@@ -597,6 +597,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     }),
                 );
                 item = Props::id(item, item_id);
+                eprintln!("DBGITEM {:?} at={at}", item_id);
                 if content_sized {
                     widest = widest.max(item.measure_in(&row_ui, Proposal::Ideal).x);
                 }
