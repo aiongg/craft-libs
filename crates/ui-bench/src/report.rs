@@ -2,10 +2,10 @@
 
 use std::path::Path;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// The numbers of one scenario over the measured frames.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Measurement {
     /// Median frame time in milliseconds.
     pub frame_ms_median: f64,
@@ -50,7 +50,7 @@ impl Measurement {
 }
 
 /// One scenario's result.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ScenarioResult {
     /// The scenario's name.
     pub name: String,
@@ -67,7 +67,7 @@ pub struct ScenarioResult {
 }
 
 /// A library's whole run.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Report {
     /// The library's name.
     pub library: String,
@@ -108,4 +108,35 @@ pub fn print_table(report: &Report) {
         );
     }
     println!("discards: passes discarded per frame; in parentheses where the spec does not assert it");
+}
+
+/// Reads a report written by [`write_json`].
+pub fn read_json(path: &Path) -> std::io::Result<Report> {
+    serde_json::from_str(&std::fs::read_to_string(path)?).map_err(std::io::Error::other)
+}
+
+/// The gate of spec 22.7: what keeps `report` from passing against `legacy`. A scenario fails when its
+/// median frame time is above the legacy one, when it has no measurement, or when a scenario that asserts
+/// no discard pass ran one. An empty list is a pass.
+pub fn gate_failures(report: &Report, legacy: &Report) -> Vec<String> {
+    let mut failures = Vec::new();
+    for old in &legacy.scenarios {
+        let Some(new) = report.scenarios.iter().find(|scenario| scenario.name == old.name) else {
+            failures.push(format!("{}: not measured", old.name));
+            continue;
+        };
+        let Some(measured) = &new.measurement else {
+            failures.push(format!("{}: no equivalent ({})", new.name, new.no_equivalent_reason.as_deref().unwrap_or("")));
+            continue;
+        };
+        if let Some(before) = &old.measurement
+            && measured.frame_ms_median > before.frame_ms_median
+        {
+            failures.push(format!("{}: median {:.3} ms against legacy {:.3} ms", new.name, measured.frame_ms_median, before.frame_ms_median));
+        }
+        if new.no_discard && measured.frames_with_discard > 0 {
+            failures.push(format!("{}: {} of {} frames ran a discard pass", new.name, measured.frames_with_discard, report.measured_frames));
+        }
+    }
+    failures
 }

@@ -249,6 +249,10 @@ pub(crate) fn layer_presence(ctx: &Context, base: Id, owner: Id, policy: MotionP
     presence
 }
 
+/// The hover, press and on tweens of one component.
+#[derive(Clone)]
+struct StateTweens([Tween<f32>; 3]);
+
 /// Everything an `Animate` call needs from the context type that makes it.
 pub(crate) struct Driver<'a> {
     pub(crate) stage: &'a MemoryStage,
@@ -276,9 +280,43 @@ impl Driver<'_> {
         self.run(Lane::Author, name, target, spec)
     }
 
-    /// A pipeline state value (`hover`, `press`, `on`) in its own lane.
-    pub(crate) fn state_anim(&self, name: &'static str, on: bool, spec: MotionSpec) -> f32 {
-        self.run(Lane::Pipeline, name, f32::from(u8::from(on)), spec)
+    /// The pipeline's state values (`hover`, `press`, `on`) in one slot of the pipeline lane: one clock read and one
+    /// context round trip for the three tweens.
+    pub(crate) fn state_anims(&self, targets: [bool; 3], specs: [MotionSpec; 3]) -> [f32; 3] {
+        let ctx = self.stage.ctx();
+        let id = self.slot(Lane::Pipeline, "state");
+        let sizing = self.stage.is_peek();
+        let now = frame::clock(ctx);
+        let existing = if sizing { store::peek_clone::<StateTweens>(ctx, id) } else { store::take::<StateTweens>(ctx, id) };
+        let mut tweens = match existing {
+            Some(tweens) => tweens,
+            None => {
+                if !sizing {
+                    memory::adopt::<StateTweens>(ctx, self.stage.owner(), id);
+                }
+                StateTweens(targets.map(|on| Tween::at(f32::from(u8::from(on)))))
+            }
+        };
+        let mut shown = [0.0; 3];
+        for (at, tween) in tweens.0.iter_mut().enumerate() {
+            let target = f32::from(u8::from(targets[at]));
+            if self.policy.mode.playback(specs[at].kind) == Playback::Run {
+                if tween.target() != target {
+                    tween.retarget(target, now);
+                }
+                tween.step(now, specs[at].motion(&self.policy), specs[at].curve);
+            } else {
+                *tween = Tween::at(target);
+            }
+            shown[at] = tween.shown();
+        }
+        if !sizing {
+            if tweens.0.iter().any(|tween| !tween.is_settled()) {
+                note_unsettled(ctx);
+            }
+            store::put(ctx, id, tweens);
+        }
+        shown
     }
 
     /// A sizing pass evaluates a copy and stores nothing: it must not retarget a running tween or adopt a slot

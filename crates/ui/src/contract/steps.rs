@@ -875,11 +875,8 @@ fn ease(core: &CxCore<'_>, targets: [bool; 3]) -> StateMix {
         return StateMix::new(f32::from(u8::from(hover)), f32::from(u8::from(press)), f32::from(u8::from(on)));
     }
     let driver = core.driver();
-    StateMix::new(
-        driver.state_anim("hover", hover, spec::HOVER),
-        driver.state_anim("press", press, spec::HOVER),
-        driver.state_anim("on", on, spec::CHECK),
-    )
+    let [hover, press, on] = driver.state_anims([hover, press, on], [spec::HOVER, spec::HOVER, spec::CHECK]);
+    StateMix::new(hover, press, on)
 }
 
 /// Step 12, state: flags first (CHECKED from a shown `bool` or a command's checked state, MIXED from a mixed binding), then `state`; animates hover, press and on; the ink of the surface, else `inherited`.

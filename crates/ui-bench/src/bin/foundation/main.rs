@@ -18,7 +18,7 @@ use craft_ui::runtime::env::RootEnv;
 use craft_ui::runtime::frame::{FrameInput, set_input};
 use craft_ui::runtime::{InstallSpec, install};
 use craft_ui::text::{NumberField, TextField};
-use craft_ui_bench::{CountingAlloc, Library, Scene, SceneBuild, print_table, run_all, write_json};
+use craft_ui_bench::{CountingAlloc, Library, Scene, SceneBuild, gate_failures, print_table, read_json, run_all, write_json};
 use craft_window::system::NoWindows;
 use egui::{Context, Event, Modifiers, MouseWheelUnit, Pos2, Ui, Vec2, vec2};
 use kit::{BenchCanvas, BenchList, Block, Count, Panel, ROW_H, Row, RowKind};
@@ -26,7 +26,10 @@ use kit::{BenchCanvas, BenchList, Block, Count, Panel, ROW_H, Row, RowKind};
 #[global_allocator]
 static ALLOCATOR: CountingAlloc = CountingAlloc;
 
-struct Foundation;
+/// The app's root env, built once: the runtime caches the resolved tokens by the identity of its sizes.
+struct Foundation {
+    root: RootEnv,
+}
 
 impl Library for Foundation {
     fn name(&self) -> &'static str {
@@ -42,7 +45,7 @@ impl Library for Foundation {
     }
 
     fn before_frame(&self, ctx: &Context) {
-        set_input(ctx, FrameInput::new(RootEnv::default()));
+        set_input(ctx, FrameInput::new(self.root.clone()));
     }
 
     fn build(&self, name: &str) -> SceneBuild {
@@ -57,7 +60,7 @@ impl Library for Foundation {
             // F8-MERGE: canvas: the canvas component and its declared controls.
             "canvas-50-controls" => (Box::new(CanvasScene), "a leaf with 50 control parts painted as knobs"),
             // F8-MERGE: menu: the menu component.
-            "menu-40-rows" => (Box::new(MenuScene), "BenchList of 40 rows, as an open menu's rows"),
+            "menu-40-rows" => (Box::new(MenuScene), "a container on the menu layer, open from the first frame, over a BenchList of 40 labelled rows"),
             "text-field-100kb" => (Box::new(TextScene::new()), "TextField::lines(30) bound with Bind::bound over a 100 KB String"),
             "list-10000-selected" => (Box::new(ListScene::new(Selected::All)), "BenchList over 10,000 rows, all 10,000 keys in the Selection"),
             "collapse-in-content-sized-panel" => {
@@ -131,7 +134,7 @@ impl ListScene {
 impl Scene for ListScene {
     fn show(&mut self, ui: &mut Ui, _frame: u64) {
         let list = BenchList::new(SelectMode::Multi).selection(Bind::bound(&mut self.selection));
-        let _ = list.id_salt("list").show_items(ui, &self.source, &mut |_, _| Row::new(RowKind::Plain));
+        let _ = list.id_salt("list").show_items(ui, &self.source, &mut |&key, _| Row::new(RowKind::Plain { key }));
     }
 }
 
@@ -174,7 +177,11 @@ impl Scene for MenuScene {
 
     fn show(&mut self, ui: &mut Ui, _frame: u64) {
         let rows = Count(40);
-        let _ = BenchList::new(SelectMode::Single).id_salt("menu").show_items(ui, &rows, &mut |_, _| Row::new(RowKind::Plain));
+        let mut open = true;
+        let props = ContainerProps::new().mount(Mount::Layer(Overlay::menu())).sizing(Sizing::Content);
+        let _ = Panel::new(props).headerless().bind_open(Bind::bound(&mut open)).id_salt("menu").show(ui, |ui, _| {
+            let _ = BenchList::new(SelectMode::Single).id_salt("rows").show_items(ui, &rows, &mut |&key, _| Row::new(RowKind::Plain { key }));
+        });
     }
 }
 
@@ -299,11 +306,21 @@ impl Scene for ReadoutScene {
     }
 }
 
-fn main() -> std::io::Result<()> {
-    let report = run_all(&Foundation);
+fn main() -> std::process::ExitCode {
+    let report = run_all(&Foundation { root: RootEnv::default() });
     print_table(&report);
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("baseline/foundation.json");
-    write_json(&report, &path)?;
-    eprintln!("wrote {}", path.display());
-    Ok(())
+    let baseline = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("baseline");
+    let outcome = write_json(&report, &baseline.join("foundation.json")).and_then(|()| read_json(&baseline.join("legacy.json")));
+    let legacy = match outcome {
+        Ok(legacy) => legacy,
+        Err(error) => {
+            eprintln!("the baselines could not be written or read: {error}");
+            return std::process::ExitCode::FAILURE;
+        }
+    };
+    let failures = gate_failures(&report, &legacy);
+    for failure in &failures {
+        eprintln!("gate: {failure}");
+    }
+    if failures.is_empty() { std::process::ExitCode::SUCCESS } else { std::process::ExitCode::FAILURE }
 }

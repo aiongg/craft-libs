@@ -118,10 +118,13 @@ impl<T: Default + Send + 'static> PerViewport<T> {
     /// Runs `f` on the record of `viewport`, created on first use.
     pub(crate) fn with<R>(ctx: &Context, viewport: ViewportId, f: impl FnOnce(&mut T) -> R) -> R {
         let service = Service::<PerViewport<T>>::of(ctx);
-        if !service.with(|records| std::mem::replace(&mut records.pruning, true)) {
+        // The prune registration runs outside the service's lock: it reaches the context.
+        let (registered, out) =
+            service.with(|records| (std::mem::replace(&mut records.pruning, true), f(records.records.entry(viewport).or_default())));
+        if !registered {
             Self::register_prune(ctx);
         }
-        service.with(|records| f(records.records.entry(viewport).or_default()))
+        out
     }
 
     fn register_prune(ctx: &Context) {
