@@ -6,8 +6,8 @@
 //! case that applies only to a collection with a setting starts the gesture and checks the rest when the collection
 //! answered it: a rename case runs on the stories whose F2 began a rename.
 
-use super::{Subject, row_click};
 use super::nodes::{focused_row, position_in_set, root, rows, subtree};
+use super::{Subject, row_click};
 use crate::contract::ColumnCommands;
 use crate::contract::ShapeKind;
 use crate::runtime::access::Role;

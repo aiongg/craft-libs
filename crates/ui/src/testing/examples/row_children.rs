@@ -1,8 +1,8 @@
 //! `LayerStack` and `LayerRow`: a layers panel whose rows hold their own controls (17.5).
 //!
 //! One tree collection. Each row shows its name, a visibility `Switch` and a blend-mode `Select` as child
-//! components of the row. The controls sit at the trailing end and the name takes the rest, so a press on the
-//! middle of a row lands on the row itself. The controls' focus stops are members of the row's roving group: Tab
+//! components of the row. The controls sit at the trailing end at their measured sizes and the name takes the rest,
+//! so a press on the name lands on the row itself. The controls' focus stops are members of the row's roving group: Tab
 //! passes the collection once, Forward on a row enters the switch and then the select, Back returns, and Escape
 //! from a child returns to its row. Groups open and close by Right and Left on the row.
 
@@ -163,9 +163,9 @@ impl Collection for LayerStack {
         &self.items
     }
 
-    /// A row is one control high; the stack is a tree.
+    /// A row is as tall as its tallest child, one control high at least; the stack is a tree.
     fn item_layout(&self, source: &dyn ItemSource<usize>, width: f32, cx: &StyleCx<'_>) -> SpanLayout {
-        SpanLayout::new(source, width, cx.control().height).tree()
+        SpanLayout::sized(source, width, cx.control().height).tree()
     }
 }
 
