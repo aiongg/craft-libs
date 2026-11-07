@@ -17,7 +17,8 @@ status = "pending"
 name = "MetadataTable"
 old = "craft_ui::list::metadata::MetadataTable"
 new = "craft_ui::table::MetadataTable"
-status = "pending"
+status = "moved"
+note = "a pattern over Table; show(ui) is an inherent method of the pattern"
 
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]
@@ -25,15 +26,28 @@ status = "pending"
 # old = ""
 # new = ""
 
-# MetadataTable (tables-b). Blocked on a contract misfit: see the track report. The entries record the
-# intended mapping; `status` stays "pending" until a row can paint name and value cells.
+# MetadataTable (tables-b).
 
 [[type]]
 name = "MetadataTableOutput"
 old = "craft_ui::list::metadata::MetadataTableOutput"
 new = "craft_ui::table::MetadataTableOutput"
-status = "pending"
-note = "chosen_changed becomes the toggled and chosen keys"
+status = "moved"
+note = "response becomes table (CollectionResponse); chosen_changed is a method; checked lists the changed keys"
+
+[[type]]
+name = "MetadataRow"
+old = "craft_ui::list::metadata::MetadataRow"
+new = "craft_ui::table::MetadataRow"
+status = "moved"
+note = "key and locked are derived setters; matches(query) is new"
+
+[[type]]
+name = "MetadataGroup"
+old = "craft_ui::list::metadata::MetadataGroup"
+new = "craft_ui::table::MetadataGroup"
+status = "moved"
+note = "non_exhaustive: build with MetadataGroup::new(name, rows)"
 
 [[type]]
 name = "MetadataStyle"
@@ -47,17 +61,19 @@ name = "MetadataLabels"
 old = "craft_ui::list::metadata::MetadataLabels"
 new = ""
 status = "removed"
-note = "words are installed words of craft_ui::table; per-call overrides go through Common.label"
+note = "the words are installed words (MetadataWords)"
+
+[[type]]
+name = "filter_metadata"
+old = "craft_ui::list::metadata::filter_metadata"
+new = ""
+status = "removed"
+note = "use MetadataRow::matches(query); the table filters its own rows"
 
 [[setter]]
 type = "MetadataTable"
-old = "filter(&mut String)"
-new = "filter(Bind<String>)"
-
-[[setter]]
-type = "MetadataTable"
-old = "choose(&mut Vec<String>)"
-new = "choose(Bind<Vec<String>>)"
+old = "new(id_salt, &[MetadataGroup])"
+new = "new(label, &[MetadataGroup])"
 
 [[setter]]
 type = "MetadataTable"
