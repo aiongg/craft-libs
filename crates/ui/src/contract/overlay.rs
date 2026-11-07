@@ -835,14 +835,6 @@ fn placement(ctx: &Context, layer: &Layer<'_>, size: egui::Vec2, bounds: Rect, a
     }
 }
 
-/// Gives a container layer's area a size before its first pass, so egui runs no hidden sizing pass for it. That pass
-/// shows no body, so nothing would be measured in it; the layer's first pass is a real one that records the sizes
-/// the discard pass places by.
-fn seed_area(ctx: &Context, layer: egui::LayerId, at: Pos2, room: egui::Vec2) {
-    let state = egui::AreaState { pivot_pos: Some(at), pivot: Align2::LEFT_TOP, size: Some(room), interactable: false, last_became_visible_at: None };
-    ctx.memory_mut(|memory| memory.areas_mut().set_state(layer, state));
-}
-
 /// The overlay host: shows `body` on an egui layer for `layer` and decides its dismissal.
 pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut Ui)) -> LayerOut {
     let overlay = layer.overlay;
@@ -867,7 +859,7 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
     let placed = placement(ctx, layer, size, bounds, anchor, cap);
     let tier = overlay.rank.tier();
     if sized && areas::layer_rect(ctx, area).is_none() {
-        seed_area(ctx, areas::layer_of(tier, area), placed.at, placed.room);
+        areas::seed_area(ctx, areas::layer_of(tier, area), placed.at, placed.room);
     }
     // A modal's scrim; it takes the presses below the modal while the modal is open.
     let cover_id = sub(layer.id, "cover");

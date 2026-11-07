@@ -360,3 +360,24 @@ pub(crate) fn follow_primary(events: &[Event], down: &mut bool, last: &mut Optio
         }
     }
 }
+
+/// Removes the first commit-on character typed this pass from the input events, keeping the text typed before it in
+/// the same event; returns whether there was one. Pasted text arrives as a paste event and is left alone.
+pub(crate) fn take_separator(ctx: &Context, commit_on: &[char]) -> bool {
+    if commit_on.is_empty() {
+        return false;
+    }
+    ctx.input_mut(|input| {
+        let Some(at) = input.events.iter().position(|event| matches!(event, egui::Event::Text(text) if text.contains(commit_on))) else {
+            return false;
+        };
+        if let egui::Event::Text(text) = &mut input.events[at] {
+            let end = text.find(commit_on).unwrap_or(text.len());
+            text.truncate(end);
+            if text.is_empty() {
+                input.events.remove(at);
+            }
+        }
+        true
+    })
+}

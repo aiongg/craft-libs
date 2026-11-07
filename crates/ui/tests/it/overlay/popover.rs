@@ -61,16 +61,8 @@ fn a_popover_opens_at_its_final_width_with_one_discard_pass() {
     });
     fixture.settle();
     open.set(true);
-    let layer_width = |fixture: &Fixture| {
-        fixture.ctx().memory(|memory| {
-            memory
-                .layer_ids()
-                .filter(|layer| layer.order != egui::Order::Background)
-                .filter_map(|layer| memory.area_rect(layer.id))
-                .map(|rect| rect.width())
-                .fold(0.0_f32, f32::max)
-        })
-    };
+    let layer_width = |fixture: &Fixture| craft_ui::testing::frames::widest_layer(fixture.ctx());
+    let tolerance = 0.5;
     let mut widths = Vec::new();
     let mut passes = Vec::new();
     for _ in 0..4 {
@@ -79,6 +71,9 @@ fn a_popover_opens_at_its_final_width_with_one_discard_pass() {
         passes.push(fixture.passes());
     }
     assert!(widths[0] > 0.0, "the layer shows on the first frame: {widths:?} {passes:?}");
-    assert!(widths.iter().all(|width| (width - widths[0]).abs() < 0.5), "the layer keeps one width from its first frame: {widths:?} {passes:?}");
+    assert!(
+        widths.iter().all(|width| (width - widths[0]).abs() < tolerance),
+        "the layer keeps one width from its first frame: {widths:?} {passes:?}"
+    );
     assert!(passes[0] <= 2, "the opening frame asks for at most one discard pass: {passes:?}");
 }

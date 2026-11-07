@@ -324,3 +324,24 @@ pub fn layer_order() -> LayerOrder {
         unknown_ignored: !after.contains(&ghost),
     }
 }
+
+/// Gives a container layer's area a size before its first pass, so egui runs no hidden sizing pass for it. That pass
+/// shows no body, so nothing would be measured in it; the layer's first pass is a real one that records the sizes
+/// the discard pass places by.
+pub(crate) fn seed_area(ctx: &Context, layer: LayerId, at: Pos2, room: Vec2) {
+    let state =
+        egui::AreaState { pivot_pos: Some(at), pivot: egui::Align2::LEFT_TOP, size: Some(room), interactable: false, last_became_visible_at: None };
+    ctx.memory_mut(|memory| memory.areas_mut().set_state(layer, state));
+}
+
+/// The width of the widest layer above the background, 0 when there is none.
+pub(crate) fn widest_layer(ctx: &Context) -> f32 {
+    ctx.memory(|memory| {
+        memory
+            .layer_ids()
+            .filter(|layer| layer.order != Order::Background)
+            .filter_map(|layer| memory.area_rect(layer.id))
+            .map(|rect| rect.width())
+            .fold(0.0, f32::max)
+    })
+}

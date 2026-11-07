@@ -140,5 +140,6 @@ fn a_label_reset_restores_the_whole_row_while_a_thumb_with_a_default_is_focused(
     }
     frames.frame(vec![], &mut show);
     drop(show);
-    assert_eq!(value, [0.0, 100.0]);
+    let whole_default = [0.0, 100.0];
+    assert_eq!(value, whole_default);
 }

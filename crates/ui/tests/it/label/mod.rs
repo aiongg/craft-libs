@@ -299,18 +299,15 @@ fn a_label_with_an_icon_and_detail_names_by_text_and_describes_by_detail() {
     assert_eq!(tree.name(label.id), Some("Opacity"), "the name is the text alone");
     assert_eq!(tree.description(id), Some("12 layers"), "the detail is the control's description");
     assert!(ROW_A.contains_rect(label.rect), "the icon, text and detail sit inside the row: {:?}", label.rect);
-    let plain = {
-        let mut plain_frames = Frames::new();
-        let plain_seen = RefCell::new(Seen::default());
-        let mut plain_value = 1.0;
-        plain_frames.idle(3, |ui| {
-            Field::new("Opacity", SideLabel::new()).id_salt("detailed").show_at(ui, ROW_A, |ui, _| {
-                Dial::new(&mut plain_value, &plain_seen).show(ui);
-            });
+    let mut plain_frames = Frames::new();
+    let plain_seen = RefCell::new(Seen::default());
+    let mut plain_value = 1.0;
+    plain_frames.idle(3, |ui| {
+        Field::new("Opacity", SideLabel::new()).id_salt("detailed").show_at(ui, ROW_A, |ui, _| {
+            Dial::new(&mut plain_value, &plain_seen).show(ui);
         });
-        let rect = plain_seen.borrow().label.clone().map(|label| label.rect);
-        rect
-    };
+    });
+    let plain = plain_seen.borrow().label.clone().map(|label| label.rect);
     let plain = plain.expect("the plain label ran");
     assert!(label.rect.width() > plain.width(), "the icon and detail widen the label: {:?} against {plain:?}", label.rect);
 }

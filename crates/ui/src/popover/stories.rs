@@ -16,7 +16,7 @@ fn body(ui: &mut Ui) -> bool {
         .show(ui, |ui, _| {
             let snap = Button::new("Snap to grid").show(ui);
             let rulers = Button::new("Show rulers").show(ui);
-            snap.clicked() || rulers.clicked()
+            crate::contract::clicked(&snap) || crate::contract::clicked(&rulers)
         })
         .inner
         .unwrap_or(false)

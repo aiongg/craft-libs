@@ -186,6 +186,8 @@ The transform a canvas body is shown through.
 - `craft_behavior::codec::NotAValue`: `pub struct NotAValue`. The text is not a value of the codec's type.
 - `craft_behavior::codec::NumberCodec`: `pub struct NumberCodec`. An optional number: empty text is `None`; anything else reads through a [`Reader`].
   - `pub fn new(reader: Reader, decimals: usize) -> Self`. A codec reading with `reader` and writing at most `decimals` decimal places.
+  - `pub fn decimals(&self) -> usize`. The most decimal places the codec writes.
+  - `pub fn reader(&self) -> &Reader`. The reader the codec parses with.
 - `craft_behavior::codec::PlainText`: `pub struct PlainText`. Plain text: every draft is a value.
 
 ## `craft_behavior::columns`
@@ -811,7 +813,8 @@ The value core of chapter 10: the bound every value type meets, `Mixed`, edit ev
   - `pub fn absolute(track: Range<f32>, range: RangeInclusive<f64>) -> Self`. The value follows the pointer on `track`: `range.start()` at `track.start`, `range.end()` at `track.end`.
   - `pub fn relative(rate: f64, range: RangeInclusive<f64>) -> Self`. The value changes by `rate` units per point of travel from the press. Vertical travel upwards increases it.
   - `pub const fn axis(mut self, axis: Axis) -> Self`. The axis the pointer travels on; the default is horizontal.
-  - `pub const fn fine(mut self, factor: f64) -> Self`. The factor Shift applies to travel.
+  - `pub const fn fine(mut self, factor: f64) -> Self`. The factor Alt (Option) applies to travel.
+  - `pub const fn coarse(mut self, factor: f64) -> Self`. The factor Shift applies to travel. A drag sets none by default: on an absolute drag such as a slider's a
   - `pub const fn wrap_range(mut self, on: bool) -> Self`. Wraps the value past either end of the range instead of stopping there, as a hue dial does.
   - `pub const fn warp(mut self, on: bool) -> Self`. Warps the pointer to the other side of the window when the drag reaches an edge, so the drag has no end
   - `pub const fn hide_cursor(mut self, on: bool) -> Self`. Hides the pointer while the drag runs, as a scrub does that warps the pointer.
@@ -954,6 +957,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub fn policy(mut self, policy: EditPolicy) -> Self`. When a write-through source is written.
   - `pub fn check(mut self, check: impl Fn(&T) -> Validity<T> + 'a) -> Self`. The check on a value: `Fix` replaces it, `Warn` and `Refuse` set the component's state.
   - `pub fn reset(mut self, default: T) -> Self`. The value a reset gesture restores.
+  - `pub fn reborrowed(&mut self) -> Bind<'_, T>`. A binding with the same source, check, policy and reset that borrows this one, so a composite can hand its
   - `pub fn reborrow(&mut self) -> BindMut<'_, T>`. The binding as the pipeline reads and writes it.
 - `craft_ui::contract::BindMut`: `pub struct BindMut<'a, T>`. A reborrow of a [`Bind`] the pipeline reads at steps 4, 11, 15 and 17. `Component::bind` returns it, and returns the
 - `craft_ui::contract::BodyCx`: `pub struct BodyCx<'a> { pub id: Id, pub env: EnvView<'a>, pub resolved: &'a Resolved<'a>, pub rect: Rect }`. What a body closure and the header, footer and empty hooks read: a view over the pipeline's memory stage
@@ -962,6 +966,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub fn gate(&mut self) -> Option<&mut bool>`. The gate's shown copy, for a container whose value is a bool: a title row's check box binds to it, and
   - `pub fn request_close(&mut self)`. Asks the container to close, as `CloseReason::Requested`: step 15 closes it.
   - `pub fn request_close_as(&mut self, why: CloseReason)`. Asks the container to close and tells it why (an OK button is `Activated`, Enter is `Enter`): step 15
+  - `pub fn labelled<C: Show>(&mut self, ui: &mut Ui, key: impl Hash + Debug, label: Label, side: SideLabel, child: C) -> C::Output`. Runs the label step (B2, 16.3) for one leaf child in the body's flow: `label` sits beside the child or above
 - `craft_ui::contract::BodyLayout`: `pub enum BodyLayout { Stack, Row { wrap: bool, align: RowAlign }, Grid { columns: Cow<'static, [ColumnWidth]> } }`. How a body lays out its children, in reading order: mirrored under a right-to-left direction.
   - `pub const fn stack() -> Self`. Children one under another.
   - `pub const fn row() -> Self`. Children side by side from the start edge, with no wrap.
@@ -1004,7 +1009,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
 - `craft_ui::contract::Common`: `pub struct Common`. What every component carries: the props the pipeline reads at step 1.
   - `pub const fn new() -> Common`. A `Common` with every prop unset, which the derive's constructors start from.
 - `craft_ui::contract::Component`: re-export of `craft_ui_macros::Component` (outside these crates).
-- `craft_ui::contract::ContainerProps`: `pub struct ContainerProps { pub mount: Mount, pub surface: Option<SurfaceKind>, pub pad: Pad, pub sizing: Sizing, pub layout: BodyLayout, pub header: Option<HeaderRegion>, pub scroll: Option<Scroll>, pub footer: Option<FooterRegion>, pub focus: FocusPolicy, pub collapse: Option<Collapse>, pub body_gap: Gap, pub child_size: Option<ControlSize>, pub arena: bool, pub transform: Option<CanvasTransform>, pub theme: Option<ThemeScope>, pub command_scope: Option<CommandScope>, pub live: Option<Politeness>, pub label: Option<SideLabel>, pub roving: Option<Roving>, pub save: Option<SaveKey>, pub outer_edit: bool }`. What a container or collection adds to `Common`.
+- `craft_ui::contract::ContainerProps`: `pub struct ContainerProps { pub mount: Mount, pub surface: Option<SurfaceKind>, pub pad: Pad, pub sizing: Sizing, pub layout: BodyLayout, pub header: Option<HeaderRegion>, pub scroll: Option<Scroll>, pub footer: Option<FooterRegion>, pub focus: FocusPolicy, pub collapse: Option<Collapse>, pub body_gap: Gap, pub child_size: Option<ControlSize>, pub arena: bool, pub transform: Option<CanvasTransform>, pub theme: Option<ThemeScope>, pub command_scope: Option<CommandScope>, pub live: Option<Politeness>, pub label: Option<SideLabel>, pub roving: Option<Roving>, pub save: Option<SaveKey>, pub outer_edit: bool, pub collection_body: bool }`. What a container or collection adds to `Common`.
   - `pub const fn new() -> Self`. Props with every field at its default.
   - `pub fn mount(mut self, mount: Mount) -> Self`. Where the container lives.
   - `pub const fn surface(mut self, surface: SurfaceKind) -> Self`. The surface the container paints.
@@ -1013,6 +1018,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub fn layout(mut self, layout: BodyLayout) -> Self`. How the body lays out its children.
   - `pub const fn header(mut self, header: HeaderRegion) -> Self`. A header region.
   - `pub const fn scroll(mut self, scroll: Scroll) -> Self`. A scroll region.
+  - `pub const fn collection_body(mut self) -> Self`. The body holds one collection that owns the scroll (a popup list): a layer's own body scroll is off, and the
   - `pub const fn footer(mut self, footer: FooterRegion) -> Self`. A footer region.
   - `pub const fn focus(mut self, policy: FocusPolicy) -> Self`. The focus scope.
   - `pub const fn collapse(mut self, collapse: Collapse) -> Self`. Collapse configuration.
@@ -1023,15 +1029,18 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub fn theme(mut self, theme: ThemeScope) -> Self`. Token-changing values for the body.
   - `pub const fn command_scope(mut self, scope: CommandScope) -> Self`. Makes the container an instance of `scope`.
   - `pub const fn live(mut self, politeness: Politeness) -> Self`. A live region.
-  - `pub const fn label(mut self, label: SideLabel) -> Self`. A field label.
+  - `pub fn label(mut self, label: SideLabel) -> Self`. A field label.
   - `pub const fn roving(mut self, roving: Roving) -> Self`. Makes the body's members one roving stop.
   - `pub fn save(mut self, key: SaveKey) -> Self`. Saves placement, size and open state under `key`.
   - `pub const fn outer_edit(mut self, on: bool) -> Self`. One outer gesture over the body's fields.
 - `craft_ui::contract::ContextMenuRequest`: `pub struct ContextMenuRequest<K> { pub key: K, pub at: Pos2 }`. A request for the context menu of an item. Collections never open menus: the app does.
 - `craft_ui::contract::Cx`: `pub struct Cx<'a, C: Component> { pub style: &'a C::Style }`. What component code reads and calls. It derefs to [`CxCore`] for reading only.
+  - `pub fn reset_part(&self) -> Option<PartRef>`. The part a reset aimed at, when it declared `own_reset`; `update` proposes the value with that part at its
   - `pub fn open_url(&mut self, url: &str, new_tab: bool)`. Asks the platform to open `url`, in a new tab where the platform has tabs and `new_tab` is set.
   - `pub fn join_roving(&mut self)`. Makes this component a member of the roving group of the body it is shown in: its stop joins the group and
   - `pub fn roving_arrival(&mut self, member: Id)`. Names the member of this container's roving group (`ContainerProps.roving`) that Tab arrives at; the
+  - `pub fn focus_part(&mut self, part: impl Into<PartRef>)`. Moves focus to one of this component's focusable parts, in this pass: the rest of the pass reads the new
+  - `pub fn focus_own(&mut self)`. Moves focus to the component's own stop (not a part), under the rule of `focus_part`.
 - `craft_ui::contract::CxCore`: `pub struct CxCore<'a> { pub env: EnvView<'a>, pub resolved: &'a Resolved<'a>, pub id: Id, pub rect: Rect, pub content_rect: Rect, pub visible: Rect, pub flow: Flow, pub response: Response, pub command: Option<Arc<ResolvedCommand>> }`. The non-generic part of every `Cx`; the step functions take this. It is a read-only output: component code
 - `craft_ui::contract::DragBand`: `pub enum DragBand { None, Move, Reorder }`. What dragging the header does.
 - `craft_ui::contract::DragPreview`: re-export of `craft_ui::runtime::drag::DragPreview`.
@@ -1050,10 +1059,12 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `fn begin(&mut self)`. Opens a gesture.
   - `fn commit(&mut self)`. Commits the proposed value.
   - `fn cancel(&mut self, reason: CancelReason)`. Cancels the running gesture.
-- `craft_ui::contract::EditResponse`: `pub struct EditResponse<T> { pub response: Response, pub event: Option<EditEvent<T>>, pub submitted: bool, pub escaped: bool, pub validity: Validity<T> }`. The output of a component that edits a value. Only `cx.edit_response()` builds it.
-- `craft_ui::contract::FieldLabel`: `pub struct FieldLabel { pub id: Id, pub rect: Rect, pub press: PressState, pub text: String, pub role: FieldLabelRole }`. The label a container shows beside its body.
+- `craft_ui::contract::EditResponse`: `pub struct EditResponse<T> { pub response: Response, pub event: Option<EditEvent<T>>, pub submitted: bool, pub escaped: bool, pub validity: Validity<T>, pub shown: Option<Mixed<T>> }`. The output of a component that edits a value. Only `cx.edit_response()` builds it.
+- `craft_ui::contract::FieldLabel`: `pub struct FieldLabel { pub id: Id, pub rect: Rect, pub press: PressState, pub text: String, pub role: FieldLabelRole, pub detail: Option<String>, pub activated: bool }`. The label a container shows beside its body.
   - `pub fn new(id: Id, rect: Rect, text: impl Into<String>) -> Self`. A label of `text` at `rect`, the node `id`.
   - `pub fn role(mut self, role: FieldLabelRole) -> Self`. Whether the label names or describes the controls.
+  - `pub fn detail(mut self, detail: impl Into<String>) -> Self`. Adds a detail line to the description of the controls the label covers.
+  - `pub fn activated(mut self, activated: bool) -> Self`. Whether the label was clicked or activated this pass.
   - `pub fn with_press(mut self, press: PressState) -> Self`. The label's press this pass.
   - `pub fn pressed(&self) -> bool`. The label is held down or being dragged.
 - `craft_ui::contract::FieldLabelRole`: `pub enum FieldLabelRole { Names, Describes }`. Whether a field label names its control or describes it.
@@ -1102,6 +1113,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub fn style<C: Component>(&mut self, f: for<'a> fn(&StyleCx<'a>, C::StyleKey) -> C::Style) -> &mut Self`. Replaces the style function of `C` app-wide. Two replacements for one style key are an install error.
 - `craft_ui::contract::MeasureCx`: `pub struct MeasureCx<'a, C: Component> { pub env: EnvView<'a>, pub style: &'a C::Style, pub resolved: &'a Resolved<'a>, pub proposal: Proposal, pub room: Option<f32> }`. What `measure` reads: step 5's view of the environment, the style, the resolved props and the shown value.
   - `pub fn value(&self) -> Option<&'a ValueOf<C>>`. The shown value; it has the stage's lifetime, so a borrow of `cx` is not held.
+  - `pub fn command(&self) -> Option<&ResolvedCommand>`. The bound command as step 1 resolved it, with the scoped bindings of the scopes above the component.
   - `pub fn label(&self) -> Label`. The label as given.
   - `pub fn layout(&self, run: &TextRun<'_>) -> TextLayout`. Lays `run` out in the room the parent offers, as `Draw::text` will paint it.
   - `pub fn layout_at(&self, run: &TextRun<'_>, width: f32) -> TextLayout`. Lays `run` out `width` wide, for a text that paints in a band narrower than the room.
@@ -1123,6 +1135,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
 - `craft_ui::contract::Outcome`: `pub trait Outcome`. What `show` returns: the component's response and the type of value it edits.
   - `type Value`. The value type; `NoValue` for a component with none.
   - `fn response(&self) -> &Response`. The component's response.
+  - `fn story_facts(&self) -> crate::testing::StoryOutput`. The facts a story reports about this output: its id, click, edit kinds, collection kinds and visible range.
 - `craft_ui::contract::Overlay`: re-export of `craft_ui::contract::overlay::Overlay`.
 - `craft_ui::contract::OverlayUi`: re-export of `craft_ui::contract::overlay::OverlayUi`.
 - `craft_ui::contract::Overlays`: re-export of `craft_ui::contract::overlay::Overlays`.
@@ -1142,12 +1155,14 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub fn cursor(self, cursor: CursorIcon) -> Self`. The cursor while the pointer is over the part.
   - `pub fn drag_cursor(self, cursor: CursorIcon) -> Self`. The cursor while the part is dragged.
   - `pub fn focusable(self) -> Self`. The part is a focus stop.
+  - `pub fn selected(self) -> Self`. The part is the arrival of the component's part roving group: Tab and Shift+Tab into the group land here, not
   - `pub fn exclusive(self) -> Self`. The part joins the exclusive hit list, written per egui layer and read next frame. The list feeds only the
   - `pub fn focus_shape(self, shape: FocusShape) -> Self`. The shape the focus ring takes around the part.
   - `pub fn flags(self, flags: Flags) -> Self`. Value flags of the part, merged into its state at step 12 and its sub-node at step 16.
   - `pub fn over(self) -> Self`. The part sits above the body or items in the stacking order and is painted by `paint_over`.
   - `pub fn tooltip(self, tooltip: impl Into<Tooltip>) -> Self`. The part's tooltip.
   - `pub fn value_part(self) -> Self`. The part shows the component's value: a double click on it resets the value, as one on the root does. A
+  - `pub fn own_reset(self) -> Self`. A reset aimed at the part (Reset while it is the focused part, a double click on it) does not reset the
   - `pub fn pointer_only(self, reason: &'static str) -> Self`. A part with no focus stop names its keyboard path: the intent or command that does the same.
 - `craft_ui::contract::PartsCx`: `pub struct PartsCx<'a, C: Component> { pub content_rect: Rect, pub flow: Flow }`. Step 7's context: the step-5 read view plus the rect geometry and the part builders.
   - `pub fn rect_of(&self, key: &C::Key) -> Option<Rect>`. The rect of the item `key` this pass, in the coordinates the item step lays rows out in (a transformed
@@ -1172,7 +1187,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `fn start_drag<P: Clone + Send + Sync + 'static>(&mut self, payload: P, preview: DragPreview)`. Starts the drag session with `payload`; the context holds one session at a time, and a running one stays.
   - `fn dragging<P: Send + Sync + 'static>(&self) -> Option<(Arc<P>, Pos2)>`. The active drag payload of type `P` and the pointer position in this component's egui layer space (8.3), from any
   - `fn drop_target<P: Send + Sync + 'static, T: DropTarget<P>>(&mut self, target: &T) -> Option<T::Drop>`. Registers `target` over this component's rect for this pass, in `update`. Returns the drop released over it this
-  - `fn window_drop_target<P: Send + Sync + 'static, T: DropTarget<P>>(&mut self, target: &T) -> Option<T::Drop>`. Registers `target` over the whole window of the running viewport for this pass, in `update`; a target over a
+  - `fn window_drop_target<P: Send + Sync + 'static, T: WindowDropTarget<P>>(&mut self, target: &T) -> Option<T::Drop>`. Registers `target` over the whole window of the running viewport for this pass, in `update`; a target over a
   - `fn drag_ended<P: Send + Sync + 'static>(&self) -> Option<DropOperation>`. The operation of a drop of this component's payload, in the pass after the drop; `None` while dragging, when the
   - `fn scroll_moved(&self, key: PartKey) -> Option<Range<f64>>`. The visible range the scroll part `key` moved to this pass (thumb or end drag, page press).
 - `craft_ui::contract::Politeness`: re-export of `craft_ui::runtime::access::Politeness`.
@@ -1204,18 +1219,20 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
 - `craft_ui::contract::ScrollAnchor`: `pub enum ScrollAnchor { Start, End }`. Which end of the content a scroll region stays at when the content grows.
 - `craft_ui::contract::ScrollAxes`: `pub enum ScrollAxes { Vertical, Horizontal, Both }`. The axes a body scrolls on.
 - `craft_ui::contract::Scrub`: `pub struct Scrub<V>`. How a drag on the side label changes a control's value: the drag maths over the control's number.
-  - `pub const fn new(drag: ValueDrag, read: fn(&V) -> f64, write: fn(f64) -> V) -> Self`. A scrub by `drag`, reading the number a value holds with `read` and making a value of a number with `write`.
+  - `pub fn new(drag: ValueDrag, read: impl Fn(&V) -> f64 + Send + Sync + 'static, write: impl Fn(f64) -> V + Send + Sync + 'static) -> Self`. A scrub by `drag`, reading the number a value holds with `read` and making a value of a number with `write`.
 - `craft_ui::contract::SelectMode`: `pub enum SelectMode { None, Single, Multi, Cells }`. What a collection lets the user select.
 - `craft_ui::contract::SetPosition`: re-export of `craft_ui::runtime::access::SetPosition`.
 - `craft_ui::contract::ShellPane`: `pub struct ShellPane { pub name: &'static str, pub edge: PaneEdge }`. One of `AppShell`'s panes.
   - `pub const fn new(name: &'static str) -> Self`. The central pane named `name`.
   - `pub const fn edge(mut self, edge: PaneEdge) -> Self`. The pane at `edge`.
-- `craft_ui::contract::SideLabel`: `pub struct SideLabel { pub kind: LabelKind, pub layout: FieldLayout, pub role: FieldLabelRole, pub scrub: bool }`. What `ContainerProps.label` holds: how the label is shown and what it does. The text is `Common.label`.
+- `craft_ui::contract::SideLabel`: `pub struct SideLabel { pub kind: LabelKind, pub layout: FieldLayout, pub role: FieldLabelRole, pub scrub: bool, pub icon: Option<IconId>, pub detail: Option<Label> }`. What `ContainerProps.label` holds: how the label is shown and what it does. The text is `Common.label`.
   - `pub const fn new() -> Self`. A text label beside its control that names it.
   - `pub const fn kind(mut self, kind: LabelKind) -> Self`. How the label is shown.
   - `pub const fn layout(mut self, layout: FieldLayout) -> Self`. Where the label sits.
   - `pub const fn role(mut self, role: FieldLabelRole) -> Self`. Whether the label names or describes its control.
   - `pub const fn scrub(mut self, on: bool) -> Self`. Lets a drag on the label scrub the control's value.
+  - `pub fn icon(mut self, icon: IconId) -> Self`. Shows `icon` before the text.
+  - `pub fn detail(mut self, detail: impl Into<Label>) -> Self`. Shows `detail` after the text, in the muted text colour, and adds it to the control's description.
 - `craft_ui::contract::Sizing`: `pub enum Sizing { Fill, Content }`. How a container's size follows its content.
 - `craft_ui::contract::Slot`: re-export of `craft_ui::runtime::memory::Slot`.
 - `craft_ui::contract::Styled`: `pub trait Styled`. The resolved look (chapter 4); every method reads step 12's output.
@@ -1243,6 +1260,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
 - `craft_ui::contract::Tween`: re-export of `craft_ui::runtime::motion::Tween`.
 - `craft_ui::contract::Validity`: `pub type Validity<T> = craft_behavior::Validity<T, Message>`. What a check says about a value, with the message type of craft-ui.
 - `craft_ui::contract::ValueOf`: `pub type ValueOf<C> = <<C as super::Component>::Output as Outcome>::Value`. The value type of `C`'s output.
+- `craft_ui::contract::WindowDropTarget`: re-export of `craft_ui::runtime::drag::WindowDropTarget`.
 - `craft_ui::contract::WordSetCx`: `pub trait WordSetCx`. The label a component shows and the built-in text it reads (chapter 19).
   - `fn label(&self) -> Label`. The label as given, a cheap clone.
   - `fn words<L: WordSet + Send + Sync + 'static>(&self) -> Arc<L>`. The word set `L` in the language of the scope; built once per installed `Words`.
@@ -1465,7 +1483,7 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
   - `pub const fn key(self) -> PartKey`. The part key.
 - `craft_ui::primitives::TextLayout`: `pub struct TextLayout { pub galley: Arc<Galley>, pub elided: bool, pub full: String, pub first_baseline: f32, pub runs: Vec<LayoutRun> }`. A laid-out run.
   - `pub fn size(&self) -> egui::Vec2`. The galley size.
-- `craft_ui::primitives::TextOptions`: `pub struct TextOptions { pub placeholder: Option<Label>, pub lines: Option<usize>, pub limit: Option<usize>, pub mask: bool, pub live: bool, pub clear_on_escape: bool, pub mono: bool, pub tab_inserts: bool, pub complete: Option<Arc<dyn Completer>>, pub replace_selection: Option<String> }`. How a text part behaves beyond its codec.
+- `craft_ui::primitives::TextOptions`: `pub struct TextOptions { pub placeholder: Option<Label>, pub lines: Option<usize>, pub limit: Option<usize>, pub mask: bool, pub live: bool, pub clear_on_escape: bool, pub mono: bool, pub tab_inserts: bool, pub complete: Option<Arc<dyn Completer>>, pub replace_selection: Option<String>, pub commit_on: &'static [char], pub enabled: bool }`. How a text part behaves beyond its codec.
   - `pub fn new() -> Self`. Options with every default.
 - `craft_ui::primitives::TextOutcome`: `pub struct TextOutcome<V> { pub rect: Rect, pub draft: Option<String>, pub value: Option<V>, pub layout: Option<super::TextLayout>, pub caret_visible: bool, pub invalid: bool, pub composing: bool, pub completions: Vec<super::Completion>, pub completion_index: usize }`. A text part's result this pass.
   - `pub const fn new(rect: Rect) -> Self`. An outcome over `rect` with no draft or value.
@@ -1560,9 +1578,11 @@ Per-pass and per-frame services and the one egui adapter.
 - `craft_ui::runtime::access::SubNode`: `pub struct SubNode { pub name: Name, pub description: Option<String>, pub numeric: Option<Numeric>, pub position: Option<SetPosition> }`. A node below a component's node, for a part, a cell or a line of a content painter.
   - `pub fn under(&mut self, other: impl Into<PartRef>) -> &mut Self`. Nests this sub-node below another sub-node of the same component.
   - `pub fn custom_action(&mut self, id: i32, label: Label) -> &mut Self`. An action the component serves itself, targeted at this sub-node.
-- `craft_ui::runtime::access::FieldLabel`: `pub struct FieldLabel { pub id: Id, pub rect: Rect, pub press: PressState, pub text: String, pub role: FieldLabelRole }`. The label a container shows beside its body.
+- `craft_ui::runtime::access::FieldLabel`: `pub struct FieldLabel { pub id: Id, pub rect: Rect, pub press: PressState, pub text: String, pub role: FieldLabelRole, pub detail: Option<String>, pub activated: bool }`. The label a container shows beside its body.
   - `pub fn new(id: Id, rect: Rect, text: impl Into<String>) -> Self`. A label of `text` at `rect`, the node `id`.
   - `pub fn role(mut self, role: FieldLabelRole) -> Self`. Whether the label names or describes the controls.
+  - `pub fn detail(mut self, detail: impl Into<String>) -> Self`. Adds a detail line to the description of the controls the label covers.
+  - `pub fn activated(mut self, activated: bool) -> Self`. Whether the label was clicked or activated this pass.
   - `pub fn with_press(mut self, press: PressState) -> Self`. The label's press this pass.
   - `pub fn pressed(&self) -> bool`. The label is held down or being dragged.
 - `craft_ui::runtime::access::FieldLabelRole`: `pub enum FieldLabelRole { Names, Describes }`. Whether a field label names its control or describes it.
@@ -1640,6 +1660,10 @@ The drag session (8.4): one per context. It holds the payload, the preview, the 
   - `fn mark(&self, drop: &Self::Drop) -> DropMark`. Where `drop` would land, a value the ghost layer paints.
 - `craft_ui::runtime::drag::OsFile`: `pub struct OsFile { pub name: String, pub path: Option<PathBuf>, pub mime: String, pub bytes: Option<Arc<[u8]>> }`. A file the OS drags over the window or drops on it.
 - `craft_ui::runtime::drag::OsFiles`: `pub struct OsFiles { pub files: Vec<OsFile> }`. The payload of a drag that comes from the OS: files held over the window, then the files dropped. Targets take it
+- `craft_ui::runtime::drag::WindowDropTarget`: `pub trait WindowDropTarget<P>`. What a component registers with `Pointer::window_drop_target`: a target over the whole window, which needs no
+  - `type Drop`. What a drop on this target carries to the component's caller.
+  - `fn accept(&self, payload: &P, op: DropOperation) -> Option<Self::Drop>`. `None` rejects. `op` is the operation the held modifiers pick, which a target may refuse.
+  - `fn mark(&self, drop: &Self::Drop) -> DropMark`. Where `drop` would land, a value the ghost layer paints.
 - `craft_ui::runtime::drag::active`: `pub fn active<P: Send + Sync + 'static>(ctx: &Context) -> Option<Arc<P>>`. The active drag payload of type `P`, from any viewport. For code without a `Cx`.
 - `craft_ui::runtime::drag::cancel`: `pub fn cancel(ctx: &Context, reason: CancelReason)`. Ends the session without a drop; the source's press ends with it, so nobody gets a drop.
 
@@ -1660,6 +1684,7 @@ AccessKit node building, `register_accesskit_parent` and `set_accesskit_focus`: 
   - `pub fn description(&self, id: Id) -> Option<&str>`. The description of the node of `id`.
   - `pub fn value(&self, id: Id) -> Option<&str>`. The text value of the node of `id`.
   - `pub fn numeric(&self, id: Id) -> Option<Numeric>`. The numeric value and range of the node of `id`.
+  - `pub fn is_disabled(&self, id: Id) -> bool`. Whether the node of `id` is reported as disabled.
   - `pub fn declares(&self, id: Id, action: Declared) -> bool`. Whether the node of `id` declares `action`.
   - `pub fn labelled_by(&self, id: Id) -> Vec<NodeKey>`. The nodes that name the node of `id`.
   - `pub fn described_by(&self, id: Id) -> Vec<NodeKey>`. The nodes that describe the node of `id`.
@@ -1710,6 +1735,7 @@ Raw input in the input hook, key events converted to craft-keymap's key types, `
 - `craft_ui::runtime::env::Env`: `pub struct Env`. The inherited context of a `Ui`: one `Arc` clone per read.
   - `pub fn words<L: WordSet + Send + Sync + 'static>(&self) -> Arc<L>`. The word set `L` in the scope's language.
   - `pub fn format(&self) -> &Format`. How the scope writes numbers: locale digits, separators and grouping.
+  - `pub fn units(&self) -> Units`. The scope's number format and unit words, to read and write numbers with their unit.
   - `pub fn of(ui: &Ui) -> Env`. The env of `ui`: the nearest entry up the `Ui` stack, else the running viewport's root env, so the `Ui`
   - `pub fn get<T: EnvValue>(&self) -> T`. A clone of the innermost app value, else `T::root()`. Large values hold an `Arc`.
   - `pub fn capture(&self) -> EnvCapture`. The inherited group only; layer-local fields start fresh where the capture is installed.
@@ -1728,6 +1754,7 @@ Raw input in the input hook, key events converted to craft-keymap's key types, `
   - `pub fn get<T: EnvValue>(&self) -> T`. A clone of the innermost app value, else `T::root()`.
   - `pub fn words<L: WordSet + Send + Sync + 'static>(&self) -> Arc<L>`. The word set `L` in the scope's language, built once per `Words`.
   - `pub fn format(&self) -> &'a Format`. How the scope writes numbers: locale digits, separators and grouping.
+  - `pub fn units(&self) -> Units`. The scope's number format and unit words, to read and write numbers with their unit.
 - `craft_ui::runtime::env::MotionPolicy`: `pub struct MotionPolicy { pub mode: MotionMode, pub tokens: MotionTokens }`. The motion mode in effect, carried in `Env.motion`.
   - `pub const fn new(mode: MotionMode, tokens: MotionTokens) -> Self`. The policy that runs animations at `mode` with `tokens`.
 - `craft_ui::runtime::env::Overrides`: `pub struct Overrides { pub size: Option<ControlSize>, pub enabled: Option<bool>, pub read_only: Option<bool>, pub motion: Option<MotionMode>, pub direction: Option<Direction>, pub words: Option<WordsOverride>, pub values: AppValues }`. Changes to the inherited values for a stretch of code.
@@ -1757,6 +1784,14 @@ Raw input in the input hook, key events converted to craft-keymap's key types, `
 - `craft_ui::runtime::env::Message`: `pub struct Message { pub text: Label, pub tone: Option<craft_theme::Tone> }`. The text of a `Validity`: a label and an optional tone override. `Warn` defaults to `Tone::Warn`, `Refuse` to
   - `pub fn new(text: impl Into<Label>) -> Self`. A message with the default tone.
   - `pub fn tone(mut self, tone: craft_theme::Tone) -> Self`. The message in `tone`.
+- `craft_ui::runtime::env::UnitKind`: `pub enum UnitKind { Pixels, Percent, Degrees, Points, Times, Inches, Centimetres, Millimetres, Picas }`. What a number counts.
+  - `pub const fn decimals(self) -> RangeInclusive<usize>`. The digits after the decimal mark a number of this kind shows by default, at most.
+- `craft_ui::runtime::env::UnitWords`: re-export of `craft_ui::runtime::env::units::UnitWords` (defined outside these crates).
+- `craft_ui::runtime::env::Units`: `pub struct Units`. Reads and writes numbers with their unit in the user's language and digits. Build it with `Env::units` or
+  - `pub fn symbol(&self, kind: UnitKind) -> String`. The unit's spelling in the user's language without the number: `mm`, `px`.
+  - `pub fn text(&self, kind: UnitKind, n: f64, decimals: RangeInclusive<usize>) -> String`. `n` of `kind` with between the least and most digits of `decimals` after the decimal mark, in the user's
+  - `pub fn show(&self, kind: UnitKind, n: f64) -> String`. `n` of `kind` with its default digits ([`UnitKind::decimals`]).
+  - `pub fn reader(&self, kind: Option<UnitKind>) -> Reader`. A reader for numbers of `kind` (plain numbers when `None`): the locale's decimal and group separators and
 - `craft_ui::runtime::env::Word`: re-export of `craft_ui::runtime::env::label::Word` (defined outside these crates).
 - `craft_ui::runtime::env::WordRows`: re-export of `craft_i18n::WordRows` (outside these crates).
 - `craft_ui::runtime::env::WordSet`: re-export of `craft_i18n::WordSet` (outside these crates).
@@ -1837,11 +1872,13 @@ The key stage (spec 9.1, 9.2, 9.3, 9.7): the input hook strips the keys the runt
 
 - `craft_ui::runtime::keys::Intents`: `pub struct Intents`. An owned copy of the intents routed to one id this pass; read through `cx.intents()`.
   - `pub fn take(&mut self, intent: Intent) -> bool`. Takes an intent of the kind of `intent`, once per pass: the first taker gets it.
+  - `pub fn take_exact(&mut self, intent: &Intent) -> bool`. Takes an intent equal to `intent` in every field, once per pass: `Intent::delete(false, Granularity::Grapheme)`
   - `pub fn take_move(&mut self) -> Option<(NavMove, MoveMods)>`. Takes the next move.
   - `pub fn take_edit(&mut self) -> Option<EditCommand>`. Takes the next edit command.
   - `pub fn take_text(&mut self) -> Option<Arc<str>>`. Takes the next typed text.
   - `pub fn take_nudge(&mut self) -> Option<(Vec2, Mods)>`. Takes the physical arrow nudge for canvas content: a unit direction and the modifiers.
-  - `pub fn take_set_value(&mut self) -> Option<f64>`. Takes the AccessKit `SetValue` request.
+  - `pub fn take_set_value(&mut self) -> Option<f64>`. Takes the AccessKit `SetValue` request aimed at the component's own node.
+  - `pub fn take_set_value_at(&mut self, part: impl Into<PartRef>) -> Option<f64>`. Takes the AccessKit `SetValue` request aimed at the sub-node of `part`.
   - `pub fn untaken(&self, intent: &Intent) -> bool`. Whether an intent of the kind of `intent` is routed and not taken.
   - `pub fn take_access(&mut self) -> Option<AccessRequest>`. Takes the next `Intent::Access` request.
 - `craft_ui::runtime::keys::MenuKey`: `pub enum MenuKey { Focus, Letter(char) }`. A menu-bar key of Windows and Linux (spec 9.7).
@@ -2018,6 +2055,7 @@ The style layer: the state set and its resolver, style parts and `ComponentStyle
 - `craft_ui::style::StyleCx`: `pub struct StyleCx<'a> { pub tokens: &'a UiTokens, pub size: ControlSize, pub variant: Variant, pub direction: Direction, pub scale: Scale, pub os: Os, pub active: bool, pub key: EnvKey }`. What `fn style` gets. Tokens are read here and nowhere else.
   - `pub fn env<T: StyleValue>(&self) -> T`. An app value set by a scope. Its hash is part of the style cache key.
   - `pub fn color(&self, color: Rgba) -> StyleColor`. The one constructor of `StyleColor`: a semantic token read or a token-group field becomes a style colour here.
+  - `pub fn focus_look(&self) -> FocusLook`. The one builder of the focus ring: the line's focus colour at the medium stroke, on the shape's edge.
   - `pub fn tone(&self, tone: Tone) -> StyleColor`. The colour text and icons of `tone` read in.
   - `pub fn ink(&self, ink: Ink) -> StyleColor`. The colour text and icons on a surface read in.
   - `pub fn control(&self) -> ControlMetrics`. The height, icon side, padding and gap of a control at the ambient size.
@@ -2091,6 +2129,7 @@ What the accessibility trials read: the AccessKit tree a frame produced, and the
   - `pub fn description(&self, id: Id) -> Option<&str>`. The description of the node of `id`.
   - `pub fn value(&self, id: Id) -> Option<&str>`. The text value of the node of `id`.
   - `pub fn numeric(&self, id: Id) -> Option<Numeric>`. The numeric value and range of the node of `id`.
+  - `pub fn is_disabled(&self, id: Id) -> bool`. Whether the node of `id` is reported as disabled.
   - `pub fn declares(&self, id: Id, action: Declared) -> bool`. Whether the node of `id` declares `action`.
   - `pub fn labelled_by(&self, id: Id) -> Vec<NodeKey>`. The nodes that name the node of `id`.
   - `pub fn described_by(&self, id: Id) -> Vec<NodeKey>`. The nodes that describe the node of `id`.
@@ -2304,12 +2343,12 @@ The focus service's fixture: egui widgets for stops, the egui focus, and the eve
 - `craft_ui::testing::focus::take_reveal`: `pub fn take_reveal(ctx: &Context) -> Option<(Id, Option<PartRef>)>`. The component the last focus request or Tab move asked the enclosing scroll owner to reveal.
 - `craft_ui::testing::focus::take_submit`: `pub fn take_submit(ctx: &Context) -> bool`. Takes an untaken `Submit` for the innermost scope with a default action.
 - `craft_ui::testing::focus::widget`: `pub fn widget(ui: &mut Ui, id: Id) -> Rect`. Shows a focusable egui widget of `id`, as a component root's sensing core does, and returns its rect.
-- `craft_ui::testing::focus::AccessActionKind`: `pub enum AccessActionKind { Focus, Click, Increment, Expand, ScrollDown }`. The actions the focus trials request.
+- `craft_ui::testing::focus::AccessActionKind`: `pub enum AccessActionKind { Focus, Click, Increment, Decrement, SetValue(f64), Expand, ScrollDown }`. The actions the focus trials request.
   - `pub fn is(self, action: &craft_behavior::AccessRequest) -> bool`. Whether `action` is this one.
-- `craft_ui::testing::focus::Group`: `pub struct Group { pub id: Id, pub roving: Roving, pub selected: Option<Id>, pub row: bool, pub owner: Option<Id>, pub rtl: bool }`. A roving group's registration: one Tab stop whose members take moves.
+- `craft_ui::testing::focus::Group`: `pub struct Group { pub id: Id, pub roving: Roving, pub selected: Option<StopKey>, pub row: bool, pub owner: Option<Id>, pub rtl: bool }`. A roving group's registration: one Tab stop whose members take moves.
   - `pub fn new(id: Id, roving: Roving) -> Group`. A group of `roving` rules.
   - `pub fn rtl(mut self, rtl: bool) -> Self`. Reads horizontal arrows in the group's direction.
-  - `pub fn selected(mut self, member: Id) -> Self`. The member Tab arrives at.
+  - `pub fn selected(mut self, member: StopKey) -> Self`. The member Tab arrives at: a stop key, so a part of a component can be the arrival.
   - `pub fn row(mut self, owner: Id) -> Self`. Marks the children of a row of `owner`'s collection.
 - `craft_ui::testing::focus::Intents`: re-export of `craft_ui::runtime::keys::Intents`.
 - `craft_ui::testing::focus::MenuKey`: re-export of `craft_ui::runtime::keys::MenuKey`.
@@ -2356,6 +2395,7 @@ A fixed-rate frame driver over a context.
   - `pub fn cursor_icon(&self) -> egui::CursorIcon`. The system cursor the last frame's output asked for.
 - `craft_ui::testing::frames::announce_text`: `pub fn announce_text(ctx: &Context, text: &str)`. Adds `text` to the next frame output's announcements, as the runtime's access service does.
 - `craft_ui::testing::frames::show_area`: `pub fn show_area<R>(ctx: &Context, name: &'static str, body: impl FnOnce(&mut Ui) -> R) -> R`. Shows an egui `Area` and runs `body` on its `Ui`.
+- `craft_ui::testing::frames::widest_layer`: `pub fn widest_layer(ctx: &Context) -> f32`. The width of the widest layer above the background, 0 when there is none.
 
 ## `craft_ui::testing::index`
 

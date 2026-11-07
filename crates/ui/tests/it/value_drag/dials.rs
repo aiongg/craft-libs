@@ -139,12 +139,15 @@ fn a_point_picker_has_a_slider_sub_node_per_axis_that_steps_its_own_axis() {
     let y = named(&fixture, 'Y').expect("the y axis has a node");
     fixture.access(AccessActionKind::Increment, &y);
     fixture.idle(2);
-    assert_eq!(point(&fixture), [50.0, 51.0], "Increment on the y sub-node steps y and leaves x");
+    let stepped_y = [50.0, 51.0];
+    assert_eq!(point(&fixture), stepped_y, "Increment on the y sub-node steps y and leaves x");
     let x = named(&fixture, 'X').expect("the x axis has a node");
     fixture.access(AccessActionKind::Decrement, &x);
     fixture.idle(2);
-    assert_eq!(point(&fixture), [49.0, 51.0]);
+    let stepped_x = [49.0, 51.0];
+    assert_eq!(point(&fixture), stepped_x);
     fixture.access(AccessActionKind::SetValue(20.0), &y);
     fixture.idle(2);
-    assert_eq!(point(&fixture), [49.0, 20.0], "SetValue on the y sub-node sets y");
+    let set_y = [49.0, 20.0];
+    assert_eq!(point(&fixture), set_y, "SetValue on the y sub-node sets y");
 }

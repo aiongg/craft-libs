@@ -267,6 +267,7 @@ fn a_scrub_rounds_to_the_fields_decimals() {
         step(&mut frames, &mut value, vec![moved(at)], at);
         let number = value.unwrap_or_default();
         assert!(number > START, "the drag moved the value: {number}");
-        assert_eq!((number * 100.0).round() / 100.0, number, "at most two decimals: {number}");
+        let cents = 100.0;
+        assert_eq!((number * cents).round() / cents, number, "at most two decimals: {number}");
     }
 }

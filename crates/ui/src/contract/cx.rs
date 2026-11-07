@@ -9,7 +9,7 @@ use crate::primitives::{Adopted, PaintRecord, PartResult, TextEnv, TextLayout, T
 use crate::runtime::access::{self, FieldLabel, Politeness};
 use crate::runtime::commands::{CommandAccess, CommandChain, Commands, ResolvedCommand};
 use crate::runtime::drag::{self, DragPreview, DropTarget, WindowDropTarget};
-use crate::runtime::egui::areas;
+use crate::runtime::egui::{alloc, areas};
 use crate::runtime::env::{Env, EnvView, Label};
 use crate::runtime::focus::{self, FocusShape};
 use crate::runtime::keys::Intents;
@@ -1147,7 +1147,7 @@ impl<'a> BodyCx<'a> {
         let control = Rect::from_min_size(placed.control.min, Vec2::new(placed.control.width(), ideal.y));
         let output = super::run::show_leaf(super::Props::id(child, id), ui, ShowAt::Rect(control), None);
         placed.finish(ui.ctx());
-        ui.allocate_space(Vec2::new(avail.width(), (control.bottom() - row.top()).max(ideal.y)));
+        alloc::space(ui, Vec2::new(avail.width(), (control.bottom() - row.top()).max(ideal.y)));
         output
     }
 }

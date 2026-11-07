@@ -272,5 +272,6 @@ fn a_set_value_on_a_thumb_sub_node_sets_that_thumb_while_another_holds_focus() {
     let second = thumb(&fixture, 1);
     fixture.access(AccessActionKind::SetValue(60.0), &second);
     fixture.idle(2);
-    assert_eq!(*fixture.data().value("row", [f64::NAN; 2]), [20.0, 60.0]);
+    let expected = [20.0, 60.0];
+    assert_eq!(*fixture.data().value("row", [f64::NAN; 2]), expected);
 }

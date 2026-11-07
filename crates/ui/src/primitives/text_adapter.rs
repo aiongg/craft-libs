@@ -5,7 +5,7 @@ mod completion;
 
 use crate::primitives::{TextLayout, TextOptions};
 use crate::runtime::access::text::{Line, Run};
-use crate::runtime::egui::{clipboard, focus as egui_focus, text_edit};
+use crate::runtime::egui::{clipboard, focus as egui_focus, input as egui_input, text_edit};
 use crate::runtime::focus::{KeepKeys, KeyUse};
 use crate::runtime::keys::{self, Intents};
 use crate::runtime::{commands, ime};
@@ -240,27 +240,6 @@ pub(crate) fn select(ctx: &Context, id: Id, anchor: usize, caret: usize) {
     text_edit::select(ctx, id, anchor, caret);
 }
 
-/// Removes the first commit-on character typed this pass from the input events, keeping the text typed before it in
-/// the same event; returns whether there was one. Pasted text arrives as a paste event and is left alone.
-fn take_separator(ctx: &Context, commit_on: &[char]) -> bool {
-    if commit_on.is_empty() {
-        return false;
-    }
-    ctx.input_mut(|input| {
-        let Some(at) = input.events.iter().position(|event| matches!(event, egui::Event::Text(text) if text.contains(commit_on))) else {
-            return false;
-        };
-        if let egui::Event::Text(text) = &mut input.events[at] {
-            let end = text.find(commit_on).unwrap_or(text.len());
-            text.truncate(end);
-            if text.is_empty() {
-                input.events.remove(at);
-            }
-        }
-        true
-    })
-}
-
 /// Runs the text widget for one pass.
 pub(crate) fn run(state: &mut TextState, mut input: AdapterIn<'_>) -> AdapterOut {
     let (ctx, widget) = (input.ctx, text_id(input.id, input.key));
@@ -283,7 +262,7 @@ pub(crate) fn run(state: &mut TextState, mut input: AdapterIn<'_>) -> AdapterOut
         display.insert_str(at, &p.text);
         at..at + p.text.len()
     });
-    let separated = input.focused && !input.read_only && state.preedit.is_none() && take_separator(ctx, input.options.commit_on);
+    let separated = input.focused && !input.read_only && state.preedit.is_none() && egui_input::take_separator(ctx, input.options.commit_on);
     let filter = egui_focus::event_filter(input.keys.keep, false);
     let edit = text_edit::Edit {
         id: widget,
@@ -303,17 +282,7 @@ pub(crate) fn run(state: &mut TextState, mut input: AdapterIn<'_>) -> AdapterOut
         caret_visible: input.caret_visible,
         underline: input.underline,
     };
-    let shown = if input.enabled {
-        text_edit::show(input.ui, edit)
-    } else {
-        input
-            .ui
-            .scope(|ui| {
-                ui.disable();
-                text_edit::show(ui, edit)
-            })
-            .inner
-    };
+    let shown = text_edit::show(input.ui, edit);
     // egui's own IME output is dropped: the engine writes the pass's.
     if let Some(caret) = shown.caret.filter(|_| shown.focused) {
         ime::note_caret(ctx, widget, input.rect, caret, input.options.mask);

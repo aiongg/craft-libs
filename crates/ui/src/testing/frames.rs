@@ -246,3 +246,8 @@ pub fn announce_text(ctx: &Context, text: &str) {
 pub fn show_area<R>(ctx: &Context, name: &'static str, body: impl FnOnce(&mut Ui) -> R) -> R {
     areas::show_area(ctx, name, body)
 }
+
+/// The width of the widest layer above the background, 0 when there is none.
+pub fn widest_layer(ctx: &Context) -> f32 {
+    areas::widest_layer(ctx)
+}
