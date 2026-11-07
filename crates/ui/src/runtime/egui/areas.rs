@@ -278,7 +278,7 @@ pub(crate) fn paint_cursor(ctx: &Context, at: Pos2, cursor: &craft_behavior::Pai
                 pointer::Mark::Line(Vec2::new(0.0, -ink.arm), Vec2::new(0.0, ink.arm)),
             ],
         ),
-        PaintedCursor::Outline { rings } => {
+        PaintedCursor::Outline { rings, .. } => {
             for ring in rings.iter().filter(|ring| ring.len() >= 2) {
                 let points: Vec<Pos2> = ring.iter().map(|p| at + p.to_vec2()).collect();
                 painter.add(egui::Shape::closed_line(points.clone(), egui::Stroke::new(thin + 2.0 * thin, pen.halo)));
@@ -286,8 +286,8 @@ pub(crate) fn paint_cursor(ctx: &Context, at: Pos2, cursor: &craft_behavior::Pai
             }
         }
         PaintedCursor::Hand => pointer::hand(&pen),
-        PaintedCursor::Zoom { out } => pointer::zoom(&pen, *out),
-        PaintedCursor::Tool { icon, hotspot, badge } => {
+        PaintedCursor::Zoom { out, .. } => pointer::zoom(&pen, *out),
+        PaintedCursor::Tool { icon, hotspot, badge, .. } => {
             let side = env.tokens.size.icon.md;
             let rect = Rect::from_min_size(at - *hotspot * (side / pointer::ICON_UNITS), Vec2::splat(side));
             let record = std::cell::RefCell::new(crate::primitives::PaintRecord::default());
@@ -308,9 +308,9 @@ pub(crate) fn paint_cursor(ctx: &Context, at: Pos2, cursor: &craft_behavior::Pai
             }
         }
         PaintedCursor::Badged { badge, .. } => pointer::badge(&pen, pointer::BADGE_OFFSET, *badge),
-        PaintedCursor::Turn { toward } => pointer::turn(&pen, *toward),
-        PaintedCursor::Distort { dir } => pointer::distort(&pen, *dir),
-        PaintedCursor::Skew { dir } => pointer::skew(&pen, *dir),
+        PaintedCursor::Turn { toward, .. } => pointer::turn(&pen, *toward),
+        PaintedCursor::Distort { dir, .. } => pointer::distort(&pen, *dir),
+        PaintedCursor::Skew { dir, .. } => pointer::skew(&pen, *dir),
         // `Hidden` paints nothing, and so does a kind this host does not know.
         _ => {}
     }
