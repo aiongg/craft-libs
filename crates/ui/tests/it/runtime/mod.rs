@@ -1,4 +1,5 @@
 mod bypass;
+mod chrome_toggle;
 mod cursor;
 mod env;
 mod frame;

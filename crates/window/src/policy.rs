@@ -197,8 +197,8 @@ fn integrated_frame(
                 // desktops that draw their own frame. `false` gives `Native` there.
                 _ if !no_ssd && !integrated_on_ssd && !forced => Frame::Native,
                 DesktopKind::Kde => captions(CaptionFamily::Breeze),
-                DesktopKind::Other if no_ssd => captions(CaptionFamily::Generic),
-                DesktopKind::Other => captions(layout::family(DesktopKind::Other, desktop.gtk_theme.as_deref())),
+                _ if no_ssd => captions(CaptionFamily::Generic),
+                _ => captions(layout::family(DesktopKind::Other, desktop.gtk_theme.as_deref())),
             }
         }
     }

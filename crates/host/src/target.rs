@@ -73,6 +73,15 @@ pub enum Backend {
     X11,
 }
 
+impl Backend {
+    /// The backend winit opens by default: Wayland when `WAYLAND_DISPLAY` or `WAYLAND_SOCKET` is set, else X11. An app
+    /// that forces X11 (XWayland) passes [`Backend::X11`] instead.
+    pub fn from_env() -> Backend {
+        let set = |k| std::env::var_os(k).is_some_and(|v| !v.is_empty());
+        if set("WAYLAND_DISPLAY") || set("WAYLAND_SOCKET") { Backend::Wayland } else { Backend::X11 }
+    }
+}
+
 /// The kind of desktop, as far as window chrome cares.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]

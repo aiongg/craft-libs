@@ -55,6 +55,17 @@ impl FrameInput {
     }
 }
 
+/// Which panels a window's chrome toggle hides (spec 1.8): the `window.toggle_panels` and
+/// `window.toggle_panels_keep_tools` commands.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ChromeToggle {
+    /// Every panel of the window.
+    Panels,
+    /// Every panel of the window except the tools.
+    PanelsKeepTools,
+}
+
 /// What the runtime accumulated since the last `take_output`, across passes and discarded passes.
 #[derive(Clone, Debug, Default, PartialEq)]
 #[non_exhaustive]
@@ -63,8 +74,9 @@ pub struct FrameOutput {
     pub fired: Vec<Fired>,
     /// Text for the live announcement region.
     pub announcements: Vec<String>,
-    /// Whether the chrome-toggle key was pressed.
-    pub toggle_chrome: bool,
+    /// The chrome toggles the windows asked for since the last call, in order: each names its window and whether the
+    /// tools stay.
+    pub chrome_toggles: Vec<(ViewportId, ChromeToggle)>,
     /// The gestures whose component was evicted while they ran. Every `GestureHost` reads the list with
     /// `handle_output` and ends the gestures it owns as a cancel with `CancelReason::Removed`.
     pub removed_gestures: Vec<GestureId>,
@@ -271,9 +283,9 @@ pub fn request_repaint_after(ctx: &Context, seconds: f64) {
     crate::runtime::egui::repaint::request_after(ctx, crate::runtime::egui::pass::current_viewport(ctx), seconds);
 }
 
-/// Marks the chrome toggle in the next `FrameOutput`.
-pub(crate) fn request_chrome_toggle(ctx: &Context) {
-    store::with::<FrameState, _>(ctx, |state| state.output.toggle_chrome = true);
+/// Adds a chrome toggle of `viewport`'s window to the next `FrameOutput`.
+pub(crate) fn request_chrome_toggle(ctx: &Context, viewport: ViewportId, toggle: ChromeToggle) {
+    store::with::<FrameState, _>(ctx, |state| state.output.chrome_toggles.push((viewport, toggle)));
 }
 
 /// The held input, the runtime's request to end the viewport's egui drag and the clock of its running pass.
