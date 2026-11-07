@@ -17,7 +17,7 @@ const KEPT: f64 = 1.0;
 /// A position maps to the run that holds its byte and the character index in it.
 #[trial]
 fn a_position_maps_to_the_run_that_holds_its_byte_and_the_character_index_in_it() {
-    let owner = egui::Id::unique("owner");
+    let owner = craft_ui::testing::focus::named_id("owner");
     let runs = [(0, 0..3, "abc"), (0, 3..7, "d\u{e9}f"), (1, 0..2, "xy")];
     let at = |line, byte| run_end(owner, &runs, craft_behavior::TextPos::new(line, byte));
     assert_eq!(at(0, 1), Some((run_node(owner, 0, 0), 1)));
