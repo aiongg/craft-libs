@@ -8,7 +8,7 @@ use craft_ui::contract::{Common, Component, Cx, MeasureCx, PartsCx, Props as _, 
 use craft_ui::runtime::windows::{ResizeEdge, WindowHit, WindowHost};
 use craft_ui::shell::Caption;
 use craft_ui::testing::trial;
-use egui::{Pos2, Rect, Response, Vec2, ViewportId, pos2, vec2};
+use egui::{Rect, Response, Vec2, ViewportId, pos2, vec2};
 
 const MOVE: PartKey = PartKey::new("move");
 const CLOSE: PartKey = PartKey::new("close");
@@ -73,11 +73,10 @@ fn exclusive_parts_are_the_caption_record() {
     assert_eq!(regions.edges.iter().map(|(edge, _)| *edge).collect::<Vec<_>>(), [ResizeEdge::Top]);
     let rects = regions.buttons.iter().map(|(_, rect)| rect).chain(regions.edges.iter().map(|(_, rect)| rect)).chain(&regions.moves);
     assert!(rects.clone().count() == 3 && rects.into_iter().all(|rect| bar.contains_rect(*rect)), "the parts lie in the bar: {regions:?}");
-    let at = |x: f32, y: f32| Pos2::new(bar.min.x + x, bar.min.y + y);
     assert_eq!(regions.hit(close_of(bar).center()), Some(WindowHit::Caption(Caption::Close)), "a button wins over the drag area");
-    assert_eq!(regions.hit(at(10.0, 1.0)), Some(WindowHit::Resize(ResizeEdge::Top)), "an edge wins over the drag area");
-    assert_eq!(regions.hit(at(10.0, 16.0)), Some(WindowHit::Move));
-    assert_eq!(regions.hit(at(10.0, 100.0)), None);
+    assert_eq!(regions.hit(top_of(bar).center()), Some(WindowHit::Resize(ResizeEdge::Top)), "an edge wins over the drag area");
+    assert_eq!(regions.hit(bar.center()), Some(WindowHit::Move));
+    assert_eq!(regions.hit(bar.max + bar.size()), None);
     assert_eq!(host.caption_regions(other), None, "another window has its own record");
     for _ in 0..3 {
         windows.frame(vec![], vec![], |_| {});
