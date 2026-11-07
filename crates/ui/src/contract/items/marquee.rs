@@ -127,6 +127,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         let swept = marquee.select.rect().translate(-Vec2::new(offset.x as f32, offset.y as f32));
         let shown = self.to_screen(layout, rect, swept, rtl);
         let corners = [shown.left_top(), shown.right_top(), shown.right_bottom(), shown.left_bottom()].map(|corner| self.on_screen(corner));
-        ui.painter().with_clip_rect(rect.intersect(ui.clip_rect())).extend(crate::primitives::marching_ants(&env.tokens, &corners, true, 0.0));
+        let painter = ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
+        painter.extend(crate::primitives::marching_ants(&env.tokens, &corners, true, 0.0, painter.clip_rect(), painter.pixels_per_point()));
     }
 }

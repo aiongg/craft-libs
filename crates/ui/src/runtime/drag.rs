@@ -12,7 +12,7 @@ use crate::runtime::{cursor, frame, pointer};
 use craft_behavior::keys::drop_operation;
 use craft_behavior::{Buttons, CancelReason, Cursor, CursorIcon, CursorPriority, DropOperation, PointerButton, PressCancel};
 use craft_keymap::Mods;
-use egui::{Context, Id, Pos2, Rect, ViewportId};
+use egui::{Context, Id, Pos2, Rect, Vec2, ViewportId};
 use std::any::{Any, TypeId};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -26,6 +26,22 @@ pub enum DragPreview {
     None,
     /// A badge with a short text ("3 files").
     Badge(Label),
+    /// A frame-sized outline centred on the pointer, with an optional label inside its top corner: the ghost of a
+    /// panel or window being moved.
+    #[non_exhaustive]
+    Frame {
+        /// The size of the frame, in points.
+        size: Vec2,
+        /// A name shown inside the frame.
+        label: Option<Label>,
+    },
+}
+
+impl DragPreview {
+    /// A frame of `size` with an optional `label`.
+    pub fn frame(size: Vec2, label: Option<Label>) -> Self {
+        DragPreview::Frame { size, label }
+    }
 }
 
 /// Where a drop would land, as geometry in the target's egui layer space.

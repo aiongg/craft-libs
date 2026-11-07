@@ -1,13 +1,13 @@
 //! The ghost layer's content (8.4, 8.5): the running drag's preview badge beside the pointer and the mark of the drop
 //! target that would take the payload. Both come from the drag session's data; the layer takes no input.
 
-use crate::primitives::{Draw, DrawEnv, PaintRecord, RuleKind, TextRun};
+use crate::primitives::{Draw, DrawEnv, PaintRecord, PaintShape, RuleKind, TextRun, outline};
 use crate::runtime::drag::{self, DragPreview, DropMark};
 use crate::runtime::egui::areas;
 use crate::runtime::env::Env;
 use crate::runtime::pointer;
 use crate::style::{Corners, Ink, SurfaceKind};
-use egui::{Context, Pos2, Rect, Vec2};
+use egui::{Context, CornerRadius, Pos2, Rect, Vec2};
 use std::cell::RefCell;
 
 /// The end hook's painter of the ghost layer: pass it to `InstallSpec::frame_layers`.
@@ -20,9 +20,23 @@ pub fn paint(ctx: &Context) {
     if let Some(mark) = session.mark {
         paint_mark(&draw, mark);
     }
-    if let (DragPreview::Badge(label), Some(at)) = (&session.preview, pointer::frame(ctx).pos) {
-        let label = env.view().resolve(label);
-        paint_badge(&draw, &env, at, label.as_str());
+    let Some(at) = pointer::frame(ctx).pos else { return };
+    match &session.preview {
+        DragPreview::Badge(label) => {
+            let label = env.view().resolve(label);
+            paint_badge(&draw, &env, at, label.as_str());
+        }
+        DragPreview::Frame { size, label } => {
+            let frame = Rect::from_center_size(at, *size);
+            painter.extend(outline(&env.tokens, &PaintShape::Rect(frame, CornerRadius::ZERO)));
+            if let Some(label) = label {
+                let label = env.view().resolve(label);
+                let run = TextRun::new(label.as_str());
+                let layout = draw.layout(&run, frame.width());
+                draw.galley(frame.min + Vec2::splat(env.tokens.space.pad.control), &layout);
+            }
+        }
+        _ => {}
     }
 }
 

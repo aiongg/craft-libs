@@ -232,11 +232,14 @@ Cursor requests as plain data and the rule that picks the winner (8.5).
 - `craft_behavior::cursor::IconId`: `pub struct IconId`. An icon's egui-free key (5.2), so plain data such as [`PaintedCursor::Tool`] names icons without egui.
   - `pub const fn new(name: &'static str) -> Self`. The icon named `name`.
   - `pub fn name(&self) -> &str`. The name.
-- `craft_behavior::cursor::PaintedCursor`: `pub enum PaintedCursor { Crosshair, Circle { radius: f32 }, Outline { rings: Vec<Vec<Pos2>> }, Hand, Zoom { out: bool }, Tool { icon: IconId, hotspot: Vec2, badge: Option<CursorBadge> }, Badged { base: CursorIcon, badge: CursorBadge }, Hidden }`. A cursor the overlay host paints. Geometry is in screen points around the pointer (a tool scales its brush
+- `craft_behavior::cursor::PaintedCursor`: `pub enum PaintedCursor { Crosshair, Circle { radius: f32 }, Outline { rings: Vec<Vec<Pos2>> }, Hand, Zoom { out: bool }, Tool { icon: IconId, hotspot: Vec2, badge: Option<CursorBadge> }, Badged { base: CursorIcon, badge: CursorBadge }, Turn { toward: Vec2 }, Distort { dir: Vec2 }, Skew { dir: Vec2 }, Hidden }`. A cursor the overlay host paints. Geometry is in screen points around the pointer (a tool scales its brush
   - `pub const fn circle(radius: f32) -> Self`. A circle of `radius` points.
   - `pub fn outline(rings: Vec<Vec<Pos2>>) -> Self`. App shapes as closed rings.
   - `pub const fn zoom(out: bool) -> Self`. A magnifier, zooming out when `out`.
   - `pub const fn tool(icon: IconId, hotspot: Vec2, badge: Option<CursorBadge>) -> Self`. A tool's icon with its hotspot and an optional badge.
+  - `pub const fn turn(toward: Vec2) -> Self`. The rotate pointer bent toward screen direction `toward`.
+  - `pub const fn distort(dir: Vec2) -> Self`. The free-distort pointer along screen direction `dir`.
+  - `pub const fn skew(dir: Vec2) -> Self`. The skew pointer along screen direction `dir`.
   - `pub const fn badged(base: CursorIcon, badge: CursorBadge) -> Self`. A system cursor with a mark.
 - `craft_behavior::cursor::pick`: `pub fn pick(requests: &[(Cursor, CursorPriority)]) -> Option<&Cursor>`. The winning request: the highest priority, the later request on a tie.
 
@@ -1623,12 +1626,13 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
 - `craft_ui::primitives::Wrap`: `pub enum Wrap { Line, Wrap, Elide, ElidePath }`. How a run fits its room.
 - `craft_ui::primitives::checker`: `pub fn checker(tokens: &UiTokens, rect: Rect, clip: Rect) -> Vec<Shape>`. The transparency checkerboard over `rect`, drawn where `clip` shows it: the light colour fills it and the dark
 - `craft_ui::primitives::ContentPainterCx::picture`: `pub fn picture(&self, texture: TextureId, rect: Rect, uv: Rect)`. Paints the part `uv` of `texture` into `rect`, untinted.
+- `craft_ui::primitives::dashed`: `pub fn dashed(points: &[Pos2], width: f32, dash: f32, gap: f32, phase: f32, color: Color32) -> Vec<Shape>`. A dashed line along `points`: dashes `dash` long with gaps `gap` long, in `color`, the pattern shifted by `phase`
 - `craft_ui::primitives::drop_mark`: `pub fn drop_mark(tokens: &UiTokens, from: Pos2, to: Pos2, pixels_per_point: f32) -> Vec<Shape>`. The insertion mark of a drop from `from` to `to`.
 - `craft_ui::primitives::ellipse`: `pub fn ellipse(center: Pos2, axes: [Vec2; 2]) -> Vec<Pos2>`. The points of the ellipse with centre `center` and conjugate half-axes `axes` (a rotated or skewed circle is
 - `craft_ui::primitives::grid_lines`: `pub fn grid_lines(tokens: &UiTokens, rect: Rect, spacing: Vec2, clip: Rect, pixels_per_point: f32) -> Vec<Shape>`. The grid lines over `rect` that `clip` shows, every `spacing` points from the rect's top-left corner, as grid
 - `craft_ui::primitives::has_icon`: `pub fn has_icon(id: &IconId) -> bool`. Whether the catalog has an icon named `id`.
 - `craft_ui::primitives::icon_names`: `pub fn icon_names() -> &'static [&'static str]`. The names of the catalog's icons, sorted.
-- `craft_ui::primitives::marching_ants`: `pub fn marching_ants(tokens: &UiTokens, points: &[Pos2], closed: bool, phase: f32) -> Vec<Shape>`. Marching ants along `points` (closed when `closed`): dashes of the marquee colour with the gaps filled in the
+- `craft_ui::primitives::marching_ants`: `pub fn marching_ants(tokens: &UiTokens, points: &[Pos2], closed: bool, phase: f32, clip: Rect, pixels_per_point: f32) -> Vec<Shape>`. Marching ants along `points` (closed when `closed`) inside `clip`: bands of the marquee colour with dark dashes in
 - `craft_ui::primitives::outline`: `pub fn outline(tokens: &UiTokens, shape: &PaintShape) -> Vec<Shape>`. The line that marks a shape on any image: a `thick` halo under a `medium` line, in the overlay colours.
 - `craft_ui::primitives::ticks`: `pub fn ticks(tokens: &UiTokens, rect: Rect, edge: TickEdge, ticks: &[Tick], clip: Rect, pixels_per_point: f32) -> Vec<Shape>`. The tick marks of `ticks` on one edge of `rect` that `clip` shows: minor ones `gap.tight` long, major ones
 
@@ -1779,7 +1783,8 @@ The cursor service (8.5): requests of a pass collect here, the end hook picks th
 
 The drag session (8.4): one per context. It holds the payload, the preview, the held modifiers, the operation and the
 
-- `craft_ui::runtime::drag::DragPreview`: `pub enum DragPreview { None, Badge(Label) }`. What the ghost layer paints beside the pointer during a drag.
+- `craft_ui::runtime::drag::DragPreview`: `pub enum DragPreview { None, Badge(Label), Frame { size: Vec2, label: Option<Label> } }`. What the ghost layer paints beside the pointer during a drag.
+  - `pub fn frame(size: Vec2, label: Option<Label>) -> Self`. A frame of `size` with an optional `label`.
 - `craft_ui::runtime::drag::DropMark`: `pub enum DropMark { Line { from: Pos2, to: Pos2 }, Into(Rect), Split(Rect) }`. Where a drop would land, as geometry in the target's egui layer space.
   - `pub const fn line(from: Pos2, to: Pos2) -> Self`. An insertion line from `from` to `to`.
 - `craft_ui::runtime::drag::DropTarget`: `pub trait DropTarget<P>`. What a component registers with `Pointer::drop_target`.
@@ -2003,6 +2008,7 @@ The frame plugin: the per-pass and per-frame steps, with the inputs the app sets
   - `pub fn host(mut self, host: Arc<Host>) -> Self`. Sets the host.
   - `pub const fn inspect(mut self, on: bool) -> Self`. Turns decision records on or off.
 - `craft_ui::runtime::frame::FrameOutput`: `pub struct FrameOutput { pub fired: Vec<Fired>, pub announcements: Vec<String>, pub toggle_chrome: bool, pub removed_gestures: Vec<GestureId> }`. What the runtime accumulated since the last `take_output`, across passes and discarded passes.
+- `craft_ui::runtime::frame::request_repaint_after`: `pub fn request_repaint_after(ctx: &Context, seconds: f64)`. Asks for one more pass of the viewport the running pass belongs to after `seconds` (a playback clock, a poll);
 - `craft_ui::runtime::frame::set_input`: `pub fn set_input(ctx: &Context, input: FrameInput)`. Before the pass: from eframe's `App::raw_input_hook`, or before `run_ui` in tests. A call during a pass,
 - `craft_ui::runtime::frame::take_output`: `pub fn take_output(ctx: &Context) -> FrameOutput`. Everything accumulated since the last call, across passes and discarded passes.
 

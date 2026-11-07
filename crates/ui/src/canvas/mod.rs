@@ -5,12 +5,14 @@
 //! the canvas's background part.
 
 mod crop;
+mod readout;
 #[cfg(feature = "testing")]
 mod stories;
 mod words;
 
 pub use crop::{CropOverlay, CropStyle};
 pub use words::CanvasWords;
+pub use readout::readout;
 
 use crate::contract::{Common, Component, Container, ContainerProps, Cx, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role, Sizing};
 use crate::runtime::env::Label;

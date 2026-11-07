@@ -16,6 +16,8 @@ use craft_ui::testing::{Frames, trial};
 use egui::{Key, Modifiers, Pos2, Rect, Response, Shape, Ui, Vec2, ViewportBuilder, ViewportId, ViewportInfo};
 use std::cell::{Cell, RefCell};
 
+mod frame;
+
 const GRIP: PartKey = PartKey::new("grip");
 const CHIP: Rect = Rect { min: Pos2::new(10.0, 10.0), max: Pos2::new(60.0, 40.0) };
 const SLOT: Rect = Rect { min: Pos2::new(200.0, 10.0), max: Pos2::new(300.0, 60.0) };
@@ -45,6 +47,7 @@ struct Chip<'a> {
     #[common]
     common: Common,
     seen: &'a RefCell<Seen>,
+    preview: DragPreview,
 }
 
 impl Component for Chip<'_> {
@@ -66,7 +69,7 @@ impl Component for Chip<'_> {
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         if matches!(cx.part(GRIP).press.phase, PressPhase::DragStart { .. }) {
-            cx.start_drag(Payload(7), DragPreview::Badge(Label::Static(BADGE)));
+            cx.start_drag(Payload(7), self.preview.clone());
         }
         if let Some(op) = cx.drag_ended::<Payload>() {
             self.seen.borrow_mut().ended.push(op);
@@ -125,8 +128,13 @@ impl Component for Slot<'_> {
 }
 
 fn scene(seen: &RefCell<Seen>) -> impl FnMut(&mut Ui) + '_ {
+    scene_previewing(seen, DragPreview::Badge(Label::Static(BADGE)))
+}
+
+/// The scene whose chip drags with `preview`.
+fn scene_previewing(seen: &RefCell<Seen>, preview: DragPreview) -> impl FnMut(&mut Ui) + '_ {
     move |ui: &mut Ui| {
-        Chip { common: Common::new(), seen }.id_salt("chip").show_at(ui, CHIP);
+        Chip { common: Common::new(), seen, preview: preview.clone() }.id_salt("chip").show_at(ui, CHIP);
         Slot { common: Common::new(), seen }.id_salt("slot").show_at(ui, SLOT);
     }
 }
@@ -291,7 +299,7 @@ fn a_drag_crosses_windows_and_the_target_in_the_other_window_takes_the_drop() {
     windows.child_info(at(Pos2::new(100.0, 100.0), Vec2::new(400.0, 300.0)));
     let frame = |events: Vec<egui::Event>| {
         windows.frame(events, vec![], |ui| {
-            Chip { common: Common::new(), seen: &seen }.id_salt("chip").show_at(ui, CHIP);
+            Chip { common: Common::new(), seen: &seen, preview: DragPreview::Badge(Label::Static(BADGE)) }.id_salt("chip").show_at(ui, CHIP);
             ui.ctx().show_viewport_immediate(other, ViewportBuilder::default(), |other_ui, _| {
                 Slot { common: Common::new(), seen: &seen }.id_salt("slot").show_at(other_ui, SLOT);
             });

@@ -265,6 +265,12 @@ pub(crate) fn request_repaint(ctx: &Context) {
     raw_input::request_repaint_of(ctx, pass::current_viewport(ctx));
 }
 
+/// Asks for one more pass of the viewport the running pass belongs to after `seconds` (a playback clock, a poll);
+/// the earliest request of a frame wins. A component asks through `Animate::wake_at`, which also needs no context.
+pub fn request_repaint_after(ctx: &Context, seconds: f64) {
+    crate::runtime::egui::repaint::request_after(ctx, crate::runtime::egui::pass::current_viewport(ctx), seconds);
+}
+
 /// Marks the chrome toggle in the next `FrameOutput`.
 #[expect(dead_code, reason = "used by the pipeline (F3)")]
 pub(crate) fn request_chrome_toggle(ctx: &Context) {
