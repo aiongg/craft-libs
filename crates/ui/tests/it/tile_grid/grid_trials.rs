@@ -313,7 +313,7 @@ fn a_click_on_a_group_header_focuses_the_grid_with_the_header_as_lead() {
         .borrow()
         .grid
         .iter()
-        .filter_map(|event| if let GridEvent::GroupOpen { group, open } = event { Some((*group, *open)) } else { None })
+        .filter_map(|event| if let GridEvent::GroupOpen { group, open, .. } = event { Some((*group, *open)) } else { None })
         .collect();
     assert_eq!(closed, [(1, false)], "Left on the lead header closes its group");
 }
