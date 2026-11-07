@@ -161,7 +161,7 @@ pub struct Guides<'a> {
     common: Common,
     guides: Bind<'a, Vec<Guide>>,
     /// The selected guide.
-    #[prop]
+    #[prop(name = "selected_guide")]
     selected: Option<GuideKey>,
     /// Whether the pointer and the keyboard take guides (the Move tool, or the selection tools). Off, the guides only
     /// draw.

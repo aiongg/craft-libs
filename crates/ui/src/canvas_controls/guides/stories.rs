@@ -45,7 +45,7 @@ fn drag_first(fixture: &mut Fixture) {
 #[story(Guides<'static>, covers = [Default], drive = Drive::Custom(drag_first))]
 fn guides_over_a_canvas(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let guides = data.value("guides", guides());
-    on_canvas(ui, Guides::new("Guides", Bind::bound(&mut *guides)).interactive(true).selected(GuideKey::new(2)))
+    on_canvas(ui, Guides::new("Guides", Bind::bound(&mut *guides)).interactive(true).selected_guide(GuideKey::new(2)))
 }
 
 #[story(Guides<'static>, covers = [Mixed], drive = Drive::Custom(drag_first))]

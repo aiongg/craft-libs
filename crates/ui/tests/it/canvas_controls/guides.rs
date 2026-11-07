@@ -70,7 +70,7 @@ fn harness(guides: Vec<Guide>) -> Harness {
             let mut held = shown_guides.borrow_mut();
             let mut control = Guides::new("Guides", Bind::bound(&mut *held)).interactive(true).pending(shown_pending.get());
             if let Some(selected) = shown_selected.get() {
-                control = control.selected(selected);
+                control = control.selected_guide(selected);
             }
             if let Some(bounds) = shown_bounds.get() {
                 control = control.bounds(bounds);
