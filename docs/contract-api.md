@@ -21,6 +21,7 @@ Pure UI behaviours (layer 1): press lifecycle, `ValueDrag`, navigation, item lay
 - `craft_behavior::CancelRule`: re-export of `craft_behavior::focus::CancelRule`.
 - `craft_behavior::CanvasTransform`: re-export of `craft_behavior::canvas::CanvasTransform`.
 - `craft_behavior::Caret`: re-export of `craft_behavior::codec::Caret`.
+- `craft_behavior::CellAt`: re-export of `craft_behavior::selection::CellAt`.
 - `craft_behavior::CellRange`: re-export of `craft_behavior::selection::CellRange`.
 - `craft_behavior::CellSelection`: re-export of `craft_behavior::selection::CellSelection`.
 - `craft_behavior::Codec`: re-export of `craft_behavior::codec::Codec`.
@@ -701,13 +702,15 @@ Scroll positions and the range a scroll part shows.
 
 Selection models: what a collection's selection holds and how a change applies to it.
 
+- `craft_behavior::selection::CellAt`: `pub struct CellAt<K> { pub row: K, pub column: u32, pub column_key: ColumnKey }`. The cell a [`SelectionChange::ToggleCell`] flips.
+  - `pub fn new(row: K, column: u32, column_key: ColumnKey) -> Self`. The cell of `row` at column position `column`, whose column is `column_key`.
 - `craft_behavior::selection::CellRange`: `pub struct CellRange<K> { pub rows: Vec<K>, pub columns: Range<u32>, pub lead_column: ColumnKey }`. The cells a [`SelectionChange::Cells`] selects.
   - `pub fn new(rows: Vec<K>, columns: Range<u32>, lead_column: ColumnKey) -> Self`. The cells of `rows` in `columns`, with the lead cell in `lead_column`.
-- `craft_behavior::selection::CellSelection`: `pub struct CellSelection<K> { pub rows: Selection<K>, pub lead_column: Option<ColumnKey>, pub ranges: Vec<(K, K, Range<u32>)> }`. Cell selection of a sheet: row keys with a lead column and cell ranges. Changes report as selection changes.
+- `craft_behavior::selection::CellSelection`: `pub struct CellSelection<K> { pub rows: Selection<K>, pub lead_column: Option<ColumnKey>, pub ranges: Vec<(K, K, Range<u32>)>, pub toggled: Vec<(K, u32, bool)> }`. Cell selection of a sheet: row keys with a lead column, cell ranges and single cells toggled over them. Changes
   - `pub fn new(rows: Selection<K>, lead_column: Option<ColumnKey>, ranges: Vec<(K, K, Range<u32>)>) -> Self`. A selection of `rows`, the column of the lead cell and cell `ranges`.
 - `craft_behavior::selection::Selection`: `pub struct Selection<K> { pub items: Vec<K>, pub lead: Option<K>, pub anchor: Option<K> }`. A set of keys with a lead and an anchor.
   - `pub fn new(items: Vec<K>, lead: Option<K>, anchor: Option<K>) -> Self`. A selection of `items` with `lead` and `anchor`.
-- `craft_behavior::selection::SelectionChange`: `pub enum SelectionChange<K> { Set(Vec<K>), Toggle(K), Clear, Cells(CellRange<K>) }`. A change to a selection, as a collection reports it.
+- `craft_behavior::selection::SelectionChange`: `pub enum SelectionChange<K> { Set(Vec<K>), Toggle(K), Clear, Cells(CellRange<K>), ToggleCell(CellAt<K>) }`. A change to a selection, as a collection reports it.
 - `craft_behavior::selection::SelectionModel`: `pub trait SelectionModel<K>: Value + Default`. The selection a collection reads and the app owns.
   - `fn contains(&self, key: &K) -> bool`. Whether `key` is selected.
   - `fn lead(&self) -> Option<&K>`. The item keyboard navigation moves.
@@ -867,6 +870,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `fn can_drag(&self, _key: &Self::Key) -> bool`. Whether the item `key` may be dragged (reordered, moved in a free layout, or dragged to another collection).
   - `fn accept_from(&self, _from: Id) -> bool`. Whether a drag from the collection `from` may drop here.
   - `fn accepts(&self, _drag: &ListDrag<Self::Key>, _over: &Self::Key, _insert: usize) -> bool`. Whether the dragged items may land before `insert` (a position of the display order, `over` is the item the
+  - `fn takes_files(&self) -> bool`. Whether the collection takes files dragged in from the OS: a drop reports `CollectionEvent::FilesDropped` at the
   - `fn empty_height(&self, _width: f32, _cx: &StyleCx<'_>) -> f32`. The height of the empty state at `width`: a `Sizing::Content` collection with no rows is this tall.
   - `fn empty(&mut self, _ui: &mut Ui, _cx: &mut BodyCx<'_>)`. The empty state at the rect the item step placed.
 - `craft_ui::contract::Component`: `pub trait Component: Meta + Sized`. The core trait: every UI type is a `Component`.
@@ -968,8 +972,8 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub const fn new() -> Self`. A collapsible body that starts open, animated.
   - `pub const fn initially_open(mut self, on: bool) -> Self`. Whether the body starts open.
   - `pub const fn animated(mut self, on: bool) -> Self`. Whether opening and closing animate.
-- `craft_ui::contract::CollectionEvent`: `pub enum CollectionEvent<K, E> { Selection(SelectionChange<K>), LeadMoved(K), Activate(K), ContextMenu(ContextMenuRequest<K>), Open(OpenChange<K>), Reorder(EditEvent<ReorderMove<K>>), Move(EditEvent<Vec2>), Dropped { key: K, op: DropOperation, keys: Vec<K> }, Rename(EditEvent<Rename<K>>), Toggle(EditEvent<ToggleEdit<K>>), Column(ColumnEvent), HeaderMenu(HeaderMenuRequest), Item(K, E) }`. What a collection reports, in drawing order.
-- `craft_ui::contract::CollectionProps`: `pub struct CollectionProps { pub select: SelectMode, pub reorder: Option<ReorderRule>, pub rename: bool, pub columns: Vec<ColumnSpec>, pub empty: Option<Label>, pub activate: ActivateOn, pub striped: bool, pub allow_empty: bool, pub lead_on_open: LeadOnOpen, pub lead_follows_hover: bool }`. What a collection reads from the app: plain data.
+- `craft_ui::contract::CollectionEvent`: `pub enum CollectionEvent<K, E> { Selection(SelectionChange<K>), LeadMoved(K), Activate(K), ContextMenu(ContextMenuRequest<K>), Open(OpenChange<K>), Reorder(EditEvent<ReorderMove<K>>), Move(EditEvent<Vec2>), Dropped { key: K, op: DropOperation, keys: Vec<K> }, FilesDropped { insert: usize, files: Vec<OsFile> }, Rename(EditEvent<Rename<K>>), Toggle(EditEvent<ToggleEdit<K>>), Column(ColumnEvent), HeaderMenu(HeaderMenuRequest), Item(K, E) }`. What a collection reports, in drawing order.
+- `craft_ui::contract::CollectionProps`: `pub struct CollectionProps { pub select: SelectMode, pub reorder: Option<ReorderRule>, pub rename: bool, pub columns: Vec<ColumnSpec>, pub empty: Option<Label>, pub activate: ActivateOn, pub striped: bool, pub allow_empty: bool, pub lead_on_open: LeadOnOpen, pub lead_follows_hover: bool, pub focus_on_press: bool }`. What a collection reads from the app: plain data.
   - `pub const fn new() -> Self`. Collection props with every setting at its default.
   - `pub fn select(mut self, mode: SelectMode) -> Self`. What can be selected.
   - `pub fn reorder(mut self, rule: ReorderRule) -> Self`. Items reorder by `rule`.
@@ -980,6 +984,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub const fn allow_empty(mut self, on: bool) -> Self`. A press on the empty space below the rows empties the selection.
   - `pub const fn lead_on_open(mut self, at: LeadOnOpen) -> Self`. Where the lead starts.
   - `pub const fn lead_follows_hover(mut self, on: bool) -> Self`. The lead follows the pointer over the rows.
+  - `pub const fn focus_on_press(mut self, on: bool) -> Self`. A primary press moves key focus to the collection; off, it leaves focus where it is.
   - `pub fn empty(mut self, text: impl Into<Label>) -> Self`. The empty-state text.
 - `craft_ui::contract::CollectionResponse`: `pub struct CollectionResponse<K, E> { pub response: Response, pub events: Vec<CollectionEvent<K, E>>, pub visible: Range<usize>, pub select: SelectMode, pub rename: bool, pub reorder: bool }`. The output of a collection.
 - `craft_ui::contract::ColumnCommands`: `pub enum ColumnCommands { Resize, MoveLeft, MoveRight }`. The commands of a column header (17.1): resize and move work from the keyboard through them. The app lists
@@ -1475,11 +1480,11 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
 - `craft_ui::primitives::Tick`: `pub struct Tick { pub at: f32, pub major: bool }`. One tick: where it sits along its edge and whether it is a major one.
   - `pub const fn new(at: f32, major: bool) -> Self`. A tick at `at`.
 - `craft_ui::primitives::TickEdge`: `pub enum TickEdge { Bottom, Top, Left, Right }`. Which edge of a rect a tick row sits on, and so which way its marks point.
-- `craft_ui::primitives::ToolIcon`: `pub enum ToolIcon { Move, Artboard, RectangularMarquee, EllipticalMarquee, SingleRowMarquee, SingleColumnMarquee, Brush, Pencil, MixerBrush, ColorReplacement, Eraser, BackgroundEraser, MagicEraser, Eyedropper, ColorSampler, Ruler, Note, Count, Lasso, PolygonalLasso, MagneticLasso, MagicWand, Crop, PerspectiveCrop, Slice, SliceSelect, Frame, Gradient, PaintBucket, HorizontalType, VerticalType, HorizontalTypeMask, VerticalTypeMask, Hand, RotateView, Zoom, SpotHealing, Healing, Remove, Patch, ContentAwareMove, RedEye, CloneStamp, PatternStamp, HistoryBrush, ArtHistoryBrush, Blur, Sharpen, Smudge, Dodge, Burn, Sponge, QuickSelection, ObjectSelection, Pen, FreeformPen, CurvaturePen, AddAnchorPoint, DeleteAnchorPoint, ConvertPoint, PathSelection, DirectSelection, Rectangle, Ellipse, Triangle, Polygon, Line, CustomShape }`. A tool, for its icon: a raster editor's tool set, which other apps share variant for variant (a vector
+- `craft_ui::primitives::ToolIcon`: `pub enum ToolIcon { Custom(IconId), Move, Artboard, RectangularMarquee, EllipticalMarquee, SingleRowMarquee, SingleColumnMarquee, Brush, Pencil, MixerBrush, ColorReplacement, Eraser, BackgroundEraser, MagicEraser, Eyedropper, ColorSampler, Ruler, Note, Count, Lasso, PolygonalLasso, MagneticLasso, MagicWand, Crop, PerspectiveCrop, Slice, SliceSelect, Frame, Gradient, PaintBucket, HorizontalType, VerticalType, HorizontalTypeMask, VerticalTypeMask, Hand, RotateView, Zoom, SpotHealing, Healing, Remove, Patch, ContentAwareMove, RedEye, CloneStamp, PatternStamp, HistoryBrush, ArtHistoryBrush, Blur, Sharpen, Smudge, Dodge, Burn, Sponge, QuickSelection, ObjectSelection, Pen, FreeformPen, CurvaturePen, AddAnchorPoint, DeleteAnchorPoint, ConvertPoint, PathSelection, DirectSelection, Rectangle, Ellipse, Triangle, Polygon, Line, CustomShape }`. A tool, for its icon: a raster editor's tool set, which other apps share variant for variant (a vector
   - `pub const ALL: [ToolIcon; 68]`. Every tool, in this enum's order.
-  - `pub fn icon(self) -> IconId`. The icon that draws the tool.
-  - `pub fn id(self) -> &'static str`. The tool's id as the apps' tool commands spell it (`tool.rectangularMarquee` without the
-  - `pub fn from_id(id: &str) -> Option<ToolIcon>`. The tool for an id, `None` for an unknown one.
+  - `pub fn icon(&self) -> IconId`. The icon that draws the tool.
+  - `pub fn id(&self) -> &str`. The tool's id as the apps' tool commands spell it (`tool.rectangularMarquee` without the
+  - `pub fn from_id(id: &str) -> Option<ToolIcon>`. The built-in tool for an id, `None` for an unknown one and for a custom tool.
 - `craft_ui::primitives::Wrap`: `pub enum Wrap { Line, Wrap, Elide, ElidePath }`. How a run fits its room.
 - `craft_ui::primitives::checker`: `pub fn checker(tokens: &UiTokens, rect: Rect, clip: Rect) -> Vec<Shape>`. The transparency checkerboard over `rect`, drawn where `clip` shows it: the light colour fills it and the dark
 - `craft_ui::primitives::drop_mark`: `pub fn drop_mark(tokens: &UiTokens, from: Pos2, to: Pos2, pixels_per_point: f32) -> Vec<Shape>`. The insertion mark of a drop from `from` to `to`.
@@ -1578,6 +1583,7 @@ The command board: the registry and typed sets, per-frame state, the queue, firi
   - `fn from_ref(command: &CommandRef) -> Option<Self>`. The command of this set that `command` names.
   - `fn id(self) -> &'static str`.
   - `fn defs() -> Result<Vec<CommandDef>, CommandDefError>`.
+  - `fn no_default_on() -> Vec<(&'static str, Platform)>`. The commands that have no default binding on a platform, as `(id, platform)`.
 - `craft_ui::runtime::commands::CommandState`: `pub struct CommandState`. What the app or an instance says about a command this frame.
   - `pub fn new() -> Self`. An enabled, unchecked-less state with the command's own label.
   - `pub fn enabled(mut self, enabled: bool) -> Self`. Whether the command can fire.
@@ -1611,7 +1617,8 @@ The command board: the registry and typed sets, per-frame state, the queue, firi
   - `pub const fn edit(self) -> EditCommand`. The intent a component takes this command as.
   - `pub const fn of(command: EditCommand) -> Option<Self>`. The command an edit intent comes from.
 - `craft_ui::runtime::commands::ModalRule`: re-export of `craft_keymap::ModalRule` (outside these crates).
-- `craft_ui::runtime::commands::WindowCommand`: `pub enum WindowCommand { Move, Size }`. The `window` commands (16.3): a floating container moves and resizes from the keyboard.
+- `craft_ui::runtime::commands::Platform`: re-export of `craft_keymap::Platform` (outside these crates).
+- `craft_ui::runtime::commands::WindowCommand`: `pub enum WindowCommand { Move, Size }`. The `window` commands (16.3): a floating container moves and resizes from the keyboard. macOS binds no chord to
 
 ## `craft_ui::runtime::cursor`
 
@@ -1760,7 +1767,7 @@ Raw input in the input hook, key events converted to craft-keymap's key types, `
 The focus service: stops, scopes and roving groups registered per pass, the focused stop per arena root,
 
 - `craft_ui::runtime::focus::FocusShape`: `pub enum FocusShape { Rect, Circle }`. The shape the focus ring takes around a part.
-- `craft_ui::runtime::focus::request`: `pub fn request(ctx: &Context, target: FocusTarget)`. Moves focus to `target` at the next pass's begin hook, leaves modality unchanged and asks the enclosing
+- `craft_ui::runtime::focus::request`: `pub fn request(ctx: &Context, target: FocusTarget)`. Moves focus to `target`, leaves modality unchanged and asks the enclosing scroll owner to reveal it. Called
 - `craft_ui::runtime::focus::ActivateKeys`: `pub enum ActivateKeys { Neither, Enter, Space, Both }`. The keys that activate a component.
   - `pub const fn enter(self) -> bool`. Whether Enter activates.
   - `pub const fn space(self) -> bool`. Whether Space activates.
@@ -2329,6 +2336,7 @@ A fixed-rate frame driver over a context.
   - `pub fn frame_shapes(&mut self, mut ui: impl FnMut(&mut Ui)) -> Vec<egui::Shape>`. One frame with no events; returns the shapes it painted, nested shapes flattened.
   - `pub fn hold(&mut self, modifiers: egui::Modifiers)`. The modifiers held in every following frame.
   - `pub fn hover_files(&mut self, names: &[&str])`. Files named `names` are dragged over the window from the OS, in this frame and every following one until they
+  - `pub fn hover_typed_files(&mut self, files: &[(&str, &str)])`. Like `hover_files`, with the media type the OS reports for each file while it hovers.
   - `pub fn leave_files(&mut self)`. The hovering files leave the window without a drop.
   - `pub fn drop_files(&mut self, names: &[&str])`. The hovering files drop on the window in the next frame; `names` are what the OS reports as dropped.
   - `pub fn advance(&mut self, seconds: f64)`. Moves the clock on by `seconds` before the next frame.
@@ -2501,7 +2509,7 @@ Probe components for the sensing core: roots, members and parts described as dat
 
 Stories: named ways to show one registered type, and the data and output the runner reads from them.
 
-- `craft_ui::testing::story::CollectionKind`: `pub enum CollectionKind { Selection, LeadMoved, Activate, ContextMenu, Open, Reorder(EditKind), Move(EditKind), Dropped, Rename(EditKind), Toggle(EditKind), Column, HeaderMenu, Item }`. The kind of a collection event, with the edit kind of the events that carry one.
+- `craft_ui::testing::story::CollectionKind`: `pub enum CollectionKind { Selection, LeadMoved, Activate, ContextMenu, Open, Reorder(EditKind), Move(EditKind), Dropped, FilesDropped, Rename(EditKind), Toggle(EditKind), Column, HeaderMenu, Item }`. The kind of a collection event, with the edit kind of the events that carry one.
   - `pub fn of<K, E>(event: &CollectionEvent<K, E>) -> Option<CollectionKind>`. The kind of `event`, `None` for an edit event of a kind the runner does not know.
 - `craft_ui::testing::story::Drive`: `pub enum Drive { Auto, Activate, Step, Drag(PartKey), Type(&'static str), Pick { row: usize }, Custom(fn(&mut Fixture)), Never }`. How the runner changes the value a story shows.
 - `craft_ui::testing::story::EditKind`: `pub enum EditKind { Begin, Update, Commit, Cancel, Set }`. The kind of an edit event.
