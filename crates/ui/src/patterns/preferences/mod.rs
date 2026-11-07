@@ -21,3 +21,10 @@ pub use document::{CustomSettings, PageInfo, RuleKind, SettingRule, SettingsDocu
 pub use model::{Closed, ColorRequest, Columns, GroupSpec, PageSpec, PrefValue, PreferencesModel, PreferencesOutput, RowKind, RowSpec};
 pub use search::{Listed, list_pages, matches, row_matches, row_shown, shown_position};
 pub use words::{PreferencesWords, SettingsDocumentWords};
+
+// The window, its body and its rows.
+mod body;
+mod rows;
+mod window;
+
+pub use window::{PreferencesState, PreferencesWindow};

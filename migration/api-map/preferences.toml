@@ -11,7 +11,64 @@ new_module = "craft_ui::patterns::preferences"
 name = "PreferencesWindow"
 old = "craft_ui::preferences::window::PreferencesWindow"
 new = "craft_ui::patterns::preferences::PreferencesWindow"
-status = "pending"
+status = "moved"
+note = "A pattern on `Dialog` (modeless, in a viewport): `PreferencesWindow::new(Bind<PreferencesState>)` and `show(self, ui, host)`; the host keeps the `Bind`, the window opens at the title from `PreferencesWords` unless `title` is set."
+
+[[type]]
+name = "PreferencesBody"
+old = "craft_ui::preferences::body::PreferencesBody"
+new = ""
+status = "removed"
+note = "The body is the window's own; the window is the one code path for the OS window and the embedded dialog."
+
+[[type]]
+name = "PreferencesStyle"
+old = "craft_ui::preferences::body::PreferencesStyle"
+new = ""
+status = "removed"
+note = "Sizes come from the controls and the theme; no widths are set."
+
+[[type]]
+name = "PreferencesState"
+old = "craft_ui::preferences::state::PreferencesState"
+new = "craft_ui::patterns::preferences::PreferencesState"
+status = "moved"
+note = "`#[non_exhaustive]`, with `selected`, `search` and `error`; the host owns it and binds it to the window (`PreferencesBody::state` and `set_state` are replaced by the binding)."
+
+[[type]]
+name = "Remember"
+old = "craft_ui::preferences::window::Remember"
+new = ""
+status = "removed"
+note = "Replaced by `PreferencesWindow::remember(SaveKey)`; the dialog keeps its place and size."
+
+[[type]]
+name = "DEFAULT_SIZE"
+old = "craft_ui::preferences::window::DEFAULT_SIZE"
+new = ""
+status = "removed"
+note = "The window opens at the size of its content, capped by the dialog preset, and keeps the size the user leaves it at."
+
+[[type]]
+name = "MIN_SIZE"
+old = "craft_ui::preferences::window::MIN_SIZE"
+new = ""
+status = "removed"
+note = "The dialog preset sets the least size."
+
+[[type]]
+name = "HexField"
+old = ""
+new = "craft_ui::text::HexField"
+status = "replaced"
+note = "Replaces the preferences hex row and craft-color's `HexField`: `TextField<HexCodec>` over a `craft_theme::Rgba`, built with `HexField::hex(label, Bind<Rgba>)`."
+
+[[type]]
+name = "HexCodec"
+old = ""
+new = "craft_ui::text::HexCodec"
+status = "replaced"
+note = "The codec of `HexField`: `#rrggbb` with or without the hash, three-digit shorthand, either case, and `#rrggbbaa`."
 
 [[type]]
 name = "PrefValue"
@@ -167,6 +224,46 @@ status = "replaced"
 note = "Replaces `SettingsDocumentLabels`: `restart` is a `Label`, `invalid` a `WordTemplate` filled with `fill`."
 
 # One entry per renamed, removed or reshaped setter or constructor.
+
+[[setter]]
+type = "PreferencesWindow"
+old = "new(id_salt)"
+new = "new(Bind<PreferencesState>)"
+note = "The remembered page, search and error are the host's `PreferencesState`."
+
+[[setter]]
+type = "PreferencesWindow"
+old = "embedded(bool)"
+new = "embedded()"
+note = "A flag: the window draws as a dialog layer even where OS windows exist."
+
+[[setter]]
+type = "PreferencesWindow"
+old = "platform(Platform)"
+new = ""
+note = "Removed: the footer follows the scope's operating system."
+
+[[setter]]
+type = "PreferencesWindow"
+old = "remember(Remember)"
+new = "remember(SaveKey)"
+note = "The dialog saves its place and size under the key."
+
+[[setter]]
+type = "PreferencesWindow"
+old = "builder(Fn(ViewportBuilder) -> ViewportBuilder)"
+new = ""
+note = "Removed: the viewport mount builds the window; the frame decision belongs to the runtime's windows."
+
+[[call]]
+old = "PreferencesWindow::blocks_main(ctx)"
+new = ""
+note = "Removed: the window is modeless; an app that blocks its main window while preferences are open does so with its own state and `PreferencesModel::nested_open`."
+
+[[call]]
+old = "PreferencesWindow::refuse_close(ctx)"
+new = ""
+note = "Removed: a quit request is the app's to answer."
 
 [[setter]]
 type = "SettingRule"
