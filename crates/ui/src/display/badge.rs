@@ -12,6 +12,9 @@ use craft_theme::{
 use egui::{Response, Vec2};
 use std::borrow::Cow;
 
+#[cfg(feature = "testing")]
+mod stories;
+
 /// The largest count a count badge shows; more reads `99+`.
 pub const MAX_COUNT: u32 = 99;
 
@@ -75,16 +78,14 @@ impl Component for Badge {
     fn style(cx: &StyleCx<'_>, _: BadgeStyleKey) -> BadgeStyle {
         let parts = cx.variant_look();
         let control = cx.control();
-        let line = cx.tokens.typography.get(TypeRole::Caption).line_height;
-        let pad_y = cx.tokens.stroke.thin;
+        let pad_y = cx.tokens.space.pad.chip;
         let mut surface = SurfaceLook::new(parts.fill.clone()).radius(crate::style::UiTokens::corner(cx.tokens.shape.radius.pill));
         if let Some(edge) = &parts.edge {
             surface = surface.border(edge.clone(), cx.tokens.stroke.thin);
         }
         BadgeStyle {
             surface,
-            // At least as wide as tall, so a single digit is a circle.
-            metrics: Metrics::new().padding(Insets::new(control.pad_x, control.pad_x, pad_y, pad_y)).min_size(Vec2::splat(line + 2.0 * pad_y)),
+            metrics: Metrics::new().padding(Insets::new(control.pad_x, control.pad_x, pad_y, pad_y)),
             text: TextLook::new(TypeRole::Caption, parts.text),
         }
     }

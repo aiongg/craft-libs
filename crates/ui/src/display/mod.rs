@@ -9,8 +9,6 @@ mod icon;
 mod kbd;
 mod progress;
 mod spinner;
-#[cfg(feature = "testing")]
-mod stories;
 mod text;
 mod words;
 
@@ -21,6 +19,7 @@ pub use kbd::{Kbd, KbdStyle};
 pub use progress::{Progress, ProgressStyle};
 pub use spinner::{Spinner, SpinnerStyle};
 pub use text::{Elide, Shade, Text, TextStyle};
+pub use words::DisplayWords;
 
 use crate::contract::Common;
 use craft_behavior::Sense;

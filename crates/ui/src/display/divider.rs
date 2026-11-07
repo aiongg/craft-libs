@@ -6,6 +6,9 @@ use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{Metrics, Sense};
 use egui::{Response, Vec2};
 
+#[cfg(feature = "testing")]
+mod stories;
+
 /// The style of a divider.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
@@ -14,7 +17,8 @@ pub struct DividerStyle {
     metrics: Metrics,
     /// The line's width.
     width: f32,
-    /// The length of a vertical line, and of a horizontal one where no room is offered: one control height.
+    /// The least length of a vertical line, and the length of a horizontal one where no room is offered: one
+    /// control height.
     length: f32,
 }
 
@@ -26,7 +30,8 @@ enum Axis {
 }
 
 /// A separator line in the divider colour, snapped to the pixel grid. A horizontal line takes the width it is
-/// offered and a vertical one a control's height. Decoration: it is not in the AccessKit tree.
+/// offered and a vertical one the height of its row, at least a control's height. Decoration: it is not in the
+/// AccessKit tree.
 #[derive(crate::contract::Component)]
 pub struct Divider {
     #[common]
@@ -40,7 +45,7 @@ impl Divider {
         Divider { common: Common::new(), axis: Axis::Horizontal }
     }
 
-    /// A line down a control's height, for rows.
+    /// A line down the full height of its row.
     pub fn vertical() -> Self {
         Divider { common: Common::new(), axis: Axis::Vertical }
     }
@@ -61,7 +66,10 @@ impl Component for Divider {
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         match self.axis {
             Axis::Horizontal => Vec2::new(cx.room.unwrap_or(cx.style.length), cx.style.width),
-            Axis::Vertical => Vec2::new(cx.style.width, cx.style.length),
+            Axis::Vertical => {
+                let row = cx.ui.available_height();
+                Vec2::new(cx.style.width, if row.is_finite() { row.max(cx.style.length) } else { cx.style.length })
+            }
         }
     }
 
