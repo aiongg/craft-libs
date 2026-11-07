@@ -361,6 +361,13 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         }
         let ctx = ui.ctx();
         rows::measured_heights(ctx, |height| layout.measured(&|at| height(rows::measured_id(id, &self.source.key(at)))));
+        rows::measured_widths(ctx, |width| {
+            for at in (0..self.source.len()).filter(|&at| layout.is_auto_width(at)) {
+                if let Some((ideal, min)) = width(rows::measured_width_id(id, &self.source.key(at))) {
+                    layout.set_width(at, ideal, min);
+                }
+            }
+        });
         let content = layout.content_size();
         self.content = Vec2::new(content.x as f32, content.y as f32);
         self.layout = Some(Arc::new(layout));
@@ -599,6 +606,13 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                         Arc::make_mut(&mut layout).set_height(at, measured);
                         row = self.screen(&layout, rect, at, offset, rtl);
                     }
+                }
+                if layout.is_auto_width(at) {
+                    let ideal = item.measure_in(&row_ui, Proposal::Ideal).x;
+                    let min = item.measure_in(&row_ui, Proposal::Min).x;
+                    rows::record_measure(&ctx, rows::measured_width_id(id, &key), Vec2::new(ideal, min));
+                    Arc::make_mut(&mut layout).set_width(at, ideal, min);
+                    row = self.screen(&layout, rect, at, offset, rtl);
                 }
                 let out = match tip {
                     Some(tip) => item.show_at_with_tip(&mut row_ui, row, tip),

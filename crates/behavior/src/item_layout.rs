@@ -79,6 +79,17 @@ pub trait ItemLayout {
     /// An auto item measured `height` in this pass; the items after it move.
     fn set_height(&mut self, _at: usize, _height: f32) {}
 
+    /// Whether item `at` is as wide as it measures itself. A layout that asks for widths places the items from
+    /// their measured ideal and minimum widths (`set_width`), so every item must be built and measured: its
+    /// `visible` lists all items, and the collection does not virtualise it.
+    fn is_auto_width(&self, _at: usize) -> bool {
+        false
+    }
+
+    /// An auto-width item measured `ideal` and `min` width. The values of the previous pass arrive before
+    /// placement and the current pass's during it; the items after it move.
+    fn set_width(&mut self, _at: usize, _ideal: f32, _min: f32) {}
+
     /// The viewport and scroll offset the grid view describes. Layouts without a grid ignore it.
     fn set_view(&mut self, _viewport: Vec2, _offset: ScrollPos) {}
 }
