@@ -127,3 +127,13 @@ fn a_resting_pointer_leaves_the_active_row_to_the_arrow_keys() {
     rig.fixture.idle(2);
     assert_eq!(rig.picked.borrow().clone(), Some(CommandRef::from(EditCommands::Cut)), "the row above the one under the pointer is active");
 }
+
+#[trial]
+fn zz_diag() {
+    let rig = rig();
+    let tree = rig.fixture.tree();
+    for key in tree.keys() {
+        eprintln!("ZZ {:?} {:?} {:?}", tree.role_of(key), tree.name_of(key), tree.bounds_of(key));
+    }
+    panic!("diag");
+}
