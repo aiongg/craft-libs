@@ -4,7 +4,7 @@
 use super::kit::{PlainStyle, Probe, Seen};
 use craft_behavior::{Metrics, PartKey, Sense};
 use craft_ui::contract::{
-    BindMut, Common, Component, Cx, EditResponse, Looks, MeasureCx, PaintUi, PartsCx, Props as _, Remember as _, Role, Show as _,
+    Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Looks, MeasureCx, PaintUi, PartsCx, Props as _, Remember as _, Role, Show as _,
 };
 use craft_ui::primitives::PaintShape;
 use craft_ui::runtime::env::{EnvValue, RootEnv};
@@ -193,7 +193,7 @@ impl Clone for Counted {
 struct Holder<'a> {
     #[common]
     common: Common,
-    value: &'a mut Counted,
+    value: Bind<'a, Counted>,
 }
 
 impl Component for Holder<'_> {
@@ -206,11 +206,11 @@ impl Component for Holder<'_> {
     }
 
     fn bind(&mut self) -> Option<BindMut<'_, Counted>> {
-        Some(BindMut::new(self.value))
+        Some(self.value.reborrow())
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> EditResponse<Counted> {
-        craft_ui::testing::contract::edit_response(cx.response.clone())
+        cx.edit_response()
     }
 }
 
@@ -223,18 +223,18 @@ fn showing_and_measuring_clone_the_bound_value_only_when_it_changed() {
     let before = CLONES.load(Ordering::SeqCst);
     for _ in 0..3 {
         frames.frame(vec![], |ui| {
-            Holder { common: Common::new(), value: &mut value }.id_salt("holder").show(ui);
+            Holder { common: Common::new(), value: Bind::bound(&mut value) }.id_salt("holder").show(ui);
         });
     }
     assert_eq!(CLONES.load(Ordering::SeqCst) - before, 1, "three shows of one value cloned it once");
     frames.frame(vec![], |ui| {
-        let mut holder = Holder { common: Common::new(), value: &mut value }.id_salt("holder");
+        let mut holder = Holder { common: Common::new(), value: Bind::bound(&mut value) }.id_salt("holder");
         holder.measure_in(ui, craft_behavior::Proposal::Ideal);
     });
     assert_eq!(CLONES.load(Ordering::SeqCst) - before, 1, "measuring an unchanged value clones nothing");
     value.0 = 2;
     frames.frame(vec![], |ui| {
-        Holder { common: Common::new(), value: &mut value }.id_salt("holder").show(ui);
+        Holder { common: Common::new(), value: Bind::bound(&mut value) }.id_salt("holder").show(ui);
     });
     assert_eq!(CLONES.load(Ordering::SeqCst) - before, 2, "a changed value is cloned once");
 }

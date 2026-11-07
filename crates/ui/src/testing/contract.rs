@@ -25,7 +25,7 @@ pub fn take_reveal(ctx: &Context, owner: Id) -> Option<egui::Rect> {
 
 /// An edit response with no event, for a trial component that has no `cx.edit_response()` to call.
 pub fn edit_response<T>(response: egui::Response) -> crate::contract::EditResponse<T> {
-    crate::contract::EditResponse::new(response)
+    crate::contract::EditResponse::new(response, None, crate::contract::Validity::Ok)
 }
 
 /// Whether `response` reports a click, by pointer or by keyboard activation.

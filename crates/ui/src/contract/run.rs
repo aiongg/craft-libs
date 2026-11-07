@@ -5,7 +5,7 @@ use super::cx::PartsCx;
 use super::steps::{self, MeasureIn, PartsStep, ShapeKind, Step, StopsIn, Trace};
 use super::{
     Activation, BodyCx, Collection, Common, Component, Container, Cx, CxCore, Internal, ItemCx, Meta, OverlayUi, PaintUi, Props, Resolved, Show,
-    TipFn,
+    TipFn, Validity,
 };
 use super::{Inner, ItemFn};
 use crate::primitives::sensing::{self, MemberSpec, PartDecl, RootSpec};
@@ -411,7 +411,9 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
     }
     // 9 update
     p.trace.mark(Step::Update);
+    steps::gesture_gate(cx);
     steps::update_inputs(&mut cx.core);
+    steps::edit_intents(comp, cx);
     comp.update(cx);
     p.hooks.updated(comp, cx);
     // 10 overlay
@@ -421,6 +423,7 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
     steps::after_update(&mut cx.core);
     // 11 apply
     p.trace.mark(Step::Apply);
+    steps::apply_values(comp, cx);
     p.hooks.apply(comp, cx);
     // 12 state
     p.trace.mark(Step::State);
@@ -439,7 +442,7 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
     comp.paint_over(&mut paint_ui(&mut *ui, env, cx), cx);
     // 15 settle
     p.trace.mark(Step::Settle);
-    steps::settle(cx);
+    steps::settle(comp, cx);
     // 16 report. F5-LATER: the tooltip runs from `tip` here.
     p.trace.mark(Step::Report);
     steps::report(cx);
@@ -476,7 +479,9 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     let mut stage = if sizing { MemoryStage::open_peek(&ctx, id) } else { MemoryStage::open(&ctx, id) };
     let resolved = steps::resolved(id, &step1, &common);
     // 4 value
-    let shown = steps::value(&mut comp, &mut stage, id);
+    let value = steps::value(&mut comp, &mut stage, id);
+    let (shown, mixed) = (value.value, value.mixed);
+    let cancelled: Vec<_> = value.cancelled.into_iter().collect();
     hooks.read(&mut comp, &mut stage, id);
     trace.mark(Step::Value);
     // 5 measure
@@ -503,6 +508,11 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
         core: blank_core(env.view(), &resolved, &mut stage, ctx.clone(), env.ink, steps::inert_response(ui, id), step1.command.clone()),
         style: &style,
         shown,
+        mixed,
+        // A cancel step 4 raised is reported, not applied: the app's value stays.
+        applied: cancelled.len(),
+        events: cancelled,
+        validity: Validity::Ok,
     };
     // 6 to 16, in the host's `Ui`, once per call of the host.
     let mut host = hooks.host();
@@ -622,7 +632,7 @@ pub(crate) fn paint_face<C: Show>(ui: &mut Ui, source: &FaceSource<'_>, part: Pa
     core.stated = true;
     core.ink = steps::surface_ink(style.surface(), &state, env.ink);
     core.visible = rect;
-    let cx = Cx::<C> { core, style: &style, shown };
+    let cx = Cx::<C> { core, style: &style, shown, mixed: false, events: Vec::new(), applied: 0, validity: Validity::Ok };
     steps::paint_surface(ui, &env, &cx);
     {
         let results = HashMap::new();

@@ -305,6 +305,10 @@ impl MemoryStage {
         store::peek_clone::<Wrapped<SHOWN, T>>(ctx, id).map(|wrapped| wrapped.0).unwrap_or_default()
     }
 
+    pub(crate) fn ctx(&self) -> &Context {
+        &self.ctx
+    }
+
     #[expect(dead_code, reason = "used by the pipeline (F3)")]
     pub(crate) fn owner(&self) -> Id {
         self.owner

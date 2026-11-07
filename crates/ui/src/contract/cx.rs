@@ -1,9 +1,9 @@
 //! The context types (1.5): `CxCore`, `Cx`, `BodyCx`, `ItemCx`, `MeasureCx`, `PartsCx` and `PartBuilder`, and the
 //! chapter traits implemented on them.
 
-use super::{Component, Resolved, Show, Tooltip, ValueOf};
+use super::{Component, EditResponse, Resolved, Show, Tooltip, Validity, ValueOf};
 use crate::primitives::sensing::{PartDecl, PartResults};
-use crate::primitives::{PaintRecord, PartResult, TextEnv, TextLayout, TextRun};
+use crate::primitives::{Adopted, PaintRecord, PartResult, TextEnv, TextLayout, TextRun};
 use crate::runtime::commands::ResolvedCommand;
 use crate::runtime::env::{Env, EnvView, Label};
 use crate::runtime::focus::{self, FocusShape};
@@ -12,7 +12,8 @@ use crate::runtime::memory::{MemoryStage, StageAccess, sealed};
 use crate::runtime::{cursor, frame, pointer, wheel};
 use crate::style::{ComponentStyle as _, Ink, Mix, StateSet, Stateful, UiTokens};
 use craft_behavior::{
-    Cursor, CursorIcon, CursorPriority, Flow, HitLevel, HitPriority, HitShape, PartRef, PressCancel, PressState, Proposal, Roving, Sense, Wheel,
+    CancelReason, Cursor, CursorIcon, CursorPriority, EditEvent, Flow, Gesture, GesturePhase, HitLevel, HitPriority, HitShape, Mixed, PartRef,
+    PressCancel, PressPhase, PressState, Proposal, Roving, Sense, Value, Wheel,
 };
 use craft_keymap::Chord;
 use craft_theme::Flags;
@@ -114,6 +115,13 @@ pub struct Cx<'a, C: Component> {
     pub style: &'a C::Style,
     /// The shown copy of the value, shared with shown memory.
     pub(crate) shown: Option<Arc<ValueOf<C>>>,
+    /// The binding holds a mixed value; `shown` is empty.
+    pub(crate) mixed: bool,
+    /// The edit events of this pass, in order; `applied` of them have reached the binding.
+    pub(crate) events: Vec<EditEvent<ValueOf<C>>>,
+    pub(crate) applied: usize,
+    /// What the binding's check says about the shown value.
+    pub(crate) validity: Validity<ValueOf<C>>,
 }
 
 impl<'a, C: Component> Deref for Cx<'a, C> {
@@ -400,6 +408,242 @@ impl<C: Component> Focus for Cx<'_, C> {
 
     fn reveal(&mut self, rect: Rect) {
         self.core.reveal(rect);
+    }
+}
+
+impl CxCore<'_> {
+    /// The resolved label as the name an edit event carries.
+    pub(crate) fn label_arc(&self) -> Arc<str> {
+        Arc::from(self.resolved.label)
+    }
+
+    /// A press on the component or one of its parts is down: the press that carries a gesture.
+    pub(crate) fn press_held(&self) -> bool {
+        let down = |phase: &PressPhase| matches!(phase, PressPhase::Down { .. } | PressPhase::DragStart { .. } | PressPhase::Drag { .. });
+        down(&self.press.phase) || self.results.values().any(|result| down(&result.press.phase))
+    }
+
+    /// The reason a press of the component or one of its parts was cancelled in this pass.
+    pub(crate) fn press_cancelled(&self) -> Option<PressCancel> {
+        let reason = |phase: &PressPhase| match phase {
+            PressPhase::Cancel { reason, .. } => Some(*reason),
+            _ => None,
+        };
+        reason(&self.press.phase).or_else(|| self.results.values().find_map(|result| reason(&result.press.phase)))
+    }
+}
+
+/// Values and edits (chapter 10). `value`, `validity`, `gesture`, `adopt` and `edit_response` take `&self`, so `paint`
+/// can call them.
+pub trait Edit {
+    /// The component's value type.
+    type Value: Value;
+
+    /// The shown value: the running gesture's proposal, else the binding's. `None` for a mixed binding, a kept
+    /// binding with nothing in it, and a component with no value.
+    fn value(&self) -> Option<&Self::Value>;
+
+    /// What the binding's check says about the shown value.
+    fn validity(&self) -> Validity<Self::Value>;
+
+    /// Where this pass's gesture stands.
+    fn gesture(&self) -> Option<GesturePhase>;
+
+    /// Maps the child's edit onto a clone of this component's shown value and queues the resulting event, following the
+    /// child's, for step 15.
+    fn adopt<V: Value>(&self, child: &EditResponse<V>, map: impl FnOnce(&V, &mut Self::Value));
+
+    /// The `EditResponse` a value component returns from `finish`.
+    fn edit_response(&self) -> EditResponse<Self::Value>;
+
+    /// Sets the running gesture's value, beginning a gesture if none runs and the press that carries it has had no
+    /// gesture cancelled.
+    fn propose(&mut self, v: Self::Value);
+
+    /// A one-shot change outside a gesture.
+    fn set(&mut self, v: Self::Value);
+
+    /// Opens a gesture.
+    fn begin(&mut self);
+
+    /// Commits the proposed value.
+    fn commit(&mut self);
+
+    /// Cancels the running gesture.
+    fn cancel(&mut self, reason: CancelReason);
+}
+
+/// The key of the gesture slot under a component's base id.
+pub(crate) fn gesture_key(id: Id) -> Id {
+    crate::runtime::memory::sub(id, "edit")
+}
+
+impl<C: Component> Cx<'_, C> {
+    fn gesture_slot(&mut self) -> &mut Gesture<ValueOf<C>> {
+        let id = gesture_key(self.core.id);
+        self.core.memory.shown(id)
+    }
+
+    /// The value before an edit: the shown value, or mixed.
+    fn before(&self) -> Mixed<ValueOf<C>> {
+        match (&self.shown, self.mixed) {
+            (Some(value), false) => Mixed::Same((**value).clone()),
+            _ => Mixed::Mixed,
+        }
+    }
+
+    /// An edit of a read-only component reaches nothing.
+    fn refuses_edits(&self) -> bool {
+        self.core.resolved.read_only
+    }
+
+    /// Records the gesture an adopted event belongs to, as `begin`, `propose`, `commit` and `cancel` do for the
+    /// component's own.
+    pub(crate) fn absorb(&mut self, event: &EditEvent<ValueOf<C>>) {
+        let dead = self.core.press_held();
+        let slot = self.gesture_slot();
+        match event {
+            EditEvent::Begin { id, before, .. } => {
+                *slot = Gesture { id: *id, before: Some(before.clone()), ..slot.ended(false) };
+            }
+            EditEvent::Update { value, .. } => slot.proposal = Some(value.clone()),
+            EditEvent::Commit { .. } | EditEvent::Set { .. } => *slot = slot.ended(false),
+            EditEvent::Cancel { .. } => *slot = slot.ended(dead),
+            _ => {}
+        }
+    }
+}
+
+impl<C: Component> Edit for Cx<'_, C> {
+    type Value = ValueOf<C>;
+
+    fn value(&self) -> Option<&ValueOf<C>> {
+        self.shown.as_deref()
+    }
+
+    fn validity(&self) -> Validity<ValueOf<C>> {
+        self.validity.clone()
+    }
+
+    fn gesture(&self) -> Option<GesturePhase> {
+        if let Some(phase @ (GesturePhase::Commit | GesturePhase::Cancel)) = self.events.last().and_then(EditEvent::phase) {
+            return Some(phase);
+        }
+        if !self.core.memory.recall::<Gesture<ValueOf<C>>>(gesture_key(self.core.id)).is_running() {
+            return None;
+        }
+        let began = self.events.iter().any(|event| matches!(event, EditEvent::Begin { .. }));
+        let updated = self.events.iter().any(|event| matches!(event, EditEvent::Update { .. }));
+        Some(if began && !updated { GesturePhase::Begin } else { GesturePhase::Update })
+    }
+
+    fn adopt<V: Value>(&self, child: &EditResponse<V>, map: impl FnOnce(&V, &mut ValueOf<C>)) {
+        let (Some(event), Some(mut mine)) = (child.event.as_ref(), self.shown.as_deref().cloned()) else { return };
+        let before = Mixed::Same(mine.clone());
+        if let Some(value) = event.value() {
+            map(value, &mut mine);
+        }
+        let adopted = match event {
+            EditEvent::Begin { id, label, doc_key, .. } => EditEvent::Begin { id: *id, before, label: label.clone(), doc_key: *doc_key },
+            EditEvent::Update { id, .. } => EditEvent::Update { id: *id, value: mine },
+            EditEvent::Commit { id, .. } => EditEvent::Commit { id: *id, before, after: mine },
+            EditEvent::Cancel { id, reason, .. } => EditEvent::Cancel { id: *id, reason: *reason, before: Some(before) },
+            EditEvent::Set { id, label, doc_key, .. } => EditEvent::Set { id: *id, before, after: mine, label: label.clone(), doc_key: *doc_key },
+            _ => return,
+        };
+        self.core.paint.borrow_mut().adopted.push(Adopted::new(adopted));
+    }
+
+    fn edit_response(&self) -> EditResponse<ValueOf<C>> {
+        let event = self.events.iter().cloned().fold(None, EditEvent::fold);
+        EditResponse::new(self.core.response.clone(), event, self.validity.clone())
+    }
+
+    fn propose(&mut self, v: ValueOf<C>) {
+        if self.refuses_edits() {
+            return;
+        }
+        let before = self.before();
+        let (label, doc_key) = (self.core.label_arc(), self.core.resolved.doc_key);
+        let slot = self.gesture_slot();
+        // A gesture cancelled under its press stays cancelled until the release.
+        if slot.dead {
+            return;
+        }
+        let started = !slot.is_running();
+        if started {
+            slot.id = slot.id.next();
+            slot.before = Some(before.clone());
+        }
+        slot.proposal = Some(v.clone());
+        let id = slot.id;
+        if started {
+            self.events.push(EditEvent::Begin { id, before, label, doc_key });
+        }
+        self.events.push(EditEvent::Update { id, value: v.clone() });
+        self.shown = Some(Arc::new(v));
+        self.mixed = false;
+    }
+
+    fn set(&mut self, v: ValueOf<C>) {
+        if self.refuses_edits() {
+            return;
+        }
+        let before = self.before();
+        let (label, doc_key) = (self.core.label_arc(), self.core.resolved.doc_key);
+        let id = self.gesture_slot().id;
+        self.events.push(EditEvent::Set { id, before, after: v.clone(), label, doc_key });
+        self.shown = Some(Arc::new(v));
+        self.mixed = false;
+    }
+
+    fn begin(&mut self) {
+        if self.refuses_edits() {
+            return;
+        }
+        let before = self.before();
+        let (label, doc_key) = (self.core.label_arc(), self.core.resolved.doc_key);
+        let slot = self.gesture_slot();
+        if !slot.is_running() && !slot.dead {
+            slot.id = slot.id.next();
+            slot.before = Some(before.clone());
+            let id = slot.id;
+            self.events.push(EditEvent::Begin { id, before, label, doc_key });
+        }
+    }
+
+    fn commit(&mut self) {
+        let slot = self.gesture_slot();
+        if !slot.is_running() {
+            return;
+        }
+        let ended = slot.ended(false);
+        let running = std::mem::replace(slot, ended);
+        let (id, Some(before)) = (running.id, running.before) else { return };
+        match (running.proposal, before) {
+            (Some(after), before) => self.events.push(EditEvent::Commit { id, before, after }),
+            (None, Mixed::Same(held)) => self.events.push(EditEvent::Commit { id, before: Mixed::Same(held.clone()), after: held }),
+            (None, Mixed::Mixed) => self.events.push(EditEvent::Cancel { id, reason: CancelReason::Dismissed, before: Some(Mixed::Mixed) }),
+        }
+    }
+
+    fn cancel(&mut self, reason: CancelReason) {
+        let dead = self.core.press_held();
+        let slot = self.gesture_slot();
+        if !slot.is_running() {
+            return;
+        }
+        let ended = slot.ended(dead);
+        let running = std::mem::replace(slot, ended);
+        let restored = running.before.clone().filter(|_| !reason.document_moved());
+        self.events.push(EditEvent::Cancel { id: running.id, reason, before: restored.clone() });
+        if let Some(before) = restored {
+            self.shown = match before {
+                Mixed::Same(value) => Some(Arc::new(value)),
+                Mixed::Mixed => None,
+            };
+            self.mixed = self.shown.is_none();
+        }
     }
 }
 

@@ -2,7 +2,8 @@
 //! them for every shape.
 
 use super::cx::{CxCore, Decls, MeasureCx};
-use super::{Common, Component, Cx, IdSource, Pointer as _, Resolved, Styled as _, ValueOf};
+use super::cx::gesture_key;
+use super::{Common, Component, Cx, IdSource, Pointer as _, Resolved, Styled as _, Validity, ValueOf};
 use crate::primitives::{FocusKind, FocusRing, PaintShape, StateLayer, StateLayerKind, Surface};
 use crate::runtime::commands::ResolvedCommand;
 use crate::runtime::egui::{memory as store, pass, repaint, response};
@@ -12,7 +13,7 @@ use crate::runtime::frame::{PerViewport, Stamped};
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::{inspect, keys, layout_memory, wheel};
 use crate::style::{ComponentStyle, Flags, Ink, StateSet, StyleCx, accepted_variant, resolve_style, surface_style};
-use craft_behavior::{KeyRole, MotionMode, PartRef, Proposal, Roving, Sense};
+use craft_behavior::{CancelReason, EditEvent, Gesture, GesturePhase, Intent, KeyRole, Mixed, MotionMode, PartRef, PressCancel, Proposal, Roving, Sense, Value};
 use craft_theme::{ControlSize, State, StateMix, Variant};
 use egui::{Context, Id, Rect, Response, Ui, Vec2};
 use std::any::TypeId;
@@ -270,26 +271,104 @@ impl<V> Default for ShownCopy<V> {
     }
 }
 
-/// Step 4, value: the shown copy of the binding's value. A binding equal to the held copy is not cloned.
-// F3-LATER: values (F4: the live gesture, `Kept` and saved bindings, `Mixed`, the `HostChanged` cancel)
-pub(crate) fn value<C: Component>(comp: &mut C, stage: &mut MemoryStage, id: Id) -> Option<Arc<ValueOf<C>>> {
-    let held = stage.shown::<ShownCopy<ValueOf<C>>>(id).0.clone();
-    let shown = match (comp.bind(), held) {
-        (Some(bind), Some(held)) if *held == *bind.get() => Some(held),
-        (Some(bind), _) => Some(Arc::new(bind.get().clone())),
-        (None, _) => None,
-    };
-    stage.shown::<ShownCopy<ValueOf<C>>>(id).0 = shown.clone();
-    shown
+/// What step 4 reads: the shown value, whether the binding is mixed, and the `Cancel` of a gesture step 4 ended.
+pub(crate) struct ValueStep<V> {
+    pub value: Option<Arc<V>>,
+    pub mixed: bool,
+    pub cancelled: Option<EditEvent<V>>,
 }
 
-/// The shown value for measuring and faces: reads the binding, applies nothing, opens no stage.
+/// The held copy when `v` equals it, else a new copy.
+fn reuse_or_new<V: Value>(held: &Option<Arc<V>>, v: V) -> Arc<V> {
+    match held {
+        Some(held) if **held == v => held.clone(),
+        _ => Arc::new(v),
+    }
+}
+
+/// Step 4, value: the shown value is the running gesture's proposal, else the binding's value. The one shown copy is
+/// replaced only when the binding differs from it. A gesture ends here when `cancel_all` ran, or when the app changed the
+/// value under it.
+pub(crate) fn value<C: Component>(comp: &mut C, stage: &mut MemoryStage, id: Id) -> ValueStep<ValueOf<C>> {
+    type V<C> = ValueOf<C>;
+    let held = stage.shown::<ShownCopy<V<C>>>(id).0.clone();
+    let slot = gesture_key(id);
+    let (serial, all_reason) = crate::runtime::edit::latest(stage.ctx());
+    let mut cancelled = None;
+    if stage.shown::<Gesture<V<C>>>(slot).is_running() {
+        // `(given, value)` of a single-valued binding the app owns.
+        let host = comp.bind().and_then(|bind| match bind.get() {
+            Some(Mixed::Same(value)) if !bind.is_kept() => Some((bind.is_given(), value)),
+            _ => None,
+        });
+        let gesture = stage.shown::<Gesture<V<C>>>(slot);
+        let reason = match all_reason.filter(|_| serial > gesture.cancel_seen) {
+            Some(reason) => Some(reason),
+            None => {
+                // A given source: the app changed it when it differs from last pass's given value and from the last value
+                // emitted, so an app that applies only `Commit` keeps its drag. Any other source: it differs from the
+                // last value step 11 wrote.
+                let changed = match &host {
+                    Some((true, value)) => gesture.last_given.as_ref().is_some_and(|last| last != value) && gesture.emitted.as_ref().is_some_and(|e| e != value),
+                    Some((false, value)) => gesture.emitted.as_ref().is_some_and(|emitted| emitted != value),
+                    None => false,
+                };
+                changed.then_some(CancelReason::HostChanged)
+            }
+        };
+        if let (Some((true, value)), None) = (&host, reason) {
+            gesture.last_given = Some(value.clone());
+        }
+        if let Some(reason) = reason {
+            // The document moved under the gesture, so there is nothing to restore.
+            let before = gesture.before.clone().filter(|_| !reason.document_moved());
+            cancelled = Some(EditEvent::Cancel { id: gesture.id, reason, before });
+            *gesture = gesture.ended(true);
+        }
+    }
+    stage.shown::<Gesture<V<C>>>(slot).cancel_seen = serial;
+    let proposal = stage.shown::<Gesture<V<C>>>(slot).proposal.clone();
+    // A binding equal to the held copy is not read: no clone, no new copy.
+    let bound = comp.bind().map(|bind| {
+        let unchanged = held.as_deref().is_some_and(|held| bind.shown_matches(held));
+        let got = if unchanged { None } else { bind.get() };
+        (unchanged, got, bind.is_kept(), bind.saved_get(stage))
+    });
+    let mut out = ValueStep { value: None, mixed: false, cancelled };
+    match (proposal, bound) {
+        (Some(proposal), _) => out.value = Some(reuse_or_new(&held, proposal)),
+        (None, Some((true, ..))) => out.value = held.clone(),
+        (None, Some((false, Some(Mixed::Same(value)), ..))) => out.value = Some(Arc::new(value)),
+        (None, Some((false, Some(Mixed::Mixed), ..))) => out.mixed = true,
+        // A kept binding with a `SaveKey` reads the saved tier, one without reads session memory under the id.
+        (None, Some((false, None, _, Some(saved)))) => out.value = saved.map(|value| reuse_or_new(&held, value)),
+        (None, Some((false, None, _, None))) => out.value = stage.session::<Option<V<C>>>(id).clone().map(|value| reuse_or_new(&held, value)),
+        (None, None) => {}
+    }
+    let shown = &mut stage.shown::<ShownCopy<V<C>>>(id).0;
+    let same = match (&*shown, &out.value) {
+        (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+        (None, None) => true,
+        _ => false,
+    };
+    if !same {
+        *shown = out.value.clone();
+    }
+    out
+}
+
+/// The shown value for measuring and faces: reads the binding, applies nothing, opens no stage. A kept binding reads
+/// shown memory.
 pub(crate) fn peek_value<C: Component>(comp: &mut C, ctx: &Context, id: Id) -> Option<Arc<ValueOf<C>>> {
     let held = MemoryStage::peek::<ShownCopy<ValueOf<C>>>(ctx, id).0;
-    match (comp.bind(), held) {
-        (Some(bind), Some(held)) if *held == *bind.get() => Some(held),
-        (Some(bind), _) => Some(Arc::new(bind.get().clone())),
-        (None, held) => held,
+    let Some(bind) = comp.bind() else { return held };
+    if held.as_deref().is_some_and(|held| bind.shown_matches(held)) {
+        return held;
+    }
+    match bind.get() {
+        Some(Mixed::Same(value)) => Some(Arc::new(value)),
+        Some(Mixed::Mixed) => None,
+        None => held,
     }
 }
 
@@ -456,11 +535,189 @@ pub(crate) fn update_inputs(core: &mut CxCore<'_>) {
     }
 }
 
+/// Step 9, before the component: a gesture cancelled under its press is live again once the press is released, and a
+/// given caller's `Update` that fell in the pass of its `Begin` arrives now.
+pub(crate) fn gesture_gate<C: Component>(cx: &mut Cx<'_, C>) {
+    let held = cx.core.press_held();
+    let slot = gesture_key(cx.core.id);
+    let gesture = cx.core.memory.shown::<Gesture<ValueOf<C>>>(slot);
+    if gesture.dead && !held {
+        gesture.dead = false;
+    }
+    if gesture.is_running()
+        && let Some(value) = gesture.held.take()
+    {
+        let id = gesture.id;
+        cx.events.push(EditEvent::Update { id, value });
+    }
+}
+
+/// Step 9, the edit intents the library takes before `C::update`: Escape or a cancelled press ends a running gesture,
+/// and a reset becomes a `Set` of the binding's reset value.
+pub(crate) fn edit_intents<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
+    use super::cx::Edit as _;
+    if cx.gesture().is_some_and(|phase| matches!(phase, GesturePhase::Begin | GesturePhase::Update)) {
+        let reason = if cx.core.intents.take(Intent::Cancel) {
+            Some(CancelReason::Escape)
+        } else {
+            cx.core.press_cancelled().map(|reason| match reason {
+                PressCancel::Escape => CancelReason::Escape,
+                PressCancel::Removed => CancelReason::Removed,
+                _ => CancelReason::Blur,
+            })
+        };
+        if let Some(reason) = reason {
+            cx.cancel(reason);
+        }
+    }
+    if cx.core.intents.take(Intent::Reset) {
+        let reset = comp.bind().and_then(|bind| bind.reset_value().cloned());
+        if let Some(reset) = reset {
+            cx.set(reset);
+        }
+    }
+}
+
 /// Writes back what the component left untaken, and its state-dependent claims for the next frames.
 pub(crate) fn after_update(core: &mut CxCore<'_>) {
     keys::settle(&core.ctx, Some(core.id), &core.intents);
     for chord in std::mem::take(&mut core.claims) {
         keys::claim(&core.ctx, core.id, chord);
+    }
+}
+
+/// What a binding does with one event of the pass: the check may replace a value or refuse a commit.
+fn checked<V: Value>(bind: &super::BindMut<'_, V>, event: &mut EditEvent<V>) -> Checked {
+    let (EditEvent::Update { value, .. } | EditEvent::Commit { after: value, .. } | EditEvent::Set { after: value, .. }) = event else {
+        return Checked::Keep;
+    };
+    match bind.validity(value) {
+        Validity::Fix(fixed) => {
+            *value = fixed;
+            Checked::Keep
+        }
+        Validity::Refuse(_) => match event {
+            EditEvent::Commit { .. } => Checked::Cancel,
+            EditEvent::Set { .. } => Checked::Drop,
+            _ => Checked::Keep,
+        },
+        _ => Checked::Keep,
+    }
+}
+
+enum Checked {
+    Keep,
+    /// A refused commit becomes `Cancel(Refused)`.
+    Cancel,
+    /// A refused one-shot change reaches nothing.
+    Drop,
+}
+
+/// The value an event leaves in a value store: a value it carries, or the one a cancel restores.
+fn landed<V: Value>(event: &EditEvent<V>) -> Option<&V> {
+    match event {
+        EditEvent::Cancel { before: Some(Mixed::Same(before)), .. } => Some(before),
+        event => event.value(),
+    }
+}
+
+/// Steps 11 and 15, apply: the events not yet applied are checked and written to the binding. A read-only component refuses
+/// every one. A given caller gets `Begin` in the pass a gesture began and its first `Update` in the next, because it has
+/// no source to hold the value now.
+pub(crate) fn apply_values<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
+    let from = cx.applied;
+    cx.applied = cx.events.len();
+    if cx.core.resolved.read_only {
+        cx.events.truncate(from);
+        return;
+    }
+    let Some(mut bind) = comp.bind() else { return };
+    // The folded `Begin`: the updates after a `Begin` of this pass wait for the next pass of a given binding.
+    let mut held = None;
+    if bind.is_given()
+        && let Some(begin) = cx.events[from..].iter().rposition(|event| matches!(event, EditEvent::Begin { .. }))
+    {
+        let after = &cx.events[from + begin + 1..];
+        if !after.is_empty() && after.iter().all(|event| matches!(event, EditEvent::Update { .. })) {
+            held = after.last().and_then(|event| event.value().cloned());
+            cx.events.truncate(from + begin + 1);
+            cx.applied = cx.events.len();
+        }
+    }
+    let slot = gesture_key(cx.core.id);
+    let (mut emitted, mut began, mut landing, mut last_update) = (None, false, None, None);
+    let mut at = from;
+    while at < cx.events.len() {
+        match checked(&bind, &mut cx.events[at]) {
+            Checked::Keep => {}
+            Checked::Cancel => {
+                if let EditEvent::Commit { id, before, .. } = cx.events[at].clone() {
+                    cx.events[at] = EditEvent::Cancel { id, reason: CancelReason::Refused, before: Some(before) };
+                    let dead = cx.core.press_held();
+                    let gesture = cx.core.memory.shown::<Gesture<ValueOf<C>>>(slot);
+                    *gesture = gesture.ended(dead);
+                    if matches!(cx.events[at], EditEvent::Cancel { before: Some(Mixed::Mixed), .. }) {
+                        cx.shown = None;
+                        cx.mixed = true;
+                    }
+                }
+            }
+            Checked::Drop => {
+                cx.events.remove(at);
+                cx.applied = cx.events.len();
+                continue;
+            }
+        }
+        let event = &cx.events[at];
+        match event {
+            EditEvent::Begin { before: Mixed::Same(value), .. } => {
+                emitted = Some(value.clone());
+                began = true;
+            }
+            EditEvent::Update { value, .. } => {
+                last_update = Some(value.clone());
+                if bind.writes(event) || bind.is_given() {
+                    emitted = Some(value.clone());
+                }
+            }
+            _ => {}
+        }
+        bind.apply(event);
+        if let Some(value) = landed(event) {
+            landing = Some(value.clone());
+        }
+        at += 1;
+    }
+    let given_now = match bind.get() {
+        Some(Mixed::Same(value)) if bind.is_given() && began => Some(value),
+        _ => None,
+    };
+    let repaint_next = held.is_some();
+    let gesture = cx.core.memory.shown::<Gesture<ValueOf<C>>>(slot);
+    if gesture.is_running() {
+        gesture.emitted = emitted.or(gesture.emitted.take());
+        gesture.last_given = given_now.or(gesture.last_given.take());
+        gesture.held = held.or(gesture.held.take());
+        // A value the check replaced is the gesture's proposal, so the next pass shows it.
+        if let Some(value) = last_update {
+            gesture.proposal = Some(value);
+        }
+    }
+    if repaint_next {
+        repaint::request(&cx.core.ctx);
+    }
+    if let Some(value) = landing {
+        if bind.is_kept() {
+            let id = cx.core.id;
+            if !bind.saved_put(&mut *cx.core.memory, value.clone()) {
+                *cx.core.memory.session::<Option<ValueOf<C>>>(id) = Some(value.clone());
+            }
+        }
+        cx.shown = Some(Arc::new(value));
+        cx.mixed = false;
+    }
+    if let Some(value) = cx.shown.as_deref() {
+        cx.validity = bind.validity(value);
     }
 }
 
@@ -501,17 +758,25 @@ fn ease(core: &mut CxCore<'_>, targets: [bool; 3]) -> StateMix {
 
 /// Step 12, state: flags first, then `state`; animates hover, press and on; the ink of the surface, else `inherited`.
 pub(crate) fn state<C: Component>(comp: &C, cx: &mut Cx<'_, C>, open: bool, inherited: Ink) {
-    let core = &mut cx.core;
     let mut flags = comp.flags();
     if open {
         flags |= Flags::OPEN;
     }
-    if core.resolved.read_only {
+    if cx.core.resolved.read_only {
         flags |= Flags::READ_ONLY;
     }
-    if core.resolved.selected == Some(true) {
+    if cx.core.resolved.selected == Some(true) {
         flags |= Flags::SELECTED;
     }
+    if cx.mixed {
+        flags |= Flags::MIXED;
+    }
+    match &cx.validity {
+        Validity::Refuse(_) => flags |= Flags::INVALID,
+        Validity::Warn(_) => flags |= Flags::WARN,
+        _ => {}
+    }
+    let core = &mut cx.core;
     let (hovered, pressed) = (core.response.hovered(), core.press.phase.is_press());
     let focused = focus::is_focused(&core.ctx, core.id);
     let visible = focus::focus_visible(&core.ctx, core.id);
@@ -598,10 +863,16 @@ pub(crate) fn take_reveal(ctx: &Context, owner: Id) -> Option<Rect> {
     })
 }
 
-/// Step 15, settle: what the component asked for during the pass is written to its owner. A reveal request goes to the
-/// nearest scroll owner; anything queued for the next pass requests a repaint.
-pub(crate) fn settle<C: Component>(cx: &mut Cx<'_, C>) {
-    // F4-LATER: values (adopted child edits, check and apply again), F5-LATER: open and gate changes.
+/// Step 15, settle: child edits adopted with `cx.adopt` join the pass's events and are applied. A reveal request goes to
+/// the nearest scroll owner; anything queued for the next pass requests a repaint.
+pub(crate) fn settle<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
+    // F5-LATER: open and gate changes.
+    let adopted = std::mem::take(&mut cx.core.paint.borrow_mut().adopted);
+    for event in adopted.into_iter().filter_map(|adopted| adopted.take::<ValueOf<C>>()) {
+        cx.absorb(&event);
+        cx.events.push(event);
+    }
+    apply_values(comp, cx);
     if let Some(rect) = cx.core.reveal.take()
         && let Some(owner) = wheel::nearest_scroll_owner(&cx.core.ctx, rect)
     {
@@ -621,7 +892,16 @@ pub(crate) fn report<C: Component>(cx: &Cx<'_, C>) {
 pub(crate) fn before_finish<C: Component>(cx: &mut Cx<'_, C>, activated: bool) {
     let by_key = activated && cx.core.activation.is_some_and(|activation| activation.by_key);
     response::rewrite_clicks(&mut cx.core.response, by_key, cx.core.command.is_some());
-    // F4-LATER: the command fires here; gesture finish and `EditEvent::fold`.
+    // The response reports a change for a `Set` or a `Commit` that moved the value: the pass's last event decides, because
+    // `EditEvent::fold` yields one of them exactly when the last event is one.
+    let changed = match cx.events.last() {
+        Some(EditEvent::Commit { before, after, .. } | EditEvent::Set { before, after, .. }) => !matches!(before, Mixed::Same(held) if held == after),
+        _ => false,
+    };
+    if changed {
+        response::mark_changed(&mut cx.core.response);
+    }
+    // F4-LATER: the command fires here.
 }
 
 /// The sizes a body or collection records at step 17.

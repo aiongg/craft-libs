@@ -1,7 +1,7 @@
 //! What one paint pass records for later steps: text elision, the first baseline and the faces painted.
 
 use crate::runtime::memory::sub;
-use craft_behavior::PartRef;
+use craft_behavior::{EditEvent, PartRef};
 use egui::Id;
 use std::ops::RangeInclusive;
 
@@ -14,6 +14,28 @@ pub(crate) struct PaintRecord {
     pub baseline: Option<f32>,
     /// The faces painted this frame.
     pub faces: Vec<FaceRecord>,
+    /// Child edits adopted with `cx.adopt`, read at step 15.
+    pub adopted: Vec<Adopted>,
+}
+
+/// An adopted child event with its value type erased, queued in the paint record and read back at step 15.
+pub(crate) struct Adopted(Box<dyn std::any::Any>);
+
+impl Adopted {
+    pub(crate) fn new<T: 'static>(event: EditEvent<T>) -> Self {
+        Adopted(Box::new(event))
+    }
+
+    /// The event, when it carries values of type `T`.
+    pub(crate) fn take<T: 'static>(self) -> Option<EditEvent<T>> {
+        self.0.downcast::<EditEvent<T>>().ok().map(|event| *event)
+    }
+}
+
+impl std::fmt::Debug for Adopted {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Adopted")
+    }
 }
 
 /// A face painted this frame with the facts its component's `access` declared; step 16 fills the part's
