@@ -6,6 +6,7 @@
 
 pub mod access;
 pub mod contract;
+pub mod dump;
 pub mod focus;
 pub mod frames;
 pub mod input;
