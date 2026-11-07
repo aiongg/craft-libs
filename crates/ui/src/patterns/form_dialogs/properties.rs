@@ -2,7 +2,7 @@
 //! edit and read-only rows to read.
 
 use super::{DialogFields, Param, ParamRows, ParamRowsOutput, open_fields};
-use crate::contract::{Bind, CollectionEvent, NoValue, Outcome, Props as _, Remember as _, ShowCollection as _, ShowContainer as _};
+use crate::contract::{Bind, CollectionEvent, NoValue, Outcome, Remember as _, Show as _, ShowCollection as _, ShowContainer as _};
 use crate::dialog::{Dialog, DialogOutput};
 use crate::display::Text;
 use crate::runtime::env::{Env, Label};

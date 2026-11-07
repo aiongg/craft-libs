@@ -7,7 +7,7 @@ use super::{
 };
 use crate::canvas::{Guide, GuideKey};
 use crate::choice::Segmented;
-use crate::contract::{Bind, Entry, NoValue, Outcome, Props as _, Show as _, ShowContainer as _};
+use crate::contract::{Bind, Entry, NoValue, Outcome, Show as _, ShowContainer as _};
 use crate::dialog::{Dialog, DialogId, DialogOutput, DialogResult, DialogStack, StackDialog, dialog_id};
 use crate::form::{Field, FieldGroup};
 use crate::notices::{Notice, NoticeLayout};
