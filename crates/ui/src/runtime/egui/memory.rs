@@ -86,3 +86,9 @@ impl<S: Default + Send + 'static> Service<S> {
 pub(crate) fn with<S: Default + Send + 'static, R>(ctx: &Context, f: impl FnOnce(&mut S) -> R) -> R {
     Service::<S>::of(ctx).with(f)
 }
+
+/// Runs `f` on a child `Ui` of `ui` whose auto ids start from `salt`: equal widgets under different salts never meet.
+#[cfg(feature = "testing")]
+pub(crate) fn scoped_by<R>(ui: &mut egui::Ui, salt: impl std::hash::Hash + std::fmt::Debug, f: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    ui.push_id(salt, f).inner
+}
