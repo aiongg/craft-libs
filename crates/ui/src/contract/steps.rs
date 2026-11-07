@@ -391,9 +391,12 @@ pub(crate) fn value<C: Component>(comp: &mut C, stage: &mut MemoryStage, id: Id,
 /// The shown value for measuring and faces: reads the binding, applies nothing, opens no stage. A kept binding reads
 /// shown memory.
 /// Returns the value and whether the binding is mixed.
-pub(crate) fn peek_value<C: Component>(comp: &mut C, ctx: &Context, id: Id) -> (Option<Arc<ValueOf<C>>>, bool) {
+pub(crate) fn peek_value<C: Component>(comp: &mut C, ctx: &Context, id: Id, command: Option<&ResolvedCommand>) -> (Option<Arc<ValueOf<C>>>, bool) {
     let held = MemoryStage::peek::<ShownCopy<ValueOf<C>>>(ctx, id).0;
-    let Some(bind) = comp.bind() else { return (held, false) };
+    let Some(bind) = comp.bind() else {
+        let given = command_given::<ValueOf<C>>(command).map(|value| reuse_arc(&held, &value));
+        return (given.or(held), false);
+    };
     if held.as_deref().is_some_and(|held| bind.shown_matches(held)) {
         return (held, false);
     }
@@ -675,16 +678,21 @@ fn route_to_scroll_owner(core: &mut CxCore<'_>) {
     repaint::request(&core.ctx);
 }
 
-/// Writes back what the component left untaken, and its state-dependent claims for the next frames.
-pub(crate) fn after_update(core: &mut CxCore<'_>) {
-    route_to_scroll_owner(core);
-    keys::settle(&core.ctx, Some(core.id), &core.intents);
+/// Step 9, after `update`: a secondary release on the component, or a `ContextMenu` intent it did not take, records a
+/// context request that the overlay step and the popups shown after it read in this pass (9.2 rule 3).
+pub(crate) fn record_context(core: &CxCore<'_>) {
     if core.intents.untaken(&Intent::ContextMenu)
         || (core.response.hovered() && crate::runtime::pointer::frame(&core.ctx).release == Some(craft_behavior::PointerButton::Secondary))
     {
         let part = focus::active_part(&core.ctx, core.id).and_then(|part| core.results.get(&(part.key, part.index)));
         keys::request_context(&core.ctx, core.id, part.map_or(core.rect, |part| part.rect));
     }
+}
+
+/// Writes back what the component left untaken, and its state-dependent claims for the next frames.
+pub(crate) fn after_update(core: &mut CxCore<'_>) {
+    route_to_scroll_owner(core);
+    keys::settle(&core.ctx, Some(core.id), &core.intents);
     for chord in std::mem::take(&mut core.claims) {
         keys::claim(&core.ctx, core.id, chord);
     }
@@ -810,6 +818,7 @@ pub(crate) fn apply_values<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
     };
     let repaint_next = held.is_some();
     let gesture = cx.core.memory.shown::<Gesture<ValueOf<C>>>(slot);
+    let (running, watched) = (gesture.is_running().then_some(gesture.id), gesture.watched);
     if gesture.is_running() {
         gesture.emitted = emitted.or(gesture.emitted.take());
         gesture.last_given = given_now.or(gesture.last_given.take());
@@ -817,6 +826,16 @@ pub(crate) fn apply_values<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
         // A value the check replaced is the gesture's proposal, so the next pass shows it.
         if let Some(value) = last_update {
             gesture.proposal = Some(value);
+        }
+    }
+    // The owner's eviction while the gesture runs ends it as removed (7.2).
+    if running.is_some() || watched {
+        gesture.watched = running.is_some();
+        let ctx = cx.core.ctx.clone();
+        let watch = cx.core.memory.shown::<crate::runtime::edit::RemovalWatch>(slot);
+        match running {
+            Some(id) => watch.arm(&ctx, id),
+            None => watch.disarm(),
         }
     }
     if repaint_next {

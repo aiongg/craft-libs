@@ -224,3 +224,45 @@ impl Component for Field<'_> {
         cx.response.clone()
     }
 }
+
+/// A component whose overlay step reads its own context request.
+#[derive(Component)]
+#[component(overlay)]
+pub struct Opens<'a> {
+    #[common]
+    common: Common,
+    seen: &'a std::cell::Cell<bool>,
+    ctx: egui::Context,
+}
+
+impl<'a> Opens<'a> {
+    pub fn new(seen: &'a std::cell::Cell<bool>, ctx: egui::Context) -> Self {
+        Opens { common: Common::new(), seen, ctx }
+    }
+}
+
+impl Component for Opens<'_> {
+    const ROLE: Role = Role::BUTTON;
+    type Style = FixedStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: OpensStyleKey) -> FixedStyle {
+        FixedStyle::default()
+    }
+
+    fn measure(&mut self, _: &craft_ui::contract::MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(40.0, 20.0)
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::CLICK | Sense::FOCUS
+    }
+
+    fn overlay(&mut self, _: &mut craft_ui::contract::OverlayUi<'_>, cx: &mut Cx<'_, Self>) {
+        self.seen.set(self.seen.get() || craft_ui::testing::focus::context_request(&self.ctx, cx.id).is_some());
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}

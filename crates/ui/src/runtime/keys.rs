@@ -78,6 +78,10 @@ struct Batch {
     claimed: Vec<Chord>,
     nav: NavKeys,
     menu: Vec<MenuKey>,
+    /// The latest key press of the pass, which a following text event was typed by.
+    last_press: Option<KeyInput>,
+    /// What this pass's typed text taught: the physical key, the modifiers and the text.
+    learned: Vec<(Key, Mods, String)>,
 }
 
 #[derive(Clone)]
@@ -105,6 +109,8 @@ struct Node {
 struct AltTrack {
     down: bool,
     other_key: bool,
+    /// The right Alt key is down: text typed with it (AltGr) teaches the layout nothing.
+    right: bool,
 }
 
 #[derive(Default)]
@@ -158,6 +164,7 @@ impl Strip<'_> {
         match event {
             KeyEvent::Press { key, input, repeat } => {
                 alt.other_key = true;
+                batch.last_press = Some(input);
                 self.press(batch, key, &input, repeat)
             }
             KeyEvent::Release { input } => {
@@ -168,6 +175,11 @@ impl Strip<'_> {
                 alt.other_key = true;
                 if let Some(press) = batch.shortcuts.last_mut().filter(|shortcut| shortcut.phase == FirePhase::Press) {
                     press.typed = true;
+                }
+                if let Some(input) = batch.last_press.take().filter(|_| !alt.right)
+                    && let Some(physical) = input.physical
+                {
+                    batch.learned.push((physical, input.mods, text.clone()));
                 }
                 batch.texts.push(text);
                 true
@@ -195,10 +207,16 @@ impl Strip<'_> {
                 if !sent {
                     batch.shortcuts.push(Shortcut { input, phase: FirePhase::Press, typed: false, press: None });
                 }
-                true
+                // The event stands for the chord, so the shortcut path is its only reader: egui does not copy or paste
+                // on top of the command.
+                false
             }
             KeyEvent::PointerPress => {
                 alt.other_key = true;
+                true
+            }
+            KeyEvent::RightAlt(down) => {
+                alt.right = down;
                 true
             }
             KeyEvent::Modifiers(held) => {
@@ -316,6 +334,9 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
             };
             strip.event(&mut batch, &mut stage.alt, read)
         });
+        for (physical, mods, text) in std::mem::take(&mut batch.learned) {
+            stage.layout.observe(physical, mods, &text);
+        }
         (batch, visible)
     });
     if let Some(visible) = visible {
@@ -403,12 +424,18 @@ fn push(routed: &mut HashMap<Option<Id>, Routed>, target: Option<Id>, intent: In
 }
 
 /// The shortcut events the key owner leaves to the app (9.3). The owner is the focused component's class, or
-/// `Blocked` while a modal layer is open. `Menu` and `Recorder` keep every key; a `Widget` or popup keeps the keys
+/// `Blocked` while a modal layer is stacked above the focus; inside a layer its `Overlay.keys` class ranks with
+/// the component's. `Menu` and `Recorder` keep every key; a `Widget` or popup keeps the keys
 /// it activates with, the keys of its intents and the keys its filter keeps from the key stage; a text field
 /// keeps the text its presses typed.
 fn owned_shortcuts(ctx: &Context, target: Option<&StopRec>, batch: &Batch, consumed: &[bool]) -> Shortcuts {
-    let present: Vec<OwnerClass> = target.iter().map(|rec| rec.stop.keys.owner).collect();
-    let owner = key_owner(commands::modal_open(ctx), &present);
+    let layer = overlay::key_layer(ctx, &target.map(|rec| focus::scope_chain(ctx, rec)).unwrap_or_default());
+    let own = target.map(|rec| rec.stop.keys.owner);
+    let mut present: Vec<OwnerClass> = own.into_iter().collect();
+    if let overlay::LayerKeys::Class(class) = layer {
+        present.push(class);
+    }
+    let owner = key_owner(layer == overlay::LayerKeys::Blocked, &present);
     let held_by = |keys: Option<&focus::KeyUse>, at: usize| {
         let Some(keys) = keys else { return false };
         let key = batch.presses[at].key;
@@ -420,9 +447,12 @@ fn owned_shortcuts(ctx: &Context, target: Option<&StopRec>, batch: &Batch, consu
         };
         consumed[at] || kept
     };
-    let (typing, dialog) = (owner == KeyOwner::Class(OwnerClass::Text), owner == KeyOwner::Class(OwnerClass::Dialog));
-    let widget = matches!(owner, KeyOwner::Class(OwnerClass::Widget | OwnerClass::Popup | OwnerClass::PassivePopup));
     let silent = matches!(owner, KeyOwner::Class(OwnerClass::Menu | OwnerClass::Recorder));
+    let dialog = owner == KeyOwner::Class(OwnerClass::Dialog);
+    // The focused component keeps its own keys inside a dialog: a text field its typing, a widget its activation.
+    let blocked = owner == KeyOwner::Blocked;
+    let typing = !blocked && own == Some(OwnerClass::Text);
+    let widget = !blocked && matches!(own, Some(OwnerClass::Widget | OwnerClass::Popup | OwnerClass::PassivePopup));
     let keys = if silent {
         Vec::new()
     } else {

@@ -332,18 +332,31 @@ pub struct Gesture<V> {
     /// The last `cancel_all` serial this gesture has seen.
     #[doc(hidden)]
     pub cancel_seen: u64,
+    /// The runtime's removal watch holds this gesture's id.
+    #[doc(hidden)]
+    pub watched: bool,
 }
 
 impl<V> Default for Gesture<V> {
     fn default() -> Self {
-        Gesture { id: GestureId(0), before: None, proposal: None, last_given: None, emitted: None, held: None, dead: false, cancel_seen: 0 }
+        Gesture {
+            id: GestureId(0),
+            before: None,
+            proposal: None,
+            last_given: None,
+            emitted: None,
+            held: None,
+            dead: false,
+            cancel_seen: 0,
+            watched: false,
+        }
     }
 }
 
 impl<V> Gesture<V> {
     /// The gesture after it ended: no value, the id kept, and `dead` while the press that carried it is held.
     pub fn ended(&self, dead: bool) -> Gesture<V> {
-        Gesture { id: self.id, cancel_seen: self.cancel_seen, dead, ..Gesture::default() }
+        Gesture { id: self.id, cancel_seen: self.cancel_seen, watched: self.watched, dead, ..Gesture::default() }
     }
 
     /// A gesture is running.

@@ -192,6 +192,8 @@ struct Persist {
     raised: HashMap<Id, u64>,
     counter: u64,
     modal: bool,
+    /// The layers of the last pass, bottom to top, as `end_pass` handed them to egui.
+    stack: Vec<Id>,
     /// A press the modal drop removed, for the window host to raise the modal's window.
     dropped_press: bool,
     /// The screen rects a press may land in without closing the top menu family: the family and its anchors. `None`
@@ -419,10 +421,12 @@ pub(crate) fn end_pass(ctx: &Context) {
         }
         let families = families(&current, &persist.raised);
         let mut order: Vec<Layer> = Vec::new();
+        persist.stack.clear();
         for members in &families {
             for member in members {
                 order.extend(member.cover);
                 order.push(member.layer);
+                persist.stack.push(member.id);
             }
         }
         persist.modal = current.iter().any(|entry| entry.rank.is_modal() && !entry.exiting);
@@ -470,6 +474,41 @@ pub(crate) fn note_dropped_press(ctx: &Context, viewport: ViewportId) {
 #[expect(dead_code, reason = "the window host (F7) raises the modal's window for a dropped press")]
 pub(crate) fn take_dropped_press(ctx: &Context, viewport: ViewportId) -> bool {
     with_persist(ctx, viewport, |persist| std::mem::take(&mut persist.dropped_press))
+}
+
+/// What the layer stack says about key ownership for focus inside the scopes `scopes` (innermost first).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum LayerKeys {
+    /// A modal layer is above the focus, in this viewport or another.
+    Blocked,
+    /// The focus is inside a layer of this key class.
+    Class(OwnerClass),
+    /// The focus is in no layer.
+    Window,
+}
+
+/// The key ownership the layer stack gives the focus: blocked when a modal layer is stacked above the layer the
+/// focus is in (or above the window when it is in none), else that layer's key class.
+pub(crate) fn key_layer(ctx: &Context, scopes: &[Id]) -> LayerKeys {
+    let viewport = pass::current_viewport(ctx);
+    let stack = with_persist(ctx, viewport, |persist| persist.stack.clone());
+    let (inside, modals) = with_pass(ctx, |pass| {
+        let inside = scopes.iter().find_map(|scope| pass.last.iter().find(|entry| entry.id == *scope && !entry.exiting).cloned());
+        let modals: Vec<Id> = pass.last.iter().filter(|entry| entry.rank.is_modal() && !entry.exiting).map(|entry| entry.id).collect();
+        (inside, modals)
+    });
+    let at = |id: Id| stack.iter().position(|layer| *layer == id);
+    let floor = inside.as_ref().and_then(|entry| at(entry.id));
+    let above = modals.iter().any(|modal| match (at(*modal), floor, &inside) {
+        (_, _, Some(entry)) if entry.id == *modal => false,
+        (Some(modal_at), Some(floor), _) => modal_at > floor,
+        (_, None, None) => true,
+        _ => false,
+    });
+    if above || modal_in_other_viewports(ctx, viewport) {
+        return LayerKeys::Blocked;
+    }
+    inside.map_or(LayerKeys::Window, |entry| LayerKeys::Class(entry.keys))
 }
 
 /// Whether a layer of key class `class` that is not fading out was shown last frame.

@@ -27,7 +27,13 @@ pub enum Pending<T, E> {
     Ready(T),
     /// The job failed.
     Failed(E),
+    /// The job ended without delivering, [`LOST_LIMIT`] times in a row (it panics, or the host never runs it): it is
+    /// not submitted again.
+    Lost,
 }
+
+/// How many times in a row a job may end without delivering before its key shows [`Pending::Lost`].
+pub const LOST_LIMIT: u32 = 3;
 
 impl<T, E> Default for Pending<T, E> {
     fn default() -> Self {
@@ -162,17 +168,19 @@ impl<T, E> Clone for Started<T, E> {
 pub(crate) struct PendingSlot<T, E> {
     shown: Pending<T, E>,
     started: Option<Started<T, E>>,
+    /// Jobs of this key that ended without delivering, in a row.
+    lost: u32,
 }
 
 impl<T: Clone, E: Clone> Clone for PendingSlot<T, E> {
     fn clone(&self) -> Self {
-        PendingSlot { shown: self.shown.clone(), started: self.started.clone() }
+        PendingSlot { shown: self.shown.clone(), started: self.started.clone(), lost: self.lost }
     }
 }
 
 impl<T, E> Default for PendingSlot<T, E> {
     fn default() -> Self {
-        PendingSlot { shown: Pending::default(), started: None }
+        PendingSlot { shown: Pending::default(), started: None, lost: 0 }
     }
 }
 
@@ -266,6 +274,7 @@ pub(crate) fn poll<T: Clone + Send + Sync + 'static, E: Clone + Send + Sync + 's
     track::<T, E>(&ctx, id, stage.owner());
     let slot = stage.shown::<PendingSlot<T, E>>(id);
     if slot.started.is_none()
+        && matches!(slot.shown, Pending::Loading { .. })
         && !sizing
         && let Some(host) = &host
     {
@@ -290,9 +299,21 @@ pub(crate) fn poll<T: Clone + Send + Sync + 'static, E: Clone + Send + Sync + 's
         && matches!(slot.shown, Pending::Loading { .. })
     {
         match started.shared.read(!sizing) {
-            Landed::Result(Ok(value)) => slot.shown = Pending::Ready(value),
-            Landed::Result(Err(error)) => slot.shown = Pending::Failed(error),
-            Landed::Lost if !sizing => slot.started = None,
+            Landed::Result(Ok(value)) => {
+                slot.lost = 0;
+                slot.shown = Pending::Ready(value);
+            }
+            Landed::Result(Err(error)) => {
+                slot.lost = 0;
+                slot.shown = Pending::Failed(error);
+            }
+            Landed::Lost if !sizing => {
+                slot.started = None;
+                slot.lost += 1;
+                if slot.lost >= LOST_LIMIT {
+                    slot.shown = Pending::Lost;
+                }
+            }
             Landed::Waiting | Landed::Lost => {
                 slot.shown = Pending::Loading { progress: started.shared.progress.get() };
                 if !sizing && let Some(host) = &host {

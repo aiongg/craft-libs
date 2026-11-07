@@ -254,10 +254,6 @@ pub(crate) fn set_modal_open(ctx: &Context, open: bool) {
     with(ctx, |board| board.modal_open = open);
 }
 
-pub(crate) fn modal_open(ctx: &Context) -> bool {
-    with(ctx, |board| board.modal_open)
-}
-
 /// `command` as seen by `instance` (`None` for the app), with the gate applied outside the board's lock.
 fn resolve_in(ctx: &Context, command: &CommandRef, instance: Option<Id>) -> ResolvedCommand {
     let (mut resolved, first_unknown, gate) = with(ctx, |board| {
