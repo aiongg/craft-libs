@@ -7,6 +7,7 @@ use std::any::{Any, TypeId};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::hash::{BuildHasherDefault, Hash, Hasher};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
 /// Context data: the map the runtime's slots live in.
@@ -93,30 +94,63 @@ impl Hasher for TypeIdHasher {
     }
 }
 
-type HandleCache = HashMap<TypeId, Box<dyn Any>, BuildHasherDefault<TypeIdHasher>>;
+/// The service handles of one context, by service type.
+#[derive(Default)]
+struct Handles {
+    /// The context the handles belong to: its token in the context's data, 0 before the first pass.
+    token: u64,
+    /// The passes open on this thread.
+    open: usize,
+    map: HashMap<TypeId, Box<dyn Any>, BuildHasherDefault<TypeIdHasher>>,
+}
 
 thread_local! {
-    /// The service handles of the passes between their begin and end hooks on this thread, innermost last: a
-    /// lookup in the context's data happens once per service type and pass. A pass is the only user of its
-    /// thread's context while it runs.
-    static HANDLES: RefCell<Vec<HandleCache>> = const { RefCell::new(Vec::new()) };
+    /// The handles of the context this thread last ran a pass of, kept between passes: a lookup in the context's
+    /// data happens once per service type and context. A pass is the only user of its thread's context while it
+    /// runs, and a context's handles are dropped when this thread runs a pass of another context.
+    static HANDLES: RefCell<Handles> = RefCell::new(Handles::default());
 }
 
-/// Opens the handle cache of a pass; the begin hook calls it.
-pub(crate) fn open_handles() {
-    HANDLES.with(|caches| caches.borrow_mut().push(HandleCache::default()));
+/// Identifies the context in its own data, so a cache of its handles is never read for another.
+#[derive(Default, Clone)]
+struct ContextToken(u64);
+
+/// Opens a pass's use of the handle cache; the begin hook calls it.
+pub(crate) fn open_handles(ctx: &Context) {
+    static SLOT: OnceLock<Id> = OnceLock::new();
+    static NEXT: AtomicU64 = AtomicU64::new(1);
+    let slot = *SLOT.get_or_init(|| unique("craft_ui.context_token"));
+    let token = locked(ctx, |data| {
+        let token = data.get_temp_mut_or_default::<ContextToken>(slot);
+        if token.0 == 0 {
+            token.0 = NEXT.fetch_add(1, Ordering::Relaxed);
+        }
+        token.0
+    });
+    HANDLES.with(|handles| {
+        let mut handles = handles.borrow_mut();
+        if handles.token != token {
+            handles.token = token;
+            handles.map.clear();
+        }
+        handles.open += 1;
+    });
 }
 
-/// Closes the handle cache of the innermost pass; the end hook calls it.
+/// Closes a pass's use of the handle cache; the end hook calls it.
 pub(crate) fn close_handles() {
-    HANDLES.with(|caches| caches.borrow_mut().pop());
+    HANDLES.with(|handles| {
+        let mut handles = handles.borrow_mut();
+        handles.open = handles.open.saturating_sub(1);
+    });
 }
 
 impl<S: Default + Send + 'static> Service<S> {
     /// The context's service of type `S`, created on first use.
     pub(crate) fn of(ctx: &Context) -> Service<S> {
-        let cached = HANDLES.with(|caches| {
-            caches.borrow().last().and_then(|cache| cache.get(&TypeId::of::<S>())).and_then(|handle| handle.downcast_ref::<Service<S>>()).cloned()
+        let cached = HANDLES.with(|handles| {
+            let handles = handles.borrow();
+            (handles.open > 0).then(|| handles.map.get(&TypeId::of::<S>())).flatten().and_then(|handle| handle.downcast_ref::<Service<S>>()).cloned()
         });
         if let Some(handle) = cached {
             return handle;
@@ -124,9 +158,10 @@ impl<S: Default + Send + 'static> Service<S> {
         static SLOT: OnceLock<Id> = OnceLock::new();
         let slot = *SLOT.get_or_init(|| unique("craft_ui.service"));
         let handle = locked(ctx, |data| data.get_temp_mut_or_default::<Service<S>>(slot).clone());
-        HANDLES.with(|caches| {
-            if let Some(cache) = caches.borrow_mut().last_mut() {
-                cache.insert(TypeId::of::<S>(), Box::new(handle.clone()));
+        HANDLES.with(|handles| {
+            let mut handles = handles.borrow_mut();
+            if handles.open > 0 {
+                handles.map.insert(TypeId::of::<S>(), Box::new(handle.clone()));
             }
         });
         handle
