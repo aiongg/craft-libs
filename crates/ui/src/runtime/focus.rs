@@ -13,6 +13,7 @@ pub(crate) use nav::{enter_row, leave_row, roving_move, row_has_stops};
 pub(crate) use registration::{Group, Stop};
 
 use crate::runtime::egui::focus as egui_focus;
+use crate::runtime::egui::memory::FastMap;
 use crate::runtime::frame::PerViewport;
 use craft_behavior::{DocKey, PartRef};
 use egui::{Context, Id, ViewportId};
@@ -92,21 +93,21 @@ pub(crate) struct RowGroups {
 pub(crate) struct State {
     pub(crate) stops: Vec<StopRec>,
     pub(crate) last_stops: Vec<StopRec>,
-    pub(crate) scopes: HashMap<Id, ScopeRec>,
-    pub(crate) last_scopes: HashMap<Id, ScopeRec>,
+    pub(crate) scopes: FastMap<Id, ScopeRec>,
+    pub(crate) last_scopes: FastMap<Id, ScopeRec>,
     pub(crate) scope_order: Vec<Id>,
     pub(crate) last_scope_order: Vec<Id>,
     pub(super) open: Vec<(Id, usize)>,
-    pub(crate) groups: HashMap<Id, Group>,
-    pub(crate) last_groups: HashMap<Id, Group>,
+    pub(crate) groups: FastMap<Id, Group>,
+    pub(crate) last_groups: FastMap<Id, Group>,
     pub(crate) row_sets: Vec<RowGroups>,
     pub(crate) last_row_sets: Vec<RowGroups>,
-    pub(crate) focused: HashMap<Id, StopKey>,
+    pub(crate) focused: FastMap<Id, StopKey>,
     pub(crate) focus_now: Option<Id>,
     pub(super) pending: Option<FocusTarget>,
-    pub(super) docs: HashMap<DocKey, Id>,
+    pub(super) docs: FastMap<DocKey, Id>,
     pub(super) revealed: Option<StopKey>,
-    pub(super) seen: HashMap<Id, u64>,
+    pub(super) seen: FastMap<Id, u64>,
     pub(crate) visible: bool,
     pub(crate) record: FocusedRecord,
     pub(super) menu_bar: bool,

@@ -5,7 +5,7 @@ mod label;
 pub use label::{Label, Message, Word};
 
 use crate::runtime::commands::CommandChain;
-use crate::runtime::egui::memory::Service;
+use crate::runtime::egui::memory::{FastMap, Service};
 use crate::runtime::egui::{child, pass, repaint, scale, stack, style};
 use crate::runtime::frame::PerViewport;
 use crate::runtime::windows;
@@ -541,7 +541,7 @@ impl Env {
 /// install or look up an entry or clone an `Arc`.
 #[derive(Default)]
 struct ViewportEnvs {
-    entries: HashMap<Id, Env>,
+    entries: FastMap<Id, Env>,
     root: Option<Env>,
 }
 

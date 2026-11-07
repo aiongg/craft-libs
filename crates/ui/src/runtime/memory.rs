@@ -1,6 +1,6 @@
 //! Ids and memory: `Remember`, the memory stage, `Facts`, eviction and saved state.
 
-use crate::runtime::egui::memory::{self as store, Map, Removed, Service, take_raw};
+use crate::runtime::egui::memory::{self as store, FastMap, Map, Removed, Service, take_raw};
 use crate::runtime::egui::pass;
 use crate::runtime::frame::{self, PassStep, PerViewport, Stamped};
 use crate::runtime::pending::{self, Job, Pending};
@@ -104,8 +104,10 @@ fn remove_slot<const TIER: u8, T: Slot>(data: &mut Map, id: Id) -> Option<Remove
 }
 
 struct Entry {
+    /// `(tier, type, id)`.
+    key: (u8, TypeId, Id),
     value: Box<dyn Any + Send + Sync>,
-    write_back: fn(Box<dyn Any + Send + Sync>, &Context, Id),
+    write_back: fn(Box<dyn Any + Send + Sync>, &mut Map, Id) -> Option<Removed>,
     remove: Remover,
     tier: u8,
     ty: TypeId,
@@ -128,16 +130,16 @@ struct SlotRecord {
 
 #[derive(Default)]
 struct Registry {
-    owners: HashMap<Id, OwnerRecord>,
+    owners: FastMap<Id, OwnerRecord>,
     /// Keyed by `(slot id, tier, type)`.
-    slots: HashMap<(Id, u8, TypeId), SlotRecord>,
+    slots: FastMap<(Id, u8, TypeId), SlotRecord>,
     /// Evicted slots, moved out inside the end hook; the first pipeline run of the next pass drops them.
     graveyard: Vec<Removed>,
 }
 
 /// Marks a base whose stage was written back: the frame it was first shown in, for `appeared`. A discard pass
 /// repeats the frame, so `appeared` stays true through it.
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct Seen(u64);
 
 /// Registers `owner`'s pass, at step 3: eviction tests only owners. Shown entries of an owner not registered
@@ -243,10 +245,8 @@ pub(crate) fn dispose_evicted(ctx: &Context) {
     drop(queue);
 }
 
-fn write_back<const TIER: u8, T: Slot>(value: Box<dyn Any + Send + Sync>, ctx: &Context, id: Id) {
-    if let Ok(wrapped) = value.downcast::<Wrapped<TIER, T>>() {
-        store::put(ctx, id, *wrapped);
-    }
+fn write_back<const TIER: u8, T: Slot>(value: Box<dyn Any + Send + Sync>, data: &mut Map, id: Id) -> Option<Removed> {
+    value.downcast::<Wrapped<TIER, T>>().ok().and_then(|wrapped| store::put_boxed(data, id, wrapped))
 }
 
 fn press_ended<T: Slot>(value: &(dyn Any + Send + Sync)) -> bool {
@@ -260,7 +260,7 @@ pub struct MemoryStage {
     ctx: Context,
     /// The component id registered at step 3 whose pipeline opened this stage; eviction tests only it.
     owner: Id,
-    entries: HashMap<(u8, TypeId, Id), Entry>,
+    entries: Vec<Entry>,
     /// Base ids whose `appeared()` was asked this pass; they are marked seen at write-back.
     touched: RefCell<Vec<Id>>,
     /// Bases this stage claimed (the component's own, its body's, its items').
@@ -299,7 +299,7 @@ impl MemoryStage {
         MemoryStage {
             ctx: ctx.clone(),
             owner,
-            entries: HashMap::new(),
+            entries: Vec::new(),
             touched: RefCell::new(vec![base]),
             claimed: RefCell::new(Vec::new()),
             peek_only,
@@ -351,26 +351,39 @@ impl MemoryStage {
             touched.push(base);
         }
         let frame = pass::frame_nr(&self.ctx, pass::current_viewport(&self.ctx));
-        store::peek_clone::<Seen>(&self.ctx, base).is_none_or(|seen| seen.0 == frame)
+        store::peek_copy::<Seen>(&self.ctx, base).is_none_or(|seen| seen.0 == frame)
     }
 
     #[allow(clippy::unreachable, reason = "the entry key holds the lifetime and the type, so the downcast cannot fail")]
     fn slot<const TIER: u8, T: Slot>(&mut self, id: Id) -> &mut T {
         let ctx = &self.ctx;
         let peek = self.peek_only;
-        let entry = self.entries.entry((TIER, TypeId::of::<T>(), id)).or_insert_with(|| {
-            let value: Box<dyn Any + Send + Sync> = if peek {
-                Box::new(store::peek_clone::<Wrapped<TIER, T>>(ctx, id).unwrap_or_default())
-            } else {
-                // The box the slot was stored in stays the entry's value.
-                match ctx.data_mut(|data| take_raw::<Wrapped<TIER, T>>(data, id)) {
-                    Some(boxed) if boxed.is::<Wrapped<TIER, T>>() => boxed,
-                    _ => Box::new(Wrapped::<TIER, T>::default()),
-                }
-            };
-            Entry { value, write_back: write_back::<TIER, T>, remove: remove_slot::<TIER, T>, tier: TIER, ty: TypeId::of::<T>(), ended: None }
-        });
-        match entry.value.downcast_mut::<Wrapped<TIER, T>>() {
+        let key = (TIER, TypeId::of::<T>(), id);
+        let at = match self.entries.iter().position(|entry| entry.key == key) {
+            Some(at) => at,
+            None => {
+                let value: Box<dyn Any + Send + Sync> = if peek {
+                    Box::new(store::peek_clone::<Wrapped<TIER, T>>(ctx, id).unwrap_or_default())
+                } else {
+                    // The box the slot was stored in stays the entry's value.
+                    match ctx.data_mut(|data| take_raw::<Wrapped<TIER, T>>(data, id)) {
+                        Some(boxed) if boxed.is::<Wrapped<TIER, T>>() => boxed,
+                        _ => Box::new(Wrapped::<TIER, T>::default()),
+                    }
+                };
+                self.entries.push(Entry {
+                    key,
+                    value,
+                    write_back: write_back::<TIER, T>,
+                    remove: remove_slot::<TIER, T>,
+                    tier: TIER,
+                    ty: TypeId::of::<T>(),
+                    ended: None,
+                });
+                self.entries.len() - 1
+            }
+        };
+        match self.entries[at].value.downcast_mut::<Wrapped<TIER, T>>() {
             Some(wrapped) => &mut wrapped.0,
             None => unreachable!("an entry's value has the type its key names"),
         }
@@ -386,7 +399,7 @@ impl MemoryStage {
 
     pub(crate) fn press<T: Slot>(&mut self, id: Id) -> &mut Option<T> {
         self.slot::<PRESS, Option<T>>(id);
-        if let Some(entry) = self.entries.get_mut(&(PRESS, TypeId::of::<Option<T>>(), id)) {
+        if let Some(entry) = self.entries.iter_mut().find(|entry| entry.key == (PRESS, TypeId::of::<Option<T>>(), id)) {
             entry.ended = Some(press_ended::<T>);
         }
         self.slot::<PRESS, Option<T>>(id)
@@ -399,7 +412,8 @@ impl MemoryStage {
     /// The shown slot of `id`, moved out: it is read once. `None` when nothing was written under it.
     pub(crate) fn take<T: Slot>(&mut self, id: Id) -> Option<T> {
         let ty = TypeId::of::<T>();
-        if let Some(entry) = self.entries.remove(&(SHOWN, ty, id)) {
+        if let Some(at) = self.entries.iter().position(|entry| entry.key == (SHOWN, ty, id)) {
+            let entry = self.entries.swap_remove(at);
             return entry.value.downcast::<Wrapped<SHOWN, T>>().ok().map(|wrapped| wrapped.0);
         }
         if self.peek_only {
@@ -411,7 +425,11 @@ impl MemoryStage {
     }
 
     pub(crate) fn recall<T: Slot>(&self, id: Id) -> T {
-        let open = self.entries.get(&(SHOWN, TypeId::of::<T>(), id)).and_then(|entry| entry.value.downcast_ref::<Wrapped<SHOWN, T>>());
+        let open = self
+            .entries
+            .iter()
+            .find(|entry| entry.key == (SHOWN, TypeId::of::<T>(), id))
+            .and_then(|entry| entry.value.downcast_ref::<Wrapped<SHOWN, T>>());
         match open {
             Some(wrapped) => wrapped.0.clone(),
             None => store::peek_clone::<Wrapped<SHOWN, T>>(&self.ctx, id).map(|wrapped| wrapped.0).unwrap_or_default(),
@@ -431,8 +449,8 @@ impl MemoryStage {
             for base in &touched {
                 reg.slots.insert((*base, SHOWN, TypeId::of::<Seen>()), SlotRecord { owner, remove: take_raw::<Seen> });
             }
-            for ((_, _, id), entry) in &self.entries {
-                let key = (*id, entry.tier, entry.ty);
+            for entry in &self.entries {
+                let key = (entry.key.2, entry.tier, entry.ty);
                 if entry.ended.is_some_and(|is_ended| is_ended(&*entry.value)) {
                     reg.slots.remove(&key);
                     ended.push(key);
@@ -441,18 +459,28 @@ impl MemoryStage {
                 }
             }
         });
-        for ((tier, ty, id), entry) in self.entries {
-            // An ended press leaves no entry behind; its value drops here, under no lock.
-            if ended.contains(&(id, tier, ty)) {
-                continue;
+        // One data lock for every slot; the values they replace and the ended presses drop outside it.
+        let mut replaced: Vec<Removed> = Vec::new();
+        let ctx = self.ctx.clone();
+        let mut dropped: Vec<Box<dyn Any + Send + Sync>> = Vec::new();
+        ctx.data_mut(|data| {
+            for entry in self.entries {
+                let (tier, ty, id) = entry.key;
+                // An ended press leaves no entry behind; its value drops outside the lock.
+                if ended.contains(&(id, tier, ty)) {
+                    dropped.push(entry.value);
+                    continue;
+                }
+                replaced.extend((entry.write_back)(entry.value, data, id));
             }
-            (entry.write_back)(entry.value, &self.ctx, id);
-        }
-        for base in touched {
-            if store::peek_clone::<Seen>(&self.ctx, base).is_none() {
-                store::put(&self.ctx, base, Seen(frame));
+            for base in touched {
+                if data.get_temp::<Seen>(base).is_none() {
+                    data.insert_temp(base, Seen(frame));
+                }
             }
-        }
+        });
+        drop(replaced);
+        drop(dropped);
     }
 }
 

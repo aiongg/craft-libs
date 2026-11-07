@@ -38,6 +38,17 @@ pub(crate) fn put<T: Any + Clone + Send + Sync>(ctx: &Context, id: Id, value: T)
     drop(replaced);
 }
 
+/// A copy of the plain value under `id`, read in place: `Copy` means no slot code runs under the data lock.
+pub(crate) fn peek_copy<T: Any + Copy + Send + Sync>(ctx: &Context, id: Id) -> Option<T> {
+    ctx.data(|data| data.get_temp::<T>(id))
+}
+
+/// Puts a taken-out box back under `id`, in the allocation it left in. The value it replaced, if any, is returned
+/// to drop outside the lock.
+pub(crate) fn put_boxed<T: Any + Clone + Send + Sync>(data: &mut Map, id: Id, value: Box<T>) -> Option<Removed> {
+    data.insert_temp_boxed(id, value)
+}
+
 /// A copy of the slot under `id` without running slot code under the data lock: the entry moves out, is
 /// cloned and moves back.
 pub(crate) fn peek_clone<T: Any + Clone + Send + Sync>(ctx: &Context, id: Id) -> Option<T> {
@@ -76,23 +87,46 @@ impl<S> Clone for Service<S> {
     }
 }
 
-/// Folds the bytes of a `TypeId`, which is already a hash.
+/// A multiply-and-rotate hasher for keys that are already hashes or ids: the maps of the runtime hold no
+/// attacker-chosen keys.
 #[derive(Default)]
-struct TypeIdHasher(u64);
+pub(crate) struct FastHasher(u64);
 
-impl Hasher for TypeIdHasher {
+impl FastHasher {
+    #[inline]
+    fn mix(&mut self, word: u64) {
+        self.0 = (self.0.rotate_left(5) ^ word).wrapping_mul(0x517c_c1b7_2722_0a95);
+    }
+}
+
+impl Hasher for FastHasher {
+    #[inline]
     fn finish(&self) -> u64 {
         self.0
     }
 
+    #[inline]
     fn write(&mut self, bytes: &[u8]) {
         for chunk in bytes.chunks(8) {
             let mut word = [0u8; 8];
             word[..chunk.len()].copy_from_slice(chunk);
-            self.0 ^= u64::from_le_bytes(word);
+            self.mix(u64::from_le_bytes(word));
         }
     }
+
+    #[inline]
+    fn write_u8(&mut self, i: u8) {
+        self.mix(u64::from(i));
+    }
+
+    #[inline]
+    fn write_u64(&mut self, i: u64) {
+        self.mix(i);
+    }
 }
+
+/// A `HashMap` over [`FastHasher`].
+pub(crate) type FastMap<K, V> = HashMap<K, V, BuildHasherDefault<FastHasher>>;
 
 /// The service handles of one context, by service type.
 #[derive(Default)]
@@ -101,7 +135,7 @@ struct Handles {
     token: u64,
     /// The passes open on this thread.
     open: usize,
-    map: HashMap<TypeId, Box<dyn Any>, BuildHasherDefault<TypeIdHasher>>,
+    map: FastMap<TypeId, Box<dyn Any>>,
 }
 
 thread_local! {
