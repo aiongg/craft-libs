@@ -5,10 +5,12 @@
 
 pub mod arrangement;
 pub mod canvas;
+pub mod codec;
 pub mod columns;
 pub mod command;
 pub mod cursor;
 pub mod doc_key;
+pub mod editor;
 pub mod edit_history;
 pub mod eviction;
 pub mod flow;
@@ -29,20 +31,24 @@ pub mod one_press;
 pub mod overlay;
 pub mod part;
 pub mod press;
+pub mod quantity;
 pub mod scroll;
 pub mod selection;
 pub mod sense;
 pub mod sizing;
+pub mod typing;
 pub mod value;
 pub mod value_drag;
 pub mod wheel;
 
 pub use arrangement::Arrangement;
 pub use canvas::CanvasTransform;
+pub use codec::{Caret, Codec, NotAValue, NumberCodec, PlainText};
 pub use columns::{ColumnKey, ColumnWidth, GridSection, GridView};
 pub use command::{CommandFlags, pick_instance, resolve_flags};
 pub use cursor::{Cursor, CursorBadge, CursorIcon, CursorPriority, IconId, PaintedCursor};
 pub use doc_key::DocKey;
+pub use editor::EditorInput;
 pub use edit_history::EditHistory;
 pub use flow::{Axis, Flow, Insets};
 pub use focus::{CancelRule, KeyOwner, OwnerClass, PressFocus, ScopeKind};
@@ -63,10 +69,12 @@ pub use press::{
     Buttons, MultiTouch, PassInput, PointerButton, PointerEvent, PointerKind, PointerSample, PressCancel, PressMachine, PressPhase, PressStart,
     PressState, PressStep, count_clicks,
 };
+pub use quantity::Reader;
 pub use scroll::{ScrollPos, ScrollSpan};
 pub use selection::{CellSelection, Selection, SelectionChange, SelectionModel};
 pub use sense::Sense;
 pub use sizing::{ControlMetrics, Metrics, Proposal};
+pub use typing::{EditRun, Ended, EscapeRule, Escaped, Typed, TypingRun};
 pub use value::{Applied, CancelReason, EditEvent, EditPolicy, Gesture, GestureId, GesturePhase, Mixed, Validity, Value};
 pub use value_drag::ValueDrag;
 pub use wheel::{Wheel, WheelPhase, WheelTaker, WheelUnit};

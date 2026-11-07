@@ -242,7 +242,12 @@ impl KeyUse {
             Input::Editor => (KeepKeys::BlockArrows, ActivateKeys::Neither, OwnerClass::Text),
             _ => (KeepKeys::None, ActivateKeys::Neither, OwnerClass::Widget),
         };
-        KeyUse { keep, activate, claims: &[], edits: EditSet::NONE, owner }
+        // Text parts and editors list every edit command (11.3).
+        let edits = match owner {
+            OwnerClass::Text => EditSet::ALL,
+            _ => EditSet::NONE,
+        };
+        KeyUse { keep, activate, claims: &[], edits, owner }
     }
 
     /// The same use claiming `claims`.
