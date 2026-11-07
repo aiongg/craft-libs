@@ -12,7 +12,7 @@ use crate::runtime::focus::{FocusPolicy, Initial};
 use crate::runtime::frame;
 use crate::runtime::overlay::CloseReason;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
-use craft_behavior::{Metrics, NavMove, NavShape, Roving, Sense, Value};
+use craft_behavior::{Arrows, Metrics, NavShape, Roving, Sense, Value};
 use egui::{Response, Ui};
 
 /// The style of a menu: the surface comes from the container.
@@ -162,8 +162,11 @@ pub struct Menu<'a> {
 impl<'a> Menu<'a> {
     /// A menu named `label`. Its open state is the menu's slot until [`open`](Menu::open) binds it.
     pub fn new(label: impl Into<Label>) -> Self {
-        let props =
-            ContainerProps::new().surface(SurfaceKind::Popup).pad(Pad::None).roving(Roving::new(NavShape::Flat)).mount(Mount::Layer(layer(false)));
+        let props = ContainerProps::new()
+            .surface(SurfaceKind::Popup)
+            .pad(Pad::None)
+            .roving(Roving::new(NavShape::Flat).arrows(Arrows::Vertical))
+            .mount(Mount::Layer(layer(false)));
         Menu { common: Common::new(), props, open: None, closed: None, submenu: false, values: false, opener: None, back: false, step: None }
             .label(label)
     }
@@ -179,7 +182,7 @@ impl<'a> Menu<'a> {
     /// The rows of a menu in the flow of the layer that shows them, with no surface and no close rules of their own:
     /// the menu of a control that owns its popup shows its entries through it.
     pub fn inline(label: impl Into<Label>) -> Self {
-        let props = ContainerProps::new().roving(Roving::new(NavShape::Flat));
+        let props = ContainerProps::new().roving(Roving::new(NavShape::Flat).arrows(Arrows::Vertical));
         Menu { common: Common::new(), props, open: None, closed: None, submenu: false, values: false, opener: None, back: false, step: None }
             .label(label)
     }
@@ -252,14 +255,7 @@ impl Component for Menu<'_> {
             }
         }
         if !self.submenu {
-            let rtl = cx.flow.is_rtl();
-            while let Some((mv, _)) = cx.intents().take_move() {
-                self.step = match mv {
-                    NavMove::Back => Some(if rtl { MenuStep::Next } else { MenuStep::Prev }),
-                    NavMove::Forward => Some(if rtl { MenuStep::Prev } else { MenuStep::Next }),
-                    _ => self.step,
-                };
-            }
+            self.step = level.take_step();
         }
         while let Some(text) = cx.intents().take_text() {
             let mut chars = text.chars();
