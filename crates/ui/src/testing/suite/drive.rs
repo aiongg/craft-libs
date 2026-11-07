@@ -158,23 +158,22 @@ fn drag(fixture: &mut Fixture, part: PartRef, escape: bool) {
     fixture.idle(2);
 }
 
+/// The rows a popup offers: the options, menu entries, tree items and list items (a `TileGrid` tile) on screen.
+fn pickable(fixture: &Fixture) -> Vec<Target> {
+    [Role::LIST_BOX_OPTION, Role::MENU_ITEM, Role::TREE_ITEM, Role::LIST_ITEM].into_iter().flat_map(|role| fixture.by_role(role)).collect()
+}
+
 fn pick(fixture: &mut Fixture, row: usize, by_click: bool) {
     let none = Modifiers::NONE;
     let target = root_target(fixture);
+    // Rows the component shows before its popup opens are not the popup's.
+    let before: Vec<NodeKey> = pickable(fixture).into_iter().map(|row| row.node).collect();
     fixture.click(&target);
     if by_click {
-        let mut rows: Vec<Target> = [
-            crate::runtime::egui::access::Role::ListBoxOption,
-            crate::runtime::egui::access::Role::MenuItem,
-            crate::runtime::egui::access::Role::TreeItem,
-        ]
-        .into_iter()
-        .flat_map(|role| fixture.by_role(Role::Node(role)))
-        .filter(|row| row.node != target.node)
-        .collect();
+        let mut rows: Vec<Target> = pickable(fixture).into_iter().filter(|row| row.node != target.node && !before.contains(&row.node)).collect();
         rows.sort_by(|a, b| (a.rect.min.y, a.rect.min.x).partial_cmp(&(b.rect.min.y, b.rect.min.x)).unwrap_or(std::cmp::Ordering::Equal));
         if let Some(row) = rows.get(row).copied() {
-            fixture.click(&row);
+            super::row_click::click(fixture, &row);
         }
     } else {
         for _ in 0..row {

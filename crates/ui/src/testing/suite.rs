@@ -14,6 +14,7 @@ mod drive;
 mod nodes;
 mod pattern;
 mod pointer;
+mod row_click;
 mod shape;
 mod size;
 mod states;

@@ -6,7 +6,7 @@
 //! case that applies only to a collection with a setting starts the gesture and checks the rest when the collection
 //! answered it: a rename case runs on the stories whose F2 began a rename.
 
-use super::Subject;
+use super::{Subject, row_click};
 use super::nodes::{focused_row, position_in_set, root, rows, subtree};
 use crate::contract::ColumnCommands;
 use crate::contract::ShapeKind;
@@ -63,7 +63,7 @@ pub(super) fn keys_move_the_lead(subject: &Subject) -> Result<(), String> {
     for story in &subject.stories {
         let Some((mut fixture, container, shown)) = with_rows(story, 3) else { continue };
         let Some((_, size)) = position_in_set(&fixture, shown[0].node) else { continue };
-        fixture.click(&shown[0]);
+        row_click::click(&mut fixture, &shown[0]);
         let name = story.name;
         let ends = if focus_on_cell(&fixture) { Modifiers::COMMAND } else { Modifiers::NONE };
         let expect = |fixture: &mut Fixture, key: Key, mods: Modifiers, at: usize, what: &str| -> Result<(), String> {
@@ -103,7 +103,7 @@ pub(super) fn click_selects_one_row(subject: &Subject) -> Result<(), String> {
     for story in &subject.stories {
         let Some((mut fixture, container, shown)) = with_rows(story, 2) else { continue };
         fixture.take_outputs();
-        fixture.click(&shown[1]);
+        row_click::click(&mut fixture, &shown[1]);
         let kinds = events(&mut fixture);
         let selections = kinds.iter().filter(|kind| **kind == CollectionKind::Selection).count();
         if selections == 0 {
@@ -133,7 +133,7 @@ pub(super) fn type_ahead_moves_the_lead(subject: &Subject) -> Result<(), String>
             continue;
         };
         let Some(letter) = names[target] else { continue };
-        fixture.click(&shown[0]);
+        row_click::click(&mut fixture, &shown[0]);
         fixture.type_text(&letter.to_string());
         fixture.idle(2);
         let Some((_, size)) = position_in_set(&fixture, shown[0].node) else { continue };
@@ -154,7 +154,7 @@ pub(super) fn rename_commits_and_cancels_once(subject: &Subject) -> Result<(), S
     let rename = |kinds: &[CollectionKind], edit: EditKind| kinds.iter().filter(|kind| **kind == CollectionKind::Rename(edit)).count();
     for story in &subject.stories {
         let Some((mut fixture, container, shown)) = with_rows(story, 1) else { continue };
-        fixture.click(&shown[0]);
+        row_click::click(&mut fixture, &shown[0]);
         fixture.take_outputs();
         fixture.key(Key::F2, Modifiers::NONE);
         fixture.idle(2);
@@ -195,7 +195,7 @@ pub(super) fn keyboard_reorder_ends_once(subject: &Subject) -> Result<(), String
     }
     for story in &subject.stories {
         let Some((mut fixture, _, shown)) = with_rows(story, 2) else { continue };
-        fixture.click(&shown[0]);
+        row_click::click(&mut fixture, &shown[0]);
         fixture.take_outputs();
         fixture.key(Key::ArrowDown, Modifiers::ALT);
         fixture.idle(2);
