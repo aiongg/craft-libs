@@ -125,6 +125,13 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
         self.filter = Some(Filter { query: query.to_owned(), label: Box::new(label) });
         self
     }
+
+    /// A row drag also carries `map` of it, for the drop targets of type `P`. The drag stays one session with one ghost.
+    #[must_use]
+    pub fn drag_payload<P: Send + Sync + 'static>(mut self, map: impl Fn(&ListDrag<K>) -> P + Send + Sync + 'static) -> Self {
+        self.items = self.items.drag_payload(map);
+        self
+    }
 }
 
 impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for List<'_, K> {

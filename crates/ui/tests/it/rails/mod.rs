@@ -133,3 +133,13 @@ fn a_hold_that_does_not_select_only_opens_the_flyout() {
     held.fixture.idle(3);
     assert!(held.selected.borrow().is_empty(), "releasing after the hold selects nothing when the hold does not select");
 }
+
+#[trial]
+fn a_flyout_button_with_one_tool_is_one_button_node() {
+    let mut fixture = Fixture::new(|ui| {
+        let all = tools(&[UNDO]);
+        FlyoutButton::new(&all, &UNDO).show(ui);
+    });
+    fixture.settle();
+    assert_eq!(fixture.by_role(Role::BUTTON).len(), 1, "the face is the button, not a second node");
+}
