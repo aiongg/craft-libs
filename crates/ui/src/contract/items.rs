@@ -164,6 +164,12 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
         Rect::from_min_max(Pos2::new(area.min.x, area.min.y + self.header.height), area.max)
     }
 
+    /// Whether the collection takes its width from its widest row: `Sizing::Content` over rows with no columns,
+    /// whose widths the header resolves.
+    fn content_sized(&self, comp: &C) -> bool {
+        comp.props(Internal::new()).sizing == Sizing::Content && !self.header.has_columns()
+    }
+
     fn rows_rect(&self, cx: &Cx<'_, C>) -> Rect {
         self.below_header(cx.core.content_rect)
     }
@@ -325,8 +331,15 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             ShowAt::Flow => ui.available_size_before_wrap(),
         };
         self.room = room;
-        let width = if room.x.is_finite() { room.x } else { 0.0 };
         self.header.measure(scx);
+        let width = match (room.x.is_finite(), self.content_sized(comp)) {
+            (false, _) => 0.0,
+            (true, false) => room.x,
+            (true, true) => {
+                let floor = overlay::drawing_parent(ui.ctx()).map_or(0.0, |layer| super::overlay::floor_width(ui.ctx(), layer));
+                rows::widest_row(ui.ctx(), id).map_or(room.x, |widest| widest.max(floor).min(room.x))
+            }
+        };
         let mut layout = comp.item_layout(self.source, width, scx);
         if self.header.has_columns() {
             layout.set_columns(&self.header.columns(width));
@@ -344,12 +357,12 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         // A scrolling collection in a bounded room: `Content` takes its rows up to the room, `Fill` the room.
         match comp.props(Internal::new()).sizing {
             Sizing::Fill => Vec2::ZERO,
-            Sizing::Content => Vec2::new(0.0, height.min(room.y)),
+            Sizing::Content => Vec2::new(if self.content_sized(comp) { self.content.x } else { 0.0 }, height.min(room.y)),
         }
     }
 
     fn sized(&self, comp: &C, _: &Ui, size: Vec2) -> Vec2 {
-        let width = if self.room.x.is_finite() { self.room.x.max(size.x) } else { size.x };
+        let width = if self.room.x.is_finite() && !self.content_sized(comp) { self.room.x.max(size.x) } else { size.x };
         let height = match (self.scrolls && self.room.y.is_finite(), comp.props(Internal::new()).sizing) {
             (true, Sizing::Fill) => self.room.y,
             (true, Sizing::Content) => size.y.min(self.room.y),
@@ -475,6 +488,8 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let forward =
             areas::Forward { id: sub(id, "transform"), sense: response::to_egui(cx.core.root_sense), rect: cx.core.rect.intersect(ui.clip_rect()) };
         let mut row_groups = Vec::with_capacity(order.len());
+        let content_sized = self.content_sized(comp);
+        let mut widest = 0.0f32;
         let place_rows = |ui: &mut Ui| {
             for at in order {
                 let key = self.source.key(at);
@@ -546,6 +561,9 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     }),
                 );
                 item = Props::id(item, item_id);
+                if content_sized {
+                    widest = widest.max(item.measure_in(&row_ui, Proposal::Ideal).x);
+                }
                 if layout.is_auto(at) {
                     let measured = item.measure_in(&row_ui, Proposal::Width(row.width())).y;
                     rows::record_measure(&ctx, rows::measured_id(id, &key), Vec2::new(row.width(), measured));
@@ -605,6 +623,9 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             None => place_rows(ui),
         }
         focus::register_row_groups(&ctx, id, rtl, row_groups);
+        if content_sized {
+            rows::record_widest(&ctx, id, widest);
+        }
         cx.core.grid = crate::contract::GridPlace::grid(len, columns.len());
         let size = layout.content_size();
         self.content = Vec2::new(size.x as f32, size.y as f32);

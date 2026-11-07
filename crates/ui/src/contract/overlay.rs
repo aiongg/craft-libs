@@ -782,6 +782,14 @@ struct LayerMemory {
     focus_inside: bool,
     /// The layers opened from inside this one have been asked to close.
     family_closed: bool,
+    /// The least width the layer's body took in the last pass: a content-sized collection in the layer is at least
+    /// this wide, so its rows fill the layer.
+    min_width: f32,
+}
+
+/// The least width the body of the layer `id` takes, as of the last pass; 0 before the layer's first pass.
+pub(crate) fn floor_width(ctx: &Context, id: Id) -> f32 {
+    MemoryStage::peek::<LayerMemory>(ctx, memory_slot(id)).min_width
 }
 
 fn memory_slot(id: Id) -> Id {
@@ -965,6 +973,7 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
     entry.scoped = scope.is_some();
     entry.absorbs = overlay.dismiss.outside == Outside::Absorb;
     overlay::record(ctx, entry);
+    memory.min_width = min_width.min(placed.room.x);
     let dismissed = if layer.exiting { None } else { dismissal(ctx, layer, shown.rect, anchor, scope, &mut memory) };
     close_family(ctx, layer, layer.exiting || dismissed.is_some(), &mut memory);
     remember(layer, ctx, memory);
