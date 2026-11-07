@@ -345,11 +345,12 @@ pub const fn across_axis(along: Axis) -> Axis {
 
 /// The document direction a line running `along` an axis moves in: x for a line along `Axis::Y`. A screen caller
 /// maps it through `CanvasView::map_vec`; `resize_cursor` takes it as is.
-pub const fn motion_across(along: Axis) -> Vec2 {
-    match along {
-        Axis::X => Vec2::new(0.0, 1.0),
-        Axis::Y => Vec2::new(1.0, 0.0),
-    }
+pub fn motion_across(along: Axis) -> Vec2 {
+    let x = match along {
+        Axis::X => 0.0,
+        Axis::Y => 1.0,
+    };
+    Vec2::new(x, 1.0 - x)
 }
 
 /// The coordinate of `p` a line running `along` an axis is placed by: x for a line along `Axis::Y`.
