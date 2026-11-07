@@ -3,3 +3,4 @@
 mod access;
 mod board;
 mod kit;
+mod resolve;

@@ -2,8 +2,9 @@
 //! between the app and the pipeline.
 
 use crate::runtime::env::Message;
-use crate::runtime::memory::{MemoryStage, Savable, SaveKey};
+use crate::runtime::memory::{MemoryStage, Savable, SaveKey, StageAccess};
 use craft_behavior::{Applied, EditEvent, EditPolicy, Mixed, Value};
+use egui::Id;
 use egui::Response;
 use std::sync::Arc;
 
@@ -237,14 +238,77 @@ impl<T: Value> BindMut<'_, T> {
         self.check.map_or(Validity::Ok, |check| check(value))
     }
 
-    /// The saved tier of a kept binding that has a `SaveKey`: `None` without one, `Some(None)` when nothing was saved.
-    pub(crate) fn saved_value(&self, stage: &mut MemoryStage, held: &Option<Arc<T>>) -> Option<Option<Arc<T>>> {
-        self.save.as_ref().map(|save| (save.load)(stage, &save.key, held))
+    /// The value of a kept binding: the saved tier when it has a `SaveKey`, else session memory under `id`. `held`
+    /// is the shown copy, reused when equal.
+    pub(crate) fn kept(&self, stage: &mut MemoryStage, id: Id, held: &Held<T>) -> Option<Arc<T>> {
+        match self.save {
+            Some(save) => (save.load)(stage, &save.key, held),
+            None => stage.session::<Option<T>>(id).as_ref().map(|value| reuse_arc(held, value)),
+        }
     }
 
-    /// Stores into the saved tier; false when the binding has no `SaveKey`.
-    pub(crate) fn saved_put(&self, stage: &mut MemoryStage, value: T) -> bool {
-        self.save.as_ref().map(|save| (save.store)(stage, &save.key, value)).is_some()
+    /// Stores the value of a kept binding where `kept` reads it.
+    pub(crate) fn keep(&self, stage: &mut MemoryStage, id: Id, value: T) {
+        match self.save {
+            Some(save) => (save.store)(stage, &save.key, value),
+            None => *stage.session::<Option<T>>(id) = Some(value),
+        }
+    }
+
+    /// What the binding does with one event of the pass: the check may replace a value or refuse a commit.
+    pub(crate) fn checked(&self, event: &mut EditEvent<T>) -> Checked {
+        let (EditEvent::Update { value, .. } | EditEvent::Commit { after: value, .. } | EditEvent::Set { after: value, .. }) = event else {
+            return Checked::Keep;
+        };
+        match self.validity(value) {
+            Validity::Fix(fixed) => {
+                *value = fixed;
+                Checked::Keep
+            }
+            Validity::Refuse(_) => match event {
+                EditEvent::Commit { .. } => Checked::Cancel,
+                EditEvent::Set { .. } => Checked::Drop,
+                _ => Checked::Keep,
+            },
+            _ => Checked::Keep,
+        }
+    }
+
+    /// The binding's value for code that runs no pipeline step: a given or write-through value, or the kept value
+    /// under the base id of `cx` (the saved tier when the binding has a `SaveKey`). `None` for a kept binding that
+    /// holds nothing yet.
+    pub fn read(&self, cx: &mut impl StageAccess) -> Option<Mixed<T>> {
+        match &self.source {
+            SourceMut::Kept => {
+                let id = cx.base();
+                self.kept(cx.stage_mut(), id, &None).map(|value| Mixed::Same((*value).clone()))
+            }
+            _ => self.get(),
+        }
+    }
+
+    /// Writes `event` as the pipeline's apply step does: the check may replace the value (`Fix`) or refuse it
+    /// (nothing is written). A write-through source takes the event under its policy; a kept binding stores the
+    /// value the event leaves under the base id of `cx`; a given binding never writes, so the caller reports the
+    /// event. Returns whether the value changed.
+    pub fn write(&mut self, cx: &mut impl StageAccess, event: &EditEvent<T>) -> bool {
+        let mut event = event.clone();
+        if !matches!(self.checked(&mut event), Checked::Keep) {
+            return false;
+        }
+        match self.source {
+            SourceMut::Given(_) => false,
+            SourceMut::Kept => {
+                let Some(value) = landed(&event) else { return false };
+                let id = cx.base();
+                if self.kept(cx.stage_mut(), id, &None).is_some_and(|held| *held == *value) {
+                    return false;
+                }
+                self.keep(cx.stage_mut(), id, value.clone());
+                true
+            }
+            _ => self.apply(&event) != Applied::Unchanged,
+        }
     }
 
     /// The value a reset restores.
@@ -326,5 +390,22 @@ pub trait ItemOutput<E>: Outcome {
 impl<E> ItemOutput<E> for Response {
     fn into_event(self) -> Option<E> {
         None
+    }
+}
+
+/// What a binding does with one event of the pass.
+pub(crate) enum Checked {
+    Keep,
+    /// A refused commit becomes `Cancel(Refused)`.
+    Cancel,
+    /// A refused one-shot change reaches nothing.
+    Drop,
+}
+
+/// The value an event leaves in a value store: a value it carries, or the one a cancel restores.
+pub(crate) fn landed<V: Value>(event: &EditEvent<V>) -> Option<&V> {
+    match event {
+        EditEvent::Cancel { before: Some(Mixed::Same(before)), .. } => Some(before),
+        event => event.value(),
     }
 }

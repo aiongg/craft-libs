@@ -3,7 +3,7 @@
 
 use super::cx::gesture_key;
 use super::cx::{CxCore, Decls, MeasureCx, PartExtras};
-use super::values::reuse_arc;
+use super::values::{Checked, landed, reuse_arc};
 use super::{Common, Component, Cx, IdSource, Pointer as _, Resolved, Styled as _, Validity, ValueOf};
 use crate::primitives::sensing::PartDecl;
 use crate::primitives::{FaceRecord, FocusKind, FocusRing, PaintShape, StateLayer, StateLayerKind, Surface};
@@ -377,10 +377,7 @@ pub(crate) fn value<C: Component>(comp: &mut C, stage: &mut MemoryStage, id: Id,
         (None, Some((false, Some(Mixed::Mixed), ..))) => out.mixed = true,
         // A kept binding with a `SaveKey` reads the saved tier, one without reads session memory under the id.
         (None, Some((false, None, _))) => {
-            out.value = match comp.bind().and_then(|bind| bind.saved_value(stage, &held)) {
-                Some(saved) => saved,
-                None => stage.session::<Option<V<C>>>(id).as_ref().map(|value| reuse_arc(&held, value)),
-            }
+            out.value = comp.bind().and_then(|bind| bind.kept(stage, id, &held));
         }
         (None, None) => out.value = command_given::<V<C>>(command).map(|value| reuse_arc(&held, &value)),
     }
@@ -834,41 +831,6 @@ pub(crate) fn after_update(core: &mut CxCore<'_>) {
     }
 }
 
-/// What a binding does with one event of the pass: the check may replace a value or refuse a commit.
-fn checked<V: Value>(bind: &super::BindMut<'_, V>, event: &mut EditEvent<V>) -> Checked {
-    let (EditEvent::Update { value, .. } | EditEvent::Commit { after: value, .. } | EditEvent::Set { after: value, .. }) = event else {
-        return Checked::Keep;
-    };
-    match bind.validity(value) {
-        Validity::Fix(fixed) => {
-            *value = fixed;
-            Checked::Keep
-        }
-        Validity::Refuse(_) => match event {
-            EditEvent::Commit { .. } => Checked::Cancel,
-            EditEvent::Set { .. } => Checked::Drop,
-            _ => Checked::Keep,
-        },
-        _ => Checked::Keep,
-    }
-}
-
-enum Checked {
-    Keep,
-    /// A refused commit becomes `Cancel(Refused)`.
-    Cancel,
-    /// A refused one-shot change reaches nothing.
-    Drop,
-}
-
-/// The value an event leaves in a value store: a value it carries, or the one a cancel restores.
-fn landed<V: Value>(event: &EditEvent<V>) -> Option<&V> {
-    match event {
-        EditEvent::Cancel { before: Some(Mixed::Same(before)), .. } => Some(before),
-        event => event.value(),
-    }
-}
-
 /// Steps 11 and 15, apply: the events not yet applied are checked and written to the binding. A read-only component refuses
 /// every one. A given caller gets `Begin` in the pass a gesture began and its first `Update` in the next, because it has
 /// no source to hold the value now.
@@ -903,7 +865,7 @@ pub(crate) fn apply_values<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
     let (mut emitted, mut began, mut landing, mut last_update) = (None, false, None, None);
     let mut at = from;
     while at < cx.events.len() {
-        match checked(&bind, &mut cx.events[at]) {
+        match bind.checked(&mut cx.events[at]) {
             Checked::Keep => {}
             Checked::Cancel => {
                 if let EditEvent::Commit { id, before, .. } = cx.events[at].clone() {
@@ -980,9 +942,7 @@ pub(crate) fn apply_values<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
     if let Some(value) = landing {
         if bind.is_kept() {
             let id = cx.core.id;
-            if !bind.saved_put(&mut *cx.core.memory, value.clone()) {
-                *cx.core.memory.session::<Option<ValueOf<C>>>(id) = Some(value.clone());
-            }
+            bind.keep(&mut *cx.core.memory, id, value.clone());
         }
         cx.shown = Some(Arc::new(value));
         cx.mixed = false;

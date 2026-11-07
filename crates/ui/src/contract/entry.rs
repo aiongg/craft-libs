@@ -8,18 +8,18 @@ use crate::runtime::env::Label;
 static NO_LABEL: Label = Label::Empty;
 
 /// A row of entries: an item that reports its value when picked, or a separator between groups of items.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Entry<T> {
     row: Row<T>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 enum Row<T> {
     Item(Item<T>),
     Separator,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 struct Item<T> {
     value: T,
     label: Label,
