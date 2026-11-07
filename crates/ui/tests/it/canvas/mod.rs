@@ -1,7 +1,7 @@
 //! `Canvas` (20.6): a press away from every canvas control's parts reaches the tool.
 
-mod tool;
 mod readout;
+mod tool;
 
 use craft_ui::canvas::{Canvas, CropOverlay, ToolPath};
 use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
@@ -11,6 +11,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 mod space;
+
+mod raster;
 
 fn crop() -> Rect {
     Rect::from_min_max(Pos2::new(20.0, 20.0), Pos2::new(100.0, 80.0))

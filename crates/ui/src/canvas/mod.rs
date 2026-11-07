@@ -7,8 +7,8 @@
 
 mod crop;
 mod guide;
-mod space;
 mod readout;
+mod space;
 #[cfg(feature = "testing")]
 mod stories;
 mod words;
@@ -19,9 +19,9 @@ mod tool_host;
 
 pub use crop::{CropOverlay, CropStyle};
 pub use guide::{Guide, GuideDrag, GuideKey, GuideLine};
+pub use readout::readout;
 pub use space::{CanvasSpace, RulerText, canvas_space};
 pub use words::CanvasWords;
-pub use readout::readout;
 
 pub use tool::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPointer};
 pub use tool_groups::{PickStep, tool_pick};
@@ -30,13 +30,14 @@ pub use tool_host::{ToolHost, ToolHostResponse, ToolInput, ToolReadout};
 mod raster_source;
 pub use raster_source::{PixelRect, RasterSource};
 
+mod raster;
+pub use raster::{DetailPlan, RasterDisplay, RasterOutput, RasterStyle, snap_to_texels};
+
 use crate::contract::{Common, Component, Container, ContainerProps, Cx, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role, Sizing};
 use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
-use craft_behavior::{
-    CanvasTransform, CanvasView, HitLevel, HitPriority, Metrics, PartKey, PointerButton, PressPhase, PressState, Sense, Wheel,
-};
+use craft_behavior::{CanvasTransform, CanvasView, HitLevel, HitPriority, Metrics, PartKey, PointerButton, PressPhase, PressState, Sense, Wheel};
 use egui::{Pos2, Rect, Response, Vec2};
 
 const BACKGROUND: PartKey = PartKey::new("background");

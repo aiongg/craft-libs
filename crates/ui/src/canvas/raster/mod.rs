@@ -1,0 +1,292 @@
+//! `RasterDisplay`: the CPU raster path of a canvas. The app gives the document's composite as RGBA for a region
+//! ([`RasterSource`]); the display keeps it in `TextureStore` textures, draws it through the canvas's
+//! [`CanvasSpace`](super::CanvasSpace) over a checkerboard, and re-reads only what the app marks damaged.
+//!
+//! A document larger than the device's texture limit (`texture_side`) is uploaded reduced; zoomed in, the part in
+//! view is added at the screen's resolution as a detail texture ([`DetailPlan`]), so a large document shows its own
+//! pixels at 100 percent and the cost follows the window, not the document. Pixels are drawn sharp (nearest) from
+//! 100 percent up and filtered below.
+//!
+//! The display takes no pointer and no keys and declares no parts: a press on it reaches the canvas's tool.
+
+mod detail;
+#[cfg(feature = "testing")]
+mod stories;
+
+pub use detail::{DetailPlan, snap_to_texels};
+
+use super::{PixelRect, RasterSource, canvas_space};
+use crate::contract::{Common, Component, Cx, NoValue, Outcome, PaintUi, Props as _, Role};
+use crate::primitives::{CachedTexture, TextureState, TextureStore, TextureStoreOptions, checker, texture_factor, texture_side};
+use crate::runtime::env::Label;
+use crate::style::{ComponentStyle, StyleCx};
+use craft_behavior::kurbo::Rect as Rect64;
+use craft_behavior::{CanvasView, Metrics, PixelSize};
+use detail::{texel_extent, texel_origin};
+use egui::epaint::{Mesh, Vertex};
+use egui::{Color32, ColorImage, Context, Id, Pos2, Rect, Response, Shape, Stroke, TextureFilter, TextureOptions, pos2};
+
+/// The style of a raster display: it has no look of its own.
+#[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
+#[non_exhaustive]
+pub struct RasterStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+}
+
+/// Which picture of a display a texture holds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum Level {
+    /// The whole document at one texel per `texture_factor` pixels.
+    Base,
+    /// The part in view at the screen's resolution. A new plan is a new key, so a texture is never partly of
+    /// two plans.
+    Detail(DetailPlan),
+}
+
+/// What `update` leaves for `paint`: the textures to draw and the view to draw them through.
+struct Shown {
+    view: CanvasView,
+    size: PixelSize,
+    base: (CachedTexture, u32),
+    detail: Option<(CachedTexture, DetailPlan)>,
+}
+
+/// What a display did in a pass.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct RasterOutput {
+    /// The display's response.
+    pub response: Response,
+    /// The pixels read from the source this pass (damage, a new detail region, the first pass).
+    pub read: Option<PixelRect>,
+    /// The detail texture in use this pass, if any.
+    pub detail: Option<DetailPlan>,
+}
+
+impl Outcome for RasterOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// The CPU raster display of one canvas: the document drawn through the view of the [`Canvas`](super::Canvas) it
+/// is shown in, at the canvas rect. Outside a canvas, or in one without a view, it draws nothing.
+///
+/// - **Reading.** The display asks the source for pixels only when it has none for the source's `revision`. A
+///   changed revision with no damage reported re-reads everything; with [`damaged`](Self::damaged) it re-reads
+///   that region only (snapped outward to whole texels). Damage is the region changed since the display last
+///   showed, unioned by the app.
+/// - **Transparency.** [`checkerboard`](Self::checkerboard) draws the library's transparency grid under the
+///   document, holding still while the document scrolls. Without it the document draws straight on the canvas
+///   (an opaque document, a video frame).
+/// - **Turned views.** A rotated or mirrored view draws each texture as one quad on the view's mapped corners.
+/// - **Memory.** The textures live in two `TextureStore`s per display id and go with the store's budget; a
+///   detail texture of a plan no longer in use is dropped in the pass the plan changes.
+#[derive(crate::contract::Component, crate::contract::Props)]
+#[component(canvas_control, content_painter)]
+pub struct RasterDisplay<'a> {
+    #[common]
+    common: Common,
+    source: &'a dyn RasterSource,
+    /// The region of the document that changed since the display last showed it.
+    #[prop]
+    damaged: PixelRect,
+    /// Whether the transparency grid shows under the document.
+    #[prop(flag)]
+    checkerboard: bool,
+    read: PixelRect,
+    shown: Option<Shown>,
+}
+
+impl<'a> RasterDisplay<'a> {
+    /// A display named `label` of the document `source` gives.
+    pub fn new(label: impl Into<Label>, source: &'a dyn RasterSource) -> Self {
+        RasterDisplay { common: Common::new(), source, damaged: PixelRect::default(), checkerboard: false, read: PixelRect::default(), shown: None }
+            .label(label)
+    }
+
+    /// The store that holds this display's textures of one sampling. A texture is sharp (nearest) from 100 percent
+    /// up, which is when one texel is one document pixel; a reduced texture holds averages and stays filtered.
+    fn store(ctx: &Context, id: Id, sharp: bool) -> TextureStore<Level> {
+        let magnification = if sharp { TextureFilter::Nearest } else { TextureFilter::Linear };
+        let filter = TextureOptions { magnification, ..TextureOptions::LINEAR };
+        TextureStore::in_context(ctx, (id, sharp), TextureStoreOptions::pages().filter(filter))
+    }
+
+    fn read_region(&self, region: PixelRect, factor: u32) -> ColorImage {
+        let mut image = ColorImage::filled(texel_extent(region, factor), Color32::TRANSPARENT);
+        self.source.read(region, factor, &mut image);
+        image
+    }
+
+    /// The texture of `level`, which holds `region` of the document at one texel per `factor` pixels, brought up to
+    /// the source's revision, and the pixels read to do it.
+    /// - A texture of the right size with the revision is kept, unless `damage` touches it.
+    /// - Damage inside `region` is read again alone.
+    /// - A texture of an older revision with damage elsewhere moves to the revision without a read.
+    /// - Anything else is read whole.
+    fn bring_up_to_date(&self, ctx: &Context, id: Id, level: Level, region: PixelRect, factor: u32, damage: PixelRect) -> (CachedTexture, PixelRect) {
+        let sharp = factor == 1;
+        // A key never lives in both samplings: the other store's copy is from before the factor changed.
+        Self::store(ctx, id, !sharp).forget(ctx, &level);
+        let store = Self::store(ctx, id, sharp);
+        let revision = self.source.revision();
+        let origin = [region.x0, region.y0];
+        let expected = texel_extent(region, factor);
+        let state = store.state(ctx, &level, revision);
+        let current = state.shown().filter(|texture| [texture.size.width as usize, texture.size.height as usize] == expected);
+        let dirty = snap_to_texels(damage.intersect(&region), origin, factor).intersect(&region);
+        if let Some(texture) = current {
+            if !dirty.is_empty() {
+                let image = self.read_region(dirty, factor);
+                if let Some(texture) = store.put_region(ctx, &level, revision, texel_origin(dirty, origin, factor), image) {
+                    return (texture, dirty);
+                }
+            } else if matches!(state, TextureState::Ready(_)) {
+                return (texture, PixelRect::default());
+            } else if !damage.is_empty() {
+                // The pixels changed elsewhere: no texel of this texture is new, and the entry takes the revision.
+                if let Some(texture) = store.put_region(ctx, &level, revision, [0, 0], ColorImage::new([0, 0], Vec::new())) {
+                    return (texture, PixelRect::default());
+                }
+            }
+        }
+        (store.put(ctx, level, revision, self.read_region(region, factor)), region)
+    }
+
+    /// Drops every texture of this display.
+    fn release(ctx: &Context, id: Id) {
+        for sharp in [true, false] {
+            Self::store(ctx, id, sharp).clear(ctx);
+        }
+    }
+
+    /// Drops the detail textures of other plans than `plan`.
+    fn retain_plan(ctx: &Context, id: Id, plan: Option<DetailPlan>) {
+        for sharp in [true, false] {
+            Self::store(ctx, id, sharp).retain(ctx, |level| match level {
+                Level::Base => true,
+                Level::Detail(kept) => Some(*kept) == plan,
+            });
+        }
+    }
+}
+
+impl Component for RasterDisplay<'_> {
+    const ROLE: Role = Role::IMAGE;
+    const OVERLAYS: bool = false;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
+    type Style = RasterStyle;
+    type Output = RasterOutput;
+
+    fn style(_: &StyleCx<'_>, _: RasterDisplayStyleKey) -> RasterStyle {
+        RasterStyle::default()
+    }
+
+    /// Reads what changed from the source and uploads it.
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        self.read = PixelRect::default();
+        self.shown = None;
+        let Some(space) = canvas_space(&cx.env) else { return };
+        let (ctx, id) = (cx.ctx.clone(), cx.id);
+        let size = self.source.size();
+        let bounds = PixelRect::of_size(size);
+        if bounds.is_empty() {
+            Self::release(&ctx, id);
+            return;
+        }
+        let side = texture_side(&ctx);
+        let factor = texture_factor(size, side);
+        let damage = self.damaged.intersect(&bounds);
+        let (base, base_read) = self.bring_up_to_date(&ctx, id, Level::Base, bounds, factor, damage);
+        let plan = DetailPlan::in_view(&space.view, size, side, space.pixels_per_point);
+        let detail = plan.map(|plan| {
+            let (texture, read) = self.bring_up_to_date(&ctx, id, Level::Detail(plan), plan.region, plan.factor, damage);
+            self.read = self.read.union(&read);
+            (texture, plan)
+        });
+        Self::retain_plan(&ctx, id, plan);
+        self.read = self.read.union(&base_read);
+        self.shown = Some(Shown { view: space.view, size, base: (base, factor), detail });
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let Some(shown) = self.shown.take() else { return };
+        let painter = ui.content_painter(cx);
+        let corners = shown.view.quad(Rect64::new(0.0, 0.0, f64::from(shown.size.width), f64::from(shown.size.height)));
+        if self.checkerboard {
+            let around = Rect::from_points(&corners);
+            for shape in checker(&ui.env.tokens, shown.view.rect, around) {
+                if shown.view.axis_aligned() {
+                    painter.painter.add(shape);
+                } else if let Some(cell) = clipped_cell(&shape, &corners) {
+                    painter.painter.add(cell);
+                }
+            }
+        }
+        let (texture, factor) = shown.base;
+        let whole = PixelRect::of_size(shown.size);
+        painter.painter.add(textured_quad(&shown.view, texture, factor, whole));
+        if let Some((texture, plan)) = shown.detail {
+            painter.painter.add(textured_quad(&shown.view, texture, plan.factor, plan.region));
+        }
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> RasterOutput {
+        let detail = self.shown.as_ref().and_then(|shown| shown.detail.as_ref().map(|(_, plan)| *plan));
+        RasterOutput { response: cx.response.clone(), read: (!self.read.is_empty()).then_some(self.read), detail }
+    }
+}
+
+/// `texture`, which holds `region` of the document from its top left at one texel per `factor` pixels, as a quad on
+/// the view's mapped corners of `region`.
+fn textured_quad(view: &CanvasView, texture: CachedTexture, factor: u32, region: PixelRect) -> Shape {
+    let (texels_x, texels_y) = (texture.size.width as f32 * factor as f32, texture.size.height as f32 * factor as f32);
+    let (u, v) = (region.width() as f32 / texels_x, region.height() as f32 / texels_y);
+    let corners = view.quad(Rect64::new(f64::from(region.x0), f64::from(region.y0), f64::from(region.x1), f64::from(region.y1)));
+    let uv = [pos2(0.0, 0.0), pos2(u, 0.0), pos2(u, v), pos2(0.0, v)];
+    let mut mesh = Mesh::with_texture(texture.id);
+    mesh.vertices.extend(corners.iter().zip(uv).map(|(pos, uv)| Vertex { pos: *pos, uv, color: Color32::from_gray(u8::MAX) }));
+    mesh.indices.extend([0, 1, 2, 0, 2, 3]);
+    Shape::mesh(mesh)
+}
+
+/// The filled rect `shape` (a transparency grid cell) cut to the convex quad `corners`, or `None` when it is not a
+/// filled rect or lies outside the quad.
+fn clipped_cell(shape: &Shape, corners: &[Pos2; 4]) -> Option<Shape> {
+    let Shape::Rect(cell) = shape else { return None };
+    let rect = cell.rect;
+    let polygon = clip_to_convex(&[rect.left_top(), rect.right_top(), rect.right_bottom(), rect.left_bottom()], corners);
+    (polygon.len() >= 3).then(|| Shape::convex_polygon(polygon, cell.fill, Stroke::NONE))
+}
+
+/// `subject` cut to the convex polygon `clip` (Sutherland-Hodgman), either winding.
+fn clip_to_convex(subject: &[Pos2], clip: &[Pos2; 4]) -> Vec<Pos2> {
+    let cross = |a: Pos2, b: Pos2, p: Pos2| (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x);
+    let winding = cross(clip[0], clip[1], clip[2]).signum();
+    let mut polygon = subject.to_vec();
+    for edge in 0..clip.len() {
+        let (a, b) = (clip[edge], clip[(edge + 1) % clip.len()]);
+        let inside = |p: Pos2| cross(a, b, p) * winding >= 0.0;
+        let input = std::mem::take(&mut polygon);
+        for (at, current) in input.iter().enumerate() {
+            let previous = input[(at + input.len() - 1) % input.len()];
+            if inside(*current) != inside(previous) {
+                let (from, to) = (cross(a, b, previous), cross(a, b, *current));
+                let t = from / (from - to);
+                polygon.push(previous + (*current - previous) * t);
+            }
+            if inside(*current) {
+                polygon.push(*current);
+            }
+        }
+        if polygon.is_empty() {
+            break;
+        }
+    }
+    polygon
+}
