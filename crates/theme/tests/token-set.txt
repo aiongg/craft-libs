@@ -80,6 +80,7 @@ shape.radius.sm
 shape.radius.window
 shape.rows
 size.bar.options
+size.bar.options_narrow
 size.bar.status
 size.bar.tab
 size.bar.title

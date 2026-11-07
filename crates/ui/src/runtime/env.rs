@@ -2,9 +2,12 @@
 
 mod folder;
 mod label;
+mod shell;
 mod units;
 
 pub use label::{Label, Message, Word};
+pub(crate) use shell::ShellEntry;
+pub use shell::{BodyMode, RevealEdge, ShellCx, ShellRegions, SlotKey, WindowKey};
 pub use units::{UnitKind, UnitWords, Units};
 
 use crate::runtime::commands::CommandChain;

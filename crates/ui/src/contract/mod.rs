@@ -18,6 +18,7 @@ mod props;
 mod registry;
 pub(crate) mod reorder;
 mod run;
+mod shell;
 mod steps;
 pub(crate) mod text;
 pub mod toast;

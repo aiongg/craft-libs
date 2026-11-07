@@ -766,6 +766,8 @@ pub struct BarSizes {
     pub status: f32,
     /// Tool options bar.
     pub options: f32,
+    /// Tool options bar in its narrow form, for a window too small for the full bar.
+    pub options_narrow: f32,
 }
 
 /// Fixed sizes of controls and chrome.

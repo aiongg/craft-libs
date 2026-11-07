@@ -17,6 +17,7 @@
     "size": {
       "bar": {
         "options": 36.0,
+        "options_narrow": 28.0,
         "status": 24.0,
         "tab": 26.0,
         "title": 32.0
