@@ -24,7 +24,11 @@ fn a_raw_egui_widget_next_to_a_component_is_a_finding() {
         craft_ui::testing::contract::raw_widget(ui, raw);
     });
     fixture.settle();
+    // The raw widget shows twice: as an egui widget no component registered, and as an AccessKit node that declares
+    // a click the runtime did not write. The component beside it shows in neither.
     let found = bypass::findings(&fixture);
-    assert_eq!(found.len(), 1, "{found:?}");
-    assert!(found[0].contains("egui widget"), "{found:?}");
+    let widgets: Vec<_> = found.iter().filter(|finding| finding.starts_with("egui widget")).collect();
+    let nodes: Vec<_> = found.iter().filter(|finding| finding.starts_with("AccessKit node")).collect();
+    assert_eq!((widgets.len(), nodes.len()), (1, 1), "{found:?}");
+    assert!(widgets[0].contains("raw_widget"), "{found:?}");
 }
