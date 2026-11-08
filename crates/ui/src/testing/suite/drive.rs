@@ -190,9 +190,8 @@ fn pick(fixture: &mut Fixture, row: usize, by_click: bool) {
 /// A story whose first stops belong to something else (an editor inside a canvas) still gets its text. `false` when
 /// the cycle ends without the subject: a subject Tab cannot reach still fails.
 ///
-/// The focus is inside when the focus service's stop is the subject's component, when AccessKit's focused node
-/// lies in the subject's node subtree, or when that node's bounds lie within the subject's. A text part's widget
-/// sits beside the component's node rather than below it, so the bounds decide for text types and composites.
+/// The focus is inside when the focus service's stop is the subject's component or AccessKit's focused node lies in
+/// the subject's node subtree.
 pub(super) fn focus_subject(fixture: &mut Fixture) -> bool {
     let Some(root_id) = fixture.root_id() else {
         fixture.key(Key::Tab, Modifiers::NONE);
@@ -203,11 +202,7 @@ pub(super) fn focus_subject(fixture: &mut Fixture) -> bool {
     loop {
         let stop = fixture.focused_stop().map(|(id, _)| id);
         let focused = fixture.tree().focused_key();
-        let inside = |root: &Target| {
-            super::nodes::focus_within(fixture, root.node)
-                || fixture.tree().bounds_of(focused).is_some_and(|bounds| root.rect.contains(bounds.center()))
-        };
-        if stop == Some(root_id) || root.as_ref().is_some_and(inside) {
+        if stop == Some(root_id) || root.as_ref().is_some_and(|root| super::nodes::focus_within(fixture, root.node)) {
             return true;
         }
         let at = (stop, focused);
