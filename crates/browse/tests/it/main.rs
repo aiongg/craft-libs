@@ -2,7 +2,6 @@
 
 mod bin;
 mod compare;
-mod diag;
 mod freebin;
 mod places;
 mod relink;

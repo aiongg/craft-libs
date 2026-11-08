@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 
-use craft_behavior::{CellSelection, ColumnKey};
+use craft_behavior::{CellDirection, CellSelection, ColumnKey};
 use craft_ui::contract::{PaintUi, Props as _};
 use craft_ui::primitives::TextRun;
 use craft_ui::runtime::env::Label;
@@ -64,6 +64,18 @@ impl GridModel for StorySheet {
 
     fn last_used(&self) -> CellAt<u32> {
         CellAt::new(11, 5)
+    }
+
+    /// The data fills rows 0 to 11 and columns 0 to 5, so an edge jump stops at the last used row or column.
+    fn data_edge(&self, from: CellAt<u32>, direction: CellDirection) -> CellAt<u32> {
+        let last = self.last_used();
+        match direction {
+            CellDirection::Up => CellAt::new(0, from.column),
+            CellDirection::Down => CellAt::new(last.row, from.column),
+            CellDirection::Left => CellAt::new(from.row, 0),
+            CellDirection::Right => CellAt::new(from.row, last.column),
+            _ => from,
+        }
     }
 
     fn paint_cell(&self, ui: &mut PaintUi<'_>, rect: Rect, cell: CellAt<u32>, _: f32) {

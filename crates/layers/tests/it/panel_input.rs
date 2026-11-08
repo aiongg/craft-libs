@@ -682,22 +682,6 @@ fn item_named(fixture: &Fixture, name: &str) -> Target {
         .unwrap_or_else(|| panic!("no list item named {name:?}"))
 }
 
-/// The side of the first thumbnail below the list item `item`.
-fn thumbnail_side(fixture: &Fixture, item: &Target) -> Option<f32> {
-    let mut found = vec![item.node];
-    let mut at = 0;
-    while at < found.len() {
-        let more: Vec<_> = fixture.tree().children_of(found[at]).into_iter().filter(|child| !found.contains(child)).collect();
-        found.extend(more);
-        at += 1;
-    }
-    found
-        .into_iter()
-        .filter(|node| fixture.tree().role_of(*node) == Some(Role::IMAGE))
-        .find_map(|node| fixture.tree().bounds_of(node))
-        .map(|bounds| bounds.width())
-}
-
 /// The rig of the Smart Filters trials: the smart object's filters open at thumbnail size `size`.
 fn smart_filter_rig(size: ThumbSize) -> Fixture {
     let mut tree = FakeLayers::sample();
@@ -709,29 +693,21 @@ fn smart_filter_rig(size: ThumbSize) -> Fixture {
     .0
 }
 
-/// The Smart Filters header carries the filter mask's thumbnail, as tall as a layer's, unless thumbnails are off; a
-/// filter row never does (Photoshop).
+/// The Smart Filters header carries the filter mask's thumbnail, so it is as tall as a layer row at every thumbnail size
+/// and taller than a filter row; with thumbnails off all three rows are alike (Photoshop). A row's height follows its
+/// thumbnail, which paints no node of its own.
 #[trial]
 fn the_smart_filters_header_holds_the_shared_mask_thumbnail() {
-    let fixture = smart_filter_rig(ThumbSize::Medium);
-    let (header, filter) = (item_named(&fixture, "Smart Filters"), item_named(&fixture, "Gaussian Blur"));
-    assert!(
-        header.rect.height() > filter.rect.height(),
-        "the header row holds a thumbnail: {} against {}",
-        header.rect.height(),
-        filter.rect.height()
-    );
-    let layer = thumbnail_side(&fixture, &item_named(&fixture, "Styled")).expect("a layer row shows its thumbnail");
-    assert_eq!(thumbnail_side(&fixture, &header), Some(layer), "the filter mask thumbnail matches the layer thumbnails");
-    assert_eq!(thumbnail_side(&fixture, &filter), None, "a filter row has no thumbnail");
+    for size in [ThumbSize::Small, ThumbSize::Medium, ThumbSize::Large] {
+        let fixture = smart_filter_rig(size);
+        let height = |name: &str| item_named(&fixture, name).rect.height();
+        let (header, filter, layer) = (height("Smart Filters"), height("Gaussian Blur"), height("Styled"));
+        assert!(header > filter, "{size:?}: the header row holds a thumbnail: {header} against {filter}");
+        assert_eq!(header, layer, "{size:?}: the filter mask thumbnail matches the layer thumbnails");
+    }
     let fixture = smart_filter_rig(ThumbSize::None);
-    let (header, filter) = (item_named(&fixture, "Smart Filters"), item_named(&fixture, "Gaussian Blur"));
-    assert!(
-        (header.rect.height() - filter.rect.height()).abs() < 0.5,
-        "no thumbnail at size None: {} against {}",
-        header.rect.height(),
-        filter.rect.height()
-    );
+    let (header, filter) = (item_named(&fixture, "Smart Filters").rect.height(), item_named(&fixture, "Gaussian Blur").rect.height());
+    assert!((header - filter).abs() < 0.5, "no thumbnail at size None: {header} against {filter}");
 }
 
 /// Right-click on the node named `label`.
@@ -739,39 +715,3 @@ fn context_click_on(fixture: &mut Fixture, label: &str) {
     let target = node(fixture, label);
     context_click(fixture, &target);
 }
-
-// DIAG-BEGIN
-#[trial]
-fn diag_smart_rows() {
-    let mut tree = FakeLayers::sample();
-    tree.selection = LayerSelection::default();
-    let (fixture, _app) = rig_with(tree, |app| {
-        app.tree.layer_mut(6).effects_open = true;
-    });
-    let mut out = String::new();
-    for name in ["Smart Filters", "Styled"] {
-        let item = fixture.by_role(Role::TREE_ITEM).into_iter().find(|t| fixture.tree().name_of(t.node).as_deref() == Some(name)).expect("item");
-        let mut found = vec![item.node];
-        let mut at = 0;
-        while at < found.len() {
-            let more: Vec<_> = fixture.tree().children_of(found[at]).into_iter().filter(|c| !found.contains(c)).collect();
-            found.extend(more);
-            at += 1;
-        }
-        out += &format!(
-            "{name}: {}\n",
-            found
-                .iter()
-                .map(|k| format!(
-                    "{:?}/{:?}/{:?}",
-                    fixture.tree().role_of(*k),
-                    fixture.tree().name_of(*k),
-                    fixture.tree().bounds_of(*k).map(|b| b.size())
-                ))
-                .collect::<Vec<_>>()
-                .join(" | ")
-        );
-    }
-    panic!("DIAG\n{out}");
-}
-// DIAG-END

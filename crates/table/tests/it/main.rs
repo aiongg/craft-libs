@@ -2,7 +2,6 @@
 
 mod chart;
 mod conditions;
-mod diag;
 mod error_tag;
 mod fields;
 mod filter;
