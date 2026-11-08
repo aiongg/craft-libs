@@ -139,7 +139,7 @@ fn moves(events: &[ActionsEvent]) -> Vec<(ActionSelection, ActionPlace)> {
     events
         .iter()
         .filter_map(|event| match event {
-            ActionsEvent::Reorder(ActionMove { row, place }) => Some((row.clone(), place.clone())),
+            ActionsEvent::Reorder(ActionMove { row, place, .. }) => Some((row.clone(), place.clone())),
             _ => None,
         })
         .collect()
