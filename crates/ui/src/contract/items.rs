@@ -871,6 +871,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         *cx.core.memory.session::<Drags<C::Key>>(sub(id, "drags")) = self.drags.clone();
         self.header.report(&cx.core.ctx, id, cx);
         *cx.core.memory.session::<Renaming<C::Key>>(sub(id, "rename")) = self.renaming.clone();
+        cx.core.collection_selection = Some(Box::new(self.selection.clone()));
         cx.core.collection_events = Some(Box::new((std::mem::take(&mut self.events), std::mem::take(&mut self.shown))));
         cx.core.visible_rows = self.visible.clone();
         cx.core.gestures = Gestures::of(comp.items());
@@ -1042,7 +1043,9 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             }
         }
         // A press that a part of an item won leaves the selection alone and moves the lead to its row. A press on the
-        // part of a section row (`section_part`) is the section's own, so the lead goes to it as well.
+        // part of a section row (`section_part`) is the section's own, so the lead goes to it as well. Key focus goes
+        // to the collection's stop with the lead, as a press on the row's own area takes it, unless the part takes
+        // focus itself or keeps it where it is.
         let outcome = crate::primitives::sensing::read_outcome(&ctx, ArenaId::new(cx.core.id));
         if let (Some(PressPhase::Down { start, .. }), Some(target)) = (outcome.phase, outcome.target)
             && target.part.is_some()
@@ -1051,6 +1054,9 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             && (target.owner != cx.core.id || target.part.is_some_and(|part| part.key == SECTION))
         {
             self.move_lead(at, LeadSource::Pointer);
+            if props.focus_on_press && !target.sense.intersects(Sense::TAKE_FOCUS | Sense::KEEP_FOCUS) {
+                focus::request_now(&ctx, focus::FocusTarget::Id(cx.core.id));
+            }
         }
         match cx.core.press.phase {
             PressPhase::Release { click, start, pos, .. } => {
@@ -1343,12 +1349,16 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         }
     }
 
-    /// The context-menu key at the lead: the request is at the row's bottom start corner.
+    /// The context-menu key at the lead: the event's request is at the row's bottom start corner, and the context
+    /// request a `Trigger::Context` opener reads (9.2 rule 3) is the row's rect. With no lead the intent stays
+    /// untaken, so the collection's own context request covers it, as a secondary release on its empty area does.
     fn context_key(&mut self, cx: &mut Cx<'_, C>, layout: &C::ItemLayout, at: Placement, lead_at: Option<usize>) {
-        if cx.core.intents.take(Intent::ContextMenu)
-            && let Some(row) = lead_at
+        if let Some(row) = lead_at
+            && cx.core.intents.take(Intent::ContextMenu)
         {
-            let place = self.on_screen(self.screen(layout, at.rect, row, at.offset, at.rtl).left_bottom());
+            let rect = self.screen(layout, at.rect, row, at.offset, at.rtl);
+            crate::runtime::keys::request_context(&cx.core.ctx, cx.core.id, rect);
+            let place = self.on_screen(rect.left_bottom());
             self.events.push(CollectionEvent::ContextMenu(ContextMenuRequest { key: self.source.key(row), at: place, column: None }));
         }
     }
@@ -1522,8 +1532,9 @@ fn key_hash<K: std::hash::Hash>(key: &K) -> u64 {
 }
 
 impl<C: Collection> Cx<'_, C> {
-    /// The selection the item step holds this pass, for the collection's own `update`: the app's binding when it
-    /// has one, else the one the item step keeps.
+    /// The selection the item step holds this pass: the app's binding when it has one, else the one the item step
+    /// keeps. The collection's own `update` reads it as the pass began; its `finish` reads it with the pass's
+    /// selection changes applied.
     pub fn collection_selection(&self) -> Option<&C::Selection> {
         self.core.collection_selection.as_ref().and_then(|held| held.downcast_ref::<C::Selection>())
     }
