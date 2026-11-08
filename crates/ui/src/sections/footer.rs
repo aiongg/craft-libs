@@ -468,11 +468,10 @@ fn letters_reach_footer(ctx: &Context) -> bool {
     focus::focus_in_scope(ctx, scope) == Some(true) && focus::focused_rec(ctx).is_some_and(|rec| rec.stop.keys.owner == OwnerClass::Widget)
 }
 
-/// Whether an Enter would reach the open layer's default button: the layer is the topmost one that takes keys and the
-/// focus is inside it.
+/// Whether an Enter reaches the default button of the footer being shown: focus is inside the focus scope the footer
+/// sits in (the dialog's, whether it is a layer or a full window).
 fn enter_reaches_footer(ctx: &Context) -> bool {
-    let Some(scope) = focus::open_scope(ctx) else { return false };
-    crate::runtime::overlay::top(ctx) == Some(scope) && focus::focus_in_layer(ctx, scope) == Some(true)
+    focus::open_scope(ctx).is_some_and(|scope| focus::focus_in_scope(ctx, scope) == Some(true))
 }
 
 #[derive(Default)]
