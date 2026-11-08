@@ -13,7 +13,6 @@ use craft_ui::primitives::textures::{CachedTexture, Revision, TextureStore, Text
 use craft_ui::primitives::{ContentPainterCx, PaintShape, StrokeWidth};
 use craft_ui::runtime::access::Access;
 use craft_ui::runtime::env::{Env, Label};
-use craft_ui::runtime::pointer;
 use craft_ui::style::StyleCx;
 use egui::load::SizedTexture;
 use egui::{ColorImage, CornerRadius, Rect, Response, Ui, Vec2, vec2};
@@ -208,14 +207,12 @@ impl<'a> CompareTile<'a> {
                 (_, Some(texture)) => PreviewState::Ready(texture),
             };
             let mut pane = PreviewPane::state(label, preview, &held);
-            if let Some(PaneOverlay(paint)) = overlay {
+            if let Some(PaneOverlay(paint, ..)) = overlay {
                 pane = pane.overlay(paint);
             }
             let out = pane.show(ui);
             cx.memory::<Well>().0 = Some(out.response.rect);
-            let double_clicked = !survey
-                && pointer::frame(ui.ctx()).press.is_some_and(|press| press.clicks >= 2)
-                && pointer::frame(ui.ctx()).pos.is_some_and(|at| out.response.rect.contains(at));
+            let double_clicked = !survey && out.double_clicked;
             let next = if survey {
                 None
             } else if double_clicked {

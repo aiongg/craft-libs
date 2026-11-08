@@ -1,7 +1,7 @@
 //! `MediaBin` behaviour: what its own logic adds to the collections it shows.
 
 use craft_behavior::{CancelReason, ColumnKey, DisplayOrder, EditEvent, GestureId, IconId, ItemSource, Mixed, Selection};
-use craft_browse::ui::bin::{BinEntry, BinEvent, BinItem, BinModel, BinState, BinView, MediaBin, OpenHow, name_matches};
+use craft_browse::ui::bin::{BinEntry, BinEvent, BinItem, BinModel, BinSettings, BinState, BinView, MediaBin, OpenHow, name_matches};
 use craft_ui::contract::{Bind, ColumnSort, ListDrag, Props as _, ReorderRule, ShowCollection as _, ShowContainer as _, Sizing};
 use craft_ui::layout_components::Stack;
 use craft_ui::list::{List, ListRow};
@@ -386,4 +386,16 @@ fn freeform_drops_on_a_bin_card_and_the_background_become_drops() {
     let room = bin.empty_room();
     bin.drag_to("Other 20", room);
     assert_eq!(bin.drops(), [(vec![20], None)], "{:?}", bin.events.borrow());
+}
+
+/// The List view's sort, the Icon view's sort and the dragged column widths survive the host's save and load.
+#[trial]
+fn the_sorts_and_column_widths_are_saved() {
+    let mut settings = BinSettings::default();
+    settings.sort = Some(ColumnSort::new(NAME, true));
+    settings.icon_sort = Some(ColumnSort::new(ColumnKey::new("rating"), false));
+    settings.widths = vec![(NAME, 140.0)];
+    let text = serde_json::to_string(&settings).expect("the settings serialize");
+    let loaded: BinSettings = serde_json::from_str(&text).expect("the settings load");
+    assert_eq!(loaded, settings);
 }

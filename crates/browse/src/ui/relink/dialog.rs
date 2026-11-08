@@ -53,6 +53,7 @@ const STATUS: ColumnKey = ColumnKey::new("status");
 
 /// One missing link as the dialog's table shows it: Clip Name, File Name, File Path, Status.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct RelinkRow<K> {
     /// The link.
     pub link: Link<K>,
@@ -62,9 +63,17 @@ pub struct RelinkRow<K> {
     pub status: String,
 }
 
+impl<K> RelinkRow<K> {
+    /// A row of `link` with the app's name for its user and the translated status.
+    pub fn new(link: Link<K>, owner: impl Into<String>, status: impl Into<String>) -> Self {
+        Self { link, owner: owner.into(), status: status.into() }
+    }
+}
+
 /// An app's own match property (a duration, a frame size and rate): a check row under the
 /// library's name, extension and same-file checks.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct RelinkCriterion {
     /// The id the app's checker reads.
     pub id: &'static str,
@@ -72,6 +81,13 @@ pub struct RelinkCriterion {
     pub label: String,
     /// Whether it is on.
     pub on: bool,
+}
+
+impl RelinkCriterion {
+    /// The check `id` shown as `label`, `on` at the start.
+    pub fn new(id: &'static str, label: impl Into<String>, on: bool) -> Self {
+        Self { id, label: label.into(), on }
+    }
 }
 
 /// The app's extra checks of a candidate, after `craft_docpath::links::check_candidate`: it reads
@@ -85,6 +101,7 @@ pub trait CandidateChecker<K>: Send + Sync {
 
 /// The dialog's start values.
 #[derive(Clone)]
+#[non_exhaustive]
 pub struct RelinkOptions {
     /// The library's match checks (default all on).
     pub criteria: MatchCriteria,
@@ -104,6 +121,29 @@ pub struct RelinkOptions {
     pub jobs: Option<Arc<dyn Jobs>>,
 }
 
+impl RelinkOptions {
+    /// Starts the search in `folder`.
+    #[must_use]
+    pub fn folder(mut self, folder: impl Into<PathBuf>) -> Self {
+        self.folder = Some(folder.into());
+        self
+    }
+
+    /// Whether Relink others automatically starts on.
+    #[must_use]
+    pub fn relink_others(mut self, on: bool) -> Self {
+        self.relink_others = on;
+        self
+    }
+
+    /// Runs the search and checks on `jobs`.
+    #[must_use]
+    pub fn jobs(mut self, jobs: Arc<dyn Jobs>) -> Self {
+        self.jobs = Some(jobs);
+        self
+    }
+}
+
 impl Default for RelinkOptions {
     fn default() -> Self {
         Self {
@@ -121,6 +161,7 @@ impl Default for RelinkOptions {
 /// What Done returns: every link the dialog made and every row left offline, applied by the
 /// host as one undo step.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct RelinkOutcome<K> {
     /// The links relinked, each with its checked candidate (path and identity to store).
     pub linked: Vec<(K, Candidate)>,
