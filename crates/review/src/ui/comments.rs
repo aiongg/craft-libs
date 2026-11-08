@@ -1310,9 +1310,14 @@ impl CommentsPanel<'_> {
             let mut entries: Vec<(CardKey, RowEntry<'_>)> = Vec::new();
             let mut last: Option<String> = None;
             let mut groups = 0;
+            // The source lists the rows on show: a folded group keeps its heading and drops its cards.
+            let mut folded = false;
             for thread in &shown {
                 let heading = if grouped { heading_of(thread) } else { None };
                 let depth = usize::from(heading.is_some());
+                if heading.is_none() {
+                    folded = false;
+                }
                 if let Some((title, page)) = heading {
                     if last.as_deref() != Some(title.as_str()) {
                         let count = match page {
@@ -1320,12 +1325,15 @@ impl CommentsPanel<'_> {
                             _ => shown_counts.get(&title).copied().unwrap_or_default(),
                         };
                         let open = !page.is_some_and(|number| state.collapsed_pages.contains(&number));
+                        folded = !open;
                         entries.push((CardKey::Group(groups), RowEntry::Group { title: title.clone(), count: digits(count), page, open }));
                         groups += 1;
                         last = Some(title);
                     }
                 }
-                entries.push((CardKey::Thread(thread.id), RowEntry::Card { thread, depth }));
+                if !folded {
+                    entries.push((CardKey::Thread(thread.id), RowEntry::Card { thread, depth }));
+                }
             }
             let source = Rows { entries };
             let mut selection = state.selected.map_or_else(Selection::default, |thread| Selection::single(CardKey::Thread(thread)));

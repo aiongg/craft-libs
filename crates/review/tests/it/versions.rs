@@ -117,6 +117,7 @@ fn a_row_menu_acts_on_its_own_row() {
 fn rename_edits_the_title_in_place() {
     let (mut fixture, actions) = panel();
     pick(&mut fixture, "Final", "Rename");
+    fixture.settle();
     fixture.key(Key::A, Modifiers::COMMAND);
     fixture.type_text("Release");
     fixture.key(Key::Enter, Modifiers::NONE);

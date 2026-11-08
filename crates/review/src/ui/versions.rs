@@ -9,8 +9,8 @@ use craft_theme::variant::Variant;
 use craft_ui::buttons::{Button, IconButton, Link};
 use craft_ui::contract::overlay::Anchor;
 use craft_ui::contract::{
-    Bind, CollectionEvent, Entry, NoValue, Outcome, Pattern, Props, Remember as _, SelectMode, Show as _, ShowCollection as _, ShowContainer as _,
-    Trigger, clicked,
+    ActivateOn, Bind, CollectionEvent, Entry, NoValue, Outcome, Pattern, Props, Remember as _, SelectMode, Show as _, ShowCollection as _,
+    ShowContainer as _, Trigger, clicked,
 };
 use craft_ui::display::{Shade, Text};
 use craft_ui::layout_components::{Row, Stack};
@@ -402,6 +402,7 @@ fn history(
         .tree(true)
         .select(SelectMode::Single)
         .rename(true)
+        .activate(ActivateOn::Click)
         .selection(Bind::bound(&mut state.selection))
         .can_rename(|key| matches!(key, RowKey::Version(id) if find(*id).is_some_and(|version| !version.autosave)));
     let out = list.show_items(ui, &order, &mut |key, icx| {
