@@ -3,6 +3,7 @@
 craft-browse ui
 craft-color ui
 craft-dialogs ui
+craft-layers
 craft-print ui
 craft-theme-store ui
 craft-ui color_fonts,system_fonts

@@ -54,7 +54,7 @@ pub(crate) struct HostCx<'a> {
     pub id: Id,
     /// The component's label after step 1: a window's title.
     pub label: &'a crate::runtime::env::Label,
-    /// The size step 5 measured: what the root takes in this pass.
+    /// The size step 5 measured: what the root takes in the parent `Ui`.
     pub size: Vec2,
 }
 
@@ -88,7 +88,8 @@ pub(crate) trait ShapeHooks<C: Component> {
         None
     }
 
-    /// The size step 6 allocates, from the measured `size`: a body that fills reads the available rect.
+    /// The size step 6 allocates, from the measured `size`: a body that fills reads the available rect of `ui`: the
+    /// parent's at step 5, and the host's at step 6 when the host runs the pass in a `Ui` of its own.
     fn sized(&self, _comp: &C, _ui: &Ui, size: Vec2) -> Vec2 {
         size
     }
@@ -337,7 +338,10 @@ struct Pass<'r, 'a, C: Component> {
     room: Option<f32>,
     /// The size step 5 measured, before `sized` made it fill.
     measured: Vec2,
+    /// The size the root takes in the parent `Ui`.
     size: Vec2,
+    /// The parent `Ui`: a host that runs the pass in a `Ui` of its own gives the room the root fills there.
+    parent: Id,
     inert: bool,
     /// The parent `Ui` was in a sizing pass.
     sizing: bool,
@@ -476,15 +480,17 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
     let metrics = p.style.metrics();
     // 6 place
     let at = host_at.unwrap_or(p.at);
+    // A root that fills takes the room of the `Ui` its host runs it in: a pane's or a layer's own, not its parent's.
+    let size = if ui.id() == p.parent { p.size } else { p.hooks.sized(&*p.comp, ui, p.measured) };
     // In a content-sized column a fill-width child takes its measured width in the flow and shows across the width
     // the column settles on, so it never sets that width.
     let held = !inert && matches!(at, ShowAt::Flow) && p.env.content_column && p.hooks.fills_width(&*p.comp);
     let rect = if held {
-        let flowed = steps::place(ui, at, Vec2::new(p.measured.x.min(p.size.x), p.size.y));
-        let across = Vec2::new(p.size.x.max(flowed.width()), flowed.height());
+        let flowed = steps::place(ui, at, Vec2::new(p.measured.x.min(size.x), size.y));
+        let across = Vec2::new(size.x.max(flowed.width()), flowed.height());
         if rtl { Rect::from_min_size(Pos2::new(flowed.max.x - across.x, flowed.min.y), across) } else { Rect::from_min_size(flowed.min, across) }
     } else {
-        steps::place(ui, at, if inert { Vec2::ZERO } else { p.size })
+        steps::place(ui, at, if inert { Vec2::ZERO } else { size })
     };
     p.trace.mark(Step::Place);
     // What the content wants past the room counts where the root's width comes from its content: a content-sized
@@ -573,6 +579,10 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
         }
         created
     };
+    // A root with no node whose egui widget senses still gets a node from egui, with actions nobody writes.
+    if C::ROLE == Role::None && !root_sense.is_empty() {
+        access::hide(&ctx, id);
+    }
     cx.core.part_cursors = sensing::hovered_cursor(&decls, &results).into_iter().collect();
     cx.core.rect = rect;
     cx.core.content_rect = flow.inset(metrics.padding);
@@ -837,6 +847,7 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
         room,
         measured,
         size,
+        parent: ui.id(),
         inert,
         sizing,
         real: false,

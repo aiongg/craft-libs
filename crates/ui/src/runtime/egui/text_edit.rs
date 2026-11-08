@@ -1,5 +1,6 @@
 //! Building `TextEdit` and its state: the one caller of egui's text editing.
 
+use craft_theme::TypeRole;
 use egui::text::{CCursor, CCursorRange, LayoutJob, TextFormat};
 use egui::text_edit::TextEditState;
 use egui::{Color32, Context, EventFilter, FontId, Id, Rect, Ui};
@@ -64,15 +65,22 @@ pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
         caret_visible,
         underline,
     } = edit;
-    let font = if mono { egui::TextStyle::Monospace } else { egui::TextStyle::Body };
-    let font_id = font.resolve(ui.style());
+    // The same font and optical size as a label of the body role: one text path.
+    let env = crate::runtime::env::Env::of(ui);
+    let tokens = &env.tokens;
+    let facts = crate::fonts::stack_facts(ui.ctx());
+    let font_id = tokens.font(facts, TypeRole::Body, mono);
+    let optical_size = tokens.optical_size(facts, TypeRole::Body, mono);
     let had_focus = ui.memory(|memory| memory.has_focus(id));
     let entered = had_focus && ui.input(|input| input.key_pressed(egui::Key::Enter));
     let mut layouter = |ui: &Ui, text: &dyn egui::TextBuffer, wrap_width: f32| {
         let text = text.as_str();
         let mut job = LayoutJob::default();
         job.wrap.max_width = if multiline { wrap_width } else { f32::INFINITY };
-        let plain = TextFormat::simple(font_id.clone(), ink);
+        let mut plain = TextFormat::simple(font_id.clone(), ink);
+        if let Some(size) = optical_size {
+            plain.coords.push(*b"opsz", size);
+        }
         match preedit.as_ref().filter(|range| range.end <= text.len() && text.is_char_boundary(range.start) && text.is_char_boundary(range.end)) {
             Some(range) => {
                 job.append(&text[..range.start], 0.0, plain.clone());

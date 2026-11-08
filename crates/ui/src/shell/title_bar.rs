@@ -48,6 +48,6 @@ mod measure;
 mod style;
 mod title;
 
-pub use bar::{TitleBar, TitleBarOutput, double_click_action};
+pub use bar::{TitleBar, TitleBarOutput};
 pub use style::TitleBarStyle;
 pub use title::Title;

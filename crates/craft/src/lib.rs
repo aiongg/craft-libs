@@ -3,6 +3,8 @@
 
 pub mod egui_fork;
 
+#[cfg(all(feature = "ui-system_fonts", target_arch = "wasm32"))]
+compile_error!("`ui-system_fonts` is desktop-only: the system font index needs fontique, which has no web build");
 #[cfg(feature = "ai-core")]
 pub use craft_ai_core as ai_core;
 #[cfg(feature = "atomic")]
@@ -126,8 +128,6 @@ pub mod story {
         all.extend(craft_imaging::ui::stories());
         #[cfg(feature = "keymap")]
         all.extend(craft_keymap::ui::stories());
-        #[cfg(feature = "layers")]
-        all.extend(craft_layers::ui::stories());
         #[cfg(feature = "pages")]
         all.extend(craft_pages::ui::stories());
         #[cfg(feature = "review")]
@@ -165,8 +165,6 @@ pub mod words {
         all.extend(craft_imaging::ui::WORDS);
         #[cfg(feature = "keymap")]
         all.extend(craft_keymap::ui::WORDS);
-        #[cfg(feature = "layers")]
-        all.extend(craft_layers::ui::WORDS);
         #[cfg(feature = "pages")]
         all.extend(craft_pages::ui::WORDS);
         #[cfg(feature = "review")]

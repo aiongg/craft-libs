@@ -4,9 +4,12 @@
 use std::sync::Arc;
 
 use craft_fonts_build::EmbeddedFace;
+use craft_theme::{Contrast, ControlSize, Mode, Variant};
 use craft_ui::fonts::{
     CjkRows, Emoji, FaceList, Family, FontRef, I18nScripts, RegularWeight, Stack, SystemFonts, UiFonts, set_weight, system_font_provider,
 };
+use craft_ui::list::{ListRow, ThumbSize};
+use craft_ui::testing::style::{tokens, with_cx};
 use craft_ui::testing::{Frames, trial};
 use egui::epaint::text::{Fonts, TextOptions};
 use egui::{FallbackRequest, FontData, FontDefinitions, FontFamily, FontId, FontInsert, FontPriority, FontProvider, InsertFontFamily};
@@ -380,4 +383,21 @@ fn egui_faces_join_the_families_the_app_names() {
     assert!(!stack.chain(&FontRef::monospace()).iter().any(|n| n == "Hack"), "only the families named");
     assert!(stack.flat_definitions().font_data.contains_key("Hack"));
     assert!(!proportional.iter().any(|n| n == "no such face"));
+}
+
+#[trial]
+fn control_heights_follow_the_leading_face_of_the_stack() {
+    let tokens = tokens(Mode::Light, Contrast::Standard);
+    let heights = |language: &str| {
+        let frames = Frames::new();
+        test_stack(language).install(&frames.ctx);
+        with_cx(&frames.ctx, &tokens, Variant::SECONDARY, ControlSize::Md, |cx| {
+            (cx.control().height, ListRow::row_height(cx, ThumbSize::None, false))
+        })
+    };
+    let (latin_control, latin_row) = heights("en");
+    assert_eq!(latin_control, tokens.size.control.md, "a Latin face keeps the token height");
+    let (arabic_control, arabic_row) = heights("ar");
+    assert!(arabic_control > latin_control, "an Arabic-led stack grows the control: {arabic_control} against {latin_control}");
+    assert!(arabic_row > latin_row, "and the list row on it: {arabic_row} against {latin_row}");
 }

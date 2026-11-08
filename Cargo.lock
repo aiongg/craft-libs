@@ -1429,11 +1429,13 @@ dependencies = [
 name = "craft-layers"
 version = "0.1.0"
 dependencies = [
+ "craft-behavior",
  "craft-i18n",
+ "craft-keymap",
  "craft-theme",
- "craft-ui-legacy",
+ "craft-ui",
  "egui",
- "egui_kittest",
+ "libtest-mimic",
  "serde",
  "serde_json",
 ]
@@ -1740,7 +1742,6 @@ dependencies = [
  "epaint_default_fonts",
  "flate2",
  "fontique",
- "js-sys",
  "libtest-mimic",
  "linkme",
  "log",
@@ -1752,10 +1753,6 @@ dependencies = [
  "syn 2.0.119",
  "toml",
  "toml_edit",
- "unicode-script",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
 ]
 
 [[package]]

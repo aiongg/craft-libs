@@ -38,7 +38,7 @@ testing = ["dep:libtest-mimic"]
 # Draw colour glyphs (COLR, sbix, CBDT), e.g. colour emoji.
 color_fonts = ["dep:epaint", "epaint/color_fonts"]
 # Find installed fonts for characters the app's faces lack (desktop only).
-system_fonts = ["dep:fontique", "dep:unicode-script"]
+system_fonts = ["dep:fontique"]
 
 [dependencies]
 craft-behavior = { workspace = true }
@@ -83,14 +83,6 @@ resvg = { version = "0.45.1", default-features = false }
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 # The versions egui_system_font_provider 0.37 uses.
 fontique = { version = "0.11.1", default-features = false, features = ["system", "fontconfig-dlopen"], optional = true }
-unicode-script = { version = "0.5.8", optional = true }
-
-# Fetching served fonts (`fonts::UiFonts::served_faces`); already in every eframe web build.
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-js-sys = "0.3"
-wasm-bindgen = "0.2"
-wasm-bindgen-futures = "0.4"
-web-sys = { version = "0.3", features = ["Window", "RequestInit", "Response", "console"] }
 
 # `shell::title_bar::sync_movable` sets `NSWindow.movable` through craft-window's AppKit code, without its egui layer.
 [target.'cfg(target_os = "macos")'.dependencies]

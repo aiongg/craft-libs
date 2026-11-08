@@ -39,6 +39,11 @@ impl EnvKey {
         EnvKey(hasher.finish())
     }
 
+    /// This key with the line height per point of the interface stack's leading face folded in: control heights follow it.
+    pub(crate) fn with_line(self, line_ratio: f32) -> Self {
+        self.folded(u64::from(line_ratio.to_bits()))
+    }
+
     /// This key with one more input folded in: a face's styles depend on the host's ink as well.
     pub(crate) fn folded(self, input: u64) -> Self {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();

@@ -301,9 +301,18 @@ impl Fixture {
         self.target(node)
     }
 
-    /// The nodes of `role`.
+    /// The nodes of `role` in tree order: depth first from the root, children in their declared order.
     pub fn by_role(&self, role: Role) -> Vec<Target> {
-        self.tree.with_role(role).into_iter().filter_map(|node| self.target(node)).collect()
+        let wanted = self.tree.with_role(role);
+        let mut ordered = Vec::with_capacity(wanted.len());
+        let mut pending: Vec<NodeKey> = self.tree.root_key().into_iter().collect();
+        while let Some(key) = pending.pop() {
+            if wanted.contains(&key) {
+                ordered.push(key);
+            }
+            pending.extend(self.tree.children_of(key).into_iter().rev());
+        }
+        ordered.into_iter().filter_map(|node| self.target(node)).collect()
     }
 
     /// The sub-node of `part` below the component `component`.
