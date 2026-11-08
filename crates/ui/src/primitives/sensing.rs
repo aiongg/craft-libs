@@ -344,7 +344,9 @@ pub(crate) fn sense_root(ui: &Ui, spec: RootSpec<'_>) -> RootResult {
     response::keep_press_flags(&mut response, outcome.target.is_some_and(|target| target.owner == spec.id));
     let (activation, activated_member) = match outcome.activated {
         Some(hit) if hit.owner == spec.id => (true, None),
-        Some(hit) => (false, Some(hit.owner)),
+        // A press on a member's part is the part's activation; it does not pick the member.
+        Some(hit) if hit.part.is_none() => (false, Some(hit.owner)),
+        Some(_) => (false, None),
         None => (false, None),
     };
     let inputs = read.inputs();
@@ -446,7 +448,7 @@ fn member_view(outcome: &Outcome, id: Id, local: bool, pointer_pos: Option<Pos2>
         drag_started: matches!(phase, Some(PressPhase::DragStart { .. })),
         dragged: phase.is_some_and(|phase| phase.is_drag()),
         drag_stopped: matches!(phase, Some(PressPhase::Release { click: false, .. })),
-        clicked: outcome.activated.is_some_and(|hit| hit.owner == id),
+        clicked: outcome.activated.is_some_and(|hit| hit.owner == id && hit.part.is_none()),
         pointer: pointer_pos.map(|at| if local { outcome.xf.map_or(at, |map| map.to_layer(at)) } else { at }),
     }
 }
