@@ -59,7 +59,7 @@ fn thread_popover_with_replies_and_a_mention(ui: &mut Ui, data: &mut StoryData) 
     let people = vec!["Ana".to_owned(), "Bo".to_owned(), "Me".to_owned()];
     let opener = Button::new("Pin").show(ui);
     let draft = data.value("draft", "Thanks @B".to_owned());
-    ThreadPopover::new(&thread, &opener, "Me", &people, draft).now(NOW).show(ui);
+    let _ = ThreadPopover::new(&thread, &opener, "Me", &people, draft).now(NOW).show(ui);
     opener.into()
 }
 
@@ -67,6 +67,6 @@ fn thread_popover_with_replies_and_a_mention(ui: &mut Ui, data: &mut StoryData) 
 fn comment_composer_open(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let opener = Button::new("Add").show(ui);
     let draft = data.value("draft", String::new());
-    CommentComposer::new(Some(pos2(40.0, 60.0)), draft).show(ui);
+    let _ = CommentComposer::new(Some(pos2(40.0, 60.0)), draft).show(ui);
     opener.into()
 }

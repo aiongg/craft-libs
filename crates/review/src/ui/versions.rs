@@ -137,8 +137,6 @@ struct PanelState {
     confirm: Option<VersionId>,
     /// The row menu: whose it is, and where it opens.
     menu: Option<(VersionId, Pos2)>,
-    /// A branch menu is open for this branch.
-    branch_menu: Option<BranchId>,
 }
 
 /// One displayed row of the history: its key, depth and, for a group, whether it is open.
@@ -237,12 +235,12 @@ impl<'a> VersionHistoryPanel<'a> {
 
     /// Shows the panel and reports what the user did.
     pub fn show(self, ui: &mut Ui) -> VersionHistoryPanelOutput {
-        let VersionHistoryPanel { label: _, versions, branches, previewing, now } = self;
+        let VersionHistoryPanel { label, versions, branches, previewing, now } = self;
         let env = Env::of(ui);
         let words = env.words::<VersionsWords>();
         let view = env.view();
         let mut actions = Vec::new();
-        let shown = Stack::new().show(ui, |ui, cx| {
+        let shown = Stack::new().label(label).show(ui, |ui, cx| {
             let mut state = std::mem::take(cx.keep::<PanelState>());
             Row::new().show(ui, |ui, _| {
                 Text::new(words.title.clone()).role(TypeRole::Title).show(ui);
@@ -571,12 +569,12 @@ pub struct VersionPreviewBanner<'a> {
 impl<'a> VersionPreviewBanner<'a> {
     /// A banner for the previewed `version`; `now` is the time, in Unix seconds, its age counts from.
     pub fn new(version: &'a Version, now: i64) -> Self {
-        VersionPreviewBanner { label: Label::Empty, version, now }
+        VersionPreviewBanner { version, now }
     }
 
     /// Shows the banner at the top of `canvas`.
     pub fn show(self, ui: &mut Ui, canvas: Rect) -> VersionPreviewBannerOutput {
-        let VersionPreviewBanner { label: _, version, now } = self;
+        let VersionPreviewBanner { version, now } = self;
         let env = Env::of(ui);
         let words = env.words::<VersionsWords>();
         let name = version_name(&env.view(), version, now);

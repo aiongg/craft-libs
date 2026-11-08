@@ -92,7 +92,7 @@ impl<'a> PeopleBar<'a> {
 
     /// Shows the bar. Follow, Spotlight and Remove come back as [`CollabRequest`]s.
     pub fn show(self, ui: &mut Ui) -> PeopleBarOutput {
-        let PeopleBar { label: _, transport, following } = self;
+        let PeopleBar { label, transport, following } = self;
         let env = Env::of(ui);
         let words = env.words::<PresenceWords>();
         let me_id = transport.me();
@@ -102,7 +102,7 @@ impl<'a> PeopleBar<'a> {
         let shown = others.len().min(MAX_SHOWN);
         let hidden = others.len() - shown;
         let mut requests = Vec::new();
-        let output = Stack::new().show(ui, |ui, _| {
+        let output = Stack::new().label(label).show(ui, |ui, _| {
             Row::new().show(ui, |ui, _| {
                 if let Some(me) = me {
                     let action = if me.spotlight { words.stop_spotlight.clone() } else { words.spotlight.clone() };

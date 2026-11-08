@@ -77,12 +77,12 @@ impl<'a> VotePill<'a> {
 
     /// Shows the pill. Start vote, End vote and Results come back as [`CollabRequest`]s.
     pub fn show(self, ui: &mut Ui) -> VotePillOutput {
-        let VotePill { label: _, transport, editable, has_selection } = self;
+        let VotePill { label, transport, editable, has_selection } = self;
         let env = Env::of(ui);
         let words = env.words::<VoteWords>();
         let vote = transport.vote();
         let mut requests = Vec::new();
-        let shown = Stack::new().show(ui, |ui, cx| {
+        let shown = Stack::new().label(label).show(ui, |ui, cx| {
             Row::new().show(ui, |ui, _| match vote.as_ref().filter(|vote| !vote.ended) {
                 Some(running) => {
                     let left = env.format().integer(u64::from(running.left()));

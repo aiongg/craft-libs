@@ -120,7 +120,7 @@ fn tool_drawing_a_rectangle(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
         AnnotationOverlay::new("Annotations", &annotations, &[]).show_at(ui, cx.rect);
     });
     if let Ok(mut tool) = shared.0.lock() {
-        ToolHost::new().run(ui, &canvas.output, &mut *tool);
+        let _ = ToolHost::new().run(ui, &canvas.output, &mut *tool);
     }
     StoryOutput::default()
 }

@@ -59,11 +59,11 @@ impl<'a> RevisionsPanel<'a> {
 
     /// Shows the panel and reports what the user did.
     pub fn show(self, ui: &mut Ui) -> RevisionsPanelOutput {
-        let RevisionsPanel { label: _, compared_with, revisions, by_position } = self;
+        let RevisionsPanel { label, compared_with, revisions, by_position } = self;
         let env = Env::of(ui);
         let words = env.words::<RevisionsWords>();
         let mut actions = Vec::new();
-        let shown = Stack::new().show(ui, |ui, _| {
+        let shown = Stack::new().label(label).show(ui, |ui, _| {
             Text::new(words.compared_with.fill(&[("name", compared_with)])).shade(Shade::Muted).show(ui);
             if by_position {
                 Text::new(words.by_position.clone()).role(TypeRole::Caption).shade(Shade::Muted).show(ui);

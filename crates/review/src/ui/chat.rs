@@ -131,10 +131,10 @@ impl<'a> CursorChatBox<'a> {
     /// Shows the box and returns the requests it made. `pointer` is the pointer position in screen points, `None` off
     /// the canvas; an open box keeps its last position then.
     pub fn show(self, ui: &mut Ui, pointer: Option<Pos2>) -> CursorChatBoxOutput {
-        let CursorChatBox { label: _, text, open } = self;
+        let CursorChatBox { label, text, open } = self;
         let words = Env::of(ui).words::<ChatWords>();
         let mut requests = Vec::new();
-        let shown = Stack::new().show(ui, |ui, cx| {
+        let shown = Stack::new().label(label).show(ui, |ui, cx| {
             if !*open {
                 cx.keep::<Last>().0 = None;
                 return;

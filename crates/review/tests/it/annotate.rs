@@ -12,7 +12,9 @@ use egui::{Key, Modifiers, Pos2, Rect as ScreenRect, Vec2, pos2, vec2};
 use kurbo::{Point, Rect, Vec2 as PageVec};
 
 /// The room the direct drive shows its page in.
-const ROOM: ScreenRect = ScreenRect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 300.0));
+fn room() -> ScreenRect {
+    ScreenRect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 300.0))
+}
 /// How close two page coordinates are when they went through the view and back.
 const SAME: f64 = 1e-3;
 
@@ -162,9 +164,9 @@ fn eraser_reports_one_erase_per_annotation_crossing_a_b_a() {
 fn double_click_on_a_note_opens_it() {
     let mut tool = AnnotateTool::new(AnnotationTool::Select, 0);
     tool.annotations = vec![annotation(9, AnnotationKind::Note, Rect::new(100.0, 100.0, 100.0, 100.0))];
-    let view = view(ROOM);
+    let view = view(room());
     let pos = view.to_screen(Point::new(104.0, 104.0));
-    let context = || ToolContext::new(ROOM, Some(CanvasSpace::new(view, 1.0)));
+    let context = || ToolContext::new(room(), Some(CanvasSpace::new(view, 1.0)));
     for clicks in [1, 2] {
         let pointer = ToolPointer::new(pos, PointerButton::Primary, 0.0).clicks(clicks);
         tool.press(&pointer, &mut context());

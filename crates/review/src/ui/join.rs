@@ -48,11 +48,11 @@ impl<'a> JoinField<'a> {
     /// Shows the field. Join, Cancel and Try Again come back as [`CollabRequest`]s; the field reads the join's
     /// progress from [`CollabTransport::join_state`].
     pub fn show(self, ui: &mut Ui) -> JoinFieldOutput {
-        let JoinField { label: _, transport, typed } = self;
+        let JoinField { label, transport, typed } = self;
         let words = Env::of(ui).words::<JoinWords>();
         let state = transport.join_state();
         let mut requests = Vec::new();
-        let shown = Stack::new().show(ui, |ui, _| {
+        let shown = Stack::new().label(label).show(ui, |ui, _| {
             Row::new().show(ui, |ui, _| {
                 let field = TextField::new(words.name.clone(), Bind::bound(&mut *typed)).placeholder(words.hint.clone()).masked().show(ui);
                 let filled = !typed.trim().is_empty() && !state.pending();

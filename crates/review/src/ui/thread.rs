@@ -604,7 +604,7 @@ impl ThreadPopover<'_> {
                 });
                 for (index, message) in thread.messages.iter().enumerate() {
                     Row::new().show(ui, |ui, _| {
-                        Avatar::new(message.author.clone()).show(ui);
+                        let _ = Avatar::new(message.author.clone()).show(ui);
                         Stack::new().show(ui, |ui, _| {
                             Row::new().show(ui, |ui, _| {
                                 Text::new(message.author.clone()).role(TypeRole::BodyStrong).show(ui);
