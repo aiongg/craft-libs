@@ -455,6 +455,11 @@ pub(crate) fn note_cancelled_press(ctx: &Context) {
     crate::runtime::egui::repaint::request_of(ctx, crate::runtime::egui::pass::current_viewport(ctx));
 }
 
+/// Whether the one-press rule (H0) holds input of `viewport` for its next frame.
+pub(crate) fn holds_input(ctx: &Context, viewport: ViewportId) -> bool {
+    PerViewport::<ViewportRecord>::with(ctx, viewport, |record| record.held.holds())
+}
+
 /// The input hook: egui runs it before it pushes the viewport, so every step reads only `RawInput` and
 /// records keyed by `input.viewport_id`.
 pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) {

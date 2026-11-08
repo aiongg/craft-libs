@@ -15,6 +15,13 @@ pub(crate) struct HeldInput {
     frame: Option<u64>,
 }
 
+impl HeldInput {
+    /// Whether events wait for the next frame.
+    pub(crate) fn holds(&self) -> bool {
+        !self.events.is_empty()
+    }
+}
+
 /// H0: this pass carries at most one pointer press, as its last pointer event. Events after the first press
 /// wait in `held` and lead the next frame's events. A repeated pass of the same frame, a discard pass,
 /// receives no input events, so it gets none of the held ones. Returns whether events were held, so the hook

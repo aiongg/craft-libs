@@ -416,3 +416,16 @@ impl Fixture {
         fixture::focused(&self.frames.ctx)
     }
 }
+
+impl Fixture {
+    /// `events` as one OS frame, followed by the frames an app runs for it: one for each step of input the one-press
+    /// rule held back, then the frame egui repaints for after the last frame that carried input (a release the press
+    /// machine reports a pass after its drag started lands there).
+    pub fn frame_through(&mut self, events: Vec<Event>) -> &mut Self {
+        self.frame(events);
+        while crate::runtime::frame::holds_input(self.ctx(), egui::ViewportId::ROOT) {
+            self.frame(Vec::new());
+        }
+        self.frame(Vec::new())
+    }
+}

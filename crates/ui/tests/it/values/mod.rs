@@ -2,6 +2,7 @@
 
 mod bindings;
 mod body;
+mod fixture_through;
 mod gestures;
 mod history;
 mod kit;
