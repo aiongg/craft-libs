@@ -7,6 +7,9 @@ use craft_ui::patterns::presets::{PresetBrowser, PresetEvent, PresetRow, PresetS
 use craft_ui::runtime::env::Label;
 use egui::{Response, Ui};
 
+#[cfg(feature = "screen-testing")]
+mod stories;
+
 use super::ramp::GradientRamp;
 use super::stops::{Sampler, default_sampler};
 use super::value::{GradientStops, StopRows};

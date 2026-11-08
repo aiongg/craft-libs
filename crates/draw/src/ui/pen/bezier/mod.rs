@@ -1034,14 +1034,22 @@ impl Component for BezierOverlay<'_> {
                         let shape = PaintShape::Path(vec![view.to_screen(knot.anchor), item.at]);
                         stroke(&draw, &shape, StrokeWidth::Thin, path.color, style.line);
                     }
-                    let fill = Fill::Style(cx.resolve_part(item.part(), &style.control.fill));
+                    let fill = Fill::Style(if cx.part_if_declared(item.part()).is_some() {
+                        cx.resolve_part(item.part(), &style.control.fill)
+                    } else {
+                        cx.resolve(&style.control.fill)
+                    });
                     paint_handle(&draw, &style.control, true, item.at, fill, path.color);
                 }
                 Kind::Anchor => {
                     let fill = if self.selection.has_anchor(path.key, item.knot) {
                         Fill::Path(style.line)
                     } else {
-                        Fill::Style(cx.resolve_part(item.part(), &style.anchor.fill))
+                        Fill::Style(if cx.part_if_declared(item.part()).is_some() {
+                            cx.resolve_part(item.part(), &style.anchor.fill)
+                        } else {
+                            cx.resolve(&style.anchor.fill)
+                        })
                     };
                     paint_handle(&draw, &style.anchor, false, item.at, fill, path.color);
                 }

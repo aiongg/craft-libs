@@ -27,6 +27,7 @@ new = "craft_draw::ui::gradient::GradientOverlay"
 status = "replaced"
 note = "A canvas control: `new(label, Bind<LineGradient>)` over the canvas's view, snap and arena. The host-driven `hit`, `press`, `track`, `release`, `double_click`, `paint` and `paint_focus` are gone: the arena gives a press on a part to the overlay."
 
+
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]
 # type = ""
@@ -34,7 +35,6 @@ note = "A canvas control: `new(label, Bind<LineGradient>)` over the canvas's vie
 # new = ""
 
 # craft_behavior::geometry (contract-geometry)
-
 [[type]]
 name = "Anchor9"
 old = "craft_ui::canvas::quad::Anchor9"
@@ -193,6 +193,13 @@ note = "A canvas control (`#[component(canvas_control)]`) shown with `show_at(ui
 [[type]]
 name = "AddBesideResponse"
 old = "craft_draw::ui::add_beside::AddBesideResponse"
+new = ""
+status = "removed"
+note = "`clicked` is `added`; `focused` is gone (the focus is the arena's)."
+
+[[type]]
+name = "AddBesideOutput"
+old = ""
 new = "craft_draw::ui::add_beside::AddBesideOutput"
 status = "replaced"
 note = "`clicked` is `added`; `focused` is gone (the focus is the arena's)."
@@ -200,13 +207,20 @@ note = "`clicked` is `added`; `focused` is gone (the focus is the arena's)."
 [[type]]
 name = "AddBesideStyle"
 old = "craft_draw::ui::add_beside::AddBesideStyle"
-new = "craft_draw::ui::add_beside::AddBesideStyle"
+new = ""
 status = "removed"
 note = "A `ComponentStyle` of the control; read no values from it."
 
 [[type]]
 name = "AddBesideLabels"
 old = "craft_draw::ui::add_beside::AddBesideLabels"
+new = ""
+status = "removed"
+note = "A `words!` set."
+
+[[type]]
+name = "AddBesideWords"
+old = ""
 new = "craft_draw::ui::add_beside::AddBesideWords"
 status = "replaced"
 note = "A `words!` set."
@@ -326,8 +340,15 @@ note = "The route and handles are painted by `ConnectorHandles`, the sites and t
 [[type]]
 name = "ConnectorToolLabels"
 old = "craft_draw::ui::connector::ConnectorToolLabels"
-new = "craft_draw::ui::connector::ConnectorWords"
+new = ""
 status = "removed"
+note = "Words are `ConnectorWords`."
+
+[[type]]
+name = "ConnectorWords"
+old = ""
+new = "craft_draw::ui::connector::ConnectorWords"
+status = "replaced"
 note = "Words are `ConnectorWords`."
 
 [[type]]
@@ -347,8 +368,15 @@ note = "A `CanvasTool`; `ShapeDragEvent::Click` carries `mods: Mods`; a drag und
 [[type]]
 name = "ShapeDragToolLabels"
 old = "craft_draw::ui::shape_drag::ShapeDragToolLabels"
-new = "craft_draw::ui::shape_drag::ShapeDragWords"
+new = ""
 status = "removed"
+note = "Words are `ShapeDragWords`."
+
+[[type]]
+name = "ShapeDragWords"
+old = ""
+new = "craft_draw::ui::shape_drag::ShapeDragWords"
+status = "replaced"
 note = "Words are `ShapeDragWords`."
 
 [[type]]
@@ -357,11 +385,18 @@ old = "craft_draw::ui::shape_drag::ShapeDragStyle"
 new = ""
 status = "removed"
 note = "The outline is painted in the theme's overlay colours; the press slop is the canvas's."
-# gradient-b: the gradient line and its overlay
 
+# gradient-b: the gradient line and its overlay
 [[type]]
 name = "GradientOverlayResponse"
 old = "craft_draw::ui::GradientOverlayResponse"
+new = ""
+status = "removed"
+note = "`event` is `edit: EditResponse<LineGradient>`; `color_requested` is a `StopColor`; `claimed` is gone (the arena decides)."
+
+[[type]]
+name = "GradientOverlayOutput"
+old = ""
 new = "craft_draw::ui::gradient::GradientOverlayOutput"
 status = "replaced"
 note = "`event` is `edit: EditResponse<LineGradient>`; `color_requested` is a `StopColor`; `claimed` is gone (the arena decides)."
@@ -369,6 +404,13 @@ note = "`event` is `edit: EditResponse<LineGradient>`; `color_requested` is a `S
 [[type]]
 name = "GradientLineNames"
 old = "craft_draw::ui::GradientLineNames"
+new = ""
+status = "removed"
+note = "A `words!` set."
+
+[[type]]
+name = "GradientLineWords"
+old = ""
 new = "craft_draw::ui::gradient::GradientLineWords"
 status = "replaced"
 note = "A `words!` set."
@@ -376,6 +418,13 @@ note = "A `words!` set."
 [[type]]
 name = "GradientLineStyle"
 old = "craft_draw::ui::GradientLineStyle"
+new = ""
+status = "removed"
+note = "A `ComponentStyle`."
+
+[[type]]
+name = "GradientOverlayStyle"
+old = ""
 new = "craft_draw::ui::gradient::GradientOverlayStyle"
 status = "replaced"
 note = "A `ComponentStyle`."
@@ -426,25 +475,25 @@ note = "`StopColor` carries `craft_ui::runtime::requests::ColorRequest`."
 name = "GradientLine"
 old = "craft_draw::ui::GradientLine"
 new = "craft_draw::ui::gradient::GradientLine"
-status = "same"
+status = "moved"
 
 [[type]]
 name = "LineGradient"
 old = "craft_draw::ui::LineGradient"
 new = "craft_draw::ui::gradient::LineGradient"
-status = "same"
+status = "moved"
 
 [[type]]
 name = "LinePart"
 old = "craft_draw::ui::LinePart"
 new = "craft_draw::ui::gradient::LinePart"
-status = "same"
+status = "moved"
 
 [[type]]
 name = "GradientExtent"
 old = "craft_draw::ui::GradientExtent"
 new = "craft_draw::ui::gradient::GradientExtent"
-status = "same"
+status = "moved"
 
 [[setter]]
 type = "GradientOverlay"
@@ -515,7 +564,7 @@ note = "The rows are `rules.rows`."
 name = "BezierOverlay"
 old = "craft_draw::ui::BezierOverlay"
 new = "craft_draw::ui::BezierOverlay"
-status = "moved"
+status = "same"
 note = "A canvas control: `BezierOverlay::new(label, Bind<Vec<EditPath>>, &PathSelection)` shown with `show_at(ui, body.rect)` in a `Canvas` body that has a view. The value is the paths: a drag proposes them with the edit applied and Escape restores the start; `BezierOutput::change` carries the gesture's `PathEdit`. The parts are in the canvas's arena, so there is no `claimed` flag."
 
 [[type]]
@@ -856,8 +905,16 @@ note = "The bound value carries the policy."
 [[type]]
 name = "CropResponse"
 old = "craft_draw::ui::CropResponse"
+new = ""
+status = "removed"
+note = "Renamed `CropOverlayOutput`."
+
+[[type]]
+name = "CropOverlayOutput"
+old = ""
 new = "craft_ui::canvas::CropOverlayOutput"
 status = "replaced"
+note = "Replaces `CropResponse`."
 
 [[type]]
 name = "CropBox"
@@ -1208,14 +1265,14 @@ note = "A paint-only canvas control: `SymmetryOverlay::new(label, &symmetry, pag
 name = "SymmetryHandles"
 old = ""
 new = ""
-status = "new"
+status = "replaced"
 note = "A canvas control over `Bind<Symmetry>` with two parts in one group: the centre and the rotation handle. Replaces the parts of `SymmetryTransformPass`."
 
 [[type]]
 name = "SymmetryTool"
 old = ""
 new = ""
-status = "new"
+status = "replaced"
 note = "The `CanvasTool` of an open session: Nudge moves the centre, Submit commits, Cancel discards."
 
 [[type]]

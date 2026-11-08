@@ -188,7 +188,9 @@ impl Component for RulerOverlay<'_> {
         for part in [RulerPart::Start, RulerPart::End, RulerPart::Protractor] {
             let Some(at) = line.point(part) else { continue };
             let square = PaintShape::Rect(Rect::from_center_size(space.view.to_screen(at), Vec2::splat(look.side)), CornerRadius::ZERO);
-            draw.fill(&square, cx.resolve_part(POINT.at(part.key()), &look.fill));
+            // A point the pass's edit just added has no part yet; it shows as the control at rest.
+            let at_rest = cx.part_if_declared(POINT.at(part.key())).is_none();
+            draw.fill(&square, if at_rest { cx.resolve(&look.fill) } else { cx.resolve_part(POINT.at(part.key()), &look.fill) });
             draw.stroke(&square, StrokeWidth::Thin, look.stroke);
         }
     }

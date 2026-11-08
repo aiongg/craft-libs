@@ -21,12 +21,12 @@ new = ""
 status = "replaced"
 note = "`Compact` is `.compact()`; `Large` is the default."
 
+
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]
 # type = ""
 # old = ""
 # new = ""
-
 [[setter]]
 type = "ReferencePoint"
 old = "ReferencePoint::new(id_salt, Option<Anchor9>)"
@@ -84,6 +84,13 @@ note = "The output of `ShapeBar::show`, not a sink passed in with `output`."
 [[type]]
 name = "ShapeLabels"
 old = "craft_draw::ui::shape::ShapeLabels"
+new = ""
+status = "removed"
+note = "A `words!` set; `stroke_style` is new."
+
+[[type]]
+name = "ShapeWords"
+old = ""
 new = "craft_draw::ui::shape::ShapeWords"
 status = "replaced"
 note = "A `words!` set; `stroke_style` is new."
@@ -135,6 +142,13 @@ note = "A `StackDialog` over a `FormDialog<PatternFillOptions>`; `show` takes `&
 [[type]]
 name = "PatternFillLabels"
 old = "craft_draw::ui::pattern::PatternFillLabels"
+new = ""
+status = "removed"
+note = "A `words!` set."
+
+[[type]]
+name = "PatternWords"
+old = ""
 new = "craft_draw::ui::pattern::PatternWords"
 status = "replaced"
 note = "A `words!` set."
@@ -264,8 +278,15 @@ note = "Gains `response`; is no longer `Default` or `PartialEq`."
 [[type]]
 name = "ConnectorBarLabels"
 old = "craft_draw::ui::connector::ConnectorBarLabels"
-new = "craft_draw::ui::connector::ConnectorBarWords"
+new = ""
 status = "removed"
+note = "Words are `ConnectorBarWords`."
+
+[[type]]
+name = "ConnectorBarWords"
+old = ""
+new = "craft_draw::ui::connector::ConnectorBarWords"
+status = "replaced"
 note = "Words are `ConnectorBarWords`."
 
 [[type]]
@@ -297,11 +318,18 @@ status = "same"
 [[type]]
 name = "CreateShapeLabels"
 old = "craft_draw::ui::shape_drag::CreateShapeLabels"
-new = "craft_draw::ui::shape_drag::CreateShapeWords"
+new = ""
 status = "removed"
 note = "Words are `CreateShapeWords`."
-# draw-gradient-a: the gradient stop bar, its stops, ramp and swatch.
 
+[[type]]
+name = "CreateShapeWords"
+old = ""
+new = "craft_draw::ui::shape_drag::CreateShapeWords"
+status = "replaced"
+note = "Words are `CreateShapeWords`."
+
+# draw-gradient-a: the gradient stop bar, its stops, ramp and swatch.
 [[type]]
 name = "GradientEditor"
 old = "craft_draw::ui::GradientEditor"
@@ -312,6 +340,13 @@ note = "A pattern: `GradientEditor::new(label, Bind<GradientStops>).show(ui)` wi
 [[type]]
 name = "GradientEditorResponse"
 old = "craft_draw::ui::GradientEditorResponse"
+new = ""
+status = "removed"
+note = "`edit` folds the bar's and the fields' events; `color_requested` carries a `StopColor`; the eyedropper request is `screen_pick`."
+
+[[type]]
+name = "GradientEditorOutput"
+old = ""
 new = "craft_draw::ui::gradient::GradientEditorOutput"
 status = "replaced"
 note = "`edit` folds the bar's and the fields' events; `color_requested` carries a `StopColor`; the eyedropper request is `screen_pick`."
@@ -326,6 +361,13 @@ note = "The bar's look is a `ComponentStyle` of the bar."
 [[type]]
 name = "GradientLabels"
 old = "craft_draw::ui::GradientLabels"
+new = ""
+status = "removed"
+note = "A `words!` set with count rows for the stop counts."
+
+[[type]]
+name = "GradientWords"
+old = ""
 new = "craft_draw::ui::gradient::GradientWords"
 status = "replaced"
 note = "A `words!` set with count rows for the stop counts."
@@ -487,26 +529,26 @@ note = "`PresetView::{Grid, List}` in the bound `PresetState`."
 name = "GradientGroup"
 old = "craft_draw::ui::GradientGroup"
 new = "craft_draw::ui::gradient::GradientGroup"
-status = "same"
+status = "moved"
 
 [[type]]
 name = "GradientItem"
 old = "craft_draw::ui::GradientItem"
 new = "craft_draw::ui::gradient::GradientItem"
-status = "same"
+status = "moved"
 
 [[type]]
 name = "GradientRef"
 old = "craft_draw::ui::GradientRef"
 new = "craft_draw::ui::gradient::GradientRef"
-status = "same"
+status = "moved"
 note = "The browser's key."
 
 [[type]]
 name = "GradientMap"
 old = "craft_draw::ui::GradientMap"
 new = "craft_draw::ui::gradient::GradientMap"
-status = "same"
+status = "moved"
 
 [[type]]
 name = "GradientMapEditor"
@@ -518,6 +560,13 @@ note = "`new(label, &GradientMap)`; output `GradientMapOutput { event, color_req
 [[type]]
 name = "GradientMapLabels"
 old = "craft_draw::ui::GradientMapLabels"
+new = ""
+status = "removed"
+note = "A `words!` set."
+
+[[type]]
+name = "GradientMapWords"
+old = ""
 new = "craft_draw::ui::gradient::GradientMapWords"
 status = "replaced"
 note = "A `words!` set."
@@ -528,8 +577,8 @@ old = "craft_draw::ui::GradientMapOutput"
 new = "craft_draw::ui::gradient::GradientMapOutput"
 status = "replaced"
 note = "`pick_color` is `color_requested: Option<StopColor>`; `import_presets` is `import`."
-# draw-pen-b: Path Options
 
+# draw-pen-b: Path Options
 [[type]]
 name = "PathOptionsPopover"
 old = "craft_draw::ui::pen::PathOptionsPopover"
@@ -697,6 +746,13 @@ status = "same"
 [[type]]
 name = "PerspectiveCropResponse"
 old = "craft_draw::ui::crop::PerspectiveCropResponse"
+new = ""
+status = "removed"
+note = "`edit` is an `EditResponse<PerspectiveQuad>`; `apply`, `discard` and `picked` stay; `id`, `committable`, `hovered`, `claimed`, `dragging` and `placing` go (the arena owns the press; `PerspectiveCropTool::placing` has the clicks)."
+
+[[type]]
+name = "PerspectiveCropOutput"
+old = ""
 new = "craft_draw::ui::crop::PerspectiveCropOutput"
 status = "replaced"
 note = "`edit` is an `EditResponse<PerspectiveQuad>`; `apply`, `discard` and `picked` stay; `id`, `committable`, `hovered`, `claimed`, `dragging` and `placing` go (the arena owns the press; `PerspectiveCropTool::placing` has the clicks)."
@@ -1289,11 +1345,19 @@ note = "A pattern over `Bind<TransformRow>` and the aspect link `Bind<bool>`: `T
 name = "TransformFieldsOutput"
 old = ""
 new = ""
-status = "new"
+status = "replaced"
+note = "Replaced by the type of this entry."
+
+[[type]]
+name = "TransformFieldLabels"
+old = "craft_draw::ui::TransformFieldLabels"
+new = ""
+status = "removed"
+note = "A `words!` set with the same ids; the unit texts come from `Units::symbol`."
 
 [[type]]
 name = "TransformFieldWords"
-old = "craft_draw::ui::TransformFieldLabels"
+old = ""
 new = "craft_draw::ui::TransformFieldWords"
 status = "replaced"
 note = "A `words!` set with the same ids; the unit texts come from `Units::symbol`."
@@ -1354,16 +1418,24 @@ status = "same"
 note = "Returned by `show`; the fields are `response, edits, apply, discard, reset_warp, unit_picked` (was `size_unit: Option<LengthUnit>`)."
 
 [[type]]
-name = "TransformBarWords"
+name = "TransformBarLabels"
 old = "craft_draw::ui::TransformBarLabels"
+new = ""
+status = "removed"
+note = "Renamed `TransformBarWords`."
+
+[[type]]
+name = "TransformBarWords"
+old = ""
 new = "craft_draw::ui::TransformBarWords"
 status = "replaced"
+note = "Replaces `TransformBarLabels`."
 
 [[type]]
 name = "BarSlot"
 old = ""
 new = ""
-status = "new"
+status = "replaced"
 note = "A named closure for the bar groups `warp_fields` and `extra`."
 
 [[type]]
@@ -1374,14 +1446,29 @@ status = "same"
 note = "A pattern: `SymmetryMenu::new(label, &choice).paths(..).can_transform(..)`; an `IconButton` that opens a `Menu` on a press."
 
 [[type]]
-name = "SymmetryMenuOutput"
+name = "SymmetryMenuResponse"
 old = "craft_draw::ui::SymmetryMenuResponse"
+new = ""
+status = "removed"
+note = "Renamed `SymmetryMenuOutput`."
+
+[[type]]
+name = "SymmetryMenuOutput"
+old = ""
 new = "craft_draw::ui::SymmetryMenuOutput"
 status = "replaced"
+note = "Replaces `SymmetryMenuResponse`."
+
+[[type]]
+name = "SymmetryLabels"
+old = "craft_draw::ui::SymmetryLabels"
+new = ""
+status = "removed"
+note = "A `words!` set with the same ids."
 
 [[type]]
 name = "SymmetryWords"
-old = "craft_draw::ui::SymmetryLabels"
+old = ""
 new = "craft_draw::ui::SymmetryWords"
 status = "replaced"
 note = "A `words!` set with the same ids."
@@ -1624,6 +1711,13 @@ note = "`new(label, sections, Bind<K>)`; the shown pane is a binding."
 [[type]]
 name = "BrushSectionListResponse"
 old = "craft_draw::ui::brush_settings::BrushSectionListResponse"
+new = ""
+status = "removed"
+note = "Renamed `BrushSectionListOutput { response, events }`."
+
+[[type]]
+name = "BrushSectionListOutput"
+old = ""
 new = "craft_draw::ui::brush_settings::BrushSectionListOutput"
 status = "replaced"
 note = "Renamed `BrushSectionListOutput { response, events }`."
@@ -1665,6 +1759,13 @@ note = "`new(controls, Bind<C>, Bind<f64>)` for the control and the Fade steps; 
 [[type]]
 name = "DynamicControlRowResponse"
 old = "craft_draw::ui::brush_settings::DynamicControlRowResponse"
+new = ""
+status = "removed"
+note = "Renamed `DynamicControlRowOutput { response, curve_toggled }`; the control and the Fade steps are bindings."
+
+[[type]]
+name = "DynamicControlRowOutput"
+old = ""
 new = "craft_draw::ui::brush_settings::DynamicControlRowOutput"
 status = "replaced"
 note = "Renamed `DynamicControlRowOutput { response, curve_toggled }`; the control and the Fade steps are bindings."
@@ -1686,6 +1787,13 @@ note = "A `ComponentStyle` built from tokens; the fields are private."
 [[type]]
 name = "BrushSettingsLabels"
 old = "craft_draw::ui::brush_settings::BrushSettingsLabels"
+new = ""
+status = "removed"
+note = "The words set `BrushSettingsWords` (`words!`)."
+
+[[type]]
+name = "BrushSettingsWords"
+old = ""
 new = "craft_draw::ui::brush_settings::BrushSettingsWords"
 status = "replaced"
 note = "The words set `BrushSettingsWords` (`words!`)."
@@ -1770,6 +1878,13 @@ note = "`PresetPicker`'s own style."
 [[type]]
 name = "BrushPickerLabels"
 old = "craft_draw::ui::brush_presets::BrushPickerLabels"
+new = ""
+status = "removed"
+note = "The words set `BrushPresetWords`."
+
+[[type]]
+name = "BrushPresetWords"
+old = ""
 new = "craft_draw::ui::brush_presets::BrushPresetWords"
 status = "replaced"
 note = "The words set `BrushPresetWords`."
