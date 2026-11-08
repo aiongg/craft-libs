@@ -72,7 +72,7 @@ impl Component for Armer<'_> {
     }
 }
 
-/// A button that opens a modal dialog holding the armer and, while `dropdown` is set, a dropdown.
+/// A button that opens a modal dialog holding the armer and, while `dropdown` is set, a menu.
 #[derive(Component)]
 #[component(overlay)]
 struct Dialog<'a> {
@@ -113,7 +113,7 @@ impl Component for Dialog<'_> {
         let canvas = self.canvas;
         let shown = ui.show(popup, Overlay::modal(), |ui, _| {
             Armer { common: Common::new(), canvas, arm: scene.arm.get(), at: &scene.armer_at, id: &scene.armer_id }.id_salt("armer").show(ui);
-            Opener::new(&scene.dropdown_shown, &scene.dropdown_content, Trigger::Manual, Overlay::dropdown)
+            Opener::new(&scene.dropdown_shown, &scene.dropdown_content, Trigger::Manual, Overlay::menu)
                 .open(scene.dropdown.get())
                 .id_salt("dropdown")
                 .show(ui);
@@ -248,7 +248,7 @@ fn a_press_that_began_on_the_dialog_never_reaches_the_canvas() {
     assert!(!scene.pressed_canvas(), "the dialog's press never becomes the canvas's");
 }
 
-/// A popup over the dialog takes the press on the canvas as its outside press.
+/// A popup that absorbs outside presses (a menu) over the dialog takes the press on the canvas as its outside press.
 #[trial]
 fn a_press_on_the_canvas_closes_a_popup_over_the_dialog_and_does_not_reach_the_canvas() {
     let mut frames = Frames::new();
@@ -256,7 +256,7 @@ fn a_press_on_the_canvas_closes_a_popup_over_the_dialog_and_does_not_reach_the_c
     scene.open_dialog(&mut frames);
     scene.dropdown.set(true);
     frames.idle(30, &mut |ui: &mut Ui| scene.show(ui));
-    assert!(scene.dropdown_shown.shown.get(), "the dropdown is open over the dialog");
+    assert!(scene.dropdown_shown.shown.get(), "the menu is open over the dialog");
     scene.dropdown.set(false);
     scene.drag(&mut frames, CANVAS.center(), Vec2::new(40.0, 10.0));
     assert!(!scene.pressed_canvas(), "the popup took the press");
