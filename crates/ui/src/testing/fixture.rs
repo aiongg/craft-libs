@@ -4,7 +4,7 @@ use super::Frames;
 use super::story::{Story, StoryData, StoryOutput};
 use crate::runtime::access::Role;
 use crate::runtime::commands::{CommandInput, CommandRef, CommandState};
-use crate::runtime::egui::access::{AccessTree, Declared, NodeKey};
+use crate::runtime::egui::access::{AccessTree, NodeKey};
 use crate::runtime::egui::fixture::{self, AccessActionKind};
 use crate::runtime::env::{Direction, Overrides, RootEnv, Scale, with_env};
 use craft_behavior::{MotionMode, PartRef};
@@ -290,10 +290,13 @@ impl Fixture {
         self.target(node)
     }
 
-    /// The focusable node named `label`: the control, where a field's label and group carry the control's name too.
+    /// The interactive node named `label`, by its own name or the nodes that label it: the control, where a field's
+    /// label and group carry the control's name too.
     pub fn control(&self, label: &str) -> Option<Target> {
         let tree = &self.tree;
-        let node = tree.keys().into_iter().find(|key| tree.name_of(*key) == Some(label) && tree.declares_key(*key, Declared::Focus))?;
+        let node = tree.keys().into_iter().find(|key| {
+            super::access::name(tree, *key) == Some(label) && tree.role_of(*key) != Some(Role::LABEL) && super::access::is_interactive(tree, *key)
+        })?;
         self.target(node)
     }
 
