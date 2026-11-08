@@ -5,7 +5,7 @@ use craft_behavior::{CancelReason, CanvasView, EditEvent, GestureId, Mixed};
 use craft_imaging::ui::warp::pin::{
     Pin, PinDensity, PinEdit, PinMeshView, PinMode, PinSolver, PinWarp, PinWarpBar, PinWarpCommands, PinWarpOptions, PinWarpSession, PinWarpSettings,
 };
-use craft_ui::canvas::{Canvas, ToolPath};
+use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Key, Modifiers, Pos2, Vec2};
@@ -18,7 +18,6 @@ const WIDE_BAR: Vec2 = Vec2::new(1700.0, 80.0);
 /// The expansion and the rotation the bar tests type.
 const TYPED_EXPANSION: f64 = 12.0;
 const TYPED_ROTATION: f64 = 45.0;
-const TOOL: ToolPath = ToolPath::Command("the Add Pin command");
 
 #[derive(Debug, PartialEq)]
 enum Call {
@@ -304,7 +303,7 @@ fn harness(pins: Vec<Pin>, selected: Vec<usize>) -> Harness {
         shown_view.set(Some(canvas_view));
         let output = {
             let held = shown_state.borrow();
-            Canvas::new("Document", TOOL)
+            Canvas::new("Document")
                 .view(canvas_view)
                 .show(ui, |ui, body| {
                     PinWarp::new("Pins", Bind::given(held.session.pins().to_vec()), held.solver.mesh())

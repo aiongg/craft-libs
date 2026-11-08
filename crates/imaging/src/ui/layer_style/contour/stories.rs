@@ -19,8 +19,7 @@ fn contour_field(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let words = Env::of(ui).words::<ContourWords>();
     let user = user_contours();
     let rows = contour_rows(&Contour::presets(), &user, &words, None);
-    let contour = data.value("contour", Contour::linear());
-    let state = data.value("state", PresetState::<ContourKey>::new());
+    let (contour, state) = data.value("field", (Contour::linear(), PresetState::<ContourKey>::new()));
     ContourField::new("Contour", Bind::bound(contour), &rows, Bind::bound(state)).user(&user).show(ui).into()
 }
 
@@ -29,8 +28,6 @@ fn contour_field_with_user_contour(ui: &mut Ui, data: &mut StoryData) -> StoryOu
     let words = Env::of(ui).words::<ContourWords>();
     let user = user_contours();
     let rows = contour_rows(&Contour::presets(), &user, &words, None);
-    let contour = data.value("contour", user[0].clone());
-    let state = data.value("state", PresetState::<ContourKey>::new());
-    let anti_alias = data.value("anti-alias", Some(true));
+    let (contour, state, anti_alias) = data.value("field", (user[0].clone(), PresetState::<ContourKey>::new(), Some(true)));
     ContourField::new("Contour", Bind::bound(contour), &rows, Bind::bound(state)).user(&user).anti_alias(Bind::bound(anti_alias)).show(ui).into()
 }

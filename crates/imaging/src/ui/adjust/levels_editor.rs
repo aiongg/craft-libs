@@ -96,6 +96,7 @@ impl Levels {
 /// Which input end an Alt (Option) drag is moving, for the host's clipping view
 /// ([`LevelsEditorOutput::clipping`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum LevelsClip {
     /// The input black thumb: show what clips to black.
     Shadows,

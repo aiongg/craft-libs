@@ -1,7 +1,5 @@
 //! The effect page: one field per entry of the effect's [`EffectSpec`], drawn by kind.
 
-use std::rc::Rc;
-
 use craft_behavior::{EditEvent, GestureId, Mixed, NumberCodec};
 use craft_theme::variant::Tone;
 use craft_theme::{Srgba, TypeRole};
@@ -21,21 +19,17 @@ use craft_ui::value_drag::AngleDial;
 use egui::Ui;
 
 use super::blending::BlendingOp;
-use super::contour::{ContourAction, ContourField, ContourKey, ContourRequest, ContourWords, contour_rows};
+use super::contour::{ContourAction, ContourField, ContourKey, ContourRequest, ContourWords, SharedSampler, contour_rows};
 use super::labels::LayerStyleWords;
 use crate::layer_style::{
     Contour, EffectField, EffectId, EffectInstance, EffectKind, EffectSpec, FieldKind, FieldUnit, LayerStyle, LayerStyleDraft, StyleParams,
     StyleValue,
 };
-use crate::ui::curve::CurveSampler;
 
 /// The angle field shows whole degrees.
 const WHOLE: usize = 0;
 /// The angle dial's range, in degrees.
 const ANGLE_RANGE: std::ops::RangeInclusive<f64> = -180.0..=180.0;
-
-/// A host's interpolation of a contour's points, shared by the page's contour fields.
-pub(super) type SharedSampler<'a> = Rc<dyn Fn(&[[f32; 2]]) -> Vec<f32> + 'a>;
 
 /// What a part of the dialog did to the style: the operation an event replays on the style it started from.
 #[derive(Clone, Debug)]
@@ -95,7 +89,7 @@ pub(super) struct PageInput<'a> {
     pub blend_modes: &'a [Entry<String>],
     pub patterns: &'a [PresetRow<String>],
     pub user_contours: &'a [Contour],
-    pub sampler: Option<&'a SharedSampler<'a>>,
+    pub sampler: Option<&'a SharedSampler>,
     pub words: &'a LayerStyleWords,
     pub contour_words: &'a ContourWords,
     pub units: &'a Units,
@@ -309,17 +303,14 @@ fn field_row(ui: &mut Ui, input: &PageInput<'_>, field: &EffectField, shown: &St
             let before = anti_alias.as_deref().map(|k| shown.bool(k).unwrap_or(false));
             let mut checked = before;
             let presets = Contour::presets();
-            let rows = contour_rows(&presets, input.user_contours, input.contour_words);
+            let rows = contour_rows(&presets, input.user_contours, input.contour_words, input.sampler.cloned());
             let shown_field = Field::new(label.clone())
                 .id_salt(key)
                 .show(ui, |ui, _| {
-                    let mut field = ContourField::new(label.clone(), Bind::given(contour.clone()), &rows, Bind::<PresetState<ContourKey>>::kept());
+                    let mut field = ContourField::new(label.clone(), Bind::given(contour.clone()), &rows, Bind::<PresetState<ContourKey>>::kept())
+                        .user(input.user_contours);
                     if anti_alias.is_some() {
                         field = field.anti_alias(Bind::bound(&mut checked));
-                    }
-                    if let Some(sampler) = input.sampler {
-                        let sampler = Rc::clone(sampler);
-                        field = field.sampler(CurveSampler::new(move |points| sampler(points)));
                     }
                     field.show(ui)
                 })

@@ -122,6 +122,7 @@ impl<'a> BlendIfBar<'a> {
                 .track_face(TrackFace::new(ToneRamp::new(&ramp)))
                 .label(label.clone())
                 .show(ui)
+                .edit
                 .map(|row| BlendIfRange::of_row(&row));
             if let Some(event) = &shown.event {
                 range.reborrow().write(root, event);

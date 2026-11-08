@@ -292,7 +292,7 @@ impl CanvasTool for FillCanvasTool<'_> {
                 // The fill area always has something to combine with: Shift adds, Alt subtracts,
                 // both intersect, else the bar's operation.
                 match draft.press(DraftPoint::new(doc, pointer.mods, space.view.zoom), true) {
-                    Some(DraftEvent::Started { intent }) => {
+                    Some(DraftEvent::Started { intent, .. }) => {
                         let operation = SelectionOperation::resolve(self.options.lasso, intent, true);
                         self.canvas.lasso = Some((draft, operation));
                         cx.request_repaint();

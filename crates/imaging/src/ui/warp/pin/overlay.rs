@@ -153,7 +153,7 @@ impl<'a> PinWarp<'a> {
         PinWarp { common: Common::new(), pins, mesh, selected_pins: None, show_mesh: false, report: Report::default() }.label(label)
     }
 
-    fn selected(&self) -> &'a [usize] {
+    fn selection(&self) -> &'a [usize] {
         self.selected_pins.unwrap_or(&[])
     }
 }
@@ -254,7 +254,7 @@ impl PinWarp<'_> {
             cx.set(rest);
             return;
         }
-        let mut now = self.selected().to_vec();
+        let mut now = self.selection().to_vec();
         let moved = if shift {
             match now.iter().position(|&k| k == i) {
                 Some(at) => {
@@ -272,7 +272,7 @@ impl PinWarp<'_> {
             now = vec![i];
             Some(vec![i])
         };
-        if now != self.selected() {
+        if now != self.selection() {
             self.report.select = Some(now);
         }
         *cx.press_slot::<Drag>() =
@@ -283,7 +283,7 @@ impl PinWarp<'_> {
     fn press_mesh(&mut self, cx: &mut Cx<'_, Self>, space: &CanvasSpace, pins: &[Pin], alt: bool, origin: Pos2) {
         let at = space.view.to_doc(origin);
         if alt {
-            let turn = nearest_selected(&space.view, pins, self.selected(), origin, TURN_REACH).and_then(|i| {
+            let turn = nearest_selected(&space.view, pins, self.selection(), origin, TURN_REACH).and_then(|i| {
                 let pin = pins[i];
                 let base = pin.angle.or_else(|| self.mesh.turn_at(pin.rest))?;
                 Some(Drag { kind: Kind::Turn { pin: i, base, from: angle_of(at - pin.at)? }, origin: at, base: pins.to_vec(), began: false })
@@ -366,7 +366,7 @@ impl PinWarp<'_> {
         }
         let focused = cx.active_part().filter(|part| part.key == PIN).and_then(|part| part.index).map(|index| index as usize);
         let Some(picked) = focused.filter(|&i| i < pins.len()) else { return };
-        if self.report.select.is_none() && self.selected().first() != Some(&picked) {
+        if self.report.select.is_none() && self.selection().first() != Some(&picked) {
             self.report.select = Some(vec![picked]);
         }
         if let Some((direction, mods)) = cx.intents().take_nudge() {
@@ -384,7 +384,7 @@ impl PinWarp<'_> {
         let forward = cx.intents().take_exact(&Intent::delete(true, Granularity::Unit));
         let backward = cx.intents().take_exact(&Intent::delete(false, Granularity::Unit));
         if forward || backward {
-            let chosen: Vec<usize> = if self.selected().is_empty() { vec![picked] } else { self.selected().to_vec() };
+            let chosen: Vec<usize> = if self.selection().is_empty() { vec![picked] } else { self.selection().to_vec() };
             let rest: Vec<Pin> = pins.iter().enumerate().filter(|(i, _)| !chosen.contains(i)).map(|(_, pin)| *pin).collect();
             cx.set(rest);
         }
@@ -463,7 +463,7 @@ impl Component for PinWarp<'_> {
     fn parts(&mut self, _: Rect, cx: &mut PartsCx<'_, Self>) {
         let (Some(space), Some(pins)) = (canvas_space(&cx.env), cx.value()) else { return };
         let radius = cx.style.pin / 2.0;
-        let selected = self.selected();
+        let selected = self.selection();
         for (i, pin) in pins.iter().enumerate() {
             let part = cx
                 .part(PIN.at(i as u64), HitShape::circle(space.view.to_screen(pin.at), radius))
@@ -501,7 +501,7 @@ impl Component for PinWarp<'_> {
             let edges: Vec<[Point; 2]> = self.mesh.edges().into_iter().filter_map(|[a, b]| Some([at(a)?, at(b)?])).collect();
             paint_mesh_lines(&draw, &space.view, &edges, style.mesh);
         }
-        let selected = self.selected();
+        let selected = self.selection();
         let mut order: Vec<usize> = (0..pins.len()).collect();
         order.sort_by_key(|&i| pins[i].depth);
         for i in order {

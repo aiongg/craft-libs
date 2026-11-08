@@ -129,7 +129,7 @@ impl<'a> ConstraintLines<'a> {
 impl Component for ConstraintLines<'_> {
     const ROLE: Role = Role::GROUP;
     const OVERLAYS: bool = false;
-    const KEYS: KeyUse = KeyUse { chrome_key: false, ..KeyUse::CANVAS.with_moves() };
+    const KEYS: KeyUse = KeyUse::CANVAS.with_moves().with_deletes().with_chrome_key(false);
     type Style = ConstraintLinesStyle;
     type Output = ConstraintLinesOutput;
 

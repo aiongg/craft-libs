@@ -5,7 +5,7 @@ use craft_behavior::{CanvasView, EditEvent};
 use craft_imaging::ui::warp::{
     POINT, WarpEdit, WarpFieldValues, WarpFields, WarpFieldsEdit, WarpGrid, WarpGridChoice, WarpMesh, WarpSplit, WarpStyleEntry,
 };
-use craft_ui::canvas::{Canvas, ToolPath};
+use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _};
 use craft_ui::testing::{Fixture, Target, pointer, trial};
 use egui::{Id, Key, Modifiers, Pos2, Vec2};
@@ -84,7 +84,7 @@ fn harness_in(mesh: WarpMesh, rotation: f64, flip: bool) -> Harness {
         let centre = Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0);
         let shown_view = CanvasView::new(room, centre, 1.0).rotation(rotation).flip_x(flip);
         view.set(Some(shown_view));
-        let canvas = Canvas::new("Document", ToolPath::Command("the Warp command")).view(shown_view).show(ui, |ui, body| {
+        let canvas = Canvas::new("Document").view(shown_view).show(ui, |ui, body| {
             let mut held = mesh.borrow_mut();
             let mut grid = WarpGrid::new("Warp", Bind::bound(&mut *held), bounds.get());
             if let Some(tool) = split.get() {

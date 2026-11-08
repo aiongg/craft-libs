@@ -518,9 +518,7 @@ fn lasso_alt_release_and_double_click_close() {
     for point in [(50.0, 50.0), (150.0, 50.0), (150.0, 150.0)] {
         click(&mut rig, point, Mods::ALT);
     }
-    // Two quick real presses are a double click, which closes the outline.
-    let ctx = rig.fixture().ctx().clone();
-    ctx.options_mut(|options| options.input_options.max_double_click_delay = 5.0);
+    // Two presses with no clock time between them are a double click, which closes the outline.
     for _ in 0..2 {
         rig.press_at(at((100.0, 150.0)));
         rig.release_at(at((100.0, 150.0)));

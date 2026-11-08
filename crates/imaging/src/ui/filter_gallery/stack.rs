@@ -137,14 +137,14 @@ impl<'a> EffectStack<'a> {
                         if let Some(toggle) = edit.value()
                             && effects.get(toggle.key).is_some_and(|effect| effect.visible != toggle.on)
                         {
-                            change = Some(EffectChange::Visible { index: toggle.key, visible: toggle.on });
+                            change = Some(EffectChange::set_visible(toggle.key, toggle.on));
                         }
                     }
                     CollectionEvent::Reorder(edit) => {
                         if let Some(mv) = finished(&edit)
                             && let Some((from, to)) = effect_move(count, mv)
                         {
-                            change = Some(EffectChange::Move { from, to });
+                            change = Some(EffectChange::move_to(from, to));
                         }
                     }
                     _ => {}
@@ -158,8 +158,8 @@ impl<'a> EffectStack<'a> {
             ];
             let footer = FooterBar::actions(actions).show_footer(ui);
             let pressed = match footer.picked {
-                Some(0) => Some(EffectChange::Move { from: current, to: current + 1 }),
-                Some(1) => Some(EffectChange::Move { from: current, to: current.saturating_sub(1) }),
+                Some(0) => Some(EffectChange::move_to(current, current + 1)),
+                Some(1) => Some(EffectChange::move_to(current, current.saturating_sub(1))),
                 Some(2) => Some(EffectChange::Add),
                 Some(3) => Some(EffectChange::Delete),
                 _ => None,

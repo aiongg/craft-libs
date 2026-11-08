@@ -250,7 +250,7 @@ impl Rows<'_> {
     ) {
         let entries: Vec<Entry<T>> = options.iter().map(|(value, text)| Entry::new(value.clone(), (*text).clone())).collect();
         Field::new(label.clone()).show(ui, |ui, _| {
-            if let Some(event) = Select::new(label.clone(), Bind::given(current), &entries).show(ui).event {
+            if let Some(event) = Select::new(label.clone(), Bind::given(current.clone()), &entries).show(ui).event {
                 self.pass.edit = Some(lift(event, self.base, set));
             }
         });

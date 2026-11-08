@@ -7,7 +7,8 @@ use craft_behavior::{
 };
 use craft_ui::canvas::{NUDGE, NUDGE_FAR, canvas_space};
 use craft_ui::contract::{
-    Access, Common, Component, Cx, Focus as _, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role, WordSetCx as _,
+    Access, Common, Component, Cx, Focus as _, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role, Styled as _,
+    WordSetCx as _,
 };
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::focus::KeyUse;

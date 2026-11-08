@@ -71,7 +71,7 @@ impl<'a> WideAnglePanel<'a> {
 
     /// Draws the panel and returns its response and any session edit.
     pub fn show(self, ui: &mut Ui) -> WideAnglePanelOutput {
-        let Self { session, preview } = self;
+        let Self { session, mut preview } = self;
         let env = Env::of(ui);
         let words = env.words::<WideAngleWords>();
         let (mut edit, mut constraint, mut add) = (None, None, false);
@@ -156,7 +156,7 @@ impl<'a> WideAnglePanel<'a> {
                     add = true;
                 }
             });
-            Checkbox::new(preview).label(words.preview.clone()).id_salt("preview").show(ui);
+            Checkbox::new(preview.reborrow()).label(words.preview.clone()).id_salt("preview").show(ui);
             Text::new(words.hint.clone()).role(TypeRole::Caption).shade(Shade::Faint).show(ui);
         });
         WideAnglePanelOutput { response: shown.output, edit, constraint, add }

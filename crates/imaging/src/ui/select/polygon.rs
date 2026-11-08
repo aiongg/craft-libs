@@ -184,7 +184,7 @@ impl CanvasTool for SelectToolPass<'_, PolygonLassoTool> {
             && !pointer.mods.alt
             && let Some(&last) = tool.draft.points().last()
         {
-            at = DraftPoint { at: turn_to_45(last, at.at), ..at };
+            at.at = turn_to_45(last, at.at);
         }
         if tool.draft.hover(at).is_some() {
             cx.request_repaint();

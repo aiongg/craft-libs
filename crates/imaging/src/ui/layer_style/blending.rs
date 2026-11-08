@@ -8,8 +8,8 @@ use craft_ui::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _}
 use craft_ui::form::{Field, FieldGroup, SliderField};
 use craft_ui::layout_components::Stack;
 use craft_ui::pickers::Select;
-use craft_ui::runtime::env::{Env, Label};
 use craft_ui::runtime::env::UnitKind;
+use craft_ui::runtime::env::{Env, Label};
 use craft_ui::sections::{HeaderStrength, Section};
 use egui::Ui;
 
@@ -180,7 +180,7 @@ pub(super) fn blending_page(ui: &mut Ui, input: &BlendingInput<'_>) -> BlendingO
                 let entry = b.blend_if[shown];
                 for (caption, underlying) in [(&words.this_layer, false), (&words.underlying_layer, true)] {
                     let range = if underlying { entry.underlying } else { entry.this_layer };
-                    Stack::new().id(egui::Id::new(("blendIf", shown, underlying))).show(ui, |ui, _| {
+                    Stack::new().id_salt(("blendIf", shown, underlying)).show(ui, |ui, _| {
                         let edit = BlendIfBar::new(caption.clone(), Bind::given(range)).show(ui);
                         push(style_edit(&edit, style, |v: &BlendIfRange| {
                             StyleOp::Blending(BlendingOp::BlendIf { entry: shown, underlying, range: *v })
@@ -204,7 +204,7 @@ fn with_current(modes: &[Entry<String>], current: &str) -> Vec<Entry<String>> {
 }
 
 /// A 0..=100 % slider and field, whole percent.
-fn percent(ui: &mut Ui, label: &craft_ui::runtime::env::Word, value: f32) -> craft_ui::contract::EditResponse<f64> {
+fn percent(ui: &mut Ui, label: &Label, value: f32) -> craft_ui::contract::EditResponse<f64> {
     SliderField::new(label.clone(), Bind::given(f64::from(value)), 0.0..=100.0).step(1.0).unit_kind(UnitKind::Percent).show(ui)
 }
 

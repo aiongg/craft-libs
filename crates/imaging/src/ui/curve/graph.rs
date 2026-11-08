@@ -17,6 +17,7 @@ use craft_ui::runtime::focus::{ActivateKeys, KeyUse};
 use craft_ui::style::{ComponentStyle, DataColor, FocusLook, Mix as _, StyleColor, StyleCx};
 use egui::{Color32, CornerRadius, Pos2, Rect, Response, Vec2, pos2, vec2};
 use std::ops::Deref;
+use std::rc::Rc;
 
 /// The plot of the graph: the area inside the border, where levels `0..=levels` map to.
 pub(super) const PLOT: PartKey = PartKey::new("plot");
@@ -54,18 +55,19 @@ impl CurveChannel {
 
 /// A host's interpolation: the output level of every input level `0..=levels` through the points. The default is a
 /// monotone cubic ([`Curve::monotone`]).
-pub struct CurveSampler<'a>(Box<dyn Fn(&[[f32; 2]]) -> Vec<f32> + 'a>);
+#[derive(Clone)]
+pub struct CurveSampler<'a>(Rc<dyn Fn(&[[f32; 2]]) -> Vec<f32> + 'a>);
 
 impl<'a> CurveSampler<'a> {
     /// The interpolation `sample`.
     pub fn new(sample: impl Fn(&[[f32; 2]]) -> Vec<f32> + 'a) -> Self {
-        CurveSampler(Box::new(sample))
+        CurveSampler(Rc::new(sample))
     }
 
     /// The monotone cubic over `levels + 1` outputs.
     pub fn monotone(levels: u32) -> CurveSampler<'static> {
         let levels = levels.max(1) as f32;
-        CurveSampler(Box::new(move |points| Curve::monotone(points, levels)))
+        CurveSampler(Rc::new(move |points| Curve::monotone(points, levels)))
     }
 }
 

@@ -33,7 +33,7 @@ fn monotone(points: &[[f32; 2]]) -> Vec<f32> {
 fn drawn() -> ToneCurves {
     let mut map: Vec<f32> = (0..256).map(|k| k as f32).collect();
     map[128] = 135.0;
-    ToneCurves { curves: vec![Curve::Map(map); 4], mode: CurvesMode::Pencil }
+    ToneCurves::new(vec![Curve::Map(map); 4], CurvesMode::Pencil)
 }
 
 /// The thumbs of a shown editor, top row first and left to right within a row.
@@ -138,7 +138,8 @@ fn the_auto_button_sets_the_shown_channel() {
     let auto = fixture.by_label("Auto").expect("the Auto button");
     fixture.click(&auto);
     fixture.idle(2);
-    assert_eq!(levels.borrow()[0], Levels::new(1.0, 1.0, 254.0, 10.0, 240.0));
+    let auto_levels = Levels::new(1.0, 1.0, 254.0, 10.0, 240.0);
+    assert_eq!(levels.borrow()[0], auto_levels);
     assert_eq!(levels.borrow()[1], start, "the other channels are untouched");
 }
 
@@ -278,7 +279,7 @@ fn a_sample_does_nothing_in_pencil_mode_or_for_other_spaces() {
         assert_eq!(curves, before);
     }
 
-    let isolated = ToneChannels::isolated(ToneChannel::Named { name: "Alpha 1".into(), color: ChannelColor::Neutral });
+    let isolated = ToneChannels::isolated(ToneChannel::named("Alpha 1", ChannelColor::Neutral));
     let mut curves = ToneCurves::identity(&isolated);
     let before = curves.clone();
     assert_eq!(CurvesPanel::add_point_from_sample(&mut curves, &isolated, 0, grey(0.5), false, &monotone), None);

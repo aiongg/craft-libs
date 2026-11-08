@@ -202,7 +202,10 @@ impl<'a> LevelsPanel<'a> {
             edit = event;
 
             if let Some(armed) = pickers.as_mut() {
-                let mut row = TonePickerRow::new(armed.reborrowed()).unavailable(pickers_unavailable);
+                let mut row = TonePickerRow::new(armed.reborrowed());
+                if pickers_unavailable {
+                    row = row.unavailable();
+                }
                 if let Some(canvas) = canvas {
                     row = row.canvas(canvas);
                 }

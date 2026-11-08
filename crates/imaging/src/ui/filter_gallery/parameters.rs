@@ -3,9 +3,10 @@
 use craft_ui::contract::{Bind, NoValue, Outcome, Show as _, ShowContainer as _};
 use craft_ui::display::{Shade, Text};
 use craft_ui::layout_components::Stack;
-use craft_ui::patterns::form_dialogs::{ColorRequest, ParamRows};
+use craft_ui::patterns::form_dialogs::ParamRows;
 use craft_ui::pickers::Select;
 use craft_ui::runtime::env::Env;
+use craft_ui::runtime::requests::ColorRequest;
 use craft_ui::style::TypeRole;
 use egui::{Response, Ui};
 
@@ -65,7 +66,7 @@ impl<'a> EffectParameters<'a> {
         let stack = Stack::new().show(ui, |ui, _| {
             let picked = Select::new(words.filter.clone(), Bind::given(effect.filter.clone()), &entries).show(ui);
             if let Some(key) = picked.value().filter(|key| **key != effect.filter) {
-                change = Some(EffectChange::SetFilter { index: at, filter: key.clone() });
+                change = Some(EffectChange::set_filter(at, key.clone()));
             }
             let Some(filter) = filter else { return };
             let rows = ParamRows::new(words.settings.clone(), &filter.params, Bind::given(effect.fields.clone())).show(ui);
@@ -73,7 +74,7 @@ impl<'a> EffectParameters<'a> {
                 && change.is_none()
                 && let Some(fields) = rows.values
             {
-                change = Some(EffectChange::Fields { index: at, fields });
+                change = Some(EffectChange::with_fields(at, fields));
             }
             pick_color = rows.pick_color;
             if filter.uses_colors {

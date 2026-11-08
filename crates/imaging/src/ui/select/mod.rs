@@ -236,7 +236,8 @@ impl Report {
 
     /// The id of the next selection drag.
     fn gesture(&mut self) -> GestureId {
-        std::mem::replace(&mut self.next, self.next.next())
+        let following = self.next.next();
+        std::mem::replace(&mut self.next, following)
     }
 }
 

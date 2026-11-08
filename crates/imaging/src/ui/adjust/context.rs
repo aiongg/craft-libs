@@ -73,6 +73,7 @@ impl AdjustContext {
 // pc: crates/ui-egui/src/dialogs/adjust_editors.rs:127 `space_of`; engine `adjust_params.rs`
 // `channel_keys`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ToneSpace {
     /// RGB (and Grayscale with [`AdjustContext::gray`]): the composite, then Red, Green, Blue.
     #[default]
@@ -113,6 +114,7 @@ pub enum ToneChannel {
     Gray,
     /// A channel the host names, shown exactly as given (a user-named alpha channel, a layer mask
     /// or Quick Mask isolated in the Channels panel, storytold/photocraft#5335), in `color`.
+    #[non_exhaustive]
     Named {
         /// The name as the host gave it.
         name: String,
@@ -122,6 +124,11 @@ pub enum ToneChannel {
 }
 
 impl ToneChannel {
+    /// A channel the host names, shown as `name` in `color`.
+    pub fn named(name: impl Into<String>, color: ChannelColor) -> Self {
+        Self::Named { name: name.into(), color }
+    }
+
     /// The channel's curve and histogram colour: Red, Green, Blue, Cyan, Magenta, Yellow their own;
     /// the composite, Black, Lightness and Gray neutral; Lab a magenta and b yellow (as
     /// [`ChannelColor`] documents).

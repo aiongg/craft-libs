@@ -16,6 +16,6 @@ mod stories;
 
 pub use fields::{WarpFieldValues, WarpFields, WarpFieldsEdit, WarpFieldsOutput, WarpFieldsWords, WarpGridChoice, WarpStyleEntry};
 pub use grid::{POINT, SURFACE, WarpGrid, WarpGridOutput, WarpGridStyle, WarpRule, WarpSurface, WarpWords};
+pub(crate) use mesh::MeshLines;
 pub use mesh::MeshLinesStyle;
-pub(crate) use mesh::{MeshLines, paint_mesh_lines};
 pub use model::{WarpEdit, WarpMesh, WarpSide, WarpSplit};

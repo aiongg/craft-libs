@@ -22,7 +22,7 @@ use egui::{Rect, Response, Shape, Stroke, Ui, pos2};
 pub use editor::ContourEditorDialog;
 
 use crate::layer_style::{Contour, ContourPoint};
-use crate::ui::curve::{Curve, CurveSampler};
+use crate::ui::curve::Curve;
 
 craft_ui::words! {
     /// The words of the contour field and the Contour Editor, and the names of the built-in contours.
@@ -258,7 +258,7 @@ impl<'a> ContourField<'a> {
             let mut anti_event = None;
             let mut picked = None;
             Row::new().show(ui, |ui, root| {
-                let picker = PresetPicker::new(label.clone(), Bind::bound(&mut key), rows, state.reborrow())
+                let picker = PresetPicker::new(label.clone(), Bind::bound(&mut key), rows, state.reborrowed())
                     .field(PickerField::Thumbnail)
                     .can_delete(|key| matches!(key, ContourKey::User(_)))
                     .show(ui);

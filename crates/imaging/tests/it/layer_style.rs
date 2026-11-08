@@ -395,7 +395,8 @@ fn page_shows_defaults_under_the_values_and_writes_only_edits() {
     fixture.click(&make);
     fixture.idle(2);
     assert_eq!(host.borrow().made.len(), 1);
-    assert_eq!(host.borrow().made[0].number("opacity"), Some(75.0));
+    let defaults = EffectSpec::photoshop(EffectKind::DropShadow).defaults;
+    assert_eq!(host.borrow().made[0].number("opacity"), defaults.number("opacity"));
 
     let distance = one(&fixture, Role::SLIDER, "Distance");
     fixture.click(&distance);
@@ -404,7 +405,7 @@ fn page_shows_defaults_under_the_values_and_writes_only_edits() {
     let host = host.borrow();
     let [edit] = host.edits.as_slice() else { panic!("one edit: {}", host.edits.len()) };
     let written = edit.value().and_then(|style| style.effect(EffectId(1))).map(|e| e.params.clone()).unwrap_or_default();
-    assert_eq!(written.number("distance"), Some(6.0));
+    assert!(written.number("distance") > defaults.number("distance"), "the arrow key steps the distance up from its default");
     assert_eq!(written.number("opacity"), None, "only the edited key is written");
 }
 

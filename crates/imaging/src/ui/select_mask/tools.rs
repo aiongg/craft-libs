@@ -515,7 +515,7 @@ impl SelectMaskCanvasTool<'_> {
         let sample = DraftPoint::new(doc, pointer.mods, zoom);
         let event = if draft.is_open() && pointer.clicks >= 2 { draft.close() } else { draft.press(sample, true) };
         match event {
-            Some(DraftEvent::Started { intent }) => canvas.polygon_add = add != intent.alt,
+            Some(DraftEvent::Started { intent, .. }) => canvas.polygon_add = add != intent.alt,
             Some(DraftEvent::Closed { points, .. }) => canvas.commit_polygon(&points),
             _ => {}
         }

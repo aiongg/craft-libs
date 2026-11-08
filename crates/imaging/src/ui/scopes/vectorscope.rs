@@ -4,10 +4,10 @@ use super::words::ScopeWords;
 use craft_behavior::{Axis, Metrics, Sense};
 use craft_ui::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role, WordSetCx as _};
 use craft_ui::fonts::FontRef;
-use craft_ui::primitives::{DocRun, DocText, PaintShape, StrokeWidth};
+use craft_ui::primitives::{DocRun, DocText, HAlign, PaintShape, StrokeWidth};
 use craft_ui::runtime::env::Label;
 use craft_ui::style::{ComponentStyle, DataColor, StyleColor, StyleCx, SurfaceKind};
-use egui::{Align, Color32, CornerRadius, Mesh, Pos2, Rect, Response, Shape, Vec2, vec2};
+use egui::{Color32, CornerRadius, Mesh, Pos2, Rect, Response, Shape, Vec2, vec2};
 
 /// The rings' alpha on `text.faint`.
 const RING_ALPHA: f32 = 0.45;
@@ -240,7 +240,7 @@ impl Component for VectorscopePlot<'_> {
             draw.data_fill(&PaintShape::Circle(point(hue, 1.0), SPOKE_DOT), DataColor::new(color));
             let runs = [DocRun::new(letter, FontRef::proportional(), style.letter_size, DataColor::new(color))];
             let mut document = DocText::new(&runs);
-            document.align = Align::Center;
+            document.align = HAlign::Center;
             let text = painter.layout(&document);
             let at = point(hue, LETTER_RADIUS) - text.size() / 2.0;
             painter.painter.galley(at, text.galley.clone(), color);

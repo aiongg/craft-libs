@@ -268,7 +268,7 @@ impl<'b, 'a, V: Value> Run<'b, 'a, V> {
                 self.began = Some(self.now.clone());
                 Some(EditEvent::begin(*id, Mixed::Same(self.now.clone()), label.clone(), *doc_key))
             }
-            EditEvent::Update { id, value } => {
+            EditEvent::Update { id, value, .. } => {
                 let base = self.began.as_ref().unwrap_or(&self.now);
                 Some(EditEvent::update(*id, make(base, value)))
             }

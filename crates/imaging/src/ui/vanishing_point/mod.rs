@@ -56,7 +56,7 @@ use craft_ui::dialog::{FullWindowCanvas, FullWindowDialog, FullWindowSide, FullW
 use craft_ui::layout_components::Row;
 use craft_ui::primitives::Checker;
 use craft_ui::rails::{LastUsed, RailTool, ToolRail, ToolSlot};
-use craft_ui::runtime::commands::{CommandSet as _, FirePhase};
+use craft_ui::runtime::commands::{CommandSet as _, Commands as _, FirePhase};
 use craft_ui::runtime::env::Env;
 use craft_ui::runtime::words::CommonWords;
 use craft_ui::sections::{DialogRole, FooterButton};
@@ -68,7 +68,7 @@ use crate::ui::wide_angle::PreviewDone;
 
 /// The paste's tint: white at the legacy alpha, so the image shows as it is, a little transparent over the picture.
 /// It is data of the paste, not a theme colour.
-const PASTE_TINT: Color32 = Color32::from_white_alpha(230);
+const PASTE_TINT: Color32 = Color32::from_rgba_premultiplied(230, 230, 230, 230);
 
 /// What the app gives the editor to show each pass.
 pub trait VanishingPointSource {
@@ -419,7 +419,7 @@ impl VanishingPointWorkspace {
                         editor.add_plane(session, scene, corners, words.new_plane.as_str());
                     }
                 }
-                state.canvas = Some(shown.response.id);
+                state.canvas = shown.as_ref().map(|canvas| canvas.response.id);
                 work.zoom_percent = state.view.zoom_percent();
                 out.extend(work.editor.take_events());
                 events.borrow_mut().extend(out);
@@ -462,7 +462,7 @@ impl VanishingPointWorkspace {
             self.requested.push(step);
             return match step {
                 Step::Undo => self.history.can_undo(),
-                Step::Redo => self.history.can_redo(),
+                _ => self.history.can_redo(),
             };
         }
         self.step_now(step)

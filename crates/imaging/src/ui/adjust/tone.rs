@@ -18,12 +18,20 @@ use craft_ui::layout_components::Row;
 use craft_ui::primitives::Draw;
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::style::TypeRole;
-use egui::{Id, Response, Ui, vec2};
+use egui::{Id, Response, Ui, Vec2};
 
 use super::AdjustWords;
 
+/// The side of the pipette icon, in cursor units.
+const PIPETTE_BOX: f32 = 24.0;
+/// How far the pipette's tip lies in from the icon's bottom left corner.
+const PIPETTE_TIP_INSET: f32 = 2.0;
+/// The cursor's hot spot: the pipette's tip, at the bottom left of its icon.
+const PIPETTE_HOTSPOT: Vec2 = Vec2::new(PIPETTE_TIP_INSET, PIPETTE_BOX - PIPETTE_TIP_INSET);
+
 /// One of the three point pickers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum TonePicker {
     /// Set Black Point.
     Black,
@@ -216,8 +224,7 @@ impl<'a> TonePickTool<'a> {
 
 impl CanvasTool for TonePickTool<'_> {
     fn cursor(&self, _cx: &ToolContext<'_>) -> Cursor {
-        // The pipette's tip is at the bottom left of its 24-unit icon.
-        Cursor::Painted(PaintedCursor::tool(IconId::new("eyedropper"), vec2(2.0, 22.0), None))
+        Cursor::Painted(PaintedCursor::tool(IconId::new("eyedropper"), PIPETTE_HOTSPOT, None))
     }
 
     fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {

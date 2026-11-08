@@ -42,16 +42,17 @@ use craft_behavior::edit_history::Step;
 use craft_behavior::kurbo::Rect;
 use craft_behavior::{CanvasView, EditEvent, EditHistory, GestureId, Mixed, PixelSize};
 use craft_theme::Srgba;
-use craft_ui::canvas::{NavigationOptions, PixelRect, ToolPath, ViewCommand};
-use craft_ui::contract::{Bind, Pending, Remember as _, ShowContainer as _};
+use craft_ui::canvas::{NavigationOptions, PixelRect, ViewCommand};
+use craft_ui::contract::{Bind, Pattern, Pending, Remember as _, ShowContainer as _};
 use craft_ui::dialog::{
     DialogOutput, FullWindowCanvas, FullWindowDialog, FullWindowSide, FullWindowStatus, FullWindowTitle, FullWindowView, FullWindowZoomBar,
     SideFooter,
 };
-use craft_ui::patterns::form_dialogs::{ColorRequest, FieldValue};
+use craft_ui::patterns::form_dialogs::FieldValue;
 use craft_ui::primitives::Checker;
 use craft_ui::primitives::textures::{ThumbSource, Thumbnails};
 use craft_ui::runtime::env::{Env, Label};
+use craft_ui::runtime::requests::ColorRequest;
 use craft_ui::runtime::words::CommonWords;
 use craft_ui::sections::{DialogRole, FooterButton};
 use egui::Ui;
@@ -150,6 +151,7 @@ struct Pass<'w> {
 ///
 /// Keys: the zoom commands zoom the preview, never the canvas behind; Undo and Redo reach the stack's history
 /// through [`step`](Self::step); Enter OK, Esc Cancel.
+#[derive(Pattern)]
 pub struct FilterGalleryWorkspace {
     session: FilterGallerySession,
     history: EditHistory<FilterGallerySession>,
@@ -233,13 +235,14 @@ impl FilterGalleryWorkspace {
 
         let dialog = FullWindowDialog::new(title)
             .buttons(buttons)
+            .side_footer(SideFooter::top())
             .sides(|ui, _| {
                 let mut pass = pass.borrow_mut();
                 let current = pass.workspace.selected;
                 let mut changes = Vec::new();
                 let mut stack_pick = None;
                 let mut pick_color = None;
-                FullWindowSide::new(words.settings.clone()).headerless().footer(SideFooter::top()).show(ui, |ui, _| {
+                FullWindowSide::new(words.settings.clone()).headerless().show(ui, |ui, _| {
                     if let Some(effect) = pass.workspace.session.effects.get(current) {
                         let parameters = EffectParameters::new(current, effect, &index).show(ui);
                         changes.extend(parameters.change);
@@ -265,7 +268,7 @@ impl FilterGalleryWorkspace {
                 });
                 if let Some(filter) = tree_pick {
                     let at = pass.workspace.selected;
-                    pass.apply(EffectChange::SetFilter { index: at, filter }, catalog, &history_name);
+                    pass.apply(EffectChange::set_filter(at, filter), catalog, &history_name);
                 }
             })
             .show(ui, |ui, cx| {
@@ -285,7 +288,7 @@ impl FilterGalleryWorkspace {
                     bar = bar.note(Label::from(words.preview_ms.fill(&[("n", milliseconds.as_str())])));
                 }
                 bar.show(ui);
-                let mut canvas = FullWindowCanvas::new(ToolPath::Freehand, Bind::bound(&mut view), source.preview()).navigation(navigation);
+                let mut canvas = FullWindowCanvas::new(Bind::bound(&mut view), source.preview()).navigation(navigation);
                 if let Some(checker) = checkerboard {
                     canvas = canvas.checkerboard(checker);
                 }
@@ -336,7 +339,7 @@ impl FilterGalleryWorkspace {
         }
         effect.fields = fields.clone();
         self.record(before, &Arc::from(key));
-        self.queued.push(FilterGalleryEvent::Stack(EffectChange::Fields { index, fields }));
+        self.queued.push(FilterGalleryEvent::Stack(EffectChange::with_fields(index, fields)));
     }
 
     /// Applies a zoom command the app received (the dialog's own scope handles its keys); the next pass applies

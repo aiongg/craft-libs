@@ -13,7 +13,7 @@ use craft_imaging::ui::transform_preview::{
 };
 use craft_imaging::ui::warp::WarpMesh;
 use craft_imaging::ui::warp::pin::PinMeshView;
-use craft_ui::canvas::{Canvas, PixelRect, ToolPath};
+use craft_ui::canvas::{Canvas, PixelRect};
 use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Color32, ColorImage, Shape};
@@ -40,7 +40,7 @@ fn shown(map: fn() -> PreviewMap<'static>, opacity: f32, clip: Option<[u32; 2]>,
         let room = ui.available_rect_before_wrap();
         let view = CanvasView::new(room, pt(100.0, 100.0), 1.0).rotation(rotation);
         view_sink.set(Some(view));
-        Canvas::new("Document", ToolPath::Freehand).view(view).show(ui, |ui, body| {
+        Canvas::new("Document").view(view).show(ui, |ui, body| {
             let mut preview = TransformPreview::new("Moving layer", &textures).map(map()).opacity(opacity);
             if let Some(clip) = clip {
                 preview = preview.clip(clip);

@@ -3,15 +3,13 @@
 
 use craft_behavior::kurbo::{Point, Rect as DocRect, Vec2};
 use craft_behavior::{CanvasView, Mixed};
-use craft_ui::canvas::{Canvas, ToolPath};
+use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
 use craft_ui::runtime::env::Message;
 use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use egui::Ui;
 
 use super::{Pin, PinDensity, PinEdit, PinMeshView, PinSolver, PinWarp, PinWarpBar, PinWarpOptions, PinWarpOutput, PinWarpSession, PinWarpSettings};
-
-const ADD_PIN: ToolPath = ToolPath::Command("the Add Pin command");
 
 /// The most pins the invalid story accepts.
 const MOST_PINS: usize = 3;
@@ -119,7 +117,7 @@ fn on_canvas(ui: &mut Ui, data: &mut StoryData, bind: Bind<'_, Vec<Pin>>, show_m
     let selected = data.value("selected", vec![1usize]).clone();
     let solver = IdwSolver::new(layer());
     let mut control = Some(PinWarp::new("Pins", bind, solver.view()).selected_pins(&selected).show_mesh(show_mesh));
-    let shown = Canvas::new("Document", ADD_PIN)
+    let shown = Canvas::new("Document")
         .view(view)
         .show(ui, |ui, body| -> Option<PinWarpOutput> { control.take().map(|control| control.show_at(ui, body.rect)) });
     let Some(output) = shown.inner.flatten() else { return StoryOutput::default() };

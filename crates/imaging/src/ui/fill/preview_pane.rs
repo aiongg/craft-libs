@@ -5,7 +5,7 @@ use egui::{Response, Ui};
 use craft_behavior::kurbo::{Point, Rect, Size};
 use craft_behavior::{CanvasView, ZoomLadder};
 use craft_ui::canvas::{NavigationOptions, RasterSource, ViewCommand};
-use craft_ui::contract::{Bind, Pattern, Show as _};
+use craft_ui::contract::{Bind, Pattern, ShowContainer as _};
 use craft_ui::dialog::{FullWindowCanvas, FullWindowStatus, FullWindowView, FullWindowZoomBar};
 use craft_ui::layout_components::Stack;
 use craft_ui::primitives::Checker;
@@ -92,7 +92,7 @@ impl<'a> FillPreviewPane<'a> {
                 state.show(ui);
                 FullWindowCanvas::new(Bind::bound(&mut *view), source).checkerboard(checkerboard).navigation(navigation).show(ui).response
             })
-            .inner
+            .output
     }
 }
 
@@ -112,7 +112,9 @@ fn frame_view(ui: &Ui, view: &mut FullWindowView, framing: &mut PreviewFraming, 
     let fit = (device_room(room.width()) / frame.width().max(1.0)).min(device_room(room.height()) / frame.height().max(1.0));
     let device = ZoomLadder::clamp(fit, Size::new(f64::from(size.width), f64::from(size.height)));
     let center = Point::new((frame.x0 + frame.x1) / 2.0, (frame.y0 + frame.y1) / 2.0);
-    let next = CanvasView { center, zoom: CanvasView::points_per_unit(device, ppp), ..current };
+    let mut next = current;
+    next.center = center;
+    next.zoom = CanvasView::points_per_unit(device, ppp);
     *view = view.took(next);
     framing.0 = Some(Framed { frame, zoom: next.zoom, center });
 }

@@ -134,7 +134,7 @@ impl<'a> VanishingPointBar<'a> {
                 }
             }
         });
-        VanishingPointBarOutput { response: shown.response, edit, paste_width }
+        VanishingPointBarOutput { response: shown.response.clone(), edit, paste_width }
     }
 }
 
@@ -142,7 +142,7 @@ impl<'a> VanishingPointBar<'a> {
 fn number(ui: &mut Ui, key: &'static str, caption: &Label, value: f64, range: RangeInclusive<f64>, kind: UnitKind) -> Option<EditEvent<f64>> {
     let mut edited = None;
     Field::new(caption.clone()).id_salt(key).side(SideLabel::new().scrub(true)).sizing(Sizing::Content).show(ui, |ui, _| {
-        let out = NumberField::new(caption.clone(), Bind::given(Some(value))).range(range).unit_kind(kind).scrub_by_label().show(ui);
+        let out = NumberField::new(caption.clone(), Bind::given(Some(value))).range(range.clone()).unit_kind(kind).scrub_by_label().show(ui);
         edited = out.edit.event.map(|event| event.map(|v| v.unwrap_or(value)));
     });
     edited

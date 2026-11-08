@@ -57,7 +57,7 @@ use craft_behavior::edit_history::Step;
 use craft_behavior::{CancelReason, EditEvent, EditHistory, GestureId, IconId, Mixed, PixelSize};
 use craft_theme::Srgba;
 use craft_ui::buttons::IconButton;
-use craft_ui::canvas::{CanvasTool, NavigationOptions, PickStep, RasterSource, ToolHost, ViewCommand, ZoomTool, tool_pick};
+use craft_ui::canvas::{NavigationOptions, PickStep, RasterSource, ToolHost, ViewCommand, ZoomTool, tool_pick};
 use craft_ui::canvas_controls::brush::{BrushCursorOptions, TipFalloff};
 use craft_ui::contract::{Bind, NoValue, Outcome, Pattern, Props as _, Remember as _, Show as _, ShowContainer as _, clicked};
 use craft_ui::dialog::{FullWindowCanvas, FullWindowDialog, FullWindowSide, FullWindowStatus, FullWindowTitle, FullWindowView, SideFooter};
@@ -368,7 +368,7 @@ impl SelectMaskWorkspace {
             .buttons([FooterButton::new(common.ok.clone(), DialogRole::Accept), FooterButton::new(common.cancel.clone(), DialogRole::Cancel)])
             .side_footer(SideFooter::bottom().leading(|ui| {
                 let button = IconButton::new(IconId::new("undo")).label(words.reset.clone()).id_salt("reset").show(ui);
-                reset.set(reset.get() || clicked(&button.response));
+                reset.set(reset.get() || clicked(&button));
             }))
             .sides(|ui, cx| {
                 let mut guard = this.borrow_mut();
@@ -469,7 +469,7 @@ impl SelectMaskWorkspace {
                             }
                         }
                     });
-                    work.canvas_id = Some(shown.inner.response.id);
+                    work.canvas_id = shown.inner.as_ref().map(|canvas| canvas.response.id);
                     work.zoom_percent = work.view.zoom_percent();
                 });
                 work.absorb_canvas();
@@ -527,7 +527,7 @@ impl SelectMaskWorkspace {
             self.requested.push(step);
             return match step {
                 Step::Undo => self.history.can_undo(),
-                Step::Redo => self.history.can_redo(),
+                _ => self.history.can_redo(),
             };
         }
         self.canvas.drop_polygon();

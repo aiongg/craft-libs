@@ -2,7 +2,7 @@
 
 use craft_behavior::kurbo::{Point, Rect as DocRect};
 use craft_behavior::{CanvasView, Mixed};
-use craft_ui::canvas::{Canvas, ToolPath};
+use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
 use craft_ui::runtime::env::Message;
 use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
@@ -10,8 +10,6 @@ use egui::{Ui, Vec2};
 
 use super::overlay::CORNER;
 use super::{PerspectiveBar, PerspectiveEdit, PerspectiveSession, PerspectiveWarp, PerspectiveWarpOutput, Plane, PlaneCorner, PlaneMode};
-
-const ADD_PLANE: ToolPath = ToolPath::Command("the Add Plane command");
 
 /// The most planes the invalid story accepts.
 const MOST_PLANES: usize = 1;
@@ -30,7 +28,7 @@ fn on_canvas(ui: &mut Ui, bind: Bind<'_, Vec<Plane>>, mode: PlaneMode) -> StoryO
     let room = ui.available_rect_before_wrap();
     let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
     let mut control = Some(PerspectiveWarp::new("Planes", bind, mode, 0));
-    let shown = Canvas::new("Document", ADD_PLANE)
+    let shown = Canvas::new("Document")
         .view(view)
         .show(ui, |ui, body| -> Option<PerspectiveWarpOutput> { control.take().map(|control| control.show_at(ui, body.rect)) });
     shown.inner.flatten().map(StoryOutput::from).unwrap_or_default()

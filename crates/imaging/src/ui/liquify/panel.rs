@@ -7,7 +7,7 @@ use egui::{Response, Ui};
 use craft_behavior::EditEvent;
 use craft_ui::buttons::Button;
 use craft_ui::choice::Checkbox;
-use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Pattern, SaveKey, Show as _, ShowContainer as _, clicked};
+use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Pattern, Props as _, SaveKey, Show as _, ShowContainer as _, clicked};
 use craft_ui::form::SliderField;
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::pickers::Select;
@@ -143,7 +143,7 @@ impl<'a> LiquifyPanel<'a> {
                 });
             });
             Section::new(words.view_options.clone()).remember(SaveKey::new("craft_imaging.liquify.view")).show(ui, |ui, _| {
-                rows.view_options(ui, words, layers);
+                rows.view_options(ui, &words, layers);
             });
             if let Some(event) = &rows.pass.edit {
                 settings.reborrow().write(root, event);

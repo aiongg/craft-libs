@@ -5,7 +5,7 @@
 use craft_behavior::kurbo::{Point, Rect, Size};
 use craft_behavior::{CanvasView, EditEvent};
 use craft_ui::canvas::{Canvas, CanvasOutput, RasterDisplay, RasterSource as _, ToolHost};
-use craft_ui::contract::ShowContainer as _;
+use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::runtime::env::Env;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
@@ -155,7 +155,6 @@ fn apply(selection: &mut Selection, events: Vec<SelectEvent>) {
                 selection.0 = selection.0.map(|rect| rect + craft_behavior::kurbo::Vec2::new(delta.0, delta.1));
             }
             SelectEvent::DragSelection(_) => {}
-            _ => {}
         }
     }
 }

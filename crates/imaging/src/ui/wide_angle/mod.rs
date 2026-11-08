@@ -33,13 +33,11 @@ use std::cell::{Cell, RefCell};
 use std::sync::Arc;
 use std::time::Duration;
 
-use craft_behavior::kurbo::Size;
-use craft_behavior::{CancelReason, EditEvent, EditHistory, GestureId, Mixed, Step};
-use craft_ui::canvas::{CanvasTool, HandTool, NavigationOptions, PickStep, RasterSource, ToolHost, ZoomTool, tool_pick};
-use craft_ui::contract::{Bind, Pattern, Props as _, Remember as _, Show as _, ShowContainer as _};
-use craft_ui::dialog::{
-    FullWindowCanvas, FullWindowDialog, FullWindowSide, FullWindowStatus, FullWindowTitle, FullWindowView, FullWindowZoomKeys, SideFooter,
-};
+use craft_behavior::edit_history::Step;
+use craft_behavior::{CancelReason, EditEvent, EditHistory, GestureId, Mixed};
+use craft_ui::canvas::{CanvasTool, HandTool, NavigationOptions, PickStep, RasterSource, ToolHost, ViewCommand, ZoomTool, tool_pick};
+use craft_ui::contract::{Bind, Pattern, Remember as _, Show as _, ShowContainer as _};
+use craft_ui::dialog::{FullWindowCanvas, FullWindowDialog, FullWindowSide, FullWindowStatus, FullWindowTitle, FullWindowView};
 use craft_ui::display::Divider;
 use craft_ui::layout_components::Row;
 use craft_ui::menu::{Menu, MenuItem};
@@ -70,7 +68,7 @@ pub enum WideAngleTool {
 
 /// What a finished preview job reports: how long the solve and warp took. The picture stays the app's, shown through
 /// [`WideAngleSource::corrected`]. Every full-window workspace's preview job delivers this.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 #[non_exhaustive]
 pub struct PreviewDone {
     /// How long the solve and warp took.
@@ -207,7 +205,7 @@ pub struct WideAngleWorkspace {
     /// The panel's Add button was pressed and the form is not open yet.
     add_requested: bool,
     steps: Vec<Step>,
-    zooms: Vec<FullWindowZoomKeys>,
+    zooms: Vec<ViewCommand>,
 }
 
 impl WideAngleWorkspace {
@@ -263,8 +261,8 @@ impl WideAngleWorkspace {
     }
 
     /// Applies the zoom command the app fired to the view on the next [`show`](Self::show).
-    pub fn zoom(&mut self, key: FullWindowZoomKeys) -> bool {
-        self.zooms.push(key);
+    pub fn zoom(&mut self, command: ViewCommand) -> bool {
+        self.zooms.push(command);
         true
     }
 
@@ -300,7 +298,7 @@ impl WideAngleWorkspace {
             .sides(|ui, cx| {
                 let mut preview = preview_on.get();
                 let status = cx.pending(settings_hash(&[format!("{snapshot:?}").as_bytes()]), || source.preview_job(&snapshot)).clone();
-                FullWindowSide::new(words.settings.clone()).footer(SideFooter::bottom()).show(ui, |ui, _| {
+                FullWindowSide::new(words.settings.clone()).show(ui, |ui, _| {
                     let panel = WideAnglePanel::new(&snapshot, Bind::bound(&mut preview)).show(ui);
                     let mut queued = actions.borrow_mut();
                     queued.extend(panel.edit.map(Action::Panel));
@@ -338,9 +336,12 @@ impl WideAngleWorkspace {
                 let pixels = [canvas_size.width, canvas_size.height];
                 body.constraint.picture(pixels, size);
                 let draft = body.constraint.draft();
-                let mut view = body.view.unwrap_or_else(FullWindowView::new);
-                for key in &zooms {
-                    view.apply(*key);
+                let mut view = body.view.take().unwrap_or_else(FullWindowView::new);
+                for command in &zooms {
+                    view.apply(*command);
+                }
+                while let Some((command, _)) = cx.take_command::<ViewCommand>() {
+                    view.apply(command);
                 }
 
                 Row::new().show(ui, |ui, _| {
@@ -354,7 +355,6 @@ impl WideAngleWorkspace {
                         body.tool = tool;
                     }
 
-                    let size_f = Size::new(f64::from(pixels[0]), f64::from(pixels[1]));
                     let nav_hand = navigation;
                     let active: &mut dyn CanvasTool = match body.tool {
                         WideAngleTool::Constraint => &mut body.constraint,
@@ -364,25 +364,23 @@ impl WideAngleWorkspace {
                             tool
                         }
                         WideAngleTool::Zoom => {
-                            let tool = body.zoom.get_or_insert_with(|| ZoomTool::new(size_f, nav_hand));
-                            tool.size = size_f;
+                            let tool = body.zoom.get_or_insert_with(|| ZoomTool::new(nav_hand));
                             tool.options = nav_hand;
                             tool
                         }
                     };
-                    let path = active.command_form();
                     let mut lines_out = None;
-                    let canvas = FullWindowCanvas::new(path, &view, shown_source).navigation(navigation).tool(active).controls(|ui, rect| {
-                        lines_out = Some(
-                            ConstraintLines::new(words.constraint_lines.clone(), &snapshot, geometry)
+                    let canvas =
+                        FullWindowCanvas::new(Bind::bound(&mut view), shown_source).navigation(navigation).tool(active).controls(|ui, rect| {
+                            let mut lines = ConstraintLines::new(words.constraint_lines.clone(), &snapshot, geometry)
                                 .picture(pixels, size)
-                                .corrected(corrected.is_some())
-                                .draft(draft)
-                                .show_at(ui, rect),
-                        );
-                    });
+                                .corrected(corrected.is_some());
+                            if let Some(draft) = draft {
+                                lines = lines.draft(draft);
+                            }
+                            lines_out = Some(lines.show_at(ui, rect));
+                        });
                     let out = canvas.show(ui);
-                    view = out.view.unwrap_or(out.shown);
                     zoom_percent.set(view.zoom_percent());
                     body.canvas = Some(out.response.id);
 

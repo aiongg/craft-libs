@@ -6,7 +6,7 @@ use super::paint::{
     selection_shapes, sum,
 };
 use super::words::HistogramWords;
-use craft_behavior::{AccessAction, CancelReason, Flow, IconId, Intent, Metrics, NavMove, PartKey, PressPhase, Sense};
+use craft_behavior::{AccessAction, CancelReason, CursorIcon, Flow, IconId, Intent, Metrics, NavMove, PartKey, PressPhase, Sense};
 use craft_theme::{Rgba, Stateful, TypeRole};
 use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Name, Numeric, Outcome, PaintUi, PartsCx,
@@ -16,7 +16,7 @@ use craft_ui::primitives::{IconSpec, TextRun};
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::focus::{ActivateKeys, KeepKeys, KeyUse};
 use craft_ui::style::{ComponentStyle, FocusLook, IconLook, StyleCx, TextLook};
-use egui::{Color32, CursorIcon, Pos2, Rect, Response, Vec2};
+use egui::{Color32, Pos2, Rect, Response, Vec2};
 
 /// The plot's height in control heights when it stands alone.
 const STANDARD_CONTROLS: f32 = 4.0;

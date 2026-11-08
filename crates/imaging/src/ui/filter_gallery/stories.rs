@@ -106,7 +106,7 @@ fn start() -> FilterGallerySession {
         session.apply(EffectChange::Add, &catalog, &mut selected);
         session.apply(EffectChange::SetFilter { index, filter: filter.to_owned() }, &catalog, &mut selected);
     }
-    session.apply(EffectChange::Visible { index: 1, visible: false }, &catalog, &mut selected);
+    session.apply(EffectChange::set_visible(1, false), &catalog, &mut selected);
     session
 }
 

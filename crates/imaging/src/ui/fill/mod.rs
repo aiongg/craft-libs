@@ -356,7 +356,7 @@ impl ContentAwareFillWorkspace {
         let dialog = env.words::<DialogWords>();
         let params = env.words::<ParamDialogWords>();
         let title =
-            FullWindowTitle::new(env.words::<FillWords>().name.clone()).subject(self.subject.as_str()).zoom(self.view.zoom_percent()).label(&env);
+            FullWindowTitle::new(env.words::<FillWords>().name.clone()).subject(self.subject.clone()).zoom(self.view.zoom_percent()).label(&env);
         let settings_before = self.settings.clone();
         let asked_steps = std::mem::take(&mut self.requested);
         self.pick_color = None;
@@ -479,7 +479,7 @@ impl ContentAwareFillWorkspace {
             self.requested.push(step);
             return match step {
                 Step::Undo => self.history.can_undo(),
-                Step::Redo => self.history.can_redo(),
+                _ => self.history.can_redo(),
                 _ => false,
             };
         }
@@ -497,7 +497,9 @@ impl ContentAwareFillWorkspace {
         let panel = FullWindowSide::new(words.name.clone())
             .show(ui, |ui, _| FillPanel::new(Bind::bound(&mut self.settings), sampling).error(error.as_deref()).show(ui))
             .inner;
-        self.absorb_panel(panel);
+        if let Some(panel) = panel {
+            self.absorb_panel(panel);
+        }
         FullWindowSide::new(params.preview.clone()).unscrolled().show(ui, |ui, _| {
             let image = source.preview().unwrap_or_else(|| source.image());
             FillPreviewPane::new(&mut self.preview_view, &mut self.framing, &self.preview, image)

@@ -12,7 +12,7 @@ use craft_ui::canvas::{
 };
 use craft_ui::canvas_controls::CanvasControlWords;
 use craft_ui::canvas_controls::brush::{BrushCursor, BrushCursorOptions, BrushDimensions, BrushLevel, BrushResize, BrushResizeOptions, BrushTip};
-use craft_ui::contract::{Access, Common, Component, Cx, PaintUi, Props as _, Role};
+use craft_ui::contract::{Access, Common, Component, Cx, PaintUi, Role};
 use craft_ui::primitives::{Draw, PaintShape, Revision, StrokeWidth};
 use craft_ui::style::{ComponentStyle, StyleColor, StyleCx};
 
@@ -358,7 +358,7 @@ impl Default for LiquifyCanvas {
             began: 0.0,
             timing: None,
             hand: HandTool::new(NavigationOptions::default()),
-            zoom: ZoomTool::new(craft_behavior::kurbo::Size::ZERO, NavigationOptions::default()),
+            zoom: ZoomTool::new(NavigationOptions::default()),
         }
     }
 }
@@ -385,10 +385,9 @@ impl LiquifyCanvas {
         self.recorder.is_active() || self.lasso.is_some() || self.resize.active()
     }
 
-    /// Sets the document size and the user's navigation options the Hand and Zoom tools run with.
-    pub(super) fn navigate(&mut self, size: craft_behavior::kurbo::Size, options: NavigationOptions) {
+    /// Sets the user's navigation options the Hand and Zoom tools run with.
+    pub(super) fn navigate(&mut self, options: NavigationOptions) {
         self.hand.options = options;
-        self.zoom.size = size;
         self.zoom.options = options;
     }
 
@@ -486,7 +485,7 @@ impl LiquifyCanvasTool<'_> {
     }
 
     fn show_readout(&self, cx: &mut ToolContext<'_>) {
-        let rows = self.canvas.resize.readout_rows(cx.units(), cx.words::<CanvasControlWords>());
+        let rows = self.canvas.resize.readout_rows(cx.units(), &cx.words::<CanvasControlWords>());
         if !rows.is_empty() {
             cx.readout(rows);
         }

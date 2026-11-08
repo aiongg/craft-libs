@@ -2,14 +2,12 @@
 
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Rect as DocRect};
-use craft_ui::canvas::{Canvas, ToolPath};
+use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, pointer, story};
 use egui::{Ui, Vec2};
 
 use super::{MeshLines, POINT, WarpFieldValues, WarpFields, WarpGrid, WarpGridChoice, WarpMesh, WarpSplit, WarpStyleEntry};
-
-const WARP: ToolPath = ToolPath::Command("the Warp command");
 
 /// The picture the mesh starts over, in document units.
 const PICTURE: DocRect = DocRect::new(40.0, 30.0, 360.0, 270.0);
@@ -24,7 +22,7 @@ fn on_canvas<O>(ui: &mut Ui, control: impl FnOnce(&mut Ui, egui::Rect) -> O) -> 
     let room = ui.available_rect_before_wrap();
     let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
     let mut control = Some(control);
-    Canvas::new("Document", WARP).view(view).show(ui, |ui, body| control.take().map(|control| control(ui, body.rect))).inner.flatten()
+    Canvas::new("Document").view(view).show(ui, |ui, body| control.take().map(|control| control(ui, body.rect))).inner.flatten()
 }
 
 fn pull_first_anchor(fixture: &mut Fixture) {

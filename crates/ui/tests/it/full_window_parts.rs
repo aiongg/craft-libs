@@ -537,7 +537,7 @@ mod mapped_overlay {
         }
 
         fn read(&self, _: PixelRect, _: u32, out: &mut ColorImage) {
-            out.pixels.fill(Color32::WHITE);
+            out.pixels.fill(Color32::from_rgb(0xff, 0xff, 0xff));
         }
     }
 

@@ -6,7 +6,7 @@ use craft_imaging::ui::warp::perspective::{
     LINK_DISTANCE, PerspectiveBar, PerspectiveCommands, PerspectiveEdit, PerspectiveSession, PerspectiveWarp, Plane, PlaneCorner, PlaneMode,
     Straighten, linked_corners, straighten, unify,
 };
-use craft_ui::canvas::{Canvas, ToolPath};
+use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Key, Modifiers, Pos2, Vec2};
@@ -16,7 +16,6 @@ use std::sync::Arc;
 
 /// A room wide enough for the whole bar.
 const WIDE_BAR: Vec2 = Vec2::new(1200.0, 80.0);
-const TOOL: ToolPath = ToolPath::Command("the Add Plane command");
 
 fn quad(x0: f64, y0: f64, x1: f64, y1: f64) -> [Point; 4] {
     [Point::new(x0, y0), Point::new(x1, y0), Point::new(x1, y1), Point::new(x0, y1)]
@@ -214,7 +213,7 @@ fn harness(planes: Vec<Plane>, mode: PlaneMode) -> Harness {
         shown_view.set(Some(canvas_view));
         let output = {
             let held = shown_state.borrow();
-            Canvas::new("Document", TOOL)
+            Canvas::new("Document")
                 .view(canvas_view)
                 .show(ui, |ui, body| {
                     PerspectiveWarp::new("Planes", Bind::given(held.session.planes().to_vec()), held.session.mode(), held.session.generation())

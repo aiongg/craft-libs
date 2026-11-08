@@ -1,7 +1,7 @@
 //! The data a histogram draws: channels, bins and how tall they are drawn.
 
 use craft_theme::Rgba;
-use craft_ui::style::StyleCx;
+use craft_ui::style::{StyleColor, StyleCx};
 use egui::Color32;
 
 /// The colour of a channel in curves and histograms: a data token.
@@ -47,9 +47,9 @@ impl ChannelColor {
     ];
 
     /// The channel's data token: `data.luma` for a neutral channel.
-    pub fn tone(self, cx: &StyleCx<'_>) -> Color32 {
+    fn token(self, cx: &StyleCx<'_>) -> Rgba {
         let data = &cx.tokens.color.data;
-        color32(match self {
+        match self {
             ChannelColor::Neutral => data.luma,
             ChannelColor::Red => data.red,
             ChannelColor::Green => data.green,
@@ -57,14 +57,19 @@ impl ChannelColor {
             ChannelColor::Cyan => data.cyan,
             ChannelColor::Magenta => data.magenta,
             ChannelColor::Yellow => data.yellow,
-        })
+        }
+    }
+
+    /// The channel's data token: `data.luma` for a neutral channel.
+    pub fn tone(self, cx: &StyleCx<'_>) -> Color32 {
+        color32(self.token(cx))
     }
 
     /// The colour of the channel's curve: `text.normal` for a neutral channel, otherwise its data token.
-    pub fn curve(self, cx: &StyleCx<'_>) -> Color32 {
+    pub fn curve(self, cx: &StyleCx<'_>) -> StyleColor {
         match self {
-            ChannelColor::Neutral => color32(cx.tokens.color.text.normal),
-            other => other.tone(cx),
+            ChannelColor::Neutral => cx.color(cx.tokens.color.text.normal),
+            other => cx.color(other.token(cx)),
         }
     }
 

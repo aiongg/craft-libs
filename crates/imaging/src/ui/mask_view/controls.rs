@@ -7,7 +7,8 @@ use craft_ui::contract::{Bind, Entry, Pattern, Props as _, Show as _, ShowContai
 use craft_ui::display::{Shade, Text};
 use craft_ui::form::{Field, SliderField};
 use craft_ui::layout_components::Stack;
-use craft_ui::pickers::{RowDress, Select};
+use craft_ui::pickers::Select;
+use craft_ui::runtime::commands::Commands as _;
 use craft_ui::runtime::env::{Env, Label, UnitKind};
 use egui::Ui;
 
@@ -42,7 +43,7 @@ impl<'a> MaskViewControls<'a> {
         let Self { state } = self;
         let env = Env::of(ui);
         let words = env.words::<MaskViewWords>();
-        let os = env.shell().os;
+        let os = env.view().shell().os;
         let mut changed = None;
         Stack::new().show(ui, |ui, cx| {
             let keys: Vec<(MaskViewMode, String)> = MaskViewMode::ALL
@@ -55,8 +56,8 @@ impl<'a> MaskViewControls<'a> {
                 MaskViewMode::ALL.into_iter().map(|mode| Entry::new(mode, Label::from(mode.label(&words).to_owned()))).collect();
             Field::new(words.view.clone()).show(ui, |ui, _| {
                 let key_of = |mode: &MaskViewMode| keys.iter().find(|(held, _)| held == mode).map(|(_, text)| text.clone()).unwrap_or_default();
-                let select = Select::new(words.view_mode.clone(), Bind::given(state.mode), &entries)
-                    .decorate(RowDress::new(move |mode, row| row.trailing(key_of(mode))));
+                let select =
+                    Select::new(words.view_mode.clone(), Bind::given(state.mode), &entries).decorate(move |mode, row| row.trailing(key_of(mode)));
                 if let Some(&mode) = select.show(ui).value() {
                     let change = MaskViewChange::Mode(mode);
                     state.apply(change);

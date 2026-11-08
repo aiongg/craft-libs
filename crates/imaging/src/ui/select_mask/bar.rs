@@ -71,7 +71,7 @@ impl<'a> SelectMaskBar<'a> {
             if tool.edits() {
                 for (add, icon, name, salt) in [(true, "plus", &words.add, "add"), (false, "minus", &words.subtract, "subtract")] {
                     let button = IconButton::new(IconId::new(icon)).label(name.clone()).id_salt(salt).selected(options.add == add).show(ui);
-                    if clicked(&button.response) && options.add != add {
+                    if clicked(&button) && options.add != add {
                         let before = *options;
                         options.add = add;
                         let label: Arc<str> = Arc::from(name.as_str());
@@ -84,7 +84,7 @@ impl<'a> SelectMaskBar<'a> {
                 let field = Field::new(words.size.clone()).show(ui, |ui, _| {
                     NumberField::new(words.size.clone(), Bind::given(Some(size))).range(BrushSizes::RANGE).unit_kind(UnitKind::Pixels).show(ui)
                 });
-                if let Some(event) = field.inner.event {
+                if let Some(event) = field.inner.and_then(|number| number.edit.event) {
                     if let Some(Some(value)) = event.value()
                         && *value != size
                     {
@@ -100,7 +100,7 @@ impl<'a> SelectMaskBar<'a> {
                         .unit_kind(UnitKind::Percent)
                         .show(ui)
                 });
-                if let Some(event) = field.inner.event {
+                if let Some(event) = field.inner.and_then(|number| number.edit.event) {
                     if let Some(Some(value)) = event.value() {
                         options.hardness = value.clamp(0.0, HARDNESS_MAX);
                     }

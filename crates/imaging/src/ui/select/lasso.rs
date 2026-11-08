@@ -29,7 +29,7 @@ pub(super) fn apply(
     report: &mut Report,
 ) {
     match event {
-        Some(DraftEvent::Started { intent }) => *operation = SelectionOperation::resolve(bar, intent, has_selection),
+        Some(DraftEvent::Started { intent, .. }) => *operation = SelectionOperation::resolve(bar, intent, has_selection),
         Some(DraftEvent::Closed { points, .. }) => report.push(SelectEvent::Commit { shape: SelectionShape::Polygon(points), operation: *operation }),
         _ => {}
     }

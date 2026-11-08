@@ -26,7 +26,7 @@ use egui::{Color32, ColorImage, Ui};
 
 use craft_behavior::kurbo::Point;
 use craft_behavior::{CanvasView, PixelSize};
-use craft_ui::canvas::{Canvas, PixelRect, RasterDisplay, RasterSource, ToolPath};
+use craft_ui::canvas::{Canvas, PixelRect, RasterDisplay, RasterSource};
 use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::primitives::{Checker, Revision};
 use craft_ui::testing::StoryOutput;
@@ -323,7 +323,7 @@ pub(crate) fn story_canvas(
         StoryView::Zoom(percent) => CanvasView::new(at, middle, percent / 100.0 / per_point),
         StoryView::At { zoom, centre } => CanvasView::new(at, centre, zoom / 100.0 / per_point),
     };
-    let shown = Canvas::new("Document", ToolPath::Freehand).view(canvas_view).show(ui, |ui, body| {
+    let shown = Canvas::new("Document").view(canvas_view).show(ui, |ui, body| {
         if let Some(image) = image {
             RasterDisplay::new("Picture", image).checkerboard(Checker::new()).show_at(ui, body.rect);
         }

@@ -63,13 +63,12 @@ use std::sync::Arc;
 use egui::{Color32, Id, Response, Ui};
 
 use craft_behavior::edit_history::Step;
-use craft_behavior::kurbo::Size;
-use craft_behavior::{CancelReason, Cursor, EditEvent, EditHistory, GestureId, Mixed, PixelSize};
-use craft_ui::canvas::{NavigationOptions, PickStep, RasterSource, ToolHost, ToolPath, tool_pick};
+use craft_behavior::{CancelReason, Cursor, EditEvent, EditHistory, GestureId, Mixed};
+use craft_ui::canvas::{NavigationOptions, PickStep, RasterSource, ToolHost, tool_pick};
 use craft_ui::canvas_controls::brush::{BrushCursorOptions, TipFalloff};
 use craft_ui::contract::{Bind, NoValue, Outcome, Pattern, Remember as _, Show as _, ShowContainer as _};
-use craft_ui::dialog::{FullWindowCanvas, FullWindowDialog, FullWindowSide, FullWindowTitle, FullWindowView, FullWindowZoomKeys, RasterOverlay};
-use craft_ui::layout_components::Row;
+use craft_ui::dialog::{FullWindowCanvas, FullWindowDialog, FullWindowSide, FullWindowTitle, FullWindowView, RasterOverlay};
+use craft_ui::layout_components::{Row, Stack};
 use craft_ui::primitives::Checker;
 use craft_ui::rails::{LastUsed, ToolRail};
 use craft_ui::runtime::commands::{CommandSet as _, Commands as _};
@@ -239,9 +238,9 @@ struct LiquifyView {
 /// The Liquify workspace: the session and its history and the settings, as one value the app keeps while Liquify
 /// is open. The view, the strip's memory and the stroke in progress live in the dialog's body.
 ///
-/// Keys ([`LiquifyCommands`], on the dialog's scope): W R E C S B O F D L pick the Liquify tools and H, Z the Hand
+/// Keys ([`LiquifyCommands`], on the scope of the dialog's body): W R E C S B O F D L pick the Liquify tools and H, Z the Hand
 /// and Zoom tools; `[` and `]` scale the brush, ⌘H shows or hides the mask, ⌘I inverts the mask, ⌘D clears it. The
-/// app forwards the zoom commands to [`zoom`](Self::zoom) and ⌘Z and ⇧⌘Z (`EditCommands::Undo`, `Redo`) to
+/// dialog applies the zoom commands to its view. The app forwards ⌘Z and ⇧⌘Z (`EditCommands::Undo`, `Redo`) to
 /// [`step`](Self::step); Enter is OK and Esc Cancel (Esc during a stroke cancels the stroke only). A tool switch or
 /// an undo during a stroke cancels it first (`CancelReason::Removed`, `CancelReason::UndoDuringGesture`); the app's
 /// field is rebuilt by the [`LiquifyEvent::Replay`] that follows.
@@ -254,7 +253,6 @@ pub struct LiquifyWorkspace {
     history: EditHistory<LiquifySession>,
     settings: LiquifySettings,
     subject: String,
-    size: PixelSize,
     navigation: NavigationOptions,
     checkerboard: Checker,
     cursor_options: BrushCursorOptions,
@@ -264,8 +262,6 @@ pub struct LiquifyWorkspace {
     queued: Vec<LiquifyEvent>,
     /// A step the app asked for while a stroke was open; the next `show` cancels the stroke, then steps.
     requested: Vec<Step>,
-    /// Zoom commands the app forwarded; the next `show` applies them to the view.
-    zooms: Vec<FullWindowZoomKeys>,
     /// A stroke, a lasso or a resize was open at the end of the last pass.
     busy: bool,
     /// The zoom on screen at the end of the last pass, for the title.
@@ -284,20 +280,17 @@ impl LiquifyWorkspace {
     /// A workspace over `open`, fitted on its first pass.
     pub fn new(open: LiquifyOpen) -> Self {
         let session = LiquifySession::from_steps(open.steps);
-        let [width, height] = open.size;
         Self {
             history: EditHistory::new(&session),
             session,
             settings: open.settings,
             subject: open.subject,
-            size: PixelSize::new(width, height),
             navigation: open.navigation,
             checkerboard: open.checkerboard,
             cursor_options: open.cursor_options.unwrap_or_else(canvas::default_cursor_options),
             asked: None,
             queued: Vec::new(),
             requested: Vec::new(),
-            zooms: Vec::new(),
             busy: false,
             zoom_percent: 100.0,
             timing: None,
@@ -324,10 +317,9 @@ impl LiquifyWorkspace {
 
     /// Shows the workspace for this pass.
     ///
-    /// A [`FullWindowDialog`] titled by [`FullWindowTitle`] (the subject and the zoom), in the scope of
-    /// [`LiquifyCommands`], with the Properties column ([`LiquifyPanel`], OK and Cancel at its bottom) in the dialog's
-    /// side region. The body, in order: the events [`step`](Self::step) queued and the zoom commands
-    /// [`zoom`](Self::zoom) took; the commands; the tool strip (a `ToolRail` over [`LiquifyTool::slots`]; a pick
+    /// A [`FullWindowDialog`] titled by [`FullWindowTitle`] (the subject and the zoom), with the Properties column ([`LiquifyPanel`], OK and Cancel at its bottom) in the dialog's
+    /// side region. The body, in order: the events [`step`](Self::step) queued; the commands, in the scope of
+    /// [`LiquifyCommands`]; the tool strip (a `ToolRail` over [`LiquifyTool::slots`]; a pick
     /// cancels the old tool's gesture with `Removed`); the canvas ([`FullWindowCanvas`]) with the source's image under
     /// [`BackdropLayering`], the freeze mask as a `RasterOverlay` tinted red while Show Mask is on, the mesh while
     /// Show Mesh is on, the lasso and the resize preview as canvas controls, and [`LiquifyCanvasTool`] as its tool.
@@ -342,21 +334,21 @@ impl LiquifyWorkspace {
         let title = FullWindowTitle::new(words.name.clone()).subject(self.subject.as_str()).zoom(self.zoom_percent).label(&env);
         let settings_before = self.settings.clone();
         let mut asked_steps = std::mem::take(&mut self.requested);
-        let mut zooms = std::mem::take(&mut self.zooms);
         self.events = std::mem::take(&mut self.queued);
-        let document = Size::new(f64::from(self.size.width), f64::from(self.size.height));
         let slots = LiquifyTool::slots();
         let this = RefCell::new(&mut *self);
 
         let shown = FullWindowDialog::new(title)
-            .command_scope(LiquifyCommands::SCOPE)
             .buttons([FooterButton::new(common.ok.clone(), DialogRole::Accept), FooterButton::new(common.cancel.clone(), DialogRole::Cancel)])
             .sides(|ui, _| {
                 let mut guard = this.borrow_mut();
                 let work: &mut LiquifyWorkspace = &mut **guard;
-                let panel = FullWindowSide::new(words.properties.clone())
+                let Some(panel) = FullWindowSide::new(words.properties.clone())
                     .show(ui, |ui, _| LiquifyPanel::new(Bind::bound(&mut work.settings)).layers(&layers).show(ui))
-                    .inner;
+                    .inner
+                else {
+                    return;
+                };
                 if let Some(op) = panel.global {
                     work.record_global(None, op);
                 }
@@ -376,10 +368,7 @@ impl LiquifyWorkspace {
                 let mut guard = this.borrow_mut();
                 let work: &mut LiquifyWorkspace = &mut **guard;
                 let mut state = std::mem::take(cx.keep::<LiquifyView>());
-                state.canvas.navigate(document, work.navigation);
-                for key in zooms.drain(..) {
-                    state.view.apply(key);
-                }
+                state.canvas.navigate(work.navigation);
 
                 // An open stroke is cancelled first; the replay of the step supersedes the one the cancel reports.
                 for step in asked_steps.drain(..) {
@@ -392,99 +381,105 @@ impl LiquifyWorkspace {
                     }
                 }
 
-                while let Some((command, fired)) = cx.take_command::<LiquifyCommands>() {
-                    if let Some(tool) = command.tool() {
-                        let slot = slots.iter().find(|slot| slot.tools.iter().any(|entry| entry.id == tool));
-                        let tools: Vec<_> = slot.into_iter().flat_map(|slot| slot.tools.iter()).collect();
-                        let picked = slot.and_then(|slot| {
-                            tool_pick(&tools, slot.id, &work.settings.tool, &state.last_used, PickStep::of(&fired), |_| true)
-                                .map(|entry| (slot.id, entry.id))
-                        });
-                        if let Some((slot_id, tool)) = picked {
-                            work.pick(&ctx, &mut state, tool);
-                            state.last_used.set(slot_id, tool);
-                        }
-                        continue;
-                    }
-                    match command {
-                        LiquifyCommands::Smaller => work.settings.brush = work.settings.brush.smaller(),
-                        LiquifyCommands::Larger => work.settings.brush = work.settings.brush.larger(),
-                        LiquifyCommands::ShowMask => work.settings.show_mask = !work.settings.show_mask,
-                        LiquifyCommands::InvertMask => work.record_global(Some(&mut state), LiquifyGlobal::InvertAll),
-                        LiquifyCommands::ClearMask => work.record_global(Some(&mut state), LiquifyGlobal::MaskNone),
-                        _ => {}
-                    }
-                }
-
-                if !work.settings.show_backdrop {
-                    work.asked = None;
-                } else if work.asked.is_none() {
-                    // Show Backdrop was already on when the workspace opened.
-                    let of = backdrop_id(work.settings.backdrop);
-                    work.events.push(LiquifyEvent::BackdropWanted(of));
-                    work.asked = Some(of);
-                }
-
-                let backdrop = source.backdrop().filter(|_| work.settings.show_backdrop);
-                let layering = BackdropLayering::of(backdrop.is_some(), work.settings.backdrop_mode, work.settings.backdrop_opacity);
-                let layered = backdrop.filter(|_| !layering.is_plain()).map(|backdrop| LayeredImage::new(source.picture(), backdrop, layering));
-                let image: &dyn RasterSource = match &layered {
-                    Some(layered) => layered,
-                    None => source.picture(),
-                };
-                let mask =
-                    source.freeze_mask().filter(|_| work.settings.show_mask).map(|(mask, texel)| MaskAtTexel { mask, texel, document: image.size() });
-                let edges = source.mesh(work.settings.mesh_size).filter(|_| work.settings.show_mesh).map(|mesh| mesh.edges());
-                let lasso = state.canvas.lasso_line();
-                let falloff = state.canvas.resize().dimensions().map(|dims| TipFalloff::from_hardness(dims.diameter / 2.0, dims.level));
-                let mut preview = falloff.as_ref().and_then(|falloff| state.canvas.resize().preview(falloff));
-
-                let shown = Row::new()
-                    .fill()
-                    .show(ui, |ui, _| {
-                        let rail = ToolRail::new(words.tools.clone(), &slots, &work.settings.tool, &state.last_used).show_rail(ui, |_, _| {});
-                        if let Some(next) = rail.last_used {
-                            state.last_used = next;
-                        }
-                        if let Some(tool) = rail.select {
-                            work.pick(&ctx, &mut state, tool);
-                        }
-                        let mut canvas = FullWindowCanvas::new(ToolPath::Freehand, &state.view, image)
-                            .checkerboard(work.checkerboard)
-                            .navigation(work.navigation)
-                            .controls(|ui, rect| {
-                                if let Some(edges) = &edges {
-                                    MeshLines::new(edges).show_at(ui, rect);
-                                }
-                                if let Some((points, tone)) = &lasso {
-                                    LassoLine::new(points).tone(*tone).show_at(ui, rect);
-                                }
-                                if let Some(preview) = preview.take() {
-                                    preview.show_at(ui, rect);
-                                }
+                Stack::new().fill().command_scope(LiquifyCommands::SCOPE).show(ui, |ui, scope| {
+                    while let Some((command, fired)) = scope.take_command::<LiquifyCommands>() {
+                        if let Some(tool) = command.tool() {
+                            let slot = slots.iter().find(|slot| slot.tools.iter().any(|entry| entry.id == tool));
+                            let tools: Vec<_> = slot.into_iter().flat_map(|slot| slot.tools.iter()).collect();
+                            let picked = slot.and_then(|slot| {
+                                tool_pick(&tools, slot.id, &work.settings.tool, &state.last_used, PickStep::of(&fired), |_| true)
+                                    .map(|entry| (slot.id, entry.id))
                             });
-                        if let Some(mask) = &mask {
-                            canvas = canvas.overlay(RasterOverlay::new(mask).tint(FREEZE_MASK_TINT));
-                        }
-                        let LiquifyView { canvas: tools, .. } = &mut state;
-                        match work.settings.tool {
-                            LiquifyTool::Hand => canvas.tool(&mut tools.hand).show(ui),
-                            LiquifyTool::Zoom => canvas.tool(&mut tools.zoom).show(ui),
-                            _ => {
-                                let mut tool = tools.tool(&mut work.settings, &work.cursor_options);
-                                canvas.tool(&mut tool).show(ui)
+                            if let Some((slot_id, tool)) = picked {
+                                work.pick(&ctx, &mut state, tool);
+                                state.last_used.set(slot_id, tool);
                             }
+                            continue;
                         }
-                    })
-                    .inner;
-                state.canvas_id = Some(shown.response.id);
-                work.cursor = shown.tool.cursor.clone();
-                state.view = shown.view.unwrap_or(shown.shown);
-                work.zoom_percent = state.view.zoom_percent();
+                        match command {
+                            LiquifyCommands::Smaller => work.settings.brush = work.settings.brush.smaller(),
+                            LiquifyCommands::Larger => work.settings.brush = work.settings.brush.larger(),
+                            LiquifyCommands::ShowMask => work.settings.show_mask = !work.settings.show_mask,
+                            LiquifyCommands::InvertMask => work.record_global(Some(&mut state), LiquifyGlobal::InvertAll),
+                            LiquifyCommands::ClearMask => work.record_global(Some(&mut state), LiquifyGlobal::MaskNone),
+                            _ => {}
+                        }
+                    }
 
-                work.absorb_canvas_events(&mut state);
-                work.busy = state.canvas.busy();
-                work.timing = state.canvas.timing();
+                    if !work.settings.show_backdrop {
+                        work.asked = None;
+                    } else if work.asked.is_none() {
+                        // Show Backdrop was already on when the workspace opened.
+                        let of = backdrop_id(work.settings.backdrop);
+                        work.events.push(LiquifyEvent::BackdropWanted(of));
+                        work.asked = Some(of);
+                    }
+
+                    let backdrop = source.backdrop().filter(|_| work.settings.show_backdrop);
+                    let layering = BackdropLayering::of(backdrop.is_some(), work.settings.backdrop_mode, work.settings.backdrop_opacity);
+                    let layered = backdrop.filter(|_| !layering.is_plain()).map(|backdrop| LayeredImage::new(source.picture(), backdrop, layering));
+                    let image: &dyn RasterSource = match &layered {
+                        Some(layered) => layered,
+                        None => source.picture(),
+                    };
+                    let mask = source.freeze_mask().filter(|_| work.settings.show_mask).map(|(mask, texel)| MaskAtTexel {
+                        mask,
+                        texel,
+                        document: image.size(),
+                    });
+                    let edges = source.mesh(work.settings.mesh_size).filter(|_| work.settings.show_mesh).map(|mesh| mesh.edges());
+                    let lasso = state.canvas.lasso_line();
+                    let falloff = state.canvas.resize().dimensions().map(|dims| TipFalloff::from_hardness(dims.diameter / 2.0, dims.level));
+                    let mut preview = falloff.as_ref().and_then(|falloff| state.canvas.resize().preview(falloff));
+
+                    let shown = Row::new()
+                        .fill()
+                        .show(ui, |ui, _| {
+                            let rail = ToolRail::new(words.tools.clone(), &slots, &work.settings.tool, &state.last_used).show_rail(ui, |_, _| {});
+                            if let Some(next) = rail.last_used {
+                                state.last_used = next;
+                            }
+                            if let Some(tool) = rail.select {
+                                work.pick(&ctx, &mut state, tool);
+                            }
+                            let LiquifyView { view, canvas: tools, .. } = &mut state;
+                            let mut canvas = FullWindowCanvas::new(Bind::bound(view), image)
+                                .checkerboard(work.checkerboard)
+                                .navigation(work.navigation)
+                                .controls(|ui, rect| {
+                                    if let Some(edges) = &edges {
+                                        MeshLines::new(edges).show_at(ui, rect);
+                                    }
+                                    if let Some((points, tone)) = &lasso {
+                                        LassoLine::new(points).tone(*tone).show_at(ui, rect);
+                                    }
+                                    if let Some(preview) = preview.take() {
+                                        preview.show_at(ui, rect);
+                                    }
+                                });
+                            if let Some(mask) = &mask {
+                                canvas = canvas.overlay(RasterOverlay::new(mask).tint(FREEZE_MASK_TINT));
+                            }
+                            match work.settings.tool {
+                                LiquifyTool::Hand => canvas.tool(&mut tools.hand).show(ui),
+                                LiquifyTool::Zoom => canvas.tool(&mut tools.zoom).show(ui),
+                                _ => {
+                                    let mut tool = tools.tool(&mut work.settings, &work.cursor_options);
+                                    canvas.tool(&mut tool).show(ui)
+                                }
+                            }
+                        })
+                        .inner;
+                    if let Some(shown) = shown {
+                        state.canvas_id = Some(shown.response.id);
+                        work.cursor = shown.tool.cursor.clone();
+                    }
+                    work.zoom_percent = state.view.zoom_percent();
+
+                    work.absorb_canvas_events(&mut state);
+                    work.busy = state.canvas.busy();
+                    work.timing = state.canvas.timing();
+                });
                 *cx.keep::<LiquifyView>() = state;
             });
         let this = this.into_inner();
@@ -521,6 +516,7 @@ impl LiquifyWorkspace {
             return match step {
                 Step::Undo => self.history.can_undo(),
                 Step::Redo => self.history.can_redo(),
+                _ => false,
             };
         }
         let stepped = self.history.step(&mut self.session, step);
@@ -528,13 +524,6 @@ impl LiquifyWorkspace {
             self.queued.push(LiquifyEvent::Replay(self.session.steps().to_vec()));
         }
         stepped
-    }
-
-    /// Applies a zoom command to the workspace's view on the next [`show`](Self::show): the app forwards the fired
-    /// `FullWindowZoomKeys`. Returns whether the command will be applied.
-    pub fn zoom(&mut self, key: FullWindowZoomKeys) -> bool {
-        self.zooms.push(key);
-        true
     }
 }
 

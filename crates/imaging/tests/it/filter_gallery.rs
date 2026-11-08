@@ -18,6 +18,7 @@ use craft_ui::contract::{Job, Role};
 use craft_ui::patterns::form_dialogs::{DialogFields, FieldValue, Param, ParamKind};
 use craft_ui::primitives::Revision;
 use craft_ui::primitives::textures::{FakeThumbSource, ThumbnailOptions, Thumbnails};
+use craft_ui::testing::relations::equals_token;
 use craft_ui::testing::{Fixture, trial};
 use craft_ui::value_drag::SliderScale;
 use egui::{Color32, ColorImage, Key, Modifiers, Vec2};
@@ -76,15 +77,15 @@ fn gallery_thumbnail_click_sets_the_selected_effects_filter() {
     let mut session = FilterGallerySession::new("cutout", &Catalog);
     let mut selected = 0;
     let fields = DialogFields::from_pairs([("levels", 3.0)]);
-    assert!(session.apply(EffectChange::Fields { index: 0, fields }, &Catalog, &mut selected));
-    assert!(session.apply(EffectChange::Visible { index: 0, visible: false }, &Catalog, &mut selected));
-    assert!(!session.apply(EffectChange::SetFilter { index: 0, filter: "cutout".to_owned() }, &Catalog, &mut selected));
+    assert!(session.apply(EffectChange::with_fields(0, fields), &Catalog, &mut selected));
+    assert!(session.apply(EffectChange::set_visible(0, false), &Catalog, &mut selected));
+    assert!(!session.apply(EffectChange::set_filter(0, "cutout"), &Catalog, &mut selected));
     assert_eq!(session.effects[0].fields.get("levels"), Some(&FieldValue::Number(3.0)));
-    assert!(session.apply(EffectChange::SetFilter { index: 0, filter: "sponge".to_owned() }, &Catalog, &mut selected));
+    assert!(session.apply(EffectChange::set_filter(0, "sponge"), &Catalog, &mut selected));
     assert_eq!(session.effects[0].filter, "sponge");
     assert_eq!(session.effects[0].fields, Catalog.filter("sponge").map(|found| found.defaults()).unwrap_or_default());
     assert!(!session.effects[0].visible);
-    assert!(!session.apply(EffectChange::SetFilter { index: 0, filter: "gone".to_owned() }, &Catalog, &mut selected));
+    assert!(!session.apply(EffectChange::set_filter(0, "gone"), &Catalog, &mut selected));
 }
 
 // New copies the selected layer above it and selects it; Delete keeps the last layer; Move and the eye change one
@@ -95,13 +96,13 @@ fn gallery_stack_new_delete_reorder_and_eye() {
     let mut selected = 0;
     assert!(session.apply(EffectChange::Add, &Catalog, &mut selected));
     assert_eq!(selected, 1);
-    assert!(session.apply(EffectChange::SetFilter { index: 1, filter: "sponge".to_owned() }, &Catalog, &mut selected));
+    assert!(session.apply(EffectChange::set_filter(1, "sponge"), &Catalog, &mut selected));
     assert!(session.apply(EffectChange::Add, &Catalog, &mut selected));
     assert_eq!((filters(&session), selected), (vec!["cutout", "sponge", "sponge"], 2));
-    assert!(session.apply(EffectChange::Move { from: 2, to: 0 }, &Catalog, &mut selected));
+    assert!(session.apply(EffectChange::move_to(2, 0), &Catalog, &mut selected));
     assert_eq!((filters(&session), selected), (vec!["sponge", "cutout", "sponge"], 0));
-    assert!(!session.apply(EffectChange::Move { from: 0, to: 0 }, &Catalog, &mut selected));
-    assert!(session.apply(EffectChange::Visible { index: 1, visible: false }, &Catalog, &mut selected));
+    assert!(!session.apply(EffectChange::move_to(0, 0), &Catalog, &mut selected));
+    assert!(session.apply(EffectChange::set_visible(1, false), &Catalog, &mut selected));
     let eyes: Vec<bool> = session.effects.iter().map(|effect| effect.visible).collect();
     assert_eq!(eyes, [true, false, true]);
     selected = 2;
@@ -135,7 +136,7 @@ fn gallery_undo_restores_the_stack_and_clamps_the_selection() {
     let mut history = EditHistory::new(&session);
     let mut selected = 0;
     change(&mut session, &mut history, &mut selected, EffectChange::Add);
-    change(&mut session, &mut history, &mut selected, EffectChange::SetFilter { index: 1, filter: "sponge".to_owned() });
+    change(&mut session, &mut history, &mut selected, EffectChange::set_filter(1, "sponge"));
     assert!(change(&mut session, &mut history, &mut selected, EffectChange::Delete));
     assert_eq!((filters(&session), selected), (vec!["cutout"], 0));
     assert!(history.step(&mut session, Step::Undo));
@@ -263,7 +264,7 @@ fn gallery_footer_is_at_the_top() {
     let stack = rect("Effect Layers");
     assert!(ok.bottom() <= select.top() && cancel.bottom() <= select.top(), "{ok:?} {cancel:?} over {select:?}");
     assert!(select.bottom() <= stack.top());
-    assert!((ok.center().y - cancel.center().y).abs() < 1.0, "one row");
+    assert!(equals_token(ok.center().y, cancel.center().y), "one row");
     assert!(ok.right().max(cancel.right()) > WINDOW.x - ok.width(), "the column is at the end edge: {ok:?} {cancel:?}");
 }
 

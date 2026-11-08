@@ -59,6 +59,7 @@ fn modifier_words(os: craft_host::target::Os, mods: Mods) -> String {
 
 /// How the shown curve is edited: Photoshop's two buttons above the graph.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum CurvesMode {
     /// Edit points to modify the curve; every channel is a [`Curve::Points`].
     #[default]
@@ -70,6 +71,7 @@ pub enum CurvesMode {
 /// A Curves value: one curve per channel of the panel's [`ToneChannels`] (same index), all in
 /// one [`CurvesMode`].
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct ToneCurves {
     /// The curves, one per channel.
     pub curves: Vec<Curve>,
@@ -78,6 +80,11 @@ pub struct ToneCurves {
 }
 
 impl ToneCurves {
+    /// The `curves`, one per channel, all in `mode`.
+    pub fn new(curves: Vec<Curve>, mode: CurvesMode) -> Self {
+        Self { curves, mode }
+    }
+
     /// Identity point curves for `channels`, 0..=255.
     pub fn identity(channels: &ToneChannels) -> Self {
         Self { curves: vec![Curve::identity(255.0); channels.len()], mode: CurvesMode::Points }
@@ -149,6 +156,8 @@ pub struct CurvesPanel<'a> {
     /// The host's histograms, one per channel (same index), 256 bins each.
     #[prop]
     histograms: &'a [[u32; 256]],
+    /// The host's interpolation of point curves ([`CurveEditor::sampler`]).
+    #[prop(boxed)]
     sampler: Option<Box<dyn Fn(&[[f32; 2]]) -> Vec<f32> + 'a>>,
     /// The armed point picker; the picker row shows when it is given.
     #[prop]
@@ -188,12 +197,6 @@ impl<'a> CurvesPanel<'a> {
             select: None,
             enabled: true,
         }
-    }
-
-    /// The host's interpolation of point curves ([`CurveEditor::sampler`]).
-    pub fn sampler(mut self, sampler: impl Fn(&[[f32; 2]]) -> Vec<f32> + 'a) -> Self {
-        self.sampler = Some(Box::new(sampler));
-        self
     }
 
     /// Enables or disables one picker.
@@ -308,7 +311,8 @@ impl<'a> CurvesPanel<'a> {
             let data = histograms.get(channel).map(|counts| HistogramData::tone(counts, color));
             let overlays = overlays_for(&channels, channel, &value.curves);
             let key = modifier_words(os, if pencil { Mods::SHIFT } else { Mods::CMD });
-            let hint = view.resolve(if pencil { &words.pencil_hint } else { &words.points_hint }).as_str().replace("{key}", &key);
+            let template = if pencil { &words.pencil_hint } else { &words.points_hint };
+            let hint = template.fill(&[("key", &key)]);
             // A Curves panel in a dialog keeps the image under the dialog usable for the ⌘/Ctrl-click point.
             if let Some(canvas) = canvas {
                 cx.arm_sampler(canvas);
@@ -380,7 +384,10 @@ impl<'a> CurvesPanel<'a> {
             edit = event;
 
             if let Some(armed) = pickers.as_mut() {
-                let mut row = TonePickerRow::new(armed.reborrowed()).unavailable(pickers_unavailable);
+                let mut row = TonePickerRow::new(armed.reborrowed());
+                if pickers_unavailable {
+                    row = row.unavailable();
+                }
                 if let Some(canvas) = canvas {
                     row = row.canvas(canvas);
                 }

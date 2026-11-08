@@ -5,7 +5,7 @@ use craft_behavior::geometry::selection_op::SelectionOperation;
 use craft_behavior::{EditEvent, GestureId, Mixed};
 use craft_keymap::Mods;
 use craft_theme::Srgba;
-use craft_ui::contract::{CommandSet, Props as _, ReorderMove};
+use craft_ui::contract::{CommandSet, Props as _, ReorderMove, ShowContainer as _};
 use craft_ui::menu::{Menu, MenuItem, PanelRow};
 use craft_ui::primitives::IconSpec;
 use craft_ui::runtime::commands::CommandRef;
@@ -297,28 +297,31 @@ fn document_plan() -> [Plan; 5] {
     ]
 }
 
+fn add_commands(lines: &mut Vec<Plan>, commands: &[ChannelsCommands]) {
+    lines.extend(commands.iter().map(|c| Plan::Command(*c)));
+}
+
 /// The menu lines for a row of `kind`; with no row, the document's.
 fn plan(kind: Option<ChannelKind>) -> Vec<Plan> {
     use ChannelsCommands as C;
     let mut lines: Vec<Plan> = Vec::new();
-    let mut add = |commands: &[C]| lines.extend(commands.iter().map(|c| Plan::Command(*c)));
     match kind {
         Some(ChannelKind::Alpha(_)) => {
-            add(&[C::Duplicate, C::Delete, C::RenameChannel, C::ChannelOptions]);
+            add_commands(&mut lines, &[C::Duplicate, C::Delete, C::RenameChannel, C::ChannelOptions]);
             lines.push(Plan::Separator);
             lines.extend(overlay_plan());
         }
         Some(ChannelKind::Spot(_)) => {
-            add(&[C::Duplicate, C::Delete, C::RenameChannel, C::ChannelOptions]);
+            add_commands(&mut lines, &[C::Duplicate, C::Delete, C::RenameChannel, C::ChannelOptions]);
             lines.push(Plan::Separator);
-            add(&[C::MergeSpot, C::ConvertToAlpha]);
+            add_commands(&mut lines, &[C::MergeSpot, C::ConvertToAlpha]);
         }
         Some(ChannelKind::QuickMask(_)) => {
-            add(&[C::ExitQuickMask, C::ChannelOptions]);
+            add_commands(&mut lines, &[C::ExitQuickMask, C::ChannelOptions]);
             lines.extend(overlay_plan());
         }
-        Some(ChannelKind::LayerMask(_)) => add(&[C::ToggleLayerMask, C::DeleteLayerMask, C::ChannelOptions]),
-        Some(ChannelKind::Composite | ChannelKind::Color) => add(&[C::Duplicate]),
+        Some(ChannelKind::LayerMask(_)) => add_commands(&mut lines, &[C::ToggleLayerMask, C::DeleteLayerMask, C::ChannelOptions]),
+        Some(ChannelKind::Composite | ChannelKind::Color) => add_commands(&mut lines, &[C::Duplicate]),
         None => {}
     }
     if kind.is_some() {

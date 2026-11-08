@@ -30,6 +30,7 @@ impl EffectLayer {
 pub enum EffectChange {
     /// A thumbnail or the Filter select picked `filter` for the effect layer at `index`: its
     /// fields start from the filter's defaults; the eye stays. Nothing changes for the same filter.
+    #[non_exhaustive]
     SetFilter {
         /// The effect layer's index, bottom first.
         index: usize,
@@ -37,6 +38,7 @@ pub enum EffectChange {
         filter: String,
     },
     /// The settings of the effect layer at `index`.
+    #[non_exhaustive]
     Fields {
         /// The effect layer's index, bottom first.
         index: usize,
@@ -48,6 +50,7 @@ pub enum EffectChange {
     /// Delete effect layer: the selected one, unless it is the last; the one below is selected.
     Delete,
     /// Move the effect layer at `from` to `to` (the move buttons, the collection's reorder keys, a drag).
+    #[non_exhaustive]
     Move {
         /// The index the layer moves from.
         from: usize,
@@ -55,12 +58,35 @@ pub enum EffectChange {
         to: usize,
     },
     /// The eye of the effect layer at `index`.
+    #[non_exhaustive]
     Visible {
         /// The effect layer's index, bottom first.
         index: usize,
         /// Whether the eye is on.
         visible: bool,
     },
+}
+
+impl EffectChange {
+    /// Picks `filter` for the effect layer at `index`.
+    pub fn set_filter(index: usize, filter: impl Into<String>) -> Self {
+        Self::SetFilter { index, filter: filter.into() }
+    }
+
+    /// Sets the parameter values of the effect layer at `index`.
+    pub fn with_fields(index: usize, fields: DialogFields) -> Self {
+        Self::Fields { index, fields }
+    }
+
+    /// Moves the effect layer at `from` to `to`.
+    pub fn move_to(from: usize, to: usize) -> Self {
+        Self::Move { from, to }
+    }
+
+    /// Turns the eye of the effect layer at `index` on or off.
+    pub fn set_visible(index: usize, visible: bool) -> Self {
+        Self::Visible { index, visible }
+    }
 }
 
 /// What OK applies and the history snapshots: the effect layers, bottom first (the top row of the

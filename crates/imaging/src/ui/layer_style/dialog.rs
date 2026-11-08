@@ -2,7 +2,6 @@
 
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::rc::Rc;
 
 use craft_theme::{Srgba, TypeRole};
 use craft_ui::choice::Checkbox;
@@ -16,10 +15,11 @@ use craft_ui::runtime::requests::ColorRequest;
 use egui::{Response, Ui};
 
 use super::blending::{BlendingInput, blending_page};
+use super::contour::SharedSampler;
 use super::contour::{ContourAction, ContourRequest, ContourWords};
 use super::labels::LayerStyleWords;
 use super::list::{LayerStyleCommand, ListAction, effect_list};
-use super::page::{PageInput, SharedSampler, StyleOp, effect_page, push_edit, set_edit};
+use super::page::{PageInput, StyleOp, effect_page, push_edit, set_edit};
 use super::styles::{StylePresets, styles_page};
 use craft_behavior::EditEvent;
 
@@ -134,7 +134,7 @@ pub struct LayerStyleDialog<'a> {
     blend_modes: &'a [Entry<String>],
     patterns: &'a [PresetRow<String>],
     user_contours: &'a [Contour],
-    sampler: Option<SharedSampler<'a>>,
+    sampler: Option<SharedSampler>,
     style_presets: Option<StylePresets<'a>>,
 }
 
@@ -197,8 +197,8 @@ impl<'a> LayerStyleDialog<'a> {
     /// The host's interpolation of a contour's points: the output of every input level through the points, so the
     /// contour fields draw the curve the engine renders; a monotone cubic by default.
     #[must_use]
-    pub fn sampler(mut self, sample: impl Fn(&[[f32; 2]]) -> Vec<f32> + 'a) -> Self {
-        self.sampler = Some(Rc::new(sample));
+    pub fn sampler(mut self, sample: impl Fn(&[[f32; 2]]) -> Vec<f32> + Send + Sync + 'static) -> Self {
+        self.sampler = Some(std::sync::Arc::new(sample));
         self
     }
 
@@ -305,7 +305,7 @@ struct PageEnv<'a> {
     blend_modes: &'a [Entry<String>],
     patterns: &'a [PresetRow<String>],
     user_contours: &'a [Contour],
-    sampler: Option<&'a SharedSampler<'a>>,
+    sampler: Option<&'a SharedSampler>,
     channel_names: &'a [String],
     words: &'a LayerStyleWords,
     contour_words: &'a ContourWords,

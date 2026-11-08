@@ -1,6 +1,6 @@
 //! `ToneRamp`: a gradient bar through evenly spaced stops.
 
-use craft_behavior::{Input, Metrics, Sense};
+use craft_behavior::{Axis, Input, Metrics, Sense};
 use craft_ui::contract::{Common, Component, Cx, MeasureCx, PaintUi, Role};
 use craft_ui::style::{ComponentStyle, DataColor, StyleCx};
 use egui::{Response, Vec2};
@@ -68,7 +68,14 @@ impl Component for ToneRamp<'_> {
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        ui.content_painter(cx).ramp(cx.rect, self.stops, self.vertical);
+        let last = self.stops.len().saturating_sub(1).max(1) as f32;
+        let at = |k: usize| k as f32 / last;
+        let (stops, axis): (Vec<(f32, DataColor)>, Axis) = if self.vertical {
+            (self.stops.iter().rev().enumerate().map(|(k, color)| (at(k), *color)).collect(), Axis::Y)
+        } else {
+            (self.stops.iter().enumerate().map(|(k, color)| (at(k), *color)).collect(), Axis::X)
+        };
+        ui.content_painter(cx).ramp(cx.rect, &stops, axis);
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {

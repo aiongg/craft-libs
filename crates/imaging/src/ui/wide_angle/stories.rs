@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use craft_behavior::PixelSize;
 use craft_behavior::kurbo::Point;
-use craft_ui::canvas::{PixelRect, RasterSource, ToolPath};
+use craft_ui::canvas::{PixelRect, RasterSource};
 use craft_ui::contract::{Bind, Show as _};
 use craft_ui::dialog::{FullWindowCanvas, FullWindowView};
 use craft_ui::primitives::Revision;
@@ -127,17 +127,16 @@ fn workspace_corrected(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 fn lines(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let session = session();
     let pictures = pictures();
-    let view = *data.value("view", FullWindowView::new());
+    let view = data.value("view", FullWindowView::new());
     let mut seen = None;
-    let canvas = FullWindowCanvas::new(ToolPath::Freehand, &view, pictures.source()).controls(|ui, rect| {
+    let canvas = FullWindowCanvas::new(Bind::bound(view), pictures.source()).controls(|ui, rect| {
         seen = Some(
             ConstraintLines::new("Constraint lines", &session, &Bowed)
                 .picture([IMAGE.width, IMAGE.height], [IMAGE.width, IMAGE.height])
                 .show_at(ui, rect),
         );
     });
-    let shown = canvas.show(ui);
-    *data.value("view", FullWindowView::new()) = shown.view.unwrap_or(shown.shown);
+    canvas.show(ui);
     seen.map(StoryOutput::from).unwrap_or_default()
 }
 

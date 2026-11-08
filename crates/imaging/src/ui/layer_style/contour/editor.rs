@@ -17,7 +17,7 @@ use egui::Ui;
 
 use super::{ContourAction, ContourRequest, ContourWords, SharedSampler, from_curve, to_curve};
 use crate::layer_style::Contour;
-use crate::ui::curve::{CurveEditor, CurveRows, CurveSampler};
+use crate::ui::curve::CurveEditor;
 
 /// What the dialog edits: the contour, and the name of a New contour while its name row shows.
 #[derive(Clone, Debug, PartialEq)]
@@ -159,7 +159,7 @@ impl StackDialog for ContourEditorDialog {
                         Field::new(words.name.clone()).show(ui, |ui, _| {
                             let field = TextField::new(words.name.clone(), Bind::bound(text)).show(ui);
                             if focus_name {
-                                focus::request(ui.ctx(), FocusTarget::Id(field.response().id));
+                                focus::request(ui.ctx(), FocusTarget::Id(field.response.id));
                             }
                             named.set(named.get() || field.submitted);
                         });
@@ -176,7 +176,7 @@ impl StackDialog for ContourEditorDialog {
                     .corners()
                     .between(between);
                 if let Some(sampler) = sampler.clone() {
-                    editor = editor.sampler(CurveSampler::new(move |points| sampler(points)));
+                    editor = editor.sampler(move |points| sampler(points));
                 }
                 let edit = editor.show(ui);
                 if let Some(next) = edit.event.as_ref().and_then(EditEvent::value).and_then(|curve| from_curve(curve, &draft.contour.name)) {

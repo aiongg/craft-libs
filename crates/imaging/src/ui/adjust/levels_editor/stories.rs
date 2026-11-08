@@ -4,7 +4,7 @@ use super::{Levels, LevelsEditor};
 use crate::ui::curve::stories::story_bins;
 use crate::ui::histogram::{ChannelColor, HistogramData};
 use craft_behavior::Mixed;
-use craft_ui::contract::{Bind, Validity};
+use craft_ui::contract::{Bind, Show as _, Validity};
 use craft_ui::runtime::env::Message;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;

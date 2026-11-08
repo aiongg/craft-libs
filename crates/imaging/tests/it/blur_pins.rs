@@ -9,7 +9,7 @@ use craft_imaging::ui::blur_pins::{
     AXIS_HANDLES, BlurGrab, BlurKind, BlurPin, BlurPins, BlurPinsCommand, BlurPinsOverlay, BlurPinsPanel, DEFAULT_AMOUNT, IrisShape, MAX_PINS,
     PinReach, TiltBand, drag, feather_handles, grab, iris_point, round_handle, tilt_point, turn_handle,
 };
-use craft_ui::canvas::{Canvas, ToolPath};
+use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Key, Modifiers, Pos2, Rect, pos2};
@@ -254,7 +254,7 @@ fn overlay(pins: BlurPins) -> Overlay {
         let room = ui.available_rect_before_wrap();
         let canvas_view = CanvasView::new(room, Point::new(200.0, 150.0), 1.0);
         shown_view.set(Some(canvas_view));
-        let shown = Canvas::new("Document", ToolPath::Freehand).view(canvas_view).show(ui, |ui, body| {
+        let shown = Canvas::new("Document").view(canvas_view).show(ui, |ui, body| {
             let mut held = shown_pins.borrow_mut();
             BlurPinsOverlay::new("Blur pins", Bind::bound(&mut *held)).show_at(ui, body.rect)
         });

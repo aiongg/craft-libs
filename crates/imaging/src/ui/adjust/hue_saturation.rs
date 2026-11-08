@@ -382,7 +382,8 @@ impl<'a> HueSaturationEditor<'a> {
                         .thumbs(thumbs)
                         .track_face(TrackFace::new(ToneRamp::new(&after)))
                         .label(words.spectrum_after.clone())
-                        .show(ui);
+                        .show(ui)
+                        .edit;
                     run.push(cx, row, move |now: &HueSaturation, row: &[Mixed<f64>; 4]| now.with_thumbs(r, row));
                     let [a, b, c, d] = bounds.map(|degrees| units.text(UnitKind::Degrees, degrees, 0..=0));
                     let readout = words.range_readout.fill(&[("a", &a), ("b", &b), ("c", &c), ("d", &d)]);
