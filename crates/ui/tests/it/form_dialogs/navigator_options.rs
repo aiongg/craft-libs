@@ -24,10 +24,12 @@ fn panel_options(options: &Rc<RefCell<NavigatorOptions>>, requests: &Rc<RefCell<
     fixture
 }
 
-/// Opens the Color list and picks its last entry, Custom….
+/// Opens the Color list with Alt+Down on the focused select and picks its last entry, Custom….
 fn pick_custom(fixture: &mut Fixture) {
-    let list = fixture.by_label("Color").expect("the Color list is shown");
-    fixture.click(&list);
+    if fixture.focused().is_none() {
+        fixture.key(Key::Tab, Modifiers::NONE);
+    }
+    fixture.key(Key::ArrowDown, Modifiers::ALT);
     fixture.settle();
     fixture.key(Key::End, Modifiers::NONE);
     fixture.key(Key::Enter, Modifiers::NONE);
@@ -58,21 +60,4 @@ fn custom_asks_the_host_every_time_and_survives_reopening() {
     pick_custom(&mut reopened);
     let after_reopen = requests.borrow_mut().take_color().expect("Custom… asks after the dialog opened again");
     assert_eq!(after_reopen.color, custom.color(), "the custom colour is the value when the dialog reopens");
-}
-
-#[trial]
-fn diag_open_state() {
-    use craft_ui::contract::Role;
-    let mut report = String::new();
-    for start in [ProxyColor::Blue, ProxyColor::custom(PICKED)] {
-        let options = Rc::new(RefCell::new(NavigatorOptions::new(start)));
-        let requests = Rc::new(RefCell::new(HostRequests::new()));
-        let mut fixture = panel_options(&options, &requests);
-        let before = fixture.by_role(Role::LIST_BOX_OPTION).len();
-        let list = fixture.by_label("Color").expect("Color");
-        fixture.click(&list);
-        fixture.settle();
-        report += &format!("[{start:?}: options before {before}, after click {}, focused {}] ", fixture.by_role(Role::LIST_BOX_OPTION).len(), fixture.focused().is_some());
-    }
-    panic!("{report}");
 }
