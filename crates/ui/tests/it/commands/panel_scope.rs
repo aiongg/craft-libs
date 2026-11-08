@@ -7,6 +7,7 @@ use craft_ui::buttons::Button;
 use craft_ui::contract::{CommandSet, Common, Component, Cx, Props as _, Role, Show as _, ShowContainer as _};
 use craft_ui::layout_components::Stack;
 use craft_ui::runtime::commands::{CommandScope, Commands as _, resolve};
+use craft_ui::runtime::focus::{FocusTarget, request};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers, Response, Vec2};
@@ -77,7 +78,8 @@ impl Component for Stop {
 #[trial]
 fn a_stack_scope_command_reaches_only_the_focused_stack() {
     let counts = [Rc::new(Cell::new(0)), Rc::new(Cell::new(0))];
-    let seen = counts.clone();
+    let ids = [Rc::new(Cell::new(None)), Rc::new(Cell::new(None))];
+    let (seen, stops) = (counts.clone(), ids.clone());
     let mut fixture = Fixture::new(move |ui| {
         for (at, name) in ["First", "Second"].into_iter().enumerate() {
             let taken = &seen[at];
@@ -85,34 +87,37 @@ fn a_stack_scope_command_reaches_only_the_focused_stack() {
                 while cx.take_command::<PanelCommand>().is_some() {
                     taken.set(taken.get() + 1);
                 }
-                Button::new(name).show(ui);
+                stops[at].set(Some(Button::new(name).show(ui).id));
             });
         }
     });
     fixture.settle();
-    let second = fixture.by_label("Second").expect("the second stack's button");
-    fixture.click(&second);
-    toggle(&mut fixture);
-    assert_eq!((counts[0].get(), counts[1].get()), (0, 1), "only the focused stack takes the command");
+    for (focused, expected) in [(1, (0, 1)), (0, (1, 1))] {
+        request(fixture.ctx(), FocusTarget::Id(ids[focused].get().expect("the button ran")));
+        fixture.settle();
+        toggle(&mut fixture);
+        assert_eq!((counts[0].get(), counts[1].get()), expected, "only the stack holding focus ({focused}) takes the command");
+    }
 }
 
 /// A leaf that is an instance of a scope takes the scope's commands while it holds focus, and not otherwise.
 #[trial]
 fn a_focused_leaf_takes_its_scoped_command_and_an_unfocused_one_does_not() {
     let counts = [Rc::new(Cell::new(0)), Rc::new(Cell::new(0))];
-    let seen = counts.clone();
+    let ids = [Rc::new(Cell::new(None)), Rc::new(Cell::new(None))];
+    let (seen, stops) = (counts.clone(), ids.clone());
     let mut fixture = Fixture::new(move |ui| {
         for (at, name) in ["one", "two"].into_iter().enumerate() {
-            Stop::new(&seen[at]).command_scope(PANEL).id_salt(name).label(name).show(ui);
+            stops[at].set(Some(Stop::new(&seen[at]).command_scope(PANEL).id_salt(name).label(name).show(ui).id));
         }
     });
     fixture.settle();
-    toggle(&mut fixture);
-    assert_eq!((counts[0].get(), counts[1].get()), (0, 0), "no leaf holds focus");
-    let one = fixture.by_label("one").expect("the first leaf");
-    fixture.click(&one);
-    toggle(&mut fixture);
-    assert_eq!((counts[0].get(), counts[1].get()), (1, 0), "the focused leaf takes it, the other does not");
+    for (focused, expected) in [(1, (0, 1)), (0, (1, 1))] {
+        request(fixture.ctx(), FocusTarget::Id(ids[focused].get().expect("the leaf ran")));
+        fixture.settle();
+        toggle(&mut fixture);
+        assert_eq!((counts[0].get(), counts[1].get()), expected, "only the focused leaf ({focused}) takes the command");
+    }
 }
 
 /// A platform default replaces the others on its platform.
