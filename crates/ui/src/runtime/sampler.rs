@@ -92,14 +92,14 @@ pub(crate) fn passes(ctx: &Context, viewport: ViewportId, at: Pos2) -> bool {
     hole(ctx, viewport).is_some_and(|hole| hole.rect.contains(at))
 }
 
-/// The input hook for a modal in the same viewport: removes the primary presses on the canvas that its reach does
-/// not admit. egui's modal gate leaves a canvas with no press target, which lets any press through that the
-/// scrim's hole uncovers. Returns whether it removed one.
+/// The input hook for a modal in the same viewport: removes the button presses on the canvas that its reach does not
+/// admit. egui's modal gate leaves a canvas with no press target, which lets any press through that the scrim's hole
+/// uncovers. Returns whether it removed one.
 pub(crate) fn bar_presses(ctx: &Context, input: &mut RawInput) -> bool {
-    let Some(hole) = hole(ctx, input.viewport_id).filter(|hole| hole.reach == Reach::View) else { return false };
+    let Some(hole) = hole(ctx, input.viewport_id) else { return false };
     let before = input.events.len();
-    input.events.retain(
-        |event| !matches!(event, Event::PointerButton { pos, button: PointerButton::Primary, pressed: true, .. } if hole.rect.contains(*pos)),
-    );
+    input
+        .events
+        .retain(|event| !matches!(event, Event::PointerButton { pos, pressed: true, .. } if hole.rect.contains(*pos) && !hole.admits(event, None)));
     input.events.len() != before
 }

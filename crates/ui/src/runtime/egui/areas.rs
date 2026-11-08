@@ -225,9 +225,14 @@ pub(crate) fn show_cover_layer(
     let scrim = Some(scrim);
     let clear = through.map(|through| through.intersect(screen)).filter(|through| through.is_positive());
     let hole = clear.or(hole);
-    egui::Area::new(id).order(tier.order()).pivot(egui::Align2::LEFT_TOP).fixed_pos(screen.min).constrain(false).interactable(absorbs).show(
-        ctx,
-        |ui| {
+    egui::Area::new(id)
+        .order(tier.order())
+        .pivot(egui::Align2::LEFT_TOP)
+        .fixed_pos(screen.min)
+        .constrain(false)
+        .interactable(absorbs)
+        .sense(Sense::hover())
+        .show(ctx, |ui| {
             if let Some(scrim) = scrim {
                 let painter = ui.painter();
                 match hole.map(|hole| hole.intersect(screen)).filter(|hole| hole.is_positive()) {
@@ -250,8 +255,7 @@ pub(crate) fn show_cover_layer(
                 crate::runtime::egui::widgets::note_widget(ui.ctx(), absorber.id);
                 crate::runtime::egui::access::hide(ui.ctx(), absorber.id);
             }
-        },
-    );
+        });
 }
 
 /// The four rects of `screen` around `hole`: above, below, left of and right of it.
