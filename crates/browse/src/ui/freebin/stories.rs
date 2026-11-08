@@ -53,3 +53,8 @@ fn free_bin_empty(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 fn free_bin_many(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     bin(ui, FreeBin::new("Footage", &[]).zoom(0.5), 60)
 }
+
+#[story(FreeBin<'static, usize>, covers = [One], drive = Drive::Never)]
+fn free_bin_one(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    bin(ui, FreeBin::new("Footage", &[]), 1)
+}
