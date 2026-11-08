@@ -385,7 +385,7 @@ fn prompt_through_the_window_host(answer: impl FnOnce(&mut Fixture)) {
 fn a_click_on_the_default_button_of_a_window_prompt_answers_the_body() {
     prompt_through_the_window_host(|fixture| {
         // The button's accessible name carries its accelerator: "(D)elete".
-        let button = fixture.control("(D)elete").expect("the default button of the prompt");
+        let button = fixture.by_label("(D)elete").expect("the default button of the prompt");
         fixture.click(&button);
     });
 }

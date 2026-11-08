@@ -441,7 +441,7 @@ fn press_reader(snapping: bool) -> (Reader, Arc<UnitWords>) {
     let press = Rc::new(Cell::new(false));
     let (shown, seen, id, queue) = (Rc::clone(&tool), Rc::clone(&words), Rc::clone(&canvas), Rc::clone(&press));
     let mut fixture = Fixture::new(move |ui| {
-        let out = Canvas::new("Document", ToolPath::Command("the Reader command")).show(ui, |_, _| {});
+        let out = Canvas::new("Document").show(ui, |_, _| {});
         id.set(out.output.response.id);
         let guide = Snap::new(|along, position, _| if along == Axis::Y && (position - 10.0).abs() < 1.0 { 10.0 } else { position });
         let host = if snapping { ToolHost::new().snap(guide) } else { ToolHost::new() };
