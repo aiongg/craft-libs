@@ -5,10 +5,10 @@ use std::rc::Rc;
 
 use craft_behavior::{Selection, SelectionChange};
 use craft_timeline::ui::{
-    KeyframeId, KeyframeInterpolation, KeyframeLane, KeyframeMark, LabelPalette, MarkerEdit, MarkerStrip, OverviewRun, ThumbnailMode,
-    TimelineOverview, TimelineView, overview_runs, thumbnail_tiles,
+    KeyframeId, KeyframeInterpolation, KeyframeLane, KeyframeMark, KeyframeNavigator, LabelPalette, MarkerEdit, MarkerStrip, OverviewRun,
+    ThumbnailMode, TimelineOverview, TimelineView, overview_runs, thumbnail_tiles,
 };
-use craft_timeline::{FrameRate, Marker, MarkerColor, MarkerId, Tick, TimeFormat, TimeRange, TimeView};
+use craft_timeline::{FrameRate, Marker, MarkerColor, MarkerId, Tick, TimeFormat, TimeRange, TimeView, format_time};
 use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, Target, trial};
 use egui::{Key, Modifiers, Rect, vec2};
@@ -93,6 +93,11 @@ fn keys() -> Vec<KeyframeMark> {
 }
 
 fn lane() -> (Fixture, Rc<RefCell<Seen>>) {
+    lane_in(None, Tick::ZERO)
+}
+
+/// A lane whose keys stay inside `bounds` and whose Shift-drags snap to `playhead`.
+fn lane_in(bounds: Option<TimeRange>, playhead: Tick) -> (Fixture, Rc<RefCell<Seen>>) {
     let seen = Rc::new(RefCell::new(Seen::default()));
     let shown = seen.clone();
     let view = Rc::new(RefCell::new(TimeView::new(Tick::ZERO, POINTS_PER_SECOND)));
@@ -102,7 +107,7 @@ fn lane() -> (Fixture, Rc<RefCell<Seen>>) {
         let selection = seen.selection.clone();
         let area = Rect::from_min_size(ui.max_rect().min, vec2(ROOM.x, 28.0));
         let out = TimelineView::new("Timeline", Bind::bound(&mut *view), format(), seconds(10.0))
-            .show(ui, |ui, _| KeyframeLane::new("Keyframes", &keys, &selection).show_at(ui, area))
+            .show(ui, |ui, _| KeyframeLane::new("Keyframes", &keys, &selection).bounds(bounds).playhead(playhead).show_at(ui, area))
             .inner;
         if let Some(out) = out {
             if let Some(change) = out.select {
@@ -251,4 +256,61 @@ fn keys_pick_open_and_delete_markers() {
     assert!(seen.borrow().edits.contains(&MarkerEdit::Open(MarkerId(2))));
     fixture.key(Key::Delete, Modifiers::NONE);
     assert!(seen.borrow().edits.contains(&MarkerEdit::Delete(MarkerId(2))));
+}
+
+/// The option of the key at `at` seconds, named by its time as timecode.
+fn key_at(fixture: &Fixture, at: f64) -> Target {
+    let name = format_time(seconds(at), &format());
+    fixture.by_label(&name).unwrap_or_else(|| panic!("no key named {name}"))
+}
+
+/// A dragged key moves by whole frames; with Shift it snaps to the playhead within a few points and not farther.
+#[trial]
+fn dragging_keys_snaps_to_frames_and_with_shift_to_the_playhead() {
+    let frames = |count| FrameRate::FPS_24.tick_of(count);
+    let (mut fixture, seen) = lane_in(None, seconds(4.0));
+    let key = key_at(&fixture, 3.0);
+    fixture.drag(&key, vec2(37.0, 0.0));
+    assert_eq!(seen.borrow().deltas.last().copied(), Some(frames(18)), "0.74 s is 17.8 frames: the nearest frame");
+
+    let (mut fixture, seen) = lane_in(None, seconds(4.0));
+    let key = key_at(&fixture, 3.0);
+    fixture.hold(Modifiers::SHIFT);
+    fixture.drag(&key, vec2(48.0, 0.0));
+    assert_eq!(seen.borrow().deltas.last().copied(), Some(seconds(1.0)), "2 points from the playhead: snapped to it");
+
+    let (mut fixture, seen) = lane_in(None, seconds(4.0));
+    let key = key_at(&fixture, 3.0);
+    fixture.hold(Modifiers::SHIFT);
+    fixture.drag(&key, vec2(38.0, 0.0));
+    assert_eq!(seen.borrow().deltas.last().copied(), Some(frames(18)), "12 points away: only the frame grid");
+}
+
+/// A drag past the end of the bounds stops at the bound.
+#[trial]
+fn keys_stay_inside_the_bounds() {
+    let (mut fixture, seen) = lane_in(Some(TimeRange::new(Tick::ZERO, seconds(5.5))), Tick::ZERO);
+    let key = key_at(&fixture, 3.0);
+    fixture.drag(&key, vec2(4.0 * POINTS_PER_SECOND as f32, 0.0));
+    assert_eq!(seen.borrow().deltas.last().copied(), Some(seconds(2.5)), "the key stops at 5.5 s");
+}
+
+/// The navigator reports the previous and the toggle buttons; the next button is dimmed without a key after the playhead.
+#[trial]
+fn navigator_reports_its_buttons() {
+    let pressed = Rc::new(RefCell::new((0, 0, 0)));
+    let shown = pressed.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let out = KeyframeNavigator::new("Navigator", true, false, false).show(ui);
+        let mut counts = shown.borrow_mut();
+        counts.0 += usize::from(out.previous);
+        counts.1 += usize::from(out.next);
+        counts.2 += usize::from(out.toggle);
+    });
+    fixture.settle();
+    for label in ["Go to previous keyframe", "Go to next keyframe", "Add/Remove Keyframe"] {
+        let button = fixture.by_label(label).unwrap_or_else(|| panic!("no button {label}"));
+        fixture.click(&button);
+    }
+    assert_eq!(*pressed.borrow(), (1, 0, 1));
 }
