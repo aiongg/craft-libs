@@ -5,17 +5,20 @@
 use craft_behavior::canvas::zoom;
 use craft_behavior::kurbo::{Point, Rect as DocRect, Size};
 use craft_behavior::{CanvasView, ZoomLadder};
-use egui::{Pos2, Rect, pos2, vec2};
+use egui::{Pos2, Rect, Vec2, pos2, vec2};
 
 /// A zoom rectangle under this many document units on a side steps one rung in instead.
 const MIN_ZOOM_BOX: f64 = 2.0;
+
+/// The least room the document gets inside the inset, in points on a side.
+const LEAST_INNER: f32 = 1.0;
 
 /// The document of `size` (document units) fitted inside `frame` with `inset` points on every side, centred and
 /// keeping its aspect: the rect the preview picture is drawn into.
 ///
 /// The space left after the inset is at least 1 by 1 point; an empty size counts as 1 by 1.
 pub fn preview_rect(frame: Rect, size: Size, inset: f32) -> Rect {
-    let inner = (frame.size() - vec2(2.0 * inset, 2.0 * inset)).max(vec2(1.0, 1.0));
+    let inner = (frame.size() - vec2(2.0 * inset, 2.0 * inset)).max(Vec2::splat(LEAST_INNER));
     let (width, height) = (size.width.max(1.0) as f32, size.height.max(1.0) as f32);
     let scale = (inner.x / width).min(inner.y / height);
     Rect::from_center_size(frame.center(), vec2(width * scale, height * scale))

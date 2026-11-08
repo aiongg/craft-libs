@@ -21,6 +21,9 @@ const INSET: f32 = 8.0;
 const CANVAS: Rect = Rect::from_min_max(Pos2::new(50.0, 20.0), Pos2::new(850.0, 620.0));
 const ZOOM_CANVAS: Rect = Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(800.0, 600.0));
 
+/// The zoom the row starts from.
+const START: f64 = 1.0;
+
 const CENTRE: Point = Point::new(1000.0, 750.0);
 
 /// The slack of a point comparison after f32 maths, in points.
@@ -126,7 +129,7 @@ fn proxy_colours_resolve_and_the_settings_round_trip() {
 
 #[trial]
 fn zoom_in_steps_the_ladder_about_the_centre_and_asks_for_the_ease() {
-    let view = Rc::new(RefCell::new(zoom_view(1.0)));
+    let view = Rc::new(RefCell::new(zoom_view(START)));
     let eased = Rc::new(Cell::new(false));
     let (held, flag) = (Rc::clone(&view), Rc::clone(&eased));
     let mut fixture = Fixture::new(move |ui| {
@@ -140,7 +143,7 @@ fn zoom_in_steps_the_ladder_about_the_centre_and_asks_for_the_ease() {
     fixture.click(&zoom_in);
     fixture.settle();
     let after = *view.borrow();
-    assert!(after.zoom > 1.0 && after.zoom <= ZoomLadder::MAX, "one rung in: {after:?}");
+    assert!(after.zoom > START && after.zoom <= ZoomLadder::MAX, "one rung in: {after:?}");
     assert_eq!(after.center, CENTRE, "the centre stays");
     assert!(eased.get(), "Animated Zoom is on by default, so the button asks for the ease");
 }
