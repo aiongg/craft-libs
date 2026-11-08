@@ -79,6 +79,7 @@ fn take_clicks(menu: &mut NativeMenu) -> Vec<CommandRef> {
 /// filter has dropped the closing click and added the key equivalents. The menu is polled again after the frame,
 /// as in an app, so that a close the filter asked for reaches the backend.
 fn through(menu: &mut NativeMenu, frames: &mut Frames, events: Vec<egui::Event>) -> Vec<egui::Event> {
+    frames.ctx.set_os(egui::os::OperatingSystem::Mac);
     menu.poll(&frames.ctx);
     let mut seen = Vec::new();
     frames.frame(events, |ui| seen = ui.ctx().input(|input| input.events.clone()));
