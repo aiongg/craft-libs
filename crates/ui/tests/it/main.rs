@@ -57,7 +57,6 @@ mod shell;
 mod sections;
 
 mod style;
-mod suite_child_drag;
 mod suite_rtl;
 mod suite_title;
 mod swatch;
