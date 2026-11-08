@@ -8,14 +8,22 @@ use craft_layers::ui::panel::{LayerDrop, LayerPosition, LayersEvent, LayersFoote
 use craft_layers::ui::tree::{
     LayerInfo, LayerKind, LayerPart, LayerProperties, LayerRowKey, LayerSelection, LayerTree, LayersFooterState, SubRowGroup, SubRows,
 };
-use craft_ui::contract::{Bind, Entry, ReorderMove};
+use craft_ui::contract::{Bind, Entry, Props as _, ReorderMove};
 use craft_ui::testing::{Fixture, Target, layout, pointer, trial};
 use egui::{Modifiers, Pos2, Rect, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-/// One panel's room; the screen of a fixture is 800 by 600 points.
-const HALF: Vec2 = Vec2::new(400.0, 560.0);
+/// A size of `width` by `height` points.
+const fn by(width: f32, height: f32) -> Vec2 {
+    Vec2::new(width, height)
+}
+
+/// One panel's room: tall enough for the sample tree and the footer, and inside the 800 by 600 screen of a fixture.
+const ONE_PANEL: Vec2 = by(400.0, 560.0);
+
+/// Two panels side by side, each in a room of `ONE_PANEL`.
+const TWO_PANELS: Vec2 = by(800.0, 560.0);
 
 type Seen = Rc<RefCell<Vec<LayersEvent<u32>>>>;
 type Shared<T> = Rc<RefCell<T>>;
@@ -39,7 +47,7 @@ fn rig_of<T: LayerTree<Id = u32> + 'static>(tree: T) -> Rig<T> {
         let out = LayersPanel::new(&*tree).filter(Bind::bound(&mut *filter)).show(ui);
         sink.borrow_mut().extend(out.events);
     });
-    fixture.room(HALF);
+    fixture.room(ONE_PANEL);
     fixture.settle();
     Rig { fixture, seen, tree, filter }
 }
@@ -312,9 +320,7 @@ fn a_layer_drop_reports_its_landing_place_and_alt_copies() {
     assert_eq!(rig.drops(), [layer_move(&[4], 9, LayerPosition::Before, false)]);
 
     rig.drop_on("Title", "Group 1", Place::Middle);
-    let drops = rig.drops();
-    let inside = [layer_move(&[4], 1, LayerPosition::Into, false), layer_move(&[4], 2, LayerPosition::Before, false)];
-    assert!(drops.len() == 1 && inside.contains(&drops[0]), "inside the group, at its top: {drops:?}");
+    assert_eq!(rig.drops(), [layer_move(&[4], 1, LayerPosition::Into, false)], "inside the group, at its top");
 
     rig.fixture.hold(Modifiers::ALT);
     rig.drop_on("Title", "Hidden", Place::Below);
@@ -518,13 +524,13 @@ fn footer_buttons_refuse_a_drag_from_another_list() {
     let mut fixture = Fixture::new(move |ui| {
         for (at, sink) in sinks.iter().enumerate() {
             let left = Pos2::new(400.0 * at as f32, 0.0);
-            layout::in_region(ui, Rect::from_min_size(left, HALF), |ui| {
-                let out = LayersPanel::new(&tree).show(ui);
+            layout::in_region(ui, Rect::from_min_size(left, ONE_PANEL), |ui| {
+                let out = LayersPanel::new(&tree).id_salt(at).show(ui);
                 sink.borrow_mut().extend(out.events);
             });
         }
     });
-    fixture.room(Vec2::new(800.0, 560.0));
+    fixture.room(TWO_PANELS);
     fixture.settle();
     let all = |fixture: &Fixture, label: &str| -> Vec<Target> {
         let tree = fixture.tree();

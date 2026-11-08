@@ -30,7 +30,7 @@ use craft_ui::runtime::env::Env;
 use craft_ui::runtime::memory::Remember as _;
 use egui::{Response, Ui};
 
-use body::{LayerRows, ToggleStart, reveal_plan, show_body, start_rename};
+use body::{LayerRows, ToggleSweep, reveal_plan, show_body, start_rename};
 use context::{PanelContext, ThumbHost};
 use footer::show_footer;
 use menu::{OpenMenu, RowMenu, show_row_menus};
@@ -104,15 +104,15 @@ pub(super) struct Session<Id> {
     seen_active: Option<Option<Id>>,
     /// The menu the last context request chose.
     menu: Option<OpenMenu<Id>>,
-    /// Toggle gestures in progress.
-    toggles: Vec<ToggleStart<Id>>,
+    /// The eye or lock sweep in progress.
+    sweep: Option<ToggleSweep>,
     /// The filter the panel keeps when the app gives none.
     filter: LayerFilter,
 }
 
 impl<Id> Default for Session<Id> {
     fn default() -> Self {
-        Session { anchor: None, produced: Vec::new(), seen_active: None, menu: None, toggles: Vec::new(), filter: LayerFilter::default() }
+        Session { anchor: None, produced: Vec::new(), seen_active: None, menu: None, sweep: None, filter: LayerFilter::default() }
     }
 }
 

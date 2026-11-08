@@ -25,11 +25,17 @@ struct App {
     rename: Option<u32>,
 }
 
-/// The room of the panel: wide and tall enough for every row of the sample tree.
-const PANEL: Vec2 = Vec2::new(420.0, 700.0);
+/// A size of `width` by `height` points.
+const fn by(width: f32, height: f32) -> Vec2 {
+    Vec2::new(width, height)
+}
+
+/// The room of the panel: wide enough for a row's parts, tall enough for the sample tree and the footer, and inside the
+/// 800 by 600 screen of a fixture.
+const PANEL: Vec2 = by(420.0, 560.0);
 
 /// A pointer move that starts a drag.
-const DRAG_THRESHOLD: Vec2 = Vec2::new(0.0, 8.0);
+const DRAG_STEP: Vec2 = by(0.0, 8.0);
 
 type Shared = Rc<RefCell<App>>;
 
@@ -113,7 +119,10 @@ fn select_layers(fixture: &mut Fixture, app: &Shared, layers: &[u32]) {
 
 /// The node named `label`.
 fn node(fixture: &Fixture, label: &str) -> Target {
-    fixture.by_label(label).unwrap_or_else(|| panic!("no node named {label:?}"))
+    fixture.by_label(label).unwrap_or_else(|| {
+        let names: Vec<_> = fixture.tree().keys().into_iter().filter_map(|key| fixture.tree().name_of(key)).collect();
+        panic!("no node named {label:?}; the tree has {names:?}")
+    })
 }
 
 /// The list row named `name`.
@@ -154,7 +163,7 @@ fn drag_to(fixture: &mut Fixture, from: Pos2, to: Pos2) {
     fixture.idle(6);
     fixture.frame(vec![pointer::moved(from)]);
     fixture.frame(vec![pointer::press(from)]);
-    fixture.frame(vec![pointer::moved(from + DRAG_THRESHOLD)]);
+    fixture.frame(vec![pointer::moved(from + DRAG_STEP)]);
     fixture.frame(vec![pointer::moved(to)]);
     fixture.frame(vec![pointer::moved(to)]);
     fixture.frame(vec![pointer::release(to)]);
@@ -228,7 +237,7 @@ fn layer_drop(events: &[LayersEvent<u32>]) -> Option<(Vec<u32>, u32, LayerPositi
     })
 }
 
-/// A sweep down the eyes is one gesture that begins and commits on the row it started on.
+/// A sweep down the eyes is one gesture that reports each row it crosses, in order, with the first row's new state.
 #[trial]
 fn a_sweep_down_the_eyes_is_one_gesture() {
     let (mut fixture, app) = rig(FakeLayers::sample());
@@ -243,10 +252,12 @@ fn a_sweep_down_the_eyes_is_one_gesture() {
     let events = take(&app);
     let sweep = toggles(&events);
     assert_eq!(sweep.len(), events.len(), "nothing but toggles: {events:?}");
-    assert!(matches!(sweep.first().map(|t| &t.edit), Some(EditEvent::Begin { .. })), "{events:?}");
-    assert!(matches!(sweep.last().map(|t| &t.edit), Some(EditEvent::Commit { after: false, .. })), "the first row's new state commits: {events:?}");
-    assert!(sweep.iter().all(|t| t.row == LayerRowKey::Layer(4) && t.column == LayerColumn::Visibility), "every event names the row it started on");
-    let ids: Vec<_> = sweep.iter().map(|t| t.edit.id()).collect();
+    let rows: Vec<_> = sweep.iter().flat_map(|toggle| toggle.rows.clone()).collect();
+    let crossed = [LayerRowKey::Layer(4), LayerRowKey::Layer(5), LayerRowKey::Layer(6)];
+    assert_eq!(rows, crossed, "every row crossed, in order: {events:?}");
+    assert!(sweep.iter().all(|toggle| toggle.column == LayerColumn::Visibility), "{events:?}");
+    assert!(sweep.iter().all(|toggle| matches!(toggle.edit, EditEvent::Set { after: false, .. })), "the first row's new state: {events:?}");
+    let ids: Vec<_> = sweep.iter().map(|toggle| toggle.edit.id()).collect();
     assert!(ids.windows(2).all(|pair| pair[0] == pair[1]), "one gesture: {ids:?}");
 }
 
@@ -452,21 +463,24 @@ fn dropped(fixture: &mut Fixture, app: &Shared, from: Pos2, to: Pos2) -> Option<
     layer_drop(&take(app))
 }
 
-/// A group takes a drop in its middle band, the halves of a row drop before and after it, and the space below the last row drops after it.
+/// A drop is reported one way: into an open group at its top, else before the row it lands above, and after the last row only
+/// when nothing follows. The middle band of a group row and the lower part of its header both land at the top of the group.
 #[trial]
-fn drop_zones_into_before_after_and_below() {
+fn drop_zones_into_before_and_after_the_last_row() {
     let (mut fixture, app) = rig(FakeLayers::sample());
     let from = row(&fixture, "Hidden").center();
     let group = row(&fixture, "Group 1");
-    for (share, position) in [(0.5, LayerPosition::Into), (0.15, LayerPosition::Before), (0.85, LayerPosition::After)] {
+    for (share, target, position) in [(0.5, 1, LayerPosition::Into), (0.15, 1, LayerPosition::Before), (0.85, 1, LayerPosition::Into)] {
         let to = at(&group, share);
-        assert_eq!(dropped(&mut fixture, &app, from, to), Some((vec![8], 1, position, false)), "Group 1 at {share}");
+        assert_eq!(dropped(&mut fixture, &app, from, to), Some((vec![8], target, position, false)), "Group 1 at {share}");
     }
     let title = row(&fixture, "Title");
-    for (share, position) in [(0.25, LayerPosition::Before), (0.75, LayerPosition::After)] {
-        let to = at(&title, share);
-        assert_eq!(dropped(&mut fixture, &app, from, to), Some((vec![8], 4, position, false)), "a layer row has halves only: {share}");
-    }
+    let to = at(&title, 0.75);
+    assert_eq!(
+        dropped(&mut fixture, &app, from, to),
+        Some((vec![8], 5, LayerPosition::Before, false)),
+        "the lower half of Title lands above the next row"
+    );
     let last = row(&fixture, "Background");
     let below = Pos2::new(last.rect.center().x, last.rect.bottom() + 20.0);
     assert_eq!(dropped(&mut fixture, &app, from, below), Some((vec![8], 9, LayerPosition::After, false)), "the space below the last row");
@@ -479,7 +493,7 @@ fn an_alt_drag_copies() {
     let from = row(&fixture, "Hidden").center();
     let to = at(&row(&fixture, "Title"), 0.75);
     fixture.hold(Modifiers::ALT);
-    assert_eq!(dropped(&mut fixture, &app, from, to), Some((vec![8], 4, LayerPosition::After, true)));
+    assert_eq!(dropped(&mut fixture, &app, from, to), Some((vec![8], 5, LayerPosition::Before, true)));
 }
 
 /// How far right of a mask's chain its thumbnail starts to hold the pointer.

@@ -34,8 +34,8 @@ pub enum LayersEvent<K> {
     /// space below the rows (`Clear`). A right-click outside the selection selects the row first.
     /// The app sets its selection by the change and its target from `part`.
     Select(LayerSelect<K>),
-    /// An eye or lock cell: a click is a `Set`, a drag down the column a gesture that sets every
-    /// row crossed to the first row's new state. One undo step per gesture.
+    /// An eye or lock cell: a click sets its row; a drag down the column sets every
+    /// row crossed to the first row's new state, under one gesture and so one undo step.
     Toggle(LayerToggle<K>),
     /// Alt-click on an eye: show only this layer, or restore when it already is (Photoshop).
     ShowOnly(LayerRowKey<K>),
@@ -155,19 +155,20 @@ impl<Id> LayerSelect<Id> {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct LayerToggle<Id> {
-    /// The row the gesture started on.
-    pub row: LayerRowKey<Id>,
+    /// The rows the edit sets, in the order the pointer crossed them; the first is the row the gesture started on
+    /// in its first event.
+    pub rows: Vec<LayerRowKey<Id>>,
     /// Which column.
     pub column: LayerColumn,
-    /// The new state: `Set` for a click or a screen reader, `Begin`, `Update`s and `Commit` or
-    /// `Cancel` for a sweep.
+    /// The new state of every row, a `Set`. The events of one sweep share the gesture and arrive as the pointer
+    /// crosses more rows.
     pub edit: EditEvent<bool>,
 }
 
 impl<Id> LayerToggle<Id> {
-    /// An edit of `column` on `row`.
-    pub fn new(row: LayerRowKey<Id>, column: LayerColumn, edit: EditEvent<bool>) -> Self {
-        Self { row, column, edit }
+    /// An edit of `column` on `rows`.
+    pub fn new(rows: Vec<LayerRowKey<Id>>, column: LayerColumn, edit: EditEvent<bool>) -> Self {
+        Self { rows, column, edit }
     }
 }
 

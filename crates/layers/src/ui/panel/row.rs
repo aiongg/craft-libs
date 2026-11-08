@@ -208,18 +208,11 @@ fn layer_row<'r, T: LayerTree>(cx: &'r PanelContext<'r, T>, id: &T::Id) -> ListR
         row = row.icon(IconSpec::svg(icon));
     }
 
-    // Reading order; the blend label is the first to drop out when the panel is narrow.
-    if let Some(label) = info.blend_label.clone() {
-        row = row.optional(label);
-    }
-    if info.linked {
-        row = row.trailing_icon(IconSpec::svg(IconId::new("link")), words.linked.clone());
-    }
-    if info.has_effects {
-        row = row.trailing(words.fx.clone());
-    }
-    if info.has_smart_filters {
-        row = row.trailing_icon(IconSpec::svg(IconId::new("funnel")), words.smart_filters.clone());
+    // The first trailing item is the outermost: the lock closes the row, the effects disclosure sits inside it, and the
+    // blend label is the first to drop out when the panel is narrow.
+    if info.locks.any() {
+        let name = named(&words.unlock, &info.name);
+        row = row.trailing_part(TrailingPart::new(LOCK_PART), TrailingFace::Icon(IconSpec::svg(IconId::new("lock"))), name);
     }
     if info.has_effects || info.has_smart_filters {
         let open = cx.tree.effects_open(id);
@@ -227,9 +220,17 @@ fn layer_row<'r, T: LayerTree>(cx: &'r PanelContext<'r, T>, id: &T::Id) -> ListR
         let name = craft_i18n::fmt(pattern.as_str(), &[("layer", info.name.as_str())]);
         row = row.trailing_part(TrailingPart::new(FX_PART), TrailingFace::disclosure(open), name);
     }
-    if info.locks.any() {
-        let name = named(&words.unlock, &info.name);
-        row = row.trailing_part(TrailingPart::new(LOCK_PART), TrailingFace::Icon(IconSpec::svg(IconId::new("lock"))), name);
+    if info.has_smart_filters {
+        row = row.trailing_icon(IconSpec::svg(IconId::new("funnel")), words.smart_filters.clone());
+    }
+    if info.has_effects {
+        row = row.trailing(words.fx.clone());
+    }
+    if info.linked {
+        row = row.trailing_icon(IconSpec::svg(IconId::new("link")), words.linked.clone());
+    }
+    if let Some(label) = info.blend_label.clone() {
+        row = row.optional(label);
     }
     if let Some(warning) = info.warning.clone() {
         row = row.trailing_icon(IconSpec::svg(IconId::new("warning")), warning);

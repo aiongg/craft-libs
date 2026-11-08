@@ -68,7 +68,7 @@ name = "LayerToggle"
 old = "craft_layers::ui::panel::LayerToggle"
 new = "craft_layers::ui::panel::LayerToggle"
 status = "same"
-note = "`edit` is `EditEvent<bool>`: the new state."
+note = "`row` is `rows`, every row a sweep crossed in the pass, in order; the events of one sweep share the gesture of `edit`, an `EditEvent<bool>` `Set` with the new state."
 
 [[type]]
 name = "MenuTarget"

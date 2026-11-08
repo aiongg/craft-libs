@@ -106,7 +106,10 @@ fn open_dialog() -> (Fixture, Answers) {
 }
 
 fn click(fixture: &mut Fixture, label: &str) {
-    let target = fixture.by_label(label).unwrap_or_else(|| panic!("a node named {label}"));
+    let target = fixture.by_label(label).unwrap_or_else(|| {
+        let names: Vec<_> = fixture.tree().keys().into_iter().filter_map(|key| fixture.tree().name_of(key)).collect();
+        panic!("no node named {label:?}; the tree has {names:?}")
+    });
     fixture.click(&target);
     fixture.idle(2);
 }

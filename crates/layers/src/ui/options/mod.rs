@@ -58,8 +58,9 @@ pub struct LayersOptions {
     /// Add "copy" to Copied Layers and Groups (default true): the app reads it when it
     /// duplicates.
     pub add_copy_to_copied_layers_and_groups: bool,
-    /// Preview on canvas when reordering layers (default true): the panel reports
-    /// [`LayersOutput::drop_preview`](super::panel::LayersOutput::drop_preview) only while it is on.
+    /// Preview on canvas when reordering layers (default true): the app reads it to decide whether
+    /// its canvas shows the move of a layer drag before the drop. The panel reports the move only
+    /// as the drop's [`LayersEvent::Drop`](super::panel::LayersEvent::Drop).
     pub preview_on_canvas_when_reordering: bool,
     /// Show layer mask badges (default false): a small badge on each mask thumbnail's corner
     /// (a pen for a vector mask, a dot for a pixel mask).
@@ -168,6 +169,7 @@ fn sample_image() -> ColorImage {
 ///   OK, Escape is Cancel.
 /// - Returns `Ok(options)` on OK, `Cancel` on Cancel or Escape; the app applies nothing while it
 ///   is open.
+#[derive(craft_ui::contract::Pattern)]
 pub struct LayersOptionsDialog {
     id: DialogId,
     options: LayersOptions,

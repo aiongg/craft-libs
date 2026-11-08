@@ -56,7 +56,25 @@ pub(super) fn layer_drop<K: Clone + PartialEq>(
     let remaining: Vec<&LayerRowKey<K>> = order.iter().filter(|key| !mv.keys.contains(key)).collect();
     let to = mv.to.min(remaining.len());
     if mv.keys.iter().all(LayerRowKey::is_layer) {
+        let layers: Vec<K> = mv.keys.iter().map(|key| key.layer().clone()).collect();
         let parent = mv.parent.as_ref().map(|key| key.layer().clone());
+        // A place beside a layer's effects or Smart Filter rows is below that layer. The list lays those rows under the
+        // layer as its children, so the place has the layer as `parent` when it is above or between them.
+        let sub_row_owner = [to.checked_sub(1).and_then(|at| remaining.get(at)), remaining.get(to)]
+            .into_iter()
+            .flatten()
+            .find(|key| sub_row_group(key).is_some())
+            .map(|key| key.layer());
+        if let Some(owner) = sub_row_owner.filter(|owner| {
+            (parent.as_ref() == Some(*owner) || parent == parent_of(owner)) && !mv.keys.contains(&LayerRowKey::Layer((*owner).clone()))
+        }) {
+            return Some(LayerDrop::Layers(LayerMove::new(layers, owner.clone(), LayerPosition::After, mv.copy)));
+        }
+        // A place is reported one way: into a group at its first slot, else before the next sibling, else after the
+        // last sibling.
+        if let Some(group) = parent.clone().filter(|group| to > 0 && matches!(remaining[to - 1], LayerRowKey::Layer(id) if id == group)) {
+            return Some(LayerDrop::Layers(LayerMove::new(layers, group, LayerPosition::Into, mv.copy)));
+        }
         let fits = |id: &K| relaxed || parent_of(id) == parent;
         let next = remaining.get(to).copied().and_then(|key| match key {
             LayerRowKey::Layer(id) if fits(id) => Some(id.clone()),
@@ -72,7 +90,6 @@ pub(super) fn layer_drop<K: Clone + PartialEq>(
             (None, None, Some(parent)) => (parent, LayerPosition::Into),
             (None, None, None) => return None,
         };
-        let layers = mv.keys.iter().map(|key| key.layer().clone()).collect();
         return Some(LayerDrop::Layers(LayerMove::new(layers, target, position, mv.copy)));
     }
     // Sub-rows: all of one layer and one group.

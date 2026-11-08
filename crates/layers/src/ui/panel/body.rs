@@ -245,12 +245,12 @@ fn thumb_part<Id>(key: &LayerRowKey<Id>, info: &LayerInfo, which: ThumbTarget) -
     }
 }
 
-/// Where a gesture over a toggle column began, kept across passes.
+/// The sweep down an eye or lock column that is running: the gesture it reports under, kept across passes while the
+/// pointer is held.
 #[derive(Clone)]
-pub(super) struct ToggleStart<Id> {
-    id: GestureId,
-    start: Option<(LayerRowKey<Id>, LayerColumn)>,
-    begin: Option<EditEvent<bool>>,
+pub(super) struct ToggleSweep {
+    gesture: GestureId,
+    column: LayerColumn,
     show_only: bool,
 }
 
@@ -297,16 +297,20 @@ pub(super) fn show_body<T: LayerTree>(
         list = list.reveal(key);
     }
     let out = list.show_items(ui, rows, &mut |key, item| {
-        let row = build_row(cx, key);
+        let row = build_row(cx, key).cells(item.cells()).state(item.row);
         match rows.rows.get(item.at) {
-            Some(shown) if shown.paint_depth != shown.depth => row.depth(shown.paint_depth),
-            _ => row,
+            Some(shown) if shown.has_children => row.depth(shown.paint_depth).group(shown.open),
+            Some(shown) => row.depth(shown.paint_depth),
+            None => row,
         }
     });
 
     let mut events: Vec<LayersEvent<T::Id>> = reveal.opens.iter().cloned().map(LayersEvent::Open).collect();
     let selection_changed = out.events.iter().any(|event| matches!(event, CollectionEvent::Selection(_)));
     map_events(cx, &order, &parent_of, filtered, lock_name, session, out.events, &mut events);
+    if !ui.input(|input| input.pointer.primary_down()) {
+        session.sweep = None;
+    }
     if selection_changed {
         let mut layers: Vec<T::Id> = Vec::new();
         for key in &selection.items {
@@ -410,7 +414,7 @@ fn map_events<T: LayerTree>(
                 }
             }
             CollectionEvent::Reorder(edit) => events.extend(drop_event(edit, order, parent_of, filtered)),
-            CollectionEvent::Toggle(edit) => toggle_events(edit, &mut session.toggles, events),
+            CollectionEvent::Toggle(edit) => toggle_events(edit, &mut session.sweep, events),
             CollectionEvent::Rename(edit) => {
                 if let EditEvent::Commit { after, .. } | EditEvent::Set { after, .. } = edit
                     && let LayerRowKey::Layer(id) = &after.key
@@ -431,7 +435,7 @@ fn map_events<T: LayerTree>(
                 match part {
                     part if part == craft_ui::list::TrailingPart::new(LOCK_PART) => {
                         let unlock = EditEvent::set(GestureId::default(), Mixed::Same(true), false, Arc::from(lock_name.as_str()), None);
-                        events.push(LayersEvent::Toggle(LayerToggle::new(row, LayerColumn::Lock, unlock)));
+                        events.push(LayersEvent::Toggle(LayerToggle::new(vec![row], LayerColumn::Lock, unlock)));
                     }
                     part if part == craft_ui::list::TrailingPart::new(FX_PART) => {
                         events.push(LayersEvent::FxOpen { open: !tree.effects_open(&layer), layer, all: mods.alt });
@@ -471,56 +475,33 @@ fn column_of(column: &ColumnKey) -> LayerColumn {
     if *column == EYE { LayerColumn::Visibility } else { LayerColumn::Lock }
 }
 
-/// An eye or lock gesture as events. Alt on the first value of a gesture over an eye shows only that
-/// layer and the rest of the gesture is dropped.
+/// One flipped cell of an eye or lock sweep as an event. The list reports each cell a sweep crosses as its own edit; the
+/// cells of one sweep share the gesture of its first, and the cells of one pass share one event, in the order crossed.
+/// Alt on the first press of an eye sweep shows only that layer and drops the rest of the sweep.
 fn toggle_events<Id: Clone + PartialEq>(
     edit: EditEvent<craft_ui::contract::ToggleEdit<LayerRowKey<Id>>>,
-    starts: &mut Vec<ToggleStart<Id>>,
+    sweep: &mut Option<ToggleSweep>,
     events: &mut Vec<LayersEvent<Id>>,
 ) {
-    let flag = |edit: &EditEvent<craft_ui::contract::ToggleEdit<LayerRowKey<Id>>>| edit.clone().map(|toggle| toggle.on);
-    if let EditEvent::Set { after, .. } = &edit {
-        let column = column_of(&after.column);
-        events.push(if after.mods.alt && column == LayerColumn::Visibility {
-            LayersEvent::ShowOnly(after.key.clone())
-        } else {
-            LayersEvent::Toggle(LayerToggle::new(after.key.clone(), column, flag(&edit)))
-        });
+    let EditEvent::Set { id, after, label, .. } = edit else { return };
+    let column = column_of(&after.column);
+    if sweep.as_ref().is_none_or(|running| running.column != column) {
+        let show_only = after.mods.alt && column == LayerColumn::Visibility;
+        *sweep = Some(ToggleSweep { gesture: id, column, show_only });
+        if show_only {
+            events.push(LayersEvent::ShowOnly(after.key));
+            return;
+        }
+    }
+    let Some(running) = sweep.as_ref().filter(|running| !running.show_only) else { return };
+    if let Some(LayersEvent::Toggle(last)) = events.last_mut()
+        && last.edit.id() == running.gesture
+    {
+        last.rows.push(after.key);
         return;
     }
-    let gesture = edit.id();
-    let at = starts.iter().position(|s| s.id == gesture);
-    if let Some(value) = edit.value() {
-        let at = at.unwrap_or_else(|| {
-            starts.push(ToggleStart { id: gesture, start: None, begin: None, show_only: false });
-            starts.len() - 1
-        });
-        if starts[at].start.is_none() {
-            let column = column_of(&value.column);
-            starts[at].start = Some((value.key.clone(), column));
-            if value.mods.alt && column == LayerColumn::Visibility {
-                starts[at].show_only = true;
-                starts[at].begin = None;
-                events.push(LayersEvent::ShowOnly(value.key.clone()));
-            } else if let Some(begin) = starts[at].begin.take() {
-                events.push(LayersEvent::Toggle(LayerToggle::new(value.key.clone(), column, begin)));
-            }
-        }
-        if !starts[at].show_only
-            && let Some((row, column)) = starts[at].start.clone()
-        {
-            events.push(LayersEvent::Toggle(LayerToggle::new(row, column, flag(&edit))));
-        }
-    } else if matches!(edit, EditEvent::Begin { .. }) {
-        starts.push(ToggleStart { id: gesture, start: None, begin: Some(flag(&edit)), show_only: false });
-    } else if let Some(at) = at
-        && let Some((row, column)) = starts[at].start.clone().filter(|_| !starts[at].show_only)
-    {
-        events.push(LayersEvent::Toggle(LayerToggle::new(row, column, flag(&edit))));
-    }
-    if matches!(edit, EditEvent::Commit { .. } | EditEvent::Cancel { .. }) {
-        starts.retain(|s| s.id != gesture);
-    }
+    let edit = EditEvent::set(running.gesture, Mixed::Same(!after.on), after.on, label, None);
+    events.push(LayersEvent::Toggle(LayerToggle::new(vec![after.key], column, edit)));
 }
 
 /// Opens the rename field of `layer`'s row in the list `list`.
