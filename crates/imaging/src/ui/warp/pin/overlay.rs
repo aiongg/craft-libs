@@ -96,7 +96,9 @@ pub struct PinWarpStyle {
     turn_ring: f32,
     /// The mesh lines while Show Mesh is on.
     mesh: StyleColor,
-    /// How far from a selected pin an Alt press turns it.
+    /// How far from a selected pin an Alt press turns it: the turn ring is the target.
+    turn_reach: f32,
+    /// How far from a pin a press takes the mesh's pin hits.
     reach: f32,
 }
 
@@ -284,7 +286,7 @@ impl PinWarp<'_> {
     fn press_mesh(&mut self, cx: &mut Cx<'_, Self>, space: &CanvasSpace, pins: &[Pin], alt: bool, origin: Pos2) {
         let at = space.view.to_doc(origin);
         if alt {
-            let turn = nearest_selected(&space.view, pins, self.selection(), origin, cx.style.reach).and_then(|i| {
+            let turn = nearest_selected(&space.view, pins, self.selection(), origin, cx.style.turn_reach).and_then(|i| {
                 let pin = pins[i];
                 let base = pin.angle.or_else(|| self.mesh.turn_at(pin.rest))?;
                 Some(Drag { kind: Kind::Turn { pin: i, base, from: angle_of(at - pin.at)? }, origin: at, base: pins.to_vec(), began: false })
@@ -465,6 +467,7 @@ impl Component for PinWarp<'_> {
             turn: cx.color(overlay.stroke),
             turn_ring: tokens.size.handle.ring,
             mesh: cx.color(overlay.line),
+            turn_reach: tokens.size.handle.ring,
             reach: tokens.size.hit.target,
         }
     }
