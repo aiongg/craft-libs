@@ -16,4 +16,4 @@ pub use segmented::{Segmented, SegmentedStyle};
 pub use switch::{Switch, SwitchStyle};
 pub use words::ChoiceWords;
 
-pub use swatch::{Swatch, SwatchMetrics, SwatchOutput, SwatchStyle};
+pub use swatch::{Swatch, SwatchFace, SwatchMetrics, SwatchOutput, SwatchStyle};

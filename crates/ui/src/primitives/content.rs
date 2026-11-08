@@ -34,6 +34,11 @@ impl<'a> ContentPainterCx<'a> {
         ContentPainterCx { painter, tokens, direction, ink }
     }
 
+    /// The tokens of the scope being painted, for a content painter that reads theme colours.
+    pub(crate) fn tokens(&self) -> &'a UiTokens {
+        self.tokens
+    }
+
     /// The colour of text and glyphs on the surface being painted: the resolved content-text colour `Draw` paints
     /// text with.
     pub fn ink(&self) -> Color32 {
