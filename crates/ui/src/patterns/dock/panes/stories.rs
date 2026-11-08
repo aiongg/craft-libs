@@ -10,6 +10,8 @@ use craft_behavior::keyed;
 use egui::{Ui, Vec2};
 
 const LAYERS: usize = 40;
+/// Few enough lines to fit the pane at any text size; the body still sits in the pane's scroll region.
+const STYLES: usize = 3;
 
 fn layer_names() -> Vec<String> {
     (1..=LAYERS).map(|n| format!("Layer {n}")).collect()
@@ -72,7 +74,7 @@ fn pane_frame_scrolling_body(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let spec = spec(ui, "Styles", false);
     PaneFrame::new(&spec, PaneEdge::Start, spec.default_state.size)
         .show(ui, |ui, _| {
-            for n in 1..=LAYERS {
+            for n in 1..=STYLES {
                 Text::new(format!("Style {n}")).show(ui);
             }
         })
