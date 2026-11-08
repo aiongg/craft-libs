@@ -3486,7 +3486,7 @@ Text dumps for tests: ordered `key = value` lines compared exactly with a file, 
 - `craft_ui::testing::examples::tracks::TrackEvent`: `pub enum TrackEvent { Selected(u64) }`. What a track row reports.
 - `craft_ui::testing::examples::tracks::TrackOut`: `pub struct TrackOut { pub response: Response, pub event: Option<TrackEvent> }`. What a track row returns.
 - `craft_ui::testing::examples::tracks::TrackRow`: `pub struct TrackRow<'r>`. One track: its name and toggles in their cells, its clips as parts of the lane cell.
-  - `pub fn new(track: &'r Track, cells: Vec<(ColumnKey, Rect)>, visible: f32) -> Self`. A row of `track` in `cells`, the rects the item context lists, with a lane showing `visible` seconds.
+  - `pub fn new(track: &'r Track, cells: Vec<(ColumnKey, Rect)>, visible: f32) -> Self`. A row of `track` in `cells`, the rects the item context lists, with a lane showing `visible` seconds. The row is
 - `craft_ui::testing::examples::tracks::TrackRowStyle`: `pub struct TrackRowStyle`. The style of a track row: the colours of name, toggles and clips.
 - `craft_ui::testing::examples::tracks::TrackStack`: `pub struct TrackStack`. A list of tracks over four columns: name, mute, lock and lane.
   - `pub fn new(label: impl Into<crate::runtime::env::Label>) -> Self`. A track stack named `label`.
