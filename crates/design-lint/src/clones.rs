@@ -84,7 +84,7 @@ pub fn check_clones(root: &Path, families: &[Family]) -> Result<Vec<Finding>, Er
         for path in &family.paths {
             let mut found = Vec::new();
             crate::collect_rust_files(&root.join(path), &mut found)?;
-            for file in found.into_iter().filter(|f| !crate::is_test_path(f.strip_prefix(root.join(path)).unwrap_or(f))) {
+            for file in found.into_iter().filter(|f| !crate::is_test_path(f.strip_prefix(root).unwrap_or(f))) {
                 files.entry(file).or_default().push(i);
             }
         }

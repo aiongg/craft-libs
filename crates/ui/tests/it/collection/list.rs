@@ -595,6 +595,36 @@ fn a_secondary_release_on_a_row_asks_for_its_context_menu() {
     assert!(seen.leads().contains(&1), "the row under the pointer holds the lead");
 }
 
+/// A right-click on a row of a multiple selection keeps the whole selection, so the menu acts on all of it; on a row
+/// outside the selection it selects that row alone.
+#[trial]
+fn a_secondary_press_on_a_selected_row_keeps_the_multiple_selection() {
+    let words = Words::flat(&["a", "b", "c", "d"]);
+    let seen = Seen::default();
+    let selection = RefCell::new(Selection::<usize>::default());
+    selection.borrow_mut().items = vec![0, 1];
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        let mut held = selection.borrow().clone();
+        show_words(ui, List::new(SelectMode::Multi).selection(Bind::bound(&mut held)), &words, &seen);
+        *selection.borrow_mut() = held;
+    };
+    frames.idle(3, &mut show);
+    fn right_click(frames: &mut Frames, show: &mut impl FnMut(&mut Ui), row: f32) {
+        let at = ORIGIN + Vec2::new(30.0, ROW_H * row);
+        frames.frame(vec![pointer::moved(at)], &mut *show);
+        frames.frame(vec![pointer::secondary(at, true)], &mut *show);
+        frames.frame(vec![pointer::secondary(at, false)], &mut *show);
+        frames.idle(1, &mut *show);
+    }
+    right_click(&mut frames, &mut show, 1.5);
+    let mut items = selection.borrow().items.clone();
+    items.sort_unstable();
+    assert_eq!(items, vec![0, 1], "the menu's row is in the selection: all of it stays");
+    right_click(&mut frames, &mut show, 3.5);
+    assert_eq!(selection.borrow().items, vec![3], "a row outside the selection replaces it");
+}
+
 /// A plain click on a row asks for its menu on the release when the list is set to, and not otherwise.
 #[trial]
 fn a_plain_click_on_a_row_asks_for_its_menu_only_when_the_list_is_set_to() {

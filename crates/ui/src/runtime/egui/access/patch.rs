@@ -24,9 +24,9 @@ pub(crate) fn write_label_patch(ctx: &Context, patch: &LabelPatch) {
                 node.set_described_by(described);
             });
         }
-        LabelPatch::LabelledBy { node, label } => {
+        LabelPatch::LabelledBy { node, label, text } => {
             ctx.accesskit_node_builder(*node, |node| {
-                node.clear_label();
+                node.set_label(text.clone());
                 node.set_labelled_by(vec![label.accesskit_id()]);
             });
         }

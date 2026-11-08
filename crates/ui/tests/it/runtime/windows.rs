@@ -4,7 +4,7 @@
 use crate::contract::kit::PlainStyle;
 use crate::windows_kit::Windows;
 use craft_behavior::{PartKey, PressCancel, Sense};
-use craft_host::target::{Caps, Os, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
+use craft_host::target::{Caps, MenuPlacement, Os, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
 use craft_ui::buttons::Button;
 use craft_ui::contract::{
     Bind, Common, Component, Container, ContainerProps, Cx, Mount, Overlay, PartsCx, Pointer as _, Props as _, Role, Show as _, ShowContainer as _,
@@ -239,6 +239,20 @@ fn the_shell_follows_the_fixtures_os() {
         fixture.os(os).frame(vec![]);
         assert_eq!(seen.get(), Some((os, menu, resizes)), "{os:?}");
     }
+}
+
+/// A Mac shell keeps its menu at the top of the screen, and puts it in the window when the app draws the frame.
+#[trial]
+fn a_mac_shell_with_an_app_drawn_frame_puts_the_menu_in_the_window() {
+    let seen = Rc::new(Cell::new(None));
+    let shown = seen.clone();
+    let mut fixture = Fixture::new(move |ui| shown.set(Some(Env::of(ui).view().shell().menu)));
+    fixture.os(Os::Mac).frame(vec![]);
+    assert_eq!(seen.get(), Some(MenuPlacement::ScreenTop));
+    fixture.chrome(WindowChrome::Integrated).frame(vec![]);
+    assert_eq!(seen.get(), Some(MenuPlacement::InWindow));
+    fixture.os(Os::Mac).frame(vec![]);
+    assert_eq!(seen.get(), Some(MenuPlacement::InWindow), "a later OS change keeps the frame");
 }
 
 /// A modal in one window blocks presses in another, and the blocked press raises the modal's window.

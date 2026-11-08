@@ -81,7 +81,7 @@ fn check_with(config: &Config, root: &Path, scope: Option<&dyn RuleScope>) -> Re
         let mut files = Vec::new();
         collect_rust_files(&base, &mut files)?;
         for file in files {
-            if !config.include_tests && is_test_path(file.strip_prefix(&base).unwrap_or(&file)) {
+            if !config.include_tests && is_test_path(file.strip_prefix(root).unwrap_or(&file)) {
                 continue;
             }
             let src = std::fs::read_to_string(&file).map_err(|source| Error::Io { path: file.clone(), source })?;
@@ -106,7 +106,7 @@ fn check_with(config: &Config, root: &Path, scope: Option<&dyn RuleScope>) -> Re
                 style_writer: s.allows(rules::STYLE_MUTATION, &shown),
                 tests_scoped: true,
                 test_file: {
-                    let relative = file.strip_prefix(&base).unwrap_or(&file);
+                    let relative = file.strip_prefix(root).unwrap_or(&file);
                     is_test_path(relative) || is_testing_module(relative)
                 },
             });
@@ -141,7 +141,8 @@ fn check_with(config: &Config, root: &Path, scope: Option<&dyn RuleScope>) -> Re
     Ok(report)
 }
 
-/// Test files: `*_test.rs`, `*_tests.rs`, `tests.rs`, and anything under `tests/` or `benches/`.
+/// Test files: `*_test.rs`, `*_tests.rs`, `tests.rs`, and anything under `tests/` or `benches/`. `relative` is the
+/// path from the workspace root, so a configured entry inside `tests/` (such as `crates/x/tests/it`) is still found.
 fn is_test_path(relative: &Path) -> bool {
     let in_test_dir = relative.parent().is_some_and(|p| p.components().any(|c| matches!(c.as_os_str().to_str(), Some("tests" | "benches"))));
     let name = relative.file_name().and_then(|n| n.to_str()).unwrap_or_default();

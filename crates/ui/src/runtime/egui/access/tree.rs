@@ -140,6 +140,11 @@ impl AccessTree {
         self.node(id)?.description()
     }
 
+    /// The description of a node by key.
+    pub fn description_of(&self, key: NodeKey) -> Option<&str> {
+        self.lookup(NodeId(key.0))?.description()
+    }
+
     /// The text value of the node of `id`.
     pub fn value(&self, id: Id) -> Option<&str> {
         self.node(id)?.value()

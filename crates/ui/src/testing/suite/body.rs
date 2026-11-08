@@ -32,7 +32,22 @@ fn layer_fixture(story: &Story) -> Option<Fixture> {
     on_layer(&fixture).then_some(fixture)
 }
 
-/// A container that is a dialog or a group has a role that needs a name: the title names it.
+/// Whether `container` is a field container: exactly one control inside it is labelled, by nodes inside the container,
+/// and every other interactive node inside is a part of that control: below it, or beside it under the same parent (a spin
+/// button and its text input). The label names the control, so the group needs
+/// no name.
+fn is_field_of_one_control(tree: &crate::testing::access::AccessTree, container: crate::testing::access::NodeKey) -> bool {
+    let inside = subtree(tree, container);
+    let interactive: Vec<_> = inside.iter().copied().filter(|key| crate::testing::access::is_interactive(tree, *key)).collect();
+    let labelled: Vec<_> = interactive.iter().copied().filter(|key| !tree.labelled_by_key(*key).is_empty()).collect();
+    let [control] = labelled.as_slice() else { return false };
+    let parts = subtree(tree, *control);
+    let is_part = |key: &NodeKey| parts.contains(key) || tree.parent_of_key(*key) == tree.parent_of_key(*control);
+    tree.labelled_by_key(*control).iter().all(|label| inside.contains(label)) && interactive.iter().all(is_part)
+}
+
+/// A container that is a dialog or a group has a role that needs a name: the title names it. A field container's label
+/// names its one control instead, which then carries the name and the `labelled_by` link, and the group has none.
 pub(super) fn title_names_the_container(subject: &Subject) -> Result<(), String> {
     if !is_body(subject) {
         return Ok(());
@@ -42,7 +57,11 @@ pub(super) fn title_names_the_container(subject: &Subject) -> Result<(), String>
         fixture.settle();
         let Some(container) = root(&fixture) else { continue };
         let role = fixture.tree().role_of(container.node);
-        if (role == Some(Role::DIALOG) || role == Some(Role::GROUP)) && crate::testing::access::name(fixture.tree(), container.node).is_none() {
+        let tree = fixture.tree();
+        if (role == Some(Role::DIALOG) || role == Some(Role::GROUP))
+            && crate::testing::access::name(tree, container.node).is_none()
+            && !(role == Some(Role::GROUP) && is_field_of_one_control(tree, container.node))
+        {
             return Err(format!("{}: the container's node has the role {role:?} and no name", story.name));
         }
     }
