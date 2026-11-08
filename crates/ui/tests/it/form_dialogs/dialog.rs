@@ -1,6 +1,7 @@
 //! The preview view maths and what a remembering dialog saves.
 
 use craft_behavior::CanvasTransform;
+use craft_ui::contract::tooltip::DELAY;
 use craft_ui::contract::{Bind, Role, ShowContainer as _};
 use craft_ui::dialog::{Dialog, FullWindowDialog};
 use craft_ui::patterns::form_dialogs::{
@@ -8,9 +9,10 @@ use craft_ui::patterns::form_dialogs::{
 };
 use craft_ui::runtime::focus::Initial;
 use craft_ui::sections::{DialogRole, FooterButton};
+use craft_ui::testing::pointer::moved;
 use craft_ui::testing::{Fixture, trial};
 use craft_ui::value_drag::SliderScale;
-use egui::{Key, Modifiers, Vec2};
+use egui::{Key, Modifiers, Pos2, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -245,4 +247,33 @@ fn param_dialog_ok_and_enter_go_through_the_close_guard() {
         ((1, true), (2, true), (1, true), (1, false)),
         "(asked, open) after a refused click, then Enter; after a refused Enter; after an allowed Enter"
     );
+}
+
+/// The tooltip a hover over the button named `label` shows, and the pointer moved away again.
+fn tip_over(fixture: &mut Fixture, label: &str) -> Option<String> {
+    let button = fixture.by_label(label).expect("the button is shown");
+    fixture.frame(vec![moved(button.center())]);
+    fixture.advance(DELAY);
+    fixture.idle(3);
+    let tip = fixture.by_role(Role::TOOLTIP).first().and_then(|tip| fixture.tree().name_of(tip.node)).map(str::to_owned);
+    fixture.frame(vec![moved(Pos2::ZERO)]);
+    fixture.idle(3);
+    tip
+}
+
+/// An enabled footer button shows its tooltip; a disabled one shows its reason instead.
+#[trial]
+fn a_footer_button_tells_its_tooltip_when_enabled_and_its_reason_when_disabled() {
+    let mut fixture = Fixture::new(|ui| {
+        let mut open = true;
+        let buttons = vec![
+            FooterButton::new("Apply", DialogRole::Other).tooltip("Applies the settings").stays_open(true),
+            FooterButton::new("Remove", DialogRole::Destructive).tooltip("Removes the item").disabled_reason("Nothing is selected").enabled(false),
+            FooterButton::new("OK", DialogRole::Accept),
+        ];
+        Dialog::new("Tips").opened(Bind::bound(&mut open)).buttons(buttons).show(ui, |_, _| {});
+    });
+    fixture.settle();
+    assert_eq!(tip_over(&mut fixture, "Apply").as_deref(), Some("Applies the settings"));
+    assert_eq!(tip_over(&mut fixture, "Remove").as_deref(), Some("Nothing is selected"));
 }

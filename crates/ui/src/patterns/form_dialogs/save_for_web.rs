@@ -706,8 +706,8 @@ impl<'a> SaveForWebDialog<'a> {
                     _ => {}
                 }
             }
-            live.advance(&**cx, animation);
             let before = (options.clone(), live.link.pixels(), live.view, live.frame);
+            live.advance(&**cx, animation);
             let view_before = live.view;
 
             let mut ask = None;
