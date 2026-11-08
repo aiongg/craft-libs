@@ -32,7 +32,8 @@ fn issue_one(captures: &mut Captures, ctx: &Context, now: Instant) -> Screenshot
     }
     let finished = captures.issue(&WindowHost::of(ctx), now, None);
     assert!(finished.is_empty());
-    let output = ctx.run_ui(Default::default(), |_| {});
+    let mut output = ctx.run_ui(Default::default(), |_| {});
+    output.textures_delta.clear();
     let mut callbacks: Vec<ScreenshotCallback> = output
         .viewport_output
         .get(&ViewportId::ROOT)
