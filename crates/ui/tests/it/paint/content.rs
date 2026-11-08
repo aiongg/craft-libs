@@ -5,6 +5,7 @@ use craft_i18n::Direction;
 use craft_theme::{Contrast, Mode};
 use craft_ui::contract::{Bind, Show as _};
 use craft_ui::primitives::{IconSpec, StrokeWidth, ToolIcon};
+use craft_ui::runtime::env::Scale;
 use craft_ui::style::{DataColor, Ink};
 use craft_ui::testing::style::{paint_frame, tokens};
 use craft_ui::testing::{Fixture, Frames, trial};
@@ -20,6 +21,7 @@ const SPARSE: f32 = 1.0;
 const DENSE: f32 = 2.0;
 const MIDDLE: f64 = 50.0;
 const EPS: f32 = 1e-3;
+const ONE_PIXEL: f32 = 1.0;
 
 #[trial]
 fn an_icon_with_a_data_colour_paints_in_that_colour() {
@@ -31,23 +33,26 @@ fn an_icon_with_a_data_colour_paints_in_that_colour() {
     assert!(tinted, "the icon is tinted with the data colour and not the panel ink");
 }
 
-/// The width in points a content painter reports for a hairline at `pixels_per_point`.
-fn hairline_at(pixels_per_point: f32) -> f32 {
+/// The width in points a content painter reports for a hairline, with the pixels per point it painted at.
+fn hairline_at(scale: Scale) -> (f32, f32) {
     let seen = Rc::new(Cell::new(None));
     let record = seen.clone();
     let mut fixture = Fixture::new(move |ui| {
         let record = record.clone();
         PointPicker::new(Bind::given(Mixed::each([MIDDLE, MIDDLE])), FULL, FULL)
-            .backdrop(move |cx, _| record.set(Some(cx.stroke_width(StrokeWidth::Hairline))))
+            .backdrop(move |cx, _| record.set(Some((cx.stroke_width(StrokeWidth::Hairline), cx.painter.ctx().pixels_per_point()))))
             .show(ui);
     });
-    fixture.ctx().set_pixels_per_point(pixels_per_point);
+    fixture.scale(scale);
     fixture.settle();
     seen.get().unwrap_or_default()
 }
 
 #[trial]
 fn a_hairline_stays_one_physical_pixel_as_the_density_grows() {
-    let (sparse, dense) = (hairline_at(SPARSE), hairline_at(DENSE));
-    assert!((sparse - dense * DENSE / SPARSE).abs() < EPS, "{sparse} points at {SPARSE} pixels per point, {dense} at {DENSE}");
+    let (sparse, dense) = (hairline_at(Scale::new(SPARSE)), hairline_at(Scale::new(DENSE)));
+    assert!(dense.1 > sparse.1, "the dense display has more pixels per point");
+    for (width, pixels_per_point) in [sparse, dense] {
+        assert!((width * pixels_per_point - ONE_PIXEL).abs() < EPS, "{width} points at {pixels_per_point} pixels per point is not one pixel");
+    }
 }

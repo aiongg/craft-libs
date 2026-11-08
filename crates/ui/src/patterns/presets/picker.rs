@@ -13,10 +13,11 @@ use super::state::{DefaultOpen, PresetState, PresetView};
 use super::words::PresetWords;
 use crate::buttons::Button;
 use crate::contract::{
-    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx,
-    Props as _, Role, Show as _, WordSetCx as _, clicked,
+    Access, Bind, BindMut, BodyCx, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi,
+    PartsCx, Props as _, Role, Show as _, ShowContainer as _, WordSetCx as _, clicked,
 };
 use crate::display::Divider;
+use crate::layout_components::Stack;
 use crate::list::RowTest;
 use crate::pickers::{SelectFace, toggle_on_key};
 use crate::primitives::ContentPainterCx;
@@ -25,7 +26,7 @@ use crate::runtime::memory::StageAccess;
 use crate::style::{ComponentStyle, FocusLook, StyleCx, SurfaceLook};
 use craft_behavior::{CancelReason, GesturePhase, HitLevel, HitPriority, Metrics, PartKey, Sense, Value};
 use craft_theme::Variant;
-use egui::{Rect, Response, Vec2};
+use egui::{Rect, Response, Ui, Vec2};
 use std::hash::Hash;
 
 /// The face under the whole field.
@@ -320,21 +321,23 @@ impl<K: Value + Eq + Hash + 'static> Component for PresetPicker<'_, K> {
             if let Some(painter) = preview {
                 browser = browser.thumb(|cx, rect, info| painter.paint(cx, rect, info));
             }
-            let out = browser.show(ui);
-            // The actions follow the presets, set off by a separator, as the preset menu lists them.
+            // The actions follow the presets in a footer, set off by a separator, as the preset menu lists them.
             let mut chosen = (false, false);
-            if create_row.is_some() || detach_row.is_some() {
+            let actions = |ui: &mut Ui, _: &mut BodyCx<'_>| {
                 Divider::horizontal().show(ui);
-            }
-            if let Some(label) = create_row {
-                chosen.0 = clicked(&Button::new(label.clone()).id_salt("create").variant(Variant::GHOST).show(ui));
-            }
-            if let Some(label) = detach_row {
-                chosen.1 = clicked(&Button::new(label.clone()).id_salt("detach").variant(Variant::GHOST).show(ui));
-            }
-            (out, chosen)
+                if let Some(label) = create_row {
+                    chosen.0 = clicked(&Button::new(label.clone()).id_salt("create").variant(Variant::GHOST).show(ui));
+                }
+                if let Some(label) = detach_row {
+                    chosen.1 = clicked(&Button::new(label.clone()).id_salt("detach").variant(Variant::GHOST).show(ui));
+                }
+            };
+            let stack = Stack::new();
+            let stack = if create_row.is_some() || detach_row.is_some() { stack.footer(actions) } else { stack };
+            let shown = stack.show(ui, |ui, _| browser.show(ui)).inner;
+            shown.map(|out| (out, chosen))
         });
-        let Some((out, (create, detach))) = out else { return };
+        let Some((out, (create, detach))) = out.flatten() else { return };
         if create || detach {
             self.create |= create;
             self.detach |= detach;
