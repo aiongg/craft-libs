@@ -417,9 +417,14 @@ impl Pointer for CxCore<'_> {
     fn drop_target<P: Send + Sync + 'static, T: DropTarget<P>>(&mut self, target: &T) -> Option<T::Drop> {
         let (payload, at) = self.dragging::<P>()?;
         // Only where the pointer is over this component's visible shapes on its own layer: not under a layer above, not
-        // in a clipped-out part.
+        // in a clipped-out part. The layer a dragged container moves is not above anything: the pointer is over what
+        // lies under it.
         let screen = areas::layer_map(&self.ctx, self.response.layer_id).map_or(at, |map| map.to_screen(at));
-        if !self.visible.contains(at) || areas::layer_at(&self.ctx, screen) != Some(self.response.layer_id) {
+        let top = match drag::moving_layer(&self.ctx) {
+            Some(moving) => areas::layer_at_without(&self.ctx, screen, moving),
+            None => areas::layer_at(&self.ctx, screen),
+        };
+        if drag::moves_viewport(&self.ctx) || !self.visible.contains(at) || top != Some(self.response.layer_id) {
             return None;
         }
         let op = drag::current_operation(&self.ctx);
@@ -430,7 +435,7 @@ impl Pointer for CxCore<'_> {
     }
 
     fn window_drop_target<P: Send + Sync + 'static, T: WindowDropTarget<P>>(&mut self, target: &T) -> Option<T::Drop> {
-        let payload = drag::active::<P>(&self.ctx)?;
+        let payload = drag::active::<P>(&self.ctx).filter(|_| !drag::moves_viewport(&self.ctx))?;
         let op = drag::current_operation(&self.ctx);
         let drop = target.accept(&payload, op)?;
         let ordinal = drag::next_ordinal(&self.ctx, self.id);

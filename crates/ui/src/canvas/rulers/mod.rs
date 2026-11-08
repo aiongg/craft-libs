@@ -368,7 +368,7 @@ impl Component for Rulers<'_> {
         }
         let declared = cx.part(CORNER, corner).priority(handle);
         if self.interactive {
-            let sense = if self.origin_locked { Sense::CLICK } else { Sense::DRAG | Sense::CLICK | Sense::TAKE_FOCUS };
+            let sense = if self.origin_locked { Sense::CLICK | Sense::CONTEXT_CLICK } else { Sense::DRAG | Sense::CLICK | Sense::TAKE_FOCUS };
             let declared = declared.sense(sense);
             if self.origin_locked {
                 declared.pointer_only("the zero point is locked");

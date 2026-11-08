@@ -159,3 +159,21 @@ fn a_secondary_click_on_a_strip_opens_the_units_menu() {
     assert_eq!(shown.contexts.borrow().last(), Some(&RulerPart::Horizontal));
     assert!(shown.fixture.by_label(MENU_ROW).is_some(), "the units menu is open");
 }
+
+#[trial]
+fn a_secondary_click_on_the_locked_corner_opens_the_units_menu_and_one_on_the_document_does_not() {
+    let mut shown = shown(true);
+    let secondary_click = |shown: &mut Shown, at: Pos2| {
+        shown.fixture.frame(vec![pointer::moved(at)]);
+        shown.fixture.frame(vec![pointer::secondary(at, true)]);
+        shown.fixture.frame(vec![pointer::secondary(at, false)]);
+        shown.fixture.settle();
+    };
+    secondary_click(&mut shown, VIEW.center());
+    assert!(shown.contexts.borrow().is_empty(), "a secondary click on the document is no ruler request");
+
+    let corner = shown.fixture.by_label("Ruler origin").expect("the corner has a node");
+    secondary_click(&mut shown, corner.center());
+    assert_eq!(shown.contexts.borrow().last(), Some(&RulerPart::Corner));
+    assert!(shown.fixture.by_label(MENU_ROW).is_some(), "the units menu is open");
+}

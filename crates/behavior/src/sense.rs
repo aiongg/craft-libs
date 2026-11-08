@@ -29,6 +29,9 @@ bitflags! {
         const WHEEL_Y = 512;
         /// The zoom share (Ctrl or Cmd with the wheel, pinch), taken without scroll; the split rule passes both scroll shares on.
         const WHEEL_ZOOM = 1024;
+        /// A secondary press captures the part and its release is reported to it, so a part that senses only a click
+        /// still gets its context click. Without this bit a secondary press only captures for a drag.
+        const CONTEXT_CLICK = 2048;
     }
 }
 

@@ -57,6 +57,18 @@ pub(crate) fn layer_at(ctx: &Context, point: Pos2) -> Option<LayerId> {
     ctx.layer_id_at(point)
 }
 
+/// The topmost layer under a screen position, as if `skipped` were not shown: the layer below a window that moves
+/// with the pointer. A modal layer still holds the input, as in `layer_at`.
+pub(crate) fn layer_at_without(ctx: &Context, point: Pos2, skipped: LayerId) -> Option<LayerId> {
+    let stack: Vec<LayerId> = ctx.memory(|memory| memory.layer_ids().filter(|layer| *layer != skipped && memory.areas().is_visible(layer)).collect());
+    let found = stack.into_iter().rev().find(|layer| {
+        let Some(state) = egui::AreaState::load(ctx, layer.id) else { return false };
+        let rect = ctx.layer_transform_to_global(*layer).map_or(state.rect(), |to_global| to_global * state.rect());
+        state.interactable && rect.contains(point)
+    })?;
+    ctx.memory(|memory| if memory.is_above_modal_layer(found) { Some(found) } else { memory.top_modal_layer() })
+}
+
 /// The layer of a transformed body: a sublayer of `parent` in the parent's order, named by `root`.
 pub(crate) fn body_layer(parent: LayerId, root: Id) -> LayerId {
     LayerId::new(parent.order, crate::runtime::memory::sub(root, "body_layer"))
