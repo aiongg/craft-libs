@@ -237,3 +237,13 @@ fn foreign_mac_text() {
     // In a Windows set the same ⌃ is the command modifier.
     assert_eq!(read_foreign("⌃S", Flavor::Windows).map(|r| r.0), Ok(Trigger::single(chord("Cmd+S"))));
 }
+
+#[test]
+fn code_names_are_the_w3c_codes_of_the_physical_keys() {
+    let code = |text: &str| chord(text).key.code_name();
+    assert_eq!(code("K"), "KeyK");
+    assert_eq!(code("5"), "Digit5");
+    assert_eq!(code("Up"), "ArrowUp");
+    assert_eq!(code("F10"), "F10");
+    assert_eq!(Key::Plus.code_name(), Key::Equals.code_name());
+}
