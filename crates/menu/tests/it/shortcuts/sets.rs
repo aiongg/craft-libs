@@ -17,7 +17,7 @@ fn profiles_with(names: &[&str]) -> Profiles {
 }
 
 fn new_set(rig: &mut Rig, name: &str) {
-    rig.click("New Set…");
+    rig.action("New Set…");
     let field = rig.named("Name:", Role::TEXT_INPUT);
     rig.fixture.click(&field);
     rig.fixture.type_text(name);
@@ -119,7 +119,7 @@ fn save_prompt_before_import_reports_changed_after_import() {
         rig.click("Save: ⌘S");
         rig.press(Modifiers::NONE, Key::F2);
         rig.action("Import…");
-        rig.click(answer);
+        rig.answer(answer);
         let outcomes = rig.outcomes();
         let import = outcomes.iter().position(|o| matches!(o, Outcome::Import { .. }));
         assert!(import.is_some(), "{answer}");
