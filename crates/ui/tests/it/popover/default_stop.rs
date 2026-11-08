@@ -1,6 +1,6 @@
 //! A popover opens on the field that declares `default_stop`, and typed text reaches that field's draft.
 
-use craft_ui::contract::{Bind, Props as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use craft_ui::popover::Popover;
 use craft_ui::runtime::focus::Initial;
 use craft_ui::testing::{Fixture, trial};

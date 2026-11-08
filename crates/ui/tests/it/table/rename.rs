@@ -1,7 +1,7 @@
 //! In-place rename of a table row.
 
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, ItemSource};
-use craft_ui::contract::{CollectionEvent, ColumnSpec, Show as _, ShowCollection as _};
+use craft_ui::contract::{CollectionEvent, ColumnSpec, ShowCollection as _};
 use craft_ui::list::ListRow;
 use craft_ui::table::Table;
 use craft_ui::testing::{Fixture, trial};
