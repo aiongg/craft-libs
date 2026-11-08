@@ -22,10 +22,6 @@ use egui::Ui;
 use std::cell::RefCell;
 use std::sync::Arc;
 
-/// The footer indices of the OK and Apply buttons, in the order they are given to the dialog.
-const OK_AT: usize = 0;
-const APPLY_AT: usize = 1;
-
 /// What the window keeps between passes; the host owns it and binds it with [`PreferencesWindow::new`].
 #[derive(Clone, Debug, Default, PartialEq)]
 #[non_exhaustive]
@@ -159,17 +155,17 @@ impl<'a> PreferencesWindow<'a> {
             page: None,
             applied: false,
         });
-        let mut dialog =
-            Dialog::new(title.clone()).collection_body().modeless().resizable(true).close_on_enter(can_ok).close_guard(|at, cx| match at {
-                OK_AT => session.borrow_mut().apply(cx),
-                APPLY_AT => {
-                    if !nested {
-                        session.borrow_mut().apply(cx);
-                    }
-                    true
+        let mut dialog = Dialog::new(title.clone())
+            .collection_body()
+            .modeless()
+            .resizable(true)
+            .close_on_enter(can_ok)
+            .on_pick(|button, cx| {
+                if button.role() == DialogRole::Other && !nested {
+                    session.borrow_mut().apply(cx);
                 }
-                _ => true,
-            });
+            })
+            .close_guard(|button, cx| button.role() != DialogRole::Accept || session.borrow_mut().apply(cx));
         if !embedded {
             dialog = dialog.viewport();
         }

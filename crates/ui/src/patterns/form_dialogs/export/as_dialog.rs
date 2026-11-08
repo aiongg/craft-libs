@@ -22,7 +22,7 @@ use crate::patterns::form_dialogs::{
 use crate::pickers::Select;
 use crate::runtime::env::{Env, Label, UnitKind, Units};
 use crate::runtime::overlay::CloseReason;
-use crate::sections::{DialogRole, FooterButton, Section};
+use crate::sections::Section;
 use crate::style::TypeRole;
 use crate::text::{LinkMode, LinkedWords, NumberField, link_toggle};
 use craft_behavior::{DisplayOrder, ItemSource, PixelSize, Selection, SelectionChange};
@@ -181,16 +181,15 @@ impl<'a> ExportAsDialog<'a> {
         };
 
         let reset = ResetFooter::new(ui, None, true);
-        let accept = FooterButton::new(words.export.clone(), DialogRole::Accept).stays_open(true).enabled(!saving);
         let wanted = RefCell::new(None::<PreviewRequest<ExportOptions>>);
         let latest = RefCell::new(None::<ExportOptions>);
         let answered = RefCell::new(None::<PathBuf>);
-        let footer = reset.clone();
         let mut dialog = FormDialog::new(words.title.clone(), bound)
+            .ok_label(words.export.clone())
             .ok_enabled(!saving)
+            .accept_stays_open(true)
             .collection_body(true)
-            .answers(answers)
-            .shaped(move |dialog| dialog.buttons(footer.buttons(accept, false)));
+            .answers(answers);
         if let Some(open) = open {
             dialog = dialog.opened(open);
         }
