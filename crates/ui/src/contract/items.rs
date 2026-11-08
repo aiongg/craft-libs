@@ -733,7 +733,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     Arc::make_mut(&mut layout).set_width(at, ideal, min);
                     row = self.screen(&layout, rect, at, offset, rtl);
                 }
-                shown_rows.push(ShownRow::new(key.clone(), row, shown_cells));
+                shown_rows.push(ShownRow::new(key.clone(), row, shown_cells.clone()));
                 let out = match tip {
                     Some(tip) => item.show_at_with_tip(&mut row_ui, row, tip),
                     None => item.show_at(&mut row_ui, row),
