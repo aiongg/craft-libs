@@ -47,8 +47,8 @@ pub use sizing::{
 mod new_document;
 
 pub use new_document::{
-    BACKGROUND_COLOR_KEY, BackgroundContents, BitDepth, ColorMode, ColorProfiles, DocumentOptions, DocumentPreset, HostedNewDocument, NameError,
-    NewDocumentDialog, NewDocumentOutput, NewDocumentWords, Orientation, PresetCategory, PresetWords, preset_name_error, push_recent, size_line,
+    BACKGROUND_COLOR_KEY, BackgroundContents, BitDepth, ColorMode, ColorProfiles, DocumentOptions, DocumentPreset, HostedNewDocument,
+    NewDocumentDialog, NewDocumentOutput, NewDocumentPresetWords, NewDocumentWords, Orientation, PresetCategory, push_recent, size_line,
 };
 
 mod about;

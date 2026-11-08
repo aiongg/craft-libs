@@ -1,10 +1,11 @@
 //! The left column of New Document: the category tabs over the grid of preset cards, or the list of saved presets.
 
-use super::presets::{DEFAULT_ID, DocumentOptions, DocumentPreset, PresetWords, size_line};
+use super::presets::{DEFAULT_ID, DocumentOptions, DocumentPreset, NewDocumentPresetWords, size_line};
 use super::{NewDocumentWords, Read, Session, Setup, background_label, depth_label, mode_label};
 use crate::contract::{Bind, CollectionEvent, Props as _, SelectMode, Show as _, ShowCollection as _};
 use crate::display::{Shade, Text};
 use crate::list::{List, ListRow, ThumbAspect};
+use crate::patterns::presets::PresetId;
 use crate::primitives::{ContentPainterCx, PaintShape};
 use crate::runtime::env::{Label, UnitKind};
 use crate::style::TypeRole;
@@ -39,6 +40,8 @@ pub(super) struct Card {
     pub(super) detail: Option<String>,
     /// The width and height the page outline has.
     pub(super) aspect: (u32, u32),
+    /// The library preset a Saved row stands for.
+    pub(super) saved: Option<PresetId>,
 }
 
 /// The card the user picked in this pass.
@@ -54,6 +57,8 @@ pub(super) struct Picked {
 pub(super) struct Left {
     pub(super) tab: Option<TabId>,
     pub(super) picked: Option<Picked>,
+    /// The saved presets the Delete intent removed.
+    pub(super) delete: Vec<PresetId>,
 }
 
 /// The cards as a display order keyed by position.
@@ -106,6 +111,7 @@ pub(super) fn show(ui: &mut Ui, session: &Session, read: &Read<'_>, left: &mut L
     if tab == TabId::Saved {
         let shown = List::<usize>::new(words.saved_list.clone())
             .select(SelectMode::Single)
+            .deletable(true)
             .empty(words.no_saved.clone())
             .rows_stamp(stamp)
             .selection(Bind::given(selection))
@@ -134,6 +140,7 @@ fn route<E>(events: Vec<CollectionEvent<usize, E>>, cards: &[Card], left: &mut L
                 }
             }
             CollectionEvent::Activate(index) => pick(left, cards, index, true),
+            CollectionEvent::Delete(keys) => left.delete.extend(keys.iter().filter_map(|index| cards.get(*index).and_then(|card| card.saved))),
             _ => {}
         }
     }
@@ -182,7 +189,7 @@ fn tab_title(tab: TabId, setup: &Setup, words: &NewDocumentWords) -> Label {
 }
 
 /// A preset's name: the word set's for a built-in id, the app's own English name otherwise.
-fn preset_title(preset: &DocumentPreset, setup: &Setup, words: &NewDocumentWords, preset_words: &PresetWords) -> Label {
+fn preset_title(preset: &DocumentPreset, setup: &Setup, words: &NewDocumentWords, preset_words: &NewDocumentPresetWords) -> Label {
     if preset.id == DEFAULT_ID {
         return match &setup.app_name {
             Some(app) => Label::from(words.default_size_named.fill(&[("app", app.as_str())])),
@@ -194,7 +201,7 @@ fn preset_title(preset: &DocumentPreset, setup: &Setup, words: &NewDocumentWords
 
 /// The cards `tab` lists.
 fn cards_of(tab: TabId, session: &Session, read: &Read<'_>) -> Vec<Card> {
-    let Read { setup, recents, saved, words, preset_words, units } = *read;
+    let Read { setup, recents, library, words, preset_words, units, .. } = *read;
     let preset_card = |preset: &DocumentPreset| {
         let preset = session.orientation.map_or_else(|| preset.clone(), |orientation| preset.turned(orientation));
         let mut settings = preset.options(setup.print_ppi, setup.screen_ppi);
@@ -208,25 +215,30 @@ fn cards_of(tab: TabId, session: &Session, read: &Read<'_>) -> Vec<Card> {
             settings,
             restores_all: false,
             detail: None,
+            saved: None,
         }
     };
     match tab {
         TabId::Category(at) => setup.categories.get(at).map_or_else(Vec::new, |category| category.presets.iter().map(preset_card).collect()),
-        TabId::Saved => saved
-            .iter()
+        TabId::Saved => library
+            .items()
+            .into_iter()
+            .filter(|preset| preset.value.fits())
             .map(|preset| {
+                let settings = &preset.value;
                 let line = words.saved_detail.fill(&[
-                    ("size", &size_line(preset, words, units)),
-                    ("mode", mode_label(words, preset.color_mode).as_str()),
-                    ("depth", depth_label(words, preset.depth).as_str()),
+                    ("size", &size_line(settings, words, units)),
+                    ("mode", mode_label(words, settings.color_mode).as_str()),
+                    ("depth", depth_label(words, settings.depth).as_str()),
                 ]);
                 Card {
                     title: Label::from(preset.name.clone()),
                     line,
-                    aspect: (preset.size.width, preset.size.height),
-                    settings: preset.clone(),
+                    aspect: (settings.size.width, settings.size.height),
+                    settings: settings.clone(),
                     restores_all: true,
                     detail: None,
+                    saved: Some(preset.id),
                 }
             })
             .collect(),
@@ -241,6 +253,7 @@ fn cards_of(tab: TabId, session: &Session, read: &Read<'_>) -> Vec<Card> {
                     settings,
                     restores_all: false,
                     detail: None,
+                    saved: None,
                 });
             }
             for recent in recents {
@@ -259,6 +272,7 @@ fn cards_of(tab: TabId, session: &Session, read: &Read<'_>) -> Vec<Card> {
                     settings: recent.clone(),
                     restores_all: true,
                     detail: Some(detail),
+                    saved: None,
                 });
             }
             for preset in &setup.recent_defaults {
@@ -275,7 +289,7 @@ fn cards_of(tab: TabId, session: &Session, read: &Read<'_>) -> Vec<Card> {
 }
 
 /// A recent document takes the name of the built-in preset it matches.
-fn recent_title(recent: &DocumentOptions, setup: &Setup, words: &NewDocumentWords, preset_words: &PresetWords) -> Label {
+fn recent_title(recent: &DocumentOptions, setup: &Setup, words: &NewDocumentWords, preset_words: &NewDocumentPresetWords) -> Label {
     let matches = |preset: &&DocumentPreset| {
         recent.size.width == preset.width && recent.size.height == preset.height && recent.pixels_per_inch == preset.pixels_per_inch
     };

@@ -78,7 +78,8 @@ craft_ui::words! {
 }
 
 /// How the pixels are made when the size changes: Photoshop's Resample list.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum Resample {
     /// The method suited to the change.
