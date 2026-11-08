@@ -1104,10 +1104,10 @@ note = "A pattern over a RadioGroup of Swatch members: `new(label, Bind<Srgba>, 
 
 [[type]]
 name = "SwatchTable"
-old = "craft_color::ui::SwatchPalette::table"
+old = ""
 new = "craft_color::ui::SwatchTable"
 status = "replaced"
-note = "An items component on the collection contract with Swatch cells: `new(label, &[(Label, Srgba)])` with `selection(Bind<Selection<usize>>)`, `per_row(n)` in place of `columns` and `multiple(bool)`; `show(ui)` returns `SwatchTableOutput { response, selected, chosen, open }`."
+note = "An items component on the collection contract with Swatch cells: `new(label, &[(Label, Srgba)])` with `selection(Bind<Selection<usize>>)`, `per_row(n)` in place of `columns` and `multiple(bool)`; `show(ui)` returns `SwatchTableOutput { response, selected, chosen, open }`. Replaces `SwatchPalette::table`."
 
 [[type]]
 name = "SwatchTableResponse"
@@ -1216,10 +1216,10 @@ note = "A `words!` set that also holds the 21 rule names (`HARMONY_WORDS` goes);
 
 [[type]]
 name = "HarmonyPicked"
-old = "craft_color::ui::HarmonyPanel::panel_menu"
+old = ""
 new = "craft_color::ui::HarmonyPicked"
 status = "replaced"
-note = "The cells chosen for Save Colors as Swatches, host-owned in place of egui memory."
+note = "The cells chosen for Save Colors as Swatches, host-owned in place of egui memory. Replaces `HarmonyPanel::panel_menu`."
 
 [[type]]
 name = "SwatchesPanel"
@@ -1258,10 +1258,10 @@ note = "Adds `file` (the file request) and `toast`."
 
 [[type]]
 name = "SwatchesState"
-old = "craft_color::ui::SwatchesPanel::run_command"
+old = ""
 new = "craft_color::ui::SwatchesState"
 status = "replaced"
-note = "The browser view, selected row and pending rename, host-owned in place of egui memory."
+note = "The browser view, selected row and pending rename, host-owned in place of egui memory. Replaces `SwatchesPanel::run_command`."
 
 [[type]]
 name = "SwatchesLabels"
@@ -1279,10 +1279,10 @@ note = "A `words!` set; the seven note rows are `count` rows and `COUNTS` goes."
 
 [[type]]
 name = "SwatchKey"
-old = "craft_color::ui::swatches::Key"
+old = ""
 new = "craft_color::ui::SwatchKey"
-status = "moved"
-note = "Public: the key of a browser row."
+status = "replaced"
+note = "Public: the key of a browser row. Replaces `swatches::Key`."
 
 [[type]]
 name = "SwatchLibrary"
@@ -1321,24 +1321,24 @@ note = "Unchanged; `HarmonyMenu::run_command` returns it."
 
 [[type]]
 name = "ColorPanelMenu"
-old = "craft_color::ui::ColorPanel::panel_menu"
+old = ""
 new = "craft_color::ui::ColorPanelMenu"
 status = "replaced"
-note = "`rows()`, `states(&ColorPanelState)` and `run_command(&mut state, ColorPanelCommand, edited) -> Option<String>` (the clipboard text) in place of `panel_menu(ctx, id, state)` and `run_command(ctx, id, state, &PanelCommand, edited)`."
+note = "`rows()`, `states(&ColorPanelState)` and `run_command(&mut state, ColorPanelCommand, edited) -> Option<String>` (the clipboard text) in place of `panel_menu(ctx, id, state)` and `run_command(ctx, id, state, &PanelCommand, edited)`. Replaces `ColorPanel::panel_menu`."
 
 [[type]]
 name = "HarmonyMenu"
-old = "craft_color::ui::HarmonyPanel::panel_menu"
+old = ""
 new = "craft_color::ui::HarmonyMenu"
 status = "replaced"
-note = "`rows()`, `states(&state, &picked)` and `run_command(&mut state, &picked, HarmonyCommand)` over `HarmonyCommand`."
+note = "`rows()`, `states(&state, &picked)` and `run_command(&mut state, &picked, HarmonyCommand)` over `HarmonyCommand`. Replaces `HarmonyPanel::panel_menu`."
 
 [[type]]
 name = "SwatchesMenu"
-old = "craft_color::ui::SwatchesPanel::panel_menu"
+old = ""
 new = "craft_color::ui::SwatchesMenu"
 status = "replaced"
-note = "`rows()`, `states(&library)` and `run_command(&mut library, &mut state, SwatchesCommand, foreground, &words)` over `SwatchesCommand`."
+note = "`rows()`, `states(&library)` and `run_command(&mut library, &mut state, SwatchesCommand, foreground, &words)` over `SwatchesCommand`. Replaces `SwatchesPanel::panel_menu`."
 
 [[setter]]
 type = "SwatchPalette"
