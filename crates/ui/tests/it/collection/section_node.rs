@@ -31,7 +31,7 @@ fn rig(words: &'static Words, select: SelectMode) -> (Fixture, Log) {
                     seen.borrow_mut().push(format!("activate {key}"));
                 }
                 CollectionEvent::Open(change) => {
-                    words.open.borrow_mut()[*change.key] = change.open;
+                    words.open.borrow_mut()[change.key] = change.open;
                     seen.borrow_mut().push(format!("open {} {}", change.key, change.open));
                 }
                 CollectionEvent::LeadMoved { key, .. } => seen.borrow_mut().push(format!("lead {key}")),
