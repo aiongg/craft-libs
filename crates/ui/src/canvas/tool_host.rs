@@ -527,7 +527,8 @@ impl<'a> Run<'a> {
                     self.hover(pointer);
                 }
             }
-            PressPhase::Down { start, .. } => {
+            // `Down` repeats in every pass the button stays down within slop: only the pass it went down in begins.
+            PressPhase::Down { start, .. } if press.went_down => {
                 self.state.spent = false;
                 self.begin(press_pointer(start, start.origin, start.time, press), false);
             }

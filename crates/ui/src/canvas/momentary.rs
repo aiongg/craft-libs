@@ -16,19 +16,20 @@ use crate::runtime::commands::FirePhase;
 use craft_keymap::Mods;
 
 /// The commands that put a tool in effect while their key is held. They are scoped like [`ViewCommand`](super::ViewCommand): a canvas is
-/// an instance of the one `canvasView` scope, and a full-window dialog's canvas leaves it to the dialog.
+/// an instance of the one `canvasView` scope, and a full-window dialog's canvas leaves it to the dialog. They fire
+/// inside a dialog, so Space pans a full-window dialog's canvas.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui_macros::CommandSet)]
 #[command(prefix = "canvasMomentary", scope = "canvasView")]
 #[non_exhaustive]
 pub enum MomentaryCommand {
     /// The Hand tool while the key is held.
-    #[command(label = "Hand (Hold)", kind = "momentary", default = "Space")]
+    #[command(label = "Hand (Hold)", kind = "momentary", modal = "in_dialogs", default = "Space")]
     Hand,
     /// The Zoom tool, zooming in, while the keys are held.
-    #[command(label = "Zoom In (Hold)", kind = "momentary", default = "Cmd+Space")]
+    #[command(label = "Zoom In (Hold)", kind = "momentary", modal = "in_dialogs", default = "Cmd+Space")]
     ZoomIn,
     /// The Zoom tool, zooming out, while the keys are held.
-    #[command(label = "Zoom Out (Hold)", kind = "momentary", default = "Alt+Space")]
+    #[command(label = "Zoom Out (Hold)", kind = "momentary", modal = "in_dialogs", default = "Alt+Space")]
     ZoomOut,
 }
 

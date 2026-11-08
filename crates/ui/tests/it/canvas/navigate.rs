@@ -1,21 +1,23 @@
 //! Navigation rules (wheel, page keys, flick, autoscroll), the zoom motion and the momentary tool order.
 
 use craft_behavior::kurbo::{Point, Size};
-use craft_behavior::{CancelReason, CanvasView, Granularity, MoveMods, NavMove, Wheel, WheelPhase, WheelUnit};
+use craft_behavior::{CancelReason, CanvasView, Granularity, MoveMods, NavMove, PixelSize, Wheel, WheelPhase, WheelUnit};
 use craft_keymap::Mods;
 use craft_ui::canvas::{
-    Autoscroll, Canvas, CanvasTool, FlickPan, HoldZoom, Momentary, MomentaryCommand, MomentaryTool, NavigationOptions, PageKey, ToolAction,
-    ToolContext, ToolHost, ToolPath, ToolPointer, TouchpadGlide, ViewTurn, WheelAction, WheelInput, WheelNavigation, ZoomAnimation, ZoomDrag,
+    Autoscroll, Canvas, CanvasTool, FlickPan, HoldZoom, Momentary, MomentaryCommand, MomentaryTool, NavigationOptions, PageKey, PixelRect,
+    RasterSource, ToolAction, ToolContext, ToolHost, ToolPath, ToolPointer, TouchpadGlide, ViewTurn, WheelAction, WheelInput, WheelNavigation,
+    ZoomAnimation, ZoomDrag,
 };
-use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
-use craft_ui::primitives::Draw;
+use craft_ui::contract::{Bind, Props as _, Role, Show as _, ShowContainer as _};
+use craft_ui::dialog::{FullWindowCanvas, FullWindowDialog, FullWindowView};
+use craft_ui::primitives::{Draw, Revision};
 use craft_ui::runtime::commands::FirePhase;
 use craft_ui::runtime::focus::{FocusTarget, request};
-use craft_ui::testing::focus::key_release;
+use craft_ui::testing::focus::{egui_focused, key_release};
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::{Fixture, pointer, trial};
 use craft_ui::value_drag::Slider;
-use egui::{Id, Key, Modifiers, Pos2, Rect, Ui, Vec2};
+use egui::{Color32, ColorImage, Id, Key, Modifiers, Pos2, Rect, Ui, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -312,6 +314,7 @@ struct Held {
     canvas: Rc<Cell<Id>>,
     area: Rc<Cell<Rect>>,
     brush: Rc<RefCell<Brush>>,
+    momentary: Rc<RefCell<Momentary>>,
 }
 
 /// The canvas under the host, with `beside` shown above it in the same room: a control that can hold the key focus
@@ -335,7 +338,7 @@ fn held(mut beside: impl FnMut(&mut Ui) + 'static) -> Held {
         seen.set(Some(reply.view.unwrap_or(current)));
     });
     fixture.settle();
-    Held { fixture, view, canvas, area, brush }
+    Held { fixture, view, canvas, area, brush, momentary }
 }
 
 impl Held {
@@ -378,11 +381,72 @@ fn space_with_the_focus_in_a_slider_beside_the_canvas_pans_the_canvas() {
     let (id, mut level) = (Rc::clone(&slider), 40.0);
     let mut canvas = held(move |ui| id.set(Slider::new(Bind::bound(&mut level), 0.0..=100.0).label("Opacity").show(ui).response.id));
     canvas.focus(slider.get());
+    assert_eq!(egui_focused(canvas.fixture.ctx()), Some(slider.get()), "the slider holds the focus");
     let from = canvas.area.get().center();
     let start = canvas.view.get().expect("the canvas showed a view").center;
 
     canvas.fixture.frame(vec![key_press(Key::Space, Modifiers::NONE)]);
+    assert_eq!(canvas.momentary.borrow_mut().tool(Mods::NONE, false), Some(MomentaryTool::Hand), "the canvas's host took the Hand press");
     drag(&mut canvas.fixture, from, Vec2::new(60.0, 40.0));
     assert_eq!(canvas.brush.borrow().presses, 0, "the canvas beside the focus took Space");
     assert_ne!(canvas.view.get().map(|view| view.center), Some(start), "the Hand pans the canvas");
+}
+
+#[trial]
+fn space_with_nothing_focused_pans_the_canvas() {
+    let mut canvas = held(|_| {});
+    let from = canvas.area.get().center();
+    let start = canvas.view.get().expect("the canvas showed a view").center;
+
+    canvas.fixture.frame(vec![key_press(Key::Space, Modifiers::NONE)]);
+    assert_eq!(canvas.momentary.borrow_mut().tool(Mods::NONE, false), Some(MomentaryTool::Hand), "the canvas's host took the Hand press");
+    drag(&mut canvas.fixture, from, Vec2::new(60.0, 40.0));
+    assert_eq!(canvas.brush.borrow().presses, 0, "the only canvas took Space");
+    assert_ne!(canvas.view.get().map(|view| view.center), Some(start), "the Hand pans the canvas");
+}
+
+/// An image of one grey, larger than a full-window dialog's canvas.
+struct Grey;
+
+impl RasterSource for Grey {
+    fn size(&self) -> PixelSize {
+        PixelSize::new(1600, 1200)
+    }
+
+    fn revision(&self) -> Revision {
+        Revision::new(1)
+    }
+
+    fn damage(&self, _: Revision) -> Option<PixelRect> {
+        None
+    }
+
+    fn read(&self, _: PixelRect, _: u32, out: &mut ColorImage) {
+        out.pixels.fill(Color32::from_rgb(0x80, 0x80, 0x80));
+    }
+}
+
+/// A full-window dialog's canvas is no `canvasView` instance: its host takes Space from the dialog around it.
+#[trial]
+fn space_in_a_full_window_dialog_pans_its_canvas() {
+    let view = Rc::new(RefCell::new(FullWindowView::new()));
+    let brush = Rc::new(RefCell::new(Brush::default()));
+    let momentary = Rc::new(RefCell::new(Momentary::new(NavigationOptions::default())));
+    let (shown, tool, keys) = (Rc::clone(&view), Rc::clone(&brush), Rc::clone(&momentary));
+    let mut fixture = Fixture::new(move |ui| {
+        let mut open = true;
+        FullWindowDialog::new("Liquify").opened(Bind::bound(&mut open)).show(ui, |ui, _| {
+            let (mut tool, mut keys) = (tool.borrow_mut(), keys.borrow_mut());
+            FullWindowCanvas::new(Bind::bound(&mut shown.borrow_mut()), &Grey).tool(&mut *tool).momentary(&mut keys).show(ui);
+        });
+    });
+    fixture.settle();
+    let canvas = fixture.by_role(Role::CANVAS).into_iter().next().expect("the dialog shows its canvas");
+    fixture.click(&canvas).settle();
+    let (presses, start) = (brush.borrow().presses, view.borrow().view().center);
+
+    fixture.frame(vec![key_press(Key::Space, Modifiers::NONE)]);
+    drag(&mut fixture, canvas.center(), Vec2::new(60.0, 40.0));
+    assert_eq!(brush.borrow().presses, presses, "the brush gets no press while Space is held");
+    assert_ne!(view.borrow().view().center, start, "the Hand pans the dialog's view");
 }
