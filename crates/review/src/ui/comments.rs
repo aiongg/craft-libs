@@ -1014,6 +1014,12 @@ impl Component for CommentRow<'_> {
     type Style = CommentRowStyle;
     type Output = RowOut;
 
+    fn access(&self, access: &mut craft_ui::contract::Access, cx: &Cx<'_, Self>) {
+        let Some(first) = self.thread.and_then(|thread| thread.messages.first()) else { return };
+        let age = age_text(&cx.env, first.modified.unwrap_or(first.created), self.now);
+        access.name(craft_ui::contract::Name::Joined(vec![cx.resolved.label.to_owned(), age]));
+    }
+
     fn style(cx: &StyleCx<'_>, _: CommentRowStyleKey) -> CommentRowStyle {
         let color = &cx.tokens.color;
         CommentRowStyle {
