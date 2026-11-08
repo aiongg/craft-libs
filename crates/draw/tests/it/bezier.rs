@@ -322,16 +322,16 @@ fn harness(paths: Vec<EditPath>) -> Harness {
         st.view = Some(view);
         let selection = st.selection.clone();
         let canvas = Canvas::new("Document").view(view).show(ui, |ui, body| {
-            let output = BezierOverlay::new("Paths", Bind::bound(&mut st.paths), &selection)
+            // The guides lie under the paths: a stack position hides the levels of the ones below it.
+            if !st.guides.is_empty() {
+                Guides::new("Guides", Bind::bound(&mut st.guides)).interactive(true).show_at(ui, body.rect);
+            }
+            BezierOverlay::new("Paths", Bind::bound(&mut st.paths), &selection)
                 .tool(st.tool)
                 .handles(st.handles)
                 .anchors(st.anchors)
                 .segment_mark(st.segment_mark)
-                .show_at(ui, body.rect);
-            if !st.guides.is_empty() {
-                Guides::new("Guides", Bind::bound(&mut st.guides)).interactive(true).show_at(ui, body.rect);
-            }
-            output
+                .show_at(ui, body.rect)
         });
         if canvas.output.click_at().is_some() {
             st.tool_clicks += 1;
@@ -449,6 +449,17 @@ impl Harness {
 
     fn key(&mut self, key: Key, mods: Modifiers) {
         self.fixture.key(key, mods);
+    }
+
+    /// Tabs until the focus is on one of the overlay's parts: the canvas is the first stop.
+    fn tab_to_parts(&mut self) {
+        for _ in 0..3 {
+            self.key(Key::Tab, Modifiers::NONE);
+            if self.fixture.focused_stop().is_some_and(|(_, part)| part.is_some()) {
+                return;
+            }
+        }
+        panic!("Tab reaches an anchor");
     }
 
     /// Whether the focused part is the one named `name`.
@@ -650,7 +661,7 @@ fn a_marquee_selects_on_the_frontmost_path_and_shift_adds() {
 #[trial]
 fn page_keys_pick_each_anchor_then_its_in_and_out_handles() {
     let mut h = harness(vec![path_a()]);
-    h.key(Key::Tab, Modifiers::NONE);
+    h.tab_to_parts();
     assert!(h.picked("Anchor 1 of 4"));
     h.key(Key::PageDown, Modifiers::NONE);
     assert!(h.picked("Anchor 2 of 4"));
@@ -675,7 +686,7 @@ fn page_keys_pick_each_anchor_then_its_in_and_out_handles() {
 #[trial]
 fn shift_page_keys_add_the_next_anchor_and_command_a_selects_all() {
     let mut h = harness(vec![path_a()]);
-    h.key(Key::Tab, Modifiers::NONE);
+    h.tab_to_parts();
     h.key(Key::PageDown, Modifiers::SHIFT);
     h.key(Key::PageDown, Modifiers::SHIFT);
     assert_eq!(h.selection(), sel(1, &[(0, 0), (0, 1), (0, 2)]));
@@ -689,7 +700,7 @@ fn shift_page_keys_add_the_next_anchor_and_command_a_selects_all() {
 #[trial]
 fn arrows_move_the_selected_anchors_or_the_picked_handle_and_alt_moves_it_alone() {
     let mut h = harness(vec![path_a()]);
-    h.key(Key::Tab, Modifiers::NONE);
+    h.tab_to_parts();
     h.key(Key::ArrowRight, Modifiers::NONE);
     h.key(Key::ArrowDown, Modifiers::SHIFT);
     assert_eq!(h.seen(), [Seen::Set, Seen::Set]);
@@ -709,7 +720,7 @@ fn arrows_move_the_selected_anchors_or_the_picked_handle_and_alt_moves_it_alone(
 #[trial]
 fn delete_reports_the_selected_anchors_to_remove() {
     let mut h = harness(vec![path_a()]);
-    h.key(Key::Tab, Modifiers::NONE);
+    h.tab_to_parts();
     h.key(Key::Delete, Modifiers::NONE);
     assert_eq!(h.state.borrow().deletes, [(1, vec![kr(0)])]);
     h.key(Key::PageDown, Modifiers::NONE);
@@ -1005,7 +1016,7 @@ fn arrows_and_escape_act_only_under_direct_convert_and_curvature() {
     ] {
         let mut h = with_tool(tool);
         h.update(|st| st.selection = sel(1, &[(0, 1)]));
-        h.key(Key::Tab, Modifiers::NONE);
+        h.tab_to_parts();
         h.key(Key::ArrowRight, Modifiers::NONE);
         assert_eq!(!h.seen().is_empty(), acts, "{tool:?} arrows");
         h.key(Key::Escape, Modifiers::NONE);

@@ -314,7 +314,7 @@ impl<'p, 'a> Cells<'p, 'a> {
         let off = self.appearance.stroke_width <= 0.0;
         let Some(open) = self.open.as_mut() else { return };
         let style = Bind::given(self.appearance.stroke_style.clone());
-        let button = StrokeButton::new(self.words.stroke_style.clone(), style, open.reborrowed()).corners(corners).stroked(!off);
+        let button = StrokeButton::new(self.words.stroke_style.clone(), style, open.reborrowed()).corners(corners).stroked(!off).enabled(!off);
         let Some(event) = button.show(ui).event else { return };
         let width = (off && matches!(event, EditEvent::Set { .. } | EditEvent::Begin { .. })).then_some(ShapeChange::ENABLED_STROKE_WIDTH);
         self.events.push(event.map(|style| ShapeChange::StrokeStyle { style, width }));

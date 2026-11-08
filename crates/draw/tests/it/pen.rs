@@ -478,7 +478,7 @@ fn a_pen_that_does_not_sense_takes_no_press() {
     pen.click_doc(160.0, 60.0);
     assert_eq!(pen.draft().knots.len(), 1);
     pen.key(Key::Enter, Modifiers::NONE);
-    assert!(!pen.finished(), "one anchor ends as no path, but the keys still reach the tool");
+    assert!(pen.finished(), "one anchor ends as no path, but the keys still reach the tool");
     pen.fixture.tool_mut().sensing(true);
     pen.click_doc(160.0, 60.0);
     assert_eq!(pen.draft().knots.len(), 1, "the draft ended; this click starts another");

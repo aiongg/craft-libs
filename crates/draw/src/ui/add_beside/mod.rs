@@ -13,8 +13,9 @@ use craft_ui::contract::{
     Access, Common, Component, Cx, Focus as _, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role, WordSetCx as _,
 };
 use craft_ui::primitives::{FocusKind, FocusRing, PaintShape, StrokeWidth};
+use craft_ui::runtime::commands::FireSource;
 use craft_ui::runtime::env::Label;
-use craft_ui::runtime::focus::KeyUse;
+use craft_ui::runtime::focus::{ActivateKeys, KeyUse};
 use craft_ui::style::{ComponentStyle, FocusLook, StyleColor, StyleCx};
 use egui::{Pos2, Rect, Response, Vec2};
 
@@ -181,7 +182,7 @@ impl<'a> AddBesideHandles<'a> {
 
 impl Component for AddBesideHandles<'_> {
     const ROLE: Role = Role::GROUP;
-    const KEYS: KeyUse = KeyUse::CANVAS.with_moves().with_chrome_key(false);
+    const KEYS: KeyUse = KeyUse::CANVAS.with_activate(ActivateKeys::Both).with_moves().with_chrome_key(false);
     const OVERLAYS: bool = false;
     type Style = AddBesideStyle;
     type Output = AddBesideOutput;
@@ -233,16 +234,13 @@ impl Component for AddBesideHandles<'_> {
             {
                 self.report.added = Some(side);
                 self.report.copy = result.press.mods.alt;
+            } else if self.report.added.is_none() && matches!(cx.part_activated(BUTTON.at(side.index())), Some(FireSource::Key | FireSource::Access))
+            {
+                self.report.added = Some(side);
             }
         }
         if self.report.hovered.is_none() {
             self.report.hovered = focused;
-        }
-        if let Some(side) = focused
-            && self.report.added.is_none()
-            && cx.activation().is_some_and(|activation| activation.by_key)
-        {
-            self.report.added = Some(side);
         }
     }
 

@@ -444,6 +444,11 @@ impl<'a> BezierOverlay<'a> {
                             continue;
                         }
                         let Some((points, _)) = path_runs(view, &segment_path(curve)).into_iter().next() else { continue };
+                        // The pen draft owns the ends of an open subpath: a press within reach of one is not a segment's.
+                        let ends = self.tool == BezierTool::AutoAddDelete && !sub.closed;
+                        let start = if ends && i == 0 { reach } else { 0.0 };
+                        let end = if ends && i + 1 == sub.segment_count() { reach } else { 0.0 };
+                        let Some(points) = trim_polyline(points, start, end) else { continue };
                         items.push(Item {
                             kind: Kind::Segment,
                             path: at,
@@ -632,7 +637,7 @@ impl<'a> BezierOverlay<'a> {
                 self.report.context = Some((item.hit(paths, view, at), at));
             }
             match press.phase {
-                PressPhase::Down { start, .. } if start.button == PointerButton::Primary => {
+                PressPhase::Down { start, .. } if start.button == PointerButton::Primary && press.went_down => {
                     let hit = item.hit(paths, view, start.origin);
                     if self.tool.clicks() {
                         tools::anchor_click(self.tool, hit, press.mods, &mut self.report);
@@ -657,7 +662,7 @@ impl<'a> BezierOverlay<'a> {
         {
             let press = result.press;
             match press.phase {
-                PressPhase::Down { start, .. } if start.button == PointerButton::Primary => {
+                PressPhase::Down { start, .. } if start.button == PointerButton::Primary && press.went_down => {
                     *cx.press_slot::<Held>() = Some(Held { origin: start.origin, target: Target::Marquee, start: Vec::new(), began: false });
                 }
                 PressPhase::DragStart { start, pos, .. } | PressPhase::Drag { start, pos, .. } if start.button == PointerButton::Primary => {
@@ -863,6 +868,31 @@ impl<'a> BezierOverlay<'a> {
     }
 }
 
+/// `points` without the first `start` and the last `end` screen points of its length; `None` when nothing is left.
+fn trim_polyline(points: Vec<Pos2>, start: f32, end: f32) -> Option<Vec<Pos2>> {
+    if start <= 0.0 && end <= 0.0 {
+        return Some(points);
+    }
+    let total: f32 = points.windows(2).map(|pair| (pair[1] - pair[0]).length()).sum();
+    let (low, high) = (start, total - end);
+    let mut kept: Vec<Pos2> = Vec::new();
+    let mut before = 0.0;
+    for pair in points.windows(2) {
+        let length = (pair[1] - pair[0]).length();
+        let after = before + length;
+        if length > 0.0 && after > low && before < high {
+            let from = ((low - before) / length).clamp(0.0, 1.0);
+            let to = ((high - before) / length).clamp(0.0, 1.0);
+            if kept.is_empty() {
+                kept.push(pair[0].lerp(pair[1], from));
+            }
+            kept.push(pair[0].lerp(pair[1], to));
+        }
+        before = after;
+    }
+    (kept.len() >= 2).then_some(kept)
+}
+
 /// The index `forward` or back of `at` among `len` parts, stopping at the ends.
 fn step(len: usize, at: Option<usize>, forward: bool) -> Option<usize> {
     match (at, forward) {
@@ -952,7 +982,7 @@ impl Component for BezierOverlay<'_> {
         let reach = cx.style.reach;
         let Some(scene) = cx.value().map(|paths| self.scene(paths, &space.view, rect, reach)) else { return };
         let focusable = self.tool != BezierTool::Anchors;
-        if self.tool == BezierTool::Direct {
+        if self.tool == BezierTool::Direct && !scene.limited {
             cx.part(MARQUEE, HitShape::Rect(rect))
                 .sense(Sense::DRAG.union(Sense::CLICK).union(Sense::TAKE_FOCUS))
                 .priority(HitPriority::new(HitLevel::Background, 0))
