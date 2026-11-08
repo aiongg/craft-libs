@@ -260,10 +260,11 @@ fn rig(rtl: bool) -> Rig {
     let mut fixture = Fixture::new(move |ui| {
         let canvas = Canvas::new("Page").show(ui, |_, _| ());
         let mut state = shown.borrow_mut();
-        let mut tool = TextSelectTool::new(&pages, &Texts, &mut state).right_to_left(rtl);
+        let mut tool = TextSelectTool::new(&pages, &Texts, &mut state);
         let _ = craft_ui::canvas::ToolHost::new().run(ui, &canvas.output, &mut tool);
     });
     fixture.room(vec2(200.0, 100.0));
+    fixture.direction(if rtl { Direction::Rtl } else { Direction::Ltr });
     fixture.settle();
     Rig { fixture, state }
 }
