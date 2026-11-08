@@ -28,6 +28,8 @@ mod properties;
 
 mod export;
 
+mod password;
+
 // Save PDF.
 mod pdf_export;
 

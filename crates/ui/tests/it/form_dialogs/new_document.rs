@@ -216,3 +216,16 @@ fn a_preset_name_that_differs_only_in_case_is_refused() {
     assert!(named(&fixture, "poster").is_none(), "the same name in another case is not saved");
     assert!(fixture.by_label("Preset Name").is_some(), "the refused name leaves the Save Preset row open");
 }
+
+/// A card's second line gives its size in the unit it opens in and its resolution: inches for a print card, pixels for a
+/// screen card, with at most two decimals.
+#[trial]
+fn a_card_shows_its_size_line() {
+    let Rig { mut fixture, .. } = rig();
+    let runs = |fixture: &Fixture| fixture.texts().iter().map(|run| run.text.clone()).collect::<Vec<_>>();
+    assert!(runs(&fixture).iter().any(|text| text.contains(" px @ ")), "a screen card is in pixels: {:?}", runs(&fixture));
+    let print = named(&fixture, "Print").expect("the Print tab");
+    fixture.click(&print);
+    fixture.settle();
+    assert!(runs(&fixture).iter().any(|text| text.starts_with("8.5 × 11 in @ 300")), "Letter is 8.5 by 11 inches at 300 ppi: {:?}", runs(&fixture));
+}
