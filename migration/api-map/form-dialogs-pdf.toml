@@ -9,7 +9,7 @@ name = "PdfExportDialog"
 old = "craft_ui::dialog::export::pdf::PdfExportDialog"
 new = "craft_ui::patterns::form_dialogs::PdfExportDialog"
 status = "moved"
-note = "A pattern: `PdfExportDialog::new(app, Bind<PdfSettings>)` with `show(ui) -> PdfExportOutput`. The preset row is a `NamedPresetRow` over the built-in and saved presets; the settings live in the binding instead of the dialog; the app asks for the file after `PdfExportOutput.result`."
+note = "A pattern on `FormDialog<PdfSettings>`: `PdfExportDialog::new(app, Bind<PdfSettings>)` with `show(ui) -> PdfExportOutput`. The preset row is a `NamedPresetRow` over the built-in and saved presets; the settings live in the binding instead of the dialog; the app asks for the file after `PdfExportOutput.result`."
 
 [[type]]
 name = "PdfArtboards"
@@ -65,7 +65,7 @@ name = "PdfExportOutput"
 old = ""
 new = "craft_ui::patterns::form_dialogs::PdfExportOutput"
 status = "replaced"
-note = "`{ response, closed, result: Option<PdfExportResult>, settings, presets: Vec<PdfPresetEvent>, section }`, implementing `Outcome`."
+note = "`{ response, closed, result: Option<PdfExportResult>, settings, presets: Vec<PdfPresetEvent> }`, implementing `Outcome`."
 
 [[type]]
 name = "PdfPresetEvent"

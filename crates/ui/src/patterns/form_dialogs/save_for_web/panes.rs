@@ -1,11 +1,12 @@
 //! The panes of Save for Web: the view tabs, the animation row, the zoom row and the preview panes with their captions.
 
 use super::{
-    Animation, Live, MODEM_KBPS, SaveForWebWords, WebFormat, WebPictures, WebVariant, WebView, ZOOM_RANGE, download_seconds, four_up_variants,
+    Animation, Live, MODEM_KBPS, SaveForWebOptions, SaveForWebWords, WebFormat, WebPictures, WebVariant, WebView, ZOOM_RANGE, download_seconds,
+    four_up_variants,
 };
 use crate::buttons::Button;
 use crate::choice::Segmented;
-use crate::contract::{Bind, EditResponse, Entry, Props as _, Show as _, ShowContainer as _, clicked};
+use crate::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _, clicked};
 use crate::display::{Shade, Text};
 use crate::layout_components::{Row, Stack};
 use crate::patterns::form_dialogs::{PreviewPane, PreviewState, PreviewView, PreviewZoom};
@@ -32,6 +33,8 @@ pub(super) struct Panes<'p> {
     pub(super) size: PixelSize,
     pub(super) pictures: &'p WebPictures,
     pub(super) animation: Option<Animation>,
+    pub(super) hint: &'p Label,
+    pub(super) options: &'p SaveForWebOptions,
 }
 
 /// What the panes of one pass report.
@@ -40,11 +43,6 @@ struct Reported {
     moved: Option<PreviewView>,
     shown: Option<PreviewView>,
     clicked: Option<WebPane>,
-}
-
-/// The value a control's event carries.
-fn edited<T: Clone>(response: &EditResponse<T>) -> Option<T> {
-    response.event.as_ref().and_then(|event| event.value().cloned())
 }
 
 /// The view tabs, the play and zoom rows and the panes.
@@ -56,11 +54,11 @@ pub(super) fn show(ui: &mut Ui, panes: &Panes<'_>, live: &mut Live) {
         Entry::new(WebView::TwoUp, words.two_up.clone()),
         Entry::new(WebView::FourUp, words.four_up.clone()),
     ];
-    if let Some(view) = edited(&Segmented::new(words.view.clone(), Bind::given(live.view), &tabs).show(ui)) {
+    if let Some(view) = Segmented::new(words.view.clone(), Bind::given(live.view), &tabs).show(ui).value().cloned() {
         live.view = view;
     }
     play_row(ui, panes, live);
-    zoom_row(ui, words, live);
+    zoom_row(ui, words, panes.hint, live);
     pane_grid(ui, panes, live);
 }
 
@@ -79,7 +77,7 @@ fn play_row(ui: &mut Ui, panes: &Panes<'_>, live: &mut Live) {
 }
 
 /// Fit, the zoom steps, 100% and the hint, over the one view the panes share.
-fn zoom_row(ui: &mut Ui, words: &SaveForWebWords, live: &mut Live) {
+fn zoom_row(ui: &mut Ui, words: &SaveForWebWords, hint: &Label, live: &mut Live) {
     Row::new().id_salt("zoom").show(ui, |ui, _| {
         if clicked(&Button::new(words.fit.clone()).id_salt("fit").show(ui)) {
             live.shared = PreviewView::fitting().zoom_range(ZOOM_RANGE);
@@ -90,7 +88,7 @@ fn zoom_row(ui: &mut Ui, words: &SaveForWebWords, live: &mut Live) {
         if clicked(&Button::new(words.actual.clone()).id_salt("actual").show(ui)) {
             live.shared = PreviewView::new(CanvasTransform::new(1.0, Vec2::ZERO)).zoom_range(ZOOM_RANGE);
         }
-        Text::new(words.pan_hint.clone()).role(TypeRole::Caption).shade(Shade::Faint).show(ui);
+        Text::new(hint.clone()).role(TypeRole::Caption).shade(Shade::Faint).show(ui);
     });
 }
 
@@ -117,7 +115,7 @@ fn pane_grid(ui: &mut Ui, panes: &Panes<'_>, live: &mut Live) {
 
 /// One pane with its two caption lines.
 fn one_pane(ui: &mut Ui, panes: &Panes<'_>, live: &Live, pane: WebPane, at: usize, reported: &mut Reported) {
-    let (first, second) = captions(panes, live, pane);
+    let (first, second) = captions(panes, pane);
     let name = Label::from(panes.words.pane_name.fill(&[
         ("pane", pane_title(panes.words, pane).as_str()),
         ("first", first.as_str()),
@@ -144,7 +142,7 @@ fn pane_title(words: &SaveForWebWords, pane: WebPane) -> String {
     match pane {
         WebPane::Original => words.original.as_str().to_owned(),
         WebPane::Encoded(0) => words.optimized.as_str().to_owned(),
-        WebPane::Encoded(index) => format!("{} {}", words.optimized.as_str(), index + 1),
+        WebPane::Encoded(index) => words.optimized_variant.fill(&[("name", words.optimized.as_str()), ("number", (index + 1).to_string().as_str())]),
     }
 }
 
@@ -161,7 +159,7 @@ fn state_of(panes: &Panes<'_>, pane: WebPane) -> PreviewState {
 }
 
 /// The pane's two caption lines: format, size and proxy mark; download time and colour count.
-fn captions(panes: &Panes<'_>, live: &Live, pane: WebPane) -> (String, String) {
+fn captions(panes: &Panes<'_>, pane: WebPane) -> (String, String) {
     let words = panes.words;
     match pane {
         WebPane::Original => {
@@ -176,7 +174,7 @@ fn captions(panes: &Panes<'_>, live: &Live, pane: WebPane) -> (String, String) {
             let Some(variant) = panes.pictures.variants.get(index).and_then(Option::as_ref) else {
                 return (words.pane_pending.as_str().to_owned(), String::new());
             };
-            let format = pane_format(live, index);
+            let format = pane_format(panes.options, index);
             let mut first = words
                 .encoded_caption
                 .fill(&[("format", format.extension().to_uppercase().as_str()), ("size", panes.units.file_size(variant.bytes).as_str())]);
@@ -193,9 +191,9 @@ fn captions(panes: &Panes<'_>, live: &Live, pane: WebPane) -> (String, String) {
 }
 
 /// The format the encoded pane `index` is encoded in.
-fn pane_format(live: &Live, index: usize) -> WebFormat {
+fn pane_format(options: &SaveForWebOptions, index: usize) -> WebFormat {
     match index {
-        0 => live.options.format,
-        _ => four_up_variants(&live.options)[(index - 1).min(1)].format,
+        0 => options.format,
+        _ => four_up_variants(options)[(index - 1).min(1)].format,
     }
 }

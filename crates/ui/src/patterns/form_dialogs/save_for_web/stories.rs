@@ -34,14 +34,16 @@ fn save_for_web(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let encoded = picture(ui, "form-dialogs-web-encoded", Color32::from_rgb(0x84, 0x70, 0x52));
     let mut pictures = WebPictures::new().original(original);
     pictures.set(WebVariant::new(0, 1, encoded, ENCODED_BYTES));
-    SaveForWebDialog::new("poster.psd", size(), pictures).opened(Bind::bound(data.value("open", true))).presets(presets()).show(ui).into()
+    let (options, open) = data.value("web", (SaveForWebOptions::default(), true));
+    SaveForWebDialog::new("poster.psd", size(), pictures, Bind::bound(options)).opened(Bind::bound(open)).presets(presets()).show(ui).into()
 }
 
 #[story(SaveForWebDialog<'static>, covers = [], drive = Drive::Never)]
 fn save_for_web_pending_animation(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let original = picture(ui, "form-dialogs-web-original", Color32::from_rgb(0x8a, 0x6f, 0x4d));
-    SaveForWebDialog::new("loop.psd", size(), WebPictures::new().original(original))
-        .opened(Bind::bound(data.value("open", true)))
+    let (options, open) = data.value("web-animation", (SaveForWebOptions::default(), true));
+    SaveForWebDialog::new("loop.psd", size(), WebPictures::new().original(original), Bind::bound(options))
+        .opened(Bind::bound(open))
         .animation(Animation::new(12, 24.0))
         .show(ui)
         .into()
@@ -52,5 +54,6 @@ fn save_for_web_failed_encode(ui: &mut Ui, data: &mut StoryData) -> StoryOutput 
     let original = picture(ui, "form-dialogs-web-original", Color32::from_rgb(0x8a, 0x6f, 0x4d));
     let mut pictures = WebPictures::new().original(original);
     pictures.set(WebVariant::failed(0, 1, "The encoder ran out of memory"));
-    SaveForWebDialog::new("poster.psd", size(), pictures).opened(Bind::bound(data.value("open", true))).show(ui).into()
+    let (options, open) = data.value("web-failed", (SaveForWebOptions::default(), true));
+    SaveForWebDialog::new("poster.psd", size(), pictures, Bind::bound(options)).opened(Bind::bound(open)).show(ui).into()
 }

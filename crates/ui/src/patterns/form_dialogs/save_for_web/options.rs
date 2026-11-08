@@ -2,14 +2,15 @@
 //! Image Size.
 
 use super::{
-    ColorTable, Dither, Live, MATTE_COLOR_KEY, MAX_PERCENT, SaveForWebOptions, SaveForWebWords, WebFormat, WebMetadata, WebPreset, percent_of,
+    ColorTable, Dither, MATTE_COLOR_KEY, MAX_PERCENT, RESAMPLE_METHODS, SaveForWebOptions, SaveForWebWords, SizingWords, WebFormat, WebMetadata,
+    WebPreset, percent_of,
 };
 use crate::buttons::Button;
 use crate::choice::Checkbox;
-use crate::contract::{Bind, EditResponse, Entry, Props as _, Show as _, ShowContainer as _, clicked};
+use crate::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _, clicked};
 use crate::form::{Field, FieldGroup, SliderField};
 use crate::layout_components::Row;
-use crate::patterns::form_dialogs::{ColorRequest, LinkedSize, resize_from_scale};
+use crate::patterns::form_dialogs::{ColorRequest, LinkedSize, Resample, resize_from_scale};
 use crate::pickers::{Select, UnitSelect};
 use crate::runtime::env::{Label, UnitKind, Units};
 use crate::sections::Section;
@@ -30,11 +31,6 @@ const LEAST_PERCENT: f64 = 1.0;
 /// Opaque alpha of the matte colour.
 const OPAQUE: u8 = 255;
 
-/// The value a control's event carries.
-fn edited<T: Clone>(response: &EditResponse<T>) -> Option<T> {
-    response.event.as_ref().and_then(|event| event.value().cloned())
-}
-
 /// A row: `label` beside the control `body` shows.
 fn row(ui: &mut Ui, label: &Label, key: &'static str, mut body: impl FnMut(&mut Ui)) {
     Field::new(label.clone()).id_salt(key).show(ui, |ui, _| body(ui));
@@ -53,32 +49,42 @@ fn slider(ui: &mut Ui, label: &Label, key: &'static str, value: u8, range: Range
         if percent {
             slider = slider.unit_kind(UnitKind::Percent);
         }
-        picked = edited(&slider.show(ui)).map(|v| v.round().clamp(*range.start(), *range.end()) as u8);
+        picked = slider.show(ui).value().cloned().map(|v| v.round().clamp(*range.start(), *range.end()) as u8);
     });
     picked
 }
 
 /// A check box row.
 fn check(ui: &mut Ui, label: &Label, key: &'static str, value: bool) -> Option<bool> {
-    edited(&Checkbox::new(Bind::given(value)).label(label.clone()).id_salt(key).show(ui))
+    Checkbox::new(Bind::given(value)).label(label.clone()).id_salt(key).show(ui).value().cloned()
 }
 
-/// The settings column.
-pub(super) fn show(ui: &mut Ui, words: &SaveForWebWords, units: &Units, presets: &[WebPreset], live: &mut Live, ask: &mut Option<ColorRequest>) {
+/// What the settings column reads besides the settings.
+pub(super) struct Kit<'k> {
+    pub(super) words: &'k SaveForWebWords,
+    pub(super) sizing: &'k SizingWords,
+    pub(super) units: &'k Units,
+    pub(super) presets: &'k [WebPreset],
+}
+
+/// The settings column over `options` and the output size `link`; the matte request when Matte was pressed goes to
+/// `ask`.
+pub(super) fn show(ui: &mut Ui, kit: &Kit<'_>, options: &mut SaveForWebOptions, link: &mut LinkedSize, ask: &mut Option<ColorRequest>) {
+    let Kit { words, sizing, units, presets } = *kit;
     FieldGroup::new(words.settings.clone()).show(ui, |ui, _| {
         if !presets.is_empty() {
-            preset_row(ui, words, presets, &mut live.options);
+            preset_row(ui, words, presets, options);
         }
-        format_row(ui, words, &mut live.options);
-        format_options(ui, words, units, &mut live.options);
-        if live.options.has_matte() {
-            matte_row(ui, words, &mut live.options, ask);
+        format_row(ui, words, options);
+        format_options(ui, words, units, options);
+        if options.has_matte() {
+            matte_row(ui, words, options, ask);
         }
-        if let Some(on) = check(ui, &words.convert_srgb, "srgb", live.options.convert_srgb) {
-            live.options.convert_srgb = on;
+        if let Some(on) = check(ui, &words.convert_srgb, "srgb", options.convert_srgb) {
+            options.convert_srgb = on;
         }
-        metadata_row(ui, words, &mut live.options);
-        size_section(ui, words, units, &mut live.link);
+        metadata_row(ui, words, options);
+        size_section(ui, words, sizing, units, link, &mut options.resample);
     });
 }
 
@@ -87,9 +93,9 @@ fn preset_row(ui: &mut Ui, words: &SaveForWebWords, presets: &[WebPreset], optio
     let mut entries = vec![Entry::new(None, words.unnamed.clone())];
     entries.extend(presets.iter().enumerate().map(|(at, preset)| Entry::new(Some(at), Label::from(preset.name.clone()))));
     row(ui, &words.preset, "preset", |ui| {
-        if let Some(Some(at)) = edited(&Select::new(words.preset.clone(), Bind::given(current), &entries).show(ui)) {
-            let percent = options.percent;
-            *options = SaveForWebOptions { percent, ..presets[at].options.clone() };
+        if let Some(Some(at)) = Select::new(words.preset.clone(), Bind::given(current), &entries).show(ui).value().cloned() {
+            let (percent, resample) = (options.percent, options.resample);
+            *options = SaveForWebOptions { percent, resample, ..presets[at].options.clone() };
         }
     });
 }
@@ -97,7 +103,7 @@ fn preset_row(ui: &mut Ui, words: &SaveForWebWords, presets: &[WebPreset], optio
 fn format_row(ui: &mut Ui, words: &SaveForWebWords, options: &mut SaveForWebOptions) {
     let entries: Vec<Entry<WebFormat>> = WebFormat::ALL.iter().map(|format| Entry::new(*format, Label::from(format.name()))).collect();
     row(ui, &words.format, "format", |ui| {
-        if let Some(format) = edited(&Select::new(words.format.clone(), Bind::given(options.format), &entries).show(ui)) {
+        if let Some(format) = Select::new(words.format.clone(), Bind::given(options.format), &entries).show(ui).value().cloned() {
             options.format = format;
         }
     });
@@ -110,7 +116,7 @@ fn format_options(ui: &mut Ui, words: &SaveForWebWords, units: &Units, options: 
             color_table_row(ui, words, options);
             row(ui, &words.colors, "colors", |ui| {
                 let field = whole(units, words.colors.clone(), f64::from(options.colors), COLORS);
-                if let Some(v) = edited(&field.show(ui).edit).flatten() {
+                if let Some(v) = field.show(ui).edit.value().cloned().flatten() {
                     options.colors = v.round().clamp(*COLORS.start(), *COLORS.end()) as u16;
                 }
             });
@@ -181,7 +187,7 @@ fn color_table_row(ui: &mut Ui, words: &SaveForWebWords, options: &mut SaveForWe
         Entry::new(ColorTable::Exact, words.exact.clone()),
     ];
     row(ui, &words.color_table, "table", |ui| {
-        if let Some(table) = edited(&Select::new(words.color_table.clone(), Bind::given(options.color_table), &entries).show(ui)) {
+        if let Some(table) = Select::new(words.color_table.clone(), Bind::given(options.color_table), &entries).show(ui).value().cloned() {
             options.color_table = table;
         }
     });
@@ -198,7 +204,7 @@ fn dither_row(ui: &mut Ui, words: &SaveForWebWords, options: &mut SaveForWebOpti
         entries.push(Entry::new(Dither::Noise, words.noise.clone()));
     }
     row(ui, &words.dither, "dither", |ui| {
-        if let Some(dither) = edited(&Select::new(words.dither.clone(), Bind::given(options.dither), &entries).show(ui)) {
+        if let Some(dither) = Select::new(words.dither.clone(), Bind::given(options.dither), &entries).show(ui).value().cloned() {
             options.dither = dither;
         }
     });
@@ -213,7 +219,7 @@ fn matte_row(ui: &mut Ui, words: &SaveForWebWords, options: &mut SaveForWebOptio
             if clicked(&Button::new(Label::from(color.to_hex())).id_salt("choose").show(ui)) {
                 *ask = Some(ColorRequest::new(MATTE_COLOR_KEY, Srgba::from(color)).title(words.matte.clone()));
             }
-            if let Some(Rgba([r, g, b, _])) = edited(&HexField::hex(words.matte_hex.clone(), Bind::given(color)).id_salt("hex").show(ui)) {
+            if let Some(Rgba([r, g, b, _])) = HexField::hex(words.matte_hex.clone(), Bind::given(color)).id_salt("hex").show(ui).value().cloned() {
                 options.matte = [r, g, b];
             }
         });
@@ -228,14 +234,14 @@ fn metadata_row(ui: &mut Ui, words: &SaveForWebWords, options: &mut SaveForWebOp
         Entry::new(WebMetadata::All, words.metadata_all.clone()),
     ];
     row(ui, &words.metadata, "metadata", |ui| {
-        if let Some(metadata) = edited(&Select::new(words.metadata.clone(), Bind::given(options.metadata), &entries).show(ui)) {
+        if let Some(metadata) = Select::new(words.metadata.clone(), Bind::given(options.metadata), &entries).show(ui).value().cloned() {
             options.metadata = metadata;
         }
     });
 }
 
-/// Image Size: Width and Height in pixels or percent, and the Percent row.
-fn size_section(ui: &mut Ui, words: &SaveForWebWords, units: &Units, link: &mut LinkedSize) {
+/// Image Size: Width and Height in pixels or percent, the Percent row and the Resample method.
+fn size_section(ui: &mut Ui, words: &SaveForWebWords, sizing: &SizingWords, units: &Units, link: &mut LinkedSize, resample: &mut Resample) {
     let kinds = [
         Entry::new(UnitKind::Pixels, Label::from(units.symbol(UnitKind::Pixels))),
         Entry::new(UnitKind::Percent, Label::from(units.symbol(UnitKind::Percent))),
@@ -247,7 +253,7 @@ fn size_section(ui: &mut Ui, words: &SaveForWebWords, units: &Units, link: &mut 
                 .unit_label(words.size_unit.clone())
                 .range(range)
                 .show(ui);
-            if let Some(v) = edited(&field.edit).flatten() {
+            if let Some(v) = field.edit.value().cloned().flatten() {
                 link.set_width(v);
             }
             if let Some(unit) = field.unit.as_ref().and_then(|event| event.value().copied()) {
@@ -260,7 +266,7 @@ fn size_section(ui: &mut Ui, words: &SaveForWebWords, units: &Units, link: &mut 
                 .unit_label(words.size_unit.clone())
                 .range(range)
                 .show(ui);
-            if let Some(v) = edited(&field.edit).flatten() {
+            if let Some(v) = field.edit.value().cloned().flatten() {
                 link.set_height(v);
             }
             if let Some(unit) = field.unit.as_ref().and_then(|event| event.value().copied()) {
@@ -272,8 +278,14 @@ fn size_section(ui: &mut Ui, words: &SaveForWebWords, units: &Units, link: &mut 
             let field = NumberField::new(words.percent.clone(), Bind::given(Some(percent)))
                 .codec(NumberCodec::new(units.reader(Some(UnitKind::Percent)), 2))
                 .range(LEAST_PERCENT..=MAX_PERCENT);
-            if let Some(v) = edited(&field.show(ui).edit).flatten() {
+            if let Some(v) = field.show(ui).edit.value().cloned().flatten() {
                 set_percent(link, v);
+            }
+        });
+        let methods = Resample::entries(sizing, &RESAMPLE_METHODS);
+        row(ui, &sizing.resample_method, "resample", |ui| {
+            if let Some(method) = Select::new(sizing.resample_method.clone(), Bind::given(*resample), &methods).show(ui).value().copied() {
+                *resample = method;
             }
         });
     });

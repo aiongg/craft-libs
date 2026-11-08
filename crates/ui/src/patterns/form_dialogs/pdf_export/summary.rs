@@ -204,7 +204,7 @@ pub(super) fn option_label(words: &PdfExportWords, path: &str) -> String {
         );
     }
     parts.push(leaf_label(words, path).map_or_else(|| humanize(keys.last().copied().unwrap_or(path)), |label| label.as_str().to_owned()));
-    parts.join(" › ")
+    parts.join(words.path_separator.as_str())
 }
 
 /// `abovePpi` as "Above Ppi", for a setting without words.
@@ -242,7 +242,9 @@ pub fn differences(words: &PdfExportWords, settings: &PdfSettings, base: &PdfSet
         .filter(|(path, shown)| base.iter().find(|(other, _)| other == path).is_none_or(|(_, held)| held != shown))
         .collect();
     diff.sort_by_key(|(path, _)| section_of(path));
-    diff.iter().map(|(path, shown)| format!("{}: {}", option_label(words, path), value_text(words, shown))).collect()
+    diff.iter()
+        .map(|(path, shown)| words.difference.fill(&[("setting", option_label(words, path).as_str()), ("value", value_text(words, shown).as_str())]))
+        .collect()
 }
 
 /// Why an artboard range was refused.

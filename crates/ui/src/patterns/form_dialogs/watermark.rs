@@ -1,18 +1,20 @@
 //! `Watermark`: the watermark rows of an export dialog: the style (text or graphic), the text or the image, the
 //! orientation, the position, the rotation, the size, the opacity, the insets and the shadow.
 
+use super::host_requests::HostRequests;
 use super::param::{PathKind, PathRequest};
 use crate::buttons::Button;
 use crate::choice::{Checkbox, Segmented};
-use crate::contract::{Bind, EditResponse, Entry, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, clicked};
+use crate::contract::{Bind, Entry, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, clicked};
 use crate::form::{Field, FieldGroup, SliderField};
 use crate::layout_components::Row;
 use crate::pickers::{Anchor9, ReferencePoint, Select};
-use crate::runtime::env::{Env, Label, UnitKind};
+use crate::runtime::env::{Env, Label, UnitKind, Units};
 use crate::runtime::memory::Remember as _;
 use crate::text::TextField;
 use craft_behavior::{EditEvent, GestureId, Mixed};
 use egui::{Response, Ui};
+use serde::{Deserialize, Serialize};
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
@@ -60,7 +62,8 @@ craft_ui::words! {
 }
 
 /// Text or an image.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum WatermarkStyle {
     /// Watermark text.
@@ -77,7 +80,8 @@ impl WatermarkStyle {
 }
 
 /// A watermark. Sizes are percent of the image's short edge.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct WatermarkSettings {
     /// Text or image.
@@ -129,15 +133,14 @@ impl WatermarkSettings {
 
 /// The text and the image path apart, so switching the style back restores what was typed.
 #[derive(Clone, Debug, Default, PartialEq)]
-#[non_exhaustive]
-pub struct Stash {
+struct Stash {
     text: String,
     image: String,
 }
 
 impl Stash {
     /// Remembers the content of the active style.
-    pub fn keep(&mut self, style: &WatermarkStyle) {
+    fn keep(&mut self, style: &WatermarkStyle) {
         match style {
             WatermarkStyle::Text(text) => self.text.clone_from(text),
             WatermarkStyle::Graphic(path) => self.image.clone_from(path),
@@ -145,7 +148,7 @@ impl Stash {
     }
 
     /// The style `graphic` picks, with the content last kept for it.
-    pub fn style(&self, graphic: bool) -> WatermarkStyle {
+    fn style(&self, graphic: bool) -> WatermarkStyle {
         if graphic { WatermarkStyle::Graphic(self.image.clone()) } else { WatermarkStyle::Text(self.text.clone()) }
     }
 }
@@ -159,9 +162,9 @@ pub struct WatermarkOutput {
     /// The watermark after the pass when a row changed it. A binding that writes through has it already; a given one
     /// applies it.
     pub value: Option<WatermarkSettings>,
-    /// The Choose button was pressed: the host opens its file dialog for the request and writes the path as
-    /// [`WatermarkStyle::Graphic`].
-    pub choose_image: Option<PathRequest>,
+    /// The Choose button was pressed: the host opens its file dialog for the path request keyed
+    /// [`WATERMARK_IMAGE_KEY`] and writes the answer as [`WatermarkStyle::Graphic`].
+    pub requests: HostRequests,
 }
 
 impl Outcome for WatermarkOutput {
@@ -170,11 +173,6 @@ impl Outcome for WatermarkOutput {
     fn response(&self) -> &Response {
         &self.response
     }
-}
-
-/// The value a control's event carries.
-fn edited<T: Clone>(response: &EditResponse<T>) -> Option<T> {
-    response.event.as_ref().and_then(|event| event.value().cloned())
 }
 
 /// The watermark rows of an export dialog: Style (Text, Graphic), the text field or the image path with Choose…,
@@ -200,10 +198,12 @@ impl<'a> Watermark<'a> {
     /// Shows the rows.
     pub fn show(self, ui: &mut Ui) -> WatermarkOutput {
         let Watermark { label, mut value } = self;
-        let words = Env::of(ui).words::<WatermarkWords>();
+        let env = Env::of(ui);
+        let words = env.words::<WatermarkWords>();
+        let units = env.units();
         let name: Arc<str> = label.as_str().into();
         let mut next = None;
-        let mut choose = None;
+        let mut requests = HostRequests::new();
         let shown = FieldGroup::new(label).show(ui, |ui, cx| {
             let before = match value.reborrow().read(cx) {
                 Some(Mixed::Same(held)) => held,
@@ -212,23 +212,22 @@ impl<'a> Watermark<'a> {
             let mut now = before.clone();
             let mut stash = cx.memory::<Stash>().clone();
             stash.keep(&now.style);
-            choose = rows(ui, &words, &mut now, &mut stash);
+            rows(ui, &words, &units, &mut now, &mut stash, &mut requests);
             *cx.memory::<Stash>() = stash;
             if now != before {
                 let _ = value.reborrow().write(cx, &EditEvent::set(GestureId::default(), Mixed::Same(before), now.clone(), name.clone(), None));
                 next = Some(now);
             }
         });
-        WatermarkOutput { response: shown.output, value: next, choose_image: choose }
+        WatermarkOutput { response: shown.output, value: next, requests }
     }
 }
 
-/// The rows over `now`; the request of the Choose button when it was pressed.
-fn rows(ui: &mut Ui, words: &WatermarkWords, now: &mut WatermarkSettings, stash: &mut Stash) -> Option<PathRequest> {
-    let mut choose = None;
+/// The rows over `now`; the Choose button files its request in `requests`.
+fn rows(ui: &mut Ui, words: &WatermarkWords, units: &Units, now: &mut WatermarkSettings, stash: &mut Stash, requests: &mut HostRequests) {
     let styles = [Entry::new(false, words.text_style.clone()), Entry::new(true, words.graphic_style.clone())];
     Field::new(words.style.clone()).id_salt("style").show(ui, |ui, _| {
-        if let Some(graphic) = edited(&Segmented::new(words.style.clone(), Bind::given(now.style.is_graphic()), &styles).show(ui)) {
+        if let Some(graphic) = Segmented::new(words.style.clone(), Bind::given(now.style.is_graphic()), &styles).show(ui).value().cloned() {
             now.style = stash.style(graphic);
         }
     });
@@ -236,37 +235,37 @@ fn rows(ui: &mut Ui, words: &WatermarkWords, now: &mut WatermarkSettings, stash:
         WatermarkStyle::Graphic(path) => {
             Field::new(words.image.clone()).id_salt("image").show(ui, |ui, _| {
                 Row::new().show(ui, |ui, _| {
-                    if let Some(path) = edited(&TextField::new(words.image.clone(), Bind::given(path.clone())).id_salt("path").show(ui)) {
+                    if let Some(path) = TextField::new(words.image.clone(), Bind::given(path.clone())).id_salt("path").show(ui).value().cloned() {
                         now.style = WatermarkStyle::Graphic(path);
                     }
                     if clicked(&Button::new(words.choose.clone()).id_salt("choose").show(ui)) {
-                        choose = Some(PathRequest::new(WATERMARK_IMAGE_KEY, PathKind::open_file(&IMAGE_EXTENSIONS)));
+                        requests.request_path(PathRequest::new(WATERMARK_IMAGE_KEY, PathKind::open_file(&IMAGE_EXTENSIONS)));
                     }
                 });
             });
         }
         WatermarkStyle::Text(text) => {
             Field::new(words.text.clone()).id_salt("text").show(ui, |ui, _| {
-                if let Some(text) = edited(&TextField::new(words.text.clone(), Bind::given(text.clone())).lines(2).id_salt("text").show(ui)) {
+                if let Some(text) = TextField::new(words.text.clone(), Bind::given(text.clone())).lines(2).id_salt("text").show(ui).value().cloned() {
                     now.style = WatermarkStyle::Text(text);
                 }
             });
             let orientations = [Entry::new(false, words.horizontal.clone()), Entry::new(true, words.vertical.clone())];
             Field::new(words.orientation.clone()).id_salt("orientation").show(ui, |ui, _| {
-                if let Some(vertical) = edited(&Select::new(words.orientation.clone(), Bind::given(now.vertical), &orientations).show(ui)) {
+                if let Some(vertical) = Select::new(words.orientation.clone(), Bind::given(now.vertical), &orientations).show(ui).value().cloned() {
                     now.vertical = vertical;
                 }
             });
         }
     }
     Field::new(words.position.clone()).id_salt("position").show(ui, |ui, _| {
-        if let Some(position) = edited(&ReferencePoint::new(words.position.clone(), Bind::given(now.position)).show(ui)) {
+        if let Some(position) = ReferencePoint::new(words.position.clone(), Bind::given(now.position)).show(ui).value().cloned() {
             now.position = position;
         }
     });
-    let rotations: Vec<Entry<u16>> = ROTATIONS.iter().map(|degrees| Entry::new(*degrees, Label::from(format!("{degrees}\u{b0}")))).collect();
+    let rotations: Vec<Entry<u16>> = ROTATIONS.iter().map(|degrees| Entry::new(*degrees, Label::from(units.degrees(f64::from(*degrees))))).collect();
     Field::new(words.rotation.clone()).id_salt("rotation").show(ui, |ui, _| {
-        if let Some(rotation) = edited(&Select::new(words.rotation.clone(), Bind::given(now.rotation), &rotations).show(ui)) {
+        if let Some(rotation) = Select::new(words.rotation.clone(), Bind::given(now.rotation), &rotations).show(ui).value().cloned() {
             now.rotation = rotation;
         }
     });
@@ -284,11 +283,10 @@ fn rows(ui: &mut Ui, words: &WatermarkWords, now: &mut WatermarkSettings, stash:
         now.inset[1] = inset;
     }
     if !now.style.is_graphic()
-        && let Some(on) = edited(&Checkbox::new(Bind::given(now.shadow)).label(words.shadow.clone()).id_salt("shadow").show(ui))
+        && let Some(on) = Checkbox::new(Bind::given(now.shadow)).label(words.shadow.clone()).id_salt("shadow").show(ui).value().cloned()
     {
         now.shadow = on;
     }
-    choose
 }
 
 /// A percent row: a slider with its number field on `range`; the value it reports.
@@ -296,7 +294,7 @@ fn percent_row(ui: &mut Ui, label: &Label, key: &'static str, value: f64, range:
     let mut picked = None;
     Field::new(label.clone()).id_salt(key).enabled(enabled).show(ui, |ui, _| {
         let slider = SliderField::new(label.clone(), Bind::given(value), range.clone()).step(STEP).unit_kind(UnitKind::Percent).id_salt("slider");
-        picked = edited(&slider.show(ui)).map(|v| v as f32);
+        picked = slider.show(ui).value().cloned().map(|v| v as f32);
     });
     picked
 }

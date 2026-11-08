@@ -2,7 +2,7 @@
 //! text and the image path apart.
 
 use craft_ui::contract::Bind;
-use craft_ui::patterns::form_dialogs::{Stash, Watermark, WatermarkSettings, WatermarkStyle};
+use craft_ui::patterns::form_dialogs::{Watermark, WatermarkSettings, WatermarkStyle};
 use craft_ui::pickers::Anchor9;
 use craft_ui::testing::{Fixture, trial};
 use std::cell::RefCell;
@@ -21,16 +21,6 @@ fn insets_apply_only_along_the_axes_the_position_does_not_centre() {
     assert!(!at(Anchor9::Top).insets_across() && at(Anchor9::Top).insets_down());
     assert!(at(Anchor9::Left).insets_across() && !at(Anchor9::Left).insets_down());
     assert!(!at(Anchor9::Centre).insets_across() && !at(Anchor9::Centre).insets_down());
-}
-
-/// The stash gives back what each style held when the style was switched away from it.
-#[trial]
-fn the_stash_keeps_the_text_and_the_image_path_apart() {
-    let mut stash = Stash::default();
-    stash.keep(&WatermarkStyle::Text("Studio".to_owned()));
-    stash.keep(&WatermarkStyle::Graphic("logo.png".to_owned()));
-    assert_eq!(stash.style(false), WatermarkStyle::Text("Studio".to_owned()));
-    assert_eq!(stash.style(true), WatermarkStyle::Graphic("logo.png".to_owned()));
 }
 
 /// Picking Graphic and then Text again brings the typed text back.
