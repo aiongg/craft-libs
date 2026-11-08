@@ -145,9 +145,13 @@ impl Host for PaneHost {
         let last = grip.or(self.0.extent).or_else(|| layout_memory::read(&ctx, extent).map(|size| if along_x { size.x } else { size.y }));
         let outer = panels::show_pane(parent, edge, sub(id, ("pane", self.0.name)), last, |ui| {
             // The pane is a layout room of its own: the grid or content column its parent body flows in ends here.
+            // It fills its panel's rect, so no rule of the parent's flow (a content column holding a filling child at
+            // its measured width) sizes it, and the panel keeps the extent it offered.
             let room = env.new_room();
             let installed = Env::install_for(ui, room.clone());
-            pass(ui, None, Some(&room));
+            let panel = ui.max_rect();
+            pass(ui, Some(ShowAt::Rect(panel)), Some(&room));
+            crate::runtime::egui::alloc::advance_past(ui, panel);
             Env::restore(&ui.ctx().clone(), installed);
         });
         if last.is_none() && edge != Edge::Center && outer.is_positive() {
