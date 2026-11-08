@@ -4,6 +4,7 @@ mod inert_slider;
 mod nodes;
 mod run_links;
 mod scope;
+mod sub_node_keys;
 
 // fwi-spin
 mod spin_button;
