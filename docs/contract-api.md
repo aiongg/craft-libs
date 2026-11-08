@@ -538,6 +538,7 @@ The dock model: the tree of splits over panel frames, the side of a group a drop
   - `pub fn is_open(&self) -> bool`. A gesture is open: a caller that restores a draft waits for it to end.
   - `pub fn step(&mut self, now: &mut T, step: Step) -> bool`. Steps `now` back or forward. False when there is nowhere to go. An open gesture is abandoned.
   - `pub fn drop_last(&mut self) -> bool`. Drops the newest undo step without applying it, for a step that turned out to change nothing (a fill over an
+  - `pub fn take_back(&mut self) -> Option<T>`. Takes back the newest undo step without a redo entry, for an edit that was refused: `settled` returns to the
   - `pub fn undo_name(&self) -> Option<&str>`. The name of the step an undo would take back ("Opacity" for "Undo Opacity").
   - `pub fn redo_name(&self) -> Option<&str>`. The name of the step a redo would apply.
   - `pub fn can_undo(&self) -> bool`. An undo would change something.
