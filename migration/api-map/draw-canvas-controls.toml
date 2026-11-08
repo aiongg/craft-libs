@@ -2,7 +2,7 @@
 # Filled in by the family track; the codemods and the app scan read it.
 
 family = "draw canvas controls"
-new_module = ""
+new_module = "craft_draw::ui"
 
 # One entry per public type: `old` is the path an app calls today, `new` the path after migration.
 # `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
@@ -187,3 +187,105 @@ new = "removed: CanvasTool::cancel owns the cancel and restores the tool's mark;
 type = "ConstrainStyle"
 old = "of(&tokens)"
 new = "new(copy_reach, stroke_lock), a tool passes ToolContext.slop for both"
+
+# draw-shape: the add-beside buttons
+
+[[type]]
+name = "AddBesideHandles"
+old = "craft_draw::ui::add_beside::AddBesideHandles"
+new = "craft_draw::ui::add_beside::AddBesideHandles"
+status = "replaced"
+note = "A canvas control (`#[component(canvas_control)]`) shown with `show_at(ui, canvas_rect)` inside a `Canvas`; its buttons are parts in the canvas arena, so a press on one reaches the control before the tool. The tool stops hit-testing and painting the buttons and takes `AddBesideOutput::added`."
+
+[[type]]
+name = "AddBesideResponse"
+old = "craft_draw::ui::add_beside::AddBesideResponse"
+new = "craft_draw::ui::add_beside::AddBesideOutput"
+status = "replaced"
+note = "`clicked` is `added`; `focused` is gone (the focus is the arena's)."
+
+[[type]]
+name = "AddBesideStyle"
+old = "craft_draw::ui::add_beside::AddBesideStyle"
+new = "craft_draw::ui::add_beside::AddBesideStyle"
+status = "removed"
+note = "A `ComponentStyle` of the control; read no values from it."
+
+[[type]]
+name = "AddBesideLabels"
+old = "craft_draw::ui::add_beside::AddBesideLabels"
+new = "craft_draw::ui::add_beside::AddBesideWords"
+status = "replaced"
+note = "A `words!` set."
+
+[[type]]
+name = "AddSide"
+old = "craft_draw::ui::add_beside::AddSide"
+new = "craft_draw::ui::add_beside::AddSide"
+status = "same"
+
+[[setter]]
+type = "AddBesideHandles"
+old = "AddBesideHandles::new(id_salt, Rect)"
+new = "AddBesideHandles::new(label, DocRect)"
+note = "The label names the group (\"Add beside\", or the host's word for what it adds)."
+
+[[setter]]
+type = "AddBesideHandles"
+old = "hidden(bool)"
+new = "hidden()"
+note = "A flag prop: call it under an `if`."
+
+[[setter]]
+type = "AddBesideHandles"
+old = "connecting(bool)"
+new = "connecting()"
+note = "A flag prop."
+
+[[setter]]
+type = "AddBesideHandles"
+old = "clear_of(&[egui::Rect])"
+new = "clear_of(&[egui::Rect])"
+note = "Unchanged."
+
+[[setter]]
+type = "AddBesideHandles"
+old = "at(view, style, pos)"
+new = "(removed)"
+note = "Hit-testing is the arena's."
+
+[[setter]]
+type = "AddBesideHandles"
+old = "paint(painter, view, style)"
+new = "(removed)"
+note = "The control paints its buttons."
+
+[[setter]]
+type = "AddBesideHandles"
+old = "buttons(view, style)"
+new = "add_beside_places(view, object, offset)"
+note = "The pure placement of the four buttons, for a tool's ghost."
+
+[[setter]]
+type = "AddBesideHandles"
+old = "style(tokens)"
+new = "(removed)"
+note = "The style is the control's `ComponentStyle`."
+
+[[setter]]
+type = "AddBesideHandles"
+old = "ghost(closure)"
+new = "(removed)"
+note = "The tool draws its ghost for `AddBesideOutput::hovered`."
+
+[[setter]]
+type = "AddBesideHandles"
+old = "labels(AddBesideLabels)"
+new = "(removed)"
+note = "Words come from the env."
+
+[[setter]]
+type = "AddBesideHandles"
+old = "show(ui, view)"
+new = "show_at(ui, canvas_rect)"
+note = "The view comes from the canvas."

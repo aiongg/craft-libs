@@ -2,7 +2,7 @@
 # Filled in by the family track; the codemods and the app scan read it.
 
 family = "draw bars and dialogs"
-new_module = ""
+new_module = "craft_draw::ui"
 
 # One entry per public type: `old` is the path an app calls today, `new` the path after migration.
 # `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
@@ -56,3 +56,192 @@ type = "ReferencePoint"
 old = "names([String; 9])"
 new = ""
 note = "The nine names are the picker family's words (`PickerWords`)."
+
+# draw-shape: the shape panel and bar, the pattern fill editor and dialog
+
+[[type]]
+name = "ShapePanel"
+old = "craft_draw::ui::shape::ShapePanel"
+new = "craft_draw::ui::shape::ShapePanel"
+status = "replaced"
+note = "A `Pattern`: `ShapePanel::new(label, &LiveShape, &ShapeAppearance)`, `show(ui)`; sections are `Section`s, rows are `Field`s."
+
+[[type]]
+name = "ShapePanelOutput"
+old = "craft_draw::ui::shape::ShapePanelOutput"
+new = "craft_draw::ui::shape::ShapePanelOutput"
+status = "replaced"
+note = "Adds `screen_pick`, a chip's eyedropper press; the host answers through `ShapePanel::sampled`. The events are `craft_behavior::EditEvent<ShapeChange>`."
+
+[[type]]
+name = "ShapeBar"
+old = "craft_draw::ui::shape::ShapeBar"
+new = "craft_draw::ui::shape::ShapeBar"
+status = "replaced"
+note = "A `Pattern` shown as children of a `Bar` (`BarKind::Options`): `ShapeBar::new(kind, &settings, &appearance)`, `show(ui)`."
+
+[[type]]
+name = "ShapeBarOutput"
+old = "craft_draw::ui::shape::ShapeBarOutput"
+new = "craft_draw::ui::shape::ShapeBarOutput"
+status = "replaced"
+note = "The output of `ShapeBar::show`, not a sink passed in with `output`."
+
+[[type]]
+name = "ShapeLabels"
+old = "craft_draw::ui::shape::ShapeLabels"
+new = "craft_draw::ui::shape::ShapeWords"
+status = "replaced"
+note = "A `words!` set; `stroke_style` is new."
+
+[[type]]
+name = "LiveShape"
+old = "craft_draw::ui::shape::LiveShape"
+new = "craft_draw::ui::shape::LiveShape"
+status = "same"
+
+[[type]]
+name = "ShapeAppearance"
+old = "craft_draw::ui::shape::ShapeAppearance"
+new = "craft_draw::ui::shape::ShapeAppearance"
+status = "same"
+
+[[type]]
+name = "ShapeChange"
+old = "craft_draw::ui::shape::ShapeChange"
+new = "craft_draw::ui::shape::ShapeChange"
+status = "same"
+
+[[type]]
+name = "ShapePaint"
+old = "craft_draw::ui::shape::ShapePaint"
+new = "craft_draw::ui::shape::ShapePaint"
+status = "same"
+
+[[type]]
+name = "ShapeToolSettings"
+old = "craft_draw::ui::shape::ShapeToolSettings"
+new = "craft_draw::ui::shape::ShapeToolSettings"
+status = "same"
+
+[[type]]
+name = "PatternFillEditor"
+old = "craft_draw::ui::pattern::PatternFillEditor"
+new = "craft_draw::ui::pattern::PatternFillEditor"
+status = "replaced"
+note = "A `Pattern`: `PatternFillEditor::new(label, Bind<PatternFillOptions>, &[PatternSwatch])`, output `PatternFillOutput { response, event }`; the preset picker and browser are `PresetPicker` and `PresetBrowser` over the same rows."
+
+[[type]]
+name = "PatternFillDialog"
+old = "craft_draw::ui::pattern::PatternFillDialog"
+new = "craft_draw::ui::pattern::PatternFillDialog"
+status = "same"
+note = "A `StackDialog` over a `FormDialog<PatternFillOptions>`; `show` takes `&mut Ui` and the `DialogStack`."
+
+[[type]]
+name = "PatternFillLabels"
+old = "craft_draw::ui::pattern::PatternFillLabels"
+new = "craft_draw::ui::pattern::PatternWords"
+status = "replaced"
+note = "A `words!` set."
+
+[[type]]
+name = "PatternSwatch"
+old = "craft_draw::ui::pattern::PatternSwatch"
+new = "craft_draw::ui::pattern::PatternSwatch"
+status = "same"
+
+[[type]]
+name = "PatternColors"
+old = "craft_draw::ui::pattern::PatternColors"
+new = "craft_draw::ui::pattern::PatternColors"
+status = "same"
+
+[[type]]
+name = "PatternFillOptions"
+old = "craft_draw::ui::pattern::PatternFillOptions"
+new = "craft_draw::ui::pattern::PatternFillOptions"
+status = "same"
+
+[[setter]]
+type = "ShapePanel"
+old = "ShapePanel::new(id_salt, &LiveShape, &ShapeAppearance)"
+new = "ShapePanel::new(label, &LiveShape, &ShapeAppearance)"
+
+[[setter]]
+type = "ShapePanel"
+old = "stroke_open(&mut bool)"
+new = "stroke_open(Bind<bool>)"
+
+[[setter]]
+type = "ShapePanel"
+old = "chips(closure)"
+new = "chips(closure)"
+note = "Stored as a `ChipSetup`; the closure decorates each `PaintChip` (`gradient_editor`, `pattern_editor`, `picture_editor`)."
+
+[[setter]]
+type = "ShapePanel"
+old = "labels(ShapeLabels)"
+new = "(removed)"
+note = "Words come from the env."
+
+[[setter]]
+type = "ShapePanel"
+old = "(none)"
+new = "sampled(Option<(ShapePaint, Srgba)>)"
+note = "The host's answer to `ShapePanelOutput::screen_pick`."
+
+[[setter]]
+type = "ShapeBar"
+old = "ShapeBar::new(id_salt, kind, &settings, &appearance)"
+new = "ShapeBar::new(kind, &settings, &appearance)"
+
+[[setter]]
+type = "ShapeBar"
+old = "add_to(&mut OptionsBarSlots)"
+new = "show(ui)"
+note = "Call it inside a `Bar`'s body."
+
+[[setter]]
+type = "ShapeBar"
+old = "output(&mut ShapeBarOutput)"
+new = "(removed)"
+note = "`show` returns the output."
+
+[[setter]]
+type = "ShapeBar"
+old = "stroke_open(&mut bool)"
+new = "stroke_open(Bind<bool>)"
+
+[[setter]]
+type = "PatternFillEditor"
+old = "PatternFillEditor::new(id_salt, &PatternFillOptions, &[PatternSwatch])"
+new = "PatternFillEditor::new(label, Bind<PatternFillOptions>, &[PatternSwatch])"
+
+[[setter]]
+type = "PatternFillEditor"
+old = "thumbnails(Fn(&Painter, Rect, &PatternSwatch))"
+new = "thumbnails(Fn(&ContentPainterCx, Rect, &PatternSwatch) + Send + Sync)"
+note = "Painted through the content painter."
+
+[[setter]]
+type = "PatternFillEditor"
+old = "labels(PatternFillLabels)"
+new = "(removed)"
+note = "Words come from the env."
+
+[[setter]]
+type = "PatternFillDialog"
+old = "thumbnails(Fn(&Painter, Rect, &PatternSwatch))"
+new = "thumbnails(Fn(&ContentPainterCx, Rect, &PatternSwatch) + Send + Sync)"
+
+[[setter]]
+type = "PatternFillDialog"
+old = "show(ctx, stack)"
+new = "show(ui, stack)"
+
+[[setter]]
+type = "PatternFillDialog"
+old = "labels(PatternFillLabels)"
+new = "(removed)"
+note = "Words come from the env."

@@ -1,35 +1,24 @@
-//! One pattern fill editor ([`PatternFillEditor`]) for Photoshop-style bitmap patterns (picker,
-//! scale, angle, Link with Layer, Snap to Origin) and PowerPoint-style two-colour presets (swatch
-//! grid, foreground, background), in Photoshop's Pattern Fill dialog ([`PatternFillDialog`]) or
-//! inline (a paint chip's Pattern tab, a Format pane).
-//!
-//! ```no_run
-//! use craft_draw::ui::pattern::{PatternFillEditor, PatternFillOptions, PatternSwatch};
-//! # fn demo(ui: &mut egui::Ui, options: &PatternFillOptions, swatches: &[PatternSwatch]) {
-//! let r = PatternFillEditor::new("pattern", options, swatches)
-//!     .thumbnails(|painter, rect, swatch| { /* the app paints its pattern tile */ let _ = (painter, rect, swatch); })
-//!     .show(ui);
-//! if let Some(event) = r.event { /* one undo step per gesture */ let _ = event; }
-//! # }
-//! ```
+//! One pattern fill editor ([`PatternFillEditor`]) for Photoshop-style bitmap patterns (picker, scale, angle, Link
+//! with Layer, Snap to Origin) and PowerPoint-style two-colour presets (swatch grid, foreground, background), in
+//! Photoshop's Pattern Fill dialog ([`PatternFillDialog`]) or inline (a paint chip's Pattern editor, a Format pane).
 
 use craft_theme::Srgba;
 
 mod dialog;
 mod editor;
-mod labels;
+#[cfg(feature = "screen-testing")]
 pub(crate) mod stories;
-#[cfg(test)]
-mod tests;
+mod words;
 
 pub use dialog::PatternFillDialog;
-pub use editor::PatternFillEditor;
-pub use labels::PatternFillLabels;
+pub use editor::{PatternFillEditor, PatternFillOutput, SwatchPainter};
+pub use words::PatternWords;
 
 /// A pattern the editor offers: the app's pattern library (PhotoCraft's Patterns, a bitmap each)
 /// or its preset patterns (PowerPoint's "pct25", "dkHorz", …). The app paints each swatch's tile
 /// ([`PatternFillEditor::thumbnails`]).
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct PatternSwatch {
     /// The app's id, which [`PatternFillOptions::pattern`] holds.
     pub id: String,
@@ -37,9 +26,17 @@ pub struct PatternSwatch {
     pub name: String,
 }
 
+impl PatternSwatch {
+    /// A swatch of the app's pattern `id`, named `name`.
+    pub fn new(id: impl Into<String>, name: impl Into<String>) -> Self {
+        PatternSwatch { id: id.into(), name: name.into() }
+    }
+}
+
 /// A preset pattern's two colours (PowerPoint's Foreground and Background): present means the
 /// editor is in preset mode.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct PatternColors {
     /// The pattern's foreground colour.
     pub foreground: Srgba,
@@ -63,6 +60,13 @@ pub struct PatternFillOptions {
     pub phase: [f64; 2],
     /// Preset mode: the two colours. `None` is bitmap mode.
     pub colors: Option<PatternColors>,
+}
+
+impl PatternColors {
+    /// The two colours of a preset pattern.
+    pub fn new(foreground: Srgba, background: Srgba) -> Self {
+        PatternColors { foreground, background }
+    }
 }
 
 impl PatternFillOptions {

@@ -4,3 +4,9 @@ pub mod geometry;
 pub mod stroke;
 #[cfg(feature = "ui")]
 pub mod ui;
+
+#[cfg(feature = "screen-testing")]
+pub mod testing {
+    //! The registrations of this crate's stories, for the `tests/it` harness.
+    craft_ui::testing_registered!();
+}
