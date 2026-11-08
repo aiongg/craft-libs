@@ -7,7 +7,7 @@ use super::paint::{
 };
 use super::words::HistogramWords;
 use craft_behavior::{AccessAction, CancelReason, CursorIcon, Flow, IconId, Intent, Metrics, NavMove, PartKey, PressPhase, Sense};
-use craft_theme::{Rgba, Stateful, TypeRole};
+use craft_theme::{Stateful, TypeRole};
 use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Name, Numeric, Outcome, PaintUi, PartsCx,
     Pointer as _, Props as _, Role, Styled as _, WordSetCx as _,
@@ -27,7 +27,7 @@ const SHORT_CONTROLS: f32 = 2.0;
 const SELECTION_ALPHA: f32 = 0.35;
 
 /// The plot of the whole histogram.
-const PLOT: PartKey = PartKey::new("plot");
+pub(super) const PLOT: PartKey = PartKey::new("plot");
 /// The start edge of the selection.
 const START: PartKey = PartKey::new("start");
 /// The end edge of the selection.
@@ -234,6 +234,7 @@ impl<'a> Histogram<'a> {
             refresh: false,
         }
         .label(label)
+        .ltr_axis()
     }
 
     fn bins(&self) -> usize {
@@ -300,7 +301,7 @@ impl Component for Histogram<'_> {
         HistogramStyle {
             metrics: Metrics::new().min_size(Vec2::new(cx.tokens.size.plot.width, tall)),
             focus: cx.focus_look(),
-            caption: TextLook::new(TypeRole::Caption, Stateful::new(cx.color(Rgba([marker.r(), marker.g(), marker.b(), marker.a()])))),
+            caption: TextLook::new(TypeRole::Caption, Stateful::new(cx.color(colors.text.normal))),
             stale: IconLook::new(cx.tokens.size.icon.sm, Stateful::new(warn)),
             frame: PlotFrame::new(cx),
             inks,

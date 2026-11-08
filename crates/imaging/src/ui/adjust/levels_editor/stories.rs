@@ -13,7 +13,7 @@ fn identity() -> Levels {
     Levels::identity(0.0..=255.0)
 }
 
-#[story(LevelsEditor<'static>, covers = [Default], drive = Drive::Never)]
+#[story(LevelsEditor<'static>, covers = [Default], drive = Drive::Auto)]
 fn levels_editor(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let bins = story_bins(0.0);
     let histogram = HistogramData::tone(&bins, ChannelColor::Neutral);

@@ -271,6 +271,7 @@ impl<'a> LevelsEditor<'a> {
             clip: None,
         }
         .label(label)
+        .ltr_axis()
     }
 
     fn ends(&self) -> (f64, f64) {

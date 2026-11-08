@@ -304,10 +304,16 @@ fn field_row(ui: &mut Ui, input: &PageInput<'_>, field: &EffectField, shown: &St
             let mut checked = before;
             let presets = Contour::presets();
             let rows = contour_rows(&presets, input.user_contours, input.contour_words, input.sampler.cloned());
+            // A field with no visible label (Emboss's contour under its check box) is still named for assistive tech.
+            let name = if label.as_str().is_empty() {
+                words.field("contour").cloned().unwrap_or_else(|| Label::from(field.key.to_string()))
+            } else {
+                label.clone()
+            };
             let shown_field = Field::new(label.clone())
                 .id_salt(key)
                 .show(ui, |ui, _| {
-                    let mut field = ContourField::new(label.clone(), Bind::given(contour.clone()), &rows, Bind::<PresetState<ContourKey>>::kept())
+                    let mut field = ContourField::new(name.clone(), Bind::given(contour.clone()), &rows, Bind::<PresetState<ContourKey>>::kept())
                         .user(input.user_contours);
                     if anti_alias.is_some() {
                         field = field.anti_alias(Bind::bound(&mut checked));

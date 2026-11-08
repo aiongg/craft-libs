@@ -15,7 +15,7 @@ use craft_ui::style::{ComponentStyle, FocusLook, StyleColor, StyleCx};
 use egui::{CornerRadius, Rect, Vec2};
 
 /// One zone's slider node and part; the index names the zone.
-const ZONE: PartKey = PartKey::new("zone");
+pub(super) const ZONE: PartKey = PartKey::new("zone");
 
 /// Shift drags a tenth as far (LightCraft's fine factor).
 const FINE: f32 = 0.1;
@@ -153,7 +153,13 @@ pub struct ToneZones<'a> {
 impl<'a> ToneZones<'a> {
     /// The zones over the plot, each zone's value text in the same order (the tooltip and the slider's value).
     pub fn new(label: impl Into<Label>, zones: &'a [ToneZone], values: &'a [Label]) -> Self {
-        ToneZones { common: Common::new(), value: Bind::kept(), zones, values }.label(label)
+        ToneZones { common: Common::new(), value: Bind::kept(), zones, values }.label(label).ltr_axis()
+    }
+
+    /// Binds the last edit to `value`, so the host can show it as mixed or refuse it.
+    pub fn value(mut self, value: Bind<'a, ScopeZoneEdit>) -> Self {
+        self.value = value;
+        self
     }
 
     fn value_text(&self, zone: usize) -> &str {

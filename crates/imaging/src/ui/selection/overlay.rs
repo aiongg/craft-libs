@@ -295,7 +295,7 @@ struct Traced {
 }
 
 /// What the trace leaf reports.
-struct TraceOutput {
+pub(super) struct TraceOutput {
     response: Response,
     segments: Arc<Vec<Segment>>,
     retraced: bool,
@@ -311,7 +311,7 @@ impl Outcome for TraceOutput {
 
 /// The style of the trace leaf: it paints nothing.
 #[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
-struct OutlineTraceStyle {
+pub(super) struct OutlineTraceStyle {
     #[style(metrics)]
     metrics: Metrics,
 }

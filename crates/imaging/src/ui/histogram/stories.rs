@@ -1,5 +1,6 @@
 //! Stories of the histogram: one per state the plot shows.
 
+use super::plot::PLOT;
 use super::{ChannelColor, Histogram, HistogramData, HistogramScale, LevelRange, StaleMark};
 use craft_behavior::Mixed;
 use craft_ui::contract::{Bind, Show as _, Validity};
@@ -61,7 +62,7 @@ fn markers(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     Histogram::new("Histogram", &data).markers(&points).value("Levels points").bordered().show(ui).into()
 }
 
-#[story(Histogram<'static>, covers = [], drive = Drive::Never)]
+#[story(Histogram<'static>, covers = [], drive = Drive::Drag(PLOT))]
 fn selection(ui: &mut Ui, story: &mut StoryData) -> StoryOutput {
     let data = HistogramData::tone(&humps(), ChannelColor::Neutral);
     let range = story.value("range", Some(LevelRange::new(60.0, 120.0)));

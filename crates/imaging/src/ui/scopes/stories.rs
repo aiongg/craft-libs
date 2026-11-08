@@ -4,18 +4,22 @@
 //! pixels and a generated picture for the clipping overlay. Nothing runs in the background: every count is made in the
 //! frame that shows it.
 
+use super::panel::Block;
+use super::zones::ZONE;
 use super::{
     COLORS_CHANNEL, ChannelOverlay, ClipWarning, ClippingFrame, ClippingMode, ClippingOverlay, ClippingWarnings, HistogramSet, ScopeChannel,
-    ScopeFrame, ScopePanel, ScopePanelState, ScopeSettings, ScopeSource, ScopeView, ToneZone, ToneZones, VectorscopeFrame, VectorscopePlot,
+    ScopeFrame, ScopePanel, ScopePanelState, ScopeSettings, ScopeSource, ScopeView, ScopeZoneEdit, ToneZone, ToneZones, VectorscopeFrame,
+    VectorscopePlot, ZoneChange,
 };
 use crate::scopes::{ChannelMask, ClippingMask, HUES, SATURATIONS, Vectorscope, hue_saturation};
 use crate::ui::histogram::ChannelColor;
 use crate::ui::mock_image::{MockImage, StoryView, story_canvas};
-use craft_ui::contract::{Bind, Show as _};
+use craft_behavior::Mixed;
+use craft_ui::contract::{Bind, Show as _, Validity};
 use craft_ui::primitives::Revision;
-use craft_ui::runtime::env::Label;
-use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
-use egui::Ui;
+use craft_ui::runtime::env::{Label, Message};
+use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
+use egui::{Ui, Vec2};
 
 /// A generator of repeatable noise in 0..1 (a linear congruential step).
 fn noise(state: &mut u32) -> f32 {
@@ -281,18 +285,75 @@ fn clipping_warnings_on(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     ScopePanel::new(state).frame(&frame).show(ui).into()
 }
 
-#[story(ClipWarning<'static>, covers = [Default], drive = Drive::Never)]
+#[story(ClipWarning<'static>, covers = [Default], drive = Drive::Activate)]
 fn clip_warning(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let on = data.value("on", true);
     ClipWarning::new("Highlight Clipping Warning (O)", Bind::bound(on), ChannelMask::R).show(ui).into()
 }
 
-#[story(ToneZones<'static>, covers = [Default], drive = Drive::Never)]
-fn zones_over_a_plot(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+#[story(ClipWarning<'static>, covers = [Mixed], drive = Drive::Never)]
+fn clip_warning_that_differs(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let on = data.value("mixed", Mixed::<bool>::Mixed);
+    ClipWarning::new("Highlight Clipping Warning (O)", Bind::bound_mixed(on), ChannelMask::R).show(ui).into()
+}
+
+#[story(ClipWarning<'static>, covers = [Invalid], drive = Drive::Never)]
+fn clip_warning_that_is_refused(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let on = data.value("refused", false);
+    let refuse = |_: &bool| Validity::Refuse(Message::new("Not available"));
+    ClipWarning::new("Highlight Clipping Warning (O)", Bind::bound(on).check(refuse), ChannelMask::R).show(ui).into()
+}
+
+/// Drags the second tone zone by twice the drag threshold.
+fn drag_second_zone(fixture: &mut Fixture) {
+    let Some(id) = fixture.root_id() else { return };
+    let Some(zone) = fixture.part(id, ZONE.at(1)) else { return };
+    let travel = 2.0 * craft_ui::testing::input::max_click_dist(fixture.ctx());
+    fixture.drag(&zone, Vec2::new(travel, 0.0));
+}
+
+/// The edit the zone stories start from.
+fn first_edit() -> ScopeZoneEdit {
+    ScopeZoneEdit { zone: 0, key: ToneZone::CAMERA_RAW[0].key, change: ZoneChange::Step(0) }
+}
+
+/// The zones of a story over a picture, the value text of each, and the story's canvas.
+fn zones_story(ui: &mut Ui, value: Bind<'_, ScopeZoneEdit>) -> StoryOutput {
     let zones = ToneZone::CAMERA_RAW;
     let texts: Vec<Label> = zones.iter().map(|zone| Label::from(zone_text(zone.key, 0.0))).collect();
-    let rect = ui.available_rect_before_wrap();
-    ToneZones::new("Tone zones", &zones, &texts).show_at(ui, rect).into()
+    let image = MockImage::default();
+    let mut value = Some(value);
+    story_canvas(ui, Some(&image), StoryView::Fit, |ui, rect| {
+        let value = value.take().unwrap_or_else(Bind::kept);
+        ToneZones::new("Tone zones", &zones, &texts).value(value).show_at(ui, rect).into()
+    })
+}
+
+#[story(ToneZones<'static>, covers = [Default], drive = Drive::Custom(drag_second_zone))]
+fn zones_over_a_plot(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let edit = data.value("edit", first_edit());
+    zones_story(ui, Bind::bound(edit))
+}
+
+#[story(ToneZones<'static>, covers = [Mixed], drive = Drive::Never)]
+fn zones_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let edit = data.value("mixed", Mixed::<ScopeZoneEdit>::Mixed);
+    zones_story(ui, Bind::bound_mixed(edit))
+}
+
+#[story(ToneZones<'static>, covers = [Invalid], drive = Drive::Never)]
+fn zones_that_are_refused(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let edit = data.value("refused", first_edit());
+    let refuse = |_: &ScopeZoneEdit| Validity::Refuse(Message::new("Not available"));
+    zones_story(ui, Bind::bound(edit).check(refuse))
+}
+
+#[story(Block, covers = [Default], drive = Drive::Never)]
+fn dark_block(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    Block::dark("Scope plot").show(ui, |ui, _| {
+        ClipWarning::new("Shadow Clipping Warning (U)", Bind::kept(), ChannelMask::R).show(ui);
+    });
+    StoryOutput::default()
 }
 
 #[story(ClippingOverlay<'static>, covers = [Default], drive = Drive::Never)]

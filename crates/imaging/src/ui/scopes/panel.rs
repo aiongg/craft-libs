@@ -292,7 +292,7 @@ static STATISTICS_COLUMNS: [ColumnWidth; 4] = [ColumnWidth::Content; 4];
 
 /// The style of the panel's blocks: no padding of their own.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
-struct BlockStyle {
+pub(super) struct BlockStyle {
     #[style(metrics)]
     metrics: craft_behavior::Metrics,
 }
@@ -301,7 +301,7 @@ struct BlockStyle {
 /// theme.
 #[derive(craft_ui::contract::Component)]
 #[component(container)]
-struct Block {
+pub(super) struct Block {
     #[common]
     common: Common,
     #[container]
@@ -309,7 +309,7 @@ struct Block {
 }
 
 impl Block {
-    fn new(label: impl Into<Label>, props: ContainerProps) -> Self {
+    pub(super) fn new(label: impl Into<Label>, props: ContainerProps) -> Self {
         Block { common: Common::new(), props: props.sizing(Sizing::Content).layout(BodyLayout::stack()) }.label(label)
     }
 
@@ -319,7 +319,7 @@ impl Block {
     }
 
     /// A plot block that resolves its tokens in the dark mode.
-    fn dark(label: impl Into<Label>) -> Self {
+    pub(super) fn dark(label: impl Into<Label>) -> Self {
         Block::new(label, ContainerProps::new().theme(ThemeScope::mode(Mode::Dark)))
     }
 }
