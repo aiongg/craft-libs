@@ -183,6 +183,10 @@ struct ArenaState {
     previous: Vec<MemberDecl>,
     own: Vec<PartDecl>,
     previous_own: Vec<PartDecl>,
+    /// The stack position of the root's own `over` parts: above the members its body showed and below the ones
+    /// `paint_over` shows (`place_over_widgets`). Above everything until the owner has placed them.
+    own_over_at: u32,
+    previous_own_over_at: u32,
     /// The senses and bounds of the members that joined this pass and last pass.
     union_sense: Sense,
     previous_union_sense: Sense,
@@ -225,20 +229,25 @@ fn rotate(state: &mut ArenaState, pass_nr: u64) {
     if state.pass != pass_nr {
         state.previous = std::mem::take(&mut state.members);
         state.previous_own = std::mem::take(&mut state.own);
+        state.previous_own_over_at = state.own_over_at;
+        state.own_over_at = u32::MAX;
         state.previous_union_sense = std::mem::take(&mut state.union_sense);
         state.pass = pass_nr;
     }
 }
 
-const OVER: u32 = u32::MAX;
+fn own_part_shape(part: &PartDecl, root: Id, position: u32, target: f32) -> Shape<Id> {
+    Shape::new(part.shape.clone(), part.sense, root, Some(part.part_ref()), part.priority, position).min_across(target)
+}
 
+/// The root's own parts but the `over` ones, at position 0.
 fn own_shapes(own: &[PartDecl], root: Id, target: f32) -> Vec<Shape<Id>> {
-    own.iter()
-        .map(|part| {
-            Shape::new(part.shape.clone(), part.sense, root, Some(part.part_ref()), part.priority, if part.over { OVER } else { 0 })
-                .min_across(target)
-        })
-        .collect()
+    own.iter().filter(|part| !part.over).map(|part| own_part_shape(part, root, 0, target)).collect()
+}
+
+/// The root's own `over` parts, at the position the owner left them.
+fn own_over_shapes(own: &[PartDecl], root: Id, position: u32, target: f32) -> Vec<Shape<Id>> {
+    own.iter().filter(|part| part.over).map(|part| own_part_shape(part, root, position, target)).collect()
 }
 
 /// The stack position of the member at `index` in show order. Members take the even positions from 2, so the
@@ -270,7 +279,7 @@ fn member_over_shapes(member: &MemberDecl, target: f32) -> impl Iterator<Item = 
 }
 
 /// The shapes of last pass in resolution order: own parts, then members in show order, each member's `over` parts
-/// above the members its body showed, then the own `over` parts.
+/// above the members its body showed, and the own `over` parts at their position among them.
 fn candidates(state: &ArenaState, target: f32) -> Vec<Shape<Id>> {
     let root = state.root.map_or(Id::NULL, |root| root.id);
     let mut shapes = own_shapes(&state.previous_own, root, target);
@@ -278,6 +287,7 @@ fn candidates(state: &ArenaState, target: f32) -> Vec<Shape<Id>> {
         shapes.extend(member_shapes(member, member_position(at), target));
         shapes.extend(member_over_shapes(member, target));
     }
+    shapes.extend(own_over_shapes(&state.previous_own, root, state.previous_own_over_at, target));
     shapes
 }
 
@@ -414,10 +424,11 @@ fn over_widget(root: Id, part: &PartDecl) -> Id {
     sub(root, ("over", part.key, part.index))
 }
 
-/// Registers the egui widgets of the component's `over` parts after its body ran. egui picks the later widget, so a
-/// press on such a part goes to the component's arena and not to a root nested in the body, as the stacking order
-/// says (8.3). A root's ids are part of its widgets from step 8. A member's `over` parts take their stack position
-/// here, above every member its body showed, and their widgets stand for the arena root.
+/// Registers the egui widgets of the component's `over` parts after its body ran and before its `paint_over`. egui
+/// picks the later widget, so a press on such a part goes to the component's arena and not to a root nested in the
+/// body, and a child `paint_over` shows afterwards stacks above it: one rule for the stacking order (8.3). A root's
+/// ids are part of its widgets from step 8. The `over` parts of a root or a member take their stack position here,
+/// above every member its body showed; a member's widgets stand for the arena root.
 pub(crate) fn place_over_widgets(ui: &Ui, id: Id, member: Option<ArenaId>, decls: &[PartDecl]) {
     let (ctx, clip) = (ui.ctx(), ui.clip_rect());
     let widgets: Vec<Id> = over_parts(decls)
@@ -428,18 +439,26 @@ pub(crate) fn place_over_widgets(ui: &Ui, id: Id, member: Option<ArenaId>, decls
             widget
         })
         .collect();
-    let Some(arena) = member.filter(|_| decls.iter().any(|part| part.over)) else { return };
+    if !decls.iter().any(|part| part.over) {
+        return;
+    }
+    let arena = member.unwrap_or_else(|| ArenaId::new(id));
     let layer = ui.layer_id();
     let read = PassRead::of(ctx);
     let shapes = with_arena_in(ctx, read.viewport, arena, read.pass_nr, |state| {
-        let count = state.members.len();
+        let at = over_position(state.members.len());
+        if member.is_none() {
+            state.own_over_at = at;
+            return Some(own_over_shapes(&state.own, id, at, read.target()));
+        }
         let joined = state.members.iter_mut().rev().find(|joined| joined.id == id)?;
-        joined.over_at = over_position(count);
+        joined.over_at = at;
         Some(member_over_shapes(joined, read.target()).collect::<Vec<_>>())
     });
     let Some(shapes) = shapes else { return };
     pointer::record_shapes_in(ctx, read.viewport, layer, arena.0, shapes);
-    if !widgets.is_empty() {
+    // A root's widgets are in its widget record from step 8.
+    if member.is_some() && !widgets.is_empty() {
         pointer::record_widgets_in(ctx, read.viewport, layer, arena.0, &widgets, decls.iter().any(|part| part.sense.contains(Sense::CLICK)));
     }
 }

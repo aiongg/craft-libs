@@ -718,9 +718,12 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
         }
         p.hooks.content(comp, ui, env, cx, &values);
     }
-    comp.paint_over(&mut paint_ui(&mut *ui, env, cx), cx);
+    // The `over` parts are placed before `paint_over`, so the children it shows stack above them (8.3).
     ui.set_clip_rect(outer_clip);
     sensing::place_over_widgets(ui, id, member, &decls);
+    ui.set_clip_rect(inside);
+    comp.paint_over(&mut paint_ui(&mut *ui, env, cx), cx);
+    ui.set_clip_rect(outer_clip);
     // 15 settle
     p.trace.mark(Step::Settle);
     p.hooks.settle(comp, cx);

@@ -3,6 +3,7 @@
 mod derives;
 mod inactive;
 mod fixes;
+mod hit_order;
 mod openers;
 mod os_window;
 mod surface;

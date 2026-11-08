@@ -175,6 +175,7 @@ impl CellGrid<'_> {
                 let header = Self::column_header(&geometry, column);
                 cx.part(COLUMN.at(u64::from(column)), header)
                     .sense(sense)
+                    .over()
                     .flags(flags(Marks::of_line(&marks.columns, column)))
                     .pointer_only("Select the column is Cmd+Space");
                 let end = if rtl { header.left_center() } else { header.right_center() };
