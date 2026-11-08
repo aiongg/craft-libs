@@ -13,5 +13,5 @@ fn transport_bar(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(MediaControls, covers = [Default], drive = Drive::Never)]
 fn media_controls(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    MediaControls::new("Media controls", 12.5, 65.0).trim(5.0, 55.0).show(ui).into()
+    MediaControls::new("Media controls", 12.5, 65.0).trim((5.0, 55.0)).show(ui).into()
 }

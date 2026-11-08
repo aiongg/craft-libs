@@ -19,7 +19,7 @@ use craft_ui::contract::{
 use craft_ui::primitives::{GridInk, GridLines, IconSpec, PaintShape, RuleKind, StrokeWidth, TextRun};
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::focus::KeyUse;
-use craft_ui::style::{ComponentStyle, FocusLook, Stateful, StyleColor, StyleCx, TextLook, TypeRole};
+use craft_ui::style::{ComponentStyle, Flags, FocusLook, Resolve as _, State, StateMix, Stateful, States, StyleColor, StyleCx, TextLook, TypeRole};
 use egui::{Color32, CornerRadius, Pos2, Rect, Response, Vec2};
 use std::ops::Deref;
 
@@ -406,8 +406,8 @@ pub struct GraphEditorStyle {
     #[style(focus)]
     focus: FocusLook,
     well: StyleColor,
-    key: StyleColor,
-    key_selected: StyleColor,
+    /// A key; the on state is a selected key's.
+    key: Stateful<StyleColor>,
     handle: StyleColor,
     playhead: StyleColor,
     marquee_fill: StyleColor,
@@ -517,6 +517,24 @@ impl<'a> GraphEditor<'a> {
         (Rect::from_min_max(rect.min, Pos2::new(rect.right(), bar.top())), bar)
     }
 
+    /// The bottom bar's buttons that fit in `bar`, each with its place in [`Button::ALL`] and its cell.
+    fn bar_cells(bar: Rect, style: &GraphEditorStyle) -> Vec<(usize, Button, Rect)> {
+        let (mut x, mut previous) = (bar.left(), None::<u8>);
+        let mut cells = Vec::new();
+        for (at, button) in Button::ALL.into_iter().enumerate() {
+            if let Some(group) = previous {
+                x += if group == button.group() { style.gap } else { style.section_gap };
+            }
+            previous = Some(button.group());
+            let cell = Rect::from_min_size(Pos2::new(x, bar.top()), Vec2::splat(style.button)).intersect(bar);
+            x += style.button;
+            if cell.width() > 0.0 {
+                cells.push((at, button, cell));
+            }
+        }
+        cells
+    }
+
     /// The value range the plot shows: the frozen one while a drag runs, else the fitted one with auto-zoom, else the
     /// range's own.
     fn shown_range(&self, range: Option<&GraphRange>) -> (f64, f64) {
@@ -614,8 +632,10 @@ impl Component for GraphEditor<'_> {
             metrics: Metrics::new(),
             focus: cx.focus_look(),
             well: cx.color(c.surface.sunken),
-            key: cx.color(c.text.normal),
-            key_selected: cx.color(c.accent.solid),
+            key: {
+                let (normal, selected) = (cx.color(c.text.normal), cx.color(c.accent.solid));
+                Stateful::new(normal).on(States::new(selected, selected, selected, selected))
+            },
             handle: cx.color(c.data.yellow),
             playhead: cx.color(c.accent.solid),
             marquee_fill: cx.color(c.accent.soft),
@@ -655,7 +675,7 @@ impl Component for GraphEditor<'_> {
         let Some(axis) = time_axis(&cx.env) else { return };
         let (plot, bar) = Self::split(rect, cx.style);
         let frame = Frame::new(plot, self.shown_range(cx.value()));
-        let (hit, gap, section_gap, button_side) = (cx.style.hit, cx.style.gap, cx.style.section_gap, cx.style.button);
+        let hit = cx.style.hit;
         let selection = self.selection;
         cx.part(PLOT, plot).sense(Sense::DRAG | Sense::CLICK | Sense::TAKE_FOCUS).pointer_only("the keyframe lanes pick keys by keyboard");
         for (n, key) in self.keys_in_order() {
@@ -684,17 +704,8 @@ impl Component for GraphEditor<'_> {
             let words = cx.words::<GraphEditorWords>();
             Button::ALL.iter().map(|button| button.name(&words).to_owned()).collect()
         };
-        let (mut x, mut previous) = (bar.left(), None::<u8>);
-        for (at, button) in Button::ALL.into_iter().enumerate() {
-            if let Some(group) = previous {
-                x += if group == button.group() { gap } else { section_gap };
-            }
-            previous = Some(button.group());
-            let cell = Rect::from_min_size(Pos2::new(x, bar.top()), Vec2::splat(button_side)).intersect(bar);
-            x += button_side;
-            if cell.width() > 0.0 {
-                cx.part(BAR.at(at as u64), cell).sense(Sense::CLICK | Sense::FOCUS).focusable().tooltip(Label::from(names[at].clone()));
-            }
+        for (at, _, cell) in Self::bar_cells(bar, cx.style) {
+            cx.part(BAR.at(at as u64), cell).sense(Sense::CLICK | Sense::FOCUS).focusable().tooltip(Label::from(names[at].clone()));
         }
         cx.roving(Roving::new(NavShape::Flat));
     }
@@ -953,7 +964,7 @@ impl Component for GraphEditor<'_> {
                     }
                 }
                 let square = PaintShape::Rect(Rect::from_center_size(centre, Vec2::splat(style.key_side)), CornerRadius::ZERO);
-                draw.fill(&square, if on { style.key_selected } else { style.key });
+                draw.fill(&square, style.key.resolve(State::Rest, Flags::empty(), StateMix::new(0.0, 0.0, if on { 1.0 } else { 0.0 })));
                 painter.outline_in(&[square], ink);
             }
         }
@@ -969,7 +980,7 @@ impl Component for GraphEditor<'_> {
         draw.fill(&PaintShape::Rect(bar, CornerRadius::ZERO), style.bar_fill);
         draw.rule(RuleKind::Divider, bar.left_top(), bar.right_top());
         let words = cx.words::<GraphEditorWords>();
-        for (at, button) in Button::ALL.into_iter().enumerate() {
+        for (at, button, _) in Self::bar_cells(bar, style) {
             let icon = IconSpec::svg(IconId::new(button.icon()));
             let name = Label::from(button.name(&words).to_owned());
             match button.on(&range) {
@@ -983,7 +994,9 @@ impl Component for GraphEditor<'_> {
         access.value(self.shown.items.len().to_string());
         let words = cx.words::<GraphEditorWords>();
         for (at, button) in Button::ALL.into_iter().enumerate() {
-            access.node(BAR.at(at as u64), Role::BUTTON).name = Name::Text(button.name(&words).to_owned());
+            if cx.part_if_declared(BAR.at(at as u64)).is_some() {
+                access.node(BAR.at(at as u64), Role::BUTTON).name = Name::Text(button.name(&words).to_owned());
+            }
         }
         let Some(axis) = time_axis(&cx.env) else { return };
         for (n, curve, key) in self.keys_of_curves() {

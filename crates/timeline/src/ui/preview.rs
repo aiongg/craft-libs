@@ -3,19 +3,19 @@
 #[cfg(feature = "screen-testing")]
 mod stories;
 
-use craft_behavior::{Axis, Metrics};
+use craft_behavior::{Axis, Metrics, Sense};
 use craft_theme::Stateful;
 use craft_ui::contract::{Access, Common, Component, Cx, Input, MeasureCx, Name, PaintUi, Props, Role, Styled as _};
 use craft_ui::primitives::{PaintShape, TextRun};
 use craft_ui::runtime::env::Label;
-use craft_ui::style::{ComponentStyle, DataColor, StyleCx, TextLook, TypeRole};
-use egui::{Color32, CornerRadius, Rect, Response, TextureId, Vec2, pos2};
+use craft_ui::style::{ComponentStyle, StyleColor, StyleCx, TextLook, TypeRole};
+use egui::{CornerRadius, Rect, Response, TextureId, Vec2, pos2};
 
 /// How a frame fills its box.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 #[non_exhaustive]
 pub enum FrameFit {
-    /// Scaled to fit, centred, the rest black (letterbox or pillarbox).
+    /// Scaled to fit, centred, the rest the canvas colour (letterbox or pillarbox).
     #[default]
     Letterbox,
     /// The part a crop leaves (left, top, right, bottom fractions, each clamped to 0 to 0.99) stretched over the
@@ -52,9 +52,11 @@ pub struct PreviewStyle {
     /// The status line under the frame.
     #[style(text)]
     status: TextLook,
+    /// Behind the frame, where it does not reach.
+    backdrop: StyleColor,
 }
 
-/// A preview panel: the frame fitted on black and, under it, a status line in the caption role ("Movie.mov \u{b7}
+/// A preview panel: the frame fitted on the canvas colour and, under it, a status line in the caption role ("Movie.mov \u{b7}
 /// 00:01:02:03", "Offline", a decode error). Without a frame it shows the status alone, centred. Not interactive;
 /// AccessKit: an image named by the status.
 #[derive(craft_ui::contract::Component, Props)]
@@ -92,11 +94,19 @@ impl Component for FramePreview {
     type Output = Response;
 
     fn style(cx: &StyleCx<'_>, _: FramePreviewStyleKey) -> PreviewStyle {
-        PreviewStyle { metrics: Metrics::new(), status: TextLook::new(TypeRole::Caption, Stateful::new(cx.color(cx.tokens.color.text.muted))) }
+        PreviewStyle {
+            metrics: Metrics::new(),
+            status: TextLook::new(TypeRole::Caption, Stateful::new(cx.color(cx.tokens.color.text.muted))),
+            backdrop: cx.color(cx.tokens.color.surface.canvas),
+        }
     }
 
     fn fills(&self) -> Option<Axis> {
         Some(Axis::Y)
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::empty()
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
@@ -111,7 +121,7 @@ impl Component for FramePreview {
             (Some((texture, size)), run, line) => {
                 let strip = line.map_or(0.0, |line| line.y);
                 let area = Rect::from_min_max(rect.min, pos2(rect.max.x, (rect.max.y - strip).max(rect.min.y)));
-                ui.draw().data_fill(&PaintShape::Rect(area, CornerRadius::ZERO), DataColor::new(Color32::BLACK));
+                ui.draw().fill(&PaintShape::Rect(area, CornerRadius::ZERO), cx.style.backdrop);
                 let (target, uv) = frame_rect(area, size, self.fit);
                 ui.content_painter(cx).picture(texture, target, uv);
                 if let (Some(run), Some(line)) = (run, line) {

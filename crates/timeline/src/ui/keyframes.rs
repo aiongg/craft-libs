@@ -9,7 +9,7 @@ use craft_behavior::{
 use craft_ui::buttons::{IconButton, ToggleButton};
 use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Gap, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pattern,
-    Pointer as _, Props as _, Remember as _, Role, Show as _, ShowContainer as _,
+    Pointer as _, Props as _, Remember as _, Role, Show as _, ShowContainer as _, clicked,
 };
 use craft_ui::layout_components::Row;
 use craft_ui::primitives::{IconSpec, Mirror, PaintShape, StrokeWidth};
@@ -25,7 +25,19 @@ use crate::timecode::format_time;
 
 /// A keyframe's id, the app's.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct KeyframeId(pub u64);
+pub struct KeyframeId(u64);
+
+impl KeyframeId {
+    /// The id `value`.
+    pub const fn new(value: u64) -> Self {
+        KeyframeId(value)
+    }
+
+    /// The id's number.
+    pub const fn get(self) -> u64 {
+        self.0
+    }
+}
 
 /// How the segment leaving a keyframe interpolates (Premiere's temporal set; After Effects' Linear, Bezier and Hold
 /// are a subset). Also picks the glyph.
@@ -302,7 +314,7 @@ impl Component for KeyframeLane<'_> {
                 continue;
             }
             let part = cx
-                .part(KEY.at(key.id.0), at)
+                .part(KEY.at(key.id.get()), at)
                 .sense(Sense::CLICK | Sense::DRAG | Sense::CONTEXT_CLICK | Sense::TAKE_FOCUS)
                 .priority(HitPriority::new(HitLevel::Handle, 0))
                 .pointer_only("the lane's arrow keys select and move the keys");
@@ -322,7 +334,7 @@ impl Component for KeyframeLane<'_> {
         let selection = self.selection;
 
         for key in &sorted {
-            let part = KEY.at(key.id.0);
+            let part = KEY.at(key.id.get());
             let Some(result) = cx.part_if_declared(part) else { continue };
             let press = result.press;
             if press.double_pressed() {
@@ -439,7 +451,7 @@ impl Component for KeyframeLane<'_> {
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let Some(axis) = time_axis(&cx.env) else { return };
         for key in self.sorted() {
-            let node = access.node(KEY.at(key.id.0), Role::LIST_BOX_OPTION);
+            let node = access.node(KEY.at(key.id.get()), Role::LIST_BOX_OPTION);
             node.name = Name::Text(format_time(key.time, &axis.format));
         }
     }
@@ -554,13 +566,13 @@ impl KeyframeNavigator {
                 // The time axis is never mirrored, so the arrows keep their directions.
                 let previous = IconSpec::svg(IconId::new("chevron_left")).mirror(Mirror::Never);
                 let step = IconButton::new(previous).label(words.previous.clone()).enabled(has_previous).show(ui);
-                out.previous = step.clicked();
+                out.previous = clicked(&step);
             }
             let diamond = IconId::new(if at_key { "keyframe_linear" } else { "diamond" });
-            out.toggle = IconButton::new(diamond).label(words.add_remove.clone()).show(ui).clicked();
+            out.toggle = clicked(&IconButton::new(diamond).label(words.add_remove.clone()).show(ui));
             if animated {
                 let next = IconSpec::svg(IconId::new("chevron_right")).mirror(Mirror::Never);
-                out.next = IconButton::new(next).label(words.next.clone()).enabled(has_next).show(ui).clicked();
+                out.next = clicked(&IconButton::new(next).label(words.next.clone()).enabled(has_next).show(ui));
             }
         });
         out.response = Some(shown.output);

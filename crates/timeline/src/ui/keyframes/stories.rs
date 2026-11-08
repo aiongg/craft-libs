@@ -3,7 +3,7 @@
 use craft_behavior::Selection;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
-use egui::{Rect, Ui, vec2};
+use egui::Ui;
 
 use super::{AnimationToggle, KeyframeId, KeyframeInterpolation, KeyframeLane, KeyframeMark, KeyframeNavigator};
 use crate::rates::FrameRate;
@@ -13,15 +13,13 @@ use crate::ui::TimelineView;
 
 /// The lane's zoom, in points per second.
 const POINTS_PER_SECOND: f64 = 50.0;
-/// The lane's height, in points.
-const LANE_HEIGHT: f32 = 28.0;
 
 fn seconds(at: f64) -> Tick {
     Tick::from_seconds_f64(at)
 }
 
 fn keys() -> Vec<KeyframeMark> {
-    let key = |id: u64, at: f64, interpolation| KeyframeMark::new(KeyframeId(id), seconds(at), interpolation);
+    let key = |id: u64, at: f64, interpolation| KeyframeMark::new(KeyframeId::new(id), seconds(at), interpolation);
     vec![
         key(1, 1.0, KeyframeInterpolation::Linear),
         key(2, 3.0, KeyframeInterpolation::Hold),
@@ -34,13 +32,11 @@ fn keys() -> Vec<KeyframeMark> {
 #[story(KeyframeLane<'static>, covers = [Default], drive = Drive::Never)]
 fn linear_hold_and_bezier_keys(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let keys = keys();
-    let selection = Selection::new(vec![KeyframeId(2), KeyframeId(3)], Some(KeyframeId(3)), Some(KeyframeId(2)));
+    let selection = Selection::new(vec![KeyframeId::new(2), KeyframeId::new(3)], Some(KeyframeId::new(3)), Some(KeyframeId::new(2)));
     let view = data.value("view", TimeView::new(Tick::ZERO, POINTS_PER_SECOND));
     let format = TimeFormat::timecode(FrameRate::FPS_24);
-    let area = ui.available_rect_before_wrap();
-    let lane = Rect::from_min_size(area.min, vec2(area.width(), LANE_HEIGHT));
     TimelineView::new("Timeline", Bind::bound(view), format, seconds(12.0))
-        .show(ui, |ui, _| KeyframeLane::new("Keyframes", &keys, &selection).playhead(seconds(4.0)).show_at(ui, lane))
+        .show(ui, |ui, _| KeyframeLane::new("Keyframes", &keys, &selection).playhead(seconds(4.0)).show(ui))
         .inner
         .map(StoryOutput::from)
         .unwrap_or_default()

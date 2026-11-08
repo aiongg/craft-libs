@@ -17,9 +17,9 @@ use craft_behavior::{
     PressPhase, Selection, SelectionChange, Sense, SizeHint, SpanLayout,
 };
 use craft_ui::contract::{
-    Access, Bind, BindMut, Collection, CollectionProps, CollectionResponse, ColumnKind, ColumnSpec, Common, Component, ContainerProps, Cx, Edit as _,
-    ItemKeys, ItemOutput, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props, Remember as _, Role, Scroll, ScrollAnchor,
-    SelectMode, Show as _, Sizing, Styled as _, ToggleColumn, WordSetCx as _,
+    Access, Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, ColumnEvent, ColumnKind, ColumnSpec, Common, Component,
+    ContainerProps, Cx, Edit as _, ItemKeys, ItemOutput, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props, Remember as _,
+    Role, Scroll, ScrollAnchor, SelectMode, Show as _, Sizing, Styled as _, ToggleColumn, WordSetCx as _,
 };
 use craft_ui::primitives::{IconSpec, PaintShape, StrokeWidth};
 use craft_ui::runtime::env::Label;
@@ -94,6 +94,8 @@ pub struct TrackSizes {
 const MOST_IN_CONTROLS: f32 = 8.0;
 /// The name column is this many control heights wide by default.
 const NAME_IN_CONTROLS: f32 = 6.0;
+/// The name column's width until the user drags it.
+pub(crate) const NAME_DEFAULT: ColumnWidth = ColumnWidth::Controls(NAME_IN_CONTROLS);
 const NAME_LEAST_IN_CONTROLS: f32 = 3.0;
 const NAME_MOST_IN_CONTROLS: f32 = 12.0;
 
@@ -115,14 +117,20 @@ impl TrackSizes {
         }
     }
 
-    /// The height of `track`: its own, or the default of its kind, within the least and the most.
-    pub fn height_of(&self, track: &TrackInfo<'_>) -> f32 {
-        let default = match track.kind {
+    /// The height of a track of `kind` whose own height is `own`: that, or the default of its kind, within the least
+    /// and the most.
+    pub fn height(&self, kind: TrackKind, own: Option<f32>) -> f32 {
+        let default = match kind {
             TrackKind::Video => self.video,
             TrackKind::Caption => self.caption,
             TrackKind::Audio | TrackKind::Other => self.audio,
         };
-        track.height.filter(|height| height.is_finite() && *height > 0.0).unwrap_or(default).clamp(self.least, self.most)
+        own.filter(|height| height.is_finite() && *height > 0.0).unwrap_or(default).clamp(self.least, self.most)
+    }
+
+    /// The height of `track`.
+    pub fn height_of(&self, track: &TrackInfo<'_>) -> f32 {
+        self.height(track.kind, track.height)
     }
 
     /// The height a double click on a header gives a track of height `now`: the tall one below the middle, else the
@@ -134,90 +142,32 @@ impl TrackSizes {
 
     /// The width of the headers (colour strip, name and the switches) for a name column `name` wide: where the lane
     /// begins.
-    pub fn header_extent(&self, name: f32) -> f32 {
-        self.unit * (STRIP_IN_CONTROLS + SWITCHES.len() as f32) + name.clamp(self.name_least, self.name_most)
+    pub fn header_extent(&self, name: Option<ColumnWidth>) -> f32 {
+        self.unit * (STRIP_IN_CONTROLS + SWITCHES.len() as f32) + self.name_width(name)
     }
 
-    /// `name` within the least and the most.
-    pub fn name_width(&self, name: Option<f32>) -> f32 {
-        name.unwrap_or(self.name).clamp(self.name_least, self.name_most)
-    }
-}
-
-impl TrackSizes {
-    /// The sizes of the scope `ui` is in. Tokens are read in a style hook only, so a zero-size component reads them
-    /// there and reports them in the same pass.
-    pub fn read(ui: &mut egui::Ui) -> TrackSizes {
-        SizesProbe { common: Common::new() }.show(ui).sizes
+    /// The width of the name column: `name`, else the default, within the least and the most.
+    pub fn name_width(&self, name: Option<ColumnWidth>) -> f32 {
+        let wanted = match name {
+            Some(ColumnWidth::Fixed(width)) => width,
+            Some(ColumnWidth::Controls(count)) => count * self.unit,
+            _ => self.name,
+        };
+        wanted.clamp(self.name_least, self.name_most)
     }
 }
 
-/// A component with no size and no look that reports the [`TrackSizes`] its style hook computed.
-#[derive(Component)]
-struct SizesProbe {
-    #[common]
-    common: Common,
-}
-
-/// The probe's style: the sizes.
-#[derive(Clone, Debug, PartialEq, ComponentStyle)]
-#[non_exhaustive]
-pub struct SizesProbeStyle {
-    #[style(metrics)]
-    metrics: Metrics,
-    sizes: TrackSizes,
-}
-
-/// What the probe reports.
-#[non_exhaustive]
-pub struct SizesOut {
-    /// The probe's response.
-    pub response: Response,
-    /// The sizes the tokens give.
-    pub sizes: TrackSizes,
-}
-
-impl Outcome for SizesOut {
-    type Value = NoValue;
-
-    fn response(&self) -> &Response {
-        &self.response
-    }
-}
-
-impl Component for SizesProbe {
-    const ROLE: Role = Role::None;
-    const PARTS: bool = false;
-    const OVERLAYS: bool = false;
-    type Style = SizesProbeStyle;
-    type Output = SizesOut;
-
-    fn style(cx: &StyleCx<'_>, _: SizesProbeStyleKey) -> SizesProbeStyle {
-        SizesProbeStyle { metrics: Metrics::new(), sizes: TrackSizes::of(cx.tokens) }
-    }
-
-    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
-        Vec2::ZERO
-    }
-
-    fn finish(self, cx: Cx<'_, Self>) -> SizesOut {
-        SizesOut { response: cx.response.clone(), sizes: cx.style.sizes }
-    }
-}
-
-/// The tracks of a pane as a collection source: keyed by track, each as tall as its height says.
+/// The tracks of a pane as a collection source: keyed by track.
 #[non_exhaustive]
 pub struct Tracks<'a> {
     /// The tracks, top to bottom.
     pub tracks: &'a [TrackInfo<'a>],
-    /// The sizes the heights resolve with.
-    pub sizes: TrackSizes,
 }
 
 impl<'a> Tracks<'a> {
     /// The source over `tracks`.
-    pub fn new(tracks: &'a [TrackInfo<'a>], sizes: TrackSizes) -> Self {
-        Tracks { tracks, sizes }
+    pub fn new(tracks: &'a [TrackInfo<'a>]) -> Self {
+        Tracks { tracks }
     }
 }
 
@@ -236,10 +186,6 @@ impl DisplayOrder<TrackId> for Tracks<'_> {
 }
 
 impl ItemSource<TrackId> for Tracks<'_> {
-    fn size_hint(&self, at: usize) -> SizeHint {
-        SizeHint::Height(self.sizes.height_of(&self.tracks[at]))
-    }
-
     fn toggled(&self, at: usize, column: &ColumnKey) -> bool {
         let track = &self.tracks[at];
         let on = if *column == LOCK {
@@ -315,7 +261,7 @@ pub struct TrackStackStyle {
 }
 
 /// The tracks of one pane. The video pane keeps its last track nearest the divider by anchoring its scroll at the end.
-#[derive(Component)]
+#[derive(Component, Props)]
 #[component(collection)]
 pub struct TrackStack {
     #[common]
@@ -323,15 +269,20 @@ pub struct TrackStack {
     #[container]
     props: ContainerProps,
     items: CollectionProps,
+    /// The time the playhead's line is drawn at.
+    #[prop]
     playhead: Tick,
-    snapped: Option<Tick>,
-    name_width: f32,
+    /// The time a gesture snapped to, where the snap line is drawn.
+    #[prop(into)]
+    snapped_at: Option<Tick>,
+    name: Option<ColumnWidth>,
+    /// The kind and own height of each track, in order.
+    heights: Vec<(TrackKind, Option<f32>)>,
 }
 
 impl TrackStack {
-    /// A stack named `label` whose name column is `name_width` wide and whose lane begins `header_extent` from the start
-    /// edge.
-    pub fn new(label: impl Into<Label>, name_width: f32, words: &TimelineWords) -> Self {
+    /// A stack named `label` whose name column is `name` wide (the default until the user drags it).
+    pub fn new(label: impl Into<Label>, name: Option<ColumnWidth>, words: &TimelineWords) -> Self {
         let switch_name = |key: &ColumnKey| match () {
             _ if *key == LOCK => words.lock.clone(),
             _ if *key == TARGET => words.target.clone(),
@@ -342,7 +293,7 @@ impl TrackStack {
         };
         let mut columns = vec![
             ColumnSpec::new(STRIP, words.track_color.clone(), ColumnWidth::Controls(STRIP_IN_CONTROLS)),
-            ColumnSpec::new(NAME, "", ColumnWidth::Fixed(name_width)).resizable().frozen(),
+            ColumnSpec::new(NAME, "", name.unwrap_or(NAME_DEFAULT)).resizable().frozen(),
         ];
         for (key, _, _) in SWITCHES {
             let header = switch_name(&key);
@@ -354,8 +305,9 @@ impl TrackStack {
             props: ContainerProps::new().sizing(Sizing::Fill).scroll(Scroll::vertical()),
             items: CollectionProps::new().select(SelectMode::None).columns(columns).header(false).item_keys(ItemKeys::Owner),
             playhead: Tick::ZERO,
-            snapped: None,
-            name_width,
+            snapped_at: None,
+            name,
+            heights: Vec::new(),
         }
         .label(label)
     }
@@ -370,17 +322,10 @@ impl TrackStack {
         self
     }
 
-    /// The playhead the line over the rows is drawn at.
+    /// The tracks the rows show: their heights follow the kind and the own height of each.
     #[must_use]
-    pub fn playhead(mut self, at: Tick) -> Self {
-        self.playhead = at;
-        self
-    }
-
-    /// The time a gesture snapped to, where the snap line is drawn.
-    #[must_use]
-    pub fn snapped_at(mut self, at: Option<Tick>) -> Self {
-        self.snapped = at;
+    pub fn tracks(mut self, tracks: &[TrackInfo<'_>]) -> Self {
+        self.heights = tracks.iter().map(|track| (track.kind, track.height)).collect();
         self
     }
 }
@@ -404,7 +349,7 @@ impl Component for TrackStack {
     /// The playhead's hairline over the rows and the lanes' clips: a part above the items, painted in `paint_over`.
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let Some(axis) = time_axis(&cx.env) else { return };
-        let left = rect.left() + cx.style.sizes.header_extent(self.name_width);
+        let left = rect.left() + cx.style.sizes.header_extent(self.name);
         let x = axis.x_of(self.playhead, left);
         let reach = cx.style.sizes.unit / 2.0;
         let line = Rect::from_min_max(Pos2::new(x - reach, rect.top()), Pos2::new(x + reach, rect.bottom())).intersect(rect);
@@ -414,9 +359,9 @@ impl Component for TrackStack {
     fn paint_over(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let Some(axis) = time_axis(&cx.env) else { return };
         let rect = cx.rect;
-        let left = rect.left() + cx.style.sizes.header_extent(self.name_width);
+        let left = rect.left() + cx.style.sizes.header_extent(self.name);
         let draw = ui.draw();
-        for (at, color) in [(self.snapped, cx.style.snap), (Some(self.playhead), cx.style.playhead)] {
+        for (at, color) in [(self.snapped_at, cx.style.snap), (Some(self.playhead), cx.style.playhead)] {
             let Some(at) = at else { continue };
             let x = axis.x_of(at, left);
             if x >= left && x <= rect.right() {
@@ -425,12 +370,44 @@ impl Component for TrackStack {
         }
     }
 
+    /// The name column's width the user dragged to stays within the least and the most.
     fn finish(self, mut cx: Cx<'_, Self>) -> Self::Output {
-        cx.collection_response()
+        let sizes = cx.style.sizes;
+        let mut out = cx.collection_response();
+        for event in &mut out.events {
+            if let CollectionEvent::Column(ColumnEvent::Resized { key, width, .. }) = event
+                && *key == NAME
+            {
+                *width = sizes.name_width(Some(ColumnWidth::Fixed(*width)));
+            }
+        }
+        out
     }
 }
 
 const PLAYHEAD: PartKey = PartKey::new("playhead");
+
+/// The tracks' source with the heights the tokens resolve.
+struct Heights<'s> {
+    source: &'s dyn ItemSource<TrackId>,
+    heights: Vec<f32>,
+}
+
+impl DisplayOrder<TrackId> for Heights<'_> {
+    fn len(&self) -> usize {
+        self.source.len()
+    }
+
+    fn key(&self, at: usize) -> TrackId {
+        self.source.key(at)
+    }
+}
+
+impl ItemSource<TrackId> for Heights<'_> {
+    fn size_hint(&self, at: usize) -> SizeHint {
+        self.heights.get(at).map_or(SizeHint::Auto, |height| SizeHint::Height(*height))
+    }
+}
 
 impl Collection for TrackStack {
     type Key = TrackId;
@@ -445,7 +422,9 @@ impl Collection for TrackStack {
 
     /// The column widths come from the specs; a row is as tall as its track says.
     fn item_layout(&self, source: &dyn ItemSource<TrackId>, width: f32, cx: &StyleCx<'_>) -> SpanLayout {
-        SpanLayout::sized(source, width, cx.control().height)
+        let sizes = TrackSizes::of(cx.tokens);
+        let heights = self.heights.iter().map(|(kind, own)| sizes.height(*kind, *own)).collect();
+        SpanLayout::sized(&Heights { source, heights }, width, cx.control().height)
     }
 }
 
@@ -487,7 +466,6 @@ pub struct TrackRow<'r> {
     common: Common,
     track: &'r TrackInfo<'r>,
     cells: Vec<(ColumnKey, Rect)>,
-    height: f32,
     /// The lane's clip gesture: the row's value is a [`ClipEdit`], and the idle value is an edit of no clips.
     edit: Bind<'r, ClipEdit>,
     lane: ClipLane<'r>,
@@ -497,21 +475,12 @@ pub struct TrackRow<'r> {
 }
 
 impl<'r> TrackRow<'r> {
-    /// A row of `track` in `cells`, the rects the item context lists, with the lane's clips and the height the user may
-    /// drag. `above_divider` rows grow upward; the top video row also has a top edge.
-    pub(crate) fn new(
-        track: &'r TrackInfo<'r>,
-        cells: Vec<(ColumnKey, Rect)>,
-        height: f32,
-        lane: ClipLane<'r>,
-        above_divider: bool,
-        top_edge: bool,
-    ) -> Self {
+    /// A row of `track` in `cells`, the rects the item context lists, with the lane's clips. `above_divider` rows grow upward; the top video row also has a top edge.
+    pub(crate) fn new(track: &'r TrackInfo<'r>, cells: Vec<(ColumnKey, Rect)>, lane: ClipLane<'r>, above_divider: bool, top_edge: bool) -> Self {
         TrackRow {
             common: Common::new(),
             track,
             cells,
-            height,
             edit: Bind::given(ClipEdit::Select { clips: Vec::new(), add: false }),
             lane,
             above_divider,
@@ -609,6 +578,7 @@ impl Component for TrackRow<'_> {
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let sizes = cx.style.sizes;
+        let height = sizes.height_of(self.track);
         let sign = if self.above_divider { -1.0 } else { 1.0 };
         for part in [EDGE_BOTTOM, EDGE_TOP] {
             let Some(result) = cx.part_if_declared(part) else { continue };
@@ -616,15 +586,15 @@ impl Component for TrackRow<'_> {
             let height_at = |held: f32, start_y: f32, y: f32| (held + sign * (y - start_y)).clamp(sizes.least, sizes.most);
             match phase {
                 PressPhase::DragStart { .. } => {
-                    *cx.press_slot::<f32>() = Some(self.height);
-                    self.event.height = Some(DragEvent::Begin(self.height));
+                    *cx.press_slot::<f32>() = Some(height);
+                    self.event.height = Some(DragEvent::Begin(height));
                 }
                 PressPhase::Drag { start, pos, .. } => {
-                    let held = cx.press_slot::<f32>().unwrap_or(self.height);
+                    let held = cx.press_slot::<f32>().unwrap_or(height);
                     self.event.height = Some(DragEvent::Update(height_at(held, start.origin.y, pos.y)));
                 }
                 PressPhase::Release { start, pos, click: false, .. } => {
-                    let held = cx.press_slot::<f32>().take().unwrap_or(self.height);
+                    let held = cx.press_slot::<f32>().take().unwrap_or(height);
                     self.event.height = Some(DragEvent::Commit(height_at(held, start.origin.y, pos.y)));
                 }
                 PressPhase::Cancel { .. } => {
@@ -639,7 +609,7 @@ impl Component for TrackRow<'_> {
         }
         // A double click on the header toggles the height between the two named heights.
         if matches!(cx.part(HEADER).press.phase, PressPhase::Release { start, click: true, .. } if start.clicks == 2) {
-            self.event.height = Some(DragEvent::Set(sizes.toggled(self.height)));
+            self.event.height = Some(DragEvent::Set(sizes.toggled(height)));
         }
         if let (Some(lane), Some(axis)) = (self.cell(&LANE), time_axis(&cx.env)) {
             let look = cx.style.clip.clone();

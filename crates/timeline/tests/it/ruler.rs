@@ -5,6 +5,7 @@ use craft_timeline::ui::{DragEvent, TimelineRuler, TimelineView};
 use craft_timeline::{FrameRate, Tick, TimeFormat, TimeRange, TimeView, format_time};
 use craft_ui::canvas::StepLadder;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Key, Modifiers, Pos2, Rect};
 use std::cell::RefCell;
@@ -128,7 +129,8 @@ fn dragging_the_ruler_scrubs_the_playhead() {
 #[trial]
 fn arrow_keys_step_the_playhead_one_frame() {
     let mut shown = shown(None);
-    shown.fixture.key(Key::Tab, Modifiers::NONE);
+    let ruler = shown.fixture.by_label(RULER).expect("the ruler has a node");
+    shown.fixture.access(AccessActionKind::Focus, &ruler);
     shown.fixture.key(Key::ArrowRight, Modifiers::NONE);
     assert_eq!(*shown.playhead.borrow(), rate().tick_of(1), "an arrow steps one frame");
     shown.fixture.key(Key::ArrowRight, Modifiers::SHIFT);

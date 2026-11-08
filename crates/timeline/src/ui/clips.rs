@@ -11,7 +11,7 @@ use craft_ui::contract::{
     Access, Component, ContentPainter, Cx, Edit as _, Focus as _, Name, Outcome, PaintUi, PartsCx, Pointer as _, Remember as _,
 };
 use craft_ui::primitives::{ContentPainterCx, PaintShape, StrokeWidth, TextRun};
-use craft_ui::style::{DataColor, StyleColor, StyleCx, TypeRole};
+use craft_ui::style::{DataColor, Flags, Resolve as _, State, StateMix, Stateful, States, StyleColor, StyleCx, TypeRole};
 use egui::{CornerRadius, Pos2, Rect, Vec2, pos2};
 
 use super::{TimeAxis, label_palette};
@@ -130,10 +130,8 @@ pub struct ClipLook {
     separator: StyleColor,
     /// The stripes of a locked track.
     hatch: StyleColor,
-    /// The clip's name.
-    name: StyleColor,
-    /// The name of a disabled clip.
-    name_disabled: StyleColor,
+    /// The clip's name; the disabled state is a disabled clip's.
+    name: Stateful<StyleColor>,
     /// The hit sizes of the edges.
     zones: EdgeZones,
     /// How near a snap target a dragged time must be to snap, in points.
@@ -154,8 +152,11 @@ impl ClipLook {
             outline: cx.color(tokens.color.accent.solid),
             separator: cx.color(tokens.color.surface.canvas),
             hatch: cx.color(tokens.color.text.faint),
-            name: cx.color(tokens.color.text.on_strong),
-            name_disabled: cx.color(tokens.color.text.disabled),
+            name: {
+                let on_strong = cx.color(tokens.color.text.on_strong);
+                let disabled = cx.color(tokens.color.text.disabled);
+                Stateful::new(on_strong).off(States::new(on_strong, on_strong, on_strong, disabled))
+            },
             zones: EdgeZones { edge, roll: edge * ROLL_SHARE },
             snap_reach: edge,
             pad: control.pad_x,
@@ -517,7 +518,8 @@ impl<'a> ClipLane<'a> {
         let draw = ui.draw();
         for clip in self.clips {
             let Some(body) = geometry.body(clip) else { continue };
-            let name_color = if clip.enabled { look.name } else { look.name_disabled };
+            let state = if clip.enabled { State::Rest } else { State::Disabled };
+            let name_color = look.name.resolve(state, Flags::empty(), StateMix::REST);
             let room = Rect::from_min_max(pos2(body.left() + look.pad, body.top() + look.pad), pos2(body.right() - look.pad, body.bottom()));
             if room.width() > 0.0 {
                 draw.text(room, &TextRun::new(clip.name).role(TypeRole::Caption).color(name_color).elide());

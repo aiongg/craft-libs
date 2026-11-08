@@ -226,6 +226,8 @@ struct EditorOpen(bool);
 pub struct TransportBar<'a> {
     label: Label,
     buttons: &'a [TransportButton],
+    /// The row's saved settings; without them every button shows and the editor is off.
+    #[prop(into)]
     settings: Option<Bind<'a, TransportBarSettings>>,
     /// Whether playback is running; Play shows as Pause while it is.
     #[prop]
@@ -242,13 +244,6 @@ impl<'a> TransportBar<'a> {
     /// A row named `label` of `buttons`, in order.
     pub fn new(label: impl Into<Label>, buttons: &'a [TransportButton]) -> Self {
         TransportBar { label: label.into(), buttons, settings: None, playing: false, looping: false, editable: true }
-    }
-
-    /// The row's saved settings; without them every button shows and the editor is off.
-    #[must_use]
-    pub fn settings(mut self, settings: Bind<'a, TransportBarSettings>) -> Self {
-        self.settings = Some(settings);
-        self
     }
 
     /// Shows the row and reports the button pressed.
@@ -343,6 +338,8 @@ pub struct MediaControls {
     /// Whether playback is running; Play shows as Pause while it is.
     #[prop]
     playing: bool,
+    /// The trimmed start and end, in seconds, marked on the track.
+    #[prop(into, quantity = "seconds")]
     trim: Option<(f64, f64)>,
 }
 
@@ -350,13 +347,6 @@ impl MediaControls {
     /// Controls named `label` at `position` of `duration` seconds.
     pub fn new(label: impl Into<Label>, position: f64, duration: f64) -> Self {
         MediaControls { label: label.into(), position, duration, playing: false, trim: None }
-    }
-
-    /// The trimmed start and end (seconds), marked on the track.
-    #[must_use]
-    pub fn trim(mut self, start: f64, end: f64) -> Self {
-        self.trim = Some((start, end));
-        self
     }
 
     /// Shows the controls and reports what the user did.

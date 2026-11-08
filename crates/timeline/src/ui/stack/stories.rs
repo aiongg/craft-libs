@@ -1,6 +1,6 @@
 //! Stories of `TrackStack`: no tracks, one track and many.
 
-use super::{TrackRow, TrackSizes, TrackStack, Tracks};
+use super::{TrackRow, TrackStack, Tracks};
 use crate::model::{TrackId, TrackInfo, TrackKind};
 use craft_ui::contract::ShowCollection as _;
 use craft_ui::runtime::env::Env;
@@ -25,16 +25,16 @@ fn track(id: u64, name: &str) -> TrackInfo<'_> {
 }
 
 fn stack(ui: &mut Ui, names: &[&str]) -> StoryOutput {
-    let sizes = TrackSizes::read(ui);
     let tracks: Vec<TrackInfo<'_>> = names.iter().enumerate().map(|(at, name)| track(at as u64 + 1, name)).collect();
     let words = Env::of(ui).words::<crate::ui::view::TimelineWords>();
-    let source = Tracks::new(&tracks, sizes);
+    let source = Tracks::new(&tracks);
     let none: [crate::model::ClipInfo<'_>; 0] = [];
-    TrackStack::new("Tracks", sizes.name_width(None), &words)
+    TrackStack::new("Tracks", None, &words)
+        .tracks(&tracks)
         .show_items(ui, &source, &mut |key, icx| {
             let at = tracks.iter().position(|t| t.id == *key).unwrap_or(0);
             let lane = crate::ui::clips::ClipLane::new(&none);
-            TrackRow::new(&tracks[at], icx.cells().to_vec(), sizes.height_of(&tracks[at]), lane, false, false)
+            TrackRow::new(&tracks[at], icx.cells().to_vec(), lane, false, false)
         })
         .into()
 }

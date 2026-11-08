@@ -39,7 +39,7 @@ fn bezier_like(interpolation: KeyframeInterpolation) -> bool {
 
 /// A key with horizontal handles when it is Bezier-like and none otherwise.
 fn key(id: u64, at: f64, value: f64, interpolation: KeyframeInterpolation) -> GraphKey {
-    let key = GraphKey::new(KeyframeId(id), secs(at), value, interpolation);
+    let key = GraphKey::new(KeyframeId::new(id), secs(at), value, interpolation);
     if bezier_like(interpolation) { key.handles((secs(at - HANDLE_REACH), value), (secs(at + HANDLE_REACH), value)) } else { key }
 }
 
@@ -94,7 +94,7 @@ struct Demo {
 
 impl Demo {
     fn new() -> Self {
-        Demo { view: TimeView::new(Tick::ZERO, POINTS_PER_SECOND), curves: curves(), selection: Selection::single(KeyframeId(2)) }
+        Demo { view: TimeView::new(Tick::ZERO, POINTS_PER_SECOND), curves: curves(), selection: Selection::single(KeyframeId::new(2)) }
     }
 }
 

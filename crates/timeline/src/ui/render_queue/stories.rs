@@ -8,7 +8,7 @@ use egui::Ui;
 use std::time::Duration;
 
 fn item(id: u64, status: RenderStatus) -> RenderQueueItem {
-    RenderQueueItem::new(RenderItemId(id), "Sequence 01", format!("out{id}.mp4"), "Match Source", status)
+    RenderQueueItem::new(RenderItemId::new(id), "Sequence 01", format!("out{id}.mp4"), "Match Source", status)
 }
 
 fn queue(ui: &mut Ui, data: &mut StoryData, items: &[RenderQueueItem], running: bool) -> StoryOutput {

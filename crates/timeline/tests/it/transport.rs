@@ -253,7 +253,7 @@ fn media_controls_toggle_nudge_and_seek() {
     let seeks = Rc::new(RefCell::new(Vec::new()));
     let (shown_toggles, shown_nudges, shown_seeks) = (toggles.clone(), nudges.clone(), seeks.clone());
     let mut fixture = Fixture::new(move |ui| {
-        let out = MediaControls::new("Media controls", 6.5, 10.0).trim(2.0, 8.0).show(ui);
+        let out = MediaControls::new("Media controls", 6.5, 10.0).trim((2.0, 8.0)).show(ui);
         shown_toggles.set(shown_toggles.get() + usize::from(out.toggle));
         shown_nudges.borrow_mut().extend(out.nudge);
         shown_seeks.borrow_mut().extend(out.seek);
@@ -300,7 +300,7 @@ struct QueueRig {
 }
 
 fn item(id: u64, status: RenderStatus) -> RenderQueueItem {
-    RenderQueueItem::new(RenderItemId(id), "Sequence 01", format!("out{id}.mp4"), "Match Source", status)
+    RenderQueueItem::new(RenderItemId::new(id), "Sequence 01", format!("out{id}.mp4"), "Match Source", status)
 }
 
 fn queue(items: Vec<RenderQueueItem>, running: bool) -> QueueRig {
@@ -332,7 +332,7 @@ fn row_buttons_follow_the_status() {
     assert_eq!(named(&rig.fixture, "Remove").len(), 3, "the encoding row has no Remove");
     let retry = named(&rig.fixture, "Retry")[0].clone();
     rig.fixture.click(&retry);
-    assert_eq!(*rig.events.borrow(), vec![RenderQueueEvent::Retry(RenderItemId(3))]);
+    assert_eq!(*rig.events.borrow(), vec![RenderQueueEvent::Retry(RenderItemId::new(3))]);
 }
 
 /// Start Queue with a Ready item while stopped, Stop while running, Clear Finished with a finished item.

@@ -5,7 +5,7 @@
 use super::clips::{ClipContent, ClipLane, TimelineTool};
 use super::markers::{MarkerEdit, MarkerSpan, MarkerStrip};
 use super::ruler::TimelineRuler;
-use super::stack::{LOCK, MUTE, NAME, OUTPUT, SOLO, SYNC_LOCK, Side, TARGET, TrackEvent, TrackRow, TrackSizes, TrackStack, Tracks, set_event};
+use super::stack::{LOCK, MUTE, NAME, NAME_DEFAULT, OUTPUT, SOLO, SYNC_LOCK, Side, TARGET, TrackEvent, TrackRow, TrackStack, Tracks, set_event};
 use super::view::{TimelineView, TimelineWords};
 use super::{DragEvent, TimecodeField};
 use crate::clips::{ClipEdit, SnapTargets};
@@ -29,6 +29,7 @@ use egui::{Pos2, Rect, Response, Ui, Vec2};
 
 /// A track header switch.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum TrackSwitch {
     /// The track is locked against edits.
     Locked,
@@ -61,6 +62,7 @@ pub enum TimelineEdit {
     Marker(MarkerEdit),
     /// A header switch was clicked; `value` is the new state. Alt-click on Solo or Mute (exclusive) arrives with
     /// `exclusive`.
+    #[non_exhaustive]
     Switch {
         /// The track whose switch was clicked.
         track: TrackId,
@@ -72,27 +74,30 @@ pub enum TimelineEdit {
         exclusive: bool,
     },
     /// The colour strip's menu.
+    #[non_exhaustive]
     Label {
         /// The track whose label changed.
         track: TrackId,
         /// The new label, or `None` to clear it.
         label: Option<MarkerColor>,
     },
-    /// A row's edge dragged, or a double click on its header: the new height in points, within the least and most of
-    /// [`TrackSizes`], as one gesture (Esc cancels).
+    /// A row's edge dragged, or a double click on its header: the new height in points, within the least and most
+    /// of the track sizes, as one gesture (Esc cancels).
+    #[non_exhaustive]
     TrackHeight {
         /// The track that is resized.
         track: TrackId,
         /// The new height, in points.
         height: DragEvent<f32>,
     },
-    /// The name column dragged: its new width in points. A view setting the app keeps beside the `TimeView`, never in
+    /// The name column dragged: its new width. A view setting the app keeps beside the `TimeView`, never in
     /// undo.
-    HeaderWidth(EditEvent<f32>),
+    HeaderWidth(EditEvent<ColumnWidth>),
     /// A click on a clip or empty track space, or a marquee: Premiere's picks (a click replaces, Shift+click toggles
     /// the clip, a Shift marquee adds; a click on empty space clears). `unlinked` with Cmd or Ctrl: the app leaves the
     /// clip's linked partners out. The app expands linked partners when Linked Selection is on, and keeps the
     /// selection ([`TimelineModel::selection`]).
+    #[non_exhaustive]
     Select {
         /// The change of the clip selection.
         change: SelectionChange<ClipId>,
@@ -105,6 +110,7 @@ pub enum TimelineEdit {
     Divider(EditEvent<f32>),
     /// A secondary click, or the Menu key or Shift+F10 with the time area focused: the app opens its menu. `anchor` is
     /// the clicked clip's or track's rect, `pointer` the click position, `None` for a key.
+    #[non_exhaustive]
     ContextMenu {
         /// The track under the pointer, if any.
         track: Option<TrackId>,
@@ -193,10 +199,10 @@ pub struct Timeline<'a, M: TimelineModel> {
     playing: bool,
     /// The name column's width the user dragged to ([`TimelineEdit::HeaderWidth`]), kept by the app.
     #[prop(into)]
-    header_width: Option<f32>,
+    header_width: Option<ColumnWidth>,
     /// The video side's share of the room below the captions that the user dragged the divider to
     /// ([`TimelineEdit::Divider`]), kept by the app.
-    #[prop(into)]
+    #[prop(into, quantity = "fraction")]
     divider: Option<f32>,
     /// Paints each clip's content into its body rect (waveforms, thumbnails).
     #[prop(func = "Fn(&craft_ui::primitives::ContentPainterCx<'_>, egui::Rect, egui::Rect, &ClipInfo<'_>)")]
@@ -238,9 +244,8 @@ struct Memory {
 
 /// What the panes share in a pass.
 struct Panes<'p, 'a> {
-    sizes: TrackSizes,
     words: &'p TimelineWords,
-    name_width: f32,
+    name: Option<ColumnWidth>,
     playhead: Tick,
     selection: &'p [ClipId],
     targets: Option<&'p SnapTargets>,
@@ -258,11 +263,11 @@ impl Panes<'_, '_> {
             Side::Upper => "Video",
             Side::Lower => "Audio",
         };
-        let mut stack = TrackStack::new(label, self.name_width, self.words).playhead(self.playhead);
+        let mut stack = TrackStack::new(label, self.name, self.words).tracks(pane).playhead(self.playhead);
         if side == Side::Upper {
             stack = stack.anchored_at_end();
         }
-        let source = Tracks::new(pane, self.sizes);
+        let source = Tracks::new(pane);
         stack.show_items(ui, &source, &mut |key, icx| {
             let at = pane.iter().position(|track| track.id == *key).unwrap_or(0);
             let track = &pane[at];
@@ -277,8 +282,7 @@ impl Panes<'_, '_> {
                 Some(content) => lane.content(content.clone()),
                 None => lane,
             };
-            let height = self.sizes.height_of(track);
-            TrackRow::new(track, icx.cells().to_vec(), height, lane, side == Side::Upper, side == Side::Upper && at == 0)
+            TrackRow::new(track, icx.cells().to_vec(), lane, side == Side::Upper, side == Side::Upper && at == 0)
         })
     }
 }
@@ -287,7 +291,7 @@ impl Panes<'_, '_> {
 struct Mapping<'p> {
     pane: &'p [TrackInfo<'p>],
     words: &'p TimelineWords,
-    name_width: f32,
+    name: Option<ColumnWidth>,
 }
 
 impl Mapping<'_> {
@@ -311,7 +315,11 @@ impl Mapping<'_> {
                     edits.push(TimelineEdit::Switch { track: toggled.key, switch, value: toggled.on, exclusive });
                 }
                 CollectionEvent::Column(ColumnEvent::Resized { key, width, .. }) if *key == NAME => {
-                    edits.push(TimelineEdit::HeaderWidth(set_event(self.name_width, *width, self.words.header_width.as_str())));
+                    edits.push(TimelineEdit::HeaderWidth(set_event(
+                        self.name.unwrap_or(NAME_DEFAULT),
+                        ColumnWidth::Fixed(*width),
+                        self.words.header_width.as_str(),
+                    )));
                 }
                 CollectionEvent::Item(track, row) => {
                     edits.extend(row.clip.clone().map(TimelineEdit::Clip));
@@ -373,9 +381,6 @@ impl<M: TimelineModel> Timeline<'_, M> {
         let Timeline { label, model, tool, snap, linked_selection, no_modifier_trims, follow, playing, header_width, divider, content } = self;
         let env = Env::of(ui);
         let words = env.words::<TimelineWords>();
-        let sizes = TrackSizes::read(ui);
-        let name_width = sizes.name_width(header_width);
-        let extent = sizes.header_extent(name_width);
         let mut edits: Vec<TimelineEdit> = Vec::new();
         let mut toolbar: Option<TimelineToolbar> = None;
         let view = *model.view();
@@ -408,9 +413,8 @@ impl<M: TimelineModel> Timeline<'_, M> {
                 (Side::Lower, of_kind(|kind| !matches!(kind, TrackKind::Caption | TrackKind::Video))),
             ];
             let shared = Panes {
-                sizes,
                 words: &words,
-                name_width,
+                name: header_width,
                 playhead,
                 selection: &selection,
                 targets: targets.as_ref(),
@@ -423,7 +427,8 @@ impl<M: TimelineModel> Timeline<'_, M> {
             let mut ruler_edits: Vec<TimelineEdit> = Vec::new();
 
             let shown = TimelineView::new(label, Bind::given(view), format, duration)
-                .inset(extent)
+                .headers(true)
+                .header_width(header_width)
                 .follow(follow, playing, playhead)
                 .edit_points(&points)
                 .show(ui, |ui, cx| {
@@ -459,7 +464,7 @@ impl<M: TimelineModel> Timeline<'_, M> {
                         }
                         let pane: Vec<TrackInfo<'_>> = indices.iter().map(|&i| tracks[i].clone()).collect();
                         let out = shared.show(ui, *side, &pane, indices);
-                        let mapping = Mapping { pane: &pane, words: &words, name_width };
+                        let mapping = Mapping { pane: &pane, words: &words, name: header_width };
                         mapping.collect(&out, &mut edits, &mut memory);
                         mapping.label_menu(ui, &out.response, &mut memory, &mut edits);
                         if *side == Side::Upper {

@@ -83,7 +83,14 @@ impl RenderStatus {
 
 /// A queue item's id, the app's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct RenderItemId(pub u64);
+pub struct RenderItemId(u64);
+
+impl RenderItemId {
+    /// The id `value`.
+    pub const fn new(value: u64) -> Self {
+        RenderItemId(value)
+    }
+}
 
 /// A queue row: "Sequence \u{2192} file.mp4", the preset, the status.
 #[derive(Clone, Debug, PartialEq)]

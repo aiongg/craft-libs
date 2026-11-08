@@ -79,7 +79,7 @@ struct Seen {
 }
 
 fn keys() -> Vec<KeyframeMark> {
-    let key = |id: u64, at: f64| KeyframeMark::new(KeyframeId(id), seconds(at), KeyframeInterpolation::Linear);
+    let key = |id: u64, at: f64| KeyframeMark::new(KeyframeId::new(id), seconds(at), KeyframeInterpolation::Linear);
     vec![key(1, 1.0), key(2, 3.0), key(3, 5.0)]
 }
 
@@ -130,7 +130,7 @@ fn click_and_marquee_select_keys() {
     let options = fixture.by_role(Role::LIST_BOX_OPTION);
     assert_eq!(options.len(), 3);
     fixture.click(&options[1]);
-    assert_eq!(seen.borrow().selection.items, vec![KeyframeId(2)]);
+    assert_eq!(seen.borrow().selection.items, vec![KeyframeId::new(2)]);
     fixture.hold(Modifiers::SHIFT);
     fixture.click(&options[0]);
     assert_eq!(seen.borrow().selection.items.len(), 2, "Shift+click adds the key");
@@ -147,7 +147,7 @@ fn keyboard_selects_nudges_and_deletes() {
     let options = fixture.by_role(Role::LIST_BOX_OPTION);
     fixture.click(&options[0]);
     fixture.key(Key::ArrowRight, Modifiers::NONE);
-    assert_eq!(seen.borrow().selection.items, vec![KeyframeId(2)], "Right picks the next key");
+    assert_eq!(seen.borrow().selection.items, vec![KeyframeId::new(2)], "Right picks the next key");
     fixture.key(Key::ArrowRight, Modifiers::SHIFT);
     let frame = FrameRate::FPS_24.frame_duration();
     assert_eq!(seen.borrow().deltas.last().copied(), Some(frame), "Shift+Right nudges the selection one frame");
@@ -162,7 +162,7 @@ fn double_click_on_a_key_is_reported() {
     let options = fixture.by_role(Role::LIST_BOX_OPTION);
     fixture.click(&options[2]);
     fixture.click(&options[2]);
-    assert_eq!(seen.borrow().double_clicked, Some(KeyframeId(3)));
+    assert_eq!(seen.borrow().double_clicked, Some(KeyframeId::new(3)));
 }
 
 /// What a strip fixture reports.

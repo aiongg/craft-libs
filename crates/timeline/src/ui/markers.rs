@@ -13,7 +13,7 @@ use craft_ui::buttons::Button;
 use craft_ui::choice::{RadioGroup, Swatch};
 use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pointer as _,
-    Props as _, Remember as _, Role, Show as _, ShowContainer as _, WordSetCx as _,
+    Props as _, Remember as _, Role, Show as _, ShowContainer as _, WordSetCx as _, clicked,
 };
 use craft_ui::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
 use craft_ui::form::{Field, FieldGroup};
@@ -70,6 +70,7 @@ pub enum MarkerEdit {
     /// Double-click or Enter: open the Marker dialog on it.
     Open(MarkerId),
     /// A marker dragged out of the marker bin and dropped at `at`, or Add Marker (M).
+    #[non_exhaustive]
     Add {
         /// Where the new marker starts.
         at: Tick,
@@ -583,7 +584,7 @@ impl StackDialog for MarkerDialog {
             .outer_gesture(true)
             .footer_extra(|ui| {
                 for (extra, label) in [(Extra::Delete, &words.delete), (Extra::Previous, &words.previous), (Extra::Next, &words.next)] {
-                    if Button::new(label.clone()).show(ui).clicked() {
+                    if clicked(&Button::new(label.clone()).show(ui)) {
                         picked.set(Some(extra));
                     }
                 }

@@ -7,6 +7,7 @@ use craft_timeline::ui::graph::{
 use craft_timeline::ui::{DragEvent, KeyframeId, KeyframeInterpolation, TimelineView};
 use craft_timeline::{FrameRate, Tick, TimeFormat, TimeView};
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Key, Modifiers, Pos2, Rect, Vec2};
 use std::cell::RefCell;
@@ -33,7 +34,7 @@ fn format() -> TimeFormat {
 }
 
 fn key(id: u64, at: f64, value: f64) -> GraphKey {
-    GraphKey::new(KeyframeId(id), secs(at), value, KeyframeInterpolation::AutoBezier)
+    GraphKey::new(KeyframeId::new(id), secs(at), value, KeyframeInterpolation::AutoBezier)
 }
 
 fn curve(keys: Vec<GraphKey>) -> GraphCurve {
@@ -152,7 +153,7 @@ fn dragging_keys_reports_time_and_value() {
         let Some(DragEvent::Commit(value)) = moved.last().cloned() else { panic!("{moved:?}") };
         assert!((value.delta_time.seconds() - 0.5).abs() < 0.02 && (value.delta_value - 20.0).abs() < 1.0, "{value:?}");
     }
-    assert!(shown.selection.borrow().contains(&KeyframeId(1)), "grabbing a key selects it");
+    assert!(shown.selection.borrow().contains(&KeyframeId::new(1)), "grabbing a key selects it");
 
     let mut constrained = self::shown(vec![curve(vec![key(1, 2.0, 50.0)])], Selection::default(), false);
     let at = constrained.fixture.by_label(&name).expect("the key has a node").center();
@@ -171,7 +172,7 @@ fn dragging_a_handle_reports_its_position() {
     drag_between(&mut shown.fixture, at, at + Vec2::new(50.0, -0.3 * tall), Modifiers::ALT);
     let handles = shown.handles.borrow();
     let Some(DragEvent::Commit(value)) = handles.last().cloned() else { panic!("{handles:?}") };
-    assert_eq!((value.key, value.side, value.broken), (KeyframeId(1), HandleSide::Out, true));
+    assert_eq!((value.key, value.side, value.broken), (KeyframeId::new(1), HandleSide::Out, true));
     assert!((value.time.seconds() - 3.5).abs() < 0.02 && (value.value - 80.0).abs() < 1.0, "{value:?}");
 }
 
@@ -198,7 +199,8 @@ fn bottom_bar_buttons_report_actions() {
     assert_eq!(shown.range.borrow().mode, GraphMode::Speed);
 
     shown.actions.borrow_mut().clear();
-    shown.fixture.key(Key::Tab, Modifiers::NONE);
+    let editor = shown.fixture.by_label(GRAPH).expect("the editor has a node");
+    shown.fixture.access(AccessActionKind::Focus, &editor);
     shown.fixture.key(Key::F9, Modifiers::NONE);
     shown.fixture.key(Key::F9, Modifiers::SHIFT);
     assert_eq!(*shown.actions.borrow(), [GraphAction::EasyEase, GraphAction::EasyEaseIn]);
@@ -226,7 +228,8 @@ fn ctrl_wheel_zooms_the_value_range_about_its_middle() {
 #[trial]
 fn delete_and_backspace_report_delete_and_chords_are_exact() {
     let mut shown = shown(vec![curve(vec![key(1, 2.0, 50.0)])], selected(&[1]), false);
-    shown.fixture.key(Key::Tab, Modifiers::NONE);
+    let editor = shown.fixture.by_label(GRAPH).expect("the editor has a node");
+    shown.fixture.access(AccessActionKind::Focus, &editor);
     for (key, modifiers) in [(Key::Delete, Modifiers::SHIFT), (Key::ArrowRight, Modifiers::SHIFT), (Key::ArrowUp, Modifiers::ALT)] {
         shown.fixture.key(key, modifiers);
     }

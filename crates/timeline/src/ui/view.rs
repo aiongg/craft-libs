@@ -4,11 +4,12 @@
 //! playhead, and shows the horizontal scroll bar as a scroll part over the view (a thumb end drag zooms).
 
 use super::ruler::{SHIFT_STEP_FRAMES, STEP_FRAMES};
+use super::stack::TrackSizes;
 use crate::clock::{Follow, FollowMode};
 use crate::time::{Tick, TimeRange, TimeView, VIEW_EXTENT_PAST_END};
 use crate::timecode::TimeFormat;
 use craft_behavior::scroll::{self, ScrollSpan};
-use craft_behavior::{Axis, EditEvent, GestureId, Granularity, Intent, Metrics, Mixed, NavMove, PartKey, Sense, Wheel};
+use craft_behavior::{Axis, ColumnWidth, EditEvent, GestureId, Granularity, Intent, Metrics, Mixed, NavMove, PartKey, Sense, Wheel};
 use craft_ui::contract::{
     Access, Bind, BindMut, CommandSet, Commands as _, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, Focus as _, Name,
     Outcome, PaintUi, PartsCx, Pointer as _, Props, Remember as _, Role, Sizing, Styled as _, WordSetCx as _,
@@ -194,6 +195,8 @@ pub struct TimelineViewStyle {
     inset: f32,
     /// The bar's track.
     track: StyleColor,
+    /// The sizes of the headers left of the time area.
+    sizes: TrackSizes,
 }
 
 /// The container around every pane of a timeline. It binds the [`TimeView`] (a proposal of the view is never an undo
@@ -211,12 +214,18 @@ pub struct TimelineView<'a> {
     view: Bind<'a, TimeView>,
     format: TimeFormat,
     end: Tick,
-    /// The width of the headers, left of the time area, along the start edge.
+    /// The name column's width of the headers left of the time area; the headers take the default until the user drags
+    /// it.
+    #[prop(into)]
+    header_width: Option<ColumnWidth>,
+    /// Whether track headers sit left of the time area; the time area spans the whole width without them.
     #[prop]
-    inset: f32,
+    headers: bool,
     follow: FollowMode,
     playing: bool,
     playhead: Tick,
+    /// The edit points Up and Down move the playhead to, in time order.
+    #[prop]
     edit_points: &'a [Tick],
     playhead_edit: Option<EditEvent<Tick>>,
     context_menu: bool,
@@ -233,7 +242,8 @@ impl<'a> TimelineView<'a> {
             view,
             format,
             end,
-            inset: 0.0,
+            header_width: None,
+            headers: false,
             follow: FollowMode::Page,
             playing: false,
             playhead: Tick::ZERO,
@@ -252,16 +262,14 @@ impl<'a> TimelineView<'a> {
         self
     }
 
-    /// The edit points Up and Down move the playhead to, in time order.
-    #[must_use]
-    pub fn edit_points(mut self, points: &'a [Tick]) -> Self {
-        self.edit_points = points;
-        self
+    /// The width of the time area in a view `rect` wide.
+    fn width(&self, rect: Rect, style: &TimelineViewStyle) -> f32 {
+        (rect.width() - self.inset(style)).max(0.0)
     }
 
-    /// The width of the time area in a view `rect` wide.
-    fn width(&self, rect: Rect) -> f32 {
-        (rect.width() - self.inset).max(0.0)
+    /// The width of the headers, left of the time area, along the start edge.
+    fn inset(&self, style: &TimelineViewStyle) -> f32 {
+        if self.headers { style.sizes.header_extent(self.header_width) } else { 0.0 }
     }
 
     /// The playhead moved to `to`: one `Set` event, as a key gives it.
@@ -336,7 +344,8 @@ impl<'a> TimelineView<'a> {
         let label = words.move_playhead.as_str().to_owned();
         while let Some((step, mods)) = cx.intents().take_move() {
             // Alt+arrow is a nudge of a clip, and Cmd+arrow is not Premiere's: only the bare and Shift chords.
-            if mods.fine || mods.lead || mods.by != Granularity::Unit {
+            let arrow = matches!(step, NavMove::Back | NavMove::Forward | NavMove::Up | NavMove::Down);
+            if mods.fine || mods.lead || (arrow && mods.by != Granularity::Unit) {
                 continue;
             }
             let frames = if mods.extend { SHIFT_STEP_FRAMES } else { STEP_FRAMES };
@@ -392,6 +401,7 @@ impl Component for TimelineView<'_> {
             look: cx.scroll_bar(),
             inset: cx.tokens.space.gap.tight,
             track: cx.color(cx.tokens.color.surface.chrome),
+            sizes: TrackSizes::of(cx.tokens),
         }
     }
 
@@ -406,25 +416,25 @@ impl Component for TimelineView<'_> {
     /// The bar along the bottom edge, from the end of the headers to the end edge.
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let Some(view) = cx.value().copied() else { return };
-        let width = self.width(rect);
+        let width = self.width(rect, cx.style);
         if !(view.points_per_second > 0.0 && view.points_per_second.is_finite() && width > 0.0) {
             return;
         }
-        let bar = self.bar(rect, cx.flow, cx.style.look.thickness);
+        let bar = self.bar(rect, cx.flow, cx.style);
         cx.scroll(BAR, bar, Axis::X, self.span(&view, width));
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         self.anim = *cx.memory::<Anim>();
         let Some(target) = cx.value().copied() else { return };
-        let width = self.width(cx.rect);
+        let width = self.width(cx.rect, cx.style);
         let valid = target.points_per_second > 0.0 && target.points_per_second.is_finite() && width > 0.0;
         if !valid {
             return;
         }
         let mut next = target;
         let pointer = cx.response.hover_pos().unwrap_or_else(|| cx.rect.center());
-        let left = cx.flow.span(self.inset, width).left();
+        let left = cx.flow.span(self.inset(cx.style), width).left();
         if let Some(wheel) = cx.take_wheel() {
             let at = next.time_at(pointer.x.max(left), left);
             self.wheel(wheel, &mut next, at, width);
@@ -465,12 +475,12 @@ impl Component for TimelineView<'_> {
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let Some(view) = cx.value().copied() else { return };
-        let width = self.width(cx.rect);
+        let width = self.width(cx.rect, cx.style);
         if !(view.points_per_second > 0.0 && view.points_per_second.is_finite() && width > 0.0) {
             return;
         }
         let style = cx.style;
-        let track = self.bar(cx.rect, cx.flow, style.look.thickness);
+        let track = self.bar(cx.rect, cx.flow, style);
         let draw = ui.draw();
         draw.fill(&PaintShape::Rect(track, CornerRadius::ZERO), style.track);
         draw.rule(RuleKind::Edge, track.left_top(), track.right_top());
@@ -488,7 +498,7 @@ impl Component for TimelineView<'_> {
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let Some(view) = cx.value().copied() else { return };
-        let width = self.width(cx.rect);
+        let width = self.width(cx.rect, cx.style);
         if !(view.points_per_second > 0.0 && view.points_per_second.is_finite() && width > 0.0) {
             return;
         }
@@ -507,8 +517,9 @@ impl Component for TimelineView<'_> {
 
 impl TimelineView<'_> {
     /// The bar's rect: the bottom edge of `rect`, from the end of the headers to the end edge.
-    fn bar(&self, rect: Rect, flow: craft_behavior::Flow, thickness: f32) -> Rect {
-        let span = flow.span(self.inset, (rect.width() - self.inset).max(0.0));
+    fn bar(&self, rect: Rect, flow: craft_behavior::Flow, style: &TimelineViewStyle) -> Rect {
+        let (inset, thickness) = (self.inset(style), style.look.thickness);
+        let span = flow.span(inset, (rect.width() - inset).max(0.0));
         Rect::from_min_max(Pos2::new(span.left(), rect.bottom() - thickness), Pos2::new(span.right(), rect.bottom()))
     }
 }

@@ -28,7 +28,7 @@ fn secs(s: f64) -> Tick {
 fn rig() -> (Fixture, Rc<RefCell<Rig>>) {
     let state = Rc::new(RefCell::new(Rig {
         view: TimeView::new(Tick::ZERO, 40.0),
-        playhead: secs(1.0),
+        playhead: RATE.tick_of(30),
         playing: false,
         points: vec![secs(2.0), secs(6.0)],
         moved: Vec::new(),

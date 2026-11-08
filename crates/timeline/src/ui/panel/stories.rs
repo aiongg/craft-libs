@@ -8,7 +8,7 @@ use crate::model::{ClipId, ClipInfo, TimelineModel, TrackId, TrackInfo, TrackKin
 use crate::rates::FrameRate;
 use crate::time::{Tick, TimeRange, TimeView};
 use crate::timecode::TimeFormat;
-use craft_behavior::{Selection, SelectionModel as _};
+use craft_behavior::{ColumnWidth, Selection, SelectionModel as _};
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 use std::sync::{Arc, Mutex};
@@ -56,7 +56,7 @@ struct Sequence {
     selection: Selection<ClipId>,
     view: TimeView,
     playhead: Tick,
-    header_width: Option<f32>,
+    header_width: Option<ColumnWidth>,
     divider: Option<f32>,
 }
 
