@@ -6,14 +6,14 @@ use crate::runtime::commands::{self, ChromeCommand, EditCommands, FirePhase};
 use crate::runtime::egui::access::node_key;
 use crate::runtime::egui::input::{self as raw_input, Action, ActionKind, KeyEvent, RawInput};
 use crate::runtime::env::Env;
-use crate::runtime::focus::{self, KeyUse, StopRec};
+use crate::runtime::focus::{self, EndKey, KeyUse, StopRec};
 use crate::runtime::frame::{ChromeToggle, PerViewport, request_chrome_toggle};
 use crate::runtime::overlay;
 use crate::runtime::sampler;
 use craft_behavior::focus::key_owner;
 use craft_behavior::focus::{EscapeFacts, EscapeStep, escape_step};
 use craft_behavior::keys;
-use craft_behavior::{AccessRequest, CancelRule, EditCommand, EditorInput, Intent, KeyOwner, MoveMods, NavMove, OwnerClass, PartRef};
+use craft_behavior::{AccessRequest, CancelRule, EditCommand, EditorInput, Granularity, Intent, KeyOwner, MoveMods, NavMove, OwnerClass, PartRef};
 use craft_host::target::Os;
 use craft_keymap::{Chord, Key, KeyInput, Layout, Mods};
 use egui::{Context, Id, Vec2, ViewportId};
@@ -840,6 +840,12 @@ fn route_press(
         if !press.repeat {
             routed.entry(id).or_default().chords.push(Chord { mods: press.mods, key: press.key });
         }
+        return Taken::Yes;
+    }
+    // A bare End goes to a stop that declares `EndKey::EndMode` as itself (its mode toggle), not to a row's collection, a
+    // roving group or the scroll owner around it.
+    if stop.keys.end == EndKey::EndMode && press.key == Key::End && plain {
+        push(routed, id, Intent::Move(NavMove::End, MoveMods::new(false, false, Granularity::Line)), false);
         return Taken::Yes;
     }
     let mut taken = Taken::Yes;

@@ -3,6 +3,7 @@
 use std::borrow::Cow;
 
 use craft_behavior::{ColumnKey, DisplayOrder, IconId, ItemSource};
+use craft_ui::composites::Tone;
 use craft_ui::list::{ListRow, RowInk, ToggleCell, ToggleFace, ToggleState};
 use craft_ui::primitives::IconSpec;
 use craft_ui::runtime::env::Label;
@@ -198,7 +199,7 @@ pub(super) fn build_row(body: &Body<'_>, state: &ActionsPanelState, key: &Action
             }
             if host.and_then(|host| host.recording()) == Some(*index) {
                 let name = words.recording_suffix.fill(&[("name", &action.name)]);
-                row = row.accessible_name(name).trailing_icon(IconSpec::svg(IconId::new("circle")), words.recording.clone());
+                row = row.accessible_name(name).trailing_icon(IconSpec::svg(IconId::new("circle")), words.recording.clone()).trailing_tone(Tone::Bad);
             }
             row.optional(text)
         }

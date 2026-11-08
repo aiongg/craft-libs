@@ -173,7 +173,8 @@ fn right_to_left_mirrors_the_screen() {
     assert_eq!(sheet.mirror_rect(shown), cell, "mirroring twice returns the rect");
 }
 
-/// End alone only arms End mode; the next arrow jumps to the data edge, and Ctrl+End goes to the last used cell.
+/// End alone only arms End mode; the next arrow jumps to the data edge, and Ctrl+End goes to the last used cell. End
+/// toggles the mode, and End then Home goes to the last used cell.
 #[trial]
 fn end_arms_a_jump_and_ctrl_end_goes_to_the_last_used_cell() {
     let mut rig = rig(None, a1(), 1.0);
@@ -185,6 +186,17 @@ fn end_arms_a_jump_and_ctrl_end_goes_to_the_last_used_cell() {
     assert_eq!(rig.active(), Some(CellAt::new(SHEET_ROWS - 2, 0)), "the mode ends with that arrow");
     rig.press(Key::End, Modifiers::COMMAND);
     assert_eq!(rig.active(), Some(CellAt::new(9, 4)));
+
+    let mut rig = rig(None, a1(), 1.0);
+    rig.press(Key::End, Modifiers::NONE);
+    rig.press(Key::End, Modifiers::NONE);
+    rig.press(Key::ArrowDown, Modifiers::NONE);
+    assert_eq!(rig.active(), Some(CellAt::new(1, 0)), "End twice leaves the mode, so the arrow steps one row");
+
+    let mut rig = rig(None, a1(), 1.0);
+    rig.press(Key::End, Modifiers::NONE);
+    rig.press(Key::Home, Modifiers::NONE);
+    assert_eq!(rig.active(), Some(CellAt::new(9, 4)), "End then Home goes to the last used cell");
 }
 
 #[trial]

@@ -378,16 +378,21 @@ fn actions_panel_context_menu_shortcut_and_color() {
     assert_eq!(take(&shared), [ActionsEvent::save(Some("Effects".to_owned()))]);
 }
 
-/// Reopening the menu on the same row starts from the host's shortcut again: its key is marked and Shift
+/// Reopening the menu on the same row with Shift+F10 starts from the host's shortcut again: its key is marked and Shift
 /// is enabled.
 #[trial]
 fn actions_panel_context_menu_reopens_from_the_hosts_shortcut() {
     let mut app = app(sample_list());
     app.host.shortcuts.insert("Sharpen".to_owned(), ShortcutChoice::new(3, false, false));
     let (mut fixture, shared) = rig(app);
-    for _ in 0..2 {
-        let row = node(&fixture, "Sharpen");
-        context_click(&mut fixture, &row);
+    for turn in 0..2 {
+        if turn == 0 {
+            let row = node(&fixture, "Sharpen");
+            context_click(&mut fixture, &row);
+        } else {
+            fixture.key(Key::F10, Modifiers::SHIFT);
+            fixture.idle(3);
+        }
         assert_eq!(checked(&fixture, "F3"), Some(Mixed::Same(true)), "F3 is marked");
         assert!(!fixture.tree().is_disabled_key(node(&fixture, "Shift").node), "Shift is enabled with a key");
         fixture.key(Key::Escape, Modifiers::NONE);

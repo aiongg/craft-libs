@@ -2,6 +2,7 @@
 //! that spread a range over a track, and thumbs that never cross.
 
 mod dials;
+mod field_scrub;
 mod thumb_row;
 
 use craft_behavior::{EditEvent, GesturePhase, Mixed};

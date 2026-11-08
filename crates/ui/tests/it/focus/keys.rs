@@ -38,6 +38,24 @@ fn the_first_arrow_and_escape_after_a_focus_change_act_as_intents() {
     assert_eq!(focused(&frames.ctx), Some(id("a")), "Escape cleared no egui focus");
 }
 
+/// Shift+F10 and the Menu key reach the focused stop as one `ContextMenu` intent each.
+#[trial]
+fn shift_f10_and_the_menu_key_reach_the_focused_stop_as_a_context_menu() {
+    let mut frames = Frames::new();
+    let menus = Cell::new(0);
+    let mut show = |ui: &mut egui::Ui| {
+        control(ui, "row");
+        let mut intents = intents_of(ui.ctx(), Some(id("row")), false);
+        menus.set(menus.get() + usize::from(intents.take(Intent::ContextMenu)));
+    };
+    frames.idle(2, &mut show);
+    focus(&mut frames, "row", &mut show);
+    frames.frame(vec![craft_ui::testing::input::key_press(Key::F10, Modifiers::SHIFT)], &mut show);
+    assert_eq!(menus.get(), 1, "Shift+F10");
+    frames.frame(vec![craft_ui::testing::input::key_press(Key::Menu, Modifiers::NONE)], &mut show);
+    assert_eq!(menus.get(), 2, "the Menu key");
+}
+
 /// The key stage removes Tab, F6 and Escape from the raw input of the pass, and keeps arrows and Enter for
 /// egui's `TextEdit`.
 #[trial]
