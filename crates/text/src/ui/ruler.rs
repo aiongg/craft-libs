@@ -431,7 +431,7 @@ impl Component for TextRuler<'_> {
                 .part(item.part(), layout.shapes.rect(&layout.g, item, &values))
                 .sense(Sense::DRAG | Sense::CLICK)
                 .priority(handle)
-                .cursor(egui::CursorIcon::ResizeHorizontal)
+                .cursor(craft_behavior::CursorIcon::ResizeHorizontal)
                 .focusable()
                 .focus_shape(FocusShape::Rect)
                 .value_part();
@@ -444,7 +444,7 @@ impl Component for TextRuler<'_> {
             cx.part(COLUMN.at(index as u64), marker)
                 .sense(Sense::DRAG)
                 .priority(handle)
-                .cursor(egui::CursorIcon::ResizeColumn)
+                .cursor(craft_behavior::CursorIcon::ResizeHorizontal)
                 .pointer_only("the table properties dialog sets the column widths");
         }
         if self.kind.is_some() {
