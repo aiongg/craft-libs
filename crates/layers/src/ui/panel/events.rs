@@ -10,6 +10,7 @@ use craft_theme::LabelColor;
 use craft_ui::contract::OpenChange;
 
 use super::footer::{LayersFooterAction, LayersFooterButton};
+use crate::ui::filter::LayerFilter;
 use crate::ui::rows::LayerPropertyEdit;
 use crate::ui::tree::{LayerPart, LayerRowKey, SubRowGroup};
 
@@ -106,6 +107,8 @@ pub enum LayersEvent<K> {
     /// An edit in the blend, opacity, lock and fill rows: the app applies it to every selected
     /// layer.
     Properties(LayerPropertyEdit),
+    /// The filter bar's edit, for a filter binding that does not write through.
+    Filter(EditEvent<LayerFilter>),
     /// A drop of rows (a drag, Alt+Up and Down, or a stacking command): one `Set`, one undo step.
     Drop(EditEvent<LayerDrop<K>>),
     /// A press on a footer button.

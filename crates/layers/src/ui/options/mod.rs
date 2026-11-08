@@ -131,7 +131,7 @@ fn ridge_at(ridge: &[(f32, f32)], x: f32) -> f32 {
 /// The sample picture of the thumbnail sizes: a monochrome landscape of a pale sky and two ranges
 /// of hills, outlined.
 fn sample_image() -> ColorImage {
-    let mut image = ColorImage::filled([SAMPLE_SIDE, SAMPLE_SIDE], Color32::BLACK);
+    let mut image = ColorImage::filled([SAMPLE_SIDE, SAMPLE_SIDE], Color32::from_gray(0));
     let last = SAMPLE_SIDE - 1;
     for y in 0..SAMPLE_SIDE {
         for x in 0..SAMPLE_SIDE {

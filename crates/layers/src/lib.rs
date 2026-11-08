@@ -6,6 +6,7 @@
 
 pub mod ui;
 
+/// The stories and trials this crate registers.
 #[cfg(feature = "screen-testing")]
 pub mod testing {
     craft_ui::testing_registered!();

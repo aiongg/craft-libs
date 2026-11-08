@@ -32,6 +32,7 @@ pub enum LayersFooterAction {
     /// Link the selected layers.
     Link,
     /// New Layer: `ask` (Alt) opens the New Layer dialog, `below` (Cmd/Ctrl) adds below the active layer.
+    #[non_exhaustive]
     NewLayer {
         /// Ask for the options first.
         ask: bool,
@@ -39,6 +40,7 @@ pub enum LayersFooterAction {
         below: bool,
     },
     /// New Group: `from_selection` while several layers are selected or Shift is held.
+    #[non_exhaustive]
     NewGroup {
         /// Group the selected layers.
         from_selection: bool,
@@ -48,11 +50,13 @@ pub enum LayersFooterAction {
         below: bool,
     },
     /// Delete the selected layers; `confirm` unless Alt is held.
+    #[non_exhaustive]
     Delete {
         /// Ask before deleting.
         confirm: bool,
     },
     /// Add a mask to the active layer; `invert` (Alt) hides everything.
+    #[non_exhaustive]
     AddMask {
         /// The mask starts black.
         invert: bool,
@@ -71,9 +75,6 @@ const ADJUSTMENT: usize = 3;
 const GROUP: usize = 4;
 const LAYER: usize = 5;
 const DELETE: usize = 6;
-
-/// The footer's buttons side by side; the panel's least width holds all of them.
-pub(super) const FOOTER_BUTTONS: usize = 7;
 
 fn button_at(at: usize) -> Option<LayersFooterButton> {
     match at {

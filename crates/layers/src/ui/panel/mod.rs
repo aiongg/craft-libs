@@ -300,11 +300,12 @@ impl<'a, T: LayerTree> LayersPanel<'a, T> {
                     let modes = tree.blend_modes(true, &before.mode);
                     match filter.as_mut() {
                         Some(bind) => {
-                            LayerFilterBar::new(bind.reborrowed()).blend_modes(&modes).show(ui);
+                            let out = LayerFilterBar::new(bind.reborrowed()).blend_modes(&modes).show(ui);
+                            events.borrow_mut().extend(out.edit.map(LayersEvent::Filter));
                         }
                         None => {
                             let own = &mut stack.memory::<Session<T::Id>>().filter;
-                            LayerFilterBar::new(Bind::bound(own)).blend_modes(&modes).show(ui);
+                            let _ = LayerFilterBar::new(Bind::bound(own)).blend_modes(&modes).show(ui);
                         }
                     }
                 }
