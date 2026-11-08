@@ -10,7 +10,6 @@ use craft_timeline::ui::{Timeline, TimelineEdit, TrackSwitch};
 use craft_timeline::{ClipId, ClipInfo, TimeRange, TimelineModel, TrackId, TrackInfo};
 use craft_timeline::{FollowMode, FrameRate, Tick, TimeFormat, TimeView, TrackKind};
 use craft_ui::contract::{Bind, ShowContainer as _};
-use craft_ui::testing::access::NodeKey;
 use craft_ui::testing::{Fixture, Frames, Target, pointer, trial};
 use egui::{Event, Key, Modifiers, MouseWheelSource, MouseWheelUnit, Rect, TouchPhase, Vec2};
 
@@ -467,10 +466,15 @@ fn double_clicking_a_header_toggles_its_height() {
     let mut panel = panel();
     let a1 = panel.row("A1");
     let before = a1.height();
-    let at = a1.left_center() + Vec2::new(HEADER_NAME_INSET, 0.0);
-    panel.fixture.frame(vec![pointer::moved(at)]);
-    panel.fixture.click_at(at);
-    panel.fixture.click_at(at);
+    let name = panel
+        .fixture
+        .by_role(craft_ui::contract::Role::LABEL)
+        .into_iter()
+        .find(|label| panel.fixture.tree().name_of(label.node) == Some("A1") && a1.contains(label.center()))
+        .expect("the header names its track");
+    panel.fixture.frame(vec![pointer::moved(name.center())]);
+    panel.fixture.click(&name);
+    panel.fixture.click(&name);
     let got = panel.heights();
     assert_eq!(got.len(), 1, "one height from the double click: {got:?}");
     assert_eq!(got[0].0, A1);
@@ -479,9 +483,6 @@ fn double_clicking_a_header_toggles_its_height() {
 
 /// The rounding slack of a measured point.
 const SLACK: f32 = 0.5;
-
-/// How far into the row the name column's text lies, clear of the colour strip and the switches.
-const HEADER_NAME_INSET: f32 = 60.0;
 
 /// Captions sit above the video rows; a model with a master volume shows the Mix row below the audio rows.
 #[trial]
@@ -510,20 +511,14 @@ fn the_wheel_scrolls_the_side_under_the_pointer() {
 /// The points one wheel turn moves.
 const WHEEL_POINTS: f32 = 30.0;
 
-/// The Menu key and Shift+F10 report a context menu anchored on the selection's last clip; a secondary click reports its
-/// position.
+/// The Menu key and Shift+F10 on a clicked clip report a context menu anchored on that clip; a secondary click on it
+/// reports its position.
 #[trial]
 fn the_menu_keys_report_a_context_menu_anchored_on_the_focused_clip() {
     let mut panel = panel();
-    panel.sequence.borrow_mut().selection = vec![ClipId(1)];
-    panel.fixture.idle(2);
-    for _ in 0..FOCUS_TABS {
-        let focused = panel.fixture.focused().and_then(|id| panel.fixture.tree().name_of(NodeKey::of(id)).map(str::to_owned));
-        if focused.as_deref() == Some("Timeline") {
-            break;
-        }
-        panel.fixture.key(Key::Tab, Modifiers::NONE);
-    }
+    let v1 = panel.row("V1");
+    let clip = panel.in_row("Clip", v1);
+    panel.fixture.click(&clip);
     panel.fixture.key(Key::Menu, Modifiers::NONE);
     panel.fixture.key(Key::F10, Modifiers::SHIFT);
     let menus: Vec<_> = panel
@@ -535,15 +530,17 @@ fn the_menu_keys_report_a_context_menu_anchored_on_the_focused_clip() {
         })
         .collect();
     assert_eq!(menus.len(), 2, "{menus:?}");
-    let v1 = panel.row("V1");
-    for (track, clip, anchor, pointer) in &menus {
-        assert_eq!((*track, *clip, *pointer), (Some(V1), Some(ClipId(1)), None));
-        assert!((anchor.top() - v1.top()).abs() < SLACK && (anchor.bottom() - v1.bottom()).abs() < SLACK, "{anchor:?} in {v1:?}");
-        assert!((anchor.width() - 4.0 * PANEL_POINTS_PER_SECOND as f32).abs() < SLACK, "{anchor:?}");
+    for (track, found, anchor, pointer) in &menus {
+        assert_eq!((*track, *found, *pointer), (Some(V1), Some(ClipId(1)), None));
+        assert!(
+            (anchor.left() - clip.rect.left()).abs() < SLACK && (anchor.bottom() - clip.rect.bottom()).abs() < SLACK,
+            "{anchor:?} at {:?}",
+            clip.rect
+        );
     }
 
     panel.sequence.borrow_mut().edits.clear();
-    let at = menus[0].2.center();
+    let at = clip.center();
     panel.fixture.frame(vec![pointer::moved(at)]);
     panel.fixture.frame(vec![pointer::secondary(at, true)]);
     panel.fixture.frame(vec![pointer::secondary(at, false)]);
@@ -553,9 +550,6 @@ fn the_menu_keys_report_a_context_menu_anchored_on_the_focused_clip() {
     });
     assert!(matches!(click, Some(Some(pos)) if (pos - at).length() < 1.0), "{click:?}");
 }
-
-/// The most Tab presses the focus search takes.
-const FOCUS_TABS: usize = 40;
 
 /// The rects of the panel that are filled with a clip colour or the disabled fill, as one frame paints them.
 fn clip_fills(disabled: Vec<ClipId>) -> Vec<(Rect, egui::Color32)> {

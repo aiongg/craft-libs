@@ -228,6 +228,18 @@ pub struct TrackEvent {
     pub marquee: Option<MarqueeSelect<ClipId>>,
     /// The marquee was released in this pass.
     pub marquee_ended: bool,
+    /// Where the collection laid the row out, for the rows the panel works cross-track rules out from.
+    pub place: Option<RowPlace>,
+}
+
+/// A row's place as the collection's item layout gives it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct RowPlace {
+    /// The row's rect.
+    pub row: Rect,
+    /// The left edge of the row's lane cell.
+    pub lane_left: f32,
 }
 
 /// The pointer of a clip move drag over the row that holds the dragged clips: the panel works the track change out
@@ -239,20 +251,6 @@ pub struct MovePointer {
     pub y: f32,
     /// The row's rect.
     pub row: Rect,
-}
-
-impl TrackEvent {
-    fn is_empty(&self) -> bool {
-        self.clip.is_none()
-            && self.select.is_none()
-            && self.open.is_none()
-            && self.context.is_none()
-            && !self.label_menu
-            && self.height.is_none()
-            && self.pointer.is_none()
-            && self.snapped_at.is_none()
-            && self.marquee.is_none()
-    }
 }
 
 /// The stack has no look of its own: its rows and the view's overlay draw everything.
@@ -494,17 +492,19 @@ impl Component for TrackRow<'_> {
         }
         let row = self.row();
         let reach = cx.style.edge;
-        let drag = |part: PartKey, y: f32, cx: &mut PartsCx<'_, Self>| {
-            let grab = Rect::from_min_max(Pos2::new(row.left(), y - reach), Pos2::new(row.right(), y + reach));
+        // The edge of a video row beside the divider reaches into the row only, so the divider keeps its own hit area.
+        let beyond = if self.above_divider { 0.0 } else { reach };
+        let drag = |part: PartKey, y: f32, beyond: f32, cx: &mut PartsCx<'_, Self>| {
+            let grab = Rect::from_min_max(Pos2::new(row.left(), y - reach), Pos2::new(row.right(), y + beyond));
             cx.part(part, grab)
                 .sense(Sense::DRAG)
                 .priority(HitPriority::new(HitLevel::Edge, 0))
                 .cursor(CursorIcon::ResizeVertical)
                 .pointer_only("the host's track height command");
         };
-        drag(EDGE_BOTTOM, row.bottom(), cx);
+        drag(EDGE_BOTTOM, row.bottom(), beyond, cx);
         if self.top_edge {
-            drag(EDGE_TOP, row.top(), cx);
+            drag(EDGE_TOP, row.top(), reach, cx);
         }
         if let (Some(lane), Some(axis)) = (self.cell(&LANE), time_axis(&cx.env)) {
             let look = cx.style.clip.clone();
@@ -521,6 +521,7 @@ impl Component for TrackRow<'_> {
             let node = access.node(part, Role::SPLITTER);
             node.name = Name::Text(template.fill(&[("track", self.track.name)]));
         }
+        access.node(HEADER, Role::LABEL).name = Name::Text(self.track.name.to_owned());
         let node = access.node(LABEL, Role::BUTTON);
         node.name = Name::Text(words.track_color.as_str().to_owned());
         if let (Some(lane), Some(axis)) = (self.cell(&LANE), time_axis(&cx.env)) {
@@ -574,6 +575,7 @@ impl Component for TrackRow<'_> {
             self.event.marquee = events.marquee;
             self.event.marquee_ended = events.marquee_ended;
             self.event.pointer = events.pointer_y.map(|y| MovePointer { y, row: self.row() });
+            self.event.place = Some(RowPlace { row: self.row(), lane_left: lane.left() });
         }
     }
 
@@ -616,7 +618,7 @@ impl Component for TrackRow<'_> {
     fn finish(self, cx: Cx<'_, Self>) -> TrackOut {
         let mut event = self.event;
         event.clip = cx.edit_response().event;
-        TrackOut { response: cx.response.clone(), event: (!event.is_empty()).then_some(event) }
+        TrackOut { response: cx.response.clone(), event: Some(event) }
     }
 }
 
