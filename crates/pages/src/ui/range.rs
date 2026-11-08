@@ -240,6 +240,8 @@ impl PageRangeOptions {
         let shown_to = range.to.map_or(last, |to| to.clamp(1, last));
         let mut next = range;
         let after = SideLabel::new().layout(FieldLayout::After);
+        // A page number past the document takes the nearest page, as Photoshop and Acrobat do; `whole` is the one place
+        // that holds it, so the field has no range of its own.
         let whole = |value: &EditResponse<Option<f64>>, shown: usize| {
             value.value().copied().flatten().map(|v| (v.round() as usize).clamp(1, last)).filter(|v| *v != shown)
         };
@@ -251,10 +253,7 @@ impl PageRangeOptions {
                 Row::new().show(ui, |ui, _| {
                     cx.labelled(ui, "range", words.pages_from.clone(), after.clone(), Radio::new(false));
                     let field = |label: &Label, shown: usize| {
-                        NumberField::new(label.clone(), Bind::given(Some(shown as f64)))
-                            .codec(numbers.clone())
-                            .range(1.0..=last as f64)
-                            .enabled(!range.all)
+                        NumberField::new(label.clone(), Bind::given(Some(shown as f64))).codec(numbers.clone()).enabled(!range.all)
                     };
                     from = whole(&field(&words.pages_from, shown_from).show(ui).edit, shown_from);
                     Text::new(words.to.clone()).show(ui);

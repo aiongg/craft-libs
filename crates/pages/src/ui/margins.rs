@@ -375,6 +375,7 @@ impl<'a> MarginHandles<'a> {
             unit: UnitKind::Inches,
         }
         .label(label)
+        .ltr_axis()
     }
 
     /// The margin bands of the page as document ranges along the x axis and along the y axis, for `Rulers::margins`;
@@ -431,7 +432,7 @@ impl Component for MarginHandles<'_> {
     fn style(cx: &StyleCx<'_>, _: MarginHandlesStyleKey) -> MarginHandlesStyle {
         MarginHandlesStyle {
             metrics: Metrics::new(),
-            grab: cx.tokens.size.hit.slop,
+            grab: cx.tokens.size.hit.target,
             strip: Rulers::content_rect(cx.tokens, Rect::ZERO).min.x,
             active: cx.color(cx.tokens.color.accent.solid),
         }

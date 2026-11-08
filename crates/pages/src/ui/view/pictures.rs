@@ -79,7 +79,7 @@ impl Component for PageMetrics {
             metrics: Metrics::new(),
             gap: tokens.space.gap.section,
             margin: pad.dialog,
-            side: 2.0 * tokens.size.control.md + 2.0 * pad.panel,
+            side: tokens.size.rail.width,
             white_space_pad: tokens.space.gap.inline,
             seam: tokens.stroke.thin,
         }
