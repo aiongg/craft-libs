@@ -1,10 +1,9 @@
-//! The words of the shape panel and the Shape tools' options bar, English by default
-//! (PhotoCraft's, without colons; US spelling).
+//! The words of the shape panel and the Shape tools' options bar, English by default (PhotoCraft's, without colons;
+//! US spelling).
 
 craft_ui::words! {
     /// The words of [`ShapePanel`](super::ShapePanel) and [`ShapeBar`](super::ShapeBar).
-    #[non_exhaustive]
-    pub struct ShapeLabels {
+    pub struct ShapeWords {
         /// The panel's accessible name.
         properties: "shape.properties" = "Shape properties";
         /// The Appearance section (the shape's look, not the app's theme).
@@ -19,6 +18,8 @@ craft_ui::words! {
         stroke_color: "shape.strokeColor" = "Stroke color";
         /// The stroke width field's accessible name.
         stroke_width: "shape.strokeWidth" = "Stroke width";
+        /// The Stroke style button's accessible name.
+        stroke_style: "shape.strokeStyle" = "Stroke style";
         /// The fill chip's tooltip.
         set_fill_type: "shape.setFillType" = "Set shape fill type";
         /// The stroke chip's tooltip.

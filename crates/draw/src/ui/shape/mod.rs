@@ -1,19 +1,5 @@
 //! The shape layer's Properties sections ([`ShapePanel`]) and the Shape tools' options bar
-//! ([`ShapeBar`]), each field a gesture-aware [`EditEvent<ShapeChange>`](craft_ui::edit::EditEvent).
-//!
-//! ```no_run
-//! use craft_draw::ui::shape::{LiveShape, ShapeAppearance, ShapeChange, ShapePanel};
-//! use craft_ui::edit::EditEvent;
-//! # fn demo(ui: &mut egui::Ui, shape: &LiveShape, look: &ShapeAppearance, stroke_open: &mut bool) {
-//! let out = ShapePanel::new("shape-panel", shape, look).stroke_open(stroke_open).show(ui);
-//! for event in out.events {
-//!     if let EditEvent::Commit { value: ShapeChange::Size { width, height }, changed: true, .. } = event {
-//!         // one `shape.edit` command with the new size
-//!         let _ = (width, height);
-//!     }
-//! }
-//! # }
-//! ```
+//! ([`ShapeBar`]), each field a gesture-aware [`EditEvent<ShapeChange>`](craft_behavior::EditEvent).
 
 use craft_color::ui::Paint;
 use serde::{Deserialize, Serialize};
@@ -23,17 +9,14 @@ use crate::stroke::StrokeStyle;
 use super::shape_drag::{ShapeDragOptions, ShapeKind};
 
 mod bar;
-#[cfg(test)]
-mod bar_tests;
-mod labels;
 mod panel;
-#[cfg(test)]
-mod panel_tests;
+#[cfg(feature = "screen-testing")]
 pub(crate) mod stories;
+mod words;
 
 pub use bar::{ShapeBar, ShapeBarOutput};
-pub use labels::ShapeLabels;
-pub use panel::{ShapePaint, ShapePanel, ShapePanelOutput};
+pub use panel::{ChipSetup, ShapePaint, ShapePanel, ShapePanelOutput};
+pub use words::ShapeWords;
 
 /// The selected shape layer's live shape, as the Shape section shows it: plain data the app
 /// converts to and from its document. Sizes in document pixels.
