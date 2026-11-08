@@ -4,7 +4,7 @@ use super::{ColorSamplerMarks, ColorSamplers, SamplerOptions};
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::Point;
 use craft_ui::bars::{Bar, BarKind};
-use craft_ui::canvas::{Canvas, ToolPath};
+use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
@@ -21,9 +21,7 @@ fn three_points(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let at = ui.available_rect_before_wrap();
     let center = Point::new(f64::from(at.width()) / 2.0, f64::from(at.height()) / 2.0);
     let view = CanvasView::new(at, center, 1.0);
-    let shown = Canvas::new("Document", ToolPath::Command("the New Color Sampler… command"))
-        .view(view)
-        .show(ui, |ui, body| ColorSamplerMarks::new("Color samplers", &samplers).show_at(ui, body.rect));
+    let shown = Canvas::new("Document").view(view).show(ui, |ui, body| ColorSamplerMarks::new("Color samplers", &samplers).show_at(ui, body.rect));
     shown.inner.map(StoryOutput::from).unwrap_or_default()
 }
 
