@@ -635,7 +635,11 @@ impl Component for TimelineRuler<'_> {
     }
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
-        let Some(axis) = time_axis(&cx.env) else { return };
+        let Some(axis) = time_axis(&cx.env) else {
+            // No time axis around the ruler: it reads nothing, but its slider still has a range.
+            access.numeric(Numeric::empty(0.0..=0.0));
+            return;
+        };
         let shown = cx.value().copied().unwrap_or(Tick::ZERO);
         access.numeric(Numeric::new(shown.seconds(), 0.0..=axis.end.max(Tick::ZERO).seconds()).text(format_time(shown, &axis.format)));
         let words = cx.words::<TimelineRulerWords>();
