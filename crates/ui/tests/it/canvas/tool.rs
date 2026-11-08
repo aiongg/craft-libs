@@ -235,7 +235,7 @@ fn two_canvases_with_the_same_label_run_separate_gestures() {
     let (shown, seen) = (tools.clone(), Rc::clone(&ids));
     let mut fixture = Fixture::new(move |ui| {
         for (at, salt) in ["first", "second"].into_iter().enumerate() {
-            let canvas = Canvas::new("Document", ToolPath::Command("the Select Area... command")).id_salt(salt).show(ui, |_, _| {});
+            let canvas = Canvas::new("Document").id_salt(salt).show(ui, |_, _| {});
             seen.borrow_mut()[at] = canvas.output.response.id;
             let _ = ToolHost::new().run(ui, &canvas.output, &mut *shown[at].borrow_mut());
         }

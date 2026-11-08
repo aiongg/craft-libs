@@ -1,7 +1,7 @@
 //! Stories of the scroll bars.
 
 use super::{CanvasScrollbars, HORIZONTAL};
-use crate::canvas::{Canvas, ToolPath};
+use crate::canvas::Canvas;
 use crate::contract::{Bind, Show as _, ShowContainer as _, Validity};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, Target, story};
@@ -28,8 +28,6 @@ const CENTRE: Point = Point::new(0.0, 0.0);
 /// The view centre the invalid story refuses to leave to the right.
 const LAST_CENTRE_X: f64 = 0.0;
 
-const SCROLLS: ToolPath = ToolPath::Freehand;
-
 fn view_over(rect: Rect) -> CanvasView {
     CanvasView::new(rect, CENTRE, ZOOM)
 }
@@ -46,7 +44,7 @@ fn drag_thumb(fixture: &mut Fixture) {
 /// Shows the bars over `view` as the only canvas control of a canvas, and returns their output.
 fn on_canvas(ui: &mut Ui, mut bars: impl FnMut(&mut Ui, Rect) -> super::CanvasScrollbarsOutput) -> StoryOutput {
     let full = ui.available_rect_before_wrap();
-    Canvas::new("Document", SCROLLS).view(view_over(full)).show(ui, |ui, body| bars(ui, body.rect)).inner.map(StoryOutput::from).unwrap_or_default()
+    Canvas::new("Document").view(view_over(full)).show(ui, |ui, body| bars(ui, body.rect)).inner.map(StoryOutput::from).unwrap_or_default()
 }
 
 #[story(CanvasScrollbars<'static>, covers = [Default], drive = Drive::Custom(drag_thumb))]

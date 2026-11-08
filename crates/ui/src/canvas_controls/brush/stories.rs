@@ -1,7 +1,7 @@
 //! Stories of the brush overlays: each control on a canvas with a view, as a freehand tool shows it.
 
 use super::{BrushDimensions, BrushResize, BrushResizeOptions, FalloffPreview, TipCell, TipFalloff};
-use crate::canvas::{Canvas, ToolPath};
+use crate::canvas::Canvas;
 use crate::contract::{Show as _, ShowContainer as _};
 use crate::testing::{StoryData, StoryOutput, story};
 use craft_behavior::CanvasView;
@@ -28,7 +28,7 @@ const CELL: DocRect = DocRect::new(96.0, 96.0, 104.0, 104.0);
 /// Shows the control `control` makes as the only member of a freehand canvas that shows `CENTRE` in its middle.
 fn on_canvas(ui: &mut Ui, mut control: impl FnMut(&mut Ui, Rect, &CanvasView) -> Response) -> StoryOutput {
     let view = CanvasView::new(ui.available_rect_before_wrap(), CENTRE, ZOOM);
-    let shown = Canvas::new("Painting", ToolPath::Freehand).view(view).show(ui, |ui, body| control(ui, body.rect, &view));
+    let shown = Canvas::new("Painting").view(view).show(ui, |ui, body| control(ui, body.rect, &view));
     shown.inner.map(StoryOutput::from).unwrap_or_default()
 }
 

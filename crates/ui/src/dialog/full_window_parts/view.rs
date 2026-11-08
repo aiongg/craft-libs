@@ -1,7 +1,7 @@
 //! `FullWindowView`: the view of a full-window canvas as plain data. The canvas view commands
 //! ([`ViewCommand`](crate::canvas::ViewCommand)) act on it.
 
-use crate::canvas::{ViewCommand, WheelNavigation};
+use crate::canvas::ViewCommand;
 use craft_behavior::canvas::zoom;
 use craft_behavior::kurbo::{Point, Size};
 use craft_behavior::{CanvasView, PixelSize, ZoomLadder};
@@ -30,7 +30,6 @@ pub struct FullWindowView {
     view: CanvasView,
     size: Size,
     pixels_per_point: f32,
-    wheel: WheelNavigation,
 }
 
 impl Default for FullWindowView {
@@ -42,13 +41,7 @@ impl Default for FullWindowView {
 impl FullWindowView {
     /// A fitted view of an image not yet shown.
     pub fn new() -> Self {
-        Self {
-            fit: true,
-            view: CanvasView::new(Rect::ZERO, Point::ZERO, 1.0),
-            size: Size::ZERO,
-            pixels_per_point: 1.0,
-            wheel: WheelNavigation::default(),
-        }
+        Self { fit: true, view: CanvasView::new(Rect::ZERO, Point::ZERO, 1.0), size: Size::ZERO, pixels_per_point: 1.0 }
     }
 
     /// Whether the view fits the image: until the user zooms or pans, and after `ViewCommand::FitOnScreen`.
@@ -95,8 +88,8 @@ impl FullWindowView {
         }
     }
 
-    /// The view after a tool, a pan or a wheel zoom changed the canvas view `next` this pass; a change of the zoom or
-    /// the centre ends the fit.
+    /// The view after the canvas reported `next` this pass (a wheel zoom, a pan, a tool); a change of the zoom or the
+    /// centre ends the fit.
     #[must_use]
     pub fn took(mut self, next: CanvasView) -> Self {
         if next.zoom != self.view.zoom || next.center != self.view.center {
@@ -104,11 +97,6 @@ impl FullWindowView {
         }
         self.view = next;
         self
-    }
-
-    /// The wheel's state between passes (the ladder-step notches a trackpad has not finished).
-    pub(super) fn wheel(&mut self) -> &mut WheelNavigation {
-        &mut self.wheel
     }
 
     /// Whether a zoom step in (`dir` > 0) or out would change the zoom.

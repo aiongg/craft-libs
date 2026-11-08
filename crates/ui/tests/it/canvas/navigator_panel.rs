@@ -2,7 +2,7 @@
 
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Size};
-use craft_ui::canvas::{Canvas, NavigationOptions, ToolPath};
+use craft_ui::canvas::{Canvas, NavigationOptions};
 use craft_ui::contract::{Bind, ShowContainer as _};
 use craft_ui::patterns::canvas::NavigatorPanel;
 use craft_ui::testing::access::focused_key;
@@ -28,7 +28,7 @@ fn panel(enabled: bool) -> (Fixture, Rc<RefCell<CanvasView>>) {
         navigation.animated_zoom = false;
         NavigatorPanel::new("Navigator", Bind::bound(&mut *held.borrow_mut()), DOC).navigation(navigation).enabled(enabled).show(ui);
         let shown = *held.borrow();
-        let canvas = Canvas::new("Document", ToolPath::Freehand).view(shown).document(DOC).navigation(navigation).show_at(ui, CANVAS, |_, _| {});
+        let canvas = Canvas::new("Document").view(shown).document(DOC).navigation(navigation).show_at(ui, CANVAS, |_, _| {});
         if let Some(next) = canvas.output.view {
             *held.borrow_mut() = next;
         }

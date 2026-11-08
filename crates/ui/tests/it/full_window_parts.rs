@@ -175,7 +175,7 @@ fn view_chords_zoom_the_dialogs_view_while_its_canvas_has_the_focus() {
         let mut open = true;
         FullWindowDialog::new("Liquify").opened(Bind::bound(&mut open)).show(ui, |ui, _| {
             FullWindowZoomBar::new(Bind::bound(&mut shared.borrow_mut())).show(ui);
-            craft_ui::dialog::FullWindowCanvas::new(craft_ui::canvas::ToolPath::Freehand, Bind::bound(&mut shared.borrow_mut()), &Grey).show(ui);
+            craft_ui::dialog::FullWindowCanvas::new(Bind::bound(&mut shared.borrow_mut()), &Grey).show(ui);
         });
     });
     fixture.settle();
@@ -207,7 +207,7 @@ fn fit_on_screen_refits_in_the_same_pass_and_magnifies_a_small_image() {
 mod canvas_navigation {
     use craft_behavior::PixelSize;
     use craft_behavior::kurbo::Point;
-    use craft_ui::canvas::{NavigationOptions, PixelRect, RasterSource, ToolPath};
+    use craft_ui::canvas::{NavigationOptions, PixelRect, RasterSource};
     use craft_ui::contract::Bind;
     use craft_ui::dialog::{FullWindowCanvas, FullWindowView};
     use craft_ui::primitives::Revision;
@@ -221,6 +221,12 @@ mod canvas_navigation {
 
     /// How far a drag moves the pointer, in points.
     const DRAG: Vec2 = Vec2::new(30.0, 20.0);
+
+    /// A drag far past the image's edge, in points.
+    const PAST: Vec2 = Vec2::new(3000.0, 3000.0);
+
+    /// How close the image's corner stops to the canvas's corner, in points.
+    const EDGE: f32 = 0.01;
 
     /// How far a document point may move under the pointer in a wheel zoom, in image pixels.
     const STILL: f64 = 0.5;
@@ -259,7 +265,7 @@ mod canvas_navigation {
         let (shown, seen) = (view.clone(), hover.clone());
         let mut fixture = Fixture::new(move |ui| {
             let mut view = shown.borrow_mut();
-            seen.set(FullWindowCanvas::new(ToolPath::Freehand, Bind::bound(&mut *view), &Grey).navigation(navigation).show(ui).hover);
+            seen.set(FullWindowCanvas::new(Bind::bound(&mut *view), &Grey).navigation(navigation).show(ui).hover);
         });
         fixture.settle();
         Rig { fixture, view, hover }
@@ -268,6 +274,12 @@ mod canvas_navigation {
     impl Rig {
         fn zoom(&self) -> f64 {
             self.view.borrow().device_zoom()
+        }
+
+        /// Zooms to 100 %, where the image is larger than the canvas, and lets the canvas settle the view.
+        fn zoom_in(&mut self) {
+            self.view.borrow_mut().set_device_zoom(1.0);
+            self.fixture.frame(Vec::new());
         }
 
         fn centre(&self) -> Point {
@@ -312,15 +324,21 @@ mod canvas_navigation {
     }
 
     #[trial]
-    fn the_middle_button_pans_and_so_does_the_hand_tool_a_canvas_without_a_tool_falls_back_to() {
+    fn the_middle_button_pans_up_to_the_image_edge_and_so_does_the_hand_tool_a_canvas_without_a_tool_falls_back_to() {
         let mut middle = rig(NavigationOptions::default());
+        middle.zoom_in();
         let start = middle.centre();
         middle.drag(pointer::middle, OVER, DRAG);
         let panned = middle.centre();
         assert!(panned.x < start.x - 1.0 && panned.y < start.y - 1.0, "the image follows the pointer: {start:?} {panned:?}");
         assert!(!middle.view.borrow().is_fit(), "a pan ends the fit");
+        middle.drag(pointer::middle, OVER, PAST);
+        let view = middle.view.borrow().view();
+        let corner = view.to_screen(Point::ZERO);
+        assert!((corner - view.rect.min).length() < EDGE, "with Overscroll off a drag past the edge stops there: {corner:?} {:?}", view.rect);
 
         let mut hand = rig(NavigationOptions::default());
+        hand.zoom_in();
         let start = hand.centre();
         hand.drag(primary, OVER, DRAG);
         let panned = hand.centre();
@@ -333,7 +351,7 @@ mod canvas_navigation {
         let seen = rects.clone();
         let mut view = FullWindowView::new();
         let mut fixture = Fixture::new(move |ui| {
-            let canvas = FullWindowCanvas::new(ToolPath::Freehand, Bind::bound(&mut view), &Grey).show(ui).response.rect;
+            let canvas = FullWindowCanvas::new(Bind::bound(&mut view), &Grey).show(ui).response.rect;
             seen.set(Some((canvas, ui.available_rect_before_wrap())));
         });
         fixture.settle();

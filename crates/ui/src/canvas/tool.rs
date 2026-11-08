@@ -480,3 +480,25 @@ pub trait CanvasTool {
     /// form takes the same numbers; a freehand tool is `ToolPath::Freehand`, a named exception.
     fn command_form(&self) -> ToolPath;
 }
+
+/// The tool of a canvas that has none: it takes no press and paints nothing, and its keyboard path is freehand.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct NoTool;
+
+impl CanvasTool for NoTool {
+    fn press(&mut self, _: &ToolPointer, _: &mut ToolContext<'_>) -> ToolAction {
+        ToolAction::Ignored
+    }
+
+    fn drag(&mut self, _: &ToolPointer, _: &mut ToolContext<'_>) {}
+
+    fn release(&mut self, _: &ToolPointer, _: &mut ToolContext<'_>) {}
+
+    fn cancel(&mut self, _: CancelReason, _: &mut ToolContext<'_>) {}
+
+    fn paint(&self, _: &Draw<'_>, _: &ToolContext<'_>) {}
+
+    fn command_form(&self) -> ToolPath {
+        ToolPath::Freehand
+    }
+}

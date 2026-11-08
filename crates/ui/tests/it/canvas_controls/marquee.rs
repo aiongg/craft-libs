@@ -3,7 +3,7 @@
 
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Rect};
-use craft_ui::canvas::{Canvas, ToolPath};
+use craft_ui::canvas::Canvas;
 use craft_ui::canvas_controls::{
     CanvasGrid, HoverMask, HoverOutline, HoverShape, Marquee, MarqueeLook, MarqueeShape, SelectionOutline, StraightLinePreview, range_bands,
     rect_around,
@@ -35,7 +35,7 @@ fn a_press_on_the_canvas_reaches_the_tool_with_every_selection_outline_shown() {
     let seen = Rc::clone(&clicked);
     let paths = [craft_behavior::kurbo::BezPath::new()];
     let mut fixture = Fixture::new(move |ui| {
-        let canvas = Canvas::new("Document", ToolPath::Freehand).view(view()).show(ui, |ui, body| {
+        let canvas = Canvas::new("Document").view(view()).show(ui, |ui, body| {
             Marquee::rect("Selection", selection()).show_at(ui, body.rect);
             Marquee::polygon("Lasso", [Point::new(0.0, 0.0), Point::new(30.0, 10.0)]).look(MarqueeLook::Drawing).show_at(ui, body.rect);
             HoverOutline::new("Rollover", Some(HoverShape::Rect(selection()))).show_at(ui, body.rect);
@@ -57,7 +57,7 @@ fn a_press_on_the_canvas_reaches_the_tool_with_every_selection_outline_shown() {
 #[trial]
 fn a_marquee_is_one_graphics_object_named_by_its_label() {
     let mut fixture = Fixture::new(|ui| {
-        Canvas::new("Document", ToolPath::Freehand).view(view()).show(ui, |ui, body| {
+        Canvas::new("Document").view(view()).show(ui, |ui, body| {
             Marquee::rect("Selection", selection()).show_at(ui, body.rect);
         });
     });
@@ -140,7 +140,7 @@ const MARCH_TICK: Duration = Duration::from_millis(100);
 fn a_shown_selection_asks_for_its_next_repaint_a_march_step_ahead() {
     let mut frames = Frames::new();
     let mut show = |ui: &mut egui::Ui| {
-        Canvas::new("Document", ToolPath::Freehand).view(view()).show(ui, |ui, body| {
+        Canvas::new("Document").view(view()).show(ui, |ui, body| {
             Marquee::rect("Selection", selection()).show_at(ui, body.rect);
         });
     };
@@ -162,7 +162,7 @@ fn a_contrast_marquee_draws_a_halo_under_a_line_in_the_given_colour() {
     let color = Color32::from_rgb(230, 70, 70);
     let mut frames = Frames::new();
     let shapes = frames.frame_shapes(|ui| {
-        Canvas::new("Document", ToolPath::Freehand).view(view()).show(ui, |ui, body| {
+        Canvas::new("Document").view(view()).show(ui, |ui, body| {
             Marquee::rect("Shape", selection()).look(MarqueeLook::Contrast(DataColor::new(color))).show_at(ui, body.rect);
         });
     });

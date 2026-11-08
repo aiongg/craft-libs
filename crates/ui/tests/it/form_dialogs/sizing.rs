@@ -4,7 +4,10 @@
 use craft_behavior::PixelSize;
 use craft_ui::contract::Bind;
 use craft_ui::contract::Role;
-use craft_ui::patterns::form_dialogs::{CanvasExtension, CanvasSize, CanvasSizeValues, ImageSize, ImageSizeValues, Resample, SizingWords};
+use craft_ui::dialog::{DialogHost, DialogResult};
+use craft_ui::patterns::form_dialogs::{
+    CanvasExtension, CanvasSize, CanvasSizeValues, HostedImageSize, ImageSize, ImageSizeValues, Resample, SizingWords,
+};
 use craft_ui::pickers::Anchor9;
 use craft_ui::runtime::env::UnitKind;
 use craft_ui::runtime::env::WordSet as _;
@@ -156,4 +159,25 @@ fn the_method_list_follows_the_full_list() {
     let listed = |entries: Vec<craft_ui::contract::Entry<Resample>>| entries.iter().filter_map(|entry| entry.value().copied()).collect::<Vec<_>>();
     assert_eq!(listed(Resample::entries(&words, &[Resample::Lanczos, Resample::Automatic])), [Resample::Automatic, Resample::Lanczos]);
     assert_eq!(listed(Resample::entries(&words, &[])), Resample::ALL);
+}
+
+/// A hosted Image Size opens on the document's size, and OK hands the edited size back through the host.
+#[trial]
+fn a_hosted_image_size_shows_the_document_size_and_answers_through_the_host() {
+    const DOCUMENT: PixelSize = PixelSize::new(1200, 800);
+    let host = Rc::new(RefCell::new(DialogHost::new()));
+    host.borrow_mut().open(HostedImageSize::new(ImageSizeValues::new(DOCUMENT), |values| ImageSize::new(values)));
+    let shown = Rc::clone(&host);
+    let mut fixture = Fixture::new(move |ui| shown.borrow_mut().run(ui));
+    fixture.settle();
+    assert!(fixture.texts().iter().any(|run| run.text.contains("1200")), "the width shows the document's width");
+    assert!(fixture.texts().iter().any(|run| run.text.contains("800")), "the height shows the document's height");
+
+    let width = fixture.by_label("Width").expect("the width field is shown");
+    fixture.click(&width);
+    fixture.key(Key::A, Modifiers::COMMAND);
+    fixture.type_text("600");
+    press_ok(&mut fixture);
+    let Some(DialogResult::Ok(answer)) = host.borrow_mut().take::<HostedImageSize>() else { panic!("OK answers through the host") };
+    assert_eq!(answer.size.width, 600, "the answer carries the edited width");
 }

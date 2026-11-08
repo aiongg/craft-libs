@@ -54,7 +54,7 @@ name = "ToolHostResponse"
 old = "craft_ui::canvas::tool_host::ToolHostResponse"
 new = "craft_ui::canvas::ToolHostResponse"
 status = "moved"
-note = "`gesture` is `Option<GesturePhase>`; `scrolled_by` and `view` are gone (the host moves no view): `past_edge` reports the pointer past the canvas edge; `cursor` is `Option<Cursor>`; `readout` is new data for automation (the host paints it); `id` is gone."
+note = "`gesture` is `Option<GesturePhase>`; `scrolled_by` is gone: `past_edge` reports the pointer past the canvas edge; `cursor` is `Option<Cursor>`; `readout` is new data for automation (the host paints it); `id` is gone. `view: Option<CanvasView>` is the one view the app copies: the tool's (inside the document with Overscroll off), else the canvas's own (`CanvasOutput::view`). A tool's eased zoom runs in the canvas's own zoom ease; there is no `ease` field and no app-side `ZoomAnimation`."
 
 [[type]]
 name = "ToolInput"
@@ -124,14 +124,14 @@ name = "RulersResponse"
 old = "craft_ui::canvas::rulers::RulersResponse"
 new = ""
 status = "removed"
-note = "`RulersOutput` replaces it: `origin` is `zero: EditResponse<Point>`, `reset_origin` is `reset_zero`, `id` is gone (the zero point is a `Bind`, and the host commands are `RulerCommands`), `context` and `unit_picked` stay."
+note = "`RulersOutput` replaces it: `origin` is `zero: EditResponse<Point>`, `reset_origin` is gone (a reset is an edit of `zero`), `id` is gone (the zero point is a `Bind`, and the host commands are `RulerCommands`), `context` and `unit_picked` stay."
 
 [[type]]
 name = "RulersOutput"
 old = ""
 new = "craft_ui::canvas::RulersOutput"
 status = "replaced"
-note = "`RulersOutput { zero: EditResponse<Point>, guide: Option<GuideDrag>, reset_zero, unit_picked: Option<UnitKind>, context: Option<RulerPart> }` with `content_rect()`. `guide` is the guide a drag from a strip is placing in this pass; the app forwards it to the guides control."
+note = "`RulersOutput { zero: EditResponse<Point>, guide: Option<GuideDrag>, unit_picked: Option<UnitKind>, context: Option<RulerPart> }` with `content_rect()`. The corner's double click and the menu's Reset Zero Point write the origin through the zero bind (one edit in `zero`); there is no `reset_zero` field. `guide` is the guide a drag from a strip is placing in this pass; the app forwards it to the guides control."
 
 [[type]]
 name = "RulerPart"
@@ -248,14 +248,14 @@ name = "Navigator"
 old = "craft_ui::canvas::navigator::preview::Navigator"
 new = "craft_ui::canvas::Navigator"
 status = "moved"
-note = "The legacy widget showed the preview box over the zoom row: that is the pattern `craft_ui::patterns::canvas::NavigatorPanel::new(label, Bind::bound(&mut view), document).preview(..).navigation(..).proxy(..).enabled(..).show(ui)`, one bound view, one Tab sequence and one output (`NavigatorPanelOutput { response, view: Option<EditEvent<CanvasView>>, ease: Option<ViewEase> }`). The row's Zoom In and Zoom Out are the active canvas's view commands, so the canvas reports their view and ease. The box alone is the component `Navigator::new(label, Bind::bound(&mut view), document)`; the row alone is `NavigatorZoomRow`."
+note = "The legacy widget showed the preview box over the zoom row: that is the pattern `craft_ui::patterns::canvas::NavigatorPanel::new(label, Bind::bound(&mut view), document).preview(..).navigation(..).proxy(..).enabled(..).show(ui)`, one bound view, one Tab sequence and one output (`NavigatorPanelOutput { response, view: Option<EditEvent<CanvasView>> }`). The row's Zoom In and Zoom Out are the active canvas's view commands, so the canvas reports their view; under Animated Zoom the canvas eases to it, and a preview zoom eases on the same canvas. The box alone is the component `Navigator::new(label, Bind::bound(&mut view), document)`; the row alone is `NavigatorZoomRow`."
 
 [[type]]
 name = "NavigatorOutput"
 old = "craft_ui::canvas::navigator::preview::NavigatorOutput"
 new = "craft_ui::canvas::NavigatorOutput"
 status = "moved"
-note = "`view` (the `EditResponse<CanvasView>`) and `ease: Option<ViewEase>`: a zoom under Animated Zoom is the view's change to its target, not written into the bound view; the app begins its `ZoomAnimation` and copies the target in, as with `ToolHostResponse { view, ease }`."
+note = "`view` (the `EditResponse<CanvasView>`): a zoom writes its target into the bound view; under Animated Zoom the canvas the view commands reach eases to it."
 
 [[type]]
 name = "NavigatorPreview"
@@ -318,14 +318,14 @@ name = "NavigatorZoomRow"
 old = ""
 new = "craft_ui::canvas::NavigatorZoomRow"
 status = "replaced"
-note = "The legacy zoom row (`navigator::zoom_row`): percent `NumberField`, Zoom Out and Zoom In as `IconButton::command(icon, ViewCommand::ZoomOut / ZoomIn)` and a logarithmic `Slider` as children of a `Row`. `NavigatorZoomRow::new(Bind::bound(&mut view), document).show(ui)`. The buttons are the active canvas's view commands: the canvas (`Canvas::view(..).document(..).navigation(..)`) steps its view and reports it, with the Animated Zoom ease, in `CanvasOutput { view, ease }` (and `ToolHostResponse { view, ease }`)."
+note = "The legacy zoom row (`navigator::zoom_row`): percent `NumberField`, Zoom Out and Zoom In as `IconButton::command(icon, ViewCommand::ZoomOut / ZoomIn)` and a logarithmic `Slider` as children of a `Row`. `NavigatorZoomRow::new(Bind::bound(&mut view), document).show(ui)`. The buttons are the active canvas's view commands: the canvas (`Canvas::view(..).document(..).navigation(..)`) steps its view, eases to it under Animated Zoom, and reports it in `CanvasOutput::view` (and `ToolHostResponse::view`)."
 
 [[type]]
 name = "NavigatorZoomRowOutput"
 old = ""
 new = "craft_ui::canvas::NavigatorZoomRowOutput"
 status = "replaced"
-note = "`response` and `view` (the pass's `EditEvent<CanvasView>` from the field or the slider). A Zoom In or Zoom Out step and its ease are the canvas's: `CanvasOutput { view, ease }`."
+note = "`response` and `view` (the pass's `EditEvent<CanvasView>` from the field or the slider). A Zoom In or Zoom Out step and its ease are the canvas's: `CanvasOutput::view`."
 
 [[type]]
 name = "NavigatorCommands"
@@ -891,7 +891,7 @@ name = "WheelNavigation"
 old = "craft_ui::canvas::navigate::WheelNavigation"
 new = "craft_ui::canvas::WheelNavigation"
 status = "moved"
-note = "A value that keeps the unfinished part of a ladder-step notch: `WheelNavigation::default()`, then `read(&mut self, &Wheel, &NavigationOptions)` or `classify(&mut self, WheelInput, &NavigationOptions)`. The input is the wheel share `CanvasOutput::wheel`; `read(ctx, response, prefs)`, `read_page`, `classify_page`, `settle`, `configure` and `fold_legacy_pinch` are gone (the wheel service owns the device reads and the modifier mapping). `apply(view, action, pointer, size, pixels_per_point)` no longer takes the options or clamps: with Overscroll off the caller clamps with `CanvasScrollbars::clamp`."
+note = "A value that keeps the unfinished part of a ladder-step notch: `WheelNavigation::default()`, then `read(&mut self, &Wheel, &NavigationOptions)` or `classify(&mut self, WheelInput, &NavigationOptions)`. `Canvas` reads its wheel share with it and applies it to the view it reports (there is no `CanvasOutput::wheel` or `pan`); `read(ctx, response, prefs)`, `read_page`, `classify_page`, `settle`, `configure` and `fold_legacy_pinch` are gone (the wheel service owns the device reads and the modifier mapping). `apply(view, action, pointer, size, pixels_per_point)` no longer takes the options or clamps: with Overscroll off the canvas clamps with `CanvasScrollbars::clamp`."
 
 [[type]]
 name = "WheelAction"
@@ -975,7 +975,7 @@ name = "ZoomTool"
 old = "craft_ui::canvas::navigate::ZoomTool"
 new = "craft_ui::canvas::ZoomTool"
 status = "moved"
-note = "`ZoomTool::new(size, options)`; A click's change is eased (`ToolContext::ease_view`, reported as `ToolHostResponse::ease`) under Animated Zoom."
+note = "`ZoomTool::new(options)` (the document size is the canvas's: `CanvasSpace::document()`, from `Canvas::document`; a canvas given no document gives the tool none and it does nothing). A click's change is eased (`ToolContext::ease_view`, reported as `ToolHostResponse::ease`) under Animated Zoom."
 
 [[type]]
 name = "RotateViewTool"
@@ -1010,14 +1010,14 @@ name = "MomentaryCommand"
 old = ""
 new = "craft_ui::canvas::MomentaryCommand"
 status = "replaced"
-note = "`canvasMomentary.hand`, `canvasMomentary.zoom_in` and `canvasMomentary.zoom_out`, bound to Space, Cmd+Space and Alt+Space."
+note = "`canvasMomentary.hand`, `canvasMomentary.zoom_in` and `canvasMomentary.zoom_out`, bound to Space, Cmd+Space and Alt+Space. Scoped to `canvasView` like `ViewCommand`; `ToolHost::run` takes them for its canvas."
 
 [[type]]
 name = "Momentary"
 old = ""
 new = "craft_ui::canvas::Momentary"
 status = "replaced"
-note = "The momentary tools and the one in effect, kept by the app: `Momentary::new(options, size)`, `fired(MomentaryCommand, FirePhase)`, and `ToolHost::momentary(&mut Momentary)`, which runs the Hand or Zoom tool in place of the selected tool while a key is held. `tool(mods, in_gesture) -> Option<MomentaryTool>` tells which is in effect."
+note = "The momentary tools and the one in effect, kept by the app: `Momentary::new(options)` (the Zoom tool reads the document size from the canvas's space), `fired(MomentaryCommand, FirePhase)`, and `ToolHost::momentary(&mut Momentary)`, which feeds the set the `MomentaryCommand`s fired for its canvas (the set is scoped to `canvasView`; the app plumbs nothing) and runs the Hand or Zoom tool in place of the selected tool while a key is held. `tool(mods, in_gesture) -> Option<MomentaryTool>` tells which is in effect."
 
 [[type]]
 name = "MomentaryTool"
@@ -1038,7 +1038,7 @@ name = "ZoomAnimation"
 old = "craft_ui::canvas::zoom::ZoomAnimation"
 new = "craft_ui::canvas::ZoomAnimation"
 status = "moved"
-note = "A value the component that shows the view keeps. It holds no clock or egui memory: the owner drives `Animate::anim(\"zoom\", animation.target(), spec::MOVE)` and passes the progress to `shown`. `begin(&from, anchor, progress)`, `shown(&target, progress)`, `running()`, `stop()`."
+note = "The ease `Canvas` keeps under its id and shows itself: its zoom commands, a tool's `ToolContext::ease_view` and a Navigator zoom all reach that one ease, and no app keeps one. It holds no clock: the canvas drives `Animate::anim(\"zoom\", animation.target(), spec::MOVE)` and passes the progress to `shown`. `begin(&from, anchor, progress)` (from the view drawn last while one runs), `shown(&target, progress)`, `running()`, `stop()`."
 
 [[type]]
 name = "HoldZoom"
@@ -1095,7 +1095,7 @@ new = "new(options)"
 [[setter]]
 type = "ZoomTool"
 old = "new(size, prefs)"
-new = "new(size, options)"
+new = "new(options)"
 
 [[setter]]
 type = "RotateView"
@@ -1142,7 +1142,7 @@ note = "Inside the `Canvas` body; the view comes from `Canvas::view`. The guides
 type = "Rulers"
 old = "reset_zero(ctx, id)"
 new = "RulerCommands::ResetZero"
-note = "The app handles the command and puts the zero point back; `RulerOutput::reset_zero` reports the corner's double click and the menu row."
+note = "The app handles the command and puts the zero point back (`Point::ZERO`); the rulers' own corner double click and menu row write the same zero through the `Rulers::new` zero bind."
 
 [[setter]]
 type = "Rulers"
@@ -1248,3 +1248,11 @@ old = "show(ui, &mut view)"
 new = "show(ui)"
 note = "Returns `NavigatorOutput`: the view's `EditResponse` and, under Animated Zoom, `ease`, how the change to the target eases. The legacy widget with its zoom row is `NavigatorPanel::show(ui)`, which returns `NavigatorPanelOutput`."
 # End of l4e-navprev.
+
+# l4f-fscope
+[[type]]
+name = "NoTool"
+old = ""
+new = "craft_ui::canvas::NoTool"
+status = "replaced"
+note = "The tool of a canvas that has none: it takes no press, paints nothing, and its `command_form` is `ToolPath::Freehand`. `Canvas::new(label)` takes no `ToolPath`: the background part declares one fixed pointer-only reason that names the running tool's command form, and `CanvasTool::command_form` stays the one owner of the fact."

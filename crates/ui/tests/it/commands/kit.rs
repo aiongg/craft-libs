@@ -24,7 +24,7 @@ pub enum AppCommand {
     Go,
     #[command(label = "Save", default = "Cmd+K")]
     Save,
-    #[command(label = "Play", default = "Space")]
+    #[command(label = "Play", default = "F8")]
     Play,
     #[command(label = "Jump", default = "Cmd+Alt+J")]
     Jump,

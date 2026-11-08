@@ -2,7 +2,7 @@
 
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::Point;
-use craft_ui::canvas::{Canvas, SplitAt, SplitLayout, SplitPane, SplitViews, ToolPath};
+use craft_ui::canvas::{Canvas, SplitAt, SplitLayout, SplitPane, SplitViews};
 use craft_ui::contract::{Bind, ShowContainer as _};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Pos2, Rect, Vec2};
@@ -55,8 +55,7 @@ fn a_click_on_an_inactive_view_activates_it_and_its_canvas_gets_no_press() {
         let views = SplitViews::new("Views", SplitLayout::Two, Bind::bound(&mut at)).show(ui, |ui, body| {
             for (pane, rect) in SplitLayout::Two.rects(SplitAt::default(), body.rect).into_iter().enumerate() {
                 let view = CanvasView::new(rect, Point::new(0.0, 0.0), 1.0);
-                let canvas =
-                    Canvas::new(if pane == 0 { "Main view" } else { "Other view" }, ToolPath::Freehand).view(view).show_at(ui, rect, |_, _| ());
+                let canvas = Canvas::new(if pane == 0 { "Main view" } else { "Other view" }).view(view).show_at(ui, rect, |_, _| ());
                 if pane == 1 && canvas.output.press.phase.is_press() {
                     shared.borrow_mut().1 = true;
                 }

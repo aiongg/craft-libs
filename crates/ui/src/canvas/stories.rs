@@ -1,7 +1,7 @@
 //! Stories of the canvas family.
 
 use super::crop::CORNER;
-use super::{Canvas, CropOverlay, ToolPath};
+use super::{Canvas, CropOverlay};
 use crate::contract::{Bind, EditResponse, Show as _, ShowContainer as _, Validity};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
@@ -14,15 +14,13 @@ const ZOOM: f32 = 2.0;
 /// The narrowest crop the invalid story accepts, in document units.
 const LEAST_WIDTH: f32 = 100.0;
 
-const CROP_TO: ToolPath = ToolPath::Command("the Crop To... command");
-
 fn crop() -> Rect {
     Rect::from_min_max(Pos2::new(40.0, 30.0), Pos2::new(200.0, 140.0))
 }
 
 /// Shows `control` as the only canvas control of a canvas and returns the control's output.
 fn on_canvas(ui: &mut Ui, mut control: impl FnMut(&mut Ui, Rect) -> EditResponse<Rect>) -> StoryOutput {
-    let shown = Canvas::new("Document", CROP_TO).show(ui, |ui, body| control(ui, body.rect));
+    let shown = Canvas::new("Document").show(ui, |ui, body| control(ui, body.rect));
     shown.inner.map(StoryOutput::from).unwrap_or_default()
 }
 
@@ -36,13 +34,13 @@ fn drag_top_left(fixture: &mut Fixture) {
 
 #[story(Canvas, covers = [Default])]
 fn crop_tool(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let shown = Canvas::new("Document", CROP_TO).show(ui, |ui, body| CropOverlay::new("Crop", Bind::given(crop())).show_at(ui, body.rect));
+    let shown = Canvas::new("Document").show(ui, |ui, body| CropOverlay::new("Crop", Bind::given(crop())).show_at(ui, body.rect));
     shown.output.into()
 }
 
 #[story(Canvas, covers = [Default])]
 fn zoomed(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let shown = Canvas::new("Document", CROP_TO)
+    let shown = Canvas::new("Document")
         .transform(CanvasTransform::new(ZOOM, Vec2::ZERO))
         .show(ui, |ui, body| CropOverlay::new("Crop", Bind::given(crop())).show_at(ui, body.rect));
     shown.output.into()
@@ -50,7 +48,7 @@ fn zoomed(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 
 #[story(Canvas, covers = [Default])]
 fn freehand(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    Canvas::new("Painting", ToolPath::Freehand).show(ui, |_, _| ()).output.into()
+    Canvas::new("Painting").show(ui, |_, _| ()).output.into()
 }
 
 #[story(CropOverlay<'static>, covers = [Default], drive = Drive::Custom(drag_top_left))]

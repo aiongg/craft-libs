@@ -1,8 +1,9 @@
 //! `EditorMock`: a document editor window composed from library components.
 
 use super::model::{Document, MockState, Panel, Request, Tool};
-use super::panels::{Panels, permissions};
+use super::panels::Panels;
 use super::tools::{Dialogs, Tools};
+use craft_behavior::PixelSize;
 use craft_behavior::dock::Workspace;
 use craft_ui::bars::{Bar, BarKind, StatusItem, StatusReadout, StatusValues};
 use craft_ui::contract::{Bind, Remember as _, Show as _, ShowContainer as _};
@@ -12,13 +13,11 @@ use craft_ui::menu::{EditMenu, MenuBar, MenuItem, MenuTitle};
 use craft_ui::patterns::dock::DockArea;
 use craft_ui::patterns::form_dialogs::{DialogFields, HostedParamDialog, ImageSize, ImageSizeValues, Param, ParamDialog, ParamResult};
 use craft_ui::rails::{LastUsed, ToolRail};
+use craft_ui::runtime::commands::CommandRef;
 use craft_ui::runtime::env::{Label, WindowKey};
 use craft_ui::shell::{AppShell, AppShellOutput, Title, TitleBar};
 use egui::Ui;
 use std::cell::{Cell, RefCell};
-
-/// The percent a zoom of 1 shows.
-const PERCENT: f64 = 100.0;
 
 /// The parameters of Gaussian Blur.
 const BLUR: &str = r#"{"radius":0.1..1000=1}"#;
@@ -61,37 +60,32 @@ impl<'a> EditorMock<'a> {
         let parts = RefCell::new(Parts { document, tool, last_used, request, image_size, image_size_open });
         let workspace: &mut Workspace<Panel> = workspace;
         AppShell::new(WindowKey::main())
-            .title_bar_if(true, |ui, _| {
+            .title_bar_if(true, |ui, _, _| {
                 let parts = &mut *parts.borrow_mut();
                 title_bar(ui, parts);
             })
-            .options_bar(true, |ui, _| {
+            .options_bar(true, |ui, _, _| {
                 let parts = parts.borrow();
                 let _ = Bar::new("Options", BarKind::Options).show(ui, |ui, _| {
                     craft_ui::display::Text::new(format!("Tool: {}", parts.tool.name())).show(ui);
                 });
             })
-            .tools(true, |ui, _| {
+            .tools(true, |ui, _, _| {
                 let parts = &mut *parts.borrow_mut();
                 tool_rail(ui, parts);
             })
-            .status(true, |ui, _| {
+            .status(true, |ui, _, _| {
                 let parts = parts.borrow();
                 status_bar(ui, &parts);
             })
             .body_label(label)
-            .body(|ui, cx| {
+            .body(|ui, cx, _| {
                 let mut parts = parts.borrow_mut();
                 let mut tools = cx.keep::<Tools>().clone();
                 let dialogs = cx.keep::<Dialogs>().clone();
                 let current = *parts.tool;
                 let mut panels = Panels { document: &mut *parts.document, tool: current, tools: &mut tools };
-                let id = ui.scope_id().with("dock");
-                let output = DockArea::new(id, Bind::bound(&mut *workspace), &mut panels, DockConfig::default()).show(ui);
-                for action in output.actions {
-                    // A refused action leaves the workspace as it was.
-                    let _ = workspace.apply(action, false, permissions);
-                }
+                DockArea::new("Dock", Bind::bound(&mut *workspace), &mut panels, DockConfig::default()).show(ui);
                 *cx.keep::<Tools>() = tools;
                 if let Ok(mut host) = dialogs.0.lock() {
                     open_requested(&mut host, &mut parts);
@@ -106,7 +100,7 @@ impl<'a> EditorMock<'a> {
                     }
                 }
             })
-            .show(ui)
+            .show(ui, &mut ())
     }
 }
 
@@ -193,11 +187,10 @@ fn tool_rail(ui: &mut Ui, parts: &mut Parts<'_>) {
 fn status_bar(ui: &mut Ui, parts: &Parts<'_>) {
     let document = &*parts.document;
     let mut values = StatusValues::default();
-    values.document_dimensions = Some(format!("{} x {} px", document.size.width, document.size.height));
-    values.current_tool = Some(parts.tool.name().to_owned());
+    values.document_dimensions = Some(PixelSize::new(document.size.width as u32, document.size.height as u32));
+    values.current_tool = Some(CommandRef::from(*parts.tool));
     values.layer_count = Some(document.layers.len());
-    let zoom = Some(document.view.zoom * PERCENT);
     let _ = Bar::new("Status", BarKind::Status).show(ui, |ui, _| {
-        StatusReadout::new(Bind::given(zoom), StatusItem::DocumentDimensions, &values).show(ui);
+        StatusReadout::new(Bind::given(document.view), document.size, StatusItem::DocumentDimensions, &values).show(ui);
     });
 }
