@@ -197,7 +197,8 @@ fn a_long_description_wraps_under_the_title() {
     let title = texts.iter().find(|painted| painted.text == "Draft").expect("the title is painted");
     let note = texts.iter().find(|painted| painted.text == long).expect("the description is painted whole");
     assert!(!note.elided, "the description wraps, it is not cut");
-    assert!(note.rect.height() > title.rect.height() * 1.5, "the description takes several lines under the title");
+    let two_lines = title.rect.height() + title.rect.height();
+    assert!(note.rect.height() > two_lines, "the description takes several lines under the title");
 }
 
 /// Edit description opens the form with the version's text; Enter reports title and description.

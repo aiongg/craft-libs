@@ -1,9 +1,13 @@
 //! Stories of the people bar.
 
-use super::PeopleBar;
-use crate::collab::{CollabTransport, JoinState, PEOPLE_COLORS, Participant, ParticipantId, VoteSession};
+use super::{FollowFrame, PeopleBar, RemoteCursors};
+use crate::collab::{CollabTransport, CursorChat, JoinState, PEOPLE_COLORS, Participant, ParticipantId, VoteSession};
+use craft_behavior::CanvasView;
+use craft_ui::canvas::Canvas;
+use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
+use kurbo::Point;
 
 /// A session of `count` people, you the first.
 pub(crate) struct Room(pub Vec<Participant>);
@@ -51,4 +55,31 @@ fn people_bar_seven(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 #[story(PeopleBar<'static>, covers = [One], drive = Drive::Never)]
 fn people_bar_alone(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     PeopleBar::new(&Room::of(&["Ana Reyes"])).show(ui).into()
+}
+
+/// Shows `control` in the body of a canvas that shows the document's top left at the canvas's top left.
+fn on_canvas(ui: &mut Ui, mut control: impl FnMut(&mut Ui, egui::Rect)) -> StoryOutput {
+    let room = ui.available_rect_before_wrap();
+    let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
+    Canvas::new("Document").view(view).show(ui, |ui, cx| control(ui, cx.rect));
+    StoryOutput::default()
+}
+
+/// Two people with a cursor on the page; the second has said something.
+#[story(RemoteCursors<'static>, covers = [Default], drive = Drive::Never)]
+fn remote_cursors(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    let mut room = Room::of(&["Ana Reyes", "Bo Chen", "Cy Dahl"]);
+    room.0[1].cursor = Some([120.0, 80.0]);
+    room.0[1].chat = Some(CursorChat { text: "Move this up?".into(), changed: 0.0 });
+    room.0[2].cursor = Some([220.0, 160.0]);
+    on_canvas(ui, |ui, at| {
+        RemoteCursors::new("Cursors", &room, 1.0).show_at(ui, at);
+    })
+}
+
+#[story(FollowFrame, covers = [Default], drive = Drive::Never)]
+fn follow_frame(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    on_canvas(ui, |ui, at| {
+        FollowFrame::new("Following", PEOPLE_COLORS[1], "Following Bo Chen \u{b7} Esc to stop").show_at(ui, at);
+    })
 }
