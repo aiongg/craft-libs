@@ -3,8 +3,7 @@
 
 use craft_keymap::keymap::Problem;
 use craft_theme::variant::Tone;
-use craft_ui::buttons::Link;
-use craft_ui::contract::{BodyCx, Props as _, Show as _, ShowContainer as _, clicked};
+use craft_ui::contract::{BodyCx, Props as _, Show as _, ShowContainer as _};
 use craft_ui::display::{Shade, Text};
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::notices::{Notice, NoticeAction, NoticeLayout};

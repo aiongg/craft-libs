@@ -4,7 +4,7 @@
 use craft_keymap::command::CommandRef;
 use craft_keymap::keymap::Binding;
 use craft_keymap::scope::Scope;
-use craft_ui::buttons::{Button, IconButton, Link};
+use craft_ui::buttons::{Button, IconButton};
 use craft_ui::contract::{Bind, BodyCx, Entry, Props as _, Scroll, Show as _, ShowContainer as _, clicked};
 use craft_ui::display::{Shade, Text};
 use craft_ui::form::Field;
