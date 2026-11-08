@@ -159,3 +159,19 @@ fn save_files_the_picker_and_the_path_makes_the_answer() {
     assert_eq!((answered.width, answered.height), (DOCUMENT.width, DOCUMENT.height));
     assert_eq!(*rig.closed.borrow(), Some(CloseReason::Activated), "the path answer closes the dialog");
 }
+
+#[trial]
+fn zz_diag_save_button_per_frame() {
+    let mut fixture = Fixture::new(move |ui| {
+        let mut open = true;
+        SaveForWebDialog::new("poster.psd", DOCUMENT, WebPictures::new(), Bind::kept()).opened(Bind::bound(&mut open)).show(ui);
+    });
+    let mut seen = Vec::new();
+    for frame in 1..=14 {
+        fixture.idle(1);
+        let save = fixture.by_label("Save…").map(|t| t.rect);
+        let dialogs: Vec<_> = fixture.by_role(craft_ui::contract::Role::DIALOG).iter().map(|t| t.rect).collect();
+        seen.push(format!("{frame}: save {save:?} dialog {dialogs:?}"));
+    }
+    panic!("DIAG\n{}", seen.join("\n"));
+}
