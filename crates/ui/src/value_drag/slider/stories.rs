@@ -1,10 +1,10 @@
 //! Stories of `Slider`.
 
-use super::{Slider, SliderScale, SliderThumb, THUMB};
+use super::{Slider, SliderScale, SliderThumb};
 use crate::contract::{Bind, Props as _, Show as _, Validity};
 use crate::display::Progress;
 use crate::runtime::env::Message;
-use crate::testing::{Drive, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Grip, StoryData, StoryOutput, story};
 use crate::value_drag::TrackFace;
 use craft_behavior::Mixed;
 use egui::Ui;
@@ -17,7 +17,7 @@ fn slider(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     Slider::new(Bind::bound(data.value("value", 40.0)), RANGE).label("Opacity").show(ui).into()
 }
 
-#[story(Slider<'static>, covers = [], drive = Drive::Drag(THUMB))]
+#[story(Slider<'static>, covers = [], drive = Drive::Drag(Grip::new(Slider::THUMB)))]
 fn slider_drag(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     Slider::new(Bind::bound(data.value("value", 40.0)), RANGE).label("Opacity").show(ui).into()
 }

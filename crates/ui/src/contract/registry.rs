@@ -237,7 +237,7 @@ impl Probe {
     }
 
     /// Whether the component's output carries a value, so the mixed state applies to it, and the invalid state when it
-    /// also takes input.
+    /// also takes input and is no canvas control.
     pub fn carries_value(&self) -> bool {
         (self.value)()
     }

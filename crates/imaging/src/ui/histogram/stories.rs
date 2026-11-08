@@ -5,7 +5,7 @@ use super::{ChannelColor, Histogram, HistogramData, HistogramScale, LevelRange, 
 use craft_behavior::Mixed;
 use craft_ui::contract::{Bind, Show as _, Validity};
 use craft_ui::runtime::env::Message;
-use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
+use craft_ui::testing::{Drive, Grip, StoryData, StoryOutput, story};
 use egui::Ui;
 
 /// The bin count of an 8-bit channel.
@@ -62,7 +62,7 @@ fn markers(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     Histogram::new("Histogram", &data).markers(&points).value("Levels points").bordered().show(ui).into()
 }
 
-#[story(Histogram<'static>, covers = [], drive = Drive::Drag(PLOT))]
+#[story(Histogram<'static>, covers = [], drive = Drive::Drag(Grip::new(PLOT)))]
 fn selection(ui: &mut Ui, story: &mut StoryData) -> StoryOutput {
     let data = HistogramData::tone(&humps(), ChannelColor::Neutral);
     let range = story.value("range", Some(LevelRange::new(60.0, 120.0)));
