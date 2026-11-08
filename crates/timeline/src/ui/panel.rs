@@ -16,7 +16,7 @@ use crate::clock::FollowMode;
 use crate::markers::{Marker, MarkerColor};
 use crate::model::{ClipId, ClipInfo, TimelineModel, TrackId, TrackInfo, TrackKind};
 use crate::time::{Tick, TimeRange};
-use craft_behavior::{Axis, ColumnWidth, EditEvent, IconId, MarqueeSelect, Metrics, SelectionChange};
+use craft_behavior::{Axis, ColumnWidth, CursorIcon, CursorPriority, EditEvent, IconId, MarqueeSelect, Metrics, SelectionChange};
 use craft_ui::buttons::{IconButton, ToggleButton};
 use craft_ui::contract::{
     Bind, BodyLayout, CollectionEvent, CollectionResponse, ColumnEvent, Common, Component, Container, ContainerProps, Cx, EditResponse, NoValue,
@@ -581,7 +581,7 @@ impl<M: TimelineModel> Timeline<'_, M> {
                             }
                         }
                         if target.refused {
-                            ui.ctx().set_cursor_icon(egui::CursorIcon::NotAllowed);
+                            cx.cursor(CursorIcon::NotAllowed, CursorPriority::Drag);
                         }
                     }
                 }
