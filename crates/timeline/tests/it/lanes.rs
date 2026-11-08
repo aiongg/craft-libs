@@ -107,7 +107,14 @@ fn lane_in(bounds: Option<TimeRange>, playhead: Tick) -> (Fixture, Rc<RefCell<Se
         let selection = seen.selection.clone();
         let area = Rect::from_min_size(ui.max_rect().min, vec2(ROOM.x, 28.0));
         let out = TimelineView::new("Timeline", Bind::bound(&mut *view), format(), seconds(10.0))
-            .show(ui, |ui, _| KeyframeLane::new("Keyframes", &keys, &selection).bounds(bounds).playhead(playhead).show_at(ui, area))
+            .show(ui, |ui, _| {
+                let lane = KeyframeLane::new("Keyframes", &keys, &selection).playhead(playhead);
+                match bounds {
+                    Some(bounds) => lane.bounds(bounds),
+                    None => lane,
+                }
+                .show_at(ui, area)
+            })
             .inner;
         if let Some(out) = out {
             if let Some(change) = out.select {

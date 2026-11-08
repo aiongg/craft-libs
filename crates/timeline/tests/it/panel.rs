@@ -12,7 +12,7 @@ use craft_timeline::{FollowMode, FrameRate, Tick, TimeFormat, TimeView, TrackKin
 use craft_ui::contract::{Bind, Role, ShowContainer as _};
 use craft_ui::testing::access::NodeKey;
 use craft_ui::testing::{Fixture, Target, pointer, trial};
-use egui::{Event, Key, Modifiers, MouseWheelSource, MouseWheelUnit, TouchPhase, Vec2};
+use egui::{Event, Key, Modifiers, MouseWheelSource, MouseWheelUnit, Rect, TouchPhase, Vec2};
 
 const RATE: FrameRate = FrameRate::FPS_29_97;
 
@@ -377,7 +377,7 @@ impl Panel {
         self.edits()
             .into_iter()
             .filter_map(|edit| match edit {
-                TimelineEdit::TrackHeight { track, height } => height.value().map(|height| (track, *height)),
+                TimelineEdit::TrackHeight { track, height, .. } => height.value().map(|height| (track, *height)),
                 _ => None,
             })
             .collect()
