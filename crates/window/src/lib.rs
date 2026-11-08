@@ -132,6 +132,11 @@
 //! }
 //! ```
 //!
+//! # The application menu bar
+//!
+//! [`native_menu`] makes the platform's own menu bar (macOS, feature `appkit`) from a plain
+//! description of the menus and reports the chosen items by id. On other platforms it does nothing.
+//!
 //! # Window restore
 //!
 //! The `restore` feature (no egui) adds [`restore`]: where a window opens, from the last session's
@@ -144,6 +149,7 @@ mod layout;
 mod list;
 pub mod mac;
 mod menu;
+pub mod native_menu;
 mod place;
 pub mod policy;
 #[cfg(not(target_arch = "wasm32"))]

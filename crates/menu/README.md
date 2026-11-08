@@ -4,14 +4,14 @@ A Craft app's menus, laid out for macOS, Windows, Linux and the web. The app sup
 tree and runs its commands; this crate lays the menus out the way each platform's apps do, takes
 shortcuts from craft-keymap, drives a platform `Backend`, and turns the menu's key
 equivalents back into the input egui would have had without it. It depends on egui,
-[`craft-keymap`](../keymap/src/lib.rs) (commands and chords) and [`craft-quit`](../quit/src/lib.rs),
-and on no app. Everything but the macOS backend
-(`craft_menu::mac`, built on muda) is platform-free and also builds for `wasm32`. The in-window bar (`MenuBarUi`) shows the menus as `craft_ui::menu::MenuBar` command rows.
+[`craft-keymap`](../keymap/src/lib.rs) (commands and chords), [`craft-quit`](../quit/src/lib.rs) and
+[`craft-window`](../window/src/lib.rs) (`native_menu`, the AppKit menu bar), and on no app. The whole crate is
+platform-free: `craft_menu::mac` installs nothing off macOS. The in-window bar (`MenuBarUi`) shows the menus as `craft_ui::menu::MenuBar` command rows.
 
 ## The menus
 
 Build a `MenuBar` directly, or from the flat rows an in-window bar draws (`from_items`, with
-`Row { path, command, label, shortcut, enabled, kind }`, `---` for a separator). Give each menu
+`Row::new(path, command, label)` with `.shortcut(..)`, `Row::separator(path)`). Give each menu
 its role (`MenuRole::{App, File, Edit, View, Window, Help, Other}`), then tag what macOS puts in
 fixed places:
 
@@ -185,7 +185,7 @@ Hide Others, Show All and Quit, where Quit asks the app first.
 craft_menu::mac::install_app_menu(&cc.egui_ctx, "WordCraft")?;
 ```
 
-craft-menu owns muda's menu event handler. muda keeps the first one set per process, so the
+craft-menu owns the process's menu event handler (muda keeps the first one set, in craft-window), so the
 crate sets it once and both `mac::install` and `mac::install_app_menu` use it; a later
 `mac::install` replaces the minimal app menu, and a second `mac::install` returns `None`.
 `craft_quit::install_app_menu` is deprecated in favor of `mac::install_app_menu`: it sets its own

@@ -2,7 +2,14 @@
 
 mod bar;
 mod context;
+mod documents;
+mod help;
+mod language;
+mod layout;
+mod modal;
+mod native;
 mod palette;
+mod sample;
 mod shortcuts;
 
 use craft_ui::testing::{TRIALS, suite};

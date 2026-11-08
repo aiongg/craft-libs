@@ -2,14 +2,15 @@
 
 use serde_json::json;
 
-use crate::{CommandRef, ItemKind, ItemRole, LANGUAGE_COMMAND, LanguageChoice, LanguageLabels, LanguageMenu, LanguageRow, Node};
+use craft_menu::{CommandRef, ItemKind, ItemRole, LANGUAGE_COMMAND, LanguageChoice, LanguageLabels, LanguageMenu, LanguageRow, Node};
+use craft_ui::testing::trial;
 
 fn row(code: &str, name: &str) -> LanguageRow {
-    LanguageRow { code: code.into(), name: name.into() }
+    LanguageRow::new(code, name)
 }
 
-#[test]
 // Automatic, a separator, then English and the offered languages in their own names; the current one selected.
+#[trial]
 fn language_rows_are_radio_items_with_automatic_first() {
     let menu = LanguageMenu::new(vec![row("en", "English"), row("fr", "Français")], LanguageChoice::Code("fr".into()));
     let nodes = menu.items(&LanguageLabels::default());
@@ -29,8 +30,8 @@ fn language_rows_are_radio_items_with_automatic_first() {
     assert!(matches!(automatic.submenu(&LanguageLabels::default()), Node::Submenu { role: Some(ItemRole::Language), .. }));
 }
 
-#[test]
 // app.language {"lang":"fr"} reads as Code("fr"), {"lang":"auto"} as Automatic, other commands as None.
+#[trial]
 fn from_command_reads_the_language_parameter() {
     let lang = |v| CommandRef::with_params(LANGUAGE_COMMAND, v);
     assert_eq!(LanguageChoice::from_command(&lang(json!({"lang": "fr"}))), Some(LanguageChoice::Code("fr".into())));

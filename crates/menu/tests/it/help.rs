@@ -1,6 +1,7 @@
 //! The Help menu kit.
 
-use crate::{CommandRef, HelpCommand, HelpLabels, HelpLink, HelpMenu, ItemRole, Node};
+use craft_menu::{CommandRef, HelpCommand, HelpLabels, HelpLink, HelpMenu, ItemRole, Node};
+use craft_ui::testing::trial;
 
 fn full() -> HelpMenu {
     HelpMenu::new("PhotoCraft")
@@ -11,8 +12,8 @@ fn full() -> HelpMenu {
         .check_for_updates(true)
 }
 
-#[test]
 // Links come after Keyboard Shortcuts, Check for Updates before the separator, System Info then About; About is tagged ItemRole::About.
+#[trial]
 fn help_rows_follow_the_kit_order() {
     let nodes = full().items(&HelpLabels::default());
     let shape: Vec<String> = nodes
@@ -41,8 +42,8 @@ fn help_rows_follow_the_kit_order() {
     assert_eq!(bare.len(), 2, "System Info and About, no separator before them");
 }
 
-#[test]
 // url() returns the link's URL for its id and the help center's for help.helpCenter, None for help.about.
+#[trial]
 fn help_link_commands_give_their_urls() {
     let help = full();
     let url = |id: &str| help.url(&CommandRef::new(id));

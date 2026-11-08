@@ -9,8 +9,8 @@
 //! its [`ItemKind`] makes it plain, a check item or a radio item. [`layout`]
 //! arranges them the way the platform's apps do, and [`NativeMenu`] hands the result to a platform
 //! [`Backend`] and brings its events back. This part is pure and platform-free, so it is tested
-//! everywhere and builds for the web; only the backend, `mac` (macOS only, built on muda), touches
-//! AppKit. Its `mac::install` builds the menu bar and returns the [`NativeMenu`].
+//! everywhere and builds for the web; only the backend touches AppKit, in `craft_window::native_menu`.
+//! `mac::install` builds the menu bar through it and returns the [`NativeMenu`] (`None` off macOS).
 //!
 //! **Layouts.** [`layout`] takes a [`Target`] ([`Target::current`] for this build) and calls
 //! [`mac_layout`], [`desktop_layout`] (Windows and Linux) or [`web_layout`]. Each first drops the
@@ -73,7 +73,7 @@
 //! the gate closed. While a shortcut is
 //! recorded, key equivalents reach egui as plain key presses.
 //!
-//! craft-menu owns muda's one menu event handler: `mac::install` (a full menu bar) and
+//! craft-menu owns the process's one menu event handler: `mac::install` (a full menu bar) and
 //! `mac::install_app_menu` (a minimal app menu, for apps without a [`MenuBar`]) both use it.
 //! [`NativeMenu::on_command`] sees each allowed click as it arrives, also while egui is idle.
 //!
@@ -96,7 +96,6 @@ mod modal;
 mod model;
 mod palette;
 
-#[cfg(target_os = "macos")]
 pub mod mac;
 
 pub mod shortcuts;
@@ -113,17 +112,6 @@ pub use modal::{ModalRules, NAVIGATION_COMMANDS, PendingRule};
 pub use model::{
     Builtin, Document, Item, ItemKind, ItemRole, Menu, MenuBar, MenuRole, Node, Platforms, Row, Standard, from_items, structure_key, tidy, window_key,
 };
-
-#[cfg(test)]
-mod documents_tests;
-#[cfg(test)]
-mod help_tests;
-#[cfg(test)]
-mod language_tests;
-#[cfg(test)]
-mod modal_tests;
-#[cfg(test)]
-mod tests;
 
 #[cfg(feature = "screen-testing")]
 /// The stories and words this crate registers, for the story tests.

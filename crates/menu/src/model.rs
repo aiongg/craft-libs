@@ -274,7 +274,6 @@ impl Standard {
 
 /// `label` unless the app supplied no translation (the label is still the English name), then the
 /// system's title for `english`.
-#[cfg(any(target_os = "macos", test))]
 pub(crate) fn label_or_system(label: &str, english: &str, system: impl FnOnce(&str) -> String) -> String {
     if label == english { system(english) } else { label.to_owned() }
 }
@@ -554,6 +553,31 @@ pub struct Row {
     pub kind: ItemKind,
 }
 
+impl Row {
+    /// An enabled plain row for `command` labelled `label` in the menu at `path`.
+    pub fn new(path: &[&str], command: impl Into<CommandRef>, label: impl Into<String>) -> Row {
+        Row {
+            path: path.iter().map(|s| (*s).to_owned()).collect(),
+            command: command.into(),
+            label: label.into(),
+            shortcut: None,
+            enabled: true,
+            kind: ItemKind::Plain,
+        }
+    }
+
+    /// A separator in the menu at `path`.
+    pub fn separator(path: &[&str]) -> Row {
+        Row::new(path, "", "---")
+    }
+
+    /// The row's shortcut.
+    pub fn shortcut(mut self, shortcut: Chord) -> Row {
+        self.shortcut = Some(shortcut);
+        self
+    }
+}
+
 /// The menus as a tree, from flat rows, in the order an in-window bar draws them: one menu per
 /// entry of `tops`, and at each depth leaves and separators in order, with a submenu where its
 /// first row is. The result is [`tidy`].
@@ -673,7 +697,6 @@ fn hash_nodes(nodes: &[Node], h: &mut DefaultHasher) {
 /// The native id of an item with `command`: its [`CommandRef::key`], or `key#2`, `key#3`, …
 /// while `taken`, since native ids must be unique and a command can be shown twice (Keyboard
 /// Shortcuts in Edit and Window).
-#[cfg(any(target_os = "macos", test))]
 pub(crate) fn native_id(command: &CommandRef, taken: impl Fn(&str) -> bool) -> String {
     let key = command.key();
     let mut unique = key.clone();
