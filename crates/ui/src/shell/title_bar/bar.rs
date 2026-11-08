@@ -14,7 +14,7 @@ use crate::layout::{Placed, arrange};
 use crate::primitives::RuleKind;
 use crate::runtime::access::Name;
 use crate::runtime::egui::pass;
-use crate::runtime::env::Env;
+use crate::runtime::env::{AppValues, Env, EnvValue};
 use crate::runtime::windows::{self, WindowAction, WindowHost};
 use crate::shell::app_shell::RegionBody;
 use crate::shell::{Caption, CaptionButton, CaptionIcons, Frame, ShellWords, SlotSize};
@@ -95,13 +95,22 @@ pub struct TitleBar<'a> {
     close: bool,
 }
 
+/// The gap between the bar's contents, which the bar's body reads from the env.
+#[derive(Clone, PartialEq)]
+struct ContentGap(f32);
+
+impl EnvValue for ContentGap {
+    fn root() -> Self {
+        ContentGap(0.0)
+    }
+}
+
 /// The facts of the window a pass of the bar reads.
 struct Window {
     frame: Frame,
     maximized: bool,
     double_click: DoubleClick,
     ends: Ends,
-    rtl: bool,
 }
 
 impl<'a> TitleBar<'a> {
@@ -144,7 +153,7 @@ impl<'a> TitleBar<'a> {
                 leading(ui, cx);
                 if !native_hidden {
                     let rtl = cx.env.direction().is_rtl();
-                    let margin = Env::of(ui).tokens.tokens().space.gap.row;
+                    let margin = cx.env.get::<ContentGap>().0;
                     title.show_in_gap(ui, cx, cx.rect.width(), centre_line(cx, rtl), margin);
                 }
             })
@@ -158,7 +167,7 @@ impl<'a> TitleBar<'a> {
         let state = shell.window.state;
         let rtl = cx.env.direction().is_rtl();
         let ends = Ends::of(&frame, state != WindowState::Fullscreen, rtl);
-        Window { frame, maximized: self.maximized.unwrap_or(state == WindowState::Maximized), double_click: shell.double_click, ends, rtl }
+        Window { frame, maximized: self.maximized.unwrap_or(state == WindowState::Maximized), double_click: shell.double_click, ends }
     }
 
     /// Shows one end's room and buttons, and acts on a click: Minimize and Maximize go to the window, Close is
@@ -222,6 +231,10 @@ impl Component for TitleBar<'_> {
 
     fn sense(&self) -> Sense {
         Sense::empty()
+    }
+
+    fn content_env(&self, cx: &Cx<'_, Self>, values: &mut AppValues) {
+        values.set(ContentGap(cx.style.gap));
     }
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {

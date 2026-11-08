@@ -17,11 +17,13 @@ pub struct TitleBarStyle {
     metrics: Metrics,
     /// The width of the rule along the bottom edge: one device pixel.
     pub(super) rule: f32,
+    /// The gap between the bar's contents (`space.gap.row`), which the title keeps from the leading content.
+    pub(super) gap: f32,
 }
 
 impl TitleBarStyle {
     /// The style at `cx`.
     pub(super) fn of(cx: &StyleCx<'_>) -> TitleBarStyle {
-        TitleBarStyle { metrics: Metrics::new(), rule: cx.rule(RuleKind::Divider).width }
+        TitleBarStyle { metrics: Metrics::new(), rule: cx.rule(RuleKind::Divider).width, gap: cx.tokens.space.gap.row }
     }
 }
