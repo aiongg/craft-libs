@@ -16,11 +16,12 @@ use crate::clock::FollowMode;
 use crate::markers::{Marker, MarkerColor};
 use crate::model::{ClipId, ClipInfo, TimelineModel, TrackId, TrackInfo, TrackKind};
 use crate::time::{Tick, TimeRange};
-use craft_behavior::{Axis, ColumnWidth, CursorIcon, CursorPriority, EditEvent, IconId, MarqueeSelect, Metrics, Mixed, SelectionChange};
+use craft_behavior::{Axis, ColumnKey, ColumnWidth, CursorIcon, CursorPriority, EditEvent, IconId, MarqueeSelect, Metrics, Mixed, SelectionChange};
 use craft_ui::buttons::{IconButton, ToggleButton};
 use craft_ui::contract::{
     Bind, BodyLayout, CollectionEvent, CollectionResponse, ColumnEvent, Common, Component, Container, ContainerProps, Cx, EditResponse, NoValue,
-    Outcome, Pattern, Props, Remember as _, Role, Show as _, ShowCollection as _, ShowContainer as _, ShownRow, SizeLimits, Sizing,
+    Outcome, Pattern, Props, Remember as _, Role, Show as _, ShowCollection as _, ShowContainer as _, ShownRow, SizeLimits, Sizing, SweepApply,
+    SweepStep,
 };
 use craft_ui::display::Text;
 use craft_ui::docking::SplitArea;
@@ -244,6 +245,8 @@ struct Memory {
     label_menu: Option<TrackId>,
     /// Whether that menu shows.
     label_open: bool,
+    /// The sweep reader of each switch column that has had one.
+    sweeps: Vec<(ColumnKey, SweepApply)>,
 }
 
 /// What the panes reported in a pass that the panel works out across all of them.
@@ -331,14 +334,32 @@ impl Mapping<'_> {
         for event in &out.events {
             match event {
                 CollectionEvent::Toggle(edit) => {
-                    // A swept switch flips as the pointer crosses it (Update) and is restored when the sweep is
-                    // cancelled; its Commit repeats what the Update already applied.
-                    let (toggled, restore) = match edit {
-                        EditEvent::Set { .. } | EditEvent::Update { .. } => (edit.value().cloned(), false),
-                        EditEvent::Cancel { before: Some(Mixed::Same(before)), .. } => (Some(before.clone()), true),
-                        _ => continue,
+                    let column = match edit {
+                        EditEvent::Set { after: cell, .. } | EditEvent::Update { value: cell, .. } => Some(&cell.column),
+                        EditEvent::Begin { before: Mixed::Same(cell), .. } | EditEvent::Cancel { before: Some(Mixed::Same(cell)), .. } => {
+                            Some(&cell.column)
+                        }
+                        _ => None,
                     };
-                    let Some(toggled) = toggled else { continue };
+                    let step = match column {
+                        Some(column) => {
+                            let at = memory.sweeps.iter().position(|(key, _)| key == column).unwrap_or_else(|| {
+                                memory.sweeps.push((column.clone(), SweepApply::default()));
+                                memory.sweeps.len() - 1
+                            });
+                            memory.sweeps[at].1.feed(edit)
+                        }
+                        None => {
+                            // A release ends the sweep of whichever column ran.
+                            memory.sweeps.iter_mut().for_each(|(_, sweep)| _ = sweep.feed(edit));
+                            None
+                        }
+                    };
+                    let Some(step) = step else { continue };
+                    let (toggled, exclusive) = match step {
+                        SweepStep::Flip(cell) | SweepStep::Restore(cell) | SweepStep::UndoShowOnly(cell) => (cell, false),
+                        SweepStep::ShowOnly(cell) => (cell, true),
+                    };
                     let switch = match &toggled.column {
                         column if *column == LOCK => TrackSwitch::Locked,
                         column if *column == TARGET => TrackSwitch::Targeted,
@@ -348,7 +369,7 @@ impl Mapping<'_> {
                         column if *column == SOLO => TrackSwitch::Solo,
                         _ => continue,
                     };
-                    let exclusive = !restore && toggled.mods.alt && matches!(switch, TrackSwitch::Muted | TrackSwitch::Solo);
+                    let exclusive = exclusive && matches!(switch, TrackSwitch::Muted | TrackSwitch::Solo);
                     edits.push(TimelineEdit::Switch { track: toggled.key, switch, value: toggled.on, exclusive });
                 }
                 CollectionEvent::Column(ColumnEvent::Resized { key, width, .. }) if *key == NAME => {
