@@ -83,7 +83,9 @@ pub(crate) fn begin(ctx: &Context) {
         if blocked {
             return;
         }
-        let share = Wheel::new(scroll, mods, unit, phase).zoom(frame.zoom);
+        // Shift turns the vertical wheel sideways (Photoshop); a device that already sends a sideways axis keeps it.
+        let scroll = if mods.shift && scroll.x == 0.0 { Vec2::new(scroll.y, 0.0) } else { scroll };
+        let share = Wheel::new(scroll, mods, unit, phase).zoom(frame.zoom).at(at);
         // The device's lines and pages become points of each taker: the notch is the scroll owner's to choose.
         let shares = split(&state.last, at, share, focused, state.armed);
         state.shares = shares

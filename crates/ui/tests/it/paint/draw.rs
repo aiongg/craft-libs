@@ -2,7 +2,7 @@
 
 use craft_i18n::Direction;
 use craft_theme::{Contrast, ControlSize, Mode, Rgba, Variant};
-use craft_ui::primitives::{IconSpec, PaintShape, RuleKind, StrokeWidth, TextureCache, ToolIcon, has_icon};
+use craft_ui::primitives::{Dashes, IconSpec, PaintShape, RuleKind, StrokeWidth, TextRun, TextureCache, ToolIcon, has_icon};
 use craft_ui::style::{Corners, DataColor, Ink, SurfaceKind};
 use craft_ui::testing::style::{paint_frame, tokens, with_cx};
 use craft_ui::testing::{Frames, trial};
@@ -155,4 +155,39 @@ fn textures_for_both_directions(name: &'static str) -> usize {
 fn a_directional_svg_icon_mirrors_under_rtl_and_another_stays() {
     assert_eq!(textures_for_both_directions("chevron_right"), 2, "the mirrored raster is its own texture");
     assert_eq!(textures_for_both_directions("close"), 1, "an icon that does not point along the reading direction keeps one texture");
+}
+
+#[trial]
+fn data_stroke_paints_a_data_colour_and_a_dashed_path_breaks_into_dashes() {
+    let mut frames = Frames::new();
+    let tokens = tokens(Mode::Light, Contrast::Standard);
+    let style = with_cx(&frames.ctx, &tokens, Variant::SECONDARY, ControlSize::Md, |cx| cx.color(tokens.color.accent.solid));
+    let series = Color32::from_rgb(200, 30, 90);
+    let line = [pos2(0.0, 20.0), pos2(60.0, 20.0)];
+    let (shapes, _) = paint_frame(&mut frames, &tokens, Direction::Ltr, Ink::OnPanel, |draw| {
+        draw.data_stroke(&PaintShape::Path(line.to_vec()), StrokeWidth::Thin, DataColor::new(series));
+    });
+    assert!(shapes.iter().any(|s| stroke_is(s, series)), "the path is stroked in the data colour");
+    let (dashed, _) = paint_frame(&mut frames, &tokens, Direction::Ltr, Ink::OnPanel, |draw| {
+        draw.dashed(&line, Dashes::even(4.0), StrokeWidth::Thin, style);
+    });
+    let accent = color(tokens.color.accent.solid);
+    let dashes = dashed.iter().filter(|s| stroke_is(s, accent)).count();
+    assert!(dashes > 1, "a 60 point path with 4 point dashes breaks into several: {dashes}");
+}
+
+#[trial]
+fn a_rotated_run_paints_at_its_angle() {
+    let mut frames = Frames::new();
+    let tokens = tokens(Mode::Light, Contrast::Standard);
+    let angles = |run: TextRun<'static>, frames: &mut Frames| {
+        let (shapes, _) = paint_frame(frames, &tokens, Direction::Ltr, Ink::OnPanel, |draw| {
+            draw.text(RECT, &run);
+        });
+        shapes.iter().filter_map(|s| if let Shape::Text(text) = s { Some(text.angle) } else { None }).collect::<Vec<f32>>()
+    };
+    let level = angles(TextRun::new("Axis"), &mut frames);
+    let turned = angles(TextRun::new("Axis").rotated(1.0), &mut frames);
+    assert_eq!((level.len(), turned.len()), (1, 1), "each run paints one text shape");
+    assert!(turned[0] > level[0], "the rotated run paints at a larger angle than the level one");
 }

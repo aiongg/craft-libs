@@ -5,7 +5,7 @@ use craft_behavior::{Buttons, HitLevel, PartKey, PointerButton, PressFocus, Sens
 use craft_ui::runtime::pointer::frame;
 use craft_ui::testing::pointer::{self, settle};
 use craft_ui::testing::sensing::{ProbeMember, ProbePart, ProbeRoot, RootReport, press_focus, show};
-use craft_ui::testing::wheel::{register, take};
+use craft_ui::testing::wheel::{register, take, take_share};
 use craft_ui::testing::{Frames, trial};
 use egui::{Pos2, Rect, Ui, Vec2};
 use std::cell::{Cell, RefCell};
@@ -119,7 +119,7 @@ fn a_small_part_is_hit_within_the_target_size() {
     let mut show_frame = |ui: &mut Ui| {
         let reports = show(ui, std::slice::from_ref(&root));
         target.set(frame(ui.ctx()).target);
-        clicks.set(clicks.get() + usize::from(reports[0].member("dot").is_some_and(|dot| dot.activated)));
+        clicks.set(clicks.get() + usize::from(reports[0].member("dot").is_some_and(|dot| dot.phase(part).is_click())));
     };
     let mut frames = Frames::new();
     settle(&mut frames, &mut show_frame);
@@ -201,4 +201,31 @@ fn a_press_open_while_the_control_turns_disabled_never_activates() {
     frames.frame(vec![pointer::release(at)], &mut show_frame);
     frames.idle(2, &mut show_frame);
     assert_eq!(activations.get(), 0);
+}
+
+/// Shift with the wheel scrolls sideways, and a zoom share names the pointer it is about.
+#[trial]
+fn shift_wheel_scrolls_sideways_and_a_zoom_share_names_the_pointer() {
+    let panel = ProbeRoot::id("sideways_panel");
+    let area = rect(0.0, 0.0, 400.0, 400.0);
+    let read = Cell::new(None);
+    let mut show_frame = |ui: &mut Ui| {
+        register(ui.ctx(), WheelTaker::new(panel, area).vertical(true).horizontal(true).zoom(true));
+        read.set(take_share(ui.ctx(), panel));
+    };
+    let mut frames = Frames::new();
+    frames.idle(2, &mut show_frame);
+    let at = Pos2::new(50.0, 60.0);
+    frames.frame(vec![pointer::moved(at)], &mut show_frame);
+    let shift = egui::Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Point,
+        delta: Vec2::new(0.0, -30.0),
+        phase: egui::TouchPhase::Move,
+        modifiers: egui::Modifiers::SHIFT,
+        source: egui::MouseWheelSource::Wheel,
+    };
+    frames.frame(vec![shift], &mut show_frame);
+    assert_eq!(read.get().map(|share| share.scroll), Some(Vec2::new(-30.0, 0.0)), "the vertical wheel scrolls along x under Shift");
+    frames.frame(vec![pointer::zoom_wheel(-30.0)], &mut show_frame);
+    assert_eq!(read.get().and_then(|share| share.at), Some(at), "the zoom is about the pointer");
 }

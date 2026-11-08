@@ -33,7 +33,7 @@ struct Gestures(GestureId);
 
 /// A gesture id no gesture of this context has had: ids grow in the order gestures begin, across components and
 /// across a component's eviction, as `GestureHost` assumes.
-pub(crate) fn next_gesture_id(ctx: &Context) -> GestureId {
+pub fn next_gesture_id(ctx: &Context) -> GestureId {
     Service::<Gestures>::run(ctx, |gestures| {
         gestures.0 = gestures.0.next();
         gestures.0

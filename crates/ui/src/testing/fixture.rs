@@ -326,6 +326,12 @@ impl Fixture {
         self.target(NodeKey::of(id))
     }
 
+    /// The rect of the part `part` of the component `owner` as the sensing step recorded it, for parts that have no
+    /// access node (pointer-only ones). Callers assert how rects relate (inside, below), not their size.
+    pub fn part_rect(&self, owner: Id, part: impl Into<PartRef>) -> Option<Rect> {
+        crate::runtime::pointer::part_bounds(self.ctx(), owner, part.into())
+    }
+
     /// The node of the component `component`.
     pub fn node_of(&self, component: Id) -> Option<Target> {
         self.target(NodeKey::of(component))

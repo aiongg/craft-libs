@@ -179,7 +179,7 @@ where
             }
             CollectionEvent::Open(change) => events.push(BinEvent::Open(change)),
             CollectionEvent::Reorder(edit) => events.extend(reorder_event(model, state.shown.as_ref(), searching, user_order, edit)),
-            CollectionEvent::Dropped { key, keys, .. } => {
+            CollectionEvent::Dropped { key: Some(key), keys, .. } => {
                 if let Some(items) = drop_items(model, Some(&key), &keys) {
                     events.push(BinEvent::Drop { items, into: Some(key) });
                 }

@@ -362,6 +362,11 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             if let Some(share) = wheel::take(&ctx, id) {
                 self.offset -= f64::from(share.scroll.y);
                 self.offset_x -= f64::from(share.scroll.x);
+                if share.zoom != 1.0
+                    && let Some(about) = share.at
+                {
+                    self.events.push(CollectionEvent::Zoom { factor: share.zoom, about });
+                }
             }
             if let (Some(rect), Some(bounds)) = (super::take_reveal(&ctx, id), self.last.view) {
                 if rect.min.y < bounds[1] {
@@ -369,6 +374,9 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 } else if rect.max.y > bounds[3] {
                     self.offset += f64::from(rect.max.y - bounds[3]);
                 }
+            }
+            if let Some(to) = super::take_scroll_to(&ctx, id) {
+                (self.offset, self.offset_x) = (to.y, to.x);
             }
             self.offset = self.offset.clamp(0.0, f64::from((self.last.extent - view).max(0.0)));
         }
@@ -443,7 +451,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         Some(Rc::new(Rows { rects, offset }))
     }
 
-    fn parts(&mut self, _: &mut C, _: Rect, pcx: &mut PartsCx<'_, C>) {
+    fn parts(&mut self, comp: &mut C, _: Rect, pcx: &mut PartsCx<'_, C>) {
         self.header.parts(pcx);
         if !self.scrolls {
             return;
@@ -460,7 +468,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.offset = self.offset.clamp(0.0, self.max_offset(view.height()));
         let span = ScrollSpan::new(0.0..content, self.offset..self.offset + f64::from(view.height()));
         pcx.scroll(SCROLL, track, Axis::Y, span);
-        wheel::register(&ctx, WheelTaker::new(pcx.id, view).vertical(true).horizontal(self.content.x > view.width()));
+        wheel::register(&ctx, WheelTaker::new(pcx.id, view).vertical(true).horizontal(self.content.x > view.width()).zoom(comp.zooms()));
     }
 
     fn sensed(&mut self, _: &mut C, cx: &mut Cx<'_, C>) {
@@ -647,7 +655,9 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 let builder = UiBuilder::new().max_rect(row).layout(child::column_layout(rtl)).scope_id(sub(item_id, "row"));
                 let builder = if node { access::with_parent(builder, id) } else { builder };
                 let mut row_ui = alloc::child(ui, builder);
-                row_ui.set_clip_rect(rect.intersect(ui.clip_rect()));
+                // A scrolled row slides under the frozen rows: it never paints into their band.
+                let below_frozen = Rect::from_min_max(Pos2::new(rect.min.x, rect.min.y + layout.frozen_band(at)), rect.max);
+                row_ui.set_clip_rect(below_frozen.intersect(ui.clip_rect()));
                 let installed = Env::install_for(
                     &row_ui,
                     base_env.derive_local(|scoped| {

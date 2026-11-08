@@ -232,6 +232,14 @@ impl<'a> StyleCx<'a> {
         control_metrics(self.tokens, self.size, stack_facts(self.ctx).line_ratio)
     }
 
+    /// The width of `text` set in the face of `role`: the sizes that follow the text (a row header's digit) read it
+    /// here instead of borrowing an icon or control size.
+    pub fn text_width(&self, role: craft_theme::TypeRole, text: &str) -> f32 {
+        let font_id = self.tokens.font(stack_facts(self.ctx), role, false);
+        let job = egui::text::LayoutJob::simple_singleline(text.to_owned(), font_id, Color32::PLACEHOLDER);
+        self.ctx.fonts_mut(|fonts| fonts.layout_job(job)).size().x
+    }
+
     /// What a surface of `kind` draws.
     pub fn surface(&self, kind: SurfaceKind) -> SurfaceStyle {
         surface_style(self.tokens, kind)

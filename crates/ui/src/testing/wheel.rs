@@ -15,6 +15,11 @@ pub fn take(ctx: &Context, id: Id) -> Option<Vec2> {
     wheel::take(ctx, id).map(|share| share.scroll)
 }
 
+/// The whole share `id` takes this pass: scroll, zoom and the pointer a zoom is about.
+pub fn take_share(ctx: &Context, id: Id) -> Option<craft_behavior::Wheel> {
+    wheel::take(ctx, id)
+}
+
 /// Gives key focus to the widget `id`.
 pub fn focus(ctx: &Context, id: Id) {
     fixture::focus(ctx, id);

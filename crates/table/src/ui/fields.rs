@@ -534,7 +534,7 @@ impl Model<'_> {
             for event in out.events {
                 match event {
                     CollectionEvent::Reorder(change) => edits.borrow_mut().extend(self.reordered(&slots, area, change)),
-                    CollectionEvent::Dropped { key, keys, .. } => edits.borrow_mut().push(self.dropped(&slots, area, &key, &keys)),
+                    CollectionEvent::Dropped { key: Some(key), keys, .. } => edits.borrow_mut().push(self.dropped(&slots, area, &key, &keys)),
                     CollectionEvent::ContextMenu(request) => cx.keep::<OpenMenu>().target = Some(request.key),
                     CollectionEvent::Delete(keys) => {
                         let removed =

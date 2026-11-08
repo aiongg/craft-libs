@@ -82,7 +82,7 @@ pub use crate::runtime::drag::{DragPreview, DropMark, DropTarget, OsFile, OsFile
 pub(crate) use body::MOVE_BAND;
 pub use craft_behavior::DropOperation;
 pub(crate) use run::measure_under;
-pub(crate) use steps::take_reveal;
+pub(crate) use steps::{take_reveal, take_scroll_to};
 
 /// Where an element's id comes from.
 #[derive(Clone, Copy, Debug, Default)]
@@ -460,6 +460,13 @@ pub trait Collection: Component + HasProps + Meta<Shape = shape::Items> {
     /// Whether the collection takes files dragged in from the OS: a drop reports `CollectionEvent::FilesDropped` at the
     /// insert position under the pointer, with the same drop mark an internal drag gets.
     fn takes_files(&self) -> bool {
+        false
+    }
+
+    /// Whether the collection takes the zoom share of the wheel (Ctrl or Cmd with the wheel): it reports
+    /// `CollectionEvent::Zoom` and the app sets its zoom and, with `Focus::scroll_to`, the scroll position that keeps
+    /// the content under the pointer fixed.
+    fn zooms(&self) -> bool {
         false
     }
 

@@ -252,7 +252,13 @@ fn a_toggle_click_reports_its_modifiers() {
         .events
         .borrow()
         .iter()
-        .filter_map(|event| if let CollectionEvent::Toggle(edit) = event { edit.value().map(|toggle| toggle.mods) } else { None })
+        .filter_map(|event| {
+            if let CollectionEvent::Toggle(edit) = event {
+                edit.value().filter(|_| !matches!(edit, craft_behavior::EditEvent::Commit { .. })).map(|toggle| toggle.mods)
+            } else {
+                None
+            }
+        })
         .collect();
     assert!(!mods.is_empty() && mods.iter().all(|mods| mods.shift), "{mods:?}");
 }

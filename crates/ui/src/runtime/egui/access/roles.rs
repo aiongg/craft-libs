@@ -83,6 +83,8 @@ impl Role {
     pub const GRID_CELL: Role = Role::Node(accesskit::Role::GridCell);
     /// A column header.
     pub const COLUMN_HEADER: Role = Role::Node(accesskit::Role::ColumnHeader);
+    /// A row header.
+    pub const ROW_HEADER: Role = Role::Node(accesskit::Role::RowHeader);
     /// An image.
     pub const IMAGE: Role = Role::Node(accesskit::Role::Image);
     /// A tooltip.

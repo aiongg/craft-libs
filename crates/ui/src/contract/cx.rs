@@ -672,6 +672,9 @@ pub trait Focus {
     fn focus_visible(&self) -> bool;
     /// Asks the nearest scroll owner to bring `rect` into view.
     fn reveal(&mut self, rect: Rect);
+    /// Asks this component's own scroll region to show its content at `to` (the offset from the start edges) on the
+    /// next pass: the app restores a scroll position, or keeps the content under the pointer fixed across a zoom.
+    fn scroll_to(&mut self, to: craft_behavior::ScrollPos);
     /// Registers that this component is a menu bar that takes the menu-bar keys of the next input hook (9.7).
     fn register_menu_bar(&mut self);
     /// The menu-bar keys of the pass: F10 or a lone Alt press focus the bar, Alt and a letter open a menu.
@@ -705,6 +708,10 @@ impl Focus for CxCore<'_> {
 
     fn reveal(&mut self, rect: Rect) {
         self.reveal = Some(rect);
+    }
+
+    fn scroll_to(&mut self, to: craft_behavior::ScrollPos) {
+        super::steps::request_scroll_to(&self.ctx, self.id, to);
     }
 
     fn register_menu_bar(&mut self) {
@@ -743,6 +750,10 @@ impl<C: Component> Focus for Cx<'_, C> {
 
     fn reveal(&mut self, rect: Rect) {
         self.core.reveal(rect);
+    }
+
+    fn scroll_to(&mut self, to: craft_behavior::ScrollPos) {
+        self.core.scroll_to(to);
     }
 
     fn register_menu_bar(&mut self) {

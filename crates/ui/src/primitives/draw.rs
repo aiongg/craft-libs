@@ -40,6 +40,31 @@ pub enum StrokeWidth {
     Thick,
 }
 
+/// The lengths of a dashed stroke, in points along the path.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct Dashes {
+    /// The length of one dash.
+    pub dash: f32,
+    /// The length of the gap after a dash.
+    pub gap: f32,
+    /// How far along the pattern the path starts (animates marching ants).
+    pub phase: f32,
+}
+
+impl Dashes {
+    /// Dashes of `length` with gaps of the same length, starting at the pattern's beginning.
+    pub fn even(length: f32) -> Self {
+        Dashes { dash: length, gap: length, phase: 0.0 }
+    }
+
+    /// The pattern advanced by `phase` points.
+    pub fn phase(mut self, phase: f32) -> Self {
+        self.phase = phase;
+        self
+    }
+}
+
 /// What a `Draw` reads from the env of the component it paints for.
 #[derive(Clone, Copy)]
 pub(crate) struct DrawEnv<'a> {
@@ -120,7 +145,13 @@ impl<'a> Draw<'a> {
         if !layout.galley.mesh_bounds.is_finite() {
             return;
         }
-        self.painter.galley(pos, layout.galley.clone(), ink_color(self.env.tokens, self.env.ink));
+        let ink = ink_color(self.env.tokens, self.env.ink);
+        if layout.rotation == 0.0 {
+            self.painter.galley(pos, layout.galley.clone(), ink);
+        } else {
+            let shape = egui::epaint::TextShape::new(pos, layout.galley.clone(), ink).with_angle_and_anchor(layout.rotation, egui::Align2::LEFT_TOP);
+            self.painter.add(shape);
+        }
     }
 
     /// Paints `icon` centred in `rect`, in the colour or ink the spec names, mirrored under right-to-left when it is
@@ -167,6 +198,24 @@ impl<'a> Draw<'a> {
     /// Fills `shape` with a colour from data (a swatch well, a layer label dot, an avatar).
     pub fn data_fill(&self, shape: &PaintShape, color: DataColor) {
         self.paint(shape, Some(color.0), None);
+    }
+
+    /// Strokes `shape` with a colour from data (a chart series, a curve).
+    pub fn data_stroke(&self, shape: &PaintShape, width: StrokeWidth, color: DataColor) {
+        self.paint(shape, None, Some(Stroke::new(self.width(width), color.0)));
+    }
+
+    /// Strokes the open path `path` as dashes: the one dashed primitive (copy marks, drag previews, reference lines).
+    pub fn dashed(&self, path: &[Pos2], pattern: Dashes, width: StrokeWidth, color: StyleColor) {
+        let stroke = Stroke::new(self.width(width), color.egui());
+        self.painter.extend(Shape::dashed_line_with_offset(path, stroke, &[pattern.dash], &[pattern.gap], pattern.phase));
+    }
+
+    /// Runs `paint` with a `Draw` whose painting is cut to `rect` (inside the clip already in force): scrolled content
+    /// under a frozen band, a bracket cut at a lane's edge.
+    pub fn clipped(&self, rect: Rect, paint: impl FnOnce(&Draw<'_>)) {
+        let painter = self.painter.with_clip_rect(rect);
+        paint(&Draw { painter: &painter, record: self.record, env: self.env });
     }
 
     fn paint(&self, shape: &PaintShape, fill: Option<Color32>, stroke: Option<Stroke>) {

@@ -20,7 +20,7 @@ use crate::runtime::{inspect, keys, layout_memory, wheel};
 use crate::style::{ComponentStyle, Flags, Ink, StateSet, StyleCx, accepted_variant, resolve_style, surface_style};
 use craft_behavior::{
     CancelReason, Cursor, CursorPriority, DragWarp, EditEvent, Gesture, GesturePhase, Input, Intent, KeyRole, Mixed, NavMove, PaintedCursor, PartKey,
-    PartRef, PressCancel, Proposal, Roving, Sense, Value, ValueDrag,
+    PartRef, PressCancel, Proposal, Roving, ScrollPos, Sense, Value, ValueDrag,
 };
 use craft_theme::{ControlSize, State, StateMix, Variant};
 use egui::{Context, Id, Pos2, Rect, Response, Ui, Vec2};
@@ -1098,6 +1098,26 @@ pub(crate) fn take_reveal(ctx: &Context, owner: Id) -> Option<Rect> {
     store::Service::<Reveals>::run(ctx, |reveals| {
         let at = reveals.0.iter().position(|reveal| reveal.owner == owner)?;
         Some(reveals.0.remove(at).rect)
+    })
+}
+
+#[derive(Default)]
+struct ScrollTos(Vec<(Id, ScrollPos)>);
+
+/// Asks the scroll region `owner` to show its content at `to` on its next pass.
+pub(crate) fn request_scroll_to(ctx: &Context, owner: Id, to: ScrollPos) {
+    store::Service::<ScrollTos>::run(ctx, |requests| {
+        requests.0.retain(|(id, _)| *id != owner);
+        requests.0.push((owner, to));
+    });
+    repaint::request(ctx);
+}
+
+/// The scroll position requested of `owner`, once; the newest request wins.
+pub(crate) fn take_scroll_to(ctx: &Context, owner: Id) -> Option<ScrollPos> {
+    store::Service::<ScrollTos>::run(ctx, |requests| {
+        let at = requests.0.iter().position(|(id, _)| *id == owner)?;
+        Some(requests.0.remove(at).1)
     })
 }
 
