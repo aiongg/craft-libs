@@ -83,8 +83,7 @@ fn double_click_toggles_fit_and_one_to_one() {
     let fitted = PreviewView::fitting();
     let actual = CompareTile::toggle_zoom(&fitted);
     assert!(!actual.fit);
-    let one_to_one = 1.0;
-    assert!((actual.transform.scale - one_to_one).abs() < f32::EPSILON, "one device pixel per image pixel");
+    assert_eq!(actual.transform.scale, CompareTile::ONE_TO_ONE.scale, "one device pixel per image pixel");
     assert!(CompareTile::toggle_zoom(&actual).fit, "the next double click fits again");
 
     let (mut fixture, seen) = pair(640.0, ready);
@@ -106,11 +105,18 @@ fn the_caption_drops_the_name_when_narrow() {
     assert!(!named(&narrow), "a narrow tile drops it");
 }
 
-/// A failed render shows the host's message in the pane.
+/// An overdue render and a failed one say so; a render still within the host's wait shows nothing.
 #[trial]
-fn a_failed_render_shows_its_message() {
-    let (fixture, _) = pair(640.0, || RenderState::Failed("The renderer stopped".into()));
-    assert!(fixture.texts().iter().any(|run| run.text.contains("The renderer stopped")));
+fn the_pills_follow_the_render_state() {
+    let said = |state: fn() -> RenderState, text: &str| {
+        let (fixture, _) = pair(640.0, state);
+        let tree = fixture.tree();
+        tree.keys().into_iter().any(|key| tree.description_of(key).is_some_and(|description| description.contains(text)))
+    };
+    assert!(said(|| RenderState::Pending(true), "Rendering"));
+    assert!(said(|| RenderState::Failed("The renderer stopped".into()), "The renderer stopped"));
+    assert!(!said(|| RenderState::Pending(false), "Rendering"));
+    assert!(!said(ready, "Rendering"));
 }
 
 /// Survey columns maximise the tile for 3:2 pictures.

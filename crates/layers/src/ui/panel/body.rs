@@ -282,6 +282,7 @@ pub(super) fn show_body<T: LayerTree>(
     }
     columns.push(ColumnSpec::new(NAME, Label::Empty, ColumnWidth::fill(1.0)));
     let parent_of = |id: &T::Id| tree.parent(id);
+    let ctx = ui.ctx().clone();
 
     let mut list = List::new(cx.words.list.clone())
         .id(cx.list)
@@ -292,7 +293,9 @@ pub(super) fn show_body<T: LayerTree>(
         .columns(columns)
         .selection(Bind::bound(&mut selection))
         .can_rename(|key| matches!(key, LayerRowKey::Layer(id) if tree.info(id).renamable))
-        .accepts(|drag: &ListDrag<LayerRowKey<T::Id>>, _over, insert| accepts_drop(tree, drag, &order, insert))
+        .accepts(|drag: &ListDrag<LayerRowKey<T::Id>>, _over, insert| {
+            accepts_drop(tree, drag, &order, insert, craft_ui::runtime::pointer::frame(&ctx).mods)
+        })
         .drag_payload(|drag: &ListDrag<LayerRowKey<T::Id>>| Some(LayersDrag::of_rows(drag)));
     if let Some(key) = reveal_key {
         list = list.reveal(key);

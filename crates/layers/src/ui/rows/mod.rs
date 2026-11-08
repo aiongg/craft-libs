@@ -6,7 +6,7 @@ mod stories;
 use craft_behavior::{EditEvent, IconId};
 use craft_theme::ControlSize;
 use craft_ui::buttons::ToggleButton;
-use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, SideLabel, TooltipSpec};
+use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Props as _, RowAlign, Show as _, ShowContainer as _, SideLabel, TooltipSpec};
 use craft_ui::display::{Shade, Text};
 use craft_ui::form::Field;
 use craft_ui::layout_components::{Row, Stack};
@@ -137,8 +137,9 @@ impl<'a> BlendRows<'a> {
         let unavailable = if live { Label::from(words.background.clone()) } else { no_layer.clone() };
 
         let mut events = Vec::new();
-        let block = Stack::new().show(ui, |ui, _| {
-            Row::new().show(ui, |ui, _| {
+        let block = Stack::new().fill_width().show(ui, |ui, _| {
+            // Opacity ends the blend row and Fill ends the lock row, as in Photoshop.
+            Row::new().fill_width().align(RowAlign::SpaceBetween).show(ui, |ui, _| {
                 let blend_name = Label::from(words.blend_mode.clone());
                 let picked = Select::new(blend_name.clone(), Bind::given(props.blend_key.clone()), blend_modes)
                     .preview()
@@ -153,32 +154,36 @@ impl<'a> BlendRows<'a> {
             if !locks {
                 return;
             }
-            Row::new().show(ui, |ui, _| {
-                Text::new(Label::from(words.lock.clone())).shade(Shade::Muted).show(ui);
-                let names = [&words.lock_transparency, &words.lock_pixels, &words.lock_position, &words.lock_artboard, &words.lock_all];
-                let icons = ["grid", "brush", "move", "scan", "lock"];
-                for ((kind, name), icon) in LockKind::ALL.into_iter().zip(names).zip(icons) {
-                    let held = props.locks;
-                    let included = kind != LockKind::All && held.all;
-                    let reason = if included {
-                        Some(&words.all_included)
-                    } else if kind == LockKind::Transparency && held.pixels {
-                        Some(&words.transparency_included)
-                    } else {
-                        None
-                    };
-                    let name = Label::from(name.clone());
-                    let button = ToggleButton::new(name.clone(), Bind::given(held.get(kind) || included))
-                        .icon(IconId::new(icon))
-                        .icon_only()
-                        .size(SIZE)
-                        .enabled(live && reason.is_none())
-                        .tooltip(TooltipSpec::new(name).disabled_text(reason.map_or_else(|| no_layer.clone(), |reason| Label::from(reason.clone()))))
-                        .show(ui);
-                    if let Some(on) = button.value() {
-                        events.push(LayerPropertyEdit::Lock { kind, on: *on });
+            Row::new().fill_width().align(RowAlign::SpaceBetween).show(ui, |ui, _| {
+                Row::new().show(ui, |ui, _| {
+                    Text::new(Label::from(words.lock.clone())).shade(Shade::Muted).show(ui);
+                    let names = [&words.lock_transparency, &words.lock_pixels, &words.lock_position, &words.lock_artboard, &words.lock_all];
+                    let icons = ["grid", "brush", "move", "scan", "lock"];
+                    for ((kind, name), icon) in LockKind::ALL.into_iter().zip(names).zip(icons) {
+                        let held = props.locks;
+                        let included = kind != LockKind::All && held.all;
+                        let reason = if included {
+                            Some(&words.all_included)
+                        } else if kind == LockKind::Transparency && held.pixels {
+                            Some(&words.transparency_included)
+                        } else {
+                            None
+                        };
+                        let name = Label::from(name.clone());
+                        let button = ToggleButton::new(name.clone(), Bind::given(held.get(kind) || included))
+                            .icon(IconId::new(icon))
+                            .icon_only()
+                            .size(SIZE)
+                            .enabled(live && reason.is_none())
+                            .tooltip(
+                                TooltipSpec::new(name).disabled_text(reason.map_or_else(|| no_layer.clone(), |reason| Label::from(reason.clone()))),
+                            )
+                            .show(ui);
+                        if let Some(on) = button.value() {
+                            events.push(LayerPropertyEdit::Lock { kind, on: *on });
+                        }
                     }
-                }
+                });
                 let caption = Label::from(words.fill.clone());
                 events.extend(percent_field(ui, &caption, props.fill, editable, &unavailable).map(LayerPropertyEdit::Fill));
             });

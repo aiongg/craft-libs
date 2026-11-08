@@ -77,7 +77,12 @@ fn a_group_hidden_at_its_start_in_a_frozen_pane_keeps_its_bracket() {
     });
     fixture.settle();
     let edge = *edge.borrow();
-    let brackets =
-        fixture.shape_bounds().iter().filter(|bounds| bounds.width() < 2.0 && bounds.height() > 4.0 && bounds.center().x < edge - 1.0).count();
+    // A bracket is a vertical stroke (as wide as its own stroke) inside the band, left of the band's edge line.
+    let brackets = fixture
+        .shape_bounds()
+        .iter()
+        .zip(fixture.shape_overshoot())
+        .filter(|(bounds, overshoot)| bounds.width() <= 2.0 * **overshoot && bounds.height() > 0.0 && bounds.right() < edge)
+        .count();
     assert_eq!(brackets, 1, "one bracket in the lane");
 }

@@ -1,5 +1,4 @@
-//! `Http::new` as an app gets it: an integration test builds the library without `cfg(test)`, so
-//! this is the release configuration in a release build and the debug one (plain-HTTP local mirrors) otherwise.
+//! `Http::new` as an app gets it: an integration test builds the library without `cfg(test)`.
 
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpListener;
@@ -30,23 +29,18 @@ fn serve() -> (String, Arc<AtomicUsize>) {
 }
 
 #[test]
-fn the_remote_agents_take_plain_http_only_in_debug_builds() {
+fn the_remote_agents_refuse_plain_http_and_loopback_links_use_the_direct_agents() {
     let (base, seen) = serve();
     let http = Http::new("craft-update-tests/0").unwrap();
-    // `get_api` and `redirect_target` always use the agents for remote hosts.
-    let api = http.get_api(&format!("{base}/repos/storytold/x/releases"), None);
-    let redirect = http.redirect_target(&format!("{base}/releases/latest"));
-    if cfg!(debug_assertions) {
-        assert!(matches!(api, Ok(Fetched::Body { .. })), "{api:?}");
-        assert!(matches!(redirect, Err(ref e) if e.contains("HTTP 200")), "{redirect:?}");
-        assert_eq!(seen.load(Ordering::SeqCst), 2);
-    } else {
-        assert!(api.as_ref().is_err_and(|e| e.contains("refused plain HTTP")), "{api:?}");
-        assert!(redirect.as_ref().is_err_and(|e| e.contains("refused plain HTTP")), "{redirect:?}");
-        // An upper-case scheme isn't a loopback link, so it goes to a remote agent too.
-        assert!(http.get_text(&format!("HTTP{}", &base[4..])).is_err_and(|e| e.contains("refused plain HTTP")));
-        assert_eq!(seen.load(Ordering::SeqCst), 0, "a refused request never connects");
-    }
     // A loopback link goes to the direct agents, which serve plain HTTP in every build.
+    let api = http.get_api(&format!("{base}/repos/storytold/x/releases"), None);
+    assert!(matches!(api, Ok(Fetched::Body { .. })), "{api:?}");
+    let redirect = http.redirect_target(&format!("{base}/releases/latest"));
+    assert!(matches!(redirect, Err(ref e) if e.contains("HTTP 200")), "{redirect:?}");
     assert_eq!(http.get_text(&format!("{base}/SHA256SUMS.txt")).unwrap().as_deref(), Some("{}"));
+    assert_eq!(seen.load(Ordering::SeqCst), 3);
+    // Any other plain-HTTP link is refused before it connects, in debug builds too. An upper-case scheme isn't a
+    // loopback link, so it goes to a remote agent.
+    assert!(http.get_text(&format!("HTTP{}", &base[4..])).is_err_and(|e| e.contains("refused plain HTTP")));
+    assert_eq!(seen.load(Ordering::SeqCst), 3, "a refused request never connects");
 }

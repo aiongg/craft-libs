@@ -36,8 +36,6 @@ const MARK_WIDTH_SHARE: f32 = 0.06;
 const BADGE_SHARE: f32 = 0.34;
 const BADGE_GLYPH_SHARE: f32 = 0.28;
 const BADGE_FILL_ALPHA: u8 = 190;
-/// The badge glyph on its dark fill: a fixed content colour, like the thumbnail it marks.
-const BADGE_GLYPH: Color32 = Color32::from_gray(255);
 
 /// A data colour as the painter takes it.
 pub(super) fn paint_color(color: Rgba) -> Color32 {
@@ -148,8 +146,11 @@ fn paint_mask_marks(painter: &ContentPainterCx<'_>, rect: Rect, mask: &MaskInfo,
     if badges {
         let badge = side * BADGE_SHARE;
         let area = Rect::from_min_size(pos2(rect.right() - badge, rect.bottom() - badge), vec2(badge, badge));
-        painter.painter.rect_filled(area, 0.0, Color32::from_black_alpha(BADGE_FILL_ALPHA));
-        let glyph = Stroke::new(badge * MARK_WIDTH_SHARE * 2.0, BADGE_GLYPH);
+        // The glyph takes the surface's ink; the badge is its inverse, so the pair contrasts in either theme.
+        let ink = painter.ink();
+        let fill = Color32::from_rgba_unmultiplied(255 - ink.r(), 255 - ink.g(), 255 - ink.b(), BADGE_FILL_ALPHA);
+        painter.painter.rect_filled(area, 0.0, fill);
+        let glyph = Stroke::new(badge * MARK_WIDTH_SHARE * 2.0, ink);
         if mask.part == LayerPart::VectorMask {
             let inset = area.shrink(badge * CROSS_INSET_SHARE * 2.0);
             painter.painter.line_segment([inset.left_bottom(), inset.right_top()], glyph);

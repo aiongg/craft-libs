@@ -154,11 +154,14 @@ impl<'a> CompareTile<'a> {
         }
     }
 
+    /// The 1:1 view: one device pixel per image pixel, about the well's centre.
+    pub const ONE_TO_ONE: CanvasTransform = CanvasTransform::new(1.0, Vec2::ZERO);
+
     /// `view` toggled between Fit and 1:1 (one device pixel per image pixel, about the well's centre): from Fit to
     /// 1:1, from anything else to Fit.
     pub fn toggle_zoom(view: &PreviewView) -> PreviewView {
         if view.fit {
-            PreviewView::new(CanvasTransform::new(1.0, Vec2::ZERO)).zoom_range(view.range.clone())
+            PreviewView::new(Self::ONE_TO_ONE).zoom_range(view.range.clone())
         } else {
             PreviewView::fitting().zoom_range(view.range.clone())
         }
