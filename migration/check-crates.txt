@@ -5,6 +5,7 @@ craft-dialogs ui
 craft-layers
 craft-menu
 craft-print ui
+craft-review ui
 craft-table ui
 craft-theme-store ui
 craft-timeline ui,screen-testing
