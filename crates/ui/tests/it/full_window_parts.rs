@@ -146,6 +146,50 @@ fn view_chords_zoom_the_dialogs_view() {
     assert!(view.borrow().is_fit() && (view.borrow().zoom_percent() - fitted).abs() < SAME, "Cmd+0 fits again");
 }
 
+/// An image of one grey.
+struct Grey;
+
+impl craft_ui::canvas::RasterSource for Grey {
+    fn size(&self) -> PixelSize {
+        BAR_IMAGE
+    }
+
+    fn revision(&self) -> craft_ui::primitives::Revision {
+        craft_ui::primitives::Revision::new(1)
+    }
+
+    fn damage(&self, _: craft_ui::primitives::Revision) -> Option<craft_ui::canvas::PixelRect> {
+        None
+    }
+
+    fn read(&self, _: craft_ui::canvas::PixelRect, _: u32, out: &mut egui::ColorImage) {
+        out.pixels.fill(egui::Color32::from_rgb(0x80, 0x80, 0x80));
+    }
+}
+
+#[trial]
+fn view_chords_zoom_the_dialogs_view_while_its_canvas_has_the_focus() {
+    let view = Rc::new(RefCell::new(FullWindowView::new()));
+    let shared = view.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let mut open = true;
+        FullWindowDialog::new("Liquify").opened(Bind::bound(&mut open)).show(ui, |ui, _| {
+            FullWindowZoomBar::new(Bind::bound(&mut shared.borrow_mut())).show(ui);
+            craft_ui::dialog::FullWindowCanvas::new(craft_ui::canvas::ToolPath::Freehand, Bind::bound(&mut shared.borrow_mut()), &Grey).show(ui);
+        });
+    });
+    fixture.settle();
+    let canvas = fixture.by_role(Role::CANVAS).into_iter().next().expect("the dialog shows its canvas");
+    fixture.click(&canvas).settle();
+    assert_eq!(craft_ui::testing::access::focused_key(fixture.tree()), canvas.node, "a click focuses the canvas");
+    let fitted = view.borrow().zoom_percent();
+
+    fixture.key(Key::Equals, Modifiers::COMMAND).settle();
+    assert!(view.borrow().zoom_percent() > fitted && !view.borrow().is_fit(), "Cmd+= zooms the dialog's view in");
+    fixture.key(Key::Num0, Modifiers::COMMAND).settle();
+    assert!(view.borrow().is_fit() && (view.borrow().zoom_percent() - fitted).abs() < SAME, "Cmd+0 fits again");
+}
+
 #[trial]
 fn fit_on_screen_refits_in_the_same_pass_and_magnifies_a_small_image() {
     let rect = Rect::from_min_size(Pos2::ZERO, Vec2::splat(1000.0));

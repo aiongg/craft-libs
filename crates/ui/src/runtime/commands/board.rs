@@ -280,9 +280,11 @@ pub(crate) fn resolve_global(ctx: &Context, command: &CommandRef) -> ResolvedCom
     resolve_in(ctx, command, instance)
 }
 
-/// Step 1: the bound command of a component, resolved against its own instance.
+/// Step 1: the bound command of a component, resolved against its own instance. A component outside every instance
+/// of the command's scope (a Navigator's Zoom In beside the canvas) reaches the instance a menu row of the command
+/// reaches.
 pub(crate) fn resolve_bound(ctx: &Context, chain: &CommandChain, command: &CommandRef) -> ResolvedCommand {
-    let instance = with(ctx, |board| chain.innermost(board.scope_of(command)));
+    let instance = with(ctx, |board| chain.innermost(board.scope_of(command)).or_else(|| board.target_of(ctx, command).1));
     resolve_in(ctx, command, instance)
 }
 
