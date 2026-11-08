@@ -25,10 +25,13 @@ use craft_ui::contract::{Bind, EditResponse, Outcome, Pattern, Show as _};
 use craft_ui::primitives::Draw;
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::requests::EyedropperRequest;
-use egui::{Pos2, Response, Ui, vec2};
+use egui::{Pos2, Response, Ui, Vec2};
 
 #[cfg(feature = "screen-testing")]
 mod stories;
+
+/// The pipette icon's tip, in the icon's own 24-unit box.
+const HOTSPOT: Vec2 = Vec2 { x: 2.0, y: 22.0 };
 
 /// What a dropper samples into: the colour itself, or one of a levels dialog's three points.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -187,7 +190,7 @@ impl CanvasTool for DropperTool<'_> {
 
     /// The pipette with its tip on the sampled pixel (the icon's lower left, in its 24-unit box).
     fn cursor(&self, _: &ToolContext<'_>) -> Cursor {
-        PaintedCursor::tool(IconId::new("eyedropper"), vec2(2.0, 22.0), None).into()
+        PaintedCursor::tool(IconId::new("eyedropper"), HOTSPOT, None).into()
     }
 
     fn autoscrolls(&self) -> bool {

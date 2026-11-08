@@ -16,6 +16,7 @@ use std::f32::consts::{PI, TAU};
 
 use craft_behavior::kurbo::Point;
 use craft_behavior::{CancelReason, Cursor, IconId, PaintedCursor};
+use craft_host::target::Os;
 use craft_theme::Srgba;
 use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolPath, ToolPointer};
 use craft_ui::choice::Checkbox;
@@ -26,7 +27,7 @@ use craft_ui::pickers::Select;
 use craft_ui::primitives::{Draw, PaintShape, StrokeWidth};
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::style::DataColor;
-use egui::{Color32, Pos2, Response, Ui, vec2};
+use egui::{Color32, Pos2, Response, Ui, Vec2, vec2};
 
 #[cfg(feature = "screen-testing")]
 mod stories;
@@ -56,6 +57,7 @@ craft_ui::words! {
 /// How many pixels around the pointer the eyedropper averages: Photoshop's Sample Size list.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum SampleSize {
     /// The pixel under the pointer.
     #[default]
@@ -104,6 +106,7 @@ impl SampleSize {
 /// Which layers the eyedropper reads: Photoshop's Sample list.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum SampleSource {
     /// The current layer.
     Current,
@@ -155,6 +158,7 @@ impl SampleSource {
 /// The Eyedropper's options bar values.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct EyedropperOptions {
     /// How many pixels are averaged.
     pub size: SampleSize,
@@ -222,7 +226,7 @@ impl<'a> EyedropperBar<'a> {
         let source =
             Field::new(words.sample.clone()).show(ui, |ui, _| Select::new(words.source.clone(), Bind::bound(&mut options.source), &sources).show(ui));
         let ring = Checkbox::new(Bind::bound(&mut options.show_ring)).label(words.show_ring.clone()).show(ui);
-        let key = if cfg!(target_os = "macos") { "Option" } else { "Alt" };
+        let key = if env.view().shell().os == Os::Mac { "Option" } else { "Alt" };
         Text::new(Label::from(words.hint.fill(&[("key", key)]))).show(ui);
         EyedropperBarOutput { size: size.inner.expect("the field runs its body"), source: source.inner.expect("the field runs its body"), ring }
     }
@@ -238,6 +242,8 @@ pub struct EyedropperPick {
     pub background: bool,
 }
 
+/// The pipette icon's tip, in the icon's own 24-unit box.
+const HOTSPOT: Vec2 = Vec2 { x: 2.0, y: 22.0 };
 /// The ring's outer radius in points.
 const RING_OUTER_RADIUS: f32 = 105.0;
 /// The width of each of the ring's two colour bands in points.
@@ -348,7 +354,7 @@ impl CanvasTool for EyedropperTool<'_> {
 
     /// The pipette with its tip on the sampled pixel (the icon's lower left, in its 24-unit box).
     fn cursor(&self, _: &ToolContext<'_>) -> Cursor {
-        PaintedCursor::tool(IconId::new("eyedropper"), vec2(2.0, 22.0), None).into()
+        PaintedCursor::tool(IconId::new("eyedropper"), HOTSPOT, None).into()
     }
 
     fn autoscrolls(&self) -> bool {

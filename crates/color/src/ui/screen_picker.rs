@@ -18,6 +18,7 @@ use std::sync::{Arc, Mutex};
 
 use craft_cms::{Builtin, Intent, Profile, Transform};
 use craft_host::Wake;
+use craft_host::target::Caps;
 use craft_platform::screen::{self, Capture, CaptureHandle, ScreenError, ScreenImage};
 use craft_theme::Srgba;
 use craft_theme::variant::Tone;
@@ -284,9 +285,9 @@ impl ScreenPick {
         self.owner.is_some() || self.request.is_some()
     }
 
-    /// Whether the platform can capture the screen.
-    pub fn available(&self) -> bool {
-        !cfg!(target_arch = "wasm32") && !self.unsupported
+    /// Whether the platform can capture the screen (`caps` are the shell's) and has not said it cannot.
+    pub fn available(&self, caps: Caps) -> bool {
+        caps.contains(Caps::SCREEN_CAPTURE) && !self.unsupported
     }
 
     /// Cancels a running or requested pick: Esc, a closed capture window and a right-click all end here.

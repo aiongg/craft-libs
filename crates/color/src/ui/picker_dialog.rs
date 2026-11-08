@@ -11,6 +11,7 @@
 
 use craft_cms::convert::CmykConverter;
 use craft_host::Host;
+use craft_host::target::Caps;
 use craft_settings::Remembered;
 use craft_theme::{ColorModel, Srgba, builtin_models};
 use craft_ui::contract::{Bind, Sampler as _, Show as _, ShowContainer as _};
@@ -47,6 +48,7 @@ craft_ui::words! {
 /// field shows and Only Web Colors, as Photoshop. Stored when the dialog closes with OK.
 #[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct ColorPickerMemory {
     /// The component the area and strip edit.
     pub mode: AreaMode,
@@ -59,6 +61,7 @@ const MEMORY_SCOPE: &str = "colorPicker.memory";
 
 /// What a [`ColorPickerDialog`] answers with OK: the key it was opened with (which colour it was for) and the colour.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct ColorPickerResult {
     /// The dialog's key: `"foreground"`, `"background"`, or the app's own.
     pub key: String,
@@ -394,7 +397,7 @@ impl StackDialog for ColorPickerDialog {
 
         let arm = self.sampling.then_some(self.canvas).flatten();
         let keep_open = self.canvas;
-        let screen = self.eyedropper && !cfg!(target_arch = "wasm32");
+        let screen = self.eyedropper && env.view().shell().caps.contains(Caps::SCREEN_CAPTURE);
         let Self { current, opening, compare, memory, screen_busy, sample, pending_screen, open, .. } = self;
         let (sampled, busy, compare_with) = (sample.take(), *screen_busy, compare.then_some(opening.color));
         let color = current.color;

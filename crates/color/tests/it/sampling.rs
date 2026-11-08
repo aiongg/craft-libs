@@ -18,9 +18,11 @@ use craft_ui::canvas::{CanvasSpace, CanvasTool, ToolAction, ToolContext, ToolPoi
 use craft_ui::dialog::{DialogResult, DialogStack, StackDialog as _};
 use craft_ui::runtime::env::Words;
 use craft_ui::testing::{Fixture, ToolFixture, trial};
-use egui::{Context, Key, Modifiers, Pos2, Rect, vec2};
+use egui::{Context, Key, Modifiers, Pos2, Rect};
 
-const ROOM: egui::Vec2 = vec2(400.0, 300.0);
+const ROOM: egui::Vec2 = egui::Vec2 { x: 400.0, y: 300.0 };
+/// The fixture's room for a dialog.
+const DIALOG_ROOM: egui::Vec2 = egui::Vec2 { x: 900.0, y: 700.0 };
 
 /// A canvas whose document points equal its screen points: 400 by 300 at zoom 1, centred on (200, 150).
 fn context() -> ToolContext<'static> {
@@ -245,7 +247,7 @@ fn rig(dialog: ColorPickerDialog) -> Rig {
             *result = dialog.show(ui, stack);
         }
     });
-    fx.room(vec2(900.0, 700.0)).settle();
+    fx.room(DIALOG_ROOM).settle();
     Rig { fx, app }
 }
 
@@ -268,7 +270,7 @@ fn ok_answers_the_opening_key() {
     let mut rig = rig(ColorPickerDialog::foreground(FOREGROUND).web_colors_remembered(false));
     rig.click("OK");
     match rig.result() {
-        Some(DialogResult::Ok(ColorPickerResult { key, picked })) => assert_eq!((key.as_str(), picked.color), ("foreground", FOREGROUND)),
+        Some(DialogResult::Ok(ColorPickerResult { key, picked, .. })) => assert_eq!((key.as_str(), picked.color), ("foreground", FOREGROUND)),
         other => panic!("OK answers the colour: {other:?}"),
     }
 }

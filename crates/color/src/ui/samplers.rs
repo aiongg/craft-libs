@@ -64,7 +64,7 @@ pub enum SamplerError {
 /// The commands of the colour samplers (11). They are app commands: the app owns the points, and runs them with
 /// [`ColorSamplers::apply`]; New opens the app's form of X and Y in document pixels.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, CommandSet)]
-#[command(prefix = "color.samplers")]
+#[command(prefix = "colorSampler")]
 #[non_exhaustive]
 pub enum ColorSamplerCommand {
     /// Place a point by its numbers.
@@ -234,7 +234,7 @@ impl Component for ColorSamplerMarks<'_> {
             let at = space.view.to_screen(Point::new(point[0], point[1]));
             let reticle = |width: StrokeWidth, color: StyleColor| {
                 draw.stroke(&PaintShape::Circle(at, style.radius), width, color);
-                for direction in [vec2(1.0, 0.0), vec2(-1.0, 0.0), vec2(0.0, 1.0), vec2(0.0, -1.0)] {
+                for direction in [Vec2::X, -Vec2::X, Vec2::Y, -Vec2::Y] {
                     let line = vec![at + direction * style.radius, at + direction * (style.radius + style.tick)];
                     draw.stroke(&PaintShape::Path(line), width, color);
                 }
