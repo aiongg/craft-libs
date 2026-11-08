@@ -304,6 +304,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let props = comp.items();
         craft_behavior::KeyRole::new()
             .reorderable(props.reorder.is_some())
+            .pages(props.pages)
             .rename(props.rename)
             .type_ahead(true)
             .digits(props.digit_keys)
@@ -512,6 +513,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.drag_step(comp, cx, &layout, (rect, offset, rtl), &props);
         self.marquee_step(comp, cx, &layout, (rect, offset, rtl), &props);
         self.navigate(comp, cx, &layout, view, header_held);
+        self.switch_page(comp, cx, &props, &layout, view);
         let lead_at = self.lead.key.as_ref().and_then(|key| self.index_of(key)).or(lead_at);
         self.intent_actions(comp, cx, &props, lead_at, header_held);
         self.context_key(cx, &layout, at, lead_at);
@@ -1134,6 +1136,30 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 NavStep::Collapse(at) => self.events.push(CollectionEvent::Open(OpenChange::new(self.source.key(at), false))),
                 _ => {}
             }
+        }
+    }
+
+    /// Ctrl+Tab and its platform equivalents at a collection of pages: the lead and the selection move to the next
+    /// (or previous) item that can be taken, wrapping at the ends.
+    fn switch_page(&mut self, comp: &C, cx: &mut Cx<'_, C>, props: &CollectionProps, layout: &C::ItemLayout, view: f32) {
+        if !props.pages {
+            return;
+        }
+        let forward = if cx.core.intents.take_exact(&Intent::switch_page(true)) {
+            true
+        } else if cx.core.intents.take_exact(&Intent::switch_page(false)) {
+            false
+        } else {
+            return;
+        };
+        let len = self.source.len();
+        let Some(from) = self.lead.key.as_ref().and_then(|key| self.index_of(key)) else { return };
+        let takes = |row: &usize| self.source.enabled(*row) && !self.source.is_section(*row) && layout.shown(*row);
+        let to = (1..len).map(|step| if forward { (from + step) % len } else { (from + len - step) % len }).find(takes);
+        if let Some(to) = to {
+            self.move_lead(to, LeadSource::Keys);
+            self.pick(comp, to, false, false);
+            self.reveal_with(layout, to, view);
         }
     }
 

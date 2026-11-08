@@ -111,3 +111,41 @@ fn a_tab_drag_carries_the_mapped_payload_and_a_tab_mapped_to_none_does_not_drag(
     fixture.drag(&other, Vec2::new(30.0, 40.0));
     assert!(carried.borrow().is_empty(), "a tab mapped to None carries nothing");
 }
+
+/// Ctrl+Tab on the focused strip of a dialog selects the next tab, wrapping at the end; Ctrl+Shift+Tab goes back.
+#[trial]
+fn ctrl_tab_switches_the_tabs_of_a_strip_in_a_dialog() {
+    use craft_ui::contract::{Bind, Props as _, ShowContainer as _};
+    use craft_ui::dialog::Dialog;
+    use craft_ui::runtime::focus::Initial;
+    use craft_ui::sections::{DialogRole, FooterButton};
+    use egui::{Key, Modifiers};
+
+    let shown = Rc::new(std::cell::Cell::new(TITLES.len() - 2));
+    let seen = shown.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let mut open = true;
+        Dialog::new("Pages")
+            .opened(Bind::bound(&mut open))
+            .initial_focus(Initial::First)
+            .buttons([FooterButton::new("OK", DialogRole::Accept)])
+            .show(ui, |ui, _| {
+                let out = TabStrip::new("Documents").shown(seen.get()).show_items(ui, &Titles, &mut |key, _| Tab::new(TITLES[*key]));
+                for event in out.response.events {
+                    if let CollectionEvent::Selection(SelectionChange::Set(keys)) = event {
+                        seen.set(keys[0]);
+                    }
+                }
+            });
+    });
+    fixture.settle();
+    fixture.key(Key::Tab, Modifiers::CTRL);
+    fixture.settle();
+    assert_eq!(shown.get(), TITLES.len() - 1, "Ctrl+Tab selects the next tab");
+    fixture.key(Key::Tab, Modifiers::CTRL);
+    fixture.settle();
+    assert_eq!(shown.get(), 0, "it wraps to the first tab");
+    fixture.key(Key::Tab, Modifiers::CTRL | Modifiers::SHIFT);
+    fixture.settle();
+    assert_eq!(shown.get(), TITLES.len() - 1, "Ctrl+Shift+Tab goes back");
+}
