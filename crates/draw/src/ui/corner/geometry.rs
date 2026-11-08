@@ -7,7 +7,7 @@ use kurbo::{Point, Vec2};
 
 use super::{CornerEdit, CornerPoint, CornerRadii, CornerRef, CornerTarget};
 use crate::geometry::fillet::fillet;
-use craft_ui::canvas::CanvasView;
+use craft_behavior::CanvasView;
 
 /// A widget the pass shows.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -96,6 +96,19 @@ pub(super) fn dragged_radius(from: f64, step: Vec2, press: Point, pointer: Point
     let len2 = step.hypot2().max(1e-12);
     let r = from + (pointer - press).dot(step) / len2;
     if r.is_finite() { r.max(0.0) } else { from }
+}
+
+/// `targets` with the radii of `edit` applied.
+pub(super) fn apply(targets: &[CornerTarget], edit: &CornerEdit) -> Vec<CornerTarget> {
+    let mut out = targets.to_vec();
+    for radii in &edit.targets {
+        if let Some(target) = out.iter_mut().find(|t| t.key == radii.key) {
+            for (corner, radius) in target.corners.iter_mut().zip(&radii.radii) {
+                corner.radius = *radius;
+            }
+        }
+    }
+    out
 }
 
 /// The edit a drag of `grabbed` to `radius` makes: every target takes `radius`, capped at each

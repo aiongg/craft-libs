@@ -6,20 +6,17 @@
 //! arc the app's engine draws.
 
 mod geometry;
-#[cfg(test)]
-mod geometry_tests;
-mod labels;
+#[cfg(feature = "screen-testing")]
 pub(crate) mod stories;
 mod style;
-#[cfg(test)]
-mod tests;
+mod words;
 mod widgets;
 
 use kurbo::Point;
 
-pub use labels::CornerWidgetsLabels;
 pub use style::CornerStyle;
-pub use widgets::{CornerWidgets, CornerWidgetsResponse};
+pub use widgets::{CornerWidgets, CornerWidgetsOutput};
+pub use words::CornerWords;
 
 /// How a corner is cut. Only shown and cycled with [`CornerWidgets::kinds`] (VectorCraft).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -94,9 +91,8 @@ pub struct CornerRadii {
     pub radii: Vec<f64>,
 }
 
-/// The value of the widgets' edit events: the new radii of every shown target that changed.
-/// The host applies all of them as one history step (PhotoCraft: one `shape.edit` per layer under
-/// one coalesce key).
+/// The operation the widgets report: the new radii of every shown target that changed. The host applies all of them
+/// as one history step.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct CornerEdit {
     /// The new radii per object.

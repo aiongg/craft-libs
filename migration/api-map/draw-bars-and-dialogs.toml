@@ -56,3 +56,78 @@ type = "ReferencePoint"
 old = "names([String; 9])"
 new = ""
 note = "The nine names are the picker family's words (`PickerWords`)."
+
+# draw-pen-b: Path Options
+
+[[type]]
+name = "PathOptionsPopover"
+old = "craft_draw::ui::pen::PathOptionsPopover"
+new = "craft_draw::ui::pen::PathOptionsPopover"
+status = "same"
+note = "A pattern: `new(label, Bind<PathOptionsSettings>)`, `default_color`, `show(ui, &mut open)`."
+
+[[type]]
+name = "PathOptionsPopoverResponse"
+old = "craft_draw::ui::pen::PathOptionsPopoverResponse"
+new = ""
+status = "removed"
+note = "The output is `PathOptionsOutput { response, edit, pick_color }`."
+
+[[type]]
+name = "PathOptionsOutput"
+old = ""
+new = "craft_draw::ui::pen::PathOptionsOutput"
+status = "replaced"
+note = "Replaces `PathOptionsPopoverResponse`; `edit` is `Option<EditEvent<PathOptionsSettings>>`."
+
+[[type]]
+name = "PathOptionsLabels"
+old = "craft_draw::ui::pen::PathOptionsLabels"
+new = ""
+status = "removed"
+note = "The words are `PathOptionsWords`."
+
+[[type]]
+name = "PathOptionsWords"
+old = ""
+new = "craft_draw::ui::pen::PathOptionsWords"
+status = "replaced"
+note = "The `words!` set of the popover."
+
+[[type]]
+name = "PathOptionsSettings"
+old = "craft_draw::ui::pen::PathOptionsSettings"
+new = "craft_draw::ui::pen::PathOptionsSettings"
+status = "same"
+note = "The serde shape is unchanged; the thickness is in pixels."
+
+[[type]]
+name = "PathMode"
+old = "craft_draw::ui::pen::PathMode"
+new = "craft_draw::ui::pen::PathMode"
+status = "same"
+note = "`resolve` takes `craft_keymap::Mods` in place of `egui::Modifiers`."
+
+[[type]]
+name = "PathTool"
+old = "craft_draw::ui::pen::PathTool"
+new = "craft_draw::ui::pen::PathTool"
+status = "same"
+
+[[type]]
+name = "PenMode"
+old = "craft_draw::ui::pen::PenMode"
+new = "craft_draw::ui::pen::PenMode"
+status = "same"
+
+[[setter]]
+type = "PathOptionsPopover"
+old = "new(id_salt, &settings)"
+new = "new(label, Bind<PathOptionsSettings>)"
+note = "The `ColorRequest` comes from the swatch as `pick_color`."
+
+[[setter]]
+type = "PathOptionsPopover"
+old = "labels(PathOptionsLabels)"
+new = ""
+note = "Words come from the env."
