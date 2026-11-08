@@ -27,6 +27,8 @@ const CENTRE_SLACK: f64 = 100.0;
 
 /// The zoom the row starts from.
 const START: f64 = 1.0;
+/// The 66.67 % rung of the zoom ladder.
+const TWO_THIRDS: f64 = 2.0 / 3.0;
 
 const CENTRE: Point = Point::new(1000.0, 750.0);
 
@@ -173,7 +175,7 @@ fn a_zoom_in_without_the_ease_steps_the_ladder_about_the_centre() {
 
 #[trial]
 fn the_percent_field_steps_the_zoom_ladder_and_shows_two_decimals() {
-    let view = Rc::new(RefCell::new(zoom_view(2.0 / 3.0)));
+    let view = Rc::new(RefCell::new(zoom_view(TWO_THIRDS)));
     let out = Rc::new(RefCell::new(None));
     let mut fixture = zoom_row(&view, &out, false);
     fixture.settle();
@@ -184,7 +186,8 @@ fn the_percent_field_steps_the_zoom_ladder_and_shows_two_decimals() {
     fixture.key(Key::ArrowUp, Modifiers::NONE);
     fixture.settle();
     let after = view.borrow().zoom;
-    assert!((after / (2.0 / 3.0) - 1.5).abs() < 1e-6, "up from 66.67 % goes to the next rung, 100 %: {after}");
+    let next_rung = ZoomLadder::step(TWO_THIRDS, 1, DOC);
+    assert!(next_rung > TWO_THIRDS && (after - next_rung).abs() < 1e-9, "up from 66.67 % goes to the next rung: {after}");
 }
 
 #[trial]
