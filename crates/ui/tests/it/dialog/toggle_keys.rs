@@ -1,7 +1,7 @@
 //! Keys on a toggle control inside a dialog.
 
 use craft_ui::choice::Checkbox;
-use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use craft_ui::dialog::Dialog;
 use craft_ui::runtime::focus::Initial;
 use craft_ui::sections::{DialogRole, FooterButton};
