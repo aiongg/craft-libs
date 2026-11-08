@@ -244,3 +244,26 @@ fn initials_and_name_tags_read_on_every_people_colour() {
         assert!(ratio >= least, "the name tag reads on {color:?}: {ratio} against {least}");
     }
 }
+
+/// Escape while following stops following.
+#[trial]
+fn escape_while_following_stops_following() {
+    let following = Rc::new(RefCell::new(Some(ParticipantId(2))));
+    let shared = following.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let area = ui.available_rect_before_wrap();
+        let view = craft_behavior::CanvasView::new(area, kurbo::Point::new(0.0, 0.0), 1.0);
+        let mut shared = shared.borrow_mut();
+        let on = shared.is_some();
+        Canvas::new("Document").view(view).show(ui, |ui, cx| {
+            if on && craft_review::ui::FollowFrame::new("Following", PEOPLE_COLORS[1], "Following Bo Chen").show_at(ui, cx.rect).stopped {
+                *shared = None;
+            }
+        });
+    });
+    fixture.settle();
+    assert!(following.borrow().is_some());
+    fixture.key(egui::Key::Escape, egui::Modifiers::NONE);
+    fixture.settle();
+    assert!(following.borrow().is_none(), "Escape stops following");
+}

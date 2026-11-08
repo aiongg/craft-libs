@@ -7,7 +7,7 @@ use craft_theme::variant::Variant;
 use craft_ui::buttons::IconButton;
 use craft_ui::canvas::canvas_space;
 use craft_ui::contract::{
-    Common, Component, Cx, Entry, MeasureCx, NoValue, Outcome, PaintUi, Pattern, Props, Role, Show as _, ShowContainer as _, Trigger,
+    Commands as _, Common, Component, Cx, Entry, MeasureCx, NoValue, Outcome, PaintUi, Pattern, Props, Role, Show as _, ShowContainer as _, Trigger,
 };
 use craft_ui::display::Badge;
 use craft_ui::layout_components::{Row, Stack};
@@ -294,8 +294,19 @@ impl Component for RemoteCursors<'_> {
     }
 }
 
+/// The commands of the follow frame.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui::contract::CommandSet)]
+#[command(prefix = "review")]
+#[non_exhaustive]
+pub enum FollowCommand {
+    /// Stop following the person whose view the canvas shows.
+    #[command(label = "Stop following", default = "Escape")]
+    StopFollowing,
+}
+
 /// A frame in the followed person's colour round the canvas, with "Following {name} · Esc to stop" at the top. The
-/// app shows it in the canvas body while it follows someone and stops following on Escape.
+/// app shows it in the canvas body while it follows someone and stops following when the output says `stopped`
+/// (Escape, [`FollowCommand::StopFollowing`]).
 #[derive(craft_ui::contract::Component)]
 #[component(canvas_control)]
 pub struct FollowFrame {
@@ -303,12 +314,32 @@ pub struct FollowFrame {
     common: Common,
     color: [u8; 3],
     text: String,
+    stopped: bool,
+}
+
+/// What the follow frame did this pass.
+#[derive(Debug)]
+#[non_exhaustive]
+#[must_use]
+pub struct FollowFrameOutput {
+    /// The frame's response.
+    pub response: Response,
+    /// The user asked to stop following (Escape).
+    pub stopped: bool,
+}
+
+impl Outcome for FollowFrameOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
 }
 
 impl FollowFrame {
     /// A frame in `color` with `text` (built from [`PresenceWords`]'s `following`) at the top.
     pub fn new(label: impl Into<Label>, color: [u8; 3], text: impl Into<String>) -> Self {
-        FollowFrame { common: Common::new(), color, text: text.into() }.label(label)
+        FollowFrame { common: Common::new(), color, text: text.into(), stopped: false }.label(label)
     }
 }
 
@@ -320,7 +351,7 @@ impl Component for FollowFrame {
     const STOPS: bool = false;
     const OVERLAYS: bool = false;
     type Style = CursorStyle;
-    type Output = Response;
+    type Output = FollowFrameOutput;
 
     fn style(cx: &StyleCx<'_>, _: FollowFrameStyleKey) -> CursorStyle {
         cursor_style(cx)
@@ -328,6 +359,12 @@ impl Component for FollowFrame {
 
     fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
         Vec2::ZERO
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        while cx.take_command::<FollowCommand>().is_some() {
+            self.stopped = true;
+        }
     }
 
     fn access(&self, access: &mut craft_ui::contract::Access, _: &Cx<'_, Self>) {
@@ -348,7 +385,7 @@ impl Component for FollowFrame {
         draw.text(Rect::from_min_size(tag.min + pad, Vec2::new(width, look.caption.1)), &run);
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> Response {
-        cx.response.clone()
+    fn finish(self, cx: Cx<'_, Self>) -> FollowFrameOutput {
+        FollowFrameOutput { response: cx.response.clone(), stopped: self.stopped }
     }
 }

@@ -127,7 +127,7 @@ name = "paint_chat_bubble"
 old = "craft_review::ui::paint_chat_bubble"
 new = "craft_review::ui::paint_chat_bubble"
 status = "replaced"
-note = "Takes a `Draw` and a `BubbleLook` built from the style context."
+note = "Takes the `PaintUi` and a `BubbleLook` built from the style context; the ink on the person's colour comes from `StyleCx::ink_on`."
 
 [[type]]
 name = "VotePill"
@@ -160,7 +160,7 @@ name = "paint_avatar"
 old = "craft_review::ui::paint_avatar"
 new = "craft_review::ui::paint_avatar"
 status = "replaced"
-note = "Replaced by `Avatar` (a leaf) and `paint_avatar(draw, rect, name, fill, &AvatarFace)` for canvas painters."
+note = "Replaced by `Avatar` (a leaf) and `paint_avatar(ui, rect, name, fill: DataColor)` for canvas painters; the initials' ink comes from `StyleCx::ink_on`."
 
 [[type]]
 name = "ReviewStyle"
@@ -499,3 +499,17 @@ type = "VersionHistoryPanel"
 old = "previewing(Option<VersionId>)"
 new = "previewing(VersionId)"
 note = "Omit the call when no version is previewed."
+
+[[type]]
+name = "FollowCommand"
+old = ""
+new = "craft_review::ui::FollowCommand"
+status = "replaced"
+note = "`#[non_exhaustive]` command set: `StopFollowing`, bound to Escape, taken by `FollowFrame`."
+
+[[type]]
+name = "FollowFrameOutput"
+old = ""
+new = "craft_review::ui::FollowFrameOutput"
+status = "replaced"
+note = "`#[non_exhaustive]`: the `FollowFrame` output, `response` and `stopped`."
