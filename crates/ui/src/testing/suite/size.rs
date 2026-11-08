@@ -32,18 +32,20 @@ fn shot(story: &Story, change: &dyn Fn(&mut Fixture)) -> Shot {
 }
 
 impl Shot {
-    /// The text run at `run` stays in its part. A run in a scroll region's content shows through the region's view:
-    /// what the view shows of it stays in the part, and the whole run in the content, which scrolls. Any other run
-    /// stays in the part.
+    /// The text run at `run` stays in its part: it lies in the shown rect, or a scroll region's view cuts it. A run
+    /// in a scroll region's content shows through the region's view, so it stays in its part when the whole run lies
+    /// in the content, which scrolls, and what the view shows of it in the shown rect.
     fn keeps(&self, run: Rect) -> bool {
-        let region = self.scrolls.iter().filter(|region| region.content.intersects(run)).min_by(|a, b| a.content.area().total_cmp(&b.content.area()));
-        match region {
-            Some(region) => {
-                let seen = run.intersect(region.view);
-                inside(run, region.content) && (!seen.is_positive() || inside(seen, self.shown))
-            }
-            None => inside(run, self.shown),
-        }
+        inside(run, self.shown)
+            || self
+                .scrolls
+                .iter()
+                .filter(|region| region.content.intersects(run))
+                .min_by(|a, b| a.content.area().total_cmp(&b.content.area()))
+                .is_some_and(|region| {
+                    let seen = run.intersect(region.view);
+                    inside(run, region.content) && (!seen.is_positive() || inside(seen, self.shown))
+                })
     }
 }
 
