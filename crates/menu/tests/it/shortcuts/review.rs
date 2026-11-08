@@ -1,9 +1,9 @@
 //! The foreign import review.
 
-use craft_keymap::{ContextRule, Flavor, ForeignEntry, ForeignKey, ForeignSet, ImportOptions, Platform};
+use craft_keymap::{ContextRule, Flavor, ForeignEntry, ForeignKey, ForeignSet, ImportOptions, Profiles};
 use craft_ui::testing::trial;
 
-use super::recorder::Rig;
+use super::fixture::Rig;
 
 fn theirs() -> ForeignSet {
     let read = |text: &str| ForeignKey::read(Some("Default"), text, Flavor::Windows);
@@ -19,18 +19,17 @@ fn theirs() -> ForeignSet {
 
 fn open_review(rig: &mut Rig) {
     let options = ImportOptions { contexts: vec![("Default".into(), ContextRule::Home)], suggest: true, ..ImportOptions::default() };
-    rig.shared.borrow_mut().review = Some((theirs(), options));
-    rig.fixture.settle();
+    rig.review_import(theirs(), options);
 }
 
 /// The review lists what changes and what did not match with its line, changes nothing until Import, and after
 /// Import reports what was done.
 #[trial]
 fn the_foreign_import_review_lists_skipped_and_unreadable_and_imports_on_request() {
-    let mut rig = Rig::new(Platform::Mac, |options| options.sets = true);
+    let mut rig = Rig::mac_with_sets(Profiles::default());
     open_review(&mut rig);
     assert!(rig.has("Import “Theirs”"));
-    assert!(rig.shared.borrow().keymap.overrides().is_empty(), "the review changes nothing");
+    assert!(rig.shared.borrow().km.overrides().is_empty(), "the review changes nothing");
     rig.click("Import as New Set");
     assert!(rig.has("Imported as “Theirs”"));
     rig.click("Done");
@@ -40,7 +39,7 @@ fn the_foreign_import_review_lists_skipped_and_unreadable_and_imports_on_request
 /// Picking a suggestion replans the import and moves the item to Will change.
 #[trial]
 fn picking_a_suggestion_replans() {
-    let mut rig = Rig::new(Platform::Mac, |options| options.sets = true);
+    let mut rig = Rig::mac_with_sets(Profiles::default());
     open_review(&mut rig);
     assert!(rig.has("Command for File > Sve Az"));
     rig.click("Command for File > Sve Az");

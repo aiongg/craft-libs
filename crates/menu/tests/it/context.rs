@@ -1,7 +1,7 @@
 //! Context menus from menu-model rows.
 
 use craft_menu::{Item, Node, context};
-use craft_ui::contract::{Show as _, ShowContainer as _};
+use craft_ui::contract::ShowContainer as _;
 use craft_ui::menu::Menu;
 use craft_ui::runtime::commands::{CommandState, FireSource};
 use craft_ui::runtime::frame::take_output;

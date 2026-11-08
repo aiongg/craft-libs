@@ -119,7 +119,7 @@ pub use codec::ChordCodec;
 pub use import_offer::{ImportOffer, ImportOfferWords, NoOffer, OfferAnswer, OfferRecord};
 pub use pages::{DialogSnapshot, DialogTab};
 pub use state::DialogState;
-pub use words::{ShortcutWords, trigger_text};
+pub use words::{ShortcutWords, kys_error_text, trigger_text};
 
 use state::Env;
 use words::Say;

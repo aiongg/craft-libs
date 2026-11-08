@@ -126,6 +126,7 @@ mod modal_tests;
 mod tests;
 
 #[cfg(feature = "screen-testing")]
+/// The stories and words this crate registers, for the story tests.
 pub mod testing {
     craft_ui::testing_registered!();
 }

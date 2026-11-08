@@ -357,11 +357,6 @@ impl DialogState {
         self.rows.get(env.keymap, env.options, env.text, &view)
     }
 
-    /// The table's lines as last built by [`lines`](Self::lines).
-    pub(crate) fn lines_cached(&self) -> &[Line] {
-        &self.rows.built().lines
-    }
-
     // ---- Selection and view ----
 
     pub(crate) fn select_row(&mut self, command: &CommandRef) {
@@ -784,13 +779,6 @@ impl DialogState {
             self.field = None;
         } else {
             self.cancel(env);
-        }
-    }
-
-    /// Enter when idle and no text field has focus: OK with [`Options::enter_is_ok`].
-    pub(crate) fn enter(&mut self, env: &mut Env) {
-        if env.options.enter_is_ok && self.recording.is_none() && self.prompt.is_none() {
-            self.ok(env);
         }
     }
 }

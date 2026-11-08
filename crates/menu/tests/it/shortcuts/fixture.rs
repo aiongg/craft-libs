@@ -3,6 +3,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use craft_host::target::Os;
 use craft_keymap::{Bindable, Binding, CommandRef, ImportOptions, Keymap, Kind, Overrides, Platform, ProfileError, Profiles, Scope, Scopes};
 use craft_menu::shortcuts::{DialogState, Options, Outcome, ShortcutsDialog};
 use craft_ui::testing::{Fixture, Target};
@@ -99,9 +100,17 @@ impl Rig {
             }
             outcomes.extend(dialog.show(ui, state).outcome);
         });
-        fixture.room(egui::vec2(1000.0, 700.0));
+        let os = if shared.borrow().km.platform().is_mac() { Os::Mac } else { Os::Windows };
+        fixture.os(os).room(egui::vec2(1000.0, 700.0));
         fixture.settle();
         Rig { fixture, shared }
+    }
+
+    /// A dialog on the fixture catalog for `platform`, with the options `tune` sets.
+    pub(crate) fn tuned(platform: Platform, tune: impl FnOnce(&mut Options)) -> Rig {
+        let mut options = options();
+        tune(&mut options);
+        Rig::new(keymap(platform), options, None)
     }
 
     /// A Mac dialog over the fixture catalog with default options and no sets.
@@ -132,6 +141,34 @@ impl Rig {
     pub(crate) fn press(&mut self, modifiers: Modifiers, key: Key) {
         self.fixture.key(key, modifiers);
         self.fixture.idle(3);
+    }
+
+    /// Runs the frames a change made outside the dialog needs to show.
+    pub(crate) fn pass(&mut self) {
+        self.fixture.idle(3);
+    }
+
+    /// Types `text` into the Search field.
+    pub(crate) fn search(&mut self, text: &str) {
+        self.click("Search:");
+        self.fixture.type_text(text);
+        self.pass();
+    }
+
+    /// Picks `entry` in the select named `select`.
+    pub(crate) fn choose(&mut self, select: &str, entry: &str) {
+        self.click(select);
+        self.click(entry);
+    }
+
+    /// Whether a shortcut is being recorded.
+    pub(crate) fn recording(&self) -> bool {
+        self.shared.borrow().state.is_recording()
+    }
+
+    /// Whether the dialog is still open.
+    pub(crate) fn is_open(&self) -> bool {
+        self.shared.borrow().state.is_open()
     }
 
     /// The bindings of a command as text.

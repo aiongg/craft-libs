@@ -206,7 +206,7 @@ craft_ui::words! {
 }
 
 use std::borrow::Cow;
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 
 use craft_host::Host;
 use craft_i18n::WordSet as _;
@@ -229,18 +229,6 @@ impl Say {
         let env = Env::of(ui);
         let view = env.view();
         Say { words: view.words(), keys: view.words(), host: view.host().cloned(), rtl: view.direction().is_rtl() }
-    }
-
-    /// English, with no Host: summaries and messages outside a pass.
-    pub(crate) fn english() -> &'static Say {
-        static ENGLISH: LazyLock<Say> =
-            LazyLock::new(|| Say { words: Arc::new(ShortcutWords::english()), keys: Arc::new(DisplayWords::english()), host: None, rtl: false });
-        &ENGLISH
-    }
-
-    /// English, with `host` for command labels.
-    pub(crate) fn with_host(host: Host) -> Say {
-        Say { words: Arc::new(ShortcutWords::english()), keys: Arc::new(DisplayWords::english()), host: Some(Arc::new(host)), rtl: false }
     }
 
     /// The dialog's own words.

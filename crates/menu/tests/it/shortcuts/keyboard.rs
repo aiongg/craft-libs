@@ -3,13 +3,13 @@
 use craft_keymap::Platform;
 use craft_ui::testing::trial;
 
-use super::recorder::Rig;
+use super::fixture::Rig;
 
 /// A key is named by its holders, the modifier toggles change which holders it shows, and Assign to Selected gives
 /// the selected command the chosen key.
 #[trial]
 fn the_keyboard_names_holders_and_assigns_to_the_selected_command() {
-    let mut rig = Rig::new(Platform::Mac, |options| options.keyboard = true);
+    let mut rig = Rig::tuned(Platform::Mac, |options| options.keyboard = true);
     assert!(rig.has("M: Marquee Tool, Elliptical Marquee Tool"));
     assert!(rig.has("L: Loop (Timeline)"));
     assert!(rig.has("F7"), "a key nothing holds is named by its own name");

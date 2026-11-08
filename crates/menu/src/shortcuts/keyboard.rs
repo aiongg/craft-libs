@@ -514,10 +514,6 @@ fn cap_legend(say: &Say, key: Key, platform: Platform) -> String {
     printed.to_owned()
 }
 
-fn union(a: Mods, b: Mods) -> Mods {
-    Mods { cmd: a.cmd || b.cmd, ctrl: a.ctrl || b.ctrl, alt: a.alt || b.alt, shift: a.shift || b.shift }
-}
-
 /// The holder's label, with its scope when that is not Application.
 fn holder_text(say: &Say, keymap: &Keymap, h: &KeyHolder) -> String {
     let label = say.label_of(keymap, &h.holder.command);
@@ -602,25 +598,6 @@ fn cap_views(env: &Env<'_>, state: &KeyboardState, index: &Index, mods: Mods) ->
             view
         })
         .collect()
-}
-
-/// The pane's height for a middle area of `height`, or `None` when it is off or does not fit.
-pub(crate) fn height(env: &Env<'_>, state: &DialogState, height: f32) -> Option<f32> {
-    if !env.options.keyboard || state.keyboard.hidden {
-        return None;
-    }
-    let pane = (height * 0.45).min(height - height / 3.0);
-    (pane > 0.0).then_some(pane)
-}
-
-/// The header's toggle that shows and hides the pane.
-pub(crate) fn toggle(ui: &mut Ui, env: &Env<'_>, state: &mut DialogState) {
-    if !env.options.keyboard {
-        return;
-    }
-    let mut shown = !state.keyboard.hidden;
-    ToggleButton::new(env.text.words().keyboard.clone(), Bind::bound(&mut shown)).id_salt("shortcuts.keyboard").show(ui);
-    state.keyboard.hidden = !shown;
 }
 
 /// Shows the pane: the modifier toggles, the keys, the clicked key's shortcuts and Assign to Selected.

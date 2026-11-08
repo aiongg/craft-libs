@@ -176,11 +176,6 @@ impl RowCache {
         }
         &self.built
     }
-
-    /// The lines last built.
-    pub(crate) fn built(&self) -> &Built {
-        &self.built
-    }
 }
 
 fn top_menu(b: &Bindable) -> Option<&str> {

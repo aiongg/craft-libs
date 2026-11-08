@@ -2,69 +2,10 @@
 //! collapse, and which rows count as conflicts.
 
 use craft_keymap::{Bindable, Binding, CommandRef, Keymap, Kind, Platform, Policy, Scope, Scopes};
-use craft_menu::shortcuts::{DialogState, Options, ShortcutsOutput};
-use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers};
+use craft_menu::shortcuts::Options;
+use craft_ui::testing::trial;
 
-use super::fixture;
-
-/// A dialog in a fixture: the keymap and state it edits, and the options it shows.
-pub(super) struct Rig {
-    pub f: Fixture,
-    pub km: Keymap,
-    pub state: DialogState,
-    pub options: Options,
-}
-
-impl Rig {
-    pub fn new(km: Keymap, options: Options) -> Rig {
-        let mut rig = Rig { f: Fixture::new(|_| {}), km, state: DialogState::new(), options };
-        rig.pass();
-        rig
-    }
-
-    pub fn mac() -> Rig {
-        Rig::new(fixture::keymap(Platform::Mac), fixture::options())
-    }
-
-    /// One pass of the dialog and the frames its answer needs.
-    pub fn pass(&mut self) -> ShortcutsOutput {
-        let out = fixture::show(&mut self.f, &mut self.km, &mut self.state, &self.options);
-        self.f.idle(2);
-        out
-    }
-
-    pub fn has(&self, label: &str) -> bool {
-        self.f.by_label(label).is_some()
-    }
-
-    pub fn click(&mut self, label: &str) {
-        let target = self.f.by_label(label).unwrap_or_else(|| panic!("{label} is not shown"));
-        self.f.click(&target);
-        self.pass();
-    }
-
-    pub fn press(&mut self, key: Key, modifiers: Modifiers) {
-        self.f.key(key, modifiers);
-        self.pass();
-    }
-
-    pub fn search(&mut self, text: &str) {
-        self.click("Search:");
-        self.f.type_text(text);
-        self.pass();
-    }
-
-    /// Picks `entry` in the select named `select`.
-    pub fn choose(&mut self, select: &str, entry: &str) {
-        self.click(select);
-        self.click(entry);
-    }
-
-    pub fn bindings(&self, id: &str) -> Vec<String> {
-        self.km.bindings(&CommandRef::from(id)).iter().map(Binding::to_string).collect()
-    }
-}
+use super::fixture::{self, Rig};
 
 #[trial]
 fn areas_follow_paths_kind_and_scope() {
@@ -103,8 +44,8 @@ fn search_by_name_translation_or_chord() {
 
 #[trial]
 fn filters_and_conflict_counts() {
-    let mut rig = Rig::new(fixture::keymap(Platform::Windows), fixture::options());
-    rig.km.assign(&CommandRef::from("file.export"), Binding::parse("Cmd+S").expect("a chord"), Policy::Keep).expect("assigns");
+    let mut rig = Rig::new(fixture::keymap(Platform::Windows), fixture::options(), None);
+    rig.shared.borrow_mut().km.assign(&CommandRef::from("file.export"), Binding::parse("Cmd+S").expect("a chord"), Policy::Keep).expect("assigns");
     rig.pass();
     rig.choose("Filter:", "Changed");
     assert!(rig.has("Export…: Ctrl+E") && !rig.has("Save: Ctrl+S"), "only commands with an override");
@@ -118,9 +59,9 @@ fn filters_and_conflict_counts() {
 fn hidden_entries_are_not_listed_but_still_conflict() {
     let mut options = fixture::options();
     options.visible = Some(|b| b.command.id != "file.export");
-    let mut rig = Rig::new(fixture::keymap(Platform::Mac), options);
+    let mut rig = Rig::new(fixture::keymap(Platform::Mac), options, None);
     assert!(!rig.has("Export…: ⌘E"), "a hidden command is not listed");
-    rig.km.assign(&CommandRef::from("file.save"), Binding::parse("Cmd+E").expect("a chord"), Policy::Keep).expect("assigns");
+    rig.shared.borrow_mut().km.assign(&CommandRef::from("file.save"), Binding::parse("Cmd+E").expect("a chord"), Policy::Keep).expect("assigns");
     rig.pass();
     rig.choose("Filter:", "Conflicts");
     assert!(rig.has("Save: ⌘S, ⌘E"), "the hidden command still clashes with Save");
@@ -128,7 +69,7 @@ fn hidden_entries_are_not_listed_but_still_conflict() {
 
 #[trial]
 fn commands_sharing_a_default_key_are_no_conflict() {
-    let mut rig = Rig::new(fixture::keymap(Platform::Mac), fixture::options());
+    let mut rig = Rig::new(fixture::keymap(Platform::Mac), fixture::options(), None);
     rig.choose("Filter:", "Conflicts");
     assert!(!rig.has("Marquee Tool: M"), "tools of one group sharing a key cycle; they do not clash");
 }
@@ -137,9 +78,9 @@ fn commands_sharing_a_default_key_are_no_conflict() {
 fn sort_by_label_and_collapsed_groups() {
     let mut options = fixture::options();
     options.sort_by_label = true;
-    let mut rig = Rig::new(fixture::keymap(Platform::Mac), options);
+    let mut rig = Rig::new(fixture::keymap(Platform::Mac), options, None);
     rig.choose("Show:", "File Menu");
-    let at = |rig: &Rig, label: &str| rig.f.by_label(label).map(|t| t.center().y).expect("shown");
+    let at = |rig: &Rig, label: &str| rig.fixture.by_label(label).map(|t| t.center().y).expect("shown");
     assert!(at(&rig, "Export…: ⌘E") < at(&rig, "Save: ⌘S") && at(&rig, "Save: ⌘S") < at(&rig, "Save As…: ⇧⌘S"));
     rig.choose("Show:", "All Commands");
     rig.click("File");
@@ -161,7 +102,7 @@ fn import_paths_make_no_areas_or_groups() {
         .with_kind(Kind::Tool { group: None })
         .with_import_path(vec!["Tools".into(), "Pen Tool".into()])
         .with_default(Binding::parse("P").expect("a key"));
-    let mut rig = Rig::new(Keymap::new(vec![pen], Scopes::new(), Platform::Mac), Options::default());
+    let mut rig = Rig::new(Keymap::new(vec![pen], Scopes::new(), Platform::Mac), Options::default(), None);
     rig.click("Show:");
     assert!(rig.has("Tools") && !rig.has("File Menu"), "an import path makes no menu area");
     assert!(rig.has("Pen Tool: P"));
