@@ -39,7 +39,7 @@ fn the_standard_categories_keep_their_order_and_every_card_has_a_word() {
     let unnamed = Rc::new(RefCell::new(Vec::new()));
     let found = Rc::clone(&unnamed);
     let mut fixture = Fixture::new(move |ui| {
-        let words = Env::of(ui).words::<PresetWords>();
+        let words = Env::of(ui).words::<NewDocumentPresetWords>();
         let mut missing = found.borrow_mut();
         missing.clear();
         for preset in PresetCategory::standard().iter().flat_map(|category| category.presets.iter()) {

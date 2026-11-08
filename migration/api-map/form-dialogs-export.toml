@@ -8,14 +8,14 @@ name = "ExportAsDialog"
 old = "craft_ui::dialog::export::ExportAsDialog"
 new = "craft_ui::patterns::form_dialogs::ExportAsDialog"
 status = "moved"
-note = "A pattern: `ExportAsDialog::new(file_name, PixelSize)` with `formats`, `opened`, `initial`, `defaults`, `preview`, `picked` and `saving`; `show(ui) -> ExportAsOutput`. The dialog is not a `StackDialog` and keeps no picker ticket: Export files a save request in `ExportAsOutput::requests`, the app opens its file dialog and gives the path back with `picked`."
+note = "A pattern over `FormDialog<ExportOptions>`: `ExportAsDialog::new(file_name, PixelSize, Bind<ExportOptions>)` with `formats`, `opened`, `defaults`, `preview`, `answers` and `saving`; `show(ui) -> ExportAsOutput`. The dialog is not a `StackDialog` and keeps no picker ticket: Export files a save request (file name and format filter) in `ExportAsOutput::requests`, the app opens its file dialog and answers with the path through `answers`, which closes the dialog with the result. The bind holds the settings (`initial` is the bind's value)."
 
 [[type]]
 name = "ExportAsOutput"
 old = ""
 new = "craft_ui::patterns::form_dialogs::ExportAsOutput"
 status = "replaced"
-note = "`{ response, closed, result: Option<ExportAsResult>, wanted_preview: Option<(u64, ExportOptions)>, requests: HostRequests, file_name, format, options }`. `wanted_preview` replaces `ExportAsDialog::wanted_preview`."
+note = "`{ response, closed, result: Option<ExportAsResult>, wanted_preview: Option<PreviewRequest<ExportOptions>>, requests: HostRequests }`. `wanted_preview` replaces `ExportAsDialog::wanted_preview`; the save request carries the file name and format."
 
 [[type]]
 name = "ExportFormat"
@@ -48,7 +48,7 @@ name = "ExportOptions"
 old = "craft_ui::dialog::export::ExportOptions"
 new = "craft_ui::patterns::form_dialogs::ExportOptions"
 status = "moved"
-note = "The `resample` field is not carried (Resample belongs to the sizing dialogs). `fitted(formats, PixelSize)` is the legacy private `fit`; `output_size(PixelSize)` is the legacy private `output_size`."
+note = "The `resample` field is the sizing dialogs' `Resample`, shown as a Resample row. `fitted(formats, PixelSize)` is the legacy private `fit`; `output_size(PixelSize)` is the legacy private `output_size`."
 
 [[type]]
 name = "SizeEstimate"

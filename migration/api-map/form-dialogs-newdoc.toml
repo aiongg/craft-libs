@@ -8,28 +8,28 @@ name = "NewDocumentDialog"
 old = "craft_ui::dialog::new_document::NewDocumentDialog"
 new = "craft_ui::patterns::form_dialogs::NewDocumentDialog"
 status = "moved"
-note = "A pattern on `Dialog`: `NewDocumentDialog::new()` with setters, `show(ui) -> NewDocumentOutput { response, closed, result: Option<DocumentOptions>, pick_color: Option<ColorRequest> }`. The settings the details column shows are a `Bind<DocumentOptions>` (`options`); the app answers a colour request by setting `BackgroundContents::Custom` in it. A `DialogHost` owns `HostedNewDocument`."
+note = "A form dialog over `FormDialog<DocumentOptions>`: `NewDocumentDialog::new(Bind<DocumentOptions>)` with setters, `show(ui) -> NewDocumentOutput { response, closed, result: Option<DocumentOptions>, requests: HostRequests }`. The dialog opens on the value in the bind and writes its edits back; a colour request is answered with `answers(Vec<HostAnswer>)`. The app keeps the recent list (`recent`, `push_recent`) and the last created settings. A `DialogHost` owns `HostedNewDocument`."
 
 [[type]]
 name = "HostedNewDocument"
 old = ""
 new = "craft_ui::patterns::form_dialogs::HostedNewDocument"
 status = "replaced"
-note = "The `StackDialog` form: `HostedNewDocument::new(|dialog| dialog.clipboard(size))` with `options`, `pick_color`, `set_color(key, Srgba)` and `cancel_color`, over an embedded `HostRequests`."
+note = "The `StackDialog` form: `HostedNewDocument::new(values, |options| NewDocumentDialog::new(Bind::bound(options)).clipboard(size))` with `recent`, `recents`, `options`, `pick_color`, `set_color(key, Srgba)` and `cancel_color`, over an embedded `HostRequests`."
 
 [[type]]
 name = "DocumentOptions"
 old = "craft_ui::dialog::new_document::DocumentOptions"
 new = "craft_ui::patterns::form_dialogs::DocumentOptions"
 status = "moved"
-note = "`size` is `craft_behavior::PixelSize` (width and height only); the resolution is the field `pixels_per_inch`; `unit` and `resolution_unit` are `UnitKind` (`SizeUnit` and `ResolutionUnit` are gone). `#[non_exhaustive]`: start from `DocumentOptions::default()`. Serde stores the units by stable key."
+note = "`size` is `craft_behavior::PixelSize` (width and height only); the resolution is the field `pixels_per_inch`; `unit` and `resolution_unit` are `UnitKind` (`SizeUnit` and `ResolutionUnit` are gone). `#[non_exhaustive]`: start from `DocumentOptions::default()`. Serde stores camelCase fields."
 
 [[type]]
 name = "DocumentPreset"
 old = "craft_ui::dialog::new_document::DocumentPreset"
 new = "craft_ui::patterns::form_dialogs::DocumentPreset"
 status = "moved"
-note = "Same fields; the built-in names are word ids looked up in `PresetWords` by the preset's `id`, with `name` as the English fallback. `turned(Orientation)` is new."
+note = "Same fields; the built-in names are word ids looked up in `NewDocumentPresetWords` by the preset's `id`, with `name` as the English fallback. `turned(Orientation)` is new."
 
 [[type]]
 name = "PresetCategory"
@@ -87,7 +87,7 @@ name = "NewDocumentLabels"
 old = "craft_ui::dialog::new_document::NewDocumentLabels"
 new = ""
 status = "removed"
-note = "Replaced by `NewDocumentWords` (and `PresetWords` for the built-in preset names), read with `Env::words`."
+note = "Replaced by `NewDocumentWords` (and `NewDocumentPresetWords` for the built-in preset names), read with `Env::words`."
 
 [[type]]
 name = "NewDocumentWords"
@@ -97,18 +97,18 @@ status = "replaced"
 note = "The words of New Document: `words!` rows under `newDocument.*`; templates are `WordTemplate` (`fill(&[(name, text)])`)."
 
 [[type]]
+name = "NewDocumentPresetWords"
+old = ""
+new = "craft_ui::patterns::form_dialogs::NewDocumentPresetWords"
+status = "replaced"
+note = "The names of the built-in presets under `newDocumentPreset.*`, read with `name_of(id)`; the presets family has its own `PresetWords`."
+
+[[type]]
 name = "ColorProfiles"
 old = ""
 new = "craft_ui::patterns::form_dialogs::ColorProfiles"
 status = "replaced"
 note = "`ColorProfiles::new(mode, working, others)`: what `NewDocumentDialog::profiles(mode, working, others)` took as three arguments."
-
-[[type]]
-name = "preset_name_error"
-old = ""
-new = "craft_ui::patterns::form_dialogs::preset_name_error"
-status = "replaced"
-note = "The preset-name rule the Save Preset row applies: `preset_name_error(saved, name) -> Option<NameError>`."
 
 [[setter]]
 type = "NewDocumentDialog"
@@ -149,17 +149,17 @@ new = "PresetCategory::default_recent()"
 [[setter]]
 type = "NewDocumentDialog"
 old = "options() -> &DocumentOptions"
-new = "options(Bind<DocumentOptions>) on the pattern; HostedNewDocument::options() -> &DocumentOptions"
+new = "NewDocumentDialog::new(Bind<DocumentOptions>); HostedNewDocument::options() -> &DocumentOptions"
 
 [[setter]]
 type = "NewDocumentDialog"
 old = "pick_color() -> Option<ColorRequest>"
-new = "NewDocumentOutput::pick_color; HostedNewDocument::pick_color()"
+new = "NewDocumentOutput::requests (HostRequests::take_color); HostedNewDocument::pick_color()"
 
 [[setter]]
 type = "NewDocumentDialog"
 old = "set_color(key, Srgba)"
-new = "HostedNewDocument::set_color(key, Srgba), or set BackgroundContents::Custom in the bound options"
+new = "HostedNewDocument::set_color(key, Srgba), or NewDocumentDialog::answers with a colour answer"
 
 [[setter]]
 type = "NewDocumentDialog"
