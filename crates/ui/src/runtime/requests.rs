@@ -110,8 +110,8 @@ impl PathRequest {
 }
 
 /// An eyedropper toggle of a colour row after a press: the host answers it with the colour the sampler picked for the
-/// colour parameter `key` (`HostRequests::answer_eyedropper`), written into `key` as a `FieldValue::Color`. Whether the
-/// dropper is armed is the sampler registration's state, not the request's.
+/// colour parameter `key` (`HostRequests::answer_eyedropper`), written into `key` as a `FieldValue::Color`. The rows
+/// hold which dropper is armed (one at a time); `Param::armed` arms and disarms a row from the host.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct EyedropperRequest {

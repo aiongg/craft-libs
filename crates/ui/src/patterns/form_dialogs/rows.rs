@@ -172,11 +172,15 @@ impl<'a> ParamRows<'a> {
     }
 }
 
-/// What the rows keep between passes in the group's session slot: the eyedropper toggles, the last number of each
+/// What the rows keep between passes in the group's session slot: the armed eyedropper row, the last number of each
 /// optional row while it is switched off, and the Random sequence when the caller gives no seed.
 #[derive(Clone, Default)]
 struct Memo {
-    armed: BTreeMap<String, bool>,
+    /// The one armed eyedropper row: turning a toggle on replaces it, as Photoshop's droppers exclude each other.
+    armed: Option<String>,
+    /// What each eyedropper row's `Param::armed` said last pass; a change reaches `armed`, so the host can arm and
+    /// disarm a row.
+    declared: BTreeMap<String, bool>,
     last: BTreeMap<String, f64>,
     sequence: Option<u64>,
 }
@@ -415,7 +419,14 @@ impl<'p> Pass<'p> {
     fn color(&mut self, ui: &mut Ui, line: &Line<'_>) {
         let color = self.work.color(line.key);
         let option = line.param.option();
-        let armed = self.memo.armed.get(line.key).copied().unwrap_or(option.armed());
+        if option.eyedropper() && self.memo.declared.insert(line.key.to_owned(), option.armed()) != Some(option.armed()) {
+            if option.armed() {
+                self.memo.armed = Some(line.key.to_owned());
+            } else if self.memo.armed.as_deref() == Some(line.key) {
+                self.memo.armed = None;
+            }
+        }
+        let armed = self.memo.armed.as_deref() == Some(line.key);
         let shown = color
             .map_or_else(|| self.words.color_unset.clone(), |[r, g, b]| Label::from(format!("#{:02x}{:02x}{:02x}", encode(r), encode(g), encode(b))));
         line.show(ui, |ui| {
@@ -431,12 +442,14 @@ impl<'p> Pass<'p> {
                         .id_salt("eyedropper")
                         .show(ui);
                     if let Some(on) = toggle.value().cloned() {
-                        self.memo.armed.insert(line.key.to_owned(), on);
                         if on {
+                            self.memo.armed = Some(line.key.to_owned());
                             self.eyedropper = Some(EyedropperRequest::new(line.key));
+                        } else if self.memo.armed.as_deref() == Some(line.key) {
+                            self.memo.armed = None;
                         }
                     }
-                    self.sampling |= self.memo.armed.get(line.key).copied().unwrap_or(option.armed());
+                    self.sampling |= self.memo.armed.as_deref() == Some(line.key);
                 }
             });
         });
