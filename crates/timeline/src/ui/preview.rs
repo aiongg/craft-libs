@@ -1,39 +1,40 @@
-//! A decoded frame fitted in a panel, with a status line (N1.11).
+//! A decoded frame fitted in a panel, with a status line.
 
-use super::style::TimelineStyle;
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, role_format};
-use egui::accesskit::Role;
-use egui::text::LayoutJob;
-use egui::{AsIdSalt, Color32, CornerRadius, IdSalt, Painter, Rect, Response, Sense, TextureId, Ui, Vec2, WidgetInfo, pos2};
+#[cfg(feature = "screen-testing")]
+mod stories;
+
+use craft_behavior::{Axis, Metrics, Sense};
+use craft_theme::Stateful;
+use craft_ui::contract::{Access, Common, Component, Cx, Input, MeasureCx, Name, PaintUi, Props, Role, Styled as _};
+use craft_ui::primitives::{PaintShape, TextRun};
+use craft_ui::runtime::env::Label;
+use craft_ui::style::{ComponentStyle, StyleColor, StyleCx, TextLook, TypeRole};
+use egui::{CornerRadius, Rect, Response, TextureId, Vec2, pos2};
 
 /// How a frame fills its box.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub enum FrameFit {
-    /// Scaled to fit, centred, the rest black (letterbox or pillarbox).
+    /// Scaled to fit, centred, the rest the canvas colour (letterbox or pillarbox).
     #[default]
     Letterbox,
-    /// The part a crop leaves (left, top, right, bottom fractions, each clamped to 0…0.99)
-    /// stretched over the whole box, as PowerPoint shows a cropped video.
+    /// The part a crop leaves (left, top, right, bottom fractions, each clamped to 0 to 0.99) stretched over the
+    /// whole box, as PowerPoint shows a cropped video.
     Crop([f32; 4]),
 }
 
-/// Paint the frame `texture` (`size` pixels) into `rect` on black, fitted by `fit`. Non-finite
-/// crop values count as 0; the visible part keeps at least 1 % of each axis.
-// deckcraft: crates/ui-egui/src/media.rs:417 `paint_frame`, `:410` `crop_uv`.
-pub fn paint_frame(painter: &Painter, rect: Rect, texture: TextureId, size: Vec2, fit: FrameFit) {
-    painter.rect_filled(rect, CornerRadius::ZERO, Color32::BLACK);
-    let (target, uv) = match fit {
+/// The rect a frame of `size` pixels fills inside `area` and the part of the frame it shows, as texture
+/// coordinates. A frame without a size has an empty rect at the centre of `area`. Non-finite crop values count as 0;
+/// the visible part keeps at least 1 % of each axis.
+pub fn frame_rect(area: Rect, size: Vec2, fit: FrameFit) -> (Rect, Rect) {
+    match fit {
         FrameFit::Letterbox => {
             let valid = size.x.is_finite() && size.y.is_finite() && size.x > 0.0 && size.y > 0.0;
-            if !valid {
-                return;
-            }
-            let scale = (rect.width() / size.x).min(rect.height() / size.y);
-            (Rect::from_center_size(rect.center(), size * scale), Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)))
+            let scale = if valid { (area.width() / size.x).min(area.height() / size.y) } else { 0.0 };
+            (Rect::from_center_size(area.center(), size * scale), Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)))
         }
-        FrameFit::Crop(crop) => (rect, crop_uv(crop)),
-    };
-    painter.image(texture, target, uv, Color32::WHITE);
+        FrameFit::Crop(crop) => (area, crop_uv(crop)),
+    }
 }
 
 /// The part of the frame a crop leaves visible, as texture coordinates.
@@ -42,75 +43,106 @@ fn crop_uv(crop: [f32; 4]) -> Rect {
     Rect::from_min_max(pos2(left, top), pos2((1.0 - right).max(left + 0.01), (1.0 - bottom).max(top + 0.01)))
 }
 
-/// A preview panel: the frame fitted on black and, under it, a status line in the `caption`
-/// role ("Movie.mov · 00:01:02:03", "Offline", a decode error). Without a frame it shows the
-/// status alone, centred. Not interactive; AccessKit: an image named by the status.
-pub struct FramePreview<'a> {
-    id_salt: IdSalt,
-    frame: Option<(TextureId, Vec2)>,
-    fit: FrameFit,
-    status: Option<&'a str>,
+/// The style of the preview: the status line's look.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+#[non_exhaustive]
+pub struct PreviewStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+    /// The status line under the frame.
+    #[style(text)]
+    status: TextLook,
+    /// Behind the frame, where it does not reach.
+    backdrop: StyleColor,
 }
 
-impl<'a> FramePreview<'a> {
-    /// A preview of `frame` (texture and size in pixels); `None` shows the status alone.
-    pub fn new(id_salt: impl AsIdSalt, frame: Option<(TextureId, Vec2)>) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), frame, fit: FrameFit::Letterbox, status: None }
-    }
-
-    /// How the frame fits its box; [`FrameFit::Letterbox`] by default.
-    pub fn fit(mut self, fit: FrameFit) -> Self {
-        self.fit = fit;
-        self
-    }
-
+/// A preview panel: the frame fitted on the canvas colour and, under it, a status line in the caption role ("Movie.mov \u{b7}
+/// 00:01:02:03", "Offline", a decode error). Without a frame it shows the status alone, centred. Not interactive;
+/// AccessKit: an image named by the status.
+#[derive(craft_ui::contract::Component, Props)]
+#[component(content_painter)]
+pub struct FramePreview {
+    #[common]
+    common: Common,
+    frame: Option<(TextureId, Vec2)>,
+    /// How the frame fits its box; letterbox by default.
+    #[prop]
+    fit: FrameFit,
     /// The status line text; an empty text shows no line.
-    pub fn status(mut self, text: &'a str) -> Self {
-        self.status = Some(text);
-        self
+    #[prop(into)]
+    status: Option<Label>,
+}
+
+impl FramePreview {
+    /// A preview named `label` of `frame` (texture and size in pixels); `None` shows the status alone.
+    pub fn new(label: impl Into<Label>, frame: Option<(TextureId, Vec2)>) -> Self {
+        FramePreview { common: Common::new(), frame, fit: FrameFit::Letterbox, status: None }.label(label)
     }
 
-    /// Show the preview in the available space.
-    // soundcraft: crates/ui-egui/src/panels/video_window.rs:21 `video_status_text`, `:33`
-    // `draw_video_surface`.
-    pub fn show(self, ui: &mut Ui) -> Response {
-        let tokens = Tokens::of(ui);
-        let format = role_format(&tokens, TimelineStyle::of(&tokens).preview_text, tokens.color.text.muted.to_egui());
-        let id = ui.make_persistent_id(self.id_salt);
-        let (rect, _) = ui.allocate_exact_size(ui.available_size(), Sense::hover());
-        let response = ui.interact(rect, id, Sense::hover());
-        let status = self.status.filter(|text| !text.is_empty());
-        response.widget_info(|| match status {
-            Some(text) => WidgetInfo::labeled(Role::Image, ui.is_enabled(), text),
-            None => WidgetInfo::new(Role::Image),
-        });
-        if !ui.is_rect_visible(rect) {
-            return response;
+    fn status_text(&self) -> Option<&str> {
+        self.status.as_ref().map(Label::as_str).filter(|text| !text.is_empty())
+    }
+}
+
+impl Component for FramePreview {
+    const ROLE: Role = Role::IMAGE;
+    const INPUT: Input = Input::Display;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
+    const OVERLAYS: bool = false;
+    type Style = PreviewStyle;
+    type Output = Response;
+
+    fn style(cx: &StyleCx<'_>, _: FramePreviewStyleKey) -> PreviewStyle {
+        PreviewStyle {
+            metrics: Metrics::new(),
+            status: TextLook::new(TypeRole::Caption, Stateful::new(cx.color(cx.tokens.color.text.muted))),
+            backdrop: cx.color(cx.tokens.color.surface.canvas),
         }
-        let galley = status.map(|text| {
-            let mut job = LayoutJob::simple_singleline(text.to_owned(), format.font_id.clone(), format.color);
-            job.wrap.max_width = rect.width();
-            job.wrap.max_rows = 1;
-            job.wrap.break_anywhere = true;
-            ui.fonts_mut(|fonts| fonts.layout_job(job))
-        });
-        let painter = ui.painter_at(rect);
-        match (self.frame, galley) {
-            (Some((texture, size)), galley) => {
-                let strip = galley.as_ref().map_or(0.0, |galley| galley.size().y + ui.spacing().item_spacing.y);
-                let frame_rect = Rect::from_min_max(rect.min, pos2(rect.max.x, (rect.max.y - strip).max(rect.min.y)));
-                paint_frame(&painter, frame_rect, texture, size, self.fit);
-                if let Some(galley) = galley {
-                    let at = pos2(rect.center().x - galley.size().x / 2.0, rect.max.y - galley.size().y);
-                    painter.galley(at, galley, format.color);
+    }
+
+    fn fills(&self) -> Option<Axis> {
+        Some(Axis::Y)
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::empty()
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(cx.room.unwrap_or(0.0), 0.0)
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let rect = cx.rect;
+        let run = self.status_text().map(|text| TextRun::new(text).role(cx.style.status.role).color(cx.resolve(&cx.style.status.color)).elide());
+        let line = run.as_ref().map(|run| ui.draw().layout(run, rect.width()).size());
+        match (self.frame, run, line) {
+            (Some((texture, size)), run, line) => {
+                let strip = line.map_or(0.0, |line| line.y);
+                let area = Rect::from_min_max(rect.min, pos2(rect.max.x, (rect.max.y - strip).max(rect.min.y)));
+                ui.draw().fill(&PaintShape::Rect(area, CornerRadius::ZERO), cx.style.backdrop);
+                let (target, uv) = frame_rect(area, size, self.fit);
+                ui.content_painter(cx).picture(texture, target, uv);
+                if let (Some(run), Some(line)) = (run, line) {
+                    let at = Rect::from_min_size(pos2(rect.center().x - line.x / 2.0, rect.max.y - line.y), line);
+                    ui.draw().text(at, &run);
                 }
             }
-            (None, Some(galley)) => {
-                let at = rect.center() - galley.size() / 2.0;
-                painter.galley(at, galley, format.color);
+            (None, Some(run), Some(line)) => {
+                ui.draw().text(Rect::from_center_size(rect.center(), line), &run);
             }
-            (None, None) => {}
+            (None, _, _) => {}
         }
-        response
+    }
+
+    fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
+        if let Some(text) = self.status_text() {
+            access.name(Name::Text(text.to_owned()));
+        }
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
     }
 }

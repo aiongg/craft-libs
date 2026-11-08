@@ -154,11 +154,11 @@ impl FrameRate {
     /// locale's digits and decimal mark). The unit ("fps") is the menu's word.
     // filmcraft: crates/time/src/lib.rs:282.
     #[cfg(feature = "ui")]
-    pub fn label(self, numbers: &craft_ui::localized::LocaleNumbers) -> String {
+    pub fn label(self, numbers: &craft_ui::runtime::env::Units) -> String {
         if self.den == 1 {
-            return numbers.format(self.num as f64, 0..=0);
+            return numbers.number(self.num as f64, 0..=0);
         }
-        numbers.format(self.as_f64(), 0..=3)
+        numbers.number(self.as_f64(), 0..=3)
     }
 }
 
@@ -240,11 +240,11 @@ impl PixelAspect {
     /// Pixels (1.0)" and "Custom (0.9091)"; the words are the menu's.
     // filmcraft: crates/ui-egui/src/panels/sequence_settings.rs:204 `par_label`.
     #[cfg(feature = "ui")]
-    pub fn ratio_label(self, numbers: &craft_ui::localized::LocaleNumbers) -> String {
+    pub fn ratio_label(self, numbers: &craft_ui::runtime::env::Units) -> String {
         if self.num == self.den || self.den == 0 {
-            return numbers.format(1.0, 1..=1);
+            return numbers.number(1.0, 1..=1);
         }
-        numbers.format(self.as_f64(), 4..=4)
+        numbers.number(self.as_f64(), 4..=4)
     }
 }
 

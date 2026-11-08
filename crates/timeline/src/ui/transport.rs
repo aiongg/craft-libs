@@ -1,20 +1,20 @@
-//! A monitor's transport bar and the compact media controls (N1.06).
+//! A monitor's transport bar and the compact media controls.
 
-use super::style::TimelineStyle;
-use craft_theme::ControlSize;
-use craft_ui::canvas::Orientation;
-use craft_ui::controls::{Button, Checkbox, IconButton, Slider};
-use craft_ui::direction;
-use craft_ui::edit::EditEvent;
-use craft_ui::icons::Icon;
-use craft_ui::localized::{Labels as _, LocaleNumbers};
-use craft_ui::patterns::{Toolbar, ToolbarItem};
-use craft_ui::popover::{Popover, PopoverAnchor};
-use craft_ui::primitives::Corner;
-use craft_ui::theme::{StrokeExt as _, ToEgui as _, Tokens, TokensOf as _, role_format, scale, tabular};
-use egui::accesskit::Role;
-use egui::text::LayoutJob;
-use egui::{AsIdSalt, IdSalt, Layout, Rect, Response, Sense, Ui, UiBuilder, vec2};
+#[cfg(feature = "screen-testing")]
+mod stories;
+
+use craft_behavior::{EditEvent, IconId};
+use craft_ui::bars::{Bar, BarKind};
+use craft_ui::buttons::{Button, IconButton, ToggleButton};
+use craft_ui::choice::Checkbox;
+use craft_ui::contract::{Bind, Held, NoValue, Outcome, Pattern, PopupKind, Props, Show as _, ShowContainer as _, clicked};
+use craft_ui::display::{Divider, Text};
+use craft_ui::popover::Popover;
+use craft_ui::runtime::env::{Env, Label};
+use craft_ui::runtime::memory::Remember as _;
+use craft_ui::style::TypeRole;
+use craft_ui::value_drag::Slider;
+use egui::{Response, Ui};
 
 /// How far the arrows and the seek keys move the position, in seconds.
 const NUDGE: f64 = 0.25;
@@ -22,7 +22,7 @@ const NUDGE: f64 = 0.25;
 craft_ui::words! {
     /// The buttons' tooltips and names, English by default (FilmCraft's, with Premiere's keys).
     #[non_exhaustive]
-    pub struct TransportLabels {
+    pub struct TransportWords {
         add_marker: "transport.addMarker" = "Add Marker (M)";
         mark_in: "transport.markIn" = "Mark In (I)";
         mark_out: "transport.markOut" = "Mark Out (O)";
@@ -44,14 +44,14 @@ craft_ui::words! {
         forward_quarter: "transport.forwardQuarter" = "Forward 0.25 seconds";
         seek: "transport.seek" = "Seek";
         toolbar: "transport.toolbar" = "Transport";
-        more: "transport.more" = "More transport controls";
         media_controls: "transport.mediaControls" = "Media controls";
     }
 }
 
-/// A transport button. The app's own buttons (Toggle Proxies, a camera angle) are `Custom`
-/// with an icon and a label in the app's words.
+/// A transport button. The app's own buttons (Toggle Proxies, a camera angle) are `Custom` with an icon and a label
+/// in the app's words.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum TransportButton {
     /// Add a marker at the playhead.
     AddMarker,
@@ -82,19 +82,19 @@ pub enum TransportButton {
     /// A toggle; shown pressed while on.
     Loop,
     /// An app-defined button.
+    #[non_exhaustive]
     Custom {
         /// The button's identity, to tell it from other custom buttons.
         id: String,
         /// The button's icon.
-        icon: Icon,
+        icon: IconId,
         /// The tooltip and accessible name, in the app's words.
         label: String,
     },
 }
 
 impl TransportButton {
-    /// Premiere's Program monitor row; FilmCraft adds Toggle Proxies as a custom button before
-    /// Loop (`monitor.rs:1022`).
+    /// Premiere's Program monitor row; FilmCraft adds Toggle Proxies as a custom button before Loop.
     pub const PROGRAM: [TransportButton; 12] = [
         TransportButton::AddMarker,
         TransportButton::MarkIn,
@@ -110,7 +110,7 @@ impl TransportButton {
         TransportButton::Loop,
     ];
 
-    /// Premiere's Source monitor row (`monitor.rs:1007`).
+    /// Premiere's Source monitor row.
     pub const SOURCE: [TransportButton; 11] = [
         TransportButton::AddMarker,
         TransportButton::MarkIn,
@@ -124,210 +124,74 @@ impl TransportButton {
         TransportButton::Overwrite,
         TransportButton::ExportFrame,
     ];
-}
 
-impl TransportButton {
-    /// The button's icon.
-    pub(super) fn icon(&self, playing: bool) -> Icon {
+    /// An app-defined button `id` showing `icon`, named `label`.
+    pub fn custom(id: impl Into<String>, icon: IconId, label: impl Into<String>) -> Self {
+        TransportButton::Custom { id: id.into(), icon, label: label.into() }
+    }
+
+    /// The button's icon; Play shows as Pause while `playing`.
+    pub fn icon(&self, playing: bool) -> IconId {
         match self {
-            Self::AddMarker => Icon::Flag,
-            Self::MarkIn => Icon::MarkIn,
-            Self::MarkOut => Icon::MarkOut,
-            Self::GoToIn => Icon::ChevronsLeft,
-            Self::StepBack => Icon::StepBack,
-            Self::PlayStop if playing => Icon::Pause,
-            Self::PlayStop => Icon::Play,
-            Self::StepForward => Icon::StepForward,
-            Self::GoToOut => Icon::ChevronsRight,
-            Self::Insert => Icon::InsertClip,
-            Self::Overwrite => Icon::OverwriteClip,
-            Self::Lift => Icon::LiftClip,
-            Self::Extract => Icon::ExtractClip,
-            Self::ExportFrame => Icon::Image,
-            Self::Loop => Icon::Refresh,
-            Self::Custom { icon, .. } => *icon,
+            Self::AddMarker => IconId::new("flag"),
+            Self::MarkIn => IconId::new("mark_in"),
+            Self::MarkOut => IconId::new("mark_out"),
+            Self::GoToIn => IconId::new("chevrons_left"),
+            Self::StepBack => IconId::new("step_back"),
+            Self::PlayStop if playing => IconId::new("pause"),
+            Self::PlayStop => IconId::new("play"),
+            Self::StepForward => IconId::new("step_forward"),
+            Self::GoToOut => IconId::new("chevrons_right"),
+            Self::Insert => IconId::new("insert_clip"),
+            Self::Overwrite => IconId::new("overwrite_clip"),
+            Self::Lift => IconId::new("lift_clip"),
+            Self::Extract => IconId::new("extract_clip"),
+            Self::ExportFrame => IconId::new("image"),
+            Self::Loop => IconId::new("refresh"),
+            Self::Custom { icon, .. } => icon.clone(),
         }
     }
 
-    fn label<'a>(&'a self, labels: &'a TransportLabels) -> &'a str {
+    fn label<'a>(&'a self, words: &'a TransportWords) -> &'a str {
         match self {
-            Self::AddMarker => &labels.add_marker,
-            Self::MarkIn => &labels.mark_in,
-            Self::MarkOut => &labels.mark_out,
-            Self::GoToIn => &labels.go_to_in,
-            Self::StepBack => &labels.step_back,
-            Self::PlayStop => &labels.play_stop,
-            Self::StepForward => &labels.step_forward,
-            Self::GoToOut => &labels.go_to_out,
-            Self::Insert => &labels.insert,
-            Self::Overwrite => &labels.overwrite,
-            Self::Lift => &labels.lift,
-            Self::Extract => &labels.extract,
-            Self::ExportFrame => &labels.export_frame,
-            Self::Loop => &labels.loop_playback,
-            Self::Custom { label, .. } => label,
+            Self::AddMarker => words.add_marker.as_str(),
+            Self::MarkIn => words.mark_in.as_str(),
+            Self::MarkOut => words.mark_out.as_str(),
+            Self::GoToIn => words.go_to_in.as_str(),
+            Self::StepBack => words.step_back.as_str(),
+            Self::PlayStop => words.play_stop.as_str(),
+            Self::StepForward => words.step_forward.as_str(),
+            Self::GoToOut => words.go_to_out.as_str(),
+            Self::Insert => words.insert.as_str(),
+            Self::Overwrite => words.overwrite.as_str(),
+            Self::Lift => words.lift.as_str(),
+            Self::Extract => words.extract.as_str(),
+            Self::ExportFrame => words.export_frame.as_str(),
+            Self::Loop => words.loop_playback.as_str(),
+            Self::Custom { label, .. } => label.as_str(),
         }
     }
 }
 
-/// The buttons a monitor's row leaves out, chosen in its button editor; the app saves one per
-/// monitor (Premiere keeps the Program and Source rows apart).
+/// The buttons a monitor's row leaves out, chosen in its button editor; the app saves one per monitor (Premiere keeps
+/// the Program and Source rows apart).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct TransportBarSettings {
     /// The buttons left out of the row.
     pub hidden: Vec<TransportButton>,
 }
 
-/// A monitor's transport row (Premiere's, as FilmCraft draws it), through the kernel's
-/// horizontal [`Toolbar`]: `size.control.md` squares centred under the picture, Pause in place of Play
-/// while playing, Loop pressed while on, and a "+" button editor at the right (a popover with a
-/// [`Checkbox`] per button and Reset) when the row has room.
-///
-/// - Keyboard and AccessKit are the toolbar's: a `Toolbar` whose buttons are named by their
-///   tooltips; Space and Enter press. The keys in the tooltips (Space, I, O, Left, Right…) are
-///   the app's shortcuts, not handled here.
-/// - Buttons in [`TransportBarSettings::hidden`] are left out; the editor changes the settings
-///   and sets [`TransportBarOutput::settings_changed`].
-pub struct TransportBar<'a> {
-    id_salt: IdSalt,
-    buttons: &'a [TransportButton],
-    settings: Option<&'a mut TransportBarSettings>,
-    playing: bool,
-    looping: bool,
-    editable: bool,
-    labels: Option<TransportLabels>,
-}
-
-impl<'a> TransportBar<'a> {
-    /// A row of `buttons`, in order.
-    pub fn new(id_salt: impl AsIdSalt, buttons: &'a [TransportButton]) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), buttons, settings: None, playing: false, looping: false, editable: true, labels: None }
-    }
-
-    /// Whether playback is running; Play shows as Pause while it is.
-    pub fn playing(mut self, playing: bool) -> Self {
-        self.playing = playing;
-        self
-    }
-
-    /// Whether Loop is on; the Loop button shows pressed.
-    pub fn looping(mut self, on: bool) -> Self {
-        self.looping = on;
-        self
-    }
-
-    /// The row's saved settings; without them every button shows and the editor is off.
-    pub fn settings(mut self, settings: &'a mut TransportBarSettings) -> Self {
-        self.settings = Some(settings);
-        self
-    }
-
-    /// Show the "+" button editor (on by default).
-    pub fn editable(mut self, on: bool) -> Self {
-        self.editable = on;
-        self
-    }
-
-    /// The tooltip words; `TransportLabels::of` when not set.
-    pub fn labels(mut self, labels: TransportLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    /// Show the row and report the button pressed.
-    // filmcraft: crates/ui-egui/src/panels/monitor.rs:1003 `transport`, `:1146`
-    // `transport_button`, `:1000` `TRANSPORT_BUTTON`.
-    pub fn show(self, ui: &mut Ui) -> TransportBarOutput {
-        let Self { id_salt, buttons, mut settings, playing, looping, editable, labels } = self;
-        let labels = labels.unwrap_or_else(|| TransportLabels::of(ui));
-        let tokens = Tokens::of(ui);
-        let side = tokens.size.control.md;
-        let toolbar = Toolbar::style(&tokens);
-        let id = ui.make_persistent_id(id_salt);
-        let hidden: Vec<TransportButton> = settings.as_ref().map(|s| s.hidden.clone()).unwrap_or_default();
-        let shown: Vec<&TransportButton> = buttons.iter().filter(|button| !hidden.contains(button)).collect();
-
-        let (row, response) = ui.allocate_exact_size(vec2(ui.available_width(), side), Sense::hover());
-        let rtl = direction::is_rtl(ui);
-        let with_editor = editable && settings.is_some() && row.width() >= side;
-        let editor_rect = Rect::from_min_size(if rtl { row.left_top() } else { row.right_top() - vec2(side, 0.0) }, vec2(side, side));
-        let mut bar_rect = row;
-        if with_editor {
-            if rtl {
-                bar_rect.min.x = editor_rect.right();
-            } else {
-                bar_rect.max.x = editor_rect.left();
-            }
-        }
-        // The buttons sit centred in the room the editor leaves.
-        let count = shown.len() as f32;
-        let natural = count * side + (count - 1.0).max(0.0) * toolbar.gap;
-        let inset = ((bar_rect.width() - natural) / 2.0).max(0.0);
-        let bar_rect = bar_rect.shrink2(vec2(inset, 0.0));
-
-        let mut on = looping;
-        let mut pressed = None;
-        {
-            let mut items: Vec<ToolbarItem<'_>> = Vec::with_capacity(shown.len());
-            let mut toggle = Some(&mut on);
-            for button in &shown {
-                let item = ToolbarItem::new(button.icon(playing), button.label(&labels));
-                items.push(match (button, toggle.take()) {
-                    (TransportButton::Loop, Some(on)) => item.toggle(on),
-                    (_, other) => {
-                        toggle = other;
-                        item
-                    }
-                });
-            }
-            let mut bar = ui.new_child(UiBuilder::new().max_rect(bar_rect));
-            let out = Toolbar::new(id.with("bar"), Orientation::Horizontal)
-                .label(labels.toolbar.as_str())
-                .button_size(side)
-                .more_label(labels.more.as_str())
-                .overflow(true)
-                .group(items)
-                .show(&mut bar);
-            if let Some((_, item)) = out.clicked {
-                pressed = shown.get(item).map(|button| (*button).clone());
-            }
-        }
-
-        let mut settings_changed = false;
-        if with_editor && let Some(settings) = settings.take() {
-            let open_key = id.with("editor-open");
-            let mut open = ui.data(|d| d.get_temp::<bool>(open_key)).unwrap_or(false);
-            let toggle = IconButton::new(Icon::Plus, labels.button_editor.as_str()).with_id(id.with("editor")).show_at(ui, editor_rect);
-            if toggle.clicked() {
-                open = !open;
-            }
-            Popover::new(id.with("editor-popover"), PopoverAnchor::Control(toggle.clone()))
-                .toggle(toggle.id)
-                .label(labels.button_editor.as_str())
-                .show(ui, &mut open, |ui, _| {
-                    for (at, button) in buttons.iter().enumerate() {
-                        let mut visible = !settings.hidden.contains(button);
-                        if Checkbox::bool(button.label(&labels), &mut visible).id_salt(at).show(ui).response.changed() {
-                            settings.hidden.retain(|hidden| hidden != button);
-                            if !visible {
-                                settings.hidden.push(button.clone());
-                            }
-                            settings_changed = true;
-                        }
-                    }
-                    ui.separator();
-                    if ui.add(Button::new(labels.reset.as_str())).clicked() {
-                        settings_changed |= !settings.hidden.is_empty();
-                        settings.hidden.clear();
-                    }
-                });
-            ui.data_mut(|d| d.insert_temp(open_key, open));
-        }
-        TransportBarOutput { response, pressed, settings_changed }
+impl TransportBarSettings {
+    /// Settings that leave out `hidden`.
+    pub fn new(hidden: Vec<TransportButton>) -> Self {
+        TransportBarSettings { hidden }
     }
 }
 
 /// What the transport row did this pass.
+#[derive(Debug)]
+#[non_exhaustive]
 #[must_use]
 pub struct TransportBarOutput {
     /// The row's response, for hover and focus.
@@ -338,123 +202,185 @@ pub struct TransportBarOutput {
     pub settings_changed: bool,
 }
 
-/// PowerPoint's media controls under a video or sound on a slide (DeckCraft): play / pause,
-/// back and forward a quarter second, a seek track with the trim marks, and the time
-/// (`1:05.25` style in the mono face, digits through `LocaleNumbers`). The seek track is the
-/// kernel's [`Slider`] (one Tab stop; Left / Right a quarter
-/// second, Home / End) reporting an `EditEvent<f64>` gesture in seconds; the buttons are
-/// [`IconButton`] Tab stops. A press on the bar never reaches
-/// the canvas under it. AccessKit: the bar is a named toolbar (`TransportLabels::media_controls`);
-/// the slider's value text is the time; the buttons are named by [`TransportLabels`].
-pub struct MediaControls {
-    id_salt: IdSalt,
-    position: f64,
-    duration: f64,
-    playing: bool,
-    trim: Option<(f64, f64)>,
-    labels: Option<TransportLabels>,
+impl Outcome for TransportBarOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
 }
 
-impl MediaControls {
-    /// At `position` of `duration` seconds.
-    pub fn new(id_salt: impl AsIdSalt, position: f64, duration: f64) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), position, duration, playing: false, trim: None, labels: None }
-    }
+/// Whether the button editor's popover is open.
+#[derive(Clone, Debug, Default)]
+struct EditorOpen(bool);
 
+/// A monitor's transport row (Premiere's, as FilmCraft draws it): a tool `Bar` of icon buttons, Pause in place of
+/// Play while playing, Loop pressed while on, and with `editable` a "+" button editor at the end (a popover with a
+/// checkbox per button and Reset).
+///
+/// - Keyboard and AccessKit are the bar's: buttons named by their tooltips, Space and Enter press. The keys in the
+///   tooltips (Space, I, O, Left, Right) are the app's shortcuts, not handled here.
+/// - Buttons in [`TransportBarSettings::hidden`] are left out; the editor changes the settings and sets
+///   [`TransportBarOutput::settings_changed`].
+#[derive(Pattern, Props)]
+pub struct TransportBar<'a> {
+    label: Label,
+    buttons: &'a [TransportButton],
+    /// The row's saved settings; without them every button shows and the editor is off.
+    #[prop(into)]
+    settings: Option<Bind<'a, TransportBarSettings>>,
     /// Whether playback is running; Play shows as Pause while it is.
-    pub fn playing(mut self, playing: bool) -> Self {
-        self.playing = playing;
-        self
+    #[prop]
+    playing: bool,
+    /// Whether Loop is on; the Loop button shows pressed.
+    #[prop]
+    looping: bool,
+    /// Shows the "+" button editor; on by default. The editor needs the row's settings.
+    #[prop]
+    editable: bool,
+}
+
+impl<'a> TransportBar<'a> {
+    /// A row named `label` of `buttons`, in order.
+    pub fn new(label: impl Into<Label>, buttons: &'a [TransportButton]) -> Self {
+        TransportBar { label: label.into(), buttons, settings: None, playing: false, looping: false, editable: true }
     }
 
-    /// The trimmed start and end (seconds), marked on the track in amber.
-    pub fn trim(mut self, start: f64, end: f64) -> Self {
-        self.trim = Some((start, end));
-        self
-    }
-
-    /// The tooltip and accessibility words; `TransportLabels::of` when not set.
-    pub fn labels(mut self, labels: TransportLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    /// Show the controls and report what the user did.
-    // deckcraft: crates/ui-egui/src/media.rs:472 `control_bar`, `:404` `clock`.
-    pub fn show(self, ui: &mut Ui) -> MediaControlsOutput {
-        let Self { id_salt, position, duration, playing, trim, labels } = self;
-        let labels = labels.unwrap_or_else(|| TransportLabels::of(ui));
-        let tokens = Tokens::of(ui);
-        let slider = Slider::style(&tokens, ControlSize::Md);
-        let numbers = LocaleNumbers::of(ui);
-        let id = ui.make_persistent_id(id_salt);
-        let playable = duration.is_finite() && duration > 0.0;
-        let position = if position.is_finite() { position.clamp(0.0, if playable { duration } else { 0.0 }) } else { 0.0 };
-
-        let text = clock(&numbers, position);
-        let format = tabular(role_format(&tokens, TimelineStyle::of(&tokens).transport_text, tokens.color.text.normal.to_egui()));
-        let galley = ui.fonts_mut(|fonts| fonts.layout_job(LayoutJob::single_section(text.clone(), format.clone())));
-        let side = IconButton::style(&tokens, ControlSize::Md).side;
-        let (row, response) = ui.allocate_exact_size(vec2(ui.available_width(), side), Sense::CLICK | Sense::DRAG);
-        let radius = Corner::Control.radius(&tokens);
-        ui.painter().rect_filled(row, radius, tokens.color.surface.panel.to_egui());
-
-        let mut out = MediaControlsOutput { response, toggle: false, nudge: None, seek: None };
-        let mut content = ui.new_child(
-            UiBuilder::new()
-                .max_rect(row)
-                .layout(Layout::left_to_right(egui::Align::Center))
-                .accessibility_role(Role::Toolbar)
-                .accessibility_label(labels.media_controls.clone()),
-        );
-        let ui = &mut content;
-        let play = if playing { Icon::Pause } else { Icon::Play };
-        out.toggle = ui.add(IconButton::new(play, labels.play_pause_media.as_str()).with_id(id.with("play"))).clicked();
-        if ui.add(IconButton::new(Icon::ChevronLeft, labels.back_quarter.as_str()).with_id(id.with("back"))).clicked() {
-            out.nudge = Some(-NUDGE);
-        }
-        if ui.add(IconButton::new(Icon::ChevronRight, labels.forward_quarter.as_str()).with_id(id.with("forward"))).clicked() {
-            out.nudge = Some(NUDGE);
-        }
-        let width = (ui.available_width() - galley.size().x - ui.spacing().item_spacing.x).max(0.0);
-        let range = if playable { 0.0..=duration } else { 0.0..=1.0 };
-        let seek = ui.add_enabled_ui(playable, |ui| {
-            Slider::new(id.with("seek"), labels.seek.as_str(), position, range).step(NUDGE).width(width).value_text(text.as_str()).show(ui)
-        });
-        out.seek = seek.inner.event;
-        if let (true, Some((start, end))) = (playable, trim) {
-            let rect = seek.inner.response.rect;
-            let (x0, x1) = (rect.left() + slider.thumb_width / 2.0, rect.right() - slider.thumb_width / 2.0);
-            let stroke = scale::Stroke::Hairline.egui(ui.ctx(), tokens.color.status.warn.fg.to_egui());
-            for t in [start, end].into_iter().filter(|t| *t > 0.0 && *t < duration) {
-                let x = egui::lerp(x0..=x1, (t / duration) as f32);
-                let half = slider.thumb / 2.0;
-                ui.painter().line_segment([egui::pos2(x, rect.center().y - half), egui::pos2(x, rect.center().y + half)], stroke);
+    /// Shows the row and reports the button pressed.
+    pub fn show(self, ui: &mut Ui) -> TransportBarOutput {
+        let TransportBar { label, buttons, settings, playing, looping, editable } = self;
+        let words = Env::of(ui).words::<TransportWords>();
+        let mut held = settings.map(Held::new);
+        let (mut pressed, mut changed) = (None, false);
+        let shown = Bar::new(label.clone(), BarKind::Tool).show(ui, |ui, cx| {
+            let before = held.as_mut().and_then(|held| held.read(cx)).unwrap_or_default();
+            let mut next = before.clone();
+            for button in buttons.iter().filter(|button| !before.hidden.contains(button)) {
+                let name = button.label(&words).to_owned();
+                if *button == TransportButton::Loop {
+                    let mut on = looping;
+                    let edit = ToggleButton::new(name, Bind::bound(&mut on)).icon(button.icon(playing)).icon_only().show(ui);
+                    if edit.event.is_some() {
+                        pressed = Some(button.clone());
+                    }
+                } else if clicked(&IconButton::new(button.icon(playing)).label(name).show(ui)) {
+                    pressed = Some(button.clone());
+                }
             }
-        }
-        let (label, _) = ui.allocate_exact_size(galley.size(), Sense::hover());
-        ui.painter().galley(label.min, galley, format.color);
-        out
+            if editable && held.is_some() {
+                let opener = IconButton::new(IconId::new("plus")).label(words.button_editor.clone()).popup(PopupKind::Dialog).show(ui);
+                let mut open = cx.keep::<EditorOpen>().0;
+                if clicked(&opener) {
+                    open = !open;
+                }
+                Popover::new(words.button_editor.clone(), Bind::bound(&mut open)).opened_by(&opener).show(ui, |ui, _| {
+                    for button in buttons {
+                        let mut visible = !next.hidden.contains(button);
+                        let edit = Checkbox::new(Bind::bound(&mut visible)).label(button.label(&words).to_owned()).show(ui);
+                        if edit.event.is_some() {
+                            next.hidden.retain(|hidden| hidden != button);
+                            if !visible {
+                                next.hidden.push(button.clone());
+                            }
+                        }
+                    }
+                    Divider::horizontal().show(ui);
+                    if clicked(&Button::new(words.reset.clone()).show(ui)) {
+                        next.hidden.clear();
+                    }
+                });
+                cx.keep::<EditorOpen>().0 = open;
+            }
+            if next != before {
+                changed = true;
+                if let Some(held) = held.as_mut() {
+                    held.write(cx, &before, next, label.as_str());
+                }
+            }
+        });
+        TransportBarOutput { response: shown.output.response, pressed, settings_changed: changed }
     }
 }
 
 /// What the media controls did this pass.
+#[derive(Debug)]
+#[non_exhaustive]
 #[must_use]
 pub struct MediaControlsOutput {
     /// The controls' response, for hover and focus.
     pub response: Response,
     /// Play or Pause was pressed.
     pub toggle: bool,
-    /// −0.25 or +0.25 seconds.
+    /// -0.25 or +0.25 seconds.
     pub nudge: Option<f64>,
     /// A drag of the position slider, in seconds, as one gesture.
     pub seek: Option<EditEvent<f64>>,
 }
 
+impl Outcome for MediaControlsOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// PowerPoint's media controls under a video or sound on a slide: play or pause, back and forward a quarter second,
+/// a seek track with the trim marks, and the time (`1:05.25` style in the mono role, digits through the units). The
+/// controls are a named toolbar `Bar`, so a press on them never reaches the canvas under them. The seek track is a
+/// `Slider` (one Tab stop; Left and Right a quarter second, Home and End) reporting an `EditEvent<f64>` gesture in
+/// seconds.
+#[derive(Pattern, Props)]
+pub struct MediaControls {
+    label: Label,
+    position: f64,
+    duration: f64,
+    /// Whether playback is running; Play shows as Pause while it is.
+    #[prop]
+    playing: bool,
+    /// The trimmed start and end, in seconds, marked on the track.
+    #[prop(into, quantity = "seconds")]
+    trim: Option<(f64, f64)>,
+}
+
+impl MediaControls {
+    /// Controls named `label` at `position` of `duration` seconds.
+    pub fn new(label: impl Into<Label>, position: f64, duration: f64) -> Self {
+        MediaControls { label: label.into(), position, duration, playing: false, trim: None }
+    }
+
+    /// Shows the controls and reports what the user did.
+    pub fn show(self, ui: &mut Ui) -> MediaControlsOutput {
+        let MediaControls { label, position, duration, playing, trim } = self;
+        let env = Env::of(ui);
+        let words = env.words::<TransportWords>();
+        let units = env.units();
+        let playable = duration.is_finite() && duration > 0.0;
+        let position = if position.is_finite() { position.clamp(0.0, if playable { duration } else { 0.0 }) } else { 0.0 };
+        let (mut toggle, mut nudge, mut seek) = (false, None, None);
+        let shown = Bar::new(label, BarKind::Tool).show(ui, |ui, _| {
+            let play = IconId::new(if playing { "pause" } else { "play" });
+            toggle = clicked(&IconButton::new(play).label(words.play_pause_media.clone()).show(ui));
+            if clicked(&IconButton::new(IconId::new("chevron_left")).label(words.back_quarter.clone()).show(ui)) {
+                nudge = Some(-NUDGE);
+            }
+            if clicked(&IconButton::new(IconId::new("chevron_right")).label(words.forward_quarter.clone()).show(ui)) {
+                nudge = Some(NUDGE);
+            }
+            let range = if playable { 0.0..=duration } else { 0.0..=1.0 };
+            let marks: Vec<f64> = trim.filter(|_| playable).map(|(start, end)| [start, end]).into_iter().flatten().collect();
+            let edit = Slider::new(Bind::given(position), range).step(NUDGE).marks(&marks).enabled(playable).label(words.seek.clone()).show(ui);
+            seek = edit.event;
+            Text::new(clock(&units, position)).role(TypeRole::Mono).show(ui);
+        });
+        MediaControlsOutput { response: shown.output.response, toggle, nudge, seek }
+    }
+}
+
 /// `1:05.25`: minutes, seconds and hundredths, in the locale's digits.
-fn clock(numbers: &LocaleNumbers, seconds: f64) -> String {
+fn clock(units: &craft_ui::runtime::env::Units, seconds: f64) -> String {
     let hundredths = (seconds.max(0.0) * 100.0).round() as u64;
     let (minutes, rest) = (hundredths / 6000, (hundredths % 6000) as f64 / 100.0);
-    let pad = if rest < 10.0 { numbers.format(0.0, 0..=0) } else { String::new() };
-    format!("{}:{pad}{}", numbers.format(minutes as f64, 0..=0), numbers.format(rest, 2..=2))
+    let pad = if rest < 10.0 { units.number_ungrouped(0.0, 0..=0) } else { String::new() };
+    format!("{}:{pad}{}", units.number_ungrouped(minutes as f64, 0..=0), units.number_ungrouped(rest, 2..=2))
 }

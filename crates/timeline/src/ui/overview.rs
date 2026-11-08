@@ -1,58 +1,64 @@
 //! The whole timeline in miniature (N1.13).
 
-use craft_ui::localized::Labels as _;
-use craft_ui::primitives::Corner;
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, scale};
-use egui::accesskit::Role;
-use egui::{AsIdSalt, Color32, IdSalt, Rect, Response, Sense, Stroke, StrokeKind, Ui, WidgetInfo, pos2, vec2};
+#[cfg(feature = "screen-testing")]
+mod stories;
 
-use super::style::TimelineStyle;
+use craft_behavior::{Axis, Metrics, PointerButton, PressPhase, Sense};
+use craft_ui::contract::{
+    Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, Outcome, PaintUi, Pointer as _, Props as _, Role,
+};
+use craft_ui::primitives::{PaintShape, StrokeWidth};
+use craft_ui::runtime::env::Label;
+use craft_ui::style::{ComponentStyle, DataColor, StyleColor, StyleCx};
+use egui::{Color32, CornerRadius, Pos2, Rect, Response, Vec2, pos2};
+
 use crate::time::{Tick, TimeRange, TimeView};
 
 /// The overview shows this long past the content's end (SoundCraft `universe.rs:16`).
 const TAIL_SECONDS: f64 = 10.0;
-/// The room a run leaves above and below in its row, and the least width of a run
-/// (SoundCraft `universe.rs:25`, `:26`). Drawing details of the miniature (decisions §3.4).
+/// The room a run leaves above and below in its row, and the least width of a run, in points
+/// (SoundCraft `universe.rs:25`, `:26`).
 const RUN_INSET: f32 = 0.5;
 const RUN_MIN_WIDTH: f32 = 1.0;
+/// The overview's height, in control heights.
+const HEIGHT_IN_CONTROLS: f32 = 1.5;
 
 /// The time the overview spans: the content's end plus the tail.
 fn overview_total(end: Tick) -> Tick {
     end + Tick::from_seconds_f64(TAIL_SECONDS)
 }
 
-/// A run of touching clips of one colour on one track, in overview coordinates.
+/// A run of touching clips of one colour on one track, in the overview's own coordinates: the origin is the
+/// top-left corner of the overview.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct OverviewRun {
-    /// The run's place inside [`TimelineOverview::area`].
+    /// The run's place inside the overview.
     pub rect: Rect,
     /// The run's fill colour.
     pub color: Color32,
 }
 
-/// The overview's blocks for `tracks` (each a list of clip ranges and colours, in time order)
-/// as [`TimelineOverview`] draws them in `outer`, the rect the widget is shown in: the
-/// widget's [`area`](TimelineOverview::area) over the content's `end` plus the tail the
-/// overview adds. One row per track, each clip at least one point wide, and
-/// neighbours of one colour that touch or overlap merged into one run, which covers exactly the
-/// same pixels in the same order (a drum edit holds tens of thousands of clips under a point
-/// wide). The app caches the result per document revision and rect.
+/// The overview's blocks for `tracks` (each a list of clip ranges and colours, in time order) as
+/// [`TimelineOverview`] draws them in an overview `size` points across, over the content's `end` plus the tail the
+/// overview adds. One row per track, each clip at least one point wide, and neighbours of one colour that touch or
+/// overlap merged into one run, which covers exactly the same pixels in the same order (a drum edit holds tens of
+/// thousands of clips under a point wide). The app caches the result per document revision and size.
 // soundcraft: crates/ui-egui/src/edit_window/universe.rs:15 `universe_runs`.
-pub fn overview_runs(tracks: &[Vec<(TimeRange, Color32)>], end: Tick, outer: Rect, tokens: &UiTokens) -> Vec<OverviewRun> {
-    let rect = TimelineOverview::area(outer, tokens);
+pub fn overview_runs(tracks: &[Vec<(TimeRange, Color32)>], end: Tick, size: Vec2) -> Vec<OverviewRun> {
     let total = overview_total(end).0.max(1) as f32;
-    let row = (rect.height() / tracks.len().max(1) as f32).max(1.0);
+    let row = (size.y / tracks.len().max(1) as f32).max(1.0);
     let mut runs = Vec::new();
     for (index, clips) in tracks.iter().enumerate() {
-        let y = rect.min.y + index as f32 * row;
+        let y = index as f32 * row;
         let block = |from: f32, to: f32, color: Color32| OverviewRun {
             rect: Rect::from_min_max(pos2(from, y + RUN_INSET), pos2(to, y + row - RUN_INSET)),
             color,
         };
         let mut run: Option<(f32, f32, Color32)> = None;
         for &(range, color) in clips {
-            let from = rect.min.x + range.start.0 as f32 / total * rect.width();
-            let to = (rect.min.x + range.end().0 as f32 / total * rect.width()).max(from + RUN_MIN_WIDTH);
+            let from = range.start.0 as f32 / total * size.x;
+            let to = (range.end().0 as f32 / total * size.x).max(from + RUN_MIN_WIDTH);
             run = match run {
                 Some((a, b, held)) if held == color && from >= a && from <= b => Some((a, b.max(to), held)),
                 Some((a, b, held)) => {
@@ -69,96 +75,159 @@ pub fn overview_runs(tracks: &[Vec<(TimeRange, Color32)>], end: Tick, outer: Rec
     runs
 }
 
-/// Pro Tools' Universe (SoundCraft): the runs, the visible window as a box (1.5-point outline
-/// in the `timeline.overview_view` colour), the playhead while playing; a click or drag centres
-/// the window at the pointer, changing `view.start` directly. Total time is the content end
-/// plus 10 seconds. Not a Tab stop (a pointer-only `Sense::DRAG`; the panel scrolls by keys); AccessKit: an `Image` named by
-/// [`TimelineLabels::overview`](super::TimelineLabels::overview).
+/// The style of the overview.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+#[non_exhaustive]
+pub struct OverviewStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+    /// The outline of the box that marks the visible window.
+    window: StyleColor,
+    /// The playhead's line.
+    playhead: StyleColor,
+    /// The overview's height.
+    height: f32,
+}
+
+/// Pro Tools' Universe (SoundCraft): the runs, the visible window as a box, the playhead while playing; a click or
+/// drag centres the window at the pointer, changing the view's start. Total time is the content end plus 10
+/// seconds. Not a Tab stop (pointer-only; the time area scrolls from the keyboard); AccessKit: an image named by
+/// the overview's label.
+#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
 pub struct TimelineOverview<'a> {
-    id_salt: IdSalt,
+    #[common]
+    common: Common,
     runs: &'a [OverviewRun],
-    view: &'a mut TimeView,
-    view_width: f32,
+    view: Bind<'a, TimeView>,
     end: Tick,
+    /// The width of the timeline's time area, in points: the width of the window box.
+    #[prop(quantity = "points")]
+    shown_width: f32,
+    /// The playhead to draw; none draws none.
+    #[prop]
     playhead: Option<Tick>,
-    labels: Option<super::TimelineLabels>,
 }
 
 impl<'a> TimelineOverview<'a> {
-    /// `view_width`: the timeline's time area in points (for the box's width).
-    pub fn new(id_salt: impl AsIdSalt, runs: &'a [OverviewRun], view: &'a mut TimeView, view_width: f32, end: Tick) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), runs, view, view_width, end, playhead: None, labels: None }
+    /// An overview named `label` of `runs` over `end`, that edits `view`.
+    pub fn new(label: impl Into<Label>, runs: &'a [OverviewRun], view: Bind<'a, TimeView>, end: Tick) -> Self {
+        TimelineOverview { common: Common::new(), runs, view, end, shown_width: 0.0, playhead: None }.label(label)
     }
 
-    /// The accessibility words; `TimelineLabels::of` when not set.
-    pub fn labels(mut self, labels: super::TimelineLabels) -> Self {
-        self.labels = Some(labels);
-        self
+    /// The fraction of the overview's span the window covers.
+    fn shown_fraction(&self, view: &TimeView) -> f64 {
+        let seconds = f64::from(self.shown_width) / view.points_per_second.max(f64::EPSILON);
+        Tick::from_seconds_f64(seconds).0 as f64 / overview_total(self.end).0.max(1) as f64
     }
 
-    /// The playhead to draw; `None` draws none.
-    pub fn playhead(mut self, t: Option<Tick>) -> Self {
-        self.playhead = t;
-        self
+    /// The view that centres the window at `x`, on an overview in `rect`.
+    fn centred(&self, view: &TimeView, rect: Rect, x: f32) -> TimeView {
+        let at = f64::from((x - rect.min.x) / rect.width().max(f32::EPSILON));
+        let first = (at - self.shown_fraction(view) / 2.0).clamp(0.0, 1.0);
+        TimeView { start: Tick((first * overview_total(self.end).0.max(1) as f64).round() as i64), ..*view }
     }
 
-    /// Where the runs and the view box draw inside `outer`, the rect the widget is shown in
-    /// (SoundCraft `universe.rs:61`). [`overview_runs`] places its runs there.
-    pub fn area(outer: Rect, tokens: &UiTokens) -> Rect {
-        outer.shrink2(vec2(tokens.space.gap.stack, tokens.space.gap.inline))
+    /// The window box of `view`, in `rect`.
+    fn window(&self, view: &TimeView, rect: Rect) -> Rect {
+        let total = overview_total(self.end).0.max(1) as f64;
+        let first = (view.start.0 as f64 / total) as f32;
+        let last = first + self.shown_fraction(view) as f32;
+        Rect::from_min_max(pos2(rect.min.x + first * rect.width(), rect.min.y), pos2(rect.min.x + last.min(1.0) * rect.width(), rect.max.y))
     }
+}
 
-    /// Show the overview; a click or drag moves the view, and the response reports it.
-    // soundcraft: crates/ui-egui/src/edit_window/universe.rs:60 `universe`.
-    pub fn show(self, ui: &mut Ui) -> Response {
-        let Self { id_salt, runs, view, view_width, end, playhead, labels } = self;
-        let labels = labels.unwrap_or_else(|| super::TimelineLabels::of(ui));
-        let tokens = Tokens::of(ui);
-        let style = TimelineStyle::of(&tokens);
-        let enabled = ui.is_enabled();
-        let outer = ui.available_rect_before_wrap();
-        let area = Self::area(outer, &tokens);
-        let id = ui.make_persistent_id(id_salt);
-        let response = ui.interact(area, id, Sense::DRAG);
-        ui.advance_cursor_after_rect(outer);
-        response.widget_info(|| WidgetInfo::labeled(Role::Image, enabled, labels.overview.as_str()));
+impl Component for TimelineOverview<'_> {
+    const ROLE: Role = Role::IMAGE;
+    const OVERLAYS: bool = false;
+    type Style = OverviewStyle;
+    type Output = TimelineOverviewOutput;
 
-        let total = overview_total(end).0.max(1) as f64;
-        let to_fraction = |tick: Tick| (tick.0 as f64 / total) as f32;
-        let shown_seconds = f64::from(view_width.max(style.overview_view_min)) / view.points_per_second.max(f64::EPSILON);
-        let shown = to_fraction(Tick::from_seconds_f64(shown_seconds));
-        if enabled
-            && response.is_pointer_button_down_on()
-            && let Some(pos) = response.interact_pointer_pos()
-        {
-            let centred = ((pos.x - area.min.x) / area.width().max(f32::EPSILON) - shown / 2.0).clamp(0.0, 1.0);
-            view.start = Tick((f64::from(centred) * total).round() as i64);
+    fn style(cx: &StyleCx<'_>, _: TimelineOverviewStyleKey) -> OverviewStyle {
+        let tokens = cx.tokens;
+        OverviewStyle {
+            metrics: Metrics::new(),
+            window: cx.color(tokens.color.overlay.line),
+            playhead: cx.color(tokens.color.accent.solid),
+            height: cx.control().height * HEIGHT_IN_CONTROLS,
         }
+    }
 
-        let painter = ui.painter_at(outer);
-        let color = &tokens.color;
-        for run in runs {
-            painter.rect_filled(run.rect, egui::CornerRadius::ZERO, run.color);
+    fn sense(&self) -> Sense {
+        Sense::DRAG
+    }
+
+    fn fills(&self) -> Option<Axis> {
+        Some(Axis::X)
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(0.0, cx.style.height)
+    }
+
+    fn bind(&mut self) -> Option<BindMut<'_, TimeView>> {
+        Some(self.view.reborrow())
+    }
+
+    /// A press, a drag and the release centre the window at the pointer: one gesture from press to release.
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        let Some(view) = cx.value().copied() else { return };
+        let phase = cx.press().phase;
+        let (at, last): (Option<Pos2>, bool) = match phase {
+            PressPhase::Down { start, .. } if start.button == PointerButton::Primary => (Some(start.origin), false),
+            PressPhase::DragStart { pos, start, .. } | PressPhase::Drag { pos, start, .. } if start.button == PointerButton::Primary => {
+                (Some(pos), false)
+            }
+            PressPhase::Release { pos, start, .. } if start.button == PointerButton::Primary => (Some(pos), true),
+            _ => (None, false),
+        };
+        let Some(at) = at else { return };
+        if matches!(phase, PressPhase::Down { .. }) {
+            cx.begin();
         }
-        let first = to_fraction(view.start);
-        let last = first + shown;
-        let window = Rect::from_min_max(
-            pos2(area.min.x + first * area.width(), area.min.y - tokens.space.gap.tight),
-            pos2(area.min.x + last.min(1.0) * area.width(), area.max.y + tokens.space.gap.tight),
-        );
-        painter.rect_stroke(
-            window,
-            Corner::Control.radius(&tokens),
-            Stroke::new(scale::Stroke::W1_5.width(ui.pixels_per_point()), color.overlay.line.to_egui()),
-            StrokeKind::Outside,
-        );
-        if let Some(playhead) = playhead {
-            let x = area.min.x + to_fraction(playhead) * area.width();
-            painter.line_segment(
-                [pos2(x, area.min.y), pos2(x, area.max.y)],
-                Stroke::new(scale::Stroke::W1.width(ui.pixels_per_point()), color.accent.solid.to_egui()),
-            );
+        cx.propose(self.centred(&view, cx.rect, at.x));
+        if last {
+            cx.commit();
         }
-        response
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let Some(view) = cx.value().copied() else { return };
+        let (rect, style) = (cx.rect, cx.style);
+        let draw = ui.draw();
+        for run in self.runs {
+            let shape = PaintShape::Rect(run.rect.translate(rect.min.to_vec2()), CornerRadius::ZERO);
+            draw.data_fill(&shape, DataColor::new(run.color));
+        }
+        draw.stroke(&PaintShape::Rect(self.window(&view, rect), CornerRadius::ZERO), StrokeWidth::Medium, style.window);
+        if let Some(playhead) = self.playhead {
+            let total = overview_total(self.end).0.max(1) as f64;
+            let x = rect.min.x + (playhead.0 as f64 / total) as f32 * rect.width();
+            draw.stroke(&PaintShape::Path(vec![pos2(x, rect.min.y), pos2(x, rect.max.y)]), StrokeWidth::Thin, style.playhead);
+        }
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> TimelineOverviewOutput {
+        TimelineOverviewOutput { view: cx.edit_response() }
+    }
+}
+
+/// What the overview reports: the view its window was moved to.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct TimelineOverviewOutput {
+    /// The view: a click or drag centres the window, one gesture from press to release.
+    pub view: EditResponse<TimeView>,
+}
+
+impl Outcome for TimelineOverviewOutput {
+    type Value = TimeView;
+
+    fn response(&self) -> &Response {
+        &self.view.response
+    }
+
+    #[cfg(feature = "screen-testing")]
+    fn story_facts(&self) -> craft_ui::testing::StoryOutput {
+        self.view.story_facts()
     }
 }
