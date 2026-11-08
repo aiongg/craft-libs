@@ -820,6 +820,15 @@ pub struct SizeTokens {
     pub float: FloatSizes,
     /// The app's windows.
     pub window: WindowSizes,
+    /// The panes a dock splits its area into.
+    pub pane: PaneSizes,
+}
+
+/// The sizes of the panes of a dock's split, in logical pixels.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct PaneSizes {
+    /// The least extent of a pane along a split, and of a dock, before its panels' own limits.
+    pub least: f32,
 }
 
 /// The sizes of a floating dock window, in logical pixels.
