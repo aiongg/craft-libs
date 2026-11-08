@@ -7,4 +7,5 @@ mod ime;
 mod kit;
 mod linked;
 mod number;
+mod number_named;
 mod text_field;
