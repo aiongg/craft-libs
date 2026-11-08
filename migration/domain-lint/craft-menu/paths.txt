@@ -1,2 +1,0 @@
-crates/menu/src
-crates/menu/tests/it
