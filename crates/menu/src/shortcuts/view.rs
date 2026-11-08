@@ -13,7 +13,7 @@ use std::borrow::Cow;
 
 use craft_behavior::{ColumnWidth, DisplayOrder, ItemSource, SelectionChange};
 use craft_keymap::chord::Platform;
-use craft_ui::contract::{BodyCx, CollectionEvent, Props as _, ShowCollection as _, ShowContainer as _};
+use craft_ui::contract::{BodyCx, CollectionEvent, Props as _, Scroll, ShowCollection as _, ShowContainer as _};
 use craft_ui::layout_components::{Grid, Stack};
 use craft_ui::runtime::motion::Animate as _;
 use craft_ui::tabs::{Tab, TabKind, TabStrip};
@@ -38,7 +38,12 @@ pub(crate) fn body(ui: &mut Ui, cx: &mut BodyCx<'_>, env: &mut Env<'_>, state: &
         cx.wake_at(at);
     }
     if let Some(index) = app_tabs(ui, env, state) {
-        let changed = env.tabs.as_deref_mut().is_some_and(|tabs| tabs.draw(index, ui));
+        let changed = Stack::new()
+            .fill()
+            .scroll(Scroll::vertical())
+            .show(ui, |ui, _| env.tabs.as_deref_mut().is_some_and(|tabs| tabs.draw(index, ui)))
+            .inner
+            .unwrap_or(false);
         if changed {
             state.app_tab_changed();
         }
@@ -48,7 +53,7 @@ pub(crate) fn body(ui: &mut Ui, cx: &mut BodyCx<'_>, env: &mut Env<'_>, state: &
     let browsing = state.review.is_none();
     Stack::new().enabled(browsing).show(ui, |ui, cx| header::show(ui, cx, now, env, state));
     if !browsing {
-        review::show(ui, cx, env, state);
+        Stack::new().fill().scroll(Scroll::vertical()).show(ui, |ui, cx| review::show(ui, cx, env, state));
     } else {
         let idle = state.prompt.is_none();
         Stack::new().fill().enabled(idle).show(ui, |ui, cx| middle(ui, cx, now, env, state));

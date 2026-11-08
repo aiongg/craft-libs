@@ -499,6 +499,7 @@ fn frame(ui: &mut Ui, env: &mut Env<'_>, state: &mut DialogState) -> ShortcutsOu
         .resizable(true)
         .remember(SaveKey::new("craft_menu.shortcuts"))
         .outer_gesture(true)
+        .collection_body()
         .command_scope(sets::SetCommand::SCOPE)
         .close_on_enter(enter)
         .buttons(buttons)

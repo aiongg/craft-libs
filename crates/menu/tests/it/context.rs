@@ -46,7 +46,7 @@ fn a_secondary_click_opens_the_rows_and_a_click_on_one_fires_its_command() {
     fixture.click(&copy);
     fixture.settle();
     let fired = take_output(fixture.ctx()).fired;
-    assert_eq!(fired.iter().map(|fired| (fired.command.id.as_str(), fired.source)).collect::<Vec<_>>(), [("edit.copy", FireSource::Menu)]);
+    assert_eq!(fired.iter().map(|fired| (fired.command.id.as_str(), fired.source)).collect::<Vec<_>>(), [("edit.copy", FireSource::Pointer)]);
 }
 
 #[trial]

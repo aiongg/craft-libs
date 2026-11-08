@@ -9,7 +9,7 @@ use craft_ui::testing::trial;
 #[trial]
 fn a_binding_round_trips_through_its_text_and_a_bad_text_is_refused() {
     let codec = ChordCodec::new(Platform::Mac);
-    let binding = Binding::parse("Cmd+Shift+K K").expect("a binding");
+    let binding = Binding::parse("Cmd+Shift+K Cmd+Shift+K").expect("a binding");
     let text = codec.format(&Some(binding.clone()));
     assert_eq!(codec.parse(&text, &None), Ok(Some(binding)));
     assert_eq!(codec.format(&None), "");

@@ -3,7 +3,7 @@
 use craft_behavior::{Codec, NotAValue};
 use craft_keymap::{Binding, Platform};
 
-/// A binding's text: `Cmd+K`, `Cmd+K K`, or `Timeline: Space` with a scope. Empty text is no binding.
+/// A binding's text: `Cmd+K`, `Cmd+K Cmd+K`, or `Timeline: Space` with a scope. Empty text is no binding.
 ///
 /// The value is the whole binding, not the bare chord, because the typed field takes a scope prefix and a double
 /// press.
