@@ -5,8 +5,12 @@ use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Rect};
 use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Show as _, ShowContainer as _};
+use craft_ui::style::DataColor;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
+
+/// The layer colour of the frames.
+const LAYER: DataColor = DataColor::new(egui::Color32::from_rgb(0x2a, 0x7f, 0xff));
 
 /// The ascent of the line the marks sit on, points.
 const ASCENT: f64 = 12.0;
@@ -28,7 +32,7 @@ fn hidden_characters_and_extras(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     ];
     Canvas::new("Frames")
         .view(view)
-        .show(ui, |ui, body| TextFrameMarks::new("Frame marks", view, &frames).hidden_characters(&marks).show_at(ui, body.rect))
+        .show(ui, |ui, body| TextFrameMarks::new("Frame marks", view, &frames, LAYER).hidden_characters(&marks).show_at(ui, body.rect))
         .inner
         .map(StoryOutput::from)
         .unwrap_or_default()

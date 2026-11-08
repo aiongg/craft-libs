@@ -15,8 +15,25 @@ use egui::{Key, Modifiers, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
+/// A column's width at the start of the column tests, and the number of columns.
+const EQUAL: f64 = 1.0;
+const COLUMNS: usize = 4;
+
+/// A drag far past the end of the bar, points.
+const FAR: f32 = 10_000.0;
+
+/// A hundredth of the whole bar, the arrow key's step.
+const KEY_STEP: f64 = 0.01;
+
+/// 1.5 inches in points.
+const TOP: f64 = 1.5 * 72.0;
+
 /// Letter, in points.
 const LETTER: (f64, f64) = (612.0, 792.0);
+
+fn close(a: f64, b: f64) -> bool {
+    (a - b).abs() < 1e-6
+}
 
 fn rules() -> MarginRules {
     MarginRules::new(LETTER, PageEdges::new(Margins::uniform(72.0)))
@@ -80,10 +97,10 @@ fn ok_answers_the_edited_setup() {
     fixture.click(&top);
     fixture.type_text("1.5");
     fixture.key(Key::Enter, Modifiers::NONE);
-    assert!((edited.borrow().margins.top - 108.0).abs() < 1e-6, "1.5 inches typed in Top: {:?}", edited.borrow().margins);
+    assert!(close(edited.borrow().margins.top, TOP), "1.5 inches typed in Top: {:?}", edited.borrow().margins);
     let ok = fixture.by_label("OK").expect("the OK button");
     fixture.click(&ok);
-    assert_eq!(answered.borrow().as_ref().map(|setup| setup.margins.top), Some(108.0));
+    assert_eq!(answered.borrow().as_ref().map(|setup| setup.margins.top), Some(TOP));
 }
 
 #[trial]
@@ -108,7 +125,7 @@ fn landscape_turns_the_page() {
 
 #[trial]
 fn a_divider_pushes_the_columns_beyond_it() {
-    let widths = Rc::new(RefCell::new(vec![1.0, 1.0, 1.0, 1.0]));
+    let widths = Rc::new(RefCell::new(vec![EQUAL; COLUMNS]));
     let seen = Rc::clone(&widths);
     let mut fixture = Fixture::new(move |ui| {
         let mut current = seen.borrow().clone();
@@ -117,16 +134,16 @@ fn a_divider_pushes_the_columns_beyond_it() {
     });
     fixture.settle();
     let divider = fixture.by_label("Column 2 width").expect("the second divider");
-    fixture.drag(&divider, Vec2::new(10_000.0, 0.0));
+    fixture.drag(&divider, Vec2::new(FAR, 0.0));
     let widths = widths.borrow();
-    assert!((widths.iter().sum::<f64>() - 4.0).abs() < 1e-6, "the total stays: {widths:?}");
-    assert!((widths[0] - 1.0).abs() < 1e-6, "the column before the divider's pair is untouched: {widths:?}");
-    assert!(widths[1] > 1.0 && widths[2] < 1.0 && widths[3] < 1.0, "the columns beyond give way: {widths:?}");
+    assert!(close(widths.iter().sum::<f64>(), EQUAL * COLUMNS as f64), "the total stays: {widths:?}");
+    assert!(close(widths[0], EQUAL), "the column before the divider's pair is untouched: {widths:?}");
+    assert!(widths[1] > EQUAL && widths[2] < EQUAL && widths[3] < EQUAL, "the columns beyond give way: {widths:?}");
 }
 
 #[trial]
 fn an_arrow_key_moves_the_focused_divider_one_step() {
-    let widths = Rc::new(RefCell::new(vec![1.0, 1.0, 1.0, 1.0]));
+    let widths = Rc::new(RefCell::new(vec![EQUAL; COLUMNS]));
     let seen = Rc::clone(&widths);
     let mut fixture = Fixture::new(move |ui| {
         let mut current = seen.borrow().clone();
@@ -138,8 +155,8 @@ fn an_arrow_key_moves_the_focused_divider_one_step() {
     fixture.click(&divider);
     fixture.key(Key::ArrowRight, Modifiers::NONE);
     let widths = widths.borrow();
-    assert!((widths[0] - 1.04).abs() < 1e-3, "the first column grows by a hundredth of the whole: {widths:?}");
-    assert!((widths.iter().sum::<f64>() - 4.0).abs() < 1e-6, "the total stays: {widths:?}");
+    assert!(close(widths[0], EQUAL + KEY_STEP * EQUAL * COLUMNS as f64), "the first column grows by a hundredth of the whole: {widths:?}");
+    assert!(close(widths.iter().sum::<f64>(), EQUAL * COLUMNS as f64), "the total stays: {widths:?}");
 }
 
 #[trial]

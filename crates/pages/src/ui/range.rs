@@ -68,6 +68,7 @@ impl PageRangeFieldWords {
 /// The pages a field's text stands for, or why it stands for none: what [`PageRangeCodec`] reads text into, so the
 /// field's check can refuse the text with the error's message.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct PageSelection {
     /// The pages (0-based) the text names; empty while `error` is set.
     pub pages: Vec<usize>,
@@ -104,8 +105,8 @@ impl Codec for PageRangeCodec {
 
     fn parse(&self, text: &str, _: &PageSelection) -> Result<PageSelection, NotAValue> {
         Ok(match parse_pages(text, self.count) {
-            Ok(pages) => PageSelection { pages, error: None },
-            Err(error) => PageSelection { pages: Vec::new(), error: Some(error) },
+            Ok(pages) => PageSelection::of(&pages),
+            Err(error) => PageSelection { error: Some(error), ..PageSelection::default() },
         })
     }
 }

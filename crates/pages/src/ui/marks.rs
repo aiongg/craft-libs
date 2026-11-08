@@ -168,7 +168,6 @@ pub struct TextFrameMarks<'a> {
     #[prop]
     hidden_characters: &'a [PlacedMark],
     /// The layer colour the marks and outlines take.
-    #[prop]
     color: DataColor,
     /// The colour the ports are filled with.
     #[prop]
@@ -176,17 +175,9 @@ pub struct TextFrameMarks<'a> {
 }
 
 impl<'a> TextFrameMarks<'a> {
-    /// The extras of `frames` seen through `view`, named `label`.
-    pub fn new(label: impl Into<Label>, view: CanvasView, frames: &'a [FrameExtras]) -> Self {
-        TextFrameMarks {
-            common: Common::new(),
-            view,
-            frames,
-            hidden_characters: &[],
-            color: DataColor::new(egui::Color32::LIGHT_BLUE),
-            paper: DEFAULT_PAPER,
-        }
-        .label(label)
+    /// The extras of `frames` seen through `view`, named `label`, in the layer colour `color`.
+    pub fn new(label: impl Into<Label>, view: CanvasView, frames: &'a [FrameExtras], color: DataColor) -> Self {
+        TextFrameMarks { common: Common::new(), view, frames, hidden_characters: &[], color, paper: DEFAULT_PAPER }.label(label)
     }
 }
 

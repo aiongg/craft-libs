@@ -137,6 +137,20 @@ impl ZoneBands {
     }
 }
 
+/// The text of each section as the app prints it.
+pub struct ZoneText<'a>(Box<dyn Fn(ZoneAt) -> String + 'a>);
+
+impl<'a> ZoneText<'a> {
+    /// The text `text` gives for a section.
+    pub fn new(text: impl Fn(ZoneAt) -> String + 'a) -> Self {
+        ZoneText(Box::new(text))
+    }
+
+    fn of(&self, at: ZoneAt) -> String {
+        (self.0)(at)
+    }
+}
+
 /// The style of the zones.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
@@ -189,16 +203,24 @@ impl Outcome for HeaderFooterZonesOutput {
 /// - Keys: each section is a Tab stop named by what it holds, or "Add header"; Enter or Space starts editing it. Escape
 ///   on a focused section ends the editing. Show the zones after the page view's other canvas controls so they are
 ///   above the pages.
-#[derive(Component)]
+#[derive(Component, Props)]
 #[component(canvas_control)]
 pub struct HeaderFooterZones<'a> {
     #[common]
     common: Common,
     placed: &'a [PlacedPage],
     bands: &'a dyn Fn(usize) -> ZoneBands,
-    text: Option<&'a dyn Fn(ZoneAt) -> String>,
+    /// Each section's text as it prints (fields expanded by the app).
+    #[prop(func = "Fn(ZoneAt) -> String")]
+    text: Option<ZoneText<'a>>,
+    /// The section being edited, if any; it paints as an editor instead of a label.
+    #[prop]
     editing: Option<ZoneAt>,
+    /// The paper of the pages, when the document gives one.
+    #[prop]
     paper: DataColor,
+    /// The ink of the pages' text, when the document gives one.
+    #[prop]
     ink: DataColor,
     begin: Option<ZoneAt>,
     end: bool,
@@ -219,27 +241,6 @@ impl<'a> HeaderFooterZones<'a> {
             end: false,
         }
         .label(label)
-    }
-
-    /// Each section's text as it prints (fields expanded by the app).
-    #[must_use]
-    pub fn text(mut self, text: &'a dyn Fn(ZoneAt) -> String) -> Self {
-        self.text = Some(text);
-        self
-    }
-
-    /// The section being edited, if any; it paints as an editor instead of a label.
-    #[must_use]
-    pub fn editing(mut self, at: Option<ZoneAt>) -> Self {
-        self.editing = at;
-        self
-    }
-
-    /// The paper and ink of the pages' text, when the document gives them.
-    #[must_use]
-    pub fn colors(mut self, paper: DataColor, ink: DataColor) -> Self {
-        (self.paper, self.ink) = (paper, ink);
-        self
     }
 
     /// The whole section on `placed`, without the style's inset.
@@ -265,7 +266,7 @@ impl<'a> HeaderFooterZones<'a> {
     }
 
     fn name(&self, at: ZoneAt, words: &HeaderFooterZonesWords) -> String {
-        let text = self.text.map(|text| text(at)).unwrap_or_default();
+        let text = self.text.as_ref().map(|text| text.of(at)).unwrap_or_default();
         if !text.is_empty() {
             text
         } else if at.zone.footer {
@@ -345,7 +346,7 @@ impl Component for HeaderFooterZones<'_> {
             if self.editing.is_some_and(|editing| editing.page == at.page && editing.zone.footer == at.zone.footer) {
                 draw.stroke(&outline, StrokeWidth::Thin, style.neighbour);
             }
-            let text = self.text.map(|text| text(at)).unwrap_or_default();
+            let text = self.text.as_ref().map(|text| text.of(at)).unwrap_or_default();
             if text.is_empty() {
                 let shown = cx.part_if_declared(ZONE.at(at.part())).is_some_and(|part| part.hovered) || focused == Some(at.part());
                 if shown {

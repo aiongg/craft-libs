@@ -25,7 +25,7 @@ fn zone_being_edited(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     Canvas::new("Pages")
         .view(view)
         .show(ui, |ui, body| {
-            HeaderFooterZones::new("Zones", &placed, &bands).text(&text).editing(Some(ZoneAt::new(0, Zone::new(true, 2)))).show_at(ui, body.rect)
+            HeaderFooterZones::new("Zones", &placed, &bands).text(text).editing(ZoneAt::new(0, Zone::new(true, 2))).show_at(ui, body.rect)
         })
         .inner
         .map(StoryOutput::from)
