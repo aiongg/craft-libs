@@ -2,10 +2,11 @@
 //! the rows' use of a bound value.
 
 use craft_ui::contract::Bind;
-use craft_ui::patterns::form_dialogs::{DialogFields, FieldValue, NumberUnit, Param, ParamKind, ParamRows, open_fields};
+use craft_ui::patterns::form_dialogs::{DialogFields, FieldValue, NumberUnit, Param, ParamDialog, ParamKind, ParamResult, ParamRows, open_fields};
 use craft_ui::runtime::env::UnitKind;
 use craft_ui::testing::{Fixture, trial};
 use craft_ui::value_drag::SliderScale;
+use egui::{Key, Modifiers};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -192,4 +193,35 @@ fn rows_fill_defaults_through_the_binding() {
     fixture.settle();
     let fields = fields.borrow();
     assert_eq!((fields.number("radius"), fields.text("method"), fields.text("note")), (Some(RADIUS_DEFAULT), Some("zoom"), Some("kept")));
+}
+
+/// An arrow key in a radio param moves the pick to the next option, and OK answers with the picked option.
+#[trial]
+fn an_arrow_key_moves_a_radio_pick_and_the_result_carries_it() {
+    let radio =
+        ParamKind::radio(vec![("none".into(), "None".into()), ("rle".into(), "RLE".into()), ("zip".into(), "ZIP".into())], Some("none".into()));
+    let params = vec![Param::new("compression", "Compression", radio)];
+    let fields = Rc::new(RefCell::new(DialogFields::new()));
+    let answer = Rc::new(RefCell::new(None::<ParamResult>));
+    let (held, sink) = (Rc::clone(&fields), Rc::clone(&answer));
+    let mut fixture = Fixture::new(move |ui| {
+        let mut fields = held.borrow_mut();
+        let mut open = true;
+        let out =
+            ParamDialog::new("targa", "Targa Options", params.clone()).values(Bind::bound(&mut *fields)).opened(Bind::bound(&mut open)).show(ui);
+        if out.result.is_some() {
+            *sink.borrow_mut() = out.result;
+        }
+    });
+    fixture.settle();
+    let none = fixture.by_label("None").expect("the first option is shown");
+    fixture.click(&none);
+    fixture.idle(2);
+    fixture.key(Key::ArrowDown, Modifiers::NONE);
+    fixture.idle(2);
+    let ok = fixture.by_label("OK").expect("the OK button is shown");
+    fixture.click(&ok);
+    fixture.idle(3);
+    let result = answer.borrow().clone().expect("OK answers");
+    assert_eq!(result.fields.text("compression"), Some("rle"), "the arrow moved the pick from the first option to the next");
 }
