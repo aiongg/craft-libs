@@ -3,7 +3,7 @@
 
 use crate::contract::kit::PlainStyle;
 use crate::windows_kit::Windows;
-use craft_behavior::{PartKey, PressCancel, Sense};
+use craft_behavior::{Cursor, CursorIcon, PartKey, PressCancel, Sense};
 use craft_host::target::{Caps, Os, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
 use craft_ui::buttons::Button;
 use craft_ui::contract::{
@@ -22,7 +22,7 @@ use craft_ui::testing::{Fixture, trial};
 use craft_ui::text::TextField;
 use craft_window::policy::{CaptionFamily, Captions, Decision, Desktop, DesktopKind, Frame};
 use craft_window::restore::{MAIN, Monitor, MonitorKey, Placement, Store};
-use egui::{Event, Key, Modifiers, Pos2, Rect, Response, Vec2, ViewportBuilder, ViewportCommand, ViewportId, ViewportInfo};
+use egui::{Event, Key, Modifiers, Pos2, Rect, Response, Vec2, ViewportBuilder, ViewportCommand, ViewportEvent, ViewportId, ViewportInfo};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
@@ -259,6 +259,41 @@ fn a_press_blocked_by_a_modal_in_another_window_raises_the_modal_window() {
     frame(vec![moved(Pos2::new(30.0, 30.0))]);
     let out = frame(vec![press(Pos2::new(30.0, 30.0))]);
     assert!(out.commands.contains(&(child(), ViewportCommand::Focus)), "the press raised the modal's window: {:?}", out.commands);
+}
+
+/// A modal in one window blocks the others: the pointer over them shows the blocked cursor, and a close request on
+/// them is refused and raises the modal's window.
+#[trial]
+fn an_app_modal_in_one_window_blocks_the_cursor_and_the_close_of_the_others() {
+    let windows = Windows::new();
+    let frame = |modal: bool| {
+        windows.frame(vec![], vec![], |ui| {
+            if modal {
+                ui.ctx().show_viewport_immediate(child(), ViewportBuilder::default(), |cui, _| {
+                    let props = ContainerProps::new().mount(Mount::Layer(Overlay::modal()));
+                    Modal { common: Common::new(), props }.id_salt("modal").show(cui, |_, _| {});
+                });
+            }
+        })
+    };
+    for _ in 0..4 {
+        frame(true);
+    }
+    assert_eq!(craft_ui::runtime::cursor::current(&windows.ctx), Some(Cursor::System(CursorIcon::NotAllowed)), "the root window is blocked");
+
+    windows.root_info(ViewportInfo { events: vec![ViewportEvent::Close], ..ViewportInfo::default() });
+    let out = frame(true);
+    craft_ui::runtime::windows::logic(&windows.ctx);
+    let out_after = frame(true);
+    let sent: Vec<_> = out.commands.iter().chain(&out_after.commands).collect();
+    assert!(sent.contains(&&(ViewportId::ROOT, ViewportCommand::CancelClose)), "the close is refused: {sent:?}");
+    assert!(sent.contains(&&(child(), ViewportCommand::Focus)), "the modal's window is raised: {sent:?}");
+
+    windows.root_info(ViewportInfo::default());
+    for _ in 0..4 {
+        frame(false);
+    }
+    assert_ne!(craft_ui::runtime::cursor::current(&windows.ctx), Some(Cursor::System(CursorIcon::NotAllowed)), "no modal, no blocked cursor");
 }
 
 /// `act` is the one sender of window commands and checks capabilities first.

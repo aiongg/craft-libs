@@ -2,6 +2,7 @@
 
 use crate::runtime::egui::{output, pass};
 use crate::runtime::frame::PerViewport;
+use crate::runtime::windows;
 use craft_behavior::cursor::pick;
 use craft_behavior::{Cursor, CursorIcon, CursorPriority, PaintedCursor};
 use egui::Context;
@@ -17,12 +18,14 @@ pub(crate) fn request(ctx: &Context, cursor: Cursor, priority: CursorPriority) {
     PerViewport::<State>::with(ctx, pass::current_viewport(ctx), |state| state.requests.push((cursor, priority)));
 }
 
-/// The end hook: records the pass's winner. A system cursor goes out through the viewport's output; a painted
+/// The end hook: records the pass's winner, which in a window an app-modal layer in another window blocks is the
+/// blocked cursor. A system cursor goes out through the viewport's output; a painted
 /// cursor hides the system one and is left for the overlay host to paint, except a badged system cursor, which
 /// keeps its base and has only the badge painted.
 pub(crate) fn end_pass(ctx: &Context) {
+    let blocked = windows::blocking_modal(ctx).is_some();
     let won = PerViewport::<State>::with(ctx, pass::current_viewport(ctx), |state| {
-        let won = pick(&state.requests).cloned();
+        let won = if blocked { Some(Cursor::System(CursorIcon::NotAllowed)) } else { pick(&state.requests).cloned() };
         state.requests.clear();
         state.record = won.clone();
         won

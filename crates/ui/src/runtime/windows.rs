@@ -698,10 +698,26 @@ pub(crate) fn begin(ctx: &Context) {
     refresh(ctx, viewport, viewports::current(ctx));
     reshow_cursor(ctx, viewport);
     if overlay::take_dropped_press(ctx, viewport)
-        && let Some(modal) = overlay::modal_viewport(ctx, viewport)
+        && let Some(modal) = blocking_modal(ctx)
     {
         act(ctx, modal, WindowAction::Focus);
     }
+}
+
+/// The window whose app-modal layer blocks the running viewport: one other than it with a modal open. `None`
+/// when no app-modal is open or the only one is in this window. A blocked window drops presses and keys (H5),
+/// shows the blocked cursor and refuses to close.
+pub(crate) fn blocking_modal(ctx: &Context) -> Option<ViewportId> {
+    overlay::modal_viewport(ctx, pass::current_viewport(ctx))
+}
+
+/// Refuses the close request of the running viewport while an app-modal layer blocks it, and raises the modal's
+/// window. True when it refused.
+fn refuse_close_under_modal(ctx: &Context) -> bool {
+    let Some(modal) = blocking_modal(ctx) else { return false };
+    viewports::cancel_close(ctx);
+    act(ctx, modal, WindowAction::Focus);
+    true
 }
 
 /// The compositor owns the pointer during an OS move or resize and sets its own cursor, and egui-winit only sends a
@@ -743,6 +759,12 @@ pub(crate) fn end(ctx: &Context) {
 /// Whether the root window was asked to close and nothing has cancelled it yet. Valid in the app's `logic`, which
 /// eframe runs while the window is minimized or hidden too.
 pub(crate) fn root_close_requested(ctx: &Context) -> bool {
+    root_close_asked(ctx) && blocking_modal(ctx).is_none()
+}
+
+/// Whether the OS asked the root window to close and nothing has cancelled it yet, whatever an app-modal layer in
+/// another window says.
+fn root_close_asked(ctx: &Context) -> bool {
     pass::current_viewport(ctx) == ViewportId::ROOT && viewports::current(ctx).close_requested && !viewports::close_cancelled(ctx)
 }
 
@@ -759,7 +781,7 @@ pub(crate) fn hold_close(ctx: &Context) {
 /// because eframe runs no UI pass for a minimized or hidden window and closes it itself; on macOS that close is the
 /// Touch Bar crash `craft_quit` exists to avoid. `app::run` calls it; apps that call `install` themselves do too.
 pub fn logic(ctx: &Context) {
-    if root_close_requested(ctx) && craft_quit::quit() {
+    if root_close_asked(ctx) && !refuse_close_under_modal(ctx) && craft_quit::quit() {
         viewports::cancel_close(ctx);
     }
 }
@@ -1180,12 +1202,14 @@ pub(crate) fn show_viewport(ctx: &Context, open: &ViewportOpen<'_>, mut body: im
         let ctx = ui.ctx().clone();
         refresh(&ctx, viewport, viewports::current(&ctx));
         if viewports::current(&ctx).close_requested {
-            viewports::cancel_close(&ctx);
-            shared(&ctx, |shared| {
-                if !shared.close_requests.contains(&open.id) {
-                    shared.close_requests.push(open.id);
-                }
-            });
+            if !refuse_close_under_modal(&ctx) {
+                viewports::cancel_close(&ctx);
+                shared(&ctx, |shared| {
+                    if !shared.close_requests.contains(&open.id) {
+                        shared.close_requests.push(open.id);
+                    }
+                });
+            }
         }
         body(ui);
         if let Some(key) = open.save {

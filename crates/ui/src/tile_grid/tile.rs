@@ -9,6 +9,7 @@
 use super::layout::Around;
 use super::words::TileWords;
 use super::{BadgeKind, BadgeSlot, BadgeVisibility, CaptionPlace, TileBadge, TileFlag, TileMark, TileStatus};
+use crate::buttons::IconButton;
 use crate::choice::{Checkbox, ChoiceWords, Rating};
 use crate::contract::{
     Access, Bind, Common, Component, Cx, Focus as _, ItemOutput, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role,
@@ -17,9 +18,10 @@ use crate::contract::{
 use crate::display::Badge;
 use crate::list::{RowThumb, ThumbAspect, ThumbPaint, ToggleState};
 use crate::primitives::{ContentPainterCx, IconSpec, PaintShape, StrokeWidth, TextRun, Wrap};
+use crate::runtime::commands::CommandRef;
 use crate::runtime::env::{Label, Units};
 use crate::style::{ComponentStyle, DataColor, Flags, IconLook, StyleColor, StyleCx, SurfaceLook, TextLook, UiTokens};
-use craft_behavior::{AccessAction, AccessData, Flow, IconId, Insets, Metrics, Mixed, PartKey, PressPhase, Proposal, Sense};
+use craft_behavior::{AccessAction, AccessData, Flow, IconId, Insets, Metrics, Mixed, NavShape, PartKey, PressPhase, Proposal, Roving, Sense};
 use craft_keymap::Mods;
 use craft_theme::variant::{Emphasis, Tone};
 use craft_theme::{Rgba, Srgba, Stateful, States, TypeRole, Variant, over};
@@ -46,6 +48,8 @@ pub enum TilePartEvent {
     },
     /// The pointer is over the picture: how far across it, from the reading start, 0 to 1.
     Scrub(f32),
+    /// An activation of the corner action ([`Tile::corner_action`]).
+    CornerAction,
 }
 
 /// What a tile returns.
@@ -85,6 +89,7 @@ const RATING: PartKey = PartKey::new("rating");
 const PILL: PartKey = PartKey::new("pill");
 const MARK: PartKey = PartKey::new("mark");
 const PICTURE: PartKey = PartKey::new("picture");
+const CORNER: PartKey = PartKey::new("corner");
 
 const CHECK_REASON: &str = "In a tile grid with checks, Space toggles the lead tile's check";
 const RATING_REASON: &str = "In a tile grid with rating keys, the digits rate the selected tiles";
@@ -252,6 +257,7 @@ struct Placed {
     dot: Option<Rect>,
     check: Option<(Rect, Rect)>,
     pills: Vec<Rect>,
+    corner: Option<Rect>,
 }
 
 /// One tile of a tile grid.
@@ -323,6 +329,7 @@ pub struct Tile<'a> {
     badges: Vec<TileBadge>,
     marks: Vec<TileMark>,
     pills: Vec<TileBadge>,
+    corner: Option<(IconId, CommandRef)>,
     placed: Option<Placed>,
     event: Option<TilePartEvent>,
     caption_rect: Option<Rect>,
@@ -358,6 +365,7 @@ impl<'a> Tile<'a> {
             badges: Vec::new(),
             marks: Vec::new(),
             pills: Vec::new(),
+            corner: None,
             placed: None,
             event: None,
             caption_rect: None,
@@ -395,6 +403,16 @@ impl<'a> Tile<'a> {
     #[must_use]
     pub fn mark(mut self, mark: TileMark) -> Self {
         self.marks.push(mark);
+        self
+    }
+
+    /// A button in the picture's end-top corner that shows while the pointer is over the tile or the tile has the
+    /// keyboard focus, and is reached by the keys as a part of the tile. Its activation is
+    /// [`TilePartEvent::CornerAction`]; `command` gives its label, tooltip and enabled state, and the tile does not
+    /// fire it.
+    #[must_use]
+    pub fn corner_action(mut self, icon: IconId, command: impl Into<CommandRef>) -> Self {
+        self.corner = Some((icon, command.into()));
         self
     }
 
@@ -521,7 +539,7 @@ impl<'a> Tile<'a> {
                 pills[at] = rect;
             }
         }
-        Placed { picture, caption, name, detail, marks, band: band_rect, bar, stars, flag, dot, check, pills }
+        Placed { picture, caption, name, detail, marks, band: band_rect, bar, stars, flag, dot, check, pills, corner: None }
     }
 }
 
@@ -650,7 +668,7 @@ impl Component for Tile<'_> {
                 BadgeVisibility::Never => false,
                 _ => cx.hovered() || self.has_bar_values(),
             };
-        let placed = self.place(&sizes, cx.content_rect, rtl, bar_shown, &faces, &pill_widths);
+        let mut placed = self.place(&sizes, cx.content_rect, rtl, bar_shown, &faces, &pill_widths);
         let _ = cx.part(PICTURE, placed.picture).sense(Sense::HOVER);
         if let (Some(state), Some((at, _))) = (self.check, &placed.check) {
             let mut flags = Flags::empty();
@@ -669,6 +687,17 @@ impl Component for Tile<'_> {
         }
         for (at, (mark, rect)) in self.marks.iter().zip(&placed.marks).enumerate() {
             let _ = cx.part(MARK.at(at as u64), *rect).tooltip(mark.tip.clone());
+        }
+        if let Some((icon, command)) = &self.corner
+            && (cx.hovered() || cx.focus_visible())
+        {
+            let face = cx.face(IconButton::command(icon.clone(), command.clone()));
+            let margin = sizes.inset + sizes.tight;
+            let across = Flow::new(placed.picture, rtl).span((placed.picture.width() - margin - face.x).max(0.0), face.x);
+            let at = Rect::from_min_size(egui::pos2(across.min.x, placed.picture.top() + margin), face);
+            cx.part(CORNER, at).sense(Sense::CLICK | Sense::FOCUS).focusable();
+            cx.roving(Roving::new(NavShape::Flat));
+            placed.corner = Some(at);
         }
         self.placed = Some(placed);
     }
@@ -691,6 +720,9 @@ impl Component for Tile<'_> {
         }
         if cx.part_activated(CHECK).is_some() {
             self.event = Some(TilePartEvent::Check { mods: cx.part(CHECK).press.mods });
+        }
+        if cx.part_activated(CORNER).is_some() {
+            self.event = Some(TilePartEvent::CornerAction);
         }
         let current = self.rating.unwrap_or(0);
         while let Some(request) = cx.intents().take_access() {
@@ -741,6 +773,9 @@ impl Component for Tile<'_> {
         self.paint_band(ui, cx, &placed);
         self.paint_bar(ui, cx, &placed);
         self.paint_pills(ui, cx, &placed);
+        if let (Some((icon, command)), Some(_)) = (&self.corner, placed.corner) {
+            ui.face(CORNER, IconButton::command(icon.clone(), command.clone()));
+        }
         if let (Some(state), Some((_, plate))) = (self.check, placed.check) {
             ui.draw().fill(&PaintShape::Rect(plate, style.plate_radius), cx.resolve(&style.plate));
             let value = match state {
