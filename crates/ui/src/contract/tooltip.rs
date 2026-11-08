@@ -253,8 +253,16 @@ fn show_tip(call: TipCall<'_>) {
         Place::anchored(Anchor::Rect(rect), Side::Below, Align::Start)
     };
     let tooltip = Overlay::tooltip().place(place);
-    let layer =
-        Layer { id: tip_id, owner, overlay: &tooltip, anchor: areas::layer_to_screen(ctx, rect_layer) * rect, env, exiting: !show, fade: presence.t };
+    let layer = Layer {
+        id: tip_id,
+        owner,
+        overlay: &tooltip,
+        anchor: areas::layer_to_screen(ctx, rect_layer) * rect,
+        env,
+        exiting: !show,
+        fade: presence.t,
+        size: None,
+    };
     let mut rich = rich;
     overlay::host(ctx, &layer, &mut |ui| match rich.take() {
         Some(content) => content(ui),
