@@ -211,7 +211,7 @@ pub(crate) fn hook(ctx: &Context, input: &mut RawInput) -> (Option<Hole>, bool) 
     let before = input.events.len();
     let os = crate::runtime::windows::os_of(ctx);
     let latin = input.latin_layout_chars.clone();
-    let is_space = |key: &KeyInput| key.physical.or(key.typed) == Some(egui::Key::Space);
+    let is_space = |key: &KeyInput| key.physical.or(key.typed) == Some(craft_keymap::Key::Space);
     input.events.retain(|event| {
         match event {
             Event::PointerMoved(pos) if here => over = hole.answers(*pos),
