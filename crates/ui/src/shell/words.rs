@@ -2,7 +2,7 @@
 
 craft_ui::words! {
     /// The words of the shell family: the names of the window's regions (`appShell`), the start screen
-    /// (`startScreen`) and the caption buttons (`captionButton`). The labels of the recent files' and pinned
+    /// (`startScreen`), the caption buttons (`captionButton`) and the title bar (`titleBar`). The labels of the recent files' and pinned
     /// folders' commands are the commands'.
     pub struct ShellWords {
         window: "appShell.window" = "Window";
@@ -39,5 +39,10 @@ craft_ui::words! {
         restore: "captionButton.restore" = "Restore";
         /// The close button.
         close: "captionButton.close" = "Close";
+
+        /// The name of the title bar.
+        title_bar: "titleBar.name" = "Title Bar";
+        /// The description of a title that shows the mark of unsaved changes.
+        unsaved: "titleBar.unsaved" = "Unsaved changes";
     }
 }

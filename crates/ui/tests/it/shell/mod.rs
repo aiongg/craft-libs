@@ -88,3 +88,6 @@ fn a_body_reads_the_shell_the_root_values_hold() {
 }
 
 mod app_shell;
+
+// Title bar.
+mod title_bar;

@@ -48,3 +48,6 @@ pub use craft_window::policy::{CaptionFamily, Captions, Frame, MacInset};
 mod document_window;
 
 pub use document_window::{DocumentWindow, DocumentWindowOutput, DocumentWindowStyle};
+
+// The title bar: the bar, its title and its output.
+pub use title_bar::{Title, TitleBar, TitleBarOutput, TitleBarStyle, double_click_action};

@@ -39,3 +39,13 @@ pub fn sync_movable(ctx: &Context, applied: &mut Option<bool>) {
     }
     viewports::set_native_movable(movable, applied);
 }
+
+// The bar, its title and its two ends.
+mod bar;
+mod measure;
+mod style;
+mod title;
+
+pub use bar::{TitleBar, TitleBarOutput, double_click_action};
+pub use style::TitleBarStyle;
+pub use title::Title;

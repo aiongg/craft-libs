@@ -30,10 +30,10 @@ note = "A `Pattern`: `StartScreen::new(Bind<RecentView>, Bind<RecentSort>, &[Rec
 
 [[type]]
 name = "TitleBar"
-old = ""
-# found in: craft_ui::docking::chrome::TitleBar, craft_ui::title_bar::TitleBar
+old = "craft_ui::title_bar::TitleBar"
 new = "craft_ui::shell::TitleBar"
-status = "pending"
+status = "replaced"
+note = "A container on a chrome surface in the title slot: its body is the leading content, `trailing(f)` the content before the end's captions, `show_titled(ui, Title, leading, trailing)` adds the title between them. The free bar is its move band (the body step moves the window); the frame comes from `WindowHost::frame()` (`frame(Frame)` overrides it for a story). Output `TitleBarOutput`. The docking `TitleBar` of `craft_ui::docking::chrome` goes to the floating frame track."
 
 [[type]]
 name = "ViewportWindow"
@@ -605,3 +605,145 @@ type = "CaptionButton"
 old = "show(ui, bar)"
 new = "show_at(ui, slot.rect)"
 note = "The title bar shows each button at its `CaptionSlot::rect` and reads the click from the response."
+
+# Title bar: the bar, its title and its output (titlebar-a).
+
+[[type]]
+name = "BarSlots"
+old = "craft_ui::title_bar::BarSlots"
+new = ""
+status = "removed"
+note = "The bar's rects are the container's regions: the start end is the header, the leading content the body, the trailing content and the end's captions the end region. A body reads its room with `BodyCx::rect`."
+
+[[type]]
+name = "TitleBarResponse"
+old = "craft_ui::title_bar::TitleBarResponse"
+new = ""
+status = "removed"
+note = "Replaced by `TitleBarOutput { response, caption_clicked, close_requested }`."
+
+[[type]]
+name = "TitleBarOutput"
+old = ""
+new = "craft_ui::shell::TitleBarOutput"
+status = "replaced"
+
+[[type]]
+name = "LeadingEnd"
+old = "craft_ui::title_bar::LeadingEnd"
+new = ""
+status = "removed"
+note = "The caption groups sit at the physical ends the window's `Captions` layout names; a right-to-left window mirrors the Windows layout and keeps the Linux layouts as set. The bar needs no end argument."
+
+[[type]]
+name = "Title"
+old = "craft_ui::title_bar::Title"
+new = "craft_ui::shell::Title"
+status = "moved"
+note = "`Title::new(text)` and `Title::unsaved(text)`; the unsaved mark is an asterisk after the text and the description `titleBar.unsaved`. `Title::span(centre, free, width)` is the placement rule."
+
+[[type]]
+name = "TitleBarStyle"
+old = "craft_ui::title_bar::TitleBarStyle"
+new = "craft_ui::shell::TitleBarStyle"
+status = "replaced"
+note = "The 24-field `from_tokens` style is the component style: the bar's height is `SlotSize::TitleBar`, the caption colours and metrics are `CaptionButton`'s, the rule is one device pixel (`RuleKind::Divider`), the gaps are the body's row gap."
+
+[[type]]
+name = "ModalRects"
+old = "craft_ui::title_bar::ModalRects"
+new = ""
+status = "removed"
+note = "Not ported: a layer over an open modal cannot move the OS window with today's contract (see the track report)."
+
+[[type]]
+name = "WindowState"
+old = "craft_ui::title_bar::WindowState"
+new = ""
+status = "removed"
+note = "The window's state is read from the window (`WindowFacts.state`); `TitleBar::maximized(bool)` overrides it for a story."
+
+[[setter]]
+type = "TitleBar"
+old = "new(&Frame)"
+new = "new()"
+note = "The frame is the running window's (`WindowHost::frame()`); `frame(Frame)` overrides it."
+
+[[setter]]
+type = "TitleBar"
+old = "style(TitleBarStyle)"
+new = ""
+note = "removed: the style comes from the theme."
+
+[[setter]]
+type = "TitleBar"
+old = "id_salt(impl Hash)"
+new = "id_salt(impl Hash)"
+
+[[setter]]
+type = "TitleBar"
+old = "labels(&CaptionLabels)"
+new = ""
+note = "removed: the caption words are `ShellWords`."
+
+[[setter]]
+type = "TitleBar"
+old = "icons(Option<&CaptionIcons>)"
+new = "icons(&CaptionIcons)"
+
+[[setter]]
+type = "TitleBar"
+old = "regions(&mut dyn CaptionRegions)"
+new = ""
+note = "removed: the buttons and the move band are exclusive parts that `WindowHost::caption_regions` reads."
+
+[[setter]]
+type = "TitleBar"
+old = "native_hit_test(bool)"
+new = ""
+note = "removed: the platform's hit test reads `WindowHost::caption_regions`; the body step leaves move and resize to the platform where it answers."
+
+[[setter]]
+type = "TitleBar"
+old = "title(&str)"
+new = "show_titled(ui, Title, leading, trailing)"
+
+[[setter]]
+type = "TitleBar"
+old = "title_when_native(bool)"
+new = "title_when_native()"
+
+[[setter]]
+type = "TitleBar"
+old = "preview(WindowState)"
+new = "maximized(bool)"
+note = "`frame(Frame)` previews a frame mode; there is no active-state preview: the caption colours follow the window's focus."
+
+[[setter]]
+type = "TitleBar"
+old = "background(Color32)"
+new = ""
+note = "removed: the surface is the chrome surface of the theme."
+
+[[setter]]
+type = "TitleBar"
+old = "separator(bool)"
+new = ""
+note = "removed: the bar always draws its one-device-pixel rule."
+
+[[setter]]
+type = "TitleBar"
+old = "show(ui, f)"
+new = "show(ui, body)"
+note = "`ShowContainer::show`: the body is the leading content."
+
+[[setter]]
+type = "TitleBar"
+old = "show_titled(ui, leading, trailing)"
+new = "show_titled(ui, Title, leading, trailing)"
+
+[[setter]]
+type = "TitleBar"
+old = "modal_drag_overlay(ctx, rects)"
+new = ""
+note = "removed: see ModalRects."
