@@ -450,9 +450,6 @@ pub fn stories() -> Vec<Story> {
     ];
     stories.extend(full_stories::stories());
     stories.extend(pair_stories::stories());
-    stories.extend(wheel_stories::stories());
-    stories.extend(ramp_stories::stories());
-    stories.extend(disc_stories::stories());
     stories.extend(color_stories::stories());
     stories.extend(paint_stories::stories());
     stories
