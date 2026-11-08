@@ -319,7 +319,7 @@ fn body(ui: &mut Ui, form: &mut FormCx<'_, '_>, values: &mut DocumentOptions, sh
     let mut right = Right::default();
     Grid::new(&COLUMNS).fill().show(ui, |ui, _| {
         Stack::new().fill().show(ui, |ui, _| {
-            cards::show(ui, &session, &read, &mut left);
+            cards::show(ui, &session, values, &read, &mut left);
         });
         Stack::new().scroll(Scroll::vertical()).show(ui, |ui, _| {
             details::show(ui, &mut session, values, &read, &mut right);

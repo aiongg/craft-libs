@@ -85,7 +85,7 @@ impl DisplayOrder<usize> for CardList<'_> {
 impl ItemSource<usize> for CardList<'_> {}
 
 /// Shows the tabs and what the open tab lists, and reports the tab and the card the user picked.
-pub(super) fn show(ui: &mut Ui, session: &Session, read: &Read<'_>, left: &mut Left) {
+pub(super) fn show(ui: &mut Ui, session: &Session, values: &DocumentOptions, read: &Read<'_>, left: &mut Left) {
     let (setup, words) = (read.setup, read.words);
     let tabs: Vec<TabId> =
         std::iter::once(TabId::Recent).chain((0..setup.categories.len()).map(TabId::Category)).chain(std::iter::once(TabId::Saved)).collect();
@@ -103,8 +103,8 @@ pub(super) fn show(ui: &mut Ui, session: &Session, read: &Read<'_>, left: &mut L
     }
 
     let tab = left.tab.unwrap_or(session.tab);
-    let cards = cards_of(tab, session, read);
-    let selected = if tab == session.tab { selected_of(tab, session, &cards) } else { None };
+    let cards = cards_of(tab, session, values, read);
+    let selected = if tab == session.tab { selected_of(tab, session, values, &cards) } else { None };
     let selection = selected.map_or_else(|| Selection::new(Vec::new(), None, None), Selection::single);
     let stamp = stamp_of(tab, cards.len());
     let list = CardList(&cards);
@@ -154,10 +154,10 @@ fn pick(left: &mut Left, cards: &[Card], index: usize, activated: bool) {
 }
 
 /// The position the grid shows selected: the card picked in the tab, else the recent document the details show.
-fn selected_of(tab: TabId, session: &Session, cards: &[Card]) -> Option<usize> {
+fn selected_of(tab: TabId, session: &Session, values: &DocumentOptions, cards: &[Card]) -> Option<usize> {
     match session.card {
         Some(at) => (at < cards.len()).then_some(at),
-        None if tab == TabId::Recent => cards.iter().position(|card| card.restores_all && card.settings.same_document(&session.settings)),
+        None if tab == TabId::Recent => cards.iter().position(|card| card.restores_all && card.settings.same_document(values)),
         None => None,
     }
 }
@@ -200,13 +200,13 @@ fn preset_title(preset: &DocumentPreset, setup: &Setup, words: &NewDocumentWords
 }
 
 /// The cards `tab` lists.
-fn cards_of(tab: TabId, session: &Session, read: &Read<'_>) -> Vec<Card> {
+fn cards_of(tab: TabId, session: &Session, values: &DocumentOptions, read: &Read<'_>) -> Vec<Card> {
     let Read { setup, recents, library, words, preset_words, units, .. } = *read;
     let preset_card = |preset: &DocumentPreset| {
         let preset = session.orientation.map_or_else(|| preset.clone(), |orientation| preset.turned(orientation));
         let mut settings = preset.options(setup.print_ppi, setup.screen_ppi);
-        if preset.is_print() && !matches!(session.settings.unit, UnitKind::Pixels | UnitKind::Percent) {
-            settings.unit = session.settings.unit;
+        if preset.is_print() && !matches!(values.unit, UnitKind::Pixels | UnitKind::Percent) {
+            settings.unit = values.unit;
         }
         Card {
             title: preset_title(&preset, setup, words, preset_words),
