@@ -1,1 +1,15 @@
 config_version = 1
+
+[[exception]]
+name = "edge-picker-rtl"
+kind = "probe"
+rule = "probe/exempt/rtl"
+path = "crates/pages/src/ui/table/edges.rs"
+reason = "The lines are positions in a diagram of a table, not reading order: the left line stays on the left."
+
+[[exception]]
+name = "table-size-picker-rtl"
+kind = "probe"
+rule = "probe/exempt/rtl"
+path = "crates/pages/src/ui/table/size_picker.rs"
+reason = "The squares are rows and columns of the table to insert: the first column stays at the left."

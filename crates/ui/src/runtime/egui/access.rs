@@ -20,7 +20,7 @@ use super::memory::Service;
 
 pub(crate) use node::{NodeAction, NodeSpec, Toggle, write_node};
 pub(crate) use patch::{write_label_patch, write_merge_patch, write_status};
-pub(crate) use text::{NodeEnd, RunNode, TextNode, is_text_request, requested_selection, requested_value, write_run, write_text};
+pub(crate) use text::{NodeEnd, RunNode, TextNode, is_text_request, requested_selection, requested_value, write_run, write_selection, write_text};
 #[cfg(feature = "testing")]
 pub use tree::{AccessTree, Declared, NodeKey};
 

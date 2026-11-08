@@ -258,6 +258,10 @@ pub(crate) fn report(ctx: &Context, own: &Own<'_>) {
     declare_scroll_actions(&mut spec, (own.scrolls.0 || access.pans.0, own.scrolls.1 || access.pans.1));
     custom_actions(&mut spec, &access.custom_actions);
     write_node(ctx, own.id, &spec);
+    if let Some((anchor, focus)) = &access.text_selection {
+        let end = |end: &crate::runtime::access::TextEnd| (sub_node_id(own.id, end.part), end.character);
+        adapter::write_selection(ctx, own.id, end(anchor), end(focus));
+    }
     let unnamed = report_violations(
         ctx,
         own.component,
@@ -291,6 +295,22 @@ pub(crate) fn report_sub(ctx: &Context, decl: &SubDecl<'_>) {
     let node = decl.node;
     let id = sub_node_id(decl.owner, node.part);
     let Role::Node(role) = node.role else { return };
+    if let Some(run) = &node.run {
+        adapter::write_run(
+            ctx,
+            &adapter::RunNode {
+                id,
+                parent: decl.parent,
+                rect: node.bounds.unwrap_or(decl.rect),
+                text: &run.text,
+                rtl: run.rtl,
+                positions: &run.positions,
+                widths: &run.widths,
+            },
+        );
+        keys::register_node(ctx, id, decl.owner, Some(node.part), false);
+        return;
+    }
     let face_name = decl.face.as_ref().map(|face| face.name);
     let name = named(&node.name, face_name.unwrap_or(decl.label), &[]);
     if name.hidden {
@@ -300,7 +320,7 @@ pub(crate) fn report_sub(ctx: &Context, decl: &SubDecl<'_>) {
     let numeric = node.numeric.as_ref().or_else(|| decl.face.as_ref().and_then(|face| face.numeric));
     let expanded = expanded_of(flags, node.expanded.or_else(|| decl.face.as_ref().and_then(|face| face.expanded)));
     let mut spec = NodeSpec::new(role);
-    spec.rect = Some(decl.rect);
+    spec.rect = Some(node.bounds.unwrap_or(decl.rect));
     spec.label = name.text.clone();
     spec.labelled_by = name.labelled_by.clone();
     spec.description = node.description.clone();

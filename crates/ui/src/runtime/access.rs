@@ -266,6 +266,7 @@ pub struct Access {
     pub(crate) busy: bool,
     pub(crate) pans: (bool, bool),
     pub(crate) nodes: Vec<SubNode>,
+    pub(crate) text_selection: Option<(TextEnd, TextEnd)>,
 }
 
 impl Access {
@@ -417,11 +418,35 @@ impl Access {
         &mut self.nodes[at]
     }
 
+    /// The text selection of the component's own text, from `anchor` to `focus`: each end is a text-run sub-node
+    /// ([`SubNode::text_run`]) of this component and a character index in the run.
+    pub fn text_selection(&mut self, anchor: (PartRef, usize), focus: (PartRef, usize)) -> &mut Self {
+        self.text_selection = Some((TextEnd { part: anchor.0, character: anchor.1 }, TextEnd { part: focus.0, character: focus.1 }));
+        self
+    }
+
     /// An action the component serves itself; it arrives through `cx.intents().take_access()`.
     pub fn custom_action(&mut self, id: i32, label: Label) -> &mut Self {
         self.custom_actions.push((id, label));
         self
     }
+}
+
+/// One end of a text selection: a text-run sub-node and a character index in it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct TextEnd {
+    pub(crate) part: PartRef,
+    pub(crate) character: usize,
+}
+
+/// What a text-run sub-node says about its characters.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct RunFacts {
+    pub(crate) text: String,
+    /// Each character's start offset from the run's left edge, and its advance.
+    pub(crate) positions: Vec<f32>,
+    pub(crate) widths: Vec<f32>,
+    pub(crate) rtl: bool,
 }
 
 /// A node below a component's node, for a part, a cell or a line of a content painter.
@@ -455,6 +480,8 @@ pub struct SubNode {
     pub(crate) under: Option<PartRef>,
     pub(crate) flags: Flags,
     pub(crate) custom_actions: Vec<(i32, Label)>,
+    pub(crate) bounds: Option<egui::Rect>,
+    pub(crate) run: Option<RunFacts>,
 }
 
 impl SubNode {
@@ -478,7 +505,25 @@ impl SubNode {
             under: None,
             flags: Flags::empty(),
             custom_actions: Vec::new(),
+            bounds: None,
+            run: None,
         }
+    }
+
+    /// The node's rectangle on screen, for a node that has no part of its own to take it from (a block of text a
+    /// content painter draws).
+    pub fn bounds(&mut self, rect: egui::Rect) -> &mut Self {
+        self.bounds = Some(rect);
+        self
+    }
+
+    /// Makes the node a run of text: `text` laid out on one line, each character's start offset from the node's left
+    /// edge in `positions` and its advance in `widths` (one per character), `rtl` for a right-to-left run. The node
+    /// is a `TextRun` whatever role it was given, takes its [`bounds`](Self::bounds) as the line's rectangle, and is
+    /// a valid end of [`Access::text_selection`].
+    pub fn text_run(&mut self, text: impl Into<String>, positions: Vec<f32>, widths: Vec<f32>, rtl: bool) -> &mut Self {
+        self.run = Some(RunFacts { text: text.into(), positions, widths, rtl });
+        self
     }
 
     /// The heading level or tree depth.
