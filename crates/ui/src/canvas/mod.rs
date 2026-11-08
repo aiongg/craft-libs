@@ -83,16 +83,17 @@ pub use navigator::{
 pub use navigator::NavigatorStyle;
 // End of l4e-navprev.
 
-use crate::contract::{
-    Bind, BindMut, Common, Component, Container, ContainerProps, Cx, Edit as _, Outcome, PartsCx, Pointer as _, Props as _, Role, Sizing,
-};
+use crate::contract::{Bind, Common, Component, Container, ContainerProps, Cx, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role, Sizing};
 use crate::runtime::commands::{CommandSet as _, CommandState, Commands as _};
+use crate::runtime::edit::next_gesture_id;
 use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;
 use crate::runtime::motion::{Animate as _, spec};
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::kurbo::{Point, Rect as DocRect, Size};
-use craft_behavior::{CanvasTransform, CanvasView, HitLevel, HitPriority, Metrics, PartKey, PointerButton, PressPhase, PressState, Sense};
+use craft_behavior::{
+    CanvasTransform, CanvasView, EditEvent, HitLevel, HitPriority, Metrics, Mixed, PartKey, PointerButton, PressPhase, PressState, Sense,
+};
 use egui::{Pos2, Rect, Response, Vec2};
 use zoom_motion::{Steer, ViewMotion};
 
@@ -377,7 +378,7 @@ impl CanvasOutput {
 }
 
 impl Outcome for CanvasOutput {
-    type Value = CanvasView;
+    type Value = NoValue;
 
     fn response(&self) -> &Response {
         &self.response
@@ -390,10 +391,6 @@ impl Component for Canvas<'_> {
     type Style = CanvasStyle;
     type Output = CanvasOutput;
 
-    fn bind(&mut self) -> Option<BindMut<'_, CanvasView>> {
-        self.view.as_mut().map(Bind::reborrow)
-    }
-
     fn style(cx: &StyleCx<'_>, _: CanvasStyleKey) -> CanvasStyle {
         // The rulers' own layout says where the view lies inside them.
         CanvasStyle { rulers: Rulers::content_rect(cx.tokens, Rect::ZERO).min.to_vec2(), ..CanvasStyle::default() }
@@ -405,13 +402,17 @@ impl Component for Canvas<'_> {
 
     /// The view of this pass, kept for the body and `finish`.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        self.given = cx.value().copied();
+        // The canvas is no value component: it reads and writes its view's binding itself, as a container does.
+        self.given = self.view.as_mut().and_then(|view| view.reborrow().read(cx)).and_then(|held| held.same().copied());
         self.settled = if self.view.is_some() {
             // A view never shown has no rect: the canvas fits it in the first pass it has area and a document.
             let given = self.given.unwrap_or_else(|| CanvasView::new(Rect::NOTHING, Point::ZERO, 1.0));
             let settled = self.settle(cx, given);
-            if Some(settled.target) != self.given {
-                cx.set(settled.target);
+            if Some(settled.target) != self.given
+                && let Some(view) = self.view.as_mut()
+            {
+                let event = EditEvent::set(next_gesture_id(&cx.core.ctx), Mixed::Same(given), settled.target, cx.label_arc(), None);
+                let _ = view.reborrow().write(cx, &event);
             }
             Some(settled)
         } else {
