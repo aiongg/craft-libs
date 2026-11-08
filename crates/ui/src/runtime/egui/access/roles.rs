@@ -101,6 +101,8 @@ impl Role {
     pub const CANVAS: Role = Role::Node(accesskit::Role::Canvas);
     /// An object drawn on a canvas: a node of a node graph.
     pub const GRAPHICS_OBJECT: Role = Role::Node(accesskit::Role::GraphicsObject);
+    /// A document: the readable page or text body of a reading view.
+    pub const DOCUMENT: Role = Role::Node(accesskit::Role::Document);
     /// A paragraph of text.
     pub const PARAGRAPH: Role = Role::Node(accesskit::Role::Paragraph);
     /// One line of text, with its characters' places: only a text-run sub-node (`SubNode::text_run`) has it.

@@ -8,8 +8,8 @@ use crate::runtime::egui::access::{Declared, NodeKey};
 use crate::runtime::egui::fixture::AccessActionKind;
 use crate::testing::fixture::{Fixture, Target};
 use crate::testing::story::{Drive, EditKind, Required, Story};
-use craft_behavior::{Input, PartRef};
-use egui::{Id, Key, Modifiers, Vec2};
+use craft_behavior::{Input, PartRef, Sense};
+use egui::{Id, Key, Modifiers, Pos2, Vec2};
 
 pub(super) const CASES: &[Case] = &[
     Case::new("values", ANY, a_drive_ends_each_gesture_once),
@@ -23,6 +23,7 @@ pub(super) enum Plan {
     Activate,
     Step,
     Drag(PartRef),
+    DragChild(PartRef),
     Type(&'static str),
     Pick(usize),
     Custom(fn(&mut Fixture)),
@@ -44,6 +45,7 @@ pub(super) fn plan(drive: Drive, probe: &Probe, fixture: &Fixture) -> Plan {
         Drive::Auto | Drive::Activate => Plan::Activate,
         Drive::Step => Plan::Step,
         Drive::Drag(key) => Plan::Drag(key.into()),
+        Drive::DragChild(part) => Plan::DragChild(part),
         Drive::Type(text) => Plan::Type(text),
         Drive::Pick { row } => Plan::Pick(row),
         Drive::Custom(custom) => Plan::Custom(custom),
@@ -66,7 +68,7 @@ pub(super) fn variants(plan: Plan, probe: &Probe) -> Vec<usize> {
             runs.push(3);
             runs
         }
-        Plan::Step | Plan::Drag(_) | Plan::Pick(_) => vec![0, 1],
+        Plan::Step | Plan::Drag(_) | Plan::DragChild(_) | Plan::Pick(_) => vec![0, 1],
         Plan::Type(_) | Plan::Custom(_) => vec![0],
         Plan::Never => Vec::new(),
     }
@@ -74,7 +76,7 @@ pub(super) fn variants(plan: Plan, probe: &Probe) -> Vec<usize> {
 
 /// Whether the variant ends by cancelling, so the value must be as it was.
 pub(super) fn cancels(plan: Plan, variant: usize) -> bool {
-    matches!(plan, Plan::Drag(_)) && variant == 1
+    matches!(plan, Plan::Drag(_) | Plan::DragChild(_)) && variant == 1
 }
 
 pub(super) fn variant_name(plan: Plan, variant: usize) -> &'static str {
@@ -85,8 +87,8 @@ pub(super) fn variant_name(plan: Plan, variant: usize) -> &'static str {
         (Plan::Activate, _) => "AccessKit Click",
         (Plan::Step, 0) => "AccessKit Increment",
         (Plan::Step, _) => "forward key",
-        (Plan::Drag(_), 0) => "drag",
-        (Plan::Drag(_), _) => "drag with Escape",
+        (Plan::Drag(_) | Plan::DragChild(_), 0) => "drag",
+        (Plan::Drag(_) | Plan::DragChild(_), _) => "drag with Escape",
         (Plan::Pick(_), 0) => "pick by keys",
         (Plan::Pick(_), _) => "pick by click",
         (Plan::Type(_), _) => "typed text",
@@ -140,15 +142,13 @@ fn step(fixture: &mut Fixture, variant: usize, target: &Target) {
     }
 }
 
-fn drag(fixture: &mut Fixture, part: PartRef, escape: bool) {
-    let target = root_target(fixture);
-    let grip = fixture.root_id().and_then(|id| fixture.part(id, part)).unwrap_or(target);
+/// A drag from `from` by twice the slop along x, ended by a release or, with `escape`, by Escape before it.
+fn drag(fixture: &mut Fixture, from: Pos2, escape: bool) {
     let travel = 2.0 * crate::testing::input::max_click_dist(fixture.ctx());
     if !escape {
-        fixture.drag(&grip, Vec2::new(travel, 0.0));
+        fixture.drag_at(from, Vec2::new(travel, 0.0));
         return;
     }
-    let from = grip.center();
     fixture.frame(vec![crate::testing::pointer::moved(from)]);
     fixture.frame(vec![crate::testing::pointer::press(from)]);
     for at in 1..=4 {
@@ -191,7 +191,16 @@ pub(super) fn run(fixture: &mut Fixture, plan: Plan, variant: usize) {
     match plan {
         Plan::Activate => activate(fixture, variant, &activation_target(fixture)),
         Plan::Step => step(fixture, variant, &target),
-        Plan::Drag(part) => drag(fixture, part, variant == 1),
+        Plan::Drag(part) => {
+            let grip = fixture.root_id().and_then(|id| fixture.part(id, part)).unwrap_or(target);
+            drag(fixture, grip.center(), variant == 1);
+        }
+        Plan::DragChild(part) => {
+            let owner = fixture.root_id().unwrap_or(Id::NULL);
+            let grip =
+                crate::runtime::pointer::child_part_bounds(fixture.ctx(), owner, part, Sense::DRAG).map_or(target.center(), |rect| rect.center());
+            drag(fixture, grip, variant == 1);
+        }
         Plan::Type(text) => {
             fixture.key(Key::Tab, Modifiers::NONE);
             fixture.type_text(text);
