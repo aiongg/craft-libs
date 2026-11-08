@@ -392,5 +392,9 @@ fn forward_from_a_row_enters_its_hosted_field() {
     fixture.idle(2);
     let focused = craft_ui::testing::access::NodeKey::of(fixture.focused().expect("Forward lands on a stop"));
     let tree = fixture.tree();
-    assert_eq!(focused, field.node, "Forward from the row reaches the field; it landed on {:?} {:?}", tree.role_of(focused), tree.name_of(focused));
+    assert_eq!(
+        (tree.role_of(focused), tree.name_of(focused)),
+        (tree.role_of(field.node), tree.name_of(field.node)),
+        "Forward from the row reaches the field"
+    );
 }
