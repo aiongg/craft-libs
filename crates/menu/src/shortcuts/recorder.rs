@@ -9,13 +9,13 @@ use craft_behavior::{Metrics, Sense};
 use craft_keymap::Chord;
 use craft_theme::Stateful;
 use craft_ui::contract::{
-    Access, Common, Component, Cx, Focus as _, MeasureCx, Name, NoValue, Outcome, PaintUi, Pointer as _, Props as _, Role, Show as _,
+    Access, Common, Component, Cx, Focus as _, MeasureCx, Name, NoValue, Outcome, PaintUi, Pointer as _, Props as _, Role, Show as _, Styled as _,
 };
 use craft_ui::primitives::{TextRun, Wrap};
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::focus::KeyUse;
 use craft_ui::style::{ComponentStyle, FocusLook, Ink, StyleCx, SurfaceKind, SurfaceLook, TextLook, TypeRole};
-use egui::{Id, Response, Ui, Vec2};
+use egui::{Rect, Response, Ui, Vec2};
 
 #[cfg(feature = "screen-testing")]
 mod stories;
@@ -58,7 +58,7 @@ pub(crate) struct FieldStyle {
 
 fn field_style(cx: &StyleCx<'_>, recording: bool) -> FieldStyle {
     let well = cx.surface(SurfaceKind::Well);
-    let fill = if recording { cx.tone_fill(craft_theme::variant::Tone::Accent) } else { craft_ui::style::StyleColor(well.fill) };
+    let fill = if recording { cx.tone_fill(craft_theme::variant::Tone::Accent) } else { cx.color(cx.tokens.color.surface.sunken) };
     let control = cx.control();
     FieldStyle {
         metrics: Metrics::new().min_size(Vec2::splat(control.height)),
@@ -87,7 +87,7 @@ macro_rules! field {
             type Style = FieldStyle;
             type Output = RecorderOutput;
 
-            fn style(cx: &StyleCx<'_>, _: FieldStyleKey) -> FieldStyle {
+            fn style(cx: &StyleCx<'_>, _: Self::StyleKey) -> FieldStyle {
                 field_style(cx, $recording)
             }
 
@@ -109,7 +109,7 @@ macro_rules! field {
             }
 
             fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
-                access.name(Name::Text(cx.resolved.label.as_str().to_owned()));
+                access.name(Name::Text(cx.resolved.label.to_owned()));
                 access.value(self.shown.as_str().to_owned());
             }
 
@@ -134,38 +134,50 @@ pub(crate) struct ChordRecorder {
     label: Label,
     recording: bool,
     shown: Label,
-    id: Option<Id>,
+    salt: Option<&'static str>,
 }
 
 impl ChordRecorder {
     /// A recorder named `label` showing `shown`.
     pub(crate) fn new(label: impl Into<Label>, recording: bool, shown: impl Into<Label>) -> Self {
-        ChordRecorder { label: label.into(), recording, shown: shown.into(), id: None }
+        ChordRecorder { label: label.into(), recording, shown: shown.into(), salt: None }
     }
 
     /// Salts the field's id.
     #[must_use]
-    pub(crate) fn id_salt(mut self, salt: impl std::hash::Hash) -> Self {
-        self.id = Some(Id::new(salt));
+    pub(crate) fn id_salt(mut self, salt: &'static str) -> Self {
+        self.salt = Some(salt);
         self
     }
 
     /// Shows the field.
     pub(crate) fn show(self, ui: &mut Ui) -> RecorderOutput {
-        let ChordRecorder { label, recording, shown, id } = self;
+        let ChordRecorder { label, recording, shown, salt } = self;
         let common = Common::new();
         if recording {
             let mut field = RecordingField { common, shown, chords: Vec::new(), started: false }.label(label);
-            if let Some(id) = id {
-                field = field.id(id);
+            if let Some(salt) = salt {
+                field = field.id_salt(salt);
             }
             field.show(ui)
         } else {
             let mut field = IdleField { common, shown, chords: Vec::new(), started: false }.label(label);
-            if let Some(id) = id {
-                field = field.id(id);
+            if let Some(salt) = salt {
+                field = field.id_salt(salt);
             }
             field.show(ui)
+        }
+    }
+
+    /// Shows the field as a child of a component's paint at `rect`. Idle and recording share `key`, so focus
+    /// stays on the field when recording starts.
+    pub(crate) fn child(self, ui: &mut PaintUi<'_>, key: impl std::hash::Hash + std::fmt::Debug, rect: Rect) -> RecorderOutput {
+        let ChordRecorder { label, recording, shown, .. } = self;
+        let common = Common::new();
+        if recording {
+            ui.child(key, rect, RecordingField { common, shown, chords: Vec::new(), started: false }.label(label))
+        } else {
+            ui.child(key, rect, IdleField { common, shown, chords: Vec::new(), started: false }.label(label))
         }
     }
 }

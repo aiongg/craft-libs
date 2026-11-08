@@ -59,14 +59,14 @@ fn scene(ui: &mut Ui, options: &Options, setup: Setup, prepare: impl FnOnce(&mut
         state.begin(&mut env);
         prepare(&mut env, &mut state);
     }
-    let mut dialog = ShortcutsDialog::new(&mut keymap).options(options);
-    if setup.sets {
-        dialog = dialog.sets(&mut profiles, &builtins);
-    }
     let mut tabs = [DialogTab::new("menus", "Menus", |ui| {
         Text::new("Menu colours").show(ui);
         false
     })];
+    let mut dialog = ShortcutsDialog::new(&mut keymap).options(options);
+    if setup.sets {
+        dialog = dialog.sets(&mut profiles, &builtins);
+    }
     if setup.tabs {
         dialog = dialog.tabs(&mut tabs);
     }

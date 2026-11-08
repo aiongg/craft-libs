@@ -57,7 +57,7 @@ fn conflict_bar(ui: &mut Ui, env: &mut Env<'_>, state: &mut DialogState) {
     let mut notice = Notice::new(Tone::Warn, text)
         .id_salt("shortcuts.conflict")
         .layout(NoticeLayout::Inline)
-        .dismiss(true)
+        .dismiss()
         .announce(Politeness::Polite)
         .action(NoticeAction::new(words.take_it.clone()))
         .action(NoticeAction::new(words.accept_and_go_to_conflict.clone()));
@@ -82,7 +82,7 @@ fn message(ui: &mut Ui, env: &mut Env<'_>, state: &mut DialogState) {
     let words = env.text.words();
     let text = around_chord(env.text.rtl(), &m.text, m.chord.as_deref().unwrap_or_default());
     let tone = if m.refused { Tone::Warn } else { Tone::Info };
-    let mut notice = Notice::new(tone, text).id_salt("shortcuts.message").layout(NoticeLayout::Inline).dismiss(true).announce(Politeness::Polite);
+    let mut notice = Notice::new(tone, text).id_salt("shortcuts.message").layout(NoticeLayout::Inline).dismiss().announce(Politeness::Polite);
     let goto = m.goto.clone();
     let undo = m.undo && state.can_undo() && !state.modal();
     if goto.is_some() {
@@ -157,5 +157,6 @@ fn problem_text(env: &Env<'_>, words: &ShortcutWords, problem: &Problem) -> Stri
             let n = *ignored as u64;
             words.count_ignored.text(n, &n.to_string())
         }
+        _ => String::new(),
     }
 }

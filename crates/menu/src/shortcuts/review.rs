@@ -6,7 +6,7 @@ use craft_keymap::import::{FailedChange, NoChangeReason, Planned, SkipReason, Un
 use craft_keymap::{Binding, CommandRef, ImportPlan, ImportReport};
 use craft_theme::variant::Tone;
 use craft_ui::buttons::Button;
-use craft_ui::contract::{Bind, BodyCx, Entry, Props as _, Show as _};
+use craft_ui::contract::{Bind, BodyCx, Entry, Props as _, Show as _, ShowContainer as _};
 use craft_ui::display::{Shade, Text};
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::notices::Notice;
@@ -112,6 +112,7 @@ fn unmatched_reason(say: &Say, r: UnmatchedReason) -> String {
         UnmatchedReason::Ambiguous => w.more_than_one_command_fits.as_str(),
         UnmatchedReason::Context => w.in_a_context_that_is_not.as_str(),
         UnmatchedReason::Tool => w.only_a_command_of_the_other.as_str(),
+        _ => "",
     }
     .to_owned()
 }
@@ -123,12 +124,14 @@ fn foreign_error(say: &Say, e: &ForeignError) -> String {
         ForeignError::TooLong => w.the_shortcut_is_too_long.as_str().to_owned(),
         ForeignError::UnknownKey(k) => w.unknown_key_key.fill(&[("key", k.as_str())]),
         ForeignError::UnsupportedModifier(m) => w.unsupported_modifier_key.fill(&[("key", m.as_str())]),
+        _ => String::new(),
     }
 }
 
 fn read_note(say: &Say, n: ReadNote) -> String {
     match n {
         ReadNote::Numpad => say.words().numeric_keypad_key_read_as_main.as_str().to_owned(),
+        _ => String::new(),
     }
 }
 
@@ -170,7 +173,7 @@ fn plan_view(ui: &mut Ui, env: &Env<'_>, state: &mut DialogState, plan: &ImportP
         TextField::new(w.set_name.clone(), Bind::bound(&mut name)).id_salt("shortcuts.import.name").show(ui);
         let import = if env.sets.is_some() { w.import_as_new_set.clone() } else { w.import.clone() };
         let valid = env.sets.is_none() || craft_keymap::profiles::set_name(&name).is_some();
-        if Button::new(import).id_salt("shortcuts.import.ok").enabled(valid).default_action().show(ui).clicked() {
+        if Button::new(import).id_salt("shortcuts.import.ok").enabled(valid).show(ui).clicked() {
             act = Some(Act::Import);
         }
         if Button::new(w.cancel_import.clone()).id_salt("shortcuts.import.cancel").show(ui).clicked() {
@@ -250,6 +253,7 @@ fn skip_note(say: &Say, env: &Env<'_>, reason: SkipReason, kept_by: Option<&Comm
         (SkipReason::Taken, None) => w.taken_by_a_later_entry.as_str().to_owned(),
         (SkipReason::Reserved, _) => w.reserved_by_the_system.as_str().to_owned(),
         (SkipReason::UnknownScope, _) => w.the_scope_is_unknown.as_str().to_owned(),
+        _ => String::new(),
     }
 }
 
@@ -258,6 +262,7 @@ fn failed_note(say: &Say, change: FailedChange) -> String {
     match change {
         FailedChange::Bind => w.the_sets_shortcuts_could_not_be.as_str().to_owned(),
         FailedChange::Clear => w.the_shortcuts_could_not_be_removed.as_str().to_owned(),
+        _ => String::new(),
     }
 }
 
@@ -298,7 +303,7 @@ fn after_report(ui: &mut Ui, env: &Env<'_>, set: &str, report: &ImportReport) ->
             if Button::new(w.copy_report.clone()).id_salt("shortcuts.import.copy").show(ui).clicked() {
                 act = Some(Act::Copy(report_text(say, &heading, &changed, &lists)));
             }
-            if Button::new(w.done.clone()).id_salt("shortcuts.import.done").default_action().show(ui).clicked() {
+            if Button::new(w.done.clone()).id_salt("shortcuts.import.done").show(ui).clicked() {
                 act = Some(Act::Close);
             }
         });

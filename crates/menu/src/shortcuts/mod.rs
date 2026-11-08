@@ -79,7 +79,7 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 
 use craft_keymap::{Bindable, Binding, Builtins, CommandRef, ForeignSet, ImportOptions, Keymap, ProfileError, Profiles, Trigger};
-use craft_ui::contract::{Animate as _, Bind, NoValue, Pattern, Props as _, SaveKey, Show as _, ShowContainer as _};
+use craft_ui::contract::{Animate as _, Bind, NoValue, Pattern, SaveKey, ShowContainer as _};
 use craft_ui::dialog::{Dialog, DialogOutput};
 use craft_ui::runtime::commands::{CommandSet as _, Commands as _, EditCommands};
 use craft_ui::runtime::overlay::CloseReason;
@@ -516,26 +516,10 @@ fn frame(ui: &mut Ui, env: &mut Env<'_>, state: &mut DialogState) -> ShortcutsOu
                 });
             }
         })
-        .on_pick(|at, _| {
-            let mut guard = session.borrow_mut();
-            let Session { env, state } = &mut *guard;
-            match acts.get(at) {
-                Some(Act::Undo) => state.undo(env),
-                Some(Act::Redo) => state.redo(env),
-                Some(Act::ResetAll) => state.ask_reset_all(),
-                Some(Act::Summarize) => state.summarize(env),
-                _ => {}
-            }
-        })
-        .close_guard(|at, _| {
-            if acts.get(at) != Some(&Act::Ok) {
-                return true;
-            }
-            let mut guard = session.borrow_mut();
-            let Session { env, state } = &mut *guard;
-            state.ok(env);
-            !state.is_showing()
-        })
+        // A footer button does not identify itself to the dialog's hooks, so the picked index is read after the
+        // dialog ran. OK is the only button that closes: the state decides whether it may, so the dialog itself
+        // never closes on it.
+        .close_guard(|_, _| false)
         .opened(Bind::bound(&mut open))
         .show(ui, |ui, cx| {
             let mut guard = session.borrow_mut();
@@ -553,7 +537,15 @@ fn frame(ui: &mut Ui, env: &mut Env<'_>, state: &mut DialogState) -> ShortcutsOu
             }
         });
     let Session { env, state } = session.into_inner();
-    let DialogOutput { response, closed, .. } = shown.output;
+    let DialogOutput { response, closed, picked } = shown.output;
+    match picked.and_then(|at| acts.get(at)) {
+        Some(Act::Undo) => state.undo(env),
+        Some(Act::Redo) => state.redo(env),
+        Some(Act::ResetAll) => state.ask_reset_all(),
+        Some(Act::Summarize) => state.summarize(env),
+        Some(Act::Ok) => state.ok(env),
+        Some(Act::Cancel) | None => {}
+    }
     match closed {
         Some(CloseReason::Escape) => state.escape(env),
         Some(CloseReason::Requested | CloseReason::Outside | CloseReason::FocusLeft) => state.cancel(env),

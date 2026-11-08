@@ -1130,6 +1130,7 @@ fn assign_error(env: &Env, e: &AssignError) -> String {
         AssignError::Full => word!(env, too_many_shortcuts_are_assigned),
         AssignError::UnknownCommand => word!(env, this_command_is_unknown),
         AssignError::Taken(holders) => fill!(env, also_used_by_label, ("label", &env.holder_labels(holders))),
+        _ => e.to_string(),
     }
 }
 
@@ -1146,7 +1147,9 @@ pub(crate) fn binding_error(env: &Env, e: &BindingError) -> String {
             ParseError::UnknownModifier(m) => fill!(env, unknown_modifier_key, ("key", m)),
             ParseError::DuplicateModifier(m) => fill!(env, modifier_key_given_twice, ("key", m)),
             ParseError::Sequence => word!(env, key_sequences_are_not_supported),
+            _ => e.to_string(),
         },
+        _ => e.to_string(),
     }
 }
 
@@ -1161,5 +1164,6 @@ fn profile_error(env: &Env, e: &ProfileError) -> String {
         ProfileError::WrongFormat => word!(env, this_is_not_a_craft_keymap),
         ProfileError::NewerVersion(v) => fill!(env, this_file_is_from_a_newer, ("n", &v.to_string())),
         ProfileError::TooLarge => word!(env, the_file_is_too_large),
+        _ => e.to_string(),
     }
 }

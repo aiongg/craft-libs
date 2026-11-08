@@ -336,6 +336,7 @@ fn build(keymap: &Keymap, options: &Options, text: &Say, view: &View) -> Built {
                 clashing.insert(c.b.0.key());
             }
             ConflictKind::Shadow => built.shadows += 1,
+            _ => {}
         }
     }
     let query = Query::new(view.query, platform);

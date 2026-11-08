@@ -9,7 +9,7 @@ use craft_keymap::keymap::{Binding, MAX_BINDINGS};
 use craft_ui::buttons::{Button, IconButton};
 use craft_ui::contract::{
     Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, ColumnSpec, Common, Component, ContainerProps, Cx, ItemOutput,
-    MeasureCx, Outcome, PaintUi, Props as _, Role, SelectMode, ShowCollection as _, Sizing,
+    MeasureCx, Outcome, PaintUi, Props as _, Role, SelectMode, ShowCollection as _, Sizing, Styled as _,
 };
 use craft_ui::display::{Elide, Shade, Text};
 use craft_ui::primitives::{IconSpec, Span, TextRun};
@@ -220,6 +220,8 @@ pub(crate) struct CommandRow<'r> {
     line: &'r Line,
     env: &'r RowEnv<'r>,
     cells: Vec<(ColumnKey, Rect)>,
+    /// The width of every text the shortcut cell draws as a chip, measured in `measure` (paint cannot lay text out).
+    widths: std::collections::BTreeMap<String, f32>,
     act: Option<RowAct>,
 }
 
@@ -243,7 +245,7 @@ impl<'r> CommandRow<'r> {
             },
             Line::Header { name, .. } => name.clone(),
         };
-        CommandRow { common: Common::new(), line, env, cells: cells.to_vec(), act: None }.label(name)
+        CommandRow { common: Common::new(), line, env, cells: cells.to_vec(), widths: std::collections::BTreeMap::new(), act: None }.label(name)
     }
 
     fn cell(&self, column: ColumnKey) -> Rect {
@@ -274,6 +276,15 @@ impl Component for CommandRow<'_> {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        self.widths.clear();
+        if let Line::Row(line) = self.line {
+            let recording = self.env.recording.as_ref().map(|(_, shown)| shown.as_str());
+            let texts = line.chips.iter().map(|chip| chip.text.as_str()).chain(line.unparsed.iter().map(String::as_str)).chain(recording);
+            for text in texts {
+                let width = cx.layout(&TextRun::new(text).role(TypeRole::Label)).size().x + 2.0 * cx.style.pad;
+                self.widths.insert(text.to_owned(), width);
+            }
+        }
         Vec2::new(0.0, cx.style.height)
     }
 
@@ -339,7 +350,8 @@ impl CommandRow<'_> {
         let flow = Flow::new(cell, rtl);
         let (pad, gap, height) = (cx.style.pad, cx.style.gap, cx.style.height);
         let editable = self.env.editable;
-        let width_of = |ui: &PaintUi<'_>, text: &str| ui.draw().layout(&TextRun::new(text).role(TypeRole::Label), f32::INFINITY).size().x + 2.0 * pad;
+        let widths = &self.widths;
+        let width_of = |text: &str| widths.get(text).copied().unwrap_or(0.0);
         let recording = self.env.recording.as_ref().and_then(|(target, shown)| match target {
             Target::Cell { command, old } if *command == line.command => Some((old.clone(), shown.clone())),
             _ => None,
@@ -363,12 +375,12 @@ impl CommandRow<'_> {
                 (Some((_, shown)), true) => shown.clone(),
                 _ => chip.map_or_else(String::new, |chip| chip.text.clone()),
             };
-            let width = width_of(ui, &shown).min((reset_at - at).max(0.0));
+            let width = width_of(&shown).min((reset_at - at).max(0.0));
             let rect = band(&flow, cell, at, width);
             at += width + gap;
             if *recording_here {
                 let label = words.label_press_keys.fill(&[("label", &line.label)]);
-                let out: RecorderOutput = ui.child(("record", line.key.as_str()), rect, ChordRecorder::new(label, true, shown));
+                let out: RecorderOutput = ChordRecorder::new(label, true, shown).child(ui, ("record", line.key.as_str()), rect);
                 if !out.chords.is_empty() {
                     act = Some(RowAct::Chords(out.chords));
                 } else if out.response.lost_focus() {
@@ -394,7 +406,7 @@ impl CommandRow<'_> {
             at = reset_at;
         }
         for (n, text) in line.unparsed.iter().enumerate() {
-            let width = width_of(ui, text).min((reset_at - at).max(0.0));
+            let width = width_of(text).min((reset_at - at).max(0.0));
             let rect = band(&flow, cell, at, width);
             at += width + gap;
             let name = words.label_chord.fill(&[("label", &line.label), ("chord", text)]);

@@ -11,12 +11,13 @@ use craft_theme::variant::Tone;
 use craft_ui::buttons::{Button, ToggleButton};
 use craft_ui::contract::{
     Access, Bind, BodyCx, Component, Cx, Input, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role, Show as _,
+    ShowContainer as _, Styled as _,
 };
 use craft_ui::display::Text;
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::primitives::{PaintShape, StrokeWidth, TextRun, Wrap};
 use craft_ui::style::{ComponentStyle, FocusLook, StyleColor, StyleCx, TextLook, TypeRole};
-use egui::{CornerRadius, Rect, Response, Ui, Vec2, pos2, vec2};
+use egui::{CornerRadius, Rect, Response, Ui, Vec2, vec2};
 
 use super::state::{DialogState, Env};
 use super::words::Say;
@@ -367,9 +368,9 @@ impl Component for KeyCaps {
     const OVERLAYS: bool = false;
     const KEYS: craft_ui::runtime::focus::KeyUse = craft_ui::runtime::focus::KeyUse::of(Input::Pointer).with_moves();
     type Style = PaneStyle;
-    type Output = (Option<Key>, Option<Mod>);
+    type Output = PaneOutput;
 
-    fn style(cx: &StyleCx<'_>, _: PaneStyleKey) -> PaneStyle {
+    fn style(cx: &StyleCx<'_>, _: Self::StyleKey) -> PaneStyle {
         let classes = [Class::Free, Class::App, Class::Scoped, Class::Both];
         PaneStyle {
             metrics: Metrics::new(),
@@ -453,8 +454,8 @@ impl Component for KeyCaps {
         }
     }
 
-    fn finish(self, _cx: Cx<'_, Self>) -> (Option<Key>, Option<Mod>) {
-        (self.key, self.toggled)
+    fn finish(self, cx: Cx<'_, Self>) -> PaneOutput {
+        PaneOutput { response: cx.response.clone(), key: self.key, toggled: self.toggled }
     }
 }
 
@@ -661,9 +662,9 @@ pub(crate) fn show(ui: &mut Ui, _cx: &mut BodyCx<'_>, env: &mut Env<'_>, state: 
                 key: None,
                 toggled: None,
             };
-            let (key, caps_toggle) = caps.id_salt("shortcuts.keyboardCaps").show(ui);
-            picked_key = key;
-            toggled = toggled.or(caps_toggle);
+            let pane = caps.id_salt("shortcuts.keyboardCaps").show(ui);
+            picked_key = pane.key;
+            toggled = toggled.or(pane.toggled);
             Stack::new().show(ui, |ui, _| key_list(ui, env, state, &index.1, mods, &mut go, &mut assign));
         });
     });
