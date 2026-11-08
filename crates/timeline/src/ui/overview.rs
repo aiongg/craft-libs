@@ -111,7 +111,7 @@ pub struct TimelineOverview<'a> {
 impl<'a> TimelineOverview<'a> {
     /// An overview named `label` of `runs` over `end`, that edits `view`.
     pub fn new(label: impl Into<Label>, runs: &'a [OverviewRun], view: Bind<'a, TimeView>, end: Tick) -> Self {
-        TimelineOverview { common: Common::new(), runs, view, end, shown_width: 0.0, playhead: None }.label(label)
+        TimelineOverview { common: Common::new(), runs, view, end, shown_width: 0.0, playhead: None }.label(label).ltr_axis()
     }
 
     /// The fraction of the overview's span the window covers.

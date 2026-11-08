@@ -188,7 +188,6 @@ impl Outcome for TimecodeFieldOutput {
 /// - Never before `min` (the sequence start). One Tab stop; Up and Down step one frame, Shift ten.
 /// - AccessKit: a spin button whose text is the formatted time.
 #[derive(Component, Props)]
-#[component(overlay)]
 pub struct TimecodeField<'a> {
     #[common]
     common: Common,
@@ -239,6 +238,7 @@ impl Component for TimecodeField<'_> {
     const ROLE: Role = Role::SPIN_BUTTON;
     const INPUT: Input = Input::Text;
     const KEYS: KeyUse = KeyUse::of(Input::Text).with_moves();
+    const OVERLAYS: bool = false;
     type Style = FieldStyle;
     type Output = TimecodeFieldOutput;
 

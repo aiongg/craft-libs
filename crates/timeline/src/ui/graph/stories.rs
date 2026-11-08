@@ -9,7 +9,7 @@ use crate::ui::view::TimelineView;
 use craft_behavior::{Mixed, Selection};
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
 use craft_ui::runtime::env::Message;
-use craft_ui::testing::{StoryData, StoryOutput, story};
+use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, pointer, story};
 use egui::{Color32, Rect, Ui, Vec2};
 
 /// Seconds between a curve's samples.
@@ -115,7 +115,15 @@ fn shown(ui: &mut Ui, demo: &mut Demo, range: Bind<'_, GraphRange>) -> StoryOutp
         .unwrap_or_default()
 }
 
-#[story(GraphEditor<'static>, covers = [Default])]
+/// Turns the zoom wheel over the plot: the editor zooms its value range.
+fn zoom_the_value_range(fixture: &mut Fixture) {
+    let Some(editor) = fixture.by_label("Graph") else { return };
+    fixture.frame(vec![pointer::moved(editor.rect.center())]);
+    fixture.frame(vec![pointer::zoom_wheel(100.0)]);
+    fixture.idle(2);
+}
+
+#[story(GraphEditor<'static>, covers = [Default], drive = Drive::Custom(zoom_the_value_range))]
 fn position_curves(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let mut demo = data.value("demo", Demo::new()).clone();
     let range = data.value("range", GraphRange::default());

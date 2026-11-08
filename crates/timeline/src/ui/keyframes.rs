@@ -213,6 +213,14 @@ impl<'a> KeyframeLane<'a> {
             report: Report::default(),
         }
         .label(label)
+        .ltr_axis()
+    }
+
+    /// The delta the dragged keys move by, kept by the caller; the lane reports it as an edit either way.
+    #[must_use]
+    pub fn delta(mut self, delta: Bind<'a, Tick>) -> Self {
+        self.delta = delta;
+        self
     }
 
     fn sorted(&self) -> Vec<&'a KeyframeMark> {

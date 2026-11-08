@@ -316,6 +316,7 @@ impl<'a> TimelineRuler<'a> {
             context: None,
         }
         .label(label)
+        .ltr_axis()
     }
 
     /// The times a drag snaps to: the app's targets, else with Shift what the ruler itself shows.
@@ -640,15 +641,19 @@ impl Component for TimelineRuler<'_> {
         let words = cx.words::<TimelineRulerWords>();
         if let Some(area) = self.work_area.filter(|area| !area.is_empty()) {
             let at = |t: Tick| format_time(t, &axis.format);
+            let end = axis.end.max(Tick::ZERO).seconds();
+            let (start, stop) = (area.start.seconds(), area.end().seconds());
+            // The bar slides as a whole, so its position runs up to the latest start that keeps it inside the sequence.
+            let latest = (end - (stop - start)).max(start);
             let parts = [
-                (WORK_BAR, &words.work_area, format!("{} \u{2013} {}", at(area.start), at(area.end()))),
-                (WORK_START, &words.work_area_start, at(area.start)),
-                (WORK_END, &words.work_area_end, at(area.end())),
+                (WORK_BAR, &words.work_area, start, latest, format!("{} \u{2013} {}", at(area.start), at(area.end()))),
+                (WORK_START, &words.work_area_start, start, end.max(start), at(area.start)),
+                (WORK_END, &words.work_area_end, stop, end.max(stop), at(area.end())),
             ];
-            for (part, name, value) in parts {
+            for (part, name, value, highest, text) in parts {
                 let node = access.node(part, Role::SLIDER);
                 node.name = Name::Text(name.as_str().to_owned());
-                node.value(value);
+                node.numeric = Some(Numeric::new(value, 0.0..=highest).text(text));
             }
         }
         let names = [&words.split_video_in, &words.split_video_out, &words.split_audio_in, &words.split_audio_out];

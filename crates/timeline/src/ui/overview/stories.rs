@@ -1,8 +1,10 @@
 //! Stories of `TimelineOverview`: eight tracks of runs, the visible window and the playhead.
 
-use craft_ui::contract::{Bind, Show as _};
-use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
-use egui::{Color32, Ui, Vec2};
+use craft_behavior::Mixed;
+use craft_ui::contract::{Bind, Show as _, Validity};
+use craft_ui::runtime::env::Message;
+use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
+use egui::{Color32, Ui, Vec2, vec2};
 
 use super::{TimelineOverview, overview_runs};
 use crate::time::{Tick, TimeRange, TimeView};
@@ -31,14 +33,44 @@ fn tracks() -> Vec<Vec<(TimeRange, Color32)>> {
         .collect()
 }
 
-#[story(TimelineOverview<'static>, covers = [Default], drive = Drive::Never)]
-fn eight_tracks(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let view = data.value("view", TimeView::new(Tick::from_seconds_f64(10.0), 40.0));
+/// The closest zoom the invalid story accepts, in points per second.
+const CLOSEST_ZOOM: f64 = 100.0;
+/// How far along the overview the drive presses, as a share of its width, and how far it drags.
+const PRESS_AT: f32 = 0.2;
+const DRAG_BY: f32 = 60.0;
+
+/// Presses the overview off the window's middle and drags: the window follows the pointer.
+fn centre_the_window(fixture: &mut Fixture) {
+    let shown = fixture.shown();
+    let from = shown.lerp_inside(vec2(PRESS_AT, 0.5));
+    fixture.drag_at(from, vec2(DRAG_BY, 0.0));
+}
+
+/// Shows the overview of the eight tracks over `view`.
+fn shown(ui: &mut Ui, view: Bind<'_, TimeView>) -> StoryOutput {
     let width = ui.available_width();
     let runs = overview_runs(&tracks(), Tick::from_seconds_f64(END), Vec2::new(width, ui.available_height()));
-    TimelineOverview::new("Overview", &runs, Bind::bound(view), Tick::from_seconds_f64(END))
+    TimelineOverview::new("Overview", &runs, view, Tick::from_seconds_f64(END))
         .shown_width(width)
         .playhead(Tick::from_seconds_f64(END / 2.0))
         .show(ui)
         .into()
+}
+
+#[story(TimelineOverview<'static>, covers = [Default], drive = Drive::Custom(centre_the_window))]
+fn eight_tracks(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    shown(ui, Bind::bound(data.value("view", TimeView::new(Tick::from_seconds_f64(10.0), 40.0))))
+}
+
+#[story(TimelineOverview<'static>, covers = [Mixed], drive = Drive::Never)]
+fn views_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    shown(ui, Bind::bound_mixed(data.value("mixed", Mixed::<TimeView>::Mixed)))
+}
+
+#[story(TimelineOverview<'static>, covers = [Invalid], drive = Drive::Never)]
+fn window_closer_than_the_limit(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let not_too_close = |view: &TimeView| {
+        if view.points_per_second > CLOSEST_ZOOM { Validity::Refuse(Message::new("The window cannot be that narrow")) } else { Validity::Ok }
+    };
+    shown(ui, Bind::bound(data.value("close", TimeView::new(Tick::ZERO, CLOSEST_ZOOM * 2.0))).check(not_too_close))
 }

@@ -181,6 +181,14 @@ impl<'a> MarkerStrip<'a> {
     pub fn new(label: impl Into<Label>, markers: &'a [Marker]) -> Self {
         MarkerStrip { common: Common::new(), markers, span: Bind::given(Mixed::Mixed), snap: None, bin: false, report: Report::default() }
             .label(label)
+            .ltr_axis()
+    }
+
+    /// The place of the marker being dragged, kept by the caller; the strip reports it as an edit either way.
+    #[must_use]
+    pub fn span(mut self, span: Bind<'a, MarkerSpan>) -> Self {
+        self.span = span;
+        self
     }
 
     fn sorted(&self) -> Vec<&'a Marker> {
