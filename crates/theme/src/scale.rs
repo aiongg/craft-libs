@@ -221,4 +221,6 @@ impl Opacity {
     pub const SCRIM: f32 = 0.5;
     /// Alpha of a window or layer while it moves over a drop target, so what lies under it shows through.
     pub const MOVING: f32 = 0.75;
+    /// Alpha of a mark the app derived, drawn beside the user's own marks of the same kind so those stand out.
+    pub const DERIVED: f32 = 0.7;
 }

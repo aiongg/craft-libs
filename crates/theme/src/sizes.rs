@@ -113,9 +113,15 @@ pub(crate) fn leaves(b: &mut Preset) -> Vec<Leaf<'_>> {
         "base.size.thumb.lg" Num 12.0..=96.0 => s.thumb.lg;
         "base.size.handle.sm" Num 2.0..=32.0 => s.handle.sm;
         "base.size.handle.md" Num 2.0..=32.0 => s.handle.md;
+        "base.size.handle.ring" Num 2.0..=64.0 => s.handle.ring;
+        "base.size.handle.hit" Num 2.0..=64.0 => s.handle.hit;
+        "base.size.handle.rotate_reach" Num 2.0..=128.0 => s.handle.rotate_reach;
+        "base.size.handle.band_inner" Num 0.0..=64.0 => s.handle.band_inner;
+        "base.size.handle.band_outer" Num 2.0..=128.0 => s.handle.band_outer;
         "base.size.hit.slop" Num 0.0..=32.0 => s.hit.slop;
         "base.size.hit.target" Num 0.0..=32.0 => s.hit.target;
         "base.size.hit.dead_zone" Num 0.0..=32.0 => s.hit.dead_zone;
+        "base.size.hit.reveal" Num 8.0..=256.0 => s.hit.reveal;
         "base.size.checker" Num 1.0..=32.0 => s.checker;
         "base.size.dial" Num 16.0..=128.0 => s.dial;
         "base.size.plot.width" Num 48.0..=640.0 => s.plot.width;

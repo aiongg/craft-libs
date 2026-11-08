@@ -16,6 +16,7 @@ caption.close_text
 caption.disc
 caption.inactive
 caption.pressed
+data.backdrop
 data.blue
 data.cyan
 data.green
@@ -23,6 +24,7 @@ data.luma
 data.magenta
 data.red
 data.scope
+data.selection
 data.series.0
 data.series.1
 data.series.2
@@ -73,6 +75,7 @@ overlay.handle_stroke
 overlay.line
 overlay.marquee
 overlay.stroke
+overlay.trail
 shape.edge
 shape.radius.button
 shape.radius.control
@@ -96,9 +99,15 @@ size.dock.column
 size.float.height
 size.float.width
 size.groove
+size.handle.band_inner
+size.handle.band_outer
+size.handle.hit
 size.handle.md
+size.handle.ring
+size.handle.rotate_reach
 size.handle.sm
 size.hit.dead_zone
+size.hit.reveal
 size.hit.slop
 size.hit.target
 size.icon.lg
