@@ -5,8 +5,8 @@ use crate::contract::kit::PlainStyle;
 use craft_behavior::{DisplayOrder, Granularity, Input, Intent, ItemSource, Sense};
 use craft_ui::buttons::Button;
 use craft_ui::contract::{
-    Bind, CollectionEvent, CommandSet, Commands as _, Common, Component, Cx, ItemKeys, MeasureCx, Role, SelectMode, Show as _, ShowCollection as _,
-    ShowContainer as _,
+    Bind, CollectionEvent, CommandSet, Commands as _, Common, Component, Cx, Focus as _, ItemKeys, MeasureCx, Props as _, Role, SelectMode,
+    Show as _, ShowCollection as _, ShowContainer as _,
 };
 use craft_ui::list::{List, ListRow};
 use craft_ui::popover::Popover;

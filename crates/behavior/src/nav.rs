@@ -764,7 +764,7 @@ mod tests {
     fn a_page_move_from_the_last_row_wraps_only_when_the_state_wraps() {
         let rows = Rows::flat(5);
         let mut stops = NavState::at(4);
-        assert_eq!(go(NavShape::Flat, &rows, &mut stops, NavMove::PageDown), NavStep::Moved(4));
+        assert_eq!(go(NavShape::Flat, &rows, &mut stops, NavMove::PageDown), NavStep::Stay);
         let mut wraps = NavState::at(4).wrap(true);
         assert_eq!(go(NavShape::Flat, &rows, &mut wraps, NavMove::PageDown), NavStep::Moved(0));
         assert_eq!(go(NavShape::Flat, &rows, &mut wraps, NavMove::PageUp), NavStep::Moved(4));
