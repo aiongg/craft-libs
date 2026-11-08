@@ -307,7 +307,27 @@ pub(super) fn show_body<T: LayerTree>(
 
     let mut events: Vec<LayersEvent<T::Id>> = reveal.opens.iter().cloned().map(LayersEvent::Open).collect();
     let selection_changed = out.events.iter().any(|event| matches!(event, CollectionEvent::Selection(_)));
-    map_events(cx, &order, &parent_of, filtered, lock_name, session, out.events, &mut events);
+    let mut list_events = out.events;
+    // A double click on a renamable layer's row renames it in place; Enter, a thumbnail and a layer that can't be
+    // renamed report the activation.
+    if ui.input(|input| input.pointer.primary_down()) {
+        let thumbs: Vec<LayerRowKey<T::Id>> = list_events
+            .iter()
+            .filter_map(|event| match event {
+                CollectionEvent::Item(key, RowEvent::ThumbClicked { .. }) => Some(key.clone()),
+                _ => None,
+            })
+            .collect();
+        list_events.retain(|event| {
+            let CollectionEvent::Activate(LayerRowKey::Layer(id)) = event else { return true };
+            let renames = tree.info(id).renamable && !thumbs.iter().any(|key| key.layer() == id);
+            if renames {
+                start_rename(ui, cx.list, id.clone());
+            }
+            !renames
+        });
+    }
+    map_events(cx, &order, &parent_of, filtered, lock_name, session, list_events, &mut events);
     if !ui.input(|input| input.pointer.primary_down()) {
         session.sweep = None;
     }
