@@ -16,9 +16,6 @@ craft_ui::words! {
         expand_column: "docking.expandColumn" = "Expand column";
         move_window: "docking.moveWindow" = "Move panel window";
         close_window: "docking.closeWindow" = "Close panel window";
-        /// Shown under the pointer while a drag offers a docking target and `DockConfig::float_hint` is on. `{key}`
-        /// stands for the modifier that floats the drop instead.
-        float_hint: template "docking.floatHint" = "Hold {key} to undock";
         /// The tooltip and accessible name of the panel-menu button.
         panel_menu: "docking.panelMenu" = "Panel Menu";
 
