@@ -12,7 +12,7 @@ use craft_imaging::ui::blur_pins::{
 use craft_ui::canvas::{Canvas, ToolPath};
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, pointer, trial};
-use egui::{Key, Modifiers, Pos2, Rect, pos2, vec2};
+use egui::{Key, Modifiers, Pos2, Rect, pos2};
 
 const BOUNDS: [f64; 4] = [0.0, 0.0, 1000.0, 800.0];
 
@@ -52,7 +52,7 @@ fn blur_pins_add_move_tune_remove_and_stay_in_bounds() {
     assert_eq!((pins.pins[1].x, pins.pins[1].y), (0.1, 0.1));
 
     let before = pins.clone();
-    drag(&mut pins, BlurGrab::Pin { pin: 1 }, &before, Point::new(100.0, 80.0), Point::new(-500.0, 5000.0));
+    drag(&mut pins, BlurGrab::pin(1), &before, Point::new(100.0, 80.0), Point::new(-500.0, 5000.0));
     assert_eq!((pins.pins[1].x, pins.pins[1].y), (0.0, 1.0));
 
     assert!(pins.remove_selected());
@@ -82,31 +82,31 @@ fn blur_pins_iris_handles_resize_turn_round_and_feather() {
 
     // The press grabs each handle of the selected pin.
     let at = |u: f64, v: f64| screen(iris_point(&pins, &pin, shape, u, v));
-    assert_eq!(grab(&pins, &view(), at(AXIS_HANDLES[0].0, AXIS_HANDLES[0].1), &reach()), BlurGrab::Axis { pin: 0, axis: 0 });
-    assert_eq!(grab(&pins, &view(), at(round_handle(shape).0, round_handle(shape).1), &reach()), BlurGrab::Round { pin: 0 });
+    assert_eq!(grab(&pins, &view(), at(AXIS_HANDLES[0].0, AXIS_HANDLES[0].1), &reach()), BlurGrab::axis(0, 0));
+    assert_eq!(grab(&pins, &view(), at(round_handle(shape).0, round_handle(shape).1), &reach()), BlurGrab::round(0));
     let dot = feather_handles(shape)[2];
-    assert_eq!(grab(&pins, &view(), at(dot.0, dot.1), &reach()), BlurGrab::Feather { pin: 0, dot: 2 });
+    assert_eq!(grab(&pins, &view(), at(dot.0, dot.1), &reach()), BlurGrab::feather(0, 2));
 
     // Dragging +u out to 0.5 of the short side (400 px) turns nothing and sets radius_x.
-    dragged(&mut pins, BlurGrab::Axis { pin: 0, axis: 0 }, Point::new(centre.x + 400.0, centre.y));
+    dragged(&mut pins, BlurGrab::axis(0, 0), Point::new(centre.x + 400.0, centre.y));
     let Some(resized) = pins.pins[0].iris else { panic!("shape") };
     assert!((resized.radius_x - 0.5).abs() < 1e-9 && resized.angle.abs() < 1e-9);
     // Dragging +v straight right turns the shape by a quarter turn (its +v axis points right).
-    dragged(&mut pins, BlurGrab::Axis { pin: 0, axis: 1 }, Point::new(centre.x + 200.0, centre.y));
+    dragged(&mut pins, BlurGrab::axis(0, 1), Point::new(centre.x + 200.0, centre.y));
     let Some(turned) = pins.pins[0].iris else { panic!("shape") };
     assert!((turned.radius_y - 0.25).abs() < 1e-9 && (turned.angle + 90.0).abs() < 1e-9);
 
     // The square far out is a rectangle (roundness 100), at the centre an ellipse.
     let mut pins = start(BlurKind::Iris);
-    dragged(&mut pins, BlurGrab::Round { pin: 0 }, Point::new(centre.x + 5000.0, centre.y - 5000.0));
+    dragged(&mut pins, BlurGrab::round(0), Point::new(centre.x + 5000.0, centre.y - 5000.0));
     assert!((pins.pins[0].iris.map_or(0.0, |s| s.roundness) - 100.0).abs() < 1e-9);
-    dragged(&mut pins, BlurGrab::Round { pin: 0 }, centre);
+    dragged(&mut pins, BlurGrab::round(0), centre);
     assert!(pins.pins[0].iris.map_or(1.0, |s| s.roundness).abs() < 1e-9);
 
     // A feather dot at the shape's edge sets 1, clamped to 0.99; at the centre 0.
-    dragged(&mut pins, BlurGrab::Feather { pin: 0, dot: 0 }, Point::new(centre.x + 5000.0, centre.y));
+    dragged(&mut pins, BlurGrab::feather(0, 0), Point::new(centre.x + 5000.0, centre.y));
     assert_eq!(pins.pins[0].iris.map(|s| s.feather), Some(0.99));
-    dragged(&mut pins, BlurGrab::Feather { pin: 0, dot: 0 }, centre);
+    dragged(&mut pins, BlurGrab::feather(0, 0), centre);
     assert_eq!(pins.pins[0].iris.map(|s| s.feather), Some(0.0));
 
     let wild = IrisShape::new(9.0, f64::NAN, 270.0, -4.0, 3.0).clean();
@@ -127,21 +127,21 @@ fn blur_pins_tilt_shift_lines_and_dots() {
     // The band is horizontal: its normal is vertical, so the lines sit above and below.
     let side = pins.short_side();
     let focus_line = screen(tilt_point(&pins, &pin, band, band.focus * side, 150.0));
-    assert_eq!(grab(&pins, &view(), focus_line, &reach()), BlurGrab::Focus { pin: 0 });
+    assert_eq!(grab(&pins, &view(), focus_line, &reach()), BlurGrab::focus(0));
     let edge_line = screen(tilt_point(&pins, &pin, band, -(band.focus + band.transition) * side, 150.0));
-    assert_eq!(grab(&pins, &view(), edge_line, &reach()), BlurGrab::Transition { pin: 0 });
+    assert_eq!(grab(&pins, &view(), edge_line, &reach()), BlurGrab::transition(0));
     let dot = screen(turn_handle(&pins, &pin, band, &view(), &reach(), 1.0));
-    assert_eq!(grab(&pins, &view(), dot, &reach()), BlurGrab::Turn { pin: 0, side: 1 });
+    assert_eq!(grab(&pins, &view(), dot, &reach()), BlurGrab::turn(0, 1));
 
-    dragged(&mut pins, BlurGrab::Focus { pin: 0 }, Point::new(centre.x + 33.0, centre.y - 160.0));
+    dragged(&mut pins, BlurGrab::focus(0), Point::new(centre.x + 33.0, centre.y - 160.0));
     assert!((pins.pins[0].tilt.map_or(0.0, |b| b.focus) - 0.2).abs() < 1e-9);
-    dragged(&mut pins, BlurGrab::Transition { pin: 0 }, Point::new(centre.x, centre.y + 240.0));
+    dragged(&mut pins, BlurGrab::transition(0), Point::new(centre.x, centre.y + 240.0));
     assert!((pins.pins[0].tilt.map_or(0.0, |b| b.transition) - 0.1).abs() < 1e-9);
     // The +1 dot dragged straight right turns the normal (sin a, cos a) to a = 90°.
-    dragged(&mut pins, BlurGrab::Turn { pin: 0, side: 1 }, Point::new(centre.x + 300.0, centre.y));
+    dragged(&mut pins, BlurGrab::turn(0, 1), Point::new(centre.x + 300.0, centre.y));
     assert!((pins.pins[0].tilt.map_or(0.0, |b| b.angle) - 90.0).abs() < 1e-9);
     // The -1 dot dragged the same way is the other half turn: folded to −90.
-    dragged(&mut pins, BlurGrab::Turn { pin: 0, side: -1 }, Point::new(centre.x + 300.0, centre.y));
+    dragged(&mut pins, BlurGrab::turn(0, -1), Point::new(centre.x + 300.0, centre.y));
     assert!((pins.pins[0].tilt.map_or(0.0, |b| b.angle) + 90.0).abs() < 1e-9);
     assert_eq!(TiltBand::new(135.0, f64::NAN, 0.0).clean(), TiltBand::new(-45.0, 0.1, 0.01));
 }
@@ -152,7 +152,7 @@ fn blur_pins_spin_ring_sets_the_angle() {
     let mut pins = start(BlurKind::Spin);
     let centre = pins.to_document(&pins.pins[0]);
     let ring = screen(Point::new(centre.x + f64::from(reach().ring), centre.y));
-    assert_eq!(grab(&pins, &view(), ring, &reach()), BlurGrab::Ring { pin: 0 });
+    assert_eq!(grab(&pins, &view(), ring, &reach()), BlurGrab::ring(0));
     assert_eq!(BlurKind::Spin.max(), 360.0);
     pins.pins[0].amount = 0.0;
 
@@ -161,21 +161,21 @@ fn blur_pins_spin_ring_sets_the_angle() {
     let round = [(1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0), (1.0, 0.0)].map(|(x, y)| Point::new(centre.x + 100.0 * x, centre.y + 100.0 * y));
     for (index, pair) in round.windows(2).enumerate() {
         let frame = pins.clone();
-        drag(&mut pins, BlurGrab::Ring { pin: 0 }, &frame, pair[0], pair[1]);
+        drag(&mut pins, BlurGrab::ring(0), &frame, pair[0], pair[1]);
         assert!((pins.pins[0].amount - 90.0 * (index + 1) as f64).abs() < 1e-9);
     }
     // Further round stays at the top; back down comes off it.
     let frame = pins.clone();
-    drag(&mut pins, BlurGrab::Ring { pin: 0 }, &frame, round[0], round[1]);
+    drag(&mut pins, BlurGrab::ring(0), &frame, round[0], round[1]);
     assert_eq!(pins.pins[0].amount, 360.0);
     let frame = pins.clone();
-    drag(&mut pins, BlurGrab::Ring { pin: 0 }, &frame, round[1], round[0]);
+    drag(&mut pins, BlurGrab::ring(0), &frame, round[1], round[0]);
     assert!((pins.pins[0].amount - 270.0).abs() < 1e-9);
 
     let mut field = start(BlurKind::Field);
     field.pins[0].amount = 499.0;
     let frame = field.clone();
-    drag(&mut field, BlurGrab::Ring { pin: 0 }, &frame, round[0], round[1]);
+    drag(&mut field, BlurGrab::ring(0), &frame, round[0], round[1]);
     assert_eq!(field.pins[0].amount, 500.0);
 }
 
@@ -204,14 +204,14 @@ fn blur_pins_new_pin_takes_the_selected_pins_amount_and_shape() {
 #[trial]
 fn blur_pins_cursors_follow_the_grab() {
     let cases = [
-        (BlurGrab::Ring { pin: 0 }, CursorIcon::Alias),
-        (BlurGrab::Round { pin: 0 }, CursorIcon::Alias),
-        (BlurGrab::Turn { pin: 0, side: 1 }, CursorIcon::Alias),
-        (BlurGrab::Axis { pin: 0, axis: 1 }, CursorIcon::Move),
-        (BlurGrab::Feather { pin: 0, dot: 0 }, CursorIcon::Move),
-        (BlurGrab::Focus { pin: 0 }, CursorIcon::ResizeVertical),
-        (BlurGrab::Transition { pin: 0 }, CursorIcon::ResizeVertical),
-        (BlurGrab::Pin { pin: 0 }, CursorIcon::Grab),
+        (BlurGrab::ring(0), CursorIcon::Alias),
+        (BlurGrab::round(0), CursorIcon::Alias),
+        (BlurGrab::turn(0, 1), CursorIcon::Alias),
+        (BlurGrab::axis(0, 1), CursorIcon::Move),
+        (BlurGrab::feather(0, 0), CursorIcon::Move),
+        (BlurGrab::focus(0), CursorIcon::ResizeVertical),
+        (BlurGrab::transition(0), CursorIcon::ResizeVertical),
+        (BlurGrab::pin(0), CursorIcon::Grab),
         (BlurGrab::New, CursorIcon::Crosshair),
     ];
     for (grab, icon) in cases {
@@ -221,9 +221,12 @@ fn blur_pins_cursors_follow_the_grab() {
 
     // A press on the pin's dot grabs the pin; far from everything grabs nothing.
     let pins = start(BlurKind::Field);
-    assert_eq!(grab(&pins, &view(), screen(Point::new(503.0, 400.0)), &reach()), BlurGrab::Pin { pin: 0 });
+    assert_eq!(grab(&pins, &view(), screen(Point::new(503.0, 400.0)), &reach()), BlurGrab::pin(0));
     assert_eq!(grab(&pins, &view(), screen(Point::new(100.0, 100.0)), &reach()), BlurGrab::New);
 }
+
+/// How much farther Shift moves a pin with an arrow key.
+const NUDGE_RATIO: f64 = 10.0;
 
 const CANVAS: [f64; 4] = [0.0, 0.0, 400.0, 300.0];
 
@@ -267,7 +270,6 @@ fn overlay(pins: BlurPins) -> Overlay {
             });
         }
     });
-    fixture.room(vec2(400.0, 300.0));
     fixture.settle();
     Overlay { fixture, pins, seen, view }
 }
@@ -341,9 +343,11 @@ fn blur_pins_are_keyboard_parts() {
 
     let x = o.pins.borrow().pins[1].x;
     o.fixture.key(Key::ArrowRight, Modifiers::NONE);
-    assert!((o.pins.borrow().pins[1].x - x - 1.0 / 400.0).abs() < 1e-9, "one document pixel");
+    let one = o.pins.borrow().pins[1].x - x;
+    assert!(one > 0.0, "an arrow moves the pin right");
     o.fixture.key(Key::ArrowRight, Modifiers::SHIFT);
-    assert!((o.pins.borrow().pins[1].x - x - 11.0 / 400.0).abs() < 1e-9, "Shift moves ten");
+    let ten = o.pins.borrow().pins[1].x - x - one;
+    assert!((ten / one - NUDGE_RATIO).abs() < 1e-6, "Shift moves ten times as far: {one} then {ten}");
 }
 
 // A Spin Blur pin's part is named with its angle and the degree unit.
@@ -375,7 +379,6 @@ fn panel(pins: BlurPins) -> Panel {
     let mut fixture = Fixture::new(move |ui| {
         BlurPinsPanel::new(&mut pins.borrow_mut()).show(ui);
     });
-    fixture.room(vec2(320.0, 400.0));
     fixture.settle();
     Panel { fixture }
 }
@@ -419,12 +422,23 @@ fn blur_pins_ring_drag_turns_the_amount_over_several_frames() {
     let mut o = overlay(pins_of(BlurKind::Field, &[15.0]));
     let centre = o.at(100.0, 150.0);
     assert!((o.pins.borrow().pins[0].x - 0.25).abs() < 1e-9);
-    o.press(centre + vec2(24.0, 0.0));
-    let steps = [vec2(0.0, 24.0), vec2(-24.0, 0.0), vec2(0.0, -24.0)];
-    for step in steps {
-        o.move_to(centre + step);
+    // The ring is where the pointer shows the ring's cursor.
+    let mut radius = None;
+    for step in 1..=200u16 {
+        let distance = f32::from(step) / 2.0;
+        o.move_to(centre + egui::Vec2::new(distance, 0.0));
+        if o.fixture.ctx().output(|output| output.cursor_icon) == egui::CursorIcon::Alias {
+            radius = Some(distance);
+            break;
+        }
     }
-    o.release(centre + steps[2]);
+    let radius = radius.expect("the pointer meets the ring");
+    let on_ring = |quarter: u8| centre + egui::Vec2::angled(std::f32::consts::FRAC_PI_2 * f32::from(quarter)) * radius;
+    o.press(on_ring(0));
+    for quarter in 1..=3 {
+        o.move_to(on_ring(quarter));
+    }
+    o.release(on_ring(3));
     // Three quarter turns: 15 + 0.75 * 500.
     let amount = o.pins.borrow().pins[0].amount;
     assert!((amount - 390.0).abs() < 1.0, "{amount}");

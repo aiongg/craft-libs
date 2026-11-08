@@ -237,7 +237,7 @@ impl<'a> BlurPinsOverlay<'a> {
             let Some(result) = cx.part_if_declared(mark.part) else { continue };
             let press = result.press;
             match press.phase {
-                PressPhase::Down { start } if start.button == PointerButton::Primary => {
+                PressPhase::Down { start, .. } if start.button == PointerButton::Primary => {
                     let from = view.to_doc(start.origin);
                     let mut at = pins.clone();
                     let mut grab = mark.grab;
@@ -257,7 +257,7 @@ impl<'a> BlurPinsOverlay<'a> {
                     }
                     held = Some(Held { grab, start: at.clone(), pending, from, last: from, frame: at, began: false });
                 }
-                PressPhase::DragStart { start, pos } | PressPhase::Drag { start, pos, .. } if start.button == PointerButton::Primary => {
+                PressPhase::DragStart { start, pos, .. } | PressPhase::Drag { start, pos, .. } if start.button == PointerButton::Primary => {
                     let Some(h) = held.as_mut().filter(|h| h.grab != BlurGrab::New) else { continue };
                     if !h.began {
                         cx.begin();

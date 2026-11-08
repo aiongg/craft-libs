@@ -14,7 +14,7 @@ use craft_ui::primitives::Revision;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::{Color32, ColorImage, Ui};
 
-use super::{PreviewMap, PreviewPixels, PreviewQuality, PreviewTextures, StylePlan, StyledContent, StyledPreview, StyledSource, TransformPreview};
+use super::{PreviewMap, PreviewQuality, PreviewTextures, StylePlan, StyledContent, StyledPreview, StyledSource, TransformPreview};
 use crate::ui::mock_image::{MockImage, StoryView, story_canvas};
 use crate::ui::warp::WarpMesh;
 use crate::ui::warp::pin::stories::{IdwSolver, sample_pins};
@@ -62,7 +62,7 @@ struct Blank([u32; 2]);
 
 impl RasterSource for Blank {
     fn size(&self) -> PixelSize {
-        PixelSize { width: self.0[0], height: self.0[1] }
+        PixelSize::new(self.0[0], self.0[1])
     }
 
     fn revision(&self) -> Revision {

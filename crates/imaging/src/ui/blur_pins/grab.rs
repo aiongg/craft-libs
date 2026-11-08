@@ -45,6 +45,7 @@ fn segment_distance(p: Pos2, a: Pos2, b: Pos2) -> f32 {
 #[non_exhaustive]
 pub enum BlurGrab {
     /// An Iris or Spin outline handle: axis 0..=3 (+u, +v, −u, −v) resizes that radius.
+    #[non_exhaustive]
     Axis {
         /// The pin's index.
         pin: usize,
@@ -52,11 +53,13 @@ pub enum BlurGrab {
         axis: usize,
     },
     /// Iris's rounding square.
+    #[non_exhaustive]
     Round {
         /// The pin's index.
         pin: usize,
     },
     /// One of Iris's four feather dots.
+    #[non_exhaustive]
     Feather {
         /// The pin's index.
         pin: usize,
@@ -64,6 +67,7 @@ pub enum BlurGrab {
         dot: usize,
     },
     /// A Tilt-Shift turn dot, on one side of the band (−1 or 1).
+    #[non_exhaustive]
     Turn {
         /// The pin's index.
         pin: usize,
@@ -71,21 +75,25 @@ pub enum BlurGrab {
         side: i8,
     },
     /// A Tilt-Shift solid line: the sharp band's width.
+    #[non_exhaustive]
     Focus {
         /// The pin's index.
         pin: usize,
     },
     /// A Tilt-Shift dashed line: the transition's width.
+    #[non_exhaustive]
     Transition {
         /// The pin's index.
         pin: usize,
     },
     /// A pin's ring: the amount (one turn is the full range).
+    #[non_exhaustive]
     Ring {
         /// The pin's index.
         pin: usize,
     },
     /// A pin's dot: moves it.
+    #[non_exhaustive]
     Pin {
         /// The pin's index.
         pin: usize,
@@ -95,6 +103,46 @@ pub enum BlurGrab {
 }
 
 impl BlurGrab {
+    /// Outline handle `axis` of pin `pin`.
+    pub fn axis(pin: usize, axis: usize) -> Self {
+        BlurGrab::Axis { pin, axis }
+    }
+
+    /// The rounding square of pin `pin`.
+    pub fn round(pin: usize) -> Self {
+        BlurGrab::Round { pin }
+    }
+
+    /// Feather dot `dot` of pin `pin`.
+    pub fn feather(pin: usize, dot: usize) -> Self {
+        BlurGrab::Feather { pin, dot }
+    }
+
+    /// The turn dot on `side` (1 or -1) of pin `pin`.
+    pub fn turn(pin: usize, side: i8) -> Self {
+        BlurGrab::Turn { pin, side }
+    }
+
+    /// The solid lines of pin `pin`.
+    pub fn focus(pin: usize) -> Self {
+        BlurGrab::Focus { pin }
+    }
+
+    /// The dashed lines of pin `pin`.
+    pub fn transition(pin: usize) -> Self {
+        BlurGrab::Transition { pin }
+    }
+
+    /// The ring of pin `pin`.
+    pub fn ring(pin: usize) -> Self {
+        BlurGrab::Ring { pin }
+    }
+
+    /// The dot of pin `pin`.
+    pub fn pin(pin: usize) -> Self {
+        BlurGrab::Pin { pin }
+    }
+
     /// The cursor over this grab: Alias for the ring, rounding and turn dots; Move for the axis and
     /// feather handles; ResizeVertical for the Tilt-Shift lines; Grab for a pin; Crosshair over
     /// nothing (Default for Tilt-Shift, which adds no pin).

@@ -31,6 +31,7 @@ const STORE: &str = "craft_imaging.styled_preview";
 /// resample cost per pixel, clamped. Separate from
 /// S7-adjust's live-preview damage tracking (different inputs).
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct StyledBudget {
     /// Milliseconds a rebuild may take while the pointer is down (a drag rebuilds every pass).
     pub drag_ms: f64,
@@ -82,6 +83,7 @@ impl Default for StyledBudget {
 /// Where and how finely a styled preview is composited. Rectangles are in work pixels: document
 /// pixels times `scale`.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct StylePlan {
     /// Work pixels per document pixel, at most 1.
     pub scale: f64,
@@ -157,6 +159,7 @@ fn grow(rect: &PixelRect, by: i32) -> PixelRect {
 /// `rect.width() × rect.height()` of them. The edges of the source fade over one texel, as a
 /// resampled layer's do.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct StyledContent {
     /// The work rectangle in document pixels.
     pub rect: PixelRect,

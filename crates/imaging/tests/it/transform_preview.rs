@@ -27,15 +27,15 @@ fn solid(size: [usize; 2], color: Color32) -> ColorImage {
 }
 
 fn choice(level: u32, nearest: bool) -> TextureChoice {
-    TextureChoice { level, nearest }
+    TextureChoice::new(level, nearest)
 }
 
-/// The meshes `TransformPreview` paints for `map` in a 200 × 200 canvas under `rotation` degrees, and the view.
+/// The meshes `TransformPreview` paints for `map` in the fixture's canvas under `rotation` degrees, and the view.
 fn shown(map: fn() -> PreviewMap<'static>, opacity: f32, clip: Option<[u32; 2]>, rotation: f64) -> (Vec<egui::Mesh>, CanvasView) {
     let meshes = Rc::new(RefCell::new(Vec::new()));
     let seen_view = Rc::new(Cell::new(None));
     let (sink, view_sink) = (Rc::clone(&meshes), Rc::clone(&seen_view));
-    let textures = PreviewTextures::new("t", PreviewPixels::new(solid([2, 2], Color32::WHITE), [1.0, 1.0]));
+    let textures = PreviewTextures::new("t", PreviewPixels::new(solid([2, 2], Color32::from_gray(u8::MAX)), [1.0, 1.0]));
     let mut fixture = Fixture::new(move |ui| {
         let room = ui.available_rect_before_wrap();
         let view = CanvasView::new(room, pt(100.0, 100.0), 1.0).rotation(rotation);
@@ -61,7 +61,6 @@ fn shown(map: fn() -> PreviewMap<'static>, opacity: f32, clip: Option<[u32; 2]>,
                 .unwrap_or_default()
         });
     });
-    fixture.room(egui::vec2(200.0, 200.0));
     fixture.settle();
     let view = seen_view.get().expect("the canvas was shown");
     (meshes.take(), view)
@@ -273,7 +272,7 @@ impl StyledSource for Fake {
     fn compose(&self, plan: &StylePlan, _content: &StyledContent) -> Option<ColorImage> {
         self.composed.set(self.composed.get() + 1);
         let size = [plan.shown.width() as usize, plan.shown.height() as usize];
-        Some(solid(size, Color32::WHITE))
+        Some(solid(size, Color32::from_gray(u8::MAX)))
     }
 }
 
@@ -319,7 +318,7 @@ fn the_styled_frame_is_rebuilt_only_when_its_key_changes() {
     expect_build(&frame(&textures, square(11.0, 10.0, 40.0), 0.5), &source, None, "zoom");
     source.revision.set(2);
     expect_build(&frame(&textures, square(11.0, 10.0, 40.0), 0.5), &source, None, "revision");
-    let display = PreviewDisplay { key: 7, convert: Arc::new(Clone::clone) };
+    let display = PreviewDisplay::new(7, Clone::clone);
     expect_build(&frame(&textures, square(11.0, 10.0, 40.0), 0.5), &source, Some(&display), "display key");
     let mut nearest = frame(&textures, square(11.0, 10.0, 40.0), 0.5);
     nearest.nearest = true;
@@ -342,7 +341,7 @@ fn a_failed_composite_is_not_asked_for_again_until_the_key_changes() {
         }
         fn compose(&self, _plan: &StylePlan, _content: &StyledContent) -> Option<ColorImage> {
             self.0.set(self.0.get() + 1);
-            Some(solid([1, 1], Color32::WHITE))
+            Some(solid([1, 1], Color32::from_gray(u8::MAX)))
         }
     }
     let (_fixture, ctx) = context();
@@ -391,7 +390,8 @@ fn the_budget_follows_what_the_style_costs() {
     let dear = StyledBudget::default();
     assert_eq!(dear.pixels(45.0, true), 0.5e6, "the resample's cost is in the sum");
     assert!(dear.pixels(60.0, true) < 0.5e6);
-    let budget = StyledBudget { resample_ns: 0.0, ..StyledBudget::default() };
+    let mut budget = StyledBudget::default();
+    budget.resample_ns = 0.0;
     assert_eq!(budget.pixels(60.0, true), 0.5e6);
     assert_eq!(budget.pixels(60.0, false), 2.0e6);
     assert_eq!(budget.pixels(1000.0, true), StyledBudget::MIN_PIXELS);
@@ -460,13 +460,10 @@ fn the_display_conversion_changes_only_the_displayed_upload() {
     let converted = Arc::new(AtomicUsize::new(0));
     let display = |key: u64| {
         let converted = Arc::clone(&converted);
-        PreviewDisplay {
-            key,
-            convert: Arc::new(move |image: &ColorImage| {
-                converted.fetch_add(1, Ordering::SeqCst);
-                solid(image.size, Color32::from_rgb(1, 2, 3))
-            }),
-        }
+        PreviewDisplay::new(key, move |image: &ColorImage| {
+            converted.fetch_add(1, Ordering::SeqCst);
+            solid(image.size, Color32::from_rgb(1, 2, 3))
+        })
     };
     let level0 = choice(0, false);
     let plain = textures.pick(&ctx, level0, None);
@@ -485,7 +482,7 @@ fn the_display_conversion_changes_only_the_displayed_upload() {
 fn the_mask_scales_the_texel_alpha() {
     let texel = Color32::from_rgba_premultiplied(200, 100, 40, 200);
     let pixels = |density: f32, value: u8| {
-        PreviewPixels::new(solid([1, 1], texel), [1.0, 1.0]).masked(&PreviewMask { values: vec![value], density }).image.pixels[0]
+        PreviewPixels::new(solid([1, 1], texel), [1.0, 1.0]).masked(&PreviewMask::new(vec![value], density)).image.pixels[0]
     };
     assert_eq!(pixels(1.0, 0), Color32::TRANSPARENT);
     assert_eq!(pixels(1.0, 255), texel);
@@ -496,7 +493,7 @@ fn the_mask_scales_the_texel_alpha() {
 // Mip levels are built only when asked for, halve down to one texel, and keep the uv extent of the source.
 #[trial]
 fn mip_levels_are_built_on_demand_and_keep_the_source_extent() {
-    let textures = PreviewTextures::new("mips", PreviewPixels::new(solid([5, 3], Color32::WHITE), [0.8, 0.6]));
+    let textures = PreviewTextures::new("mips", PreviewPixels::new(solid([5, 3], Color32::from_gray(u8::MAX)), [0.8, 0.6]));
     assert_eq!(textures.size(), [5, 3]);
     assert_eq!(textures.levels_built(), 1);
     let (level1, uv1) = textures.level_image(1).unwrap();

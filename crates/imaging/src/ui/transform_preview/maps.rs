@@ -21,6 +21,7 @@ pub enum PreviewMap<'a> {
     /// warp pulls hard (about every `SEGMENT_PX` screen points, `MIN_PER_CELL` to `MAX_PER_CELL`
     /// per patch, at most `MAX_PER_AXIS` per axis). The displacement order measures from `source`,
     /// the unwarped frame.
+    #[non_exhaustive]
     Mesh {
         /// The warp mesh.
         mesh: &'a WarpMesh,
@@ -29,6 +30,7 @@ pub enum PreviewMap<'a> {
     },
     /// Puppet Warp: the solver's triangles, each vertex at its deformed position and its texel at
     /// its rest position within `source` (the layer's bounds), drawn in the solver's order.
+    #[non_exhaustive]
     Pins {
         /// The solver's mesh.
         mesh: PinMeshView<'a>,
@@ -37,6 +39,7 @@ pub enum PreviewMap<'a> {
     },
     /// Perspective Warp and other engine maps: a `cells` × `cells` grid over `source` pushed
     /// through the app's function (PhotoCraft's piecewise homography, LC20).
+    #[non_exhaustive]
     Function {
         /// The source frame.
         source: Rect,

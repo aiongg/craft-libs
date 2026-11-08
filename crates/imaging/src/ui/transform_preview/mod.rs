@@ -203,7 +203,7 @@ impl Component for TransformPreview<'_> {
                 uv: corners.iter().map(|c| [c.2, c.3]).collect(),
                 indices: vec![0, 1, 2, 0, 2, 3],
             };
-            add_mesh(&painter, mesh, texture, Color32::WHITE, self.clip, &view);
+            add_mesh(&painter, mesh, texture, Color32::from_gray(u8::MAX), self.clip, &view);
         } else {
             let choice = PreviewTextures::choose(zoom, scale, self.nearest);
             let Some((texture, uv)) = self.textures.pick(&ctx, choice, self.display) else { return };

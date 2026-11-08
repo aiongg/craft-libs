@@ -15,11 +15,33 @@ const STORE: &str = "craft_imaging.transform_preview";
 /// source frame (the rest is padding up to the GPU's texture limit). The app reads them from its
 /// own surface once per session (PhotoCraft `read_surface`).
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct PreviewPixels {
     /// The texels, premultiplied.
     pub image: ColorImage,
     /// The uv extent of `image` that covers the source frame, each 0 to 1.
     pub base_uv: [f32; 2],
+}
+
+impl PreviewMask {
+    /// A mask of `values`, one per texel of the image, row by row, at `density` (0 to 1).
+    pub fn new(values: Vec<u8>, density: f32) -> Self {
+        Self { values, density }
+    }
+}
+
+impl PreviewDisplay {
+    /// A conversion `convert` of premultiplied document texels to the monitor's, identified by `key`.
+    pub fn new(key: u64, convert: impl Fn(&ColorImage) -> ColorImage + Send + Sync + 'static) -> Self {
+        Self { key, convert: Arc::new(convert) }
+    }
+}
+
+impl TextureChoice {
+    /// Level `level`, with nearest filtering when `nearest`.
+    pub fn new(level: u32, nearest: bool) -> Self {
+        Self { level, nearest }
+    }
 }
 
 impl PreviewPixels {
@@ -46,6 +68,7 @@ impl PreviewPixels {
 /// A layer mask over the preview's pixels: one value per texel of [`PreviewPixels::image`], row by
 /// row, 0 hiding and 255 showing, and the mask's density (0 to 1).
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct PreviewMask {
     /// One value per texel of the image, row by row.
     pub values: Vec<u8>,
@@ -58,6 +81,7 @@ pub struct PreviewMask {
 /// `craft-color`'s display transform (PhotoCraft `CanvasDisplay`). Effects keep reading the raw
 /// levels.
 #[derive(Clone)]
+#[non_exhaustive]
 pub struct PreviewDisplay {
     /// Changes whenever `convert` does, so caches keyed on it refresh.
     pub key: u64,
@@ -74,6 +98,7 @@ impl std::fmt::Debug for PreviewDisplay {
 /// Which level of the mip chain to draw with, and whether with nearest filtering
 /// ([`PreviewTextures::choose`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct TextureChoice {
     /// 0 is full resolution; level `n` is `2ⁿ` times smaller.
     pub level: u32,
