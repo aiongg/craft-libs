@@ -1,5 +1,17 @@
 //! Font definitions and the on-demand script coverage policy; the egui calls sit in `runtime::egui::fonts`.
 
+mod defaults;
+mod faces;
+pub(crate) mod on_demand;
+pub(crate) mod script;
+pub(crate) mod system;
+
+pub use defaults::deflated_default_definitions;
+pub use faces::{FaceList, RegularWeight, set_weight};
+pub use on_demand::{FontCandidates, MAX_SCRIPT_READS, NoCandidates, OnDemandFonts, SystemCandidates, han_for_locale, on_demand_registered};
+pub use system::system_font_provider;
+pub use system::ui_face::{SYSTEM_UI_OPTICAL_SIZE, SYSTEM_UI_REGULAR, SYSTEM_UI_SEMIBOLD, SystemUiFace, poll_system_ui_face, system_ui_face};
+
 use crate::runtime::egui::fonts as egui_fonts;
 use crate::runtime::frame;
 use crate::runtime::layout_memory;
@@ -23,6 +35,10 @@ impl FontRef {
     /// A family registered under `name`.
     pub fn named(name: &str) -> FontRef {
         FontRef(FontFamily::Name(name.into()))
+    }
+
+    pub(crate) fn from_family(family: FontFamily) -> FontRef {
+        FontRef(family)
     }
 
     pub(crate) fn family(&self) -> FontFamily {

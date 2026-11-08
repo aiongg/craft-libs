@@ -22,6 +22,7 @@ mod drag;
 mod egui_surface;
 mod examples;
 mod focus;
+mod fonts;
 mod form;
 mod form_dialogs;
 mod glossary;
