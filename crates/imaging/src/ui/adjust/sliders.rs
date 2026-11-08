@@ -24,6 +24,7 @@ use crate::ui::curve::ToneRamp;
 
 /// A slider row's track.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub enum AdjustTrack {
     /// The slider's own track.
     #[default]

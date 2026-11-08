@@ -38,6 +38,7 @@ const MAX_SPAN: f64 = 359.0;
 
 /// One of Hue/Saturation's six colour ranges (Reds, Yellows, Greens, Cyans, Blues, Magentas).
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct HueRangeValue {
     /// Hue shift −180..=180°, whole degrees.
     pub hue: f64,
@@ -51,6 +52,11 @@ pub struct HueRangeValue {
 }
 
 impl HueRangeValue {
+    /// A range with the shifts `hue`, `saturation` and `lightness` and the four `bounds`.
+    pub fn new(hue: f64, saturation: f64, lightness: f64, bounds: [f64; 4]) -> Self {
+        Self { hue, saturation, lightness, bounds }
+    }
+
     /// Range `index` (0 Reds … 5 Magentas) unchanged, with Photoshop's extent: centre `60 ×
     /// index`, fully on for 30° around it, fading over 30° each side (`[c − 45, c − 15, c + 15,
     /// c + 45]`).
@@ -99,6 +105,7 @@ impl HueRangeValue {
 
 /// A Hue/Saturation value.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct HueSaturation {
     /// Master hue: −180..=180°, or 0..=360° with Colorize.
     pub hue: f64,
@@ -110,6 +117,13 @@ pub struct HueSaturation {
     pub colorize: bool,
     /// Reds, Yellows, Greens, Cyans, Blues, Magentas.
     pub ranges: [HueRangeValue; 6],
+}
+
+impl HueSaturation {
+    /// A value of the master shifts, Colorize and the six ranges.
+    pub fn new(hue: f64, saturation: f64, lightness: f64, colorize: bool, ranges: [HueRangeValue; 6]) -> Self {
+        Self { hue, saturation, lightness, colorize, ranges }
+    }
 }
 
 impl Default for HueSaturation {

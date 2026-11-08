@@ -30,6 +30,7 @@ const TINT_KEY: &str = "blackWhite.tint";
 
 /// A Black & White value.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct BlackWhite {
     /// Reds, Yellows, Greens, Cyans, Blues, Magentas, −200..=300 %.
     pub weights: [f64; 6],
@@ -40,6 +41,11 @@ pub struct BlackWhite {
 }
 
 impl BlackWhite {
+    /// A value of the six `weights`, Tint and its colour.
+    pub fn new(weights: [f64; 6], tint: bool, tint_color: Srgba) -> Self {
+        Self { weights, tint, tint_color }
+    }
+
     /// Photoshop's default weights: Reds 40, Yellows 60, Greens 40, Cyans 60, Blues 20, Magentas 80.
     pub const DEFAULT_WEIGHTS: [f64; 6] = [40.0, 60.0, 40.0, 60.0, 20.0, 80.0];
 }
@@ -197,6 +203,7 @@ impl Tables<'_> {
 
 /// A Channel Mixer value: per output channel the Red, Green, Blue and Constant percentages.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct ChannelMixer {
     /// The Red output: Red, Green, Blue, Constant.
     pub red: [f64; 4],
@@ -209,6 +216,11 @@ pub struct ChannelMixer {
 }
 
 impl ChannelMixer {
+    /// A value of the three output rows and the Gray row of Monochrome.
+    pub fn new(red: [f64; 4], green: [f64; 4], blue: [f64; 4], gray: Option<[f64; 4]>) -> Self {
+        Self { red, green, blue, gray }
+    }
+
     /// The Gray row Photoshop starts Monochrome with.
     pub const MONOCHROME_START: [f64; 4] = [40.0, 40.0, 20.0, 0.0];
 }
@@ -380,11 +392,19 @@ pub enum SelectiveMethod {
 /// A Selective Color value: per range (Reds, Yellows, Greens, Cyans, Blues, Magentas, Whites, Neutrals, Blacks) the
 /// Cyan, Magenta, Yellow and Black shifts, −100..=100 %, whole numbers.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct SelectiveColor {
     /// The nine ranges.
     pub ranges: [[f64; 4]; 9],
     /// Relative or Absolute.
     pub method: SelectiveMethod,
+}
+
+impl SelectiveColor {
+    /// A value of the nine ranges and the method.
+    pub fn new(ranges: [[f64; 4]; 9], method: SelectiveMethod) -> Self {
+        Self { ranges, method }
+    }
 }
 
 /// What a Selective Color editor keeps between passes: the range shown and the value its running gesture began with.

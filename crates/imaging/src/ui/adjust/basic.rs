@@ -31,6 +31,7 @@ const LEGACY_CONTRAST_MIN: f64 = -100.0;
 
 /// A Brightness/Contrast value.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct BrightnessContrast {
     /// −150..=150, whole numbers.
     pub brightness: f64,
@@ -38,6 +39,13 @@ pub struct BrightnessContrast {
     pub contrast: f64,
     /// Use Legacy.
     pub legacy: bool,
+}
+
+impl BrightnessContrast {
+    /// A value of `brightness`, `contrast` and Use Legacy.
+    pub fn new(brightness: f64, contrast: f64, legacy: bool) -> Self {
+        Self { brightness, contrast, legacy }
+    }
 }
 
 /// What a Brightness/Contrast editor keeps between passes: the value its running gesture began with.
@@ -187,6 +195,7 @@ pub enum ColorBalanceTone {
 
 /// A Color Balance value: per tone the Cyan–Red, Magenta–Green and Yellow–Blue shifts, −100..=100, whole numbers.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct ColorBalance {
     /// Shifts for the shadows: Cyan–Red, Magenta–Green, Yellow–Blue.
     pub shadows: [f64; 3],
@@ -205,6 +214,11 @@ impl Default for ColorBalance {
 }
 
 impl ColorBalance {
+    /// A value of the shifts of each tone and Preserve Luminosity.
+    pub fn new(shadows: [f64; 3], midtones: [f64; 3], highlights: [f64; 3], preserve_luminosity: bool) -> Self {
+        Self { shadows, midtones, highlights, preserve_luminosity }
+    }
+
     /// Photoshop's reset to defaults (Alt+Cancel; the Properties panel's Reset once the layer is as the panel found
     /// it): every tone back to 0, Preserve Luminosity kept. The editor shows Midtones again when the host gives
     /// [`ColorBalanceEditor::tone`] `Midtones`.
@@ -501,6 +515,7 @@ impl PhotoFilterPreset {
 
 /// A Photo Filter value.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct PhotoFilter {
     /// The filter colour (a preset's or the user's).
     pub color: Srgba,
@@ -508,6 +523,13 @@ pub struct PhotoFilter {
     pub density: f64,
     /// Preserve Luminosity; on by default.
     pub preserve_luminosity: bool,
+}
+
+impl PhotoFilter {
+    /// A value of the filter `color`, `density` and Preserve Luminosity.
+    pub fn new(color: Srgba, density: f64, preserve_luminosity: bool) -> Self {
+        Self { color, density, preserve_luminosity }
+    }
 }
 
 impl Default for PhotoFilter {

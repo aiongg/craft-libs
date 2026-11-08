@@ -88,11 +88,11 @@ fn double_click(fixture: &mut Fixture, target: &Target) {
 /// Turning Use Legacy off with Contrast at -80 reports one `Set` with Contrast -50 and legacy off.
 #[trial]
 fn turning_use_legacy_off_clamps_contrast_to_minus_fifty() {
-    let mut rig = rig(BrightnessContrast { brightness: 10.0, contrast: -80.0, legacy: true }, |ui, bind| {
-        BrightnessContrastEditor::new("Brightness/Contrast", bind).show(ui).event
-    });
+    let mut rig =
+        rig(BrightnessContrast::new(10.0, -80.0, true), |ui, bind| BrightnessContrastEditor::new("Brightness/Contrast", bind).show(ui).event);
     rig.click("Use Legacy");
-    assert_eq!(rig.value(), BrightnessContrast { brightness: 10.0, contrast: -50.0, legacy: false });
+    let want = BrightnessContrast::new(10.0, -50.0, false);
+    assert_eq!(rig.value(), want);
     assert!(rig.one_set(), "{:?}", rig.events.borrow());
 }
 
@@ -103,7 +103,8 @@ fn the_threshold_row_reports_the_level() {
     let slider = rig.slider(0);
     rig.fixture.access(AccessActionKind::Increment, &slider);
     rig.fixture.idle(2);
-    assert_eq!(rig.value(), 65.0);
+    let want = 65.0;
+    assert_eq!(rig.value(), want);
 }
 
 /// The tone picked survives a value change from outside; a host that resets shows Midtones again; a reset of a row
@@ -112,7 +113,7 @@ fn the_threshold_row_reports_the_level() {
 fn the_color_balance_tone_survives_a_value_change_and_a_reset_zeroes_one_row() {
     let tone = Rc::new(Cell::new(None));
     let host_tone = tone.clone();
-    let value = ColorBalance { shadows: [10.0, 20.0, 30.0], midtones: [-5.0, -6.0, -7.0], ..ColorBalance::default() };
+    let value = ColorBalance::new([10.0, 20.0, 30.0], [-5.0, -6.0, -7.0], [0.0; 3], true);
     let mut rig = rig(value, move |ui, bind| {
         let mut editor = ColorBalanceEditor::new("Color Balance", bind);
         if let Some(tone) = host_tone.get() {
@@ -134,8 +135,9 @@ fn the_color_balance_tone_survives_a_value_change_and_a_reset_zeroes_one_row() {
 
     let slider = rig.slider(0);
     double_click(&mut rig.fixture, &slider);
-    assert_eq!(rig.value().shadows, [0.0, 20.0, 30.0]);
-    assert_eq!(rig.value().midtones, [-5.0, -6.0, -7.0]);
+    let (shadows, midtones) = ([0.0, 20.0, 30.0], [-5.0, -6.0, -7.0]);
+    assert_eq!(rig.value().shadows, shadows);
+    assert_eq!(rig.value().midtones, midtones);
 
     tone.set(Some(ColorBalanceTone::Midtones));
     rig.fixture.idle(2);
@@ -147,7 +149,8 @@ fn the_color_balance_tone_survives_a_value_change_and_a_reset_zeroes_one_row() {
 fn preserve_luminosity_reports_a_set() {
     let mut rig = rig(ColorBalance::default(), |ui, bind| ColorBalanceEditor::new("Color Balance", bind).show(ui).edit.event);
     rig.click("Preserve Luminosity");
-    assert_eq!(rig.value(), ColorBalance { preserve_luminosity: false, ..ColorBalance::default() });
+    let want = ColorBalance::new([0.0; 3], [0.0; 3], [0.0; 3], false);
+    assert_eq!(rig.value(), want);
     assert!(rig.one_set(), "{:?}", rig.events.borrow());
 }
 
@@ -157,7 +160,7 @@ fn preserve_luminosity_reports_a_set() {
 fn a_photo_filter_preset_sets_its_colour_and_the_well_asks_for_one() {
     let requests = Rc::new(RefCell::new(Vec::<ColorRequest>::new()));
     let filed = requests.clone();
-    let start = PhotoFilter { color: PhotoFilterPreset::Warming85.color(), density: 25.0, preserve_luminosity: true };
+    let start = PhotoFilter::new(PhotoFilterPreset::Warming85.color(), 25.0, true);
     let mut rig = rig(start, move |ui, bind| {
         let out = PhotoFilterEditor::new("Photo Filter", bind).show(ui);
         filed.borrow_mut().extend(out.pick_color);
@@ -168,7 +171,7 @@ fn a_photo_filter_preset_sets_its_colour_and_the_well_asks_for_one() {
     rig.fixture.idle(2);
     rig.click("Cooling Filter (80)");
     let cooling = PhotoFilterPreset::Cooling80.color();
-    assert_eq!(rig.value(), PhotoFilter { color: cooling, ..start });
+    assert_eq!(rig.value(), PhotoFilter::new(cooling, start.density, start.preserve_luminosity));
 
     rig.click("Color");
     let well = rig.fixture.by_role(Role::COLOR_WELL).into_iter().next().expect("the colour well");
@@ -187,13 +190,14 @@ fn a_photo_filter_preset_sets_its_colour_and_the_well_asks_for_one() {
 /// 270 becomes -90.
 #[trial]
 fn colorize_forces_master_and_wraps_the_hue() {
-    let mut rig = rig(HueSaturation { hue: -90.0, saturation: 10.0, ..HueSaturation::default() }, |ui, bind| {
+    let mut rig = rig(HueSaturation::new(-90.0, 10.0, 0.0, false, std::array::from_fn(HueRangeValue::neutral)), |ui, bind| {
         HueSaturationEditor::new("Hue/Saturation", bind).show(ui).edit.event
     });
     rig.click("Colorize");
     let on = rig.value();
     assert!(on.colorize);
-    assert_eq!((on.hue, on.saturation), (270.0, 25.0));
+    let want = (270.0, 25.0);
+    assert_eq!((on.hue, on.saturation), want);
     assert!(rig.one_set(), "{:?}", rig.events.borrow());
 
     let shown = Rc::new(Cell::new(None));
@@ -205,7 +209,8 @@ fn colorize_forces_master_and_wraps_the_hue() {
     rig.click("Colorize");
     let off = rig.value();
     assert!(!off.colorize);
-    assert_eq!(off.hue, -90.0);
+    let want = -90.0;
+    assert_eq!(off.hue, want);
 }
 
 /// A rig of Hue/Saturation with the range the host keeps, writing the range shown to `shown`.
@@ -221,16 +226,16 @@ fn rig_with_range(start: HueSaturation, range: Option<usize>, shown: Rc<Cell<Opt
 #[trial]
 fn the_hue_range_follows_colorize() {
     let reached = |colorize: bool| {
-        let mut rig = rig(HueSaturation { colorize, ..HueSaturation::default() }, |ui, bind| {
-            HueSaturationEditor::new("Hue/Saturation", bind).show(ui).edit.event
-        });
+        let start = HueSaturation::new(0.0, 0.0, 0.0, colorize, std::array::from_fn(HueRangeValue::neutral));
+        let mut rig = rig(start, |ui, bind| HueSaturationEditor::new("Hue/Saturation", bind).show(ui).edit.event);
         let hue = rig.slider(0);
         rig.fixture.access(AccessActionKind::SetValue(300.0), &hue);
         rig.fixture.idle(2);
         rig.value().hue
     };
-    assert_eq!(reached(false), 180.0);
-    assert_eq!(reached(true), 300.0);
+    let (plain, colorized) = (180.0, 300.0);
+    assert_eq!(reached(false), plain);
+    assert_eq!(reached(true), colorized);
 }
 
 /// Dragging a range thumb across 0 degrees keeps the four bounds increasing.
@@ -261,10 +266,9 @@ fn a_range_thumb_move_canonicalises_the_bounds_first() {
 #[trial]
 fn black_white_default_restores_the_six_weights() {
     let tint_color = Srgba::rgb(0.2, 0.4, 0.6);
-    let mut rig =
-        rig(BlackWhite { weights: [0.0; 6], tint: true, tint_color }, |ui, bind| BlackWhiteEditor::new("Black & White", bind).show(ui).edit.event);
+    let mut rig = rig(BlackWhite::new([0.0; 6], true, tint_color), |ui, bind| BlackWhiteEditor::new("Black & White", bind).show(ui).edit.event);
     rig.click("Default");
-    assert_eq!(rig.value(), BlackWhite { weights: BlackWhite::DEFAULT_WEIGHTS, tint: true, tint_color });
+    assert_eq!(rig.value(), BlackWhite::new(BlackWhite::DEFAULT_WEIGHTS, true, tint_color));
     assert!(rig.one_set(), "{:?}", rig.events.borrow());
 }
 
@@ -275,7 +279,7 @@ fn the_tint_well_asks_for_a_colour_only_while_tint_is_on() {
     let requested = |tint: bool| {
         let requests = Rc::new(RefCell::new(Vec::<ColorRequest>::new()));
         let filed = requests.clone();
-        let mut rig = rig(BlackWhite { tint, tint_color, ..BlackWhite::default() }, move |ui, bind| {
+        let mut rig = rig(BlackWhite::new(BlackWhite::DEFAULT_WEIGHTS, tint, tint_color), move |ui, bind| {
             let out = BlackWhiteEditor::new("Black & White", bind).show(ui);
             filed.borrow_mut().extend(out.pick_color);
             out.edit.event
@@ -319,10 +323,10 @@ fn the_mixer_total_warns_above_one_hundred_percent() {
         let rig = rig(mixer, |ui, bind| ChannelMixerEditor::new("Channel Mixer", bind).show(ui).event);
         rig.fixture.texts().iter().map(|run| run.text.clone()).collect::<Vec<_>>()
     };
-    let over = shown(ChannelMixer { red: [60.0, 60.0, 0.0, 0.0], ..ChannelMixer::default() });
+    let over = shown(ChannelMixer::new([60.0, 60.0, 0.0, 0.0], [0.0; 4], [0.0; 4], None));
     assert!(over.iter().any(|text| text == "+120%"), "{over:?}");
     assert!(over.iter().any(|text| text == "+120%, over 100 percent"), "{over:?}");
-    let at = shown(ChannelMixer { red: [60.0, 40.0, 0.0, 0.0], ..ChannelMixer::default() });
+    let at = shown(ChannelMixer::new([60.0, 40.0, 0.0, 0.0], [0.0; 4], [0.0; 4], None));
     assert!(at.iter().any(|text| text == "+100%"), "{at:?}");
     assert!(!at.iter().any(|text| text.contains("over 100")), "{at:?}");
 }
@@ -388,8 +392,10 @@ fn a_slider_drag_is_one_gesture_of_the_table() {
     assert_eq!(begins, 1, "{events:?}");
     assert!(matches!(events.last(), Some(EditEvent::Commit { .. })), "{events:?}");
     let value = rig.value.borrow();
-    assert!(value[0] > 0.0, "the drag moved Exposure: {value:?}");
-    assert_eq!((value[1], value[2]), (0.1, 1.0), "the other rows are as they were");
+    let before = 0.0;
+    assert!(value[0] > before, "the drag moved Exposure: {value:?}");
+    let others = (0.1, 1.0);
+    assert_eq!((value[1], value[2]), others, "the other rows are as they were");
 }
 
 /// Tracked, edited, Reset: the start settings; Reset again: the defaults; a pass without tracking or another target
