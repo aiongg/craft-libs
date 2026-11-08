@@ -58,7 +58,7 @@ fn measuring(stack: &Stack) -> Fonts {
 }
 
 fn egui_face(name: &str) -> FontData {
-    (**craft_ui::fonts::deflated_default_definitions().font_data.get(name).expect("egui default_fonts")).clone()
+    (**craft_ui::fonts::deflated_default_definitions().font_data.get(name).expect("an egui default face")).clone()
 }
 
 #[trial]
@@ -89,7 +89,7 @@ fn ui_language_face_leads_when_the_app_face_lacks_its_script() {
 #[trial]
 fn families_without_app_faces_start_with_egui_defaults() {
     let defaults = craft_ui::fonts::deflated_default_definitions();
-    let first = |family: &FontFamily| defaults.families.get(family).and_then(|c| c.first()).cloned().expect("egui default_fonts");
+    let first = |family: &FontFamily| defaults.families.get(family).and_then(|c| c.first()).cloned().expect("an egui default face");
     let (egui_ui, egui_mono) = (first(&FontFamily::Proportional), first(&FontFamily::Monospace));
     let only_ui = |language| fonts_without_faces(language).app_face("ui", FontData::from_static(&[]), &[FontRef::proportional()]).stack();
     let no_faces = |language| fonts_without_faces(language).stack();

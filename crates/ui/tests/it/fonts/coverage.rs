@@ -10,7 +10,7 @@ const NOTO_SANS: &[u8] = include_bytes!("../../fonts/NotoSans-test.ttf");
 const CJK: &[u8] = include_bytes!("../../fonts/NotoSansCJKsc-test.otf");
 
 fn test_stack(ui_language: &str) -> Stack {
-    let ubuntu = (**craft_ui::fonts::deflated_default_definitions().font_data.get("Ubuntu-Light").expect("egui default_fonts")).clone();
+    let ubuntu = (**craft_ui::fonts::deflated_default_definitions().font_data.get("Ubuntu-Light").expect("an egui default face")).clone();
     UiFonts::new(&I18nScripts)
         .app_face("ui", ubuntu, &[FontRef::proportional()])
         .craft_faces(&[
