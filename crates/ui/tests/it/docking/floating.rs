@@ -53,7 +53,7 @@ impl Caller {
     fn show(&self) -> impl FnMut(&mut Ui) + '_ {
         move |ui| {
             let mut group = FloatingGroup::new("Layers", self.rect.get())
-                .sizing(self.sizing)
+                .sized(self.sizing)
                 .bounds(BOUNDS)
                 .limits(PanelLimits::at_least(LEAST))
                 .minimized(self.minimized.get());

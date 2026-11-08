@@ -99,7 +99,7 @@ pub struct FloatingGroup {
     minimized: bool,
     /// Whether the height follows the body (`Sizing::Content`) or the rect gives it.
     #[prop]
-    sizing: Sizing,
+    sized: Sizing,
     /// Opens the group in an OS window of this kind.
     #[prop]
     native: Option<WindowSpec>,
@@ -132,7 +132,7 @@ impl FloatingGroup {
             limits: PanelLimits::default(),
             opacity: 1.0,
             minimized: false,
-            sizing: Sizing::Content,
+            sized: Sizing::Content,
             native: None,
             actions: ACTIONS.to_vec(),
             taken: None,
@@ -182,7 +182,7 @@ impl FloatingGroup {
         overlay = if self.minimized {
             let width = self.rect.width();
             overlay.placed_at(self.rect.min).size_limits(Vec2::new(width, 0.0), Vec2::new(width, f32::INFINITY))
-        } else if self.sizing == Sizing::Content {
+        } else if self.sized == Sizing::Content {
             let width = self.rect.width().max(least.x).min(most.x);
             overlay.placed_at(self.rect.min).size_limits(Vec2::new(width, least.y), most)
         } else {
