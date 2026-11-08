@@ -170,7 +170,6 @@ fn a_photo_filter_preset_sets_its_colour_and_the_well_asks_for_one() {
     rig.fixture.click(&select);
     rig.fixture.idle(2);
     rig.click("Cooling Filter (80)");
-    eprintln!("DIAG photo events: {:?}", rig.events.borrow().len());
     let cooling = PhotoFilterPreset::Cooling80.color();
     assert_eq!(rig.value(), PhotoFilter::new(cooling, start.density, start.preserve_luminosity));
 
