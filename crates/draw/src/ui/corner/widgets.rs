@@ -20,7 +20,7 @@ use craft_ui::style::StyleCx;
 use egui::{Rect, Response, Vec2};
 
 /// The part of one widget: `WIDGET.at(i)`, `i` counted over the shown widgets in target order, then corner order.
-const WIDGET: PartKey = PartKey::new("widget");
+pub(super) const WIDGET: PartKey = PartKey::new("widget");
 
 /// What the widgets report beyond the edit.
 #[derive(Clone, Debug, Default)]

@@ -429,7 +429,8 @@ impl Component for TransformBox<'_> {
     }
 
     /// The whole box, the corners, the edges and the reference point the rules allow, in keyboard order, then the
-    /// outside. A handle or the reference point ranks above the inside, which ranks above the outside.
+    /// outside. A handle and the reference point rank alike, so the nearest wins where they overlap on a small box; they
+    /// rank above the inside, which ranks above the outside.
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let (Some(space), Some(state)) = (canvas_space(&cx.env), cx.value().copied()) else { return };
         let style = cx.style;
@@ -445,7 +446,7 @@ impl Component for TransformBox<'_> {
                 BoxPart::Pivot => (
                     HitShape::circle(pos(screen.pivot), style.hit),
                     Sense::DRAG | Sense::TAKE_FOCUS,
-                    HitPriority::new(HitLevel::Handle, 1),
+                    HitPriority::new(HitLevel::Handle, 0),
                     FocusShape::Circle,
                 ),
                 handle => {

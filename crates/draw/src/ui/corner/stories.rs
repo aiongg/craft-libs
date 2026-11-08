@@ -1,12 +1,14 @@
 //! Stories of the corner widgets: a rectangle and a hexagon on a canvas.
 
+use super::widgets::WIDGET;
 use super::{CornerKind, CornerPoint, CornerTarget, CornerWidgets, CornerWidgetsOutput};
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::Point;
 use craft_ui::canvas::Canvas;
-use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
-use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
-use egui::Ui;
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
+use craft_ui::runtime::env::Message;
+use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
+use egui::{Ui, Vec2};
 
 /// The rectangle's corner radius and the hexagon's.
 const RECT_RADIUS: f64 = 12.0;
@@ -40,7 +42,16 @@ fn on_canvas(ui: &mut Ui, control: CornerWidgets<'_>) -> StoryOutput {
     shown.inner.flatten().map(StoryOutput::from).unwrap_or_default()
 }
 
-#[story(CornerWidgets<'static>, covers = [Default], drive = Drive::Never)]
+/// Drags the first widget, the rectangle's top left corner, by twice the drag threshold towards the inside.
+fn drag_the_first_widget(fixture: &mut Fixture) {
+    let travel = 2.0 * craft_ui::testing::input::max_click_dist(fixture.ctx());
+    let first = fixture.root_id().and_then(|id| fixture.part(id, WIDGET.at(0)));
+    if let Some(first) = first {
+        fixture.drag(&first, Vec2::new(travel, travel));
+    }
+}
+
+#[story(CornerWidgets<'static>, covers = [Default], drive = Drive::Custom(drag_the_first_widget))]
 fn rectangle_and_hexagon(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let targets = data.value("targets", targets());
     on_canvas(ui, CornerWidgets::new("Corner radius", Bind::bound(&mut *targets)))
@@ -50,4 +61,19 @@ fn rectangle_and_hexagon(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 fn cycling_kinds_and_a_wide_angle_limit(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let targets = data.value("kinds", targets());
     on_canvas(ui, CornerWidgets::new("Corner radius", Bind::bound(&mut *targets)).kinds(true).hide_above(120.0))
+}
+
+/// The widgets refuse a corner without a radius.
+fn refuse_a_square_corner(targets: &Vec<CornerTarget>) -> Validity<Vec<CornerTarget>> {
+    if targets.iter().flat_map(|target| &target.corners).any(|corner| corner.radius <= 0.0) {
+        Validity::Refuse(Message::new("A corner needs a radius"))
+    } else {
+        Validity::Ok
+    }
+}
+
+#[story(CornerWidgets<'static>, covers = [Invalid], drive = Drive::Never)]
+fn square_corners(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let targets = data.value("square", vec![polygon(1, &[(40.0, 40.0), (200.0, 40.0), (200.0, 140.0), (40.0, 140.0)], 0.0, true)]);
+    on_canvas(ui, CornerWidgets::new("Corner radius", Bind::bound(&mut *targets).check(refuse_a_square_corner)))
 }

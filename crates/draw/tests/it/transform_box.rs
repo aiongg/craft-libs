@@ -3,7 +3,7 @@
 
 use craft_behavior::geometry::quad::{self, BoxPart, BoxRules, BoxState, TransformMode};
 use craft_behavior::kurbo::{Point, Rect, Vec2 as DocVec};
-use craft_behavior::{CanvasView, EditEvent, Mixed, PartKey};
+use craft_behavior::{CanvasView, EditEvent, PartKey};
 use craft_draw::ui::transform::{
     RotateZone, TransformBox, TransformEdit, TransformOverlay, TransformPhase, TransformSession, TransformSettings, TransformTool,
 };
@@ -12,7 +12,7 @@ use craft_ui::canvas::{Canvas, CanvasSpace, CanvasTool as _, ToolContext, ToolKe
 use craft_ui::canvas::{Guide, GuideKey};
 use craft_ui::canvas_controls::Guides;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
-use craft_ui::testing::{Fixture, pointer, trial};
+use craft_ui::testing::{Fixture, ToolFixture, pointer, trial};
 use egui::{Key, Modifiers, Pos2, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -132,12 +132,10 @@ fn harness(state: BoxState, setup: impl FnOnce(&mut Config)) -> Harness {
             host.applied += usize::from(output.apply);
             host.discarded += usize::from(output.discard);
             (host.picked, host.hovered) = (output.picked, output.hovered);
-            let shown = output.edit.shown.as_ref().and_then(Mixed::same).map(|state| **state);
             match &output.edit.event {
                 Some(EditEvent::Begin { .. }) => {
                     host.events.push(Seen::Begin);
                     host.before = Some(host.state);
-                    host.state = shown.unwrap_or(host.state);
                 }
                 Some(EditEvent::Update { value, .. }) => {
                     host.events.push(Seen::Update);
@@ -679,4 +677,31 @@ fn a_click_outside_and_a_double_click_inside_apply_through_the_overlay() {
     fixture.frame(Vec::new());
     assert_eq!(host.borrow().applied, 1, "a double click inside");
     assert_eq!(host.borrow().discarded, 0);
+}
+
+/// With the canvas focused, the arrows ask the tool for a `Set` that moves the whole box 1 document unit, Shift 10,
+/// from the box the session holds.
+#[trial]
+fn the_tool_nudges_the_whole_box_with_the_arrows() {
+    let session: &'static TransformSession<()> = Box::leak(Box::new(TransformSession::new(RECT)));
+    let mut canvas = ToolFixture::with_view(
+        "Document",
+        TransformTool::new(session),
+        |room| CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0),
+        |_, _| {},
+    );
+    canvas.fixture().key(Key::Tab, Modifiers::NONE).settle();
+    canvas.fixture().key(Key::ArrowRight, Modifiers::NONE).settle();
+    canvas.fixture().key(Key::ArrowDown, Modifiers::SHIFT).settle();
+    let (edits, apply, discard) = canvas.tool_mut().take_edits();
+    let boxes: Vec<BoxState> = edits
+        .into_iter()
+        .filter_map(|edit| match edit {
+            TransformEdit::Box(EditEvent::Set { after, .. }) => Some(after),
+            _ => None,
+        })
+        .collect();
+    let upright = BoxState::from_rect(RECT);
+    assert_eq!(boxes, [upright.moved(doc(1.0, 0.0)), upright.moved(doc(0.0, 10.0))]);
+    assert!(!apply && !discard, "arrows apply and discard nothing");
 }

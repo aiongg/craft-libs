@@ -566,7 +566,10 @@ impl Cells<'_> {
         let conversion = &pass.conversion;
         let (kind, decimals) = conversion.format(field);
         let bound = conversion.bound(field);
-        let current = conversion.shown(&pass.before.state, pass.before.skew_v, field);
+        // A running gesture of this field is shown the value it began from: the host's write-back of the gesture's own
+        // values must not look like the app changing the field under it.
+        let basis = pass.bases.0[field as usize].map_or(pass.before, |(_, row)| row);
+        let current = conversion.shown(&basis.state, basis.skew_v, field);
         let codec = conversion.codec(&self.units, field);
         let unit = Label::from(self.units.symbol(kind));
         let percent = kind == UnitKind::Percent;

@@ -123,14 +123,9 @@ impl<'a, W: TransformWarp> TransformOverlay<'a, W> {
             tbox = tbox.mods(mods);
         }
         let shown = tbox.show_at(ui, rect);
+        // A `Begin` carries no value: a given box gets its first `Update` in the next pass.
         if let Some(event) = shown.edit.event.clone() {
-            // A `Begin` carries no value: the box it began with is the first update.
-            let first = match &event {
-                EditEvent::Begin { id, .. } => shown.edit.shown.as_ref().and_then(Mixed::same).map(|state| EditEvent::update(*id, **state)),
-                _ => None,
-            };
             out.edits.push(TransformEdit::Box(event));
-            out.edits.extend(first.map(TransformEdit::Box));
         }
         out.apply = shown.apply;
         out.discard = shown.discard;
