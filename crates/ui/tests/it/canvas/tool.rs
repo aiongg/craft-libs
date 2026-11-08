@@ -2,7 +2,7 @@
 //! on a canvas control never reaches the tool, and a group's letter picks and cycles its tools.
 
 use craft_behavior::kurbo::{Point, Rect as DocRect};
-use craft_behavior::{Axis, CancelReason, GesturePhase, PointerButton};
+use craft_behavior::{Axis, CancelReason, CanvasView, GesturePhase, PointerButton};
 use craft_keymap::{Chord, Key, Mods};
 use craft_ui::canvas::{
     Canvas, CanvasTool, CropOverlay, PickStep, Snap, ToolAccess, ToolAction, ToolAnchor, ToolContext, ToolHost, ToolInput, ToolKey, ToolPath,
@@ -374,8 +374,8 @@ impl CanvasTool for Sizer {
         let units = cx.units();
         let size = to - from;
         let name = format!("Rectangle {} x {}", units.pixels(f64::from(size.x)), units.pixels(f64::from(size.y)));
-        let top_left = Point::new(f64::from(from.x), f64::from(from.y));
-        let bottom_right = Point::new(f64::from(to.x), f64::from(to.y));
+        let view = cx.space()?.view;
+        let (top_left, bottom_right) = (view.to_doc(from), view.to_doc(to));
         Some(
             ToolAccess::new(name)
                 .bounds(DocRect::from_points(top_left, bottom_right))
@@ -391,7 +391,8 @@ impl CanvasTool for Sizer {
 
 #[trial]
 fn a_drag_tool_node_names_its_live_size_and_goes_with_the_gesture() {
-    let mut fixture = ToolFixture::new("Document", Sizer::default());
+    let view = |room: Rect| CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
+    let mut fixture = ToolFixture::with_view("Document", Sizer::default(), view, |_, _| {});
     let from = fixture.canvas().center();
     fixture.press_at(from).move_to(from + BY);
     let node = fixture.fixture().by_label("Rectangle 60 px x 40 px").expect("the tool's node names the size it is dragging");
