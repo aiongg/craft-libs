@@ -9,7 +9,7 @@ use craft_keymap::keymap::{Binding, MAX_BINDINGS};
 use craft_ui::buttons::{Button, IconButton};
 use craft_ui::contract::{
     Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, ColumnSpec, Common, Component, ContainerProps, Cx, ItemOutput,
-    MeasureCx, Outcome, PaintUi, Props as _, Role, SelectMode, ShowCollection as _, Sizing, Styled as _,
+    MeasureCx, Outcome, PaintUi, Props as _, Role, SelectMode, ShowCollection as _, Sizing, Styled as _, clicked,
 };
 use craft_ui::display::{Elide, Shade, Text};
 use craft_ui::primitives::{IconSpec, Span, TextRun};
@@ -392,7 +392,7 @@ impl CommandRow<'_> {
             let Some(chip) = chip else { continue };
             let name = words.label_chord.fill(&[("label", &line.label), ("chord", &chip.text)]);
             let button = Button::new(chip.text.clone()).id_salt(("chip", line.key.as_str(), n)).label(name).enabled(editable);
-            if ui.child(("chip", line.key.as_str(), n), rect, button).clicked() {
+            if clicked(&ui.child(("chip", line.key.as_str(), n), rect, button)) {
                 act = Some(RowAct::Record(Some(n)));
             }
         }
@@ -401,7 +401,7 @@ impl CommandRow<'_> {
             let none = words.none.as_str();
             let name = words.label_chord.fill(&[("label", &line.label), ("chord", none)]);
             let button = Button::new(none.to_owned()).id_salt(("chip", line.key.as_str(), 0)).label(name).enabled(editable);
-            if ui.child(("chip", line.key.as_str(), 0), rect, button).clicked() {
+            if clicked(&ui.child(("chip", line.key.as_str(), 0), rect, button)) {
                 act = Some(RowAct::Record(None));
             }
             at = reset_at;
@@ -423,7 +423,7 @@ impl CommandRow<'_> {
                 .id_salt(("add", line.key.as_str()))
                 .label(name.clone())
                 .tooltip(name);
-            if ui.child(("add", line.key.as_str()), rect, add).clicked() {
+            if clicked(&ui.child(("add", line.key.as_str()), rect, add)) {
                 act = Some(RowAct::Record(None));
             }
         }
@@ -435,7 +435,7 @@ impl CommandRow<'_> {
                 .label(name.clone())
                 .tooltip(name)
                 .enabled(line.changed);
-            if ui.child(("reset", line.key.as_str()), rect, reset).clicked() {
+            if clicked(&ui.child(("reset", line.key.as_str()), rect, reset)) {
                 act = Some(RowAct::Reset);
             }
         }

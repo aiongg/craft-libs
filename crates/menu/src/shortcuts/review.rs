@@ -6,11 +6,12 @@ use craft_keymap::import::{FailedChange, NoChangeReason, Planned, SkipReason, Un
 use craft_keymap::{Binding, CommandRef, ImportPlan, ImportReport};
 use craft_theme::variant::Tone;
 use craft_ui::buttons::Button;
-use craft_ui::contract::{Bind, BodyCx, Entry, Props as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, BodyCx, Entry, Props as _, Show as _, ShowContainer as _, clicked};
 use craft_ui::display::{Shade, Text};
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::notices::Notice;
 use craft_ui::pickers::Select;
+use craft_ui::runtime::commands::{ClipItem, Commands as _};
 use craft_ui::runtime::env::Env as UiEnv;
 use craft_ui::text::TextField;
 use egui::Ui;
@@ -77,7 +78,7 @@ enum Act {
 }
 
 /// Shows the review while one is open.
-pub(crate) fn show(ui: &mut Ui, _cx: &mut BodyCx<'_>, env: &mut Env<'_>, state: &mut DialogState) {
+pub(crate) fn show(ui: &mut Ui, cx: &mut BodyCx<'_>, env: &mut Env<'_>, state: &mut DialogState) {
     let Some(review) = state.review.as_ref() else { return };
     let (plan, name, done) = (review.plan.clone(), review.name.clone(), review.done.clone());
     let act = match &done {
@@ -88,7 +89,7 @@ pub(crate) fn show(ui: &mut Ui, _cx: &mut BodyCx<'_>, env: &mut Env<'_>, state: 
         Some(Act::Pick(s, c)) => state.pick_suggestion(env, s, c),
         Some(Act::Import) => state.import_reviewed(env),
         Some(Act::Close) => state.close_review(),
-        Some(Act::Copy(text)) => ui.ctx().copy_text(text),
+        Some(Act::Copy(text)) => cx.clipboard().put(&[ClipItem::Text(text.into())]),
         None => {}
     }
 }
@@ -173,10 +174,10 @@ fn plan_view(ui: &mut Ui, env: &Env<'_>, state: &mut DialogState, plan: &ImportP
         TextField::new(w.set_name.clone(), Bind::bound(&mut name)).id_salt("shortcuts.import.name").show(ui);
         let import = if env.sets.is_some() { w.import_as_new_set.clone() } else { w.import.clone() };
         let valid = env.sets.is_none() || craft_keymap::profiles::set_name(&name).is_some();
-        if Button::new(import).id_salt("shortcuts.import.ok").enabled(valid).show(ui).clicked() {
+        if clicked(&Button::new(import).id_salt("shortcuts.import.ok").enabled(valid).show(ui)) {
             act = Some(Act::Import);
         }
-        if Button::new(w.cancel_import.clone()).id_salt("shortcuts.import.cancel").show(ui).clicked() {
+        if clicked(&Button::new(w.cancel_import.clone()).id_salt("shortcuts.import.cancel").show(ui)) {
             act = Some(Act::Close);
         }
     });
@@ -301,10 +302,10 @@ fn after_report(ui: &mut Ui, env: &Env<'_>, set: &str, report: &ImportReport) ->
     let lists = report_lists(say, env, report);
     Stack::new().show(ui, |ui, _| {
         Row::new().show(ui, |ui, _| {
-            if Button::new(w.copy_report.clone()).id_salt("shortcuts.import.copy").show(ui).clicked() {
+            if clicked(&Button::new(w.copy_report.clone()).id_salt("shortcuts.import.copy").show(ui)) {
                 act = Some(Act::Copy(report_text(say, &heading, &changed, &lists)));
             }
-            if Button::new(w.done.clone()).id_salt("shortcuts.import.done").show(ui).clicked() {
+            if clicked(&Button::new(w.done.clone()).id_salt("shortcuts.import.done").show(ui)) {
                 act = Some(Act::Close);
             }
         });

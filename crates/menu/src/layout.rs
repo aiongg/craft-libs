@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 
+use craft_host::target::{Os, Runtime};
 use craft_keymap::{Chord, CommandRef, Key, Mods};
 
 use crate::model::{Builtin, Item, ItemRole, Menu, MenuBar, MenuRole, Node, Platforms, Standard, tidy};
@@ -34,14 +35,11 @@ impl Target {
     /// The platform this build runs on: `wasm32` builds are [`Target::Web`], and operating
     /// systems other than macOS and Windows are [`Target::Linux`].
     pub const fn current() -> Target {
-        if cfg!(target_arch = "wasm32") {
-            Target::Web
-        } else if cfg!(target_os = "macos") {
-            Target::Mac
-        } else if cfg!(target_os = "windows") {
-            Target::Windows
-        } else {
-            Target::Linux
+        match (Runtime::current(), Os::current()) {
+            (Runtime::Web, _) => Target::Web,
+            (_, Os::Mac) => Target::Mac,
+            (_, Os::Windows) => Target::Windows,
+            _ => Target::Linux,
         }
     }
 

@@ -5,7 +5,7 @@ use craft_keymap::command::CommandRef;
 use craft_keymap::keymap::Binding;
 use craft_keymap::scope::Scope;
 use craft_ui::buttons::{Button, IconButton, Link};
-use craft_ui::contract::{Bind, BodyCx, Entry, Props as _, Scroll, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, BodyCx, Entry, Props as _, Scroll, Show as _, ShowContainer as _, clicked};
 use craft_ui::display::{Shade, Text};
 use craft_ui::form::Field;
 use craft_ui::layout_components::{Row, Stack};
@@ -93,7 +93,7 @@ fn of_command(ui: &mut Ui, now: f64, env: &mut Env<'_>, state: &mut DialogState,
                     .label(name.clone())
                     .tooltip(name)
                     .show(ui);
-                if button.clicked() {
+                if clicked(&button) {
                     remove = Some(binding.clone());
                 }
             }
@@ -110,13 +110,13 @@ fn of_command(ui: &mut Ui, now: f64, env: &mut Env<'_>, state: &mut DialogState,
     context(ui, env, state, command);
     holders(ui, env, state);
     Row::new().show(ui, |ui, _| {
-        if Button::new(words.assign.clone()).id_salt("assign").enabled(state.field.is_some()).show(ui).clicked() {
+        if clicked(&Button::new(words.assign.clone()).id_salt("assign").enabled(state.field.is_some()).show(ui)) {
             state.assign_field(env);
         }
-        if Button::new(words.use_default.clone()).id_salt("useDefault").enabled(DialogState::can_use_default(env, command)).show(ui).clicked() {
+        if clicked(&Button::new(words.use_default.clone()).id_salt("useDefault").enabled(DialogState::can_use_default(env, command)).show(ui)) {
             state.use_default(env, command);
         }
-        if Button::new(words.clear.clone()).id_salt("clear").enabled(!bindings.is_empty()).show(ui).clicked() {
+        if clicked(&Button::new(words.clear.clone()).id_salt("clear").enabled(!bindings.is_empty()).show(ui)) {
             state.clear(env, command);
         }
     });
@@ -193,7 +193,7 @@ fn new_shortcut(ui: &mut Ui, now: f64, env: &mut Env<'_>, state: &mut DialogStat
                 recording.focused = true;
             }
         }
-        if Link::new(words.type_more.clone()).id_salt("typeMore").show(ui).clicked() {
+        if clicked(&Link::new(words.type_more.clone()).id_salt("typeMore").show(ui)) {
             state.stop_recording();
             state.typing = Some(String::new());
             state.typing_focus = true;
@@ -236,7 +236,7 @@ fn holders(ui: &mut Ui, env: &Env<'_>, state: &mut DialogState) {
             Some(scope) if Some(scope) != home.as_ref() => words.label_scope.fill(&[("label", &label), ("scope", &scope_name(env, scope))]),
             _ => label,
         };
-        if Link::new(format!("\u{26a0} {text}")).id_salt(("holder", n)).show(ui).clicked() {
+        if clicked(&Link::new(format!("\u{26a0} {text}")).id_salt(("holder", n)).show(ui)) {
             go = Some(holder.command.clone());
         }
     }
@@ -245,7 +245,7 @@ fn holders(ui: &mut Ui, env: &Env<'_>, state: &mut DialogState) {
         let home = env.keymap.bindable(&holder.command).map(|b| b.scope.clone()).unwrap_or_else(Scope::app);
         let scope = scope_name(env, holder.binding.scope_or(&home));
         let text = words.label_scope_both_work.fill(&[("label", &label), ("scope", &scope)]);
-        if Link::new(text).id_salt(("shadow", n)).show(ui).clicked() {
+        if clicked(&Link::new(text).id_salt(("shadow", n)).show(ui)) {
             go = Some(holder.command.clone());
         }
     }

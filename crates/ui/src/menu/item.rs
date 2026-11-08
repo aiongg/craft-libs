@@ -642,7 +642,7 @@ impl Component for MenuItem<'_> {
             frame::request_repaint(&ctx);
         }
         // Every activation of a menu row reaches its command as `FireSource::Menu`, whether it was typed, clicked or keyed.
-        if asked && cx.command().is_some() {
+        if asked && cx.command.is_some() {
             cx.activate(FireSource::Menu);
         }
         if asked && self.keep_open {

@@ -2,7 +2,7 @@
 //! keyboard pane's toggle.
 
 use craft_ui::buttons::{IconButton, ToggleButton};
-use craft_ui::contract::{Bind, BodyCx, Entry, Props as _, Show as _, ShowContainer as _, Sizing};
+use craft_ui::contract::{Bind, BodyCx, Entry, Props as _, Show as _, ShowContainer as _, Sizing, clicked};
 use craft_ui::form::Field;
 use craft_ui::layout_components::Row;
 use craft_ui::pickers::Select;
@@ -87,7 +87,7 @@ fn search(ui: &mut Ui, now: f64, env: &mut Env<'_>, state: &mut DialogState) {
         .tooltip(name.clone())
         .selected(searching)
         .show(ui);
-    if toggle.clicked() {
+    if clicked(&toggle) {
         if searching {
             state.stop_recording();
         } else {

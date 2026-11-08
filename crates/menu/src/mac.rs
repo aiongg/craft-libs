@@ -432,7 +432,7 @@ impl MacMenu {
     /// Nothing else may wake egui when the menu closes (Escape goes to the menu), so look again.
     fn retry_later(&mut self, bar: MenuBar) {
         self.pending = Some(bar);
-        self.ctx.request_repaint_after(Duration::from_millis(250));
+        craft_ui::runtime::frame::request_repaint_after(&self.ctx, 0.25);
     }
 }
 

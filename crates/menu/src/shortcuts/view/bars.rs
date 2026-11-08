@@ -4,7 +4,7 @@
 use craft_keymap::keymap::Problem;
 use craft_theme::variant::Tone;
 use craft_ui::buttons::Link;
-use craft_ui::contract::{BodyCx, Props as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{BodyCx, Props as _, Show as _, ShowContainer as _, clicked};
 use craft_ui::display::{Shade, Text};
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::notices::{Notice, NoticeAction, NoticeLayout};
@@ -119,7 +119,7 @@ fn info(ui: &mut Ui, env: &mut Env<'_>, state: &mut DialogState) {
         if clashes > 0 {
             let n = clashes as u64;
             let text = words.count_clashes.text(n, &n.to_string());
-            conflicts = Link::new(format!("\u{26a0} {text}")).id_salt("clashes").show(ui).clicked();
+            conflicts = clicked(&Link::new(format!("\u{26a0} {text}")).id_salt("clashes").show(ui));
         }
         if shadows > 0 {
             let n = shadows as u64;

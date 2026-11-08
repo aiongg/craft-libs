@@ -11,7 +11,7 @@ use craft_theme::variant::Tone;
 use craft_ui::buttons::{Button, ToggleButton};
 use craft_ui::contract::{
     Access, Bind, BodyCx, Component, Cx, Input, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role, Show as _,
-    ShowContainer as _,
+    ShowContainer as _, clicked,
 };
 use craft_ui::display::Text;
 use craft_ui::layout_components::{Row, Stack};
@@ -26,6 +26,7 @@ use super::words::Say;
 /// rows and the gap under the function row.
 const UNITS_W: f32 = 18.5;
 const UNITS_H: f32 = 6.25;
+const UNITS: Vec2 = Vec2::new(UNITS_W, UNITS_H);
 /// The gap under the function row, in key units.
 const ROW_GAP: f32 = 0.25;
 /// Where the navigation cluster starts, in key units.
@@ -386,7 +387,7 @@ impl Component for KeyCaps {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        vec2(UNITS_W, UNITS_H) * cx.style.step
+        UNITS * cx.style.step
     }
 
     fn sense(&self) -> Sense {
@@ -687,7 +688,7 @@ fn key_list(ui: &mut Ui, env: &Env<'_>, state: &DialogState, index: &Index, mods
             None => words.select_a_command_first.as_str().to_owned(),
         };
         let button = Button::new(words.assign_to_selected.clone()).id_salt("shortcuts.assignKey").enabled(selected.is_some()).tooltip(tip).show(ui);
-        if button.clicked() {
+        if clicked(&button) {
             *assign = true;
         }
     }
@@ -704,7 +705,7 @@ fn key_list(ui: &mut Ui, env: &Env<'_>, state: &DialogState, index: &Index, mods
             let text = say.trigger(&holder.holder.binding.trigger, platform);
             let shade = if *chord == current { craft_ui::display::Shade::Normal } else { craft_ui::display::Shade::Muted };
             Text::new(text).shade(shade).id_salt(("shortcuts.keyChord", at)).show(ui);
-            if craft_ui::buttons::Link::new(holder_text(say, env.keymap, holder)).id_salt(("shortcuts.keyHolder", at)).show(ui).clicked() {
+            if clicked(&craft_ui::buttons::Link::new(holder_text(say, env.keymap, holder)).id_salt(("shortcuts.keyHolder", at)).show(ui)) {
                 *go = Some(holder.holder.command.clone());
             }
         });
