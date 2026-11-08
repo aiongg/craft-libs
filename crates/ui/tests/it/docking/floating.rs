@@ -2,8 +2,10 @@
 //! and the move and the size stay inside the bounds and the panel limits.
 
 use craft_behavior::GesturePhase;
+use craft_ui::contract::Sizing;
 use craft_ui::contract::overlay::PlacementKind;
-use craft_ui::docking::{FloatingGroup, FloatingGroupOutput, PanelLimits};
+use craft_ui::docking::{DragUnit, FloatingGroup, FloatingGroupOutput, GroupDrag, PanelLimits};
+use craft_ui::runtime::drag;
 use craft_ui::testing::layout::allocate;
 use craft_ui::testing::{Frames, pointer, trial};
 use egui::{Pos2, Rect, Ui, Vec2};
@@ -20,30 +22,46 @@ const TITLE_AT: Vec2 = Vec2::new(24.0, 10.0);
 
 /// The caller of a group: it keeps the rect and the minimized flag the way the dock model does.
 struct Caller {
+    sizing: Sizing,
     rect: Cell<Rect>,
     minimized: Cell<bool>,
     shown: Cell<Rect>,
     toggles: Cell<u32>,
+    body: Cell<Vec2>,
+    anchor: Cell<Option<&'static str>>,
     history: RefCell<Vec<FloatingGroupOutput>>,
 }
 
 impl Caller {
     fn new() -> Self {
+        Self::sized(Sizing::Fill)
+    }
+
+    fn sized(sizing: Sizing) -> Self {
         Caller {
+            sizing,
             rect: Cell::new(START),
             minimized: Cell::new(false),
             shown: Cell::new(Rect::NOTHING),
             toggles: Cell::new(0),
+            body: Cell::new(LEAST),
+            anchor: Cell::new(None),
             history: RefCell::new(Vec::new()),
         }
     }
 
     fn show(&self) -> impl FnMut(&mut Ui) + '_ {
         move |ui| {
-            let group =
-                FloatingGroup::new("Layers", self.rect.get()).bounds(BOUNDS).limits(PanelLimits::at_least(LEAST)).minimized(self.minimized.get());
+            let mut group = FloatingGroup::new("Layers", self.rect.get())
+                .sizing(self.sizing)
+                .bounds(BOUNDS)
+                .limits(PanelLimits::at_least(LEAST))
+                .minimized(self.minimized.get());
+            if let Some(anchor) = self.anchor.get() {
+                group = group.window_of(anchor);
+            }
             let out = group.show_group(ui, |ui, _| {
-                allocate(ui, LEAST);
+                allocate(ui, self.body.get());
             });
             self.shown.set(out.output.response.rect);
             if out.output.minimized_toggled {
@@ -71,7 +89,7 @@ fn title_of(rect: Rect) -> Pos2 {
 }
 
 #[trial]
-fn a_move_by_the_title_reports_the_new_rect_and_where_the_pointer_was_released() {
+fn a_move_by_the_title_reports_the_new_rect() {
     let (caller, mut frames) = (Caller::new(), Frames::new());
     let mut show = caller.show();
     frames.idle(4, &mut show);
@@ -82,9 +100,38 @@ fn a_move_by_the_title_reports_the_new_rect_and_where_the_pointer_was_released()
     assert_eq!(change.kind, PlacementKind::Move);
     assert_eq!(change.phase, GesturePhase::Commit);
     assert!((change.rect.min - (START.min + MOVE)).abs().max_elem() < SLACK, "the rect moved with the pointer: {:?}", change.rect);
-    let released: Vec<Pos2> = caller.history.borrow().iter().filter_map(|out| out.released_at).collect();
-    assert_eq!(released.len(), 1, "the release is reported once: {released:?}");
-    assert!((released[0] - (title_of(START) + MOVE)).abs().max_elem() < SLACK, "at the pointer: {released:?}");
+}
+
+#[trial]
+fn a_move_by_the_title_of_a_window_group_runs_a_window_unit_drag_until_the_release() {
+    let (caller, mut frames) = (Caller::new(), Frames::new());
+    caller.anchor.set(Some("Layers"));
+    let mut show = caller.show();
+    frames.idle(4, &mut show);
+    let from = title_of(START);
+    for events in [vec![pointer::moved(from)], vec![pointer::press(from)], vec![pointer::moved(from + MOVE / 2.0)], vec![pointer::moved(from + MOVE)]]
+    {
+        frames.frame(events, &mut show);
+    }
+    let carried = drag::active::<GroupDrag<&'static str>>(&frames.ctx).expect("the move started a drag session");
+    assert_eq!(carried.unit, DragUnit::Window("Layers"));
+    frames.frame(vec![pointer::release(from + MOVE)], &mut show);
+    frames.idle(2, &mut show);
+    assert!(drag::active::<GroupDrag<&'static str>>(&frames.ctx).is_none(), "the release ended it");
+}
+
+#[trial]
+fn a_content_sized_group_keeps_its_position_and_grows_with_its_body() {
+    let (caller, mut frames) = (Caller::sized(Sizing::Content), Frames::new());
+    let mut show = caller.show();
+    frames.idle(4, &mut show);
+    let before = caller.shown.get();
+    assert!((before.min - START.min).abs().max_elem() < SLACK, "the rect gives the position: {before:?}");
+    caller.body.set(LEAST + Vec2::new(0.0, 60.0));
+    frames.idle(4, &mut show);
+    let after = caller.shown.get();
+    assert!(after.height() > before.height() + 50.0, "the height follows the body: {before:?} then {after:?}");
+    assert!((after.min - before.min).abs().max_elem() < SLACK, "and the position stays: {after:?}");
 }
 
 #[trial]

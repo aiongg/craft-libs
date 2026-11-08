@@ -349,6 +349,9 @@ pub struct Overlay {
     /// The rect the caller places the layer at, in the layer's parent space. The container reports the user's moves
     /// and resizes as `PlacementChange`s and keeps no placement of its own.
     pub placed: Option<Rect>,
+    /// The position the caller places the layer's top left at, in the layer's parent space; its size comes from its
+    /// content and size limits. Reported and owned like `placed`.
+    pub placed_at: Option<Pos2>,
     /// The rect a move or resize keeps the layer inside.
     pub bounds: Option<Rect>,
     /// The layer's own opacity, below the open and close motion's.
@@ -382,6 +385,7 @@ impl Overlay {
             min_size: None,
             max_size: None,
             placed: None,
+            placed_at: None,
             bounds: None,
             opacity: 1.0,
         }
@@ -527,6 +531,14 @@ impl Overlay {
     /// over a saved placement.
     pub fn placed(mut self, rect: Rect) -> Overlay {
         self.placed = Some(rect);
+        self
+    }
+
+    /// Places the layer's top left at `pos` in its parent's space and sizes it from its content and size limits, so a
+    /// layer whose content grows grows with it. Moves and resizes are reported and owned as for
+    /// [`placed`](Self::placed); `placed` wins when both are set.
+    pub fn placed_at(mut self, pos: Pos2) -> Overlay {
+        self.placed_at = Some(pos);
         self
     }
 

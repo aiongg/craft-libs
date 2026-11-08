@@ -1,6 +1,6 @@
 //! Drop resolution: a spot under the pointer becomes the model action that moves the dragged panel or group.
 
-use craft_behavior::dock::{Action, Column, DockEdge, Group, Layout, Node, Permissions, Placement, SplitSize, Target};
+use craft_behavior::dock::{Action, Column, DockEdge, Floating, Group, Layout, Node, Permissions, Placement, SplitSize, Target};
 use craft_behavior::{Axis, DockSide};
 use craft_theme::{Contrast, ControlSize, Mode};
 use craft_ui::docking::{DockDrag, DockSizes, DockSpot, DockTargets, DragUnit, FloatSpace, float_drop, resolve_drop};
@@ -14,13 +14,15 @@ const TOP_GROUP: u32 = 1;
 const TOP_SECOND_TAB: u32 = 2;
 const LOWER_GROUP: u32 = 3;
 const CANVAS: u32 = 9;
+const WINDOW: u32 = 7;
 const COLUMN_WIDTH: f32 = 200.0;
 
 /// A dock column of two groups, `[1, 2]` above `[3]`, beside a canvas.
 fn layout() -> Layout<u32> {
     let column = Column::new(vec![Group::new(vec![TOP_GROUP, TOP_SECOND_TAB], 0), Group::new(vec![LOWER_GROUP], 0)], COLUMN_WIDTH);
     let dock = Node::dock(DockEdge::Start, vec![column]);
-    Layout::new(Some(Node::split(Axis::X, SplitSize::FixedFirst(COLUMN_WIDTH), dock, Node::tabs(vec![CANVAS], 0))), Vec::new())
+    let window = Floating::new(Node::tabs(vec![WINDOW], 0), Rect::from_min_size(at(500.0, 0.0), Vec2::new(200.0, 150.0)));
+    Layout::new(Some(Node::split(Axis::X, SplitSize::FixedFirst(COLUMN_WIDTH), dock, Node::tabs(vec![CANVAS], 0))), vec![window])
 }
 
 fn dock_id() -> Id {
@@ -124,4 +126,21 @@ fn a_float_drop_puts_the_window_under_the_pointer_inside_the_area() {
     let Action::Float { rect, .. } = dropped.action else { panic!("a panel floats alone") };
     let window = rect;
     assert!(area.contains_rect(window), "the window is pulled back inside the area: {window:?}");
+}
+
+#[trial]
+fn a_floating_window_docks_as_one_unit_on_the_spot_under_it() {
+    let action = drop_of(DragUnit::Window(WINDOW), at(100.0, 60.0), open);
+    assert_eq!(action, Some(Action::move_window(WINDOW, Target::at(TOP_GROUP, Placement::Split(DockSide::Center)))));
+}
+
+#[trial]
+fn a_drop_the_model_refuses_resolves_to_nothing() {
+    let member_pinned = |panel: &u32| if *panel == TOP_SECOND_TAB { Permissions::ALL.movable(false) } else { Permissions::default() };
+    assert_eq!(
+        drop_of(DragUnit::Group(TOP_GROUP), at(100.0, 250.0), member_pinned),
+        None,
+        "the lead may move, but the group holds a panel that cannot, and the model refuses the move"
+    );
+    assert!(drop_of(DragUnit::Group(TOP_GROUP), at(100.0, 250.0), open).is_some(), "the same drop with nothing pinned is taken");
 }

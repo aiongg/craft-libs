@@ -5,7 +5,8 @@
 //! a gesture. The title row carries the active panel's title and the Menu, Float and Close actions; the body step
 //! supplies the move band, the edge grips and the keyboard Move and Size modes.
 
-use super::PanelLimits;
+use super::drop::{DragUnit, start_group_drag};
+use super::{PanelKey, PanelLimits};
 use crate::contract::BodyCx;
 use crate::contract::overlay::{PlacementChange, PlacementKind};
 use crate::contract::{
@@ -17,7 +18,8 @@ use crate::runtime::windows::WindowSpec;
 use crate::sections::{HeaderAction, HeaderStrength, TitleRow};
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::{GesturePhase, Metrics, Sense};
-use egui::{Pos2, Rect, Response, Ui, Vec2};
+use egui::{Rect, Response, Ui, Vec2};
+use std::hash::Hash;
 
 #[cfg(feature = "testing")]
 mod stories;
@@ -49,9 +51,6 @@ pub struct FloatingGroupOutput {
     pub menu_rect: Option<Rect>,
     /// Whether a double click on the title band asks to minimize the group, or restore it when it is minimized.
     pub minimized_toggled: bool,
-    /// Where the pointer was when a move by the title committed. The host resolves it against the dock's spots
-    /// (`DockTargets::resolve`) to dock the group.
-    pub released_at: Option<Pos2>,
 }
 
 impl Outcome for FloatingGroupOutput {
@@ -68,8 +67,12 @@ impl Outcome for FloatingGroupOutput {
 /// - Placement: the group shows at the rect given to `new`; the user's moves and resizes come back in
 ///   `FloatingGroupOutput::placed` and the caller shows the next pass at that rect. A move or resize stays inside
 ///   `bounds` and the panel `limits` (the limits are the body's; the title row adds its height).
+/// - Sizing: with `Sizing::Content` (the default) the rect fixes the position and the width, and the height follows
+///   the body; with another sizing the rect is the size. The user's resizes are reported either way.
 /// - Minimized: only the title row shows, at the width of the rect, and the edges do not resize. The rect given to
 ///   `new` keeps the height the group has when restored.
+/// - Docking: with [`window_of`](FloatingGroup::window_of) set, a move by the title starts a window-unit drag
+///   (`GroupDrag`) for the dock's `DockDropTarget`, which shows the drop mark and docks the window on release.
 /// - Window: with `native` set the group opens in an OS window of that kind, with the layer as the fallback where
 ///   the platform has no windows.
 /// - Show it with [`show_group`](FloatingGroup::show_group): the closure fills the body, and is not called while
@@ -94,6 +97,9 @@ pub struct FloatingGroup {
     /// Whether only the title row shows.
     #[prop]
     minimized: bool,
+    /// Whether the height follows the body (`Sizing::Content`) or the rect gives it.
+    #[prop]
+    sizing: Sizing,
     /// Opens the group in an OS window of this kind.
     #[prop]
     native: Option<WindowSpec>,
@@ -102,8 +108,13 @@ pub struct FloatingGroup {
     menu_rect: Option<Rect>,
     toggled: bool,
     placed: Option<PlacementChange>,
-    released: Option<Pos2>,
+    /// Starts the window-unit drag; set by `window_of`.
+    start_drag: Option<StartDrag>,
+    /// A move by the title began this pass.
+    moving: bool,
 }
+
+type StartDrag = Box<dyn for<'a, 'b> FnOnce(&'a mut Cx<'b, FloatingGroup>)>;
 
 impl FloatingGroup {
     /// A floating group titled `title` at `rect`, with the Menu, Float and Close actions.
@@ -121,15 +132,26 @@ impl FloatingGroup {
             limits: PanelLimits::default(),
             opacity: 1.0,
             minimized: false,
+            sizing: Sizing::Content,
             native: None,
             actions: ACTIONS.to_vec(),
             taken: None,
             menu_rect: None,
             toggled: false,
             placed: None,
-            released: None,
+            start_drag: None,
+            moving: false,
         }
         .label(title)
+    }
+
+    /// The group is the floating window of the dock model that holds `anchor`: a move by its title starts a
+    /// window-unit drag, so the dock marks where the window would dock while it moves and docks it on release.
+    #[must_use]
+    pub fn window_of<P: Clone + Hash + Send + Sync + 'static>(mut self, anchor: P) -> Self {
+        let active = PanelKey::of(&anchor);
+        self.start_drag = Some(Box::new(move |cx| start_group_drag(cx, DragUnit::Window(anchor), active, None)));
+        self
     }
 
     /// The action parts at the end of the title row, in reading order.
@@ -150,12 +172,22 @@ impl FloatingGroup {
     }
 
     /// The layer or window the group shows in. `header` is the height of the title row.
+    ///
+    /// A minimized group, and one with `Sizing::Content`, is placed by its position and width; its height is its
+    /// content's, which is the title row alone while minimized.
     fn mount(&self, header: f32) -> Mount {
-        let height = if self.minimized { header } else { self.rect.height() };
-        let placed = Rect::from_min_size(self.rect.min, Vec2::new(self.rect.width(), height));
-        let least = Vec2::new(self.limits.min.x, if self.minimized { header } else { self.limits.min.y + header });
+        let least = Vec2::new(self.limits.min.x, self.limits.min.y + header);
         let most = self.limits.max.map_or(Vec2::INFINITY, |max| max + Vec2::new(0.0, header));
-        let mut overlay = Overlay::floating().movable(true).resizable(!self.minimized).placed(placed).size_limits(least, most).opacity(self.opacity);
+        let mut overlay = Overlay::floating().movable(true).resizable(!self.minimized).opacity(self.opacity);
+        overlay = if self.minimized {
+            let width = self.rect.width();
+            overlay.placed_at(self.rect.min).size_limits(Vec2::new(width, 0.0), Vec2::new(width, f32::INFINITY))
+        } else if self.sizing == Sizing::Content {
+            let width = self.rect.width().max(least.x).min(most.x);
+            overlay.placed_at(self.rect.min).size_limits(Vec2::new(width, least.y), most)
+        } else {
+            overlay.placed(self.rect).size_limits(least, most)
+        };
         if let Some(bounds) = self.bounds {
             overlay = overlay.bounds(bounds);
         }
@@ -181,14 +213,18 @@ impl Component for FloatingGroup {
         Sense::empty()
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> FloatingGroupOutput {
+    fn finish(mut self, mut cx: Cx<'_, Self>) -> FloatingGroupOutput {
+        if self.moving
+            && let Some(start) = self.start_drag.take()
+        {
+            start(&mut cx);
+        }
         FloatingGroupOutput {
             response: cx.response.clone(),
             placed: self.placed,
             action: self.taken,
             menu_rect: self.menu_rect,
             minimized_toggled: self.toggled,
-            released_at: self.released,
         }
     }
 }
@@ -206,9 +242,7 @@ impl Container for FloatingGroup {
         if self.minimized {
             change.rect = Rect::from_min_size(change.rect.min, Vec2::new(change.rect.width(), self.rect.height()));
         }
-        if change.kind == PlacementKind::Move && change.phase == GesturePhase::Commit {
-            self.released = change.pointer;
-        }
+        self.moving |= change.kind == PlacementKind::Move && change.phase == GesturePhase::Begin;
         self.placed = Some(change);
     }
 }

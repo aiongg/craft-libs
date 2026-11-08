@@ -59,6 +59,9 @@ pub struct TabStripOutput<K> {
     pub picked: Option<K>,
     /// A tab drag was released outside every strip (`TabStrip::tear_off`).
     pub torn_off: Option<TornOff<K>>,
+    /// The rect of each shown tab, in screen space, in the order the source lists them: where a drop between two
+    /// tabs resolves its insertion index.
+    pub tab_rects: Vec<(K, Rect)>,
 }
 
 impl<K> Outcome for TabStripOutput<K> {
@@ -91,6 +94,8 @@ struct Report {
     tabs_end: f32,
     /// The width of the overflow button; 0 when every tab fits.
     overflow: f32,
+    /// Each shown tab's position in the source, distance from the start edge and width.
+    placed: Vec<(usize, f32, f32)>,
 }
 
 /// The item layout of a tab strip: the tabs in one row, each as wide as it measures itself, fitted to the width by
@@ -140,13 +145,16 @@ impl StripLayout {
         self.left = vec![self.width; count];
         self.wide = vec![0.0; count];
         let mut at = 0.0;
+        let mut placed = Vec::with_capacity(fit.shown.len());
         for &(index, width) in &fit.shown {
             self.shown[index] = true;
             self.left[index] = at;
             self.wide[index] = width;
+            placed.push((index, at, width));
             at += width;
         }
-        *self.report.lock().unwrap_or_else(PoisonError::into_inner) = Report { hidden: fit.overflow, tabs_end: at, overflow: fit.overflow_width };
+        *self.report.lock().unwrap_or_else(PoisonError::into_inner) =
+            Report { hidden: fit.overflow, tabs_end: at, overflow: fit.overflow_width, placed };
     }
 }
 
@@ -311,6 +319,21 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> TabStri
     fn report(&self) -> Report {
         self.report.lock().unwrap_or_else(PoisonError::into_inner).clone()
     }
+
+    /// The shown tabs' rects in screen space, mirrored under right-to-left.
+    fn tab_rects(&self, cx: &Cx<'_, Self>) -> Vec<(K, Rect)> {
+        let flow = craft_behavior::Flow::new(cx.core.content_rect, cx.flow.is_rtl());
+        let band = cx.core.content_rect;
+        let texts = self.texts.borrow();
+        self.report()
+            .placed
+            .iter()
+            .filter_map(|&(index, start, width)| {
+                let logical = Rect::from_min_max(Pos2::new(band.left() + start, band.top()), Pos2::new(band.left() + start + width, band.bottom()));
+                Some((texts.get(index)?.0.clone(), flow.to_physical(logical)))
+            })
+            .collect()
+    }
 }
 
 impl<K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> Component for TabStrip<'_, K> {
@@ -394,6 +417,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> Component f
     }
 
     fn finish(self, mut cx: Cx<'_, Self>) -> TabStripOutput<K> {
+        let tab_rects = self.tab_rects(&cx);
         let TabStrip { picked, torn, .. } = self;
         let mut response = cx.collection_response();
         let (mut closed, mut menu) = (Vec::new(), None);
@@ -406,7 +430,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> Component f
             }
         }
         response.events = kept;
-        TabStripOutput { response, closed, menu, picked, torn_off: torn }
+        TabStripOutput { response, closed, menu, picked, torn_off: torn, tab_rects }
     }
 }
 

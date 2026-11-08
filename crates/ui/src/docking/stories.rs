@@ -1,7 +1,7 @@
 //! Stories of the docking family.
 
 use super::tree::{self, FrameRules, FrameSizes};
-use super::{DockGroup, GroupGrip, HANDLE, PanelKey, PanelLimits, PanelTitle, SplitArea, Splitter};
+use super::{DockGroup, DragUnit, GroupGrip, HANDLE, PanelKey, PanelLimits, PanelTitle, SplitArea, Splitter};
 use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _, Validity};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
@@ -84,10 +84,9 @@ fn two_panels(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     DockGroup::new(LAYERS, &panels, panels[0].key).show(ui, |_, _| ()).output.into()
 }
 
-#[story(GroupGrip, covers = [Default])]
+#[story(GroupGrip<usize>, covers = [Default])]
 fn a_group_grip(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let key = PanelKey::of(&LAYERS);
-    GroupGrip::new(key, key).label("Move tab group").show(ui).into()
+    GroupGrip::new(DragUnit::Group(LAYERS), PanelKey::of(&LAYERS)).label("Move tab group").show(ui).into()
 }
 
 #[story(Splitter, covers = [Default])]

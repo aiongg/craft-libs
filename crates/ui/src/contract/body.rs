@@ -78,6 +78,16 @@ impl Placement {
         Placement { pos: Some(rect.min.into()), size: Some(rect.size().into()) }
     }
 
+    /// The placement that puts the layer's top left at `pos` and leaves its size to its content.
+    fn at_pos(pos: Pos2) -> Placement {
+        Placement { pos: Some(pos.into()), size: None }
+    }
+
+    /// The placement the caller of `overlay` gives, when it places the layer.
+    fn given(overlay: &super::Overlay) -> Option<Placement> {
+        overlay.placed.map(Placement::at).or_else(|| overlay.placed_at.map(Placement::at_pos))
+    }
+
     /// The rect it names, taking the position and size it lacks from `rect`.
     fn rect_over(&self, rect: Rect) -> Rect {
         Rect::from_min_size(self.pos.map_or(rect.min, Pos2::from), self.size.map_or(rect.size(), Vec2::from))
@@ -100,7 +110,7 @@ struct PlacementSlot<'s> {
 
 impl<'s> PlacementSlot<'s> {
     fn new(stage: &'s mut MemoryStage, id: Id, save: Option<&'s SaveKey>, overlay: &super::Overlay) -> Self {
-        PlacementSlot { stage, id, save, controlled: overlay.placed.map(Placement::at) }
+        PlacementSlot { stage, id, save, controlled: Placement::given(overlay) }
     }
 
     fn stored(&mut self) -> &mut Placement {
@@ -133,12 +143,12 @@ fn placement_of(ctx: &Context, id: Id, save: Option<&SaveKey>) -> Placement {
     }
 }
 
-/// The placement a layer is shown at: the caller's `placed` rect, else the saved or session placement, else for a
+/// The placement a layer is shown at: the caller's `placed` rect or `placed_at` position, else the saved or session placement, else for a
 /// floating resizable layer with a default size (`Overlay::size`) that size, within the screen less `dialog_pad` on
 /// each side, centred or at the overlay's float position. A saved size and position win over the default.
 pub(crate) fn shown_placement(ctx: &Context, id: Id, save: Option<&SaveKey>, overlay: &super::Overlay, dialog_pad: f32) -> Placement {
-    if let Some(rect) = overlay.placed {
-        return Placement::at(rect);
+    if let Some(given) = Placement::given(overlay) {
+        return given;
     }
     let mut placement = placement_of(ctx, id, save);
     let (Some(default), Place::Float(float), true) = (overlay.size, &overlay.place, overlay.fit == OverlayFit::Resizable) else {
