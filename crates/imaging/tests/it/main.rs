@@ -1,6 +1,7 @@
 //! The integration binary of craft-imaging: every test is a registered trial.
 
 mod blend_keys;
+mod curve;
 mod scopes;
 
 use craft_ui::testing::{TRIALS, suite};
