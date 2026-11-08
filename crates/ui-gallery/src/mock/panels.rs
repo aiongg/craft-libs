@@ -7,7 +7,7 @@ use craft_behavior::dock::Permissions;
 use craft_behavior::kurbo::Rect as DocRect;
 use craft_behavior::{ColumnKey, ColumnWidth, PixelSize, RulerUnits, Ticks, keyed};
 use craft_ui::canvas::{
-    Canvas, CanvasScrollbars, CanvasSpace, Guide, NoTool, PageFrame, Pasteboard, PixelRect, RasterDisplay, RasterSource, RulerText, Rulers, ToolHost,
+    Canvas, CanvasScrollbars, CanvasSpace, NoTool, PageFrame, Pasteboard, PixelRect, RasterDisplay, RasterSource, RulerText, Rulers, ToolHost,
 };
 use craft_ui::canvas_controls::{Guides, Marquee};
 use craft_ui::contract::{
@@ -91,7 +91,7 @@ impl DockPanels<Panel> for Panels<'_> {
         let (tool, tools) = (self.tool, &mut *self.tools);
         CanvasPanel::new()
             .tabs(|ui, _| {
-                let tabs = [DocumentTab::new(0_usize, title).modified(modified)];
+                let tabs = [DocumentTab::new(0_usize, title.clone()).modified(modified)];
                 events = DocumentTabs::new("Documents", &tabs).selected(0).show(ui).events;
             })
             .show(ui, |ui, _| canvas(ui, document, tool, tools));
