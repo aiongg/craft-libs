@@ -109,16 +109,11 @@ fn bar_rig(line: Option<RulerLine>, scale: bool, factor: f64) -> Fixture {
     fixture
 }
 
-/// The values of the readout fields in bar order (X, Y, W, H, A, L1, L2): each field's group node carries the text its
-/// body shows.
-fn readouts(fixture: &Fixture) -> Vec<String> {
-    let tree = fixture.tree();
-    fixture.by_role(Role::GROUP).into_iter().filter_map(|group| tree.value_of(group.node).map(str::to_owned)).collect()
+/// The value the readout field named `name` shows (its field node carries the text its body shows).
+fn readout(fixture: &Fixture, name: &str) -> Option<String> {
+    let field = fixture.by_label(name)?;
+    fixture.tree().value_of(field.node).map(str::to_owned)
 }
-
-/// The index of the angle and of the first length in [`readouts`].
-const ANGLE: usize = 4;
-const L1: usize = 5;
 
 /// Use Measurement Scale multiplies the lengths and positions in the readouts, not the angle.
 #[trial]
@@ -126,10 +121,9 @@ fn scale_multiplies_lengths_not_the_angle() {
     let line = RulerLine::new(Point::new(1.0, 2.0), Point::new(4.0, 6.0));
     let plain = bar_rig(Some(line), false, 2.0);
     let scaled = bar_rig(Some(line), true, 2.0);
-    let (plain, scaled) = (readouts(&plain), readouts(&scaled));
-    assert!(plain.get(L1).is_some(), "{plain:?}");
-    assert_ne!(plain[L1], scaled[L1]);
-    assert_eq!(plain[ANGLE], scaled[ANGLE]);
+    let read = |fixture: &Fixture, name: &str| readout(fixture, name).unwrap_or_else(|| panic!("the {name} readout shows a value"));
+    assert_ne!(read(&plain, "L1"), read(&scaled, "L1"));
+    assert_eq!(read(&plain, "A"), read(&scaled, "A"));
 }
 
 /// Straighten Layer and Clear are disabled without a line.
@@ -146,8 +140,8 @@ fn buttons_are_disabled_without_a_line() {
 #[trial]
 fn readouts_show_the_ruler_units() {
     let rig = bar_rig(Some(RulerLine::new(Point::new(3.0, 4.0), Point::new(6.0, 8.0))), false, 1.0);
-    let values = readouts(&rig);
-    assert!(values.get(L1).is_some_and(|v| v.contains("5.00") && v.contains("px")), "{values:?}");
+    let value = readout(&rig, "L1");
+    assert!(value.as_deref().is_some_and(|v| v.contains("5.00") && v.contains("px")), "{value:?}");
 }
 
 /// The tool for the fixture: it builds a pass over the shared line for every call and applies the events the pass
@@ -156,6 +150,7 @@ struct Driven {
     tool: RulerTool,
     line: Rc<RefCell<Option<RulerLine>>>,
     log: Rc<RefCell<Vec<&'static str>>>,
+    ctx: egui::Context,
 }
 
 impl Driven {
@@ -184,7 +179,7 @@ impl Driven {
 
     fn with_pass<R>(&mut self, call: impl FnOnce(&mut dyn CanvasTool) -> R) -> R {
         let line = *self.line.borrow();
-        let result = call(&mut self.tool.pass(line));
+        let result = call(&mut self.tool.pass(&self.ctx, line));
         self.sync();
         result
     }
@@ -227,7 +222,7 @@ struct Shown {
 fn shown(start: Option<RulerLine>) -> Shown {
     let line = Rc::new(RefCell::new(start));
     let log = Rc::new(RefCell::new(Vec::new()));
-    let driven = Driven { tool: RulerTool::new(), line: Rc::clone(&line), log: Rc::clone(&log) };
+    let driven = Driven { tool: RulerTool::new(), line: Rc::clone(&line), log: Rc::clone(&log), ctx: egui::Context::default() };
     let body_line = Rc::clone(&line);
     let body_log = Rc::clone(&log);
     let fixture = ToolFixture::with_view(

@@ -13,7 +13,7 @@ use craft_ui::canvas::{CanvasTool, CropOverlay, CropOverlayOutput, NUDGE, NUDGE_
 use craft_ui::contract::{Bind, Show as _};
 use craft_ui::patterns::form_dialogs::{Param, ParamDialog, ParamKind};
 use craft_ui::primitives::Draw;
-use craft_ui::runtime::env::{Env, Units};
+use craft_ui::runtime::env::Env;
 use egui::{Rect, Ui, Vec2};
 
 use super::options::{CropFill, CropSettings, CropTarget};
@@ -41,8 +41,8 @@ pub struct CropCommit {
 
 impl CropCommit {
     /// The commit of `frame` with `settings` on `document`.
-    pub fn new(frame: CropBox, settings: &CropSettings, document: &CropDocument, units: &Units) -> Self {
-        Self { frame, target: settings.target(document, units), delete_pixels: settings.delete_pixels, fill: settings.fill }
+    pub fn new(frame: CropBox, settings: &CropSettings, document: &CropDocument) -> Self {
+        Self { frame, target: settings.target(document), delete_pixels: settings.delete_pixels, fill: settings.fill }
     }
 }
 
@@ -82,6 +82,7 @@ pub struct CropOutput {
 
 /// One pass's input: the options and the document, and how the frame snaps.
 pub struct CropInput<'a> {
+    ctx: &'a egui::Context,
     settings: &'a CropSettings,
     document: &'a CropDocument,
     snap: Option<&'a SnapTargets>,
@@ -89,9 +90,9 @@ pub struct CropInput<'a> {
 }
 
 impl<'a> CropInput<'a> {
-    /// The pass on `document` with `settings`.
-    pub fn new(settings: &'a CropSettings, document: &'a CropDocument) -> Self {
-        Self { settings, document, snap: None, nudge_pause: None }
+    /// The pass on `document` with `settings`; `ctx` mints the ids of the key edits the tool opens.
+    pub fn new(ctx: &'a egui::Context, settings: &'a CropSettings, document: &'a CropDocument) -> Self {
+        Self { ctx, settings, document, snap: None, nudge_pause: None }
     }
 
     /// The targets a dragged part and a Straighten line's ends snap to (the app's snap data).
@@ -242,43 +243,43 @@ impl CropTool {
     /// the frame refits to [`CropSettings::ratio_value`] about its centre, from the frame the field edit
     /// began with while `editing`, as one box step. Returns the frame's `Set` for the host's mirror, or
     /// `None` when nothing changed. In image mode the next pass turns the view with the frame.
-    pub fn refit(&mut self, settings: &CropSettings, document: &CropDocument, units: &Units, editing: bool) -> Option<CropEvent> {
+    pub fn refit(&mut self, ctx: &egui::Context, settings: &CropSettings, document: &CropDocument, editing: bool) -> Option<CropEvent> {
         let base = self.session.ratio_base(editing);
         self.end_nudges();
         if self.dragging {
             return None;
         }
         let (current, base) = (self.session.frame()?, base?);
-        let rect = fitted_ratio(base.rect, settings.ratio_value(document, units)?)?;
+        let rect = fitted_ratio(base.rect, settings.ratio_value(document)?)?;
         let next = CropBox::new(rect, base.angle);
         // W x H x Resolution can change the output size even when the frame already fits, so it
         // makes the frame a pending crop.
-        let sized = settings.target(document, units).is_some();
+        let sized = settings.target(document).is_some();
         if next == current && (editing || !sized) {
             return None;
         }
         // Fitting the untouched default frame to a ratio alone is not an edit.
         let keep_default = !editing && !sized && self.session.is_default();
-        let event = self.session.set(next, keep_default, &self.step);
+        let event = self.session.set(ctx, next, keep_default, &self.step);
         self.synced = None;
         Some(CropEvent::Frame(event))
     }
 
     /// The Crop To... command's answer: the frame is set as one box step. Returns the frame's `Set`,
     /// `None` for a frame that is not finite or has no area.
-    pub fn crop_to(&mut self, frame: CropBox) -> Option<CropEvent> {
+    pub fn crop_to(&mut self, ctx: &egui::Context, frame: CropBox) -> Option<CropEvent> {
         if !frame.is_finite() || frame.rect.width() <= 0.0 || frame.rect.height() <= 0.0 {
             return None;
         }
         self.end_nudges();
-        let event = self.session.set(frame, false, &self.step);
+        let event = self.session.set(ctx, frame, false, &self.step);
         self.synced = None;
         Some(CropEvent::Frame(event))
     }
 
     /// The check mark in the bar or Image > Crop: [`CropEvent::Apply`] for a drawn frame, `None` for
     /// the default frame or no frame.
-    pub fn apply(&mut self, settings: &CropSettings, document: &CropDocument, units: &Units) -> Option<CropEvent> {
+    pub fn apply(&mut self, settings: &CropSettings, document: &CropDocument) -> Option<CropEvent> {
         if !self.session.pending() {
             return None;
         }
@@ -286,7 +287,7 @@ impl CropTool {
         self.end_nudges();
         let view = self.seen_view.filter(|_| !settings.shield.classic_mode);
         self.kept = Some((self.session.keep(view), false));
-        Some(CropEvent::Apply(CropCommit::new(frame, settings, document, units)))
+        Some(CropEvent::Apply(CropCommit::new(frame, settings, document)))
     }
 
     /// The app's Crop To... command fired: [`CropEvent::CropTo`] at the frame, for the app to open
@@ -308,7 +309,7 @@ impl CropTool {
     /// drag also keeps the frame). Disarms Straighten. While a drag runs the frame stays pending and
     /// this returns `None`: the app calls it again on later passes until it returns something else,
     /// which applies the frame once the drag ends.
-    pub fn leave(&mut self, settings: &CropSettings, document: &CropDocument, units: &Units, keeps_pending: bool) -> Option<CropEvent> {
+    pub fn leave(&mut self, settings: &CropSettings, document: &CropDocument, keeps_pending: bool) -> Option<CropEvent> {
         self.end_nudges();
         match self.session.leave(keeps_pending || self.dragging) {
             LeaveFrame::Kept | LeaveFrame::Nothing => None,
@@ -318,7 +319,7 @@ impl CropTool {
             }
             LeaveFrame::Apply(frame) => {
                 self.kept = Some((self.session.keep(None), true));
-                Some(CropEvent::Apply(CropCommit::new(frame, settings, document, units)))
+                Some(CropEvent::Apply(CropCommit::new(frame, settings, document)))
             }
         }
     }
@@ -368,9 +369,7 @@ impl CropToolPass<'_> {
         let words = Env::of(ui).words::<CropWords>();
         self.tool.step = Arc::from(words.frame.as_str());
         let (settings, document) = (self.input.settings, self.input.document);
-        let units = Env::of(ui).units();
-        let (ratio, default, straighten) =
-            (settings.ratio_value(document, &units), self.tool.session.is_default(), self.tool.session.straighten().on());
+        let (ratio, default, straighten) = (settings.ratio_value(document), self.tool.session.is_default(), self.tool.session.straighten().on());
         let Some(frame) = self.tool.session.frame_mut() else { return };
         let mut overlay = CropOverlay::new(words.frame.clone(), Bind::bound(frame))
             .guide((settings.guide, settings.guide_orientation))
@@ -398,11 +397,11 @@ impl CropToolPass<'_> {
             overlay = overlay.snap(snap);
         }
         let shown = overlay.show_at(ui, canvas_rect);
-        self.take(shown, &units);
+        self.take(shown);
     }
 
     /// Turns the overlay's output into events and session steps.
-    fn take(&mut self, shown: CropOverlayOutput, units: &Units) {
+    fn take(&mut self, shown: CropOverlayOutput) {
         let CropOverlayOutput { edit, apply, discard, straightened, view, snapped, dragging, .. } = shown;
         self.tool.dragging = dragging;
         self.output.snapped = snapped;
@@ -417,7 +416,7 @@ impl CropToolPass<'_> {
         if let Some(angle) = straightened {
             self.straightened(angle);
         }
-        if apply && let Some(event) = self.tool.apply(self.input.settings, self.input.document, units) {
+        if apply && let Some(event) = self.tool.apply(self.input.settings, self.input.document) {
             self.push(event);
         }
         if discard && let Some(event) = self.tool.discard() {
@@ -431,7 +430,7 @@ impl CropToolPass<'_> {
         self.tool.session.straighten_mut().disarm();
         let Some(frame) = self.tool.session.frame() else { return };
         if let Some(next) = frame.fitted(self.input.document.size, angle) {
-            let event = self.tool.session.set(next, false, &self.tool.step);
+            let event = self.tool.session.set(self.input.ctx, next, false, &self.tool.step);
             self.tool.synced = None;
             self.push(CropEvent::Frame(event));
             self.push(CropEvent::Straightened(angle));
@@ -451,10 +450,10 @@ impl CropToolPass<'_> {
         let bundled = nudge && self.input.nudge_pause.is_some();
         let event = if bundled {
             self.tool.last_nudge = Some(cx.time);
-            self.tool.session.nudge(next, &self.tool.step)
+            self.tool.session.nudge(self.input.ctx, next, &self.tool.step)
         } else {
             self.tool.end_nudges();
-            self.tool.session.set(next, false, &self.tool.step)
+            self.tool.session.set(self.input.ctx, next, false, &self.tool.step)
         };
         self.push(CropEvent::Frame(event));
         match view {
@@ -474,7 +473,7 @@ impl CropToolPass<'_> {
         let by = space.map_or(by, |space| screen_step(&space.view, by));
         let image = !self.classic();
         let moved = frame.moved(if image { -by } else { by });
-        let next = self.within(moved, frame, false, &cx.units());
+        let next = self.within(moved, frame, false);
         let view = space.filter(|_| image).map(|space| {
             let mut view = space.view;
             view.center += next.center() - frame.center();
@@ -486,7 +485,7 @@ impl CropToolPass<'_> {
     }
 
     /// `next` kept inside the canvas while Delete Cropped Pixels is on, else `frame` as it was.
-    fn within(&self, next: CropBox, frame: CropBox, resizing: bool, units: &Units) -> CropBox {
+    fn within(&self, next: CropBox, frame: CropBox, resizing: bool) -> CropBox {
         let settings = self.input.settings;
         if !next.is_finite() {
             return frame;
@@ -494,7 +493,7 @@ impl CropToolPass<'_> {
         if !settings.delete_pixels {
             return next;
         }
-        let held = settings.ratio_value(self.input.document, units).is_some();
+        let held = settings.ratio_value(self.input.document).is_some();
         next.within(self.input.document.canvas(), resizing, held).unwrap_or(frame)
     }
 
@@ -504,12 +503,12 @@ impl CropToolPass<'_> {
         let mut next = frame.swapped();
         let mut swapped = settings.clone();
         if swapped.swap(document) && swapped != *settings {
-            if let Some(rect) = swapped.ratio_value(document, &cx.units()).and_then(|k| fitted_ratio(next.rect, k)) {
+            if let Some(rect) = swapped.ratio_value(document).and_then(|k| fitted_ratio(next.rect, k)) {
                 next = CropBox::new(rect, next.angle);
             }
             self.push(CropEvent::Settings(swapped));
         }
-        let next = self.within(next, frame, true, &cx.units());
+        let next = self.within(next, frame, true);
         let view = cx.space().filter(|_| !self.classic() && settings.shield.auto_center_preview).map(|space| {
             let mut view = crop_view(&next, &space.view);
             view.center = next.center();
@@ -585,12 +584,11 @@ impl CanvasTool for CropToolPass<'_> {
             return false;
         }
         let (settings, document) = (self.input.settings, self.input.document);
-        let units = cx.units();
         let frame = self.tool.session.frame().filter(CropBox::is_finite);
         let mut next = settings.clone();
         match key {
             ToolKey::Submit if frame.is_some() => {
-                if let Some(event) = self.tool.apply(settings, document, &units) {
+                if let Some(event) = self.tool.apply(settings, document) {
                     self.push(event);
                 }
                 return true;
@@ -609,7 +607,7 @@ impl CanvasTool for CropToolPass<'_> {
             ToolKey::Kept(chord) => {
                 let plain = chord.mods.is_none();
                 match chord.key {
-                    Key::I if plain => next.front_image(document, &units),
+                    Key::I if plain => next.front_image(document),
                     Key::O if frame.is_some() && plain => next.cycle_guide(),
                     Key::O if frame.is_some() && chord.mods == Mods::SHIFT => next.cycle_orientation(),
                     // Show Cropped Area is taken but inert in Classic Mode, where it acts as on.

@@ -16,7 +16,7 @@ use craft_ui::contract::{
     Access, Common, Component, Cx, Focus as _, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Remember as _, Role,
     Styled as _, WordSetCx as _,
 };
-use craft_ui::primitives::{Dashes, PaintShape, StrokeWidth, TextRun};
+use craft_ui::primitives::{Dashes, PaintShape, StrokeWidth, TextRun, dashed};
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::focus::KeyUse;
 use craft_ui::style::{ComponentStyle, DataColor, Flags, HandleLook, StyleColor, StyleCx};
@@ -93,10 +93,6 @@ enum Held {
     },
 }
 
-/// The slice the focus arrived at, so a move of the focus selects it.
-#[derive(Clone, Default)]
-struct Arrival(Option<u64>);
-
 /// The slices drawn over the document, and in Select mode taken by the pointer and the keyboard.
 ///
 /// - Every slice is painted: a line inside the edge in the slice colour, the selected slice in the selected colour,
@@ -114,7 +110,7 @@ struct Arrival(Option<u64>);
 /// - [`locked`](Self::locked) slices take no part: the press reaches the tool, which clears the selection and refuses.
 /// - Document geometry never mirrors right to left.
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
-#[component(canvas_control, content_painter)]
+#[component(canvas_control)]
 pub struct SliceOverlay<'a> {
     #[common]
     common: Common,
@@ -283,12 +279,12 @@ impl<'a> SliceOverlay<'a> {
     fn run_keys(&mut self, cx: &mut Cx<'_, Self>, space: &CanvasSpace) {
         let words = cx.words::<SliceToolWords>();
         let focused = cx.active_part().filter(|part| part.key == SLICE).and_then(|part| part.index);
-        let arrived = {
-            let slot = cx.memory::<Arrival>();
-            let changed = slot.0 != focused;
-            slot.0 = focused;
-            changed
-        };
+        // Focus arriving on a slice by a key or a request selects it; a press selects by its own rule.
+        let arrived = cx.focus_arrived().is_some_and(|part| {
+            part.key == SLICE
+                && part.index.is_some()
+                && cx.part_if_declared(part).is_none_or(|result| matches!(result.press.phase, PressPhase::Idle | PressPhase::Hover))
+        });
         let Some(item) = focused.and_then(|number| self.item(number as usize)).cloned() else { return };
         if arrived && self.events.is_empty() {
             self.events.push(SliceEvent::Select { number: Some(item.number), add: false, mods: Mods::NONE });
@@ -410,7 +406,6 @@ impl Component for SliceOverlay<'_> {
         let view = space.view;
         let style = cx.style;
         let draw = ui.draw();
-        let painter = ui.content_painter(cx);
         let slice_color = self.color.map_or(style.line.egui(), Color32::from);
         let line = DataColor::new(slice_color);
         let format = cx.format();
@@ -423,7 +418,19 @@ impl Component for SliceOverlay<'_> {
                 if auto {
                     let mut path = quad.clone();
                     path.push(quad[0]);
-                    painter.dashed(&path, Dashes::new(style.dash, style.dash_gap), StrokeWidth::Thin, slice_color.gamma_multiply(Opacity::DERIVED));
+                    // The dash geometry is the kit's; the colour is the slice's data colour, faded as a derived mark.
+                    let dashes = dashed(&path, Dashes::new(style.dash, style.dash_gap), 1.0, slice_color);
+                    draw.faded(Opacity::DERIVED, |faded| {
+                        for dash in dashes {
+                            match dash {
+                                egui::Shape::LineSegment { points, .. } => {
+                                    faded.data_stroke(&PaintShape::Path(points.to_vec()), StrokeWidth::Thin, line)
+                                }
+                                egui::Shape::Path(path) => faded.data_stroke(&PaintShape::Path(path.points), StrokeWidth::Thin, line),
+                                _ => {}
+                            }
+                        }
+                    });
                 } else {
                     draw.data_stroke(&PaintShape::Polygon(quad.clone()), StrokeWidth::Thin, line);
                 }

@@ -5,24 +5,19 @@ use craft_behavior::geometry::CropBox;
 use craft_behavior::kurbo::{Point, Rect, Size};
 use craft_behavior::{CanvasView, EditEvent, GestureId, Mixed};
 use craft_draw::ui::crop::{
-    CropDocKey, CropDocument, CropEvent, CropInput, CropRatio, CropSession, CropSettings, CropTool, CropToolPass, LeaveFrame,
+    CropDocKey, CropDocument, CropEvent, CropInput, CropLength, CropRatio, CropSession, CropSettings, CropTool, CropToolPass, LeaveFrame,
 };
 use craft_keymap::{Chord, Key, Mods};
 use craft_ui::canvas::{Canvas, CanvasSpace, CanvasTool as _, ToolContext, ToolHost, ToolKey};
 use craft_ui::contract::ShowContainer as _;
 use craft_ui::runtime::access::Role;
-use craft_ui::runtime::env::Units;
+use craft_ui::runtime::env::UnitKind;
 use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Pos2, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
 const SIZE: Size = Size::new(400.0, 300.0);
-
-/// The units of a context built without an env: English with the system region's number format.
-fn units() -> Units {
-    ToolContext::new(egui::Rect::NOTHING, None).units()
-}
 
 fn document(key: u64) -> CropDocument {
     CropDocument::new(CropDocKey::new(key), SIZE)
@@ -45,18 +40,19 @@ struct Run {
     document: CropDocument,
     space: Option<CanvasSpace>,
     pause: Option<f64>,
+    ctx: egui::Context,
 }
 
 impl Run {
     fn new(settings: CropSettings) -> Self {
-        Run { tool: CropTool::new(), settings, document: document(1), space: None, pause: None }
+        Run { tool: CropTool::new(), settings, document: document(1), space: None, pause: None, ctx: egui::Context::default() }
     }
 
     /// One pass at `time`: `each_pass`, then `act`; returns what `act` returns and the pass's events. `Settings`
     /// events are stored.
     fn pass<R>(&mut self, time: f64, mods: Mods, act: impl FnOnce(&mut CropToolPass<'_>, &mut ToolContext<'_>) -> R) -> (R, Vec<CropEvent>) {
         let mut cx = ToolContext::new(egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(400.0, 300.0)), self.space).time(time).mods(mods);
-        let mut pass = self.tool.pass(CropInput::new(&self.settings, &self.document).nudge_pause(self.pause));
+        let mut pass = self.tool.pass(CropInput::new(&self.ctx, &self.settings, &self.document).nudge_pause(self.pause));
         pass.each_pass(&mut cx);
         let result = act(&mut pass, &mut cx);
         let events = pass.finish().events;
@@ -97,25 +93,25 @@ fn the_tool_always_shows_a_frame() {
     assert_eq!(run.frame(), Some(canvas), "the default frame is the canvas");
     assert!(!run.tool.session().pending());
 
-    run.tool.crop_to(upright(100.0, 80.0, 300.0, 220.0));
-    let Some(CropEvent::Apply(commit)) = run.tool.apply(&run.settings, &run.document, &units()) else { panic!("a drawn frame applies") };
+    run.tool.crop_to(&run.ctx, upright(100.0, 80.0, 300.0, 220.0));
+    let Some(CropEvent::Apply(commit)) = run.tool.apply(&run.settings, &run.document) else { panic!("a drawn frame applies") };
     assert_eq!(commit.frame, upright(100.0, 80.0, 300.0, 220.0));
     run.tool.applied(true);
     run.settle();
     assert_eq!(run.frame(), Some(canvas), "a new default frame after the crop");
 
-    run.tool.crop_to(upright(100.0, 80.0, 300.0, 220.0));
+    run.tool.crop_to(&run.ctx, upright(100.0, 80.0, 300.0, 220.0));
     assert_eq!(run.tool.discard(), Some(CropEvent::Discard));
     run.settle();
     assert_eq!(run.frame(), Some(canvas), "a new default frame after a discard");
-    assert_eq!(run.tool.apply(&run.settings, &run.document, &units()), None, "the default frame does not apply");
+    assert_eq!(run.tool.apply(&run.settings, &run.document), None, "the default frame does not apply");
 }
 
 #[trial]
 fn enter_applies_and_escape_discards() {
     let mut run = Run::new(classic());
     run.settle();
-    run.tool.crop_to(upright(100.0, 80.0, 300.0, 220.0));
+    run.tool.crop_to(&run.ctx, upright(100.0, 80.0, 300.0, 220.0));
     let (taken, events) = run.key(&ToolKey::Submit);
     let commits: Vec<_> = events.iter().filter_map(|event| if let CropEvent::Apply(commit) = event { Some(*commit) } else { None }).collect();
     assert!(taken && commits.len() == 1, "{events:?}");
@@ -124,7 +120,7 @@ fn enter_applies_and_escape_discards() {
     run.tool.applied(true);
     run.settle();
 
-    run.tool.crop_to(upright(100.0, 80.0, 300.0, 220.0));
+    run.tool.crop_to(&run.ctx, upright(100.0, 80.0, 300.0, 220.0));
     let (taken, events) = run.key(&ToolKey::Cancel);
     assert!(taken);
     assert_eq!(events, [CropEvent::Discard]);
@@ -157,8 +153,8 @@ fn o_h_p_i_act_only_with_a_frame() {
     assert!(settings_of(&events).last().is_some_and(|s| !s.shield.show_cropped_area), "H toggles Show Cropped Area");
 
     let (_, events) = run.key(&kept(Key::I, Mods::NONE));
-    let fill = settings_of(&events).last().map(|s| (s.ratio.clone(), s.size.width.as_str().to_owned()));
-    assert_eq!(fill, Some((CropRatio::Size, "400 px".to_owned())), "I fills the size fields from the document");
+    let fill = settings_of(&events).last().map(|s| (s.ratio.clone(), s.size.width));
+    assert_eq!(fill, Some((CropRatio::Size, Some(CropLength::new(400.0, UnitKind::Pixels)))), "I fills the size fields from the document");
 
     let mut empty = Run::new(CropSettings::default());
     empty.document = CropDocument::new(CropDocKey::new(1), Size::ZERO);
@@ -179,7 +175,7 @@ fn image_mode_requests_the_turned_view() {
     let mut run = Run::new(CropSettings::default());
     run.space = Some(CanvasSpace::new(upright_view, 1.0));
     run.settle();
-    run.tool.crop_to(turned);
+    run.tool.crop_to(&run.ctx, turned);
     let (view, _) = run.pass(0.0, Mods::NONE, |_, cx| cx.requested_view());
     let view = view.expect("image mode turns the view for a frame changed outside a gesture");
     assert!((view.rotation - 30.0).abs() < 1e-6, "the view turns against the frame: {}", view.rotation);
@@ -187,14 +183,14 @@ fn image_mode_requests_the_turned_view() {
     let mut run = Run::new(classic());
     run.space = Some(CanvasSpace::new(upright_view, 1.0));
     run.settle();
-    run.tool.crop_to(turned);
+    run.tool.crop_to(&run.ctx, turned);
     let (view, _) = run.pass(0.0, Mods::NONE, |_, cx| cx.requested_view());
     assert_eq!(view.map(|v| v.rotation), None, "Classic Mode turns the frame over an upright view and asks for nothing more");
 
     let mut run = Run::new(classic());
     run.space = Some(CanvasSpace::new(upright_view.rotation(20.0), 1.0));
     run.settle();
-    run.tool.crop_to(turned);
+    run.tool.crop_to(&run.ctx, turned);
     let (view, _) = run.pass(0.0, Mods::NONE, |_, cx| cx.requested_view());
     assert_eq!(view.map(|v| v.rotation), Some(0.0), "Classic Mode turns a turned view upright once");
 }
@@ -220,12 +216,13 @@ fn straighten_is_armed_by_the_button_or_held_with_command() {
 fn editing_a_ratio_refits_from_the_frame_the_edit_began_with() {
     let mut run = Run::new(classic());
     run.settle();
-    run.tool.crop_to(upright(50.0, 50.0, 350.0, 250.0));
+    run.tool.crop_to(&run.ctx, upright(50.0, 50.0, 350.0, 250.0));
     let document = run.document;
+    let ctx = run.ctx.clone();
     let mut settings = run.settings.clone();
     let mut refit = |tool: &mut CropTool, width: f64, height: f64, editing: bool| {
         settings.ratio = CropRatio::sides(width, height);
-        let Some(CropEvent::Frame(event)) = tool.refit(&settings, &document, &units(), editing) else { return None };
+        let Some(CropEvent::Frame(event)) = tool.refit(&ctx, &settings, &document, editing) else { return None };
         event.value().copied()
     };
 
@@ -244,7 +241,7 @@ fn editing_a_ratio_refits_from_the_frame_the_edit_began_with() {
 fn a_second_document_discards_a_drawn_frame() {
     let mut run = Run::new(classic());
     run.settle();
-    run.tool.crop_to(upright(100.0, 80.0, 300.0, 220.0));
+    run.tool.crop_to(&run.ctx, upright(100.0, 80.0, 300.0, 220.0));
     run.document = CropDocument::new(CropDocKey::new(2), Size::new(200.0, 100.0));
     let (_, events) = run.pass(0.0, Mods::NONE, |_, _| ());
     assert!(events.contains(&CropEvent::Discard), "{events:?}");
@@ -255,22 +252,22 @@ fn a_second_document_discards_a_drawn_frame() {
 fn leaving_applies_a_drawn_frame_and_a_refused_commit_restores_it() {
     let mut run = Run::new(classic());
     run.settle();
-    assert_eq!(run.tool.leave(&run.settings, &run.document, &units(), false), None, "the default frame is dropped");
+    assert_eq!(run.tool.leave(&run.settings, &run.document, false), None, "the default frame is dropped");
     assert_eq!(run.frame(), None);
     run.settle();
 
     let drawn = upright(100.0, 80.0, 300.0, 220.0);
-    run.tool.crop_to(drawn);
-    assert_eq!(run.tool.leave(&run.settings, &run.document, &units(), true), None, "a kept frame stays");
-    let Some(CropEvent::Apply(commit)) = run.tool.leave(&run.settings, &run.document, &units(), false) else { panic!("a drawn frame applies") };
+    run.tool.crop_to(&run.ctx, drawn);
+    assert_eq!(run.tool.leave(&run.settings, &run.document, true), None, "a kept frame stays");
+    let Some(CropEvent::Apply(commit)) = run.tool.leave(&run.settings, &run.document, false) else { panic!("a drawn frame applies") };
     assert_eq!(commit.frame, drawn);
     // A refusal of the Apply from leaving clears the session: the next tool does not retry it.
     run.tool.applied(false);
     assert_eq!(run.frame(), None);
     run.settle();
 
-    run.tool.crop_to(drawn);
-    let Some(CropEvent::Apply(_)) = run.tool.apply(&run.settings, &run.document, &units()) else { panic!("a drawn frame applies") };
+    run.tool.crop_to(&run.ctx, drawn);
+    let Some(CropEvent::Apply(_)) = run.tool.apply(&run.settings, &run.document) else { panic!("a drawn frame applies") };
     // The app's command changed the box history; the refusal gives it back.
     run.tool.undo();
     run.tool.applied(false);
@@ -282,8 +279,8 @@ fn leaving_applies_a_drawn_frame_and_a_refused_commit_restores_it() {
 fn a_document_switch_drops_the_kept_frame() {
     let mut run = Run::new(classic());
     run.settle();
-    run.tool.crop_to(upright(100.0, 80.0, 300.0, 220.0));
-    let Some(CropEvent::Apply(_)) = run.tool.apply(&run.settings, &run.document, &units()) else { panic!("a drawn frame applies") };
+    run.tool.crop_to(&run.ctx, upright(100.0, 80.0, 300.0, 220.0));
+    let Some(CropEvent::Apply(_)) = run.tool.apply(&run.settings, &run.document) else { panic!("a drawn frame applies") };
     run.document = document(2);
     run.settle();
     run.tool.applied(false);
@@ -296,13 +293,13 @@ fn crop_to_sets_the_frame_as_one_box_step() {
     let mut run = Run::new(classic());
     run.settle();
     let target = CropBox::new(Rect::new(40.0, 30.0, 240.0, 130.0), 15.0);
-    let Some(CropEvent::Frame(event)) = run.tool.crop_to(target) else { panic!("a finite frame is set") };
+    let Some(CropEvent::Frame(event)) = run.tool.crop_to(&run.ctx, target) else { panic!("a finite frame is set") };
     assert!(matches!(event, EditEvent::Set { .. }));
     assert_eq!(run.frame(), Some(target));
     assert!(run.tool.session().pending());
     assert!(run.tool.undo());
     assert!(run.tool.session().is_default(), "one Undo goes back to the default frame");
-    assert_eq!(run.tool.crop_to(CropBox::new(Rect::new(0.0, 0.0, 0.0, 10.0), 0.0)), None, "a frame with no area is no crop");
+    assert_eq!(run.tool.crop_to(&run.ctx, CropBox::new(Rect::new(0.0, 0.0, 0.0, 10.0), 0.0)), None, "a frame with no area is no crop");
 }
 
 // The session cases.
@@ -342,6 +339,7 @@ fn default_frame_is_the_selection_bounds_or_the_canvas() {
 #[trial]
 fn another_document_or_size_gets_its_own_default_frame() {
     let mut session = CropSession::new();
+    let ctx = egui::Context::default();
     session.ensure_frame(&sized(1, 200.0, 100.0), false);
     assert!(session.ensure_frame(&sized(1, 300.0, 100.0), false));
     assert_eq!(rect_of(&session), Some(Rect::new(0.0, 0.0, 300.0, 100.0)));
@@ -350,7 +348,7 @@ fn another_document_or_size_gets_its_own_default_frame() {
 
     assert!(!session.for_document(CropDocKey::new(2)));
     assert!(session.frame().is_some());
-    session.set(upright(10.0, 10.0, 50.0, 50.0), false, "Crop");
+    session.set(&ctx, upright(10.0, 10.0, 50.0, 50.0), false, "Crop");
     assert!(session.for_document(CropDocKey::new(3)), "a drawn frame was dropped");
     assert!(session.frame().is_none() && !session.can_undo());
 
@@ -362,17 +360,18 @@ fn another_document_or_size_gets_its_own_default_frame() {
 #[trial]
 fn box_undo_redo_steps_committed_gestures_only() {
     let mut session = CropSession::new();
+    let ctx = egui::Context::default();
     session.ensure_frame(&sized(1, 200.0, 100.0), false);
     let start = session.frame();
     assert!(!session.can_undo());
 
-    session.nudge(upright(10.0, 0.0, 100.0, 100.0), "Crop");
-    session.nudge(upright(20.0, 0.0, 100.0, 100.0), "Crop");
-    session.nudge(upright(30.0, 0.0, 100.0, 100.0), "Crop");
+    session.nudge(&ctx, upright(10.0, 0.0, 100.0, 100.0), "Crop");
+    session.nudge(&ctx, upright(20.0, 0.0, 100.0, 100.0), "Crop");
+    session.nudge(&ctx, upright(30.0, 0.0, 100.0, 100.0), "Crop");
     assert!(session.can_undo(), "an open run counts, so Undo never falls through to the document");
     session.settle();
     assert!(session.pending());
-    session.set(upright(31.0, 0.0, 100.0, 100.0), false, "Crop");
+    session.set(&ctx, upright(31.0, 0.0, 100.0, 100.0), false, "Crop");
 
     assert!(session.undo());
     assert_eq!(session.frame(), Some(upright(30.0, 0.0, 100.0, 100.0)), "the run of nudges is one step");
@@ -384,16 +383,17 @@ fn box_undo_redo_steps_committed_gestures_only() {
     assert_eq!(session.frame(), Some(upright(30.0, 0.0, 100.0, 100.0)));
     assert!(!session.is_default());
 
-    session.set(upright(5.0, 5.0, 60.0, 60.0), false, "Crop");
+    session.set(&ctx, upright(5.0, 5.0, 60.0, 60.0), false, "Crop");
     assert!(!session.can_redo() && !session.redo(), "a new step drops the redo side");
 }
 
 #[trial]
 fn the_box_owns_undo_after_undoing_back_to_the_default_frame() {
     let mut session = CropSession::new();
+    let ctx = egui::Context::default();
     session.ensure_frame(&sized(1, 200.0, 100.0), false);
     assert!(!session.owns_undo());
-    session.set(upright(10.0, 10.0, 80.0, 60.0), false, "Crop");
+    session.set(&ctx, upright(10.0, 10.0, 80.0, 60.0), false, "Crop");
     assert!(session.owns_undo());
     assert!(session.undo());
     assert!(session.is_default() && !session.pending());
@@ -424,6 +424,7 @@ fn a_cancelled_drag_goes_back_to_the_latest_step() {
 #[trial]
 fn leaving_drops_a_default_frame_and_applies_a_drawn_one() {
     let mut session = CropSession::new();
+    let ctx = egui::Context::default();
     assert_eq!(session.leave(false), LeaveFrame::Nothing);
 
     session.ensure_frame(&sized(1, 200.0, 100.0), false);
@@ -433,14 +434,14 @@ fn leaving_drops_a_default_frame_and_applies_a_drawn_one() {
 
     session.ensure_frame(&sized(1, 200.0, 100.0), false);
     let drawn = upright(10.0, 10.0, 80.0, 60.0);
-    session.set(drawn, false, "Crop");
+    session.set(&ctx, drawn, false, "Crop");
     assert_eq!(session.leave(true), LeaveFrame::Kept);
     assert_eq!(session.frame(), Some(drawn));
     session.clear();
     session.ensure_frame(&sized(1, 200.0, 100.0), false);
     assert_eq!(session.leave(true), LeaveFrame::Dropped, "an untouched default frame goes even while the tool is kept");
     session.ensure_frame(&sized(1, 200.0, 100.0), false);
-    session.set(drawn, false, "Crop");
+    session.set(&ctx, drawn, false, "Crop");
     assert_eq!(session.leave(false), LeaveFrame::Apply(drawn));
     assert_eq!(session.frame(), Some(drawn), "the app clears or restores");
     session.clear();
@@ -450,9 +451,10 @@ fn leaving_drops_a_default_frame_and_applies_a_drawn_one() {
 #[trial]
 fn a_refused_commit_gives_frame_and_steps_back() {
     let mut session = CropSession::new();
+    let ctx = egui::Context::default();
     session.ensure_frame(&sized(1, 200.0, 100.0), false);
     let drawn = upright(10.0, 10.0, 80.0, 60.0);
-    session.set(drawn, false, "Crop");
+    session.set(&ctx, drawn, false, "Crop");
     let view = CanvasView::new(egui::Rect::from_min_size(Pos2::ZERO, Vec2::new(100.0, 100.0)), Point::new(5.0, 5.0), 2.0);
     let kept = session.keep(Some(view));
 
@@ -469,11 +471,12 @@ fn a_refused_commit_gives_frame_and_steps_back() {
 #[trial]
 fn a_ratio_edit_fits_from_the_frame_it_began_with() {
     let mut session = CropSession::new();
+    let ctx = egui::Context::default();
     assert_eq!(session.ratio_base(true), None);
     session.ensure_frame(&sized(1, 200.0, 100.0), false);
     let first = session.frame();
     assert_eq!(session.ratio_base(true), first);
-    session.set(upright(0.0, 0.0, 20.0, 100.0), false, "Crop");
+    session.set(&ctx, upright(0.0, 0.0, 20.0, 100.0), false, "Crop");
     assert_eq!(session.ratio_base(true), first, "the run keeps its first frame");
     session.ratio_base(false);
     assert_eq!(session.ratio_base(true), session.frame(), "a new run begins from the current frame");
@@ -485,6 +488,7 @@ struct Host {
     tool: CropTool,
     settings: CropSettings,
     document: CropDocument,
+    ctx: egui::Context,
     events: Vec<CropEvent>,
 }
 
@@ -495,14 +499,15 @@ struct Rig {
 
 impl Rig {
     fn new(settings: CropSettings) -> Self {
-        let host = Rc::new(RefCell::new(Host { tool: CropTool::new(), settings, document: document(1), events: Vec::new() }));
+        let host =
+            Rc::new(RefCell::new(Host { tool: CropTool::new(), settings, document: document(1), ctx: egui::Context::default(), events: Vec::new() }));
         let shown = Rc::clone(&host);
         let mut fixture = Fixture::new(move |ui| {
             let mut guard = shown.borrow_mut();
             let host = &mut *guard;
             let room = ui.available_rect_before_wrap();
             let view = CanvasView::new(room, Point::new(200.0, 150.0), 1.0);
-            let mut pass = host.tool.pass(CropInput::new(&host.settings, &host.document));
+            let mut pass = host.tool.pass(CropInput::new(&host.ctx, &host.settings, &host.document));
             let canvas = Canvas::new("Document").document(SIZE).view(view).show(ui, |ui, body| pass.show_frame(ui, body.rect));
             ToolHost::new().run(ui, &canvas.output, &mut pass);
             let events = pass.finish().events;
@@ -578,11 +583,11 @@ fn leaving_during_a_drag_waits_for_the_release() {
         let mut host = rig.host.borrow_mut();
         let Host { tool, settings, document, .. } = &mut *host;
         assert!(tool.dragging());
-        assert_eq!(tool.leave(settings, document, &units(), false), None, "a drag keeps the frame pending");
+        assert_eq!(tool.leave(settings, document, false), None, "a drag keeps the frame pending");
     }
     rig.fixture.frame(vec![pointer::release(from + Vec2::new(40.0, 20.0))]);
     rig.fixture.frame(Vec::new());
     let mut host = rig.host.borrow_mut();
     let Host { tool, settings, document, .. } = &mut *host;
-    assert!(matches!(tool.leave(settings, document, &units(), false), Some(CropEvent::Apply(_))), "after the release the drawn frame applies");
+    assert!(matches!(tool.leave(settings, document, false), Some(CropEvent::Apply(_))), "after the release the drawn frame applies");
 }

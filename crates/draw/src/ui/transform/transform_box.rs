@@ -32,6 +32,9 @@ pub const BOX: PartKey = PartKey::new("box");
 /// for the band at corner `i` in [`RotateZone::Band`].
 const OUTSIDE: PartKey = PartKey::new("outside");
 
+/// The keyboard path of a rotation by the outside parts: the options bar's angle field, which the host shows beside the box.
+const ROTATE_BY_KEY: &str = "the angle field in the options bar";
+
 /// The distance an arrow key moves a part, in document units; Shift moves it by `NUDGE_FAR`.
 const NUDGE: f64 = 1.0;
 const NUDGE_FAR: f64 = 10.0;
@@ -462,13 +465,17 @@ impl Component for TransformBox<'_> {
         }
         match self.rotate_zone {
             RotateZone::Outside => {
-                cx.part(OUTSIDE.at(0), HitShape::Rect(rect)).sense(Sense::DRAG | Sense::CLICK).priority(HitPriority::new(HitLevel::Background, 0));
+                cx.part(OUTSIDE.at(0), HitShape::Rect(rect))
+                    .sense(Sense::DRAG | Sense::CLICK)
+                    .priority(HitPriority::new(HitLevel::Background, 0))
+                    .pointer_only(ROTATE_BY_KEY);
             }
             RotateZone::Band if self.rules.allows(BoxPart::Outside) => {
                 for (corner, ring) in band_rings(&screen, style).into_iter().enumerate() {
                     cx.part(OUTSIDE.at(corner as u64), HitShape::Polygon(ring))
                         .sense(Sense::DRAG | Sense::CLICK)
-                        .priority(HitPriority::new(HitLevel::Body, 0));
+                        .priority(HitPriority::new(HitLevel::Body, 0))
+                        .pointer_only(ROTATE_BY_KEY);
                 }
             }
             RotateZone::Band => {}
