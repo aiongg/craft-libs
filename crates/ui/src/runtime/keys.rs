@@ -577,6 +577,15 @@ pub(crate) fn begin(ctx: &Context, press_captured: bool) -> bool {
                 push(&mut routed, Some(menu), Intent::Text(Arc::from(text.as_str())), false);
             }
         }
+    } else {
+        // With nothing focused, a plain Enter submits to the window, as an unfocused Escape cancels: a tool's pending
+        // edit or a dialog's default button takes it.
+        for (press, taken) in batch.presses.iter().zip(&mut consumed) {
+            if press.key == Key::Enter && press.mods.is_none() && !press.repeat {
+                push(&mut routed, None, Intent::Submit, false);
+                *taken = Taken::Yes;
+            }
+        }
     }
     let focused = target.as_ref().map(|rec| rec.stop.id);
     // The web sends a chord's key press and its clipboard event: the command reaches the component once.

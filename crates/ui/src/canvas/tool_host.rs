@@ -259,7 +259,7 @@ impl<'m> ToolHost<'m> {
         let space = canvas.space;
         let down = keys::down(&ctx);
         let caps = lock_keys::caps_lock(&ctx);
-        let rect = drawn_rect(canvas.response.rect);
+        let rect = canvas.response.rect;
         let input = pointer::frame(&ctx);
         let mut glide = None;
         let fired = std::iter::from_fn(|| commands::take_around::<MomentaryCommands>(&ctx, canvas.response.id, env.view().command_chain()));
@@ -492,12 +492,6 @@ fn hover_pointer(frame: &PointerFrame, press: PressState) -> Option<ToolPointer>
             .mods(press.mods)
             .sample(press.sample.or(frame.sample).unwrap_or(PointerSample::new(1.0))),
     )
-}
-
-/// The canvas rect the tool runs in: the canvas's response, which is empty at its corner where the clip leaves
-/// nothing of the canvas, never inverted.
-fn drawn_rect(rect: Rect) -> Rect {
-    Rect::from_min_max(rect.min, rect.max.max(rect.min))
 }
 
 /// Every key without Ctrl or Cmd, with and without Shift: the keys a tool that kept the keyboard types with. The

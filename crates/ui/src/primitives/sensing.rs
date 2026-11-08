@@ -368,7 +368,9 @@ pub(crate) fn sense_root(ui: &Ui, spec: RootSpec<'_>) -> RootResult {
     } else {
         Sense::HOVER | spec.own.iter().fold(spec.own_sense, |sense, part| sense | part.sense).intersection(Sense::FOCUS)
     };
-    let response = response::widget(ui, spec.id, spec.rect.intersect(clip), sense);
+    // A root outside its clip gets an empty response rect at its corner, never an inverted one.
+    let shown = spec.rect.intersect(clip);
+    let response = response::widget(ui, spec.id, Rect::from_min_max(shown.min, shown.max.max(shown.min)), sense);
     // Each edge or handle part that reaches outside the root rect gets its own widget, resolved as the root.
     let mut widgets = vec![spec.id, sub(spec.id, "transform")];
     for part in spec.own.iter().filter(|part| !part.over && part.priority.level >= HitLevel::Edge) {
