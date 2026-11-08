@@ -965,7 +965,10 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             }
             self.move_lead(at, LeadSource::Pointer);
             let place = self.on_screen(self.screen(layout, rect, at, offset, rtl).left_bottom());
-            self.events.push(CollectionEvent::ContextMenu(ContextMenuRequest { key, at: place }));
+            let mut cells = Vec::new();
+            layout.cells(at, offset, &mut cells);
+            let column = cells.into_iter().find(|(_, cell)| cell.contains(local(pos))).map(|(column, _)| column);
+            self.events.push(CollectionEvent::ContextMenu(ContextMenuRequest { key, at: place, column }));
         }
     }
 
@@ -1076,7 +1079,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             && let Some(row) = lead_at
         {
             let place = self.on_screen(self.screen(layout, at.rect, row, at.offset, at.rtl).left_bottom());
-            self.events.push(CollectionEvent::ContextMenu(ContextMenuRequest { key: self.source.key(row), at: place }));
+            self.events.push(CollectionEvent::ContextMenu(ContextMenuRequest { key: self.source.key(row), at: place, column: None }));
         }
     }
 

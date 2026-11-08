@@ -338,6 +338,8 @@ pub struct FooterOutput {
     pub drop_hint: Option<Label>,
     /// The response of each action, in the order given; a caller opens a menu from one with `Menu::opened_by`.
     pub responses: Vec<Response>,
+    /// The modifiers held at the pick; none when nothing was picked.
+    pub mods: craft_keymap::Mods,
 }
 
 impl Outcome for FooterOutput {
@@ -589,7 +591,15 @@ impl FooterBar {
             }
         });
         let inner = shown.inner.unwrap_or_default();
-        FooterOutput { response: shown.output, picked: inner.picked, dropped: inner.dropped, drop_hint: inner.drop_hint, responses: inner.responses }
+        let mods = if inner.picked.is_some() { crate::runtime::pointer::frame(ui.ctx()).mods } else { craft_keymap::Mods::NONE };
+        FooterOutput {
+            response: shown.output,
+            picked: inner.picked,
+            dropped: inner.dropped,
+            drop_hint: inner.drop_hint,
+            responses: inner.responses,
+            mods,
+        }
     }
 }
 

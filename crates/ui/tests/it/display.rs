@@ -12,6 +12,8 @@ use egui::{Rect, Response, Vec2, vec2};
 use std::cell::Cell;
 use std::rc::Rc;
 
+mod picture;
+
 /// Commands of the Kbd trial: one with a default chord and one without.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, CommandSet)]
 #[command(prefix = "kbdTrial")]

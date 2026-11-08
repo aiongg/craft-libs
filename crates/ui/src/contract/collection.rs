@@ -624,6 +624,8 @@ pub struct ToggleEdit<K> {
     pub column: ColumnKey,
     /// The new value.
     pub on: bool,
+    /// The modifiers held at the press that flipped it (the first press of a sweep).
+    pub mods: craft_keymap::Mods,
 }
 
 /// A tree row opened or closed.
@@ -660,6 +662,9 @@ pub struct ContextMenuRequest<K> {
     pub key: K,
     /// Where the menu opens.
     pub at: Pos2,
+    /// The toggle or text column the press landed in; `None` from the keyboard, on the label band and in a list
+    /// without columns.
+    pub column: Option<ColumnKey>,
 }
 
 /// A change to the columns.

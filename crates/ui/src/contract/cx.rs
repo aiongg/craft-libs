@@ -38,6 +38,8 @@ use std::sync::Arc;
 pub struct Activation {
     /// By `Intent::Activate` (Enter, Space or an AccessKit click) rather than a primary click.
     pub by_key: bool,
+    /// The modifiers held at the activation.
+    pub mods: craft_keymap::Mods,
 }
 
 /// The non-generic part of every `Cx`; the step functions take this. It is a read-only output: component code
