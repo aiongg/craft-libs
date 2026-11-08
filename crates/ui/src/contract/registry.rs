@@ -227,7 +227,14 @@ impl Probe {
         (self.name)()
     }
 
-    /// Whether the component's output carries a value, so the mixed and invalid states apply to it.
+    /// Whether the user can change the type's value: a type whose input is `Input::Display` shows its value and
+    /// takes none, so it has no invalid state and no typed or dragged edit.
+    pub fn takes_input(&self) -> bool {
+        self.input != Input::Display
+    }
+
+    /// Whether the component's output carries a value, so the mixed state applies to it, and the invalid state when it
+    /// also takes input.
     pub fn carries_value(&self) -> bool {
         (self.value)()
     }

@@ -104,7 +104,7 @@ fn egui_button(button: PointerButton) -> Option<egui::PointerButton> {
 
 /// The modifiers egui reports for `mods` on `platform`, as the integration reports them: on macOS cmd is `mac_cmd`
 /// with `command` and ctrl stays the Control key; elsewhere cmd is Ctrl, so `ctrl` with `command`.
-fn egui_modifiers(mods: Mods, platform: Platform) -> Modifiers {
+pub(super) fn egui_modifiers(mods: Mods, platform: Platform) -> Modifiers {
     if platform.is_mac() {
         Modifiers { alt: mods.alt, ctrl: mods.ctrl, shift: mods.shift, mac_cmd: mods.cmd, command: mods.cmd }
     } else {

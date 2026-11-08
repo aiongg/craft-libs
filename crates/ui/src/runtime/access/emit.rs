@@ -45,6 +45,8 @@ pub(crate) struct Own<'a> {
     /// Parts of the component open its popups: their sub-nodes report the expanded state and serve Expand and
     /// Collapse, so the component's own node does not.
     pub popups_by_part: bool,
+    /// The component's horizontal axis keeps its left-to-right order under a right-to-left interface.
+    pub ltr_axis: bool,
 }
 
 /// A popup an anchor shows this pass.
@@ -247,6 +249,7 @@ pub(crate) fn report(ctx: &Context, own: &Own<'_>) {
         column_count: spec.grid.column_count.or(access.grid.column_count),
     };
     write_states(&mut spec, own.flags, own.enabled, own.read_only);
+    spec.ltr_axis = own.ltr_axis;
     spec.busy |= access.busy;
     if let Some(expanded) = expanded {
         spec.actions.push(if expanded { NodeAction::Collapse } else { NodeAction::Expand });

@@ -34,4 +34,5 @@ pub mod viewports;
 pub mod widgets;
 
 pub mod injected;
+pub mod input_filter;
 pub mod screenshot;

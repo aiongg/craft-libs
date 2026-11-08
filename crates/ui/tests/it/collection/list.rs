@@ -401,6 +401,19 @@ fn an_empty_list_shows_its_empty_state() {
     assert_eq!(seen.range(), 0..0);
 }
 
+/// The empty-state text of the collection's props is a label node of the list.
+#[trial]
+fn the_empty_state_text_is_a_label_node() {
+    let words = Words::flat(&[]);
+    let seen = Seen::default();
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| show_words(ui, List::new(SelectMode::Single).empty_text("Nothing here"), &words, &seen);
+    frames.idle(3, &mut show);
+    let tree = frames.tree();
+    let label = tree.keys().into_iter().find(|key| tree.name_of(*key) == Some("Nothing here")).expect("the empty text is a node");
+    assert_eq!(tree.role_of(label), Some(craft_ui::contract::Role::LABEL));
+}
+
 /// A tree opens on Right and closes on Left; Left again goes to the parent.
 #[trial]
 fn a_tree_expands_and_collapses_by_key() {
