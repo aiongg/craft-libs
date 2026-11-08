@@ -976,6 +976,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                         && layout.column_at(local(start.origin), offset).and_then(|column| self.header.key_at(column))
                             == props.rename_column.as_ref()
                         && comp.can_rename(&key);
+                    eprintln!("PROBE7b down clicks={} primary={primary} rename={} col={:?} header={:?} can={} names={names} section={}", start.clicks, props.rename, props.rename_column, layout.column_at(local(start.origin), offset).and_then(|column| self.header.key_at(column)), comp.can_rename(&key), self.source.section_stop(at));
                     if names && !self.source.section_stop(at) {
                         self.drags.rename = Some(key);
                     } else if activates && !self.source.section_stop(at) {
@@ -1004,6 +1005,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         }
         match cx.core.press.phase {
             PressPhase::Release { click, start, pos, .. } => {
+                eprintln!("PROBE7b release click={click} clicks={} pending_rename={}", start.clicks, self.drags.rename.is_some());
                 if click
                     && props.menu_on_click
                     && start.button == craft_behavior::PointerButton::Primary
