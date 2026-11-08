@@ -32,17 +32,6 @@ fn layer_fixture(story: &Story) -> Option<Fixture> {
     on_layer(&fixture).then_some(fixture)
 }
 
-/// The nodes at and below `root`.
-fn subtree(tree: &crate::testing::access::AccessTree, root: crate::testing::access::NodeKey) -> Vec<crate::testing::access::NodeKey> {
-    let mut found = Vec::new();
-    let mut pending = vec![root];
-    while let Some(key) = pending.pop() {
-        found.push(key);
-        pending.extend(tree.children_of(key));
-    }
-    found
-}
-
 /// Whether `container` is a field container: exactly one control inside it is labelled, by nodes inside the container,
 /// and every other interactive node inside is a part of that control. The label names the control, so the group needs
 /// no name.
