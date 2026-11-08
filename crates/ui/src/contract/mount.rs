@@ -41,7 +41,7 @@ pub(super) fn host(props: &ContainerProps, at: &HostCx<'_>, open: bool, title: &
         Mount::Pane(pane) => Mounted { host: Box::new(PaneHost(*pane)), exiting: false },
         Mount::Window { .. } => Mounted { host: Box::new(WindowContentHost), exiting: false },
         Mount::Layer(overlay) => match layer(overlay) {
-            (Some(fade), exiting) => Mounted { host: Box::new(LayerHost::new(overlay.clone(), props.save.clone(), exiting, fade)), exiting },
+            (Some(fade), exiting) => Mounted { host: Box::new(LayerHost::new(overlay.clone(), props.save.clone(), exiting, fade, at.size)), exiting },
             (None, _) => closed(),
         },
         Mount::FullWindow => match layer(&full_window_overlay(props.focus)) {
@@ -51,7 +51,9 @@ pub(super) fn host(props: &ContainerProps, at: &HostCx<'_>, open: bool, title: &
         Mount::Viewport { fallback, spec } => {
             if !WindowHost::of(ctx).viewports_available() {
                 return match layer(fallback) {
-                    (Some(fade), exiting) => Mounted { host: Box::new(LayerHost::new(fallback.clone(), props.save.clone(), exiting, fade)), exiting },
+                    (Some(fade), exiting) => {
+                        Mounted { host: Box::new(LayerHost::new(fallback.clone(), props.save.clone(), exiting, fade, at.size)), exiting }
+                    }
                     (None, _) => closed(),
                 };
             }
@@ -134,12 +136,14 @@ struct LayerHost {
     save: Option<SaveKey>,
     exiting: bool,
     fade: f32,
+    /// The size the container measured for this pass.
+    size: Vec2,
     dismissed: Option<CloseReason>,
 }
 
 impl LayerHost {
-    fn new(overlay: Overlay, save: Option<SaveKey>, exiting: bool, fade: f32) -> Self {
-        LayerHost { overlay, save, exiting, fade, dismissed: None }
+    fn new(overlay: Overlay, save: Option<SaveKey>, exiting: bool, fade: f32, size: Vec2) -> Self {
+        LayerHost { overlay, save, exiting, fade, size, dismissed: None }
     }
 }
 
@@ -169,7 +173,12 @@ impl Host for LayerHost {
         // parent's cursor.
         let own = Rect::from_min_max(parent.cursor().min, parent.cursor().min);
         let anchor = overlay::resolve_anchor(&ctx, &overlay, own, areas::layer_to_screen(&ctx, parent.layer_id()));
-        let layer = Layer { id, owner: id, overlay: &overlay, anchor, env, exiting: self.exiting, fade: self.fade };
+        // The layer is placed by the size the container takes in this pass: its placed rect, else what it measured.
+        let size = at.map_or(self.size, |shown| match shown {
+            ShowAt::Rect(rect) => rect.size(),
+            ShowAt::Flow => self.size,
+        });
+        let layer = Layer { id, owner: id, overlay: &overlay, anchor, env, exiting: self.exiting, fade: self.fade, size: Some(size) };
         let out = overlay::host(&ctx, &layer, &mut |ui| {
             pass(ui, Some(at.unwrap_or(ShowAt::Flow)), None);
             // A body shown at a rect takes no room in the layer's flow: the layer covers the rect, so the pointer
@@ -211,7 +220,7 @@ impl Host for FullWindowHost {
         let ctx = parent.ctx().clone();
         let window = ctx.content_rect();
         let overlay = full_window_overlay(self.focus).place(Place::Float(FloatPlace::at(window.min)));
-        let layer = Layer { id, owner: id, overlay: &overlay, anchor: Rect::ZERO, env, exiting: self.exiting, fade: self.fade };
+        let layer = Layer { id, owner: id, overlay: &overlay, anchor: Rect::ZERO, env, exiting: self.exiting, fade: self.fade, size: None };
         let out = overlay::host(&ctx, &layer, &mut |ui| pass(ui, Some(ShowAt::Rect(window)), None));
         self.dismissed = out.dismissed;
     }
@@ -278,7 +287,8 @@ impl Host for ViewportHost {
                 crate::runtime::focus::pop_scope(&ctx);
             }
             if real {
-                let layer = Layer { id, owner: id, overlay: &window_rules, anchor: Rect::ZERO, env: &scoped_env, exiting: false, fade: 1.0 };
+                let layer =
+                    Layer { id, owner: id, overlay: &window_rules, anchor: Rect::ZERO, env: &scoped_env, exiting: false, fade: 1.0, size: None };
                 *dismissed = overlay::host_window(&ctx, &layer, window).dismissed;
             }
             Env::restore(&ctx, installed);

@@ -6,7 +6,7 @@ use crate::patterns::form_dialogs::Param;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
-const SPEC: &str = r#"{"name":"","size":1..100=10,"method":"fit|fill","keep":bool}"#;
+const SPEC: &str = r#"{"name":text,"size":1..100=10,"method":"fit|fill","keep":bool}"#;
 
 #[story(CommandForm<'static>, covers = [], drive = Drive::Never)]
 fn command_form(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {

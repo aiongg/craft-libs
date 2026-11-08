@@ -687,6 +687,12 @@ impl<'b> BodyHooks<'b> {
         }
     }
 
+    /// Whether the container fills the width of a content-sized column it sits in: the column holds it at its measured
+    /// width and shows it across the width the column settles on (step 6).
+    fn held(&self, props: &ContainerProps, env: &Env) -> bool {
+        env.content_column && matches!(props.mount, Mount::Inline) && self.sizing(props) != Sizing::Content
+    }
+
     /// What a header or footer took. Before the body's width is known a region runs in the whole room and a `Fill`
     /// child takes all of it, so a region that took the whole room records no width then; one that took less
     /// records what its content needs, so the next pass offers it that much and nothing in it measures squeezed.
@@ -694,8 +700,9 @@ impl<'b> BodyHooks<'b> {
     /// the parent's flow moves past the size the block really took (a grid cell is widened to it, so the cells after
     /// it are placed by it): whatever contains the block measures its content true in this pass and records it, and
     /// nested blocks settle in the one discard pass the first record asks for.
-    fn claim_first_extent(&self, props: &ContainerProps, ui: &mut Ui, rect: Rect, pad: f32, rtl: bool) {
-        if self.remembered.is_some() || !matches!(props.mount, Mount::Inline) || self.sizing(props) != Sizing::Content {
+    fn claim_first_extent(&self, props: &ContainerProps, ui: &mut Ui, env: &Env, rect: Rect, pad: f32, rtl: bool) {
+        let held = self.held(props, env);
+        if self.remembered.is_some() || !matches!(props.mount, Mount::Inline) || !(held || self.sizing(props) == Sizing::Content) {
             return;
         }
         let (body, header, footer) =
@@ -704,9 +711,17 @@ impl<'b> BodyHooks<'b> {
         let line = Vec2::new(body.x + if end.x > 0.0 { end.x + self.region_gap } else { 0.0 }, body.y.max(end.y));
         let took = Vec2::new(line.x.max(header.x).max(footer.x), line.y + header.y + footer.y) + Vec2::splat(2.0 * pad);
         let real = if rtl { Rect::from_min_size(Pos2::new(rect.max.x - took.x, rect.min.y), took) } else { Rect::from_min_size(rect.min, took) };
-        if !rect.contains_rect(real) {
+        // A held block took no width in the flow: it shows across the column, and only its content counts.
+        let placed = if !held {
+            rect
+        } else if rtl {
+            Rect::from_min_max(Pos2::new(rect.max.x, rect.min.y), rect.max)
+        } else {
+            Rect::from_min_max(rect.min, Pos2::new(rect.min.x, rect.max.y))
+        };
+        if !placed.contains_rect(real) {
             layout::widen_cell(ui, took);
-            alloc::advance_past(ui, real.union(rect));
+            alloc::advance_past(ui, real.union(placed));
         }
     }
 
@@ -1107,10 +1122,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let room = self.room.width() - 2.0 * pad_of(scx.tokens, props.pad);
         let inline = props.header.is_some_and(|header| header.inline);
         let width = if self.remembered.is_some() { self.shared_width(room, inline) } else { 0.0 };
-        self.overflow = match self.wanted_width(inline) {
-            Some(wanted) if self.sizing(props) == Sizing::Content => (wanted - room.max(0.0)).max(0.0),
-            _ => 0.0,
-        };
+        self.overflow = self.wanted_width(inline).map_or(0.0, |wanted| (wanted - room.max(0.0)).max(0.0));
         let line = body.y.max(self.end_last.y);
         let height = if inline { line.max(self.header_last.y) } else { line + self.header_last.y } + self.footer_last.y;
         Vec2::new(width, height) + Vec2::splat(2.0 * pad_of(scx.tokens, props.pad))
@@ -1351,7 +1363,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                     scoped.commands = scoped.commands.pushed(scope, id);
                 }
             });
-            let content_column = self.sizing(&props) == Sizing::Content && matches!(props.layout, layout::BodyLayout::Stack);
+            // A held fill-width container is part of the content column it sits in: its own stack is one too.
+            let content_column =
+                (self.sizing(&props) == Sizing::Content || self.held(&props, env)) && matches!(props.layout, layout::BodyLayout::Stack);
             let body_env = line_env.derive_local(|scoped| {
                 if props.arena {
                     scoped.arena = Some(ArenaId::new(id));
@@ -1414,7 +1428,12 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                         });
                         let extent = region_ui.min_rect().size();
                         self.extent = Some(extent);
-                        Some((extent + inset).min(at.size()))
+                        // Along an axis it scrolls the body took what the view shows; along the other it took its content.
+                        let took = extent + inset;
+                        Some(Vec2::new(
+                            if scroll.horizontal_on() { took.x.min(at.width()) } else { took.x },
+                            if scroll.vertical_on() { took.y.min(at.height()) } else { took.y },
+                        ))
                     }
                     None => {
                         layout::run_body(&mut body_ui, layout_id, layout, gap, |ui| shared_labels(ui, id, label_column, room.x, |ui| body(ui, bcx)));
@@ -1543,7 +1562,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         }
         let rule = rule_look(&env.tokens, RuleKind::Divider);
         let ppp = ctx.pixels_per_point();
-        self.claim_first_extent(&props, ui, rect, pad, rtl);
+        self.claim_first_extent(&props, ui, env, rect, pad, rtl);
         let draw_rule = |y: f32| ui.painter().extend(Rule::shapes(&rule, Pos2::new(inner.min.x, y), Pos2::new(inner.max.x, y), ppp));
         if props.header.is_some_and(|header| header.rule && !header.inline) {
             draw_rule(regions.header.max.y);

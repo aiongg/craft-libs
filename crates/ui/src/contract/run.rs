@@ -54,6 +54,8 @@ pub(crate) struct HostCx<'a> {
     pub id: Id,
     /// The component's label after step 1: a window's title.
     pub label: &'a crate::runtime::env::Label,
+    /// The size step 5 measured: what the root takes in this pass.
+    pub size: Vec2,
 }
 
 /// The parent `Ui` is the host `Ui`.
@@ -467,7 +469,9 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
         steps::place(ui, at, if inert { Vec2::ZERO } else { p.size })
     };
     p.trace.mark(Step::Place);
-    let overflow = p.hooks.overflow();
+    // What the content wants past the room counts where the root's width comes from its content: a content-sized
+    // root, or a fill-width one held at its measured width. A root that fills the flow keeps to the room it fills.
+    let overflow = if held || !p.hooks.fills_width(&*p.comp) { p.hooks.overflow() } else { 0.0 };
     expand_for_overflow(ui, host_at.unwrap_or(p.at), rect, overflow, rtl);
     // A sizing pass of the parent or host `Ui` allocates the size and stops: no parts, no body, and the stage
     // opened at step 3 is written back unchanged.
@@ -801,7 +805,7 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
         validity: Validity::Ok,
     };
     // 6 to 16, in the host's `Ui`, once per call of the host.
-    let mut host = hooks.host(&comp, HostCx { ui: &*ui, env, id, label: &step1.label });
+    let mut host = hooks.host(&comp, HostCx { ui: &*ui, env, id, label: &step1.label, size });
     let mut run = Pass {
         comp: &mut comp,
         cx: &mut cx,
