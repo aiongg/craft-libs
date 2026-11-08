@@ -2,11 +2,11 @@
 
 use craft_behavior::PartKey;
 use craft_theme::{Contrast, ControlSize, Flags, Mode, State, StateMix, Variant};
-use craft_ui::primitives::{BarAxis, FocusKind, FocusRing, Handle, HandleShape, PaintShape, ScrollBar};
-use craft_ui::style::{FocusLook, StateSet};
+use craft_ui::primitives::{BarAxis, Checker, FocusKind, FocusRing, GridInk, GridLines, Handle, HandleShape, PaintShape, ScrollBar, grid_lines};
+use craft_ui::style::{DataColor, FocusLook, StateSet};
 use craft_ui::testing::style::{face_id, tokens, with_cx};
 use craft_ui::testing::{Frames, trial};
-use egui::{Rect, Shape, Stroke, pos2, vec2};
+use egui::{Color32, Rect, Shape, Stroke, pos2, vec2};
 
 const EPS: f32 = 1e-3;
 const END: f32 = 800.0;
@@ -112,10 +112,44 @@ fn checker_and_grid_shapes_stay_within_the_clip_of_a_huge_rect() {
     let clip = Rect::from_min_size(pos2(0.0, 0.0), vec2(100.0, 100.0));
     let checker = craft_ui::primitives::checker(&tokens, huge, clip);
     assert!(checker.len() < 10_000, "{} checker shapes for a 100 point clip", checker.len());
-    let grid = craft_ui::primitives::grid_lines(&tokens, huge, vec2(0.001, 10.0), clip, 2.0);
+    let grid = grid_lines(&tokens, &GridLines::screen(huge, vec2(0.001, 10.0), clip, 2.0), &GridInk::new(), 2.0);
     assert!(grid.len() < 10_000, "{} grid shapes for a 100 point clip", grid.len());
     let reach = clip.expand(2.0);
     for shape in checker.iter().chain(&grid) {
         assert!(reach.contains_rect(shape.visual_bounding_rect()), "{:?} reaches outside the clip", shape.visual_bounding_rect());
     }
+}
+
+#[trial]
+fn the_apps_checker_sets_the_cell_size_and_colours_and_the_default_is_the_themes() {
+    let tokens = tokens(Mode::Light, Contrast::Standard);
+    let rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(60.0, 40.0));
+    let (light, dark, side) = (Color32::from_rgb(250, 250, 200), Color32::from_rgb(10, 20, 30), 20.0);
+    let shapes = Checker::new().size(side).colors(DataColor::new(light), DataColor::new(dark)).shapes(&tokens, rect, rect);
+    let (Shape::Rect(base), Shape::Rect(cell)) = (&shapes[0], &shapes[1]) else { panic!("the base and its first cell are rects") };
+    assert_eq!((base.fill, cell.fill), (light, dark));
+    assert_eq!(cell.rect.size(), vec2(side, side));
+    assert_eq!(craft_ui::primitives::checker(&tokens, rect, rect), Checker::new().shapes(&tokens, rect, rect), "unset fields are the theme's");
+}
+
+#[trial]
+fn a_document_grid_draws_minor_lines_in_their_own_colour_through_the_view() {
+    let tokens = tokens(Mode::Light, Contrast::Standard);
+    let view = craft_behavior::CanvasView::new(
+        Rect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 400.0)),
+        craft_behavior::kurbo::Point::new(200.0, 200.0),
+        1.0,
+    );
+    let extent = craft_behavior::kurbo::Rect::new(0.0, 0.0, 400.0, 400.0);
+    let lines = GridLines::document(&view, extent, craft_behavior::kurbo::Vec2::new(100.0, 100.0), craft_behavior::kurbo::Point::ZERO, 4);
+    let (major, minor) = (Color32::from_rgb(200, 0, 0), Color32::from_rgb(0, 0, 200));
+    let shapes = grid_lines(&tokens, &lines, &GridInk::new().major(major).minor(minor), 1.0);
+    let colors: Vec<Color32> =
+        shapes.iter().map(|shape| if let Shape::LineSegment { stroke, .. } = shape { stroke.color } else { panic!("a line") }).collect();
+    let count = |color| colors.iter().filter(|c| **c == color).count();
+    assert_eq!((count(major), count(minor)), (lines.x.major.len() + lines.y.major.len(), lines.x.minor.len() + lines.y.minor.len()));
+    assert!(
+        count(minor) > 0 && colors.iter().position(|c| *c == minor) < colors.iter().position(|c| *c == major),
+        "minor lines sit under the majors"
+    );
 }

@@ -1,12 +1,17 @@
 //! The canvas grid and the pixel grid (20.6): line counts, the per-axis cap, subdivisions, and the pixel grid's maths and
 //! region cache.
 
-use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Vec2};
-use craft_ui::canvas::{CanvasSpace, PixelRect};
-use craft_ui::canvas_controls::{CanvasGrid, GridLine, MAX_LINES, PixelGrid};
-use craft_ui::testing::trial;
-use egui::{Color32, Pos2};
+use craft_behavior::{CanvasView, PixelSize};
+use craft_ui::canvas::{Canvas, CanvasSpace, PixelRect, RasterSource, ToolPath};
+use craft_ui::canvas_controls::{CanvasGrid, GridLine, GridSegment, MAX_LINES, PixelGrid};
+use craft_ui::contract::{Show as _, ShowContainer as _};
+use craft_ui::primitives::Revision;
+use craft_ui::testing::{Fixture, trial};
+use egui::{Color32, ColorImage, Pos2};
+use std::cell::{Cell, RefCell};
+use std::collections::BTreeMap;
+use std::rc::Rc;
 
 const PIXELS_PER_POINT: f32 = 1.0;
 const SIDE: f32 = 400.0;
@@ -127,4 +132,93 @@ fn the_cached_region_snaps_outward_inside_the_document() {
     assert_eq!(region, PixelRect::new(64, 128, 128, 192));
     assert_eq!(PixelGrid::cache_region(PixelRect::new(990, 990, 1100, 1100), bounds), PixelRect::new(960, 960, 1000, 1000), "cut to the document");
     assert!(PixelGrid::cache_region(PixelRect::new(2000, 0, 2010, 10), bounds).is_empty(), "a view off the document needs nothing");
+}
+
+/// The colour of the pixel at (`x`, `y`) of a document the tests draw: some see-through, the rest in four greys.
+fn pixel(x: i32, y: i32, shift: i32) -> [f32; 4] {
+    let grey = ((x * 3 + y * 2 + shift).rem_euclid(4)) as f32 / 3.0;
+    [grey, grey, grey, if (x + y).rem_euclid(5) == 0 { 0.0 } else { 1.0 }]
+}
+
+fn pixels(rect: PixelRect, shift: impl Fn(i32, i32) -> i32) -> Vec<[f32; 4]> {
+    (rect.y0..rect.y1).flat_map(|y| (rect.x0..rect.x1).map(move |x| (x, y))).map(|(x, y)| pixel(x, y, shift(x, y))).collect()
+}
+
+/// Every unit edge the segments cover, with its colour, so runs split differently still compare equal.
+fn edges(segments: &[GridSegment]) -> BTreeMap<(bool, i32, i32), Color32> {
+    let mut edges = BTreeMap::new();
+    for segment in segments {
+        if segment.from[0] == segment.to[0] {
+            (segment.from[1]..segment.to[1]).for_each(|y| drop(edges.insert((true, segment.from[0], y), segment.color)));
+        } else {
+            (segment.from[0]..segment.to[0]).for_each(|x| drop(edges.insert((false, x, segment.from[1]), segment.color)));
+        }
+    }
+    edges
+}
+
+#[trial]
+fn redrawing_a_damaged_part_of_the_pixel_grid_matches_drawing_the_region_again() {
+    let region = PixelRect::new(0, 0, 12, 10);
+    let dirty = PixelRect::new(3, 2, 7, 6);
+    let old = PixelGrid::segments(&pixels(region, |_, _| 0), region);
+    let inside = |x: i32, y: i32| if (dirty.x0..dirty.x1).contains(&x) && (dirty.y0..dirty.y1).contains(&y) { 1 } else { 0 };
+    let patched = PixelGrid::patched(&old, &pixels(dirty, |_, _| 1), dirty);
+    let again = PixelGrid::segments(&pixels(region, inside), region);
+    assert_eq!(edges(&patched), edges(&again));
+}
+
+/// A document that records its reads and answers `damage` as the test sets it.
+struct Document {
+    revision: Cell<u64>,
+    damage: Cell<Option<PixelRect>>,
+    reads: RefCell<Vec<PixelRect>>,
+}
+
+impl RasterSource for Document {
+    fn size(&self) -> PixelSize {
+        PixelSize::new(256, 256)
+    }
+
+    fn revision(&self) -> Revision {
+        Revision::new(self.revision.get())
+    }
+
+    fn damage(&self, _: Revision) -> Option<PixelRect> {
+        self.damage.get()
+    }
+
+    fn read(&self, region: PixelRect, _: u32, out: &mut ColorImage) {
+        self.reads.borrow_mut().push(region);
+        out.pixels.fill(Color32::from_gray(40));
+    }
+}
+
+#[trial]
+fn the_pixel_grid_reads_only_what_the_source_reports_damaged() {
+    const ZOOM: f64 = 8.0;
+    let document = Rc::new(Document { revision: Cell::new(1), damage: Cell::new(None), reads: RefCell::new(Vec::new()) });
+    let shown = Rc::clone(&document);
+    let rect = egui::Rect::from_min_size(Pos2::ZERO, egui::Vec2::splat(200.0));
+    let view = CanvasView::new(rect, Point::new(128.0, 128.0), ZOOM);
+    let mut fixture = Fixture::new(move |ui| {
+        Canvas::new("Document", ToolPath::Freehand).view(view).show(ui, |ui, body| {
+            PixelGrid::new("Pixel grid", &*shown).show_at(ui, body.rect);
+        });
+    });
+    fixture.room(rect.size());
+    fixture.settle();
+    let region = *document.reads.borrow().first().expect("the first pass reads the region around the view");
+
+    let mut frame = |revision: u64, damage: Option<PixelRect>| {
+        document.reads.borrow_mut().clear();
+        document.revision.set(revision);
+        document.damage.set(damage);
+        fixture.frame(Vec::new());
+        document.reads.borrow().clone()
+    };
+    let small = PixelRect::new(region.x0 + 4, region.y0 + 4, region.x0 + 9, region.y0 + 8);
+    assert_eq!(frame(2, Some(small)), vec![small], "the damaged part is read alone");
+    assert!(frame(3, Some(PixelRect::new(0, 0, 1, 1))).is_empty(), "damage outside the cached region reads nothing");
+    assert_eq!(frame(4, None), vec![region], "a change the source cannot place reads the region");
 }

@@ -5,7 +5,7 @@ use craft_behavior::{CanvasView, PixelSize};
 use craft_ui::canvas::{Canvas, CanvasSpace, DetailPlan, PixelRect, RasterDisplay, RasterSource, ToolPath, snap_to_texels};
 use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::primitives::textures::{FakeThumbSource, ThumbRender, ThumbRequest, ThumbSource, ThumbnailOptions, Thumbnails, fit_rect, thumb_image};
-use craft_ui::primitives::{Priority, Revision, TextureState, texture_factor, texture_side};
+use craft_ui::primitives::{Checker, Priority, Revision, TextureState, texture_factor, texture_side};
 use craft_ui::testing::{Fixture, Frames, trial};
 use egui::{Color32, ColorImage, Pos2, Rect, Vec2};
 use std::cell::{Cell, RefCell};
@@ -14,16 +14,29 @@ use std::rc::Rc;
 /// The canvas the display is shown in, in points.
 const CANVAS: Vec2 = Vec2::new(800.0, 600.0);
 
-/// A document that records every read.
+/// A document that records every read and every change: the revision it reached and the region that changed
+/// (`None` for a change it cannot place).
 struct Document {
     size: PixelSize,
     revision: Cell<u64>,
+    changes: RefCell<Vec<(u64, Option<PixelRect>)>>,
     reads: RefCell<Vec<(PixelRect, u32)>>,
 }
 
 impl Document {
     fn new(width: u32, height: u32) -> Rc<Self> {
-        Rc::new(Document { size: PixelSize::new(width, height), revision: Cell::new(1), reads: RefCell::new(Vec::new()) })
+        Rc::new(Document {
+            size: PixelSize::new(width, height),
+            revision: Cell::new(1),
+            changes: RefCell::new(Vec::new()),
+            reads: RefCell::new(Vec::new()),
+        })
+    }
+
+    /// Moves to `revision`, with `damage` changed.
+    fn change(&self, revision: u64, damage: Option<PixelRect>) {
+        self.revision.set(revision);
+        self.changes.borrow_mut().push((revision, damage));
     }
 }
 
@@ -34,6 +47,14 @@ impl RasterSource for Document {
 
     fn revision(&self) -> Revision {
         Revision::new(self.revision.get())
+    }
+
+    fn damage(&self, since: Revision) -> Option<PixelRect> {
+        self.changes
+            .borrow()
+            .iter()
+            .filter(|(revision, _)| *revision > since.get())
+            .try_fold(PixelRect::default(), |all, (_, damage)| damage.map(|damage| all.union(&damage)))
     }
 
     fn read(&self, region: PixelRect, factor: u32, out: &mut ColorImage) {
@@ -49,7 +70,7 @@ type Reported = (Option<PixelRect>, Option<DetailPlan>);
 struct Rig {
     fixture: Fixture,
     document: Rc<Document>,
-    damage: Rc<Cell<PixelRect>>,
+    shown: Rc<Cell<bool>>,
     reported: Rc<RefCell<Option<Reported>>>,
     space: Rc<RefCell<Option<CanvasSpace>>>,
 }
@@ -57,50 +78,72 @@ struct Rig {
 fn rig(document: Rc<Document>, zoom: f64) -> Rig {
     let center = Point::new(f64::from(document.size.width) / 2.0, f64::from(document.size.height) / 2.0);
     let view = CanvasView::new(Rect::from_min_size(Pos2::ZERO, CANVAS), center, zoom);
-    let damage = Rc::new(Cell::new(PixelRect::default()));
+    let shown = Rc::new(Cell::new(true));
     let reported = Rc::new(RefCell::new(None));
     let space = Rc::new(RefCell::new(None));
-    let (shown_document, shown_damage, shown_reported, shown_space) =
-        (Rc::clone(&document), Rc::clone(&damage), Rc::clone(&reported), Rc::clone(&space));
+    let (shown_document, shown_now, shown_reported, shown_space) = (Rc::clone(&document), Rc::clone(&shown), Rc::clone(&reported), Rc::clone(&space));
     let mut fixture = Fixture::new(move |ui| {
         let canvas = Canvas::new("Document", ToolPath::Freehand).view(view).show(ui, |ui, body| {
-            let output = RasterDisplay::new("Picture", &*shown_document).damaged(shown_damage.get()).checkerboard().show_at(ui, body.rect);
-            *shown_reported.borrow_mut() = Some((output.read, output.detail));
+            if shown_now.get() {
+                let output = RasterDisplay::new("Picture", &*shown_document).checkerboard(Checker::new()).show_at(ui, body.rect);
+                *shown_reported.borrow_mut() = Some((output.read, output.detail));
+            }
         });
         *shown_space.borrow_mut() = canvas.output.space;
     });
     fixture.room(CANVAS);
     fixture.settle();
-    Rig { fixture, document, damage, reported, space }
+    Rig { fixture, document, shown, reported, space }
 }
 
 impl Rig {
-    /// One frame with the damage given, and the reads it made.
-    fn frame(&mut self, revision: u64, damage: PixelRect) -> Vec<(PixelRect, u32)> {
-        self.document.revision.set(revision);
-        self.damage.set(damage);
+    /// One frame, and the reads it made.
+    fn frame(&mut self) -> Vec<(PixelRect, u32)> {
         self.document.reads.borrow_mut().clear();
         self.fixture.frame(Vec::new());
-        self.damage.set(PixelRect::default());
         self.document.reads.borrow().clone()
+    }
+
+    /// One frame after the document changed to `revision` with `damage`.
+    fn change(&mut self, revision: u64, damage: Option<PixelRect>) -> Vec<(PixelRect, u32)> {
+        self.document.change(revision, damage);
+        self.frame()
     }
 }
 
 #[trial]
-fn only_damaged_pixels_are_read_again() {
-    let size = PixelSize::new(400, 300);
-    let mut rig = rig(Document::new(size.width, size.height), 1.0);
-    assert!(rig.frame(1, PixelRect::default()).is_empty(), "nothing changed");
+fn a_source_that_reports_damage_is_read_again_in_that_region_only() {
+    let mut rig = rig(Document::new(400, 300), 1.0);
+    assert!(rig.frame().is_empty(), "nothing changed");
 
     let rect = PixelRect::new(10, 20, 50, 60);
-    let reads = rig.frame(2, rect);
+    let reads = rig.change(2, Some(rect));
     assert!(!reads.is_empty() && reads.iter().all(|read| *read == (rect, 1)), "damage is read alone: {reads:?}");
 
-    let reads = rig.frame(3, PixelRect::default());
-    let whole = PixelRect::of_size(size);
-    assert!(!reads.is_empty() && reads.iter().all(|read| *read == (whole, 1)), "a new revision with no damage reads everything: {reads:?}");
+    let reads = rig.change(3, Some(PixelRect::default()));
+    assert!(reads.is_empty(), "a change that touched no pixel reads nothing: {reads:?}");
+    assert!(rig.frame().is_empty(), "the same revision reads nothing");
+}
 
-    assert!(rig.frame(3, PixelRect::default()).is_empty(), "the same revision reads nothing");
+#[trial]
+fn a_source_that_cannot_place_a_change_is_read_whole() {
+    let size = PixelSize::new(400, 300);
+    let mut rig = rig(Document::new(size.width, size.height), 1.0);
+    let reads = rig.change(2, None);
+    let whole = PixelRect::of_size(size);
+    assert!(!reads.is_empty() && reads.iter().all(|read| *read == (whole, 1)), "no damage to go by reads everything: {reads:?}");
+}
+
+#[trial]
+fn a_pass_the_display_skipped_loses_no_damage() {
+    let mut rig = rig(Document::new(400, 300), 1.0);
+    let (first, second) = (PixelRect::new(10, 20, 50, 60), PixelRect::new(100, 100, 120, 120));
+    rig.shown.set(false);
+    assert!(rig.change(2, Some(first)).is_empty(), "a display that is not shown reads nothing");
+    rig.shown.set(true);
+    let reads = rig.change(3, Some(second));
+    let both = first.union(&second);
+    assert!(!reads.is_empty() && reads.iter().all(|read| *read == (both, 1)), "the display reads both changes: {reads:?}");
 }
 
 #[trial]
@@ -114,7 +157,7 @@ fn zoomed_in_a_reduced_document_gets_a_detail_texture_that_zooming_out_drops() {
     assert_eq!(plan.factor, 1);
     assert_eq!(rig.reported.borrow().map(|(_, detail)| detail), Some(Some(plan)));
 
-    let reads = rig.frame(2, PixelRect::default());
+    let reads = rig.change(2, None);
     assert!(reads.contains(&(PixelRect::of_size(size), texture_factor(size, side))), "the base texture is the whole document, reduced");
     assert!(reads.contains(&(plan.region, 1)), "the detail texture is the part in view at full resolution");
 

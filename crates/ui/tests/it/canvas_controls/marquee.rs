@@ -9,10 +9,13 @@ use craft_ui::canvas_controls::{
     rect_around,
 };
 use craft_ui::contract::{Role, Show as _, ShowContainer as _};
-use craft_ui::testing::{Fixture, trial};
-use egui::{Pos2, Vec2};
+use craft_ui::style::DataColor;
+use craft_ui::testing::{Fixture, Frames, trial};
+use egui::epaint::ColorMode;
+use egui::{Color32, Pos2, Shape, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::time::Duration;
 
 const VIEW_AT: Pos2 = Pos2::new(10.0, 10.0);
 const VIEW_SIZE: Vec2 = Vec2::new(200.0, 120.0);
@@ -128,4 +131,39 @@ fn rect_around_leaves_the_hole_clear_without_overlap() {
         vec![area],
         "a hole that misses leaves the area whole"
     );
+}
+
+/// The seconds between steps of the ants.
+const MARCH_TICK: Duration = Duration::from_millis(100);
+
+#[trial]
+fn a_shown_selection_asks_for_its_next_repaint_a_march_step_ahead() {
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut egui::Ui| {
+        Canvas::new("Document", ToolPath::Freehand).view(view()).show(ui, |ui, body| {
+            Marquee::rect("Selection", selection()).show_at(ui, body.rect);
+        });
+    };
+    frames.idle(3, &mut show);
+    for _ in 0..8 {
+        frames.frame(Vec::new(), &mut show);
+        let wait = frames.repaint_delay().expect("the ants march, so a repaint is due");
+        assert!(wait > Duration::ZERO && wait <= MARCH_TICK, "the next repaint is the next step, not the next frame: {wait:?}");
+    }
+}
+
+#[trial]
+fn a_contrast_marquee_draws_a_halo_under_a_line_in_the_given_colour() {
+    let color = Color32::from_rgb(230, 70, 70);
+    let mut frames = Frames::new();
+    let shapes = frames.frame_shapes(|ui| {
+        Canvas::new("Document", ToolPath::Freehand).view(view()).show(ui, |ui, body| {
+            Marquee::rect("Shape", selection()).look(MarqueeLook::Contrast(DataColor::new(color))).show_at(ui, body.rect);
+        });
+    });
+    let paths: Vec<_> = shapes.iter().filter_map(|shape| if let Shape::Path(path) = shape { Some(path) } else { None }).collect();
+    let line = paths.iter().position(|path| path.stroke.color == ColorMode::Solid(color)).expect("the line is in the given colour");
+    let halo = &paths[..line].last().expect("a halo is painted before the line");
+    assert_eq!(halo.points, paths[line].points, "the halo follows the line");
+    assert!(halo.stroke.width > paths[line].stroke.width, "the halo is wider than the line");
 }

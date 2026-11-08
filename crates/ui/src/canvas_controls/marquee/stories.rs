@@ -4,10 +4,11 @@ use super::{Marquee, MarqueeLook};
 use crate::canvas::{Canvas, ToolPath};
 use crate::canvas_controls::StraightLinePreview;
 use crate::contract::{Show as _, ShowContainer as _};
+use crate::style::DataColor;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Rect};
-use egui::{Response, Ui};
+use egui::{Color32, Response, Ui};
 
 const FREEHAND: ToolPath = ToolPath::Freehand;
 
@@ -47,6 +48,12 @@ fn band(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 #[story(Marquee, covers = [Default], drive = Drive::Never)]
 fn drawing(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     on_canvas(ui, 1.0, |ui, at| Marquee::polygon("Lasso", lasso()).look(MarqueeLook::Drawing).show_at(ui, at))
+}
+
+#[story(Marquee, covers = [Default], drive = Drive::Never)]
+fn contrast(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    let color = DataColor::new(Color32::from_rgb(230, 70, 70));
+    on_canvas(ui, 1.0, |ui, at| Marquee::rect("Shape", selection()).look(MarqueeLook::Contrast(color)).show_at(ui, at))
 }
 
 #[story(StraightLinePreview, covers = [Default], drive = Drive::Never)]

@@ -37,7 +37,7 @@ pub use split::{SplitAt, SplitLayout, SplitOutput, SplitPane, SplitStyle, SplitV
 pub use words::SplitWords;
 
 mod raster;
-pub use raster::{DetailPlan, RasterDisplay, RasterOutput, RasterStyle, snap_to_texels};
+pub use raster::{DetailPlan, RasterDisplay, RasterDisplayOutput, RasterStyle, snap_to_texels};
 
 // canvas-navigate-a
 mod momentary;
@@ -54,9 +54,7 @@ pub use zoom_motion::{HoldZoom, ZoomAnimation, ZoomDrag};
 
 mod rulers;
 mod scrollbars;
-pub use rulers::{
-    INCH_EIGHTHS, INCH_SIXTEENTHS, RulerCommands, RulerMargins, RulerOutput, RulerPart, RulerTick, Rulers, TickRule, ZeroSnap,
-};
+pub use rulers::{INCH_EIGHTHS, INCH_SIXTEENTHS, RulerCommands, RulerMargins, RulerOutput, RulerPart, RulerTick, Rulers, TickRule, ZeroSnap};
 pub use scrollbars::{CanvasScrollbars, ScrollbarsOutput};
 
 use crate::contract::{Common, Component, Container, ContainerProps, Cx, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role, Sizing};

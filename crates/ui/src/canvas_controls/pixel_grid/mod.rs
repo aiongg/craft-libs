@@ -73,6 +73,25 @@ fn runs(len: i32, color_at: impl Fn(i32) -> Option<Color32>, mut emit: impl FnMu
     }
 }
 
+/// The parts of `segment` that are not edges of the cells in `dirty`: a vertical run at x in `dirty` loses its rows in
+/// `dirty`, a horizontal run at y in `dirty` loses its columns in it.
+fn outside(segment: &GridSegment, dirty: PixelRect) -> impl Iterator<Item = GridSegment> {
+    let segment = *segment;
+    let vertical = segment.from[0] == segment.to[0];
+    let (across, along) = if vertical { (0, 1) } else { (1, 0) };
+    let (owned, span) = if vertical { ((dirty.x0, dirty.x1), (dirty.y0, dirty.y1)) } else { ((dirty.y0, dirty.y1), (dirty.x0, dirty.x1)) };
+    let piece = move |from: i32, to: i32| {
+        let (mut a, mut b) = (segment.from, segment.to);
+        (a[along], b[along]) = (from, to);
+        GridSegment { from: a, to: b, color: segment.color }
+    };
+    let (start, end) = (segment.from[along], segment.to[along]);
+    let cut = (owned.0..owned.1).contains(&segment.from[across]);
+    let before = (!cut).then_some((start, end)).or((start < span.0).then_some((start, end.min(span.0))));
+    let after = cut.then_some((start.max(span.1), end)).filter(|(from, to)| from < to);
+    before.into_iter().chain(after).map(move |(from, to)| piece(from, to))
+}
+
 /// The style of the pixel grid: the control's lines are data-derived, so only the metrics.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
@@ -184,6 +203,16 @@ impl<'a> PixelGrid<'a> {
         out
     }
 
+    /// `segments` with the edges of the cells in `dirty` redrawn from `px`, whose pixels are `dirty` row by row: the
+    /// parts of old runs inside the cells' edges go, and the new runs of `dirty` join the rest. A run that crossed
+    /// `dirty` stays two pieces of one colour, which draw as the one run.
+    pub fn patched(segments: &[GridSegment], px: &[[f32; 4]], dirty: PixelRect) -> Vec<GridSegment> {
+        let mut out: Vec<GridSegment> = segments.iter().flat_map(|segment| outside(segment, dirty)).collect();
+        out.extend(Self::segments(px, dirty));
+        out.truncate(Self::MAX_SEGMENTS);
+        out
+    }
+
     /// The region to cache for a view showing `visible`: inside `bounds`, grown outward to
     /// [`REGION_SNAP`](Self::REGION_SNAP).
     pub fn cache_region(visible: PixelRect, bounds: PixelRect) -> PixelRect {
@@ -194,6 +223,13 @@ impl<'a> PixelGrid<'a> {
         let down = |n: i32| n.div_euclid(Self::REGION_SNAP) * Self::REGION_SNAP;
         let up = |n: i32| down(n.saturating_add(Self::REGION_SNAP - 1));
         PixelRect::new(down(seen.x0), down(seen.y0), up(seen.x1), up(seen.y1)).intersect(&bounds)
+    }
+
+    /// The composite of `region`, as straight-alpha floats row by row.
+    fn read_pixels(&self, region: PixelRect) -> Vec<[f32; 4]> {
+        let mut image = ColorImage::filled([region.width() as usize, region.height() as usize], Color32::TRANSPARENT);
+        self.source.read(region, 1, &mut image);
+        image.pixels.iter().map(|c| c.to_srgba_unmultiplied().map(|v| f32::from(v) / 255.0)).collect()
     }
 
     /// The document pixels `view` shows.
@@ -228,7 +264,8 @@ impl Component for PixelGrid<'_> {
         egui::Vec2::ZERO
     }
 
-    /// Reads the composite of the cached region when the revision changed or the view left it.
+    /// Reads the composite when the view left the cached region (all of the new region), or the revision changed (the
+    /// part the source reports damaged since the cached one, or all of the region where it cannot tell).
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let Some(space) = canvas_space(&cx.env).filter(|space| Self::shows_at(space.zoom_device())) else { return };
         let bounds = PixelRect::of_size(self.source.size());
@@ -238,15 +275,28 @@ impl Component for PixelGrid<'_> {
             return;
         }
         let revision = self.source.revision();
-        let cache = cx.memory::<GridCache>();
-        if cache.revision == Some(revision) && cache.region.intersect(&need) == need {
+        let cache = cx.memory::<GridCache>().clone();
+        let covers = cache.region.intersect(&need) == need;
+        if cache.revision == Some(revision) && covers {
             return;
         }
-        let region = Self::cache_region(visible, bounds);
-        let mut image = ColorImage::filled([region.width() as usize, region.height() as usize], Color32::TRANSPARENT);
-        self.source.read(region, 1, &mut image);
-        let px: Vec<[f32; 4]> = image.pixels.iter().map(|c| c.to_srgba_unmultiplied().map(|v| f32::from(v) / 255.0)).collect();
-        *cx.memory::<GridCache>() = GridCache { revision: Some(revision), region, segments: Arc::new(Self::segments(&px, region)) };
+        // The cached region still shows the view: only what the source reports changed since its revision is read.
+        let damage = cache.revision.filter(|_| covers).and_then(|since| self.source.damage(since));
+        let (region, segments) = match damage {
+            Some(damage) => {
+                let dirty = damage.intersect(&cache.region);
+                if dirty.is_empty() {
+                    (cache.region, cache.segments)
+                } else {
+                    (cache.region, Arc::new(Self::patched(&cache.segments, &self.read_pixels(dirty), dirty)))
+                }
+            }
+            None => {
+                let region = Self::cache_region(visible, bounds);
+                (region, Arc::new(Self::segments(&self.read_pixels(region), region)))
+            }
+        };
+        *cx.memory::<GridCache>() = GridCache { revision: Some(revision), region, segments };
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {

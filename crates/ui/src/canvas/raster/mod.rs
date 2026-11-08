@@ -1,6 +1,6 @@
 //! `RasterDisplay`: the CPU raster path of a canvas. The app gives the document's composite as RGBA for a region
 //! ([`RasterSource`]); the display keeps it in `TextureStore` textures, draws it through the canvas's
-//! [`CanvasSpace`](super::CanvasSpace) over a checkerboard, and re-reads only what the app marks damaged.
+//! [`CanvasSpace`](super::CanvasSpace) over a checkerboard, and re-reads only what the source reports damaged.
 //!
 //! A document larger than the device's texture limit (`texture_side`) is uploaded reduced; zoomed in, the part in
 //! view is added at the screen's resolution as a detail texture ([`DetailPlan`]), so a large document shows its own
@@ -17,14 +17,16 @@ pub use detail::{DetailPlan, snap_to_texels};
 
 use super::{PixelRect, RasterSource, canvas_space};
 use crate::contract::{Common, Component, Cx, NoValue, Outcome, PaintUi, Props as _, Role};
-use crate::primitives::{CachedTexture, TextureState, TextureStore, TextureStoreOptions, checker, texture_factor, texture_side};
+use crate::primitives::{CachedTexture, Checker, Revision, TextureState, TextureStore, TextureStoreOptions, texture_factor, texture_side};
 use crate::runtime::env::Label;
+use crate::runtime::memory::Remember as _;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::kurbo::Rect as Rect64;
 use craft_behavior::{CanvasView, Metrics, PixelSize};
 use detail::{texel_extent, texel_origin};
 use egui::epaint::{Mesh, Vertex};
 use egui::{Color32, ColorImage, Context, Id, Pos2, Rect, Response, Shape, Stroke, TextureFilter, TextureOptions, pos2};
+use std::collections::HashMap;
 
 /// The style of a raster display: it has no look of its own.
 #[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
@@ -52,10 +54,15 @@ struct Shown {
     detail: Option<(CachedTexture, DetailPlan)>,
 }
 
+/// The revision each texture of a display shows, which is what the source is asked about: what changed since then.
+/// It lives as long as the display does, so a pass the display skipped loses no damage.
+#[derive(Clone, Default)]
+struct Held(HashMap<Level, Revision>);
+
 /// What a display did in a pass.
 #[derive(Debug)]
 #[non_exhaustive]
-pub struct RasterOutput {
+pub struct RasterDisplayOutput {
     /// The display's response.
     pub response: Response,
     /// The pixels read from the source this pass (damage, a new detail region, the first pass).
@@ -64,7 +71,7 @@ pub struct RasterOutput {
     pub detail: Option<DetailPlan>,
 }
 
-impl Outcome for RasterOutput {
+impl Outcome for RasterDisplayOutput {
     type Value = NoValue;
 
     fn response(&self) -> &Response {
@@ -76,12 +83,11 @@ impl Outcome for RasterOutput {
 /// is shown in, at the canvas rect. Outside a canvas, or in one without a view, it draws nothing.
 ///
 /// - **Reading.** The display asks the source for pixels only when it has none for the source's `revision`. A
-///   changed revision with no damage reported re-reads everything; with [`damaged`](Self::damaged) it re-reads
-///   that region only (snapped outward to whole texels). Damage is the region changed since the display last
-///   showed, unioned by the app.
-/// - **Transparency.** [`checkerboard`](Self::checkerboard) draws the library's transparency grid under the
-///   document, holding still while the document scrolls. Without it the document draws straight on the canvas
-///   (an opaque document, a video frame).
+///   changed revision re-reads what [`RasterSource::damage`] reports since the revision the display shows (snapped
+///   outward to whole texels), or everything where the source cannot tell.
+/// - **Transparency.** [`checkerboard`](Self::checkerboard) draws a transparency grid under the document, holding
+///   still while the document scrolls; the app's [`Checker`] sets its cells, and an empty one is the theme's.
+///   Without it the document draws straight on the canvas (an opaque document, a video frame).
 /// - **Turned views.** A rotated or mirrored view draws each texture as one quad on the view's mapped corners.
 /// - **Memory.** The textures live in two `TextureStore`s per display id and go with the store's budget; a
 ///   detail texture of a plan no longer in use is dropped in the pass the plan changes.
@@ -91,12 +97,9 @@ pub struct RasterDisplay<'a> {
     #[common]
     common: Common,
     source: &'a dyn RasterSource,
-    /// The region of the document that changed since the display last showed it.
+    /// The transparency grid under the document; none draws the document straight on the canvas.
     #[prop]
-    damaged: PixelRect,
-    /// Whether the transparency grid shows under the document.
-    #[prop(flag)]
-    checkerboard: bool,
+    checkerboard: Option<Checker>,
     read: PixelRect,
     shown: Option<Shown>,
 }
@@ -104,8 +107,7 @@ pub struct RasterDisplay<'a> {
 impl<'a> RasterDisplay<'a> {
     /// A display named `label` of the document `source` gives.
     pub fn new(label: impl Into<Label>, source: &'a dyn RasterSource) -> Self {
-        RasterDisplay { common: Common::new(), source, damaged: PixelRect::default(), checkerboard: false, read: PixelRect::default(), shown: None }
-            .label(label)
+        RasterDisplay { common: Common::new(), source, checkerboard: None, read: PixelRect::default(), shown: None }.label(label)
     }
 
     /// The store that holds this display's textures of one sampling. A texture is sharp (nearest) from 100 percent
@@ -124,11 +126,11 @@ impl<'a> RasterDisplay<'a> {
 
     /// The texture of `level`, which holds `region` of the document at one texel per `factor` pixels, brought up to
     /// the source's revision, and the pixels read to do it.
-    /// - A texture of the right size with the revision is kept, unless `damage` touches it.
-    /// - Damage inside `region` is read again alone.
-    /// - A texture of an older revision with damage elsewhere moves to the revision without a read.
-    /// - Anything else is read whole.
-    fn bring_up_to_date(&self, ctx: &Context, id: Id, level: Level, region: PixelRect, factor: u32, damage: PixelRect) -> (CachedTexture, PixelRect) {
+    /// - A texture with the revision is kept.
+    /// - A texture of an older revision is updated with what the source reports damaged since then: that part is
+    ///   read again alone, and damage elsewhere moves the texture to the revision without a read.
+    /// - Anything else (no texture, another size, damage the source cannot tell) is read whole.
+    fn bring_up_to_date(&self, ctx: &Context, id: Id, held: &mut Held, level: Level, region: PixelRect, factor: u32) -> (CachedTexture, PixelRect) {
         let sharp = factor == 1;
         // A key never lives in both samplings: the other store's copy is from before the factor changed.
         Self::store(ctx, id, !sharp).forget(ctx, &level);
@@ -138,22 +140,27 @@ impl<'a> RasterDisplay<'a> {
         let expected = texel_extent(region, factor);
         let state = store.state(ctx, &level, revision);
         let current = state.shown().filter(|texture| [texture.size.width as usize, texture.size.height as usize] == expected);
-        let dirty = snap_to_texels(damage.intersect(&region), origin, factor).intersect(&region);
         if let Some(texture) = current {
-            if !dirty.is_empty() {
-                let image = self.read_region(dirty, factor);
-                if let Some(texture) = store.put_region(ctx, &level, revision, texel_origin(dirty, origin, factor), image) {
-                    return (texture, dirty);
-                }
-            } else if matches!(state, TextureState::Ready(_)) {
+            if matches!(state, TextureState::Ready(_)) {
+                held.0.insert(level, revision);
                 return (texture, PixelRect::default());
-            } else if !damage.is_empty() {
-                // The pixels changed elsewhere: no texel of this texture is new, and the entry takes the revision.
-                if let Some(texture) = store.put_region(ctx, &level, revision, [0, 0], ColorImage::new([0, 0], Vec::new())) {
-                    return (texture, PixelRect::default());
+            }
+            if let Some(damage) = held.0.get(&level).and_then(|since| self.source.damage(*since)) {
+                let dirty = snap_to_texels(damage.intersect(&region), origin, factor).intersect(&region);
+                let updated = if dirty.is_empty() {
+                    // The pixels changed elsewhere: no texel of this texture is new, and the entry takes the revision.
+                    store.put_region(ctx, &level, revision, [0, 0], ColorImage::new([0, 0], Vec::new())).map(|texture| (texture, dirty))
+                } else {
+                    let image = self.read_region(dirty, factor);
+                    store.put_region(ctx, &level, revision, texel_origin(dirty, origin, factor), image).map(|texture| (texture, dirty))
+                };
+                if let Some(updated) = updated {
+                    held.0.insert(level, revision);
+                    return updated;
                 }
             }
         }
+        held.0.insert(level, revision);
         (store.put(ctx, level, revision, self.read_region(region, factor)), region)
     }
 
@@ -165,13 +172,15 @@ impl<'a> RasterDisplay<'a> {
     }
 
     /// Drops the detail textures of other plans than `plan`.
-    fn retain_plan(ctx: &Context, id: Id, plan: Option<DetailPlan>) {
+    fn retain_plan(ctx: &Context, id: Id, held: &mut Held, plan: Option<DetailPlan>) {
+        let kept = |level: &Level| match level {
+            Level::Base => true,
+            Level::Detail(kept) => Some(*kept) == plan,
+        };
         for sharp in [true, false] {
-            Self::store(ctx, id, sharp).retain(ctx, |level| match level {
-                Level::Base => true,
-                Level::Detail(kept) => Some(*kept) == plan,
-            });
+            Self::store(ctx, id, sharp).retain(ctx, kept);
         }
+        held.0.retain(|level, _| kept(level));
     }
 }
 
@@ -181,7 +190,7 @@ impl Component for RasterDisplay<'_> {
     const PARTS: bool = false;
     const STOPS: bool = false;
     type Style = RasterStyle;
-    type Output = RasterOutput;
+    type Output = RasterDisplayOutput;
 
     fn style(_: &StyleCx<'_>, _: RasterDisplayStyleKey) -> RasterStyle {
         RasterStyle::default()
@@ -195,21 +204,22 @@ impl Component for RasterDisplay<'_> {
         let (ctx, id) = (cx.ctx.clone(), cx.id);
         let size = self.source.size();
         let bounds = PixelRect::of_size(size);
+        let mut held = std::mem::take(cx.keep::<Held>());
         if bounds.is_empty() {
             Self::release(&ctx, id);
             return;
         }
         let side = texture_side(&ctx);
         let factor = texture_factor(size, side);
-        let damage = self.damaged.intersect(&bounds);
-        let (base, base_read) = self.bring_up_to_date(&ctx, id, Level::Base, bounds, factor, damage);
+        let (base, base_read) = self.bring_up_to_date(&ctx, id, &mut held, Level::Base, bounds, factor);
         let plan = DetailPlan::in_view(&space.view, size, side, space.pixels_per_point);
         let detail = plan.map(|plan| {
-            let (texture, read) = self.bring_up_to_date(&ctx, id, Level::Detail(plan), plan.region, plan.factor, damage);
+            let (texture, read) = self.bring_up_to_date(&ctx, id, &mut held, Level::Detail(plan), plan.region, plan.factor);
             self.read = self.read.union(&read);
             (texture, plan)
         });
-        Self::retain_plan(&ctx, id, plan);
+        Self::retain_plan(&ctx, id, &mut held, plan);
+        *cx.keep::<Held>() = held;
         self.read = self.read.union(&base_read);
         self.shown = Some(Shown { view: space.view, size, base: (base, factor), detail });
     }
@@ -218,9 +228,9 @@ impl Component for RasterDisplay<'_> {
         let Some(shown) = &self.shown else { return };
         let painter = ui.content_painter(cx);
         let corners = shown.view.quad(Rect64::new(0.0, 0.0, f64::from(shown.size.width), f64::from(shown.size.height)));
-        if self.checkerboard {
+        if let Some(checker) = &self.checkerboard {
             let around = Rect::from_points(&corners);
-            for shape in checker(&ui.env.tokens, shown.view.rect, around) {
+            for shape in checker.shapes(&ui.env.tokens, shown.view.rect, around) {
                 if shown.view.axis_aligned() {
                     painter.painter.add(shape);
                 } else if let Some(cell) = clipped_cell(&shape, &corners) {
@@ -236,9 +246,9 @@ impl Component for RasterDisplay<'_> {
         }
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> RasterOutput {
+    fn finish(self, cx: Cx<'_, Self>) -> RasterDisplayOutput {
         let detail = self.shown.as_ref().and_then(|shown| shown.detail.as_ref().map(|(_, plan)| *plan));
-        RasterOutput { response: cx.response.clone(), read: (!self.read.is_empty()).then_some(self.read), detail }
+        RasterDisplayOutput { response: cx.response.clone(), read: (!self.read.is_empty()).then_some(self.read), detail }
     }
 }
 

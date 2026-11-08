@@ -6,7 +6,8 @@ use super::content::ContentPainterCx;
 use super::draw::PaintShape;
 use super::rule::{Rule, RuleKind};
 use super::surface::Surface;
-use crate::style::{Corners, SurfaceKind, UiTokens, rgba_color, rule_look, surface_style};
+use crate::style::{Corners, DataColor, RuleLook, SurfaceKind, UiTokens, rgba_color, rule_look, surface_style};
+use craft_behavior::{CanvasView, kurbo};
 use egui::{Color32, Pos2, Rect, Shape, Stroke, Vec2, pos2, vec2};
 use std::f32::consts::TAU;
 
@@ -41,56 +42,251 @@ impl Tick {
     }
 }
 
-/// The transparency checkerboard over `rect`, drawn where `clip` shows it: the light colour fills it and the dark
-/// cells sit on top, from the rect's top-left corner, with cells of `size.checker`.
-pub fn checker(tokens: &UiTokens, rect: Rect, clip: Rect) -> Vec<Shape> {
-    let visible = rect.intersect(clip);
-    if visible.width() <= 0.0 || visible.height() <= 0.0 {
-        return Vec::new();
-    }
-    let side = tokens.size.checker.max(f32::EPSILON);
-    let (light, dark) = (rgba_color(tokens.color.overlay.checker_light), rgba_color(tokens.color.overlay.checker_dark));
-    let mut shapes = vec![Shape::rect_filled(visible, 0.0, light)];
-    let cells = |from: f32, to: f32, origin: f32| {
-        let at = |edge: f32, round: fn(f32) -> f32| round((edge - origin) / side).max(0.0) as usize;
-        at(from, f32::floor)..at(to, f32::ceil)
-    };
-    for row in cells(visible.top(), visible.bottom(), rect.top()) {
-        for column in cells(visible.left(), visible.right(), rect.left()).filter(|column| (column + row) % 2 == 0) {
-            let min = rect.min + vec2(column as f32 * side, row as f32 * side);
-            let cell = Rect::from_min_size(min, Vec2::splat(side)).intersect(visible);
-            shapes.push(Shape::rect_filled(cell, 0.0, dark));
-        }
-    }
-    shapes
+/// The cells of the transparency checkerboard: their side and the two colours. A field left unset takes the
+/// theme's checker (`size.checker` and the overlay checker colours); the transparency grid is an app setting, so an
+/// app sets any of them from its preferences.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[non_exhaustive]
+pub struct Checker {
+    /// The side of a cell, in points.
+    pub size: Option<f32>,
+    /// The colour of the cells that fill the rect.
+    pub light: Option<DataColor>,
+    /// The colour of the cells that sit on the light ones.
+    pub dark: Option<DataColor>,
 }
 
-/// The grid lines over `rect` that `clip` shows, every `spacing` points from the rect's top-left corner, as grid
-/// rules. Lines closer than a device pixel are drawn a pixel apart.
-pub fn grid_lines(tokens: &UiTokens, rect: Rect, spacing: Vec2, clip: Rect, pixels_per_point: f32) -> Vec<Shape> {
-    let visible = rect.intersect(clip);
-    let look = rule_look(tokens, RuleKind::Grid);
-    let mut shapes = Vec::new();
-    if visible.width() < 0.0 || visible.height() < 0.0 {
-        return shapes;
+impl Checker {
+    /// The theme's checker.
+    pub const fn new() -> Self {
+        Checker { size: None, light: None, dark: None }
     }
-    let pixel = 1.0 / pixels_per_point.max(f32::EPSILON);
-    if spacing.x > 0.0 {
-        let step = spacing.x.max(pixel);
-        let mut n = ((visible.left() - rect.left()) / step).ceil().max(0.0);
-        while rect.left() + n * step <= visible.right() {
-            let x = rect.left() + n * step;
-            shapes.extend(Rule::shapes(&look, pos2(x, visible.top()), pos2(x, visible.bottom()), pixels_per_point));
-            n += 1.0;
+
+    /// Cells of `size` points.
+    #[must_use]
+    pub const fn size(mut self, size: f32) -> Self {
+        self.size = Some(size);
+        self
+    }
+
+    /// The light and dark colours.
+    #[must_use]
+    pub const fn colors(mut self, light: DataColor, dark: DataColor) -> Self {
+        self.light = Some(light);
+        self.dark = Some(dark);
+        self
+    }
+
+    /// The checkerboard over `rect`, drawn where `clip` shows it: the light colour fills it and the dark cells sit
+    /// on top, from the rect's top-left corner.
+    pub fn shapes(&self, tokens: &UiTokens, rect: Rect, clip: Rect) -> Vec<Shape> {
+        let visible = rect.intersect(clip);
+        if visible.width() <= 0.0 || visible.height() <= 0.0 {
+            return Vec::new();
+        }
+        let side = self.size.unwrap_or(tokens.size.checker).max(f32::EPSILON);
+        let light = self.light.map_or_else(|| rgba_color(tokens.color.overlay.checker_light), |color| color.0);
+        let dark = self.dark.map_or_else(|| rgba_color(tokens.color.overlay.checker_dark), |color| color.0);
+        let mut shapes = vec![Shape::rect_filled(visible, 0.0, light)];
+        let cells = |from: f32, to: f32, origin: f32| {
+            let at = |edge: f32, round: fn(f32) -> f32| round((edge - origin) / side).max(0.0) as usize;
+            at(from, f32::floor)..at(to, f32::ceil)
+        };
+        for row in cells(visible.top(), visible.bottom(), rect.top()) {
+            for column in cells(visible.left(), visible.right(), rect.left()).filter(|column| (column + row) % 2 == 0) {
+                let min = rect.min + vec2(column as f32 * side, row as f32 * side);
+                let cell = Rect::from_min_size(min, Vec2::splat(side)).intersect(visible);
+                shapes.push(Shape::rect_filled(cell, 0.0, dark));
+            }
+        }
+        shapes
+    }
+}
+
+/// The theme's transparency checkerboard over `rect`, drawn where `clip` shows it, with cells of `size.checker`.
+pub fn checker(tokens: &UiTokens, rect: Rect, clip: Rect) -> Vec<Shape> {
+    Checker::new().shapes(tokens, rect, clip)
+}
+
+/// Most lines a grid draws along one axis.
+pub const MAX_LINES: usize = 10_000;
+
+/// The smallest step, in screen points, at which a grid axis draws.
+const MIN_STEP: f64 = 6.0;
+
+/// The smallest major step, in screen points, at which crossings draw.
+const CROSSING_MIN: f64 = 8.0;
+
+/// Minor lines' share of the major colour's alpha.
+const MINOR_SHARE: f32 = 0.45;
+
+/// The radius of a dot, in screen points.
+const DOT_RADIUS: f32 = 0.6;
+
+/// The lines of one axis: positions along it, in the grid's space.
+#[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
+pub struct GridAxis {
+    /// The minor lines.
+    pub minor: Vec<f64>,
+    /// The major lines.
+    pub major: Vec<f64>,
+}
+
+impl GridAxis {
+    /// The lines of one axis between `lo` and `hi`: majors every `step` from `origin`, minors between them when the
+    /// minor step is at least [`MIN_STEP`] screen points at `zoom`. An axis whose major step is under `MIN_STEP`
+    /// draws nothing; at most [`MAX_LINES`] lines are given.
+    fn spaced(step: f64, subdivisions: u32, origin: f64, (lo, hi): (f64, f64), zoom: f64) -> GridAxis {
+        if !(step.is_finite() && step > 0.0 && zoom.is_finite() && zoom > 0.0) || step * zoom < MIN_STEP {
+            return GridAxis::default();
+        }
+        let subdivided = subdivisions > 1 && step / f64::from(subdivisions) * zoom >= MIN_STEP;
+        let pitch = if subdivided { step / f64::from(subdivisions) } else { step };
+        let every = if subdivided { i64::from(subdivisions) } else { 1 };
+        let (first, last) = (((lo - origin) / pitch).ceil(), ((hi - origin) / pitch).floor());
+        let mut lines = GridAxis::default();
+        if !(first.is_finite() && last.is_finite()) || last < first {
+            return lines;
+        }
+        for i in (first as i64..=last as i64).take(MAX_LINES) {
+            let at = origin + i as f64 * pitch;
+            if i.rem_euclid(every) == 0 { lines.major.push(at) } else { lines.minor.push(at) }
+        }
+        lines
+    }
+}
+
+/// The lines of a grid, as [`grid_lines`] draws them: vertical lines (by x) and horizontal lines (by y), each
+/// running across `extent`. The positions are in document units under `view`, or in screen points without one.
+#[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
+pub struct GridLines {
+    /// The vertical lines.
+    pub x: GridAxis,
+    /// The horizontal lines.
+    pub y: GridAxis,
+    /// Where the lines run; `None` when the grid draws nothing.
+    pub extent: Option<kurbo::Rect>,
+    /// Whether the major spacing is wide enough for crossings on both axes.
+    pub crossings: bool,
+    /// The view that maps the positions to the screen.
+    pub view: Option<CanvasView>,
+}
+
+impl GridLines {
+    /// The lines of a grid in document units: majors every `spacing` from `origin`, `subdivisions` steps to a major
+    /// (1 or 0 is no minor lines), across `extent` as `view` shows it.
+    pub fn document(view: &CanvasView, extent: kurbo::Rect, spacing: kurbo::Vec2, origin: kurbo::Point, subdivisions: u32) -> Self {
+        let subdivisions = subdivisions.max(1);
+        let x = GridAxis::spaced(spacing.x, subdivisions, origin.x, (extent.x0, extent.x1), view.zoom_x());
+        let y = GridAxis::spaced(spacing.y, subdivisions, origin.y, (extent.y0, extent.y1), view.zoom);
+        let crossings = spacing.x * view.zoom_x() >= CROSSING_MIN && spacing.y * view.zoom >= CROSSING_MIN;
+        GridLines { x, y, extent: Some(extent), crossings, view: Some(*view) }
+    }
+
+    /// The lines over `rect` that `clip` shows, every `spacing` points from the rect's top-left corner, all major.
+    /// Lines closer than a device pixel are drawn a pixel apart.
+    pub fn screen(rect: Rect, spacing: Vec2, clip: Rect, pixels_per_point: f32) -> Self {
+        let visible = rect.intersect(clip);
+        if visible.width() < 0.0 || visible.height() < 0.0 {
+            return GridLines::default();
+        }
+        let pixel = 1.0 / pixels_per_point.max(f32::EPSILON);
+        let along = |spacing: f32, from: f32, lo: f32, hi: f32| {
+            let mut axis = GridAxis::default();
+            if spacing > 0.0 {
+                let step = spacing.max(pixel);
+                let first = ((lo - from) / step).ceil().max(0.0);
+                axis.major = (0..MAX_LINES).map(|n| from + (first + n as f32) * step).take_while(|at| *at <= hi).map(f64::from).collect();
+            }
+            axis
+        };
+        let extent = kurbo::Rect::new(visible.left().into(), visible.top().into(), visible.right().into(), visible.bottom().into());
+        GridLines {
+            x: along(spacing.x, rect.left(), visible.left(), visible.right()),
+            y: along(spacing.y, rect.top(), visible.top(), visible.bottom()),
+            extent: Some(extent),
+            crossings: false,
+            view: None,
         }
     }
-    if spacing.y > 0.0 {
-        let step = spacing.y.max(pixel);
-        let mut n = ((visible.top() - rect.top()) / step).ceil().max(0.0);
-        while rect.top() + n * step <= visible.bottom() {
-            let y = rect.top() + n * step;
-            shapes.extend(Rule::shapes(&look, pos2(visible.left(), y), pos2(visible.right(), y), pixels_per_point));
-            n += 1.0;
+}
+
+/// How the lines of a grid are drawn.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum GridStroke {
+    /// An unbroken line.
+    #[default]
+    Solid,
+    /// Dashes of `stroke.dash` with gaps of `stroke.dash_gap`.
+    Dashed,
+    /// Dots `stroke.dash_gap` apart.
+    Dots,
+}
+
+/// The colours a grid's lines take; an unset one is the theme's.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[non_exhaustive]
+pub struct GridInk {
+    /// The major lines' colour: the overlay grid colour by default.
+    pub major: Option<Color32>,
+    /// The minor lines' colour: the major colour at a share of its alpha by default.
+    pub minor: Option<Color32>,
+    /// How the lines are drawn.
+    pub stroke: GridStroke,
+}
+
+impl GridInk {
+    /// The theme's colours and solid lines.
+    pub const fn new() -> Self {
+        GridInk { major: None, minor: None, stroke: GridStroke::Solid }
+    }
+
+    /// The major lines in `color`.
+    #[must_use]
+    pub const fn major(mut self, color: Color32) -> Self {
+        self.major = Some(color);
+        self
+    }
+
+    /// The minor lines in `color`.
+    #[must_use]
+    pub const fn minor(mut self, color: Color32) -> Self {
+        self.minor = Some(color);
+        self
+    }
+
+    /// The lines drawn as `stroke`.
+    #[must_use]
+    pub const fn stroke(mut self, stroke: GridStroke) -> Self {
+        self.stroke = stroke;
+        self
+    }
+}
+
+/// The lines of `grid` as `ink` draws them: minor lines first, then the major ones, each running across
+/// the grid's extent and mapped through its view.
+pub fn grid_lines(tokens: &UiTokens, grid: &GridLines, ink: &GridInk, pixels_per_point: f32) -> Vec<Shape> {
+    let Some(extent) = grid.extent else { return Vec::new() };
+    let look = rule_look(tokens, RuleKind::Grid);
+    let major = ink.major.unwrap_or(look.color);
+    let minor = ink.minor.unwrap_or_else(|| major.gamma_multiply(MINOR_SHARE));
+    let screen = |x: f64, y: f64| match &grid.view {
+        Some(view) => view.to_screen(kurbo::Point::new(x, y)),
+        None => pos2(x as f32, y as f32),
+    };
+    let mut shapes = Vec::new();
+    for (color, xs, ys) in [(minor, &grid.x.minor, &grid.y.minor), (major, &grid.x.major, &grid.y.major)] {
+        let ends =
+            xs.iter().map(|&x| (screen(x, extent.y0), screen(x, extent.y1))).chain(ys.iter().map(|&y| (screen(extent.x0, y), screen(extent.x1, y))));
+        for (a, b) in ends {
+            match ink.stroke {
+                GridStroke::Solid => shapes.extend(Rule::shapes(&RuleLook { color, width: look.width }, a, b, pixels_per_point)),
+                GridStroke::Dashed => shapes.extend(dashed(&[a, b], look.width, tokens.stroke.dash, tokens.stroke.dash_gap, 0.0, color)),
+                GridStroke::Dots => shapes.extend(Shape::dotted_line(&[a, b], color, tokens.stroke.dash_gap, DOT_RADIUS)),
+            }
         }
     }
     shapes
@@ -338,9 +534,14 @@ impl ContentPainterCx<'_> {
         rect.shrink(self.tokens.stroke.thin)
     }
 
-    /// Paints grid lines every `spacing` points over `rect`.
-    pub fn grid_lines(&self, rect: Rect, spacing: Vec2) {
-        self.painter.extend(grid_lines(self.tokens, rect, spacing, self.painter.clip_rect(), self.ppp()));
+    /// Paints the lines of `grid` in `ink`; see [`grid_lines`].
+    pub fn grid_lines(&self, grid: &GridLines, ink: &GridInk) {
+        self.painter.extend(grid_lines(self.tokens, grid, ink, self.ppp()));
+    }
+
+    /// Paints the checkerboard `checker` over `rect`.
+    pub fn checker_with(&self, checker: &Checker, rect: Rect) {
+        self.painter.extend(checker.shapes(self.tokens, rect, self.painter.clip_rect()));
     }
 
     /// Paints tick marks on one edge of `rect`.

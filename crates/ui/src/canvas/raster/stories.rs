@@ -3,7 +3,7 @@
 use super::RasterDisplay;
 use crate::canvas::{Canvas, PixelRect, RasterSource, ToolPath};
 use crate::contract::{Show as _, ShowContainer as _};
-use crate::primitives::Revision;
+use crate::primitives::{Checker, Revision};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::kurbo::Point;
 use craft_behavior::{CanvasView, PixelSize};
@@ -33,6 +33,10 @@ impl RasterSource for Gradient {
         Revision::new(1)
     }
 
+    fn damage(&self, _: Revision) -> Option<PixelRect> {
+        Some(PixelRect::default())
+    }
+
     fn read(&self, region: PixelRect, factor: u32, out: &mut ColorImage) {
         let [width, height] = out.size;
         let (full_width, full_height) = (DOCUMENT.width as f32, DOCUMENT.height as f32);
@@ -54,7 +58,7 @@ fn on_canvas(ui: &mut Ui, view: impl FnOnce(CanvasView) -> CanvasView) -> StoryO
     let level = view(CanvasView::new(ui.max_rect(), CENTER, 1.0));
     let shown = Canvas::new("Document", ToolPath::Freehand)
         .view(level)
-        .show(ui, |ui, body| RasterDisplay::new("Picture", &SOURCE).checkerboard().show_at(ui, body.rect));
+        .show(ui, |ui, body| RasterDisplay::new("Picture", &SOURCE).checkerboard(Checker::new()).show_at(ui, body.rect));
     shown.inner.map(StoryOutput::from).unwrap_or_default()
 }
 
