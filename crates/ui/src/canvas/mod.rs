@@ -84,14 +84,17 @@ pub use navigator::{
 pub use navigator::NavigatorStyle;
 // End of l4e-navprev.
 
-use crate::contract::{Common, Component, Container, ContainerProps, Cx, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role, Sizing};
+use crate::contract::{Bind, Common, Component, Container, ContainerProps, Cx, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role, Sizing};
 use crate::runtime::commands::{CommandSet as _, CommandState, Commands as _};
+use crate::runtime::edit::next_gesture_id;
 use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;
 use crate::runtime::motion::{Animate as _, spec};
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::kurbo::{Point, Rect as DocRect, Size};
-use craft_behavior::{CanvasTransform, CanvasView, HitLevel, HitPriority, Metrics, PartKey, PointerButton, PressPhase, PressState, Sense};
+use craft_behavior::{
+    CanvasTransform, CanvasView, EditEvent, HitLevel, HitPriority, Metrics, Mixed, PartKey, PointerButton, PressPhase, PressState, Sense,
+};
 use egui::{Pos2, Rect, Response, Vec2};
 use zoom_motion::{Steer, ViewMotion};
 
@@ -137,12 +140,14 @@ pub struct CanvasStyle {
 /// A canvas: a pasteboard the caller's canvas controls and the active tool share.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(container)]
-pub struct Canvas {
+pub struct Canvas<'a> {
     #[common]
     common: Common,
     #[container]
     props: ContainerProps,
-    /// The view the canvas shows its document through: the app's view, which it copies back from
+    /// The view the canvas shows its document through, as a binding: the canvas writes the view of its pass through
+    /// it (`Bind::bound` holds it in the app's variable, `Bind::kept` in the canvas's own memory). A given view
+    /// (`Bind::given`, or a plain [`CanvasView`]) is only read: the app copies what a tool changed from
     /// [`ToolHostResponse::view`] (or [`CanvasOutput::view`] without a tool host) every pass.
     ///
     /// The canvas sets the view's rect to its own rect, inside the rulers while they show ([`show_rulers`](Self::show_rulers)),
@@ -155,8 +160,10 @@ pub struct Canvas {
     /// `CanvasView::to_screen`. The view sets no body transform: a body of components that keep canvas-space geometry
     /// (a node graph) also sets `transform(view.layer_transform())`, which exists for an unrotated, unmirrored,
     /// square view only.
-    #[prop]
-    view: Option<CanvasView>,
+    #[prop(into)]
+    view: Option<Bind<'a, CanvasView>>,
+    /// The view the binding held when the pass began.
+    given: Option<CanvasView>,
     /// The document the view shows, in document units. With a view and a document, the canvas fits a view never
     /// shown, keeps the wheel's zoom inside the document's zoom range, keeps the document in view with Overscroll off,
     /// and applies the view commands routed to it ([`ViewCommands`]); without either, the view commands are disabled
@@ -190,7 +197,7 @@ struct Settled {
     shown: CanvasView,
 }
 
-impl Canvas {
+impl<'a> Canvas<'a> {
     /// A canvas named `label`. The keyboard path of its tool is the tool's own
     /// ([`CanvasTool::command_form`](CanvasTool::command_form)).
     pub fn new(label: impl Into<Label>) -> Self {
@@ -199,6 +206,7 @@ impl Canvas {
             common: Common::new(),
             props,
             view: None,
+            given: None,
             document: None,
             navigation: NavigationOptions::default(),
             show_rulers: false,
@@ -315,7 +323,7 @@ impl Canvas {
     }
 
     fn space(&self, pixels_per_point: f32, background: BackgroundPress) -> Option<CanvasSpace> {
-        let view = self.settled.map(|settled| settled.shown).or(self.view);
+        let view = self.settled.map(|settled| settled.shown).or(self.given);
         view.map(|view| CanvasSpace::new(view, pixels_per_point).with_document(self.document).with_rulers(self.rulers).with_background(background))
     }
 
@@ -386,7 +394,7 @@ impl Outcome for CanvasOutput {
     }
 }
 
-impl Component for Canvas {
+impl Component for Canvas<'_> {
     const ROLE: Role = Role::CANVAS;
     const KEYS: KeyUse = KeyUse::CANVAS.with_deletes();
     type Style = CanvasStyle;
@@ -403,12 +411,22 @@ impl Component for Canvas {
 
     /// The view of this pass, kept for the body and `finish`.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        self.settled = match self.view {
-            Some(given) => Some(self.settle(cx, given)),
-            None => {
-                self.view_commands(cx, None);
-                None
+        // The canvas is no value component: it reads and writes its view's binding itself, as a container does.
+        self.given = self.view.as_mut().and_then(|view| view.reborrow().read(cx)).and_then(|held| held.same().copied());
+        self.settled = if self.view.is_some() {
+            // A view never shown has no rect: the canvas fits it in the first pass it has area and a document.
+            let given = self.given.unwrap_or_else(|| CanvasView::new(Rect::NOTHING, Point::ZERO, 1.0));
+            let settled = self.settle(cx, given);
+            if Some(settled.target) != self.given
+                && let Some(view) = self.view.as_mut()
+            {
+                let event = EditEvent::set(next_gesture_id(&cx.core.ctx), Mixed::Same(given), settled.target, cx.label_arc(), None);
+                let _ = view.reborrow().write(cx, &event);
             }
+            Some(settled)
+        } else {
+            self.view_commands(cx, None);
+            None
         };
     }
 
@@ -430,12 +448,18 @@ impl Component for Canvas {
     fn finish(self, cx: Cx<'_, Self>) -> CanvasOutput {
         let press = Self::background_press(&cx).0;
         let space = self.space(cx.env.scale().0, BackgroundPress::of(&press));
-        let view = self.settled.map(|settled| settled.target).filter(|target| Some(*target) != self.view);
+        let view = self.settled.map(|settled| settled.target).filter(|target| Some(*target) != self.given);
         CanvasOutput { response: cx.response.clone(), press, space, view, snap: self.snap, document: self.document, navigation: self.navigation }
     }
 }
 
-impl Container for Canvas {}
+impl Container for Canvas<'_> {}
+
+impl<'a> From<CanvasView> for Bind<'a, CanvasView> {
+    fn from(view: CanvasView) -> Self {
+        Bind::given(view)
+    }
+}
 
 /// `view` inside the document's edges with Overscroll off: the one clamp of a canvas's view, the canvas's own and a
 /// tool's alike. A view with no rect yet, or a canvas without a document, is left as it is.

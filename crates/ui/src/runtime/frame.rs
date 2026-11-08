@@ -6,7 +6,7 @@ use crate::runtime::egui::memory::{self as store, Service};
 use crate::runtime::egui::{pass, scale, style};
 use crate::runtime::env::{Env, RootEnv, WindowKey};
 use crate::runtime::{access, cursor, drag, focus, ime, keys, layout_memory, memory, motion, overlay, pointer, toast, wheel, windows};
-use craft_behavior::GestureId;
+use craft_behavior::{DocKey, GestureId};
 use craft_host::Host;
 use craft_host::target::Os;
 use craft_theme::{AppSizes, Appearance, Contrast, HitSizes, Mode, SUITE_DEFAULT, Size, TextSize, ThemeDef, builtins, resolve_sized};
@@ -66,6 +66,37 @@ pub enum ChromeToggle {
     PanelsKeepTools,
 }
 
+/// A step of the outer gesture of a container whose `ContainerProps::outer_edit` is on: one undo step over the edits of
+/// its body's fields, from open to close. It carries no value; the fields' own events carry theirs, and a
+/// `GestureHost` folds every gesture it handles while the outer one is open into it.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum OuterEdit {
+    /// The container opened: the step begins, named by the container's label and document key.
+    #[non_exhaustive]
+    Begin {
+        /// The outer gesture.
+        id: GestureId,
+        /// The resolved label of the container ("Image Size" for "Undo Image Size").
+        label: Arc<str>,
+        /// The container's document key.
+        doc_key: Option<DocKey>,
+    },
+    /// The container closed as an OK: the edits since `Begin` stay, as one undo step.
+    #[non_exhaustive]
+    Commit {
+        /// The outer gesture.
+        id: GestureId,
+    },
+    /// The container closed any other way (Cancel, Escape, the close action, the app closing it): the edits since
+    /// `Begin` are taken back.
+    #[non_exhaustive]
+    Cancel {
+        /// The outer gesture.
+        id: GestureId,
+    },
+}
+
 /// What the runtime accumulated since the last `take_output`, across passes and discarded passes.
 #[derive(Clone, Debug, Default, PartialEq)]
 #[non_exhaustive]
@@ -81,6 +112,9 @@ pub struct FrameOutput {
     /// The gestures whose component was evicted while they ran. Every `GestureHost` reads the list with
     /// `handle_output` and ends the gestures it owns as a cancel with `CancelReason::Removed`.
     pub removed_gestures: Vec<GestureId>,
+    /// The steps of outer gestures since the last call, in order. Every `GestureHost` reads them with `handle_output`,
+    /// before `removed_gestures`.
+    pub outer_edits: Vec<OuterEdit>,
 }
 
 /// The per-frame and per-context state of the frame loop.
@@ -302,6 +336,11 @@ pub(crate) fn inspecting(ctx: &Context) -> bool {
 /// Adds a gesture whose component was evicted to the next `FrameOutput`.
 pub(crate) fn note_removed_gesture(ctx: &Context, id: GestureId) {
     store::with::<FrameState, _>(ctx, |state| state.output.removed_gestures.push(id));
+}
+
+/// Adds a step of an outer gesture to the next `FrameOutput`.
+pub(crate) fn note_outer_edit(ctx: &Context, edit: OuterEdit) {
+    store::with::<FrameState, _>(ctx, |state| state.output.outer_edits.push(edit));
 }
 
 /// Adds text to the next `FrameOutput`'s announcements.

@@ -19,6 +19,9 @@ mod dialogs;
 mod display;
 mod docking;
 mod drag;
+// outer edit
+mod edit;
+// end of outer edit
 mod egui_surface;
 mod examples;
 mod focus;

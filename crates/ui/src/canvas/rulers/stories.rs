@@ -46,7 +46,7 @@ fn open_units_menu(fixture: &mut Fixture) {
 }
 
 /// A canvas whose view lies inside the strips and whose rulers count from `zero` in pixels.
-fn rulers_canvas(ui: &Ui, zero: Point) -> Canvas {
+fn rulers_canvas(ui: &Ui, zero: Point) -> Canvas<'static> {
     let content = Rulers::content_rect(&Env::of(ui).tokens, ui.available_rect_before_wrap());
     let text = pixels();
     Canvas::new("Document").view(CanvasView::new(content, CENTRE, 1.0)).rulers(text, text, zero)

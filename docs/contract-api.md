@@ -423,10 +423,11 @@ The dock model: the tree of splits over panel frames, the side of a group a drop
 - `craft_behavior::dock::Arrangement`: `pub enum Arrangement { TileAllVertically, TileAllHorizontally, TwoUpVertical, TwoUpHorizontal, ThreeUpVertical, ThreeUpHorizontal, ThreeUpStacked, FourUp, SixUp, ConsolidateAllToTabs, Cascade, Tile, FloatInWindow, FloatAllInWindows, NewWindowForDocument, MatchZoom, MatchLocation, MatchRotation, MatchAll }`. One Window › Arrange entry. The n-up entries split the document area into that many
   - `pub fn group_count(self, documents: usize) -> Option<usize>`. How many document groups an n-up or tile arrangement wants, `None` for the window and
   - `pub fn enabled(self, documents: usize, groups: usize, floating: usize) -> bool`. Whether the entry is enabled with `documents` open and `floating` floating windows:
-- `craft_behavior::dock::Column`: `pub struct Column<P> { pub groups: Vec<Group<P>>, pub width: f32, pub iconic: bool, pub iconic_width: Option<f32> }`. One column of a dock: groups from top to bottom.
-  - `pub fn new(groups: Vec<Group<P>>, width: f32) -> Self`. A column of `groups` that is `width` points wide, expanded.
-- `craft_behavior::dock::ColumnLocation`: `pub struct ColumnLocation { pub side: DockEdge, pub width: f32, pub iconic: bool, pub iconic_width: Option<f32> }`. The column a closed panel's group was in.
-  - `pub const fn new(side: DockEdge, width: f32, iconic: bool, iconic_width: Option<f32>) -> Self`. A column location on `side`, `width` points wide when expanded.
+- `craft_behavior::dock::Column`: `pub struct Column<P> { pub groups: Vec<Group<P>>, pub width: Option<f32>, pub iconic: bool, pub iconic_width: Option<f32> }`. One column of a dock: groups from top to bottom.
+  - `pub fn new(groups: Vec<Group<P>>) -> Self`. A column of `groups`, expanded at the theme's column width until the user resizes it.
+  - `pub fn with_width(mut self, width: f32) -> Self`. The column resized to `width` points.
+- `craft_behavior::dock::ColumnLocation`: `pub struct ColumnLocation { pub side: DockEdge, pub width: Option<f32>, pub iconic: bool, pub iconic_width: Option<f32> }`. The column a closed panel's group was in.
+  - `pub const fn new(side: DockEdge, width: Option<f32>, iconic: bool, iconic_width: Option<f32>) -> Self`. A column location on `side`, `width` points wide when expanded (the theme's column width for `None`).
 - `craft_behavior::dock::DockEdge`: `pub enum DockEdge { Start, End }`. The window edge a [`Node::Dock`] sits on, in reading order so right-to-left interfaces
 - `craft_behavior::dock::DockError`: `pub enum DockError { LimitExceeded, DuplicatePanel, MissingPanel, MissingTarget, InvalidSelection, InvalidGeometry, InvalidPlacement, NotAllowed, UnsupportedVersion }`. Why a layout edit or load was refused. The layout is unchanged when an edit fails.
 - `craft_behavior::dock::DockPlacement`: `pub enum DockPlacement<P> { Tab { before: Option<P> }, Split(DockSide), SplitSized { zone: DockSide, size: SplitSize, outer: SplitSize }, Group { below: bool, height: Option<f32> }, Column { after: bool }, Edge(DockSide) }`. Where a moved panel goes relative to an anchor panel.
@@ -1721,7 +1722,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub fn label(mut self, label: SideLabel) -> Self`. A field label.
   - `pub const fn roving(mut self, roving: Roving) -> Self`. Makes the body's members one roving stop.
   - `pub fn save(mut self, key: SaveKey) -> Self`. Saves placement, size and open state under `key`.
-  - `pub const fn outer_edit(mut self, on: bool) -> Self`. One outer gesture over the body's fields.
+  - `pub const fn outer_edit(mut self, on: bool) -> Self`. One outer gesture over the body's fields, from open to close.
   - `pub const fn label_column(mut self, on: bool) -> Self`. The labelled rows of the body share the widest label as one column. A nested container with its own
 - `craft_ui::contract::ContextMenuRequest`: `pub struct ContextMenuRequest<K> { pub key: K, pub at: Pos2, pub column: Option<ColumnKey> }`. A request for the context menu of an item. Collections never open menus: the app does.
 - `craft_ui::contract::Cx`: `pub struct Cx<'a, C: Component> { pub style: &'a C::Style }`. What component code reads and calls. It derefs to [`CxCore`] for reading only.
@@ -2276,6 +2277,8 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
 - `craft_ui::primitives::GridLines`: `pub struct GridLines { pub x: GridAxis, pub y: GridAxis, pub extent: Option<kurbo::Rect>, pub crossings: bool, pub view: Option<CanvasView> }`. The lines of a grid, as [`grid_lines`] draws them: vertical lines (by x) and horizontal lines (by y), each
   - `pub fn document(view: &CanvasView, extent: kurbo::Rect, spacing: kurbo::Vec2, origin: kurbo::Point, subdivisions: u32) -> Self`. The lines of a grid in document units: majors every `spacing` from `origin`, `subdivisions` steps to a major
   - `pub fn screen(rect: Rect, spacing: Vec2, clip: Rect, pixels_per_point: f32) -> Self`. The lines over `rect` that `clip` shows, every `spacing` points from the rect's top-left corner, all major.
+- `craft_ui::primitives::GridLook`: `pub struct GridLook`. What the lines of a grid read from the tokens: the line colour and width, and the dash and gap lengths.
+  - `pub fn of(tokens: &UiTokens) -> Self`. The grid look of `tokens`.
 - `craft_ui::primitives::GridStroke`: `pub enum GridStroke { Solid, Dashed, Dots }`. How the lines of a grid are drawn.
 - `craft_ui::primitives::HAlign`: `pub enum HAlign { Start, Center, End }`. Where the lines of a multi-line run sit within the run's width.
 - `craft_ui::primitives::Handle`: `pub struct Handle`. The handle painter.
@@ -2418,9 +2421,10 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
   - `pub fn hold(&self, hold: bool)`. Freezes the shown pictures while `hold`: no render starts and no job is queued; `state` returns the current
   - `pub fn retain(&self, ctx: &Context, keep: impl FnMut(&K) -> bool)`. Keeps only the pictures whose key `keep` accepts (the open documents changed).
   - `pub fn cache(&self) -> &super::TextureStore<K>`. The store under the thumbnails, for `forget`, `clear` and `statistics`.
-- `craft_ui::primitives::Tick`: `pub struct Tick { pub at: f32, pub major: bool }`. One tick: where it sits along its edge and whether it is a major one.
-  - `pub const fn new(at: f32, major: bool) -> Self`. A tick at `at`.
+- `craft_ui::primitives::Tick`: `pub struct Tick { pub at: f32, pub rank: TickRank }`. One tick: where it sits along its edge and how long it is.
+  - `pub const fn new(at: f32, rank: TickRank) -> Self`. A tick at `at` of the length class `rank`.
 - `craft_ui::primitives::TickEdge`: `pub enum TickEdge { Bottom, Top, Left, Right }`. Which edge of a rect a tick row sits on, and so which way its marks point.
+- `craft_ui::primitives::TickRank`: `pub enum TickRank { Minor, Mid, Major }`. How long a tick is: the rank it has among its neighbours.
 - `craft_ui::primitives::ToolIcon`: `pub enum ToolIcon { Custom(IconId), Move, Artboard, RectangularMarquee, EllipticalMarquee, SingleRowMarquee, SingleColumnMarquee, Brush, Pencil, MixerBrush, ColorReplacement, Eraser, BackgroundEraser, MagicEraser, Eyedropper, ColorSampler, Ruler, Note, Count, Lasso, PolygonalLasso, MagneticLasso, MagicWand, Crop, PerspectiveCrop, Slice, SliceSelect, Frame, Gradient, PaintBucket, HorizontalType, VerticalType, HorizontalTypeMask, VerticalTypeMask, Hand, RotateView, Zoom, SpotHealing, Healing, Remove, Patch, ContentAwareMove, RedEye, CloneStamp, PatternStamp, HistoryBrush, ArtHistoryBrush, Blur, Sharpen, Smudge, Dodge, Burn, Sponge, QuickSelection, ObjectSelection, Pen, FreeformPen, CurvaturePen, AddAnchorPoint, DeleteAnchorPoint, ConvertPoint, PathSelection, DirectSelection, Rectangle, Ellipse, Triangle, Polygon, Line, CustomShape }`. A tool, for its icon: a raster editor's tool set, which other apps share variant for variant (a vector
   - `pub const ALL: [ToolIcon; 68]`. Every tool, in this enum's order.
   - `pub fn icon(&self) -> IconId`. The icon that draws the tool.
@@ -2434,6 +2438,7 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
 - `craft_ui::primitives::fit_image`: `pub fn fit_image(image: ColorImage, max_side: u32) -> ColorImage`. `image` reduced to at most `max_side` texels per side, or unchanged when it fits. The image is reduced by the
 - `craft_ui::primitives::fit_rect`: `pub fn fit_rect(cell: Rect, picture: Vec2) -> Rect`. The rect inside `cell` that shows a picture of `picture`'s aspect whole, as large as fits and centred; `cell`
 - `craft_ui::primitives::grid_lines`: `pub fn grid_lines(tokens: &UiTokens, grid: &GridLines, ink: &GridInk, pixels_per_point: f32) -> Vec<Shape>`. The lines of `grid` as `ink` draws them: minor lines first, then the major ones, each running across
+- `craft_ui::primitives::grid_lines_with`: `pub fn grid_lines_with(look: &GridLook, grid: &GridLines, ink: &GridInk, pixels_per_point: f32) -> Vec<Shape>`. [`grid_lines`] from a look read earlier.
 - `craft_ui::primitives::has_icon`: `pub fn has_icon(id: &IconId) -> bool`. Whether the catalog has an icon named `id`.
 - `craft_ui::primitives::icon_names`: `pub fn icon_names() -> &'static [&'static str]`. The names of the catalog's icons, sorted.
 - `craft_ui::primitives::marching_ants`: `pub fn marching_ants(tokens: &UiTokens, points: &[Pos2], closed: bool, phase: f32, clip: Rect, pixels_per_point: f32) -> Vec<Shape>`. Marching ants along `points` (closed when `closed`) inside `clip`: bands of the marquee colour with dark dashes in
@@ -2443,7 +2448,7 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
 - `craft_ui::primitives::texture_factor`: `pub fn texture_factor(size: PixelSize, side: u32) -> u32`. How many document pixels per side one texel of the base texture holds for a document of `size` with textures at
 - `craft_ui::primitives::texture_side`: `pub fn texture_side(ctx: &Context) -> u32`. The texture side on this device: [`MAX_TEXTURE`], or the device's smaller limit (2048 on some older GPUs and
 - `craft_ui::primitives::thumb_image`: `pub fn thumb_image(frame: PixelSize, longest_side: u32, mut sample: impl FnMut(u32, u32) -> [u8; 4]) -> ColorImage`. A picture of the document area `frame` (pixels) with that exact aspect, its longest side `longest_side`, each
-- `craft_ui::primitives::ticks`: `pub fn ticks(tokens: &UiTokens, rect: Rect, edge: TickEdge, ticks: &[Tick], clip: Rect, pixels_per_point: f32) -> Vec<Shape>`. The tick marks of `ticks` on one edge of `rect` that `clip` shows: minor ones `gap.tight` long, major ones
+- `craft_ui::primitives::ticks`: `pub fn ticks(tokens: &UiTokens, rect: Rect, edge: TickEdge, ticks: &[Tick], clip: Rect, pixels_per_point: f32) -> Vec<Shape>`. The tick marks of `ticks` on one edge of `rect` that `clip` shows: minor ones `gap.tight` long, mid ones
 
 ## `craft_ui::primitives::textures`
 
@@ -3008,7 +3013,8 @@ The frame plugin: the per-pass and per-frame steps, with the inputs the app sets
   - `pub fn commands(mut self, commands: CommandInput) -> Self`. Sets the command input.
   - `pub fn host(mut self, host: Arc<Host>) -> Self`. Sets the host.
   - `pub const fn inspect(mut self, on: bool) -> Self`. Turns decision records on or off.
-- `craft_ui::runtime::frame::FrameOutput`: `pub struct FrameOutput { pub fired: Vec<Fired>, pub announcements: Vec<String>, pub chrome_toggles: Vec<(ViewportId, ChromeToggle)>, pub removed_gestures: Vec<GestureId> }`. What the runtime accumulated since the last `take_output`, across passes and discarded passes.
+- `craft_ui::runtime::frame::FrameOutput`: `pub struct FrameOutput { pub fired: Vec<Fired>, pub announcements: Vec<String>, pub chrome_toggles: Vec<(ViewportId, ChromeToggle)>, pub removed_gestures: Vec<GestureId>, pub outer_edits: Vec<OuterEdit> }`. What the runtime accumulated since the last `take_output`, across passes and discarded passes.
+- `craft_ui::runtime::frame::OuterEdit`: `pub enum OuterEdit { Begin { id: GestureId, label: Arc<str>, doc_key: Option<DocKey> }, Commit { id: GestureId }, Cancel { id: GestureId } }`. A step of the outer gesture of a container whose `ContainerProps::outer_edit` is on: one undo step over the edits of
 - `craft_ui::runtime::frame::request_repaint_after`: `pub fn request_repaint_after(ctx: &Context, seconds: f64)`. Asks for one more pass of the viewport the running pass belongs to after `seconds` (a playback clock, a poll);
 - `craft_ui::runtime::frame::set_input`: `pub fn set_input(ctx: &Context, input: FrameInput)`. Before the pass: from eframe's `App::raw_input_hook`, or before `run_ui` in tests. A call during a pass,
 - `craft_ui::runtime::frame::take_output`: `pub fn take_output(ctx: &Context) -> FrameOutput`. Everything accumulated since the last call, across passes and discarded passes.

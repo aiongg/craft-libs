@@ -17,7 +17,7 @@ use crate::contract::{
     PaintUi, PartsCx, Pointer as _, Props as _, Role, Styled as _, WordSetCx as _,
 };
 use crate::menu::Menu;
-use crate::primitives::{PaintShape, StrokeWidth, TextRun, Tick, TickEdge};
+use crate::primitives::{PaintShape, StrokeWidth, TextRun, Tick, TickEdge, TickRank};
 use crate::runtime::env::{EnvView, Label, UnitKind};
 use crate::runtime::focus::KeyUse;
 use crate::runtime::memory::Remember as _;
@@ -522,8 +522,19 @@ impl Component for Rulers<'_> {
         for (part, strip, edge) in [(RulerPart::Horizontal, top, TickEdge::Bottom), (RulerPart::Vertical, left, TickEdge::Right)] {
             let vertical = part == RulerPart::Vertical;
             let ticks = Self::axis_ticks(&text_of(part), &level, strip, part, zero);
-            let marks: Vec<Tick> =
-                ticks.iter().map(|(tick, at)| Tick::new(*at - if vertical { strip.top() } else { strip.left() }, tick.major)).collect();
+            let marks: Vec<Tick> = ticks
+                .iter()
+                .map(|(tick, at)| {
+                    let rank = if tick.major {
+                        TickRank::Major
+                    } else if tick.mid {
+                        TickRank::Mid
+                    } else {
+                        TickRank::Minor
+                    };
+                    Tick::new(*at - if vertical { strip.top() } else { strip.left() }, rank)
+                })
+                .collect();
             painter.ticks(strip, edge, &marks);
             for (tick, at) in ticks.iter().filter(|(tick, _)| tick.major) {
                 let text = text_of(part).tick_label(&numbers, tick.value, tick.step);

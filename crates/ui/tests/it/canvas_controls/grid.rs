@@ -222,3 +222,30 @@ fn the_pixel_grid_reads_only_what_the_source_reports_damaged() {
     assert!(frame(3, Some(PixelRect::new(0, 0, 1, 1))).is_empty(), "damage outside the cached region reads nothing");
     assert_eq!(frame(4, None), vec![region], "a change the source cannot place reads the region");
 }
+
+#[trial]
+fn the_grid_paints_the_same_lines_while_the_view_stays_and_follows_it_when_it_changes() {
+    let zoom = Rc::new(Cell::new(1.0));
+    let shown = Rc::clone(&zoom);
+    let rect = egui::Rect::from_min_size(Pos2::ZERO, egui::Vec2::splat(400.0));
+    let mut fixture = Fixture::new(move |ui| {
+        let view = CanvasView::new(rect, Point::new(200.0, 200.0), shown.get());
+        Canvas::new("Document").view(view).show(ui, |ui, body| {
+            grid().show_at(ui, body.rect);
+        });
+    });
+    fixture.room(rect.size());
+    fixture.settle();
+    let painted = |fixture: &mut Fixture| {
+        fixture.frame(Vec::new());
+        fixture.shape_bounds().to_vec()
+    };
+    let first = painted(&mut fixture);
+    assert!(!first.is_empty());
+    assert_eq!(painted(&mut fixture), first, "a second pass with the same view paints the same lines");
+    zoom.set(2.0);
+    let zoomed = painted(&mut fixture);
+    assert_ne!(zoomed, first, "a new zoom paints other lines");
+    zoom.set(1.0);
+    assert_eq!(painted(&mut fixture), first, "going back paints the first lines, not the ones kept for the other zoom");
+}

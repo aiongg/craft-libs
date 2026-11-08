@@ -7,6 +7,7 @@ use crate::contract::{
     Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, Mount, Overlay, Pad, Props as _, Role, SaveKey,
     ShowContainer as _,
 };
+use crate::edit::outer::{self, OuterEnd};
 use crate::runtime::access::Access;
 use crate::runtime::commands::{Commands as _, EditCommands};
 use crate::runtime::env::Label;
@@ -69,6 +70,8 @@ pub struct Dialog<'a> {
     closable: bool,
     closed: Option<CloseReason>,
     picked: Option<usize>,
+    /// The body ran in this pass: the header region marks it.
+    body_shown: bool,
     alert: bool,
 }
 
@@ -103,6 +106,7 @@ impl<'a> Dialog<'a> {
             closable: true,
             closed: None,
             picked: None,
+            body_shown: false,
             alert: false,
         }
         .label(title)
@@ -194,7 +198,10 @@ impl<'a> Dialog<'a> {
         })
     }
 
-    /// Whether the dialog holds one outer gesture over its body's fields, from open to close.
+    /// Whether the dialog holds one outer gesture over its body's fields, from open to close: the app's `GestureHost`
+    /// keeps one undo step for the dialog, named by its title. OK commits it; Cancel, Escape, the close action and the
+    /// app closing the dialog take its edits back. The host folds every gesture it handles while the dialog is open
+    /// into the step, so it takes effect for a modal dialog only; a modeless dialog holds none.
     #[must_use]
     pub fn outer_gesture(mut self, on: bool) -> Self {
         self.props = self.props.outer_edit(on);
@@ -235,6 +242,12 @@ impl<'a> Dialog<'a> {
 }
 
 impl Dialog<'_> {
+    /// Whether the outer gesture runs: it was asked for and the dialog is not a modeless layer, whose open time would
+    /// fold edits made elsewhere into the step.
+    fn holds_outer_gesture(&self) -> bool {
+        self.props.outer_edit && !matches!(&self.props.mount, Mount::Layer(overlay) if !overlay.rank.is_modal())
+    }
+
     /// Keeps the window draggable under a modal dialog: while the dialog is the top layer, each drag area of its
     /// window that the modal covers, less the caption buttons and the dialog itself, gets a [`ModalDragStrip`]. The
     /// dialog is the layer whose body runs, and its rect is the one the layer stack holds.
@@ -387,8 +400,15 @@ impl Component for Dialog<'_> {
         }
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> DialogOutput {
-        DialogOutput { response: cx.response.clone(), closed: self.closed, picked: self.picked }
+    fn finish(self, mut cx: Cx<'_, Self>) -> DialogOutput {
+        let output = DialogOutput { response: cx.response.clone(), closed: self.closed, picked: self.picked };
+        if self.holds_outer_gesture() {
+            // The dialog's answer decides the end: an OK commits, every other close cancels.
+            let end = output.result(|| OuterEnd::Commit).map(|answer| answer.ok().unwrap_or(OuterEnd::Cancel));
+            let core = &mut cx.core;
+            outer::settle(&core.ctx, core.memory, core.id, self.body_shown, end);
+        }
+        output
     }
 }
 
@@ -398,6 +418,10 @@ impl Container for Dialog<'_> {
     }
 
     fn header(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
+        self.body_shown = true;
+        if self.holds_outer_gesture() {
+            outer::keep(ui.ctx(), cx);
+        }
         frame::header(ui, cx, frame::close_action(self.closable));
         self.keep_window_draggable(ui);
     }

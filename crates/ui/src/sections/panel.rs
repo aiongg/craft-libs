@@ -119,6 +119,11 @@ impl<'a> Panel<'a> {
         self
     }
 
+    /// The menu the Menu action opens, as ready-made rows.
+    pub(crate) fn set_menu_rows(&mut self, rows: MenuRows<'a>) {
+        self.menu = Some(rows);
+    }
+
     /// A panel with no header: the title names the panel for assistive technology only.
     #[must_use]
     pub fn headerless(mut self) -> Self {

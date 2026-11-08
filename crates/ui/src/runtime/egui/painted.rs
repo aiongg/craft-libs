@@ -8,7 +8,9 @@ use egui::{Context, Galley};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-/// The full text of each elided run painted in the current pass, by galley identity. A galley that egui cut (`Wrap::Elide`)
+/// The full text of each elided run painted in the current pass, by galley identity and paint order. Runs cut to the
+/// same text share egui's cached galley (the narrow cards of a grid cut to the same few characters), so one galley can
+/// stand for several runs with different full texts; they are kept in the order they were painted. A galley that egui cut (`Wrap::Elide`)
 /// keeps the full text in its job and one cut by `Wrap::ElidePath` shows only the cut text, so neither the job's text nor
 /// the galley's own flag tells a painted cut run from a whole one that shares its text (a tooltip under the elided
 /// title). The log holds the galley, so its address names it for the whole pass.
@@ -16,7 +18,7 @@ use std::sync::Arc;
 #[derive(Default)]
 struct Elisions {
     pass: u64,
-    full: HashMap<usize, (Arc<Galley>, String)>,
+    full: HashMap<usize, (Arc<Galley>, Vec<String>)>,
 }
 
 #[cfg(feature = "testing")]
@@ -33,15 +35,16 @@ pub(crate) fn note_elided(ctx: &Context, galley: &Arc<Galley>, full: &str) {
             log.pass = pass;
             log.full.clear();
         }
-        log.full.insert(address(galley), (galley.clone(), full.to_owned()));
+        log.full.entry(address(galley)).or_insert_with(|| (galley.clone(), Vec::new())).1.push(full.to_owned());
     });
 }
 
 #[cfg(not(feature = "testing"))]
 pub(crate) fn note_elided(_: &Context, _: &Arc<Galley>, _: &str) {}
 
-/// The uncut text of the painted `galley`, when its layout cut text.
+/// The uncut text of the painted `galley`, when its layout cut text. `nth` counts the earlier painted runs of the same
+/// galley in this pass.
 #[cfg(feature = "testing")]
-pub(crate) fn full_text_of_painted(ctx: &Context, galley: &Arc<Galley>) -> Option<String> {
-    Service::<Elisions>::of(ctx).with(|log| log.full.get(&address(galley)).map(|(_, full)| full.clone()))
+pub(crate) fn full_text_of_painted(ctx: &Context, galley: &Arc<Galley>, nth: usize) -> Option<String> {
+    Service::<Elisions>::of(ctx).with(|log| log.full.get(&address(galley)).and_then(|(_, full)| full.get(nth).cloned()))
 }

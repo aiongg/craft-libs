@@ -3,14 +3,15 @@
 use craft_behavior::PixelSize;
 use craft_ui::contract::Bind;
 use craft_ui::patterns::form_dialogs::{
-    HostRequests, SAVE_PATH_KEY, SaveForWebDialog, SaveForWebOptions, SaveForWebResult, WantedVariant, WebPane, WebPictures, WebPreset, WebView,
+    Animation, HostRequests, SAVE_PATH_KEY, SaveForWebDialog, SaveForWebOptions, SaveForWebResult, WantedVariant, WebFormat, WebPane, WebPictures,
+    WebPreset, WebVariant, WebView,
 };
 use craft_ui::runtime::overlay::CloseReason;
 use craft_ui::runtime::requests::PathRequest;
 use craft_ui::testing::{Fixture, trial};
-
-use egui::Modifiers;
-use std::cell::RefCell;
+use egui::load::SizedTexture;
+use egui::{ColorImage, Modifiers, TextureHandle, TextureOptions, Vec2};
+use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::rc::Rc;
 
@@ -140,4 +141,97 @@ fn alt_turns_cancel_into_reset_which_keeps_save_for_web_open() {
     fixture.settle();
     assert_eq!(options.borrow().quality, opening, "Reset restores the opening settings");
     assert!(closed.borrow().is_none(), "Reset keeps the dialog open");
+}
+
+struct Pictured {
+    fixture: Fixture,
+    /// The byte sizes the app answers for panes 0, 1 and 2, read on every frame.
+    bytes: Rc<RefCell<[u64; 3]>>,
+    /// The frame the dialog reports.
+    /// How many panes the dialog has asked the app to encode in all.
+    asked: Rc<Cell<usize>>,
+}
+
+/// A dialog whose app answers all three encoded panes, over the settings `change` makes, for an animation of
+/// `animation` when given.
+fn pictured(change: impl FnOnce(&mut SaveForWebOptions), animation: Option<Animation>) -> Pictured {
+    let bytes = Rc::new(RefCell::new([10_000, 20_000, 30_000]));
+    let asked = Rc::new(Cell::new(0));
+    let options = Rc::new(RefCell::new(options(change)));
+    let handle: RefCell<Option<TextureHandle>> = RefCell::new(None);
+    let (sizes, counted) = (Rc::clone(&bytes), Rc::clone(&asked));
+    let mut fixture = Fixture::new(move |ui| {
+        let mut handle = handle.borrow_mut();
+        let texture =
+            handle.get_or_insert_with(|| ui.ctx().load_texture("web-pane", ColorImage::filled([8, 8], Default::default()), TextureOptions::LINEAR));
+        let sized = SizedTexture::new(texture.id(), Vec2::new(8.0, 8.0));
+        let mut pictures = WebPictures::new().original(sized);
+        for (index, bytes) in sizes.borrow().iter().enumerate() {
+            pictures.set(WebVariant::new(index, 0, sized, *bytes));
+        }
+        let mut options = options.borrow_mut();
+        let mut dialog = SaveForWebDialog::new("poster.psd", DOCUMENT, pictures, Bind::bound(&mut *options));
+        if let Some(animation) = animation {
+            dialog = dialog.animation(animation);
+        }
+        counted.set(counted.get() + dialog.show(ui).wanted_variants.len());
+    });
+    fixture.settle();
+    Pictured { fixture, bytes, asked }
+}
+
+/// The painted texts that start with `prefix`.
+fn texts_starting(fixture: &Fixture, prefix: &str) -> Vec<String> {
+    fixture.texts().iter().map(|text| text.text.clone()).filter(|text| text.starts_with(prefix)).collect()
+}
+
+/// 4-Up shows the original and three encodes: the settings' format, then the variants the format rule gives
+/// (PNG-24 is followed by PNG-8 and GIF).
+#[trial]
+fn four_up_shows_the_original_and_the_three_variants() {
+    let mut rig = pictured(|options| options.format = WebFormat::Png24, None);
+    let four_up = rig.fixture.by_label("4-Up").expect("the view tabs are shown");
+    rig.fixture.click(&four_up);
+    rig.fixture.idle(3);
+    assert_eq!(texts_starting(&rig.fixture, "PNG  ").len(), 2, "the settings and the half variant");
+    assert_eq!(texts_starting(&rig.fixture, "GIF  ").len(), 1, "the quarter variant");
+    let panes = ["Original", "Optimized", "Optimized 2", "Optimized 3"];
+    for pane in panes {
+        let found = rig.fixture.tree().keys().into_iter().any(|key| rig.fixture.tree().name_of(key).is_some_and(|name| name.starts_with(pane)));
+        assert!(found, "the pane {pane} is shown");
+    }
+}
+
+/// The download line of an encoded pane follows the size the app answered, at the modem speed the caption names.
+#[trial]
+fn the_download_estimate_follows_the_encoded_size() {
+    let mut rig = pictured(|_| {}, None);
+    rig.bytes.borrow_mut()[0] = 35_000;
+    rig.fixture.idle(2);
+    assert_eq!(texts_starting(&rig.fixture, "5 sec @ 56.6 Kbps").len(), 1);
+    rig.bytes.borrow_mut()[0] = 70_000;
+    rig.fixture.idle(2);
+    assert_eq!(texts_starting(&rig.fixture, "10 sec @ 56.6 Kbps").len(), 1, "a larger file takes longer");
+    assert!(texts_starting(&rig.fixture, "5 sec @ 56.6 Kbps").is_empty());
+}
+
+/// Play steps the frames by the clock; Pause keeps the frame.
+#[trial]
+fn the_animation_advances_while_playing_and_stops_on_pause() {
+    let mut rig = pictured(|_| {}, Some(Animation::new(12, 24.0)));
+    assert_eq!(texts_starting(&rig.fixture, "1 / 12").len(), 1);
+    let asked = rig.asked.get();
+    let play = rig.fixture.by_label("Play").expect("the play row is shown");
+    rig.fixture.click(&play);
+    rig.fixture.advance(0.25);
+    rig.fixture.idle(1);
+    assert_eq!(texts_starting(&rig.fixture, "7 / 12").len(), 1, "six frames passed in 0.25 s at 24 fps");
+    assert!(rig.asked.get() > asked, "a new frame asks the app to encode it");
+    let pause = rig.fixture.by_label("Pause").expect("Play became Pause");
+    rig.fixture.click(&pause);
+    rig.fixture.idle(2);
+    let kept = rig.fixture.texts().iter().map(|text| text.text.clone()).find(|text| text.ends_with(" / 12")).expect("the frame readout is shown");
+    rig.fixture.advance(0.5);
+    rig.fixture.idle(2);
+    assert_eq!(texts_starting(&rig.fixture, &kept).len(), 1, "a paused animation keeps its frame");
 }

@@ -12,6 +12,7 @@ use craft_ui::patterns::dock::{DockArea, DockAreaOutput};
 use craft_ui::style::Variant;
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::pointer::{moved, press, release};
+use craft_ui::testing::relations::equals_token;
 use craft_ui::testing::style::{tokens, with_cx};
 use craft_ui::testing::{Fixture, Target, trial};
 use egui::{Modifiers, Pos2, Rect, Ui, Vec2};
@@ -44,7 +45,7 @@ impl DockPanels<usize> for Recorder {
 }
 
 fn docked() -> Workspace<usize> {
-    let column = Column::new(vec![Group::new(vec![SIDE], 0), Group::new(vec![OTHER], 0)], COLUMN_WIDTH);
+    let column = Column::new(vec![Group::new(vec![SIDE], 0), Group::new(vec![OTHER], 0)]).with_width(COLUMN_WIDTH);
     let root = Node::split(Axis::X, SplitSize::FixedFirst(COLUMN_WIDTH), Node::dock(DockEdge::Start, vec![column]), Node::tabs(vec![CANVAS], 0));
     Workspace::new(Layout::new(Some(root), Vec::new()))
 }
@@ -269,6 +270,34 @@ fn focus_in_a_panels_content_names_its_panel_while_nothing_is_picked() {
     assert_eq!(last.picked, None, "focus alone picks nothing");
 }
 
+#[trial]
+fn a_column_without_a_width_lays_out_at_the_themes_column_width() {
+    let column = Column::new(vec![Group::new(vec![SIDE], 0)]);
+    let root = Node::split(Axis::X, SplitSize::FixedFirst(COLUMN_WIDTH), Node::dock(DockEdge::Start, vec![column]), Node::tabs(vec![CANVAS], 0));
+    let mut fixture = Fixture::new(move |ui| {
+        let workspace = Workspace::new(Layout::new(Some(root.clone()), Vec::new()));
+        DockArea::new("Dock area", Bind::given(workspace), &mut Controls, DockConfig::default()).show(ui);
+    });
+    fixture.room(AREA).settle();
+    let column_width = with_cx(fixture.ctx(), &tokens(Mode::Dark, Contrast::Standard), Variant::SECONDARY, ControlSize::Md, DockSizes::style).column;
+    let group =
+        fixture.by_role(Role::TAB_PANEL).into_iter().min_by(|a, b| a.rect.min.x.total_cmp(&b.rect.min.x)).expect("the column shows its group");
+    assert!(equals_token(group.rect.width(), column_width), "the group is {} wide, the theme's column is {column_width}", group.rect.width());
+}
+
+#[trial]
+fn a_press_on_a_groups_empty_body_focuses_its_panel() {
+    let (mut fixture, outputs) = commanded();
+    fixture.room(AREA).settle();
+    assert_eq!(outputs.borrow().last().expect("the area ran").focused, None, "nothing holds focus yet");
+    let inside = fixture.by_label("Inside").expect("the side panel shows its button");
+    fixture.click_at(Pos2::new(inside.rect.center().x, inside.rect.bottom() + 40.0));
+    fixture.idle(2);
+    let last = outputs.borrow_mut().pop().expect("the area ran");
+    assert_eq!(last.focused, Some(SIDE), "the press on the group's body focused the group's panel");
+    assert_eq!(last.picked, None, "a press on the body picks nothing");
+}
+
 // The area applies its actions to the bound workspace (l4f-fdock).
 
 /// Panels that revoke every right once a panel body has run in a pass, when `revoke` is set: the rights the area read
@@ -352,7 +381,7 @@ impl DockPanels<usize> for Named {
 
 #[trial]
 fn areas_with_different_labels_keep_separate_flyouts() {
-    let mut iconic = Column::new(vec![Group::new(vec![SIDE], 0)], COLUMN_WIDTH);
+    let mut iconic = Column::new(vec![Group::new(vec![SIDE], 0)]).with_width(COLUMN_WIDTH);
     iconic.iconic = true;
     let root = Node::split(Axis::X, SplitSize::FixedFirst(COLUMN_WIDTH), Node::dock(DockEdge::Start, vec![iconic]), Node::tabs(vec![CANVAS], 0));
     let layout = Layout::new(Some(root), Vec::new());

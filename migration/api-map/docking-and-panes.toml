@@ -237,6 +237,7 @@ name = "Column"
 old = "craft_ui::docking::dock_model::Column"
 new = "craft_behavior::dock::Column"
 status = "moved"
+note = "`Column::new(groups)` carries no width and `Column::width` is `Option<f32>`: `None` lays out at the theme's `size.dock.column` (`DockSizes::column`), a user resize writes `Some`, and `Column::with_width(width)` sets a width. Saves with a number still load."
 
 [[type]]
 name = "Side"

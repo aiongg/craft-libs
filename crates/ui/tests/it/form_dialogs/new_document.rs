@@ -2,7 +2,7 @@
 //! Save Preset row do to the settings.
 
 use craft_behavior::PixelSize;
-use craft_ui::contract::Bind;
+use craft_ui::contract::{Bind, SaveKey};
 use craft_ui::patterns::form_dialogs::{DocumentOptions, DocumentPreset, NewDocumentDialog, NewDocumentPresetWords, Orientation, PresetCategory};
 use craft_ui::runtime::env::{Env, UnitKind};
 use craft_ui::testing::{Fixture, Target, trial};
@@ -79,7 +79,7 @@ fn rig() -> Rig {
         let mut options = held.borrow_mut();
         let out = NewDocumentDialog::new(Bind::bound(&mut *options)).show(ui);
         if let Some(result) = out.result {
-            answers.borrow_mut().push(result);
+            answers.borrow_mut().push(result.options);
         }
         if out.closed.is_some() {
             done.set(true);
@@ -215,4 +215,85 @@ fn a_preset_name_that_differs_only_in_case_is_refused() {
     save_preset_as(&mut fixture, "poster");
     assert!(named(&fixture, "poster").is_none(), "the same name in another case is not saved");
     assert!(fixture.by_label("Preset Name").is_some(), "the refused name leaves the Save Preset row open");
+}
+
+/// A card's name carries its size line, which gives the size in the unit the card opens in and its resolution: inches for
+/// a print card, pixels for a screen card, with at most two decimals.
+#[trial]
+fn a_card_is_named_with_its_size_line() {
+    let Rig { mut fixture, .. } = rig();
+    let print = named(&fixture, "Print").expect("the Print tab");
+    fixture.click(&print);
+    fixture.settle();
+    let letter = named(&fixture, "Letter").expect("the Letter card");
+    let name = fixture.tree().name_of(letter.node).expect("named").to_owned();
+    assert_eq!(name, "Letter, 8.5 × 11 in @ 300 ppi");
+    let a4 = named(&fixture, "A4").expect("the A4 card");
+    assert!(fixture.tree().name_of(a4.node).is_some_and(|name| name.starts_with("A4, 8.27 × 11.") && name.ends_with(" in @ 300 ppi")));
+}
+
+/// Every card paints its own size line.
+#[trial]
+fn each_card_paints_its_own_size_line() {
+    let Rig { mut fixture, .. } = rig();
+    let print = named(&fixture, "Print").expect("the Print tab");
+    fixture.click(&print);
+    fixture.settle();
+    let lines: Vec<String> = fixture.texts().iter().filter(|run| run.text.contains(" in @ ")).map(|run| run.text.clone()).collect();
+    assert!(lines.len() >= 3, "the print cards show lines: {lines:?}");
+    assert!(lines.iter().any(|line| line.starts_with("8.5 × 11 in")), "Letter's own line: {lines:?}");
+    assert!(lines.iter().any(|line| line.starts_with("8.27 × 11.")), "A4's own line: {lines:?}");
+}
+
+const RECENT: SaveKey = SaveKey::new("craft_ui_tests.new_document_recent");
+
+/// A document created from a preset and remembered is the first card of Recent when the dialog opens again under the
+/// same key; a result that is not remembered leaves the list as it was.
+#[trial]
+fn the_created_preset_leads_recent_in_the_next_dialog() {
+    let open = Rc::new(Cell::new(true));
+    let options = Rc::new(RefCell::new(DocumentOptions::default()));
+    let remember = Rc::new(Cell::new(false));
+    let (shown, held, keep) = (Rc::clone(&open), Rc::clone(&options), Rc::clone(&remember));
+    let mut fixture = Fixture::new(move |ui| {
+        let mut options = held.borrow_mut();
+        let mut is_open = shown.get();
+        let out = NewDocumentDialog::new(Bind::bound(&mut *options)).remember_recent(RECENT).opened(Bind::bound(&mut is_open)).show(ui);
+        shown.set(is_open);
+        if let Some(result) = out.result
+            && keep.get()
+        {
+            result.remember(ui);
+        }
+    });
+    fixture.room(WINDOW);
+    fixture.settle();
+    pick_letter(&mut fixture);
+    let create = fixture.by_label("Create").expect("the Create button");
+    fixture.click(&create);
+    fixture.settle();
+    assert!(!open.get(), "Create closes the dialog");
+
+    open.set(true);
+    fixture.settle();
+    let recent = named(&fixture, "Recent").expect("the Recent tab");
+    fixture.click(&recent);
+    fixture.settle();
+    assert!(named(&fixture, "Letter").is_none(), "a result nobody remembered adds no recent card");
+
+    open.set(false);
+    fixture.settle();
+    remember.set(true);
+    open.set(true);
+    fixture.settle();
+    pick_letter(&mut fixture);
+    let create = fixture.by_label("Create").expect("the Create button");
+    fixture.click(&create);
+    fixture.settle();
+    open.set(true);
+    fixture.settle();
+    let recent = named(&fixture, "Recent").expect("the Recent tab");
+    fixture.click(&recent);
+    fixture.settle();
+    assert!(named(&fixture, "Letter").is_some(), "the remembered preset is listed in Recent");
 }

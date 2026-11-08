@@ -880,14 +880,14 @@ name = "BrushStyle"
 old = "craft_ui::canvas::brush::BrushStyle"
 new = ""
 status = "removed"
-note = "The cursor sizes, the preview tint and the resize travel are gone as one value: the painters read their colours from tokens in their ComponentStyle (FalloffPreviewStyle), the crosshair reach is BrushCursorOptions::crosshair_reach, and the travel is BrushResizeOptions::travel (default RESIZE_TRAVEL)."
+note = "The cursor sizes, the preview tint and the resize travel are gone as one value: the painters read their colours from tokens in their ComponentStyle (FalloffPreviewStyle), the crosshair reach is the token size.hit.target, read by BrushCursor::cursor from the env, and the travel is BrushResizeOptions::travel (default RESIZE_TRAVEL)."
 
 [[type]]
 name = "BrushCursorOptions"
 old = ""
 new = "craft_ui::canvas_controls::brush::BrushCursorOptions"
 status = "replaced"
-note = "The user's cursor preferences a brush cursor reads (painting cursor, Show Only Crosshair While Painting, Caps Lock precise) and the crosshair reach; replaces the brush part of the legacy CursorOptions."
+note = "The user's cursor preferences a brush cursor reads (painting cursor, Show Only Crosshair While Painting, Caps Lock precise); replaces the brush part of the legacy CursorOptions."
 
 [[type]]
 name = "ResizeStep"
@@ -940,7 +940,7 @@ new = "icon(craft_behavior::IconId)"
 [[setter]]
 type = "BrushCursor"
 old = "cursor(style, prefs, view, caps_lock) -> ToolCursor"
-new = "cursor(options, view, caps_lock) -> craft_behavior::Cursor"
+new = "cursor(env, options, view, caps_lock) -> craft_behavior::Cursor"
 
 [[setter]]
 type = "BrushCursor"

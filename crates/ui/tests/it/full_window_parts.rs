@@ -323,6 +323,29 @@ mod canvas_navigation {
         assert!((still.x - under.x).abs() < STILL && (still.y - under.y).abs() < STILL, "the point under the pointer stays: {under:?} {still:?}");
     }
 
+    /// The pointer rests here for a reading of the image point away from the wheel's anchor.
+    const ELSEWHERE: Pos2 = Pos2::new(60.0, 40.0);
+
+    #[trial]
+    fn a_kept_view_holds_what_the_canvas_zoomed_to_for_the_next_pass() {
+        let mut navigation = NavigationOptions::default();
+        navigation.zoom_with_wheel = true;
+        navigation.animated_zoom = false;
+        let hover = Rc::new(Cell::new(None));
+        let seen = hover.clone();
+        let mut fixture = Fixture::new(move |ui| {
+            seen.set(FullWindowCanvas::new(Bind::kept(), &Grey).navigation(navigation).show(ui).hover);
+        });
+        fixture.settle();
+        fixture.frame(vec![pointer::moved(ELSEWHERE)]);
+        let before = hover.get().expect("the pointer is over the image");
+        fixture.frame(vec![pointer::moved(OVER)]);
+        fixture.frame(vec![pointer::wheel_lines(1.0)]);
+        fixture.frame(vec![pointer::moved(ELSEWHERE)]);
+        let after = hover.get().expect("the pointer is over the image");
+        assert!((after.x - before.x).abs() > STILL, "the next pass shows the zoomed view, not a fresh fitted one: {before:?} {after:?}");
+    }
+
     #[trial]
     fn the_middle_button_pans_up_to_the_image_edge_and_so_does_the_hand_tool_a_canvas_without_a_tool_falls_back_to() {
         let mut middle = rig(NavigationOptions::default());

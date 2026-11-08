@@ -201,7 +201,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
                 if !valid_width(width) {
                     return Err(DockError::InvalidGeometry);
                 }
-                self.column_of(&panel)?.width = width;
+                self.column_of(&panel)?.width = Some(width);
                 Ok(())
             }
             Action::ResizeIconic { panel, width } => {

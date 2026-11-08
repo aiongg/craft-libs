@@ -25,20 +25,32 @@ pub enum TickEdge {
     Right,
 }
 
-/// One tick: where it sits along its edge and whether it is a major one.
+/// How long a tick is: the rank it has among its neighbours.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum TickRank {
+    /// The shortest, `space.gap.tight`.
+    Minor,
+    /// Halfway between two major ticks, `size.ruler.tick.mid`.
+    Mid,
+    /// The longest, `space.gap.inline`.
+    Major,
+}
+
+/// One tick: where it sits along its edge and how long it is.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct Tick {
     /// The position along the edge, in points from the rect's origin on that axis.
     pub at: f32,
-    /// Major ticks are longer than minor ones.
-    pub major: bool,
+    /// The tick's length class.
+    pub rank: TickRank,
 }
 
 impl Tick {
-    /// A tick at `at`.
-    pub const fn new(at: f32, major: bool) -> Self {
-        Tick { at, major }
+    /// A tick at `at` of the length class `rank`.
+    pub const fn new(at: f32, rank: TickRank) -> Self {
+        Tick { at, rank }
     }
 }
 
@@ -298,11 +310,32 @@ impl GridInk {
     }
 }
 
+/// What the lines of a grid read from the tokens: the line colour and width, and the dash and gap lengths.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct GridLook {
+    color: Color32,
+    width: f32,
+    dash: f32,
+    gap: f32,
+}
+
+impl GridLook {
+    /// The grid look of `tokens`.
+    pub fn of(tokens: &UiTokens) -> Self {
+        let look = rule_look(tokens, RuleKind::Grid);
+        GridLook { color: look.color, width: look.width, dash: tokens.stroke.dash, gap: tokens.stroke.dash_gap }
+    }
+}
+
 /// The lines of `grid` as `ink` draws them: minor lines first, then the major ones, each running across
 /// the grid's extent and mapped through its view.
 pub fn grid_lines(tokens: &UiTokens, grid: &GridLines, ink: &GridInk, pixels_per_point: f32) -> Vec<Shape> {
+    grid_lines_with(&GridLook::of(tokens), grid, ink, pixels_per_point)
+}
+
+/// [`grid_lines`] from a look read earlier.
+pub fn grid_lines_with(look: &GridLook, grid: &GridLines, ink: &GridInk, pixels_per_point: f32) -> Vec<Shape> {
     let Some(extent) = grid.extent else { return Vec::new() };
-    let look = rule_look(tokens, RuleKind::Grid);
     let major = ink.major.unwrap_or(look.color);
     let minor = ink.minor.unwrap_or_else(|| major.gamma_multiply(MINOR_SHARE));
     let screen = |x: f64, y: f64| match &grid.view {
@@ -316,23 +349,27 @@ pub fn grid_lines(tokens: &UiTokens, grid: &GridLines, ink: &GridInk, pixels_per
         for (a, b) in ends {
             match ink.stroke {
                 GridStroke::Solid => shapes.extend(Rule::shapes(&RuleLook { color, width: look.width }, a, b, pixels_per_point)),
-                GridStroke::Dashed => shapes.extend(dashed(&[a, b], Dashes::new(tokens.stroke.dash, tokens.stroke.dash_gap), look.width, color)),
-                GridStroke::Dots => shapes.extend(Shape::dotted_line(&[a, b], color, tokens.stroke.dash_gap, DOT_RADIUS)),
+                GridStroke::Dashed => shapes.extend(dashed(&[a, b], Dashes::new(look.dash, look.gap), look.width, color)),
+                GridStroke::Dots => shapes.extend(Shape::dotted_line(&[a, b], color, look.gap, DOT_RADIUS)),
             }
         }
     }
     shapes
 }
 
-/// The tick marks of `ticks` on one edge of `rect` that `clip` shows: minor ones `gap.tight` long, major ones
-/// `gap.inline`.
+/// The tick marks of `ticks` on one edge of `rect` that `clip` shows: minor ones `gap.tight` long, mid ones
+/// `size.ruler.tick.mid`, major ones `gap.inline`.
 pub fn ticks(tokens: &UiTokens, rect: Rect, edge: TickEdge, ticks: &[Tick], clip: Rect, pixels_per_point: f32) -> Vec<Shape> {
     let look = rule_look(tokens, RuleKind::Edge);
-    let (minor, major) = (tokens.space.gap.tight, tokens.space.gap.inline);
+    let (minor, mid, major) = (tokens.space.gap.tight, tokens.size.ruler.tick.mid, tokens.space.gap.inline);
     ticks
         .iter()
         .filter_map(|tick| {
-            let length = if tick.major { major } else { minor };
+            let length = match tick.rank {
+                TickRank::Minor => minor,
+                TickRank::Mid => mid,
+                TickRank::Major => major,
+            };
             let (from, to) = match edge {
                 TickEdge::Bottom => (pos2(rect.left() + tick.at, rect.bottom()), pos2(rect.left() + tick.at, rect.bottom() - length)),
                 TickEdge::Top => (pos2(rect.left() + tick.at, rect.top()), pos2(rect.left() + tick.at, rect.top() + length)),

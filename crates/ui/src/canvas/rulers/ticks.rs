@@ -86,6 +86,8 @@ pub struct RulerTick {
     pub value: f64,
     /// A labelled tick: a multiple of the labelled step.
     pub major: bool,
+    /// The tick halfway between two labelled ticks: not a labelled one, in a subdivision into an even count.
+    pub mid: bool,
     /// The labelled step in ruler units, which the label of a major tick is written for.
     pub step: f64,
 }
@@ -125,5 +127,10 @@ pub fn ticks(units: &RulerUnits, rule: TickRule<'_>, zoom: f64, values: RangeInc
     if last - first > MAX_TICKS {
         return Vec::new();
     }
-    (first..=last).map(|m| RulerTick { value: m as f64 * minor, major: m.rem_euclid(subdivisions) == 0, step }).collect()
+    (first..=last)
+        .map(|m| {
+            let rem = m.rem_euclid(subdivisions);
+            RulerTick { value: m as f64 * minor, major: rem == 0, mid: subdivisions % 2 == 0 && rem == subdivisions / 2, step }
+        })
+        .collect()
 }

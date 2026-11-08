@@ -370,7 +370,7 @@ pub struct MockState {
 
 impl Default for MockState {
     fn default() -> Self {
-        let side = Column::new(vec![Group::new(vec![Panel::Navigator], 0), Group::new(vec![Panel::Layers], 0)], SIDE_WIDTH);
+        let side = Column::new(vec![Group::new(vec![Panel::Navigator], 0), Group::new(vec![Panel::Layers], 0)]).with_width(SIDE_WIDTH);
         let root = Node::split(Axis::X, SplitSize::Ratio(CANVAS_SHARE), Node::tabs(vec![Panel::Canvas], 0), Node::dock(DockEdge::End, vec![side]));
         MockState {
             workspace: Workspace::new(Layout::new(Some(root), Vec::new())),

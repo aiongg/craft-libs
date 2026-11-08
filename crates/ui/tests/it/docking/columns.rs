@@ -73,7 +73,7 @@ fn spec(panel: &u8) -> PanelSpec {
 
 /// Shows the column with `open` as its bound flyout and returns the panel the flyout shows.
 fn run(open: &mut Option<u8>, shown: &Cell<Option<u8>>, ui: &mut egui::Ui) {
-    let column = Column::new(vec![Group::new(vec![0, 1], 0)], 240.0);
+    let column = Column::new(vec![Group::new(vec![0, 1], 0)]);
     IconicColumn::new("Panels", global("dock", "columns test"), &column, Bind::bound(open), &spec)
         .show_flyouts(ui, |group, _, _, _| shown.set(group.active_panel().copied()));
 }
@@ -123,7 +123,7 @@ fn a_button_in_the_flyout_takes_its_click_and_leaves_the_flyout_open() {
     let (bound, counted) = (Rc::clone(&open), Rc::clone(&clicks));
     let mut fixture =
         Fixture::new(move |ui| {
-            let column = Column::new(vec![Group::new(vec![0, 1], 0)], 240.0);
+            let column = Column::new(vec![Group::new(vec![0, 1], 0)]);
             let counted = Rc::clone(&counted);
             IconicColumn::new("Panels", global("dock", "flyout button test"), &column, Bind::bound(&mut bound.borrow_mut()), &roomy_spec)
                 .show_flyouts(ui, move |_, rect, ui, _| {

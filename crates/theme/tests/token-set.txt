@@ -91,6 +91,7 @@ size.checker
 size.control.md
 size.control.sm
 size.dial
+size.dock.column
 size.float.height
 size.float.width
 size.groove
@@ -113,6 +114,7 @@ size.pointer_tip.x
 size.pointer_tip.y
 size.rail.button
 size.rail.width
+size.ruler.tick.mid
 size.thumb.lg
 size.thumb.md
 size.thumb.sm

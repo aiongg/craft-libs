@@ -28,6 +28,9 @@
         "sm": 20.0
       },
       "dial": 42.0,
+      "dock": {
+        "column": 240.0
+      },
       "float": {
         "height": 240.0,
         "width": 192.0
@@ -67,6 +70,11 @@
       "rail": {
         "button": 30.0,
         "width": 40.0
+      },
+      "ruler": {
+        "tick": {
+          "mid": 3.0
+        }
       },
       "thumb": {
         "lg": 48.0,

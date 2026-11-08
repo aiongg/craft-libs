@@ -60,6 +60,8 @@ pub struct DockSizes {
     pub jump: f32,
     /// The least width of an iconic column (the rail width).
     pub iconic_least: f32,
+    /// The width of an expanded column the user has not resized (the dock column width).
+    pub column: f32,
 }
 
 impl DockSizes {
@@ -84,6 +86,7 @@ impl DockSizes {
             step: cx.control().gap,
             jump: cx.control().height,
             iconic_least: size.rail.width,
+            column: size.dock.column,
         }
     }
 
@@ -97,7 +100,7 @@ impl DockSizes {
     /// floated iconic column use it): the stored width kept within the panels' limits.
     pub fn expanded_width<P>(&self, column: &Column<P>, spec: &dyn Fn(&P) -> PanelSpec) -> f32 {
         let (lo, hi) = self.width_bounds(column, spec);
-        column.width.clamp(lo, hi)
+        column.width.unwrap_or(self.column).clamp(lo, hi)
     }
 
     /// The width of a column before the dock's room shrinks it.

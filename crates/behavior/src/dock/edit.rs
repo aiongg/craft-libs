@@ -20,9 +20,6 @@ use super::{
     split::SplitSize,
 };
 
-/// Width of a new column when nothing better is known.
-pub(super) const DEFAULT_COLUMN_WIDTH: f32 = 240.0;
-
 /// The node at `path` from `root`: false is a split's first child, true its second.
 pub fn node_at<'a, P>(mut node: &'a Node<P>, path: &[bool]) -> Option<&'a Node<P>> {
     for second_child in path {
@@ -353,7 +350,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
                         .iter()
                         .map(|c| Column {
                             groups: c.groups.iter().map(|g| Group { height: None, ..g.clone() }).collect(),
-                            width: 0.0,
+                            width: None,
                             iconic: c.iconic,
                             iconic_width: None,
                         })
@@ -523,7 +520,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
                 if columns.is_empty() {
                     self.take_node(&path);
                 }
-                Ok(Moving { width: Some(width), ..Moving::group(taken) })
+                Ok(Moving { width, ..Moving::group(taken) })
             }
         }
     }
@@ -542,7 +539,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
             groups: taken.groups,
             node: None,
             minimized: false,
-            width: Some(taken.width),
+            width: taken.width,
             iconic: taken.iconic,
             iconic_width: taken.iconic_width,
             id: None,
@@ -591,10 +588,10 @@ impl<P: Clone + Eq + Hash> Layout<P> {
                     if !columns.is_empty() {
                         return Err(DockError::InvalidPlacement);
                     }
-                    columns.push(moving.into_column(DEFAULT_COLUMN_WIDTH));
+                    columns.push(moving.into_column(None));
                     return Ok(());
                 }
-                let column = moving.into_column(DEFAULT_COLUMN_WIDTH);
+                let column = moving.into_column(None);
                 self.add_dock(side, column);
                 Ok(())
             }
@@ -683,7 +680,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
                     DockPlacement::Column { after } => {
                         let PanelPlace::Dock { path, column, .. } = &place else { return Err(DockError::InvalidPlacement) };
                         let columns = self.columns_mut(path).ok_or(DockError::MissingTarget)?;
-                        let width = columns.get(*column).map_or(DEFAULT_COLUMN_WIDTH, |c| c.width);
+                        let width = columns.get(*column).and_then(|c| c.width);
                         let index = (column + usize::from(after)).min(columns.len());
                         columns.insert(index, moving.into_column(width));
                         Ok(())
@@ -693,17 +690,16 @@ impl<P: Clone + Eq + Hash> Layout<P> {
         }
     }
 
-    /// Wrap the root in a horizontal split with a new dock on `side`. The split's fixed size is
-    /// the column width.
+    /// Wrap the root in a horizontal split with a new dock on `side`. A dock is laid out from its
+    /// columns' widths, so the split's size is a placeholder.
     pub(super) fn add_dock(&mut self, side: DockEdge, column: Column<P>) {
-        let width = column.width;
         let dock = Node::Dock { side, columns: vec![column] };
         self.root = Some(match self.root.take() {
             None => dock,
             Some(root) => {
                 let (first, second, size) = match side {
-                    DockEdge::Start => (dock, root, SplitSize::FixedFirst(width)),
-                    DockEdge::End => (root, dock, SplitSize::FixedSecond(width)),
+                    DockEdge::Start => (dock, root, SplitSize::Ratio(0.25)),
+                    DockEdge::End => (root, dock, SplitSize::Ratio(0.75)),
                 };
                 Node::Split { axis: Axis::X, size, first: Box::new(first), second: Box::new(second) }
             }
@@ -763,5 +759,5 @@ pub(super) fn flatten<P>(groups: Vec<Group<P>>) -> (Vec<P>, usize) {
 }
 
 pub(super) fn valid_column<P>(column: &Column<P>) -> bool {
-    valid_width(column.width) && column.iconic_width.is_none_or(valid_width)
+    column.width.is_none_or(valid_width) && column.iconic_width.is_none_or(valid_width)
 }

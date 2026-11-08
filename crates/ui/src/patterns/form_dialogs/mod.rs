@@ -46,7 +46,7 @@ mod new_document;
 
 pub use new_document::{
     BACKGROUND_COLOR_KEY, BackgroundContents, BitDepth, ColorMode, ColorProfiles, DocumentOptions, DocumentPreset, HostedNewDocument,
-    NewDocumentDialog, NewDocumentOutput, NewDocumentPresetWords, NewDocumentWords, Orientation, PresetCategory,
+    NewDocumentDialog, NewDocumentOutput, NewDocumentPresetWords, NewDocumentResult, NewDocumentWords, Orientation, PresetCategory,
 };
 
 mod about;
