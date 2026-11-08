@@ -1,9 +1,9 @@
 //! Wheel and pinch navigation as pure rules: a pass's wheel share is classified into a [`WheelAction`] and applied to
 //! a [`CanvasView`].
 //!
-//! The share comes from the wheel service ([`CanvasOutput::wheel`](crate::canvas::CanvasOutput::wheel)); nothing here
-//! reads input. Animated Zoom is the caller's [`ZoomAnimation`](crate::canvas::ZoomAnimation): a notch is one
-//! `Zoom` factor, and the animation eases the view toward it.
+//! The share comes from the wheel service; nothing here reads input. A [`Canvas`](crate::canvas::Canvas) given a view
+//! reads its share with these rules and applies it to the view it reports; a wheel zoom follows the wheel at once,
+//! with no ease.
 
 use super::NavigationOptions;
 use craft_behavior::canvas::zoom;
@@ -121,8 +121,8 @@ impl WheelNavigation {
 
     /// Applies `action` to `view` with the pointer at `pointer`, for a document of `size`: a factor zoom anchors at
     /// [`zoom::wheel_anchor`], a ladder step at the pointer, both clamped to the ladder; a pan moves the view. At a
-    /// zoom limit the view stays put. With Overscroll off the caller clamps the result with the canvas's scroll
-    /// limits. Returns whether the view changed.
+    /// zoom limit the view stays put. With Overscroll off the canvas clamps the result to the document. Returns
+    /// whether the view changed.
     pub fn apply(view: &mut CanvasView, action: WheelAction, pointer: Pos2, size: Size, pixels_per_point: f32) -> bool {
         let before = *view;
         match action {

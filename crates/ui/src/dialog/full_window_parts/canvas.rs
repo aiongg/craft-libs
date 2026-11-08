@@ -4,7 +4,6 @@ use super::super::words::DialogWords;
 use super::view::FullWindowView;
 use crate::canvas::{
     Canvas, CanvasTool, HandTool, Momentary, NavigationOptions, PixelRect, RasterDisplay, RasterSource, ToolHost, ToolHostResponse, ToolPath,
-    WheelNavigation, pan,
 };
 use crate::contract::{Bind, NoValue, Outcome, Props as _, Show as _, ShowContainer as _};
 use crate::primitives::{Checker, Revision};
@@ -12,7 +11,7 @@ use crate::runtime::edit::next_gesture_id;
 use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::{global, with_session};
 use craft_behavior::kurbo::Point;
-use craft_behavior::{CanvasView, EditEvent, Mixed, PixelSize};
+use craft_behavior::{EditEvent, Mixed, PixelSize};
 use egui::{Color32, ColorImage, Rect, Response, Ui};
 use std::sync::Arc;
 
@@ -100,10 +99,12 @@ impl Outcome for FullWindowCanvasOutput {
 ///   then each [`RasterOverlay`] in the order given (they paint and have no AccessKit node of their own); then the canvas controls of [`controls`](Self::controls); then
 ///   the tool's own painting and cursor.
 /// - **View.** [`FullWindowView`], bound by the app, fits the image on the first pass and keeps fitting it until the
-///   user zooms or pans. The canvas settles it on the rect its body fills and writes it back. The wheel, pinch and two-finger scroll follow the user's [`NavigationOptions`], zooming about the pointer;
-///   the middle button pans. Space-drag and the momentary Zoom run in the tool host when the app gives it its
-///   [`Momentary`] set. The zoom commands (`ViewCommand`) reach the view through the dialog's command scope and the zoom bar;
-///   the canvas is no instance of them, so the chords act on the view while it has the focus.
+///   user zooms or pans. The canvas settles it on the rect its body fills and writes it back. The inner `Canvas`
+///   moves the view as every document canvas does: the wheel, pinch and two-finger scroll follow the user's
+///   [`NavigationOptions`], zooming about the pointer; the middle button pans; a tool's eased zoom eases. The image
+///   scrolls past its edges whatever the Overscroll option says: Overscroll is a document window's option. Space-drag and the momentary Zoom run in the tool host when the app gives it its
+///   [`Momentary`] set. The zoom commands (`ViewCommand`) reach the view through the dialog's command scope and the
+///   zoom bar; the canvas is no instance of them, so the chords act on the view while it has the focus.
 /// - **Tool.** One `CanvasTool` in a `ToolHost` on this canvas; presses, drags, keys and the cursor are the host's.
 ///   Without a tool the canvas navigates with a Hand tool it keeps between passes.
 /// - **Keyboard and AccessKit.** The canvas is one Tab stop named by its label; while it has the focus its keys are
@@ -192,40 +193,35 @@ impl<'a> FullWindowCanvas<'a> {
         // gets: the fit, the drawn image and the hover mapping share it.
         let rect = ui.available_rect_before_wrap();
         let shown = given.settled(rect, size, ppp);
-        let canvas = Canvas::new(label.clone(), path).view(shown.view()).outer_view_commands().show_at_taking_room(ui, rect, |ui, body| {
-            let mut image = RasterDisplay::new(label.clone(), source);
-            if let Some(checker) = checkerboard {
-                image = image.checkerboard(checker);
-            }
-            image.show_at(ui, body.rect);
-            for (n, overlay) in overlays.iter().enumerate() {
-                match overlay.tint {
-                    Some(tint) => {
-                        let tinted = Tinted { source: overlay.source, tint };
-                        RasterDisplay::new(Label::Empty, &tinted).id_salt(("overlay", n)).show_at(ui, body.rect);
-                    }
-                    None => {
-                        RasterDisplay::new(Label::Empty, overlay.source).id_salt(("overlay", n)).show_at(ui, body.rect);
+        let mut scrolls = navigation;
+        scrolls.overscroll = true;
+        let canvas = Canvas::new(label.clone(), path)
+            .view(shown.view())
+            .document(shown.size())
+            .navigation(scrolls)
+            .outer_view_commands()
+            .show_at_taking_room(ui, rect, |ui, body| {
+                let mut image = RasterDisplay::new(label.clone(), source);
+                if let Some(checker) = checkerboard {
+                    image = image.checkerboard(checker);
+                }
+                image.show_at(ui, body.rect);
+                for (n, overlay) in overlays.iter().enumerate() {
+                    match overlay.tint {
+                        Some(tint) => {
+                            let tinted = Tinted { source: overlay.source, tint };
+                            RasterDisplay::new(Label::Empty, &tinted).id_salt(("overlay", n)).show_at(ui, body.rect);
+                        }
+                        None => {
+                            RasterDisplay::new(Label::Empty, overlay.source).id_salt(("overlay", n)).show_at(ui, body.rect);
+                        }
                     }
                 }
-            }
-            if let Some(controls) = controls.as_mut() {
-                controls(ui, body.rect);
-            }
-        });
+                if let Some(controls) = controls.as_mut() {
+                    controls(ui, body.rect);
+                }
+            });
         let output = canvas.output;
-        let mut next = shown;
-        let mut moved: CanvasView = shown.view();
-        let document = shown.size();
-        if let Some(wheel) = &output.wheel
-            && let Some(action) = next.wheel().read(wheel, &navigation)
-        {
-            let at = output.response.hover_pos().unwrap_or_else(|| moved.rect.center());
-            WheelNavigation::apply(&mut moved, action, at, document, ppp);
-        }
-        if let Some(delta) = output.pan {
-            pan(&mut moved, delta);
-        }
         let mut host = ToolHost::new();
         if let Some(momentary) = momentary {
             host = host.momentary(momentary);
@@ -238,10 +234,8 @@ impl<'a> FullWindowCanvas<'a> {
                 host.run(ui, &output, hand)
             }),
         };
-        if let Some(set) = hosted.view {
-            moved = set;
-        }
-        next = next.took(moved);
+        // The host's view is the tool's, else the canvas's own (the wheel, a middle-button pan, the clamp).
+        let next = shown.took(hosted.view.unwrap_or_else(|| shown.view()));
         if next != given {
             let event = EditEvent::set(next_gesture_id(ui.ctx()), Mixed::Same(given), next, name, None);
             view.reborrow().apply(&event);

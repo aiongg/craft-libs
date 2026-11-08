@@ -470,10 +470,10 @@ impl Scene for CanvasViewScene {
             view.rotation = 30.0;
             view
         });
-        view.rect = content;
+        // The scene's motion: a pan every frame, as a user's drag would make.
         pan(view, vec2(3.0, 2.0));
         let text = RulerText::new(RulerUnits::pixels(), UnitKind::Pixels);
-        let shown = Canvas::new("Document", ToolPath::Freehand).view(*view).rulers(text, text, *zero).show(ui, |ui, body| {
+        let shown = Canvas::new("Document", ToolPath::Freehand).view(*view).rulers(text, text, *zero).show_rulers(true).show(ui, |ui, body| {
             let _ = RasterDisplay::new("Picture", &SOURCE).show_at(ui, body.rect);
             let _ = Guides::new("Guides", Bind::bound(&mut *guides)).show_at(ui, body.rect);
             let _ = Rulers::new("Rulers", Bind::bound(&mut *zero)).show_at(ui, body.rect);

@@ -33,6 +33,10 @@ mod navigator_panel;
 mod view_commands;
 // End of l4e-navpanel.
 
+// l4f-fcanvas
+mod document_canvas;
+// End of l4f-fcanvas.
+
 fn crop() -> Rect {
     Rect::from_min_max(Pos2::new(20.0, 20.0), Pos2::new(100.0, 80.0))
 }

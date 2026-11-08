@@ -1,20 +1,24 @@
 //! The motion of zooming: the ease of an animated zoom, the Zoom tool's held press and its drag.
 //!
-//! [`ZoomAnimation`] holds no clock. The component that shows the animated view drives a 0 to 1 progress with
+//! [`ZoomAnimation`] holds no clock. The `Canvas` that shows the animated view drives a 0 to 1 progress with
 //! `Animate::anim` (so reduced motion and the motion table's duration apply) and asks the animation for the view to
-//! draw.
+//! draw. Each canvas runs one, under its id: its own zoom commands start it, and the tool host and the Navigator
+//! start it through [`ease`].
 
+use super::navigate::WheelNavigation;
+use crate::runtime::frame;
+use crate::runtime::memory::{global, with_session};
 use craft_behavior::canvas::zoom;
 use craft_behavior::kurbo::{Point, Size};
 use craft_behavior::{CanvasView, ZoomLadder};
-use egui::{Pos2, Rect};
+use egui::{Context, Id, Pos2, Rect};
 
 /// How far the app's view may differ from the zoom anchor, in document units, before the anchor is dropped.
 const ANCHOR_TOLERANCE: f64 = 0.01;
 
 /// A zoom easing from the view drawn last pass to the app's new view.
 ///
-/// The owner calls [`begin`](Self::begin) when a zoom starts, feeds [`target`](Self::target) to
+/// The canvas calls [`begin`](Self::begin) when a zoom starts, feeds [`target`](Self::target) to
 /// `Animate::anim("zoom", target, spec::MOVE)` every pass and passes the answer to [`shown`](Self::shown), which
 /// returns the view to draw. A new zoom while one runs starts from the view in between.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -45,10 +49,11 @@ impl ZoomAnimation {
 
     /// Starts easing from `from` (the view drawn last pass) toward whatever the app's view is on the next pass, with
     /// `anchor` (a document point and the screen point it stays at) for a zoom about the pointer. `progress` is the
-    /// owner's current progress value.
+    /// owner's current progress value. While a zoom runs, the new one starts from the view it drew last.
     pub fn begin(&mut self, from: &CanvasView, anchor: Option<(Point, Pos2)>, progress: f32) {
+        let from = self.run.map_or(*from, |run| run.shown);
         self.generation = self.generation.wrapping_add(1);
-        self.run = Some(Run { from: *from, anchor, base: progress, goal: None, shown: *from });
+        self.run = Some(Run { from, anchor, base: progress, goal: None, shown: from });
     }
 
     /// The view to draw this pass for the app's `target`, at the owner's `progress`. A target the anchor no longer
@@ -99,6 +104,53 @@ impl ZoomAnimation {
     pub fn stop(&mut self) {
         self.run = None;
     }
+}
+
+/// What a view change asks of a canvas's zoom ease, from outside the canvas's own pass.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum Steer {
+    /// Ease from `from` (the view drawn when the change was asked for) to the canvas's next view, keeping the anchor.
+    Ease { from: CanvasView, anchor: Option<(Point, Pos2)> },
+    /// The view jumped (a tool's pan): the ease stops at the next view.
+    Stop,
+}
+
+/// What a canvas keeps under its id between passes: the gesture state of its view, never a view of its own.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct ViewMotion {
+    /// The part of a ladder-step wheel notch a trackpad has not finished.
+    pub(crate) wheel: WheelNavigation,
+    /// The canvas's one zoom ease.
+    pub(crate) animation: ZoomAnimation,
+    /// What the tool host or the Navigator asked of the ease since the canvas's last pass.
+    pub(crate) steer: Option<Steer>,
+}
+
+impl ViewMotion {
+    fn id(canvas: Id) -> Id {
+        global("craft-ui canvas view motion", canvas)
+    }
+
+    /// The motion of the canvas `canvas`, moved out of its slot for the canvas's pass.
+    pub(crate) fn take(ctx: &Context, canvas: Id) -> Self {
+        with_session(ctx, Self::id(canvas), std::mem::take::<ViewMotion>)
+    }
+
+    /// Puts the motion back after the canvas's pass, keeping a steer asked for during it.
+    pub(crate) fn put(self, ctx: &Context, canvas: Id) {
+        with_session(ctx, Self::id(canvas), |slot: &mut ViewMotion| {
+            let steer = slot.steer.take();
+            *slot = self;
+            slot.steer = steer.or(slot.steer);
+        });
+    }
+}
+
+/// Asks the canvas `canvas` (its id, `CanvasOutput::response.id`) to ease its next view or to stop easing: the
+/// tool host for a tool's view, the Navigator for a preview zoom. The canvas applies it in its next pass.
+pub(crate) fn steer(ctx: &Context, canvas: Id, steer: Steer) {
+    with_session(ctx, ViewMotion::id(canvas), |slot: &mut ViewMotion| slot.steer = Some(steer));
+    frame::request_repaint(ctx);
 }
 
 /// The Zoom tool's press held still: past [`DELAY`](Self::DELAY) it zooms in continuously about the press point (out

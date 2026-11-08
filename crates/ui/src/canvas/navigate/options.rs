@@ -7,7 +7,8 @@
 pub struct NavigationOptions {
     /// General, Zoom with Scroll Wheel: the wheel zooms and Alt + wheel scrolls. Off.
     pub zoom_with_wheel: bool,
-    /// General, Animated Zoom: wheel and command zooms ease, and a held Zoom tool press zooms continuously. On.
+    /// General, Animated Zoom: a zoom command, a Zoom tool click and a Navigator zoom ease on the canvas, and a held Zoom
+    /// tool press zooms continuously; the wheel and a pinch follow the input at once. On.
     pub animated_zoom: bool,
     /// General, Zoom Resizes Windows (also the Zoom tool's Resize Windows to Fit). Off.
     pub zoom_resizes_windows: bool,

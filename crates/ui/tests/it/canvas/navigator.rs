@@ -3,8 +3,8 @@
 use craft_behavior::kurbo::{Point, Rect as DocRect, Size};
 use craft_behavior::{CanvasView, ZoomLadder};
 use craft_ui::canvas::{
-    Canvas, NavigationOptions, Navigator, NavigatorOptions, NavigatorSettings, NavigatorZoomRow, ProxyColor, ToolPath, ViewEase, preview_rect,
-    proxy_quad, view_center_for, zoom_to_document_rect,
+    Canvas, NavigationOptions, Navigator, NavigatorOptions, NavigatorSettings, NavigatorZoomRow, ProxyColor, ToolPath, preview_rect, proxy_quad,
+    view_center_for, zoom_to_document_rect,
 };
 use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
 use craft_ui::testing::focus::AccessActionKind;
@@ -12,7 +12,7 @@ use craft_ui::testing::pointer::{moved, press, release, wheel_lines};
 use craft_ui::testing::story::EditKind;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers, Pos2, Rect, Vec2};
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::rc::Rc;
 
 const DOC: Size = Size::new(2000.0, 1500.0);
@@ -138,13 +138,10 @@ fn row_view(zoom: f64) -> CanvasView {
     CanvasView::new(ROW_CANVAS, CENTRE, zoom)
 }
 
-/// The view and ease the canvas asked for in the last pass that asked for one.
-type Asked = Rc<RefCell<Option<(CanvasView, Option<ViewEase>)>>>;
-
-/// A zoom row over `view` and the canvas that shows it below the row. The app copies the view the canvas asks for
-/// into `view` unless it eases, and keeps what the canvas asked for in `asked`.
-fn zoom_row(view: &Rc<RefCell<CanvasView>>, asked: &Asked, animated: bool) -> Fixture {
-    let (held, kept) = (Rc::clone(view), Rc::clone(asked));
+/// A zoom row over `view` and the canvas that shows it below the row. The app copies the view the canvas reports
+/// into `view`.
+fn zoom_row(view: &Rc<RefCell<CanvasView>>, animated: bool) -> Fixture {
+    let held = Rc::clone(view);
     Fixture::new(move |ui| {
         let mut options = NavigationOptions::default();
         options.animated_zoom = animated;
@@ -152,33 +149,15 @@ fn zoom_row(view: &Rc<RefCell<CanvasView>>, asked: &Asked, animated: bool) -> Fi
         let shown = *held.borrow();
         let canvas = Canvas::new("Document", ToolPath::Freehand).view(shown).document(DOC).navigation(options).show_at(ui, ROW_CANVAS, |_, _| {});
         if let Some(next) = canvas.output.view {
-            if canvas.output.ease.is_none() {
-                *held.borrow_mut() = next;
-            }
-            *kept.borrow_mut() = Some((next, canvas.output.ease));
+            *held.borrow_mut() = next;
         }
     })
 }
 
 #[trial]
-fn an_eased_zoom_in_reaches_the_canvas_which_reports_the_ease() {
-    let view = Rc::new(RefCell::new(row_view(START)));
-    let asked = Asked::default();
-    let mut fixture = zoom_row(&view, &asked, true);
-    fixture.settle();
-    let zoom_in = fixture.by_label("Zoom In").expect("the row has a Zoom In button, labelled by the view command");
-    fixture.click(&zoom_in).settle();
-    let (target, ease) = asked.borrow_mut().take().expect("the canvas took the command");
-    let ease = ease.expect("Animated Zoom on: the canvas asks for the ease");
-    assert_eq!(ease.anchor.map(|(doc, _)| doc), Some(CENTRE), "the zoom eases about the view's centre");
-    assert!(target.zoom > START, "the target is one rung in: {target:?}");
-    assert_eq!(*view.borrow(), row_view(START), "the bound view keeps the view before the change");
-}
-
-#[trial]
 fn a_zoom_in_without_the_ease_steps_the_ladder_about_the_centre() {
     let view = Rc::new(RefCell::new(row_view(START)));
-    let mut fixture = zoom_row(&view, &Asked::default(), false);
+    let mut fixture = zoom_row(&view, false);
     fixture.settle();
     let zoom_in = fixture.by_label("Zoom In").expect("the row has a Zoom In button");
     fixture.click(&zoom_in).settle();
@@ -190,7 +169,7 @@ fn a_zoom_in_without_the_ease_steps_the_ladder_about_the_centre() {
 #[trial]
 fn the_percent_field_steps_the_zoom_ladder_and_shows_two_decimals() {
     let view = Rc::new(RefCell::new(row_view(TWO_THIRDS)));
-    let mut fixture = zoom_row(&view, &Asked::default(), false);
+    let mut fixture = zoom_row(&view, false);
     fixture.settle();
     let field = fixture.by_role(Role::SPIN_BUTTON).into_iter().next().expect("the row has a percent field");
     assert!(fixture.texts().iter().any(|text| text.text == "66.67"), "a ladder rung shows its two decimals");
@@ -240,32 +219,27 @@ fn near_doc(a: Point, b: Point) -> bool {
     (a - b).hypot() < DOC_SLACK
 }
 
-/// A navigator shown in a fixture, with the bound view, the kinds of the edits it reported and the last eased target.
+/// A navigator shown in a fixture, with the bound view and the kinds of the edits it reported.
 struct Shown {
     fixture: Fixture,
     view: Rc<RefCell<CanvasView>>,
     edits: Rc<RefCell<Vec<EditKind>>>,
-    eased: Rc<Cell<Option<CanvasView>>>,
 }
 
 impl Shown {
     fn new(start: CanvasView, animated: bool) -> Self {
         let view = Rc::new(RefCell::new(start));
         let edits = Rc::new(RefCell::new(Vec::new()));
-        let eased = Rc::new(Cell::new(None));
-        let (held, kinds, target) = (Rc::clone(&view), Rc::clone(&edits), Rc::clone(&eased));
+        let (held, kinds) = (Rc::clone(&view), Rc::clone(&edits));
         let mut fixture = Fixture::new(move |ui| {
             let mut navigation = NavigationOptions::default();
             navigation.animated_zoom = animated;
             let mut view = held.borrow_mut();
             let out = Navigator::new("Navigator", Bind::bound(&mut *view), DOC).navigation(navigation).show(ui);
             kinds.borrow_mut().extend(out.view.event.as_ref().and_then(EditKind::of));
-            if out.ease.is_some() {
-                target.set(out.view.value().copied());
-            }
         });
         fixture.settle();
-        Shown { fixture, view, edits, eased }
+        Shown { fixture, view, edits }
     }
 
     /// The navigator focused by Tab.
@@ -346,22 +320,15 @@ fn the_wheel_during_a_drag_changes_nothing_and_the_release_commits() {
 }
 
 #[trial]
-fn a_cmd_drag_zooms_to_the_rectangle_and_animated_zoom_leaves_the_bound_view_to_the_app() {
+fn a_cmd_drag_zooms_the_bound_view_to_the_rectangle_with_or_without_animated_zoom() {
     for animated in [true, false] {
         let mut shown = Shown::new(zoom_view(START), animated);
         let frame = shown.frame();
         shown.fixture.hold(Modifiers::COMMAND);
         shown.drag(frame.lerp_inside(Vec2::new(0.3, 0.3)), frame.size() * 0.2);
         shown.fixture.hold(Modifiers::NONE);
-        let (bound, eased) = (shown.view(), shown.eased.get());
-        if animated {
-            let target = eased.expect("under Animated Zoom the zoom is reported as an ease");
-            assert!(target.zoom > START, "the rectangle zooms in: {target:?}");
-            assert_eq!(bound, zoom_view(START), "the bound view is the app's to ease");
-        } else {
-            assert!(bound.zoom > START, "the rectangle zooms in: {bound:?}");
-            assert!(eased.is_none(), "without Animated Zoom nothing eases");
-        }
+        let bound = shown.view();
+        assert!(bound.zoom > START, "the rectangle zooms the bound view in (animated: {animated}): {bound:?}");
     }
 }
 
@@ -388,7 +355,7 @@ fn plus_and_minus_step_the_zoom_and_a_step_past_the_least_zoom_makes_no_edit() {
     let mut shown = Shown::focused(least, true);
     shown.fixture.key(Key::Minus, Modifiers::NONE);
     assert_eq!(shown.view(), least, "the least zoom settles");
-    assert!(shown.edits.borrow().is_empty() && shown.eased.get().is_none(), "and reports no edit: {:?}", shown.edits.borrow());
+    assert!(shown.edits.borrow().is_empty(), "and reports no edit: {:?}", shown.edits.borrow());
 }
 
 #[trial]
