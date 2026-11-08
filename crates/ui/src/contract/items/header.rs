@@ -56,6 +56,20 @@ enum Grab {
     Move { key: ColumnKey, from: usize, to: usize },
 }
 
+/// The names the toggle cells of one row gave themselves this pass, by column.
+#[derive(Clone, Default)]
+struct ToggleNames(std::sync::Arc<[(ColumnKey, String, bool)]>);
+
+/// Records the toggle cells of the row `item` with their accessible names (`{row}` filled; empty when the cell gives
+/// none) and whether each shows the mixed state, for the collection's cell nodes of the same pass. A row that has none records an empty list.
+pub(crate) fn put_toggle_names(ctx: &Context, item: Id, names: Vec<(ColumnKey, String, bool)>) {
+    crate::runtime::egui::memory::put(ctx, sub(item, "toggle_names"), ToggleNames(names.into()));
+}
+
+fn recorded_toggle_names(ctx: &Context, item: Id) -> Option<std::sync::Arc<[(ColumnKey, String, bool)]>> {
+    crate::runtime::egui::memory::peek_clone::<ToggleNames>(ctx, sub(item, "toggle_names")).map(|ToggleNames(names)| names)
+}
+
 /// What the header keeps in session memory under the collection's id.
 #[derive(Clone, Debug, Default)]
 pub(super) struct HeaderMemory {
@@ -156,14 +170,27 @@ impl Header {
         })
     }
 
-    /// The name of the cells of toggle column `key`: its header text, else its icon's name, resolved in `env`.
-    pub(super) fn cell_name(&self, key: &ColumnKey, env: &crate::runtime::env::EnvView<'_>) -> String {
-        let Some(spec) = self.specs.iter().find(|spec| spec.key == *key) else { return String::new() };
-        let header = env.resolve(&spec.header);
-        match (header.as_str(), &spec.icon) {
-            ("", Some(icon)) => icon.name().to_owned(),
-            (text, _) => text.to_owned(),
+    /// The name of the cell of toggle column `key` in the row `item` and whether it shows the mixed state: the name the
+    /// row's cell gave (`put_toggle_names`), else the column's header text, else its icon's name, resolved in `env`.
+    /// `None` when the row recorded its toggle cells and has none in this column: the collection reports no node there.
+    pub(super) fn cell_name(&self, ctx: &Context, item: Id, key: &ColumnKey, env: &crate::runtime::env::EnvView<'_>) -> Option<(String, bool)> {
+        let recorded = recorded_toggle_names(ctx, item);
+        let (given, mixed) = match &recorded {
+            Some(names) => names.iter().find(|(held, ..)| held == key).map(|(_, name, mixed)| (name.as_str(), *mixed))?,
+            None => ("", false),
+        };
+        if !given.is_empty() {
+            return Some((given.to_owned(), mixed));
         }
+        let Some(spec) = self.specs.iter().find(|spec| spec.key == *key) else { return Some((String::new(), mixed)) };
+        let header = env.resolve(&spec.header);
+        Some((
+            match (header.as_str(), &spec.icon) {
+                ("", Some(icon)) => icon.name().to_owned(),
+                (text, _) => text.to_owned(),
+            },
+            mixed,
+        ))
     }
 
     /// The key of the column at position `at`.

@@ -907,6 +907,14 @@ impl ListRow<'_> {
         }
     }
 
+    /// Hands the collection the names of this row's toggle cells, so its cell nodes read them.
+    fn record_toggle_names(&self, cx: &PartsCx<'_, Self>) {
+        let words = cx.words::<ListWords>();
+        let label = cx.resolved.label;
+        let names = self.toggles.iter().map(|toggle| (toggle.column.clone(), named(toggle.name_pattern(&words), label), toggle.state == ToggleState::Mixed)).collect();
+        crate::contract::put_toggle_names(cx.ui.ctx(), cx.resolved.id, names);
+    }
+
     /// How the wrapped lines fit: all of them, or cut after `line_limit`.
     fn lines_wrap(&self) -> Wrap {
         self.line_limit.map_or(Wrap::Wrap, Wrap::Clamp)
@@ -1204,6 +1212,7 @@ impl Component for ListRow<'_> {
     }
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
+        self.record_toggle_names(cx);
         if self.spacer {
             return;
         }

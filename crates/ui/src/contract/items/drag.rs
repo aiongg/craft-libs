@@ -1,5 +1,9 @@
 //! Drags in a collection (17.3 step 9, 17.4): toggle-column sweeps, row drags over the drag session (8.4) and the
 //! item move of a `FreeLayout`.
+//!
+//! A toggle sweep flips each switch live: every cell the pointer crosses applies an `Update` at once, as its own
+//! open gesture. The release commits the gestures; Escape or a lost press capture cancels them, each with the value
+//! from before, which restores every crossed switch.
 
 use super::ItemsHooks;
 use super::marquee::MarqueeDrag;
