@@ -400,7 +400,7 @@ impl Panel {
 fn video_tracks_stack_up_from_the_divider() {
     let panel = panel();
     let (v2, v1, a1) = (panel.row("V2"), panel.row("V1"), panel.row("A1"));
-    assert!(v2.bottom() <= v1.top() + 0.5, "V2 lies above V1: {v2:?} {v1:?}");
+    assert!(v2.bottom() <= v1.top() + SLACK, "V2 lies above V1: {v2:?} {v1:?}");
     assert!(v1.bottom() < a1.top(), "the divider lies between V1 and A1: {v1:?} {a1:?}");
     assert_eq!(v2.height(), v1.height());
 }
@@ -436,14 +436,14 @@ fn rows_resize_from_their_height_and_video_rows_grow_upward() {
     panel.drag_by(edge.center(), Vec2::new(0.0, RESIZE_TRAVEL));
     let got = panel.heights();
     assert_eq!(got.last().map(|(track, _)| *track), Some(A1), "{got:?}");
-    assert!((got.last().map_or(0.0, |(_, height)| *height) - (a1.height() + RESIZE_TRAVEL)).abs() < 0.5, "{got:?} from {}", a1.height());
+    assert!((got.last().map_or(0.0, |(_, height)| *height) - (a1.height() + RESIZE_TRAVEL)).abs() < SLACK, "{got:?} from {}", a1.height());
 
     let mut panel = self::panel();
     let v1 = panel.row("V1");
     let edge = panel.in_row("Drag to change the height of V1", v1);
     panel.drag_by(edge.center(), Vec2::new(0.0, -RESIZE_TRAVEL));
     let got = panel.heights();
-    assert!((got.last().map_or(0.0, |(_, height)| *height) - (v1.height() + RESIZE_TRAVEL)).abs() < 0.5, "{got:?} from {}", v1.height());
+    assert!((got.last().map_or(0.0, |(_, height)| *height) - (v1.height() + RESIZE_TRAVEL)).abs() < SLACK, "{got:?} from {}", v1.height());
 
     let mut panel = self::panel();
     let v2 = panel.row("V2");
@@ -451,7 +451,7 @@ fn rows_resize_from_their_height_and_video_rows_grow_upward() {
     panel.drag_by(top.center(), Vec2::new(0.0, -RESIZE_TRAVEL));
     let got = panel.heights();
     assert_eq!(got.last().map(|(track, _)| *track), Some(V2), "{got:?}");
-    assert!((got.last().map_or(0.0, |(_, height)| *height) - (v2.height() + RESIZE_TRAVEL)).abs() < 0.5, "{got:?} from {}", v2.height());
+    assert!((got.last().map_or(0.0, |(_, height)| *height) - (v2.height() + RESIZE_TRAVEL)).abs() < SLACK, "{got:?} from {}", v2.height());
 }
 
 /// The distance a height edge is dragged in the resize trial.
@@ -473,6 +473,9 @@ fn double_clicking_a_header_toggles_its_height() {
     assert_ne!(got[0].1, before, "the height changed to the other named height");
 }
 
+/// The rounding slack of a measured point.
+const SLACK: f32 = 0.5;
+
 /// How far into the row the name column's text lies, clear of the colour strip and the switches.
 const HEADER_NAME_INSET: f32 = 60.0;
 
@@ -481,10 +484,10 @@ const HEADER_NAME_INSET: f32 = 60.0;
 fn caption_rows_sit_above_video_with_a_mix_row() {
     let panel = panel_with(named(&[(C1, TrackKind::Caption, "C1"), (V1, TrackKind::Video, "V1"), (A1, TrackKind::Audio, "A1")]), Some(-3.0));
     let (c, v1, a1) = (panel.row("C1"), panel.row("V1"), panel.row("A1"));
-    assert!(c.bottom() <= v1.top() + 0.5, "{c:?} {v1:?}");
+    assert!(c.bottom() <= v1.top() + SLACK, "{c:?} {v1:?}");
     assert!(v1.bottom() < a1.top(), "{v1:?} {a1:?}");
     let mix = panel.fixture.by_label("Mix").expect("a model with a master volume has a Mix row");
-    assert!(mix.rect.top() >= a1.bottom() - 0.5, "the Mix row lies below the audio rows: {:?} {a1:?}", mix.rect);
+    assert!(mix.rect.top() >= a1.bottom() - SLACK, "the Mix row lies below the audio rows: {:?} {a1:?}", mix.rect);
 }
 
 /// The plain wheel scrolls the side of the divider under the pointer.
@@ -497,7 +500,7 @@ fn the_wheel_scrolls_the_side_under_the_pointer() {
     panel.fixture.frame(vec![pointer::wheel(-WHEEL_POINTS)]);
     panel.fixture.idle(2);
     let after = panel.row("A3").top();
-    assert!((before - after - WHEEL_POINTS).abs() < 0.5, "{before} -> {after}");
+    assert!((before - after - WHEEL_POINTS).abs() < SLACK, "{before} -> {after}");
 }
 
 /// The points one wheel turn moves.
@@ -531,8 +534,8 @@ fn the_menu_keys_report_a_context_menu_anchored_on_the_focused_clip() {
     let v1 = panel.row("V1");
     for (track, clip, anchor, pointer) in &menus {
         assert_eq!((*track, *clip, *pointer), (Some(V1), Some(ClipId(1)), None));
-        assert!((anchor.top() - v1.top()).abs() < 0.5 && (anchor.bottom() - v1.bottom()).abs() < 0.5, "{anchor:?} in {v1:?}");
-        assert!((anchor.width() - 4.0 * PANEL_POINTS_PER_SECOND as f32).abs() < 0.5, "{anchor:?}");
+        assert!((anchor.top() - v1.top()).abs() < SLACK && (anchor.bottom() - v1.bottom()).abs() < SLACK, "{anchor:?} in {v1:?}");
+        assert!((anchor.width() - 4.0 * PANEL_POINTS_PER_SECOND as f32).abs() < SLACK, "{anchor:?}");
     }
 
     panel.sequence.borrow_mut().edits.clear();
