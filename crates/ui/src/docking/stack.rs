@@ -150,7 +150,8 @@ struct Plan {
 impl StackSections {
     /// An accordion of `sections`, in order.
     pub fn new(sections: Vec<StackSection>) -> Self {
-        let props = ContainerProps::new().sizing(Sizing::Fill).pad(Pad::None);
+        // An arena root, so the dividers stack above the sections' controls and take their whole band (8.3).
+        let props = ContainerProps::new().arena(true).sizing(Sizing::Fill).pad(Pad::None);
         StackSections { common: Common::new(), props, sections, resized: Vec::new() }
     }
 

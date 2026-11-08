@@ -172,14 +172,13 @@ fn a_window_menu_row_of_a_closed_panel_reopens_it() {
     });
     fixture.settle();
     let opener = fixture.by_label("Window").expect("the opener shows");
-    fixture.click(&opener);
-    fixture.idle(4);
+    fixture.click(&opener).settle();
+    // Every row is a check row: a panel's row is a check box item, checked while the panel is in the layout.
     let row = fixture
-        .by_role(Role::MENU_ITEM)
+        .by_role(Role::MENU_ITEM_CHECK_BOX)
         .into_iter()
         .find(|row| fixture.tree().name_of(row.node) == Some("Panel 4"))
         .expect("the closed panel has a row");
     fixture.click(&row);
-    fixture.idle(2);
     assert_eq!(*picked.borrow(), Some(Action::open(CLOSED, None)));
 }
