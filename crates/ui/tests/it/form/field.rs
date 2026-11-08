@@ -115,15 +115,13 @@ fn a_click_on_the_label_focuses_the_control() {
         });
     });
     fixture.settle();
-    let control = fixture.by_label("Spacing").expect("the field's control");
+    // The number field's editing widget is its focus stop: the spin button node beside it is never the focused node.
+    let control = fixture.by_role(Role::TEXT_INPUT).into_iter().next().expect("the field's text input");
     let label = fixture.by_role(Role::LABEL).into_iter().next().expect("the field's label");
     assert!(!label.rect.intersects(control.rect), "the label sits beside the control");
     assert_ne!(focused_key(fixture.tree()), control.node, "the control starts unfocused");
     fixture.click(&label);
-    let tree = fixture.tree();
-    let got = focused_key(tree);
-    let dump = |k| format!("{:?} name={:?} parent={:?}", tree.role_of(k), tree.name_of(k), tree.parent_of_key(k).map(|p| (tree.role_of(p), tree.name_of(p).map(str::to_owned))));
-    assert_eq!(got, control.node, "DIAG focused {} control {}", dump(got), dump(control.node));
+    assert_eq!(focused_key(fixture.tree()), control.node, "the label's click focused the control");
 }
 
 const READOUT: &str = "12 mm";

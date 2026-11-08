@@ -5,10 +5,15 @@ use crate::contract::{Bind, BindMut, Common, Component, Cx, Edit as _, EditRespo
 use crate::primitives::IconSpec;
 use crate::runtime::commands::CommandRef;
 use crate::runtime::env::Label;
+use crate::runtime::focus::KeyUse;
 use crate::style::{ComponentStyle, FocusLook, IconLook, StyleCx, SurfaceLook, TextLook, TypeRole};
 use craft_behavior::{Metrics, Sense};
+use craft_keymap::{Chord, Key};
 use craft_theme::{Flags, Variant};
 use egui::Vec2;
+
+/// The chords an armed button keeps.
+const ESCAPE: &[Chord] = &[Chord::plain(Key::Escape)];
 
 /// The style of a toggle button.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
@@ -55,19 +60,40 @@ pub struct ToggleButton<'a> {
     #[style_key]
     #[prop(flag)]
     icon_only: bool,
+    /// While on, the button keeps Escape and turns itself off with it, so Escape in a dialog ends the armed mode before
+    /// it closes the dialog. Off, the button keeps no Escape.
+    #[prop(flag)]
+    escape_disarms: bool,
 }
 
 impl<'a> ToggleButton<'a> {
     /// A button named `label` that edits `value`.
     pub fn new(label: impl Into<Label>, value: Bind<'a, bool>) -> Self {
-        ToggleButton { common: Common::new(), value: Some(value), icon: None, on_icon: None, trailing_icon: None, role: None, icon_only: false }
-            .label(label)
+        ToggleButton {
+            common: Common::new(),
+            value: Some(value),
+            icon: None,
+            on_icon: None,
+            trailing_icon: None,
+            role: None,
+            icon_only: false,
+            escape_disarms: false,
+        }
+        .label(label)
     }
 
     /// A button bound to a toggle `command`: its label, enabled state and checked state follow the command.
     pub fn command(command: impl Into<CommandRef>) -> Self {
-        let button =
-            ToggleButton { common: Common::new(), value: None, icon: None, on_icon: None, trailing_icon: None, role: None, icon_only: false };
+        let button = ToggleButton {
+            common: Common::new(),
+            value: None,
+            icon: None,
+            on_icon: None,
+            trailing_icon: None,
+            role: None,
+            icon_only: false,
+            escape_disarms: false,
+        };
         <ToggleButton as Props>::command(button, command)
     }
 
@@ -110,12 +136,20 @@ impl Component for ToggleButton<'_> {
         Sense::CLICK | Sense::FOCUS
     }
 
+    fn keys(&self) -> KeyUse {
+        let armed = self.escape_disarms && self.value.as_ref().is_some_and(|value| value.holds(&true));
+        if armed { Self::KEYS.with_claims(ESCAPE) } else { Self::KEYS }
+    }
+
     fn bind(&mut self) -> Option<BindMut<'_, bool>> {
         self.value.as_mut().map(Bind::reborrow)
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         cx.join_roving();
+        if self.escape_disarms && cx.value().copied() == Some(true) && cx.take_claimed(ESCAPE[0]) {
+            cx.set(false);
+        }
         if cx.activation().is_some() && self.value.is_some() {
             let on = cx.value().copied().unwrap_or(false);
             cx.set(!on);

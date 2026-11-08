@@ -175,6 +175,20 @@ impl<'a, T: Value> Bind<'a, T> {
         self.reset.as_ref()
     }
 
+    /// The binding holds one value equal to `shown` this pass: what a component reads in `Component::keys`, which has
+    /// no context to read the value from.
+    pub(crate) fn holds(&self, shown: &T) -> bool
+    where
+        T: PartialEq,
+    {
+        match &self.source {
+            Source::Given(Mixed::Same(value)) => value == shown,
+            Source::Mut(value) => **value == *shown,
+            Source::MutMixed(Mixed::Same(value)) => value == shown,
+            _ => false,
+        }
+    }
+
     /// The binding as the pipeline reads and writes it.
     pub fn reborrow(&mut self) -> BindMut<'_, T> {
         let source = match &mut self.source {
