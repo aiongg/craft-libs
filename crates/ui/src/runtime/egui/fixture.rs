@@ -83,11 +83,7 @@ fn window_focus_facts(ctx: &Context, events: &[Event]) -> egui::ViewportIdMap<eg
         state.0 = last.or(state.0);
         state.0
     });
-    let mut facts = egui::ViewportIdMap::default();
-    if focused.is_some() {
-        facts.insert(egui::ViewportId::ROOT, egui::ViewportInfo { focused, ..egui::ViewportInfo::default() });
-    }
-    facts
+    std::iter::once((egui::ViewportId::ROOT, egui::ViewportInfo { focused, ..egui::ViewportInfo::default() })).collect()
 }
 
 /// The focus the fixture's window last reported; unset before any focus event.
