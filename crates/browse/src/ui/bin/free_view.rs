@@ -51,8 +51,8 @@ where
         .deletable(true)
         .rows_stamp(stamp_of(state.shown.as_ref(), &state.search, state.settings.icon_sort.as_ref()))
         .empty(empty);
-    let bin = snap.map_or(bin, |step| bin.snap(step));
-    let bin = moving.map_or(bin, |live| bin.moving(live));
+    let bin = if let Some(step) = snap { bin.snap(step) } else { bin };
+    let bin = if let Some(live) = moving { bin.moving(live) } else { bin };
     let out = bin.show_items(ui, &shown, &mut |key, _| {
         let tile = tile_of(&facts, key);
         match stack_led_by(cards, key) {

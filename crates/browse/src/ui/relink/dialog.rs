@@ -747,7 +747,7 @@ impl<K: Clone + PartialEq + Send + Sync + 'static> Model<K> {
         let before = self.row_sel.lead;
         let mut selection = self.row_sel.clone();
         let out = Table::<usize>::new(words.title.clone(), columns.clone())
-            .id((KEY, "table"))
+            .id_salt((KEY, "table"))
             .select(SelectMode::Single)
             .selection(Bind::bound(&mut selection))
             .sort(self.sort.clone())
@@ -871,7 +871,7 @@ impl<K: Clone + PartialEq + Send + Sync + 'static> Model<K> {
                 let candidates = &self.candidates;
                 let source = CandidateRows(candidates);
                 let _ = List::<PathBuf>::new(words.candidates.clone())
-                    .id((KEY, "candidates"))
+                    .id_salt((KEY, "candidates"))
                     .select(SelectMode::Single)
                     .selection(Bind::bound(&mut selection))
                     .sizing(Sizing::Content)
