@@ -307,6 +307,7 @@ impl Component for SwatchPair<'_> {
             let at = flow.to_physical(logical.translate(rect.min.to_vec2()));
             let mut flags = Flags::empty();
             flags.set(Flags::MIXED, self.wells[i].color.same().is_none());
+            flags.set(Flags::CHECKED, front);
             let part = cx
                 .part(WELL.at(i as u64), at)
                 .sense(Sense::CLICK | Sense::FOCUS)
@@ -401,7 +402,8 @@ impl Component for SwatchPair<'_> {
                 Some(color) => color.to_hex(),
                 None => cx.words::<ChoiceWords>().swatch_mixed.as_str().to_owned(),
             };
-            access.node(WELL.at(i as u64), Role::COLOR_WELL).value(value);
+            // The two wells are a choice of the active colour: radios, the front one checked, with the colour as value.
+            access.node(WELL.at(i as u64), Role::RADIO_BUTTON).value(value);
         }
     }
 
