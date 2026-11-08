@@ -21,5 +21,9 @@ craft_ui::words! {
         float_hint: template "docking.floatHint" = "Hold {key} to undock";
         /// The tooltip and accessible name of the panel-menu button.
         panel_menu: "docking.panelMenu" = "Panel Menu";
+
+        // PaneArea
+        /// The name of a pane's menu.
+        pane_menu: "paneArea.menu" = "Pane options";
     }
 }
