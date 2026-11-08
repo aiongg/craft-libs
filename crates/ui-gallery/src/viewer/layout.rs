@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 
 /// A panel of the viewer's dock layouts.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum GalleryPanel {
     /// The component tree.
     Components,
