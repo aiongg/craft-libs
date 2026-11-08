@@ -1,37 +1,47 @@
 //! `Navigator`: the preview box with the proxy rectangle of the view. The picture is fitted inside the box; a press
 //! moves the view, a drag of the proxy moves it by the distance dragged, a Cmd/Ctrl-drag zooms to the rectangle, the
-//! wheel zooms about the view centre and the arrow keys move it.
+//! wheel and `+` and `-` zoom about the view centre, and the arrow and page keys move it.
 
 use super::ProxyColor;
 use super::proxy::{preview_rect, proxy_quad, view_center_for, zoom_to_document_rect};
-use crate::canvas::{CanvasWords, NavigationOptions, WheelAction, WheelNavigation};
+use crate::canvas::{CanvasWords, NavigationOptions, PageKey, ViewEase, WheelAction, WheelNavigation};
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Name, Outcome, PaintUi, PartsCx,
     Pointer as _, Props as _, Remember as _, Role, WordSetCx as _,
 };
-use crate::primitives::ContentPainterCx;
 use crate::primitives::textures::CachedTexture;
+use crate::primitives::{ContentPainterCx, PaintShape};
 use crate::runtime::access::Numeric;
 use crate::runtime::env::Label;
-use crate::runtime::focus::{KeepKeys, KeyUse};
-use crate::style::{ComponentStyle, FocusLook, StyleColor, StyleCx};
+use crate::runtime::focus::{ActivateKeys, KeepKeys, KeyUse};
+use crate::style::{ComponentStyle, FocusLook, StyleCx, UiTokens};
+use craft_behavior::canvas::zoom;
 use craft_behavior::kurbo::{Point, Size};
 use craft_behavior::{
-    CancelReason, CanvasView, CursorIcon, CursorPriority, HitLevel, HitPriority, HitShape, Metrics, NavMove, PartKey, PressCancel, PressPhase, Sense,
+    AccessAction, AccessData, CancelReason, CanvasView, CursorIcon, CursorPriority, HitLevel, HitPriority, HitShape, Metrics, NavMove, PartKey,
+    PressCancel, PressPhase, Sense,
 };
-use egui::{Color32, Pos2, Rect, Response, Stroke, StrokeKind, Vec2, pos2};
+use craft_keymap::{Chord, Key, Mods};
+use egui::{Color32, CornerRadius, Pos2, Rect, Response, Vec2, pos2};
 use std::ops::Deref;
 
-const WELL: PartKey = PartKey::new("well");
+pub(super) const WELL: PartKey = PartKey::new("well");
 const PROXY: PartKey = PartKey::new("proxy");
+/// The accessible scroll bars: sub-nodes with no part of their own.
 const HORIZONTAL: PartKey = PartKey::new("horizontal");
 const VERTICAL: PartKey = PartKey::new("vertical");
 
-/// An arrow key moves the view by this share of the visible span, Shift by `SHIFT_STEP`, Page Up and Page Down by
-/// `PAGE_STEP`.
+/// The keyboard path of the well and the proxy.
+const POINTER_ONLY: &str = "the arrow and page keys move the view and + and - step the zoom; the zoom rectangle has no numeric form";
+
+/// An arrow key, an AccessKit scroll or a scroll bar's Increment moves the view by this share of the visible span,
+/// Shift with an arrow by `SHIFT_STEP`.
 const ARROW_STEP: f32 = 0.1;
 const SHIFT_STEP: f32 = 0.5;
-const PAGE_STEP: f32 = 1.0;
+
+/// The keys that step the zoom ladder, with the direction of the step.
+const ZOOM_KEYS: [(Chord, i32); 4] =
+    [(Chord::plain(Key::Plus), 1), (Chord::plain(Key::Equals), 1), (Chord::new(Mods::SHIFT, Key::Equals), 1), (Chord::plain(Key::Minus), -1)];
 
 /// A closure that paints the document's picture into the fitted rect.
 pub struct NavigatorPaint<'a>(Box<dyn FnOnce(&ContentPainterCx<'_>, Rect) + 'a>);
@@ -75,10 +85,8 @@ pub struct NavigatorStyle {
     focus: FocusLook,
     /// Between the box and the fitted document.
     inset: f32,
-    proxy_width: f32,
-    halo_width: f32,
-    halo: StyleColor,
-    radius: f32,
+    /// The corners of an upright proxy.
+    radius: CornerRadius,
 }
 
 /// The preview box of the Navigator panel with the proxy rectangle of the view.
@@ -87,10 +95,15 @@ pub struct NavigatorStyle {
 ///   the view by the distance dragged. Escape puts the view back as it was at the press.
 /// - With Cmd (macOS) or Ctrl held at the press, the drag draws a rectangle and the release zooms the view to it.
 /// - The wheel zooms about the view centre, one notch at a time, whether or not Zoom with Scroll Wheel is on; a pinch
-///   zooms the same way when the navigation options allow it. With Animated Zoom on, the output asks the app to ease
-///   the zoom.
-/// - Focused, the arrow keys move the view by a tenth of its span (Shift: half), Page Up and Page Down by a span.
-/// - The box has two AccessKit scroll bars, the view centre in percent of the document; a set value moves the view.
+///   zooms the same way when the navigation options allow it.
+/// - Focused, the arrow keys move the view by a tenth of its span (Shift: half); Page Up, Page Down, Home and End
+///   scroll as on the canvas ([`PageKey`]); `+` and `-` step the zoom ladder, and a step past a limit changes nothing.
+/// - With Animated Zoom on, a zoom (the wheel, `+` and `-`, the zoom rectangle) is not written into the bound view:
+///   the output's [`ease`](NavigatorOutput::ease) carries the target for the app's `ZoomAnimation`.
+/// - While a press is held, the wheel, the keys and AccessKit requests change nothing.
+/// - The box pans for AccessKit (the scroll actions move the view as the arrows do) and has two scroll-bar nodes, the
+///   view centre in percent of the document, whose Increment and Decrement move the view by the arrow step and whose
+///   set value moves the view.
 /// - The proxy follows a rotated or mirrored view as a quad.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(content_painter)]
@@ -109,7 +122,7 @@ pub struct Navigator<'a> {
     #[prop]
     proxy: ProxyColor,
     zoom_rect: Option<Rect>,
-    animate: bool,
+    ease: Option<(CanvasView, ViewEase)>,
 }
 
 impl<'a> Navigator<'a> {
@@ -123,7 +136,7 @@ impl<'a> Navigator<'a> {
             navigation: NavigationOptions::default(),
             proxy: ProxyColor::Default,
             zoom_rect: None,
-            animate: false,
+            ease: None,
         }
         .label(label)
     }
@@ -188,7 +201,7 @@ fn centred(view: &CanvasView, center: Point, document: Size) -> CanvasView {
 impl Component for Navigator<'_> {
     const ROLE: Role = Role::GROUP;
     const OVERLAYS: bool = false;
-    const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_keep(KeepKeys::BlockArrows);
+    const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_keep(KeepKeys::BlockArrows).with_activate(ActivateKeys::Neither);
     type Style = NavigatorStyle;
     type Output = NavigatorOutput;
 
@@ -197,10 +210,7 @@ impl Component for Navigator<'_> {
             metrics: Metrics::new().min_size(Vec2::new(cx.tokens.size.plot.width, cx.tokens.size.plot.height)),
             focus: cx.focus_look(),
             inset: cx.tokens.space.gap.inline,
-            proxy_width: cx.tokens.stroke.medium,
-            halo_width: cx.tokens.stroke.thin,
-            halo: cx.color(cx.tokens.color.overlay.halo),
-            radius: cx.tokens.shape.radius.sm,
+            radius: UiTokens::corner(cx.tokens.shape.radius.sm),
         }
     }
 
@@ -217,22 +227,16 @@ impl Component for Navigator<'_> {
     }
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
-        cx.part(WELL, rect).sense(Sense::CLICK | Sense::DRAG).pointer_only(
-            "the arrow keys move the view; the zoom field and Zoom In and Zoom Out set the zoom, the zoom rectangle has no numeric form",
-        );
-        for bar in [HORIZONTAL, VERTICAL] {
-            cx.part(bar, rect).sense(Sense::HOVER).priority(HitPriority::new(HitLevel::Background, 0)).keyboard_via(WELL);
-        }
+        cx.part(WELL, rect).sense(Sense::CLICK | Sense::DRAG).pointer_only(POINTER_ONLY);
         let Some(view) = cx.value().copied() else { return };
-        let inset = cx.style.inset;
-        let quad = self.quad(&view, rect, inset);
+        let quad = self.quad(&view, rect, cx.style.inset);
         if quad.len() >= 3 {
             cx.part(PROXY, HitShape::Polygon(quad))
                 .sense(Sense::DRAG)
                 .priority(HitPriority::new(HitLevel::Handle, 0))
                 .cursor(CursorIcon::Grab)
                 .drag_cursor(CursorIcon::Grabbing)
-                .keyboard_via(WELL);
+                .pointer_only(POINTER_ONLY);
         }
     }
 
@@ -243,21 +247,6 @@ impl Component for Navigator<'_> {
         let ppp = cx.env.scale().0;
         let fitted = preview_rect(rect, document, cx.style.inset);
         let scale = f64::from(fitted.width() / document.width.max(1.0) as f32);
-
-        if let Some(wheel) = cx.take_wheel() {
-            let options = NavigationOptions { zoom_with_wheel: true, ..self.navigation };
-            let action = cx.memory::<WheelNavigation>().read(&wheel, &options);
-            if let Some(action @ (WheelAction::Zoom(_) | WheelAction::SnapZoom(_))) = action {
-                let mut next = view;
-                WheelNavigation::apply(&mut next, action, view.rect.center(), document, ppp);
-                next.center = view.center;
-                if next != view {
-                    self.animate = self.navigation.animated_zoom;
-                    cx.set(next);
-                    return;
-                }
-            }
-        }
 
         let proxy = cx.part_if_declared(PROXY).map(|part| (part.press, part.hovered));
         let well = (cx.part(WELL).press, cx.part(WELL).hovered);
@@ -281,6 +270,8 @@ impl Component for Navigator<'_> {
                 }
             }
         }
+        // The view the zoom rectangle asks for at its release.
+        let mut boxed = None;
         if held.active {
             let from = held.from.unwrap_or(view);
             let (zooming, moves_by_drag) = (held.zoom, held.on_proxy);
@@ -293,10 +284,10 @@ impl Component for Navigator<'_> {
                 }
             };
             match press.phase {
-                PressPhase::Drag { start, pos, .. } if zooming => {
+                PressPhase::DragStart { start, pos, .. } | PressPhase::Drag { start, pos, .. } if zooming => {
                     self.zoom_rect = Some(Rect::from_two_pos(start.origin, pos).intersect(fitted));
                 }
-                PressPhase::Drag { start, pos, .. } => cx.propose(at(pos, start.origin)),
+                PressPhase::DragStart { start, pos, .. } | PressPhase::Drag { start, pos, .. } => cx.propose(at(pos, start.origin)),
                 PressPhase::Release { start, pos, .. } if zooming => {
                     let r = Rect::from_two_pos(start.origin, pos).intersect(fitted);
                     let to_doc = |p: Pos2| ((p.x - fitted.min.x) / scale as f32, (p.y - fitted.min.y) / scale as f32);
@@ -308,7 +299,7 @@ impl Component for Navigator<'_> {
                         document,
                         ppp,
                     ) {
-                        cx.set(next);
+                        boxed = Some(next);
                     }
                     held.active = false;
                 }
@@ -326,37 +317,108 @@ impl Component for Navigator<'_> {
                 _ => {}
             }
         }
+        let running = held.active || cx.gesture().is_some();
         *cx.memory::<Held>() = held;
 
-        let span = view.rect.size();
-        let rtl = cx.flow.is_rtl();
+        // While a press is held, the wheel, the keys and AccessKit requests change nothing; they are still taken.
+        let view = cx.value().copied().unwrap_or(view);
+        let mut next = boxed.unwrap_or(view);
+        let mut zoomed = boxed.is_some();
+        if let Some(wheel) = cx.take_wheel()
+            && !running
+        {
+            let options = NavigationOptions { zoom_with_wheel: true, ..self.navigation };
+            let action = cx.memory::<WheelNavigation>().read(&wheel, &options);
+            if let Some(action @ (WheelAction::Zoom(_) | WheelAction::SnapZoom(_))) = action {
+                let before = next;
+                WheelNavigation::apply(&mut next, action, before.rect.center(), document, ppp);
+                next.center = before.center;
+                zoomed |= next.zoom != before.zoom;
+            }
+        }
+        for (chord, dir) in ZOOM_KEYS {
+            while cx.take_claimed(chord) {
+                if !running {
+                    zoomed |= zoom::step(&mut next, dir, document, ppp);
+                }
+            }
+            cx.claim(chord);
+        }
+
+        let span = next.rect.size();
+        let side = if cx.flow.is_rtl() { -1.0 } else { 1.0 };
         let mut delta = Vec2::ZERO;
         while let Some((mv, mods)) = cx.intents().take_move() {
+            if running {
+                continue;
+            }
             let share = if mods.extend { SHIFT_STEP } else { ARROW_STEP };
-            let side = if rtl { -1.0 } else { 1.0 };
             match mv {
                 NavMove::Back => delta.x -= side * span.x * share,
                 NavMove::Forward => delta.x += side * span.x * share,
                 NavMove::Up => delta.y -= span.y * share,
                 NavMove::Down => delta.y += span.y * share,
-                NavMove::PageUp => delta.y -= span.y * PAGE_STEP,
-                NavMove::PageDown => delta.y += span.y * PAGE_STEP,
-                NavMove::Start | NavMove::End => {}
+                _ => {
+                    if let Some(key) = PageKey::of(mv, mods, span) {
+                        key.apply(&mut next, document);
+                    }
+                }
+            }
+        }
+        // AccessKit's scroll actions are the arrows for assistive technology.
+        while let Some(request) = cx.intents().take_scroll_access(false) {
+            if running {
+                continue;
+            }
+            match (request.action, request.data) {
+                (AccessAction::ScrollRight, _) => delta.x += span.x * ARROW_STEP,
+                (AccessAction::ScrollLeft, _) => delta.x -= span.x * ARROW_STEP,
+                (AccessAction::ScrollDown, _) => delta.y += span.y * ARROW_STEP,
+                (AccessAction::ScrollUp, _) => delta.y -= span.y * ARROW_STEP,
+                // The offset is the document point at the visible area's top-left corner.
+                (AccessAction::SetScrollOffset, Some(AccessData::SetScrollOffset(offset))) => {
+                    let visible = next.visible();
+                    next.center = Point::new(offset.x + visible.width() / 2.0, offset.y + visible.height() / 2.0);
+                }
                 _ => {}
             }
         }
-        let mut next = view;
         if delta != Vec2::ZERO {
-            let by = view.unmap_vec(delta);
-            next = centred(&view, Point::new(view.center.x + by.x, view.center.y + by.y), document);
+            let by = next.unmap_vec(delta);
+            next.center = Point::new(next.center.x + by.x, next.center.y + by.y);
         }
-        if let Some(percent) = cx.intents().take_set_value_at(HORIZONTAL) {
+        let visible = next.visible();
+        let bars = |request: &craft_behavior::AccessRequest| {
+            matches!(request.action, AccessAction::Increment | AccessAction::Decrement)
+                && [HORIZONTAL, VERTICAL].into_iter().any(|key| request.target == Some(key.into()))
+        };
+        while let Some(request) = cx.intents().take_access_where(bars) {
+            if running {
+                continue;
+            }
+            let by = if request.action == AccessAction::Increment { f64::from(ARROW_STEP) } else { -f64::from(ARROW_STEP) };
+            if request.target == Some(HORIZONTAL.into()) {
+                next.center.x += by * visible.width();
+            } else {
+                next.center.y += by * visible.height();
+            }
+        }
+        if let Some(percent) = cx.intents().take_set_value_at(HORIZONTAL).filter(|percent| percent.is_finite() && !running) {
             next.center.x = (percent / 100.0).clamp(0.0, 1.0) * document.width;
         }
-        if let Some(percent) = cx.intents().take_set_value_at(VERTICAL) {
+        if let Some(percent) = cx.intents().take_set_value_at(VERTICAL).filter(|percent| percent.is_finite() && !running) {
             next.center.y = (percent / 100.0).clamp(0.0, 1.0) * document.height;
         }
-        if next != view {
+
+        let next = centred(&next, next.center, document);
+        if next == view {
+            return;
+        }
+        if zoomed && self.navigation.animated_zoom {
+            // A zoom that keeps the centre eases about it; the zoom rectangle moves the centre, so it eases freely.
+            let anchor = (next.center == view.center).then_some((view.center, view.rect.center()));
+            self.ease = Some((next, ViewEase { anchor }));
+        } else {
             cx.set(next);
         }
     }
@@ -367,7 +429,7 @@ impl Component for Navigator<'_> {
         let fitted = preview_rect(rect, self.document, style.inset);
         let preview = std::mem::replace(&mut self.preview, NavigatorPreview::None);
         let painter = ui.content_painter(cx);
-        painter.plot_frame(rect);
+        let inside = painter.plot_frame(rect);
         match preview {
             NavigatorPreview::Texture(texture) => {
                 painter.checker(fitted);
@@ -377,26 +439,16 @@ impl Component for Navigator<'_> {
             NavigatorPreview::None => painter.checker(fitted),
         }
         let Some(view) = cx.value().copied() else { return };
-        let raw = &painter.painter;
-        let clip = rect.shrink(style.halo_width);
-        let halo = Stroke::new(style.proxy_width + 2.0 * style.halo_width, style.halo.egui());
-        let line = Stroke::new(style.proxy_width, Color32::from(self.proxy.color()));
+        // Upright, the proxy is a rounded rectangle; turned or mirrored, the quad's edges, each clipped to the box, so
+        // no line runs along the box's edge.
         let quad = proxy_quad(&view, self.document, fitted);
-        if view.axis_aligned() {
-            let proxy = Rect::from_points(&quad).intersect(clip);
-            if proxy.is_positive() {
-                let radius = egui::CornerRadius::same(style.radius.round().clamp(0.0, 255.0) as u8);
-                raw.rect_stroke(proxy, radius, halo, StrokeKind::Middle);
-                raw.rect_stroke(proxy, radius, line, StrokeKind::Middle);
-            }
+        let shapes: Vec<PaintShape> = if view.axis_aligned() {
+            let proxy = Rect::from_points(&quad).intersect(inside);
+            proxy.is_positive().then_some(PaintShape::Rect(proxy, style.radius)).into_iter().collect()
         } else {
-            let edges: Vec<[Pos2; 2]> = (0..4).filter_map(|at| clip_segment(quad[at], quad[(at + 1) % 4], clip)).collect();
-            for stroke in [halo, line] {
-                for edge in &edges {
-                    raw.line_segment(*edge, stroke);
-                }
-            }
-        }
+            (0..4).filter_map(|at| clip_segment(quad[at], quad[(at + 1) % 4], inside)).map(|edge| PaintShape::Path(edge.to_vec())).collect()
+        };
+        painter.outline_in(&shapes, Color32::from(self.proxy.color()));
         if let Some(zoom) = self.zoom_rect.filter(|zoom| zoom.is_positive()) {
             painter.marching_ants(&[zoom.left_top(), zoom.right_top(), zoom.right_bottom(), zoom.left_bottom()], true, 0.0);
         }
@@ -404,20 +456,23 @@ impl Component for Navigator<'_> {
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let Some(view) = cx.value().copied() else { return };
+        access.pans(true, true);
         let words = cx.words::<CanvasWords>();
-        let percent = |center: f64, extent: f64| (center / extent.max(1.0) * 100.0).clamp(0.0, 100.0);
-        for (key, name, value) in [
-            (HORIZONTAL, &words.navigator_horizontal, percent(view.center.x, self.document.width)),
-            (VERTICAL, &words.navigator_vertical, percent(view.center.y, self.document.height)),
+        let visible = view.visible();
+        let percent = |length: f64, extent: f64| length / extent.max(1.0) * 100.0;
+        for (key, name, center, extent, span) in [
+            (HORIZONTAL, &words.navigator_horizontal, view.center.x, self.document.width, visible.width()),
+            (VERTICAL, &words.navigator_vertical, view.center.y, self.document.height, visible.height()),
         ] {
             let node = access.node(key, Role::SCROLL_BAR);
             node.name = Name::Text(name.as_str().to_owned());
-            node.numeric = Some(Numeric::new(value, 0.0..=100.0));
+            let numeric = Numeric::new(percent(center, extent).clamp(0.0, 100.0), 0.0..=100.0);
+            node.numeric = Some(numeric.step(percent(span * f64::from(ARROW_STEP), extent)));
         }
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> NavigatorOutput {
-        NavigatorOutput { view: cx.edit_response(), animate_zoom: self.animate }
+        NavigatorOutput { view: cx.edit_response(), ease: self.ease }
     }
 }
 
@@ -425,10 +480,12 @@ impl Component for Navigator<'_> {
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct NavigatorOutput {
-    /// The view: a drag's gesture, a wheel notch, a key or a zoom rectangle as one change.
+    /// The view: a drag's gesture, a key, an AccessKit request, or a zoom with Animated Zoom off, as one change.
     pub view: EditResponse<CanvasView>,
-    /// The change was a wheel zoom with Animated Zoom on: the app starts a `ZoomAnimation` from the view before it.
-    pub animate_zoom: bool,
+    /// A zoom with Animated Zoom on: the view it eases to and how. The bound view is unchanged; the app begins its
+    /// `ZoomAnimation` from the bound view with the ease's anchor and copies the target into it, as it does with
+    /// `ToolHostResponse::view` and `ToolHostResponse::ease`.
+    pub ease: Option<(CanvasView, ViewEase)>,
 }
 
 impl Deref for NavigatorOutput {

@@ -73,6 +73,9 @@ pub use navigator::{
     proxy_quad, view_center_for, zoom_to_document_rect,
 };
 // End of canvas-navigator-a.
+// l4e-navprev
+pub use navigator::NavigatorStyle;
+// End of l4e-navprev.
 
 use crate::contract::{Common, Component, Container, ContainerProps, Cx, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role, Sizing};
 use crate::runtime::env::Label;

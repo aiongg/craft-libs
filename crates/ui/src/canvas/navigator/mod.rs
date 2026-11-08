@@ -4,7 +4,7 @@
 //! | Part | Names |
 //! |---|---|
 //! | Geometry, for tests and for apps with their own preview | [`preview_rect`], [`proxy_quad`], [`zoom_to_document_rect`], [`view_center_for`] |
-//! | The preview box | [`Navigator`], [`NavigatorPreview`], [`NavigatorPaint`], [`NavigatorOutput`] |
+//! | The preview box | [`Navigator`], [`NavigatorPreview`], [`NavigatorPaint`], [`NavigatorOutput`], [`NavigatorStyle`] |
 //! | The zoom row | [`NavigatorZoomRow`], [`NavigatorZoomOutput`] |
 //! | Panel Options | [`NavigatorSettings`], [`NavigatorOptions`], [`ProxyColor`], [`NAVIGATOR_PROXY_COLOR_KEY`]; the dialog is `patterns::form_dialogs::NavigatorOptionsDialog` |
 //! | The panel menu | [`NavigatorCommands`] |

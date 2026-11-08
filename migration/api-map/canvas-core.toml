@@ -255,7 +255,7 @@ name = "NavigatorOutput"
 old = "craft_ui::canvas::navigator::preview::NavigatorOutput"
 new = "craft_ui::canvas::NavigatorOutput"
 status = "moved"
-note = "`view` (the `EditResponse<CanvasView>`) and `animate_zoom`."
+note = "`view` (the `EditResponse<CanvasView>`) and `ease: Option<(CanvasView, ViewEase)>`: a zoom under Animated Zoom is not written into the bound view; the app begins its `ZoomAnimation` and copies the target in, as with `ToolHostResponse`."
 
 [[type]]
 name = "NavigatorPreview"
@@ -351,9 +351,9 @@ note = "The words are rows of `CanvasWords`."
 [[type]]
 name = "NavigatorStyle"
 old = "craft_ui::canvas::navigator::style::NavigatorStyle"
-new = ""
-status = "removed"
-note = "The look comes from the tokens through the component styles of the children."
+new = "craft_ui::canvas::NavigatorStyle"
+status = "moved"
+note = "The Navigator's component style, read from the tokens: the inset round the document and the proxy's corners. The proxy line and halo are the content kit's outline (`ContentPainterCx::outline_in`)."
 
 [[type]]
 name = "preview_rect"
@@ -1200,3 +1200,44 @@ new = "answers(requests.take_answers()) after requests.answer_color(key, color)"
 type = "NavigatorOptionsDialog"
 old = "cancel_color()"
 new = "requests.cancel_color()"
+
+# l4e-navprev: the legacy Navigator's setters.
+[[setter]]
+type = "Navigator"
+old = "new(id_salt, size, numbers)"
+new = "new(label, Bind::bound(&mut view), size)"
+note = "The label names the AccessKit group; the view is bound here, not passed to `show`. Numbers come from the env's locale."
+
+[[setter]]
+type = "Navigator"
+old = "settings(&mut settings)"
+new = "proxy(settings.options.proxy_color)"
+note = "The Navigator reads only the proxy colour. Panel Options is the app command `NavigatorCommands::Options`, which opens `NavigatorOptionsDialog` and writes the settings."
+
+[[setter]]
+type = "Navigator"
+old = "labels(NavigatorLabels)"
+new = ""
+note = "Removed: the scroll-bar names are `CanvasWords` (`navigator_horizontal`, `navigator_vertical`), translated by the catalog; the group's name is the label of `new`."
+
+[[setter]]
+type = "Navigator"
+old = "size(ControlSize)"
+new = "size(ControlSize)"
+
+[[setter]]
+type = "Navigator"
+old = "enabled(bool)"
+new = "enabled(bool)"
+
+[[setter]]
+type = "Navigator"
+old = "navigation(&NavigationOptions)"
+new = "navigation(NavigationOptions)"
+
+[[setter]]
+type = "Navigator"
+old = "show(ui, &mut view)"
+new = "show(ui)"
+note = "Returns `NavigatorOutput`: the view's `EditResponse` and, under Animated Zoom, `ease` with the target view the app eases to."
+# End of l4e-navprev.
