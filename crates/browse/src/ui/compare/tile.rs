@@ -207,8 +207,8 @@ impl<'a> CompareTile<'a> {
                 (_, Some(texture)) => PreviewState::Ready(texture),
             };
             let mut pane = PreviewPane::state(label, preview, &held);
-            if let Some(PaneOverlay(paint, ..)) = overlay {
-                pane = pane.overlay(paint);
+            if let Some(overlay) = overlay {
+                pane = pane.overlay(overlay.into_paint());
             }
             let out = pane.show(ui);
             cx.memory::<Well>().0 = Some(out.response.rect);
