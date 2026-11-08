@@ -4,13 +4,16 @@
 //! canvas's press, hover and keys to the trait's calls; pointer positions are screen points, and the tool maps
 //! them to document units with the canvas's view ([`ToolContext::space`]), so it holds no copy of the view.
 
-use super::{CanvasSpace, ToolPath};
+use super::{CanvasSpace, Snap, ToolPath};
 use crate::primitives::{ContentPainterCx, Draw};
-use crate::runtime::env::Label;
+use crate::runtime::env::{Env, Label, PointSize, UnitWords, Units, WordSet, Words};
+use crate::style::StyleCx;
 use craft_behavior::kurbo::Point;
-use craft_behavior::{CancelReason, CanvasView, Cursor, CursorIcon, PointerButton, PointerSample};
+use craft_behavior::{Axis, CancelReason, CanvasView, Cursor, CursorIcon, PointerButton, PointerSample};
+use craft_i18n::{Digits, Format, Region};
 use craft_keymap::{Chord, Key, Mods};
 use egui::{Pos2, Rect, Vec2};
+use std::sync::{Arc, OnceLock};
 
 /// A pointer sample delivered to a tool, in screen points, with the pen's reading. A mouse reports pressure 1, no
 /// tilt and no eraser.
@@ -108,6 +111,77 @@ pub struct ViewEase {
     pub anchor: Option<(Point, Pos2)>,
 }
 
+/// What a tool is to assistive technology this pass: one graphics object over the tool's drawing, with a child for
+/// each anchor. The host emits it through the canvas's access path in [`ToolHost::run`](super::ToolHost::run), as
+/// a hover-only node that is not a Tab stop. The texts are the tool's words in the app's language, with the live
+/// size in the units of the document ([`ToolContext::units`]): `Rectangle 120 x 80 px` while a rectangle is dragged.
+#[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
+pub struct ToolAccess {
+    /// The object's name.
+    pub name: String,
+    /// What the object adds to its name, such as the numbers the tool reads out.
+    pub description: Option<String>,
+    /// The drawing's bounds in document units. `None` gives a node of no size at the canvas centre.
+    pub bounds: Option<craft_behavior::kurbo::Rect>,
+    /// The points of the drawing the user can grab or reach, in reading order.
+    pub anchors: Vec<ToolAnchor>,
+}
+
+impl ToolAccess {
+    /// An object named `name`, with no description, bounds or anchors.
+    pub fn new(name: impl Into<String>) -> Self {
+        ToolAccess { name: name.into(), description: None, bounds: None, anchors: Vec::new() }
+    }
+
+    /// The object's description.
+    #[must_use]
+    pub fn description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+
+    /// The drawing's bounds in document units.
+    #[must_use]
+    pub fn bounds(mut self, bounds: craft_behavior::kurbo::Rect) -> Self {
+        self.bounds = Some(bounds);
+        self
+    }
+
+    /// Adds an anchor after those already given.
+    #[must_use]
+    pub fn anchor(mut self, anchor: ToolAnchor) -> Self {
+        self.anchors.push(anchor);
+        self
+    }
+}
+
+/// A point of a tool's drawing for assistive technology (a pen's anchor point, a crop corner).
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct ToolAnchor {
+    /// The anchor's name.
+    pub name: String,
+    /// Where it lies, in document units.
+    pub at: Point,
+    /// What the anchor adds to its name, such as its coordinates.
+    pub description: Option<String>,
+}
+
+impl ToolAnchor {
+    /// An anchor named `name` at `at`.
+    pub fn new(name: impl Into<String>, at: Point) -> Self {
+        ToolAnchor { name: name.into(), at, description: None }
+    }
+
+    /// The anchor's description.
+    #[must_use]
+    pub fn description(mut self, description: impl Into<String>) -> Self {
+        self.description = Some(description.into());
+        self
+    }
+}
+
 /// What a tool asked the host for in a call; the host applies it after the call.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct ToolRequests {
@@ -135,6 +209,9 @@ pub struct ToolContext<'a> {
     space: Option<CanvasSpace>,
     down: &'a [Key],
     painter: Option<&'a ContentPainterCx<'a>>,
+    style: Option<StyleCx<'a>>,
+    env: Option<&'a Env>,
+    snap: Option<&'a Snap<'a>>,
     requests: ToolRequests,
 }
 
@@ -151,6 +228,9 @@ impl<'a> ToolContext<'a> {
             space,
             down: &[],
             painter: None,
+            style: None,
+            env: None,
+            snap: None,
             requests: ToolRequests::default(),
         }
     }
@@ -197,6 +277,28 @@ impl<'a> ToolContext<'a> {
         self
     }
 
+    /// The style context of a paint call; the host sets it.
+    #[must_use]
+    pub(crate) fn styled(mut self, style: StyleCx<'a>) -> Self {
+        self.style = Some(style);
+        self
+    }
+
+    /// The env of the pass, which [`units`](Self::units) and [`words`](Self::words) read; the host sets it. A test of
+    /// a tool that formats values sets the env of its `Ui` (`Env::of`).
+    #[must_use]
+    pub fn env(mut self, env: &'a Env) -> Self {
+        self.env = Some(env);
+        self
+    }
+
+    /// The canvas's snapping, which [`snap`](Self::snap) applies; the host sets the one the app gave it.
+    #[must_use]
+    pub fn snapping(mut self, snap: &'a Snap<'a>) -> Self {
+        self.snap = Some(snap);
+        self
+    }
+
     /// The canvas's view and interface scale this pass, to map screen points to document units and back at run
     /// time; `None` for a canvas without a view. After [`set_view`](Self::set_view) it shows the view the tool
     /// asked for, so the calls after it in the pass start from there.
@@ -239,6 +341,46 @@ impl<'a> ToolContext<'a> {
         }
     }
 
+    /// `point`, a document point under the pointer, moved to what the canvas snaps it to (View > Snap To) with the
+    /// modifiers held now; the point itself when the canvas has no snapping. The tool builds no snapping of its
+    /// own.
+    pub fn snap(&self, point: Point) -> Point {
+        Point::new(self.snap_along(Axis::Y, point.x), self.snap_along(Axis::X, point.y))
+    }
+
+    /// The coordinate `position` across a guide that would run along `along`, snapped as [`snap`](Self::snap) does:
+    /// an x coordinate is across `Axis::Y`.
+    pub fn snap_along(&self, along: Axis, position: f64) -> f64 {
+        self.snap.map_or(position, |snap| snap.apply(along, position, self.mods))
+    }
+
+    /// The scope's number format and unit words, to write the values of a readout in the document's units and the
+    /// app's language. English with the system region's number format for a context built without an env.
+    pub fn units(&self) -> Units {
+        match self.env {
+            Some(env) => env.units(),
+            None => {
+                let (format, words) = fallback();
+                Units::new(Arc::clone(format), words.set::<UnitWords>(), Arc::clone(words), PointSize::default())
+            }
+        }
+    }
+
+    /// The word set `L` in the app's language: the tool's own words for its readout and its [`ToolAccess`]. English
+    /// for a context built without an env.
+    pub fn words<L: WordSet + Send + Sync + 'static>(&self) -> Arc<L> {
+        match self.env {
+            Some(env) => env.words::<L>(),
+            None => fallback().1.set::<L>(),
+        }
+    }
+
+    /// The style context of a paint call, to pick the theme colours the tool draws its draft in
+    /// ([`StyleCx::color`]) for [`Draw::fill`] and [`Draw::stroke`]; `None` in any other call.
+    pub fn style(&self) -> Option<&StyleCx<'a>> {
+        self.style.as_ref()
+    }
+
     /// Whether `key` is down now, whatever the tool kept: a marquee that sizes from its centre while Space is held
     /// reads `held(Key::Space)` on every drag. The host withholds Space from the app's shortcuts while a gesture
     /// runs, so a momentary Hand does not take over mid-drag.
@@ -265,6 +407,12 @@ impl<'a> ToolContext<'a> {
     pub(crate) fn take_requests(&mut self) -> ToolRequests {
         std::mem::take(&mut self.requests)
     }
+}
+
+/// The number format and English words of a context built without an env.
+fn fallback() -> &'static (Arc<Format>, Arc<Words>) {
+    static FALLBACK: OnceLock<(Arc<Format>, Arc<Words>)> = OnceLock::new();
+    FALLBACK.get_or_init(|| (Arc::new(Format::new(&Region::system(), Digits::Locale)), Arc::new(Words::english())))
 }
 
 /// A tool on the canvas. The app owns the value and hands it to [`ToolHost::run`](super::ToolHost::run) each
@@ -319,6 +467,13 @@ pub trait CanvasTool {
     /// the Hand and Zoom tools: no). Default: `true`.
     fn autoscrolls(&self) -> bool {
         true
+    }
+
+    /// What the tool is to assistive technology this pass: its drawing as one object with its anchors (a rectangle
+    /// being dragged: `Rectangle 120 x 80 px`), or `None` for a tool with nothing to describe. The host emits it
+    /// after [`paint`](Self::paint), with the same context. Default: `None`.
+    fn access(&self, _cx: &ToolContext<'_>) -> Option<ToolAccess> {
+        None
     }
 
     /// How the tool is reached without a pointer: a tool that creates or selects geometry names the command whose
