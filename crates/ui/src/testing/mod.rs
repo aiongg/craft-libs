@@ -31,10 +31,11 @@ pub mod suite;
 pub mod surface;
 pub mod text;
 pub mod tool_fixture;
+mod tool_story;
 pub mod wheel;
 pub mod windows;
 
-pub use crate::contract::{Exemption, PatternProbe, Probe, Registration};
+pub use crate::contract::{Exemption, PatternKind, PatternProbe, Probe, Registration};
 pub use craft_ui_macros::{story, trial};
 pub use fixture::{Fixture, Target};
 pub use frames::Frames;
@@ -43,6 +44,7 @@ pub use story::{
     CollectionKind, Drive, EditKind, Required, STORIES, Story, StoryData, StoryOutput, StoryRegistration, StorySnapshot, show_as_only_item,
 };
 pub use tool_fixture::ToolFixture;
+pub use tool_story::tool_story;
 pub use windows::install_spec;
 
 /// One registered trial.

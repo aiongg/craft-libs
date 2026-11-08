@@ -51,6 +51,8 @@ pub fn derive_component(input: TokenStream) -> TokenStream {
 
 /// Writes `Pattern` for a struct that only assembles components, and registers it so the components index and the
 /// suite list it. `#[pattern(probe(Type<..>, ..))]` lists the instantiations of a type with type parameters.
+/// `#[pattern(tool)]` registers a `CanvasTool` and `#[pattern(dialog)]` a `StackDialog` instead: their stories show
+/// them through a canvas or a dialog host, and the index lists them as a Tool or a Dialog.
 #[proc_macro_derive(Pattern, attributes(pattern))]
 pub fn derive_pattern(input: TokenStream) -> TokenStream {
     expanded(pattern::derive(input.into()))

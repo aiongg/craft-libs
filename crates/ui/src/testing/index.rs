@@ -47,7 +47,7 @@ fn registered_rows() -> Vec<(String, String, String, String)> {
     let patterns = registered
         .iter()
         .filter_map(|registration| registration.pattern_probe())
-        .map(|probe| (probe.module.to_owned(), shown(probe.type_name()), "Pattern".to_owned(), probe.purpose.replace('|', "\\|")));
+        .map(|probe| (probe.module.to_owned(), shown(probe.type_name()), probe.kind.label().to_owned(), probe.purpose.replace('|', "\\|")));
     let mut rows: Vec<_> = components.chain(patterns).collect();
     rows.sort();
     rows.dedup();

@@ -3936,7 +3936,6 @@ Reading text parts in trials: the widget id, the caret and the text a frame pain
 `ToolFixture` (22.4, the tool row): drives a [`CanvasTool`] on a [`Canvas`] through press, drag, release and
 
 - `craft_ui::testing::tool_fixture::DOCUMENT`: `pub const DOCUMENT: Size`. The size of the document the fixture's canvas shows, in document units: what the zoom tools read from the canvas's
-- `craft_ui::testing::tool_fixture::FREEHAND_RULE`: `pub const FREEHAND_RULE: &str`. The rule of the `probe` entry that names a freehand tool in `design/exceptions/<crate>/<family>.toml`; the
 - `craft_ui::testing::tool_fixture::ToolFixture`: `pub struct ToolFixture<T: CanvasTool + 'static>`. A tool shown on a canvas that fills the fixture's room, with the gesture phases the host reported.
   - `pub fn new(label: &'static str, tool: T) -> Self`. A canvas named `label` whose active tool is `tool`.
   - `pub fn with_body(label: &'static str, tool: T, body: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'static) -> Self`. A canvas named `label` whose body `body` fills: canvas controls shown at the body's rect join the canvas's

@@ -232,8 +232,10 @@ fn registrations(types: &[Type], declared: &Declared, shape: Shape) -> syn::Resu
 }
 
 /// The registration of each pattern type in `types`, with the `purpose` line of its doc comment.
-pub(crate) fn pattern_registrations(types: &[Type], purpose: &str) -> TokenStream {
-    let each = types.iter().map(|ty| quote!(::craft_ui::__register_pattern!(#ty, #purpose);));
+///
+/// `probe` names the `PatternProbe` constructor of the pattern's kind: `of`, `tool` or `dialog`.
+pub(crate) fn pattern_registrations(types: &[Type], purpose: &str, probe: &syn::Ident) -> TokenStream {
+    let each = types.iter().map(|ty| quote!(::craft_ui::__register_pattern!(#ty, #purpose, #probe);));
     let gate = registration_gate();
     quote! {
         #gate
@@ -619,7 +621,7 @@ pub(crate) fn register(input: TokenStream) -> syn::Result<TokenStream> {
         }
     }
     if registered.pattern {
-        return Ok(pattern_registrations(&registered.types, ""));
+        return Ok(pattern_registrations(&registered.types, "", &format_ident!("of")));
     }
     registrations(&registered.types, &registered.declared, registered.shape)
 }

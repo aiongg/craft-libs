@@ -244,6 +244,32 @@ fn carries_value<T: Component + 'static>() -> bool {
     TypeId::of::<ValueOf<T>>() != TypeId::of::<super::NoValue>()
 }
 
+/// What a registered pattern type is. The suite shows the stories of every kind the same way; the kind names the
+/// host the type's stories show it through, so the components index and the gallery list a tool or a stack dialog
+/// beside the components.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum PatternKind {
+    /// A composition of components (`#[derive(Pattern)]`).
+    Composition,
+    /// A canvas tool: its stories show it on a canvas (`#[pattern(tool)]`, a [`CanvasTool`](crate::canvas::CanvasTool)).
+    Tool,
+    /// A stack dialog: its stories show its dialog (`#[pattern(dialog)]`, a [`StackDialog`](crate::dialog::StackDialog)).
+    Dialog,
+}
+
+impl PatternKind {
+    /// The kind as the components index prints it.
+    pub const fn label(self) -> &'static str {
+        match self {
+            PatternKind::Composition => "Pattern",
+            PatternKind::Tool => "Tool",
+            PatternKind::Dialog => "Dialog",
+        }
+    }
+}
+
 /// What the suite knows about one registered pattern type: where it lives and what it is.
 #[doc(hidden)]
 #[derive(Clone, Copy, Debug)]
@@ -257,13 +283,35 @@ pub struct PatternProbe {
     pub module: &'static str,
     /// The first sentence of the type's doc comment.
     pub purpose: &'static str,
+    /// What the type is.
+    pub kind: PatternKind,
     name: fn() -> &'static str,
 }
 
 impl PatternProbe {
     /// The probe of the pattern `T`, declared in `module` of the crate target `crate_target` of package `crate_name`.
     pub const fn of<T: Pattern + 'static>(crate_name: &'static str, crate_target: &'static str, module: &'static str, purpose: &'static str) -> Self {
-        PatternProbe { crate_name, crate_target, module, purpose, name: std::any::type_name::<T> }
+        PatternProbe { crate_name, crate_target, module, purpose, kind: PatternKind::Composition, name: std::any::type_name::<T> }
+    }
+
+    /// The probe of the canvas tool `T`.
+    pub const fn tool<T: Pattern + crate::canvas::CanvasTool + 'static>(
+        crate_name: &'static str,
+        crate_target: &'static str,
+        module: &'static str,
+        purpose: &'static str,
+    ) -> Self {
+        PatternProbe { kind: PatternKind::Tool, ..Self::of::<T>(crate_name, crate_target, module, purpose) }
+    }
+
+    /// The probe of the stack dialog `T`.
+    pub const fn dialog<T: Pattern + crate::dialog::StackDialog + 'static>(
+        crate_name: &'static str,
+        crate_target: &'static str,
+        module: &'static str,
+        purpose: &'static str,
+    ) -> Self {
+        PatternProbe { kind: PatternKind::Dialog, ..Self::of::<T>(crate_name, crate_target, module, purpose) }
     }
 
     /// The type's name, with its type arguments.
@@ -378,22 +426,24 @@ macro_rules! __register_probe {
     };
 }
 
-/// Registers the pattern type `$ty` with the `$purpose` line of its doc comment.
+/// Registers the pattern type `$ty` with the `$purpose` line of its doc comment. `$probe` names the `PatternProbe`
+/// constructor of its kind (`of`, `tool` or `dialog`).
 #[doc(hidden)]
 #[macro_export]
 #[cfg(feature = "testing")]
 macro_rules! __register_pattern {
     ($ty:ty, $purpose:expr) => {
-        const _: () = {
-            #[$crate::__private::linkme::distributed_slice($crate::contract::REGISTRATIONS)]
-            #[linkme(crate = $crate::__private::linkme)]
-            static REGISTRATION: $crate::contract::Registration = $crate::contract::Registration::pattern($crate::contract::PatternProbe::of::<$ty>(
-                env!("CARGO_PKG_NAME"),
-                env!("CARGO_CRATE_NAME"),
-                module_path!(),
-                $purpose,
-            ));
-        };
+        $crate::__register_pattern!($ty, $purpose, of);
+    };
+    ($ty:ty, $purpose:expr, $probe:ident) => {
+        const _: () =
+            {
+                #[$crate::__private::linkme::distributed_slice($crate::contract::REGISTRATIONS)]
+                #[linkme(crate = $crate::__private::linkme)]
+                static REGISTRATION: $crate::contract::Registration = $crate::contract::Registration::pattern(
+                    $crate::contract::PatternProbe::$probe::<$ty>(env!("CARGO_PKG_NAME"), env!("CARGO_CRATE_NAME"), module_path!(), $purpose),
+                );
+            };
     };
 }
 
@@ -402,7 +452,7 @@ macro_rules! __register_pattern {
 #[macro_export]
 #[cfg(not(feature = "testing"))]
 macro_rules! __register_pattern {
-    ($ty:ty, $purpose:expr) => {};
+    ($ty:ty, $purpose:expr $(, $probe:ident)?) => {};
 }
 
 /// Registers the component type `$ty`; without the `testing` feature there is nothing to register.

@@ -496,7 +496,7 @@ impl CanvasTool for Outline {
     }
 
     fn command_form(&self) -> ToolPath {
-        ToolPath::Freehand
+        ToolPath::Freehand("the outline is fixed; no command changes it")
     }
 }
 

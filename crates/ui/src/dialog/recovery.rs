@@ -77,6 +77,7 @@ impl Outcome for RecoveryOutput {
 /// Recover (the accepting answer). Escape and the close action keep the copy for the next launch. The app enqueues
 /// the first document at `StartupStage::Recovery` and opens the next after taking each answer.
 #[derive(crate::contract::Pattern)]
+#[pattern(dialog)]
 pub struct RecoveryDialog {
     id: DialogId,
     document: RecoveredDocument,

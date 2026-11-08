@@ -1005,8 +1005,9 @@ impl CanvasTool for AnnotateTool {
             AnnotationTool::Select => {
                 ToolPath::Command("the arrow keys nudge and Delete removes the selection; the New Annotation... command places shapes")
             }
-            AnnotationTool::Eraser | AnnotationTool::Draw(AnnotationKind::Ink) => ToolPath::Freehand,
-            AnnotationTool::Draw(kind) if kind.is_markup() => ToolPath::Freehand,
+            AnnotationTool::Eraser => ToolPath::Freehand("none; Delete removes the selected annotation"),
+            AnnotationTool::Draw(AnnotationKind::Ink) => ToolPath::Freehand("none; a pen stroke has no numeric form"),
+            AnnotationTool::Draw(kind) if kind.is_markup() => ToolPath::Freehand("none; a markup stroke follows the pointer over the text"),
             AnnotationTool::Draw(_) => ToolPath::Command("the New Annotation... command"),
         }
     }

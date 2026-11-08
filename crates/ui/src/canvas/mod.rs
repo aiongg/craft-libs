@@ -120,8 +120,9 @@ pub enum ToolPath {
     /// The tool creates or selects geometry: a command form takes the same numbers. The text names the command
     /// ("the Crop To... command").
     Command(&'static str),
-    /// The tool is freehand (brush, pencil, eraser, smudge, clone): pointer only, a named exception.
-    Freehand,
+    /// The tool is freehand (brush, pencil, eraser, smudge, clone): pointer only. The text is the reason: it names
+    /// the command that does the same job, or says there is none.
+    Freehand(&'static str),
 }
 
 /// The style of a canvas: its surface comes from `ContainerProps`.
