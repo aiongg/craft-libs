@@ -132,6 +132,5 @@ fn blocking_overlay(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(ModalDragStrip, covers = [Default], drive = Drive::Never)]
 fn modal_drag_strip(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let room = ui.max_rect();
-    let height = crate::shell::SlotSize::TitleBar.resolve(&crate::runtime::env::Env::of(ui).tokens);
-    ModalDragStrip::new(egui::Rect::from_min_size(room.min, egui::vec2(room.width(), height))).show(ui, |_, _| {}).into()
+    ModalDragStrip::new(room).show(ui, |_, _| {}).into()
 }

@@ -8,17 +8,14 @@ use crate::contract::{
     ShowContainer as _,
 };
 use crate::runtime::access::Access;
-use crate::runtime::egui::{alloc, pass, viewports};
 use crate::runtime::env::Label;
 use crate::runtime::focus::Initial;
 use crate::runtime::memory::sub;
 use crate::runtime::overlay::{self, Backdrop, CloseReason, Rank};
-use crate::runtime::windows::{self, WindowHost};
+use crate::runtime::windows::WindowHost;
 use crate::sections::{DialogRole, FooterButton};
-use crate::shell::double_click_action;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{Metrics, Sense};
-use craft_host::target::WindowState;
 use egui::{Context, Id, Pos2, Rangef, Rect, Response, Ui, ViewportId};
 
 /// The style of a dialog: the surface and padding come from the container.
@@ -235,19 +232,16 @@ impl<'a> Dialog<'a> {
 
 impl Dialog<'_> {
     /// Keeps the window draggable under a modal dialog: while the dialog is the top layer, each drag area of its
-    /// window that the modal covers, less the caption buttons and the dialog itself, gets a [`ModalDragStrip`].
-    fn keep_window_draggable(&self, ui: &mut Ui, cx: &BodyCx<'_>) {
+    /// window that the modal covers, less the caption buttons and the dialog itself, gets a [`ModalDragStrip`]. The
+    /// dialog is the layer whose body runs, and its rect is the one the layer stack holds.
+    fn keep_window_draggable(&self, ui: &mut Ui) {
         let ctx = ui.ctx().clone();
-        let covers_window = match &self.props.mount {
-            Mount::Layer(overlay) => overlay.rank.is_modal(),
-            Mount::Viewport { fallback, .. } => fallback.rank.is_modal() && !viewports::available(&ctx),
-            _ => false,
-        };
-        if !covers_window || !on_top(&ctx, cx.id) {
-            return;
-        }
-        for (at, strip) in covered_strips(&ctx, pass::current_viewport(&ctx), cx.rect).into_iter().enumerate() {
-            ModalDragStrip::new(strip).id(sub(cx.id, ("drag_strip", at))).show(ui, |_, _| {});
+        // A dialog in its own OS window covers no title bar of the window below.
+        let covers_window = matches!(&self.props.mount, Mount::Layer(overlay) if overlay.rank.is_modal());
+        let Some(dialog) = overlay::drawing_parent(&ctx).filter(|dialog| covers_window && on_top(&ctx, *dialog)) else { return };
+        let Some(entry) = overlay::entry(&ctx, dialog) else { return };
+        for (at, strip) in covered_strips(&ctx, WindowHost::of(&ctx).current(), entry.rect).into_iter().enumerate() {
+            ModalDragStrip::new(strip).id(sub(dialog, ("drag_strip", at))).show(ui, |_, _| {});
         }
     }
 }
@@ -305,7 +299,7 @@ pub(crate) struct ModalDragStripStyle {
 
 /// The chrome a modal dialog puts over a drag area of the window it covers, so that the window still moves by it.
 /// It sits at the strip on the modal-chrome layer (`Overlay::modal_chrome`), paints nothing and is no Tab stop: a
-/// drag moves the window, and a double click acts as one on the title bar.
+/// drag moves the window.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(container)]
 #[component(exempt(case = "layer-escape", reason = "The strip is the chrome of the modal under it and takes no keys: Escape closes that modal."))]
@@ -314,6 +308,7 @@ pub(crate) struct ModalDragStrip {
     common: Common,
     #[container]
     props: ContainerProps,
+    rect: Rect,
 }
 
 impl ModalDragStrip {
@@ -321,7 +316,7 @@ impl ModalDragStrip {
     pub(crate) fn new(rect: Rect) -> Self {
         let props =
             ContainerProps::new().pad(Pad::None).mount(Mount::Layer(Overlay::modal_chrome(rect))).header(HeaderRegion::new().band(DragBand::Move));
-        ModalDragStrip { common: Common::new(), props }
+        ModalDragStrip { common: Common::new(), props, rect }
     }
 }
 
@@ -347,20 +342,9 @@ impl Component for ModalDragStrip {
 }
 
 impl Container for ModalDragStrip {
-    /// The header is the strip, so the move band covers it. A double click on the band asks of the window what one
-    /// on its title bar does.
-    fn header(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
-        alloc::space(ui, cx.rect.size());
-        if !cx.band_double_pressed() {
-            return;
-        }
-        let ctx = cx.memory.ctx().clone();
-        let viewport = pass::current_viewport(&ctx);
-        let shell = windows::shell_of(&ctx, viewport);
-        let host = WindowHost::of(&ctx);
-        if let Some(action) = double_click_action(&host.frame(), shell.double_click, shell.window.state == WindowState::Maximized) {
-            host.act(viewport, action);
-        }
+    /// The header is the strip, so the move band covers it.
+    fn header(&mut self, ui: &mut Ui, _: &mut BodyCx<'_>) {
+        ui.set_min_size(self.rect.size());
     }
 }
 
@@ -398,7 +382,7 @@ impl Container for Dialog<'_> {
 
     fn header(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         frame::header(ui, cx, frame::close_action(self.closable));
-        self.keep_window_draggable(ui, cx);
+        self.keep_window_draggable(ui);
     }
 
     fn footer(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {

@@ -655,7 +655,7 @@ name = "ModalRects"
 old = "craft_ui::title_bar::ModalRects"
 new = ""
 status = "replaced"
-note = "No app step: a modal `Dialog` keeps the window draggable by the drag areas it covers. While it is the top layer it puts a `ModalDragStrip` (crate-private) on an `Overlay::modal_chrome(rect)` layer over each drag area of the window's last pass that its cover hides, less the caption buttons and the dialog itself; the layer's move band moves the window (`Overlay::moves_window`), and a double click on it acts as one on the title bar."
+note = "No app step: a modal `Dialog` keeps the window draggable by the drag areas it covers. While it is the top layer it puts a `ModalDragStrip` (crate-private) on an `Overlay::modal_chrome(rect)` layer over each drag area of the window's last pass that its cover hides, less the caption buttons and the dialog itself; the layer's move band moves the window (`Overlay::moves_window`)."
 
 [[type]]
 name = "WindowState"
