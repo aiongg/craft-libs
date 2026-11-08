@@ -28,7 +28,7 @@ pub(crate) fn zoom_the_time_area(fixture: &mut Fixture) {
     let at = fixture.shown().center();
     let turn = Event::MouseWheel {
         unit: MouseWheelUnit::Point,
-        delta: Vec2::new(0.0, ZOOM_TURN),
+        delta: Vec2::Y * ZOOM_TURN,
         phase: TouchPhase::Move,
         modifiers: Modifiers::ALT,
         source: MouseWheelSource::Wheel,

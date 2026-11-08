@@ -181,6 +181,8 @@ pub struct KeyframeLane<'a> {
     common: Common,
     keys: &'a [KeyframeMark],
     selection: &'a Selection<KeyframeId>,
+    /// The delta the dragged keys move by, kept by the caller; the lane reports it as an edit either way.
+    #[prop]
     delta: Bind<'a, Tick>,
     /// The playhead time; Shift-dragged keys snap to it.
     #[prop]
@@ -214,13 +216,6 @@ impl<'a> KeyframeLane<'a> {
         }
         .label(label)
         .ltr_axis()
-    }
-
-    /// The delta the dragged keys move by, kept by the caller; the lane reports it as an edit either way.
-    #[must_use]
-    pub fn delta(mut self, delta: Bind<'a, Tick>) -> Self {
-        self.delta = delta;
-        self
     }
 
     fn sorted(&self) -> Vec<&'a KeyframeMark> {

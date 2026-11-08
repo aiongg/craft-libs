@@ -4,7 +4,7 @@ use craft_behavior::Mixed;
 use craft_ui::contract::{Bind, Show as _, Validity};
 use craft_ui::runtime::env::Message;
 use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
-use egui::{Color32, Ui, Vec2, vec2};
+use egui::{Color32, Pos2, Ui, Vec2};
 
 use super::{TimelineOverview, overview_runs};
 use crate::time::{Tick, TimeRange, TimeView};
@@ -35,26 +35,15 @@ fn tracks() -> Vec<Vec<(TimeRange, Color32)>> {
 
 /// The closest zoom the invalid story accepts, in points per second.
 const CLOSEST_ZOOM: f64 = 100.0;
-/// How far along the overview the drive presses, as a share of its width, and how far it drags.
-const PRESS_AT: f32 = 0.2;
-const DRAG_BY: f32 = 60.0;
+/// Where along the overview the drive presses and how far it drags, as shares of its width.
+const PRESS_SHARE: f32 = 0.2;
+const DRAG_SHARE: f32 = 0.15;
 
 /// Presses the overview off the window's middle and drags: the window follows the pointer.
 fn centre_the_window(fixture: &mut Fixture) {
     let shown = fixture.shown();
-    let from = shown.lerp_inside(vec2(PRESS_AT, 0.5));
-    fixture.drag_at(from, vec2(DRAG_BY, 0.0));
-}
-
-/// Shows the overview of the eight tracks over `view`.
-fn shown(ui: &mut Ui, view: Bind<'_, TimeView>) -> StoryOutput {
-    let width = ui.available_width();
-    let runs = overview_runs(&tracks(), Tick::from_seconds_f64(END), Vec2::new(width, ui.available_height()));
-    TimelineOverview::new("Overview", &runs, view, Tick::from_seconds_f64(END))
-        .shown_width(width)
-        .playhead(Tick::from_seconds_f64(END / 2.0))
-        .show(ui)
-        .into()
+    let from = Pos2::new(shown.left() + shown.width() * PRESS_SHARE, shown.center().y);
+    fixture.drag_at(from, Vec2::X * (shown.width() * DRAG_SHARE));
 }
 
 #[story(TimelineOverview<'static>, covers = [Default], drive = Drive::Custom(centre_the_window))]
