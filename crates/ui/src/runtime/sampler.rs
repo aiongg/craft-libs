@@ -11,7 +11,6 @@
 //! admits ([`Hole::admits`]), `areas::layer_at` answers the canvas's layer inside the [`Hole`], and the scrim leaves
 //! the [`Hole`] clear and unabsorbed.
 
-use crate::contract::{Component, Cx};
 use crate::runtime::egui::input::RawInput;
 use crate::runtime::egui::memory::Service;
 use crate::runtime::egui::pass;
@@ -58,29 +57,13 @@ impl Hole {
     }
 }
 
-/// The registration and the root frame it was made in.
+/// The registration and the root frame it was made in. `Cx::arm_sampler` and `Cx::keep_view_open` (contract layer) make it.
 #[derive(Default)]
 struct Registry {
     made: Option<(u64, Armed)>,
 }
 
-impl<C: Component> Cx<'_, C> {
-    /// Arms a sampler for `canvas` (the canvas component's id): while a modal layer is open, presses on the canvas
-    /// pass through it, and so does the view navigation (`keep_view_open`). The arming control calls it in every pass
-    /// while it is armed. The reach holds for this pass and the next.
-    pub fn arm_sampler(&mut self, canvas: Id) {
-        register(&self.core.ctx, Armed { canvas, reach: Reach::Sample });
-    }
-
-    /// Keeps the view of `canvas` (the canvas component's id) usable under a modal layer: the wheel scrolls and zooms
-    /// it, and a middle press pans it, as in Photoshop's Color Picker and Levels dialogs. Its other input stays
-    /// blocked. The dialog calls it in every pass while it is open.
-    pub fn keep_view_open(&mut self, canvas: Id) {
-        register(&self.core.ctx, Armed { canvas, reach: Reach::View });
-    }
-}
-
-fn register(ctx: &Context, armed: Armed) {
+pub(crate) fn register(ctx: &Context, armed: Armed) {
     let now = pass::root_frame_nr(ctx);
     Service::<Registry>::run(ctx, |registry| {
         let reach = match registry.made {
