@@ -107,9 +107,10 @@ pub(crate) fn rects_over(ctx: &Context, layer: LayerId, scrim: Option<LayerId>) 
 }
 
 /// Whether the topmost layer under `point` belongs to the top modal layer's family: the modal, its chrome and what
-/// opened above it.
+/// opened above it. egui's own `layer_id_at` answers the modal for a point below it, so the layers are read directly.
 pub(crate) fn in_modal_family(ctx: &Context, point: Pos2) -> bool {
-    ctx.layer_id_at(point).is_some_and(|top| ctx.memory(|memory| memory.is_above_modal_layer(top)))
+    let top = layers_under(ctx, point, None).first().copied();
+    top.is_some_and(|top| ctx.memory(|memory| memory.is_above_modal_layer(top)))
 }
 
 /// The layer of a transformed body: a sublayer of `parent` in the parent's order, named by `root`.
