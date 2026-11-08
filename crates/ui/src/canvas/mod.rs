@@ -158,7 +158,7 @@ pub struct Canvas<'a> {
     /// `CanvasView::to_screen`. The view sets no body transform: a body of components that keep canvas-space geometry
     /// (a node graph) also sets `transform(view.layer_transform())`, which exists for an unrotated, unmirrored,
     /// square view only.
-    #[prop]
+    #[prop(into)]
     view: Option<Bind<'a, CanvasView>>,
     /// The view the binding held when the pass began.
     given: Option<CanvasView>,
