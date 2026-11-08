@@ -2,20 +2,21 @@
 
 use serde::{Deserialize, Serialize};
 
-use craft_ui::canvas::kurbo::Point;
+use craft_behavior::kurbo::Point;
 
 /// Correction: the lens model.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum WideAngleModel {
     #[default]
-    #[allow(missing_docs)]
+    /// The app picks the model from the lens.
     Auto,
-    #[allow(missing_docs)]
+    /// A fisheye lens.
     Fisheye,
-    #[allow(missing_docs)]
+    /// A rectilinear wide-angle lens.
     Perspective,
-    #[allow(missing_docs)]
+    /// A full spherical panorama.
     FullSpherical,
 }
 
@@ -27,13 +28,14 @@ impl WideAngleModel {
 /// A constraint's orientation: Free (a straight line), Horizontal or Vertical.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum ConstraintOrientation {
     #[default]
-    #[allow(missing_docs)]
+    /// A straight line in the scene.
     Free,
-    #[allow(missing_docs)]
+    /// A horizontal line in the scene.
     Horizontal,
-    #[allow(missing_docs)]
+    /// A vertical line in the scene.
     Vertical,
 }
 
@@ -77,18 +79,18 @@ pub enum WideAngleConstraintEdit {
     Add(WideAngleConstraint),
     /// Sets the orientation of the constraint at `index`.
     Orient {
-        #[allow(missing_docs)]
+        /// The constraint's index.
         index: usize,
-        #[allow(missing_docs)]
+        /// The new orientation.
         orientation: ConstraintOrientation,
     },
     /// Deletes the constraint at that index.
     Delete(usize),
     /// Arrow keys moved the focused constraint by `by` document pixels.
     Move {
-        #[allow(missing_docs)]
+        /// The constraint's index.
         index: usize,
-        #[allow(missing_docs)]
+        /// The move in document pixels.
         by: [f64; 2],
     },
 }
