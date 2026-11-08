@@ -1,25 +1,29 @@
-//! The menu bar drawn with egui, for Windows, Linux and the web (and macOS, for testing): an
+//! The menu bar drawn in the window, for Windows, Linux and the web (and macOS, for testing): an
 //! already laid-out [`MenuBar`] as a row of menu titles whose menus open below them.
 //!
-//! [`MenuBarUi`] converts the menu model into [`craft_ui::menu`] items (commands, check and radio
-//! items, shortcuts from [`craft_keymap::Chord`], submenus) and draws [`craft_ui::menu::MenuBar`],
-//! which owns the look and the behaviour: press-drag-release, hover switching, submenus with an
-//! aim triangle, scrolling, the keys (F10 except on a Mac target, where the native bar runs;
-//! Alt and mnemonics except where the names are a Mac's), overflow into "…" or one "Menu", and
-//! AccessKit.
+//! [`MenuBarUi`] shows the menu model through [`craft_ui::menu::MenuBar`], which owns the look and the
+//! behaviour: press-drag-release, hover switching, submenus, scrolling, the keys (F10 and a lone Alt, Alt and a
+//! mnemonic letter, Left and Right between menus), overflow into "…" or one "Menu", and AccessKit. Each item is a
+//! command row ([`crate::context::rows`]): its enabled state, check mark and chord follow the command, and a
+//! choice reaches the app as a fired command with [`craft_ui::runtime::commands::FireSource::Menu`].
+//! [`Builtin::Quit`] and [`Builtin::Minimize`] act on the root window through the runtime.
+
+#[cfg(feature = "screen-testing")]
+mod stories;
 
 use craft_keymap::{CommandRef, Platform};
-use craft_ui::menu::{MenuBarLabels, MenuEntry, MenuItem};
-use egui::{Id, Rect, Ui};
+use craft_ui::contract::Show as _;
+use craft_ui::menu::{MenuBar as Bar, MenuHelp, MenuTitle};
+use craft_ui::runtime::env::Env;
+use egui::{Rect, Ui};
 
-use crate::ModalRules;
-use crate::model::Builtin;
-use crate::{Gate, Item, ItemKind, MenuBar, MenuRole, Node, Target};
+use crate::context::Rows;
+use crate::layout::Target;
+use crate::model::{MenuBar, MenuRole};
+use crate::palette::entries_of;
 
-/// Whether a menu of the bar is open; [`craft_ui::menu::any_open`] answers for every menu (the
-/// bar's, context menus, press menus), and the app's single-key shortcuts wait while it is true.
-pub use craft_ui::menu::bar::is_open;
-pub use craft_ui::menu::bar::{is_focused, leave_for_shortcut};
+/// Whether a menu of the bar is open; the app's single-key shortcuts wait while it is true.
+pub use craft_ui::menu::bar::{is_focused, is_open};
 
 /// A row or title, as the bar names it to the app's mnemonic hooks ([`MenuBarUi::english`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -33,329 +37,106 @@ pub enum Labeled<'s> {
 /// The app's English labels ([`MenuBarUi::english`]).
 pub type EnglishHook<'h> = dyn Fn(Labeled<'_>) -> Option<String> + 'h;
 
-/// How the bar looked before it took its look from the theme. Nothing reads it any more.
-#[deprecated(note = "the bar's look comes from the theme; this is ignored")]
-#[derive(Clone, Debug, PartialEq)]
-pub struct BarStyle {
-    /// Padding around a menu title.
-    pub title_padding: egui::Vec2,
-    /// The menu titles' text color.
-    pub title_color: egui::Color32,
-    /// The narrowest a menu is.
-    pub menu_width: f32,
-    /// Room a separator takes: the line and the space above and below it.
-    pub separator_spacing: f32,
-    /// Shown before the label of a checked check item.
-    pub check_mark: String,
-    /// Shown before the label of the selected radio item.
-    pub radio_mark: String,
-}
-
-#[allow(deprecated)]
-impl BarStyle {
-    /// Title padding, title color and a menu width in step with the row height, from `style`.
-    pub fn from_style(style: &egui::Style) -> BarStyle {
-        BarStyle {
-            title_padding: style.spacing.button_padding,
-            title_color: style.visuals.widgets.inactive.text_color(),
-            menu_width: 12.0 * style.spacing.interact_size.y,
-            separator_spacing: 9.0,
-            check_mark: "✓".to_owned(),
-            radio_mark: "●".to_owned(),
-        }
+craft_ui::words! {
+    /// The words of the in-window bar that the menu family does not hold.
+    struct BarWords {
+        label: "menuBar.label" = "Main menu";
     }
 }
 
-#[allow(deprecated)]
-impl Default for BarStyle {
-    fn default() -> BarStyle {
-        BarStyle::from_style(&egui::Style::default())
-    }
-}
-
-/// The platform whose key names a target's shortcut column shows; for the web, the one the
-/// browser runs on (`os`, [`egui::Context::os`]).
-pub(crate) fn keymap_platform(target: Target, os: egui::os::OperatingSystem) -> Platform {
-    use egui::os::OperatingSystem;
+/// The platform whose key names a target's shortcut column shows; for the web, the one the browser runs on
+/// (`os`, the shell's).
+pub(crate) fn keymap_platform(target: Target, os: Platform) -> Platform {
     match target {
         Target::Mac => Platform::Mac,
         Target::Windows => Platform::Windows,
         Target::Linux => Platform::Linux,
-        Target::Web => match os {
-            OperatingSystem::Mac | OperatingSystem::IOS => Platform::Mac,
-            OperatingSystem::Windows => Platform::Windows,
-            _ => Platform::Linux,
-        },
+        Target::Web => os,
     }
-}
-
-fn english(label: &'static str) -> String {
-    label.to_owned()
 }
 
 /// What the bar did in a frame, from [`MenuBarUi::show`].
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct MenuBarOutput {
-    /// The commands chosen (at most one), see [`MenuBarUi::show`].
-    pub commands: Vec<CommandRef>,
     /// The menu titles alone, without the room the bar leaves after them
-    /// ([`craft_ui::menu::MenuBarResponse::titles`]).
+    /// ([`craft_ui::menu::MenuBarOutput::titles`]).
     pub titles: Rect,
 }
 
-/// The chosen commands: `for command in bar.show(ui)`.
-impl IntoIterator for MenuBarOutput {
-    type Item = CommandRef;
-    type IntoIter = std::vec::IntoIter<CommandRef>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.commands.into_iter()
-    }
-}
-
-/// The bar for one frame: `MenuBarUi::new(&bar).gate(gate).show(ui)` returns the commands
-/// chosen. Draw it at the top of the window, in a top panel.
+/// The bar for one frame: `MenuBarUi::new(&bar).show(ui)`. Draw it at the top of the window, in a top panel.
+/// The commands chosen come back through the command queue, not from `show`.
 pub struct MenuBarUi<'a> {
     bar: &'a MenuBar,
-    gate: Gate,
-    rules: Option<&'a ModalRules>,
     target: Target,
-    label: &'a dyn Fn(&'static str) -> String,
     english: Option<&'a EnglishHook<'a>>,
     preferred: &'a [(&'a str, char)],
-    id: Id,
-    fit: Option<f32>,
+    keyboard: Option<bool>,
     help_search: bool,
 }
 
 impl<'a> MenuBarUi<'a> {
     /// The bar for `bar`, already laid out ([`crate::layout`]), on [`Target::current`].
     pub fn new(bar: &'a MenuBar) -> MenuBarUi<'a> {
-        MenuBarUi {
-            bar,
-            gate: Gate::default(),
-            rules: None,
-            target: Target::current(),
-            label: &english,
-            english: None,
-            preferred: &[],
-            id: Id::unique("craft-menu-bar"),
-            fit: None,
-            help_search: false,
-        }
+        MenuBarUi { bar, target: Target::current(), english: None, preferred: &[], keyboard: None, help_search: false }
     }
 
-    /// What may run this frame: the items `gate` forbids ([`Gate::allows`]) are drawn and
-    /// behave as disabled, and while a dialog or the shortcut recorder has the keys the bar
-    /// takes none (Alt, F10).
-    pub fn gate(mut self, gate: Gate) -> MenuBarUi<'a> {
-        self.gate = gate;
-        self
-    }
-
-    /// The per-command rules under the gate ([`Gate::allows_under`]): the rows they forbid are
-    /// drawn and behave as disabled. Without it the gate alone decides.
-    pub fn modal_rules(mut self, rules: &'a ModalRules) -> MenuBarUi<'a> {
-        self.rules = Some(rules);
-        self
-    }
-
-    /// The platform the bar is on, for the shortcut column ([`craft_keymap::Chord::display`]): ⌘
-    /// glyphs on [`Target::Mac`] and in a browser on a Mac ([`egui::Context::os`]), Ctrl names
-    /// everywhere else. Where the names are a Mac's, the bar has no mnemonics and Alt is left
-    /// alone; F10 still reaches the bar in a browser, where it is the only menu bar. On
-    /// [`Target::Mac`] the native bar has the keys, and this one takes none.
+    /// The platform the bar is on, for the shortcut column ([`craft_keymap::Chord::display`]): ⌘ glyphs on
+    /// [`Target::Mac`] and in a browser on a Mac, Ctrl names everywhere else. On [`Target::Mac`] the native bar
+    /// has the keys, and this one takes none unless [`keyboard`](Self::keyboard) says so.
     pub fn target(mut self, target: Target) -> MenuBarUi<'a> {
         self.target = target;
         self
     }
 
-    /// Ignored: the bar's look comes from the theme.
-    #[deprecated(note = "the bar's look comes from the theme; this is ignored")]
-    #[allow(deprecated)]
-    pub fn style(self, _style: BarStyle) -> MenuBarUi<'a> {
+    /// Whether the bar takes F10, Alt and Alt with a letter. By default it does, except on [`Target::Mac`]. The
+    /// app turns it off while a modal dialog or the shortcut recorder has the keys.
+    pub fn keyboard(mut self, on: bool) -> MenuBarUi<'a> {
+        self.keyboard = Some(on);
         self
     }
 
-    /// The app's translation of the labels the bar writes itself: `…` (the menu of titles that
-    /// don't fit), `Menu` (the one menu when none fits), `Scroll menu up` and `Scroll menu down`
-    /// (the scroll arrows' accessible names). The same hook as [`crate::LayoutOptions::label`].
-    pub fn label(mut self, label: &'a dyn Fn(&'static str) -> String) -> MenuBarUi<'a> {
-        self.label = label;
-        self
-    }
-
-    /// The English label of a row or title, for labels the keyboard can't type a letter of
-    /// (Chinese, Japanese, Korean…): such a label shows its English label's mnemonic after it,
-    /// "文件(F)", before a trailing ellipsis ("開く(O)…"), as Windows menus do. Without this hook (or when it returns `None`) such a label
-    /// has no mnemonic. The Help menu's search also matches the English labels, on every target;
-    /// a Mac target shows no mnemonics.
+    /// The English label of a row or title, for labels the keyboard can't type a letter of (Chinese, Japanese,
+    /// Korean…): such a label shows its English label's mnemonic after it, "文件(F)", before a trailing ellipsis
+    /// ("開く(O)…"), as Windows menus do. Without this hook (or when it returns `None`) such a label has no
+    /// mnemonic. The Help menu's search also matches the English labels, on every target.
     pub fn english(mut self, english: &'a dyn Fn(Labeled<'_>) -> Option<String>) -> MenuBarUi<'a> {
         self.english = Some(english);
         self
     }
 
-    /// Preferred mnemonics, each for a menu or submenu by its title as shown or for an item by
-    /// its command id: the row takes that letter when its label has it and no row before it in
-    /// its menu took it. Every other row takes the first unused letter of its label, word starts
-    /// first.
+    /// Preferred mnemonics, each for a menu or submenu by its title as shown or for an item by its command id:
+    /// the row takes that letter when its label has it and no row before it in its menu took it. Every other row
+    /// takes the first unused letter of its label, word starts first.
     pub fn mnemonics(mut self, preferred: &'a [(&'a str, char)]) -> MenuBarUi<'a> {
         self.preferred = preferred;
         self
     }
 
-    /// Take only the width the titles need, at most `max_width` (`f32::INFINITY` for no limit)
-    /// and the room the `Ui` has, so that other controls can share the row; past that the menus
-    /// overflow into "…". By default the bar fills the row.
-    pub fn shrink_to_fit(mut self, max_width: f32) -> MenuBarUi<'a> {
-        self.fit = Some(max_width);
-        self
-    }
-
-    /// Start the [`MenuRole::Help`] menu with a search field over every command of the bar (see
-    /// [`craft_ui::menu::MenuBar::help_search`]). The field's name, clear button and empty
-    /// result are written through the [`label`](Self::label) hook as `Search menus`, `Clear` and
-    /// `No matching commands`. A bar with no Help menu has no field.
+    /// Start the [`MenuRole::Help`] menu with a search field over every command of the bar
+    /// ([`MenuBar::help_entries`]). A bar with no Help menu has no field.
     pub fn help_search(mut self, on: bool) -> MenuBarUi<'a> {
         self.help_search = on;
         self
     }
 
-    /// The bar's id, where its state lives in egui memory: tells two bars in one window apart.
-    pub fn id(mut self, id: Id) -> MenuBarUi<'a> {
-        self.id = id;
-        self
-    }
-
-    /// Draw the bar and its open menu; returns the commands chosen this frame (at most one),
-    /// clicked or run with ↩ or Space, and the titles' rect. Disabled items, and items the gate forbids, never run.
-    /// [`Builtin::Quit`] (asks the window to close, see [`craft_quit::on_menu_event`]) and
-    /// [`Builtin::Minimize`] run here and are left out.
+    /// Draws the bar and its open menu. Disabled rows never run. A chosen item is a fired command in the frame's
+    /// output; [`Builtin::Quit`](crate::Builtin::Quit) and [`Builtin::Minimize`](crate::Builtin::Minimize) act on
+    /// the root window instead.
     pub fn show(self, ui: &mut Ui) -> MenuBarOutput {
-        let ctx = ui.ctx().clone();
-        // Option is a typing key on a Mac, also in a browser there.
-        let platform = keymap_platform(self.target, ctx.os());
-        let mnemonics = platform != Platform::Mac;
-        craft_ui::menu::set_mnemonics(&ctx, Some(mnemonics));
-        let convert = Convert { gate: self.gate, rules: self.rules, platform, english: self.english, preferred: self.preferred };
-        let menus: Vec<MenuItem<CommandRef>> = self.bar.menus.iter().map(|m| convert.sub(&m.title, &m.children)).collect();
-        let hook = self.label;
-        let labels = MenuBarLabels {
-            more: hook("…"),
-            all: hook("Menu"),
-            scroll_up: hook("Scroll menu up"),
-            scroll_down: hook("Scroll menu down"),
-            search: hook("Search menus"),
-            clear: hook("Clear"),
-            no_matches: hook("No matching commands"),
-        };
-        let mut bar = craft_ui::menu::MenuBar::new(&menus)
-            .id(self.id)
-            .labels(&labels)
-            .keyboard(!self.gate.modal && !self.gate.recording_shortcut && self.target != Target::Mac)
-            .text_editing(self.gate.text_editing);
-        if let Some(max) = self.fit {
-            bar = bar.shrink_to_fit(max);
+        let env = Env::of(ui);
+        let rows = Rows::new(self.target).english(self.english).preferred(self.preferred);
+        let labels =
+            rows.labels(&self.bar.menus, |menu| menu.title.as_str(), |menu| menu.title.as_str(), |menu| rows.english_of(Labeled::Title(&menu.title)));
+        let shared = &rows;
+        let titles: Vec<MenuTitle<'_>> =
+            self.bar.menus.iter().zip(labels).map(|(menu, label)| MenuTitle::new(label, move |ui| shared.show(ui, &menu.children))).collect();
+        let help = self.help_search.then(|| self.bar.menus.iter().position(|menu| menu.role == MenuRole::Help)).flatten();
+        let entries = if help.is_some() { entries_of(self.bar, self.english) } else { Vec::new() };
+        let mut bar = Bar::new(env.words::<BarWords>().label.clone(), titles).keyboard(self.keyboard.unwrap_or(self.target != Target::Mac));
+        if let Some(menu) = help {
+            bar = bar.help(MenuHelp::new(menu, &entries));
         }
-        if self.help_search
-            && let Some(help) = self.bar.menus.iter().position(|m| m.role == MenuRole::Help)
-        {
-            bar = bar.help_search(help);
-        }
-        let shown = bar.show(ui);
-        let commands = shown
-            .chosen
-            .into_iter()
-            .filter(|command| match Builtin::of(command) {
-                Some(Builtin::Quit) => !craft_quit::on_menu_event(&ctx, Builtin::Quit.id()),
-                Some(Builtin::Minimize) => {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
-                    false
-                }
-                _ => true,
-            })
-            .collect();
-        MenuBarOutput { commands, titles: shown.titles }
-    }
-}
-
-/// What converting the model to menu items needs.
-pub(crate) struct Convert<'s> {
-    pub(crate) gate: Gate,
-    /// The per-command rules under the gate; `None`: the gate alone decides.
-    pub(crate) rules: Option<&'s ModalRules>,
-    pub(crate) platform: Platform,
-    pub(crate) english: Option<&'s EnglishHook<'s>>,
-    pub(crate) preferred: &'s [(&'s str, char)],
-}
-
-impl Convert<'_> {
-    /// A menu or submenu: a submenu row with the app's preferred letter and English label.
-    pub(crate) fn sub(&self, title: &str, children: &[Node]) -> MenuItem<CommandRef> {
-        let mut row = MenuItem::submenu(title, self.entries(children));
-        if let Some(letter) = self.preferred_letter(title) {
-            row = row.mnemonic(letter);
-        }
-        if let Some(english) = self.english_of(Labeled::Title(title)) {
-            row = row.english(english);
-        }
-        row
-    }
-
-    /// The rows of `nodes`. AppKit's own items ([`Node::Standard`]) have nothing to run here and
-    /// are left out; a desktop or web layout has none.
-    pub(crate) fn entries(&self, nodes: &[Node]) -> Vec<MenuEntry<CommandRef>> {
-        nodes
-            .iter()
-            .filter_map(|n| match n {
-                Node::Item(item) => Some(self.item(item).into()),
-                Node::Separator => Some(MenuEntry::Separator),
-                Node::Submenu { label, children, .. } => Some(self.sub(label, children).into()),
-                Node::Standard { .. } => None,
-            })
-            .collect()
-    }
-
-    fn item(&self, item: &Item) -> MenuItem<CommandRef> {
-        let mut row = MenuItem::new(item.label.as_str(), item.command.clone()).enabled(item.enabled && self.allowed(item));
-        row = match item.kind {
-            ItemKind::Plain => row,
-            ItemKind::Check(on) => row.check(on),
-            ItemKind::Radio(on) => row.radio(on),
-        };
-        if let Some(chord) = &item.shortcut {
-            row = row.shortcut(craft_keymap::ui::kbd(chord, self.platform));
-        }
-        if let Some(letter) = self.preferred_letter(&item.command.id) {
-            row = row.mnemonic(letter);
-        }
-        if let Some(english) = self.english_of(Labeled::Command(&item.command)) {
-            row = row.english(english);
-        }
-        if let Some(tint) = item.tint {
-            row = row.tint(tint);
-        }
-        if let Some(tooltip) = &item.tooltip {
-            row = row.tooltip(tooltip.as_str());
-        }
-        row
-    }
-
-    /// Whether the gate, under the rules when there are any, lets `item` run.
-    fn allowed(&self, item: &Item) -> bool {
-        match self.rules {
-            Some(rules) => self.gate.allows_item_under(rules, item),
-            None => self.gate.allows(item),
-        }
-    }
-
-    /// The app's preferred letter for a title as shown or a command id.
-    fn preferred_letter(&self, key: &str) -> Option<char> {
-        self.preferred.iter().find(|(k, _)| *k == key).map(|(_, c)| *c)
-    }
-
-    fn english_of(&self, labeled: Labeled<'_>) -> Option<String> {
-        self.english.and_then(|f| f(labeled))
+        MenuBarOutput { titles: bar.show(ui).titles }
     }
 }

@@ -8,11 +8,13 @@ rust-version.workspace = true
 repository.workspace = true
 
 [dependencies]
-craft-i18n = { workspace = true }
-craft-keymap = { workspace = true, features = ["ui"] }
+craft-behavior = { workspace = true }
+craft-host = { workspace = true }
+craft-i18n = { workspace = true, features = ["collate"] }
+craft-keymap = { workspace = true, features = ["egui"] }
 craft-quit = { workspace = true, features = ["ui"] }
 craft-theme = { workspace = true }
-craft-ui = { package = "craft-ui-legacy", path = "../ui-legacy" }
+craft-ui = { workspace = true }
 egui = { workspace = true }
 serde_json = { workspace = true }
 
@@ -24,9 +26,19 @@ objc2 = { version = "0.6.4", default-features = false, features = ["std"] }
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSArray", "NSBundle", "NSLocale", "NSString"] }
 objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSApplication", "NSEvent", "NSMenu", "NSMenuItem", "NSResponder"] }
 
+[features]
+screen-testing = ["craft-ui/testing"]
+
 [dev-dependencies]
 # `default_fonts` so that the bar's tests lay out text.
 egui = { workspace = true, features = ["default_fonts"] }
+libtest-mimic = "0.8"
+
+[[test]]
+name = "it"
+path = "tests/it/main.rs"
+harness = false
+required-features = ["screen-testing"]
 
 [lints]
 workspace = true

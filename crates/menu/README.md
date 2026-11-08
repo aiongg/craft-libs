@@ -6,7 +6,7 @@ shortcuts from craft-keymap, drives a platform `Backend`, and turns the menu's k
 equivalents back into the input egui would have had without it. It depends on egui,
 [`craft-keymap`](../keymap/src/lib.rs) (commands and chords) and [`craft-quit`](../quit/src/lib.rs),
 and on no app. Everything but the macOS backend
-(`craft_menu::mac`, built on muda) is platform-free and also builds for `wasm32`. The layout and driver come from PhotoCraft's `native_menu.rs`, the in-window bar (`MenuBarUi`) converts the menus into `craft_ui::menu::MenuBar` items.
+(`craft_menu::mac`, built on muda) is platform-free and also builds for `wasm32`. The in-window bar (`MenuBarUi`) shows the menus as `craft_ui::menu::MenuBar` command rows.
 
 ## The menus
 
@@ -97,72 +97,44 @@ checked from the app's state. `checked: Some(..)` makes a plain item a check ite
 clears a radio item; `None` leaves the kind as it is. The built-in items and the open documents
 are left alone. Both run on the app's bar, before the layout.
 
-## Windows, Linux and web: the egui bar
+## Windows, Linux and web: the in-window bar
 
-`MenuBarUi` draws a laid-out bar with egui, in a top panel, and returns the commands chosen that
-frame with the titles' rect (`MenuBarOutput`). `.help_search(true)` starts the Help menu with a
-search field over every command:
+`MenuBarUi` draws a laid-out bar in a top panel and returns the titles' rect (`MenuBarOutput`).
+Each item is a command row: its enabled state, check mark and chord follow the command in the
+runtime's command state and keymap, and a choice is a `Fired` with `FireSource::Menu` in the
+frame's output. `.help_search(true)` starts the Help menu with a search field over every command
+(`MenuBar::help_entries`):
 
 ```rust
-let laid_out = craft_menu::layout(&menu_bar, Target::current(), &LayoutOptions::new("PhotoCraft")).bar;
+let laid_out = craft_menu::layout(&menu_bar, Target::current(), &LayoutOptions::new("Sample")).bar;
 egui::Panel::top("menu-bar").show(ui, |ui| {
-    let gate = Gate { modal: dialog_open, recording_shortcut, text_editing: ui.ctx().text_edit_focused() };
-    for command in MenuBarUi::new(&laid_out).gate(gate).label(&tr).help_search(true).show(ui).commands {
-        app.run(&command);
-    }
+    MenuBarUi::new(&laid_out).keyboard(!dialog_open).help_search(true).show(ui);
 });
+// The commands chosen arrive in `FrameOutput.fired`.
 ```
 
-- **Mouse:** a press on a title opens its menu and releasing over an item runs it; a click on
-  the title again, Esc or a click outside closes it. While a menu is open, moving onto another
-  title opens that one. Submenus open on hover and stay open while the pointer heads for them
-  across other rows. A menu taller than the window scrolls, with the wheel or by resting on the
-  ▲ and ▼ arrows.
-- **Keys, while a menu is open:** ↑ and ↓ move the highlight, → opens a submenu or the next
-  menu, ← closes the submenu or opens the previous menu, ↩ and Space run the item, Esc closes
-  (and is taken, so the app doesn't also act on it). Other typing goes nowhere while a menu is
-  open. `craft_ui::menu::any_open(ctx)` is true while any menu is open (the bar's, a context
-  menu, a press menu): the app's single-key shortcuts wait meanwhile, since an app that handles
-  them before drawing its menus would otherwise see the keys first. `craft_menu::bar::is_open(ctx)`
-  answers for the bar alone.
-- **Keyboard access (Windows, Linux, web):** a tap on Alt alone, or F10, puts the keyboard on
-  the bar: the first title is lit, ← and → move along the titles, ↓, ↩ and Space open the lit
-  menu, Esc, a second tap or a click leaves. Alt+letter opens the menu with that mnemonic, and
-  in an open menu a letter runs the row with that mnemonic or opens its submenu. Mnemonics are
-  underlined while Alt is held, while the bar has the keyboard, and in a menu opened from the
-  keyboard. Each menu level assigns them from the labels as shown, so translated: unique within
-  the level, the first unused letter, word starts first; `.mnemonics(&[("View", 'W'),
-  ("file.open", 'P')])` names preferred letters by title as shown or by command id. A label
-  without an ASCII letter or digit shows its English label's letter after it, "文件(F)", before a
-  trailing ellipsis ("開く(O)…"), when `.english(&hook)` returns that English label for the
-  `Labeled::Command` or `Labeled::Title`; without one it has no mnemonic. While the bar has the keyboard the app's shortcuts wait, as
-  for an open menu (`craft_menu::bar::is_focused(ctx)`); call
-  `craft_menu::bar::leave_for_shortcut(ctx)` before them so that a command shortcut (Ctrl+S,
-  F7) leaves the bar and runs. While a dialog is open or a shortcut is being recorded (`Gate`),
-  Alt, F10 and the letters leave the bar alone. While a text field has the keys, a tap on Alt
-  still focuses the bar, as on Windows, but a letter without Alt goes on to the field (and takes
-  the keyboard off the bar) unless a menu is open. On `Target::Web` in a browser on a Mac
-  (`ctx.os()`), the bar has no mnemonics and Alt does nothing, since Option is a typing key there;
-  F10 still puts the keyboard on the bar, which is the only menu bar there. On `Target::Mac` the
-  native bar has the keys, and this one takes none.
-- **Items:** disabled items, and the items the `Gate` forbids (`Gate::allows`), are greyed and
-  never run. Check items show ✓, the selected radio item a dot, and the shortcut column shows
-  every shortcut, the display-only ones too, in the target's names (⌘ glyphs on `Target::Mac`,
-  Ctrl names on Windows and Linux, the browser's system's names on the web; `.target(..)` to
-  choose).
-- **Narrow windows:** the menus that don't fit move into a trailing `…` menu; when not even the
-  first fits, one `Menu` title holds them all. `.label(&tr)` translates `…`, `Menu` and the
-  scroll arrows' names, with the same hook as `LayoutOptions::label`. The bar fills its row;
-  `.shrink_to_fit(max_width)` makes it take only the width its titles need, up to `max_width`,
-  so other controls can share the row, and the menus past that overflow.
-- **Quit:** without an app Quit item, the Windows and Linux layouts add `Builtin::Quit`
-  (`craft_quit::QUIT_MENU_ID`). The bar runs it itself through `craft_quit::on_menu_event`,
-  which asks the window to close so the unsaved-changes check runs, and doesn't return it; the
-  same goes for `Builtin::Minimize`.
-- **Accessibility:** AccessKit sees a menu bar of menu items, the open menus, check and radio
-  items with their state, disabled items, and each item's shortcut and mnemonic (`access_key`).
-- **Style:** `BarStyle::from_style(ui.style())` by default; `.style(..)` sets title padding and
-  color, the menu width, separator room and the check and radio marks.
+- **Mouse and keys inside the menus** are `craft_ui::menu::MenuBar`'s. `craft_ui::menu::any_open(ctx)`
+  is true while any menu is open; `craft_ui::menu::bar::is_open(ctx)` and `is_focused(ctx)` answer
+  for the bar alone.
+- **Keyboard access (Windows, Linux, web):** F10 or a tap on Alt puts the keyboard on the bar, and
+  Alt with a letter opens the menu with that mnemonic. A Mac, also in a browser, has no mnemonics
+  and leaves Alt alone; F10 still reaches the in-window bar of a browser. `.keyboard(false)`
+  turns the bar's keys off (a modal dialog or the shortcut recorder has them); on `Target::Mac`
+  they are off unless set. `.mnemonics(&[("View", 'W'), ("file.open", 'P')])` names preferred
+  letters by title as shown or by command id. A label without an ASCII letter or digit shows its
+  English label's letter after it, "文件(F)", before a trailing ellipsis ("開く(O)…"), when
+  `.english(&hook)` returns that English label for the `Labeled::Command` or `Labeled::Title`.
+- **Items:** a command the runtime's gate forbids, or whose state is disabled, is greyed and never
+  fires. A submenu whose items are all disabled is greyed. The shortcut column shows the command's
+  chord, else the item's own shortcut, in the shell's names (⌘ glyphs on a Mac). `.target(..)`
+  chooses the platform that names the keys of a web build.
+- **Tint and tooltip:** an item's tint is the swatch icon of its row, its tooltip the row's tooltip.
+- **Context menus:** `Menu::context(label, &response).show(ui, |ui, _| craft_menu::context::rows(ui, &nodes))`
+  shows model rows as command rows.
+- **Quit and Minimize:** without an app Quit item, the Windows and Linux layouts add
+  `Builtin::Quit` (`craft_quit::QUIT_MENU_ID`). The bar runs it itself as a close request of the
+  root window through the runtime, so the app's close decision runs, and fires nothing; the same
+  goes for `Builtin::Minimize`.
 
 ## macOS
 

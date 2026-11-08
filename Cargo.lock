@@ -1445,12 +1445,15 @@ version = "0.1.0"
 name = "craft-menu"
 version = "0.1.0"
 dependencies = [
+ "craft-behavior",
+ "craft-host",
  "craft-i18n",
  "craft-keymap",
  "craft-quit",
  "craft-theme",
- "craft-ui-legacy",
+ "craft-ui",
  "egui",
+ "libtest-mimic",
  "muda",
  "objc2 0.6.5",
  "objc2-app-kit 0.3.2",

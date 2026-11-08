@@ -5,6 +5,7 @@ use std::collections::HashSet;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use craft_keymap::{Chord, CommandRef, Key, Mods};
+use craft_ui::runtime::windows::{WindowAction, WindowHost};
 
 use crate::layout::{Clash, Layout};
 use crate::modal::ModalRules;
@@ -325,7 +326,7 @@ impl NativeMenu {
     /// The commands clicked since the last call that the gate ([`NativeMenu::set_gate`]) allows
     /// now, for the app to run like in-window menu clicks; the others are dropped.
     /// [`Builtin::Minimize`] (minimizes the window) and [`Builtin::Quit`] (asks the window to
-    /// close, see [`craft_quit::on_menu_event`]) are run here and left out. A ⌘V from the menu
+    /// close through the runtime, so the app's close decision runs) are run here and left out. A ⌘V from the menu
     /// ([`ClipboardKeys::Egui`]) is asked of eframe here too.
     pub fn take_clicks(&mut self, ctx: &egui::Context) -> Vec<CommandRef> {
         if std::mem::take(&mut self.paste) {
@@ -337,9 +338,11 @@ impl NativeMenu {
                 continue;
             }
             match Builtin::of(&command) {
-                Some(Builtin::Minimize) => ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true)),
+                Some(Builtin::Minimize) => {
+                    WindowHost::of(ctx).act(egui::ViewportId::ROOT, WindowAction::Minimize);
+                }
                 Some(Builtin::Quit) => {
-                    craft_quit::on_menu_event(ctx, Builtin::Quit.id());
+                    WindowHost::of(ctx).act(egui::ViewportId::ROOT, WindowAction::Close);
                 }
                 _ => out.push(command),
             }

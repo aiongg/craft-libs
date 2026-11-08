@@ -12,7 +12,6 @@ use craft_keymap::CommandRef;
 use crate::model::{Item, ItemRole, Node};
 
 /// The command every Language row runs, with `{"lang": "<code>"}` (`"auto"` for Automatic).
-// vectorcraft: crates/ui-egui/src/native_menu.rs:366 (`app.language` with `{"lang": …}`).
 pub const LANGUAGE_COMMAND: &str = "app.language";
 
 /// What a Language row chose.
@@ -76,7 +75,6 @@ impl LanguageMenu {
     }
 
     /// The menu of the languages `i18n` offers.
-    // vectorcraft: crates/ui-egui/src/native_menu.rs:364 `language_node` (`Lang::for_picker`).
     pub fn from_i18n(i18n: &I18n, current: LanguageChoice) -> Self {
         let rows = i18n.languages().into_iter().map(|l| LanguageRow { code: i18n.code(l).to_owned(), name: i18n.name(l).to_owned() }).collect();
         LanguageMenu::new(rows, current)
