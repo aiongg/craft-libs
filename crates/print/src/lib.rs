@@ -30,6 +30,12 @@ pub mod rgb {
 #[cfg(feature = "ui")]
 pub mod ui;
 
+/// The registrations of this crate's UI types, for its integration binary.
+#[cfg(feature = "screen-testing")]
+pub mod testing {
+    craft_ui::testing_registered!();
+}
+
 /// A system spooler failure. Document permissions belong to the caller.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Error {

@@ -1206,12 +1206,14 @@ version = "0.1.0"
 dependencies = [
  "block2 0.6.2",
  "craft-atomic",
+ "craft-behavior",
  "craft-host",
  "craft-i18n",
  "craft-platform",
- "craft-ui-legacy",
+ "craft-ui",
  "egui",
  "futures-lite",
+ "libtest-mimic",
  "log",
  "objc2 0.6.5",
  "objc2-app-kit 0.3.2",
@@ -1569,9 +1571,10 @@ dependencies = [
 name = "craft-print"
 version = "0.1.0"
 dependencies = [
- "craft-ui-legacy",
+ "craft-ui",
  "craft-winprint-gdi",
  "egui",
+ "libtest-mimic",
  "log",
  "miniz_oxide 0.9.1",
  "roxmltree 0.21.2",
@@ -1685,11 +1688,12 @@ name = "craft-theme-store"
 version = "0.1.0"
 dependencies = [
  "craft-atomic",
+ "craft-behavior",
  "craft-theme",
- "craft-ui-legacy",
+ "craft-ui",
  "dirs",
  "egui",
- "egui_kittest",
+ "libtest-mimic",
  "serde",
  "serde_json",
  "tempfile",

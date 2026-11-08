@@ -2,22 +2,122 @@
 # Filled in by the family track; the codemods and the app scan read it.
 
 family = "Automation, update, quit, dialogs"
-new_module = ""
+new_module = "craft_dialogs::ui"
 
 # One entry per public type: `old` is the path an app calls today, `new` the path after migration.
 # `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
 
 [[type]]
 name = "FileListPicker"
-old = ""
+old = "craft_dialogs::ui::FileListPicker"
+new = "craft_dialogs::ui::FileListPicker"
+status = "same"
+note = "A pattern over one `List<usize>`: `FileListPicker::new(label, Bind<FileList>)` with `request`, `folder_mode`, `open_files`, `folder_files` and `info` as props. `show(ui) -> FileListPickerOutput`. The ticket of Browse is kept in the picker's container; Delete and Backspace remove the selected file and Alt+Up and Alt+Down move it (the list's contract keys). Folder mode is the same list over the folder's files with no selection. The buttons sit under the list, not beside it."
+
+[[type]]
+name = "FileList"
+old = "craft_dialogs::ui::FileList"
+new = "craft_dialogs::ui::FileList"
+status = "same"
+note = "`#[non_exhaustive]`: build it with `FileList::default()` and set the fields. `problem` takes `&FileListWords`."
+
+[[type]]
+name = "FileListMode"
+old = "craft_dialogs::ui::FileListMode"
+new = "craft_dialogs::ui::FileListMode"
+status = "same"
+note = "`#[non_exhaustive]`."
+
+[[type]]
+name = "FileListPickerResponse"
+old = "craft_dialogs::ui::FileListPickerResponse"
 new = ""
-status = "pending"
+status = "removed"
+note = "Replaced by `FileListPickerOutput { response, changed, browsing }`."
+
+[[type]]
+name = "FileListPickerOutput"
+old = ""
+new = "craft_dialogs::ui::FileListPickerOutput"
+status = "replaced"
+note = "`{ response, changed, browsing: Option<PickId> }`; the old response had no `response` field."
+
+[[type]]
+name = "FileListLabels"
+old = "craft_dialogs::ui::FileListLabels"
+new = ""
+status = "removed"
+note = "Replaced by `FileListWords`. The word ids move from `fileList.*` to `fileListPicker.*`; the text is unchanged."
+
+[[type]]
+name = "FileListWords"
+old = ""
+new = "craft_dialogs::ui::FileListWords"
+status = "replaced"
+note = "The words of the file list picker (`fileListPicker.*`), read with `Env::of(ui).words::<FileListWords>()`."
 
 [[type]]
 name = "PathField"
-old = ""
+old = "craft_dialogs::ui::PathField"
+new = "craft_dialogs::ui::PathField"
+status = "same"
+note = "A pattern over `OutputPathRow`: `PathField::new(label, Bind<String>, PickRequest)` with `must_exist(bool)`. `show(ui) -> PathFieldOutput`. The Browse button reads `OutputPathRow`'s word (`outputPath.browse`, \"Choose File…\"). \"Not found\" is a `Validity::Warn` message of the row, not red text under the field."
+
+[[type]]
+name = "PathFieldResponse"
+old = "craft_dialogs::ui::PathFieldResponse"
 new = ""
-status = "pending"
+status = "removed"
+note = "Replaced by `PathFieldOutput { response, edit: Option<EditEvent<String>>, browsing }`."
+
+[[type]]
+name = "PathFieldOutput"
+old = ""
+new = "craft_dialogs::ui::PathFieldOutput"
+status = "replaced"
+note = "The typed path is a commit and the picker's answer a set; both are written into the bound path."
+
+[[type]]
+name = "PathFieldLabels"
+old = "craft_dialogs::ui::PathFieldLabels"
+new = ""
+status = "removed"
+note = "Replaced by `PathFieldWords` (`pathField.notFound`). `pathField.browse` is gone: the Browse button reads `outputPath.browse`."
+
+[[type]]
+name = "PathFieldWords"
+old = ""
+new = "craft_dialogs::ui::PathFieldWords"
+status = "replaced"
+note = "`not_found` (`pathField.notFound`)."
+
+[[type]]
+name = "ReplaceLabels"
+old = "craft_dialogs::ui::ReplaceLabels"
+new = ""
+status = "removed"
+note = "Replaced by `ReplacePromptWords`; the ids `fileService.*` are unchanged. `words()` still gives the `ReplaceWords` for `FilePanels::replace_words`."
+
+[[type]]
+name = "ReplacePromptWords"
+old = ""
+new = "craft_dialogs::ui::ReplacePromptWords"
+status = "replaced"
+note = "`title`, `question` (a template with `{name}`), `replace` and `cancel`."
+
+[[type]]
+name = "UnavailableLabels"
+old = "craft_dialogs::ui::UnavailableLabels"
+new = ""
+status = "removed"
+note = "Replaced by `UnavailableWords`; the id `fileService.unavailable` is unchanged."
+
+[[type]]
+name = "UnavailableWords"
+old = ""
+new = "craft_dialogs::ui::UnavailableWords"
+status = "replaced"
+note = "`sentence(cause)` replaces `UnavailableLabels::message(cause)`."
 
 [[type]]
 name = "CaptureSlot"
@@ -62,7 +162,33 @@ status = "removed"
 note = "The `WindowHost::inject_move`, `inject_click`, `inject_key` and `inject_text` calls build and queue the events."
 
 # One entry per renamed, removed or reshaped setter or constructor.
-# [[setter]]
-# type = ""
-# old = ""
-# new = ""
+
+[[setter]]
+type = "PathField"
+old = "PathField::new(id_salt, label, value: &str, request)"
+new = "PathField::new(label, value: Bind<String>, request)"
+note = "The pattern writes the typed or picked path into the bind. The id comes from the container, not from a salt."
+
+[[setter]]
+type = "PathField"
+old = "width(f32)"
+new = ""
+note = "Removed: the field takes its size from its content."
+
+[[setter]]
+type = "PathField"
+old = "enabled(bool)"
+new = ""
+note = "Removed: a pattern has no `Common`; show the field under a disabled scope."
+
+[[setter]]
+type = "FileListPicker"
+old = "FileListPicker::new(id_salt, list: &mut FileList)"
+new = "FileListPicker::new(label, list: Bind<FileList>)"
+note = "The label names the list for assistive technology."
+
+[[setter]]
+type = "FileListPicker"
+old = "info(Option<InfoLine>)"
+new = "info(InfoLine)"
+note = "The line is given, or the prop is left out."

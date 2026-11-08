@@ -1,143 +1,137 @@
-//! [`PathField`]: a text field holding a path with a Browse button that opens a picker through
-//! `host.files()`.
+//! [`PathField`]: a labelled path with a Browse button that opens a picker through `host.files()`.
 
-use craft_host::{Host, PickId, PickRequest};
-use craft_ui::controls::{Button, ControlSize, TextField};
-use craft_ui::edit::{EditEvent, EditResponse};
-use craft_ui::localized::Labels;
-use craft_ui::theme::{Tokens, TokensOf, role_format};
-use egui::text::LayoutJob;
-use egui::{AsIdSalt, IdSalt, Label, Modifiers, Ui};
+use craft_behavior::{EditEvent, GestureId, Mixed};
+use craft_host::target::Caps;
+use craft_host::{PickId, PickKind, PickRequest};
+use craft_ui::contract::{Bind, Held, NoValue, Outcome, Remember as _, ShowContainer as _, Validity};
+use craft_ui::layout_components::Stack;
+use craft_ui::patterns::form_dialogs::{OutputPathRow, PathKind};
+use craft_ui::runtime::env::{Env, Label, Message};
+use egui::{Response, Ui};
+use std::path::Path;
 
 craft_ui::words! {
-    /// The field's words, English by default.
-    #[non_exhaustive]
-    pub struct PathFieldLabels {
-        browse: "pathField.browse" = "Browse…";
+    /// The words of the path field.
+    pub struct PathFieldWords {
         not_found: "pathField.notFound" = "The file was not found.";
     }
 }
 
-/// What the field reported this pass.
+/// The pick the field is waiting for, kept in the field's container while it is shown.
+#[derive(Clone, Copy, Default)]
+struct Ticket(Option<PickId>);
+
+/// What the path field reports.
 #[derive(Debug)]
-pub struct PathFieldResponse {
-    /// The field's edit: `Commit` when the user typed a path and left the field or pressed Enter;
-    /// `Set` when the picker answered (read either with [`EditResponse::committed`]).
-    pub edit: EditResponse<String>,
-    /// Browse was pressed and a picker was queued; the field stores the ticket in egui memory and
-    /// fills itself when the answer arrives.
+#[non_exhaustive]
+pub struct PathFieldOutput {
+    /// The field's response.
+    pub response: Response,
+    /// The edit of this pass: the typed path (a commit when the user typed a path and left the field or pressed
+    /// Enter) or the picker's answer (a set).
+    pub edit: Option<EditEvent<String>>,
+    /// Browse was pressed and a picker was queued; the field keeps the ticket and fills itself when the answer
+    /// arrives.
     pub browsing: Option<PickId>,
 }
 
-/// A label, a text field with the path and a Browse button in one row. Typing commits on Enter or
-/// focus loss; Browse queues `request` through `host.files()` and the answer fills the field on
-/// a later pass (the field matches tickets, so several fields can browse in turn). Tab order: field,
-/// then Browse. The field shows [`PathFieldLabels::not_found`] under itself in error red when
-/// `must_exist` is set and the path does not exist.
-///
-/// ```ignore
-/// let r = PathField::new("export-path", "Save to", &path, PickRequest::save("export").suggested_extension("png")).show(ui);
-/// if let Some(p) = r.edit.committed() { path = p; }
-/// ```
+impl Outcome for PathFieldOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// A label, a text field with the path and a Browse button in one row, over the bound path. Typing commits on Enter or
+/// focus loss; Browse queues `request` through `host.files()` and the answer fills the field on a later pass (the field
+/// matches tickets, so several fields can browse in turn). Tab order: field, then Browse. With `must_exist` set, a path
+/// that does not exist shows the not-found message under the field.
+#[must_use = "show the field with `show`"]
+#[derive(craft_ui::contract::Pattern, craft_ui::contract::Props)]
 pub struct PathField<'a> {
-    id_salt: IdSalt,
-    label: String,
-    value: &'a str,
+    label: Label,
+    value: Bind<'a, String>,
     request: PickRequest,
+    /// Shows the not-found message for a path that does not exist (Open fields; not Save).
+    #[prop]
     must_exist: bool,
-    width: Option<f32>,
-    enabled: bool,
 }
 
 impl<'a> PathField<'a> {
-    /// A field with `label` showing `value`. `request` is what Browse asks the host to pick.
-    /// `id_salt` keeps the field's state apart from other fields in the same `Ui`.
-    pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, value: &'a str, request: PickRequest) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), label: label.into(), value, request, must_exist: false, width: None, enabled: true }
+    /// A field named `label` over the bound path. `request` is what Browse asks the host to pick.
+    pub fn new(label: impl Into<Label>, value: Bind<'a, String>, request: PickRequest) -> Self {
+        PathField { label: label.into(), value, request, must_exist: false }
     }
 
-    /// Show the not-found message for a path that does not exist (Open fields; not Save).
-    pub fn must_exist(mut self, must_exist: bool) -> Self {
-        self.must_exist = must_exist;
-        self
-    }
-
-    /// The text field's width; default: fill, leaving room for Browse.
-    pub fn width(mut self, width: f32) -> Self {
-        self.width = Some(width);
-        self
-    }
-
-    /// Whether the field and its Browse button react to input; default true.
-    pub fn enabled(mut self, enabled: bool) -> Self {
-        self.enabled = enabled;
-        self
-    }
-
-    /// Draws the row. Reads `Host::of(ui).files()`: takes the pick answer of the ticket this field
-    /// stored; other tickets' answers stay in the service.
-    // pc: crates/ui-egui/src/dialogs/file_ui/print.rs:246 browse_pdf (Browse beside the PDF path field); new: the field itself
-    pub fn show(self, ui: &mut Ui) -> PathFieldResponse {
-        let host = Host::of(ui);
-        let labels = PathFieldLabels::of(ui);
-        let tokens = Tokens::of(ui);
-        let ticket_key = ui.scope_id().with((self.id_salt, "ticket"));
-        let enabled = self.enabled && ui.is_enabled();
-        let missing = self.must_exist && path_is_missing(self.value);
+    /// Shows the field. Reads the host's file service from the env: takes the answer of the ticket this field kept;
+    /// other tickets' answers stay in the service.
+    pub fn show(self, ui: &mut Ui) -> PathFieldOutput {
+        let PathField { label, value, request, must_exist } = self;
+        let words = Env::of(ui).words::<PathFieldWords>();
+        let kind = path_kind(&request);
+        let mut held = Held::new(value);
+        let mut edit = None;
         let mut browsing = None;
-
-        let mut edit = ui
-            .vertical(|ui| {
-                let edit = ui
-                    .horizontal(|ui| {
-                        ui.label(self.label.as_str());
-                        let browse = Button::new(labels.browse.as_str()).id_salt((self.id_salt, "browse")).enabled(enabled);
-                        let room = ui.available_width() - browse.natural_width(ui) - ui.spacing().item_spacing.x;
-                        let width = self.width.unwrap_or_else(|| room.max(0.0));
-                        let edit = TextField::new((self.id_salt, "field"), self.label.as_str(), self.value)
-                            .width(width)
-                            .enabled(enabled)
-                            .invalid(missing)
-                            .show(ui);
-                        if ui.add(browse).clicked() {
-                            let id = host.files().pick(self.request.clone());
-                            ui.data_mut(|d| d.insert_temp(ticket_key, id));
-                            browsing = Some(id);
-                        }
-                        edit
-                    })
-                    .inner;
-                if missing {
-                    let style = TextField::style(&tokens, ControlSize::Md);
-                    let format = role_format(&tokens, style.role, style.invalid);
-                    ui.add(Label::new(LayoutJob::single_section(labels.not_found.clone(), format)));
-                }
-                edit
-            })
-            .inner;
-
-        // A typing event of this pass keeps the slot; the answer waits in the queue for the next one.
-        if edit.event.is_none()
-            && let Some(ticket) = ui.data(|d| d.get_temp::<PickId>(ticket_key))
-            && let Some(picked) = host.files().take_answer(ticket)
-        {
-            ui.data_mut(|d| d.remove::<PickId>(ticket_key));
-            if let Some(path) = picked.first_path() {
-                edit.event = Some(EditEvent::set(path.to_string_lossy().into_owned(), Modifiers::NONE));
+        let shown = Stack::new().show(ui, |ui, cx| {
+            let before = held.read(cx).unwrap_or_default();
+            let host = cx.env.host().cloned();
+            let looks = must_exist && cx.env.shell().caps.contains(Caps::FILE_SYSTEM);
+            let not_found = words.not_found.clone();
+            let check = move |path: &String| {
+                if looks && path_is_missing(path) { Validity::Warn(Message::new(not_found.clone())) } else { Validity::Ok }
+            };
+            let mut answered = None;
+            if let Some(host) = &host
+                && let Some(ticket) = cx.memory::<Ticket>().0
+                && let Some(picked) = host.files().take_answer(ticket)
+            {
+                cx.memory::<Ticket>().0 = None;
+                answered = picked.first_path().map(|path| path.to_string_lossy().into_owned());
             }
-        }
-        PathFieldResponse { edit, browsing }
+            let row = OutputPathRow::new(Bind::given(before.clone()).check(check)).label(label.clone()).kind(kind.clone()).key("path").show(ui);
+            if row.browse.is_some()
+                && let Some(host) = &host
+            {
+                let id = host.files().pick(request.clone());
+                cx.memory::<Ticket>().0 = Some(id);
+                browsing = Some(id);
+            }
+            let typed = row.edit.and_then(|event| {
+                let after = match &event {
+                    EditEvent::Commit { after, .. } | EditEvent::Set { after, .. } => after.clone(),
+                    _ => return None,
+                };
+                Some((after, event))
+            });
+            let landed = typed.or_else(|| {
+                answered.map(|path| {
+                    let event = EditEvent::set(GestureId::default(), Mixed::Same(before.clone()), path.clone(), label.as_str().into(), None);
+                    (path, event)
+                })
+            });
+            if let Some((after, event)) = landed {
+                held.write(cx, &before, after, label.as_str());
+                edit = Some(event);
+            }
+        });
+        PathFieldOutput { response: shown.output, edit, browsing }
     }
 }
 
-/// Whether a non-empty `value` names nothing on disk. An empty field is not flagged, and on wasm
-/// there is no file system to ask.
-#[cfg(not(target_arch = "wasm32"))]
-fn path_is_missing(value: &str) -> bool {
-    !value.trim().is_empty() && !std::path::Path::new(value.trim()).exists()
+/// What Browse asks the output row to pick, from the host's request.
+fn path_kind(request: &PickRequest) -> PathKind {
+    match request.kind {
+        PickKind::Folder => PathKind::Folder,
+        PickKind::Save => PathKind::SaveFile,
+        PickKind::Open | PickKind::OpenMany => {
+            let extensions: Vec<&str> = request.filters.iter().flat_map(|filter| filter.extensions.iter().map(String::as_str)).collect();
+            PathKind::open_file(&extensions)
+        }
+    }
 }
 
-#[cfg(target_arch = "wasm32")]
-fn path_is_missing(_value: &str) -> bool {
-    false
+/// Whether a non-empty `path` names nothing on disk. An empty field is not flagged.
+fn path_is_missing(path: &str) -> bool {
+    !path.trim().is_empty() && !Path::new(path.trim()).exists()
 }
