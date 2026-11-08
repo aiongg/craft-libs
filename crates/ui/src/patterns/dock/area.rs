@@ -10,17 +10,18 @@ use crate::contract::{
 use crate::docking::stack::{StackSection, section_heights};
 use crate::docking::tree::{self, FrameRules};
 use crate::docking::{
-    DockColumn, DockConfig, DockDropTarget, DockDropped, DockEvent, DockGroup, DockPanels, DockSizes, DockSpot, DockTargets,
-    DockWords, DragUnit, FloatSpace, FloatingGroup, GroupDrag, HidePanels, IconicColumn, PanelDrag, PanelKey, PanelSpec, PanelTitle, SplitArea,
-    cancel_on_replacement, fit_widths, frame, start_group_drag,
+    DockColumn, DockCommands, DockConfig, DockDropTarget, DockDropped, DockEvent, DockGroup, DockPanels, DockScene, DockSizes, DockSpot, DockTargets,
+    DockTo, DockWords, DragUnit, FloatSpace, FloatingGroup, GroupDrag, HidePanels, IconicColumn, PanelDrag, PanelKey, PanelSpec, PanelTitle,
+    SplitArea, actions, cancel_on_replacement, dock_states, fit_widths, frame, move_actions, start_group_drag,
 };
 use crate::layout_components::Stack;
-use crate::menu::{GroupItem, MenuWords, PanelMenu, PanelRow};
+use crate::menu::{GroupItem, MenuWords, PanelRow};
+use crate::runtime::commands::{CommandRef, focus_within};
 use crate::runtime::env::{Env, Label, RevealEdge, ShellCx};
 use crate::runtime::memory::{Remember as _, sub};
 use crate::sections::HeaderAction;
 use crate::style::StyleCx;
-use craft_behavior::dock::{Action, Column, DockEdge, DockError, Group, Layout, Node, Permissions, Placement, Target, Workspace, node_at};
+use craft_behavior::dock::{Action, Column, DockEdge, DockError, Group, Layout, Node, Permissions, Workspace, node_at};
 use craft_behavior::{DockSide, EditEvent, Flow, GesturePhase, Metrics, Mixed, Sense};
 use egui::{Context, Id, Pos2, Rect, Response, Ui, Vec2};
 use std::cell::RefCell;
@@ -48,8 +49,10 @@ pub struct DockAreaOutput<P> {
     pub actions: Vec<Action<P>>,
     /// Requests for host state and reports of where things ended up.
     pub events: Vec<DockEvent<P>>,
-    /// The panel of the group the user clicked or picked this pass.
+    /// The shown panel of the group that holds key focus: focus is on the group or on a control inside it.
     pub focused: Option<P>,
+    /// The panel whose tab the user clicked or picked this pass.
+    pub picked: Option<P>,
     /// Why nothing was drawn, when the workspace is invalid.
     pub error: Option<InvalidGeometry>,
     /// The size edit of a split divider this pass, as the edit of the whole workspace. A workspace bound by
@@ -217,6 +220,7 @@ struct Report<P> {
     actions: Vec<Action<P>>,
     events: Vec<DockEvent<P>>,
     focused: Option<P>,
+    picked: Option<P>,
     flyout: Vec<EditEvent<Option<P>>>,
     placed: Vec<(P, Rect)>,
 }
@@ -254,11 +258,6 @@ impl<P: Clone + Eq + Hash> Scene<'_, P> {
         self.space.panel(panel).or(self.spec(panel).float_size).unwrap_or(self.space.default_size).min(self.bounds.size())
     }
 
-    /// The rect a command floats `panel` at.
-    fn float_rect(&self, panel: &P) -> Rect {
-        self.space.place(self.float_size(panel))
-    }
-
     /// The rect of a window torn off at `pointer`: its title row under the pointer, inside the float bounds.
     fn torn_rect(&self, panel: &P, pointer: Pos2) -> Rect {
         let size = self.float_size(panel);
@@ -272,6 +271,7 @@ struct Passed<P> {
     actions: Vec<Action<P>>,
     events: Vec<DockEvent<P>>,
     focused: Option<P>,
+    picked: Option<P>,
     edit: Option<EditEvent<Workspace<P>>>,
     space: Option<FloatSpace<P>>,
 }
@@ -351,12 +351,12 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
             }
             passed = Some(result);
         });
-        let Passed { mut actions, events, focused, edit, space } =
-            passed.unwrap_or_else(|| Passed { actions: Vec::new(), events: Vec::new(), focused: None, edit: None, space: None });
+        let Passed { mut actions, events, focused, picked, edit, space } =
+            passed.unwrap_or_else(|| Passed { actions: Vec::new(), events: Vec::new(), focused: None, picked: None, edit: None, space: None });
         if let Some(dropped) = shown.output.dropped {
             actions.push(dropped.action);
         }
-        DockAreaOutput { actions, events, focused, error, edit, float_space: space, response: shown.output.response }
+        DockAreaOutput { actions, events, focused, picked, error, edit, float_space: space, response: shown.output.response }
     }
 }
 
@@ -411,13 +411,12 @@ fn show_area<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
             space = space.with_panel_size(panel.clone(), size);
         }
     }
-    let scene =
-        Scene { dock: id, sizes, config, layout, specs: &specs, permissions: rights, keys: &keys, space: &space, bounds, auto_collapse, rtl };
+    let scene = Scene { dock: id, sizes, config, layout, specs: &specs, permissions: rights, keys: &keys, space: &space, bounds, auto_collapse, rtl };
     let open = open_of(&mut flyout, body, &memory);
     let mut pass = Pass {
         scene: &scene,
         panels,
-        report: Report { actions: Vec::new(), events: Vec::new(), focused: None, flyout: Vec::new(), placed: Vec::new() },
+        report: Report { actions: Vec::new(), events: Vec::new(), focused: None, picked: None, flyout: Vec::new(), placed: Vec::new() },
     };
 
     let spec_of = |panel: &P| scene.spec(panel);
@@ -479,7 +478,7 @@ fn show_area<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
     memory.columns = std::mem::take(&mut report.placed);
     memory.previous = current.layout.clone();
     *body.memory::<AreaMemory<P>>() = memory;
-    Passed { actions: report.actions, events: report.events, focused: report.focused, edit, space: Some(space) }
+    Passed { actions: report.actions, events: report.events, focused: report.focused, picked: report.picked, edit, space: Some(space) }
 }
 
 /// Registers the outer-edge bands and the new-dock bands as the dock's drop spots for the next pass.
@@ -534,59 +533,70 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
         }
     }
 
-    /// The rows of the menu of `panel`'s group: the host's rows, then the dock's.
+    /// The rows of the menu of `panel`'s group: the host's rows, then the panel commands the config shows, with
+    /// the Move Panel To submenu of the groups the panel can move to.
     fn menu_rows(&mut self, body: &BodyCx<'_>, panel: &P) -> Vec<PanelRow> {
         let scene = self.scene;
-        let words = body.words::<MenuWords>();
-        let rights = scene.permissions(panel);
-        let targets: Vec<Label> =
-            scene.layout.move_targets(panel, |other| scene.permissions(other)).into_iter().map(|target| scene.spec(target).label).collect();
-        let mut group = PanelMenu::group_rows(rights.movable, rights.floatable, rights.closable, scene.config.close_menu_items, &targets, &words);
-        let item = |item: GroupItem, label: &str| PanelRow::Item(Entry::new(item, Label::from(label.to_owned())));
-        if rights.closable && scene.config.close_menu_items {
-            group.push(item(GroupItem::CloseGroup, words.panel_close_group.as_str()));
+        let config = scene.config;
+        let command = |command: DockCommands| PanelRow::Command(CommandRef::from(command));
+        let mut group = vec![command(DockCommands::FloatPanel)];
+        let targets = scene.layout.move_targets(panel, |other| scene.permissions(other));
+        if scene.permissions(panel).movable && !targets.is_empty() {
+            let rows = targets.iter().enumerate().map(|(at, target)| PanelRow::Item(Entry::new(GroupItem::MoveTo(at), scene.spec(target).label)));
+            let name = Label::from(body.words::<MenuWords>().panel_move_to.as_str().to_owned());
+            group.push(PanelRow::Submenu(name, rows.collect()));
         }
-        if rights.movable && rights.floatable {
-            group.push(item(GroupItem::FloatGroup, words.panel_float_group.as_str()));
+        if config.close_menu_items {
+            group.extend([command(DockCommands::ClosePanel), command(DockCommands::CloseGroup)]);
         }
-        if scene.config.close_others_item {
-            group.push(item(GroupItem::CloseOthers, words.panel_close_others.as_str()));
+        group.push(command(DockCommands::FloatGroup));
+        if config.close_others_item {
+            group.push(command(DockCommands::CloseOthers));
         }
-        if scene.config.maximize_item {
-            group.push(item(GroupItem::ToggleMaximize, words.panel_maximize.as_str()));
+        if config.maximize_item {
+            group.push(command(DockCommands::ToggleMaximize));
         }
         let mut rows = self.panels.panel_rows(panel);
-        if !rows.is_empty() && !group.is_empty() {
+        if !rows.is_empty() {
             rows.push(PanelRow::Separator);
         }
         rows.extend(group);
         rows
     }
 
-    /// The action or event a dock row of the menu of `panel` makes.
-    fn choose(&mut self, panel: &P, item: GroupItem) {
+    /// Runs a panel command on `panel`: the event of a command the host carries out, else its actions.
+    fn run(&mut self, panel: &P, command: DockCommands) {
         let scene = self.scene;
-        let action = match item {
-            GroupItem::Float => Some(Action::float(panel.clone(), scene.float_rect(panel))),
-            GroupItem::FloatGroup => Some(Action::move_group(panel.clone(), Target::float(scene.float_rect(panel)))),
-            GroupItem::Close => Some(Action::close(panel.clone())),
-            GroupItem::CloseGroup => Some(Action::close_group(panel.clone())),
-            GroupItem::CloseOthers => Some(Action::close_others(panel.clone())),
-            GroupItem::CollapseToIcons => Some(Action::set_iconic(panel.clone(), true)),
-            GroupItem::StepGroup(up) => Some(Action::step_group(panel.clone(), up)),
-            GroupItem::MoveTo(at) => scene
-                .layout
-                .move_targets(panel, |other| scene.permissions(other))
-                .get(at)
-                .map(|target| Action::move_beside(panel.clone(), (*target).clone(), Placement::tab(None))),
-            _ => None,
-        };
+        let permissions = |panel: &P| scene.permissions(panel);
+        // The area's permissions are narrowed for a locked workspace already.
+        let commands = DockScene::new(scene.layout, scene.space, false, &permissions);
         let report = &mut self.report;
-        match (action, item) {
-            (Some(action), _) => report.actions.push(action),
-            (None, GroupItem::AutoCollapse) => report.events.push(DockEvent::ToggleAutoCollapse),
-            (None, GroupItem::ToggleMaximize) => report.events.push(DockEvent::ToggleMaximize { panel: panel.clone() }),
-            (None, command) => report.events.push(DockEvent::PanelCommand { panel: panel.clone(), command }),
+        if let Some(event) = command.event(panel) {
+            report.events.push(event);
+        } else if command.moves(panel).is_some() {
+            report.events.push(DockEvent::PanelCommand { panel: panel.clone(), command });
+        } else if let Ok(planned) = actions(&commands, command, panel) {
+            report.actions.extend(planned);
+        }
+    }
+
+    /// Moves `panel` into the group of the move target at `at`, as Move Panel To.
+    fn move_to(&mut self, panel: &P, at: usize) {
+        let scene = self.scene;
+        let permissions = |panel: &P| scene.permissions(panel);
+        let Some(target) = scene.layout.move_targets(panel, permissions).get(at).map(|target| (*target).clone()) else { return };
+        let commands = DockScene::new(scene.layout, scene.space, false, &permissions);
+        if let Ok(planned) = move_actions(&commands, &DragUnit::Panel(panel.clone()), DockTo::tabs(target, None)) {
+            self.report.actions.extend(planned);
+        }
+    }
+
+    /// Runs a dock row of a panel or column menu that is not a command row.
+    fn pick(&mut self, panel: &P, item: GroupItem) {
+        match item {
+            GroupItem::MoveTo(at) => self.move_to(panel, at),
+            GroupItem::CollapseToIcons => self.run(panel, DockCommands::CollapseToIcons),
+            GroupItem::AutoCollapse => self.run(panel, DockCommands::AutoCollapse),
         }
     }
 
@@ -602,11 +612,14 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
         let titles: Vec<PanelTitle> = members.iter().map(|panel| PanelTitle::new(PanelKey::of(panel), scene.spec(panel).label)).collect();
         let shown = &members[active];
         let menu = self.menu_rows(body, shown);
+        let permissions = |panel: &P| scene.permissions(panel);
+        let states = dock_states(&DockScene::new(scene.layout, scene.space, false, &permissions), shown);
         let mut group = DockGroup::new(anchor.clone(), &titles, PanelKey::of(shown))
             .dock(scene.dock)
             .zones(scene.config.zone_rule())
             .movable(scene.permissions(shown).movable)
-            .menu(menu);
+            .menu(menu)
+            .command_states(states);
         if look.minimized {
             group = group.minimized();
         }
@@ -617,13 +630,19 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
         let output = group.show_at(ui, rect, |ui, body| panels.body(shown, ui, body)).output;
         if let Some(panel) = output.picked.and_then(|key| scene.panel(key)) {
             self.report.actions.push(Action::activate(panel.clone()));
-            self.report.focused = Some(panel.clone());
+            self.report.picked = Some(panel.clone());
+        }
+        if focus_within(ui.ctx(), output.response.id) {
+            self.report.focused = Some(shown.clone());
         }
         for panel in output.closed.into_iter().filter_map(|key| scene.panel(key)) {
             self.report.actions.push(Action::close(panel.clone()));
         }
         if let Some(item) = output.item {
-            self.choose(shown, item);
+            self.pick(shown, item);
+        }
+        for command in output.commands {
+            self.run(shown, command);
         }
         if output.toggle_minimized {
             self.report.actions.push(match look.section {
@@ -694,7 +713,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
             self.report.actions.push(Action::set_iconic(first.clone(), iconic));
         }
         if let Some(item) = work.picked {
-            self.choose(first, item);
+            self.pick(first, item);
         }
         for (anchor, height) in work.resized {
             self.report.actions.push(Action::resize_group(anchor, Some(height)));
@@ -729,7 +748,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
             }
             match output.action {
                 Some(HeaderAction::Close) => self.report.actions.push(Action::close_window(anchor.clone())),
-                Some(HeaderAction::Float) => self.report.events.push(DockEvent::PanelCommand { panel: anchor.clone(), command: GroupItem::Float }),
+                Some(HeaderAction::Float) => {
+                    self.report.events.push(DockEvent::PanelCommand { panel: anchor.clone(), command: DockCommands::FloatPanel })
+                }
                 _ => {}
             }
             if output.minimized_toggled {

@@ -90,7 +90,7 @@ name = "DockEvent"
 old = "craft_ui::docking::DockEvent"
 new = "craft_ui::docking::DockEvent"
 status = "same"
-note = "`PanelCommand { panel, command }` carries a `menu::GroupItem` (the dock's own rows); the host's rows are commands and run by themselves. Adds `ColumnPlaced { anchor, rect }` (the anchor is a panel of the column's first group) and `FloatPlaced { panel, rect }`."
+note = "`PanelCommand { panel, command }` carries the `DockCommands` only the host carries out (Move Panel To and Move Group To ask for a destination); the menu rows are commands and run in the group's scope. Adds `ColumnPlaced { anchor, rect }` (the anchor is a panel of the column's first group) and `FloatPlaced { panel, rect }`."
 
 [[type]]
 name = "FloatSpace"
@@ -340,8 +340,9 @@ status = "moved"
 [[type]]
 name = "WorkspaceCommand"
 old = "craft_ui::docking::workspaces::WorkspaceCommand"
-new = "craft_behavior::dock::WorkspaceCommand"
-status = "moved"
+new = ""
+status = "removed"
+note = "Replaced by `craft_ui::docking::WorkspaceCommands`: the switcher's rows fire the commands, and the host runs each with `run_workspace`; a workspace pick is `WorkspaceSwitcherOutput::switched`."
 
 [[type]]
 name = "WorkspaceError"
@@ -354,7 +355,7 @@ name = "Arrangement"
 old = "craft_ui::docking::arrange::Arrangement"
 new = "craft_behavior::dock::Arrangement"
 status = "moved"
-note = "Data only: `menu_entries` and `ArrangeLabels` are not part of the type; the dock commands build the rows."
+note = "Data only: `menu_entries`, `ArrangeLabels` and the command ids are not part of the type; the `ArrangeCommands` set builds the rows and owns the ids."
 
 [[type]]
 name = "arrange_rects"
@@ -501,9 +502,19 @@ old = "Arrangement::menu_entries(&ArrangeLabels, documents, groups, floating)"
 new = "Arrangement::enabled(documents, groups, floating) per command; the dock commands build the rows"
 
 [[setter]]
+type = "Arrangement"
+old = "Arrangement::command_id(self)"
+new = "the id of the `ArrangeCommands` command whose `arrangement()` it is; the command set owns the ids"
+
+[[setter]]
+type = "Arrangement"
+old = "Arrangement::from_command_id(id)"
+new = "`ArrangeCommands::from_ref(&command)`, then `arrangement()`"
+
+[[setter]]
 type = "WorkspaceSet"
 old = "WorkspaceSet::menu_entries(&WorkspaceLabels)"
-new = "the `builtin`, `saved` and `current` fields and `WorkspaceCommand`; the dock commands build the rows"
+new = "the `builtin`, `saved` and `current` fields and `WorkspaceCommands`; the dock commands build the rows"
 
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]
@@ -925,11 +936,11 @@ note = "The output of `SplitArea`: the layout's resize edits."
 
 # dock-commands-a: command sets over the dock model, the workspace switcher, the words.
 [[type]]
-name = "DockCommand"
+name = "DockCommands"
 old = "craft_ui::docking::DockCommand"
-new = "craft_ui::docking::DockCommand"
+new = "craft_ui::docking::DockCommands"
 status = "replaced"
-note = "The serde command protocol is gone. `DockCommand` is a fieldless `CommandSet` (prefix `dock`) and the panel comes from the caller; `actions` and `move_actions` turn a command into `Action`s, and `Fixture` replaces the JSON control driver."
+note = "The serde command protocol is gone. `DockCommands` is a fieldless `CommandSet` (prefix `dock`, scope `dockGroup`): `DockArea` gives each `DockGroup` the scope, publishes `dock_states` there and runs `actions` and `move_actions` for the command that reaches the group, so a menu row, a key and the palette run the same code. A host with its own dock calls the functions with the panel; `Fixture` replaces the JSON control driver."
 
 [[type]]
 name = "UiDock"
@@ -953,9 +964,9 @@ status = "removed"
 note = "Zones are `craft_behavior::DockSide`; a command destination is `craft_ui::docking::DockTo`."
 
 [[type]]
-name = "ArrangeCommand"
+name = "ArrangeCommands"
 old = ""
-new = "craft_ui::docking::ArrangeCommand"
+new = "craft_ui::docking::ArrangeCommands"
 status = "replaced"
 note = "The Window > Arrange commands (prefix `arrange`), one per `Arrangement`; `arrange` runs one on `DocumentWindows`."
 
@@ -964,7 +975,7 @@ name = "WorkspaceCommands"
 old = ""
 new = "craft_ui::docking::WorkspaceCommands"
 status = "replaced"
-note = "The Window > Workspace commands Reset, New, Delete and Lock (prefix `workspace`); the data enum `craft_behavior::dock::WorkspaceCommand` names them in the switcher's output."
+note = "The Window > Workspace commands Reset, New, Delete and Lock (prefix `workspace`), app scope: the switcher's rows and the Window menu fire them, and the host runs each with `run_workspace`."
 
 [[type]]
 name = "WorkspaceSwitcher"
@@ -978,21 +989,21 @@ name = "WorkspaceSwitcherResponse"
 old = "craft_ui::docking::workspaces::WorkspaceSwitcherResponse"
 new = ""
 status = "removed"
-note = "Replaced by `craft_ui::patterns::dock::WorkspaceSwitcherOutput { response, switched, command }`."
+note = "Replaced by `craft_ui::patterns::dock::WorkspaceSwitcherOutput { response, switched }`."
 
 [[type]]
 name = "WorkspaceSwitcherOutput"
 old = ""
 new = "craft_ui::patterns::dock::WorkspaceSwitcherOutput"
 status = "replaced"
-note = "`switched` is the picked workspace id; `command` is the data `WorkspaceCommand` of the row that ran."
+note = "`switched` is the picked workspace id. A command row fires its `WorkspaceCommands` command and is not reported."
 
 [[type]]
 name = "ArrangeLabels"
 old = "craft_ui::docking::arrange::ArrangeLabels"
 new = ""
 status = "removed"
-note = "The labels are the labels of `ArrangeCommand`."
+note = "The labels are the labels of `ArrangeCommands`."
 
 [[type]]
 name = "WorkspaceLabels"
@@ -1018,7 +1029,7 @@ name = "DockAreaOutput"
 old = ""
 new = "craft_ui::patterns::dock::DockAreaOutput"
 status = "replaced"
-note = "Replaces the legacy `DockOutput`: `actions`, `events`, `focused`, `error`, `edit` (a divider's size edit as an edit of the workspace), `float_space` and `response`; forwarded input and files are the runtime's."
+note = "Replaces the legacy `DockOutput`: `actions`, `events`, `focused` (the shown panel of the group that holds key focus), `picked` (the panel whose tab was clicked or picked this pass), `error`, `edit` (a divider's size edit as an edit of the workspace), `float_space` and `response`; forwarded input and files are the runtime's."
 
 [[type]]
 name = "DockOutput"
