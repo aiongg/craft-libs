@@ -143,7 +143,7 @@ fn a_document_grid_draws_minor_lines_in_their_own_colour_through_the_view() {
     let extent = craft_behavior::kurbo::Rect::new(0.0, 0.0, 400.0, 400.0);
     let lines = GridLines::document(&view, extent, craft_behavior::kurbo::Vec2::new(100.0, 100.0), craft_behavior::kurbo::Point::ZERO, 4);
     let (major, minor) = (Color32::from_rgb(200, 0, 0), Color32::from_rgb(0, 0, 200));
-    let shapes = grid_lines(&tokens, &lines, &GridInk::new().major(major).minor(minor), 1.0);
+    let shapes = grid_lines(&tokens, &lines, &GridInk::new().major(DataColor::new(major)).minor(DataColor::new(minor)), 1.0);
     let colors: Vec<Color32> =
         shapes.iter().map(|shape| if let Shape::LineSegment { stroke, .. } = shape { stroke.color } else { panic!("a line") }).collect();
     let count = |color| colors.iter().filter(|c| **c == color).count();

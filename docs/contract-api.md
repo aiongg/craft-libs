@@ -2267,10 +2267,10 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
   - `fn directional(&self) -> bool`. Whether the glyph has a reading direction (an arrow) and so flips under right-to-left.
   - `fn paint(&self, painter: &Painter, rect: Rect, color: Color32, mirrored: bool)`. Paints the glyph into `rect` in `color`. `mirrored` is set when a directional glyph is painted under
 - `craft_ui::primitives::GridAxis`: `pub struct GridAxis { pub minor: Vec<f64>, pub major: Vec<f64> }`. The lines of one axis: positions along it, in the grid's space.
-- `craft_ui::primitives::GridInk`: `pub struct GridInk { pub major: Option<Color32>, pub minor: Option<Color32>, pub stroke: GridStroke }`. The colours a grid's lines take; an unset one is the theme's.
+- `craft_ui::primitives::GridInk`: `pub struct GridInk { pub major: Option<DataColor>, pub minor: Option<DataColor>, pub stroke: GridStroke }`. The colours a grid's lines take; an unset one is the theme's.
   - `pub const fn new() -> Self`. The theme's colours and solid lines.
-  - `pub const fn major(mut self, color: Color32) -> Self`. The major lines in `color`.
-  - `pub const fn minor(mut self, color: Color32) -> Self`. The minor lines in `color`.
+  - `pub const fn major(mut self, color: DataColor) -> Self`. The major lines in `color`.
+  - `pub const fn minor(mut self, color: DataColor) -> Self`. The minor lines in `color`.
   - `pub const fn stroke(mut self, stroke: GridStroke) -> Self`. The lines drawn as `stroke`.
 - `craft_ui::primitives::GridLines`: `pub struct GridLines { pub x: GridAxis, pub y: GridAxis, pub extent: Option<kurbo::Rect>, pub crossings: bool, pub view: Option<CanvasView> }`. The lines of a grid, as [`grid_lines`] draws them: vertical lines (by x) and horizontal lines (by y), each
   - `pub fn document(view: &CanvasView, extent: kurbo::Rect, spacing: kurbo::Vec2, origin: kurbo::Point, subdivisions: u32) -> Self`. The lines of a grid in document units: majors every `spacing` from `origin`, `subdivisions` steps to a major

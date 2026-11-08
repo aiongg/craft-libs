@@ -169,7 +169,7 @@ impl Component for CanvasGrid {
                 return;
             }
         };
-        painter.grid_lines(&lines, &GridInk::new().major(base).stroke(stroke));
+        painter.grid_lines(&lines, &GridInk::new().major(DataColor::new(base)).stroke(stroke));
     }
 
     fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {

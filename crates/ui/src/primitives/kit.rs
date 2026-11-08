@@ -263,9 +263,9 @@ pub enum GridStroke {
 #[non_exhaustive]
 pub struct GridInk {
     /// The major lines' colour: the overlay grid colour by default.
-    pub major: Option<Color32>,
+    pub major: Option<DataColor>,
     /// The minor lines' colour: the major colour at a share of its alpha by default.
-    pub minor: Option<Color32>,
+    pub minor: Option<DataColor>,
     /// How the lines are drawn.
     pub stroke: GridStroke,
 }
@@ -278,14 +278,14 @@ impl GridInk {
 
     /// The major lines in `color`.
     #[must_use]
-    pub const fn major(mut self, color: Color32) -> Self {
+    pub const fn major(mut self, color: DataColor) -> Self {
         self.major = Some(color);
         self
     }
 
     /// The minor lines in `color`.
     #[must_use]
-    pub const fn minor(mut self, color: Color32) -> Self {
+    pub const fn minor(mut self, color: DataColor) -> Self {
         self.minor = Some(color);
         self
     }
@@ -303,8 +303,8 @@ impl GridInk {
 pub fn grid_lines(tokens: &UiTokens, grid: &GridLines, ink: &GridInk, pixels_per_point: f32) -> Vec<Shape> {
     let Some(extent) = grid.extent else { return Vec::new() };
     let look = rule_look(tokens, RuleKind::Grid);
-    let major = ink.major.unwrap_or(look.color);
-    let minor = ink.minor.unwrap_or_else(|| major.gamma_multiply(MINOR_SHARE));
+    let major = ink.major.map_or(look.color, |color| color.0);
+    let minor = ink.minor.map_or_else(|| major.gamma_multiply(MINOR_SHARE), |color| color.0);
     let screen = |x: f64, y: f64| match &grid.view {
         Some(view) => view.to_screen(kurbo::Point::new(x, y)),
         None => pos2(x as f32, y as f32),
