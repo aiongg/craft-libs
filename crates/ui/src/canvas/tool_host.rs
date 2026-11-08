@@ -246,7 +246,7 @@ impl<'m> ToolHost<'m> {
         let rect = canvas.response.rect;
         let input = pointer::frame(&ctx);
         let mut glide = None;
-        let fired = std::iter::from_fn(|| commands::take_around::<MomentaryCommand>(&ctx, canvas.response.id, env.command_chain()));
+        let fired = std::iter::from_fn(|| commands::take_around::<MomentaryCommand>(&ctx, canvas.response.id, env.view().command_chain()));
         let tool: &mut dyn CanvasTool = match momentary {
             Some(momentary) => {
                 for (command, event) in fired {
