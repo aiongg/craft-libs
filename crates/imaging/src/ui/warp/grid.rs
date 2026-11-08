@@ -31,6 +31,9 @@ pub const SURFACE: PartKey = PartKey::new("surface");
 /// How far from an anchor or a handle end, in screen points, a press takes it.
 const HIT_REACH: f32 = 12.0;
 
+/// How far outside the mesh, in screen points, a press still takes the surface.
+const SURFACE_REACH: f32 = 16.0;
+
 /// How far from the pointer, in screen points, a handle and its arm show; measured to the handle or
 /// to its anchor.
 const REVEAL: f32 = 56.0;
@@ -428,7 +431,7 @@ impl Component for WarpGrid<'_> {
         let ring = path_runs(&space.view, &mesh.outline()).into_iter().next().map(|(points, _)| points).unwrap_or_default();
         if ring.len() > 2 {
             let part = cx
-                .part(SURFACE, HitShape::Polygon(grown(&ring, HIT_REACH)))
+                .part(SURFACE, HitShape::Polygon(grown(&ring, SURFACE_REACH)))
                 .sense(Sense::DRAG | Sense::CLICK | Sense::TAKE_FOCUS)
                 .priority(HitPriority::new(HitLevel::Body, 0))
                 .keyboard_via(POINT);
