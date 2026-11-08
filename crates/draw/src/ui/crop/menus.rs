@@ -1,258 +1,295 @@
 //! The Crop options bar's two menus: the overlay menu ([`CropOverlayMenu`]) and the gear popover
 //! ([`CropOptionsMenu`]).
 
-use egui::{AsIdSalt, Color32, IdSalt, Key, KeyboardShortcut, Modifiers, Response, Ui};
+use super::bar_words::CropBarWords;
+use super::options::{CropFill, CropSettings};
+use craft_behavior::geometry::crop::{CropGuide, GuideShow};
+use craft_behavior::{IconId, Mixed};
+use craft_keymap::{Chord, Key, Mods, Platform};
+use craft_ui::buttons::IconButton;
+use craft_ui::canvas::{CropShield, ShieldColor};
+use craft_ui::choice::{Checkbox, Radio, RadioGroup, Swatch};
+use craft_ui::contract::{
+    Bind, Entry, FieldLayout, NoValue, Outcome, PopupKind, Props as _, Remember as _, Show as _, ShowContainer as _, SideLabel, Trigger, clicked,
+};
+use craft_ui::display::Divider;
+use craft_ui::form::{Field, SliderField};
+use craft_ui::layout_components::Row;
+use craft_ui::menu::{Menu, MenuItem};
+use craft_ui::pickers::Select;
+use craft_ui::popover::Popover;
+use craft_ui::runtime::env::{Env, UnitKind};
+use craft_ui::runtime::requests::ColorRequest;
+use egui::{Response, Ui};
 
-use super::bar::{CropBar, CropBarLabels};
-use super::crop_guides::{CropGuide, CropShield, GuideShow, ShieldColor};
-use super::options::CropSettings;
-use craft_theme::Srgba;
-use craft_ui::composites::SliderRow;
-use craft_ui::controls::{Checkbox, IconButton, Kbd, RadioSet, Swatch};
-use craft_ui::dialog::ColorRequest;
-use craft_ui::direction;
-use craft_ui::icons::Icon;
-use craft_ui::localized::{Labels as _, LocaleNumbers, Unit};
-use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
-use craft_ui::patterns::OptionsBar;
-use craft_ui::popover::{Popover, PopoverAnchor};
-use craft_ui::primitives::{Content, Text};
-use craft_ui::theme::{Tokens, TokensOf as _};
-
-/// The overlay's name in `labels`.
-fn guide_name(labels: &CropBarLabels, guide: CropGuide) -> &str {
+/// The overlay's name in `words`.
+fn guide_name(words: &CropBarWords, guide: CropGuide) -> &str {
     match guide {
-        CropGuide::Thirds => &labels.thirds,
-        CropGuide::Grid => &labels.grid,
-        CropGuide::Diagonal => &labels.diagonal,
-        CropGuide::Triangle => &labels.triangle,
-        CropGuide::GoldenRatio => &labels.golden_ratio,
-        CropGuide::GoldenSpiral => &labels.golden_spiral,
+        CropGuide::Thirds => &words.thirds,
+        CropGuide::Grid => &words.grid,
+        CropGuide::Diagonal => &words.diagonal,
+        CropGuide::Triangle => &words.triangle,
+        CropGuide::GoldenRatio => &words.golden_ratio,
+        CropGuide::GoldenSpiral => &words.golden_spiral,
+        _ => &words.thirds,
     }
 }
 
-/// The show rule's name in `labels`.
-fn show_name(labels: &CropBarLabels, show: GuideShow) -> &str {
+/// The show rule's name in `words`.
+fn show_name(words: &CropBarWords, show: GuideShow) -> &str {
     match show {
-        GuideShow::Auto => &labels.show_auto,
-        GuideShow::Always => &labels.show_always,
-        GuideShow::Never => &labels.show_never,
+        GuideShow::Auto => &words.show_auto,
+        GuideShow::Always => &words.show_always,
+        GuideShow::Never => &words.show_never,
+        _ => &words.show_auto,
     }
 }
 
-/// A row of the overlay menu.
-#[derive(Clone, Copy, Debug, PartialEq)]
-enum OverlayRow {
-    Guide(CropGuide),
-    Show(GuideShow),
-    Cycle,
-    Orientation,
+/// The chord written for the platform, as a row's shortcut text.
+fn chord_text(mods: Mods, key: Key) -> String {
+    Chord::new(mods, key).display(Platform::current())
 }
 
-/// The key `key` as the text of a menu row's shortcut.
-fn key_text(modifiers: Modifiers, key: Key) -> Kbd {
-    Kbd::new(&KeyboardShortcut::new(modifiers, key))
+/// What a menu of the Crop bar reports.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct CropOverlayMenuOutput {
+    /// The opener button's response.
+    pub response: Response,
+    /// A row changed the settings: the app persists them.
+    pub changed: bool,
 }
 
-/// The overlay menu: a 24 pt icon button (`Icon::Grid`, PhotoCraft's `grid-3x3`) named "Set the
-/// overlay options for the Crop tool" with the current overlay as its value, opening a
-/// [`Menu`](craft_ui::menu::Menu) at least the menu width (through `min_width`): the six overlays as check rows,
-/// a separator, Auto, Always and Never Show Overlay as check rows, a separator, Cycle Overlay with
-/// the shortcut text O, and Cycle Orientation with ⇧O (enabled for an overlay with more than one
-/// orientation: Triangle, Golden Spiral). A row edits the settings and closes the menu.
+impl Outcome for CropOverlayMenuOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// The overlay menu: an icon button named "Set the overlay options for the Crop tool" that opens a [`Menu`]: the six
+/// overlays as radio rows, a rule, Auto, Always and Never Show Overlay as radio rows, a rule, Cycle Overlay (shortcut
+/// text O) and Cycle Orientation (Shift+O; enabled for an overlay with more than one orientation: Triangle, Golden
+/// Spiral). A row edits the settings and closes the menu.
+#[must_use = "show the menu with `show`"]
+#[derive(craft_ui::contract::Pattern, craft_ui::contract::Props)]
 pub struct CropOverlayMenu<'a> {
-    id_salt: IdSalt,
     settings: &'a mut CropSettings,
-    labels: Option<CropBarLabels>,
+    /// The menu starts open.
+    #[prop(flag)]
+    opened: bool,
 }
 
 impl<'a> CropOverlayMenu<'a> {
     /// A menu that edits `settings` in place.
-    pub fn new(id_salt: impl AsIdSalt, settings: &'a mut CropSettings) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), settings, labels: None }
+    pub fn new(settings: &'a mut CropSettings) -> Self {
+        Self { settings, opened: false }
     }
 
-    /// The words; default: [`CropBarLabels`] of the installed words.
-    pub fn labels(mut self, labels: CropBarLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    /// The button, and the menu while it is open. The response is the button's.
-    pub fn show(self, ui: &mut Ui) -> Response {
-        // pc: crates/ui-egui/src/tools/crop_overlay.rs:285 `options_button` (min width 220, unified
-        // to the gear menu's width, lead call 17).
-        let Self { id_salt, settings, labels } = self;
-        let labels = labels.unwrap_or_else(|| CropBarLabels::of(ui));
-        let labels = &labels;
-        let style = CropBar::style(&Tokens::of(ui));
-        let name = guide_name(labels, settings.guide).to_owned();
-        let button = ui.add(IconButton::new(Icon::Grid, labels.overlay.as_str()).size(OptionsBar::CONTROL_SIZE).id_salt((&id_salt, "button")));
-        ui.ctx().accesskit_node_builder(button.id, |node| node.set_value(name));
-
-        let mut entries: Vec<MenuEntry<OverlayRow>> = CropGuide::ALL
-            .into_iter()
-            .map(|guide| MenuItem::new(guide_name(labels, guide), OverlayRow::Guide(guide)).check(settings.guide == guide).into())
-            .collect();
-        entries.push(MenuEntry::Separator);
-        entries.extend(
-            GuideShow::ALL
-                .into_iter()
-                .map(|show| MenuItem::new(show_name(labels, show), OverlayRow::Show(show)).check(settings.guide_show == show).into()),
-        );
-        entries.push(MenuEntry::Separator);
-        entries.push(MenuItem::new(labels.cycle_overlay.as_str(), OverlayRow::Cycle).shortcut(key_text(Modifiers::NONE, Key::O)).into());
-        entries.push(
-            MenuItem::new(labels.cycle_orientation.as_str(), OverlayRow::Orientation)
-                .shortcut(key_text(Modifiers::SHIFT, Key::O))
-                .enabled(settings.guide.orientations() > 1)
-                .into(),
-        );
-        match PressMenu::new(&entries).size(OptionsBar::CONTROL_SIZE).min_width(style.menu_width).show(ui, &button).chosen {
-            Some(OverlayRow::Guide(guide)) => settings.set_guide(guide),
-            Some(OverlayRow::Show(show)) => settings.guide_show = show,
-            Some(OverlayRow::Cycle) => settings.cycle_guide(),
-            Some(OverlayRow::Orientation) => settings.cycle_orientation(),
-            None => {}
-        }
-        button
+    /// Shows the button, and the menu while it is open.
+    pub fn show(self, ui: &mut Ui) -> CropOverlayMenuOutput {
+        let Self { settings, opened } = self;
+        let words = Env::of(ui).words::<CropBarWords>();
+        let before = settings.clone();
+        let shown = Row::new().show(ui, |ui, cx| {
+            let appeared = cx.appeared();
+            let open = &mut cx.memory::<Open>().0;
+            if appeared && opened {
+                *open = true;
+            }
+            let opener = IconButton::new(IconId::new("grid")).label(words.overlay.clone()).popup(PopupKind::Menu).show(ui);
+            Menu::new(words.overlay.clone()).open(Bind::bound(open)).opened_by(&opener, Trigger::Click).show(ui, |ui, _| {
+                for guide in CropGuide::ALL {
+                    let row = MenuItem::new(guide_name(&words, guide).to_owned()).radio_mark(settings.guide == guide).show(ui);
+                    if row.ran {
+                        settings.set_guide(guide);
+                    }
+                }
+                Divider::horizontal().show(ui);
+                for show in GuideShow::ALL {
+                    let row = MenuItem::new(show_name(&words, show).to_owned()).radio_mark(settings.guide_show == show).show(ui);
+                    if row.ran {
+                        settings.guide_show = show;
+                    }
+                }
+                Divider::horizontal().show(ui);
+                let cycle = MenuItem::new(words.cycle_overlay.clone()).shortcut(chord_text(Mods::NONE, Key::O)).show(ui);
+                if cycle.ran {
+                    settings.cycle_guide();
+                }
+                let orientation = MenuItem::new(words.cycle_orientation.clone())
+                    .shortcut(chord_text(Mods::SHIFT, Key::O))
+                    .enabled(settings.guide.orientations() > 1)
+                    .show(ui);
+                if orientation.ran {
+                    settings.cycle_orientation();
+                }
+            });
+            opener
+        });
+        let response = shown.inner.unwrap_or_else(|| shown.output.clone());
+        CropOverlayMenuOutput { response, changed: *settings != before }
     }
 }
 
-/// What [`CropOptionsMenu::show`] reports.
-#[derive(Clone, Debug)]
-pub struct CropOptionsMenuResponse {
+/// What the gear popover reports.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct CropOptionsMenuOutput {
     /// The gear button's response.
     pub response: Response,
-    /// Custom… or the shield swatch was clicked: the app opens its colour picker with this
-    /// request and sets [`CropShield::custom_color`] from the answer for
-    /// [`CropOptionsMenu::COLOR_KEY`].
+    /// Custom… or the shield swatch asked for a colour: the app opens its colour picker with this request and sets
+    /// `CropShield::custom_color` from the answer for [`CropOptionsMenu::COLOR_KEY`].
     pub pick_color: Option<ColorRequest>,
+    /// An option changed: the app persists the settings.
+    pub changed: bool,
 }
 
-/// The gear popover: a 24 pt icon button (`Icon::Settings`) named "Set additional Crop options",
-/// opening a [`Popover`](craft_ui::popover::Popover) the menu width wide, at most the menu's
-/// greatest width: Use Classic Mode (shortcut text P), Show Cropped Area (H; shows on and
-/// disabled in Classic Mode) and Auto Center Preview (disabled in Classic Mode), a separator,
-/// Enable Crop Shield, then, indented and disabled with the shield off: Color: Match Canvas or
-/// Custom… with the swatch, Opacity (a `SliderRow`, 0–100 %) and Auto Adjust Opacity. The popover
-/// stays open on clicks inside and closes on a click outside, Esc or the button.
+impl Outcome for CropOptionsMenuOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// Whether the menu or popover is open, kept per viewer.
+#[derive(Clone, Copy, Default)]
+struct Open(bool);
+
+/// The gear popover: an icon button named "Set additional Crop options" that opens a [`Popover`] of form rows: Use
+/// Classic Mode (shortcut text P), Show Cropped Area (H; shown on and disabled in Classic Mode), Auto Center Preview
+/// (disabled in Classic Mode), Enable Crop Shield, the colour (Match Canvas, or Custom… with its swatch), Opacity (0 to
+/// 100 %) and Auto Adjust Opacity, then Delete Cropped Pixels and the Fill select. The colour rows, Opacity and Auto
+/// Adjust Opacity are disabled with the shield off. The popover stays open on clicks inside and closes on a click
+/// outside, Escape or the button.
+#[must_use = "show the menu with `show`"]
+#[derive(craft_ui::contract::Pattern, craft_ui::contract::Props)]
 pub struct CropOptionsMenu<'a> {
-    id_salt: IdSalt,
-    shield: &'a mut CropShield,
-    labels: Option<CropBarLabels>,
+    settings: &'a mut CropSettings,
+    /// The popover starts open.
+    #[prop(flag)]
+    opened: bool,
 }
 
 impl<'a> CropOptionsMenu<'a> {
     /// The [`ColorRequest::key`] of the shield colour.
     pub const COLOR_KEY: &'static str = "crop-shield-color";
 
-    /// A menu that edits `shield` in place.
-    pub fn new(id_salt: impl AsIdSalt, shield: &'a mut CropShield) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), shield, labels: None }
+    /// A menu that edits `settings` in place.
+    pub fn new(settings: &'a mut CropSettings) -> Self {
+        Self { settings, opened: false }
     }
 
-    /// The words; default: [`CropBarLabels`] of the installed words.
-    pub fn labels(mut self, labels: CropBarLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    /// The button, and the popover while `open`; a click on the button toggles `open`.
-    pub fn show(self, ui: &mut Ui, open: &mut bool) -> CropOptionsMenuResponse {
-        // pc: crates/ui-egui/src/tools/crop_shield.rs:150 `options_button` (min 240, max 300).
-        let Self { id_salt, shield, labels } = self;
-        let labels = labels.unwrap_or_else(|| CropBarLabels::of(ui));
-        let labels = &labels;
-        let numbers = LocaleNumbers::of(ui);
-        let style = CropBar::style(&Tokens::of(ui));
-        let button = ui.add(IconButton::new(Icon::Settings, labels.options.as_str()).size(OptionsBar::CONTROL_SIZE).id_salt((&id_salt, "button")));
-        if button.clicked() {
-            *open = !*open;
-        }
-        let mut pick_color = None;
-        Popover::new((&id_salt, "popover"), PopoverAnchor::Control(button.clone())).toggle(button.id).label(labels.options.as_str()).show(
-            ui,
-            open,
-            |ui, _| {
-                ui.set_min_width(style.menu_width);
-                ui.set_max_width(style.menu_max_width);
-                pick_color = gear_rows(ui, shield, labels, &numbers);
-            },
-        );
-        CropOptionsMenuResponse { response: button, pick_color }
-    }
-}
-
-/// A check box with its shortcut text at the reading end.
-fn shortcut_check(ui: &mut Ui, label: &str, value: &mut bool, key: Key) {
-    direction::horizontal(ui, |ui| {
-        let _ = Checkbox::bool(label, value).size(OptionsBar::CONTROL_SIZE).show(ui).response;
-        ui.with_layout(direction::trailing(ui), |ui| ui.add(key_text(Modifiers::NONE, key)));
-    });
-}
-
-/// The gear popover's rows. Returns the request when Custom… or the swatch asked for a colour.
-fn gear_rows(ui: &mut Ui, shield: &mut CropShield, labels: &CropBarLabels, numbers: &LocaleNumbers) -> Option<ColorRequest> {
-    let sm = OptionsBar::CONTROL_SIZE;
-    let mut pick = false;
-    shortcut_check(ui, &labels.classic_mode, &mut shield.classic_mode, Key::P);
-    // Classic Mode greys the other two out; Show Cropped Area then shows as on, which is how it acts.
-    let classic = shield.classic_mode;
-    ui.add_enabled_ui(!classic, |ui| {
-        if classic {
-            shortcut_check(ui, &labels.show_cropped_area, &mut true, Key::H);
-        } else {
-            shortcut_check(ui, &labels.show_cropped_area, &mut shield.show_cropped_area, Key::H);
-        }
-        let _ = Checkbox::bool(labels.auto_center.as_str(), &mut shield.auto_center_preview).size(sm).show(ui).response;
-    });
-    ui.separator();
-    let _ = Checkbox::bool(labels.shield.as_str(), &mut shield.enabled).size(sm).show(ui).response;
-    ui.add_enabled_ui(shield.enabled, |ui| {
-        ui.indent("crop-shield", |ui| {
-            direction::horizontal(ui, |ui| {
-                ui.add(Text::new(labels.color.as_str()).content(Content::Muted));
+    /// Shows the button, and the popover while it is open.
+    pub fn show(self, ui: &mut Ui) -> CropOptionsMenuOutput {
+        let Self { settings, opened } = self;
+        let env = Env::of(ui);
+        let words = env.words::<CropBarWords>();
+        let before = settings.clone();
+        let mut pick = false;
+        let shown = Row::new().show(ui, |ui, cx| {
+            let appeared = cx.appeared();
+            let open = &mut cx.memory::<Open>().0;
+            if appeared && opened {
+                *open = true;
+            }
+            let button = IconButton::new(IconId::new("settings")).label(words.options.clone()).popup(PopupKind::Dialog).expanded(*open).show(ui);
+            if clicked(&button) {
+                *open = !*open;
+            }
+            Popover::new(words.options.clone(), Bind::bound(open)).opened_by(&button).show(ui, |ui, cx| {
+                let shield = &mut settings.shield;
+                let detail = |key: Key| SideLabel::new().layout(FieldLayout::After).detail(chord_text(Mods::NONE, key));
+                cx.labelled(ui, "classic", words.classic_mode.clone().into(), detail(Key::P), Checkbox::new(Bind::bound(&mut shield.classic_mode)));
+                // Classic Mode greys the other two out; Show Cropped Area then shows as on, which is how it acts.
+                let classic = shield.classic_mode;
+                let mut forced = true;
+                let area = if classic { Bind::bound(&mut forced) } else { Bind::bound(&mut shield.show_cropped_area) };
+                cx.labelled(ui, "area", words.show_cropped_area.clone().into(), detail(Key::H), Checkbox::new(area).enabled(!classic));
+                cx.labelled(
+                    ui,
+                    "center",
+                    words.auto_center.clone().into(),
+                    SideLabel::new().layout(FieldLayout::After),
+                    Checkbox::new(Bind::bound(&mut shield.auto_center_preview)).enabled(!classic),
+                );
+                Divider::horizontal().show(ui);
+                cx.labelled(
+                    ui,
+                    "shield",
+                    words.shield.clone().into(),
+                    SideLabel::new().layout(FieldLayout::After),
+                    Checkbox::new(Bind::bound(&mut shield.enabled)),
+                );
+                let on = shield.enabled;
                 let mut color = shield.color;
-                let mut set = RadioSet::new("color", labels.color_name.as_str(), &mut color)
-                    .item(ShieldColor::MatchCanvas)
-                    .item(ShieldColor::Custom)
-                    .size(sm)
-                    .begin(ui);
-                set.radio(ui, 0, &labels.match_canvas);
-                let custom = set.radio(ui, 1, &labels.custom);
-                let _ = set.end(ui).response;
+                Field::new(words.color_name.clone()).enabled(on).show(ui, |ui, _| {
+                    Row::new().show(ui, |ui, _| {
+                        let group = RadioGroup::new(words.color_name.clone(), Bind::bound(&mut color)).show(ui, |ui, cx| {
+                            let after = SideLabel::new().layout(FieldLayout::After);
+                            cx.labelled(ui, 0u8, words.match_canvas.clone().into(), after.clone(), Radio::new(ShieldColor::MatchCanvas));
+                            let custom = cx.labelled(ui, 1u8, words.custom.clone().into(), after, Radio::new(ShieldColor::Custom));
+                            clicked(&custom)
+                        });
+                        pick |= group.inner.unwrap_or(false);
+                        let [r, g, b] = shield.custom_color;
+                        if shield.color == ShieldColor::Custom || color == ShieldColor::Custom {
+                            let swatch = Swatch::new(
+                                words.shield_color.clone(),
+                                Mixed::Same(craft_theme::Srgba::from_rgb_array([r, g, b].map(|c| f32::from(c) / 255.0))),
+                            )
+                            .picker(Self::COLOR_KEY)
+                            .enabled(on)
+                            .show(ui);
+                            pick |= swatch.pick_color.is_some();
+                        }
+                    });
+                });
                 shield.color = color;
-                if custom.clicked() {
-                    shield.color = ShieldColor::Custom;
-                    pick = true;
+                if !shield.opacity.is_finite() {
+                    shield.opacity = CropShield::default().opacity;
                 }
-                if shield.color == ShieldColor::Custom {
-                    let [r, g, b] = shield.custom_color;
-                    if ui.add(Swatch::new("shield-swatch", labels.shield_color.as_str(), Color32::from_rgb(r, g, b)).size(sm)).clicked() {
-                        pick = true;
+                let mut opacity = f64::from(shield.opacity);
+                Field::new(words.opacity_name.clone()).enabled(on).show(ui, |ui, _| {
+                    SliderField::new(words.opacity_name.clone(), Bind::bound(&mut opacity), 0.0..=100.0).unit_kind(UnitKind::Percent).show(ui);
+                });
+                shield.opacity = opacity as f32;
+                cx.labelled(
+                    ui,
+                    "adjust",
+                    words.auto_adjust.clone().into(),
+                    SideLabel::new().layout(FieldLayout::After),
+                    Checkbox::new(Bind::bound(&mut shield.auto_adjust)).enabled(on),
+                );
+                Divider::horizontal().show(ui);
+                cx.labelled(
+                    ui,
+                    "delete",
+                    words.delete_pixels.clone().into(),
+                    SideLabel::new().layout(FieldLayout::After),
+                    Checkbox::new(Bind::bound(&mut settings.delete_pixels)),
+                );
+                let fills = [
+                    Entry::new(CropFill::Background, words.fill_background.clone()),
+                    Entry::new(CropFill::ContentAware, words.fill_content_aware.clone()),
+                ];
+                Field::new(words.fill_name.clone()).show(ui, |ui, _| {
+                    let pick = Select::new(words.fill_name.clone(), Bind::given(settings.fill), &fills).show(ui);
+                    if let Some(fill) = pick.value().copied() {
+                        settings.fill = fill;
                     }
-                }
+                });
             });
-            if !shield.opacity.is_finite() {
-                shield.opacity = CropShield::default().opacity;
-            }
-            let row = SliderRow::new("opacity", labels.opacity_name.as_str(), f64::from(shield.opacity), 0.0..=100.0, numbers)
-                .unit(Unit::new("{n}%"))
-                .decimals(0)
-                .size(sm)
-                .show(ui);
-            for event in row.edits() {
-                if let Some(value) = event.value() {
-                    shield.opacity = *value as f32;
-                }
-            }
-            let _ = Checkbox::bool(labels.auto_adjust.as_str(), &mut shield.auto_adjust).size(sm).show(ui).response;
+            button
         });
-    });
-    pick.then(|| {
-        let [r, g, b] = shield.custom_color;
-        ColorRequest::new(CropOptionsMenu::COLOR_KEY, Srgba::from_rgb_array([r, g, b].map(|c| f32::from(c) / 255.0)))
-            .title(labels.shield_color.as_str())
-    })
+        let pick_color = pick.then(|| {
+            let [r, g, b] = settings.shield.custom_color;
+            ColorRequest::new(Self::COLOR_KEY, craft_theme::Srgba::from_rgb_array([r, g, b].map(|c| f32::from(c) / 255.0)))
+                .title(words.shield_color.clone())
+        });
+        let response = shown.inner.unwrap_or_else(|| shown.output.clone());
+        CropOptionsMenuOutput { response, pick_color, changed: *settings != before }
+    }
 }

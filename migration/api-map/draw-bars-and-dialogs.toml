@@ -246,6 +246,7 @@ old = "labels(PatternFillLabels)"
 new = "(removed)"
 note = "Words come from the env."
 # draw-connector
+
 [[type]]
 name = "ConnectorBar"
 old = "craft_draw::ui::connector::ConnectorBar"
@@ -725,7 +726,7 @@ name = "CropBarStyle"
 old = "craft_draw::ui::crop::CropBarStyle"
 new = ""
 status = "removed"
-note = "The bar is built from `Bar`; `ComponentStyle` replaces the style struct."
+note = "No style of its own: the fields take their widths from the field layout and the menus size from their content."
 
 [[type]]
 name = "PerspectiveHit"
@@ -845,3 +846,355 @@ type = "PerspectiveCropQuad"
 old = "units / value / policy / tolerance"
 new = ""
 note = "Reach comes from tokens; the binding carries the policy."
+
+[[type]]
+name = "CropBar"
+old = "craft_draw::ui::crop::CropBar"
+new = "craft_draw::ui::crop::CropBar"
+status = "same"
+
+[[type]]
+name = "CropBarOutput"
+old = "craft_draw::ui::crop::CropBarOutput"
+new = "craft_draw::ui::crop::CropBarOutput"
+status = "same"
+
+[[type]]
+name = "CropRatioChange"
+old = "craft_draw::ui::crop::CropRatioChange"
+new = "craft_draw::ui::crop::CropRatioChange"
+status = "same"
+
+[[type]]
+name = "CropOverlayMenu"
+old = "craft_draw::ui::crop::CropOverlayMenu"
+new = "craft_draw::ui::crop::CropOverlayMenu"
+status = "same"
+
+[[type]]
+name = "CropOptionsMenu"
+old = "craft_draw::ui::crop::CropOptionsMenu"
+new = "craft_draw::ui::crop::CropOptionsMenu"
+status = "same"
+
+[[type]]
+name = "CropSettings"
+old = "craft_draw::ui::crop::CropSettings"
+new = "craft_draw::ui::crop::CropSettings"
+status = "same"
+
+[[type]]
+name = "CropSizeFields"
+old = "craft_draw::ui::crop::CropSizeFields"
+new = "craft_draw::ui::crop::CropSizeFields"
+status = "same"
+
+[[type]]
+name = "CropRatio"
+old = "craft_draw::ui::crop::CropRatio"
+new = "craft_draw::ui::crop::CropRatio"
+status = "same"
+
+[[type]]
+name = "CropFill"
+old = "craft_draw::ui::crop::CropFill"
+new = "craft_draw::ui::crop::CropFill"
+status = "same"
+
+[[type]]
+name = "CropTarget"
+old = "craft_draw::ui::crop::CropTarget"
+new = "craft_draw::ui::crop::CropTarget"
+status = "same"
+
+[[type]]
+name = "CropSizePreset"
+old = "craft_draw::ui::crop::CropSizePreset"
+new = "craft_draw::ui::crop::CropSizePreset"
+status = "same"
+
+[[type]]
+name = "CropUserPreset"
+old = "craft_draw::ui::crop::CropUserPreset"
+new = "craft_draw::ui::crop::CropUserPreset"
+status = "same"
+
+[[type]]
+name = "CropPresetChoice"
+old = "craft_draw::ui::crop::CropPresetChoice"
+new = "craft_draw::ui::crop::CropPresetChoice"
+status = "same"
+
+[[type]]
+name = "ResolutionUnit"
+old = "craft_draw::ui::crop::ResolutionUnit"
+new = "craft_draw::ui::crop::ResolutionUnit"
+status = "same"
+
+[[type]]
+name = "RulerTool"
+old = "craft_draw::ui::measure::RulerTool"
+new = "craft_draw::ui::measure::RulerTool"
+status = "same"
+
+[[type]]
+name = "RulerPass"
+old = "craft_draw::ui::measure::RulerPass"
+new = "craft_draw::ui::measure::RulerPass"
+status = "same"
+
+[[type]]
+name = "RulerBar"
+old = "craft_draw::ui::measure::RulerBar"
+new = "craft_draw::ui::measure::RulerBar"
+status = "same"
+
+[[type]]
+name = "RulerBarOutput"
+old = "craft_draw::ui::measure::RulerBarOutput"
+new = "craft_draw::ui::measure::RulerBarOutput"
+status = "same"
+
+[[type]]
+name = "RulerLine"
+old = "craft_draw::ui::measure::RulerLine"
+new = "craft_draw::ui::measure::RulerLine"
+status = "same"
+
+[[type]]
+name = "RulerPart"
+old = "craft_draw::ui::measure::RulerPart"
+new = "craft_draw::ui::measure::RulerPart"
+status = "same"
+
+[[type]]
+name = "RulerReading"
+old = "craft_draw::ui::measure::RulerReading"
+new = "craft_draw::ui::measure::RulerReading"
+status = "same"
+
+[[type]]
+name = "box_distances"
+old = "craft_draw::ui::measure::box_distances"
+new = "craft_draw::ui::measure::box_distances"
+status = "same"
+
+[[type]]
+name = "CropOptionsMenuResponse"
+old = "craft_draw::ui::crop::CropOptionsMenuResponse"
+new = ""
+status = "replaced"
+note = "`CropOptionsMenuOutput { response, pick_color, changed }`."
+
+[[type]]
+name = "RulerInput"
+old = "craft_draw::ui::measure::RulerInput"
+new = ""
+status = "removed"
+note = "`RulerTool::pass(line)` takes the line; the units come from the canvas space."
+
+[[type]]
+name = "CropBarLabels"
+old = "craft_draw::ui::crop::CropBarLabels"
+new = ""
+status = "removed"
+note = "`CropBarWords`, a `words!` set with the same ids (`cropBar.*`)."
+
+[[type]]
+name = "RulerBarLabels"
+old = "craft_draw::ui::measure::RulerBarLabels"
+new = ""
+status = "removed"
+note = "`RulerWords`, a `words!` set with the same ids (`rulerBar.*`)."
+
+[[type]]
+name = "RulerToolLabels"
+old = "craft_draw::ui::measure::RulerToolLabels"
+new = ""
+status = "removed"
+note = "`RulerWords`, a `words!` set with the same ids (`rulerTool.*`)."
+
+[[type]]
+name = "MeasureStyle"
+old = "craft_draw::ui::measure::MeasureStyle"
+new = ""
+status = "removed"
+note = "The handles are `HandleLook` in `RulerOverlayStyle`; the line is `LineGuideStyle` of `StraightLinePreview`; the readout gap is the `Field` layout gap."
+
+[[type]]
+name = "CropOptionsMenuOutput"
+old = ""
+new = "craft_draw::ui::crop::CropOptionsMenuOutput"
+status = "replaced"
+note = "Replaces `CropOptionsMenuResponse`."
+
+[[type]]
+name = "CropOverlayMenuOutput"
+old = ""
+new = "craft_draw::ui::crop::CropOverlayMenuOutput"
+status = "replaced"
+note = "The overlay menu output: `response` and `changed`."
+
+[[type]]
+name = "CropBarWords"
+old = ""
+new = "craft_draw::ui::crop::CropBarWords"
+status = "replaced"
+note = "Replaces `CropBarLabels`."
+
+[[type]]
+name = "RulerOverlay"
+old = ""
+new = "craft_draw::ui::measure::RulerOverlay"
+status = "replaced"
+note = "The Ruler line end handles as a canvas control over `Bind<Option<RulerLine>>`; the hit testing and keyboard parts of the legacy tool (`ToolParts`) moved here."
+
+[[type]]
+name = "RulerWords"
+old = ""
+new = "craft_draw::ui::measure::RulerWords"
+status = "replaced"
+note = "Replaces `RulerBarLabels` and `RulerToolLabels`."
+
+[[type]]
+name = "ruler_line_form"
+old = ""
+new = "craft_draw::ui::measure::ruler_line_form"
+status = "replaced"
+note = "The Ruler Line... command form, a `ParamDialog::command` of Start and End points."
+
+[[setter]]
+type = "CropBar"
+old = "CropBar::new(id_salt, settings)"
+new = "CropBar::new(settings, document)"
+note = "The document is a required argument; Original Ratio and Front Image are disabled when its size is empty."
+
+[[setter]]
+type = "CropBar"
+old = "CropBar::labels(..)"
+new = ""
+note = "Words are `CropBarWords` from the scope."
+
+[[setter]]
+type = "CropBar"
+old = "CropBar::output(&mut ..)"
+new = ""
+note = "`show(ui)` returns `CropBarOutput`."
+
+[[setter]]
+type = "CropBar"
+old = "CropBar::options_open(&mut bool)"
+new = ""
+note = "The gear popover keeps its open state itself."
+
+[[setter]]
+type = "CropBar"
+old = "CropBar::add_to(slots)"
+new = ""
+note = "`show(ui)` inside the app Bar body; the commit and cancel buttons are `Bar::commit_cancel`."
+
+[[setter]]
+type = "CropBar"
+old = "CropBar::document(..)"
+new = ""
+note = "The second argument of `CropBar::new`."
+
+[[setter]]
+type = "CropOverlayMenu"
+old = "CropOverlayMenu::new(id_salt, settings)"
+new = "CropOverlayMenu::new(settings)"
+
+[[setter]]
+type = "CropOptionsMenu"
+old = "CropOptionsMenu::new(id_salt, shield)"
+new = "CropOptionsMenu::new(settings)"
+note = "The popover also holds Delete Cropped Pixels and Fill."
+
+[[setter]]
+type = "CropOptionsMenu"
+old = "CropOptionsMenu::show(ui, &mut open)"
+new = "CropOptionsMenu::show(ui)"
+note = "The open state is kept by the popover."
+
+[[setter]]
+type = "CropSettings"
+old = "CropSettings::choose(choice, document, user)"
+new = "CropSettings::choose(choice, document, user, units)"
+note = "Typed lengths read through `Units`."
+
+[[setter]]
+type = "CropSettings"
+old = "CropSettings::target(document)"
+new = "CropSettings::target(document, units)"
+
+[[setter]]
+type = "CropSettings"
+old = "CropSettings::preset_name(labels)"
+new = "CropSettings::preset_name(words, units)"
+
+[[setter]]
+type = "CropSettings"
+old = "CropSettings::front_image(document)"
+new = "CropSettings::front_image(document, units)"
+
+[[setter]]
+type = "CropSizeFields"
+old = "CropSizeFields::normalize_length(typed, previous)"
+new = "CropSizeFields::normalize_length(typed, previous, units)"
+
+[[setter]]
+type = "RulerBar"
+old = "RulerBar::new(line, &mut bool)"
+new = "RulerBar::new(line, Bind<bool>)"
+
+[[setter]]
+type = "RulerBar"
+old = "RulerBar::scale(factor)"
+new = "RulerBar::factor(factor)"
+
+[[setter]]
+type = "RulerBar"
+old = "RulerBar::units(x, y)"
+new = "RulerBar::rulers(CanvasRulers)"
+note = "The bar sits outside the canvas, so the app passes `CanvasSpace::rulers()`."
+
+[[setter]]
+type = "RulerBar"
+old = "RulerBar::labels(..)"
+new = ""
+note = "Words are `RulerWords` from the scope."
+
+[[setter]]
+type = "RulerBar"
+old = "RulerBar::output(&mut ..)"
+new = ""
+note = "`show(ui)` returns `RulerBarOutput`."
+
+[[setter]]
+type = "RulerBar"
+old = "RulerBar::add_to(slots)"
+new = "RulerBar::show(ui)"
+
+[[setter]]
+type = "RulerTool"
+old = "RulerTool::labels(..)"
+new = ""
+note = "Words are `RulerWords` from the scope."
+
+[[setter]]
+type = "RulerTool"
+old = "RulerTool::pass(RulerInput)"
+new = "RulerTool::pass(line)"
+
+[[setter]]
+type = "RulerInput"
+old = "RulerInput::units(x, y)"
+new = ""
+note = "The overlay reads the rulers of the canvas space."
+
+[[setter]]
+type = "box_distances"
+old = "box_distances(a, b, label: Fn(f64, Orientation))"
+new = "box_distances(a, b, label: Fn(f64, Axis))"
+note = "`Axis::X` for a distance along x."
+
