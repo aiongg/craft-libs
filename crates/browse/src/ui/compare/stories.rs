@@ -10,7 +10,7 @@ use craft_ui::primitives::textures::Revision;
 use craft_ui::runtime::env::Env;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use craft_ui::tile_grid::TileFlag;
-use egui::{ColorImage, Rect, Ui, Vec2, pos2, vec2};
+use egui::{ColorImage, Rect, Ui, Vec2, vec2};
 
 use super::{ArrangeSpace, CompareCaption, CompareImage, ComparePair, CompareTile, RenderState, survey_cell};
 
