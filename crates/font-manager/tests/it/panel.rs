@@ -13,11 +13,10 @@ use craft_font_manager::{Catalog, FontEnv, FontSources, FontsPanel, FontsPanelSe
 use craft_host::{AppInfo, Host, InlineJobs, Jobs, MemorySections};
 use craft_ui::contract::{Role, ShowContainer as _};
 use craft_ui::layout_components::Row;
-use craft_ui::testing::{Fixture, Target, trial};
+use craft_ui::testing::{Fixture, Room, Target, trial};
 use egui::{Key, Modifiers, Pos2, Vec2};
 
-/// The room the panel is shown in, and a wider one where the details sheet and the sources need more.
-const ROOM: Vec2 = Vec2::new(1120.0, 678.0);
+/// A room wider than a window, where the details sheet and the sources need more.
 const WIDE_ROOM: Vec2 = Vec2::new(1400.0, 760.0);
 
 const HACK: &str = "ofl/hack/Hack-Regular.ttf";
@@ -113,7 +112,7 @@ fn setup_jobs(name: &str, sections: Arc<MemorySections>, jobs: Arc<dyn Jobs>) ->
     let mut fx = Fixture::new(move |ui| {
         FontsPanelView::new(&mut shown.borrow_mut()).show(ui);
     });
-    fx.room(ROOM).host(host_with(sections, jobs));
+    fx.in_room(Room::Window).host(host_with(sections, jobs));
     fx.settle();
     Rig { fx, panel, store }
 }

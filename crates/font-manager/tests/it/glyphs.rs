@@ -5,11 +5,8 @@ use std::rc::Rc;
 
 use craft_font_manager::glyphs::{GlyphSource, GlyphsPanel, GlyphsPanelSettings};
 use craft_ui::contract::Bind;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Fixture, Room, trial};
 use egui::{ColorImage, Key, Modifiers};
-
-/// The room the panel is shown in.
-const ROOM: egui::Vec2 = egui::vec2(360.0, 560.0);
 
 /// Latin capitals, the euro sign and an arrow, with white square glyphs.
 struct Fake;
@@ -54,7 +51,7 @@ fn rig(editing: bool) -> (Fixture, Rc<RefCell<State>>) {
         let out = GlyphsPanel::new("Glyphs", &Fake, Bind::bound(family), Bind::bound(style), Bind::bound(settings)).editing(editing).show(ui);
         inserted.extend(out.insert);
     });
-    fixture.room(ROOM);
+    fixture.in_room(Room::Panel);
     fixture.settle();
     (fixture, state)
 }

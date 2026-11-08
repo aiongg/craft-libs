@@ -9,7 +9,7 @@ use craft_timeline::{
     ClipEdit, ClipId, ClipInfo, FrameRate, Marker, MarkerColor, Tick, TimeFormat, TimeRange, TimeView, TimelineModel, TrackId, TrackInfo, TrackKind,
 };
 use craft_ui::contract::Role;
-use craft_ui::testing::{Fixture, pointer, trial};
+use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers, Pos2, Rect, vec2};
 
 const POINTS_PER_SECOND: f64 = 40.0;
@@ -147,19 +147,6 @@ fn clip_rect(fixture: &Fixture, name: &str) -> Rect {
     fixture.by_label(name).unwrap_or_else(|| panic!("clip {name} is in view")).rect
 }
 
-/// A drag from `from` to `to` that pauses before the release: `halt` runs after the last move.
-fn drag_pausing(fixture: &mut Fixture, from: Pos2, to: Pos2, halt: impl FnOnce(&mut Fixture)) {
-    fixture.frame(vec![pointer::moved(from)]);
-    fixture.frame(vec![pointer::press(from)]);
-    for step in 1..=4 {
-        fixture.frame(vec![pointer::moved(from + (to - from) * (step as f32 / 4.0))]);
-    }
-    fixture.frame(vec![pointer::moved(to)]);
-    halt(fixture);
-    fixture.frame(vec![pointer::release(to)]);
-    fixture.idle(2);
-}
-
 fn clip_events(seen: &Seen) -> Vec<EditEvent<ClipEdit>> {
     seen.edits.iter().filter_map(|edit| if let TimelineEdit::Clip(event) = edit { Some(event.clone()) } else { None }).collect()
 }
@@ -238,7 +225,7 @@ fn a_marquee_selects_the_clips_it_touches_across_tracks() {
     assert_eq!(selected, vec![ALPHA, BETA, GAMMA], "Shift keeps the selection the drag started from");
 
     let (mut fixture, model, _) = panel(Vec::new(), vec![GAMMA]);
-    drag_pausing(&mut fixture, from, to, |fixture| {
+    fixture.drag_at_pausing(from, to - from, |fixture| {
         assert_eq!(model.borrow().selection.len(), 2, "the selection follows the marquee while it runs");
         fixture.key(Key::Escape, Modifiers::NONE);
     });
@@ -261,7 +248,7 @@ fn the_snap_target_shows_as_a_line_while_dragging() {
             .filter(|bounds| bounds.width() < 4.0 && bounds.height() > tall && (bounds.center().x - at(9.0)).abs() < 1.5)
             .count()
     };
-    drag_pausing(&mut fixture, alpha.center(), alpha.center() + by, |fixture| {
+    fixture.drag_at_pausing(alpha.center(), by, |fixture| {
         assert!(lines(fixture) > 0, "a line stands at the snap target");
     });
     fixture.idle(2);
