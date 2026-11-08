@@ -118,9 +118,11 @@ impl Outcome for SwatchOutput {
     }
 }
 
-/// A colour well: the colour fills it over a checkerboard where it has alpha, inside a thin ring that separates it
-/// from the panel. A `Mixed` colour shows a neutral well with a dash and has no colour value. A click reports
-/// `clicked`; with `picker` it also files a `ColorRequest` for the host's colour picker.
+/// A colour well that shows a colour from data and reports a click; it edits nothing.
+///
+/// The colour fills the well over a checkerboard where it has alpha, inside a thin ring that separates it from the
+/// panel. A `Mixed` colour shows a neutral well with a dash and has no colour value. A click reports `clicked`; with
+/// `picker` it also files a `ColorRequest` for the host's colour picker.
 ///
 /// AccessKit reports a colour well named by the label, whose value is the colour as `#rrggbb` (`#rrggbbaa` when
 /// translucent) and whose colour value is the colour; a mixed well has the value "Mixed" and no colour value.

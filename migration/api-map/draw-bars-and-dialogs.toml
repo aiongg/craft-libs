@@ -18,14 +18,14 @@ name = "ReferencePoint"
 old = "craft_ui::canvas::ReferencePoint"
 new = "craft_ui::pickers::ReferencePoint"
 status = "moved"
-note = "The 3 by 3 picker, now `ReferencePoint::new(label, Bind<Anchor9>)` with output `EditResponse<Anchor9>`, over the one `craft_ui::pickers::Anchor9` (`craft_behavior::Anchor9`; `Center` is `Centre`). It has the look of PhotoCraft's Canvas Size picker; the compact options-bar look is not ported."
+note = "The 3 by 3 picker, now `ReferencePoint::new(label, Bind<Anchor9>)` with output `EditResponse<Anchor9>`, over the one `craft_ui::pickers::Anchor9` (`craft_behavior::Anchor9`; `Center` is `Centre`). It has the look of PhotoCraft's Canvas Size picker; the options-bar size is `.compact()`."
 
 [[type]]
 name = "RefSize"
 old = "craft_ui::canvas::RefSize"
 new = ""
-status = "removed"
-note = "The picker has one size, set by the style. `Large` is that size; `Compact` is not ported."
+status = "replaced"
+note = "`Compact` is `.compact()`; `Large` is the default."
 
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]
@@ -48,7 +48,8 @@ note = "The change in width and height; only the signs decide the arrows."
 [[setter]]
 type = "ReferencePoint"
 old = "size(RefSize)"
-new = ""
+new = "compact()"
+note = "`RefSize::Compact` is `.compact()`; `RefSize::Large` is the default and needs no call."
 
 [[setter]]
 type = "ReferencePoint"

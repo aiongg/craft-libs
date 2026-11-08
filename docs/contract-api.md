@@ -2412,6 +2412,7 @@ Per-pass and per-frame services and the one egui adapter.
   - `pub fn description(&mut self, text: impl Into<String>) -> &mut Self`. A description, over the bound command's hint and the tooltip.
   - `pub fn placeholder(&mut self, text: impl Into<String>) -> &mut Self`. The hint text of an empty input.
   - `pub fn value(&mut self, text: impl Into<String>) -> &mut Self`. The text value of a text component.
+  - `pub fn color(&mut self, color: Srgba) -> &mut Self`. The colour value of a colour well.
   - `pub fn numeric(&mut self, numeric: Numeric) -> &mut Self`. The numeric value of a value component; a step also declares increment and decrement.
   - `pub fn expanded(&mut self, on: bool) -> &mut Self`. Whether a disclosure is open, when no flag says it.
   - `pub fn has_popup(&mut self, kind: PopupKind) -> &mut Self`. What kind of popup the component opens.
