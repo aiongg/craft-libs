@@ -175,8 +175,6 @@ pub mod words {
         all.extend(craft_layers::ui::WORDS);
         #[cfg(feature = "pages")]
         all.extend(craft_pages::ui::WORDS);
-        #[cfg(feature = "print")]
-        all.extend(craft_print::ui::WORDS);
         #[cfg(feature = "review")]
         all.extend(craft_review::ui::WORDS);
         #[cfg(feature = "table")]
