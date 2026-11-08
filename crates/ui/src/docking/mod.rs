@@ -24,6 +24,8 @@ mod words;
 
 pub mod desktop;
 
+mod commands;
+
 pub use config::{DockConfig, DockSides};
 pub use drop::{DockDrag, DockDropTarget, DockDropped, DragUnit, cancel_on_replacement, float_drop, resolve_drop, start_group_drag};
 pub use event::{DockEvent, FloatSpace, HidePanels};
@@ -35,6 +37,11 @@ pub use spec::{DockHeights, PanelLimits, PanelSpec};
 pub use splitter::{Splitter, SplitterStyle};
 pub use targets::{DockSizes, DockSpot, DockTargets, GroupDrag, ZoneRule};
 pub use words::DockWords;
+
+pub use commands::{
+    ArrangeCommand, ArrangeSpace, Arranged, DockCommand, DockScene, DockTo, WorkspaceAsk, WorkspaceCommands, actions, arrange, arrange_states,
+    dock_states, move_actions, run_workspace, select_workspace, workspace_states,
+};
 
 mod dock_column;
 mod flyout;
