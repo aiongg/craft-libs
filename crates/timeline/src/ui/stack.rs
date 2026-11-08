@@ -556,7 +556,7 @@ impl Component for TrackRow<'_> {
                 _ => {}
             }
         }
-        if matches!(cx.part(LABEL).press.phase, PressPhase::Release { click: true, .. }) {
+        if cx.part_activated(LABEL).is_some() {
             self.event.label_menu = true;
         }
         // A double click on the header toggles the height between the two named heights.

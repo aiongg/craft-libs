@@ -481,6 +481,7 @@ impl<M: TimelineModel> Timeline<'_, M> {
             let mut timecode_edit: Option<EditEvent<Tick>> = None;
             let mut ruler_edits: Vec<TimelineEdit> = Vec::new();
             let mut ruler_snapped: Option<Tick> = None;
+            let mut selected_clip: Option<(TrackId, Rect)> = None;
 
             let overlay = Overlay::default();
             let area = TimelineView::new(label, Bind::given(view), format, duration)
@@ -523,6 +524,7 @@ impl<M: TimelineModel> Timeline<'_, M> {
                 let mut reports = Reports { snapped: ruler_snapped, ..Reports::default() };
                 let mut pane_rects: Vec<Rect> = Vec::new();
                 let both = !panes[1].1.is_empty() && !panes[2].1.is_empty();
+                let sizes = cx.style::<TimelineView<'_>>().map(TimelineViewStyle::sizes);
                 let share = divider.unwrap_or(DIVIDER_SHARE_DEFAULT).clamp(DIVIDER_SHARE_MIN, DIVIDER_SHARE_MAX);
                 for (side, indices) in &panes {
                     if indices.is_empty() {
@@ -531,7 +533,13 @@ impl<M: TimelineModel> Timeline<'_, M> {
                     let pane: Vec<TrackInfo<'_>> = indices.iter().map(|&i| tracks[i].clone()).collect();
                     // Both sides of the divider: the video side takes its share of the room, the audio side the rest.
                     let room = ui.available_height();
-                    let out = if *side == Side::Upper && both {
+                    let out = if let (Side::Caption, Some(sizes)) = (*side, sizes) {
+                        // The caption tracks take their own height, so the video and audio panes keep the rest.
+                        let area = ui.available_rect_before_wrap();
+                        let height = pane.iter().map(|track| sizes.height_of(track)).sum::<f32>().min(room);
+                        let own = Rect::from_min_size(area.min, Vec2::new(area.width(), height));
+                        Stack::new().show_at_taking_room(ui, own, |ui, _| shared.show(ui, *side, &pane, indices)).inner
+                    } else if *side == Side::Upper && both {
                         let area = ui.available_rect_before_wrap();
                         let own = Rect::from_min_size(area.min, Vec2::new(area.width(), room * share));
                         Stack::new().show_at_taking_room(ui, own, |ui, _| shared.show(ui, *side, &pane, indices)).inner
@@ -542,13 +550,19 @@ impl<M: TimelineModel> Timeline<'_, M> {
                     pane_rects.push(out.response.rect);
                     let mapping = Mapping { pane: &pane, words: &words, name: header_width, palette: &palette };
                     mapping.collect(&out, &mut edits, &mut memory, &mut reports);
+                    let lane_left = shared.anchors.borrow()[*side as usize].map(|anchor| anchor.lane_left);
+                    if !selection.is_empty()
+                        && clicked_lane_space(&out, lane_left)
+                        && !ui.input(|input| input.modifiers.shift || input.modifiers.command)
+                    {
+                        edits.push(TimelineEdit::Select { change: SelectionChange::Clear, unlinked: false });
+                    }
                     mapping.label_menu(ui, &out.response, &mut memory, &mut edits);
                     if *side == Side::Upper && both {
                         let divided = Divider::new(words.divider.clone(), Bind::given(share), room).show(ui);
                         edits.extend(divided.event.map(TimelineEdit::Divider));
                     }
                 }
-                let sizes = cx.style::<TimelineView<'_>>().map(TimelineViewStyle::sizes);
                 let placed = placed_rows(&panes, &tracks, &shared.anchors.borrow(), sizes);
                 if let Some((dragged, pointer)) = reports.drag {
                     let bounds = pane_rects
@@ -602,6 +616,13 @@ impl<M: TimelineModel> Timeline<'_, M> {
                     }
                     marquee_rect = (!ended).then(|| marquee.rect());
                 }
+                if let (Some(last), Some(axis)) = (selection.last(), time_axis(&Env::of(ui).view())) {
+                    selected_clip = placed.iter().find_map(|row| {
+                        let clip = clips[row.track].iter().find(|clip| clip.id == *last)?;
+                        let (x0, x1) = (axis.x_of(clip.range.start, row.lane_left), axis.x_of(clip.range.end(), row.lane_left));
+                        Some((tracks[row.track].id, Rect::from_min_max(Pos2::new(x0, row.geom.top), Pos2::new(x1, row.geom.bottom))))
+                    });
+                }
                 overlay.snapped(reports.snapped);
                 overlay.marquee(marquee_rect);
                 let lane_left = shared.anchors.borrow().iter().flatten().map(|anchor| anchor.lane_left).next();
@@ -626,12 +647,25 @@ impl<M: TimelineModel> Timeline<'_, M> {
         }
         if output.context_menu {
             let tracks = model.tracks();
-            let track = tracks.iter().find(|track| track.targeted == Some(true)).or_else(|| tracks.first()).map(|track| track.id);
             let clip = model.selection().last().copied();
-            edits.push(TimelineEdit::ContextMenu { track, clip, anchor: output.view.response.rect, pointer: None });
+            let (track, anchor) = match selected_clip {
+                Some((track, rect)) => (Some(track), rect),
+                None => {
+                    let targeted = tracks.iter().find(|track| track.targeted == Some(true)).or_else(|| tracks.first());
+                    (targeted.map(|track| track.id), output.view.response.rect)
+                }
+            };
+            edits.push(TimelineEdit::ContextMenu { track, clip, anchor, pointer: None });
         }
         TimelineOutput { response: output.view.response, edits, toolbar }
     }
+}
+
+/// Whether the pane's collection took a primary click on the space of a lane: no clip, edge or header part took the
+/// press, so it is a click on empty track space (Premiere clears the clip selection there).
+fn clicked_lane_space(out: &CollectionResponse<TrackId, TrackEvent>, lane_left: Option<f32>) -> bool {
+    let (Some(lane_left), Some(at)) = (lane_left, out.response.interact_pointer_pos()) else { return false };
+    out.response.clicked_by(egui::PointerButton::Primary) && at.x >= lane_left
 }
 
 /// Where each pane's rows are: the first row a pane showed gives the place, the tracks' heights the rest.

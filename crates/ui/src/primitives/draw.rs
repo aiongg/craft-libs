@@ -83,11 +83,19 @@ pub struct Draw<'a> {
     painter: &'a Painter,
     record: &'a RefCell<PaintRecord>,
     env: DrawEnv<'a>,
+    /// Painting for a disabled part: data fills take the theme's disabled fill.
+    disabled: bool,
 }
 
 impl<'a> Draw<'a> {
     pub(crate) fn new(painter: &'a Painter, record: &'a RefCell<PaintRecord>, env: DrawEnv<'a>) -> Self {
-        Draw { painter, record, env }
+        Draw { painter, record, env, disabled: false }
+    }
+
+    /// The same painter for a part that is `disabled`.
+    pub(crate) fn for_part(mut self, disabled: bool) -> Self {
+        self.disabled = disabled;
+        self
     }
 
     fn text_env(&self) -> TextEnv<'a> {
@@ -200,9 +208,11 @@ impl<'a> Draw<'a> {
         self.paint(shape, None, Some(Stroke::new(self.width(width), color.egui())));
     }
 
-    /// Fills `shape` with a colour from data (a swatch well, a layer label dot, an avatar).
+    /// Fills `shape` with a colour from data (a swatch well, a layer label dot, an avatar). A `Draw` for a disabled
+    /// part (`PaintUi::draw_part`) fills with the theme's disabled fill instead.
     pub fn data_fill(&self, shape: &PaintShape, color: DataColor) {
-        self.paint(shape, Some(color.0), None);
+        let fill = if self.disabled { crate::style::rgba_color(self.env.tokens.color.state.disabled_fill) } else { color.0 };
+        self.paint(shape, Some(fill), None);
     }
 
     /// Strokes `shape` with a colour from data (a chart series, a curve).
@@ -220,7 +230,7 @@ impl<'a> Draw<'a> {
     /// under a frozen band, a bracket cut at a lane's edge.
     pub fn clipped(&self, rect: Rect, paint: impl FnOnce(&Draw<'_>)) {
         let painter = self.painter.with_clip_rect(rect);
-        paint(&Draw { painter: &painter, record: self.record, env: self.env });
+        paint(&Draw { painter: &painter, record: self.record, env: self.env, disabled: self.disabled });
     }
 
     fn paint(&self, shape: &PaintShape, fill: Option<Color32>, stroke: Option<Stroke>) {

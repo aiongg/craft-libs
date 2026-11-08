@@ -11,7 +11,7 @@ use craft_timeline::{ClipId, ClipInfo, TimeRange, TimelineModel, TrackId, TrackI
 use craft_timeline::{FollowMode, FrameRate, Tick, TimeFormat, TimeView, TrackKind};
 use craft_ui::contract::{Bind, ShowContainer as _};
 use craft_ui::testing::access::NodeKey;
-use craft_ui::testing::{Fixture, Target, pointer, trial};
+use craft_ui::testing::{Fixture, Frames, Target, pointer, trial};
 use egui::{Event, Key, Modifiers, MouseWheelSource, MouseWheelUnit, Rect, TouchPhase, Vec2};
 
 const RATE: FrameRate = FrameRate::FPS_29_97;
@@ -239,6 +239,8 @@ struct Sequence {
     view: TimeView,
     playhead: Tick,
     selection: Vec<ClipId>,
+    /// The clips that are switched off.
+    disabled: Vec<ClipId>,
     edits: Vec<TimelineEdit>,
 }
 
@@ -286,7 +288,7 @@ impl TimelineModel for Sequence {
             range: TimeRange::from_bounds(secs(2.0), secs(6.0)),
             name: "Clip",
             label: None,
-            enabled: true,
+            enabled: !self.disabled.contains(&ClipId(id)),
             source: None,
         };
         match track {
@@ -317,6 +319,7 @@ fn panel_with(tracks: Vec<(TrackId, TrackKind, String)>, master: Option<f32>) ->
         view: TimeView::new(Tick::ZERO, PANEL_POINTS_PER_SECOND),
         playhead: Tick::ZERO,
         selection: Vec::new(),
+        disabled: Vec::new(),
         edits: Vec::new(),
     }));
     let shown = sequence.clone();
@@ -553,3 +556,50 @@ fn the_menu_keys_report_a_context_menu_anchored_on_the_focused_clip() {
 
 /// The most Tab presses the focus search takes.
 const FOCUS_TABS: usize = 40;
+
+/// The rects of the panel that are filled with a clip colour or the disabled fill, as one frame paints them.
+fn clip_fills(disabled: Vec<ClipId>) -> Vec<(Rect, egui::Color32)> {
+    let sequence = Rc::new(RefCell::new(Sequence {
+        tracks: named(&[(V1, TrackKind::Video, "V1"), (A1, TrackKind::Audio, "A1")]),
+        master: None,
+        view: TimeView::new(Tick::ZERO, PANEL_POINTS_PER_SECOND),
+        playhead: Tick::ZERO,
+        selection: Vec::new(),
+        disabled,
+        edits: Vec::new(),
+    }));
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut egui::Ui| {
+        let mut sequence = sequence.borrow_mut();
+        Timeline::new("Timeline", &mut *sequence).show(ui);
+    };
+    for _ in 0..SETTLE_FRAMES {
+        frames.frame(Vec::new(), &mut show);
+    }
+    frames
+        .frame_shapes(&mut show)
+        .into_iter()
+        .filter_map(|shape| match shape {
+            egui::Shape::Rect(rect) if rect.fill != egui::Color32::TRANSPARENT => Some((rect.rect, rect.fill)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Frames the panel takes to lay out and paint its clips.
+const SETTLE_FRAMES: usize = 6;
+
+/// A disabled clip paints with the theme's disabled fill, not its label colour, while an enabled clip keeps its hue.
+#[trial]
+fn a_disabled_clip_paints_with_the_disabled_fill() {
+    let hue = craft_timeline::ui::LabelPalette::default().0[0];
+    let of_hue = |fills: &[(Rect, egui::Color32)]| fills.iter().filter(|(_, fill)| *fill == hue).map(|(rect, _)| *rect).collect::<Vec<_>>();
+    let all_on = of_hue(&clip_fills(Vec::new()));
+    assert_eq!(all_on.len(), 2, "both clips paint in their hue: {all_on:?}");
+    let fills = clip_fills(vec![ClipId(1)]);
+    let kept = of_hue(&fills);
+    assert_eq!(kept.len(), 1, "the enabled neighbour keeps its hue: {kept:?}");
+    let gone = all_on.iter().find(|rect| !kept.contains(rect)).expect("one clip left its hue");
+    let disabled = fills.iter().find(|(rect, _)| rect == gone).map(|(_, fill)| *fill);
+    assert!(disabled.is_some_and(|fill| fill != hue), "the disabled clip's body is filled with another colour: {disabled:?}");
+}

@@ -139,18 +139,16 @@ fn a_time_that_does_not_parse_commits_nothing() {
     assert!(rig.errors.borrow().contains(&TimecodeError::NotATime("xyz".into())), "{:?}", rig.errors.borrow());
 }
 
-/// Left on the whole selected text puts the caret on its last digit: Backspace removes the last digit, and the digit
-/// typed after it ends the time.
+/// Left on the whole selected text collapses the selection to its start: a digit typed after it leads the time.
 #[trial]
-fn left_on_the_selected_value_goes_to_its_last_digit() {
+fn left_on_the_selected_value_puts_the_caret_at_its_start() {
     let mut rig = field(secs(10.0));
     let input = rig.input();
     rig.fixture.click(&input);
     rig.fixture.key(Key::ArrowLeft, Modifiers::NONE);
-    rig.fixture.key(Key::Backspace, Modifiers::NONE);
-    rig.fixture.type_text("5");
+    rig.fixture.type_text("1");
     rig.fixture.key(Key::Enter, Modifiers::NONE);
-    assert_eq!(rig.time.get(), rate().tick_of(245));
+    assert_eq!(rig.time.get(), secs(100.0 * 3600.0 + 10.0));
 }
 
 struct PanelRig {

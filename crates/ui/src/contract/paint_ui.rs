@@ -51,6 +51,14 @@ impl PaintUi<'_> {
         Draw::new(self.ui.painter(), self.record, DrawEnv { tokens: &self.env.tokens, direction: self.env.direction, ink: self.ink })
     }
 
+    /// The content-paint API for painting `part`: as [`draw`](Self::draw), and when the part was declared
+    /// [`disabled`](super::PartBuilder::disabled) its data fills use the theme's disabled fill.
+    pub fn draw_part(&self, part: impl Into<PartRef>) -> Draw<'_> {
+        let part = part.into();
+        let disabled = self.results.get(&(part.key, part.index)).is_some_and(|result| result.disabled);
+        self.draw().for_part(disabled)
+    }
+
     /// Runs `f` with the style context of this component's env, so app hooks called from `paint` pick colours and
     /// sizes through tokens as `style` does.
     pub fn with_style<R>(&self, variant: Variant, f: impl FnOnce(&StyleCx<'_>) -> R) -> R {

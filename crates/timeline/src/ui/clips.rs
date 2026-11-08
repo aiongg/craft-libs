@@ -11,7 +11,7 @@ use craft_ui::contract::{
     Access, Component, ContentPainter, Cx, Edit as _, Focus as _, Name, Outcome, PaintUi, PartsCx, Pointer as _, Remember as _,
 };
 use craft_ui::primitives::{ContentPainterCx, PaintShape, StrokeWidth, TextRun};
-use craft_ui::style::{Corners, DataColor, Flags, Resolve as _, State, StateMix, Stateful, States, StyleColor, StyleCx, SurfaceKind, TypeRole};
+use craft_ui::style::{DataColor, Flags, Resolve as _, State, StateMix, Stateful, States, StyleColor, StyleCx, TypeRole};
 use egui::{CornerRadius, Pos2, Rect, Vec2, pos2};
 
 use super::{TimeAxis, label_palette};
@@ -30,7 +30,8 @@ const ROLL_SHARE: f32 = 0.5;
 
 /// The clip body of `CLIP.at(id)`; its start and end edges are `CLIP_START.at(id)` and `CLIP_END.at(id)`, which rank
 /// above the body.
-/// The empty space of the lane: it takes the clicks that clear the selection and the drags that sweep a marquee.
+/// The empty space of the lane: it takes the drags that sweep a marquee. A click on it belongs to the track collection:
+/// it makes the track the lead and the panel clears the clip selection.
 const BACKDROP: PartKey = PartKey::new("laneBackdrop");
 /// A clip's body wins over the backdrop behind it, and the backdrop wins over the row's own root shape.
 const CLIP_PRIORITY: HitPriority = HitPriority::new(HitLevel::Body, 2);
@@ -244,8 +245,9 @@ impl Default for Pressed {
 ///   release after an Esc does nothing (FilmCraft #580).
 /// - A press acts on what it pressed, worked out on the press pass, not when the drag threshold passes (FilmCraft
 ///   `Pressed`, #259).
-/// - A click picks a clip, or clears on empty space: a click replaces, Shift toggles, Cmd/Ctrl toggles without linked
-///   partners (Premiere's), reported as a [`SelectionChange`]; a double-click and a secondary click are reported.
+/// - A click picks a clip: a click replaces, Shift toggles, Cmd/Ctrl toggles without linked partners (Premiere's),
+///   reported as a [`SelectionChange`]; a double-click and a secondary click are reported. A click on empty space is the
+///   track collection's.
 /// - A locked track draws stripes over its clips and starts no gesture.
 /// - Each clip is a focusable part: Enter and Space pick it. AccessKit: a button per clip, named by its name, valued by
 ///   its start and duration.
@@ -338,14 +340,14 @@ impl<'a> ClipLane<'a> {
         let sense = if self.locked { Sense::HOVER } else { Sense::CLICK | Sense::DRAG | Sense::CONTEXT_CLICK };
         if !self.locked {
             cx.part(BACKDROP, lane)
-                .sense(Sense::CLICK | Sense::DRAG)
+                .sense(Sense::DRAG)
                 .priority(BACKDROP_PRIORITY)
                 .pointer_only("the clips' own keys and the selection commands pick without the pointer");
         }
         let trims = matches!(self.tool, TimelineTool::Selection | TimelineTool::Ripple | TimelineTool::Rolling | TimelineTool::RateStretch);
         for clip in self.clips {
             let Some(body) = geometry.body(clip) else { continue };
-            let part = cx.part(CLIP.at(clip.id.0), body).sense(sense).priority(CLIP_PRIORITY);
+            let part = cx.part(CLIP.at(clip.id.0), body).sense(sense).priority(CLIP_PRIORITY).nudges().disabled(!clip.enabled);
             let part = if self.locked { part } else { part.focusable() };
             let part = match self.tool {
                 TimelineTool::Razor => part.cursor(CursorIcon::Crosshair),
@@ -542,18 +544,10 @@ impl<'a> ClipLane<'a> {
                 }
                 _ => continue,
             };
-            let (change, unlinked) = geometry.pick(self.selection, Some(clip.id), mods);
+            let (change, unlinked) = geometry.pick(clip.id, mods);
             events.select = change;
             events.unlinked = unlinked;
             return;
-        }
-        let press = cx.part_if_declared(BACKDROP).map(|result| result.press);
-        if let Some(press) = press
-            && let PressPhase::Release { pos, click: true, start, .. } = press.phase
-            && start.button == PointerButton::Primary
-            && geometry.clip_at(pos.x).is_none()
-        {
-            events.select = geometry.pick(self.selection, None, press.mods).0;
         }
     }
 
@@ -561,20 +555,14 @@ impl<'a> ClipLane<'a> {
     pub fn paint<C: ContentPainter>(&self, ui: &mut PaintUi<'_>, lane: Rect, axis: &TimeAxis, look: &ClipLook, cx: &Cx<'_, C>) {
         let palette = label_palette(&cx.env);
         let geometry = self.geometry(axis, lane, look);
-        {
-            let draw = ui.draw();
-            if let Some(label) = self.track_label {
-                let tint = palette.0[usize::from(label.0) % palette.0.len()].gamma_multiply(LANE_LABEL_TINT);
-                draw.data_fill(&PaintShape::Rect(lane, CornerRadius::ZERO), DataColor::new(tint));
-            }
-            for clip in self.clips {
-                let Some(body) = geometry.body(clip) else { continue };
-                let base = palette.0[usize::from(clip.label.unwrap_or_default().0) % palette.0.len()];
-                draw.data_fill(&PaintShape::Rect(body, CornerRadius::ZERO), DataColor::new(base));
-                if !clip.enabled {
-                    draw.surface(body, SurfaceKind::Scrim, Corners::None);
-                }
-            }
+        if let Some(label) = self.track_label {
+            let tint = palette.0[usize::from(label.0) % palette.0.len()].gamma_multiply(LANE_LABEL_TINT);
+            ui.draw().data_fill(&PaintShape::Rect(lane, CornerRadius::ZERO), DataColor::new(tint));
+        }
+        for clip in self.clips {
+            let Some(body) = geometry.body(clip) else { continue };
+            let base = palette.0[usize::from(clip.label.unwrap_or_default().0) % palette.0.len()];
+            ui.draw_part(CLIP.at(clip.id.0)).data_fill(&PaintShape::Rect(body, CornerRadius::ZERO), DataColor::new(base));
         }
         if let Some(content) = &self.content {
             let painter = ui.content_painter(cx);
@@ -721,13 +709,9 @@ impl Lane<'_> {
         }
     }
 
-    /// The selection change of a click on `clip` (none: empty space) and whether the linked partners stay out: Shift
-    /// and Cmd/Ctrl toggle, Cmd/Ctrl without partners, else replace.
-    fn pick(&self, selection: &[ClipId], clip: Option<ClipId>, mods: craft_keymap::Mods) -> (Option<SelectionChange<ClipId>>, bool) {
-        let Some(clip) = clip else {
-            let clears = !(mods.shift || mods.cmd) && !selection.is_empty();
-            return (clears.then_some(SelectionChange::Clear), false);
-        };
+    /// The selection change of a click on `clip` and whether the linked partners stay out: Shift and Cmd/Ctrl toggle,
+    /// Cmd/Ctrl without partners, else replace.
+    fn pick(&self, clip: ClipId, mods: craft_keymap::Mods) -> (Option<SelectionChange<ClipId>>, bool) {
         if mods.shift || mods.cmd { (Some(SelectionChange::Toggle(clip)), mods.cmd) } else { (Some(SelectionChange::Set(vec![clip])), false) }
     }
 
