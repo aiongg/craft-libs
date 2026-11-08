@@ -23,7 +23,7 @@ pub use craft_i18n::Direction;
 pub use craft_i18n::{AgeStyle, Count, Counted, WordRows, WordSet, WordTemplate, Words};
 use craft_i18n::{CalendarDate, DateFormat, Format};
 use craft_theme::{
-    AppSizes, Appearance, Contrast, ControlSize, Mode, MotionTokens, SUITE_DEFAULT, Size, TextSize, ThemeDef, builtins, resolve_sized,
+    AppSizes, Appearance, Contrast, ControlSize, Mode, MotionTokens, SUITE_DEFAULT, Size, TextSize, ThemeDef, ThemeId, builtins, resolve_sized,
 };
 pub use craft_ui_macros::EnvValue;
 use egui::{Context, Id, Ui, ViewportId};
@@ -198,6 +198,8 @@ pub struct RootEnv {
     pub tab_all_controls: bool,
     /// Whether a bare Tab toggles the window's chrome in place of moving focus where the key stage's gate allows it.
     pub tab_toggles_chrome: bool,
+    /// The theme the tokens resolve from; an id no built-in theme has resolves to the suite default.
+    pub theme: ThemeId,
     /// Root app values.
     pub values: AppValues,
     /// Today's date in the host's time zone; the runtime reads no wall clock.
@@ -217,6 +219,7 @@ impl Default for RootEnv {
             scale: Scale::default(),
             tab_all_controls: true,
             tab_toggles_chrome: false,
+            theme: ThemeId::suite_default(),
             values: AppValues::default(),
             today: None,
         }
@@ -258,6 +261,17 @@ impl RootEnv {
     pub fn mode(mut self, mode: Mode) -> Self {
         self.mode = mode;
         self
+    }
+
+    /// Sets the theme.
+    pub fn theme(mut self, theme: ThemeId) -> Self {
+        self.theme = theme;
+        self
+    }
+
+    /// The appearance the root's tokens resolve under: the mode, contrast, density and text size.
+    pub fn appearance(&self) -> Appearance {
+        Appearance { mode: self.mode, contrast: self.contrast, size: self.density, text_size: self.text_size, reduced_motion: false }
     }
 
     /// Sets standard or high contrast.
@@ -659,15 +673,22 @@ pub(crate) fn root_token_entries(ctx: &Context) -> usize {
 
 /// The tokens the root resolves to, cached by the inputs that determine them.
 fn root_tokens(ctx: &Context, root: &RootEnv) -> Arc<UiTokens> {
-    let inputs =
-        TokenInputs { sizes: root.sizes.clone(), mode: root.mode, contrast: root.contrast, density: root.density, text_size: root.text_size };
+    let inputs = TokenInputs {
+        sizes: root.sizes.clone(),
+        theme: root.theme.clone(),
+        mode: root.mode,
+        contrast: root.contrast,
+        density: root.density,
+        text_size: root.text_size,
+    };
     let service = Service::<RootTokenCache>::of(ctx);
     if let Some(hit) = service.with(|cache| cache.entries.iter().find(|(key, _)| key.same(&inputs)).map(|(_, tokens)| tokens.clone())) {
         return hit;
     }
-    let appearance = Appearance { mode: root.mode, contrast: root.contrast, size: root.density, text_size: root.text_size, reduced_motion: false };
+    let appearance = root.appearance();
     let themes = builtins();
-    let theme: &ThemeDef = themes.iter().find(|theme| theme.id.as_str() == SUITE_DEFAULT).unwrap_or(&themes[0]);
+    let theme: &ThemeDef =
+        [root.theme.as_str(), SUITE_DEFAULT].into_iter().find_map(|id| themes.iter().find(|theme| theme.id.as_str() == id)).unwrap_or(&themes[0]);
     let tokens = Arc::new(UiTokens::new(Arc::new(resolve_sized(theme, appearance, None, &root.sizes).tokens), root.contrast, root.density));
     service.with(|cache| {
         if cache.entries.len() == KEPT_ROOT_TOKENS {
@@ -681,6 +702,7 @@ fn root_tokens(ctx: &Context, root: &RootEnv) -> Arc<UiTokens> {
 /// What the resolved root tokens depend on. The sizes are compared by identity, as `set_input` does.
 struct TokenInputs {
     sizes: Arc<AppSizes>,
+    theme: ThemeId,
     mode: Mode,
     contrast: Contrast,
     density: Size,
@@ -690,6 +712,7 @@ struct TokenInputs {
 impl TokenInputs {
     fn same(&self, other: &TokenInputs) -> bool {
         Arc::ptr_eq(&self.sizes, &other.sizes)
+            && self.theme == other.theme
             && self.mode == other.mode
             && self.contrast == other.contrast
             && self.density == other.density

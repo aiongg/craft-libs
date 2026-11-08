@@ -43,11 +43,14 @@ type Explanation = (ThemeDef, Appearance, Option<AppId>, AppSizes, Arc<Explained
 /// What the theme panels share: the app layer, the picked row, and the explanation and contrast report of the
 /// subject, computed again only when the subject or the app layer changes.
 #[derive(Default)]
+#[non_exhaustive]
 pub struct ThemeWorkspace {
     explanation: Option<Explanation>,
     report: Option<(ThemeDef, Arc<ContrastReport>)>,
-    pick: Option<Pick>,
-    layer: AppSizes,
+    /// The row picked in the browser, the Problems view or the detail.
+    pub pick: Option<Pick>,
+    /// The app's size overrides: the sizes the gallery resolves with.
+    pub sizes: AppSizes,
 }
 
 impl ThemeWorkspace {
@@ -59,11 +62,11 @@ impl ThemeWorkspace {
     /// Brings the explanation and the contrast report up to date with `subject` and the app layer.
     pub fn refresh(&mut self, subject: &ThemeSubject<'_>) {
         let current = self.explanation.as_ref().is_some_and(|(theme, appearance, app, layer, _)| {
-            theme == subject.theme && *appearance == subject.appearance && app.as_ref() == subject.app && *layer == self.layer
+            theme == subject.theme && *appearance == subject.appearance && app.as_ref() == subject.app && *layer == self.sizes
         });
         if !current {
-            let explained = Arc::new(explain_sized(subject.theme, subject.appearance, subject.app, &self.layer));
-            self.explanation = Some((subject.theme.clone(), subject.appearance, subject.app.cloned(), self.layer.clone(), explained));
+            let explained = Arc::new(explain_sized(subject.theme, subject.appearance, subject.app, &self.sizes));
+            self.explanation = Some((subject.theme.clone(), subject.appearance, subject.app.cloned(), self.sizes.clone(), explained));
         }
         if self.report.as_ref().is_none_or(|(theme, _)| theme != subject.theme) {
             self.report = Some((subject.theme.clone(), Arc::new(contrast_report(subject.theme))));
@@ -78,29 +81,5 @@ impl ThemeWorkspace {
     /// The contrast report of the theme of the last `refresh`.
     pub fn report(&self) -> Option<&Arc<ContrastReport>> {
         self.report.as_ref().map(|(_, report)| report)
-    }
-
-    /// The row picked last.
-    pub fn pick(&self) -> Option<&Pick> {
-        self.pick.as_ref()
-    }
-
-    /// Picks `pick`, when a panel reported one.
-    pub fn apply_pick(&mut self, pick: Option<Pick>) {
-        if pick.is_some() {
-            self.pick = pick;
-        }
-    }
-
-    /// The app's size overrides: the sizes the gallery resolves with.
-    pub fn sizes(&self) -> &AppSizes {
-        &self.layer
-    }
-
-    /// Replaces the app layer, when the editor reported a change.
-    pub fn apply_sizes(&mut self, sizes: Option<AppSizes>) {
-        if let Some(sizes) = sizes {
-            self.layer = sizes;
-        }
     }
 }

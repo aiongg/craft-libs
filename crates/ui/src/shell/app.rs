@@ -4,7 +4,7 @@
 //! Apps with their own eframe or wgpu setup call `runtime::install` and `runtime::frame::set_input` themselves.
 
 use crate::runtime::InstallSpec;
-use crate::runtime::frame::{FrameInput, FrameOutput, set_input, take_output};
+use crate::runtime::frame::{FrameInput, FrameOutput, request_repaint_after, set_input, take_output};
 use crate::runtime::windows::{self, WindowAction, WindowHost};
 use craft_host::target::{Os, ShellInfo, WindowState};
 use craft_window::desktop::fits;
@@ -13,6 +13,7 @@ use craft_window::restore::{Defaults, MAIN, Store, place};
 use craft_window::system::{NoWindows, WindowSystem};
 use egui::{Context, Pos2, Ui, ViewportBuilder, ViewportId};
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 /// What `run` needs of the app.
 #[non_exhaustive]
@@ -97,6 +98,12 @@ pub trait ShellApp {
     /// `WindowHost::visible` tells which.
     fn logic(&mut self, _ctx: &Context) {}
 
+    /// Runs each frame with the clock's reading, which layer 8 cannot take itself. Returns when the app next needs a
+    /// frame without input (a pending save, a retry), or `None`. The driver asks for a frame at that instant.
+    fn tick(&mut self, _now: Instant) -> Option<Instant> {
+        None
+    }
+
     /// Decides what a close request of the root window does. Runs in `logic`, so it also runs for a hidden window.
     fn close_requested(&mut self) -> CloseDecision {
         CloseDecision::Close
@@ -145,6 +152,10 @@ impl<A: ShellApp> eframe::App for Driver<A> {
 
     fn logic(&mut self, ctx: &Context, _: &mut eframe::Frame) {
         self.app.logic(ctx);
+        let now = crate::runtime::motion::now();
+        if let Some(due) = self.app.tick(now) {
+            request_repaint_after(ctx, due.saturating_duration_since(now).as_secs_f64());
+        }
         if windows::root_close_requested(ctx) && self.app.close_requested() == CloseDecision::Hold {
             windows::hold_close(ctx);
         }

@@ -2,38 +2,45 @@
 
 use super::options::{options_bar, status_bar};
 use super::panels::Panels;
-use crate::viewer::{Browser, Catalog, GalleryCommands, GallerySettings, Viewer};
+use crate::theme::{ThemeSubject, parse_sizes};
+use crate::viewer::{Browser, Catalog, GalleryCommands, GallerySettings, Viewer, Workspace, theme_of};
 use craft_behavior::GroupId;
-use craft_settings::{Location, SettingsStore};
+use craft_settings::{LoadReport, Location, SaveStatus, SettingsStore, Source};
+use craft_theme::AppSizes;
 use craft_ui::contract::{Bind, CommandSet as _, ShowContainer as _};
 use craft_ui::docking::tree::FrameRules;
 use craft_ui::docking::{PanelLimits, SplitArea};
 use craft_ui::layout_components::Stack;
-use craft_ui::runtime::frame::{FrameInput, FrameOutput, request_repaint_after};
+use craft_ui::popover::DropVeil;
+use craft_ui::runtime::drag::OsFile;
+use craft_ui::runtime::frame::{FrameInput, FrameOutput};
 use craft_ui::shell::app::{CloseDecision, ShellApp};
-use egui::{Context, Ui, Vec2};
-
-/// Passes without a change after which the settings are written.
-const SETTLED_PASSES: u64 = 30;
-/// Seconds until the pass that writes settings a change left unwritten.
-const SAVE_WAKE: f64 = 0.75;
+use egui::{Ui, Vec2};
+use std::time::Instant;
 
 /// The viewer as the root window's app.
 pub struct Gallery {
     viewer: Viewer,
     store: SettingsStore<GallerySettings>,
-    /// The pass of the latest change to the settings.
-    changed_pass: u64,
+    /// What loading and saving the settings told that the user should know.
+    notes: Vec<String>,
     /// Why the settings could not be written, when they could not.
     save_error: Option<String>,
+    /// What came of the files last dropped on the theme workspace.
+    drop_note: Option<String>,
 }
 
 impl Gallery {
     /// The viewer of the stories linked into the binary, in the state the gallery's `config.toml` holds.
     pub fn open() -> Self {
-        let (store, _) = SettingsStore::<GallerySettings>::open(Location::Auto);
-        let viewer = Viewer::new(Catalog::linked(), store.get());
-        Gallery { viewer, store, changed_pass: 0, save_error: None }
+        let (store, report) = SettingsStore::<GallerySettings>::open(Location::Auto);
+        Gallery::new(Catalog::linked(), store, &report)
+    }
+
+    /// The viewer of `catalog` over `store`, which `report` describes.
+    pub fn new(catalog: Catalog, store: SettingsStore<GallerySettings>, report: &LoadReport) -> Self {
+        let viewer = Viewer::new(catalog, store.get());
+        Gallery { viewer, store, notes: load_notes(report), save_error: None, drop_note: None }
     }
 
     /// Writes the settings now.
@@ -45,16 +52,46 @@ impl Gallery {
         let browser = &self.viewer.browser;
         let shown = browser.selected_stories().len();
         let total = browser.catalog.entries.len();
-        match &self.save_error {
-            Some(error) => format!("{shown} stories shown of {total}. Settings were not saved: {error}"),
-            None => format!("{shown} stories shown of {total}"),
-        }
+        let mut parts = vec![format!("{shown} stories shown of {total}")];
+        parts.extend(self.notes.iter().cloned());
+        parts.extend(self.save_error.iter().map(|error| format!("Settings were not saved: {error}")));
+        parts.extend(self.drop_note.iter().cloned());
+        parts.join(". ")
     }
+}
+
+/// What opening the settings told that the user should know.
+fn load_notes(report: &LoadReport) -> Vec<String> {
+    let mut notes = Vec::new();
+    if let Some(moved) = &report.broken_moved_to {
+        notes.push(format!("A damaged settings file was moved aside to {}", moved.display()));
+    }
+    if let Some(reason) = &report.read_only {
+        notes.push(format!("Settings are read-only: {reason}"));
+    }
+    if let Source::Legacy(from) = &report.source {
+        notes.push(format!("Settings were imported from {}", from.display()));
+    }
+    if !report.section_errors.is_empty() {
+        notes.push(format!("{} settings sections were reset to their defaults", report.section_errors.len()));
+    }
+    notes.extend(report.warning.iter().cloned());
+    notes
+}
+
+/// The app layer a dropped `sizes.json` holds.
+fn read_dropped(file: &OsFile) -> Result<AppSizes, String> {
+    let bytes = match (&file.bytes, &file.path) {
+        (Some(bytes), _) => bytes.to_vec(),
+        (None, Some(path)) => std::fs::read(path).map_err(|error| format!("{}: {error}", file.name))?,
+        (None, None) => return Err(format!("{}: the file has no content", file.name)),
+    };
+    parse_sizes(&file.name, &bytes)
 }
 
 impl ShellApp for Gallery {
     fn frame_input(&mut self) -> FrameInput {
-        FrameInput::new(self.viewer.appearance.root_env())
+        FrameInput::new(self.viewer.env.clone())
     }
 
     fn output(&mut self, output: FrameOutput) {
@@ -65,10 +102,20 @@ impl ShellApp for Gallery {
         }
     }
 
-    fn logic(&mut self, ctx: &Context) {
-        if self.store.is_dirty() && ctx.cumulative_pass_nr() >= self.changed_pass + SETTLED_PASSES {
-            self.save();
+    fn tick(&mut self, now: Instant) -> Option<Instant> {
+        let tick = self.store.tick(now);
+        match tick.status {
+            SaveStatus::Failed(error) => self.save_error = Some(error.to_string()),
+            SaveStatus::Saved => self.save_error = None,
+            _ => {}
         }
+        for moved in self.store.take_moved_aside() {
+            self.notes.push(format!("A damaged settings file was moved aside to {}", moved.display()));
+        }
+        if self.store.take_merged_change() {
+            self.viewer.restore(self.store.get());
+        }
+        tick.next_deadline
     }
 
     fn close_requested(&mut self) -> CloseDecision {
@@ -78,24 +125,60 @@ impl ShellApp for Gallery {
 
     fn ui(&mut self, ui: &mut Ui) {
         let status = self.status();
-        let Viewer { appearance, more_open, browser } = &mut self.viewer;
-        let shown_appearance = *appearance;
+        let Viewer { env, cell_filter, workspace, more_open, browser, themes, theme_dock } = &mut self.viewer;
+        let in_theme = *workspace == Workspace::Theme;
+        let subject = ThemeSubject::new(theme_of(&env.theme), env.appearance());
+        if in_theme {
+            themes.refresh(&subject);
+        }
+        let shown_filter = *cell_filter;
         let Browser { catalog, filter, selection, open, dock, generation, cells } = browser;
+        let dock = if in_theme { theme_dock } else { dock };
         let limits = |_: &GroupId| PanelLimits::at_least(Vec2::ZERO);
         let rules = FrameRules::new(&limits);
-        let mut panels = Panels { catalog, filter, selection, open, cells, generation: *generation, appearance: shown_appearance };
-        Stack::new().fill().header(|ui, _| options_bar(ui, appearance, more_open)).footer(|ui, _| status_bar(ui, &status)).show(ui, |ui, _| {
-            SplitArea::new("Panels", Bind::bound(dock), rules).show(ui, |ui, body| {
-                for (group, rect) in body.group_frames::<GroupId>() {
-                    panels.show(ui, group, rect);
+        let mut panels = Panels {
+            catalog,
+            filter,
+            selection,
+            open,
+            cells,
+            generation: *generation,
+            cell_filter: shown_filter,
+            themes: &mut *themes,
+            subject,
+            revealed: None,
+        };
+        let mut content = |ui: &mut Ui| {
+            Stack::new().fill().header(|ui, _| options_bar(ui, env, cell_filter, workspace, more_open)).footer(|ui, _| status_bar(ui, &status)).show(
+                ui,
+                |ui, _| {
+                    SplitArea::new("Panels", Bind::bound(dock), rules).show(ui, |ui, body| {
+                        for (group, rect) in body.group_frames::<GroupId>() {
+                            panels.show(ui, group, rect);
+                        }
+                    });
+                },
+            );
+        };
+        let dropped = if in_theme {
+            DropVeil::new("Drop an app's sizes.json to load it").show(ui, |ui, _| content(ui)).dropped.clone()
+        } else {
+            content(ui);
+            None
+        };
+        if let Some(file) = dropped.as_ref().and_then(|dropped| dropped.files.first()) {
+            self.drop_note = Some(match read_dropped(file) {
+                Ok(sizes) => {
+                    themes.sizes = sizes;
+                    format!("Loaded {}", file.name)
                 }
+                Err(message) => message,
             });
-        });
-        if self.store.set(GallerySettings::of(&self.viewer)) {
-            self.changed_pass = ui.ctx().cumulative_pass_nr();
         }
-        if self.store.is_dirty() {
-            request_repaint_after(ui.ctx(), SAVE_WAKE);
+        self.viewer.sync_sizes();
+        if self.store.set(GallerySettings::of(&self.viewer)) {
+            // The pass after a change ticks the store, which names when the save is due.
+            ui.ctx().request_repaint();
         }
     }
 }

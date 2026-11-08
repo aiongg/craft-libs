@@ -2,6 +2,7 @@
 //! over it.
 
 use super::chip::chip;
+use super::held::Held;
 use super::rows::{Filters, Row, TokenRows};
 use super::subject::Pick;
 use super::words::{layer_words, lengths_words, value_words};
@@ -17,48 +18,38 @@ use craft_ui::style::TypeRole;
 use craft_ui::text::TextField;
 use egui::Ui;
 
-/// What the browser keeps between passes: the filters, which groups are open and the selected row.
+/// What the browser keeps between passes: the filters and which groups are open.
 #[derive(Clone, Default)]
 struct Session {
     filters: Filters,
     open: OpenSet<Row>,
-    selection: Selection<Row>,
-    /// The pick the host gave last, so a new one selects its row and a pick the user made does not echo back.
-    given: Option<Pick>,
-}
-
-/// What the browser reports: the row the user picked in this pass.
-#[derive(Debug, Default)]
-#[non_exhaustive]
-pub struct BrowserOutput {
-    /// The token or size the user selected or activated.
-    pub picked: Option<Pick>,
 }
 
 /// The list of tokens of an explanation, in groups that open and close, with a filter by path and by pins, moves
 /// and failing pairs.
 ///
-/// - Selecting or activating a token or size row reports it as `picked`. A pick the host gives with
-///   [`pick`](TokenBrowser::pick) selects its row, opens its group and scrolls it into view.
+/// - The selected row follows the bound pick. Selecting or activating a token or size row writes it there.
+/// - [`reveal`](TokenBrowser::reveal) opens a pick's group and scrolls its row into view in the pass it is given, as
+///   often as the host gives it, whether or not the pick changes.
 /// - A filter on shows every group's matches, open.
 #[derive(Pattern, Props)]
 pub struct TokenBrowser<'a> {
     explained: &'a Explained,
-    /// The row the host has picked, which the list selects.
+    pick: Held<'a, Option<Pick>>,
+    /// The row to bring into view in this pass.
     #[prop]
-    pick: Option<&'a Pick>,
+    reveal: Option<&'a Pick>,
 }
 
 impl<'a> TokenBrowser<'a> {
-    /// A browser over `explained`.
-    pub fn new(explained: &'a Explained) -> Self {
-        TokenBrowser { explained, pick: None }
+    /// A browser over `explained` that shows and edits `pick`.
+    pub fn new(explained: &'a Explained, pick: Bind<'a, Option<Pick>>) -> Self {
+        TokenBrowser { explained, pick: Held::new(pick), reveal: None }
     }
 
     /// Shows the browser across the room offered.
-    pub fn show(self, ui: &mut Ui) -> BrowserOutput {
-        let TokenBrowser { explained, pick } = self;
-        let mut out = BrowserOutput::default();
+    pub fn show(self, ui: &mut Ui) {
+        let TokenBrowser { explained, mut pick, reveal } = self;
         Stack::new()
             .fill()
             .header(|ui, cx| {
@@ -72,43 +63,40 @@ impl<'a> TokenBrowser<'a> {
                 });
             })
             .show(ui, |ui, cx| {
+                let current = pick.read(cx).flatten();
+                let revealed = reveal.and_then(|pick| Row::of(pick, explained));
                 let session = cx.memory::<Session>();
-                let mut reveal = None;
-                if session.given.as_ref() != pick {
-                    session.given = pick.cloned();
-                    reveal = pick.and_then(|pick| Row::of(pick, explained));
-                    session.selection = reveal.map_or_else(Selection::default, Selection::single);
-                    if let Some(group) = reveal.and_then(|row| row.group(explained)) {
-                        session.open.set(&Row::Group(group), true);
-                    }
+                if let Some(group) = revealed.and_then(|row| row.group(explained)) {
+                    session.open.set(&Row::Group(group), true);
                 }
                 let rows = TokenRows::of(explained, &session.filters, &session.open);
+                let mut selection = current.as_ref().and_then(|pick| Row::of(pick, explained)).map_or_else(Selection::default, Selection::single);
                 let mut list = List::<Row>::new("Tokens")
                     .select(SelectMode::Single)
                     .tree(true)
                     .empty("No token matches the filters")
-                    .selection(Bind::bound(&mut session.selection));
-                if let Some(row) = reveal.filter(|row| rows.contains(row)) {
+                    .selection(Bind::bound(&mut selection));
+                if let Some(row) = revealed.filter(|row| rows.contains(row)) {
                     list = list.reveal(row);
                 }
                 let events = list.show_items(ui, &rows, &mut |key, _| row_of(explained, &rows, key)).events;
                 let session = cx.memory::<Session>();
+                let mut picked = None;
                 for event in events {
                     match event {
-                        CollectionEvent::Selection(SelectionChange::Set(keys)) => out.picked = keys.last().and_then(|row| row.pick(explained)),
+                        CollectionEvent::Selection(SelectionChange::Set(keys)) => picked = keys.last().and_then(|row| row.pick(explained)),
                         CollectionEvent::Activate(row) => match row.pick(explained) {
-                            Some(pick) => out.picked = Some(pick),
+                            Some(pick) => picked = Some(pick),
                             None => session.open.set(&row, !rows.is_open(&row)),
                         },
                         CollectionEvent::Open(change) => session.open.apply(&change.key, change.open, change.all, rows.headings()),
                         _ => {}
                     }
                 }
-                if out.picked.is_some() {
-                    session.given.clone_from(&out.picked);
+                if picked.is_some() && picked != current {
+                    pick.write(cx, &current, picked, "Pick token");
                 }
             });
-        out
     }
 }
 

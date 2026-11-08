@@ -37,7 +37,7 @@ fn a_layout_that_cannot_be_read_costs_only_the_layout() {
         settings.layout = layout.to_owned();
         let restored = viewer(&settings);
         assert_eq!(restored.layout(), PanelShares::default(), "layout {layout:?}");
-        assert_eq!(restored.appearance.mode, Mode::Dark);
+        assert_eq!(restored.env.mode, Mode::Dark);
         assert_eq!(restored.browser.filter, "link");
     }
 }
@@ -45,7 +45,7 @@ fn a_layout_that_cannot_be_read_costs_only_the_layout() {
 #[trial]
 fn settings_restore_the_state_they_were_saved_from() {
     let mut before = viewer(&GallerySettings::default());
-    before.appearance.mode = Mode::Dark;
+    before.env.mode = Mode::Dark;
     before.browser.filter = "u".to_owned();
     before.browser.selection = Selection::single(TreeKey::Component("craft_ui::buttons::link::Link"));
     before.browser.open.set(&TreeKey::Module("craft_ui::buttons::link"), true);
@@ -64,7 +64,7 @@ fn a_name_this_build_does_not_know_keeps_the_default() {
     settings.mode = "sepia".to_owned();
     settings.selected = "gone::Type".to_owned();
     let restored = viewer(&settings);
-    assert_eq!(restored.appearance, viewer(&GallerySettings::default()).appearance);
+    assert_eq!(restored.env.mode, viewer(&GallerySettings::default()).env.mode);
     assert_eq!(restored.selected_type(), None);
 }
 

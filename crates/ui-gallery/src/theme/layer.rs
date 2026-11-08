@@ -3,6 +3,7 @@
 //!
 //! The file moves as text: it is loaded by pasting it into the field and exported by writing it to the field.
 
+use super::held::Held;
 use super::subject::Pick;
 use craft_theme::variant::Tone;
 use craft_theme::{AppSizes, Explained, SizeMap, SizeOrigin, SizeValue};
@@ -38,14 +39,6 @@ struct Session {
     status: Option<(String, bool)>,
 }
 
-/// What the editor reports: the app layer after an edit, load or clear in this pass.
-#[derive(Debug, Default)]
-#[non_exhaustive]
-pub struct LayerOutput {
-    /// The new layer, when this pass changed it.
-    pub sizes: Option<AppSizes>,
-}
-
 /// Parses the file `bytes` named `name` as an app's `sizes.json`; the error names `name` and the offending paths.
 pub fn parse_sizes(name: &str, bytes: &[u8]) -> Result<AppSizes, String> {
     AppSizes::parse(bytes).map_err(|errors| format!("{name}: {errors}"))
@@ -74,10 +67,10 @@ fn number(value: SizeValue) -> f32 {
 }
 
 /// The app's size overrides as an editor: for a picked size, its override in the chosen part of the file; always the
-/// file's text with Load, Export and Clear.
+/// file's text with Load, Export and Clear. Edits write to the bound layer.
 #[derive(Pattern, Props)]
 pub struct AppLayerEditor<'a> {
-    sizes: &'a AppSizes,
+    sizes: Held<'a, AppSizes>,
     explained: &'a Explained,
     /// The row the host has picked; a size row shows its override editor.
     #[prop]
@@ -86,33 +79,35 @@ pub struct AppLayerEditor<'a> {
 
 impl<'a> AppLayerEditor<'a> {
     /// An editor over the layer `sizes`, with the sizes of `explained` to pick from.
-    pub fn new(sizes: &'a AppSizes, explained: &'a Explained) -> Self {
-        AppLayerEditor { sizes, explained, pick: None }
+    pub fn new(sizes: Bind<'a, AppSizes>, explained: &'a Explained) -> Self {
+        AppLayerEditor { sizes: Held::new(sizes), explained, pick: None }
     }
 
     /// Shows the editor across the room offered, scrolling.
-    pub fn show(self, ui: &mut Ui) -> LayerOutput {
-        let AppLayerEditor { sizes, explained, pick } = self;
+    pub fn show(self, ui: &mut Ui) {
+        let AppLayerEditor { mut sizes, explained, pick } = self;
         let size = match pick {
             Some(Pick::Size(path)) => explained.sizes.iter().find(|origin| origin.path == *path),
             _ => None,
         };
-        let mut layer = sizes.clone();
-        let mut changed = false;
         Stack::new().fill().scroll(Scroll::vertical()).gap(Gap::Section).show(ui, |ui, cx| {
+            let Some(before) = sizes.read(cx) else { return };
+            let mut layer = before.clone();
             let mut session = cx.memory::<Session>().clone();
             if let Some(origin) = size {
-                override_section(ui, origin, &mut session, &mut layer, &mut changed);
+                override_section(ui, origin, &mut session, &mut layer);
             }
-            file_section(ui, &mut session, &mut layer, &mut changed);
+            file_section(ui, &mut session, &mut layer);
             *cx.memory::<Session>() = session;
+            if layer != before {
+                sizes.write(cx, &before, layer, "Edit app sizes");
+            }
         });
-        LayerOutput { sizes: changed.then_some(layer) }
     }
 }
 
 /// The value of the picked size in the chosen part of the file, and the control to remove it.
-fn override_section(ui: &mut Ui, origin: &SizeOrigin, session: &mut Session, layer: &mut AppSizes, changed: &mut bool) {
+fn override_section(ui: &mut Ui, origin: &SizeOrigin, session: &mut Session, layer: &mut AppSizes) {
     Section::fixed(format!("Override {}", origin.path)).show(ui, |ui, _| {
         let parts = [Entry::new(Part::All, "All"), Entry::new(Part::Compact, "Compact"), Entry::new(Part::Comfortable, "Comfortable")];
         Segmented::new("Part of sizes.json", Bind::bound(&mut session.part), &parts).show(ui);
@@ -124,17 +119,15 @@ fn override_section(ui: &mut Ui, origin: &SizeOrigin, session: &mut Session, lay
             && let Some(edited) = value
         {
             part_map_mut(layer, session.part).insert(origin.path.clone(), SizeValue::Number(edited as f32));
-            *changed = true;
         }
         if clicked(&Button::new("Remove override").enabled(set.is_some()).show(ui)) {
             part_map_mut(layer, session.part).remove(&origin.path);
-            *changed = true;
         }
     });
 }
 
 /// The file's text, the buttons that move it in and out of the layer and the outcome of the last one.
-fn file_section(ui: &mut Ui, session: &mut Session, layer: &mut AppSizes, changed: &mut bool) {
+fn file_section(ui: &mut Ui, session: &mut Session, layer: &mut AppSizes) {
     Section::fixed("sizes.json").show(ui, |ui, _| {
         let counts = (layer.all.len(), layer.compact.len(), layer.comfortable.len());
         Text::new(format!("{} overrides: {} for all, {} Compact, {} Comfortable", counts.0 + counts.1 + counts.2, counts.0, counts.1, counts.2))
@@ -145,7 +138,6 @@ fn file_section(ui: &mut Ui, session: &mut Session, layer: &mut AppSizes, change
                 match parse_sizes("sizes.json", session.text.as_bytes()) {
                     Ok(loaded) => {
                         *layer = loaded;
-                        *changed = true;
                         session.status = Some(("Loaded sizes.json".to_owned(), false));
                     }
                     Err(message) => session.status = Some((message, true)),
@@ -160,7 +152,6 @@ fn file_section(ui: &mut Ui, session: &mut Session, layer: &mut AppSizes, change
             }
             if clicked(&Button::new("Clear").enabled(!layer.is_empty()).show(ui)) {
                 *layer = AppSizes::default();
-                *changed = true;
                 session.text.clear();
                 session.status = None;
             }

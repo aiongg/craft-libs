@@ -1,12 +1,18 @@
-//! The four panels of the viewer: the component tree, the shown stories, the component's facts and its decision
-//! record.
+//! The panels of the viewer: the component tree, the shown stories, the component's facts and its decision record,
+//! and the theme workspace's tokens, problems, detail and app sizes.
 
-use crate::viewer::{self, Appearance, COMPONENTS, Catalog, Cells, ComponentInfo, FACTS, GalleryCommands, RECORD, STORIES, TreeKey, TreeRows};
+use crate::theme::{AppLayerEditor, Problems, ThemeSubject, ThemeWorkspace, TokenBrowser, TokenDetail};
+use crate::viewer::{
+    self, COMPONENTS, Catalog, CellFilter, Cells, ComponentInfo, DETAIL, FACTS, GalleryCommands, OVERRIDES, PROBLEMS, RECORD, STORIES, TOKENS,
+    TreeKey, TreeRows,
+};
 use craft_behavior::{GroupId, Selection};
 use craft_i18n::Direction;
 use craft_theme::ControlSize;
+use craft_theme::Explained;
+use craft_theme::report::ContrastReport;
 use craft_theme::variant::Tone;
-use craft_ui::contract::{Bind, CollectionEvent, SelectMode, Show as _, ShowCollection as _, ShowContainer as _};
+use craft_ui::contract::{Bind, CollectionEvent, Props as _, SelectMode, Show as _, ShowCollection as _, ShowContainer as _};
 use craft_ui::display::{Shade, Text};
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::list::{List, ListRow, OpenSet};
@@ -15,12 +21,9 @@ use craft_ui::notices::Notice;
 use craft_ui::runtime::env::{Label, with_env};
 use craft_ui::sections::Panel;
 use craft_ui::style::TypeRole;
-use craft_ui::testing::memory::scoped_by;
 use craft_ui::text::TextField;
-use egui::{Rect, Ui, Vec2};
-
-/// How wide a shown cell is.
-const CELL_WIDTH: f32 = 260.0;
+use egui::{Rect, Ui};
+use std::sync::Arc;
 
 /// What the panels read and edit in one pass.
 #[non_exhaustive]
@@ -37,8 +40,14 @@ pub struct Panels<'a> {
     pub cells: &'a mut Cells,
     /// The reset count the cells' id scopes carry.
     pub generation: u32,
-    /// What the stories are shown under.
-    pub appearance: Appearance,
+    /// Which cells of a story are shown.
+    pub cell_filter: CellFilter,
+    /// What the theme panels share.
+    pub themes: &'a mut ThemeWorkspace,
+    /// The theme and appearance the theme panels explain.
+    pub subject: ThemeSubject<'a>,
+    /// The row the Problems view picked in this pass, which the token browser brings into view.
+    pub revealed: Option<crate::theme::Pick>,
 }
 
 /// The rows every panel's menu offers.
@@ -67,6 +76,14 @@ impl Panels<'_> {
             self.facts(ui, rect);
         } else if group == RECORD {
             self.record(ui, rect);
+        } else if group == PROBLEMS {
+            self.problems(ui, rect);
+        } else if group == TOKENS {
+            self.tokens(ui, rect);
+        } else if group == DETAIL {
+            self.detail(ui, rect);
+        } else if group == OVERRIDES {
+            self.overrides(ui, rect);
         }
     }
 
@@ -106,10 +123,9 @@ impl Panels<'_> {
     fn stories(&mut self, ui: &mut Ui, rect: Rect) {
         let catalog = self.catalog;
         let selected = self.selected().map(|component| component.type_name);
-        let (cells, generation, appearance) = (&mut *self.cells, self.generation, self.appearance);
-        let directions: Vec<_> =
-            [Direction::Ltr, Direction::Rtl].into_iter().filter(|d| appearance.direction.is_none_or(|only| only == *d)).collect();
-        let sizes: Vec<_> = [ControlSize::Sm, ControlSize::Md].into_iter().filter(|s| appearance.size.is_none_or(|only| only == *s)).collect();
+        let (cells, generation, shown) = (&mut *self.cells, self.generation, self.cell_filter);
+        let directions: Vec<_> = [Direction::Ltr, Direction::Rtl].into_iter().filter(|d| shown.direction.is_none_or(|only| only == *d)).collect();
+        let sizes: Vec<_> = [ControlSize::Sm, ControlSize::Md].into_iter().filter(|s| shown.size.is_none_or(|only| only == *s)).collect();
         Panel::new("Stories").menu(|ui, _| panel_menu(ui)).show_at(ui, rect, |ui, _| {
             let Some(type_name) = selected else {
                 Notice::new(Tone::Info, "Select a component to see its stories.").show(ui);
@@ -122,23 +138,19 @@ impl Panels<'_> {
                         for size in &sizes {
                             let data = cells.entry((index, *direction, *size)).or_default();
                             // Each cell is its own id scope: a story's `id_salt` and auto ids must not meet in another cell.
-                            scoped_by(ui, (index, direction.is_rtl(), *size, generation), |ui| {
-                                Stack::new().show(ui, |ui, _| {
-                                    ui.set_width(CELL_WIDTH);
-                                    let name = if direction.is_rtl() { "RTL" } else { "LTR" };
-                                    Text::new(format!("{name}, {size:?}")).role(TypeRole::Caption).shade(Shade::Muted).show(ui);
-                                    with_env(
-                                        ui,
-                                        |env| {
-                                            env.direction = Some(*direction);
-                                            env.size = Some(*size);
-                                        },
-                                        |ui| {
-                                            ui.set_min_size(Vec2::ZERO);
-                                            let _ = (entry.registration.story.show)(ui, data);
-                                        },
-                                    );
-                                });
+                            Stack::new().id_salt((index, direction.is_rtl(), *size, generation)).show(ui, |ui, _| {
+                                let name = if direction.is_rtl() { "RTL" } else { "LTR" };
+                                Text::new(format!("{name}, {size:?}")).role(TypeRole::Caption).shade(Shade::Muted).show(ui);
+                                with_env(
+                                    ui,
+                                    |env| {
+                                        env.direction = Some(*direction);
+                                        env.size = Some(*size);
+                                    },
+                                    |ui| {
+                                        let _ = (entry.registration.story.show)(ui, data);
+                                    },
+                                );
                             });
                         }
                     }
@@ -185,6 +197,59 @@ impl Panels<'_> {
             for exemption in probe.exempt {
                 fact(ui, "Exempt from", format!("{}: {}", exemption.case, exemption.reason));
             }
+        });
+    }
+
+    /// The panel of `title` over the explanation and report of the subject, when the workspace has them.
+    fn theme_panel(
+        &mut self,
+        ui: &mut Ui,
+        rect: Rect,
+        title: &'static str,
+        mut body: impl FnMut(&mut Self, &mut Ui, &Arc<Explained>, &Arc<ContrastReport>),
+    ) {
+        let (Some(explained), Some(report)) = (self.themes.explained().cloned(), self.themes.report().cloned()) else { return };
+        Panel::new(title).menu(|ui, _| panel_menu(ui)).show_at(ui, rect, |ui, _| body(self, ui, &explained, &report));
+    }
+
+    fn problems(&mut self, ui: &mut Ui, rect: Rect) {
+        self.theme_panel(ui, rect, "Problems", |panels, ui, explained, report| {
+            let picked = Problems::new(report, explained, &panels.subject).show(ui).picked;
+            if let Some(pick) = picked {
+                panels.themes.pick = Some(pick.clone());
+                panels.revealed = Some(pick);
+            }
+        });
+    }
+
+    fn tokens(&mut self, ui: &mut Ui, rect: Rect) {
+        self.theme_panel(ui, rect, "Tokens", |panels, ui, explained, _| {
+            let mut browser = TokenBrowser::new(explained, Bind::bound(&mut panels.themes.pick));
+            if let Some(pick) = &panels.revealed {
+                browser = browser.reveal(pick);
+            }
+            browser.show(ui);
+        });
+    }
+
+    fn detail(&mut self, ui: &mut Ui, rect: Rect) {
+        self.theme_panel(ui, rect, "Detail", |panels, ui, explained, _| {
+            let mut detail = TokenDetail::new(explained);
+            if let Some(pick) = &panels.themes.pick {
+                detail = detail.pick(pick);
+            }
+            detail.show(ui);
+        });
+    }
+
+    fn overrides(&mut self, ui: &mut Ui, rect: Rect) {
+        self.theme_panel(ui, rect, "App sizes", |panels, ui, explained, _| {
+            let pick = panels.themes.pick.clone();
+            let mut editor = AppLayerEditor::new(Bind::bound(&mut panels.themes.sizes), explained);
+            if let Some(pick) = &pick {
+                editor = editor.pick(pick);
+            }
+            editor.show(ui);
         });
     }
 }

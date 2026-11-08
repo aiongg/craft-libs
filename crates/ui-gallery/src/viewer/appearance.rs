@@ -1,10 +1,10 @@
-//! The appearance the viewer applies to every shown story, as the values `RootEnv` takes.
+//! The choices of the options bar: the named options of each root value, the theme list and the cell filters.
 
 use craft_behavior::MotionMode;
 use craft_i18n::Direction;
-use craft_theme::{Contrast, ControlSize, Mode, Size, TextSize};
+use craft_theme::{Contrast, ControlSize, Mode, Size, TextSize, ThemeDef, ThemeId, builtins};
 use craft_ui::contract::Entry;
-use craft_ui::runtime::env::{RootEnv, Scale};
+use craft_ui::runtime::env::Scale;
 
 /// One option of a choice: the value, the name it is saved under and the label the options bar shows.
 #[non_exhaustive]
@@ -55,70 +55,37 @@ choices!(TEXT_SIZES: TextSize = [
 ]);
 choices!(DENSITIES: Size = [(Size::Compact, "compact", "Compact"), (Size::Comfortable, "comfortable", "Comfortable")]);
 choices!(MOTIONS: MotionMode = [(MotionMode::Full, "full", "Full"), (MotionMode::Reduced, "reduced", "Reduced"), (MotionMode::Off, "off", "Off")]);
-choices!(SCALES: ScalePercent = [
-    (ScalePercent(100), "100", "100%"),
-    (ScalePercent(125), "125", "125%"),
-    (ScalePercent(150), "150", "150%"),
-    (ScalePercent(200), "200", "200%"),
+choices!(SCALES: Scale = [
+    (Scale::new(1.0), "100", "100%"),
+    (Scale::new(1.25), "125", "125%"),
+    (Scale::new(1.5), "150", "150%"),
+    (Scale::new(2.0), "200", "200%"),
 ]);
 choices!(DIRECTIONS: Option<Direction> = [(None, "both", "Both"), (Some(Direction::Ltr), "ltr", "LTR"), (Some(Direction::Rtl), "rtl", "RTL")]);
 choices!(SIZES: Option<ControlSize> = [(None, "both", "Both"), (Some(ControlSize::Sm), "sm", "Sm"), (Some(ControlSize::Md), "md", "Md")]);
 
-/// The interface scale as a whole percentage, so it compares and saves exactly.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Which cells of a story the viewer shows: the directions and control sizes it lays out. `None` shows both.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
-pub struct ScalePercent(pub u16);
-
-impl ScalePercent {
-    /// The scale the percentage stands for.
-    pub fn scale(self) -> Scale {
-        Scale::new(f32::from(self.0) / 100.0)
-    }
-}
-
-/// What the viewer applies to the stories it shows. A story is shown under the root values of this appearance,
-/// except the direction and control size, which each cell sets itself.
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct Appearance {
-    /// Light or dark.
-    pub mode: Mode,
-    /// Standard or high contrast.
-    pub contrast: Contrast,
-    /// The text-size step.
-    pub text_size: TextSize,
-    /// The density preset.
-    pub density: Size,
-    /// The motion mode.
-    pub motion: MotionMode,
-    /// The interface scale.
-    pub scale: ScalePercent,
-    /// The direction the cells show; `None` shows both.
+pub struct CellFilter {
+    /// The direction the cells show.
     pub direction: Option<Direction>,
-    /// The control size the cells show; `None` shows both.
+    /// The control size the cells show.
     pub size: Option<ControlSize>,
 }
 
-impl Default for Appearance {
-    fn default() -> Self {
-        Appearance {
-            mode: Mode::Light,
-            contrast: Contrast::Standard,
-            text_size: TextSize::default(),
-            density: Size::default(),
-            motion: MotionMode::default(),
-            scale: ScalePercent(100),
-            direction: None,
-            size: None,
-        }
-    }
+/// The built-in theme saved as `name`.
+pub fn theme_named(name: &str) -> Option<ThemeId> {
+    builtins().iter().find(|theme| theme.id.as_str() == name).map(|theme| theme.id.clone())
 }
 
-impl Appearance {
-    /// The root values of the window.
-    pub fn root_env(&self) -> RootEnv {
-        let mut root = RootEnv::new().mode(self.mode).contrast(self.contrast).density(self.density).motion(self.motion).scale(self.scale.scale());
-        root.text_size = self.text_size;
-        root
-    }
+/// The built-in theme `id` names; the suite default when `id` names none.
+pub fn theme_of(id: &ThemeId) -> &'static ThemeDef {
+    let themes = builtins();
+    themes.iter().find(|theme| theme.id == *id).or_else(|| themes.iter().find(|theme| theme.id == ThemeId::suite_default())).unwrap_or(&themes[0])
+}
+
+/// The entries of the Theme select: every built-in theme under its name.
+pub fn theme_entries() -> Vec<Entry<ThemeId>> {
+    builtins().iter().map(|theme| Entry::new(theme.id.clone(), theme.name.clone())).collect()
 }
