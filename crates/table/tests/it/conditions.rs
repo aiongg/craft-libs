@@ -10,9 +10,7 @@ use craft_ui::testing::access::name;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Modifiers, Vec2};
 
-/// The room the builder is shown in: wide enough for a rule on one row, and no wider than the fixture's 800 by 600
-/// screen, outside which no press arrives.
-const ROOM: Vec2 = Vec2::new(800.0, 600.0);
+const ROOM: Vec2 = Vec2::new(900.0, 600.0);
 
 struct Photos;
 

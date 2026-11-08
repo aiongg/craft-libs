@@ -18,8 +18,7 @@ fn slicer(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 
 fn card(ui: &mut Ui, filtered: bool) -> StoryOutput {
     let room = ui.available_rect_before_wrap();
-    craft_ui::testing::contract::allocate(ui, room.size());
-    SlicerCard::new("Colour".into(), filtered).show_at(ui, room, |_, _| {}).into()
+    SlicerCard::new("Colour".into(), filtered).show_at_taking_room(ui, room, |_, _| {}).into()
 }
 
 #[story(SlicerCard, covers = [Default], drive = Drive::Never)]

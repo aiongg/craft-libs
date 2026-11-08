@@ -156,7 +156,7 @@ fn moves_into(app: &Rc<RefCell<App>>, area: FieldArea) -> Option<(Vec<String>, u
 fn dragging_a_field_into_an_empty_area_moves_it_there() {
     let (mut fixture, app) = rig();
     let from = area_row(&fixture, "Product");
-    let area = named(&fixture, Role::LIST_BOX, "Filters").pop().expect("the empty Filters list");
+    let area = named(&fixture, Role::LIST, "Filters").pop().expect("the empty Filters list");
     fixture.drag(&from, area.center() - from.center());
     fixture.idle(2);
     assert_eq!(moves_into(&app, FieldArea::Filters), Some((vec!["Product".to_string()], 0)));
