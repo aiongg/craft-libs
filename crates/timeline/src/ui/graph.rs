@@ -511,6 +511,7 @@ impl<'a> GraphEditor<'a> {
             sweep: None,
         }
         .label(label)
+        .ltr_axis()
     }
 
     /// The plot and the bar inside `rect`.

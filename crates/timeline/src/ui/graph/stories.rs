@@ -9,7 +9,7 @@ use crate::ui::view::TimelineView;
 use craft_behavior::{Mixed, Selection};
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
 use craft_ui::runtime::env::Message;
-use craft_ui::testing::{StoryData, StoryOutput, story};
+use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use egui::{Color32, Rect, Ui, Vec2};
 
 /// Seconds between a curve's samples.
@@ -115,7 +115,16 @@ fn shown(ui: &mut Ui, demo: &mut Demo, range: Bind<'_, GraphRange>) -> StoryOutp
         .unwrap_or_default()
 }
 
-#[story(GraphEditor<'static>, covers = [Default])]
+/// The bottom-bar button that switches the editor to the speed graph.
+const SPEED_BUTTON: &str = "Edit Speed Graph";
+
+/// Presses the speed graph button: the editor's range changes its mode.
+fn show_the_speed_graph(fixture: &mut Fixture) {
+    let Some(button) = fixture.by_label(SPEED_BUTTON) else { return };
+    fixture.click(&button);
+}
+
+#[story(GraphEditor<'static>, covers = [Default], drive = Drive::Custom(show_the_speed_graph))]
 fn position_curves(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let mut demo = data.value("demo", Demo::new()).clone();
     let range = data.value("range", GraphRange::default());

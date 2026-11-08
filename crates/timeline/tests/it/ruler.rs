@@ -77,17 +77,6 @@ fn shown(work_area: Option<TimeRange>) -> Shown {
     Shown { fixture, playhead, edits, work }
 }
 
-/// Press at `from`, move to `to` in four steps, release.
-fn drag_between(fixture: &mut Fixture, from: Pos2, to: Pos2) {
-    fixture.frame(vec![pointer::moved(from)]);
-    fixture.frame(vec![pointer::press(from)]);
-    for step in 1..=4 {
-        fixture.frame(vec![pointer::moved(from + (to - from) * (step as f32 / 4.0))]);
-    }
-    fixture.frame(vec![pointer::release(to)]);
-    fixture.frame(Vec::new());
-}
-
 /// The point at `seconds` in the ruler `rect`, below its work-area band.
 fn at(rect: Rect, seconds: f64) -> Pos2 {
     Pos2::new(rect.left() + seconds as f32 * POINTS_PER_SECOND as f32, rect.center().y + rect.height() * 0.2)
@@ -116,7 +105,7 @@ fn ruler_ticks_label_in_the_format() {
 fn dragging_the_ruler_scrubs_the_playhead() {
     let mut shown = shown(None);
     let rect = shown.fixture.by_label(RULER).expect("the ruler has a node").rect;
-    drag_between(&mut shown.fixture, at(rect, SCRUB_FROM), at(rect, SCRUB_TO));
+    shown.fixture.drag_at(at(rect, SCRUB_FROM), at(rect, SCRUB_TO) - at(rect, SCRUB_FROM));
     let scrubbed_to = secs(SCRUB_TO);
     {
         let events = shown.edits.borrow();
@@ -161,7 +150,7 @@ fn dragging_the_work_area_moves_it_or_an_end() {
     let (area, shift, stretch) = (work_area(), 0.5, 1.0);
     let bar = shown.fixture.by_label("Work Area").expect("the work-area bar has a node").center();
     let moved = TimeRange::new(area.start + secs(shift), area.duration);
-    drag_between(&mut shown.fixture, bar, bar + travel(shift));
+    shown.fixture.drag_at(bar, travel(shift));
     {
         let events = shown.work.borrow();
         assert!(matches!(events.first(), Some(DragEvent::Begin(_))), "{events:?}");
@@ -170,7 +159,7 @@ fn dragging_the_work_area_moves_it_or_an_end() {
 
     let mut ended = self::shown(Some(work_area()));
     let end = ended.fixture.by_label("Work Area End").expect("the end has a node").center();
-    drag_between(&mut ended.fixture, end, end + travel(stretch));
+    ended.fixture.drag_at(end, travel(stretch));
     let stretched = TimeRange::from_bounds(area.start, area.end() + secs(stretch));
     let events = ended.work.borrow();
     assert!(matches!(events.last(), Some(DragEvent::Commit(range)) if *range == stretched), "{events:?}");

@@ -15,9 +15,6 @@ use std::rc::Rc;
 
 /// The editor's room, in points.
 const ROOM: Vec2 = Vec2::new(560.0, 320.0);
-/// The time area around the editor is taller than the editor: the wheel's zoom share goes to the innermost taker, and
-/// equal rects would leave the choice to the order they register in.
-const VIEW_ROOM: Vec2 = Vec2::new(ROOM.x, 2.0 * ROOM.y);
 /// Points per second of the editor's time axis.
 const POINTS_PER_SECOND: f64 = 100.0;
 /// The editor's name, which names its AccessKit node.
@@ -119,22 +116,14 @@ fn shown(curves: Vec<GraphCurve>, selection: Selection<KeyframeId>, auto_zoom: b
         });
         *held_range.borrow_mut() = edited;
     });
-    fixture.room(VIEW_ROOM);
+    fixture.room(ROOM);
     fixture.settle();
     Shown { fixture, range, selection, moved, handles, actions }
 }
 
-/// Press at `from`, move to `to` in four steps with `modifiers` held, release.
-fn drag_between(fixture: &mut Fixture, from: Pos2, to: Pos2, modifiers: Modifiers) {
-    fixture.hold(modifiers);
-    fixture.frame(vec![pointer::moved(from)]);
-    fixture.frame(vec![pointer::press(from)]);
-    for step in 1..=4 {
-        fixture.frame(vec![pointer::moved(from + (to - from) * (step as f32 / 4.0))]);
-    }
-    fixture.frame(vec![pointer::release(to)]);
-    fixture.frame(Vec::new());
-    fixture.hold(Modifiers::NONE);
+/// A drag from `from` by `by` with `modifiers` held.
+fn drag_holding(fixture: &mut Fixture, from: Pos2, by: Vec2, modifiers: Modifiers) {
+    fixture.hold(modifiers).drag_at(from, by).hold(Modifiers::NONE);
 }
 
 /// How many points the plot's value range of 0 to 100 spans: the editor's height less its bar.
@@ -164,7 +153,7 @@ fn dragging_keys_reports_time_and_value() {
     let tall = plot_height(&shown.fixture);
     let name = format!("{CURVE} 00:00:02:00");
     let at = shown.fixture.by_label(&name).expect("the key has a node").center();
-    drag_between(&mut shown.fixture, at, at + travel(seconds, rise, tall), Modifiers::NONE);
+    drag_holding(&mut shown.fixture, at, travel(seconds, rise, tall), Modifiers::NONE);
     {
         let moved = shown.moved.borrow();
         let Some(DragEvent::Commit(value)) = moved.last().cloned() else { panic!("{moved:?}") };
@@ -175,7 +164,7 @@ fn dragging_keys_reports_time_and_value() {
 
     let mut constrained = self::shown(vec![curve(vec![key(1, 2.0, 50.0)])], Selection::default(), false);
     let at = constrained.fixture.by_label(&name).expect("the key has a node").center();
-    drag_between(&mut constrained.fixture, at, at + travel(seconds, rise / 4.0, tall), Modifiers::SHIFT);
+    drag_holding(&mut constrained.fixture, at, travel(seconds, rise / 4.0, tall), Modifiers::SHIFT);
     let moved = constrained.moved.borrow();
     let Some(DragEvent::Commit(value)) = moved.last().cloned() else { panic!("{moved:?}") };
     let keeps_time = value.delta_time.seconds() > seconds * MOST_OF_THE_TIME;
@@ -189,7 +178,7 @@ fn dragging_a_handle_reports_its_position() {
     let mut shown = shown(vec![curve(vec![with_handle])], selected(&[1]), false);
     let tall = plot_height(&shown.fixture);
     let at = shown.fixture.by_label(&format!("{CURVE} 00:00:02:00 outgoing handle")).expect("the handle has a node").center();
-    drag_between(&mut shown.fixture, at, at + travel(seconds, rise, tall), Modifiers::ALT);
+    drag_holding(&mut shown.fixture, at, travel(seconds, rise, tall), Modifiers::ALT);
     let handles = shown.handles.borrow();
     let Some(DragEvent::Commit(value)) = handles.last().cloned() else { panic!("{handles:?}") };
     assert_eq!((value.key, value.side, value.broken), (KeyframeId::new(1), HandleSide::Out, true));

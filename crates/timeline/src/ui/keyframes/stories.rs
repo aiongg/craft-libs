@@ -1,7 +1,8 @@
 //! Stories of the keyframe lane, the keyframe navigator and the animation toggle.
 
-use craft_behavior::Selection;
-use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_behavior::{Mixed, Selection};
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
+use craft_ui::runtime::env::Message;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
@@ -29,17 +30,50 @@ fn keys() -> Vec<KeyframeMark> {
     ]
 }
 
-#[story(KeyframeLane<'static>, covers = [Default], drive = Drive::Never)]
-fn linear_hold_and_bezier_keys(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let keys = keys();
-    let selection = Selection::new(vec![KeyframeId::new(2), KeyframeId::new(3)], Some(KeyframeId::new(3)), Some(KeyframeId::new(2)));
-    let view = data.value("view", TimeView::new(Tick::ZERO, POINTS_PER_SECOND));
+/// The farthest the invalid story lets the keys move, in seconds.
+const FARTHEST_SECONDS: f64 = 2.0;
+
+/// Shows the lane `lane` makes inside a timeline view over `view`, which publishes the time axis the lane reads.
+fn in_view<'a>(ui: &mut Ui, view: &mut TimeView, lane: impl FnOnce() -> KeyframeLane<'a>) -> StoryOutput {
+    let mut lane = Some(lane);
     let format = TimeFormat::timecode(FrameRate::FPS_24);
     TimelineView::new("Timeline", Bind::bound(view), format, seconds(12.0))
-        .show(ui, |ui, _| KeyframeLane::new("Keyframes", &keys, &selection).playhead(seconds(4.0)).show(ui))
+        .show(ui, |ui, _| lane.take().map(|lane| lane().show(ui)))
         .inner
+        .flatten()
         .map(StoryOutput::from)
         .unwrap_or_default()
+}
+
+fn selected() -> Selection<KeyframeId> {
+    Selection::new(vec![KeyframeId::new(2), KeyframeId::new(3)], Some(KeyframeId::new(3)), Some(KeyframeId::new(2)))
+}
+
+#[story(KeyframeLane<'static>, covers = [Default])]
+fn linear_hold_and_bezier_keys(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let (keys, selection) = (keys(), selected());
+    let mut view = *data.value("view", TimeView::new(Tick::ZERO, POINTS_PER_SECOND));
+    let delta = data.value("delta", Tick::ZERO);
+    in_view(ui, &mut view, || KeyframeLane::new("Keyframes", &keys, &selection).playhead(seconds(4.0)).delta(Bind::bound(delta)))
+}
+
+#[story(KeyframeLane<'static>, covers = [Mixed], drive = Drive::Never)]
+fn deltas_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let (keys, selection) = (keys(), selected());
+    let mut view = *data.value("view", TimeView::new(Tick::ZERO, POINTS_PER_SECOND));
+    let delta = data.value("mixed", Mixed::<Tick>::Mixed);
+    in_view(ui, &mut view, || KeyframeLane::new("Keyframes", &keys, &selection).delta(Bind::bound_mixed(delta)))
+}
+
+#[story(KeyframeLane<'static>, covers = [Invalid], drive = Drive::Never)]
+fn keys_moved_past_the_limit(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let (keys, selection) = (keys(), selected());
+    let mut view = *data.value("view", TimeView::new(Tick::ZERO, POINTS_PER_SECOND));
+    let delta = data.value("far", seconds(FARTHEST_SECONDS + 1.0));
+    let not_too_far = |delta: &Tick| {
+        if *delta > seconds(FARTHEST_SECONDS) { Validity::Refuse(Message::new("The keys cannot move that far")) } else { Validity::Ok }
+    };
+    in_view(ui, &mut view, || KeyframeLane::new("Keyframes", &keys, &selection).delta(Bind::bound(delta).check(not_too_far)))
 }
 
 #[story(KeyframeNavigator, covers = [Default], drive = Drive::Never)]

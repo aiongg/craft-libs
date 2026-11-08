@@ -166,6 +166,8 @@ pub struct MarkerStrip<'a> {
     #[common]
     common: Common,
     markers: &'a [Marker],
+    /// The place of the marker being dragged, kept by the caller; the strip reports it as an edit either way.
+    #[prop]
     span: Bind<'a, MarkerSpan>,
     /// The snap targets for drags; none turns snapping off.
     #[prop]
@@ -181,6 +183,7 @@ impl<'a> MarkerStrip<'a> {
     pub fn new(label: impl Into<Label>, markers: &'a [Marker]) -> Self {
         MarkerStrip { common: Common::new(), markers, span: Bind::given(Mixed::Mixed), snap: None, bin: false, report: Report::default() }
             .label(label)
+            .ltr_axis()
     }
 
     fn sorted(&self) -> Vec<&'a Marker> {

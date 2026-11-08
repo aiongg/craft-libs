@@ -633,4 +633,4 @@ impl Outcome for TimelineViewOutput {
 }
 
 #[cfg(feature = "screen-testing")]
-mod stories;
+pub(crate) mod stories;
