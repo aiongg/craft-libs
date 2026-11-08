@@ -37,14 +37,15 @@ pub struct PartResult {
     pub hover_pos: Option<Pos2>,
     /// The value flags the component set on the part.
     pub flags: Flags,
-    /// The component declared the part disabled: `PaintUi::draw_part` fills data colours with the disabled fill.
-    pub disabled: bool,
+    /// The component declared the part inactive: it paints with the Disabled state and `PaintUi::draw_part` draws data
+    /// colours with the disabled fill, and it keeps sensing.
+    pub inactive: bool,
 }
 
 impl PartResult {
     /// What a read returns for a part with no press history: face mode, or a part first registered this pass.
     pub const IDLE: PartResult =
-        PartResult { rect: Rect::NOTHING, press: PressState::IDLE, hovered: false, hover_pos: None, flags: Flags::empty(), disabled: false };
+        PartResult { rect: Rect::NOTHING, press: PressState::IDLE, hovered: false, hover_pos: None, flags: Flags::empty(), inactive: false };
 }
 
 /// A text part's result this pass.
@@ -89,8 +90,8 @@ pub(crate) struct PartDecl {
     /// Drawn by `paint_over`: stacks above the body members.
     pub over: bool,
     pub flags: Flags,
-    /// Data colours painted for the part take the theme's disabled fill.
-    pub disabled: bool,
+    /// The part paints with the Disabled state and its data colours take the theme's disabled fill. It keeps sensing.
+    pub inactive: bool,
 }
 
 impl PartDecl {
@@ -105,7 +106,7 @@ impl PartDecl {
             cursor: None,
             over: false,
             flags: Flags::default(),
-            disabled: false,
+            inactive: false,
         }
     }
 
@@ -701,7 +702,7 @@ fn part_results_in(
             };
             let captured = won.is_some() && outcome.dragging && phase.is_drag();
             let press = PressState::new(phase).mods(mods).sample(sample).captured(captured).went_down(won.is_some() && outcome.went_down);
-            (key, PartResult { rect: decl.shape.bounds(), press, hovered, hover_pos, flags: decl.flags, disabled: decl.disabled })
+            (key, PartResult { rect: decl.shape.bounds(), press, hovered, hover_pos, flags: decl.flags, inactive: decl.inactive })
         })
         .collect()
 }

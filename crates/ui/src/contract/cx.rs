@@ -560,7 +560,7 @@ impl CxCore<'_> {
 
     /// The state set of `part`: its press and hover, its own flags, and the focus flags only when it is the
     /// active part of the focused component.
-    pub(crate) fn part_state(&self, part: PartRef) -> StateSet {
+    pub fn part_state(&self, part: PartRef) -> StateSet {
         self.part_state_lit(part, false)
     }
 
@@ -577,7 +577,7 @@ impl CxCore<'_> {
             }
         }
         let pressed = result.press.phase.is_press();
-        let state = if !self.resolved.enabled {
+        let state = if !self.resolved.enabled || result.inactive {
             craft_theme::State::Disabled
         } else if pressed {
             craft_theme::State::Pressed
@@ -602,7 +602,7 @@ impl Styled for CxCore<'_> {
         self.assert_stated();
         let hovered = self.response.hovered() && !self.results.values().any(|result| result.hovered);
         let pressed = self.press.phase.is_press();
-        let state = if !self.resolved.enabled {
+        let state = if !self.resolved.enabled || result.inactive {
             craft_theme::State::Disabled
         } else if pressed {
             craft_theme::State::Pressed
@@ -1600,10 +1600,11 @@ impl PartBuilder<'_> {
         self
     }
 
-    /// The part is disabled: a `Draw` from `PaintUi::draw_part` fills data colours with the theme's disabled fill. The
-    /// part keeps sensing; whether it still acts is the component's rule.
-    pub fn disabled(self, disabled: bool) -> Self {
-        self.decl.disabled = disabled;
+    /// The part is inactive (a switched-off clip): it paints with the Disabled state, and a `Draw` from
+    /// `PaintUi::draw_part` fills data colours with the theme's disabled fill. The part keeps sensing and its access
+    /// node stays enabled; whether it still acts is the component's rule.
+    pub fn inactive(self, inactive: bool) -> Self {
+        self.decl.inactive = inactive;
         self
     }
 
