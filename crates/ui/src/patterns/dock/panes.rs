@@ -9,7 +9,7 @@ use crate::contract::{
 use crate::display::Divider;
 use crate::docking::{DockSizes, DockWords, DragUnit, FloatingGroup, GroupDrag, PanelKey, PanelLimits};
 use crate::menu::{Menu, MenuItem};
-use crate::runtime::commands::{CommandAccess as _, CommandSet as _, CommandState};
+use crate::runtime::commands::{CommandSet as _, CommandState, Commands as _};
 use crate::runtime::env::Label;
 use crate::runtime::focus::FocusPolicy;
 use crate::sections::{HeaderAction, HeaderStrength, TitleOutput, TitleRow};
@@ -625,7 +625,7 @@ struct Pass<'a, P> {
 }
 
 /// A drop taker with the signature a container's `update` gives it.
-fn taker<'a, C>(take: impl for<'b, 'c> FnMut(&'b mut Cx<'c, C>) + 'a) -> TakeDrop<'a, C> {
+fn taker<'a, C: Component>(take: impl for<'b, 'c> FnMut(&'b mut Cx<'c, C>) + 'a) -> TakeDrop<'a, C> {
     Box::new(take)
 }
 

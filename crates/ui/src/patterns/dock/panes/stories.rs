@@ -1,7 +1,7 @@
 //! Stories of `PaneArea`.
 
 use super::{PaneArea, PaneContent, PaneSpec, PaneState};
-use crate::contract::{BodyCx, PaneEdge};
+use crate::contract::{BodyCx, PaneEdge, Show as _};
 use crate::display::Text;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use egui::{Ui, Vec2};
