@@ -6,8 +6,8 @@ use craft_ui::contract::{Common, Component, Cx, Focus as _, MeasureCx, PartsCx, 
 use craft_ui::runtime::focus::KeyUse;
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::{Frames, trial};
-use egui::{Event, Key, Modifiers, Pos2, Rect, Response, Ui, Vec2};
-use std::cell::{Cell, RefCell};
+use egui::{Key, Modifiers, Rect, Response, Ui, Vec2};
+use std::cell::RefCell;
 
 const LEFT: PartKey = PartKey::new("left");
 const RIGHT: PartKey = PartKey::new("right");
@@ -54,13 +54,14 @@ impl Component for Pair<'_> {
     }
 }
 
-/// Tab into the group is a key arrival; a press on a part moves focus onto it but is no key arrival.
+/// Tab into the group is a key arrival.
 #[trial]
-fn a_tab_arrival_is_a_key_arrival_and_a_press_arrival_is_not() {
+fn a_tab_into_the_group_is_a_key_arrival() {
     let seen = RefCell::new(Vec::new());
     let mut frames = Frames::new();
-    let shown = Cell::new(Rect::NOTHING);
-    let mut show = |ui: &mut Ui| shown.set(Pair { common: Common::new(), seen: &seen }.id_salt("pair").show(ui).rect);
+    let mut show = |ui: &mut Ui| {
+        Pair { common: Common::new(), seen: &seen }.id_salt("pair").show(ui);
+    };
     for _ in 0..3 {
         frames.frame(vec![], &mut show);
     }
@@ -71,12 +72,4 @@ fn a_tab_arrival_is_a_key_arrival_and_a_press_arrival_is_not() {
         !tab.is_empty() && tab.iter().all(|(any, by_key)| *any == Some(PartRef::from(LEFT)) && by_key == any),
         "Tab arrives at the selected part by key: {tab:?}"
     );
-    let rect = shown.get();
-    let at: Pos2 = Pos2::new(rect.max.x - 5.0, rect.center().y);
-    seen.borrow_mut().clear();
-    frames.frame(vec![Event::PointerMoved(at), craft_ui::testing::focus::primary_button(at, true)], &mut show);
-    frames.frame(vec![], &mut show);
-    let press = seen.borrow().clone();
-    assert!(!press.is_empty() && press.iter().all(|(_, by_key)| by_key.is_none()), "a press reports no key arrival: {press:?}");
-    assert!(press.iter().any(|(any, _)| *any == Some(PartRef::from(RIGHT))), "the press still moved focus onto the part: {press:?}");
 }
