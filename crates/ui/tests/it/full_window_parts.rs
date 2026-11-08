@@ -304,7 +304,7 @@ mod sides {
     use craft_i18n::Direction;
     use craft_ui::buttons::Button;
     use craft_ui::choice::Checkbox;
-    use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+    use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
     use craft_ui::dialog::{FullWindowDialog, FullWindowSide, SideFooter};
     use craft_ui::patterns::form_dialogs::ResetFooter;
     use craft_ui::runtime::focus::Initial;
@@ -316,7 +316,6 @@ mod sides {
     use std::rc::Rc;
 
     /// What the Liquify-shaped dialog showed and reported.
-    #[derive(Default)]
     struct Seen {
         closed: Option<CloseReason>,
         picked: Option<usize>,
@@ -328,7 +327,7 @@ mod sides {
     /// Liquify's shape: the canvas in the body, a Properties column at the end edge, and OK and Cancel (Reset while
     /// Alt is held) in the side columns' footer after a leading Restore All button.
     fn liquify(direction: Direction) -> (Fixture, Rc<RefCell<Seen>>) {
-        let seen = Rc::new(RefCell::new(Seen::default()));
+        let seen = Rc::new(RefCell::new(Seen { closed: None, picked: None, body: Rect::NOTHING, side: Rect::NOTHING, leading: Rect::NOTHING }));
         let shared = seen.clone();
         let (mut open, mut mesh) = (true, false);
         let mut fixture = Fixture::new(move |ui| {
