@@ -216,7 +216,7 @@ impl TimelineViewStyle {
 
 /// What the panel works out from its panes in a pass and the view draws over them in the same pass, after the body.
 #[derive(Debug, Default)]
-pub(super) struct Overlay {
+pub struct Overlay {
     /// The rect the panes fill and the left edge of their lanes.
     panes: Cell<Option<(Rect, f32)>>,
     /// The time a drag snapped to.
@@ -227,17 +227,17 @@ pub(super) struct Overlay {
 
 impl Overlay {
     /// The panes fill `rect`, their lanes beginning at `lane_left`.
-    pub(super) fn panes(&self, rect: Rect, lane_left: f32) {
+    pub fn panes(&self, rect: Rect, lane_left: f32) {
         self.panes.set(Some((rect, lane_left)));
     }
 
     /// A drag snapped to `at`.
-    pub(super) fn snapped(&self, at: Option<Tick>) {
+    pub fn snapped(&self, at: Option<Tick>) {
         self.snap.set(at);
     }
 
     /// A marquee under way covers `rect`.
-    pub(super) fn marquee(&self, rect: Option<Rect>) {
+    pub fn marquee(&self, rect: Option<Rect>) {
         self.marquee.set(rect);
     }
 }
@@ -273,7 +273,9 @@ pub struct TimelineView<'a> {
     playhead_edit: Option<EditEvent<Tick>>,
     context_menu: bool,
     anim: Anim,
-    /// What the body reports for the view to draw over it.
+    /// What the body reports for the view to draw over it, in the pass the body reports it: the playhead's line, the
+    /// snap line and the marquee.
+    #[prop(into)]
     overlay: Option<&'a Overlay>,
 }
 
@@ -299,14 +301,6 @@ impl<'a> TimelineView<'a> {
             overlay: None,
         }
         .label(label)
-    }
-
-    /// The view draws the playhead's line, the snap line and the marquee the body reports in `overlay` over its body,
-    /// in the pass the body reports them.
-    #[must_use]
-    pub(super) fn overlay(mut self, overlay: &'a Overlay) -> Self {
-        self.overlay = Some(overlay);
-        self
     }
 
     /// How the view follows the playhead at `playhead` while `playing`.
