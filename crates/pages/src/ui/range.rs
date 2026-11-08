@@ -1,272 +1,287 @@
-//! [`PageRangeField`] (N3.13): Acrobat's Pages selected field: a text field taking "1-3, 5"
-//! with a chevron menu of page choices, showing the selection back in the same format; and
-//! [`PageRangeOptions`], the All pages / Pages from–to / Subset row of Acrobat's Page Range
-//! Options.
+//! `PageRangeField`: Acrobat's Pages selected field, a text field taking "1-3, 5" with a menu button of page presets,
+//! showing the pages back in the same format; and `PageRangeOptions`, the All pages / Pages from-to / Subset rows of
+//! Acrobat's Page Range Options.
 
-use craft_ui::composites::Field;
-use craft_ui::controls::{ControlSize, IconButton, NumberField, RadioSet, Select, TextField};
-use craft_ui::edit::{EditEvent, EditPolicy};
-use craft_ui::icons::Icon;
-use craft_ui::localized::{Labels as _, LocaleNumbers};
-use craft_ui::menu::{MenuEntry, PressMenu};
-use craft_ui::theme::{Tokens, TokensOf as _};
+#[cfg(feature = "screen-testing")]
+mod stories;
+
+use craft_behavior::{Codec, IconId, NotAValue, NumberCodec};
+use craft_ui::buttons::IconButton;
+use craft_ui::choice::{Radio, RadioGroup};
+use craft_ui::contract::{
+    Bind, EditResponse, Entry, FieldLayout, LabelKind, NoValue, Outcome, Pattern, Props as _, Show as _, ShowContainer as _, SideLabel, Trigger,
+    Validity,
+};
+use craft_ui::display::Text;
+use craft_ui::form::Field;
+use craft_ui::layout_components::{Row, Stack};
+use craft_ui::menu::Menu;
+use craft_ui::pickers::Select;
+use craft_ui::runtime::env::{Env, Label, Message, Units};
+use craft_ui::text::{NumberField, TextField};
 use egui::{Response, Ui};
 
 use crate::range::{PageRange, PageRangeError, Subset, format_pages, parse_pages};
 
 craft_ui::words! {
-    /// The field's and row's words (PdfCraft's strings).
-    #[non_exhaustive]
-    pub struct PageRangeLabels {
-        selected_pages: "pageRange.selectedPages" = "Selected pages";
-        select_pages: "pageRange.selectPages" = "Select pages";
-        page_range: "pageRange.pageRange" = "Page range";
-        not_a_page: "pageRange.notAPage" = "\"{page}\" is not a page number or label";
-        out_of_range: "pageRange.outOfRange" = "page {n} is out of range (1–{count})";
-        too_long: "pageRange.tooLong" = "Too many pages";
-        all_pages: "pageRange.allPages" = "All pages";
-        pages_from: "pageRange.pagesFrom" = "Pages from";
-        to: "pageRange.to" = "to";
-        subset: "pageRange.subset" = "Subset";
-        all_in_range: "pageRange.allInRange" = "All pages in range";
-        even_only: "pageRange.evenOnly" = "Even pages only";
-        odd_only: "pageRange.oddOnly" = "Odd pages only";
+    /// The words of the page range field.
+    pub struct PageRangeFieldWords {
+        selected_pages: "pageRangeField.selectedPages" = "Selected pages";
+        select_pages: "pageRangeField.selectPages" = "Select pages";
+        all_pages: "pageRangeField.allPages" = "All pages";
+        current_page: "pageRangeField.currentPage" = "Current page";
+        selected_preset: "pageRangeField.selectedPreset" = "Selected pages";
+        /// `{page}` is the text that is not a page.
+        not_a_page: template "pageRangeField.notAPage" = "\"{page}\" is not a page number or label";
+        /// `{n}` is the page asked for, `{count}` the number of pages.
+        out_of_range: template "pageRangeField.outOfRange" = "page {n} is out of range (1\u{2013}{count})";
+        too_long: "pageRangeField.tooLong" = "Too many pages";
     }
 }
 
-impl PageRangeLabels {
-    /// The error in these words.
-    pub fn error(&self, error: &PageRangeError, numbers: &LocaleNumbers) -> String {
-        let whole = |n: usize| numbers.format(n as f64, 0..=0);
+craft_ui::words! {
+    /// The words of the page range options.
+    pub struct PageRangeOptionsWords {
+        page_range: "pageRangeOptions.pageRange" = "Page range";
+        all_pages: "pageRangeOptions.allPages" = "All pages";
+        pages_from: "pageRangeOptions.pagesFrom" = "Pages from";
+        to: "pageRangeOptions.to" = "to";
+        subset: "pageRangeOptions.subset" = "Subset";
+        all_in_range: "pageRangeOptions.allInRange" = "All pages in range";
+        even_only: "pageRangeOptions.evenOnly" = "Even pages only";
+        odd_only: "pageRangeOptions.oddOnly" = "Odd pages only";
+    }
+}
+
+impl PageRangeFieldWords {
+    /// The message for `error`, with the numbers in the user's digits.
+    pub fn error(&self, error: &PageRangeError, units: &Units) -> Label {
+        let whole = |n: usize| units.number(n as f64, 0..=0);
         match error {
-            PageRangeError::NotAPage(token) => self.not_a_page.replace("{page}", token),
-            PageRangeError::OutOfRange { page, count } => self.out_of_range.replace("{n}", &whole(*page)).replace("{count}", &whole(*count)),
+            PageRangeError::NotAPage(token) => self.not_a_page.fill(&[("page", token.as_str())]),
+            PageRangeError::OutOfRange { page, count } => self.out_of_range.fill(&[("n", whole(*page).as_str()), ("count", whole(*count).as_str())]),
             PageRangeError::TooLong => self.too_long.clone(),
         }
     }
 }
 
-/// The field's text and error between passes, kept by the app per field. The default is empty.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct PageRangeFieldState {
-    text: String,
-    shown: Vec<usize>,
-    error: Option<PageRangeError>,
+/// The pages a field's text stands for, or why it stands for none: what [`PageRangeCodec`] reads text into, so the
+/// field's check can refuse the text with the error's message.
+#[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
+pub struct PageSelection {
+    /// The pages (0-based) the text names; empty while `error` is set.
+    pub pages: Vec<usize>,
+    /// Why the text names no pages.
+    pub error: Option<PageRangeError>,
 }
 
-impl PageRangeFieldState {
-    /// The state with `text` typed over `selected` and read for a document of `count` pages: the
-    /// field shows the text and, when it doesn't parse, the error under it (the state a story
-    /// shows for the error look).
-    pub fn typed(selected: &[usize], text: impl Into<String>, count: usize) -> Self {
-        let text = text.into();
-        let error = parse_pages(&text, count).err();
-        PageRangeFieldState { text, shown: selected.to_vec(), error }
+impl PageSelection {
+    /// The selection of `pages`, which no error refuses.
+    pub fn of(pages: &[usize]) -> Self {
+        PageSelection { pages: pages.to_vec(), error: None }
     }
 }
 
-/// What the field did this pass.
+/// The text form of a page selection in a document of `count` pages: "1-3, 5" (1-based).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PageRangeCodec {
+    count: usize,
+}
+
+impl PageRangeCodec {
+    /// A codec for a document of `count` pages.
+    pub const fn new(count: usize) -> Self {
+        PageRangeCodec { count }
+    }
+}
+
+impl Codec for PageRangeCodec {
+    type Value = PageSelection;
+
+    fn format(&self, v: &PageSelection) -> String {
+        format_pages(&v.pages)
+    }
+
+    fn parse(&self, text: &str, _: &PageSelection) -> Result<PageSelection, NotAValue> {
+        Ok(match parse_pages(text, self.count) {
+            Ok(pages) => PageSelection::of(&pages),
+            Err(error) => PageSelection { error: Some(error), ..PageSelection::default() },
+        })
+    }
+}
+
+/// What the page range field reports.
 #[derive(Debug)]
-pub struct PageRangeFieldResponse {
-    /// The text field's response (focus, rect).
+#[non_exhaustive]
+pub struct PageRangeFieldOutput {
+    /// The text field's response.
     pub response: Response,
-    /// The pages to select, on the pass they were typed or picked.
+    /// The pages (0-based) the user typed or picked in this pass.
     pub picked: Option<Vec<usize>>,
 }
 
-/// The field, built per pass.
+impl Outcome for PageRangeFieldOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// A text field over page numbers with a menu button of presets.
 ///
-/// - Shows `selected` formatted ([`format_pages`]); with nothing
-///   selected, the current page as its placeholder (the page actions apply to).
-/// - The field is craft-ui's [`TextField`] (its typing run, Esc
-///   and focus rules). Typed text applies on Enter or when the field loses focus: parsed text
-///   returns the pages and shows them back formatted; text that doesn't parse stays, with the
-///   error under the field in the field error style (`status.bad.fg`, replacing help text). Esc
-///   puts the selection's text back.
-/// - The chevron is a craft-ui menu button showing the app's [`menu`](Self::menu) entries (pages
-///   by kind: Odd, Even, Portrait, Landscape, All) with `menu::PressMenu`; a pick returns like
-///   typed pages.
-/// - The field is one Tab stop (AccessKit TextInput "Selected pages"), the chevron another.
+/// - The field shows `pages` formatted ([`format_pages`]); with none, the current page is its placeholder.
+/// - Typed text applies on Enter or when the field loses focus: text that reads reports the pages and shows them back
+///   formatted; text that does not stays, with the error under the field. Escape puts the pages' text back.
+/// - The button opens the presets: All pages, Current page and the document's selected pages; Down opens it from the
+///   button. A pick reports like typed pages.
+#[must_use = "show the field with `show`"]
+#[derive(Pattern)]
 pub struct PageRangeField<'a> {
-    id_salt: egui::IdSalt,
-    state: &'a mut PageRangeFieldState,
+    label: Label,
+    pages: &'a [usize],
     selected: &'a [usize],
     count: usize,
     current: usize,
-    menu: &'a [MenuEntry<Vec<usize>>],
-    labels: Option<PageRangeLabels>,
 }
 
 impl<'a> PageRangeField<'a> {
-    /// The field over `selected` (0-based) in a document of `count` pages; `current` is 0-based.
-    pub fn new(id_salt: impl egui::AsIdSalt, state: &'a mut PageRangeFieldState, selected: &'a [usize], count: usize, current: usize) -> Self {
-        PageRangeField { id_salt: egui::IdSalt::new(id_salt), state, selected, count, current, menu: &[], labels: None }
+    /// The field named `label` over `pages` (0-based) in a document of `count` pages. `selected` are the pages the
+    /// Selected pages preset picks and `current` (0-based) the page the Current page preset picks.
+    pub fn new(label: impl Into<Label>, pages: &'a [usize], selected: &'a [usize], count: usize, current: usize) -> Self {
+        PageRangeField { label: label.into(), pages, selected, count, current }
     }
 
-    /// The chevron's menu: the app's page choices, each item carrying its pages.
-    pub fn menu(mut self, entries: &'a [MenuEntry<Vec<usize>>]) -> Self {
-        self.menu = entries;
-        self
-    }
-
-    /// Sets the translated labels; the default reads them from the interface locale.
-    pub fn labels(mut self, labels: PageRangeLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    // pdfcraft: crates/ui-egui/src/panels/page_selection_ui.rs:64 `PageSelectionInput::show`.
-    /// Shows the field and reports what the user typed or picked.
-    pub fn show(self, ui: &mut Ui) -> PageRangeFieldResponse {
-        let PageRangeField { id_salt, state, selected, count, current, menu, labels } = self;
-        let labels = labels.unwrap_or_else(|| PageRangeLabels::of(ui));
-        let selected_text = format_pages(selected);
-        if state.shown != selected {
-            state.text.clone_from(&selected_text);
-            state.shown = selected.to_vec();
-            state.error = None;
-        }
-        let numbers = LocaleNumbers::of_ctx(ui.ctx());
-        let placeholder = numbers.format((current + 1) as f64, 0..=0);
-        let error = state.error.as_ref().map(|error| labels.error(error, &numbers));
-        let mut chosen = None;
-        let tokens = Tokens::of(ui);
-        let chevron = IconButton::style(&tokens, ControlSize::Md).side;
-        let edit = Field::unlabelled()
-            .error(error)
-            .show(ui, |ui, invalid| {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 0.0;
-                    let room = if menu.is_empty() { 0.0 } else { chevron };
-                    let edit = TextField::new((id_salt, "text"), labels.selected_pages.as_str(), &state.text)
-                        .placeholder(placeholder)
-                        .policy(EditPolicy::default().on_release_only(true))
-                        .invalid(invalid)
-                        .width((ui.available_width() - room).max(0.0))
-                        .show(ui);
-                    if !menu.is_empty() {
-                        let button = ui.add(IconButton::new(Icon::ChevronDown, labels.select_pages.as_str()).id_salt((id_salt, "menu")));
-                        chosen = PressMenu::new(menu).show(ui, &button).chosen;
-                    }
-                    edit
-                })
-                .inner
-            })
-            .inner;
+    /// Shows the field.
+    pub fn show(self, ui: &mut Ui) -> PageRangeFieldOutput {
+        let PageRangeField { label, pages, selected, count, current } = self;
+        let env = Env::of(ui);
+        let words = env.words::<PageRangeFieldWords>();
+        let units = env.units();
+        let refuse = {
+            let (words, units) = (words.clone(), units.clone());
+            move |value: &PageSelection| match &value.error {
+                Some(error) => Validity::Refuse(Message::new(words.error(error, &units))),
+                None => Validity::Ok,
+            }
+        };
+        let presets = [
+            Entry::new((0..count).collect::<Vec<usize>>(), words.all_pages.clone()),
+            Entry::new(vec![current.min(count.saturating_sub(1))], words.current_page.clone()),
+            Entry::new(selected.to_vec(), words.selected_preset.clone()).enabled(!selected.is_empty()),
+        ];
         let mut picked = None;
-        let escaped = edit.escaped;
-        match edit.event {
-            Some(EditEvent::Commit { value, changed: true, .. }) => {
-                state.text = value;
-                match parse_pages(&state.text, count) {
-                    Ok(pages) => picked = Some(pages),
-                    Err(error) => state.error = Some(error),
+        let mut response = None;
+        Field::new(label).side(SideLabel::new().kind(LabelKind::Hidden)).show(ui, |ui, _| {
+            Row::new().show(ui, |ui, _| {
+                let value = Bind::given(PageSelection::of(pages)).check(&refuse);
+                let field = TextField::with_codec(words.selected_pages.clone(), value, PageRangeCodec::new(count)).show(ui);
+                if let Some(typed) = field.value().filter(|typed| typed.error.is_none()) {
+                    picked = Some(typed.pages.clone());
                 }
-            }
-            Some(EditEvent::Cancel { .. }) => {
-                state.text = selected_text;
-                state.error = None;
-            }
-            _ if escaped => {
-                state.text = selected_text;
-                state.error = None;
-            }
-            _ => {}
-        }
-        if let Some(pages) = chosen {
-            picked = Some(pages);
-        }
-        if let Some(pages) = &picked {
-            state.text = format_pages(pages);
-            state.shown.clone_from(pages);
-            state.error = None;
-        }
-        PageRangeFieldResponse { response: edit.response, picked }
+                response = Some(field.response.clone());
+                let button = IconButton::new(IconId::new("chevron_down")).label(words.select_pages.clone()).show(ui);
+                let menu = Menu::new(words.select_pages.clone()).opened_by(&button, Trigger::Press).pick(ui, &presets);
+                if let Some(pages) = menu.picked {
+                    picked = Some(pages);
+                }
+            });
+        });
+        PageRangeFieldOutput { response: response.unwrap_or_else(|| ui.response()), picked }
     }
 }
 
-/// The All pages / Pages from [ ] to [ ] / Subset [ ] row, editing a dialog's [`PageRange`] draft
-/// (dialog values, not the document): a craft-ui `RadioSet` for All and From/To, `NumberField`s
-/// for From and To (1 to `count`, whole numbers, disabled with All pages), a `Select` for Subset.
-/// Returns the row's response; `changed()` is set when the range changed.
-pub struct PageRangeOptions<'a> {
-    id_salt: egui::IdSalt,
-    range: &'a mut PageRange,
+/// What the page range options report.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct PageRangeOptionsOutput {
+    /// The response of the rows.
+    pub response: Response,
+    /// The range after a change in this pass.
+    pub changed: Option<PageRange>,
+}
+
+impl Outcome for PageRangeOptionsOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// The All pages / Pages from [ ] to [ ] / Subset [ ] rows over a dialog's [`PageRange`]: a radio group for All pages
+/// and the from-to range, whole-number fields for From and To (1 to the page count, off with All pages) and a list for
+/// the subset.
+#[must_use = "show the options with `show`"]
+#[derive(Pattern)]
+pub struct PageRangeOptions {
+    label: Label,
+    range: PageRange,
     count: usize,
-    labels: Option<PageRangeLabels>,
 }
 
-impl<'a> PageRangeOptions<'a> {
-    /// Options for `range` in a document of `count` pages.
-    pub fn new(id_salt: impl egui::AsIdSalt, range: &'a mut PageRange, count: usize) -> Self {
-        PageRangeOptions { id_salt: egui::IdSalt::new(id_salt), range, count, labels: None }
+impl PageRangeOptions {
+    /// The options named `label` over `range` in a document of `count` pages.
+    pub fn new(label: impl Into<Label>, range: PageRange, count: usize) -> Self {
+        PageRangeOptions { label: label.into(), range, count }
     }
 
-    /// Sets the translated labels; the default reads them from the interface locale.
-    pub fn labels(mut self, labels: PageRangeLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    // pdfcraft: crates/ui-egui/src/dialogs/marks_ui.rs:58 `PageRange::ui`.
-    /// Shows the options and returns the response of the controls.
-    pub fn show(self, ui: &mut Ui) -> Response {
-        let PageRangeOptions { id_salt, range, count, labels } = self;
-        let labels = labels.unwrap_or_else(|| PageRangeLabels::of(ui));
-        let numbers = LocaleNumbers::of_ctx(ui.ctx());
-        let before = *range;
+    /// Shows the options.
+    pub fn show(self, ui: &mut Ui) -> PageRangeOptionsOutput {
+        let PageRangeOptions { label, range, count } = self;
+        let env = Env::of(ui);
+        let words = env.words::<PageRangeOptionsWords>();
+        let numbers = NumberCodec::new(env.units().reader(None), 0);
         let last = count.max(1);
-        let mut all = range.all;
-        let mut set = RadioSet::new((id_salt, "which"), labels.page_range.as_str(), &mut all).item(true).item(false).begin(ui);
-        set.radio(ui, 0, labels.all_pages.as_str());
-        let from_to = ui
-            .horizontal(|ui| {
-                set.radio(ui, 1, labels.pages_from.as_str());
-                let enabled = !all;
-                let shown_from = range.from.clamp(1, last);
-                let from = NumberField::new((id_salt, "from"), labels.pages_from.as_str(), shown_from as f64, &numbers)
-                    .range(1.0..=last as f64)
-                    .decimals(0..=0)
-                    .enabled(enabled)
-                    .show(ui);
-                ui.label(labels.to.as_str());
-                let shown_to = range.to.map_or(last, |to| to.clamp(1, last));
-                let to = NumberField::new((id_salt, "to"), labels.to.as_str(), shown_to as f64, &numbers)
-                    .range(1.0..=last as f64)
-                    .decimals(0..=0)
-                    .enabled(enabled)
-                    .show(ui);
-                (from, to, shown_from, shown_to)
-            })
-            .inner;
-        let mut response = set.end(ui).response;
-        range.all = all;
-        let (from, to, shown_from, shown_to) = from_to;
-        if let Some(value) = from.event.as_ref().and_then(EditEvent::value).map(|v| (v.round() as usize).clamp(1, last)).filter(|v| *v != shown_from)
-        {
-            range.from = value;
-            range.to = range.to.map(|to| to.max(value));
+        let shown_from = range.from.clamp(1, last);
+        let shown_to = range.to.map_or(last, |to| to.clamp(1, last));
+        let mut next = range;
+        let after = SideLabel::new().layout(FieldLayout::After);
+        let whole = |value: &EditResponse<Option<f64>>, shown: usize| {
+            value.value().copied().flatten().map(|v| (v.round() as usize).clamp(1, last)).filter(|v| *v != shown)
+        };
+        let mut from = None;
+        let mut to = None;
+        let group = RadioGroup::new(label, Bind::given(range.all)).show(ui, |ui, cx| {
+            Stack::new().show(ui, |ui, _| {
+                cx.labelled(ui, "all", words.all_pages.clone(), after.clone(), Radio::new(true));
+                Row::new().show(ui, |ui, _| {
+                    cx.labelled(ui, "range", words.pages_from.clone(), after.clone(), Radio::new(false));
+                    let field = |label: &Label, shown: usize| {
+                        NumberField::new(label.clone(), Bind::given(Some(shown as f64)))
+                            .codec(numbers.clone())
+                            .range(1.0..=last as f64)
+                            .enabled(!range.all)
+                    };
+                    from = whole(&field(&words.pages_from, shown_from).show(ui).edit, shown_from);
+                    Text::new(words.to.clone()).show(ui);
+                    to = whole(&field(&words.to, shown_to).show(ui).edit, shown_to);
+                });
+            });
+        });
+        if let Some(all) = group.output.value().copied() {
+            next.all = all;
         }
-        if let Some(value) = to.event.as_ref().and_then(EditEvent::value).map(|v| (v.round() as usize).clamp(1, last)).filter(|v| *v != shown_to) {
-            range.to = Some(value);
-            range.from = range.from.min(value);
+        if let Some(value) = from {
+            next.from = value;
+            next.to = next.to.map(|to| to.max(value));
         }
-        response |= from.response;
-        response |= to.response;
-        let subset = ui
-            .horizontal(|ui| {
-                ui.label(labels.subset.as_str());
-                Select::new((id_salt, "subset"), labels.subset.as_str(), &mut range.subset)
-                    .option(Subset::All, labels.all_in_range.as_str())
-                    .option(Subset::Even, labels.even_only.as_str())
-                    .option(Subset::Odd, labels.odd_only.as_str())
-                    .show(ui)
-            })
-            .inner;
-        response |= subset.response;
-        if *range != before {
-            response.mark_changed();
+        if let Some(value) = to {
+            next.to = Some(value);
+            next.from = next.from.min(value);
         }
-        response
+        let entries = [
+            Entry::new(Subset::All, words.all_in_range.clone()),
+            Entry::new(Subset::Even, words.even_only.clone()),
+            Entry::new(Subset::Odd, words.odd_only.clone()),
+        ];
+        Field::new(words.subset.clone()).show(ui, |ui, _| {
+            let picked = Select::new(words.subset.clone(), Bind::given(range.subset), &entries).show(ui);
+            if let Some(subset) = picked.value().copied() {
+                next.subset = subset;
+            }
+        });
+        PageRangeOptionsOutput { response: group.output.response.clone(), changed: (next != range).then_some(next) }
     }
 }
