@@ -86,6 +86,11 @@ impl Outcome for ColumnBarOutput {
     fn response(&self) -> &Response {
         &self.edit.response
     }
+
+    #[cfg(feature = "screen-testing")]
+    fn story_facts(&self) -> craft_ui::testing::StoryOutput {
+        self.edit.story_facts()
+    }
 }
 
 /// The bar over the app's `widths`.

@@ -302,10 +302,17 @@ fn range_rig(start: PageRange) -> (Fixture, Rc<RefCell<PageRange>>) {
     (fixture, range)
 }
 
-/// Types `text` into the number field `label`, and leaves it.
-fn type_number(fixture: &mut Fixture, nth: usize, text: &str) {
+/// Types `text` into the number field that shows `shown`, and commits it.
+fn type_number(fixture: &mut Fixture, shown: &str, text: &str) {
     let fields = fixture.by_role(craft_ui::contract::Role::SPIN_BUTTON);
-    fixture.click(&fields[nth]);
+    let values: Vec<_> = fields.iter().map(|field| fixture.tree().value_of(field.node).map(str::to_owned)).collect();
+    let field = fields
+        .iter()
+        .zip(&values)
+        .find(|(_, value)| value.as_deref() == Some(shown))
+        .map(|(field, _)| field)
+        .unwrap_or_else(|| panic!("no number field shows {shown}: {values:?}"));
+    fixture.click(field);
     fixture.key(Key::A, Modifiers::COMMAND);
     fixture.type_text(text);
     fixture.key(Key::Enter, Modifiers::NONE);
@@ -315,13 +322,13 @@ fn type_number(fixture: &mut Fixture, nth: usize, text: &str) {
 fn from_and_to_stay_inside_the_document_and_in_order() {
     let start = PageRange { all: false, from: 3, to: Some(9), subset: Subset::All };
     let (mut fixture, range) = range_rig(start);
-    type_number(&mut fixture, 1, "99");
+    type_number(&mut fixture, "9", "99");
     assert_eq!(range.borrow().to, Some(12), "a page past the end is the last page: {:?}", range.borrow());
     let (mut fixture, range) = range_rig(start);
-    type_number(&mut fixture, 0, "11");
+    type_number(&mut fixture, "3", "11");
     assert_eq!((range.borrow().from, range.borrow().to), (11, Some(11)), "the end follows a start past it");
     let (mut fixture, range) = range_rig(start);
-    type_number(&mut fixture, 1, "2");
+    type_number(&mut fixture, "9", "2");
     assert_eq!((range.borrow().from, range.borrow().to), (2, Some(2)), "the start follows an end before it");
 }
 
@@ -361,7 +368,6 @@ fn text_the_field_rejects_refuses_ok() {
     fixture.click(&top);
     fixture.key(Key::A, Modifiers::COMMAND);
     fixture.type_text("tall");
-    fixture.key(Key::Tab, Modifiers::NONE);
     let ok = fixture.by_label("OK").expect("the OK button");
     fixture.click(&ok);
     assert_eq!(*answered.borrow(), None, "a Top that is not a length keeps the dialog open");
@@ -372,6 +378,7 @@ fn custom_size_stays_chosen_while_the_numbers_match_a_paper() {
     let (mut fixture, _, _) = dialog(PageSetup::default());
     let paper = fixture.by_label("Paper size").expect("the paper list");
     fixture.click(&paper);
+    fixture.idle(2);
     let custom = fixture.by_label("Custom size").expect("the Custom size entry");
     fixture.click(&custom);
     fixture.idle(2);

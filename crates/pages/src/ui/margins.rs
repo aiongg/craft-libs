@@ -573,4 +573,9 @@ impl Outcome for MarginHandlesOutput {
     fn response(&self) -> &Response {
         &self.edit.response
     }
+
+    #[cfg(feature = "screen-testing")]
+    fn story_facts(&self) -> craft_ui::testing::StoryOutput {
+        self.edit.story_facts()
+    }
 }
