@@ -1,285 +1,203 @@
-//! Dialog droppers (F04.02): a dialog's pipette that samples the canvas. One dropper at a time is
-//! armed; while it is, the app's canvas samples for it instead of running its tool, and the
-//! dropper takes the colour on its next draw.
+//! Dialog droppers (F04.02): a dialog's pipette that samples the canvas. The dialog's `DropperButton` asks the host to
+//! arm its canvas ([`EyedropperRequest`]); the host runs a [`DropperTool`] on the canvas, which samples under the
+//! dialog's modal layer (the dialog registers the canvas with the sampler) and answers the request with the sample.
 //!
-//! ```no_run
-//! use craft_color::ui::{DropperButton, DropperKind, DropperState};
-//! # fn dialog(ui: &mut egui::Ui) {
+//! ```ignore
 //! // In a Levels dialog: the black-point dropper.
-//! if let Some(color) = DropperButton::new("levels-black", "Sample in image to set black point").kind(DropperKind::Black).show(ui).sampled {
-//!     // set the black point from `color`
+//! let button = DropperButton::new("Sample in image to set black point", Bind::bound(&mut armed)).kind(DropperKind::Black).show(ui);
+//! if let Some(request) = button.request {
+//!     host.arm(request);
 //! }
-//! # }
-//! # fn canvas(ctx: &egui::Context, color_under_pointer: craft_theme::Srgba) {
-//! // In the app's canvas, on a click while a dropper is armed:
-//! if DropperState::armed(ctx).is_some() {
-//!     DropperState::deliver(ctx, color_under_pointer);
+//! // In the app's canvas pass, while a dropper is armed:
+//! let mut tool = DropperTool::new(|doc| composite_color(doc));
+//! tool_host.run(ui, &canvas, &mut tool);
+//! if let Some(color) = tool.take() {
+//!     requests.answer_eyedropper(key, color);
 //! }
-//! # }
 //! ```
 
-use craft_theme::{ControlSize, Srgba};
-use craft_ui::canvas::{CanvasTool, CanvasView, ToolAction, ToolContext, ToolCursor, ToolKey, ToolPointer};
-use craft_ui::controls::IconButton;
-use craft_ui::edit::CancelReason;
-use craft_ui::icons::Icon;
-use egui::{AsIdSalt, Context, Id, IdSalt, Key, Painter, Rect, Response, Ui};
+use craft_behavior::kurbo::Point;
+use craft_behavior::{CancelReason, Cursor, IconId, PaintedCursor};
+use craft_theme::Srgba;
+use craft_ui::buttons::ToggleButton;
+use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPath, ToolPointer};
+use craft_ui::contract::{Bind, EditResponse, Outcome, Pattern, Show as _};
+use craft_ui::primitives::Draw;
+use craft_ui::runtime::env::Label;
+use craft_ui::runtime::requests::EyedropperRequest;
+use egui::{Pos2, Response, Ui, Vec2};
 
-/// The armed dropper, kept in egui memory: who armed it and a sample waiting for it.
-#[derive(Clone, Copy, Debug, PartialEq)]
-struct Armed {
-    owner: Id,
-    sample: Option<Srgba>,
-}
+#[cfg(feature = "screen-testing")]
+mod stories;
 
-/// The app-wide dropper state, in egui memory. A dropper [`arm`](Self::arm)s itself; the canvas
-/// asks whether one is [`armed`](Self::armed) and [`deliver`](Self::deliver)s the colour under a
-/// click; the dropper [`take`](Self::take)s it, which disarms it.
-///
-/// The owner ends its dropper: [`disarm`](Self::disarm) when its dialog closes or its button
-/// toggles off, or [`take`](Self::take) of a sample. A new [`arm`](Self::arm) from another owner
-/// replaces the record. Esc on the canvas while armed disarms.
-pub struct DropperState;
+/// The pipette icon's tip, in the icon's own 24-unit box.
+const HOTSPOT: Vec2 = Vec2 { x: 2.0, y: 22.0 };
 
-fn state_key() -> Id {
-    Id::unique("craft_color::ui::droppers::armed")
-}
-
-/// The armed record.
-fn record(ctx: &Context) -> Option<Armed> {
-    ctx.data(|d| d.get_temp(state_key()))
-}
-
-impl DropperState {
-    /// Arms `owner`'s dropper (the one armed before is disarmed). Arming again keeps a sample
-    /// the owner has not taken.
-    // inv-effectcraft: crates/ui-egui/src/color_picker.rs:163 `arm`, :175 `refresh_armed`.
-    pub fn arm(ctx: &Context, owner: Id) {
-        let sample = record(ctx).filter(|a| a.owner == owner).and_then(|a| a.sample);
-        ctx.data_mut(|d| d.insert_temp(state_key(), Armed { owner, sample }));
-    }
-
-    /// Disarms `owner`'s dropper, if it is the armed one.
-    // inv-effectcraft: crates/ui-egui/src/color_picker.rs:169 `disarm`.
-    pub fn disarm(ctx: &Context, owner: Id) {
-        if record(ctx).is_some_and(|a| a.owner == owner) {
-            ctx.data_mut(|d| d.remove::<Armed>(state_key()));
-        }
-    }
-
-    /// The armed dropper's owner, if one is armed.
-    // inv-effectcraft: crates/ui-egui/src/color_picker.rs:159 `eyedropper_armed`.
-    pub fn armed(ctx: &Context) -> Option<Id> {
-        record(ctx).map(|a| a.owner)
-    }
-
-    /// The canvas sampled `color` for the armed dropper; it takes it on its next draw. Nothing
-    /// happens when none is armed.
-    // inv-effectcraft: crates/ui-egui/src/color_picker.rs:193 `deliver_sample`.
-    pub fn deliver(ctx: &Context, color: Srgba) {
-        if let Some(armed) = record(ctx) {
-            ctx.data_mut(|d| d.insert_temp(state_key(), Armed { sample: Some(color), ..armed }));
-            ctx.request_repaint();
-        }
-    }
-
-    /// The colour delivered for `owner`, once; taking it disarms the dropper unless the owner
-    /// [`arm`](Self::arm)s it again (the Color Picker dialog stays armed while it is on top).
-    // inv-effectcraft: crates/ui-egui/src/color_picker.rs:185 `take_sample`.
-    pub fn take(ctx: &Context, owner: Id) -> Option<Srgba> {
-        let armed = record(ctx).filter(|a| a.owner == owner)?;
-        let sample = armed.sample?;
-        ctx.data_mut(|d| d.remove::<Armed>(state_key()));
-        Some(sample)
-    }
-}
-
-/// Which pipette a [`DropperButton`] shows: Photoshop's plain eyedropper, or the black, grey and
-/// white point droppers of Levels and Curves (the pipette's bulb filled with the colour).
+/// What a dropper samples into: the colour itself, or one of a levels dialog's three points.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum DropperKind {
+    /// The sampled colour is the colour.
     #[default]
-    /// The plain eyedropper.
     Sample,
-    /// Black point dropper.
+    /// The black point.
     Black,
-    /// Gray point dropper.
+    /// The gray point.
     Gray,
-    /// White point dropper.
+    /// The white point.
     White,
 }
 
 impl DropperKind {
-    /// The colour of the point dropper's bulb; `None` for the plain pipette.
-    fn fill(self) -> Option<Srgba> {
+    /// The key a dropper of this kind files its request under, so one dialog can hold several droppers.
+    fn key(self) -> &'static str {
         match self {
-            DropperKind::Sample => None,
-            DropperKind::Black => Some(Srgba::rgb(0.0, 0.0, 0.0)),
-            DropperKind::Gray => Some(Srgba::rgb(0.5, 0.5, 0.5)),
-            DropperKind::White => Some(Srgba::rgb(1.0, 1.0, 1.0)),
+            DropperKind::Sample => "dropper",
+            DropperKind::Black => "dropper.black",
+            DropperKind::Gray => "dropper.gray",
+            DropperKind::White => "dropper.white",
         }
     }
 }
 
-/// What [`DropperButton::show`] returns.
+/// The pipette button of a dialog: a pressed toggle while its dropper is armed.
+///
+/// The button reports the toggle as an [`EyedropperRequest`] the dialog files with its `HostRequests`; the host owns
+/// the armed state and the sampling.
+#[must_use = "show the button with `show`"]
+#[derive(Pattern)]
+pub struct DropperButton<'a> {
+    label: Label,
+    armed: Bind<'a, bool>,
+    kind: DropperKind,
+    key: Option<String>,
+}
+
+/// What [`DropperButton::show`] reports.
 #[derive(Debug)]
 #[non_exhaustive]
-#[must_use = "the host applies the sample"]
-pub struct DropperButtonResponse {
-    /// The button's own egui response.
-    pub response: Response,
-    /// The colour the canvas sampled for this dropper this pass.
-    pub sampled: Option<Srgba>,
-    /// The dropper is armed after this pass.
-    pub armed: bool,
+#[must_use = "the dialog files the request"]
+pub struct DropperButtonOutput {
+    /// The toggle's edit: the new armed state when the user flipped it.
+    pub edit: EditResponse<bool>,
+    /// The request to arm the host's canvas, in the pass the user armed the dropper.
+    pub request: Option<EyedropperRequest>,
 }
 
-/// A dialog's pipette button: a toggle that arms the canvas to sample for it.
-///
-/// - Click, Enter or Space arms it (it looks pressed) and disarms any other; again disarms it.
-///   While it is armed the canvas cursor is the eyedropper, and a click on the canvas delivers
-///   the colour under it (averaged over the Eyedropper's [`SampleSize`](super::SampleSize), as
-///   Photoshop's dialog droppers do); the button takes it and stays armed for the next click
-///   (Levels and Curves sample repeatedly), until the user presses it again, presses Esc on the
-///   canvas or the dialog closes.
-/// - AccessKit: a `ToggleButton` named by `label`, pressed while armed. The tooltip is `label`.
-pub struct DropperButton {
-    id_salt: IdSalt,
-    label: String,
-    kind: DropperKind,
-    enabled: bool,
-}
+impl Outcome for DropperButtonOutput {
+    type Value = bool;
 
-impl DropperButton {
-    /// A dropper button; `id_salt` keys its state; `label` is its label.
-    pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>) -> DropperButton {
-        DropperButton { id_salt: IdSalt::new(id_salt), label: label.into(), kind: DropperKind::Sample, enabled: true }
+    fn response(&self) -> &Response {
+        &self.edit.response
     }
 
-    /// Sets which pipette the button shows.
-    pub fn kind(mut self, kind: DropperKind) -> DropperButton {
+    #[cfg(feature = "screen-testing")]
+    fn story_facts(&self) -> craft_ui::testing::StoryOutput {
+        self.edit.story_facts()
+    }
+}
+
+impl<'a> DropperButton<'a> {
+    /// A pipette button named `label` ("Sample in image to set black point"), pressed while `armed`.
+    pub fn new(label: impl Into<Label>, armed: Bind<'a, bool>) -> Self {
+        DropperButton { label: label.into(), armed, kind: DropperKind::Sample, key: None }
+    }
+
+    /// What the dropper samples into; the kind is the request's key unless [`key`](Self::key) says otherwise.
+    #[must_use]
+    pub fn kind(mut self, kind: DropperKind) -> Self {
         self.kind = kind;
         self
     }
 
-    /// Turns input on or off; on by default.
-    pub fn enabled(mut self, enabled: bool) -> DropperButton {
-        self.enabled = enabled;
+    /// The key of the request the button files.
+    #[must_use]
+    pub fn key(mut self, key: impl Into<String>) -> Self {
+        self.key = Some(key.into());
         self
     }
 
-    // inv-effectcraft: crates/ui-egui/src/color_picker.rs:163 `arm` and :185 `take_sample` around
-    // an `IconButton` (`Icon::Eyedropper`, the Black/Gray/White variants' bulb filled);
-    // pc: crates/ui-egui/src/dialogs/color_picker_ui.rs:289 `sample_at` (the dialog side).
-    /// Draws the button and returns its response, the sampled colour and whether it is armed.
-    pub fn show(self, ui: &mut Ui) -> DropperButtonResponse {
-        let ctx = ui.ctx().clone();
-        let owner = ui.make_persistent_id(self.id_salt);
-        let was_armed = DropperState::armed(&ctx) == Some(owner);
-        let sampled = DropperState::take(&ctx, owner);
-        let mut on = self.enabled && (was_armed || sampled.is_some());
-        let mut button =
-            IconButton::new(Icon::Eyedropper, self.label.as_str()).size(ControlSize::Sm).toggle(&mut on).enabled(self.enabled).with_id(owner);
-        if let Some(fill) = self.kind.fill() {
-            button = button.badge(fill);
-        }
-        let response = ui.add(button);
-        if on {
-            DropperState::arm(&ctx, owner);
-        } else {
-            DropperState::disarm(&ctx, owner);
-        }
-        DropperButtonResponse { response, sampled, armed: on }
+    /// Shows the button.
+    pub fn show(self, ui: &mut Ui) -> DropperButtonOutput {
+        let DropperButton { label, armed, kind, key } = self;
+        let edit = ToggleButton::new(label, armed).icon(IconId::new("eyedropper")).icon_only().id_salt(kind.key()).show(ui);
+        let request = edit.value().copied().filter(|on| *on).map(|_| EyedropperRequest::new(key.unwrap_or_else(|| kind.key().to_owned())));
+        DropperButtonOutput { edit, request }
     }
 }
 
-/// The canvas side: the tool the app hands to its tool host while a dropper is armed. A press
-/// on the canvas samples through the app's `sample` function at the document point (`None` off
-/// the image or over transparency) and [`deliver`](DropperState::deliver)s it; a drag samples
-/// at every move (Photoshop updates the dialog while the button is held); Esc disarms. The
-/// cursor is the eyedropper with its tip on the sampled pixel.
+/// The canvas tool of an armed dropper: a press, drag and release sample through the app's closure (Photoshop updates
+/// the dialog while the button is held), and Escape on the canvas cancels. The host disarms on
+/// [`cancelled`](DropperTool::cancelled).
 pub struct DropperTool<'a> {
     sample: Box<dyn FnMut([f64; 2]) -> Option<Srgba> + 'a>,
+    sampled: Option<Srgba>,
+    cancelled: bool,
 }
 
 impl<'a> DropperTool<'a> {
-    /// A dropper tool sampling through `sample` (document point to colour).
-    pub fn new(sample: impl FnMut([f64; 2]) -> Option<Srgba> + 'a) -> DropperTool<'a> {
-        DropperTool { sample: Box::new(sample) }
+    /// A dropper sampling the document point it gets through `sample` (`None` outside the document).
+    pub fn new(sample: impl FnMut([f64; 2]) -> Option<Srgba> + 'a) -> Self {
+        DropperTool { sample: Box::new(sample), sampled: None, cancelled: false }
     }
 
-    /// The canvas pass under an open modal dialog. egui makes the canvas inert while a modal
-    /// dialog is up, so a press never reaches [`ToolHost`](craft_ui::canvas::ToolHost); the app
-    /// calls this instead of `ToolHost::show` while [`DropperState::armed`] and a modal dialog is
-    /// open. A press that began on the free canvas (not on a dialog or a popup) samples at the
-    /// pointer, and so does every pass of the drag that follows. Returns whether it sampled.
-    /// Esc is the dialog's: it closes the dialog, which disarms its dropper.
-    // pc: crates/ui-egui/src/dialogs.rs:80 `free_pointer_over`, canvas.rs:729 `sample_at`.
-    pub fn show_free(&mut self, ctx: &Context, view: &CanvasView, canvas_rect: Rect) -> bool {
-        if DropperState::armed(ctx).is_none() {
-            return false;
+    /// The newest sample, once.
+    pub fn take(&mut self) -> Option<Srgba> {
+        self.sampled.take()
+    }
+
+    /// Whether the user cancelled the dropper (Escape on the canvas) since the last call.
+    pub fn cancelled(&mut self) -> bool {
+        std::mem::take(&mut self.cancelled)
+    }
+
+    fn sample_at(&mut self, at: Pos2, cx: &ToolContext<'_>) {
+        let Some(space) = cx.space() else { return };
+        let Point { x, y } = space.view.to_doc(at);
+        if let Some(color) = (self.sample)([x, y]) {
+            self.sampled = Some(color);
         }
-        let Some(pos) = craft_ui::dialog::pass::free_press(ctx, canvas_rect) else {
-            return false;
-        };
-        let doc = view.to_doc(pos);
-        self.sample_at(ctx, [doc.x, doc.y]);
-        true
-    }
-
-    /// Samples at document point `doc` and delivers the colour to the armed dropper; what the
-    /// tool's press and drag do.
-    // pc: crates/ui-egui/src/canvas/cursors.rs:207 `composite_color` (the app's `sample`), then
-    // `DropperState::deliver`.
-    pub fn sample_at(&mut self, ctx: &Context, doc: [f64; 2]) {
-        if let Some(color) = (self.sample)(doc) {
-            DropperState::deliver(ctx, color);
-        }
-    }
-}
-
-/// Ends the armed dropper, whoever owns it.
-fn disarm_armed(ctx: &Context) {
-    if let Some(owner) = DropperState::armed(ctx) {
-        DropperState::disarm(ctx, owner);
     }
 }
 
 impl CanvasTool for DropperTool<'_> {
-    fn cursor(&self, _cx: &ToolContext<'_>) -> ToolCursor {
-        // The pipette's tip is at the bottom left of its 24-unit icon.
-        ToolCursor::Tool { icon: Icon::Eyedropper, hotspot: egui::vec2(2.0, 22.0), badge: None }
-    }
-
     fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
-        self.sample_at(&cx.canvas.ctx, [pointer.doc.x, pointer.doc.y]);
+        self.sample_at(pointer.pos, cx);
         ToolAction::Claimed
     }
 
     fn drag(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
-        self.sample_at(&cx.canvas.ctx, [pointer.doc.x, pointer.doc.y]);
+        self.sample_at(pointer.pos, cx);
     }
 
     fn release(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
-        self.sample_at(&cx.canvas.ctx, [pointer.doc.x, pointer.doc.y]);
+        self.sample_at(pointer.pos, cx);
     }
 
-    fn cancel(&mut self, _reason: CancelReason, cx: &mut ToolContext<'_>) {
-        disarm_armed(&cx.canvas.ctx);
+    fn cancel(&mut self, _: CancelReason, _: &mut ToolContext<'_>) {
+        self.cancelled = true;
     }
 
-    /// Esc on the canvas while a dropper is armed disarms it.
-    fn key(&mut self, key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
-        if key.key == Key::Escape && key.pressed && DropperState::armed(&cx.canvas.ctx).is_some() {
-            disarm_armed(&cx.canvas.ctx);
+    fn key(&mut self, key: &ToolKey, _: &mut ToolContext<'_>) -> bool {
+        if matches!(key, ToolKey::Cancel) {
+            self.cancelled = true;
             return true;
         }
         false
     }
 
-    fn paint(&self, _painter: &Painter, _cx: &ToolContext<'_>) {}
+    fn paint(&self, _: &Draw<'_>, _: &ToolContext<'_>) {}
+
+    /// The pipette with its tip on the sampled pixel (the icon's lower left, in its 24-unit box).
+    fn cursor(&self, _: &ToolContext<'_>) -> Cursor {
+        PaintedCursor::tool(IconId::new("eyedropper"), HOTSPOT, None).into()
+    }
 
     fn autoscrolls(&self) -> bool {
         false
+    }
+
+    fn command_form(&self) -> ToolPath {
+        ToolPath::Command("the Color Picker command")
     }
 }
