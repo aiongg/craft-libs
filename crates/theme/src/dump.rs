@@ -6,9 +6,9 @@
 use std::fmt::Write as _;
 
 use crate::{
-    BarSizes, BySize, ColorToken, ComponentTokens, ControlSizes, Easing, Edge, Elevation, ElevationTokens, FloatSizes, FontSlot, Gaps, HandleSizes,
-    HitSizes, IconSizes, LengthSizes, Motion, MotionTokens, Pads, PaneSizes, PlotSizes, RadiusSet, RailSizes, Rgba, RowStyle, ShapeTokens,
-    SizeTokens, SliderTokens, SpaceTokens, StrokeTokens, ThumbSizes, Tokens, TypeStyle, TypeTokens, WindowSizes,
+    BarSizes, BySize, ColorToken, ComponentTokens, ControlSizes, DockColumnSizes, Easing, Edge, Elevation, ElevationTokens, FloatSizes, FontSlot,
+    Gaps, HandleSizes, HitSizes, IconSizes, LengthSizes, Motion, MotionTokens, Pads, PaneSizes, PlotSizes, RadiusSet, RailSizes, Rgba, RowStyle,
+    ShapeTokens, SizeTokens, SliderTokens, SpaceTokens, StrokeTokens, ThumbSizes, Tokens, TypeStyle, TypeTokens, WindowSizes,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -114,6 +114,7 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
         float,
         window,
         pane,
+        dock,
     } = size;
     let ControlSizes { sm, md } = control;
     out.line("size.control.sm", len(*sm));
@@ -161,6 +162,8 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
     out.line("size.window.cascade", len(*cascade));
     let PaneSizes { least } = pane;
     out.line("size.pane.least", len(*least));
+    let DockColumnSizes { column } = dock;
+    out.line("size.dock.column", len(*column));
 }
 
 fn slot(s: FontSlot) -> &'static str {

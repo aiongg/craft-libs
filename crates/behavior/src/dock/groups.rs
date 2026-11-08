@@ -55,8 +55,9 @@ impl<P> Group<P> {
 pub struct Column<P> {
     /// The groups, top to bottom.
     pub groups: Vec<Group<P>>,
-    /// Expanded width in points.
-    pub width: f32,
+    /// Expanded width in points once the user has resized the column; the theme's column width until then.
+    #[serde(default)]
+    pub width: Option<f32>,
     /// Collapsed to one icon per panel.
     #[serde(default)]
     pub iconic: bool,
@@ -73,16 +74,23 @@ impl GroupLocation {
 }
 
 impl ColumnLocation {
-    /// A column location on `side`, `width` points wide when expanded.
-    pub const fn new(side: DockEdge, width: f32, iconic: bool, iconic_width: Option<f32>) -> Self {
+    /// A column location on `side`, `width` points wide when expanded (the theme's column width for `None`).
+    pub const fn new(side: DockEdge, width: Option<f32>, iconic: bool, iconic_width: Option<f32>) -> Self {
         Self { side, width, iconic, iconic_width }
     }
 }
 
 impl<P> Column<P> {
-    /// A column of `groups` that is `width` points wide, expanded.
-    pub fn new(groups: Vec<Group<P>>, width: f32) -> Self {
-        Self { groups, width, iconic: false, iconic_width: None }
+    /// A column of `groups`, expanded at the theme's column width until the user resizes it.
+    pub fn new(groups: Vec<Group<P>>) -> Self {
+        Self { groups, width: None, iconic: false, iconic_width: None }
+    }
+
+    /// The column resized to `width` points.
+    #[must_use]
+    pub fn with_width(mut self, width: f32) -> Self {
+        self.width = Some(width);
+        self
     }
 }
 
@@ -174,8 +182,8 @@ pub struct GroupLocation {
 pub struct ColumnLocation {
     /// The dock edge the column was on.
     pub side: DockEdge,
-    /// Expanded width in points.
-    pub width: f32,
+    /// Expanded width in points, if the user had resized the column.
+    pub width: Option<f32>,
     /// Whether the column was collapsed to icons.
     pub iconic: bool,
     /// Width in points while iconic.
@@ -247,8 +255,8 @@ impl<P> Moving<P> {
         Self { groups: vec![group], node: None, minimized: false, width: None, iconic: false, iconic_width: None, id: None }
     }
 
-    pub(super) fn into_column(self, width: f32) -> Column<P> {
-        Column { groups: self.groups, width: self.width.unwrap_or(width), iconic: self.iconic, iconic_width: self.iconic_width }
+    pub(super) fn into_column(self, width: Option<f32>) -> Column<P> {
+        Column { groups: self.groups, width: self.width.or(width), iconic: self.iconic, iconic_width: self.iconic_width }
     }
 }
 

@@ -19,7 +19,7 @@ fn spec(panel: &u8) -> PanelSpec {
 
 #[story(IconicColumn<'static, u8>, covers = [Default], drive = Drive::Never)]
 fn icon_groups(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let column = Column::new(vec![Group::new(vec![0, 1], 0), Group::new(vec![2], 0)], 240.0);
+    let column = Column::new(vec![Group::new(vec![0, 1], 0), Group::new(vec![2], 0)]).with_width(240.0);
     IconicColumn::new("Panels", global("iconic column", "story"), &column, Bind::kept(), &spec)
         .show_flyouts(ui, |group, rect, ui, _| {
             let title = group.active_panel().map_or_else(String::new, |panel| spec(panel).label.as_str().to_owned());
@@ -39,7 +39,7 @@ fn open_first_flyout(fixture: &mut Fixture) {
 #[story(IconicColumn<'static, u8>, covers = [Open], drive = Drive::Custom(open_first_flyout))]
 fn icon_flyout_open(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let open = data.value("open", None::<u8>);
-    let column = Column::new(vec![Group::new(vec![0, 1], 0), Group::new(vec![2], 0)], 240.0);
+    let column = Column::new(vec![Group::new(vec![0, 1], 0), Group::new(vec![2], 0)]).with_width(240.0);
     IconicColumn::new("Panels", global("iconic column", "open story"), &column, Bind::bound(open), &spec)
         .show_flyouts(ui, |group, rect, ui, _| {
             let title = group.active_panel().map_or_else(String::new, |panel| spec(panel).label.as_str().to_owned());
@@ -51,7 +51,7 @@ fn icon_flyout_open(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 /// A flyout whose content has a focusable control: it takes Tab and its click, and mirrors under right-to-left.
 #[story(IconicColumn<'static, u8>, covers = [Open], drive = Drive::Custom(open_first_flyout))]
 fn icon_flyout_control(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let column = Column::new(vec![Group::new(vec![0, 1], 0)], 240.0);
+    let column = Column::new(vec![Group::new(vec![0, 1], 0)]).with_width(240.0);
     IconicColumn::new("Panels", global("iconic column", "control story"), &column, Bind::kept(), &spec)
         .show_flyouts(ui, |_, rect, ui, _| {
             Panel::new("Panel").show_at(ui, rect, |ui, _| {
@@ -62,7 +62,7 @@ fn icon_flyout_control(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 }
 
 fn flyout_of(ui: &mut Ui, open: Bind<'_, Option<u8>>) -> StoryOutput {
-    let column = Column::new(vec![Group::new(vec![0, 1], 0)], 240.0);
+    let column = Column::new(vec![Group::new(vec![0, 1], 0)]).with_width(240.0);
     IconicColumn::new("Panels", global("iconic column", "value story"), &column, open, &spec)
         .show_flyouts(ui, |_, rect, ui, _| {
             Panel::new("Panel").show_at(ui, rect, |_, _| ());

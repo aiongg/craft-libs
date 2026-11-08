@@ -18,6 +18,7 @@ use crate::primitives::IconSpec;
 use crate::runtime::access::PopupKind;
 use crate::runtime::commands::{CommandSet as _, CommandState, Commands as _};
 use crate::runtime::env::Label;
+use crate::runtime::focus::{self, FocusTarget};
 use crate::style::{ComponentStyle, IconLook, Ink, Stateful, StyleCx, SurfaceKind};
 use crate::tabs::{Tab, TabKind, TabStrip, TornOff};
 use craft_behavior::{IconId, Metrics, PressPhase, Sense, keyed};
@@ -278,6 +279,10 @@ impl<P: Clone + Hash + Send + Sync + 'static> Component for DockGroup<'_, P> {
         DockGroupStyle { metrics: Metrics::new(), header: sizes.strip, sizes }
     }
 
+    fn sense(&self) -> Sense {
+        Sense::SURFACE
+    }
+
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         self.size = cx.rect.size();
         let Some(dock) = self.dock else { return };
@@ -322,6 +327,7 @@ impl<P: Clone + Hash + Send + Sync + 'static> Container for DockGroup<'_, P> {
             self.anchor.clone(),
             crate::runtime::env::Env::of(ui).direction.is_rtl(),
         );
+        let surface_pressed = cx.surface_pressed();
         let reported = &mut self.reported;
         Row::new().show(ui, |ui, _| {
             let mut open = !minimized;
@@ -350,6 +356,11 @@ impl<P: Clone + Hash + Send + Sync + 'static> Container for DockGroup<'_, P> {
                     let title = panels.iter().find(|panel| &panel.key == key).map_or_else(Label::default, |panel| panel.title.clone());
                     Tab::new(title).closable(closable)
                 });
+            let strip_id = strip.response.response.id;
+            // A press on the group's empty body focuses its panel, as in Photoshop.
+            if surface_pressed {
+                focus::request(ui.ctx(), FocusTarget::Id(strip_id));
+            }
             for event in strip.response.events {
                 if let crate::contract::CollectionEvent::Selection(craft_behavior::SelectionChange::Set(keys)) = event {
                     reported.picked = keys.last().copied().or(reported.picked);

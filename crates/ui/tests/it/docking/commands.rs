@@ -32,7 +32,7 @@ const FADE_FRAMES: usize = 10;
 
 /// A start dock column of two groups, `[1, 2]` above `[3]`, beside a canvas.
 fn workspace() -> Workspace<u32> {
-    let column = Column::new(vec![Group::new(vec![TOP, TOP_TAB], 0), Group::new(vec![LOWER], 0)], COLUMN_WIDTH);
+    let column = Column::new(vec![Group::new(vec![TOP, TOP_TAB], 0), Group::new(vec![LOWER], 0)]).with_width(COLUMN_WIDTH);
     let dock = Node::dock(DockEdge::Start, vec![column]);
     let root = Node::split(Axis::X, SplitSize::FixedFirst(COLUMN_WIDTH), dock, Node::tabs(vec![CANVAS], 0));
     Workspace::new(Layout::new(Some(root), Vec::new()))

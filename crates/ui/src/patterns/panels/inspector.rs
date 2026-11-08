@@ -5,15 +5,12 @@ use crate::contract::{BodyCx, Props as _, Show as _, ShowContainer as _};
 use crate::notices::{Notice, NoticeLayout};
 use crate::primitives::IconSpec;
 use crate::runtime::env::{Env, Label};
-use crate::sections::{HeaderAction, Panel, PanelOutput};
+use crate::sections::{HeaderAction, MenuRows, Panel, PanelOutput};
 use craft_theme::variant::Tone;
 use egui::{AsIdSalt, IdSalt, Ui};
 
 #[cfg(feature = "testing")]
 mod stories;
-
-/// The closure that fills the rows of the panel menu.
-type MenuRows<'a> = Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>;
 
 /// A properties panel: a `Panel` whose header names the target (icon, name and, after it, the kind), and whose body
 /// the caller fills with the target's controls.
@@ -87,7 +84,7 @@ impl<'a> Inspector<'a> {
     /// The rows of the menu the Menu action opens.
     #[must_use]
     pub fn menu(mut self, rows: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
-        self.menu = Some(Box::new(rows));
+        self.menu = Some(MenuRows::new(rows));
         self
     }
 
@@ -108,8 +105,8 @@ impl<'a> Inspector<'a> {
         if let Some(salt) = target {
             panel = panel.id_salt(salt);
         }
-        if let Some(mut rows) = menu {
-            panel = panel.menu(move |ui, cx| rows(ui, cx));
+        if let Some(rows) = menu {
+            panel = panel.menu_rows(rows);
         }
         let message = empty.unwrap_or_else(|| Env::of(ui).words::<PanelWords>().inspector_empty.clone());
         panel

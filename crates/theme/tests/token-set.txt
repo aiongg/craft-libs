@@ -91,6 +91,7 @@ size.checker
 size.control.md
 size.control.sm
 size.dial
+size.dock.column
 size.float.height
 size.float.width
 size.groove

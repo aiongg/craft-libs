@@ -69,8 +69,8 @@ impl DockPanels<usize> for Demo {
 
 /// A canvas between a docked column of panels at the start and an iconic column at the end, with one floating group.
 fn workspace() -> Workspace<usize> {
-    let side = Column::new(vec![Group::new(vec![LAYERS, CHANNELS], 0), Group::new(vec![PROPERTIES], 0)], SIDE);
-    let mut icons = Column::new(vec![Group::new(vec![SWATCHES], 0)], SIDE);
+    let side = Column::new(vec![Group::new(vec![LAYERS, CHANNELS], 0), Group::new(vec![PROPERTIES], 0)]).with_width(SIDE);
+    let mut icons = Column::new(vec![Group::new(vec![SWATCHES], 0)]).with_width(SIDE);
     icons.iconic = true;
     let centre = Node::split(Axis::X, SplitSize::Ratio(0.8), Node::tabs(vec![CANVAS], 0), Node::dock(DockEdge::End, vec![icons]));
     let root = Node::split(Axis::X, SplitSize::FixedFirst(SIDE), Node::dock(DockEdge::Start, vec![side]), centre);
