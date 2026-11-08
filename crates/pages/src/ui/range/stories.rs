@@ -12,7 +12,7 @@ const PAGES: usize = 12;
 fn page_range_field(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let pages = data.value("pages", vec![0usize, 1, 2, 4]).clone();
     let out = PageRangeField::new("Selected pages", &pages, &[0, 1], PAGES, 0).show(ui);
-    if let Some(picked) = out.picked {
+    if let Some(picked) = out.picked.clone() {
         *data.value("pages", vec![0usize, 1, 2, 4]) = picked;
     }
     StoryOutput::from(out)

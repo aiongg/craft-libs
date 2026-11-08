@@ -7,7 +7,7 @@ use craft_behavior::kurbo::Point;
 use craft_behavior::{CanvasView, RulerUnits};
 use craft_ui::canvas::{Canvas, RulerText, Rulers};
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
-use craft_ui::runtime::env::{Env, UnitKind};
+use craft_ui::runtime::env::UnitKind;
 use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use egui::{Ui, Vec2};
 
@@ -28,14 +28,13 @@ fn margin_handles_on_rulers(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let edges = data.value("edges", PageEdges::new(Margins::uniform(72.0)).header_footer(36.0, 36.0));
     let zero = data.value("zero", Point::ZERO);
     let full = ui.available_rect_before_wrap();
-    let content = Rulers::content_rect(&Env::of(ui).tokens, full);
-    let view = CanvasView::new(content, CENTRE, 1.0);
+    let view = CanvasView::new(full, CENTRE, 1.0);
     let text = RulerText::new(RulerUnits::pixels(), UnitKind::Points);
     Canvas::new("Pages")
         .view(view)
         .rulers(text, text, *zero)
         .show(ui, |ui, body| {
-            let page = demo_placed(1, view.to_screen(Point::ZERO)).remove(0);
+            let page = demo_placed(1, CanvasView::new(body.rect, CENTRE, 1.0).to_screen(Point::ZERO)).remove(0);
             let rules = MarginRules::new((612.0, 792.0), *edges);
             Rulers::new("Rulers", Bind::bound(&mut *zero)).margins(MarginHandles::spans(&rules, Point::ZERO)).show_at(ui, body.rect);
             MarginHandles::new("Margins", &page, Bind::bound(&mut *edges)).header_footer().unit(UnitKind::Inches).show_at(ui, body.rect)

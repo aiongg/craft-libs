@@ -9,7 +9,9 @@ use super::view::PageSource;
 use craft_behavior::IconId;
 use craft_behavior::{Input, Metrics, NavMove, Sense};
 use craft_ui::buttons::IconButton;
-use craft_ui::contract::{Common, Component, Cx, MeasureCx, NoValue, Outcome, PaintUi, Role, Show as _, ShowContainer as _, clicked};
+use craft_ui::contract::{
+    Common, Component, Cx, Focus as _, MeasureCx, NoValue, Outcome, PaintUi, Props as _, Role, Show as _, ShowContainer as _, clicked,
+};
 use craft_ui::dialog::Dialog;
 use craft_ui::layout_components::Row;
 use craft_ui::primitives::TextRun;
@@ -140,6 +142,7 @@ impl Outcome for PagePictureOutput {
 
 /// The page picture of the preview: one Tab stop that turns the page with the arrow and Page keys.
 #[derive(craft_ui::contract::Component)]
+#[component(content_painter)]
 struct PagePicture<'a> {
     #[common]
     common: Common,

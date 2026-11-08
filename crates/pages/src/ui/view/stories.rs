@@ -7,7 +7,7 @@ use crate::ui::fixtures::{DemoPages, demo_placed};
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::Point;
 use craft_ui::canvas::Canvas;
-use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::{Pos2, Ui, Vec2};
 
@@ -21,7 +21,7 @@ fn view(ui: &mut Ui, data: &mut StoryData, change: impl FnOnce(&mut PageViewStat
         state
     });
     let pages = DemoPages::new(PAGES);
-    let out = PageView::new("Pages", &pages, Bind::bound(state)).options(LayoutOptions::ACROBAT).show(ui, |_, _| ());
+    let out = PageView::new("Pages", &pages, state).options(LayoutOptions::ACROBAT).show(ui, |_, _| ());
     out.canvas.response.into()
 }
 

@@ -58,8 +58,10 @@ impl PageRangeFieldWords {
     pub fn error(&self, error: &PageRangeError, units: &Units) -> Label {
         let whole = |n: usize| units.number(n as f64, 0..=0);
         match error {
-            PageRangeError::NotAPage(token) => self.not_a_page.fill(&[("page", token.as_str())]),
-            PageRangeError::OutOfRange { page, count } => self.out_of_range.fill(&[("n", whole(*page).as_str()), ("count", whole(*count).as_str())]),
+            PageRangeError::NotAPage(token) => self.not_a_page.fill(&[("page", token.as_str())]).into(),
+            PageRangeError::OutOfRange { page, count } => {
+                self.out_of_range.fill(&[("n", whole(*page).as_str()), ("count", whole(*count).as_str())]).into()
+            }
             PageRangeError::TooLong => self.too_long.clone(),
         }
     }

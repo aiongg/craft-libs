@@ -242,7 +242,7 @@ impl Rows<'_> {
             .id_salt(key)
             .show(ui, |ui, _| {
                 NumberField::new(label.clone(), Bind::given(Some(shown)))
-                    .codec(codec)
+                    .codec(codec.clone())
                     .range(in_unit(unit, *range.start())..=in_unit(unit, *range.end()))
                     .step(in_unit(unit, MARGIN_SCRUB_STEP))
                     .unit(self.units.symbol(unit))
@@ -281,8 +281,8 @@ impl Rows<'_> {
                 };
                 side_row(ui, form, setup, "top", words.top.clone(), |s| s.margins.top, |s, v| s.margins.top = v, true);
                 side_row(ui, form, setup, "bottom", words.bottom.clone(), |s| s.margins.bottom, |s, v| s.margins.bottom = v, false);
-                side_row(ui, form, setup, "left", left, |s| s.margins.left, |s, v| s.margins.left = v, false);
-                side_row(ui, form, setup, "right", right, |s| s.margins.right, |s, v| s.margins.right = v, false);
+                side_row(ui, form, setup, "left", left.clone(), |s| s.margins.left, |s, v| s.margins.left = v, false);
+                side_row(ui, form, setup, "right", right.clone(), |s| s.margins.right, |s, v| s.margins.right = v, false);
                 if !document_setup {
                     side_row(ui, form, setup, "gutter", words.gutter.clone(), |s| s.gutter, |s, v| s.gutter = v, false);
                 }
@@ -336,7 +336,7 @@ impl Rows<'_> {
                     .id_salt("pages")
                     .show(ui, |ui, _| {
                         NumberField::new(words.number_of_pages.clone(), Bind::given(Some(shown)))
-                            .codec(codec)
+                            .codec(codec.clone())
                             .range(1.0..=f64::from(MAX_PAGES))
                             .show(ui)
                     })
@@ -592,8 +592,11 @@ impl<'a> PageLayoutMenus<'a> {
                 let m = preset.margins;
                 let uniform = m.top == m.bottom && m.top == m.left && m.top == m.right;
                 let name = words.preset_name(preset);
-                let label =
-                    if uniform { words.uniform_preset.fill(&[("name", name.as_str()), ("size", self.length(&units, m.top).as_str())]) } else { name };
+                let label = if uniform {
+                    words.uniform_preset.fill(&[("name", name.as_str()), ("size", self.length(&units, m.top).as_str())]).into()
+                } else {
+                    name
+                };
                 if MenuItem::new(label).check(current == Some(preset)).show(ui).ran {
                     chosen = Some(PageLayoutChoice::Margins(*preset));
                 }

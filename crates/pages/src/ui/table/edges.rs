@@ -186,7 +186,6 @@ pub struct EdgePickerStyle {
 /// - Keys: one Tab stop over the six lines (check boxes); the arrows move between them as the diagram lies, Space
 ///   toggles. The edges are the panel's choice of which lines a stroke applies to (view state, not the document).
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
-#[component(exempt(case = "rtl", reason = "The lines are positions in a diagram of a table, not reading order: the left line stays on the left."))]
 pub struct EdgePicker<'a> {
     #[common]
     common: Common,

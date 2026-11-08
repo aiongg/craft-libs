@@ -9,7 +9,9 @@ mod stories;
 use craft_behavior::kurbo::Point;
 use craft_behavior::{HitLevel, HitPriority, Input, Intent, Metrics, PartKey, Sense};
 use craft_ui::canvas::canvas_space;
-use craft_ui::contract::{Access, Common, Component, Cx, Focus as _, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pointer as _, Role, WordSetCx as _};
+use craft_ui::contract::{
+    Access, Common, Component, Cx, Focus as _, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pointer as _, Props, Role, WordSetCx as _,
+};
 use craft_ui::fonts::FontRef;
 use craft_ui::primitives::{Dashes, DocRun, DocText, HAlign, PaintShape, StrokeWidth, TextRun};
 use craft_ui::runtime::env::Label;

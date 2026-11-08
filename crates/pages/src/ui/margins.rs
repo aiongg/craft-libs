@@ -18,6 +18,7 @@ use craft_ui::contract::{
 use craft_ui::primitives::{PaintShape, StrokeWidth};
 use craft_ui::runtime::env::{Label, UnitKind, Units};
 use craft_ui::runtime::focus::KeyUse;
+use craft_ui::runtime::memory::Remember as _;
 use craft_ui::style::{ComponentStyle, StyleColor, StyleCx};
 use egui::{Pos2, Rect, Response, Vec2};
 

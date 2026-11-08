@@ -321,12 +321,8 @@ fn emit(access: &mut Access, built: &AccessBuilder, at: AccessNode) {
             }
             BlockRole::Row => {
                 let sub = access.node(part, Role::ROW);
-                sub.grid = GridPlace {
-                    row_index: Some(node.place),
-                    row_count: table_of(node).map(|table| table.parts),
-                    column_index: None,
-                    column_count: None,
-                };
+                sub.grid.row_index = Some(node.place);
+                sub.grid.row_count = table_of(node).map(|table| table.parts);
                 sub
             }
             BlockRole::Cell => {

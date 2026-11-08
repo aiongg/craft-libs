@@ -8,7 +8,7 @@ use craft_pages::ui::{
     Lead, PageList, PageListEvent, PageListRow, PagePreview, PageSource, PageThumbnails, PageView, PageViewState, SyncedViews, SyncedViewsState,
     ThumbnailEvent, baseline_lines, moved_page,
 };
-use craft_ui::contract::Bind;
+
 use craft_ui::contract::ReorderMove;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers, vec2};
@@ -67,7 +67,7 @@ fn view_rig(count: usize, start: PageViewState) -> ViewRig {
     let pages = DemoPages::new(count);
     let mut fixture = Fixture::new(move |ui| {
         let mut now = kept.borrow().clone();
-        let out = PageView::new("Pages", &pages, Bind::bound(&mut now)).options(LayoutOptions::ACROBAT).show(ui, |_, _| ());
+        let out = PageView::new("Pages", &pages, &mut now).options(LayoutOptions::ACROBAT).show(ui, |_, _| ());
         *seen.borrow_mut() = out.pages.iter().map(|placed| placed.page).collect();
         *kept.borrow_mut() = now;
     });
@@ -109,8 +109,8 @@ fn the_follower_takes_the_leaders_zoom_and_layout() {
         let mut now = kept.borrow().clone();
         let (pair, left, right) = (&mut now.0, &mut now.1, &mut now.2);
         SyncedViews::new("Compare", pair).show(ui, (left, right), |ui, rect, state, half| match half {
-            Lead::Left => PageView::new("Old", &old_pages, Bind::bound(state)).show_at(ui, rect, |_, _| ()),
-            Lead::Right => PageView::new("New", &new_pages, Bind::bound(state)).show_at(ui, rect, |_, _| ()),
+            Lead::Left => PageView::new("Old", &old_pages, state).show_at(ui, rect, |_, _| ()),
+            Lead::Right => PageView::new("New", &new_pages, state).show_at(ui, rect, |_, _| ()),
         });
         *kept.borrow_mut() = now;
     });

@@ -80,7 +80,6 @@ pub struct TableSizePickerStyle {
 ///   to the ends of the grid, Space or Enter inserts the hovered size. The squares sit as rows and columns do, so
 ///   they do not mirror in a right-to-left interface.
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
-#[component(exempt(case = "rtl", reason = "The squares are rows and columns of the table to insert: the first column stays at the left."))]
 pub struct TableSizePicker {
     #[common]
     common: Common,

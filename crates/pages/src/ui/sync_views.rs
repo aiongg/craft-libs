@@ -59,8 +59,8 @@ impl Outcome for SyncedViewsOutput {
 ///
 /// ```ignore
 /// SyncedViews::new("Compare", &mut pair).show(ui, (&mut old_state, &mut new_state), |ui, rect, state, half| match half {
-///     Lead::Left => PageView::new("Old", &old_pages, Bind::bound(state)).show_at(ui, rect, |_, _| ()),
-///     Lead::Right => PageView::new("New", &new_pages, Bind::bound(state)).show_at(ui, rect, |_, _| ()),
+///     Lead::Left => PageView::new("Old", &old_pages, state).show_at(ui, rect, |_, _| ()),
+///     Lead::Right => PageView::new("New", &new_pages, state).show_at(ui, rect, |_, _| ()),
 /// });
 /// ```
 pub struct SyncedViews<'a> {

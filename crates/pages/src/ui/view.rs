@@ -7,7 +7,7 @@
 //! [`PageViewOutput::adopt`].
 //!
 //! ```ignore
-//! let out = PageView::new("Pages", &doc_pages, Bind::bound(&mut view_state)).options(LayoutOptions::ACROBAT).show(ui, |ui, body| {
+//! let out = PageView::new("Pages", &doc_pages, &mut view_state).options(LayoutOptions::ACROBAT).show(ui, |ui, body| {
 //!     TextMarks::new(&body.pages, &marks).show_at(ui, body.rect);
 //! });
 //! let tools = ToolHost::new().run(ui, &out.canvas, &mut tool);
@@ -24,12 +24,12 @@ use crate::layout::{
     Fit, LayoutOptions, PageDisplay, PageSpacing, PagedLayout, SCREEN_POINTS_PER_POINT, ViewDefaults, ZOOM_RANGE, fit_scale, place_pages, shown_row,
 };
 use craft_behavior::kurbo::{Point, Rect as DocRect, Size};
-use craft_behavior::{CanvasView, Mixed, WheelNotch, ZoomLadder};
+use craft_behavior::{CanvasView, WheelNotch, ZoomLadder};
 use craft_ui::canvas::{Canvas, CanvasOutput, CanvasScrollbars, NavigationOptions, PageFrame, Pasteboard, PasteboardOutput, canvas_space};
 use craft_ui::contract::{Bind, BodyCx, Held, Show as _, ShowContainer as _};
 use craft_ui::primitives::textures::ThumbSource;
 use craft_ui::runtime::env::{Env, Label};
-use craft_ui::runtime::memory::{Remember as _, Slot};
+use craft_ui::runtime::memory::Remember as _;
 use craft_ui::style::DataColor;
 use egui::{Color32, Rect, Ui, Vec2, pos2};
 use std::cell::RefCell;
@@ -232,7 +232,7 @@ impl PageViewOutput {
 pub struct PageView<'a> {
     label: Label,
     source: &'a dyn PageSource,
-    state: Bind<'a, PageViewState>,
+    state: &'a mut PageViewState,
     options: LayoutOptions,
     navigation: NavigationOptions,
     bodies: Option<&'a [(f64, f64)]>,
@@ -241,7 +241,7 @@ pub struct PageView<'a> {
 
 impl<'a> PageView<'a> {
     /// A view named `label` of the pages of `source`, with `state` kept by the app between passes.
-    pub fn new(label: impl Into<Label>, source: &'a dyn PageSource, state: Bind<'a, PageViewState>) -> Self {
+    pub fn new(label: impl Into<Label>, source: &'a dyn PageSource, state: &'a mut PageViewState) -> Self {
         PageView {
             label: label.into(),
             source,
@@ -294,15 +294,12 @@ impl<'a> PageView<'a> {
     }
 
     fn run(self, ui: &mut Ui, rect: Rect, take_room: bool, body: impl FnOnce(&mut Ui, &PageBody<'_>)) -> PageViewOutput {
-        let PageView { label, source, mut state, options, navigation, bodies, describer } = self;
+        let PageView { label, source, state, options, navigation, bodies, describer } = self;
         let spacing = PageMetrics::new().show_at(ui, Rect::from_min_size(rect.min, Vec2::ZERO)).spacing;
         let count = source.page_count();
         let sizes: Vec<Size> = (0..count).map(|page| source.page_size(page)).collect();
         let viewport = Size::new(f64::from(rect.width()), f64::from(rect.height()));
-        let start = match state.reborrow().get() {
-            Some(Mixed::Same(state)) => state,
-            _ => PageViewState::default(),
-        };
+        let start = state.clone();
         let build = Geometry { sizes: &sizes, viewport, options, spacing, bodies, cache: RefCell::new(None) };
         let geo = build.of(&start);
         let frame = Frame::of(&geo);
@@ -311,7 +308,7 @@ impl<'a> PageView<'a> {
         if start.continuous {
             canvas = canvas.document(frame.document(&geo));
         }
-        let mut held = Held::new(state);
+        let mut held = Held::new(Bind::bound(state));
         let mut app_body = Some(body);
         let mut seen: Option<Seen> = None;
         let mut canvas_body = |ui: &mut Ui, cx: &mut BodyCx<'_>| {
@@ -383,8 +380,6 @@ struct Memory {
     offset: Option<(f64, f64)>,
     overshoot: f64,
 }
-
-impl Slot for Memory {}
 
 /// The mapping between the layout's screen points and the canvas view's document units: the view shows the shown
 /// row (or the whole layout) as a document at the origin, one unit a screen point at 100 %.

@@ -15,7 +15,7 @@ use craft_ui::contract::{
 use craft_ui::primitives::{PaintShape, StrokeWidth, TextRun};
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::focus::KeyUse;
-use craft_ui::style::{ComponentStyle, FocusLook, StyleColor, StyleCx, TypeRole, UiTokens};
+use craft_ui::style::{ComponentStyle, FocusLook, StyleColor, StyleCx, TypeRole};
 use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
 
 /// The divider after column `i`: `DIVIDER.at(i)`.
@@ -169,7 +169,7 @@ impl Component for ColumnBar<'_> {
             fill: cx.color(colors.accent.soft),
             fill_alt: cx.color(colors.surface.sunken),
             label: cx.color(colors.text.normal),
-            radius: UiTokens::corner(cx.tokens.shape.radius.control),
+            radius: cx.field().radius,
             grab: cx.tokens.size.hit.slop,
         }
     }

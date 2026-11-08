@@ -316,8 +316,8 @@ impl<'a> PageThumbnails<'a> {
 
         for event in shown.events {
             match event {
-                GridEvent::GroupOpen { group, open } => events.push(ThumbnailEvent::SectionOpen { section: group, open }),
-                GridEvent::GroupMenu { group, at } => events.push(ThumbnailEvent::SectionMenu { section: group, at }),
+                GridEvent::GroupOpen { group, open, .. } => events.push(ThumbnailEvent::SectionOpen { section: group, open }),
+                GridEvent::GroupMenu { group, at, .. } => events.push(ThumbnailEvent::SectionMenu { section: group, at }),
                 _ => {}
             }
         }

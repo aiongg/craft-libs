@@ -167,7 +167,7 @@ impl<'a> PageList<'a> {
         let list_id: RefCell<Option<Id>> = RefCell::new(None);
         let order: Vec<usize> = (0..rows.len()).collect();
         let source = keyed(&order, |&row| row)
-            .with_text(|&row| Cow::Borrowed(rows[row].name.as_str()))
+            .with_text(|&row| Cow::Owned(rows[row].name.clone()))
             .with_toggled(|&row, column| (*column == VISIBLE && !rows[row].hidden) || (*column == LOCKED && rows[row].locked));
         let response = Panel::new(label.clone())
             .headerless()

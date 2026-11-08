@@ -4,7 +4,7 @@
 //! The app lays its text out into pages of [`reading_size`] and gives them to a [`ReadingView`]; this module has the
 //! geometry and the turning. [`ReadingNav`] is the row of page-turn buttons under the columns.
 
-use craft_behavior::{AccessAction, IconId, Metrics, NavMove, PartKey, PressPhase, Sense};
+use craft_behavior::{IconId, Metrics, NavMove, PartKey, PressPhase, Sense};
 use craft_ui::buttons::IconButton;
 use craft_ui::contract::{
     Access, Animate as _, Common, Component, Cx, Focus as _, Input, MeasureCx, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _,
@@ -314,14 +314,6 @@ impl Component for ReadingView<'_> {
         }
         if cx.activation().is_some() {
             turn += 1;
-        }
-        // AccessKit's scroll actions are the arrows for assistive technology: the same turns.
-        while let Some(request) = cx.intents().take_scroll_access(false) {
-            match request.action {
-                AccessAction::ScrollRight => turn += if rtl { -1 } else { 1 },
-                AccessAction::ScrollLeft => turn += if rtl { 1 } else { -1 },
-                _ => {}
-            }
         }
         self.state.column = self.state.column.min(last_column);
         if let Some(goal) = goal {

@@ -420,7 +420,7 @@ fn described(content: Content, pages: usize) -> (Fixture, Rc<Fake>) {
     let state = Rc::new(RefCell::new(PageViewState::default()));
     let mut fixture = Fixture::new(move |ui| {
         let mut state = state.borrow_mut();
-        PageView::new("Document", &source, Bind::bound(&mut state)).access(&*shown).show(ui, |_, _| ());
+        PageView::new("Document", &source, &mut state).access(&*shown).show(ui, |_, _| ());
     });
     fixture.settle();
     (fixture, fake)
