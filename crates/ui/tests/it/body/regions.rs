@@ -1,16 +1,19 @@
 //! The regions of a body: an inline header that measures nothing, a full-height end region with the footer in it, a
-//! spread row, the room of a Grid cell, and a filling body placed from this pass's header and footer.
+//! spread row, the room of a Grid cell, a filling body placed from this pass's header, end region and footer, and a
+//! content-sized body that offers its children this pass's room.
 
 use crate::contract::kit::PlainStyle;
 use craft_behavior::{ColumnWidth, Sense};
+use craft_theme::variant::Tone;
 use craft_ui::buttons::Button;
 use craft_ui::contract::{
-    BodyCx, Common, Component, Container, ContainerProps, Cx, EndRegion, FooterPlace, FooterRegion, HeaderRegion, Role, Show as _,
-    ShowContainer as _, Sizing,
+    BodyCx, Common, Component, Container, ContainerProps, Cx, EndRegion, FooterPlace, FooterRegion, HeaderRegion, Props as _, Role, Show as _,
+    ShowContainer as _, SideLabel, Sizing,
 };
 use craft_ui::display::Divider;
 use craft_ui::layout::{BodyLayout, RowAlign};
 use craft_ui::layout_components::{Grid, Row, Stack};
+use craft_ui::notices::{Notice, NoticeLayout};
 use craft_ui::runtime::env::{Direction, with_env};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::access::NodeKey;
@@ -92,12 +95,18 @@ fn regioned(props: ContainerProps, header: Option<Vec2>) -> Took {
 /// Shows a filling `Regioned` at `AREA` with `props` for one frame and returns what its regions took in the frame's
 /// first pass, before any discard pass: no region has a size from an earlier pass then.
 fn first_pass(props: ContainerProps, header: Option<Vec2>) -> Took {
+    first_pass_labelled(props, header, "")
+}
+
+/// `first_pass`, with the container labelled `label` (none when empty).
+fn first_pass_labelled(props: ContainerProps, header: Option<Vec2>, label: &str) -> Took {
     let took = RefCell::new(Took::default());
     let passes = RefCell::new(Vec::new());
     let mut frames = Frames::new();
     frames.frame(Vec::new(), |ui| {
         let shown =
             Regioned { common: Common::new(), props: props.clone(), header, end: Vec2::new(80.0, 40.0), footer: Vec2::new(70.0, 16.0), took: &took }
+                .label(label)
                 .show_at(ui, AREA, |_, cx| cx.rect);
         took.borrow_mut().body = shown.inner;
         passes.borrow_mut().push(*took.borrow());
@@ -238,4 +247,65 @@ fn tab_walks_a_filling_stack_through_header_body_and_footer() {
     }
     let expected = ["Head", "Body", "Foot"].map(|name| Some(name.to_owned()));
     assert_eq!(walked, expected, "Tab follows the visual order");
+}
+
+#[trial]
+fn a_filling_body_stops_at_the_end_region_in_the_first_pass() {
+    let props = ContainerProps::new().sizing(Sizing::Fill).end(EndRegion::new());
+    let took = first_pass(props, None);
+    let (body, end) = (took.body.unwrap(), took.end.unwrap());
+    assert!(body.max.x <= end.min.x + EDGE_SLACK, "the body ends where the end region starts: {body:?} {end:?}");
+    assert!(end.max.x >= AREA.max.x - 1.0, "the end region keeps the end edge: {end:?}");
+}
+
+#[trial]
+fn a_footer_in_the_end_region_lies_under_its_content_in_the_first_pass() {
+    let props = ContainerProps::new().sizing(Sizing::Fill).end(EndRegion::new()).footer(FooterRegion::new().place(FooterPlace::EndBottom));
+    let took = first_pass(props, None);
+    let (body, end, footer) = (took.body.unwrap(), took.end.unwrap(), took.footer.unwrap());
+    assert!(footer.min.y >= end.max.y - EDGE_SLACK, "the footer lies under the end region's content: {end:?} {footer:?}");
+    assert!(
+        end.min.x >= body.max.x - EDGE_SLACK && footer.min.x >= body.max.x - EDGE_SLACK,
+        "the end region and its footer lie past the body: {body:?} {end:?} {footer:?}"
+    );
+}
+
+#[trial]
+fn an_inline_header_s_body_starts_after_the_header_in_the_first_pass() {
+    let props = ContainerProps::new().sizing(Sizing::Fill).header(HeaderRegion::new().inline(true));
+    let took = first_pass(props, Some(Vec2::new(60.0, 20.0)));
+    let (header, body) = (took.header.unwrap(), took.body.unwrap());
+    assert!(body.min.x >= header.max.x - EDGE_SLACK, "the body starts after the header's width: {header:?} {body:?}");
+    assert!(body.max.x >= AREA.max.x - 1.0, "the body takes the rest of the line: {body:?}");
+}
+
+#[trial]
+fn a_labelled_container_s_footer_starts_at_the_control_column_in_the_first_pass() {
+    let props = ContainerProps::new().sizing(Sizing::Fill).footer(FooterRegion::new()).label(SideLabel::new());
+    let took = first_pass_labelled(props, None, "Opacity");
+    let (body, footer) = (took.body.unwrap(), took.footer.unwrap());
+    assert!(body.min.x > AREA.min.x + 1.0, "the label takes the start of the row: {body:?}");
+    assert!((footer.min.x - body.min.x).abs() <= EDGE_SLACK, "the footer starts at the control column: {body:?} {footer:?}");
+    assert!(body.max.y <= footer.min.y + EDGE_SLACK, "the control ends at the footer's top: {body:?} {footer:?}");
+    assert!(footer.max.y <= AREA.max.y + EDGE_SLACK, "the footer lies inside the container: {footer:?}");
+}
+
+#[trial]
+fn a_content_sized_row_offers_a_child_that_arrives_the_room_it_was_offered() {
+    let (shown, notice) = (Cell::new(false), Cell::new(Rect::NOTHING));
+    let took = RefCell::new(Took::default());
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        let props = ContainerProps::new().sizing(Sizing::Content).layout(BodyLayout::row());
+        Regioned { common: Common::new(), props, header: None, end: Vec2::ZERO, footer: Vec2::ZERO, took: &took }.show(ui, |ui, _| {
+            if shown.get() {
+                notice.set(Notice::new(Tone::Bad, "The value is out of range.").layout(NoticeLayout::Inline).show(ui).response.rect);
+            }
+        });
+    };
+    frames.idle(3, &mut show);
+    shown.set(true);
+    frames.idle(3, &mut show);
+    let notice = notice.get();
+    assert!(notice.width() > 0.0, "the notice measures in the room the row was offered and shows: {notice:?}");
 }
