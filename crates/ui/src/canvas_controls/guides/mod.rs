@@ -406,7 +406,7 @@ fn data_color(color: Rgba) -> Color32 {
 impl Component for Guides<'_> {
     const ROLE: Role = Role::GROUP;
     const OVERLAYS: bool = false;
-    const KEYS: KeyUse = KeyUse { chrome_key: false, ..KeyUse::CANVAS.with_moves().with_deletes() };
+    const KEYS: KeyUse = KeyUse::CANVAS.with_moves().with_deletes().with_chrome_key(false);
     type Style = GuideStyle;
     type Output = GuidesOutput;
 

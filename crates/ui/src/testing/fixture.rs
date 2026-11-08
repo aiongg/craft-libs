@@ -6,6 +6,7 @@ use crate::runtime::access::Role;
 use crate::runtime::commands::{CommandInput, CommandRef, CommandState};
 use crate::runtime::egui::access::{AccessTree, NodeKey};
 use crate::runtime::egui::fixture::{self, AccessActionKind};
+use crate::runtime::egui::injected;
 use crate::runtime::env::{Direction, Overrides, RootEnv, Scale, with_env};
 use craft_behavior::{MotionMode, PartRef};
 use craft_host::target::Os;
@@ -323,10 +324,16 @@ impl Fixture {
 
     /// Hover, press and release at `pos`, in separate frames, then one idle frame.
     pub fn click_at(&mut self, pos: Pos2) -> &mut Self {
-        self.frame(vec![super::pointer::moved(pos)]);
-        self.frame(vec![super::pointer::press(pos)]);
-        self.frame(vec![super::pointer::release(pos)]);
+        self.play(injected::click_frames(pos, egui::PointerButton::Primary, 1, Modifiers::NONE));
         self.frame(Vec::new())
+    }
+
+    /// The frames of `frames`, one pass each.
+    fn play(&mut self, frames: Vec<injected::Frame>) -> &mut Self {
+        for events in frames {
+            self.frame(events);
+        }
+        self
     }
 
     /// The modifiers held in every following frame, until the next call.
@@ -359,19 +366,24 @@ impl Fixture {
         self.frame(Vec::new())
     }
 
-    /// A key press and release with `modifiers`, in one frame.
+    /// A key press and release with `modifiers`, in two frames as injected input frames them.
     pub fn key(&mut self, key: Key, modifiers: Modifiers) -> &mut Self {
-        self.frame(vec![fixture::key_press(key, modifiers), fixture::key_release(key, modifiers)])
+        self.play(injected::key_frames(key, modifiers))
     }
 
     /// Typed `text`.
     pub fn type_text(&mut self, text: &str) -> &mut Self {
-        self.frame(vec![fixture::text_event(text)])
+        self.play(injected::text_frames(text))
     }
 
     /// An AccessKit action on `target`.
     pub fn access(&mut self, kind: AccessActionKind, target: &Target) -> &mut Self {
         self.frame(vec![fixture::access_request_node(kind, target.node)])
+    }
+
+    /// The stop that holds focus: the id of its component and the part when focus is on a part.
+    pub fn focused_stop(&self) -> Option<(Id, Option<PartRef>)> {
+        crate::runtime::focus::focused_stop(&self.frames.ctx)
     }
 
     /// The id of the widget egui has focused.

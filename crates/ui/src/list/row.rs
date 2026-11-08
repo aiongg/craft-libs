@@ -542,6 +542,10 @@ impl<'a> ListRow<'a> {
     /// Forward, and Space and Enter activate it. `name` is its name for a screen reader and its tooltip.
     #[must_use]
     pub fn trailing_part(mut self, part: TrailingPart, face: TrailingFace, name: impl Into<Label>) -> Self {
+        debug_assert!(
+            !self.trailing.iter().any(|held| matches!(&held.item, TrailingItem::Part { part: have, .. } if *have == part)),
+            "trailing part {part:?} is already in the row"
+        );
         self.trailing.push(Trailing { item: TrailingItem::Part { part, face, name: name.into() }, optional: false });
         self
     }

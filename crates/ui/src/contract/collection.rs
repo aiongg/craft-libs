@@ -712,7 +712,7 @@ pub struct ContextMenuRequest<K> {
     pub key: K,
     /// Where the menu opens.
     pub at: Pos2,
-    /// The toggle or text column the press landed in; `None` from the keyboard, on the label band and in a list
+    /// The column the press landed in (a toggle, a text or the label column); `None` from the keyboard and in a list
     /// without columns.
     pub column: Option<ColumnKey>,
 }

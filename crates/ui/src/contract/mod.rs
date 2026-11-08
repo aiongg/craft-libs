@@ -6,6 +6,7 @@ mod container;
 mod cx;
 pub(crate) mod editor;
 mod entry;
+mod faces;
 pub mod ghost;
 mod group;
 mod held;
@@ -28,6 +29,7 @@ pub mod tooltip;
 mod values;
 
 pub use crate::layout::{BodyLayout, RowAlign};
+pub use crate::primitives::FacesCx;
 pub use crate::runtime::access::{Access, FieldLabel, GridPlace, Name, Numeric, Politeness, PopupKind, Role, SetPosition, SubNode, announce};
 pub use crate::runtime::commands::{CommandSet, Commands};
 pub use crate::runtime::keys::MenuKey;

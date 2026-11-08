@@ -39,7 +39,7 @@ use std::sync::Arc;
 pub struct Activation {
     /// By `Intent::Activate` (Enter, Space or an AccessKit click) rather than a primary click.
     pub by_key: bool,
-    /// The modifiers held at the activation.
+    /// The modifiers held at a pointer activation; `Mods::NONE` for a key or AccessKit activation.
     pub mods: craft_keymap::Mods,
 }
 
@@ -1877,19 +1877,3 @@ impl<K> Drives for ItemCx<'_, '_, K> {
         Driver { stage: self.memory, base: self.id, policy: self.env.motion() }
     }
 }
-
-impl<C: Component> crate::fonts::document::sealed::Sealed for Cx<'_, C> {
-    fn context(&self) -> &Context {
-        &self.core.ctx
-    }
-}
-
-impl<C: Component> crate::fonts::FacesAt for Cx<'_, C> {}
-
-impl<C: Component> crate::fonts::document::sealed::Sealed for MeasureCx<'_, C> {
-    fn context(&self) -> &Context {
-        self.ui.ctx()
-    }
-}
-
-impl<C: Component> crate::fonts::FacesAt for MeasureCx<'_, C> {}

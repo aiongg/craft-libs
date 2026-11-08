@@ -326,8 +326,16 @@ impl KeyUse {
         self
     }
 
-    pub(crate) const fn with_keep(mut self, keep: KeepKeys) -> Self {
+    /// The same use with `keep` as the keys it keeps from the key stage.
+    pub const fn with_keep(mut self, keep: KeepKeys) -> Self {
         self.keep = keep;
+        self
+    }
+
+    /// The same use with `chrome_key` as whether the component marks its window as showing a document: a canvas
+    /// control that is no document sets it to `false`.
+    pub const fn with_chrome_key(mut self, chrome_key: bool) -> Self {
+        self.chrome_key = chrome_key;
         self
     }
 

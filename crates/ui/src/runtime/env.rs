@@ -812,8 +812,9 @@ impl<'a> EnvView<'a> {
         craft_i18n::relative_age(&self.scoped.words, &self.scoped.format, seconds, style)
     }
 
-    /// `label` with a `Word` replaced by its text in the scope's language.
-    pub(crate) fn resolve(&self, label: &Label) -> Label {
+    /// `label` with a `Word` replaced by its text in the scope's language: what domain code that draws a `Label`
+    /// itself shows.
+    pub fn resolve(&self, label: &Label) -> Label {
         label.resolved(&self.scoped.words)
     }
 }

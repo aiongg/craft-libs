@@ -64,17 +64,6 @@ pub enum FaceState {
     Unavailable,
 }
 
-pub(crate) mod sealed {
-    pub trait Sealed {
-        /// The context the faces are registered on.
-        fn context(&self) -> &egui::Context;
-    }
-}
-
-/// Where a document face is asked for: a content painter, a measure or a component's context. Sealed: the contexts of
-/// this crate implement it.
-pub trait FacesAt: sealed::Sealed {}
-
 /// A registered face: the frame it was last drawn in and the frame it was added in.
 struct Registered {
     used: u64,
@@ -137,16 +126,15 @@ fn begin(ctx: &Context) {
     }
 }
 
-/// The document faces: the families drawn from font files a document names.
-pub struct DocumentFaces;
+/// The document faces: the families drawn from font files a document names. Reached through `FacesCx`.
+pub(crate) struct DocumentFaces;
 
 impl DocumentFaces {
     /// The face registered under `key` as a family of its own. `load` runs only for a new key within the frame's budget
     /// of [`DOCUMENT_FACES_PER_PASS`], and for a key whose family a replacement of the definitions removed. A `load`
     /// that returns `None` marks the key unavailable for as long as the context lives. Every call marks the face drawn
     /// in this frame.
-    pub fn face(at: &impl FacesAt, key: &str, load: impl FnOnce() -> Option<FaceBytes>) -> FaceState {
-        let ctx = at.context();
+    pub(crate) fn face(ctx: &Context, key: &str, load: impl FnOnce() -> Option<FaceBytes>) -> FaceState {
         begin(ctx);
         let family = FontRef::named(&family_name(key));
         let (now, known) = memory::with::<Registry, _>(ctx, |registry| {

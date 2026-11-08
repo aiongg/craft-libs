@@ -4,14 +4,16 @@ use crate::collection::kit::{Count, Dismissed, Row};
 use crate::collection::table::Table;
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, IconId, ItemSource};
 use craft_keymap::Mods;
-use craft_ui::contract::{CollectionEvent, CollectionProps, ColumnKind, ColumnSpec, Props as _, SelectMode, ShowCollection as _, ToggleColumn};
+use craft_ui::contract::{
+    CollectionEvent, CollectionProps, ColumnKind, ColumnSpec, Props as _, ReorderRule, SelectMode, ShowCollection as _, ToggleColumn,
+};
 use craft_ui::list::{List, ListRow, RowEvent, ThumbSize, ThumbTarget, TrailingFace, TrailingPart};
 use craft_ui::runtime::drag;
 use craft_ui::sections::{FooterAction, FooterBar};
 use craft_ui::testing::internals::place_row;
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::{Fixture, Frames, pointer, trial};
-use egui::{Modifiers, Pos2, Rect, Ui, Vec2};
+use egui::{Key, Modifiers, Pos2, Rect, Ui, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -40,10 +42,17 @@ struct Seen {
 
 /// A list of two rows made by `make`, shown in a fixture.
 fn rig(make: impl Fn(usize) -> ListRow<'static> + 'static) -> (Fixture, Rc<Seen>) {
+    rig_with(false, make)
+}
+
+/// `rig` whose rows reorder when `reorder`.
+fn rig_with(reorder: bool, make: impl Fn(usize) -> ListRow<'static> + 'static) -> (Fixture, Rc<Seen>) {
     let seen = Rc::new(Seen::default());
     let sink = seen.clone();
     let mut fixture = Fixture::new(move |ui| {
-        let out = List::new("Items").select(SelectMode::Single).show_items(ui, &Two, &mut |key, _| make(*key));
+        let list = List::new("Items").select(SelectMode::Single);
+        let list = if reorder { list.reorder(ReorderRule::new()) } else { list };
+        let out = list.show_items(ui, &Two, &mut |key, _| make(*key));
         for event in out.events {
             match event {
                 CollectionEvent::Item(_, event) => sink.events.borrow_mut().push(event),
@@ -97,6 +106,64 @@ fn a_press_on_a_trailing_part_reports_its_modifiers_and_keeps_the_selection() {
     assert_eq!(seen.selections.get(), 0);
 }
 
+/// Tab into the list and down to its second row: the stop focus is on.
+fn on_a_row(fixture: &mut Fixture) -> (egui::Id, Option<craft_behavior::PartRef>) {
+    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.idle(2);
+    fixture.key(Key::ArrowDown, Modifiers::NONE);
+    fixture.idle(2);
+    let row = fixture.focused_stop().expect("the list holds focus");
+    assert!(row.1.is_none(), "focus is on the row, not a part");
+    row
+}
+
+/// Forward from the row moves focus to its trailing part, and Back returns to the row.
+#[trial]
+fn forward_from_a_row_reaches_its_trailing_part() {
+    let (mut fixture, _) = rig(with_trailing);
+    let row = on_a_row(&mut fixture);
+    fixture.key(Key::ArrowRight, Modifiers::NONE);
+    fixture.idle(2);
+    let part = fixture.focused_stop().expect("focus stays in the list");
+    assert!(part.1.is_some(), "Forward entered the part: {part:?}");
+    fixture.key(Key::ArrowLeft, Modifiers::NONE);
+    fixture.idle(2);
+    assert_eq!(fixture.focused_stop(), Some(row), "Back returns to the row");
+}
+
+/// Space and Enter on the focused trailing part activate it without modifiers.
+#[trial]
+fn space_and_enter_on_a_trailing_part_activate_it() {
+    for key in [Key::Space, Key::Enter] {
+        let (mut fixture, seen) = rig(with_trailing);
+        on_a_row(&mut fixture);
+        fixture.key(Key::ArrowRight, Modifiers::NONE);
+        fixture.idle(2);
+        fixture.key(key, Modifiers::NONE);
+        fixture.idle(2);
+        let events = seen.events.borrow();
+        assert!(matches!(events.as_slice(), [RowEvent::Trailing { part, mods, .. }] if *part == PART && *mods == Mods::NONE), "{key:?}: {events:?}");
+    }
+}
+
+/// Rows with parts add no Tab stops: Tab never lands on a part, and a second Tab does not step inside the list.
+#[trial]
+fn a_list_whose_rows_have_parts_is_one_tab_stop() {
+    let (mut fixture, _) = rig(with_trailing);
+    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.idle(2);
+    let list = fixture.focused_stop().expect("Tab enters the list");
+    for _ in 0..3 {
+        fixture.key(Key::Tab, Modifiers::NONE);
+        fixture.idle(2);
+        assert!(
+            fixture.focused_stop().is_none_or(|stop| stop == list),
+            "Tab stays on the list's one stop or leaves it: {:?}",
+            fixture.focused_stop()
+        );
+    }
+}
+
 /// A row with a thumbnail whose rect `rect` records.
 fn with_thumb(rect: Rc<Cell<Rect>>) -> impl Fn(usize) -> ListRow<'static> {
     move |key| {
@@ -120,7 +187,7 @@ fn a_modified_thumbnail_click_reports_its_modifiers() {
 #[trial]
 fn a_thumbnail_drag_starts_one_session_with_the_payload() {
     let rect = Rc::new(Cell::new(Rect::NOTHING));
-    let (mut fixture, seen) = rig(with_thumb(rect.clone()));
+    let (mut fixture, seen) = rig_with(true, with_thumb(rect.clone()));
     let from = rect.get().center();
     fixture.frame(vec![pointer::moved(from)]);
     fixture.frame(vec![pointer::press(from)]);
@@ -128,7 +195,8 @@ fn a_thumbnail_drag_starts_one_session_with_the_payload() {
         fixture.frame(vec![pointer::moved(from + Vec2::new(0.0, 10.0 * step as f32))]);
     }
     assert_eq!(drag::started(fixture.ctx()), 1);
-    assert!(drag::active::<usize>(fixture.ctx()).is_some(), "targets of the payload type see the drag");
+    let payload = drag::active::<usize>(fixture.ctx()).expect("targets of the payload type see the drag");
+    assert_eq!(*payload, 1, "the session carries the thumbnail's payload, the key of the row the drag started on");
     assert!(seen.events.borrow().iter().any(|event| matches!(event, RowEvent::ThumbDrag(ThumbTarget::First))));
 }
 
