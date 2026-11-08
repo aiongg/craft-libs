@@ -8,7 +8,7 @@ use super::words::DockWords;
 use super::{PanelDrag, PanelKey, PanelTitle};
 use crate::buttons::IconButton;
 use crate::contract::{
-    Bind, Common, Component, Container, ContainerProps, ContextMenuRequest, Cx, HeaderRegion, ListDrag, MeasureCx, Outcome, PaintUi, Pointer as _,
+    Bind, BodyCx, Common, Component, Container, ContainerProps, ContextMenuRequest, Cx, HeaderRegion, ListDrag, MeasureCx, Outcome, PaintUi, Pointer as _,
     Props as _, Role, Show as _, ShowCollection as _, ShowContainer as _, Sizing, Styled as _, Trigger, WordSetCx as _,
 };
 use crate::controls::disclosure::Disclosure;
@@ -122,17 +122,17 @@ impl<P: Clone + Send + Sync + 'static> Component for GroupGrip<P> {
     }
 }
 
-/// A closure that adds the host's items to a group's header, after the tab strip.
-pub struct HeaderHook<'a>(Box<dyn FnMut(&mut Ui) + 'a>);
+/// A closure that adds the host's items to a group's header, before the tab strip.
+pub struct HeaderHook<'a>(Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>);
 
 impl<'a> HeaderHook<'a> {
-    /// A hook that runs `add` in the header's row.
-    pub fn new(add: impl FnMut(&mut Ui) + 'a) -> Self {
+    /// A hook that runs `add` in the header's row, with the group's `BodyCx`.
+    pub fn new(add: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
         HeaderHook(Box::new(add))
     }
 
-    fn run(&mut self, ui: &mut Ui) {
-        (self.0)(ui);
+    fn run(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
+        (self.0)(ui, cx);
     }
 }
 
@@ -228,8 +228,8 @@ pub struct DockGroup<'a, P: Clone + Hash + Send + Sync + 'static> {
     /// The state of each panel command for the shown panel, published in the group's scope every pass.
     #[prop]
     command_states: Vec<(DockCommands, CommandState)>,
-    /// The host's items after the tab strip.
-    #[prop(func = "FnMut(&mut egui::Ui)")]
+    /// The host's items before the tab strip.
+    #[prop(func = "FnMut(&mut egui::Ui, &mut BodyCx<'_>)")]
     extra: Option<HeaderHook<'a>>,
     /// The size of the group this pass, for the drag ghost.
     size: Vec2,
@@ -300,7 +300,7 @@ impl<P: Clone + Hash + Send + Sync + 'static> Component for DockGroup<'_, P> {
 }
 
 impl<P: Clone + Hash + Send + Sync + 'static> Container for DockGroup<'_, P> {
-    fn header(&mut self, ui: &mut Ui, cx: &mut crate::contract::BodyCx<'_>) {
+    fn header(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         for (command, state) in self.command_states.drain(..) {
             cx.publish(command, state);
         }
@@ -334,6 +334,10 @@ impl<P: Clone + Hash + Send + Sync + 'static> Container for DockGroup<'_, P> {
             reported.toggle_minimized |= grip.double_pressed;
             reported.drag_started |= grip.drag_started;
 
+            if let Some(hook) = extra.as_mut() {
+                hook.run(ui, cx);
+            }
+
             let source = keyed(panels, |panel: &PanelTitle| panel.key).with_text(|panel| Cow::Borrowed(panel.title.as_str()));
             let kind = if closable { TabKind::Document } else { TabKind::Panel };
             let strip = TabStrip::new(name.clone())
@@ -364,14 +368,11 @@ impl<P: Clone + Hash + Send + Sync + 'static> Container for DockGroup<'_, P> {
                     .show(ui, |ui, _| PanelMenu::new(Vec::new(), rows.clone()).show(ui).picked);
                 reported.item = shown.inner.flatten().or(reported.item);
             }
-            if let Some(hook) = extra.as_mut() {
-                hook.run(ui);
-            }
         });
         self.extra = extra;
     }
 
-    fn controls(&mut self, ui: &mut Ui, cx: &mut crate::contract::BodyCx<'_>) {
+    fn controls(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         if self.menu.is_empty() {
             return;
         }

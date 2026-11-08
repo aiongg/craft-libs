@@ -669,7 +669,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
         let menu = self.menu_rows(body, shown);
         let permissions = |panel: &P| scene.permissions(panel);
         let states = dock_states(&DockScene::new(scene.layout, scene.space, false, &permissions), shown);
+        let panels = RefCell::new(&mut *self.panels);
         let mut group = DockGroup::new(anchor.clone(), &titles, PanelKey::of(shown))
+            .extra(|ui, body| panels.borrow_mut().group_header(members, active, ui, body))
             .dock(self.dock)
             .zones(scene.config.zone_rule())
             .movable(scene.permissions(shown).movable)
@@ -681,8 +683,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
         if scene.config.tab_close_buttons {
             group = group.closable();
         }
-        let panels = &mut *self.panels;
-        let output = group.show_at(ui, rect, |ui, body| panels.body(shown, ui, body)).output;
+        let output = group.show_at(ui, rect, |ui, body| panels.borrow_mut().body(shown, ui, body)).output;
         if let Some(panel) = output.picked.and_then(|key| scene.panel(key)) {
             self.report.actions.push(Action::activate(panel.clone()));
             self.report.picked = Some(panel.clone());
