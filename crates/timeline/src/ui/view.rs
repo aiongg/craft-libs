@@ -207,13 +207,6 @@ pub struct TimelineViewStyle {
     marquee_edge: StyleColor,
 }
 
-impl TimelineViewStyle {
-    /// The sizes of the tracks and their headers.
-    pub(super) fn sizes(&self) -> TrackSizes {
-        self.sizes
-    }
-}
-
 /// What the panel works out from its panes in a pass and the view draws over them in the same pass, after the body.
 #[derive(Debug, Default)]
 pub struct Overlay {
