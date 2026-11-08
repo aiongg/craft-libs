@@ -244,6 +244,15 @@ fn carries_value<T: Component + 'static>() -> bool {
     TypeId::of::<ValueOf<T>>() != TypeId::of::<super::NoValue>()
 }
 
+/// A pattern that is a canvas tool. The canvas module implements it for every `CanvasTool` pattern, so the registry
+/// names the kind without importing the tool.
+#[doc(hidden)]
+pub trait ToolPattern: Pattern {}
+
+/// A pattern that is a stack dialog. The dialog module implements it for every `StackDialog` pattern.
+#[doc(hidden)]
+pub trait DialogPattern: Pattern {}
+
 /// What a registered pattern type is. The suite shows the stories of every kind the same way; the kind names the
 /// host the type's stories show it through, so the components index and the gallery list a tool or a stack dialog
 /// beside the components.
@@ -253,9 +262,9 @@ fn carries_value<T: Component + 'static>() -> bool {
 pub enum PatternKind {
     /// A composition of components (`#[derive(Pattern)]`).
     Composition,
-    /// A canvas tool: its stories show it on a canvas (`#[pattern(tool)]`, a [`CanvasTool`](crate::canvas::CanvasTool)).
+    /// A canvas tool: its stories show it on a canvas (`#[pattern(tool)]`, a `CanvasTool`).
     Tool,
-    /// A stack dialog: its stories show its dialog (`#[pattern(dialog)]`, a [`StackDialog`](crate::dialog::StackDialog)).
+    /// A stack dialog: its stories show its dialog (`#[pattern(dialog)]`, a `StackDialog`).
     Dialog,
 }
 
@@ -295,7 +304,7 @@ impl PatternProbe {
     }
 
     /// The probe of the canvas tool `T`.
-    pub const fn tool<T: Pattern + crate::canvas::CanvasTool + 'static>(
+    pub const fn tool<T: ToolPattern + 'static>(
         crate_name: &'static str,
         crate_target: &'static str,
         module: &'static str,
@@ -305,7 +314,7 @@ impl PatternProbe {
     }
 
     /// The probe of the stack dialog `T`.
-    pub const fn dialog<T: Pattern + crate::dialog::StackDialog + 'static>(
+    pub const fn dialog<T: DialogPattern + 'static>(
         crate_name: &'static str,
         crate_target: &'static str,
         module: &'static str,

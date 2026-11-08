@@ -514,6 +514,8 @@ pub trait CanvasTool {
     fn command_form(&self) -> ToolPath;
 }
 
+impl<T: CanvasTool + crate::contract::Pattern> crate::contract::ToolPattern for T {}
+
 /// The tool of a canvas that has none: it takes no press and paints nothing, and its keyboard path is freehand.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct NoTool;

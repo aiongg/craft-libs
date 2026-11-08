@@ -64,7 +64,9 @@ pub use props::{Common, Props, Resolved, Tooltip, TooltipAt, TooltipSpec, Toolti
 #[cfg(feature = "testing")]
 pub use registry::REGISTRATIONS;
 #[doc(hidden)]
-pub use registry::{CollectionEntry, ContainerEntry, Exemption, LeafEntry, PatternKind, PatternProbe, Probe, Registration, ShowEntry};
+pub use registry::{
+    CollectionEntry, ContainerEntry, DialogPattern, Exemption, LeafEntry, PatternKind, PatternProbe, Probe, Registration, ShowEntry, ToolPattern,
+};
 pub use sampler::Sampler;
 pub(crate) use values::landed;
 pub use values::{Bind, BindMut, EditResponse, ItemOutput, NoValue, Outcome, Validity, ValueOf, clicked};
