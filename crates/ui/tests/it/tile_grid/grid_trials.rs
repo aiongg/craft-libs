@@ -223,9 +223,9 @@ fn a_star_click_and_a_digit_key_give_the_same_rate_event() {
 #[trial]
 fn space_toggles_the_lead_tiles_check() {
     let (mut fixture, seen) = rig(4, |grid| grid.checks(true), |_, tile| tile.check(ToggleState::Off));
-    // A click on the picture only selects; the check box is a corner of it.
+    // A click on the far corner of the picture only selects; the check box sits at its start corner.
     let picture = seen.borrow().picture(1);
-    fixture.click_at(picture.center());
+    fixture.click_at(picture.max - Vec2::splat(4.0));
     fixture.idle(2);
     fixture.key(Key::Space, Modifiers::NONE);
     fixture.idle(2);
