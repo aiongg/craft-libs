@@ -154,7 +154,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             sweep.open.push((gesture, before, after));
             return;
         }
-        self.events.push(CollectionEvent::Toggle(EditEvent::set(gesture, Mixed::Same(before), after, cx.core.label_arc(), None)));
+        self.events.push(CollectionEvent::Toggle(EditEvent::set(Mixed::Same(before), after, cx.core.label_arc(), None)));
     }
 
     /// Whether the toggle cell of row `at` in `column` takes a press or a sweep: a section row has no toggles, and the
@@ -312,12 +312,10 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         if to == from && together && !copy && parent == held {
             return;
         }
-        let gesture = crate::runtime::edit::next_gesture_id(&cx.core.ctx);
         let keys: Vec<C::Key> = at.iter().map(|&place| self.source.key(place)).collect();
         let key = payload.grabbed.clone();
         let before = ReorderMove::new(key.clone(), keys.clone(), from, false).in_group(held);
         self.events.push(CollectionEvent::Reorder(EditEvent::set(
-            gesture,
             Mixed::Same(before),
             ReorderMove::new(key, keys, to, copy).in_group(parent),
             cx.core.label_arc(),
@@ -427,10 +425,9 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             return;
         }
         let key = self.source.key(at);
-        let id = crate::runtime::edit::next_gesture_id(&cx.core.ctx);
         let before = ReorderMove::new(key.clone(), vec![key.clone()], at, false).in_group(held);
         let after = ReorderMove::new(key.clone(), vec![key], to, false).in_group(parent);
-        self.events.push(CollectionEvent::Reorder(EditEvent::set(id, Mixed::Same(before), after, cx.core.label_arc(), None)));
+        self.events.push(CollectionEvent::Reorder(EditEvent::set(Mixed::Same(before), after, cx.core.label_arc(), None)));
     }
 
     fn on_screen_rect(&self, rect: Rect) -> Rect {

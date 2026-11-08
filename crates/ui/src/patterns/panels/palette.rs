@@ -15,7 +15,7 @@ use crate::runtime::overlay::CloseReason;
 use crate::runtime::words::common::CommonWords;
 use crate::style::TypeRole;
 use crate::text::TextField;
-use craft_behavior::{DisplayOrder, EditEvent, GestureId, ItemSource, Mixed, Selection};
+use craft_behavior::{DisplayOrder, EditEvent, ItemSource, Mixed, Selection};
 use egui::{Response, Ui};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
@@ -157,7 +157,7 @@ impl<'a> CommandPalette<'a> {
                         let mut after = recent;
                         Self::remember(&mut after, command.clone());
                         let name: Arc<str> = Arc::from(label.as_str());
-                        let _ = bind.reborrow().write(cx, &EditEvent::set(GestureId::default(), Mixed::Same(before), after, name, None));
+                        let _ = bind.reborrow().write(cx, &EditEvent::set(Mixed::Same(before), after, name, None));
                     }
                 }
             });

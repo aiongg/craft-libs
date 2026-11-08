@@ -4,13 +4,13 @@
 use super::Table;
 use super::words::MetadataWords;
 use crate::contract::{
-    Bind, CollectionEvent, CollectionResponse, ColumnKind, ColumnSpec, NoValue, Outcome, Pattern, Props, SelectMode, Show as _,
-    ShowCollection as _, ToggleColumn,
+    Bind, CollectionEvent, CollectionResponse, ColumnKind, ColumnSpec, NoValue, Outcome, Pattern, Props, SelectMode, Show as _, ShowCollection as _,
+    ToggleColumn,
 };
 use crate::list::{ListRow, RowEvent, ToggleCell, ToggleState};
 use crate::runtime::env::{Env, Label};
 use crate::text::TextField;
-use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, GestureId, ItemSource, Mixed};
+use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, ItemSource, Mixed};
 use craft_i18n::matcher::Matcher;
 use egui::{Response, Ui};
 use std::borrow::Cow;
@@ -299,7 +299,7 @@ impl<'a> MetadataTable<'a> {
             }
             if chosen != before {
                 let name: Arc<str> = Arc::from(label.as_str());
-                choose.reborrow().apply(&EditEvent::set(GestureId::default(), Mixed::Same(before), chosen, name, None));
+                choose.reborrow().apply(&EditEvent::set(Mixed::Same(before), chosen, name, None));
             }
         }
         MetadataTableOutput { table, filter_changed, checked }

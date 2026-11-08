@@ -4,7 +4,7 @@ use crate::contract::{BindMut, BodyCx};
 use crate::runtime::commands::Commands as _;
 use crate::runtime::egui::pass;
 use crate::runtime::windows::{WindowAction, WindowHost, os_of};
-use craft_behavior::{EditEvent, GestureId, Mixed};
+use craft_behavior::{EditEvent, Mixed};
 use craft_host::target::{Os, WindowState};
 use egui::Context;
 use std::sync::Arc;
@@ -149,7 +149,7 @@ impl ScreenModeFollow {
         }
         self.applied = mode;
         if mode != before {
-            let event = EditEvent::set(GestureId::default(), Mixed::Same(before), mode, name, None);
+            let event = EditEvent::set(Mixed::Same(before), mode, name, None);
             let _ = bind.write(cx, &event);
         }
         (mode, mode != before)

@@ -155,10 +155,9 @@ impl<'a, K: Clone + PartialEq + std::hash::Hash + Send + Sync + 'static> Section
         if to == from {
             return;
         }
-        let gesture = crate::runtime::edit::next_gesture_id(&cx.core.ctx);
         let before = ReorderMove::new(key.clone(), vec![key.clone()], from, false);
         let after = ReorderMove::new(key.clone(), vec![key.clone()], to, false);
-        self.moves.push(EditEvent::set(gesture, Mixed::Same(before), after, cx.core.label_arc(), None));
+        self.moves.push(EditEvent::set(Mixed::Same(before), after, cx.core.label_arc(), None));
     }
 }
 

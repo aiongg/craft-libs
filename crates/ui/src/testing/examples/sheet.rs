@@ -21,8 +21,8 @@ use crate::primitives::{EditorLine, EditorPurpose, EditorState, PaintShape, Stro
 use crate::runtime::focus::{KeepKeys, KeyUse};
 use crate::style::{ComponentStyle, Flags, Stateful, StyleColor, StyleCx, SurfaceLook};
 use craft_behavior::{
-    CellAdvance, CellSelection, CellSpace, ColumnKey, DisplayOrder, EditEvent, EditorInput, Flow, GestureId, Granularity, Insets, ItemSource,
-    Metrics, Mixed, MoveMods, NavMove, PartKey, SheetLayout,
+    CellAdvance, CellSelection, CellSpace, ColumnKey, DisplayOrder, EditEvent, EditorInput, Flow, Granularity, Insets, ItemSource, Metrics, Mixed,
+    MoveMods, NavMove, PartKey, SheetLayout,
 };
 use craft_keymap::{Chord, Key, Mods};
 use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
@@ -206,7 +206,7 @@ impl<'a> SheetGrid<'a> {
         let moved = after.advance(along, back, &self.cell_space(CellSpace::new(&order, NAMES.len() as u32)));
         if moved {
             let label = cx.core.label_arc();
-            let _ = self.selection.reborrow().write(cx, &EditEvent::set(GestureId::default(), Mixed::Same(before), after, label, None));
+            let _ = self.selection.reborrow().write(cx, &EditEvent::set(Mixed::Same(before), after, label, None));
         }
     }
 

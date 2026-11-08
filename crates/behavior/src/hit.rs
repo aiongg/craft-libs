@@ -40,6 +40,15 @@ pub enum HitShape {
     },
     /// A filled polygon.
     Polygon(Vec<Pos2>),
+    /// The part of a rectangle outside a polygon (even-odd): what a box's surroundings hit, so a press inside a turned
+    /// box is not theirs while one just outside a corner still is.
+    #[non_exhaustive]
+    OutsidePolygon {
+        /// The area the shape lies in.
+        within: Rect,
+        /// The corners of the polygon cut out of `within`.
+        polygon: Vec<Pos2>,
+    },
 }
 
 impl HitShape {
@@ -58,10 +67,15 @@ impl HitShape {
         HitShape::Polyline { points, closed }
     }
 
+    /// The part of `within` outside `polygon`.
+    pub fn outside_polygon(within: Rect, polygon: Vec<Pos2>) -> Self {
+        HitShape::OutsidePolygon { within, polygon }
+    }
+
     /// The smallest rectangle around the shape.
     pub fn bounds(&self) -> Rect {
         match self {
-            HitShape::Rect(rect) => *rect,
+            HitShape::Rect(rect) | HitShape::OutsidePolygon { within: rect, .. } => *rect,
             HitShape::Circle { center, radius } => Rect::from_center_size(*center, Vec2::splat(radius * 2.0)),
             HitShape::Segment { a, b } => Rect::from_two_pos(*a, *b),
             HitShape::Polyline { points, .. } | HitShape::Polygon(points) => {
@@ -86,6 +100,7 @@ impl HitShape {
                 points.windows(2).any(|pair| segment_distance(point, pair[0], pair[1]) <= reach)
                     || closing.is_some_and(|(first, last)| segment_distance(point, *last, *first) <= reach)
             }
+            HitShape::OutsidePolygon { within, polygon } => within.contains(point) && !inside_polygon(point, polygon),
             HitShape::Polygon(points) => {
                 let bounds = self.bounds();
                 let small = bounds.width() < across || bounds.height() < across;
@@ -107,6 +122,7 @@ impl HitShape {
                     || closing.is_some_and(|(first, last)| segment_distance(point, *last, *first) <= LINE_REACH)
             }
             HitShape::Polygon(points) => inside_polygon(point, points),
+            HitShape::OutsidePolygon { within, polygon } => within.contains(point) && !inside_polygon(point, polygon),
         }
     }
 }
@@ -365,5 +381,12 @@ mod tests {
         let triangle = HitShape::Polygon(vec![pos2(0.0, 0.0), pos2(100.0, 0.0), pos2(0.0, 100.0)]);
         assert!(triangle.hit(pos2(20.0, 20.0)));
         assert!(!triangle.hit(pos2(80.0, 80.0)));
+        let around = HitShape::outside_polygon(
+            Rect::from_min_max(pos2(-50.0, -50.0), pos2(150.0, 150.0)),
+            vec![pos2(0.0, 0.0), pos2(100.0, 0.0), pos2(0.0, 100.0)],
+        );
+        assert!(!around.hit(pos2(20.0, 20.0)), "inside the polygon");
+        assert!(around.hit(pos2(80.0, 80.0)), "inside the rectangle, outside the polygon");
+        assert!(!around.hit(pos2(200.0, 200.0)), "outside the rectangle");
     }
 }

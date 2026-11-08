@@ -106,7 +106,7 @@ impl<U: UndoMarks> GestureHost<U> {
     /// Applies one event; `apply` makes the edit for a value and records its undo step.
     pub fn handle<T: Value>(&mut self, doc: &mut U, event: EditEvent<T>, apply: impl Fn(&mut U, T)) {
         let stale = matches!(event, EditEvent::Update { .. } | EditEvent::Commit { .. } | EditEvent::Cancel { .. })
-            && self.ended.is_some_and(|ended| event.id() <= ended);
+            && event.id().zip(self.ended).is_some_and(|(id, ended)| id <= ended);
         if stale {
             return;
         }

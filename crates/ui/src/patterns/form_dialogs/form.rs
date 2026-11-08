@@ -16,7 +16,7 @@ use crate::runtime::words::CommonWords;
 
 use crate::sections::{DialogRole, FooterButton};
 
-use craft_behavior::{EditEvent, GestureId, Mixed, Value};
+use craft_behavior::{EditEvent, Mixed, Value};
 
 use egui::{Response, Ui};
 
@@ -297,7 +297,7 @@ impl<'a, V: Value + Default> FormDialog<'a, V> {
                     _ => opened.clone(),
                 };
                 let target = reset_with.as_ref().map_or(opened.clone(), |target| target(&current, &opened));
-                let _ = bind.reborrow().write(cx, &EditEvent::set(GestureId::default(), Mixed::Same(current), target, name.clone(), None));
+                let _ = bind.reborrow().write(cx, &EditEvent::set(Mixed::Same(current), target, name.clone(), None));
                 if let Some(restore) = on_reset.as_mut() {
                     restore(cx);
                 }
@@ -343,8 +343,7 @@ impl<'a, V: Value + Default> FormDialog<'a, V> {
             let edited = cx.memory::<Opened<V>>().0.as_ref().is_some_and(|opened| *opened != values);
             ResetFooter::report(cx, edited, can_accept);
             if values != before || first {
-                let _ =
-                    held.reborrow().write(cx, &EditEvent::set(GestureId::default(), Mixed::Same(before.clone()), values.clone(), name.clone(), None));
+                let _ = held.reborrow().write(cx, &EditEvent::set(Mixed::Same(before.clone()), values.clone(), name.clone(), None));
                 *changed.borrow_mut() = Some(values.clone());
             }
             *work.borrow_mut() = Some(values);

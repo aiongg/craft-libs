@@ -88,7 +88,6 @@ use crate::contract::{
     Bind, Common, Component, Container, ContainerProps, Cx, Focus as _, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role, Sizing,
 };
 use crate::runtime::commands::{CommandSet as _, CommandState, Commands as _};
-use crate::runtime::edit::next_gesture_id;
 use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;
 use crate::runtime::motion::{Animate as _, spec};
@@ -429,7 +428,7 @@ impl Component for Canvas<'_> {
             if Some(settled.target) != self.given
                 && let Some(view) = self.view.as_mut()
             {
-                let event = EditEvent::set(next_gesture_id(&cx.core.ctx), Mixed::Same(given), settled.target, cx.label_arc(), None);
+                let event = EditEvent::set(Mixed::Same(given), settled.target, cx.label_arc(), None);
                 let _ = view.reborrow().write(cx, &event);
             }
             Some(settled)

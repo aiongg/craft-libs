@@ -11,7 +11,7 @@ use crate::pickers::Select;
 use crate::runtime::commands::{CommandState, Commands as _};
 use crate::runtime::env::{Env, Label};
 use crate::style::TypeRole;
-use craft_behavior::{EditEvent, GestureId, IconId, Mixed};
+use craft_behavior::{EditEvent, IconId, Mixed};
 use craft_theme::ControlSize;
 use egui::{Response, Ui};
 use std::sync::Arc;
@@ -121,7 +121,7 @@ impl<'a> FullWindowZoomBar<'a> {
             }
             if next != shown {
                 let name: Arc<str> = Arc::from(env.view().resolve(&Label::from(words.full_window_zoom.clone())).as_str());
-                let _ = bind.write(cx, &EditEvent::set(GestureId::default(), Mixed::Same(shown), next, name, None));
+                let _ = bind.write(cx, &EditEvent::set(Mixed::Same(shown), next, name, None));
             }
             match (progress, &note) {
                 (Some(Some(fraction)), _) => {

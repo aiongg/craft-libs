@@ -1,8 +1,10 @@
 //! `Canvas` (20.6): a press away from every canvas control's parts reaches the tool.
 
 mod crop;
+mod outside_polygon;
 mod readout;
 mod tool;
+mod tool_gestures;
 
 // canvas-navigate-a
 mod navigate;

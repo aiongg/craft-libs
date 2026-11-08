@@ -345,6 +345,8 @@ pub enum PointerEvent {
         /// Where.
         pos: Pos2,
     },
+    /// The pointer left the window or was lost: a press under way can no longer click.
+    Gone,
 }
 
 impl PointerEvent {
@@ -509,6 +511,11 @@ impl<T: Copy> PressMachine<T> {
                         }
                     }
                 }
+                PointerEvent::Gone => {
+                    if let Some(open) = &mut self.open {
+                        open.abandoned = true;
+                    }
+                }
                 PointerEvent::Pressed { button, pos: at, time, clicks } => {
                     pos = at;
                     // A release held for the next pass gives way to a new press; it ends in this pass.
@@ -619,6 +626,20 @@ mod tests {
         assert!(step.phase.is_some_and(|phase| phase.is_click()));
         assert_eq!(step.activated, Some(1));
         assert_eq!(machine.target(), None);
+    }
+
+    #[test]
+    fn a_release_after_the_pointer_is_gone_is_not_a_click() {
+        let mut machine = PressMachine::new();
+        pass(&mut machine, &[press(0.0, 1.0)], Sense::CLICK);
+        let step = pass(&mut machine, &[PointerEvent::Gone, PointerEvent::released(pos2(0.0, 0.0))], Sense::CLICK);
+        assert!(matches!(step.phase, Some(PressPhase::Release { click: false, .. })));
+        assert_eq!(step.activated, None);
+
+        pass(&mut machine, &[press(0.0, 2.0)], Sense::CLICK);
+        pass(&mut machine, &[PointerEvent::Gone], Sense::CLICK);
+        let step = pass(&mut machine, &[PointerEvent::released(pos2(0.0, 0.0))], Sense::CLICK);
+        assert_eq!(step.activated, None, "a release in a later pass is no click either");
     }
 
     #[test]

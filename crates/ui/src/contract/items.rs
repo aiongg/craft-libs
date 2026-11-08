@@ -567,7 +567,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             Some(mut bind) => {
                 let (label, doc_key) = (cx.core.label_arc(), cx.core.resolved.doc_key);
                 let before = self.selection_at_read.clone();
-                bind.apply(&EditEvent::set(GestureId::default(), Mixed::Same(before), self.selection.clone(), label, doc_key));
+                bind.apply(&EditEvent::set(Mixed::Same(before), self.selection.clone(), label, doc_key));
             }
             None => cx.core.memory.session::<Held<C::Selection>>(sub(id, "selection")).0 = self.selection.clone(),
         }
@@ -854,7 +854,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     let (label, doc_key) = (cx.core.label_arc(), cx.core.resolved.doc_key);
                     let (before, after) =
                         (ScrollPos { x: self.offset_x_at_read, y: self.offset_at_read }, ScrollPos { x: self.offset_x, y: self.offset });
-                    bind.apply(&EditEvent::set(GestureId::default(), Mixed::Same(before), after, label, doc_key));
+                    bind.apply(&EditEvent::set(Mixed::Same(before), after, label, doc_key));
                 }
                 None => {
                     let scrolled = cx.core.memory.session::<Scrolled>(sub(id, "scroll"));

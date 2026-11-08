@@ -1,17 +1,17 @@
 //! `EditHistory`: taking back a refused step returns the value before it and keeps the redo steps.
 
 use craft_behavior::edit_history::Step;
-use craft_behavior::{EditEvent, EditHistory, GestureId, Mixed};
+use craft_behavior::{EditEvent, EditHistory, Mixed};
 
-fn set(n: u64, before: i32, after: i32) -> EditEvent<i32> {
-    EditEvent::set(GestureId::new(n), Mixed::Same(before), after, "Fill".into(), None)
+fn set(before: i32, after: i32) -> EditEvent<i32> {
+    EditEvent::set(Mixed::Same(before), after, "Fill".into(), None)
 }
 
 #[test]
 fn taking_back_the_last_step_returns_the_value_before_it_and_keeps_the_redo_steps() {
     let mut history = EditHistory::new(&0);
-    history.record(&set(1, 0, 1));
-    history.record(&set(2, 1, 2));
+    history.record(&set(0, 1));
+    history.record(&set(1, 2));
     let mut now = 2;
     assert!(history.step(&mut now, Step::Undo));
     assert_eq!(now, 1);

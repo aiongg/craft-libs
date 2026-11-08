@@ -6,7 +6,6 @@ use crate::canvas::{Canvas, CanvasTool, HandTool, Momentary, NavigationOptions, 
 use crate::contract::{Bind, NoValue, Outcome, Props as _, Show as _, ShowContainer as _};
 use crate::layout_components::Stack;
 use crate::primitives::{Checker, Revision};
-use crate::runtime::edit::next_gesture_id;
 use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::{global, with_session};
 use craft_behavior::geometry::quad::Homography;
@@ -261,7 +260,7 @@ impl<'a> FullWindowCanvas<'a> {
             // The host's view is the tool's, else the canvas's own (the wheel, a middle-button pan, the clamp).
             let next = shown.took(hosted.view.unwrap_or_else(|| shown.view()));
             if next != given {
-                let event = EditEvent::set(next_gesture_id(ui.ctx()), Mixed::Same(given), next, name.clone(), None);
+                let event = EditEvent::set(Mixed::Same(given), next, name.clone(), None);
                 let _ = bind.write(cx, &event);
             }
             let hover = output.response.hover_pos().filter(|_| output.response.hovered()).map(|at| next.view().to_doc(at));

@@ -17,7 +17,7 @@ use crate::runtime::env::{Env, Label, UnitKind, Units};
 
 use crate::runtime::memory::Remember as _;
 use crate::text::TextField;
-use craft_behavior::{EditEvent, GestureId, Mixed};
+use craft_behavior::{EditEvent, Mixed};
 
 use egui::{Response, Ui};
 
@@ -222,7 +222,7 @@ impl<'a> Watermark<'a> {
             rows(ui, &words, &units, &mut now, &mut stash, &mut requests);
             *cx.memory::<Stash>() = stash;
             if now != before {
-                let _ = value.reborrow().write(cx, &EditEvent::set(GestureId::default(), Mixed::Same(before), now.clone(), name.clone(), None));
+                let _ = value.reborrow().write(cx, &EditEvent::set(Mixed::Same(before), now.clone(), name.clone(), None));
                 next = Some(now);
             }
         });

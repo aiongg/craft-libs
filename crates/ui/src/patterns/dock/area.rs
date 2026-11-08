@@ -346,7 +346,7 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
             result.actions.extend(dropped.take());
             if !result.actions.is_empty() {
                 let proposed = std::mem::take(&mut result.actions);
-                let applied = apply_actions(&ctx, body, workspace.reborrow(), &current, &*panels, locked, &label, proposed);
+                let applied = apply_actions(body, workspace.reborrow(), &current, &*panels, locked, &label, proposed);
                 result.actions = applied.actions;
                 result.edit = applied.edit.or(result.edit.take());
             }
@@ -371,7 +371,6 @@ struct Applied<P> {
 /// `locked`). A refused action changes nothing and is left out of the result. The accepted ones are written as one
 /// edit, which a given workspace does not take. `current` is the workspace as the pass started.
 fn apply_actions<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
-    ctx: &Context,
     body: &mut BodyCx<'_>,
     mut workspace: BindMut<'_, Workspace<P>>,
     current: &Workspace<P>,
@@ -395,7 +394,7 @@ fn apply_actions<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
     if actions.is_empty() {
         return Applied { actions, edit: None };
     }
-    let edit = EditEvent::set(crate::runtime::edit::next_gesture_id(ctx), Mixed::Same(before), next, Arc::from(label.as_str()), None);
+    let edit = EditEvent::set(Mixed::Same(before), next, Arc::from(label.as_str()), None);
     workspace.write(body, &edit);
     Applied { actions, edit: Some(edit) }
 }
@@ -987,7 +986,7 @@ fn window_edit<P: Clone + Eq + Hash>(
         },
         GesturePhase::Commit => match moving.take() {
             Some(held) => Some(EditEvent::commit(held.id, Mixed::Same(held.before), moved()?)),
-            None => Some(EditEvent::set(crate::runtime::edit::next_gesture_id(ctx), Mixed::Same(current.clone()), moved()?, label, None)),
+            None => Some(EditEvent::set(Mixed::Same(current.clone()), moved()?, label, None)),
         },
         _ => moving.take().map(|held| EditEvent::cancel(held.id, CancelReason::Dismissed, Some(Mixed::Same(held.before)))),
     }

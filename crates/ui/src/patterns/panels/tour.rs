@@ -12,7 +12,7 @@ use crate::runtime::env::{Env, Label};
 use crate::runtime::focus::Initial;
 use crate::runtime::overlay::{Backdrop, Rank};
 use craft_behavior::overlay::{Align, Side};
-use craft_behavior::{EditEvent, GestureId, Mixed};
+use craft_behavior::{EditEvent, Mixed};
 use craft_theme::variant::Tone;
 use egui::{Rect, Ui};
 use std::sync::Arc;
@@ -163,7 +163,7 @@ impl<'a> Tour<'a> {
                     };
                     if let Some(to) = moved {
                         let name: Arc<str> = Arc::from(label.as_str());
-                        let _ = index.reborrow().write(cx, &EditEvent::set(GestureId::default(), Mixed::Same(held), to, name, None));
+                        let _ = index.reborrow().write(cx, &EditEvent::set(Mixed::Same(held), to, name, None));
                     }
                 });
             event = taken.or(shown.output.closed.map(|_| TourEvent::Skipped));
