@@ -12,7 +12,7 @@ use std::rc::Rc;
 
 const PLATFORMS: [(Os, bool); 2] = [(Os::Linux, true), (Os::Mac, false)];
 
-/// A menu bar title reports its access key off a Mac and none on a Mac.
+/// A menu bar title reports its access key off a Mac and none on a Mac. The window draws its own frame, so the bar is in the window on both.
 #[trial]
 fn a_bar_title_has_an_access_key_off_a_mac_only() {
     for (os, lettered) in PLATFORMS {
@@ -22,7 +22,7 @@ fn a_bar_title_has_an_access_key_off_a_mac_only() {
             })];
             MenuBar::new("Main menu", titles).show(ui);
         });
-        fixture.os(os).settle();
+        fixture.os(os).chrome(craft_host::target::WindowChrome::Integrated).settle();
         let file = fixture.by_label("File").expect("the File title");
         assert_eq!(fixture.tree().access_key_of(file.node), lettered.then_some('F'), "{os:?}");
     }
