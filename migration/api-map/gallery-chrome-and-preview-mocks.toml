@@ -172,7 +172,7 @@ name = "MockState"
 old = ""
 new = "craft_ui_gallery::mock::MockState"
 status = "replaced"
-note = "Replaces the legacy `Mock`. Shrunk to the dock workspace, the document (title, dirty flag, size, layers, view, ruler zero, rulers), the current tool, the last-used tools, the status bar item, the colour pair and the maximized panel. Dialogs live on the window's dialog host, not in the state."
+note = "Replaces the legacy `Mock`. Shrunk to the dock workspace, the document (title, dirty flag, size, layers by id, the layer selection, view, ruler zero and unit, guides, the marquee selection, rulers), the current tool, the last-used tools, the status bar item, the colour pair and the maximized panel. Dialogs live on the window's dialog host, not in the state."
 
 [[type]]
 name = "layers"
@@ -186,14 +186,28 @@ name = "Document"
 old = "craft_ui_gallery_legacy::preview::model::Doc"
 new = "craft_ui_gallery::mock::Document"
 status = "replaced"
-note = "The open document of the mock: title, dirty flag, size, layers, current layer, canvas view, ruler zero and the rulers flag. `resize(PixelSize)` applies the Image Size answer."
+note = "The open document of the mock: title, dirty flag, size, layers (top first), the layer selection whose lead is the current layer, the canvas view (a never-shown view opens fitted; the canvas sets its rect), ruler zero and unit, guides, the Marquee selection and drag, and the rulers flag, which the canvas's `show_rulers` follows. `resize(PixelSize)` applies the Image Size answer."
 
 [[type]]
 name = "Layer"
 old = "craft_ui_gallery_legacy::preview::model::Layer"
 new = "craft_ui_gallery::mock::Layer"
 status = "replaced"
-note = "A named layer with a visibility flag."
+note = "A layer with a stable `LayerId`, a name, a visibility flag, a colour and the page bounds it fills; the layer table keys its rows by the id."
+
+[[type]]
+name = "LayerId"
+old = ""
+new = "craft_ui_gallery::mock::LayerId"
+status = "replaced"
+note = "The stable identity of a layer."
+
+[[type]]
+name = "MarqueeDrag"
+old = ""
+new = "craft_ui_gallery::mock::MarqueeDrag"
+status = "replaced"
+note = "The rectangle the Marquee tool is dragging out: the press point and the pointer point, in document units."
 
 [[type]]
 name = "Panel"
