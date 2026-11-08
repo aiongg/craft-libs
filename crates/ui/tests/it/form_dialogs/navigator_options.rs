@@ -68,11 +68,11 @@ fn diag_open_state() {
         let options = Rc::new(RefCell::new(NavigatorOptions::new(start)));
         let requests = Rc::new(RefCell::new(HostRequests::new()));
         let mut fixture = panel_options(&options, &requests);
-        let before = fixture.by_role(Role::OPTION).len();
+        let before = fixture.by_role(Role::LIST_BOX_OPTION).len();
         let list = fixture.by_label("Color").expect("Color");
         fixture.click(&list);
         fixture.settle();
-        report += &format!("[{start:?}: options before {before}, after click {}, focused {}] ", fixture.by_role(Role::OPTION).len(), fixture.focused().is_some());
+        report += &format!("[{start:?}: options before {before}, after click {}, focused {}] ", fixture.by_role(Role::LIST_BOX_OPTION).len(), fixture.focused().is_some());
     }
     panic!("{report}");
 }
