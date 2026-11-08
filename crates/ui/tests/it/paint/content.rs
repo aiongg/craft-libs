@@ -3,7 +3,7 @@
 use craft_behavior::Mixed;
 use craft_i18n::Direction;
 use craft_theme::{Contrast, Mode};
-use craft_ui::contract::{Bind, Props as _, Show as _};
+use craft_ui::contract::{Bind, Show as _};
 use craft_ui::primitives::{IconSpec, StrokeWidth, ToolIcon};
 use craft_ui::style::{DataColor, Ink};
 use craft_ui::testing::style::{paint_frame, tokens};
@@ -16,7 +16,10 @@ use std::rc::Rc;
 const RECT: Rect = Rect::from_min_max(pos2(10.0, 10.0), pos2(90.0, 40.0));
 const PICTOGRAM: Color32 = Color32::from_rgb(200, 30, 90);
 const FULL: std::ops::RangeInclusive<f64> = 0.0..=100.0;
+const SPARSE: f32 = 1.0;
 const DENSE: f32 = 2.0;
+const MIDDLE: f64 = 50.0;
+const EPS: f32 = 1e-3;
 
 #[trial]
 fn an_icon_with_a_data_colour_paints_in_that_colour() {
@@ -28,18 +31,23 @@ fn an_icon_with_a_data_colour_paints_in_that_colour() {
     assert!(tinted, "the icon is tinted with the data colour and not the panel ink");
 }
 
-#[trial]
-fn a_hairline_is_one_physical_pixel() {
+/// The width in points a content painter reports for a hairline at `pixels_per_point`.
+fn hairline_at(pixels_per_point: f32) -> f32 {
     let seen = Rc::new(Cell::new(None));
     let record = seen.clone();
     let mut fixture = Fixture::new(move |ui| {
         let record = record.clone();
-        PointPicker::new(Bind::given(Mixed::each([50.0, 50.0])), FULL, FULL)
+        PointPicker::new(Bind::given(Mixed::each([MIDDLE, MIDDLE])), FULL, FULL)
             .backdrop(move |cx, _| record.set(Some(cx.stroke_width(StrokeWidth::Hairline))))
             .show(ui);
     });
-    fixture.ctx().set_pixels_per_point(DENSE);
+    fixture.ctx().set_pixels_per_point(pixels_per_point);
     fixture.settle();
-    let width = seen.get().unwrap_or_default();
-    assert!((width * DENSE - 1.0).abs() < 1e-3, "a hairline is {width} points, one pixel at {DENSE} pixels per point");
+    seen.get().unwrap_or_default()
+}
+
+#[trial]
+fn a_hairline_stays_one_physical_pixel_as_the_density_grows() {
+    let (sparse, dense) = (hairline_at(SPARSE), hairline_at(DENSE));
+    assert!((sparse - dense * DENSE / SPARSE).abs() < EPS, "{sparse} points at {SPARSE} pixels per point, {dense} at {DENSE}");
 }

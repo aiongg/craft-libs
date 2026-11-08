@@ -6,7 +6,7 @@
 #[cfg(feature = "testing")]
 mod stories;
 
-use super::browser::PresetBrowser;
+use super::browser::{PresetBrowser, ThumbPainter};
 use super::event::PresetEvent;
 use super::model::{CellShape, PresetRow, ThumbInfo};
 use super::state::{DefaultOpen, PresetState, PresetView};
@@ -148,16 +148,14 @@ pub struct PresetPicker<'a, K: Value + Eq + Hash + 'static> {
     /// The label of the row below the presets that detaches the value from its preset.
     #[prop(into)]
     detach_row: Option<Label>,
-    /// Paints the browser's thumbnails, over each row's own `preview`.
-    thumb: Option<ThumbFn<'a, K>>,
+    /// Paints the popover's thumbnails (a swatch, a gradient ramp, a brush tip) in place of each row's own `preview`.
+    #[prop(func = "Fn(&ContentPainterCx, Rect, ThumbInfo<'_, K>)")]
+    preview: Option<ThumbPainter<'a, K>>,
     picked: Option<K>,
     create: bool,
     detach: bool,
     events: Vec<PresetEvent<K>>,
 }
-
-/// Paints a preset's thumbnail in the popover: the content painter, the rect and what the browser knows of the preset.
-type ThumbFn<'a, K> = Box<dyn Fn(&ContentPainterCx, Rect, ThumbInfo<'_, K>) + 'a>;
 
 impl<'a, K: Value + Eq + Hash + 'static> PresetPicker<'a, K> {
     /// A picker named `label` over `value`, choosing among the presets of `rows`.
@@ -180,21 +178,13 @@ impl<'a, K: Value + Eq + Hash + 'static> PresetPicker<'a, K> {
             display_name: None,
             create_row: None,
             detach_row: None,
-            thumb: None,
+            preview: None,
             picked: None,
             create: false,
             detach: false,
             events: Vec::new(),
         }
         .label(label)
-    }
-
-    /// Paints the thumbnails of the popover's browser with `paint` (a swatch, a gradient ramp, a brush tip), in place
-    /// of each row's own `preview`.
-    #[must_use]
-    pub fn preview(mut self, paint: impl Fn(&ContentPainterCx, Rect, ThumbInfo<'_, K>) + 'a) -> Self {
-        self.thumb = Some(Box::new(paint));
-        self
     }
 
     /// The rows the picker chooses among.
@@ -307,7 +297,7 @@ impl<K: Value + Eq + Hash + 'static> Component for PresetPicker<'_, K> {
         let (can_rename, can_delete, can_move, row_menu) =
             (self.can_rename.as_ref(), self.can_delete.as_ref(), self.can_move.as_ref(), self.row_menu);
         let state = &mut self.state;
-        let (create_row, detach_row, thumb) = (self.create_row.as_ref(), self.detach_row.as_ref(), self.thumb.as_deref());
+        let (create_row, detach_row, preview) = (self.create_row.as_ref(), self.detach_row.as_ref(), self.preview.as_ref());
         let out = ui.show(popup, Overlay::popover(), |ui, _| {
             let mut browser = PresetBrowser::new(name.clone(), state.reborrowed(), rows)
                 .cell_shape(shape)
@@ -327,8 +317,8 @@ impl<K: Value + Eq + Hash + 'static> Component for PresetPicker<'_, K> {
             if let Some(test) = can_move {
                 browser = browser.can_move(|key| test.passes(key));
             }
-            if let Some(paint) = thumb {
-                browser = browser.thumb(|cx, rect, info| paint(cx, rect, info));
+            if let Some(painter) = preview {
+                browser = browser.thumb_painter(painter.clone());
             }
             let out = browser.show(ui);
             // The actions follow the presets, set off by a separator, as the preset menu lists them.

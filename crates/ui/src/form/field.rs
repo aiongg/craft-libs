@@ -45,7 +45,9 @@ pub struct Field {
     help: Option<Help>,
     /// The layout `Field::layout` set, which `Field::side` keeps.
     layout: Option<FieldLayout>,
-    /// The text `Field::value` reports as the node's value.
+    /// The static text a readout field reports as its node's value, for a field whose body shows that text (a
+    /// `Text` in the body closure). The value is read by assistive technology and by tests; it is not editable.
+    #[prop(into)]
     value: Option<String>,
 }
 
@@ -61,14 +63,6 @@ impl Field {
     pub fn layout(mut self, layout: FieldLayout) -> Self {
         self.layout = Some(layout);
         self.props.label = self.props.label.take().map(|side| side.layout(layout));
-        self
-    }
-
-    /// The static text a readout field reports as its node's value, for a field whose body shows that text (a
-    /// `Text` in the body closure). The value is read by assistive technology and by tests; it is not editable.
-    #[must_use]
-    pub fn value(mut self, text: impl Into<String>) -> Self {
-        self.value = Some(text.into());
         self
     }
 

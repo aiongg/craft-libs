@@ -1,12 +1,13 @@
 //! `EditResponse::lifted`: a composite's response carries the lifted event and clear flags.
 
 use craft_behavior::{EditEvent, GestureId, Mixed};
-use craft_ui::contract::{EditResponse, Validity};
+use craft_ui::contract::{EditResponse, Show as _, Validity};
+use craft_ui::display::Text;
 use craft_ui::testing::{Frames, trial};
-use egui::{Sense, vec2};
+
 use std::sync::Arc;
 
-const SIDE: f32 = 10.0;
+const LABEL: &str = "Gain";
 const BEFORE: f64 = 1.0;
 const AFTER: f64 = 2.0;
 
@@ -15,7 +16,7 @@ fn a_lifted_response_carries_the_event_and_the_shown_value_with_clear_flags() {
     let mut frames = Frames::new();
     let mut made = None;
     frames.frame_shapes(|ui| {
-        let response = ui.allocate_response(vec2(SIDE, SIDE), Sense::hover());
+        let response = Text::new(LABEL).show(ui);
         let event = EditEvent::commit(GestureId::default(), Mixed::Same(BEFORE), AFTER);
         made = Some(EditResponse::lifted(response, Some(event), Some(Mixed::Same(Arc::new(AFTER)))));
     });
