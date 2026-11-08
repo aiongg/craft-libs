@@ -3,7 +3,6 @@
 use craft_fonts_build::EmbeddedFace;
 use craft_ui::fonts::{FontRef, I18nScripts, Sample, Stack, SystemFonts, UiFonts, assert_covers, missing_glyphs};
 use craft_ui::testing::trial;
-use egui::FontDefinitions;
 
 const ARABIC: &[u8] = include_bytes!("../../fonts/NotoSansArabic-test.ttf");
 /// Noto Sans with Vietnamese ổ but not ẫ.
@@ -11,7 +10,7 @@ const NOTO_SANS: &[u8] = include_bytes!("../../fonts/NotoSans-test.ttf");
 const CJK: &[u8] = include_bytes!("../../fonts/NotoSansCJKsc-test.otf");
 
 fn test_stack(ui_language: &str) -> Stack {
-    let ubuntu = (**FontDefinitions::default().font_data.get("Ubuntu-Light").expect("egui default_fonts in dev-dependencies")).clone();
+    let ubuntu = (**craft_ui::fonts::deflated_default_definitions().font_data.get("Ubuntu-Light").expect("an egui default face")).clone();
     UiFonts::new(&I18nScripts)
         .app_face("ui", ubuntu, &[FontRef::proportional()])
         .craft_faces(&[

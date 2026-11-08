@@ -10,7 +10,7 @@ use craft_ui::contract::{Common, Component, Cx, MeasureCx, Props as _, Role, Sho
 use craft_ui::fonts::{self, DOCUMENT_FACES_PER_PASS, DocumentFaces, FaceBytes, FaceState, MAX_DOCUMENT_FACES};
 use craft_ui::style::{ComponentStyle, StyleCx};
 use craft_ui::testing::{Frames, trial};
-use egui::{FontDefinitions, Response, Vec2};
+use egui::{Response, Vec2};
 
 const FONT: &[u8] = include_bytes!("../../fonts/NotoSans-test.ttf");
 
@@ -164,7 +164,7 @@ fn faces_are_registered_again_after_the_definitions_are_replaced() {
     until_ready(&mut frames, &tally, &owners);
     assert_eq!(tally.loads(), 3);
 
-    fonts::load(&frames.ctx, FontDefinitions::default());
+    fonts::load(&frames.ctx, craft_ui::fonts::deflated_default_definitions());
     frame(&mut frames, &tally, &owners, false);
     assert!(keys(0..3).iter().all(|key| tally.state(key) == FaceState::Loading), "the replaced faces wait for their registration");
     assert_eq!(tally.loads(), 6, "each face loads again");

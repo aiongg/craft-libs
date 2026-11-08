@@ -56,7 +56,7 @@ pub fn wrapped_text(ui: &mut Ui, text: &str) {
     fixture::wrapped_text(ui, text);
 }
 
-/// The default font definitions in another order.
+/// The test font definitions in another order.
 pub fn reordered_fonts() -> egui::FontDefinitions {
     fixture::reordered_fonts()
 }
