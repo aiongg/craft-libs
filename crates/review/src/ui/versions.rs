@@ -582,7 +582,7 @@ impl<'a> VersionPreviewBanner<'a> {
         let mut open = true;
         let mut action = None;
         let shown = Popover::new(title.clone(), Bind::bound(&mut open)).at_point(Pos2::new(canvas.center().x, canvas.top())).show(ui, |ui, _| {
-            Row::new().label(label).show(ui, |ui, _| {
+            Row::new().label(label.clone()).show(ui, |ui, _| {
                 Text::new(title.clone()).role(TypeRole::Label).show(ui);
                 Text::new(age_text(&env.view(), version.created, now)).shade(Shade::Muted).show(ui);
                 if clicked(&Button::new(words.restore.clone()).variant(Variant::PRIMARY).show(ui)) {
