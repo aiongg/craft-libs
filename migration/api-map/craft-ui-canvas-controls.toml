@@ -485,7 +485,7 @@ note = "The edit policy belongs to the `Bind`."
 [[setter]]
 type = "Guides"
 old = "drag_from_ruler(ctx, guides, orientation)"
-new = "pending(Option<GuideDrag>), fed by `RulersOutput::guide`; show the Rulers before the Guides"
+new = "pending(GuideDrag), set only while a ruler drag runs, fed by `RulersOutput::guide`; show the Rulers before the Guides"
 
 [[setter]]
 type = "Guides"

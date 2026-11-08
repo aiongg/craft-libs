@@ -153,6 +153,8 @@ pub struct Guides<'a> {
     /// The distance an arrow key moves a guide with Shift held, in document units.
     #[prop(quantity = "document units")]
     big_step: f64,
+    /// The guide a ruler is creating, as the rulers report it in this pass (`RulersOutput::guide`); not set, none shows.
+    #[prop]
     pending: Option<GuideDrag>,
     report: Report,
 }
@@ -173,13 +175,6 @@ impl<'a> Guides<'a> {
             report: Report::default(),
         }
         .label(label)
-    }
-
-    /// The guide a ruler is creating, as the rulers report it in this pass (`RulersOutput::guide`); `None` shows none.
-    #[must_use]
-    pub fn pending(mut self, drag: Option<GuideDrag>) -> Self {
-        self.pending = drag;
-        self
     }
 
     /// `position` snapped: to the ruler's minor ticks with Shift, otherwise by the host.
