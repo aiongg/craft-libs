@@ -131,9 +131,6 @@ impl TextRuler<'_> {
         let part = item.part();
         // A stop set in this pass has no part until the next one.
         let Some(press) = cx.part_if_declared(part).map(|declared| declared.press) else { return };
-        if !matches!(press.phase, PressPhase::Idle) {
-            eprintln!("DIAG item {item:?} phase {:?}", press.phase);
-        }
         match press.phase {
             PressPhase::Down { start, .. } if start.button == PointerButton::Primary => {
                 if let Item::Stop(at) = item {
