@@ -1298,11 +1298,12 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     ) {
         for (column, toggle) in self.header.toggle_columns() {
             let Some((_, rect)) = cells.iter().find(|(held, _)| *held == column) else { continue };
-            let Some(name) = self.header.cell_name(ctx, item, &column, env) else { continue };
+            let Some((name, mixed)) = self.header.cell_name(ctx, item, &column, env) else { continue };
             let mut node =
                 access::SubNode::new(TOGGLE_CELL.at(key_hash(&(key, &column))), if toggle.exclusive { Role::RADIO_BUTTON } else { Role::SWITCH });
             node.name = access::Name::Text(name);
             node.flags.set(crate::style::Flags::CHECKED, self.source.toggled(at, &column));
+            node.flags.set(crate::style::Flags::MIXED, mixed);
             let decl = access::SubDecl {
                 owner: id,
                 component: "",
