@@ -1137,6 +1137,7 @@ name = "craft-browse"
 version = "0.1.0"
 dependencies = [
  "craft-behavior",
+ "craft-browse",
  "craft-docpath",
  "craft-host",
  "craft-i18n",
