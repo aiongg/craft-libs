@@ -1,6 +1,6 @@
 //! Tests of the Select and Mask workspace: its tools, session, panel and keys.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -9,6 +9,7 @@ use std::time::Duration;
 use craft_behavior::edit_history::Step;
 use craft_behavior::kurbo::Point;
 use craft_behavior::{CancelReason, CanvasView, Cursor, PixelSize, PointerButton};
+use craft_host::{AppInfo, Host, InlineJobs};
 use craft_imaging::trace::MaskSource;
 use craft_imaging::ui::mask_view::{MaskViewKeys, MaskViewMode, MaskViewState};
 use craft_imaging::ui::select_mask::{
@@ -50,11 +51,13 @@ struct Rig {
     options: SelectMaskToolOptions,
     tool: SelectMaskTool,
     real_time: bool,
+    /// The room the view was last made for: the view's document origin is its centre.
+    room: Rc<Cell<Rect>>,
 }
 
 impl Rig {
     fn new(tool: SelectMaskTool, real_time: bool) -> Self {
-        Rig { canvas: SelectMaskCanvas::new(), options: SelectMaskToolOptions::default(), tool, real_time }
+        Rig { canvas: SelectMaskCanvas::new(), options: SelectMaskToolOptions::default(), tool, real_time, room: Rc::new(Cell::new(Rect::ZERO)) }
     }
 }
 
@@ -126,13 +129,18 @@ fn rig(tool: SelectMaskTool, real_time: bool) -> ToolFixture<Rig> {
         SelectMaskTool::PolygonalLasso => "Polygonal Lasso",
         _ => "Canvas",
     };
-    let view = |room: Rect| CanvasView::new(room, Point::ZERO, 1.0);
-    ToolFixture::with_view(label, Rig::new(tool, real_time), view, |_, _| {})
+    let rig = Rig::new(tool, real_time);
+    let seen = Rc::clone(&rig.room);
+    let view = move |room: Rect| {
+        seen.set(room);
+        CanvasView::new(room, Point::ZERO, 1.0)
+    };
+    ToolFixture::with_view(label, rig, view, |_, _| {})
 }
 
 /// The screen point of document point `(x, y)`.
 fn at(fixture: &ToolFixture<Rig>, x: f32, y: f32) -> Pos2 {
-    fixture.canvas().center() + Vec2::new(x, y)
+    fixture.tool().room.get().center() + Vec2::new(x, y)
 }
 
 fn events(fixture: &ToolFixture<Rig>) -> Vec<SelectMaskEvent> {
@@ -518,6 +526,7 @@ fn open() -> (Fixture, Rc<RefCell<App>>, Arc<AtomicUsize>) {
         app.events.extend(out.events);
         app.closed = app.closed.or(out.closed);
     });
+    fixture.host(Arc::new(Host::builder(AppInfo { id: "trial", name: "Trial", version: "0" }).jobs(Arc::new(InlineJobs)).build()));
     fixture.room(Vec2::new(1200.0, 900.0));
     fixture.settle();
     (fixture, app, jobs)

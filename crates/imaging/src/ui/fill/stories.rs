@@ -13,12 +13,13 @@ use egui::Ui;
 use craft_behavior::kurbo::Rect;
 use craft_ui::canvas::RasterSource;
 use craft_ui::contract::Bind;
-use craft_ui::runtime::pending::Job;
+use craft_ui::dialog::FullWindowView;
+use craft_ui::runtime::pending::{Job, Pending};
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 
 use super::{
-    ContentAwareFillWorkspace, FillBar, FillLimits, FillOpen, FillPanel, FillPreviewRequest, FillSettings, FillSource, FillTool, FillToolOptions,
-    SamplingMode, SamplingPlane,
+    ContentAwareFillWorkspace, FillBar, FillLimits, FillOpen, FillPanel, FillPreviewPane, FillPreviewRequest, FillSettings, FillSource, FillTool,
+    FillToolOptions, PreviewFraming, SamplingMode, SamplingPlane,
 };
 use crate::ui::mock_image::MockImage;
 use crate::ui::wide_angle::PreviewDone;
@@ -191,4 +192,37 @@ fn bar_of_the_sampling_brush(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(FillBar<'static>, covers = [], drive = Drive::Never)]
 fn bar_of_the_lasso(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     bar(ui, data, FillTool::Lasso)
+}
+
+/// The pane's view and framing, which a story keeps between passes.
+#[derive(Clone, PartialEq)]
+struct PaneState {
+    view: FullWindowView,
+    framing: PreviewFraming,
+}
+
+/// The pane over the mock picture, framed on the story source's sampling window, with the job in `status`.
+fn preview_pane(ui: &mut Ui, data: &mut StoryData, status: &Pending<PreviewDone, String>) -> StoryOutput {
+    let image = MockImage::default();
+    let window = StorySource::new(image, Preview::Loading).window;
+    let state = data.value("pane", PaneState { view: FullWindowView::new(), framing: PreviewFraming::default() });
+    let shown = FillPreviewPane::new(&mut state.view, &mut state.framing, status, &image).frame(Some(window)).show(ui);
+    let mut output = StoryOutput::default();
+    output.id = Some(shown.id);
+    output
+}
+
+#[story(FillPreviewPane<'static>, covers = [Default], drive = Drive::Never)]
+fn preview_pane_with_the_result(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    preview_pane(ui, data, &Pending::Ready(PreviewDone::new(Duration::ZERO)))
+}
+
+#[story(FillPreviewPane<'static>, covers = [], drive = Drive::Never)]
+fn preview_pane_while_loading(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    preview_pane(ui, data, &Pending::default())
+}
+
+#[story(FillPreviewPane<'static>, covers = [], drive = Drive::Never)]
+fn preview_pane_with_a_failure(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    preview_pane(ui, data, &Pending::Failed("nothing to sample from: the sampling area has no pixels outside the fill area".to_owned()))
 }
