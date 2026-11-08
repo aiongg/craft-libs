@@ -14,7 +14,7 @@ mod stories;
 use super::words::CanvasWords;
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pointer as _, Props as _,
-    Role, Styled as _, WordSetCx as _,
+    Role, Styled as _, THUMB, WordSetCx as _,
 };
 use crate::primitives::PaintShape;
 use crate::runtime::access::Numeric;
@@ -32,7 +32,7 @@ const VERTICAL: PartKey = PartKey::new("vertical");
 
 /// The thumb part that `PartsCx::scroll` declares for the bar `bar`.
 fn thumb_of(bar: PartKey) -> PartRef {
-    bar.at(0)
+    bar.at(THUMB)
 }
 
 /// The style of the scroll bars.

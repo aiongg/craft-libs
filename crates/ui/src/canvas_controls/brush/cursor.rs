@@ -5,6 +5,7 @@ use super::{BrushTip, BrushTipOutline, TipPose};
 use crate::canvas::canvas_space;
 use crate::contract::{Access, Common, Component, Cx, PaintUi, Role};
 use crate::primitives::{PaintShape, ellipse};
+use crate::runtime::env::Env;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::kurbo::Rect as DocRect;
 use craft_behavior::{CanvasView, Cursor, CursorBadge, CursorIcon, IconId, Input, Metrics, PaintedCursor};
@@ -48,16 +49,12 @@ pub struct BrushCursorOptions {
     pub show_only_crosshair_while_painting: bool,
     /// Caps Lock switches to the precise crosshair.
     pub caps_lock_precise: bool,
-    /// The arm of the crosshair the host paints, in points: an outline whose farthest point is nearer than this to
-    /// the hotspot shows the crosshair instead.
-    pub crosshair_reach: f32,
 }
 
 impl BrushCursorOptions {
-    /// Painting cursors `painting`, Caps Lock switching to the crosshair, the crosshair always replacing a small
-    /// outline at `crosshair_reach` points.
-    pub fn new(painting: PaintingCursor, crosshair_reach: f32) -> Self {
-        BrushCursorOptions { painting, show_only_crosshair_while_painting: false, caps_lock_precise: true, crosshair_reach }
+    /// Painting cursors `painting`, Caps Lock switching to the crosshair.
+    pub fn new(painting: PaintingCursor) -> Self {
+        BrushCursorOptions { painting, show_only_crosshair_while_painting: false, caps_lock_precise: true }
     }
 
     /// Whether a stroke in progress shows only the crosshair.
@@ -90,8 +87,8 @@ impl BrushCursorOptions {
 ///    (zoom, rotation, flip, pixel aspect). A round tip under an upright pose and an isotropic view is a circle;
 ///    under a skewed pose or a pixel aspect it is an outline ellipse with the mapped axes' lengths; traced rings are
 ///    an outline. With [`inner_ring`](Self::inner_ring) a second ring is added.
-/// 6. An outline whose farthest point is nearer than [`BrushCursorOptions::crosshair_reach`] to the hotspot: the
-///    crosshair.
+/// 6. An outline whose farthest point is nearer than the hit target (`size.hit.target`, the arm of the crosshair the
+///    host paints) to the hotspot: the crosshair.
 ///
 /// A [`badge`](Self::badge) rides on the Standard icon and on the crosshair. NaN, infinite, negative and zero sizes
 /// never panic and never give a non-finite ring (they fall to rule 6).
@@ -156,8 +153,8 @@ impl<'a> BrushCursor<'a> {
     }
 
     /// The pointer for this pass, by the rules above. `caps_lock` is the state of the Caps Lock key.
-    pub fn cursor(&self, options: &BrushCursorOptions, view: &CanvasView, caps_lock: bool) -> Cursor {
-        Cursor::Painted(self.painted(options, view, caps_lock))
+    pub fn cursor(&self, env: &Env, options: &BrushCursorOptions, view: &CanvasView, caps_lock: bool) -> Cursor {
+        Cursor::Painted(self.painted(env.tokens.size.hit.target, options, view, caps_lock))
     }
 
     fn crosshair(&self) -> PaintedCursor {
@@ -167,7 +164,7 @@ impl<'a> BrushCursor<'a> {
         }
     }
 
-    fn painted(&self, options: &BrushCursorOptions, view: &CanvasView, caps_lock: bool) -> PaintedCursor {
+    fn painted(&self, reach: f32, options: &BrushCursorOptions, view: &CanvasView, caps_lock: bool) -> PaintedCursor {
         // Rules 1 and 2.
         if caps_lock && options.caps_lock_precise {
             return self.crosshair();
@@ -182,7 +179,6 @@ impl<'a> BrushCursor<'a> {
             return self.crosshair();
         }
         let full = options.painting == PaintingCursor::FullSizeBrushTip;
-        let reach = options.crosshair_reach;
         // Rule 5.
         let unit = sanitize(self.tip.diameter) / 2.0;
         let axes_for = |radius: f64| [self.pose.x_axis, self.pose.y_axis].map(|axis| view.map_vec(axis * radius));

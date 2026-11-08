@@ -30,7 +30,7 @@ pub(crate) fn on_canvas_view<R: Into<StoryOutput>>(
 
 /// Shows `control` as the only canvas control of `canvas`, which the caller sets up, and returns the control's
 /// output.
-pub(crate) fn on_canvas_with<R: Into<StoryOutput>>(ui: &mut Ui, canvas: Canvas, control: impl FnOnce(&mut Ui, Rect) -> R) -> StoryOutput {
+pub(crate) fn on_canvas_with<R: Into<StoryOutput>>(ui: &mut Ui, canvas: Canvas<'_>, control: impl FnOnce(&mut Ui, Rect) -> R) -> StoryOutput {
     let mut control = Some(control);
     let shown = canvas.show(ui, |ui, body| control.take().map(|control| control(ui, body.rect)));
     shown.inner.flatten().map(Into::into).unwrap_or_default()

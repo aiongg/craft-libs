@@ -113,6 +113,7 @@ size.pointer_tip.x
 size.pointer_tip.y
 size.rail.button
 size.rail.width
+size.ruler.tick.mid
 size.thumb.lg
 size.thumb.md
 size.thumb.sm

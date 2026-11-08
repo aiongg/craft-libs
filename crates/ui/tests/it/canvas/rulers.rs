@@ -47,6 +47,9 @@ fn the_pixel_ruler_labels_every_hundred_and_ticks_every_ten_at_full_size() {
     assert!(majors.iter().all(|value| value.rem_euclid(100.0) == 0.0), "labels sit on multiples of 100: {majors:?}");
     let gaps: Vec<f64> = ticks.windows(2).map(|pair| pair[1].value - pair[0].value).collect();
     assert!(gaps.iter().all(|gap| (gap - PIXEL_MINOR).abs() < 1e-9), "ticks are ten apart: {gaps:?}");
+    let mids: Vec<f64> = ticks.iter().filter(|tick| tick.mid).map(|tick| tick.value).collect();
+    assert!(mids.iter().all(|value| value.rem_euclid(100.0) == 50.0), "the mid tick sits halfway between labels: {mids:?}");
+    assert!(!mids.is_empty() && ticks.iter().all(|tick| !(tick.major && tick.mid)));
 }
 
 #[trial]

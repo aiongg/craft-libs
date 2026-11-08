@@ -2,10 +2,9 @@
 
 use super::super::words::DialogWords;
 use super::view::FullWindowView;
-use crate::canvas::{
-    Canvas, CanvasTool, HandTool, Momentary, NavigationOptions, PixelRect, RasterDisplay, RasterSource, ToolHost, ToolHostResponse,
-};
+use crate::canvas::{Canvas, CanvasTool, HandTool, Momentary, NavigationOptions, PixelRect, RasterDisplay, RasterSource, ToolHost, ToolHostResponse};
 use crate::contract::{Bind, NoValue, Outcome, Props as _, Show as _, ShowContainer as _};
+use crate::layout_components::Stack;
 use crate::primitives::{Checker, Revision};
 use crate::runtime::edit::next_gesture_id;
 use crate::runtime::env::{Env, Label};
@@ -126,9 +125,8 @@ impl<'a> FullWindowCanvas<'a> {
     /// A canvas showing the image `source` through `view`.
     ///
     /// The canvas writes the view it settled on its rect, and the view the wheel, a pan or the tool made, through
-    /// `view`, so a binding the app owns (`Bind::bound`) is the one place the view lives. The canvas reads the view
-    /// before its body exists, so a kept binding (which has no value to read yet) shows a new, fitted view every pass,
-    /// and a given value (`Bind::given`) is read and never written.
+    /// `view`, so a binding is the one place the view lives: one the app owns (`Bind::bound`), the canvas's own
+    /// memory (`Bind::kept`), or a given value (`Bind::given`), which is read and never written.
     pub fn new(view: Bind<'a, FullWindowView>, source: &'a dyn RasterSource) -> Self {
         FullWindowCanvas {
             view,
@@ -181,63 +179,68 @@ impl<'a> FullWindowCanvas<'a> {
 
     /// Shows the canvas in the rest of `ui`.
     pub fn show(self, ui: &mut Ui) -> FullWindowCanvasOutput {
-        let FullWindowCanvas { mut view, source, checkerboard, overlays, tool, momentary, navigation, mut controls } = self;
+        let FullWindowCanvas { mut view, source, checkerboard, overlays, mut tool, mut momentary, navigation, mut controls } = self;
         let ppp = ui.pixels_per_point();
         let label: Label = Env::of(ui).words::<DialogWords>().full_window_canvas.clone();
         let name: Arc<str> = Arc::from(label.as_str());
         let size = source.size();
-        let given = view.reborrow().get().and_then(|held| held.same().copied()).unwrap_or_default();
-        // The canvas is shown at exactly this rect and has no padding, header or label, so it is the rect the body
-        // gets: the fit, the drawn image and the hover mapping share it.
-        let rect = ui.available_rect_before_wrap();
-        let shown = given.settled(rect, size, ppp);
-        let canvas = Canvas::new(label.clone())
-            .view(shown.view())
-            .document(shown.size())
-            .navigation(navigation)
-            .outer_view_commands()
-            .show_at_taking_room(ui, rect, |ui, body| {
-                let mut image = RasterDisplay::new(label.clone(), source);
-                if let Some(checker) = checkerboard {
-                    image = image.checkerboard(checker);
-                }
-                image.show_at(ui, body.rect);
-                for (n, overlay) in overlays.iter().enumerate() {
-                    match overlay.tint {
-                        Some(tint) => {
-                            let tinted = Tinted { source: overlay.source, tint };
-                            RasterDisplay::new(Label::Empty, &tinted).id_salt(("overlay", n)).show_at(ui, body.rect);
-                        }
-                        None => {
-                            RasterDisplay::new(Label::Empty, overlay.source).id_salt(("overlay", n)).show_at(ui, body.rect);
+        // The root container is the stage the view's binding is read and written in, so a kept binding holds the view.
+        let root = Stack::new().fill().show(ui, |ui, cx| {
+            let mut bind = view.reborrow();
+            let given = bind.read(cx).and_then(|held| held.same().copied()).unwrap_or_default();
+            // The canvas is shown at exactly this rect and has no padding, header or label, so it is the rect the body
+            // gets: the fit, the drawn image and the hover mapping share it.
+            let rect = ui.available_rect_before_wrap();
+            let shown = given.settled(rect, size, ppp);
+            let canvas = Canvas::new(label.clone())
+                .view(shown.view())
+                .document(shown.size())
+                .navigation(navigation)
+                .outer_view_commands()
+                .show_at_taking_room(ui, rect, |ui, body| {
+                    let mut image = RasterDisplay::new(label.clone(), source);
+                    if let Some(checker) = checkerboard {
+                        image = image.checkerboard(checker);
+                    }
+                    image.show_at(ui, body.rect);
+                    for (n, overlay) in overlays.iter().enumerate() {
+                        match overlay.tint {
+                            Some(tint) => {
+                                let tinted = Tinted { source: overlay.source, tint };
+                                RasterDisplay::new(Label::Empty, &tinted).id_salt(("overlay", n)).show_at(ui, body.rect);
+                            }
+                            None => {
+                                RasterDisplay::new(Label::Empty, overlay.source).id_salt(("overlay", n)).show_at(ui, body.rect);
+                            }
                         }
                     }
-                }
-                if let Some(controls) = controls.as_mut() {
-                    controls(ui, body.rect);
-                }
-            });
-        let output = canvas.output;
-        let mut host = ToolHost::new();
-        if let Some(momentary) = momentary {
-            host = host.momentary(momentary);
-        }
-        let hosted = match tool {
-            Some(tool) => host.run(ui, &output, tool),
-            None => with_session(&ui.ctx().clone(), global("craft-ui full-window canvas hand", output.response.id), |slot: &mut FallbackHand| {
-                let hand = slot.0.get_or_insert_with(|| HandTool::new(navigation));
-                hand.options = navigation;
-                host.run(ui, &output, hand)
-            }),
-        };
-        // The host's view is the tool's, else the canvas's own (the wheel, a middle-button pan, the clamp).
-        let next = shown.took(hosted.view.unwrap_or_else(|| shown.view()));
-        if next != given {
-            let event = EditEvent::set(next_gesture_id(ui.ctx()), Mixed::Same(given), next, name, None);
-            view.reborrow().apply(&event);
-        }
-        let hover = output.response.hover_pos().filter(|_| output.response.hovered()).map(|at| next.view().to_doc(at));
-        FullWindowCanvasOutput { response: output.response, hover, tool: hosted }
+                    if let Some(controls) = controls.as_mut() {
+                        controls(ui, body.rect);
+                    }
+                });
+            let output = canvas.output;
+            let mut host = ToolHost::new();
+            if let Some(momentary) = momentary.take() {
+                host = host.momentary(momentary);
+            }
+            let hosted = match tool.take() {
+                Some(tool) => host.run(ui, &output, tool),
+                None => with_session(&ui.ctx().clone(), global("craft-ui full-window canvas hand", output.response.id), |slot: &mut FallbackHand| {
+                    let hand = slot.0.get_or_insert_with(|| HandTool::new(navigation));
+                    hand.options = navigation;
+                    host.run(ui, &output, hand)
+                }),
+            };
+            // The host's view is the tool's, else the canvas's own (the wheel, a middle-button pan, the clamp).
+            let next = shown.took(hosted.view.unwrap_or_else(|| shown.view()));
+            if next != given {
+                let event = EditEvent::set(next_gesture_id(ui.ctx()), Mixed::Same(given), next, name.clone(), None);
+                let _ = bind.write(cx, &event);
+            }
+            let hover = output.response.hover_pos().filter(|_| output.response.hovered()).map(|at| next.view().to_doc(at));
+            FullWindowCanvasOutput { response: output.response, hover, tool: hosted }
+        });
+        root.inner.unwrap_or_else(|| FullWindowCanvasOutput { response: root.output, hover: None, tool: ToolHostResponse::default() })
     }
 }
 

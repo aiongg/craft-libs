@@ -822,6 +822,23 @@ pub struct SizeTokens {
     pub window: WindowSizes,
     /// The panes a dock splits its area into.
     pub pane: PaneSizes,
+    /// The rulers of a canvas.
+    pub ruler: RulerSizes,
+}
+
+/// The sizes of a canvas ruler, in logical pixels.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct RulerSizes {
+    /// The tick marks.
+    pub tick: RulerTickSizes,
+}
+
+/// The lengths of a ruler's tick marks, in logical pixels. The minor tick is `space.gap.tight` and the major tick
+/// `space.gap.inline`.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct RulerTickSizes {
+    /// The tick halfway between two labelled ticks.
+    pub mid: f32,
 }
 
 /// The sizes of the panes of a dock's split, in logical pixels.
