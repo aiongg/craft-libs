@@ -21,7 +21,9 @@ use super::pass;
 
 pub(crate) use node::{NodeAction, NodeSpec, Toggle, write_node};
 pub(crate) use patch::{write_label_patch, write_merge_patch, write_status};
-pub(crate) use text::{NodeEnd, RunLink, RunNode, TextNode, is_text_request, requested_selection, requested_value, write_run, write_selection, write_text};
+pub(crate) use text::{
+    NodeEnd, RunLink, RunNode, TextNode, fold_widget, is_text_request, requested_selection, requested_value, write_run, write_selection, write_text,
+};
 #[cfg(feature = "testing")]
 pub use tree::{AccessTree, Declared, NodeKey};
 
@@ -73,6 +75,7 @@ pub(crate) fn hide(ctx: &Context, id: Id) {
 
 /// Reports `id` as the focused node of this pass.
 pub(crate) fn set_focus(ctx: &Context, id: Id) {
+    with_emitted(ctx, |emitted| emitted.focus_set = true);
     ctx.set_accesskit_focus(id);
 }
 
@@ -83,6 +86,10 @@ pub(crate) fn set_focus(ctx: &Context, id: Id) {
 struct Emitted {
     order: HashMap<u64, usize>,
     written: HashSet<Id>,
+    /// Text widgets whose node folds into their owner's node, each with its owner.
+    folded: HashMap<Id, Id>,
+    /// Whether the runtime reported a focused node this pass.
+    focus_set: bool,
 }
 
 impl Emitted {
@@ -108,6 +115,13 @@ pub(crate) fn register_parent(ctx: &Context, id: Id, parent: Id) {
     with_emitted(ctx, |emitted| emitted.emit(id));
 }
 
+/// Notes that the node of the text widget `widget` folds into the node of `owner`.
+fn note_folded(ctx: &Context, widget: Id, owner: Id) {
+    with_emitted(ctx, |emitted| {
+        emitted.folded.insert(widget, owner);
+    });
+}
+
 /// Notes that the runtime wrote the node of `id`.
 pub(crate) fn note_written(ctx: &Context, id: Id) {
     with_emitted(ctx, |emitted| {
@@ -116,10 +130,17 @@ pub(crate) fn note_written(ctx: &Context, id: Id) {
 }
 
 /// The pass-end step: the children of each node the runtime wrote follow the order the runtime emitted them in,
-/// which is reading order. Children the runtime never emitted follow them in egui's order.
+/// which is reading order. Children the runtime never emitted follow them in egui's order. A folded text widget
+/// that holds key focus reports its owner's node as focused, unless the runtime reported another node this pass
+/// (the active item of a list the field drives).
 pub(crate) fn order_children(ctx: &Context) {
     let viewport = pass::current_viewport(ctx);
     let emitted = Service::<Reported>::run(ctx, |reported| reported.0.remove(&viewport)).unwrap_or_default();
+    if !emitted.focus_set
+        && let Some(owner) = ctx.memory(|memory| memory.focused()).and_then(|widget| emitted.folded.get(&widget))
+    {
+        ctx.set_accesskit_focus(*owner);
+    }
     for parent in emitted.written {
         ctx.accesskit_node_builder(parent, |node| {
             let mut children = node.children().to_vec();

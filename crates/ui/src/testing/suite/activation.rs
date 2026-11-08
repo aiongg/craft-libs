@@ -3,6 +3,7 @@
 use super::drive::{Plan, root_target, run, settled, variant_name, variants};
 use super::{ANY, Case, Subject};
 use crate::contract::ShapeKind;
+use crate::runtime::access::Role;
 use crate::runtime::egui::access::{AccessTree, Declared, NodeKey};
 use crate::runtime::egui::fixture::AccessActionKind;
 use crate::testing::fixture::Fixture;
@@ -161,7 +162,8 @@ fn any_expanded(tree: &AccessTree) -> bool {
 /// from what the keys the type keeps do on a focused story: an activation key or arrow that gives a click or changes
 /// the value needs `Click`; an arrow that changes the value of a control needs `Increment` or `Decrement`, or, on a
 /// node that declares scroll actions on the arrow's axis (a view that pans), the scroll action of the arrow's
-/// direction; a key that opens something needs `Expand` and one that closes it needs `Collapse`, declared before the key. Text types take edit intents, which the text cases cover.
+/// direction; an arrow that moves the checked or focused node of a group of `RADIO_BUTTON` nodes is a choice, not
+/// a step, and needs `Click` declared on every enabled radio of the group instead; a key that opens something needs `Expand` and one that closes it needs `Collapse`, declared before the key. Text types take edit intents, which the text cases cover.
 fn every_intent_has_a_declared_action(subject: &Subject) -> Result<(), String> {
     let probe = subject.probe;
     if matches!(probe.input, Input::Text | Input::Editor | Input::Display) {
@@ -196,21 +198,29 @@ fn every_intent_has_a_declared_action(subject: &Subject) -> Result<(), String> {
             let (can_expand, can_collapse) = (declares_before(Declared::Expand), declares_before(Declared::Collapse));
             let can_click = declares_before(Declared::Click);
             fixture.take_outputs();
+            let focus_before = fixture.tree().focused_key();
             fixture.key(key, Modifiers::NONE);
             fixture.idle(2);
             let clicked = fixture.take_outputs().iter().any(|output| output.clicked);
             let changed = !fixture.data().changed_since(&before).is_empty();
+            let radios = fixture.tree().with_role(Role::RADIO_BUTTON);
+            let tree = fixture.tree();
+            let roving =
+                step.is_some() && radios.len() > 1 && radios.contains(&tree.focused_key()) && (changed || tree.focused_key() != focus_before);
+            // A disabled radio takes no click, so it declares none.
+            if roving && radios.iter().any(|&radio| !tree.is_disabled_key(radio) && !tree.declares_key(radio, Declared::Click)) {
+                return Err(format!("{}: {key:?} moved the choice of a radio group and a radio declares no Click", story.name));
+            }
             let mut needs = Vec::new();
             if clicked || (changed && step.is_none()) {
                 needs.push(Declared::Click);
             }
-            let tree = fixture.tree();
             // A view that pans declares the scroll actions of its axis on its own node, and the arrow is one of them.
             let pans = crate::runtime::focus::focused_rec(fixture.ctx())
                 .map(|rec| NodeKey::of(rec.stop.id))
                 .zip(scroll_of(key))
                 .filter(|(node, (_, axis))| axis.iter().any(|d| tree.declares_key(*node, *d)));
-            if let Some(step) = step.filter(|_| changed && !matches!(probe.shape, ShapeKind::Items)) {
+            if let Some(step) = step.filter(|_| changed && !roving && !matches!(probe.shape, ShapeKind::Items)) {
                 needs.push(pans.map_or(step, |(_, (scroll, _))| scroll));
             }
             let opens = any_expanded(fixture.tree());

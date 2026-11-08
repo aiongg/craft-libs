@@ -260,6 +260,12 @@ impl<'a> List<'a> {
         self
     }
 
+    /// Every primary click on a row activates it.
+    pub fn activate_on_click(mut self) -> Self {
+        self.items = self.items.activate(craft_ui::contract::ActivateOn::Click);
+        self
+    }
+
     pub fn rename(mut self) -> Self {
         self.items = self.items.rename(true);
         self
