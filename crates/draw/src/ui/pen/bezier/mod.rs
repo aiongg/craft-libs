@@ -1026,17 +1026,19 @@ impl Component for BezierOverlay<'_> {
             options.and_then(|options| options.color).map(|[r, g, b]| Srgba::rgb(f32::from(r) / 255.0, f32::from(g) / 255.0, f32::from(b) / 255.0));
         let painter = ui.content_painter(cx);
         let draw = ui.draw();
-        // The path's thickness is a document width; without one the lines take the theme's widths.
+        // The path's thickness is a document width; without one the lines take the theme's widths. A path with a
+        // thickness and no colour of its own keeps that width in the theme's line colour.
         let line = |points: Vec<Pos2>, closed: bool, segment: bool, color: Option<Srgba>| {
             let shape = if closed { PaintShape::Polygon(points) } else { PaintShape::Path(points) };
             let named = if segment { StrokeWidth::Thick } else { StrokeWidth::Medium };
             match (color, thickness) {
-                (Some(color), Some(thickness)) => {
+                (color, Some(thickness)) => {
                     let width = if segment { thickness + (style.segment_width - style.line_width) } else { thickness };
-                    draw.data_stroke(&shape, DataWidth::points(width), DataColor::new(color.into()));
+                    let ink = color.map_or(DataColor::new(style.line.egui()), |color| DataColor::new(color.into()));
+                    draw.data_stroke(&shape, DataWidth::points(width), ink);
                 }
                 (Some(color), None) => draw.data_stroke(&shape, named, DataColor::new(color.into())),
-                (None, _) => draw.stroke(&shape, named, style.line),
+                (None, None) => draw.stroke(&shape, named, style.line),
             }
         };
         for path in paths {
