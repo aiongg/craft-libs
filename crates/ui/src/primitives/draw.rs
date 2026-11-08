@@ -53,8 +53,8 @@ impl StrokeWidth {
     }
 }
 
-/// A line width from the document, in points of document space (a path's thickness, a pen size). Only
-/// `Draw::data_stroke` takes one; theme strokes keep [`StrokeWidth`].
+/// A line width the data gives (a path's thickness, a pen size), in screen points: the caller maps a document width
+/// through its view first. Only `Draw::data_stroke` takes one; theme strokes keep [`StrokeWidth`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DataWidth(f32);
 
