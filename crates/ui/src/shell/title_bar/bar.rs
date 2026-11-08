@@ -20,7 +20,7 @@ use crate::shell::app_shell::RegionBody;
 use crate::shell::{Caption, CaptionButton, CaptionIcons, Frame, ShellWords, SlotSize};
 use crate::style::{StyleCx, SurfaceKind};
 use craft_behavior::Sense;
-use craft_host::target::WindowState;
+use craft_host::target::{DoubleClick, WindowState};
 use egui::{Response, Ui, pos2};
 
 /// What a title bar reports: the caption clicked and whether the window was asked to close.
