@@ -211,15 +211,15 @@ impl<'a> FullWindowCanvas<'a> {
             let mut bind = view.reborrow();
             let given = bind.read(cx).and_then(|held| held.same().copied()).unwrap_or_default();
             // The canvas is shown at exactly this rect and has no padding, header or label, so it is the rect the body
-            // gets: the fit, the drawn image and the hover mapping share it.
+            // gets: the fit, the drawn image and the hover mapping share it. The root takes the room in the parent's
+            // flow; the canvas itself has no content size, so a content-sized column around it (a preview pane in a
+            // side column) sizes from its other content instead of taking the whole room the canvas is offered.
             let rect = ui.available_rect_before_wrap();
             let shown = given.settled(rect, size, ppp);
-            let canvas = Canvas::new(label.clone())
-                .view(shown.view())
-                .document(shown.size())
-                .navigation(navigation)
-                .outer_view_commands()
-                .show_at_taking_room(ui, rect, |ui, body| {
+            let canvas = Canvas::new(label.clone()).view(shown.view()).document(shown.size()).navigation(navigation).outer_view_commands().show_at(
+                ui,
+                rect,
+                |ui, body| {
                     let mut image = RasterDisplay::new(label.clone(), source);
                     if let Some(checker) = checkerboard {
                         image = image.checkerboard(checker);
@@ -243,7 +243,8 @@ impl<'a> FullWindowCanvas<'a> {
                     if let Some(controls) = controls.as_mut() {
                         controls(ui, body.rect);
                     }
-                });
+                },
+            );
             let output = canvas.output;
             let mut host = ToolHost::new();
             if let Some(momentary) = momentary.take() {

@@ -9,7 +9,10 @@
 //! 2. `takes(button, mods)` decides whether a button starts a gesture. A middle-button pan belongs to the canvas.
 //! 3. Escape during a drag arrives as a cancelled press ([`PressCancel`]) and calls `cancel` once.
 //! 4. Keys the canvas holds as intents (arrows, Delete, Enter, Escape) go to `key` while the canvas has focus; a
-//!    text part inside the canvas takes its own keys before they are routed here.
+//!    text part inside the canvas takes its own keys before they are routed here. While nothing in the window has
+//!    focus, Enter and Escape are offered too, so a tool holding a gesture or a pending edit (a transform box)
+//!    commits and cancels before the canvas is clicked; one the tool leaves goes on to the scopes around it. A
+//!    focused field or control keeps its own Enter and Escape.
 //! 5. The tool paints over the canvas and requests its cursor at tool priority.
 //!
 //! The host keeps its state under the canvas's id (`CanvasOutput::response.id`), so two canvases never share a
@@ -54,7 +57,7 @@ use crate::runtime::edit::next_gesture_id;
 use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::{global, with_session};
 use crate::runtime::pointer::{self, PointerFrame};
-use crate::runtime::{cursor, frame, keys, lock_keys};
+use crate::runtime::{cursor, focus, frame, keys, lock_keys};
 use crate::style::StyleCx;
 use craft_behavior::kurbo;
 use craft_behavior::{
@@ -619,7 +622,8 @@ impl<'a> Run<'a> {
         active.dragged = true;
         self.call(Some(pointer), |tool, cx| tool.drag(&pointer, cx));
         self.report(GesturePhase::Update);
-        if self.tool.autoscrolls() {
+        // An empty canvas (a window shrunk to nothing) has no edge to scroll past.
+        if self.tool.autoscrolls() && self.rect.is_positive() {
             let past = pointer.pos - self.rect.clamp(pointer.pos);
             if past != Vec2::ZERO {
                 self.response.past_edge = Some(past);
@@ -733,8 +737,19 @@ impl<'a> Run<'a> {
         true
     }
 
-    /// The keys the canvas holds: intents routed to it while it has focus, and the plain keys a tool kept.
+    /// The keys the canvas holds: intents routed to it while it has focus, Enter and Escape while nothing in the
+    /// window has focus, and the plain keys a tool kept.
     fn keys(&mut self, ctx: &Context, canvas: Id, rtl: bool) {
+        if focus::focused_rec(ctx).is_none() {
+            let mut window = keys::intents_of(ctx, None, rtl);
+            let mut taken = self.offer(&mut window, |intents| intents.take(Intent::Submit).then_some(ToolKey::Submit));
+            if !self.cancelled {
+                taken |= self.offer(&mut window, |intents| intents.take(Intent::Cancel).then_some(ToolKey::Cancel));
+            }
+            if taken {
+                keys::settle(ctx, None, &window);
+            }
+        }
         let mut intents = keys::intents_of(ctx, Some(canvas), rtl);
         let mut taken = self.offer(&mut intents, |intents| intents.take_nudge().map(|(direction, mods)| ToolKey::Nudge { direction, mods }));
         for forward in [true, false] {
