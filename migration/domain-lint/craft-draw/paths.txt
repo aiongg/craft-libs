@@ -1,2 +1,0 @@
-crates/draw/src/ui
-crates/draw/tests/it
