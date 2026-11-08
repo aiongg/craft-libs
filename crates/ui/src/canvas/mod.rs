@@ -168,7 +168,10 @@ pub struct Canvas {
     show_rulers: bool,
     /// The rulers' units and zero point, published to the body in its [`CanvasSpace`].
     rulers: Option<CanvasRulers>,
-    /// The canvas's snapping, published to the body and handed to the tool host.
+    /// The snapping of the coordinates the pointer sets on this canvas (View > Snap To): one function that the rulers
+    /// snap their zero point with, the guides snap a guide with and the tool host hands to the tool
+    /// ([`ToolContext::snap`]). Without it nothing snaps.
+    #[prop]
     snap: Option<Snap>,
     /// The view of this pass, after the canvas folded in its input.
     settled: Option<Settled>,
@@ -303,15 +306,6 @@ impl Canvas {
     #[must_use]
     pub fn rulers(mut self, x: RulerText, y: RulerText, zero: Point) -> Self {
         self.rulers = Some(CanvasRulers::new(x, y, zero));
-        self
-    }
-
-    /// The snapping of the coordinates the pointer sets on this canvas (View > Snap To): one function that the rulers
-    /// snap their zero point with, the guides snap a guide with and the tool host hands to the tool
-    /// ([`ToolContext::snap`]). Without it nothing snaps.
-    #[must_use]
-    pub fn snap(mut self, snap: Snap) -> Self {
-        self.snap = Some(snap);
         self
     }
 
