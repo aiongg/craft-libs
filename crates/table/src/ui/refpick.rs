@@ -1,10 +1,9 @@
 //! Reference picking: a formula field in point mode takes a cell reference from a click on the
 //! grid (N6.07).
 
-use super::grid::{CellRange, CellRef, absolute_range_reference};
+use super::grid::{CellAt, CellRange, absolute_range_reference};
 
-/// Excel's point mode for a dialog's formula box (GridCraft's conditional-format and validation
-/// dialogs): while the box is in point mode, a click on the grid writes the cell's absolute
+/// Excel's point mode for a dialog's formula box (a conditional-format or validation dialog): while the box is in point mode, a click on the grid writes the cell's absolute
 /// reference at the caret, a drag grows it into a range, and the next click replaces the
 /// reference the last one inserted. An empty box starts with `=`. After an operand there is no
 /// place for a reference and nothing changes. A reference to another sheet carries the sheet's
@@ -29,7 +28,7 @@ pub struct ReferencePicker {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Pointed {
     span: (usize, usize),
-    anchor: CellRef,
+    anchor: CellAt<u32>,
 }
 
 impl ReferencePicker {
@@ -50,11 +49,10 @@ impl ReferencePicker {
     /// from the press's cell. Returns whether `text` changed. `can_point` is the app's formula rule
     /// (a reference may go at the caret: after `=`, an operator, `(` or `,`); `quote` quotes a
     /// sheet name (`'My Sheet'`).
-    // gridcraft: crates/ui-egui/src/dialogs.rs:140 `pick_reference`, `:79` `RefPick`.
     pub fn pick(
         &mut self,
         text: &mut String,
-        cell: CellRef,
+        cell: CellAt<u32>,
         sheet: &str,
         extend: bool,
         can_point: impl Fn(&str, usize) -> bool,
@@ -71,7 +69,7 @@ impl ReferencePicker {
             Some(p) if extend && at_reference => p.anchor,
             _ => cell,
         };
-        let range = absolute_range_reference(CellRange::new(anchor, cell));
+        let range = absolute_range_reference(CellRange::cells(anchor, cell));
         let reference = if sheet.eq_ignore_ascii_case(&self.sheet) { range } else { format!("{}!{range}", quote(sheet)) };
         let start = match point {
             Some(p) if at_reference => p.span.0,

@@ -1,23 +1,26 @@
-//! The filter button in a table's header cell (N6.10).
+//! The filter button in a table's header cell.
 
-use craft_ui::behavior::ClaimedKey;
-use craft_ui::icons::{self, Icon, IconSize};
-use craft_ui::list::SortOrder;
-use craft_ui::localized::{Labels as _, fmt};
-use craft_ui::primitives::FocusRing;
-use craft_ui::theme::scale::Stroke as Line;
-use craft_ui::theme::{StrokeExt as _, ToEgui as _, Tokens, TokensOf as _};
-use egui::accesskit::Role;
-use egui::{CornerRadius, IdSalt, Key, Modifiers, Rect, Response, Sense, StrokeKind, Ui, WidgetInfo, pos2, vec2};
+use craft_behavior::{IconId, Intent, Metrics, Sense};
+use craft_theme::Variant;
+use craft_ui::contract::{
+    Access, ColumnSort, Common, Component, Cx, Focus as _, MeasureCx, Name, NoValue, Outcome, PaintUi, Pointer as _, Props, Role, Styled as _,
+    WordSetCx as _,
+};
+use craft_ui::primitives::IconSpec;
+use craft_ui::style::{ComponentStyle, FocusLook, IconLook, StyleCx, SurfaceKind, SurfaceLook};
+use egui::{Rect, Response, Vec2, pos2};
 
-use super::style::SheetStyle;
+#[cfg(feature = "screen-testing")]
+mod stories;
 
 craft_ui::words! {
-    /// The filter button's words, English by default (Excel's).
+    /// The filter button's words, English by default.
     #[non_exhaustive]
-    pub struct FilterButtonLabels {
-        filter: "filterButton.filter" = "{column} (Showing All)";
-        filtered: "filterButton.filtered" = "{column}: Filter applied";
+    pub struct FilterButtonWords {
+        /// The accessible name of a column's button while no filter is on; `{column}` is the header's text.
+        filter: template "filterButton.filter" = "{column} (Showing All)";
+        /// The accessible name while a filter is on.
+        filtered: template "filterButton.filtered" = "{column}: Filter applied";
     }
 }
 
@@ -25,13 +28,14 @@ craft_ui::words! {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum FilterButtonEvent {
-    /// The app opens its filter menu under the button: a click, or Alt+Down on the focused button.
-    /// Both inputs in one pass are one event.
+    /// The app opens its filter menu under the button: a click, Enter, Space or Alt+Down on the focused button. Every
+    /// input of one pass is one event.
     Open,
 }
 
 /// What the filter button did this pass.
-#[must_use]
+#[derive(Debug)]
+#[non_exhaustive]
 pub struct FilterButtonOutput {
     /// The button's response.
     pub response: Response,
@@ -39,100 +43,127 @@ pub struct FilterButtonOutput {
     pub event: Option<FilterButtonEvent>,
 }
 
-/// The button's square in a header cell `cell` (already at `zoom`): the side is the cell's height
-/// less twice `style.filter_button_inset`, clamped to `style.filter_button_min`…
-/// `style.filter_button_max` (`sheet.filter_*`; neither the inset nor the clamp follows the zoom,
-/// as GridCraft `tables.rs:6-7`), and no wider than the cell's reserved filter `space` × zoom less
-/// the inset × zoom, which is also its distance from the bottom-right corner.
-// gridcraft: crates/ui-egui/src/grid/tables.rs:4 `filter_button_rect`.
-pub fn filter_button_rect(cell: Rect, zoom: f32, space: f32, style: &SheetStyle) -> Rect {
-    let inset = style.filter_button_inset * zoom;
-    let side = (cell.height() - 2.0 * style.filter_button_inset)
-        .clamp(style.filter_button_min, style.filter_button_max)
-        .min((space * zoom - inset).max(0.0));
-    Rect::from_min_size(pos2(cell.right() - side - inset, cell.bottom() - side - inset), vec2(side, side))
+impl Outcome for FilterButtonOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
 }
 
-/// Excel's filter arrow (GridCraft): a small drop-down button in the header cell, a funnel when
-/// the column is filtered, and beside the funnel or chevron the sort arrow of a sorted column
-/// (from the app, as Excel). A click or Alt+Down on the focused button reports
-/// [`FilterButtonEvent::Open`]: the app opens its filter menu under the button. It senses click
-/// and drag, so a press on it never reaches the grid under it. A Tab stop named by
-/// [`FilterButtonLabels`] with the column's name.
+/// The style of the filter button: the raised control surface, the glyph at the control's icon side and the inset
+/// between the glyphs and the edge.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+#[style(variants = [Variant::SECONDARY])]
+#[non_exhaustive]
+pub struct FilterButtonStyle {
+    #[style(surface)]
+    surface: SurfaceLook,
+    #[style(metrics)]
+    metrics: Metrics,
+    #[style(focus)]
+    focus: FocusLook,
+    /// The chevron, the funnel and the sort arrow.
+    #[style(icon)]
+    glyph: IconLook,
+    /// The space between the glyphs and the button's edge.
+    inset: f32,
+}
+
+/// The drop-down button of a header cell: a chevron, a funnel while the column is filtered, and beside it the sort
+/// arrow of a sorted column. A click, Enter, Space or Alt+Down on the focused button reports
+/// [`FilterButtonEvent::Open`]: the app opens its filter menu under the button. It is one Tab stop named by
+/// [`FilterButtonWords`] with the column's header text, and it measures its own size from the control's icon side.
+#[derive(Component, Props)]
 pub struct FilterButton {
-    id_salt: IdSalt,
-    filtered: bool,
-    sorted: Option<SortOrder>,
+    #[common]
+    common: Common,
     column: String,
-    labels: Option<FilterButtonLabels>,
+    /// Whether the column is filtered: the button then shows a funnel.
+    #[prop]
+    filtered: bool,
+    sort: Option<ColumnSort>,
+    event: Option<FilterButtonEvent>,
 }
 
 impl FilterButton {
-    /// `column`: the header's text, for the accessible name.
-    pub fn new(id_salt: impl egui::AsIdSalt, column: impl Into<String>) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), filtered: false, sorted: None, column: column.into(), labels: None }
-    }
-
-    /// Uses these label texts instead of the ones read from the active locale's catalog.
-    pub fn labels(mut self, labels: FilterButtonLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    /// Whether the column is filtered; the button then shows a funnel.
-    pub fn filtered(mut self, on: bool) -> Self {
-        self.filtered = on;
-        self
+    /// The filter button of the column whose header reads `column`, for the accessible name.
+    pub fn new(column: impl Into<String>) -> Self {
+        FilterButton { common: Common::new(), column: column.into(), filtered: false, sort: None, event: None }
     }
 
     /// The column's sort, if any.
-    pub fn sorted(mut self, order: Option<SortOrder>) -> Self {
-        self.sorted = order;
+    #[must_use]
+    pub fn sort(mut self, sort: Option<ColumnSort>) -> Self {
+        self.sort = sort;
         self
     }
+}
 
-    // gridcraft: crates/ui-egui/src/grid/tables.rs (heading paint and the button), `grid.rs`
-    // (the filter menu opening).
-    /// `rect`: the button's square, from [`filter_button_rect`].
-    pub fn show(self, ui: &mut Ui, rect: Rect) -> FilterButtonOutput {
-        let Self { id_salt, filtered, sorted, column, labels } = self;
-        let labels = labels.unwrap_or_else(|| FilterButtonLabels::of(ui));
-        let tokens = Tokens::of(ui);
-        let style = SheetStyle::of(&tokens);
-        let colors = &tokens.color;
-        let id = ui.make_persistent_id(id_salt);
-        // The small icon size, no larger than the button's own side less its glyph inset.
-        let icon_side = IconSize::Sm.points(&tokens).min(rect.height() - 2.0 * style.filter_button_glyph_inset);
-        let rect = match sorted {
-            Some(_) => Rect::from_min_max(pos2(rect.left() - icon_side - style.filter_button_glyph_inset, rect.top()), rect.max),
-            None => rect,
-        };
-        let response = ui.interact(rect, id, Sense::click_and_drag());
-        let name = fmt(if filtered { &labels.filtered } else { &labels.filter }, &[("column", &column)]);
-        response.widget_info(|| WidgetInfo::labeled(Role::Button, ui.is_enabled(), &name));
-        let radius = CornerRadius::same(style.filter_button_radius.round() as u8);
-        let fill = if response.hovered() { colors.state.hover } else { colors.surface.raised };
-        let edge = Line::Hairline.egui(ui.ctx(), colors.line.control_edge.to_egui());
-        ui.painter().rect_filled(rect, radius, fill.to_egui());
-        ui.painter().rect_stroke(rect, radius, edge, StrokeKind::Inside);
-        let base = if filtered { Icon::Funnel } else { Icon::ChevronDown };
-        let ink = colors.text.normal.to_egui();
-        let (stroke, set) = (IconSize::Sm.stroke(), icons::active(ui.ctx()));
-        let (arrow_slot, base_slot) = match sorted {
-            None => (None, rect),
-            Some(_) => {
-                let (left, right) = rect.split_left_right_at_x(rect.left() + icon_side + style.filter_button_glyph_inset);
-                (Some(left), right)
-            }
-        };
-        icons::paint_in(ui, base_slot, base, set, icon_side, stroke, ink);
-        if let (Some(slot), Some(order)) = (arrow_slot, sorted) {
-            let arrow = if order == SortOrder::Ascending { Icon::SortAscending } else { Icon::SortDescending };
-            icons::paint_in(ui, slot, arrow, set, icon_side, stroke, ink);
+impl Component for FilterButton {
+    const ROLE: Role = Role::BUTTON;
+    const PARTS: bool = false;
+    const SHOWS_LABEL: bool = false;
+    const OVERLAYS: bool = false;
+    type Style = FilterButtonStyle;
+    type Output = FilterButtonOutput;
+
+    fn style(cx: &StyleCx<'_>, _: FilterButtonStyleKey) -> FilterButtonStyle {
+        let parts = cx.variant_look();
+        let mut surface = SurfaceLook::new(parts.fill.clone()).radius(parts.radius).kind(SurfaceKind::Raised).kind_down(SurfaceKind::Pressed);
+        if let Some(edge) = &parts.edge {
+            surface = surface.border(edge.clone(), cx.tokens.stroke.thin);
         }
-        FocusRing::paint_if(ui, rect, radius, response.has_focus());
-        let alt_down = response.has_focus() && ui.input_mut(|input| ClaimedKey::exact(Modifiers::ALT, Key::ArrowDown).consume(input));
-        let event = (response.clicked() || alt_down).then_some(FilterButtonEvent::Open);
-        FilterButtonOutput { response, event }
+        FilterButtonStyle {
+            surface,
+            metrics: Metrics::new(),
+            focus: cx.focus_look(),
+            glyph: IconLook::new(cx.control().icon, parts.text),
+            inset: cx.tokens.space.gap.tight,
+        }
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        let side = cx.style.glyph.side;
+        let glyphs = if self.sort.is_some() { 2.0 } else { 1.0 };
+        Vec2::new(side * glyphs + 2.0 * cx.style.inset, side + 2.0 * cx.style.inset)
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::CLICK | Sense::FOCUS
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        cx.join_roving();
+        let opened = cx.intents().take(Intent::Open);
+        if opened || cx.activation().is_some() {
+            self.event = Some(FilterButtonEvent::Open);
+        }
+    }
+
+    fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
+        let words = cx.words::<FilterButtonWords>();
+        let word = if self.filtered { &words.filtered } else { &words.filter };
+        access.name(Name::Text(word.fill(&[("column", self.column.as_str())])));
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let (side, rtl) = (cx.style.glyph.side, cx.flow.is_rtl());
+        let color = cx.resolve(&cx.style.glyph.color);
+        let draw = ui.draw();
+        let inner = cx.rect.shrink(cx.style.inset);
+        // The chevron or funnel sits at the reading end; the sort arrow beside it, at the reading start.
+        let (base_x, arrow_x) = if rtl { (inner.left(), inner.right() - side) } else { (inner.right() - side, inner.left()) };
+        let slot = |x: f32| Rect::from_min_size(pos2(x, inner.center().y - side / 2.0), Vec2::splat(side));
+        let base = if self.filtered { "funnel" } else { "chevron_down" };
+        draw.icon(slot(base_x), &IconSpec::svg(IconId::new(base)).color(color));
+        if let Some(sort) = &self.sort {
+            let arrow = if sort.descending { "sort_descending" } else { "sort_ascending" };
+            draw.icon(slot(arrow_x), &IconSpec::svg(IconId::new(arrow)).color(color));
+        }
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> FilterButtonOutput {
+        FilterButtonOutput { response: cx.response.clone(), event: self.event }
     }
 }
