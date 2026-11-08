@@ -1,14 +1,16 @@
 //! What the mock editor reads and edits: a tool, a layer list, a canvas view, a document title and a dirty flag.
 
-use craft_behavior::CanvasView;
 use craft_behavior::dock::{Column, DockEdge, Group, Layout, Node, SplitSize, Workspace};
+use craft_behavior::kurbo::Rect as DocRect;
 use craft_behavior::kurbo::{Point, Size};
 use craft_behavior::{Axis, PixelSize};
+use craft_behavior::{CanvasView, Selection};
 use craft_ui::bars::StatusItem;
-use craft_ui::canvas::{PickStep, tool_pick};
+use craft_ui::canvas::{Guide, GuideKey, PickStep, PixelRect, tool_pick};
 use craft_ui::contract::CommandSet;
 use craft_ui::rails::{LastUsed, RailTool, SlotId, ToolSlot};
-use egui::Rect;
+use craft_ui::runtime::env::UnitKind;
+use egui::{Color32, Rect};
 
 /// The width of the dock column at the end edge.
 const SIDE_WIDTH: f32 = 220.0;
@@ -161,20 +163,47 @@ impl Panel {
     }
 }
 
-/// One layer of the document.
+/// The stable identity of a layer: it survives reordering, deleting and adding other layers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct LayerId(u64);
+
+/// One layer of the document: a named fill of one rectangle of the page.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct Layer {
+    /// The layer's identity within its document.
+    pub id: LayerId,
     /// The name the layers panel shows; distinct within a document.
     pub name: String,
     /// Whether the layer shows on the canvas.
     pub visible: bool,
+    /// The colour the layer fills its bounds with.
+    pub color: Color32,
+    /// The part of the page the layer covers, in pixels.
+    pub bounds: PixelRect,
 }
 
 impl Layer {
     /// A visible layer.
-    pub fn new(name: impl Into<String>) -> Self {
-        Layer { name: name.into(), visible: true }
+    pub fn new(id: LayerId, name: impl Into<String>, color: Color32, bounds: PixelRect) -> Self {
+        Layer { id, name: name.into(), visible: true, color, bounds }
+    }
+}
+
+/// A rectangle being dragged out with the Marquee: where the press began and where the pointer is now.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct MarqueeDrag {
+    /// The document point of the press.
+    pub start: Point,
+    /// The document point of the pointer.
+    pub now: Point,
+}
+
+impl MarqueeDrag {
+    /// The rectangle the drag spans.
+    pub fn rect(&self) -> DocRect {
+        DocRect::from_points(self.start, self.now)
     }
 }
 
@@ -188,48 +217,79 @@ pub struct Document {
     pub dirty: bool,
     /// The size in document units.
     pub size: Size,
-    /// The layers, bottom first.
+    /// The layers, top first.
     pub layers: Vec<Layer>,
-    /// The index of the current layer.
-    pub current: usize,
-    /// The canvas view.
+    /// The selected layers; the lead is the current layer.
+    pub selected: Selection<LayerId>,
+    /// The canvas view. A view that was never shown opens fitted.
     pub view: CanvasView,
     /// The ruler zero point.
     pub zero: Point,
-    /// The part of the canvas inside the rulers, as the last pass showed it.
-    pub content: Option<Rect>,
+    /// The unit the rulers count in.
+    pub units: UnitKind,
+    /// The guides dragged out of the rulers.
+    pub guides: Vec<Guide>,
+    /// The selected guide.
+    pub guide: Option<GuideKey>,
+    /// The selection the Marquee made.
+    pub marquee: Option<DocRect>,
+    /// The marquee being dragged out.
+    pub dragging: Option<MarqueeDrag>,
     /// Whether the rulers show.
     pub rulers: bool,
+    /// The number the next layer gets as its identity.
+    next_layer: u64,
 }
 
 impl Default for Document {
     fn default() -> Self {
         let size = Size::new(DOCUMENT_WIDTH, DOCUMENT_HEIGHT);
         let view = CanvasView::new(Rect::NOTHING, Point::new(size.width / 2.0, size.height / 2.0), 1.0);
-        let layers = vec![Layer::new("Background"), Layer::new("Sky"), Layer::new("Mountains")];
+        let (width, height) = (DOCUMENT_WIDTH as i32, DOCUMENT_HEIGHT as i32);
+        let layers = vec![
+            Layer::new(LayerId(2), "Mountains", Color32::from_rgb(96, 110, 130), PixelRect::new(0, height * 5 / 8, width, height)),
+            Layer::new(LayerId(1), "Sky", Color32::from_rgb(150, 190, 235), PixelRect::new(0, 0, width, height * 3 / 4)),
+            Layer::new(LayerId(0), "Background", Color32::from_rgb(235, 226, 205), PixelRect::new(0, 0, width, height)),
+        ];
         Document {
             title: "Landscape.psd".to_owned(),
             dirty: false,
             size,
-            current: layers.len() - 1,
+            selected: Selection::single(layers[0].id),
             layers,
             view,
             zero: Point::ZERO,
-            content: None,
+            units: UnitKind::Pixels,
+            guides: Vec::new(),
+            guide: None,
+            marquee: None,
+            dragging: None,
             rulers: true,
+            next_layer: 3,
         }
     }
 }
 
 impl Document {
-    /// The current layer.
+    /// The index of the current layer, counted from the top.
+    pub fn current_index(&self) -> Option<usize> {
+        let lead = self.selected.lead?;
+        self.layers.iter().position(|layer| layer.id == lead)
+    }
+
+    /// The current layer: the lead of the selection.
     pub fn current_layer(&self) -> Option<&Layer> {
-        self.layers.get(self.current)
+        self.current_index().map(|at| &self.layers[at])
     }
 
     /// The size in pixels.
     pub fn pixel_size(&self) -> PixelSize {
         PixelSize::new(self.size.width as u32, self.size.height as u32)
+    }
+
+    /// The rectangle the Marquee shows: the one being dragged, else the selection.
+    pub fn marquee_rect(&self) -> Option<DocRect> {
+        self.dragging.map(|drag| drag.rect()).or(self.marquee)
     }
 
     /// Gives the document `size`, which marks it changed when the size differs.
@@ -241,33 +301,48 @@ impl Document {
         }
     }
 
-    /// Adds a layer above the current one and makes it current, which marks the document changed.
+    /// Makes the first layer current when the selection lost its lead (a click on no row).
+    pub fn keep_current(&mut self) {
+        if self.current_index().is_none()
+            && let Some(top) = self.layers.first()
+        {
+            self.selected = Selection::single(top.id);
+        }
+    }
+
+    /// Adds a layer above the current one and makes it the only selected one, which marks the document changed.
     pub fn add_layer(&mut self) {
+        let number = self.next_layer;
+        self.next_layer += 1;
         let name = (self.layers.len() + 1..)
             .map(|number| format!("Layer {number}"))
             .find(|name| self.layers.iter().all(|layer| layer.name != *name))
             .unwrap_or_default();
-        let at = (self.current + 1).min(self.layers.len());
-        self.layers.insert(at, Layer::new(name));
-        self.current = at;
+        let (width, height) = (self.size.width as i32, self.size.height as i32);
+        let shade = u8::try_from(number * 40 % 200).unwrap_or(0);
+        let bounds = PixelRect::new(width / 4, height / 4, width * 3 / 4, height * 3 / 4);
+        let layer = Layer::new(LayerId(number), name, Color32::from_rgb(220, 90 + shade / 2, 60 + shade), bounds);
+        let at = self.current_index().unwrap_or(0);
+        self.selected = Selection::single(layer.id);
+        self.layers.insert(at, layer);
         self.dirty = true;
     }
 
-    /// Shows or hides the layer at `at`, which marks the document changed.
-    pub fn set_visible(&mut self, at: usize, visible: bool) {
-        if let Some(layer) = self.layers.get_mut(at).filter(|layer| layer.visible != visible) {
+    /// Shows or hides the layer `id`, which marks the document changed.
+    pub fn set_visible(&mut self, id: LayerId, visible: bool) {
+        if let Some(layer) = self.layers.iter_mut().find(|layer| layer.id == id).filter(|layer| layer.visible != visible) {
             layer.visible = visible;
             self.dirty = true;
         }
     }
 
-    /// Deletes the current layer, which marks the document changed. The last layer stays.
+    /// Deletes the current layer and selects the layer below it (the one above for the lowest), which marks the
+    /// document changed. The last layer stays.
     pub fn delete_current(&mut self) -> Option<Layer> {
-        if self.layers.len() < 2 || self.current >= self.layers.len() {
-            return None;
-        }
-        let removed = self.layers.remove(self.current);
-        self.current = self.current.min(self.layers.len() - 1);
+        let at = self.current_index().filter(|_| self.layers.len() > 1)?;
+        let removed = self.layers.remove(at);
+        let below = &self.layers[at.min(self.layers.len() - 1)];
+        self.selected = Selection::single(below.id);
         self.dirty = true;
         Some(removed)
     }

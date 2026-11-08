@@ -1,5 +1,6 @@
 //! The mock editor: its document logic, and the window's keys and menus.
 
+use craft_behavior::CanvasView;
 use craft_ui::runtime::access::Role;
 use craft_ui::runtime::env::RootEnv;
 use craft_ui::shell::ScreenMode;
@@ -137,9 +138,10 @@ fn the_last_layer_cannot_be_deleted() {
 #[trial]
 fn hiding_a_layer_marks_the_document_changed_and_setting_the_same_state_does_not() {
     let mut document = Document::default();
-    document.set_visible(0, true);
+    let top = document.layers[0].id;
+    document.set_visible(top, true);
     assert!(!document.dirty);
-    document.set_visible(0, false);
+    document.set_visible(top, false);
     assert!(document.dirty);
     assert!(!document.layers[0].visible);
 }
@@ -179,13 +181,13 @@ fn deleting_a_layer_from_the_menu_asks_and_proceed_deletes_the_current_layer() {
     let document = &state.borrow().document;
     assert_eq!(document.layers.len(), 2);
     assert!(document.layers.iter().all(|layer| layer.name != "Mountains"), "the current layer went");
+    assert_eq!(document.current_layer().map(|layer| layer.name.as_str()), Some("Sky"), "the layer below is current");
 }
 
 #[trial]
 fn the_delete_layer_row_asks_nothing_with_one_layer_left() {
     let mut only = MockState::default();
     only.document.layers.truncate(1);
-    only.document.current = 0;
     let (mut fixture, state) = window(only);
     choose_delete_layer(&mut fixture);
     fixture.idle(DIALOG_OPEN);
@@ -204,4 +206,88 @@ fn the_tool_keys_pick_move_then_brush_and_shift_b_cycles_to_pencil() {
     assert_eq!(state.borrow().tool, Tool::Brush);
     fixture.key(Key::B, Modifiers::SHIFT).settle();
     assert_eq!(state.borrow().tool, Tool::Pencil);
+}
+
+/// The document canvas: the largest canvas of the window.
+fn canvas(fixture: &Fixture) -> Target {
+    let area = |target: &Target| target.rect.width() * target.rect.height();
+    fixture.by_role(Role::CANVAS).into_iter().max_by(|a, b| area(a).total_cmp(&area(b))).expect("a canvas")
+}
+
+/// A window whose document is zoomed in, so a pan has room to move the view.
+fn zoomed_window() -> (Fixture, Rc<RefCell<MockState>>) {
+    let (mut fixture, state) = window(MockState::default());
+    {
+        let view = &mut state.borrow_mut().document.view;
+        *view = CanvasView { zoom: view.zoom * 4.0, ..*view };
+    }
+    fixture.settle();
+    (fixture, state)
+}
+
+fn center_of(state: &Rc<RefCell<MockState>>) -> (f64, f64) {
+    let center = state.borrow().document.view.center;
+    (center.x, center.y)
+}
+
+/// The shapes as large as the canvas's document: the pasteboard's page and one picture per visible layer.
+fn page_sized_shapes(fixture: &Fixture) -> usize {
+    let page = canvas(fixture).rect;
+    fixture.shape_bounds().iter().filter(|rect| rect.width() > page.width() / 3.0 && rect.height() > page.height() / 3.0).count()
+}
+
+#[trial]
+fn hiding_a_layer_with_its_eye_changes_what_the_canvas_paints() {
+    let (mut fixture, state) = window(MockState::default());
+    let shown = page_sized_shapes(&fixture);
+    let eye = fixture.control("Visibility Mountains").expect("the eye of the top layer");
+    fixture.click(&eye).settle();
+    assert!(!state.borrow().document.layers[0].visible);
+    assert_eq!(page_sized_shapes(&fixture), shown - 1, "the hidden layer paints nothing");
+}
+
+#[trial]
+fn a_hand_drag_pans_the_view() {
+    let (mut fixture, state) = zoomed_window();
+    fixture.key(Key::H, Modifiers::NONE).settle();
+    let before = center_of(&state);
+    let target = canvas(&fixture);
+    fixture.drag(&target, vec2(-80.0, 0.0)).settle();
+    assert!(center_of(&state).0 > before.0, "dragging left moves the view right");
+}
+
+#[trial]
+fn holding_space_over_the_canvas_pans_with_another_tool_current() {
+    let (mut fixture, state) = zoomed_window();
+    assert_eq!(state.borrow().tool, Tool::Move);
+    let before = center_of(&state);
+    let target = canvas(&fixture);
+    fixture.frame(vec![pointer::moved(target.center())]);
+    fixture.frame(vec![key_press(Key::Space, Modifiers::NONE)]);
+    fixture.drag(&target, vec2(-80.0, 0.0));
+    fixture.frame(vec![Event::Key { key: Key::Space, physical_key: Some(Key::Space), pressed: false, repeat: false, modifiers: Modifiers::NONE }]);
+    fixture.settle();
+    assert!(center_of(&state).0 > before.0, "Space made the drag a pan");
+    assert_eq!(state.borrow().tool, Tool::Move, "the tool is the same afterwards");
+}
+
+#[trial]
+fn the_marquee_drag_selects_a_rectangle_and_escape_clears_it() {
+    let (mut fixture, state) = window(MockState::default());
+    fixture.key(Key::M, Modifiers::NONE).settle();
+    let target = canvas(&fixture);
+    fixture.drag(&target, vec2(60.0, 40.0)).settle();
+    assert!(state.borrow().document.marquee.is_some(), "the drag made a selection");
+    fixture.key(Key::Escape, Modifiers::NONE).settle();
+    assert!(state.borrow().document.marquee.is_none(), "Escape cleared it");
+}
+
+#[trial]
+fn hiding_the_rulers_gives_the_canvas_their_room() {
+    let (mut fixture, state) = window(MockState::default());
+    let with = state.borrow().document.view.rect;
+    state.borrow_mut().document.rulers = false;
+    fixture.settle();
+    let without = state.borrow().document.view.rect;
+    assert!(without.min.x < with.min.x && without.min.y < with.min.y, "the view reaches the canvas edge without the rulers");
 }
