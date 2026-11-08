@@ -1,8 +1,7 @@
 //! `LinkList` (the Links panel), `StatusBadge` and `RelinkDialog` (Link Media).
 //!
 //! ```ignore
-//! let out = LinkList::new("links", &links, monitor.statuses(), &mut state.links)
-//!     .thumbnails(&thumbs, &link_thumbs).show(ui);
+//! let out = LinkList::new("Links", &links, monitor.statuses(), Bind::bound(&mut state.links)).show(ui);
 //! if out.settings_changed { settings.links = state.links.settings.clone() }
 //! for event in out.events {
 //!     match event {
@@ -18,17 +17,10 @@
 
 mod badge;
 mod dialog;
-#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
-mod dialog_tests;
 mod list;
-#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
-mod list_tests;
-pub(crate) mod stories;
-mod style;
+#[cfg(feature = "screen-testing")]
+mod stories;
 
 pub use badge::StatusBadge;
-pub use dialog::{
-    CandidateChecker, RelinkColumn, RelinkCriterion, RelinkDialog, RelinkLabels, RelinkLayout, RelinkOptions, RelinkOutcome, RelinkRow, SEARCHING,
-};
-pub use list::{LinkFilter, LinkList, LinkListEvent, LinkListLabels, LinkListOutput, LinkListSettings, LinkListState, LinkSort};
-pub use style::RelinkStyle;
+pub use dialog::{CandidateChecker, RelinkCriterion, RelinkDialog, RelinkOptions, RelinkOutcome, RelinkRow, RelinkWords};
+pub use list::{LinkFilter, LinkList, LinkListEvent, LinkListOutput, LinkListSettings, LinkListState, LinkListWords, LinkSort};
