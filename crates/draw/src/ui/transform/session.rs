@@ -121,6 +121,7 @@ pub enum TransformRequest<W> {
     Discard,
     /// [`TransformEdit::WarpRequested`]: the app builds its warp from the box (`rect` mapped onto
     /// `state`, a smart object's own warp first) and answers [`TransformEdit::Warp`].
+    #[non_exhaustive]
     NeedWarp {
         /// The source frame.
         rect: Rect,

@@ -53,6 +53,11 @@ fn session() -> TransformSession<Warp> {
     TransformSession::new(FRAME)
 }
 
+/// A document displacement.
+fn doc(x: f64, y: f64) -> Vec2 {
+    Vec2::new(x, y)
+}
+
 fn moved(by: Vec2) -> BoxState {
     BoxState::from_rect(FRAME).moved(by)
 }
@@ -86,9 +91,9 @@ fn an_untouched_session_has_no_result_and_a_moved_one_has() {
     assert!(s.is_untouched());
     assert_eq!(s.commit(), TransformRequest::CloseUntouched);
 
-    drag(&mut s, moved(Vec2::new(10.0, 0.0)), 0.0);
+    drag(&mut s, moved(doc(10.0, 0.0)), 0.0);
     let TransformRequest::Apply(result) = s.commit() else { panic!("expected Apply") };
-    assert_eq!((result.rect, result.state, result.interpolation, result.warp), (FRAME, moved(Vec2::new(10.0, 0.0)), Interpolation::Bilinear, None));
+    assert_eq!((result.rect, result.state, result.interpolation, result.warp), (FRAME, moved(doc(10.0, 0.0)), Interpolation::Bilinear, None));
 }
 
 // Box Begin, Update, then Cancel restores the box taken at Begin and requests nothing; discard
@@ -98,7 +103,7 @@ fn esc_during_a_drag_restores_the_box_and_a_second_esc_discards() {
     let mut s = session();
     let id = GestureId::new(1);
     assert_eq!(s.apply(TransformEdit::Box(begin(id)), 0.0), None);
-    s.apply(TransformEdit::Box(update(id, moved(Vec2::new(5.0, 5.0)))), 0.0);
+    s.apply(TransformEdit::Box(update(id, moved(doc(5.0, 5.0)))), 0.0);
     assert!(s.dragging());
     assert_eq!(s.apply(TransformEdit::Box(cancel(id)), 0.0), None);
     assert!(!s.dragging());
@@ -112,7 +117,7 @@ fn discard_ends_a_running_gesture_on_the_box_it_began_on() {
     let mut s = session();
     let id = GestureId::new(1);
     s.apply(TransformEdit::Box(begin(id)), 0.0);
-    s.apply(TransformEdit::Box(update(id, moved(Vec2::new(5.0, 5.0)))), 0.0);
+    s.apply(TransformEdit::Box(update(id, moved(doc(5.0, 5.0)))), 0.0);
     assert_eq!(s.discard(), TransformRequest::Discard);
     assert!(!s.dragging());
     assert_eq!(*s.state(), BoxState::from_rect(FRAME));
@@ -123,7 +128,7 @@ fn discard_ends_a_running_gesture_on_the_box_it_began_on() {
 #[trial]
 fn a_commit_in_the_warp_phase_decides_from_the_warp_alone() {
     let mut s = session();
-    drag(&mut s, moved(Vec2::new(10.0, 0.0)), 0.0);
+    drag(&mut s, moved(doc(10.0, 0.0)), 0.0);
     s.apply(TransformEdit::Warp(Warp(false)), 1.0);
     s.apply(TransformEdit::Warp(Warp(true)), 2.0);
     assert!(s.is_untouched());
@@ -138,7 +143,7 @@ fn a_commit_in_the_warp_phase_decides_from_the_warp_alone() {
 #[trial]
 fn mode_and_interpolation_stay_outside_the_undo_steps() {
     let mut s = session();
-    drag(&mut s, moved(Vec2::new(10.0, 0.0)), 0.0);
+    drag(&mut s, moved(doc(10.0, 0.0)), 0.0);
     s.apply(TransformEdit::Mode(TransformMode::Skew), 1.0);
     s.apply(TransformEdit::Interpolation(Interpolation::Bilinear), 1.0);
     s.settle(1.0, false);
@@ -154,14 +159,14 @@ fn mode_and_interpolation_stay_outside_the_undo_steps() {
 fn a_field_typing_run_builds_every_report_from_the_box_at_its_start() {
     let mut s = session();
     let id = GestureId::new(1);
-    let row = |dx: f64, skew_v: f64| TransformRow { state: moved(Vec2::new(dx, 0.0)), skew_v };
+    let row = |dx: f64, skew_v: f64| TransformRow { state: moved(doc(dx, 0.0)), skew_v };
     s.apply(TransformEdit::Fields(begin(id)), 0.0);
     s.apply(TransformEdit::Fields(update(id, row(3.0, 5.0))), 0.0);
     s.settle(0.0, false);
     assert!(!s.can_undo());
     s.apply(TransformEdit::Fields(commit(id, row(4.0, 6.0))), 0.0);
     s.settle(0.0, false);
-    assert_eq!((*s.state(), s.skew_v()), (moved(Vec2::new(4.0, 0.0)), 6.0));
+    assert_eq!((*s.state(), s.skew_v()), (moved(doc(4.0, 0.0)), 6.0));
     assert!(s.undo());
     assert_eq!((*s.state(), s.skew_v()), (BoxState::from_rect(FRAME), 0.0));
     assert!(!s.can_undo());
@@ -192,27 +197,27 @@ fn presets_turn_the_box_about_the_reference_point_without_applying() {
 #[trial]
 fn entering_warp_asks_for_a_warp_and_carries_the_box() {
     let mut s = session();
-    drag(&mut s, moved(Vec2::new(10.0, 0.0)), 0.0);
+    drag(&mut s, moved(doc(10.0, 0.0)), 0.0);
     let request = s.apply(TransformEdit::WarpRequested, 1.0);
     let Some(TransformRequest::NeedWarp { rect, state }) = request else { panic!("expected NeedWarp") };
-    assert_eq!((rect, state), (FRAME, moved(Vec2::new(10.0, 0.0))));
+    assert_eq!((rect, state), (FRAME, moved(doc(10.0, 0.0))));
     assert_eq!(s.phase(), TransformPhase::Box);
     s.apply(TransformEdit::Warp(Warp(false)), 1.0);
     s.settle(1.0, false);
     assert_eq!(s.phase(), TransformPhase::Warp);
     assert!(s.undo());
-    assert_eq!((s.phase(), *s.state()), (TransformPhase::Box, moved(Vec2::new(10.0, 0.0))));
+    assert_eq!((s.phase(), *s.state()), (TransformPhase::Box, moved(doc(10.0, 0.0))));
 }
 
 // LeaveWarp drops the warp and returns to the Box phase with the box unchanged.
 #[trial]
 fn leaving_warp_drops_the_warp_and_keeps_the_box() {
     let mut s = session();
-    drag(&mut s, moved(Vec2::new(10.0, 0.0)), 0.0);
+    drag(&mut s, moved(doc(10.0, 0.0)), 0.0);
     s.apply(TransformEdit::Warp(Warp(false)), 1.0);
     assert_eq!(s.apply(TransformEdit::LeaveWarp, 1.0), None);
     assert_eq!((s.phase(), s.warp()), (TransformPhase::Box, None));
-    assert_eq!(*s.state(), moved(Vec2::new(10.0, 0.0)));
+    assert_eq!(*s.state(), moved(doc(10.0, 0.0)));
 }
 
 // A move, a pivot move, a warp: undo restores the box, the pivot and the warp of each step
@@ -220,7 +225,7 @@ fn leaving_warp_drops_the_warp_and_keeps_the_box() {
 #[trial]
 fn undo_and_redo_restore_the_box_pivot_and_warp_together() {
     let mut s = session();
-    let first = moved(Vec2::new(10.0, 0.0));
+    let first = moved(doc(10.0, 0.0));
     drag(&mut s, first, 0.0);
     s.apply(TransformEdit::Pivot(Anchor9::TopLeft), 1.0);
     s.settle(1.0, false);
@@ -240,7 +245,7 @@ fn undo_and_redo_restore_the_box_pivot_and_warp_together() {
     assert!(!s.redo());
 
     assert!(s.undo());
-    drag(&mut s, moved(Vec2::new(0.0, 7.0)), 3.0);
+    drag(&mut s, moved(doc(0.0, 7.0)), 3.0);
     assert!(!s.can_redo());
 }
 
@@ -335,7 +340,7 @@ fn settings_choose_the_legacy_scale_rule_and_the_aspect_link() {
 // every nudge is its own step.
 #[trial]
 fn nudges_within_the_pause_fold_into_one_step() {
-    let step = |dx: f64| moved(Vec2::new(dx, 0.0));
+    let step = |dx: f64| moved(doc(dx, 0.0));
     let steps = |s: &mut TransformSession<Warp>| {
         let mut n = 0;
         while s.undo() {
@@ -367,17 +372,17 @@ fn nudges_within_the_pause_fold_into_one_step() {
 #[trial]
 fn undo_is_refused_while_a_drag_runs() {
     let mut s = session();
-    drag(&mut s, moved(Vec2::new(10.0, 0.0)), 0.0);
+    drag(&mut s, moved(doc(10.0, 0.0)), 0.0);
     assert!(s.undo() && s.redo());
     let id = GestureId::new(1);
     s.apply(TransformEdit::Box(begin(id)), 1.0);
-    s.apply(TransformEdit::Box(update(id, moved(Vec2::new(40.0, 0.0)))), 1.0);
+    s.apply(TransformEdit::Box(update(id, moved(doc(40.0, 0.0)))), 1.0);
     assert!(!s.undo() && !s.redo());
-    assert_eq!(*s.state(), moved(Vec2::new(40.0, 0.0)));
-    s.apply(TransformEdit::Box(commit(id, moved(Vec2::new(40.0, 0.0)))), 1.0);
+    assert_eq!(*s.state(), moved(doc(40.0, 0.0)));
+    s.apply(TransformEdit::Box(commit(id, moved(doc(40.0, 0.0)))), 1.0);
     s.settle(1.0, false);
     assert!(s.undo());
-    assert_eq!(*s.state(), moved(Vec2::new(10.0, 0.0)));
+    assert_eq!(*s.state(), moved(doc(10.0, 0.0)));
 }
 
 // `homography` maps the frame's corners onto the box's corners and its centre into the box; a box

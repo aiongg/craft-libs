@@ -239,7 +239,7 @@ impl<'a> TransformBox<'a> {
     }
 
     /// The box the pointer at screen position `pos` gives a drag, snapped and rounded.
-    fn dragged(&self, space: &CanvasSpace, grip: &Grip, pos: Pos2, mods: Mods) -> BoxState {
+    fn proposal(&self, space: &CanvasSpace, grip: &Grip, pos: Pos2, mods: Mods) -> BoxState {
         let to = space.view.to_doc(pos);
         let to = self.snap.map_or(to, |targets| targets.snap_point(to, space.view.doc_len(SNAP_PX as f32)).0);
         let dragged = quad::drag(&grip.start, &grip.last, grip.part, grip.from, to, mods, &self.rules);
@@ -351,7 +351,7 @@ impl<'a> TransformBox<'a> {
                     if !grip.began {
                         continue;
                     }
-                    let next = self.dragged(space, &grip, pos, mods);
+                    let next = self.proposal(space, &grip, pos, mods);
                     grip.last = next;
                     held = Some(grip);
                     cx.propose(next);

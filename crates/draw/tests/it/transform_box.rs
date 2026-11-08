@@ -217,6 +217,16 @@ impl Harness {
     }
 }
 
+/// A screen displacement.
+fn by(x: f32, y: f32) -> Vec2 {
+    Vec2::new(x, y)
+}
+
+/// A document displacement.
+fn doc(x: f64, y: f64) -> DocVec {
+    DocVec::new(x, y)
+}
+
 fn near(a: &BoxState, b: &BoxState) -> bool {
     a.quad.iter().chain([&a.pivot]).zip(b.quad.iter().chain([&b.pivot])).all(|(p, q)| p.distance(*q) < 1e-3)
 }
@@ -232,7 +242,7 @@ fn the_nearest_handle_wins_on_a_small_box() {
     for (press, part) in [(Point::new(193.0, 141.0), BoxPart::Corner(0)), (Point::new(198.0, 141.0), BoxPart::Edge(0))] {
         let mut h = harness(small, |_| {});
         let from = h.screen(press);
-        let to = from + Vec2::new(-20.0, -30.0);
+        let to = from + by(-20.0, -30.0);
         let want = expected(&h, &small, part, from, to, Mods::NONE);
         h.drag(from, to, Modifiers::NONE);
         assert!(near(&h.state(), &want), "{part:?}: {:?}", h.state());
@@ -274,7 +284,7 @@ fn each_part_drags_as_quad_drag_has_it_in_every_mode() {
             let mut h = harness(BoxState::from_rect(RECT), |config| config.rules = BoxRules::in_mode(mode));
             let start = h.state();
             let from = h.screen(at);
-            let to = from + Vec2::new(30.0, 20.0);
+            let to = from + by(30.0, 20.0);
             let rules = h.config.borrow().rules;
             let want = if rules.allows(part) { expected(&h, &start, part, from, to, Mods::NONE) } else { start };
             h.drag(from, to, Modifiers::NONE);
@@ -293,7 +303,7 @@ fn a_click_outside_applies_and_a_drag_outside_rotates() {
     assert_eq!(h.host.borrow().applied, 1, "a click outside applies");
     assert!(h.host.borrow().events.is_empty() && h.state() == BoxState::from_rect(RECT));
 
-    h.drag(at, at + Vec2::new(-40.0, 30.0), Modifiers::NONE);
+    h.drag(at, at + by(-40.0, 30.0), Modifiers::NONE);
     assert_eq!(h.host.borrow().applied, 1, "a drag doesn't apply");
     assert!(h.state().angle().abs() > 1.0, "the drag turns the box: {}", h.state().angle());
 }
@@ -302,7 +312,7 @@ fn a_click_outside_applies_and_a_drag_outside_rotates() {
 fn the_rotate_zone_beyond_the_corners_turns_about_the_reference_point_and_shift_snaps_the_turn() {
     let mut h = upright();
     let at = h.screen(Point::new(340.0, 260.0));
-    h.drag(at, at + Vec2::new(-40.0, 30.0), Modifiers::SHIFT);
+    h.drag(at, at + by(-40.0, 30.0), Modifiers::SHIFT);
     let (angle, step) = (h.state().angle(), h.config.borrow().rules.rotate_step);
     assert!((angle / step - (angle / step).round()).abs() < 1e-6 && angle.abs() > 1.0, "{angle} is not a multiple of {step}");
     assert!(near(&BoxState::new([h.state().pivot; 4], h.state().pivot), &BoxState::new([RECT.center(); 4], RECT.center())), "the pivot stays");
@@ -323,14 +333,14 @@ fn a_double_click_inside_applies() {
 fn esc_cancels_a_drag_and_the_rest_of_the_press_does_nothing() {
     let mut h = upright();
     let from = h.screen(Point::new(150.0, 110.0));
-    h.hold_drag(from, from + Vec2::new(40.0, 0.0));
-    assert!(near(&h.state(), &BoxState::from_rect(RECT).moved(DocVec::new(40.0, 0.0))), "the host shows the drag");
+    h.hold_drag(from, from + by(40.0, 0.0));
+    assert!(near(&h.state(), &BoxState::from_rect(RECT).moved(doc(40.0, 0.0))), "the host shows the drag");
     h.fixture.key(Key::Escape, Modifiers::NONE);
     assert_eq!(h.count(Seen::Cancel), 1, "{:?}", h.host.borrow().events);
     assert_eq!(h.state(), BoxState::from_rect(RECT), "Esc undoes the drag");
     let count = h.host.borrow().events.len();
-    frame(&mut h, vec![pointer::moved(from + Vec2::new(60.0, 0.0))]);
-    frame(&mut h, vec![pointer::release(from + Vec2::new(60.0, 0.0))]);
+    frame(&mut h, vec![pointer::moved(from + by(60.0, 0.0))]);
+    frame(&mut h, vec![pointer::release(from + by(60.0, 0.0))]);
     assert_eq!(h.host.borrow().events.len(), count, "the rest of the press does nothing");
     assert_eq!(h.host.borrow().applied, 0);
 }
@@ -342,8 +352,8 @@ fn esc_before_the_first_move_ends_the_press() {
     frame(&mut h, vec![pointer::moved(from)]);
     frame(&mut h, vec![pointer::press(from)]);
     h.fixture.key(Key::Escape, Modifiers::NONE);
-    frame(&mut h, vec![pointer::moved(from + Vec2::new(40.0, 0.0))]);
-    frame(&mut h, vec![pointer::release(from + Vec2::new(40.0, 0.0))]);
+    frame(&mut h, vec![pointer::moved(from + by(40.0, 0.0))]);
+    frame(&mut h, vec![pointer::release(from + by(40.0, 0.0))]);
     frame(&mut h, Vec::new());
     assert!(h.host.borrow().events.is_empty(), "{:?}", h.host.borrow().events);
     assert_eq!(h.state(), BoxState::from_rect(RECT));
@@ -358,7 +368,7 @@ fn the_band_zone_leaves_the_rest_of_the_outside_to_the_tool() {
     assert_eq!(h.host.borrow().hovered, None);
     h.click(far);
     assert_eq!(h.host.borrow().applied, 0, "a click outside the band is the tool's");
-    h.drag(far, far + Vec2::new(40.0, 30.0), Modifiers::NONE);
+    h.drag(far, far + by(40.0, 30.0), Modifiers::NONE);
     assert!(h.host.borrow().events.is_empty());
 
     // 15 pt out along the corner's diagonal: in the band, it rotates.
@@ -367,7 +377,7 @@ fn the_band_zone_leaves_the_rest_of_the_outside_to_the_tool() {
     let at = corner + out * 15.0;
     h.hover(at);
     assert_eq!(h.host.borrow().hovered, Some(BoxPart::Outside));
-    h.drag(at, at + Vec2::new(-30.0, 20.0), Modifiers::NONE);
+    h.drag(at, at + by(-30.0, 20.0), Modifiers::NONE);
     assert!(h.state().angle().abs() > 1.0);
 }
 
@@ -375,10 +385,10 @@ fn the_band_zone_leaves_the_rest_of_the_outside_to_the_tool() {
 fn inside_moves_false_leaves_the_inside_to_the_tool() {
     let mut h = harness(BoxState::from_rect(RECT), |config| config.inside_moves = false);
     let from = h.screen(Point::new(150.0, 110.0));
-    h.drag(from, from + Vec2::new(30.0, 0.0), Modifiers::NONE);
+    h.drag(from, from + by(30.0, 0.0), Modifiers::NONE);
     assert!(h.host.borrow().events.is_empty(), "the press is the tool's");
     let corner = h.screen(Point::new(100.0, 80.0));
-    h.drag(corner, corner + Vec2::new(-20.0, -10.0), Modifiers::NONE);
+    h.drag(corner, corner + by(-20.0, -10.0), Modifiers::NONE);
     assert_ne!(h.state(), BoxState::from_rect(RECT), "the handles still drag");
 }
 
@@ -390,8 +400,7 @@ fn arrows_move_the_picked_part_as_a_plain_drag_of_it_would() {
     assert_eq!(h.host.borrow().picked, Some(BoxPart::Corner(0)), "a press picks the part");
     let start = h.state();
     h.fixture.key(Key::ArrowLeft, Modifiers::NONE);
-    let want =
-        quad::drag(&start, &start, BoxPart::Corner(0), start.quad[0], start.quad[0] + DocVec::new(-1.0, 0.0), Mods::NONE, &BoxRules::default());
+    let want = quad::drag(&start, &start, BoxPart::Corner(0), start.quad[0], start.quad[0] + doc(-1.0, 0.0), Mods::NONE, &BoxRules::default());
     assert_eq!(h.state(), want, "a plain corner drag: proportional about the opposite corner");
     assert!((h.state().quad[0].y - start.quad[0].y).abs() > 1e-6, "proportional: the height follows");
     assert!(matches!(h.host.borrow().events.last(), Some(Seen::Set)));
@@ -400,7 +409,7 @@ fn arrows_move_the_picked_part_as_a_plain_drag_of_it_would() {
     h.fixture.click(&inside);
     let before = h.state();
     h.fixture.key(Key::ArrowDown, Modifiers::SHIFT);
-    assert_eq!(h.state(), before.moved(DocVec::new(0.0, 10.0)), "Shift moves ten units");
+    assert_eq!(h.state(), before.moved(doc(0.0, 10.0)), "Shift moves ten units");
 }
 
 #[trial]
@@ -423,9 +432,9 @@ fn page_keys_skip_the_parts_the_mode_refuses() {
 #[trial]
 fn the_readout_shows_what_each_gesture_changes() {
     let cases = [
-        (Point::new(340.0, 260.0), Vec2::new(-30.0, 30.0), "Angle:"),
-        (Point::new(300.0, 220.0), Vec2::new(20.0, 0.0), "W:"),
-        (Point::new(150.0, 110.0), Vec2::new(20.0, -10.0), "ΔX:"),
+        (Point::new(340.0, 260.0), by(-30.0, 30.0), "Angle:"),
+        (Point::new(300.0, 220.0), by(20.0, 0.0), "W:"),
+        (Point::new(150.0, 110.0), by(20.0, -10.0), "ΔX:"),
     ];
     for (press, by, label) in cases {
         let mut h = upright();
@@ -443,7 +452,7 @@ fn the_box_takes_a_press_on_a_handle_before_a_guide_under_it() {
     let mut h = harness(BoxState::from_rect(RECT), |config| config.guides = true);
     // The guide runs through the box's right edge, at x = 300; the corner at (300, 80) is the box's.
     let corner = h.screen(Point::new(300.0, 80.0));
-    h.drag(corner, corner + Vec2::new(20.0, 0.0), Modifiers::NONE);
+    h.drag(corner, corner + by(20.0, 0.0), Modifiers::NONE);
     assert!(h.host.borrow().events.contains(&Seen::Commit), "the box took the press");
     assert_eq!(h.host.borrow().guide_events, 0, "the guide did not move");
 }
@@ -452,7 +461,7 @@ fn the_box_takes_a_press_on_a_handle_before_a_guide_under_it() {
 fn modifiers_override_replaces_the_input_modifiers() {
     let mut h = harness(BoxState::from_rect(RECT), |config| config.mods = Some(Mods::SHIFT));
     let at = h.screen(Point::new(340.0, 260.0));
-    h.drag(at, at + Vec2::new(-40.0, 30.0), Modifiers::NONE);
+    h.drag(at, at + by(-40.0, 30.0), Modifiers::NONE);
     let (angle, step) = (h.state().angle(), h.config.borrow().rules.rotate_step);
     assert!((angle / step - (angle / step).round()).abs() < 1e-6 && angle.abs() > 1.0, "Shift is held for the box: {angle}");
 }
@@ -475,7 +484,7 @@ fn alt_beyond_the_box_places_the_reference_point_there_and_drags_it() {
     assert_eq!(h.state().quad, BoxState::from_rect(RECT).quad, "the corners stay");
     assert_eq!(h.host.borrow().applied, 0, "an Alt click does not apply");
 
-    let to = at + Vec2::new(10.0, 10.0);
+    let to = at + by(10.0, 10.0);
     h.drag(at, to, Modifiers::ALT);
     assert!((h.state().pivot - Point::new(350.0, 270.0)).hypot() < 1e-3, "{:?}", h.state().pivot);
 }
@@ -487,10 +496,10 @@ fn a_pixel_grid_box_fed_back_as_state_does_not_drift_over_a_drag() {
     frame(&mut h, vec![pointer::moved(from)]);
     frame(&mut h, vec![pointer::press(from)]);
     for step in 1..=12 {
-        frame(&mut h, vec![pointer::moved(from + Vec2::new(0.4 * step as f32, 0.3 * step as f32))]);
+        frame(&mut h, vec![pointer::moved(from + by(0.4 * step as f32, 0.3 * step as f32))]);
     }
     let held = h.state();
-    frame(&mut h, vec![pointer::release(from + Vec2::new(4.8, 3.6))]);
+    frame(&mut h, vec![pointer::release(from + by(4.8, 3.6))]);
     frame(&mut h, Vec::new());
     for corner in h.state().quad {
         assert!((corner.x - corner.x.round()).abs() < 1e-9 && (corner.y - corner.y.round()).abs() < 1e-9, "{corner:?} is on whole units");
@@ -502,11 +511,11 @@ fn a_pixel_grid_box_fed_back_as_state_does_not_drift_over_a_drag() {
 fn an_external_change_during_a_pixel_grid_drag_still_cancels() {
     let mut h = harness(BoxState::from_rect(RECT), |config| config.pixel_grid = true);
     let from = h.screen(Point::new(300.0, 220.0));
-    h.hold_drag(from, from + Vec2::new(20.0, 20.0));
+    h.hold_drag(from, from + by(20.0, 20.0));
     assert_eq!(h.count(Seen::Begin), 1);
-    h.host.borrow_mut().state = BoxState::from_rect(RECT).moved(DocVec::new(0.0, 50.0));
-    frame(&mut h, vec![pointer::moved(from + Vec2::new(30.0, 30.0))]);
-    frame(&mut h, vec![pointer::release(from + Vec2::new(30.0, 30.0))]);
+    h.host.borrow_mut().state = BoxState::from_rect(RECT).moved(doc(0.0, 50.0));
+    frame(&mut h, vec![pointer::moved(from + by(30.0, 30.0))]);
+    frame(&mut h, vec![pointer::release(from + by(30.0, 30.0))]);
     assert_eq!(h.count(Seen::Cancel), 1, "{:?}", h.host.borrow().events);
     assert_eq!(h.count(Seen::Commit), 0);
 }
@@ -532,7 +541,7 @@ fn tool_context(rect: egui::Rect) -> ToolContext<'static> {
 fn without_the_focus_the_arrows_move_the_whole_box_whatever_is_picked() {
     let session = TransformSession::<()>::new(RECT);
     let mut tool = TransformTool::new(&session);
-    let mut cx = tool_context(egui::Rect::from_min_size(Pos2::ZERO, Vec2::new(400.0, 300.0)));
+    let mut cx = tool_context(egui::Rect::from_min_size(Pos2::ZERO, by(400.0, 300.0)));
     assert!(tool.key(&ToolKey::Nudge { direction: Vec2::X, mods: Mods::NONE }, &mut cx));
     assert!(tool.key(&ToolKey::Nudge { direction: Vec2::Y, mods: Mods::SHIFT }, &mut cx));
     let (edits, apply, discard) = tool.take_edits();
@@ -544,14 +553,14 @@ fn without_the_focus_the_arrows_move_the_whole_box_whatever_is_picked() {
             _ => None,
         })
         .collect();
-    assert_eq!(values, [BoxState::from_rect(RECT).moved(DocVec::new(1.0, 0.0)), BoxState::from_rect(RECT).moved(DocVec::new(0.0, 10.0))]);
+    assert_eq!(values, [BoxState::from_rect(RECT).moved(doc(1.0, 0.0)), BoxState::from_rect(RECT).moved(doc(0.0, 10.0))]);
 }
 
 #[trial]
 fn enter_applies_and_esc_discards_through_the_tool() {
     let session = TransformSession::<()>::new(RECT);
     let mut tool = TransformTool::new(&session);
-    let mut cx = tool_context(egui::Rect::from_min_size(Pos2::ZERO, Vec2::new(400.0, 300.0)));
+    let mut cx = tool_context(egui::Rect::from_min_size(Pos2::ZERO, by(400.0, 300.0)));
     assert!(tool.key(&ToolKey::Submit, &mut cx));
     assert_eq!(tool.take_edits().1, true);
     assert!(tool.key(&ToolKey::Cancel, &mut cx));
@@ -620,7 +629,7 @@ fn overlay(shown: bool, setup: impl FnOnce(&mut TransformSession<()>)) -> (Fixtu
 fn the_overlay_turns_box_events_into_session_edits() {
     let (mut fixture, host) = overlay(false, |_| {});
     let corner = host.borrow().view.to_screen(Point::new(300.0, 220.0));
-    let to = corner + Vec2::new(50.0, 40.0);
+    let to = corner + by(50.0, 40.0);
     fixture.frame(vec![pointer::moved(corner)]);
     fixture.frame(vec![pointer::press(corner)]);
     fixture.frame(vec![pointer::moved(corner.lerp(to, 0.5))]);
@@ -661,8 +670,8 @@ fn in_the_warp_phase_the_overlay_claims_nothing() {
     let corner = host.borrow().view.to_screen(Point::new(300.0, 220.0));
     fixture.frame(vec![pointer::moved(corner)]);
     fixture.frame(vec![pointer::press(corner)]);
-    fixture.frame(vec![pointer::moved(corner + Vec2::new(50.0, 40.0))]);
-    fixture.frame(vec![pointer::release(corner + Vec2::new(50.0, 40.0))]);
+    fixture.frame(vec![pointer::moved(corner + by(50.0, 40.0))]);
+    fixture.frame(vec![pointer::release(corner + by(50.0, 40.0))]);
     assert!(host.borrow().kinds.is_empty());
     assert_eq!(host.borrow().session.state().quad, BoxState::from_rect(RECT).quad);
     assert!(fixture.by_role(craft_ui::contract::Role::BUTTON).is_empty(), "the overlay has no parts");
