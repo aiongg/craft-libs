@@ -518,6 +518,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.delete_key(cx, &props, lead_at);
         self.reorder_and_rename(comp, cx, &props, lead_at);
         self.requested_rename(comp, cx, &props, &layout, view);
+        self.requested_reveal(comp, &layout, view);
         self.type_ahead(comp, cx, &layout, view, lead_at);
         request::record_lead(&cx.core.ctx, cx.core.id, self.lead.key.as_ref().and_then(|key| self.index_of(key)));
         if let Some(at) = self.page_reveal.take().filter(|&at| layout.shown(at)) {
@@ -1309,6 +1310,15 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             self.move_lead(at, LeadSource::Keys);
             self.reveal_with(layout, at, view);
             self.begin_rename(cx, at);
+        }
+    }
+
+    /// The item the collection was asked to reveal (`Collection::reveal`, a one-shot request of the pass): the lead
+    /// moves to it and it scrolls into view.
+    fn requested_reveal(&mut self, comp: &C, layout: &C::ItemLayout, view: f32) {
+        if let Some(at) = comp.reveal().and_then(|key| self.index_of(key)).filter(|&at| !self.source.section_stop(at)) {
+            self.move_lead(at, LeadSource::Keys);
+            self.reveal_with(layout, at, view);
         }
     }
 
