@@ -128,12 +128,16 @@ fn the_pass_clock_follows_the_fixtures_manual_time_in_update_and_paint() {
         Lab { common: Common::new(), added: &added, log: &log, update_clock: 0.0 }.show_at(ui, area());
     };
     frames.frame(vec![], &mut show);
+    let first = *log.borrow().clock.last().expect("a pass painted");
+    frames.frame(vec![], &mut show);
     let before = *log.borrow().clock.last().expect("a pass painted");
+    let tick = before.0 - first.0;
     frames.advance(STEP);
     frames.frame(vec![], &mut show);
     let after = *log.borrow().clock.last().expect("a pass painted");
-    assert!((after.0 - before.0 - STEP).abs() < SLACK, "update reads the advanced time: {before:?} -> {after:?}");
-    assert!((after.1 - before.1 - STEP).abs() < SLACK, "paint reads the advanced time: {before:?} -> {after:?}");
+    assert!((after.0 - before.0 - STEP - tick).abs() < SLACK, "update reads the advanced time: {before:?} -> {after:?}");
+    assert!((after.1 - before.1 - STEP - tick).abs() < SLACK, "paint reads the advanced time: {before:?} -> {after:?}");
+    assert!((after.0 - after.1).abs() < SLACK, "update and paint of one pass read one time: {after:?}");
 }
 
 #[trial]
