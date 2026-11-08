@@ -12,7 +12,7 @@ use craft_ui::rails::{LastUsed, RailTool};
 use craft_ui::runtime::commands::EditCommands;
 use craft_ui::runtime::env::Label;
 use craft_ui::testing::{Fixture, ToolFixture, focus, input, trial};
-use egui::{Id, Modifiers, Pos2, Rect, Vec2};
+use egui::{Id, Modifiers, Pos2, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 

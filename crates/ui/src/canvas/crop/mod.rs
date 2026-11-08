@@ -275,9 +275,12 @@ impl CropOverlay<'_> {
     fn step(&mut self, cx: &mut Cx<'_, Self>, space: &CanvasSpace, drag: &mut Drag, pos: Pos2, mods: Mods) {
         let view = space.view;
         let rules = self.rules();
-        if let Kind::Line { to, .. } = &mut drag.kind {
+        if let Kind::Line { from, to } = &mut drag.kind {
             *to = pos;
             self.report.dragging = true;
+            if let Some(degrees) = gesture::line_degrees(*from, pos) {
+                readout(cx, pos, &angle_row(cx, degrees));
+            }
             return;
         }
         let held_space = crate::runtime::keys::down(&cx.ctx).contains(&Key::Space);

@@ -25,8 +25,8 @@ fn shown(configure: impl Fn(CropOverlay<'_>) -> CropOverlay<'_> + 'static) -> Sh
     let mut fixture = Fixture::new(move |ui| {
         let _ = Canvas::new("Document", ToolPath::Command("the Crop To... command")).show(ui, |ui, body| {
             let out = configure(CropOverlay::new("Crop", Bind::bound(&mut *c.borrow_mut()))).show_at(ui, body.rect);
-            a.set(a.get() || out.output.apply);
-            d.set(d.get() || out.output.discard);
+            a.set(a.get() || out.apply);
+            d.set(d.get() || out.discard);
         });
     });
     fixture.settle();
