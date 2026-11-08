@@ -166,16 +166,16 @@ impl Scene {
 
     /// A frame with `events`; the scene's flags are read as they stand.
     fn frame(&self, frames: &mut Frames, events: Vec<egui::Event>) {
-        frames.frame(events, &mut |ui| self.show(ui));
+        frames.frame(events, &mut |ui: &mut Ui| self.show(ui));
     }
 
     /// Opens the dialog and settles it.
     fn open_dialog(&self, frames: &mut Frames) {
-        frames.idle(3, &mut |ui| self.show(ui));
+        frames.idle(3, &mut |ui: &mut Ui| self.show(ui));
         self.open.set(true);
         self.frame(frames, vec![]);
         self.open.set(false);
-        frames.idle(30, &mut |ui| self.show(ui));
+        frames.idle(30, &mut |ui: &mut Ui| self.show(ui));
         assert!(self.dialog.shown.get(), "the dialog shows");
     }
 
@@ -199,7 +199,7 @@ impl Scene {
         self.frame(frames, vec![moved(at + by / 2.0)]);
         self.frame(frames, vec![moved(at + by)]);
         self.frame(frames, vec![release(at + by)]);
-        frames.idle(2, &mut |ui| self.show(ui));
+        frames.idle(2, &mut |ui: &mut Ui| self.show(ui));
     }
 }
 
@@ -216,7 +216,7 @@ fn an_armed_sampler_passes_a_press_and_a_drag_to_the_canvas_and_lapses_with_the_
     assert!(scene.dialog.shown.get(), "a press on the canvas does not close the dialog");
     assert!(is_focused(&frames.ctx, scene.armer_id.get()), "the dialog keeps key focus");
     scene.frame(&mut frames, vec![key_press(Key::Escape, Modifiers::NONE)]);
-    frames.idle(30, &mut |ui| scene.show(ui));
+    frames.idle(30, &mut |ui: &mut Ui| scene.show(ui));
     assert!(!scene.dialog.shown.get(), "Escape closes the dialog");
     // A dialog that opens later and does not arm gets no press through.
     scene.arm.set(Arm::Nothing);
@@ -255,7 +255,7 @@ fn a_press_on_the_canvas_closes_a_popup_over_the_dialog_and_does_not_reach_the_c
     let scene = Scene::new(Arm::Sampler);
     scene.open_dialog(&mut frames);
     scene.dropdown.set(true);
-    frames.idle(30, &mut |ui| scene.show(ui));
+    frames.idle(30, &mut |ui: &mut Ui| scene.show(ui));
     assert!(scene.dropdown_shown.shown.get(), "the dropdown is open over the dialog");
     scene.dropdown.set(false);
     scene.drag(&mut frames, CANVAS.center(), Vec2::new(40.0, 10.0));
@@ -274,7 +274,7 @@ fn a_secondary_press_on_the_armed_canvas_is_blocked() {
     scene.frame(&mut frames, vec![moved(at)]);
     scene.frame(&mut frames, vec![secondary(at, true)]);
     scene.frame(&mut frames, vec![secondary(at, false)]);
-    frames.idle(2, &mut |ui| scene.show(ui));
+    frames.idle(2, &mut |ui: &mut Ui| scene.show(ui));
     assert!(!scene.pressed_canvas(), "a secondary press stays blocked");
 }
 
@@ -291,7 +291,7 @@ fn a_view_kept_open_takes_the_middle_press_and_not_the_primary_one() {
     scene.frame(&mut frames, vec![moved(at)]);
     scene.frame(&mut frames, vec![middle(at, true)]);
     scene.frame(&mut frames, vec![middle(at, false)]);
-    frames.idle(2, &mut |ui| scene.show(ui));
+    frames.idle(2, &mut |ui: &mut Ui| scene.show(ui));
     assert!(scene.pressed_canvas(), "the middle press reached the canvas");
 }
 
