@@ -100,6 +100,13 @@ impl Rules<'_> {
         }
     }
 
+    /// The screen point of `pos` after the snap targets: an end of the Straighten line.
+    pub fn snap_screen(&self, view: &CanvasView, pos: Pos2) -> Pos2 {
+        let Some(targets) = self.snap else { return pos };
+        let (point, _) = targets.snap_point(view.to_doc(pos), view.doc_len(SNAP_PX as f32));
+        view.to_screen(point)
+    }
+
     /// The drag's document point for the pointer at `to` after the host's snap targets, with the lines that snapped. In
     /// image mode the point is in the view of the press, which the moving view never feeds back into: the correction
     /// is turned back into pointer travel.

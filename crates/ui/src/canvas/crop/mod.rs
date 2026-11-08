@@ -259,7 +259,10 @@ impl CropOverlay<'_> {
         let view = space.view;
         let from = view.to_doc(origin);
         let kind = match grab {
-            Grab::Line => Kind::Line { from: origin, to: origin },
+            Grab::Line => {
+                let from = self.rules().snap_screen(&view, origin);
+                Kind::Line { from, to: from }
+            }
             Grab::Turn => Kind::Turn { grab: gesture::grab(frame, from) },
             Grab::Part(BoxPart::Inside) if !self.default_frame => Kind::Move,
             Grab::Part(BoxPart::Inside) => Kind::Draw { anchor: from, cur: from, last: from },
@@ -276,9 +279,9 @@ impl CropOverlay<'_> {
         let view = space.view;
         let rules = self.rules();
         if let Kind::Line { from, to } = &mut drag.kind {
-            *to = pos;
+            *to = rules.snap_screen(&view, pos);
             self.report.dragging = true;
-            if let Some(degrees) = gesture::line_degrees(*from, pos) {
+            if let Some(degrees) = gesture::line_degrees(*from, *to) {
                 readout(cx, pos, &angle_row(cx, degrees));
             }
             return;
@@ -300,14 +303,12 @@ impl CropOverlay<'_> {
             Kind::Draw { .. } | Kind::Resize(_) => self.report.sizing = drag.last.crop_size(),
             _ => {}
         }
-        if self.shield.auto_center_preview || !self.image_mode {
-            let rows = match drag.kind {
-                Kind::Turn { .. } => angle_row(cx, gesture::turn_degrees(&drag.last, self.image_mode)),
-                Kind::Draw { .. } | Kind::Resize(_) => drag.last.crop_size().map(|size| size_row(cx, space, size)).unwrap_or_default(),
-                _ => Vec::new(),
-            };
-            readout(cx, pos, &rows);
-        }
+        let rows = match drag.kind {
+            Kind::Turn { .. } => angle_row(cx, gesture::turn_degrees(&drag.last, self.image_mode)),
+            Kind::Draw { .. } | Kind::Resize(_) => drag.last.crop_size().map(|size| size_row(cx, space, size)).unwrap_or_default(),
+            _ => Vec::new(),
+        };
+        readout(cx, pos, &rows);
     }
 
     /// The button released after a drag at screen point `pos`.
