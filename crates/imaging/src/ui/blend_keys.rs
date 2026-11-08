@@ -14,7 +14,7 @@
 //! ```
 
 use craft_ui::contract::CommandSet;
-use craft_ui::runtime::commands::{FirePhase, Fired};
+use craft_ui::runtime::commands::{CommandRef, FirePhase, Fired};
 
 /// Photoshop's Shift+Alt letter positions: the 26 lettered blend modes. Darker Color, Lighter Color, Subtract and
 /// Divide have no letter; list them with [`BlendKeyEntry::unlettered`].
@@ -238,17 +238,22 @@ impl<'a, K: Clone + PartialEq> BlendKeys<'a, K> {
     /// The entry a fired [`BlendStep`] or [`BlendShortcut`] picks; `None` for any other command, a release, or a
     /// position the list lacks.
     pub fn fired(self, fired: &Fired) -> Option<BlendKeyPick<K>> {
-        if fired.phase == FirePhase::Release {
+        self.command(&fired.command, fired.phase)
+    }
+
+    /// [`fired`](Self::fired) for a command and the phase it fired in.
+    pub fn command(self, command: &CommandRef, phase: FirePhase) -> Option<BlendKeyPick<K>> {
+        if phase == FirePhase::Release {
             return None;
         }
-        if let Some(step) = BlendStep::from_ref(&fired.command) {
+        if let Some(step) = BlendStep::from_ref(command) {
             let step = match step {
                 BlendStep::Next => 1,
                 BlendStep::Previous => -1,
             };
             return stepped(self.entries, self.current, step).map(|entry| BlendKeyPick::Stepped(entry.key.clone()));
         }
-        let shortcut = BlendShortcut::from_ref(&fired.command)?;
+        let shortcut = BlendShortcut::from_ref(command)?;
         self.entries.iter().find(|entry| entry.shortcut == Some(shortcut)).map(|entry| BlendKeyPick::Lettered(entry.key.clone()))
     }
 }
