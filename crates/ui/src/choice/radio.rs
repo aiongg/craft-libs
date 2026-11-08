@@ -74,6 +74,13 @@ impl<'a, T: Value + 'static> RadioGroup<'a, T> {
         let props = ContainerProps::new().arena(true).roving(Roving::new(NavShape::Flat));
         RadioGroup { common: Common::new(), props, value }.label(label)
     }
+
+    /// How the arrows move through the members: `Flat` by default; a group that wraps its members in rows takes
+    /// `Spatial`, so Up and Down move to the member above or below.
+    pub fn nav(mut self, nav: NavShape) -> Self {
+        self.props = self.props.roving(Roving::new(nav));
+        self
+    }
 }
 
 impl<T: Value + 'static> Component for RadioGroup<'_, T> {
