@@ -117,7 +117,7 @@ macro_rules! layout_component {
             /// scrolled body is a group too: its scroll region is a Tab stop and a target of Page keys. An unlabelled,
             /// unscrolled one lays out its children and is no node of its own.
             fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
-                if self.props.scroll.is_none() && cx.label().as_str().is_empty() {
+                if self.props.scroll.is_none() && cx.resolved.label.is_empty() {
                     access.role(Role::None);
                 }
             }
