@@ -6,7 +6,7 @@ mod stories;
 use craft_behavior::{EditEvent, IconId};
 use craft_theme::ControlSize;
 use craft_ui::buttons::ToggleButton;
-use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, SideLabel, Tooltip};
+use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, SideLabel, TooltipSpec};
 use craft_ui::display::{Shade, Text};
 use craft_ui::form::Field;
 use craft_ui::layout_components::{Row, Stack};
@@ -141,10 +141,10 @@ impl<'a> BlendRows<'a> {
             Row::new().show(ui, |ui, _| {
                 let blend_name = Label::from(words.blend_mode.clone());
                 let picked = Select::new(blend_name.clone(), Bind::given(props.blend_key.clone()), blend_modes)
-                    .preview(true)
+                    .preview()
                     .size(SIZE)
                     .enabled(editable)
-                    .tooltip(Tooltip::new(blend_name).disabled_text(unavailable.clone()))
+                    .tooltip(TooltipSpec::new(blend_name).disabled_text(unavailable.clone()))
                     .show(ui);
                 events.extend(picked.event.map(LayerPropertyEdit::Blend));
                 let caption = Label::from(words.opacity.clone());
@@ -173,7 +173,7 @@ impl<'a> BlendRows<'a> {
                         .icon_only()
                         .size(SIZE)
                         .enabled(live && reason.is_none())
-                        .tooltip(Tooltip::new(name).disabled_text(reason.map_or_else(|| no_layer.clone(), |reason| Label::from(reason.clone()))))
+                        .tooltip(TooltipSpec::new(name).disabled_text(reason.map_or_else(|| no_layer.clone(), |reason| Label::from(reason.clone()))))
                         .show(ui);
                     if let Some(on) = button.value() {
                         events.push(LayerPropertyEdit::Lock { kind, on: *on });
@@ -198,7 +198,7 @@ fn percent_field(ui: &mut Ui, caption: &Label, value: f64, enabled: bool, reason
             .scrub_by_label()
             .size(SIZE)
             .enabled(enabled)
-            .tooltip(Tooltip::new(caption.clone()).disabled_text(reason.clone()))
+            .tooltip(TooltipSpec::new(caption.clone()).disabled_text(reason.clone()))
             .show(ui);
         edit = field.edit.event.map(|event| event.map(|typed| typed.unwrap_or(value)));
     });

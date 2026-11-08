@@ -296,9 +296,9 @@ pub(super) fn show_body<T: LayerTree>(
     if let Some(key) = reveal_key {
         list = list.reveal(key);
     }
-    let out = list.show_items(ui, rows, &mut |key, at| {
+    let out = list.show_items(ui, rows, &mut |key, item| {
         let row = build_row(cx, key);
-        match rows.rows.get(at) {
+        match rows.rows.get(item.at) {
             Some(shown) if shown.paint_depth != shown.depth => row.depth(shown.paint_depth),
             _ => row,
         }

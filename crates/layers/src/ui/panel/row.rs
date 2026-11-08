@@ -3,6 +3,7 @@
 
 use craft_behavior::{ColumnKey, IconId};
 use craft_theme::{LabelColor, Rgba, Srgba};
+use craft_ui::contract::Props as _;
 use craft_ui::list::{ListRow, RowInk, ThumbSize, ThumbTarget, ToggleCell, TrailingFace, TrailingPart};
 use craft_ui::primitives::textures::{Priority, ThumbPaint as PicturePaint, ThumbRequest};
 use craft_ui::primitives::{ContentPainterCx, IconSpec};
