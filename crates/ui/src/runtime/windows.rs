@@ -20,6 +20,8 @@ use craft_window::system::WindowSystem;
 use egui::{Context, Id, Pos2, Rect, Ui, Vec2, ViewportId};
 use std::sync::{Arc, Mutex};
 
+pub use crate::runtime::egui::screenshot::{ScreenshotError, ScreenshotFacts, ScreenshotSlot};
+
 /// Seconds between writes of a changed placement store.
 const FLUSH_SECONDS: f64 = 1.0;
 

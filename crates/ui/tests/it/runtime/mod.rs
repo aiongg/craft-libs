@@ -10,3 +10,6 @@ mod wheel;
 mod window_move;
 mod windows;
 mod words;
+
+mod injected;
+mod screenshot;
