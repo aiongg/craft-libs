@@ -1,5 +1,6 @@
 //! The integration binary of craft-layers: every test is a registered trial.
 
+mod panel;
 mod parts;
 
 use craft_ui::testing::{TRIALS, suite};
