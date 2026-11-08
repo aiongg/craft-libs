@@ -1252,10 +1252,12 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             && cx.core.intents.take(Intent::Space)
             && let Some(row) = lead_at
         {
+            eprintln!("DBG space_key focus={:?}", cx.core.focus);
             self.space_key(comp, cx, props, row);
         }
         // The pass's `update_inputs` turned an `Activate` intent into the keyed activation.
         let activated = cx.core.intents.take(Intent::Activate) || cx.core.activation.is_some_and(|activation| activation.by_key);
+        eprintln!("DBG intent_actions activated={activated} by_key={:?}", cx.core.activation.map(|a| a.by_key));
         if activated
             && !header_held
             && let Some(row) = lead_at

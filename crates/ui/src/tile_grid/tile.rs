@@ -720,7 +720,8 @@ impl Component for Tile<'_> {
             let current = self.rating.unwrap_or(0);
             self.event = Some(TilePartEvent::Rate(if star == current { 0 } else { star }));
         }
-        if cx.part_activated(CHECK).is_some() {
+        if let Some(src) = cx.part_activated(CHECK) {
+            eprintln!("DBG tile check activated {src:?}");
             self.event = Some(TilePartEvent::Check { mods: cx.part(CHECK).press.mods });
         }
         if cx.part_activated(CORNER).is_some() {

@@ -596,6 +596,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
             match event {
                 CollectionEvent::Item(key, TilePartEvent::Rate(rating)) => events.push(GridEvent::Rate { keys: vec![key], rating }),
                 CollectionEvent::Toggle(edit) if self.checks && matches!(edit, EditEvent::Set { .. } | EditEvent::Commit { .. }) => {
+                    eprintln!("DBG grid maps {:?}", edit.phase());
                     if let Some(toggle) = edit.value() {
                         kept.push(CollectionEvent::Item(toggle.key.clone(), TilePartEvent::Check { mods: Mods::NONE }));
                     }
