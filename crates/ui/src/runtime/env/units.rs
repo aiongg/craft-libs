@@ -1,8 +1,10 @@
 //! `Units`: what typed number input and unit readouts need from the env (core 2.1): the locale's separators and the
 //! unit spellings of a number's kind in the user's language, and the file sizes and durations written with them.
 
+use super::EnvValue;
 use craft_behavior::quantity::{Reader, is_unit_spelling};
 use craft_i18n::{FileSize, Format, WordSet as _, Words};
+use serde::{Deserialize, Serialize};
 use std::ops::RangeInclusive;
 use std::sync::{Arc, OnceLock};
 
@@ -25,8 +27,38 @@ craft_ui::words! {
     }
 }
 
+/// The size of a point, the Point/Pica Size of the Units preference. An app sets it once on its root env with
+/// `RootEnv::values`; `Units` reads it for typed Points and Picas and for their conversion to other lengths.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub enum PointSize {
+    /// 72 points to the inch.
+    #[default]
+    PostScript,
+    /// 72.27 points to the inch.
+    Traditional,
+}
+
+impl PointSize {
+    /// How many points make an inch.
+    pub const fn points_per_inch(self) -> f64 {
+        match self {
+            PointSize::PostScript => UnitKind::POINTS_PER_INCH,
+            PointSize::Traditional => 72.27,
+        }
+    }
+}
+
+impl EnvValue for PointSize {
+    fn root() -> Self {
+        PointSize::default()
+    }
+}
+
 /// What a number counts.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum UnitKind {
     /// `{n} px`.
@@ -128,11 +160,18 @@ pub struct Units {
     scope_words: Arc<Words>,
     /// The readers built so far, one slot per `reader` argument (see `reader_slot`); shared by clones.
     readers: Arc<[OnceLock<Reader>; UnitKind::ALL.len() + 1]>,
+    /// The scope's point size: what `reader` and `points_per_inch` use for Points and Picas.
+    point_size: PointSize,
 }
 
 impl Units {
-    pub(crate) fn new(format: Arc<Format>, words: Arc<UnitWords>, scope_words: Arc<Words>) -> Units {
-        Units { format, words, scope_words, readers: Arc::default() }
+    pub(crate) fn new(format: Arc<Format>, words: Arc<UnitWords>, scope_words: Arc<Words>, point_size: PointSize) -> Units {
+        Units { format, words, scope_words, readers: Arc::default(), point_size }
+    }
+
+    /// How many points make an inch in the scope: the app's point-size preference.
+    pub fn points_per_inch(&self) -> f64 {
+        self.point_size.points_per_inch()
     }
 
     fn template(&self, kind: UnitKind) -> &str {
@@ -235,13 +274,13 @@ impl Units {
     /// A reader for numbers of `kind` (plain numbers when `None`): the locale's decimal and group separators and
     /// the unit spellings that convert to `kind`, in the user's language and in English.
     pub fn reader(&self, kind: Option<UnitKind>) -> Reader {
-        self.readers[Self::reader_slot(kind)].get_or_init(|| self.build_reader(kind, UnitKind::POINTS_PER_INCH)).clone()
+        self.readers[Self::reader_slot(kind)].get_or_init(|| self.build_reader(kind, self.points_per_inch())).clone()
     }
 
-    /// Like [`reader`](Units::reader), with Points and Picas of `points_per_inch` to the inch (72.27 for traditional
-    /// points), so a typed `12pt` is the length `LinkedSize` converts for the same preference.
+    /// Like [`reader`](Units::reader), with Points and Picas of `points_per_inch` to the inch, so a typed `12pt` is the
+    /// length a dialog's own point size converts.
     pub fn reader_with_points(&self, kind: Option<UnitKind>, points_per_inch: f64) -> Reader {
-        if points_per_inch == UnitKind::POINTS_PER_INCH { self.reader(kind) } else { self.build_reader(kind, points_per_inch) }
+        if points_per_inch == self.points_per_inch() { self.reader(kind) } else { self.build_reader(kind, points_per_inch) }
     }
 
     /// The index of the reader for `kind` in `readers`: 0 for plain numbers, then one per unit kind.
@@ -256,7 +295,7 @@ impl Units {
             reader = reader.group(group);
         }
         let Some(kind) = kind else { return reader };
-        let english = Units::new(self.format.clone(), english_words(), Arc::new(Words::english()));
+        let english = Units::new(self.format.clone(), english_words(), Arc::new(Words::english()), self.point_size);
         for other in UnitKind::ALL {
             let factor = match (kind.per_inch(points_per_inch), other.per_inch(points_per_inch)) {
                 (Some(of), Some(per)) => of / per,

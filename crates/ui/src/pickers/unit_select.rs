@@ -72,6 +72,9 @@ pub struct UnitSelect<'a> {
     /// The unit select's accessible name.
     #[prop(into)]
     unit_label: Option<Label>,
+    /// Whether the number field takes edits; the unit select stays as the component's own enabled state leaves it.
+    #[prop]
+    number_enabled: Option<bool>,
     /// The unit child's event of this pass, kept from `paint` to `finish`.
     unit_event: Option<EditEvent<UnitKind>>,
 }
@@ -79,11 +82,15 @@ pub struct UnitSelect<'a> {
 impl<'a> UnitSelect<'a> {
     /// A number field named `label` over `value`, with a select of `units` over `unit` after it.
     pub fn new(label: impl Into<Label>, value: Bind<'a, Option<f64>>, unit: Bind<'a, UnitKind>, units: &'a [Entry<UnitKind>]) -> Self {
-        UnitSelect { common: Common::new(), value, unit, units, range: None, unit_label: None, unit_event: None }.label(label)
+        UnitSelect { common: Common::new(), value, unit, units, range: None, unit_label: None, number_enabled: None, unit_event: None }.label(label)
     }
 
     fn number(&self, name: Label, value: Mixed<Option<f64>>, kind: Option<UnitKind>) -> NumberField<'static> {
         let field = NumberField::new(name, Bind::given(value));
+        let field = match self.number_enabled {
+            Some(on) => field.enabled(on),
+            None => field,
+        };
         let field = match &self.range {
             Some(range) => field.range(range.clone()),
             None => field,

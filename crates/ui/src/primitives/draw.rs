@@ -7,7 +7,7 @@ use super::text::{TextEnv, TextLayout, TextRun};
 use crate::style::{Corners, DataColor, Ink, StyleColor, SurfaceKind, UiTokens, ink_color, rule_look, surface_style};
 use craft_i18n::Direction;
 use egui::epaint::{CircleShape, RectShape};
-use egui::{Color32, CornerRadius, Painter, Pos2, Rect, Shape, Stroke, StrokeKind};
+use egui::{Color32, CornerRadius, Painter, Pos2, Rect, Shape, Stroke, StrokeKind, Vec2};
 use std::cell::RefCell;
 
 /// A shape `Draw::fill` and `Draw::stroke` paint.
@@ -107,6 +107,14 @@ impl<'a> Draw<'a> {
     /// Paints `icon` centred in `rect`, in the colour or ink the spec names, mirrored under right-to-left when it is
     /// directional.
     pub fn icon(&self, rect: Rect, icon: &super::IconSpec<'_>) {
+        if let super::IconSource::Swatch(color) = &icon.source {
+            let side = rect.width().min(rect.height());
+            let shape = PaintShape::Rect(Rect::from_center_size(rect.center(), Vec2::splat(side)), CornerRadius::ZERO);
+            let edge = icon.color.map_or_else(|| ink_color(self.env.tokens, icon.ink), StyleColor::egui);
+            self.data_fill(&shape, DataColor::new(Color32::from(*color)));
+            self.paint(&shape, None, Some(Stroke::new(self.width(StrokeWidth::Thin), edge)));
+            return;
+        }
         super::icon::paint(self.painter, self.env.tokens, self.env.direction, rect, icon);
     }
 

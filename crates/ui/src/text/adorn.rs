@@ -4,7 +4,7 @@
 use super::FieldStyle;
 use crate::buttons::IconButton;
 use crate::contract::{PaintUi, Props as _};
-use crate::primitives::{IconSource, IconSpec};
+use crate::primitives::IconSpec;
 use crate::runtime::env::Label;
 use crate::style::StyleColor;
 use craft_behavior::{Flow, PartKey};
@@ -40,11 +40,13 @@ impl Adornment {
 
     /// The icon, painted in `color` when there is one.
     fn spec(&self, color: Option<StyleColor>) -> IconSpec<'static> {
-        let source = match &self.icon.source {
-            IconSource::Svg(id) => IconSource::Svg(id.clone()),
-            IconSource::Glyph(glyph) => IconSource::Glyph(*glyph),
-        };
-        IconSpec { source, ink: self.icon.ink, color: color.or(self.icon.color), mirror: self.icon.mirror, set: self.icon.set }
+        IconSpec {
+            source: self.icon.source.clone(),
+            ink: self.icon.ink,
+            color: color.or(self.icon.color),
+            mirror: self.icon.mirror,
+            set: self.icon.set,
+        }
     }
 
     /// Paints the adornment in `rect`, one of `place`'s rects: a glyph in `glyph_color`, a button as an icon button face

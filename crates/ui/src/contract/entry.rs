@@ -3,6 +3,7 @@
 
 use crate::primitives::IconSpec;
 use crate::runtime::env::Label;
+use craft_theme::Srgba;
 
 /// The label of a separator, which has none.
 static NO_LABEL: Label = Label::Empty;
@@ -46,6 +47,12 @@ impl<T> Entry<T> {
             item.icon = Some(icon.into());
         }
         self
+    }
+
+    /// A swatch of `color` before the label, in the icon's place (a guide colour, a matte colour). A separator has none.
+    #[must_use]
+    pub fn swatch(self, color: Srgba) -> Self {
+        self.icon(IconSpec::swatch(color))
     }
 
     /// Whether the entry can be picked; a disabled entry shows dimmed and never takes the lead.

@@ -23,7 +23,6 @@ use crate::runtime::env::{AgeStyle, Env, Label};
 use crate::sections::Section;
 use crate::tile_grid::{CaptionPlace, Tile, TileGrid, TileStatus};
 use craft_behavior::{IconId, SelectionChange, keyed};
-use craft_i18n::Collator;
 use craft_theme::Variant;
 use craft_theme::variant::Tone;
 use egui::{Pos2, Rect, Response, Ui};
@@ -130,7 +129,7 @@ impl Outcome for StartOutput {
 ///   binding and reports everything else as [`StartAction`]s.
 ///
 /// ```ignore
-/// let out = StartScreen::new(Bind::bound(&mut view), Bind::bound(&mut sort), &recent, &collator).pinned(&folders).show(ui);
+/// let out = StartScreen::new(Bind::bound(&mut view), Bind::bound(&mut sort), &recent).pinned(&folders).show(ui);
 /// for action in out.actions { /* the app opens, removes, pins... */ }
 /// ```
 #[must_use = "show the start screen with `show`"]
@@ -139,7 +138,6 @@ pub struct StartScreen<'a> {
     view: Bind<'a, RecentView>,
     sort: Bind<'a, RecentSort>,
     recent: &'a [RecentFile],
-    collator: &'a Collator,
     /// The pinned folders in the app's order. The section shows once this is given; an app that cannot pin leaves it
     /// out.
     #[prop]
@@ -159,9 +157,9 @@ pub struct StartScreen<'a> {
 }
 
 impl<'a> StartScreen<'a> {
-    /// A start screen of `recent` files, shown in `view` and ordered by `sort`; `collator` orders names.
-    pub fn new(view: Bind<'a, RecentView>, sort: Bind<'a, RecentSort>, recent: &'a [RecentFile], collator: &'a Collator) -> Self {
-        StartScreen { view, sort, recent, collator, pinned: None, templates: &[], max_recent: RECENT_SHOWN, now: None, thumbnails: None }
+    /// A start screen of `recent` files, shown in `view` and ordered by `sort`; names sort in the env's language.
+    pub fn new(view: Bind<'a, RecentView>, sort: Bind<'a, RecentSort>, recent: &'a [RecentFile]) -> Self {
+        StartScreen { view, sort, recent, pinned: None, templates: &[], max_recent: RECENT_SHOWN, now: None, thumbnails: None }
     }
 }
 
@@ -282,8 +280,9 @@ fn read_events<K: Clone, E>(events: Vec<CollectionEvent<K, E>>, lead: &mut Optio
 impl StartScreen<'_> {
     /// Shows the page across the available room and reports what the user did.
     pub fn show(self, ui: &mut Ui) -> StartOutput {
-        let StartScreen { view, sort, recent, collator, pinned, templates, max_recent, now, thumbnails } = self;
+        let StartScreen { view, sort, recent, pinned, templates, max_recent, now, thumbnails } = self;
         let env = Env::of(ui);
+        let collator = env.collator();
         let words = env.words::<StartWords>();
         let ctx = ui.ctx().clone();
         let actions = RefCell::new(Vec::new());
@@ -295,7 +294,7 @@ impl StartScreen<'_> {
             let current_view = view.borrow_mut().reborrow().read(cx).and_then(|held| held.same().copied()).unwrap_or_default();
             let current_sort = sort.borrow_mut().reborrow().read(cx).and_then(|held| held.same().copied()).unwrap_or_default();
             let mut files: Vec<RecentFile> = recent.iter().take(max_recent).cloned().collect();
-            sort_recent(&mut files, current_sort, collator);
+            sort_recent(&mut files, current_sort, &collator);
 
             Row::new().gap(Gap::Tight).show(ui, |ui, _| {
                 if clicked(&Button::new(words.new.clone()).id_salt("new").variant(Variant::PRIMARY).show(ui)) {

@@ -8,7 +8,7 @@ mod units;
 pub use label::{Label, Message, Word};
 pub(crate) use shell::ShellEntry;
 pub use shell::{BodyMode, RevealEdge, ShellCx, ShellRegions, SlotKey, WindowKey};
-pub use units::{UnitKind, UnitWords, Units};
+pub use units::{PointSize, UnitKind, UnitWords, Units};
 
 use crate::runtime::commands::CommandChain;
 use crate::runtime::egui::memory::{FastMap, Service};
@@ -440,7 +440,7 @@ impl Env {
 
     /// The scope's number format and unit words, to read and write numbers with their unit.
     pub fn units(&self) -> Units {
-        Units::new(self.format.clone(), self.words::<UnitWords>(), self.words.clone())
+        Units::new(self.format.clone(), self.words::<UnitWords>(), self.words.clone(), self.values.get::<PointSize>())
     }
 
     /// How long ago `seconds` was, in the scope's language and digits: "Just now", "3 minutes ago", "Yesterday".
@@ -782,7 +782,7 @@ impl<'a> EnvView<'a> {
 
     /// The scope's number format and unit words, to read and write numbers with their unit.
     pub fn units(&self) -> Units {
-        Units::new(self.scoped.format.clone(), self.words::<UnitWords>(), self.scoped.words.clone())
+        Units::new(self.scoped.format.clone(), self.words::<UnitWords>(), self.scoped.words.clone(), self.scoped.values.get::<PointSize>())
     }
 
     /// How long ago `seconds` was, in the scope's language and digits: "Just now", "3 minutes ago", "Yesterday".

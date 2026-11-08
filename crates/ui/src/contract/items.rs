@@ -18,8 +18,8 @@ use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::{focus, frame, overlay, wheel};
 use crate::style::{StyleCx, scroll_bar_look};
 use craft_behavior::{
-    Axis, EditEvent, Flow, GestureId, Intent, ItemLayout, ItemSource, Mixed, MoveMods, NavMove, NavState, NavStep, Outline, PressPhase, Proposal,
-    ScrollPos, ScrollSpan, SelectionChange, SelectionModel, Sense, TypeAhead, WheelTaker, nav,
+    Axis, EditEvent, Flow, GestureId, Granularity, Intent, ItemLayout, ItemSource, Mixed, MoveMods, NavMove, NavState, NavStep, Outline, PressPhase,
+    Proposal, ScrollPos, ScrollSpan, SelectionChange, SelectionModel, Sense, TypeAhead, WheelTaker, nav,
 };
 use egui::{Context, Id, Pos2, Rect, Ui, UiBuilder, Vec2};
 use std::ops::Range;
@@ -480,6 +480,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let lead_at = self.lead.key.as_ref().and_then(|key| self.index_of(key)).or(lead_at);
         self.intent_actions(comp, cx, &props, lead_at, header_held);
         self.context_key(cx, &layout, at, lead_at);
+        self.delete_key(cx, &props, lead_at);
         self.reorder_and_rename(comp, cx, &props, lead_at);
         self.requested_rename(comp, cx, &props, &layout, view);
         self.type_ahead(comp, cx, &layout, view, lead_at);
@@ -1077,6 +1078,25 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             let place = self.on_screen(self.screen(layout, at.rect, row, at.offset, at.rtl).left_bottom());
             self.events.push(CollectionEvent::ContextMenu(ContextMenuRequest { key: self.source.key(row), at: place }));
         }
+    }
+
+    /// Delete and Backspace at the lead of a `deletable` collection: the request names the selected items when the lead
+    /// is one of them, else the lead alone. The keys stay untaken (shortcut candidates) in a collection that is not
+    /// `deletable`.
+    fn delete_key(&mut self, cx: &mut Cx<'_, C>, props: &CollectionProps, lead_at: Option<usize>) {
+        if !props.deletable {
+            return;
+        }
+        let forward = cx.core.intents.take_exact(&Intent::delete(true, Granularity::Unit));
+        let back = cx.core.intents.take_exact(&Intent::delete(false, Granularity::Unit));
+        let Some(row) = lead_at.filter(|_| forward || back) else { return };
+        let lead = self.source.key(row);
+        let keys = if self.selection.contains(&lead) {
+            (0..self.source.len()).map(|at| self.source.key(at)).filter(|key| self.selection.contains(key)).collect()
+        } else {
+            vec![lead]
+        };
+        self.events.push(CollectionEvent::Delete(keys));
     }
 
     /// Space on the lead row `row`, as `CollectionProps.space` says.

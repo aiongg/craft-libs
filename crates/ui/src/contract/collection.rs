@@ -319,6 +319,8 @@ pub struct CollectionProps {
     pub digit_keys: bool,
     /// A drag from empty space draws a marquee that selects the items it sweeps.
     pub marquee: bool,
+    /// Delete and Backspace at the lead report `CollectionEvent::Delete`.
+    pub deletable: bool,
     /// Maps a row drag to the payload that other drop targets take (8.4). A map starts row drags by itself, with or
     /// without a reorder rule.
     pub drag_payload: Option<DragPayload>,
@@ -381,6 +383,7 @@ impl CollectionProps {
             header: true,
             digit_keys: false,
             marquee: false,
+            deletable: false,
             drag_payload: None,
         }
     }
@@ -502,6 +505,13 @@ impl CollectionProps {
     #[must_use]
     pub const fn marquee(mut self, on: bool) -> Self {
         self.marquee = on;
+        self
+    }
+
+    /// Delete and Backspace at the lead report the items to delete (`CollectionEvent::Delete`).
+    #[must_use]
+    pub const fn deletable(mut self, on: bool) -> Self {
+        self.deletable = on;
         self
     }
 
@@ -700,6 +710,9 @@ pub enum CollectionEvent<K, E> {
     Activate(K),
     /// The user asked for an item's context menu.
     ContextMenu(ContextMenuRequest<K>),
+    /// Delete or Backspace at the lead of a `deletable` collection: the selected items when the lead is selected, else
+    /// the lead alone, in display order.
+    Delete(Vec<K>),
     /// A tree row opened or closed.
     Open(OpenChange<K>),
     /// An item moved to another place.

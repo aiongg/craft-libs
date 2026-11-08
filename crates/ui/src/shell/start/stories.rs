@@ -5,7 +5,6 @@ use crate::contract::Bind;
 use crate::primitives::{LoadFailure, Revision, TextureState, TextureStore, TextureStoreOptions};
 use crate::shell::{RecentFile, RecentSort, RecentView, Template, ThumbKey};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
-use craft_i18n::Collator;
 use egui::{Color32, ColorImage, Ui};
 use std::path::PathBuf;
 
@@ -66,8 +65,7 @@ fn fill(ui: &Ui) -> TextureStore<ThumbKey> {
 fn screen(ui: &mut Ui, data: &mut StoryData, choice: Choice, files: &[RecentFile], pinned: &[PathBuf]) -> StoryOutput {
     let store = fill(ui);
     let mut choice = data.value("choice", choice).clone();
-    let collator = Collator::new("en");
-    let shown = StartScreen::new(Bind::bound(&mut choice.view), Bind::bound(&mut choice.sort), files, &collator)
+    let shown = StartScreen::new(Bind::bound(&mut choice.view), Bind::bound(&mut choice.sort), files)
         .pinned(pinned)
         .templates(&templates())
         .now(NOW)

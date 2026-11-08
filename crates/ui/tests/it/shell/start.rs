@@ -2,8 +2,11 @@
 
 use craft_i18n::Collator;
 use craft_ui::contract::Bind;
+use craft_ui::runtime::commands::{CommandState, EditCommands};
+use craft_ui::runtime::frame::take_output;
 use craft_ui::shell::{RecentFile, RecentSort, RecentView, StartAction, StartScreen, sort_recent};
 use craft_ui::testing::{Fixture, trial};
+use egui::{Key, Modifiers};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -43,9 +46,8 @@ fn new_and_open_report_their_actions() {
     let seen = Rc::new(RefCell::new(Vec::new()));
     let sink = Rc::clone(&seen);
     let mut fixture = Fixture::new(move |ui| {
-        let collator = Collator::new("en");
         let (mut view, mut sort) = (RecentView::default(), RecentSort::default());
-        let out = StartScreen::new(Bind::bound(&mut view), Bind::bound(&mut sort), &[], &collator).show(ui);
+        let out = StartScreen::new(Bind::bound(&mut view), Bind::bound(&mut sort), &[]).show(ui);
         sink.borrow_mut().extend(out.actions);
     });
     fixture.settle();
@@ -55,4 +57,29 @@ fn new_and_open_report_their_actions() {
         fixture.idle(2);
     }
     assert_eq!(*seen.borrow(), [StartAction::New, StartAction::Open]);
+}
+
+/// Delete on a focused recent file runs the start screen's own Remove, so the application's Edit > Delete on the same
+/// key does not fire.
+#[trial]
+fn delete_on_a_recent_file_removes_it_and_leaves_the_edit_command() {
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let sink = Rc::clone(&seen);
+    let files = [file("first.fig", Some(20), None), file("second.fig", Some(10), None)];
+    let mut fixture = Fixture::new(move |ui| {
+        let (mut view, mut sort) = (RecentView::List, RecentSort::default());
+        let out = StartScreen::new(Bind::bound(&mut view), Bind::bound(&mut sort), &files).show(ui);
+        sink.borrow_mut().extend(out.actions);
+    });
+    fixture.command_state(EditCommands::Delete, CommandState::new());
+    fixture.settle();
+    let row = fixture.by_label("first.fig").expect("the recent file is listed");
+    fixture.click(&row);
+    fixture.idle(2);
+    seen.borrow_mut().clear();
+    let _ = take_output(fixture.ctx());
+    fixture.key(Key::Delete, Modifiers::NONE);
+    fixture.idle(2);
+    assert_eq!(*seen.borrow(), [StartAction::RemoveRecent("/work/first.fig".into())]);
+    assert!(take_output(fixture.ctx()).fired.is_empty(), "the application's Delete command did not fire");
 }

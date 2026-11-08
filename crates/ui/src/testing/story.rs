@@ -274,6 +274,8 @@ pub enum CollectionKind {
     Activate,
     /// A context menu was asked for.
     ContextMenu,
+    /// Delete was pressed on items.
+    Delete,
     /// A tree row opened or closed.
     Open,
     /// An item moved to another place.
@@ -304,6 +306,7 @@ impl CollectionKind {
             CollectionEvent::LeadMoved { .. } => CollectionKind::LeadMoved,
             CollectionEvent::Activate(_) => CollectionKind::Activate,
             CollectionEvent::ContextMenu(_) => CollectionKind::ContextMenu,
+            CollectionEvent::Delete(_) => CollectionKind::Delete,
             CollectionEvent::Open(_) => CollectionKind::Open,
             CollectionEvent::Reorder(edit) => CollectionKind::Reorder(EditKind::of(edit)?),
             CollectionEvent::Move(edit) => CollectionKind::Move(EditKind::of(edit)?),
