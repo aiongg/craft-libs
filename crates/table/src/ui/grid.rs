@@ -467,6 +467,13 @@ pub struct GridState {
     pub zoom: f32,
 }
 
+impl GridState {
+    /// A sheet view with `selection` at `zoom`.
+    pub fn new(selection: CellSelection<u32>, zoom: f32) -> Self {
+        GridState { selection, zoom }
+    }
+}
+
 impl Default for GridState {
     /// A1 selected at 100 %.
     fn default() -> Self {

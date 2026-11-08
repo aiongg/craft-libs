@@ -82,7 +82,8 @@ fn ticking_adds_and_unticking_removes() {
 #[trial]
 fn field_menus_move_between_areas() {
     let (mut fixture, app) = rig();
-    secondary_click(&mut fixture, area_row(&fixture, "Region").center());
+    let row = area_row(&fixture, "Region").center();
+    secondary_click(&mut fixture, row);
     let item = fixture.by_label("Move to Columns").expect("the menu names the area");
     fixture.click(&item);
     fixture.idle(2);
@@ -114,7 +115,8 @@ fn dragging_a_field_onto_another_area_moves_it() {
 #[trial]
 fn remove_field_names_its_area() {
     let (mut fixture, app) = rig();
-    secondary_click(&mut fixture, area_row(&fixture, "Region").center());
+    let row = area_row(&fixture, "Region").center();
+    secondary_click(&mut fixture, row);
     let item = fixture.by_label("Remove Field").expect("the menu removes the field");
     fixture.click(&item);
     fixture.idle(2);
@@ -127,7 +129,8 @@ fn remove_field_names_its_area() {
 #[trial]
 fn the_field_menu_sorts_and_groups() {
     let (mut fixture, app) = rig();
-    secondary_click(&mut fixture, area_row(&fixture, "Region").center());
+    let row = area_row(&fixture, "Region").center();
+    secondary_click(&mut fixture, row);
     assert!(fixture.by_label("Group by Quarters").is_some(), "Group is in the menu");
     let item = fixture.by_label("Sort Z to A").expect("Sort is in the menu");
     fixture.click(&item);

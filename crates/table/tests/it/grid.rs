@@ -65,7 +65,7 @@ struct Rig {
 }
 
 fn rig(hidden_column: Option<u32>, selection: CellSelection<u32>, zoom: f32) -> Rig {
-    let state = Rc::new(RefCell::new(GridState { selection, zoom, ..GridState::default() }));
+    let state = Rc::new(RefCell::new(GridState::new(selection, zoom)));
     let edits = Rc::new(RefCell::new(Vec::new()));
     let marks = Rc::new(RefCell::new(Vec::new()));
     let committed = Rc::new(RefCell::new(Vec::new()));
@@ -165,7 +165,7 @@ fn typing_starts_an_edit_and_delete_clears() {
     let mut rig = rig(None, a1(), 1.0);
     rig.fixture.type_text("x");
     rig.fixture.idle(2);
-    assert!(rig.take_edits().iter().any(|edit| matches!(edit, GridEdit::BeginEdit { typed: Some(text) } if text == "x")));
+    assert!(rig.take_edits().iter().any(|edit| matches!(edit, GridEdit::BeginEdit { typed: Some(text), .. } if text == "x")));
     rig.press(Key::Escape, Modifiers::NONE);
     rig.press(Key::Delete, Modifiers::NONE);
     assert!(rig.take_edits().contains(&GridEdit::Clear));
@@ -188,7 +188,7 @@ fn header_edges_resize_and_double_click_autofits() {
         "and commits the dragged width"
     );
     rig.fixture.click(&edge).click(&edge);
-    assert!(rig.take_edits().iter().any(|edit| matches!(edit, GridEdit::AutoFitColumn { column: 1 })), "a double click autofits");
+    assert!(rig.take_edits().iter().any(|edit| matches!(edit, GridEdit::AutoFitColumn { column: 1, .. })), "a double click autofits");
 }
 
 #[trial]
@@ -208,7 +208,7 @@ fn a_double_click_on_a_hidden_edge_unhides() {
     let mut rig = rig(Some(2), a1(), 1.0);
     let edge = rig.part(PartKey::new("column_edge"), 1);
     rig.fixture.click(&edge).click(&edge);
-    assert!(rig.take_edits().iter().any(|edit| matches!(edit, GridEdit::UnhideColumn { column: 2 })));
+    assert!(rig.take_edits().iter().any(|edit| matches!(edit, GridEdit::UnhideColumn { column: 2, .. })));
 }
 
 fn selected_block() -> CellSelection<u32> {
@@ -221,7 +221,7 @@ fn the_fill_handle_drags_a_range() {
     let handle = rig.part(PartKey::new("fill_handle"), 0);
     rig.fixture.drag(&handle, Vec2::Y * (ROW * 2.0));
     let fills: Vec<_> =
-        rig.take_edits().into_iter().filter_map(|edit| if let GridEdit::Fill { range } = edit { Some(range) } else { None }).collect();
+        rig.take_edits().into_iter().filter_map(|edit| if let GridEdit::Fill { range, .. } = edit { Some(range) } else { None }).collect();
     assert!(matches!(fills.first(), Some(EditEvent::Begin { .. })));
     assert!(
         matches!(fills.last(), Some(EditEvent::Commit { after, .. }) if after.rows().end() - after.rows().start() == 3),
@@ -248,7 +248,7 @@ fn a_secondary_drag_of_the_fill_handle_reports_the_menu() {
     let menus: Vec<_> = edits.iter().filter_map(|edit| if let GridEdit::FillMenu { range, .. } = edit { Some(range) } else { None }).collect();
     assert_eq!(menus.len(), 1, "{edits:?}");
     assert_eq!(menus[0].rows().end() - menus[0].rows().start(), 3, "the range grew two rows below the block");
-    assert!(!edits.iter().any(|edit| matches!(edit, GridEdit::Fill { range: EditEvent::Commit { .. } })), "{edits:?}");
+    assert!(!edits.iter().any(|edit| matches!(edit, GridEdit::Fill { range: EditEvent::Commit { .. }, .. })), "{edits:?}");
 }
 
 #[trial]
@@ -256,7 +256,8 @@ fn the_selection_border_drags_cells() {
     let mut rig = rig(None, selected_block(), 1.0);
     let border = rig.part(PartKey::new("range_border"), 0);
     rig.fixture.drag(&border, Vec2::X * COLUMN);
-    let moves: Vec<_> = rig.take_edits().into_iter().filter_map(|edit| if let GridEdit::MoveCells { to } = edit { Some(to) } else { None }).collect();
+    let moves: Vec<_> =
+        rig.take_edits().into_iter().filter_map(|edit| if let GridEdit::MoveCells { to, .. } = edit { Some(to) } else { None }).collect();
     assert!(matches!(moves.last(), Some(EditEvent::Commit { after, .. }) if after.column == 2), "the block moves one column right");
 }
 
@@ -305,7 +306,7 @@ fn outline_levels_reserve_the_bands_inside_the_grid() {
     let mut fixture = Fixture::new(move |ui| {
         let model = Sheet::new(None, Rc::new(Cell::new(0.0)));
         let mut state = GridState::default();
-        let rows = OutlineAxis { levels: 2, groups: vec![OutlineGroup { start: 1, end: 2, level: 1, collapsed: false, summary_before: false }] };
+        let rows = OutlineAxis::new(2, vec![OutlineGroup::new(1, 2, 1)]);
         let columns = OutlineAxis::default();
         let plain = CellGrid::new("Plain", &model, &mut state).show_sheet(ui).geometry;
         let outlined = CellGrid::new("Outlined", &model, &mut state).outline(&rows, &columns).show_sheet(ui).geometry;
