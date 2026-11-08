@@ -24,7 +24,7 @@ pub struct IconStyle {
 
 /// An icon. It mirrors under right-to-left when it has a reading direction. It is decoration unless labelled: only
 /// a labelled icon is in the AccessKit tree, as an image, and its label shows as its tooltip.
-#[derive(crate::contract::Component)]
+#[derive(crate::contract::Component, crate::contract::Props)]
 pub struct Icon<'a> {
     #[common]
     common: Common,
@@ -33,6 +33,7 @@ pub struct Icon<'a> {
     ink: Ink,
     /// The tone the icon takes its colour from, in place of the ink.
     #[style_key]
+    #[prop]
     tone: Option<Tone>,
     spec: IconSpec<'a>,
 }
@@ -41,13 +42,6 @@ impl<'a> Icon<'a> {
     /// An icon of `spec`, at the icon side of the control size.
     pub fn new(spec: IconSpec<'a>) -> Self {
         Icon { common: Common::new(), ink: spec.ink, tone: None, spec }
-    }
-
-    /// The icon in the colour of `tone`, where the tone has an ink: a warning, a failure.
-    #[must_use]
-    pub fn tone(mut self, tone: Tone) -> Self {
-        self.tone = Some(tone);
-        self
     }
 }
 

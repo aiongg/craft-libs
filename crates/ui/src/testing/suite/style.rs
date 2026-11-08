@@ -70,7 +70,7 @@ fn sources(subject: &Subject) -> Result<Vec<Source>, String> {
 fn looks_in(subject: &Subject, source: &Source, tokens: &UiTokens, variant: craft_theme::Variant) -> Option<StyleLooks> {
     let ctx = egui::Context::default();
     // A style hook that measures text needs the fonts, which egui installs in its first frame.
-    drop(ctx.run_ui(egui::RawInput::default(), |_| {}));
+    drop(crate::runtime::egui::fixture::run_frame_shapes(&ctx, 0.0, egui::vec2(800.0, 600.0), |_| {}));
     match source {
         Source::Seen(seen) => Some(with_cx(&ctx, tokens, variant, seen.size, |cx| seen.resolve_in(cx))),
         Source::Sample => {

@@ -90,18 +90,25 @@ fn the_text_size_case_fails_text_that_grows_past_a_fixed_part() {
 fn a_container_shown_at_a_rect_bounds_the_room_inside_a_scrolling_body() {
     const HEIGHT: f32 = 120.0;
     let inner_height = std::rc::Rc::new(std::cell::Cell::new(0.0_f32));
+    let text_height = std::rc::Rc::new(std::cell::Cell::new(0.0_f32));
     let seen = inner_height.clone();
+    let seen_text = text_height.clone();
     let mut fixture = Fixture::new(move |ui| {
         Stack::new().fill().scroll(Scroll::vertical()).show(ui, |ui, _| {
             let at = egui::Rect::from_min_size(ui.cursor().min, egui::vec2(200.0, HEIGHT));
             Stack::new().show_at(ui, at, |ui, _| {
                 let filled = Stack::new().fill().show(ui, |ui, _| {
-                    Text::new("Content").show(ui);
+                    seen_text.set(Text::new("Content").show(ui).rect.height());
                 });
                 seen.set(filled.rect.height());
             });
         });
     });
     fixture.settle();
-    assert!(inner_height.get() > HEIGHT / 2.0, "the filling child took {} of the {HEIGHT} the rect gives", inner_height.get());
+    assert!(
+        inner_height.get() > text_height.get(),
+        "the filling child took {} of the {HEIGHT} the rect gives, its content {}",
+        inner_height.get(),
+        text_height.get()
+    );
 }
