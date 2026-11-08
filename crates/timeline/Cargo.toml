@@ -15,11 +15,11 @@ default = []
 # The timeline widgets (`craft_timeline::ui`).
 ui = ["dep:craft-theme", "dep:craft-ui", "dep:egui"]
 # Screenshot and input tests of the widgets with egui_kittest (desktop only).
-screen-testing = ["ui", "craft-ui/screen-testing"]
+screen-testing = ["ui", "craft-ui/testing"]
 
 [dependencies]
 craft-theme = { workspace = true, optional = true }
-craft-ui = { package = "craft-ui-legacy", path = "../ui-legacy", optional = true }
+craft-ui = { workspace = true, optional = true }
 egui = { workspace = true, optional = true }
 serde = { workspace = true }
 web-time = "1.1"

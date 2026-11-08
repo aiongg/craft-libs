@@ -1706,7 +1706,7 @@ name = "craft-timeline"
 version = "0.1.0"
 dependencies = [
  "craft-theme",
- "craft-ui-legacy",
+ "craft-ui",
  "egui",
  "egui_kittest",
  "serde",
