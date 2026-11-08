@@ -1,7 +1,7 @@
 //! Stories of `Timeline`: a 30 s sequence at 29.97 drop-frame over an in-memory model: V1 and V2 with four clips (one
 //! selected, one disabled), A1 and A2 with two, a marker, In and Out set and the playhead at 5 s.
 
-use super::{Timeline, TimelineEdit};
+use super::{Timeline, TimelineEdit, TopStrip};
 use crate::clips::ClipEdit;
 use crate::markers::{Marker, MarkerColor, MarkerId};
 use crate::model::{ClipId, ClipInfo, TimelineModel, TrackId, TrackInfo, TrackKind};
@@ -9,6 +9,8 @@ use crate::rates::FrameRate;
 use crate::time::{Tick, TimeRange, TimeView};
 use crate::timecode::TimeFormat;
 use craft_behavior::{ColumnWidth, Selection, SelectionModel as _};
+use craft_ui::contract::{Show as _, ShowContainer as _};
+use craft_ui::display::Text;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 use std::sync::{Arc, Mutex};
@@ -224,4 +226,14 @@ fn timeline_panel(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
         sequence.apply(edit);
     }
     out.into()
+}
+
+/// The strip over the headers and the time area: the head block in the first column, the ruler row in the second.
+#[story(TopStrip, covers = [Default], drive = Drive::Never)]
+fn top_strip(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    let out = TopStrip::new().show(ui, |ui, _| {
+        Text::new("Head").show(ui);
+        Text::new("Ruler").show(ui);
+    });
+    out.output.into()
 }

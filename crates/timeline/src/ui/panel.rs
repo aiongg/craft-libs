@@ -6,8 +6,8 @@ use super::clips::{ClipContent, ClipLane, TimelineTool};
 use super::markers::{MarkerEdit, MarkerSpan, MarkerStrip};
 use super::ruler::TimelineRuler;
 use super::stack::{
-    LOCK, MUTE, MovePointer, MoveTarget, NAME, NAME_DEFAULT, OUTPUT, RowGeom, RowPlace, SOLO, SYNC_LOCK, Side, TARGET, TrackEvent, TrackRow,
-    TrackStack, Tracks, resolve_move, set_event,
+    LANE, LOCK, MUTE, MovePointer, MoveTarget, NAME, NAME_DEFAULT, OUTPUT, RowGeom, SOLO, SYNC_LOCK, Side, TARGET, TrackEvent, TrackRow, TrackStack,
+    Tracks, resolve_move, set_event,
 };
 use super::view::{Overlay, TimelineView, TimelineWords, time_axis};
 use super::{DragEvent, LabelPalette, TimecodeField, label_palette};
@@ -20,7 +20,7 @@ use craft_behavior::{Axis, ColumnWidth, CursorIcon, CursorPriority, EditEvent, I
 use craft_ui::buttons::{IconButton, ToggleButton};
 use craft_ui::contract::{
     Bind, BodyLayout, CollectionEvent, CollectionResponse, ColumnEvent, Common, Component, Container, ContainerProps, Cx, EditResponse, NoValue,
-    Outcome, Pattern, Props, Remember as _, Role, Show as _, ShowCollection as _, ShowContainer as _, SizeLimits, Sizing,
+    Outcome, Pattern, Props, Remember as _, Role, Show as _, ShowCollection as _, ShowContainer as _, ShownRow, SizeLimits, Sizing,
 };
 use craft_ui::display::Text;
 use craft_ui::docking::SplitArea;
@@ -30,7 +30,7 @@ use craft_ui::menu::{Menu, MenuItem};
 use craft_ui::primitives::IconSpec;
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::style::{ComponentStyle, StyleCx};
-use egui::{Pos2, Rect, Response, Ui, Vec2};
+use egui::{Pos2, Rect, Response, Ui};
 
 /// A track header switch.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -255,8 +255,8 @@ struct Reports {
     marquee: Option<(MarqueeSelect<ClipId>, bool)>,
     /// Where a drag snapped.
     snapped: Option<Tick>,
-    /// The rows the collections laid out this pass.
-    places: Vec<(TrackId, RowPlace)>,
+    /// The rows the collections showed this pass.
+    shown: Vec<ShownRow<TrackId>>,
 }
 
 /// A track's row in the time area.
@@ -264,8 +264,8 @@ struct PlacedRow {
     /// The track's position in the model's tracks.
     track: usize,
     geom: RowGeom,
-    /// Where the collection laid the row out; none for a row it did not build.
-    place: Option<RowPlace>,
+    /// Where the collection showed the row; none for a row it did not build.
+    shown: Option<ShownRow<TrackId>>,
 }
 
 /// What the panes share in a pass.
@@ -326,10 +326,15 @@ struct Mapping<'p> {
 impl Mapping<'_> {
     /// Maps what a pane reported to edits; a track whose colour strip was clicked opens the label menu.
     fn collect(&self, out: &CollectionResponse<TrackId, TrackEvent>, edits: &mut Vec<TimelineEdit>, memory: &mut Memory, reports: &mut Reports) {
+        reports.shown.extend(out.shown.iter().cloned());
         let mut with_clip: Vec<TrackId> = Vec::new();
         for event in &out.events {
             match event {
                 CollectionEvent::Toggle(edit) => {
+                    // A flip of a sweep opens with Begin and Update and ends with Commit: the app is told once, at the end.
+                    if !matches!(edit, EditEvent::Set { .. } | EditEvent::Commit { .. }) {
+                        continue;
+                    }
                     let Some(toggled) = edit.value() else { continue };
                     let switch = match &toggled.column {
                         column if *column == LOCK => TrackSwitch::Locked,
@@ -369,7 +374,6 @@ impl Mapping<'_> {
                         reports.drag = Some((*track, pointer));
                     }
                     reports.snapped = reports.snapped.or(row.snapped_at);
-                    reports.places.extend(row.place.map(|place| (*track, place)));
                     if let Some(marquee) = row.marquee.clone() {
                         reports.marquee = Some((marquee, row.marquee_ended));
                     }
@@ -380,7 +384,7 @@ impl Mapping<'_> {
         for event in &out.events {
             let CollectionEvent::ContextMenu(request) = event else { continue };
             if !with_clip.contains(&request.key) && self.pane.iter().any(|track| track.id == request.key) {
-                let anchor = Rect::from_min_size(request.at, Vec2::ZERO);
+                let Some(anchor) = out.shown.iter().find(|row| row.key == request.key).map(|row| row.rect) else { continue };
                 edits.push(TimelineEdit::ContextMenu { track: Some(request.key), clip: None, anchor, pointer: Some(request.at) });
             }
         }
@@ -521,7 +525,7 @@ impl<M: TimelineModel> Timeline<'_, M> {
                 let mut reports = Reports { snapped: ruler_snapped, ..Reports::default() };
                 let mut pane_rects: Vec<Rect> = Vec::new();
                 let both = !panes[1].1.is_empty() && !panes[2].1.is_empty();
-                let share = divider.unwrap_or(DIVIDER_SHARE_DEFAULT);
+                let share = divider.filter(|share| share.is_finite()).map_or(DIVIDER_SHARE_DEFAULT, |share| share.clamp(0.0, 1.0));
                 let mut show_pane = |ui: &mut Ui, side: Side, indices: &[usize]| {
                     let pane: Vec<TrackInfo<'_>> = indices.iter().map(|&i| tracks[i].clone()).collect();
                     let out = shared.show(ui, side, &pane, indices);
@@ -551,7 +555,7 @@ impl<M: TimelineModel> Timeline<'_, M> {
                         });
                     edits.extend(split.output.share().map(TimelineEdit::Divider));
                 }
-                let placed = placed_rows(&panes, &tracks, &reports.places);
+                let placed = placed_rows(&panes, &tracks, &reports.shown);
                 if let Some((dragged, pointer)) = reports.drag {
                     let bounds = pane_rects
                         .iter()
@@ -590,12 +594,14 @@ impl<M: TimelineModel> Timeline<'_, M> {
                     let inner = Env::of(ui);
                     if let Some(axis) = time_axis(&inner.view()) {
                         let axis = &axis;
-                        let items = placed.iter().filter_map(|row| Some((row, row.place?))).flat_map(|(row, place)| {
-                            clips[row.track].iter().map(move |clip| {
-                                let (x0, x1) = (axis.x_of(clip.range.start, place.lane_left), axis.x_of(clip.range.end(), place.lane_left));
-                                (clip.id, Rect::from_min_max(Pos2::new(x0, place.row.top()), Pos2::new(x1, place.row.bottom())))
-                            })
-                        });
+                        let items =
+                            placed.iter().filter_map(|row| Some((row, row.shown.as_ref()?, row.lane_left()?))).flat_map(|(row, shown, lane_left)| {
+                                let (top, bottom) = (shown.rect.top(), shown.rect.bottom());
+                                clips[row.track].iter().map(move |clip| {
+                                    let (x0, x1) = (axis.x_of(clip.range.start, lane_left), axis.x_of(clip.range.end(), lane_left));
+                                    (clip.id, Rect::from_min_max(Pos2::new(x0, top), Pos2::new(x1, bottom)))
+                                })
+                            });
                         let keys = marquee.selection(items);
                         if keys != selection {
                             let change = if keys.is_empty() { SelectionChange::Clear } else { SelectionChange::Set(keys) };
@@ -606,15 +612,15 @@ impl<M: TimelineModel> Timeline<'_, M> {
                 }
                 if let (Some(last), Some(axis)) = (selection.last(), time_axis(&Env::of(ui).view())) {
                     selected_clip = placed.iter().find_map(|row| {
-                        let place = row.place?;
+                        let (shown, lane_left) = (row.shown.as_ref()?, row.lane_left()?);
                         let clip = clips[row.track].iter().find(|clip| clip.id == *last)?;
-                        let (x0, x1) = (axis.x_of(clip.range.start, place.lane_left), axis.x_of(clip.range.end(), place.lane_left));
-                        Some((tracks[row.track].id, Rect::from_min_max(Pos2::new(x0, place.row.top()), Pos2::new(x1, place.row.bottom()))))
+                        let (x0, x1) = (axis.x_of(clip.range.start, lane_left), axis.x_of(clip.range.end(), lane_left));
+                        Some((tracks[row.track].id, Rect::from_min_max(Pos2::new(x0, shown.rect.top()), Pos2::new(x1, shown.rect.bottom()))))
                     });
                 }
                 overlay.snapped(reports.snapped);
                 overlay.marquee(marquee_rect);
-                let lane_left = reports.places.first().map(|(_, place)| place.lane_left);
+                let lane_left = reports.shown.iter().find_map(lane_left_of);
                 if let (Some(lane_left), Some(panes)) = (lane_left, pane_rects.iter().copied().reduce(Rect::union)) {
                     overlay.panes(panes, lane_left);
                 }
@@ -652,7 +658,7 @@ impl<M: TimelineModel> Timeline<'_, M> {
 
 /// Where each pane's rows are, as the collections laid them out. A row the collection did not build (scrolled out of
 /// the pane) has no rect: it still ranks and may be locked, but no pointer is over it.
-fn placed_rows(panes: &[(Side, Vec<usize>); 3], tracks: &[TrackInfo<'_>], places: &[(TrackId, RowPlace)]) -> Vec<PlacedRow> {
+fn placed_rows(panes: &[(Side, Vec<usize>); 3], tracks: &[TrackInfo<'_>], shown: &[ShownRow<TrackId>]) -> Vec<PlacedRow> {
     let mut placed = Vec::new();
     for (side, indices) in panes {
         for (at, &track) in indices.iter().enumerate() {
@@ -660,18 +666,29 @@ fn placed_rows(panes: &[(Side, Vec<usize>); 3], tracks: &[TrackInfo<'_>], places
             let same = |other: &usize| tracks[indices[*other]].kind == kind;
             // Ranks count away from the divider: the video side is stacked upward from it.
             let rank = if *side == Side::Upper { (at + 1..indices.len()).filter(same).count() } else { (0..at).filter(same).count() };
-            let place = places.iter().find(|(id, _)| *id == tracks[track].id).map(|(_, place)| *place);
-            let mut geom = match place {
-                Some(place) => RowGeom::new(kind, *side, rank as i32, place.row.top(), place.row.bottom()),
+            let shown = shown.iter().find(|row| row.key == tracks[track].id).cloned();
+            let mut geom = match &shown {
+                Some(row) => RowGeom::new(kind, *side, rank as i32, row.rect.top(), row.rect.bottom()),
                 None => RowGeom::unbuilt(kind, *side, rank as i32),
             };
             if tracks[track].locked == Some(true) {
                 geom = geom.locked();
             }
-            placed.push(PlacedRow { track, geom, place });
+            placed.push(PlacedRow { track, geom, shown });
         }
     }
     placed
+}
+
+/// The left edge of a shown row's lane cell.
+fn lane_left_of(row: &ShownRow<TrackId>) -> Option<f32> {
+    row.cells.iter().find(|(key, _)| *key == LANE).map(|(_, rect)| rect.left())
+}
+
+impl PlacedRow {
+    fn lane_left(&self) -> Option<f32> {
+        self.shown.as_ref().and_then(lane_left_of)
+    }
 }
 
 /// Sets the track fields of a clip move event.

@@ -50,6 +50,7 @@ craft_ui::words! {
         move_playhead: "timeline.movePlayhead" = "Move Playhead";
         track_height: template "timeline.trackHeight" = "Drag to change the height of {track}";
         track_height_top: template "timeline.trackHeightTop" = "Drag the top edge to change the height of {track}";
+        track_expand: template "timeline.trackExpand" = "Toggle the height of {track}";
         header_width: "timeline.headerWidth" = "Drag to change the width of the track headers";
         divider: "timeline.divider" = "Drag to change how the room is shared between video and audio tracks";
         label_violet: "timeline.labelViolet" = "Violet";
@@ -433,6 +434,7 @@ impl Component for TimelineView<'_> {
     const ROLE: Role = Role::GROUP;
     const KEYS: KeyUse = KeyUse::SPLITTER;
     const OVERLAYS: bool = false;
+    const SINGLE_VALUE: bool = true;
     type Style = TimelineViewStyle;
     type Output = TimelineViewOutput;
 

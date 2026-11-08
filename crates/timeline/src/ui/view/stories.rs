@@ -4,7 +4,6 @@ use super::TimelineView;
 use crate::rates::FrameRate;
 use crate::time::{Tick, TimeView};
 use crate::timecode::TimeFormat;
-use craft_behavior::Mixed;
 use craft_ui::contract::{Bind, ShowContainer as _, Validity};
 use craft_ui::runtime::env::Message;
 use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, pointer, story};
@@ -42,13 +41,6 @@ pub(crate) fn zoom_the_time_area(fixture: &mut Fixture) {
 fn timeline_view(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let view = data.value("view", TimeView::new(Tick::ZERO, POINTS_PER_SECOND));
     let out = TimelineView::new("Time", Bind::bound(view), format(), Tick::from_seconds_f64(END_SECONDS)).show(ui, |_, _| {});
-    out.output.into()
-}
-
-#[story(TimelineView<'static>, covers = [Mixed], drive = Drive::Never)]
-fn views_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let view = data.value("mixed", Mixed::<TimeView>::Mixed);
-    let out = TimelineView::new("Time", Bind::bound_mixed(view), format(), Tick::from_seconds_f64(END_SECONDS)).show(ui, |_, _| {});
     out.output.into()
 }
 

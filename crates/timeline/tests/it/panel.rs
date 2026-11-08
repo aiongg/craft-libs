@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use craft_behavior::{EditEvent, SelectionChange};
-use craft_timeline::ui::stack::{MoveTarget, RowGeom, Side, resolve_move};
+use craft_timeline::ui::stack::{MoveTarget, RowGeom, Side, TrackSizes, resolve_move};
 use craft_timeline::ui::view::TimelineView;
 use craft_timeline::ui::{Timeline, TimelineEdit, TrackSwitch};
 use craft_timeline::{ClipId, ClipInfo, TimeRange, TimelineModel, TrackId, TrackInfo};
@@ -486,6 +486,9 @@ fn caption_rows_sit_above_video_with_a_mix_row() {
     let (c, v1, a1) = (panel.row("C1"), panel.row("V1"), panel.row("A1"));
     assert!(c.bottom() <= v1.top() + SLACK, "{c:?} {v1:?}");
     assert!(v1.bottom() < a1.top(), "{v1:?} {a1:?}");
+    let tokens = craft_ui::testing::style::tokens(craft_theme::Mode::Light, craft_theme::Contrast::Standard);
+    let caption = TrackSizes::of(&tokens).caption;
+    assert!((c.height() - caption).abs() < SLACK, "the caption row is its own height, not the pane's: {c:?} for {caption}");
     let mix = panel.fixture.by_label("Mix").expect("a model with a master volume has a Mix row");
     assert!(mix.rect.top() >= a1.bottom() - SLACK, "the Mix row lies below the audio rows: {:?} {a1:?}", mix.rect);
 }
@@ -519,7 +522,7 @@ fn reported_menus(panel: &Panel) -> Vec<(Option<TrackId>, Option<ClipId>, Rect, 
 }
 
 /// The Menu key and Shift+F10 on a clicked clip report a context menu anchored on that clip; a secondary click on it
-/// reports its position and anchors the menu there.
+/// reports its position; the menu still anchors on the clip.
 #[trial]
 fn the_menu_keys_report_a_context_menu_anchored_on_the_focused_clip() {
     let mut panel = panel();
@@ -550,7 +553,11 @@ fn the_menu_keys_report_a_context_menu_anchored_on_the_focused_clip() {
     let (track, found, anchor, pointer) = menus[0];
     assert_eq!((track, found), (Some(V1), Some(ClipId(1))));
     assert!(pointer.is_some_and(|pointer| (pointer - at).length() < SLACK), "the pointer is the click position: {pointer:?} for {at:?}");
-    assert!((anchor.center() - at).length() < SLACK, "the menu anchors at the click: {anchor:?} for {at:?}");
+    assert!(
+        (anchor.left() - clip.rect.left()).abs() < SLACK && (anchor.bottom() - clip.rect.bottom()).abs() < SLACK,
+        "the menu anchors on the clip, not the click: {anchor:?} at {:?}",
+        clip.rect
+    );
 }
 
 /// The Tab stop of the time area comes first: one Tab reaches it, and Menu and Shift+F10 then report a context menu

@@ -271,6 +271,7 @@ impl Component for KeyframeLane<'_> {
     const ROLE: Role = Role::LIST_BOX;
     const OVERLAYS: bool = false;
     const KEYS: KeyUse = KeyUse::CANVAS.with_deletes().with_chrome_key(false);
+    const SINGLE_VALUE: bool = true;
     type Style = KeyframeLaneStyle;
     type Output = KeyframeLaneOutput;
 

@@ -203,6 +203,23 @@ impl ItemSource<TrackId> for Tracks<'_> {
     }
 }
 
+impl TrackEvent {
+    /// Whether the row reported nothing in the pass: such a row emits no item event.
+    fn is_idle(&self) -> bool {
+        self.clip.is_none()
+            && self.select.is_none()
+            && !self.unlinked
+            && self.open.is_none()
+            && self.context.is_none()
+            && !self.label_menu
+            && self.height.is_none()
+            && self.pointer.is_none()
+            && self.snapped_at.is_none()
+            && self.marquee.is_none()
+            && !self.marquee_ended
+    }
+}
+
 /// What a track row reports beyond the collection's own events, in one pass.
 #[derive(Clone, Debug, Default)]
 #[non_exhaustive]
@@ -229,18 +246,6 @@ pub struct TrackEvent {
     pub marquee: Option<MarqueeSelect<ClipId>>,
     /// The marquee was released in this pass.
     pub marquee_ended: bool,
-    /// Where the collection laid the row out, for the rows the panel works cross-track rules out from.
-    pub place: Option<RowPlace>,
-}
-
-/// A row's place as the collection's item layout gives it.
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct RowPlace {
-    /// The row's rect.
-    pub row: Rect,
-    /// The left edge of the row's lane cell.
-    pub lane_left: f32,
 }
 
 /// The pointer of a clip move drag over the row that holds the dragged clips: the panel works the track change out
@@ -541,6 +546,7 @@ impl Component for TrackRow<'_> {
         if self.cell(&NAME).is_some() {
             let node = access.node(HEADER, Role::BUTTON);
             node.name = Name::Text(self.track.name.to_owned());
+            node.description = Some(words.track_expand.fill(&[("track", self.track.name)]));
         }
         if let (Some(lane), Some(axis)) = (self.cell(&LANE), time_axis(&cx.env)) {
             self.lane.access(access, lane, &axis, &cx.style.clip);
@@ -594,7 +600,6 @@ impl Component for TrackRow<'_> {
             self.event.marquee = events.marquee;
             self.event.marquee_ended = events.marquee_ended;
             self.event.pointer = events.pointer_y.map(|y| MovePointer { y, row: self.row() });
-            self.event.place = Some(RowPlace { row: self.row(), lane_left: lane.left() });
         }
     }
 
@@ -637,7 +642,8 @@ impl Component for TrackRow<'_> {
     fn finish(self, cx: Cx<'_, Self>) -> TrackOut {
         let mut event = self.event;
         event.clip = cx.edit_response().event;
-        TrackOut { response: cx.response.clone(), event: Some(event) }
+        let event = (!event.is_idle()).then_some(event);
+        TrackOut { response: cx.response.clone(), event }
     }
 }
 

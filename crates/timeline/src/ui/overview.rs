@@ -139,6 +139,7 @@ impl<'a> TimelineOverview<'a> {
 impl Component for TimelineOverview<'_> {
     const ROLE: Role = Role::IMAGE;
     const OVERLAYS: bool = false;
+    const SINGLE_VALUE: bool = true;
     type Style = OverviewStyle;
     type Output = TimelineOverviewOutput;
 

@@ -1,6 +1,5 @@
 //! Stories of `TimelineOverview`: eight tracks of runs, the visible window and the playhead.
 
-use craft_behavior::Mixed;
 use craft_ui::contract::{Bind, Show as _, Validity};
 use craft_ui::runtime::env::Message;
 use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
@@ -60,11 +59,6 @@ fn shown(ui: &mut Ui, view: Bind<'_, TimeView>) -> StoryOutput {
 #[story(TimelineOverview<'static>, covers = [Default], drive = Drive::Custom(centre_the_window))]
 fn eight_tracks(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     shown(ui, Bind::bound(data.value("view", TimeView::new(Tick::from_seconds_f64(10.0), 40.0))))
-}
-
-#[story(TimelineOverview<'static>, covers = [Mixed], drive = Drive::Never)]
-fn views_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    shown(ui, Bind::bound_mixed(data.value("mixed", Mixed::<TimeView>::Mixed)))
 }
 
 #[story(TimelineOverview<'static>, covers = [Invalid], drive = Drive::Never)]

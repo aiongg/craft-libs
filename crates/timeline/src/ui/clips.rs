@@ -12,7 +12,7 @@ use craft_ui::contract::{
 };
 use craft_ui::primitives::{ContentPainterCx, PaintShape, StrokeWidth, TextRun};
 use craft_ui::style::{DataColor, Stateful, States, StyleColor, StyleCx, TypeRole};
-use egui::{CornerRadius, Pos2, Rect, Vec2, pos2};
+use egui::{CornerRadius, Pos2, Rect, pos2};
 
 use super::{TimeAxis, label_palette};
 use crate::clips::{ClipEdge, ClipEdit, EdgeZones, SnapTargets, TrimKind, edge_at, edge_zone, selection_trim, snap_time};
@@ -341,7 +341,7 @@ impl<'a> ClipLane<'a> {
         let sense = if self.locked { Sense::HOVER } else { Sense::CLICK | Sense::DRAG | Sense::CONTEXT_CLICK | Sense::TAKE_FOCUS };
         if !self.locked {
             cx.part(BACKDROP, lane)
-                .sense(Sense::CLICK | Sense::DRAG | Sense::TAKE_FOCUS)
+                .sense(Sense::CLICK | Sense::DRAG)
                 .priority(BACKDROP_PRIORITY)
                 .pointer_only("the clips' own keys and the selection commands pick without the pointer");
         }
@@ -419,8 +419,9 @@ impl<'a> ClipLane<'a> {
         self.run_picks(cx, &geometry, &mut events);
         self.run_marquee(cx, &geometry, &mut events);
         for clip in self.clips {
+            let Some(body) = geometry.body(clip) else { continue };
             if let Some((at, by_pointer)) = context_menu(cx, CLIP.at(clip.id.0)) {
-                events.context = Some((clip.id, Rect::from_min_size(at, Vec2::ZERO), by_pointer.then_some(at)));
+                events.context = Some((clip.id, body, by_pointer.then_some(at)));
             }
         }
         events

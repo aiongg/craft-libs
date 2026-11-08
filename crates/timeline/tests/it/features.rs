@@ -251,7 +251,6 @@ fn the_snap_target_shows_as_a_line_while_dragging() {
     fixture.drag_at_pausing(alpha.center(), by, |fixture| {
         assert!(lines(fixture) > 0, "a line stands at the snap target");
     });
-    fixture.idle(2);
     assert_eq!(lines(&fixture), 0, "the line is gone with the drag");
 }
 

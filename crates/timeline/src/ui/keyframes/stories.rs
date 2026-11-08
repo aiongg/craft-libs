@@ -1,6 +1,6 @@
 //! Stories of the keyframe lane, the keyframe navigator and the animation toggle.
 
-use craft_behavior::{Mixed, Selection};
+use craft_behavior::Selection;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
 use craft_ui::runtime::env::Message;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
@@ -55,14 +55,6 @@ fn linear_hold_and_bezier_keys(ui: &mut Ui, data: &mut StoryData) -> StoryOutput
     let mut view = *data.value("view", TimeView::new(Tick::ZERO, POINTS_PER_SECOND));
     let delta = data.value("delta", Tick::ZERO);
     in_view(ui, &mut view, || KeyframeLane::new("Keyframes", &keys, &selection).playhead(seconds(4.0)).delta(Bind::bound(delta)))
-}
-
-#[story(KeyframeLane<'static>, covers = [Mixed], drive = Drive::Never)]
-fn deltas_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let (keys, selection) = (keys(), selected());
-    let mut view = *data.value("view", TimeView::new(Tick::ZERO, POINTS_PER_SECOND));
-    let delta = data.value("mixed", Mixed::<Tick>::Mixed);
-    in_view(ui, &mut view, || KeyframeLane::new("Keyframes", &keys, &selection).delta(Bind::bound_mixed(delta)))
 }
 
 #[story(KeyframeLane<'static>, covers = [Invalid], drive = Drive::Never)]

@@ -1,6 +1,5 @@
 //! Stories of the marker strip and the Marker dialog.
 
-use craft_behavior::Mixed;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
 use craft_ui::dialog::{DialogStack, StackDialog as _};
 use craft_ui::runtime::env::Message;
@@ -61,13 +60,12 @@ fn in_view<'a>(ui: &mut Ui, view: &mut TimeView, strip: impl FnOnce() -> MarkerS
         .unwrap_or_default()
 }
 
-/// No marker is being dragged, so the strip's value is mixed until a drag gives it one.
-#[story(MarkerStrip<'static>, covers = [Default, Mixed])]
+#[story(MarkerStrip<'static>, covers = [Default])]
 fn point_and_range_markers(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let markers = [point(), range()];
     let mut view = *data.value("view", TimeView::new(Tick::ZERO, POINTS_PER_SECOND));
-    let span = data.value("span", Mixed::<MarkerSpan>::Mixed);
-    in_view(ui, &mut view, || MarkerStrip::new("Markers", &markers).bin().span(Bind::bound_mixed(span)))
+    let span = data.value("span", MarkerSpan::new(MarkerId(1), seconds(3.0), Tick::ZERO));
+    in_view(ui, &mut view, || MarkerStrip::new("Markers", &markers).bin().span(Bind::bound(span)))
 }
 
 #[story(MarkerStrip<'static>, covers = [Invalid], drive = Drive::Never)]

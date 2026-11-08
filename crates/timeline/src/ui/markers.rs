@@ -244,6 +244,7 @@ impl Component for MarkerStrip<'_> {
     const ROLE: Role = Role::LIST_BOX;
     const OVERLAYS: bool = false;
     const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_deletes();
+    const SINGLE_VALUE: bool = true;
     type Style = MarkerStripStyle;
     type Output = MarkerStripOutput;
 
