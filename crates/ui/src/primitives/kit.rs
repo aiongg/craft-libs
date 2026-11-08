@@ -124,14 +124,9 @@ pub fn ramp(rect: Rect, stops: &[(f32, DataColor)], axis: Axis) -> Vec<Shape> {
     if last_at < 1.0 {
         marks.push((1.0, last));
     }
-    let (from, to) = match axis {
-        Axis::X => (rect.left_top(), rect.right_top()),
-        Axis::Y => (rect.left_top(), rect.left_bottom()),
-    };
-    let across = match axis {
-        Axis::X => vec2(0.0, rect.height()),
-        Axis::Y => vec2(rect.width(), 0.0),
-    };
+    let vertical = axis == Axis::Y;
+    let (from, to) = if vertical { (rect.left_top(), rect.left_bottom()) } else { (rect.left_top(), rect.right_top()) };
+    let across = if vertical { vec2(rect.width(), 0.0) } else { vec2(0.0, rect.height()) };
     let mut mesh = Mesh::default();
     for (index, (at, color)) in marks.iter().enumerate() {
         let on = from + (to - from) * *at;
