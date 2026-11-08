@@ -25,20 +25,32 @@ pub enum TickEdge {
     Right,
 }
 
-/// One tick: where it sits along its edge and whether it is a major one.
+/// How long a tick is: the rank it has among its neighbours.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum TickRank {
+    /// The shortest, `space.gap.tight`.
+    Minor,
+    /// Halfway between two major ticks, `size.ruler.tick.mid`.
+    Mid,
+    /// The longest, `space.gap.inline`.
+    Major,
+}
+
+/// One tick: where it sits along its edge and how long it is.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct Tick {
     /// The position along the edge, in points from the rect's origin on that axis.
     pub at: f32,
-    /// Major ticks are longer than minor ones.
-    pub major: bool,
+    /// The tick's length class.
+    pub rank: TickRank,
 }
 
 impl Tick {
-    /// A tick at `at`.
-    pub const fn new(at: f32, major: bool) -> Self {
-        Tick { at, major }
+    /// A tick at `at` of the length class `rank`.
+    pub const fn new(at: f32, rank: TickRank) -> Self {
+        Tick { at, rank }
     }
 }
 
@@ -292,15 +304,19 @@ pub fn grid_lines(tokens: &UiTokens, grid: &GridLines, ink: &GridInk, pixels_per
     shapes
 }
 
-/// The tick marks of `ticks` on one edge of `rect` that `clip` shows: minor ones `gap.tight` long, major ones
-/// `gap.inline`.
+/// The tick marks of `ticks` on one edge of `rect` that `clip` shows: minor ones `gap.tight` long, mid ones
+/// `size.ruler.tick.mid`, major ones `gap.inline`.
 pub fn ticks(tokens: &UiTokens, rect: Rect, edge: TickEdge, ticks: &[Tick], clip: Rect, pixels_per_point: f32) -> Vec<Shape> {
     let look = rule_look(tokens, RuleKind::Edge);
-    let (minor, major) = (tokens.space.gap.tight, tokens.space.gap.inline);
+    let (minor, mid, major) = (tokens.space.gap.tight, tokens.size.ruler.tick.mid, tokens.space.gap.inline);
     ticks
         .iter()
         .filter_map(|tick| {
-            let length = if tick.major { major } else { minor };
+            let length = match tick.rank {
+                TickRank::Minor => minor,
+                TickRank::Mid => mid,
+                TickRank::Major => major,
+            };
             let (from, to) = match edge {
                 TickEdge::Bottom => (pos2(rect.left() + tick.at, rect.bottom()), pos2(rect.left() + tick.at, rect.bottom() - length)),
                 TickEdge::Top => (pos2(rect.left() + tick.at, rect.top()), pos2(rect.left() + tick.at, rect.top() + length)),
