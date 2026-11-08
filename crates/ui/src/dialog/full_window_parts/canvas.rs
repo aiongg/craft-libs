@@ -191,7 +191,7 @@ impl<'a> FullWindowCanvas<'a> {
         // gets: the fit, the drawn image and the hover mapping share it.
         let rect = ui.available_rect_before_wrap();
         let shown = given.settled(rect, size, ppp);
-        let canvas = Canvas::new(label.clone(), path).view(shown.view()).show_at(ui, rect, |ui, body| {
+        let canvas = Canvas::new(label.clone(), path).view(shown.view()).show_at_taking_room(ui, rect, |ui, body| {
             let mut image = RasterDisplay::new(label.clone(), source);
             if let Some(checker) = checkerboard {
                 image = image.checkerboard(checker);
