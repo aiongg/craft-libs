@@ -5,8 +5,9 @@ use craft_host::target::Caps;
 use craft_host::{PickId, PickKind, PickRequest};
 use craft_ui::contract::{Bind, Held, NoValue, Outcome, Remember as _, ShowContainer as _, Validity};
 use craft_ui::layout_components::Stack;
-use craft_ui::patterns::form_dialogs::{OutputPathRow, PathKind};
+use craft_ui::patterns::form_dialogs::OutputPathRow;
 use craft_ui::runtime::env::{Env, Label, Message};
+use craft_ui::runtime::requests::PathKind;
 use egui::{Response, Ui};
 use std::path::Path;
 
