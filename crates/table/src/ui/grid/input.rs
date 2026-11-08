@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use craft_behavior::{EditEvent, EditorInput, GestureId, Mixed, PointerButton, PressCancel, PressPhase};
+use craft_behavior::{EditEvent, EditorInput, GestureId, Mixed, PointerButton, PressCancel, PressPhase, PressState};
 use craft_keymap::{Chord, Key, Mods};
 use craft_ui::contract::{Cx, Focus as _, Pointer as _, Remember as _};
 use craft_ui::runtime::commands::{ClipContent, Commands as _};
@@ -394,7 +394,7 @@ impl CellGrid<'_> {
         }
 
         let current = selection.current().cloned();
-        let fill = cx.part(FILL).press;
+        let fill = cx.part_if_declared(FILL).map_or(PressState::IDLE, |result| result.press);
         match (fill.phase, current.clone()) {
             (PressPhase::DragStart { start, .. }, Some(source)) => {
                 let id = Self::next_gesture(cx);
@@ -429,7 +429,7 @@ impl CellGrid<'_> {
         }
 
         for side in 0..4u64 {
-            let press = cx.part(BORDER.at(side)).press;
+            let press = cx.part_if_declared(BORDER.at(side)).map_or(PressState::IDLE, |result| result.press);
             match (press.phase, current.clone()) {
                 (PressPhase::DragStart { start, .. }, Some(source)) => {
                     let (top, _, left, _) = edges(&source);

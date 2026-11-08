@@ -331,7 +331,7 @@ impl CellGrid<'_> {
         let top = Rect::from_min_max(Pos2::new(cells.left(), cells.top() - header.y), Pos2::new(cells.right(), cells.top()));
         let left = Rect::from_min_max(Pos2::new(cells.left() - header.x, cells.top()), Pos2::new(cells.left(), cells.bottom()));
         let corner = Rect::from_min_max(Pos2::new(cells.left() - header.x, cells.top() - header.y), cells.min);
-        let plain = cx.resolve_part(CORNER.at(0), &style.header);
+        let plain = cx.resolve_part(CORNER, &style.header);
         for area in [top, left, corner] {
             draw.fill(&rect(geometry.mirror_rect(area)), plain);
         }

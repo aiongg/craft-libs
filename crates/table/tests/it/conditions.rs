@@ -6,8 +6,12 @@ use std::rc::Rc;
 use craft_table::ui::{Condition, ConditionBuilder, ConditionFields, ConditionGroup, ConditionItem, ConditionKind, ConditionValue, Match};
 use craft_ui::contract::{Bind, Role};
 use craft_ui::pickers::PickedDate;
+use craft_ui::testing::access::name;
 use craft_ui::testing::{Fixture, trial};
-use egui::Modifiers;
+use egui::{Modifiers, Vec2};
+
+/// The room the builder is shown in: wide enough for a rule on one row.
+const ROOM: Vec2 = Vec2::new(900.0, 600.0);
 
 struct Photos;
 
@@ -58,7 +62,7 @@ fn build(group: ConditionGroup) -> (Fixture, Rc<RefCell<ConditionGroup>>) {
     let mut fixture = Fixture::new(move |ui| {
         ConditionBuilder::new("Rules", Bind::bound(&mut shown.borrow_mut()), &Photos).show(ui);
     });
-    fixture.settle();
+    fixture.room(ROOM).settle();
     (fixture, state)
 }
 
@@ -114,7 +118,8 @@ fn minus_removes_rules_and_groups() {
 fn a_between_date_rule_shows_two_date_pickers() {
     let range = ConditionValue::DateRange(PickedDate::day(2026, 3, 1), PickedDate::day(2026, 4, 1));
     let (fixture, state) = build(ConditionGroup::new(Match::All, vec![rule("taken", "between", range.clone())]));
-    assert_eq!(fixture.by_role(Role::TEXT_INPUT).len(), 2, "two date fields");
+    let calendars = fixture.by_role(Role::BUTTON).into_iter().filter(|target| name(fixture.tree(), target.node) == Some("Pick a date")).count();
+    assert_eq!(calendars, 2, "two date fields, each with its calendar button");
     assert_eq!(state.borrow().items[0], rule("taken", "between", range), "the value is kept");
 }
 
