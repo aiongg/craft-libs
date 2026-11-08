@@ -184,7 +184,6 @@ pub struct FillCanvasTool<'a> {
     cursor: &'a BrushCursorOptions,
 }
 
-
 impl FillCanvasTool<'_> {
     /// Adds `at` to the stroke in progress and reports it. A point equal to the last is skipped;
     /// at the points limit the stroke takes no more points and the message is reported once.

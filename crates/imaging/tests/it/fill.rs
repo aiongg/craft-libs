@@ -408,6 +408,7 @@ fn fill_rebase_clears_history_and_a_refused_edit_is_taken_back() {
     rig.work.borrow_mut().refuse_fill_edit("the fill area is empty".to_owned());
     assert!(rig.work.borrow().session().fill_edits.is_empty());
     assert_eq!(rig.work.borrow().session().strokes.len(), 1);
+    assert!(!rig.work.borrow_mut().step(Step::Redo), "the refused edit leaves no redo step");
 }
 
 #[trial]

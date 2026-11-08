@@ -458,14 +458,14 @@ impl ContentAwareFillWorkspace {
     }
 
     /// The app found that the last fill-area edit empties the fill area: the edit is taken back
-    /// and `message` shows under the panel.
-    ///
-    /// The edit leaves the session through an undo step, so the history keeps it as a redo entry:
-    /// `EditHistory` has no way to drop it.
+    /// and `message` shows under the panel. The history takes the step back without a redo entry.
     pub fn refuse_fill_edit(&mut self, message: String) {
         // pc: crates/ui-egui/src/dialogs/caf_ui/lifecycle.rs:211-219.
-        if !self.history.step(&mut self.session, Step::Undo) {
-            self.session.fill_edits.pop();
+        match self.history.take_back() {
+            Some(before) => self.session = before,
+            None => {
+                self.session.fill_edits.pop();
+            }
         }
         self.synced();
         self.error = Some(FillIssue::Message(message));

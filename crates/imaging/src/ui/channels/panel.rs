@@ -251,6 +251,9 @@ fn map_events<K: Clone + PartialEq>(
             CollectionEvent::Item(key, RowEvent::ThumbClicked { target: ThumbTarget::First, mods, .. }) if mods.cmd => {
                 events.push(ChannelsEvent::LoadSelection { key, operation: SelectionOperation::from_mods(mods) });
             }
+            CollectionEvent::Item(key, RowEvent::ThumbClicked { clicks: 2, .. }) if kind_of(&key).is_some_and(ChannelKind::has_options) => {
+                events.push(ChannelsEvent::Options(key));
+            }
             CollectionEvent::Activate(key) if kind_of(&key).is_some_and(ChannelKind::has_options) => events.push(ChannelsEvent::Options(key)),
             CollectionEvent::Toggle(edit) => events.push(ChannelsEvent::Visibility(edit)),
             CollectionEvent::Rename(edit) => {
