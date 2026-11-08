@@ -14,12 +14,6 @@ new = ""
 status = "pending"
 
 [[type]]
-name = "TransformBox"
-old = ""
-new = ""
-status = "pending"
-
-[[type]]
 name = "PenDraft"
 old = "craft_draw::ui::pen::PenDraft"
 new = ""
@@ -40,6 +34,7 @@ note = "A canvas control: `new(label, Bind<LineGradient>)` over the canvas's vie
 # new = ""
 
 # craft_behavior::geometry (contract-geometry)
+
 [[type]]
 name = "Anchor9"
 old = "craft_ui::canvas::quad::Anchor9"
@@ -120,6 +115,8 @@ new = "new(close, same_point), the caller passes the hit tokens' target and slop
 type = "BoxRules"
 old = "drag_modifiers(part, modifiers) and drag_kind(part, modifiers)"
 new = "drag_modifiers(part, mods) and drag_kind(part, mods)"
+
+# draw-transform-a
 
 [[type]]
 name = "ConstrainStyle"
@@ -286,6 +283,7 @@ old = "show(ui, view)"
 new = "show_at(ui, canvas_rect)"
 note = "The view comes from the canvas."
 # draw-connector
+
 [[type]]
 name = "ConnectorTool"
 old = "craft_draw::ui::connector::ConnectorTool"
@@ -512,6 +510,7 @@ old = "rules(StopRules)"
 new = "rules(StopRules)"
 note = "The rows are `rules.rows`."
 # craft_draw::ui::pen::bezier (draw-pen-a)
+
 [[type]]
 name = "BezierOverlay"
 old = "craft_draw::ui::BezierOverlay"
@@ -1015,3 +1014,186 @@ new = "removed"
 type = "CropOverlay"
 old = "new(label, Bind<Rect>)"
 new = "new(label, Bind<CropBox>)"
+
+[[type]]
+name = "TransformBox"
+old = "craft_draw::ui::TransformBox"
+new = "craft_draw::ui::TransformBox"
+status = "same"
+note = "A canvas control (`#[component(canvas_control)]`): `TransformBox::new(label, Bind<BoxState>, start, skew_v)` shown with `show_at(ui, body.rect)` inside a `Canvas`; its parts are in the canvas arena, so there is no host-driven `press`, `track`, `release`, `hit` or `double_click`, no `focus(ctx, id)` and no `Claim`. Output `TransformBoxOutput { edit, apply, discard, picked, hovered }`."
+
+[[type]]
+name = "RotateZone"
+old = "craft_draw::ui::RotateZone"
+new = "craft_draw::ui::RotateZone"
+status = "same"
+
+[[type]]
+name = "TransformBoxOutput"
+old = ""
+new = "craft_draw::ui::TransformBoxOutput"
+status = "replaced"
+note = "Replaces `TransformBoxResponse`: the gesture is `edit: EditResponse<BoxState>`; `id` and `claimed` are gone (the pipeline's ids and the arena's press winner)."
+
+[[type]]
+name = "TransformBoxResponse"
+old = "craft_draw::ui::TransformBoxResponse"
+new = ""
+status = "removed"
+note = "Use `TransformBoxOutput`."
+
+[[type]]
+name = "TransformBoxWords"
+old = ""
+new = "craft_draw::ui::TransformBoxWords"
+status = "replaced"
+note = "Replaces `TransformNames` and `TransformLabels`; the word ids are unchanged. The `{n}%` and `{n}°` units of the readout are the env's `UnitKind::Percent` and `UnitKind::Degrees`."
+
+[[type]]
+name = "TransformNames"
+old = "craft_draw::ui::TransformNames"
+new = ""
+status = "removed"
+note = "Use `TransformBoxWords`."
+
+[[type]]
+name = "TransformLabels"
+old = "craft_draw::ui::TransformLabels"
+new = ""
+status = "removed"
+note = "Use `TransformBoxWords`."
+
+[[type]]
+name = "TransformBoxStyle"
+old = ""
+new = "craft_draw::ui::TransformBoxStyle"
+status = "replaced"
+note = "Replaces `TransformStyle`: a `ComponentStyle` built from `StyleCx::handle()` and the overlay tokens; sizes are named multiples of the hit target."
+
+[[type]]
+name = "TransformStyle"
+old = "craft_draw::ui::TransformStyle"
+new = ""
+status = "removed"
+note = "Use `TransformBoxStyle`."
+
+[[type]]
+name = "BoxPress"
+old = "craft_draw::ui::BoxPress"
+new = ""
+status = "removed"
+note = "The pointer is the pipeline's: the box's parts take the presses."
+
+[[type]]
+name = "BoxTrack"
+old = "craft_draw::ui::BoxTrack"
+new = ""
+status = "removed"
+note = "The pointer is the pipeline's: a drag is `begin`, `propose` and `commit` on the box's gesture."
+
+[[type]]
+name = "BoxRelease"
+old = "craft_draw::ui::BoxRelease"
+new = ""
+status = "removed"
+note = "The pointer is the pipeline's: a release commits the gesture, and a click outside is `TransformBoxOutput::apply`."
+
+[[type]]
+name = "paint_pivot"
+old = "craft_draw::ui::paint_pivot"
+new = ""
+status = "removed"
+note = "The box paints its own reference point; no host paints one."
+
+[[type]]
+name = "TransformOverlay"
+old = "craft_draw::ui::transform::TransformOverlay"
+new = "craft_draw::ui::transform::TransformOverlay"
+status = "same"
+note = "A pattern: `TransformOverlay::new(label, &session, &settings)`, shown with `show_at(ui, body.rect)` inside a `Canvas`; `.rules`, `.pixel_grid`, `.snap(Option<&SnapTargets>)` and `.mods(Option<Mods>)` replace the closure and modifier setters. It shows the mode menu on a secondary click."
+
+[[type]]
+name = "TransformOverlayOutput"
+old = ""
+new = "craft_draw::ui::transform::TransformOverlayOutput"
+status = "replaced"
+note = "Replaces `TransformOverlayResponse`: `edits`, `apply`, `discard`, `picked`."
+
+[[type]]
+name = "TransformOverlayResponse"
+old = "craft_draw::ui::transform::TransformOverlayResponse"
+new = ""
+status = "removed"
+note = "Use `TransformOverlayOutput`."
+
+[[type]]
+name = "TransformTool"
+old = ""
+new = "craft_draw::ui::transform::TransformTool"
+status = "replaced"
+note = "The `CanvasTool` the host runs while a session is open, so Free Transform's keys (arrows, Enter, Escape) work while the canvas has the keyboard and the box does not. `take_edits()` gives the edits and the apply and discard requests."
+
+[[setter]]
+type = "TransformBox"
+old = "units(x, y)"
+new = ""
+note = "Removed: the canvas publishes its rulers (`Canvas::rulers`); the box reads them with `canvas_space`."
+
+[[setter]]
+type = "TransformBox"
+old = "readout(labels)"
+new = ""
+note = "Removed: the readout shows during every drag, with `TransformBoxWords`."
+
+[[setter]]
+type = "TransformBox"
+old = "value(text)"
+new = "Common::label"
+note = "The group's name is the label; each part is a node valued by its point."
+
+[[setter]]
+type = "TransformBox"
+old = "policy(EditPolicy)"
+new = "Bind::policy"
+
+[[setter]]
+type = "TransformBox"
+old = "modifiers(Modifiers)"
+new = "mods(Mods)"
+
+[[setter]]
+type = "TransformBox"
+old = "snap(closure)"
+new = "snap(&SnapTargets)"
+
+[[setter]]
+type = "TransformBox"
+old = "start(rect, skew_v)"
+new = "TransformBox::new(label, state, start, skew_v)"
+
+[[setter]]
+type = "TransformBox"
+old = "TransformBox::new(id_salt, &BoxState, TransformNames)"
+new = "TransformBox::new(label, Bind<BoxState>, start, skew_v)"
+
+[[setter]]
+type = "TransformBox"
+old = "show(ui, &canvas, &view)"
+new = "show_at(ui, body.rect)"
+
+[[setter]]
+type = "TransformOverlay"
+old = "TransformOverlay::new(id_salt, &session)"
+new = "TransformOverlay::new(label, &session, &settings)"
+
+[[setter]]
+type = "TransformOverlay"
+old = "units(x, y), readout(labels), names(names), policy(policy), settings(settings)"
+new = ""
+note = "Removed: the canvas rulers, the words and the binding's policy replace them; the settings are an argument of `new`."
+
+[[setter]]
+type = "TransformOverlay"
+old = "show(ui, &canvas, &view)"
+new = "show_at(ui, body.rect)"
+
