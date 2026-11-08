@@ -25,6 +25,18 @@ fn new_set(rig: &mut Rig, name: &str) {
     rig.click("Create");
 }
 
+/// The Cancel button of the set form: the one beside its Create button, not the dialog's footer Cancel.
+fn form_cancel(rig: &Rig) -> craft_ui::testing::Target {
+    let tree = rig.fixture.tree();
+    let create = rig.named("Create", Role::BUTTON);
+    let row = tree.parent_of_key(create.node);
+    rig.fixture
+        .by_role(Role::BUTTON)
+        .into_iter()
+        .find(|button| tree.name_of(button.node) == Some("Cancel") && tree.parent_of_key(button.node) == row)
+        .unwrap_or_else(|| panic!("no Cancel beside Create"))
+}
+
 /// A taken name, in any case or with spaces around it, is refused for New Set and Rename, and the set stays.
 #[trial]
 fn new_set_refuses_a_taken_name_and_keeps_the_set() {
@@ -34,11 +46,20 @@ fn new_set_refuses_a_taken_name_and_keeps_the_set() {
         assert!(rig.has("A set with this name exists"), "{name:?}");
         assert_eq!(rig.active_set().as_deref(), Some("Mine"), "the refused name leaves the active set");
         assert_eq!(rig.shared.borrow().sets.as_ref().map(|(p, _)| p.sets().len()), Some(1));
-        // Escape in the name field cancels the form; the dialog's own Cancel shares the label.
-        let field = rig.named("Name:", Role::TEXT_INPUT);
-        rig.fixture.click(&field);
-        rig.press(Modifiers::NONE, Key::Escape);
-        assert!(rig.is_open() && !rig.has("Create"), "the form closed, the dialog stayed");
+        // The form closes by Escape in the name field and by its own Cancel; the dialog's footer shares the label.
+        for turn in ["Escape", "Cancel"] {
+            if turn == "Escape" {
+                let field = rig.named("Name:", Role::TEXT_INPUT);
+                rig.fixture.click(&field);
+                rig.press(Modifiers::NONE, Key::Escape);
+            } else {
+                new_set(&mut rig, name);
+                let cancel = form_cancel(&rig);
+                rig.fixture.click(&cancel);
+                rig.fixture.idle(3);
+            }
+            assert!(rig.is_open() && !rig.has("Create"), "{name:?} by {turn}: the form closed, the dialog stayed");
+        }
     }
 }
 
