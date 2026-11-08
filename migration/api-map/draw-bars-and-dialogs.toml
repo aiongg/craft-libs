@@ -8,12 +8,6 @@ new_module = "craft_draw::ui"
 # `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
 
 [[type]]
-name = "TransformFields"
-old = ""
-new = ""
-status = "pending"
-
-[[type]]
 name = "ReferencePoint"
 old = "craft_ui::canvas::ReferencePoint"
 new = "craft_ui::pickers::ReferencePoint"
@@ -1283,4 +1277,158 @@ new = "menu(&TransformMenuWords) -> Vec<Entry<TransformChoice>>"
 type = "TransformSettings"
 old = "size_unit: Option<LengthUnit>"
 new = "size_unit: Option<UnitKind>"
+
+[[type]]
+name = "TransformFields"
+old = "craft_draw::ui::TransformFields"
+new = "craft_draw::ui::TransformFields"
+status = "same"
+note = "A pattern over `Bind<TransformRow>` and the aspect link `Bind<bool>`: `TransformFields::new(label, row, start, linked)` shown with `show(ui)`; `.bar()` is the options-bar form (was `show_bar`). Output `TransformFieldsOutput { response, event, unit_picked, linked, interpolation }`. Each field is a `NumberField` whose caption scrubs it; typed text reads through the field codec and the env units."
+
+[[type]]
+name = "TransformFieldsOutput"
+old = ""
+new = ""
+status = "new"
+
+[[type]]
+name = "TransformFieldWords"
+old = "craft_draw::ui::TransformFieldLabels"
+new = "craft_draw::ui::TransformFieldWords"
+status = "replaced"
+note = "A `words!` set with the same ids; the unit texts come from `Units::symbol`."
+
+[[type]]
+name = "FieldLabel"
+old = "craft_draw::ui::FieldLabel"
+new = ""
+status = "removed"
+note = "The glyph and name are two words of `TransformFieldWords`."
+
+[[type]]
+name = "ParseContext"
+old = "craft_draw::ui::ParseContext"
+new = ""
+status = "removed"
+note = "Typed text reads through the field codec: `Units::document_reader` converts pixel and length units and reads a percentage against the box side before the transform."
+
+[[type]]
+name = "TransformField"
+old = "craft_draw::ui::TransformField"
+new = "craft_draw::ui::TransformField"
+status = "same"
+
+[[type]]
+name = "TransformRow"
+old = "craft_draw::ui::TransformRow"
+new = "craft_draw::ui::TransformRow"
+status = "same"
+note = "Constructed with `TransformRow::new(state, skew_v)`; the type is `#[non_exhaustive]`."
+
+[[type]]
+name = "BarGroups"
+old = "craft_draw::ui::BarGroups"
+new = "craft_draw::ui::BarGroups"
+status = "same"
+note = "`#[non_exhaustive]`: start from `BarGroups::ALL` and clear fields."
+
+[[type]]
+name = "SizeUnit"
+old = "craft_draw::ui::SizeUnit"
+new = "craft_draw::ui::SizeUnit"
+status = "same"
+note = "`Length { x, y }` holds `RulerText` (the unit kind and the document units per ruler unit) instead of `RulerUnits`."
+
+[[type]]
+name = "TransformBar"
+old = "craft_draw::ui::TransformBar"
+new = "craft_draw::ui::TransformBar"
+status = "same"
+note = "A pattern with its own options `Bar` and the phase commit and cancel buttons: `TransformBar::new(label, &session, Bind<TransformSettings>)`, shown with `show(ui)`; `add_to(slots)` and `output(&mut ..)` are `show` and its returned `TransformBarOutput`."
+
+[[type]]
+name = "TransformBarOutput"
+old = "craft_draw::ui::TransformBarOutput"
+new = "craft_draw::ui::TransformBarOutput"
+status = "same"
+note = "Returned by `show`; the fields are `response, edits, apply, discard, reset_warp, unit_picked` (was `size_unit: Option<LengthUnit>`)."
+
+[[type]]
+name = "TransformBarWords"
+old = "craft_draw::ui::TransformBarLabels"
+new = "craft_draw::ui::TransformBarWords"
+status = "replaced"
+
+[[type]]
+name = "BarSlot"
+old = ""
+new = ""
+status = "new"
+note = "A named closure for the bar groups `warp_fields` and `extra`."
+
+[[type]]
+name = "SymmetryMenu"
+old = "craft_draw::ui::SymmetryMenu"
+new = "craft_draw::ui::SymmetryMenu"
+status = "same"
+note = "A pattern: `SymmetryMenu::new(label, &choice).paths(..).can_transform(..)`; an `IconButton` that opens a `Menu` on a press."
+
+[[type]]
+name = "SymmetryMenuOutput"
+old = "craft_draw::ui::SymmetryMenuResponse"
+new = "craft_draw::ui::SymmetryMenuOutput"
+status = "replaced"
+
+[[type]]
+name = "SymmetryWords"
+old = "craft_draw::ui::SymmetryLabels"
+new = "craft_draw::ui::SymmetryWords"
+status = "replaced"
+note = "A `words!` set with the same ids."
+
+[[setter]]
+type = "TransformFields"
+old = "parser(Fn(TransformField, &str, ParseContext) -> Option<f64>)"
+new = ""
+note = "Removed: typed text reads through the field codec."
+
+[[setter]]
+type = "TransformFields"
+old = "units(&RulerUnits, &RulerUnits)"
+new = "units(RulerText, RulerText)"
+note = "The ruler units as the canvas publishes them."
+
+[[setter]]
+type = "TransformFields"
+old = "size_menu(&[MenuEntry<usize>], &mut Option<usize>)"
+new = "size_units(&[Entry<UnitKind>])"
+note = "The pick is `TransformFieldsOutput::unit_picked`."
+
+[[setter]]
+type = "TransformFields"
+old = "interpolation(caption, &mut String, options)"
+new = "interpolation(Bind<Interpolation>)"
+note = "The choice is `TransformFieldsOutput::interpolation`."
+
+[[setter]]
+type = "TransformFields"
+old = "linked(&mut bool)"
+new = "TransformFields::new(label, row, start, linked: Bind<bool>)"
+note = "The link is a `new` argument."
+
+[[setter]]
+type = "TransformFields"
+old = "show_bar(ui)"
+new = "bar().show(ui)"
+
+[[setter]]
+type = "TransformBar"
+old = "unit_context(UnitContext)"
+new = "units(RulerText, RulerText) and size_units(&[Entry<UnitKind>])"
+note = "The document resolution comes from the ruler units."
+
+[[setter]]
+type = "TransformBar"
+old = "warp_fields(impl FnOnce(&mut Ui))"
+new = "warp_fields(BarSlot)"
 
