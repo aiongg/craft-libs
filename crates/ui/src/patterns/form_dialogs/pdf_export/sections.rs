@@ -3,7 +3,7 @@
 use super::PdfSection;
 use super::words::PdfExportWords;
 use crate::choice::{Checkbox, Radio, RadioGroup};
-use crate::contract::{Bind, EditResponse, Entry, Props as _, Show as _, ShowContainer as _};
+use crate::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _};
 use crate::display::{Shade, Text};
 use crate::form::{Field, FieldGroup};
 use crate::layout_components::Stack;
@@ -104,7 +104,7 @@ impl Sections<'_> {
                     Radio::new(false).label(words.range.clone()).show(ui);
                 });
             });
-            if let Some(all) = edited(&chosen.output) {
+            if let Some(all) = chosen.output.value().cloned() {
                 artboards.range_only = !all;
             }
             field(ui, "range", &words.range, artboards.range_only, |ui| {
@@ -112,7 +112,7 @@ impl Sections<'_> {
                     .placeholder(words.range_hint.clone())
                     .enabled(artboards.range_only)
                     .show(ui);
-                if let Some(text) = edited(&typed) {
+                if let Some(text) = typed.value().cloned() {
                     artboards.range = text;
                 }
             });
@@ -148,7 +148,7 @@ impl Sections<'_> {
                 _ => Mixed::Mixed,
             };
             let all_marks = Checkbox::new(Bind::given(all)).label(words.all_marks.clone()).id_salt("all").show(ui);
-            if let Some(on) = edited(&all_marks) {
+            if let Some(on) = all_marks.value().cloned() {
                 (marks.trim, marks.registration, marks.color_bars, marks.page_info) = (on, on, on, on);
             }
             flag(ui, "trim", &words.trim_marks, &mut marks.trim, true);
@@ -165,7 +165,7 @@ impl Sections<'_> {
             let current = weights.iter().position(|weight| (weight - marks.weight).abs() < f64::EPSILON).unwrap_or_default();
             field(ui, "weight", &words.mark_weight, true, |ui| {
                 let chosen = Select::new(words.mark_weight.clone(), Bind::given(current), &entries).show(ui);
-                if let Some(at) = edited(&chosen).and_then(|at| weights.get(at).copied()) {
+                if let Some(at) = chosen.value().cloned().and_then(|at| weights.get(at).copied()) {
                     marks.weight = at;
                 }
             });
@@ -374,11 +374,6 @@ fn field(ui: &mut Ui, id: &'static str, label: &Label, enabled: bool, mut body: 
     Field::new(label.clone()).id_salt(id).enabled(enabled).show(ui, |ui, _| body(ui));
 }
 
-/// The value a control's event carries.
-fn edited<T: Clone>(response: &EditResponse<T>) -> Option<T> {
-    response.event.as_ref().and_then(|event| event.value().cloned())
-}
-
 /// A muted note under the rows.
 fn note(ui: &mut Ui, text: &Label) {
     Text::new(text.clone()).role(TypeRole::Caption).shade(Shade::Muted).show(ui);
@@ -391,7 +386,7 @@ fn note_text(ui: &mut Ui, text: String) {
 /// A check box row; `enabled` off greys it.
 fn flag(ui: &mut Ui, id: &'static str, label: &Label, value: &mut bool, enabled: bool) {
     let shown = Checkbox::new(Bind::given(*value)).label(label.clone()).id_salt(id).enabled(enabled).show(ui);
-    if let Some(on) = edited(&shown) {
+    if let Some(on) = shown.value().cloned() {
         *value = on;
     }
 }
@@ -414,7 +409,7 @@ fn pick<T: Choice + PartialEq + Send + Sync>(
         .collect();
     field(ui, id, label, enabled, |ui| {
         let chosen = Select::new(label.clone(), Bind::given(*value), &entries).show(ui);
-        if let Some(next) = edited(&chosen) {
+        if let Some(next) = chosen.value().cloned() {
             *value = next;
         }
     });
@@ -428,7 +423,7 @@ fn name_row(ui: &mut Ui, id: &'static str, label: &Label, current: &mut String, 
     let entries: Vec<Entry<String>> = names.into_iter().map(|(value, text)| Entry::new(value, text)).collect();
     field(ui, id, label, enabled, |ui| {
         let chosen = Select::new(label.clone(), Bind::given(current.clone()), &entries).show(ui);
-        if let Some(next) = edited(&chosen) {
+        if let Some(next) = chosen.value().cloned() {
             *current = next;
         }
     });
@@ -437,7 +432,7 @@ fn name_row(ui: &mut Ui, id: &'static str, label: &Label, current: &mut String, 
 fn text_row(ui: &mut Ui, id: &'static str, label: &Label, value: &mut String, enabled: bool) {
     field(ui, id, label, enabled, |ui| {
         let typed = TextField::new(label.clone(), Bind::given(value.clone())).show(ui);
-        if let Some(text) = edited(&typed) {
+        if let Some(text) = typed.value().cloned() {
             *value = text;
         }
     });
@@ -446,7 +441,7 @@ fn text_row(ui: &mut Ui, id: &'static str, label: &Label, value: &mut String, en
 fn password_row(ui: &mut Ui, id: &'static str, label: &Label, value: &mut String, enabled: bool) {
     field(ui, id, label, enabled, |ui| {
         let typed = TextField::new(label.clone(), Bind::given(value.clone())).masked().show(ui);
-        if let Some(text) = edited(&typed) {
+        if let Some(text) = typed.value().cloned() {
             *value = text;
         }
     });
@@ -484,7 +479,7 @@ fn number_row(ui: &mut Ui, id: &'static str, label: &Label, value: &mut f64, set
     let NumberSetup { kind, range, enabled } = setup;
     field(ui, id, label, enabled, |ui| {
         let number = NumberField::new(label.clone(), Bind::given(Some(*value))).unit_kind(kind).range(range.clone()).show(ui);
-        if let Some(typed) = edited(&number.edit).flatten() {
+        if let Some(typed) = number.edit.value().cloned().flatten() {
             *value = typed;
         }
     });

@@ -52,6 +52,9 @@
         "short": 96.0,
         "track": 128.0
       },
+      "pane": {
+        "least": 40.0
+      },
       "panel_header": 28.0,
       "plot": {
         "height": 144.0,

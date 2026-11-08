@@ -17,9 +17,9 @@ note = "A pattern: slots and the body are closures taking `(&mut Ui, &mut BodyCx
 [[type]]
 name = "CanvasShell"
 old = "craft_ui::shell::CanvasShell"
-new = "craft_ui::shell::AppShell"
-status = "replaced"
-note = "An `AppShell` with the canvas slot setters `title_bar_if(visible, f)`, `options_bar(visible, f)`, `tools(visible, f)` and `status(visible, f)`; the other setters are `AppShell`'s own. The slot keys are `craft_ui::shell::slots`."
+new = ""
+status = "removed"
+note = "Deleted; its job is `craft_ui::shell::AppShell` with the canvas slot setters `title_bar_if(visible, f)`, `options_bar(visible, f)`, `tools(visible, f)` and `status(visible, f)`; the other setters are `AppShell`'s own. The slot keys are `craft_ui::shell::slots`."
 
 [[type]]
 name = "StartScreen"

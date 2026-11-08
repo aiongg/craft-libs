@@ -4,9 +4,10 @@
 use craft_behavior::PixelSize;
 use craft_ui::contract::Bind;
 use craft_ui::patterns::form_dialogs::{
-    SaveForWebDialog, SaveForWebOptions, SaveForWebResult, SaveRequest, WantedVariant, WebFormat, WebPane, WebPictures, WebPreset, WebView,
-    advance_frame, download_seconds, four_up_variants,
+    HostRequests, PathRequest, SAVE_PATH_KEY, SaveForWebDialog, SaveForWebOptions, SaveForWebResult, WantedVariant, WebFormat, WebPane, WebPictures,
+    WebPreset, WebView, advance_frame, download_seconds, four_up_variants,
 };
+use craft_ui::runtime::overlay::CloseReason;
 use craft_ui::testing::{Fixture, trial};
 use std::cell::RefCell;
 use std::path::PathBuf;
@@ -80,34 +81,38 @@ fn a_preset_matches_the_settings_apart_from_the_size() {
 struct Rig {
     fixture: Fixture,
     asked: Rc<RefCell<Vec<WantedVariant>>>,
-    requested: Rc<RefCell<Option<SaveRequest>>>,
+    requested: Rc<RefCell<Option<PathRequest>>>,
     answered: Rc<RefCell<Option<SaveForWebResult>>>,
-    path: Rc<RefCell<Option<PathBuf>>>,
+    closed: Rc<RefCell<Option<CloseReason>>>,
+    host: Rc<RefCell<HostRequests>>,
 }
 
 fn rig() -> Rig {
     let asked = Rc::new(RefCell::new(Vec::new()));
     let requested = Rc::new(RefCell::new(None));
     let answered = Rc::new(RefCell::new(None));
-    let path: Rc<RefCell<Option<PathBuf>>> = Rc::new(RefCell::new(None));
-    let (wanted, request, result, answer) = (Rc::clone(&asked), Rc::clone(&requested), Rc::clone(&answered), Rc::clone(&path));
+    let closed = Rc::new(RefCell::new(None));
+    let host = Rc::new(RefCell::new(HostRequests::new()));
+    let (wanted, request, result, ended, answers) =
+        (Rc::clone(&asked), Rc::clone(&requested), Rc::clone(&answered), Rc::clone(&closed), Rc::clone(&host));
     let mut fixture = Fixture::new(move |ui| {
         let mut open = true;
-        let mut dialog = SaveForWebDialog::new("poster.psd", DOCUMENT, WebPictures::new()).opened(Bind::bound(&mut open));
-        if let Some(path) = answer.borrow_mut().take() {
-            dialog = dialog.saved_to(path);
-        }
-        let shown = dialog.show(ui);
+        let answers = answers.borrow_mut().take_answers();
+        let mut shown =
+            SaveForWebDialog::new("poster.psd", DOCUMENT, WebPictures::new(), Bind::kept()).opened(Bind::bound(&mut open)).answers(answers).show(ui);
         wanted.borrow_mut().extend(shown.wanted_variants.iter().cloned());
-        if shown.save_as.is_some() {
-            *request.borrow_mut() = shown.save_as;
+        if let Some(path) = shown.requests.take_path() {
+            *request.borrow_mut() = Some(path);
         }
         if shown.result.is_some() {
             *result.borrow_mut() = shown.result;
         }
+        if shown.closed.is_some() {
+            *ended.borrow_mut() = shown.closed;
+        }
     });
     fixture.settle();
-    Rig { fixture, asked, requested, answered, path }
+    Rig { fixture, asked, requested, answered, closed, host }
 }
 
 /// The dialog asks for the panes its view shows once per change, with a new revision each time, and the first pass
@@ -118,8 +123,8 @@ fn the_dialog_asks_for_the_panes_of_the_view_once_per_change() {
     {
         let asked = rig.asked.borrow();
         assert_eq!(asked.len(), 1, "2-Up asks for the current settings only");
-        assert_eq!((asked[0].index, asked[0].revision), (0, 1));
-        assert_eq!(asked[0].options, SaveForWebOptions::default());
+        assert_eq!((asked[0].index, asked[0].request.revision), (0, 1));
+        assert_eq!(asked[0].request.options, SaveForWebOptions::default());
     }
     rig.fixture.idle(3);
     assert_eq!(rig.asked.borrow().len(), 1, "nothing changed, nothing asked");
@@ -128,13 +133,13 @@ fn the_dialog_asks_for_the_panes_of_the_view_once_per_change() {
     rig.fixture.click(&four_up);
     rig.fixture.idle(3);
     let asked = rig.asked.borrow();
-    let latest: Vec<_> = asked.iter().filter(|want| want.revision == 2).collect();
+    let latest: Vec<_> = asked.iter().filter(|want| want.request.revision == 2).collect();
     assert_eq!(latest.iter().map(|want| want.index).collect::<Vec<_>>(), vec![0, 1, 2], "4-Up asks for three panes");
-    assert_eq!(latest[1].options.quality, SaveForWebOptions::default().quality / 2);
+    assert_eq!(latest[1].request.options.quality, SaveForWebOptions::default().quality / 2);
 }
 
-/// Save… files the save picker for the document's name with the format's extension; the path the picker returns
-/// makes the answer, with the size.
+/// Save… files the file dialog request for the document's name with the format's extension and leaves the dialog
+/// open; the path the host answers with makes the result and closes the dialog.
 #[trial]
 fn save_files_the_picker_and_the_path_makes_the_answer() {
     let mut rig = rig();
@@ -142,12 +147,15 @@ fn save_files_the_picker_and_the_path_makes_the_answer() {
     rig.fixture.click(&save);
     rig.fixture.idle(2);
     let request = rig.requested.borrow().clone().expect("the press filed a save request");
-    assert_eq!((request.file_name.as_str(), request.extension), ("poster.jpg", "jpg"));
-    assert!(rig.answered.borrow().is_none(), "the dialog waits for the picker");
+    assert_eq!((request.key.as_str(), request.file_name.as_deref()), (SAVE_PATH_KEY, Some("poster.jpg")));
+    assert_eq!(request.filters.first().map(|filter| filter.extensions.clone()), Some(vec!["jpg".to_owned()]));
+    assert!(rig.answered.borrow().is_none(), "the dialog waits for the host");
+    assert!(rig.closed.borrow().is_none(), "Save… does not close the dialog by itself");
 
-    *rig.path.borrow_mut() = Some(PathBuf::from("/exports/poster.jpg"));
+    rig.host.borrow_mut().answer_path(request.key, PathBuf::from("/exports/poster.jpg"));
     rig.fixture.idle(2);
     let answered = rig.answered.borrow().clone().expect("the path makes the answer");
     assert_eq!(answered.path, PathBuf::from("/exports/poster.jpg"));
     assert_eq!((answered.width, answered.height), (DOCUMENT.width, DOCUMENT.height));
+    assert_eq!(*rig.closed.borrow(), Some(CloseReason::Activated), "the path answer closes the dialog");
 }

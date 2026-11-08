@@ -95,7 +95,7 @@ impl Orientation {
 /// Everything New Document creates a document from: the dialog's result, a saved preset, a recent card and the
 /// remembered last values are all this.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(from = "Stored", into = "Stored")]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct DocumentOptions {
     /// The document name ("Untitled-1"); a preset's own name when saved as one.
@@ -161,12 +161,20 @@ impl DocumentOptions {
             && RESOLUTION_UNITS.contains(&self.resolution_unit)
     }
 
-    /// The fields that show these settings: the size, resolution and units.
-    pub(super) fn linked(&self) -> LinkedSize {
-        let mut linked = LinkedSize::new(self.size).opening_resolution(self.pixels_per_inch).chain(false);
+    /// The fields that show these settings: the size, resolution and units, with `points_per_inch` points in an inch.
+    pub(super) fn linked(&self, points_per_inch: f64) -> LinkedSize {
+        let mut linked = LinkedSize::new(self.size).opening_resolution(self.pixels_per_inch).points_per_inch(points_per_inch).chain(false);
         linked.set_unit(self.unit);
         linked.set_resolution_unit(self.resolution_unit);
         linked
+    }
+
+    /// Whether `linked` shows these settings' size, resolution and units.
+    pub(super) fn shown_by(&self, linked: &LinkedSize) -> bool {
+        linked.pixels() == self.size
+            && linked.pixels_per_inch() == self.pixels_per_inch
+            && linked.unit() == self.unit
+            && linked.resolution_unit() == self.resolution_unit
     }
 
     /// Takes the size, resolution and units from `linked`.
@@ -175,98 +183,6 @@ impl DocumentOptions {
         self.pixels_per_inch = linked.pixels_per_inch();
         self.unit = linked.unit();
         self.resolution_unit = linked.resolution_unit();
-    }
-}
-
-/// The saved form of `DocumentOptions`: the units are named by a stable key, so a catalog or enum change elsewhere
-/// does not change what was saved.
-#[derive(Clone, Serialize, Deserialize)]
-struct Stored {
-    name: String,
-    width: u32,
-    height: u32,
-    pixels_per_inch: f64,
-    unit: StoredUnit,
-    resolution_unit: StoredResolution,
-    color_mode: ColorMode,
-    depth: BitDepth,
-    profile: Option<String>,
-    background: BackgroundContents,
-    artboard: bool,
-}
-
-#[derive(Clone, Copy, Serialize, Deserialize)]
-enum StoredUnit {
-    Pixels,
-    Inches,
-    Centimetres,
-    Millimetres,
-    Points,
-    Picas,
-}
-
-#[derive(Clone, Copy, Serialize, Deserialize)]
-enum StoredResolution {
-    PixelsPerInch,
-    PixelsPerCentimetre,
-}
-
-impl From<DocumentOptions> for Stored {
-    fn from(options: DocumentOptions) -> Self {
-        let unit = match options.unit {
-            UnitKind::Inches => StoredUnit::Inches,
-            UnitKind::Centimetres => StoredUnit::Centimetres,
-            UnitKind::Millimetres => StoredUnit::Millimetres,
-            UnitKind::Points => StoredUnit::Points,
-            UnitKind::Picas => StoredUnit::Picas,
-            _ => StoredUnit::Pixels,
-        };
-        let resolution_unit = match options.resolution_unit {
-            UnitKind::PixelsPerCentimetre => StoredResolution::PixelsPerCentimetre,
-            _ => StoredResolution::PixelsPerInch,
-        };
-        Stored {
-            name: options.name,
-            width: options.size.width,
-            height: options.size.height,
-            pixels_per_inch: options.pixels_per_inch,
-            unit,
-            resolution_unit,
-            color_mode: options.color_mode,
-            depth: options.depth,
-            profile: options.profile,
-            background: options.background,
-            artboard: options.artboard,
-        }
-    }
-}
-
-impl From<Stored> for DocumentOptions {
-    fn from(stored: Stored) -> Self {
-        let unit = match stored.unit {
-            StoredUnit::Pixels => UnitKind::Pixels,
-            StoredUnit::Inches => UnitKind::Inches,
-            StoredUnit::Centimetres => UnitKind::Centimetres,
-            StoredUnit::Millimetres => UnitKind::Millimetres,
-            StoredUnit::Points => UnitKind::Points,
-            StoredUnit::Picas => UnitKind::Picas,
-        };
-        let resolution_unit = match stored.resolution_unit {
-            StoredResolution::PixelsPerInch => UnitKind::PixelsPerInch,
-            StoredResolution::PixelsPerCentimetre => UnitKind::PixelsPerCentimetre,
-        };
-        DocumentOptions {
-            name: stored.name,
-            size: PixelSize::new(stored.width, stored.height),
-            pixels_per_inch: stored.pixels_per_inch,
-            unit,
-            resolution_unit,
-            color_mode: stored.color_mode,
-            depth: stored.depth,
-            profile: stored.profile,
-            background: stored.background,
-            artboard: stored.artboard,
-        }
     }
 }
 
@@ -458,90 +374,54 @@ pub fn push_recent(recent: &mut Vec<DocumentOptions>, settings: DocumentOptions,
     recent.truncate(max);
 }
 
-/// Why a preset name is refused.
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum NameError {
-    /// The name has no characters after trimming, or more than 255.
-    Length,
-    /// A preset of this name (ignoring ASCII case) is saved already.
-    Taken(String),
-    /// 256 presets are saved already.
-    TooMany,
-}
-
-/// Whether `name` can be saved as a preset beside the `saved` ones.
-pub fn preset_name_error(saved: &[DocumentOptions], name: &str) -> Option<NameError> {
-    let name = name.trim();
-    if name.is_empty() || name.chars().count() > MAX_NAME {
-        return Some(NameError::Length);
-    }
-    if saved.iter().any(|preset| preset.name.eq_ignore_ascii_case(name)) {
-        return Some(NameError::Taken(name.to_owned()));
-    }
-    (saved.len() >= MAX_SAVED).then_some(NameError::TooMany)
-}
-
 /// The size line of a card or a saved preset: "1800 x 1200 px @ 300 ppi", or inches for a print preset
 /// ("6 x 4 in @ 300 ppi"), numbers in the user's format with at most two decimals.
 pub fn size_line(options: &DocumentOptions, words: &NewDocumentWords, units: &Units) -> String {
     let unit = if SIZE_UNITS.contains(&options.unit) { options.unit } else { UnitKind::Pixels };
-    let mut linked = options.linked();
+    let mut linked = options.linked(units.points_per_inch());
     linked.set_unit(unit);
     let (width, height) = (units.number_ungrouped(linked.width(), 0..=2), units.number_ungrouped(linked.height(), 0..=2));
     let resolution = units.show(UnitKind::PixelsPerInch, options.pixels_per_inch);
     words.size_line.fill(&[("width", &width), ("height", &height), ("unit", &units.symbol(unit)), ("resolution", &resolution)])
 }
 
-/// The recent documents, remembered across runs.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub(super) struct Recents(pub(super) Vec<DocumentOptions>);
-
-/// The presets the user saved, remembered across runs.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub(super) struct SavedPresets(pub(super) Vec<DocumentOptions>);
-
-/// The settings of the last created document, remembered across runs.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub(super) struct LastOptions(pub(super) Option<DocumentOptions>);
-
 craft_ui::words! {
     /// The names of the built-in presets, in the order of `PRESET_IDS`.
-    pub struct PresetWords {
+    pub struct NewDocumentPresetWords {
         names: array [
-            "newDocument.presetLandscape6x4" = "Landscape, 6 x 4",
-            "newDocument.presetLandscape7x5" = "Landscape, 7 x 5",
-            "newDocument.presetLandscape10x8" = "Landscape, 10 x 8",
-            "newDocument.presetPortrait4x6" = "Portrait, 4 x 6",
-            "newDocument.presetPortrait5x7" = "Portrait, 5 x 7",
-            "newDocument.presetSquare5x5" = "Square, 5 x 5",
-            "newDocument.presetLetter" = "Letter",
-            "newDocument.presetLegal" = "Legal",
-            "newDocument.presetTabloid" = "Tabloid",
-            "newDocument.presetA4" = "A4",
-            "newDocument.presetA3" = "A3",
-            "newDocument.presetA5" = "A5",
-            "newDocument.presetB3" = "B3",
-            "newDocument.presetB4" = "B4",
-            "newDocument.presetPoster" = "Poster",
-            "newDocument.presetPostcard" = "Postcard",
-            "newDocument.presetComicBook" = "Comic Book",
-            "newDocument.presetSquare12x12" = "Square, 12 x 12",
-            "newDocument.presetWebMostCommon" = "Web Most Common",
-            "newDocument.presetWebMinimum" = "Web Minimum",
-            "newDocument.presetWebLarge" = "Web Large",
-            "newDocument.presetMacbookPro16" = "MacBook Pro 16\"",
-            "newDocument.presetImac24" = "iMac 24\"",
-            "newDocument.presetIphone16" = "iPhone 16",
-            "newDocument.presetIphone16ProMax" = "iPhone 16 Pro Max",
-            "newDocument.presetIpadPro13" = "iPad Pro 13\"",
-            "newDocument.presetAndroid1080p" = "Android 1080p",
-            "newDocument.presetAppleWatch45" = "Apple Watch 45mm",
-            "newDocument.presetHdtv1080p" = "HDTV 1080p",
-            "newDocument.presetHdtv720p" = "HDTV 720p",
-            "newDocument.presetUhd4k" = "UHD 4K",
-            "newDocument.presetDci4k" = "DCI 4K",
-            "newDocument.presetUhd8k" = "UHD 8K",
+            "newDocumentPreset.landscape6x4" = "Landscape, 6 x 4",
+            "newDocumentPreset.landscape7x5" = "Landscape, 7 x 5",
+            "newDocumentPreset.landscape10x8" = "Landscape, 10 x 8",
+            "newDocumentPreset.portrait4x6" = "Portrait, 4 x 6",
+            "newDocumentPreset.portrait5x7" = "Portrait, 5 x 7",
+            "newDocumentPreset.square5x5" = "Square, 5 x 5",
+            "newDocumentPreset.letter" = "Letter",
+            "newDocumentPreset.legal" = "Legal",
+            "newDocumentPreset.tabloid" = "Tabloid",
+            "newDocumentPreset.a4" = "A4",
+            "newDocumentPreset.a3" = "A3",
+            "newDocumentPreset.a5" = "A5",
+            "newDocumentPreset.b3" = "B3",
+            "newDocumentPreset.b4" = "B4",
+            "newDocumentPreset.poster" = "Poster",
+            "newDocumentPreset.postcard" = "Postcard",
+            "newDocumentPreset.comicBook" = "Comic Book",
+            "newDocumentPreset.square12x12" = "Square, 12 x 12",
+            "newDocumentPreset.webMostCommon" = "Web Most Common",
+            "newDocumentPreset.webMinimum" = "Web Minimum",
+            "newDocumentPreset.webLarge" = "Web Large",
+            "newDocumentPreset.macbookPro16" = "MacBook Pro 16\"",
+            "newDocumentPreset.imac24" = "iMac 24\"",
+            "newDocumentPreset.iphone16" = "iPhone 16",
+            "newDocumentPreset.iphone16ProMax" = "iPhone 16 Pro Max",
+            "newDocumentPreset.ipadPro13" = "iPad Pro 13\"",
+            "newDocumentPreset.android1080p" = "Android 1080p",
+            "newDocumentPreset.appleWatch45" = "Apple Watch 45mm",
+            "newDocumentPreset.hdtv1080p" = "HDTV 1080p",
+            "newDocumentPreset.hdtv720p" = "HDTV 720p",
+            "newDocumentPreset.uhd4k" = "UHD 4K",
+            "newDocumentPreset.dci4k" = "DCI 4K",
+            "newDocumentPreset.uhd8k" = "UHD 8K",
         ];
     }
 }
@@ -583,7 +463,7 @@ const PRESET_IDS: [&str; 33] = [
     "uhd-8k",
 ];
 
-impl PresetWords {
+impl NewDocumentPresetWords {
     /// The translated name of the built-in preset `id`; `None` for an id the set does not name.
     pub fn name_of(&self, id: &str) -> Option<&Label> {
         PRESET_IDS.iter().position(|listed| *listed == id).and_then(|at| self.names.get(at))

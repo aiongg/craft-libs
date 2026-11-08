@@ -41,14 +41,15 @@ pub use report::{ReportDialog, ReportNote, ReportOutput, ReportWords};
 mod sizing;
 
 pub use sizing::{
-    CanvasExtension, CanvasSize, CanvasSizeOutput, CanvasSizeResult, ImageSize, ImageSizeOutput, ImageSizeResult, Resample, SizingOutput, SizingWords,
+    CanvasExtension, CanvasSize, CanvasSizeOutput, CanvasSizeResult, CanvasSizeValues, ImageSize, ImageSizeOutput, ImageSizeResult, ImageSizeValues,
+    Resample, SizingOutput, SizingWords,
 };
 
 mod new_document;
 
 pub use new_document::{
-    BACKGROUND_COLOR_KEY, BackgroundContents, BitDepth, ColorMode, ColorProfiles, DocumentOptions, DocumentPreset, HostedNewDocument, NameError,
-    NewDocumentDialog, NewDocumentOutput, NewDocumentWords, Orientation, PresetCategory, PresetWords, preset_name_error, push_recent, size_line,
+    BACKGROUND_COLOR_KEY, BackgroundContents, BitDepth, ColorMode, ColorProfiles, DocumentOptions, DocumentPreset, HostedNewDocument,
+    NewDocumentDialog, NewDocumentOutput, NewDocumentPresetWords, NewDocumentWords, Orientation, PresetCategory, push_recent, size_line,
 };
 
 mod about;
@@ -62,9 +63,9 @@ mod guides;
 mod properties;
 
 pub use guides::{
-    GUIDE_LAYOUT_COLOR_KEY, GuideColor, GuideColorChoice, GuideDialogWords, GuideGroup, GuideLayoutDialog, GuideLayoutError, GuideLayoutOptions,
-    GuideLayoutOutput, GuideLayoutPreset, GuideLayoutResult, GuideLayoutValues, GuideLength, GuideRect, GuideTarget, GuideUnits,
-    HostedGuideLayoutDialog, HostedNewGuideDialog, NEW_GUIDE_COLOR_KEY, NewGuideDialog, NewGuideOutput, NewGuideValues,
+    GUIDE_LAYOUT_COLOR_KEY, GuideDialogWords, GuideGroup, GuideLayoutDialog, GuideLayoutError, GuideLayoutOptions, GuideLayoutOutput,
+    GuideLayoutPreset, GuideLayoutResult, GuideLayoutValues, GuideLength, GuideRect, GuideTarget, GuideUnits, HostedGuideLayoutDialog,
+    HostedNewGuideDialog, NEW_GUIDE_COLOR_KEY, NewGuideDialog, NewGuideOutput, NewGuideValues,
 };
 pub use properties::{PropertiesDialog, PropertiesOutput, PropertiesTab, PropertyRow};
 
@@ -95,8 +96,8 @@ mod save_for_web;
 mod watermark;
 
 pub use save_for_web::{
-    Animation, ColorTable, Dither, HostedSaveForWeb, MATTE_COLOR_KEY, SaveForWebDialog, SaveForWebOptions, SaveForWebOutput, SaveForWebResult,
-    SaveForWebWords, SaveRequest, WantedVariant, WebFormat, WebMetadata, WebPane, WebPictures, WebPreset, WebVariant, WebView, advance_frame,
+    Animation, ColorTable, Dither, HostedSaveForWeb, MATTE_COLOR_KEY, SAVE_PATH_KEY, SaveForWebDialog, SaveForWebOptions, SaveForWebOutput,
+    SaveForWebResult, SaveForWebWords, WantedVariant, WebFormat, WebMetadata, WebPane, WebPictures, WebPreset, WebVariant, WebView, advance_frame,
     download_seconds, four_up_variants,
 };
-pub use watermark::{ROTATIONS, Stash, WATERMARK_IMAGE_KEY, Watermark, WatermarkOutput, WatermarkSettings, WatermarkStyle, WatermarkWords};
+pub use watermark::{ROTATIONS, WATERMARK_IMAGE_KEY, Watermark, WatermarkOutput, WatermarkSettings, WatermarkStyle, WatermarkWords};

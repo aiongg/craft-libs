@@ -38,8 +38,8 @@ const PICTURE_HIGH: u16 = 9;
 const RECENT_SHOWN: usize = 12;
 
 /// The commands of a recent file's context menu. They act on the file that has the lead in the recent files, which a
-/// secondary click or the context-menu key gives to the file the menu is for. Delete runs `Remove` while focus is in
-/// the recent files.
+/// secondary click or the context-menu key gives to the file the menu is for. Delete at the lead of the recent files is
+/// the list's own delete request and reports the same `RemoveRecent`; `Remove` shows that chord in the menu.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui_macros::CommandSet)]
 #[command(prefix = "startRecent", scope = "startRecent")]
 #[non_exhaustive]
@@ -229,9 +229,10 @@ impl Page<'_> {
         }
     }
 
-    fn grid<K: Clone + Eq + std::hash::Hash + Send + Sync + 'static>(&self, label: Label) -> TileGrid<'static, K> {
+    fn grid<K: Clone + Eq + std::hash::Hash + Send + Sync + 'static>(&self, label: Label, deletable: bool) -> TileGrid<'static, K> {
         TileGrid::<K>::new(label)
             .select(SelectMode::Single)
+            .deletable(deletable)
             .activate(ActivateOn::Click)
             .caption(CaptionPlace::Below)
             .detail_line()
@@ -256,9 +257,9 @@ fn folder_of(path: &Path) -> String {
     path.parent().map(|folder| folder.display().to_string()).unwrap_or_default()
 }
 
-/// What a collection's events mean for a section: the key to open, if any, and the lead after them.
-fn read_events<K: Clone, E>(events: Vec<CollectionEvent<K, E>>, lead: &mut Option<K>) -> Vec<K> {
-    let mut opened = Vec::new();
+/// What a collection's events mean for a section: the keys to open and the keys to delete, and the lead after them.
+fn read_events<K: Clone, E>(events: Vec<CollectionEvent<K, E>>, lead: &mut Option<K>) -> (Vec<K>, Vec<K>) {
+    let (mut opened, mut deleted) = (Vec::new(), Vec::new());
     for event in events {
         match event {
             CollectionEvent::Activate(key) => {
@@ -266,6 +267,7 @@ fn read_events<K: Clone, E>(events: Vec<CollectionEvent<K, E>>, lead: &mut Optio
                 opened.push(key);
             }
             CollectionEvent::LeadMoved { key, .. } => *lead = Some(key),
+            CollectionEvent::Delete(keys) => deleted.extend(keys),
             CollectionEvent::Selection(SelectionChange::Set(keys)) => {
                 if let Some(key) = keys.into_iter().last() {
                     *lead = Some(key);
@@ -274,7 +276,7 @@ fn read_events<K: Clone, E>(events: Vec<CollectionEvent<K, E>>, lead: &mut Optio
             _ => {}
         }
     }
-    opened
+    (opened, deleted)
 }
 
 impl StartScreen<'_> {
@@ -361,8 +363,8 @@ fn recent_section(
             }
             let file_of = |path: &PathBuf| files.iter().find(|file| &file.path == path);
             let source = keyed(files, |file: &RecentFile| file.path.clone()).with_text(|file| Cow::Borrowed(file.name.as_str()));
-            let (response, opened) = if current == RecentView::Grid {
-                let out = page.grid::<PathBuf>(words.recent.clone()).show_items(ui, &source, &mut |path, _| {
+            let (response, (opened, removed)) = if current == RecentView::Grid {
+                let out = page.grid::<PathBuf>(words.recent.clone(), true).show_items(ui, &source, &mut |path, _| {
                     let Some(file) = file_of(path) else { return Tile::new(Label::Empty) };
                     page.tile(&file.name, page.age(file.opened), page.picture(ThumbKey::Recent(file.path.clone()), file.thumbnail))
                 });
@@ -370,6 +372,7 @@ fn recent_section(
             } else {
                 let out = List::<PathBuf>::new(words.recent.clone())
                     .select(SelectMode::Single)
+                    .deletable(true)
                     .activate(ActivateOn::Click)
                     .sizing(Sizing::FillWidth)
                     .show_items(ui, &source, &mut |path, _| {
@@ -385,6 +388,9 @@ fn recent_section(
             };
             for path in opened {
                 page.push(StartAction::OpenRecent(path));
+            }
+            for path in removed {
+                page.push(StartAction::RemoveRecent(path));
             }
             if lead.is_some() {
                 let _ = Menu::context(words.recent_menu.clone(), &response).show(ui, |ui, _| {
@@ -429,7 +435,7 @@ fn pinned_section(page: &Page<'_>, ui: &mut Ui, folders: &[PathBuf]) {
                     let name = path.file_name().map_or_else(|| path.display().to_string(), |name| name.to_string_lossy().into_owned());
                     ListRow::new(Label::from(name)).detail(path.display().to_string()).icon(IconSpec::svg(IconId::new("folder")))
                 });
-            for path in read_events(out.events, &mut lead) {
+            for path in read_events(out.events, &mut lead).0 {
                 page.push(StartAction::OpenPinned(path));
             }
             if lead.is_some() {
@@ -446,13 +452,13 @@ fn templates_section(page: &Page<'_>, ui: &mut Ui, templates: &[Template]) {
     let words = page.words;
     let _ = Section::fixed(words.templates.clone()).show(ui, |ui, _| {
         let source = keyed(templates, |template: &Template| template.id.clone()).with_text(|template| Cow::Borrowed(template.name.as_str()));
-        let out = page.grid::<String>(words.templates.clone()).show_items(ui, &source, &mut |id, _| {
+        let out = page.grid::<String>(words.templates.clone(), false).show_items(ui, &source, &mut |id, _| {
             let Some(template) = templates.iter().find(|template| &template.id == id) else { return Tile::new(Label::Empty) };
             let detail = (!template.detail.is_empty()).then(|| template.detail.clone());
             page.tile(&template.name, detail, page.picture(ThumbKey::Template(template.id.clone()), template.thumbnail))
         });
         let mut lead = None;
-        for id in read_events(out.response.events, &mut lead) {
+        for id in read_events(out.response.events, &mut lead).0 {
             page.push(StartAction::UseTemplate(id));
         }
     });

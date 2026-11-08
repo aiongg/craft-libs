@@ -7,8 +7,8 @@ use std::fmt::Write as _;
 
 use crate::{
     BarSizes, BySize, ColorToken, ComponentTokens, ControlSizes, Easing, Edge, Elevation, ElevationTokens, FloatSizes, FontSlot, Gaps, HandleSizes,
-    HitSizes, IconSizes, LengthSizes, Motion, MotionTokens, Pads, PlotSizes, RadiusSet, RailSizes, Rgba, RowStyle, ShapeTokens, SizeTokens,
-    SliderTokens, SpaceTokens, StrokeTokens, ThumbSizes, Tokens, TypeStyle, TypeTokens, WindowSizes,
+    HitSizes, IconSizes, LengthSizes, Motion, MotionTokens, Pads, PaneSizes, PlotSizes, RadiusSet, RailSizes, Rgba, RowStyle, ShapeTokens,
+    SizeTokens, SliderTokens, SpaceTokens, StrokeTokens, ThumbSizes, Tokens, TypeStyle, TypeTokens, WindowSizes,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -113,6 +113,7 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
         pointer_tip,
         float,
         window,
+        pane,
     } = size;
     let ControlSizes { sm, md } = control;
     out.line("size.control.sm", len(*sm));
@@ -158,6 +159,8 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
     out.line("size.float.height", len(*height));
     let WindowSizes { cascade } = window;
     out.line("size.window.cascade", len(*cascade));
+    let PaneSizes { least } = pane;
+    out.line("size.pane.least", len(*least));
 }
 
 fn slot(s: FontSlot) -> &'static str {

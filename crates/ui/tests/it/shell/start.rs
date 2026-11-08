@@ -73,13 +73,25 @@ fn delete_on_a_recent_file_removes_it_and_leaves_the_edit_command() {
     });
     fixture.command_state(EditCommands::Delete, CommandState::new());
     fixture.settle();
-    let row = fixture.by_label("first.fig").expect("the recent file is listed");
+    // A list row with a detail is named by its label and the detail, here the folder.
+    let row = fixture.by_label("first.fig, /work").unwrap_or_else(|| {
+        let tree = fixture.tree();
+        let names: Vec<_> = tree.keys().into_iter().map(|key| (tree.role_of(key), tree.name_of(key).map(str::to_owned))).collect();
+        panic!("the recent file is listed among {names:?}")
+    });
     fixture.click(&row);
     fixture.idle(2);
     seen.borrow_mut().clear();
     let _ = take_output(fixture.ctx());
     fixture.key(Key::Delete, Modifiers::NONE);
     fixture.idle(2);
-    assert_eq!(*seen.borrow(), [StartAction::RemoveRecent("/work/first.fig".into())]);
-    assert!(take_output(fixture.ctx()).fired.is_empty(), "the application's Delete command did not fire");
+    let fired = take_output(fixture.ctx()).fired;
+    assert_eq!(
+        *seen.borrow(),
+        [StartAction::RemoveRecent("/work/first.fig".into())],
+        "focus {:?}, app commands fired {}",
+        fixture.focused(),
+        fired.len()
+    );
+    assert!(fired.is_empty(), "the application's Delete command did not fire");
 }

@@ -23,7 +23,7 @@ use craft_ui::dialog::Dialog;
 use craft_ui::layout::ColumnGroup;
 use craft_ui::list::{List, ListRow};
 use craft_ui::menu::{Menu, MenuItem};
-use craft_ui::patterns::form_dialogs::{ExportAsDialog, ExportPreview, PreviewState, SizeEstimate};
+use craft_ui::patterns::form_dialogs::{ExportAsDialog, ExportOptions, ExportPreview, PreviewState, SizeEstimate};
 use craft_ui::primitives::{Revision, TextureCache};
 use craft_ui::runtime::env::RootEnv;
 use craft_ui::runtime::env::UnitKind;
@@ -95,7 +95,7 @@ impl Library for Foundation {
                 "a Canvas with a rotated CanvasView, RasterDisplay over a 4096 x 4096 RasterSource, Rulers, 40 Guides and the Hand tool, panning a step each frame",
             ),
             "param-dialog-export" => {
-                (Box::new(ExportDialogScene), "ExportAsDialog open with its format form and a PreviewPane in PreviewState::Ready")
+                (Box::new(ExportDialogScene::default()), "ExportAsDialog open with its format form and a PreviewPane in PreviewState::Ready")
             }
             "readout-and-content-column" => (
                 Box::new(ReadoutScene),
@@ -484,7 +484,10 @@ impl Scene for CanvasViewScene {
     }
 }
 
-struct ExportDialogScene;
+#[derive(Default)]
+struct ExportDialogScene {
+    options: ExportOptions,
+}
 
 impl Scene for ExportDialogScene {
     fn size(&self) -> Vec2 {
@@ -495,7 +498,10 @@ impl Scene for ExportDialogScene {
         let id = TextureCache::texture(ui.ctx(), "bench-export-preview", || ColorImage::filled([360, 240], Color32::from_rgb(0x6f, 0x8a, 0x4d)));
         let preview = ExportPreview::new(1, PreviewState::Ready(SizedTexture::new(id, vec2(360.0, 240.0)))).estimate(SizeEstimate::Proxy(1_258_291));
         let mut open = true;
-        let _ = ExportAsDialog::new("Poster", PixelSize::new(1200, 800)).opened(Bind::bound(&mut open)).preview(preview).show(ui);
+        let _ = ExportAsDialog::new("Poster", PixelSize::new(1200, 800), Bind::bound(&mut self.options))
+            .opened(Bind::bound(&mut open))
+            .preview(preview)
+            .show(ui);
     }
 }
 

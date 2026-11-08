@@ -3,13 +3,12 @@
 //!
 //! The file moves as text: it is loaded by pasting it into the field and exported by writing it to the field.
 
-use super::held::Held;
 use super::subject::Pick;
 use craft_theme::variant::Tone;
 use craft_theme::{AppSizes, Explained, SizeMap, SizeOrigin, SizeValue};
 use craft_ui::buttons::Button;
 use craft_ui::choice::Segmented;
-use craft_ui::contract::{Bind, Entry, Gap, Pattern, Props, Scroll, Show as _, ShowContainer as _, clicked};
+use craft_ui::contract::{Bind, Entry, Gap, Held, Pattern, Props, Scroll, Show as _, ShowContainer as _, clicked};
 use craft_ui::display::Text;
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::notices::Notice;

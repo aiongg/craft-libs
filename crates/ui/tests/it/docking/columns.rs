@@ -1,8 +1,10 @@
 //! Dock columns: the size rules of groups and columns, and the flyout of an iconic column.
 
 use craft_behavior::dock::{Column, Group};
-use craft_ui::contract::Bind;
+use craft_ui::buttons::Button;
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::docking::{DockHeights, GroupSize, IconicColumn, PanelSpec, fit_widths, group_heights};
+use craft_ui::sections::Panel;
 use craft_ui::testing::memory::global;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers};
@@ -105,4 +107,31 @@ fn writing_the_bound_flyout_opens_the_same_flyout_as_a_click_and_writing_it_agai
     fixture.idle(2);
     assert_eq!(shown.get(), Some(1), "writing the same panel again keeps it open");
     assert_eq!(*open.borrow(), Some(1));
+}
+
+#[trial]
+fn a_button_in_the_flyout_takes_its_click_and_leaves_the_flyout_open() {
+    let open: Rc<RefCell<Option<u8>>> = Rc::new(RefCell::new(Some(0)));
+    let clicks: Rc<Cell<u32>> = Rc::default();
+    let (bound, counted) = (Rc::clone(&open), Rc::clone(&clicks));
+    let mut fixture = Fixture::new(move |ui| {
+        let column = Column::new(vec![Group::new(vec![0, 1], 0)], 240.0);
+        let counted = Rc::clone(&counted);
+        IconicColumn::new("Panels", global("dock", "flyout button test"), &column, Bind::bound(&mut bound.borrow_mut()), &spec).show_flyouts(
+            ui,
+            move |_, rect, ui, _| {
+                Panel::new("Panel").show_at(ui, rect, |ui, _| {
+                    if craft_ui::testing::contract::clicked(&Button::new("Apply").show(ui)) {
+                        counted.set(counted.get() + 1);
+                    }
+                });
+            },
+        );
+    });
+    fixture.settle();
+    let apply = fixture.by_label("Apply").expect("the open flyout shows its button");
+    fixture.click(&apply);
+    fixture.idle(2);
+    assert_eq!(clicks.get(), 1, "the click reached the button");
+    assert_eq!(*open.borrow(), Some(0), "a click inside the flyout leaves it open");
 }

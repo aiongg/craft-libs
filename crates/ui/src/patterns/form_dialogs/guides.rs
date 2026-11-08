@@ -1,5 +1,5 @@
 //! View > Guides > New Guide, Edit Selected Guides and New Guide Layout: [`NewGuideDialog`] and [`GuideLayoutDialog`]
-//! on `Dialog`, and their `DialogHost` forms.
+//! on `FormDialog`, and their `DialogHost` forms.
 //!
 //! Positions and sizes are lengths: the fields open in the ruler unit ("0 cm") and take any unit Photoshop's fields
 //! take ("50%", "2.5 cm", "1in", "12 pt", "3 pc", "100 px"); a bare number is in the ruler unit. Percent is of the
@@ -16,26 +16,24 @@ mod stories;
 pub use layout::{GuideGroup, GuideLayoutError, GuideLayoutOptions, GuideLayoutPreset, GuideLength, GuideRect, GuideTarget, GuideUnits, MAX_COUNT};
 pub use new_guide::{HostedNewGuideDialog, NewGuideDialog, NewGuideOutput, NewGuideValues};
 
-use super::{ColorRequest, HostRequests, ParamDialogWords, ResetFooter, ResetPick};
-use crate::canvas::Guide;
+use super::{ColorRequest, FormDialog, HostAnswer, HostRequests, ParamDialogWords};
+use crate::canvas::{Guide, GuideColor};
 use crate::choice::Checkbox;
 use crate::contract::{Bind, EditResponse, Entry, NoValue, Outcome, Props as _, Remember as _, Show as _, ShowContainer as _};
-use crate::dialog::{Dialog, DialogId, DialogOutput, DialogResult, DialogStack, StackDialog, dialog_id};
+use crate::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
 use crate::display::Text;
 use crate::form::{Field, FieldGroup};
 use crate::notices::{Notice, NoticeLayout};
 use crate::pickers::Select;
 use crate::runtime::env::{Env, Label, Units};
 use crate::runtime::overlay::CloseReason;
-use crate::runtime::words::CommonWords;
-use crate::sections::{DialogRole, FooterButton, GroupBox};
+use crate::sections::GroupBox;
 use crate::text::NumberField;
-use craft_behavior::{EditEvent, GestureId, Mixed, NumberCodec, Value};
+use craft_behavior::NumberCodec;
 use craft_theme::variant::Tone;
 use craft_theme::{Rgba, Srgba};
 use egui::{Response, Ui};
-use std::cell::RefCell;
-use std::sync::Arc;
+use std::cell::{Cell, RefCell};
 
 /// The [`ColorRequest::key`] of New Guide's Custom colour.
 pub const NEW_GUIDE_COLOR_KEY: &str = "guides.newGuide.color";
@@ -100,144 +98,47 @@ craft_ui::words! {
     }
 }
 
-/// A guide colour: Photoshop's list (Cyan by default) or a custom colour.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum GuideColor {
-    /// `#3366ff`.
-    LightBlue,
-    /// `#ff3333`.
-    LightRed,
-    /// `#33ff33`.
-    Green,
-    /// `#3333ff`.
-    MediumBlue,
-    /// `#ffcc00`.
-    Yellow,
-    /// `#ff00ff`.
-    Magenta,
-    /// `#4affff`.
-    #[default]
-    Cyan,
-    /// `#e7e7e7`.
-    LightGray,
-    /// `#000000`.
-    Black,
-    /// A colour the user chose in the app's colour picker.
-    Custom(Rgba),
+/// The name of `color` in the list.
+fn color_label(color: GuideColor, words: &GuideDialogWords) -> Label {
+    match color {
+        GuideColor::LightBlue => words.light_blue.clone(),
+        GuideColor::LightRed => words.light_red.clone(),
+        GuideColor::Green => words.green.clone(),
+        GuideColor::MediumBlue => words.medium_blue.clone(),
+        GuideColor::Yellow => words.yellow.clone(),
+        GuideColor::Magenta => words.magenta.clone(),
+        GuideColor::Cyan => words.cyan.clone(),
+        GuideColor::LightGray => words.light_gray.clone(),
+        GuideColor::Black => words.black.clone(),
+        GuideColor::Custom(_) => words.custom_color.clone(),
+    }
 }
 
-impl GuideColor {
-    /// The named colours in Photoshop's menu order; Custom is listed first in the menu, before these.
-    pub const NAMED: [GuideColor; 9] = [
-        GuideColor::LightBlue,
-        GuideColor::LightRed,
-        GuideColor::Green,
-        GuideColor::MediumBlue,
-        GuideColor::Yellow,
-        GuideColor::Magenta,
-        GuideColor::Cyan,
-        GuideColor::LightGray,
-        GuideColor::Black,
-    ];
+/// The colour row: Custom first, then Photoshop's nine, each with a swatch. Picking a named colour sets it. Picking
+/// Custom files a colour request under `key` and leaves the colour as it is: the host's answer sets it, and a
+/// cancelled pick changes nothing.
+fn color_row(ui: &mut Ui, words: &GuideDialogWords, color: &mut GuideColor, key: &str, requests: &mut HostRequests) {
+    let custom = GuideColor::Custom(color.rgba());
+    let entry = |value: GuideColor| Entry::new(value, color_label(value, words)).swatch(Srgba::from(value.rgba()));
+    let entries: Vec<Entry<GuideColor>> = std::iter::once(entry(custom)).chain(GuideColor::NAMED.into_iter().map(entry)).collect();
+    let label = words.color.clone();
+    let current = *color;
+    Field::new(label.clone()).show(ui, |ui, _| match Select::new(label.clone(), Bind::given(current), &entries).show(ui).value().copied() {
+        Some(GuideColor::Custom(_)) => requests.request_color(ColorRequest::new(key, Srgba::from(current.rgba())).title(words.picker_title.clone())),
+        Some(named) => *color = named,
+        None => {}
+    });
+}
 
-    /// The colour.
-    pub const fn rgba(self) -> Rgba {
-        match self {
-            GuideColor::LightBlue => Rgba::rgb(0x33, 0x66, 0xff),
-            GuideColor::LightRed => Rgba::rgb(0xff, 0x33, 0x33),
-            GuideColor::Green => Rgba::rgb(0x33, 0xff, 0x33),
-            GuideColor::MediumBlue => Rgba::rgb(0x33, 0x33, 0xff),
-            GuideColor::Yellow => Rgba::rgb(0xff, 0xcc, 0x00),
-            GuideColor::Magenta => Rgba::rgb(0xff, 0x00, 0xff),
-            GuideColor::Cyan => Rgba::rgb(0x4a, 0xff, 0xff),
-            GuideColor::LightGray => Rgba::rgb(0xe7, 0xe7, 0xe7),
-            GuideColor::Black => Rgba::rgb(0x00, 0x00, 0x00),
-            GuideColor::Custom(rgba) => rgba,
+/// Sets `color` from the host's answers to the colour request `key`.
+fn apply_color_answers(answers: Vec<HostAnswer>, key: &str, color: &mut GuideColor) {
+    for answer in answers {
+        if let HostAnswer::Color { key: answered, color: picked } = answer
+            && answered == key
+        {
+            *color = GuideColor::Custom(picked.to_rgba());
         }
     }
-
-    /// The named colour with these values, else [`GuideColor::Custom`] (an edited guide's own colour shows as its
-    /// name when it is one).
-    pub fn from_rgba(rgba: Rgba) -> GuideColor {
-        GuideColor::NAMED.into_iter().find(|named| named.rgba() == rgba).unwrap_or(GuideColor::Custom(rgba))
-    }
-
-    fn label(self, words: &GuideDialogWords) -> Label {
-        match self {
-            GuideColor::LightBlue => words.light_blue.clone(),
-            GuideColor::LightRed => words.light_red.clone(),
-            GuideColor::Green => words.green.clone(),
-            GuideColor::MediumBlue => words.medium_blue.clone(),
-            GuideColor::Yellow => words.yellow.clone(),
-            GuideColor::Magenta => words.magenta.clone(),
-            GuideColor::Cyan => words.cyan.clone(),
-            GuideColor::LightGray => words.light_gray.clone(),
-            GuideColor::Black => words.black.clone(),
-            GuideColor::Custom(_) => words.custom_color.clone(),
-        }
-    }
-}
-
-/// The colour a guide dialog holds: the list's choice, and the custom colour the list's Custom entry stands for.
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct GuideColorChoice {
-    /// The chosen colour.
-    pub color: GuideColor,
-    /// The colour the Custom entry holds.
-    pub custom: Rgba,
-}
-
-impl GuideColorChoice {
-    /// The choice of `color`; a custom colour is also the Custom entry's.
-    pub fn new(color: GuideColor) -> Self {
-        let custom = match color {
-            GuideColor::Custom(rgba) => rgba,
-            named => named.rgba(),
-        };
-        GuideColorChoice { color, custom }
-    }
-
-    /// The host's answer to the colour request: the custom colour, chosen.
-    pub fn answer(&mut self, rgba: Rgba) {
-        self.custom = rgba;
-        self.color = GuideColor::Custom(rgba);
-    }
-
-    fn entries(&self, words: &GuideDialogWords) -> Vec<Entry<GuideColor>> {
-        let custom = Entry::new(GuideColor::Custom(self.custom), words.custom_color.clone());
-        std::iter::once(custom).chain(GuideColor::NAMED.into_iter().map(|named| Entry::new(named, named.label(words)))).collect()
-    }
-
-    /// The colour row. Returns whether the user asked for the colour picker.
-    fn row(&mut self, ui: &mut Ui, words: &GuideDialogWords) -> bool {
-        let entries = self.entries(words);
-        let mut asks = false;
-        let label = words.color.clone();
-        let current = self.color;
-        Field::new(label.clone()).show(ui, |ui, _| {
-            if let Some(picked) = edited(&Select::new(label.clone(), Bind::given(current), &entries).show(ui)) {
-                match picked {
-                    GuideColor::Custom(_) => asks = true,
-                    named => self.color = named,
-                }
-            }
-        });
-        if asks {
-            self.color = GuideColor::Custom(self.custom);
-        }
-        asks
-    }
-
-    fn request(&self, key: &str, title: Label) -> ColorRequest {
-        ColorRequest::new(key, Srgba::from(self.color.rgba())).title(title)
-    }
-}
-
-/// The value a control's event carries.
-pub(super) fn edited<T: Clone>(response: &EditResponse<T>) -> Option<T> {
-    response.event.as_ref().and_then(|event| event.value().cloned())
 }
 
 /// `value` rounded to `places` decimals, for telling a typed value from the one the field already showed.
@@ -246,121 +147,23 @@ fn rounded(value: f64, places: usize) -> f64 {
     (value * scale).round() / scale
 }
 
-/// The form values of a guide dialog, as the caller's binding holds them.
-pub(super) struct Held<'a, V>(Bind<'a, V>);
-
-impl<'a, V: Value> Held<'a, V> {
-    pub(super) fn new(bind: Bind<'a, V>) -> Self {
-        Held(bind)
-    }
-
-    fn read(&mut self, cx: &mut crate::contract::BodyCx<'_>) -> Option<V> {
-        match self.0.reborrow().read(cx) {
-            Some(Mixed::Same(held)) => Some(held),
-            _ => None,
-        }
-    }
-
-    fn write(&mut self, cx: &mut crate::contract::BodyCx<'_>, before: &V, after: V, name: &Arc<str>) {
-        let _ = self.0.reborrow().write(cx, &EditEvent::set(GestureId::default(), Mixed::Same(before.clone()), after, name.clone(), None));
-    }
-
-    fn apply(&mut self, before: &V, after: V, name: &Arc<str>) {
-        let _ = self.0.reborrow().apply(&EditEvent::set(GestureId::default(), Mixed::Same(before.clone()), after, name.clone(), None));
-    }
-}
-
-/// The values the dialog opened with.
-#[derive(Clone)]
-struct Opened<V>(Option<V>);
-
-impl<V> Default for Opened<V> {
-    fn default() -> Self {
-        Opened(None)
-    }
-}
-
-/// What the footer reads: whether the values differ from the opening ones (Reset) and whether they can be accepted.
-#[derive(Clone, Copy)]
-struct Footing {
-    changed: bool,
-    ok: bool,
-}
-
-impl Default for Footing {
-    fn default() -> Self {
-        Footing { changed: false, ok: true }
-    }
-}
-
-/// What a form pass reports.
-struct Shown<V> {
-    output: DialogOutput,
-    values: V,
-}
-
-/// Shows `dialog` over the values in `held`: `rows` edits the values and says whether they can be accepted. Alt makes
-/// Cancel a Reset that restores the opening values.
-fn run_form<V: Value>(
-    ui: &mut Ui,
-    dialog: Dialog<'_>,
-    mut held: Held<'_, V>,
-    fallback: V,
-    name: Arc<str>,
-    reset: &ResetFooter,
-    mut rows: impl FnMut(&mut Ui, &mut crate::contract::BodyCx<'_>, &mut V) -> bool,
-) -> Shown<V> {
-    let work = RefCell::new(fallback.clone());
-    let start = RefCell::new(None::<V>);
-    let dialog = dialog.settle_buttons({
-        let reset = reset.clone();
-        move |cx, buttons| {
-            let footing = *cx.memory::<Footing>();
-            reset.settle(buttons, footing.changed);
-            if let Some(accept) = buttons.first_mut() {
-                accept.set_enabled(footing.ok);
-            }
-        }
-    });
-    let shown = dialog.show(ui, |ui, cx| {
-        let before = held.read(cx).unwrap_or_else(|| fallback.clone());
-        if cx.appeared() {
-            cx.memory::<Opened<V>>().0 = Some(before.clone());
-        }
-        *start.borrow_mut() = cx.memory::<Opened<V>>().0.clone();
-        let mut values = before.clone();
-        let ok = rows(ui, cx, &mut values);
-        let changed = start.borrow().as_ref().is_some_and(|opened| *opened != values);
-        *cx.memory::<Footing>() = Footing { changed, ok };
-        if values != before {
-            held.write(cx, &before, values.clone(), &name);
-        }
-        *work.borrow_mut() = values;
-    });
-    let mut values = work.into_inner();
-    if reset.pick(shown.output.picked) == Some(ResetPick::Reset)
-        && let Some(opened) = start.into_inner()
-    {
-        held.apply(&values, opened.clone(), &name);
-        values = opened;
-        crate::runtime::frame::request_repaint(ui.ctx());
-    }
-    Shown { output: shown.output, values }
-}
-
-/// Whether a dialog that closed with `closed` was accepted.
-fn accepted(closed: Option<CloseReason>) -> bool {
-    matches!(closed, Some(CloseReason::Enter | CloseReason::Activated))
-}
-
-/// What the length fields of a guide dialog read with.
+/// What the length fields of a guide dialog read with, and whether one of them shows text that does not parse in
+/// this pass.
 struct Measure<'a> {
     words: &'a GuideDialogWords,
     numbers: &'a Units,
     units: &'a GuideUnits,
+    unparsed: Cell<bool>,
 }
 
 impl Measure<'_> {
+    /// Notes a field's response: OK waits while its text does not parse.
+    fn note<T>(&self, field: &EditResponse<T>) {
+        if field.unparsed {
+            self.unparsed.set(true);
+        }
+    }
+
     /// A number field `label` over the ruler unit showing `shown`, for lengths across `extent` pixels: the value the
     /// user typed if it differs from the one shown (`Some(None)` is an emptied field).
     fn input(&self, ui: &mut Ui, label: Label, shown: Option<f64>, extent: f64) -> Option<Option<f64>> {
@@ -369,7 +172,9 @@ impl Measure<'_> {
         let high = self.units.from_pixels(MAX_LAYOUT_PX, ruler, extent).filter(|v| v.is_finite()).unwrap_or(MAX_LAYOUT_PX).max(0.0);
         let codec = NumberCodec::new(self.units.reader(self.numbers, extent), places);
         let field = NumberField::new(label, Bind::given(shown)).codec(codec).range(0.0..=high).step(ruler.step()).unit(self.numbers.symbol(ruler));
-        let typed = edited(&field.show(ui).edit)?;
+        let field = field.show(ui);
+        self.note(&field);
+        let typed = field.value().copied()?;
         match (typed, shown) {
             (Some(new), Some(old)) if rounded(new, places) == rounded(old, places) => None,
             (None, None) => None,
@@ -396,7 +201,7 @@ pub struct GuideLayoutValues {
     /// The layout's settings.
     pub options: GuideLayoutOptions,
     /// The guides' colour.
-    pub color: GuideColorChoice,
+    pub color: GuideColor,
     /// Whether the app draws the layout while the dialog is open.
     pub preview: bool,
 }
@@ -404,7 +209,7 @@ pub struct GuideLayoutValues {
 impl GuideLayoutValues {
     /// The values for `options` and `color`, with Preview on.
     pub fn new(options: GuideLayoutOptions, color: GuideColor) -> Self {
-        GuideLayoutValues { options, color: GuideColorChoice::new(color), preview: true }
+        GuideLayoutValues { options, color, preview: true }
     }
 }
 
@@ -439,8 +244,8 @@ pub struct GuideLayoutOutput {
     /// The guides the app shows on the canvas in place of the document's while the dialog is open: the full set OK
     /// would commit. `None` with Preview off; the last valid set while a field is invalid.
     pub preview: Option<Vec<Guide>>,
-    /// The Custom colour was asked for: the app opens its colour picker and answers into the values.
-    pub pick_color: Option<ColorRequest>,
+    /// What the dialog asks of the host in this pass (the Custom colour).
+    pub requests: HostRequests,
 }
 
 impl Outcome for GuideLayoutOutput {
@@ -466,13 +271,15 @@ struct LastValid(Option<Vec<Guide>>);
 ///   box is off greys its fields and keeps their values.
 /// - Preview: while Preview is on and the layout is valid, [`GuideLayoutOutput::preview`] is the set the app draws.
 ///   An invalid layout disables OK and shows the reason under the fields.
+/// - Colour: Custom asks the host for a colour (`requests`); the host's answers come back through
+///   [`answers`](GuideLayoutDialog::answers).
 /// - Values: the `values` binding holds them; the app keeps them for the next open.
 #[must_use = "show the dialog with `show`"]
 #[derive(crate::contract::Pattern, crate::contract::Props)]
 pub struct GuideLayoutDialog<'a> {
     units: GuideUnits,
     document: GuideRect,
-    values: Held<'a, GuideLayoutValues>,
+    values: Bind<'a, GuideLayoutValues>,
     /// The selected artboards the Target list offers.
     #[prop]
     artboards: Vec<GuideRect>,
@@ -482,6 +289,9 @@ pub struct GuideLayoutDialog<'a> {
     /// The key of the first guide the layout makes.
     #[prop]
     first_key: u64,
+    /// The host's answers to earlier requests.
+    #[prop]
+    answers: Vec<HostAnswer>,
     /// Binds the open state to `open`.
     #[prop(name = "opened")]
     open: Option<Bind<'a, bool>>,
@@ -490,35 +300,33 @@ pub struct GuideLayoutDialog<'a> {
 impl<'a> GuideLayoutDialog<'a> {
     /// A dialog over `values` for the `document` measured in `units`.
     pub fn new(units: GuideUnits, document: GuideRect, values: Bind<'a, GuideLayoutValues>) -> Self {
-        GuideLayoutDialog { units, document, values: Held::new(values), artboards: Vec::new(), existing: Vec::new(), first_key: 0, open: None }
+        GuideLayoutDialog { units, document, values, artboards: Vec::new(), existing: Vec::new(), first_key: 0, answers: Vec::new(), open: None }
     }
 
     /// Shows the dialog.
     pub fn show(self, ui: &mut Ui) -> GuideLayoutOutput {
-        let GuideLayoutDialog { units, document, values, artboards, existing, first_key, open } = self;
+        let GuideLayoutDialog { units, document, values, artboards, existing, first_key, answers, open } = self;
         let env = Env::of(ui);
         let words = env.words::<GuideDialogWords>();
-        let common = env.words::<CommonWords>();
         let preview_word = env.words::<ParamDialogWords>().preview.clone();
         let number_units = env.units();
-        let reset = ResetFooter::new(ui, None, true);
-        let accept = FooterButton::new(common.ok.clone(), DialogRole::Accept);
-        let mut dialog = Dialog::new(words.layout_title.clone()).close_on_enter(true).outer_gesture(true).buttons(reset.buttons(accept, false));
+        let mut dialog = FormDialog::new(words.layout_title.clone(), values).outer_gesture(true).answers(answers);
         if let Some(open) = open {
             dialog = dialog.opened(open);
         }
-        let ask = std::cell::Cell::new(false);
         let valid = RefCell::new(None::<Vec<Guide>>);
         let last = RefCell::new(None::<Vec<Guide>>);
-        let measure = Measure { words: &words, numbers: &number_units, units: &units };
-        let form = Form { document: &document, artboards: &artboards, preview_word: &preview_word };
-        let shown = run_form(ui, dialog, values, GuideLayoutValues::default(), Arc::from(words.layout_title.as_str()), &reset, |ui, cx, values| {
-            if layout_rows(ui, &measure, &form, values) {
-                ask.set(true);
-            }
+        let previewing = Cell::new(false);
+        let measure = Measure { words: &words, numbers: &number_units, units: &units, unparsed: Cell::new(false) };
+        let rows = Form { document: &document, artboards: &artboards, preview_word: &preview_word };
+        let shown = dialog.show(ui, |ui, form, values| {
+            apply_color_answers(form.take_answers(), GUIDE_LAYOUT_COLOR_KEY, &mut values.color);
+            measure.unparsed.set(false);
+            layout_rows(ui, &measure, &rows, values, form.requests());
+            previewing.set(values.preview);
             let rects = targets(&values.options, &document, &artboards);
-            let made = values.options.lines(&rects, &existing, &units, first_key, Some(values.color.color.rgba()));
-            let remembered = cx.memory::<LastValid>();
+            let made = values.options.lines(&rects, &existing, &units, first_key, Some(values.color.rgba()));
+            let remembered = form.memory::<LastValid>();
             let ok = match made {
                 Ok(guides) => {
                     remembered.0 = Some(guides.clone());
@@ -533,18 +341,13 @@ impl<'a> GuideLayoutDialog<'a> {
                 }
             };
             *last.borrow_mut() = remembered.0.clone();
-            ok
+            ok && !measure.unparsed.get()
         });
-        let Shown { output, values } = shown;
-        let DialogOutput { response, closed, .. } = output;
-        let result = accepted(closed).then(|| valid.borrow_mut().take()).flatten().map(|guides| GuideLayoutResult {
-            options: values.options,
-            guides,
-            color: values.color.color.rgba(),
+        let result = shown.accepted.and_then(|values| {
+            valid.borrow_mut().take().map(|guides| GuideLayoutResult { options: values.options, guides, color: values.color.rgba() })
         });
-        let preview = values.preview.then(|| last.into_inner()).flatten();
-        let pick_color = ask.get().then(|| values.color.request(GUIDE_LAYOUT_COLOR_KEY, words.picker_title.clone()));
-        GuideLayoutOutput { response, closed, result, preview, pick_color }
+        let preview = previewing.get().then(|| last.into_inner()).flatten();
+        GuideLayoutOutput { response: shown.response, closed: shown.closed, result, preview, requests: shown.requests }
     }
 }
 
@@ -563,34 +366,32 @@ fn extents(options: &GuideLayoutOptions, document: &GuideRect, artboards: &[Guid
 }
 
 /// The fields of New Guide Layout.
-fn layout_rows(ui: &mut Ui, measure: &Measure<'_>, form: &Form<'_>, values: &mut GuideLayoutValues) -> bool {
+fn layout_rows(ui: &mut Ui, measure: &Measure<'_>, form: &Form<'_>, values: &mut GuideLayoutValues, requests: &mut HostRequests) {
     let words = measure.words;
     let before = values.options;
     let (across, down) = extents(&values.options, form.document, form.artboards);
-    let mut asks = false;
     FieldGroup::new(words.layout_title.clone()).show(ui, |ui, _| {
         preset_row(ui, words, &mut values.options);
         target_row(ui, words, &mut values.options, !form.artboards.is_empty());
-        asks = values.color.row(ui, words);
+        color_row(ui, words, &mut values.color, GUIDE_LAYOUT_COLOR_KEY, requests);
         group_box(ui, measure, &mut values.options.columns, GroupKind::Columns, across);
         group_box(ui, measure, &mut values.options.rows, GroupKind::Rows, down);
         margin_box(ui, measure, &mut values.options, across, down);
         let center = values.options.center_columns;
-        if let Some(on) = edited(&Checkbox::new(Bind::given(center)).label(words.center_columns.clone()).show(ui)) {
+        if let Some(on) = Checkbox::new(Bind::given(center)).label(words.center_columns.clone()).show(ui).value().copied() {
             values.options.center_columns = on;
         }
         let clear = values.options.clear_existing;
-        if let Some(on) = edited(&Checkbox::new(Bind::given(clear)).label(words.clear_existing.clone()).show(ui)) {
+        if let Some(on) = Checkbox::new(Bind::given(clear)).label(words.clear_existing.clone()).show(ui).value().copied() {
             values.options.clear_existing = on;
         }
-        if let Some(on) = edited(&Checkbox::new(Bind::given(values.preview)).label(form.preview_word.clone()).show(ui)) {
+        if let Some(on) = Checkbox::new(Bind::given(values.preview)).label(form.preview_word.clone()).show(ui).value().copied() {
             values.preview = on;
         }
     });
     if !values.options.same_fields(&before) && values.options.preset == before.preset {
         values.options.preset = GuideLayoutPreset::Custom;
     }
-    asks
 }
 
 /// What the layout rows read besides the values.
@@ -604,7 +405,7 @@ fn preset_row(ui: &mut Ui, words: &GuideDialogWords, options: &mut GuideLayoutOp
     let entries: Vec<Entry<GuideLayoutPreset>> = GuideLayoutPreset::ALL.into_iter().map(|preset| Entry::new(preset, preset.label(words))).collect();
     let current = options.preset;
     Field::new(words.preset.clone()).show(ui, |ui, _| {
-        if let Some(picked) = edited(&Select::new(words.preset.clone(), Bind::given(current), &entries).show(ui)) {
+        if let Some(picked) = Select::new(words.preset.clone(), Bind::given(current), &entries).show(ui).value().copied() {
             picked.apply(options);
             options.preset = picked;
         }
@@ -618,7 +419,7 @@ fn target_row(ui: &mut Ui, words: &GuideDialogWords, options: &mut GuideLayoutOp
     }
     let current = options.target;
     Field::new(words.target.clone()).show(ui, |ui, _| {
-        if let Some(picked) = edited(&Select::new(words.target.clone(), Bind::given(current), &entries).show(ui)) {
+        if let Some(picked) = Select::new(words.target.clone(), Bind::given(current), &entries).show(ui).value().copied() {
             options.target = picked;
         }
     });
@@ -642,7 +443,9 @@ fn group_box(ui: &mut Ui, measure: &Measure<'_>, group: &mut GuideGroup, kind: G
         Field::new(words.number.clone()).enabled(on).show(ui, |ui, _| {
             let number = Some(f64::from(group.number));
             let field = NumberField::new(words.number.clone(), Bind::given(number)).range(1.0..=f64::from(MAX_COUNT)).step(1.0);
-            if let Some(Some(value)) = edited(&field.show(ui).edit) {
+            let field = field.show(ui);
+            measure.note(&field);
+            if let Some(Some(value)) = field.value().copied() {
                 group.number = (value.round() as u32).clamp(1, MAX_COUNT);
             }
         });
@@ -675,54 +478,28 @@ fn margin_box(ui: &mut Ui, measure: &Measure<'_>, options: &mut GuideLayoutOptio
     options.margin_enabled = enabled;
 }
 
-/// A hosted New Guide Layout: the `DialogHost` owns the values and the app's colour answer goes into them.
+/// Builds the dialog over the host-owned values of a [`HostedGuideLayoutDialog`] for one pass.
+type Build = dyn for<'b> Fn(Bind<'b, GuideLayoutValues>) -> GuideLayoutDialog<'b> + Send;
+
+/// A hosted New Guide Layout: the `DialogHost` owns the values, and `build` makes the dialog over them each pass.
+///
+/// ```ignore
+/// host.open(HostedGuideLayoutDialog::new(GuideLayoutValues::default(), move |values| {
+///     GuideLayoutDialog::new(units, document, values).existing(guides.clone())
+/// }));
+/// ```
 pub struct HostedGuideLayoutDialog {
     id: DialogId,
-    units: GuideUnits,
-    document: GuideRect,
-    artboards: Vec<GuideRect>,
-    existing: Vec<Guide>,
-    first_key: u64,
     values: GuideLayoutValues,
+    build: Box<Build>,
     preview: Option<Vec<Guide>>,
     requests: HostRequests,
 }
 
 impl HostedGuideLayoutDialog {
-    /// A dialog for the `document` measured in `units`, opening with `values`.
-    pub fn new(units: GuideUnits, document: GuideRect, values: GuideLayoutValues) -> Self {
-        HostedGuideLayoutDialog {
-            id: dialog_id("guides.layout"),
-            units,
-            document,
-            artboards: Vec::new(),
-            existing: Vec::new(),
-            first_key: 0,
-            values,
-            preview: None,
-            requests: HostRequests::new(),
-        }
-    }
-
-    /// The selected artboards the Target list offers.
-    #[must_use]
-    pub fn artboards(mut self, artboards: Vec<GuideRect>) -> Self {
-        self.artboards = artboards;
-        self
-    }
-
-    /// The guides the document has.
-    #[must_use]
-    pub fn existing(mut self, existing: Vec<Guide>) -> Self {
-        self.existing = existing;
-        self
-    }
-
-    /// The key of the first guide the layout makes.
-    #[must_use]
-    pub fn first_key(mut self, first_key: u64) -> Self {
-        self.first_key = first_key;
-        self
+    /// A dialog opening with `values`; `build` makes it over the values.
+    pub fn new(values: GuideLayoutValues, build: impl for<'b> Fn(Bind<'b, GuideLayoutValues>) -> GuideLayoutDialog<'b> + Send + 'static) -> Self {
+        HostedGuideLayoutDialog { id: dialog_id("guides.layout"), values, build: Box::new(build), preview: None, requests: HostRequests::new() }
     }
 
     /// The values the dialog shows.
@@ -735,16 +512,9 @@ impl HostedGuideLayoutDialog {
         self.preview.as_deref()
     }
 
-    /// The colour request, once.
-    pub fn pick_color(&mut self) -> Option<ColorRequest> {
-        self.requests.take_color()
-    }
-
-    /// The colour picker's answer.
-    pub fn set_color(&mut self, key: &str, color: Srgba) {
-        if key == GUIDE_LAYOUT_COLOR_KEY {
-            self.values.color.answer(color.to_rgba());
-        }
+    /// What the dialog asked of the host and the host's answers: take the colour request, answer it.
+    pub fn requests(&mut self) -> &mut HostRequests {
+        &mut self.requests
     }
 }
 
@@ -756,24 +526,25 @@ impl StackDialog for HostedGuideLayoutDialog {
     }
 
     fn show(&mut self, ui: &mut Ui, _: &DialogStack) -> Option<DialogResult<GuideLayoutResult>> {
-        let shown = GuideLayoutDialog::new(self.units, self.document, Bind::bound(&mut self.values))
-            .artboards(self.artboards.clone())
-            .existing(self.existing.clone())
-            .first_key(self.first_key)
-            .show(ui);
+        let shown = (self.build)(Bind::bound(&mut self.values)).answers(self.requests.take_answers()).show(ui);
         self.preview = shown.preview;
-        if let Some(request) = shown.pick_color {
-            self.requests.request_color(request);
-        }
+        self.requests.extend(shown.requests);
         match (shown.result, shown.closed) {
             (Some(result), _) => Some(DialogResult::Ok(result)),
-            (None, Some(_)) => Some(DialogResult::Cancel),
+            (None, Some(_)) => {
+                self.requests.cancel();
+                Some(DialogResult::Cancel)
+            }
             (None, None) => None,
         }
     }
 
     fn key(&self) -> Option<&str> {
         Some("guides.layout")
+    }
+
+    fn cancelled(&mut self, _: &egui::Context) {
+        self.requests.cancel();
     }
 }
 

@@ -1092,11 +1092,11 @@ impl<'a> OverlayUi<'a> {
         let resolved = self.resolved;
         let mut result = None;
         let mut requested = false;
-        let env = self.env.clone();
         let out = host(&ctx, &layer, &mut |ui| {
             let mut stage = if ui.is_sizing_pass() { MemoryStage::open_peek(&ctx, popup.id) } else { MemoryStage::open_owned(&ctx, popup.id, owner) };
             let rect = ui.available_rect_before_wrap();
             let mut shown_open = open;
+            let env = Env::of(ui);
             let mut bcx = BodyCx::new(popup.id, env.view(), resolved, rect, &mut stage, &mut shown_open, None);
             result = Some(body(ui, &mut bcx));
             requested = bcx.close_requested().is_some();
@@ -1126,7 +1126,7 @@ pub(crate) struct Layer<'a> {
     pub overlay: &'a Overlay,
     /// The anchor in screen space.
     pub anchor: Rect,
-    /// The env the layer's body starts with.
+    /// The opener's env; the layer's body starts from its capture (`Env::capture`).
     pub env: &'a Env,
     /// The layer is fading out.
     pub exiting: bool,
@@ -1339,7 +1339,9 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
     overlay::begin_layer(ctx, layer.id, layer.exiting);
     let shown = areas::show_layer(ctx, &spec, |ui| {
         areas::fade(ui, layer.fade * overlay.opacity);
-        let installed = Env::install_for(ui, layer.env.clone());
+        // The layer is not inside its opener's arena, roving group, scroll or row: its content starts from the
+        // opener's inherited env with the layer-local fields fresh.
+        let installed = Env::install_for(ui, layer.env.capture().env());
         let real = !ui.is_sizing_pass();
         if real && (layer.exiting || matches!(overlay.rank, Rank::Popup | Rank::Modal { .. })) {
             access::report_layer(ctx, layer.id, ui.unique_id(), ui.max_rect(), overlay.rank.is_modal(), layer.exiting);

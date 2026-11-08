@@ -1,9 +1,8 @@
 //! `PropertiesDialog`: an object's properties as tabs of label and value rows, with text, number and check rows to
 //! edit and read-only rows to read.
 
-use super::{DialogFields, Param, ParamRows, ParamRowsOutput, open_fields};
-use crate::contract::{Bind, CollectionEvent, NoValue, Outcome, Remember as _, Show as _, ShowCollection as _, ShowContainer as _};
-use crate::dialog::{Dialog, DialogOutput};
+use super::{DialogFields, FormDialog, Param, ParamRows, ParamRowsOutput, open_fields};
+use crate::contract::{Bind, CollectionEvent, NoValue, Outcome, Remember as _, Show as _, ShowCollection as _};
 use crate::display::Text;
 use crate::runtime::env::{Env, Label};
 use crate::runtime::overlay::CloseReason;
@@ -113,10 +112,6 @@ impl ItemSource<usize> for Titles<'_> {}
 #[derive(Clone, Default)]
 struct OpenTab(usize);
 
-/// The values between passes.
-#[derive(Clone, Default)]
-struct Held(DialogFields);
-
 /// What a properties dialog reports.
 #[derive(Debug)]
 #[non_exhaustive]
@@ -145,15 +140,15 @@ impl Outcome for PropertiesOutput {
 /// - Keys: Tab walks the rows of the shown tab, arrows on the strip switch tabs, Enter is OK, Escape cancels.
 /// - Read-only: the dialog has one button, and every row shows its value without a control; whichever way it closes
 ///   it answers with empty values.
-/// - Values: `values` are the ones the dialog opens with; the first pass fills the rows' defaults for keys it lacks.
+/// - Values: the `values` binding holds them; the first pass fills the rows' defaults for keys it lacks. Alt turns
+///   Cancel into Reset, which restores the values from when the dialog opened.
+/// - Tab: the shown tab is kept while the dialog is open.
 #[must_use = "show the dialog with `show`"]
 #[derive(crate::contract::Pattern, crate::contract::Props)]
 pub struct PropertiesDialog<'a> {
     title: Label,
     tabs: Cow<'a, [PropertiesTab]>,
-    /// The values the dialog opens with.
-    #[prop]
-    values: DialogFields,
+    values: Bind<'a, DialogFields>,
     /// Whether the rows only show their values.
     #[prop]
     read_only: bool,
@@ -163,9 +158,9 @@ pub struct PropertiesDialog<'a> {
 }
 
 impl<'a> PropertiesDialog<'a> {
-    /// A dialog titled `title` over `tabs`.
-    pub fn new(title: impl Into<Label>, tabs: impl Into<Cow<'a, [PropertiesTab]>>) -> Self {
-        PropertiesDialog { title: title.into(), tabs: tabs.into(), values: DialogFields::new(), read_only: false, open: None }
+    /// A dialog titled `title` over `tabs`, editing `values`.
+    pub fn new(title: impl Into<Label>, tabs: impl Into<Cow<'a, [PropertiesTab]>>, values: Bind<'a, DialogFields>) -> Self {
+        PropertiesDialog { title: title.into(), tabs: tabs.into(), values, read_only: false, open: None }
     }
 
     /// Shows the dialog.
@@ -174,25 +169,22 @@ impl<'a> PropertiesDialog<'a> {
         let env = Env::of(ui);
         let common = env.words::<CommonWords>();
         let per_tab: Vec<Vec<Param>> = tabs.iter().enumerate().map(|(at, tab)| tab.params(at)).collect();
-        let mut buttons = vec![FooterButton::new(common.ok.clone(), DialogRole::Accept)];
-        if !read_only {
-            buttons.push(FooterButton::new(common.cancel.clone(), DialogRole::Cancel));
+        let mut dialog = FormDialog::new(title.clone(), values).collection_body(true);
+        if read_only {
+            let ok = FooterButton::new(common.ok.clone(), DialogRole::Accept);
+            dialog = dialog.alt_resets(false).shaped(move |dialog| dialog.buttons([ok]));
         }
-        let mut dialog = Dialog::new(title.clone()).collection_body().close_on_enter(true).buttons(buttons);
         if let Some(open) = open {
             dialog = dialog.opened(open);
         }
-        let work = RefCell::new(DialogFields::new());
         let rows = RefCell::new(None::<ParamRowsOutput>);
-        let shown = dialog.show(ui, |ui, cx| {
-            let first = cx.appeared();
-            let mut fields = if first { values.clone() } else { cx.memory::<Held>().0.clone() };
-            if first {
+        let shown = dialog.show(ui, |ui, form, fields| {
+            if form.first() {
                 let all: Vec<Param> = per_tab.iter().flatten().cloned().collect();
-                open_fields(&all, &mut fields);
+                open_fields(&all, fields);
             }
             let last = tabs.len().saturating_sub(1);
-            let mut current = cx.memory::<OpenTab>().0.min(last);
+            let mut current = form.memory::<OpenTab>().0.min(last);
             if tabs.len() > 1 {
                 let strip = TabStrip::new(title.clone())
                     .kind(TabKind::Text)
@@ -207,18 +199,15 @@ impl<'a> PropertiesDialog<'a> {
                 }
             }
             if let Some(params) = per_tab.get(current) {
-                *rows.borrow_mut() = Some(ParamRows::new(title.clone(), params, Bind::bound(&mut fields)).read_only(read_only).show(ui));
+                *rows.borrow_mut() = Some(ParamRows::new(title.clone(), params, Bind::bound(&mut *fields)).read_only(read_only).show(ui));
             }
-            cx.memory::<OpenTab>().0 = current;
-            cx.memory::<Held>().0 = fields.clone();
-            *work.borrow_mut() = fields;
+            form.memory::<OpenTab>().0 = current;
+            true
         });
-        let DialogOutput { response, closed, .. } = shown.output;
-        let result = match closed {
+        let result = match shown.closed {
             Some(_) if read_only => Some(DialogFields::new()),
-            Some(CloseReason::Enter | CloseReason::Activated) => Some(work.into_inner()),
-            _ => None,
+            _ => shown.accepted,
         };
-        PropertiesOutput { response, closed, result, rows: rows.into_inner() }
+        PropertiesOutput { response: shown.response, closed: shown.closed, result, rows: rows.into_inner() }
     }
 }

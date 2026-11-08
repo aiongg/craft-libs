@@ -27,12 +27,12 @@ fn picture(ui: &Ui) -> SizedTexture {
 #[story(ExportAsDialog<'static>, covers = [], drive = Drive::Never)]
 fn export_as(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let preview = ExportPreview::new(1, PreviewState::Ready(picture(ui))).estimate(SizeEstimate::Proxy(ESTIMATE));
-    ExportAsDialog::new("Poster", DOCUMENT).opened(Bind::bound(data.value("open", true))).preview(preview).show(ui).into()
+    ExportAsDialog::new("Poster", DOCUMENT, Bind::kept()).opened(Bind::bound(data.value("open", true))).preview(preview).show(ui).into()
 }
 
 #[story(ExportAsDialog<'static>, covers = [], drive = Drive::Never)]
 fn export_as_rendering(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    ExportAsDialog::new("Poster", DOCUMENT).opened(Bind::bound(data.value("open", true))).show(ui).into()
+    ExportAsDialog::new("Poster", DOCUMENT, Bind::kept()).opened(Bind::bound(data.value("open", true))).show(ui).into()
 }
 
 #[story(FormatOptionsDialog<'static>, covers = [], drive = Drive::Never)]

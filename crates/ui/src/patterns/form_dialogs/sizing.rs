@@ -1,23 +1,20 @@
 //! The size dialogs `ImageSize` and `CanvasSize`: the rows, the readouts and the dialog around them that the two share,
 //! and the `Resample` and `CanvasExtension` choices.
 
-use super::dialog::{ResetFooter, ResetPick};
+use super::FormDialog;
 use super::size_model::{LinkedSize, MAX_DOCUMENT_SIDE};
-use crate::contract::{Bind, EditResponse, Entry, NoValue, Outcome, Props as _, Remember as _, Show as _, ShowContainer as _, Validity};
-use crate::dialog::{Dialog, DialogOutput};
+use crate::contract::{Bind, Entry, NoValue, Outcome, Props as _, Show as _, ShowContainer as _};
 use crate::display::Text;
 use crate::form::{Field, FieldGroup};
 use crate::layout_components::{Row, Stack};
 use crate::pickers::UnitSelect;
-use crate::runtime::env::{Env, Label, Message, UnitKind, Units};
+use crate::runtime::env::{Env, Label, UnitKind, Units};
 use crate::runtime::overlay::CloseReason;
-use crate::runtime::words::CommonWords;
-use crate::sections::{DialogRole, FooterButton};
 use crate::text::{LinkMode, LinkedWords, link_toggle};
 use craft_behavior::PixelSize;
 use craft_theme::variant::Tone;
 use egui::{Response, Ui};
-use std::cell::RefCell;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 mod canvas;
@@ -25,8 +22,8 @@ mod image;
 #[cfg(feature = "testing")]
 mod stories;
 
-pub use canvas::{CanvasSize, CanvasSizeOutput, CanvasSizeResult};
-pub use image::{ImageSize, ImageSizeOutput, ImageSizeResult};
+pub use canvas::{CanvasSize, CanvasSizeOutput, CanvasSizeResult, CanvasSizeValues};
+pub use image::{ImageSize, ImageSizeOutput, ImageSizeResult, ImageSizeValues};
 
 craft_ui::words! {
     /// The words of the size dialogs beside the common OK and Cancel.
@@ -78,7 +75,8 @@ craft_ui::words! {
 }
 
 /// How the pixels are made when the size changes: Photoshop's Resample list.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub enum Resample {
     /// The method suited to the change.
@@ -215,88 +213,25 @@ fn size_valid(size: PixelSize) -> bool {
     side(size.width) && side(size.height)
 }
 
-/// What a size dialog keeps while it is open: the values it opened with and the values being edited.
-#[derive(Clone)]
-struct Held<S> {
-    opening: S,
-    live: S,
-}
-
-/// What the footer needs from this pass's rows: whether the values differ from the opening ones and whether OK may
-/// answer.
-#[derive(Clone, Copy, Default)]
-struct Verdict {
-    changed: bool,
-    valid: bool,
-}
-
-/// The value a control's event carries.
-fn edited<T: Clone>(response: &EditResponse<T>) -> Option<T> {
-    response.event.as_ref().and_then(|event| event.value().cloned())
-}
-
-/// A size dialog on `Dialog`: `rows` edits the state, `answer` makes the result from the state at OK. OK, Cancel and
-/// Alt-for-Reset follow `ParamDialog`; OK is refused while the pixel size is empty or over the limit.
-pub(super) fn show_form<'a, S: SizeForm, R>(
+/// A size dialog on `FormDialog`: `rows` edits the values and `answer` makes the result from them at OK. OK, Cancel
+/// and Alt-for-Reset follow `ParamDialog`; OK is refused while the pixel size is empty or over the limit.
+pub(super) fn show_form<'a, S: SizeForm + Default, R>(
     ui: &mut Ui,
     title: Label,
     open: Option<Bind<'a, bool>>,
-    opening: &S,
+    values: Bind<'a, S>,
     mut rows: impl FnMut(&mut Ui, &mut S),
     answer: impl FnOnce(&S) -> R,
 ) -> SizingOutput<R> {
-    let common = Env::of(ui).words::<CommonWords>();
-    let footer = ResetFooter::new(ui, None, true);
-    let accept = FooterButton::new(common.ok.clone(), DialogRole::Accept);
-    let mut dialog = Dialog::new(title.clone())
-        .close_on_enter(true)
-        .outer_gesture(true)
-        .buttons(footer.buttons(accept, false))
-        .settle_buttons({
-            let footer = footer.clone();
-            move |cx, buttons| {
-                let verdict = *cx.memory::<Verdict>();
-                footer.settle(buttons, verdict.changed);
-                if let Some(accept) = buttons.first_mut() {
-                    accept.set_enabled(verdict.valid);
-                }
-            }
-        })
-        .close_guard({
-            let footer = footer.clone();
-            move |picked, cx| {
-                if footer.pick(Some(picked)) == Some(ResetPick::Reset) {
-                    if let Some(held) = cx.memory::<Option<Held<S>>>() {
-                        held.live = held.opening.clone();
-                    }
-                    return false;
-                }
-                cx.memory::<Verdict>().valid
-            }
-        });
+    let mut dialog = FormDialog::new(title.clone(), values).outer_gesture(true);
     if let Some(open) = open {
         dialog = dialog.opened(open);
     }
-    let last = RefCell::new(None::<S>);
-    let shown = dialog.show(ui, |ui, cx| {
-        let held = cx.memory::<Option<Held<S>>>().get_or_insert_with(|| Held { opening: opening.clone(), live: opening.clone() }).clone();
-        let mut live = held.live;
-        FieldGroup::new(title.clone()).show(ui, |ui, _| rows(ui, &mut live));
-        *cx.memory::<Verdict>() = Verdict { changed: live != held.opening, valid: size_valid(live.pixels()) };
-        if let Some(slot) = cx.memory::<Option<Held<S>>>() {
-            slot.live = live.clone();
-        }
-        *last.borrow_mut() = Some(live);
+    let shown = dialog.show(ui, |ui, _, state| {
+        FieldGroup::new(title.clone()).show(ui, |ui, _| rows(ui, state));
+        size_valid(state.pixels())
     });
-    let DialogOutput { response, closed, picked } = shown.output;
-    if footer.pick(picked) == Some(ResetPick::Reset) {
-        crate::runtime::frame::request_repaint(ui.ctx());
-    }
-    let result = match closed {
-        Some(CloseReason::Enter | CloseReason::Activated) => last.into_inner().filter(|state| size_valid(state.pixels())).map(|state| answer(&state)),
-        _ => None,
-    };
-    SizingOutput { response, closed, result }
+    SizingOutput { response: shown.response, closed: shown.closed, result: shown.accepted.map(|state| answer(&state)) }
 }
 
 /// The rows both dialogs show, with the words and units they need.
@@ -392,7 +327,7 @@ impl Kit {
             });
             if chain {
                 let toggle = link_toggle(self.link.clone(), Bind::given(size.is_linked())).enabled(size.is_resampling()).id_salt("link").show(ui);
-                if let Some(on) = edited(&toggle) {
+                if let Some(on) = toggle.value().copied() {
                     size.lock(on);
                 }
             }
@@ -421,17 +356,18 @@ impl Kit {
             ),
         };
         let editable = !matches!(which, Dimension::Width | Dimension::Height) || size.is_editable();
-        let refusal = words.resample_off.clone();
-        Field::new(name.clone()).id_salt(salt).show(ui, |ui, _| {
-            let refusal = refusal.clone();
-            let value =
-                Bind::given(Some(value)).check(move |_| if editable { Validity::Ok } else { Validity::Refuse(Message::new(refusal.clone())) });
-            let shown = UnitSelect::new(name.clone(), value, Bind::given(unit), entries)
+        let mut field = Field::new(name.clone()).id_salt(salt);
+        if !editable {
+            field = field.tooltip(words.resample_off.clone());
+        }
+        field.show(ui, |ui, _| {
+            let shown = UnitSelect::new(name.clone(), Bind::given(Some(value)), Bind::given(unit), entries)
                 .range(range.clone())
                 .unit_label(unit_name.clone())
+                .number_enabled(editable)
                 .id_salt("field")
                 .show(ui);
-            if let Some(number) = edited(&shown.edit).flatten() {
+            if let Some(number) = shown.edit.value().copied().flatten() {
                 match which {
                     Dimension::Width => size.set_width(number),
                     Dimension::Height => size.set_height(number),
