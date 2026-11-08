@@ -3,7 +3,6 @@
 use super::{GradientPreview, ImagePreview, Paint, PaintChip, PaintLink, PaintLinkKind, PaintList, PaintListOptions, PaintRow};
 use craft_theme::Srgba;
 use craft_ui::contract::{Bind, Show as _};
-use craft_ui::list::List;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
@@ -44,13 +43,13 @@ fn paints() -> Vec<(String, Paint)> {
     ]
 }
 
-#[story(List<'static, usize>, covers = [], drive = Drive::Never)]
+#[story(PaintList<'static>, covers = [Default], drive = Drive::Never)]
 fn paint_list(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let paints = paints();
     PaintList::new("Paints", &paints, Bind::bound(data.value("selected", None::<usize>))).show(ui).into()
 }
 
-#[story(List<'static, usize>, covers = [], drive = Drive::Never)]
+#[story(PaintList<'static>, covers = [], drive = Drive::Never)]
 fn paint_list_selection_colors(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let paints = paints();
     let rows = [PaintRow::linked(PaintLink::new("Primary / Blue", PaintLinkKind::Style))];

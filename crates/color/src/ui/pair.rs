@@ -310,9 +310,9 @@ impl Component for SwatchPair<'_> {
             let well = Well::of(i);
             let press = cx.part(WELL.at(i)).press;
             if let PressPhase::Release { start, click: true, .. } = press.phase {
-                match start.clicks {
-                    1 => self.clicked = Some(well),
-                    _ => self.double_clicked = Some(well),
+                self.clicked = Some(well);
+                if start.clicks >= 2 {
+                    self.double_clicked = Some(well);
                 }
                 if self.click_activates && well != active {
                     cx.set(well);
@@ -344,9 +344,6 @@ impl Component for SwatchPair<'_> {
                 cx.set(well);
                 self.activated = true;
             }
-        }
-        if self.popover {
-            self.clicked = self.clicked.or(self.double_clicked);
         }
     }
 
