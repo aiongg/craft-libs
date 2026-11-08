@@ -7,10 +7,10 @@ pub(super) mod stories;
 
 use crate::canvas::{CanvasSpace, GuideLine, canvas_space};
 use crate::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role};
-use crate::primitives::{GridInk, GridStroke, grid_lines};
+use crate::primitives::{GridInk, GridLook, GridStroke, grid_lines_with};
 use crate::runtime::env::Label;
 use crate::runtime::memory::Remember as _;
-use crate::style::{ComponentStyle, DataColor, StyleColor, StyleCx, UiTokens};
+use crate::style::{ComponentStyle, DataColor, StyleColor, StyleCx};
 use craft_behavior::kurbo::{Point, Rect, Vec2};
 use craft_behavior::{CanvasView, Input, Metrics};
 use egui::{Color32, Response, Shape};
@@ -59,6 +59,8 @@ pub struct GridStyle {
     color: StyleColor,
     /// The side of a crossing square.
     crossing: f32,
+    /// What the lines read from the tokens.
+    look: GridLook,
 }
 
 /// What the shapes of a grid are built from: when none of it changed, the shapes of the last build are the shapes to
@@ -74,7 +76,7 @@ struct GridKey {
     line: GridLine,
     color: Color32,
     crossing: f32,
-    tokens: u64,
+    look: GridLook,
     pixels_per_point: f32,
 }
 
@@ -158,7 +160,7 @@ impl CanvasGrid {
 
 impl CanvasGrid {
     /// The shapes of the lines in `space` as `key` draws them.
-    fn shapes(&self, space: &CanvasSpace, tokens: &UiTokens, key: &GridKey) -> Vec<Shape> {
+    fn shapes(&self, space: &CanvasSpace, key: &GridKey) -> Vec<Shape> {
         let lines = self.lines(space);
         if lines.extent.is_none() {
             return Vec::new();
@@ -169,7 +171,7 @@ impl CanvasGrid {
             GridLine::Dots => GridStroke::Dots,
             GridLine::Crossings => return if lines.crossings { crossings(space, &lines, key.color, key.crossing) } else { Vec::new() },
         };
-        grid_lines(tokens, &lines, &GridInk::new().major(key.color).stroke(stroke), key.pixels_per_point)
+        grid_lines_with(&key.look, &lines, &GridInk::new().major(key.color).stroke(stroke), key.pixels_per_point)
     }
 }
 
@@ -185,7 +187,7 @@ impl Component for CanvasGrid {
 
     fn style(cx: &StyleCx<'_>, _: CanvasGridStyleKey) -> GridStyle {
         let stroke = &cx.tokens.stroke;
-        GridStyle { metrics: Metrics::new(), color: cx.color(cx.tokens.color.overlay.grid), crossing: stroke.medium }
+        GridStyle { metrics: Metrics::new(), color: cx.color(cx.tokens.color.overlay.grid), crossing: stroke.medium, look: GridLook::of(cx.tokens) }
     }
 
     fn measure(&mut self, _: &MeasureCx<'_, Self>) -> egui::Vec2 {
@@ -196,7 +198,7 @@ impl Component for CanvasGrid {
     /// those of the shapes in memory.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let Some(space) = canvas_space(&cx.env) else { return };
-        let (tokens, style) = (cx.env.tokens(), cx.style);
+        let style = cx.style;
         let color = self.color.map_or(style.color.egui(), |color| color.0);
         let key = GridKey {
             view: space.view,
@@ -208,13 +210,13 @@ impl Component for CanvasGrid {
             line: self.line,
             color,
             crossing: style.crossing,
-            tokens: tokens.key(),
+            look: style.look,
             pixels_per_point: cx.ctx.pixels_per_point(),
         };
         if cx.memory::<GridShapes>().key.as_ref() == Some(&key) {
             return;
         }
-        let shapes = Arc::new(self.shapes(&space, tokens, &key));
+        let shapes = Arc::new(self.shapes(&space, &key));
         *cx.memory::<GridShapes>() = GridShapes { key: Some(key), shapes };
     }
 

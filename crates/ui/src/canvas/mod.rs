@@ -158,6 +158,7 @@ pub struct Canvas<'a> {
     /// `CanvasView::to_screen`. The view sets no body transform: a body of components that keep canvas-space geometry
     /// (a node graph) also sets `transform(view.layer_transform())`, which exists for an unrotated, unmirrored,
     /// square view only.
+    #[prop]
     view: Option<Bind<'a, CanvasView>>,
     /// The view the binding held when the pass began.
     given: Option<CanvasView>,
@@ -206,13 +207,6 @@ impl<'a> Canvas<'a> {
             settled: None,
         }
         .label(label)
-    }
-
-    /// The view the canvas shows its document through; see the field's contract above.
-    #[must_use]
-    pub fn view(mut self, view: impl Into<Bind<'a, CanvasView>>) -> Self {
-        self.view = Some(view.into());
-        self
     }
 
     /// Leaves the view commands to the instance around the canvas that owns its view (a full-window dialog's): the
