@@ -702,21 +702,22 @@ fn context_click_on(fixture: &mut Fixture, label: &str) {
 // DIAG-BEGIN
 #[trial]
 fn diag_smart_rows() {
+    let mut tree = FakeLayers::sample();
+    tree.selection = LayerSelection::default();
+    let (fixture, _app) = rig_with(tree, |app| {
+        app.tree.layer_mut(6).effects_open = true;
+    });
     let mut out = String::new();
-    for size in [ThumbSize::Medium, ThumbSize::None] {
-        let mut tree = FakeLayers::sample();
-        tree.selection = LayerSelection::default();
-        let (fixture, _app) = rig_with(tree, |app| {
-            app.tree.layer_mut(6).effects_open = true;
-            app.settings.options.thumbnail_size = size;
-        });
-        out += &format!("size {size:?}\n");
-        for key in fixture.tree().keys() {
-            let name = fixture.tree().name_of(key);
-            if name.as_deref().is_some_and(|n| n.contains("Smart Filters") || n.contains("Styled") || n.contains("Gaussian") || n.contains("Smart Object")) {
-                out += &format!("  {:?} {:?} {:?} parent {:?}\n", fixture.tree().role_of(key), name, fixture.tree().bounds_of(key), fixture.tree().parent_of_key(key).and_then(|p| fixture.tree().role_of(p)));
-            }
+    for name in ["Smart Filters", "Styled"] {
+        let item = fixture.by_role(Role::TREE_ITEM).into_iter().find(|t| fixture.tree().name_of(t.node).as_deref() == Some(name)).expect("item");
+        let mut found = vec![item.node];
+        let mut at = 0;
+        while at < found.len() {
+            let more: Vec<_> = fixture.tree().children_of(found[at]).into_iter().filter(|c| !found.contains(c)).collect();
+            found.extend(more);
+            at += 1;
         }
+        out += &format!("{name}: {}\n", found.iter().map(|k| format!("{:?}/{:?}/{:?}", fixture.tree().role_of(*k), fixture.tree().name_of(*k), fixture.tree().bounds_of(*k).map(|b| b.size()))).collect::<Vec<_>>().join(" | "));
     }
     panic!("DIAG\n{out}");
 }

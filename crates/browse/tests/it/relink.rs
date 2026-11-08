@@ -12,7 +12,7 @@ use craft_behavior::Selection;
 use craft_browse::ui::relink::{LinkFilter, LinkList, LinkListEvent, LinkListState, RelinkDialog, RelinkOptions, RelinkOutcome, RelinkRow};
 use craft_docpath::links::{FakeLinkFiles, Link, LinkStatus, identity_of};
 use craft_host::{AppInfo, FileError, Files, Host, Jobs, ManualJobs, PickId, PickKind, PickRequest, Picked};
-use craft_ui::contract::Bind;
+use craft_ui::contract::{Bind, Show as _};
 use craft_ui::dialog::{DialogResult, DialogStack, StackDialog as _};
 use craft_ui::display::Text;
 use craft_ui::testing::{Fixture, trial};
