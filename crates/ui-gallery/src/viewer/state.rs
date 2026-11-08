@@ -1,18 +1,22 @@
-//! The viewer's state: the appearance, the component tree and the cells of the shown stories.
+//! The viewer's state: the root values the stories are shown under, the component tree and the cells of the shown
+//! stories, and the theme workspace.
 
-use super::appearance::Appearance;
+use super::appearance::CellFilter;
 use super::catalog::Catalog;
 use super::commands::GalleryCommands;
-use super::layout::PanelShares;
+use super::layout::{PanelShares, theme_layout};
 use super::settings::GallerySettings;
 use super::tree::{self, TreeKey};
+use crate::theme::ThemeWorkspace;
 use craft_behavior::dock::Layout;
 use craft_behavior::{GroupId, Selection};
 use craft_i18n::Direction;
 use craft_theme::ControlSize;
 use craft_ui::list::OpenSet;
+use craft_ui::runtime::env::RootEnv;
 use craft_ui::testing::StoryData;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// The values each shown cell keeps between frames, by story index, direction and size.
 pub type Cells = HashMap<(usize, Direction, ControlSize), StoryData>;
@@ -36,40 +40,86 @@ pub struct Browser {
     pub cells: Cells,
 }
 
+/// What the panels area shows.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Workspace {
+    /// The component tree, the shown stories and the component's facts.
+    #[default]
+    Stories,
+    /// The theme workspace: the tokens, contrast problems and app sizes of the chosen theme.
+    Theme,
+}
+
 /// The viewer: the options bar's values and the browser.
 #[non_exhaustive]
 pub struct Viewer {
-    /// What the stories are shown under.
-    pub appearance: Appearance,
+    /// The root values the window and every story run under, with the chosen theme.
+    pub env: RootEnv,
+    /// Which cells of a story are shown.
+    pub cell_filter: CellFilter,
+    /// What the panels area shows.
+    pub workspace: Workspace,
     /// Whether the More popover of the options bar is open.
     pub more_open: bool,
     /// What the panels browse.
     pub browser: Browser,
+    /// What the theme panels share.
+    pub themes: ThemeWorkspace,
+    /// The layout of the theme panels.
+    pub theme_dock: Layout<GroupId>,
 }
 
 impl Viewer {
     /// The viewer of `catalog`, in the state `settings` saved.
     pub fn new(catalog: Catalog, settings: &GallerySettings) -> Self {
-        let mut open = OpenSet::new();
-        for component in &catalog.components {
-            let module = tree::module_of(component);
-            if settings.open_modules.iter().any(|saved| saved == module) {
-                open.set(&TreeKey::Module(module), true);
-            }
-        }
-        let selection = catalog
-            .component(&settings.selected)
-            .map_or_else(Selection::default, |component| Selection::single(TreeKey::Component(component.type_name)));
         let browser = Browser {
             catalog,
-            filter: settings.filter.clone(),
-            selection,
-            open,
-            dock: PanelShares::load(&settings.layout).tree(),
+            filter: String::new(),
+            selection: Selection::default(),
+            open: OpenSet::new(),
+            dock: PanelShares::default().tree(),
             generation: 0,
             cells: Cells::new(),
         };
-        Viewer { appearance: settings.appearance(), more_open: false, browser }
+        let mut viewer = Viewer {
+            env: RootEnv::default(),
+            cell_filter: CellFilter::default(),
+            workspace: Workspace::default(),
+            more_open: false,
+            browser,
+            themes: ThemeWorkspace::new(),
+            theme_dock: theme_layout(),
+        };
+        viewer.restore(settings);
+        viewer
+    }
+
+    /// Takes the state `settings` saved, keeping the catalog, the cells and the theme workspace.
+    pub fn restore(&mut self, settings: &GallerySettings) {
+        settings.restore_env(&mut self.env);
+        self.cell_filter = settings.cell_filter();
+        let browser = &mut self.browser;
+        browser.filter.clone_from(&settings.filter);
+        browser.open = OpenSet::new();
+        for component in &browser.catalog.components {
+            let module = tree::module_of(component);
+            if settings.open_modules.iter().any(|saved| saved == module) {
+                browser.open.set(&TreeKey::Module(module), true);
+            }
+        }
+        browser.selection = browser
+            .catalog
+            .component(&settings.selected)
+            .map_or_else(Selection::default, |component| Selection::single(TreeKey::Component(component.type_name)));
+        browser.dock = PanelShares::load(&settings.layout).tree();
+    }
+
+    /// Makes the root's app sizes the theme workspace's app layer, when they differ.
+    pub fn sync_sizes(&mut self) {
+        if *self.env.sizes != self.themes.sizes {
+            self.env.sizes = Arc::new(self.themes.sizes.clone());
+        }
     }
 
     /// The registered name of the selected component.
@@ -101,7 +151,10 @@ impl Viewer {
     /// Runs `command`.
     pub fn run(&mut self, command: GalleryCommands) {
         match command {
-            GalleryCommands::ResetLayout => self.browser.dock = PanelShares::default().tree(),
+            GalleryCommands::ResetLayout => {
+                self.browser.dock = PanelShares::default().tree();
+                self.theme_dock = theme_layout();
+            }
             GalleryCommands::ResetStories => self.browser.reset_stories(),
         }
     }

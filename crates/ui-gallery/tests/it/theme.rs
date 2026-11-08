@@ -1,21 +1,16 @@
 //! The theme workspace: its words, the file it edits, what it caches and what its browser does with a pick.
 
 use craft_theme::{AppSizes, Appearance, ColorToken, Contrast, Mode, Size, SizeValue, TextSize, TokenRef, builtins, explain};
+use craft_ui::contract::Bind;
+use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, trial};
-use craft_ui_gallery::theme::{Pick, ThemeSubject, ThemeWorkspace, TokenBrowser, parse_sizes, summary};
+use craft_ui_gallery::theme::{Pick, ThemeSubject, ThemeWorkspace, TokenBrowser, parse_sizes};
+use std::cell::Cell;
+use std::rc::Rc;
 use std::sync::Arc;
 
 fn appearance() -> Appearance {
     Appearance { mode: Mode::Light, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false }
-}
-
-#[trial]
-fn standard_contrast_reports_pairs_below_minimum_and_high_contrast_fails_them() {
-    assert_eq!(summary(Mode::Dark, Contrast::Standard, 3), "Dark: 3 pairs below minimum");
-    assert_eq!(summary(Mode::Light, Contrast::Standard, 1), "Light: 1 pair below minimum");
-    assert_eq!(summary(Mode::Dark, Contrast::High, 3), "Dark: 3 pairs fail");
-    assert_eq!(summary(Mode::Dark, Contrast::High, 1), "Dark: 1 pair fails");
-    assert_eq!(summary(Mode::Light, Contrast::High, 0), "Light: every pair meets its minimum");
 }
 
 #[trial]
@@ -40,20 +35,42 @@ fn the_explanation_is_computed_again_only_when_the_subject_or_the_layer_changes(
     assert!(Arc::ptr_eq(&first, workspace.explained().expect("explained")), "an unchanged subject keeps its explanation");
 
     let layer = parse_sizes("sizes.json", br#"{ "all": { "size.control.md": 30 } }"#).expect("a valid file loads");
-    workspace.apply_sizes(Some(layer));
+    workspace.sizes = layer;
     workspace.refresh(&subject);
     assert!(!Arc::ptr_eq(&first, workspace.explained().expect("explained")), "a new app layer explains again");
-    assert_eq!(workspace.sizes(), &parse_sizes("sizes.json", br#"{ "all": { "size.control.md": 30 } }"#).expect("loads"));
-    assert_ne!(workspace.sizes(), &AppSizes::default());
+    assert_eq!(&workspace.sizes, &parse_sizes("sizes.json", br#"{ "all": { "size.control.md": 30 } }"#).expect("loads"));
+    assert_ne!(workspace.sizes, AppSizes::default());
+}
+
+/// A browser over the first built-in theme whose reveal request the test sets, keeping its own pick.
+fn browser(reveal: &Rc<Cell<bool>>, pick: &Pick) -> Fixture {
+    let explained = Arc::new(explain(&builtins()[0], appearance(), None));
+    let (reveal, pick) = (Rc::clone(reveal), pick.clone());
+    let mut chosen = None;
+    Fixture::new(move |ui| {
+        let mut browser = TokenBrowser::new(&explained, Bind::bound(&mut chosen));
+        if reveal.get() {
+            browser = browser.reveal(&pick);
+        }
+        browser.show(ui);
+    })
 }
 
 #[trial]
-fn a_pick_from_the_host_opens_its_group_in_the_browser() {
-    let explained = Arc::new(explain(&builtins()[0], appearance(), None));
+fn a_reveal_opens_the_picked_group_each_time_it_is_asked() {
+    let reveal = Rc::new(Cell::new(false));
     let pick = Pick::Token(TokenRef::Color(ColorToken::TextFaint));
-    let mut fixture = Fixture::new(move |ui| {
-        TokenBrowser::new(&explained).pick(&pick).show(ui);
-    });
+    let mut fixture = browser(&reveal, &pick);
     fixture.settle();
-    assert!(fixture.by_label("text.faint").is_some(), "the picked token is listed under its open group");
+    assert!(fixture.by_label("text.faint").is_none(), "the groups start closed");
+    for round in 0..2 {
+        reveal.set(true);
+        fixture.frame(Vec::new());
+        reveal.set(false);
+        fixture.settle();
+        assert!(fixture.by_label("text.faint").is_some(), "round {round}: the revealed token is listed under its open group");
+        let group = fixture.by_label("text").expect("the group heading is listed");
+        fixture.access(AccessActionKind::Collapse, &group).settle();
+        assert!(fixture.by_label("text.faint").is_none(), "round {round}: the group closes");
+    }
 }

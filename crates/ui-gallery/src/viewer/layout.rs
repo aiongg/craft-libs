@@ -15,6 +15,15 @@ pub const FACTS: GroupId = GroupId::new(2);
 /// The group of the decision record.
 pub const RECORD: GroupId = GroupId::new(3);
 
+/// The group of the theme's contrast problems.
+pub const PROBLEMS: GroupId = GroupId::new(4);
+/// The group of the theme's token browser.
+pub const TOKENS: GroupId = GroupId::new(5);
+/// The group of the picked token's detail.
+pub const DETAIL: GroupId = GroupId::new(6);
+/// The group of the app sizes editor.
+pub const OVERRIDES: GroupId = GroupId::new(7);
+
 /// How wide each column is and how the right column divides, as shares of the whole.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[non_exhaustive]
@@ -77,4 +86,20 @@ impl PanelShares {
     pub fn load(text: &str) -> PanelShares {
         serde_json::from_str::<PanelShares>(text).ok().filter(PanelShares::is_valid).unwrap_or_default()
     }
+}
+
+/// The shares of the theme panels' columns: the problems, the tokens and the right column.
+const THEME_COLUMNS: [f32; 3] = [2.0, 4.0, 3.0];
+/// The shares of the right column: the detail over the app sizes.
+const THEME_RIGHT: [f32; 2] = [1.0, 1.0];
+
+/// The layout of the theme panels. Problems come first in the tree, so they are shown before the tokens in a pass:
+/// the token browser reveals the row a problem picks in the same pass.
+pub fn theme_layout() -> Layout<GroupId> {
+    let [first, second, third] = THEME_COLUMNS;
+    let [above, below] = THEME_RIGHT;
+    let group = |id: GroupId| Node::tabs(vec![id], 0);
+    let right = Node::split(Axis::Y, SplitSize::Ratio(above / (above + below)), group(DETAIL), group(OVERRIDES));
+    let rest = Node::split(Axis::X, SplitSize::Ratio(second / (second + third)), group(TOKENS), right);
+    Layout::new(Some(Node::split(Axis::X, SplitSize::Ratio(first / (first + second + third)), group(PROBLEMS), rest)), Vec::new())
 }
