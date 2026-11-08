@@ -1,20 +1,23 @@
 //! `CanvasTool`, `ToolHost` and `tool_pick` (8.3): a drag is one `Begin`...`Commit`, Escape cancels it once, a press
 //! on a canvas control never reaches the tool, and a group's letter picks and cycles its tools.
 
-use craft_behavior::{CancelReason, GesturePhase, PointerButton};
+use craft_behavior::kurbo::{Point, Rect as DocRect};
+use craft_behavior::{Axis, CancelReason, GesturePhase, PointerButton};
 use craft_keymap::{Chord, Key, Mods};
 use craft_ui::canvas::{
-    Canvas, CanvasTool, CropOverlay, PickStep, ToolAction, ToolContext, ToolHost, ToolInput, ToolKey, ToolPath, ToolPointer, tool_pick,
+    Canvas, CanvasTool, CropOverlay, PickStep, Snap, ToolAccess, ToolAction, ToolAnchor, ToolContext, ToolHost, ToolInput, ToolKey, ToolPath,
+    ToolPointer, tool_pick,
 };
 use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use craft_ui::primitives::Draw;
 use craft_ui::rails::{LastUsed, RailTool};
 use craft_ui::runtime::commands::EditCommands;
-use craft_ui::runtime::env::Label;
+use craft_ui::runtime::env::{Env, Label, UnitWords};
 use craft_ui::testing::{Fixture, ToolFixture, focus, input, trial};
 use egui::{Id, Modifiers, Pos2, Rect, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Call {
@@ -337,4 +340,131 @@ fn tool_pick_selects_the_last_used_tool_and_cycles_through_the_enabled_ones() {
     assert_eq!(pick(&tools, UNDO, &last, PickStep::Next, &[REDO]), Some(CUT), "a disabled tool is skipped");
     assert_eq!(pick(&tools, UNDO, &last, PickStep::Next, &[REDO, CUT]), Some(UNDO), "a group of one enabled tool stays on it");
     assert_eq!(pick(&tools, OUTSIDE, &last, PickStep::Last, &[UNDO, REDO, CUT]), None, "a group with no enabled tool picks nothing");
+}
+
+/// A rectangle tool that describes the size it is dragging.
+#[derive(Default)]
+struct Sizer {
+    from: Option<Pos2>,
+    to: Option<Pos2>,
+}
+
+impl CanvasTool for Sizer {
+    fn press(&mut self, pointer: &ToolPointer, _: &mut ToolContext<'_>) -> ToolAction {
+        self.from = Some(pointer.pos);
+        ToolAction::Claimed
+    }
+
+    fn drag(&mut self, pointer: &ToolPointer, _: &mut ToolContext<'_>) {
+        self.to = Some(pointer.pos);
+    }
+
+    fn release(&mut self, _: &ToolPointer, _: &mut ToolContext<'_>) {
+        self.from = None;
+    }
+
+    fn cancel(&mut self, _: CancelReason, _: &mut ToolContext<'_>) {
+        self.from = None;
+    }
+
+    fn paint(&self, _: &Draw<'_>, _: &ToolContext<'_>) {}
+
+    fn access(&self, cx: &ToolContext<'_>) -> Option<ToolAccess> {
+        let (from, to) = (self.from?, self.to?);
+        let units = cx.units();
+        let size = to - from;
+        let name = format!("Rectangle {} x {}", units.pixels(f64::from(size.x)), units.pixels(f64::from(size.y)));
+        let top_left = Point::new(f64::from(from.x), f64::from(from.y));
+        let bottom_right = Point::new(f64::from(to.x), f64::from(to.y));
+        Some(
+            ToolAccess::new(name)
+                .bounds(DocRect::from_points(top_left, bottom_right))
+                .anchor(ToolAnchor::new("Start", top_left))
+                .anchor(ToolAnchor::new("End", bottom_right)),
+        )
+    }
+
+    fn command_form(&self) -> ToolPath {
+        ToolPath::Command("the Rectangle command")
+    }
+}
+
+#[trial]
+fn a_drag_tool_node_names_its_live_size_and_goes_with_the_gesture() {
+    let mut fixture = ToolFixture::new("Document", Sizer::default());
+    let from = fixture.canvas().center();
+    fixture.press_at(from).move_to(from + BY);
+    let node = fixture.fixture().by_label("Rectangle 60 px x 40 px").expect("the tool's node names the size it is dragging");
+    assert!(node.rect.width() > 0.0, "the node covers the drawing: {:?}", node.rect);
+    assert!(fixture.fixture().by_label("Start").is_some() && fixture.fixture().by_label("End").is_some(), "each anchor has a node");
+    fixture.move_to(from + BY * 2.0);
+    assert!(fixture.fixture().by_label("Rectangle 120 px x 80 px").is_some(), "the name follows the drag");
+    assert!(fixture.fixture().by_label("Rectangle 60 px x 40 px").is_none(), "one node, not one per pass");
+    fixture.release_at(from + BY * 2.0);
+    assert!(fixture.fixture().by_label("Rectangle 120 px x 80 px").is_none(), "a tool with nothing to describe has no node");
+}
+
+/// A tool that reads the snapping and the words through its context on a press.
+#[derive(Default)]
+struct Reader {
+    snapped: Option<Point>,
+    unit_words: Option<Arc<UnitWords>>,
+}
+
+impl CanvasTool for Reader {
+    fn press(&mut self, _: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
+        self.snapped = Some(cx.snap(Point::new(10.3, 7.9)));
+        self.unit_words = Some(cx.words::<UnitWords>());
+        ToolAction::Done
+    }
+
+    fn drag(&mut self, _: &ToolPointer, _: &mut ToolContext<'_>) {}
+
+    fn release(&mut self, _: &ToolPointer, _: &mut ToolContext<'_>) {}
+
+    fn cancel(&mut self, _: CancelReason, _: &mut ToolContext<'_>) {}
+
+    fn paint(&self, _: &Draw<'_>, _: &ToolContext<'_>) {}
+
+    fn command_form(&self) -> ToolPath {
+        ToolPath::Command("the Reader command")
+    }
+}
+
+/// Presses `Reader` once on a canvas whose host snaps to a guide at x = 10 when `snapping`; returns what the tool read
+/// and the unit words of the env the tool was shown in.
+fn press_reader(snapping: bool) -> (Reader, Arc<UnitWords>) {
+    let tool = Rc::new(RefCell::new(Reader::default()));
+    let words = Rc::new(RefCell::new(None));
+    let canvas = Rc::new(Cell::new(Id::NULL));
+    let press = Rc::new(Cell::new(false));
+    let (shown, seen, id, queue) = (Rc::clone(&tool), Rc::clone(&words), Rc::clone(&canvas), Rc::clone(&press));
+    let mut fixture = Fixture::new(move |ui| {
+        let out = Canvas::new("Document", ToolPath::Command("the Reader command")).show(ui, |_, _| {});
+        id.set(out.output.response.id);
+        let guide = Snap::new(|along, position, _| if along == Axis::Y && (position - 10.0).abs() < 1.0 { 10.0 } else { position });
+        let host = if snapping { ToolHost::new().snap(guide) } else { ToolHost::new() };
+        host.run(ui, &out.output, &mut *shown.borrow_mut());
+        *seen.borrow_mut() = Some(Env::of(ui).words::<UnitWords>());
+        if queue.take() {
+            let at = out.output.response.rect.center();
+            ToolHost::inject(ui.ctx(), id.get(), ToolInput::down(PointerButton::Primary, at));
+        }
+    });
+    fixture.settle();
+    press.set(true);
+    fixture.idle(3);
+    let reader = std::mem::take(&mut *tool.borrow_mut());
+    let words = words.borrow_mut().take().expect("the env of the pass");
+    (reader, words)
+}
+
+#[trial]
+fn a_tool_snaps_a_point_through_its_context_and_reads_the_words_of_the_env() {
+    let (reader, env_words) = press_reader(true);
+    assert_eq!(reader.snapped, Some(Point::new(10.0, 7.9)), "the point snaps to the guide the host was given, on the axis it governs");
+    let words = reader.unit_words.expect("the press reached the tool");
+    assert!(Arc::ptr_eq(&words, &env_words), "the tool reads the words of the env it is shown in");
+    let (reader, _) = press_reader(false);
+    assert_eq!(reader.snapped, Some(Point::new(10.3, 7.9)), "a host given no snapping leaves the point");
 }

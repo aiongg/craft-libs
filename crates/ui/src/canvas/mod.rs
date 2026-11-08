@@ -23,7 +23,7 @@ pub use readout::readout;
 pub use space::{CanvasSpace, RulerText, canvas_space};
 pub use words::CanvasWords;
 
-pub use tool::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPointer, ViewEase};
+pub use tool::{CanvasTool, ToolAccess, ToolAction, ToolAnchor, ToolContext, ToolKey, ToolPointer, ViewEase};
 pub use tool_groups::{PickStep, tool_pick};
 pub use tool_host::{ToolHost, ToolHostResponse, ToolInput, ToolReadout};
 
