@@ -5,7 +5,7 @@ use craft_behavior::kurbo::Rect as DocRect;
 use craft_behavior::{Metrics, Sense};
 use craft_ui::canvas::canvas_space;
 use craft_ui::contract::{
-    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Input, MeasureCx, PaintUi, Props as _, Role, Styled as _,
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Input, MeasureCx, PaintUi, Pointer as _, Props as _, Role,
 };
 use craft_ui::primitives::{PaintShape, Revision, StrokeWidth, TextureStore, TextureStoreOptions};
 use craft_ui::runtime::env::Label;
@@ -74,6 +74,13 @@ pub enum ClippingMode {
 /// them from the tokens.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct ChannelInks([[u8; 4]; 4]);
+
+impl ClippingFrame {
+    /// The clipped channels: `shadows` at 0, `highlights` at 1.
+    pub const fn new(shadows: ChannelMask, highlights: ChannelMask) -> Self {
+        ClippingFrame { shadows, highlights }
+    }
+}
 
 impl ChannelInks {
     fn new(cx: &StyleCx<'_>) -> Self {

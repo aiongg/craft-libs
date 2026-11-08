@@ -2,7 +2,6 @@
 
 use super::words::ScopeWords;
 use craft_behavior::{Axis, Metrics, Sense};
-use craft_theme::Rgba;
 use craft_ui::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role, WordSetCx as _};
 use craft_ui::fonts::FontRef;
 use craft_ui::primitives::{DocRun, DocText, PaintShape, StrokeWidth};
@@ -28,7 +27,7 @@ const LETTER_RADIUS: f32 = 1.11;
 const SKIN_TONE_DEGREES: f32 = 23.0;
 /// The hover target's circle radius and the arm of its cross.
 const HOVER_RADIUS: f32 = 5.0;
-const HOVER_ARM: f32 = 9.0;
+const ARM_SHARE: f32 = 0.55;
 /// The plot's smallest and largest default height, in control heights.
 const MIN_ROWS: f32 = 3.6;
 const MAX_ROWS: f32 = 7.8;
@@ -46,6 +45,13 @@ pub struct VectorscopeFrame<'a> {
     pub saturations: usize,
     /// The hue (turns) and saturation (0..=1) of the pixel under the pointer: the hover target.
     pub hover: Option<[f32; 2]>,
+}
+
+impl<'a> VectorscopeFrame<'a> {
+    /// The counts of `hues x saturations` cells, hue-major, and the hover target if any.
+    pub const fn new(counts: &'a [u32], hues: usize, saturations: usize, hover: Option<[f32; 2]>) -> Self {
+        VectorscopeFrame { counts, hues, saturations, hover }
+    }
 }
 
 impl VectorscopeFrame<'_> {
@@ -116,8 +122,10 @@ pub struct VectorscopeStyle {
     spoke: StyleColor,
     skin_tone: StyleColor,
     /// The hover target's inner and outer strokes.
-    hover_line: StyleColor,
-    hover_halo: StyleColor,
+    target_inner: StyleColor,
+    target_outer: StyleColor,
+    /// The arm of the hover target's cross.
+    target_arm: f32,
     /// The brightness of the hue colours, from `data.red`.
     level: f32,
     letter_size: f32,
@@ -146,15 +154,12 @@ pub struct VectorscopePlot<'a> {
     /// Show Skin Tone Indicator.
     #[prop]
     skin_tone: bool,
-    /// The plot's height; a clamped multiple of the control height without a call.
-    #[prop]
-    height: Option<f32>,
 }
 
 impl<'a> VectorscopePlot<'a> {
     /// A plot of `frame` named `label`; red at -100 degrees and the skin-tone line on by default.
     pub fn new(label: impl Into<Label>, frame: &'a VectorscopeFrame<'a>) -> Self {
-        VectorscopePlot { common: Common::new(), frame, red_right: false, skin_tone: true, height: None }.label(label)
+        VectorscopePlot { common: Common::new(), frame, red_right: false, skin_tone: true }.label(label)
     }
 }
 
@@ -177,8 +182,9 @@ impl Component for VectorscopePlot<'_> {
             ring: cx.color(colors.text.faint.faded(RING_ALPHA)),
             spoke: cx.color(colors.text.faint.faded(SPOKE_ALPHA)),
             skin_tone: cx.color(colors.text.muted),
-            hover_line: cx.color(Rgba::WHITE),
-            hover_halo: cx.color(colors.data.scope),
+            target_inner: cx.color(colors.text.on_strong),
+            target_outer: cx.color(colors.data.scope),
+            target_arm: cx.control().icon * ARM_SHARE,
             level: f32::from(colors.data.red.0[0]) / 255.0,
             letter_size: cx.tokens.typography.caption.size,
             height: [rows * MIN_ROWS, rows * MAX_ROWS],
@@ -186,7 +192,7 @@ impl Component for VectorscopePlot<'_> {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        Vec2::new(cx.style.height[0], self.height.unwrap_or(cx.style.height[1]))
+        Vec2::new(cx.style.height[0], cx.style.height[1])
     }
 
     fn fills(&self) -> Option<Axis> {
@@ -233,7 +239,9 @@ impl Component for VectorscopePlot<'_> {
             draw.stroke(&PaintShape::Path(vec![center, point(hue, 1.0)]), StrokeWidth::Hairline, style.spoke);
             draw.data_fill(&PaintShape::Circle(point(hue, 1.0), SPOKE_DOT), DataColor::new(color));
             let runs = [DocRun::new(letter, FontRef::proportional(), style.letter_size, DataColor::new(color))];
-            let text = painter.layout(&DocText { runs: &runs, wrap: None, align: Align::Center });
+            let mut document = DocText::new(&runs);
+            document.align = Align::Center;
+            let text = painter.layout(&document);
             let at = point(hue, LETTER_RADIUS) - text.size() / 2.0;
             painter.painter.galley(at, text.galley.clone(), color);
         }
@@ -242,10 +250,10 @@ impl Component for VectorscopePlot<'_> {
         }
         if let Some([hue, saturation]) = frame.hover {
             let at = point(hue, saturation);
-            for (width, color) in [(StrokeWidth::Medium, style.hover_halo), (StrokeWidth::Thin, style.hover_line)] {
+            for (width, color) in [(StrokeWidth::Medium, style.target_outer), (StrokeWidth::Thin, style.target_inner)] {
                 draw.stroke(&PaintShape::Circle(at, HOVER_RADIUS), width, color);
-                draw.stroke(&PaintShape::Path(vec![at - vec2(HOVER_ARM, 0.0), at + vec2(HOVER_ARM, 0.0)]), width, color);
-                draw.stroke(&PaintShape::Path(vec![at - vec2(0.0, HOVER_ARM), at + vec2(0.0, HOVER_ARM)]), width, color);
+                draw.stroke(&PaintShape::Path(vec![at - vec2(style.target_arm, 0.0), at + vec2(style.target_arm, 0.0)]), width, color);
+                draw.stroke(&PaintShape::Path(vec![at - vec2(0.0, style.target_arm), at + vec2(0.0, style.target_arm)]), width, color);
             }
         }
     }

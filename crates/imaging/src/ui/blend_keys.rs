@@ -150,6 +150,7 @@ pub enum BlendStep {
 /// One mode the target accepts, in the order of its menu: the app's key of the mode and its Shift+Alt+
 /// letter position, if it has one.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct BlendKeyEntry<K> {
     /// The app's key of the blend mode.
     pub key: K,
@@ -184,6 +185,7 @@ impl<K> BlendKeyEntry<K> {
 
 /// What a blend mode key picked: the entry's key, and how.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum BlendKeyPick<K> {
     /// Shift+= or Shift+- stepped to this entry.
     Stepped(K),

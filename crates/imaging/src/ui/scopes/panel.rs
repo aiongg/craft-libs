@@ -77,6 +77,20 @@ pub struct HistogramSet<'a> {
     pub(super) cache_level: u32,
 }
 
+impl<'a> ScopeChannel<'a> {
+    /// A channel `key` named `label` with the counts `bins`, drawn in `ink`.
+    pub const fn new(key: &'a str, label: &'a str, ink: ChannelColor, bins: &'a [u32], color_channel: bool) -> Self {
+        ScopeChannel { key, label, ink, bins, color_channel }
+    }
+}
+
+impl<'a> ScopeSource<'a> {
+    /// A source `key` named `label`.
+    pub const fn new(key: &'a str, label: &'a str) -> Self {
+        ScopeSource { key, label }
+    }
+}
+
 impl<'a> HistogramSet<'a> {
     /// The mode's channels in Channel-list order, the composite first (PhotoCraft's
     /// `channel_options`: RGB, Red, Green, Blue, Luminosity; CMYK, Cyan, Magenta, Yellow, Black,
@@ -325,7 +339,7 @@ impl Component for Block {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {
-        cx.core.response
+        cx.response.clone()
     }
 }
 
@@ -374,11 +388,19 @@ fn themed<R>(ui: &mut Ui, dark: bool, label: &Label, content: impl FnOnce(&mut U
 #[derive(Pattern, craft_ui::contract::Props)]
 pub struct ScopePanel<'a> {
     state: &'a mut ScopePanelState,
+    /// This pass's counted data. Without a frame the panel draws nothing (the host shows "Calculating..." itself).
+    #[prop]
     frame: Option<&'a ScopeFrame<'a>>,
+    /// The Source list's entries; the row shows only with two or more.
+    #[prop]
     sources: &'a [ScopeSource<'a>],
+    /// Ticks at the foot of the plot, `(level, label)`: the Color Samplers' levels in the shown channel.
+    #[prop]
     markers: &'a [(f32, Label)],
     zones: &'a [ToneZone],
     zone_values: &'a [Label],
+    /// The document has a selection: the scope menu offers Show Selected Region.
+    #[prop]
     has_selection: bool,
 }
 
@@ -386,24 +408,6 @@ impl<'a> ScopePanel<'a> {
     /// A scope panel over `state`.
     pub fn new(state: &'a mut ScopePanelState) -> Self {
         ScopePanel { state, frame: None, sources: &[], markers: &[], zones: &[], zone_values: &[], has_selection: false }
-    }
-
-    /// This pass's counted data. Without a frame the panel draws nothing (the host shows "Calculating..." itself).
-    pub fn frame(mut self, frame: &'a ScopeFrame<'a>) -> Self {
-        self.frame = Some(frame);
-        self
-    }
-
-    /// The Source list's entries; the row shows only with two or more.
-    pub fn sources(mut self, sources: &'a [ScopeSource<'a>]) -> Self {
-        self.sources = sources;
-        self
-    }
-
-    /// Ticks at the foot of the plot, `(level, label)`: the Color Samplers' levels in the shown channel.
-    pub fn markers(mut self, markers: &'a [(f32, Label)]) -> Self {
-        self.markers = markers;
-        self
     }
 
     /// The tone zones over the plot ([`ToneZone::CAMERA_RAW`] or [`ToneZone::LIGHTROOM`]) and each zone's value text,
@@ -414,20 +418,13 @@ impl<'a> ScopePanel<'a> {
         self
     }
 
-    /// The document has a selection: the scope menu offers Show Selected Region.
-    pub fn has_selection(mut self, has_selection: bool) -> Self {
-        self.has_selection = has_selection;
-        self
-    }
-
     /// Draws the view the settings ask for and reads this pass's input, in order: the commands fired at the panel, the
     /// Channel row, the plot (with zones, warnings, badge), the vectorscope, the Source row, the statistics and the
     /// All Channels plots.
     pub fn show(self, ui: &mut Ui) -> ScopePanelOutput {
         let env = Env::of(ui);
         let words = env.words::<ScopeWords>();
-        let format = env.format().clone();
-        let mut pass = Pass { panel: self, words, format, report: Report::default() };
+        let mut pass = Pass { panel: self, words, env, report: Report::default() };
         let label = Label::from(pass.words.histogram.clone());
         let shown = Block::panel(label).show(ui, |ui, cx| pass.rows(ui, cx));
         let Report { settings_changed, refresh, source_changed, channel_changed, zone, hovered_level, clipping_toggled } = pass.report;
@@ -461,7 +458,7 @@ struct Report {
 struct Pass<'a> {
     panel: ScopePanel<'a>,
     words: std::sync::Arc<ScopeWords>,
-    format: craft_i18n::Format,
+    env: Env,
     report: Report,
 }
 
@@ -605,7 +602,7 @@ impl Pass<'_> {
         Row::new().show(ui, |ui, _| {
             let field = Field::new(words.channel.clone())
                 .show(ui, |ui, _| Select::new(words.channel_name.clone(), Bind::given(shown_key.to_owned()), &entries).show(ui));
-            picked = field.inner.flatten().and_then(|select| select.value().cloned());
+            picked = field.inner.and_then(|select| select.value().cloned());
             let button = IconButton::new(IconId::new("rotate-cw")).label(words.uncached_refresh.clone()).size(ControlSize::Sm).show(ui);
             refresh = clicked(&button);
         });
@@ -652,7 +649,7 @@ impl Pass<'_> {
     /// The hover readout badge in the plot's top centre, between the two warning buttons.
     fn readout(&self, ui: &mut Ui, plot: Rect, readout: ScopeReadout) {
         let words = &self.words;
-        let number = |value: f32, decimals: usize, scale: f64| craft_i18n::ltr(&self.format.number(f64::from(value) * scale, decimals));
+        let number = |value: f32, decimals: usize, scale: f64| craft_i18n::ltr(&self.env.format().number(f64::from(value) * scale, decimals));
         let text = match readout {
             ScopeReadout::Rgb([r, g, b]) => {
                 words.readout_rgb.fill(&[("r", &number(r, 0, 255.0)), ("g", &number(g, 0, 255.0)), ("b", &number(b, 0, 255.0))])
@@ -671,7 +668,7 @@ impl Pass<'_> {
     fn statistics(&self, ui: &mut Ui, stats: &HistogramStatistics, cache_level: u32) {
         let words = &self.words;
         // Numbers read left to right in every language.
-        let number = |value: f64, decimals: usize| craft_i18n::ltr(&self.format.number(value, decimals));
+        let number = |value: f64, decimals: usize| craft_i18n::ltr(&self.env.format().number(value, decimals));
         let level = match stats.level {
             Some([a, b]) if a == b => number(f64::from(a), 0),
             Some([a, b]) => craft_i18n::ltr(&format!("{}..{}", number(f64::from(a), 0), number(f64::from(b), 0))),
@@ -690,9 +687,9 @@ impl Pass<'_> {
         ];
         Grid::new(&STATISTICS_COLUMNS).gap(Gap::Tight).label(words.statistics.clone()).show(ui, |ui, _| {
             for (first, first_value, second, second_value) in &rows {
-                Text::new(first.clone()).shade(Shade::Muted).show(ui);
+                Text::new(Label::clone(first)).shade(Shade::Muted).show(ui);
                 Text::new(first_value.clone()).role(TypeRole::Mono).show(ui);
-                Text::new(second.clone()).shade(Shade::Muted).show(ui);
+                Text::new(Label::clone(second)).shade(Shade::Muted).show(ui);
                 Text::new(second_value.clone()).role(TypeRole::Mono).show(ui);
             }
         });

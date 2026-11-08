@@ -5,12 +5,12 @@ use super::words::ScopeWords;
 use craft_behavior::{AccessAction, CursorIcon, Metrics, NavMove, PartKey, PressPhase, Sense};
 use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, Name, Numeric, PartsCx, Pointer as _, Props as _,
-    Remember as _, Role, Tooltip, WordSetCx as _,
+    Remember as _, Role, Tooltip, TooltipSpec, WordSetCx as _,
 };
 use craft_ui::contract::{MeasureCx, PaintUi};
 use craft_ui::primitives::PaintShape;
 use craft_ui::runtime::env::Label;
-use craft_ui::runtime::focus::{ActivateKeys, KeepKeys, KeyUse};
+use craft_ui::runtime::focus::{ActivateKeys, KeyUse};
 use craft_ui::style::{ComponentStyle, FocusLook, StyleColor, StyleCx};
 use egui::{CornerRadius, Rect, Vec2};
 
@@ -173,7 +173,7 @@ impl<'a> ToneZones<'a> {
 impl Component for ToneZones<'_> {
     const ROLE: Role = Role::GROUP;
     const OVERLAYS: bool = false;
-    const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_keep(KeepKeys::BlockArrows).with_activate(ActivateKeys::Neither);
+    const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_moves().with_value(true).with_activate(ActivateKeys::Neither);
     type Style = ToneZonesStyle;
     type Output = EditResponse<ScopeZoneEdit>;
 
@@ -203,7 +203,7 @@ impl Component for ToneZones<'_> {
             cx.part(ZONE.at(at as u64), self.zone_rect(rect, strip, zone))
                 .sense(Sense::DRAG | Sense::CLICK)
                 .cursor(CursorIcon::ResizeHorizontal)
-                .tooltip(Tooltip::new(Label::from(tip)))
+                .tooltip(Tooltip::from(TooltipSpec::new(Label::from(tip))))
                 .pointer_only("the arrow keys step the focused zone and Page Up and Page Down move between zones");
         }
     }

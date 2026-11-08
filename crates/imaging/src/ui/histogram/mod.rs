@@ -74,15 +74,20 @@ pub struct Histogram<'a> {
     #[common]
     common: Common,
     data: &'a HistogramData,
+    /// Doc.
     #[prop]
     value: Option<Label>,
+    /// Doc.
     #[prop]
     outline: Option<&'a HistogramData>,
+    /// Doc.
     #[prop]
     markers: &'a [(f32, Label)],
     selection: Bind<'a, Option<LevelRange>>,
+    /// Doc.
     #[prop]
     stale: Option<StaleMark>,
+    /// Doc.
     #[prop]
     height: Option<PlotHeight>,
 }
@@ -110,11 +115,8 @@ impl Component for Histogram<'_> {
     fn sense(&self) -> Sense {
         Sense::CLICK | Sense::FOCUS
     }
-    fn bind(&mut self) -> Option<BindMut<'_, Option<LevelRange>>> {
-        Some(self.selection.reborrow())
-    }
     fn paint(&mut self, _: &mut PaintUi<'_>, _: &Cx<'_, Self>) {}
     fn finish(self, cx: Cx<'_, Self>) -> HistogramOutput {
-        HistogramOutput { response: cx.response.clone(), selection: cx.edit_response(), hovered_level: None, refresh: false }
+        HistogramOutput { response: cx.response.clone(), selection: craft_ui::testing::contract::edit_response(cx.response.clone()), hovered_level: None, refresh: false }
     }
 }

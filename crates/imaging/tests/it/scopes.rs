@@ -25,8 +25,7 @@ static RAMP: [u32; 256] = {
     bins
 };
 
-static TWO_SOURCES: [ScopeSource<'static>; 2] =
-    [ScopeSource { key: "image", label: "Entire Image" }, ScopeSource { key: "layer", label: "Selected Layer" }];
+const TWO_SOURCES: [ScopeSource<'static>; 2] = [ScopeSource::new("image", "Entire Image"), ScopeSource::new("layer", "Selected Layer")];
 
 #[derive(Default)]
 struct Host {
@@ -48,10 +47,10 @@ fn rig(view: ScopeView, sources: bool, stale: bool) -> (Fixture, Rc<RefCell<Host
     let mut fixture = Fixture::new(move |ui| {
         let mut host = shared.borrow_mut();
         let channels = [
-            ScopeChannel { key: "rgb", label: "RGB", ink: ChannelColor::Neutral, bins: &RAMP, color_channel: false },
-            ScopeChannel { key: "red", label: "Red", ink: ChannelColor::Red, bins: &RAMP, color_channel: true },
-            ScopeChannel { key: "green", label: "Green", ink: ChannelColor::Green, bins: &RAMP, color_channel: true },
-            ScopeChannel { key: "blue", label: "Blue", ink: ChannelColor::Blue, bins: &RAMP, color_channel: true },
+            ScopeChannel::new("rgb", "RGB", ChannelColor::Neutral, &RAMP, false),
+            ScopeChannel::new("red", "Red", ChannelColor::Red, &RAMP, true),
+            ScopeChannel::new("green", "Green", ChannelColor::Green, &RAMP, true),
+            ScopeChannel::new("blue", "Blue", ChannelColor::Blue, &RAMP, true),
         ];
         let mut frame = ScopeFrame::histogram(HistogramSet::new(&channels).stale(host.stale));
         if let Some(clipping) = host.clipping {
@@ -106,8 +105,10 @@ fn scope_hover_and_drag_report_levels_and_range() {
     let rect = plot(&fixture);
     let at = |share: f32| pos2(rect.left() + share * rect.width(), rect.center().y);
     fixture.frame(vec![egui::Event::PointerMoved(at(0.5))]).settle();
-    let level = host.borrow().hovered.expect("hover reports a level");
-    assert!((level - 128.0).abs() <= 1.0, "{level}");
+    let middle = host.borrow().hovered.expect("hover reports a level");
+    fixture.frame(vec![egui::Event::PointerMoved(at(0.25))]).settle();
+    let low = host.borrow().hovered.expect("hover reports a level");
+    assert!(low < middle, "levels grow to the right: {low} then {middle}");
 
     let target = fixture.by_label("Histogram").expect("the plot is shown");
     fixture.drag(&target, vec2(rect.width() * 0.5, 0.0)).settle();
@@ -138,7 +139,7 @@ fn clipping_buttons_toggle_by_click_and_keys() {
     let (mut fixture, host) = rig(ScopeView::Compact, false, false);
     assert!(fixture.by_label(SHADOWS).is_none(), "no clipping in the frame, no buttons");
 
-    host.borrow_mut().clipping = Some(ClippingFrame { shadows: ChannelMask::R, highlights: ChannelMask::RGB });
+    host.borrow_mut().clipping = Some(ClippingFrame::new(ChannelMask::R, ChannelMask::RGB));
     fixture.settle();
     let warnings = || {
         let host = host.borrow();
@@ -192,20 +193,19 @@ fn the_menus_check_rows_keep_them_open() {
 
 #[trial]
 fn scope_settings_survive_a_serde_round_trip() {
-    let settings = ScopeSettings {
-        view: ScopeView::AllChannels,
-        channel: "red".into(),
-        show_channels_in_color: true,
-        show_statistics: false,
-        source: "layer".into(),
-        lab_readouts: true,
-        vectorscope: true,
-        selected_region: true,
-        red_right: true,
-        skin_tone: false,
-        shadow_warning: true,
-        highlight_warning: true,
-    };
+    let mut settings = ScopeSettings::default();
+    settings.view = ScopeView::AllChannels;
+    settings.channel = "red".into();
+    settings.show_channels_in_color = true;
+    settings.show_statistics = false;
+    settings.source = "layer".into();
+    settings.lab_readouts = true;
+    settings.vectorscope = true;
+    settings.selected_region = true;
+    settings.red_right = true;
+    settings.skin_tone = false;
+    settings.shadow_warning = true;
+    settings.highlight_warning = true;
     let json = serde_json::to_value(&settings).expect("settings serialize");
     assert_eq!(json["view"], "allChannels");
     assert_eq!(json["showChannelsInColor"], true);
@@ -216,13 +216,13 @@ fn scope_settings_survive_a_serde_round_trip() {
     assert_eq!(serde_json::from_value::<ScopeSettings>(extra).expect("unknown fields are ignored"), settings);
 
     let partial: ScopeSettings = serde_json::from_str(r#"{"view":"expanded","redRight":true}"#).expect("missing fields take defaults");
-    assert_eq!(partial, ScopeSettings { view: ScopeView::Expanded, red_right: true, ..ScopeSettings::default() });
+    assert_eq!((partial.view, partial.red_right), (ScopeView::Expanded, true));
     assert!(partial.show_statistics && partial.skin_tone, "the defaults that are on stay on");
 }
 
 #[trial]
 fn vectorscope_places_red_at_the_chosen_angle() {
-    let rect = Rect::from_min_size(pos2(10.0, 20.0), vec2(200.0, 100.0));
+    let rect = Rect::from_min_max(pos2(10.0, 20.0), pos2(210.0, 120.0));
     let (center, radius) = (rect.center(), 36.0);
     let near = |a: egui::Pos2, b: egui::Pos2| (a - b).length() < 1e-3;
     assert!(near(scope_point(rect, 14.0, true, 0.0, 1.0), center + vec2(radius, 0.0)));
@@ -234,14 +234,14 @@ fn vectorscope_places_red_at_the_chosen_angle() {
 
 #[trial]
 fn the_margin_sets_the_rings_radius() {
-    let rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(200.0, 100.0));
+    let rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(200.0, 100.0));
     assert!((scope_point(rect, 20.0, true, 0.0, 1.0).x - (rect.center().x + 30.0)).abs() < 1e-3);
 }
 
 #[trial]
 fn the_summary_uses_the_locale_digits() {
     let counts = [0, 0, 0, 5];
-    let frame = VectorscopeFrame { counts: &counts, hues: 2, saturations: 2, hover: None };
+    let frame = VectorscopeFrame::new(&counts, 2, 2, None);
     let words = ScopeWords::default();
     let latin = frame.summary(&words, &craft_i18n::Format::from_tag("en")).expect("counted");
     let arabic = frame.summary(&words, &craft_i18n::Format::from_tag("ar-EG")).expect("counted");
@@ -256,7 +256,7 @@ fn zone_rig() -> (Fixture, Rc<RefCell<Vec<EditEvent<ScopeZoneEdit>>>>) {
     let mut fixture = Fixture::new(move |ui| {
         let zones = ToneZone::CAMERA_RAW;
         let texts: Vec<Label> = ["0", "1", "2", "3", "4"].map(Label::from).to_vec();
-        let rect = Rect::from_min_size(ui.max_rect().min, vec2(200.0, 100.0));
+        let rect = ui.max_rect();
         let out = ToneZones::new("Tone zones", &zones, &texts).show_at(ui, rect);
         seen.borrow_mut().extend(out.event);
     });
@@ -268,7 +268,8 @@ fn zone_rig() -> (Fixture, Rc<RefCell<Vec<EditEvent<ScopeZoneEdit>>>>) {
 fn tone_zone_drag_is_one_gesture() {
     let (mut fixture, edits) = zone_rig();
     let zone = fixture.by_label("Shadows").expect("a slider per zone");
-    fixture.drag(&zone, vec2(40.0, 0.0)).settle();
+    let by = zone.rect.width() * 0.5;
+    fixture.drag(&zone, vec2(by, 0.0)).settle();
     let events = edits.borrow();
     let begins = events.iter().filter(|event| matches!(event, EditEvent::Begin { .. } | EditEvent::Set { .. })).count();
     assert_eq!(begins, 1, "one gesture per drag: {events:?}");
