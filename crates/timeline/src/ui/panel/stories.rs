@@ -206,7 +206,7 @@ impl PartialEq for Shared {
     }
 }
 
-#[story(Timeline<'static, Sequence>, covers = [Default, Many], drive = Drive::Never)]
+#[story(Timeline<'static, super::EmptySequence>, covers = [Default, Many], drive = Drive::Never)]
 fn timeline_panel(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let width = f64::from(ui.available_width());
     let shared = data.value("sequence", Shared(Arc::new(Mutex::new(sample_sequence(width / SHOWN_SECONDS))))).clone();

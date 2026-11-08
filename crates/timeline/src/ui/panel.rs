@@ -426,61 +426,62 @@ impl<M: TimelineModel> Timeline<'_, M> {
             let mut timecode_edit: Option<EditEvent<Tick>> = None;
             let mut ruler_edits: Vec<TimelineEdit> = Vec::new();
 
-            let shown = TimelineView::new(label, Bind::given(view), format, duration)
-                .headers(true)
-                .header_width(header_width)
-                .follow(follow, playing, playhead)
-                .edit_points(&points)
-                .show(ui, |ui, cx| {
-                    TopStrip::new().show(ui, |ui, _| {
-                        Stack::new().show(ui, |ui, _| {
-                            let field = TimecodeField::new(words.panel.clone(), Bind::given(playhead), format).show(ui);
-                            timecode_edit = field.edit.event;
-                            toolbar = toolbar_row(ui, &words, snap, linked_selection, markers, playhead);
-                        });
-                        Stack::new().show(ui, |ui, _| {
-                            let strip = MarkerStrip::new(words.overview.clone(), markers);
-                            let strip = match shared.targets {
-                                Some(targets) => strip.snap(targets),
-                                None => strip,
-                            };
-                            let strip = strip.show(ui);
-                            ruler_edits.extend(strip.span.event.clone().map(TimelineEdit::MarkerSpan));
-                            ruler_edits.extend(strip.edits.into_iter().map(TimelineEdit::Marker));
-                            let ruler = TimelineRuler::new(words.overview.clone(), Bind::given(playhead)).in_out((mark_in, mark_out));
-                            let ruler = match work_area {
-                                Some(range) => ruler.work_area(range),
-                                None => ruler,
-                            };
-                            let ruler = ruler.show(ui);
-                            ruler_edits.extend(ruler.playhead.event.map(TimelineEdit::Playhead));
-                            ruler_edits.extend(ruler.work_area.map(TimelineEdit::WorkArea));
-                        });
+            let area =
+                TimelineView::new(label, Bind::given(view), format, duration).headers(true).follow(follow, playing, playhead).edit_points(&points);
+            let area = match header_width {
+                Some(width) => area.header_width(width),
+                None => area,
+            };
+            let shown = area.show(ui, |ui, cx| {
+                TopStrip::new().show(ui, |ui, _| {
+                    Stack::new().show(ui, |ui, _| {
+                        let field = TimecodeField::new(words.panel.clone(), Bind::given(playhead), format).show(ui);
+                        timecode_edit = field.edit.event;
+                        toolbar = toolbar_row(ui, &words, snap, linked_selection, markers, playhead);
                     });
-                    let mut memory = std::mem::take(cx.keep::<Memory>());
-                    for (side, indices) in &panes {
-                        if indices.is_empty() {
-                            continue;
-                        }
-                        let pane: Vec<TrackInfo<'_>> = indices.iter().map(|&i| tracks[i].clone()).collect();
-                        let out = shared.show(ui, *side, &pane, indices);
-                        let mapping = Mapping { pane: &pane, words: &words, name: header_width };
-                        mapping.collect(&out, &mut edits, &mut memory);
-                        mapping.label_menu(ui, &out.response, &mut memory, &mut edits);
-                        if *side == Side::Upper {
-                            let share = divider.unwrap_or(DIVIDER_SHARE_DEFAULT);
-                            let divided = Divider::new(words.divider.clone(), Bind::given(share)).show(ui);
-                            edits.extend(divided.event.map(TimelineEdit::Divider));
-                        }
-                    }
-                    if let Some(db) = model.master_volume_db() {
-                        mix_row(ui, &words, &env.view().format().number(f64::from(db), 1));
-                    }
-                    if tracks.is_empty() {
-                        Text::new(words.empty.clone()).show(ui);
-                    }
-                    *cx.keep::<Memory>() = memory;
+                    Stack::new().show(ui, |ui, _| {
+                        let strip = MarkerStrip::new(words.overview.clone(), markers);
+                        let strip = match shared.targets {
+                            Some(targets) => strip.snap(targets),
+                            None => strip,
+                        };
+                        let strip = strip.show(ui);
+                        ruler_edits.extend(strip.span.event.clone().map(TimelineEdit::MarkerSpan));
+                        ruler_edits.extend(strip.edits.into_iter().map(TimelineEdit::Marker));
+                        let ruler = TimelineRuler::new(words.overview.clone(), Bind::given(playhead)).in_out((mark_in, mark_out));
+                        let ruler = match work_area {
+                            Some(range) => ruler.work_area(range),
+                            None => ruler,
+                        };
+                        let ruler = ruler.show(ui);
+                        ruler_edits.extend(ruler.playhead.event.map(TimelineEdit::Playhead));
+                        ruler_edits.extend(ruler.work_area.map(TimelineEdit::WorkArea));
+                    });
                 });
+                let mut memory = std::mem::take(cx.keep::<Memory>());
+                for (side, indices) in &panes {
+                    if indices.is_empty() {
+                        continue;
+                    }
+                    let pane: Vec<TrackInfo<'_>> = indices.iter().map(|&i| tracks[i].clone()).collect();
+                    let out = shared.show(ui, *side, &pane, indices);
+                    let mapping = Mapping { pane: &pane, words: &words, name: header_width };
+                    mapping.collect(&out, &mut edits, &mut memory);
+                    mapping.label_menu(ui, &out.response, &mut memory, &mut edits);
+                    if *side == Side::Upper {
+                        let share = divider.unwrap_or(DIVIDER_SHARE_DEFAULT);
+                        let divided = Divider::new(words.divider.clone(), Bind::given(share)).show(ui);
+                        edits.extend(divided.event.map(TimelineEdit::Divider));
+                    }
+                }
+                if let Some(db) = model.master_volume_db() {
+                    mix_row(ui, &words, &env.view().format().number(f64::from(db), 1));
+                }
+                if tracks.is_empty() {
+                    Text::new(words.empty.clone()).show(ui);
+                }
+                *cx.keep::<Memory>() = memory;
+            });
             edits.extend(timecode_edit.map(TimelineEdit::Playhead));
             edits.extend(ruler_edits);
             shown.output

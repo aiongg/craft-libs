@@ -9,7 +9,7 @@ use craft_behavior::{
 use craft_ui::buttons::{IconButton, ToggleButton};
 use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Gap, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pattern,
-    Pointer as _, Props as _, Remember as _, Role, Show as _, ShowContainer as _, clicked,
+    Pointer as _, Props as _, Remember as _, Role, SetPosition, Show as _, ShowContainer as _, clicked,
 };
 use craft_ui::layout_components::Row;
 use craft_ui::primitives::{IconSpec, Mirror, PaintShape, StrokeWidth};
@@ -450,9 +450,11 @@ impl Component for KeyframeLane<'_> {
     /// A list box, one option per key named by its time.
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let Some(axis) = time_axis(&cx.env) else { return };
-        for key in self.sorted() {
+        let sorted = self.sorted();
+        for (at, key) in sorted.iter().enumerate() {
             let node = access.node(KEY.at(key.id.get()), Role::LIST_BOX_OPTION);
             node.name = Name::Text(format_time(key.time, &axis.format));
+            node.position(SetPosition::new(at).of(sorted.len()));
         }
     }
 

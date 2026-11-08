@@ -10,7 +10,7 @@ use craft_timeline::ui::{
 };
 use craft_timeline::{FrameRate, Marker, MarkerColor, MarkerId, Tick, TimeFormat, TimeRange, TimeView};
 use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Fixture, Target, trial};
 use egui::{Color32, Key, Modifiers, Rect, vec2};
 
 const ROOM: egui::Vec2 = vec2(600.0, 60.0);
@@ -78,6 +78,13 @@ struct Seen {
     double_clicked: Option<KeyframeId>,
 }
 
+/// The options of the lane or strip, earliest in time first: the tree lists nodes in no time order.
+fn options_by_time(fixture: &Fixture) -> Vec<Target> {
+    let mut options = fixture.by_role(Role::LIST_BOX_OPTION);
+    options.sort_by(|a, b| a.rect.left().total_cmp(&b.rect.left()));
+    options
+}
+
 fn keys() -> Vec<KeyframeMark> {
     let key = |id: u64, at: f64| KeyframeMark::new(KeyframeId::new(id), seconds(at), KeyframeInterpolation::Linear);
     vec![key(1, 1.0), key(2, 3.0), key(3, 5.0)]
@@ -127,7 +134,7 @@ fn lane() -> (Fixture, Rc<RefCell<Seen>>) {
 #[trial]
 fn click_and_marquee_select_keys() {
     let (mut fixture, seen) = lane();
-    let options = fixture.by_role(Role::LIST_BOX_OPTION);
+    let options = options_by_time(&fixture);
     assert_eq!(options.len(), 3);
     fixture.click(&options[1]);
     assert_eq!(seen.borrow().selection.items, vec![KeyframeId::new(2)]);
@@ -144,7 +151,7 @@ fn click_and_marquee_select_keys() {
 #[trial]
 fn keyboard_selects_nudges_and_deletes() {
     let (mut fixture, seen) = lane();
-    let options = fixture.by_role(Role::LIST_BOX_OPTION);
+    let options = options_by_time(&fixture);
     fixture.click(&options[0]);
     fixture.key(Key::ArrowRight, Modifiers::NONE);
     assert_eq!(seen.borrow().selection.items, vec![KeyframeId::new(2)], "Right picks the next key");
@@ -159,7 +166,7 @@ fn keyboard_selects_nudges_and_deletes() {
 #[trial]
 fn double_click_on_a_key_is_reported() {
     let (mut fixture, seen) = lane();
-    let options = fixture.by_role(Role::LIST_BOX_OPTION);
+    let options = options_by_time(&fixture);
     fixture.click(&options[2]);
     fixture.click(&options[2]);
     assert_eq!(seen.borrow().double_clicked, Some(KeyframeId::new(3)));
@@ -211,7 +218,7 @@ fn strip() -> (Fixture, Rc<RefCell<Strip>>) {
 #[trial]
 fn dragging_a_marker_moves_it() {
     let (mut fixture, seen) = strip();
-    let options = fixture.by_role(Role::LIST_BOX_OPTION);
+    let options = options_by_time(&fixture);
     fixture.drag(&options[0], vec2(POINTS_PER_SECOND as f32, 0.0));
     let last = seen.borrow().moved.last().copied().expect("the drag proposes a start");
     assert!(last > seconds(2.5) && last < seconds(3.5), "dragged one second right of 2 s: {last:?}");
@@ -221,7 +228,7 @@ fn dragging_a_marker_moves_it() {
 #[trial]
 fn command_click_deletes_and_double_click_opens() {
     let (mut fixture, seen) = strip();
-    let options = fixture.by_role(Role::LIST_BOX_OPTION);
+    let options = options_by_time(&fixture);
     fixture.hold(Modifiers::COMMAND);
     fixture.click(&options[1]);
     fixture.hold(Modifiers::NONE);
@@ -235,7 +242,7 @@ fn command_click_deletes_and_double_click_opens() {
 #[trial]
 fn keys_pick_open_and_delete_markers() {
     let (mut fixture, seen) = strip();
-    let options = fixture.by_role(Role::LIST_BOX_OPTION);
+    let options = options_by_time(&fixture);
     fixture.click(&options[0]);
     fixture.key(Key::ArrowRight, Modifiers::NONE);
     fixture.key(Key::Enter, Modifiers::NONE);

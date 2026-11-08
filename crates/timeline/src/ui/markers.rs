@@ -13,7 +13,7 @@ use craft_ui::buttons::Button;
 use craft_ui::choice::{RadioGroup, Swatch};
 use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pointer as _,
-    Props as _, Remember as _, Role, Show as _, ShowContainer as _, WordSetCx as _, clicked,
+    Props as _, Remember as _, Role, SetPosition, Show as _, ShowContainer as _, WordSetCx as _, clicked,
 };
 use craft_ui::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
 use craft_ui::form::{Field, FieldGroup};
@@ -452,9 +452,11 @@ impl Component for MarkerStrip<'_> {
     /// A list box of the markers, each named by name and time.
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let Some(axis) = time_axis(&cx.env) else { return };
-        for marker in self.sorted() {
+        let sorted = self.sorted();
+        for (at, marker) in sorted.iter().enumerate() {
             let node = access.node(MARKER.at(marker.id.0), Role::LIST_BOX_OPTION);
             node.name = Name::Text(format!("{}, {}", marker.name, format_time(marker.start, &axis.format)));
+            node.position(SetPosition::new(at).of(sorted.len()));
         }
         if self.bin {
             access.node(BIN, Role::BUTTON).name = Name::Text(cx.words::<MarkerWords>().bin.as_str().to_owned());
