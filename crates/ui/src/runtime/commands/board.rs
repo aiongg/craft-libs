@@ -174,17 +174,19 @@ impl Board {
         (app, if app { None } else { self.pick(ctx, scope) })
     }
 
-    /// The declaration of `command` inside the top modal layer: an instance there that published its state, else the
-    /// focused component when it takes the command as an edit.
-    fn declaring(&self, ctx: &Context, command: &CommandRef) -> Option<Declaration> {
+    /// Who answers for `command` ahead of the app: an instance inside the top modal layer that published its state,
+    /// else the focused component when it takes the command as an edit (inside a modal layer, only when the focus
+    /// is in it).
+    fn declaring(&self, ctx: &Context, command: &CommandRef, dialog_open: bool) -> Option<Declaration> {
         let number = *self.numbers.get(command.id.as_str())?;
         let published = self.modal_published.iter().chain(&self.modal_published_last).find(|(published, _)| *published == number);
-        if let Some(id) = published.and_then(|(_, id)| *id) {
+        if let Some(id) = published.and_then(|(_, id)| *id).filter(|_| dialog_open) {
             return Some(Declaration::Instance(id));
         }
         let edit = self.registry.edit_of(&command.id)?;
         let record = focus::record(ctx, pass::current_viewport(ctx));
-        (!self.inside_modal.is_empty() && record.keys.is_some_and(|keys| keys.edits.contains(edit))).then_some(Declaration::Focused)
+        let in_reach = !dialog_open || !self.inside_modal.is_empty();
+        (in_reach && record.keys.is_some_and(|keys| keys.edits.contains(edit))).then_some(Declaration::Focused)
     }
 
     /// `command` as seen by `instance`, or by the app for an app-scope command, before the gate. Also whether this is
@@ -198,7 +200,7 @@ impl Board {
         // A command no set registers is never blocked.
         let rule = def.map(|def| def.modal);
         // The instance inside the top modal that declares the command, which then answers for it.
-        let declaring = (dialog_open && rule == Some(ModalRule::Declared)).then(|| self.declaring(ctx, command)).flatten();
+        let declaring = (rule == Some(ModalRule::Declared)).then(|| self.declaring(ctx, command, dialog_open)).flatten();
         // The declaring instance answers for the command: it is where the command is delivered. The focused component
         // answers for itself, so the app's state of the command does not apply.
         let instance = match declaring {

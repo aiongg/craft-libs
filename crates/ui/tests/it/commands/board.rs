@@ -687,3 +687,23 @@ fn a_full_window_dialog_scope_chains_under_the_view_scope() {
     frames.idle(2, &mut show);
     assert_eq!(brushed.get(), 1, "the workspace chord reaches it too");
 }
+
+/// 11.3: a focused field takes the edit commands for its own text wherever it is; with none focused the app takes them.
+#[trial]
+fn a_focused_field_outside_a_dialog_takes_undo_and_the_app_gets_none() {
+    let log = RefCell::new(Vec::<String>::new());
+    let field = Cell::new(None);
+    let mut show = |ui: &mut Ui| field.set(Some(Field::new(&log).id_salt("f").show(ui).id));
+    let mut frames = Frames::new();
+    frames.commands(CommandInput::new().state(EditCommands::Undo, CommandState::new()));
+    frames.idle(3, &mut show);
+    frames.frame(vec![key_press(Key::Z, Modifiers::COMMAND)], &mut show);
+    frames.idle(2, &mut show);
+    assert_eq!(ids(&take_output(&frames.ctx).fired), ["edit.undo"], "with no field focused the app takes the undo");
+
+    focus_on(&mut frames, field.get().unwrap(), &mut show);
+    frames.frame(vec![key_press(Key::Z, Modifiers::COMMAND)], &mut show);
+    frames.idle(2, &mut show);
+    assert_eq!(*log.borrow(), ["Undo"], "the focused field took the undo");
+    assert!(take_output(&frames.ctx).fired.is_empty(), "the app got none");
+}
