@@ -19,6 +19,8 @@ use egui::{Pos2, Rect, Vec2};
 struct Sweep {
     column: ColumnKey,
     on: bool,
+    /// The modifiers held at the first press, which every flip of the sweep carries.
+    mods: craft_keymap::Mods,
     crossed: Vec<usize>,
 }
 
@@ -135,11 +137,11 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         })
     }
 
-    fn emit_toggle(&mut self, cx: &mut Cx<'_, C>, at: usize, column: &ColumnKey, on: bool) {
+    fn emit_toggle(&mut self, cx: &mut Cx<'_, C>, at: usize, column: &ColumnKey, on: bool, mods: craft_keymap::Mods) {
         let key = self.source.key(at);
         let gesture = crate::runtime::edit::next_gesture_id(&cx.core.ctx);
-        let before = ToggleEdit { key: key.clone(), column: column.clone(), on: !on };
-        let after = ToggleEdit { key, column: column.clone(), on };
+        let before = ToggleEdit { key: key.clone(), column: column.clone(), on: !on, mods };
+        let after = ToggleEdit { key, column: column.clone(), on, mods };
         self.events.push(CollectionEvent::Toggle(EditEvent::set(gesture, Mixed::Same(before), after, cx.core.label_arc(), None)));
     }
 
@@ -155,7 +157,8 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     pub(super) fn begin_toggle(&mut self, cx: &mut Cx<'_, C>, at: usize, column: ColumnKey, toggle: ToggleColumn) {
         let Some(on) = self.flip_toggle(cx, at, column.clone(), toggle) else { return };
         if toggle.sweepable {
-            self.drags.sweep = Some(Sweep { column, on, crossed: vec![at] });
+            let mods = crate::runtime::pointer::frame(&cx.core.ctx).mods;
+            self.drags.sweep = Some(Sweep { column, on, mods, crossed: vec![at] });
         }
     }
 
@@ -166,10 +169,11 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             return None;
         }
         let on = !self.source.toggled(at, &column);
-        self.emit_toggle(cx, at, &column, on);
+        let mods = crate::runtime::pointer::frame(&cx.core.ctx).mods;
+        self.emit_toggle(cx, at, &column, on, mods);
         if toggle.exclusive && on {
             for other in (0..self.source.len()).filter(|&other| other != at && self.source.toggled(other, &column)) {
-                self.emit_toggle(cx, other, &column, false);
+                self.emit_toggle(cx, other, &column, false, mods);
             }
         }
         Some(on)
@@ -188,7 +192,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 held.crossed.push(at);
             }
             if self.source.enabled(at) && self.toggle_open(at, &sweep.column) && self.source.toggled(at, &sweep.column) != sweep.on {
-                self.emit_toggle(cx, at, &sweep.column, sweep.on);
+                self.emit_toggle(cx, at, &sweep.column, sweep.on, sweep.mods);
             }
         }
     }

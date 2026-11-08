@@ -1,4 +1,4 @@
-//! Display and status components: `Badge`, `Kbd`, `Progress`, `Spinner`, `Text`, `Icon` and `Divider`.
+//! Display and status components: `Badge`, `Kbd`, `Progress`, `Spinner`, `Text`, `Icon`, `Picture` and `Divider`.
 //!
 //! None of them takes input or a Tab stop. A tooltip, or a label no text paints, gives the root a hover sense so the
 //! tooltip can show.
@@ -7,6 +7,7 @@ mod badge;
 mod divider;
 mod icon;
 mod kbd;
+mod picture;
 mod progress;
 mod spinner;
 mod text;
@@ -16,6 +17,7 @@ pub use badge::{Badge, BadgeStyle};
 pub use divider::{Divider, DividerStyle};
 pub use icon::{Icon, IconStyle};
 pub use kbd::{Kbd, KbdStyle};
+pub use picture::{Picture, PictureSize, PictureStyle};
 pub use progress::{Progress, ProgressStyle};
 pub use spinner::{Spinner, SpinnerStyle};
 pub use text::{Elide, Shade, Text, TextStyle};

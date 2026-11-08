@@ -443,12 +443,13 @@ fn activation_of(ctx: &Context, ui: &Ui, rect: Rect, resolved: &Resolved<'_>, ke
     if !steps::takes_activation(resolved) {
         return None;
     }
+    let mods = crate::runtime::pointer::frame(ctx).mods;
     if keyed {
-        return Some(Activation { by_key: true });
+        return Some(Activation { by_key: true, mods });
     }
     let released = root_sense.contains(Sense::CLICK)
         && crate::runtime::overlay::released_inside(ctx, crate::runtime::egui::areas::layer_to_screen(ctx, ui.layer_id()) * rect);
-    (clicked || released).then_some(Activation { by_key: false })
+    (clicked || released).then_some(Activation { by_key: false, mods })
 }
 
 /// Steps 6 to 16 of the pass, run in the `Ui` the host gives.
