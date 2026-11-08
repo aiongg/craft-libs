@@ -3,13 +3,16 @@
 #[cfg(feature = "screen-testing")]
 mod stories;
 
-use craft_behavior::{EditEvent, Mixed};
+use craft_behavior::{ColumnWidth, EditEvent, Mixed};
 use craft_theme::Rgba;
 use craft_ui::contract::{Bind, Outcome, Pattern, Props as _, Show as _, ShowContainer as _};
-use craft_ui::layout_components::{Row, Stack};
+use craft_ui::layout_components::{Grid, Stack};
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::text::{NumberField, TextField};
 use egui::{Response, Ui};
+
+/// The hex field and the three channel fields share the room equally, so the row fits a narrow panel.
+const FIELDS: &[ColumnWidth] = &[ColumnWidth::fill(1.0); 4];
 
 /// The channels the fields edit, in field order.
 const CHANNELS: [ReadoutChannel; 3] = [ReadoutChannel::Red, ReadoutChannel::Green, ReadoutChannel::Blue];
@@ -123,7 +126,7 @@ impl<'a> ColorReadout<'a> {
             let held: Mixed<Rgba> = value.reborrow().read(&mut *body).unwrap_or(Mixed::Mixed);
             let mut events: Vec<EditEvent<Rgba>> = Vec::new();
             let mut channel_edit = None;
-            Row::new().show(ui, |ui, _| {
+            Grid::new(FIELDS).show(ui, |ui, _| {
                 events.extend(TextField::hex(words.hex.as_str().to_owned(), Bind::given(held)).show(ui).event);
                 let names = [&words.red, &words.green, &words.blue];
                 for (i, name) in names.into_iter().enumerate() {

@@ -72,8 +72,8 @@ impl<'a> SwatchPalette<'a> {
         let shown = Stack::new().show(ui, |ui, cx| {
             let before = held.read(cx)?;
             let selected = swatches.iter().position(|(_, c)| c.to_rgba() == before.to_rgba());
-            let current = selected.map_or_else(Selection::default, Selection::single);
-            let table = SwatchTable::new(label.clone(), swatches).tips(true).selection(Bind::given(current)).show_all(ui);
+            let mut current = selected.map_or_else(Selection::default, Selection::single);
+            let table = SwatchTable::new(label.clone(), swatches).tips(true).selection(Bind::bound(&mut current)).show_all(ui);
             let picked = table.selected.or(table.open)?;
             let after = swatches.get(picked)?.1;
             if after.to_rgba() == before.to_rgba() {

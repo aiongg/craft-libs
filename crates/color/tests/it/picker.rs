@@ -207,7 +207,11 @@ fn channels_whose_names_clash_are_qualified() {
 #[trial]
 fn the_full_grid_puts_the_models_in_columns() {
     let (fixture, _) = picker(Setup { cmyk: true, ..FULL }, PickedColor::rgb(Srgba::rgb(0.2, 0.5, 0.8)));
-    let x = |label: &str| fixture.by_label(label).unwrap_or_else(|| panic!("{label} shown")).rect.left();
+    let x = |label: &str| {
+        let tree = fixture.tree();
+        let field = tree.with_role(craft_ui::contract::Role::SPIN_BUTTON).into_iter().find(|key| tree.name_of(*key) == Some(label));
+        tree.bounds_of(field.unwrap_or_else(|| panic!("{label} field shown"))).expect("bounds").left()
+    };
     assert_eq!(x("HSB hue"), x("Red"), "HSB and RGB share the first column");
     assert!(x("Cyan") > x("Red"), "the host's model is in the next column");
     assert!(x("OKLCH hue") > x("Cyan"), "OKLCH is in the last column");
@@ -334,40 +338,4 @@ fn select_custom_color_requests_the_picker() {
     let (chosen, requests) = state.borrow().clone();
     assert_eq!(requests, 1, "the host gets one request");
     assert_eq!(chosen, ChosenColor::Named("black".into()), "the choice stays until the host answers");
-}
-
-#[trial]
-fn zz_diag_readout() {
-    use std::fmt::Write as _;
-    let color = Rc::new(RefCell::new(Rgba::rgb(0x33, 0x66, 0x99)));
-    let log = Rc::new(RefCell::new(String::new()));
-    let (shown, seen) = (color.clone(), log.clone());
-    let mut fixture = Fixture::new(move |ui| {
-        let mut value = *shown.borrow();
-        let out = ColorReadout::new("Color", Bind::bound(&mut value)).show(ui);
-        if out.event.is_some() {
-            let _ = writeln!(seen.borrow_mut(), "event {:?} value {:?}", out.event, value);
-        }
-        *shown.borrow_mut() = value;
-    });
-    fixture.room(vec2(480.0, 60.0));
-    fixture.settle();
-    let tree = fixture.tree();
-    for key in tree.keys() {
-        let _ = writeln!(log.borrow_mut(), "{:?} {:?} {:?}", tree.role_of(key), tree.name_of(key), tree.bounds_of(key));
-    }
-    type_into(&mut fixture, "Green", "200");
-    panic!("DIAG readout final {:?}\n{}", color.borrow(), log.borrow());
-}
-
-#[trial]
-fn zz_diag_grid() {
-    use std::fmt::Write as _;
-    let (fixture, _) = picker(Setup { cmyk: true, ..FULL }, PickedColor::rgb(Srgba::rgb(0.2, 0.5, 0.8)));
-    let tree = fixture.tree();
-    let mut out = String::new();
-    for key in tree.keys() {
-        let _ = writeln!(out, "{:?} {:?} {:?}", tree.role_of(key), tree.name_of(key), tree.bounds_of(key));
-    }
-    panic!("DIAG grid\n{out}");
 }
