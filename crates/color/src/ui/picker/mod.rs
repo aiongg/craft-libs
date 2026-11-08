@@ -10,15 +10,13 @@ mod screen_pick;
 mod stories;
 mod value;
 
-use std::cell::RefCell;
-use std::rc::Rc;
 use std::sync::Arc;
 
 use craft_behavior::{EditEvent, GestureId, Metrics, Mixed, Value};
 use craft_theme::{ColorModel, ModelValues, Srgba, builtin_models};
 use craft_ui::contract::{
-    Bind, BindMut, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, Outcome, PaintUi, Props as _, Remember as _, Role,
-    ShowContainer, Sizing,
+    Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, EditResponse, Outcome, Props as _, Remember as _, Role, ShowContainer,
+    Sizing,
 };
 use craft_ui::layout::BodyLayout;
 use craft_ui::runtime::env::Label;
@@ -102,8 +100,11 @@ pub enum ScreenPickGesture {
 #[non_exhaustive]
 #[must_use = "the host applies the edit event"]
 pub struct ColorPickerOutput {
-    /// The picker's edit.
-    pub edit: EditResponse<PickedColor>,
+    /// The picker's response.
+    pub response: Response,
+    /// The picker's edit of its colour in this pass, folded into one event with the whole colour as its value; `None`
+    /// when nothing was edited. A colour bound by reference has taken it; a given one needs the host to apply it.
+    pub event: Option<EditEvent<PickedColor>>,
     /// The screen-pick button's press this pass.
     pub screen_pick: Option<ScreenPickGesture>,
 }
@@ -112,12 +113,16 @@ impl Outcome for ColorPickerOutput {
     type Value = PickedColor;
 
     fn response(&self) -> &Response {
-        &self.edit.response
+        &self.response
     }
 
     #[cfg(feature = "screen-testing")]
     fn story_facts(&self) -> craft_ui::testing::StoryOutput {
-        self.edit.story_facts()
+        let mut facts = craft_ui::testing::StoryOutput::default();
+        facts.id = Some(self.response.id);
+        facts.clicked = craft_ui::contract::clicked(&self.response);
+        facts.edits = self.event.iter().filter_map(craft_ui::testing::EditKind::of).collect();
+        facts
     }
 }
 
@@ -169,25 +174,16 @@ struct Memo {
     mode: AreaMode,
     /// The Full layout has taken the focus for the hex field.
     opened: bool,
-    /// What the children reported last pass, applied by the next `update` (before the pass applies values).
-    pending: Pending,
+    /// The running gesture of a child and the colour when it began, for the `before` of its end.
+    gesture: Option<(GestureId, PickedColor)>,
 }
 
-/// What the children of one pass asked for that is not an edit of theirs.
-#[derive(Clone, Default)]
-struct Pending {
-    /// Colours the compare swatch and the warning chips set.
-    clicks: Vec<Srgba>,
-    /// The mode the "Field shows" group picked.
-    mode: Option<AreaMode>,
-    /// The Only Web Colors check box was set to this.
-    web: Option<bool>,
-}
-
-/// What the children reported in this pass, for `finish`.
+/// What the children of one pass reported.
 #[derive(Default)]
-struct Events {
-    /// Colours the compare swatch's current half and the warning chips set.
+struct Collected {
+    /// The children's edits as edits of the colour shown, in the order they were made.
+    edits: Vec<EditEvent<PickedColor>>,
+    /// Colours the compare swatch and the warning chips set.
     clicks: Vec<Srgba>,
     screen_pick: Option<ScreenPickGesture>,
     model_pick: Option<&'static str>,
@@ -197,7 +193,30 @@ struct Events {
     web_pick: Option<bool>,
 }
 
-/// What `update` settled for the body: the colour shown and the rules its edits go through.
+impl Collected {
+    /// Adopts `edit` of a child as an edit of the picker's colour: `map` applies the child's value to a copy of `shown`,
+    /// the colour the pass showed.
+    fn adopt<V: Value>(&mut self, edit: EditResponse<V>, shown: PickedColor, map: impl FnOnce(&V, &mut PickedColor)) {
+        let Some(event) = edit.event.as_ref() else { return };
+        let before = Mixed::Same(shown);
+        let made = |value: &V| {
+            let mut colour = shown;
+            map(value, &mut colour);
+            colour
+        };
+        let adopted = match event {
+            EditEvent::Begin { id, label, doc_key, .. } => EditEvent::begin(*id, before, label.clone(), *doc_key),
+            EditEvent::Update { id, value, .. } => EditEvent::update(*id, made(value)),
+            EditEvent::Commit { id, after, .. } => EditEvent::commit(*id, before, made(after)),
+            EditEvent::Cancel { id, reason, .. } => EditEvent::cancel(*id, *reason, Some(before)),
+            EditEvent::Set { id, after, label, doc_key, .. } => EditEvent::set(*id, before, made(after), label.clone(), *doc_key),
+            _ => return,
+        };
+        self.edits.push(adopted);
+    }
+}
+
+/// What the body settled before it showed its children: the colour shown and the rules its edits go through.
 #[derive(Clone)]
 struct Pass<'a> {
     shown: PickedColor,
@@ -209,34 +228,6 @@ struct Pass<'a> {
     web: bool,
     /// Whether the hex field takes the focus in this pass: the Full layout's first show.
     focus_hex: bool,
-}
-
-/// A child's edit, ready to be adopted as the picker's own once `paint_over` has the picker's context.
-type Adopt<'a> = Box<dyn FnOnce(&Cx<'_, PickerFrame<'a>>) + 'a>;
-
-/// What the container and its body closure share within one `show`: the container's `update` fills the pass, the
-/// body reads it and leaves what the children reported.
-#[derive(Default)]
-struct Shared<'a> {
-    pass: RefCell<Option<Pass<'a>>>,
-    adopts: RefCell<Vec<Adopt<'a>>>,
-    events: RefCell<Events>,
-}
-
-impl<'a> Shared<'a> {
-    /// The pass `update` settled; `None` when no pass ran `update`.
-    fn pass(&self) -> Option<Pass<'a>> {
-        self.pass.borrow().clone()
-    }
-
-    /// Adopts `edit` of a child as an edit of the picker's colour, `map` applying it to the colour shown.
-    fn adopt<V: Value>(&self, edit: EditResponse<V>, shown: PickedColor, map: impl FnOnce(&V, &mut PickedColor) + 'a) {
-        self.adopts.borrow_mut().push(Box::new(move |cx| cx.adopt(&edit, &shown, map)));
-    }
-
-    fn events(&self) -> std::cell::RefMut<'_, Events> {
-        self.events.borrow_mut()
-    }
 }
 
 /// A colour picker's body: a [`ColorArea`](super::ColorArea) and a [`ColorStrip`](super::ColorStrip), the channel
@@ -372,11 +363,11 @@ impl<'a> ColorPicker<'a> {
     pub fn show(self, ui: &mut Ui) -> ColorPickerOutput {
         let ColorPicker {
             label,
-            value,
+            mut value,
             layout,
             models,
-            mode,
-            web_colors,
+            mut mode,
+            mut web_colors,
             alpha,
             dynamic_tracks,
             eyedropper,
@@ -390,8 +381,7 @@ impl<'a> ColorPicker<'a> {
         let full = layout == ColorPickerLayout::Full;
         let models: Vec<&'a dyn ColorModel> = models
             .unwrap_or_else(|| builtin_models().into_iter().filter(|m| if full { m.default_on().full } else { m.default_on().compact }).collect());
-        let shared = Rc::new(Shared::default());
-        let body = compact::Body {
+        let parts = compact::Body {
             layout,
             models: models.clone(),
             warnings,
@@ -401,54 +391,185 @@ impl<'a> ColorPicker<'a> {
             eyedropper,
             eyedropper_busy,
             has_web_check: web_colors.is_some(),
-            shared: Rc::clone(&shared),
         };
-        let frame = PickerFrame {
-            common: Common::new(),
-            props: ContainerProps::new().sizing(Sizing::Content).layout(BodyLayout::stack()),
-            value,
-            layout,
-            models,
-            mode,
-            web_colors,
+        let mut run = Run {
+            ctx: ui.ctx().clone(),
+            name: Arc::from(label.as_str()),
+            full,
+            models: &models,
+            value: value.reborrow(),
+            mode: mode.as_mut().map(|held| held.reborrow()),
+            web: web_colors.as_mut().map(|held| held.reborrow()),
             constrain,
             sampled,
             focus_on_open,
-            rules: Rules { web: false, constrain: None },
-            shared,
-        }
-        .label(label);
-        ShowContainer::show(frame, ui, move |ui, _| body.run(ui)).output
+            parts: &parts,
+            latest: PickedColor::rgb(Srgba::BLACK),
+            events: Vec::new(),
+        };
+        let shown = PickerFrame::new().label(label).show(ui, |ui, body| run.show(ui, body));
+        let (event, screen_pick) = shown.inner.unwrap_or((None, None));
+        ColorPickerOutput { response: shown.output, event, screen_pick }
     }
 }
 
-/// The container behind [`ColorPicker`]: it holds the colour, runs the pass's rules and adopts the children's edits.
+/// One pass of the picker: its body settles the rules, shows the children and applies each child's output to the
+/// bound colour in the same pass.
+struct Run<'s, 'a> {
+    ctx: egui::Context,
+    /// The picker's name, the label of the edits it makes itself.
+    name: Arc<str>,
+    full: bool,
+    models: &'s [&'a dyn ColorModel],
+    value: BindMut<'s, PickedColor>,
+    mode: Option<BindMut<'s, AreaMode>>,
+    web: Option<BindMut<'s, bool>>,
+    constrain: Option<ColorConstraint<'a>>,
+    sampled: Option<Srgba>,
+    focus_on_open: bool,
+    parts: &'s compact::Body<'a>,
+    /// The colour after the edits landed so far.
+    latest: PickedColor,
+    /// The edits landed, in order.
+    events: Vec<EditEvent<PickedColor>>,
+}
+
+impl<'a> Run<'_, 'a> {
+    fn show(&mut self, ui: &mut Ui, body: &mut BodyCx<'_>) -> (Option<EditEvent<PickedColor>>, Option<ScreenPickGesture>) {
+        let memo = body.memory::<Memo>().clone();
+        let held_mode = self.mode.as_ref().and_then(|held| held.read(&mut *body)).and_then(|held| held.same().copied());
+        let mut mode = held_mode.unwrap_or(memo.mode);
+        let held_web = self.web.as_ref().and_then(|held| held.read(&mut *body)).and_then(|held| held.same().copied()).unwrap_or(false);
+        let rules = Rules { web: held_web, constrain: self.constrain.clone() };
+
+        // The Full layout shows a mode its models offer.
+        if self.full {
+            let offered = ColorPicker::offered(self.models);
+            let wanted = offered.first().copied().filter(|first| !offered.contains(&mode) && *first != mode);
+            if let Some(next) = wanted {
+                self.write_mode(body, mode, next);
+                mode = next;
+            }
+        }
+
+        let first_show = !memo.opened;
+        let model = memo.model.filter(|id| self.models.iter().any(|m| m.id() == *id)).or_else(|| self.models.first().map(|m| m.id()));
+        {
+            let memo = body.memory::<Memo>();
+            memo.mode = mode;
+            memo.model = model;
+            memo.opened = true;
+        }
+        let focus_hex = self.full && self.focus_on_open && first_show && body.resolved.enabled;
+        self.latest = self.value.read(&mut *body).and_then(|held| held.same().copied()).unwrap_or(PickedColor::rgb(Srgba::BLACK));
+        if let Some(color) = self.sampled {
+            let next = self.latest.with_color(color.with_alpha(self.latest.color.a), &rules);
+            self.set(body, next);
+        }
+
+        let pass = Pass { shown: self.latest, rules: rules.clone(), mode, model, web: held_web, focus_hex };
+        let mut got = Collected::default();
+        self.parts.run(ui, &pass, &mut got);
+
+        for edit in got.edits {
+            self.land(body, edit);
+        }
+        for color in got.clicks {
+            let next = self.latest.with_color(color, &rules);
+            self.set(body, next);
+        }
+        if let Some(next) = got.mode_pick.filter(|next| *next != mode) {
+            self.write_mode(body, mode, next);
+            body.memory::<Memo>().mode = next;
+        }
+        if let Some(on) = got.web_pick.filter(|on| *on != held_web) {
+            if let Some(held) = self.web.as_mut() {
+                let event = EditEvent::set(GestureId::default(), Mixed::Same(held_web), on, Arc::from("Only Web Colors"), None);
+                let _ = held.write(&mut *body, &event);
+            }
+            if on {
+                let snapped_rules = Rules { web: true, constrain: self.constrain.clone() };
+                let snapped = snapped_rules.apply(self.latest.color);
+                if !snapped.same_rgb8(self.latest.color) {
+                    let next = self.latest.with_color(snapped, &snapped_rules);
+                    self.set(body, next);
+                }
+            }
+        }
+        if let Some(model) = got.model_pick {
+            body.memory::<Memo>().model = Some(model);
+        }
+        (std::mem::take(&mut self.events).into_iter().fold(None, EditEvent::fold), got.screen_pick)
+    }
+
+    /// Lands `event`, an edit of the colour: a gesture's end takes the colour it began from, the binding takes the
+    /// event, and the pass reports it.
+    fn land(&mut self, body: &mut BodyCx<'_>, mut event: EditEvent<PickedColor>) {
+        match &mut event {
+            EditEvent::Begin { id, before: Mixed::Same(start), .. } => body.memory::<Memo>().gesture = Some((*id, *start)),
+            EditEvent::Commit { id, before, .. } => {
+                if let Some((_, start)) = body.memory::<Memo>().gesture.take().filter(|(running, _)| running == id) {
+                    *before = Mixed::Same(start);
+                }
+            }
+            EditEvent::Cancel { id, before, .. } => {
+                if let Some((_, start)) = body.memory::<Memo>().gesture.take().filter(|(running, _)| running == id) {
+                    *before = Some(Mixed::Same(start));
+                }
+            }
+            _ => {}
+        }
+        match &event {
+            EditEvent::Update { value, .. } | EditEvent::Commit { after: value, .. } | EditEvent::Set { after: value, .. } => self.latest = *value,
+            EditEvent::Cancel { before: Some(Mixed::Same(start)), .. } => self.latest = *start,
+            _ => {}
+        }
+        let _ = self.value.write(&mut *body, &event);
+        self.events.push(event);
+    }
+
+    /// A one-shot change of the colour to `next`.
+    fn set(&mut self, body: &mut BodyCx<'_>, next: PickedColor) {
+        if next == self.latest {
+            return;
+        }
+        let id = craft_ui::runtime::edit::next_gesture_id(&self.ctx);
+        let event = EditEvent::set(id, Mixed::Same(self.latest), next, self.name.clone(), None);
+        self.land(body, event);
+    }
+
+    /// Sets the mode the host holds, if it holds one.
+    fn write_mode(&mut self, body: &mut BodyCx<'_>, from: AreaMode, to: AreaMode) {
+        if let Some(held) = self.mode.as_mut() {
+            let event = EditEvent::set(GestureId::default(), Mixed::Same(from), to, Arc::from("Field shows"), None);
+            let _ = held.write(&mut *body, &event);
+        }
+    }
+}
+
+/// The container behind [`ColorPicker`]: the group the picker's parts sit in.
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
 #[component(container)]
-struct PickerFrame<'a> {
+struct PickerFrame {
     #[common]
     common: Common,
     #[container]
     props: ContainerProps,
-    value: Bind<'a, PickedColor>,
-    layout: ColorPickerLayout,
-    models: Vec<&'a dyn ColorModel>,
-    mode: Option<Bind<'a, AreaMode>>,
-    web_colors: Option<Bind<'a, bool>>,
-    constrain: Option<ColorConstraint<'a>>,
-    sampled: Option<Srgba>,
-    focus_on_open: bool,
-    rules: Rules<'a>,
-    shared: Rc<Shared<'a>>,
 }
 
-impl<'a> Component for PickerFrame<'a> {
+impl PickerFrame {
+    fn new() -> Self {
+        PickerFrame { common: Common::new(), props: ContainerProps::new().sizing(Sizing::Content).layout(BodyLayout::stack()) }
+    }
+}
+
+impl Component for PickerFrame {
     const ROLE: Role = Role::GROUP;
     const PARTS: bool = false;
     const STOPS: bool = false;
     const OVERLAYS: bool = false;
     type Style = ColorPickerStyle;
-    type Output = ColorPickerOutput;
+    type Output = Response;
 
     fn style(_: &StyleCx<'_>, _: PickerFrameStyleKey) -> ColorPickerStyle {
         ColorPickerStyle::default()
@@ -458,96 +579,9 @@ impl<'a> Component for PickerFrame<'a> {
         craft_behavior::Sense::empty()
     }
 
-    fn bind(&mut self) -> Option<BindMut<'_, PickedColor>> {
-        Some(self.value.reborrow())
-    }
-
-    fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        let full = self.layout == ColorPickerLayout::Full;
-        let models = self.models.clone();
-        let pending = std::mem::take(&mut cx.memory::<Memo>().pending);
-        let memo = cx.memory::<Memo>().clone();
-        let held_mode = self.mode.as_mut().and_then(|mode| mode.reborrow().read(&mut *cx)).and_then(|mode| mode.same().copied());
-        let mut mode = held_mode.unwrap_or(memo.mode);
-        if let Some(next) = pending.mode.filter(|next| *next != mode) {
-            self.write_mode(cx, mode, next);
-            mode = next;
-        }
-        let held_web = self.web_colors.as_mut().and_then(|web| web.reborrow().read(&mut *cx)).and_then(|web| web.same().copied()).unwrap_or(false);
-        let mut web = held_web;
-        if let Some(on) = pending.web.filter(|on| *on != web) {
-            if let Some(held) = self.web_colors.as_mut() {
-                let event = EditEvent::set(GestureId::default(), Mixed::Same(web), on, Arc::from("Only Web Colors"), None);
-                let _ = held.reborrow().write(&mut *cx, &event);
-            }
-            web = on;
-        }
-        self.rules = Rules { web, constrain: self.constrain.clone() };
-
-        // The Full layout shows a mode its models offer.
-        if full {
-            let offered = ColorPicker::offered(&models);
-            let wanted = offered.first().copied().filter(|first| !offered.contains(&mode) && *first != mode);
-            if let Some(next) = wanted {
-                self.write_mode(cx, mode, next);
-                mode = next;
-            }
-        }
-
-        let first_show = !memo.opened;
-        let model = memo.model.filter(|id| models.iter().any(|m| m.id() == *id)).or_else(|| models.first().map(|m| m.id()));
-        {
-            let memo = cx.memory::<Memo>();
-            memo.mode = mode;
-            memo.model = model;
-            memo.opened = true;
-        }
-        let focus_hex = full && self.focus_on_open && first_show && cx.resolved.enabled;
-        let mut now = cx.value().copied().unwrap_or(PickedColor::rgb(Srgba::BLACK));
-        for color in &pending.clicks {
-            now = now.with_color(*color, &self.rules);
-            cx.set(now);
-        }
-        if pending.web == Some(true) {
-            let snapped = self.rules.apply(now.color);
-            if !snapped.same_rgb8(now.color) {
-                now = now.with_color(snapped, &self.rules);
-                cx.set(now);
-            }
-        }
-        if let Some(color) = self.sampled {
-            cx.set(now.with_color(color.with_alpha(now.color.a), &self.rules));
-        }
-        let shown = cx.value().copied().unwrap_or(PickedColor::rgb(Srgba::BLACK));
-        *self.shared.pass.borrow_mut() = Some(Pass { shown, rules: self.rules.clone(), mode, model, web, focus_hex });
-    }
-
-    /// The children's edits become the picker's: each maps onto the colour shown, as one gesture.
-    fn paint_over(&mut self, _ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        for adopt in self.shared.adopts.take() {
-            adopt(cx);
-        }
-    }
-
-    fn finish(self, mut cx: Cx<'_, Self>) -> ColorPickerOutput {
-        let events = self.shared.events.take();
-        let memo = cx.memory::<Memo>();
-        if let Some(model) = events.model_pick {
-            memo.model = Some(model);
-        }
-        memo.pending = Pending { clicks: events.clicks, mode: events.mode_pick, web: events.web_pick };
-        ColorPickerOutput { edit: cx.edit_response(), screen_pick: events.screen_pick }
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
     }
 }
 
-impl PickerFrame<'_> {
-    /// Sets the mode the host holds, if it holds one.
-    fn write_mode(&mut self, cx: &mut Cx<'_, Self>, from: AreaMode, to: AreaMode) {
-        if let Some(held) = self.mode.as_mut() {
-            let event = EditEvent::set(GestureId::default(), Mixed::Same(from), to, Arc::from("Field shows"), None);
-            let _ = held.reborrow().write(&mut *cx, &event);
-        }
-    }
-}
-
-impl Container for PickerFrame<'_> {}
+impl Container for PickerFrame {}

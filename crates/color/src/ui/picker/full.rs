@@ -4,8 +4,7 @@ use craft_behavior::{ColumnWidth, IconId, Metrics, NavShape, Sense};
 use craft_theme::{ColorModel, HsbModel, OklchModel, RgbModel, Srgba};
 use craft_ui::choice::{Checkbox, Radio, RadioGroup, Swatch};
 use craft_ui::contract::{
-    Bind, Common, Component, Cx, FieldLayout, GlyphLabel, LabelKind, MeasureCx, Outcome, PaintUi, Props as _, Role, Show as _, ShowContainer as _,
-    SideLabel,
+    Bind, Common, Component, Cx, GlyphLabel, LabelKind, MeasureCx, Outcome, PaintUi, Props as _, Role, Show as _, ShowContainer as _, SideLabel,
 };
 use craft_ui::display::{Icon, Shade, Text};
 use craft_ui::form::{Field, FieldGroup};
@@ -18,7 +17,7 @@ use egui::{Rect, Response, Ui, Vec2};
 
 use super::channel::{ChannelRule, ChannelUnit, channel_name};
 use super::compact::Body;
-use super::{ColorPicker, ColorPickerWords, Pass};
+use super::{Collected, ColorPicker, ColorPickerWords, Pass};
 use crate::ui::AreaMode;
 
 /// A warning the host shows beside the Full picker's compare swatch, as the out-of-gamut and web-colour warnings of
@@ -156,52 +155,51 @@ fn column_of(model: &dyn ColorModel) -> usize {
 impl<'a> Body<'a> {
     /// The Color Picker dialog: the area and strip over the check box, the opacity row and the screen-pick button;
     /// beside them the compare swatch and the warnings over the channel grid, where radios choose what the area shows.
-    pub(super) fn full(&self, ui: &mut Ui, pass: &Pass<'a>) {
+    pub(super) fn full(&self, ui: &mut Ui, pass: &Pass<'a>, got: &mut Collected) {
         let words = Env::of(ui).words::<ColorPickerWords>();
         let visible: Vec<&dyn ColorModel> = self.models.iter().copied().chain([pass.mode.model()]).collect();
         Grid::new(HALVES).show(ui, |ui, _| {
             Stack::new().show(ui, |ui, _| {
-                self.area_and_strip(ui, pass, &visible);
+                self.area_and_strip(ui, pass, &visible, got);
                 if self.has_web_check {
-                    let check = Field::new(words.only_web_colors.as_str().to_owned()).layout(FieldLayout::After);
-                    let shown = check.show(ui, |ui, _| Checkbox::new(Bind::given(pass.web)).show(ui)).inner;
-                    if let Some(on) = shown.and_then(|edit| edit.event).and_then(|event| event.value().copied()) {
-                        self.shared.events().web_pick = Some(on);
+                    let check = Checkbox::new(Bind::given(pass.web)).label(words.only_web_colors.as_str().to_owned()).show(ui);
+                    if let Some(on) = check.value() {
+                        got.web_pick = Some(*on);
                     }
                 }
-                self.alpha_row(ui, pass, &words);
-                self.sample_button(ui, &words);
+                self.alpha_row(ui, pass, &words, got);
+                self.sample_button(ui, &words, got);
             });
             Stack::new().show(ui, |ui, _| {
                 if self.compare.is_some() || !self.warnings.is_empty() {
                     Row::new().show(ui, |ui, _| {
                         if let Some(current) = self.compare {
-                            self.compare_swatch(ui, pass, current, &words);
+                            self.compare_swatch(ui, pass, current, &words, got);
                         }
                         Stack::new().show(ui, |ui, _| {
                             for warning in &self.warnings {
                                 if ColorWarningChip::new(warning).show(ui).clicked {
-                                    self.shared.events().clicks.push(warning.nearest);
+                                    got.clicks.push(warning.nearest);
                                 }
                             }
                         });
                     });
                 }
-                self.grid(ui, pass, &visible, &words);
+                self.grid(ui, pass, &visible, &words, got);
             });
         });
     }
 
     /// The compare swatch: the colour being edited over the current one, with their captions; a click on the current
     /// half sets it.
-    fn compare_swatch(&self, ui: &mut Ui, pass: &Pass<'a>, current: Srgba, words: &ColorPickerWords) {
+    fn compare_swatch(&self, ui: &mut Ui, pass: &Pass<'a>, current: Srgba, words: &ColorPickerWords, got: &mut Collected) {
         let caption = |text: &str| Text::new(text.to_owned()).role(TypeRole::Caption).shade(Shade::Muted);
         Stack::new().show(ui, |ui, _| {
             caption(words.new_caption.as_str()).show(ui);
             Swatch::new(words.new_color.as_str().to_owned(), pass.shown.color).fill().show(ui);
             let restore = words.restore.as_str().to_owned();
             if Swatch::new(restore.clone(), current).tooltip(restore).fill().show(ui).clicked {
-                self.shared.events().clicks.push(current);
+                got.clicks.push(current);
             }
             caption(words.current_caption.as_str()).show(ui);
         });
@@ -209,7 +207,7 @@ impl<'a> Body<'a> {
 
     /// The channel grid: one column of fields per group of models, each column sharing its label column, with the
     /// radios of "Field shows" in front of the channels that choose an area mode, and the hex field under the first.
-    fn grid(&self, ui: &mut Ui, pass: &Pass<'a>, visible: &[&dyn ColorModel], words: &ColorPickerWords) {
+    fn grid(&self, ui: &mut Ui, pass: &Pass<'a>, visible: &[&dyn ColorModel], words: &ColorPickerWords, got: &mut Collected) {
         let offered = ColorPicker::offered(&self.models);
         let group = RadioGroup::new(words.field_shows.as_str().to_owned(), Bind::given(pass.mode)).nav(NavShape::Spatial);
         let picked = group
@@ -229,11 +227,11 @@ impl<'a> Body<'a> {
                     for (column, models) in columns.iter().enumerate() {
                         FieldGroup::new(words.channels.as_str().to_owned()).show(ui, |ui, _| {
                             for model in models {
-                                self.model_fields(ui, pass, *model, visible, &offered, words);
+                                self.model_fields(ui, pass, *model, visible, &offered, words, got);
                             }
                             if column == 0 {
                                 let label = SideLabel::new().kind(LabelKind::Glyph(GlyphLabel::text("#")));
-                                Field::new(words.hex.as_str().to_owned()).side(label).show(ui, |ui, _| self.hex_field(ui, pass, words));
+                                Field::new(words.hex.as_str().to_owned()).side(label).show(ui, |ui, _| self.hex_field(ui, pass, words, got));
                             }
                         });
                     }
@@ -241,7 +239,7 @@ impl<'a> Body<'a> {
             })
             .output;
         if let Some(mode) = picked.event.as_ref().and_then(|event| event.value()) {
-            self.shared.events().mode_pick = Some(*mode);
+            got.mode_pick = Some(*mode);
         }
     }
 
@@ -254,6 +252,7 @@ impl<'a> Body<'a> {
         visible: &[&dyn ColorModel],
         offered: &[AreaMode],
         words: &ColorPickerWords,
+        got: &mut Collected,
     ) {
         let values = pass.shown.values_in(model);
         for (i, channel) in model.channels().iter().enumerate() {
@@ -291,10 +290,9 @@ impl<'a> Body<'a> {
                 .inner
                 .flatten();
             if let Some(edit) = edit {
-                let rules = pass.rules.clone();
-                self.shared.adopt(edit, pass.shown, move |v, mine| {
+                got.adopt(edit, pass.shown, |v, mine| {
                     if let Some(v) = v {
-                        *mine = mine.with_channel(model, i, *v, &rules);
+                        *mine = mine.with_channel(model, i, *v, &pass.rules);
                     }
                 });
             }

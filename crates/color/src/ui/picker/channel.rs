@@ -5,13 +5,13 @@ use std::ops::RangeInclusive;
 
 use craft_behavior::Axis;
 use craft_theme::{Channel, ColorModel, Srgba};
-use craft_ui::contract::{Bind, Common, Component, Cx, EditResponse, Role, Show as _, ShowContainer as _, SideLabel};
+use craft_ui::contract::{Bind, Common, Component, Cx, EditResponse, MeasureCx, Role, Show as _, ShowContainer as _, SideLabel};
 use craft_ui::form::{Field, SliderField};
 use craft_ui::primitives::{PaintShape, StrokeWidth};
 use craft_ui::runtime::env::{Label, UnitKind};
 use craft_ui::style::{ComponentStyle, DataColor, StyleColor, StyleCx};
 use craft_ui::value_drag::TrackFace;
-use egui::{Color32, CornerRadius, Ui};
+use egui::{Color32, CornerRadius, Ui, Vec2};
 
 /// How a channel's value steps and settles: a channel's or the alpha's.
 #[derive(Clone, Debug, PartialEq)]
@@ -66,6 +66,9 @@ pub struct TrackRampStyle {
     #[style(metrics)]
     metrics: craft_behavior::Metrics,
     edge: StyleColor,
+    /// The ramp's own size when nothing sets it: a value track's length and groove.
+    length: f32,
+    thickness: f32,
 }
 
 /// The look of a slider's track that shows colours: stops spread evenly from the start to the end, over the
@@ -94,7 +97,16 @@ impl Component for TrackRamp {
     type Output = egui::Response;
 
     fn style(cx: &StyleCx<'_>, _: TrackRampStyleKey) -> TrackRampStyle {
-        TrackRampStyle { metrics: craft_behavior::Metrics::new(), edge: cx.color(cx.tokens.color.line.control_edge) }
+        TrackRampStyle {
+            metrics: craft_behavior::Metrics::new(),
+            edge: cx.color(cx.tokens.color.line.control_edge),
+            length: cx.tokens.size.length.track,
+            thickness: cx.tokens.size.groove,
+        }
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(cx.style.length, cx.style.thickness)
     }
 
     fn paint(&mut self, ui: &mut craft_ui::contract::PaintUi<'_>, cx: &Cx<'_, Self>) {

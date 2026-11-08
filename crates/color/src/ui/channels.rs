@@ -46,11 +46,6 @@ pub(crate) fn snapped(color: Srgba, levels: usize) -> Srgba {
     Srgba::new(snap(color.r), snap(color.g), snap(color.b), color.a)
 }
 
-/// The nearest web colour.
-pub(crate) fn web_color(color: Srgba) -> Srgba {
-    snapped(color, WEB_LEVELS)
-}
-
 /// A component as a screen reader reads it: "Saturation 40 %", "Hue 120°", "Lightness 50".
 pub(crate) fn spoken(name: &str, model: &dyn ColorModel, channel: usize, value: f32) -> String {
     let ch = model.channels()[channel];

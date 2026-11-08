@@ -101,7 +101,7 @@ fn color_warning_chip(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 }
 
 /// The container behind `ColorPicker`, shown through the picker.
-#[story(PickerFrame<'static>, covers = [], drive = Drive::Never)]
+#[story(PickerFrame, covers = [Default], drive = Drive::Never)]
 fn picker_frame(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let color = data.value("color", start());
     ColorPicker::new("Foreground color", Bind::bound(color)).show(ui).into()

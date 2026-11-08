@@ -99,7 +99,7 @@ fn picker(setup: Setup, start: PickedColor) -> (Fixture, Rc<RefCell<Host>>) {
             picker = picker.warnings([ColorWarning::new("Out of gamut for printing", nearest)]);
         }
         let out = picker.show(ui);
-        host.reported += usize::from(out.edit.event.is_some());
+        host.reported += usize::from(out.event.is_some());
         host.value = value;
         host.web = web;
     });
