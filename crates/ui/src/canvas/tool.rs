@@ -216,9 +216,11 @@ pub struct ToolContext<'a> {
     /// The press arena's slop, in screen points: the least movement that makes a press a drag, and the least size a
     /// drawn rectangle has to count. 0 for a context built without one.
     pub slop: f32,
+    /// Whether Caps Lock is on now (a brush shows its precise cursor): the platform's toggle state, read once per
+    /// pass, not a count of key presses.
+    pub caps_lock: bool,
     space: Option<CanvasSpace>,
     down: &'a [Key],
-    caps_lock: bool,
     painter: Option<&'a ContentPainterCx<'a>>,
     style: Option<StyleCx<'a>>,
     env: Option<&'a Env>,
@@ -277,7 +279,7 @@ impl<'a> ToolContext<'a> {
 
     /// Whether Caps Lock is on now.
     #[must_use]
-    pub fn caps(mut self, on: bool) -> Self {
+    pub fn caps_lock(mut self, on: bool) -> Self {
         self.caps_lock = on;
         self
     }
@@ -405,12 +407,6 @@ impl<'a> ToolContext<'a> {
     /// runs, so a momentary Hand does not take over mid-drag.
     pub fn held(&self, key: Key) -> bool {
         self.down.contains(&key)
-    }
-
-    /// Whether Caps Lock is on now (a brush shows its precise cursor): the platform's toggle state, read once per
-    /// pass, not a count of key presses.
-    pub fn caps_lock(&self) -> bool {
-        self.caps_lock
     }
 
     /// Labelled values to show beside the pointer this pass (a marquee's W and H). The last request of a pass wins.

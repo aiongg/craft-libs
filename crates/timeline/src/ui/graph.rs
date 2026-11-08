@@ -432,8 +432,7 @@ pub struct GraphEditorStyle {
     section_gap: f32,
     /// Between the plot's edge and a value label.
     pad: f32,
-    /// The reference graph's line width and dashes.
-    line: f32,
+    /// The reference graph's dashes.
     dash: f32,
     dash_gap: f32,
 }
@@ -655,7 +654,6 @@ impl Component for GraphEditor<'_> {
             gap: tokens.space.gap.inline,
             section_gap: tokens.space.gap.section,
             pad: tokens.space.gap.inline,
-            line: tokens.stroke.medium,
             dash: tokens.stroke.dash,
             dash_gap: tokens.stroke.dash_gap,
         }
@@ -940,7 +938,7 @@ impl Component for GraphEditor<'_> {
                     .iter()
                     .map(|&(time, value)| Pos2::new(x_of(time), plot.bottom() - ((value - low) / span) as f32 * (plot.height() - 2.0 * free) - free))
                     .collect();
-                painter.dashed(&points, style.line, Dashes::new(style.dash, style.dash_gap), ink);
+                painter.dashed(&points, Dashes::new(style.dash, style.dash_gap), StrokeWidth::Medium, ink);
             }
         }
 
