@@ -70,7 +70,7 @@ pub struct TrackRampStyle {
 
 /// The look of a slider's track that shows colours: stops spread evenly from the start to the end, over the
 /// transparency checkerboard where `checker` is set.
-#[derive(Clone, crate::contract::Component)]
+#[derive(Clone, craft_ui::contract::Component)]
 #[component(content_painter)]
 pub(crate) struct TrackRamp {
     #[common]
@@ -167,6 +167,7 @@ impl<'a> ChannelRow<'a> {
     pub(crate) fn show(self, ui: &mut Ui) -> Option<EditResponse<f64>> {
         let ChannelRow { label, value, rule, track, unit } = self;
         let slider = channel_slider(label.clone(), value, &rule, unit, track.map(|stops| (stops, false)));
-        Field::new(label).side(SideLabel::new().scrub(true)).show(ui, |ui, _| slider.show(ui)).inner
+        let mut slider = Some(slider);
+        Field::new(label).side(SideLabel::new().scrub(true)).show(ui, |ui, _| slider.take().map(|slider| slider.show(ui))).inner.flatten()
     }
 }

@@ -58,6 +58,7 @@ craft_ui::words! {
 
 /// A document's colour mode, as the prompts word it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ProfileMode {
     #[allow(missing_docs)]
     Rgb,
@@ -99,6 +100,7 @@ impl MonitorProblem {
 /// profile), "Invalid RGB profile" (one that does not parse or link), "Unnamed RGB profile" (no
 /// description), else the profile's description.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ProfileStatus {
     /// The document has no profile.
     Untagged,
@@ -134,8 +136,10 @@ impl ProfileStatus {
 
 /// What the file asks.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ProfileQuestion {
     /// The embedded profile differs from the working space; both names shown.
+    #[non_exhaustive]
     Mismatch {
         /// The name of the profile embedded in the file.
         embedded: String,
@@ -143,14 +147,28 @@ pub enum ProfileQuestion {
         working: String,
     },
     /// The file has no profile.
+    #[non_exhaustive]
     Missing {
         /// The name of the working space.
         working: String,
     },
 }
 
+impl ProfileQuestion {
+    /// The embedded profile `embedded` differs from the working space `working`.
+    pub fn mismatch(embedded: impl Into<String>, working: impl Into<String>) -> Self {
+        ProfileQuestion::Mismatch { embedded: embedded.into(), working: working.into() }
+    }
+
+    /// The file has no profile; `working` is the working space.
+    pub fn missing(working: impl Into<String>) -> Self {
+        ProfileQuestion::Missing { working: working.into() }
+    }
+}
+
 /// The user's choice.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ProfileAction {
     /// Mismatch: keep the embedded profile.
     UseEmbedded,
@@ -167,6 +185,7 @@ pub enum ProfileAction {
 /// The answer to a [`ProfileMismatchDialog`]: the action, and whether to remember it for this
 /// mode (the app sets its policy and turns Ask On Mismatch off).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ProfileAnswer {
     /// What the user chose.
     pub action: ProfileAction,
@@ -272,7 +291,7 @@ impl StackDialog for ProfileMismatchDialog {
             .answers(answers)
             .extras(move |ui| {
                 RadioGroup::new(group_label, Bind::bound(held)).show(ui, |ui, _| {
-                    for (value, text) in choices {
+                    for (value, text) in choices.iter().cloned() {
                         Radio::new(value).label(text).show(ui);
                     }
                 });

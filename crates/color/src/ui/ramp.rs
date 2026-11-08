@@ -481,8 +481,8 @@ impl Component for ColorRamp<'_> {
             let half = boxes.center().y;
             let white = Rect::from_min_max(boxes.min, pos2(boxes.right(), half));
             let black = Rect::from_min_max(pos2(boxes.left(), half), boxes.max);
-            draw.data_fill(&PaintShape::Rect(white, CornerRadius::ZERO), DataColor::new(Color32::WHITE));
-            draw.data_fill(&PaintShape::Rect(black, CornerRadius::ZERO), DataColor::new(Color32::BLACK));
+            draw.data_fill(&PaintShape::Rect(white, CornerRadius::ZERO), DataColor::new(Color32::from(Srgba::WHITE)));
+            draw.data_fill(&PaintShape::Rect(black, CornerRadius::ZERO), DataColor::new(Color32::from(Srgba::BLACK)));
             draw.stroke(&PaintShape::Rect(boxes, CornerRadius::ZERO), StrokeWidth::Thin, cx.style.edge);
         }
     }
@@ -500,7 +500,7 @@ fn ramp_mesh(bar: Rect, colors: &[Color32], flat: bool) -> Mesh {
     if flat {
         for j in 0..CELLS_Y {
             for i in 0..CELLS_X {
-                let color = colors.get(j * CELLS_X + i).copied().unwrap_or(Color32::BLACK);
+                let color = colors.get(j * CELLS_X + i).copied().unwrap_or(Color32::from(Srgba::BLACK));
                 mesh.add_colored_rect(Rect::from_min_max(at(i, j), at(i + 1, j + 1)), color);
             }
         }
@@ -508,7 +508,7 @@ fn ramp_mesh(bar: Rect, colors: &[Color32], flat: bool) -> Mesh {
     }
     for j in 0..=CELLS_Y {
         for i in 0..=CELLS_X {
-            mesh.colored_vertex(at(i, j), colors.get(j * (CELLS_X + 1) + i).copied().unwrap_or(Color32::BLACK));
+            mesh.colored_vertex(at(i, j), colors.get(j * (CELLS_X + 1) + i).copied().unwrap_or(Color32::from(Srgba::BLACK)));
         }
     }
     let row = (CELLS_X + 1) as u32;

@@ -504,7 +504,7 @@ impl<'a> SwatchesPanel<'a> {
     ) -> SwatchesFileOutput {
         let mut output = SwatchesFileOutput { changed: false, report: None, toast: None };
         match event {
-            PresetFileEvent::Loaded { file_name, bytes, replace } => match crate::palette::read_swatches(bytes, file_name) {
+            PresetFileEvent::Loaded { file_name, bytes, replace, .. } => match crate::palette::read_swatches(bytes, file_name) {
                 Ok((groups, report)) => {
                     library.import(groups, *replace);
                     output.changed = true;
@@ -558,7 +558,7 @@ impl<'a> SwatchesPanel<'a> {
             return None;
         }
         let title = if writing { &words.notice_export } else { &words.notice_import };
-        Some(Toast::new(format!("{title}: {}", lines.join(" "))).tone(Tone::Warn))
+        Some(Toast::new(format!("{}: {}", title.as_str(), lines.join(" "))).tone(Tone::Warn))
     }
 }
 
@@ -737,7 +737,7 @@ struct Actions<'a> {
 impl Actions<'_> {
     fn event(&mut self, event: PresetEvent<SwatchKey>) {
         match event {
-            PresetEvent::Select { key: SwatchKey::Swatch(name), mods } => {
+            PresetEvent::Select { key: SwatchKey::Swatch(name), mods, .. } => {
                 self.st.selected = Some(SwatchKey::Swatch(name.clone()));
                 if let Some(at) = self.library.find(&name)
                     && let Some(entry) = self.library.get(at)
@@ -749,7 +749,7 @@ impl Actions<'_> {
             PresetEvent::Select { key, .. } | PresetEvent::Activate { key, .. } => {
                 self.st.selected = Some(key).filter(|k| matches!(k, SwatchKey::Swatch(_)))
             }
-            PresetEvent::Rename { key: SwatchKey::Swatch(old), text } => {
+            PresetEvent::Rename { key: SwatchKey::Swatch(old), text, .. } => {
                 if let Some(at) = self.library.find(&old)
                     && self.library.rename(at, &text)
                 {
@@ -759,7 +759,7 @@ impl Actions<'_> {
                     }
                 }
             }
-            PresetEvent::Rename { key: SwatchKey::Group(old), text } => {
+            PresetEvent::Rename { key: SwatchKey::Group(old), text, .. } => {
                 if let Some(group) = self.library.groups.iter().position(|g| g.name == old)
                     && self.library.rename_group(group, &text)
                 {
@@ -767,7 +767,7 @@ impl Actions<'_> {
                 }
             }
             PresetEvent::Delete(key) => self.delete(&key),
-            PresetEvent::MoveTo { key: SwatchKey::Swatch(name), group: SwatchKey::Group(to) } => {
+            PresetEvent::MoveTo { key: SwatchKey::Swatch(name), group: SwatchKey::Group(to), .. } => {
                 if let (Some(at), Some(to)) = (self.library.find(&name), self.library.groups.iter().position(|g| g.name == to)) {
                     self.library.move_to(at, to);
                     *self.changed = true;

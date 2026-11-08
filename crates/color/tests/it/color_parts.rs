@@ -141,7 +141,7 @@ fn a_ramp_click_picks_and_a_shift_click_cycles() {
 fn a_disc_drag_moves_the_grabbed_marker() {
     let markers = [Srgba::rgb(0.9, 0.2, 0.2), Srgba::rgb(0.2, 0.7, 0.4)];
     let (mut fixture, moved) = fixture(DiscMove::new(9, 0.0, 0.0), move |ui, moved| {
-        ColorDisc::new("Harmony", &markers, Bind::bound(moved)).selected(0).show(ui);
+        ColorDisc::new("Harmony", &markers, Bind::bound(moved)).chosen(0).show(ui);
     });
     let marker = fixture.by_label("Color 1").expect("the selected marker is a stop with a node");
     let disc = fixture.by_label("Harmony").expect("the disc is shown");

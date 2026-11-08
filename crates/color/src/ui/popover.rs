@@ -67,7 +67,7 @@ impl Outcome for ColorPopoverOutput {
 
     #[cfg(feature = "screen-testing")]
     fn story_facts(&self) -> craft_ui::testing::StoryOutput {
-        craft_ui::testing::StoryOutput::from_response(&self.response)
+        self.response.story_facts()
     }
 }
 
@@ -112,7 +112,7 @@ impl<'a> ColorPopover<'a> {
         });
         match shown.inner {
             Some(output) => output,
-            None => ColorPopoverOutput { response: shown.output.response, edit: None, screen_pick: None, open: false },
+            None => ColorPopoverOutput { response: shown.output, edit: None, screen_pick: None, open: false },
         }
     }
 }

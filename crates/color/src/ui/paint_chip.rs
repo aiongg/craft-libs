@@ -15,7 +15,7 @@ use craft_ui::choice::Segmented;
 use craft_ui::contract::ShowContainer as _;
 use craft_ui::contract::{
     Access, Activation, Bind, Common, Component, ContentPainter as _, Cx, Edit as _, EditResponse, Entry, Outcome, Overlay, OverlayUi, Overlays as _,
-    PaintUi, PopupKind, Props as _, Remember as _, Role, Show as _, ShowCollection as _, WordSetCx as _,
+    PaintUi, Pointer as _, PopupKind, Props as _, Remember as _, Role, Show as _, ShowCollection as _, WordSetCx as _,
 };
 use craft_ui::contract::{CollectionEvent, NoValue, Rename};
 use craft_ui::layout_components::Stack;
@@ -120,6 +120,7 @@ pub enum Paint {
 
 /// The kinds of paint, as the chip's tabs and an app's fill-type switch name them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum FillKind {
     #[allow(missing_docs)]
     None,
@@ -540,6 +541,7 @@ fn paint_image(painter: &ContentPainterCx<'_>, well: Rect, texture: CachedTextur
 
 /// How a paint is bound (FigCraft's colour style or variable).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum PaintLinkKind {
     /// A colour style.
     Style,
@@ -616,51 +618,43 @@ impl PaintListOptions {
 #[non_exhaustive]
 pub enum PaintListEvent {
     /// The chip's picker edited the paint (as [`PaintChip`] reports).
+    #[non_exhaustive]
     Edit {
-        #[allow(missing_docs)]
+        /// The row's index.
         row: usize,
-        #[allow(missing_docs)]
+        /// The edit of the row's paint.
         event: EditEvent<Paint>,
     },
     /// A hex typed and committed.
+    #[non_exhaustive]
     Hex {
-        #[allow(missing_docs)]
+        /// The row's index.
         row: usize,
         /// The committed colour.
         color: Srgba,
     },
     /// The opacity field: `Set` when typed, a gesture when scrubbed; 0–1.
+    #[non_exhaustive]
     Opacity {
-        #[allow(missing_docs)]
+        /// The row's index.
         row: usize,
-        #[allow(missing_docs)]
+        /// The edit of the opacity.
         event: EditEvent<f32>,
     },
-    /// Bind the paint to a style or variable: the app opens its picker.
-    Bind {
-        #[allow(missing_docs)]
-        row: usize,
-    },
-    /// Detach the row's style or variable.
-    Detach {
-        #[allow(missing_docs)]
-        row: usize,
-    },
-    /// Select the layers that use this paint.
-    SelectUsers {
-        #[allow(missing_docs)]
-        row: usize,
-    },
+    /// Bind the paint of the row at this index to a style or variable: the app opens its picker.
+    Bind(usize),
+    /// Detach the style or variable of the row at this index.
+    Detach(usize),
+    /// Select the layers that use the paint of the row at this index.
+    SelectUsers(usize),
     /// Add a paint under the rows.
     Add,
-    /// Remove the row's paint.
-    Remove {
-        #[allow(missing_docs)]
-        row: usize,
-    },
+    /// Remove the paint of the row at this index.
+    Remove(usize),
     /// Renamed in place.
+    #[non_exhaustive]
     Rename {
-        #[allow(missing_docs)]
+        /// The row's index.
         row: usize,
         /// The new name.
         name: String,
@@ -752,14 +746,15 @@ impl<'a> PaintList<'a> {
     /// Draws the rows and returns the selection, any rename and the row actions of this pass.
     pub fn show(mut self, ui: &mut Ui) -> PaintListOutput {
         let words = craft_ui::runtime::env::Env::of(ui).words::<PaintWords>();
-        let held = match self.selected.reborrow().get() {
-            Some(Mixed::Same(Some(row))) if row < self.paints.len() => Selection::single(row),
-            _ => Selection::default(),
-        };
+        let mut selected_bind = self.selected;
         let (paints, rows, options, label) = (self.paints, self.rows, self.options, self.label.clone());
         let mut output = None;
         let mut add = false;
-        Stack::new().show(ui, |ui, _| {
+        Stack::new().show(ui, |ui, cx| {
+            let held = match selected_bind.reborrow().read(cx) {
+                Some(Mixed::Same(Some(row))) if row < paints.len() => Selection::single(row),
+                _ => Selection::default(),
+            };
             let list = List::<usize>::new(label).selection(Bind::given(held)).can_rename(|_| true);
             output = Some(list.show_items(ui, &Paints(paints), &mut |row, _| {
                 let (name, paint) = &paints[*row];
@@ -798,17 +793,17 @@ impl<'a> PaintList<'a> {
                 CollectionEvent::Selection(SelectionChange::Set(keys)) => selected = keys.last().copied().or(selected),
                 CollectionEvent::Selection(SelectionChange::Toggle(row)) => selected = Some(row),
                 CollectionEvent::Rename(event) if matches!(event, EditEvent::Commit { .. }) => {
-                    if let Some(Rename { key, name }) = event.value() {
+                    if let Some(Rename { key, name, .. }) = event.value() {
                         events.push(PaintListEvent::Rename { row: *key, name: name.clone() });
                     }
                 }
                 CollectionEvent::Item(row, RowEvent::Trailing { part, .. }) => {
                     let linked = self.rows.get(row).is_some_and(|data| data.link.is_some());
                     events.push(match part {
-                        REMOVE => PaintListEvent::Remove { row },
-                        SELECT_USERS => PaintListEvent::SelectUsers { row },
-                        _ if linked => PaintListEvent::Detach { row },
-                        _ => PaintListEvent::Bind { row },
+                        REMOVE => PaintListEvent::Remove(row),
+                        SELECT_USERS => PaintListEvent::SelectUsers(row),
+                        _ if linked => PaintListEvent::Detach(row),
+                        _ => PaintListEvent::Bind(row),
                     });
                 }
                 _ => {}

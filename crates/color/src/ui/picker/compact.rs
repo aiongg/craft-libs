@@ -41,7 +41,7 @@ impl Pass<'_> {
     }
 
     /// The models whose channels the picker's parts are named after: the rows' model and the area's.
-    pub(super) fn visible_in_compact(&self, model: Option<&dyn ColorModel>) -> Vec<&dyn ColorModel> {
+    pub(super) fn visible_in_compact<'m>(&self, model: Option<&'m dyn ColorModel>) -> Vec<&'m dyn ColorModel> {
         model.into_iter().chain([self.mode.model()]).collect()
     }
 }

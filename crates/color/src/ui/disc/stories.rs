@@ -11,5 +11,5 @@ const MARKERS: [Srgba; 3] = [Srgba::rgb(0.9, 0.2, 0.2), Srgba::rgb(0.2, 0.7, 0.4
 #[story(ColorDisc<'static>, covers = [Default], drive = Drive::Never)]
 fn color_disc(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let moved = data.value("move", DiscMove::new(0, 0.0, 0.7));
-    ColorDisc::new("Harmony", &MARKERS, Bind::bound(moved)).selected(1).show(ui).into()
+    ColorDisc::new("Harmony", &MARKERS, Bind::bound(moved)).chosen(1).show(ui).into()
 }

@@ -281,7 +281,7 @@ impl Component for LutPicker<'_> {
                     }) {
                         Pending::Ready(parsed) => Some((*parsed.0).clone()),
                         Pending::Failed(()) | Pending::Lost => Some(Err(LutError(String::new()))),
-                        Pending::Loading { .. } => None,
+                        _ => None,
                     };
                     if let Some(result) = done {
                         state.load = Load::Idle;
@@ -351,16 +351,13 @@ fn file_name(path: &Path) -> String {
     path.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned())
 }
 /// Most files [`list_folder`] lists.
-#[cfg(not(target_arch = "wasm32"))]
 const MAX_FILES: usize = 500;
 /// Largest file [`list_folder`] lists: a 129³ `.cube` is about 60 MB.
-#[cfg(not(target_arch = "wasm32"))]
 const MAX_BYTES: u64 = 64 << 20;
 
 /// The `.cube`, `.3dl` and `.look` files directly in `dir` as (file name, path), sorted by name
 /// without regard to case. An unreadable folder lists nothing; hidden files, subfolders and files
 /// too large to be a LUT are skipped, and a symlink to a LUT file is listed.
-#[cfg(not(target_arch = "wasm32"))]
 fn list_folder(dir: &Path) -> FolderFiles {
     let Ok(entries) = std::fs::read_dir(dir) else { return Vec::new() };
     let mut out: FolderFiles = entries
@@ -379,9 +376,4 @@ fn list_folder(dir: &Path) -> FolderFiles {
     out.sort_by_key(|(name, _)| name.to_lowercase());
     out.truncate(MAX_FILES);
     out
-}
-
-#[cfg(target_arch = "wasm32")]
-fn list_folder(_: &Path) -> FolderFiles {
-    Vec::new()
 }

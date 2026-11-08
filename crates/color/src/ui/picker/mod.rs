@@ -83,11 +83,13 @@ pub enum ScreenPickGesture {
     /// The button was clicked: the host starts sampling and answers with [`ColorPicker::sampled`].
     Clicked,
     /// The button is held and the pointer moved to `at`: Photoshop's press and drag.
+    #[non_exhaustive]
     Held {
         /// The pointer, in the picker's points.
         at: Pos2,
     },
     /// The held button was released at `at`.
+    #[non_exhaustive]
     Released {
         /// The pointer, in the picker's points.
         at: Pos2,
@@ -114,7 +116,7 @@ impl Outcome for ColorPickerOutput {
 
     #[cfg(feature = "screen-testing")]
     fn story_facts(&self) -> craft_ui::testing::StoryOutput {
-        craft_ui::testing::StoryOutput::of_edit(&self.edit.response, self.edit.event.as_ref())
+        self.edit.story_facts()
     }
 }
 
@@ -214,7 +216,12 @@ pub struct ColorPicker<'a> {
     #[prop]
     layout: ColorPickerLayout,
     models: Option<Vec<&'a dyn ColorModel>>,
+    /// What the area and the strip show, held by the host; kept per picker without it.
+    #[prop]
     mode: Option<Bind<'a, AreaMode>>,
+    /// Only Web Colors, held by the host (kept across opens). The Full layout shows its check box; the Compact layout
+    /// has none, the host sets it.
+    #[prop]
     web_colors: Option<Bind<'a, bool>>,
     /// Whether the picker edits the alpha: an "Opacity" row, and eight hex digits.
     #[prop]
@@ -292,21 +299,6 @@ impl<'a> ColorPicker<'a> {
     #[must_use]
     pub fn models(mut self, models: impl IntoIterator<Item = &'a dyn ColorModel>) -> Self {
         self.models = Some(models.into_iter().collect());
-        self
-    }
-
-    /// What the area and the strip show, held by the host; kept per picker without it.
-    #[must_use]
-    pub fn mode(mut self, mode: Bind<'a, AreaMode>) -> Self {
-        self.mode = Some(mode);
-        self
-    }
-
-    /// Only Web Colors, held by the host (kept across opens). The Full layout shows its check box; the Compact layout
-    /// has none, the host sets it.
-    #[must_use]
-    pub fn web_colors(mut self, on: Bind<'a, bool>) -> Self {
-        self.web_colors = Some(on);
         self
     }
 

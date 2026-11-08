@@ -4,7 +4,7 @@
 use super::channels::{finite, primary};
 use super::wheel::{hue_at, hue_direction, vertex};
 use craft_behavior::{CancelReason, HitShape, Metrics, NavMove, PartKey, PressPhase, Sense};
-use craft_theme::{ColorModel, HsbModel, ModelValues, Srgba};
+use craft_theme::{ColorModel, Flags, HsbModel, ModelValues, Resolve as _, Srgba, State, StateMix, Stateful};
 use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Name, Outcome, PaintUi, PartsCx, Pointer as _, Props as _,
     Remember as _, Role, WordSetCx as _,
@@ -73,9 +73,8 @@ pub struct ColorDiscStyle {
     focus: FocusLook,
     /// The distance from the area's edge to the disc.
     inset: f32,
-    /// A marker's radius, and a selected one's.
-    marker: f32,
-    marker_selected: f32,
+    /// A marker's radius; the selected marker's is larger.
+    marker: Stateful<f32>,
     /// A press within this of a marker grabs it.
     grab: f32,
     /// The disc's edge.
@@ -140,7 +139,7 @@ pub struct ColorDisc<'a> {
     drag: Bind<'a, DiscMove>,
     /// The marker drawn larger and reached by Tab; the host owns it.
     #[prop]
-    selected: Option<usize>,
+    chosen: Option<usize>,
     /// The brightness the disc is drawn at, 0 to 1; never below a floor.
     #[prop(quantity = "brightness")]
     brightness: f32,
@@ -153,7 +152,7 @@ pub struct ColorDisc<'a> {
 impl<'a> ColorDisc<'a> {
     /// A disc named `label` ("Harmony") with a marker at each of `markers`, reporting moves through `drag`.
     pub fn new(label: impl Into<Label>, markers: &'a [Srgba], drag: Bind<'a, DiscMove>) -> Self {
-        ColorDisc { common: Common::new(), markers, drag, selected: None, brightness: 1.0, names: Vec::new(), pressed: None }.label(label)
+        ColorDisc { common: Common::new(), markers, drag, chosen: None, brightness: 1.0, names: Vec::new(), pressed: None }.label(label)
     }
 
     /// The disc's centre and radius in the area `rect`, `inset` inside its shorter side.
@@ -168,7 +167,7 @@ impl<'a> ColorDisc<'a> {
 
     /// The marker with the Tab stop: the selected one, else the first.
     fn stop(&self) -> usize {
-        self.selected.filter(|selected| *selected < self.markers.len()).unwrap_or(0)
+        self.chosen.filter(|selected| *selected < self.markers.len()).unwrap_or(0)
     }
 
     /// Marker `index` as the host's colour places it: hue, saturation (0 to 1) and brightness.
@@ -200,8 +199,7 @@ impl Component for ColorDisc<'_> {
             metrics: Metrics::new().min_size(Vec2::new(tokens.size.plot.width, tokens.size.plot.height)),
             focus: cx.focus_look(),
             inset: tokens.space.pad.panel,
-            marker: tokens.size.handle.sm,
-            marker_selected: tokens.size.handle.md,
+            marker: Stateful::new(tokens.size.handle.sm).when(Flags::SELECTED, tokens.size.handle.md),
             grab: tokens.size.hit.target,
             edge: cx.color(colors.line.control_edge),
             spoke: cx.color(colors.overlay.handle_fill.faded(SPOKE_SHARE)),
@@ -225,7 +223,7 @@ impl Component for ColorDisc<'_> {
                 Some(moved) => *moved,
                 None => self.resting(stop),
             };
-            let radius_of = if self.selected == Some(stop) { cx.style.marker_selected } else { cx.style.marker };
+            let radius_of = marker_radius(cx.style, self.chosen == Some(stop));
             cx.part(MARKER.at(stop as u64), HitShape::circle(Self::marker_pos(center, radius, at.hue, at.saturation), radius_of))
                 .focusable()
                 .focus_shape(FocusShape::Circle);
@@ -357,10 +355,10 @@ impl Component for ColorDisc<'_> {
         for place in &places {
             draw.stroke(&PaintShape::Path(vec![center, *place]), StrokeWidth::Thin, cx.style.spoke);
         }
-        let selected = self.selected.filter(|selected| *selected < places.len());
+        let selected = self.chosen.filter(|selected| *selected < places.len());
         let order = (0..places.len()).filter(|index| Some(*index) != selected).chain(selected);
         for index in order {
-            let r = if Some(index) == selected { cx.style.marker_selected } else { cx.style.marker };
+            let r = marker_radius(cx.style, Some(index) == selected);
             let circle = PaintShape::Circle(places[index], r);
             draw.data_fill(&circle, DataColor::new(Color32::from(self.markers[index])));
             draw.stroke(&circle, StrokeWidth::Thick, cx.style.halo);
@@ -398,4 +396,10 @@ fn disc_mesh(center: Pos2, radius: f32, brightness: f32) -> Mesh {
         }
     }
     mesh
+}
+
+/// The radius of a marker, larger while it is the selected one.
+fn marker_radius(style: &ColorDiscStyle, selected: bool) -> f32 {
+    let flags = if selected { Flags::SELECTED } else { Flags::empty() };
+    style.marker.resolve(State::Rest, flags, StateMix::default())
 }

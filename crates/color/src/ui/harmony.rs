@@ -152,7 +152,7 @@ impl<'a> HarmonyWheel<'a> {
         let mut pressed = None;
         let mut edits = Vec::new();
         let shown = Stack::new().show(ui, |ui, _| {
-            let disc = ColorDisc::new(label.clone(), colors, Bind::kept()).selected(selected).brightness(brightness).names(names.clone()).show(ui);
+            let disc = ColorDisc::new(label.clone(), colors, Bind::kept()).chosen(selected).brightness(brightness).names(names.clone()).show(ui);
             pressed = disc.pressed;
             if let Some(event) = disc.edit.event {
                 let marker = event.value().map(|m| m.marker).or(selected);
@@ -165,7 +165,7 @@ impl<'a> HarmonyWheel<'a> {
             let rule = ChannelRule { range: 0.0..=100.0, step: 1.0, decimals: 0 };
             Stack::new().enabled(selected.is_some()).show(ui, |ui, _| {
                 let row = ChannelRow::new(words.brightness.clone(), Bind::given(value), rule.clone()).track(track.clone()).show(ui);
-                if let (Some(i), Some(event)) = (selected, row.event) {
+                if let (Some(i), Some(event)) = (selected, row.and_then(|row| row.event)) {
                     edits.push((i, event.map(|v| [None, None, Some((v / 100.0) as f32)])));
                 }
             });

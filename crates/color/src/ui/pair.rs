@@ -32,6 +32,7 @@ const RING_SHARE: f32 = 0.3;
 /// One of a [`SwatchPair`]'s wells. The primary one is at the start, top, the secondary one is
 /// offset towards the end and down: foreground and background, or fill and stroke.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Well {
     #[default]
     /// The primary well: at the start, top.
@@ -110,8 +111,9 @@ pub struct SwatchPairStyle {
 /// A closure that sets up the picker of the popup.
 pub struct PickerSetup<'a>(Box<dyn Fn(ColorPicker<'a>) -> ColorPicker<'a> + 'a>);
 
-impl<'a, F: Fn(ColorPicker<'a>) -> ColorPicker<'a> + 'a> From<F> for PickerSetup<'a> {
-    fn from(setup: F) -> Self {
+impl<'a> PickerSetup<'a> {
+    /// A setup that runs `setup` on the popup's picker.
+    pub fn new(setup: impl Fn(ColorPicker<'a>) -> ColorPicker<'a> + 'a) -> Self {
         PickerSetup(Box::new(setup))
     }
 }
@@ -291,7 +293,7 @@ impl Component for SwatchPair<'_> {
             let part = cx
                 .part(WELL.at(i as u64), at)
                 .sense(Sense::CLICK | Sense::FOCUS)
-                .priority(HitPriority::new(HitLevel::Body, u16::from(front)))
+                .priority(HitPriority::new(HitLevel::Body, u8::from(front)))
                 .focusable();
             if self.popover {
                 part.pointer_only("Enter opens the picker");
@@ -334,8 +336,8 @@ impl Component for SwatchPair<'_> {
             && cx.is_focused()
             && let Some(part) = cx.active_part()
             && part.key == WELL
+            && let Some(well) = part.index.map(Well::of)
         {
-            let well = Well::of(part.index);
             if well != active {
                 cx.set(well);
                 self.activated = true;

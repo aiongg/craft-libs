@@ -20,7 +20,7 @@ use craft_host::target::Os;
 use craft_theme::Srgba;
 use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolPath, ToolPointer};
 use craft_ui::choice::Checkbox;
-use craft_ui::contract::{Bind, EditResponse, Entry, Outcome, Pattern, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, EditResponse, Entry, Outcome, Pattern, Props as _, Show as _, ShowContainer as _};
 use craft_ui::display::Text;
 use craft_ui::form::Field;
 use craft_ui::pickers::Select;
@@ -243,7 +243,7 @@ pub struct EyedropperPick {
 }
 
 /// The pipette icon's tip, in the icon's own 24-unit box.
-const HOTSPOT: Vec2 = Vec2 { x: 2.0, y: 22.0 };
+const HOTSPOT: [f32; 2] = [2.0, 22.0];
 /// The ring's outer radius in points.
 const RING_OUTER_RADIUS: f32 = 105.0;
 /// The width of each of the ring's two colour bands in points.
@@ -354,7 +354,7 @@ impl CanvasTool for EyedropperTool<'_> {
 
     /// The pipette with its tip on the sampled pixel (the icon's lower left, in its 24-unit box).
     fn cursor(&self, _: &ToolContext<'_>) -> Cursor {
-        PaintedCursor::tool(IconId::new("eyedropper"), HOTSPOT, None).into()
+        PaintedCursor::tool(IconId::new("eyedropper"), Vec2::from(HOTSPOT), None).into()
     }
 
     fn autoscrolls(&self) -> bool {

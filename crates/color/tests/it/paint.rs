@@ -128,8 +128,8 @@ fn a_paint_list_row_reports_its_remove_and_select_users_actions() {
     let users = fixture.by_label("Select layers with this color").expect("the first row has a select users button");
     fixture.click(&users);
     let seen = events.borrow().clone();
-    assert!(seen.contains(&PaintListEvent::Remove { row: 0 }), "{seen:?}");
-    assert!(seen.contains(&PaintListEvent::SelectUsers { row: 0 }), "{seen:?}");
+    assert!(seen.contains(&PaintListEvent::Remove(0)), "{seen:?}");
+    assert!(seen.contains(&PaintListEvent::SelectUsers(0)), "{seen:?}");
 }
 
 #[trial]
@@ -140,7 +140,7 @@ fn a_bound_row_detaches_and_an_unbound_row_binds() {
     let bind = fixture.by_label("Color styles").expect("the unbound row binds");
     fixture.click(&bind);
     let seen = events.borrow().clone();
-    assert!(seen.contains(&PaintListEvent::Detach { row: 0 }) && seen.contains(&PaintListEvent::Bind { row: 1 }), "{seen:?}");
+    assert!(seen.contains(&PaintListEvent::Detach(0)) && seen.contains(&PaintListEvent::Bind(1)), "{seen:?}");
 }
 
 #[derive(Default, Clone, Copy)]
@@ -301,7 +301,7 @@ fn profile_rig(dialog: ProfileMismatchDialog) -> (Fixture, Rc<RefCell<Option<Dia
 }
 
 fn mismatch() -> ProfileQuestion {
-    ProfileQuestion::Mismatch { embedded: "Display P3".into(), working: "sRGB IEC61966-2.1".into() }
+    ProfileQuestion::mismatch("Display P3", "sRGB IEC61966-2.1")
 }
 
 #[trial]
@@ -318,7 +318,7 @@ fn the_profile_choices_follow_the_question() {
             "Discard the embedded profile (don't color manage)"
         ]
     );
-    let missing = ProfileQuestion::Missing { working: "sRGB IEC61966-2.1".into() };
+    let missing = ProfileQuestion::missing("sRGB IEC61966-2.1");
     let (fixture, _) = profile_rig(ProfileMismatchDialog::new("photo.psd", ProfileMode::Cmyk, missing));
     assert_eq!(names(&fixture), ["Leave as is (don't color manage)", "Assign working space"]);
 }
@@ -328,7 +328,7 @@ fn remember_shows_for_a_mismatch_only_and_comes_back_in_the_answer() {
     let boxes = |fixture: &Fixture| fixture.by_role(Role::CHECK_BOX).len();
     let (fixture, _) = profile_rig(ProfileMismatchDialog::new("photo.psd", ProfileMode::Rgb, mismatch()));
     assert_eq!(boxes(&fixture), 0, "not rememberable");
-    let missing = ProfileQuestion::Missing { working: "sRGB".into() };
+    let missing = ProfileQuestion::missing("sRGB");
     let (fixture, _) = profile_rig(ProfileMismatchDialog::new("photo.psd", ProfileMode::Rgb, missing).rememberable(true));
     assert_eq!(boxes(&fixture), 0, "a missing profile has no policy");
 

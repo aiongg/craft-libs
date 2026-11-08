@@ -579,7 +579,7 @@ impl Body<'_> {
         }
         Row::new().show(ui, |ui, _| {
             for warning in warnings.clone() {
-                if ColorWarningChip::new(warning.clone()).show(ui).clicked {
+                if ColorWarningChip::new(&warning).show(ui).clicked {
                     let picked = PickedColor { color: warning.nearest().with_alpha(color.a), model: None };
                     let name = self.words.title.as_str();
                     self.push(
@@ -683,7 +683,7 @@ impl Body<'_> {
             }
             let track = model.track(i, &track_values);
             let row = ChannelRow::new(channel_name(model, i, &[model]), Bind::given(f64::from(current.values[i])), rule).track(track).show(ui);
-            if let Some(event) = row.event {
+            if let Some(event) = row.and_then(|row| row.event) {
                 self.channel_event(model, current, i, event);
             }
         }

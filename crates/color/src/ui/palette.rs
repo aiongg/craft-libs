@@ -6,7 +6,7 @@ use craft_theme::Srgba;
 use craft_ui::choice::{RadioGroup, Swatch, SwatchMetrics};
 use craft_ui::contract::{
     Access, ActivateOn, Bind, BindMut, Collection, CollectionEvent, CollectionProps, Common, Component, ContainerProps, Cx, Held, MeasureCx, NoValue,
-    Outcome, PaintUi, PartsCx, Pattern, Props, Role, SelectMode, Show as _, ShowCollection as _, ShowContainer as _, Sizing,
+    Outcome, PaintUi, PartsCx, Pattern, Props, Role, SelectMode, Show as _, ShowCollection as _, ShowContainer as _, Sizing, Styled as _,
 };
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::runtime::env::Label;
@@ -82,7 +82,7 @@ impl<'a> SwatchPalette<'a> {
                         }
                     });
                 });
-            let picked = group.output.value().copied()?;
+            let picked: usize = group.output.value().copied()?;
             let after = swatches.get(picked)?.1;
             held.write(cx, &before, after, name.as_str());
             Some(EditEvent::set(GestureId::default(), Mixed::Same(before), after, Arc::from(name.as_str()), None))

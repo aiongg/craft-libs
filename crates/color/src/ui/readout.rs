@@ -4,7 +4,7 @@
 mod stories;
 
 use craft_behavior::{Flow, Metrics, Proposal, Sense};
-use craft_theme::Rgba;
+use craft_theme::{Rgba, Srgba};
 use craft_ui::contract::{Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Props as _, Role, WordSetCx as _};
 use craft_ui::runtime::env::Label;
 use craft_ui::style::{ComponentStyle, StyleCx};
@@ -46,7 +46,7 @@ pub struct ColorReadoutStyle {
 ///
 /// AccessKit: a group named by the label, the hex field "Hex color" and a spin button per channel named by its
 /// colour.
-#[derive(crate::contract::Component, crate::contract::Props)]
+#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
 pub struct ColorReadout<'a> {
     #[common]
     common: Common,
@@ -77,7 +77,7 @@ impl Component for ColorReadout<'_> {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        let height = cx.child("hex", &mut TextField::hex("", Bind::given(Rgba::BLACK)), Proposal::Ideal).y;
+        let height = cx.child("hex", &mut TextField::hex("", Bind::given(Srgba::BLACK.to_rgba())), Proposal::Ideal).y;
         Vec2::new(cx.style.hex + 3.0 * (cx.style.channel + cx.gap()), height)
     }
 
@@ -86,7 +86,7 @@ impl Component for ColorReadout<'_> {
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let shown = cx.value().copied().unwrap_or(Rgba::BLACK);
+        let shown = cx.value().copied().unwrap_or(Srgba::BLACK.to_rgba());
         let words = cx.words::<ColorReadoutWords>();
         let gap = cx.style.metrics.gap;
         let flow = Flow::new(cx.rect, cx.env.direction().is_rtl());
@@ -94,7 +94,7 @@ impl Component for ColorReadout<'_> {
             flow.to_physical(Rect::from_min_size(pos2(x, 0.0), Vec2::new(width, cx.rect.height())).translate(cx.rect.min.to_vec2()))
         };
         let hex = ui.child("hex", place(0.0, cx.style.hex), TextField::hex(words.hex.as_str().to_owned(), Bind::given(shown)));
-        cx.adopt(&hex, &Rgba::BLACK, |value, mine| *mine = *value);
+        cx.adopt(&hex, &Srgba::BLACK.to_rgba(), |value, mine| *mine = *value);
         let names = [&words.red, &words.green, &words.blue];
         for (i, name) in names.into_iter().enumerate() {
             let x = cx.style.hex + gap + i as f32 * (cx.style.channel + gap);
@@ -104,7 +104,7 @@ impl Component for ColorReadout<'_> {
                 .snap_typed(true)
                 .commit_decimals(0);
             let edit = ui.child(("channel", CHANNELS[i]), place(x, cx.style.channel), field);
-            cx.adopt(&edit, &Rgba::BLACK, |value, mine| {
+            cx.adopt(&edit, &Srgba::BLACK.to_rgba(), |value, mine| {
                 if let Some(value) = value {
                     mine.0[i] = value.round().clamp(0.0, 255.0) as u8;
                 }

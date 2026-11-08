@@ -21,7 +21,7 @@ use craft_behavior::{CancelReason, Cursor, IconId, PaintedCursor};
 use craft_theme::Srgba;
 use craft_ui::buttons::ToggleButton;
 use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPath, ToolPointer};
-use craft_ui::contract::{Bind, EditResponse, Outcome, Pattern, Show as _};
+use craft_ui::contract::{Bind, EditResponse, Outcome, Pattern, Props as _, Show as _};
 use craft_ui::primitives::Draw;
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::requests::EyedropperRequest;
@@ -31,7 +31,7 @@ use egui::{Pos2, Response, Ui, Vec2};
 mod stories;
 
 /// The pipette icon's tip, in the icon's own 24-unit box.
-const HOTSPOT: Vec2 = Vec2 { x: 2.0, y: 22.0 };
+const HOTSPOT: [f32; 2] = [2.0, 22.0];
 
 /// What a dropper samples into: the colour itself, or one of a levels dialog's three points.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -190,7 +190,7 @@ impl CanvasTool for DropperTool<'_> {
 
     /// The pipette with its tip on the sampled pixel (the icon's lower left, in its 24-unit box).
     fn cursor(&self, _: &ToolContext<'_>) -> Cursor {
-        PaintedCursor::tool(IconId::new("eyedropper"), HOTSPOT, None).into()
+        PaintedCursor::tool(IconId::new("eyedropper"), Vec2::from(HOTSPOT), None).into()
     }
 
     fn autoscrolls(&self) -> bool {

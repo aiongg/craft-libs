@@ -368,7 +368,7 @@ impl StackDialog for ColorPickerDialog {
         }
         self.follow_top(stack.is_top(self.id));
         let answered = self.requests.take_answers().into_iter().rev().find_map(|answer| match answer {
-            HostAnswer::Eyedropper { key, color } if key == self.key => Some(color),
+            HostAnswer::Eyedropper { key, color, .. } if key == self.key => Some(color),
             _ => None,
         });
         self.sample = answered.or(self.sample.take());
@@ -431,8 +431,10 @@ impl StackDialog for ColorPickerDialog {
                     .warnings(warnings)
                     .eyedropper(screen)
                     .eyedropper_busy(busy)
-                    .sampled(sampled)
                     .focus_on_open(true);
+                if let Some(sampled) = sampled {
+                    picker = picker.sampled(sampled);
+                }
                 if let Some(compare) = compare_with {
                     picker = picker.compare(compare);
                 }
