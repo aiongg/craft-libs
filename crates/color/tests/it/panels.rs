@@ -15,7 +15,7 @@ use craft_color::ui::{
 use craft_color::{CmykModel, GrayModel};
 use craft_i18n::Format;
 use craft_theme::{ColorModel, HsbModel, LabModel, ModelValues, RgbModel, Srgba};
-use craft_ui::contract::{Bind, Role};
+use craft_ui::contract::{Bind, Role, Show as _};
 use craft_ui::patterns::presets::{PresetFileRequest, PresetWords};
 use craft_ui::runtime::commands::CommandState;
 use craft_ui::runtime::env::Label;
@@ -472,7 +472,7 @@ fn dragging_a_marker_moves_its_colour() {
     let (pressed, moved): (Rc<RefCell<Vec<usize>>>, Moves) = Default::default();
     let (p, m) = (pressed.clone(), moved.clone());
     let mut fixture = Fixture::new(move |ui| {
-        let shown = HarmonyWheel::new("Harmony", &colors).selected(Some(0)).show(ui);
+        let shown = HarmonyWheel::new("Harmony", &colors).selected_marker(Some(0)).show(ui);
         p.borrow_mut().extend(shown.pressed);
         m.borrow_mut().extend(shown.edits);
     });
@@ -624,6 +624,8 @@ impl PaletteRig {
         let mut fixture = Fixture::new(move |ui| {
             let mut current = c.get();
             let shown = SwatchPalette::new("Swatches", Bind::bound(&mut current), &swatches).show(ui);
+            // A second Tab stop for the Tab that leaves the palette to land on.
+            let _ = craft_ui::buttons::Button::new("After").show(ui);
             c.set(current);
             e.set(e.get() + usize::from(shown.edit.is_some()));
         });
@@ -722,4 +724,30 @@ fn non_finite_channels_become_zero() {
     assert_eq!(cleaned.values[..3], [0.0, 0.0, 40.0]);
     let cleaned = finite_values(ModelValues::new("rgb", &[f32::NEG_INFINITY, 12.0, 255.0]));
     assert_eq!(cleaned.values[..3], [0.0, 12.0, 255.0]);
+}
+
+#[trial]
+fn zz_diag_palette() {
+    use craft_ui::testing::focus::AccessActionKind;
+    use std::fmt::Write as _;
+    let mut out = String::new();
+    let mut rig = PaletteRig::new(Srgba::rgb(0.19, 0.64, 0.42), PALETTE_NARROW);
+    for (name, _) in SWATCHES {
+        let _ = writeln!(out, "{name} {:?}", rig.fixture.by_label(name).map(|t| t.rect));
+    }
+    rig.fixture.key(Key::Tab, Modifiers::NONE);
+    let _ = writeln!(out, "after tab {:?}", rig.focused());
+    for key in [Key::ArrowDown, Key::ArrowUp, Key::ArrowRight] {
+        rig.fixture.key(key, Modifiers::NONE);
+        let _ = writeln!(out, "{key:?} {:?}", rig.focused());
+    }
+    let mut rig = PaletteRig::new(Srgba::rgb(0.9, 0.28, 0.3), PALETTE_WIDE);
+    let teal = rig.fixture.by_label("Teal").expect("the swatch");
+    rig.fixture.access(AccessActionKind::Focus, &teal);
+    let _ = writeln!(out, "access focus {:?} stop {:?}", rig.focused(), rig.fixture.focused_stop());
+    let tree = rig.fixture.tree();
+    for key in tree.keys() {
+        let _ = writeln!(out, "{:?} {:?} {:?}", tree.role_of(key), tree.name_of(key), tree.bounds_of(key));
+    }
+    panic!("DIAG palette\n{out}");
 }

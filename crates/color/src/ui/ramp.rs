@@ -167,8 +167,7 @@ struct Cache {
 /// - Boxes: a click on the white or the black box (also by keyboard) is a `Set` of that colour; they are Tab stops of
 ///   their own.
 /// - Keys, with the bar focused: it has a cursor cell, starting at the left end of the middle row. Arrows move it one
-///   cell (Shift ten), Home and End to the row's ends, Page Up and Page Down to the top and bottom rows; Left and
-///   Right do not mirror. Enter or Space picks the cursor cell. A press moves the cursor to its cell.
+///   cell (Shift ten), Home and End to the row's ends, Page Up and Page Down to the top and bottom rows. Enter or Space picks the cursor cell. A press moves the cursor to its cell.
 /// - AccessKit: the bar is a `Group` named `label` whose value is [`kind_name`](ColorRamp::kind_name); the boxes are
 ///   `Button`s.
 /// - Nothing mirrors right to left; the boxes stay at the right.
@@ -325,14 +324,13 @@ fn centre_of(cell: (usize, usize)) -> (f32, f32) {
 }
 
 /// The cursor after the key `mv`: arrows one cell (ten with `far`), Home and End the row's ends, Page Up and Page Down
-/// the top and bottom rows. Left and Right do not mirror: under right-to-left text `Forward` is the left arrow.
-fn moved(cursor: (usize, usize), mv: NavMove, far: bool, rtl: bool) -> (usize, usize) {
+/// the top and bottom rows.
+fn moved(cursor: (usize, usize), mv: NavMove, far: bool) -> (usize, usize) {
     let by = if far { FAR } else { 1 };
     let along = |at: usize, delta: i64, n: usize| (at as i64 + delta).clamp(0, n as i64 - 1) as usize;
-    let right = if rtl { -by } else { by };
     match mv {
-        NavMove::Forward => (along(cursor.0, right, CELLS_X), cursor.1),
-        NavMove::Back => (along(cursor.0, -right, CELLS_X), cursor.1),
+        NavMove::Forward => (along(cursor.0, by, CELLS_X), cursor.1),
+        NavMove::Back => (along(cursor.0, -by, CELLS_X), cursor.1),
         NavMove::Down => (cursor.0, along(cursor.1, by, CELLS_Y)),
         NavMove::Up => (cursor.0, along(cursor.1, -by, CELLS_Y)),
         NavMove::Start => (0, cursor.1),
@@ -432,10 +430,10 @@ impl Component for ColorRamp<'_> {
             }
         }
         self.menu_at = context_click(&press);
-        let (bar_active, rtl) = (cx.active_part() == Some(BAR.into()), cx.flow.is_rtl());
+        let bar_active = cx.active_part() == Some(BAR.into());
         while let Some((mv, mods)) = cx.intents().take_move() {
             if bar_active && !running {
-                cursor = moved(cursor, mv, mods.extend, rtl);
+                cursor = moved(cursor, mv, mods.extend);
             }
         }
         if !running && matches!(cx.part_activated(BAR), Some(FireSource::Key | FireSource::Access)) {

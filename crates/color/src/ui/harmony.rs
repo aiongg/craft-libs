@@ -136,7 +136,7 @@ impl<'a> HarmonyWheel<'a> {
 
     /// Marks the colour at this index as selected; none by default.
     #[must_use]
-    pub fn selected(mut self, selected: Option<usize>) -> Self {
+    pub fn selected_marker(mut self, selected: Option<usize>) -> Self {
         self.selected = selected;
         self
     }

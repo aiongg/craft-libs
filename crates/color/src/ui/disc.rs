@@ -3,7 +3,7 @@
 
 use super::channels::{finite, primary};
 use super::wheel::{hue_at, hue_direction, vertex};
-use craft_behavior::{CancelReason, HitShape, Metrics, NavMove, PartKey, PressPhase, Sense};
+use craft_behavior::{AccessAction, CancelReason, HitShape, Metrics, NavMove, PartKey, PressPhase, Sense};
 use craft_theme::{ColorModel, Flags, HsbModel, ModelValues, Resolve as _, Srgba, State, StateMix, Stateful};
 use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, Name, Numeric, Outcome, PaintUi, PartsCx, Pointer as _,
@@ -316,7 +316,7 @@ impl Component for ColorDisc<'_> {
         if matches!(press.phase, PressPhase::Release { .. } | PressPhase::Cancel { .. }) {
             *cx.memory::<Grab>() = Grab::default();
         }
-        let (rtl, mut now) = (cx.flow.is_rtl(), self.resting(stop));
+        let mut now = self.resting(stop);
         let on_stop = cx.active_part() == Some(MARKER.at(stop as u64));
         while let Some((mv, mods)) = cx.intents().take_move() {
             if running || !on_stop || self.markers.is_empty() {
@@ -324,8 +324,8 @@ impl Component for ColorDisc<'_> {
             }
             let by = if mods.extend { FAR } else { KEY_STEP };
             match mv {
-                NavMove::Forward => now.hue += if rtl { -by } else { by },
-                NavMove::Back => now.hue -= if rtl { -by } else { by },
+                NavMove::Forward => now.hue += by,
+                NavMove::Back => now.hue -= by,
                 NavMove::Up => now.saturation += by / 100.0,
                 NavMove::Down => now.saturation -= by / 100.0,
                 _ => continue,
@@ -338,6 +338,19 @@ impl Component for ColorDisc<'_> {
             if let Some(value) = cx.intents().take_set_value_at(MARKER.at(index as u64)).filter(|value| value.is_finite() && !running) {
                 let mut moved = cx.value().filter(|moved| moved.marker == index).copied().unwrap_or_else(|| self.resting(index));
                 moved.hue = value.round().rem_euclid(360.0) as f32;
+                cx.set(moved);
+            }
+        }
+        while let Some(request) = cx.intents().take_access() {
+            let Some(index) = (0..self.markers.len()).find(|index| request.target == Some(MARKER.at(*index as u64).into())) else { continue };
+            let step = match request.action {
+                AccessAction::Increment => KEY_STEP,
+                AccessAction::Decrement => -KEY_STEP,
+                _ => continue,
+            };
+            if !running {
+                let mut moved = cx.value().filter(|moved| moved.marker == index).copied().unwrap_or_else(|| self.resting(index));
+                moved.hue = (moved.hue + step).round().rem_euclid(360.0);
                 cx.set(moved);
             }
         }

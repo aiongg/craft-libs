@@ -136,7 +136,7 @@ fn typed_hex_sets_the_colour_without_model_values() {
 /// colour's.
 #[trial]
 fn a_typed_channel_keeps_the_values_of_its_model() {
-    let (mut fixture, host) = picker(FULL, PickedColor::cmyk(Srgba::rgb(0.5, 0.5, 0.5), [0.0, 0.0, 0.0, 50.0]));
+    let (mut fixture, host) = picker(Setup { cmyk: true, ..FULL }, PickedColor::cmyk(Srgba::rgb(0.5, 0.5, 0.5), [0.0, 0.0, 0.0, 50.0]));
     type_into(&mut fixture, "Magenta", "40");
     let value = host.borrow().value;
     let model = value.model.expect("the edited model's values go out with the colour");
@@ -148,7 +148,7 @@ fn a_typed_channel_keeps_the_values_of_its_model() {
 /// A colour the host gives with model values shows and edits those values, not a conversion of the sRGB.
 #[trial]
 fn host_model_values_survive_in_the_grid() {
-    let (mut fixture, host) = picker(FULL, PickedColor::cmyk(Srgba::rgb(0.5, 0.5, 0.5), [0.0, 0.0, 0.0, 50.0]));
+    let (mut fixture, host) = picker(Setup { cmyk: true, ..FULL }, PickedColor::cmyk(Srgba::rgb(0.5, 0.5, 0.5), [0.0, 0.0, 0.0, 50.0]));
     type_into(&mut fixture, "Cyan", "10");
     let model = host.borrow().value.model.expect("model values");
     assert_eq!([model.values[0], model.values[3]], [10.0, 50.0]);
@@ -334,4 +334,40 @@ fn select_custom_color_requests_the_picker() {
     let (chosen, requests) = state.borrow().clone();
     assert_eq!(requests, 1, "the host gets one request");
     assert_eq!(chosen, ChosenColor::Named("black".into()), "the choice stays until the host answers");
+}
+
+#[trial]
+fn zz_diag_readout() {
+    use std::fmt::Write as _;
+    let color = Rc::new(RefCell::new(Rgba::rgb(0x33, 0x66, 0x99)));
+    let log = Rc::new(RefCell::new(String::new()));
+    let (shown, seen) = (color.clone(), log.clone());
+    let mut fixture = Fixture::new(move |ui| {
+        let mut value = *shown.borrow();
+        let out = ColorReadout::new("Color", Bind::bound(&mut value)).show(ui);
+        if out.event.is_some() {
+            let _ = writeln!(seen.borrow_mut(), "event {:?} value {:?}", out.event, value);
+        }
+        *shown.borrow_mut() = value;
+    });
+    fixture.room(vec2(480.0, 60.0));
+    fixture.settle();
+    let tree = fixture.tree();
+    for key in tree.keys() {
+        let _ = writeln!(log.borrow_mut(), "{:?} {:?} {:?}", tree.role_of(key), tree.name_of(key), tree.bounds_of(key));
+    }
+    type_into(&mut fixture, "Green", "200");
+    panic!("DIAG readout final {:?}\n{}", color.borrow(), log.borrow());
+}
+
+#[trial]
+fn zz_diag_grid() {
+    use std::fmt::Write as _;
+    let (fixture, _) = picker(Setup { cmyk: true, ..FULL }, PickedColor::rgb(Srgba::rgb(0.2, 0.5, 0.8)));
+    let tree = fixture.tree();
+    let mut out = String::new();
+    for key in tree.keys() {
+        let _ = writeln!(out, "{:?} {:?} {:?}", tree.role_of(key), tree.name_of(key), tree.bounds_of(key));
+    }
+    panic!("DIAG grid\n{out}");
 }

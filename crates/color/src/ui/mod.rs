@@ -70,7 +70,7 @@ pub use picker_dialog::{ColorPickerDialog, ColorPickerDialogWords, ColorPickerMe
 pub use popover::{ColorPopover, ColorPopoverOutput};
 pub use profile_prompts::{ProfileAction, ProfileAnswer, ProfileMismatchDialog, ProfileMode, ProfileQuestion, ProfileStatus, ProfileWords};
 pub use ramp::{ColorRamp, ColorRampOutput, ColorRampStyle, ColorRampWords, Gamut, RampKind, RampPick};
-pub use readout::{ColorReadout, ColorReadoutOutput, ColorReadoutWords};
+pub use readout::{ChannelEdit, ColorReadout, ColorReadoutOutput, ColorReadoutWords, ReadoutChannel};
 pub use samplers::{
     ColorSamplerCommand, ColorSamplerMarks, ColorSamplerTool, ColorSamplers, MAX_SAMPLERS, SamplerCache, SamplerError, SamplerOptions,
     SamplerOptionsOutput, SamplerReadout, SamplerReadouts, SamplerWords,

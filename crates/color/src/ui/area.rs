@@ -57,7 +57,7 @@ pub struct ColorArea<'a> {
 impl<'a> ColorArea<'a> {
     /// An area named `label` ("Saturation and brightness") showing `values`, values of `mode`'s model.
     pub fn new(label: impl Into<Label>, mode: AreaMode, values: Bind<'a, ModelValues>) -> Self {
-        ColorArea { common: Common::new(), mode, values, quantize: None, names: None }.label(label)
+        ColorArea { common: Common::new(), mode, values, quantize: None, names: None }.label(label).ltr_axis()
     }
 
     /// The across and down channels of the mode's model.

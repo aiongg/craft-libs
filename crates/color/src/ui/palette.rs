@@ -20,9 +20,6 @@ mod stories;
 /// The part of a cell that shows the colour.
 const WELL: PartKey = PartKey::new("well");
 
-/// Room added to a measured wrap width so that the last cell of a fixed-width row does not wrap on rounding.
-const WRAP_SLACK: f32 = 0.5;
-
 /// What a [`SwatchPalette`] reports.
 #[derive(Debug)]
 #[non_exhaustive]
@@ -242,7 +239,7 @@ impl<'a> SwatchTable<'a> {
     pub fn new(label: impl Into<Label>, swatches: &'a [(Label, Srgba)]) -> Self {
         SwatchTable {
             common: Common::new(),
-            props: ContainerProps::new().sizing(Sizing::Content),
+            props: ContainerProps::new().sizing(Sizing::FillWidth),
             items: CollectionProps::new().select(SelectMode::Single).activate(ActivateOn::DoubleClick).arrows_select(false).natural_height(true),
             swatches,
             selection: None,
@@ -318,7 +315,10 @@ impl Collection for SwatchTable<'_> {
 
     fn item_layout(&self, source: &dyn ItemSource<usize>, width: f32, cx: &StyleCx<'_>) -> TileLayout {
         let cell = SwatchMetrics::of(cx).cell;
-        let width = self.per_row.map_or(width, |columns| columns.max(1) as f32 * cell + WRAP_SLACK);
-        TileLayout::new(source, width, Vec2::splat(cell), 0.0)
+        let layout = TileLayout::new(source, width, Vec2::splat(cell), 0.0);
+        match self.per_row {
+            Some(columns) => layout.in_columns(columns),
+            None => layout,
+        }
     }
 }
