@@ -33,19 +33,19 @@ fn near_vec(a: Vec2, b: Vec2) -> bool {
 // ---- the pure operations ----
 
 fn ops_path(sub: EditSubpath) -> EditPath {
-    EditPath { key: 7, subpaths: vec![sub], color: None }
+    EditPath::new(7, vec![sub])
 }
 
 fn ops_square(smooth: bool) -> EditSubpath {
     let corners = [p(0.0, 0.0), p(100.0, 0.0), p(100.0, 100.0), p(0.0, 100.0)];
-    EditSubpath { knots: corners.iter().map(|&c| Knot { smooth, ..Knot::corner(c) }).collect(), closed: true }
+    EditSubpath::new(corners.iter().map(|&c| Knot::new(c, c, c, smooth)).collect(), true)
 }
 
 // A curve split at t = 0.3 draws the same curve (sampled); a straight segment gets a corner on the cubic's point at
 // t; t of 0, 1 or NaN is refused and changes nothing.
 #[trial]
 fn edit_subpath_insert_at_splits_a_curve_without_changing_it() {
-    let mut sp = EditSubpath { knots: vec![Knot::smooth(p(0.0, 0.0), p(30.0, 60.0)), Knot::smooth(p(100.0, 0.0), p(130.0, -20.0))], closed: false };
+    let mut sp = EditSubpath::new(vec![Knot::smooth(p(0.0, 0.0), p(30.0, 60.0)), Knot::smooth(p(100.0, 0.0), p(130.0, -20.0))], false);
     let before = sp.segment(0).unwrap();
     assert_eq!(sp.insert_at(0, 0.3), Some(1));
     assert_eq!(sp.knots.len(), 3);
@@ -57,7 +57,7 @@ fn edit_subpath_insert_at_splits_a_curve_without_changing_it() {
         assert!(near(b.eval(s), before.eval(0.3 + 0.7 * s)));
     }
 
-    let mut line = EditSubpath { knots: vec![Knot::corner(p(0.0, 0.0)), Knot::corner(p(100.0, 0.0))], closed: false };
+    let mut line = EditSubpath::new(vec![Knot::corner(p(0.0, 0.0)), Knot::corner(p(100.0, 0.0))], false);
     let at = line.segment(0).unwrap().eval(0.3);
     assert_eq!(line.insert_at(0, 0.3), Some(1));
     assert!(near(line.knots[1].anchor, at));
@@ -75,17 +75,17 @@ fn edit_subpath_insert_at_splits_a_curve_without_changing_it() {
 // closed; removing the only knot leaves an empty subpath.
 #[trial]
 fn edit_subpath_remove_knot_joins_neighbours_and_keeps_closed() {
-    let mut sp = EditSubpath {
-        knots: vec![Knot::smooth(p(0.0, 0.0), p(10.0, 10.0)), Knot::smooth(p(50.0, 0.0), p(60.0, 0.0)), Knot::smooth(p(100.0, 0.0), p(110.0, 5.0))],
-        closed: true,
-    };
+    let mut sp = EditSubpath::new(
+        vec![Knot::smooth(p(0.0, 0.0), p(10.0, 10.0)), Knot::smooth(p(50.0, 0.0), p(60.0, 0.0)), Knot::smooth(p(100.0, 0.0), p(110.0, 5.0))],
+        true,
+    );
     let (out, inn) = (sp.knots[0].out_ctrl, sp.knots[2].in_ctrl);
     assert!(sp.remove_knot(1));
     assert!(sp.closed);
     let seg = sp.segment(0).unwrap();
     assert_eq!((seg.p1, seg.p2), (out, inn));
     assert!(!sp.remove_knot(9));
-    let mut one = EditSubpath { knots: vec![Knot::corner(p(1.0, 1.0))], closed: false };
+    let mut one = EditSubpath::new(vec![Knot::corner(p(1.0, 1.0))], false);
     assert!(one.remove_knot(0));
     assert!(one.knots.is_empty());
 }
@@ -96,11 +96,11 @@ fn edit_subpath_remove_knot_joins_neighbours_and_keeps_closed() {
 fn path_edit_move_curvature_reflows_every_smooth_knot() {
     let mut sp = ops_square(true);
     sp.reflow();
-    sp.knots[2] = Knot { smooth: false, ..Knot::corner(p(100.0, 100.0)) };
+    sp.knots[2] = Knot::corner(p(100.0, 100.0));
     let mut ep = ops_path(sp);
     let corner = ep.subpaths[0].knots[2];
     let old_neighbour = ep.subpaths[0].knots[1];
-    let edit = PathEdit::MoveCurvature { path: 7, anchors: vec![kr(0)], by: Vec2::new(-20.0, -10.0) };
+    let edit = PathEdit::move_curvature(7, vec![kr(0)], Vec2::new(-20.0, -10.0));
     assert!(edit.apply(&mut ep));
     let k = &ep.subpaths[0].knots;
     assert_eq!(k[0].anchor, p(-20.0, -10.0));
@@ -117,7 +117,7 @@ fn path_edit_move_curvature_reflows_every_smooth_knot() {
 #[trial]
 fn path_edit_toggle_curvature_flips_smooth_and_corner() {
     let mut ep = ops_path(ops_square(false));
-    let toggle = PathEdit::ToggleCurvature { path: 7, knot: kr(1) };
+    let toggle = PathEdit::toggle_curvature(7, kr(1));
     assert!(toggle.apply(&mut ep));
     assert!(ep.subpaths[0].knots[1].smooth);
     assert!(!ep.subpaths[0].is_straight(0));
@@ -132,7 +132,7 @@ fn path_edit_toggle_curvature_flips_smooth_and_corner() {
 fn path_edit_insert_curvature_adds_a_smooth_anchor_and_moves_it() {
     let mut ep = ops_path(ops_square(false));
     let at = ep.subpaths[0].segment(0).unwrap().eval(0.5);
-    let edit = PathEdit::InsertCurvature { path: 7, segment: kr(0), t: 0.5, by: Vec2::new(0.0, -30.0) };
+    let edit = PathEdit::insert_curvature(7, kr(0), 0.5, Vec2::new(0.0, -30.0));
     assert!(edit.apply(&mut ep));
     let sp = &ep.subpaths[0];
     assert_eq!(sp.knots.len(), 5);
@@ -146,37 +146,37 @@ fn path_edit_insert_curvature_adds_a_smooth_anchor_and_moves_it() {
 #[trial]
 fn path_edit_apply_matches_the_kernel_for_every_existing_edit() {
     let base = || {
-        ops_path(EditSubpath {
-            knots: vec![Knot::smooth(p(0.0, 0.0), p(20.0, 0.0)), Knot::smooth(p(100.0, 0.0), p(120.0, 0.0)), Knot::corner(p(100.0, 80.0))],
-            closed: false,
-        })
+        ops_path(EditSubpath::new(
+            vec![Knot::smooth(p(0.0, 0.0), p(20.0, 0.0)), Knot::smooth(p(100.0, 0.0), p(120.0, 0.0)), Knot::corner(p(100.0, 80.0))],
+            false,
+        ))
     };
     let mut ep = base();
     let by = Vec2::new(5.0, 7.0);
-    assert!(PathEdit::MoveAnchors { path: 7, anchors: vec![kr(1), kr(1)], by }.apply(&mut ep));
+    assert!(PathEdit::move_anchors(7, vec![kr(1), kr(1)], by).apply(&mut ep));
     assert_eq!(ep.subpaths[0].knots[1].anchor, p(105.0, 7.0));
     assert_eq!(ep.subpaths[0].knots[1].out_ctrl, p(125.0, 7.0));
 
     let mut ep = base();
     let to = p(0.0, 30.0);
-    let h = PathEdit::MoveHandle { path: 7, knot: kr(0), side: HandleSide::Out, to, alone: false };
+    let h = PathEdit::move_handle(7, kr(0), HandleSide::Out, to, false);
     assert!(h.apply(&mut ep));
     let k = ep.subpaths[0].knots[0];
     assert_eq!(k.out_ctrl, to);
     assert!(near(k.in_ctrl, p(0.0, -20.0)));
     let mut ep = base();
-    let h = PathEdit::MoveHandle { path: 7, knot: kr(0), side: HandleSide::Out, to, alone: true };
+    let h = PathEdit::move_handle(7, kr(0), HandleSide::Out, to, true);
     assert!(h.apply(&mut ep));
     assert!(!ep.subpaths[0].knots[0].smooth);
     assert_eq!(ep.subpaths[0].knots[0].in_ctrl, p(-20.0, 0.0));
 
     let mut ep = base();
     let before = ep.subpaths[0].segment(0).unwrap().eval(0.5);
-    let bend = PathEdit::BendSegment { path: 7, segment: kr(0), t: 0.5, by: Vec2::new(0.0, 10.0) };
+    let bend = PathEdit::bend_segment(7, kr(0), 0.5, Vec2::new(0.0, 10.0));
     assert!(bend.apply(&mut ep));
     assert!(near(ep.subpaths[0].segment(0).unwrap().eval(0.5), before + Vec2::new(0.0, 10.0)));
     let mut ep = base();
-    let bend = PathEdit::BendSegment { path: 7, segment: kr(1), t: 0.5, by: Vec2::new(0.0, 10.0) };
+    let bend = PathEdit::bend_segment(7, kr(1), 0.5, Vec2::new(0.0, 10.0));
     ep.subpaths[0].knots[1].out_ctrl = ep.subpaths[0].knots[1].anchor;
     ep.subpaths[0].knots[1].in_ctrl = ep.subpaths[0].knots[1].anchor;
     assert!(bend.apply(&mut ep));
@@ -184,21 +184,21 @@ fn path_edit_apply_matches_the_kernel_for_every_existing_edit() {
     assert_eq!(ep.subpaths[0].knots[2].anchor, p(100.0, 90.0));
 
     let mut ep = base();
-    assert!(PathEdit::Convert { path: 7, knot: kr(0), out: None }.apply(&mut ep));
+    assert!(PathEdit::convert(7, kr(0), None).apply(&mut ep));
     assert_eq!(ep.subpaths[0].knots[0], Knot::corner(p(0.0, 0.0)));
-    assert!(PathEdit::Convert { path: 7, knot: kr(2), out: Some(p(110.0, 80.0)) }.apply(&mut ep));
+    assert!(PathEdit::convert(7, kr(2), Some(p(110.0, 80.0))).apply(&mut ep));
     assert_eq!(ep.subpaths[0].knots[2], Knot::smooth(p(100.0, 80.0), p(110.0, 80.0)));
 
     let mut ep = base();
     let untouched = base();
     let edits = [
-        PathEdit::MoveAnchors { path: 8, anchors: vec![kr(0)], by },
-        PathEdit::MoveAnchors { path: 7, anchors: vec![kr(0), kr(9)], by },
-        PathEdit::MoveHandle { path: 7, knot: KnotRef::new(3, 0), side: HandleSide::In, to, alone: false },
-        PathEdit::BendSegment { path: 7, segment: kr(2), t: 0.5, by },
-        PathEdit::Convert { path: 7, knot: kr(5), out: None },
-        PathEdit::ToggleCurvature { path: 7, knot: kr(5) },
-        PathEdit::InsertCurvature { path: 7, segment: kr(0), t: 0.0, by },
+        PathEdit::move_anchors(8, vec![kr(0)], by),
+        PathEdit::move_anchors(7, vec![kr(0), kr(9)], by),
+        PathEdit::move_handle(7, KnotRef::new(3, 0), HandleSide::In, to, false),
+        PathEdit::bend_segment(7, kr(2), 0.5, by),
+        PathEdit::convert(7, kr(5), None),
+        PathEdit::toggle_curvature(7, kr(5)),
+        PathEdit::insert_curvature(7, kr(0), 0.0, by),
     ];
     for e in edits {
         assert!(!e.apply(&mut ep));
@@ -253,28 +253,28 @@ fn path_a() -> EditPath {
     let knots = vec![
         Knot::corner(p(60.0, 60.0)),
         Knot::corner(p(160.0, 60.0)),
-        Knot { anchor: p(260.0, 60.0), in_ctrl: p(230.0, 20.0), out_ctrl: p(290.0, 100.0), smooth: true },
+        Knot::new(p(260.0, 60.0), p(230.0, 20.0), p(290.0, 100.0), true),
         Knot::corner(p(340.0, 160.0)),
     ];
-    EditPath { key: 1, subpaths: vec![EditSubpath { knots, closed: false }], color: None }
+    EditPath::new(1, vec![EditSubpath::new(knots, false)])
 }
 
 /// Path 2, drawn after path 1: a closed square and an open line.
 fn path_b() -> EditPath {
     let square = [(60.0, 200.0), (140.0, 200.0), (140.0, 260.0), (60.0, 260.0)].map(|(x, y)| Knot::corner(p(x, y)));
     let line = [(200.0, 220.0), (260.0, 260.0)].map(|(x, y)| Knot::corner(p(x, y)));
-    let subpaths = vec![EditSubpath { knots: square.to_vec(), closed: true }, EditSubpath { knots: line.to_vec(), closed: false }];
-    EditPath { key: 2, subpaths, color: Some(craft_theme::Srgba::rgb(0.9, 0.43, 0.08)) }
+    let subpaths = vec![EditSubpath::new(square.to_vec(), true), EditSubpath::new(line.to_vec(), false)];
+    EditPath::new(2, subpaths).colored(Some(craft_theme::Srgba::rgb(0.9, 0.43, 0.08)))
 }
 
 fn open(key: u64, y: f64) -> EditPath {
     let knots = [60.0, 160.0, 260.0].map(|x| Knot::corner(p(x, y))).to_vec();
-    EditPath { key, subpaths: vec![EditSubpath { knots, closed: false }], color: None }
+    EditPath::new(key, vec![EditSubpath::new(knots, false)])
 }
 
 fn closed_square(key: u64) -> EditPath {
     let knots = [(60.0, 200.0), (140.0, 200.0), (140.0, 260.0), (60.0, 260.0)].map(|(x, y)| Knot::corner(p(x, y))).to_vec();
-    EditPath { key, subpaths: vec![EditSubpath { knots, closed: true }], color: None }
+    EditPath::new(key, vec![EditSubpath::new(knots, true)])
 }
 
 /// An open path (key 1) at y 60, a closed square (key 2) and a draft (key 9) at y 150, in that order.
@@ -472,7 +472,7 @@ fn moved_by(edit: Option<PathEdit>) -> Option<(Vec<KnotRef>, Vec2)> {
 }
 
 fn sel(path: u64, anchors: &[(usize, usize)]) -> PathSelection {
-    PathSelection { path: Some(path), anchors: anchors.iter().map(|&(s, k)| KnotRef::new(s, k)).collect(), segment: None }
+    PathSelection::new(Some(path), anchors.iter().map(|&(s, k)| KnotRef::new(s, k)).collect(), None)
 }
 
 /// A distance past any click slop.
@@ -481,12 +481,9 @@ const FAR: f32 = 20.0;
 #[trial]
 fn a_shown_handle_beats_an_anchor_which_beats_a_segment_at_equal_distance() {
     // A smooth knot with short handles, selected so they show.
-    let knots = vec![
-        Knot::corner(p(100.0, 150.0)),
-        Knot { anchor: p(200.0, 150.0), in_ctrl: p(194.0, 150.0), out_ctrl: p(206.0, 150.0), smooth: true },
-        Knot::corner(p(300.0, 150.0)),
-    ];
-    let mut h = harness(vec![EditPath { key: 7, subpaths: vec![EditSubpath { knots, closed: false }], color: None }]);
+    let knots =
+        vec![Knot::corner(p(100.0, 150.0)), Knot::new(p(200.0, 150.0), p(194.0, 150.0), p(206.0, 150.0), true), Knot::corner(p(300.0, 150.0))];
+    let mut h = harness(vec![EditPath::new(7, vec![EditSubpath::new(knots, false)])]);
     h.update(|st| st.selection = sel(7, &[(0, 1)]));
     // 5 points from both the out handle's end and the anchor.
     let at = h.screen(p(203.0, 154.0));
@@ -571,7 +568,7 @@ fn a_straight_segment_moves_its_anchors_and_a_curved_one_bends() {
     let at = h.screen(curve.eval(0.5));
     h.drag(at, vec2(0.0, 12.0));
     match h.last_change() {
-        Some(PathEdit::BendSegment { path: 1, segment, t, by }) => {
+        Some(PathEdit::BendSegment { path: 1, segment, t, by, .. }) => {
             assert_eq!(segment, kr(1));
             assert!((t - 0.5).abs() < 0.01, "t {t}");
             assert!(near_vec(by, Vec2::new(0.0, 12.0)), "{by:?}");
@@ -620,10 +617,10 @@ fn convert_point_makes_a_corner_on_a_click_and_smooth_handles_on_a_drag() {
     let a3 = h.screen(h.anchor(0, 2));
     h.click(a3);
     assert_eq!(h.seen(), [Seen::Set]);
-    assert_eq!(h.last_change(), Some(PathEdit::Convert { path: 1, knot: kr(2), out: None }));
+    assert_eq!(h.last_change(), Some(PathEdit::convert(1, kr(2), None)));
     let a2 = h.screen(h.anchor(0, 1));
     h.drag(a2, vec2(30.0, 10.0));
-    assert_eq!(h.last_change(), Some(PathEdit::Convert { path: 1, knot: kr(1), out: Some(p(190.0, 70.0)) }));
+    assert_eq!(h.last_change(), Some(PathEdit::convert(1, kr(1), Some(p(190.0, 70.0)))));
     assert_eq!(h.state.borrow().paths[0].subpaths[0].knots[1], Knot::smooth(p(160.0, 60.0), p(190.0, 70.0)));
     // Segments and empty canvas are the tool's.
     let before = h.seen().len();
@@ -703,7 +700,7 @@ fn arrows_move_the_selected_anchors_or_the_picked_handle_and_alt_moves_it_alone(
     }
     assert!(h.picked("In handle"));
     h.key(Key::ArrowLeft, Modifiers::ALT);
-    let moved = |to: Point, alone: bool| Some(PathEdit::MoveHandle { path: 1, knot: kr(2), side: HandleSide::In, to, alone });
+    let moved = |to: Point, alone: bool| Some(PathEdit::move_handle(1, kr(2), HandleSide::In, to, alone));
     assert_eq!(h.last_change(), moved(p(229.0, 20.0), true));
     h.key(Key::ArrowUp, Modifiers::NONE);
     assert_eq!(h.last_change(), moved(p(229.0, 19.0), false));
@@ -731,7 +728,7 @@ fn anchors_and_shown_handles_are_graphics_objects_until_the_anchor_limit() {
     assert_eq!(values[3].as_deref(), Some("230.0 px, 20.0 px"));
 
     let knots = (0..=MAX_ANCHORS).map(|i| Knot::corner(p(i as f64 * 0.001, 100.0))).collect();
-    let h = harness(vec![EditPath { key: 9, subpaths: vec![EditSubpath { knots, closed: false }], color: None }]);
+    let h = harness(vec![EditPath::new(9, vec![EditSubpath::new(knots, false)])]);
     assert!(h.objects().is_empty(), "over the limit no object");
 }
 
@@ -748,8 +745,8 @@ fn hit_test_matches_the_overlays_press_priority() {
             BezierOverlay::hit_test(&st.paths, &st.selection, HandlesShown::Selected, &view, at, 6.0)
         };
         let handle = h.screen(p(290.0, 100.0));
-        assert_eq!(test(handle), Some(BezierHit::Handle { path: 1, knot: kr(2), side: HandleSide::Out }));
-        assert_eq!(test(h.screen(p(160.0, 60.0))), Some(BezierHit::Anchor { path: 1, knot: kr(1) }));
+        assert!(matches!(test(handle), Some(BezierHit::Handle { path: 1, knot, side: HandleSide::Out, .. }) if knot == kr(2)));
+        assert!(matches!(test(h.screen(p(160.0, 60.0))), Some(BezierHit::Anchor { path: 1, knot, .. }) if knot == kr(1)));
         assert!(matches!(test(h.screen(p(110.0, 60.0))), Some(BezierHit::Segment { path: 1, segment, .. }) if segment == kr(0)));
         assert_eq!(test(h.screen(p(10.0, 10.0))), None);
         // The press on the handle drags it, as the test says.
@@ -766,7 +763,7 @@ fn the_hover_reports_the_part_under_the_pointer_with_the_segment_parameter() {
     h.move_to(at);
     h.fixture.settle();
     match h.state.borrow().hover {
-        Some(BezierHit::Segment { path: 1, segment, t }) => assert!(segment == kr(0) && (t - 0.5).abs() < 0.05, "{segment:?} {t}"),
+        Some(BezierHit::Segment { path: 1, segment, t, .. }) => assert!(segment == kr(0) && (t - 0.5).abs() < 0.05, "{segment:?} {t}"),
         other => panic!("{other:?}"),
     }
     let a2 = h.screen(p(160.0, 60.0));
@@ -779,7 +776,7 @@ fn the_hover_reports_the_part_under_the_pointer_with_the_segment_parameter() {
 #[trial]
 fn a_selected_segment_shows_its_handles() {
     let mut h = two_paths();
-    h.update(|st| st.selection = PathSelection { path: Some(1), anchors: Vec::new(), segment: Some(kr(2)) });
+    h.update(|st| st.selection = PathSelection::new(Some(1), Vec::new(), Some(kr(2))));
     assert!(h.objects().iter().any(|n| n == "Out handle"), "the segment's leaving end shows its handle: {:?}", h.objects());
     h.update(|st| st.segment_mark = SegmentMark::Line);
     assert!(h.objects().iter().any(|n| n == "Out handle"));
@@ -877,7 +874,7 @@ fn curvature_tool_drags_an_anchor_and_reflows() {
     h.drag(at, vec2(0.0, 30.0));
     assert_eq!(h.seen().first(), Some(&Seen::Begin), "{:?}", h.seen());
     assert_eq!(h.seen().last(), Some(&Seen::Commit));
-    let Some(PathEdit::MoveCurvature { path, anchors, by }) = h.last_change() else { panic!("MoveCurvature: {:?}", h.last_change()) };
+    let Some(PathEdit::MoveCurvature { path, anchors, by, .. }) = h.last_change() else { panic!("MoveCurvature: {:?}", h.last_change()) };
     assert_eq!((path, anchors), (1, vec![kr(1)]));
     assert!(near_vec(by, Vec2::new(0.0, 30.0)), "{by:?}");
     assert_eq!(h.selection(), sel(1, &[(0, 1)]));
@@ -907,7 +904,7 @@ fn curvature_tool_insert_and_drag_is_one_gesture() {
     assert_eq!(h.seen().first(), Some(&Seen::Begin), "{:?}", h.seen());
     assert_eq!(h.seen().last(), Some(&Seen::Commit));
     assert!(h.seen().iter().all(|k| matches!(k, Seen::Begin | Seen::Update | Seen::Commit)), "{:?}", h.seen());
-    let Some(PathEdit::InsertCurvature { path, segment, t, by }) = h.last_change() else { panic!("InsertCurvature: {:?}", h.last_change()) };
+    let Some(PathEdit::InsertCurvature { path, segment, t, by, .. }) = h.last_change() else { panic!("InsertCurvature: {:?}", h.last_change()) };
     assert_eq!((path, segment), (1, kr(0)));
     assert!((0.01..=0.99).contains(&t) && (t - 0.5).abs() < 0.05, "{t}");
     assert!(near_vec(by, Vec2::new(0.0, 24.0)), "{by:?}");
@@ -937,7 +934,7 @@ fn curvature_tool_double_click_toggles_an_anchor() {
     h.fixture.frame(vec![pointer::release(at)]);
     h.fixture.frame(Vec::new());
     h.click(at);
-    assert_eq!(h.last_change(), Some(PathEdit::ToggleCurvature { path: 1, knot: kr(1) }));
+    assert_eq!(h.last_change(), Some(PathEdit::toggle_curvature(1, kr(1))));
 }
 
 #[trial]
@@ -955,11 +952,11 @@ fn curvature_tool_keys_move_and_toggle() {
     let mut h = with_tool(BezierTool::Curvature);
     h.click_doc(160.0, 60.0);
     h.key(Key::ArrowRight, Modifiers::NONE);
-    assert_eq!(h.last_change(), Some(PathEdit::MoveCurvature { path: 1, anchors: vec![kr(1)], by: Vec2::new(1.0, 0.0) }));
+    assert_eq!(h.last_change(), Some(PathEdit::move_curvature(1, vec![kr(1)], Vec2::new(1.0, 0.0))));
     h.key(Key::ArrowDown, Modifiers::SHIFT);
-    assert_eq!(h.last_change(), Some(PathEdit::MoveCurvature { path: 1, anchors: vec![kr(1)], by: Vec2::new(0.0, 10.0) }));
+    assert_eq!(h.last_change(), Some(PathEdit::move_curvature(1, vec![kr(1)], Vec2::new(0.0, 10.0))));
     h.key(Key::Enter, Modifiers::NONE);
-    assert_eq!(h.last_change(), Some(PathEdit::ToggleCurvature { path: 1, knot: kr(1) }));
+    assert_eq!(h.last_change(), Some(PathEdit::toggle_curvature(1, kr(1))));
     assert_eq!(h.seen(), [Seen::Set, Seen::Set, Seen::Set]);
 }
 

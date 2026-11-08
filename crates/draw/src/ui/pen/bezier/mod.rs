@@ -91,6 +91,7 @@ pub enum HandlesShown {
 #[non_exhaustive]
 pub enum BezierHit {
     /// A shown direction handle's end.
+    #[non_exhaustive]
     Handle {
         /// The path's id.
         path: u64,
@@ -100,6 +101,7 @@ pub enum BezierHit {
         side: HandleSide,
     },
     /// An anchor.
+    #[non_exhaustive]
     Anchor {
         /// The path's id.
         path: u64,
@@ -107,6 +109,7 @@ pub enum BezierHit {
         knot: KnotRef,
     },
     /// The segment leaving `segment`, at its parameter `t`.
+    #[non_exhaustive]
     Segment {
         /// The path's id.
         path: u64,
