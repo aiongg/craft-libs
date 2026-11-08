@@ -68,6 +68,6 @@ fn new_layer_reports_the_modifiers_held() {
     fixture.hold(Modifiers::ALT);
     fixture.click(&button);
     fixture.idle(2);
-    let asked = seen.borrow().iter().any(|event| matches!(event, LayersEvent::Footer(LayersFooterAction::NewLayer { ask: true, below: false })));
+    let asked = seen.borrow().iter().any(|event| matches!(event, LayersEvent::Footer(LayersFooterAction::NewLayer { ask: true, below: false, .. })));
     assert!(asked, "events: {:?}", seen.borrow());
 }
