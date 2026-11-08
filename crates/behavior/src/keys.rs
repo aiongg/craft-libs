@@ -20,8 +20,8 @@ pub struct KeyRole {
     pub rename: bool,
     /// `FocusPolicy.pages`: Ctrl+Tab switches pages.
     pub pages: bool,
-    /// The component reads arrow nudges: arrows are not moves. One that deletes (a canvas) takes only the plain
-    /// Delete and Backspace; with a modifier held they are the app's.
+    /// The component reads arrow nudges: arrows are not moves. One that deletes (a canvas control) takes only the
+    /// plain Delete and Backspace; with a modifier held they are the app's.
     pub nudge: bool,
     /// Typed letters reach the component as `Intent::Text` (type-ahead).
     pub type_ahead: bool,
@@ -266,9 +266,9 @@ fn movement(mac: bool, key: Key, mods: Mods, role: KeyRole) -> Option<Intent> {
         }
         Key::PageUp if !mods.alt && !mods.cmd && !mods.ctrl => moved(NavMove::PageUp, Granularity::Unit),
         Key::PageDown if !mods.alt && !mods.cmd && !mods.ctrl => moved(NavMove::PageDown, Granularity::Unit),
-        // A canvas tool takes the plain keys; with a modifier they are the app's (Photoshop fills on Alt+Backspace and
-        // Cmd+Backspace and opens Fill on Shift+Backspace). A tool with a draft open keeps them with Alt held through
-        // its kept keys.
+        // A canvas control takes the plain keys; with a modifier they are the app's (Photoshop fills on Alt+Backspace
+        // and Cmd+Backspace and opens Fill on Shift+Backspace). A canvas tool takes no row: it claims the deletes it
+        // takes in its state (`CanvasTool::claims` in craft-ui).
         Key::Delete | Key::Backspace if role.deletes && role.nudge && !role.text => {
             mods.is_none().then(|| Intent::delete(key == Key::Delete, Granularity::Unit))
         }
@@ -369,7 +369,7 @@ mod tests {
     }
 
     #[test]
-    fn a_canvas_takes_the_plain_deletes_and_leaves_the_modified_ones() {
+    fn a_canvas_control_takes_the_plain_deletes_and_leaves_the_modified_ones() {
         let canvas = KeyRole::new().nudge(true).deletes(true);
         let list = KeyRole::new().deletes(true);
         let text = KeyRole::new().text(true).deletes(true);

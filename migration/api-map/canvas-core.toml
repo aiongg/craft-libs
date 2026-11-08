@@ -19,7 +19,7 @@ name = "CanvasTool"
 old = "craft_ui::canvas::tool_host::CanvasTool"
 new = "craft_ui::canvas::CanvasTool"
 status = "moved"
-note = "The trait keeps `press`, `drag`, `release`, `hover`, `cancel`, `key`, `paint`, `cursor`, `takes`, `autoscrolls` and `each_pass`, and adds `command_form() -> ToolPath`. Pointers are screen points (`ToolPointer::pos`); `paint` takes `&Draw`; `cursor` returns `craft_behavior::Cursor`. `parts`, `picked`, `pick`, `node`, `snap_gesture` and `button` are gone: a tool made of parts is a canvas control, a tool holds its snap targets, and `takes` decides the button."
+note = "The trait keeps `press`, `drag`, `release`, `hover`, `cancel`, `key`, `paint`, `cursor`, `takes`, `autoscrolls` and `each_pass`, and adds `command_form() -> ToolPath` and `claims() -> ToolClaims` (the keys the tool takes in its state at the end of the pass: the plain keys with `ToolClaims::keyboard`, the deletes with `ToolClaims::deletes`; unclaimed deletes are the app's). Pointers are screen points (`ToolPointer::pos`); `paint` takes `&Draw`; `cursor` returns `craft_behavior::Cursor`. `parts`, `picked`, `pick`, `node`, `snap_gesture` and `button` are gone: a tool made of parts is a canvas control, a tool holds its snap targets, and `takes` decides the button."
 
 [[type]]
 name = "ToolPointer"
@@ -33,14 +33,14 @@ name = "ToolKey"
 old = "craft_ui::canvas::tool_host::ToolKey"
 new = "craft_ui::canvas::ToolKey"
 status = "moved"
-note = "An enum of the intents the canvas holds (`Nudge`, `Delete`, `Submit`, `Cancel`) and the plain keys a tool kept with `ToolContext::keep_keys` (`Kept(Chord)`); the raw `key`, `modifiers`, `pressed` and `repeat` fields are gone."
+note = "An enum of the intents the canvas holds (`Nudge`, `Delete`, `Submit`, `Cancel`) and the plain keys a tool claimed with `ToolClaims::keyboard` (`Kept(Chord)`); `Delete` arrives only while the tool claims `ToolClaims::deletes`; the raw `key`, `modifiers`, `pressed` and `repeat` fields are gone."
 
 [[type]]
 name = "ToolContext"
 old = "craft_ui::canvas::tool_host::ToolContext"
 new = "craft_ui::canvas::ToolContext"
 status = "moved"
-note = "`pointer`, `mods` (was `modifiers`), `rect` and `time`; `space() -> Option<CanvasSpace>` is the canvas's view; `held(Key) -> bool` says whether a key is down; `caps_lock() -> bool` is the platform's Caps Lock toggle (`craft_window::caps_lock`, read once per pass); `reach() -> f32` is the one reach source for tool handles and hit tests (the theme's `size.hit.target`); `readout(rows)`, `request_repaint()` and `keep_keys()` stay; `marching_ants(points, closed)` paints ants that march on the pass clock (the phase argument is gone). `canvas_id`, `view`, `canvas`, `snap`, `snap_tolerance`, `tokens`, `numbers`, `direction`, `parts_focused`, `set_view` and `set_cursor` are gone."
+note = "`pointer`, `mods` (was `modifiers`), `rect` and `time`; `space() -> Option<CanvasSpace>` is the canvas's view; `held(Key) -> bool` says whether a key is down; `caps_lock() -> bool` is the platform's Caps Lock toggle (`craft_window::caps_lock`, read once per pass); `reach() -> f32` is the one reach source for tool handles and hit tests (the theme's `size.hit.target`); `readout(rows)` and `request_repaint()` stay; `keep_keys()` is `CanvasTool::claims` returning `ToolClaims::NONE.keyboard().deletes()`; `marching_ants(points, closed)` paints ants that march on the pass clock (the phase argument is gone). `canvas_id`, `view`, `canvas`, `snap`, `snap_tolerance`, `tokens`, `numbers`, `direction`, `parts_focused`, `set_view` and `set_cursor` are gone."
 
 [[type]]
 name = "ToolAction"

@@ -6,8 +6,8 @@ use craft_behavior::{Axis, CancelReason, CanvasView, GestureId, GesturePhase, Po
 use craft_i18n::Direction;
 use craft_keymap::{Chord, Key, Mods};
 use craft_ui::canvas::{
-    Canvas, CanvasTool, CropOverlay, PickStep, Snap, ToolAccess, ToolAction, ToolAnchor, ToolContext, ToolHost, ToolInput, ToolKey, ToolPath,
-    ToolPointer, tool_pick,
+    Canvas, CanvasTool, CropOverlay, PickStep, Snap, ToolAccess, ToolAction, ToolAnchor, ToolClaims, ToolContext, ToolHost, ToolInput, ToolKey,
+    ToolPath, ToolPointer, tool_pick,
 };
 use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use craft_ui::primitives::Draw;
@@ -40,7 +40,7 @@ struct Recorder {
     space: Vec<bool>,
     /// Shows a readout on every drag.
     readout: bool,
-    /// Keeps the plain keys. The tool takes every key it is offered either way.
+    /// Keeps the plain keys. The tool claims the deletes and takes every key it is offered either way.
     keep: bool,
     got: Vec<ToolKey>,
     /// The gesture id each call read from its context, in the order of `calls`.
@@ -58,9 +58,11 @@ impl Recorder {
 impl CanvasTool for Recorder {
     fn each_pass(&mut self, cx: &mut ToolContext<'_>) {
         self.passes.push((cx.gesture_id(), cx.direction(), cx.icon_side()));
-        if self.keep {
-            cx.keep_keys();
-        }
+    }
+
+    fn claims(&self) -> ToolClaims {
+        let deletes = ToolClaims::NONE.deletes();
+        if self.keep { deletes.keyboard() } else { deletes }
     }
 
     fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
