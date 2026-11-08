@@ -7,14 +7,14 @@ use std::fs;
 use std::path::Path;
 
 /// The `"id" = "text"` rows of a `words!` table, in token order. A `context` row's first string is a context, not
-/// an id, and a `plain` row has no id.
+/// an id, a `plain` row has no id, and a row with an empty id is looked up by its English text.
 fn rows(tokens: TokenStream, found: &mut Vec<(String, String)>) {
     let trees: Vec<TokenTree> = tokens.into_iter().collect();
     for (at, tree) in trees.iter().enumerate() {
         let TokenTree::Literal(id) = tree else { continue };
         let (Some(TokenTree::Punct(equals)), Some(TokenTree::Literal(text))) = (trees.get(at + 1), trees.get(at + 2)) else { continue };
         let after_context = at > 0 && matches!(&trees[at - 1], TokenTree::Ident(word) if word == "context");
-        if equals.as_char() != '=' || after_context {
+        if equals.as_char() != '=' || after_context || id.to_string() == "\"\"" {
             continue;
         }
         if let (Ok(id), Ok(text)) = (syn::parse_str::<syn::LitStr>(&id.to_string()), syn::parse_str::<syn::LitStr>(&text.to_string())) {
