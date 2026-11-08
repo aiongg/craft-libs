@@ -120,7 +120,7 @@ fn han_preference_follows_ui_language_then_os_locale() {
 #[trial]
 fn deflated_defaults_match_egui_defaults() {
     let ours = deflated_default_definitions();
-    let bytes = |name: &str| -> Vec<u8> { ours.font_data.get(name).unwrap_or_else(|| panic!("{name} is missing")).font.to_vec() };
+    let bytes = |name: &str| -> Vec<u8> { ours.font_data.get(name).unwrap_or_else(|| panic!("{name} is missing")).font.as_ref().as_ref().to_vec() };
     assert_eq!(bytes("Hack"), epaint_default_fonts::HACK_REGULAR);
     assert_eq!(bytes("Ubuntu-Light"), epaint_default_fonts::UBUNTU_LIGHT);
     assert_eq!(bytes("egui-icons"), epaint_default_fonts::EGUI_ICONS);
