@@ -147,6 +147,7 @@ pub enum ArtboardEvent {
     /// A new board: `Begin` past the click slop, `Update`, `Commit` with its pixel rect, `Cancel`.
     Draw(EditEvent<Rect>),
     /// The selected boards moving by an offset in whole pixels (with their contents); `copy` for an Alt-drag.
+    #[non_exhaustive]
     Move {
         /// Indices of the moved boards.
         indices: Vec<usize>,
@@ -156,6 +157,7 @@ pub enum ArtboardEvent {
         copy: bool,
     },
     /// Board `index` resized by a handle (contents stay): its new pixel rect.
+    #[non_exhaustive]
     Resize {
         /// Index of the resized board.
         index: usize,
@@ -164,6 +166,7 @@ pub enum ArtboardEvent {
     },
     /// A "+" button: a board of the same size beside board `index`; `copy` (Alt) with
     /// its contents.
+    #[non_exhaustive]
     AddBeside {
         /// Index of the board the new one goes beside.
         index: usize,
@@ -173,6 +176,7 @@ pub enum ArtboardEvent {
         copy: bool,
     },
     /// The selection changed to `indices` (empty: none).
+    #[non_exhaustive]
     Select {
         /// The newly selected boards.
         indices: Vec<usize>,
@@ -180,16 +184,19 @@ pub enum ArtboardEvent {
         mods: Mods,
     },
     /// Delete removed the selected boards.
+    #[non_exhaustive]
     Delete {
         /// Indices of the removed boards.
         indices: Vec<usize>,
     },
     /// Enter, or a double click inside a board under [`ArtboardRules::open_on_double_click`]: Artboard Options.
+    #[non_exhaustive]
     OpenOptions {
         /// Index of the board whose options open.
         index: usize,
     },
     /// Illustrator: a click on an object outside the boards: fit a board to the object at `at`.
+    #[non_exhaustive]
     FitObject {
         /// The clicked point, in document space.
         at: Point,

@@ -126,7 +126,7 @@ impl Default for SliceRules {
 /// A command the Slice tools, [`SliceBar`] and the keyboard ask the app for. The app owns the slices and the dialogs,
 /// gates the commands with [`SliceCommand::enabled`] as command state, and runs them when they fire.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui::contract::CommandSet)]
-#[command(prefix = "draw.slice")]
+#[command(prefix = "sliceCommand")]
 #[non_exhaustive]
 pub enum SliceCommand {
     /// Delete the selected stored (user or layer) slice.
@@ -178,6 +178,7 @@ pub enum SliceEvent {
     /// pixel rectangle, `Cancel`.
     Draw(EditEvent<Rect>),
     /// The slice `number` (the whole slice, also when the press hit a covered piece of it) moving to a new rectangle.
+    #[non_exhaustive]
     Move {
         /// The slice's display number.
         number: usize,
@@ -185,6 +186,7 @@ pub enum SliceEvent {
         event: EditEvent<Rect>,
     },
     /// The user slice `number` resized by a handle.
+    #[non_exhaustive]
     Resize {
         /// The slice's display number.
         number: usize,
@@ -192,6 +194,7 @@ pub enum SliceEvent {
         event: EditEvent<Rect>,
     },
     /// The selection changed: `number` picked (`None`: nothing), `add` for a Shift-click that adds or removes it.
+    #[non_exhaustive]
     Select {
         /// The picked slice's display number, or `None` for nothing.
         number: Option<usize>,

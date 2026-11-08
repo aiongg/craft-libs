@@ -114,7 +114,7 @@ fn by(x: f32, y: f32) -> egui::Vec2 {
 
 fn moved_by(events: &[ArtboardEvent]) -> Option<(Vec<usize>, Vec2, bool)> {
     events.iter().find_map(|event| match event {
-        ArtboardEvent::Move { indices, event: EditEvent::Commit { after, .. } | EditEvent::Set { after, .. }, copy } => {
+        ArtboardEvent::Move { indices, event: EditEvent::Commit { after, .. } | EditEvent::Set { after, .. }, copy, .. } => {
             Some((indices.clone(), *after, *copy))
         }
         _ => None,
@@ -219,9 +219,9 @@ fn keys_on_a_focused_board_move_resize_delete_and_open() {
     h.fixture.key(Key::ArrowDown, Modifiers::ALT);
     assert_eq!(resized(&h.events()), Some(Rect::new(0.0, 0.0, 180.0, 241.0)), "Alt and the arrows resize from the end edges");
     h.fixture.key(Key::Delete, Modifiers::NONE);
-    assert!(h.events().iter().any(|event| matches!(event, ArtboardEvent::Delete { indices } if indices == &[0])));
+    assert!(h.events().iter().any(|event| matches!(event, ArtboardEvent::Delete { indices, .. } if indices == &[0])));
     h.fixture.key(Key::Enter, Modifiers::NONE);
-    assert!(h.events().iter().any(|event| matches!(event, ArtboardEvent::OpenOptions { index: 0 })));
+    assert!(h.events().iter().any(|event| matches!(event, ArtboardEvent::OpenOptions { index: 0, .. })));
 }
 
 #[trial]
@@ -242,13 +242,15 @@ fn the_plus_buttons_answer_becomes_add_beside_and_alt_copies() {
     let mut tool = ArtboardTool::new();
     tool.items(&boards()).selected(&[1]);
     tool.add_beside(AddSide::Right, false).add_beside(AddSide::Bottom, true);
-    assert_eq!(
-        tool.take_events(),
-        [
-            ArtboardEvent::AddBeside { index: 1, side: AddSide::Right, copy: false },
-            ArtboardEvent::AddBeside { index: 1, side: AddSide::Bottom, copy: true }
-        ]
-    );
+    let events = tool.take_events();
+    let sides: Vec<_> = events
+        .iter()
+        .filter_map(|event| match event {
+            ArtboardEvent::AddBeside { index, side, copy, .. } => Some((*index, *side, *copy)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(sides, [(1, AddSide::Right, false), (1, AddSide::Bottom, true)]);
 }
 
 fn presets() -> Vec<ArtboardPreset> {

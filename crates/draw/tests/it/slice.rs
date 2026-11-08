@@ -96,7 +96,7 @@ fn harness(mode: SliceMode, setup: impl FnOnce(&mut App)) -> Harness {
         for event in &events {
             match event {
                 SliceEvent::Select { number, add: false, .. } => app.selected = *number,
-                SliceEvent::Move { number, event } | SliceEvent::Resize { number, event } => {
+                SliceEvent::Move { number, event, .. } | SliceEvent::Resize { number, event, .. } => {
                     let rect = match event {
                         EditEvent::Update { value, .. } => Some(*value),
                         EditEvent::Commit { after, .. } | EditEvent::Set { after, .. } => Some(*after),
@@ -173,8 +173,8 @@ fn drawn(events: &[SliceEvent]) -> Vec<Rect> {
 
 fn committed(events: &[SliceEvent], number: usize, resize: bool) -> Option<Rect> {
     events.iter().find_map(|event| match event {
-        SliceEvent::Move { number: n, event: EditEvent::Commit { after, .. } } if !resize && *n == number => Some(*after),
-        SliceEvent::Resize { number: n, event: EditEvent::Commit { after, .. } } if resize && *n == number => Some(*after),
+        SliceEvent::Move { number: n, event: EditEvent::Commit { after, .. }, .. } if !resize && *n == number => Some(*after),
+        SliceEvent::Resize { number: n, event: EditEvent::Commit { after, .. }, .. } if resize && *n == number => Some(*after),
         _ => None,
     })
 }
@@ -306,7 +306,7 @@ fn slice_keyboard_picks_moves_and_opens_options() {
 
 fn committed_or_set(events: &[SliceEvent], number: usize) -> Option<Rect> {
     events.iter().find_map(|event| match event {
-        SliceEvent::Move { number: n, event: EditEvent::Set { after, .. } } if *n == number => Some(*after),
+        SliceEvent::Move { number: n, event: EditEvent::Set { after, .. }, .. } if *n == number => Some(*after),
         _ => None,
     })
 }

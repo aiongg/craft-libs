@@ -19,7 +19,7 @@ pub(super) const SIDE: RangeInclusive<f64> = 1.0..=300_000.0;
 
 /// The commands of the Artboard bar. The app owns the boards and takes the command when it runs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui::contract::CommandSet)]
-#[command(prefix = "draw.artboard")]
+#[command(prefix = "artboardCommand")]
 #[non_exhaustive]
 pub enum ArtboardCommand {
     /// A board of the selected board's size, else the canvas's.
