@@ -12,6 +12,7 @@ mod reorder_groups;
 mod review;
 mod row_children;
 mod rows;
+mod section_node;
 mod strip;
 pub(crate) mod table;
 mod table_trials;
