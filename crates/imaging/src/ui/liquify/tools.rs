@@ -13,6 +13,7 @@ use super::session::{LiquifyStroke, StrokeEvent};
 /// PhotoCraft's engine unchanged.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum LiquifyTool {
     /// W.
     #[default]
@@ -105,6 +106,7 @@ impl LiquifyTool {
 /// The brush of the painting tools. Serialised in [`LiquifySettings`](super::LiquifySettings).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
+#[non_exhaustive]
 pub struct LiquifyBrush {
     /// Diameter in document pixels, 1..=15000 ([`Self::SIZE_MAX`]); the slider shows 1..=3000
     /// ([`Self::SLIDER_MAX`]), the keys and the resize reach further.

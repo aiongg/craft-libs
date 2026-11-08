@@ -110,7 +110,7 @@ impl StorySource {
 }
 
 impl LiquifySource for StorySource {
-    fn image(&self) -> &dyn RasterSource {
+    fn picture(&self) -> &dyn RasterSource {
         &self.image
     }
 

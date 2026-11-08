@@ -76,6 +76,7 @@ pub enum StrokeEvent {
 #[non_exhaustive]
 pub enum LiquifyGlobal {
     /// The Reconstruct button: scales the unfrozen field towards zero by `amount` percent.
+    #[non_exhaustive]
     Reconstruct {
         /// How much of the field is reconstructed, 0..=100.
         amount: f64,
@@ -111,6 +112,13 @@ pub struct LiquifySession {
 /// A lasso whose last point is within this many document pixels of its first (on both axes) is
 /// closed already.
 const LASSO_CLOSE_REACH: f64 = 0.5;
+
+impl LiquifyGlobal {
+    /// The Reconstruct button at `amount` percent.
+    pub const fn reconstruct(amount: f64) -> LiquifyGlobal {
+        LiquifyGlobal::Reconstruct { amount }
+    }
+}
 
 impl LiquifySession {
     /// A session holding `steps` (a smart filter opened again).

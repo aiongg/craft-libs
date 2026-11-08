@@ -4,8 +4,9 @@ use egui::{Color32, ColorImage, Response};
 
 use craft_behavior::geometry::draft::{DraftEvent, DraftKind, DraftPoint, DraftReach, OutlineDraft};
 use craft_behavior::kurbo::Point;
-use craft_behavior::{CancelReason, Cursor, CursorIcon, Mods, PaintedCursor, PixelSize, PointerButton};
+use craft_behavior::{CancelReason, Cursor, CursorIcon, PaintedCursor, PixelSize, PointerButton};
 use craft_behavior::{Input, Metrics};
+use craft_keymap::Mods;
 use craft_ui::canvas::{
     CanvasTool, HandTool, NavigationOptions, PixelRect, RasterSource, ToolAction, ToolContext, ToolPath, ToolPointer, ZoomTool, canvas_space,
 };

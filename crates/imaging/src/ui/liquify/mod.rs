@@ -62,8 +62,9 @@ use std::sync::Arc;
 
 use egui::{Color32, Id, Response, Ui};
 
+use craft_behavior::edit_history::Step;
 use craft_behavior::kurbo::Size;
-use craft_behavior::{CancelReason, Cursor, EditEvent, EditHistory, GestureId, Mixed, PixelSize, Step};
+use craft_behavior::{CancelReason, Cursor, EditEvent, EditHistory, GestureId, Mixed, PixelSize};
 use craft_ui::canvas::{NavigationOptions, PickStep, RasterSource, ToolHost, ToolPath, tool_pick};
 use craft_ui::canvas_controls::brush::{BrushCursorOptions, TipFalloff};
 use craft_ui::contract::{Bind, NoValue, Outcome, Pattern, Remember as _, Show as _, ShowContainer as _};
@@ -76,7 +77,7 @@ use craft_ui::runtime::env::Env;
 use craft_ui::runtime::words::CommonWords;
 use craft_ui::sections::{DialogRole, FooterButton};
 
-use canvas::{LayeredImage, MaskAtTexel};
+use canvas::MaskAtTexel;
 use panel::backdrop_id;
 
 use crate::ui::warp::MeshLines;
@@ -91,7 +92,7 @@ const FREEZE_MASK_TINT: Color32 = Color32::from_rgba_premultiplied(0x80, 0x00, 0
 pub trait LiquifySource {
     /// The liquified layer as the field shows it now (the app's proxy, or its full-resolution crop
     /// above 100 %), in document pixels.
-    fn image(&self) -> &dyn RasterSource;
+    fn picture(&self) -> &dyn RasterSource;
 
     /// The freeze mask, white with the frozen amount as alpha, and its texel size in document
     /// pixels. The library tints it with the freeze while Show Mask is on.
@@ -426,10 +427,10 @@ impl LiquifyWorkspace {
 
                 let backdrop = source.backdrop().filter(|_| work.settings.show_backdrop);
                 let layering = BackdropLayering::of(backdrop.is_some(), work.settings.backdrop_mode, work.settings.backdrop_opacity);
-                let layered = backdrop.filter(|_| !layering.is_plain()).map(|backdrop| LayeredImage::new(source.image(), backdrop, layering));
+                let layered = backdrop.filter(|_| !layering.is_plain()).map(|backdrop| LayeredImage::new(source.picture(), backdrop, layering));
                 let image: &dyn RasterSource = match &layered {
                     Some(layered) => layered,
-                    None => source.image(),
+                    None => source.picture(),
                 };
                 let mask =
                     source.freeze_mask().filter(|_| work.settings.show_mask).map(|(mask, texel)| MaskAtTexel { mask, texel, document: image.size() });

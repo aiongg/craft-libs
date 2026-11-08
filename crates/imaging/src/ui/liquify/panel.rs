@@ -7,7 +7,7 @@ use egui::{Response, Ui};
 use craft_behavior::EditEvent;
 use craft_ui::buttons::Button;
 use craft_ui::choice::Checkbox;
-use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Pattern, SaveKey, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Pattern, SaveKey, Show as _, ShowContainer as _, clicked};
 use craft_ui::form::SliderField;
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::pickers::Select;
@@ -121,23 +121,23 @@ impl<'a> LiquifyPanel<'a> {
                 let amount = base.reconstruct_amount;
                 rows.slider(ui, &words.amount, amount, 0.0..=100.0, Some(UnitKind::Percent), |s, v| s.reconstruct_amount = v);
                 Row::new().show(ui, |ui, _| {
-                    if Button::new(words.reconstruct.clone()).id_salt("reconstruct").show(ui).clicked() {
+                    if clicked(&Button::new(words.reconstruct.clone()).id_salt("reconstruct").show(ui)) {
                         rows.pass.global = Some(LiquifyGlobal::Reconstruct { amount });
                     }
-                    if Button::new(words.restore_all.clone()).id_salt("restore-all").show(ui).clicked() {
+                    if clicked(&Button::new(words.restore_all.clone()).id_salt("restore-all").show(ui)) {
                         rows.pass.restore_all = true;
                     }
                 });
             });
             Section::new(words.mask_options.clone()).remember(SaveKey::new("craft_imaging.liquify.mask")).show(ui, |ui, _| {
                 Row::new().show(ui, |ui, _| {
-                    if Button::new(words.mask_none.clone()).id_salt("mask-none").show(ui).clicked() {
+                    if clicked(&Button::new(words.mask_none.clone()).id_salt("mask-none").show(ui)) {
                         rows.pass.global = Some(LiquifyGlobal::MaskNone);
                     }
-                    if Button::new(words.mask_all.clone()).id_salt("mask-all").show(ui).clicked() {
+                    if clicked(&Button::new(words.mask_all.clone()).id_salt("mask-all").show(ui)) {
                         rows.pass.global = Some(LiquifyGlobal::MaskAll);
                     }
-                    if Button::new(words.invert_all.clone()).id_salt("invert-all").show(ui).clicked() {
+                    if clicked(&Button::new(words.invert_all.clone()).id_salt("invert-all").show(ui)) {
                         rows.pass.global = Some(LiquifyGlobal::InvertAll);
                     }
                 });

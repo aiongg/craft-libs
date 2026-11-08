@@ -3,7 +3,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use craft_behavior::{CancelReason, Cursor, PaintedCursor, PixelSize, Step};
+use craft_behavior::edit_history::Step;
+use craft_behavior::{CancelReason, Cursor, PaintedCursor, PixelSize};
 use craft_imaging::ui::liquify::{
     BackdropLayering, BackdropMode, BackdropUse, LayeredImage, LiquifyBrush, LiquifyCommands, LiquifyEvent, LiquifyGlobal, LiquifyMesh, LiquifyOpen,
     LiquifySession, LiquifySettings, LiquifySource, LiquifyStep, LiquifyStroke, LiquifyTiming, LiquifyTool, LiquifyWorkspace, MeshSize, StrokeEvent,
@@ -14,7 +15,7 @@ use craft_ui::primitives::Revision;
 use craft_ui::runtime::access::Role;
 use craft_ui::sections::DialogRole;
 use craft_ui::testing::{Fixture, pointer, trial};
-use egui::{Color32, ColorImage, Event, Key, Modifiers, Pos2, Vec2, vec2};
+use egui::{Color32, ColorImage, Event, Key, Modifiers, Pos2, Vec2};
 
 /// The document's size in pixels.
 const DOCUMENT: [u32; 2] = [800, 600];
@@ -49,7 +50,7 @@ struct Source {
 }
 
 impl LiquifySource for Source {
-    fn image(&self) -> &dyn RasterSource {
+    fn picture(&self) -> &dyn RasterSource {
         &self.image
     }
 
@@ -104,15 +105,20 @@ fn open() -> (Fixture, Rc<RefCell<App>>) {
         app.timing = out.timing;
         app.cursor = out.cursor;
     });
-    fixture.room(vec2(1000.0, 900.0));
+    fixture.room(by(1000.0, 900.0));
     fixture.settle();
     (fixture, app)
 }
 
+/// The offset `x` points right and `y` points down.
+fn by(x: f32, y: f32) -> Vec2 {
+    Vec2::X * x + Vec2::Y * y
+}
+
 /// The middle of the canvas, moved by `by`.
-fn canvas_point(fixture: &Fixture, by: Vec2) -> Pos2 {
+fn canvas_point(fixture: &Fixture, offset: Vec2) -> Pos2 {
     let canvas = fixture.by_role(Role::CANVAS).into_iter().next().expect("the workspace shows a canvas");
-    canvas.center() + by
+    canvas.center() + offset
 }
 
 fn primary(at: Pos2, down: bool) -> Event {
@@ -151,7 +157,7 @@ fn stroke(tool: LiquifyTool, points: &[[f64; 3]]) -> LiquifyStroke {
 fn open_stroke(fixture: &mut Fixture, at: Pos2) {
     fixture.frame(vec![pointer::moved(at)]);
     fixture.frame(vec![pointer::press(at)]);
-    fixture.frame(vec![pointer::moved(at + vec2(30.0, 0.0))]);
+    fixture.frame(vec![pointer::moved(at + by(30.0, 0.0))]);
 }
 
 #[trial]
@@ -160,14 +166,14 @@ fn liquify_alt_right_drag_resizes_size_and_density_and_paints_nothing() {
     let start = app.borrow().workspace.settings().brush;
     let from = canvas_point(&fixture, Vec2::ZERO);
     fixture.hold(Modifiers::ALT);
-    drag(&mut fixture, pointer::secondary, from, from + vec2(40.0, 30.0));
+    drag(&mut fixture, pointer::secondary, from, from + by(40.0, 30.0));
     let brush = app.borrow().workspace.settings().brush;
     assert!(brush.size > start.size, "right widens the brush");
     assert!(brush.density > start.density, "down raises the density");
     assert_eq!((strokes(&app.borrow().events), app.borrow().workspace.session().len()), (0, 0), "a resize paints nothing");
 
     fixture.hold(Modifiers { alt: true, ctrl: true, ..Modifiers::NONE });
-    drag(&mut fixture, primary, from, from + vec2(-20.0, -20.0));
+    drag(&mut fixture, primary, from, from + by(-20.0, -20.0));
     let narrower = app.borrow().workspace.settings().brush;
     assert!(narrower.size < brush.size && narrower.density < brush.density, "Control + Alt + drag resizes too");
     assert_eq!(strokes(&app.borrow().events), 0);
@@ -180,7 +186,7 @@ fn liquify_alt_primary_drag_paints_with_the_alternate_tool() {
     assert_eq!(app.borrow().workspace.settings().tool, LiquifyTool::TwirlClockwise);
     let from = canvas_point(&fixture, Vec2::ZERO);
     fixture.hold(Modifiers::ALT);
-    drag(&mut fixture, primary, from, from + vec2(40.0, 30.0));
+    drag(&mut fixture, primary, from, from + by(40.0, 30.0));
     let tools: Vec<_> = commits(&app.borrow().events).iter().map(|stroke| stroke.tool).collect();
     assert_eq!(tools, [LiquifyTool::TwirlCounterclockwise]);
 }
@@ -245,15 +251,15 @@ fn liquify_brush_outline_follows_the_pointer_except_while_resizing() {
     fixture.frame(vec![pointer::moved(Pos2::new(990.0, 10.0))]);
     assert!(!outline(&app), "no outline off the canvas");
 
-    let anchor = on + vec2(20.0, 20.0);
+    let anchor = on + by(20.0, 20.0);
     fixture.frame(vec![pointer::moved(anchor)]);
     fixture.hold(Modifiers::ALT);
     fixture.frame(vec![pointer::secondary(anchor, true)]);
-    fixture.frame(vec![pointer::moved(anchor + vec2(30.0, 0.0))]);
+    fixture.frame(vec![pointer::moved(anchor + by(30.0, 0.0))]);
     assert_eq!(app.borrow().cursor, Some(Cursor::Painted(PaintedCursor::Hidden)), "the pointer hides while resizing");
-    fixture.frame(vec![pointer::secondary(anchor + vec2(30.0, 0.0), false)]);
+    fixture.frame(vec![pointer::secondary(anchor + by(30.0, 0.0), false)]);
     fixture.hold(Modifiers::NONE);
-    fixture.frame(vec![pointer::moved(anchor + vec2(30.0, 0.0))]);
+    fixture.frame(vec![pointer::moved(anchor + by(30.0, 0.0))]);
     assert!(outline(&app), "the outline follows the pointer again");
 }
 
@@ -272,7 +278,7 @@ fn liquify_escape_cancels_the_stroke_and_replays_then_the_next_cancels_the_dialo
     );
     assert!(app.borrow().workspace.session().is_empty(), "nothing was recorded");
     assert_eq!(app.borrow().closed, None, "the dialog stays open");
-    fixture.frame(vec![pointer::release(from + vec2(30.0, 0.0))]);
+    fixture.frame(vec![pointer::release(from + by(30.0, 0.0))]);
 
     fixture.key(Key::Escape, Modifiers::NONE);
     assert_eq!(app.borrow().closed, Some(DialogRole::Cancel));
@@ -283,7 +289,7 @@ fn liquify_freeze_lasso_commits_a_polygon_and_alt_thaws() {
     let (mut fixture, app) = open();
     fixture.key(Key::L, Modifiers::NONE);
     assert_eq!(app.borrow().workspace.settings().tool, LiquifyTool::FreezeLasso);
-    let corners = [Vec2::ZERO, vec2(80.0, 0.0), vec2(80.0, 60.0), vec2(0.0, 60.0)].map(|by| canvas_point(&fixture, by));
+    let corners = [Vec2::ZERO, by(80.0, 0.0), by(80.0, 60.0), by(0.0, 60.0)].map(|by| canvas_point(&fixture, by));
     for modifiers in [Modifiers::NONE, Modifiers::ALT] {
         fixture.hold(modifiers);
         fixture.frame(vec![pointer::moved(corners[0])]);
@@ -314,7 +320,7 @@ fn liquify_a_letter_mid_stroke_cancels_the_stroke_and_leaves_the_canvas_idle() {
         matches!(events.as_slice(), [LiquifyEvent::Stroke(StrokeEvent::Cancel(CancelReason::Removed)), LiquifyEvent::Replay(steps)] if steps.is_empty()),
         "{events:?}"
     );
-    fixture.frame(vec![pointer::release(from + vec2(30.0, 0.0))]);
+    fixture.frame(vec![pointer::release(from + by(30.0, 0.0))]);
     assert!(commits(&app.borrow().events).is_empty(), "the new tool got no release");
     assert!(app.borrow().workspace.session().is_empty());
 }
@@ -322,10 +328,10 @@ fn liquify_a_letter_mid_stroke_cancels_the_stroke_and_leaves_the_canvas_idle() {
 #[trial]
 fn liquify_undo_mid_stroke_cancels_the_stroke_then_steps() {
     let (mut fixture, app) = open();
-    let left = canvas_point(&fixture, vec2(-40.0, 0.0));
-    drag(&mut fixture, primary, left, left + vec2(80.0, 10.0));
+    let left = canvas_point(&fixture, by(-40.0, 0.0));
+    drag(&mut fixture, primary, left, left + by(80.0, 10.0));
     assert_eq!(app.borrow().workspace.session().len(), 1);
-    open_stroke(&mut fixture, canvas_point(&fixture, vec2(0.0, 40.0)));
+    open_stroke(&mut fixture, canvas_point(&fixture, by(0.0, 40.0)));
     app.borrow_mut().events.clear();
 
     assert!(app.borrow_mut().workspace.step(Step::Undo), "the step waits for the next pass");
@@ -344,8 +350,8 @@ fn liquify_undo_mid_stroke_cancels_the_stroke_then_steps() {
 #[trial]
 fn liquify_step_from_the_menu_queues_the_replay_for_the_next_pass() {
     let (mut fixture, app) = open();
-    let left = canvas_point(&fixture, vec2(-40.0, 0.0));
-    drag(&mut fixture, primary, left, left + vec2(80.0, 10.0));
+    let left = canvas_point(&fixture, by(-40.0, 0.0));
+    drag(&mut fixture, primary, left, left + by(80.0, 10.0));
     app.borrow_mut().events.clear();
 
     assert!(app.borrow_mut().workspace.step(Step::Undo));
@@ -362,13 +368,13 @@ fn liquify_output_reports_resize_changes_and_the_stroke_timing() {
     assert!(!app.borrow().changed, "nothing changed yet");
     let from = canvas_point(&fixture, Vec2::ZERO);
     fixture.hold(Modifiers::ALT);
-    drag(&mut fixture, pointer::secondary, from, from + vec2(40.0, 0.0));
+    drag(&mut fixture, pointer::secondary, from, from + by(40.0, 0.0));
     assert!(app.borrow().changed, "Alt + right-drag changed the brush");
     assert_eq!(app.borrow().timing, None, "a resize is not a stroke");
 
     fixture.hold(Modifiers::NONE);
-    let left = canvas_point(&fixture, vec2(-40.0, 0.0));
-    drag(&mut fixture, primary, left, left + vec2(80.0, 10.0));
+    let left = canvas_point(&fixture, by(-40.0, 0.0));
+    drag(&mut fixture, primary, left, left + by(80.0, 10.0));
     assert!(app.borrow().timing.is_some_and(|timing| timing.dabs >= 2), "{:?}", app.borrow().timing);
 }
 
@@ -445,8 +451,8 @@ fn liquify_stroke_events_begin_update_commit_and_short_strokes_are_recorded_whol
 fn liquify_undo_redo_ask_the_app_to_replay_and_redo_is_bounded() {
     let (mut fixture, app) = open();
     for row in [-40.0, 40.0] {
-        let from = canvas_point(&fixture, vec2(-40.0, row));
-        drag(&mut fixture, primary, from, from + vec2(80.0, 0.0));
+        let from = canvas_point(&fixture, by(-40.0, row));
+        drag(&mut fixture, primary, from, from + by(80.0, 0.0));
     }
     assert_eq!(app.borrow().workspace.session().len(), 2);
     assert!(app.borrow_mut().workspace.step(Step::Undo));
@@ -496,11 +502,11 @@ fn liquify_global_buttons_and_keys_report_the_global_event() {
     assert_eq!(app.borrow().workspace.session().len(), 2);
 
     let mut session = LiquifySession::default();
-    for op in [LiquifyGlobal::Reconstruct { amount: 40.0 }, LiquifyGlobal::MaskAll, LiquifyGlobal::MaskNone, LiquifyGlobal::InvertAll] {
+    for op in [LiquifyGlobal::reconstruct(40.0), LiquifyGlobal::MaskAll, LiquifyGlobal::MaskNone, LiquifyGlobal::InvertAll] {
         session.record_global(op);
     }
     assert_eq!(session.len(), 4);
-    assert_eq!(session.steps()[0], LiquifyStep::Global(LiquifyGlobal::Reconstruct { amount: 40.0 }));
+    assert_eq!(session.steps()[0], LiquifyStep::Global(LiquifyGlobal::reconstruct(40.0)));
     session.restore_all();
     assert!(session.is_empty());
 }
@@ -514,7 +520,11 @@ fn liquify_brackets_scale_the_brush_and_command_h_toggles_the_mask() {
     fixture.key(Key::OpenBracket, Modifiers::NONE);
     assert_eq!(app.borrow().workspace.settings().brush.size, 99.0);
 
-    let at = |size| LiquifyBrush { size, ..LiquifyBrush::default() };
+    let at = |size| {
+        let mut brush = LiquifyBrush::default();
+        brush.size = size;
+        brush
+    };
     assert_eq!(at(2.0).smaller().size, 1.0);
     assert_eq!(at(1.0).smaller().size, 1.0);
     assert_eq!(at(3.0).larger().size, 4.0, "at least one pixel of change");

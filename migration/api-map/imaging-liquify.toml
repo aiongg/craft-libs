@@ -126,3 +126,10 @@ type = "LiquifyWorkspace"
 old = "show(ctx, source)"
 new = "show(ui, source)"
 
+[[type]]
+name = "LiquifySource"
+old = "craft_imaging::ui::liquify::LiquifySource"
+new = "craft_imaging::ui::liquify::LiquifySource"
+status = "replaced"
+note = "`image()` is `picture()` (a structure lint rejects a method named `image`); the images are `RasterSource`s of the new contract."
+
