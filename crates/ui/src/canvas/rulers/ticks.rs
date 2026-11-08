@@ -21,8 +21,50 @@ const INCH_STEP_LAST: f64 = 1000.0;
 /// give.
 const MAX_TICKS: i64 = 20_000;
 
+/// The step table of a ruler that counts a time unit (frames): the labelled step is the first of
+/// `[1, 2, 5, 10, base/2, base, 2·base, 5·base, 10·base, 15·base, 30·base, 60·base, 120·base, 300·base, 600·base,
+/// 1800·base, 3600·base]` units whose width is at least `label_gap` points, so labels never touch, and the ticks
+/// subdivide it by the largest count of nine or fewer that keeps them `tick_gap` points apart, so every label sits on
+/// a tick. `base` is the units in the timecode's second.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct StepLadder {
+    /// The units in a timecode second (the frame rate, rounded).
+    pub base: i64,
+    /// The least distance between labelled ticks, in points.
+    pub label_gap: f32,
+    /// The least distance between ticks, in points.
+    pub tick_gap: f32,
+}
+
+impl StepLadder {
+    /// The ladder for `base` units to the second with the given gaps.
+    pub const fn new(base: i64, label_gap: f32, tick_gap: f32) -> Self {
+        StepLadder { base, label_gap, tick_gap }
+    }
+
+    /// The tick stride and the label stride in units, `(tick, label)`, when one unit is `points_per_unit` points
+    /// wide. Strides past `base` saturate, since rates are file data.
+    pub fn steps(&self, points_per_unit: f64) -> (i64, i64) {
+        let base = self.base;
+        let big = |k: i64| base.saturating_mul(k);
+        let ladder =
+            [1, 2, 5, 10, base / 2, base, big(2), big(5), big(10), big(15), big(30), big(60), big(120), big(300), big(600), big(1800), big(3600)];
+        let (label_gap, tick_gap) = (f64::from(self.label_gap), f64::from(self.tick_gap));
+        let label = ladder.iter().copied().find(|step| *step as f64 * points_per_unit >= label_gap).unwrap_or(big(3600)).max(1);
+        let tick = (1..=9)
+            .rev()
+            .filter(|k| label.rem_euclid(*k) == 0)
+            .map(|k| label / k)
+            .find(|step| *step as f64 * points_per_unit >= tick_gap)
+            .unwrap_or(label)
+            .max(1);
+        (tick, label)
+    }
+}
+
 /// Which tick table [`ticks`] follows.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum TickRule<'a> {
     /// The units' own table ([`RulerUnits::step`]): decimal steps and ten subdivisions, or the host's custom table.
@@ -31,6 +73,9 @@ pub enum TickRule<'a> {
     /// finest first, that keeps the ticks a tenth of the least label step apart ([`INCH_SIXTEENTHS`],
     /// [`INCH_EIGHTHS`]).
     Inches(&'a [u32]),
+    /// A time unit's own table: the units are frames (or ticks of the unit the ladder counts), and the labelled step
+    /// and subdivisions come from the [`StepLadder`].
+    Steps(StepLadder),
 }
 
 /// One tick of [`ticks`].
@@ -65,6 +110,10 @@ pub fn ticks(units: &RulerUnits, rule: TickRule<'_>, zoom: f64, values: RangeInc
     let (step, subdivisions) = match rule {
         TickRule::Metric => units.step(zoom, LABEL_STEP_MIN),
         TickRule::Inches(finest) => inch_step(zoom / units.per_doc, finest),
+        TickRule::Steps(ladder) => {
+            let (tick, label) = ladder.steps(zoom / units.per_doc);
+            (label as f64, u32::try_from(label / tick).unwrap_or(1))
+        }
     };
     let minor = step / f64::from(subdivisions);
     if !(minor.is_finite() && minor > 0.0 && units.per_doc.is_finite() && units.per_doc > 0.0) {
