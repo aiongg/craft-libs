@@ -2976,7 +2976,7 @@ The toast queue: one per viewport, filled from any code with a `Context`.
 
 `WindowHost`: the one multi-window driver. It owns `ShellInfo`, refreshes each viewport's `WindowInfo`, releases
 
-- `craft_ui::runtime::windows::CaptionRegions`: `pub struct CaptionRegions { pub buttons: Vec<(Button, Rect)>, pub edges: Vec<(ResizeEdge, Rect)>, pub moves: Vec<Rect>, pub covers: Vec<Rect> }`. Where the exclusive parts of one window lie, in points of its viewport: the window procedure answers a Windows
+- `craft_ui::runtime::windows::CaptionRegions`: `pub struct CaptionRegions { pub buttons: Vec<(Button, Rect)>, pub edges: Vec<(ResizeEdge, Rect)>, pub moves: Vec<Rect>, pub covers: Vec<Vec<Rect>> }`. Where the exclusive parts of one window lie, in points of its viewport: the window procedure answers a Windows
   - `pub fn hit(&self, point: Pos2) -> Option<WindowHit>`. What lies at `point`: a button wins over an edge, and an edge over a drag area. A drag area answers only where
 - `craft_ui::runtime::windows::HitSink`: `pub struct HitSink`. The Windows hit test of one window: the window procedure asks [`HitSink::answer`] where the OS asks for a hit
   - `pub fn answer(&self, pixel: Pos2) -> Option<WindowHit>`. What lies at `pixel`, in physical pixels from the top left of the window's client area: the hit test's screen
