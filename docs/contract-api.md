@@ -3972,9 +3972,13 @@ Stories: named ways to show one registered type, and the data and output the run
 
 - `craft_ui::testing::story::CollectionKind`: `pub enum CollectionKind { Selection, LeadMoved, Activate, ContextMenu, Delete, Open, Reorder(EditKind), Move(EditKind), Dropped, Zoom, FilesDropped, Rename(EditKind), Toggle(EditKind), Column, HeaderMenu, Item }`. The kind of a collection event, with the edit kind of the events that carry one.
   - `pub fn of<K, E>(event: &CollectionEvent<K, E>) -> Option<CollectionKind>`. The kind of `event`, `None` for an edit event of a kind the runner does not know.
-- `craft_ui::testing::story::Drive`: `pub enum Drive { Auto, Activate, Step, Drag(PartKey), DragChild(PartRef), Type(&'static str), Pick { row: usize }, Custom(fn(&mut Fixture)), Never }`. How the runner changes the value a story shows.
+- `craft_ui::testing::story::Drive`: `pub enum Drive { Auto, Activate, Step, Drag(Grip), DragChild(Grip), Type(&'static str), Pick { row: usize }, Custom(fn(&mut Fixture)), Never }`. How the runner changes the value a story shows.
 - `craft_ui::testing::story::EditKind`: `pub enum EditKind { Begin, Update, Commit, Cancel, Set }`. The kind of an edit event.
   - `pub fn of<T>(event: &EditEvent<T>) -> Option<EditKind>`. The kind of `event`.
+- `craft_ui::testing::story::Grip`: `pub struct Grip { pub part: PartRef, pub toward: Vec2 }`. The part a [`Drive::Drag`] or [`Drive::DragChild`] presses and the way the drag moves it.
+  - `pub const fn new(key: PartKey) -> Self`. The part `key`, a part that occurs once, dragged along x.
+  - `pub const fn part(part: PartRef) -> Self`. The part `part`, one of a repeated part (`HANDLE.at(i)`), dragged along x.
+  - `pub const fn toward(mut self, toward: Vec2) -> Self`. The grip dragged along `toward`.
 - `craft_ui::testing::story::Required`: `pub enum Required { Default, Mixed, Invalid, LongText, Open, Empty, One, Many }`. A state a registered type must show in some story.
 - `craft_ui::testing::story::Story`: `pub struct Story { pub name: &'static str, pub covers: &'static [Required], pub show: fn(&mut Ui, &mut StoryData) -> StoryOutput, pub drive: Drive, pub disabled_text: Option<&'static str> }`. A named way to show one registered type.
   - `pub const fn new(name: &'static str, show: fn(&mut Ui, &mut StoryData) -> StoryOutput) -> Self`. A story that shows with `show`.
@@ -4015,9 +4019,11 @@ Style and paint helpers: token sets, a `StyleCx`, the style cache and a `Draw` o
 The suite runner: one trial per registered type, running the shared cases of its shape over the stories the
 
 - `craft_ui::testing::suite::trials`: `pub fn trials(package: &'static str, registered: &[&'static Registration]) -> Vec<Trial>`. The trials of one package: a trial per registered type and one per story naming a type that is not linked. The
+- `craft_ui::testing::suite::required_states`: `pub fn required_states(probe: &Probe) -> Vec<Required>`. The states a registered type must show, from the facts of its probe, less the states it is exempt from.
 - `craft_ui::testing::suite::rtl_case`: `pub fn rtl_case(story: &Story) -> Result<(), String>`. The suite's right-to-left case for one story.
 - `craft_ui::testing::suite::text_size_case`: `pub fn text_size_case(story: &Story) -> Result<(), String>`. The suite's text-size case for one story: under a larger text size, either density and scale 2 the story grows
 - `craft_ui::testing::suite::title_case`: `pub fn title_case(story: &Story) -> Result<(), String>`. The title case for one story.
+- `craft_ui::testing::suite::values_case`: `pub fn values_case(probe: &Probe, story: &Story) -> Result<Vec<&'static str>, String>`. The `values` case over one story of the type `probe` describes: each way of the story's drive runs in its own
 
 ## `craft_ui::testing::surface`
 
