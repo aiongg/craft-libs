@@ -41,13 +41,8 @@ pub fn install_interface_fonts(ctx: &Context, language: &str, craft_faces: &[Emb
     UiFonts::new(&I18nScripts).languages(LANGUAGES).ui_language(language).craft_faces(craft_faces).install(ctx);
 }
 
-/// The filters column's share of the panel beside the list and toolbar.
-const FILTERS_SHARE: f32 = 1.0;
-/// The list and toolbar's share of the panel beside the filters column.
-const MAIN_SHARE: f32 = 3.0;
-/// The filters column and the main column. A `Content` column would measure the filters' width-filling sections in the
-/// whole room and leave the main column none.
-static PANES: [ColumnWidth; 2] = [ColumnWidth::fill(FILTERS_SHARE), ColumnWidth::fill(MAIN_SHARE)];
+/// The filters column takes the width of its widest section; the list and toolbar take the rest.
+static PANES: [ColumnWidth; 2] = [ColumnWidth::Content, ColumnWidth::fill(1.0)];
 
 /// Preview downloads: at most this much per file, and this many faces in a session.
 const PREVIEW_LIMITS: Limits = Limits { max_file_bytes: 64 << 20, max_faces_per_file: 512, max_added_faces: 20_000 };
