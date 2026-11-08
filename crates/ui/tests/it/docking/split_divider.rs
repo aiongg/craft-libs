@@ -80,9 +80,10 @@ fn a_component_drives_its_own_divider_with_the_public_functions() {
     });
     fixture.settle();
     let divider = fixture.by_label("Resize bar").expect("the divider is named by the component");
+    let start = at.get();
     fixture.drag(&divider, vec2(30.0, 0.0));
     fixture.settle();
-    assert!(at.get() > 100.0, "dragging right moved the divider: {}", at.get());
+    assert!(at.get() > start, "dragging right moved the divider: {}", at.get());
 
     let before = at.get();
     let divider = fixture.by_label("Resize bar").expect("the divider stays");
