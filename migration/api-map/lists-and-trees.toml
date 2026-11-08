@@ -47,7 +47,7 @@ name = "RowEvent"
 old = "craft_ui::list::row::RowEvent"
 new = "craft_ui::list::RowEvent"
 status = "replaced"
-note = "Only what a row's own parts report remains: `Open { open, all }` (`all` while Alt is held), `LinkToggled { thumb, linked }`, `ThumbClicked(ThumbTarget)`, `ThumbDrag(ThumbTarget)`. `Toggle`, `Renamed`, `RenameStarted`, `RenameEnded`, `Menu` and `LabelDoubleClicked` are `CollectionEvent::Toggle`, `CollectionEvent::Rename`, `CollectionEvent::ContextMenu` and `CollectionEvent::Activate`."
+note = "Only what a row's own parts report remains: `Open { open, all }` (`all` while Alt is held), `LinkToggled { thumb, linked }`, `ThumbClicked { target: ThumbTarget, mods: Mods }` (was a tuple variant; `mods` are the modifiers held at the click, none for a key), `ThumbDrag(ThumbTarget)`, and `Trailing { part: TrailingPart, mods: Mods }` for a press on a trailing part (`ListRow::trailing_part`). `Toggle`, `Renamed`, `RenameStarted`, `RenameEnded`, `Menu` and `LabelDoubleClicked` are `CollectionEvent::Toggle`, `CollectionEvent::Rename`, `CollectionEvent::ContextMenu` and `CollectionEvent::Activate`."
 
 [[type]]
 name = "ThumbSize"
@@ -254,8 +254,14 @@ new = "strong(bool); ink(RowInk::Muted) and ink(RowInk::Dimmed)"
 
 [[setter]]
 type = "ListRow"
-old = "italic(bool), clipped(bool), highlight(bool), rule(bool), striped(bool), layer(bool), renaming(bool), leading_first(bool), thumb_drags(bool)"
+old = "italic(bool), clipped(bool), highlight(bool), rule(bool), striped(bool), layer(bool), renaming(bool), leading_first(bool)"
 new = "same names and signatures"
+
+[[setter]]
+type = "ListRow"
+old = "thumb_drags(bool)"
+new = "thumb_drag(ThumbTarget, payload)"
+note = "A drag from the thumbnail starts the drag session with `payload` (a ghost as large as the thumbnail) and still reports `RowEvent::ThumbDrag`; a drop target reads the payload as for row drags (`FooterAction::accepts_drops::<P>`, `DropTarget<P>`). It also covers the first thumbnail. Trailing items beyond text: `trailing_icon(icon, name)` (an icon with a node and tooltip) and `trailing_part(TrailingPart, TrailingFace, name)` (a pressable face; `RowEvent::Trailing`)."
 
 [[setter]]
 type = "ListRow"
@@ -466,3 +472,17 @@ note = "Type `paint_disclosure` is replaced; the type entry above has the detail
 old = "craft_ui::list::tree::TreeRow"
 new = "craft_ui::list::ListRow"
 note = "Type `TreeRow` is replaced; the type entry above has the details."
+
+[[type]]
+name = "LabelColors"
+old = "craft_ui::style::labels::LabelColors"
+new = ""
+status = "replaced"
+note = "`LabelColor::swatch()`, `fill()` and `icon()` (`craft_theme::LabelColor`, `const fn`s returning the fixed data colours; `label_colors(color)` is the three calls). Paint a toggle cell with `ToggleCell::fill(DataColor::new(color.fill().into()))` and list the colour with `Entry::swatch`; tiles take `swatch()`."
+
+[[type]]
+name = "label_color_label"
+old = ""
+new = "craft_ui::list::label_color_label"
+status = "pending"
+note = "`label_color_label(Option<LabelColor>, &ListWords) -> Label`: one word per label colour and for no label (ids `list.labelRed` to `list.labelGray`, `list.labelNone`), beside `ThumbSize::label`."

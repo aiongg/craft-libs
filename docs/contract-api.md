@@ -1510,7 +1510,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `fn announce(&mut self, text: impl Into<String>, politeness: Politeness)`. Announces transient text; it is flushed at frame end as one status node and returned in `FrameOutput`.
   - `fn field_label(&self) -> Option<FieldLabel>`. The label of the enclosing field container, when the component sits in one.
 - `craft_ui::contract::ActivateOn`: `pub enum ActivateOn { DoubleClick, Click }`. The pointer gesture that activates an item.
-- `craft_ui::contract::Activation`: `pub struct Activation { pub by_key: bool }`. How a component was activated this pass.
+- `craft_ui::contract::Activation`: `pub struct Activation { pub by_key: bool, pub mods: craft_keymap::Mods }`. How a component was activated this pass.
 - `craft_ui::contract::Animate`: re-export of `craft_ui::runtime::motion::Animate`.
 - `craft_ui::contract::Bind`: `pub struct Bind<'a, T>`. The binding of a value component: a value the app owns, the check on it and the value a reset restores. The same
   - `pub fn given(v: impl Into<Mixed<T>>) -> Self`. A value in; every edit comes out as an event.
@@ -1620,7 +1620,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub fn save(mut self, key: SaveKey) -> Self`. Saves placement, size and open state under `key`.
   - `pub const fn outer_edit(mut self, on: bool) -> Self`. One outer gesture over the body's fields.
   - `pub const fn label_column(mut self, on: bool) -> Self`. The labelled rows of the body share the widest label as one column. A nested container with its own
-- `craft_ui::contract::ContextMenuRequest`: `pub struct ContextMenuRequest<K> { pub key: K, pub at: Pos2 }`. A request for the context menu of an item. Collections never open menus: the app does.
+- `craft_ui::contract::ContextMenuRequest`: `pub struct ContextMenuRequest<K> { pub key: K, pub at: Pos2, pub column: Option<ColumnKey> }`. A request for the context menu of an item. Collections never open menus: the app does.
 - `craft_ui::contract::Cx`: `pub struct Cx<'a, C: Component> { pub style: &'a C::Style }`. What component code reads and calls. It derefs to [`CxCore`] for reading only.
   - `pub fn reset_part(&self) -> Option<PartRef>`. The part a reset aimed at, when it declared `own_reset`; `update` proposes the value with that part at its
   - `pub fn open_url(&mut self, url: &str, new_tab: bool)`. Asks the platform to open `url`, in a new tab where the platform has tabs and `new_tab` is set.
@@ -1882,7 +1882,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
 - `craft_ui::contract::ToggleColumn`: `pub struct ToggleColumn { pub sweepable: bool, pub exclusive: bool }`. A toggle column: its cells flip by click, and a drag across them sweeps one value over all of them.
   - `pub const fn sweepable() -> Self`. A sweepable toggle column (eye, lock, mute).
   - `pub const fn exclusive() -> Self`. An exclusive toggle column: one cell is on at a time, and a drag does not sweep.
-- `craft_ui::contract::ToggleEdit`: `pub struct ToggleEdit<K> { pub key: K, pub column: ColumnKey, pub on: bool }`. A toggle column's cell flipped.
+- `craft_ui::contract::ToggleEdit`: `pub struct ToggleEdit<K> { pub key: K, pub column: ColumnKey, pub on: bool, pub mods: craft_keymap::Mods }`. A toggle column's cell flipped.
 - `craft_ui::contract::Tooltip`: `pub struct Tooltip`. A tooltip: one type for components and parts.
   - `pub fn spec(&self) -> &TooltipSpec`. What the tooltip shows and when.
 - `craft_ui::contract::TooltipAt`: `pub enum TooltipAt { Control, Pointer }`. Where a tooltip appears.

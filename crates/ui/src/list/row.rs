@@ -25,6 +25,8 @@ use craft_keymap::Mods;
 use craft_theme::variant::Tone;
 use craft_theme::{ControlSize, LabelColor, Rgba, RowStyle, Stateful, States, TypeRole, over};
 use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
+use std::any::Any;
+use std::sync::Arc;
 
 /// The width of a thumbnail as a multiple of its height.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -256,8 +258,8 @@ pub(super) struct Trailing {
     pub optional: bool,
 }
 
-/// Starts the drag session of a thumbnail with its payload.
-type ThumbDragStart<'a> = Box<dyn for<'c> Fn(&mut Cx<'c, ListRow<'a>>, DragPreview) + 'a>;
+/// The payload a thumbnail's drag session carries.
+type ThumbPayload = Arc<dyn Any + Send + Sync>;
 
 /// A text shown in one column of a row: the body role in the row's ink, on one elided line or wrapped.
 pub(super) struct TextCell {
@@ -317,7 +319,7 @@ pub struct ListRow<'a> {
     /// The rename editor replaces the label; `state` sets it from the collection's row state.
     pub(super) renaming: bool,
     /// The thumbnails that drag instead of the row, each with what starts its drag session.
-    pub(super) drags: Vec<(ThumbTarget, ThumbDragStart<'a>)>,
+    pub(super) drags: Vec<(ThumbTarget, ThumbPayload)>,
     /// The icon or thumbnails come before the disclosure column instead of after it.
     #[prop]
     pub(super) leading_first: bool,
@@ -549,7 +551,7 @@ impl<'a> ListRow<'a> {
     #[must_use]
     pub fn thumb_drag<P: Clone + Send + Sync + 'static>(mut self, target: ThumbTarget, payload: P) -> Self {
         self.drags.retain(|(held, _)| *held != target);
-        self.drags.push((target, Box::new(move |cx, preview| cx.start_drag(payload.clone(), preview))));
+        self.drags.push((target, Arc::new(payload)));
         self
     }
 }
@@ -1159,9 +1161,9 @@ impl Component for ListRow<'_> {
             let target = target_at(at);
             let phase = result.press.phase;
             let drag = self.drags.iter().find(|(held, _)| *held == target);
-            if let (PressPhase::DragStart { .. }, Some((_, start))) = (phase, drag) {
+            if let (PressPhase::DragStart { .. }, Some((_, payload))) = (phase, drag) {
                 let preview = DragPreview::frame(self.thumb_size(&cx.style.sizes), None);
-                start(cx, preview);
+                crate::runtime::drag::start(&cx.ctx, cx.id, payload.clone(), None, preview);
                 self.event = Some(RowEvent::ThumbDrag(target));
             } else if let Some(source) = cx.part_activated(THUMB.at(at as u64)) {
                 self.event = Some(RowEvent::ThumbClicked { target, mods: part_mods(cx, THUMB.at(at as u64), source) });

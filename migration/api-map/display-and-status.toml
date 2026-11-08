@@ -240,3 +240,10 @@ type = "Divider"
 old = "Divider::paint(painter, from, to, tokens)"
 new = "Draw::rule(RuleKind::Divider, from, to)"
 note = "Removed: content paint draws the line through `Draw::rule`, which snaps it to the pixel grid. `Divider::style` goes with it."
+
+[[type]]
+name = "Picture"
+old = ""
+new = "craft_ui::display::Picture"
+status = "pending"
+note = "A display leaf over `TextureStore`: `Picture::new(label, key, &|| ColorImage)` with `.revision(Revision)`, `.aspect(ThumbAspect)` and `.size(PictureSize::Icon | PictureSize::Thumb(ThumbSize))`. Legacy `icon_texture`-style decoders that turned bytes into a texture and drew it with `ui.image` build the `ColorImage` in the closure and show a `Picture`; the image is made once per key and revision."
