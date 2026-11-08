@@ -13,26 +13,27 @@ workspace = true
 [features]
 default = []
 # The editing widgets (`craft_imaging::ui`).
-ui = ["dep:craft-ui", "dep:egui", "dep:kurbo"]
-# Screenshot and input tests of the widgets with egui_kittest (desktop only).
-screen-testing = ["ui", "craft-ui/screen-testing"]
+ui = ["dep:craft-behavior", "dep:craft-ui", "dep:egui", "dep:kurbo"]
+# The widgets' stories and the integration binary `it`.
+screen-testing = ["ui", "craft-ui/testing"]
 
 [dependencies]
+craft-behavior = { workspace = true, optional = true }
 craft-host = { workspace = true }
 craft-i18n = { workspace = true }
 craft-theme = { workspace = true }
-craft-ui = { package = "craft-ui-legacy", path = "../ui-legacy", optional = true }
+craft-ui = { workspace = true, optional = true }
 egui = { workspace = true, optional = true }
 kurbo = { workspace = true, optional = true }
 serde = { workspace = true }
 
 [dev-dependencies]
 egui = { workspace = true, features = ["default_fonts", "serde"] }
+libtest-mimic = "0.8"
 serde_json = { workspace = true }
 
 [[test]]
-name = "control_dumps"
-required-features = ["ui"]
-
-[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-egui_kittest = { version = "0.37", features = ["wgpu"] }
+name = "it"
+path = "tests/it/main.rs"
+harness = false
+required-features = ["screen-testing"]
