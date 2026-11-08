@@ -9,7 +9,10 @@
 //! 2. `takes(button, mods)` decides whether a button starts a gesture. A middle-button pan belongs to the canvas.
 //! 3. Escape during a drag arrives as a cancelled press ([`PressCancel`]) and calls `cancel` once.
 //! 4. Keys the canvas holds as intents (arrows, Delete, Enter, Escape) go to `key` while the canvas has focus; a
-//!    text part inside the canvas takes its own keys before they are routed here.
+//!    text part inside the canvas takes its own keys before they are routed here. While nothing in the window has
+//!    focus, Enter and Escape are offered too, so a tool holding a gesture or a pending edit (a transform box)
+//!    commits and cancels before the canvas is clicked; one the tool leaves goes on to the scopes around it. A
+//!    focused field or control keeps its own Enter and Escape.
 //! 5. The tool paints over the canvas and requests its cursor at tool priority.
 //!
 //! The host keeps its state under the canvas's id (`CanvasOutput::response.id`), so two canvases never share a
@@ -54,7 +57,7 @@ use crate::runtime::edit::next_gesture_id;
 use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::{global, with_session};
 use crate::runtime::pointer::{self, PointerFrame};
-use crate::runtime::{cursor, frame, keys, lock_keys};
+use crate::runtime::{cursor, focus, frame, keys, lock_keys};
 use crate::style::StyleCx;
 use craft_behavior::kurbo;
 use craft_behavior::{
@@ -256,7 +259,7 @@ impl<'m> ToolHost<'m> {
         let space = canvas.space;
         let down = keys::down(&ctx);
         let caps = lock_keys::caps_lock(&ctx);
-        let rect = canvas.response.rect;
+        let rect = drawn_rect(canvas.response.rect);
         let input = pointer::frame(&ctx);
         let mut glide = None;
         let fired = std::iter::from_fn(|| commands::take_around::<MomentaryCommands>(&ctx, canvas.response.id, env.view().command_chain()));
@@ -491,6 +494,12 @@ fn hover_pointer(frame: &PointerFrame, press: PressState) -> Option<ToolPointer>
     )
 }
 
+/// The canvas rect the tool runs in: the canvas's response, which is empty at its corner where the clip leaves
+/// nothing of the canvas, never inverted.
+fn drawn_rect(rect: Rect) -> Rect {
+    Rect::from_min_max(rect.min, rect.max.max(rect.min))
+}
+
 /// Every key without Ctrl or Cmd, with and without Shift: the keys a tool that kept the keyboard types with. The
 /// app's chords (Cmd+Z, Cmd+S) still run.
 fn kept_chords() -> impl Iterator<Item = Chord> {
@@ -619,7 +628,8 @@ impl<'a> Run<'a> {
         active.dragged = true;
         self.call(Some(pointer), |tool, cx| tool.drag(&pointer, cx));
         self.report(GesturePhase::Update);
-        if self.tool.autoscrolls() {
+        // An empty canvas (a window shrunk to nothing) has no edge to scroll past.
+        if self.tool.autoscrolls() && self.rect.is_positive() {
             let past = pointer.pos - self.rect.clamp(pointer.pos);
             if past != Vec2::ZERO {
                 self.response.past_edge = Some(past);
@@ -733,8 +743,19 @@ impl<'a> Run<'a> {
         true
     }
 
-    /// The keys the canvas holds: intents routed to it while it has focus, and the plain keys a tool kept.
+    /// The keys the canvas holds: intents routed to it while it has focus, Enter and Escape while nothing in the
+    /// window has focus, and the plain keys a tool kept.
     fn keys(&mut self, ctx: &Context, canvas: Id, rtl: bool) {
+        if focus::focused_rec(ctx).is_none() {
+            let mut window = keys::intents_of(ctx, None, rtl);
+            let mut taken = self.offer(&mut window, |intents| intents.take(Intent::Submit).then_some(ToolKey::Submit));
+            if !self.cancelled {
+                taken |= self.offer(&mut window, |intents| intents.take(Intent::Cancel).then_some(ToolKey::Cancel));
+            }
+            if taken {
+                keys::settle(ctx, None, &window);
+            }
+        }
         let mut intents = keys::intents_of(ctx, Some(canvas), rtl);
         let mut taken = self.offer(&mut intents, |intents| intents.take_nudge().map(|(direction, mods)| ToolKey::Nudge { direction, mods }));
         for forward in [true, false] {

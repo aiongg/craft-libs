@@ -40,6 +40,11 @@ mod view_commands;
 mod document_canvas;
 // End of l4f-fcanvas.
 
+// fwj-canvas
+mod empty_rect;
+mod tool_keys;
+// End of fwj-canvas.
+
 fn crop() -> CropBox {
     CropBox::upright(Rect::new(20.0, 20.0, 100.0, 80.0))
 }
