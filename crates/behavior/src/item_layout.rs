@@ -684,7 +684,13 @@ impl ItemLayout for SheetLayout {
         let (row, zoom) = (line_of(at), self.zoom_factor());
         let content = self.rows.start(row) * zoom;
         let top = if row < self.frozen_rows { content } else { content - offset.y };
-        let size = Vec2::new((self.columns.total() * zoom) as f32, (self.rows.size(row) * zoom) as f32);
+        let height = (self.rows.size(row) * zoom) as f32;
+        // With a view set, a row spans the columns the view shows: a row as wide as the whole sheet (16,384 columns)
+        // exceeds the size guard of a shown component.
+        if let Some(right) = self.grid.as_ref().and_then(|grid| grid.sections.last()).and_then(|section| section.edges.last()) {
+            return Rect::from_min_size(Pos2::new(0.0, top as f32), Vec2::new(*right, height));
+        }
+        let size = Vec2::new((self.columns.total() * zoom) as f32, height);
         Rect::from_min_size(Pos2::new(-(offset.x as f32), top as f32), size)
     }
 

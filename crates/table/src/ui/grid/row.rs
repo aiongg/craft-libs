@@ -83,7 +83,6 @@ impl Component for GridRow<'_> {
     }
 
     fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
-        eprintln!("DIAG access row={} cells={}", self.row, self.cells.len());
         for (key, _) in &self.cells {
             let Some(column) = key.position() else { continue };
             let node = access.node(PartKey::CELL.at(u64::from(column)), Role::GRID_CELL);
