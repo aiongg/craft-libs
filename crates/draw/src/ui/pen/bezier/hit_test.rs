@@ -1,10 +1,30 @@
 //! [`BezierOverlay::hit_test`]: the part of a path under a screen point, without a pass.
 
+use craft_behavior::CanvasView;
 use egui::Pos2;
-use kurbo::{ParamCurveNearest as _, Point};
+use kurbo::{Affine, CubicBez, ParamCurveNearest as _, Point};
 
-use super::{BezierHit, BezierOverlay, EditPath, HandleSide, HandlesShown, KnotRef, MAX_ANCHORS, PathSelection, Shown, map_cubic};
-use craft_ui::canvas::{CanvasView, hit};
+use super::{BezierHit, BezierOverlay, EditPath, HandleSide, HandlesShown, KnotRef, MAX_ANCHORS, PathSelection};
+
+/// A shown direction handle: its path's index, its knot, side and screen end.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Shown {
+    pub(super) path: usize,
+    pub(super) knot: KnotRef,
+    pub(super) side: HandleSide,
+    pub(super) at: Pos2,
+}
+
+fn map_cubic(a: Affine, c: CubicBez) -> CubicBez {
+    CubicBez::new(a * c.p0, a * c.p1, a * c.p2, a * c.p3)
+}
+
+/// The parameter of the point of `curve` nearest the screen point `at`, and its distance in screen points.
+pub(super) fn nearest_on_screen(view: &CanvasView, curve: CubicBez, at: Pos2) -> (f64, f32) {
+    let p = Point::new(f64::from(at.x), f64::from(at.y));
+    let nearest = map_cubic(view.affine(), curve).nearest(p, 1e-3);
+    (nearest.t, nearest.distance_sq.sqrt() as f32)
+}
 
 impl BezierOverlay<'_> {
     /// The part of `paths` under the screen point `at`, answered as the overlay's press would
@@ -70,27 +90,24 @@ pub(super) fn hit_in(paths: &[EditPath], shown: &[Shown], anchors: bool, view: &
     let mut best = None;
     for s in shown {
         let path = paths[s.path].key;
-        nearest(&mut best, BezierHit::Handle { path, knot: s.knot, side: s.side }, hit::point(pointer, s.at));
+        nearest(&mut best, BezierHit::Handle { path, knot: s.knot, side: s.side }, pointer.distance(s.at));
     }
     if best.is_none() && anchors {
         for path in paths {
             for k in path.knot_refs() {
                 if let Some(knot) = path.knot(k) {
-                    nearest(&mut best, BezierHit::Anchor { path: path.key, knot: k }, hit::point(pointer, view.to_screen(knot.anchor)));
+                    nearest(&mut best, BezierHit::Anchor { path: path.key, knot: k }, pointer.distance(view.to_screen(knot.anchor)));
                 }
             }
         }
     }
     if best.is_none() {
-        let to_screen = view.affine();
-        let p = Point::new(f64::from(pointer.x), f64::from(pointer.y));
         for path in paths {
             for (s, sub) in path.subpaths.iter().enumerate() {
                 for i in 0..sub.segment_count() {
                     let Some(c) = sub.segment(i) else { continue };
-                    let nearest_t = map_cubic(to_screen, c).nearest(p, 1e-3);
-                    let d = nearest_t.distance_sq.sqrt() as f32;
-                    nearest(&mut best, BezierHit::Segment { path: path.key, segment: KnotRef::new(s, i), t: nearest_t.t }, d);
+                    let (t, d) = nearest_on_screen(view, c, pointer);
+                    nearest(&mut best, BezierHit::Segment { path: path.key, segment: KnotRef::new(s, i), t }, d);
                 }
             }
         }

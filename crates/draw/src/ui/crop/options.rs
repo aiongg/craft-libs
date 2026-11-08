@@ -1,14 +1,13 @@
 //! [`CropSettings`]: the Crop tool's options as one persisted section: the ratio or the
 //! W × H × Resolution fields, the overlay and its show rule, the shield, Delete Cropped Pixels and
 //! Fill. Typed lengths stay text until used, so a half-typed "4 i" survives a pass, and parse
-//! through [`Length::parse`] when the tool needs a number.
-//!
-//! [`Length::parse`]: craft_ui::localized::units::Length::parse
+//! through the scope's [`Units`] reader when the tool needs a number.
 
-use craft_ui::localized::units::{Length, LengthUnit};
+use craft_behavior::geometry::crop::{CropGuide, GuideShow};
+use craft_ui::canvas::CropShield;
+use craft_ui::runtime::env::{UnitKind, Units};
 
-use super::bar::CropBarLabels;
-use super::crop_guides::{CropGuide, CropShield, GuideShow};
+use super::bar_words::CropBarWords;
 use super::session::CropDocument;
 
 /// The largest number a ratio side keeps: 99,999 (PhotoCraft's ratio fields).
@@ -22,6 +21,7 @@ pub const FIELD_MAX: f64 = 1e9;
 /// What the frame's proportions follow.
 #[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum CropRatio {
     /// No ratio: the bar's "Ratio" entry with empty fields. A ratio field with one side typed
     /// stays free until the other side is typed ([`CropSettings::ratio_fields`]).
@@ -30,6 +30,7 @@ pub enum CropRatio {
     /// The document's own proportions ("Original Ratio"); the fields show its size.
     Original,
     /// Width to height as typed or picked, both sides positive and at most [`RATIO_MAX`].
+    #[non_exhaustive]
     Sides {
         /// The width part of the ratio.
         width: f64,
@@ -41,9 +42,17 @@ pub enum CropRatio {
     Size,
 }
 
+impl CropRatio {
+    /// Width to height `width` : `height`.
+    pub fn sides(width: f64, height: f64) -> Self {
+        CropRatio::Sides { width, height }
+    }
+}
+
 /// The resolution field's unit.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum ResolutionUnit {
     /// px/in.
     #[default]
@@ -56,6 +65,7 @@ pub enum ResolutionUnit {
 /// "300". Empty means unset. Perspective Crop's options bar uses the same fields.
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct CropSizeFields {
     /// A length with its unit, or empty.
     pub width: String,
@@ -70,6 +80,7 @@ pub struct CropSizeFields {
 /// What the area a turned or extending crop uncovers is filled with.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum CropFill {
     /// "Background (Default)": the background colour or transparency.
     #[default]
@@ -82,6 +93,7 @@ pub enum CropFill {
 /// The size the commit resamples to: W and H in pixels (unrounded; the app rounds, at least 1)
 /// and the resolution in px/in it sets, when one was typed.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct CropTarget {
     /// Target width in pixels.
     pub width: f64,
@@ -93,6 +105,7 @@ pub struct CropTarget {
 
 /// One built-in size preset: the W, H and Resolution text it fills in px/in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct CropSizePreset {
     /// The W text, a length with its unit.
     pub width: &'static str,
@@ -106,6 +119,7 @@ pub struct CropSizePreset {
 /// them after the built-in presets and fills the settings from the one picked.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct CropUserPreset {
     /// At most 255 characters (PhotoCraft's `MAX_NAME`); the app's New Crop Preset dialog
     /// suggests [`CropSettings::preset_name`].
@@ -116,10 +130,18 @@ pub struct CropUserPreset {
     pub size: CropSizeFields,
 }
 
+impl CropUserPreset {
+    /// A preset named `name` that sets `ratio`, with `size` as the fields of a [`CropRatio::Size`] preset.
+    pub fn new(name: impl Into<String>, ratio: CropRatio, size: CropSizeFields) -> Self {
+        Self { name: name.into(), ratio, size }
+    }
+}
+
 /// An entry of the options bar's preset list, in the list's order: Ratio, W × H × Resolution, the
 /// ratio presets, the size presets, the user's presets, Front Image, then New Crop Preset… and
 /// Delete Crop Preset….
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum CropPresetChoice {
     /// "Ratio": a free ratio with empty fields.
     Free,
@@ -141,7 +163,7 @@ pub enum CropPresetChoice {
 
 /// The built-in ratio presets after "Ratio" and "W x H x Resolution": Original Ratio, 1 : 1
 /// (Square), 4 : 5 (8 : 10), 5 : 7, 2 : 3 (4 : 6), 16 : 9. Their names are
-/// [`CropBarLabels`]' `ratio_*` words, in this order.
+/// [`CropBarWords`]' `ratio_*` words, in this order.
 // pc: crates/ui-egui/src/panels/chrome_ui.rs:278 `CROP_RATIOS` (its first entry, "Ratio", is
 // `CropPresetChoice::Free`).
 pub const CROP_RATIOS: [CropRatio; 6] = [
@@ -173,6 +195,7 @@ pub const CROP_SIZES: [CropSizePreset; 8] = [
 /// own, so older settings load.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct CropSettings {
     /// The aspect constraint of the frame.
     pub ratio: CropRatio,
@@ -225,24 +248,43 @@ fn parse_number(text: &str) -> Option<f64> {
     text.trim().replace(',', ".").parse::<f64>().ok().filter(|v| v.is_finite() && *v > 0.0)
 }
 
+/// The units a size field takes: pixels and the physical lengths. A crop size has no percent.
+const LENGTH_UNITS: [UnitKind; 6] =
+    [UnitKind::Pixels, UnitKind::Inches, UnitKind::Centimetres, UnitKind::Millimetres, UnitKind::Points, UnitKind::Picas];
+
+/// A typed length with the unit it was typed in.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Length {
+    value: f64,
+    unit: UnitKind,
+}
+
+/// The most decimals a length of `unit` is written with: its unit's, at least 2.
+fn length_decimals(unit: UnitKind) -> usize {
+    (*unit.decimals().end()).max(2)
+}
+
 /// A typed length: a positive number of at most [`FIELD_MAX`] and an optional unit ("4 in", "4in",
-/// "10,5 cm"); a bare number takes `fallback`. A crop size has no percent.
-fn parse_length(text: &str, fallback: LengthUnit) -> Option<Length> {
+/// "10.5 cm"); a bare number takes `fallback`. The value is in the unit the text names.
+fn parse_length(text: &str, fallback: UnitKind, units: &Units) -> Option<Length> {
     let text = text.trim();
     if text.is_empty() || text.len() > 64 {
         return None;
     }
-    Length::parse(&text.replace(',', "."), fallback).filter(|l| l.unit != LengthUnit::Percent && l.value > 0.0 && l.value <= FIELD_MAX)
+    let lower = text.to_lowercase();
+    let unit = LENGTH_UNITS.into_iter().find(|kind| lower.ends_with(&units.symbol(*kind).to_lowercase())).unwrap_or(fallback);
+    let value = units.reader(Some(unit)).read(text, None).ok()?;
+    (value.is_finite() && value > 0.0 && value <= FIELD_MAX).then_some(Length { value, unit })
 }
 
 /// "4 in", "1024 px", "8.5 in": the number (up to its unit's decimals, at least 2) and the unit.
-fn format_length(value: f64, unit: LengthUnit) -> String {
-    format!("{} {}", trim_number(value, unit.decimals().max(2)), unit.suffix())
+fn format_length(value: f64, unit: UnitKind, units: &Units) -> String {
+    format!("{} {}", trim_number(value, length_decimals(unit)), units.symbol(unit))
 }
 
 /// The unit a stored field value is in (pixels when it has none).
-fn field_unit(stored: &str) -> LengthUnit {
-    parse_length(stored, LengthUnit::Pixels).map_or(LengthUnit::Pixels, |l| l.unit)
+fn field_unit(stored: &str, units: &Units) -> UnitKind {
+    parse_length(stored, UnitKind::Pixels, units).map_or(UnitKind::Pixels, |l| l.unit)
 }
 
 /// Both sides positive, finite and at most [`RATIO_MAX`].
@@ -264,14 +306,14 @@ impl CropSettings {
     /// [`CropRatio::Original`], the sides' for [`CropRatio::Sides`], W : H of the
     /// [`target`](Self::target) for [`CropRatio::Size`]; `None` for a free ratio and for any
     /// ratio that is not a positive finite number.
-    pub fn ratio_value(&self, document: &CropDocument) -> Option<f64> {
+    pub fn ratio_value(&self, document: &CropDocument, units: &Units) -> Option<f64> {
         // pc: crates/ui-egui/src/tools/crop_ui.rs:217 `preset_ratio`; crop_size.rs:146 `ratio`.
         let (width, height) = match self.ratio {
             CropRatio::Free => return None,
             CropRatio::Original => (document.size.width, document.size.height),
             CropRatio::Sides { width, height } => (width, height),
             CropRatio::Size => {
-                let target = self.target(document)?;
+                let target = self.target(document, units)?;
                 (target.width, target.height)
             }
         };
@@ -282,7 +324,7 @@ impl CropSettings {
     /// lengths; `None` otherwise (W or H empty is a free crop: no resample). Physical lengths
     /// convert at the typed resolution, else at the document's; points and picas at the
     /// document's points per inch. A bare number is in pixels.
-    pub fn target(&self, document: &CropDocument) -> Option<CropTarget> {
+    pub fn target(&self, document: &CropDocument, units: &Units) -> Option<CropTarget> {
         // pc: crates/ui-egui/src/tools/crop_size.rs:131 `target`, :122 `resolution_ppi` (px/cm × 2.54),
         // :71 `parse_length` (positive, at most 1e9, no percent, ',' read as '.').
         if self.ratio != CropRatio::Size {
@@ -291,8 +333,8 @@ impl CropSettings {
         let resolution = self.size.resolution_ppi();
         let dpi = resolution.unwrap_or(document.resolution);
         let pixels = |text: &str| {
-            let length = parse_length(text, LengthUnit::Pixels)?;
-            let px = length.unit.to_pixels(length.value, 0.0, dpi, document.points_per_inch);
+            let length = parse_length(text, UnitKind::Pixels, units)?;
+            let px = length.unit.to_pixels(length.value, 0.0, dpi, document.points_per_inch)?;
             (px.is_finite() && px > 0.0).then_some(px)
         };
         Some(CropTarget { width: pixels(&self.size.width)?, height: pixels(&self.size.height)?, resolution })
@@ -304,7 +346,7 @@ impl CropSettings {
     /// fields; Front Image fills W, H in px and the resolution from `document`
     /// ([`front_image`](Self::front_image)). New and Delete change nothing. Returns whether the
     /// settings changed, so the tool refits the frame.
-    pub fn choose(&mut self, choice: CropPresetChoice, document: &CropDocument, user: &[CropUserPreset]) -> bool {
+    pub fn choose(&mut self, choice: CropPresetChoice, document: &CropDocument, user: &[CropUserPreset], units: &Units) -> bool {
         // pc: crates/ui-egui/src/tools/crop_size.rs:255 `chosen`, :169 `select_custom_ratio`;
         // crop_presets.rs:180 `apply_choice`.
         let before = self.clone();
@@ -338,7 +380,7 @@ impl CropSettings {
                     }
                 }
             }
-            CropPresetChoice::FrontImage => self.front_image(document),
+            CropPresetChoice::FrontImage => self.front_image(document, units),
             CropPresetChoice::NewPreset | CropPresetChoice::DeletePreset => {}
         }
         *self != before
@@ -430,11 +472,11 @@ impl CropSettings {
 
     /// Front Image (the list entry and the I key): W × H × Resolution with W and H the document's
     /// size in px and the resolution the document's in the field's unit.
-    pub fn front_image(&mut self, document: &CropDocument) {
+    pub fn front_image(&mut self, document: &CropDocument, units: &Units) {
         // pc: crates/ui-egui/src/tools/crop_size.rs:211 `front_image`.
         self.ratio = CropRatio::Size;
-        self.size.width = format_length(document.size.width, LengthUnit::Pixels);
-        self.size.height = format_length(document.size.height, LengthUnit::Pixels);
+        self.size.width = format_length(document.size.width, UnitKind::Pixels, units);
+        self.size.height = format_length(document.size.height, UnitKind::Pixels, units);
         let resolution = match self.size.resolution_unit {
             ResolutionUnit::PixelsPerInch => document.resolution,
             ResolutionUnit::PixelsPerCentimetre => document.resolution / 2.54,
@@ -495,26 +537,26 @@ impl CropSettings {
     /// The name New Crop Preset… suggests: "4 x 5 in 300 ppi" (one unit for both sides), "4 in x
     /// 300 px" (different units), with " 300 px/cm" for a px/cm resolution, or "2 : 3" for a ratio;
     /// `None` when there is nothing to save (Original, a free ratio, W or H empty). The number
-    /// words come from `labels` (`ppi`, `px/cm`).
-    pub fn preset_name(&self, labels: &CropBarLabels) -> Option<String> {
+    /// words come from `words` (`ppi`, `px/cm`).
+    pub fn preset_name(&self, words: &CropBarWords, units: &Units) -> Option<String> {
         // pc: crates/ui-egui/src/tools/crop_presets.rs:85 `savable`, :78 `number`; crop_size.rs:84
         // `format_length` (the unit's decimals, at least 2, trailing zeros dropped).
         match self.ratio {
             CropRatio::Free | CropRatio::Original => None,
             CropRatio::Sides { width, height } => valid_sides(width, height).then(|| format!("{} : {}", ratio_text(width), ratio_text(height))),
             CropRatio::Size => {
-                let width = parse_length(&self.size.width, LengthUnit::Pixels)?;
-                let height = parse_length(&self.size.height, LengthUnit::Pixels)?;
+                let width = parse_length(&self.size.width, UnitKind::Pixels, units)?;
+                let height = parse_length(&self.size.height, UnitKind::Pixels, units)?;
                 let mut name = if width.unit == height.unit {
-                    let number = |l: Length| trim_number(l.value, l.unit.decimals().max(2));
-                    format!("{} x {} {}", number(width), number(height), width.unit.suffix())
+                    let number = |l: Length| trim_number(l.value, length_decimals(l.unit));
+                    format!("{} x {} {}", number(width), number(height), units.symbol(width.unit))
                 } else {
-                    format!("{} x {}", format_length(width.value, width.unit), format_length(height.value, height.unit))
+                    format!("{} x {}", format_length(width.value, width.unit, units), format_length(height.value, height.unit, units))
                 };
                 if let Some(resolution) = parse_number(&self.size.resolution) {
                     let unit = match self.size.resolution_unit {
-                        ResolutionUnit::PixelsPerInch => &labels.ppi,
-                        ResolutionUnit::PixelsPerCentimetre => &labels.pixels_per_centimetre,
+                        ResolutionUnit::PixelsPerInch => words.ppi.as_str(),
+                        ResolutionUnit::PixelsPerCentimetre => words.pixels_per_centimetre.as_str(),
                     };
                     name = format!("{name} {} {unit}", trim_number(resolution, 2));
                 }
@@ -538,15 +580,15 @@ impl CropSizeFields {
     /// What a length field keeps once its typing run ends: the length normalised ("4in" → "4 in";
     /// a bare number keeps the unit `previous` had, pixels for an empty field), empty for an empty
     /// field, and `previous` for text that is not a length.
-    pub fn normalize_length(typed: &str, previous: &str) -> String {
+    pub fn normalize_length(typed: &str, previous: &str, units: &Units) -> String {
         // pc: crates/ui-egui/src/tools/crop_size.rs:97 `normalize_length`, :91 `field_unit`.
         if typed.trim().is_empty() {
             return String::new();
         }
-        match parse_length(typed, field_unit(previous)) {
+        match parse_length(typed, field_unit(previous, units), units) {
             Some(length) => {
-                let text = format_length(length.value, length.unit);
-                if parse_length(&text, length.unit).is_some() { text } else { previous.to_owned() }
+                let text = format_length(length.value, length.unit, units);
+                if parse_length(&text, length.unit, units).is_some() { text } else { previous.to_owned() }
             }
             None => previous.to_owned(),
         }

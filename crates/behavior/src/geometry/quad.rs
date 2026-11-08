@@ -45,6 +45,30 @@ pub enum BoxPart {
     Outside,
 }
 
+impl BoxPart {
+    /// The number a part is keyed by in a canvas control's part keys: 0 inside or outside, 1 to 4 the corners, 5 to
+    /// 8 the edges, 9 the pivot.
+    pub const fn index(self) -> u64 {
+        match self {
+            BoxPart::Inside | BoxPart::Outside => 0,
+            BoxPart::Corner(i) => 1 + (i % 4) as u64,
+            BoxPart::Edge(i) => 5 + (i % 4) as u64,
+            BoxPart::Pivot => 9,
+        }
+    }
+
+    /// The part keyed by `index`: the inverse of [`index`](Self::index), with 0 the inside.
+    pub const fn from_index(index: u64) -> Option<BoxPart> {
+        match index {
+            0 => Some(BoxPart::Inside),
+            1..=4 => Some(BoxPart::Corner((index - 1) as u8)),
+            5..=8 => Some(BoxPart::Edge((index - 5) as u8)),
+            9 => Some(BoxPart::Pivot),
+            _ => None,
+        }
+    }
+}
+
 /// Edit › Transform's modes.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]

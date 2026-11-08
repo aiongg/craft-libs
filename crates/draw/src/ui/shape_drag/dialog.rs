@@ -1,28 +1,30 @@
 //! [`CreateShapeDialog`]: Create Rectangle, Ellipse, Triangle, Polygon (and Illustrator's Rounded
 //! Rectangle and Star), opened by a Shape tool click.
 
-use std::cell::Cell;
+use std::cell::RefCell;
 use std::ops::RangeInclusive;
-use std::sync::Arc;
+use std::rc::Rc;
 
-use egui::{Context, Ui};
+use craft_behavior::Mixed;
+use craft_theme::variant::Tone;
+use craft_ui::choice::Checkbox;
+use craft_ui::contract::{Bind, Entry, Props as _, Remember as _, Show as _, ShowContainer as _};
+use craft_ui::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
+use craft_ui::form::{Field, FieldGroup};
+use craft_ui::notices::{Notice, NoticeLayout};
+use craft_ui::patterns::form_dialogs::{FormDialog, GuideUnits};
+use craft_ui::pickers::UnitSelect;
+use craft_ui::runtime::env::{Env, Label, UnitKind, Units};
+use craft_ui::runtime::memory::SaveKey;
+use craft_ui::sections::DialogRole;
+use craft_ui::text::{LinkMode, LinkedFields, LinkedLayout, NumberField};
+use egui::Ui;
 use kurbo::{Point, Rect};
+use serde::{Deserialize, Serialize};
 
-use super::{CreateShapeLabels, ShapeKind};
+use super::ShapeKind;
+use super::words::CreateShapeWords;
 use crate::geometry::shape::{SIDES, ShapeGeometry};
-use craft_host::Host;
-use craft_settings::Remembered;
-use craft_ui::canvas::unit_entries;
-use craft_ui::composites::{FieldControl as _, FormGrid, Notice, Tone};
-use craft_ui::controls::expr::ExprUnits;
-use craft_ui::controls::{Checkbox, ControlSize, LinkMode, LinkedFields, LinkedFieldsLabels, LinkedSlot, NumberField};
-use craft_ui::dialog::{
-    Dialog, DialogId, DialogResult, DialogStack, DialogState, Footer, GuideUnits, InitialFocus, Outcome, StackDialog, Width, dialog_id,
-};
-use craft_ui::edit::EditEvent;
-use craft_ui::localized::units::{LengthUnit, UnitContext};
-use craft_ui::localized::{Labels as _, LocaleNumbers, SharedLabels as _, Unit};
-use craft_ui::patterns::unit_number_field;
 
 /// The farthest the click may lie from the origin on either axis, in pixels: the same bound as
 /// a side (PhotoCraft's `MAX_PX`, `shape_dialog.rs:19`, checked at `:111`).
@@ -34,8 +36,8 @@ const MAX_RADIUS: f64 = 10_000.0;
 
 /// What Create Shape opens with: the kind, the clicked point and the document's units, and the
 /// values the fields start from. The dialog replaces width, height, From Center and the star ratio
-/// with the remembered ones for the kind (`shape.create.<kind>`) on its first pass unless
-/// [`recalled`](Self::recalled) is set.
+/// with the remembered ones for the kind on its first pass unless [`recalled`](Self::recalled) is
+/// set.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct CreateShapeOptions {
@@ -64,6 +66,13 @@ pub struct CreateShapeOptions {
     pub recalled: bool,
 }
 
+impl Default for CreateShapeOptions {
+    /// A rectangle at the origin with the defaults of [`initial`](Self::initial).
+    fn default() -> Self {
+        CreateShapeOptions::initial(ShapeKind::Rectangle, Point::ZERO)
+    }
+}
+
 impl CreateShapeOptions {
     /// Width and height in pixels: 1 to 300,000 (PhotoCraft's `MAX_PX`, `shape_dialog.rs:19`).
     pub const SIZE: RangeInclusive<f64> = 1.0..=300_000.0;
@@ -86,12 +95,14 @@ impl CreateShapeOptions {
     }
 
     /// The ruler unit and the document the size fields convert through.
+    #[must_use]
     pub fn units(mut self, units: GuideUnits) -> Self {
         self.units = Some(units);
         self
     }
 
     /// The tool's corner radius (all four corners), sides and star ratio.
+    #[must_use]
     pub fn tool(mut self, corner_radius: f64, sides: u32, star_ratio: f64) -> Self {
         self.radii = [corner_radius; 4];
         self.sides = sides;
@@ -100,6 +111,7 @@ impl CreateShapeOptions {
     }
 
     /// Opens with these values and skips the remembered ones.
+    #[must_use]
     pub fn recalled(mut self) -> Self {
         self.recalled = true;
         self
@@ -119,38 +131,8 @@ pub struct CreatedShape {
     pub from_center: bool,
 }
 
-/// Photoshop's Create Rectangle (Ellipse, Triangle, Polygon) dialog, on the app's `DialogHost`.
-///
-/// - Title: "Create Rectangle" and so on ([`CreateShapeLabels`]).
-/// - Fields in a `FormGrid` (labels right-aligned): Width and Height (`unit_number_field` in the
-///   ruler unit; a secondary click on a field picks that field's unit, which is not remembered,
-///   storytold/photocraft#7786). Rectangle and Rounded Rectangle: four radii Top Left, Top Right, Bottom
-///   Right, Bottom Left, as PhotoCraft's 2×2 grid (Top Left, Top Right / Bottom Left, Bottom
-///   Right) under one "Radius" label with the corner names as the fields' accessible names, and a
-///   "Link radii" `LinkedFields` toggle between the top two fields (`LinkMode::Equal`, on by
-///   default). Polygon and Star: Sides (3–100) and Star Ratio (1–100 %, default 100); the
-///   Polygon drag keeps ratio 1. Then "From Center".
-/// - A width or height outside [`CreateShapeOptions::SIZE`] shows
-///   [`CreateShapeLabels::bad_size`] under the fields and disables OK; so does a click farther
-///   than 300,000 px from the origin ([`CreateShapeLabels::bad_position`]).
-/// - OK answers [`CreatedShape`] at the click (centred on it with From Center, unrounded) and remembers
-///   width, height, From Center and the star ratio under `shape.create.<kind>` (keys `width`,
-///   `height`, `fromCenter`, `starRatio`, the ratio in percent); Cancel answers nothing and
-///   remembers nothing.
-/// - Keyboard: the first field has the focus; Enter is OK, Esc Cancel; every field is a Tab stop
-///   in reading order. Right to left the grid mirrors; the corner order stays.
-pub struct CreateShapeDialog {
-    id: DialogId,
-    options: CreateShapeOptions,
-    /// Each size field's unit for this opening (a secondary-click pick).
-    units: [Option<LengthUnit>; 2],
-    error: Option<String>,
-    labels: Option<CreateShapeLabels>,
-    state: DialogState,
-}
-
 /// The remembered values of one kind. The ratio is the field's percentage.
-#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 struct Memory {
     width: Option<f64>,
@@ -159,9 +141,33 @@ struct Memory {
     star_ratio: Option<f64>,
 }
 
-/// The document a dialog without [`CreateShapeOptions::units`] measures in: pixels, with no
-/// percent.
-const PIXELS: GuideUnits = GuideUnits { ruler: LengthUnit::Pixels, width_px: 1.0, height_px: 1.0, pixels_per_inch: 72.0, points_per_inch: 72.0 };
+/// Photoshop's Create Rectangle (Ellipse, Triangle, Polygon) dialog, on the app's `DialogHost`.
+///
+/// - Title: "Create Rectangle" and so on ([`CreateShapeWords`]).
+/// - Fields: Width and Height (a number with a unit select each, in the ruler unit to start; the unit
+///   picked for a field is not remembered, storytold/photocraft#7786). Rectangle and Rounded
+///   Rectangle: four radii Top Left, Top Right, Bottom Left, Bottom Right in two columns under one
+///   "Radius" label, with the "Link radii" toggle between the columns (`LinkMode::Equal`, on by
+///   default). Polygon and Star: Sides (3–100) and Star Ratio (1–100 %, default 100); the Polygon drag
+///   keeps ratio 1. Then "From Center".
+/// - A width or height outside [`CreateShapeOptions::SIZE`] shows [`CreateShapeWords::bad_size`] under
+///   the fields and disables OK; so does a click farther than 300,000 px from the origin
+///   ([`CreateShapeWords::bad_position`]).
+/// - OK answers [`CreatedShape`] at the click (centred on it with From Center, unrounded) and
+///   remembers width, height, From Center and the star ratio per kind; Cancel answers nothing and
+///   remembers nothing.
+/// - Keyboard: Enter is OK, Esc Cancel; every field is a Tab stop in reading order.
+pub struct CreateShapeDialog {
+    id: DialogId,
+    options: CreateShapeOptions,
+    /// Each size field's unit for this opening.
+    units: [UnitKind; 2],
+}
+
+/// The document a dialog without [`CreateShapeOptions::units`] measures in: pixels, with no percent.
+fn pixels_only() -> GuideUnits {
+    GuideUnits::new(UnitKind::Pixels, 1.0, 1.0, UnitKind::POINTS_PER_INCH)
+}
 
 /// `value` rounded to a thousandth of a pixel (PhotoCraft stores sizes so).
 fn thousandths(value: f64) -> f64 {
@@ -169,23 +175,101 @@ fn thousandths(value: f64) -> f64 {
 }
 
 /// `value` rounded to the places a field in `unit` shows.
-fn shown_places(value: f64, unit: LengthUnit) -> f64 {
-    let scale = 10f64.powi(i32::try_from(unit.decimals()).unwrap_or(0));
+fn shown_places(value: f64, unit: UnitKind) -> f64 {
+    let scale = 10f64.powi(i32::try_from(*unit.decimals().end()).unwrap_or(0));
     (value * scale).round() / scale
 }
 
-/// The value a field's event set, if it set one.
-fn set_by(event: Option<&EditEvent<f64>>) -> Option<f64> {
-    match event? {
-        EditEvent::Commit { changed: false, .. } => None,
-        event => event.value().copied(),
+/// The shape the fields describe at the click, or why not: the error text under the fields.
+fn answer(o: &CreateShapeOptions, words: &CreateShapeWords, units: &Units) -> Result<CreatedShape, String> {
+    // pc: crates/ui-egui/src/dialogs/shape_dialog.rs:102-138 `geometry` (from the fields: at the
+    // rounded `__at`, centred with From Center, radii, sides, star ratio), :42 `valid`, :19 `MAX_PX`.
+    let side = |value: f64, caption: &str| {
+        if value.is_finite() && CreateShapeOptions::SIZE.contains(&value) {
+            return Ok(value);
+        }
+        let max = units.number(*CreateShapeOptions::SIZE.end(), 0..=0);
+        Err(words.bad_size.fill(&[("field", caption), ("max", &max)]))
+    };
+    let (w, h) = (side(o.size.0, words.width.as_str())?, side(o.size.1, words.height.as_str())?);
+    let at = Point::new(o.at.x.round(), o.at.y.round());
+    if !(at.x.abs() <= MAX_POSITION && at.y.abs() <= MAX_POSITION) {
+        return Err(words.bad_position.as_str().to_owned());
+    }
+    let (x0, y0) = if o.from_center { (at.x - w / 2.0, at.y - h / 2.0) } else { (at.x, at.y) };
+    let rect = Rect::new(x0, y0, x0 + w, y0 + h);
+    let sides = o.sides.clamp(*SIDES.start(), *SIDES.end());
+    let geometry = match o.kind {
+        ShapeKind::Rectangle | ShapeKind::RoundedRectangle => {
+            let most = w.min(h) / 2.0;
+            let radii = o.radii.map(|r| if r.is_finite() { r.clamp(0.0, most) } else { 0.0 });
+            ShapeGeometry::Rect { rect, radii }
+        }
+        ShapeKind::Ellipse => ShapeGeometry::Ellipse { rect },
+        ShapeKind::Triangle => ShapeGeometry::Polygon { rect, sides: 3, star_ratio: 1.0 },
+        ShapeKind::Polygon | ShapeKind::Star => {
+            let ratio = if o.star_ratio.is_finite() { o.star_ratio.clamp(0.01, 1.0) } else { 1.0 };
+            ShapeGeometry::Polygon { rect, sides, star_ratio: ratio }
+        }
+        ShapeKind::Line | ShapeKind::Custom => return Err(String::new()),
+    };
+    Ok(CreatedShape { kind: o.kind, geometry, from_center: o.from_center })
+}
+
+/// The save key of the kind: `craft_draw.shape.create.<kind>`.
+fn save_key(kind: ShapeKind) -> SaveKey {
+    let kind = match kind {
+        ShapeKind::Rectangle => "rectangle",
+        ShapeKind::RoundedRectangle => "roundedRectangle",
+        ShapeKind::Ellipse => "ellipse",
+        ShapeKind::Triangle => "triangle",
+        ShapeKind::Polygon => "polygon",
+        ShapeKind::Star => "star",
+        ShapeKind::Line => "line",
+        ShapeKind::Custom => "custom",
+    };
+    SaveKey::named(format!("craft_draw.shape.create.{kind}"))
+}
+
+/// The values remembered over `o`: the sizes, From Center, and the ratio for the kinds that have one.
+fn recalled(o: &mut CreateShapeOptions, memory: &Memory) {
+    // pc: crates/ui-egui/src/dialogs/shape_dialog.rs:58-96 `open` (the remembered values over the
+    // defaults).
+    let size = |value: Option<f64>| value.filter(|v| v.is_finite() && CreateShapeOptions::SIZE.contains(v));
+    if let Some(width) = size(memory.width) {
+        o.size.0 = width;
+    }
+    if let Some(height) = size(memory.height) {
+        o.size.1 = height;
+    }
+    if let Some(from_center) = memory.from_center {
+        o.from_center = from_center;
+    }
+    // PhotoCraft applies a remembered value only for a kind that has the field.
+    if matches!(o.kind, ShapeKind::Polygon | ShapeKind::Star)
+        && let Some(percent) = memory.star_ratio.filter(|v| v.is_finite() && (1.0..=100.0).contains(v))
+    {
+        o.star_ratio = percent / 100.0;
+    }
+}
+
+/// What the answer remembers.
+fn remembered(o: &CreateShapeOptions, shape: &CreatedShape) -> Memory {
+    // pc: crates/ui-egui/src/dialogs/shape_dialog.rs:140-155 `confirm` (remembers on OK).
+    let bounds = shape.geometry.bounds();
+    Memory {
+        width: Some(bounds.width()),
+        height: Some(bounds.height()),
+        from_center: Some(shape.from_center),
+        star_ratio: Some((o.star_ratio * 100.0).clamp(1.0, 100.0)),
     }
 }
 
 impl CreateShapeDialog {
     /// Create Shape with `options`.
     pub fn new(options: CreateShapeOptions) -> Self {
-        CreateShapeDialog { id: dialog_id("shape.create"), options, units: [None; 2], error: None, labels: None, state: DialogState::new() }
+        let ruler = options.units.map_or(UnitKind::Pixels, |units| units.ruler);
+        CreateShapeDialog { id: dialog_id("shape.create"), options, units: [ruler; 2] }
     }
 
     /// Whether `kind` has a Create dialog: every kind but Line and Custom (PhotoCraft has none for
@@ -194,253 +278,146 @@ impl CreateShapeDialog {
         !matches!(kind, ShapeKind::Line | ShapeKind::Custom)
     }
 
-    /// The words; the installed ones by default.
-    pub fn labels(mut self, labels: CreateShapeLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
     /// The values as the fields show them now.
     pub fn options(&self) -> &CreateShapeOptions {
         &self.options
     }
+}
 
-    /// The shape the fields describe at the click, or why not: the error text under the fields.
-    fn answer(&self, labels: &CreateShapeLabels, numbers: &LocaleNumbers) -> Result<CreatedShape, String> {
-        // pc: crates/ui-egui/src/dialogs/shape_dialog.rs:102-138 `geometry` (from the fields: at the
-        // rounded `__at`, centred with From Center, radii, sides, star ratio), :42 `valid`, :19 `MAX_PX`.
-        let o = &self.options;
-        let side = |value: f64, caption: &str| {
-            if value.is_finite() && CreateShapeOptions::SIZE.contains(&value) {
-                return Ok(value);
-            }
-            let max = numbers.format(*CreateShapeOptions::SIZE.end(), 0..=0);
-            Err(craft_i18n::fmt(&labels.bad_size, &[("field", caption), ("max", &max)]))
-        };
-        let (w, h) = (side(o.size.0, &labels.width)?, side(o.size.1, &labels.height)?);
-        let at = Point::new(o.at.x.round(), o.at.y.round());
-        if !(at.x.abs() <= MAX_POSITION && at.y.abs() <= MAX_POSITION) {
-            return Err(labels.bad_position.clone());
-        }
-        let (x0, y0) = if o.from_center { (at.x - w / 2.0, at.y - h / 2.0) } else { (at.x, at.y) };
-        let rect = Rect::new(x0, y0, x0 + w, y0 + h);
-        let sides = o.sides.clamp(*SIDES.start(), *SIDES.end());
-        let geometry = match o.kind {
-            ShapeKind::Rectangle | ShapeKind::RoundedRectangle => {
-                let most = w.min(h) / 2.0;
-                let radii = o.radii.map(|r| if r.is_finite() { r.clamp(0.0, most) } else { 0.0 });
-                ShapeGeometry::Rect { rect, radii }
-            }
-            ShapeKind::Ellipse => ShapeGeometry::Ellipse { rect },
-            ShapeKind::Triangle => ShapeGeometry::Polygon { rect, sides: 3, star_ratio: 1.0 },
-            ShapeKind::Polygon | ShapeKind::Star => {
-                let ratio = if o.star_ratio.is_finite() { o.star_ratio.clamp(0.01, 1.0) } else { 1.0 };
-                ShapeGeometry::Polygon { rect, sides, star_ratio: ratio }
-            }
-            ShapeKind::Line | ShapeKind::Custom => return Err(String::new()),
-        };
-        Ok(CreatedShape { kind: o.kind, geometry, from_center: o.from_center })
+/// One size field (`axis` 0 is Width, 1 Height) in its unit; sets `size` when the number changed.
+fn size_field(
+    ui: &mut Ui,
+    axis: usize,
+    caption: &Label,
+    unit: &mut UnitKind,
+    size: &mut (f64, f64),
+    document: &GuideUnits,
+    entries: &[Entry<UnitKind>],
+) {
+    let extent = if axis == 0 { document.width_px } else { document.height_px };
+    let pixels = if axis == 0 { size.0 } else { size.1 };
+    let shown = document.from_pixels(pixels, *unit, extent).unwrap_or(0.0);
+    let (low, high) = (
+        document.from_pixels(*CreateShapeOptions::SIZE.start(), *unit, extent),
+        document.from_pixels(*CreateShapeOptions::SIZE.end(), *unit, extent),
+    );
+    let mut field = UnitSelect::new(caption.clone(), Bind::given(Some(shown)), Bind::given(*unit), entries).id_salt(("size", axis));
+    if let (Some(low), Some(high)) = (low, high) {
+        field = field.range(low.min(high)..=low.max(high));
     }
-
-    /// The `Remembered` scope of the kind: `shape.create.<kind>`.
-    fn scope(&self) -> String {
-        let kind = match self.options.kind {
-            ShapeKind::Rectangle => "rectangle",
-            ShapeKind::RoundedRectangle => "roundedRectangle",
-            ShapeKind::Ellipse => "ellipse",
-            ShapeKind::Triangle => "triangle",
-            ShapeKind::Polygon => "polygon",
-            ShapeKind::Star => "star",
-            ShapeKind::Line => "line",
-            ShapeKind::Custom => "custom",
-        };
-        format!("shape.create.{kind}")
+    let out = field.show(ui);
+    if let Some(kind) = out.unit.as_ref().and_then(|event| event.value().copied()) {
+        *unit = kind;
     }
-
-    /// Reads the remembered values of the kind into the options (first pass, which has the Host).
-    fn recall(&mut self, ctx: &Context) {
-        // pc: crates/ui-egui/src/dialogs/shape_dialog.rs:21 `KEYS`, :38 `pref_key` (`shape.create.<kind>`),
-        // :58-96 `open` (the remembered values over the defaults).
-        // new: `craft_settings::Remembered`, as `NewGuideDialog` uses it (crates/ui/src/dialog/guides.rs).
-        self.options.recalled = true;
-        let Some(memory) = Host::try_of_ctx(ctx).and_then(|host| Remembered::<Memory>::new(self.scope()).recall(&host)) else { return };
-        let size = |value: Option<f64>| value.filter(|v| v.is_finite() && CreateShapeOptions::SIZE.contains(v));
-        if let Some(width) = size(memory.width) {
-            self.options.size.0 = width;
-        }
-        if let Some(height) = size(memory.height) {
-            self.options.size.1 = height;
-        }
-        if let Some(from_center) = memory.from_center {
-            self.options.from_center = from_center;
-        }
-        // PhotoCraft applies a remembered value only for a kind that has the field.
-        if matches!(self.options.kind, ShapeKind::Polygon | ShapeKind::Star)
-            && let Some(percent) = memory.star_ratio.filter(|v| v.is_finite() && (1.0..=100.0).contains(v))
-        {
-            self.options.star_ratio = percent / 100.0;
-        }
-    }
-
-    /// Stores the answer's remembered values.
-    fn remember(&self, ctx: &Context, answer: &CreatedShape) {
-        // pc: crates/ui-egui/src/dialogs/shape_dialog.rs:140-155 `confirm` (remembers on OK), :21 `KEYS`.
-        // new: `craft_settings::Remembered`.
-        let Some(host) = Host::try_of_ctx(ctx) else { return };
-        let bounds = answer.geometry.bounds();
-        let memory = Memory {
-            width: Some(bounds.width()),
-            height: Some(bounds.height()),
-            from_center: Some(answer.from_center),
-            star_ratio: Some((self.options.star_ratio * 100.0).clamp(1.0, 100.0)),
-        };
-        Remembered::<Memory>::new(self.scope()).store(&host, &memory);
-    }
-
-    /// The document the size fields convert through.
-    fn document(&self) -> GuideUnits {
-        self.options.units.unwrap_or(PIXELS)
-    }
-
-    /// The Width field's id, which the dialog names as its initial focus.
-    fn width_id(&self) -> egui::Id {
-        self.id.with("width")
-    }
-
-    /// One size field (`axis` 0 is Width, 1 Height) in its unit.
-    fn size_field(&mut self, ui: &mut Ui, axis: usize, caption: &str, numbers: &LocaleNumbers) -> egui::Response {
-        let document = self.document();
-        let unit = self.units[axis].unwrap_or(document.ruler);
-        let context = document.context(if axis == 0 { document.width_px } else { document.height_px });
-        let pixels = if axis == 0 { self.options.size.0 } else { self.options.size.1 };
-        let shown = context.from_pixels(pixels, unit).unwrap_or(0.0);
-        let menu: Vec<LengthUnit> = LengthUnit::ALL.into_iter().filter(|u| self.options.units.is_some() || *u != LengthUnit::Percent).collect();
-        let entries = unit_entries(ui, &menu, unit);
-        let mut picked = None;
-        let units = ExprUnits { unit: Some(unit), suffix: unit.suffix(), context };
-        let mut field = unit_number_field(("create-shape-size", axis), caption, shown, numbers, &units).unit_menu(&entries, &mut picked);
+    if let Some(value) = out.edit.value().copied().flatten()
+        && shown_places(value, *unit) != shown_places(shown, *unit)
+        && let Some(px) = document.to_pixels(length(value, *unit), extent)
+    {
+        let px = thousandths(px);
         if axis == 0 {
-            field = field.with_id(self.width_id());
-        }
-        let edit = field.show(ui);
-        if let Some(i) = picked {
-            self.units[axis] = menu.get(i).copied();
-        }
-        if let Some(value) = set_by(edit.event.as_ref())
-            && shown_places(value, unit) != shown_places(shown, unit)
-            && let Some(px) = context.to_pixels(value, unit)
-        {
-            let px = thousandths(px);
-            if axis == 0 {
-                self.options.size.0 = px;
-            } else {
-                self.options.size.1 = px;
-            }
-        }
-        edit.response
-    }
-
-    /// The fields.
-    fn body(&mut self, ui: &mut Ui, labels: &CreateShapeLabels, numbers: &LocaleNumbers) {
-        // pc: crates/ui-egui/src/dialogs/shape_dialog.rs:163-265 (Width, Height, the radius grid
-        // with "Link radii" at :226, Sides :239, Star Ratio :246, From Center :258).
-        // new: `FormGrid`, `unit_number_field`, `LinkedFields::<4>` with `LinkMode::Equal`.
-        let kind = self.options.kind;
-        FormGrid::new("create-shape").show(ui, |form| {
-            form.row(labels.width.as_str(), |ui, _| self.size_field(ui, 0, &labels.width, numbers));
-            form.row(labels.height.as_str(), |ui, _| self.size_field(ui, 1, &labels.height, numbers));
-            if matches!(kind, ShapeKind::Rectangle | ShapeKind::RoundedRectangle) {
-                form.row(labels.radius.as_str(), |ui, _| {
-                    let mut link_words = LinkedFieldsLabels::of(ui);
-                    link_words.same_values = labels.link_radii.clone();
-                    let units = ExprUnits { unit: Some(LengthUnit::Pixels), suffix: LengthUnit::Pixels.suffix(), context: UnitContext::default() };
-                    // The radii are top-left, top-right, bottom-right, bottom-left; the grid reads
-                    // top-left, top-right, bottom-left, bottom-right.
-                    let [top_left, top_right, bottom_right, bottom_left] = self.options.radii;
-                    let captions = [labels.top_left.as_str(), labels.top_right.as_str(), labels.bottom_left.as_str(), labels.bottom_right.as_str()];
-                    let linked = &mut self.options.link_radii;
-                    // Columns: first field, link, second field; the second row leaves the link's cell empty.
-                    let edit = egui::Grid::new("create-shape-radii-grid")
-                        .show(ui, |ui| {
-                            LinkedFields::new(
-                                "create-shape-radii",
-                                captions,
-                                [top_left, top_right, bottom_left, bottom_right],
-                                linked,
-                                LinkMode::Equal,
-                                numbers,
-                            )
-                            .units(&units)
-                            .range(0.0..=MAX_RADIUS)
-                            .captions_as_names()
-                            .size(ControlSize::Sm)
-                            .labels(link_words)
-                            .show_cells(ui, |ui, slot, add| match slot {
-                                LinkedSlot::Field(1) => {
-                                    add(ui);
-                                    ui.end_row();
-                                }
-                                LinkedSlot::Field(2) => {
-                                    add(ui);
-                                    ui.allocate_space(egui::Vec2::ZERO);
-                                }
-                                LinkedSlot::Field(_) | LinkedSlot::Link => add(ui),
-                            })
-                        })
-                        .inner;
-                    if let Some(event) = &edit.event
-                        && !matches!(event, EditEvent::Commit { changed: false, .. })
-                        && let Some([top_left, top_right, bottom_left, bottom_right]) = event.value().copied()
-                    {
-                        self.options.radii = [top_left, top_right, bottom_right, bottom_left];
-                    }
-                    // The row's label must not replace the Top Left field's corner name.
-                    edit.own_name()
-                });
-            }
-            if matches!(kind, ShapeKind::Polygon | ShapeKind::Star) {
-                form.row(labels.sides.as_str(), |ui, _| {
-                    let field = NumberField::new("create-shape-sides", labels.sides.as_str(), f64::from(self.options.sides), numbers)
-                        .range(f64::from(*SIDES.start())..=f64::from(*SIDES.end()))
-                        .decimals(0..=0)
-                        .size(ControlSize::Sm);
-                    let edit = field.show(ui);
-                    if let Some(value) = set_by(edit.event.as_ref()) {
-                        let rounded = value.round().clamp(f64::from(*SIDES.start()), f64::from(*SIDES.end()));
-                        self.options.sides = rounded as u32;
-                    }
-                    // The row's label must not replace the Top Left field's corner name.
-                    edit.own_name()
-                });
-            }
-            if matches!(kind, ShapeKind::Polygon | ShapeKind::Star) {
-                form.row(labels.star_ratio.as_str(), |ui, _| {
-                    let percent = (self.options.star_ratio * 100.0).clamp(1.0, 100.0);
-                    let field = NumberField::new("create-shape-ratio", labels.star_ratio.as_str(), percent, numbers)
-                        .range(1.0..=100.0)
-                        .decimals(0..=1)
-                        .unit(Unit::new("{n}%"))
-                        .size(ControlSize::Sm);
-                    let edit = field.show(ui);
-                    if let Some(value) = set_by(edit.event.as_ref())
-                        && (value - percent).abs() > f64::EPSILON
-                    {
-                        self.options.star_ratio = (value / 100.0).clamp(0.01, 1.0);
-                    }
-                    edit
-                });
-            }
-            form.unlabelled(|ui| Checkbox::bool(labels.from_center.as_str(), &mut self.options.from_center).show(ui));
-        });
-        self.error = self.answer(labels, numbers).err().filter(|message| !message.is_empty());
-        if let Some(message) = &self.error {
-            Notice::new(message.as_str()).tone(Tone::Bad).id_salt("create-shape-error").show(ui);
+            size.0 = px;
+        } else {
+            size.1 = px;
         }
     }
+}
 
-    /// The words: the given ones, else the installed ones.
-    fn words(&self, ctx: &Context) -> Arc<CreateShapeLabels> {
-        self.labels.clone().map_or_else(|| CreateShapeLabels::shared_ctx(ctx), Arc::new)
+/// The units a shape's size is entered in.
+const LENGTH_UNITS: [UnitKind; 7] =
+    [UnitKind::Pixels, UnitKind::Percent, UnitKind::Points, UnitKind::Inches, UnitKind::Centimetres, UnitKind::Millimetres, UnitKind::Picas];
+
+/// `value` in `unit` as a length the document converts.
+fn length(value: f64, unit: UnitKind) -> craft_ui::patterns::form_dialogs::GuideLength {
+    craft_ui::patterns::form_dialogs::GuideLength::new(value, unit)
+}
+
+/// The fields; whether the values can be accepted.
+fn body(
+    ui: &mut Ui,
+    values: &mut CreateShapeOptions,
+    units: &mut [UnitKind; 2],
+    words: &CreateShapeWords,
+    numbers: &Units,
+    latest: &RefCell<Option<Memory>>,
+) -> bool {
+    let document = values.units.unwrap_or_else(pixels_only);
+    let entries: Vec<Entry<UnitKind>> = LENGTH_UNITS
+        .iter()
+        .filter(|kind| values.units.is_some() || **kind != UnitKind::Percent)
+        .map(|&kind| Entry::new(kind, Label::from(numbers.symbol(kind))))
+        .collect();
+    let kind = values.kind;
+    let name = match kind {
+        ShapeKind::RoundedRectangle => &words.rounded_rectangle,
+        ShapeKind::Ellipse => &words.ellipse,
+        ShapeKind::Triangle => &words.triangle,
+        ShapeKind::Polygon => &words.polygon,
+        ShapeKind::Star => &words.star,
+        ShapeKind::Rectangle | ShapeKind::Line | ShapeKind::Custom => &words.rectangle,
+    };
+    FieldGroup::new(name.clone()).show(ui, |ui, _| {
+        let (width, height) = (Label::from(words.width.as_str().to_owned()), Label::from(words.height.as_str().to_owned()));
+        Field::new(width.clone()).show(ui, |ui, _| size_field(ui, 0, &width, &mut units[0], &mut values.size, &document, &entries));
+        Field::new(height.clone()).show(ui, |ui, _| size_field(ui, 1, &height, &mut units[1], &mut values.size, &document, &entries));
+        if matches!(kind, ShapeKind::Rectangle | ShapeKind::RoundedRectangle) {
+            Field::new(Label::from(words.radius.as_str().to_owned())).show(ui, |ui, _| {
+                // The radii are top-left, top-right, bottom-right, bottom-left; the two columns read
+                // top-left, bottom-left | top-right, bottom-right.
+                let [tl, tr, br, bl] = values.radii;
+                let parts = [tl, bl, tr, br].map(|r| Mixed::Same(Some(r)));
+                let captions =
+                    [&words.top_left, &words.bottom_left, &words.top_right, &words.bottom_right].map(|c| Label::from(c.as_str().to_owned()));
+                let out = LinkedFields::<4>::new(words.radius.as_str().to_owned(), Bind::given(parts), Bind::bound(&mut values.link_radii))
+                    .mode(LinkMode::Equal)
+                    .layout(LinkedLayout::Columns)
+                    .captions(captions)
+                    .range(0.0..=MAX_RADIUS)
+                    .show(ui);
+                if let Some([Mixed::Same(Some(tl)), Mixed::Same(Some(bl)), Mixed::Same(Some(tr)), Mixed::Same(Some(br))]) = out.edit.value().copied()
+                {
+                    values.radii = [tl, tr, br, bl];
+                }
+            });
+        }
+        if matches!(kind, ShapeKind::Polygon | ShapeKind::Star) {
+            Field::new(Label::from(words.sides.as_str().to_owned())).show(ui, |ui, _| {
+                let field = NumberField::new(words.sides.as_str().to_owned(), Bind::given(Some(f64::from(values.sides))))
+                    .range(f64::from(*SIDES.start())..=f64::from(*SIDES.end()))
+                    .step(1.0)
+                    .commit_decimals(0);
+                if let Some(value) = field.show(ui).value().copied().flatten() {
+                    values.sides = value.round().clamp(f64::from(*SIDES.start()), f64::from(*SIDES.end())) as u32;
+                }
+            });
+            Field::new(Label::from(words.star_ratio.as_str().to_owned())).show(ui, |ui, _| {
+                let percent = (values.star_ratio * 100.0).clamp(1.0, 100.0);
+                let field = NumberField::new(words.star_ratio.as_str().to_owned(), Bind::given(Some(percent)))
+                    .range(1.0..=100.0)
+                    .unit(numbers.symbol(UnitKind::Percent))
+                    .commit_decimals(1);
+                if let Some(value) = field.show(ui).value().copied().flatten()
+                    && (value - percent).abs() > f64::EPSILON
+                {
+                    values.star_ratio = (value / 100.0).clamp(0.01, 1.0);
+                }
+            });
+        }
+        let center = Checkbox::new(Bind::given(values.from_center)).label(words.from_center.as_str().to_owned()).show(ui);
+        if let Some(on) = center.value().copied() {
+            values.from_center = on;
+        }
+    });
+    match answer(values, words, numbers) {
+        Ok(shape) => {
+            *latest.borrow_mut() = Some(remembered(values, &shape));
+            true
+        }
+        Err(message) => {
+            if !message.is_empty() {
+                Notice::new(Tone::Bad, message).layout(NoticeLayout::Inline).show(ui);
+            }
+            false
+        }
     }
 }
 
@@ -451,52 +428,49 @@ impl StackDialog for CreateShapeDialog {
         self.id
     }
 
-    fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<CreatedShape>> {
-        // pc: crates/ui-egui/src/dialogs/shape_dialog.rs:58-96 `open` (title from `kind_of` :28), :163 `body`.
-        // new: `Dialog::with_id(..).stack(stack).width(Width::Compact).footer(Footer::standard())`
-        // as `NewGuideDialog::show`.
-        let labels = self.words(ctx);
-        if !self.options.recalled {
-            self.recall(ctx);
-        }
-        let numbers = LocaleNumbers::of_ctx(ctx);
-        let title = match self.options.kind {
-            ShapeKind::RoundedRectangle => &labels.rounded_rectangle,
-            ShapeKind::Ellipse => &labels.ellipse,
-            ShapeKind::Triangle => &labels.triangle,
-            ShapeKind::Polygon => &labels.polygon,
-            ShapeKind::Star => &labels.star,
-            ShapeKind::Rectangle | ShapeKind::Line | ShapeKind::Custom => &labels.rectangle,
-        };
-        let valid = Cell::new(self.answer(&labels, &numbers).is_ok());
-        let width_id = self.width_id();
-        let mut state = std::mem::take(&mut self.state);
-        let shown = Dialog::with_id(self.id, title.as_str())
-            .stack(stack)
-            .width(Width::Compact)
-            .initial_focus(InitialFocus::Field(width_id))
-            .footer(Footer::standard().ok_enabled_with(|| valid.get()))
-            .show(ctx, &mut state, &mut (), |ui, ()| {
-                self.body(ui, &labels, &numbers);
-                valid.set(self.error.is_none() && self.answer(&labels, &numbers).is_ok());
-            });
-        self.state = state;
-        match shown.outcome {
-            Some(Outcome::Ok) => {
-                let answer = self.answer(&labels, &numbers).ok()?;
-                self.remember(ctx, &answer);
-                Some(DialogResult::Ok(answer))
+    fn show(&mut self, ui: &mut Ui, _stack: &DialogStack) -> Option<DialogResult<CreatedShape>> {
+        let env = Env::of(ui);
+        let words = env.words::<CreateShapeWords>();
+        let numbers = env.units();
+        let title = Label::from(
+            match self.options.kind {
+                ShapeKind::RoundedRectangle => &words.rounded_rectangle,
+                ShapeKind::Ellipse => &words.ellipse,
+                ShapeKind::Triangle => &words.triangle,
+                ShapeKind::Polygon => &words.polygon,
+                ShapeKind::Star => &words.star,
+                ShapeKind::Rectangle | ShapeKind::Line | ShapeKind::Custom => &words.rectangle,
             }
-            Some(Outcome::Cancel | Outcome::Close) => Some(DialogResult::Cancel),
-            _ => None,
+            .as_str()
+            .to_owned(),
+        );
+        let key = save_key(self.options.kind);
+        let latest = Rc::new(RefCell::new(None::<Memory>));
+        let (write, write_key) = (Rc::clone(&latest), key.clone());
+        let CreateShapeDialog { options, units, .. } = self;
+        let shown = FormDialog::new(title, Bind::bound(options))
+            .alt_resets(false)
+            .shaped(move |dialog| {
+                dialog.on_pick(move |button, cx| {
+                    if button.role() == DialogRole::Accept
+                        && let Some(memory) = write.borrow().clone()
+                    {
+                        *cx.saved::<Memory>(&write_key) = memory;
+                    }
+                })
+            })
+            .show(ui, |ui, form, values| {
+                if form.first() && !values.recalled {
+                    values.recalled = true;
+                    let memory = form.saved::<Memory>(&key).clone();
+                    recalled(values, &memory);
+                }
+                body(ui, values, units, &words, &numbers, &latest)
+            });
+        match (shown.accepted, shown.closed) {
+            (Some(values), _) => answer(&values, &words, &numbers).ok().map(DialogResult::Ok),
+            (None, Some(_)) => Some(DialogResult::Cancel),
+            (None, None) => None,
         }
-    }
-
-    fn confirm(&mut self, ctx: &Context) -> Option<CreatedShape> {
-        // new: `answer`, then `remember`; `None` while a field is out of range.
-        let labels = self.words(ctx);
-        let answer = self.answer(&labels, &LocaleNumbers::of_ctx(ctx)).ok()?;
-        self.remember(ctx, &answer);
-        Some(answer)
     }
 }

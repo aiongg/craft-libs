@@ -2,12 +2,13 @@
 //! the overlays report. The host converts its own path type to these each frame and applies the
 //! edits to its own.
 
-use egui::Color32;
+use craft_theme::Srgba;
 use kurbo::{BezPath, CubicBez, Point, Vec2};
 
 /// One point of a path: its anchor and its two direction handles, in document units. A handle at
 /// its anchor is retracted.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct Knot {
     /// The anchor point.
     pub anchor: Point,
@@ -20,6 +21,11 @@ pub struct Knot {
 }
 
 impl Knot {
+    /// A knot with its anchor, both handles and whether it is smooth.
+    pub fn new(anchor: Point, in_ctrl: Point, out_ctrl: Point, smooth: bool) -> Self {
+        Self { anchor, in_ctrl, out_ctrl, smooth }
+    }
+
     /// A corner point with both handles retracted.
     pub fn corner(anchor: Point) -> Self {
         Self { anchor, in_ctrl: anchor, out_ctrl: anchor, smooth: false }
@@ -46,6 +52,7 @@ impl Knot {
 
 /// One subpath: its knots in order, open or closed.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct EditSubpath {
     /// The knots in path order.
     pub knots: Vec<Knot>,
@@ -54,6 +61,11 @@ pub struct EditSubpath {
 }
 
 impl EditSubpath {
+    /// A subpath of `knots`, closed when `closed`.
+    pub fn new(knots: Vec<Knot>, closed: bool) -> Self {
+        Self { knots, closed }
+    }
+
     /// The number of segments: one between each pair of neighbouring knots, and one from the last
     /// knot back to the first when closed.
     pub fn segment_count(&self) -> usize {
@@ -100,17 +112,30 @@ impl EditSubpath {
 
 /// A path the overlays show: the host's key for it, its subpaths and its colour.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct EditPath {
     /// The host's key, stable across frames.
     pub key: u64,
     /// The path's subpaths.
     pub subpaths: Vec<EditSubpath>,
     /// The layer colour its outline, anchors and handles are drawn in (DesignCraft, VectorCraft);
-    /// `overlay.line` without one.
-    pub color: Option<Color32>,
+    /// the overlay's line colour without one.
+    pub color: Option<Srgba>,
 }
 
 impl EditPath {
+    /// The path the host keys `key`, made of `subpaths`, in the overlay's colour.
+    pub fn new(key: u64, subpaths: Vec<EditSubpath>) -> Self {
+        Self { key, subpaths, color: None }
+    }
+
+    /// The path in its own colour (a layer's), else the overlay's.
+    #[must_use]
+    pub fn colored(mut self, color: Option<Srgba>) -> Self {
+        self.color = color;
+        self
+    }
+
     /// The knot `at` refers to.
     pub fn knot(&self, at: KnotRef) -> Option<&Knot> {
         self.subpaths.get(at.subpath)?.knots.get(at.knot)
@@ -129,6 +154,7 @@ impl EditPath {
 
 /// A knot of a path, or the segment leaving it: its subpath and its index there.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[non_exhaustive]
 pub struct KnotRef {
     /// Index of the subpath in [`EditPath::subpaths`].
     pub subpath: usize,
@@ -146,6 +172,7 @@ impl KnotRef {
 /// The host's path selection: the path the overlay edits, its selected anchors and a selected
 /// segment (whose two handles show).
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct PathSelection {
     /// The host key of the path being edited, if any.
     pub path: Option<u64>,
@@ -156,6 +183,11 @@ pub struct PathSelection {
 }
 
 impl PathSelection {
+    /// The selection of `anchors` of the path keyed `path`, and of a segment.
+    pub fn new(path: Option<u64>, anchors: Vec<KnotRef>, segment: Option<KnotRef>) -> Self {
+        Self { path, anchors, segment }
+    }
+
     /// Whether `knot` of `path` is a selected anchor.
     pub fn has_anchor(&self, path: u64, knot: KnotRef) -> bool {
         self.path == Some(path) && self.anchors.contains(&knot)
@@ -164,6 +196,7 @@ impl PathSelection {
 
 /// Which of a knot's two direction handles.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum HandleSide {
     /// The handle of the segment arriving at the anchor.
     In,
@@ -175,8 +208,10 @@ pub enum HandleSide {
 /// its press: the host applies each one to the path it had at the press, with its own path code
 /// or with [`PathEdit::apply`] on an [`EditPath`].
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum PathEdit {
     /// Move anchors with their handles by `by`, in document units.
+    #[non_exhaustive]
     MoveAnchors {
         /// The path's host key.
         path: u64,
@@ -187,6 +222,7 @@ pub enum PathEdit {
     },
     /// Move a direction handle to `to`. A smooth knot keeps its other handle collinear, unless
     /// `alone`, which also makes the knot a corner (the host's rule).
+    #[non_exhaustive]
     MoveHandle {
         /// The path's host key.
         path: u64,
@@ -201,6 +237,7 @@ pub enum PathEdit {
     },
     /// Bend the segment leaving `segment` so its point at `t` moves by `by`, the nearer handle
     /// more (PhotoCraft's `bend_segment`).
+    #[non_exhaustive]
     BendSegment {
         /// The path's host key.
         path: u64,
@@ -213,6 +250,7 @@ pub enum PathEdit {
     },
     /// Convert Point: `None` makes a corner with retracted handles; `Some(out)` a smooth point
     /// whose out handle is at `out` and whose in handle mirrors it.
+    #[non_exhaustive]
     Convert {
         /// The path's host key.
         path: u64,
@@ -223,6 +261,7 @@ pub enum PathEdit {
     },
     /// The Curvature tool's drag of anchors: move them with their handles by `by` (the whole move
     /// from the press), then reflow every subpath they are on ([`EditSubpath::reflow`]).
+    #[non_exhaustive]
     MoveCurvature {
         /// The path's host key.
         path: u64,
@@ -235,6 +274,7 @@ pub enum PathEdit {
     /// `segment` at `t` ([`EditSubpath::insert_at`], `t` in
     /// [`CURVATURE_T_RANGE`](crate::geometry::curvature::CURVATURE_T_RANGE)), move it by `by`
     /// (zero for a click), and reflow the subpath. Insert and drag are one undo step.
+    #[non_exhaustive]
     InsertCurvature {
         /// The path's host key.
         path: u64,
@@ -247,6 +287,7 @@ pub enum PathEdit {
     },
     /// The Curvature tool's double-click or Enter on an anchor: a smooth knot becomes a corner
     /// with retracted handles and a corner becomes smooth, then the subpath reflows.
+    #[non_exhaustive]
     ToggleCurvature {
         /// The path's host key.
         path: u64,
@@ -256,6 +297,41 @@ pub enum PathEdit {
 }
 
 impl PathEdit {
+    /// Moves `anchors` of the path keyed `path` with their handles by `by`.
+    pub fn move_anchors(path: u64, anchors: Vec<KnotRef>, by: Vec2) -> Self {
+        PathEdit::MoveAnchors { path, anchors, by }
+    }
+
+    /// Moves the `side` handle of `knot` to `to`; `alone` keeps the other handle where it is.
+    pub fn move_handle(path: u64, knot: KnotRef, side: HandleSide, to: Point, alone: bool) -> Self {
+        PathEdit::MoveHandle { path, knot, side, to, alone }
+    }
+
+    /// Bends the segment leaving `segment` so its point at `t` moves by `by`.
+    pub fn bend_segment(path: u64, segment: KnotRef, t: f64, by: Vec2) -> Self {
+        PathEdit::BendSegment { path, segment, t, by }
+    }
+
+    /// Converts `knot` to a corner (`out` is `None`) or to a smooth point whose out handle is at `out`.
+    pub fn convert(path: u64, knot: KnotRef, out: Option<Point>) -> Self {
+        PathEdit::Convert { path, knot, out }
+    }
+
+    /// The Curvature tool's move of `anchors` by `by`, with the curve reflowed.
+    pub fn move_curvature(path: u64, anchors: Vec<KnotRef>, by: Vec2) -> Self {
+        PathEdit::MoveCurvature { path, anchors, by }
+    }
+
+    /// The Curvature tool's insert into the segment leaving `segment` at `t`, moved by `by`.
+    pub fn insert_curvature(path: u64, segment: KnotRef, t: f64, by: Vec2) -> Self {
+        PathEdit::InsertCurvature { path, segment, t, by }
+    }
+
+    /// The Curvature tool's toggle of `knot` between smooth and corner.
+    pub fn toggle_curvature(path: u64, knot: KnotRef) -> Self {
+        PathEdit::ToggleCurvature { path, knot }
+    }
+
     /// The edit's path.
     pub fn path(&self) -> u64 {
         match *self {

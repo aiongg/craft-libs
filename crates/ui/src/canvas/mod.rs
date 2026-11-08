@@ -21,7 +21,7 @@ mod tool;
 mod tool_groups;
 mod tool_host;
 
-pub use crop::{CropOverlay, CropStyle};
+pub use crop::{CropOverlay, CropOverlayOutput, CropShield, CropStyle, ShieldColor};
 pub use frame_step::{FRAME_STEP_MAX, frame_step};
 pub use guide::{Guide, GuideDrag, GuideKey, GuideLine};
 pub(crate) use march::{MARCH_SECONDS, MARCH_TICK, march_shift};

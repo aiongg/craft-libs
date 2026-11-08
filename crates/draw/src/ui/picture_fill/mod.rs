@@ -2,54 +2,47 @@
 //! source, picked through the host's files, then Stretch offsets or Tile offsets, scale,
 //! alignment and mirror, Rotate with shape and Transparency.
 //!
-//! ```no_run
-//! use craft_draw::ui::picture_fill::{PictureFill, PictureFillEditor, PictureFillEvent};
-//! # fn demo(ui: &mut egui::Ui, fill: &PictureFill) {
-//! for event in PictureFillEditor::new("picture", fill).show(ui).events {
-//!     match event {
-//!         PictureFillEvent::Source { name, bytes } => { /* the app stores the picture */ let _ = (name, bytes); }
-//!         PictureFillEvent::Edit(edit) => { /* one undo step per gesture */ let _ = edit; }
-//!         _ => {}
-//!     }
-//! }
-//! # }
+//! ```ignore
+//! let out = PictureFillEditor::new("Picture", Bind::bound(&mut fill)).show(ui);
+//! if let Some(request) = out.requests.take_path() { /* open the file dialog, store the picture, set `fill.source` */ }
 //! ```
 
 mod editor;
-mod labels;
-pub(crate) mod stories;
-#[cfg(test)]
-mod tests;
+#[cfg(feature = "screen-testing")]
+mod stories;
+mod words;
 
-pub use editor::{PictureFillEditor, PictureFillOutput};
-pub use labels::PictureFillLabels;
+pub use editor::{PICTURE_FILL_KEY, PictureFillEditor, PictureFillOutput};
+pub use words::PictureFillWords;
 
 /// Where a tiled picture's first tile sits in the shape.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum TileAlignment {
+    /// Top left.
     #[default]
-    #[allow(missing_docs)]
     TopLeft,
-    #[allow(missing_docs)]
+    /// Top.
     Top,
-    #[allow(missing_docs)]
+    /// Top right.
     TopRight,
-    #[allow(missing_docs)]
+    /// Left.
     Left,
-    #[allow(missing_docs)]
+    /// Center.
     Center,
-    #[allow(missing_docs)]
+    /// Right.
     Right,
-    #[allow(missing_docs)]
+    /// Bottom left.
     BottomLeft,
-    #[allow(missing_docs)]
+    /// Bottom.
     Bottom,
-    #[allow(missing_docs)]
+    /// Bottom right.
     BottomRight,
 }
 
 /// How tiles flip from one to the next.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum TileMirror {
     /// No mirroring.
     #[default]
@@ -64,15 +57,18 @@ pub enum TileMirror {
 
 /// How the picture fills the shape.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum PictureMode {
     /// Stretched to the shape, inset by `offsets` (left, top, right, bottom) in percent of the
     /// shape (negative grows past the edge).
+    #[non_exhaustive]
     Stretch {
         /// Inset from the left, top, right and bottom edges, in percent of the shape.
         offsets: [f64; 4],
     },
     /// Tiled: `offset` (x, y) in points, `scale` (x, y) in percent, the first tile's alignment and
     /// the mirror between tiles.
+    #[non_exhaustive]
     Tile {
         /// Offset of the tiling, x and y in points.
         offset: [f64; 2],
@@ -86,6 +82,16 @@ pub enum PictureMode {
 }
 
 impl PictureMode {
+    /// Stretched to the shape, inset by `offsets` (left, top, right, bottom) in percent.
+    pub fn stretch(offsets: [f64; 4]) -> Self {
+        PictureMode::Stretch { offsets }
+    }
+
+    /// Tiled with `offset`, `scale`, first-tile `alignment` and `mirror`.
+    pub fn tile(offset: [f64; 2], scale: [f64; 2], alignment: TileAlignment, mirror: TileMirror) -> Self {
+        PictureMode::Tile { offset, scale, alignment, mirror }
+    }
+
     /// The smallest tile scale in percent: DeckCraft's smallest step (its picture-fill fields show
     /// one decimal), so a scale is never zero or negative. There is no upper limit.
     pub const SCALE: std::ops::RangeInclusive<f64> = 0.1..=f64::INFINITY;
@@ -117,23 +123,4 @@ impl PictureFill {
     pub fn new(source: impl Into<String>) -> Self {
         PictureFill { source: Some(source.into()), mode: PictureMode::default(), rotate_with_shape: true, transparency: 0.0 }
     }
-}
-
-/// What the editor reports.
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
-pub enum PictureFillEvent {
-    /// A field changed: `Set` for a check box, a menu pick or a typed value; a gesture for a scrub
-    /// or the Transparency slider.
-    Edit(craft_ui::edit::EditEvent<PictureFill>),
-    /// Insert… picked a picture and read it: its file name and bytes. The app stores the picture
-    /// and sets [`PictureFill::source`].
-    Source {
-        /// The file name.
-        name: String,
-        /// The file's contents.
-        bytes: Vec<u8>,
-    },
-    /// The picked file could not be read: the message to show.
-    SourceFailed(String),
 }

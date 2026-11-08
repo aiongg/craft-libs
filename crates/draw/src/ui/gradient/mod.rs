@@ -8,56 +8,30 @@
 //! disagree. A ramp and a swatch sample through a [`Sampler`]; the default mixes straight lines
 //! in encoded sRGB, each segment bent so its midpoint gives the half mix.
 //!
-//! Colours are the `swatch.*` tokens; the bar's own are `gradient_editor.*`.
-//!
 //! [`map`]: Photoshop's Gradient Map adjustment ([`GradientMapEditor`]) over the bar.
 
-pub(crate) mod counts;
+// draw-gradient-a: the stop bar, its stops, ramp and swatch.
 mod editor;
-mod editor_stories;
-#[cfg(test)]
-mod editor_tests;
 pub mod gradient_line;
 pub mod gradient_overlay;
 pub mod map;
-#[cfg(test)]
-mod map_tests;
 mod palette;
-mod palette_stories;
-#[cfg(test)]
-mod palette_tests;
 mod ramp;
 pub mod stops;
-#[cfg(test)]
-mod stops_tests;
 mod swatch;
-#[cfg(test)]
-mod swatch_tests;
 mod value;
+mod words;
 
 pub(crate) use editor::marker_texts;
-pub use editor::{GradientEditor, GradientEditorResponse, GradientEditorStyle, GradientLabels, StopDrop, StopRef};
-pub use palette::{GradientGroup, GradientItem, GradientPalette, GradientRef, PaletteLayout};
-pub use ramp::{GradientRamp, GradientRampStyle};
+pub use editor::{GradientEditor, GradientEditorOutput, StopDrop};
+pub use palette::{GradientGroup, GradientItem, GradientPalette, GradientPaletteOutput, GradientRef};
+pub use ramp::GradientRamp;
 pub use stops::{Sampler, StopRules, default_sampler};
-pub use swatch::GradientSwatch;
-pub use value::{ColorStop, GradientStops, OpacityStop, StopRow, StopRows};
+pub use swatch::{GradientSwatch, GradientSwatchOutput};
+pub use value::{ColorStop, GradientStops, OpacityStop, StopColor, StopRef, StopRow, StopRows};
+pub use words::GradientWords;
 
-pub use map::{GradientMap, GradientMapEditor, GradientMapLabels, GradientMapOutput};
+pub use map::{GradientMap, GradientMapEditor, GradientMapOutput};
 
 pub use gradient_line::{GradientExtent, GradientLine, LineGradient, LinePart};
-pub use gradient_overlay::{
-    ColorRequest, GradientLineNames, GradientLineStyle, GradientOverlay, GradientOverlayResponse, LineCursor, LinePress, LineRelease, LineTrack,
-    TaggedStop,
-};
-
-/// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["GradientSwatch", "GradientEditor", "GradientPalette"];
-
-/// The stories of the gradient stop bar, its palette and swatch.
-pub fn stories() -> Vec<craft_ui::story::Story> {
-    let mut all = swatch::stories();
-    all.extend(editor_stories::stories());
-    all.extend(palette_stories::stories());
-    all
-}
+pub use gradient_overlay::{GradientLineWords, GradientOverlay, GradientOverlayOutput, GradientOverlayStyle};

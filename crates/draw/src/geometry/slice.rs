@@ -1,6 +1,6 @@
 //! Slice rectangles and the rules that size them: [`fixed_ratio_pixels`] (a Fixed Ratio slice
 //! from a drag) and [`resized_rect`] (a handle drag). No egui. Normal and Fixed Size slices use the
-//! marquee's rules (`craft_ui::canvas::{Constraint::corners, marquee_pixels, fixed_size_pixels}`).
+//! marquee's rules (`craft_behavior::geometry::{Constraint::corners, marquee_pixels, fixed_size_pixels}`).
 //!
 //! Slices are whole document pixels: every rectangle these return has integer edges.
 

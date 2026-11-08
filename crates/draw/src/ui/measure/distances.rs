@@ -1,9 +1,10 @@
 //! [`box_distances`]: the distances between two boxes, as lines and measures for the existing
-//! [`SmartGuides`](craft_ui::canvas::SmartGuides). No egui state.
+//! [`SmartGuides`](craft_ui::canvas_controls::SmartGuides). No egui state.
 
 use kurbo::{Point, Rect};
 
-use craft_ui::canvas::{Measure, Orientation, SmartLine};
+use craft_behavior::Axis;
+use craft_ui::canvas_controls::{Measure, SmartLine};
 
 /// The distances from box `a` (the selection's bounds) to box `b` (the hovered layer's, the
 /// canvas, or an ⌥-drag's copy), per axis: the gap between facing edges when the boxes are apart
@@ -11,20 +12,19 @@ use craft_ui::canvas::{Measure, Orientation, SmartLine};
 /// non-finite distances are dropped. A distance runs through the middle of the boxes' overlap on
 /// the other axis, else through `a`'s centre; where it ends beside `b`, a dashed extension
 /// ([`SmartLine::extension`]) continues `b`'s edge to it. `label` formats a length in document
-/// units along an axis ([`Orientation::Horizontal`]: a distance along x) in the app's ruler unit.
+/// units along an axis ([`Axis::X`]: a distance along x) in the app's ruler unit.
 ///
 /// ```
 /// use craft_draw::ui::measure::box_distances;
-/// use craft_ui::canvas::{SmartGuides, kurbo::Rect};
-/// # fn demo(ui: &egui::Ui, view: &craft_ui::canvas::CanvasView) {
+/// use craft_behavior::kurbo::Rect;
 /// let (lines, measures) = box_distances(Rect::new(0.0, 0.0, 10.0, 10.0), Rect::new(30.0, 0.0, 40.0, 10.0), |len, _| format!("{len} px"));
-/// SmartGuides::new(&lines, &measures).show(ui, view);
-/// # }
+/// // The app shows them with `SmartGuides::new(&lines, &measures)`.
+/// # let _ = (lines, measures);
 /// ```
 ///
 /// The app decides when they show (Smart Guides on, ⌘ held with no button down over another layer
 /// or the empty canvas, an ⌥-drag copy).
-pub fn box_distances(a: Rect, b: Rect, label: impl Fn(f64, Orientation) -> String) -> (Vec<SmartLine>, Vec<Measure>) {
+pub fn box_distances(a: Rect, b: Rect, label: impl Fn(f64, Axis) -> String) -> (Vec<SmartLine>, Vec<Measure>) {
     // pc: crates/ui-egui/src/tools/move_distance.rs:50 `measure` (each `Measure { horizontal, at,
     // from, to }` becomes a `Measure` with its label; each extension `[x0, y0, x1, y1]` a
     // `SmartLine` with `extension: true`).
@@ -51,16 +51,16 @@ pub fn box_distances(a: Rect, b: Rect, label: impl Fn(f64, Orientation) -> Strin
         };
         // A point on the measured axis (`s`) and across it (`across`).
         let point = |s: f64, across: f64| if horizontal { Point::new(s, across) } else { Point::new(across, s) };
-        let orientation = if horizontal { Orientation::Horizontal } else { Orientation::Vertical };
+        let axis = if horizontal { Axis::X } else { Axis::Y };
         for (from, to, edge) in pairs {
             if to - from <= 0.0 {
                 continue;
             }
-            measures.push(Measure { a: point(from, at), b: point(to, at), label: label(to - from, orientation) });
+            measures.push(Measure::new(point(from, at), point(to, at)).labelled(label(to - from, axis)));
             // The line ends beside `b`: extend `b`'s edge to it.
             if at < ob[0] || at > ob[1] {
                 let near = if at < ob[0] { ob[0] } else { ob[1] };
-                lines.push(SmartLine { a: point(edge, near), b: point(edge, at), extension: true });
+                lines.push(SmartLine::new(point(edge, near), point(edge, at)).dashed());
             }
         }
     }

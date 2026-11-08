@@ -1,29 +1,52 @@
-//! [`ColorDisc`]: a hue and saturation disc with one draggable marker per colour of a set, as
-//! VectorCraft's harmony wheel.
+//! [`ColorDisc`]: a hue and saturation disc with one draggable marker per colour of a set, as VectorCraft's harmony
+//! wheel.
 
-use craft_theme::{ColorModel, HsbModel, ModelValues, Srgba};
-use egui::accesskit::{Action, Role};
-use egui::{AsIdSalt, Color32, Id, IdSalt, InteractOptions, Key, Mesh, Modifiers, Pos2, Rect, Sense, Stroke, Ui, UiBuilder, vec2};
+use super::channels::{finite, primary};
+use super::wheel::{hue_at, hue_direction, vertex};
+use craft_behavior::{CancelReason, HitShape, Metrics, NavMove, PartKey, PressPhase, Sense};
+use craft_theme::{ColorModel, Flags, HsbModel, ModelValues, Resolve as _, Srgba, State, StateMix, Stateful};
+use craft_ui::contract::{
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, Name, Numeric, Outcome, PaintUi, PartsCx, Pointer as _,
+    Props as _, Remember as _, Role, WordSetCx as _,
+};
+use craft_ui::primitives::{PaintShape, StrokeWidth};
+use craft_ui::runtime::env::Label;
+use craft_ui::runtime::focus::{ActivateKeys, FocusShape, KeepKeys, KeyUse};
+use craft_ui::style::{ComponentStyle, DataColor, FocusLook, StyleColor, StyleCx};
+use egui::{Color32, Mesh, Pos2, Response, Vec2};
 
-use super::picker::installed;
-use super::wheel::{ColorWheelStyle, finite, hue_at, hue_direction, vertex};
-use super::{ColorWheel, faded_stroke};
-use craft_ui::controls::slider::{KEY_FILTER, tap};
-use craft_ui::edit::{EditEvent, EditPolicy, EditResponse, Gesture};
-use craft_ui::primitives::{FocusRing, Interactive};
-use craft_ui::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+#[cfg(feature = "screen-testing")]
+mod stories;
+
+/// The disc: a press on it grabs the nearest marker within reach.
+const DISC: PartKey = PartKey::new("disc");
+/// A marker: `MARKER.at(i)`; the selected one is the disc's Tab stop.
+const MARKER: PartKey = PartKey::new("marker");
 
 /// Share of `overlay.handle_fill` the marker spokes draw at, so the disc shows through.
 const SPOKE_SHARE: f32 = 0.63;
-
 /// Segments round the disc and rings out from its centre (VectorCraft's 72 and 8).
 const SEGMENTS: u32 = 72;
 const RINGS: u32 = 8;
 /// The least brightness the disc draws, as a proportion.
 const DISC_FLOOR: f32 = 0.15;
+/// The distance below which the pointer has no hue, in points.
+const CENTRE: f32 = 0.5;
+/// Degrees a hue key moves, and percents a saturation key moves; Shift moves ten times as far.
+const KEY_STEP: f32 = 1.0;
+const FAR: f32 = 10.0;
+
+craft_ui::words! {
+    /// The words of colour discs.
+    pub struct ColorDiscWords {
+        marker: template "colorDisc.marker" = "Color {n}";
+        value: template "colorDisc.value" = "Hue {hue} degrees, saturation {saturation} %";
+    }
+}
 
 /// A marker's place on the disc: what a drag or a key changes.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct DiscMove {
     /// Index of the marker, in the order of the colours the disc was given.
     pub marker: usize,
@@ -33,170 +56,114 @@ pub struct DiscMove {
     pub saturation: f32,
 }
 
-/// The disc's sizes, colours and the strokes it shares with [`ColorWheel`], from
-/// [`ColorDisc::style`].
-#[derive(Clone, Copy, Debug, PartialEq)]
+impl DiscMove {
+    /// Marker `marker` at `hue` degrees and `saturation`.
+    pub const fn new(marker: usize, hue: f32, saturation: f32) -> Self {
+        DiscMove { marker, hue, saturation }
+    }
+}
+
+/// The style of a colour disc.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
 pub struct ColorDiscStyle {
-    /// Default side of the area.
-    pub side: f32,
-    /// Least side of the area.
-    pub side_min: f32,
-    /// Distance from the area's edge to the disc: `space.pad.panel`.
-    pub inset: f32,
-    /// A marker's radius, and a selected one's.
-    pub marker: f32,
-    /// Radius of the selected marker.
-    pub marker_selected: f32,
+    #[style(metrics)]
+    metrics: Metrics,
+    #[style(focus)]
+    focus: FocusLook,
+    /// The distance from the area's edge to the disc.
+    inset: f32,
+    /// A marker's radius; the selected marker's is larger.
+    marker: Stateful<f32>,
     /// A press within this of a marker grabs it.
-    pub grab: f32,
-    /// Least brightness the disc draws, as a proportion.
-    pub floor: f32,
-    /// The line from the centre to a marker: `overlay.halo`.
-    pub spoke: Stroke,
-    /// The wheel's edge and marker strokes.
-    pub wheel: ColorWheelStyle,
+    grab: f32,
+    /// The disc's edge.
+    edge: StyleColor,
+    /// The line from the centre to a marker.
+    spoke: StyleColor,
+    /// A marker's inner ring and the halo round it.
+    ring: StyleColor,
+    halo: StyleColor,
 }
 
-/// Hue and saturation disc with a marker per colour; the host owns the colours and the rule that
-/// moves them together:
-///
-/// ```
-/// use craft_theme::Srgba;
-/// use craft_color::ui::ColorDisc;
-/// # egui::__run_test_ui(|ui| { let colors = [Srgba::rgb(0.9, 0.2, 0.2), Srgba::rgb(0.2, 0.7, 0.4)];
-/// let disc = ColorDisc::new("disc", "Harmony", &colors).selected(Some(0)).show(ui);
-/// if let Some(index) = disc.pressed { /* select `index` */ }
-/// if let Some(v) = disc.edit.event.as_ref().and_then(|e| e.value()) { /* move colour `v.marker` */ }
-/// # });
-/// ```
+/// What [`ColorDisc`] returns.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct ColorDiscOutput {
+    /// This pass's edit, carrying the moved marker.
+    pub edit: EditResponse<DiscMove>,
+    /// The marker a press grabbed: the host selects it.
+    pub pressed: Option<usize>,
+    /// The marker a press grabbed and a drag is moving, also on the pass the drag ends.
+    pub grabbed: Option<usize>,
+}
+
+impl Outcome for ColorDiscOutput {
+    type Value = DiscMove;
+
+    fn response(&self) -> &Response {
+        &self.edit.response
+    }
+
+    #[cfg(feature = "screen-testing")]
+    fn story_facts(&self) -> craft_ui::testing::StoryOutput {
+        self.edit.story_facts()
+    }
+}
+
+/// The marker a press grabbed, and the colour that marker had the pass before.
+#[derive(Clone, Copy, Default)]
+struct Grab {
+    marker: Option<usize>,
+    last: Option<Srgba>,
+}
+
+/// Hue and saturation disc with a marker per colour; the host owns the colours and the rule that moves them
+/// together.
 ///
 /// - Pointer (primary button): a press grabs the nearest marker within `size.hit.target`
-///   ([`pressed`](ColorDiscResponse::pressed) reports it, for the host to select it); a press
-///   elsewhere grabs nothing. A drag moves the grabbed marker's hue (the pointer's angle, whole
-///   degrees) and saturation (its distance over the radius, whole percents, at most 1), one
-///   gesture ([`craft_ui::edit`]); the marker's brightness stays, the host's slider sets it. A press
-///   and release in one frame is a [`Set`](EditEvent::Set).
-/// - Keys: one Tab stop, the selected marker (the first without a selection). Left and Right
-///   change the hue by 1 degree, Up and Down the saturation by 1 percent; Shift steps ten; each
-///   key is a `Set`. During a drag keys change nothing.
-/// - Esc during a drag cancels it.
-/// - AccessKit: a `Group` named `label` holding a `Slider` per marker, named by
-///   [`names`](ColorDisc::names) or "Color N", with the value text "Hue 120 degrees, saturation
-///   80 %". Focus on any marker is reported as `pressed`.
+///   ([`pressed`](ColorDiscOutput::pressed) reports it, for the host to select it); a press elsewhere grabs nothing.
+///   A drag moves the grabbed marker's hue (the pointer's angle, whole degrees) and saturation (its distance over the
+///   radius, whole percents, at most 1), one gesture; the marker's brightness stays, the host's slider sets it. A
+///   click is one `Set`. A colour of the host's that is not what the drag reported cancels the drag.
+/// - Keys: one Tab stop, the selected marker (the first without a selection). Left and Right change the hue by 1
+///   degree, Up and Down the saturation by 1 percent; Shift steps ten; each key is a `Set`. During a drag keys change
+///   nothing. Esc during a drag cancels it.
+/// - AccessKit: a `Group` named `label` holding a `Slider` per marker (the hue, 0 to 360, step 1, increment, decrement
+///   and set value), named by [`names`](ColorDisc::names) or "Color N", with the value text "Hue 120 degrees,
+///   saturation 80 %".
 /// - Right to left nothing mirrors: red stays at 3 o'clock.
-#[derive(Clone, Debug)]
-#[must_use = "show the disc with `show`"]
-pub struct ColorDisc {
-    id_salt: IdSalt,
-    label: String,
-    markers: Vec<Srgba>,
-    selected: Option<usize>,
-    brightness: f32,
-    side: Option<f32>,
-    policy: EditPolicy,
-    enabled: bool,
-    marker_names: Vec<String>,
-    words: Option<[String; 4]>,
-}
-
-/// What [`ColorDisc::show`] reports.
-#[derive(Clone, Debug)]
-pub struct ColorDiscResponse {
-    /// The marker a press grabbed, or a screen reader focused: the host selects it.
-    pub pressed: Option<usize>,
-    /// This frame's edit event, carrying the moved marker; the response is the group's.
-    pub edit: EditResponse<DiscMove>,
-    /// The area the disc was given.
-    pub area: Rect,
-    /// The ids of the markers' focus stops, in order.
-    pub markers: Vec<Id>,
-}
-
-impl ColorDisc {
-    /// The English words the disc speaks, the keys a host translates with [`text`](ColorDisc::text):
-    /// the marker's default name (a number follows it), the two components and the hue's unit.
-    pub const TEXTS: [&'static str; 4] = ["Color", "Hue", "Saturation", "degrees"];
-
-    /// A disc named `label` (translated by the host) with a marker at each of `markers`;
-    /// `id_salt` keeps its gesture and focus when the layout around it changes.
-    pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, markers: &[Srgba]) -> Self {
-        Self {
-            id_salt: IdSalt::new(id_salt),
-            label: label.into(),
-            markers: markers.to_vec(),
-            selected: None,
-            brightness: 1.0,
-            side: None,
-            policy: EditPolicy::default(),
-            enabled: true,
-            marker_names: Vec::new(),
-            words: None,
-        }
-    }
-
+#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
+#[component(content_painter)]
+pub struct ColorDisc<'a> {
+    #[common]
+    common: Common,
+    markers: &'a [Srgba],
+    drag: Bind<'a, DiscMove>,
     /// The marker drawn larger and reached by Tab; the host owns it.
-    pub fn selected(mut self, selected: Option<usize>) -> Self {
-        self.selected = selected;
-        self
-    }
-
-    /// The brightness the disc is drawn at, 0 to 1; never below the style's `floor`. 1 without it.
-    pub fn brightness(mut self, brightness: f32) -> Self {
-        self.brightness = brightness;
-        self
-    }
-
-    /// The area's side; the style's default `side` without it. Never below its `side_min`.
-    pub fn side(mut self, side: f32) -> Self {
-        self.side = Some(side);
-        self
-    }
-
-    /// How the gesture reports ([`EditPolicy`]).
-    pub fn policy(mut self, policy: EditPolicy) -> Self {
-        self.policy = policy;
-        self
-    }
-
-    /// Turns input on or off; on by default.
-    pub fn enabled(mut self, enabled: bool) -> Self {
-        self.enabled = enabled;
-        self
-    }
-
+    #[prop]
+    chosen: Option<usize>,
+    /// The brightness the disc is drawn at, 0 to 1; never below a floor.
+    #[prop(quantity = "brightness")]
+    brightness: f32,
     /// The markers' accessible names, in order; a marker without one is "Color N".
-    pub fn names(mut self, names: &[String]) -> Self {
-        self.marker_names = names.to_vec();
-        self
+    #[prop(into)]
+    names: Vec<Label>,
+    pressed: Option<usize>,
+    grabbed: Option<usize>,
+}
+
+impl<'a> ColorDisc<'a> {
+    /// A disc named `label` ("Harmony") with a marker at each of `markers`, reporting moves through `drag`.
+    pub fn new(label: impl Into<Label>, markers: &'a [Srgba], drag: Bind<'a, DiscMove>) -> Self {
+        ColorDisc { common: Common::new(), markers, drag, chosen: None, brightness: 1.0, names: Vec::new(), pressed: None, grabbed: None }
+            .label(label)
+            .ltr_axis()
     }
 
-    /// Translates the disc's words, given as the English [`TEXTS`](ColorDisc::TEXTS).
-    pub fn text(mut self, translate: impl Fn(&str) -> String) -> Self {
-        self.words = Some(Self::TEXTS.map(translate));
-        self
-    }
-
-    /// The style the control draws with, read from the theme `tokens`.
-    pub fn style(tokens: &UiTokens) -> ColorDiscStyle {
-        let wheel = ColorWheel::style(tokens);
-        let handle = tokens.size.handle.md;
-        ColorDiscStyle {
-            side: wheel.side,
-            side_min: wheel.side_min,
-            inset: tokens.space.pad.panel,
-            marker: handle,
-            marker_selected: handle + 2.0 * tokens.stroke.thin,
-            grab: tokens.size.hit.target,
-            floor: DISC_FLOOR,
-            spoke: Stroke::new(tokens.stroke.thin, tokens.color.overlay.handle_fill.faded(SPOKE_SHARE).to_egui()),
-            wheel,
-        }
-    }
-
-    /// The disc's centre and radius in `area`.
-    pub fn geometry(style: &ColorDiscStyle, area: Rect) -> (Pos2, f32) {
-        (area.center(), (area.width().min(area.height()) / 2.0 - style.inset).max(1.0))
+    /// The disc's centre and radius in the area `rect`, `inset` inside its shorter side.
+    pub fn geometry(rect: egui::Rect, inset: f32) -> (Pos2, f32) {
+        (rect.center(), (rect.width().min(rect.height()) / 2.0 - inset).max(1.0))
     }
 
     /// Where a marker of hue `hue` degrees and saturation `saturation` (0 to 1) lies.
@@ -204,67 +171,121 @@ impl ColorDisc {
         center + hue_direction(hue) * (radius * saturation.clamp(0.0, 1.0))
     }
 
-    /// Shows the disc and returns this frame's edit event.
-    pub fn show(self, ui: &mut Ui) -> ColorDiscResponse {
-        let style = ColorDisc::style(&Tokens::of(ui));
-        let id = ui.make_persistent_id(self.id_salt);
-        let builder = UiBuilder::new().scope_id(id).accessibility_role(Role::Group).accessibility_label(self.label.clone());
-        let inner = ui.scope_builder(builder, |ui| self.show_inside(ui, &style, id));
-        let (event, area, pressed, markers) = inner.inner;
-        ColorDiscResponse { pressed, edit: EditResponse::new(inner.response, event), area, markers }
+    /// The marker with the Tab stop: the selected one, else the first.
+    fn stop(&self) -> usize {
+        self.chosen.filter(|selected| *selected < self.markers.len()).unwrap_or(0)
     }
 
-    fn show_inside(self, ui: &mut Ui, style: &ColorDiscStyle, id: Id) -> (Option<EditEvent<DiscMove>>, Rect, Option<usize>, Vec<Id>) {
-        let side = self.side.filter(|s| s.is_finite()).unwrap_or(style.side).max(style.side_min);
-        let width = if ui.available_width().is_finite() { ui.available_width() } else { side };
-        let (_, area) = ui.allocate_space(vec2(width, side));
-        let (center, radius) = ColorDisc::geometry(style, area);
-        let hsb: Vec<[f32; 3]> = self.markers.iter().map(|c| HsbModel.from_srgb(*c).values.map(finite)).map(|v| [v[0], v[1], v[2]]).collect();
-        let at = |i: usize| hsb.get(i).map(|v| ColorDisc::marker_pos(center, radius, v[0], v[1] / 100.0));
-        let marker_value =
-            |i: usize| DiscMove { marker: i, hue: hsb.get(i).map_or(0.0, |v| v[0]), saturation: hsb.get(i).map_or(0.0, |v| v[1] / 100.0) };
-        let ids: Vec<Id> = (0..self.markers.len()).map(|i| Interactive::id_in(ui, ("marker", i))).collect();
-
-        let pointer_id = id.with("pointer");
-        let options = InteractOptions { enabled: self.enabled, ..Default::default() };
-        // Only the disc and the markers' grab slack take presses; the rest of the row is the host's.
-        let reach = Rect::from_center_size(center, vec2(2.0 * (radius + style.grab), 2.0 * (radius + style.grab))).intersect(area);
-        let response = ui.interact_opt(reach, pointer_id, Sense::DRAG, options);
-        let enabled = response.enabled();
-
-        let tapped = tap(ui, &response);
-        let origin = response.drag_started_by(egui::PointerButton::Primary).then(|| response.interact_pointer_pos()).flatten();
-        let grabbed = origin.or(tapped).and_then(|p| {
-            let near = (0..hsb.len()).filter_map(|i| at(i).map(|m| (i, m.distance(p)))).filter(|(_, d)| *d <= style.grab);
-            near.min_by(|a, b| a.1.total_cmp(&b.1)).map(|(i, _)| i)
+    /// Marker `index` as the host's colour places it: hue, saturation (0 to 1) and brightness.
+    fn hsb(&self, index: usize) -> [f32; 3] {
+        let values = self.markers.get(index).map_or([0.0; 3], |color| {
+            let v = HsbModel.from_srgb(*color).values;
+            [finite(v[0]), finite(v[1]), finite(v[2])]
         });
-        // The marker a screen reader asked to focus.
-        let requested = if enabled { ids.iter().position(|&m| ui.input(|i| i.has_accesskit_action_request(m, Action::Focus))) } else { None };
-        let resting = self.selected.filter(|&s| s < self.markers.len()).unwrap_or(0);
-        let stop = grabbed.or(requested).unwrap_or(resting);
-        // The marker a running drag moves keeps its place as the host's value.
-        let reported = Gesture::<DiscMove>::reported(ui, pointer_id).map(|(_, v)| v);
-        let held = grabbed.or(reported.map(|v| v.marker)).unwrap_or(stop);
-        // The host's colour need not hold what the drag reported: black has no hue, and a colour
-        // near the centre loses it to the host's precision. While the colour the reported value
-        // makes is the host's own, to its 8-bit channels, the reported value is the host's value;
-        // any other colour is an outside change, which cancels the drag.
-        let host = match (reported, hsb.get(held)) {
-            (Some(r), Some(v)) if r.marker == held => {
-                let echo = HsbModel.to_srgb(&ModelValues::new("hsb", &[r.hue, r.saturation * 100.0, v[2]]).values);
-                if echo.same_rgb8(self.markers[held]) { r } else { marker_value(held) }
-            }
-            _ => marker_value(held),
-        };
+        [values[0], values[1] / 100.0, values[2]]
+    }
 
-        let mut gesture = Gesture::load(ui, pointer_id, &host, self.policy).focus_owners(&ids).event_filter(KEY_FILTER).enabled(enabled);
-        let modifiers = || ui.input(|i| i.modifiers);
-        let value_at = |base: &DiscMove, pos: Pos2| {
+    /// Marker `index` where the host has it.
+    fn resting(&self, index: usize) -> DiscMove {
+        let [hue, saturation, _] = self.hsb(index);
+        DiscMove::new(index, hue, saturation)
+    }
+}
+
+impl Component for ColorDisc<'_> {
+    const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_keep(KeepKeys::BlockArrows).with_activate(ActivateKeys::Neither);
+    const SINGLE_VALUE: bool = true;
+    const ROLE: Role = Role::GROUP;
+    const OVERLAYS: bool = false;
+    type Style = ColorDiscStyle;
+    type Output = ColorDiscOutput;
+
+    fn style(cx: &StyleCx<'_>, _: ColorDiscStyleKey) -> ColorDiscStyle {
+        let tokens = cx.tokens;
+        let colors = &tokens.color;
+        ColorDiscStyle {
+            metrics: Metrics::new().min_size(Vec2::new(tokens.size.plot.width, tokens.size.plot.height)),
+            focus: cx.focus_look(),
+            inset: tokens.space.pad.panel,
+            marker: Stateful::new(tokens.size.handle.sm).when(Flags::SELECTED, tokens.size.handle.md),
+            grab: tokens.size.hit.target,
+            edge: cx.color(colors.line.control_edge),
+            spoke: cx.color(colors.overlay.handle_fill.faded(SPOKE_SHARE)),
+            ring: cx.color(colors.overlay.handle_fill),
+            halo: cx.color(colors.overlay.halo),
+        }
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::empty()
+    }
+
+    fn parts(&mut self, rect: egui::Rect, cx: &mut PartsCx<'_, Self>) {
+        let (center, radius) = Self::geometry(rect, cx.style.inset);
+        cx.part(DISC, HitShape::circle(center, radius + cx.style.grab))
+            .sense(Sense::DRAG | Sense::CLICK)
+            .pointer_only("the arrow keys move the marker");
+        let stop = self.stop();
+        for index in 0..self.markers.len() {
+            let at = match cx.value().filter(|moved| moved.marker == index) {
+                Some(moved) => *moved,
+                None => self.resting(index),
+            };
+            let radius_of = marker_radius(cx.style, self.chosen == Some(index));
+            let part = cx.part(MARKER.at(index as u64), HitShape::circle(Self::marker_pos(center, radius, at.hue, at.saturation), radius_of));
+            // A marker takes no press of its own (the disc grabs the nearest) and only the selected one is a Tab stop.
+            if index == stop {
+                part.focusable().focus_shape(FocusShape::Circle);
+            } else {
+                part.keyboard_via(MARKER);
+            }
+        }
+    }
+
+    fn bind(&mut self) -> Option<BindMut<'_, DiscMove>> {
+        Some(self.drag.reborrow())
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        let (center, radius) = Self::geometry(cx.rect, cx.style.inset);
+        let grab_reach = cx.style.grab;
+        let press = cx.part(DISC).press;
+        let stop = self.stop();
+        if primary(&press) && press.went_down {
+            let origin = press.phase.start().map(|start| start.origin);
+            let near = origin.and_then(|origin| {
+                let distance = |index: usize| {
+                    let at = self.resting(index);
+                    Self::marker_pos(center, radius, at.hue, at.saturation).distance(origin)
+                };
+                (0..self.markers.len()).map(|index| (index, distance(index))).filter(|(_, d)| *d <= grab_reach).min_by(|a, b| a.1.total_cmp(&b.1))
+            });
+            cx.memory::<Grab>().marker = near.map(|(index, _)| index);
+            self.pressed = near.map(|(index, _)| index);
+            if near.is_some() && !self.markers.is_empty() {
+                cx.focus_part(MARKER.at(stop as u64));
+            }
+        }
+        let grabbed = cx.memory::<Grab>().marker;
+        self.grabbed = grabbed;
+        let running = cx.gesture().is_some();
+        // A colour of the host's that changed and is not what the drag reported is an outside change.
+        if running && let Some(marker) = grabbed.filter(|marker| *marker < self.markers.len()) {
+            let last = std::mem::replace(&mut cx.memory::<Grab>().last, Some(self.markers[marker]));
+            if let Some(moved) = cx.value().filter(|moved| moved.marker == marker) {
+                let echo = HsbModel.to_srgb(&ModelValues::new("hsb", &[moved.hue, moved.saturation * 100.0, self.hsb(marker)[2]]).values);
+                if last.is_some_and(|last| last != self.markers[marker]) && !echo.same_rgb8(self.markers[marker]) {
+                    cx.cancel(CancelReason::HostChanged);
+                }
+            }
+        }
+        let value_at = |cx: &Cx<'_, Self>, marker: usize, pos: Pos2| {
+            let base = cx.value().filter(|moved| moved.marker == marker && cx.gesture().is_some()).copied().unwrap_or_else(|| self.resting(marker));
             let offset = pos - center;
-            let mut out = *base;
+            let mut out = base;
             if offset.length().is_finite() {
                 out.saturation = ((offset.length() / radius).clamp(0.0, 1.0) * 100.0).round() / 100.0;
-                if offset.length() >= 0.5
+                if offset.length() >= CENTRE
                     && let Some(hue) = hue_at(center, pos)
                 {
                     out.hue = hue;
@@ -272,96 +293,104 @@ impl ColorDisc {
             }
             out
         };
-        if origin.is_some() && grabbed.is_some() {
-            gesture.begin_with_value();
-        }
-        if response.dragged_by(egui::PointerButton::Primary)
-            && let Some(start) = gesture.start().copied()
-            && let Some(pos) = response.interact_pointer_pos()
+        if primary(&press)
+            && let Some(marker) = grabbed
         {
-            gesture.update(value_at(&start, pos), modifiers());
-        }
-        if response.drag_stopped() {
-            gesture.commit();
-        }
-        if let Some(pos) = tapped.filter(|_| grabbed.is_some()) {
-            gesture.set(value_at(gesture.shown(), pos));
-        }
-
-        let focused = ids.iter().position(|&m| ui.memory(|mem| mem.has_focus(m)));
-        if enabled && focused.is_some() && !response.dragged() {
-            let step = |plus: Key, minus: Key| {
-                ui.input_mut(|i| {
-                    let mut count = |m, k| i.count_and_consume_key(m, k) as f32;
-                    // Shift first: `Modifiers::NONE` also matches a press with Shift held.
-                    10.0 * (count(Modifiers::SHIFT, plus) - count(Modifiers::SHIFT, minus)) + count(Modifiers::NONE, plus)
-                        - count(Modifiers::NONE, minus)
-                })
-            };
-            let (hue, saturation) = (step(Key::ArrowRight, Key::ArrowLeft), step(Key::ArrowUp, Key::ArrowDown));
-            if hue != 0.0 || saturation != 0.0 {
-                let mut out = *gesture.shown();
-                out.hue = (out.hue + hue).round().rem_euclid(360.0);
-                out.saturation = ((out.saturation * 100.0 + saturation).round().clamp(0.0, 100.0)) / 100.0;
-                gesture.set(out);
+            match press.phase {
+                PressPhase::DragStart { pos, .. } => {
+                    cx.begin();
+                    cx.propose(value_at(&*cx, marker, pos));
+                }
+                PressPhase::Drag { pos, .. } if cx.gesture().is_some() => cx.propose(value_at(&*cx, marker, pos)),
+                PressPhase::Release { pos, click, .. } => {
+                    if cx.gesture().is_some() {
+                        cx.propose(value_at(&*cx, marker, pos));
+                        cx.commit();
+                    } else if click {
+                        cx.set(value_at(&*cx, marker, pos));
+                    }
+                }
+                _ => {}
             }
         }
-
-        // The markers, for the keyboard and a screen reader; only the stop takes the focus.
-        let shown = *gesture.shown();
-        let words = self.words.clone().unwrap_or_else(|| installed(ui, Self::TEXTS));
-        let mut parts = Vec::with_capacity(ids.len());
-        for i in 0..ids.len() {
-            let live = if i == shown.marker { shown } else { marker_value(i) };
-            let name = self.marker_names.get(i).cloned().unwrap_or_else(|| format!("{} {}", words[0], i + 1));
-            let value = format!("{} {:.0} {}, {} {:.0} %", words[1], live.hue.rem_euclid(360.0), words[3], words[2], live.saturation * 100.0);
-            let big = Some(i) == self.selected;
-            let r = if big { style.marker_selected } else { style.marker };
-            let rect = Rect::from_center_size(at_value(center, radius, &live), vec2(2.0 * r, 2.0 * r));
-            let sense = if i == stop { Sense::FOCUSABLE } else { Sense::empty() };
-            let part = Interactive::new(("marker", i), Role::Slider, name).sense(sense).enabled(enabled).state_layer(false).focus_ring(false);
-            let part = part.interact_at(ui, rect).value(value).finish(ui);
-            if i != stop && enabled {
-                ui.ctx().accesskit_node_builder(part.id, |node| node.add_action(Action::Focus));
-            }
-            parts.push((rect, part));
+        if matches!(press.phase, PressPhase::Release { .. } | PressPhase::Cancel { .. }) {
+            *cx.memory::<Grab>() = Grab::default();
         }
-        if enabled && (grabbed.is_some() || requested.is_some() || focused.is_some_and(|f| f != stop)) && !ui.memory(|m| m.has_focus(ids[stop])) {
-            ui.memory_mut(|m| m.request_focus(ids[stop]));
+        let (rtl, mut now) = (cx.flow.is_rtl(), self.resting(stop));
+        let on_stop = cx.active_part() == Some(MARKER.at(stop as u64));
+        while let Some((mv, mods)) = cx.intents().take_move() {
+            if running || !on_stop || self.markers.is_empty() {
+                continue;
+            }
+            let by = if mods.extend { FAR } else { KEY_STEP };
+            match mv {
+                NavMove::Forward => now.hue += if rtl { -by } else { by },
+                NavMove::Back => now.hue -= if rtl { -by } else { by },
+                NavMove::Up => now.saturation += by / 100.0,
+                NavMove::Down => now.saturation -= by / 100.0,
+                _ => continue,
+            }
+            now.hue = now.hue.round().rem_euclid(360.0);
+            now.saturation = (now.saturation * 100.0).round().clamp(0.0, 100.0) / 100.0;
+            cx.set(now);
         }
-
-        if ui.is_rect_visible(area) {
-            let brightness = if self.brightness.is_finite() { self.brightness } else { 1.0 };
-            let painter = ui.painter();
-            painter.add(disc_mesh(center, radius, brightness.clamp(0.0, 1.0).max(style.floor)));
-            let edge = faded_stroke(style.wheel.edge, enabled);
-            painter.circle_stroke(center, radius + edge.width / 2.0, edge);
-            let spoke = faded_stroke(style.spoke, enabled);
-            let places: Vec<Pos2> =
-                (0..self.markers.len()).map(|i| at_value(center, radius, &if i == shown.marker { shown } else { marker_value(i) })).collect();
-            for p in &places {
-                painter.line_segment([center, *p], spoke);
-            }
-            let ring = style.wheel.marker_outer_radius - style.wheel.marker_inner_radius;
-            let order = (0..places.len()).filter(|i| Some(*i) != self.selected).chain(self.selected.filter(|s| *s < places.len()));
-            for i in order {
-                let r = if Some(i) == self.selected { style.marker_selected } else { style.marker };
-                let fill: Color32 = self.markers[i].into();
-                painter.circle_filled(places[i], r, fill);
-                painter.circle_stroke(places[i], r, faded_stroke(style.wheel.marker_inner, enabled));
-                painter.circle_stroke(places[i], r + ring, faded_stroke(style.wheel.marker_outer, enabled));
-            }
-            for (i, (_, part)) in parts.iter().enumerate() {
-                let r = if Some(i) == self.selected { style.marker_selected } else { style.marker };
-                FocusRing::paint_circle(ui, places[i], r + ring + style.wheel.marker_outer.width / 2.0, None, part.has_focus());
+        for index in 0..self.markers.len() {
+            if let Some(value) = cx.intents().take_set_value_at(MARKER.at(index as u64)).filter(|value| value.is_finite() && !running) {
+                let mut moved = cx.value().filter(|moved| moved.marker == index).copied().unwrap_or_else(|| self.resting(index));
+                moved.hue = value.round().rem_euclid(360.0) as f32;
+                cx.set(moved);
             }
         }
-        (gesture.finish(), area, grabbed.or(requested), ids)
     }
-}
 
-fn at_value(center: Pos2, radius: f32, v: &DiscMove) -> Pos2 {
-    ColorDisc::marker_pos(center, radius, v.hue, v.saturation)
+    fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
+        let words = cx.words::<ColorDiscWords>();
+        for index in 0..self.markers.len() {
+            let live = cx.value().filter(|moved| moved.marker == index).copied().unwrap_or_else(|| self.resting(index));
+            let name = match self.names.get(index) {
+                Some(name) => cx.env.resolve(name).as_str().to_owned(),
+                None => words.marker.fill(&[("n", (index + 1).to_string().as_str())]),
+            };
+            let hue = format!("{:.0}", live.hue.rem_euclid(360.0));
+            let saturation = format!("{:.0}", live.saturation * 100.0);
+            let node = access.node(MARKER.at(index as u64), Role::SLIDER);
+            node.name = Name::Text(name);
+            let text = words.value.fill(&[("hue", hue.as_str()), ("saturation", saturation.as_str())]);
+            node.numeric = Some(Numeric::new(f64::from(live.hue.rem_euclid(360.0)), 0.0..=360.0).step(f64::from(KEY_STEP)).text(text));
+        }
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let (center, radius) = Self::geometry(cx.rect, cx.style.inset);
+        let brightness = if self.brightness.is_finite() { self.brightness.clamp(0.0, 1.0).max(DISC_FLOOR) } else { 1.0 };
+        let painter = ui.content_painter(cx);
+        painter.painter.add(disc_mesh(center, radius, brightness));
+        let draw = ui.draw();
+        draw.stroke(&PaintShape::Circle(center, radius), StrokeWidth::Thin, cx.style.edge);
+        let places: Vec<Pos2> = (0..self.markers.len())
+            .map(|index| {
+                let at = cx.value().filter(|moved| moved.marker == index).copied().unwrap_or_else(|| self.resting(index));
+                Self::marker_pos(center, radius, at.hue, at.saturation)
+            })
+            .collect();
+        for place in &places {
+            draw.stroke(&PaintShape::Path(vec![center, *place]), StrokeWidth::Thin, cx.style.spoke);
+        }
+        let selected = self.chosen.filter(|selected| *selected < places.len());
+        let order = (0..places.len()).filter(|index| Some(*index) != selected).chain(selected);
+        for index in order {
+            let r = marker_radius(cx.style, Some(index) == selected);
+            let circle = PaintShape::Circle(places[index], r);
+            draw.data_fill(&circle, DataColor::new(Color32::from(self.markers[index])));
+            draw.stroke(&circle, StrokeWidth::Thick, cx.style.halo);
+            draw.stroke(&circle, StrokeWidth::Medium, cx.style.ring);
+        }
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> ColorDiscOutput {
+        let (pressed, grabbed) = (self.pressed, self.grabbed);
+        ColorDiscOutput { edit: cx.edit_response(), pressed, grabbed }
+    }
 }
 
 /// The disc at `brightness`: a centre vertex and rings out to the rim, hue around.
@@ -388,4 +417,10 @@ fn disc_mesh(center: Pos2, radius: f32, brightness: f32) -> Mesh {
         }
     }
     mesh
+}
+
+/// The radius of a marker, larger while it is the selected one.
+fn marker_radius(style: &ColorDiscStyle, selected: bool) -> f32 {
+    let flags = if selected { Flags::SELECTED } else { Flags::empty() };
+    style.marker.resolve(State::Rest, flags, StateMix::default())
 }

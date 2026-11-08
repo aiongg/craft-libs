@@ -1,6 +1,7 @@
-//! [`StrokePreview`]: a stroke style drawn as a line sample with egui shapes.
+//! [`StrokePreview`]: a stroke style drawn as a line sample with the content painter.
 
-use egui::{Color32, Painter, Pos2, Rect, Shape};
+use craft_ui::primitives::{ContentPainterCx, PaintShape};
+use egui::{Color32, Pos2, Rect, Shape, Stroke};
 use kurbo::{BezPath, PathEl, Point};
 
 use super::StrokeStyle;
@@ -9,65 +10,79 @@ use crate::stroke::{LineCap, LineJoin, StrokeAlign};
 /// The largest distance a circle fan may lie inside the true circle, in points.
 const FAN_TOLERANCE: f64 = 0.1;
 
-/// A line sample of a [`StrokeStyle`] in a rect, drawn with egui shapes (the library has no
-/// vector rasteriser; PhotoCraft's samples use its engine). Lead call 20: the outline is dashed
-/// with `kurbo::dash` from [`StrokeStyle::to_kurbo`] (the dashes scaled to the sample's width),
-/// then each dash is filled as convex pieces: a quad per flattened segment, a fan for round joins
-/// and caps, a triangle for bevels, a wedge for miters within the limit, a quad for square caps.
+/// The sample line's width as a share of the rect's height, for a sample sized from its rect.
+const LINE_SHARE: f32 = 0.1;
+/// The open line's distance from the rect's ends and the closed rectangle's inset, as a share of the rect's height.
+const MARGIN_SHARE: f32 = 0.15;
+
+/// A line sample of a [`StrokeStyle`] in a rect: the outline is dashed with `kurbo::dash` from
+/// [`StrokeStyle::to_kurbo`] (the dashes scaled to the sample's width), then each dash is filled
+/// as convex pieces: a quad per flattened segment, a fan for round joins and caps, a triangle for
+/// bevels, a wedge for miters within the limit, a quad for square caps.
+///
+/// It is a helper of content painters, not a component: [`paint`](Self::paint) fills
+/// [`shapes`](Self::shapes) in the text ink of the painter's surface.
 ///
 /// - Open ([`closed`](Self::closed) false, the default): a horizontal line through the rect's
-///   centre from 4 points inside its left edge to 4 inside its right, aligned to the centre
-///   whatever the style says; drawn left to right in every reading direction.
-/// - Closed: a rectangle inset [`inset`](Self::inset) points from the rect, so corners and
-///   alignment show (inside or outside a closed path's line by half the width).
-/// - Opacity multiplies the colour's alpha. A style that fails [`StrokeStyle::validate`] draws
-///   nothing.
+///   centre, aligned to the centre whatever the style says; drawn left to right in every reading
+///   direction.
+/// - Closed: a rectangle inset from the rect, so corners and alignment show (inside or outside a
+///   closed path's line by half the width).
+/// - A style that fails [`StrokeStyle::validate`] draws nothing. The style's opacity applies to
+///   the ink ([`ink`](Self::ink)).
 pub struct StrokePreview<'a> {
     value: &'a StrokeStyle,
     width: f32,
-    color: Color32,
     closed: bool,
-    inset: f32,
-    margin: f32,
+    inset: Option<f32>,
+    margin: Option<f32>,
 }
 
 impl<'a> StrokePreview<'a> {
-    /// A sample of `value` drawn `width` points wide (the sample stroke, 2.5) in
-    /// `color` (`text.default`).
-    pub fn new(value: &'a StrokeStyle, width: f32, color: Color32) -> Self {
-        Self { value, width, color, closed: false, inset: 12.0, margin: 4.0 }
+    /// A sample of `value` drawn `width` points wide.
+    pub fn new(value: &'a StrokeStyle, width: f32) -> Self {
+        Self { value, width, closed: false, inset: None, margin: None }
+    }
+
+    /// A sample of `value` whose line is a share of `rect`'s height wide, so it scales with the row or
+    /// button that holds it.
+    pub fn sized(value: &'a StrokeStyle, rect: Rect) -> Self {
+        Self::new(value, rect.height() * LINE_SHARE)
     }
 
     /// Draws a closed rectangle in place of an open line.
+    #[must_use]
     pub fn closed(mut self, closed: bool) -> Self {
         self.closed = closed;
         self
     }
 
-    /// The open line's distance from the rect's left and right edges, in points
-    /// (the sample margin, 4 by default).
+    /// The open line's distance from the rect's left and right edges, in points; a share of the
+    /// rect's height by default.
+    #[must_use]
     pub fn margin(mut self, margin: f32) -> Self {
-        self.margin = margin;
+        self.margin = Some(margin);
         self
     }
 
-    /// The closed sample's inset from the rect, in points (the sample inset, 12 by
-    /// default).
+    /// The closed sample's inset from the rect, in points; a share of the rect's height by default.
+    #[must_use]
     pub fn inset(mut self, inset: f32) -> Self {
-        self.inset = inset;
+        self.inset = Some(inset);
         self
+    }
+
+    /// The fill colour of the sample in `ink`: the ink at the style's opacity.
+    pub fn ink(&self, ink: Color32) -> Color32 {
+        ink.gamma_multiply(self.value.opacity)
     }
 
     /// The sample's shapes in `rect` (screen points): every dash as filled convex polygons and
-    /// circle fans, so tests count them.
-    pub fn shapes(&self, rect: Rect) -> Vec<Shape> {
-        // pc: crates/ui-egui/src/tools/shape_stroke_ui/editor.rs:307-354 `paint_sample` (the
-        // rectangle at inset 12 :321-322, the line 4 from each end at mid-height :324, centred when
-        // open :314-316, width 2.5 :332). new: egui shapes from `kurbo::dash` (lead call 20).
+    /// circle fans. A style that fails validation, or a rect too small for the sample, gives none.
+    pub fn shapes(&self, rect: Rect) -> Vec<PaintShape> {
         if self.value.validate().is_err() || self.width <= 0.0 || self.value.width <= 0.0 {
             return Vec::new();
         }
-        let fill = self.color.gamma_multiply(self.value.opacity);
         let half = f64::from(self.width) / 2.0;
         let mut pieces = Pieces { half, style: self.value, out: Vec::new() };
         let outline = self.outline(rect, half);
@@ -103,15 +118,16 @@ impl<'a> StrokePreview<'a> {
             }
             pieces.polyline(&run, closed_run);
         }
-        pieces.out.into_iter().map(|points| Shape::convex_polygon(points.into_iter().map(to_pos).collect(), fill, egui::Stroke::NONE)).collect()
+        pieces.out.into_iter().map(|points| PaintShape::Polygon(points.into_iter().map(to_pos).collect())).collect()
     }
 
     /// The path the stroke follows, in screen points: the open line, or the closed rectangle moved
     /// in or out by half the width for inside and outside alignment.
     fn outline(&self, rect: Rect, half: f64) -> Vec<Point> {
+        let share = rect.height() * MARGIN_SHARE;
         if !self.closed {
             let y = f64::from(rect.center().y);
-            let margin = f64::from(self.margin);
+            let margin = f64::from(self.margin.unwrap_or(share));
             let (left, right) = (f64::from(rect.left()) + margin, f64::from(rect.right()) - margin);
             return if right > left { vec![Point::new(left, y), Point::new(right, y)] } else { Vec::new() };
         }
@@ -120,7 +136,7 @@ impl<'a> StrokePreview<'a> {
             StrokeAlign::Center => 0.0,
             StrokeAlign::Outside => half,
         };
-        let inset = f64::from(self.inset) - grow;
+        let inset = f64::from(self.inset.unwrap_or(share)) - grow;
         let (l, t) = (f64::from(rect.left()) + inset, f64::from(rect.top()) + inset);
         let (r, b) = (f64::from(rect.right()) - inset, f64::from(rect.bottom()) - inset);
         if r <= l || b <= t {
@@ -141,9 +157,14 @@ impl<'a> StrokePreview<'a> {
         stroke
     }
 
-    /// Paints [`shapes`](Self::shapes) for `rect` with `painter`.
-    pub fn paint(&self, painter: &Painter, rect: Rect) {
-        painter.extend(self.shapes(rect));
+    /// Fills [`shapes`](Self::shapes) for `rect` in the painter's ink at the style's opacity.
+    pub fn paint(&self, cx: &ContentPainterCx, rect: Rect) {
+        let fill = self.ink(cx.ink());
+        for shape in self.shapes(rect) {
+            if let PaintShape::Polygon(points) = shape {
+                cx.painter.add(Shape::convex_polygon(points, fill, Stroke::NONE));
+            }
+        }
     }
 }
 

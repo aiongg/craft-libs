@@ -6,10 +6,10 @@
 //! the app hands each to [`TransformSession::apply`] in the order they came. They also report
 //! `apply` and `discard` (Enter, the bar's ✓ and ⊘): the app answers them after the edits with
 //! [`commit`](TransformSession::commit) and [`discard`](TransformSession::discard). The session
-//! keeps its own Undo and Redo ([`LocalHistory`]); the app routes Edit › Undo and Redo to
+//! keeps its own Undo and Redo ([`EditHistory`]); the app routes Edit › Undo and Redo to
 //! [`undo`](TransformSession::undo) and [`redo`](TransformSession::redo) while it is open, and
-//! cancels a running drag with [`CancelReason::UndoDuringGesture`](craft_ui::edit::CancelReason)
-//! first (the box reports that cancel as an edit). It never touches the document: a commit gives
+//! cancels a running drag with `CancelReason::UndoDuringGesture` first (the box reports that
+//! cancel as an edit). It never touches the document: a commit gives
 //! the app a [`TransformResult`] to run as its own command.
 //!
 //! The warp of the Warp phase is the app's type `W` (decisions §2.1: the drawing library cannot
@@ -29,22 +29,23 @@
 //! # };
 //! ```
 
-use kurbo::{Point, Rect};
+use std::sync::Arc;
 
-use craft_ui::canvas::quad::{Anchor9, BoxAllow, BoxRules, BoxState, Homography, ScaleRule, TransformMode};
-use craft_ui::dialog::LocalHistory;
-use craft_ui::dialog::Step;
-use craft_ui::edit::EditEvent;
-use craft_ui::localized::units::LengthUnit;
-use craft_ui::menu::{MenuEntry, MenuItem};
-use craft_ui::words;
+use craft_behavior::Anchor9;
+use craft_behavior::edit_history::{EditHistory, Step};
+use craft_behavior::geometry::quad::{BoxAllow, BoxRules, BoxState, Homography, ScaleRule, TransformMode};
+use craft_behavior::kurbo::{Point, Rect};
+use craft_behavior::{EditEvent, GestureId, Mixed};
+use craft_ui::contract::Entry;
+use craft_ui::runtime::env::{Label, UnitKind};
+use serde::{Deserialize, Deserializer};
 
 use super::TransformRow;
 
 /// The app's warp as the session holds it in the Warp phase. The session clones and compares it
 /// and asks whether it changes anything; the warp model itself stays the app's (PhotoCraft's
 /// `Warp` in `photocraft-geom`).
-pub trait TransformWarp: Clone + PartialEq {
+pub trait TransformWarp: Clone + PartialEq + Send + Sync + 'static {
     /// Whether committing this warp would change nothing: the untouched default grid of the box.
     /// An app whose type layers commit an identity warp (a Warp Text set back to None) answers
     /// false for those.
@@ -61,6 +62,7 @@ impl TransformWarp for () {
 
 /// Which part of Free Transform is open: the box, or the warp mesh over it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum TransformPhase {
     /// The box with its handles ([`TransformBox`](super::TransformBox)).
     #[default]
@@ -72,6 +74,7 @@ pub enum TransformPhase {
 /// Something a widget or a menu reports to the open session. The app applies each with
 /// [`TransformSession::apply`], in order, in the pass it came in.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum TransformEdit<W> {
     /// The overlay's drags and arrow keys on the box: a gesture (Begin, Update, Commit, Cancel)
     /// or a Set (a nudge). Cancel restores the box the gesture began on.
@@ -106,6 +109,7 @@ pub enum TransformEdit<W> {
 
 /// What the app does after an edit, a commit or a discard.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum TransformRequest<W> {
     /// [`TransformSession::commit`] with something to apply: the app runs its transform command with the result and
     /// closes the session.
@@ -117,6 +121,7 @@ pub enum TransformRequest<W> {
     Discard,
     /// [`TransformEdit::WarpRequested`]: the app builds its warp from the box (`rect` mapped onto
     /// `state`, a smart object's own warp first) and answers [`TransformEdit::Warp`].
+    #[non_exhaustive]
     NeedWarp {
         /// The source frame.
         rect: Rect,
@@ -128,6 +133,7 @@ pub enum TransformRequest<W> {
 /// What a commit applies: the source frame, the box it was moved to, the interpolation, and the
 /// warp when the Warp phase was open.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct TransformResult<W> {
     /// The source frame the session began on (the layer's bounds).
     pub rect: Rect,
@@ -143,16 +149,17 @@ pub struct TransformResult<W> {
 
 /// Edit › Transform's presets while a box is open (PhotoCraft `box_preset`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum TransformPreset {
-    #[allow(missing_docs)]
+    /// Rotate 180°.
     Rotate180,
-    #[allow(missing_docs)]
+    /// Rotate 90° clockwise.
     Rotate90Clockwise,
-    #[allow(missing_docs)]
+    /// Rotate 90° counter clockwise.
     Rotate90CounterClockwise,
-    #[allow(missing_docs)]
+    /// Flip horizontal.
     FlipHorizontal,
-    #[allow(missing_docs)]
+    /// Flip vertical.
     FlipVertical,
 }
 
@@ -187,6 +194,7 @@ impl TransformPreset {
 /// them to its engine; [`id`](Self::id) gives PhotoCraft's ids.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum Interpolation {
     /// Bicubic resampling (the default).
     #[default]
@@ -220,6 +228,7 @@ impl Interpolation {
 
 /// A pick in the box's right-click menu ([`TransformSession::menu`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum TransformChoice {
     /// Free Transform, Scale (as Free), Rotate, Skew, Distort, Perspective: apply as
     /// [`TransformEdit::Mode`].
@@ -234,6 +243,7 @@ pub enum TransformChoice {
 /// ignored, missing ones take their defaults.
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct TransformSettings {
     /// PhotoCraft's Use Legacy Free Transform: corners stretch freely and ⇧ keeps the proportions
     /// ([`ScaleRule::Free`]). Off by default: corners keep the proportions and ⇧ frees them
@@ -246,8 +256,31 @@ pub struct TransformSettings {
     pub show_reference_point: bool,
     /// The interpolation a new session starts with.
     pub interpolation: Interpolation,
-    /// The W and H fields' unit; [`LengthUnit::Percent`] by default.
-    pub size_unit: Option<LengthUnit>,
+    /// The W and H fields' unit; percent when unset. Saved preferences may spell it as the legacy names
+    /// (`"Pixels"`, `"Percent"`, `"Inches"`, `"Centimetres"`, `"Millimetres"`, `"Points"`, `"Picas"`).
+    #[serde(deserialize_with = "unit_or_legacy")]
+    pub size_unit: Option<UnitKind>,
+}
+
+/// Reads a unit by the spelling `UnitKind` serializes to or by the legacy spelling, whatever the case.
+fn unit_or_legacy<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<UnitKind>, D::Error> {
+    let Some(name) = Option::<String>::deserialize(deserializer)? else { return Ok(None) };
+    let unit = match name.to_ascii_lowercase().as_str() {
+        "pixels" => UnitKind::Pixels,
+        "percent" => UnitKind::Percent,
+        "degrees" => UnitKind::Degrees,
+        "points" => UnitKind::Points,
+        "times" => UnitKind::Times,
+        "inches" => UnitKind::Inches,
+        "centimetres" => UnitKind::Centimetres,
+        "millimetres" => UnitKind::Millimetres,
+        "picas" => UnitKind::Picas,
+        "pixelsperinch" => UnitKind::PixelsPerInch,
+        "pixelspercentimetre" => UnitKind::PixelsPerCentimetre,
+        "minutes" => UnitKind::Minutes,
+        _ => return Err(serde::de::Error::custom(format!("unknown unit `{name}`"))),
+    };
+    Ok(Some(unit))
 }
 
 impl TransformSettings {
@@ -257,10 +290,10 @@ impl TransformSettings {
     }
 }
 
-words! {
+craft_ui::words! {
     /// The words of the box's right-click menu ([`TransformSession::menu`]), Photoshop's and
-    /// PhotoCraft's order (`canvas_tool_menu.rs:75`). `Default` is English.
-    pub struct TransformMenuLabels {
+    /// PhotoCraft's order (`canvas_tool_menu.rs:75`).
+    pub struct TransformMenuWords {
         free_transform: "transformMenu.freeTransform" = "Free Transform";
         scale: "transformMenu.scale" = "Scale";
         rotate: "transformMenu.rotate" = "Rotate";
@@ -308,7 +341,11 @@ pub struct TransformSession<W = ()> {
     mode: TransformMode,
     /// The interpolation (view-like state: not an undo step).
     interpolation: Interpolation,
-    history: LocalHistory<TransformDraft<W>>,
+    history: EditHistory<TransformDraft<W>>,
+    /// The draft as of the latest undo step.
+    rested: TransformDraft<W>,
+    /// Whether the draft changed since the latest undo step.
+    changed: bool,
     /// The draft when the running gesture began: a Cancel restores it.
     before: Option<TransformDraft<W>>,
     /// Show Reference Point (view state).
@@ -333,7 +370,9 @@ impl<W: TransformWarp> TransformSession<W> {
         Self {
             rect,
             allow: BoxAllow::default(),
-            history: LocalHistory::new(&draft),
+            history: EditHistory::new(&draft),
+            rested: draft.clone(),
+            changed: false,
             draft,
             mode: TransformMode::Free,
             interpolation: Interpolation::default(),
@@ -461,7 +500,7 @@ impl<W: TransformWarp> TransformSession<W> {
     pub fn box_rules(&self, settings: &TransformSettings) -> BoxRules {
         // new: one place maps the session and the settings to `BoxRules` (the PhotoCraft port maps
         // its preferences in its own `transform_tool/pointer.rs`).
-        BoxRules { mode: self.mode, scale: settings.scale_rule(), aspect_linked: settings.aspect_linked, allow: self.allow, ..BoxRules::default() }
+        BoxRules::in_mode(self.mode).with_scale(settings.scale_rule()).with_aspect_linked(settings.aspect_linked).with_allow(self.allow)
     }
 
     /// Whether committing now would change nothing. In the Box phase: the box on the frame's
@@ -505,6 +544,10 @@ impl<W: TransformWarp> TransformSession<W> {
         // pc: crates/ui-egui/src/tools/transform_tool/commit.rs:352 (`intercept`: presets, warp
         // refusal), :13 (`commit`); begin.rs:736 (`leave_warp`).
         let nudge = matches!(&edit, TransformEdit::Box(EditEvent::Set { .. }));
+        self.changed |= !matches!(
+            edit,
+            TransformEdit::Mode(_) | TransformEdit::Interpolation(_) | TransformEdit::ReferencePoint(_) | TransformEdit::WarpRequested
+        );
         if !nudge {
             // Whatever comes after a run of nudges ends the run: the nudges are their own step.
             self.end_nudges();
@@ -570,7 +613,9 @@ impl<W: TransformWarp> TransformSession<W> {
         if !nudging {
             self.last_nudge = None;
         }
-        self.history.settle(&self.draft, busy || self.dragging() || nudging);
+        if !(busy || self.dragging() || nudging) {
+            self.record_rest();
+        }
     }
 
     /// Edit › Undo while the session is open (the app routes it here; the session reads no undo
@@ -604,38 +649,48 @@ impl<W: TransformWarp> TransformSession<W> {
     /// Transform, LC10); modes the content refuses (Distort, Perspective under
     /// `allow.distort == false`) and every preset in the Warp phase are disabled. Puppet Warp and
     /// Content-Aware Scale rows are the app's to add, greyed while a box is open.
-    pub fn menu(&self, labels: &TransformMenuLabels) -> Vec<MenuEntry<TransformChoice>> {
+    pub fn menu(&self, words: &TransformMenuWords) -> Vec<Entry<TransformChoice>> {
         // pc: crates/ui-egui/src/canvas/canvas_tool_menu.rs:75 (`TRANSFORM_MENU`).
         let warping = self.phase() == TransformPhase::Warp;
         let allow = self.allow;
-        let mode = |label: &str, mode: TransformMode, allowed: bool, checked: bool| {
-            MenuEntry::from(MenuItem::new(label, TransformChoice::Mode(mode)).radio(checked && !warping).enabled(allowed))
+        let mode = |label: &Label, mode: TransformMode, allowed: bool, checked: bool| {
+            Entry::new(TransformChoice::Mode(mode), label.clone()).checked(checked && !warping).enabled(allowed)
         };
         let free = self.mode == TransformMode::Free;
-        let preset = |label: &str, preset: TransformPreset| MenuEntry::from(MenuItem::new(label, TransformChoice::Preset(preset)).enabled(!warping));
+        let preset = |label: &Label, preset: TransformPreset| Entry::new(TransformChoice::Preset(preset), label.clone()).enabled(!warping);
         vec![
-            mode(&labels.free_transform, TransformMode::Free, true, free),
-            mode(&labels.scale, TransformMode::Free, true, false),
-            mode(&labels.rotate, TransformMode::Rotate, allow.rotate, self.mode == TransformMode::Rotate),
-            mode(&labels.skew, TransformMode::Skew, allow.skew, self.mode == TransformMode::Skew),
-            mode(&labels.distort, TransformMode::Distort, allow.distort, self.mode == TransformMode::Distort),
-            mode(&labels.perspective, TransformMode::Perspective, allow.distort, self.mode == TransformMode::Perspective),
-            MenuEntry::from(MenuItem::new(&labels.warp, TransformChoice::Warp).radio(warping)),
-            MenuEntry::Separator,
-            preset(&labels.rotate_180, TransformPreset::Rotate180),
-            preset(&labels.rotate_90_clockwise, TransformPreset::Rotate90Clockwise),
-            preset(&labels.rotate_90_counter_clockwise, TransformPreset::Rotate90CounterClockwise),
-            MenuEntry::Separator,
-            preset(&labels.flip_horizontal, TransformPreset::FlipHorizontal),
-            preset(&labels.flip_vertical, TransformPreset::FlipVertical),
+            mode(&words.free_transform, TransformMode::Free, true, free),
+            mode(&words.scale, TransformMode::Free, true, false),
+            mode(&words.rotate, TransformMode::Rotate, allow.rotate, self.mode == TransformMode::Rotate),
+            mode(&words.skew, TransformMode::Skew, allow.skew, self.mode == TransformMode::Skew),
+            mode(&words.distort, TransformMode::Distort, allow.distort, self.mode == TransformMode::Distort),
+            mode(&words.perspective, TransformMode::Perspective, allow.distort, self.mode == TransformMode::Perspective),
+            Entry::new(TransformChoice::Warp, words.warp.clone()).checked(warping),
+            Entry::separator(),
+            preset(&words.rotate_180, TransformPreset::Rotate180),
+            preset(&words.rotate_90_clockwise, TransformPreset::Rotate90Clockwise),
+            preset(&words.rotate_90_counter_clockwise, TransformPreset::Rotate90CounterClockwise),
+            Entry::separator(),
+            preset(&words.flip_horizontal, TransformPreset::FlipHorizontal),
+            preset(&words.flip_vertical, TransformPreset::FlipVertical),
         ]
     }
 
     /// Ends a run of nudges: records them as their own step before the next edit.
     fn end_nudges(&mut self) {
         if self.last_nudge.take().is_some() && !self.dragging() {
-            self.history.settle(&self.draft, false);
+            self.record_rest();
         }
+    }
+
+    /// Records an undo step when the draft has come to rest changed.
+    fn record_rest(&mut self) {
+        if !std::mem::take(&mut self.changed) {
+            return;
+        }
+        let step = EditEvent::set(GestureId::default(), Mixed::Same(self.rested.clone()), self.draft.clone(), Arc::from(""), None);
+        self.history.record(&step);
+        self.rested = self.draft.clone();
     }
 
     /// One box or field event. A Begin takes the draft as `before`; a Set outside a gesture is a
@@ -646,15 +701,10 @@ impl<W: TransformWarp> TransformSession<W> {
             return;
         }
         match event {
-            EditEvent::Begin { value, .. } => {
-                self.before = Some(self.draft.clone());
-                if let Some(value) = value {
-                    set(&mut self.draft, &value);
-                }
-            }
+            EditEvent::Begin { .. } => self.before = Some(self.draft.clone()),
             EditEvent::Update { value, .. } => set(&mut self.draft, &value),
-            EditEvent::Commit { value, .. } => {
-                set(&mut self.draft, &value);
+            EditEvent::Commit { after, .. } => {
+                set(&mut self.draft, &after);
                 self.before = None;
             }
             EditEvent::Cancel { .. } => {
@@ -662,8 +712,8 @@ impl<W: TransformWarp> TransformSession<W> {
                     self.draft = before;
                 }
             }
-            EditEvent::Set { value, .. } => {
-                set(&mut self.draft, &value);
+            EditEvent::Set { after, .. } => {
+                set(&mut self.draft, &after);
                 if nudge {
                     self.last_nudge = Some(now);
                 }
@@ -678,6 +728,9 @@ impl<W: TransformWarp> TransformSession<W> {
             return false;
         }
         self.last_nudge = None;
-        self.history.step(&mut self.draft, step)
+        let moved = self.history.step(&mut self.draft, step);
+        self.rested = self.draft.clone();
+        self.changed = false;
+        moved
     }
 }

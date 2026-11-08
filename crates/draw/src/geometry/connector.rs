@@ -68,10 +68,10 @@ impl ConnectionSide {
     /// The way out of the side (y down); zero for [`Auto`](Self::Auto).
     pub fn normal(self) -> Vec2 {
         match self {
-            ConnectionSide::Top => Vec2::new(0.0, -1.0),   // design: allow(a unit direction, not a size)
-            ConnectionSide::Right => Vec2::new(1.0, 0.0),  // design: allow(a unit direction, not a size)
-            ConnectionSide::Bottom => Vec2::new(0.0, 1.0), // design: allow(a unit direction, not a size)
-            ConnectionSide::Left => Vec2::new(-1.0, 0.0),  // design: allow(a unit direction, not a size)
+            ConnectionSide::Top => Vec2::new(0.0, -1.0),
+            ConnectionSide::Right => Vec2::new(1.0, 0.0),
+            ConnectionSide::Bottom => Vec2::new(0.0, 1.0),
+            ConnectionSide::Left => Vec2::new(-1.0, 0.0),
             ConnectionSide::Auto => Vec2::ZERO,
         }
     }
@@ -79,17 +79,17 @@ impl ConnectionSide {
 
 /// A box edge counts as outside: a run along or out of an edge is not inside, by this much
 /// (FigCraft's `EDGE`, document units).
-const EDGE: f64 = 0.5; // design: allow(a geometry tolerance in document units, not a size)
+const EDGE: f64 = 0.5;
 
 /// A path of more runs than this can't be made by hand ([`reshaped`] refuses another).
-const MAX_RUNS: usize = 64; // design: allow(a count, not a size)
+const MAX_RUNS: usize = 64;
 
 /// Two control points moved by `d` move a cubic's middle by 3/4 of `d`, so a bow is applied as
 /// `d * 4/3`.
-const BOW_GAIN: f64 = 4.0 / 3.0; // design: allow(a ratio, not a size)
+const BOW_GAIN: f64 = 4.0 / 3.0;
 
 /// A divisor floor that keeps a zero-length division finite.
-const TINY: f64 = 1e-9; // design: allow(a numeric floor, not a size)
+const TINY: f64 = 1e-9;
 
 /// One end of a route.
 #[derive(Clone, Copy, Debug, PartialEq)]

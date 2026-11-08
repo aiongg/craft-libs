@@ -95,6 +95,9 @@ pub struct PointPicker<'a> {
     /// with no snapping.
     #[prop(quantity = "step")]
     step: Option<f64>,
+    /// The step of each axis, for axes that step differently (a colour area over chroma and hue); it replaces `step`.
+    #[prop(quantity = "step")]
+    steps: Option<[f64; 2]>,
     /// The width over the height of the image the well shows; the plot is the image fitted in the well.
     #[prop(quantity = "aspect ratio")]
     aspect: Option<f32>,
@@ -112,7 +115,7 @@ impl<'a> PointPicker<'a> {
             if start > end { (end..=start, true) } else { (range, false) }
         };
         let ((x, flip_x), (y, flip_y)) = (order(x), order(y));
-        PointPicker { common: Common::new(), value, x, y, flipped: [flip_x, flip_y], step: None, aspect: None, backdrop: None }
+        PointPicker { common: Common::new(), value, x, y, flipped: [flip_x, flip_y], step: None, steps: None, aspect: None, backdrop: None }
     }
 
     fn ranges(&self) -> [&RangeInclusive<f64>; 2] {
@@ -123,22 +126,27 @@ impl<'a> PointPicker<'a> {
         self.ranges().map(|range| (range.start() + range.end()) / 2.0)
     }
 
+    /// The step set for `axis`: its own, else the picker's.
+    fn set_step(&self, axis: usize) -> Option<f64> {
+        self.steps.map(|steps| steps[axis]).or(self.step)
+    }
+
     /// The step of one arrow press on `axis`.
     fn small(&self, axis: usize) -> f64 {
         let range = self.ranges()[axis];
-        self.step.unwrap_or((range.end() - range.start()) * STEP_SHARE)
+        self.set_step(axis).unwrap_or((range.end() - range.start()) * STEP_SHARE)
     }
 
     /// The steps of `axis` from `value`.
-    fn steps(&self, axis: usize, value: f64) -> ValueSteps {
+    fn value_steps(&self, axis: usize, value: f64) -> ValueSteps {
         let range = self.ranges()[axis];
         let small = self.small(axis);
         ValueSteps::new(value, *range.start(), *range.end(), small, small * LARGE_STEPS)
     }
 
-    /// The grid values snap to on `axis`: the picker's step, or a tenth of it for a fine move; none without a step.
-    fn grid(&self, fine: bool) -> Option<f64> {
-        self.step.filter(|step| *step > 0.0).map(|step| if fine { step / LARGE_STEPS } else { step })
+    /// The grid values snap to on `axis`: its step, or a tenth of it for a fine move; none without a step.
+    fn grid(&self, axis: usize, fine: bool) -> Option<f64> {
+        self.set_step(axis).filter(|step| *step > 0.0).map(|step| if fine { step / LARGE_STEPS } else { step })
     }
 
     /// `value` on `axis` in its range, and on `grid`.
@@ -172,8 +180,8 @@ impl<'a> PointPicker<'a> {
             (_, true) => (ValueAxes::Vertical, NavMove::Up),
             (_, false) => (ValueAxes::Vertical, NavMove::Down),
         };
-        match step_value(&self.steps(axis, from), axes, mv, mods) {
-            StepResult::Set(next) => self.settle(axis, next, self.grid(mods.fine && !mods.extend)),
+        match step_value(&self.value_steps(axis, from), axes, mv, mods) {
+            StepResult::Set(next) => self.settle(axis, next, self.grid(axis, mods.fine && !mods.extend)),
             _ => from,
         }
     }
@@ -190,8 +198,8 @@ impl<'a> PointPicker<'a> {
         };
         let mut turned = *wheel;
         turned.scroll = scroll;
-        match wheel_step(&self.steps(axis, placed[axis]), ValueAxes::Both, &turned, false) {
-            StepResult::Set(next) => Some((axis, self.settle(axis, next, self.grid(wheel.mods.alt && !wheel.mods.shift)))),
+        match wheel_step(&self.value_steps(axis, placed[axis]), ValueAxes::Both, &turned, false) {
+            StepResult::Set(next) => Some((axis, self.settle(axis, next, self.grid(axis, wheel.mods.alt && !wheel.mods.shift)))),
             _ => None,
         }
     }
@@ -220,8 +228,11 @@ impl<'a> PointPicker<'a> {
 
     /// The point `press` gives, from the point at the start of the drag.
     fn moved_by(&self, drags: &[ValueDrag; 2], start: [f64; 2], press: &PressState) -> Option<[f64; 2]> {
-        let grid = self.grid(press.mods.alt && !press.mods.shift);
-        Some([self.settle(0, drags[0].value(start[0], press, false)?, grid), self.settle(1, drags[1].value(start[1], press, false)?, grid)])
+        let fine = press.mods.alt && !press.mods.shift;
+        Some([
+            self.settle(0, drags[0].value(start[0], press, false)?, self.grid(0, fine)),
+            self.settle(1, drags[1].value(start[1], press, false)?, self.grid(1, fine)),
+        ])
     }
 }
 
@@ -340,7 +351,7 @@ impl Component for PointPicker<'_> {
         }
         for (axis, key) in AXES.into_iter().enumerate() {
             if let Some(next) = cx.intents().take_set_value_at(key).filter(|next| next.is_finite() && !running) {
-                now = with_axis(&now, axis, self.settle(axis, next, self.grid(false)));
+                now = with_axis(&now, axis, self.settle(axis, next, self.grid(axis, false)));
                 cx.set(now);
             }
         }
@@ -353,7 +364,7 @@ impl Component for PointPicker<'_> {
             };
             if !running {
                 let from = self.placed(&now)[axis];
-                now = with_axis(&now, axis, self.settle(axis, from + steps * self.small(axis), self.grid(false)));
+                now = with_axis(&now, axis, self.settle(axis, from + steps * self.small(axis), self.grid(axis, false)));
                 cx.set(now);
             }
         }

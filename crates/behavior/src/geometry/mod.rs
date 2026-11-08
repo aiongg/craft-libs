@@ -4,6 +4,7 @@
 //! plane helpers ([`geom`]). Nothing here reads a `Ui`; modifier keys arrive as
 //! [`craft_keymap::Mods`].
 
+pub mod crop;
 pub mod draft;
 pub mod geom;
 pub mod lock;
@@ -13,6 +14,7 @@ pub mod quad;
 pub mod selection_op;
 pub mod snap;
 
+pub use crop::{CropBox, CropGuide, GuideShow, crop_view, crop_view_about, hit_rect, screen_step};
 pub use draft::{DraftEvent, DraftKind, DraftPoint, DraftReach, OutlineDraft};
 pub use lock::{Directions, LOCK_HYSTERESIS_DEGREES, lock_direction, round_to_direction};
 pub use marquee::{Constraint, MarqueeGesture, MarqueeRect, fixed_size_pixels, marquee_pixels, square_pixels};

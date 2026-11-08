@@ -21,22 +21,11 @@ fn shape_drag_shift_makes_square_alt_draws_from_centre() {
     assert_eq!(box_drag(Point::new(0.4, 0.4), Point::new(10.4, 20.6), false, false), Some(Rect::new(0.0, 0.0, 10.0, 20.0)));
 }
 
-// `line_drag` with ⇧ turns (10, 3) to the 0° step and (7, 6) to 45°, each keeping its length.
-#[test]
-fn line_drag_shift_snaps_to_45_degrees_and_keeps_length() {
-    let from = Point::new(5.0, 5.0);
-    let Some(flat) = line_drag(from, Point::new(15.0, 8.0), true) else { panic!("a line") };
-    assert!(near(flat.y, 5.0) && near(flat.x - 5.0, 10.0_f64.hypot(3.0)));
-    let Some(diag) = line_drag(from, Point::new(12.0, 11.0), true) else { panic!("a line") };
-    assert!(near(diag.x - 5.0, diag.y - 5.0) && near((diag.x - 5.0).hypot(diag.y - 5.0), 7.0_f64.hypot(6.0)));
-    assert_eq!(line_drag(from, Point::new(15.0, 8.0), false), Some(Point::new(15.0, 8.0)));
-}
-
 // `box_drag` of 0.4 px wide and `line_drag` of 0.9 px long return `None`.
 #[test]
 fn shape_drag_under_one_pixel_draws_nothing() {
     assert_eq!(box_drag(Point::new(10.0, 10.0), Point::new(10.4, 50.0), false, false), None);
-    assert_eq!(line_drag(Point::new(10.0, 10.0), Point::new(10.9, 10.0), false), None);
+    assert_eq!(line_drag(Point::new(10.0, 10.0), Point::new(10.9, 10.0)), None);
 }
 
 fn corners(path: &kurbo::BezPath) -> Vec<Point> {

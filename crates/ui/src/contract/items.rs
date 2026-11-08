@@ -1152,7 +1152,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     if mods.extend && matches!(mode, SelectMode::Multi | SelectMode::Cells) {
                         let anchor = state.anchor.unwrap_or(to);
                         self.change(SelectionChange::Set(self.range(anchor, to)));
-                    } else if !mods.lead && !mods.extend {
+                    } else if !mods.lead && !mods.extend && comp.items().arrows_select {
                         self.pick(comp, to, false, false);
                     }
                     self.reveal_with(layout, to, view);

@@ -1,68 +1,88 @@
-//! The overlay's keys while its group has focus: the picked part moved, removed, added after or
-//! asked for its colour.
+//! The overlay's keys while its group has focus: the picked part moved, removed, added after or asked for its colour.
 
-use egui::{Key, Modifiers, Ui};
+use craft_behavior::PartRef;
+use craft_behavior::kurbo::Vec2;
+use craft_behavior::{Granularity, Intent};
+use craft_ui::canvas::{NUDGE, NUDGE_FAR};
+use craft_ui::contract::{Cx, Edit as _, Focus as _, Remember as _};
 
-use super::pointer::{Pass, Selection, selection_of};
-use super::{GradientOverlay, GradientOverlayResponse};
-use crate::ui::gradient::StopRow;
-use crate::ui::gradient::stops;
-use crate::ui::gradient::{GradientLine, LineGradient, LinePart};
-use craft_ui::behavior::nudge;
-use craft_ui::composites::curve_editor::take_exact;
-use craft_ui::edit::Gesture;
+use super::parts::line_part;
+use super::parts::{part_ref, selection_of};
+use super::{CMD_ENTER, ENTER, GradientOverlay, INSERT, SPACE};
+use crate::ui::gradient::stops::{self, round_location};
+use crate::ui::gradient::{GradientLine, LineGradient, LinePart, Sampler, StopRow, default_sampler};
+
+/// The part the focus arrived at, so a move of the focus selects.
+#[derive(Clone, Copy, Default)]
+struct Arrival(Option<PartRef>);
+
+/// One Left or Right step of a stop or midpoint, as a share of the line.
+const STEP: f32 = 0.01;
+/// One Shift step.
+const BIG_STEP: f32 = 0.1;
 
 impl GradientOverlay<'_> {
-    /// Handles the keys of the picked part (the line when none is picked): Left and Right on a
-    /// stop or midpoint, the arrows on an end or the line, Delete and Backspace on a stop, Insert
-    /// and Cmd/Ctrl+Enter, Enter and Space. Each change is one Set, and the part it leaves is
-    /// picked and, for a stop or midpoint, selected. Reads nothing while a text field has focus, a
-    /// popup is open or a modal layer is above.
-    pub(super) fn keys(&self, ui: &Ui, pass: &Pass<'_>, gesture: &mut Gesture<LineGradient>, sel: &mut Selection, out: &mut GradientOverlayResponse) {
-        if !nudge::reads(ui) {
+    /// Selection follows the focus. While focused: the keys of the picked part (the line when none is picked).
+    pub(super) fn run_keys(&mut self, cx: &mut Cx<'_, Self>, shown: &LineGradient) {
+        let active = cx.active_part();
+        let arrived = {
+            let slot = cx.memory::<Arrival>();
+            let changed = slot.0 != active;
+            slot.0 = active;
+            changed
+        };
+        let picked = active.and_then(line_part);
+        if arrived && let Some(selected) = picked.and_then(selection_of) {
+            self.select(cx, Some(selected));
+        }
+        if !cx.is_focused() {
             return;
         }
-        let shown = gesture.shown().clone();
+        let mut part = picked.unwrap_or(LinePart::Line);
         let mut value = shown.clone();
-        let mut part = sel.picked.unwrap_or(LinePart::Line);
-        let take = |modifiers, key| take_exact(ui, modifiers, key);
+        let default = default_sampler(self.rules.rows);
+        let sampler: &Sampler = self.sampler.unwrap_or(&default);
 
-        if take(Modifiers::NONE, Key::Insert) + take(Modifiers::COMMAND, Key::Enter) > 0 {
+        let add = cx.take_claimed(INSERT) | cx.take_claimed(CMD_ENTER);
+        if add {
             let after = match part {
                 LinePart::Stop(i) | LinePart::Midpoint(i) => Some(i),
                 _ => None,
             };
             let at = stops::halfway(&value.stops, StopRow::Color, after);
-            if let Some((added, i)) = stops::add(&value.stops, StopRow::Color, at, pass.sampler, &self.rules) {
+            if let Some((added, i)) = stops::add(&value.stops, StopRow::Color, at, sampler, &self.rules) {
                 value.stops = added;
                 part = LinePart::Stop(i);
             }
         }
-        // Enter and Space are taken only where they ask for a colour; elsewhere they are the host's.
-        if let Some(request) = self.color_request(pass.view, pass.style, &shown, part)
-            && take(Modifiers::NONE, Key::Enter) + take(Modifiers::NONE, Key::Space) > 0
-        {
-            out.color_requested = Some(request);
+        // Enter and Space are claimed only where they ask for a colour; elsewhere they are the host's.
+        let request = self.color_request(shown, part);
+        if request.is_some() {
+            cx.claim(ENTER);
+            cx.claim(SPACE);
         }
+        if cx.take_claimed(ENTER) | cx.take_claimed(SPACE) {
+            self.report.color_requested = request;
+        }
+        let delete =
+            cx.intents().take_exact(&Intent::delete(true, Granularity::Unit)) | cx.intents().take_exact(&Intent::delete(false, Granularity::Unit));
+        let nudge = cx.intents().take_nudge();
         match part {
             LinePart::Stop(i) | LinePart::Midpoint(i) if i < value.stops.color.len() => {
-                let delete = matches!(part, LinePart::Stop(_)) && take(Modifiers::NONE, Key::Delete) + take(Modifiers::NONE, Key::Backspace) > 0;
-                if delete {
+                if delete && matches!(part, LinePart::Stop(_)) {
                     if let Some((removed, j)) = stops::remove(&value.stops, StopRow::Color, i, &self.rules) {
                         value.stops = removed;
                         part = LinePart::Stop(j);
                     }
-                } else {
-                    let steps = |key| 10 * take(Modifiers::SHIFT, key) as i32 + take(Modifiers::NONE, key) as i32;
-                    let d = (steps(Key::ArrowRight) - steps(Key::ArrowLeft)) as f32 / 100.0;
+                } else if let Some((direction, mods)) = nudge.filter(|(direction, _)| direction.x != 0.0) {
+                    let by = direction.x.signum() * if mods.shift { BIG_STEP } else { STEP };
                     let moved = match part {
-                        _ if d == 0.0 => None,
                         LinePart::Midpoint(_) => {
-                            let at = value.stops.color[i].midpoint + d;
+                            let at = value.stops.color[i].midpoint + by;
                             stops::set_midpoint(&value.stops, StopRow::Color, i, at, &self.rules).map(|(s, _)| (s, part))
                         }
                         _ => {
-                            let at = value.stops.color[i].location + d;
+                            let at = round_location(value.stops.color[i].location + by);
                             stops::move_to(&value.stops, StopRow::Color, i, at, &self.rules).map(|(s, j)| (s, LinePart::Stop(j)))
                         }
                     };
@@ -73,7 +93,9 @@ impl GradientOverlay<'_> {
                 }
             }
             LinePart::Line | LinePart::Start | LinePart::End => {
-                if let Some(by) = nudge::read(ui, nudge::STEP, nudge::BIG_STEP) {
+                if let Some((direction, mods)) = nudge {
+                    let step = if mods.shift { NUDGE_FAR } else { NUDGE };
+                    let by = Vec2::new(f64::from(direction.x), f64::from(direction.y)) * step;
                     let GradientLine { start, end } = value.line;
                     value.line = match part {
                         LinePart::Start => GradientLine { start: start + by, end },
@@ -84,12 +106,14 @@ impl GradientOverlay<'_> {
             }
             _ => {}
         }
-        if value != shown {
+        if value != *shown {
+            cx.set(value);
             if let Some(selected) = selection_of(part) {
-                sel.selected = Some(selected);
+                self.select(cx, Some(selected));
             }
-            sel.picked = Some(part);
-            gesture.set(value);
+            if part != picked.unwrap_or(LinePart::Line) {
+                cx.focus_part(part_ref(part));
+            }
         }
     }
 }

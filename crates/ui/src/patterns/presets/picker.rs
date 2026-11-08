@@ -1,31 +1,48 @@
 //! `PresetPicker`: a closed field that shows the current preset and opens a `PresetBrowser` in a popover.
 //!
 //! The closed field is a `SelectFace` over the field well, as `Select` shows it. Hovering a preset in the popover
-//! proposes it, a pick commits and closes, and closing without a pick restores the value.
+//! proposes it, a pick commits and closes, and closing without a pick restores the value. A host can put content
+//! above the browser (`head`), keep the popover open on a click (`keep_open`), give the browser a footer and set
+//! how far the thumbnails zoom.
 
 #[cfg(feature = "testing")]
 mod stories;
 
 use super::browser::PresetBrowser;
 use super::event::PresetEvent;
+use super::footer::PresetFooterOptions;
 use super::model::{CellShape, PresetRow};
 use super::state::{DefaultOpen, PresetState, PresetView};
 use super::words::PresetWords;
 use crate::contract::{
-    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx,
-    Props as _, Role, WordSetCx as _,
+    Access, Bind, BindMut, BodyCx, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi,
+    PartsCx, Pointer as _, Props as _, Role, ShowContainer as _, WordSetCx as _,
 };
+use crate::layout_components::Stack;
 use crate::list::RowTest;
 use crate::pickers::{SelectFace, toggle_on_key};
 use crate::runtime::env::{EnvView, Label};
 use crate::runtime::memory::StageAccess;
 use crate::style::{ComponentStyle, FocusLook, StyleCx, SurfaceLook};
-use craft_behavior::{CancelReason, GesturePhase, HitLevel, HitPriority, Metrics, PartKey, Sense, Value};
-use egui::{Response, Vec2};
+use crate::tile_grid::TileZoom;
+use craft_behavior::{CancelReason, GesturePhase, HitLevel, HitPriority, Metrics, PartKey, PressPhase, Sense, Value};
+use egui::{Response, Ui, Vec2};
 use std::hash::Hash;
 
 /// The face under the whole field.
 const FACE: PartKey = PartKey::new("face");
+/// The thumbnail of the face, when it asks for an editor instead of opening the list.
+const THUMB: PartKey = PartKey::new("thumb");
+
+/// The content a host puts above the browser in the popover.
+pub struct PickerHead<'a>(Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>);
+
+impl<'a> PickerHead<'a> {
+    /// The head that runs `content`.
+    pub fn new(content: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
+        PickerHead(Box::new(content))
+    }
+}
 
 /// What the closed field shows of the current preset.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -66,6 +83,10 @@ pub struct PresetPickerOutput<K> {
     /// What the browser in the popover reported besides the pick and the open groups: renames, deletes, the
     /// context menu's rows and the footer's buttons.
     pub events: Vec<PresetEvent<K>>,
+    /// The pick closed the popover (a double click or Enter); false for a click while `keep_open` holds it open.
+    pub closed: bool,
+    /// The thumbnail of the face was pressed (with `edit_face`): the host opens its editor.
+    pub edit_requested: bool,
 }
 
 impl<K: Value> Outcome for PresetPickerOutput<K> {
@@ -134,7 +155,26 @@ pub struct PresetPicker<'a, K: Value + Eq + Hash + 'static> {
     /// Shown instead of the current preset's name.
     #[prop(into)]
     display_name: Option<Label>,
+    /// Content above the browser in the popover.
+    #[prop(func = "FnMut(&mut Ui, &mut BodyCx<'_>)")]
+    head: Option<PickerHead<'a>>,
+    /// A click on a preset picks it and keeps the popover open; a double click or Enter picks it and closes. Hovering
+    /// proposes nothing.
+    #[prop(flag)]
+    keep_open: bool,
+    /// The browser's footer.
+    #[prop]
+    footer: Option<PresetFooterOptions<'a>>,
+    /// The zoom the thumbnails span and how it steps; the footer's slider uses the same.
+    #[prop]
+    thumb_range: TileZoom,
+    /// The thumbnail of the closed field asks the host for an editor (`PresetPickerOutput::edit_requested`) and the
+    /// rest of the field opens the list.
+    #[prop(flag)]
+    edit_face: bool,
     picked: Option<K>,
+    closed: bool,
+    edit_requested: bool,
     events: Vec<PresetEvent<K>>,
 }
 
@@ -157,7 +197,14 @@ impl<'a, K: Value + Eq + Hash + 'static> PresetPicker<'a, K> {
             row_menu: true,
             placeholder: None,
             display_name: None,
+            head: None,
+            keep_open: false,
+            footer: None,
+            thumb_range: TileZoom::Ladder,
+            edit_face: false,
             picked: None,
+            closed: false,
+            edit_requested: false,
             events: Vec::new(),
         }
         .label(label)
@@ -247,6 +294,13 @@ impl<K: Value + Eq + Hash + 'static> Component for PresetPicker<'_, K> {
             .pointer_only("Enter, Space and Alt+Down open the presets")
             .toggles("browser")
             .on_press();
+        if self.edit_face {
+            let (thumb, _) = cx.flow.take_start(cx.content_rect.height());
+            cx.part(THUMB, thumb)
+                .sense(Sense::CLICK | Sense::HOVER)
+                .priority(HitPriority::new(HitLevel::Body, 1))
+                .pointer_only("the host's edit command opens the editor");
+        }
     }
 
     fn bind(&mut self) -> Option<BindMut<'_, Option<K>>> {
@@ -258,6 +312,9 @@ impl<K: Value + Eq + Hash + 'static> Component for PresetPicker<'_, K> {
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let popup = cx.popup("browser");
         toggle_on_key(cx, popup);
+        if self.edit_face && matches!(cx.part(THUMB).press.phase, PressPhase::Release { click: true, .. }) {
+            self.edit_requested = true;
+        }
         if !popup.is_open(cx) && matches!(cx.gesture(), Some(GesturePhase::Begin | GesturePhase::Update)) {
             cx.cancel(CancelReason::Dismissed);
         }
@@ -272,14 +329,20 @@ impl<K: Value + Eq + Hash + 'static> Component for PresetPicker<'_, K> {
         let (rows, shape, view, default_open, toolbar) = (self.rows, self.cell_shape, self.view, self.default_open, self.toolbar);
         let (can_rename, can_delete, can_move, row_menu) =
             (self.can_rename.as_ref(), self.can_delete.as_ref(), self.can_move.as_ref(), self.row_menu);
+        let (thumb_range, footer, keep_open) = (self.thumb_range, self.footer.as_ref(), self.keep_open);
         let state = &mut self.state;
-        let out = ui.show(popup, Overlay::popover(), |ui, _| {
+        let head = &mut self.head;
+        let mut browse = |ui: &mut Ui| {
             let mut browser = PresetBrowser::new(name.clone(), state.reborrowed(), rows)
                 .cell_shape(shape)
                 .view_lock(view)
                 .default_open(default_open)
                 .toolbar(toolbar)
-                .row_menu(row_menu);
+                .row_menu(row_menu)
+                .thumb_range(thumb_range);
+            if let Some(options) = footer {
+                browser = browser.footer(options.clone());
+            }
             if let Some(key) = current.clone() {
                 browser = browser.selected(key);
             }
@@ -293,24 +356,32 @@ impl<K: Value + Eq + Hash + 'static> Component for PresetPicker<'_, K> {
                 browser = browser.can_move(|key| test.passes(key));
             }
             browser.show(ui)
+        };
+        let out = ui.show(popup, Overlay::popover(), |ui, _| match head.as_mut() {
+            Some(head) => Stack::new().fill().header(|ui, cx| (head.0)(ui, cx)).show(ui, |ui, _| browse(ui)).inner,
+            None => Some(browse(ui)),
         });
-        let Some(out) = out else { return };
-        let mut pick = None;
+        let Some(Some(out)) = out else { return };
+        let mut pick: Option<(K, bool)> = None;
         for event in out.events {
             match event {
-                PresetEvent::Select { key, .. } | PresetEvent::Activate { key, .. } => pick = Some(key),
+                PresetEvent::Select { key, .. } => pick = Some((key, !keep_open)),
+                PresetEvent::Activate { key, .. } => pick = Some((key, true)),
                 PresetEvent::Open(_) => {}
                 other => self.events.push(other),
             }
         }
         match (pick, out.hovered) {
-            (Some(key), _) => {
+            (Some((key, close)), _) => {
                 cx.propose(Some(key.clone()));
                 cx.commit();
-                popup.close(cx);
+                if close {
+                    popup.close(cx);
+                }
                 self.picked = Some(key);
+                self.closed = close;
             }
-            (None, Some(key)) if current.as_ref() != Some(&key) => cx.propose(Some(key)),
+            (None, Some(key)) if !keep_open && current.as_ref() != Some(&key) => cx.propose(Some(key)),
             _ => {}
         }
     }
@@ -329,6 +400,12 @@ impl<K: Value + Eq + Hash + 'static> Component for PresetPicker<'_, K> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> PresetPickerOutput<K> {
-        PresetPickerOutput { edit: cx.edit_response(), picked: self.picked, events: self.events }
+        PresetPickerOutput {
+            edit: cx.edit_response(),
+            picked: self.picked,
+            events: self.events,
+            closed: self.closed,
+            edit_requested: self.edit_requested,
+        }
     }
 }

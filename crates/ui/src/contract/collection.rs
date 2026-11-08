@@ -319,6 +319,9 @@ pub struct CollectionProps {
     /// The lead, and the selection with it as for the arrow keys, moves to the row under the pointer when the pointer
     /// moves: menus, popup lists and the undo list.
     pub lead_follows_hover: bool,
+    /// The arrow keys select the row they move the lead to. Off: they move the lead only, and Space, Enter or a click
+    /// selects it (a swatch table).
+    pub arrows_select: bool,
     /// A primary press moves key focus to the collection. Off: a press picks and activates and focus stays where it
     /// is, for a popup list whose opener keeps focus.
     pub focus_on_press: bool,
@@ -411,6 +414,7 @@ impl CollectionProps {
             allow_empty: false,
             lead_on_open: LeadOnOpen::Selected,
             lead_follows_hover: false,
+            arrows_select: true,
             focus_on_press: true,
             rows_stamp: None,
             space: SpaceAction::Activate,
@@ -518,6 +522,13 @@ impl CollectionProps {
     #[must_use]
     pub const fn lead_follows_hover(mut self, on: bool) -> Self {
         self.lead_follows_hover = on;
+        self
+    }
+
+    /// Whether the arrow keys select the row they move the lead to.
+    #[must_use]
+    pub const fn arrows_select(mut self, on: bool) -> Self {
+        self.arrows_select = on;
         self
     }
 

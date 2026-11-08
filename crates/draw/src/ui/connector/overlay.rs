@@ -1,91 +1,95 @@
-//! [`ConnectorOverlay`]: a selected connector's handles and a target's attach points.
+//! What the connector tool and the connector handles paint over the document: the route, the end and
+//! bend handles and the attach points of a target. Painting functions over `Draw`, `pub(crate)`.
 
-use egui::epaint::CubicBezierShape;
-use egui::{Color32, Painter, Pos2, Shape};
-use kurbo::Point;
+use craft_behavior::CanvasView;
+use craft_ui::canvas_controls::path_runs;
+use craft_ui::primitives::{Draw, PaintShape, StrokeWidth};
+use craft_ui::style::{StyleColor, StyleCx};
+use egui::Pos2;
+use kurbo::{BezPath, Point};
 
-use super::{ConnectionTarget, ConnectorStyle};
-use crate::geometry::connector::{Routing, path_handles};
-use craft_ui::canvas::CanvasView;
+use super::ConnectionTarget;
+use super::place::visible_bends;
+use crate::geometry::connector::Routing;
 
-/// Draws what the Connector tool shows over the document, for the tool and for an app that shows
-/// a selected connector's handles under another tool (FigCraft's selection overlay).
-///
-/// - The route: an accent polyline (the line 1.5 pt), a curve as its cubic.
-/// - End handles: white discs with a 1.5 pt accent ring; path handles: accent discs with a 1 pt
-///   white ring, one per elbow run or one for a curve.
-/// - Attach points ([`paint_sites`](Self::paint_sites)): see [`ConnectorTool`](super::ConnectorTool).
-#[derive(Clone, Copy, Debug)]
-pub struct ConnectorOverlay<'a> {
-    points: &'a [Point],
-    routing: Routing,
-    handles: bool,
+/// The colours and diameters the connector paints with, from the theme: the same at every size, as
+/// the connector sits on the document. Look source: FigCraft.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct ConnectorLook {
+    /// The route and the rings.
+    pub(crate) line: StyleColor,
+    /// The handles' and attach points' fill.
+    pub(crate) fill: StyleColor,
+    /// An attach point's diameter.
+    pub(crate) attach: f32,
+    /// The diameter of the attach point an end would glue to.
+    pub(crate) attach_active: f32,
+    /// A handle's diameter.
+    pub(crate) handle: f32,
 }
 
-/// The path handles of the route through `points` that are drawn and can be grabbed at `view`'s
-/// zoom: [`path_handles`] without the elbow runs too short on screen to hold one. The portion is
-/// the index [`reshaped`](crate::geometry::connector::reshaped) takes.
-pub(super) fn visible_path_handles(points: &[Point], routing: Routing, view: &CanvasView, style: &ConnectorStyle) -> Vec<(usize, Point)> {
-    let min = style.min_run;
-    let long = |i: usize| match (points.get(i), points.get(i + 1)) {
-        (Some(&a), Some(&b)) => view.to_screen(a).distance(view.to_screen(b)) >= min,
-        _ => false,
-    };
-    path_handles(points, routing).into_iter().filter(|&(i, _)| routing == Routing::Curved || long(i)).collect()
+impl ConnectorLook {
+    /// The look in the theme of `cx`.
+    pub(crate) fn of(cx: &StyleCx<'_>) -> Self {
+        let tokens = cx.tokens;
+        ConnectorLook {
+            line: cx.color(tokens.color.accent.solid),
+            fill: cx.color(tokens.color.overlay.handle_fill),
+            attach: tokens.size.handle.sm,
+            attach_active: tokens.size.handle.md,
+            handle: tokens.size.handle.sm,
+        }
+    }
 }
 
-impl<'a> ConnectorOverlay<'a> {
-    /// The connector through `points` (document units), routed `routing`, with its handles.
-    pub fn new(points: &'a [Point], routing: Routing) -> Self {
-        ConnectorOverlay { points, routing, handles: true }
+/// The screen runs of the route through `points` (document units): a curve as its cubic, flattened,
+/// anything else as a polyline.
+pub(crate) fn route_runs(points: &[Point], routing: Routing, view: &CanvasView) -> Vec<Vec<Pos2>> {
+    if let (Routing::Curved, &[a, b, c, d]) = (routing, points) {
+        let mut path = BezPath::new();
+        path.move_to(a);
+        path.curve_to(b, c, d);
+        return path_runs(view, &path).into_iter().map(|(run, _)| run).collect();
     }
+    let screen: Vec<Pos2> = points.iter().map(|&p| view.to_screen(p)).collect();
+    if screen.len() < 2 { Vec::new() } else { vec![screen] }
+}
 
-    /// Whether the end and path handles show; on by default (off for a draft).
-    pub fn handles(mut self, on: bool) -> Self {
-        self.handles = on;
-        self
+/// The route through `points`.
+pub(crate) fn paint_route(draw: &Draw<'_>, look: &ConnectorLook, points: &[Point], routing: Routing, view: &CanvasView) {
+    for run in route_runs(points, routing, view) {
+        draw.stroke(&PaintShape::Path(run), StrokeWidth::Medium, look.line);
     }
+}
 
-    /// Draws the route and its handles through `view`.
-    pub fn paint(&self, painter: &Painter, view: &CanvasView, style: &ConnectorStyle) {
-        // inv-figcraft: crates/ui-egui/src/canvas/overlays.rs:364-376 (path handles 3.5 accent with a
-        // 1 pt white ring, end handles 5 white with a 1.5 pt accent ring).
-        // new: the route itself (FigCraft draws it in the document).
-        let screen: Vec<Pos2> = self.points.iter().map(|&p| view.to_screen(p)).collect();
-        if screen.len() < 2 {
-            return;
-        }
-        match (self.routing, screen.as_slice()) {
-            (Routing::Curved, &[a, b, c, d]) => {
-                painter.add(CubicBezierShape::from_points_stroke([a, b, c, d], false, Color32::TRANSPARENT, style.line))
-            }
-            _ => painter.add(Shape::line(screen.clone(), style.line)),
-        };
-        if !self.handles {
-            return;
-        }
-        for (_, at) in visible_path_handles(self.points, self.routing, view, style) {
-            let c = view.to_screen(at);
-            painter.circle_filled(c, style.path_handle, style.line.color);
-            painter.circle_stroke(c, style.path_handle, style.path_ring);
-        }
-        for end in [screen.first(), screen.last()].into_iter().flatten() {
-            painter.circle_filled(*end, style.end_handle, style.handle_fill);
-            painter.circle_stroke(*end, style.end_handle, style.line);
-        }
+/// A disc of `diameter` at `at`, filled with `fill` and ringed by `ring`.
+pub(crate) fn paint_disc(draw: &Draw<'_>, at: Pos2, diameter: f32, fill: StyleColor, ring: StyleColor, width: StrokeWidth) {
+    let disc = PaintShape::Circle(at, diameter / 2.0);
+    draw.fill(&disc, fill);
+    draw.stroke(&disc, width, ring);
+}
+
+/// The handles of the route: a disc on each bend that can be grabbed, and on each end.
+pub(crate) fn paint_handles(draw: &Draw<'_>, look: &ConnectorLook, points: &[Point], routing: Routing, view: &CanvasView) {
+    for (_, at) in visible_bends(points, routing, view) {
+        paint_disc(draw, view.to_screen(at), look.handle, look.line, look.fill, StrokeWidth::Thin);
     }
+    for end in [points.first(), points.last()].into_iter().flatten() {
+        paint_disc(draw, view.to_screen(*end), look.handle, look.fill, look.line, StrokeWidth::Medium);
+    }
+}
 
-    /// Draws `target`'s sites through `view`, `active` (a site index) as the larger see-through
-    /// ring.
-    pub fn paint_sites(painter: &Painter, view: &CanvasView, style: &ConnectorStyle, target: &ConnectionTarget, active: Option<u32>) {
-        // inv-figcraft: crates/ui-egui/src/canvas/overlays.rs:407-418 `attach_points` (7 at accent ×
-        // 0.25 for the active one, else 4 white; 1.5 pt accent ring).
-        for site in target.side_sites() {
-            let c = view.to_screen(site.point);
-            let (radius, fill) =
-                if active == Some(site.index) { (style.attach_active, style.attach_active_fill) } else { (style.attach, style.handle_fill) };
-            painter.circle_filled(c, radius, fill);
-            painter.circle_stroke(c, radius, style.line);
+/// `target`'s outline and sites, `active` (a site index) as the larger see-through ring.
+pub(crate) fn paint_sites(draw: &Draw<'_>, look: &ConnectorLook, view: &CanvasView, target: &ConnectionTarget, active: Option<u32>) {
+    // inv-figcraft: crates/ui-egui/src/canvas/overlays.rs:407-418 `attach_points`, :73-79 (the drop
+    // target outlined).
+    draw.stroke(&PaintShape::Polygon(view.quad(target.bounds.abs()).to_vec()), StrokeWidth::Thin, look.line);
+    for site in target.side_sites() {
+        let at = view.to_screen(site.point);
+        if active == Some(site.index) {
+            draw.stroke(&PaintShape::Circle(at, look.attach_active / 2.0), StrokeWidth::Medium, look.line);
+        } else {
+            paint_disc(draw, at, look.attach, look.fill, look.line, StrokeWidth::Medium);
         }
     }
 }

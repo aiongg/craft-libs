@@ -252,6 +252,9 @@ pub trait Component: Meta + Sized {
     /// glyph: with no tooltip set, its label is then its tooltip, since the label is the only visible name the
     /// pointer can reach. A component whose answer varies per instance overrides `shows_label`.
     const SHOWS_LABEL: bool = true;
+    /// Whether the component edits one value that several selected things cannot disagree on (a colour picker's
+    /// area, strip or ramp: it edits the colour it is given). Such a type has no mixed state and no mixed story.
+    const SINGLE_VALUE: bool = false;
 
     /// The style type.
     type Style: ComponentStyle;

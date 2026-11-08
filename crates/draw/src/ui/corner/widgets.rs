@@ -1,387 +1,270 @@
-//! [`CornerWidgets`]: the round widgets inside the corners of the host's shapes.
-
-use egui::{AsIdSalt, Context, Id, IdSalt, Key, Modifiers, Rect, Response, Stroke, Ui, Vec2};
+//! [`CornerWidgets`]: the round widgets inside the corners of the host's shapes, a canvas control.
 
 use super::geometry::{self, Widget};
-use super::{CornerEdit, CornerKind, CornerRef, CornerStyle, CornerTarget, CornerWidgetsLabels};
+use super::style::CornerStyle;
+use super::words::CornerWords;
+use super::{CornerEdit, CornerRef, CornerTarget};
 use crate::geometry::fillet::fillet;
-use craft_ui::behavior::nudge;
-use craft_ui::canvas::claim::PrimaryPress;
-use craft_ui::canvas::{CanvasView, Claim, Part, PartFocus, Readout, RulerUnits};
-use craft_ui::edit::order::Turn;
-use craft_ui::edit::{EditEvent, EditPolicy, Gesture};
-use craft_ui::localized::Labels as _;
-use craft_ui::theme::{Tokens, TokensOf as _};
+use craft_behavior::kurbo::{Point, Vec2 as DocVec};
+use craft_behavior::{HitLevel, HitPriority, HitShape, NavShape, PartKey, PointerButton, PressPhase, Roving, Sense};
+use craft_ui::canvas::{NUDGE, NUDGE_FAR, canvas_space, readout};
+use craft_ui::contract::{
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pointer as _,
+    Props as _, Remember as _, Role, WordSetCx as _,
+};
+use craft_ui::primitives::{PaintShape, StrokeWidth};
+use craft_ui::runtime::commands::FireSource;
+use craft_ui::runtime::env::Label;
+use craft_ui::runtime::focus::{ActivateKeys, KeyUse};
+use craft_ui::style::StyleCx;
+use egui::{Rect, Response, Vec2};
 
-/// What a pass of [`CornerWidgets::show`] reports.
-#[derive(Clone, Debug, PartialEq)]
-#[must_use = "apply the corner edit and answer cycle_kind and activate"]
-pub struct CornerWidgetsResponse {
-    /// The overlay's id, also its Tab stop's.
-    pub id: Id,
-    /// The radii: a drag reports Begin past the click slop, Update every move, Commit on
-    /// release (Esc cancels, the rest of the press does nothing), each value every changed
-    /// target's radii from the press; an arrow key a Set. The host makes one history step for
-    /// every target in the value.
-    pub event: Option<EditEvent<CornerEdit>>,
-    /// ⌥-click without drag on a widget, with [`kinds`](CornerWidgets::kinds) on: the corner and
-    /// the kind it turns into ([`CornerKind::next`] of its kind). The host applies it to the
-    /// corners shown with it.
-    pub cycle_kind: Option<(CornerRef, CornerKind)>,
-    /// A double-click on a widget, or Enter on the picked one: the host opens its Corners dialog
-    /// for that corner (S7-shapes).
-    pub activate: Option<CornerRef>,
-    /// The pointer is over a widget or a drag is under way: the host shows its corner-radius
-    /// cursor.
-    pub hovered: bool,
-    /// The widgets own the current press: the host's tool leaves it alone.
-    pub claimed: bool,
+/// The part of one widget: `WIDGET.at(i)`, `i` counted over the shown widgets in target order, then corner order.
+const WIDGET: PartKey = PartKey::new("widget");
+
+/// What the widgets report beyond the edit.
+#[derive(Clone, Debug, Default)]
+struct Report {
+    change: Option<CornerEdit>,
+    cycle_kind: Option<CornerRef>,
+    activate: Option<CornerRef>,
 }
 
-/// One round widget inside each corner of the host's shapes, dragged to round them (PhotoCraft's
-/// and Photoshop's live corner widgets, VectorCraft's Live Corners).
+/// The press being dragged: the widget it began on, the radius and the corner's step there, and the targets as they
+/// were, so a host that applies the values live still gets every changed target's radii from the press.
+#[derive(Clone, Debug, Default)]
+struct Grab {
+    corner: Option<CornerRef>,
+    from: f64,
+    step: Option<DocVec>,
+    press: Point,
+    targets: Vec<CornerTarget>,
+}
+
+/// One round widget inside each corner of the host's shapes, dragged to round them.
 ///
-/// ```no_run
-/// use craft_draw::ui::corner::{CornerTarget, CornerWidgets};
-/// use craft_ui::canvas::{CanvasView, RulerUnits};
-/// # fn demo(ui: &mut egui::Ui, canvas: &egui::Response, view: &CanvasView, targets: &[CornerTarget], px: &RulerUnits) {
-/// let r = CornerWidgets::new("corners", targets, px).show(ui, canvas, view);
-/// if let Some(edit) = r.event.as_ref().and_then(|e| e.value()) {
-///     // preview the outlines with `edit`; on Commit, one history step for every target in it
-/// }
-/// # }
-/// ```
-///
-/// - Look: per shown corner a circle the widget across in `overlay.handle_fill`, outlined
-///   the line in `overlay.line`, with the dot dot in `overlay.line`, at the centre of
-///   the corner's arc and at least the inset screen points inside the corner. Hidden when a
-///   side is shorter than the min side screen points or the corner's angle is wider than
-///   [`hide_above`](Self::hide_above).
-/// - Pointer: a press within the hit screen points of a widget takes it (nearest first, of
-///   equal distances the first target's; list the topmost shape first). A drag sets the radius
-///   at the press plus the move projected on the corner's centre step; every target takes that
-///   radius, each capped at its own maximum (lead call 23); ⌥ changes only the dragged corner of
-///   `individual` targets. A click without movement changes nothing. While dragging the readout
-///   "R: 25.0 px" (the canvas `Readout`, in the [ruler units](Self::new)) follows the pointer;
-///   the host previews the outlines from the event values. ⌥-click reports
-///   [`cycle_kind`](CornerWidgetsResponse::cycle_kind) with [`kinds`](Self::kinds); a
-///   double-click (`PrimaryPress::clicks`) reports [`activate`](CornerWidgetsResponse::activate).
-///   A press with ⌘ is not taken.
-/// - Keyboard: one Tab stop (`PartFocus`). The host's `canvas` response must not be focusable
-///   (`Sense::click_and_drag() - Sense::FOCUSABLE`): a focusable canvas takes the Tab stop
-///   itself and the group never gets keyboard focus. Page Down and Page Up pick the next and previous
-///   widget; the arrows change the radius of the picked widget's corner on every target by
-///   [`steps`](Self::steps) (1, ⇧ 10; up and right grow it), ⌥ that corner only; Enter reports
-///   `activate`; Esc leaves the group.
-/// - AccessKit: a group named [`CornerWidgetsLabels::group`] with one object per widget named
-///   "Corner i of n", valued "radius 12 px". While the Tab stop has focus, AccessKit reports the
-///   picked widget's object as the focused node (the group's active descendant).
+/// - Look: per shown corner a circle in `overlay.handle_fill`, outlined in `overlay.line`, with a dot in
+///   `overlay.line`, at the centre of the corner's arc and at least the inset inside the corner. Hidden when a side
+///   is shorter than the least side on screen or the corner's angle is wider than [`hide_above`](Self::hide_above).
+/// - Pointer: a press within reach of a widget takes it (the nearest; of equal distances the first target's, so list
+///   the topmost shape first). A drag sets the radius at the press plus the move projected on the corner's centre
+///   step; every target takes that radius, each capped at its own maximum; ⌥ changes only the dragged corner of
+///   `individual` targets. A click without movement changes nothing. While dragging the readout "R: 25.0 px" (in the
+///   canvas's ruler units) follows the pointer; Escape puts the radii back. ⌥-click reports
+///   [`cycle_kind`](CornerWidgetsOutput::cycle_kind) with [`kinds`](Self::kinds); a double press reports
+///   [`activate`](CornerWidgetsOutput::activate).
+/// - Keyboard: one Tab stop. Page Down and Page Up pick the next and previous widget; the arrows change the radius of
+///   the picked widget's corner on every target by 1 (⇧ 10; up and right grow it), ⌥ that corner only; Enter reports
+///   `activate`.
+/// - AccessKit: one object per widget named "Corner i of n", valued "radius 12 px".
 /// - Geometry is in document space and does not mirror right to left.
+#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
+#[component(canvas_control)]
 pub struct CornerWidgets<'a> {
-    id_salt: IdSalt,
-    targets: &'a [CornerTarget],
-    units: &'a RulerUnits,
+    #[common]
+    common: Common,
+    targets: Bind<'a, Vec<CornerTarget>>,
+    /// Whether ⌥-click cycles the corner kind.
+    #[prop]
     kinds: bool,
+    /// The widest inner angle whose corner shows a widget.
+    #[prop(quantity = "degrees")]
     hide_above: f64,
-    steps: (f64, f64),
-    labels: Option<CornerWidgetsLabels>,
-    look: Option<CornerStyle>,
-    policy: EditPolicy,
+    report: Report,
 }
 
 impl<'a> CornerWidgets<'a> {
-    /// The widgets of the host's `targets`, topmost first, with radii read out in `units`.
-    pub fn new(id_salt: impl AsIdSalt, targets: &'a [CornerTarget], units: &'a RulerUnits) -> Self {
-        Self {
-            id_salt: IdSalt::new(id_salt),
-            targets,
-            units,
-            kinds: false,
-            hide_above: 180.0,
-            steps: (nudge::STEP, nudge::BIG_STEP),
-            labels: None,
-            look: None,
-            policy: EditPolicy::default(),
-        }
+    /// The widgets of the host's `targets`, topmost first, named `label`.
+    pub fn new(label: impl Into<Label>, targets: Bind<'a, Vec<CornerTarget>>) -> Self {
+        CornerWidgets { common: Common::new(), targets, kinds: false, hide_above: Self::HIDE_ABOVE, report: Report::default() }.label(label)
     }
 
-    /// Whether ⌥-click cycles the corner kind (VectorCraft); off by default (lead call 24).
-    pub fn kinds(mut self, kinds: bool) -> Self {
-        self.kinds = kinds;
-        self
+    /// The widest inner angle, in degrees, a widget shows at unless [`hide_above`](Self::hide_above) says otherwise.
+    pub const HIDE_ABOVE: f64 = 180.0;
+}
+
+/// What the widgets report: the edit of the targets and what the widgets ask the host to do.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct CornerWidgetsOutput {
+    /// The edit of the targets: a drag is one `Begin` to `Commit`; an arrow key is a `Set`. The host makes one
+    /// history step for every target the value changes.
+    pub edit: EditResponse<Vec<CornerTarget>>,
+    /// The radii of every target the pass changed, for a host that applies the operation to its own types.
+    pub change: Option<CornerEdit>,
+    /// ⌥-click without drag on a widget, with [`kinds`](CornerWidgets::kinds) on: the corner whose
+    /// [`CornerKind::next`](super::CornerKind::next) the host applies.
+    pub cycle_kind: Option<CornerRef>,
+    /// A double press on a widget, or Enter on the picked one: the host opens its Corners dialog for that corner.
+    pub activate: Option<CornerRef>,
+}
+
+impl Outcome for CornerWidgetsOutput {
+    type Value = Vec<CornerTarget>;
+
+    fn response(&self) -> &Response {
+        &self.edit.response
+    }
+}
+
+impl CornerWidgets<'_> {
+    /// The widgets of the targets now, on screen.
+    fn shown(&self, style: &CornerStyle, targets: Option<&Vec<CornerTarget>>, view: &craft_behavior::CanvasView) -> Vec<Widget> {
+        targets.map_or_else(Vec::new, |targets| geometry::widgets(targets, view, style.inset, style.min_side, self.hide_above))
     }
 
-    /// The widest inner angle, in degrees, whose corner shows a widget; 180 by default
-    /// (VectorCraft's preference passes 177).
-    pub fn hide_above(mut self, degrees: f64) -> Self {
-        self.hide_above = degrees;
-        self
-    }
-
-    /// The arrow keys' radius change in document units, plain and with ⇧ (1 and 10, lead call 25).
-    pub fn steps(mut self, step: f64, big_step: f64) -> Self {
-        self.steps = (step, big_step);
-        self
-    }
-
-    /// The words; the installed ones by default.
-    pub fn labels(mut self, labels: CornerWidgetsLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    /// A look of the host's in place of [`style`](Self::style)'s.
-    pub fn look(mut self, style: CornerStyle) -> Self {
-        self.look = Some(style);
-        self
-    }
-
-    /// How this control reports its gestures to the host.
-    pub fn policy(mut self, policy: EditPolicy) -> Self {
-        self.policy = policy;
-        self
-    }
-
-    /// Draws the widgets over `view` and senses through the host's `canvas` response. The host
-    /// shows them before its tool input, as an overlay that claims only presses on a widget.
-    pub fn show(self, ui: &mut Ui, canvas: &Response, view: &CanvasView) -> CornerWidgetsResponse {
-        // pc: crates/ui-egui/src/tools/corner_radius.rs:229-297 `pointer` (⌘ not taken :233; drag
-        // :246-270; one step on release :271-295), :299-330 `draw` (readout "R:" with `{r:.1} px`
-        // :313), :225-227 `hovers`. vectorcraft: crates/tools/src/corners.rs:233 (⌥-click cycles).
-        let ctx = ui.ctx().clone();
-        let id = ui.make_persistent_id(self.id_salt);
-        let tokens = Tokens::of(ui);
-        let style = self.look.unwrap_or_else(|| CornerWidgets::style(&tokens));
-        let labels = self.labels.clone().unwrap_or_else(|| CornerWidgetsLabels::of(ui));
-        let editing = ui.is_enabled();
-        let widgets = geometry::widgets(self.targets, view, style.inset, style.min_side, self.hide_above);
-        let mut out = CornerWidgetsResponse { id, event: None, cycle_kind: None, activate: None, hovered: false, claimed: false };
-
-        // The host applies the values it receives, so the gesture's own host value stays empty
-        // (the echo rule reads that as the host's write-back).
-        let mut gesture = Gesture::load(ui, id, &CornerEdit::default(), self.policy).enabled(editing);
-
-        let mut grab: Option<Grab> = ctx
-            .data(|d| d.get_temp(grab_key(id)))
-            .filter(|g: &Grab| g.press.holds(&ctx) || (g.waits.is_some() && Claim::is_owner(&ctx, canvas.id, id)));
-        if let Some(g) = &mut grab
-            && g.moved
-            && !gesture.is_active()
-        {
-            // Esc (or another cancel) ended the drag: the rest of the press does nothing.
-            g.dead = true;
-        }
-        let waited = grab.as_ref().is_some_and(|g| g.waits.is_some());
-        if let Some(g) = &grab
-            && g.waits.is_some()
-        {
-            grab = match Claim::turn(&ctx, canvas.id, id) {
-                Turn::Waits => grab,
-                Turn::Runs => self.start(&widgets, g.press, g.corner),
-                Turn::Now => None,
-            };
-        }
-        if grab.is_none() && !Claim::keeps_waiting(&ctx, canvas.id, id, waited) && editing {
-            grab = self.press(&ctx, canvas, view, &widgets, &style, id);
-        }
-        if let Some(g) = grab.take() {
-            grab = if g.waits.is_some() { Some(g) } else { self.track(&ctx, view, style.click_slop, g, &mut gesture, &mut out) };
-        }
-        if let Some(g) = &grab {
-            ctx.data_mut(|d| d.insert_temp(picked_key(id), Some(g.corner)));
-        }
-
-        let picked = ctx.data(|d| d.get_temp::<Option<CornerRef>>(picked_key(id))).flatten();
-        let picked_at = picked.and_then(|c| widgets.iter().position(|w| w.corner == c));
-        let parts = self.parts(&widgets, &style, &labels);
-        let focus = PartFocus::new(id, &labels.group).parts(&parts).picked(picked_at.map(|i| i as u64)).show(ui, canvas);
-        let picked_at = match focus.pick {
-            Some(Some(key)) => usize::try_from(key).ok().filter(|i| *i < widgets.len()),
-            Some(None) => None,
-            None => picked_at,
-        };
-        let picked = picked_at.map(|i| widgets[i].corner);
-        ctx.data_mut(|d| d.insert_temp(picked_key(id), picked));
-        if editing && focus.focused && grab.is_none() {
-            self.keys(ui, &widgets, picked_at, &mut gesture, &mut out);
-        }
-
-        let pointer = ui.input(|i| i.pointer.latest_pos());
-        let over = pointer.is_some_and(|p| view.rect.contains(p) && canvas.contains_pointer() && geometry::hit(&widgets, p, style.hit).is_some());
-        out.hovered = over && editing || grab.as_ref().is_some_and(|g| !g.dead);
-        self.paint(ui, view, &style, &widgets, focus.keyboard.then_some(picked_at).flatten());
-        if let (Some(g), Some(pointer)) = (&grab, pointer)
-            && g.moved
-            && !g.dead
-        {
-            let radius = gesture
-                .shown()
-                .targets
-                .iter()
-                .find(|t| t.key == g.corner.target)
-                .and_then(|t| t.radii.get(g.corner.corner).copied())
-                .unwrap_or(g.from);
-            Readout::new(("craft_draw::ui::corner::CornerWidgets::readout", id))
-                .row(labels.readout.clone(), self.units.format_value(radius, 0.0))
-                .show(&ctx, pointer);
-        }
-
-        out.event = gesture.finish();
-        out.claimed = Claim::is_owner(&ctx, canvas.id, id);
-        ctx.data_mut(|d| match &grab {
-            Some(grab) => {
-                d.insert_temp(grab_key(id), grab.clone());
-            }
-            None => d.remove::<Grab>(grab_key(id)),
-        });
-        out
-    }
-
-    /// A press on the canvas within reach of a widget, taken through the claim.
-    fn press(&self, ctx: &Context, canvas: &Response, view: &CanvasView, widgets: &[Widget], style: &CornerStyle, id: Id) -> Option<Grab> {
-        if !ctx.input(|i| i.pointer.primary_pressed()) {
-            return None;
-        }
-        let press = PrimaryPress::current(ctx)?;
-        if !(view.rect.contains(press.origin) && canvas.contains_pointer()) || ctx.input(|i| i.modifiers.command) {
-            return None;
-        }
-        let corner = widgets[geometry::hit(widgets, press.origin, style.hit)?].corner;
-        if !Claim::take(ctx, canvas.id, id) {
-            return None;
-        }
-        let mods = ctx.input(|i| i.modifiers);
-        if Claim::turn(ctx, canvas.id, id) == Turn::Waits {
-            return Some(Grab { press, corner, from: 0.0, targets: Vec::new(), moved: false, dead: false, waits: Some(mods) });
-        }
-        self.start(widgets, press, corner)
-    }
-
-    /// The press `press` on the widget of `corner`, with the state of its first pass.
-    fn start(&self, widgets: &[Widget], press: PrimaryPress, corner: CornerRef) -> Option<Grab> {
-        let from = widgets.iter().find(|w| w.corner == corner)?.radius;
-        Some(Grab { press, corner, from, targets: self.targets.to_vec(), moved: false, dead: false, waits: None })
-    }
-
-    /// One pass of a press the widgets own: past the click slop it drags, on the release it
-    /// commits the drag or, without movement, reports the click.
-    fn track(
-        &self,
-        ctx: &Context,
-        view: &CanvasView,
-        slop: f32,
-        mut g: Grab,
-        gesture: &mut Gesture<CornerEdit>,
-        out: &mut CornerWidgetsResponse,
-    ) -> Option<Grab> {
-        let (pointer, down, mods) = ctx.input(|i| (i.pointer.latest_pos(), i.pointer.primary_down(), i.modifiers));
-        if g.dead {
-            return down.then_some(g);
-        }
-        if let Some(pointer) = pointer {
-            g.moved |= pointer.distance(g.press.origin) > slop;
-            if g.moved {
-                // The step is the corner's at the press: the snapshot's.
-                let step = g
-                    .targets
-                    .iter()
-                    .find(|t| t.key == g.corner.target)
-                    .and_then(|t| t.corners.get(g.corner.corner))
-                    .and_then(|c| fillet(c.prev, c.vertex, c.next, 1.0))
-                    .map(|f| f.step());
-                if let Some(step) = step {
-                    let radius = geometry::dragged_radius(g.from, step, view.to_doc(g.press.origin), view.to_doc(pointer));
-                    let edit = geometry::drag_edit(&g.targets, g.corner, radius, mods.alt);
-                    gesture.begin();
-                    gesture.update(edit, mods);
+    /// The pointer on the widgets: grab, drag and the click reports.
+    fn run_pointer(&mut self, cx: &mut Cx<'_, Self>, widgets: &[Widget], view: &craft_behavior::CanvasView) {
+        for (at, widget) in widgets.iter().enumerate() {
+            let Some(result) = cx.part_if_declared(WIDGET.at(at as u64)) else { continue };
+            let press = result.press;
+            match press.phase {
+                PressPhase::Down { start, .. } if start.button == PointerButton::Primary && !press.mods.cmd => {
+                    let targets = cx.value().cloned().unwrap_or_default();
+                    let step = targets
+                        .iter()
+                        .find(|t| t.key == widget.corner.target)
+                        .and_then(|t| t.corners.get(widget.corner.corner))
+                        .and_then(|c| fillet(c.prev, c.vertex, c.next, 1.0))
+                        .map(|f| f.step());
+                    *cx.memory::<Grab>() = Grab { corner: Some(widget.corner), from: widget.radius, step, press: view.to_doc(start.origin), targets };
                 }
+                PressPhase::DragStart { pos, .. } | PressPhase::Drag { pos, .. } => {
+                    let grab = cx.memory::<Grab>().clone();
+                    let (Some(corner), Some(step)) = (grab.corner, grab.step) else { continue };
+                    if corner != widget.corner {
+                        continue;
+                    }
+                    if matches!(press.phase, PressPhase::DragStart { .. }) {
+                        cx.begin();
+                    }
+                    let radius = geometry::dragged_radius(grab.from, step, grab.press, view.to_doc(pos));
+                    let edit = geometry::drag_edit(&grab.targets, corner, radius, press.mods.alt);
+                    cx.propose(geometry::apply(&grab.targets, &edit));
+                    self.show_readout(cx, pos, radius);
+                    self.report.change = Some(edit);
+                }
+                PressPhase::Release { start, click, .. } if start.button == PointerButton::Primary => {
+                    let grab = cx.memory::<Grab>().clone();
+                    if grab.corner != Some(widget.corner) {
+                        continue;
+                    }
+                    if click {
+                        if press.mods.alt && self.kinds {
+                            self.report.cycle_kind = Some(widget.corner);
+                        } else if start.clicks >= 2 {
+                            self.report.activate = Some(widget.corner);
+                        }
+                    } else {
+                        cx.commit();
+                    }
+                    *cx.memory::<Grab>() = Grab::default();
+                }
+                _ => {}
             }
         }
-        if down {
-            return Some(g);
-        }
-        if g.moved {
-            gesture.commit();
-        } else if mods.alt && self.kinds {
-            let kind = self.targets.iter().find(|t| t.key == g.corner.target).and_then(|t| t.corners.get(g.corner.corner)).map(|c| c.kind);
-            out.cycle_kind = kind.map(|k| (g.corner, k.next()));
-        } else if g.press.clicks(ctx) >= 2 {
-            out.activate = Some(g.corner);
-        }
-        None
     }
 
-    /// Page Down and Page Up are the group's; here Enter, Esc and the arrows.
-    fn keys(&self, ui: &mut Ui, widgets: &[Widget], picked: Option<usize>, gesture: &mut Gesture<CornerEdit>, out: &mut CornerWidgetsResponse) {
-        let Some(w) = picked.and_then(|i| widgets.get(i)) else { return };
-        if !nudge::reads(ui) {
-            return;
+    /// The readout beside the pointer while dragging: the radius in the canvas's ruler units.
+    fn show_readout(&self, cx: &Cx<'_, Self>, at: egui::Pos2, radius: f64) {
+        let Some(space) = canvas_space(&cx.env) else { return };
+        let words = cx.words::<CornerWords>();
+        let text = space.rulers().x.format_value(&cx.env.units(), radius, 0.0);
+        readout(cx, at, &[(Label::from(words.readout.as_str().to_owned()), text)]);
+    }
+
+    /// The keys of the focused widget: the arrows step the radius, Enter activates.
+    fn run_keys(&mut self, cx: &mut Cx<'_, Self>, widgets: &[Widget]) {
+        let Some(at) = cx.active_part().filter(|part| part.key == WIDGET).and_then(|part| part.index) else { return };
+        let Some(widget) = widgets.get(at as usize) else { return };
+        let targets = cx.value().cloned().unwrap_or_default();
+        if let Some((direction, mods)) = cx.intents().take_nudge() {
+            let step = if mods.shift { NUDGE_FAR } else { NUDGE };
+            // Up and right grow the radius; the screen's y axis points down.
+            let radius = (widget.radius + f64::from(direction.x - direction.y) * step).max(0.0);
+            let edit = geometry::drag_edit(&targets, widget.corner, radius, mods.alt);
+            if !edit.targets.is_empty() {
+                cx.set(geometry::apply(&targets, &edit));
+                self.report.change = Some(edit);
+            }
         }
-        let (enter, escape) = ui.input_mut(|i| (i.consume_key(Modifiers::NONE, Key::Enter), i.consume_key(Modifiers::NONE, Key::Escape)));
-        if enter {
-            out.activate = Some(w.corner);
+        if matches!(cx.part_activated(WIDGET.at(at)), Some(FireSource::Key)) {
+            self.report.activate = Some(widget.corner);
         }
-        if escape {
-            let id = out.id;
-            ui.memory_mut(|m| m.surrender_focus(id));
+    }
+}
+
+impl Component for CornerWidgets<'_> {
+    const ROLE: Role = Role::GROUP;
+    const OVERLAYS: bool = false;
+    const KEYS: KeyUse = KeyUse::CANVAS.with_moves().with_activate(ActivateKeys::Enter);
+    type Style = CornerStyle;
+    type Output = CornerWidgetsOutput;
+
+    fn style(cx: &StyleCx<'_>, _: CornerWidgetsStyleKey) -> CornerStyle {
+        CornerStyle::from_cx(cx)
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::ZERO
+    }
+
+    fn bind(&mut self) -> Option<BindMut<'_, Vec<CornerTarget>>> {
+        Some(self.targets.reborrow())
+    }
+
+    /// One drag part per shown widget at handle priority, in one roving group; Page Up and Page Down move the group's
+    /// arrival and the arrows are the widget's nudge.
+    fn parts(&mut self, _: Rect, cx: &mut PartsCx<'_, Self>) {
+        let Some(space) = canvas_space(&cx.env) else { return };
+        let widgets = self.shown(cx.style, cx.value(), &space.view);
+        let reach = cx.style.reach;
+        for (at, widget) in widgets.iter().enumerate() {
+            cx.part(WIDGET.at(at as u64), HitShape::circle(widget.at, reach))
+                .sense(Sense::DRAG | Sense::CLICK | Sense::TAKE_FOCUS)
+                .priority(HitPriority::new(HitLevel::Handle, 0))
+                .focusable();
         }
-        if let Some((by, alt)) = nudge::read_with_alt(ui, self.steps.0, self.steps.1) {
-            // Up and right grow the radius.
-            let radius = (w.radius + by.x - by.y).max(0.0);
-            gesture.set(geometry::drag_edit(self.targets, w.corner, radius, alt));
+        if !widgets.is_empty() {
+            cx.roving(Roving::new(NavShape::Flat).page(Some(1)));
         }
     }
 
-    /// The AccessKit parts: one per widget, named "Corner i of n", valued with the radius.
-    fn parts(&self, widgets: &[Widget], style: &CornerStyle, labels: &CornerWidgetsLabels) -> Vec<Part> {
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        let Some(space) = canvas_space(&cx.env) else { return };
+        let widgets = self.shown(cx.style, cx.value(), &space.view);
+        self.run_pointer(cx, &widgets, &space.view);
+        self.run_keys(cx, &widgets);
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let Some(space) = canvas_space(&cx.env) else { return };
+        let widgets = self.shown(cx.style, cx.value(), &space.view);
+        let (draw, style) = (ui.draw(), &cx.style);
+        for widget in &widgets {
+            let ring = PaintShape::Circle(widget.at, style.widget / 2.0);
+            draw.fill(&ring, style.fill);
+            draw.stroke(&ring, StrokeWidth::Medium, style.color);
+            draw.fill(&PaintShape::Circle(widget.at, style.dot / 2.0), style.color);
+        }
+    }
+
+    /// One object per widget, named "Corner i of n" and valued with its radius.
+    fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
+        let Some(space) = canvas_space(&cx.env) else { return };
+        let widgets = self.shown(cx.style, cx.value(), &space.view);
+        let (words, units) = (cx.words::<CornerWords>(), cx.env.units());
         let n = widgets.len().to_string();
-        widgets
-            .iter()
-            .enumerate()
-            .map(|(i, w)| Part {
-                key: i as u64,
-                name: craft_i18n::fmt(&labels.corner, &[("i", &(i + 1).to_string()), ("n", &n)]),
-                value: Some(craft_i18n::fmt(&labels.value, &[("radius", &self.units.format(w.radius, 0.0, 0..=self.units.decimals.max(1)))])),
-                rect: Rect::from_center_size(w.at, Vec2::splat(2.0 * style.hit)),
-                selected: false,
-            })
-            .collect()
-    }
-
-    fn paint(&self, ui: &Ui, view: &CanvasView, style: &CornerStyle, widgets: &[Widget], ring: Option<usize>) {
-        let painter = ui.painter_at(view.rect);
-        for w in widgets {
-            painter.circle(w.at, style.widget / 2.0, style.fill, Stroke::new(style.line, style.color));
-            painter.circle_filled(w.at, style.dot / 2.0, style.color);
-        }
-        if let Some(w) = ring.and_then(|i| widgets.get(i)) {
-            PartFocus::ring(&painter, Rect::from_center_size(w.at, Vec2::splat(style.widget)));
+        for (at, widget) in widgets.iter().enumerate() {
+            let radius = space.rulers().x.format_value(&units, widget.radius, 0.0);
+            let node = access.node(WIDGET.at(at as u64), Role::BUTTON);
+            node.name = Name::Text(words.corner.fill(&[("i", &(at + 1).to_string()), ("n", &n)]));
+            node.value(words.value.fill(&[("radius", &radius)]));
         }
     }
-}
 
-/// A press the widgets own: the widget it began on, the radius there and the targets as they
-/// were, so a host that applies the values live still gets every changed target's radii from
-/// the press.
-#[derive(Clone, Debug)]
-struct Grab {
-    press: PrimaryPress,
-    corner: CornerRef,
-    from: f64,
-    targets: Vec<CornerTarget>,
-    /// Past the click slop.
-    moved: bool,
-    /// The drag was cancelled: the rest of the press does nothing.
-    dead: bool,
-    /// The press waits for another control's typing run to end ([`Claim::turn`]), with the
-    /// modifiers at the press.
-    waits: Option<Modifiers>,
-}
-
-fn grab_key(id: Id) -> Id {
-    id.with("craft_draw::ui::corner::CornerWidgets::grab")
-}
-
-fn picked_key(id: Id) -> Id {
-    id.with("craft_draw::ui::corner::CornerWidgets::picked")
+    fn finish(self, cx: Cx<'_, Self>) -> CornerWidgetsOutput {
+        let Report { change, cycle_kind, activate } = self.report;
+        CornerWidgetsOutput { edit: cx.edit_response(), change, cycle_kind, activate }
+    }
 }
