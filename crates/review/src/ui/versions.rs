@@ -6,7 +6,7 @@ use std::collections::HashSet;
 
 use craft_behavior::{DisplayOrder, IconId, ItemSource, Selection};
 use craft_theme::variant::Variant;
-use craft_ui::buttons::{Button, IconButton, Link};
+use craft_ui::buttons::{Button, ButtonOutput, IconButton, Link};
 use craft_ui::contract::overlay::Anchor;
 use craft_ui::contract::{
     ActivateOn, Bind, CollectionEvent, Entry, NoValue, Outcome, Pattern, Props, Remember as _, SelectMode, Show as _, ShowCollection as _,
@@ -419,12 +419,12 @@ fn history(
                     return ListRow::new(question)
                         .depth(icx.depth)
                         .icon(dot)
-                        .trailing_field(Button::new(words.delete.clone()).variant(Variant::PRIMARY), move |button: Response| {
+                        .trailing_field(Button::new(words.delete.clone()).variant(Variant::PRIMARY), move |button: ButtonOutput| {
                             if clicked(&button) {
                                 outcome_delete.set(Some(Confirmed::Delete));
                             }
                         })
-                        .trailing_field(Button::new(words.cancel.clone()), move |button: Response| {
+                        .trailing_field(Button::new(words.cancel.clone()), move |button: ButtonOutput| {
                             if clicked(&button) {
                                 outcome_cancel.set(Some(Confirmed::Cancel));
                             }
