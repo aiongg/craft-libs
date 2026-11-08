@@ -392,7 +392,11 @@ fn zones_rig_editing(editing: Option<ZoneAt>) -> (Fixture, Rc<RefCell<(Option<Zo
         let placed = demo_placed(1, pos2(20.0, 20.0));
         let bands = |_: usize| ZoneBands::new(72.0, 72.0, [50.0, 50.0]);
         let room = ui.available_rect_before_wrap();
-        let out = HeaderFooterZones::new("Zones", &placed, &bands, PAPER, INK).editing(editing).show_at(ui, room);
+        let mut zones = HeaderFooterZones::new("Zones", &placed, &bands, PAPER, INK);
+        if let Some(at) = editing {
+            zones = zones.editing(at);
+        }
+        let out = zones.show_at(ui, room);
         let mut seen = seen.borrow_mut();
         seen.0 = out.begin.or(seen.0);
         seen.1 |= out.end;
