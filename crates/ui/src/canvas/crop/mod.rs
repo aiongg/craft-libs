@@ -545,18 +545,8 @@ impl Component for CropOverlay<'_> {
                         live.drag = Some(drag);
                     }
                 }
-                PressPhase::Release { start, pos, click: false, .. } => {
-                    // A press that moved and ended before a pass saw it start still drags from where it was pressed.
-                    let drag = match live.drag.take() {
-                        Some(drag) => Some(drag),
-                        None if start.button == PointerButton::Primary => {
-                            let mut drag = self.begin(cx, &space, &frame, grab, start.origin);
-                            self.step(cx, &space, &mut drag, pos, mods);
-                            Some(drag)
-                        }
-                        None => None,
-                    };
-                    if let Some(drag) = drag {
+                PressPhase::Release { pos, click: false, .. } => {
+                    if let Some(drag) = live.drag.take() {
                         self.finish(cx, &space, drag, pos);
                     }
                 }

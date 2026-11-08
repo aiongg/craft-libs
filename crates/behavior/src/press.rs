@@ -436,6 +436,9 @@ struct Open<T> {
     dragging: bool,
     /// Moved past slop on a target that senses no drag: the click is gone and nothing starts.
     abandoned: bool,
+    /// Where the button went up, when it did in the pass the drag started. That pass reports `DragStart` and the
+    /// next one the release, so every part reads a drag's start before its end.
+    released_at: Option<Pos2>,
 }
 
 /// The press lifecycle of one root: the press winner it picked, kept until release or cancel.
@@ -479,6 +482,12 @@ impl<T: Copy> PressMachine<T> {
         let mut drag_started = false;
         let mut released: Option<(T, PressStart, Pos2, bool, bool)> = None;
         let mut cancelled: Option<(T, PressStart, PressCancel)> = None;
+        if let Some(open) = self.open
+            && let Some(at) = open.released_at
+        {
+            released = Some((open.target, open.start, at, true, false));
+            self.open = None;
+        }
         if let (Some(reason), Some(open)) = (input.cancel, self.open) {
             cancelled = Some((open.target, open.start, reason));
             self.open = None;
@@ -502,6 +511,13 @@ impl<T: Copy> PressMachine<T> {
                 }
                 PointerEvent::Pressed { button, pos: at, time, clicks } => {
                     pos = at;
+                    // A release held for the next pass gives way to a new press; it ends in this pass.
+                    if let Some(open) = self.open
+                        && let Some(up) = open.released_at
+                    {
+                        released = Some((open.target, open.start, up, true, false));
+                        self.open = None;
+                    }
                     // A middle or secondary press captures for a drag (a canvas pan, a drag with the secondary button) and
                     // never clicks or starts over an open press; a primary press does not replace one of them. A target
                     // that senses `MIDDLE_CLICK` also takes a middle press that can click (a tab closes on it), and one
@@ -528,16 +544,21 @@ impl<T: Copy> PressMachine<T> {
                             start: PressStart::new(at, button, time, clicks),
                             dragging: false,
                             abandoned: false,
+                            released_at: None,
                         });
                     went_down = self.open.is_some();
                     drag_started = false;
                 }
                 PointerEvent::Released { button, pos: at } => {
                     pos = at;
-                    if self.open.is_some_and(|open| open.start.button != button) {
+                    if self.open.is_some_and(|open| open.start.button != button || open.released_at.is_some()) {
                         continue;
                     }
-                    if let Some(open) = self.open.take() {
+                    if let Some(open) = &mut self.open
+                        && drag_started
+                    {
+                        open.released_at = Some(at);
+                    } else if let Some(open) = self.open.take() {
                         let click = !open.dragging && !open.abandoned && open.sense.contains(Sense::CLICK);
                         released = Some((open.target, open.start, at, open.dragging, click));
                     }
@@ -545,7 +566,7 @@ impl<T: Copy> PressMachine<T> {
             }
         }
         // A press that ended without a release event (pointer lost) is gone.
-        if self.open.is_some() && !input.held && released.is_none() {
+        if self.open.is_some_and(|open| open.released_at.is_none()) && !input.held && released.is_none() {
             self.open = None;
         }
         if let Some((target, start, reason)) = cancelled {
