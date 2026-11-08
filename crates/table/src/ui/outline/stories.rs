@@ -22,13 +22,7 @@ fn rows_and_columns(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let room = ui.available_rect_before_wrap();
     let layout_bands = bands((ROW_LEVELS, COLUMN_LEVELS), true, 1.0, 16.0, 4.0);
     let none = BTreeMap::new();
-    let mut layout = GridLayout::new(room, LineIndex::new(&none, 20.0, 1000), LineIndex::new(&none, 64.0, 100));
-    layout.zoom = 1.0;
-    layout.frozen = (0, 0);
-    layout.scroll = egui::Vec2::ZERO;
-    layout.headings = true;
-    layout.bands = layout_bands;
-    layout.right_to_left = false;
+    let layout = GridLayout::new(room, LineIndex::new(&none, 20.0, 1000), LineIndex::new(&none, 64.0, 100)).bands(layout_bands);
     let geometry = SheetGeometry::new(layout, SheetMetrics::new(20.0, 8.0, 6.0));
     OutlineBand::new("Outline", &rows, &columns, &geometry).show_at(ui, OutlineBand::area(&geometry)).into()
 }

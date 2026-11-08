@@ -13,7 +13,7 @@ use craft_ui::contract::PaintUi;
 use craft_ui::primitives::TextRun;
 use craft_ui::runtime::env::Label;
 use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers, Pos2, Rect, Vec2};
+use egui::{Event, Key, Modifiers, PointerButton, Pos2, Rect, Vec2};
 
 /// The default line sizes of the test sheet, points at 100 %.
 const ROW: f32 = 20.0;
@@ -227,6 +227,28 @@ fn the_fill_handle_drags_a_range() {
         matches!(fills.last(), Some(EditEvent::Commit { after, .. }) if after.rows().end() - after.rows().start() == 3),
         "the range grows two rows below the block"
     );
+}
+
+// A secondary drag of the fill handle reports the menu at release with the range it grew to and
+// fills nothing.
+#[trial]
+fn a_secondary_drag_of_the_fill_handle_reports_the_menu() {
+    let mut rig = rig(None, selected_block(), 1.0);
+    let from = rig.part(PartKey::new("fill_handle"), 0).center();
+    let to = from + Vec2::Y * (ROW * 2.0);
+    let button = |pos: Pos2, pressed| Event::PointerButton { pos, button: PointerButton::Secondary, pressed, modifiers: Modifiers::NONE };
+    rig.fixture.frame(vec![Event::PointerMoved(from)]);
+    rig.fixture.frame(vec![button(from, true)]);
+    for step in 1..=4 {
+        rig.fixture.frame(vec![Event::PointerMoved(from + (to - from) * (step as f32 / 4.0))]);
+    }
+    rig.fixture.frame(vec![button(to, false)]);
+    rig.fixture.idle(2);
+    let edits = rig.take_edits();
+    let menus: Vec<_> = edits.iter().filter_map(|edit| if let GridEdit::FillMenu { range, .. } = edit { Some(range) } else { None }).collect();
+    assert_eq!(menus.len(), 1, "{edits:?}");
+    assert_eq!(menus[0].rows().end() - menus[0].rows().start(), 3, "the range grew two rows below the block");
+    assert!(!edits.iter().any(|edit| matches!(edit, GridEdit::Fill { range: EditEvent::Commit { .. } })), "{edits:?}");
 }
 
 #[trial]

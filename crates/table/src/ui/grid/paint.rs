@@ -43,7 +43,7 @@ pub(super) fn style(cx: &StyleCx<'_>, key: CellGridStyleKey) -> CellGridStyle {
     let control = cx.control();
     let sheet = SheetMetrics::new(control.height, control.icon, control.pad_x);
     let zoom = f32::from(key.percent) / 100.0;
-    let bands = outline::bands(key.levels, key.headings, zoom, control.icon);
+    let bands = outline::bands(key.levels, key.headings, zoom, cx.tokens.size.icon.sm, cx.tokens.space.gap.tight);
     let c = &cx.tokens.color;
     CellGridStyle {
         surface: cx.text_well(),
@@ -322,7 +322,7 @@ impl CellGrid<'_> {
                 }
             }
         }
-        self.place_chrome(ui, &frame, style);
+        self.place_chrome(ui, &frame, style, cx.env.words::<CellGridWords>().outline.clone().into());
     }
 
     fn paint_headers(&self, draw: &Draw<'_>, frame: &Frame, selection: &CellSelection<u32>, cx: &Cx<'_, Self>) {
@@ -397,7 +397,7 @@ impl CellGrid<'_> {
     }
 
     /// Shows the filter buttons, the error tag and the outline band over the sheet.
-    fn place_chrome(&mut self, ui: &mut PaintUi<'_>, frame: &Frame, style: &CellGridStyle) {
+    fn place_chrome(&mut self, ui: &mut PaintUi<'_>, frame: &Frame, style: &CellGridStyle, outline: Label) {
         let geometry = &frame.geometry;
         let (side, gap) = (style.side, style.gap);
         let rtl = geometry.mirror_x(0.0) > 0.0;
@@ -430,7 +430,7 @@ impl CellGrid<'_> {
         if let Some((rows, columns)) = self.outline
             && self.levels != (0, 0)
         {
-            let out = ui.child("outline", geometry.rect(), OutlineBand::new("Outline", rows, columns, geometry));
+            let out = ui.child("outline", OutlineBand::area(geometry), OutlineBand::new(outline, rows, columns, geometry));
             self.pass.outline.extend(out.actions);
         }
     }

@@ -965,6 +965,7 @@ craft_ui::words! {
         column_header: template "cellGrid.columnHeader" = "Column {name}";
         row_header: template "cellGrid.rowHeader" = "Row {n}";
         corner: "cellGrid.corner" = "Select All";
+        outline: "cellGrid.outline" = "Outline";
     }
 }
 

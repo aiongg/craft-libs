@@ -18,13 +18,7 @@ const ROW_HEIGHT: f32 = 20.0;
 fn geometry(room: Rect, levels: (u8, u8), frozen: (u32, u32), hidden: &BTreeMap<u32, f32>) -> SheetGeometry {
     let rows = LineIndex::new(hidden, ROW_HEIGHT, 1000);
     let columns = LineIndex::new(&BTreeMap::new(), 80.0, 100);
-    let mut layout = GridLayout::new(room, rows, columns);
-    layout.zoom = 1.0;
-    layout.frozen = frozen;
-    layout.scroll = Vec2::ZERO;
-    layout.headings = true;
-    layout.bands = bands(levels, true, 1.0, LANE, SLACK);
-    layout.right_to_left = false;
+    let layout = GridLayout::new(room, rows, columns).frozen(frozen.0, frozen.1).bands(bands(levels, true, 1.0, LANE, SLACK));
     SheetGeometry::new(layout, SheetMetrics::new(ROW_HEIGHT, 8.0, 6.0))
 }
 
