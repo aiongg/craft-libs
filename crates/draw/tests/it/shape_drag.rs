@@ -15,6 +15,8 @@ use egui::{Pos2, Vec2, pos2};
 
 const CANVAS: Vec2 = Vec2::new(400.0, 300.0);
 const SLOP: f32 = 6.0;
+const SIDES: u32 = 7;
+const RATIO: f64 = 0.5;
 
 fn view(zoom: f64) -> CanvasView {
     CanvasView::new(egui::Rect::from_min_size(Pos2::ZERO, CANVAS), Point::new(200.0, 150.0), zoom)
@@ -30,20 +32,20 @@ fn at(x: f32, y: f32) -> ToolPointer {
 
 fn tool(kind: ShapeKind) -> ShapeDragTool {
     let mut tool = ShapeDragTool::new();
-    tool.options(ShapeDragOptions { kind, ..ShapeDragOptions::default() });
+    tool.options(ShapeDragOptions::new(kind));
     tool
 }
 
 fn committed(events: &[ShapeDragEvent]) -> Option<&ShapeGeometry> {
     events.iter().find_map(|e| match e {
-        ShapeDragEvent::Gesture(EditEvent::Commit { after, .. }) => Some(after),
+        ShapeDragEvent::Draw(EditEvent::Commit { after, .. }) => Some(after),
         _ => None,
     })
 }
 
 fn updated(events: &[ShapeDragEvent]) -> Option<&ShapeGeometry> {
     events.iter().rev().find_map(|e| match e {
-        ShapeDragEvent::Gesture(EditEvent::Update { value, .. }) => Some(value),
+        ShapeDragEvent::Draw(EditEvent::Update { value, .. }) => Some(value),
         _ => None,
     })
 }
@@ -57,7 +59,7 @@ fn a_drag_under_one_pixel_commits_nothing() {
     let events = tool.take_events();
     assert!(committed(&events).is_none());
     assert!(
-        events.iter().any(|e| matches!(e, ShapeDragEvent::Gesture(EditEvent::Cancel { reason: CancelReason::Dismissed, .. }))),
+        events.iter().any(|e| matches!(e, ShapeDragEvent::Draw(EditEvent::Cancel { reason: CancelReason::Dismissed, .. }))),
         "the gesture is dismissed: {events:?}"
     );
 }
@@ -90,7 +92,7 @@ fn space_moves_the_shape_being_drawn_without_resizing_it() {
 #[trial]
 fn a_star_drag_holds_the_inner_radius_while_control_is_down() {
     let mut tool = ShapeDragTool::new();
-    tool.rules(ShapeDragRules::ILLUSTRATOR).options(ShapeDragOptions { kind: ShapeKind::Star, star_ratio: 0.5, ..ShapeDragOptions::default() });
+    tool.rules(ShapeDragRules::ILLUSTRATOR).options(ShapeDragOptions::new(ShapeKind::Star).star_ratio(0.5));
     tool.press(&at(200.0, 200.0), &mut cx(1.0, &[]));
     tool.drag(&at(200.0, 100.0), &mut cx(1.0, &[]));
     tool.drag(&at(200.0, 50.0).mods(Mods::CTRL), &mut cx(1.0, &[]));
@@ -172,11 +174,11 @@ fn a_size_out_of_range_shows_a_notice_and_disables_ok() {
 
 #[trial]
 fn a_polygon_dialog_asks_for_sides_and_a_star_ratio() {
-    let mut options = CreateShapeOptions::initial(ShapeKind::Star, Point::ZERO).tool(0.0, 7, 0.5);
+    let mut options = CreateShapeOptions::initial(ShapeKind::Star, Point::ZERO).tool(0.0, SIDES, RATIO);
     options.size = (100.0, 100.0);
     let (mut fixture, host) = opened(options);
     assert!(fixture.by_label("Sides").is_some() && fixture.by_label("Star Ratio").is_some());
     let shape = answered(&mut fixture, &host).expect("OK answers");
     let ShapeGeometry::Polygon { sides, star_ratio, .. } = shape.geometry else { panic!("a polygon") };
-    assert_eq!((sides, star_ratio), (7, 0.5));
+    assert_eq!((sides, star_ratio), (SIDES, RATIO));
 }

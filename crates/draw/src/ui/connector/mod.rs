@@ -29,6 +29,7 @@ pub use words::{ConnectorBarWords, ConnectorWords};
 
 /// A place on an object a connector end may glue to.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct ConnectionSite {
     /// In document units.
     pub point: Point,
@@ -42,6 +43,7 @@ pub struct ConnectionSite {
 /// An object a connector may glue to, as the app gives it this pass. The app passes the selected
 /// connector's end objects among the targets, or the handles have no route for it.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct ConnectionTarget {
     /// The app's id of the object.
     pub id: u64,
@@ -51,6 +53,13 @@ pub struct ConnectionTarget {
     pub bounds: Rect,
     /// Its sites; empty means the four side middles ([`ConnectionTarget::side_sites`]).
     pub sites: Vec<ConnectionSite>,
+}
+
+impl ConnectionSite {
+    /// The site numbered `index` at `point`, leaving by `side`.
+    pub fn new(point: Point, side: ConnectionSide, index: u32) -> Self {
+        ConnectionSite { point, side, index }
+    }
 }
 
 impl ConnectionTarget {
@@ -66,6 +75,13 @@ impl ConnectionTarget {
         self
     }
 
+    /// The target offers `sites` instead of the four side middles.
+    #[must_use]
+    pub fn sites(mut self, sites: Vec<ConnectionSite>) -> Self {
+        self.sites = sites;
+        self
+    }
+
     /// The sites a connector may glue to: [`sites`](Self::sites), or the four side middles.
     pub fn side_sites(&self) -> Vec<ConnectionSite> {
         if !self.sites.is_empty() {
@@ -77,11 +93,13 @@ impl ConnectionTarget {
 
 /// One end of a connector.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum ConnectorEnd {
     /// Not glued: a point in the document.
     Free(Point),
     /// Glued to object `target`: by `side` (FigCraft), at numbered `site` (DeckCraft), or at `at`
     /// as fractions of its box placed by hand (FigCraft's Cmd/Ctrl drag).
+    #[non_exhaustive]
     Glued {
         /// Id of the object glued to.
         target: u64,
@@ -94,8 +112,25 @@ pub enum ConnectorEnd {
     },
 }
 
+impl ConnectorEnd {
+    /// An end glued to the side `side` of object `target`.
+    pub fn glued(target: u64, side: ConnectionSide) -> Self {
+        ConnectorEnd::Glued { target, side, site: None, at: None }
+    }
+
+    /// This end glued at numbered site `index`.
+    #[must_use]
+    pub fn site(self, index: u32) -> Self {
+        match self {
+            ConnectorEnd::Glued { target, side, at, .. } => ConnectorEnd::Glued { target, side, site: Some(index), at },
+            free => free,
+        }
+    }
+}
+
 /// Which end of a connector.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ConnectorEndKind {
     /// The `from` end.
     Start,
@@ -105,6 +140,7 @@ pub enum ConnectorEndKind {
 
 /// A connector as the handles and the app see it: the value `ConnectorHandles` edits.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct ConnectorItem {
     /// The app's id for the connector.
     pub id: u64,
@@ -118,9 +154,24 @@ pub struct ConnectorItem {
     pub path: Option<ConnectorPath>,
 }
 
+impl ConnectorItem {
+    /// The connector `id` from `from` to `to`, routed `routing`, finding its own path.
+    pub fn new(id: u64, from: ConnectorEnd, to: ConnectorEnd, routing: Routing) -> Self {
+        ConnectorItem { id, from, to, routing, path: None }
+    }
+
+    /// The connector with the hand-reshaped `path`.
+    #[must_use]
+    pub fn path(mut self, path: ConnectorPath) -> Self {
+        self.path = Some(path);
+        self
+    }
+}
+
 /// The connector being drawn: its ends, routing and route, for the app's own preview
 /// ([`ConnectorTool::custom_preview`]) and the commit.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct ConnectorDraft {
     /// The start end.
     pub from: ConnectorEnd,
@@ -142,6 +193,7 @@ pub enum ConnectorEvent {
     /// An end of the selected connector dragged onto another object or onto empty canvas, or moved
     /// to the next object with the arrow keys, from [`ConnectorHandlesOutput::event`]. The gesture's
     /// phases are in the output's `edit.event`.
+    #[non_exhaustive]
     Reattach {
         /// Which end moved.
         end: ConnectorEndKind,

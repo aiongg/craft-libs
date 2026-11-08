@@ -16,6 +16,7 @@ use crate::ui::stroke::{StrokeChoiceRow, StrokePreview};
 
 /// A connector's line style as the bar's menu offers it.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct ConnectorLine {
     /// Dashed with [`DASH`](Self::DASH), else solid.
     pub dashed: bool,
@@ -24,6 +25,11 @@ pub struct ConnectorLine {
 }
 
 impl ConnectorLine {
+    /// A line of `weight` points, dashed or solid.
+    pub fn new(dashed: bool, weight: f64) -> Self {
+        ConnectorLine { dashed, weight }
+    }
+
     /// The weights the menu offers (FigCraft's `WEIGHTS`).
     pub const WEIGHTS: [f64; 4] = [1.0, 2.0, 4.0, 6.0];
     /// A dashed connector's dash and gap (FigCraft's `DASHES`).

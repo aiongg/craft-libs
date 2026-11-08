@@ -19,6 +19,9 @@ use egui::{Key, Modifiers, Pos2, Vec2, pos2, vec2};
 
 const CANVAS: Vec2 = Vec2::new(400.0, 300.0);
 const SLOP: f32 = 6.0;
+/// How far the bend test drags the middle run, in document units.
+const BEND_DRAG: f64 = 20.0;
+const TOLERANCE: f64 = 1e-6;
 
 const A: Rect = Rect::new(20.0, 100.0, 100.0, 200.0);
 const E: Rect = Rect::new(300.0, 20.0, 380.0, 80.0);
@@ -33,11 +36,11 @@ fn boxes() -> Vec<ConnectionTarget> {
 }
 
 fn glued(target: u64, side: ConnectionSide) -> ConnectorEnd {
-    ConnectorEnd::Glued { target, side, site: None, at: None }
+    ConnectorEnd::glued(target, side)
 }
 
 fn item(from: ConnectorEnd, to: ConnectorEnd, routing: Routing) -> ConnectorItem {
-    ConnectorItem { id: 9, from, to, routing, path: None }
+    ConnectorItem::new(9, from, to, routing)
 }
 
 fn view() -> CanvasView {
@@ -111,15 +114,10 @@ fn a_drag_under_the_slop_or_onto_its_start_makes_nothing() {
 
 #[trial]
 fn sites_accept_side_middles_and_numbered_sites() {
-    let numbered = ConnectionTarget {
-        id: 4,
-        name: None,
-        bounds: Rect::new(150.0, 200.0, 250.0, 260.0),
-        sites: vec![
-            ConnectionSite { point: Point::new(160.0, 210.0), side: ConnectionSide::Top, index: 7 },
-            ConnectionSite { point: Point::new(240.0, 250.0), side: ConnectionSide::Bottom, index: 9 },
-        ],
-    };
+    let numbered = ConnectionTarget::new(4, Rect::new(150.0, 200.0, 250.0, 260.0)).sites(vec![
+        ConnectionSite::new(Point::new(160.0, 210.0), ConnectionSide::Top, 7),
+        ConnectionSite::new(Point::new(240.0, 250.0), ConnectionSide::Bottom, 9),
+    ]);
     let mut targets = boxes();
     targets.push(numbered);
     let mut tool = tool(targets);
@@ -128,7 +126,7 @@ fn sites_accept_side_middles_and_numbered_sites() {
     assert_eq!(commit(&events).expect("a commit").to, glued(2, ConnectionSide::Left), "a side middle");
 
     let events = drag(&mut tool, (60.0, 150.0), (238.0, 248.0));
-    assert_eq!(commit(&events).expect("a commit").to, ConnectorEnd::Glued { target: 4, side: ConnectionSide::Bottom, site: Some(9), at: None });
+    assert_eq!(commit(&events).expect("a commit").to, ConnectorEnd::glued(4, ConnectionSide::Bottom).site(9));
 
     let events = drag(&mut tool, (60.0, 150.0), (200.0, 230.0));
     assert_eq!(commit(&events).expect("a commit").to, ConnectorEnd::Free(Point::new(200.0, 230.0)), "out of reach of every site: free");
@@ -216,13 +214,13 @@ fn a_bend_dragged_reshapes_the_elbow_from_the_path_the_drag_began_with() {
     targets.push(target(5, E));
     let elbow = item(glued(1, ConnectionSide::Right), glued(5, ConnectionSide::Left), Routing::Elbow);
     let (mut fixture, app) = handles(elbow, targets);
-    assert_eq!(middle_x(None), 200.0);
+    let before = middle_x(None);
     let bend = fixture.by_label("Bend 1 of 1").expect("the middle run's handle");
-    fixture.drag(&bend, vec2(-20.0, 0.0));
+    fixture.drag(&bend, vec2(-BEND_DRAG as f32, 0.0));
     let held = app.borrow().item.clone().expect("a connector");
     let path = held.path.expect("a reshaped path");
     assert!(matches!(path, ConnectorPath::Runs { .. }));
-    assert_eq!(middle_x(Some(&path)), 180.0);
+    assert!((before - middle_x(Some(&path)) - BEND_DRAG).abs() < TOLERANCE, "the middle run follows the drag");
 }
 
 #[trial]
@@ -291,6 +289,6 @@ fn the_bar_reports_routing_caps_and_line_style() {
     assert_eq!(seen.len(), 4);
     assert_eq!(seen[0].0, Some(Routing::Elbow));
     assert_eq!(seen[1].1.as_deref(), Some("dot"));
-    assert_eq!(seen[2].2, Some(ConnectorLine { dashed: true, weight: 2.0 }));
-    assert_eq!(seen[3].2, Some(ConnectorLine { dashed: true, weight: 4.0 }));
+    assert_eq!(seen[2].2, Some(ConnectorLine::new(true, ConnectorLine::default().weight)));
+    assert_eq!(seen[3].2, Some(ConnectorLine::new(true, ConnectorLine::WEIGHTS[2])));
 }

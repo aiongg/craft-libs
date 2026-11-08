@@ -3,7 +3,7 @@
 //! ([`CreateShapeDialog`]).
 //!
 //! The app sets the tool's options each pass, shows it on the canvas's `ToolHost` and drains
-//! [`ShapeDragTool::take_events`]: a committed [`Gesture`](ShapeDragEvent::Gesture) creates the
+//! [`ShapeDragTool::take_events`]: a committed [`Draw`](ShapeDragEvent::Draw) creates the
 //! shape, a [`Click`](ShapeDragEvent::Click) opens [`CreateShapeDialog`] for the kinds it
 //! [supports](CreateShapeDialog::supports).
 
@@ -24,6 +24,7 @@ pub use words::{CreateShapeWords, ShapeDragWords};
 /// The Shape tools. Photoshop's Rectangle draws a rounded rectangle when the corner radius is over
 /// 0; VectorCraft (Illustrator) has its own Rounded Rectangle and Star.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ShapeKind {
     /// A rectangle.
     #[default]
@@ -46,6 +47,7 @@ pub enum ShapeKind {
 
 /// How a drag sizes the shape.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ShapeFrame {
     /// The press is one corner of the shape's box, the pointer the other (Photoshop: every kind).
     #[default]
@@ -59,6 +61,7 @@ pub enum ShapeFrame {
 /// options bar (PhotoCraft's `ToolOptions`). [`ShapeToolSettings::drag_options`](super::shape::ShapeToolSettings::drag_options)
 /// builds it from the stored settings.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct ShapeDragOptions {
     /// Which shape the drag draws.
     pub kind: ShapeKind,
@@ -70,6 +73,41 @@ pub struct ShapeDragOptions {
     pub star_ratio: f64,
     /// The Line's weight, at least 1.
     pub line_weight: f64,
+}
+
+impl ShapeDragOptions {
+    /// The defaults drawing `kind`.
+    pub fn new(kind: ShapeKind) -> Self {
+        ShapeDragOptions { kind, ..ShapeDragOptions::default() }
+    }
+
+    /// The Rectangle's corner radius.
+    #[must_use]
+    pub fn corner_radius(mut self, radius: f64) -> Self {
+        self.corner_radius = radius;
+        self
+    }
+
+    /// The polygon's sides or the star's points.
+    #[must_use]
+    pub fn sides(mut self, sides: u32) -> Self {
+        self.sides = sides;
+        self
+    }
+
+    /// The star's inner over outer radius.
+    #[must_use]
+    pub fn star_ratio(mut self, ratio: f64) -> Self {
+        self.star_ratio = ratio;
+        self
+    }
+
+    /// The Line's weight.
+    #[must_use]
+    pub fn line_weight(mut self, weight: f64) -> Self {
+        self.line_weight = weight;
+        self
+    }
 }
 
 impl Default for ShapeDragOptions {
@@ -125,9 +163,10 @@ pub enum ShapeDragEvent {
     /// The drag: `Begin` once the pointer is past the click slop, `Update` each pass with the
     /// shape it would draw, `Commit` on release, `Cancel` on Esc or a tool switch, or on release when a side is
     /// under 1 px (`Dismissed`, so the app makes nothing).
-    Gesture(EditEvent<ShapeGeometry>),
+    Draw(EditEvent<ShapeGeometry>),
     /// A press and release within the click slop, or Enter with the canvas focused (at the view
     /// centre): the app opens [`CreateShapeDialog`] for kinds it [supports](CreateShapeDialog::supports).
+    #[non_exhaustive]
     Click {
         /// The click, in document space.
         at: Point,

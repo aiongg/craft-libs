@@ -204,7 +204,7 @@ impl ShapeDragTool {
                 return;
             }
             drag.began = true;
-            self.events.push(ShapeDragEvent::Gesture(EditEvent::begin(drag.id, Mixed::Mixed, Arc::clone(&drag.label), None)));
+            self.events.push(ShapeDragEvent::Draw(EditEvent::begin(drag.id, Mixed::Mixed, Arc::clone(&drag.label), None)));
         }
         // Ctrl/Cmd holds the star's inner radius as it was when the key went down.
         let holds = self.rules.hold_inner && (mods.cmd || mods.ctrl) && drag.options.kind == ShapeKind::Star && self.radial(ShapeKind::Star);
@@ -219,7 +219,7 @@ impl ShapeDragTool {
         let shape = self.shape(&drag, mods);
         if let Some(shape) = &shape {
             if drag.shape.as_ref() != Some(shape) {
-                self.events.push(ShapeDragEvent::Gesture(EditEvent::update(drag.id, shape.clone())));
+                self.events.push(ShapeDragEvent::Draw(EditEvent::update(drag.id, shape.clone())));
             }
             let size = shape.bounds();
             let words = cx.words::<ShapeDragWords>();
@@ -272,9 +272,9 @@ impl CanvasTool for ShapeDragTool {
         let event = if !drag.began {
             ShapeDragEvent::Click { at: drag.origin, kind: drag.options.kind, mods: pointer.mods }
         } else if let Some(shape) = drag.shape {
-            ShapeDragEvent::Gesture(EditEvent::commit(drag.id, Mixed::Mixed, shape))
+            ShapeDragEvent::Draw(EditEvent::commit(drag.id, Mixed::Mixed, shape))
         } else {
-            ShapeDragEvent::Gesture(EditEvent::cancel(drag.id, CancelReason::Dismissed, None))
+            ShapeDragEvent::Draw(EditEvent::cancel(drag.id, CancelReason::Dismissed, None))
         };
         self.events.push(event);
     }
@@ -283,14 +283,14 @@ impl CanvasTool for ShapeDragTool {
         if let Some(drag) = self.drag.take()
             && drag.began
         {
-            self.events.push(ShapeDragEvent::Gesture(EditEvent::cancel(drag.id, reason, None)));
+            self.events.push(ShapeDragEvent::Draw(EditEvent::cancel(drag.id, reason, None)));
         }
     }
 
     fn key(&mut self, key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
         // inv-vectorcraft: crates/tools/src/shape.rs:5-7 (↑/↓ change the count during a drag).
         match key {
-            ToolKey::Nudge { direction, mods } if self.rules.arrow_sides && direction.x == 0.0 => {
+            ToolKey::Nudge { direction, mods, .. } if self.rules.arrow_sides && direction.x == 0.0 => {
                 let Some(drag) = self.drag.as_mut() else { return false };
                 if !matches!(drag.options.kind, ShapeKind::Polygon | ShapeKind::Star) || !self.rules.radial_polygons {
                     return false;
