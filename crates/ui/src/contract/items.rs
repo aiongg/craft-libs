@@ -394,14 +394,21 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         };
         self.room = room;
         self.header.measure(scx);
-        let width = match (room.x.is_finite(), self.content_sized(comp)) {
-            (false, _) => 0.0,
+        let bounded = room.x.is_finite();
+        let width = match (bounded, self.content_sized(comp)) {
             (true, false) => room.x,
-            // No rows: the empty state has no ideal width, so it takes the room.
-            (true, true) if self.source.is_empty() => room.x,
-            (true, true) => {
+            // No rows: the empty state has no ideal width, so it takes the room, or none where the room is unbounded.
+            (_, _) if self.source.is_empty() => {
+                if bounded {
+                    room.x
+                } else {
+                    0.0
+                }
+            }
+            // An unbounded room (a horizontally scrolling body) takes the widest row, as a content-sized collection does.
+            (_, _) => {
                 let floor = overlay::drawing_parent(ui.ctx()).map_or(0.0, |layer| super::overlay::floor_width(ui.ctx(), layer));
-                rows::widest_row(ui.ctx(), id).map_or(room.x, |widest| widest.max(floor).min(room.x))
+                rows::widest_row(ui.ctx(), id).map_or(if bounded { room.x } else { 0.0 }, |widest| widest.max(floor).min(room.x))
             }
         };
         let previous = self.layout.take().or_else(|| self.previous.take()).map(|held| Arc::try_unwrap(held).unwrap_or_else(|held| (*held).clone()));
