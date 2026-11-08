@@ -407,7 +407,8 @@ fn stamp_alt_click_sets_the_source_and_strokes_report_events() {
     assert_eq!((seen.first().copied(), seen.last().copied()), (Some("stamp begin"), Some("stamp commit")), "{seen:?}");
     let kept = session(&app);
     let stroke = &kept.strokes[0];
-    assert_eq!((stroke.source, stroke.hardness, stroke.opacity), (kept.source.expect("a source"), 0.5, 1.0));
+    let options = VanishingPointSettings::default().stamp;
+    assert_eq!((stroke.source, stroke.hardness, stroke.opacity), (kept.source.expect("a source"), options.hardness / 100.0, options.opacity / 100.0));
     assert!(stroke.points.len() > 1, "the drag laid dabs");
     // Aligned: the next stroke keeps the offset from its start; without Aligned it restarts at the source.
     drag(&mut fixture, start + Vec2::new(0.0, 10.0), start + Vec2::new(10.0, 10.0));
