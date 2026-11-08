@@ -2,7 +2,7 @@
 
 use super::{PropertiesDialog, PropertiesTab, PropertyRow};
 use crate::contract::Bind;
-use crate::patterns::form_dialogs::{Param, ParamKind};
+use crate::patterns::form_dialogs::{DialogFields, Param, ParamKind};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
@@ -23,11 +23,13 @@ fn tabs() -> Vec<PropertiesTab> {
 }
 
 #[story(PropertiesDialog<'static>, covers = [], drive = Drive::Never)]
-fn properties_dialog(ui: &mut Ui, _data: &mut StoryData) -> StoryOutput {
-    PropertiesDialog::new("Properties", tabs()).opened(Bind::given(true)).show(ui).into()
+fn properties_dialog(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let values = data.value("values", DialogFields::new());
+    PropertiesDialog::new("Properties", tabs(), Bind::bound(values)).opened(Bind::given(true)).show(ui).into()
 }
 
 #[story(PropertiesDialog<'static>, covers = [], drive = Drive::Never)]
-fn properties_dialog_read_only(ui: &mut Ui, _data: &mut StoryData) -> StoryOutput {
-    PropertiesDialog::new("Properties", tabs()).read_only(true).opened(Bind::given(true)).show(ui).into()
+fn properties_dialog_read_only(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let values = data.value("values", DialogFields::new());
+    PropertiesDialog::new("Properties", tabs(), Bind::bound(values)).read_only(true).opened(Bind::given(true)).show(ui).into()
 }

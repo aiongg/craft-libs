@@ -2,14 +2,13 @@
 //! over it.
 
 use super::chip::chip;
-use super::held::Held;
 use super::rows::{Filters, Row, TokenRows};
 use super::subject::Pick;
 use super::words::{layer_words, lengths_words, value_words};
 use craft_behavior::{Selection, SelectionChange};
 use craft_theme::{Explained, Mode, Rgba, TokenRef};
 use craft_ui::choice::Checkbox;
-use craft_ui::contract::{Bind, CollectionEvent, Pattern, Props, SelectMode, Show as _, ShowCollection as _, ShowContainer as _};
+use craft_ui::contract::{Bind, CollectionEvent, Held, Pattern, Props, SelectMode, Show as _, ShowCollection as _, ShowContainer as _};
 use craft_ui::display::{Shade, Text};
 use craft_ui::layout_components::{Row as Line, Stack};
 use craft_ui::list::{List, ListRow, OpenSet, ThumbSize};

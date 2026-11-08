@@ -41,7 +41,8 @@ pub use report::{ReportDialog, ReportNote, ReportOutput, ReportWords};
 mod sizing;
 
 pub use sizing::{
-    CanvasExtension, CanvasSize, CanvasSizeOutput, CanvasSizeResult, ImageSize, ImageSizeOutput, ImageSizeResult, Resample, SizingOutput, SizingWords,
+    CanvasExtension, CanvasSize, CanvasSizeOutput, CanvasSizeResult, CanvasSizeValues, ImageSize, ImageSizeOutput, ImageSizeResult, ImageSizeValues,
+    Resample, SizingOutput, SizingWords,
 };
 
 mod new_document;
@@ -62,9 +63,9 @@ mod guides;
 mod properties;
 
 pub use guides::{
-    GUIDE_LAYOUT_COLOR_KEY, GuideColor, GuideColorChoice, GuideDialogWords, GuideGroup, GuideLayoutDialog, GuideLayoutError, GuideLayoutOptions,
-    GuideLayoutOutput, GuideLayoutPreset, GuideLayoutResult, GuideLayoutValues, GuideLength, GuideRect, GuideTarget, GuideUnits,
-    HostedGuideLayoutDialog, HostedNewGuideDialog, NEW_GUIDE_COLOR_KEY, NewGuideDialog, NewGuideOutput, NewGuideValues,
+    GUIDE_LAYOUT_COLOR_KEY, GuideDialogWords, GuideGroup, GuideLayoutDialog, GuideLayoutError, GuideLayoutOptions, GuideLayoutOutput,
+    GuideLayoutPreset, GuideLayoutResult, GuideLayoutValues, GuideLength, GuideRect, GuideTarget, GuideUnits, HostedGuideLayoutDialog,
+    HostedNewGuideDialog, NEW_GUIDE_COLOR_KEY, NewGuideDialog, NewGuideOutput, NewGuideValues,
 };
 pub use properties::{PropertiesDialog, PropertiesOutput, PropertiesTab, PropertyRow};
 

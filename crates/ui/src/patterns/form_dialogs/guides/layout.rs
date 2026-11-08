@@ -16,8 +16,6 @@ const MAX_EDGES: u64 = 16_000;
 const SAME_GUIDE: f64 = 0.01;
 /// The tolerance when columns are tested against the room they must fit in.
 const FIT_TOLERANCE: f64 = 0.001;
-/// The spelling of the pica in Photoshop's fields, beside the language's own.
-const PICA_SPELLING: &str = "pc";
 /// Points in a pica.
 const POINTS_PER_PICA: f64 = 12.0;
 /// Percent in a whole.
@@ -200,7 +198,7 @@ impl GuideUnits {
             reader = reader.unit(&units.symbol(UnitKind::Percent), extent / PERCENT / one_ruler);
         }
         if let Some(per_inch) = self.ruler.per_inch(self.points_per_inch) {
-            reader = reader.unit(PICA_SPELLING, self.points_per_inch / POINTS_PER_PICA / per_inch);
+            reader = reader.unit(&units.symbol(UnitKind::Picas), self.points_per_inch / POINTS_PER_PICA / per_inch);
         }
         reader
     }
