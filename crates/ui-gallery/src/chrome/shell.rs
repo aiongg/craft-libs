@@ -3,8 +3,7 @@
 use super::options::{options_bar, status_bar};
 use super::panels::Panels;
 use crate::theme::{ThemeSubject, parse_sizes};
-use crate::viewer::{Browser, Catalog, GalleryCommands, GallerySettings, Viewer, Workspace, theme_of};
-use craft_behavior::GroupId;
+use crate::viewer::{Browser, Catalog, GalleryCommands, GalleryPanel, GallerySettings, Viewer, Workspace, theme_of};
 use craft_settings::{LoadReport, Location, SaveStatus, SettingsStore, Source};
 use craft_theme::AppSizes;
 use craft_ui::contract::{Bind, CommandSet as _, ShowContainer as _};
@@ -134,7 +133,7 @@ impl ShellApp for Gallery {
         let shown_filter = *cell_filter;
         let Browser { catalog, filter, selection, open, dock, generation, cells } = browser;
         let dock = if in_theme { theme_dock } else { dock };
-        let limits = |_: &GroupId| PanelLimits::at_least(Vec2::ZERO);
+        let limits = |_: &GalleryPanel| PanelLimits::at_least(Vec2::ZERO);
         let rules = FrameRules::new(&limits);
         let mut panels = Panels {
             catalog,
@@ -153,7 +152,7 @@ impl ShellApp for Gallery {
                 ui,
                 |ui, _| {
                     SplitArea::new("Panels", Bind::bound(dock), rules).show(ui, |ui, body| {
-                        for (group, rect) in body.group_frames::<GroupId>() {
+                        for (group, rect) in body.group_frames::<GalleryPanel>() {
                             panels.show(ui, group, rect);
                         }
                     });

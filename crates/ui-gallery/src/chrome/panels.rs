@@ -2,11 +2,8 @@
 //! and the theme workspace's tokens, problems, detail and app sizes.
 
 use crate::theme::{AppLayerEditor, Problems, ThemeSubject, ThemeWorkspace, TokenBrowser, TokenDetail};
-use crate::viewer::{
-    self, COMPONENTS, Catalog, CellFilter, Cells, ComponentInfo, DETAIL, FACTS, GalleryCommands, OVERRIDES, PROBLEMS, RECORD, STORIES, TOKENS,
-    TreeKey, TreeRows,
-};
-use craft_behavior::{GroupId, Selection};
+use crate::viewer::{self, Catalog, CellFilter, Cells, ComponentInfo, GalleryCommands, GalleryPanel, TreeKey, TreeRows};
+use craft_behavior::Selection;
 use craft_i18n::Direction;
 use craft_theme::ControlSize;
 use craft_theme::Explained;
@@ -66,24 +63,17 @@ fn fact(ui: &mut Ui, name: &'static str, value: impl Into<Label>) {
 }
 
 impl Panels<'_> {
-    /// Shows the panel of `group` at `rect`.
-    pub fn show(&mut self, ui: &mut Ui, group: GroupId, rect: Rect) {
-        if group == COMPONENTS {
-            self.components(ui, rect);
-        } else if group == STORIES {
-            self.stories(ui, rect);
-        } else if group == FACTS {
-            self.facts(ui, rect);
-        } else if group == RECORD {
-            self.record(ui, rect);
-        } else if group == PROBLEMS {
-            self.problems(ui, rect);
-        } else if group == TOKENS {
-            self.tokens(ui, rect);
-        } else if group == DETAIL {
-            self.detail(ui, rect);
-        } else if group == OVERRIDES {
-            self.overrides(ui, rect);
+    /// Shows `panel` at `rect`.
+    pub fn show(&mut self, ui: &mut Ui, panel: GalleryPanel, rect: Rect) {
+        match panel {
+            GalleryPanel::Components => self.components(ui, rect),
+            GalleryPanel::Stories => self.stories(ui, rect),
+            GalleryPanel::Facts => self.facts(ui, rect),
+            GalleryPanel::Record => self.record(ui, rect),
+            GalleryPanel::Problems => self.problems(ui, rect),
+            GalleryPanel::Tokens => self.tokens(ui, rect),
+            GalleryPanel::Detail => self.detail(ui, rect),
+            GalleryPanel::Overrides => self.overrides(ui, rect),
         }
     }
 

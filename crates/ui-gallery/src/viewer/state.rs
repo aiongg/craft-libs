@@ -4,12 +4,12 @@
 use super::appearance::CellFilter;
 use super::catalog::Catalog;
 use super::commands::GalleryCommands;
-use super::layout::{PanelShares, theme_layout};
+use super::layout::{GalleryPanel, PanelShares, theme_layout};
 use super::settings::GallerySettings;
 use super::tree::{self, TreeKey};
 use crate::theme::ThemeWorkspace;
+use craft_behavior::Selection;
 use craft_behavior::dock::Layout;
-use craft_behavior::{GroupId, Selection};
 use craft_i18n::Direction;
 use craft_theme::ControlSize;
 use craft_ui::list::OpenSet;
@@ -33,7 +33,7 @@ pub struct Browser {
     /// The open module groups.
     pub open: OpenSet<TreeKey>,
     /// The panel layout.
-    pub dock: Layout<GroupId>,
+    pub dock: Layout<GalleryPanel>,
     /// Counts the resets of the stories; a cell's id scope names it, so a reset mounts the cell anew.
     pub generation: u32,
     /// The shown cells' values.
@@ -67,7 +67,7 @@ pub struct Viewer {
     /// What the theme panels share.
     pub themes: ThemeWorkspace,
     /// The layout of the theme panels.
-    pub theme_dock: Layout<GroupId>,
+    pub theme_dock: Layout<GalleryPanel>,
 }
 
 impl Viewer {

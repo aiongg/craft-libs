@@ -1280,3 +1280,31 @@ old = ""
 new = "craft_ui::patterns::dock::PaneCommand"
 status = "replaced"
 note = "The pane menu's Move to Start, Move to End, Move to Bottom, Float and Close as commands."
+
+[[type]]
+name = "GroupId"
+old = "craft_behavior::dock::GroupId"
+new = ""
+status = "removed"
+note = "Deleted with the anchor-panel model: a dock group is named by an anchor panel in it (`DockSpot<P>`, `GroupDrag<P>`), and a layout is `Layout<P>` over the app's own panel type `P`."
+
+[[type]]
+name = "DockTree"
+old = "craft_behavior::dock::DockTree"
+new = ""
+status = "removed"
+note = "Deleted with the anchor-panel model: a dock group is named by an anchor panel in it (`DockSpot<P>`, `GroupDrag<P>`), and a layout is `Layout<P>` over the app's own panel type `P`."
+
+[[type]]
+name = "Split"
+old = "craft_behavior::dock::Split"
+new = ""
+status = "removed"
+note = "Deleted with the anchor-panel model: a dock group is named by an anchor panel in it (`DockSpot<P>`, `GroupDrag<P>`), and a layout is `Layout<P>` over the app's own panel type `P`."
+
+[[type]]
+name = "DockHandle"
+old = "craft_behavior::dock::DockHandle"
+new = ""
+status = "removed"
+note = "Deleted with the anchor-panel model: a dock group is named by an anchor panel in it (`DockSpot<P>`, `GroupDrag<P>`), and a layout is `Layout<P>` over the app's own panel type `P`."
