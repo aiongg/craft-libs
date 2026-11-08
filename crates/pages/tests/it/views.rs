@@ -1,7 +1,7 @@
 //! The page widgets of craft-pages: view state and layout, synced views, grids, thumbnails, the list and the
 //! preview.
 
-use craft_behavior::{Selection, kurbo::Size};
+use craft_behavior::{Selection, kurbo, kurbo::Size};
 use craft_pages::layout::{Fit, LayoutOptions, ZOOM_RANGE};
 use craft_pages::ui::fixtures::{DemoPages, PAPER};
 use craft_pages::ui::{
@@ -449,4 +449,93 @@ fn the_preview_paints_the_paper_under_a_page_without_a_picture() {
         fixture.shape_bounds().iter().any(|bounds| bounds.height() > 200.0 && (bounds.width() / bounds.height() - aspect).abs() < 0.01),
         "a page-shaped fill is the paper"
     );
+}
+
+/// A page view over `count` demo pages with the state it starts from, and the rects of the pages it laid out.
+fn layout_rig(count: usize, start: PageViewState) -> (Fixture, Rc<RefCell<PageViewState>>, Rc<RefCell<Vec<kurbo::Rect>>>) {
+    let state = Rc::new(RefCell::new(start));
+    let rects: Rc<RefCell<Vec<kurbo::Rect>>> = Rc::default();
+    let (kept, seen) = (Rc::clone(&state), Rc::clone(&rects));
+    let pages = DemoPages::new(count);
+    let mut fixture = Fixture::new(move |ui| {
+        let mut now = kept.borrow().clone();
+        let out = PageView::new("Pages", &pages, &mut now, PAPER).options(LayoutOptions::ACROBAT).show(ui, |_, _| ());
+        seen.borrow_mut().clone_from(&out.layout.rects);
+        *kept.borrow_mut() = now;
+    });
+    fixture.room(vec2(900.0, 600.0));
+    fixture.settle();
+    (fixture, state, rects)
+}
+
+#[trial]
+fn a_changed_zoom_keeps_the_page_at_the_top_in_place() {
+    let (mut fixture, state, rects) = layout_rig(
+        5,
+        state_with(|s| {
+            s.fit = Fit::None;
+            s.zoom = 1.0;
+        }),
+    );
+    let third = rects.borrow()[2];
+    state.borrow_mut().offset.1 = third.y0 + 0.4 * third.height();
+    fixture.idle(2);
+    state.borrow_mut().zoom = 2.0;
+    fixture.idle(3);
+    let third = rects.borrow()[2];
+    let offset = state.borrow().offset.1;
+    assert!((offset - (third.y0 + 0.4 * third.height())).abs() < 1.0, "offset {offset}, page {third:?}");
+}
+
+/// A wheel step of `lines` over the middle of the room.
+fn wheel(fixture: &mut Fixture, lines: f32) {
+    let middle = pos2(450.0, 300.0);
+    fixture.frame(vec![egui::Event::PointerMoved(middle)]);
+    fixture.frame(vec![egui::Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Line,
+        delta: vec2(0.0, lines),
+        modifiers: Modifiers::NONE,
+        phase: egui::TouchPhase::Move,
+        source: egui::MouseWheelSource::Unknown,
+    }]);
+}
+
+#[trial]
+fn wheel_gathered_past_the_bottom_is_forgotten_by_a_pass_without_wheel_input() {
+    let (mut fixture, state, _) = layout_rig(
+        4,
+        state_with(|s| {
+            s.continuous = false;
+            s.fit = Fit::None;
+            s.zoom = 2.0;
+        }),
+    );
+    state.borrow_mut().offset.1 = 1e9;
+    fixture.idle(2);
+    wheel(&mut fixture, -0.5);
+    fixture.idle(1);
+    wheel(&mut fixture, -0.5);
+    fixture.idle(1);
+    assert_eq!(state.borrow().current, 0, "each half notch alone is not a turn");
+    wheel(&mut fixture, -3.0);
+    assert_eq!(state.borrow().current, 1, "a whole notch at once is");
+}
+
+#[trial]
+fn the_follower_takes_the_leaders_rotation() {
+    let states = Rc::new(RefCell::new((SyncedViewsState::default(), PageViewState::default(), PageViewState::default())));
+    let kept = Rc::clone(&states);
+    let pages = DemoPages::new(3);
+    let mut fixture = Fixture::new(move |ui| {
+        let mut now = kept.borrow().clone();
+        let (pair, left, right) = (&mut now.0, &mut now.1, &mut now.2);
+        SyncedViews::new("Compare", pair)
+            .halves(ui, (left, right), |ui, rect, state, _| PageView::new("Pages", &pages, state, PAPER).show_at(ui, rect, |_, _| ()));
+        *kept.borrow_mut() = now;
+    });
+    fixture.room(vec2(600.0, 300.0));
+    fixture.settle();
+    states.borrow_mut().2.rotation = 90;
+    fixture.idle(3);
+    assert_eq!(states.borrow().1.rotation, 90, "the follower turns with the leader");
 }

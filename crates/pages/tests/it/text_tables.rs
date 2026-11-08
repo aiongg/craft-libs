@@ -18,7 +18,7 @@ use craft_pages::ui::view::{PageView, PageViewState, PlacedPage};
 use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
 use craft_ui::runtime::env::UnitKind;
-use craft_ui::testing::{Fixture, pointer, trial};
+use craft_ui::testing::{Fixture, ToolFixture, pointer, trial};
 use egui::{Key, Modifiers, Pos2, pos2, vec2};
 
 // Edges
@@ -495,4 +495,12 @@ fn turns_stay_within_the_columns() {
     assert_eq!(wheel_turns(vec2(0.0, -30.0), &mut carry), 1);
     assert_eq!(swipe_turn(pos2(100.0, 50.0), pos2(20.0, 52.0), 300.0, 1.0), 1, "a swipe against the columns turns forward");
     assert_eq!(swipe_turn(pos2(100.0, 50.0), pos2(20.0, 52.0), 300.0, -1.0), -1, "and the other way round in a right-to-left row");
+}
+
+#[trial]
+fn the_text_select_tool_passes_the_tool_checks() {
+    let rect = egui::Rect::from_min_size(Pos2::ZERO, vec2(200.0, 100.0));
+    let pages: &'static [PlacedPage] = Box::leak(vec![PlacedPage::new(0, rect, 1.0, (0.0, 100.0))].into_boxed_slice());
+    let state: &'static mut TextSelectState = Box::leak(Box::default());
+    ToolFixture::new("Select Text", TextSelectTool::new(pages, &Texts, state)).check();
 }

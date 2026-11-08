@@ -317,7 +317,7 @@ impl Component for ReadingView<'_> {
         let (column, gap, reach) = (self.column_width(scale), cx.style.gap, cx.style.reach);
         let viewport = reading_viewport(rect, column, gap, scale);
         for (at, shape) in Self::turn_rects(rect, viewport, column, gap, reach).into_iter().enumerate() {
-            cx.part(TURN.at(at), shape).sense(Sense::CLICK | Sense::DRAG).pointer_only("the arrow keys, Page keys and Space turn the screen");
+            cx.part(TURN.at(at as u64), shape).sense(Sense::CLICK | Sense::DRAG).pointer_only("the arrow keys, Page keys and Space turn the screen");
         }
     }
 
@@ -334,7 +334,7 @@ impl Component for ReadingView<'_> {
         for (at, shape) in Self::turn_rects(cx.rect, viewport, column, gap, reach).into_iter().enumerate() {
             let forward = Self::forward_at(shape.center().x, viewport.center().x, rtl);
             let word = if forward { &words.next } else { &words.previous };
-            let node = access.node(TURN.at(at), Role::BUTTON);
+            let node = access.node(TURN.at(at as u64), Role::BUTTON);
             node.name = Name::Text(cx.env.resolve(word).as_str().to_owned());
             node.bounds(shape);
         }
@@ -359,7 +359,7 @@ impl Component for ReadingView<'_> {
         let viewport = reading_viewport(cx.rect, column, cx.style.gap, Self::screen_scale(self.zoom));
         let parts = Self::turn_rects(cx.rect, viewport, column, cx.style.gap, cx.style.reach).len();
         for at in 0..parts {
-            let part = TURN.at(at);
+            let part = TURN.at(at as u64);
             match (cx.part_activated(part), cx.part(part).press.phase) {
                 (Some(FireSource::Pointer), PressPhase::Release { pos, .. }) => {
                     turn += if Self::forward_at(pos.x, viewport.center().x, rtl) { 1 } else { -1 };
