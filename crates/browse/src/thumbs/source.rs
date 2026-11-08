@@ -234,11 +234,11 @@ pub struct KeyedFileThumbs<'a, F> {
 }
 
 impl<K, F: Fn(&K) -> Option<FileThumbKey>> ThumbSource<K> for KeyedFileThumbs<'_, F> {
-    /// The located key's revision; `Revision(0)` when `locate` gives `None`.
+    /// The located key's revision; `Revision::new(0)` when `locate` gives `None`.
     fn revision(&self, key: &K, request: &ThumbRequest) -> Revision {
         match (self.locate)(key) {
             Some(file) => self.source.revision(&file, request),
-            None => Revision(0),
+            None => Revision::new(0),
         }
     }
 
