@@ -563,7 +563,7 @@ name = "ColorReadout"
 old = "craft_color::ui::ColorReadout"
 new = "craft_color::ui::ColorReadout"
 status = "same"
-note = "A pattern: `ColorReadout::new(label, Bind<Rgba>)` shows a private container; the output is `ColorReadoutOutput { response, event }`; the names are `ColorReadoutWords`."
+note = "A pattern: `ColorReadout::new(label, Bind<Rgba>)` shows a private container; the output is `ColorReadoutOutput { response, event }`; the names are `ColorReadoutWords`. `.shared_channels([Mixed<u8>; 3])` takes the channels (R, G, B) that are the same in every item while the value is mixed, computed by the host; a channel field shows its shared number and the others show Mixed."
 
 [[type]]
 name = "ColorReadoutOutput"
