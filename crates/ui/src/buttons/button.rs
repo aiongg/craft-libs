@@ -1,7 +1,7 @@
 //! `Button`: a push button with an optional leading and trailing icon and a busy state.
 
 use super::face::{self, FaceLook, FaceSpec};
-use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, PartsCx, Pointer as _, Props, Role};
+use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, PartsCx, Pointer as _, Props, Role, Styled as _};
 use crate::display::Spinner;
 use crate::primitives::{IconSpec, PaintShape};
 use crate::runtime::commands::CommandRef;
