@@ -12,6 +12,7 @@ use craft_automation::server;
 use craft_automation::synthetic::{Click, KeyPress, move_from_params};
 use craft_behavior::PointerButton;
 use craft_keymap::Key;
+use craft_ui::runtime::motion;
 use craft_ui::runtime::windows::WindowHost;
 use craft_ui::testing::trial;
 use egui::{Context, ViewportId};
@@ -25,7 +26,7 @@ fn deadlines_distinguish_expired_from_timed_out() {
     let mut channel = ControlChannel::new(rx);
 
     let (mut stale, stale_reply) = ControlRequest::new("ui.inspect", json!({}));
-    stale.deadline = Some(Instant::now() - Duration::from_secs(1));
+    stale.deadline = Some(motion::now() - Duration::from_secs(1));
     let stale_dispatch = stale.dispatch.clone();
     let (live, _live_reply) = ControlRequest::new("ui.key", json!({}));
     let live_dispatch = live.dispatch.clone();
@@ -106,23 +107,16 @@ fn cancel_input_fails_waiters_without_queued_input() {
 fn settle_refuses_a_screenshot_over_budget_and_finishes_the_others() {
     let (_tx, rx) = channel();
     let mut control = ControlChannel::new(rx);
-    control.captures.note_geometry(CaptureGeometry {
-        size_points: [12_000.0, 12_000.0],
-        pixels_per_point: 1.0,
-        zoom: 1.0,
-        max_texture_side: 16384,
-        minimized: false,
-        document: None,
-    });
+    control.captures.note_geometry(CaptureGeometry::new([12_000.0, 12_000.0], 16384));
     let (req, reply) = ControlRequest::new("ui.screenshot", json!({}));
-    control.settle(req, Reply::Screenshot { token: 1, path: None }, None, 0.0);
+    control.settle(req, Reply::screenshot(1, None), None, 0.0);
     let refused = reply.try_recv().expect("refused at once");
     assert_eq!(refused["ok"], false);
     assert!(refused["error"].as_str().expect("an error").contains("per-image limit"), "{refused}");
     assert_eq!(control.waiting(), 0);
 
     let (tx, done) = channel::<ControlResponse>();
-    let finished = vec![Finished { token: 2, path: None, reply: Some(tx), result: Err("capture failed".into()) }];
+    let finished = vec![Finished::new(2, None, Some(tx), Err("capture failed".into()))];
     control.finish_captures(finished, &mut |_, _| Ok(()));
     assert_eq!(done.try_recv().expect("a reply"), json!({"ok": false, "error": "capture failed"}));
 }
@@ -177,7 +171,7 @@ fn an_unauthenticated_connection_is_closed_at_the_deadline_whatever_it_sends() {
     let (rx, addr) = server::start(0, TOKEN.into(), host()).expect("started");
     // Blank lines and partial frames, one byte every 20 ms: each read succeeds long before the idle timeout.
     let mut stream = TcpStream::connect(addr).expect("connected");
-    let started = Instant::now();
+    let started = motion::now();
     let mut closed = false;
     for i in 0..1000 {
         let byte: &[u8] = if i % 5 == 0 { b"\n" } else { b" " };
@@ -215,7 +209,7 @@ fn an_over_long_request_is_refused_and_closes_the_connection() {
 #[trial]
 fn input_parameters_are_validated() {
     let click = Click::from_params(&json!({"x": 3, "y": 4, "button": "secondary", "count": 2})).expect("a click");
-    assert_eq!(click, Click { at: egui::pos2(3.0, 4.0), button: PointerButton::Secondary, count: 2 });
+    assert_eq!((click.at, click.button, click.count), (egui::pos2(3.0, 4.0), PointerButton::Secondary, 2));
     assert_eq!(Click::from_params(&json!({})).expect("a click").count, 1);
     assert_eq!(Click::from_params(&json!({"count": 257})).unwrap_err(), "`count` must be at most 256 (got 257)");
     assert!(Click::from_params(&json!({"z": 1})).unwrap_err().starts_with("unknown field `z`"));

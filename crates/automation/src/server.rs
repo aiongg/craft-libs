@@ -6,6 +6,7 @@ use std::sync::Arc;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::{Duration, Instant};
 
+use craft_ui::runtime::motion;
 use craft_ui::runtime::windows::WindowHost;
 use egui::ViewportId;
 use serde_json::{Value, json};
@@ -95,7 +96,7 @@ fn serve(stream: TcpStream, token: &str, tx: &Sender<ControlRequest>, host: &Win
                 let id = msg.get("id").cloned().unwrap_or(Value::Null);
                 let method = msg.get("method").and_then(Value::as_str).unwrap_or("").to_string();
                 let params = msg.get("params").cloned().unwrap_or(json!({}));
-                let deadline = Instant::now() + REPLY_DEADLINE;
+                let deadline = motion::now() + REPLY_DEADLINE;
                 let (mut req, rrx) = ControlRequest::new(method, params);
                 req.deadline = Some(deadline);
                 let dispatch = req.dispatch.clone();
@@ -104,7 +105,7 @@ fn serve(stream: TcpStream, token: &str, tx: &Sender<ControlRequest>, host: &Win
                 }
                 host.repaint_in(ViewportId::ROOT, -1.0);
                 let mut r = rrx
-                    .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+                    .recv_timeout(deadline.saturating_duration_since(motion::now()))
                     .unwrap_or_else(|_| json!({"ok": false, "error": dispatch.give_up()}));
                 if let Some(o) = r.as_object_mut() {
                     o.insert("id".into(), id);

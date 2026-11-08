@@ -33,7 +33,7 @@ fn params_errors_name_the_field() {
     {
         let grouped = json!({"modifiers": {"shift": true, "ctrl": true}, "alt": true});
         let m = Params(&grouped).modifiers(&KEY_MODIFIERS).unwrap();
-        assert!(m.shift && m.ctrl && !m.alt);
+        assert!(m.shift && (m.cmd || m.ctrl) && !m.alt);
         let bad = json!({"modifiers": {"shift": "yes"}});
         assert_eq!(Params(&bad).modifiers(&KEY_MODIFIERS).unwrap_err(), "modifiers.shift must be a boolean");
         let space = json!({"modifiers": {"space": true}});

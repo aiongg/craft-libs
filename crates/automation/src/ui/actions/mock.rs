@@ -11,6 +11,7 @@ use crate::actions::{Action, ActionList, ActionStep, ActionsFile};
 /// `command_prefix` and the id), the recording and its pending steps, the playing flag and
 /// shortcuts by action name.
 #[derive(Clone, Debug, Default)]
+#[non_exhaustive]
 pub struct FakeActionsHost {
     /// Step labels by command id.
     pub step_labels: BTreeMap<String, String>,
@@ -24,6 +25,13 @@ pub struct FakeActionsHost {
     pub playing: bool,
     /// Shortcuts by action name.
     pub shortcuts: BTreeMap<String, ShortcutChoice>,
+}
+
+impl FakeActionsHost {
+    /// A host whose labels for commands without one start with `prefix`.
+    pub fn prefixed(prefix: impl Into<String>) -> Self {
+        Self { command_prefix: prefix.into(), ..Self::default() }
+    }
 }
 
 impl ActionsHost for FakeActionsHost {

@@ -16,6 +16,7 @@
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::Instant;
 
+use craft_ui::runtime::motion;
 use craft_ui::runtime::windows::WindowHost;
 use serde_json::{Value, json};
 
@@ -49,6 +50,7 @@ pub fn expired_error() -> String {
 }
 
 /// One request from a transport, with where its reply goes.
+#[non_exhaustive]
 pub struct ControlRequest {
     /// The method name, such as `ui.click`.
     pub method: String,
@@ -71,7 +73,7 @@ impl ControlRequest {
 
     /// `self` with its deadline [`REPLY_DEADLINE`] from now.
     pub fn with_deadline(mut self) -> Self {
-        self.deadline = Some(Instant::now() + REPLY_DEADLINE);
+        self.deadline = Some(motion::now() + REPLY_DEADLINE);
         self
     }
 }
@@ -105,11 +107,13 @@ impl Dispatch {
 }
 
 /// What the app's method table answers for one request.
+#[non_exhaustive]
 pub enum Reply {
     /// Reply with this JSON now.
     Done(Value),
     /// A `ui.screenshot`: admit `token` to the queue; `path` is where the app's write authority
     /// puts the PNG, `None` inlines it as base64 in the reply.
+    #[non_exhaustive]
     Screenshot {
         /// Identifies the capture; must differ from every pending token.
         token: u64,
@@ -124,6 +128,11 @@ pub enum Reply {
 }
 
 impl Reply {
+    /// A `ui.screenshot` reply for `token`, writing the PNG to `path` or inlining it when `None`.
+    pub fn screenshot(token: u64, path: Option<String>) -> Self {
+        Self::Screenshot { token, path }
+    }
+
     /// `Done` with an `ok` or `error` reply from a method's result.
     pub fn from_result(r: Result<Value, String>) -> Self {
         match r {
@@ -139,6 +148,7 @@ impl Reply {
 /// in the logic phase; [`Self::input_processed`] after the pass that consumed the injected
 /// input; [`Self::job_finished`] when a job ends; [`Self::captures`] driven by the app's UI and
 /// logic phases as `screenshot` documents.
+#[non_exhaustive]
 pub struct ControlChannel {
     rx: Receiver<ControlRequest>,
     input_waiters: Vec<Sender<ControlResponse>>,
@@ -158,7 +168,7 @@ impl ControlChannel {
     /// empty this frame.
     pub fn next_request(&mut self) -> Option<ControlRequest> {
         while let Ok(req) = self.rx.try_recv() {
-            if req.deadline.is_some_and(|deadline| Instant::now() >= deadline) || !req.dispatch.start() {
+            if req.deadline.is_some_and(|deadline| motion::now() >= deadline) || !req.dispatch.start() {
                 let _ = req.reply.send(json!({"ok": false, "error": expired_error()}));
                 continue;
             }
@@ -179,7 +189,7 @@ impl ControlChannel {
             Reply::AfterInput => self.input_waiters.push(reply),
             Reply::AfterJob(job) => self.job_waiters.push((job, reply)),
             Reply::Screenshot { token, path } => {
-                if let Err((reply, e)) = self.captures.admit(token, path, reply, document, settle_ms, Instant::now()) {
+                if let Err((reply, e)) = self.captures.admit(token, path, reply, document, settle_ms, motion::now()) {
                     let _ = reply.send(json!({"ok": false, "error": e}));
                 }
             }

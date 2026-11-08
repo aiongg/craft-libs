@@ -395,3 +395,105 @@ type = "server"
 old = "server::start(port, token, ctx: egui::Context)"
 new = "server::start(port, token, host: WindowHost)"
 note = "The server wakes the root window with `WindowHost::repaint_in`."
+
+[[setter]]
+type = "ActionsEvent"
+old = "ActionsEvent::Play { action, from } (struct literal)"
+new = "ActionsEvent::play(action, from)"
+note = "Struct-like variants are `#[non_exhaustive]`: build them with `play`, `begin_recording`, `rename`, `set_color`, `assign_shortcut` and `save`, and match them with `..`."
+
+[[setter]]
+type = "ActionPlace"
+old = "ActionPlace::Action { index, set } (struct literal)"
+new = "ActionPlace::action(index, set)"
+note = "The struct-like variants are `#[non_exhaustive]`: `ActionPlace::action` and `ActionPlace::step` build them; match with `..`."
+
+[[setter]]
+type = "ActionMove"
+old = "ActionMove { row, place } (struct literal)"
+new = ""
+note = "`#[non_exhaustive]`: the panel builds it; read `row` and `place`, and match with `..`."
+
+[[setter]]
+type = "ActionsSettings"
+old = "ActionsSettings { button_mode, collapsed_sets } (struct literal)"
+new = "ActionsSettings::new(button_mode, collapsed_sets)"
+note = "`#[non_exhaustive]`; the fields stay public and persisted."
+
+[[setter]]
+type = "ActionsPanelState"
+old = "ActionsPanelState { .. } (struct literal)"
+new = "ActionsPanelState::default()"
+note = "`#[non_exhaustive]`: start from `default()` and set the public fields."
+
+[[setter]]
+type = "ActionSelection"
+old = "match on ActionSelection"
+new = "match on ActionSelection with a `_` arm"
+note = "`#[non_exhaustive]`."
+
+[[setter]]
+type = "ShortcutChoice"
+old = "ShortcutChoice { key, shift, command } (struct literal)"
+new = "ShortcutChoice::new(key, shift, command)"
+note = "`#[non_exhaustive]`."
+
+[[setter]]
+type = "FakeActionsHost"
+old = "FakeActionsHost { command_prefix, .. } (struct literal)"
+new = "FakeActionsHost::prefixed(prefix)"
+note = "`#[non_exhaustive]`: `default()` plus field writes, or `prefixed`."
+
+[[setter]]
+type = "ControlRequest"
+old = "ControlRequest { .. } (struct literal)"
+new = "ControlRequest::new(method, params)"
+note = "`#[non_exhaustive]`; `deadline` stays a public field."
+
+[[setter]]
+type = "Reply"
+old = "Reply::Screenshot { token, path } (struct literal)"
+new = "Reply::screenshot(token, path)"
+note = "`Reply` and its `Screenshot` variant are `#[non_exhaustive]`."
+
+[[setter]]
+type = "ControlChannel"
+old = "ControlChannel { .. } (struct literal)"
+new = "ControlChannel::new(rx)"
+note = "`#[non_exhaustive]`."
+
+[[setter]]
+type = "DocumentId"
+old = "DocumentId { generation, revision } (struct literal)"
+new = "DocumentId::new(generation, revision)"
+note = "`#[non_exhaustive]`."
+
+[[setter]]
+type = "CaptureGeometry"
+old = "CaptureGeometry { .. } (struct literal)"
+new = "CaptureGeometry::new(size_points, max_texture_side)"
+note = "`#[non_exhaustive]`: `from_facts` builds it from the window's facts; `new` gives an unzoomed visible viewport at one pixel per point."
+
+[[setter]]
+type = "Finished"
+old = "Finished { token, path, reply, result } (struct literal)"
+new = "Finished::new(token, path, reply, result)"
+note = "`#[non_exhaustive]`."
+
+[[setter]]
+type = "Click"
+old = "Click { at, button, count } (struct literal)"
+new = "Click::from_params(params)"
+note = "`#[non_exhaustive]`."
+
+[[setter]]
+type = "KeyPress"
+old = "KeyPress { key, mods } (struct literal)"
+new = "KeyPress::from_params(params)"
+note = "`#[non_exhaustive]`."
+
+[[setter]]
+type = "Params"
+old = "Params::modifiers(flags) -> egui::Modifiers"
+new = "Params::modifiers(flags) -> craft_keymap::Mods"
+note = "The modifiers as the platform sees them (`Mods::effective`): off the Mac `ctrl` folds into `cmd`."

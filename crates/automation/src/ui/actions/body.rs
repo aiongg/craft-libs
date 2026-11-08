@@ -6,7 +6,7 @@ use craft_theme::variant::Tone;
 use craft_ui::buttons::Button;
 use craft_ui::contract::{
     Bind, CollectionEvent, ColumnKind, ColumnSpec, ListDrag, OpenChange, Outcome as _, Props as _, ReorderMove, ReorderRule, Scroll, SelectMode,
-    Show as _, ShowCollection as _, ShowContainer as _, ToggleColumn, request_rename,
+    Show as _, ShowCollection as _, ShowContainer as _, ToggleColumn, clicked, request_rename,
 };
 use craft_ui::display::Text;
 use craft_ui::layout_components::{Row, Stack};
@@ -39,6 +39,7 @@ pub(super) struct Body<'a> {
 #[non_exhaustive]
 pub enum ActionPlace {
     /// An action dropped at list index `index` (after its removal), into `set` (`None`: loose).
+    #[non_exhaustive]
     Action {
         /// The index in [`ActionList::actions`] after the removal.
         index: usize,
@@ -46,12 +47,25 @@ pub enum ActionPlace {
         set: Option<String>,
     },
     /// A step dropped at position `index` of action `action`.
+    #[non_exhaustive]
     Step {
         /// The action it lands in.
         action: usize,
         /// The position after the removal.
         index: usize,
     },
+}
+
+impl ActionPlace {
+    /// An action dropped at list index `index` (after its removal), into `set` (`None`: loose).
+    pub fn action(index: usize, set: Option<String>) -> Self {
+        Self::Action { index, set }
+    }
+
+    /// A step dropped at position `index` of action `action`.
+    pub fn step(action: usize, index: usize) -> Self {
+        Self::Step { action, index }
+    }
 }
 
 /// A row moved by a drag or by key.
@@ -107,7 +121,7 @@ fn show_buttons(ui: &mut Ui, body: &Body<'_>) -> BodyOutput {
                         button = button.tint(color.fill());
                     }
                     let response = button.show(ui);
-                    if response.clicked() && !response.double_clicked() && !response.triple_clicked() {
+                    if clicked(&response) && !response.double_clicked() && !response.triple_clicked() {
                         events.push(ActionsEvent::Play { action: index, from: 0 });
                     }
                 }

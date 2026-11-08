@@ -3,6 +3,7 @@
 use std::cell::RefCell;
 use std::collections::BTreeSet;
 
+use craft_keymap::Platform;
 use craft_ui::contract::{NoValue, Outcome, ShowContainer as _};
 use craft_ui::layout_components::Stack;
 use craft_ui::list::ListWords;
@@ -50,10 +51,18 @@ pub trait ActionsHost {
     }
 }
 
+impl ActionsSettings {
+    /// Settings with Button Mode `button_mode` and `collapsed_sets` shown collapsed.
+    pub fn new(button_mode: bool, collapsed_sets: Vec<String>) -> Self {
+        Self { button_mode, collapsed_sets }
+    }
+}
+
 /// The Actions panel's persisted section: Button Mode and the collapsed sets.
 /// Selection and expansion are not persisted.
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct ActionsSettings {
     /// Button Mode: each action is a coloured button that plays it.
     pub button_mode: bool,
@@ -64,6 +73,7 @@ pub struct ActionsSettings {
 /// A row of the tree: a set header, an action or one of its steps. Also the selection (one row at
 /// a time) and the list's key.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ActionSelection {
     /// The set header of this name.
     Set(String),
@@ -80,6 +90,7 @@ pub enum ActionSelection {
 /// that moves a row, since it owns the selection. After a [`Delete`](ActionsEvent::Delete) the
 /// app clears `selected` (the panel cannot tell which rows the delete removed).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ActionsPanelState {
     /// The persisted section.
     pub settings: ActionsSettings,
@@ -91,6 +102,7 @@ pub struct ActionsPanelState {
 
 /// A function-key shortcut chosen in the context menu (Photoshop's Action Options).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct ShortcutChoice {
     /// F1 to F12: 1..=12.
     pub key: u8,
@@ -101,10 +113,15 @@ pub struct ShortcutChoice {
 }
 
 impl ShortcutChoice {
+    /// Function key `key` (1 to 12) with the given modifiers.
+    pub const fn new(key: u8, shift: bool, command: bool) -> Self {
+        Self { key, shift, command }
+    }
+
     /// The shortcut as a row shows it: "F2" and "⇧⌘F3" on macOS, "Ctrl+Shift+F3" elsewhere.
     pub fn text(&self) -> String {
         let (shift, command) = (self.shift, self.command);
-        if cfg!(target_os = "macos") {
+        if Platform::current().is_mac() {
             format!("{}{}F{}", if shift { "⇧" } else { "" }, if command { "⌘" } else { "" }, self.key)
         } else {
             format!("{}{}F{}", if command { "Ctrl+" } else { "" }, if shift { "Shift+" } else { "" }, self.key)
@@ -118,6 +135,7 @@ impl ShortcutChoice {
 #[non_exhaustive]
 pub enum ActionsEvent {
     /// Play `action` from step `from` (0 for the whole action).
+    #[non_exhaustive]
     Play {
         /// The action.
         action: usize,
@@ -126,6 +144,7 @@ pub enum ActionsEvent {
     },
     /// Start recording into `into`, or into a new action when `None` (New Action…, Create new
     /// action).
+    #[non_exhaustive]
     BeginRecording {
         /// The action to record into.
         into: Option<usize>,
@@ -142,6 +161,7 @@ pub enum ActionsEvent {
     /// its actions, the app confirms).
     Delete(ActionSelection),
     /// An in-place rename ended with `text` ([`ActionList::rename`]).
+    #[non_exhaustive]
     Rename {
         /// The action.
         action: usize,
@@ -158,6 +178,7 @@ pub enum ActionsEvent {
     /// [`DIALOG_COLUMN`](super::DIALOG_COLUMN) of a step row is [`ActionList::set_dialog`].
     Toggle(craft_behavior::EditEvent<craft_ui::contract::ToggleEdit<ActionSelection>>),
     /// The context menu's Color ([`ActionList::set_color`]).
+    #[non_exhaustive]
     SetColor {
         /// The action.
         action: usize,
@@ -165,6 +186,7 @@ pub enum ActionsEvent {
         color: ActionColor,
     },
     /// The context menu's Keyboard Shortcuts: a key with its modifiers, or `None` to remove it.
+    #[non_exhaustive]
     AssignShortcut {
         /// The action.
         action: usize,
@@ -178,10 +200,43 @@ pub enum ActionsEvent {
     /// Load Actions… (the app's file dialog).
     Load,
     /// Save Actions…, or Save Set… for one set.
+    #[non_exhaustive]
     Save {
         /// The set; `None` for every action.
         set: Option<String>,
     },
+}
+
+impl ActionsEvent {
+    /// Play `action` from step `from`.
+    pub fn play(action: usize, from: usize) -> Self {
+        Self::Play { action, from }
+    }
+
+    /// Start recording into `into`, or into a new action when `None`.
+    pub fn begin_recording(into: Option<usize>) -> Self {
+        Self::BeginRecording { into }
+    }
+
+    /// An in-place rename of `action` ended with `text`.
+    pub fn rename(action: usize, text: impl Into<String>) -> Self {
+        Self::Rename { action, text: text.into() }
+    }
+
+    /// The context menu's Color for `action`.
+    pub fn set_color(action: usize, color: ActionColor) -> Self {
+        Self::SetColor { action, color }
+    }
+
+    /// The context menu's Keyboard Shortcuts for `action`: `choice`, or `None` to remove it.
+    pub fn assign_shortcut(action: usize, choice: Option<ShortcutChoice>) -> Self {
+        Self::AssignShortcut { action, choice }
+    }
+
+    /// Save Actions… (`None`) or Save Set… for `set`.
+    pub fn save(set: Option<String>) -> Self {
+        Self::Save { set }
+    }
 }
 
 /// What [`ActionsPanel::show`] returns.
@@ -224,9 +279,9 @@ pub(super) struct Session {
 /// let out = ActionsPanel::new(&mut ui_state.actions, &app.actions).host(&app_host).show(ui);
 /// for event in out.events {
 ///     match event {
-///         ActionsEvent::Play { action, from } => app.play(action, from),
-///         ActionsEvent::BeginRecording { into } => app.record(into),
-///         ActionsEvent::Rename { action, text } => { app.actions.rename(action, &text, |_, _, _| {})?; }
+///         ActionsEvent::Play { action, from, .. } => app.play(action, from),
+///         ActionsEvent::BeginRecording { into, .. } => app.record(into),
+///         ActionsEvent::Rename { action, text, .. } => { app.actions.rename(action, &text, |_, _, _| {})?; }
 ///         _ => app.run_action_event(event),
 ///     }
 /// }

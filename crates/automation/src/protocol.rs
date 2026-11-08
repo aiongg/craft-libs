@@ -202,11 +202,11 @@ impl Params<'_> {
 
     /// The modifier flags, top-level or grouped under `modifiers` (an object of the `flags`
     /// only, each a bool, errors prefixed `modifiers.`). When grouped, the top-level flags are
-    /// ignored but still type-checked. Off the Mac `ctrl` and `command` carry the same value, as
-    /// egui expects (`egui::Modifiers::command`), so a request that sets only one reaches the
-    /// same shortcuts as a real Ctrl press; on the Mac they stay apart.
+    /// ignored but still type-checked. The result is as the platform sees it
+    /// ([`craft_keymap::Mods::effective`]): off the Mac `ctrl` folds into `cmd`, so a request that
+    /// sets only one reaches the same shortcuts as a real Ctrl press; on the Mac they stay apart.
     #[cfg(feature = "ui")]
-    pub fn modifiers(&self, flags: &[&str]) -> Result<egui::Modifiers, String> {
+    pub fn modifiers(&self, flags: &[&str]) -> Result<craft_keymap::Mods, String> {
         for flag in flags {
             self.bool_field(flag)?;
         }
@@ -222,16 +222,8 @@ impl Params<'_> {
         };
         let m = grouped.as_ref().unwrap_or(self.0);
         let flag = |k: &str| m.get(k).and_then(Value::as_bool).unwrap_or(false);
-        let (ctrl, command) = (flag("ctrl"), flag("command"));
-        // Off the Mac, Ctrl is the shortcut key and egui wants `ctrl` and `command` to carry the same
-        // value, as a real Ctrl press delivers; on the Mac they are different keys.
-        Ok(egui::Modifiers {
-            shift: flag("shift"),
-            alt: flag("alt"),
-            command: if cfg!(target_os = "macos") { command } else { command || ctrl },
-            mac_cmd: cfg!(target_os = "macos") && command,
-            ctrl: if cfg!(target_os = "macos") { ctrl } else { command || ctrl },
-        })
+        let held = craft_keymap::Mods { cmd: flag("command"), ctrl: flag("ctrl"), alt: flag("alt"), shift: flag("shift") };
+        Ok(held.effective(craft_keymap::Platform::current()))
     }
 
     /// Deserialize `T` from the whole object, replacing `current`. A key `current` doesn't have

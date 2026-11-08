@@ -33,6 +33,7 @@ fn coordinates(p: &Params<'_>) -> Result<(f32, f32), String> {
 
 /// A validated `ui.click`.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct Click {
     /// Target position in points.
     pub at: Pos2,
@@ -79,6 +80,7 @@ pub fn move_from_params(params: &Value) -> Result<Pos2, String> {
 
 /// A validated `ui.key`: a key name (`Enter`, `A`, `F5`) with modifiers.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct KeyPress {
     /// The key pressed.
     pub key: Key,
@@ -95,8 +97,7 @@ impl KeyPress {
         let p = Params(&p);
         let Some(name) = p.choice("key", "key", &[])? else { return Err("missing `key`".into()) };
         let key = Key::parse(name).ok_or_else(|| format!("unknown key `{name}`"))?;
-        let held = p.modifiers(&KEY_MODIFIERS)?;
-        Ok(Self { key, mods: Mods { cmd: held.command, ctrl: cfg!(target_os = "macos") && held.ctrl, alt: held.alt, shift: held.shift } })
+        Ok(Self { key, mods: p.modifiers(&KEY_MODIFIERS)? })
     }
 
     /// Queues the key pressed and released with its modifiers held, in `viewport`.

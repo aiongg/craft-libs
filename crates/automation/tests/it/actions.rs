@@ -10,6 +10,7 @@ use craft_automation::ui::actions::{
     ShortcutChoice,
 };
 use craft_behavior::{EditEvent, Mixed};
+use craft_keymap::Platform;
 use craft_ui::contract::Role;
 use craft_ui::testing::{Fixture, Target, pointer, trial};
 use egui::{Key, Modifiers, Pos2, Ui, Vec2};
@@ -36,7 +37,7 @@ fn app(list: ActionList) -> App {
     App {
         state: ActionsPanelState::default(),
         list,
-        host: FakeActionsHost { command_prefix: "Run ".to_owned(), ..FakeActionsHost::default() },
+        host: FakeActionsHost::prefixed("Run "),
         events: Vec::new(),
         settings_changed: false,
         rename: None,
@@ -195,7 +196,7 @@ fn actions_panel_drag_reports_move() {
     drag_to(&mut fixture, from, to);
     assert_eq!(
         moves(&take(&shared)),
-        [(ActionSelection::Action(1), ActionPlace::Action { index: 0, set: None })],
+        [(ActionSelection::Action(1), ActionPlace::action(0, None))],
         "an action dropped above another takes its place"
     );
 
@@ -203,13 +204,13 @@ fn actions_panel_drag_reports_move() {
     drag_to(&mut fixture, from, to);
     assert_eq!(
         moves(&take(&shared)),
-        [(ActionSelection::Action(1), ActionPlace::Action { index: 1, set: Some("Effects".into()) })],
+        [(ActionSelection::Action(1), ActionPlace::action(1, Some("Effects".into())))],
         "dropped on a set it goes into it"
     );
 
     let (from, to) = (node(&fixture, "Run blur").center(), at(&node(&fixture, "Run levels"), 0.1));
     drag_to(&mut fixture, from, to);
-    assert_eq!(moves(&take(&shared)), [(ActionSelection::Step(0, 2), ActionPlace::Step { action: 0, index: 0 })], "a step dropped above another");
+    assert_eq!(moves(&take(&shared)), [(ActionSelection::Step(0, 2), ActionPlace::step(0, 0))], "a step dropped above another");
 }
 
 /// In Button Mode a click reports one `Play`, a double click no second one; the tree comes back while recording.
@@ -222,10 +223,10 @@ fn actions_panel_button_mode_plays_on_click_once() {
     let button = node(&fixture, "Vignette");
     fixture.click(&button);
     fixture.idle(2);
-    assert_eq!(take(&shared), [ActionsEvent::Play { action: 1, from: 0 }]);
+    assert_eq!(take(&shared), [ActionsEvent::play(1, 0)]);
     let glow = node(&fixture, "Glow").center();
     double_click(&mut fixture, glow);
-    assert_eq!(take(&shared), [ActionsEvent::Play { action: 2, from: 0 }], "a double click plays once");
+    assert_eq!(take(&shared), [ActionsEvent::play(2, 0)], "a double click plays once");
 
     shared.borrow_mut().host.recording = Some(0);
     fixture.idle(3);
@@ -235,6 +236,8 @@ fn actions_panel_button_mode_plays_on_click_once() {
 /// The recording action opens, shows its pending steps and scrolls its latest into view.
 #[trial]
 fn actions_panel_recording_row_expands_and_follows() {
+    // Edges snap to whole pixels, so a rectangle may overhang its neighbour by half a point.
+    const EDGE_SLACK: f32 = 0.5;
     let mut app = app(sample_list());
     app.host.recording = Some(0);
     app.host.pending = vec![step("pending-1"), step("pending-2")];
@@ -242,14 +245,14 @@ fn actions_panel_recording_row_expands_and_follows() {
     assert!(fixture.by_label("Sharpen, recording").is_some(), "the recording row says so");
     let footer = node(&fixture, "Delete").rect;
     let latest = node(&fixture, "Run pending-2").rect;
-    assert!(latest.bottom() <= footer.top() + 0.5, "the latest step is in view: {latest:?} above {footer:?}");
+    assert!(latest.bottom() <= footer.top() + EDGE_SLACK, "the latest step is in view: {latest:?} above {footer:?}");
     let below = fixture.by_label("Vignette").map(|target| target.rect);
-    assert!(below.is_none_or(|rect| rect.top() >= footer.top() - 0.5), "the rows below are scrolled away: {below:?}");
+    assert!(below.is_none_or(|rect| rect.top() >= footer.top() - EDGE_SLACK), "the rows below are scrolled away: {below:?}");
 
     shared.borrow_mut().host.pending.push(step("pending-3"));
     fixture.idle(3);
     let latest = node(&fixture, "Run pending-3").rect;
-    assert!(latest.bottom() <= footer.top() + 0.5, "a new step scrolls into view: {latest:?} above {footer:?}");
+    assert!(latest.bottom() <= footer.top() + EDGE_SLACK, "a new step scrolls into view: {latest:?} above {footer:?}");
 }
 
 /// An empty list shows the empty text; an empty set shows its header.
@@ -273,7 +276,7 @@ fn actions_panel_play_with_no_selection_plays_the_first() {
     let play = node(&fixture, "Play selection");
     fixture.click(&play);
     fixture.idle(2);
-    assert_eq!(take(&shared), [ActionsEvent::Play { action: 0, from: 0 }]);
+    assert_eq!(take(&shared), [ActionsEvent::play(0, 0)]);
 
     shared.borrow_mut().state.expanded.insert("Vignette".into());
     fixture.idle(3);
@@ -283,7 +286,7 @@ fn actions_panel_play_with_no_selection_plays_the_first() {
     take(&shared);
     fixture.click(&play);
     fixture.idle(2);
-    assert_eq!(take(&shared), [ActionsEvent::Play { action: 1, from: 1 }], "a selected step plays its action from that step");
+    assert_eq!(take(&shared), [ActionsEvent::play(1, 1)], "a selected step plays its action from that step");
 
     let delete = node(&fixture, "Delete");
     fixture.click(&delete);
@@ -334,12 +337,10 @@ fn actions_panel_record_button_shows_the_recording_and_ignores_the_click() {
 #[trial]
 fn actions_panel_context_menu_shortcut_and_color() {
     let mut app = app(sample_list());
-    app.host.shortcuts.insert("Sharpen".to_owned(), ShortcutChoice { key: 3, shift: false, command: false });
+    app.host.shortcuts.insert("Sharpen".to_owned(), ShortcutChoice::new(3, false, false));
     let (mut fixture, shared) = rig(app);
-    let assign = |action: usize, key: u8, shift: bool, command: bool| ActionsEvent::AssignShortcut {
-        action,
-        choice: Some(ShortcutChoice { key, shift, command }),
-    };
+    let assign =
+        |action: usize, key: u8, shift: bool, command: bool| ActionsEvent::assign_shortcut(action, Some(ShortcutChoice::new(key, shift, command)));
     let click = |fixture: &mut Fixture, label: &str| {
         let row = node(fixture, label);
         fixture.click(&row);
@@ -351,7 +352,7 @@ fn actions_panel_context_menu_shortcut_and_color() {
     context_click(&mut fixture, &row);
     click(&mut fixture, "Shift");
     assert_eq!(take(&shared), [assign(0, 3, true, false)]);
-    click(&mut fixture, if cfg!(target_os = "macos") { "Command" } else { "Ctrl" });
+    click(&mut fixture, if Platform::current().is_mac() { "Command" } else { "Ctrl" });
     assert_eq!(take(&shared), [assign(0, 3, true, true)]);
     fixture.key(Key::Escape, Modifiers::NONE);
     fixture.idle(3);
@@ -365,18 +366,18 @@ fn actions_panel_context_menu_shortcut_and_color() {
     let row = node(&fixture, "Vignette");
     context_click(&mut fixture, &row);
     click(&mut fixture, "None");
-    assert_eq!(take(&shared), [ActionsEvent::AssignShortcut { action: 1, choice: None }]);
+    assert_eq!(take(&shared), [ActionsEvent::assign_shortcut(1, None)]);
 
     let row = node(&fixture, "Vignette");
     context_click(&mut fixture, &row);
     click(&mut fixture, "Color");
     click(&mut fixture, "Red");
-    assert_eq!(take(&shared), [ActionsEvent::SetColor { action: 1, color: ActionColor::Red }]);
+    assert_eq!(take(&shared), [ActionsEvent::set_color(1, ActionColor::Red)]);
 
     let row = node(&fixture, "Effects");
     context_click(&mut fixture, &row);
     click(&mut fixture, "Save Set…");
-    assert_eq!(take(&shared), [ActionsEvent::Save { set: Some("Effects".to_owned()) }]);
+    assert_eq!(take(&shared), [ActionsEvent::save(Some("Effects".to_owned()))]);
 }
 
 /// Reopening the menu on the same row starts from the host's shortcut again: its key is marked and Shift
@@ -384,7 +385,7 @@ fn actions_panel_context_menu_shortcut_and_color() {
 #[trial]
 fn actions_panel_context_menu_reopens_from_the_hosts_shortcut() {
     let mut app = app(sample_list());
-    app.host.shortcuts.insert("Sharpen".to_owned(), ShortcutChoice { key: 3, shift: false, command: false });
+    app.host.shortcuts.insert("Sharpen".to_owned(), ShortcutChoice::new(3, false, false));
     let (mut fixture, shared) = rig(app);
     for _ in 0..2 {
         let row = node(&fixture, "Sharpen");
@@ -410,7 +411,7 @@ fn actions_panel_drop_before_a_later_set_lands_at_the_end_of_the_previous_set() 
     drag_to(&mut fixture, from, to);
     assert_eq!(
         moves(&take(&shared)),
-        [(ActionSelection::Action(0), ActionPlace::Action { index: 1, set: Some("Alpha".into()) })],
+        [(ActionSelection::Action(0), ActionPlace::action(1, Some("Alpha".into())))],
         "the drop line sits under Alpha's last action"
     );
 
@@ -418,7 +419,7 @@ fn actions_panel_drop_before_a_later_set_lands_at_the_end_of_the_previous_set() 
     drag_to(&mut fixture, from, to);
     assert_eq!(
         moves(&take(&shared)),
-        [(ActionSelection::Action(2), ActionPlace::Action { index: 1, set: None })],
+        [(ActionSelection::Action(2), ActionPlace::action(1, None))],
         "before the first set the action is loose, after the last loose one"
     );
 }
@@ -482,7 +483,9 @@ fn actions_panel_start_rename_opens_the_field() {
     fixture.key(Key::Enter, Modifiers::NONE);
     fixture.idle(2);
     assert!(
-        take(&shared).iter().any(|event| matches!(event, ActionsEvent::Rename { action: 1, text } if text.starts_with('V') || text.ends_with('X')))
+        take(&shared)
+            .iter()
+            .any(|event| matches!(event, ActionsEvent::Rename { action: 1, text, .. } if text.starts_with('V') || text.ends_with('X')))
     );
 }
 
@@ -509,13 +512,13 @@ fn actions_panel_delete_refuses_a_dropped_action_while_recording() {
 /// `ActionsSettings` round-trips through JSON in camelCase and ignores other apps' extra fields.
 #[trial]
 fn actions_settings_survive_a_serde_round_trip() {
-    let settings = ActionsSettings { button_mode: true, collapsed_sets: vec!["Effects".into(), "Old".into()] };
+    let settings = ActionsSettings::new(true, vec!["Effects".into(), "Old".into()]);
     let text = serde_json::to_string(&settings).expect("serialized");
     assert_eq!(text, r#"{"buttonMode":true,"collapsedSets":["Effects","Old"]}"#);
     assert_eq!(serde_json::from_str::<ActionsSettings>(&text).expect("read back"), settings);
 
     let foreign = r#"{"buttonMode":true,"selected":"Sharpen","selectedStep":2,"expanded":["Sharpen"],"collapsedSets":["Effects"]}"#;
     let read: ActionsSettings = serde_json::from_str(foreign).expect("read");
-    assert_eq!(read, ActionsSettings { button_mode: true, collapsed_sets: vec!["Effects".into()] });
+    assert_eq!(read, ActionsSettings::new(true, vec!["Effects".into()]));
     assert_eq!(serde_json::from_str::<ActionsSettings>("{}").expect("read"), ActionsSettings::default());
 }

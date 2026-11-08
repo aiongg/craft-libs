@@ -1,5 +1,6 @@
 //! The panel menu's commands and the row context menus (Keyboard Shortcuts, Color; Save Set…).
 
+use craft_keymap::Platform;
 use craft_ui::contract::{CommandSet, ContextMenuRequest, Props as _, Show as _, ShowContainer as _};
 use craft_ui::display::Divider;
 use craft_ui::list::label_color_label;
@@ -239,7 +240,7 @@ pub(super) fn show_menu(ui: &mut Ui, body: &Body<'_>, opener: &Response, session
                     shortcut.shift = !shortcut.shift;
                     events.push(ActionsEvent::AssignShortcut { action, choice: shortcut.choice() });
                 }
-                let modifier = if cfg!(target_os = "macos") { &words.command } else { &words.ctrl };
+                let modifier = if Platform::current().is_mac() { &words.command } else { &words.ctrl };
                 if MenuItem::new(modifier.clone()).check(shortcut.command).keep_open(true).enabled(has_key).show(ui).ran {
                     shortcut.command = !shortcut.command;
                     events.push(ActionsEvent::AssignShortcut { action, choice: shortcut.choice() });

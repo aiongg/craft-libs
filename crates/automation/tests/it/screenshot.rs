@@ -6,12 +6,13 @@ use std::time::Instant;
 
 use craft_automation::control::ControlResponse;
 use craft_automation::screenshot::{CaptureGeometry, Captures, MAX_PENDING, MAX_RETRIES, SETTLE_PASSES, screenshot_reply};
+use craft_ui::runtime::motion;
 use craft_ui::runtime::windows::WindowHost;
 use craft_ui::testing::trial;
 use egui::{Color32, ColorImage, Context, ScreenshotCallback, ViewportCommand, ViewportId};
 
 fn geometry(width: f32, height: f32) -> CaptureGeometry {
-    CaptureGeometry { size_points: [width, height], pixels_per_point: 1.0, zoom: 1.0, max_texture_side: 16384, minimized: false, document: None }
+    CaptureGeometry::new([width, height], 16384)
 }
 
 fn admit(captures: &mut Captures, token: u64, now: Instant) -> Result<Receiver<ControlResponse>, String> {
@@ -21,7 +22,7 @@ fn admit(captures: &mut Captures, token: u64, now: Instant) -> Result<Receiver<C
 
 fn image(geometry: &CaptureGeometry) -> Arc<ColorImage> {
     let [w, h] = geometry.expected_pixels().expect("a capturable geometry");
-    Arc::new(ColorImage::filled([w, h], Color32::WHITE))
+    Arc::new(ColorImage::filled([w, h], Color32::from_rgb(240, 240, 240)))
 }
 
 /// Settles and issues the one request through the context's window host, and returns the callback of
@@ -50,7 +51,7 @@ fn issue_one(captures: &mut Captures, ctx: &Context, now: Instant) -> Screenshot
 /// More than `MAX_PENDING` or over the byte budgets is refused with the reply sender returned.
 #[trial]
 fn admission_budget_refuses_excess() {
-    let now = Instant::now();
+    let now = motion::now();
     let mut captures = Captures::default();
     captures.note_geometry(geometry(100.0, 100.0));
     let _keep: Vec<_> = (0..MAX_PENDING as u64).map(|token| admit(&mut captures, token, now).expect("admitted")).collect();
@@ -73,7 +74,7 @@ fn admission_budget_refuses_excess() {
 #[trial]
 fn geometry_change_in_flight_retries() {
     let ctx = Context::default();
-    let now = Instant::now();
+    let now = motion::now();
     let mut captures = Captures::default();
     captures.note_geometry(geometry(100.0, 80.0));
     let rx = admit(&mut captures, 7, now).expect("admitted");
@@ -99,7 +100,7 @@ fn geometry_change_in_flight_retries() {
 #[trial]
 fn early_request_waits_for_geometry() {
     let ctx = Context::default();
-    let now = Instant::now();
+    let now = motion::now();
     let mut captures = Captures::default();
     let _rx = admit(&mut captures, 1, now).expect("admitted");
     assert_eq!((captures.pending(), captures.any_unissued()), (1, true));
@@ -148,7 +149,7 @@ fn screenshot_reply_encodes_a_png_and_writes_it() {
     let failed = screenshot_reply(5, image, Some("../out.png"), &mut |_, _| Err("path is outside the workspace".into()));
     assert_eq!(failed, serde_json::json!({"ok": false, "error": "path is outside the workspace"}));
 
-    let huge = Arc::new(ColorImage::filled([8192, 4097], Color32::BLACK));
+    let huge = Arc::new(ColorImage::filled([8192, 4097], Color32::from_rgb(1, 2, 3)));
     let over = screenshot_reply(6, huge, None, &mut |_, _| Ok(()));
     assert!(over["error"].as_str().expect("an error").starts_with("screenshot 6 failed: the image exceeds the 128 MiB"), "{over}");
 }

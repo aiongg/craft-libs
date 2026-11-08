@@ -44,6 +44,7 @@ const BASE_SETTLE_MS: f64 = 60.0;
 /// switch away and back, so it is not a per-document counter. `revision` is recorded for
 /// attribution only.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct DocumentId {
     /// The app's active-document generation at admission.
     pub generation: u64,
@@ -52,6 +53,11 @@ pub struct DocumentId {
 }
 
 impl DocumentId {
+    /// The document of active-document `generation` at `revision`.
+    pub const fn new(generation: u64, revision: u64) -> Self {
+        Self { generation, revision }
+    }
+
     /// Whether both ids name the same active document (same `generation`).
     pub fn same_document(self, other: Self) -> bool {
         self.generation == other.generation
@@ -62,6 +68,7 @@ impl DocumentId {
 /// zoom, the texture side limit and whether the window is minimised. Window position is not part
 /// of it.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct CaptureGeometry {
     /// Viewport size in logical points, `[width, height]`.
     pub size_points: [f32; 2],
@@ -78,6 +85,11 @@ pub struct CaptureGeometry {
 }
 
 impl CaptureGeometry {
+    /// A visible, unzoomed viewport of `size_points` at one pixel per point, with no active document.
+    pub const fn new(size_points: [f32; 2], max_texture_side: usize) -> Self {
+        Self { size_points, pixels_per_point: 1.0, zoom: 1.0, max_texture_side, minimized: false, document: None }
+    }
+
     /// The geometry the window reported this pass.
     pub fn from_facts(facts: ScreenshotFacts, document: Option<DocumentId>) -> Self {
         Self {
@@ -154,6 +166,7 @@ impl PendingCapture {
 }
 
 /// A request that is over: an image to save and reply, or an error.
+#[non_exhaustive]
 pub struct Finished {
     /// The request's token.
     pub token: u64,
@@ -163,6 +176,13 @@ pub struct Finished {
     pub reply: Option<Sender<ControlResponse>>,
     /// The captured image, or the error text for the reply.
     pub result: Result<Arc<ColorImage>, String>,
+}
+
+impl Finished {
+    /// A finished request for `token`: `result` answers `reply`, and an image is written to `path` when given.
+    pub fn new(token: u64, path: Option<String>, reply: Option<Sender<ControlResponse>>, result: Result<Arc<ColorImage>, String>) -> Self {
+        Self { token, path, reply, result }
+    }
 }
 
 /// A request admitted before any geometry was recorded.
