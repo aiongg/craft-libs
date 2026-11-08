@@ -15,7 +15,7 @@ use craft_ui::contract::{
 use craft_ui::primitives::{PaintShape, StrokeWidth};
 use craft_ui::runtime::commands::FireSource;
 use craft_ui::runtime::env::Label;
-use craft_ui::runtime::focus::KeyUse;
+use craft_ui::runtime::focus::{ActivateKeys, KeyUse};
 use craft_ui::style::StyleCx;
 use egui::{Rect, Response, Vec2};
 
@@ -197,7 +197,7 @@ impl CornerWidgets<'_> {
 impl Component for CornerWidgets<'_> {
     const ROLE: Role = Role::GROUP;
     const OVERLAYS: bool = false;
-    const KEYS: KeyUse = KeyUse::CANVAS.with_moves();
+    const KEYS: KeyUse = KeyUse::CANVAS.with_moves().with_activate(ActivateKeys::Enter);
     type Style = CornerStyle;
     type Output = CornerWidgetsOutput;
 

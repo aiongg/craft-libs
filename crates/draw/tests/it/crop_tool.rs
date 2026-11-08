@@ -185,11 +185,18 @@ fn image_mode_requests_the_turned_view() {
     assert!((view.rotation - 30.0).abs() < 1e-6, "the view turns against the frame: {}", view.rotation);
 
     let mut run = Run::new(classic());
-    run.space = Some(CanvasSpace::new(upright_view.rotation(20.0), 1.0));
+    run.space = Some(CanvasSpace::new(upright_view, 1.0));
     run.settle();
     run.tool.crop_to(turned);
     let (view, _) = run.pass(0.0, Mods::NONE, |_, cx| cx.requested_view());
     assert_eq!(view.map(|v| v.rotation), None, "Classic Mode turns the frame over an upright view and asks for nothing more");
+
+    let mut run = Run::new(classic());
+    run.space = Some(CanvasSpace::new(upright_view.rotation(20.0), 1.0));
+    run.settle();
+    run.tool.crop_to(turned);
+    let (view, _) = run.pass(0.0, Mods::NONE, |_, cx| cx.requested_view());
+    assert_eq!(view.map(|v| v.rotation), Some(0.0), "Classic Mode turns a turned view upright once");
 }
 
 #[trial]
