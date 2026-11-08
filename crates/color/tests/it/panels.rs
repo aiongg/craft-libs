@@ -221,8 +221,9 @@ fn dragging_to_the_bottom_right_keeps_the_knob_there() {
     assert_eq!(picked.to_rgba(), Srgba::rgb(0.0, 0.0, 0.0).to_rgba(), "the corner is black");
 
     rig.set_colors([picked, BLUE]);
-    let area = rig.fixture.by_label("Saturation and brightness").expect("the area");
-    assert!(rig.fixture.tree().name_of(area.node).is_some(), "the area is still shown at the corner");
+    let area = rig.fixture.focused().expect("the dragged area keeps the focus");
+    let value = rig.fixture.tree().value(area).expect("the area reports its value");
+    assert!(value.contains("Saturation 100") && value.contains("Brightness 0"), "the knob stays at the corner: {value}");
 }
 
 /// Every model the panel offers returns its colours: whole-number fields within a step, and a colour CMYK can print comes
@@ -566,9 +567,13 @@ fn a_double_click_and_enter_ask_to_open_the_index_and_space_selects_the_focused_
     rig.fixture.click(&cell).click(&cell);
     assert_eq!(*rig.opened.borrow(), [2], "the second click of a double click opens");
 
-    rig.fixture.key(Key::Tab, Modifiers::NONE).key(Key::ArrowRight, Modifiers::NONE).key(Key::Space, Modifiers::NONE);
+    rig.fixture.key(Key::Tab, Modifiers::NONE).key(Key::ArrowRight, Modifiers::NONE);
+    assert_eq!(rig.selected.borrow().items, [2], "the arrows select nothing");
+    rig.fixture.key(Key::Space, Modifiers::NONE);
     assert_eq!(rig.selected.borrow().items, [3], "Space selects the focused cell");
-    rig.fixture.key(Key::ArrowRight, Modifiers::NONE).key(Key::Enter, Modifiers::NONE);
+    rig.fixture.key(Key::ArrowRight, Modifiers::NONE);
+    assert_eq!(rig.selected.borrow().items, [3], "the arrows select nothing");
+    rig.fixture.key(Key::Enter, Modifiers::NONE);
     assert_eq!(*rig.opened.borrow(), [2, 4], "Enter opens the focused index");
     assert_eq!(rig.selected.borrow().items, [3], "Enter selects nothing");
 }
