@@ -21,9 +21,6 @@ use super::edits::{EditMode, ObjectTarget, RefineStroke, SelectMaskEdit, round_p
 /// edit's points, not a size on screen (PhotoCraft's).
 const FREEHAND_STEP: f64 = 0.5;
 
-/// The share of its colour the brush stroke being drawn shows: the accent at this opacity.
-const TRAIL_SHARE: f32 = 0.43;
-
 /// The brush outline options Photoshop's defaults give.
 pub(super) fn default_cursor_options() -> BrushCursorOptions {
     BrushCursorOptions::new(PaintingCursor::default())
@@ -731,7 +728,7 @@ impl CanvasTool for SelectMaskCanvasTool<'_> {
         let (Some(space), Some(style)) = (cx.space(), cx.style()) else { return };
         let canvas = &*self.canvas;
         let view = space.view;
-        let ink = style.color(style.tokens.color.accent.solid.faded(TRAIL_SHARE));
+        let ink = style.color(style.tokens.color.overlay.trail);
         let screen = |points: &[Point]| points.iter().map(|p| view.to_screen(*p)).collect::<Vec<Pos2>>();
         let stroke = |tool: SelectMaskTool, points: &[Point]| {
             let radius = (self.options.sizes.get(tool) / 2.0 * view.zoom) as f32;

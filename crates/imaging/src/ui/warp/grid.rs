@@ -28,10 +28,6 @@ pub const POINT: PartKey = PartKey::new("point");
 /// The surface of the mesh, inside its outer boundary.
 pub const SURFACE: PartKey = PartKey::new("surface");
 
-/// How far from the pointer, in screen points, a handle and its arm show; measured to the handle or
-/// to its anchor.
-const REVEAL: f32 = 56.0;
-
 craft_ui::words! {
     /// The accessible names of the warp grid: the group and, for a point, its row and column from 1.
     pub struct WarpWords {
@@ -80,6 +76,8 @@ pub struct WarpGridStyle {
     end: HandleLook,
     /// How far from an anchor or a handle end a press takes it.
     reach: f32,
+    /// How far from the pointer a handle and its arm show; measured to the handle or to its anchor.
+    reveal: f32,
 }
 
 /// What a press drags.
@@ -375,6 +373,7 @@ impl Component for WarpGrid<'_> {
             anchor: cx.handle(),
             end,
             reach: cx.tokens.size.hit.target,
+            reveal: cx.tokens.size.hit.reveal,
         }
     }
 
@@ -463,7 +462,7 @@ impl Component for WarpGrid<'_> {
         }
         let slot = cx.recall::<Slot>();
         let screen = |index: usize| view.to_screen(mesh.points[index]);
-        let near = |p: Pos2| slot.hover.is_some_and(|hover| hover.distance(p) <= REVEAL);
+        let near = |p: Pos2| slot.hover.is_some_and(|hover| hover.distance(p) <= cx.style.reveal);
         let kept = [slot.dragging, slot.picked.filter(|_| cx.focus_visible())].map(|index| index.and_then(|index| mesh.anchor_of(index)));
         let mut ends = Vec::new();
         for anchor in mesh.anchors() {

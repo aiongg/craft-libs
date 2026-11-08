@@ -7,9 +7,6 @@ use craft_ui::primitives::ContentPainterCx;
 use craft_ui::style::StyleCx;
 use egui::{Color32, CornerRadius, Mesh, Pos2, Rect, Shape, Stroke, StrokeKind, pos2};
 
-/// Opacity of the tone backdrop behind a curve.
-const BACKDROP_ALPHA: f32 = 0.5;
-
 /// The colours of the bars, read in a style hook: the data tokens of the channels, the backdrop behind a curve, the
 /// scope the ribbons sit on and the outline's width.
 ///
@@ -47,7 +44,7 @@ impl HistogramInks {
             inks: ChannelColor::ALL.map(|channel| channel.tone(cx)),
             scope: color32(colors.data.scope),
             outline_neutral: color32(colors.text.normal),
-            backdrop: muted.gamma_multiply(BACKDROP_ALPHA),
+            backdrop: color32(colors.data.backdrop),
             line: cx.tokens.stroke.thin,
         }
     }

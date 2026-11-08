@@ -32,19 +32,6 @@ pub const BOX: PartKey = PartKey::new("box");
 /// for the band at corner `i` in [`RotateZone::Band`].
 const OUTSIDE: PartKey = PartKey::new("outside");
 
-/// The hit radius of a handle, in multiples of the least hit size.
-const HIT_IN_TARGETS: f32 = 1.5;
-
-/// How far from a corner the rotate pointer shows outside the box, in multiples of the least hit size.
-const ROTATE_REACH_IN_TARGETS: f32 = 4.5;
-
-/// Where the rotate band outside a corner begins and ends, in multiples of the least hit size.
-const BAND_INNER_IN_TARGETS: f32 = 0.625;
-const BAND_OUTER_IN_TARGETS: f32 = 2.25;
-
-/// The arm of the reference point's cross, in multiples of the least hit size.
-const PIVOT_ARM_IN_TARGETS: f32 = 1.0;
-
 /// The distance an arrow key moves a part, in document units; Shift moves it by `NUDGE_FAR`.
 const NUDGE: f64 = 1.0;
 const NUDGE_FAR: f64 = 10.0;
@@ -418,18 +405,18 @@ impl Component for TransformBox<'_> {
 
     fn style(cx: &StyleCx<'_>, _: TransformBoxStyleKey) -> TransformBoxStyle {
         let overlay = &cx.tokens.color.overlay;
-        let target = cx.tokens.size.hit.target;
+        let (hit, handle) = (&cx.tokens.size.hit, &cx.tokens.size.handle);
         TransformBoxStyle {
             metrics: Metrics::new(),
             handle: cx.handle(),
             line: cx.color(overlay.line),
             halo: cx.color(overlay.halo),
-            hit: HIT_IN_TARGETS * target,
-            rotate_reach: ROTATE_REACH_IN_TARGETS * target,
-            band_inner: BAND_INNER_IN_TARGETS * target,
-            band_outer: BAND_OUTER_IN_TARGETS * target,
+            hit: handle.hit,
+            rotate_reach: handle.rotate_reach,
+            band_inner: handle.band_inner,
+            band_outer: handle.band_outer,
             pivot_radius: cx.tokens.size.handle.sm / 2.0,
-            pivot_arm: PIVOT_ARM_IN_TARGETS * target,
+            pivot_arm: hit.target,
         }
     }
 

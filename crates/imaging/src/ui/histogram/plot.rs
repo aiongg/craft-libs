@@ -23,8 +23,6 @@ const STANDARD_CONTROLS: f32 = 4.0;
 /// The plot's height in control heights in a tight arrangement of plots, and the least a plot that fills its room
 /// keeps.
 const SHORT_CONTROLS: f32 = 2.0;
-/// Opacity of the selected range's band.
-const SELECTION_ALPHA: f32 = 0.35;
 
 /// The plot of the whole histogram.
 pub(super) const PLOT: PartKey = PartKey::new("plot");
@@ -92,7 +90,7 @@ pub struct HistogramStyle {
     inks: HistogramInks,
     /// The plot's well and edge.
     frame: PlotFrame,
-    /// The selected range's band: `accent.solid` at 35 % opacity.
+    /// The selected range's band: `data.selection`.
     selection: Color32,
     /// The ink of the markers and their ticks: `text.normal`, or the sum of the ribbons on the scope.
     marker: Color32,
@@ -296,7 +294,7 @@ impl Component for Histogram<'_> {
             };
         let inks = HistogramInks::new(cx);
         let marker = if key.ribbons { sum(&inks.ribbons(), 0b111) } else { super::data::color32(colors.text.normal) };
-        let accent = super::data::color32(colors.accent.solid).gamma_multiply(SELECTION_ALPHA);
+        let accent = super::data::color32(colors.data.selection);
         let warn = cx.tone(craft_theme::variant::Tone::Warn);
         HistogramStyle {
             metrics: Metrics::new().min_size(Vec2::new(cx.tokens.size.plot.width, tall)),

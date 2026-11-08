@@ -10,7 +10,7 @@ use craft_behavior::{
     Sense, resize_cursor,
 };
 use craft_keymap::Mods;
-use craft_theme::{Srgba, TypeRole};
+use craft_theme::{Opacity, Srgba, TypeRole};
 use craft_ui::canvas::{CanvasSpace, NUDGE, NUDGE_FAR, Snap, canvas_snap, canvas_space};
 use craft_ui::contract::{
     Access, Common, Component, Cx, Focus as _, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Remember as _, Role,
@@ -27,9 +27,6 @@ const SLICE: PartKey = PartKey::new("slice");
 
 /// The part of one handle of the selected user slice: `HANDLE.at(i)` with `i` an index into [`HANDLES`].
 const HANDLE: PartKey = PartKey::new("handle");
-
-/// How much of the slice colour an auto slice keeps.
-const AUTO_ALPHA: f32 = 0.7;
 
 /// A layer slice's mark after its number, as a share of the number's height.
 const LAYER_MARK: f32 = 0.45;
@@ -427,7 +424,7 @@ impl Component for SliceOverlay<'_> {
                 if auto {
                     let mut path = quad.clone();
                     path.push(quad[0]);
-                    painter.dashed(&path, Dashes::even(style.dash), StrokeWidth::Thin, slice_color.gamma_multiply(AUTO_ALPHA));
+                    painter.dashed(&path, Dashes::even(style.dash), StrokeWidth::Thin, slice_color.gamma_multiply(Opacity::DERIVED));
                 } else {
                     draw.data_stroke(&PaintShape::Polygon(quad.clone()), StrokeWidth::Thin, line);
                 }

@@ -37,9 +37,6 @@ const MESH: PartKey = PartKey::new("mesh");
 /// Photoshop's pin yellow.
 const PIN_FILL: DataColor = DataColor::new(Color32::from_rgb(255, 214, 10));
 
-/// The radius of the fixed-rotation ring, in points.
-const TURN_RING: f32 = 18.0;
-
 /// The commands of Puppet Warp (11). They are app commands: the app runs them with [`PinWarpCommands::apply`] while
 /// the session is open.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui::contract::CommandSet)]
@@ -95,6 +92,8 @@ pub struct PinWarpStyle {
     ring: StyleColor,
     /// The fixed-rotation ring and its line.
     turn: StyleColor,
+    /// The radius of the fixed-rotation ring.
+    turn_ring: f32,
     /// The mesh lines while Show Mesh is on.
     mesh: StyleColor,
     /// How far from a selected pin an Alt press turns it.
@@ -464,6 +463,7 @@ impl Component for PinWarp<'_> {
             core: tokens.size.handle.sm,
             ring: cx.color(overlay.handle_stroke),
             turn: cx.color(overlay.stroke),
+            turn_ring: tokens.size.handle.ring,
             mesh: cx.color(overlay.line),
             reach: tokens.size.hit.target,
         }
@@ -536,8 +536,8 @@ impl Component for PinWarp<'_> {
                 if let Some(angle) = pin.angle {
                     let direction = space.view.map_vec(DocVec::from_angle(angle.to_radians()));
                     let direction = if direction.length() > 0.0 { direction.normalized() } else { Vec2::X };
-                    draw.stroke(&PaintShape::Circle(center, TURN_RING), StrokeWidth::Thin, style.turn);
-                    draw.stroke(&PaintShape::Path(vec![center, center + direction * TURN_RING]), StrokeWidth::Thin, style.turn);
+                    draw.stroke(&PaintShape::Circle(center, style.turn_ring), StrokeWidth::Thin, style.turn);
+                    draw.stroke(&PaintShape::Path(vec![center, center + direction * style.turn_ring]), StrokeWidth::Thin, style.turn);
                 }
             }
         }
