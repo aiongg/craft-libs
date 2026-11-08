@@ -149,5 +149,5 @@ fn a_moved_pane_shows_the_drop_mark_on_the_other_edge_and_docks_there_on_release
     bed.fixture.idle(2);
     assert!(bed.sent(&PaneRequest::Place(PANE, PanePlace::Docked(PaneEdge::End))), "the release docks it at the end edge: {:?}", bed.requests);
     let docked_at = bed.fixture.by_label("Pane 0").expect("the pane shows docked").center().x;
-    assert!(docked_at > 200.0, "and it shows on the end side: {docked_at}");
+    assert!(docked_at > FRAME.center().x, "and it shows on the end side, right of where it floated: {docked_at}");
 }
