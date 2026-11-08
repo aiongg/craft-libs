@@ -11,7 +11,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 const ROOM: Vec2 = Vec2::new(900.0, 80.0);
-const DOCUMENT: PixelSize = PixelSize { width: 1000, height: 500 };
+const DOCUMENT: PixelSize = PixelSize::new(1000, 500);
 
 fn rig(start: Constraint, units: bool, enabled: bool) -> (Fixture, Rc<Cell<Constraint>>) {
     let state = Rc::new(Cell::new(start));

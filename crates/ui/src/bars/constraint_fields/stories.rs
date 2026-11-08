@@ -9,12 +9,21 @@ use craft_behavior::PixelSize;
 use craft_behavior::geometry::Constraint;
 use egui::Ui;
 
-const DOCUMENT: PixelSize = PixelSize { width: 1920, height: 1080 };
 const PIXELS_PER_INCH: f64 = 300.0;
 
-fn bar(ui: &mut Ui, fields: ConstraintFields<'_>) -> StoryOutput {
+/// The cells in an options bar over the story's constraint, starting at `start`; `units` gives Fixed Size units.
+fn bar(ui: &mut Ui, data: &mut StoryData, start: Constraint, units: bool, enabled: bool) -> StoryOutput {
+    let list = [
+        Entry::new(UnitKind::Pixels, "Pixels"),
+        Entry::new(UnitKind::Inches, "Inches"),
+        Entry::new(UnitKind::Centimetres, "Centimetres"),
+        Entry::new(UnitKind::Percent, "Percent"),
+    ];
+    let value = data.value("constraint", start);
     Bar::new("Options", BarKind::Options)
         .show(ui, |ui, _| {
+            let fields = ConstraintFields::new(Bind::bound(&mut *value)).enabled(enabled);
+            let fields = if units { fields.size_units(UnitKind::Inches, &list, PIXELS_PER_INCH, PixelSize::new(1920, 1080)) } else { fields };
             fields.show(ui);
         })
         .output
@@ -23,32 +32,20 @@ fn bar(ui: &mut Ui, fields: ConstraintFields<'_>) -> StoryOutput {
 
 #[story(ConstraintFields<'static>, covers = [], drive = Drive::Never)]
 fn normal(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    bar(ui, ConstraintFields::new(Bind::bound(data.value("constraint", Constraint::Free))))
+    bar(ui, data, Constraint::Free, false, true)
 }
 
 #[story(ConstraintFields<'static>, covers = [], drive = Drive::Never)]
 fn fixed_ratio(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    bar(ui, ConstraintFields::new(Bind::bound(data.value("constraint", Constraint::Ratio(16.0, 9.0)))))
+    bar(ui, data, Constraint::Ratio(16.0, 9.0), false, true)
 }
 
 #[story(ConstraintFields<'static>, covers = [], drive = Drive::Never)]
 fn fixed_size_with_units(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let units = [
-        Entry::new(UnitKind::Pixels, "Pixels"),
-        Entry::new(UnitKind::Inches, "Inches"),
-        Entry::new(UnitKind::Centimetres, "Centimetres"),
-        Entry::new(UnitKind::Percent, "Percent"),
-    ];
-    let fields = ConstraintFields::new(Bind::bound(data.value("constraint", Constraint::Size(600.0, 300.0)))).size_units(
-        UnitKind::Inches,
-        &units,
-        PIXELS_PER_INCH,
-        DOCUMENT,
-    );
-    bar(ui, fields)
+    bar(ui, data, Constraint::Size(600.0, 300.0), true, true)
 }
 
 #[story(ConstraintFields<'static>, covers = [], drive = Drive::Never)]
 fn greyed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    bar(ui, ConstraintFields::new(Bind::bound(data.value("constraint", Constraint::Ratio(1.0, 1.0)))).enabled(false))
+    bar(ui, data, Constraint::Ratio(1.0, 1.0), false, false)
 }

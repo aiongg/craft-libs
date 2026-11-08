@@ -30,9 +30,9 @@ enum StyleChoice {
 impl StyleChoice {
     fn of(constraint: Constraint) -> Self {
         match constraint {
-            Constraint::Free => Self::Normal,
             Constraint::Ratio(..) => Self::FixedRatio,
             Constraint::Size(..) => Self::FixedSize,
+            _ => Self::Normal,
         }
     }
 
@@ -158,10 +158,10 @@ impl<'a> ConstraintFields<'a> {
                     now = picked.constraint();
                 }
             });
-            let free = matches!(before, Constraint::Free);
+            let free = !matches!(before, Constraint::Ratio(..) | Constraint::Size(..));
             let (width, height) = match before {
-                Constraint::Free => (1.0, 1.0),
                 Constraint::Ratio(w, h) | Constraint::Size(w, h) => (w, h),
+                _ => (1.0, 1.0),
             };
             let cells = Cells { size_units, points_per_inch };
             let width_cell = Cell { key: "width", caption: &words.constraint_width, first: true, enabled: enabled && !free };
@@ -171,9 +171,9 @@ impl<'a> ConstraintFields<'a> {
             let swap = IconButton::new(IconId::new("swap_horizontal")).label(words.constraint_swap.clone()).enabled(enabled && !free).show(ui);
             if swap.clicked() {
                 now = match before {
-                    Constraint::Free => Constraint::Free,
                     Constraint::Ratio(w, h) => Constraint::Ratio(h, w),
                     Constraint::Size(w, h) => Constraint::Size(h, w),
+                    other => other,
                 };
             }
             let height_cell = Cell { key: "height", caption: &words.constraint_height, first: false, enabled: enabled && !free };
@@ -214,7 +214,6 @@ impl Conversion {
 fn with_side(before: Constraint, value: f64, first: bool) -> Constraint {
     let set = |w: f64, h: f64| if first { (value, h) } else { (w, value) };
     match before {
-        Constraint::Free => Constraint::Free,
         Constraint::Ratio(w, h) => {
             let (w, h) = set(w, h);
             Constraint::Ratio(w, h)
@@ -223,6 +222,7 @@ fn with_side(before: Constraint, value: f64, first: bool) -> Constraint {
             let (w, h) = set(w, h);
             Constraint::Size(w, h)
         }
+        other => other,
     }
 }
 
