@@ -63,7 +63,8 @@ pub struct GroupGrip<P: Clone + Send + Sync + 'static> {
     common: Common,
     unit: DragUnit<P>,
     active: PanelKey,
-    /// The ghost the drag shows: its size and label.
+    /// The ghost the drag shows: its extent and its label.
+    #[prop]
     ghost: Option<(Vec2, Label)>,
     /// A drag on the grip drags the unit.
     #[prop]
@@ -76,13 +77,6 @@ impl<P: Clone + Send + Sync + 'static> GroupGrip<P> {
     /// The grip of `unit`, whose shown panel is `active`.
     pub fn new(unit: DragUnit<P>, active: PanelKey) -> Self {
         GroupGrip { common: Common::new(), unit, active, ghost: None, movable: true, double: false, started: false }
-    }
-
-    /// The drag shows a ghost frame: its extent and its label.
-    #[must_use]
-    pub fn ghost(mut self, ghost: (Vec2, Label)) -> Self {
-        self.ghost = Some(ghost);
-        self
     }
 }
 
