@@ -132,8 +132,6 @@ pub mod story {
         all.extend(craft_pages::ui::stories());
         #[cfg(feature = "review")]
         all.extend(craft_review::ui::stories());
-        #[cfg(feature = "table")]
-        all.extend(craft_table::ui::stories());
         #[cfg(feature = "text")]
         all.extend(craft_text::ui::stories());
         #[cfg(feature = "timeline")]
@@ -169,8 +167,6 @@ pub mod words {
         all.extend(craft_pages::ui::WORDS);
         #[cfg(feature = "review")]
         all.extend(craft_review::ui::WORDS);
-        #[cfg(feature = "table")]
-        all.extend(craft_table::ui::WORDS);
         #[cfg(feature = "text")]
         all.extend(craft_text::ui::WORDS);
         #[cfg(feature = "timeline")]
