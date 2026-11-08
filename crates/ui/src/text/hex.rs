@@ -73,7 +73,7 @@ impl<'a> TextField<'a, HexCodec> {
     /// A hex field named `label` that shows and edits `value`.
     pub fn hex(label: impl Into<Label>, value: Bind<'a, Rgba>) -> Self {
         let mut field = TextField::with_codec(label, value, HexCodec);
-        field.empty = Some(Rgba::BLACK);
+        field.empty = Some(Rgba::rgb(0, 0, 0));
         field
     }
 }
