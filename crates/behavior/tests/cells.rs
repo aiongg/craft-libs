@@ -30,7 +30,7 @@ fn ranges_grow_over_merged_cells_but_whole_lines_stay() {
     // B2:C3 holds the first merge; D4:F4 touches it only through the second merge.
     assert_eq!(space.cover(r((0, 0), (1, 1))), r((0, 0), (2, 2)));
     assert_eq!(space.cover(r((2, 2), (3, 3))), r((1, 1), (3, 5)));
-    let whole = space.whole_columns(1, 1);
+    let whole = space.whole_columns(1, 1).expect("the grid has rows");
     assert_eq!(space.cover(whole.clone()), whole);
     assert_eq!(space.cover(space.whole_rows(1, 1)), space.whole_rows(1, 1));
 }
@@ -276,7 +276,7 @@ fn a_whole_column_of_a_full_sheet_is_one_range() {
     let rows = Positions::new(ROWS);
     let space = CellSpace::new(&rows, 16_384);
     let mut sel = CellSelection::<u32>::default();
-    assert!(sel.select_range(space.whole_columns(2, 2), &space));
+    assert!(sel.select_range(space.whole_columns(2, 2).expect("the grid has rows"), &space));
     assert_eq!(sel.ranges().len(), 1);
     let last = ROWS - 1;
     let at = |column| sel.contains_cell(RowAt::new(&last, last as usize, &rows), column);
@@ -338,4 +338,84 @@ fn a_reported_change_rebuilds_the_selection_on_a_copy() {
     assert_eq!((held(&sel, 8, 8), held(&copy, 8, 8), copy.lead()), (true, false, Some(&8)));
     copy.apply(SelectionChange::ToggleCell(c(8, 8)));
     assert!(held(&copy, 8, 8));
+}
+
+// The selection is placed once; the reads after that are by position, in the order of the pass.
+#[test]
+fn a_selection_places_its_rows_once_in_the_order_of_the_pass() {
+    let before = Names(vec!["a", "b", "c", "d", "e"]);
+    let mut sel = CellSelection::<&'static str>::default();
+    let space = CellSpace::new(&before, 3);
+    assert!(sel.select_range(CellRange::new("b", "d", 0..2, 1), &space));
+    assert_eq!(sel.placed(&before).rows(), vec![1, 2, 3]);
+    let after = Names(vec!["d", "a", "b", "e", "c"]);
+    assert_eq!(sel.placed(&after).rows(), vec![0, 2, 4]);
+    let keys = craft_behavior::Selection::new(vec!["e", "a", "b", "z"], None, None);
+    assert_eq!(keys.placed(&before).rows(), vec![0, 1, 4]);
+}
+
+// Cmd+click takes out a held cell between the first and last row of a range, which `apply` cannot see without the
+// order, and the row stays selected while another of its cells is.
+#[test]
+fn toggle_takes_out_a_cell_between_the_rows_of_a_range() {
+    let rows = Positions::new(20);
+    let space = CellSpace::new(&rows, 6);
+    let mut sel = CellSelection::<u32>::default();
+    sel.select(c(2, 1), &space);
+    sel.extend_to(c(9, 2), &space);
+    assert!(sel.toggle(c(5, 1), &space));
+    assert_eq!(sel.ranges().len(), 1);
+    let placed = sel.placed(&rows);
+    assert_eq!((placed.holds_cell(5, 1), placed.holds_cell(5, 2), placed.holds_row(5)), (false, true, true));
+    assert!(sel.toggle(c(5, 2), &space));
+    assert!(!sel.placed(&rows).holds_row(5));
+    assert!(sel.toggle(c(5, 2), &space));
+    assert!(sel.toggle(c(12, 4), &space));
+    assert_eq!(sel.ranges().len(), 2);
+}
+
+// An empty order has no rows to select: whole columns and Select All give nothing, and the arrows stay put.
+#[test]
+fn an_empty_order_selects_nothing_and_panics_nowhere() {
+    let rows = Positions::new(0);
+    let space = CellSpace::new(&rows, 4);
+    assert_eq!((space.row_count(), space.all(), space.whole_columns(0, 1)), (0, None, None));
+    assert_eq!(space.next_in_reading_order(c(0, 0), false), None);
+    let mut sel = CellSelection::<u32>::default();
+    assert!(!sel.select(c(0, 0), &space));
+    assert_eq!(space.cover(space.whole_rows(0, 0)), space.whole_rows(0, 0));
+}
+
+struct Counting {
+    names: Names,
+    scans: std::cell::Cell<usize>,
+}
+
+impl DisplayOrder<&'static str> for Counting {
+    fn len(&self) -> usize {
+        self.names.len()
+    }
+
+    fn key(&self, at: usize) -> &'static str {
+        self.names.key(at)
+    }
+
+    fn index_of(&self, key: &&'static str) -> Option<usize> {
+        self.scans.set(self.scans.get() + 1);
+        self.names.index_of(key)
+    }
+}
+
+// Placing a selection looks up the two ends of each range once, however many rows the ranges hold.
+#[test]
+fn placing_a_selection_looks_up_each_range_end_once() {
+    let order = Counting { names: Names(vec!["a", "b", "c", "d", "e", "f", "g", "h"]), scans: std::cell::Cell::new(0) };
+    let mut sel = CellSelection::<&'static str>::default();
+    let space = CellSpace::new(&order, 3);
+    assert!(sel.select_range(CellRange::new("b", "g", 0..3, 2), &space));
+    sel.add(CellAt::new("a", 1), &space);
+    order.scans.set(0);
+    let placed = sel.placed(&order);
+    assert_eq!(order.scans.get(), 4, "two ends of each of the two ranges");
+    assert_eq!((0..8).filter(|&at| placed.holds_row(at)).count(), 7);
 }

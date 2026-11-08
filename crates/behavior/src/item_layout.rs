@@ -60,6 +60,11 @@ pub trait ItemLayout {
         0
     }
 
+    /// Whether the column at position `index` is shown; a hidden column has no cell and the arrows skip it.
+    fn column_shown(&self, _index: usize) -> bool {
+        true
+    }
+
     /// The key of the column at position `index`.
     fn column_key(&self, _index: usize) -> Option<ColumnKey> {
         None
@@ -735,6 +740,10 @@ impl ItemLayout for SheetLayout {
         self.columns.count() as usize
     }
 
+    fn column_shown(&self, index: usize) -> bool {
+        u32::try_from(index).is_ok_and(|index| self.columns.shown(index))
+    }
+
     fn column_key(&self, index: usize) -> Option<ColumnKey> {
         match &self.keys {
             Some(keys) => keys.get(index).cloned(),
@@ -925,6 +934,12 @@ mod tests {
         layout.cells(1_048_575, offset, &mut cells);
         assert_eq!(cells.iter().map(|(_, rect)| rect.left()).collect::<Vec<_>>(), vec![0.0, 30.0]);
         assert_eq!(layout.nav(), NavShape::Cell);
+    }
+
+    #[test]
+    fn a_column_of_no_width_is_not_shown() {
+        let layout = SheetLayout::new(&Count(2), 20.0, vec![(ColumnKey::new("a"), 30.0), (ColumnKey::new("b"), 0.0), (ColumnKey::new("c"), 30.0)]);
+        assert_eq!((layout.column_shown(0), layout.column_shown(1), layout.column_shown(2), layout.column_shown(3)), (true, false, true, false));
     }
 
     #[test]

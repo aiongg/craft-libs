@@ -101,7 +101,8 @@ pub use quantity::Reader;
 pub use role_rule::{GridFacts, RoleRule, is_checkable, is_selectable, role_violations};
 pub use scroll::{ScrollPos, ScrollSpan};
 pub use selection::{
-    CellAdvance, CellAt, CellDirection, CellRange, CellSelection, CellSpace, Positions, RowAt, Selection, SelectionChange, SelectionModel,
+    CellAdvance, CellAt, CellDirection, CellRange, CellSelection, CellSpace, PlacedSelection, Positions, RowAt, Selection, SelectionChange,
+    SelectionModel,
 };
 pub use sense::Sense;
 pub use sizing::{ControlMetrics, Metrics, Proposal};

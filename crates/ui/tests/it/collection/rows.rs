@@ -348,7 +348,8 @@ fn forward_enters_a_rows_children_and_arrows_and_escape_leave_them() {
 }
 
 /// 17.7: the arrows move the lead cell, Shift extends the range from the anchor cell, and the selection reports
-/// the rows and the columns, with the active cell at the anchor.
+/// the rows and the columns, with the active cell at the anchor. The lead stays with the active cell while the range
+/// extends, and a plain arrow then steps from the active cell (Excel), here against the sheet's first column.
 #[trial]
 fn shift_arrows_extend_a_cell_selection_in_a_sheet() {
     let (log, source) = (Log::new(), Count(5));
@@ -374,8 +375,8 @@ fn shift_arrows_extend_a_cell_selection_in_a_sheet() {
     let held = selection.borrow().clone();
     assert_eq!(
         (held.ranges(), held.lead(), held.lead_column()),
-        ([CellRange::cells(CellAt::new(1, 1), CellAt::new(1, 1))].as_slice(), Some(&1), Some(1)),
-        "a plain arrow selects the one cell it moves to"
+        ([CellRange::cells(CellAt::new(0, 0), CellAt::new(0, 0))].as_slice(), Some(&0), Some(0)),
+        "a plain arrow after an extend steps from the active cell, and the lead stays with it"
     );
 }
 
