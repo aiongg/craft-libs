@@ -2,11 +2,11 @@
 
 use crate::fonts::StackFacts;
 use crate::runtime::egui::text_layout;
+use crate::style::text_measure::{paragraph_job, span_format};
 use crate::style::{StyleColor, TypeRole, UiTokens};
 use craft_i18n::Direction;
-use egui::epaint::text::{FontId, TextDirection};
-use egui::text::{LayoutJob, TextFormat, TextWrapping};
-use egui::{Align, Color32, Context, Galley};
+use egui::text::{LayoutJob, TextWrapping};
+use egui::{Color32, Context, Galley};
 use std::borrow::Cow;
 use std::ops::Range;
 use std::sync::Arc;
@@ -255,26 +255,17 @@ impl TextRun<'_> {
 
     fn job<'s>(&self, env: &TextEnv<'_>, parts: impl Iterator<Item = (&'s Span<'s>, &'s str)>, max_width: f32) -> LayoutJob {
         let elide = matches!(self.wrap, Wrap::Elide | Wrap::ElidePath);
-        let direction = if self.is_rtl(env) { TextDirection::RightToLeft } else { TextDirection::LeftToRight };
-        // Every row stays at the left edge: egui's own alignment trims the first glyph's offset from an aligned row only,
-        // so a run would measure differently by direction. `aligned_rows` places the rows.
-        let mut job = LayoutJob {
-            direction,
-            halign: Align::LEFT,
-            halign_min_is_start: false,
-            wrap: TextWrapping {
-                max_width: if self.wrap == Wrap::Line { f32::INFINITY } else { max_width },
-                max_rows: if elide { 1 } else { usize::MAX },
-                break_anywhere: elide,
-                ..TextWrapping::default()
-            },
-            ..LayoutJob::default()
+        let wrap = TextWrapping {
+            max_width: if self.wrap == Wrap::Line { f32::INFINITY } else { max_width },
+            max_rows: if elide { 1 } else { usize::MAX },
+            break_anywhere: elide,
+            ..TextWrapping::default()
         };
+        let mut job = paragraph_job(env.direction, self.ltr, wrap);
         let base = self.color.map_or(env.ink, StyleColor::egui);
         let text = &env.tokens.color.text;
         let to_color = |c: craft_theme::Rgba| Color32::from_rgba_unmultiplied(c.0[0], c.0[1], c.0[2], c.0[3]);
         for (span, text_part) in parts {
-            let font_id: FontId = env.tokens.font(env.fonts, self.role, span.mono);
             let color = if span.muted {
                 to_color(text.muted)
             } else if span.shortcut {
@@ -283,10 +274,7 @@ impl TextRun<'_> {
                 base
             };
             let background = if span.highlight { to_color(env.tokens.color.state.r#match) } else { Color32::TRANSPARENT };
-            let mut format = TextFormat { font_id, color, italics: span.italic, background, ..TextFormat::default() };
-            if let Some(size) = env.tokens.optical_size(env.fonts, self.role, span.mono) {
-                format.coords.push(*b"opsz", size);
-            }
+            let format = span_format(env.tokens, env.fonts, self.role, span.mono, color, span.italic, background);
             job.append(text_part, 0.0, format);
         }
         job

@@ -132,6 +132,8 @@ pub(super) struct ItemsHooks<'s, 'r, C: Collection> {
     content: Vec2,
     room: Vec2,
     scrolls: bool,
+    /// The axis the rows overflow along.
+    overflow: Axis,
     selection: C::Selection,
     selection_at_read: C::Selection,
     events: Vec<CollectionEvent<C::Key, C::ItemEvent>>,
@@ -173,6 +175,7 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
             content: Vec2::ZERO,
             room: Vec2::ZERO,
             scrolls: true,
+            overflow: Axis::Y,
             selection: C::Selection::default(),
             selection_at_read: C::Selection::default(),
             events: Vec::new(),
@@ -320,11 +323,16 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
     fn read(&mut self, comp: &mut C, stage: &mut MemoryStage, id: Id, env: &Env) {
         let ctx = stage.ctx().clone();
         let natural = comp.items().natural_height;
+        // The scroll along the rows' overflow axis belongs to the collection: a body that scrolls along it too is a
+        // second owner.
+        let overflow = comp.items().overflow;
+        let shared = env.scroll_owner.is_some() && if overflow == Axis::X { env.unbounded.0 } else { env.unbounded.1 };
         debug_assert!(
-            natural || env.scroll_owner.is_none(),
-            "a collection owns its scroll: show it outside a scrolling body, or give it the natural height (16.3)"
+            !shared || natural,
+            "a collection owns its scroll: show it outside a body that scrolls along its rows, or give it the natural height (16.3)"
         );
-        self.scrolls = !natural && env.scroll_owner.is_none();
+        self.scrolls = !natural && !shared;
+        self.overflow = overflow;
         self.selection = match comp.selection() {
             Some(bind) => match bind.get() {
                 Some(Mixed::Same(held)) => held,
@@ -394,14 +402,21 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         };
         self.room = room;
         self.header.measure(scx);
-        let width = match (room.x.is_finite(), self.content_sized(comp)) {
-            (false, _) => 0.0,
+        let bounded = room.x.is_finite();
+        let width = match (bounded, self.content_sized(comp)) {
             (true, false) => room.x,
-            // No rows: the empty state has no ideal width, so it takes the room.
-            (true, true) if self.source.is_empty() => room.x,
-            (true, true) => {
+            // No rows: the empty state has no ideal width, so it takes the room, or none where the room is unbounded.
+            (_, _) if self.source.is_empty() => {
+                if bounded {
+                    room.x
+                } else {
+                    0.0
+                }
+            }
+            // An unbounded room (a horizontally scrolling body) takes the widest row, as a content-sized collection does.
+            (_, _) => {
                 let floor = overlay::drawing_parent(ui.ctx()).map_or(0.0, |layer| super::overlay::floor_width(ui.ctx(), layer));
-                rows::widest_row(ui.ctx(), id).map_or(room.x, |widest| widest.max(floor).min(room.x))
+                rows::widest_row(ui.ctx(), id).map_or(if bounded { room.x } else { 0.0 }, |widest| widest.max(floor).min(room.x))
             }
         };
         let previous = self.layout.take().or_else(|| self.previous.take()).map(|held| Arc::try_unwrap(held).unwrap_or_else(|held| (*held).clone()));
@@ -475,7 +490,11 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         pcx.scroll(SCROLL, track, Axis::Y, span);
         wheel::register(
             &ctx,
-            WheelTaker::new(pcx.id, view).vertical(true).horizontal(self.content.x > view.width()).scrolls(true).zoom(comp.zooms()),
+            WheelTaker::new(pcx.id, view)
+                .vertical(self.overflow == Axis::Y)
+                .horizontal(self.content.x > view.width())
+                .scrolls(true)
+                .zoom(comp.zooms()),
         );
     }
 

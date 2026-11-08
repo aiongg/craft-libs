@@ -531,3 +531,26 @@ fn undo_in_a_dialog_reaches_the_dialog_and_not_the_application() {
     assert_eq!(undone.get(), 1, "the dialog took the undo");
     assert!(take_output(&frames.ctx).fired.is_empty(), "the application's undo stays blocked");
 }
+
+/// 11.4: a dialog that takes no edit commands still keeps Cmd+Z from the document behind it.
+#[trial]
+fn undo_in_a_dialog_that_takes_no_edit_commands_fires_nothing() {
+    use craft_ui::contract::Bind;
+    use craft_ui::dialog::Dialog;
+    use craft_ui::runtime::focus::Initial;
+    use craft_ui::sections::{DialogRole, FooterButton};
+
+    let mut show = |ui: &mut Ui| {
+        let mut open = true;
+        Dialog::new("Options")
+            .opened(Bind::bound(&mut open))
+            .initial_focus(Initial::First)
+            .buttons([FooterButton::new("OK", DialogRole::Accept)])
+            .show(ui, |_, _| {});
+    };
+    let mut frames = Frames::new();
+    frames.idle(4, &mut show);
+    frames.frame(vec![key_press(Key::Z, Modifiers::COMMAND)], &mut show);
+    frames.idle(2, &mut show);
+    assert!(take_output(&frames.ctx).fired.is_empty(), "no command reaches the application");
+}

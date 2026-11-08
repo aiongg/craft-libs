@@ -290,7 +290,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> TabStri
         TabStrip {
             common: Common::new(),
             props: ContainerProps::new().sizing(Sizing::FillWidth),
-            items: CollectionProps::new().select(SelectMode::Single).pages(true),
+            items: CollectionProps::new().select(SelectMode::Single).pages(true).overflow(craft_behavior::Axis::X),
             kind: TabKind::Document,
             large: false,
             shown: None,

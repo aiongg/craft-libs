@@ -143,8 +143,11 @@ impl Board {
         let state = this.or(last);
         let flags = resolve_flags(this.map(CommandState::flags), last.map(CommandState::flags));
         let dialog_open = self.modal_open || self.dialog_keys;
+        // An application instance inside the modal layer (a dialog) takes the edit commands and nothing else of the
+        // application's.
         let reached = if app {
-            self.inside_modal.iter().any(|id| self.instances.iter().any(|i| i.id == *id && is_app(i.scope.name())))
+            EditCommands::from_ref(command).is_some()
+                && self.inside_modal.iter().any(|id| self.instances.iter().any(|i| i.id == *id && is_app(i.scope.name())))
         } else {
             instance.is_some_and(|id| self.inside_modal.contains(&id))
         };
