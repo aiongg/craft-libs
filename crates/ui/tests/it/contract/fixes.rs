@@ -327,10 +327,7 @@ fn a_grid_childs_pane_lays_out_as_a_plain_body() {
     let (in_grid, blocks) = pane_rect(BodyLayout::grid(&COLUMNS));
     assert!(blocks.iter().all(|block| in_grid.contains_rect(*block)), "the pane holds its body: {in_grid:?} {blocks:?}");
     assert!(blocks[1].min.y >= blocks[0].max.y, "the pane's body stacks its children: {blocks:?}");
-    assert!(
-        (in_grid.min - plain.min).length() < 1.0 && (in_grid.size() - plain.size()).length() < 1.0,
-        "the pane takes its own room: {in_grid:?} vs {plain:?}"
-    );
+    assert_eq!(in_grid, plain, "the pane takes its own room, whatever flow it is shown from");
 }
 
 /// A focused part that is not declared the next pass is no longer active.
