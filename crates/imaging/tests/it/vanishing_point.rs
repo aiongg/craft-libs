@@ -358,7 +358,7 @@ fn delete_removes_the_plane_and_escape_drops_a_half_plane_first() {
     fixture.key(Key::Delete, Modifiers::NONE).settle();
     let after = session(&app);
     assert_eq!(after.planes, planes[1..], "the children keep their place");
-    assert_eq!(after.torn, [None, torn[2].map(|child| TornPlane { from: 0, ..child })], "the child is drawn, its child follows it");
+    assert_eq!(after.torn, [None, torn[2].map(|child| TornPlane::new(0, child.edge, child.angle, child.depth))], "the child is drawn, its child follows it");
     assert_eq!(app.borrow().workspace.editor().selected(), None);
 
     // Escape: the half plane first, then the dialog's Cancel.
