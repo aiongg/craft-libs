@@ -147,9 +147,9 @@ fn placement_of(ctx: &Context, id: Id, save: Option<&SaveKey>) -> Placement {
 }
 
 /// The placement a layer is shown at: the caller's `placed` rect or `placed_at` position, else the saved or session placement, else for a
-/// floating resizable layer with a default size (`Overlay::size`) that size, within the screen less `dialog_pad` on
+/// floating resizable layer with a default size (`Overlay::size`) that size, within the screen less `screen_inset` on
 /// each side, centred or at the overlay's float position. A saved size and position win over the default.
-pub(crate) fn shown_placement(ctx: &Context, id: Id, save: Option<&SaveKey>, overlay: &super::Overlay, dialog_pad: f32) -> Placement {
+pub(crate) fn shown_placement(ctx: &Context, id: Id, save: Option<&SaveKey>, overlay: &super::Overlay, screen_inset: f32) -> Placement {
     if let Some(given) = Placement::given(overlay) {
         return given;
     }
@@ -161,7 +161,7 @@ pub(crate) fn shown_placement(ctx: &Context, id: Id, save: Option<&SaveKey>, ove
         return placement;
     }
     let screen = areas::safe_rect(ctx);
-    let room = (screen.size() - Vec2::splat(2.0 * dialog_pad)).max(Vec2::ZERO);
+    let room = (screen.size() - Vec2::splat(2.0 * screen_inset)).max(Vec2::ZERO);
     let least = overlay.size_limits.min.min(room);
     let size = default.max(least).min(overlay.size_limits.max.unwrap_or(Vec2::INFINITY)).min(room);
     let pos = placement.pos.map(Pos2::from).or(float.pos).unwrap_or_else(|| screen.center() - size / 2.0);
