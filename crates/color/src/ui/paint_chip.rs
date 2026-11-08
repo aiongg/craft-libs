@@ -607,6 +607,55 @@ impl PaintListOptions {
     pub const SELECTION_COLORS: PaintListOptions =
         PaintListOptions { edit: true, hex: true, opacity: true, bind: true, select_users: true, add: false, remove: false };
 
+    /// Turns the `edit` action on or off.
+    #[must_use]
+    pub const fn edit(mut self, on: bool) -> Self {
+        self.edit = on;
+        self
+    }
+
+    /// Turns the `hex` action on or off.
+    #[must_use]
+    pub const fn hex(mut self, on: bool) -> Self {
+        self.hex = on;
+        self
+    }
+
+    /// Turns the `opacity` action on or off.
+    #[must_use]
+    pub const fn opacity(mut self, on: bool) -> Self {
+        self.opacity = on;
+        self
+    }
+
+    /// Turns the `bind` action on or off.
+    #[must_use]
+    pub const fn bind(mut self, on: bool) -> Self {
+        self.bind = on;
+        self
+    }
+
+    /// Turns the `select_users` action on or off.
+    #[must_use]
+    pub const fn select_users(mut self, on: bool) -> Self {
+        self.select_users = on;
+        self
+    }
+
+    /// Turns the `add` action on or off.
+    #[must_use]
+    pub const fn add(mut self, on: bool) -> Self {
+        self.add = on;
+        self
+    }
+
+    /// Turns the `remove` action on or off.
+    #[must_use]
+    pub const fn remove(mut self, on: bool) -> Self {
+        self.remove = on;
+        self
+    }
+
     /// Whether any row action is on.
     pub fn any(&self) -> bool {
         self.edit || self.hex || self.opacity || self.bind || self.select_users || self.add || self.remove
@@ -744,7 +793,7 @@ impl<'a> PaintList<'a> {
     }
 
     /// Draws the rows and returns the selection, any rename and the row actions of this pass.
-    pub fn show(mut self, ui: &mut Ui) -> PaintListOutput {
+    pub fn show(self, ui: &mut Ui) -> PaintListOutput {
         let words = craft_ui::runtime::env::Env::of(ui).words::<PaintWords>();
         let mut selected_bind = self.selected;
         let (paints, rows, options, label) = (self.paints, self.rows, self.options, self.label.clone());

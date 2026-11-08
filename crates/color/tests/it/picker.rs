@@ -6,7 +6,7 @@ use std::rc::Rc;
 use craft_behavior::Codec as _;
 use craft_color::ui::{ChosenColor, ColorChoice, ColorPicker, ColorPickerLayout, ColorReadout, ColorWarning, NamedColor, PairCodec, PickedColor};
 use craft_theme::{Channel, ColorModel, DefaultOn, HsbModel, MAX_CHANNELS, ModelValues, OklchModel, RgbModel, Rgba, Srgba};
-use craft_ui::contract::Bind;
+use craft_ui::contract::{Bind, Show as _};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers, vec2};
 
@@ -264,7 +264,7 @@ fn the_model_switch_switches_the_rows() {
 /// A byte as two hex digits: exactly two digits apply; anything else is not a value.
 #[trial]
 fn a_hex_pair_applies_two_digits_and_marks_anything_else_invalid() {
-    let codec = PairCodec;
+    let codec = PairCodec::default();
     assert_eq!(codec.parse("A5", &0), Ok(0xA5));
     assert_eq!(codec.parse("a5", &0), Ok(0xA5), "either case reads");
     assert_eq!(codec.format(&0x0A), "0A");

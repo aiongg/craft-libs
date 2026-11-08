@@ -10,7 +10,7 @@ use craft_color::ui::{
     SwatchPair, Well,
 };
 use craft_theme::Srgba;
-use craft_ui::contract::{Bind, Props as _, Role, Show as _};
+use craft_ui::contract::{Bind, Role, Show as _};
 use craft_ui::dialog::{DialogResult, DialogStack, StackDialog as _};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Id, Key, Modifiers};
@@ -121,7 +121,7 @@ fn list_rig(options: PaintListOptions) -> (Fixture, Rc<RefCell<Vec<PaintListEven
 
 #[trial]
 fn a_paint_list_row_reports_its_remove_and_select_users_actions() {
-    let options = PaintListOptions { remove: true, select_users: true, ..PaintListOptions::default() };
+    let options = PaintListOptions::default().remove(true).select_users(true);
     let (mut fixture, events) = list_rig(options);
     let remove = fixture.by_label("Remove").expect("the first row has a Remove button");
     fixture.click(&remove);
@@ -134,7 +134,7 @@ fn a_paint_list_row_reports_its_remove_and_select_users_actions() {
 
 #[trial]
 fn a_bound_row_detaches_and_an_unbound_row_binds() {
-    let (mut fixture, events) = list_rig(PaintListOptions { bind: true, ..PaintListOptions::default() });
+    let (mut fixture, events) = list_rig(PaintListOptions::default().bind(true));
     let detach = fixture.by_label("Detach style").expect("the bound row detaches");
     fixture.click(&detach);
     let bind = fixture.by_label("Color styles").expect("the unbound row binds");

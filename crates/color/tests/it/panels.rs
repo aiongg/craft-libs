@@ -350,11 +350,11 @@ fn new_swatch_adds_the_foreground_with_a_free_name() {
 fn add_picked_keeps_the_typed_model() {
     let mut library = library();
     let color = Srgba::rgb(0.5, 0.5, 0.5);
-    let cmyk = PickedColor { color, model: Some(ModelValues::new("cmyk", &[10.0, 20.0, 30.0, 40.0])) };
+    let cmyk = PickedColor::in_model(color, ModelValues::new("cmyk", &[10.0, 20.0, 30.0, 40.0]));
     let at = library.add_picked(&cmyk).expect("room");
     let entry = library.get(at).expect("added");
     assert_eq!(entry.color, SwatchColor::Cmyk([0.1, 0.2, 0.3, 0.4]));
-    let plain = library.add_picked(&PickedColor { color, model: None }).expect("room");
+    let plain = library.add_picked(&PickedColor::rgb(color)).expect("room");
     assert_eq!(library.get(plain).map(|e| &e.color), Some(&SwatchColor::Rgb([0.5, 0.5, 0.5])));
 }
 
@@ -377,7 +377,7 @@ fn export_is_disabled_when_empty() {
 #[trial]
 fn import_and_replace_read_the_picked_file() {
     let words = SwatchesWords::default();
-    let (presets, format) = (PresetWords::default(), Format::english());
+    let (presets, format) = (PresetWords::default(), Format::from_tag("en"));
     for (command, replace) in [(SwatchesCommand::Import, false), (SwatchesCommand::Replace, true)] {
         let (mut library, mut state) = (library(), SwatchesState::default());
         let out = SwatchesMenu::run_command(&mut library, &mut state, command, Srgba::rgb(0.2, 0.4, 0.6), &words);
@@ -397,7 +397,7 @@ fn import_and_replace_read_the_picked_file() {
 #[trial]
 fn a_bad_file_is_a_toast_and_changes_nothing() {
     let words = SwatchesWords::default();
-    let (presets, format) = (PresetWords::default(), Format::english());
+    let (presets, format) = (PresetWords::default(), Format::from_tag("en"));
     let (mut lib, mut state) = (library(), SwatchesState::default());
     let out = SwatchesMenu::run_command(&mut lib, &mut state, SwatchesCommand::Import, Srgba::rgb(0.2, 0.4, 0.6), &words);
     let event = out.file.expect("a request").loaded("junk.bin", b"nothing".to_vec()).expect("a load event");
@@ -423,7 +423,7 @@ fn export_writes_the_chosen_format() {
 /// Notes are worded in the panel, with plural forms for counts, and make one toast.
 #[trial]
 fn notes_are_worded_and_make_a_toast() {
-    let (words, format) = (SwatchesWords::default(), Format::english());
+    let (words, format) = (SwatchesWords::default(), Format::from_tag("en"));
     let report = SwatchReport { notes: vec![SwatchNote::BookColors(1), SwatchNote::ConvertedToRgb(3), SwatchNote::GroupsFlattened] };
     assert_eq!(
         SwatchesPanel::note_lines(&report, true, &words, &format),
@@ -699,7 +699,7 @@ fn the_palette_arrows_walk_the_wrapped_grid() {
 /// A screen reader's focus on a swatch moves the palette's stop there and selects nothing.
 #[trial]
 fn a_screen_readers_focus_on_a_palette_swatch_moves_the_stop_there() {
-    use craft_ui::testing::AccessActionKind;
+    use craft_ui::testing::focus::AccessActionKind;
     let mut rig = PaletteRig::new(Srgba::rgb(0.9, 0.28, 0.3), PALETTE_WIDE);
     let teal = rig.fixture.by_label("Teal").expect("the swatch");
     rig.fixture.access(AccessActionKind::Focus, &teal);

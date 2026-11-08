@@ -8,9 +8,9 @@ use craft_behavior::kurbo::Point;
 use craft_behavior::{CancelReason, CanvasView, PointerButton};
 use craft_cms::convert::{CmykConverter, srgb_to_cmyk_naive};
 use craft_color::ui::{
-    CaptureSource, ColorPickerDialog, ColorPickerResult, ColorSamplerTool, ColorSamplers, DropperTool, EyedropperOptions, EyedropperPick,
-    EyedropperTool, EyedropperWords, MAX_SAMPLERS, PickedColor, SampleSize, SampleSource, SamplerCache, SamplerError, SamplerReadout,
-    SamplerReadouts, SamplerWords, ScreenPick, StillCapture,
+    CaptureSource, ColorPickerDialog, ColorPickerResult, ColorSamplerTool, ColorSamplers, DropperTool, EyedropperOptions, EyedropperTool,
+    EyedropperWords, MAX_SAMPLERS, PickedColor, SampleSize, SampleSource, SamplerCache, SamplerError, SamplerReadout, SamplerReadouts, SamplerWords,
+    ScreenPick, StillCapture,
 };
 use craft_keymap::Mods;
 use craft_theme::{ModelValues, Srgba};
@@ -201,13 +201,15 @@ fn alt_picks_the_background_and_a_drag_resamples() {
     });
     let mut cx = context();
     assert_eq!(tool.press(&at(50.0, 40.0), &mut cx), ToolAction::Claimed);
-    assert_eq!(tool.take(), Some(EyedropperPick { color: red, background: false }), "a press picks the foreground");
+    let pick = tool.take().expect("a pick");
+    assert_eq!((pick.color, pick.background), (red, false), "a press picks the foreground");
     tool.drag(&at(150.0, 40.0), &mut cx);
     assert_eq!(tool.take().map(|pick| pick.color), Some(Srgba::rgb(0.0, 0.0, 1.0)), "a drag resamples");
     tool.release(&at(150.0, 40.0), &mut cx);
     tool.cancel(CancelReason::Escape, &mut cx);
     tool.press(&alt(50.0, 40.0), &mut cx);
-    assert_eq!(tool.take(), Some(EyedropperPick { color: red, background: true }), "Alt picks the background");
+    let pick = tool.take().expect("a pick");
+    assert_eq!((pick.color, pick.background), (red, true), "Alt picks the background");
     assert_eq!(seen.borrow()[0], ([50.0, 40.0], SampleSize::Point, SampleSource::All), "the sample gets the document point and the options");
 }
 
@@ -327,7 +329,7 @@ fn a_canvas_sample_sets_the_new_colour_while_on_top() {
 
 #[trial]
 fn a_host_cancel_disarms_the_dropper() {
-    let mut rig = rig(ColorPickerDialog::foreground(FOREGROUND).web_colors_remembered(false));
+    let rig = rig(ColorPickerDialog::foreground(FOREGROUND).web_colors_remembered(false));
     let ctx = Context::default();
     rig.app.borrow_mut().dialog.cancelled(&ctx);
     assert!(rig.app.borrow_mut().dialog.requests().take_eyedropper().is_none(), "a cancelled dialog leaves no request");
@@ -336,7 +338,7 @@ fn a_host_cancel_disarms_the_dropper() {
 #[trial]
 fn set_color_and_confirm_answer_ok_with_the_colour() {
     let mut dialog = ColorPickerDialog::new("fill", "Fill", FOREGROUND).web_colors_remembered(false);
-    let set = PickedColor { color: Srgba::rgb(0.5, 0.5, 0.0), model: None };
+    let set = PickedColor::rgb(Srgba::rgb(0.5, 0.5, 0.0));
     dialog.set_color(set);
     assert_eq!(dialog.current(), set);
     assert_eq!(dialog.opening().color, FOREGROUND, "the opening colour stays");

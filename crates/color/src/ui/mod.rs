@@ -33,6 +33,7 @@ mod samplers;
 mod screen_picker;
 mod strip;
 mod swatches;
+/// The stories and trials this crate registers for the integration binary.
 #[cfg(feature = "screen-testing")]
 pub mod testing;
 mod wheel;
