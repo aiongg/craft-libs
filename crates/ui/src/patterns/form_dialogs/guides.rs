@@ -19,7 +19,7 @@ pub use new_guide::{HostedNewGuideDialog, NewGuideDialog, NewGuideOutput, NewGui
 use super::{ColorRequest, FormDialog, HostAnswer, HostRequests, ParamDialogWords};
 use crate::canvas::{Guide, GuideColor};
 use crate::choice::Checkbox;
-use crate::contract::{Bind, Entry, NoValue, Outcome, Props as _, Remember as _, Show as _, ShowContainer as _};
+use crate::contract::{Bind, EditResponse, Entry, NoValue, Outcome, Props as _, Remember as _, Show as _, ShowContainer as _};
 use crate::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
 use crate::display::Text;
 use crate::form::{Field, FieldGroup};
@@ -147,14 +147,23 @@ fn rounded(value: f64, places: usize) -> f64 {
     (value * scale).round() / scale
 }
 
-/// What the length fields of a guide dialog read with.
+/// What the length fields of a guide dialog read with, and whether one of them shows text that does not parse in
+/// this pass.
 struct Measure<'a> {
     words: &'a GuideDialogWords,
     numbers: &'a Units,
     units: &'a GuideUnits,
+    unparsed: Cell<bool>,
 }
 
 impl Measure<'_> {
+    /// Notes a field's response: OK waits while its text does not parse.
+    fn note<T>(&self, field: &EditResponse<T>) {
+        if field.unparsed {
+            self.unparsed.set(true);
+        }
+    }
+
     /// A number field `label` over the ruler unit showing `shown`, for lengths across `extent` pixels: the value the
     /// user typed if it differs from the one shown (`Some(None)` is an emptied field).
     fn input(&self, ui: &mut Ui, label: Label, shown: Option<f64>, extent: f64) -> Option<Option<f64>> {
@@ -163,7 +172,9 @@ impl Measure<'_> {
         let high = self.units.from_pixels(MAX_LAYOUT_PX, ruler, extent).filter(|v| v.is_finite()).unwrap_or(MAX_LAYOUT_PX).max(0.0);
         let codec = NumberCodec::new(self.units.reader(self.numbers, extent), places);
         let field = NumberField::new(label, Bind::given(shown)).codec(codec).range(0.0..=high).step(ruler.step()).unit(self.numbers.symbol(ruler));
-        let typed = field.show(ui).value().copied()?;
+        let field = field.show(ui);
+        self.note(&field);
+        let typed = field.value().copied()?;
         match (typed, shown) {
             (Some(new), Some(old)) if rounded(new, places) == rounded(old, places) => None,
             (None, None) => None,
@@ -306,10 +317,11 @@ impl<'a> GuideLayoutDialog<'a> {
         let valid = RefCell::new(None::<Vec<Guide>>);
         let last = RefCell::new(None::<Vec<Guide>>);
         let previewing = Cell::new(false);
-        let measure = Measure { words: &words, numbers: &number_units, units: &units };
+        let measure = Measure { words: &words, numbers: &number_units, units: &units, unparsed: Cell::new(false) };
         let rows = Form { document: &document, artboards: &artboards, preview_word: &preview_word };
         let shown = dialog.show(ui, |ui, form, values| {
             apply_color_answers(form.take_answers(), GUIDE_LAYOUT_COLOR_KEY, &mut values.color);
+            measure.unparsed.set(false);
             layout_rows(ui, &measure, &rows, values, form.requests());
             previewing.set(values.preview);
             let rects = targets(&values.options, &document, &artboards);
@@ -329,7 +341,7 @@ impl<'a> GuideLayoutDialog<'a> {
                 }
             };
             *last.borrow_mut() = remembered.0.clone();
-            ok
+            ok && !measure.unparsed.get()
         });
         let result = shown.accepted.and_then(|values| {
             valid.borrow_mut().take().map(|guides| GuideLayoutResult { options: values.options, guides, color: values.color.rgba() })
@@ -431,7 +443,9 @@ fn group_box(ui: &mut Ui, measure: &Measure<'_>, group: &mut GuideGroup, kind: G
         Field::new(words.number.clone()).enabled(on).show(ui, |ui, _| {
             let number = Some(f64::from(group.number));
             let field = NumberField::new(words.number.clone(), Bind::given(number)).range(1.0..=f64::from(MAX_COUNT)).step(1.0);
-            if let Some(Some(value)) = field.show(ui).value().copied() {
+            let field = field.show(ui);
+            measure.note(&field);
+            if let Some(Some(value)) = field.value().copied() {
                 group.number = (value.round() as u32).clamp(1, MAX_COUNT);
             }
         });

@@ -703,16 +703,32 @@ impl<'b> BodyHooks<'b> {
         env.content_column && matches!(props.mount, Mount::Inline) && self.sizing(props) != Sizing::Content
     }
 
-    /// What a header or footer took. Before the body's width is known a region runs in the whole room and a `Fill`
-    /// child takes all of it, so a region that took the whole room records no width then; one that took less
-    /// records what its content needs, so the next pass offers it that much and nothing in it measures squeezed.
-    /// A block placed without a size entry took a placeholder extent in its parent's flow. Its regions have run, so
-    /// the parent's flow moves past the size the block really took (a grid cell is widened to it, so the cells after
-    /// it are placed by it): whatever contains the block measures its content true in this pass and records it, and
-    /// nested blocks settle in the one discard pass the first record asks for.
-    fn claim_first_extent(&self, props: &ContainerProps, ui: &mut Ui, env: &Env, rect: Rect, pad: f32, rtl: bool) {
+    /// Whether a region took another size than the pass placed it by.
+    fn regions_moved(&self, tolerance: f32) -> bool {
+        let moved = |took: Option<Vec2>, placed: Option<Vec2>| {
+            took.is_some_and(|took| placed.is_none_or(|placed| (took - placed).abs().max_elem() > tolerance))
+        };
+        moved(self.body_size, self.remembered)
+            || moved(self.header_size, Some(self.header_last))
+            || moved(self.footer_size, Some(self.footer_last))
+            || moved(self.end_size, Some(self.end_last))
+    }
+
+    /// A block whose regions took more than the extent its parent's flow placed it at claims what it took: on its
+    /// first appearance (it was placed without a size entry) and in any pass in which a region's size changed. The
+    /// parent's flow moves past the size the block really took (a grid cell is widened to it, so the cells after it
+    /// are placed by it), so whatever contains the block measures its content true in this pass and records it, at
+    /// every depth, and the tree settles in the one discard pass the first record asks for. A block that keeps its
+    /// sizes claims nothing. A block that shrank keeps the extent it was placed at until the next pass places it by
+    /// its record. While the body opens or closes it shows a part of its height by design and claims nothing.
+    fn claim_extent(&self, props: &ContainerProps, ui: &mut Ui, env: &Env, rect: Rect, pad: f32, rtl: bool) {
         let held = self.held(props, env);
-        if self.remembered.is_some() || !matches!(props.mount, Mount::Inline) || !(held || self.sizing(props) == Sizing::Content) {
+        if !matches!(props.mount, Mount::Inline) || (self.sizing(props) == Sizing::Fill && !held) {
+            return;
+        }
+        let tolerance = measure_tolerance(crate::runtime::egui::scale::pixels_per_point(ui.ctx()));
+        let animating = self.presence.t > 0.0 && self.presence.t < 1.0;
+        if self.remembered.is_some() && (animating || !self.regions_moved(tolerance)) {
             return;
         }
         let (body, header, footer) =
@@ -729,7 +745,7 @@ impl<'b> BodyHooks<'b> {
         } else {
             Rect::from_min_max(rect.min, Pos2::new(rect.min.x, rect.max.y))
         };
-        if !placed.contains_rect(real) {
+        if !placed.expand(tolerance).contains_rect(real) {
             layout::widen_cell(ui, took);
             alloc::advance_past(ui, real.union(placed));
         }
@@ -783,6 +799,9 @@ impl<'b> BodyHooks<'b> {
         bcx.close_requested()
     }
 
+    /// What a header or footer took. Before the body's width is known a region runs in the whole room and a `Fill`
+    /// child takes all of it, so a region that took the whole room records no width then; one that took less
+    /// records what its content needs, so the next pass offers it that much and nothing in it measures squeezed.
     fn region_size(&self, ui: &Ui) -> Vec2 {
         let size = ui.min_rect().size();
         if self.remembered.is_some() || size.x + 0.5 < ui.max_rect().width() { size } else { Vec2::new(0.0, size.y) }
@@ -1575,7 +1594,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         }
         let rule = rule_look(&env.tokens, RuleKind::Divider);
         let ppp = ctx.pixels_per_point();
-        self.claim_first_extent(&props, ui, env, rect, pad, rtl);
+        self.claim_extent(&props, ui, env, rect, pad, rtl);
         let draw_rule = |y: f32| ui.painter().extend(Rule::shapes(&rule, Pos2::new(inner.min.x, y), Pos2::new(inner.max.x, y), ppp));
         if props.header.is_some_and(|header| header.rule && !header.inline) {
             draw_rule(regions.header.max.y);
@@ -1641,15 +1660,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         // A layer is shown as soon as it opens, so a region that took another size than the pass placed by asks for
         // the discard pass at once, even when its size changed in the last frame too.
         if self.layer {
-            let tolerance = measure_tolerance(crate::runtime::egui::scale::pixels_per_point(ctx));
-            let moved = |took: Option<Vec2>, placed: Option<Vec2>| {
-                took.is_some_and(|took| placed.is_none_or(|placed| (took - placed).abs().max_elem() > tolerance))
-            };
-            if moved(self.body_size, self.remembered)
-                || moved(self.header_size, Some(self.header_last))
-                || moved(self.footer_size, Some(self.footer_last))
-                || moved(self.end_size, Some(self.end_last))
-            {
+            if self.regions_moved(measure_tolerance(crate::runtime::egui::scale::pixels_per_point(ctx))) {
                 layout_memory::ask_discard(ctx);
             }
         }

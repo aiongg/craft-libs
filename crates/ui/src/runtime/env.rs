@@ -425,7 +425,6 @@ pub struct EnvCapture(Env);
 
 impl EnvCapture {
     /// The env a new egui layer or viewport starts with.
-    #[expect(dead_code, reason = "used by the layers (F3)")]
     pub(crate) fn env(&self) -> Env {
         self.0.clone()
     }

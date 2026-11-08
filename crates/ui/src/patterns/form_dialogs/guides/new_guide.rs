@@ -137,6 +137,7 @@ impl<'a> NewGuideDialog<'a> {
             if let Some(message) = &error {
                 Notice::new(Tone::Bad, message.clone()).layout(NoticeLayout::Inline).show(ui);
             }
+            let mut parsed = true;
             FieldGroup::new(title.clone()).show(ui, |ui, _| {
                 Field::new(words.orientation.clone()).show(ui, |ui, _| {
                     let along = values.along;
@@ -144,10 +145,10 @@ impl<'a> NewGuideDialog<'a> {
                         values.along = picked;
                     }
                 });
-                position_row(ui, &words, &number_units, &units, values, first);
+                parsed = position_row(ui, &words, &number_units, &units, values, first);
                 color_row(ui, &words, &mut values.color, NEW_GUIDE_COLOR_KEY, form.requests());
             });
-            true
+            parsed
         });
         let result = shown.accepted.map(|values| guide_of(&values, edit.as_ref(), key));
         NewGuideOutput { response: shown.response, closed: shown.closed, result, requests: shown.requests }
@@ -165,31 +166,36 @@ fn guide_of(values: &NewGuideValues, edit: Option<&(Guide, Rgba)>, key: GuideKey
     Guide { along: values.along, position: values.position_px, color, ..base }
 }
 
-fn position_row(ui: &mut Ui, words: &GuideDialogWords, numbers: &Units, units: &GuideUnits, values: &mut NewGuideValues, focus_here: bool) {
+/// The Position row; `false` while its text does not parse.
+fn position_row(ui: &mut Ui, words: &GuideDialogWords, numbers: &Units, units: &GuideUnits, values: &mut NewGuideValues, focus_here: bool) -> bool {
     let ruler = units.ruler;
     let extent = if values.along == Axis::Y { units.width_px } else { units.height_px };
     let shown = units.from_pixels(values.position_px, ruler, extent).unwrap_or(0.0);
     let high = units.from_pixels(GUIDE_LIMIT, ruler, extent).filter(|v| v.is_finite()).unwrap_or(GUIDE_LIMIT).abs();
     let places = *ruler.decimals().end();
-    Field::new(words.position.clone()).show(ui, |ui, _| {
-        let codec = NumberCodec::new(units.reader(numbers, extent), places);
-        let field = NumberField::new(words.position.clone(), Bind::given(Some(shown)))
-            .codec(codec)
-            .range(-high..=high)
-            .step(ruler.step())
-            .unit(numbers.symbol(ruler))
-            .show(ui);
-        if focus_here {
-            focus::request(ui.ctx(), FocusTarget::Id(field.response.id));
-        }
-        if let Some(Some(typed)) = field.value().copied() {
-            let scale = 10f64.powi(i32::try_from(places).unwrap_or(0));
-            let changed = (typed * scale).round() != (shown * scale).round();
-            if let (true, Some(px)) = (changed, units.to_pixels(GuideLength::new(typed, ruler), extent)) {
-                values.position_px = px.clamp(-GUIDE_LIMIT, GUIDE_LIMIT);
+    Field::new(words.position.clone())
+        .show(ui, |ui, _| {
+            let codec = NumberCodec::new(units.reader(numbers, extent), places);
+            let field = NumberField::new(words.position.clone(), Bind::given(Some(shown)))
+                .codec(codec)
+                .range(-high..=high)
+                .step(ruler.step())
+                .unit(numbers.symbol(ruler))
+                .show(ui);
+            if focus_here {
+                focus::request(ui.ctx(), FocusTarget::Id(field.response.id));
             }
-        }
-    });
+            if let Some(Some(typed)) = field.value().copied() {
+                let scale = 10f64.powi(i32::try_from(places).unwrap_or(0));
+                let changed = (typed * scale).round() != (shown * scale).round();
+                if let (true, Some(px)) = (changed, units.to_pixels(GuideLength::new(typed, ruler), extent)) {
+                    values.position_px = px.clamp(-GUIDE_LIMIT, GUIDE_LIMIT);
+                }
+            }
+            !field.unparsed
+        })
+        .inner
+        .unwrap_or(true)
 }
 
 /// Builds the dialog over the host-owned values of a [`HostedNewGuideDialog`] for one pass.

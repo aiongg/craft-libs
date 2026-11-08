@@ -1,10 +1,11 @@
 //! Dialog bodies and footer buttons.
 
 use craft_behavior::{DisplayOrder, ItemSource};
-use craft_ui::contract::{Bind, Role, SelectMode, Show as _, ShowCollection as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Entry, Role, SelectMode, Show as _, ShowCollection as _, ShowContainer as _};
 use craft_ui::dialog::Dialog;
 use craft_ui::display::Text;
 use craft_ui::list::{List, ListRow};
+use craft_ui::pickers::Select;
 use craft_ui::runtime::focus::Initial;
 use craft_ui::runtime::overlay::CloseReason;
 use craft_ui::sections::{DialogRole, FooterButton};
@@ -145,4 +146,37 @@ fn enter_in_field(allow: bool) -> (Option<CloseReason>, Option<usize>, bool) {
 fn enter_activates_ok_through_the_close_guard() {
     assert_eq!(enter_in_field(true), (Some(CloseReason::Activated), Some(0), false), "Enter closes as OK when the host allows it");
     assert_eq!(enter_in_field(false), (None, Some(0), true), "Enter leaves the dialog open when the host refuses, and reports the pick");
+}
+
+/// A Select in a dialog's scrolling body opens its list by a click and by Alt+Down and picks an item: the list's
+/// layer lies outside the body's scroll.
+#[trial]
+fn a_select_in_a_scrolling_dialog_body_opens_its_list_and_picks() {
+    let value = Rc::new(Cell::new(0u8));
+    let shown = value.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let entries = [Entry::new(0u8, "Normal"), Entry::new(1, "Multiply"), Entry::new(2, "Screen")];
+        let mut mode = shown.get();
+        let mut open = true;
+        Dialog::new("Blend").opened(Bind::bound(&mut open)).show(ui, |ui, _| {
+            Select::new("Blend mode", Bind::bound(&mut mode), &entries).show(ui);
+        });
+        shown.set(mode);
+    });
+    fixture.settle();
+    let select = fixture.by_label("Blend mode").expect("the select is shown");
+    fixture.click(&select);
+    fixture.settle();
+    assert!(!fixture.by_role(Role::LIST_BOX).is_empty(), "a click opens the list");
+    let screen = fixture.by_label("Screen").expect("the list shows its options");
+    fixture.click(&screen);
+    fixture.settle();
+    assert_eq!(value.get(), 2, "a click on an option picks it");
+    fixture.key(Key::ArrowDown, Modifiers::ALT);
+    fixture.settle();
+    assert!(!fixture.by_role(Role::LIST_BOX).is_empty(), "Alt+Down opens the list");
+    fixture.key(Key::ArrowUp, Modifiers::NONE);
+    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.settle();
+    assert_eq!(value.get(), 1, "Up and Enter pick the option above");
 }

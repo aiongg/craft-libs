@@ -3,7 +3,7 @@
 use craft_behavior::Axis;
 use craft_theme::Srgba;
 use craft_ui::canvas::{Guide, GuideColor, GuideKey};
-use craft_ui::contract::Bind;
+use craft_ui::contract::{Bind, Role};
 use craft_ui::patterns::form_dialogs::{GuideUnits, HostRequests, NewGuideDialog, NewGuideValues};
 use craft_ui::runtime::env::UnitKind;
 use craft_ui::testing::access::NodeKey;
@@ -87,23 +87,60 @@ fn edit_guide_opens_on_the_given_guide_while_the_bind_holds_another() {
 /// nothing, and an answer sets the colour.
 #[trial]
 fn a_host_cancel_keeps_the_colour_and_an_answer_sets_it() {
-    let values = Rc::new(RefCell::new(NewGuideValues::new(Axis::X, 0.0, GuideColor::LightBlue)));
+    let values = Rc::new(RefCell::new(NewGuideValues::new(Axis::X, 0.0, GuideColor::Black)));
     let requests = Rc::new(RefCell::new(HostRequests::new()));
     let mut fixture = new_guide(&values, &requests);
     let pick_custom = |fixture: &mut Fixture| {
         fixture.key(Key::Tab, Modifiers::NONE);
-        fixture.key(Key::ArrowUp, Modifiers::NONE);
+        fixture.key(Key::ArrowDown, Modifiers::ALT);
+        fixture.settle();
+        fixture.key(Key::Home, Modifiers::NONE);
+        fixture.key(Key::Enter, Modifiers::NONE);
         fixture.settle();
     };
     pick_custom(&mut fixture);
     assert!(requests.borrow().clone().take_color().is_some(), "Custom asks the host for a colour");
-    assert_eq!(values.borrow().color, GuideColor::LightBlue, "the colour waits for the answer");
+    assert_eq!(values.borrow().color, GuideColor::Black, "the colour waits for the answer");
     requests.borrow_mut().cancel();
     fixture.settle();
     assert!(requests.borrow_mut().take_color().is_none(), "the cancelled request is gone");
-    assert_eq!(values.borrow().color, GuideColor::LightBlue, "a cancelled pick changes nothing");
+    assert_eq!(values.borrow().color, GuideColor::Black, "a cancelled pick changes nothing");
     let key = "guides.newGuide.color";
     requests.borrow_mut().answer_color(key, PICKED);
     fixture.settle();
     assert_eq!(values.borrow().color, GuideColor::Custom(PICKED.to_rgba()), "the answer sets the colour");
+}
+
+/// OK waits while the Position text does not parse, and answers once the text parses again.
+#[trial]
+fn ok_waits_while_the_position_does_not_parse() {
+    let values = Rc::new(RefCell::new(NewGuideValues::default()));
+    let answered = Rc::new(RefCell::new(None::<Guide>));
+    let (held, answer) = (Rc::clone(&values), Rc::clone(&answered));
+    let mut fixture = Fixture::new(move |ui| {
+        let mut values = held.borrow_mut();
+        let shown = NewGuideDialog::new(units(), Bind::bound(&mut *values)).opened(Bind::given(true)).show(ui);
+        if let Some(guide) = shown.result {
+            *answer.borrow_mut() = Some(guide);
+        }
+    });
+    fixture.settle();
+    let retype = |fixture: &mut Fixture, text: &str| {
+        let position = fixture.by_role(Role::SPIN_BUTTON).into_iter().next().expect("the Position field");
+        fixture.click(&position);
+        fixture.key(Key::A, Modifiers::COMMAND);
+        fixture.type_text(text);
+        fixture.settle();
+    };
+    retype(&mut fixture, "abc");
+    let ok = fixture.by_label("OK").expect("the OK button");
+    fixture.click(&ok);
+    fixture.settle();
+    assert!(answered.borrow().is_none(), "OK answers nothing while the Position text does not parse");
+    retype(&mut fixture, "12");
+    let ok = fixture.by_label("OK").expect("the OK button");
+    fixture.click(&ok);
+    fixture.settle();
+    let guide = answered.borrow().clone().expect("OK answers once the text parses");
+    assert!((guide.position - 12.0).abs() < 1e-9, "the answer holds the typed position: {}", guide.position);
 }

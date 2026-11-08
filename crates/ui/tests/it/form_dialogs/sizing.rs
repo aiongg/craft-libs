@@ -1,13 +1,15 @@
-//! The size dialogs' own logic: the answer at OK, the refusal of an empty size, Alt-Reset and the method list.
+//! The size dialogs' own logic: the answer at OK, the refusal of an empty size, Alt-Reset, the pixel fields with
+//! Resample off and the method list.
 
 use craft_behavior::PixelSize;
 use craft_ui::contract::Bind;
+use craft_ui::contract::Role;
 use craft_ui::patterns::form_dialogs::{CanvasExtension, CanvasSize, CanvasSizeValues, ImageSize, ImageSizeValues, Resample, SizingWords};
 use craft_ui::pickers::Anchor9;
 use craft_ui::runtime::env::UnitKind;
 use craft_ui::runtime::env::WordSet as _;
 use craft_ui::testing::{Fixture, trial};
-use egui::Modifiers;
+use egui::{Key, Modifiers};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -124,6 +126,27 @@ fn alt_reset_in_image_size_restores_the_opening_values() {
     fixture.click(&reset);
     fixture.settle();
     assert_eq!(*values.borrow(), opening, "Reset wrote the opening values back");
+}
+
+/// Typing a width changes the size with Resample on and does nothing with Resample off, where the pixel count is
+/// fixed.
+#[trial]
+fn resample_off_disables_the_pixel_fields() {
+    let typed = |resampling: bool| {
+        let opening = ImageSizeValues::new(PICTURE).resampling(resampling);
+        let values = Rc::new(RefCell::new(opening.clone()));
+        let mut fixture = image_fixture(&values);
+        let width = fixture.by_role(Role::SPIN_BUTTON).into_iter().next().expect("the width field is shown");
+        fixture.click(&width);
+        fixture.key(Key::A, Modifiers::COMMAND);
+        fixture.type_text("200");
+        fixture.key(Key::Enter, Modifiers::NONE);
+        fixture.settle();
+        let changed = *values.borrow() != opening;
+        changed
+    };
+    assert!(typed(true), "with Resample on the width takes the typed number");
+    assert!(!typed(false), "with Resample off the width field takes no input");
 }
 
 /// The method list keeps the order of the full list whatever order the app names the methods in.

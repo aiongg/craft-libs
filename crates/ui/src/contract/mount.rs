@@ -185,7 +185,8 @@ impl Host for LayerHost {
         });
         let layer = Layer { id, owner: id, overlay: &overlay, anchor, env, exiting: self.exiting, fade: self.fade, size: Some(size) };
         let out = overlay::host(&ctx, &layer, &mut |ui| {
-            pass(ui, Some(at.unwrap_or(ShowAt::Flow)), None);
+            // The container runs in the env the layer installed, not in its opener's.
+            pass(ui, Some(at.unwrap_or(ShowAt::Flow)), Some(&Env::of(ui)));
             // A body shown at a rect takes no room in the layer's flow: the layer covers the rect, so the pointer
             // finds the layer under the body and its rect holds what the body paints.
             if let Some(ShowAt::Rect(rect)) = at {
@@ -226,7 +227,7 @@ impl Host for FullWindowHost {
         let window = ctx.content_rect();
         let overlay = full_window_overlay(self.focus).place(Place::Float(FloatPlace::at(window.min)));
         let layer = Layer { id, owner: id, overlay: &overlay, anchor: Rect::ZERO, env, exiting: self.exiting, fade: self.fade, size: None };
-        let out = overlay::host(&ctx, &layer, &mut |ui| pass(ui, Some(ShowAt::Rect(window)), None));
+        let out = overlay::host(&ctx, &layer, &mut |ui| pass(ui, Some(ShowAt::Rect(window)), Some(&Env::of(ui))));
         self.dismissed = out.dismissed;
     }
 
@@ -273,7 +274,8 @@ impl Host for ViewportHost {
         let dismissed = &mut self.dismissed;
         windows::show_viewport(&ctx, &open, |ui| {
             // The container's scope on the child viewport's own root: its scale, active state and window facts.
-            let scoped_env = Env::root_of(&ctx).map_or_else(|| env.clone(), |root| env.rebase(&root));
+            let opener = env.capture().env();
+            let scoped_env = Env::root_of(&ctx).map_or_else(|| opener.clone(), |root| opener.rebase(&root));
             let installed = Env::install_for(ui, scoped_env.clone());
             let window = ui.max_rect();
             let real = !ui.is_sizing_pass();

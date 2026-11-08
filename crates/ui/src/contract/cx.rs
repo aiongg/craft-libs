@@ -933,6 +933,7 @@ impl<C: Component> Edit for Cx<'_, C> {
         let mut response = EditResponse::new(self.core.response.clone(), event, self.validity.clone());
         response.escaped = self.core.escaped || matches!(self.events.last(), Some(EditEvent::Cancel { reason: CancelReason::Escape, .. }));
         response.submitted = self.core.submitted;
+        response.unparsed = self.core.text_invalid;
         response.shown = match (&self.shown, self.mixed) {
             (_, true) => Some(Mixed::Mixed),
             (Some(value), false) => Some(Mixed::Same(Arc::clone(value))),

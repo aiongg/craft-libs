@@ -349,6 +349,9 @@ pub struct EditResponse<T> {
     pub submitted: bool,
     /// The edit was abandoned with Escape.
     pub escaped: bool,
+    /// A text part holds text that does not parse: the value is the last one that did, and a form that commits the
+    /// value refuses to until the text parses or is abandoned.
+    pub unparsed: bool,
     /// What the binding's check says about the shown value.
     pub validity: Validity<T>,
     /// The value the component showed after the pass, with the pass's edits applied; `None` for a component with
@@ -359,7 +362,7 @@ pub struct EditResponse<T> {
 
 impl<T> EditResponse<T> {
     pub(crate) fn new(response: Response, event: Option<EditEvent<T>>, validity: Validity<T>) -> Self {
-        EditResponse { response, event, submitted: false, escaped: false, validity, shown: None }
+        EditResponse { response, event, submitted: false, escaped: false, unparsed: false, validity, shown: None }
     }
 
     /// The value the pass's event carries: a proposal, a commit or a set; `None` when nothing was edited or the event
