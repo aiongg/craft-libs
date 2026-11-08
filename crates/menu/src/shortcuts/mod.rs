@@ -537,7 +537,7 @@ fn frame(ui: &mut Ui, env: &mut Env<'_>, state: &mut DialogState) -> ShortcutsOu
             }
         });
     let Session { env, state } = session.into_inner();
-    let DialogOutput { response, closed, picked } = shown.output;
+    let DialogOutput { response, closed, picked, .. } = shown.output;
     match picked.and_then(|at| acts.get(at)) {
         Some(Act::Undo) => state.undo(env),
         Some(Act::Redo) => state.redo(env),

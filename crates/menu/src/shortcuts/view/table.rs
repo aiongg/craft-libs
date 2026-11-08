@@ -348,7 +348,7 @@ impl CommandRow<'_> {
         let words = self.env.words;
         let cell = self.cell(SHORTCUT);
         let flow = Flow::new(cell, rtl);
-        let (pad, gap, height) = (cx.style.pad, cx.style.gap, cx.style.height);
+        let (gap, height) = (cx.style.gap, cx.style.height);
         let editable = self.env.editable;
         let widths = &self.widths;
         let width_of = |text: &str| widths.get(text).copied().unwrap_or(0.0);
@@ -359,14 +359,8 @@ impl CommandRow<'_> {
         let reset_at = (cell.width() - height).max(0.0);
         let mut at = 0.0;
         let mut act = None;
-        let mut cells: Vec<(Option<&Chip>, bool)> = line.chips.iter().map(|chip| (Some(chip), false)).collect();
-        for (n, (chip, _)) in cells.iter_mut().enumerate() {
-            if let (Some(chip), Some((old, _))) = (*chip, &recording)
-                && old.as_ref() == Some(&chip.binding)
-            {
-                cells[n].1 = true;
-            }
-        }
+        let mut cells: Vec<(Option<&Chip>, bool)> =
+            line.chips.iter().map(|chip| (Some(chip), recording.as_ref().is_some_and(|(old, _)| old.as_ref() == Some(&chip.binding)))).collect();
         if matches!(&recording, Some((None, _))) {
             cells.push((None, true));
         }

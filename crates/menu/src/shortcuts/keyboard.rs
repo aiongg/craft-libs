@@ -11,7 +11,7 @@ use craft_theme::variant::Tone;
 use craft_ui::buttons::{Button, ToggleButton};
 use craft_ui::contract::{
     Access, Bind, BodyCx, Component, Cx, Input, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role, Show as _,
-    ShowContainer as _, Styled as _,
+    ShowContainer as _,
 };
 use craft_ui::display::Text;
 use craft_ui::layout_components::{Row, Stack};

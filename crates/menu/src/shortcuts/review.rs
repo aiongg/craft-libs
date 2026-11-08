@@ -238,6 +238,7 @@ fn plan_view(ui: &mut Ui, env: &Env<'_>, state: &mut DialogState, plan: &ImportP
         .map(|m| {
             let note = match m.reason {
                 NoChangeReason::PanelMenu => w.label_keeps_its_shortcuts_matched_by.fill(&[("label", say.label_of(env.keymap, &m.command).as_str())]),
+                _ => String::new(),
             };
             Line::new(m.item.clone(), m.line).note(note)
         })
