@@ -527,3 +527,14 @@ fn actions_settings_survive_a_serde_round_trip() {
     assert_eq!(read, ActionsSettings::new(true, vec!["Effects".into()]));
     assert_eq!(serde_json::from_str::<ActionsSettings>("{}").expect("read"), ActionsSettings::default());
 }
+
+/// A row writes its shortcut in the keymap's chord text for the platform.
+#[trial]
+fn shortcut_text_is_the_platforms_chord_text() {
+    let (plain, both) = (ShortcutChoice::new(2, false, false), ShortcutChoice::new(3, true, true));
+    if Platform::current().is_mac() {
+        assert_eq!((plain.text().as_str(), both.text().as_str()), ("F2", "⇧⌘F3"));
+    } else {
+        assert_eq!((plain.text().as_str(), both.text().as_str()), ("F2", "Ctrl+Shift+F3"));
+    }
+}
