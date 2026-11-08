@@ -163,7 +163,7 @@ fn any_expanded(tree: &AccessTree) -> bool {
 /// the value needs `Click`; an arrow that changes the value of a control needs `Increment` or `Decrement`, or, on a
 /// node that declares scroll actions on the arrow's axis (a view that pans), the scroll action of the arrow's
 /// direction; an arrow that moves the checked or focused node of a group of `RADIO_BUTTON` nodes is a choice, not
-/// a step, and needs `Click` declared on every radio of the group instead; a key that opens something needs `Expand` and one that closes it needs `Collapse`, declared before the key. Text types take edit intents, which the text cases cover.
+/// a step, and needs `Click` declared on every enabled radio of the group instead; a key that opens something needs `Expand` and one that closes it needs `Collapse`, declared before the key. Text types take edit intents, which the text cases cover.
 fn every_intent_has_a_declared_action(subject: &Subject) -> Result<(), String> {
     let probe = subject.probe;
     if matches!(probe.input, Input::Text | Input::Editor | Input::Display) {
@@ -207,7 +207,8 @@ fn every_intent_has_a_declared_action(subject: &Subject) -> Result<(), String> {
             let tree = fixture.tree();
             let roving =
                 step.is_some() && radios.len() > 1 && radios.contains(&tree.focused_key()) && (changed || tree.focused_key() != focus_before);
-            if roving && radios.iter().any(|&radio| !tree.declares_key(radio, Declared::Click)) {
+            // A disabled radio takes no click, so it declares none.
+            if roving && radios.iter().any(|&radio| !tree.is_disabled_key(radio) && !tree.declares_key(radio, Declared::Click)) {
                 return Err(format!("{}: {key:?} moved the choice of a radio group and a radio declares no Click", story.name));
             }
             let mut needs = Vec::new();
