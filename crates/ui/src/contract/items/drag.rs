@@ -159,7 +159,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
 
     /// Whether the toggle cell of row `at` in `column` takes a press or a sweep: a section row has no toggles, and the
     /// source can lock a cell.
-    fn toggle_open(&self, at: usize, column: &ColumnKey) -> bool {
+    pub(super) fn toggle_open(&self, at: usize, column: &ColumnKey) -> bool {
         !self.source.is_section(at) && self.source.toggle_enabled(at, column)
     }
 
