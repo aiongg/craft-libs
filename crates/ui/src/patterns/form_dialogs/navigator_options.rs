@@ -1,12 +1,10 @@
 //! `NavigatorOptionsDialog`: Panel Options of the Navigator panel.
 
-use super::{ColorRequest, FormDialog, HostAnswer, HostRequests};
-use crate::canvas::{CanvasWords, NAVIGATOR_PROXY_COLOR_KEY, NavigatorOptions, ProxyColor};
-use crate::contract::{Bind, Entry, NoValue, Outcome, Remember as _};
-use crate::contract::{Show as _, ShowContainer as _};
-use crate::form::{Field, FieldGroup};
-use crate::pickers::Select;
-use crate::primitives::IconSpec;
+use super::color_choice::{ColorChoice, ColorRowTexts, apply_color_answers, color_row};
+use super::{FormDialog, HostAnswer, HostRequests};
+use crate::canvas::{NavigatorOptions, ProxyColor};
+use crate::contract::{Bind, NoValue, Outcome, Show as _, ShowContainer as _};
+use crate::form::FieldGroup;
 use crate::runtime::env::{Env, Label};
 use crate::runtime::overlay::CloseReason;
 use egui::{Response, Ui};
@@ -14,9 +12,59 @@ use egui::{Response, Ui};
 #[cfg(feature = "testing")]
 mod stories;
 
-/// The custom colour the dialog offered last, kept while it is open.
-#[derive(Clone, Default)]
-struct LastCustom(Option<[u8; 3]>);
+/// The [`ColorRequest::key`](super::ColorRequest::key) of Panel Options' Custom… colour.
+pub const NAVIGATOR_PROXY_COLOR_KEY: &str = "navigatorOptionsDialog.proxyColor";
+
+craft_ui::words! {
+    /// The words of Panel Options (`navigatorOptionsDialog`), English by default (Photoshop's). OK, Cancel and Reset are the common words.
+    pub struct NavigatorOptionsWords {
+        title: "navigatorOptionsDialog.title" = "Navigator Panel Options";
+        proxy_color: "navigatorOptionsDialog.proxyColor" = "Color";
+        picker_title: "navigatorOptionsDialog.pickerTitle" = "Color Picker (Proxy Color)";
+        default_color: "navigatorOptionsDialog.default" = "Default";
+        red: "navigatorOptionsDialog.red" = "Red";
+        orange: "navigatorOptionsDialog.orange" = "Orange";
+        yellow: "navigatorOptionsDialog.yellow" = "Yellow";
+        green: "navigatorOptionsDialog.green" = "Green";
+        blue: "navigatorOptionsDialog.blue" = "Blue";
+        violet: "navigatorOptionsDialog.violet" = "Violet";
+        gray: "navigatorOptionsDialog.gray" = "Gray";
+        custom_color: "navigatorOptionsDialog.custom" = "Custom…";
+    }
+}
+
+impl ColorChoice for ProxyColor {
+    const NAMED: &'static [Self] = &ProxyColor::ALL;
+    const CUSTOM_FIRST: bool = false;
+
+    fn from_picked(color: craft_theme::Srgba) -> Self {
+        ProxyColor::custom(color)
+    }
+
+    fn is_custom(self) -> bool {
+        matches!(self, ProxyColor::Custom(_))
+    }
+
+    fn srgba(self) -> craft_theme::Srgba {
+        self.color()
+    }
+}
+
+/// The name of `color` in the list.
+fn color_label(color: ProxyColor, words: &NavigatorOptionsWords) -> Label {
+    let word = match color {
+        ProxyColor::Default => words.default_color.clone(),
+        ProxyColor::Red => words.red.clone(),
+        ProxyColor::Orange => words.orange.clone(),
+        ProxyColor::Yellow => words.yellow.clone(),
+        ProxyColor::Green => words.green.clone(),
+        ProxyColor::Blue => words.blue.clone(),
+        ProxyColor::Violet => words.violet.clone(),
+        ProxyColor::Gray => words.gray.clone(),
+        ProxyColor::Custom(_) => words.custom_color.clone(),
+    };
+    word.into()
+}
 
 /// What Panel Options reports.
 #[derive(Debug)]
@@ -47,8 +95,8 @@ impl Outcome for NavigatorOptionsDialogOutput {
 /// Panel Options of the Navigator: the colour of the proxy rectangle.
 ///
 /// - The Color list shows the named colours, each with its swatch, then Custom…. One Tab stop; the arrows pick.
-/// - Custom… asks the app for a colour with a request keyed [`NAVIGATOR_PROXY_COLOR_KEY`]; the colour becomes Custom
-///   when the app answers, and a cancelled picker leaves the colour as it was.
+/// - Custom… asks the app for a colour with a request keyed [`NAVIGATOR_PROXY_COLOR_KEY`], every time it is picked, also while a custom
+///   colour is selected; the colour becomes Custom when the app answers, and a cancelled picker leaves it as it was.
 /// - Enter is OK and Escape cancels. Holding Alt turns Cancel into Reset, which restores the options from when the
 ///   dialog opened.
 #[must_use = "show the dialog with `show`"]
@@ -72,45 +120,18 @@ impl<'a> NavigatorOptionsDialog<'a> {
     /// Shows the dialog.
     pub fn show(self, ui: &mut Ui) -> NavigatorOptionsDialogOutput {
         let NavigatorOptionsDialog { options, answers, open } = self;
-        let words = Env::of(ui).words::<CanvasWords>();
-        let title = Label::from(words.navigator_options_title.clone());
-        let color_label = Label::from(words.navigator_proxy_color.clone());
-        let picker_title = Label::from(words.navigator_picker_title.clone());
+        let words = Env::of(ui).words::<NavigatorOptionsWords>();
+        let title = Label::from(words.title.clone());
+        let texts = ColorRowTexts { label: words.proxy_color.clone().into(), picker_title: words.picker_title.clone().into() };
         let mut form = FormDialog::new(title.clone(), options).answers(answers);
         if let Some(open) = open {
             form = form.opened(open);
         }
         let shown = form.show(ui, |ui, cx, options| {
-            for answer in cx.take_answers() {
-                if let HostAnswer::Color { key, color } = answer
-                    && key == NAVIGATOR_PROXY_COLOR_KEY
-                {
-                    options.proxy_color = ProxyColor::custom(color);
-                }
-            }
-            if let ProxyColor::Custom(rgb) = options.proxy_color {
-                cx.memory::<LastCustom>().0 = Some(rgb);
-            }
-            let custom = cx.memory::<LastCustom>().0.unwrap_or(ProxyColor::DEFAULT_CUSTOM);
-            let entries: Vec<Entry<ProxyColor>> = ProxyColor::ALL
-                .into_iter()
-                .chain([ProxyColor::Custom(custom)])
-                .map(|color| Entry::new(color, color.label(&words)).icon(IconSpec::swatch(color.color())))
-                .collect();
-            let mut picked = None;
+            apply_color_answers(cx.take_answers(), NAVIGATOR_PROXY_COLOR_KEY, &mut options.proxy_color);
             FieldGroup::new(title.clone()).show(ui, |ui, _| {
-                Field::new(color_label.clone()).show(ui, |ui, _| {
-                    let list = Select::new(color_label.clone(), Bind::given(options.proxy_color), &entries).show(ui);
-                    picked = list.event.as_ref().and_then(|event| event.value().cloned());
-                });
+                color_row(ui, &texts, &mut options.proxy_color, NAVIGATOR_PROXY_COLOR_KEY, cx.requests(), |color| color_label(color, &words));
             });
-            match picked {
-                Some(chosen @ ProxyColor::Custom(_)) => {
-                    cx.requests().request_color(ColorRequest::new(NAVIGATOR_PROXY_COLOR_KEY, chosen.color()).title(picker_title.clone()));
-                }
-                Some(named) => options.proxy_color = named,
-                None => {}
-            }
             true
         });
         NavigatorOptionsDialogOutput {

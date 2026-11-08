@@ -59,6 +59,7 @@ pub use about::{
     commit_day, commit_share, sorted_contributors,
 };
 
+mod color_choice;
 mod guides;
 mod properties;
 
@@ -72,7 +73,7 @@ pub use properties::{PropertiesDialog, PropertiesOutput, PropertiesTab, Property
 // canvas-navigator-a
 mod navigator_options;
 
-pub use navigator_options::{NavigatorOptionsDialog, NavigatorOptionsDialogOutput};
+pub use navigator_options::{NAVIGATOR_PROXY_COLOR_KEY, NavigatorOptionsDialog, NavigatorOptionsDialogOutput, NavigatorOptionsWords};
 // End of canvas-navigator-a.
 
 mod export;

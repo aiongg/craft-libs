@@ -6,7 +6,7 @@
 //! | Geometry, for tests and for apps with their own preview | [`preview_rect`], [`proxy_quad`], [`zoom_to_document_rect`], [`view_center_for`] |
 //! | The preview box | [`Navigator`], [`NavigatorPreview`], [`NavigatorPaint`], [`NavigatorOutput`] |
 //! | The zoom row | [`NavigatorZoomRow`], [`NavigatorZoomOutput`] |
-//! | Panel Options | [`NavigatorSettings`], [`NavigatorOptions`], [`ProxyColor`], [`NAVIGATOR_PROXY_COLOR_KEY`]; the dialog is `patterns::form_dialogs::NavigatorOptionsDialog` |
+//! | Panel Options | [`NavigatorSettings`], [`NavigatorOptions`], [`ProxyColor`]; the dialog is `patterns::form_dialogs::NavigatorOptionsDialog` |
 //! | The panel menu | [`NavigatorCommands`] |
 
 mod menu;
@@ -18,7 +18,7 @@ mod stories;
 mod zoom_row;
 
 pub use menu::NavigatorCommands;
-pub use options::{NAVIGATOR_PROXY_COLOR_KEY, NavigatorOptions, NavigatorSettings, ProxyColor};
+pub use options::{NavigatorOptions, NavigatorSettings, ProxyColor};
 pub use preview::{Navigator, NavigatorOutput, NavigatorPaint, NavigatorPreview, NavigatorStyle};
 pub use proxy::{preview_rect, proxy_quad, view_center_for, zoom_to_document_rect};
 pub use zoom_row::{NavigatorZoomOutput, NavigatorZoomRow};
