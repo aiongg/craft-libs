@@ -3,7 +3,7 @@
 use craft_behavior::kurbo::{Point, Rect as DocRect, Size};
 use craft_behavior::{CanvasView, ZoomLadder};
 use craft_ui::canvas::{
-    NavigatorOptions, NavigatorSettings, NavigatorZoomRow, ProxyColor, preview_rect, proxy_quad, view_center_for, zoom_to_document_rect,
+    Navigator, NavigatorOptions, NavigatorSettings, NavigatorZoomRow, ProxyColor, preview_rect, proxy_quad, view_center_for, zoom_to_document_rect,
 };
 use craft_ui::contract::Bind;
 use craft_ui::testing::{Fixture, trial};
@@ -20,6 +20,9 @@ const INSET: f32 = 8.0;
 /// The canvas of the views under test, in points.
 const CANVAS: Rect = Rect::from_min_max(Pos2::new(50.0, 20.0), Pos2::new(850.0, 620.0));
 const ZOOM_CANVAS: Rect = Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(800.0, 600.0));
+
+/// How far from the middle a click on the middle of the box may land, as a share of the document.
+const CENTRE_SLACK: f64 = 0.05;
 
 /// The zoom the row starts from.
 const START: f64 = 1.0;
@@ -146,4 +149,23 @@ fn zoom_in_steps_the_ladder_about_the_centre_and_asks_for_the_ease() {
     assert!(after.zoom > START && after.zoom <= ZoomLadder::MAX, "one rung in: {after:?}");
     assert_eq!(after.center, CENTRE, "the centre stays");
     assert!(eased.get(), "Animated Zoom is on by default, so the button asks for the ease");
+}
+
+#[trial]
+fn a_press_on_the_preview_centres_the_view_on_the_point_pressed() {
+    let view = Rc::new(RefCell::new(CanvasView::new(ZOOM_CANVAS, Point::new(0.0, 0.0), START)));
+    let held = Rc::clone(&view);
+    let mut fixture = Fixture::new(move |ui| {
+        let mut view = held.borrow_mut();
+        Navigator::new("Navigator", Bind::bound(&mut *view), DOC).show(ui);
+    });
+    fixture.settle();
+    let preview = fixture.by_label("Navigator").expect("the navigator has a node");
+    fixture.click(&preview);
+    fixture.settle();
+    let centre = view.borrow().center;
+    assert!(
+        (centre.x - DOC.width / 2.0).abs() < DOC.width * CENTRE_SLACK && (centre.y - DOC.height / 2.0).abs() < DOC.height * CENTRE_SLACK,
+        "the middle of the box is the middle of the document: {centre:?}"
+    );
 }

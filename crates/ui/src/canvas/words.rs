@@ -20,6 +20,8 @@ craft_ui::words! {
         scroll_vertical: "canvas.scrollVertical" = "Vertical scroll bar";
 
         // canvas-navigator-a
+        navigator_horizontal: "navigator.horizontal" = "Visible area horizontal position";
+        navigator_vertical: "navigator.vertical" = "Visible area vertical position";
         navigator_zoom: "navigatorZoomRow.zoom" = "Zoom";
         navigator_zoom_out: "navigatorZoomRow.zoomOut" = "Zoom Out";
         navigator_zoom_in: "navigatorZoomRow.zoomIn" = "Zoom In";

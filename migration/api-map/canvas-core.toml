@@ -247,29 +247,29 @@ note = "`CanvasScrollbarsOutput { view: EditResponse<CanvasView>, over: bool }`.
 name = "Navigator"
 old = "craft_ui::canvas::navigator::preview::Navigator"
 new = "craft_ui::canvas::Navigator"
-status = "pending"
-note = "Not built: the preview box needs a fixed `PreviewPane` (no wheel, drag or arrow pan) with a proxy overlay and a paint-closure state. The zoom row is `NavigatorZoomRow`; Panel Options is `NavigatorOptionsDialog`."
+status = "moved"
+note = "A component: `Navigator::new(label, Bind::bound(&mut view), document).preview(..).navigation(..).proxy(..).show(ui)`; the zoom row is the separate `NavigatorZoomRow`."
 
 [[type]]
 name = "NavigatorOutput"
 old = "craft_ui::canvas::navigator::preview::NavigatorOutput"
 new = "craft_ui::canvas::NavigatorOutput"
-status = "pending"
-note = "Follows `Navigator`. The zoom row's part is `NavigatorZoomOutput { response, view, animate_zoom }`."
+status = "moved"
+note = "`view` (the `EditResponse<CanvasView>`) and `animate_zoom`."
 
 [[type]]
 name = "NavigatorPreview"
 old = "craft_ui::canvas::navigator::preview::NavigatorPreview"
 new = "craft_ui::canvas::NavigatorPreview"
-status = "pending"
-note = "Follows `Navigator`."
+status = "moved"
+note = "`Texture(CachedTexture)`, `Paint(NavigatorPaint)` or `None`."
 
 [[type]]
 name = "NavigatorPaint"
 old = "craft_ui::canvas::navigator::preview::NavigatorPaint"
 new = "craft_ui::canvas::NavigatorPaint"
-status = "pending"
-note = "Follows `Navigator`."
+status = "moved"
+note = "`NavigatorPaint::new(|painter: &ContentPainterCx, rect| ..)`."
 
 [[type]]
 name = "NavigatorSettings"
