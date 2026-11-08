@@ -66,6 +66,13 @@ status = "replaced"
 note = "A pattern; `FindBar::new(query, options, matches)`, no id salt."
 
 [[type]]
+name = "FindStep"
+old = ""
+new = "craft_text::ui::find::FindStep"
+status = "replaced"
+note = "Non-exhaustive command set in the scope `find`, which the bar declares: Next, Previous (also Shift+Enter) and Close (Escape once the field is empty). A chord reaches the bar that holds key focus."
+
+[[type]]
 name = "FindBarOutput"
 old = "craft_text::ui::find::FindBarOutput"
 new = "craft_text::ui::find::FindBarOutput"

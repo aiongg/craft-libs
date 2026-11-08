@@ -13,8 +13,8 @@ use craft_behavior::{SelectionChange, keyed};
 use craft_ui::buttons::{Button, IconButton};
 use craft_ui::choice::Checkbox;
 use craft_ui::contract::{
-    Bind, BodyCx, CollectionEvent, Commands as _, Entry, Outcome as _, Props as _, Show as _, ShowCollection as _, ShowContainer as _, Trigger,
-    clicked,
+    Bind, BodyCx, CollectionEvent, CommandSet as _, Commands as _, Entry, Outcome as _, Props as _, Show as _, ShowCollection as _,
+    ShowContainer as _, Trigger, clicked,
 };
 use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
 use craft_ui::display::Text;
@@ -112,17 +112,21 @@ craft_ui::words! {
     }
 }
 
-/// Step through the matches. The bar reads them while it is shown; the chords are the keymap's to rebind.
+/// Step through the matches and close the bar. The bar reads them while it is shown, and they belong to the bar that
+/// holds key focus; the chords are the keymap's to rebind.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui::contract::CommandSet)]
-#[command(prefix = "find")]
+#[command(prefix = "find", scope = "find")]
 #[non_exhaustive]
 pub enum FindStep {
     /// Go to the next match.
     #[command(label = "Find Next", default = "Cmd+G", default = "F3")]
     Next,
     /// Go to the previous match.
-    #[command(label = "Find Previous", default = "Cmd+Shift+G", default = "Shift+F3")]
+    #[command(label = "Find Previous", default = "Cmd+Shift+G", default = "Shift+F3", default = "Shift+Enter")]
     Previous,
+    /// Close the bar: the Escape that reaches it once the field is empty.
+    #[command(label = "Close Find Bar", default = "Escape")]
+    Close,
 }
 
 /// What the bar did this pass.
@@ -219,25 +223,24 @@ impl<'a> FindBar<'a> {
         let opened = state.is_some_and(|state| std::mem::take(&mut state.opened));
         let mut out = FindBarOutput { search: false, stepped: false, closed: false, response: ui.response() };
         let mut step: Option<bool> = None;
-        let row = Row::new().show(ui, |ui, cx: &mut BodyCx<'_>| {
+        let row = Row::new().command_scope(FindStep::SCOPE).show(ui, |ui, cx: &mut BodyCx<'_>| {
             while let Some((command, _)) = cx.take_command::<FindStep>() {
-                step = Some(command == FindStep::Previous);
+                match command {
+                    FindStep::Close => out.closed = true,
+                    command => step = Some(command == FindStep::Previous),
+                }
             }
             let edit = TextField::search(words.find_text.clone(), Bind::given(query.clone())).placeholder(words.find_text.clone()).show(ui);
             if opened {
                 focus::request(ui.ctx(), FocusTarget::Id(edit.response.id));
             }
-            // The Esc that clears the field arrives with the emptied value; only a second one closes the bar.
-            let was_empty = query.is_empty();
+            // The field takes the Esc that clears it; the one that reaches the bar through `FindStep::Close` closes it.
             if let Some(value) = edit.event.as_ref().and_then(|event| event.value()) {
                 query.clone_from(value);
                 out.search = true;
             }
             if edit.submitted {
-                step = Some(ui.input(|input| input.modifiers.shift));
-            }
-            if edit.escaped && was_empty {
-                out.closed = true;
+                step.get_or_insert(false);
             }
             let text = count_text(&words, query.trim().is_empty(), matches, progress);
             if !text.is_empty() {
