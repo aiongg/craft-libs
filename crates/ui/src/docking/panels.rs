@@ -39,8 +39,8 @@ pub trait DockPanels<P> {
     /// before its tab strip (the default shows none). It does not run for a group whose `group_view` returned true.
     fn group_header(&mut self, _panels: &[P], _active: usize, _ui: &mut Ui, _cx: &mut BodyCx<'_>) {}
 
-    /// The host's rows of `panel`'s menu, shown before the dock's own rows (the default has none). Command rows
-    /// run by themselves; a `PanelRow::Item` row is a dock row.
+    /// The host's rows of `panel`'s menu, shown before the dock's own rows (the default has none): command rows,
+    /// which run by themselves.
     fn panel_rows(&mut self, _panel: &P) -> Vec<PanelRow> {
         Vec::new()
     }

@@ -1,5 +1,6 @@
 //! The dock area: an invalid layout is an error value and draws nothing, hidden panels are not shown, and a panel
-//! dropped on empty space floats with its title row under the pointer.
+//! dropped on empty space floats with its title row under the pointer. A panel command runs the same actions from
+//! the group menu and the palette, and the area names the panel that holds key focus apart from the one picked.
 
 use craft_behavior::Axis;
 use craft_behavior::dock::{Column, DockEdge, Group, Layout, Node, Permissions, SplitSize, Workspace};
@@ -93,4 +94,97 @@ fn a_panel_dropped_on_empty_space_floats_with_its_title_row_under_the_pointer() 
     let craft_behavior::dock::Action::Float { rect, .. } = dropped.action else { panic!("a panel floats alone") };
     assert!(rect.contains(POINTER), "the pointer is on the window: {rect:?}");
     assert!(POINTER.y - rect.top() <= space.title_row, "the pointer is inside the title row: {rect:?}");
+}
+
+// Panel commands and focus (l4e-dcmd).
+
+use craft_behavior::dock::Action;
+use craft_ui::buttons::Button;
+use craft_ui::contract::{Role, Show as _};
+use craft_ui::docking::{DockCommands, DockScene, actions};
+use craft_ui::runtime::commands::{FireSource, fire};
+use craft_ui::testing::access::name;
+use craft_ui::testing::focus::AccessActionKind;
+
+const MENU_FRAMES: usize = 10;
+
+/// Panels whose side panel holds a button.
+struct Controls;
+
+impl DockPanels<usize> for Controls {
+    fn spec(&self, panel: &usize) -> PanelSpec {
+        PanelSpec::new(format!("Panel {panel}"))
+    }
+
+    fn permissions(&self, panel: &usize) -> Permissions {
+        if *panel == CANVAS { Permissions::PROTECTED } else { Permissions::ALL }
+    }
+
+    fn body(&mut self, panel: &usize, ui: &mut Ui, _: &mut BodyCx<'_>) {
+        if *panel == SIDE {
+            let _ = Button::new("Inside").show(ui);
+        }
+    }
+}
+
+type Outputs = Rc<RefCell<Vec<DockAreaOutput<usize>>>>;
+
+/// A fixture of the docked layout that keeps every output and applies none of its actions.
+fn commanded() -> (Fixture, Outputs) {
+    let outputs: Outputs = Rc::default();
+    let kept = Rc::clone(&outputs);
+    let mut workspace = docked();
+    let fixture = Fixture::new(move |ui| {
+        let out = DockArea::new(global("dock area", "commands"), Bind::bound(&mut workspace), &mut Controls, DockConfig::default()).show(ui);
+        kept.borrow_mut().push(out);
+    });
+    (fixture, outputs)
+}
+
+fn drained(outputs: &Outputs) -> Vec<Action<usize>> {
+    outputs.borrow_mut().drain(..).flat_map(|output| output.actions).collect()
+}
+
+#[trial]
+fn float_runs_the_same_actions_from_the_group_menu_and_the_palette() {
+    let (mut fixture, outputs) = commanded();
+    fixture.settle();
+    let space = outputs.borrow().last().and_then(|output| output.float_space.clone()).expect("the area reports its float space");
+    let permissions = |panel: &usize| Controls.permissions(panel);
+    let layout = docked().layout;
+    let expected = actions(&DockScene::new(&layout, &space, false, &permissions), DockCommands::FloatPanel, &SIDE).expect("the side panel floats");
+
+    let inside = fixture.by_label("Inside").expect("the side panel shows its button");
+    fixture.access(AccessActionKind::Focus, &inside);
+    fixture.idle(2);
+    drained(&outputs);
+    assert!(fire(fixture.ctx(), DockCommands::FloatPanel, FireSource::Palette), "the group that holds focus takes Float");
+    fixture.idle(2);
+    assert_eq!(drained(&outputs), expected, "the palette runs the command's actions");
+
+    let menu = fixture
+        .by_role(Role::BUTTON)
+        .into_iter()
+        .filter(|button| name(fixture.tree(), button.node) == Some("Panel Menu") && button.rect.max.x <= COLUMN_WIDTH)
+        .min_by(|a, b| a.rect.top().total_cmp(&b.rect.top()))
+        .expect("the side group has a menu button");
+    fixture.click(&menu);
+    fixture.idle(MENU_FRAMES);
+    let float = fixture.by_label("Float").expect("the group menu lists Float");
+    drained(&outputs);
+    fixture.click(&float);
+    fixture.idle(MENU_FRAMES);
+    assert_eq!(drained(&outputs), expected, "the menu row runs the same actions");
+}
+
+#[trial]
+fn focus_in_a_panels_content_names_its_panel_while_nothing_is_picked() {
+    let (mut fixture, outputs) = commanded();
+    fixture.settle();
+    let inside = fixture.by_label("Inside").expect("the side panel shows its button");
+    fixture.access(AccessActionKind::Focus, &inside);
+    fixture.idle(2);
+    let last = outputs.borrow_mut().pop().expect("the area ran");
+    assert_eq!(last.focused, Some(SIDE), "the group holding focus names its panel");
+    assert_eq!(last.picked, None, "focus alone picks nothing");
 }

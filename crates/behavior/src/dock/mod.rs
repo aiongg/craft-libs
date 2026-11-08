@@ -48,7 +48,7 @@ pub use arrange::{Arrangement, arrange_rects};
 pub use placement::{NativeSpace, kept_reachable, restore_rect, sanitized};
 pub use windows::{DocumentGroup, DocumentWindows};
 pub use workspace::Workspace;
-pub use workspaces::{NamedWorkspace, WorkspaceChrome, WorkspaceCommand, WorkspaceError, WorkspaceSet};
+pub use workspaces::{NamedWorkspace, WorkspaceChrome, WorkspaceError, WorkspaceSet};
 
 /// The id of a dock group.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]

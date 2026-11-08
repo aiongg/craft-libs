@@ -4,6 +4,8 @@ use super::DockArea;
 use crate::contract::{Bind, BodyCx, Show as _};
 use crate::display::Text;
 use crate::docking::{DockConfig, DockPanels, PanelLimits, PanelSpec};
+use crate::menu::PanelRow;
+use crate::patterns::presets::{PresetPanelMenu, PresetView};
 use crate::runtime::memory::unique;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::Axis;
@@ -23,6 +25,8 @@ const WINDOW: Rect = Rect { min: Pos2::new(320.0, 80.0), max: Pos2::new(520.0, 2
 struct Demo {
     /// The canvas group is drawn by the host.
     canvas_view: bool,
+    /// The Swatches menu holds the host's preset rows above the dock's rows.
+    host_rows: bool,
 }
 
 fn name(panel: usize) -> &'static str {
@@ -50,6 +54,10 @@ impl DockPanels<usize> for Demo {
         Text::new(name(*panel)).show(ui);
     }
 
+    fn panel_rows(&mut self, panel: &usize) -> Vec<PanelRow> {
+        if self.host_rows && *panel == SWATCHES { PresetPanelMenu::<usize>::new(PresetView::Grid).new_group(true).rows() } else { Vec::new() }
+    }
+
     fn group_view(&mut self, panels: &[usize], _: usize, ui: &mut Ui, _: Rect, _: &mut BodyCx<'_>) -> bool {
         let shown = self.canvas_view && panels.contains(&CANVAS);
         if shown {
@@ -72,7 +80,7 @@ fn workspace() -> Workspace<usize> {
 
 fn dock(ui: &mut Ui, data: &mut StoryData, demo: &mut Demo) -> StoryOutput {
     let workspace = data.value("workspace", workspace());
-    let id = unique(("dock area story", demo.canvas_view));
+    let id = unique(("dock area story", demo.canvas_view, demo.host_rows));
     let output = DockArea::new(id, Bind::bound(&mut *workspace), demo, DockConfig::default()).show(ui);
     for action in output.actions.iter().cloned() {
         // A refused action leaves the workspace as it was.
@@ -83,10 +91,15 @@ fn dock(ui: &mut Ui, data: &mut StoryData, demo: &mut Demo) -> StoryOutput {
 
 #[story(DockArea<'static, usize>, covers = [Default], drive = Drive::Never)]
 fn docked_columns_a_floating_group_and_a_flyout(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    dock(ui, data, &mut Demo { canvas_view: false })
+    dock(ui, data, &mut Demo { canvas_view: false, host_rows: false })
 }
 
 #[story(DockArea<'static, usize>, covers = [Default], drive = Drive::Never)]
 fn a_canvas_group_the_host_draws(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    dock(ui, data, &mut Demo { canvas_view: true })
+    dock(ui, data, &mut Demo { canvas_view: true, host_rows: false })
+}
+
+#[story(DockArea<'static, usize>, covers = [Default], drive = Drive::Never)]
+fn host_rows_above_the_dock_rows_in_a_panel_menu(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    dock(ui, data, &mut Demo { canvas_view: false, host_rows: true })
 }

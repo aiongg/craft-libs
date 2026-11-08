@@ -76,22 +76,6 @@ impl<P> Default for WorkspaceSet<P> {
     }
 }
 
-/// What a workspace menu or switcher row does.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum WorkspaceCommand {
-    /// Switch to the workspace with this id.
-    Select(String),
-    /// Reset the current workspace to its saved layout.
-    Reset,
-    /// Open the New Workspace dialog.
-    New,
-    /// Open the Delete Workspace dialog.
-    Delete,
-    /// Toggle Lock Workspace.
-    LockToggle,
-}
-
 impl<P> NamedWorkspace<P> {
     /// A workspace named `name` with the stable id `id`, showing every bar and keeping no shortcuts or menus.
     pub fn new(id: impl Into<String>, name: impl Into<String>, layout: Workspace<P>) -> Self {

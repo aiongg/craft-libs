@@ -1,6 +1,7 @@
 //! `DockGroup`: a group of panels as a container: a header of a collapse arrow, a grip, the panels' tab strip and
 //! the panel menu button over the body of the active panel.
 
+use super::commands::DockCommands;
 use super::drop::{DragUnit, start_group_drag};
 use super::targets::{DockSizes, DockSpot, DockTargets, ZoneRule};
 use super::words::DockWords;
@@ -15,6 +16,7 @@ use crate::layout_components::Row;
 use crate::menu::{GroupItem, Menu, MenuWords, PanelMenu, PanelRow};
 use crate::primitives::IconSpec;
 use crate::runtime::access::PopupKind;
+use crate::runtime::commands::{CommandSet as _, CommandState, Commands as _};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, IconLook, Ink, Stateful, StyleCx, SurfaceKind};
 use crate::tabs::{Tab, TabKind, TabStrip, TornOff};
@@ -147,8 +149,13 @@ pub struct DockGroupOutput {
     pub closed: Vec<PanelKey>,
     /// A context request on a tab (right click, the Menu key, Shift+F10): the group menu opened at the pointer.
     pub menu: Option<ContextMenuRequest<PanelKey>>,
-    /// The group menu row that ran this pass; dock commands map it to the action.
+    /// The dock row of the group menu that ran this pass: a Move Panel To target. The menu's command rows fire their
+    /// commands, which come back in `commands`.
     pub item: Option<GroupItem>,
+    /// The panel commands that reached the group's scope this pass, from a menu row, a key or the palette.
+    pub commands: Vec<DockCommands>,
+    /// A press went down on the group's own surface (its header or body, not a control in it).
+    pub pressed: bool,
     /// The collapse arrow or a double click on the grip asked to minimize or expand the group.
     pub toggle_minimized: bool,
     /// A tab was dragged out of the dock's windows.
@@ -181,6 +188,8 @@ struct Reported {
     closed: Vec<PanelKey>,
     menu: Option<ContextMenuRequest<PanelKey>>,
     item: Option<GroupItem>,
+    commands: Vec<DockCommands>,
+    pressed: bool,
     toggle_minimized: bool,
     torn_off: Option<TornOff<PanelKey>>,
     drag_started: bool,
@@ -189,7 +198,8 @@ struct Reported {
 /// A group of panels: a header of collapse arrow, grip, tab strip and panel menu button over the active panel's
 /// body. Show it with `show_at(group_rect)` in the body of a `SplitArea`, with an `IdSource::Id` made from the
 /// group's anchor so its state survives a re-dock. Under a `dock` id it registers the spots a drop lands on: the
-/// strip, and (while expanded) the sides and the middle of the body.
+/// strip, and (while expanded) the sides and the middle of the body. The group is an instance of the `dockGroup`
+/// command scope: it publishes the panel command states it is given and reports the commands that reach it.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(container, probe(DockGroup<'static, usize>))]
 pub struct DockGroup<'a, P: Clone + Hash + Send + Sync + 'static> {
@@ -218,6 +228,9 @@ pub struct DockGroup<'a, P: Clone + Hash + Send + Sync + 'static> {
     /// The rows of the group menu: the panel menu button and a context request on a tab open them.
     #[prop]
     menu: Vec<PanelRow>,
+    /// The state of each panel command for the shown panel, published in the group's scope every pass.
+    #[prop]
+    command_states: Vec<(DockCommands, CommandState)>,
     /// The host's items after the tab strip.
     #[prop(func = "FnMut(&mut egui::Ui)")]
     extra: Option<HeaderHook<'a>>,
@@ -230,7 +243,11 @@ impl<'a, P: Clone + Hash + Send + Sync + 'static> DockGroup<'a, P> {
     /// The group named by `anchor` (one of its panels) with its `panels`, `active` showing. The group is named by the
     /// active panel's title.
     pub fn new(anchor: P, panels: &'a [PanelTitle], active: PanelKey) -> Self {
-        let props = ContainerProps::new().surface(SurfaceKind::Panel).sizing(Sizing::Fill).header(HeaderRegion::new().rule(true).trailing(true));
+        let props = ContainerProps::new()
+            .surface(SurfaceKind::Panel)
+            .sizing(Sizing::Fill)
+            .header(HeaderRegion::new().rule(true).trailing(true))
+            .command_scope(DockCommands::SCOPE);
         let title = panels.iter().find(|panel| panel.key == active).map(|panel| panel.title.clone()).unwrap_or_default();
         DockGroup {
             common: Common::new(),
@@ -244,6 +261,7 @@ impl<'a, P: Clone + Hash + Send + Sync + 'static> DockGroup<'a, P> {
             dock: None,
             zones: ZoneRule::Fraction,
             menu: Vec::new(),
+            command_states: Vec::new(),
             extra: None,
             size: Vec2::ZERO,
             reported: Reported::default(),
@@ -263,8 +281,13 @@ impl<P: Clone + Hash + Send + Sync + 'static> Component for DockGroup<'_, P> {
         DockGroupStyle { metrics: Metrics::new(), header: sizes.strip, sizes }
     }
 
+    fn sense(&self) -> Sense {
+        Sense::CLICK
+    }
+
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         self.size = cx.rect.size();
+        self.reported.pressed = cx.press().went_down;
         let Some(dock) = self.dock else { return };
         let (rect, rtl, header) = (cx.rect, cx.flow.is_rtl(), cx.style.header);
         let strip = Rect::from_min_size(rect.min, Vec2::new(rect.width(), header));
@@ -279,13 +302,19 @@ impl<P: Clone + Hash + Send + Sync + 'static> Component for DockGroup<'_, P> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> DockGroupOutput {
-        let Reported { picked, closed, menu, item, toggle_minimized, torn_off, drag_started } = self.reported;
-        DockGroupOutput { response: cx.response.clone(), picked, closed, menu, item, toggle_minimized, torn_off, drag_started }
+        let Reported { picked, closed, menu, item, commands, pressed, toggle_minimized, torn_off, drag_started } = self.reported;
+        DockGroupOutput { response: cx.response.clone(), picked, closed, menu, item, commands, pressed, toggle_minimized, torn_off, drag_started }
     }
 }
 
 impl<P: Clone + Hash + Send + Sync + 'static> Container for DockGroup<'_, P> {
     fn header(&mut self, ui: &mut Ui, cx: &mut crate::contract::BodyCx<'_>) {
+        for (command, state) in self.command_states.drain(..) {
+            cx.publish(command, state);
+        }
+        while let Some((command, _)) = cx.take_command::<DockCommands>() {
+            self.reported.commands.push(command);
+        }
         let words = cx.words::<DockWords>();
         let menu_words = cx.words::<MenuWords>();
         let from = PanelKey::of(&self.anchor);
