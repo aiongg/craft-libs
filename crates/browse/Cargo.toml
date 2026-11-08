@@ -13,11 +13,12 @@ workspace = true
 [features]
 default = []
 # The browsing widgets (`craft_browse::ui`) and `FileThumbSource`.
-ui = ["dep:craft-ui", "dep:egui", "dep:kurbo"]
+ui = ["dep:craft-behavior", "dep:craft-ui", "dep:egui", "dep:kurbo"]
 # Screenshot and input tests of the widgets with egui_kittest (desktop only).
 screen-testing = ["ui", "craft-ui/testing"]
 
 [dependencies]
+craft-behavior = { workspace = true, optional = true }
 craft-docpath = { workspace = true }
 craft-host = { workspace = true }
 craft-i18n = { workspace = true }
