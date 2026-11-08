@@ -52,6 +52,12 @@ pub trait ItemLayout {
         None
     }
 
+    /// The height at the top of the view that item `at` must not paint into: the zoomed frozen-row band for a scrolled
+    /// row, zero for a frozen row and for a layout without frozen rows.
+    fn frozen_band(&self, _at: usize) -> f32 {
+        0.0
+    }
+
     /// The column widths the collection resolved, from the start edge; layouts without columns ignore them.
     fn set_columns(&mut self, _columns: &[(ColumnKey, f32)]) {}
 
@@ -736,6 +742,10 @@ impl ItemLayout for SheetLayout {
 
     fn grid(&self) -> Option<&GridView> {
         self.grid.as_ref()
+    }
+
+    fn frozen_band(&self, at: usize) -> f32 {
+        if at < self.frozen_rows as usize { 0.0 } else { self.band() as f32 }
     }
 
     fn set_view(&mut self, viewport: Vec2, offset: ScrollPos) {

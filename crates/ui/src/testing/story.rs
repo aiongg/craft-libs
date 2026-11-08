@@ -284,6 +284,8 @@ pub enum CollectionKind {
     Move(EditKind),
     /// A drop onto an item.
     Dropped,
+    /// The wheel zoomed the collection.
+    Zoom,
     /// Files from the OS dropped on the collection.
     FilesDropped,
     /// A rename started, committed or was cancelled.
@@ -311,6 +313,7 @@ impl CollectionKind {
             CollectionEvent::Reorder(edit) => CollectionKind::Reorder(EditKind::of(edit)?),
             CollectionEvent::Move(edit) => CollectionKind::Move(EditKind::of(edit)?),
             CollectionEvent::Dropped { .. } => CollectionKind::Dropped,
+            CollectionEvent::Zoom { .. } => CollectionKind::Zoom,
             CollectionEvent::FilesDropped { .. } => CollectionKind::FilesDropped,
             CollectionEvent::Rename(edit) => CollectionKind::Rename(EditKind::of(edit)?),
             CollectionEvent::Toggle(edit) => CollectionKind::Toggle(EditKind::of(edit)?),

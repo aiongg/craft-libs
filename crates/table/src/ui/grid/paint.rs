@@ -6,7 +6,7 @@ use craft_ui::contract::{Access, Cx, Focus as _, Name, PaintUi, PartsCx, Remembe
 use craft_ui::primitives::{Dashes, Draw, EditorLine, EditorPurpose, EditorRun, EditorState, HAlign, PaintShape, StrokeWidth, TextRun};
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::motion::Animate as _;
-use craft_ui::style::{Flags, Stateful, StyleCx};
+use craft_ui::style::{Flags, Stateful, StyleCx, TypeRole};
 use egui::{CornerRadius, Pos2, Rect, Vec2};
 
 use super::editor::{EditState, Mode};
@@ -39,7 +39,7 @@ pub(super) struct Frame {
 
 pub(super) fn style(cx: &StyleCx<'_>, key: CellGridStyleKey) -> CellGridStyle {
     let control = cx.control();
-    let sheet = SheetMetrics::new(control.height, control.icon, control.pad_x);
+    let sheet = SheetMetrics::new(control.height, cx.text_width(TypeRole::Label, "0"), control.pad_x);
     let zoom = f32::from(key.percent) / 100.0;
     let bands = outline::bands(key.levels, key.headings, zoom, cx.tokens.size.icon.sm, cx.tokens.space.gap.tight);
     let c = &cx.tokens.color;
@@ -251,7 +251,7 @@ impl CellGrid<'_> {
         }
         for &row in &frame.rows {
             let name = words.row_header.fill(&[("n", &(row + 1).to_string())]);
-            access.node(ROW.at(u64::from(row)), Role::CELL).name = Name::Text(name);
+            access.node(ROW.at(u64::from(row)), Role::ROW_HEADER).name = Name::Text(name);
         }
     }
 

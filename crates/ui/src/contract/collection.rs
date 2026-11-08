@@ -794,6 +794,15 @@ pub enum CollectionEvent<K, E> {
         /// The dragged items in display order, from the drag session's payload.
         keys: Vec<K>,
     },
+    /// Ctrl or Cmd with the wheel over a collection that `zooms`: the zoom factor of the pass and the pointer it is
+    /// about, in screen points.
+    #[non_exhaustive]
+    Zoom {
+        /// The factor to multiply the zoom by.
+        factor: f32,
+        /// The pointer the zoom is about.
+        about: Pos2,
+    },
     /// Files from the OS dropped on a collection that takes them (`Collection::takes_files`).
     #[non_exhaustive]
     FilesDropped {

@@ -119,7 +119,7 @@ fn a_small_part_is_hit_within_the_target_size() {
     let mut show_frame = |ui: &mut Ui| {
         let reports = show(ui, std::slice::from_ref(&root));
         target.set(frame(ui.ctx()).target);
-        clicks.set(clicks.get() + usize::from(reports[0].member("dot").is_some_and(|dot| dot.activated)));
+        clicks.set(clicks.get() + usize::from(reports[0].member("dot").is_some_and(|dot| dot.phase(part).is_click())));
     };
     let mut frames = Frames::new();
     settle(&mut frames, &mut show_frame);
