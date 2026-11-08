@@ -2,8 +2,8 @@
 
 use super::{SelectionStats, SelectionStatsReadout, StatsShown, StatsWords, stats_parts};
 use craft_ui::contract::{Bind, Show as _};
-use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
-use egui::Ui;
+use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
+use egui::{Key, Modifiers, Ui};
 
 fn stats() -> SelectionStats {
     SelectionStats::new(4, 2, 7.0, 2.0, 5.0)
@@ -23,4 +23,28 @@ fn every_statistic(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(SelectionStatsReadout<'static>, covers = [], drive = Drive::Never)]
 fn some_hidden(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     readout(ui, data, StatsShown::default())
+}
+
+fn open_menu(fixture: &mut Fixture) {
+    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.key(Key::F10, Modifiers::SHIFT);
+    fixture.idle(2);
+}
+
+fn toggle_average(fixture: &mut Fixture) {
+    open_menu(fixture);
+    if let Some(item) = fixture.by_label("Average") {
+        fixture.click(&item);
+    }
+    fixture.idle(2);
+}
+
+#[story(SelectionStatsReadout<'static>, covers = [Open], drive = Drive::Custom(open_menu))]
+fn menu_open(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    readout(ui, data, StatsShown::all())
+}
+
+#[story(SelectionStatsReadout<'static>, covers = [], drive = Drive::Custom(toggle_average))]
+fn menu_toggles_a_statistic(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    readout(ui, data, StatsShown::all())
 }

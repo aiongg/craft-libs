@@ -3,13 +3,14 @@
 
 use std::collections::BTreeMap;
 
-use craft_behavior::CellSelection;
+use craft_behavior::{CellSelection, ColumnKey};
 use craft_ui::contract::PaintUi;
 use craft_ui::primitives::TextRun;
 use craft_ui::runtime::env::Label;
-use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
-use egui::{Key, Modifiers, Rect, Ui};
+use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, show_as_only_item, story};
+use egui::{Key, Modifiers, Rect, Ui, Vec2};
 
+use super::row::GridRow;
 use super::{CellAt, CellGrid, CellProblem, CellRange, ColumnFilter, GridModel, GridState, LineIndex, SHEET_COLUMNS, SHEET_ROWS};
 use crate::ui::outline::{OutlineAxis, OutlineGroup};
 
@@ -121,4 +122,17 @@ fn cell_grid_chrome(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
         .show_sheet(ui);
     *data.value("state", GridState::default()) = state;
     out.into()
+}
+
+const STORY_ROW_CELLS: u32 = 4;
+
+#[story(GridRow<'static>, covers = [Default], drive = Drive::Never)]
+fn grid_row(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    let model = StorySheet::new();
+    let origin = ui.available_rect_before_wrap().min;
+    let (width, height) = (model.columns().size(0) as f32, model.rows().size(1) as f32);
+    let cells = (0..STORY_ROW_CELLS)
+        .map(|column| (ColumnKey::index(column), Rect::from_min_size(origin + Vec2::new(width * column as f32, 0.0), Vec2::new(width, height))))
+        .collect();
+    show_as_only_item(ui, GridRow::new(&model, 1, 1.0, cells)).into()
 }

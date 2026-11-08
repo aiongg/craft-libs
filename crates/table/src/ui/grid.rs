@@ -929,7 +929,7 @@ impl craft_ui::contract::Component for CellGrid<'_> {
         }
         collection.events.retain(|event| !matches!(event, CollectionEvent::ContextMenu(_)));
         let geometry = geometry.unwrap_or_else(|| {
-            let layout = GridLayout::new(cx.rect, self.model.rows().clone(), self.model.columns().clone());
+            let layout = GridLayout::new(cx.rect, self.model.rows().clone(), self.model.columns().clone()).bands(cx.style.bands);
             SheetGeometry::new(layout, cx.style.sheet)
         });
         GridOutput {
