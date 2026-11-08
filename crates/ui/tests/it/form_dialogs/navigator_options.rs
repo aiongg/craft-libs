@@ -24,10 +24,9 @@ fn panel_options(options: &Rc<RefCell<NavigatorOptions>>, requests: &Rc<RefCell<
     fixture
 }
 
-/// Opens the Color list and picks its last entry, Custom….
+/// Opens the Color list with Alt+Down, which is a Tab stop away in a fresh dialog, and picks its last entry, Custom….
 fn pick_custom(fixture: &mut Fixture) {
-    let list = fixture.by_label("Color").expect("the Color list is shown");
-    fixture.click(&list);
+    fixture.key(Key::ArrowDown, Modifiers::ALT);
     fixture.settle();
     fixture.key(Key::End, Modifiers::NONE);
     fixture.key(Key::Enter, Modifiers::NONE);
@@ -41,6 +40,7 @@ fn custom_asks_the_host_every_time_and_survives_reopening() {
     let options = Rc::new(RefCell::new(NavigatorOptions::new(ProxyColor::Blue)));
     let requests = Rc::new(RefCell::new(HostRequests::new()));
     let mut fixture = panel_options(&options, &requests);
+    fixture.key(Key::Tab, Modifiers::NONE);
     pick_custom(&mut fixture);
     let first = requests.borrow_mut().take_color().expect("Custom… asks the host for a colour");
     assert_eq!(first.key, NAVIGATOR_PROXY_COLOR_KEY);
@@ -55,6 +55,7 @@ fn custom_asks_the_host_every_time_and_survives_reopening() {
     assert_eq!(again.color, custom.color(), "the picker opens at the custom colour");
 
     let mut reopened = panel_options(&options, &requests);
+    reopened.key(Key::Tab, Modifiers::NONE);
     pick_custom(&mut reopened);
     let after_reopen = requests.borrow_mut().take_color().expect("Custom… asks after the dialog opened again");
     assert_eq!(after_reopen.color, custom.color(), "the custom colour is the value when the dialog reopens");
