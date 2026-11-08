@@ -50,3 +50,10 @@ fn param_dialog_close_without_reset(ui: &mut Ui, data: &mut StoryData) -> StoryO
         .show(ui)
         .into()
 }
+
+const COMMAND_SPEC: &str = r#"{"name":text,"size":1..100=10,"method":"fit|fill","keep":bool}"#;
+
+#[story(ParamDialog<'static>, covers = [], drive = Drive::Never)]
+fn command_form(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    ParamDialog::command("fit-image", "Fit Image", Param::parse_list(COMMAND_SPEC)).opened(Bind::bound(data.value("open", true))).show(ui).into()
+}

@@ -84,10 +84,15 @@ pub(super) type CloseGuard<'a> = Box<dyn FnMut(usize, &mut BodyCx<'_>) -> bool +
 /// when the footer is shown, after the body, so it reads what the body wrote in the same pass.
 pub(super) type ButtonState<'a> = Box<dyn FnMut(&mut BodyCx<'_>, &mut [FooterButton]) + 'a>;
 
+/// What the host of a dialog shell does when a footer button is picked, given the button's index and the dialog's
+/// body context. It acts on the pick (a Reset restores the values) and never decides the close.
+pub(super) type PickHook<'a> = Box<dyn FnMut(usize, &mut BodyCx<'_>) + 'a>;
+
 /// What the host of a dialog shell decides about its footer buttons, and where the pick goes.
 pub(super) struct FooterHost<'s, 'a> {
     pub(super) picked: &'s mut Option<usize>,
     pub(super) guard: &'s mut Option<CloseGuard<'a>>,
+    pub(super) on_pick: &'s mut Option<PickHook<'a>>,
     pub(super) settle: &'s mut Option<ButtonState<'a>>,
 }
 
@@ -101,8 +106,8 @@ pub(super) fn header(ui: &mut Ui, cx: &mut BodyCx<'_>, actions: &[HeaderAction])
 
 /// Fills the footer region: the caller's content closure in a footer bar, and under it the dialog buttons, whose
 /// roles decide the close reason (`Accept` and the other outcomes close as `Activated`, `Cancel` as `Requested`). A
-/// button that stays open never closes; `guard` runs for every picked button but Cancel and can refuse the close of
-/// one that closes. `settle` may change the buttons' state first. With `enter`, an
+/// button that stays open never closes; `on_pick` acts on every picked button first; `guard` runs for every picked
+/// button but Cancel and can refuse the close of one that closes. `settle` may change the buttons' state first. With `enter`, an
 /// Enter the focused part left untaken picks the default button, so it takes the way of a click on it, guard included.
 pub(super) fn footer(
     ui: &mut Ui,
@@ -112,7 +117,7 @@ pub(super) fn footer(
     enter: bool,
     host: FooterHost<'_, '_>,
 ) {
-    let FooterHost { picked, guard, settle } = host;
+    let FooterHost { picked, guard, on_pick, settle } = host;
     let mut settled;
     let buttons = match settle.as_mut() {
         Some(settle) => {
@@ -129,6 +134,9 @@ pub(super) fn footer(
     if !buttons.is_empty() {
         *picked = FooterBar::buttons(buttons.iter().cloned()).enter_activates(enter).show_footer(ui).picked;
         if let Some(at) = *picked {
+            if let Some(act) = on_pick.as_mut() {
+                act(at, cx);
+            }
             if buttons[at].role() == DialogRole::Cancel {
                 close.get_or_insert(CloseReason::Requested);
             } else {
@@ -229,6 +237,6 @@ impl Container for DialogFrame<'_> {
     }
 
     fn footer(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
-        footer(ui, cx, &mut self.footer, &[], false, FooterHost { picked: &mut None, guard: &mut None, settle: &mut None });
+        footer(ui, cx, &mut self.footer, &[], false, FooterHost { picked: &mut None, guard: &mut None, on_pick: &mut None, settle: &mut None });
     }
 }

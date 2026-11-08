@@ -371,6 +371,23 @@ impl PathKind {
     }
 }
 
+/// One entry of a file dialog's type filter.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct PathFilter {
+    /// The filter's name ("PNG image").
+    pub name: String,
+    /// The extensions it admits, without the dot.
+    pub extensions: Vec<String>,
+}
+
+impl PathFilter {
+    /// A filter named `name` for `extensions`.
+    pub fn new(name: impl Into<String>, extensions: &[&str]) -> Self {
+        Self { name: name.into(), extensions: extensions.iter().map(|e| (*e).to_owned()).collect() }
+    }
+}
+
 /// A pressed Browse button: the host opens its file dialog for `kind` and writes the answer into `key` as a
 /// [`FieldValue::Text`].
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -380,12 +397,21 @@ pub struct PathRequest {
     pub key: String,
     /// What the picker should offer.
     pub kind: PathKind,
+    /// The file name a save dialog suggests; `None` for the dialog's default.
+    pub file_name: Option<String>,
+    /// The types a file dialog offers; empty offers every file.
+    pub filters: Vec<PathFilter>,
 }
 
 impl PathRequest {
     /// A request for the path of `key`.
     pub fn new(key: impl Into<String>, kind: PathKind) -> Self {
-        Self { key: key.into(), kind }
+        Self { key: key.into(), kind, file_name: None, filters: Vec::new() }
+    }
+
+    /// A request for a file to write under `key`, suggesting `file_name` and offering `filters`.
+    pub fn save(key: impl Into<String>, file_name: impl Into<String>, filters: impl IntoIterator<Item = PathFilter>) -> Self {
+        Self { key: key.into(), kind: PathKind::SaveFile, file_name: Some(file_name.into()), filters: filters.into_iter().collect() }
     }
 }
 

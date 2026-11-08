@@ -4,6 +4,8 @@ mod params;
 
 mod dialog;
 
+mod form;
+
 mod preview;
 
 mod rows;

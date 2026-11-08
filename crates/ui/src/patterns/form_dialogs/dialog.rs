@@ -1,26 +1,24 @@
 //! `ParamDialog`: a dialog from a parameter list, with an optional preview, and `HostedParamDialog`, the same dialog
 //! owned by a `DialogHost`. A command form is a `ParamDialog` without a preview.
 
-use super::fields::DialogFields;
-use super::host_requests::HostRequests;
-use super::param::{ColorRequest, EyedropperRequest, Param, ParamKind, PathRequest, open_fields};
+use super::fields::{DialogFields, FieldValue};
+use super::form::FormDialog;
+use super::host_requests::{HostAnswer, HostRequests};
+use super::param::{ColorRequest, EyedropperRequest, Param, ParamKind, PathRequest, open_fields, set_color_field};
 use super::preview::{PreviewPane, PreviewView, PreviewZoom};
 use super::rows::{ParamRows, ParamRowsOutput};
 use crate::choice::Checkbox;
-use crate::contract::{Bind, NoValue, Outcome, Props as _, Remember as _, SaveKey, Show as _, ShowContainer as _};
-use crate::dialog::{Dialog, DialogId, DialogOutput, DialogResult, DialogStack, StackDialog, dialog_id};
+use crate::contract::{Bind, BodyCx, NoValue, Outcome, Props as _, Remember as _, SaveKey, Show as _, ShowContainer as _};
+use crate::dialog::{Dialog, DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
 use crate::layout_components::{Row, Stack};
 use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::{MemoryStage, unique};
 use crate::runtime::overlay::CloseReason;
 use crate::runtime::words::CommonWords;
 use crate::sections::{DialogRole, FooterButton};
-use craft_behavior::{EditEvent, GestureId, Mixed};
 use egui::load::SizedTexture;
 use egui::{Response, Ui};
 use std::borrow::Cow;
-use std::cell::{Cell, RefCell};
-use std::sync::Arc;
 
 #[cfg(feature = "testing")]
 mod stories;
@@ -79,15 +77,6 @@ impl Default for Live {
         Live { on: true, view: PreviewView::default() }
     }
 }
-
-/// The values of a dialog that has no binding for them, between passes.
-#[derive(Clone, Default)]
-struct Held(DialogFields);
-
-/// Whether the values differ from the ones the dialog opened with: the body writes it each pass and the footer reads
-/// it, so Reset's enabled state follows the rows shown in the same pass.
-#[derive(Clone, Copy, Default)]
-struct Changed(bool);
 
 /// What a parameter dialog reports.
 #[derive(Debug)]
@@ -182,6 +171,9 @@ pub struct ParamDialog<'a> {
     #[prop(func = "Fn(&mut Ui, &DialogFields)")]
     below: Option<BelowRows<'a>>,
     shaped: Option<Shaped<'a>>,
+    /// The host's answers to the requests of earlier passes; the dialog writes them into its values first.
+    #[prop]
+    answers: Vec<HostAnswer>,
 }
 
 /// What `ParamDialog::shaped` applies to the built [`Dialog`].
@@ -231,6 +223,7 @@ impl<'a> ParamDialog<'a> {
             footer_extra: None,
             below: None,
             shaped: None,
+            answers: Vec::new(),
         }
     }
 
@@ -264,19 +257,11 @@ impl<'a> ParamDialog<'a> {
         values
     }
 
-    /// Sets `values` to `target`, key by key (keys the target lacks keep their value), or to the values they
-    /// opened with when there is no target.
-    fn restore(values: &mut DialogFields, target: Option<&DialogFields>) {
-        match target {
-            Some(target) => {
-                for (key, value) in target.iter() {
-                    values.set(key, value.clone());
-                }
-            }
-            None => {
-                values.reset();
-            }
-        }
+    /// A form for the command `key`, titled `title`: one row per parameter, OK and Cancel, no preview and no remember
+    /// key. Batch, Image Processor, Open EXR Parts and Fit Image are command forms. It has every option of the
+    /// dialog.
+    pub fn command(key: impl Into<String>, title: impl Into<Label>, params: impl Into<Cow<'a, [Param]>>) -> Self {
+        Self::new(key, title, params)
     }
 
     /// Shows the dialog.
@@ -302,126 +287,112 @@ impl<'a> ParamDialog<'a> {
             footer_extra,
             below,
             shaped,
+            answers,
         } = self;
-        let env = Env::of(ui);
-        let words = env.words::<ParamDialogWords>();
-        let common = env.words::<CommonWords>();
-        let unbound = bound.is_none();
-        let mut bound = bound;
-        let mut before = DialogFields::new();
-        let mut written = DialogFields::new();
-        let work = RefCell::new(DialogFields::new());
-        let opened = Cell::new(false);
+        let words = Env::of(ui).words::<ParamDialogWords>();
 
-        let reset = ResetFooter::new(ui, cancel_label.clone(), alt_resets);
-        let mut accept = FooterButton::new(ok_label.clone().unwrap_or_else(|| common.ok.clone()), DialogRole::Accept).enabled(ok_enabled);
-        if let (false, Some(reason)) = (ok_enabled, &ok_reason) {
-            accept = accept.disabled_reason(reason.clone());
-        }
-        let mut dialog = Dialog::new(title.clone())
-            .closable(closable)
-            .close_on_enter(ok_enabled)
+        let mut form = match bound {
+            Some(bind) => FormDialog::new(title.clone(), bind),
+            None => FormDialog::own(title.clone()),
+        };
+        form = form
+            .ok_enabled(ok_enabled)
+            .alt_resets(alt_resets)
             .outer_gesture(outer_gesture)
-            .buttons(reset.buttons(accept, false))
-            .settle_buttons({
-                let reset = reset.clone();
-                move |cx, buttons| reset.settle(buttons, cx.memory::<Changed>().0)
+            .collection_body(collection_body)
+            .closable(closable)
+            .answers(answers)
+            .reset_with(move |current, opened| {
+                let mut values = current.clone();
+                for (name, value) in reset_to.as_ref().unwrap_or(opened).iter() {
+                    values.set(name, value.clone());
+                }
+                values
             });
+        if let Some(reason) = ok_reason {
+            form = form.ok_reason(reason);
+        }
+        if let Some(label) = ok_label {
+            form = form.ok_label(label);
+        }
+        if let Some(label) = cancel_label {
+            form = form.cancel_label(label);
+        }
         if let Some(open) = open {
-            dialog = dialog.opened(open);
+            form = form.opened(open);
         }
-        if collection_body {
-            dialog = dialog.collection_body();
-        }
-        if let Some(FooterExtra(mut extra)) = footer_extra {
-            dialog = dialog.footer(move |ui, _| extra(ui));
+        if let Some(FooterExtra(extra)) = footer_extra {
+            form = form.footer_extra(extra);
         }
         if let Some(Shaped(shape)) = shaped {
-            dialog = shape(dialog);
+            form = form.shaped(shape);
         }
 
         let mut live = Live::default();
         let mut rows = None;
-        let shown = dialog.show(ui, |ui, cx| {
-            let first = cx.appeared();
-            before = match bound.as_mut().and_then(|bind| bind.reborrow().read(cx)) {
-                Some(Mixed::Same(held)) => held,
-                _ => DialogFields::new(),
-            };
-            *work.borrow_mut() = if unbound && !first { cx.memory::<Held>().0.clone() } else { before.clone() };
-            if first {
-                let mut values = work.borrow_mut();
+        let shown = form.show(ui, |ui, cx, values| {
+            if cx.first() {
                 if let Some(key) = &remember
-                    && let Some(mut saved) = cx.saved::<Option<DialogFields>>(key).clone()
+                    && let Some(saved) = cx.saved::<Option<DialogFields>>(key).clone()
                 {
-                    saved = Self::remembered(&params, &saved);
-                    for (name, value) in saved.iter() {
+                    for (name, value) in Self::remembered(&params, &saved).iter() {
                         values.set(name, value.clone());
                     }
                 }
-                open_fields(&params, &mut values);
-                opened.set(true);
+                open_fields(&params, values);
+            }
+            for answer in cx.take_answers() {
+                match answer {
+                    HostAnswer::Color { key, color } | HostAnswer::Eyedropper { key, color } => set_color_field(&params, values, &key, color),
+                    HostAnswer::Path { key, path } => values.set(&key, FieldValue::Text(path.to_string_lossy().into_owned())),
+                }
             }
             live = cx.memory::<Live>().clone();
-            let mut show_rows = |ui: &mut Ui| {
-                let mut values = work.borrow_mut();
-                rows = Some(ParamRows::new(title.clone(), &params, Bind::bound(&mut *values)).show(ui));
+            let mut show_rows = |ui: &mut Ui, values: &mut DialogFields| {
+                rows = Some(ParamRows::new(title.clone(), &params, Bind::bound(values)).show(ui));
             };
             match (&preview, layout) {
                 (Some(texture), ParamLayout::Beside) => {
                     Row::new().show(ui, |ui, _| {
-                        show_rows(ui);
+                        show_rows(ui, values);
                         Stack::new().show(ui, |ui, _| show_preview(ui, &words, texture, &mut live));
                     });
                 }
                 (Some(texture), ParamLayout::Below) => {
                     Stack::new().show(ui, |ui, _| {
-                        show_rows(ui);
+                        show_rows(ui, values);
                         show_preview(ui, &words, texture, &mut live);
                     });
                 }
-                (None, _) => show_rows(ui),
+                (None, _) => show_rows(ui, values),
             }
             if let Some(BelowRows(draw)) = &below {
-                draw(ui, &work.borrow());
+                draw(ui, values);
             }
             *cx.memory::<Live>() = live.clone();
-            cx.memory::<Changed>().0 = work.borrow().changed();
-            if unbound {
-                cx.memory::<Held>().0 = work.borrow().clone();
-            }
-            if let Some(bind) = bound.as_mut() {
-                let after = work.borrow().clone();
-                written = after.clone();
-                if after != before || opened.get() {
-                    let name: Arc<str> = title.as_str().into();
-                    let _ = bind.reborrow().write(cx, &EditEvent::set(GestureId::default(), Mixed::Same(before.clone()), after, name, None));
-                }
-            }
+            true
         });
 
-        let DialogOutput { response, closed, picked } = shown.output;
-        if reset.pick(picked) == Some(ResetPick::Reset) {
-            Self::restore(&mut work.borrow_mut(), reset_to.as_ref());
-            crate::runtime::frame::request_repaint(ui.ctx());
+        let result = shown.accepted.map(|fields| {
+            let kept = remember.map(|key| (key, Self::remembered(&params, &fields)));
+            ParamResult { key, fields, remember: kept }
+        });
+        ParamDialogOutput {
+            response: shown.response,
+            closed: shown.closed,
+            result,
+            rows,
+            values: shown.value,
+            preview_on: preview.is_some() && live.on,
         }
-        let after = work.into_inner();
-        let result = match closed {
-            Some(CloseReason::Enter | CloseReason::Activated) if ok_enabled => {
-                let kept = remember.map(|key| (key, Self::remembered(&params, &after)));
-                Some(ParamResult { key, fields: after.clone(), remember: kept })
-            }
-            _ => None,
-        };
-        let values = (after != before || opened.get()).then_some(after);
-        if let (Some(after), Some(bind)) = (&values, bound.as_mut())
-            && *after != written
-        {
-            let name: Arc<str> = title.as_str().into();
-            let _ = bind.reborrow().apply(&EditEvent::set(GestureId::default(), Mixed::Same(written), after.clone(), name, None));
-        }
-        ParamDialogOutput { response, closed, result, rows, values, preview_on: preview.is_some() && live.on }
     }
+}
+
+/// What the footer of an installed Reset footer reads from the body.
+#[derive(Clone, Copy, Default)]
+struct Footing {
+    changed: bool,
+    ok: Option<bool>,
 }
 
 /// What a footer with a Reset alternative answered with.
@@ -445,11 +416,11 @@ pub enum ResetPick {
 /// ```ignore
 /// let footer = ResetFooter::new(ui, None, true);
 /// let accept = FooterButton::new(common.ok.clone(), DialogRole::Accept);
-/// let dialog = Dialog::new("Levels").buttons(footer.buttons(accept, values.changed()));
-/// let shown = dialog.show(ui, |ui, cx| { /* rows */ });
-/// if footer.pick(shown.output.picked) == Some(ResetPick::Reset) {
-///     values.reset();
-/// }
+/// let dialog = footer.install(Dialog::new("Levels"), accept, |cx| { /* restore the values and what the body keeps */ });
+/// let shown = dialog.show(ui, |ui, cx| {
+///     /* rows */
+///     ResetFooter::report(cx, values_changed, true);
+/// });
 /// ```
 #[derive(Clone, Debug)]
 pub struct ResetFooter {
@@ -492,6 +463,37 @@ impl ResetFooter {
         if let (true, Some(second)) = (self.resetting, buttons.get_mut(1)) {
             second.set_enabled(changed);
         }
+    }
+
+    /// `dialog` with this footer: `accept` and the second button, their enabled state settled from what the body
+    /// passed to [`report`](ResetFooter::report) in the same pass, and `restore` run in the footer step when the Reset
+    /// button is picked. `restore` gets the dialog's body context, so it reaches the values and the body's memory;
+    /// the dialog shows the restored values in its next pass.
+    pub fn install<'a>(self, dialog: Dialog<'a>, accept: FooterButton, restore: impl FnMut(&mut BodyCx<'_>) + 'a) -> Dialog<'a> {
+        let mut restore = restore;
+        let pick = self.clone();
+        let settle = self.clone();
+        dialog
+            .buttons(self.buttons(accept, false))
+            .settle_buttons(move |cx, buttons| {
+                let footing = *cx.memory::<Footing>();
+                settle.settle(buttons, footing.changed);
+                if let (Some(ok), Some(accept)) = (footing.ok, buttons.first_mut()) {
+                    accept.set_enabled(ok);
+                }
+            })
+            .on_pick(move |at, cx| {
+                if pick.pick(Some(at)) == Some(ResetPick::Reset) {
+                    restore(cx);
+                    crate::runtime::frame::request_repaint(cx.memory.ctx());
+                }
+            })
+    }
+
+    /// What the footer of an [installed](ResetFooter::install) dialog reads in the same pass: whether the values
+    /// differ from the opening ones (Reset is enabled then) and whether OK can be pressed.
+    pub fn report(cx: &mut BodyCx<'_>, changed: bool, ok: bool) {
+        *cx.memory::<Footing>() = Footing { changed, ok: Some(ok) };
     }
 
     /// Which button `DialogOutput::picked` names, for the buttons of this footer.
@@ -543,6 +545,16 @@ impl HostedParamDialog {
         HostedParamDialog { id: dialog_id(key.as_str()), key, instance: None, fields, build: Box::new(build), requests: HostRequests::new() }
     }
 
+    /// A hosted command form: the same as [`new`](HostedParamDialog::new), with `build` making a
+    /// [`ParamDialog::command`].
+    pub fn command(
+        key: impl Into<String>,
+        fields: DialogFields,
+        build: impl for<'b> Fn(&'b mut DialogFields) -> ParamDialog<'b> + Send + 'static,
+    ) -> Self {
+        Self::new(key, fields, build)
+    }
+
     /// Names this dialog among others made with the same key (one per document, say), so they keep separate state.
     #[must_use]
     pub fn instance(mut self, instance: impl std::hash::Hash + std::fmt::Debug) -> Self {
@@ -575,6 +587,26 @@ impl HostedParamDialog {
     pub fn pick_eyedropper(&mut self) -> Option<EyedropperRequest> {
         self.requests.take_eyedropper()
     }
+
+    /// Answers the colour request `key`: the dialog writes the colour into its values in its next pass.
+    pub fn answer_color(&mut self, key: impl Into<String>, color: craft_theme::Srgba) {
+        self.requests.answer_color(key, color);
+    }
+
+    /// Answers the Browse request `key` with the chosen path.
+    pub fn answer_path(&mut self, key: impl Into<String>, path: std::path::PathBuf) {
+        self.requests.answer_path(key, path);
+    }
+
+    /// Answers the eyedropper request `key` with the sampled colour.
+    pub fn answer_eyedropper(&mut self, key: impl Into<String>, color: craft_theme::Srgba) {
+        self.requests.answer_eyedropper(key, color);
+    }
+
+    /// The host cancelled its picker, file dialog or dropper: the requests not taken yet are dropped.
+    pub fn cancel_requests(&mut self) {
+        self.requests.cancel();
+    }
 }
 
 impl StackDialog for HostedParamDialog {
@@ -585,7 +617,7 @@ impl StackDialog for HostedParamDialog {
     }
 
     fn show(&mut self, ui: &mut Ui, _: &DialogStack) -> Option<DialogResult<ParamResult>> {
-        let shown = (self.build)(&mut self.fields).show(ui);
+        let shown = (self.build)(&mut self.fields).answers(self.requests.take_answers()).show(ui);
         if let Some(mut rows) = shown.rows {
             self.requests.absorb(&mut rows);
         }

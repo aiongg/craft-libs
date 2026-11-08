@@ -42,10 +42,10 @@ pub struct Dialog<'a> {
     #[prop(name = "opened")]
     open: Option<Bind<'a, bool>>,
     footer: Option<FooterFn<'a>>,
-    /// Lets the host act on a picked button and refuse its close: `allows` gets the index of every picked button but
-    /// `Cancel` and the dialog's body context, so a host reads and writes its kept state, and returns whether a
-    /// button that closes the dialog may. On `false` the dialog stays open, with `DialogOutput::picked` still
-    /// reporting the pick; the host shows why. A button marked `stays_open` never closes, whatever it returns.
+    /// Lets the host refuse the close of a picked button: `allows` gets the index of every picked button but
+    /// `Cancel` and the dialog's body context, so a host reads its kept state, and returns whether a button that
+    /// closes the dialog may. It is not the place to act on a pick (see
+    /// `ResetFooter::install`). On `false` the dialog stays open, with `DialogOutput::picked` still reporting the pick; the host shows why. A button marked `stays_open` never closes, whatever it returns.
     #[prop(boxed, name = "close_guard")]
     guard: Option<Box<dyn FnMut(usize, &mut BodyCx<'_>) -> bool + 'a>>,
     /// Sets the buttons' state each pass: `settle` gets the dialog's body context and the buttons when the footer is
@@ -53,6 +53,10 @@ pub struct Dialog<'a> {
     /// `BodyCx::memory`, say). Enter's routing is decided from the buttons given to `buttons`.
     #[prop(boxed, name = "settle_buttons")]
     settle: Option<Box<dyn FnMut(&mut BodyCx<'_>, &mut [FooterButton]) + 'a>>,
+    /// Acts on a picked footer button in the footer step, before the close is decided: `act` gets the button's index
+    /// and the dialog's body context. `ResetFooter::install` sets it.
+    #[prop(boxed, name = "on_pick")]
+    on_pick: Option<Box<dyn FnMut(usize, &mut BodyCx<'_>) + 'a>>,
     buttons: Vec<FooterButton>,
     /// Whether Enter closes the dialog as its OK.
     enter: bool,
@@ -86,6 +90,7 @@ impl<'a> Dialog<'a> {
             open: None,
             footer: None,
             guard: None,
+            on_pick: None,
             settle: None,
             buttons: Vec::new(),
             enter: false,
@@ -266,7 +271,7 @@ impl Container for Dialog<'_> {
             &mut self.footer,
             &self.buttons,
             self.enter,
-            frame::FooterHost { picked: &mut self.picked, guard: &mut self.guard, settle: &mut self.settle },
+            frame::FooterHost { picked: &mut self.picked, guard: &mut self.guard, on_pick: &mut self.on_pick, settle: &mut self.settle },
         );
     }
 

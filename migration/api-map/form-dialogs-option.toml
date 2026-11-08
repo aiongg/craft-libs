@@ -6,9 +6,9 @@ new_module = "craft_ui::patterns::form_dialogs"
 [[type]]
 name = "HostedCommandForm"
 old = ""
-new = "craft_ui::patterns::form_dialogs::HostedCommandForm"
+new = ""
 status = "replaced"
-note = "The `StackDialog` form of `CommandForm`, over a `HostedParamDialog`: `HostedCommandForm::new(key, fields, |fields| CommandForm::new(..).values(Bind::bound(fields)))`, with `fields`, `fields_mut`, `pick_color`, `pick_path`, `pick_eyedropper`."
+note = "Replaced by the constructor `HostedParamDialog::command(key, fields, |fields| ParamDialog::command(..).values(Bind::bound(fields)))`, with `fields`, `fields_mut`, `pick_color`, `pick_path`, `pick_eyedropper`, `answer_color`, `answer_path`, `answer_eyedropper` and `cancel_requests`."
 
 [[type]]
 name = "ListManagerDialog"

@@ -5,7 +5,7 @@ use super::param::{ColorRequest, CustomContext, EyedropperRequest, Param, ParamK
 use super::words::ParamWords;
 use crate::buttons::{Button, ToggleButton};
 use crate::choice::Checkbox;
-use crate::contract::{Bind, EditResponse, Entry, NoValue, Outcome, Props as _, Remember as _, Show as _, ShowContainer as _, clicked};
+use crate::contract::{Bind, Entry, NoValue, Outcome, Props as _, Remember as _, Show as _, ShowContainer as _, clicked};
 use crate::form::{Field, FieldGroup, SliderField};
 use crate::layout_components::{Row, Stack};
 use crate::pickers::{Select, UnitSelect};
@@ -274,7 +274,7 @@ impl<'p> Pass<'p> {
             if let Some(kind) = line.param.unit {
                 slider = slider.unit_kind(kind);
             }
-            if let Some(v) = edited(&slider.show(ui)) {
+            if let Some(v) = slider.show(ui).value().cloned() {
                 self.work.set(line.key, rounded(v, places));
             }
         });
@@ -287,7 +287,7 @@ impl<'p> Pass<'p> {
             if let Some(range) = range.clone() {
                 field = field.range(range);
             }
-            if let Some(v) = edited(&field.show(ui).edit).flatten() {
+            if let Some(v) = field.show(ui).edit.value().cloned().flatten() {
                 self.work.set(line.key, FieldValue::Number(v));
             }
         });
@@ -313,7 +313,7 @@ impl<'p> Pass<'p> {
                 field = field.range(range);
             }
             let shown = field.show(ui);
-            if let Some(v) = edited(&shown.edit).flatten() {
+            if let Some(v) = shown.edit.value().cloned().flatten() {
                 self.work.set(line.key, FieldValue::Number(v * factor));
             }
             let picked = shown.unit.as_ref().and_then(|event| event.value().copied());
@@ -333,7 +333,7 @@ impl<'p> Pass<'p> {
                 if let Some(range) = range.clone() {
                     field = field.range(range);
                 }
-                if let Some(v) = edited(&field.show(ui).edit).flatten() {
+                if let Some(v) = field.show(ui).edit.value().cloned().flatten() {
                     self.work.set(line.key, FieldValue::Int(v.round() as i64));
                 }
                 if random && clicked(&Button::new(self.words.randomize.clone()).id_salt("random").show(ui)) {
@@ -353,7 +353,7 @@ impl<'p> Pass<'p> {
         if let Some(tip) = line.param.tooltip_text() {
             check = check.tooltip(tip.clone());
         }
-        if let Some(v) = edited(&check.show(ui)) {
+        if let Some(v) = check.show(ui).value().cloned() {
             self.work.set(line.key, FieldValue::Bool(v));
         }
     }
@@ -362,7 +362,7 @@ impl<'p> Pass<'p> {
         let value = self.work.text(line.key).map(str::to_owned).or_else(|| line.param.kind.default_value().and_then(text_of)).unwrap_or_default();
         let entries: Vec<Entry<String>> = options.iter().map(|(id, label)| Entry::new(id.clone(), label.clone())).collect();
         line.show(ui, |ui| {
-            if let Some(v) = edited(&Select::new(line.name.clone(), Bind::given(value.clone()), &entries).show(ui)) {
+            if let Some(v) = Select::new(line.name.clone(), Bind::given(value.clone()), &entries).show(ui).value().cloned() {
                 self.work.set(line.key, FieldValue::Text(v));
             }
         });
@@ -375,8 +375,8 @@ impl<'p> Pass<'p> {
             beside(ui, |ui| {
                 let dial = AngleDial::new(Bind::given(value)).label(line.name.clone()).id_salt("dial").show(ui);
                 let field = number_field(self.units, field_name.clone(), Some(value), ANGLE_DECIMALS, Some(UnitKind::Degrees)).id_salt("field");
-                let typed = edited(&field.show(ui).edit).flatten();
-                if let Some(v) = edited(&dial).or(typed) {
+                let typed = field.show(ui).edit.value().cloned().flatten();
+                if let Some(v) = dial.value().cloned().or(typed) {
                     self.work.set(line.key, FieldValue::Number(v));
                 }
             });
@@ -402,7 +402,7 @@ impl<'p> Pass<'p> {
                         .icon_only()
                         .id_salt("eyedropper")
                         .show(ui);
-                    if let Some(on) = edited(&toggle) {
+                    if let Some(on) = toggle.value().cloned() {
                         self.memo.armed.insert(line.key.to_owned(), on);
                         self.eyedropper = Some(EyedropperRequest::new(line.key, on));
                     }
@@ -430,7 +430,7 @@ impl<'p> Pass<'p> {
                                 ("column", (column + 1).to_string().as_str()),
                             ]);
                             let cell = number_field(self.units, Label::from(name), Some(cells[at] as f64), WHOLE, None).id_salt(at);
-                            if let Some(v) = edited(&cell.show(ui).edit).flatten() {
+                            if let Some(v) = cell.show(ui).edit.value().cloned().flatten() {
                                 next[at] = v.round() as i64;
                             }
                         }
@@ -453,13 +453,13 @@ impl<'p> Pass<'p> {
             beside(ui, |ui| {
                 let shown = [Mixed::Same(point[0]), Mixed::Same(point[1])];
                 let picker = PointPicker::new(Bind::given(shown), PERCENT, PERCENT).label(line.name.clone()).id_salt("point").show(ui);
-                let mut next = match edited(&picker) {
+                let mut next = match picker.value().cloned() {
                     Some([Mixed::Same(x), Mixed::Same(y)]) => [x, y],
                     _ => point,
                 };
                 for (axis, name) in names.iter().enumerate() {
                     let field = number_field(self.units, name.clone(), Some(point[axis]), 1, Some(UnitKind::Percent)).range(PERCENT).id_salt(axis);
-                    if let Some(v) = edited(&field.show(ui).edit).flatten() {
+                    if let Some(v) = field.show(ui).edit.value().cloned().flatten() {
                         next[axis] = v;
                     }
                 }
@@ -474,7 +474,7 @@ impl<'p> Pass<'p> {
         let value = self.work.int(line.key).and_then(|i| usize::try_from(i).ok()).unwrap_or(default);
         let entries: Vec<Entry<usize>> = names.iter().enumerate().map(|(i, name)| Entry::new(i, Label::from(name.clone()))).collect();
         line.show(ui, |ui| {
-            if let Some(v) = edited(&Select::new(line.name.clone(), Bind::given(value), &entries).show(ui)) {
+            if let Some(v) = Select::new(line.name.clone(), Bind::given(value), &entries).show(ui).value().cloned() {
                 self.work.set(line.key, FieldValue::Int(i64::try_from(v).unwrap_or(0)));
             }
         });
@@ -489,7 +489,7 @@ impl<'p> Pass<'p> {
                 if let Some(hint) = line.param.hint_text() {
                     field = field.placeholder(hint.clone());
                 }
-                if let Some(v) = edited(&field.show(ui)) {
+                if let Some(v) = field.show(ui).value().cloned() {
                     self.work.set(line.key, FieldValue::Text(v));
                 }
                 if let Some(kind) = &browse
@@ -509,7 +509,7 @@ impl<'p> Pass<'p> {
         line.show(ui, |ui| {
             beside(ui, |ui| {
                 let check = Checkbox::new(Bind::given(stored.is_some())).label(self.words.custom.clone()).id_salt("custom").show(ui);
-                match edited(&check) {
+                match check.value().cloned() {
                     Some(true) => self.work.set(line.key, FieldValue::Number(last)),
                     Some(false) => {
                         self.memo.last.insert(line.key.to_owned(), last);
@@ -519,7 +519,7 @@ impl<'p> Pass<'p> {
                 }
                 let field = number_field(self.units, line.name.clone(), Some(last), decimals, line.param.unit).range(range.clone());
                 let field = field.id_salt("field").enabled(self.work.number(line.key).is_some());
-                if let Some(v) = edited(&field.show(ui).edit).flatten() {
+                if let Some(v) = field.show(ui).edit.value().cloned().flatten() {
                     self.work.set(line.key, FieldValue::Number(v));
                 }
             });
@@ -557,11 +557,6 @@ fn number_field(units: &Units, name: Label, value: Option<f64>, decimals: u32, u
 /// The range that has the bounds that are set, open on the other side; `None` when neither is.
 fn bounds(min: Option<f64>, max: Option<f64>) -> Option<RangeInclusive<f64>> {
     (min.is_some() || max.is_some()).then(|| min.unwrap_or(f64::NEG_INFINITY)..=max.unwrap_or(f64::INFINITY))
-}
-
-/// The value a control's event carries.
-fn edited<T: Clone>(response: &EditResponse<T>) -> Option<T> {
-    response.event.as_ref().and_then(|event| event.value().cloned())
 }
 
 fn text_of(value: FieldValue) -> Option<String> {
