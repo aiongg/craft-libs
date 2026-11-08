@@ -4,7 +4,7 @@
 use craft_behavior::Codec as _;
 use craft_behavior::kurbo::Point;
 use craft_pages::range::{PageRange, PageRangeError, Subset};
-use craft_pages::setup::{Margins, Orientation, PageSetup};
+use craft_pages::setup::{Margins, PageSetup};
 use craft_pages::ui::fixtures::{INK, PAPER, demo_placed};
 use craft_pages::ui::{
     ColumnBar, HeaderFooterPage, HeaderFooterZones, HiddenMark, MarginEdge, MarginHandles, MarginRules, PageEdges, PageRangeCodec, PageRangeOptions,
@@ -437,13 +437,9 @@ fn custom_size_stays_chosen_while_the_numbers_match_a_paper() {
     let paper = fixture.by_label("Paper size").expect("the paper list");
     fixture.click(&paper);
     fixture.idle(2);
-    let open = fixture.tree().expanded_of(paper.node);
-    let custom = fixture.by_label("Custom size").unwrap_or_else(|| {
-        let tree = fixture.tree();
-        let nodes: Vec<_> = tree.keys().into_iter().map(|key| (tree.role_of(key), tree.name_of(key).map(str::to_owned))).collect();
-        panic!("the Custom size entry is missing; the list is open: {open:?}; nodes: {nodes:?}")
-    });
-    fixture.click(&custom);
+    // The list shows the papers that fit its height, so the last entry, Custom size, is reached with End.
+    fixture.key(Key::End, Modifiers::NONE);
+    fixture.key(Key::Enter, Modifiers::NONE);
     fixture.idle(2);
     let paper = fixture.by_label("Paper size").expect("the paper list");
     assert_eq!(fixture.tree().value_of(paper.node), Some("Custom size"), "the size is still Letter's");

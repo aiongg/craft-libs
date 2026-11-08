@@ -434,6 +434,9 @@ fn the_reading_view_paints_the_paper_under_a_page_without_a_picture() {
     assert!(paints_shape_of(&fixture, page), "a shape the size of the page is the paper");
 }
 
+/// The share of the room's height a shape must reach to be the page and not a control.
+const LARGE_SHARE: f32 = 0.5;
+
 #[trial]
 fn the_preview_paints_the_paper_under_a_page_without_a_picture() {
     let pages = BlankPages(DemoPages::new(2));
@@ -446,9 +449,9 @@ fn the_preview_paints_the_paper_under_a_page_without_a_picture() {
     fixture.settle();
     let page = DemoPages::new(1).page_size(0);
     let aspect = (page.width / page.height) as f32;
-    let room = fixture.shown().height();
+    let room = fixture.shown().height() * LARGE_SHARE;
     assert!(
-        fixture.shape_bounds().iter().any(|bounds| bounds.height() > room / 2.0 && (bounds.width() / bounds.height() - aspect).abs() < 0.01),
+        fixture.shape_bounds().iter().any(|bounds| bounds.height() > room && (bounds.width() / bounds.height() - aspect).abs() < 0.01),
         "a page-shaped fill is the paper: {:?}",
         fixture.shape_bounds()
     );
