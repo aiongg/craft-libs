@@ -5,7 +5,7 @@
 mod stories;
 
 use super::recent::{RecentFile, RecentSort, RecentView, Template, ThumbKey, sort_recent};
-use super::words::StartWords;
+use super::words::ShellWords;
 use crate::buttons::Button;
 use crate::choice::Segmented;
 use crate::contract::{
@@ -188,7 +188,7 @@ enum Picture {
 struct Page<'p> {
     ctx: &'p egui::Context,
     env: &'p Env,
-    words: &'p StartWords,
+    words: &'p ShellWords,
     thumbnails: Option<&'p TextureStore<ThumbKey>>,
     now: Option<i64>,
     actions: &'p RefCell<Vec<StartAction>>,
@@ -284,7 +284,7 @@ impl StartScreen<'_> {
     pub fn show(self, ui: &mut Ui) -> StartOutput {
         let StartScreen { view, sort, recent, collator, pinned, templates, max_recent, now, thumbnails } = self;
         let env = Env::of(ui);
-        let words = env.words::<StartWords>();
+        let words = env.words::<ShellWords>();
         let ctx = ui.ctx().clone();
         let actions = RefCell::new(Vec::new());
         let page = Page { ctx: &ctx, env: &env, words: &words, thumbnails: thumbnails.as_ref(), now, actions: &actions };

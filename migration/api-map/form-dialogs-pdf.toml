@@ -30,14 +30,14 @@ name = "PdfExportLabels"
 old = "craft_ui::dialog::export::pdf::PdfExportLabels"
 new = ""
 status = "removed"
-note = "Replaced by `PdfExportWords`, a `words!` struct with ids `formDialogs.pdf<Name>`; the check, warning and range wordings are its methods `error_text`, `warning_text` and `range_error_text`."
+note = "Replaced by `PdfExportWords`, a `words!` struct with ids `pdfExportDialog.<name>`; the check, warning and range wordings are its methods `error_text`, `warning_text` and `range_error_text`."
 
 [[type]]
 name = "PdfExportWords"
 old = ""
 new = "craft_ui::patterns::form_dialogs::PdfExportWords"
 status = "replaced"
-note = "The words of the dialog: ids `formDialogs.pdf<Name>`, templates for the checks and warnings."
+note = "The words of the dialog: ids `pdfExportDialog.<name>`, templates for the checks and warnings."
 
 [[type]]
 name = "PasswordSwitches"

@@ -87,6 +87,6 @@ fn focus_inside_a_modal_owns_its_keys_instead_of_being_blocked() {
     take_output(&frames.ctx);
     frames.frame(vec![key_press(Key::Enter, Modifiers::NONE)], &mut show);
     let fired = take_output(&frames.ctx).fired;
-    assert!(fired.iter().all(|fired| fired.command.id != "overlay_trial.pick"), "Enter activates the focused widget and is not also a shortcut");
+    assert!(fired.iter().all(|fired| fired.command.id != "overlayTrial.pick"), "Enter activates the focused widget and is not also a shortcut");
     assert_eq!(content.borrow().activations, 1, "the widget took the activation");
 }

@@ -1,7 +1,7 @@
 //! The New Guide Layout calculation and the units the guide dialogs measure in. Pure, so the dialog's live preview
 //! and the app's command make the same guides.
 
-use super::GuideWords;
+use super::GuideDialogWords;
 use crate::canvas::{Guide, GuideKey};
 use crate::runtime::env::{Label, UnitKind, Units};
 use craft_behavior::Axis;
@@ -102,7 +102,7 @@ impl GuideLayoutPreset {
         layout.center_columns = false;
     }
 
-    pub(super) fn label(self, words: &GuideWords) -> Label {
+    pub(super) fn label(self, words: &GuideDialogWords) -> Label {
         match self {
             GuideLayoutPreset::Custom => words.preset_custom.clone(),
             GuideLayoutPreset::FiveColumnsThreeRows => words.preset_five.clone(),
@@ -284,7 +284,7 @@ pub enum GuideLayoutError {
 
 impl GuideLayoutError {
     /// The translated message the dialog shows for this error.
-    pub(super) fn message(self, words: &GuideWords) -> Label {
+    pub(super) fn message(self, words: &GuideDialogWords) -> Label {
         match self {
             GuideLayoutError::DoesNotFit => words.does_not_fit.clone(),
             GuideLayoutError::MarginsTooLarge => words.margins_too_large.clone(),

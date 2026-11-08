@@ -78,10 +78,17 @@ status = "removed"
 note = "Replaced by `sections::GroupBox::apply`, a container: `GroupBox::apply(label, Bind<bool>).show(ui, |ui, _| field)`, a `GroupBox` configuration with no frame and an inline gate header. The check box is in the header and the body is enabled while `apply` is on. The field binds a `Mixed<T>` itself."
 
 [[type]]
-name = "NumberOutput"
+name = "NumberFieldOutput"
 old = "craft_ui::controls::number_field::NumberFieldOutput"
+new = ""
+status = "removed"
+note = "Replaced by `NumberOutput`."
+
+[[type]]
+name = "NumberOutput"
+old = ""
 new = "craft_ui::text::NumberOutput"
-status = "moved"
+status = "replaced"
 note = "The edit response of the value is `.edit` (and derefs); `preset` is the `NumberPick` of a picked row: `Number(f64)` or `Choice(u32)`."
 
 [[type]]

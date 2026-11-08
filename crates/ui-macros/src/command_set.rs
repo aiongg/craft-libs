@@ -73,6 +73,21 @@ fn check_scope(scope: &LitStr) -> syn::Result<()> {
     Ok(())
 }
 
+/// A prefix is one lower-camel segment naming the set's type: ids read `<prefix>.<variant_name>`, so a dot or
+/// underscore in the prefix would make a second segment.
+fn check_prefix(prefix: &LitStr) -> syn::Result<()> {
+    let name = prefix.value();
+    let mut chars = name.chars();
+    let lower_camel = chars.next().is_some_and(|c| c.is_ascii_lowercase()) && chars.all(|c| c.is_ascii_alphanumeric());
+    if !lower_camel {
+        return Err(syn::Error::new(
+            prefix.span(),
+            "a command prefix is one lower-camel segment naming the set's type, such as `canvasView`: no `.` or `_`",
+        ));
+    }
+    Ok(())
+}
+
 fn platform_tokens(platform: &LitStr) -> syn::Result<TokenStream> {
     Ok(match platform.value().as_str() {
         "mac" => quote!(::craft_ui::runtime::commands::Platform::Mac),
@@ -136,6 +151,7 @@ pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
         Ok(true)
     })?;
     let prefix = set.prefix.ok_or_else(|| syn::Error::new_spanned(ident, "a command set names its id prefix: `#[command(prefix = \"..\")]`"))?;
+    check_prefix(&prefix)?;
     if let Some(scope) = &set.scope {
         check_scope(scope)?;
     }

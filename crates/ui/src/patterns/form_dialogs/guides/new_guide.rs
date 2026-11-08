@@ -2,7 +2,7 @@
 
 use super::layout::{GuideLength, GuideUnits};
 use super::{
-    ColorRequest, GUIDE_LIMIT, GuideColor, GuideColorChoice, GuideWords, Held, HostRequests, NEW_GUIDE_COLOR_KEY, ResetFooter, Shown, accepted,
+    ColorRequest, GUIDE_LIMIT, GuideColor, GuideColorChoice, GuideDialogWords, Held, HostRequests, NEW_GUIDE_COLOR_KEY, ResetFooter, Shown, accepted,
     edited, run_form,
 };
 use crate::canvas::{Guide, GuideKey};
@@ -120,7 +120,7 @@ impl<'a> NewGuideDialog<'a> {
     pub fn show(self, ui: &mut Ui) -> NewGuideOutput {
         let NewGuideDialog { units, values, edit, key, error, open } = self;
         let env = Env::of(ui);
-        let words = env.words::<GuideWords>();
+        let words = env.words::<GuideDialogWords>();
         let common = env.words::<CommonWords>();
         let number_units = env.units();
         let title = if edit.is_some() { words.edit_title.clone() } else { words.new_guide_title.clone() };
@@ -170,7 +170,7 @@ fn guide_of(values: &NewGuideValues, edit: Option<&(Guide, Rgba)>, key: GuideKey
     Guide { along: values.along, position: values.position_px, color, ..base }
 }
 
-fn position_row(ui: &mut Ui, words: &GuideWords, numbers: &crate::runtime::env::Units, units: &GuideUnits, values: &mut NewGuideValues) {
+fn position_row(ui: &mut Ui, words: &GuideDialogWords, numbers: &crate::runtime::env::Units, units: &GuideUnits, values: &mut NewGuideValues) {
     let ruler = units.ruler;
     let extent = if values.along == Axis::Y { units.width_px } else { units.height_px };
     let shown = units.from_pixels(values.position_px, ruler, extent).unwrap_or(0.0);

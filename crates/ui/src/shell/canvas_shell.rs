@@ -24,7 +24,7 @@ mod stories;
 use super::app_shell::{AppShell, AppShellOutput, RegionBody, RegionFn, ShellRegion};
 use super::reveal::PanelsHidden;
 use super::screen_mode::ScreenMode;
-use super::words::AppShellWords;
+use super::words::ShellWords;
 use crate::contract::{Bind, BodyCx, NoValue, Outcome, PaneEdge, Props as _, ShellPane, ShowContainer as _};
 use crate::runtime::env::{BodyMode, Env, Label, ShellEntry, WindowKey};
 use crate::runtime::frame::ChromeToggle;
@@ -51,7 +51,7 @@ type Flagged<'a> = Option<(bool, RegionFn<'a>)>;
 /// `AppShell` with the preset's keys: `title` (top; reveals when visible), `options` (top; reveals), more top bars,
 /// `tools` (start; reveals), `status` (bottom; never reveals), more bottom bars. The body is the host's dock; its canvas
 /// panel is a [`CanvasPanel`]. Every `visible` argument is the host's flag, passed each frame. The regions are named by
-/// `AppShellWords`; sizes come from the slots' contents.
+/// `ShellWords`; sizes come from the slots' contents.
 #[must_use = "show the shell with `show`"]
 #[derive(crate::contract::Pattern)]
 pub struct CanvasShell<'a> {
@@ -151,7 +151,7 @@ impl<'a> CanvasShell<'a> {
     /// Lays out the slots, then the body in what is left.
     pub fn show(self, ui: &mut Ui) -> AppShellOutput {
         let CanvasShell { mut shell, title, options, tools, status, top, bottom } = self;
-        let words = Env::of(ui).words::<AppShellWords>();
+        let words = Env::of(ui).words::<ShellWords>();
         if let Some((visible, add)) = title {
             shell = shell.title(Slot::new(slots::TITLE).visible(visible).reveal_if(visible), add);
         }
@@ -236,7 +236,7 @@ impl<'a> CanvasPanel<'a> {
     pub fn show(self, ui: &mut Ui, mut document: impl FnMut(&mut Ui, &mut BodyCx<'_>)) -> CanvasPanelOutput {
         let CanvasPanel { rail, tabs, opening } = self;
         let env = Env::of(ui);
-        let words = env.words::<AppShellWords>();
+        let words = env.words::<ShellWords>();
         let shell = env.get::<ShellEntry>().0;
         let panels_hidden = env.get::<PanelsHidden>().0;
         let dock = shell.as_ref().is_none_or(|shell| shell.dock_visible()) && !panels_hidden;

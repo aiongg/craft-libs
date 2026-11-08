@@ -60,17 +60,17 @@ impl ScreenMode {
 /// The screen-mode commands of a window. The three modes are radio rows of View > Screen Mode; the cycle commands are
 /// the F key and Shift+F. The window's shell takes them and writes its `screen_mode` binding.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui_macros::CommandSet)]
-#[command(prefix = "view.screenMode", scope = "window")]
+#[command(prefix = "screenMode", scope = "window")]
 #[non_exhaustive]
 pub enum ScreenModeCommand {
     /// Everything shows.
     #[command(label = "Standard Screen Mode", kind = "radio", group = "screen_mode")]
     Standard,
     /// Every bar, rail and panel stays; the document tabs and the scroll bars hide.
-    #[command(label = "Full Screen Mode With Menu Bar", kind = "radio", group = "screen_mode", alias = "view.screenMode.fullScreenWithMenuBar")]
+    #[command(label = "Full Screen Mode With Menu Bar", kind = "radio", group = "screen_mode", alias = "screenMode.fullScreenWithMenuBar")]
     FullScreenWithMenuBar,
     /// The body only.
-    #[command(label = "Full Screen Mode", kind = "radio", group = "screen_mode", alias = "view.screenMode.fullScreen")]
+    #[command(label = "Full Screen Mode", kind = "radio", group = "screen_mode", alias = "screenMode.fullScreen")]
     FullScreen,
     /// The next mode.
     #[command(label = "Cycle Screen Mode", default = "F")]

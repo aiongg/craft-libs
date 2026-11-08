@@ -27,12 +27,12 @@ mod stories;
 craft_ui::words! {
     /// The standard words of the list manager; the app's own actions bring their labels.
     pub struct ListManagerWords {
-        run: "formDialogs.listManagerRun" = "Run";
-        edit: "formDialogs.listManagerEdit" = "Edit";
-        create: "formDialogs.listManagerCreate" = "Create";
-        delete: "formDialogs.listManagerDelete" = "Delete";
-        options: "formDialogs.listManagerOptions" = "Options…";
-        description: "formDialogs.listManagerDescription" = "Description";
+        run: "listManager.run" = "Run";
+        edit: "listManager.edit" = "Edit";
+        create: "listManager.create" = "Create";
+        delete: "listManager.delete" = "Delete";
+        options: "listManager.options" = "Options…";
+        description: "listManager.description" = "Description";
     }
 }
 

@@ -5,7 +5,7 @@
 #[cfg(feature = "testing")]
 pub(super) mod stories;
 
-use super::words::SelectionWords;
+use super::words::CanvasControlWords;
 use crate::canvas::canvas_space;
 use crate::contract::{Access, Animate as _, Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role, WordSetCx as _};
 use crate::primitives::{ContentPainterCx, ellipse};
@@ -159,7 +159,7 @@ impl Marquee {
         Marquee::new(label, MarqueeShape::Segments(segments.into_iter().collect()))
     }
 
-    fn shape_name<'w>(&self, words: &'w SelectionWords) -> &'w Label {
+    fn shape_name<'w>(&self, words: &'w CanvasControlWords) -> &'w Label {
         match self.shape {
             MarqueeShape::Rect(_) => &words.shape_rect,
             MarqueeShape::Ellipse(_) => &words.shape_ellipse,
@@ -236,7 +236,7 @@ impl Component for Marquee {
     }
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
-        let words = cx.words::<SelectionWords>();
+        let words = cx.words::<CanvasControlWords>();
         access.description(self.shape_name(&words).as_str());
         let value = match &self.value {
             Some(value) => value.as_str().to_owned(),

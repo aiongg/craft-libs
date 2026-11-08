@@ -5,7 +5,7 @@ mod place;
 #[cfg(feature = "testing")]
 mod stories;
 
-use super::words::GuideWords;
+use super::words::CanvasControlWords;
 use crate::canvas::{CanvasSpace, Guide, GuideDrag, GuideKey, GuideLine, RulerText, canvas_space, readout};
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Name, Numeric, Outcome, PaintUi, PartsCx,
@@ -39,7 +39,7 @@ const NUDGE_FAR: f64 = 10.0;
 /// The commands of the guides (11). They are app commands: the app owns the guide vector and the dialog, and runs
 /// them with [`GuideCommands::apply`] and its own "New Guide" dialog.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui_macros::CommandSet)]
-#[command(prefix = "canvas.guides")]
+#[command(prefix = "canvasGuides")]
 #[non_exhaustive]
 pub enum GuideCommands {
     /// Open the dialog that places a guide by its numbers.
@@ -265,7 +265,7 @@ impl<'a> Guides<'a> {
 
     /// Shows the position of a dragged guide beside the pointer.
     fn show_readout(&self, cx: &Cx<'_, Self>, at: Pos2, along: Axis, position: f64) {
-        let words = cx.words::<GuideWords>();
+        let words = cx.words::<CanvasControlWords>();
         let ruler = self.ruler(along);
         let digits = (*ruler.kind.decimals().end()).max(1);
         let value = ruler.format(&cx.env.units(), position, coordinate_across(along, self.zero), 0..=digits);
@@ -536,7 +536,7 @@ impl Component for Guides<'_> {
     /// One node per unlocked guide, named by its axis and valued by its position in the ruler's units.
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let (Some(space), Some(guides)) = (canvas_space(&cx.env), cx.value()) else { return };
-        let words = cx.words::<GuideWords>();
+        let words = cx.words::<CanvasControlWords>();
         let units = cx.env.units();
         for guide in guides.iter().filter(|guide| !guide.locked) {
             let ruler = self.ruler(guide.along);

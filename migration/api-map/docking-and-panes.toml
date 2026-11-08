@@ -187,8 +187,15 @@ new = "craft_behavior::dock::StackEntry"
 status = "moved"
 
 [[type]]
-name = "DockSide"
+name = "Zone"
 old = "craft_ui::docking::model::Zone"
+new = ""
+status = "removed"
+note = "Replaced by `DockSide`."
+
+[[type]]
+name = "DockSide"
+old = ""
 new = "craft_behavior::DockSide"
 status = "replaced"
 note = "`DockSide` in reading order: `Left` is `Start` and `Right` is `End`; saved layouts and actions with `Left`/`Right` load through serde aliases. `Placement::for_zone` loses its `right_to_left` argument."
@@ -213,15 +220,29 @@ new = "craft_behavior::dock::Column"
 status = "moved"
 
 [[type]]
-name = "DockEdge"
+name = "Side"
 old = "craft_ui::docking::dock_model::Side"
+new = ""
+status = "removed"
+note = "Replaced by `DockEdge`."
+
+[[type]]
+name = "DockEdge"
+old = ""
 new = "craft_behavior::dock::DockEdge"
 status = "replaced"
 note = "Renamed: `overlay::Side` is another type. A dock's window edge, `Start` or `End`."
 
 [[type]]
-name = "PanelPlace"
+name = "Place"
 old = "craft_ui::docking::dock_model::Place"
+new = ""
+status = "removed"
+note = "Replaced by `PanelPlace`."
+
+[[type]]
+name = "PanelPlace"
+old = ""
 new = "craft_behavior::dock::PanelPlace"
 status = "replaced"
 note = "Renamed: `contract::overlay::Place` is another type."
@@ -265,8 +286,15 @@ status = "moved"
 note = "A constant."
 
 [[type]]
-name = "Axis"
+name = "SplitAxis"
 old = "craft_ui::layout::SplitAxis"
+new = ""
+status = "removed"
+note = "Replaced by `Axis`."
+
+[[type]]
+name = "Axis"
+old = ""
 new = "craft_behavior::Axis"
 status = "replaced"
 note = "`Horizontal` is `X` and `Vertical` is `Y`; saved layouts with the old names load through serde aliases. The split tree is in reading order: the first child is the start (or top) child."

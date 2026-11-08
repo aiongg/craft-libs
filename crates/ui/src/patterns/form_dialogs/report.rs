@@ -20,14 +20,14 @@ mod stories;
 craft_ui::words! {
     /// The words of the report dialog beside the common OK.
     pub struct ReportWords {
-        count: count "formDialogs.reportNotes" = "{n} note" | "{n} notes";
-        copy: "formDialogs.reportCopy" = "Copy";
-        title: "formDialogs.reportTitle" = "Report";
-        info: "formDialogs.reportInfo" = "Info";
-        warning: "formDialogs.reportWarning" = "Warning";
-        error: "formDialogs.reportError" = "Error";
-        success: "formDialogs.reportSuccess" = "Success";
-        note: "formDialogs.reportNote" = "Note";
+        count: count "reportDialog.notes" = "{n} note" | "{n} notes";
+        copy: "reportDialog.copy" = "Copy";
+        title: "reportDialog.title" = "Report";
+        info: "reportDialog.info" = "Info";
+        warning: "reportDialog.warning" = "Warning";
+        error: "reportDialog.error" = "Error";
+        success: "reportDialog.success" = "Success";
+        note: "reportDialog.note" = "Note";
     }
 }
 

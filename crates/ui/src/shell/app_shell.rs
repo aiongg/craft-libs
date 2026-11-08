@@ -7,7 +7,7 @@ mod stories;
 
 use super::reveal::{Aim, PanelsHidden, Reveal, Tracking};
 use super::screen_mode::{FullScreenPlan, ScreenMode, ScreenModeCommand};
-use super::words::AppShellWords;
+use super::words::ShellWords;
 use crate::contract::overlay::Resize;
 use crate::contract::{
     Bind, BodyCx, Common, Component, Container, ContainerProps, Cx, Mount, NoValue, Outcome, PaneEdge, Props as _, Remember as _, Role, ShellPane,
@@ -198,7 +198,7 @@ impl Outcome for AppShellOutput {
 ///   order from the window's top edge inward; the `bottom` slots from the bottom edge inward; then `start`, then `end`;
 ///   then the body in what is left. Start and end swap sides in a right-to-left window; top and bottom do not. A theme or
 ///   size never changes the order.
-/// - **Screen mode.** The `screen_mode` binding holds the window's mode. The window's `view.screenMode.*` commands
+/// - **Screen mode.** The `screen_mode` binding holds the window's mode. The window's `screenMode.*` commands
 ///   (F and Shift+F cycle) change it, and a change to or from full screen is carried out through `WindowHost::act`.
 ///   In `FullScreen` no slot shows but those built with [`Slot::reveal`], during a reveal.
 /// - **Reveal.** In body-only mode Tab (or the `window.toggle_panels` command) shows the revealing slots until the next
@@ -302,7 +302,7 @@ impl<'a> AppShell<'a> {
     pub fn show(self, ui: &mut Ui) -> AppShellOutput {
         let AppShell { window, bare, mut screen_mode, allow_reveal, edge_reveal, document_tabs, body_label, chrome_toggles, title, slots, mut body } =
             self;
-        let words = Env::of(ui).words::<AppShellWords>();
+        let words = Env::of(ui).words::<ShellWords>();
         let body_label = body_label.unwrap_or_else(|| words.document.clone());
         let mut slots: Vec<Placed<'a>> = title.into_iter().chain(slots).collect();
         slots.sort_by_key(Placed::rank);

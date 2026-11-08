@@ -285,6 +285,28 @@ fn command_set_derive_needs_a_prefix_and_labels() {
     );
 }
 
+#[test]
+fn command_set_prefix_is_one_lower_camel_segment() {
+    for prefix in ["canvas.view", "kbd_trial", "Canvas", "", "9p"] {
+        let message = error(crate::command_set::derive(quote!(
+            #[command(prefix = #prefix)]
+            enum Set {
+                #[command(label = "A")]
+                A,
+            }
+        )));
+        assert!(message.contains("lower-camel"), "`{prefix}`: {message}");
+    }
+    let accepted = crate::command_set::derive(quote!(
+        #[command(prefix = "canvasView")]
+        enum Set {
+            #[command(label = "A")]
+            A,
+        }
+    ));
+    assert!(accepted.is_ok());
+}
+
 fn words(input: TokenStream) -> String {
     error(crate::words::expand_words(input))
 }

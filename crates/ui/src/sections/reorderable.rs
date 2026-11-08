@@ -22,7 +22,7 @@ mod stories;
 /// The commands of a section, run on the section that holds the focus: its header menu rows and any chord the keymap
 /// binds. Showing a hidden section is a row of the menu, one per section, because a hidden section cannot hold focus.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui_macros::CommandSet)]
-#[command(prefix = "sections", scope = "section")]
+#[command(prefix = "section", scope = "section")]
 #[non_exhaustive]
 pub enum SectionCommand {
     /// Hide the section from the sidebar.

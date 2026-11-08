@@ -185,7 +185,7 @@ name = "RulerCommands"
 old = ""
 new = "craft_ui::canvas::RulerCommands"
 status = "replaced"
-note = "The unit choice and Reset Zero Point as app commands (`canvas.rulers.unit_pixels`, `canvas.rulers.reset_zero`, ...); the menu rows and a menu bar offer the same actions."
+note = "The unit choice and Reset Zero Point as app commands (`canvasRulers.unit_pixels`, `canvasRulers.reset_zero`, ...); the menu rows and a menu bar offer the same actions."
 
 [[type]]
 name = "RulerMargins"
@@ -323,22 +323,43 @@ status = "moved"
 note = "See `RasterSource`. `PixelRect::of_size` takes a `PixelSize`."
 
 [[type]]
-name = "PaintedCursor"
+name = "ToolCursor"
 old = "craft_ui::canvas::cursor::ToolCursor"
+new = ""
+status = "removed"
+note = "Replaced by `PaintedCursor`."
+
+[[type]]
+name = "PaintedCursor"
+old = ""
 new = "craft_behavior::PaintedCursor"
 status = "replaced"
 note = "A cursor request is data: `cx.cursor(PaintedCursor::..)` through the cursor service, painted by the overlay host on the ghost layer. `ToolCursor::Circle/Crosshair/Outline/Hand/Zoom/Tool/Badged` are `PaintedCursor::circle/Crosshair/outline/Hand/zoom/tool/badged`; `turn_cursor`, `distort_cursor` and `skew_cursor` are `PaintedCursor::turn(toward)`, `distort(dir)` and `skew(dir)` with screen directions (no `CanvasView` or `PointerInk`). The crosshair and the brush outline are painted, not uploaded as OS bitmaps. `CursorOptions` and `CursorHost` are gone; an app decides which cursor to request."
 
 [[type]]
-name = "readout"
+name = "Readout"
 old = "craft_ui::canvas::readout::Readout"
+new = ""
+status = "removed"
+note = "Replaced by `readout`."
+
+[[type]]
+name = "readout"
+old = ""
 new = "craft_ui::canvas::readout"
 status = "replaced"
 note = "A function called each pass of a gesture: `canvas::readout(cx, pointer, &[(Label, String)])` paints the rows beside the pointer on the ghost layer. `Readout::new`, `ReadoutStyle` and `ReadoutLayout` are gone; the look comes from the tokens."
 
 [[type]]
-name = "marching_ants"
+name = "Ants"
 old = "craft_ui::canvas::marquee::ants::Ants"
+new = ""
+status = "removed"
+note = "Replaced by `marching_ants`."
+
+[[type]]
+name = "marching_ants"
+old = ""
 new = "craft_ui::primitives::marching_ants"
 status = "replaced"
 note = "The one pixel-aligned painter: `marching_ants(tokens, points, closed, phase, clip, pixels_per_point)`, or `ContentPainterCx::marching_ants`. `phase` is in points along the path; `Ants::new(ppp, time, ..)` and `draw` are gone."
@@ -838,7 +859,7 @@ name = "ViewCommand"
 old = ""
 new = "craft_ui::canvas::ViewCommand"
 status = "replaced"
-note = "The `canvas.view.*` commands (Zoom In, Zoom Out, Fit on Screen, Fill Screen, Rotate View clockwise and counterclockwise, Reset Rotation) with `apply(view, size, pixels_per_point)`."
+note = "The `canvasView.*` commands (Zoom In, Zoom Out, Fit on Screen, Fill Screen, Rotate View clockwise and counterclockwise, Reset Rotation) with `apply(view, size, pixels_per_point)`."
 
 [[type]]
 name = "NavigationLabels"
@@ -859,7 +880,7 @@ name = "MomentaryCommand"
 old = ""
 new = "craft_ui::canvas::MomentaryCommand"
 status = "replaced"
-note = "`canvas.momentary.hand`, `canvas.momentary.zoom_in` and `canvas.momentary.zoom_out`, bound to Space, Cmd+Space and Alt+Space."
+note = "`canvasMomentary.hand`, `canvasMomentary.zoom_in` and `canvasMomentary.zoom_out`, bound to Space, Cmd+Space and Alt+Space."
 
 [[type]]
 name = "Momentary"

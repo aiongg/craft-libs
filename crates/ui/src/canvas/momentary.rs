@@ -12,7 +12,7 @@ use craft_keymap::Mods;
 
 /// The commands that put a tool in effect while their key is held.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui_macros::CommandSet)]
-#[command(prefix = "canvas.momentary")]
+#[command(prefix = "canvasMomentary")]
 #[non_exhaustive]
 pub enum MomentaryCommand {
     /// The Hand tool while the key is held.
