@@ -9,8 +9,8 @@ use craft_ui::text::NumberField;
 use egui::{Event, Key, Modifiers, Pos2, Ui};
 use std::cell::{Cell, RefCell};
 
-/// One inch in the document's points.
-const INCH: f64 = 72.0;
+/// A length the field starts from, in the document's points.
+const START: f64 = 72.0;
 /// How far two lengths may differ and still count as the same.
 const SAME: f64 = 1e-6;
 
@@ -21,7 +21,7 @@ fn in_inches(start: f64, drive: impl FnOnce(&mut Frames, &mut dyn FnMut(&mut Ui)
     let at = Cell::new(Pos2::ZERO);
     let mut show = |ui: &mut Ui| {
         let mut guard = value.borrow_mut();
-        let lengths = LengthUnits::new(UnitKind::Points, UnitKind::Inches, INCH);
+        let lengths = LengthUnits::new(UnitKind::Points, UnitKind::Inches, START);
         at.set(NumberField::length("Width", Bind::bound(&mut *guard), lengths).id_salt("width").show(ui).response.rect.center());
     };
     frames.idle(3, &mut show);
@@ -44,14 +44,15 @@ fn type_and_commit(text: &'static str) -> impl FnOnce(&mut Frames, &mut dyn FnMu
 /// unit's step.
 #[trial]
 fn a_length_field_types_and_steps_in_the_shown_unit() {
-    let typed = in_inches(INCH, type_and_commit("10 mm"));
-    assert!((typed - 10.0 / 25.4 * INCH).abs() < SAME, "10 mm is stored in points: {typed}");
+    let one = in_inches(START, type_and_commit("1 in"));
+    let metric = in_inches(START, type_and_commit("25.4 mm"));
+    assert!((metric - one).abs() < SAME, "25.4 mm is one inch: {metric} against {one}");
 
-    let bare = in_inches(INCH, type_and_commit("2"));
-    assert!((bare - 2.0 * INCH).abs() < SAME, "a bare 2 is two inches: {bare}");
+    let bare = in_inches(START, type_and_commit("2"));
+    assert!((bare - one * 2.0).abs() < SAME, "a bare 2 is two inches: {bare} against {one}");
 
-    let stepped = in_inches(INCH, |frames, show| {
+    let stepped = in_inches(one, |frames, show| {
         frames.frame(vec![key_press(Key::ArrowUp, Modifiers::NONE)], show);
     });
-    assert!((stepped - 1.1 * INCH).abs() < SAME, "an arrow moves a tenth of an inch: {stepped}");
+    assert!((stepped - one * 1.1).abs() < SAME, "an arrow moves a tenth of an inch: {stepped} from {one}");
 }

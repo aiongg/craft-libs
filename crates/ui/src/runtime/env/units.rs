@@ -185,6 +185,7 @@ impl UnitKind {
 /// unit) and what it shows and parses bare numbers in (`shown`, the user's unit). Both are `UnitKind::Pixels` or one
 /// of [`UnitKind::LENGTHS`]; the document's resolution sizes pixels.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct LengthUnits {
     /// The unit of the value the field's binding holds.
     pub stored: UnitKind,
