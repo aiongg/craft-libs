@@ -42,7 +42,8 @@ struct Rig {
 }
 
 fn rig(threads: Vec<CommentThread>, selected: Option<u64>) -> Rig {
-    let state = CommentsPanelState { selected: selected.map(ThreadId), ..CommentsPanelState::default() };
+    let mut state = CommentsPanelState::default();
+    state.selected = selected.map(ThreadId);
     let app = Rc::new(RefCell::new(App { threads, state, edits: Vec::new(), now: NOW }));
     let shown = Rc::clone(&app);
     let mut fx = Fixture::new(move |ui| {

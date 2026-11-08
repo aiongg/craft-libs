@@ -16,8 +16,8 @@ use craft_theme::variant::Tone;
 use craft_ui::buttons::{Button, IconButton, ToggleButton};
 use craft_ui::contract::overlay::Anchor;
 use craft_ui::contract::{
-    Bind, Common, Component, Cx, EditResponse, MeasureCx, NoValue, Outcome, PaintUi, Pattern, Pointer as _, Props as _, Role, Show as _,
-    ShowContainer as _, Trigger, clicked,
+    Bind, Common, Component, Cx, MeasureCx, NoValue, Outcome, PaintUi, Pattern, Pointer as _, Props as _, Role, Show as _, ShowContainer as _,
+    Trigger, clicked,
 };
 use craft_ui::display::{Shade, Text};
 use craft_ui::layout_components::{Row, Stack};
