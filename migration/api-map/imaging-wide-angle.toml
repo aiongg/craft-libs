@@ -70,11 +70,3 @@ old = "craft_imaging::ui::wide_angle::ConstraintToolPass"
 new = "craft_imaging::ui::wide_angle::ConstraintLines"
 status = "replaced"
 note = "New: the constraints as a canvas control with one focusable part each."
-
-[[type]]
-name = "WideAngleCommands"
-old = "craft_imaging::ui::wide_angle::WideAngleTool"
-new = "craft_imaging::ui::wide_angle::WideAngleCommands"
-status = "replaced"
-note = "New: the three tool commands of the dialog scope."
-
