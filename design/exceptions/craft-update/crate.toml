@@ -1,8 +1,1 @@
 config_version = 1
-
-[[exception]]
-name = "update-local-mirror-feature"
-kind = "feature"
-rule = "features/gate"
-path = "craft-update/local-mirror"
-reason = "Existing build switch for the release mirror tests: it lets the HTTP agents take plain http and gates no dependency."
