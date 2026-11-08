@@ -3,7 +3,7 @@
 
 use super::super::contract::kit::PlainStyle;
 use craft_behavior::{HitShape, PartKey, PressPhase, Sense};
-use craft_ui::contract::{Common, Component, Cx, PartsCx, Role, Show as _};
+use craft_ui::contract::{Common, Component, Cx, PartsCx, Pointer as _, Role, Show as _};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::pointer::{moved, press};
 use craft_ui::testing::{Frames, trial};
