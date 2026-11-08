@@ -163,7 +163,7 @@ fn a_locked_set_rejects_structure_but_allows_activate_open_minimize_resize_and_n
         assert_eq!(workspace.apply(action.clone(), locked, allow), Err(DockError::NotAllowed), "{action:?}");
         assert_eq!(workspace, before);
     }
-    assert_eq!(workspace.set_visible(4, locked, None, locked, allow), Err(DockError::NotAllowed));
+    assert_eq!(workspace.set_visible(4, false, None, locked, allow), Err(DockError::NotAllowed));
     let allowed = [
         Action::activate(2),
         Action::open(12, Some(11)),
