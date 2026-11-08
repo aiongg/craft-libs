@@ -427,6 +427,15 @@ impl Pointer for CxCore<'_> {
             Some(moving) => areas::layer_at_without(&self.ctx, screen, moving),
             None => areas::layer_at(&self.ctx, screen),
         };
+        if std::any::type_name::<P>().contains("ListDrag") {
+            eprintln!(
+                "PROBE13 drop_target id={:?} at={at:?} screen={screen:?} visible={:?} top={top:?} mine={:?} moves_viewport={}",
+                self.id,
+                self.visible,
+                self.response.layer_id,
+                drag::moves_viewport(&self.ctx)
+            );
+        }
         if drag::moves_viewport(&self.ctx) || !self.visible.contains(at) || top != Some(self.response.layer_id) {
             return None;
         }

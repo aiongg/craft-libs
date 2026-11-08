@@ -88,6 +88,13 @@ pub(crate) fn begin(ctx: &Context) {
         let share = Wheel::new(scroll, mods, unit, phase).zoom(frame.zoom).at(at);
         // The device's lines and pages become points of each taker: the notch is the scroll owner's to choose.
         let shares = split(&state.last, at, share, focused, state.armed);
+        if mods.shift {
+            eprintln!(
+                "PROBE8 wheel at={at:?} scroll={scroll:?} takers={:?} shares={:?}",
+                state.last.iter().map(|t| (t.rect, t.vertical, t.horizontal, t.scrolls)).collect::<Vec<_>>(),
+                shares.iter().map(|(_, w)| w.scroll).collect::<Vec<_>>()
+            );
+        }
         state.shares = shares
             .into_iter()
             .map(|(owner, mut share)| {

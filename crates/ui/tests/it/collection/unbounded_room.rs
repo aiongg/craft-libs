@@ -21,6 +21,12 @@ fn a_list_in_a_sideways_scrolling_body_measures_its_widest_row() {
     });
     fixture.room(Vec2::new(200.0, 160.0)).settle();
     let list = fixture.by_role(Role::LIST).into_iter().next().expect("the list is shown");
-    let label = fixture.texts().iter().find(|text| text.text == LONG).expect("the widest row is painted").rect;
+    let painted: Vec<String> = fixture.texts().iter().map(|text| format!("{:?} at {:?}", text.text, text.rect)).collect();
+    let label = fixture
+        .texts()
+        .iter()
+        .find(|text| text.text == LONG)
+        .unwrap_or_else(|| panic!("PROBE14 the widest row is painted; the list is at {:?}, the texts are {painted:?}", list.rect))
+        .rect;
     assert!(list.rect.width() >= label.width(), "the list is as wide as its widest row: {:?} holds {label:?}", list.rect);
 }

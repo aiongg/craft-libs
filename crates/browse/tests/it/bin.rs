@@ -229,15 +229,26 @@ fn a_release_on_the_background_drops_into_the_shown_bin_unless_they_are_there() 
     assert!(bin.drops().is_empty(), "Title is in the root, which is the shown bin: {:?}", bin.events.borrow());
 }
 
-/// In User Order a release past the last row moves the rows to the end; it is not a drop.
+/// In User Order a release past the last row moves a row of the shown bin to the end; it is not a drop.
 #[trial]
 fn a_release_past_the_last_row_in_user_order_reorders() {
     let mut bin = setup(false, |_| {});
     let room = bin.empty_room();
-    bin.drag_to("Clip.mov", room);
+    bin.drag_to("Archive", room);
     let events = bin.events.borrow();
-    assert!(events.iter().any(|event| matches!(event, BinEvent::Reorder(_))), "PROBE10 {events:?} room={room:?} shown={:?} list={:?}", bin.fixture.shown(), bin.fixture.by_role(craft_ui::contract::Role::TABLE).iter().map(|t| t.rect).collect::<Vec<_>>());
+    assert!(events.iter().any(|event| matches!(event, BinEvent::Reorder(_))), "{events:?}");
     assert!(!events.iter().any(|event| matches!(event, BinEvent::Drop { .. })));
+}
+
+/// A release past the last row puts the item at the top level of the shown bin: an item of an open sub-bin leaves
+/// its bin, which is a drop into the shown bin, not a reorder.
+#[trial]
+fn a_release_past_the_last_row_takes_an_item_out_of_its_bin() {
+    let mut bin = setup(false, |_| {});
+    let room = bin.empty_room();
+    bin.drag_to("Clip.mov", room);
+    assert_eq!(bin.drops(), [(vec![11], None)], "{:?}", bin.events.borrow());
+    assert!(!bin.events.borrow().iter().any(|event| matches!(event, BinEvent::Reorder(_))));
 }
 
 /// A drag from another list over an item row is a drop on the background, never a reorder; over a bin row it
@@ -299,9 +310,7 @@ fn the_selection_count_leaves_out_keys_that_are_not_shown() {
     let mut bin = setup(false, |state| state.shown = Some(1));
     *bin.selection.borrow_mut() = Selection::single(20);
     bin.fixture.settle();
-    let names: Vec<String> = bin.fixture.tree().keys().into_iter().filter_map(|key| bin.fixture.tree().name_of(key).map(|n| format!("{n:?}/{:?}", bin.fixture.tree().role_of(key)))).collect();
-    let texts: Vec<String> = bin.fixture.texts().iter().map(|t| t.text.clone()).collect();
-    assert!(bin.fixture.by_label("2 items").is_some(), "PROBE12 names={names:?} texts={texts:?}");
+    assert!(bin.fixture.by_label("2 items").is_some());
     *bin.selection.borrow_mut() = Selection::single(10);
     bin.fixture.settle();
     assert!(bin.fixture.by_label("1 of 2 items selected").is_some());

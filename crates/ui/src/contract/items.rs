@@ -363,8 +363,9 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 self.selection = C::Selection::default();
             }
         }
+        // A selection can hold items this source does not show; a lead that was never a shown row is not a lead that left.
         if self.lead.key.is_none() {
-            self.lead.key = self.selection.lead().cloned();
+            self.lead.key = self.selection.lead().filter(|key| self.index_of(key).is_some()).cloned();
         }
         self.renaming = stage.session::<Renaming<C::Key>>(sub(id, "rename")).clone();
         self.last = stage.recall::<View>(sub(id, "view"));
@@ -381,15 +382,6 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let view = self.last.view.map_or(0.0, |view| view[3] - view[1]);
         if self.scrolls {
             let taken = wheel::take(&ctx, id);
-            if self.content.x > 800.0 && self.content.x < 900.0 {
-                eprintln!(
-                    "PROBE8 read take={:?} off=({}, {}) content={:?}",
-                    taken.as_ref().map(|s| s.scroll),
-                    self.offset,
-                    self.offset_x,
-                    self.content
-                );
-            }
             if let Some(share) = taken {
                 self.offset -= f64::from(share.scroll.y);
                 self.offset_x -= f64::from(share.scroll.x);
@@ -486,13 +478,12 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         Some(Rc::new(Rows { rects, offset }))
     }
 
-    fn parts(&mut self, comp: &mut C, _: Rect, pcx: &mut PartsCx<'_, C>) {
+    fn parts(&mut self, _: &mut C, _: Rect, pcx: &mut PartsCx<'_, C>) {
         self.header.parts(pcx);
         if !self.scrolls {
             return;
         }
         let view = self.below_header(pcx.content_rect);
-        let ctx = pcx.ui.ctx().clone();
         let thickness = scroll_bar_look(pcx.tokens).thickness;
         let track = if pcx.flow.is_rtl() {
             Rect::from_min_max(view.min, Pos2::new(view.min.x + thickness, view.max.y))
@@ -503,21 +494,23 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.offset = self.offset.clamp(0.0, self.max_offset(view.height()));
         let span = ScrollSpan::new(0.0..content, self.offset..self.offset + f64::from(view.height()));
         pcx.scroll(SCROLL, track, Axis::Y, span);
-        if self.content.x > 800.0 && self.content.x < 900.0 {
-            eprintln!("PROBE8 parts view={:?} content={:?} overflow={:?} offx={}", view, self.content, self.overflow, self.offset_x);
-        }
-        wheel::register(
-            &ctx,
-            WheelTaker::new(pcx.id, view)
-                .vertical(self.overflow == Axis::Y)
-                .horizontal(self.content.x > view.width())
-                .scrolls(true)
-                .zoom(comp.zooms()),
-        );
     }
 
-    fn sensed(&mut self, _: &mut C, cx: &mut Cx<'_, C>) {
+    fn sensed(&mut self, comp: &mut C, cx: &mut Cx<'_, C>) {
         cx.core.collection_selection = Some(Box::new(self.selection.clone()));
+        if self.scrolls {
+            // The root's wheel sense registered a taker for the whole rect before this step; the scroll region's taker
+            // comes after it, so it wins the share where the two rects are equal: Shift turns its vertical wheel sideways.
+            let view = self.below_header(cx.core.content_rect);
+            wheel::register(
+                &cx.core.ctx,
+                WheelTaker::new(cx.core.id, view)
+                    .vertical(self.overflow == Axis::Y)
+                    .horizontal(self.content.x > view.width())
+                    .scrolls(true)
+                    .zoom(comp.zooms()),
+            );
+        }
     }
 
     fn updated(&mut self, comp: &mut C, cx: &mut Cx<'_, C>) {
@@ -531,9 +524,6 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         }
         self.offset = self.offset.clamp(0.0, self.max_offset(view));
         let header_held = self.header_step(cx);
-        if self.content.x > 800.0 && self.content.x < 900.0 {
-            eprintln!("PROBE8 updated rect={:?} content={:?} offx_before_clamp={}", rect, self.content, self.offset_x);
-        }
         self.offset_x = self.offset_x.clamp(0.0, f64::from((self.content.x - rect.width()).max(0.0)));
         self.open_lead(comp);
         self.follow_lead_source(comp);
@@ -556,7 +546,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.intent_actions(comp, cx, &props, lead_at, header_held);
         self.context_key(cx, &layout, at, lead_at);
         self.delete_key(cx, &props, lead_at);
-        self.toggle_by_access(cx);
+        self.toggle_by_access(cx, &layout, at);
         self.reorder_and_rename(comp, cx, &props, lead_at);
         self.requested_rename(comp, cx, &props, &layout, view);
         self.requested_reveal(comp, &layout, view);
@@ -800,7 +790,6 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let size = layout.content_size();
         self.content = Vec2::new(size.x as f32, size.y as f32);
         if self.ended_rename {
-            eprintln!("PROBE11 ended_rename");
             self.renaming = Renaming::default();
             if self.refocus {
                 focus::request_now(&ctx, focus::FocusTarget::Id(id));
@@ -1284,21 +1273,21 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     }
 
     /// An AccessKit click on a toggle cell's sub-node flips that cell, as a click on it does.
-    fn toggle_by_access(&mut self, cx: &mut Cx<'_, C>) {
+    fn toggle_by_access(&mut self, cx: &mut Cx<'_, C>, layout: &C::ItemLayout, place: Placement) {
         let wanted = |request: &craft_behavior::AccessRequest| {
             request.action == craft_behavior::AccessAction::Click && request.target.is_some_and(|part| part.key == TOGGLE_CELL)
         };
         while let Some(request) = cx.core.intents.take_access_where(wanted) {
             let Some(part) = request.target else { continue };
-            let found = self.shown.iter().find_map(|row| {
+            let (_, built) = self.built(layout, place.rect, place.offset);
+            let found = built.into_iter().find_map(|at| {
+                let key = self.source.key(at);
                 self.header
                     .toggle_columns()
-                    .find(|(column, _)| TOGGLE_CELL.at(key_hash(&(&row.key, column))) == part)
-                    .map(|(column, toggle)| (row.key.clone(), column, toggle))
+                    .find(|(column, _)| TOGGLE_CELL.at(key_hash(&(&key, column))) == part)
+                    .map(|(column, toggle)| (at, column, toggle))
             });
-            if let Some((key, column, toggle)) = found
-                && let Some(at) = self.index_of(&key)
-            {
+            if let Some((at, column, toggle)) = found {
                 self.flip_toggle(cx, at, column, toggle);
             }
         }
@@ -1382,7 +1371,6 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
 
     /// Opens the rename field of the item at `at`.
     fn begin_rename(&mut self, cx: &mut Cx<'_, C>, at: usize) {
-        eprintln!("PROBE11 begin_rename at={at} pass={}", crate::runtime::pointer::pass_of(&cx.core.ctx));
         let key = self.source.key(at);
         let draft = self.source.text(at).map(|text| text.into_owned()).unwrap_or_default();
         let gesture = crate::runtime::edit::next_gesture_id(&cx.core.ctx);

@@ -124,11 +124,6 @@ pub(crate) fn begin(ctx: &Context, hit: HitSizes) {
                 memory.last_press = Some((*pos, *time, *clicks));
             }
         }
-        for event in &events {
-            if let PointerEvent::Pressed { pos, clicks, .. } = event {
-                eprintln!("PROBE11 pressed pass={pass_nr} pos={pos:?} clicks={clicks}");
-            }
-        }
         if read.primary_pressed || middle_pressed {
             memory.press_targets = PressTargets { click: hits.0, drag: hits.1 };
         }
