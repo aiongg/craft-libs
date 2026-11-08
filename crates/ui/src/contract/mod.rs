@@ -53,7 +53,7 @@ pub use items::{ColumnCommands, request_rename};
 pub(crate) use items::{lead_position, section_part};
 pub use label::{CellWidth, FieldLabelRole, FieldLayout, GlyphLabel, LabelAlign, LabelKind, Scrub, SideLabel};
 pub use looks::Looks;
-pub use overlay::{Overlay, OverlayUi, Overlays, Popup, PopupHandle, Trigger};
+pub use overlay::{Overlay, OverlayUi, Overlays, Popup, PopupHandle, SizeLimits, Trigger};
 pub use paint_ui::PaintUi;
 pub(crate) use props::StopProps;
 pub use props::{Common, Props, Resolved, Tooltip, TooltipAt, TooltipSpec, TooltipWhen};

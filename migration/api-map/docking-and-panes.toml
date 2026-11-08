@@ -60,9 +60,17 @@ note = "Internal; the eight zones are the float frame's body-step grips."
 [[type]]
 name = "PanelLimits"
 old = "craft_ui::docking::PanelLimits"
-new = "craft_ui::docking::PanelLimits"
-status = "same"
-note = "Built with `PanelLimits::new(min, max)`, `at_least` or `at_most`; the fields stay public; `valid` is public and the 1,000,000 bound is `PanelLimits::BOUND`."
+new = ""
+status = "removed"
+note = "Replaced by `craft_ui::contract::SizeLimits`, the one size-limits value that `PanelSpec::limits` and `Overlay::size_limits` take: `SizeLimits::new(min, max)`, `at_least` or `at_most`; the fields `min` and `max: Option<Vec2>` stay public; `valid` is public and the 1,000,000 bound is `SizeLimits::BOUND`."
+
+# Final fix pass (l4z-body): one size-limits value.
+[[type]]
+name = "SizeLimits"
+old = ""
+new = "craft_ui::contract::SizeLimits"
+status = "replaced"
+note = "The smallest size and an optional largest, in points: a dock panel's body limits (`PanelSpec::limits`) and a layer's resize limits (`Overlay::size_limits(limits)`). `around(extra)` gives the limits of a frame around such a size. It replaces `craft_ui::docking::PanelLimits`."
 
 [[type]]
 name = "DockHeights"
@@ -535,7 +543,7 @@ new = "Overlay::bounds(rect)"
 [[setter]]
 type = "FloatingFrame"
 old = "limits(PanelLimits { min, max })"
-new = "Overlay::size_limits(min, max)"
+new = "Overlay::size_limits(SizeLimits::new(min, max))"
 
 [[setter]]
 type = "FloatingFrame"

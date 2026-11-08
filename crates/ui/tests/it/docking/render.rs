@@ -3,10 +3,11 @@
 
 use craft_behavior::Axis;
 use craft_behavior::dock::{Layout, Node, SplitSize};
+use craft_ui::contract::SizeLimits;
 use craft_ui::docking::frame::maximize;
 use craft_ui::docking::stack::{StackSection, section_heights};
 use craft_ui::docking::tree::{self, FrameRules};
-use craft_ui::docking::{DockSizes, HidePanels, PanelLimits};
+use craft_ui::docking::{DockSizes, HidePanels};
 use craft_ui::testing::trial;
 use egui::{Pos2, Rect, Vec2};
 
@@ -28,8 +29,8 @@ fn area(width: f32) -> Rect {
     Rect::from_min_size(Pos2::ZERO, Vec2::new(width, HEIGHT))
 }
 
-fn limits(_: &usize) -> PanelLimits {
-    PanelLimits::at_least(Vec2::new(LEAST_WIDTH, 0.0))
+fn limits(_: &usize) -> SizeLimits {
+    SizeLimits::at_least(Vec2::new(LEAST_WIDTH, 0.0))
 }
 
 fn widths(root: &Node<usize>, rect: Rect, rules: &FrameRules<'_, usize>) -> Vec<f32> {

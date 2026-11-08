@@ -324,6 +324,52 @@ fn opener_anchor(opener: &Opener, by_pointer: bool, place: &Place) -> Anchor {
     }
 }
 
+/// Size limits, in points: the smallest size and, where there is one, the largest. A layer's (`Overlay::size_limits`)
+/// and a dock panel's body (`PanelSpec::limits`) take them. Tiny viewports relax minima proportionally rather than
+/// producing inverted rects. A maximum constrains a pane when its sibling can take the remainder. A tab group takes
+/// the largest minimum and the largest maximum of its panels, so a panel without a maximum lifts the maximum of the
+/// panels it joins.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[non_exhaustive]
+pub struct SizeLimits {
+    /// Smallest size.
+    pub min: Vec2,
+    /// Largest size; `None` has no maximum.
+    pub max: Option<Vec2>,
+}
+
+impl SizeLimits {
+    /// The largest value a limit or a height may have: a value above it is invalid.
+    pub const BOUND: f32 = 1_000_000.0;
+
+    /// Limits between `min` and `max`.
+    pub const fn new(min: Vec2, max: Vec2) -> Self {
+        SizeLimits { min, max: Some(max) }
+    }
+
+    /// No smaller than `min`, with no maximum.
+    pub const fn at_least(min: Vec2) -> Self {
+        SizeLimits { min, max: None }
+    }
+
+    /// No larger than `max`, with no minimum.
+    pub const fn at_most(max: Vec2) -> Self {
+        SizeLimits { min: Vec2::ZERO, max: Some(max) }
+    }
+
+    /// The limits of a frame that holds a size with these limits and `extra` around it: both ends grow by `extra`.
+    pub fn around(self, extra: Vec2) -> Self {
+        SizeLimits { min: self.min + extra, max: self.max.map(|max| max + extra) }
+    }
+
+    /// Whether every value is finite and non-negative, the maximum is no less than the minimum and no value is
+    /// above [`Self::BOUND`].
+    pub fn valid(self) -> bool {
+        let within = |size: Vec2| size.is_finite() && size.x >= 0.0 && size.y >= 0.0 && size.x <= Self::BOUND && size.y <= Self::BOUND;
+        within(self.min) && self.max.is_none_or(|max| within(max) && max.x >= self.min.x && max.y >= self.min.y)
+    }
+}
+
 /// Data describing an egui layer. Presets fill focus and dismissal; builders change single fields.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -354,10 +400,8 @@ pub struct Overlay {
     pub popup: PopupKind,
     /// The size an `OverlayFit::Resizable` layer has before the user resizes it; `None` sizes it from its content.
     pub size: Option<Vec2>,
-    /// The least an `OverlayFit::Resizable` layer may be resized to.
-    pub min_size: Option<Vec2>,
-    /// The most a movable or resizable layer may be resized to.
-    pub max_size: Option<Vec2>,
+    /// The least an `OverlayFit::Resizable` layer and the most a movable or resizable layer may be resized to.
+    pub size_limits: SizeLimits,
     /// The rect the caller places the layer at, in the layer's parent space. The container reports the user's moves
     /// and resizes as `PlacementChange`s and keeps no placement of its own.
     pub placed: Option<Rect>,
@@ -400,8 +444,7 @@ impl Overlay {
             opener: None,
             popup: PopupKind::Dialog,
             size: None,
-            min_size: None,
-            max_size: None,
+            size_limits: SizeLimits::default(),
             placed: None,
             placed_at: None,
             bounds: None,
@@ -547,14 +590,13 @@ impl Overlay {
 
     /// Sets the least a resizable layer may be resized to.
     pub fn min_size(mut self, min_size: Vec2) -> Overlay {
-        self.min_size = Some(min_size);
+        self.size_limits.min = min_size;
         self
     }
 
     /// Sets the least and the most a resizable layer may be resized to.
-    pub fn size_limits(mut self, min: Vec2, max: Vec2) -> Overlay {
-        self.min_size = Some(min);
-        self.max_size = Some(max);
+    pub fn size_limits(mut self, limits: SizeLimits) -> Overlay {
+        self.size_limits = limits;
         self
     }
 
@@ -1398,8 +1440,8 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
             focus::push_scope_from(ctx, layer.id, policy, None, opener, layer.exiting);
         }
         areas::bound(ui, placed.room, min_width.min(placed.room.x));
-        if let (OverlayFit::Resizable, Some(least)) = (overlay.fit, overlay.min_size) {
-            ui.set_min_size(least.min(placed.room));
+        if overlay.fit == OverlayFit::Resizable {
+            ui.set_min_size(overlay.size_limits.min.min(placed.room));
         }
         body(ui);
         if scope.is_some() && real {

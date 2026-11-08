@@ -162,8 +162,8 @@ pub(crate) fn shown_placement(ctx: &Context, id: Id, save: Option<&SaveKey>, ove
     }
     let screen = areas::safe_rect(ctx);
     let room = (screen.size() - Vec2::splat(2.0 * dialog_pad)).max(Vec2::ZERO);
-    let least = overlay.min_size.unwrap_or(Vec2::ZERO).min(room);
-    let size = default.max(least).min(overlay.max_size.unwrap_or(Vec2::INFINITY)).min(room);
+    let least = overlay.size_limits.min.min(room);
+    let size = default.max(least).min(overlay.size_limits.max.unwrap_or(Vec2::INFINITY)).min(room);
     let pos = placement.pos.map(Pos2::from).or(float.pos).unwrap_or_else(|| screen.center() - size / 2.0);
     let pos = Pos2::new(pos.x.min(screen.right() - size.x).max(screen.left()), pos.y.min(screen.bottom() - size.y).max(screen.top()));
     placement.pos = Some(pos.into());
@@ -226,9 +226,9 @@ fn os_window(props: &ContainerProps, ctx: &Context, id: Id) -> Option<ViewportId
     }
 }
 
-/// The floor of a resizable layer's size: the larger of the style minimum and the overlay's `min_size`.
+/// The floor of a resizable layer's size: the larger of the style minimum and the overlay's least size.
 fn window_min(props: &ContainerProps, style_min: Vec2) -> Vec2 {
-    overlay_of(props).and_then(|overlay| overlay.min_size).map_or(style_min, |min| style_min.max(min))
+    overlay_of(props).map_or(style_min, |overlay| style_min.max(overlay.size_limits.min))
 }
 
 /// The instance id of the `window` command scope a movable or resizable layer container holds (16.3), whatever
@@ -297,12 +297,24 @@ fn resized_edge(before: Rect, after: Rect) -> Option<ResizeEdge> {
     })
 }
 
+/// Whether the primary press of this pass went down on the container's own surface (`Sense::SURFACE`).
+#[derive(Clone, Default)]
+struct SurfacePress(bool);
+
 impl BodyCx<'_> {
     /// Whether the second press of a double click went down on the container's move band in this pass. The body step
     /// only reports it; the container decides what it means (a title bar maximizes the window, a floating frame
     /// minimizes it). A band double click that the container never reads does nothing.
     pub fn band_double_pressed(&self) -> bool {
         self.memory.recall::<BandDouble>(sub(self.id, "band_double")).0
+    }
+
+    /// Whether the primary press of this pass went down on the container's own surface, for a root that senses
+    /// `Sense::SURFACE`: inside its rect, on its layer, where none of its children or parts takes the press. The
+    /// container decides what it means (a dock group focuses its panel, as Photoshop does); it is no click and moves
+    /// no focus by itself.
+    pub fn surface_pressed(&self) -> bool {
+        self.memory.recall::<SurfacePress>(sub(self.id, "surface_press")).0
     }
 }
 
@@ -315,7 +327,7 @@ struct Limits {
 
 impl Limits {
     fn new(overlay: &super::Overlay, min: Vec2) -> Limits {
-        Limits { min, max: overlay.max_size.unwrap_or(Vec2::INFINITY).max(min), bounds: overlay.bounds }
+        Limits { min, max: overlay.size_limits.max.unwrap_or(Vec2::INFINITY).max(min), bounds: overlay.bounds }
     }
 
     /// `rect` moved by `delta`, kept inside the bounds.
@@ -719,6 +731,24 @@ impl BodyHooks<'_> {
         let Some(before) = placed.replace(now).filter(|before| *before != now) else { return };
         let kind = resized_edge(before, now).map_or(PlacementKind::Move, PlacementKind::Size);
         self.reports.push(PlacementChange { rect: now, phase: GesturePhase::Commit, pointer: None, kind });
+    }
+
+    /// Records for the container's hooks whether this pass's primary press went down on its own surface
+    /// (`BodyCx::surface_pressed`): no shape of last pass under the press takes it, and the press lies in the
+    /// container's rect on its layer.
+    fn surface_press<C: Container>(&self, sensed: bool, cx: &mut Cx<'_, C>) {
+        let ctx = cx.core.ctx.clone();
+        let pressed = sensed && {
+            let pass = pointer::pass_pointer(&ctx);
+            pass.frame.as_ref().and_then(|frame| frame.press).filter(|press| press.button == egui::PointerButton::Primary).is_some_and(|press| {
+                let layer = cx.core.response.layer_id;
+                let at = areas::layer_map(&ctx, layer).map_or(press.origin, |map| map.to_layer(press.origin));
+                areas::layer_at(&ctx, press.origin) == Some(layer)
+                    && cx.core.rect.contains(at)
+                    && pointer::press_winner(&ctx, press.origin, pass.press_targets).is_none()
+            })
+        };
+        cx.core.memory.shown::<SurfacePress>(sub(sub(cx.core.id, "body"), "surface_press")).0 = pressed;
     }
 
     /// Records for the container's header hooks whether the second press of a double click went down on the move
@@ -1572,6 +1602,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             self.open = !self.open;
         }
         self.band_double(cx);
+        self.surface_press(comp.sense().contains(craft_behavior::Sense::SURFACE), cx);
         let band = props.header.is_some_and(|header| header.band == DragBand::Move);
         if (band || matches!(props.mount, Mount::Viewport { .. } | Mount::Window { .. }))
             && let Some(viewport) = os_window(props, cx.core.memory.ctx(), cx.core.id)

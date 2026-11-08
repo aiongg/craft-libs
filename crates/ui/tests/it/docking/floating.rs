@@ -2,9 +2,10 @@
 //! and the move and the size stay inside the bounds and the panel limits.
 
 use craft_behavior::GesturePhase;
+use craft_ui::contract::SizeLimits;
 use craft_ui::contract::overlay::PlacementKind;
 use craft_ui::contract::{Common, Component, Cx, DropMark, DropOperation, DropTarget, MeasureCx, Pointer as _, Props as _, Role, Show as _, Sizing};
-use craft_ui::docking::{DragUnit, FloatingGroup, FloatingGroupOutput, GroupDrag, PanelLimits};
+use craft_ui::docking::{DragUnit, FloatingGroup, FloatingGroupOutput, GroupDrag};
 use craft_ui::runtime::drag;
 use craft_ui::style::{ComponentStyle, StyleCx};
 use craft_ui::testing::layout::allocate;
@@ -56,7 +57,7 @@ impl Caller {
             let mut group = FloatingGroup::new("Layers", self.rect.get())
                 .sized(self.sizing)
                 .bounds(BOUNDS)
-                .limits(PanelLimits::at_least(LEAST))
+                .limits(SizeLimits::at_least(LEAST))
                 .minimized(self.minimized.get());
             if let Some(anchor) = self.anchor.get() {
                 group = group.window_of(anchor);

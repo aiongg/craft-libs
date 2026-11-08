@@ -32,6 +32,9 @@ bitflags! {
         /// A secondary press captures the part and its release is reported to it, so a part that senses only a click
         /// still gets its context click. Without this bit a secondary press only captures for a drag.
         const CONTEXT_CLICK = 2048;
+        /// A container root learns of a primary press on its own surface: inside its rect, on its layer, where no
+        /// shape takes the press. The root takes no press and no focus by it, so it is no click target.
+        const SURFACE = 4096;
     }
 }
 

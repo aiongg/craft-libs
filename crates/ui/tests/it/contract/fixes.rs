@@ -276,7 +276,7 @@ fn an_injected_activation_fires_once_and_keeps_the_key_activations_click() {
     };
     let seen = RefCell::new(Seen::default());
     let mut clicked = false;
-    let mut show = |ui: &mut Ui, bound: bool, out: &mut bool| {
+    let show = |ui: &mut Ui, bound: bool, out: &mut bool| {
         let probe = Probe::new(&seen).injects(FireSource::Access).id_salt("probe");
         let response = if bound { probe.command(Go::Go).show(ui) } else { probe.show(ui) };
         *out = is_clicked(&response);
@@ -301,6 +301,7 @@ fn an_injected_activation_fires_once_and_keeps_the_key_activations_click() {
 fn a_grid_childs_pane_lays_out_as_a_plain_body() {
     const COLUMNS: [ColumnWidth; 2] = [ColumnWidth::Content, ColumnWidth::Content];
     const BLOCK: Vec2 = Vec2::new(40.0, 20.0);
+    const SLACK: f32 = 1.0;
     let pane_rect = |layout: BodyLayout| {
         let rects = RefCell::new((Rect::NOTHING, Vec::new()));
         let mut frames = Frames::new();
@@ -327,7 +328,7 @@ fn a_grid_childs_pane_lays_out_as_a_plain_body() {
     assert!(blocks.iter().all(|block| in_grid.contains_rect(*block)), "the pane holds its body: {in_grid:?} {blocks:?}");
     assert!(blocks[1].min.y >= blocks[0].max.y, "the pane's body stacks its children: {blocks:?}");
     assert!(
-        (in_grid.min - plain.min).length() < 1.0 && (in_grid.size() - plain.size()).length() < 1.0,
+        (in_grid.min - plain.min).length() < SLACK && (in_grid.size() - plain.size()).length() < SLACK,
         "the pane takes its own room: {in_grid:?} vs {plain:?}"
     );
 }

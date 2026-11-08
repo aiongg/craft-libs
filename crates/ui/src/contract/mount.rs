@@ -186,11 +186,11 @@ impl Host for LayerHost {
         let mut overlay = self.overlay.clone();
         // An anchored resizable layer has no position to seed: its default size is held as its minimum until the
         // user resizes it.
-        if overlay.fit == overlay::OverlayFit::Resizable && placement.size.is_none() {
-            overlay.min_size = match (overlay.size, overlay.min_size) {
-                (Some(size), Some(min)) => Some(size.max(min)),
-                (size, min) => size.or(min),
-            };
+        if overlay.fit == overlay::OverlayFit::Resizable
+            && placement.size.is_none()
+            && let Some(size) = overlay.size
+        {
+            overlay.size_limits.min = overlay.size_limits.min.max(size);
         }
         if let Some(pos) = placement.pos {
             overlay.place = Place::Float(FloatPlace::at(Pos2::from(pos)));
@@ -289,7 +289,7 @@ impl Host for ViewportHost {
             size: layout_memory::read(&ctx, id).or(placed.map(|rect| rect.size())),
             save: self.save.as_deref(),
             spec: &spec,
-            limits: (self.overlay.min_size, self.overlay.max_size),
+            limits: (Some(self.overlay.size_limits.min), self.overlay.size_limits.max),
             position: placed.map(|rect| rect.min),
             resizable: self.overlay.resize.grips,
         };

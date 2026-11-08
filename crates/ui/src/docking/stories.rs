@@ -1,7 +1,8 @@
 //! Stories of the docking family.
 
 use super::tree::FrameRules;
-use super::{DockGroup, DragUnit, GroupGrip, HANDLE, PanelKey, PanelLimits, PanelTitle, SplitArea, Splitter};
+use super::{DockGroup, DragUnit, GroupGrip, HANDLE, PanelKey, PanelTitle, SplitArea, Splitter};
+use crate::contract::SizeLimits;
 use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _, Validity};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
@@ -32,7 +33,7 @@ fn titles(panels: &[usize]) -> Vec<PanelTitle> {
 }
 
 fn dock(ui: &mut Ui, bind: Bind<'_, Layout<usize>>, shown: &Layout<usize>) -> StoryOutput {
-    let limits = |_: &usize| PanelLimits::default();
+    let limits = |_: &usize| SizeLimits::default();
     let rules = FrameRules::new(&limits);
     let area = SplitArea::new("Panels", bind, rules).show(ui, |ui, body| {
         for (anchor, rect) in body.group_frames::<usize>() {

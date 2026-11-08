@@ -4,6 +4,7 @@ mod derives;
 mod fixes;
 mod openers;
 mod os_window;
+mod surface;
 pub(crate) mod kit;
 mod pipeline;
 mod pointer;

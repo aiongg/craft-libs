@@ -10,11 +10,12 @@ use craft_ui::canvas::{
     Canvas, CanvasScrollbars, CanvasSpace, NoTool, PageFrame, Pasteboard, PixelRect, RasterDisplay, RasterSource, RulerText, Rulers, ToolHost,
 };
 use craft_ui::canvas_controls::{Guides, Marquee};
+use craft_ui::contract::SizeLimits;
 use craft_ui::contract::{
     Bind, BodyCx, CollectionEvent, ColumnKind, ColumnSpec, SelectMode, Show as _, ShowCollection as _, ShowContainer as _, ToggleColumn,
     WordSetCx as _,
 };
-use craft_ui::docking::{DockPanels, PanelLimits, PanelSpec};
+use craft_ui::docking::{DockPanels, PanelSpec};
 use craft_ui::list::{ListRow, ToggleCell};
 use craft_ui::patterns::canvas::NavigatorPanel;
 use craft_ui::primitives::textures::Revision;
@@ -61,7 +62,7 @@ fn name(panel: Panel) -> &'static str {
 
 impl DockPanels<Panel> for Panels<'_> {
     fn spec(&self, panel: &Panel) -> PanelSpec {
-        let spec = PanelSpec::new(name(*panel)).limits(PanelLimits::default());
+        let spec = PanelSpec::new(name(*panel)).limits(SizeLimits::default());
         if *panel == Panel::Canvas { spec.canvas() } else { spec }
     }
 

@@ -6,8 +6,9 @@
 //! opens the `menu` rows. The body step supplies the move band, the edge grips and the keyboard Move and Size modes.
 
 use super::drop::{DragUnit, start_group_drag};
-use super::{DockDropTarget, DockDropped, DockWords, GroupDrag, PanelDrag, PanelKey, PanelLimits, native};
+use super::{DockDropTarget, DockDropped, DockWords, GroupDrag, PanelDrag, PanelKey, native};
 use crate::contract::BodyCx;
+use crate::contract::SizeLimits;
 use crate::contract::overlay::{PlacementChange, PlacementKind, Popup};
 use crate::contract::{
     Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, Inner, Mount, NoValue, Outcome, Overlay, Pad, Pointer as _, Props as _,
@@ -90,7 +91,7 @@ pub struct FloatingGroup<'a> {
     bounds: Option<Rect>,
     /// The body's size limits.
     #[prop]
-    limits: PanelLimits,
+    limits: SizeLimits,
     /// The group's opacity, from 0 (invisible) to 1.
     #[prop(quantity = "opacity")]
     opacity: f32,
@@ -136,7 +137,7 @@ impl<'a> FloatingGroup<'a> {
             props,
             rect,
             bounds: None,
-            limits: PanelLimits::default(),
+            limits: SizeLimits::default(),
             opacity: 1.0,
             minimized: false,
             sized: Sizing::Content,
@@ -202,17 +203,17 @@ impl<'a> FloatingGroup<'a> {
     /// A minimized group, and one with `Sizing::Content`, is placed by its position and width; its height is its
     /// content's, which is the title row alone while minimized.
     fn mount(&self, header: f32) -> Mount {
-        let least = Vec2::new(self.limits.min.x, self.limits.min.y + header);
-        let most = self.limits.max.map_or(Vec2::INFINITY, |max| max + Vec2::new(0.0, header));
+        // The frame's limits are the body's with the title row on top.
+        let frame = self.limits.around(Vec2::new(0.0, header));
         let mut overlay = Overlay::floating().movable(true).resizable(!self.minimized).opacity(self.opacity).body_scroll(false);
         overlay = if self.minimized {
             let width = self.rect.width();
-            overlay.placed_at(self.rect.min).size_limits(Vec2::new(width, 0.0), Vec2::new(width, f32::INFINITY))
+            overlay.placed_at(self.rect.min).size_limits(SizeLimits::new(Vec2::new(width, 0.0), Vec2::new(width, f32::INFINITY)))
         } else if self.sized == Sizing::Content {
-            let width = self.rect.width().max(least.x).min(most.x);
-            overlay.placed_at(self.rect.min).size_limits(Vec2::new(width, least.y), most)
+            let width = self.rect.width().max(frame.min.x).min(frame.max.map_or(f32::INFINITY, |max| max.x));
+            overlay.placed_at(self.rect.min).size_limits(SizeLimits { min: Vec2::new(width, frame.min.y), max: frame.max })
         } else {
-            overlay.placed(self.rect).size_limits(least, most)
+            overlay.placed(self.rect).size_limits(frame)
         };
         if let Some(bounds) = self.bounds {
             overlay = overlay.bounds(bounds);

@@ -6,6 +6,7 @@ use crate::windows_kit::Windows;
 use craft_behavior::{PartKey, PressCancel, Sense};
 use craft_host::target::{Caps, Os, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
 use craft_ui::buttons::Button;
+use craft_ui::contract::SizeLimits;
 use craft_ui::contract::{
     Bind, Common, Component, Container, ContainerProps, Cx, Mount, Overlay, PartsCx, Pointer as _, Props as _, Role, Show as _, ShowContainer as _,
 };
@@ -403,7 +404,7 @@ fn a_tool_window_follows_the_installed_decision() {
 #[trial]
 fn a_viewport_window_takes_its_limits_and_position_from_the_overlay() {
     let windows = Windows::new();
-    let overlay = || Overlay::floating().size_limits(TOOL_MIN, SIZE_TO).placed(PLACED);
+    let overlay = || Overlay::floating().size_limits(SizeLimits::new(TOOL_MIN, SIZE_TO)).placed(PLACED);
     let mut out = None;
     for _ in 0..3 {
         out = Some(windows.frame(vec![], vec![], |ui| {
