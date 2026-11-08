@@ -176,7 +176,7 @@ fn the_orientation_control_swaps_the_sides() {
     let portrait = named(&fixture, "Portrait").expect("the Portrait segment");
     fixture.click(&portrait);
     fixture.settle();
-    assert_eq!(options.borrow().size, PixelSize::new(1500, 2100));
+    assert_eq!(options.borrow().size, PixelSize::new(1500, 2100), "the Portrait segment at {:?} in a window of {WINDOW:?}", portrait.center());
 }
 
 /// Alt turns Close into Reset, which puts back the settings the dialog opened with.
