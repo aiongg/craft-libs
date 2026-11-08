@@ -626,7 +626,7 @@ pub(crate) fn end_pass(ctx: &Context) {
         let here = top_modal.is_some();
         here || modal_in_other_viewports(ctx, viewport)
     };
-    commands::set_modal_open(ctx, any);
+    commands::set_modal_open(ctx, any, viewport, top_modal.map(|entry| entry.id));
 }
 
 fn modal_in_other_viewports(ctx: &Context, running: ViewportId) -> bool {

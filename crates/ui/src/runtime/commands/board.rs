@@ -64,6 +64,11 @@ struct Board {
     matcher: Matcher,
     held: Vec<Held>,
     modal_open: bool,
+    /// The top modal layer's root container of each viewport that has one.
+    modal_roots: Vec<(ViewportId, Id)>,
+    /// The instances around the focus from the innermost out to the root of the modal layer the focus is in: the
+    /// instances `ModalRule::Blocked` does not block. Empty while the focus is outside every modal layer.
+    inside_modal: Vec<Id>,
     /// A dialog owns the keys in the running pass.
     dialog_keys: bool,
     /// Bound command ids that no set registers, already logged.
@@ -134,7 +139,12 @@ impl Board {
         let state = this.or(last);
         let flags = resolve_flags(this.map(CommandState::flags), last.map(CommandState::flags));
         let dialog_open = self.modal_open || self.dialog_keys;
-        let modal = !(dialog_open && def.is_some_and(|def| def.modal == ModalRule::Blocked));
+        let reached = if app {
+            self.inside_modal.iter().any(|id| self.instances.iter().any(|i| i.id == *id && is_app(i.scope.name())))
+        } else {
+            instance.is_some_and(|id| self.inside_modal.contains(&id))
+        };
+        let modal = !(dialog_open && !reached && def.is_some_and(|def| def.modal == ModalRule::Blocked));
         let live = app || instance.is_some_and(|id| self.is_live(ctx, id));
         let chord =
             self.keymap.as_ref().and_then(|cache| cache.keymap.bindings(command).into_iter().find(|b| !b.trigger.double).map(|b| b.trigger.chord));
@@ -255,8 +265,12 @@ pub(crate) fn note_focus(ctx: &Context, id: Id, chain: &CommandChain) {
     });
 }
 
-pub(crate) fn set_modal_open(ctx: &Context, open: bool) {
-    with(ctx, |board| board.modal_open = open);
+pub(crate) fn set_modal_open(ctx: &Context, open: bool, viewport: ViewportId, root: Option<Id>) {
+    with(ctx, |board| {
+        board.modal_open = open;
+        board.modal_roots.retain(|(of, _)| *of != viewport);
+        board.modal_roots.extend(root.map(|root| (viewport, root)));
+    });
 }
 
 /// `command` as seen by `instance` (`None` for the app), with the gate applied outside the board's lock.
@@ -413,6 +427,8 @@ pub(crate) fn begin(ctx: &Context) {
             None => board.focused.push((viewport, chain.clone())),
         }
         board.dialog_keys = shortcuts.dialog;
+        let roots: Vec<Id> = board.modal_roots.iter().map(|(_, root)| *root).collect();
+        board.inside_modal = chain.iter().position(|id| roots.contains(id)).map_or_else(Vec::new, |at| chain[..=at].to_vec());
         if shortcuts.keys.is_empty() {
             return None;
         }

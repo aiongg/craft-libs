@@ -20,7 +20,7 @@ pub(crate) use board::{focus_within, take as take_for_instance, take_around};
 
 use craft_behavior::CommandFlags;
 use craft_keymap::{Chord, Overrides};
-use egui::{Context, Id};
+use egui::{Context, Id, ViewportId};
 use std::borrow::Cow;
 use std::sync::Arc;
 
@@ -317,9 +317,10 @@ pub fn resolve(ctx: &Context, command: impl Into<CommandRef>) -> ResolvedCommand
     board::resolve_global(ctx, &command.into())
 }
 
-/// Declares that a modal layer is open in some viewport, so `ModalRule::Blocked` commands do not fire.
-pub(crate) fn set_modal_open(ctx: &Context, open: bool) {
-    board::set_modal_open(ctx, open);
+/// Declares that a modal layer is open in some viewport, so `ModalRule::Blocked` commands do not fire outside it;
+/// `root` is the top modal layer of `viewport`, if it has one.
+pub(crate) fn set_modal_open(ctx: &Context, open: bool, viewport: ViewportId, root: Option<Id>) {
+    board::set_modal_open(ctx, open, viewport, root);
 }
 
 /// An undo or redo a text part or editor had nothing to do for goes to the app command of the same id (11.3).
