@@ -12,6 +12,9 @@ use egui::Vec2;
 /// A rightward drag along the slider, in points: short enough to stay on the track.
 const DRAG_BY: f32 = 40.0;
 
+/// The Weight the sliders start at in the drag trial.
+const START_WEIGHT: f32 = 400.0;
+
 const WGHT: [u8; 4] = *b"wght";
 const WDTH: [u8; 4] = *b"wdth";
 const GRAD: [u8; 4] = *b"GRAD";
@@ -139,7 +142,7 @@ fn rig(values: AxisValues, drawn: Option<(f32, bool)>) -> (Fixture, Rc<RefCell<S
 /// every axis in one edit, and hidden axes get no slider.
 #[trial]
 fn slider_drag_is_one_edit_and_instance_sets_all_axes() {
-    let (mut fixture, state) = rig(vec![(WGHT, 400.0)], None);
+    let (mut fixture, state) = rig(vec![(WGHT, START_WEIGHT)], None);
     let sliders = fixture.by_role(Role::SLIDER);
     assert_eq!(sliders.len(), 2, "the hidden axis has no row");
 
@@ -154,7 +157,7 @@ fn slider_drag_is_one_edit_and_instance_sets_all_axes() {
         let previews = state.edits.iter().filter(|e| matches!(e, EditEvent::Update { .. })).count();
         assert!(previews >= 1, "the drag previews before it commits: {:?}", state.edits);
         let weight = state.values.iter().find(|(t, _)| *t == WGHT).map(|v| v.1);
-        assert!(weight.is_some_and(|w| w > 400.0), "dragging right raises the weight: {weight:?}");
+        assert!(weight.is_some_and(|w| w > START_WEIGHT), "dragging right raises the weight: {weight:?}");
     }
 
     let before = state.borrow().edits.len();

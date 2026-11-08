@@ -18,6 +18,7 @@ use crate::index::{Family, Index};
 
 /// Store files to remove: a whole family, or some of its styles.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct RemoveRequest {
     /// The family name.
     pub family: String,
@@ -27,8 +28,16 @@ pub struct RemoveRequest {
     pub whole: bool,
 }
 
+impl RemoveRequest {
+    /// A request to remove `files` of `family`, or the whole family when `whole`.
+    pub fn new(family: impl Into<String>, files: Vec<PathBuf>, whole: bool) -> Self {
+        RemoveRequest { family: family.into(), files, whole }
+    }
+}
+
 /// Bytes downloaded so far, of `total`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Progress {
     /// Bytes received.
     pub done: u64,
@@ -36,8 +45,16 @@ pub struct Progress {
     pub total: u64,
 }
 
+impl Progress {
+    /// `done` bytes received of `total`.
+    pub const fn new(done: u64, total: u64) -> Self {
+        Progress { done, total }
+    }
+}
+
 /// A downloaded and verified file.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct Downloaded {
     /// The file's path in the index.
     pub path: String,
@@ -45,9 +62,24 @@ pub struct Downloaded {
     pub bytes: Vec<u8>,
 }
 
+impl Downloaded {
+    /// The verified `bytes` of the file at `path` in the index.
+    pub fn new(path: impl Into<String>, bytes: Vec<u8>) -> Self {
+        Downloaded { path: path.into(), bytes }
+    }
+}
+
 /// An error to show the user, in English.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct StoreError(pub String);
+
+impl StoreError {
+    /// An error that reads `message`.
+    pub fn new(message: impl Into<String>) -> Self {
+        StoreError(message.into())
+    }
+}
 
 impl std::fmt::Display for StoreError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -252,6 +284,7 @@ impl Installer for NoStore {
 
 /// What a [`FakeStore`] was asked to do.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Call {
     /// Asked to install the family.
     Install(String),

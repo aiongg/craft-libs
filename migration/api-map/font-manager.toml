@@ -280,3 +280,24 @@ new = "new(label, &axes, Bind::bound(&mut values))"
 type = "MissingFontsDialog"
 old = "show(&Context, &DialogStack)"
 new = "show(&mut Ui, &DialogStack)"
+
+# The store and index types the crate hands to hosts are `#[non_exhaustive]`; a host builds them through constructors.
+[[setter]]
+type = "RemoveRequest"
+old = "RemoveRequest { family, files, whole }"
+new = "RemoveRequest::new(family, files, whole)"
+
+[[setter]]
+type = "Progress"
+old = "Progress { done, total }"
+new = "Progress::new(done, total)"
+
+[[setter]]
+type = "Downloaded"
+old = "Downloaded { path, bytes }"
+new = "Downloaded::new(path, bytes)"
+
+[[setter]]
+type = "StoreError"
+old = "StoreError(message)"
+new = "StoreError::new(message)"

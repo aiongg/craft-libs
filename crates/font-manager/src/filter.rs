@@ -6,6 +6,7 @@ use crate::index::{Category, Index, categories};
 
 /// What the catalogue shows.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Query {
     /// Part of a family name, ignoring case and accents.
     pub text: String,
