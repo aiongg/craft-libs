@@ -5,3 +5,6 @@ pub mod viewer;
 
 // The theme workspace.
 pub mod theme;
+
+// The mock editor window.
+pub mod mock;
