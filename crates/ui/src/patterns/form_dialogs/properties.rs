@@ -178,7 +178,7 @@ impl<'a> PropertiesDialog<'a> {
         if !read_only {
             buttons.push(FooterButton::new(common.cancel.clone(), DialogRole::Cancel));
         }
-        let mut dialog = Dialog::new(title.clone()).close_on_enter(true).buttons(buttons);
+        let mut dialog = Dialog::new(title.clone()).collection_body().close_on_enter(true).buttons(buttons);
         if let Some(open) = open {
             dialog = dialog.opened(open);
         }

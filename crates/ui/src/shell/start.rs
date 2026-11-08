@@ -9,8 +9,8 @@ use super::words::StartWords;
 use crate::buttons::Button;
 use crate::choice::Segmented;
 use crate::contract::{
-    ActivateOn, Bind, CollectionEvent, Entry, Gap, NoValue, Outcome, Pad, Pattern, Props, Remember as _, Scroll, SelectMode, Show as _,
-    ShowCollection as _, ShowContainer as _, Sizing, clicked,
+    ActivateOn, Bind, CollectionEvent, Entry, Gap, NoValue, Outcome, Pad, Pattern, Props, Remember as _, SelectMode, Show as _, ShowCollection as _,
+    ShowContainer as _, Sizing, clicked,
 };
 use crate::layout_components::{Row, Stack};
 use crate::list::{List, ListRow, ThumbAspect};
@@ -120,7 +120,7 @@ impl Outcome for StartOutput {
 /// The start screen, shown in a shell's body when no document is open.
 ///
 /// - **Layout.** New and Open (the first Tab stops), then Recent with the view switch and the sort, Pinned Folders
-///   when the app gives the list (even an empty one) and Templates when it gives any. The page scrolls.
+///   when the app gives the list (even an empty one) and Templates when it gives any. The page does not scroll as a whole: each grid and list owns its scroll.
 /// - **Recent files.** A grid of cards or a list, by the `view` binding, in the order of the `sort` binding. A click or
 ///   Enter opens a file; arrows move; the context menu (secondary click, the menu key or Shift+F10) and the
 ///   [`StartRecentCommands`] remove it from the list, clear the list or show it in its folder.
@@ -291,7 +291,7 @@ impl StartScreen<'_> {
         let view = RefCell::new(view);
         let sort = RefCell::new(sort);
 
-        let shown = Stack::new().fill().scroll(Scroll::vertical()).gap(Gap::Section).pad(Pad::Regular).show(ui, |ui, cx| {
+        let shown = Stack::new().fill().gap(Gap::Section).pad(Pad::Regular).show(ui, |ui, cx| {
             let current_view = view.borrow_mut().reborrow().read(cx).and_then(|held| held.same().copied()).unwrap_or_default();
             let current_sort = sort.borrow_mut().reborrow().read(cx).and_then(|held| held.same().copied()).unwrap_or_default();
             let mut files: Vec<RecentFile> = recent.iter().take(max_recent).cloned().collect();

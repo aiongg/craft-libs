@@ -184,6 +184,7 @@ impl<'a> ExportAsDialog<'a> {
         let accept = FooterButton::new(words.export.clone(), DialogRole::Accept).stays_open(true).enabled(!saving);
         let resetting = reset.resetting();
         let mut dialog = Dialog::new(words.title.clone())
+            .collection_body()
             .buttons(reset.buttons(accept, false))
             .settle_buttons({
                 let reset = reset.clone();
