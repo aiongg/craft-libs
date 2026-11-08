@@ -52,7 +52,7 @@ impl Title {
         let words = cx.words::<ShellWords>();
         let mut text = Text::new(self.shown()).elide(Elide::End);
         if self.unsaved {
-            text = text.description(words.unsaved.clone());
+            text = text.description(words.unsaved.as_str());
         }
         let gap = Gap { body_width, centre, margin };
         arrange(ui, &gap, &mut [Placed::new("title", text)]);
