@@ -120,7 +120,10 @@ fn a_click_on_the_label_focuses_the_control() {
     assert!(!label.rect.intersects(control.rect), "the label sits beside the control");
     assert_ne!(focused_key(fixture.tree()), control.node, "the control starts unfocused");
     fixture.click(&label);
-    assert_eq!(focused_key(fixture.tree()), control.node, "the label's click focused the control");
+    let tree = fixture.tree();
+    let got = focused_key(tree);
+    let dump = |k| format!("{:?} name={:?} parent={:?}", tree.role_of(k), tree.name_of(k), tree.parent_of_key(k).map(|p| (tree.role_of(p), tree.name_of(p).map(str::to_owned))));
+    assert_eq!(got, control.node, "DIAG focused {} control {}", dump(got), dump(control.node));
 }
 
 const READOUT: &str = "12 mm";
