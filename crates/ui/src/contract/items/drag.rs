@@ -213,11 +213,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     fn begin_row_drag(&mut self, cx: &mut Cx<'_, C>, props: &CollectionProps, at: usize) {
         let id = cx.core.id;
         let key = self.source.key(at);
-        let keys: Vec<C::Key> = if self.holds(at) {
-            (0..self.source.len()).filter(|&at| self.holds(at)).map(|at| self.source.key(at)).collect()
-        } else {
-            vec![key.clone()]
-        };
+        let keys: Vec<C::Key> = if self.holds(at) { self.selected_keys(&self.selection) } else { vec![key.clone()] };
         let preview = if keys.len() > 1 {
             DragPreview::Badge(Label::from(keys.len().to_string()))
         } else {

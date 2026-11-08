@@ -7,7 +7,9 @@ use crate::runtime::egui::memory as store;
 use crate::runtime::memory::sub;
 use crate::runtime::{focus, layout_memory};
 use crate::style::Flags;
-use craft_behavior::{CellAt, CellDirection, CellSpace, ItemLayout, MoveMods, NavMove, NavShape, RowAt, SelectionChange, SelectionModel};
+use craft_behavior::{
+    CellAt, CellDirection, CellSpace, Granularity, ItemLayout, MoveMods, NavMove, NavShape, PlacedSelection, RowAt, SelectionChange, SelectionModel,
+};
 use egui::{Context, Id, Vec2};
 use std::sync::Arc;
 
@@ -93,7 +95,8 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
 
     /// Whether the row at position `at` is selected.
     pub(super) fn holds(&self, at: usize) -> bool {
-        self.holds_in(&self.selection, at)
+        let key = self.source.key(at);
+        self.selection.contains(RowAt::new(&key, at, self.source))
     }
 
     /// Whether `key`, standing at position `at`, is selected. `key` need not be in the source: a selection of ranges
@@ -102,19 +105,53 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         self.selection.contains(RowAt::new(key, at, self.source))
     }
 
-    /// Whether the row at position `at` is selected in `selection`.
-    pub(super) fn holds_in(&self, selection: &C::Selection, at: usize) -> bool {
-        let key = self.source.key(at);
-        selection.contains(RowAt::new(&key, at, self.source))
+    /// The selection placed once in the source's order; the reads of a pass go by position.
+    pub(super) fn placed(&self) -> PlacedSelection {
+        self.selection.placed(self.source)
     }
 
-    /// A move of the lead in a sheet (17.7): the lead cell moves to `row` and `column`. The selection follows
-    /// unless the lead moves alone (Ctrl): a step of one cell runs the collection's cell rules as an arrow
-    /// (`step`, or `extend` from the head with Shift), any other target as a click (`select`, or `extend_to` with
-    /// Shift). The lead goes where the rules put the active cell, or the head while the range extends.
-    pub(super) fn cell_move(&mut self, comp: &C, layout: &C::ItemLayout, row: usize, column: usize, mods: MoveMods) {
-        let from = self.lead.key.clone();
-        let Some(mut cells) = self.selection.cells_mut().map(|cells| cells.clone()) else {
+    /// The keys of the selected rows of `selection`, in the display order.
+    pub(super) fn selected_keys(&self, selection: &C::Selection) -> Vec<C::Key> {
+        selection.placed(self.source).rows().into_iter().map(|at| self.source.key(at)).collect()
+    }
+
+    /// A pick of the rows `from` to `to` in a model of cells: one range of whole rows (the rows' cells in every column
+    /// of the layout), active and anchored at its first cell.
+    pub(super) fn select_rows(&mut self, comp: &C, from: usize, to: usize) {
+        let Some(mut cells) = self.selection.cells().cloned() else { return };
+        let source = self.source;
+        let space = comp.cell_space(CellSpace::new(source, self.columns));
+        let range = space.keyed_range(space.whole_rows(from as u32, to as u32));
+        if cells.select_range(range, &space) {
+            self.change(cells.change());
+        }
+    }
+
+    /// Runs `f` with the grid of the collection's cells (17.7): the source's rows, the layout's columns with the rows
+    /// and columns it hides left out, and what the collection adds (`Collection::cell_space`).
+    fn with_cell_space<R>(&self, comp: &C, layout: &C::ItemLayout, f: impl FnOnce(&CellSpace<'_, C::Key>) -> R) -> R {
+        let source = self.source;
+        let row_hidden = |row: u32| !layout.shown(row as usize);
+        let column_hidden = |column: u32| !layout.column_shown(column as usize);
+        let space = comp.cell_space(CellSpace::new(source, layout.column_count() as u32).hidden_rows(&row_hidden).hidden_columns(&column_hidden));
+        f(&space)
+    }
+
+    /// The head of the selection's current range as a row position and a column: the end Shift+arrows move.
+    pub(super) fn cell_head(&self, comp: &C, layout: &C::ItemLayout) -> Option<(usize, usize)> {
+        let cells = self.selection.cells()?;
+        let head = self.with_cell_space(comp, layout, |space| cells.head(space))?;
+        Some((head.row as usize, head.column as usize))
+    }
+
+    /// A move of the lead in a sheet (17.7): `mv` toward the cell at `row` and `column`, which the navigation
+    /// computed from the lead (from the head while the range extends). The selection follows unless the lead moves
+    /// alone (Ctrl): a one-cell arrow runs the collection's cell rules as an arrow (`step`, or `extend` with Shift),
+    /// any other move as a click on the target (`select`, or `extend_to` with Shift). The lead goes to where the
+    /// rules put the active cell. Returns the row to bring into view: the head while the range extends, else the
+    /// lead.
+    pub(super) fn cell_move(&mut self, comp: &C, layout: &C::ItemLayout, mv: NavMove, row: usize, column: usize, mods: MoveMods) -> usize {
+        let Some(mut cells) = self.selection.cells().cloned() else {
             if self.lead.key.as_ref() != Some(&self.source.key(row)) {
                 self.move_lead(row, super::LeadSource::Keys);
             }
@@ -123,48 +160,43 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 let anchor = if mods.extend { self.anchor_at(row) } else { row };
                 self.change(SelectionChange::Set(self.range(anchor, row)));
             }
-            return;
+            return row;
         };
-        let (mut at, mut across) = (row, column);
+        let (mut at, mut across, mut reveal) = (row, column, row);
         let mut change = None;
         if !mods.lead {
-            let source = self.source;
-            let hidden = |row: u32| !layout.shown(row as usize);
-            let space = comp.cell_space(CellSpace::new(source, layout.column_count() as u32).hidden_rows(&hidden));
-            let target = CellAt::new(source.key(row), column as u32);
-            let target_at = CellAt::new(row as u32, column as u32);
-            let moved = if mods.extend {
-                if cells.anchor_cell().is_none()
-                    && let Some(from) = from.as_ref()
+            let target = CellAt::new(self.source.key(row), column as u32);
+            let from = self.lead.key.clone().map(|key| CellAt::new(key, self.lead.column as u32));
+            let direction = cell_direction(mv, mods);
+            let (moved, active, head) = self.with_cell_space(comp, layout, |space| {
+                if mods.extend
+                    && cells.anchor_cell().is_none()
+                    && let Some(from) = from
                 {
-                    cells.select(CellAt::new(from.clone(), self.lead.anchor_column as u32), &space);
+                    cells.select(from, space);
                 }
-                match cells.head(&space).and_then(|head| one_step(head, target_at)) {
-                    Some(direction) => cells.extend(direction, &space),
-                    None => cells.extend_to(target, &space),
-                }
-            } else {
-                match cells.active().and_then(|active| space.place(active)).and_then(|active| one_step(active, target_at)) {
-                    Some(direction) => cells.step(direction, &space),
-                    None => cells.select(target, &space),
-                }
-            };
-            let end = if mods.extend { cells.head(&space) } else { cells.active().and_then(|active| space.place(active)) };
-            if let Some(end) = end {
-                (at, across) = (end.row as usize, end.column as usize);
+                let moved = match (direction, mods.extend) {
+                    (Some(direction), true) => cells.extend(direction, space),
+                    (Some(direction), false) => cells.step(direction, space),
+                    (None, true) => cells.extend_to(target, space),
+                    (None, false) => cells.select(target, space),
+                };
+                (moved, cells.active().and_then(|active| space.place(active)), cells.head(space))
+            });
+            if let Some(active) = active {
+                (at, across) = (active.row as usize, active.column as usize);
             }
+            reveal = head.filter(|_| mods.extend).map_or(at, |head| head.row as usize);
             change = moved.then(|| cells.change());
         }
         if self.lead.key.as_ref() != Some(&self.source.key(at)) {
             self.move_lead(at, super::LeadSource::Keys);
         }
         self.lead.column = across;
-        if !mods.extend {
-            self.lead.anchor_column = across;
-        }
         if let Some(change) = change {
             self.change(change);
         }
+        reveal
     }
 
     /// A press on row `at` at `column`: the lead cell goes there and the selection follows the modifiers. A press
@@ -172,11 +204,8 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     /// takes a selected one out.
     pub(super) fn cell_press(&mut self, comp: &C, layout: &C::ItemLayout, at: usize, column: usize, extend: bool, toggle: bool) {
         self.lead.column = column;
-        if !extend {
-            self.lead.anchor_column = column;
-        }
         let key = self.source.key(at);
-        let Some(mut cells) = self.selection.cells_mut().map(|cells| cells.clone()) else {
+        let Some(mut cells) = self.selection.cells().cloned() else {
             if toggle {
                 self.change(SelectionChange::Toggle(key));
             } else {
@@ -186,36 +215,30 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             return;
         };
         let target = CellAt::new(key, column as u32);
-        if toggle && self.selection.contains_cell(RowAt::new(&target.row, at, self.source), target.column) {
-            self.change(SelectionChange::ToggleCell(target));
-            return;
-        }
-        let source = self.source;
-        let hidden = |row: u32| !layout.shown(row as usize);
-        let space = comp.cell_space(CellSpace::new(source, layout.column_count() as u32).hidden_rows(&hidden));
-        let changed = if toggle {
-            cells.add(target, &space)
-        } else if extend {
-            cells.extend_to(target, &space)
-        } else {
-            cells.select(target, &space)
-        };
+        let changed = self.with_cell_space(comp, layout, |space| {
+            if toggle {
+                cells.toggle(target, space)
+            } else if extend {
+                cells.extend_to(target, space)
+            } else {
+                cells.select(target, space)
+            }
+        });
         if changed {
             self.change(cells.change());
         }
     }
 
     /// The flags of the visible cells of the row `at`: `SELECTED` for a selected cell and `LEAD` for the lead
-    /// cell while the collection has focus. `columns` are the column positions of the row's cells in order.
-    pub(super) fn cell_flag_list(&self, at: usize, columns: &[u64], focused: bool) -> Vec<(u64, Flags)> {
-        let key = self.source.key(at);
-        let lead = self.lead.key.as_ref() == Some(&key);
-        let row = RowAt::new(&key, at, self.source);
+    /// cell while the collection has focus. `columns` are the column positions of the row's cells in order, `placed`
+    /// the selection of the pass.
+    pub(super) fn cell_flag_list(&self, placed: &PlacedSelection, at: usize, columns: &[u64], focused: bool) -> Vec<(u64, Flags)> {
+        let lead = self.lead.key.as_ref() == Some(&self.source.key(at));
         columns
             .iter()
             .filter_map(|&column| {
                 let mut flags = Flags::empty();
-                flags.set(Flags::SELECTED, self.selection.contains_cell(row, column as u32));
+                flags.set(Flags::SELECTED, placed.holds_cell(at, column as u32));
                 flags.set(Flags::LEAD, lead && focused && column as usize == self.lead.column);
                 (!flags.is_empty()).then_some((column, flags))
             })
@@ -233,13 +256,17 @@ fn is_forward(mv: NavMove, mods: MoveMods) -> bool {
     mv == NavMove::Forward && !mods.extend && !mods.lead
 }
 
-/// The direction of `to` when it is the cell next to `from` along a row or a column.
-fn one_step(from: CellAt<u32>, to: CellAt<u32>) -> Option<CellDirection> {
-    match (i64::from(to.row) - i64::from(from.row), i64::from(to.column) - i64::from(from.column)) {
-        (-1, 0) => Some(CellDirection::Up),
-        (1, 0) => Some(CellDirection::Down),
-        (0, -1) => Some(CellDirection::Left),
-        (0, 1) => Some(CellDirection::Right),
+/// The direction of an arrow: a move of one unit toward a side. Columns are logical, so `Back` is toward the first
+/// column whichever way the sheet reads; any other move is a jump.
+pub(super) fn cell_direction(mv: NavMove, mods: MoveMods) -> Option<CellDirection> {
+    if mods.by != Granularity::Unit {
+        return None;
+    }
+    match mv {
+        NavMove::Up => Some(CellDirection::Up),
+        NavMove::Down => Some(CellDirection::Down),
+        NavMove::Back => Some(CellDirection::Left),
+        NavMove::Forward => Some(CellDirection::Right),
         _ => None,
     }
 }
