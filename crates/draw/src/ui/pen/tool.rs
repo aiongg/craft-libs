@@ -64,13 +64,7 @@ impl PenStyle {
             Some([r, g, b]) => cx.color(Rgba::rgb(r, g, b)),
             None => cx.color(tokens.color.overlay.line),
         };
-        PenStyle {
-            line,
-            handle: cx.handle(),
-            selected: cx.color(tokens.color.accent.solid),
-            dash: tokens.stroke.dash,
-            gap: tokens.stroke.dash_gap,
-        }
+        PenStyle { line, handle: cx.handle(), selected: cx.color(tokens.color.accent.solid), dash: tokens.stroke.dash, gap: tokens.stroke.dash_gap }
     }
 }
 

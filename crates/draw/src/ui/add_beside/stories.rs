@@ -28,7 +28,13 @@ fn on_canvas<'a>(ui: &mut Ui, handles: impl Fn(Rect) -> AddBesideHandles<'a>) ->
         Pasteboard::new("Pasteboard", &board).show_at(ui, body.rect);
         handles(body.rect).show_at(ui, body.rect)
     });
-    shown.inner.map(StoryOutput::from).unwrap_or_default()
+    // The story reports the buttons' own click: a key or AccessKit activation adds a side too.
+    shown.inner.map_or_else(StoryOutput::default, |out| {
+        let added = out.added.is_some();
+        let mut output = StoryOutput::from(out);
+        output.clicked |= added;
+        output
+    })
 }
 
 #[story(AddBesideHandles<'static>, covers = [Default], drive = Drive::Never)]

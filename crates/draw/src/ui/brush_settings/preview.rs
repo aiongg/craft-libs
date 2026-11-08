@@ -129,7 +129,7 @@ impl Component for BrushStrokeStrip<'_> {
     type Output = Response;
 
     fn style(cx: &StyleCx<'_>, _: BrushStrokeStripStyleKey) -> BrushStrokeStripStyle {
-        BrushStrokeStripStyle { surface: cx.field(), metrics: Metrics::new().min_size(Vec2::new(0.0, cx.tokens.size.thumb.lg)) }
+        BrushStrokeStripStyle { surface: cx.text_well(), metrics: Metrics::new().min_size(Vec2::new(0.0, cx.tokens.size.thumb.lg)) }
     }
 
     fn fills(&self) -> Option<Axis> {
