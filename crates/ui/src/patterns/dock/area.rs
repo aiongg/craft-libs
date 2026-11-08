@@ -755,12 +755,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
                 .minimized(window.minimized)
                 .actions(actions)
                 .window_of(anchor.clone())
-                .take_drops(|cx| {
-                    let taken = cx.drop_target::<GroupDrag<P>, _>(&target).or_else(|| cx.drop_target::<PanelDrag, _>(&target));
-                    if taken.is_some() {
-                        *dropped.borrow_mut() = taken;
-                    }
-                })
+                .takes_drops(target, &dropped)
                 .id_salt(("floating", window.id));
             group = match opening.spec.clone() {
                 Some(window_spec) => group.native(window_spec),

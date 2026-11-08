@@ -69,7 +69,7 @@ fn the_dock_records_where_the_os_put_its_native_window() {
     let mut window = Floating::single(vec![1], 0, Rect::from_min_size(Pos2::new(40.0, 40.0), Vec2::new(300.0, 200.0)));
     window.native = Some(PALETTE_AT);
     let mut workspace = Workspace::new(Layout::new(None, vec![window]));
-    let mut run = |workspace: &mut Workspace<u32>| {
+    let run = |workspace: &mut Workspace<u32>| {
         let mut actions = Vec::new();
         windows.frame(vec![], vec![], |ui| {
             let config = DockConfig::default().native_windows(true);

@@ -6,12 +6,12 @@
 //! opens the `menu` rows. The body step supplies the move band, the edge grips and the keyboard Move and Size modes.
 
 use super::drop::{DragUnit, start_group_drag};
-use super::{DockWords, PanelKey, PanelLimits, native};
+use super::{DockDropTarget, DockDropped, DockWords, GroupDrag, PanelDrag, PanelKey, PanelLimits, native};
 use crate::contract::BodyCx;
 use crate::contract::overlay::{PlacementChange, PlacementKind, Popup};
 use crate::contract::{
-    Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, Inner, Mount, NoValue, Outcome, Overlay, Pad, Props as _, Role,
-    Show as _, ShowContainer as _, Sizing, WordSetCx as _,
+    Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, Inner, Mount, NoValue, Outcome, Overlay, Pad, Pointer as _, Props as _,
+    Role, Show as _, ShowContainer as _, Sizing, WordSetCx as _,
 };
 use crate::runtime::env::{Env, Label};
 use crate::runtime::windows::WindowSpec;
@@ -19,6 +19,7 @@ use crate::sections::{HeaderAction, HeaderStrength, MenuRows, TitleRow};
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::{GesturePhase, Metrics, Sense};
 use egui::{Id, Rect, Response, Ui, Vec2};
+use std::cell::RefCell;
 use std::hash::Hash;
 
 #[cfg(feature = "testing")]
@@ -162,11 +163,20 @@ impl<'a> FloatingGroup<'a> {
         self
     }
 
-    /// Runs `take` in the group's update, where a drop target registered through its context takes the drops released
-    /// over the group: the dock's target of the spots the group's panels register, above what lies under the window.
+    /// The group takes the drops released over it through `target`, the dock's target of the spots its groups
+    /// register, on the group's own layer: a drop over a floating window lands on it, not on what lies under it.
+    /// The drop taken in a pass lands in `dropped`.
     #[must_use]
-    pub(crate) fn take_drops(mut self, take: impl for<'b, 'c> FnMut(&'b mut Cx<'c, FloatingGroup<'a>>) + 'a) -> Self {
-        self.take_drop = Some(Box::new(take));
+    pub(crate) fn takes_drops<P>(mut self, target: DockDropTarget<'a, P>, dropped: &'a RefCell<Option<DockDropped<P>>>) -> Self
+    where
+        P: Clone + Eq + Hash + Send + Sync + 'static,
+    {
+        self.take_drop = Some(Box::new(move |cx| {
+            let taken = cx.drop_target::<GroupDrag<P>, _>(&target).or_else(|| cx.drop_target::<PanelDrag, _>(&target));
+            if taken.is_some() {
+                *dropped.borrow_mut() = taken;
+            }
+        }));
         self
     }
 
