@@ -14,7 +14,6 @@ use craft_ui::canvas_controls::CanvasControlWords;
 use craft_ui::canvas_controls::brush::{BrushCursor, BrushCursorOptions, BrushDimensions, BrushLevel, BrushResize, BrushResizeOptions, BrushTip};
 use craft_ui::contract::{Access, Common, Component, Cx, PaintUi, Role};
 use craft_ui::primitives::{Draw, PaintShape, Revision, StrokeWidth};
-use craft_ui::runtime::env::Env;
 use craft_ui::style::{ComponentStyle, StyleColor, StyleCx};
 
 use super::LiquifyEvent;
@@ -368,7 +367,7 @@ impl LiquifyCanvas {
     /// The canvas tool for this pass over `settings` (the tool, the brush; the resize writes the
     /// brush's size and density).
     pub fn tool<'a>(&'a mut self, settings: &'a mut LiquifySettings, cursor: &'a BrushCursorOptions) -> LiquifyCanvasTool<'a> {
-        LiquifyCanvasTool { canvas: self, settings, cursor, env: None }
+        LiquifyCanvasTool { canvas: self, settings, cursor }
     }
 
     /// The timing of the latest brush stroke; `None` before the first.
@@ -456,17 +455,8 @@ pub struct LiquifyCanvasTool<'a> {
     canvas: &'a mut LiquifyCanvas,
     settings: &'a mut LiquifySettings,
     cursor: &'a BrushCursorOptions,
-    env: Option<Env>,
 }
 
-impl LiquifyCanvasTool<'_> {
-    /// The env the brush cursor reads its reach from (`size.hit.target`). Without one the brush shows the system arrow.
-    #[must_use]
-    pub fn env(mut self, env: Env) -> Self {
-        self.env = Some(env);
-        self
-    }
-}
 
 impl LiquifyCanvasTool<'_> {
     /// Ends the stroke, the lasso and the resize in progress without recording them (the host's `cancel`, and the
@@ -547,9 +537,9 @@ impl CanvasTool for LiquifyCanvasTool<'_> {
         if self.settings.tool == LiquifyTool::FreezeLasso {
             return Cursor::Painted(PaintedCursor::Crosshair);
         }
-        let (Some(space), Some(env)) = (cx.space(), self.env.as_ref()) else { return Cursor::System(CursorIcon::Default) };
+        let Some(space) = cx.space() else { return Cursor::System(CursorIcon::Default) };
         let size = self.settings.brush.size;
-        BrushCursor::new(&BrushTip::round(size, size / 2.0)).painting(self.canvas.recorder.is_active()).cursor(env, self.cursor, &space.view, false)
+        BrushCursor::new(&BrushTip::round(size, size / 2.0)).painting(self.canvas.recorder.is_active()).cursor(cx, self.cursor, &space.view)
     }
 
     fn takes(&self, button: PointerButton, mods: Mods) -> bool {

@@ -11,7 +11,6 @@ use craft_ui::canvas_controls::brush::{
 };
 use craft_ui::primitives::{Draw, PaintShape};
 use craft_ui::rails::{RailTool, ToolSlot};
-use craft_ui::runtime::env::Env;
 use egui::Pos2;
 
 use super::SelectMaskEvent;
@@ -298,7 +297,7 @@ impl SelectMaskCanvas {
     /// The canvas tool for this pass: `tool` with `options` (the resize writes the brush size).
     /// `real_time` reports `Update`s while a stroke is drawn.
     pub fn tool<'a>(&'a mut self, tool: SelectMaskTool, options: &'a mut SelectMaskToolOptions, real_time: bool) -> SelectMaskCanvasTool<'a> {
-        SelectMaskCanvasTool { canvas: self, tool, options, real_time, env: None }
+        SelectMaskCanvasTool { canvas: self, tool, options, real_time }
     }
 
     /// The user's Preferences › Cursors, which shape the brush outline; Photoshop's until set.
@@ -470,17 +469,8 @@ pub struct SelectMaskCanvasTool<'a> {
     tool: SelectMaskTool,
     options: &'a mut SelectMaskToolOptions,
     real_time: bool,
-    env: Option<Env>,
 }
 
-impl SelectMaskCanvasTool<'_> {
-    /// The env the brush cursor reads its reach from (`size.hit.target`). Without one the brush shows the system arrow.
-    #[must_use]
-    pub fn env(mut self, env: Env) -> Self {
-        self.env = Some(env);
-        self
-    }
-}
 
 impl SelectMaskCanvasTool<'_> {
     /// The hardness (0..=1) a resize of the tool starts from: the Brush's; the others are hard.
@@ -605,17 +595,11 @@ impl CanvasTool for SelectMaskCanvasTool<'_> {
         }
         let Some(space) = cx.space() else { return Cursor::System(CursorIcon::Default) };
         if self.tool.brushes() {
-            let Some(env) = self.env.as_ref() else { return Cursor::System(CursorIcon::Default) };
             let size = self.options.sizes.get(self.tool);
             let tip = BrushTip::round(size, size / 2.0);
             // The bar's mode, reversed while Alt is held (the press reads it the same way).
             let badge = if self.options.add != cx.mods.alt { CursorBadge::Add } else { CursorBadge::Subtract };
-            return BrushCursor::new(&tip).painting(self.canvas.gesture.is_some()).badge(Some(badge)).cursor(
-                env,
-                &self.canvas.cursor_options,
-                &space.view,
-                cx.caps_lock,
-            );
+            return BrushCursor::new(&tip).painting(self.canvas.gesture.is_some()).badge(Some(badge)).cursor(cx, &self.canvas.cursor_options, &space.view);
         }
         Cursor::Painted(PaintedCursor::Crosshair)
     }

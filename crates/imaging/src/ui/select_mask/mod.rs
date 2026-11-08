@@ -461,7 +461,7 @@ impl SelectMaskWorkspace {
                             SelectMaskTool::Hand => canvas.show(ui),
                             SelectMaskTool::Zoom => canvas.tool(&mut work.zoom_tool).show(ui),
                             tool => {
-                                let mut brush = work.canvas.tool(tool, &mut work.options, work.settings.real_time).env(Env::of(ui));
+                                let mut brush = work.canvas.tool(tool, &mut work.options, work.settings.real_time);
                                 canvas.tool(&mut brush).show(ui)
                             }
                         }
