@@ -195,9 +195,9 @@ fn rows_fill_defaults_through_the_binding() {
     assert_eq!((fields.number("radius"), fields.text("method"), fields.text("note")), (Some(RADIUS_DEFAULT), Some("zoom"), Some("kept")));
 }
 
-/// An arrow key in a radio param moves the pick to the next option, and OK answers with the picked option.
+/// An arrow key in a radio param moves focus to the next option, Space picks it, and OK answers with the picked option.
 #[trial]
-fn an_arrow_key_moves_a_radio_pick_and_the_result_carries_it() {
+fn an_arrow_key_and_space_move_a_radio_pick_and_the_result_carries_it() {
     let radio =
         ParamKind::radio(vec![("none".into(), "None".into()), ("rle".into(), "RLE".into()), ("zip".into(), "ZIP".into())], Some("none".into()));
     let params = vec![Param::new("compression", "Compression", radio)];
@@ -219,9 +219,11 @@ fn an_arrow_key_moves_a_radio_pick_and_the_result_carries_it() {
     fixture.idle(2);
     fixture.key(Key::ArrowDown, Modifiers::NONE);
     fixture.idle(2);
+    fixture.key(Key::Space, Modifiers::NONE);
+    fixture.idle(2);
     let ok = fixture.by_label("OK").expect("the OK button is shown");
     fixture.click(&ok);
     fixture.idle(3);
     let result = answer.borrow().clone().expect("OK answers");
-    assert_eq!(result.fields.text("compression"), Some("rle"), "the arrow moved the pick from the first option to the next");
+    assert_eq!(result.fields.text("compression"), Some("rle"), "the arrow and Space moved the pick from the first option to the next");
 }

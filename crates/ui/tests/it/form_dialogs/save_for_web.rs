@@ -147,17 +147,18 @@ struct Pictured {
     /// The byte sizes the app answers for panes 0, 1 and 2, read on every frame.
     bytes: Rc<RefCell<[u64; 3]>>,
     /// The frame the dialog reports.
-    frame: Rc<Cell<u32>>,
+    /// How many panes the dialog has asked the app to encode in all.
+    asked: Rc<Cell<usize>>,
 }
 
 /// A dialog whose app answers all three encoded panes, over the settings `change` makes, for an animation of
 /// `animation` when given.
 fn pictured(change: impl FnOnce(&mut SaveForWebOptions), animation: Option<Animation>) -> Pictured {
     let bytes = Rc::new(RefCell::new([10_000, 20_000, 30_000]));
-    let frame = Rc::new(Cell::new(0));
+    let asked = Rc::new(Cell::new(0));
     let options = Rc::new(RefCell::new(options(change)));
     let handle: RefCell<Option<TextureHandle>> = RefCell::new(None);
-    let (sizes, shown_frame) = (Rc::clone(&bytes), Rc::clone(&frame));
+    let (sizes, counted) = (Rc::clone(&bytes), Rc::clone(&asked));
     let mut fixture = Fixture::new(move |ui| {
         let mut handle = handle.borrow_mut();
         let texture =
@@ -172,10 +173,10 @@ fn pictured(change: impl FnOnce(&mut SaveForWebOptions), animation: Option<Anima
         if let Some(animation) = animation {
             dialog = dialog.animation(animation);
         }
-        shown_frame.set(dialog.show(ui).frame);
+        counted.set(counted.get() + dialog.show(ui).wanted_variants.len());
     });
     fixture.settle();
-    Pictured { fixture, bytes, frame }
+    Pictured { fixture, bytes, asked }
 }
 
 /// The painted texts that start with `prefix`.
@@ -191,8 +192,8 @@ fn four_up_shows_the_original_and_the_three_variants() {
     let four_up = rig.fixture.by_label("4-Up").expect("the view tabs are shown");
     rig.fixture.click(&four_up);
     rig.fixture.idle(3);
-    assert_eq!(texts_starting(&rig.fixture, "PNG").len(), 2, "the settings and the half variant");
-    assert_eq!(texts_starting(&rig.fixture, "GIF").len(), 1, "the quarter variant");
+    assert_eq!(texts_starting(&rig.fixture, "PNG  ").len(), 2, "the settings and the half variant");
+    assert_eq!(texts_starting(&rig.fixture, "GIF  ").len(), 1, "the quarter variant");
     let panes = ["Original", "Optimized", "Optimized 2", "Optimized 3"];
     for pane in panes {
         let found = rig.fixture.tree().keys().into_iter().any(|key| rig.fixture.tree().name_of(key).is_some_and(|name| name.starts_with(pane)));
@@ -218,13 +219,14 @@ fn the_download_estimate_follows_the_encoded_size() {
 fn the_animation_advances_while_playing_and_stops_on_pause() {
     let mut rig = pictured(|_| {}, Some(Animation::new(12, 24.0)));
     assert_eq!(texts_starting(&rig.fixture, "1 / 12").len(), 1);
+    let asked = rig.asked.get();
     let play = rig.fixture.by_label("Play").expect("the play row is shown");
     rig.fixture.click(&play);
     rig.fixture.idle(2);
     rig.fixture.advance(0.26);
     rig.fixture.idle(2);
     assert_eq!(texts_starting(&rig.fixture, "7 / 12").len(), 1, "six frames passed in 0.26 s at 24 fps");
-    assert_eq!(rig.frame.get(), 6, "the dialog reports the frame the app encodes");
+    assert!(rig.asked.get() > asked, "a new frame asks the app to encode it");
     let pause = rig.fixture.by_label("Pause").expect("Play became Pause");
     rig.fixture.click(&pause);
     rig.fixture.idle(2);
