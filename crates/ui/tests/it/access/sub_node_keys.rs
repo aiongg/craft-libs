@@ -8,7 +8,7 @@ use craft_ui::style::StyleCx;
 use craft_ui::testing::access::Declared;
 use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers, Rect, Vec2, pos2};
+use egui::{Id, Key, Modifiers, Rect, Vec2, pos2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -20,10 +20,10 @@ const STEP: f64 = 2.0;
 const TYPED: f64 = 9.0;
 
 /// What the owner saw this run.
-#[derive(Default)]
 struct Seen {
     opened: Cell<usize>,
     knobs: RefCell<[f64; 2]>,
+    root: Cell<Id>,
 }
 
 /// A header part that declares Alt+Down and two numeric knobs, each a focus stop with a sub-node.
@@ -91,10 +91,11 @@ impl Component for Pair {
 }
 
 fn pair() -> (Fixture, Rc<Seen>) {
-    let seen = Rc::new(Seen { knobs: RefCell::new(START), ..Seen::default() });
+    let seen = Rc::new(Seen { opened: Cell::new(0), knobs: RefCell::new(START), root: Cell::new(Id::NULL) });
     let shown = seen.clone();
     let mut fixture = Fixture::new(move |ui| {
-        Pair { common: Common::new(), seen: shown.clone() }.label("Pair").show(ui);
+        let response = Pair { common: Common::new(), seen: shown.clone() }.label("Pair").show(ui);
+        shown.root.set(response.id);
     });
     fixture.settle();
     (fixture, seen)
@@ -103,7 +104,7 @@ fn pair() -> (Fixture, Rc<Seen>) {
 #[trial]
 fn a_sub_node_lists_its_shortcut_and_the_key_reaches_the_owner() {
     let (mut fixture, seen) = pair();
-    let root = fixture.root_id().expect("the component is shown");
+    let root = seen.root.get();
     let head = fixture.part(root, HEAD).expect("the header sub-node");
     assert_eq!(fixture.tree().shortcut_of(head.node), Some(SHORTCUT), "the access tree lists the declared key");
     let knob = fixture.part(root, KNOB.at(0)).expect("a knob sub-node");
@@ -116,7 +117,7 @@ fn a_sub_node_lists_its_shortcut_and_the_key_reaches_the_owner() {
 #[trial]
 fn a_numeric_sub_node_serves_increment_decrement_and_set_value() {
     let (mut fixture, seen) = pair();
-    let root = fixture.root_id().expect("the component is shown");
+    let root = seen.root.get();
     let knob = fixture.part(root, KNOB.at(1)).expect("the second knob sub-node");
     let tree = fixture.tree();
     for action in [Declared::Increment, Declared::Decrement, Declared::SetValue] {
