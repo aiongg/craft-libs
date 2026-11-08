@@ -2,9 +2,9 @@
 
 use super::PixelGrid;
 use crate::canvas::{PixelRect, RasterSource};
-use crate::testing::canvas_story::on_canvas;
 use crate::contract::Show as _;
 use crate::primitives::Revision;
+use crate::testing::canvas_story::on_canvas;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::PixelSize;
 use egui::{Color32, ColorImage, Ui};

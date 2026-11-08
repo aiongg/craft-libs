@@ -308,9 +308,7 @@ impl Canvas {
 
     fn space(&self, pixels_per_point: f32, background: BackgroundPress) -> Option<CanvasSpace> {
         let view = self.settled.map(|settled| settled.shown).or(self.view);
-        view.map(|view| {
-            CanvasSpace::new(view, pixels_per_point).with_document(self.document).with_rulers(self.rulers).with_background(background)
-        })
+        view.map(|view| CanvasSpace::new(view, pixels_per_point).with_document(self.document).with_rulers(self.rulers).with_background(background))
     }
 
     /// The press on the background part as the canvas reports it, and the pan of a middle-button drag: a middle press
