@@ -2,11 +2,13 @@
 
 use crate::buttons::Button;
 use crate::contract::{Bind, EditResponse, Entry, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, clicked};
+use crate::runtime::requests::{PathKind, PathRequest};
+
 use crate::form::Field;
 use crate::layout_components::Row;
-use crate::patterns::form_dialogs::{PathKind, PathRequest};
 use crate::pickers::Select;
 use crate::runtime::env::{Env, Label};
+
 use crate::text::TextField;
 use craft_behavior::EditEvent;
 use egui::{Response, Ui};

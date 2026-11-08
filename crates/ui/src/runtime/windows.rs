@@ -6,13 +6,14 @@
 use crate::runtime::cursor;
 use crate::runtime::egui::input::{self as raw_input, RawInput};
 use crate::runtime::egui::memory::Service;
-use crate::runtime::egui::{areas, pass, scale, viewports};
+use crate::runtime::egui::{areas, injected, pass, scale, screenshot, viewports};
 use crate::runtime::frame::{PassStep, PerViewport, Stamped};
 use crate::runtime::{memory, overlay};
-use craft_behavior::{Cursor, CursorIcon, CursorPriority, PartRef};
+use craft_behavior::{Cursor, CursorIcon, CursorPriority, PartRef, PointerButton};
 use craft_host::target::{Caps, EdgeInsets, Os, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
 #[cfg(feature = "testing")]
 use craft_host::target::{MenuPlacement, Runtime};
+use craft_keymap::{Key, Mods};
 use craft_window::Button;
 use craft_window::policy::{CaptionFamily, Captions, Decision, Frame, LayoutWatch, MacInset};
 use craft_window::restore::{Placement, Store};
@@ -936,7 +937,61 @@ impl WindowHost {
 
     /// Runs and paints the next pass even while the window is hidden; holds for one frame.
     pub fn paint_while_hidden(&self) {
-        viewports::paint_while_hidden(&self.ctx);
+        viewports::paint_while_hidden(&self.ctx, crate::runtime::egui::pass::current_viewport(&self.ctx));
+    }
+
+    /// Issues one screenshot of `viewport`: a fresh slot bounded to `max_image_bytes` for its one image, and a pass of
+    /// the viewport even while its window is hidden. The bound covers the single retained image; the application
+    /// reserves its aggregate budget before asking.
+    pub fn screenshot(&self, viewport: ViewportId, max_image_bytes: usize) -> ScreenshotSlot {
+        screenshot::issue(&self.ctx, viewport, max_image_bytes)
+    }
+
+    /// What a screenshot of the running viewport measures this pass.
+    pub fn screenshot_facts(&self) -> ScreenshotFacts {
+        screenshot::facts(&self.ctx)
+    }
+
+    /// Queues a pointer move to `at` in `viewport`, delivered on a pass of its own.
+    pub fn inject_move(&self, viewport: ViewportId, at: Pos2) {
+        injected::inject_move(&self.ctx, viewport, at);
+    }
+
+    /// Queues a move to `at`, then `count` presses and releases of `button`, one pass each; a button egui has no
+    /// counterpart for queues nothing.
+    pub fn inject_click(&self, viewport: ViewportId, at: Pos2, button: PointerButton, count: u32) {
+        injected::inject_click(&self.ctx, viewport, at, button, count);
+    }
+
+    /// Queues `key` pressed and released with `mods` held, as the platform reports them.
+    pub fn inject_key(&self, viewport: ViewportId, key: Key, mods: Mods) {
+        injected::inject_key(&self.ctx, viewport, key, mods);
+    }
+
+    /// Queues `text` as typed text.
+    pub fn inject_text(&self, viewport: ViewportId, text: &str) {
+        injected::inject_text(&self.ctx, viewport, text);
+    }
+
+    /// Drops the injected queue of `viewport` (the document changed); a pending queue counts as withdrawn
+    /// ([`take_injected_withdrawn`](Self::take_injected_withdrawn)).
+    pub fn withdraw_injected(&self, viewport: ViewportId) {
+        injected::withdraw(&self.ctx, viewport);
+    }
+
+    /// Drops every injected queue and step in flight; true when anything was pending.
+    pub fn cancel_injected(&self) -> bool {
+        injected::cancel(&self.ctx)
+    }
+
+    /// Whether no injected step is queued or awaits its pass: the application may answer its waiters.
+    pub fn injected_idle(&self) -> bool {
+        injected::idle(&self.ctx)
+    }
+
+    /// Whether an injected step was withdrawn since the last call.
+    pub fn take_injected_withdrawn(&self) -> bool {
+        injected::take_withdrawn(&self.ctx)
     }
 
     /// Asks for one pass of `viewport` after `seconds`; a negative time means now, a non-finite one asks for

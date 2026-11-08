@@ -2,8 +2,8 @@
 
 use std::sync::{Arc, Barrier, Mutex};
 
-use craft_ui::runtime::egui::screenshot::{ScreenshotError, ScreenshotSlot, issue};
-use craft_ui::runtime::windows::ScreenshotSlot as ReexportedSlot;
+use craft_ui::runtime::egui::screenshot::{ScreenshotError, ScreenshotSlot};
+use craft_ui::runtime::windows::{ScreenshotSlot as ReexportedSlot, WindowHost};
 use craft_ui::testing::trial;
 use egui::{Color32, ColorImage, Context, ScreenshotCallback, ViewportCommand, ViewportId};
 
@@ -179,13 +179,13 @@ fn concurrent_takers_receive_the_result_exactly_once() {
     assert!(slot.take().is_none());
 }
 
-/// Each `issue` is one slot and one screenshot command for its viewport, and the renderer's completion reaches
+/// Each screenshot request is one slot and one screenshot command for its viewport, and the renderer's completion reaches
 /// that slot.
 #[trial]
 fn issue_sends_one_screenshot_command_for_its_viewport() {
     let ctx = Context::default();
     let viewport = ViewportId::ROOT;
-    let slot = issue(&ctx, viewport, 1024);
+    let slot = WindowHost::of(&ctx).screenshot(viewport, 1024);
     let mut output = ctx.run_ui(Default::default(), |_| {});
     output.textures_delta.clear();
     let mut callbacks: Vec<ScreenshotCallback> = output

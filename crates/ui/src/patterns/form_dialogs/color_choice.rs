@@ -1,7 +1,9 @@
 //! The colour row of the dialogs that offer a named list and Custom…: Guides and Navigator Panel Options.
 
-use super::{ColorRequest, HostAnswer, HostRequests};
+use super::HostRequests;
 use crate::contract::{Bind, Entry, Show as _, ShowContainer as _};
+use crate::runtime::requests::{ColorRequest, HostAnswer};
+
 use crate::form::Field;
 use crate::pickers::Select;
 use crate::runtime::env::Label;

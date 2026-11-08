@@ -1,21 +1,33 @@
 //! `ParamRows`: a form with one `Field` per visible parameter of a [`Param`] list, over a [`DialogFields`] value.
 
 use super::fields::{DialogFields, FieldValue};
-use super::param::{ColorRequest, CustomContext, EyedropperRequest, Param, ParamKind, PathRequest, encode, fill_defaults, rounded};
+use crate::runtime::requests::{ColorRequest, EyedropperRequest, PathRequest};
+
+use super::param::{CustomContext, Param, ParamKind, encode, fill_defaults, rounded};
 use super::words::ParamWords;
 use crate::buttons::{Button, ToggleButton};
+
 use crate::choice::Checkbox;
 use crate::contract::{Bind, Entry, NoValue, Outcome, Props as _, Remember as _, Show as _, ShowContainer as _, clicked};
+
 use crate::form::{Field, FieldGroup, SliderField};
+
 use crate::layout_components::{Row, Stack};
+
 use crate::pickers::{Select, UnitSelect};
+
 use crate::runtime::env::{Env, Label, UnitKind, Units, with_env};
+
 use crate::sections::Section;
 use crate::text::{NumberField, TextField};
+
 use crate::value_drag::{AngleDial, PointPicker, SliderScale};
+
 use craft_behavior::{EditEvent, GestureId, IconId, Mixed, NumberCodec};
+
 use craft_theme::Srgba;
 use egui::{Response, Ui};
+
 use std::collections::BTreeMap;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
@@ -404,7 +416,7 @@ impl<'p> Pass<'p> {
                         .show(ui);
                     if let Some(on) = toggle.value().cloned() {
                         self.memo.armed.insert(line.key.to_owned(), on);
-                        self.eyedropper = Some(EyedropperRequest::new(line.key, on));
+                        self.eyedropper = Some(EyedropperRequest::new(line.key));
                     }
                 }
             });

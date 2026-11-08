@@ -1,18 +1,23 @@
 //! `NavigatorOptionsDialog`: Panel Options of the Navigator panel.
 
 use super::color_choice::{ColorChoice, ColorRowTexts, apply_color_answers, color_row};
-use super::{FormDialog, HostAnswer, HostRequests};
+use crate::runtime::requests::HostAnswer;
+
+use super::{FormDialog, HostRequests};
 use crate::canvas::{NavigatorOptions, ProxyColor};
+
 use crate::contract::{Bind, NoValue, Outcome, ShowContainer as _};
+
 use crate::form::FieldGroup;
 use crate::runtime::env::{Env, Label};
+
 use crate::runtime::overlay::CloseReason;
 use egui::{Response, Ui};
 
 #[cfg(feature = "testing")]
 mod stories;
 
-/// The [`ColorRequest::key`](super::ColorRequest::key) of Panel Options' Custom… colour.
+/// The [`ColorRequest::key`](crate::runtime::requests::ColorRequest::key) of Panel Options' Custom… colour.
 pub const NAVIGATOR_PROXY_COLOR_KEY: &str = "navigatorOptionsDialog.proxyColor";
 
 craft_ui::words! {

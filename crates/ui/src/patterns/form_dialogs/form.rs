@@ -3,18 +3,27 @@
 //! answers with the accepted value. `ParamDialog` is a `FormDialog<DialogFields>`.
 
 use super::dialog::ResetFooter;
-use super::host_requests::{HostAnswer, HostRequests};
+use super::host_requests::HostRequests;
 use crate::contract::{Bind, BodyCx, Remember as _, ShowContainer as _};
+use crate::runtime::requests::HostAnswer;
+
 use crate::dialog::{Dialog, DialogOutput};
+
 use crate::runtime::env::{Env, Label};
+
 use crate::runtime::overlay::CloseReason;
 use crate::runtime::words::CommonWords;
 
 use crate::sections::{DialogRole, FooterButton};
+
 use craft_behavior::{EditEvent, GestureId, Mixed, Value};
+
 use egui::{Response, Ui};
+
 use std::cell::{Cell, RefCell};
+
 use std::ops::{Deref, DerefMut};
+
 use std::rc::Rc;
 use std::sync::Arc;
 

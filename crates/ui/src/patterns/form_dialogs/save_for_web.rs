@@ -3,24 +3,34 @@
 //! with a [`WebVariant`].
 
 use super::form::FormDialog;
-use super::host_requests::{HostAnswer, HostRequests, PreviewRequest};
-use super::param::{ColorRequest, PathFilter, PathRequest};
+use super::host_requests::{HostRequests, PreviewRequest};
 use super::preview::PreviewView;
 use super::size_model::LinkedSize;
 use super::sizing::{Resample, SizingWords};
+use crate::runtime::requests::{ColorRequest, HostAnswer, PathFilter, PathRequest};
+
 use crate::contract::{Bind, NoValue, Outcome, Props as _, ShowContainer as _};
+
 use crate::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
+
 use crate::layout_components::{Row, Stack};
+
 use crate::runtime::env::{Env, Label};
+
 use crate::runtime::memory::{MemoryStage, Remember as _, SaveKey, unique};
+
 use crate::runtime::motion::Animate;
 use crate::runtime::overlay::CloseReason;
 use craft_behavior::PixelSize;
 use craft_keymap::{Chord, Key, Mods};
+
 use craft_theme::{Rgba, Srgba};
+
 use egui::load::SizedTexture;
 use egui::{Response, Ui};
+
 use serde::{Deserialize, Serialize};
+
 use std::path::{Path, PathBuf};
 
 mod options;

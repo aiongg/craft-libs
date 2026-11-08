@@ -103,7 +103,7 @@ name = "Swatch"
 old = "craft_ui::controls::swatch::Swatch"
 new = "craft_ui::choice::Swatch"
 status = "moved"
-note = "A leaf colour well: `Swatch::new(label, color)` (a `Srgba` or `Mixed<Srgba>`; the id salt is the call order or `Props::id_salt`) with output `SwatchOutput { response, clicked }`. A click is `clicked`; the caller opens its picker, or files `ColorRequest::new(key, color).title(label)` with its `HostRequests`."
+note = "A leaf colour well: `Swatch::new(label, color)` (a `Srgba` or `Mixed<Srgba>`; the id salt is the call order or `Props::id_salt`) with output `SwatchOutput { response, clicked, activation: Option<Activation>, pick_color: Option<ColorRequest> }`. A click is `clicked`, and `activation` carries the modifiers (Cmd/Ctrl-click, Alt-click). `Swatch::picker(key)` makes a click on a swatch that shows a colour file `ColorRequest::new(key, color).title(label)` as `pick_color`, for `HostRequests::request_color`."
 
 [[type]]
 name = "SwatchStyle"

@@ -1,11 +1,12 @@
 //! The parameter model of the form dialogs: [`Param`] and [`ParamKind`] describe one row of a parameter form,
 //! [`Param::parse_list`] builds a list from a spec string, and the requests a row can make of its host
-//! ([`ColorRequest`], [`PathRequest`], [`EyedropperRequest`]) are plain values.
+//! (`runtime::requests`) are plain values.
 
 mod parse;
 
 use super::fields::{DialogFields, FieldValue};
 use crate::runtime::env::{Label, UnitKind};
+use crate::runtime::requests::{ColorRequest, PathKind};
 use crate::value_drag::SliderScale;
 use craft_theme::Srgba;
 use egui::{Response, Ui};
@@ -313,124 +314,6 @@ impl CustomContext {
     /// The colour request the row made, once.
     pub(crate) fn take_request(&mut self) -> Option<ColorRequest> {
         self.request.take()
-    }
-}
-
-/// A request for a colour: the host opens its colour picker with `title` and `color` and writes the answer into
-/// `key` as a [`FieldValue::Color`].
-///
-/// Rows report it as `pick_color: Option<ColorRequest>`, set for the one pass in which the user asked. `key` names
-/// what is being coloured so one form can ask for several colours.
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct ColorRequest {
-    /// What the colour is for, returned with the answer.
-    pub key: String,
-    /// The colour picker's title; `None` for the picker's default.
-    pub title: Option<Label>,
-    /// The colour the picker opens with.
-    pub color: Srgba,
-}
-
-impl ColorRequest {
-    /// A request for `key`, opening the picker at `color`.
-    pub fn new(key: impl Into<String>, color: Srgba) -> Self {
-        Self { key: key.into(), title: None, color }
-    }
-
-    /// The picker's title.
-    #[must_use]
-    pub fn title(mut self, title: impl Into<Label>) -> Self {
-        self.title = Some(title.into());
-        self
-    }
-}
-
-/// What a text row's Browse button picks.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum PathKind {
-    /// Picks a folder.
-    #[default]
-    Folder,
-    /// An existing file. `extensions` are the ones the file dialog offers, without the dot and in any letter case
-    /// (`["cube", "3dl"]`); empty offers every file.
-    #[non_exhaustive]
-    OpenFile {
-        /// The extensions offered.
-        extensions: Vec<String>,
-    },
-    /// Chooses a file to write.
-    SaveFile,
-}
-
-impl PathKind {
-    /// An existing file of one of `extensions`.
-    pub fn open_file(extensions: &[&str]) -> Self {
-        Self::OpenFile { extensions: extensions.iter().map(|e| (*e).to_owned()).collect() }
-    }
-}
-
-/// One entry of a file dialog's type filter.
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct PathFilter {
-    /// The filter's name ("PNG image").
-    pub name: String,
-    /// The extensions it admits, without the dot.
-    pub extensions: Vec<String>,
-}
-
-impl PathFilter {
-    /// A filter named `name` for `extensions`.
-    pub fn new(name: impl Into<String>, extensions: &[&str]) -> Self {
-        Self { name: name.into(), extensions: extensions.iter().map(|e| (*e).to_owned()).collect() }
-    }
-}
-
-/// A pressed Browse button: the host opens its file dialog for `kind` and writes the answer into `key` as a
-/// [`FieldValue::Text`].
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct PathRequest {
-    /// The key of the text parameter the path belongs to.
-    pub key: String,
-    /// What the picker should offer.
-    pub kind: PathKind,
-    /// The file name a save dialog suggests; `None` for the dialog's default.
-    pub file_name: Option<String>,
-    /// The types a file dialog offers; empty offers every file.
-    pub filters: Vec<PathFilter>,
-}
-
-impl PathRequest {
-    /// A request for the path of `key`.
-    pub fn new(key: impl Into<String>, kind: PathKind) -> Self {
-        Self { key: key.into(), kind, file_name: None, filters: Vec::new() }
-    }
-
-    /// A request for a file to write under `key`, suggesting `file_name` and offering `filters`.
-    pub fn save(key: impl Into<String>, file_name: impl Into<String>, filters: impl IntoIterator<Item = PathFilter>) -> Self {
-        Self { key: key.into(), kind: PathKind::SaveFile, file_name: Some(file_name.into()), filters: filters.into_iter().collect() }
-    }
-}
-
-/// The eyedropper toggle of a [`Param::eyedropper`] row after a press: the host arms its dropper for the colour
-/// parameter `key` when `armed`, and disarms it otherwise; the picked colour is written into `key` as a
-/// [`FieldValue::Color`].
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct EyedropperRequest {
-    /// The key of the colour parameter the dropper fills.
-    pub key: String,
-    /// True when the dropper turns on, false when it turns off.
-    pub armed: bool,
-}
-
-impl EyedropperRequest {
-    /// A request to arm or disarm the dropper for `key`.
-    pub fn new(key: impl Into<String>, armed: bool) -> Self {
-        Self { key: key.into(), armed }
     }
 }
 
