@@ -76,7 +76,7 @@ impl Outcome for ConstraintLinesOutput {
 /// The constraints of `session`, drawn as the lens curves of their scene lines, with a constraint being drawn.
 ///
 /// - The canvas is in the pixels of the picture it shows (`canvas`), the constraints in document pixels
-///   (`document`); [`image`](Self::image) says both so a proxy of the layer lines up.
+///   (`document`); [`picture`](Self::picture) says both so a proxy of the layer lines up.
 /// - [`corrected`](Self::corrected) maps the curves through the solved mesh, for the corrected preview.
 /// - The group is named by the label; a constraint is named by its number and orientation.
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
@@ -92,6 +92,7 @@ pub struct ConstraintLines<'a> {
     /// Document pixels per canvas unit, per axis.
     scale: [f64; 2],
     /// The constraint being drawn, in canvas units.
+    #[prop]
     draft: Option<[Point; 2]>,
     edit: Option<WideAngleConstraintEdit>,
     context: Option<usize>,
@@ -106,16 +107,9 @@ impl<'a> ConstraintLines<'a> {
 
     /// The canvas shows a picture of `canvas` pixels for a document of `document` pixels.
     #[must_use]
-    pub fn image(mut self, canvas: [u32; 2], document: [u32; 2]) -> Self {
+    pub fn picture(mut self, canvas: [u32; 2], document: [u32; 2]) -> Self {
         let ratio = |document: u32, canvas: u32| if canvas == 0 { 1.0 } else { f64::from(document) / f64::from(canvas) };
         self.scale = [ratio(document[0], canvas[0]), ratio(document[1], canvas[1])];
-        self
-    }
-
-    /// The constraint being drawn, from `from` to `to` in canvas units.
-    #[must_use]
-    pub fn draft(mut self, draft: Option<[Point; 2]>) -> Self {
-        self.draft = draft;
         self
     }
 

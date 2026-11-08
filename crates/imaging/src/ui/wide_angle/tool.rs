@@ -13,7 +13,7 @@ const DRAG_MINIMUM: f32 = 6.0;
 /// The Constraint tool: a drag on the picture draws a constraint from the press to the pointer, added on release
 /// when longer than the drag minimum, with Shift at the release making it Horizontal or Vertical.
 ///
-/// The state lives between passes in the tool; [`image`](Self::image) says each pass what the canvas shows. The
+/// The state lives between passes in the tool; [`picture`](Self::picture) says each pass what the canvas shows. The
 /// constraint being drawn is painted by `ConstraintLines` (the tool has no colours of its own): hand it
 /// [`draft`](Self::draft).
 #[derive(Clone, Debug, Default)]
@@ -34,7 +34,7 @@ impl ConstraintTool {
     }
 
     /// The canvas picture is `canvas` pixels and the document `document` pixels: the pointer converts between them.
-    pub fn image(&mut self, canvas: [u32; 2], document: [u32; 2]) {
+    pub fn picture(&mut self, canvas: [u32; 2], document: [u32; 2]) {
         let ratio = |document: u32, canvas: u32| if canvas == 0 { 1.0 } else { f64::from(document) / f64::from(canvas) };
         self.canvas = Some([f64::from(canvas[0]), f64::from(canvas[1])]);
         self.scale = [ratio(document[0], canvas[0]), ratio(document[1], canvas[1])];

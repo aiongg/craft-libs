@@ -6,7 +6,7 @@ use craft_behavior::{EditEvent, GestureId, Mixed};
 use craft_theme::{ControlSize, TypeRole};
 use craft_ui::buttons::Button;
 use craft_ui::choice::Checkbox;
-use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Props as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, clicked};
 use craft_ui::display::{Shade, Text};
 use craft_ui::form::SliderField;
 use craft_ui::layout_components::{Row, Stack};
@@ -147,12 +147,12 @@ impl<'a> WideAnglePanel<'a> {
                             .description(words.delete_constraint.fill(&[("n", number.as_str())]))
                             .id_salt(("delete", index))
                             .show(ui);
-                        if delete.clicked() {
+                        if clicked(&delete) {
                             constraint = constraint.take().or(Some(WideAngleConstraintEdit::Delete(index)));
                         }
                     });
                 }
-                if Button::new(words.add_constraint.clone()).size(ControlSize::Sm).id_salt("add").show(ui).clicked() {
+                if clicked(&Button::new(words.add_constraint.clone()).size(ControlSize::Sm).id_salt("add").show(ui)) {
                     add = true;
                 }
             });

@@ -11,7 +11,7 @@ use craft_ui::canvas::{PixelRect, RasterSource, ToolPath};
 use craft_ui::contract::{Bind, Show as _};
 use craft_ui::dialog::{FullWindowCanvas, FullWindowView};
 use craft_ui::primitives::Revision;
-use craft_ui::runtime::Job;
+use craft_ui::runtime::pending::Job;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::{Color32, ColorImage, Ui};
 
@@ -96,7 +96,7 @@ fn pictures() -> Pictures {
 
 /// One constraint of each orientation, near the picture's edges where the bow shows.
 fn constraints() -> Vec<WideAngleConstraint> {
-    let line = |a: [f64; 2], b: [f64; 2], orientation| WideAngleConstraint { a, b, orientation };
+    let line = WideAngleConstraint::new;
     vec![
         line([60.0, 50.0], [420.0, 50.0], ConstraintOrientation::Horizontal),
         line([50.0, 70.0], [50.0, 280.0], ConstraintOrientation::Vertical),
@@ -105,7 +105,7 @@ fn constraints() -> Vec<WideAngleConstraint> {
 }
 
 fn session() -> WideAngleSession {
-    WideAngleSession { constraints: constraints(), ..WideAngleSession::default() }
+    WideAngleSession::default().with_constraints(constraints())
 }
 
 #[story(WideAngleWorkspace, covers = [Default], drive = Drive::Never)]
@@ -132,7 +132,7 @@ fn lines(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let canvas = FullWindowCanvas::new(ToolPath::Freehand, &view, pictures.source()).controls(|ui, rect| {
         seen = Some(
             ConstraintLines::new("Constraint lines", &session, &Bowed)
-                .image([IMAGE.width, IMAGE.height], [IMAGE.width, IMAGE.height])
+                .picture([IMAGE.width, IMAGE.height], [IMAGE.width, IMAGE.height])
                 .show_at(ui, rect),
         );
     });

@@ -18,6 +18,19 @@ use egui::{Color32, ColorImage, Event, Key, Modifiers, PointerButton, Pos2, Vec2
 
 const IMAGE: [u32; 2] = [400, 200];
 
+/// The test picture's colour: data, not a theme colour.
+// design: allow(picture data)
+const PICTURE: Color32 = Color32::from_gray(0x80);
+
+/// A step of the arrow keys in document pixels, and the step with Shift.
+const NUDGE: f64 = 1.0;
+const NUDGE_FAR: f64 = 10.0;
+
+/// A distance along one axis, in points.
+fn along(x: f32, y: f32) -> Vec2 {
+    Vec2::X * x + Vec2::Y * y
+}
+
 /// A grey picture.
 struct Grey(u64);
 
@@ -35,7 +48,7 @@ impl RasterSource for Grey {
     }
 
     fn read(&self, _: PixelRect, _: u32, out: &mut ColorImage) {
-        out.pixels.fill(Color32::GRAY);
+        out.pixels.fill(PICTURE);
     }
 }
 
@@ -86,11 +99,11 @@ struct App {
 }
 
 fn line(a: [f64; 2], b: [f64; 2]) -> WideAngleConstraint {
-    WideAngleConstraint { a, b, orientation: ConstraintOrientation::Free }
+    WideAngleConstraint::new(a, b, ConstraintOrientation::Free)
 }
 
 fn fixture(constraints: Vec<WideAngleConstraint>) -> (Fixture, Rc<RefCell<App>>) {
-    let session = WideAngleSession { constraints, ..WideAngleSession::default() };
+    let session = WideAngleSession::default().with_constraints(constraints);
     let app = Rc::new(RefCell::new(App {
         workspace: WideAngleWorkspace::new(WideAngleOpen::new(IMAGE, "Layer 1").session(session)),
         sources: Sources { source: Grey(1), corrected: Grey(2) },
@@ -105,7 +118,7 @@ fn fixture(constraints: Vec<WideAngleConstraint>) -> (Fixture, Rc<RefCell<App>>)
         *timing = out.timing.or(*timing);
         *closed |= out.closed.is_some();
     });
-    fixture.room(Vec2::new(900.0, 600.0));
+    fixture.room(along(900.0, 600.0));
     fixture.settle();
     (fixture, app)
 }
@@ -148,12 +161,12 @@ fn a_drag_over_six_points_adds_a_constraint_and_shift_aligns_it() {
 
     let (mut fixture, app) = fixture(Vec::new());
     let from = screen(&fixture, &app, [200.0, 100.0]);
-    drag(&mut fixture, from, Vec2::new(3.0, 0.0), Modifiers::NONE);
+    drag(&mut fixture, from, along(3.0, 0.0), Modifiers::NONE);
     assert!(constraints(&app).is_empty(), "3 points is a click");
 
-    drag(&mut fixture, from, Vec2::new(60.0, 4.0), Modifiers::NONE);
-    drag(&mut fixture, from, Vec2::new(40.0, 10.0), Modifiers::SHIFT);
-    drag(&mut fixture, from, Vec2::new(10.0, 40.0), Modifiers::SHIFT);
+    drag(&mut fixture, from, along(60.0, 4.0), Modifiers::NONE);
+    drag(&mut fixture, from, along(40.0, 10.0), Modifiers::SHIFT);
+    drag(&mut fixture, from, along(10.0, 40.0), Modifiers::SHIFT);
     let orientations: Vec<_> = constraints(&app).iter().map(|c| c.orientation).collect();
     assert_eq!(orientations, [ConstraintOrientation::Free, ConstraintOrientation::Horizontal, ConstraintOrientation::Vertical]);
 }
@@ -201,10 +214,10 @@ fn constraints_are_keyboard_parts_that_nudge_and_delete() {
     let before = constraints(&app)[1].clone();
     fixture.key(Key::ArrowRight, Modifiers::NONE);
     fixture.idle(2);
-    assert_eq!(constraints(&app)[1].a[0], before.a[0] + 1.0, "an arrow moves the focused constraint one pixel");
+    assert_eq!(constraints(&app)[1].a[0], before.a[0] + NUDGE, "an arrow moves the focused constraint one pixel");
     fixture.key(Key::ArrowDown, Modifiers::SHIFT);
     fixture.idle(2);
-    assert_eq!(constraints(&app)[1].b, [before.b[0] + 1.0, before.b[1] + 10.0], "Shift moves it ten");
+    assert_eq!(constraints(&app)[1].b, [before.b[0] + NUDGE, before.b[1] + NUDGE_FAR], "Shift moves it ten");
     fixture.key(Key::Delete, Modifiers::NONE);
     fixture.idle(2);
     assert_eq!(constraints(&app).len(), 1);
@@ -216,11 +229,11 @@ fn undo_during_a_drag_cancels_the_drag() {
     let from = screen(&fixture, &app, [100.0, 100.0]);
     fixture.frame(vec![Event::PointerMoved(from)]);
     fixture.frame(vec![Event::PointerButton { pos: from, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE }]);
-    fixture.frame(vec![Event::PointerMoved(from + Vec2::new(80.0, 0.0))]);
+    fixture.frame(vec![Event::PointerMoved(from + along(80.0, 0.0))]);
     app.borrow_mut().workspace.step(Step::Undo);
     fixture.idle(2);
     fixture.frame(vec![Event::PointerButton {
-        pos: from + Vec2::new(80.0, 0.0),
+        pos: from + along(80.0, 0.0),
         button: PointerButton::Primary,
         pressed: false,
         modifiers: Modifiers::NONE,
@@ -235,10 +248,10 @@ fn a_tool_switch_during_a_drag_cancels_the_drag() {
     let from = screen(&fixture, &app, [100.0, 100.0]);
     fixture.frame(vec![Event::PointerMoved(from)]);
     fixture.frame(vec![Event::PointerButton { pos: from, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE }]);
-    fixture.frame(vec![Event::PointerMoved(from + Vec2::new(80.0, 0.0))]);
+    fixture.frame(vec![Event::PointerMoved(from + along(80.0, 0.0))]);
     fixture.key(Key::H, Modifiers::NONE);
     fixture.frame(vec![Event::PointerButton {
-        pos: from + Vec2::new(80.0, 0.0),
+        pos: from + along(80.0, 0.0),
         button: PointerButton::Primary,
         pressed: false,
         modifiers: Modifiers::NONE,

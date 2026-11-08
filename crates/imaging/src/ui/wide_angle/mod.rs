@@ -46,9 +46,10 @@ use craft_ui::menu::{Menu, MenuItem};
 use craft_ui::patterns::form_dialogs::{Param, ParamDialog, ParamKind};
 use craft_ui::rails::{LastUsed, RailTool, ToolRail, ToolSlot};
 use craft_ui::runtime::commands::{CommandSet as _, Commands as _, Fired};
-use craft_ui::runtime::env::{CloseReason, Env, Label};
+use craft_ui::runtime::env::{Env, Label};
+use craft_ui::runtime::overlay::CloseReason;
+use craft_ui::runtime::pending::{Job, Pending};
 use craft_ui::runtime::words::CommonWords;
-use craft_ui::runtime::{Job, Pending};
 use craft_ui::sections::{DialogRole, FooterButton};
 use egui::{Id, Rect, Ui};
 
@@ -335,7 +336,7 @@ impl WideAngleWorkspace {
                 let shown_source: &dyn RasterSource = corrected.unwrap_or(image);
                 let canvas_size = shown_source.size();
                 let pixels = [canvas_size.width, canvas_size.height];
-                body.constraint.image(pixels, size);
+                body.constraint.picture(pixels, size);
                 let draft = body.constraint.draft();
                 let mut view = body.view.unwrap_or_else(FullWindowView::new);
                 for key in &zooms {
@@ -374,7 +375,7 @@ impl WideAngleWorkspace {
                     let canvas = FullWindowCanvas::new(path, &view, shown_source).navigation(navigation).tool(active).controls(|ui, rect| {
                         lines_out = Some(
                             ConstraintLines::new(words.constraint_lines.clone(), &snapshot, geometry)
-                                .image(pixels, size)
+                                .picture(pixels, size)
                                 .corrected(corrected.is_some())
                                 .draft(draft)
                                 .show_at(ui, rect),
@@ -438,7 +439,7 @@ impl WideAngleWorkspace {
                             Some("vertical") => ConstraintOrientation::Vertical,
                             _ => ConstraintOrientation::Free,
                         };
-                        let constraint = WideAngleConstraint { a: point("start"), b: point("end"), orientation };
+                        let constraint = WideAngleConstraint::new(point("start"), point("end"), orientation);
                         actions.borrow_mut().push(Action::Constraint(WideAngleConstraintEdit::Add(constraint)));
                     }
                     if !open || form.closed.is_some() {
