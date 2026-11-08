@@ -290,6 +290,12 @@ impl<'a> List<'a> {
         self
     }
 
+    /// The collection's own empty-state text.
+    pub fn empty_text(mut self, text: &str) -> Self {
+        self.items = self.items.empty(text);
+        self
+    }
+
     pub fn on_empty(mut self, seen: &'a Cell<Rect>) -> Self {
         self.on_empty = Some(seen);
         self
