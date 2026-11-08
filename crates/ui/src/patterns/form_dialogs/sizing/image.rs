@@ -210,7 +210,7 @@ type Build = dyn for<'b> Fn(Bind<'b, ImageSizeValues>) -> ImageSize<'b> + Send;
 /// opens it with the values of its document and takes the [`ImageSizeResult`] from the host.
 ///
 /// ```ignore
-/// host.open(HostedImageSize::new(ImageSizeValues::new(document_size), ImageSize::new));
+/// host.open(HostedImageSize::new(ImageSizeValues::new(document_size), |values| ImageSize::new(values)));
 /// if let Some(DialogResult::Ok(result)) = host.take::<HostedImageSize>() {
 ///     resize(result);
 /// }
@@ -222,7 +222,7 @@ pub struct HostedImageSize {
 }
 
 impl HostedImageSize {
-    /// A dialog opening with `values`; `build` makes it over the values (`ImageSize::new`, with its settings).
+    /// A dialog opening with `values`; `build` makes it over the values (`ImageSize::new` with its settings).
     pub fn new(values: ImageSizeValues, build: impl for<'b> Fn(Bind<'b, ImageSizeValues>) -> ImageSize<'b> + Send + 'static) -> Self {
         HostedImageSize { id: dialog_id(KEY), values, build: Box::new(build) }
     }

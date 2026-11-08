@@ -166,7 +166,7 @@ fn the_method_list_follows_the_full_list() {
 fn a_hosted_image_size_shows_the_document_size_and_answers_through_the_host() {
     const DOCUMENT: PixelSize = PixelSize::new(1200, 800);
     let host = Rc::new(RefCell::new(DialogHost::new()));
-    host.borrow_mut().open(HostedImageSize::new(ImageSizeValues::new(DOCUMENT), ImageSize::new));
+    host.borrow_mut().open(HostedImageSize::new(ImageSizeValues::new(DOCUMENT), |values| ImageSize::new(values)));
     let shown = Rc::clone(&host);
     let mut fixture = Fixture::new(move |ui| shown.borrow_mut().run(ui));
     fixture.settle();
