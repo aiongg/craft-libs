@@ -305,11 +305,13 @@ impl Panes<'_, '_> {
             Side::Upper => "Video",
             Side::Lower => "Audio",
         };
-        let mut stack = TrackStack::new(label, self.name, self.words)
-            .tracks(pane)
-            .playhead(self.playhead)
-            .snapped_at(self.snapped.get())
-            .marquee(self.marquee.get());
+        let mut stack = TrackStack::new(label, self.name, self.words).tracks(pane).playhead(self.playhead);
+        if let Some(at) = self.snapped.get() {
+            stack = stack.snapped_at(at);
+        }
+        if let Some(swept) = self.marquee.get() {
+            stack = stack.marquee(swept);
+        }
         if side == Side::Upper {
             stack = stack.anchored_at_end();
         }
