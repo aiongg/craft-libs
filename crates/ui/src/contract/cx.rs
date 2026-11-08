@@ -1371,11 +1371,12 @@ impl<K> WordSetCx for ItemCx<'_, '_, K> {
 /// Rich tooltip content an item stored.
 pub(crate) type ItemTip<'r> = Box<dyn FnOnce(&mut Ui) + 'r>;
 
-/// A menu an item stored: it opens from the item's part `anchor` and hangs under it.
-pub(crate) struct ItemMenu<'r> {
-    pub(crate) label: Label,
-    pub(crate) anchor: craft_behavior::PartRef,
-    pub(crate) rows: Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'r>,
+/// The part of one item that opens a menu or popover: `ItemCx::part_opener` names it and
+/// `CollectionResponse::opener` gives its response after the collection has been shown.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ItemOpener {
+    pub(crate) item: Id,
+    pub(crate) part: craft_behavior::PartRef,
 }
 
 /// What the item closure reads for one item: a view over the pipeline's memory stage keyed by the item.
@@ -1405,7 +1406,8 @@ pub struct ItemCx<'a, 'r, K> {
     pub(crate) id: Id,
     pub(crate) memory: &'a mut MemoryStage,
     pub(crate) tip: Option<ItemTip<'r>>,
-    pub(crate) menus: Vec<ItemMenu<'r>>,
+    pub(crate) openers: Vec<ItemOpener>,
+    pub(crate) item: Id,
     pub(crate) cells: Vec<(craft_behavior::ColumnKey, Rect)>,
     pub(crate) grid: Option<&'a craft_behavior::GridView>,
 }
@@ -1436,10 +1438,14 @@ impl<'r, K> ItemCx<'_, 'r, K> {
         self.tip = Some(Box::new(tip));
     }
 
-    /// A menu named `label` that a click on the item's part `anchor` opens, hanging under that part. `rows` shows its
-    /// rows; their picks act through the closure, which may borrow app data.
-    pub fn menu(&mut self, label: impl Into<Label>, anchor: impl Into<craft_behavior::PartRef>, rows: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'r) {
-        self.menus.push(ItemMenu { label: label.into(), anchor: anchor.into(), rows: Box::new(rows) });
+    /// The opener for the item's part `part`: after the collection is shown, `CollectionResponse::opener` gives the
+    /// part's response (its click this pass and its rect), and a layer-5 menu opens from it with `opened_by`.
+    pub fn part_opener(&mut self, part: impl Into<craft_behavior::PartRef>) -> ItemOpener {
+        let opener = ItemOpener { item: self.item, part: part.into() };
+        if !self.openers.contains(&opener) {
+            self.openers.push(opener);
+        }
+        opener
     }
 }
 

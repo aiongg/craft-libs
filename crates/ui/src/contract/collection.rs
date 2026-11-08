@@ -908,6 +908,12 @@ impl<K, E> CollectionResponse<K, E> {
     ) -> Self {
         CollectionResponse { response, events, visible, shown, select: gestures.select, rename: gestures.rename, reorder: gestures.reorder }
     }
+
+    /// The response of the item part `opener` names: its click this pass and its rect. A menu or popover hangs from
+    /// it with `opened_by`, as from a button. `None` while the item is not shown.
+    pub fn opener(&self, opener: super::ItemOpener) -> Option<&Response> {
+        self.shown.iter().flat_map(|row| &row.openers).find(|(held, _)| *held == opener).map(|(_, response)| response)
+    }
 }
 
 /// The geometry of one row the collection showed this pass.
@@ -920,11 +926,13 @@ pub struct ShownRow<K> {
     pub rect: egui::Rect,
     /// The rect of each cell, by column key; empty for a collection with no columns.
     pub cells: Vec<(ColumnKey, egui::Rect)>,
+    /// The openers the row's item asked for (`ItemCx::part_opener`), each with the part's response this pass.
+    pub openers: Vec<(super::ItemOpener, Response)>,
 }
 
 impl<K> ShownRow<K> {
     pub(crate) fn new(key: K, rect: egui::Rect, cells: Vec<(ColumnKey, egui::Rect)>) -> Self {
-        ShownRow { key, rect, cells }
+        ShownRow { key, rect, cells, openers: Vec::new() }
     }
 }
 

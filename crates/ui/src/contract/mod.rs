@@ -47,8 +47,10 @@ pub use container::{
     ScrollAxes, ShellPane, Sizing, ThemeScope,
 };
 pub use craft_ui_macros::{CommandSet, Component, Pattern, Props, register_contract};
+pub use cx::{
+    Accessible, Activation, BodyCx, Cx, CxCore, Edit, Focus, ItemCx, ItemOpener, MeasureCx, PartBuilder, PartsCx, Pointer, Styled, WordSetCx,
+};
 pub(crate) use cx::{SeenPress, THUMB};
-pub use cx::{Accessible, Activation, BodyCx, Cx, CxCore, Edit, Focus, ItemCx, MeasureCx, PartBuilder, PartsCx, Pointer, Styled, WordSetCx};
 pub use entry::Entry;
 pub use group::{GroupHandle, GroupKind, GroupState};
 pub use held::Held;

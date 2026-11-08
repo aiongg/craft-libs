@@ -4,7 +4,8 @@ use super::kit::{Count, DISMISS, Dismissed, List, ROW_H, Row, Words};
 use craft_behavior::PartKey;
 use craft_behavior::{CancelReason, EditEvent, Selection, SelectionChange};
 use craft_ui::contract::{Bind, CollectionEvent, CollectionResponse, Props as _, SelectMode, Show as _, ShowCollection as _};
-use craft_ui::menu::MenuItem;
+use craft_ui::contract::{Role, ShowContainer as _, Trigger};
+use craft_ui::menu::{Menu, MenuItem};
 use craft_ui::runtime::focus::{FocusTarget, request};
 use craft_ui::testing::focus::egui_focused;
 use craft_ui::testing::layout::in_region;
@@ -878,31 +879,43 @@ fn a_secondary_press_on_an_unselected_row_selects_leads_and_focuses() {
     assert!(!seen.events.borrow().iter().any(|event| matches!(event, CollectionEvent::ContextMenu(_))), "nothing opens on the press");
 }
 
-/// A menu an item stores opens from a click on the item's part, hangs under that part, and a pick runs its row.
+/// A click on an item's menu part opens the caller's menu under that part in the pass of the click, a pick runs its
+/// row and Escape closes it.
 #[trial]
-fn an_item_menu_opens_under_its_part_and_a_pick_runs() {
+fn an_item_menu_part_opens_the_callers_menu_under_it_and_escape_closes_it() {
     let picked = Rc::new(Cell::new(0));
     let shown = picked.clone();
+    let opener = Rc::new(Cell::new(None));
+    let asked = opener.clone();
     let mut fixture = Fixture::new(move |ui| {
         let words = Words::flat(&["a", "b"]);
-        let picked = shown.clone();
-        List::new(SelectMode::Single).id_salt("list").show_items(ui, &words, &mut |_, icx| {
-            let picked = picked.clone();
-            icx.menu("Row actions", DISMISS, move |ui, _| {
+        let out = List::new(SelectMode::Single).id_salt("list").show_items(ui, &words, &mut |key, icx| {
+            if *key == 1 {
+                asked.set(Some(icx.part_opener(DISMISS)));
+            }
+            Row::new().dismissable()
+        });
+        if let Some(response) = opener.get().and_then(|opener| out.opener(opener)) {
+            let picked = shown.clone();
+            Menu::new("Row actions").opened_by(response, Trigger::Click).show(ui, |ui, _| {
                 if MenuItem::new("Duplicate").show(ui).ran {
                     picked.set(picked.get() + 1);
                 }
             });
-            Row::new().dismissable()
-        });
+        }
     });
     fixture.settle();
-    let row = fixture.by_role(craft_ui::contract::Role::LIST_ITEM).into_iter().nth(1).expect("the second row has a node");
+    let row = fixture.by_role(Role::LIST_ITEM).into_iter().nth(1).expect("the second row has a node");
     let part = Rect::from_min_size(row.rect.min, Vec2::splat(ROW_H));
     fixture.click_at(part.center());
     fixture.settle();
-    let menu = fixture.by_role(craft_ui::contract::Role::MENU).into_iter().next().expect("the click opens the item's menu");
+    let menu = fixture.by_role(Role::MENU).into_iter().next().expect("the click opens the item's menu");
     assert!(menu.rect.top() >= part.center().y, "the menu hangs under the part: {:?} under {:?}", menu.rect, part);
+    fixture.key(Key::Escape, Modifiers::NONE);
+    fixture.settle();
+    assert!(fixture.by_role(Role::MENU).is_empty(), "Escape closes the menu");
+    fixture.click_at(part.center());
+    fixture.settle();
     let duplicate = fixture.by_label("Duplicate").expect("the menu shows its row");
     fixture.click(&duplicate);
     fixture.settle();
