@@ -852,6 +852,11 @@ impl WindowHost {
         WindowHost { ctx: ctx.clone() }
     }
 
+    /// The viewport the running pass is for.
+    pub fn current(&self) -> ViewportId {
+        pass::current_viewport(&self.ctx)
+    }
+
     /// The shell as the running viewport sees it.
     pub fn shell(&self) -> ShellInfo {
         shell_of(&self.ctx, pass::current_viewport(&self.ctx))

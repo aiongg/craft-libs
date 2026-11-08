@@ -24,6 +24,9 @@ mod words;
 
 pub mod desktop;
 
+pub mod cross_window;
+pub mod native;
+
 pub use config::{DockConfig, DockSides};
 pub use drop::{DockDrag, DockDropTarget, DockDropped, DragUnit, cancel_on_replacement, float_drop, resolve_drop, start_group_drag};
 pub use event::{DockEvent, FloatSpace, HidePanels};

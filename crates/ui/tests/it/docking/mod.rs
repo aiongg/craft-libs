@@ -17,6 +17,8 @@ mod targets;
 
 mod columns;
 
+mod native;
+
 /// The docking sizes of the default theme with the given divider gap, least pane and strip height.
 fn sizes(gap: f32, least_pane: f32, strip: f32) -> DockSizes {
     with_cx(&egui::Context::default(), &tokens(Mode::Light, Contrast::Standard), Variant::SECONDARY, ControlSize::Md, |cx| {
