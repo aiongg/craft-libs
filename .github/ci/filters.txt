@@ -1,0 +1,2 @@
+craft-pages it setup::
+craft-ui it api_map
