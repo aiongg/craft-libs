@@ -775,16 +775,6 @@ impl<'a> CommentComposer<'a> {
     }
 }
 
-/// The commands of the new-comment composer.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui::contract::CommandSet)]
-#[command(prefix = "review", scope = "review.composer")]
-#[non_exhaustive]
-pub enum ComposerCommand {
-    /// Post the comment from the multi-line field.
-    #[command(label = "Post", default = "Cmd+Enter", modal = "always")]
-    Post,
-}
-
 /// What the composer did this pass.
 #[must_use]
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -806,15 +796,8 @@ impl CommentComposer<'_> {
         let mut open = true;
         let mut posted = None;
         let mut cancel = false;
-        let shown = Popover::new(words.add_comment.clone(), Bind::bound(&mut open))
-            .at_point(anchor)
-            .initial_focus(Initial::Default)
-            .command_scope(<ComposerCommand as craft_ui::contract::CommandSet>::SCOPE)
-            .show(ui, |ui, cx| {
-                let mut chord = false;
-                while cx.take_command::<ComposerCommand>().is_some() {
-                    chord = true;
-                }
+        let shown =
+            Popover::new(words.add_comment.clone(), Bind::bound(&mut open)).at_point(anchor).initial_focus(Initial::Default).show(ui, |ui, _| {
                 Stack::new().show(ui, |ui, _| {
                     let field = TextField::new(words.add_comment.clone(), Bind::bound(&mut *draft))
                         .lines(COMPOSER_ROWS)
@@ -824,7 +807,8 @@ impl CommentComposer<'_> {
                         .show(ui);
                     cancel |= field.escaped;
                     let text = draft.trim().to_owned();
-                    if (field.submitted || chord) && !text.is_empty() {
+                    // The multi-line field submits on Cmd/Ctrl+Enter; plain Enter adds a line.
+                    if field.submitted && field.submit_mods.cmd && !text.is_empty() {
                         posted = Some(text.clone());
                     }
                     Row::new().show(ui, |ui, _| {

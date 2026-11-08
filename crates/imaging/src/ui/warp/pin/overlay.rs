@@ -367,13 +367,22 @@ impl PinWarp<'_> {
         if cx.intents().take_exact(&Intent::Cancel) {
             self.report.discard = true;
         }
+        // Focus arriving on a pin by a key or a request selects it. A press selects by its own rule (a Shift-click
+        // grows the selection and focuses the pin it adds), so an arrival with the pin pressed selects nothing more.
+        let arrived = cx.focus_arrived().filter(|part| part.key == PIN).and_then(|part| part.index).map(|index| index as usize);
+        if let Some(arrived) = arrived.filter(|&i| i < pins.len()) {
+            let pressed =
+                cx.part_if_declared(PIN.at(arrived as u64)).is_some_and(|result| !matches!(result.press.phase, PressPhase::Idle | PressPhase::Hover));
+            if !pressed && self.report.select.is_none() {
+                self.report.select = Some(vec![arrived]);
+            }
+        }
         let focused = cx.active_part().filter(|part| part.key == PIN).and_then(|part| part.index).map(|index| index as usize);
         let Some(picked) = focused.filter(|&i| i < pins.len()) else {
             return;
         };
         // The pin keys pick: Page cycles through the pins, Home and End go to the ends, and the pin they reach is
-        // focused and selected. A Shift-click grows the selection and focuses the pin it adds, so focus alone
-        // selects nothing.
+        // focused and selected.
         let target = [
             (NavMove::PageDown, (picked + 1) % pins.len()),
             (NavMove::PageUp, (picked + pins.len() - 1) % pins.len()),

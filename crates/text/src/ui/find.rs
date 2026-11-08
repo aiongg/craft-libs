@@ -227,16 +227,15 @@ impl<'a> FindBar<'a> {
             if opened {
                 focus::request(ui.ctx(), FocusTarget::Id(edit.response.id));
             }
-            // The Esc that clears the field arrives with the emptied value; only a second one closes the bar.
-            let was_empty = query.is_empty();
             if let Some(value) = edit.event.as_ref().and_then(|event| event.value()) {
                 query.clone_from(value);
                 out.search = true;
             }
             if edit.submitted {
-                step = Some(ui.input(|input| input.modifiers.shift));
+                step = Some(edit.submit_mods.shift);
             }
-            if edit.escaped && was_empty {
+            // The field takes the Esc that clears it; an Esc it passes on closes the bar.
+            if cx.take_cancel() {
                 out.closed = true;
             }
             let text = count_text(&words, query.trim().is_empty(), matches, progress);
