@@ -1,6 +1,6 @@
 //! The empty-state text of a collection: centred muted text that is its own label node.
 
-use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role};
+use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role, Show as _};
 use crate::fonts::stack_facts;
 use crate::primitives::TextEnv;
 use crate::primitives::{HAlign, Span, TextRun, Wrap};
