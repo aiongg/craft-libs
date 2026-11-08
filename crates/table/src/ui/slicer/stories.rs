@@ -1,7 +1,7 @@
 //! Stories of `Slicer`.
 
 use super::{Slicer, SlicerCard, SlicerTile, SlicerTiles, Values};
-use craft_ui::contract::{ShowCollection as _, ShowContainer as _, Styled as _};
+use craft_ui::contract::{Props as _, ShowCollection as _, ShowContainer as _};
 use craft_ui::testing::{Drive, StoryData, StoryOutput, show_as_only_item, story};
 use egui::Ui;
 
