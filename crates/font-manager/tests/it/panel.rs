@@ -448,3 +448,15 @@ fn samples_follow_the_language_filter_then_the_script() {
     assert_eq!(rig.results(), ["Noto Sans JP"]);
     assert!(rig.present("いろはにほへと ちりぬるを 色は匂へど 散りぬるを"));
 }
+
+#[trial]
+fn zz_dump_rects() {
+    let rig = setup("dump");
+    let tree = rig.fx.tree();
+    let mut out = String::new();
+    for key in tree.keys() {
+        let Some(b) = tree.bounds_of(key) else { continue };
+        out.push_str(&format!("{:?} {:?} {:?}\n", tree.role_of(key), tree.name_of(key), b));
+    }
+    panic!("DUMP\n{out}");
+}
