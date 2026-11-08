@@ -1,31 +1,32 @@
-//! [`ScopePanel`]: views, the Channel and Source rows, the statistics grid, markers and the
-//! cached-data mark, and the data the host passes ([`ScopeFrame`]).
+//! [`ScopePanel`]: views, the Channel and Source rows, the statistics grid, markers and the cached-data mark, and the
+//! data the host passes ([`ScopeFrame`]).
 
-use std::ops::RangeInclusive;
-
-use craft_theme::{ControlSize, TypeRole};
-use craft_ui::behavior::{ClaimedKey, KeyClaim};
-use craft_ui::composites::ChannelColor;
-use craft_ui::controls::{IconButton, Select};
-use craft_ui::direction;
-use craft_ui::docking::panel_menu::PanelCommand;
-use craft_ui::focus::key_owner::{self, KeyOwner, OwnerGate};
-use craft_ui::icons::Icon;
-use craft_ui::localized::{Labels as _, LocaleNumbers};
-use craft_ui::menu::{ContextMenu, MenuEntry};
-use craft_ui::primitives::{Content, Corner, Text};
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format};
-use egui::accesskit::Role;
-use egui::{AsIdSalt, Color32, Id, IdSalt, Key, Modifiers, Rect, Response, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2, pos2, vec2};
-
-use super::clipping::{ClippingDiagnostic, ClippingFrame, ClippingMode, ClippingWarnings, warning_button};
-use super::labels::ScopePanelLabels;
-use super::menu::ScopeMenuAction;
-use super::plot::{Shown, all_channels, main_plot, resolve_channel};
-use super::style::ScopePanelStyle;
+use super::clipping::{ClipWarning, ClippingDiagnostic, ClippingFrame, ClippingMode, ClippingWarnings};
+use super::menu::{ScopeCommand, ScopeMenuAction};
+use super::plot::{Shown, plot_data, resolve_channel};
 use super::vectorscope::{VectorscopeFrame, VectorscopePlot};
-use super::zones::{ScopeZoneEdit, ToneZone, zones};
+use super::words::ScopeWords;
+use super::zones::{ScopeZoneEdit, ToneZone, ToneZones};
 use crate::scopes::{HistogramStatistics, histogram_statistics};
+use crate::ui::histogram::{ChannelColor, Histogram, HistogramData, LevelRange, PlotHeight, StaleMark};
+use craft_behavior::{ColumnWidth, EditEvent, IconId, Proposal};
+use craft_theme::{ControlSize, Mode};
+use craft_ui::buttons::IconButton;
+use craft_ui::contract::{
+    Access, Bind, BodyCx, Common, Component, Container, ContainerProps, Cx, Entry, Gap, NoValue, Outcome, Pattern, Props as _, Role, Show as _,
+    ShowContainer as _, Sizing, ThemeScope, clicked,
+};
+use craft_ui::contract::{CommandSet as _, Commands as _};
+use craft_ui::display::{Badge, Shade, Text};
+use craft_ui::form::Field;
+use craft_ui::layout::BodyLayout;
+use craft_ui::layout_components::{Grid, Row};
+use craft_ui::menu::{Menu, MenuItem};
+use craft_ui::pickers::Select;
+use craft_ui::runtime::commands::FirePhase;
+use craft_ui::runtime::env::{Env, Label};
+use craft_ui::style::{ComponentStyle, StyleCx, TypeRole};
+use egui::{Rect, Response, Ui, pos2};
 
 /// The Channel key of [`HistogramSet::colors`]'s overlay entry, kept in
 /// [`ScopeSettings::channel`].
@@ -34,6 +35,7 @@ pub const COLORS_CHANNEL: &str = "colors";
 /// One channel's counted histogram, as the host counted it (colour management and the count are
 /// the host's).
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct ScopeChannel<'a> {
     /// A stable key ("rgb", "red", "cyan", "luminosity" …), kept in [`ScopeSettings::channel`].
     /// The first channel of a [`HistogramSet`] is the composite.
@@ -53,18 +55,20 @@ pub struct ScopeChannel<'a> {
 
 /// How the Colors entry overlays the colour channels.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ChannelOverlay {
     /// Light (RGB): fills add where they overlap, on the dark plot
-    /// ([`HistogramData::rgb`](craft_ui::composites::HistogramData::rgb)'s look).
+    /// (the RGB look of [`HistogramData`]).
     #[default]
     Light,
     /// Inks (CMYK): fills multiply where they overlap
-    /// ([`HistogramData::channels`](craft_ui::composites::HistogramData::channels)).
+    /// (the inks look of [`HistogramData`]).
     Ink,
 }
 
 /// The histograms the host counted for the colour mode, and how fresh they are.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct HistogramSet<'a> {
     pub(super) channels: &'a [ScopeChannel<'a>],
     pub(super) original: Option<&'a [ScopeChannel<'a>]>,
@@ -116,6 +120,7 @@ impl<'a> HistogramSet<'a> {
 /// A sample under the pointer, for the hover readout badge, in the form
 /// [`ScopeSettings::lab_readouts`] asks for (the host does the colour management).
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum ScopeReadout {
     /// R, G, B in 0..=1, shown in 0..=255 without decimals.
     Rgb([f32; 3]),
@@ -126,6 +131,7 @@ pub enum ScopeReadout {
 /// Everything the host counted for one pass: the histograms and, for Camera Raw's scope, the
 /// vectorscope, the clipping state and the hover sample.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct ScopeFrame<'a> {
     pub(super) histogram: HistogramSet<'a>,
     pub(super) vectorscope: Option<VectorscopeFrame<'a>>,
@@ -160,6 +166,7 @@ impl<'a> ScopeFrame<'a> {
 
 /// A Source-menu entry (Entire Image, Selected Layer, Adjustment Composite): what the host counts.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ScopeSource<'a> {
     /// A stable key, kept in [`ScopeSettings::source`].
     pub key: &'a str,
@@ -170,6 +177,7 @@ pub struct ScopeSource<'a> {
 /// The panel's view (its menu's Compact, Expanded and All Channels View).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum ScopeView {
     /// The plot alone (Photoshop's default).
     #[default]
@@ -185,6 +193,7 @@ pub enum ScopeView {
 /// their defaults.
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct ScopeSettings {
     /// The view.
     pub view: ScopeView,
@@ -256,96 +265,130 @@ impl ScopeSettings {
 /// What the panel keeps for the app between passes: the persisted settings and the selected
 /// level range (not persisted).
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct ScopePanelState {
     /// The persisted section.
     pub settings: ScopeSettings,
     /// The level range dragged on the plot, in levels; `None` when nothing is selected.
-    pub range: Option<RangeInclusive<f32>>,
+    pub range: Option<LevelRange>,
+}
+
+/// The columns of the statistics grid: label and value, twice.
+static STATISTICS_COLUMNS: [ColumnWidth; 4] = [ColumnWidth::Content; 4];
+
+/// The style of the panel's blocks: no padding of their own.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+struct BlockStyle {
+    #[style(metrics)]
+    metrics: craft_behavior::Metrics,
+}
+
+/// A container with no surface: the panel's command scope, and the dark theme scope of a plot that is dark in every
+/// theme.
+#[derive(craft_ui::contract::Component)]
+#[component(container)]
+struct Block {
+    #[common]
+    common: Common,
+    #[container]
+    props: ContainerProps,
+}
+
+impl Block {
+    fn new(label: impl Into<Label>, props: ContainerProps) -> Self {
+        Block { common: Common::new(), props: props.sizing(Sizing::Content).layout(BodyLayout::stack()) }.label(label)
+    }
+
+    /// The panel's body: the instance of the `panel.scopes` command scope.
+    fn panel(label: impl Into<Label>) -> Self {
+        Block::new(label, ContainerProps::new().command_scope(ScopeCommand::SCOPE))
+    }
+
+    /// A plot block that resolves its tokens in the dark mode.
+    fn dark(label: impl Into<Label>) -> Self {
+        Block::new(label, ContainerProps::new().theme(ThemeScope::mode(Mode::Dark)))
+    }
+}
+
+impl Component for Block {
+    const ROLE: Role = Role::GROUP;
+    const ALT_ROLES: &'static [Role] = &[Role::None];
+    type Style = BlockStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: BlockStyleKey) -> BlockStyle {
+        BlockStyle { metrics: craft_behavior::Metrics::new() }
+    }
+
+    fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
+        access.role(Role::None);
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.core.response
+    }
+}
+
+impl Container for Block {}
+
+/// Runs `content` in a block that resolves the dark mode when `dark`, else in the flow.
+fn themed<R>(ui: &mut Ui, dark: bool, label: &Label, content: impl FnOnce(&mut Ui) -> R) -> Option<R> {
+    if !dark {
+        return Some(content(ui));
+    }
+    let mut content = Some(content);
+    Block::dark(label.clone()).show(ui, |ui, _| content.take().map(|content| content(ui))).inner.flatten()
 }
 
 /// Photoshop's Histogram panel and Camera Raw's scope in one widget.
 ///
 /// **What the user sees.**
-/// - **Compact View**: the plot alone, the height high; a single channel in its colour.
-/// - **Expanded View**: the Channel row (a `Select` of the set's channels, then Colors when
-///   offered; the Uncached Refresh icon button at its end), the plot, the Source row (only with
-///   two or more [`sources`](Self::sources)), and the statistics grid when Show Statistics is on.
-/// - **All Channels View**: Expanded plus one plot per colour channel (the all channels height
-///   high, labelled with the channel's name above it).
-/// - The plot is the library [`Histogram`](craft_ui::composites::Histogram) on the fill:
-///   a single channel in its colour (in Expanded and All Channels only with Show Channels in
-///   Color, else `text.muted`), Colors as overlaid ribbons ([`ChannelOverlay`]), the original
-///   outlined over it, the host's [`markers`](Self::markers) (sampler ticks), the stale mark.
-///   A channel the mode lacks shows the composite.
-/// - The statistics grid: two label and value pairs per row: Mean, Std Dev,
-///   Median, Pixels for the whole histogram (Colors counts the composite), Level, Count,
-///   Percentile and Cache Level for the hovered level or the selected range, values at
-///   `TypeRole::Mono`, labels `text.muted`, the statistics gap between the pairs
-///   ([`histogram_statistics`](crate::scopes::histogram_statistics)). Level shows `a` or `a..b`;
-///   Mean and Std Dev two decimals, Percentile two decimals (PhotoCraft's).
-/// - With [`ScopeFrame::clipping`]: the two warning buttons in the plot's top corners, shadows at
-///   the start side and highlights at the end side. With [`ScopeFrame::vectorscope`] and Show
-///   Vectorscope: the [`VectorscopePlot`](super::VectorscopePlot) under the plot. With a
-///   [`readout`](ScopeFrame::readout): the badge in the plot's top centre.
-/// - With [`zones`](Self::zones): the tone zones over the plot ([`ToneZone`]).
+/// - **Compact View**: the plot alone; a single channel in its colour.
+/// - **Expanded View**: the Channel row (a `Select` of the set's channels, then Colors when offered; the Uncached
+///   Refresh icon button at its end), the plot, the Source row (only with two or more [`sources`](Self::sources)), and
+///   the statistics grid when Show Statistics is on.
+/// - **All Channels View**: Expanded plus one short plot per colour channel, captioned with the channel's name.
+/// - The plot is the [`Histogram`]: a single channel in its colour (in Expanded and All Channels only with Show
+///   Channels in Color, else neutral), Colors as overlaid ribbons ([`ChannelOverlay`]) on the dark scope, the original
+///   outlined over it, the host's [`markers`](Self::markers) and the stale mark. A channel the mode lacks shows the
+///   composite.
+/// - The statistics: a grid of two label and value pairs per row: Mean, Std Dev, Median, Pixels for the whole
+///   histogram (Colors counts the composite), Level, Count, Percentile and Cache Level for the hovered level or the
+///   selected range.
+/// - With [`ScopeFrame::clipping`]: the two [`ClipWarning`] buttons in the plot's top corners, shadows at the left and
+///   highlights at the right. With [`ScopeFrame::vectorscope`] and Show Vectorscope: the [`VectorscopePlot`] under the
+///   plot. With a [`readout`](ScopeFrame::readout): the badge in the plot's top centre.
+/// - With [`zones`](Self::zones): the [`ToneZones`] over the plot.
 ///
-/// **Pointer.** Hover reports the level ([`ScopePanelOutput::hovered_level`]) and fills Level,
-/// Count and Percentile; a drag selects a level range (the library histogram's selection: arrows
-/// move it, Shift moves the start edge, Esc or a click clears it), except with tone zones, where
-/// the drag edits the zone instead; a double-click, a click on the stale mark or the refresh
-/// button reports [`refresh`](ScopePanelOutput::refresh). Right-click, the Menu key or Shift+F10
-/// on a plot opens the scope menu ([`scope_menu`](Self::scope_menu)) when the frame has a
-/// vectorscope or clipping (Camera Raw's scope).
+/// **Pointer.** Hover reports the level and fills Level, Count and Percentile; a drag selects a level range (arrows
+/// move it, Esc or a click clears it), except with tone zones, where the drag edits the zone; a double click, a click
+/// on the stale mark or the refresh button reports [`refresh`](ScopePanelOutput::refresh). Right click, the Menu key
+/// or Shift+F10 on a plot opens the scope menu when the frame has a vectorscope or clipping.
 ///
-/// **Keyboard and focus.** The Channel and Source lists, the refresh button, the plot (for its
-/// selection and the focused tone zone) and the warning buttons are Tab stops. While the panel
-/// has the focus and no text field has, U toggles the shadow warning and O the highlight warning
-/// (the panel is the key owner through [`focus::key_owner`](craft_ui::focus::key_owner); S is the
-/// host's).
+/// **Keys.** The panel body is the instance of the `panel.scopes` command scope: while focus is in it, U toggles the
+/// shadow warning and O the highlight warning ([`ScopeCommand`]); S is the host's.
 ///
-/// **AccessKit.** The plot is the histogram's `Image` named [`ScopePanelLabels::histogram`] with
-/// the value text [`ScopePanelLabels::histogram_value`] ("Red channel, Entire Image"); a selection
-/// adds two `Slider` nodes. The warnings are `CheckBox`es; the zones a `Group` of `Slider`s; the
-/// statistics a `Table` of `Row`s and `Cell`s.
-///
-/// **Direction.** Plots, the vectorscope and the warning buttons never mirror
-/// (`Unmirrored::Graph`); the Channel and Source rows follow the interface direction.
-///
-/// **What the app gets back.** [`ScopePanelOutput`]; settings are edited in the state it was
-/// given and reported with `settings_changed`. The app recounts, persists and maps zone edits.
+/// **What the app gets back.** [`ScopePanelOutput`]; settings are edited in the state it was given and reported with
+/// `settings_changed`. The app recounts, persists and maps zone edits.
 #[must_use = "show the panel with `show`"]
+#[derive(Pattern, craft_ui::contract::Props)]
 pub struct ScopePanel<'a> {
-    pub(super) id_salt: IdSalt,
-    pub(super) state: &'a mut ScopePanelState,
-    pub(super) frame: Option<&'a ScopeFrame<'a>>,
-    pub(super) sources: &'a [ScopeSource<'a>],
-    pub(super) markers: &'a [(f32, String)],
-    pub(super) zones: &'a [ToneZone],
-    pub(super) zone_values: &'a [String],
-    pub(super) has_selection: bool,
-    pub(super) labels: Option<ScopePanelLabels>,
-    pub(super) enabled: bool,
+    state: &'a mut ScopePanelState,
+    frame: Option<&'a ScopeFrame<'a>>,
+    sources: &'a [ScopeSource<'a>],
+    markers: &'a [(f32, Label)],
+    zones: &'a [ToneZone],
+    zone_values: &'a [Label],
+    has_selection: bool,
 }
 
 impl<'a> ScopePanel<'a> {
-    /// A scope panel over `state`; `id_salt` keeps its focus, menus and drags.
-    pub fn new(id_salt: impl AsIdSalt, state: &'a mut ScopePanelState) -> Self {
-        Self {
-            id_salt: IdSalt::new(id_salt),
-            state,
-            frame: None,
-            sources: &[],
-            markers: &[],
-            zones: &[],
-            zone_values: &[],
-            has_selection: false,
-            labels: None,
-            enabled: true,
-        }
+    /// A scope panel over `state`.
+    pub fn new(state: &'a mut ScopePanelState) -> Self {
+        ScopePanel { state, frame: None, sources: &[], markers: &[], zones: &[], zone_values: &[], has_selection: false }
     }
 
-    /// This pass's counted data. Without a frame the panel draws nothing (the host shows
-    /// "Calculating…" itself).
+    /// This pass's counted data. Without a frame the panel draws nothing (the host shows "Calculating..." itself).
     pub fn frame(mut self, frame: &'a ScopeFrame<'a>) -> Self {
         self.frame = Some(frame);
         self
@@ -357,16 +400,15 @@ impl<'a> ScopePanel<'a> {
         self
     }
 
-    /// Ticks at the foot of the plot, `(level, label)`: the Color Samplers' levels in the shown
-    /// channel, computed by the host ([`Histogram::markers`](craft_ui::composites::Histogram::markers)).
-    pub fn markers(mut self, markers: &'a [(f32, String)]) -> Self {
+    /// Ticks at the foot of the plot, `(level, label)`: the Color Samplers' levels in the shown channel.
+    pub fn markers(mut self, markers: &'a [(f32, Label)]) -> Self {
         self.markers = markers;
         self
     }
 
-    /// The tone zones over the plot ([`ToneZone::CAMERA_RAW`] or [`ToneZone::LIGHTROOM`]) and each
-    /// zone's value text, in the same order (the tooltip and the AccessKit value).
-    pub fn zones(mut self, zones: &'a [ToneZone], values: &'a [String]) -> Self {
+    /// The tone zones over the plot ([`ToneZone::CAMERA_RAW`] or [`ToneZone::LIGHTROOM`]) and each zone's value text,
+    /// in the same order (the tooltip and the slider's value).
+    pub fn zones(mut self, zones: &'a [ToneZone], values: &'a [Label]) -> Self {
         self.zones = zones;
         self.zone_values = values;
         self
@@ -378,219 +420,283 @@ impl<'a> ScopePanel<'a> {
         self
     }
 
-    /// The words; the installed words' [`ScopePanelLabels`] without a call.
-    pub fn labels(mut self, labels: ScopePanelLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    /// Whether the panel takes input (default true).
-    pub fn enabled(mut self, enabled: bool) -> Self {
-        self.enabled = enabled;
-        self
-    }
-
-    /// Draws the view the settings ask for and reads this pass's input, in order: the Channel
-    /// row, the plot (with zones, warnings, badge), the vectorscope, the Source row, the
-    /// statistics, the All Channels plots, then the U and O keys.
-    pub fn show(mut self, ui: &mut Ui) -> ScopePanelOutput {
-        // pc: crates/ui-egui/src/panels/histogram_panel.rs:735 `show`, :636 `graph`, :706 `statistics`;
-        // pc: crates/ui-egui/src/dialogs/camera_raw_scope_ui.rs:498 `header`, :380 `graph`, :687 `shortcuts`.
-        let tokens = Tokens::of(ui);
-        let style = ScopePanel::style(&tokens);
-        let labels = self.labels.clone().unwrap_or_else(|| ScopePanelLabels::of(ui));
-        let base = ui.make_persistent_id(self.id_salt);
-        let mut out = ScopePanelOutput {
-            response: ui.allocate_response(Vec2::ZERO, Sense::hover()),
-            settings_changed: false,
-            refresh: false,
-            source_changed: false,
-            channel_changed: false,
-            zone: None,
-            hovered_level: None,
-            range: None,
-            clipping_toggled: false,
-        };
-        let Some(frame) = self.frame else {
-            out.range = self.state.range.clone();
-            return out;
-        };
-        let set = &frame.histogram;
-        let Some(composite) = set.channels.first() else {
-            out.range = self.state.range.clone();
-            return out;
-        };
-        let numbers = LocaleNumbers::of(ui);
-        let menu_entries =
-            (frame.vectorscope.is_some() || frame.clipping.is_some()).then(|| ScopePanel::scope_menu(ui.ctx(), base, self.state, self.has_selection));
-        let scope = ui.scope(|ui| {
-            ui.add_enabled_ui(self.enabled, |ui| {
-                self.rows(
-                    ui,
-                    &Context {
-                        base,
-                        tokens: &tokens,
-                        style: &style,
-                        labels: &labels,
-                        numbers: &numbers,
-                        composite,
-                        menu_entries: menu_entries.as_deref(),
-                    },
-                    &mut out,
-                );
-            });
-        });
-        out.response = scope.response;
-        if self.enabled && frame.clipping.is_some() && panel_keys(ui, out.response.rect, &mut self.state.settings) {
-            out.clipping_toggled = true;
-            out.settings_changed = true;
+    /// Draws the view the settings ask for and reads this pass's input, in order: the commands fired at the panel, the
+    /// Channel row, the plot (with zones, warnings, badge), the vectorscope, the Source row, the statistics and the
+    /// All Channels plots.
+    pub fn show(self, ui: &mut Ui) -> ScopePanelOutput {
+        let env = Env::of(ui);
+        let words = env.words::<ScopeWords>();
+        let format = env.format().clone();
+        let mut pass = Pass { panel: self, words, format, report: Report::default() };
+        let label = Label::from(pass.words.histogram.clone());
+        let shown = Block::panel(label).show(ui, |ui, cx| pass.rows(ui, cx));
+        let Report { settings_changed, refresh, source_changed, channel_changed, zone, hovered_level, clipping_toggled } = pass.report;
+        ScopePanelOutput {
+            response: shown.output,
+            settings_changed,
+            refresh,
+            source_changed,
+            channel_changed,
+            zone,
+            hovered_level,
+            range: pass.panel.state.range,
+            clipping_toggled,
         }
-        out.range = self.state.range.clone();
-        out
     }
+}
 
-    fn rows(&mut self, ui: &mut Ui, cx: &Context<'_>, out: &mut ScopePanelOutput) {
-        let Some(frame) = self.frame else { return };
+/// What a pass found out, filled in as the rows run.
+#[derive(Default)]
+struct Report {
+    settings_changed: bool,
+    refresh: bool,
+    source_changed: bool,
+    channel_changed: bool,
+    zone: Option<EditEvent<ScopeZoneEdit>>,
+    hovered_level: Option<f32>,
+    clipping_toggled: bool,
+}
+
+/// The panel and what its rows share in one pass.
+struct Pass<'a> {
+    panel: ScopePanel<'a>,
+    words: std::sync::Arc<ScopeWords>,
+    format: craft_i18n::Format,
+    report: Report,
+}
+
+impl Pass<'_> {
+    fn rows(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
+        let has_selection = self.panel.has_selection;
+        for (command, state) in ScopeCommand::states(self.panel.state, has_selection) {
+            cx.publish(command, state);
+        }
+        let clipping = self.panel.frame.is_some_and(|frame| frame.clipping.is_some());
+        while let Some((command, fired)) = cx.take_command::<ScopeCommand>() {
+            let warning = matches!(command, ScopeCommand::ShadowWarning | ScopeCommand::HighlightWarning);
+            if fired.phase == FirePhase::Release || (warning && !clipping) {
+                continue;
+            }
+            match ScopePanel::run_command(self.panel.state, command) {
+                Some(ScopeMenuAction::SettingsChanged) => {
+                    self.report.settings_changed = true;
+                    self.report.clipping_toggled |= warning;
+                }
+                Some(ScopeMenuAction::Refresh) => self.report.refresh = true,
+                None => {}
+            }
+        }
+        let Some(frame) = self.panel.frame else { return };
         let set = &frame.histogram;
-        let state = &mut *self.state;
-        let (labels, style) = (cx.labels, cx.style);
-        let view = state.settings.view;
-        let shown = resolve_channel(set, &state.settings.channel).unwrap_or(Shown::Channel(*cx.composite));
+        let Some(composite) = set.channels.first() else { return };
+        let words = self.words.clone();
+        let view = self.panel.state.settings.view;
+        let shown = resolve_channel(set, &self.panel.state.settings.channel).unwrap_or(Shown::Channel(*composite));
         let shown_key = match shown {
             Shown::Channel(channel) => channel.key,
             Shown::Colors(_) => COLORS_CHANNEL,
         };
         let expanded = view != ScopeView::Compact;
-        let colored = !expanded || state.settings.show_channels_in_color;
-        let mut menu_widgets: Vec<Response> = Vec::new();
+        let colored = !expanded || self.panel.state.settings.show_channels_in_color;
 
         if expanded {
-            let mut picked = shown_key.to_owned();
-            direction::horizontal(ui, |ui| {
-                ui.add(Text::new(labels.channel.as_str()).role(TypeRole::Label).content(Content::Muted));
-                let mut select = Select::new((cx.base, "channel"), labels.channel_name.as_str(), &mut picked);
-                for channel in set.channels {
-                    select = select.option(channel.key.to_owned(), channel.label);
-                }
-                if set.colors.is_some() {
-                    select = select.option(COLORS_CHANNEL.to_owned(), labels.colors.as_str());
-                }
-                let _ = select.show(ui);
-                ui.with_layout(direction::trailing(ui), |ui| {
-                    if ui.add(IconButton::new(Icon::RotateCw, labels.uncached_refresh.as_str()).size(ControlSize::Sm)).clicked() {
-                        out.refresh = true;
-                    }
-                });
-            });
-            if picked != shown_key {
-                state.settings.channel = picked;
-                out.channel_changed = true;
-                out.settings_changed = true;
-            }
+            self.channel_row(ui, set, shown_key);
         }
-        let shown = resolve_channel(set, &state.settings.channel).unwrap_or(shown);
+        let shown = resolve_channel(set, &self.panel.state.settings.channel).unwrap_or(shown);
 
-        let source =
-            self.sources.iter().find(|s| s.key == state.settings.source).or(self.sources.first()).map_or(labels.entire_image.as_str(), |s| s.label);
-        let zoned = !self.zones.is_empty();
-        let plot =
-            main_plot(ui, cx.base.with("plot"), labels, source, set, shown, colored, style.plot_height, self.markers, state.range.clone(), zoned);
-        let rect = plot.response.rect;
+        let source = self
+            .panel
+            .sources
+            .iter()
+            .find(|source| source.key == self.panel.state.settings.source)
+            .or(self.panel.sources.first())
+            .map_or(words.entire_image.as_str(), |source| source.label);
+        let plot = plot_data(set, shown, colored, words.colors.as_str());
+        let value = Label::from(words.histogram_value.fill(&[("channel", &plot.name), ("source", source)]));
+        let zoned = !self.panel.zones.is_empty();
+        let stale = (set.stale || set.cache_level > 1).then(|| StaleMark::Button(Label::from(words.refresh_hint.clone())));
+        let dark = matches!(shown, Shown::Colors(_));
+        let plot_label = Label::from(words.histogram.clone());
+        let (markers, state) = (self.panel.markers, &mut *self.panel.state);
+        let histogram = themed(ui, dark, &plot_label, |ui| {
+            let mut histogram = Histogram::new(plot_label.clone(), &plot.data).value(value).markers(markers).height(PlotHeight::Standard);
+            if let Some(outline) = &plot.outline {
+                histogram = histogram.outline(outline);
+            }
+            if let Some(stale) = stale {
+                histogram = histogram.stale(stale);
+            }
+            // The selection and the zones both take the plot's drags and keys: with zones there is no selection.
+            if zoned { histogram.show(ui) } else { histogram.selection(Bind::bound(&mut state.range)).show(ui) }
+        });
+        let Some(histogram) = histogram else { return };
+        let rect = histogram.response.rect;
+        self.report.hovered_level = histogram.hovered_level;
+        self.report.refresh |= histogram.refresh;
+        let mut openers = vec![histogram.response.clone()];
         if zoned {
-            out.zone = zones(ui, &plot.response, rect, self.zones, self.zone_values, labels, style);
-        } else if let Some(selection) = plot.selection.clone() {
-            state.range = selection;
+            let edit = ToneZones::new(words.tone_zones.clone(), self.panel.zones, self.panel.zone_values).show_at(ui, rect);
+            self.report.zone = edit.event;
         }
-        // With zones a double-click resets the zone under it instead.
-        if plot.clicked || !zoned && plot.response.double_clicked() {
-            out.refresh = true;
-        }
-        out.hovered_level = plot.hovered_level;
-        menu_widgets.push(plot.response.clone());
-
         if let Some(clipping) = frame.clipping {
-            let side = style.warning_size;
-            let settings = &mut state.settings;
-            let shadows = Rect::from_min_size(rect.min, vec2(side, side));
-            let highlights = Rect::from_min_size(pos2(rect.right() - side, rect.top()), vec2(side, side));
-            let toggled_shadows =
-                warning_button(ui, shadows, style.warning_inset, clipping.shadows, &mut settings.shadow_warning, &labels.shadow_warning);
-            let toggled_highlights =
-                warning_button(ui, highlights, style.warning_inset, clipping.highlights, &mut settings.highlight_warning, &labels.highlight_warning);
-            if toggled_shadows || toggled_highlights {
-                out.clipping_toggled = true;
-                out.settings_changed = true;
-            }
+            self.warnings(ui, rect, clipping);
         }
         if let Some(readout) = frame.readout {
-            readout_badge(ui, cx, rect, readout);
+            self.readout(ui, rect, readout);
         }
 
-        if state.settings.vectorscope
+        let settings = &self.panel.state.settings;
+        if settings.vectorscope
             && let Some(vectorscope) = frame.vectorscope.as_ref()
         {
-            let response = VectorscopePlot::new((cx.base, "vectorscope"), vectorscope)
-                .red_right(state.settings.red_right)
-                .skin_tone(state.settings.skin_tone)
-                .labels(labels.clone())
-                .show(ui);
-            menu_widgets.push(response);
-        }
-
-        if expanded && self.sources.len() >= 2 {
-            let current = self.sources.iter().find(|s| s.key == state.settings.source).unwrap_or(&self.sources[0]).key;
-            let mut picked = current.to_owned();
-            direction::horizontal(ui, |ui| {
-                ui.add(Text::new(labels.source.as_str()).role(TypeRole::Label).content(Content::Muted));
-                let mut select = Select::new((cx.base, "source"), labels.source_name.as_str(), &mut picked);
-                for source in self.sources {
-                    select = select.option(source.key.to_owned(), source.label);
-                }
-                let _ = select.show(ui);
+            let label = Label::from(words.vectorscope.clone());
+            let plot = themed(ui, true, &label, |ui| {
+                VectorscopePlot::new(label.clone(), vectorscope).red_right(settings.red_right).skin_tone(settings.skin_tone).show(ui)
             });
-            if picked != current {
-                state.settings.source = picked;
-                out.source_changed = true;
-                out.settings_changed = true;
-            }
+            openers.extend(plot);
         }
 
-        if expanded && state.settings.show_statistics {
-            let levels = match &state.range {
-                Some(range) => Some([level_of(*range.start()), level_of(*range.end())]),
-                None => out.hovered_level.map(|level| [level_of(level); 2]),
+        if expanded && self.panel.sources.len() >= 2 {
+            self.source_row(ui);
+        }
+
+        if expanded && self.panel.state.settings.show_statistics {
+            let levels = match self.panel.state.range {
+                Some(range) => Some([level_of(range.start), level_of(range.end)]),
+                None => self.report.hovered_level.map(|level| [level_of(level); 2]),
             };
             if let Some(stats) = histogram_statistics(shown_bins(set, shown), levels) {
-                statistics(ui, cx, &stats, set.cache_level);
+                self.statistics(ui, &stats, set.cache_level);
             }
         }
 
         if view == ScopeView::AllChannels {
-            all_channels(ui, cx.base.with("channels"), labels, source, set, colored, style.all_channels_height);
+            for channel in set.channels.iter().filter(|channel| channel.color_channel) {
+                Text::new(channel.label.to_owned()).role(TypeRole::Caption).show(ui);
+                let ink = if colored { channel.ink } else { ChannelColor::Neutral };
+                let data = HistogramData::tone(channel.bins, ink);
+                let value = Label::from(words.histogram_value.fill(&[("channel", channel.label), ("source", source)]));
+                Histogram::new(words.histogram.clone(), &data).id_salt(channel.key).value(value).height(PlotHeight::Short).show(ui);
+            }
         }
 
-        if let Some(entries) = cx.menu_entries {
-            for widget in &menu_widgets {
-                let chosen = ContextMenu::new(entries).show(ui, widget).chosen;
-                match chosen.and_then(|command| ScopePanel::run_command(ui.ctx(), cx.base, state, &command)) {
-                    Some(ScopeMenuAction::SettingsChanged) => out.settings_changed = true,
-                    Some(ScopeMenuAction::Refresh) => out.refresh = true,
-                    None => {}
-                }
+        if frame.vectorscope.is_some() || frame.clipping.is_some() {
+            let commands = ScopeCommand::context_menu(self.panel.state, has_selection);
+            for opener in &openers {
+                Menu::context(words.scope_menu.clone(), opener).show(ui, |ui, _| {
+                    for command in &commands {
+                        MenuItem::command(*command).keep_open(true).show(ui);
+                    }
+                });
             }
         }
     }
-}
 
-/// What the rows of one pass share.
-struct Context<'a> {
-    base: Id,
-    tokens: &'a UiTokens,
-    style: &'a ScopePanelStyle,
-    labels: &'a ScopePanelLabels,
-    numbers: &'a LocaleNumbers,
-    composite: &'a ScopeChannel<'a>,
-    menu_entries: Option<&'a [MenuEntry<PanelCommand>]>,
+    /// The Channel row: the select of the set's channels, then the Uncached Refresh button at the end.
+    fn channel_row(&mut self, ui: &mut Ui, set: &HistogramSet<'_>, shown_key: &str) {
+        let words = self.words.clone();
+        let mut entries: Vec<Entry<String>> =
+            set.channels.iter().map(|channel| Entry::new(channel.key.to_owned(), channel.label.to_owned())).collect();
+        if set.colors.is_some() {
+            entries.push(Entry::new(COLORS_CHANNEL.to_owned(), words.colors.clone()));
+        }
+        let mut picked = None;
+        let mut refresh = false;
+        Row::new().show(ui, |ui, _| {
+            let field = Field::new(words.channel.clone())
+                .show(ui, |ui, _| Select::new(words.channel_name.clone(), Bind::given(shown_key.to_owned()), &entries).show(ui));
+            picked = field.inner.flatten().and_then(|select| select.value().cloned());
+            let button = IconButton::new(IconId::new("rotate-cw")).label(words.uncached_refresh.clone()).size(ControlSize::Sm).show(ui);
+            refresh = clicked(&button);
+        });
+        self.report.refresh |= refresh;
+        if let Some(picked) = picked.filter(|picked| picked != shown_key) {
+            self.panel.state.settings.channel = picked;
+            self.report.channel_changed = true;
+            self.report.settings_changed = true;
+        }
+    }
+
+    /// The Source row.
+    fn source_row(&mut self, ui: &mut Ui) {
+        let words = self.words.clone();
+        let sources = self.panel.sources;
+        let current = sources.iter().find(|source| source.key == self.panel.state.settings.source).unwrap_or(&sources[0]).key;
+        let entries: Vec<Entry<String>> = sources.iter().map(|source| Entry::new(source.key.to_owned(), source.label.to_owned())).collect();
+        let mut picked = None;
+        Field::new(words.source.clone()).show(ui, |ui, _| {
+            picked = Select::new(words.source_name.clone(), Bind::given(current.to_owned()), &entries).show(ui).value().cloned();
+        });
+        if let Some(picked) = picked.filter(|picked| picked != current) {
+            self.panel.state.settings.source = picked;
+            self.report.source_changed = true;
+            self.report.settings_changed = true;
+        }
+    }
+
+    /// The two clipping warning buttons in the plot's top corners.
+    fn warnings(&mut self, ui: &mut Ui, plot: Rect, clipping: ClippingFrame) {
+        let words = self.words.clone();
+        let settings = &mut self.panel.state.settings;
+        let mut shadows = ClipWarning::new(words.shadow_warning.clone(), Bind::bound(&mut settings.shadow_warning), clipping.shadows);
+        let side = shadows.measure_in(ui, Proposal::Ideal);
+        let toggled_shadows = shadows.show_at(ui, Rect::from_min_size(plot.min, side)).event.is_some();
+        let highlights = ClipWarning::new(words.highlight_warning.clone(), Bind::bound(&mut settings.highlight_warning), clipping.highlights);
+        let toggled_highlights = highlights.show_at(ui, Rect::from_min_size(pos2(plot.right() - side.x, plot.top()), side)).event.is_some();
+        if toggled_shadows || toggled_highlights {
+            self.report.clipping_toggled = true;
+            self.report.settings_changed = true;
+        }
+    }
+
+    /// The hover readout badge in the plot's top centre, between the two warning buttons.
+    fn readout(&self, ui: &mut Ui, plot: Rect, readout: ScopeReadout) {
+        let words = &self.words;
+        let number = |value: f32, decimals: usize, scale: f64| craft_i18n::ltr(&self.format.number(f64::from(value) * scale, decimals));
+        let text = match readout {
+            ScopeReadout::Rgb([r, g, b]) => {
+                words.readout_rgb.fill(&[("r", &number(r, 0, 255.0)), ("g", &number(g, 0, 255.0)), ("b", &number(b, 0, 255.0))])
+            }
+            ScopeReadout::Lab([l, a, b]) => {
+                words.readout_lab.fill(&[("l", &number(l, 1, 1.0)), ("a", &number(a, 1, 1.0)), ("b", &number(b, 1, 1.0))])
+            }
+        };
+        let mut badge = Badge::new(Label::from(text));
+        let size = badge.measure_in(ui, Proposal::Ideal);
+        badge.show_at(ui, Rect::from_center_size(pos2(plot.center().x, plot.top() + size.y / 2.0), size));
+    }
+
+    /// The statistics grid: two label and value pairs per row (Mean, Std Dev, Median, Pixels | Level, Count,
+    /// Percentile, Cache Level).
+    fn statistics(&self, ui: &mut Ui, stats: &HistogramStatistics, cache_level: u32) {
+        let words = &self.words;
+        // Numbers read left to right in every language.
+        let number = |value: f64, decimals: usize| craft_i18n::ltr(&self.format.number(value, decimals));
+        let level = match stats.level {
+            Some([a, b]) if a == b => number(f64::from(a), 0),
+            Some([a, b]) => craft_i18n::ltr(&format!("{}..{}", number(f64::from(a), 0), number(f64::from(b), 0))),
+            None => String::new(),
+        };
+        let rows = [
+            (&words.mean, number(stats.mean, 2), &words.level, level),
+            (
+                &words.standard_deviation,
+                number(stats.standard_deviation, 2),
+                &words.count,
+                stats.count.map(|c| number(c as f64, 0)).unwrap_or_default(),
+            ),
+            (&words.median, number(f64::from(stats.median), 0), &words.percentile, stats.percentile.map(|p| number(p, 2)).unwrap_or_default()),
+            (&words.pixels, number(stats.pixels as f64, 0), &words.cache_level, number(f64::from(cache_level), 0)),
+        ];
+        Grid::new(&STATISTICS_COLUMNS).gap(Gap::Tight).label(words.statistics.clone()).show(ui, |ui, _| {
+            for (first, first_value, second, second_value) in &rows {
+                Text::new(first.clone()).shade(Shade::Muted).show(ui);
+                Text::new(first_value.clone()).role(TypeRole::Mono).show(ui);
+                Text::new(second.clone()).shade(Shade::Muted).show(ui);
+                Text::new(second_value.clone()).role(TypeRole::Mono).show(ui);
+            }
+        });
+    }
 }
 
 /// The counts of what the main plot shows: Colors counts the composite.
@@ -606,149 +712,34 @@ fn level_of(level: f32) -> u8 {
     level.round().clamp(0.0, 255.0) as u8
 }
 
-/// The statistics grid: two label and value pairs per row (Mean, Std Dev, Median, Pixels | Level,
-/// Count, Percentile, Cache Level), as a `Table` of `Row`s and `Cell`s.
-fn statistics(ui: &mut Ui, cx: &Context<'_>, stats: &HistogramStatistics, cache_level: u32) {
-    let labels = cx.labels;
-    // Numbers read left to right in every language (`ltr`).
-    let number = |value: f64, decimals: usize| craft_i18n::ltr(&cx.numbers.format(value, decimals..=decimals));
-    let level = match stats.level {
-        Some([a, b]) if a == b => number(f64::from(a), 0),
-        Some([a, b]) => craft_i18n::ltr(&format!("{}..{}", number(f64::from(a), 0), number(f64::from(b), 0))),
-        None => String::new(),
-    };
-    let rows = [
-        (&labels.mean, number(stats.mean, 2), &labels.level, level),
-        (
-            &labels.standard_deviation,
-            number(stats.standard_deviation, 2),
-            &labels.count,
-            stats.count.map(|c| number(c as f64, 0)).unwrap_or_default(),
-        ),
-        (&labels.median, number(f64::from(stats.median), 0), &labels.percentile, stats.percentile.map(|p| number(p, 2)).unwrap_or_default()),
-        (&labels.pixels, number(stats.pixels as f64, 0), &labels.cache_level, number(f64::from(cache_level), 0)),
-    ];
-    let label_font = role_format(cx.tokens, TypeRole::Label, Color32::PLACEHOLDER).font_id;
-    let value_font = role_format(cx.tokens, TypeRole::Mono, Color32::PLACEHOLDER).font_id;
-    let (label_width, line) = ui.fonts_mut(|f| {
-        let widest = rows
-            .iter()
-            .flat_map(|(a, _, b, _)| [a, b])
-            .map(|label| f.layout_no_wrap(label.to_string(), label_font.clone(), Color32::PLACEHOLDER).size().x)
-            .fold(0.0, f32::max);
-        (widest.ceil(), f.row_height(&label_font).max(f.row_height(&value_font)))
-    });
-    let (gap, inline) = (cx.style.statistics_gap, cx.tokens.space.gap.inline);
-    let width = ui.available_width();
-    let pair = ((width - gap) / 2.0).max(0.0);
-    let value_width = (pair - label_width - inline).max(0.0);
-    let rtl = direction::is_rtl(ui);
-    let builder = UiBuilder::new().accessibility_role(Role::Table).accessibility_label(labels.statistics.clone());
-    ui.scope_builder(builder, |ui| {
-        for (row_at, (first, first_value, second, second_value)) in rows.iter().enumerate() {
-            let (rect, _) = ui.allocate_exact_size(vec2(width, line), Sense::hover());
-            let slot = |from: f32, wide: f32| {
-                let (min, max) =
-                    if rtl { (rect.right() - from - wide, rect.right() - from) } else { (rect.left() + from, rect.left() + from + wide) };
-                Rect::from_min_max(pos2(min, rect.top()), pos2(max, rect.bottom()))
-            };
-            ui.scope_builder(UiBuilder::new().id_salt(("row", row_at)).max_rect(rect).accessibility_role(Role::Row), |ui| {
-                for (column, (label, value)) in [(first, first_value), (second, second_value)].into_iter().enumerate() {
-                    let from = column as f32 * (pair + gap);
-                    ui.scope_builder(
-                        UiBuilder::new().max_rect(slot(from, label_width)).layout(direction::trailing(ui)).accessibility_role(Role::Cell),
-                        |ui| {
-                            ui.add(Text::new(label.as_str()).role(TypeRole::Label).content(Content::Muted));
-                        },
-                    );
-                    ui.scope_builder(
-                        UiBuilder::new()
-                            .max_rect(slot(from + label_width + inline, value_width))
-                            .layout(direction::row(ui))
-                            .accessibility_role(Role::Cell),
-                        |ui| {
-                            ui.add(Text::new(value.as_str()).role(TypeRole::Mono));
-                        },
-                    );
-                }
-            });
-        }
-    });
-}
-
-/// The hover readout badge in the plot's top centre: `R r  G g  B b` in 0..=255, or the Lab form
-/// with one decimal, between the two warning buttons.
-fn readout_badge(ui: &Ui, cx: &Context<'_>, plot: Rect, readout: ScopeReadout) {
-    let labels = cx.labels;
-    let text = match readout {
-        ScopeReadout::Rgb([r, g, b]) => {
-            let [r, g, b] = [r, g, b].map(|v| craft_i18n::ltr(&cx.numbers.format(f64::from(v) * 255.0, 0..=0)));
-            craft_i18n::fmt(&labels.readout_rgb, &[("r", &r), ("g", &g), ("b", &b)])
-        }
-        ScopeReadout::Lab([l, a, b]) => {
-            let [l, a, b] = [l, a, b].map(|v| craft_i18n::ltr(&cx.numbers.format(f64::from(v), 1..=1)));
-            craft_i18n::fmt(&labels.readout_lab, &[("l", &l), ("a", &a), ("b", &b)])
-        }
-    };
-    let tokens = cx.tokens;
-    let painter = ui.painter();
-    let galley = painter.layout_no_wrap(text, tokens.font(TypeRole::Mono), tokens.color.text.normal.to_egui());
-    let pad = tokens.space.gap.inline;
-    let room = (plot.width() - 2.0 * cx.style.warning_size - 2.0 * pad).max(1.0);
-    let width = (galley.size().x + 2.0 * pad).min(room);
-    let badge = Rect::from_center_size(
-        pos2(plot.center().x, plot.top() + cx.style.hover_badge_height / 2.0 + pad / 2.0),
-        vec2(width, cx.style.hover_badge_height),
-    );
-    let radius = Corner::Control.radius(tokens);
-    painter.rect_filled(badge, radius, tokens.color.surface.raised.to_egui());
-    painter.rect_stroke(
-        badge,
-        radius,
-        Stroke::new(craft_theme::Stroke::W1.width(ui.pixels_per_point()), tokens.color.line.control_edge.to_egui()),
-        StrokeKind::Inside,
-    );
-    let text_at = badge.center() - galley.size() / 2.0;
-    painter.with_clip_rect(badge.shrink(pad / 2.0)).galley(text_at, galley, tokens.color.text.normal.to_egui());
-}
-
-/// U and O toggle the warnings while the panel has the keyboard focus and no text field, menu or
-/// dialog has the keys (the panel is the key owner through [`key_owner`]). The focused control
-/// claims both keys so the app's shortcuts leave them alone.
-fn panel_keys(ui: &Ui, panel: Rect, settings: &mut ScopeSettings) -> bool {
-    let ctx = ui.ctx();
-    let Some(focused) = ctx.memory(|m| m.focused()) else { return false };
-    if key_owner::owner(ctx, &OwnerGate::default()) != KeyOwner::Widget || !ctx.read_response(focused).is_some_and(|r| panel.contains_rect(r.rect)) {
-        return false;
-    }
-    KeyClaim::claim(ctx, focused, &[ClaimedKey::exact(Modifiers::NONE, Key::U), ClaimedKey::exact(Modifiers::NONE, Key::O)]);
-    let (shadows, highlights) = ui.input_mut(|i| (i.consume_key(Modifiers::NONE, Key::U), i.consume_key(Modifiers::NONE, Key::O)));
-    settings.shadow_warning ^= shadows;
-    settings.highlight_warning ^= highlights;
-    shadows || highlights
-}
-
 /// What [`ScopePanel::show`] returns. The events of one pass, handled in that pass.
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct ScopePanelOutput {
     /// The panel's area.
     pub response: Response,
-    /// A setting changed (view, channel, source, a menu check, a warning): persist
-    /// [`ScopeSettings`].
+    /// A setting changed (view, channel, source, a menu check, a warning): persist [`ScopeSettings`].
     pub settings_changed: bool,
-    /// Uncached Refresh: recount at cache level 1 (button, stale mark, double-click, menu row).
+    /// Uncached Refresh: recount at cache level 1 (button, stale mark, double click, menu row).
     pub refresh: bool,
     /// The Source changed: the host recounts from [`ScopeSettings::source`].
     pub source_changed: bool,
     /// The Channel changed.
     pub channel_changed: bool,
-    /// A tone-zone edit; the host maps it to its control.
-    pub zone: Option<ScopeZoneEdit>,
+    /// A tone-zone edit, with its gesture; the host maps it to its control.
+    pub zone: Option<EditEvent<ScopeZoneEdit>>,
     /// The whole level under the pointer on the main plot.
     pub hovered_level: Option<f32>,
     /// The selected level range after this pass (also in [`ScopePanelState::range`]).
-    pub range: Option<RangeInclusive<f32>>,
+    pub range: Option<LevelRange>,
     /// A clipping warning was toggled (click, U, O): the host rebuilds its overlay.
     pub clipping_toggled: bool,
+}
+
+impl Outcome for ScopePanelOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
 }

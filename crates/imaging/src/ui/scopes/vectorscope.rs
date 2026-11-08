@@ -1,16 +1,42 @@
 //! [`VectorscopePlot`]: graticule, targets and the hover target ([`scope_point`]).
 
-use craft_theme::{Mode, TypeRole};
-use craft_ui::localized::{Labels as _, LocaleNumbers};
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, tokens_in_mode};
-use egui::{Align2, AsIdSalt, Color32, IdSalt, Mesh, Pos2, Rect, Response, Role, Sense, Shape, Stroke, Ui, WidgetInfo, vec2};
+use super::words::ScopeWords;
+use craft_behavior::{Axis, Metrics, Sense};
+use craft_theme::Rgba;
+use craft_ui::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role, WordSetCx as _};
+use craft_ui::fonts::FontRef;
+use craft_ui::primitives::{DataColor, DocRun, DocText, PaintShape, StrokeWidth};
+use craft_ui::runtime::env::Label;
+use craft_ui::style::{ComponentStyle, StyleColor, StyleCx, SurfaceKind};
+use egui::{Align, Color32, CornerRadius, Mesh, Pos2, Rect, Response, Shape, Vec2, vec2};
 
-use super::labels::ScopePanelLabels;
-use super::panel::ScopePanel;
+/// The rings' alpha on `text.faint`.
+const RING_ALPHA: f32 = 0.45;
+/// The spokes' alpha on `text.faint`.
+const SPOKE_ALPHA: f32 = 0.4;
+/// The smallest half-side of a cloud dot.
+const DOT_MIN: f32 = 0.7;
+/// The largest half-side of a cloud dot.
+const DOT_MAX: f32 = 3.0;
+/// The margin between the outer ring and the plot's edge.
+const MARGIN: f32 = 14.0;
+/// The radius of the dot at the end of a spoke.
+const SPOKE_DOT: f32 = 2.0;
+/// Where the letters sit, as a multiple of the outer ring's radius.
+const LETTER_RADIUS: f32 = 1.11;
+/// The skin-tone line's angle, in degrees of hue.
+const SKIN_TONE_DEGREES: f32 = 23.0;
+/// The hover target's circle radius and the arm of its cross.
+const HOVER_RADIUS: f32 = 5.0;
+const HOVER_ARM: f32 = 9.0;
+/// The plot's smallest and largest default height, in control heights.
+const MIN_ROWS: f32 = 3.6;
+const MAX_ROWS: f32 = 7.8;
 
 /// The vectorscope's counts for one pass: a hue-major grid of `hues × saturations` cells
 /// ([`Vectorscope::counts`](crate::scopes::Vectorscope::counts)) and the sample under the pointer.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct VectorscopeFrame<'a> {
     /// `hues × saturations` counts, hue-major.
     pub counts: &'a [u32],
@@ -23,11 +49,10 @@ pub struct VectorscopeFrame<'a> {
 }
 
 impl VectorscopeFrame<'_> {
-    /// The AccessKit value of the plot, [`ScopePanelLabels::vectorscope_value`] filled from the
-    /// counts, the numbers in `numbers`'s digits ([`Vectorscope::summary`](crate::scopes::Vectorscope::summary)'s rules); `None`
+    /// The AccessKit value of the plot, [`ScopeWords::vectorscope_value`] filled from the
+    /// counts, the numbers in `format`'s digits ([`Vectorscope::summary`](crate::scopes::Vectorscope::summary)'s rules); `None`
     /// when nothing was counted.
-    pub fn summary(&self, labels: &ScopePanelLabels, numbers: &LocaleNumbers) -> Option<String> {
-        // new: spec AccessKit "Vectorscope".
+    pub fn summary(&self, words: &ScopeWords, format: &craft_i18n::Format) -> Option<String> {
         if self.saturations < 2 || self.hues == 0 {
             return None;
         }
@@ -44,9 +69,9 @@ impl VectorscopeFrame<'_> {
         }
         let peak_saturation = peak_saturation?;
         let mean_hue = if sin == 0.0 && cos == 0.0 { 0.0 } else { sin.atan2(cos).to_degrees().rem_euclid(360.0) };
-        let saturation = craft_i18n::ltr(&numbers.format(f64::from(peak_saturation) * 100.0, 0..=0));
-        let hue = craft_i18n::ltr(&numbers.format(mean_hue, 0..=0));
-        Some(craft_i18n::fmt(&labels.vectorscope_value, &[("saturation", &saturation), ("hue", &hue)]))
+        let saturation = craft_i18n::ltr(&format.number(f64::from(peak_saturation) * 100.0, 0));
+        let hue = craft_i18n::ltr(&format.number(mean_hue, 0));
+        Some(words.vectorscope_value.fill(&[("saturation", &saturation), ("hue", &hue)]))
     }
 }
 
@@ -78,128 +103,154 @@ fn scope_hue(hue: f32, saturation: f32, level: f32) -> Color32 {
     Color32::from_rgb(channel(5.0), channel(3.0), channel(1.0))
 }
 
-/// The vectorscope plot, usable alone (EffectCraft, LightCraft) or under [`ScopePanel`](super::ScopePanel).
+/// The style of the vectorscope: dark in every theme, so the plot sits in a dark theme scope.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+#[non_exhaustive]
+pub struct VectorscopeStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+    /// The plot's well.
+    well: StyleColor,
+    radius: CornerRadius,
+    ring: StyleColor,
+    spoke: StyleColor,
+    skin_tone: StyleColor,
+    /// The hover target's inner and outer strokes.
+    hover_line: StyleColor,
+    hover_halo: StyleColor,
+    /// The brightness of the hue colours, from `data.red`.
+    level: f32,
+    letter_size: f32,
+    /// The default height range.
+    height: [f32; 2],
+}
+
+/// The vectorscope plot, usable alone or under the [`ScopePanel`](super::ScopePanel).
 ///
-/// **What the user sees.** On `data.scope`, rounded `shape.radius.control`: rings at 0.25, 0.5,
-/// 0.75 and 1 of the radius in `text.faint` × the vector ring alpha, 0.7 pt; spokes to R, Y,
-/// G, C, B, M in `text.faint` × 0.4, 0.6 pt, each ending in a 2 pt dot and its letter in
-/// `scope_hue(h, 1)` (`data.*`); the skin-tone line at 23° in `text.muted` (unless off); the
-/// rings, spokes and skin-tone line read the dark mode's `text.faint` and `text.muted`, as the
-/// plot is dark in every theme; the cloud
-/// as square dots of half-side `radius / (saturations − 1)` clamped to `scopes.vector_dot_min..=
-/// scopes.vector_dot_max`, coloured `scope_hue(h, s)` at alpha `0.2 + 0.8 × sqrt(count / peak)`;
-/// the hover target as a 5 pt circle and a 9 pt cross, a 3 pt `data.scope` stroke under a 1.2 pt
-/// white one. It never mirrors (`Unmirrored::Graph`).
+/// **What the user sees.** On `data.scope`, rounded like a control well: rings at 0.25, 0.5, 0.75 and 1 of the radius
+/// in `text.faint`; spokes to R, Y, G, C, B, M, each ending in a dot and its letter in the hue's colour; the skin-tone
+/// line at 23 degrees in `text.muted` (unless off); the cloud as square dots of half-side `radius / (saturations - 1)`
+/// clamped, coloured by hue and saturation at an alpha that grows with the count; the hover target as a circle and a
+/// cross. It never mirrors.
 ///
-/// **AccessKit.** An `Image` named [`ScopePanelLabels::vectorscope`] with the value text of
-/// [`VectorscopeFrame::summary`]. A right-click on it opens the host's scope menu (the panel's).
-#[must_use = "show the plot with `show`"]
+/// **AccessKit.** An image named by the label with the value text of [`VectorscopeFrame::summary`].
+#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
+#[component(content_painter)]
 pub struct VectorscopePlot<'a> {
-    pub(super) id_salt: IdSalt,
-    pub(super) frame: &'a VectorscopeFrame<'a>,
-    pub(super) red_right: bool,
-    pub(super) skin_tone: bool,
-    pub(super) height: Option<f32>,
-    pub(super) labels: Option<ScopePanelLabels>,
+    #[common]
+    common: Common,
+    frame: &'a VectorscopeFrame<'a>,
+    /// Show Red at 3 o'clock (else red sits at -100 degrees).
+    #[prop]
+    red_right: bool,
+    /// Show Skin Tone Indicator.
+    #[prop]
+    skin_tone: bool,
+    /// The plot's height; a clamped multiple of the control height without a call.
+    #[prop]
+    height: Option<f32>,
 }
 
 impl<'a> VectorscopePlot<'a> {
-    /// A plot of `frame`; red at −100° and the skin-tone line on by default.
-    pub fn new(id_salt: impl AsIdSalt, frame: &'a VectorscopeFrame<'a>) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), frame, red_right: false, skin_tone: true, height: None, labels: None }
+    /// A plot of `frame` named `label`; red at -100 degrees and the skin-tone line on by default.
+    pub fn new(label: impl Into<Label>, frame: &'a VectorscopeFrame<'a>) -> Self {
+        VectorscopePlot { common: Common::new(), frame, red_right: false, skin_tone: true, height: None }.label(label)
     }
+}
 
-    /// Show Red at 3 o'clock.
-    pub fn red_right(mut self, red_right: bool) -> Self {
-        self.red_right = red_right;
-        self
-    }
+impl Component for VectorscopePlot<'_> {
+    const ROLE: Role = Role::IMAGE;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
+    const OVERLAYS: bool = false;
+    const INPUT: craft_behavior::Input = craft_behavior::Input::Display;
+    type Style = VectorscopeStyle;
+    type Output = Response;
 
-    /// Show Skin Tone Indicator.
-    pub fn skin_tone(mut self, skin_tone: bool) -> Self {
-        self.skin_tone = skin_tone;
-        self
-    }
-
-    /// The plot's height; without a call 30 % of the available height clamped to
-    /// `scopes.vector_height_min..=scopes.vector_height_max` (PhotoCraft's Camera Raw header).
-    pub fn height(mut self, height: f32) -> Self {
-        self.height = Some(height);
-        self
-    }
-
-    /// The words; the installed words' [`ScopePanelLabels`] without a call.
-    pub fn labels(mut self, labels: ScopePanelLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    /// Draws the plot across the available width.
-    pub fn show(self, ui: &mut Ui) -> Response {
-        // pc: crates/ui-egui/src/dialogs/camera_raw_scope_ui.rs:450-496 `vectorscope`, :511 (height rule).
-        let tokens = Tokens::of(ui);
-        // The plot is dark in every theme, so it draws the dark mode's data colours.
-        let dark = tokens_in_mode(ui.ctx(), Mode::Dark);
-        let style = ScopePanel::style(&tokens);
-        let labels = self.labels.unwrap_or_else(|| ScopePanelLabels::of(ui));
-        let frame = self.frame;
-        let height = self.height.unwrap_or_else(|| (ui.available_height() * 0.3).clamp(style.vector_height[0], style.vector_height[1]));
-        let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::hover());
-        let response = ui.interact(rect, ui.make_persistent_id(self.id_salt), Sense::click());
-        let value = frame.summary(&labels, &LocaleNumbers::of(ui));
-        response.widget_info(|| {
-            let mut info = WidgetInfo::labeled(Role::Image, ui.is_enabled(), &labels.vectorscope);
-            info.current_text_value.clone_from(&value);
-            info
-        });
-        if !ui.is_rect_visible(rect) {
-            return response;
+    fn style(cx: &StyleCx<'_>, _: VectorscopePlotStyleKey) -> VectorscopeStyle {
+        let colors = &cx.tokens.color;
+        let rows = cx.control().height;
+        VectorscopeStyle {
+            metrics: Metrics::new(),
+            well: cx.color(colors.data.scope),
+            radius: cx.surface(SurfaceKind::Well).radius,
+            ring: cx.color(colors.text.faint.faded(RING_ALPHA)),
+            spoke: cx.color(colors.text.faint.faded(SPOKE_ALPHA)),
+            skin_tone: cx.color(colors.text.muted),
+            hover_line: cx.color(Rgba::WHITE),
+            hover_halo: cx.color(colors.data.scope),
+            level: f32::from(colors.data.red.0[0]) / 255.0,
+            letter_size: cx.tokens.typography.caption.size,
+            height: [rows * MIN_ROWS, rows * MAX_ROWS],
         }
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(cx.style.height[0], self.height.unwrap_or(cx.style.height[1]))
+    }
+
+    fn fills(&self) -> Option<Axis> {
+        Some(Axis::X)
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::empty()
+    }
+
+    fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
+        let words = cx.words::<ScopeWords>();
+        if let Some(value) = self.frame.summary(&words, cx.format()) {
+            access.value(value);
+        }
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let (rect, style, frame) = (cx.rect, cx.style, self.frame);
         let red_right = self.red_right;
-        let point = |hue: f32, saturation: f32| scope_point(rect, style.vector_margin, red_right, hue, saturation);
-        let center = rect.center();
-        let radius = ring_radius(rect, style.vector_margin);
-        let scope = dark.color.data.scope.to_egui();
-        let level = f32::from(dark.color.data.red.to_egui().r()) / 255.0;
-        let (faint, muted) = (dark.color.text.faint.to_egui(), dark.color.text.muted.to_egui());
-        let painter = ui.painter();
-        painter.rect_filled(rect, tokens.radius.control, scope);
+        let point = |hue: f32, saturation: f32| scope_point(rect, MARGIN, red_right, hue, saturation);
+        let (center, radius) = (rect.center(), ring_radius(rect, MARGIN));
+        let draw = ui.draw();
+        draw.fill(&PaintShape::Rect(rect, style.radius), style.well);
         for ring in [0.25, 0.5, 0.75, 1.0] {
-            painter.circle_stroke(center, radius * ring, Stroke::new(0.7, faint.gamma_multiply(style.vector_ring_alpha)));
+            draw.stroke(&PaintShape::Circle(center, radius * ring), StrokeWidth::Hairline, style.ring);
         }
-        let mut mesh = Mesh::default();
+        let painter = ui.content_painter(cx);
         let peak = frame.counts.iter().copied().max().unwrap_or(1).max(1) as f32;
+        let mut mesh = Mesh::default();
         if frame.saturations > 1 && frame.hues > 0 {
-            let dot = (radius / (frame.saturations - 1) as f32).clamp(style.vector_dot[0], style.vector_dot[1]);
+            let dot = (radius / (frame.saturations - 1) as f32).clamp(DOT_MIN, DOT_MAX);
             for (index, count) in frame.counts.iter().enumerate().filter(|(_, count)| **count > 0) {
                 let hue = (index / frame.saturations) as f32 / frame.hues as f32;
                 let saturation = (index % frame.saturations) as f32 / (frame.saturations - 1) as f32;
-                let color = scope_hue(hue, saturation, level).gamma_multiply(0.2 + 0.8 * (*count as f32 / peak).sqrt());
+                let color = scope_hue(hue, saturation, style.level).gamma_multiply(0.2 + 0.8 * (*count as f32 / peak).sqrt());
                 mesh.add_colored_rect(Rect::from_center_size(point(hue, saturation), vec2(dot * 2.0, dot * 2.0)), color);
             }
         }
-        painter.add(Shape::mesh(mesh));
-        let letters = tokens.font(TypeRole::Caption);
+        painter.painter.add(Shape::mesh(mesh));
         for (index, letter) in ["R", "Y", "G", "C", "B", "M"].into_iter().enumerate() {
             let hue = index as f32 / 6.0;
-            let color = scope_hue(hue, 1.0, level);
-            painter.line_segment([center, point(hue, 1.0)], Stroke::new(0.6, faint.gamma_multiply(0.4)));
-            painter.circle_filled(point(hue, 1.0), 2.0, color);
-            painter.text(point(hue, 1.11), Align2::CENTER_CENTER, letter, letters.clone(), color);
+            let color = scope_hue(hue, 1.0, style.level);
+            draw.stroke(&PaintShape::Path(vec![center, point(hue, 1.0)]), StrokeWidth::Hairline, style.spoke);
+            draw.data_fill(&PaintShape::Circle(point(hue, 1.0), SPOKE_DOT), DataColor::new(color));
+            let runs = [DocRun::new(letter, FontRef::proportional(), style.letter_size, DataColor::new(color))];
+            let text = painter.layout(&DocText { runs: &runs, wrap: None, align: Align::Center });
+            let at = point(hue, LETTER_RADIUS) - text.size() / 2.0;
+            painter.painter.galley(at, text.galley.clone(), color);
         }
         if self.skin_tone {
-            painter.line_segment([center, point(23.0 / 360.0, 1.0)], Stroke::new(1.0, muted));
+            draw.stroke(&PaintShape::Path(vec![center, point(SKIN_TONE_DEGREES / 360.0, 1.0)]), StrokeWidth::Thin, style.skin_tone);
         }
         if let Some([hue, saturation]) = frame.hover {
             let at = point(hue, saturation);
-            let painter = painter.with_clip_rect(rect);
-            let white = craft_theme::Rgba::WHITE.to_egui();
-            for stroke in [Stroke::new(3.0, scope), Stroke::new(1.2, white)] {
-                painter.circle_stroke(at, 5.0, stroke);
-                painter.line_segment([at - vec2(9.0, 0.0), at + vec2(9.0, 0.0)], stroke);
-                painter.line_segment([at - vec2(0.0, 9.0), at + vec2(0.0, 9.0)], stroke);
+            for (width, color) in [(StrokeWidth::Medium, style.hover_halo), (StrokeWidth::Thin, style.hover_line)] {
+                draw.stroke(&PaintShape::Circle(at, HOVER_RADIUS), width, color);
+                draw.stroke(&PaintShape::Path(vec![at - vec2(HOVER_ARM, 0.0), at + vec2(HOVER_ARM, 0.0)]), width, color);
+                draw.stroke(&PaintShape::Path(vec![at - vec2(0.0, HOVER_ARM), at + vec2(0.0, HOVER_ARM)]), width, color);
             }
         }
-        response
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
     }
 }
