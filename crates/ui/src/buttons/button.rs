@@ -1,18 +1,19 @@
 //! `Button`: a push button with an optional leading and trailing icon and a busy state.
 
 use super::face::{self, FaceLook, FaceSpec};
-use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, PartsCx, Pointer as _, Props, Role, Styled as _};
+use crate::contract::{Common, Component, Cx, MeasureCx, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props, Role, Styled as _};
 use crate::display::Spinner;
 use crate::primitives::{IconSpec, PaintShape};
 use crate::runtime::commands::CommandRef;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, DataColor, FocusLook, IconLook, StyleColor, StyleCx, SurfaceLook, TextLook, TypeRole};
-use craft_behavior::{Metrics, PartKey, Sense};
+use craft_behavior::{Metrics, PartKey, PressPhase, Sense};
 use craft_theme::{
     Rgba, Stateful, States, Variant, ensure_contrast, text_contrast_min,
     variant::{Emphasis, Tone},
 };
 use egui::{Color32, Rect, Response, Vec2};
+use std::ops::Deref;
 
 /// The part a loading button shows its spinner in.
 const SPINNER: PartKey = PartKey::new("spinner");
@@ -71,6 +72,34 @@ fn overlay(cx: &StyleCx<'_>) -> Stateful<StyleColor> {
     Stateful::new(clear).off(States::new(clear, cx.color(state.hover), cx.color(state.pressed), clear))
 }
 
+/// What a button reports: its response and the click count of this pass's activation.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct ButtonOutput {
+    /// The button's response.
+    pub response: Response,
+    /// The press count of the click that activated the button this pass: 1 for a single click, 2 for a double click,
+    /// and so on (`craft_behavior::press::count_clicks`). An activation by key or AccessKit counts 1; 0 when the
+    /// button was not activated.
+    pub clicks: u32,
+}
+
+impl Deref for ButtonOutput {
+    type Target = Response;
+
+    fn deref(&self) -> &Response {
+        &self.response
+    }
+}
+
+impl Outcome for ButtonOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
 /// A push button. A label wider than the room is cut with an ellipsis and shown whole in a tooltip. While `loading`
 /// a spinner takes the place of the icon (of the label, without an icon) at the same width, the button ignores
 /// activation, keeps focus and reports busy.
@@ -119,7 +148,7 @@ impl Component for Button<'_> {
     const ROLE: Role = Role::BUTTON;
     const OVERLAYS: bool = false;
     type Style = ButtonStyle;
-    type Output = Response;
+    type Output = ButtonOutput;
 
     fn style(cx: &StyleCx<'_>, key: ButtonStyleKey) -> ButtonStyle {
         match key.tint {
@@ -172,7 +201,12 @@ impl Component for Button<'_> {
         }
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> Response {
-        cx.response.clone()
+    fn finish(self, cx: Cx<'_, Self>) -> ButtonOutput {
+        let clicks = match (self.activated(&cx), cx.activation(), cx.press().phase) {
+            (true, Some(activation), PressPhase::Release { start, click: true, .. }) if !activation.by_key => start.clicks,
+            (true, ..) => 1,
+            (false, ..) => 0,
+        };
+        ButtonOutput { response: cx.response.clone(), clicks }
     }
 }

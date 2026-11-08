@@ -12,7 +12,7 @@ name = "Button"
 old = "craft_ui::controls::button::Button"
 new = "craft_ui::buttons::Button"
 status = "moved"
-note = "A `Component` shown with `Show::show`; `ui.add(Button::new(..))` becomes `Button::new(..).show(ui)`. The output is `Response`. `ButtonStyle` is a new struct: `Button::style(tokens, variant, size)` is gone."
+note = "A `Component` shown with `Show::show`; `ui.add(Button::new(..))` becomes `Button::new(..).show(ui)`. The output is `ButtonOutput`: it dereferences to the `Response` and carries `clicks`, the press count of the activating click. `ButtonStyle` is a new struct: `Button::style(tokens, variant, size)` is gone."
 
 [[type]]
 name = "ButtonVariant"

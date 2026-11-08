@@ -4,6 +4,7 @@ mod access;
 mod api_map;
 mod bars;
 pub(crate) mod body;
+mod button_clicks;
 mod buttons;
 mod callsites;
 mod canvas;
