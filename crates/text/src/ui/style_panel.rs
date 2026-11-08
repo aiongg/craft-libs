@@ -301,7 +301,7 @@ impl<'a> TextStylesPanel<'a> {
         let hint = Cell::new(false);
         let tip = words.row_tip.fill(&[("key", words.alt_key.as_str())]);
         // The footer bar is a container of its own, so the list's id comes from here, not from either body.
-        let list_id = ui.id().with(("styles", kind, label.as_str()));
+        let list_id = ui.scope_id().with(("styles", kind, label.as_str()));
 
         let footer = |ui: &mut Ui, cx: &mut craft_ui::contract::BodyCx<'_>| {
             let facts = cx.memory::<Facts>().clone();
