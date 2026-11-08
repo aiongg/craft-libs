@@ -8,7 +8,7 @@ use craft_ui::canvas::{CanvasTool, ToolAccess, ToolAction, ToolContext, ToolKey,
 use craft_ui::primitives::{Draw, ToolIcon};
 
 use super::drag::{InsideDrag, PressRule, drag_kind};
-use super::lasso::{apply, begin_inside, cursor, draft_key, outline_access, paint_outline, phase, reach, sample};
+use super::lasso::{LassoCursor, apply, begin_inside, cursor, draft_key, outline_access, paint_outline, phase, reach, sample};
 use super::{Place, Report, SelectEvent, SelectPhase, SelectToolPass, SelectionProbe};
 
 /// The Polygonal Lasso: each click adds a vertex; the outline closes into a selection.
@@ -115,7 +115,15 @@ impl CanvasTool for SelectToolPass<'_, PolygonLassoTool> {
     fn cursor(&self, cx: &ToolContext<'_>) -> Cursor {
         let tool = &*self.tool;
         let rule = PressRule::Clicks { outline_open: tool.draft.is_open() };
-        cursor(ToolIcon::PolygonalLasso, &tool.draft, tool.operation, tool.bar, tool.inside.as_ref(), rule, self.probe, cx)
+        let shown = LassoCursor {
+            icon: ToolIcon::PolygonalLasso,
+            draft: &tool.draft,
+            operation: tool.operation,
+            bar: tool.bar,
+            inside: tool.inside.as_ref(),
+            rule,
+        };
+        cursor(&shown, self.probe, cx)
     }
 
     /// A secondary press retracts the last vertex (`ToolAction::Done`: no drag follows). Cmd inside the selection with

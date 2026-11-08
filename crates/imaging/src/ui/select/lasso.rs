@@ -1,7 +1,7 @@
 //! [`LassoTool`]: the freehand Lasso with Alt-latched straight segments, and the pieces the Polygonal Lasso shares.
 
 use craft_behavior::geometry::{ConstrainStyle, DraftEvent, DraftKind, DraftPoint, DraftReach, OutlineDraft, SelectionOperation};
-use craft_behavior::{CancelReason, Cursor, CursorIcon, PaintedCursor};
+use craft_behavior::{CancelReason, Cursor, PaintedCursor};
 use craft_ui::canvas::{CanvasTool, ToolAccess, ToolAction, ToolContext, ToolKey, ToolPath, ToolPointer};
 use craft_ui::primitives::{Draw, PaintShape, StrokeWidth, ToolIcon};
 use egui::{Pos2, Vec2};
@@ -43,21 +43,23 @@ pub(super) fn phase(draft: &OutlineDraft, inside: Option<&InsideDrag>) -> Select
     if draft.is_open() { SelectPhase::Outline { points: draft.points().len() } } else { SelectPhase::Idle }
 }
 
-/// The badge-carrying lasso icon: the latched operation's badge while an outline is open, else the live modifiers';
+/// What a lasso cursor shows: the tool's icon, and the state that picks its badge.
+pub(super) struct LassoCursor<'a> {
+    pub(super) icon: ToolIcon,
+    pub(super) draft: &'a OutlineDraft,
+    pub(super) operation: SelectionOperation,
+    pub(super) bar: SelectionOperation,
+    pub(super) inside: Option<&'a InsideDrag>,
+    pub(super) rule: PressRule,
+}
+
+/// The lasso icon with the operation's badge: the latched one while an outline is open, else the live modifiers';
 /// Cmd is the Move tool's, so it shows none. Over the selection, the cursors of [`cursor_over`].
-pub(super) fn cursor(
-    icon: ToolIcon,
-    draft: &OutlineDraft,
-    operation: SelectionOperation,
-    bar: SelectionOperation,
-    inside: Option<&InsideDrag>,
-    rule: PressRule,
-    probe: &dyn SelectionProbe,
-    cx: &ToolContext<'_>,
-) -> Cursor {
+pub(super) fn cursor(shown: &LassoCursor<'_>, probe: &dyn SelectionProbe, cx: &ToolContext<'_>) -> Cursor {
+    let LassoCursor { icon, draft, operation, bar, inside, rule } = shown;
     if !draft.is_open()
         && let (Some(pointer), Some(place)) = (cx.pointer, Place::of(cx))
-        && let Some(cursor) = cursor_over(probe, place.doc(pointer.pos), cx.mods, bar, rule, inside.map(InsideDrag::kind))
+        && let Some(cursor) = cursor_over(probe, place.doc(pointer.pos), cx.mods, *bar, *rule, inside.map(InsideDrag::kind))
     {
         return cursor;
     }
@@ -66,7 +68,7 @@ pub(super) fn cursor(
     } else if cx.mods.cmd {
         None
     } else {
-        SelectionOperation::resolve(bar, cx.mods, probe.has_selection()).badge()
+        SelectionOperation::resolve(*bar, cx.mods, probe.has_selection()).badge()
     };
     PaintedCursor::tool(icon.icon(), ICON_HOTSPOT, badge).into()
 }
@@ -246,7 +248,15 @@ impl CanvasTool for SelectToolPass<'_, LassoTool> {
 
     fn cursor(&self, cx: &ToolContext<'_>) -> Cursor {
         let tool = &*self.tool;
-        cursor(ToolIcon::Lasso, &tool.draft, tool.operation, tool.bar, tool.inside.as_ref(), PressRule::Drags, self.probe, cx)
+        let shown = LassoCursor {
+            icon: ToolIcon::Lasso,
+            draft: &tool.draft,
+            operation: tool.operation,
+            bar: tool.bar,
+            inside: tool.inside.as_ref(),
+            rule: PressRule::Drags,
+        };
+        cursor(&shown, self.probe, cx)
     }
 
     /// With no outline open: a selection drag inside the selection, `Ignored` for Cmd outside, else the outline begins
