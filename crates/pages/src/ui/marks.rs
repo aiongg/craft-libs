@@ -143,7 +143,6 @@ pub struct TextFrameMarksStyle {
     port: f32,
     /// How far along its edge a port's centre lies.
     port_inset: f32,
-    paper: StyleColor,
     overset: StyleColor,
 }
 
@@ -168,15 +167,15 @@ pub struct TextFrameMarks<'a> {
     hidden_characters: &'a [PlacedMark],
     /// The layer colour the marks and outlines take.
     color: DataColor,
-    /// The colour the ports are filled with; else the theme's well colour.
-    #[prop]
-    paper: Option<DataColor>,
+    /// The colour the ports are filled with: the document's paper.
+    paper: DataColor,
 }
 
 impl<'a> TextFrameMarks<'a> {
-    /// The extras of `frames` seen through `view`, named `label`, in the layer colour `color`.
-    pub fn new(label: impl Into<Label>, view: CanvasView, frames: &'a [FrameExtras], color: DataColor) -> Self {
-        TextFrameMarks { common: Common::new(), view, frames, hidden_characters: &[], color, paper: None }.label(label)
+    /// The extras of `frames` seen through `view`, named `label`, in the layer colour `color`, with ports filled with
+    /// the document's `paper`.
+    pub fn new(label: impl Into<Label>, view: CanvasView, frames: &'a [FrameExtras], color: DataColor, paper: DataColor) -> Self {
+        TextFrameMarks { common: Common::new(), view, frames, hidden_characters: &[], color, paper }.label(label)
     }
 }
 
@@ -195,7 +194,6 @@ impl Component for TextFrameMarks<'_> {
             metrics: Metrics::new(),
             port: cx.tokens.size.handle.md,
             port_inset: cx.tokens.space.pad.control,
-            paper: cx.color(cx.tokens.color.surface.sunken),
             overset: cx.tone(Tone::Bad),
         }
     }
@@ -227,7 +225,7 @@ impl Component for TextFrameMarks<'_> {
             let out_port = port_centre(corners[2], corners[3], style.port_inset);
             for (centre, threaded, is_out) in [(in_port, frame.threaded_in, false), (out_port, frame.threaded_out, true)] {
                 let square = PaintShape::Rect(egui::Rect::from_center_size(centre, Vec2::splat(style.port)), CornerRadius::ZERO);
-                draw.data_fill(&square, self.paper.unwrap_or_else(|| DataColor::new(style.paper.egui())));
+                draw.data_fill(&square, self.paper);
                 draw.data_stroke(&square, StrokeWidth::Hairline, self.color);
                 if is_out && frame.overset {
                     let arm = style.port / 2.0;

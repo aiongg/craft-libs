@@ -164,8 +164,6 @@ pub struct HeaderFooterZonesStyle {
     /// The space between a section and the band's top and bottom.
     inset: f32,
     hint: StyleColor,
-    paper: StyleColor,
-    ink: StyleColor,
     editing: StyleColor,
     neighbour: StyleColor,
     faint: StyleColor,
@@ -220,21 +218,19 @@ pub struct HeaderFooterZones<'a> {
     /// The section being edited, if any; it paints as an editor instead of a label.
     #[prop]
     editing: Option<ZoneAt>,
-    /// The paper of the pages, when the document gives one; else the theme's well colour.
-    #[prop]
-    paper: Option<DataColor>,
-    /// The ink of the pages' text, when the document gives one; else the theme's normal text colour.
-    #[prop]
-    ink: Option<DataColor>,
+    /// The paper of the pages (document data).
+    paper: DataColor,
+    /// The ink of the pages' text (document data).
+    ink: DataColor,
     begin: Option<ZoneAt>,
     end: bool,
 }
 
 impl<'a> HeaderFooterZones<'a> {
-    /// The zones named `label` over `placed`, whose bands `bands` gives per page.
-    pub fn new(label: impl Into<Label>, placed: &'a [PlacedPage], bands: &'a dyn Fn(usize) -> ZoneBands) -> Self {
-        HeaderFooterZones { common: Common::new(), placed, bands, text: None, editing: None, paper: None, ink: None, begin: None, end: false }
-            .label(label)
+    /// The zones named `label` over `placed`, whose bands `bands` gives per page, on pages of the document's `paper`
+    /// with text in its `ink`.
+    pub fn new(label: impl Into<Label>, placed: &'a [PlacedPage], bands: &'a dyn Fn(usize) -> ZoneBands, paper: DataColor, ink: DataColor) -> Self {
+        HeaderFooterZones { common: Common::new(), placed, bands, text: None, editing: None, paper, ink, begin: None, end: false }.label(label)
     }
 
     /// The whole section on `placed`, without the style's inset.
@@ -287,8 +283,6 @@ impl Component for HeaderFooterZones<'_> {
             focus: cx.focus_look(),
             inset: cx.tokens.space.gap.tight,
             hint: cx.color(colors.line.control_edge),
-            paper: cx.color(colors.surface.sunken),
-            ink: cx.color(colors.text.normal),
             editing: cx.color(colors.accent.solid),
             neighbour: cx.color(colors.line.control_edge),
             faint: cx.color(colors.text.faint),
@@ -335,7 +329,7 @@ impl Component for HeaderFooterZones<'_> {
         for (at, placed, rect) in self.sections(rtl, style.inset, cx.rect) {
             let outline = PaintShape::Rect(rect, CornerRadius::ZERO);
             if self.editing == Some(at) {
-                draw.data_fill(&outline, self.paper.unwrap_or_else(|| DataColor::new(style.paper.egui())));
+                draw.data_fill(&outline, self.paper);
                 draw.stroke(&outline, StrokeWidth::Thin, style.editing);
                 continue;
             }
@@ -355,7 +349,7 @@ impl Component for HeaderFooterZones<'_> {
                 continue;
             }
             let size = (HEADER_TEXT * placed.scale as f32).clamp(*HEADER_TEXT_SCREEN.start(), *HEADER_TEXT_SCREEN.end());
-            let runs = [DocRun::new(text, FontRef::proportional(), size, self.ink.unwrap_or_else(|| DataColor::new(style.ink.egui())))];
+            let runs = [DocRun::new(text, FontRef::proportional(), size, self.ink)];
             let mut doc = DocText::new(&runs);
             doc.align = match at.zone.section {
                 0 => HAlign::Start,

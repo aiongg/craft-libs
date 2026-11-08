@@ -3,7 +3,7 @@
 
 use craft_behavior::{Selection, kurbo::Size};
 use craft_pages::layout::{Fit, LayoutOptions, ZOOM_RANGE};
-use craft_pages::ui::fixtures::DemoPages;
+use craft_pages::ui::fixtures::{DemoPages, PAPER};
 use craft_pages::ui::{
     Lead, PageList, PageListEvent, PageListRow, PagePreview, PageSource, PageThumbnails, PageView, PageViewState, SyncedViews, SyncedViewsState,
     ThumbnailEvent, baseline_lines, moved_page,
@@ -77,7 +77,7 @@ fn view_rig(count: usize, start: PageViewState) -> ViewRig {
     let pages = DemoPages::new(count);
     let mut fixture = Fixture::new(move |ui| {
         let mut now = kept.borrow().clone();
-        let out = PageView::new("Pages", &pages, &mut now).options(LayoutOptions::ACROBAT).show(ui, |_, _| ());
+        let out = PageView::new("Pages", &pages, &mut now, PAPER).options(LayoutOptions::ACROBAT).show(ui, |_, _| ());
         *seen.borrow_mut() = out.pages.iter().map(|placed| placed.page).collect();
         *kept.borrow_mut() = now;
     });
@@ -132,8 +132,8 @@ fn the_follower_takes_the_leaders_zoom_and_layout() {
         let mut now = kept.borrow().clone();
         let (pair, left, right) = (&mut now.0, &mut now.1, &mut now.2);
         SyncedViews::new("Compare", pair).halves(ui, (left, right), |ui, rect, state, half| match half {
-            Lead::Left => PageView::new("Old", &old_pages, state).show_at(ui, rect, |_, _| ()),
-            _ => PageView::new("New", &new_pages, state).show_at(ui, rect, |_, _| ()),
+            Lead::Left => PageView::new("Old", &old_pages, state, PAPER).show_at(ui, rect, |_, _| ()),
+            _ => PageView::new("New", &new_pages, state, PAPER).show_at(ui, rect, |_, _| ()),
         });
         *kept.borrow_mut() = now;
     });

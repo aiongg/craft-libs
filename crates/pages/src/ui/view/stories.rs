@@ -3,7 +3,7 @@
 use super::pictures::{PageMetrics, PagePictures};
 use super::{PageView, PageViewState};
 use crate::layout::{LayoutOptions, PageDisplay};
-use crate::ui::fixtures::{DemoPages, demo_placed};
+use crate::ui::fixtures::{DemoPages, PAPER, demo_placed};
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::Point;
 use craft_ui::canvas::Canvas;
@@ -21,7 +21,7 @@ fn view(ui: &mut Ui, data: &mut StoryData, change: impl FnOnce(&mut PageViewStat
         state
     });
     let pages = DemoPages::new(PAGES);
-    let out = PageView::new("Pages", &pages, state).options(LayoutOptions::ACROBAT).show(ui, |_, _| ());
+    let out = PageView::new("Pages", &pages, state, PAPER).options(LayoutOptions::ACROBAT).show(ui, |_, _| ());
     out.canvas.response.into()
 }
 
@@ -43,7 +43,9 @@ fn one_page_row(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(PageMetrics, covers = [Default], drive = Drive::Never)]
 fn page_metrics(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let room = ui.available_rect_before_wrap();
-    PageMetrics::new().show_at(ui, room).into()
+    let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
+    let shown = Canvas::new("Document").view(view).show(ui, |ui, body| PageMetrics::new().show_at(ui, body.rect));
+    shown.inner.map(StoryOutput::from).unwrap_or_default()
 }
 
 #[story(PagePictures<'static>, covers = [Default], drive = Drive::Never)]

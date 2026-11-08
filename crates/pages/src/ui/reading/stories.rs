@@ -14,8 +14,7 @@ const PAGES: usize = 6;
 fn reading_view(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let source = DemoPages::new(PAGES);
     let state = data.value("state", ReadingState::default());
-    let rect = ui.available_rect_before_wrap();
-    ReadingView::new("Document", &source, state).show_at(ui, rect).into()
+    ReadingView::new("Document", &source, state).show(ui).into()
 }
 
 #[story(ReadingNav<'static>, covers = [], drive = Drive::Never)]

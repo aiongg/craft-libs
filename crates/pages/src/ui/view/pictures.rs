@@ -141,7 +141,8 @@ impl<'a> PagePictures<'a> {
 }
 
 impl Component for PagePictures<'_> {
-    const ROLE: Role = Role::None;
+    const ROLE: Role = Role::GROUP;
+    const ALT_ROLES: &'static [Role] = &[Role::None];
     const PARTS: bool = false;
     const STOPS: bool = false;
     const INPUT: Input = Input::Display;
@@ -200,8 +201,12 @@ impl Component for PagePictures<'_> {
     }
 
     fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
-        if let Some(describer) = self.describer {
-            describe(access, self.pages, describer);
+        // The text nodes hang under this component's node; without a describer it stands for none.
+        match self.describer {
+            Some(describer) => describe(access, self.pages, describer),
+            None => {
+                access.role(Role::None);
+            }
         }
     }
 

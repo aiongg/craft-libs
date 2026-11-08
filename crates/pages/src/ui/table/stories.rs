@@ -4,7 +4,7 @@ use craft_behavior::{CellAt, CellRange, CellSelection, Mixed};
 use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
 use craft_ui::runtime::env::{Message, UnitKind};
-use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
+use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use egui::Ui;
 
 use super::{
@@ -20,7 +20,13 @@ fn mixed_edges() -> BorderEdges {
     edges
 }
 
-#[story(EdgePicker<'static>, covers = [Default], drive = Drive::Never)]
+fn click_top_border(fixture: &mut Fixture) {
+    if let Some(top) = fixture.by_label("Top Border") {
+        fixture.click(&top);
+    }
+}
+
+#[story(EdgePicker<'static>, covers = [Default], drive = Drive::Custom(click_top_border))]
 fn edge_picker(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     EdgePicker::new("Borders", Bind::bound(data.value("edges", mixed_edges()))).show(ui).into()
 }

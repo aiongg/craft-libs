@@ -1,6 +1,7 @@
 //! Stories of the text frame marks.
 
 use super::{FrameExtras, HiddenMark, PlacedMark, TextFrameMarks};
+use crate::ui::fixtures::PAPER;
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Rect};
 use craft_ui::canvas::Canvas;
@@ -32,7 +33,7 @@ fn hidden_characters_and_extras(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     ];
     Canvas::new("Frames")
         .view(view)
-        .show(ui, |ui, body| TextFrameMarks::new("Frame marks", view, &frames, LAYER).hidden_characters(&marks).show_at(ui, body.rect))
+        .show(ui, |ui, body| TextFrameMarks::new("Frame marks", view, &frames, LAYER, PAPER).hidden_characters(&marks).show_at(ui, body.rect))
         .inner
         .map(StoryOutput::from)
         .unwrap_or_default()

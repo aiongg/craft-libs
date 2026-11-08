@@ -2,7 +2,8 @@
 
 use super::view::{PageSource, PlacedPage};
 use craft_ui::primitives::textures::{FakeThumbSource, Revision, ThumbRender, ThumbRequest, ThumbSource};
-use egui::{Pos2, Rect, Vec2, pos2};
+use craft_ui::style::DataColor;
+use egui::{Color32, Pos2, Rect, Vec2, pos2};
 use kurbo::Size;
 
 /// The width of a US Letter page, points.
@@ -11,6 +12,11 @@ const LETTER_WIDTH: f64 = 612.0;
 const LETTER_HEIGHT: f64 = 792.0;
 /// The gap between pages in [`demo_placed`], screen points.
 const GAP: f32 = 12.0;
+
+/// The paper of the demo document.
+pub const PAPER: DataColor = DataColor::new(Color32::from_rgb(0xfa, 0xf8, 0xf2));
+/// The ink of the demo document's text.
+pub const INK: DataColor = DataColor::new(Color32::from_rgb(0x1c, 0x1c, 0x20));
 
 /// A document of `count` US Letter pages whose pictures the fake thumbnail source makes.
 pub struct DemoPages {

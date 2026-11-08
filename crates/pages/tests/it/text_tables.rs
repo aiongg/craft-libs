@@ -7,7 +7,7 @@ use std::rc::Rc;
 use craft_behavior::kurbo::{Point, Rect};
 use craft_behavior::{CellAt, CellRange};
 use craft_pages::ui::access::{AccessBuilder, AccessDescriber, AccessNode, AccessPosition, BlockRole, MAX_NODES};
-use craft_pages::ui::fixtures::demo_placed;
+use craft_pages::ui::fixtures::{PAPER, demo_placed};
 use craft_pages::ui::reading::{ReadingMetrics, ReadingState, reading_size, reading_viewport, swipe_turn, wheel_turns};
 use craft_pages::ui::table::{
     BorderEdges, BorderPreset, EdgeKey, EdgePicker, RowHeight, TableChange, TableGeometry, TableProperties, TableSizePicker, TableSizePickerOutput,
@@ -420,7 +420,7 @@ fn described(content: Content, pages: usize) -> (Fixture, Rc<Fake>) {
     let state = Rc::new(RefCell::new(PageViewState::default()));
     let mut fixture = Fixture::new(move |ui| {
         let mut state = state.borrow_mut();
-        PageView::new("Document", &source, &mut state).access(&*shown).show(ui, |_, _| ());
+        PageView::new("Document", &source, &mut state, PAPER).access(&*shown).show(ui, |_, _| ());
     });
     fixture.settle();
     (fixture, fake)

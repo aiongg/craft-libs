@@ -1,7 +1,7 @@
 //! Stories of the header and footer zones.
 
 use super::{HeaderFooterZones, Zone, ZoneAt, ZoneBands};
-use crate::ui::fixtures::demo_placed;
+use crate::ui::fixtures::{INK, PAPER, demo_placed};
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::Point;
 use craft_ui::canvas::Canvas;
@@ -25,7 +25,7 @@ fn zone_being_edited(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     Canvas::new("Pages")
         .view(view)
         .show(ui, |ui, body| {
-            HeaderFooterZones::new("Zones", &placed, &bands).text(text).editing(ZoneAt::new(0, Zone::new(true, 2))).show_at(ui, body.rect)
+            HeaderFooterZones::new("Zones", &placed, &bands, PAPER, INK).text(text).editing(ZoneAt::new(0, Zone::new(true, 2))).show_at(ui, body.rect)
         })
         .inner
         .map(StoryOutput::from)

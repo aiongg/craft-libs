@@ -58,8 +58,8 @@ impl Outcome for SyncedViewsOutput {
 ///
 /// ```ignore
 /// SyncedViews::new("Compare", &mut pair).halves(ui, (&mut old_state, &mut new_state), |ui, rect, state, half| match half {
-///     Lead::Left => PageView::new("Old", &old_pages, state).show_at(ui, rect, |_, _| ()),
-///     Lead::Right => PageView::new("New", &new_pages, state).show_at(ui, rect, |_, _| ()),
+///     Lead::Left => PageView::new("Old", &old_pages, state, paper).show_at(ui, rect, |_, _| ()),
+///     Lead::Right => PageView::new("New", &new_pages, state, paper).show_at(ui, rect, |_, _| ()),
 /// });
 /// ```
 pub struct SyncedViews<'a> {

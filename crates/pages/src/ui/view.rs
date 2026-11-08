@@ -7,7 +7,7 @@
 //! [`PageViewOutput::adopt`].
 //!
 //! ```ignore
-//! let out = PageView::new("Pages", &doc_pages, &mut view_state).options(LayoutOptions::ACROBAT).show(ui, |ui, body| {
+//! let out = PageView::new("Pages", &doc_pages, &mut view_state, paper).options(LayoutOptions::ACROBAT).show(ui, |ui, body| {
 //!     TextMarks::new(&body.pages, &marks).show_at(ui, body.rect);
 //! });
 //! let tools = ToolHost::new().run(ui, &out.canvas, &mut tool);
@@ -30,6 +30,7 @@ use craft_ui::contract::{Bind, BodyCx, Held, Show as _, ShowContainer as _};
 use craft_ui::primitives::textures::ThumbSource;
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::runtime::memory::Remember as _;
+use craft_ui::style::DataColor;
 use egui::{Rect, Ui, Vec2, pos2};
 use std::cell::RefCell;
 use std::ops::Range;
@@ -239,11 +240,13 @@ pub struct PageView<'a> {
     navigation: NavigationOptions,
     bodies: Option<&'a [(f64, f64)]>,
     describer: Option<&'a dyn AccessDescriber>,
+    paper: DataColor,
 }
 
 impl<'a> PageView<'a> {
-    /// A view named `label` of the pages of `source`, with `state` kept by the app between passes.
-    pub fn new(label: impl Into<Label>, source: &'a dyn PageSource, state: &'a mut PageViewState) -> Self {
+    /// A view named `label` of the pages of `source`, with `state` kept by the app between passes, on pages of the
+    /// document's `paper` colour.
+    pub fn new(label: impl Into<Label>, source: &'a dyn PageSource, state: &'a mut PageViewState, paper: DataColor) -> Self {
         PageView {
             label: label.into(),
             source,
@@ -252,6 +255,7 @@ impl<'a> PageView<'a> {
             navigation: NavigationOptions::default(),
             bodies: None,
             describer: None,
+            paper,
         }
     }
 
@@ -296,7 +300,7 @@ impl<'a> PageView<'a> {
     }
 
     fn run(self, ui: &mut Ui, rect: Rect, take_room: bool, body: impl FnOnce(&mut Ui, &PageBody<'_>)) -> PageViewOutput {
-        let PageView { label, source, state, options, navigation, bodies, describer } = self;
+        let PageView { label, source, state, options, navigation, bodies, describer, paper } = self;
         let spacing = PageMetrics::new().show_at(ui, Rect::from_min_size(rect.min, Vec2::ZERO)).spacing;
         let count = source.page_count();
         let sizes: Vec<Size> = (0..count).map(|page| source.page_size(page)).collect();
@@ -316,7 +320,7 @@ impl<'a> PageView<'a> {
         let mut app_body = Some(body);
         let mut seen: Option<Seen> = None;
         let mut canvas_body = |ui: &mut Ui, cx: &mut BodyCx<'_>| {
-            let Some(next) = run_pass(ui, cx, &mut held, &Inputs { source, describer, build: &build, rect, given }) else { return };
+            let Some(next) = run_pass(ui, cx, &mut held, &Inputs { source, describer, build: &build, rect, given, paper }) else { return };
             if let Some(body) = app_body.take() {
                 body(ui, &PageBody { rect: cx.rect, pages: &next.pages, view: next.view });
             }
@@ -351,6 +355,7 @@ struct Inputs<'a> {
     build: &'a Geometry<'a>,
     rect: Rect,
     given: CanvasView,
+    paper: DataColor,
 }
 
 /// What a pass found out, for the output.
@@ -439,7 +444,7 @@ impl Frame {
 /// One pass of the canvas body: layout, scrolling, zoom and paging folded into the state; the pasteboard, the
 /// pictures and the scroll bars drawn.
 fn run_pass(ui: &mut Ui, cx: &mut BodyCx<'_>, held: &mut Held<'_, PageViewState>, inputs: &Inputs<'_>) -> Option<Seen> {
-    let Inputs { source, describer, build, rect, given } = *inputs;
+    let Inputs { source, describer, build, rect, given, paper } = *inputs;
     let mut state = held.read(cx)?;
     let started = state.clone();
     let shown = canvas_space(&cx.env)?.view;
@@ -549,7 +554,7 @@ fn run_pass(ui: &mut Ui, cx: &mut BodyCx<'_>, held: &mut Held<'_, PageViewState>
             band: (drawn.layout.bands[page].0 as f32 * ratio as f32, drawn.layout.bands[page].1 as f32 * ratio as f32),
         })
         .collect();
-    let frames: Vec<PageFrame> = rows.iter().map(|&p| PageFrame::new(drawn_frame.document_rect(&band_rect(&drawn.layout, p)))).collect();
+    let frames: Vec<PageFrame> = rows.iter().map(|&p| PageFrame::new(drawn_frame.document_rect(&band_rect(&drawn.layout, p))).fill(paper)).collect();
     let pasteboard = Pasteboard::new(words.pasteboard.clone(), &frames).show_at(ui, cx.rect);
     let near: Vec<(usize, Vec2)> = near_pages(&drawn, state.continuous, &visible, count, &build.layout_options(&state))
         .into_iter()
@@ -558,7 +563,7 @@ fn run_pass(ui: &mut Ui, cx: &mut BodyCx<'_>, held: &mut Held<'_, PageViewState>
             (page, Vec2::new(size.width as f32, size.height as f32))
         })
         .collect();
-    let pictures = PagePictures::new(source, &pages, &near).hold(zooming || ratio != 1.0);
+    let pictures = PagePictures::new(source, &pages, &near).label(words.text.clone()).hold(zooming || ratio != 1.0);
     match describer {
         Some(describer) => pictures.describer(describer).show_at(ui, cx.rect),
         None => pictures.show_at(ui, cx.rect),
@@ -603,6 +608,7 @@ craft_ui::words! {
         pasteboard: "pageView.pasteboard" = "Pasteboard";
         scroll_bars: "pageView.scrollBars" = "Scroll bars";
         edit: "pageView.edit" = "Change view";
+        text: "pageView.text" = "Page text";
     }
 }
 

@@ -221,6 +221,7 @@ struct LastSize(Option<Vec2>);
 ///   Ctrl and the wheel: the reading size is the app's.
 /// - In a right-to-left interface the row mirrors: the first column is at the right and a swipe toward the left turns
 ///   back, so an arrow or swipe always moves toward the side it points at.
+/// - A click or Space (and a screen reader's Click) turns to the next column.
 /// - The text stays selectable; the app's editing caret doesn't move the columns.
 /// - Show it over the reading area with `show_at`: it takes the rect it is given.
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
@@ -273,7 +274,7 @@ impl Component for ReadingView<'_> {
     }
 
     fn sense(&self) -> Sense {
-        Sense::FOCUS | Sense::WHEEL_X | Sense::WHEEL_Y
+        Sense::FOCUS | Sense::CLICK | Sense::WHEEL_X | Sense::WHEEL_Y
     }
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
