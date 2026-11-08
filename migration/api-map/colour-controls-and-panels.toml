@@ -12,3 +12,218 @@ new_module = ""
 # type = ""
 # old = ""
 # new = ""
+
+# --- color-b: picker, hex, readout, choice ---
+
+[[type]]
+name = "PickedColor"
+old = "craft_color::ui::PickedColor"
+new = "craft_color::ui::PickedColor"
+status = "same"
+note = "Unchanged."
+
+[[type]]
+name = "ColorPicker"
+old = "craft_color::ui::ColorPicker"
+new = "craft_color::ui::ColorPicker"
+status = "moved"
+note = "`ColorPicker::new(label, Bind<PickedColor>)`; the area mode and Only Web Colors are second bindings (`mode(Bind<AreaMode>)`, `web_colors(Bind<bool>)`); `sampled(Option<Srgba>)` is a prop; no egui memory."
+
+[[type]]
+name = "ColorPickerLayout"
+old = "craft_color::ui::ColorPickerLayout"
+new = "craft_color::ui::ColorPickerLayout"
+status = "same"
+note = "Unchanged."
+
+[[type]]
+name = "ColorPickerResponse"
+old = "craft_color::ui::ColorPickerResponse"
+new = "craft_color::ui::ColorPickerOutput"
+status = "replaced"
+note = "`edit: EditResponse<PickedColor>` and `screen_pick: Option<ScreenPickGesture>` replace `eyedropper_requested`/`eyedropper`; `side_clicked` goes (the dialog lays out its buttons)."
+
+[[type]]
+name = "ColorWarning"
+old = "craft_color::ui::ColorWarning"
+new = "craft_color::ui::ColorWarning"
+status = "moved"
+note = "`tip` is a `Label`, the icon an `IconId`; `ColorWarning::web_colors(tip, nearest)` stays."
+
+[[type]]
+name = "ColorWarningChip"
+old = "craft_color::ui::ColorWarningChip"
+new = "craft_color::ui::ColorWarningChip"
+status = "moved"
+note = "`ColorWarningChip::new(&ColorWarning)`; the output carries `clicked`."
+
+[[type]]
+name = "HexField"
+old = "craft_color::ui::HexField"
+new = "craft_ui::text::HexField"
+status = "removed"
+note = "Use `TextField::hex(label, Bind<Rgba>)`: lowercase `#rrggbb`, alpha digits only when not opaque, three-digit input. The uppercase codec, fixed `#`, `digits(1)` and the alpha toggle go."
+
+[[type]]
+name = "HexPairField"
+old = "craft_color::ui::HexPairField"
+new = "craft_color::ui::HexPairField"
+status = "replaced"
+note = "`TextField<'a, PairCodec>` built by `HexPair::hex_pair(label, Bind<u8>)`."
+
+[[type]]
+name = "ColorReadout"
+old = "craft_color::ui::ColorReadout"
+new = "craft_color::ui::ColorReadout"
+status = "moved"
+note = "`ColorReadout::new(label, Bind<Rgba>)`; the output is `EditResponse<Rgba>`; the names are `ColorReadoutWords`."
+
+[[type]]
+name = "ColorChoice"
+old = "craft_color::ui::ColorChoice"
+new = "craft_color::ui::ColorChoice"
+status = "moved"
+note = "A pattern: `ColorChoice::new(label, &ChosenColor)` shows a `Select`; `ColorChoiceOutput { response, chosen, pick_color }`."
+
+[[type]]
+name = "ColorChoiceLabels"
+old = "craft_color::ui::ColorChoiceLabels"
+new = "craft_color::ui::ColorChoiceWords"
+status = "removed"
+note = "A `words!` set."
+
+[[type]]
+name = "ColorChoiceResponse"
+old = "craft_color::ui::ColorChoiceResponse"
+new = "craft_color::ui::ColorChoiceOutput"
+status = "replaced"
+note = "`chosen: Option<ChosenColor>` replaces the edit."
+
+[[type]]
+name = "ChosenColor"
+old = "craft_color::ui::ChosenColor"
+new = "craft_color::ui::ChosenColor"
+status = "same"
+note = "Unchanged."
+
+[[type]]
+name = "NamedColor"
+old = "craft_color::ui::NamedColor"
+new = "craft_color::ui::NamedColor"
+status = "moved"
+note = "The label is a `Label`."
+
+[[setter]]
+type = "ColorPicker"
+old = "new(id_salt, label, color, &LocaleNumbers)"
+new = "new(label, Bind<PickedColor>)"
+
+[[setter]]
+type = "ColorPicker"
+old = "layout(ColorPickerLayout)"
+new = "layout(ColorPickerLayout)"
+
+[[setter]]
+type = "ColorPicker"
+old = "models(iter)"
+new = "models(iter)"
+
+[[setter]]
+type = "ColorPicker"
+old = "mode(&mut AreaMode)"
+new = "mode(Bind<AreaMode>)"
+
+[[setter]]
+type = "ColorPicker"
+old = "area_height(f32)"
+new = "removed: the area is the plot size of the style"
+
+[[setter]]
+type = "ColorPicker"
+old = "dynamic_tracks(bool)"
+new = "dynamic_tracks(bool)"
+
+[[setter]]
+type = "ColorPicker"
+old = "alpha(bool)"
+new = "alpha(bool)"
+
+[[setter]]
+type = "ColorPicker"
+old = "eyedropper(label)"
+new = "eyedropper(bool)"
+
+[[setter]]
+type = "ColorPicker"
+old = "eyedropper_busy(bool)"
+new = "eyedropper_busy(bool)"
+
+[[setter]]
+type = "ColorPicker"
+old = "compare(Srgba)"
+new = "compare(Srgba)"
+
+[[setter]]
+type = "ColorPicker"
+old = "warning(ColorWarning)"
+new = "warnings(iter)"
+
+[[setter]]
+type = "ColorPicker"
+old = "web_colors(&mut bool)"
+new = "web_colors(Bind<bool>)"
+
+[[setter]]
+type = "ColorPicker"
+old = "constrain(fn)"
+new = "constrain(fn)"
+
+[[setter]]
+type = "ColorPicker"
+old = "text(fn)"
+new = "removed: the picker's words are `ColorPickerWords`"
+
+[[setter]]
+type = "ColorPicker"
+old = "policy(EditPolicy)"
+new = "removed: the host's `Bind::policy`"
+
+[[setter]]
+type = "ColorPicker"
+old = "enabled(bool)"
+new = "enabled(bool) from `Common`"
+
+[[setter]]
+type = "ColorPicker"
+old = "focus_on_open(bool)"
+new = "focus_on_open(bool)"
+
+[[setter]]
+type = "ColorPicker"
+old = "side_actions(iter)"
+new = "removed: the dialog lays out its buttons"
+
+[[setter]]
+type = "ColorPicker"
+old = "sampled(ctx, id, color)"
+new = "sampled(Option<Srgba>) prop"
+
+[[setter]]
+type = "ColorPicker"
+old = "focus_hex(ctx, id)"
+new = "removed: focus_on_open"
+
+[[setter]]
+type = "HexPairField"
+old = "digits(usize)"
+new = "removed"
+
+[[setter]]
+type = "HexPairField"
+old = "alpha(bool)"
+new = "removed"
+
+[[setter]]
+type = "HexPairField"
+old = "show(ui)"
+new = "show(ui) from `Show`"

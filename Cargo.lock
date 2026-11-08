@@ -1171,9 +1171,10 @@ dependencies = [
  "craft-platform",
  "craft-settings",
  "craft-theme",
- "craft-ui-legacy",
+ "craft-ui",
  "egui",
  "egui_kittest",
+ "libtest-mimic",
  "serde",
  "serde_json",
 ]
