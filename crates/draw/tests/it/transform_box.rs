@@ -3,7 +3,7 @@
 
 use craft_behavior::geometry::quad::{self, BoxPart, BoxRules, BoxState, TransformMode};
 use craft_behavior::kurbo::{Point, Rect, Vec2 as DocVec};
-use craft_behavior::{CanvasView, EditEvent, Mixed, PartKey};
+use craft_behavior::{CanvasView, EditEvent, PartKey};
 use craft_draw::ui::transform::{
     RotateZone, TransformBox, TransformEdit, TransformOverlay, TransformPhase, TransformSession, TransformSettings, TransformTool,
 };
@@ -132,12 +132,10 @@ fn harness(state: BoxState, setup: impl FnOnce(&mut Config)) -> Harness {
             host.applied += usize::from(output.apply);
             host.discarded += usize::from(output.discard);
             (host.picked, host.hovered) = (output.picked, output.hovered);
-            let shown = output.edit.shown.as_ref().and_then(Mixed::same).map(|state| **state);
             match &output.edit.event {
                 Some(EditEvent::Begin { .. }) => {
                     host.events.push(Seen::Begin);
                     host.before = Some(host.state);
-                    host.state = shown.unwrap_or(host.state);
                 }
                 Some(EditEvent::Update { value, .. }) => {
                     host.events.push(Seen::Update);
@@ -151,7 +149,8 @@ fn harness(state: BoxState, setup: impl FnOnce(&mut Config)) -> Harness {
                     host.events.push(Seen::Set);
                     host.state = *after;
                 }
-                Some(EditEvent::Cancel { .. }) => {
+                Some(EditEvent::Cancel { reason, .. }) => {
+                    eprintln!("DIAG-C-A cancel {reason:?}");
                     host.events.push(Seen::Cancel);
                     host.state = host.before.take().unwrap_or(host.state);
                 }
@@ -601,7 +600,10 @@ fn overlay(shown: bool, setup: impl FnOnce(&mut TransformSession<()>)) -> (Fixtu
                     TransformEdit::Box(EditEvent::Begin { .. }) => "begin",
                     TransformEdit::Box(EditEvent::Update { .. }) => "update",
                     TransformEdit::Box(EditEvent::Commit { .. }) => "commit",
-                    _ => "other",
+                    other => {
+                        eprintln!("DIAG-C-A overlay edit {other:?}");
+                        "other"
+                    }
                 });
                 host.session.apply(edit, 0.0);
             }
@@ -686,7 +688,12 @@ fn a_click_outside_and_a_double_click_inside_apply_through_the_overlay() {
 #[trial]
 fn the_tool_nudges_the_whole_box_with_the_arrows() {
     let session: &'static TransformSession<()> = Box::leak(Box::new(TransformSession::new(RECT)));
-    let mut canvas = ToolFixture::new("Document", TransformTool::new(session));
+    let mut canvas = ToolFixture::with_view(
+        "Document",
+        TransformTool::new(session),
+        |room| CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0),
+        |_, _| {},
+    );
     canvas.fixture().key(Key::Tab, Modifiers::NONE).settle();
     canvas.fixture().key(Key::ArrowRight, Modifiers::NONE).settle();
     canvas.fixture().key(Key::ArrowDown, Modifiers::SHIFT).settle();

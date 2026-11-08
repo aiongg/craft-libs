@@ -371,7 +371,12 @@ fn enter_and_escape_work_before_the_canvas_is_focused() {
 #[trial]
 fn the_tool_nudges_the_centre_with_the_arrows() {
     let session: &'static SymmetryTransform = Box::leak(Box::new(SymmetryTransform::begin(start())));
-    let mut canvas = craft_ui::testing::ToolFixture::new("Document", SymmetryTool::new(session, true));
+    let mut canvas = craft_ui::testing::ToolFixture::with_view(
+        "Document",
+        SymmetryTool::new(session, true),
+        |room| CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0),
+        |_, _| {},
+    );
     canvas.fixture().key(Key::Tab, Modifiers::NONE).settle();
     canvas.fixture().key(Key::ArrowRight, Modifiers::NONE).settle();
     canvas.fixture().key(Key::ArrowDown, Modifiers::SHIFT).settle();

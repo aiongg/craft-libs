@@ -5,7 +5,7 @@ use craft_behavior::{Axis, CancelReason, CanvasView, EditEvent};
 use craft_draw::ui::measure::{RulerBar, RulerLine, RulerOverlay, RulerPart, RulerTool, box_distances};
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPath, ToolPointer};
-use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
 use craft_ui::primitives::Draw;
 use craft_ui::testing::{Fixture, ToolFixture, trial};
 use egui::{Key, Modifiers, Pos2, Vec2};
@@ -109,16 +109,22 @@ fn bar_rig(line: Option<RulerLine>, scale: bool, factor: f64) -> Fixture {
     fixture
 }
 
+/// The value of the readout field named `label`: the field's group node carries the text its body shows.
+fn readout(fixture: &Fixture, label: &str) -> Option<String> {
+    let tree = fixture.tree();
+    let group = fixture.by_role(Role::GROUP).into_iter().find(|group| tree.name_of(group.node) == Some(label))?;
+    tree.value_of(group.node).map(str::to_owned)
+}
+
 /// Use Measurement Scale multiplies the lengths and positions in the readouts, not the angle.
 #[trial]
 fn scale_multiplies_lengths_not_the_angle() {
     let line = RulerLine::new(Point::new(1.0, 2.0), Point::new(4.0, 6.0));
     let plain = bar_rig(Some(line), false, 2.0);
     let scaled = bar_rig(Some(line), true, 2.0);
-    let value = |fixture: &Fixture, label: &str| fixture.by_label(label).and_then(|t| fixture.tree().value_of(t.node).map(str::to_owned));
-    assert!(plain.by_label("L1").is_some());
-    assert_ne!(value(&plain, "L1"), value(&scaled, "L1"));
-    assert_eq!(value(&plain, "A"), value(&scaled, "A"));
+    assert!(readout(&plain, "L1").is_some());
+    assert_ne!(readout(&plain, "L1"), readout(&scaled, "L1"));
+    assert_eq!(readout(&plain, "A"), readout(&scaled, "A"));
 }
 
 /// Straighten Layer and Clear are disabled without a line.
@@ -135,8 +141,8 @@ fn buttons_are_disabled_without_a_line() {
 #[trial]
 fn readouts_show_the_ruler_units() {
     let rig = bar_rig(Some(RulerLine::new(Point::new(3.0, 4.0), Point::new(6.0, 8.0))), false, 1.0);
-    let field = rig.by_label("L1").expect("the L1 readout");
-    assert!(rig.tree().value_of(field.node).is_some_and(|v| v.contains("5.00") && v.contains("px")), "{:?}", rig.tree().value_of(field.node));
+    let value = readout(&rig, "L1");
+    assert!(value.as_ref().is_some_and(|v| v.contains("5.00") && v.contains("px")), "{value:?}");
 }
 
 /// The tool for the fixture: it builds a pass over the shared line for every call and applies the events the pass
