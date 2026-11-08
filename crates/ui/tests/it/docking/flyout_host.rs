@@ -2,7 +2,7 @@
 
 use craft_behavior::dock::{Column, DockEdge, Group, Layout, Node, Permissions, SplitSize, Workspace};
 use craft_behavior::{Axis, Proposal};
-use craft_ui::contract::{Bind, BodyCx, ShowContainer as _};
+use craft_ui::contract::{Bind, BodyCx, Props as _, ShowContainer as _};
 use craft_ui::docking::{DockConfig, DockPanels, GroupAt, PanelSpec};
 use craft_ui::patterns::dock::DockArea;
 use craft_ui::sections::Panel;
