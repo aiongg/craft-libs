@@ -1,47 +1,32 @@
-//! The Crop tool: the [`CropFrame`] overlay with its composition guides and the shield outside
-//! it, the tool on the canvas tool host ([`CropTool`]) with its pending frame ([`CropSession`]) and
-//! options ([`CropSettings`]), the options bar ([`CropBar`]) with its overlay and gear menus,
-//! and the Perspective Crop tool's [`PerspectiveCropQuad`].
+//! The Crop tool: the tool on the canvas tool host ([`CropTool`]) with its pending frame ([`CropSession`]) and options
+//! ([`CropSettings`]), the options bar ([`CropBar`]) with its overlay and gear menus, and the Perspective Crop tool
+//! ([`PerspectiveCropTool`]) with its quad ([`PerspectiveCropQuad`]). The frame itself is `craft_ui::canvas::CropOverlay`,
+//! shown by [`CropToolPass::show_frame`].
 //!
-//! The tool reports events and never crops the document: the app crops on
-//! [`CropEvent::Apply`] with the [`CropCommit`] it carries.
+//! The tool reports events and never crops the document: the app crops on [`CropEvent::Apply`] with the
+//! [`CropCommit`] it carries.
 
 mod bar;
-#[cfg(test)]
-mod bar_tests;
-pub(crate) mod crop_frame;
-pub mod crop_guides;
 mod menus;
-#[cfg(test)]
-mod menus_tests;
 mod options;
-#[cfg(test)]
-mod options_tests;
-pub(crate) mod perspective_crop;
+mod perspective_crop;
+mod perspective_tool;
 mod session;
-#[cfg(test)]
-mod session_tests;
-pub(crate) mod stories_bar;
-pub(crate) mod stories_tool;
-mod style;
+#[cfg(feature = "screen-testing")]
+mod stories_bar;
 mod tool;
-#[cfg(test)]
-mod tool_tests;
+mod words;
 
-pub use bar::{CropBar, CropBarLabels, CropBarOutput, CropRatioChange};
-pub use crop_frame::{
-    CropBox, CropFrame, CropKeyAction, CropLabels, CropNames, CropPress, CropPressKind, CropReadout, CropRelease, CropResponse, CropStyle, CropTrack,
-    hit_rect,
-};
-pub use crop_guides::{CropGuide, CropShield, GuideShow, Polyline, ShieldColor};
-pub use menus::{CropOptionsMenu, CropOptionsMenuResponse, CropOverlayMenu};
+pub use bar::{CropBar, CropBarOutput, CropBarWords, CropRatioChange};
+pub use menus::{CropOptionsMenu, CropOptionsMenuOutput, CropOverlayMenu};
 pub use options::{
     CROP_RATIOS, CROP_SIZES, CropFill, CropPresetChoice, CropRatio, CropSettings, CropSizeFields, CropSizePreset, CropTarget, CropUserPreset,
     FIELD_MAX, RATIO_DECIMALS, RATIO_MAX, ResolutionUnit,
 };
 pub use perspective_crop::{
-    PerspectiveCropNames, PerspectiveCropQuad, PerspectiveCropResponse, PerspectiveCropStyle, PerspectiveHit, PerspectiveQuad,
+    PerspectiveCropOutput, PerspectiveCropQuad, PerspectiveCropStyle, PerspectiveQuad, grid_lines, grid_steps, is_valid, ordered,
 };
+pub use perspective_tool::{PerspectiveCropEvent, PerspectiveCropTool, perspective_to_form};
 pub use session::{CropDocKey, CropDocument, CropKept, CropSession, CropStep, LeaveFrame, StraightenState};
-pub use style::CropBarStyle;
-pub use tool::{CropCommit, CropEvent, CropInput, CropOutput, CropTool, CropToolPass};
+pub use tool::{CropCommit, CropEvent, CropInput, CropOutput, CropTool, CropToolPass, crop_to_form};
+pub use words::CropWords;

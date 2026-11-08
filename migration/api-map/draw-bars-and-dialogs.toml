@@ -56,3 +56,242 @@ type = "ReferencePoint"
 old = "names([String; 9])"
 new = ""
 note = "The nine names are the picker family's words (`PickerWords`)."
+
+# draw-crop-b: the Crop tool, its session and the Perspective Crop quad.
+
+[[type]]
+name = "CropTool"
+old = "craft_draw::ui::crop::CropTool"
+new = "craft_draw::ui::crop::CropTool"
+status = "same"
+
+[[type]]
+name = "CropToolPass"
+old = "craft_draw::ui::crop::CropToolPass"
+new = "craft_draw::ui::crop::CropToolPass"
+status = "same"
+
+[[type]]
+name = "CropSession"
+old = "craft_draw::ui::crop::CropSession"
+new = "craft_draw::ui::crop::CropSession"
+status = "same"
+
+[[type]]
+name = "CropDocument"
+old = "craft_draw::ui::crop::CropDocument"
+new = "craft_draw::ui::crop::CropDocument"
+status = "same"
+
+[[type]]
+name = "CropDocKey"
+old = "craft_draw::ui::crop::CropDocKey"
+new = "craft_draw::ui::crop::CropDocKey"
+status = "same"
+
+[[type]]
+name = "CropKept"
+old = "craft_draw::ui::crop::CropKept"
+new = "craft_draw::ui::crop::CropKept"
+status = "same"
+
+[[type]]
+name = "CropStep"
+old = "craft_draw::ui::crop::CropStep"
+new = "craft_draw::ui::crop::CropStep"
+status = "same"
+
+[[type]]
+name = "LeaveFrame"
+old = "craft_draw::ui::crop::LeaveFrame"
+new = "craft_draw::ui::crop::LeaveFrame"
+status = "same"
+
+[[type]]
+name = "StraightenState"
+old = "craft_draw::ui::crop::StraightenState"
+new = "craft_draw::ui::crop::StraightenState"
+status = "same"
+
+[[type]]
+name = "CropCommit"
+old = "craft_draw::ui::crop::CropCommit"
+new = "craft_draw::ui::crop::CropCommit"
+status = "same"
+
+[[type]]
+name = "CropEvent"
+old = "craft_draw::ui::crop::CropEvent"
+new = "craft_draw::ui::crop::CropEvent"
+status = "same"
+
+[[type]]
+name = "CropOutput"
+old = "craft_draw::ui::crop::CropOutput"
+new = "craft_draw::ui::crop::CropOutput"
+status = "same"
+
+[[type]]
+name = "CropInput"
+old = "craft_draw::ui::crop::CropInput"
+new = "craft_draw::ui::crop::CropInput"
+status = "same"
+
+[[type]]
+name = "PerspectiveCropQuad"
+old = "craft_draw::ui::crop::PerspectiveCropQuad"
+new = "craft_draw::ui::crop::PerspectiveCropQuad"
+status = "same"
+
+[[type]]
+name = "PerspectiveQuad"
+old = "craft_draw::ui::crop::PerspectiveQuad"
+new = "craft_draw::ui::crop::PerspectiveQuad"
+status = "same"
+
+[[type]]
+name = "PerspectiveCropResponse"
+old = "craft_draw::ui::crop::PerspectiveCropResponse"
+new = "craft_draw::ui::crop::PerspectiveCropOutput"
+status = "replaced"
+note = "`edit` is an `EditResponse<PerspectiveQuad>`; `apply`, `discard` and `picked` stay; `id`, `committable`, `hovered`, `claimed`, `dragging` and `placing` go (the arena owns the press; `PerspectiveCropTool::placing` has the clicks)."
+
+[[type]]
+name = "PerspectiveCropNames"
+old = "craft_draw::ui::crop::PerspectiveCropNames"
+new = ""
+status = "removed"
+note = "The names are `CropWords` rows, read from the env."
+
+[[type]]
+name = "PerspectiveCropStyle"
+old = "craft_draw::ui::crop::PerspectiveCropStyle"
+new = "craft_draw::ui::crop::PerspectiveCropStyle"
+status = "replaced"
+note = "A `ComponentStyle` built from `overlay.line`, `overlay.halo` and `Tone::Bad`; no setters."
+
+[[type]]
+name = "CropBarStyle"
+old = "craft_draw::ui::crop::CropBarStyle"
+new = ""
+status = "removed"
+note = "The bar is built from `Bar`; `ComponentStyle` replaces the style struct."
+
+[[type]]
+name = "PerspectiveHit"
+old = "craft_draw::ui::crop::PerspectiveHit"
+new = ""
+status = "removed"
+note = "The corners and the inside are parts in the canvas arena."
+
+[[type]]
+name = "PerspectiveCropTool"
+old = ""
+new = "craft_draw::ui::crop::PerspectiveCropTool"
+status = "replaced"
+note = "The background presses of Perspective Crop: a box drag or four clicks make the quad."
+
+[[type]]
+name = "CropWords"
+old = ""
+new = "craft_draw::ui::crop::CropWords"
+status = "replaced"
+note = "The words of the Crop and Perspective Crop tools."
+
+[[type]]
+name = "crop_to_form"
+old = ""
+new = "craft_draw::ui::crop::crop_to_form"
+status = "replaced"
+note = "The Crop To... command form."
+
+[[type]]
+name = "perspective_to_form"
+old = ""
+new = "craft_draw::ui::crop::perspective_to_form"
+status = "replaced"
+note = "The Perspective Crop To... command form."
+
+[[setter]]
+type = "CropInput"
+old = "units(&RulerUnits, &RulerUnits)"
+new = ""
+note = "The readout and the parts' values read the canvas's rulers."
+
+[[setter]]
+type = "CropInput"
+old = "names(CropNames)"
+new = ""
+note = "The names are `CropWords`."
+
+[[setter]]
+type = "CropInput"
+old = "readout(CropLabels)"
+new = ""
+note = "The readout words are the overlay's."
+
+[[setter]]
+type = "CropInput"
+old = "canvas_colour(Color32)"
+new = ""
+note = "The overlay reads the canvas colour token."
+
+[[setter]]
+type = "CropInput"
+old = "snap(closure)"
+new = "snap(&SnapTargets)"
+note = "The overlay snaps; the tool snaps nothing itself."
+
+[[setter]]
+type = "CropTool"
+old = "undo(&CanvasView) -> Option<CanvasView>"
+new = "undo() -> bool"
+note = "The next pass turns the image-mode view with the frame."
+
+[[setter]]
+type = "CropTool"
+old = "refit(&CanvasView, ..) -> Option<(CropEvent, CanvasView)>"
+new = "refit(..) -> Option<CropEvent>"
+note = "The next pass turns the image-mode view with the frame."
+
+[[setter]]
+type = "CropTool"
+old = "apply(.., Option<CanvasView>)"
+new = "apply(..)"
+note = "The tool keeps the view the last pass saw."
+
+[[setter]]
+type = "CropTool"
+old = "applied(bool) -> Option<CanvasView>"
+new = "applied(bool)"
+note = "A refused commit's view goes to the host on the next pass."
+
+[[setter]]
+type = "CanvasTool"
+old = "parts / picked / pick"
+new = ""
+note = "The overlay's roving group owns the keyboard parts."
+
+[[setter]]
+type = "PerspectiveCropQuad"
+old = "new(id_salt, &state, names)"
+new = "new(label, Bind<PerspectiveQuad>)"
+note = "The value is a binding; the label names the group."
+
+[[setter]]
+type = "PerspectiveCropQuad"
+old = "show(ui, canvas, view)"
+new = "show_at(ui, canvas_rect)"
+note = "A canvas control is shown in the canvas body."
+
+[[setter]]
+type = "PerspectiveCropQuad"
+old = "focus(ctx, id) / clear(ctx, id)"
+new = ""
+note = "The arena owns focus; `PerspectiveCropTool::clear` drops the quad and the clicks."
+
+[[setter]]
+type = "PerspectiveCropQuad"
+old = "units / value / policy / tolerance"
+new = ""
+note = "Reach comes from tokens; the binding carries the policy."
