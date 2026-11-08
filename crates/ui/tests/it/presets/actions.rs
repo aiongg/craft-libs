@@ -66,7 +66,7 @@ fn press(fixture: &mut Fixture, key: Key) {
 }
 
 /// Down from the last preset moves the lead to Create, then to Detach, with no stop on the divider between them and
-/// the presets; Up comes back the same way. Moving the lead onto an action reports nothing.
+/// the presets; Up comes back to the presets. Moving the lead onto an action reports nothing.
 #[trial]
 fn down_from_the_last_preset_reaches_the_actions_and_up_returns() {
     for view in VIEWS {
@@ -81,11 +81,14 @@ fn down_from_the_last_preset_reaches_the_actions_and_up_returns() {
             (Key::ArrowDown, create, "Down from the last preset"),
             (Key::ArrowDown, detach, "Down from Create"),
             (Key::ArrowUp, create, "Up from Detach"),
-            (Key::ArrowUp, coral.node, "Up from Create"),
         ] {
             press(&mut fixture, key);
             assert_eq!(lead(&fixture), wanted, "{step} in the {view:?} view");
         }
+        // The grid's two presets share the last line of tiles; Up lands on that line, as from a group header.
+        press(&mut fixture, Key::ArrowUp);
+        let presets = [coral.node, row(&fixture, "Amber", view).node];
+        assert!(presets.contains(&lead(&fixture)), "Up from Create returns to the presets in the {view:?} view");
         assert!(seen.borrow().actions().is_empty(), "moving the lead chooses no action in the {view:?} view");
     }
 }
