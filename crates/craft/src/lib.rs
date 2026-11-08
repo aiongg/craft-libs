@@ -115,8 +115,7 @@ pub mod story {
     /// Every story: the kernel's first, then the family crates alphabetically, each only when its
     /// feature is on.
     pub fn all() -> Vec<Story> {
-        let mut all = craft_ui::story::registry();
-        all
+        craft_ui::story::registry()
     }
 }
 
@@ -152,9 +151,7 @@ pub mod words {
     }
 
     /// The counted words (singular and plural forms) of every enabled crate that has them.
-    #[allow(unused_mut, reason = "each push is behind its crate's feature")]
     pub fn counts() -> Vec<&'static [Counted]> {
-        let mut all: Vec<&'static [Counted]> = vec![craft_ui::localized::words::COUNTS];
-        all
+        vec![craft_ui::localized::words::COUNTS]
     }
 }
