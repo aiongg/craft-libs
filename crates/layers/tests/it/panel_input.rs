@@ -698,3 +698,26 @@ fn context_click_on(fixture: &mut Fixture, label: &str) {
     let target = node(fixture, label);
     context_click(fixture, &target);
 }
+
+// DIAG-BEGIN
+#[trial]
+fn diag_smart_rows() {
+    let mut out = String::new();
+    for size in [ThumbSize::Medium, ThumbSize::None] {
+        let mut tree = FakeLayers::sample();
+        tree.selection = LayerSelection::default();
+        let (fixture, _app) = rig_with(tree, |app| {
+            app.tree.layer_mut(6).effects_open = true;
+            app.settings.options.thumbnail_size = size;
+        });
+        out += &format!("size {size:?}\n");
+        for key in fixture.tree().keys() {
+            let name = fixture.tree().name_of(key);
+            if name.as_deref().is_some_and(|n| n.contains("Smart Filters") || n.contains("Styled") || n.contains("Gaussian") || n.contains("Smart Object")) {
+                out += &format!("  {:?} {:?} {:?} parent {:?}\n", fixture.tree().role_of(key), name, fixture.tree().bounds_of(key), fixture.tree().parent_of_key(key).and_then(|p| fixture.tree().role_of(p)));
+            }
+        }
+    }
+    panic!("DIAG\n{out}");
+}
+// DIAG-END

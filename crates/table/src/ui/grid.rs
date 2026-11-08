@@ -822,6 +822,8 @@ pub struct CellGrid<'a> {
     outline: Option<(&'a OutlineAxis, &'a OutlineAxis)>,
     selectable: Box<dyn Fn(CellAt<u32>) -> bool + 'a>,
     frame: Option<paint::Frame>,
+    /// The row the keys of this pass moved the active cell to.
+    reveal: Option<u32>,
     pass: PassOutput,
 }
 
@@ -849,6 +851,7 @@ impl<'a> CellGrid<'a> {
             outline: None,
             selectable: Box::new(move |cell| model.selectable(cell)),
             frame: None,
+            reveal: None,
             pass: PassOutput::default(),
         }
         .label(label)
@@ -959,6 +962,10 @@ impl Collection for CellGrid<'_> {
 
     fn selection(&mut self) -> Option<BindMut<'_, CellSelection<u32>>> {
         Some(self.selection.reborrow())
+    }
+
+    fn reveal(&self) -> Option<&u32> {
+        self.reveal.as_ref()
     }
 
     fn cell_space<'s>(&'s self, space: CellSpace<'s, u32>) -> CellSpace<'s, u32> {
