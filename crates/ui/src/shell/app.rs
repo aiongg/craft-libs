@@ -130,7 +130,7 @@ impl<A: ShellApp> eframe::App for Driver<A> {
 
     fn logic(&mut self, ctx: &Context, _: &mut eframe::Frame) {
         self.app.logic(ctx);
-        let now = Instant::now();
+        let now = crate::runtime::motion::now();
         if let Some(due) = self.app.tick(now) {
             request_repaint_after(ctx, due.saturating_duration_since(now).as_secs_f64());
         }

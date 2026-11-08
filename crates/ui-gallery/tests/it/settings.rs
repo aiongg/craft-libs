@@ -2,6 +2,7 @@
 
 use craft_settings::store::retry_delay;
 use craft_settings::{Location, OpenOptions, SettingsFiles, SettingsStore};
+use craft_ui::runtime::motion;
 use craft_ui::shell::app::ShellApp as _;
 use craft_ui::testing::trial;
 use craft_ui_gallery::chrome::Gallery;
@@ -10,7 +11,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 /// Files that hold nothing and refuse every write, counting the attempts.
 #[derive(Default)]
@@ -46,7 +47,7 @@ fn a_save_that_fails_is_retried_on_its_backoff_and_only_then() {
     let files = Arc::new(FullDisk::default());
     let options = OpenOptions::new(Location::Dir(PathBuf::from("settings"))).files(files.clone());
     let (mut store, report) = SettingsStore::<GallerySettings>::open_with(options);
-    let changed = Instant::now();
+    let changed = motion::now();
     assert!(store.update_at(changed, |settings| settings.filter = "link".to_owned()));
     let mut gallery = Gallery::new(Catalog::listing(Vec::new()), store, &report);
 

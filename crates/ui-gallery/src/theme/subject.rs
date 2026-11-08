@@ -43,6 +43,7 @@ type Explanation = (ThemeDef, Appearance, Option<AppId>, AppSizes, Arc<Explained
 /// What the theme panels share: the app layer, the picked row, and the explanation and contrast report of the
 /// subject, computed again only when the subject or the app layer changes.
 #[derive(Default)]
+#[non_exhaustive]
 pub struct ThemeWorkspace {
     explanation: Option<Explanation>,
     report: Option<(ThemeDef, Arc<ContrastReport>)>,

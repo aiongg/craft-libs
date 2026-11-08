@@ -217,6 +217,12 @@ struct Wanted {
     wake: Option<f64>,
 }
 
+/// The wall clock's reading, for a host that drives a store on real time (`ShellApp::tick`). It is the one place
+/// outside a pass that reads the clock.
+pub fn now() -> std::time::Instant {
+    std::time::Instant::now()
+}
+
 /// Marks the running viewport as having an animation that is not at its end value.
 fn note_unsettled(ctx: &Context) {
     PerViewport::<Wanted>::with(ctx, pass::current_viewport(ctx), |wanted| wanted.unsettled = true);
