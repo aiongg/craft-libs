@@ -252,13 +252,13 @@ fn selected_block() -> CellSelection<u32> {
 #[trial]
 fn the_fill_handle_drags_a_range() {
     let mut rig = rig(None, selected_block(), 1.0);
-    rig.drag_part(PartKey::new("fill_handle"), Vec2::Y * (ROW * 2.0));
+    rig.drag_part(PartKey::new("fill_handle"), Vec2::Y * (ROW * 1.5));
     let fills: Vec<_> =
         rig.take_edits().into_iter().filter_map(|edit| if let GridEdit::Fill { range, .. } = edit { Some(range) } else { None }).collect();
     assert!(matches!(fills.first(), Some(EditEvent::Begin { .. })));
     assert!(
         matches!(fills.last(), Some(EditEvent::Commit { after, .. }) if after.rows().end() - after.rows().start() == 3),
-        "the range grows two rows below the block"
+        "the handle sits on the block corner, so 1.5 rows down ends in the second row below: the range grows two rows"
     );
 }
 
@@ -268,7 +268,7 @@ fn the_fill_handle_drags_a_range() {
 fn a_secondary_drag_of_the_fill_handle_reports_the_menu() {
     let mut rig = rig(None, selected_block(), 1.0);
     let from = rig.part_rect(PartKey::new("fill_handle")).center();
-    let to = from + Vec2::Y * (ROW * 2.0);
+    let to = from + Vec2::Y * (ROW * 1.5);
     let button = |pos: Pos2, pressed| Event::PointerButton { pos, button: PointerButton::Secondary, pressed, modifiers: Modifiers::NONE };
     rig.fixture.frame(vec![Event::PointerMoved(from)]);
     rig.fixture.frame(vec![button(from, true)]);

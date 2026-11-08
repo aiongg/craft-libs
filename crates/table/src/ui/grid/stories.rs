@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 
 use craft_behavior::{CellSelection, ColumnKey};
-use craft_ui::contract::PaintUi;
+use craft_ui::contract::{PaintUi, Props as _};
 use craft_ui::primitives::TextRun;
 use craft_ui::runtime::env::Label;
 use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, show_as_only_item, story};
@@ -151,7 +151,7 @@ fn grid_row(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let cells = (0..STORY_ROW_CELLS)
         .map(|column| (ColumnKey::index(column), Rect::from_min_size(origin + Vec2::new(width * column as f32, 0.0), Vec2::new(width, height))))
         .collect();
-    show_as_only_item(ui, GridRow::new(&model, 1, 1.0, cells)).into()
+    show_as_only_item(ui, GridRow::new(&model, 1, 1.0, cells).label("Row 2")).into()
 }
 
 #[story(CellGrid<'static>, covers = [Empty], drive = Drive::Never)]

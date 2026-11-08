@@ -17,7 +17,9 @@ fn slicer(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 }
 
 fn card(ui: &mut Ui, filtered: bool) -> StoryOutput {
-    SlicerCard::new("Colour".into(), filtered).show_at(ui, ui.available_rect_before_wrap(), |_, _| {}).into()
+    let room = ui.available_rect_before_wrap();
+    ui.allocate_rect(room, egui::Sense::hover());
+    SlicerCard::new("Colour".into(), filtered).show_at(ui, room, |_, _| {}).into()
 }
 
 #[story(SlicerCard, covers = [Default], drive = Drive::Never)]

@@ -534,7 +534,7 @@ impl Model<'_> {
             for event in out.events {
                 match event {
                     CollectionEvent::Reorder(change) => edits.borrow_mut().extend(self.reordered(&slots, area, change)),
-                    CollectionEvent::Dropped { key: Some(key), keys, .. } => edits.borrow_mut().push(self.dropped(&slots, area, &key, &keys)),
+                    CollectionEvent::Dropped { keys, insert, .. } => edits.borrow_mut().push(self.dropped(&slots, area, insert, &keys)),
                     CollectionEvent::ContextMenu(request) => cx.keep::<OpenMenu>().target = Some(request.key),
                     CollectionEvent::Delete(keys) => {
                         let removed =
@@ -566,13 +566,14 @@ impl Model<'_> {
         Some(FieldListEdit::Move { to: area, change: change.map(|mv| field_move(slots, &mv)) })
     }
 
-    /// The edit a drop of rows of another area onto the row `over` stands for: the fields land before it.
-    fn dropped(&self, slots: &[Slot], area: FieldArea, over: &Slot, keys: &[Slot]) -> FieldListEdit {
+    /// The edit a drop of rows of another area at slot index `insert` stands for: the fields land before the slot
+    /// there, or at the end when `insert` is past the last slot (an empty area has one spot).
+    fn dropped(&self, slots: &[Slot], area: FieldArea, insert: usize, keys: &[Slot]) -> FieldListEdit {
         let fields: Vec<String> = keys.iter().filter_map(Slot::field).cloned().collect();
         if fields.is_empty() {
             return FieldListEdit::MoveValues { to: area };
         }
-        let at = slots.iter().position(|slot| slot == over).unwrap_or(slots.len());
+        let at = insert.min(slots.len());
         let position = slots[..at].iter().filter(|slot| slot.field().is_some()).count();
         FieldListEdit::Move { to: area, change: Self::set(FieldMove { fields, position }) }
     }
