@@ -55,3 +55,91 @@ type = "ReferencePoint"
 old = "names([String; 9])"
 new = ""
 note = "The nine names are the picker family's words (`PickerWords`)."
+
+# draw-transform-a
+[[type]]
+name = "TransformSession"
+old = "craft_draw::ui::transform::TransformSession"
+new = "craft_draw::ui::transform::TransformSession"
+status = "same"
+note = "Plain data as before; undo goes through `EditHistory`. `menu(&TransformMenuWords)` returns `Vec<Entry<TransformChoice>>`. The warp type `W` is `Send + Sync + 'static`."
+
+[[type]]
+name = "TransformEdit"
+old = "craft_draw::ui::transform::TransformEdit"
+new = "craft_draw::ui::transform::TransformEdit"
+status = "same"
+
+[[type]]
+name = "TransformRequest"
+old = "craft_draw::ui::transform::TransformRequest"
+new = "craft_draw::ui::transform::TransformRequest"
+status = "same"
+
+[[type]]
+name = "TransformResult"
+old = "craft_draw::ui::transform::TransformResult"
+new = "craft_draw::ui::transform::TransformResult"
+status = "same"
+
+[[type]]
+name = "TransformPhase"
+old = "craft_draw::ui::transform::TransformPhase"
+new = "craft_draw::ui::transform::TransformPhase"
+status = "same"
+
+[[type]]
+name = "TransformPreset"
+old = "craft_draw::ui::transform::TransformPreset"
+new = "craft_draw::ui::transform::TransformPreset"
+status = "same"
+
+[[type]]
+name = "Interpolation"
+old = "craft_draw::ui::transform::Interpolation"
+new = "craft_draw::ui::transform::Interpolation"
+status = "same"
+
+[[type]]
+name = "TransformChoice"
+old = "craft_draw::ui::transform::TransformChoice"
+new = "craft_draw::ui::transform::TransformChoice"
+status = "same"
+
+[[type]]
+name = "TransformWarp"
+old = "craft_draw::ui::transform::TransformWarp"
+new = "craft_draw::ui::transform::TransformWarp"
+status = "same"
+
+[[type]]
+name = "TransformSettings"
+old = "craft_draw::ui::transform::TransformSettings"
+new = "craft_draw::ui::transform::TransformSettings"
+status = "same"
+note = "`size_unit` is `Option<UnitKind>`; saved preferences that spell it `Pixels`, `Percent`, `Inches`, `Centimetres`, `Millimetres`, `Points` or `Picas` still load."
+
+[[type]]
+name = "TransformMenuWords"
+old = ""
+new = "craft_draw::ui::transform::TransformMenuWords"
+status = "replaced"
+note = "Replaces `TransformMenuLabels` with the same word ids."
+
+[[type]]
+name = "TransformMenuLabels"
+old = "craft_draw::ui::transform::TransformMenuLabels"
+new = ""
+status = "removed"
+note = "Use `TransformMenuWords`."
+
+[[setter]]
+type = "TransformSession"
+old = "menu(&TransformMenuLabels) -> Vec<MenuEntry<TransformChoice>>"
+new = "menu(&TransformMenuWords) -> Vec<Entry<TransformChoice>>"
+
+[[setter]]
+type = "TransformSettings"
+old = "size_unit: Option<LengthUnit>"
+new = "size_unit: Option<UnitKind>"
+
