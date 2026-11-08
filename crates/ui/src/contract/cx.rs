@@ -1507,6 +1507,12 @@ impl<C: Component> MeasureCx<'_, C> {
         run.layout(self.ui.ctx(), &env, width)
     }
 
+    /// Lays document `text` out `text.wrap` wide, as `ContentPainterCx::layout` will paint it: the galley a content
+    /// painter's measure sizes its band by is the one its paint draws.
+    pub fn layout_doc(&self, text: &crate::primitives::DocText<'_>) -> TextLayout {
+        text.layout(self.ui.ctx(), self.tokens, craft_i18n::Direction::Ltr)
+    }
+
     /// Measures a child under the composite's resolved `enabled` and `size`, as `PaintUi::child` will show it.
     pub fn child<D: Show>(&self, key: impl Hash + Debug, child: &mut D, proposal: Proposal) -> Vec2 {
         let id = self.id.with(key);

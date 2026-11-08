@@ -44,10 +44,10 @@ The layout follows Adobe Fonts' and Google Fonts' browse pages.
   added, adding one, and Update sources.
 
 `FontsPanel` fills the `Ui` it is given and has no window, menu or interface fonts of its own; the
-host's `Look` gives it the host's colours and font families. The faces it draws samples in are egui
-font families of its own, added a few per frame and taken out again past 64, without touching the
-host's fonts. Right-to-left interfaces mirror through `craft_ui::direction`; sample text keeps its
-own direction.
+craft-ui's theme gives it the colours and interface fonts. The faces it draws samples in come from
+craft-ui's document-face registry, which loads them a few per pass and evicts the ones off screen,
+without touching the host's fonts. Right-to-left interfaces mirror through the layout; sample text
+keeps its own direction.
 
 The panel follows the `craft_host::Host` installed in the egui context (`Host::builder(..).install(ctx)`):
 its strings and numbers are in `host.lang()` each frame (English without a Host, or when the panel
@@ -99,11 +99,7 @@ craft-i18n; style and weight names, licence names and product names stay in Engl
 ## Testing
 
 ```sh
-cargo test -p craft-font-manager --all-features
-CRAFT_FONT_MANAGER_SNAPSHOTS=<dir> cargo test -p craft-font-manager --features ui --test flows screenshots -- --test-threads=1
+cargo test -p craft-font-manager --features screen-testing --test it
 ```
 
-`tests/flows.rs` drives the panel with `egui_kittest` against a small index, a font folder made per
-test and `FakeStore`. They install egui's Hack and Ubuntu Light faces into temporary folders. With
-`CRAFT_FONT_MANAGER_GOOGLE_FONTS=<google/fonts checkout>`, the fake store also "downloads" the
-index's files from the checkout, so screenshots show real previews.
+`tests/it` runs the panel's trials against a small index, a font folder made per test and `FakeStore`. They install egui's Hack and Ubuntu Light faces into temporary folders.
