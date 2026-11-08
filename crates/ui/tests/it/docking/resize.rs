@@ -1,6 +1,6 @@
 //! The resize grips and dividers of a `DockArea` report their resizes as actions: a column's inner edge, an iconic
-//! column's edge, the dividers of an accordion and of a floating window's tree. Groups in a column stay inside it and
-//! apart. A Window menu row reopens a closed panel.
+//! column's edge, the dividers of an accordion, of a column's groups and of a floating window's tree. Groups in a
+//! column stay inside it and apart. A Window menu row reopens a closed panel.
 
 use craft_behavior::Axis;
 use craft_behavior::dock::{Action, Column, DockEdge, Floating, Group, Layout, Node, PanelState, Permissions, SplitSize, StackEntry, Workspace};
@@ -125,6 +125,21 @@ fn dragging_the_divider_between_accordion_sections_reports_the_section_height() 
     assert!(
         actions.borrow().iter().any(|action| matches!(action, Action::ResizeStack { panel, height: Some(_), .. } if *panel == FIRST)),
         "the drag reports ResizeStack for the section above: {:?}",
+        actions.borrow()
+    );
+}
+
+#[trial]
+fn dragging_the_lower_half_of_a_columns_group_divider_reports_the_group_height() {
+    let column = Column::new(vec![Group::new(vec![FIRST], 0), Group::new(vec![SECOND], 0)], COLUMN_WIDTH);
+    let (mut fixture, actions) = bed(docked(column));
+    let divider = splitters(&fixture, false).into_iter().find(|bar| bar.rect.center().x < COLUMN_WIDTH).expect("the stacked groups show a divider");
+    // The lower half of the band lies on the lower group's tab row, a root of its own; the divider stacks above it.
+    let from = Pos2::new(divider.rect.center().x, divider.rect.max.y - 1.0);
+    drag(&mut fixture, from, from + Vec2::new(0.0, 60.0));
+    assert!(
+        actions.borrow().iter().any(|action| matches!(action, Action::ResizeGroup { panel, height: Some(_), .. } if *panel == FIRST)),
+        "the drag reports ResizeGroup for the group above: {:?}",
         actions.borrow()
     );
 }
