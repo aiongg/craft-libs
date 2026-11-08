@@ -52,10 +52,8 @@ impl Cells {
             for (at, state) in states.iter_mut().enumerate() {
                 let rect = Rect::from_min_size(room.min + vec2(width * at as f32, 0.0), vec2(width, room.height()));
                 in_region(ui, rect, |ui| {
-                    ui.push_id(at, |ui| {
-                        let out = EditorMock::new("Editor", state).show(ui);
-                        seen[at] = Seen { mode: out.screen_mode, slots: out.regions.slots.len(), body: out.regions.body };
-                    });
+                    let out = EditorMock::new("Editor", state).show(ui);
+                    seen[at] = Seen { mode: out.screen_mode, slots: out.regions.slots.len(), body: out.regions.body };
                 });
             }
         });
