@@ -66,7 +66,9 @@ fn swatch_table_cells(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     Row::new().gap(Gap::Tight).show(ui, |ui, _| {
         for (n, color) in PALETTE.into_iter().take(6).enumerate() {
             // A cell's place in its set is the owning table's item step; each story cell stands alone in its own.
-            ui.push_id(n, |ui| show_as_only_item(ui, Swatch::new(format!("Cell {}", n + 1), color).cell().selected(n == 2)));
+            Row::new().show(ui, |ui, _| {
+                show_as_only_item(ui, Swatch::new(format!("Cell {}", n + 1), color).cell().selected(n == 2));
+            });
         }
     });
     StoryOutput::default()
