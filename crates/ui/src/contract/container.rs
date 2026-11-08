@@ -31,7 +31,7 @@ pub enum Mount {
     FullWindow,
     /// The whole content of the window the container is shown in: it fills the viewport's content rect, and when
     /// `resize` has grips they lie on the window's edges and corners. The body step moves and resizes the window
-    /// through the OS only where the app draws the frame (the body step's `app_moves_window` rule).
+    /// through the OS only where the app draws the frame (the body step's `WindowParts` rule).
     #[non_exhaustive]
     Window {
         /// Whether grips on the window's edges and corners resize it.
@@ -173,7 +173,9 @@ pub enum DragBand {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct HeaderRegion {
-    /// What dragging the header does.
+    /// What dragging the header does. A move band lies beneath the header's children, which keep their presses; an
+    /// inline header's move band spans its whole line (header, body and end region), so every free point of the line
+    /// moves the window or layer.
     pub band: DragBand,
     /// Whether a rule separates the header from the body. An inline header has no rule.
     pub rule: bool,

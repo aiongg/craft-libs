@@ -3,16 +3,17 @@
 
 use super::cx::BodyCx;
 use super::label::{self, LabelIn};
+use super::mount::{PaneGrip, pane_extent_id, pane_grip_id};
 use super::overlay::{OverlayFit, Place, PlacementChange, PlacementKind};
 use super::run::{ShapeHooks, ShowAt};
-use super::{Container, ContainerProps, Cx, DragBand, Gap, Internal, Mount, Notch, Pad, PartsCx, Scroll, SetPosition, Sizing};
+use super::{Container, ContainerProps, Cx, DragBand, Gap, Internal, Mount, Notch, Pad, PaneEdge, PartsCx, Scroll, SetPosition, Sizing};
 use crate::layout::{self, ColumnGroup};
 use crate::primitives::{Rule, ScrollBar, Surface};
 use crate::runtime::access::scope;
 use crate::runtime::access::{self, Politeness, Role};
 use crate::runtime::commands::{self, CommandSet as _, WindowCommand};
 use crate::runtime::egui::pass;
-use crate::runtime::egui::{alloc, areas, child, response, style, viewports};
+use crate::runtime::egui::{alloc, areas, child, input, response, style, viewports};
 use crate::runtime::env::{AppValues, ArenaId, Env};
 use crate::runtime::focus::FocusPolicy;
 use crate::runtime::memory::{MemoryStage, SaveKey, sub};
@@ -38,6 +39,8 @@ const SCROLL_X: PartKey = PartKey::new("body_scroll_x");
 pub(crate) const MOVE_BAND: PartKey = PartKey::new("move_band");
 pub(crate) const REORDER_BAND: PartKey = PartKey::new("reorder_band");
 const GRIP: PartKey = PartKey::new("resize_grip");
+/// The grip on an edge pane's inner edge.
+const PANE_GRIP: PartKey = PartKey::new("pane_grip");
 
 /// The open state a container with no `Container::open` binding keeps: for the session, or saved under `save`.
 #[derive(Clone, Default, Serialize, Deserialize)]
@@ -181,19 +184,35 @@ fn opener_of(props: &ContainerProps) -> Option<&super::overlay::Opener> {
     overlay_of(props)?.opener.as_ref()
 }
 
-/// Whether the app moves and resizes the OS window of `viewport` (16.3, 21.2): the one rule every move band and grip
-/// of the body step reads. It holds when the app draws the frame (the chrome is not `Native`), the window is neither
-/// maximized nor full screen, and the platform does not answer the hit test of an undecorated window itself: it does for a window whose hit-test
-/// sink is installed (`WindowHost::install_hit_sink`), where it takes the move, edge and caption hits from the exclusive parts.
-/// When it does not hold, the move and resize parts are not registered: no cursor and no press.
-pub(crate) fn app_moves_window(ctx: &Context, viewport: ViewportId) -> bool {
+/// Which move and resize parts of the body step stand for the OS window of `viewport` (16.3, 21.2): the one rule
+/// every move band and grip of an OS window reads. Both need a frame the app draws (the chrome is not `Native`). The
+/// band stands on a maximized window too, so its double click restores the window and a drag is the platform's (it
+/// restores and moves); the grips stand only on a window that is neither maximized nor full screen. The parts stand
+/// whether or not a hit-test sink is installed: the sink reads them as the window's exclusive parts.
+#[derive(Clone, Copy)]
+struct WindowParts {
+    band: bool,
+    grips: bool,
+}
+
+impl WindowParts {
+    /// The parts of a layer or a full-window mount, which move the container and never the OS window.
+    const LAYER: WindowParts = WindowParts { band: true, grips: true };
+
+    fn of(ctx: &Context, viewport: ViewportId) -> WindowParts {
+        let window = windows::shell_of(ctx, viewport).window;
+        let framed_by_app = window.chrome != WindowChrome::Native;
+        let sized_by_os = matches!(window.state, WindowState::Maximized | WindowState::Fullscreen);
+        WindowParts { band: framed_by_app && window.state != WindowState::Fullscreen, grips: framed_by_app && !sized_by_os }
+    }
+}
+
+/// Whether the platform answers the hit test of `viewport`'s undecorated window itself, as it does for a window whose
+/// hit-test sink is installed (`WindowHost::install_hit_sink`): it takes the move, edge and caption hits from the
+/// window's exclusive parts, so a press on the move band or a grip never reaches the app as a move.
+fn answered_by_platform(ctx: &Context, viewport: ViewportId) -> bool {
     let shell = windows::shell_of(ctx, viewport);
-    let framed_by_app = shell.window.chrome != WindowChrome::Native;
-    let sized_by_os = matches!(shell.window.state, WindowState::Maximized | WindowState::Fullscreen);
-    let answered_by_platform = shell.caps.contains(Caps::OS_RESIZES_UNDECORATED)
-        && shell.window.chrome == WindowChrome::Integrated
-        && windows::hit_sink_installed(ctx, viewport);
-    framed_by_app && !sized_by_os && !answered_by_platform
+    shell.caps.contains(Caps::OS_RESIZES_UNDECORATED) && shell.window.chrome == WindowChrome::Integrated && windows::hit_sink_installed(ctx, viewport)
 }
 
 /// The viewport of the OS window a container's move and resize parts act on: a viewport mount's own window, the
@@ -433,6 +452,8 @@ pub(super) struct BodyHooks<'b> {
     nudge: f32,
     /// The window mode the container is in, and what Escape restores.
     mode: WindowMode,
+    /// The edge an edge pane's grip sits on this pass, with the least extent it gives; none for other mounts.
+    pane_grip: Option<(ResizeEdge, f32)>,
     /// The placement changes of this pass, delivered to `Container::placement_changed` at the end of the update.
     reports: Vec<PlacementChange>,
     /// The host gives the container a rect of its own size: a full window, an OS viewport or a layer the user sized.
@@ -624,9 +645,13 @@ impl BodyHooks<'_> {
         }
     }
 
-    /// A press on the move band or a grip of a container in an OS window starts the OS move or resize.
+    /// A press on the move band or a grip of a container in an OS window starts the OS move or resize. Where the
+    /// platform answers the hit test (`answered_by_platform`), the parts stand for its sink only.
     fn window_os<C: Container>(&self, viewport: ViewportId, cx: &Cx<'_, C>) {
-        // The parts are registered only under the rule, and the results of a part not registered this pass are gone.
+        if answered_by_platform(&cx.core.ctx, viewport) {
+            return;
+        }
+        // The parts stand only by `WindowParts`, and the results of a part not registered this pass are gone.
         let started =
             |key: (PartKey, Option<u64>)| cx.core.results.get(&key).is_some_and(|result| matches!(result.press.phase, PressPhase::DragStart { .. }));
         if started((MOVE_BAND, None)) {
@@ -646,6 +671,189 @@ impl BodyHooks<'_> {
         let double = band.press.double_pressed();
         cx.core.memory.shown::<BandDouble>(sub(sub(cx.core.id, "body"), "band_double")).0 = double;
     }
+
+    /// The move band and the grips (16.3). A layer's move and resize the layer; those of an OS window (`os_window`)
+    /// stand by `WindowParts` and join the window's exclusive list, which the hit-test sink reads. A layer's parts never
+    /// join it, or the sink would move the OS window from a dialog inside it.
+    fn move_parts<C: Container>(props: &ContainerProps, regions: &Regions, rect: Rect, pcx: &mut PartsCx<'_, C>) {
+        let ctx = pcx.ui.ctx().clone();
+        let handle = pcx.tokens.tokens().size.handle.sm;
+        let reason = "the Move and Size commands of the window command set do the same";
+        let os = os_window(props, &ctx, pcx.id);
+        let stands = os.map_or(WindowParts::LAYER, |viewport| WindowParts::of(&ctx, viewport));
+        let exclusive = |hit: WindowHit| os.is_some().then_some(hit);
+        // A layer moves when its overlay says so; other mounts follow the header's band.
+        let movable = match &props.mount {
+            Mount::Layer(overlay) | Mount::Viewport { fallback: overlay, .. } => overlay.movable && stands.band,
+            _ => props.header.is_some_and(|header| header.band == super::DragBand::Move) && stands.band,
+        };
+        let band = move_band(props, regions, rect);
+        if props.header.is_some() && movable && band.is_positive() {
+            // The band lies under the line's own parts and children, like the reorder band, so they keep their presses.
+            let part = pcx
+                .part(MOVE_BAND, band)
+                .sense(craft_behavior::Sense::DRAG)
+                .cursor(CursorIcon::Grab)
+                .drag_cursor(CursorIcon::Grabbing)
+                .pointer_only(reason);
+            if let Some(hit) = exclusive(WindowHit::Move) {
+                part.exclusive(hit);
+            }
+        }
+        // The grips of a layer straddle its edge; those of a window lie inside it, where the window has pixels.
+        let (grips, inset) = match &props.mount {
+            Mount::Layer(overlay) | Mount::Viewport { fallback: overlay, .. } => (overlay.resize.grips, 0.0),
+            Mount::Window { resize } => (resize.grips, handle / 2.0),
+            _ => (false, 0.0),
+        };
+        if !grips || !stands.grips {
+            return;
+        }
+        for (index, (dx, dy, cursor)) in GRIPS.into_iter().enumerate() {
+            let along = |edge: i8, low: f32, high: f32| match edge {
+                -1 => (low - handle / 2.0 + inset, low + handle / 2.0 + inset),
+                1 => (high - handle / 2.0 - inset, high + handle / 2.0 - inset),
+                _ => (low + handle / 2.0 + inset, high - handle / 2.0 - inset),
+            };
+            let (x0, x1) = along(dx, rect.min.x, rect.max.x);
+            let (y0, y1) = along(dy, rect.min.y, rect.max.y);
+            let level = if dx != 0 && dy != 0 { HitLevel::Handle } else { HitLevel::Edge };
+            let part = pcx
+                .part(GRIP.at(index as u64), Rect::from_min_max(Pos2::new(x0, y0), Pos2::new(x1, y1)))
+                .sense(craft_behavior::Sense::DRAG)
+                .priority(HitPriority::new(level, 0))
+                .cursor(cursor)
+                .pointer_only(reason);
+            if let Some(hit) = exclusive(WindowHit::Resize(edge_of(dx, dy))) {
+                part.exclusive(hit);
+            }
+        }
+    }
+
+    /// Tells the platform whether the OS may move the container's OS window from where the pointer is (21.2
+    /// `WindowDrag`; macOS `NSWindow.movable`): only where a press would go to the move band under the press-target
+    /// rule (8.3), so a press on a control over the band never drags the window. Bands of one window combine: any band
+    /// that would take the press allows the move. A pass with no band writes nothing; `AppShell` writes `false` for a
+    /// pass with no title bar.
+    fn window_movable<C: Container>(&self, cx: &Cx<'_, C>) {
+        let Some(band) = cx.core.results.get(&(MOVE_BAND, None)) else { return };
+        let ctx = &cx.core.ctx;
+        let takes_press = band.hovered
+            && pointer::pass_pointer(ctx).hover.is_some_and(|at| {
+                let (click, drag) = input::hit_targets(ctx);
+                pointer::press_winner(ctx, at, pointer::PressTargets { click, drag })
+                    .is_some_and(|(winner, root)| root == cx.core.id && winner.part.is_some_and(|part| part.key == MOVE_BAND))
+            });
+        let this_pass = viewports::pass_number(ctx);
+        let allowed = viewports::movable_record(ctx).is_some_and(|(pass, movable)| pass == this_pass && movable);
+        viewports::write_movable(ctx, allowed || takes_press);
+    }
+
+    /// The grip of an edge pane (`Mount::Pane`) on its inner edge, the edge toward the centre, inside the pane: dragging
+    /// it gives the pane a new extent along its edge (`pane_drag`). A pane its caller lays out (`ShellPane::at`) and the
+    /// central pane have none. Returns the edge the grip sits on and the least extent it gives.
+    fn pane_grip<C: Container>(props: &ContainerProps, rect: Rect, pcx: &mut PartsCx<'_, C>) -> Option<(ResizeEdge, f32)> {
+        let Mount::Pane(pane) = &props.mount else { return None };
+        let rtl = pcx.flow.is_rtl();
+        let edge = match pane.edge {
+            _ if pane.at.is_some() => return None,
+            PaneEdge::Start if rtl => ResizeEdge::Left,
+            PaneEdge::Start => ResizeEdge::Right,
+            PaneEdge::End if rtl => ResizeEdge::Right,
+            PaneEdge::End => ResizeEdge::Left,
+            PaneEdge::Top => ResizeEdge::Bottom,
+            PaneEdge::Bottom => ResizeEdge::Top,
+            _ => return None,
+        };
+        let tokens = pcx.tokens.tokens();
+        let (handle, least) = (tokens.size.handle.sm, tokens.size.pane.least);
+        let (grip, cursor) = match edge {
+            ResizeEdge::Left => (Rect::from_min_max(rect.min, Pos2::new(rect.min.x + handle, rect.max.y)), CursorIcon::ResizeHorizontal),
+            ResizeEdge::Right => (Rect::from_min_max(Pos2::new(rect.max.x - handle, rect.min.y), rect.max), CursorIcon::ResizeHorizontal),
+            ResizeEdge::Top => (Rect::from_min_max(rect.min, Pos2::new(rect.max.x, rect.min.y + handle)), CursorIcon::ResizeVertical),
+            _ => (Rect::from_min_max(Pos2::new(rect.min.x, rect.max.y - handle), rect.max), CursorIcon::ResizeVertical),
+        };
+        pcx.part(PANE_GRIP, grip)
+            .sense(craft_behavior::Sense::DRAG)
+            .priority(HitPriority::new(HitLevel::Edge, 0))
+            .cursor(cursor)
+            .pointer_only("no command resizes a docked pane; its extent is the app's layout");
+        Some((edge, least))
+    }
+
+    /// A drag of an edge pane's grip: the pane's extent follows the pointer, at least the least extent, and each step
+    /// is reported as a `PlacementKind::Size` change of the pane's rect. While the gesture runs the pane host shows its
+    /// extent (`PaneGrip`); at the commit a pane with no fixed extent keeps it in pane memory, and one whose caller fixes
+    /// the extent shows the caller's from the next pass. Escape, which cancels the press, restores the extent.
+    fn pane_drag<C: Container>(&mut self, props: &ContainerProps, cx: &mut Cx<'_, C>) {
+        let (Mount::Pane(pane), Some((edge, least))) = (&props.mount, self.pane_grip) else { return };
+        let Some(phase) = cx.core.results.get(&(PANE_GRIP, None)).map(|result| result.press.phase) else { return };
+        let (origin, pos, gesture) = match phase {
+            PressPhase::DragStart { start, pos, .. } => (start.origin, Some(pos), GesturePhase::Begin),
+            PressPhase::Drag { start, pos, .. } => (start.origin, Some(pos), GesturePhase::Update),
+            PressPhase::Release { start, pos, .. } => (start.origin, Some(pos), GesturePhase::Commit),
+            PressPhase::Cancel { start, .. } => (start.origin, None, GesturePhase::Cancel),
+            _ => return,
+        };
+        let (ctx, id, rect) = (cx.core.ctx.clone(), cx.core.id, cx.core.rect);
+        let horizontal = matches!(edge, ResizeEdge::Left | ResizeEdge::Right);
+        let along = |size: Vec2| if horizontal { size.x } else { size.y };
+        let slot = cx.core.memory.shown::<PaneGrip>(pane_grip_id(id));
+        let shown = slot.extent;
+        let began = match slot.began {
+            Some(began) if gesture != GesturePhase::Begin => began,
+            _ => along(rect.size()),
+        };
+        let moved = pos.map_or(0.0, |pos| match edge {
+            ResizeEdge::Right => pos.x - origin.x,
+            ResizeEdge::Left => origin.x - pos.x,
+            ResizeEdge::Bottom => pos.y - origin.y,
+            _ => origin.y - pos.y,
+        });
+        let extent = (began + moved).max(least);
+        let resized = |extent: f32| match edge {
+            ResizeEdge::Right => Rect::from_min_size(rect.min, Vec2::new(extent, rect.height())),
+            ResizeEdge::Left => Rect::from_min_max(Pos2::new(rect.max.x - extent, rect.min.y), rect.max),
+            ResizeEdge::Bottom => Rect::from_min_size(rect.min, Vec2::new(rect.width(), extent)),
+            _ => Rect::from_min_max(Pos2::new(rect.min.x, rect.max.y - extent), rect.max),
+        };
+        let change = |rect: Rect, phase: GesturePhase| PlacementChange { rect, phase, pointer: pos, kind: PlacementKind::Size(edge) };
+        if gesture == GesturePhase::Begin {
+            self.reports.push(change(resized(began), GesturePhase::Begin));
+        }
+        let (phase, extent) = match gesture {
+            GesturePhase::Begin => (GesturePhase::Update, extent),
+            GesturePhase::Cancel => (GesturePhase::Cancel, began),
+            phase => (phase, extent),
+        };
+        self.reports.push(change(resized(extent), phase));
+        *slot = if matches!(phase, GesturePhase::Commit | GesturePhase::Cancel) {
+            PaneGrip::default()
+        } else {
+            PaneGrip { began: Some(began), extent: Some(extent) }
+        };
+        if phase == GesturePhase::Commit && pane.extent.is_none() {
+            let size = rect.size();
+            layout_memory::record(&ctx, pane_extent_id(id), if horizontal { Vec2::new(extent, size.y) } else { Vec2::new(size.x, extent) });
+        }
+        // The pane showed this pass at the extent of the last step: a commit or cancel that lands elsewhere shows in
+        // the frame's discard pass.
+        if matches!(phase, GesturePhase::Commit | GesturePhase::Cancel) && shown.is_some_and(|shown| (shown - extent).abs() > 0.5) {
+            layout_memory::ask_discard(&ctx);
+        }
+    }
+}
+
+/// The move band of a container whose header drags: an inline header's band spans the header's whole line (header,
+/// body and end region), beneath the line's children, so every free point of the line drags; a header on a line of
+/// its own is the band.
+fn move_band(props: &ContainerProps, regions: &Regions, rect: Rect) -> Rect {
+    if !props.header.is_some_and(|header| header.inline) {
+        return regions.header;
+    }
+    let line = regions.header.union(regions.body);
+    let line = if props.end.is_some() { line.union(regions.end) } else { line };
+    line.intersect(rect)
 }
 
 impl<'b> BodyHooks<'b> {
@@ -683,6 +891,7 @@ impl<'b> BodyHooks<'b> {
             presence: Presence { t: 1.0, visible: true, exiting: false },
             nudge: 0.0,
             mode: WindowMode::default(),
+            pane_grip: None,
             reports: Vec::new(),
             fixed: false,
             follows_end: false,
@@ -1211,25 +1420,6 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             }
         }
         self.nudge = gap_of(tokens, Gap::Row);
-        let handle = tokens.tokens().size.handle.sm;
-        let reason = "the Move and Size commands of the window command set do the same";
-        // The window an OS move or resize acts on, and whether the app does it (the rule in `app_moves_window`).
-        let os = os_window(&props, &ctx, pcx.id);
-        let app_moves = os.is_none_or(|viewport| app_moves_window(&ctx, viewport));
-        // A layer moves when its overlay says so; other mounts follow the header's band.
-        let movable = match &props.mount {
-            Mount::Layer(overlay) | Mount::Viewport { fallback: overlay, .. } => overlay.movable && app_moves,
-            _ => props.header.is_some_and(|header| header.band == super::DragBand::Move) && app_moves,
-        };
-        if props.header.is_some() && movable && regions.header.height() > 0.0 {
-            pcx.part(MOVE_BAND, regions.header)
-                .sense(craft_behavior::Sense::DRAG)
-                .priority(HitPriority::new(HitLevel::Edge, 0))
-                .exclusive(WindowHit::Move)
-                .cursor(CursorIcon::Grab)
-                .drag_cursor(CursorIcon::Grabbing)
-                .pointer_only(reason);
-        }
         // The reorder band lies under the header's own parts and children: its default priority loses to theirs, so
         // their buttons keep their clicks.
         if props.header.is_some_and(|header| header.band == DragBand::Reorder) && regions.header.height() > 0.0 {
@@ -1239,30 +1429,8 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 .drag_cursor(CursorIcon::Grabbing)
                 .pointer_only("Alt+Up and Alt+Down move the section");
         }
-        // The grips of a layer straddle its edge; those of a window lie inside it, where the window has pixels.
-        let (grips, inset) = match &props.mount {
-            Mount::Layer(overlay) | Mount::Viewport { fallback: overlay, .. } => (overlay.resize.grips, 0.0),
-            Mount::Window { resize } => (resize.grips, handle / 2.0),
-            _ => (false, 0.0),
-        };
-        if grips && app_moves {
-            for (index, (dx, dy, cursor)) in GRIPS.into_iter().enumerate() {
-                let along = |edge: i8, low: f32, high: f32| match edge {
-                    -1 => (low - handle / 2.0 + inset, low + handle / 2.0 + inset),
-                    1 => (high - handle / 2.0 - inset, high + handle / 2.0 - inset),
-                    _ => (low + handle / 2.0 + inset, high - handle / 2.0 - inset),
-                };
-                let (x0, x1) = along(dx, rect.min.x, rect.max.x);
-                let (y0, y1) = along(dy, rect.min.y, rect.max.y);
-                let level = if dx != 0 && dy != 0 { HitLevel::Handle } else { HitLevel::Edge };
-                pcx.part(GRIP.at(index as u64), Rect::from_min_max(Pos2::new(x0, y0), Pos2::new(x1, y1)))
-                    .sense(craft_behavior::Sense::DRAG)
-                    .priority(HitPriority::new(level, 0))
-                    .exclusive(WindowHit::Resize(edge_of(dx, dy)))
-                    .cursor(cursor)
-                    .pointer_only(reason);
-            }
-        }
+        Self::move_parts(&props, &regions, rect, pcx);
+        self.pane_grip = Self::pane_grip(&props, rect, pcx);
     }
 
     fn sensed(&mut self, comp: &mut C, cx: &mut Cx<'_, C>) {
@@ -1299,12 +1467,13 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             && let Some(viewport) = os_window(props, cx.core.memory.ctx(), cx.core.id)
         {
             self.window_os(viewport, cx);
+            self.window_movable(cx);
         }
-        if !layer || (matches!(props.mount, Mount::Viewport { .. }) && viewports::available(cx.core.memory.ctx())) {
-            return;
+        self.pane_drag(props, cx);
+        if layer && !(matches!(props.mount, Mount::Viewport { .. }) && viewports::available(cx.core.memory.ctx())) {
+            self.window_keys(props, cx);
+            self.window_drag(props, cx);
         }
-        self.window_keys(props, cx);
-        self.window_drag(props, cx);
         for change in std::mem::take(&mut self.reports) {
             comp.placement_changed(&change);
         }
