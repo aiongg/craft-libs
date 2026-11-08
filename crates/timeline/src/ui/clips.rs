@@ -32,6 +32,9 @@ const ROLL_SHARE: f32 = 0.5;
 /// above the body.
 /// The empty space of the lane: it takes the clicks that clear the selection and the drags that sweep a marquee.
 const BACKDROP: PartKey = PartKey::new("laneBackdrop");
+/// A clip's body wins over the backdrop behind it, and the backdrop wins over the row's own root shape.
+const CLIP_PRIORITY: HitPriority = HitPriority::new(HitLevel::Body, 2);
+const BACKDROP_PRIORITY: HitPriority = HitPriority::new(HitLevel::Body, 1);
 pub const CLIP: PartKey = PartKey::new("clip");
 /// The start edge of the clip.
 pub const CLIP_START: PartKey = PartKey::new("clipStart");
@@ -336,13 +339,13 @@ impl<'a> ClipLane<'a> {
         if !self.locked {
             cx.part(BACKDROP, lane)
                 .sense(Sense::CLICK | Sense::DRAG)
-                .priority(HitPriority::new(HitLevel::Background, 0))
+                .priority(BACKDROP_PRIORITY)
                 .pointer_only("the clips' own keys and the selection commands pick without the pointer");
         }
         let trims = matches!(self.tool, TimelineTool::Selection | TimelineTool::Ripple | TimelineTool::Rolling | TimelineTool::RateStretch);
         for clip in self.clips {
             let Some(body) = geometry.body(clip) else { continue };
-            let part = cx.part(CLIP.at(clip.id.0), body).sense(sense).priority(HitPriority::BODY);
+            let part = cx.part(CLIP.at(clip.id.0), body).sense(sense).priority(CLIP_PRIORITY);
             let part = if self.locked { part } else { part.focusable() };
             let part = match self.tool {
                 TimelineTool::Razor => part.cursor(CursorIcon::Crosshair),
