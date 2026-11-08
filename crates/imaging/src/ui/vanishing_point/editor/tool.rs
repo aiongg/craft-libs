@@ -1,7 +1,7 @@
 //! [`VanishingPointTool`]: the presses of the plane editor that fall on no node.
 
 use craft_behavior::{CancelReason, Cursor, CursorIcon, PaintedCursor};
-use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPath, ToolPointer};
+use craft_ui::canvas::{CanvasTool, ToolAction, ToolClaims, ToolContext, ToolKey, ToolPath, ToolPointer};
 use craft_ui::primitives::Draw;
 
 use super::work::{Pressed, Work};
@@ -102,6 +102,10 @@ impl CanvasTool for VanishingPointTool<'_> {
             ToolKey::Cancel => self.run(|work| work.editor.drop_pending()),
             _ => false,
         }
+    }
+
+    fn claims(&self) -> ToolClaims {
+        if self.run(|work| work.editor.selected().is_some()) { ToolClaims::NONE.deletes() } else { ToolClaims::NONE }
     }
 
     fn paint(&self, _: &Draw<'_>, _: &ToolContext<'_>) {

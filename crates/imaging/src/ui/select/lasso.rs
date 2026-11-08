@@ -3,7 +3,7 @@
 use craft_behavior::geometry::{ConstrainStyle, DraftEvent, DraftKind, DraftPoint, DraftReach, OutlineDraft, SelectionOperation};
 use craft_behavior::{CancelReason, Cursor, PaintedCursor};
 use craft_keymap::{Key, Mods};
-use craft_ui::canvas::{CanvasTool, ToolAccess, ToolAction, ToolContext, ToolKey, ToolPath, ToolPointer};
+use craft_ui::canvas::{CanvasTool, ToolAccess, ToolAction, ToolClaims, ToolContext, ToolKey, ToolPath, ToolPointer};
 use craft_ui::primitives::{Draw, PaintShape, StrokeWidth, ToolIcon};
 use egui::{Pos2, Vec2};
 use kurbo::Rect;
@@ -134,19 +134,13 @@ pub(super) enum DraftKey {
 }
 
 /// The outline command a key is, with the modifiers it carries. The host sends the editing keys as `Submit`, `Cancel`
-/// and `Delete` while the tool has not kept the keyboard, and as the chord itself while it has (`keep_keys`). Chords
+/// and `Delete` while the tool has not kept the keyboard, and as the chord itself while it has (`ToolClaims::keyboard`). Chords
 /// with Cmd or Ctrl are the app's.
 pub(super) fn draft_command(key: &ToolKey, cx: &ToolContext<'_>) -> Option<(DraftKey, Mods)> {
     let (command, mods) = match key {
         ToolKey::Submit => (DraftKey::Close, cx.mods),
         ToolKey::Cancel => (DraftKey::Cancel, cx.mods),
         ToolKey::Delete { .. } => (DraftKey::Retract, cx.mods),
-        ToolKey::Kept(chord) => match chord.key {
-            Key::Enter => (DraftKey::Close, chord.mods),
-            Key::Escape => (DraftKey::Cancel, chord.mods),
-            Key::Backspace | Key::Delete => (DraftKey::Retract, chord.mods),
-            _ => return None,
-        },
         _ => return None,
     };
     (!mods.cmd && !mods.ctrl).then_some((command, mods))
@@ -189,7 +183,7 @@ pub(super) fn draft_key(
 /// closes; Alt held at the press subtracts (the operation) until it is released and pressed again, except with nothing
 /// selected, where it starts straight segments. Between clicks the outline closes on a click near the first point (3
 /// or more points), on a click at the last, on Enter or on a double-click. Backspace or Delete retract the last
-/// vertex (the last one cancels); the tool keeps those keys from Edit > Clear (`ToolContext::keep_keys`) while
+/// vertex (the last one cancels); the tool claims those keys from Edit > Clear (`CanvasTool::claims`) while
 /// [`OutlineDraft::takes_retract`]. Escape cancels. The outline is dropped when the document changes
 /// ([`SelectionProbe::document`]) and on [`reset`](Self::reset).
 ///
@@ -259,7 +253,7 @@ impl LassoTool {
 
 impl CanvasTool for SelectToolPass<'_, LassoTool> {
     /// Takes the reach, checks the document (`OutlineDraft::for_document`), and passes a change of the held
-    /// modifiers to `OutlineDraft::mods_changed` (Alt released with the button up closes: `Commit`). Keeps the keys
+    /// modifiers to `OutlineDraft::mods_changed` (Alt released with the button up closes: `Commit`). Claims the keys
     /// while the draft takes retract.
     fn each_pass(&mut self, cx: &mut ToolContext<'_>) {
         let (tool, probe) = (&mut *self.tool, self.probe);
@@ -272,9 +266,10 @@ impl CanvasTool for SelectToolPass<'_, LassoTool> {
             let event = tool.draft.mods_changed(cx.mods);
             apply(event, tool.bar, probe.has_selection(), &mut tool.operation, &mut tool.report);
         }
-        if tool.draft.takes_retract() {
-            cx.keep_keys();
-        }
+    }
+
+    fn claims(&self) -> ToolClaims {
+        if self.tool.draft.takes_retract() { ToolClaims::NONE.keyboard().deletes() } else { ToolClaims::NONE }
     }
 
     fn cursor(&self, cx: &ToolContext<'_>) -> Cursor {

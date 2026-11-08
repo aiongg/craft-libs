@@ -4,7 +4,7 @@ use craft_behavior::geometry::draft::turn_to_45;
 use craft_behavior::geometry::{DraftKind, DraftPoint, DraftReach, OutlineDraft, SelectionOperation};
 use craft_behavior::{CancelReason, Cursor, PointerButton};
 use craft_keymap::Mods;
-use craft_ui::canvas::{CanvasTool, ToolAccess, ToolAction, ToolContext, ToolKey, ToolPath, ToolPointer};
+use craft_ui::canvas::{CanvasTool, ToolAccess, ToolAction, ToolClaims, ToolContext, ToolKey, ToolPath, ToolPointer};
 use craft_ui::primitives::{Draw, ToolIcon};
 
 use super::drag::{InsideDrag, PressRule, drag_kind};
@@ -102,9 +102,10 @@ impl CanvasTool for SelectToolPass<'_, PolygonLassoTool> {
             let event = tool.draft.mods_changed(cx.mods);
             apply(event, tool.bar, probe.has_selection(), &mut tool.operation, &mut tool.report);
         }
-        if tool.draft.takes_retract() {
-            cx.keep_keys();
-        }
+    }
+
+    fn claims(&self) -> ToolClaims {
+        if self.tool.draft.takes_retract() { ToolClaims::NONE.keyboard().deletes() } else { ToolClaims::NONE }
     }
 
     /// The primary button always, the secondary while an outline is open (it retracts the last vertex).

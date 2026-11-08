@@ -6,7 +6,7 @@ use super::overlay::{RulerOverlay, moved};
 use super::words::RulerWords;
 use craft_behavior::kurbo::Point;
 use craft_behavior::{CancelReason, Cursor, CursorIcon, EditEvent, GestureId, Mixed};
-use craft_ui::canvas::{CanvasTool, NUDGE, NUDGE_FAR, ToolAction, ToolContext, ToolKey, ToolPath, ToolPointer};
+use craft_ui::canvas::{CanvasTool, NUDGE, NUDGE_FAR, ToolAction, ToolClaims, ToolContext, ToolKey, ToolPath, ToolPointer};
 use craft_ui::canvas_controls::StraightLinePreview;
 use craft_ui::contract::{Bind, Show as _};
 use craft_ui::primitives::Draw;
@@ -173,6 +173,10 @@ impl CanvasTool for RulerPass<'_> {
             }
             _ => false,
         }
+    }
+
+    fn claims(&self) -> ToolClaims {
+        if self.line.is_some() && self.tool.drag.is_none() { ToolClaims::NONE.deletes() } else { ToolClaims::NONE }
     }
 
     fn paint(&self, _: &Draw<'_>, _: &ToolContext<'_>) {}

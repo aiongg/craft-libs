@@ -8,7 +8,7 @@ use crate::ui::slice::Run;
 use craft_behavior::kurbo::{Point, Rect};
 use craft_behavior::{CancelReason, Cursor, CursorIcon, GestureId};
 use craft_keymap::Mods;
-use craft_ui::canvas::{CanvasTool, ToolAccess, ToolAction, ToolContext, ToolKey, ToolPath, ToolPointer};
+use craft_ui::canvas::{CanvasTool, ToolAccess, ToolAction, ToolClaims, ToolContext, ToolKey, ToolPath, ToolPointer};
 use craft_ui::primitives::{Draw, PaintShape, StrokeWidth};
 use egui::Pos2;
 
@@ -205,6 +205,10 @@ impl CanvasTool for ArtboardTool {
         let taken = !events.is_empty();
         self.events.extend(events);
         taken
+    }
+
+    fn claims(&self) -> ToolClaims {
+        if self.selected.is_empty() { ToolClaims::NONE } else { ToolClaims::NONE.deletes() }
     }
 
     fn paint(&self, draw: &Draw<'_>, cx: &ToolContext<'_>) {

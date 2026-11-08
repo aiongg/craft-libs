@@ -5,7 +5,7 @@ use craft_behavior::{CancelReason, Cursor, CursorIcon, EditEvent, GestureId, Inp
 use craft_keymap::Mods;
 use craft_theme::Srgba;
 use craft_ui::bars::{Bar, BarKind};
-use craft_ui::canvas::{CanvasTool, NUDGE, NUDGE_FAR, ToolAction, ToolContext, ToolKey, ToolPath, ToolPointer, canvas_space};
+use craft_ui::canvas::{CanvasTool, NUDGE, NUDGE_FAR, ToolAction, ToolClaims, ToolContext, ToolKey, ToolPath, ToolPointer, canvas_space};
 use craft_ui::choice::{RadioGroup, Swatch};
 use craft_ui::contract::{
     Bind, BodyCx, Common, Component, Cx, MeasureCx, NoValue, Outcome, PaintUi, Props as _, Remember as _, Role, Show as _, ShowContainer as _,
@@ -936,6 +936,10 @@ impl CanvasTool for AnnotateTool {
             }
             _ => false,
         }
+    }
+
+    fn claims(&self) -> ToolClaims {
+        if self.tool == AnnotationTool::Select && !self.editable().is_empty() { ToolClaims::NONE.deletes() } else { ToolClaims::NONE }
     }
 
     fn paint(&self, draw: &Draw<'_>, cx: &ToolContext<'_>) {

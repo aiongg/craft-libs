@@ -3,7 +3,7 @@
 use craft_behavior::geometry::SelectionOperation;
 use craft_behavior::{CancelReason, Cursor, PaintedCursor};
 use craft_keymap::{Key, Mods};
-use craft_ui::canvas::{CanvasTool, ToolAccess, ToolAction, ToolContext, ToolKey, ToolPath, ToolPointer};
+use craft_ui::canvas::{CanvasTool, ToolAccess, ToolAction, ToolClaims, ToolContext, ToolKey, ToolPath, ToolPointer};
 use craft_ui::primitives::{Draw, PaintShape, StrokeWidth, ToolIcon};
 use egui::{CornerRadius, Pos2, Rect as ScreenRect, Vec2};
 use kurbo::Point;
@@ -436,10 +436,11 @@ impl<T: EdgeTracer> CanvasTool for SelectToolPass<'_, MagneticLassoTool<T>> {
                 o.trail = o.path.last().copied().into_iter().collect();
             }
         }
-        // Between presses only: a kept Escape would reach the tool as a chord instead of cancelling the press.
-        if tool.outline.as_ref().is_some_and(|o| !o.down) {
-            cx.keep_keys();
-        }
+    }
+
+    /// Between presses only: a kept Escape would reach the tool as a chord instead of cancelling the press.
+    fn claims(&self) -> ToolClaims {
+        if self.tool.outline.as_ref().is_some_and(|o| !o.down) { ToolClaims::NONE.keyboard().deletes() } else { ToolClaims::NONE }
     }
 
     /// The width circle with Other Cursors > Precise or Caps Lock (`width * zoom`, at least the slop); otherwise the
@@ -522,10 +523,6 @@ impl<T: EdgeTracer> CanvasTool for SelectToolPass<'_, MagneticLassoTool<T>> {
     /// Ends an Alt drag: where it stopped fastens.
     fn release(&mut self, _pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
         self.tool.end_gesture();
-        // The keyboard is kept from the pass the button came up in, not the one after it.
-        if self.tool.outline.is_some() {
-            cx.keep_keys();
-        }
     }
 
     /// Button-up moves follow the edges too.

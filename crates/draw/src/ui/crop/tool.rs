@@ -9,7 +9,9 @@ use craft_behavior::geometry::{CropBox, SnapLine, SnapTargets, crop_view, screen
 use craft_behavior::kurbo::{Rect as DocRect, Vec2 as DocVec};
 use craft_behavior::{CancelReason, CanvasView, EditEvent};
 use craft_keymap::{Key, Mods};
-use craft_ui::canvas::{CanvasTool, CropOverlay, CropOverlayOutput, NUDGE, NUDGE_FAR, ToolAction, ToolContext, ToolKey, ToolPath, ToolPointer};
+use craft_ui::canvas::{
+    CanvasTool, CropOverlay, CropOverlayOutput, NUDGE, NUDGE_FAR, ToolAction, ToolClaims, ToolContext, ToolKey, ToolPath, ToolPointer,
+};
 use craft_ui::contract::{Bind, Show as _};
 use craft_ui::patterns::form_dialogs::{Param, ParamDialog, ParamKind};
 use craft_ui::primitives::Draw;
@@ -545,9 +547,6 @@ impl CanvasTool for CropToolPass<'_> {
             return;
         }
         let Some(frame) = self.tool.session.frame() else { return };
-        if frame.is_finite() {
-            cx.keep_keys();
-        }
         let classic = self.classic();
         if self.tool.classic_seen != Some(classic) {
             self.tool.synced = None;
@@ -564,6 +563,12 @@ impl CanvasTool for CropToolPass<'_> {
             cx.set_view(crop_view(&frame, &space.view));
             self.tool.synced = Some(frame);
         }
+    }
+
+    /// The keyboard, while a finite frame stands and no gesture runs.
+    fn claims(&self) -> ToolClaims {
+        let open = !self.tool.dragging && self.tool.session.frame().is_some_and(|frame| frame.is_finite());
+        if open { ToolClaims::NONE.keyboard() } else { ToolClaims::NONE }
     }
 
     /// A press that reaches the tool is on no part of the frame: the overlay owns the whole canvas.

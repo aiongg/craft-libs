@@ -11,7 +11,7 @@ use craft_behavior::kurbo::{Point, Rect as DocRect, Vec2 as DocVec};
 use craft_behavior::{CancelReason, CanvasView, Cursor, CursorBadge, EditEvent, GestureId, Mixed, PaintedCursor, PointerButton};
 use craft_keymap::Mods;
 use craft_theme::Rgba;
-use craft_ui::canvas::{CanvasTool, ToolAccess, ToolAction, ToolAnchor, ToolContext, ToolKey, ToolPath, ToolPointer};
+use craft_ui::canvas::{CanvasTool, ToolAccess, ToolAction, ToolAnchor, ToolClaims, ToolContext, ToolKey, ToolPath, ToolPointer};
 use craft_ui::canvas_controls::path_runs;
 use craft_ui::primitives::{Dashes, Draw, PaintShape, StrokeWidth, ToolIcon};
 use craft_ui::style::{HandleLook, StyleColor, StyleCx};
@@ -524,6 +524,10 @@ impl CanvasTool for PenTool {
             }
             _ => false,
         }
+    }
+
+    fn claims(&self) -> ToolClaims {
+        if !self.shown.knots.is_empty() && self.drag.is_none() { ToolClaims::NONE.deletes() } else { ToolClaims::NONE }
     }
 
     fn takes(&self, button: PointerButton, mods: Mods) -> bool {

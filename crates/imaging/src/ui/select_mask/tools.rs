@@ -4,7 +4,7 @@ use craft_behavior::geometry::draft::{DraftEvent, DraftKind, DraftPoint, DraftRe
 use craft_behavior::kurbo::Point;
 use craft_behavior::{CancelReason, Cursor, CursorBadge, CursorIcon, GestureId, PaintedCursor, PointerButton};
 use craft_keymap::Mods;
-use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPath, ToolPointer};
+use craft_ui::canvas::{CanvasTool, ToolAction, ToolClaims, ToolContext, ToolKey, ToolPath, ToolPointer};
 use craft_ui::canvas_controls::CanvasControlWords;
 use craft_ui::canvas_controls::brush::{
     BrushCursor, BrushCursorOptions, BrushDimensions, BrushLevel, BrushResize, BrushResizeOptions, BrushTip, PaintingCursor,
@@ -721,6 +721,10 @@ impl CanvasTool for SelectMaskCanvasTool<'_> {
             ToolKey::Cancel => self.canvas.drop_polygon(),
             _ => false,
         }
+    }
+
+    fn claims(&self) -> ToolClaims {
+        if self.canvas.polygon.is_some() { ToolClaims::NONE.deletes() } else { ToolClaims::NONE }
     }
 
     fn paint(&self, draw: &Draw<'_>, cx: &ToolContext<'_>) {
