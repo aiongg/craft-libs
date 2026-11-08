@@ -10,6 +10,7 @@ use craft_ui::contract::{Bind, BodyCx, Role};
 use craft_ui::docking::{DockConfig, DockEvent, DockPanels, DockSizes, HidePanels, PanelSpec};
 use craft_ui::patterns::dock::{DockArea, DockAreaOutput};
 use craft_ui::style::Variant;
+use craft_ui::testing::layout::in_region;
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::style::{tokens, with_cx};
 use craft_ui::testing::{Fixture, Target, trial};
@@ -358,16 +359,15 @@ fn areas_with_different_labels_keep_separate_flyouts() {
     let opened: Rc<RefCell<Vec<(&'static str, bool)>>> = Rc::default();
     let seen = Rc::clone(&opened);
     let mut fixture = Fixture::new(move |ui| {
-        ui.horizontal(|ui| {
-            for label in ["Left", "Right"] {
-                ui.allocate_ui(Vec2::new(AREA.x / 2.0, AREA.y), |ui| {
-                    let mut panels = Named(label);
-                    let out = DockArea::read_only(label, &layout, &mut panels, DockConfig::default()).show(ui);
-                    let flyout = out.events.iter().any(|event| matches!(event, DockEvent::FlyoutChanged { panel: Some(_), .. }));
-                    seen.borrow_mut().push((label, flyout));
-                });
-            }
-        });
+        let half = Vec2::new(AREA.x / 2.0, AREA.y);
+        for (at, label) in ["Left", "Right"].into_iter().enumerate() {
+            in_region(ui, Rect::from_min_size(Pos2::new(half.x * at as f32, 0.0), half), |ui| {
+                let mut panels = Named(label);
+                let out = DockArea::read_only(label, &layout, &mut panels, DockConfig::default()).show(ui);
+                let flyout = out.events.iter().any(|event| matches!(event, DockEvent::FlyoutChanged { panel: Some(_), .. }));
+                seen.borrow_mut().push((label, flyout));
+            });
+        }
     });
     fixture.room(AREA).settle();
     opened.borrow_mut().clear();
