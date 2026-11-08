@@ -21,8 +21,8 @@ const INSET: f32 = 8.0;
 const CANVAS: Rect = Rect::from_min_max(Pos2::new(50.0, 20.0), Pos2::new(850.0, 620.0));
 const ZOOM_CANVAS: Rect = Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(800.0, 600.0));
 
-/// How far from the middle a click on the middle of the box may land, as a share of the document.
-const CENTRE_SLACK: f64 = 0.05;
+/// How far from the middle a click on the middle of the box may land, in document units.
+const CENTRE_SLACK: f64 = 100.0;
 
 /// The zoom the row starts from.
 const START: f64 = 1.0;
@@ -165,7 +165,7 @@ fn a_press_on_the_preview_centres_the_view_on_the_point_pressed() {
     fixture.settle();
     let centre = view.borrow().center;
     assert!(
-        (centre.x - DOC.width / 2.0).abs() < DOC.width * CENTRE_SLACK && (centre.y - DOC.height / 2.0).abs() < DOC.height * CENTRE_SLACK,
+        (centre.x - CENTRE.x).abs() < CENTRE_SLACK && (centre.y - CENTRE.y).abs() < CENTRE_SLACK,
         "the middle of the box is the middle of the document: {centre:?}"
     );
 }
