@@ -1,75 +1,100 @@
-//! [`SymmetryOverlay`]: the symmetry axes drawn on the canvas.
+//! `SymmetryOverlay`: the symmetry axes drawn on the canvas, a paint-only canvas control.
 
-use egui::{Painter, Pos2, Rect, Stroke, vec2};
-use kurbo::Size;
-
+use super::HANDLE_SHARE;
 use super::model::Symmetry;
-use super::style::SymmetryStyle;
-use craft_ui::canvas::CanvasView;
-use craft_ui::primitives::{Handle, HandleShape};
-use craft_ui::theme::{ToEgui, UiTokens};
+use craft_behavior::kurbo::Size;
+use craft_behavior::{Input, Metrics};
+use craft_ui::canvas::canvas_space;
+use craft_ui::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role};
+use craft_ui::primitives::{PaintShape, StrokeWidth};
+use craft_ui::runtime::env::Label;
+use craft_ui::style::{ComponentStyle, HandleLook, StyleColor, StyleCx};
+use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
 
-/// Reach of the transform's handles, in screen points.
-const HIT: f32 = 8.0;
-/// Distance of the rotation handle from the centre, as a share of the document's shorter side.
-const HANDLE_SHARE: f32 = 0.35;
+/// The style of the symmetry guides: the line colour of the overlay tokens and the look of the centre and rotation
+/// handle marks.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+#[non_exhaustive]
+pub struct SymmetryOverlayStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+    line: StyleColor,
+    handle: HandleLook,
+}
 
-/// The guides of a painting symmetry: each axis clipped to the document, a bare line in
-/// `overlay.line`, drawn while a painting tool is picked or the symmetry is being transformed;
-/// while [editing](Self::editing) also the centre anchor and a handle line to the rotation
-/// handle. Drawing only: the transform's keyboard parts and their focus ring (the host's) are
-/// [`SymmetryTransform`](super::SymmetryTransform)'s.
+/// The guides of a painting symmetry: each axis clipped to the page, a bare line in the overlay line colour, drawn
+/// while a painting tool is picked or the symmetry is being transformed. While [editing](Self::editing) it also draws
+/// the centre mark, a line to the rotation handle and the handle's mark.
+///
+/// Drawing only: the pointer and keyboard parts are [`SymmetryHandles`](super::SymmetryHandles). Show the overlay
+/// before the handles.
+#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
+#[component(canvas_control)]
 pub struct SymmetryOverlay<'a> {
+    #[common]
+    common: Common,
     symmetry: &'a Symmetry,
-    size: Size,
+    page: Size,
+    /// Transform Symmetry is open: the centre mark and the rotation handle show.
+    #[prop]
     editing: bool,
 }
 
 impl<'a> SymmetryOverlay<'a> {
-    /// The guides of `symmetry` over a document of `size`.
-    pub fn new(symmetry: &'a Symmetry, size: Size) -> Self {
-        Self { symmetry, size, editing: false }
-    }
-
-    /// Transform Symmetry is open: the centre anchor and the rotation handle show.
-    pub fn editing(mut self, editing: bool) -> Self {
-        self.editing = editing;
-        self
-    }
-
-    /// The guides' look in `tokens`: also the reach of the transform's handles.
-    pub fn style(tokens: &UiTokens) -> SymmetryStyle {
-        // pc: crates/ui-egui/src/tools/symmetry_ui.rs:280 `draw` (1 pt accent), :111 `cursor` and
-        // :233 `pointer` (8 / zoom), :227 `rotation_handle` (0.35).
-        SymmetryStyle {
-            line: Stroke::new(tokens.stroke.thin, tokens.color.overlay.line.to_egui()),
-            hit: HIT,
-            handle_share: f64::from(HANDLE_SHARE),
-            handle: Handle::style(tokens, HandleShape::Square),
-        }
-    }
-
-    /// Paints the guides over `view`, clipped to the view's rect.
-    pub fn paint(&self, painter: &Painter, view: &CanvasView, style: &SymmetryStyle) {
-        // pc: crates/ui-egui/src/tools/symmetry_ui.rs:280 `draw` (the anchor and handle line through
-        // `Handle`, the library's anchor and handle painter).
-        let painter = painter.with_clip_rect(painter.clip_rect().intersect(view.rect));
-        for line in self.symmetry.segments(self.size) {
-            painter.line_segment([view.to_screen(line.p0), view.to_screen(line.p1)], style.line);
-        }
-        if !self.editing {
-            return;
-        }
-        let center = view.to_screen(self.symmetry.center);
-        let handle = view.to_screen(self.symmetry.rotation_handle(self.size, style.handle_share));
-        painter.line_segment([center, handle], style.line);
-        let ppp = painter.ctx().pixels_per_point();
-        painter.extend(Handle::shapes_with(&style.handle, HandleShape::Square, center, ppp));
-        painter.extend(Handle::shapes_with(&style.handle, HandleShape::Round, handle, ppp));
+    /// The guides of `symmetry` over a page of `page` document units.
+    pub fn new(label: impl Into<Label>, symmetry: &'a Symmetry, page: Size) -> Self {
+        SymmetryOverlay { common: Common::new(), symmetry, page, editing: false }.label(label)
     }
 }
 
-/// The screen rect of a part centred on `at`: the square of the pointer's reach.
-pub(super) fn part_rect(at: Pos2, style: &SymmetryStyle) -> Rect {
-    Rect::from_center_size(at, vec2(2.0 * style.hit, 2.0 * style.hit))
+impl Component for SymmetryOverlay<'_> {
+    const ROLE: Role = Role::GRAPHICS_OBJECT;
+    const ALT_ROLES: &'static [Role] = &[Role::None];
+    const INPUT: Input = Input::Display;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
+    const OVERLAYS: bool = false;
+    type Style = SymmetryOverlayStyle;
+    type Output = Response;
+
+    fn style(cx: &StyleCx<'_>, _: SymmetryOverlayStyleKey) -> SymmetryOverlayStyle {
+        SymmetryOverlayStyle { metrics: Metrics::new(), line: cx.color(cx.tokens.color.overlay.line), handle: cx.handle() }
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::ZERO
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let Some(space) = canvas_space(&cx.env) else { return };
+        let style = &cx.style;
+        let draw = ui.draw();
+        draw.clipped(cx.rect, |draw| {
+            for line in self.symmetry.segments(self.page) {
+                let ends: Vec<Pos2> = vec![space.view.to_screen(line.p0), space.view.to_screen(line.p1)];
+                draw.stroke(&PaintShape::Path(ends), StrokeWidth::Thin, style.line);
+            }
+            if !self.editing {
+                return;
+            }
+            let centre = space.view.to_screen(self.symmetry.center);
+            let handle = space.view.to_screen(self.symmetry.rotation_handle(self.page, HANDLE_SHARE));
+            draw.stroke(&PaintShape::Path(vec![centre, handle]), StrokeWidth::Thin, style.line);
+            let look = &style.handle;
+            let square = PaintShape::Rect(Rect::from_center_size(centre, Vec2::splat(look.side)), CornerRadius::ZERO);
+            let round = PaintShape::Circle(handle, look.side / 2.0);
+            for mark in [square, round] {
+                draw.fill(&mark, cx.resolve(&look.fill));
+                draw.stroke(&mark, StrokeWidth::Thin, look.stroke);
+            }
+        });
+    }
+
+    fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
+        access.role(Role::None);
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
 }

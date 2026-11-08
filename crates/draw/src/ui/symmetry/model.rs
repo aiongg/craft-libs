@@ -1,6 +1,6 @@
 //! [`Symmetry`]: a painting symmetry's straight axes and their geometry. No egui.
 
-use kurbo::{Line, Point, Size, Vec2};
+use craft_behavior::kurbo::{Line, Point, Size, Vec2};
 
 /// The largest centre coordinate a symmetry keeps, in document units (PhotoCraft's).
 pub const MAX_COORDINATE: f64 = 1_000_000.0;
@@ -11,6 +11,7 @@ pub const TURN_STEP_DEGREES: f64 = 15.0;
 /// Parallel Lines, Radial and Mandala modes need engine work and are not built.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum SymmetryMode {
     /// One vertical axis (90° before the rotation).
     Vertical,
@@ -32,8 +33,9 @@ impl SymmetryMode {
 /// Serialises camelCase, the centre as kurbo's point: brush presets store the symmetry.
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct Symmetry {
-    #[allow(missing_docs)]
+    /// Which axes the symmetry has.
     pub mode: SymmetryMode,
     /// The point the axes run through, in document units.
     pub center: Point,
