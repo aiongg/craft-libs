@@ -702,7 +702,8 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
         let field = FieldStyle::at(cx);
         NumberStyle {
             surface: field.surface.clone(),
-            metrics: field.metrics,
+            // The width comes from the codec's widest value (`measure`), so the field's minimum is only its height.
+            metrics: field.metrics.min_size(Vec2::new(0.0, field.metrics.min_size.y)),
             unit: TextLook::new(TypeRole::Body, Stateful::new(cx.ink(Ink::OnPanel))),
             field,
         }
@@ -722,7 +723,7 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
         // The chevrons' extent is the span from the text's end to the last chevron's far edge, laid out in the
         // field's minimum size, which is wide enough for any adornments.
         let chevrons = self.chevrons(&cx.words::<TextWords>());
-        let probe = Rect::from_min_size(Pos2::ZERO, cx.style.metrics.min_size);
+        let probe = Rect::from_min_size(Pos2::ZERO, cx.style.field.metrics().min_size);
         let placed = Self::laid_out(cx.style, probe, false, &chevrons);
         let adornments = placed.trailing.last().map_or(0.0, |last| last.max.x - placed.text.max.x);
         Vec2::new(text.x + unit + adornments, text.y.max(self.unit_size.y))
