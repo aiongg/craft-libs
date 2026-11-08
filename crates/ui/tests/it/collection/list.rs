@@ -588,7 +588,8 @@ fn a_modified_enter_activates_the_lead_row() {
         frames.idle(3, &mut show);
         focus_list(&mut frames, &seen, &mut show);
         press(&mut frames, Key::Enter, modifiers, &mut show);
-        assert_eq!(count(&seen, |event| matches!(event, CollectionEvent::Activate(0))), 1, "{modifiers:?}+Enter activates the first row");
+        let activations = seen.events.borrow().iter().filter(|event| matches!(event, CollectionEvent::Activate(0))).count();
+        assert_eq!(activations, 1, "{modifiers:?}+Enter activates the first row");
     }
 }
 
