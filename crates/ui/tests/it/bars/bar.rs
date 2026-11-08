@@ -2,7 +2,8 @@
 
 use craft_ui::bars::{AlignBar, Bar, BarItem, BarItems, BarKind, DistributeButtons, StatusItem, StatusReadout, StatusValues};
 use craft_ui::buttons::{Button, IconButton};
-use craft_ui::contract::{Bind, Politeness, Props as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Entry, Politeness, Props as _, Role, Show as _, ShowContainer as _};
+use craft_ui::pickers::Select;
 use craft_ui::runtime::commands::EditCommands;
 use craft_ui::runtime::frame::take_output;
 use craft_ui::testing::access::NodeKey;
@@ -134,4 +135,35 @@ fn an_align_command_runs_from_its_button_and_from_the_overflow_menu() {
     fixture.click(&row);
     fixture.idle(2);
     assert!(fired(&fixture).contains(&"align.distribute_top_edges".to_owned()));
+}
+
+/// A select inside a bar opens its list in a layer of its own: the bar's scrolling body does not reach the list, Down
+/// and Enter pick the next row, and a click on a row picks it.
+#[trial]
+fn a_select_in_a_bar_opens_its_list_and_picks_a_row() {
+    let value = Rc::new(Cell::new(0u8));
+    let shown = value.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        Bar::new("Options", BarKind::Options).show(ui, |ui, _| {
+            let entries = [Entry::new(0u8, "Normal"), Entry::new(1, "Multiply"), Entry::new(2, "Screen")];
+            let mut mode = shown.get();
+            Select::new("Blend mode", Bind::bound(&mut mode), &entries).id_salt("mode").show(ui);
+            shown.set(mode);
+        });
+    });
+    fixture.settle();
+    tab(&mut fixture);
+    fixture.key(Key::ArrowDown, Modifiers::ALT);
+    fixture.idle(2);
+    assert!(!fixture.by_role(Role::LIST_BOX).is_empty(), "Alt+Down opens the list");
+    fixture.key(Key::ArrowDown, Modifiers::NONE);
+    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.idle(10);
+    assert_eq!(value.get(), 1, "Down and Enter pick the next row");
+    fixture.key(Key::ArrowDown, Modifiers::ALT);
+    fixture.idle(2);
+    let row = fixture.by_label("Screen").expect("the row is shown");
+    fixture.click(&row);
+    fixture.idle(10);
+    assert_eq!(value.get(), 2, "a click picks the row");
 }

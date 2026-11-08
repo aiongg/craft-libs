@@ -178,7 +178,7 @@ impl FloatingGroup {
     fn mount(&self, header: f32) -> Mount {
         let least = Vec2::new(self.limits.min.x, self.limits.min.y + header);
         let most = self.limits.max.map_or(Vec2::INFINITY, |max| max + Vec2::new(0.0, header));
-        let mut overlay = Overlay::floating().movable(true).resizable(!self.minimized).opacity(self.opacity);
+        let mut overlay = Overlay::floating().movable(true).resizable(!self.minimized).opacity(self.opacity).body_scroll(false);
         overlay = if self.minimized {
             let width = self.rect.width();
             overlay.placed_at(self.rect.min).size_limits(Vec2::new(width, 0.0), Vec2::new(width, f32::INFINITY))

@@ -33,7 +33,10 @@ impl Flyout {
             DockEdge::End => Side::Start,
             _ => Side::End,
         };
-        Overlay::popover().place(Place::anchored(anchor, side, Align::Start)).dismiss(Dismiss::new().focus_left(self.auto_collapse))
+        Overlay::popover()
+            .place(Place::anchored(anchor, side, Align::Start))
+            .dismiss(Dismiss::new().focus_left(self.auto_collapse))
+            .body_scroll(false)
     }
 
     /// Shows the flyout of `popup` while it is open, hung from `anchor`; `None` while it is closed.
