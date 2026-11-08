@@ -3,5 +3,10 @@
 mod nodes;
 mod run_links;
 mod scope;
+
+// fwi-spin
+mod spin_button;
+// End of fwi-spin.
+
 mod viewports;
 mod words;

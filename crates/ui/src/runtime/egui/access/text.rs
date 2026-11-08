@@ -126,6 +126,22 @@ pub(crate) fn write_text(ctx: &Context, id: Id, text: &TextNode<'_>) {
     });
 }
 
+/// Folds the node egui gives the text widget `widget` into the node of `owner`, which carries the text, its actions
+/// and its runs: the widget's node is hidden, a password or multi-line widget refines the role of an owner that is a
+/// plain text input, and the owner's node stands for the widget's key focus.
+pub(crate) fn fold_widget(ctx: &Context, widget: Id, owner: Id) {
+    let kind = ctx.accesskit_node_builder(widget, |node| node.role());
+    if let Some(kind @ (accesskit::Role::PasswordInput | accesskit::Role::MultilineTextInput)) = kind {
+        ctx.accesskit_node_builder(owner, |node| {
+            if node.role() == accesskit::Role::TextInput {
+                node.set_role(kind);
+            }
+        });
+    }
+    super::hide(ctx, widget);
+    super::note_folded(ctx, widget, owner);
+}
+
 /// Sets the text selection of the node of `id` between two run nodes, for a node whose runs a content painter
 /// describes.
 pub(crate) fn write_selection(ctx: &Context, id: Id, anchor: (Id, usize), focus: (Id, usize)) {
