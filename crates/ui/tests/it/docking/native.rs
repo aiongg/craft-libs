@@ -121,8 +121,9 @@ fn info(focused: bool, rect: Rect) -> ViewportInfo {
     ViewportInfo { focused: Some(focused), inner_rect: Some(rect), outer_rect: Some(rect), ..ViewportInfo::default() }
 }
 
-/// Focus hopping from the root window to a palette leaves a pass with no focused window; the palette keeps its
-/// level however long that pass took, and drops it only when the passes go on without a focused window.
+/// Focus hopping from the root window to a palette moves within one frame: the root window reports no focus, and the
+/// palette's window reports it in its own pass of that frame. The palette keeps its level through the hop, and drops
+/// it only when no window of the app keeps focus.
 #[trial]
 fn a_focus_hop_to_the_palette_keeps_its_level() {
     let windows = Windows::new();
@@ -135,9 +136,11 @@ fn a_focus_hop_to_the_palette_keeps_its_level() {
     assert_eq!(palette_level(&out), Some(egui::WindowLevel::AlwaysOnTop), "the root window has focus");
     windows.root_info(info(false, ROOT_AT));
     windows.advance(1.0);
-    let gap = palette_frame(&windows);
-    assert_eq!(palette_level(&gap), Some(egui::WindowLevel::AlwaysOnTop), "one pass with no focused window");
-    windows.child_info(info(true, PALETTE_AT));
+    let hop = windows.frame(vec![], vec![], |ui| {
+        windows.child_info(info(true, PALETTE_AT));
+        FloatingGroup::new(PALETTE_TITLE, PALETTE_AT).native(WindowSpec::tool()).show_group(ui, |_, _| {});
+    });
+    assert_eq!(palette_level(&hop), Some(egui::WindowLevel::AlwaysOnTop), "the frame of the hop");
     let hopped = palette_frame(&windows);
     assert_eq!(palette_level(&hopped), Some(egui::WindowLevel::AlwaysOnTop), "the palette has focus");
     windows.child_info(info(false, PALETTE_AT));
