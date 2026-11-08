@@ -22,7 +22,7 @@ const GAMMA: ClipId = ClipId(3);
 /// The share of the room the video side has until the app keeps one.
 const DEFAULT_SHARE: f32 = 0.5;
 /// The name of the split area's divider.
-const DIVIDER: &str = "Resize panels";
+const DIVIDER: &str = "Drag to change how the room is shared between video and audio tracks";
 
 fn seconds(at: f64) -> Tick {
     Tick::from_seconds_f64(at)
