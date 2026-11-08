@@ -3,6 +3,7 @@
 
 use crate::contract::kit::PlainStyle;
 use craft_behavior::{DisplayOrder, Granularity, Input, Intent, ItemSource, Sense};
+use craft_host::target::Os;
 use craft_ui::buttons::Button;
 use craft_ui::contract::{
     Bind, CollectionEvent, CommandSet, Commands as _, Common, Component, Cx, Focus as _, ItemKeys, MeasureCx, Props as _, Role, SelectMode,
@@ -112,6 +113,35 @@ fn delete_in_a_deletable_list_deletes_the_row_and_not_the_command() {
     fixture.settle();
     assert_eq!(*deleted.borrow(), [vec![0]]);
     assert_eq!(ran.remove.get(), 0);
+}
+
+/// Alt+Delete and Alt+Backspace in a deletable list delete nothing: Photoshop fills on Alt+Backspace in the Layers
+/// panel, it does not delete the layer.
+#[trial]
+fn alt_delete_in_a_deletable_list_deletes_nothing() {
+    for os in [Os::Linux, Os::Windows, Os::Mac] {
+        let deleted = Rc::new(RefCell::new(Vec::new()));
+        let sink = deleted.clone();
+        let mut fixture = Fixture::new(move |ui| {
+            let out = List::new("Items")
+                .select(SelectMode::Single)
+                .deletable(true)
+                .show_items(ui, &Three, &mut |key, _| ListRow::new(format!("Row {key}")));
+            for event in out.events {
+                if let CollectionEvent::Delete(keys) = event {
+                    sink.borrow_mut().push(keys);
+                }
+            }
+        });
+        fixture.os(os).settle();
+        fixture.key(Key::Tab, Modifiers::NONE).settle();
+        fixture.key(Key::ArrowDown, Modifiers::NONE).settle();
+        fixture.key(Key::Delete, Modifiers::ALT).settle();
+        fixture.key(Key::Backspace, Modifiers::ALT).settle();
+        assert!(deleted.borrow().is_empty(), "{os:?}: {:?}", deleted.borrow());
+        fixture.key(Key::Delete, Modifiers::NONE).settle();
+        assert_eq!(*deleted.borrow(), [vec![0]], "{os:?}: plain Delete deletes the lead");
+    }
 }
 
 /// Backspace and Delete in a text field edit its text, and the scope's Delete command does not run.

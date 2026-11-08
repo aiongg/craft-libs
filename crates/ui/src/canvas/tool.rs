@@ -95,12 +95,13 @@ pub enum ToolKey {
         /// Delete toward the reading end.
         forward: bool,
     },
-    /// Enter.
+    /// Enter, with Alt or Shift held or not ([`ToolContext::mods`] says which).
     Submit,
     /// Escape with no gesture running.
     Cancel,
     /// A key press the tool kept with [`ToolContext::keep_keys`]: every key without Ctrl or Cmd, so the app's chords
-    /// still run. It carries no release; [`ToolContext::held`] says whether the key is still down.
+    /// still run, but Enter, Escape, Delete and Backspace, which arrive as `Submit`, `Cancel` and `Delete`. It carries
+    /// no release; [`ToolContext::held`] says whether the key is still down.
     Kept(Chord),
 }
 
@@ -486,7 +487,9 @@ impl<'a> ToolContext<'a> {
     }
 
     /// Keeps the canvas's plain keys for the tool this pass and the next: they arrive as [`ToolKey::Kept`] and the
-    /// app's single-key shortcuts leave them.
+    /// app's single-key shortcuts leave them. Delete and Backspace are kept with Alt held or not and arrive as
+    /// [`ToolKey::Delete`] (a polygonal lasso removes its last point while Alt holds the straight-segment switch);
+    /// Enter and Escape stay `Submit` and `Cancel`.
     pub fn keep_keys(&mut self) {
         self.requests.keep_keys = true;
     }

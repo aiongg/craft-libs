@@ -20,7 +20,8 @@ pub struct KeyRole {
     pub rename: bool,
     /// `FocusPolicy.pages`: Ctrl+Tab switches pages.
     pub pages: bool,
-    /// The component reads arrow nudges: arrows are not moves.
+    /// The component reads arrow nudges: arrows are not moves. One that deletes (a canvas) takes only the plain
+    /// Delete and Backspace; with a modifier held they are the app's.
     pub nudge: bool,
     /// Typed letters reach the component as `Intent::Text` (type-ahead).
     pub type_ahead: bool,
@@ -265,6 +266,12 @@ fn movement(mac: bool, key: Key, mods: Mods, role: KeyRole) -> Option<Intent> {
         }
         Key::PageUp if !mods.alt && !mods.cmd && !mods.ctrl => moved(NavMove::PageUp, Granularity::Unit),
         Key::PageDown if !mods.alt && !mods.cmd && !mods.ctrl => moved(NavMove::PageDown, Granularity::Unit),
+        // A canvas tool takes the plain keys; with a modifier they are the app's (Photoshop fills on Alt+Backspace and
+        // Cmd+Backspace and opens Fill on Shift+Backspace). A tool with a draft open keeps them with Alt held through
+        // its kept keys.
+        Key::Delete | Key::Backspace if role.deletes && role.nudge && !role.text => {
+            mods.is_none().then(|| Intent::delete(key == Key::Delete, Granularity::Unit))
+        }
         Key::Delete | Key::Backspace if role.deletes && (!mods.alt || mac) => {
             let by = if by_word { Granularity::Word } else { Granularity::Unit };
             Some(Intent::Delete { forward: key == Key::Delete, by, shift: mods.shift })
@@ -359,6 +366,24 @@ mod tests {
         check(Os::Mac, Key::Left, Mods::ALT, text, Some(Intent::Move(NavMove::Back, word)));
         check(Os::Mac, Key::Left, Mods::ALT, number, Some(Intent::Move(NavMove::Back, word)));
         check(Os::Linux, Key::Right, Mods::ALT, number, None);
+    }
+
+    #[test]
+    fn a_canvas_takes_the_plain_deletes_and_leaves_the_modified_ones() {
+        let canvas = KeyRole::new().nudge(true).deletes(true);
+        let list = KeyRole::new().deletes(true);
+        let text = KeyRole::new().text(true).deletes(true);
+        for os in [Os::Linux, Os::Windows, Os::Mac] {
+            check(os, Key::Backspace, NONE, canvas, Some(Intent::delete(false, Granularity::Unit)));
+            check(os, Key::Delete, NONE, canvas, Some(Intent::delete(true, Granularity::Unit)));
+            for mods in [Mods::ALT, Mods::SHIFT, Mods::CMD] {
+                check(os, Key::Backspace, mods, canvas, None);
+            }
+            check(os, Key::Delete, Mods::SHIFT, list, Some(Intent::shift_delete(true, Granularity::Unit)));
+        }
+        check(Os::Linux, Key::Backspace, Mods::ALT, list, None);
+        check(Os::Mac, Key::Backspace, Mods::ALT, text, Some(Intent::delete(false, Granularity::Word)));
+        check(Os::Linux, Key::Backspace, Mods::ALT, text, None);
     }
 
     #[test]

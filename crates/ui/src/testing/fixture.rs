@@ -386,7 +386,8 @@ impl Fixture {
         self
     }
 
-    /// The modifiers held in every following frame, until the next call.
+    /// The modifiers held in every following frame, until the next call. A key sent while they are held carries
+    /// them ([`Fixture::key`]).
     pub fn hold(&mut self, modifiers: Modifiers) -> &mut Self {
         self.frames.hold(modifiers);
         self
@@ -446,9 +447,19 @@ impl Fixture {
         self.release_at(from + by)
     }
 
-    /// A key press and release with `modifiers`, in two frames as injected input frames them.
+    /// A key press and release with `modifiers` and the ones [`Fixture::hold`] keeps, as a keyboard reports them:
+    /// the modifiers `modifiers` adds go down in the press's frame, the key comes up in the next, and a last frame
+    /// returns to the held ones when `modifiers` added any.
     pub fn key(&mut self, key: Key, modifiers: Modifiers) -> &mut Self {
-        self.play(injected::key_frames(key, modifiers))
+        let held = self.frames.held();
+        let pressed = held | modifiers;
+        let added = pressed != held;
+        let down = added.then(|| injected::modifiers_changed(pressed)).into_iter().chain([injected::key_press(key, pressed)]).collect();
+        let mut frames = vec![down, vec![injected::key_release(key, pressed)]];
+        if added {
+            frames.push(vec![injected::modifiers_changed(held)]);
+        }
+        self.play(frames)
     }
 
     /// Typed `text`.

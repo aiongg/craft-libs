@@ -8,11 +8,12 @@
 //!    a drag from whether `drag` was called.
 //! 2. `takes(button, mods)` decides whether a button starts a gesture. A middle-button pan belongs to the canvas.
 //! 3. Escape during a drag arrives as a cancelled press ([`PressCancel`]) and calls `cancel` once.
-//! 4. Keys the canvas holds as intents (arrows, Delete, Enter, Escape) go to `key` while the canvas has focus; a
-//!    text part inside the canvas takes its own keys before they are routed here. While nothing in the window has
-//!    focus, Enter and Escape are offered too, so a tool holding a gesture or a pending edit (a transform box)
-//!    commits and cancels before the canvas is clicked; one the tool leaves goes on to the scopes around it. A
-//!    focused field or control keeps its own Enter and Escape.
+//! 4. Keys the canvas holds as intents (arrows, plain Delete and Backspace, Enter, Escape) go to `key` while the
+//!    canvas has focus; a text part inside the canvas takes its own keys before they are routed here. Enter and
+//!    Escape carry Alt and Shift (`ToolContext::mods`); a delete with a modifier held is the app's, unless the tool
+//!    keeps the keyboard. While nothing in the window has focus, Enter and Escape are offered too, so a tool holding
+//!    a gesture or a pending edit (a transform box) commits and cancels before the canvas is clicked; one the tool
+//!    leaves goes on to the scopes around it. A focused field or control keeps its own Enter and Escape.
 //! 5. The tool paints over the canvas and requests its cursor at tool priority.
 //!
 //! The host keeps its state under the canvas's id (`CanvasOutput::response.id`), so two canvases never share a
@@ -364,7 +365,7 @@ impl<'m> ToolHost<'m> {
         }
         state.keep_keys = requests.keep_keys;
         if requests.keep_keys {
-            for chord in kept_chords() {
+            for chord in kept_chords().chain(KEPT_DELETES) {
                 keys::claim(&ctx, canvas.response.id, chord);
             }
         } else if state.gesture.is_some() {
@@ -495,10 +496,25 @@ fn hover_pointer(frame: &PointerFrame, press: PressState) -> Option<ToolPointer>
 }
 
 /// Every key without Ctrl or Cmd, with and without Shift: the keys a tool that kept the keyboard types with. The
-/// app's chords (Cmd+Z, Cmd+S) still run.
+/// app's chords (Cmd+Z, Cmd+S) still run. Enter, Escape, Delete and Backspace are left out: Enter and Escape reach the
+/// tool as `Submit` and `Cancel` with their modifiers in `ToolContext::mods`, and the deletes as [`KEPT_DELETES`].
 fn kept_chords() -> impl Iterator<Item = Chord> {
-    Key::ALL.iter().flat_map(|key| [Mods::NONE, Mods::SHIFT].map(|mods| Chord::new(mods, *key)))
+    Key::ALL
+        .iter()
+        .filter(|key| !matches!(key, Key::Enter | Key::Escape | Key::Delete | Key::Backspace))
+        .flat_map(|key| [Mods::NONE, Mods::SHIFT].map(|mods| Chord::new(mods, *key)))
 }
+
+/// The deletes a tool that kept the keyboard takes, with Alt held or not: they reach it as `ToolKey::Delete`. Away
+/// from a kept keyboard the canvas takes only the plain ones, and Alt+Backspace is the app's (Photoshop's Fill with
+/// the foreground colour); a polygonal lasso keeps the keyboard while its outline is open, so Backspace removes its
+/// last point while Alt holds the straight-segment switch.
+const KEPT_DELETES: [Chord; 4] = [
+    Chord::new(Mods::NONE, Key::Delete),
+    Chord::new(Mods::NONE, Key::Backspace),
+    Chord::new(Mods::ALT, Key::Delete),
+    Chord::new(Mods::ALT, Key::Backspace),
+];
 
 /// The sample of a press at `pos` taken at `time`: the button the press runs with, and its sample.
 fn press_pointer(start: PressStart, pos: Pos2, time: f64, press: &PressState) -> ToolPointer {
@@ -765,6 +781,12 @@ impl<'a> Run<'a> {
             keys::settle(ctx, Some(canvas), &intents);
         }
         if self.state.keep_keys {
+            for chord in KEPT_DELETES.into_iter().filter(|chord| keys::take_claimed(ctx, canvas, *chord)) {
+                let delete = ToolKey::delete(chord.key == Key::Delete);
+                if self.call(None, |tool, cx| tool.key(&delete, cx)) {
+                    self.response.took_key = Some(delete);
+                }
+            }
             for chord in kept_chords().filter(|chord| keys::take_claimed(ctx, canvas, *chord)) {
                 let kept = ToolKey::Kept(chord);
                 if self.call(None, |tool, cx| tool.key(&kept, cx)) {
