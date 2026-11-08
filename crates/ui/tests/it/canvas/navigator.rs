@@ -133,14 +133,17 @@ fn proxy_colours_resolve_and_the_settings_round_trip() {
     assert_eq!(toml::from_str::<NavigatorSettings>("other = 1").expect("unknown fields are ignored"), NavigatorSettings::default());
 }
 
-/// A zoom row over `view` that keeps the last pass's output.
+/// A zoom row over `view` that keeps the output of the last pass that changed the view.
 fn zoom_row(view: &Rc<RefCell<CanvasView>>, out: &Rc<RefCell<Option<NavigatorZoomRowOutput>>>, animated: bool) -> Fixture {
     let (held, kept) = (Rc::clone(view), Rc::clone(out));
     Fixture::new(move |ui| {
         let mut view = held.borrow_mut();
         let mut options = NavigationOptions::default();
         options.animated_zoom = animated;
-        *kept.borrow_mut() = Some(NavigatorZoomRow::new(Bind::bound(&mut *view), DOC).navigation(options).show(ui));
+        let shown = NavigatorZoomRow::new(Bind::bound(&mut *view), DOC).navigation(options).show(ui);
+        if shown.view.is_some() {
+            *kept.borrow_mut() = Some(shown);
+        }
     })
 }
 
