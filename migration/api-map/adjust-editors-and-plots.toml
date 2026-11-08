@@ -24,3 +24,178 @@ status = "pending"
 # type = ""
 # old = ""
 # new = ""
+
+[[type]]
+name = "LevelsEditor"
+old = "craft_imaging::ui::adjust::levels_editor::LevelsEditor"
+new = "craft_imaging::ui::adjust::LevelsEditor"
+status = "moved"
+note = "A component over `Bind<Levels>`: the histogram, the input thumb row, three fields, the output bar and thumb row, two fields. `show(ui)` returns `LevelsEditorOutput { edit: EditResponse<Levels>, clipping }`."
+
+[[type]]
+name = "LevelsEditorOutput"
+old = ""
+new = "craft_imaging::ui::adjust::LevelsEditorOutput"
+status = "replaced"
+note = "The editor's output: the edit and which input end an Alt drag moves (`LevelsEditor::clipping(ctx, id)` is gone)."
+
+[[type]]
+name = "LevelsStyle"
+old = "craft_imaging::ui::adjust::levels_editor::LevelsStyle"
+new = ""
+status = "removed"
+note = "Sizes and colours come from the theme: the component's own `LevelsEditorStyle`; `LevelsEditor::style` and the 13 fields go."
+
+[[type]]
+name = "LevelsEditorStyle"
+old = ""
+new = "craft_imaging::ui::adjust::LevelsEditorStyle"
+status = "replaced"
+note = "The editor's style, built from tokens by `ComponentStyle`."
+
+[[type]]
+name = "LevelsLabels"
+old = "craft_imaging::ui::adjust::levels_editor::LevelsLabels"
+new = ""
+status = "removed"
+note = "Replaced by `LevelsWords`."
+
+[[type]]
+name = "LevelsWords"
+old = ""
+new = "craft_imaging::ui::adjust::LevelsWords"
+status = "replaced"
+note = "The editor's words (`words!`)."
+
+[[type]]
+name = "LevelsPanel"
+old = "craft_imaging::ui::adjust::levels_panel::LevelsPanel"
+new = "craft_imaging::ui::adjust::LevelsPanel"
+status = "moved"
+note = "A pattern over `Bind<Vec<Levels>>` (one value per channel). `show(ui)` returns `LevelsPanelOutput { response, edit: Option<EditEvent<Vec<Levels>>>, channel, picker, clipping }`; the shown channel is the pattern's own state (`shown_channel(ctx, id)` is gone)."
+
+[[type]]
+name = "TonePickerRow"
+old = "craft_imaging::ui::adjust::tone::TonePickerRow"
+new = "craft_imaging::ui::adjust::TonePickerRow"
+status = "moved"
+note = "A pattern over `Bind<Option<TonePicker>>`; `canvas(Id)` names the document canvas the armed picker samples through the sampler of the modal layer (`Sampler::arm_sampler`)."
+
+[[type]]
+name = "TonePickerResponse"
+old = "craft_imaging::ui::adjust::tone::TonePickerResponse"
+new = ""
+status = "removed"
+note = "Replaced by `TonePickerRowOutput`."
+
+[[type]]
+name = "TonePickerRowOutput"
+old = ""
+new = "craft_imaging::ui::adjust::TonePickerRowOutput"
+status = "replaced"
+note = "`{ response, change: Option<Option<TonePicker>> }`."
+
+[[type]]
+name = "TonePickTool"
+old = "craft_imaging::ui::adjust::tone::TonePickTool"
+new = "craft_imaging::ui::adjust::TonePickTool"
+status = "moved"
+note = "A `CanvasTool`; the cursor is a `PaintedCursor::Tool` with the pipette and its hotspot; the command form is the dialog's own point picker."
+
+[[type]]
+name = "CurvesPanel"
+old = "craft_imaging::ui::adjust::curves_panel::CurvesPanel"
+new = "craft_imaging::ui::adjust::CurvesPanel"
+status = "moved"
+note = "A pattern over `Bind<ToneCurves>`. `show(ui)` returns `CurvesPanelOutput { response, edit: Option<EditEvent<ToneCurves>>, channel, mode, picker, selected }`; the selected point is the panel's state and `select(index)` sets it."
+
+[[type]]
+name = "AdjustContext"
+old = "craft_imaging::ui::adjust::context::AdjustContext"
+new = "craft_imaging::ui::adjust::AdjustContext"
+status = "same"
+note = "`wheel()` is removed: a focused control takes the wheel."
+
+[[setter]]
+type = "LevelsEditor"
+old = "new(id_salt, label, &levels, numbers)"
+new = "new(label, Bind<Levels>)"
+note = "The id salt is the shown id; the numbers come from the env."
+
+[[setter]]
+type = "LevelsEditor"
+old = "width(f32) / labels(..) / policy(..) / enabled(bool) / id_in(ui, salt) / style(tokens) / decimals(usize)"
+new = ""
+note = "Removed: the editor takes the room offered, its words are `LevelsWords`, the policy is the binding's, the decimals follow the step."
+
+[[setter]]
+type = "LevelsEditor"
+old = "clipping(ctx, id)"
+new = "LevelsEditorOutput::clipping"
+note = "Read from the output of the pass."
+
+[[setter]]
+type = "LevelsPanel"
+old = "new(id_salt, &[Levels], channels, numbers)"
+new = "new(label, Bind<Vec<Levels>>, channels)"
+note = ""
+
+[[setter]]
+type = "LevelsPanel"
+old = "picker(armed) / pickers(bool) / pickers_unavailable(bool)"
+new = "pickers(Bind<Option<TonePicker>>) / pickers_unavailable()"
+note = "The picker row shows when the binding is given."
+
+[[setter]]
+type = "LevelsPanel"
+old = "shown_channel(ctx, id) / id_in(ui, salt)"
+new = "LevelsPanelOutput::channel"
+note = ""
+
+[[setter]]
+type = "CurvesPanel"
+old = "new(id_salt, &ToneCurves, channels, numbers)"
+new = "new(label, Bind<ToneCurves>, channels)"
+note = ""
+
+[[setter]]
+type = "CurvesPanel"
+old = "select_point(ctx, id, index) / shown_channel(ctx, id)"
+new = "select(index) / CurvesPanelOutput::selected, ::channel"
+note = ""
+
+[[setter]]
+type = "CurvesPanel"
+old = "sampler(&Sampler)"
+new = "sampler(Fn(&[[f32; 2]]) -> Vec<f32>)"
+note = "The host's interpolation as a closure; `add_point_from_sample` takes the same closure by reference."
+
+[[setter]]
+type = "TonePickerRow"
+old = "new(id_salt, armed)"
+new = "new(Bind<Option<TonePicker>>)"
+note = ""
+
+[[setter]]
+type = "TonePickerRow"
+old = "enabled(picker, bool) / unavailable(bool) / labels(..)"
+new = "enabled_picker(picker, bool) / unavailable()"
+note = ""
+
+[[setter]]
+type = "TonePicker"
+old = "label(&AdjustLabels)"
+new = "label(&AdjustWords)"
+note = ""
+
+[[setter]]
+type = "ToneChannel"
+old = "label(&AdjustLabels) -> &str"
+new = "label(&AdjustWords) -> Label"
+note = ""
+
+[[setter]]
+type = "AdjustContext"
+old = "wheel()"
+new = ""
+note = "Removed."
