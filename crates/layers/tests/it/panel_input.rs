@@ -681,6 +681,7 @@ fn smart_filter_heights(size: ThumbSize) -> (f32, f32) {
         app.tree.layer_mut(6).effects_open = true;
         app.settings.options.thumbnail_size = size;
     });
+    eprintln!("DIAG {size:?} header {:?} item {:?} layer {:?}", row(&fixture, "Smart Filters").rect, row(&fixture, "Gaussian Blur").rect, row(&fixture, "Masked").rect);
     (row(&fixture, "Smart Filters").rect.height(), row(&fixture, "Gaussian Blur").rect.height())
 }
 

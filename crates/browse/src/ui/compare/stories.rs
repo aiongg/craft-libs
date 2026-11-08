@@ -50,7 +50,7 @@ fn compare_pair(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let mut active = *data.value("active", 0usize);
     let view = data.value("view", PreviewView::fitting());
     let area = area(ui);
-    let rtl = Env::of(ui).direction().is_rtl();
+    let rtl = Env::of(ui).view().direction().is_rtl();
     let [left, right] = ComparePair::new(ArrangeSpace::new(18.0, 16.0)).rtl(rtl).rects(area);
     let select =
         CompareTile::new("Select", Bind::bound(view), image(1, 0.58)).caption(caption("Select", "IMG_0001.jpg")).active(active == 0).place(ui, left);
