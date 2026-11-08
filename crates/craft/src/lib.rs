@@ -124,8 +124,6 @@ pub mod story {
         all.extend(craft_font_manager::ui::stories());
         #[cfg(feature = "imaging")]
         all.extend(craft_imaging::ui::stories());
-        #[cfg(feature = "pages")]
-        all.extend(craft_pages::ui::stories());
         #[cfg(feature = "review")]
         all.extend(craft_review::ui::stories());
         #[cfg(feature = "text")]
@@ -153,8 +151,6 @@ pub mod words {
         all.extend(craft_font_manager::ui::WORDS);
         #[cfg(feature = "imaging")]
         all.extend(craft_imaging::ui::WORDS);
-        #[cfg(feature = "pages")]
-        all.extend(craft_pages::ui::WORDS);
         #[cfg(feature = "review")]
         all.extend(craft_review::ui::WORDS);
         #[cfg(feature = "text")]
@@ -191,8 +187,6 @@ pub mod words {
         all.push(craft_font_manager::ui::COUNTS);
         #[cfg(feature = "imaging")]
         all.push(craft_imaging::ui::COUNTS);
-        #[cfg(feature = "pages")]
-        all.push(craft_pages::ui::COUNTS);
         #[cfg(feature = "review")]
         all.push(craft_review::ui::COUNTS);
         #[cfg(feature = "text")]
