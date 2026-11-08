@@ -1,4 +1,4 @@
-//! Where a panel goes ([`Placement`]), where it was ([`Location`]) and the transaction unit ([`Action`]).
+//! Where a panel goes ([`DockPlacement`]), where it was ([`Location`]) and the transaction unit ([`Action`]).
 
 use emath::Rect;
 
@@ -14,7 +14,7 @@ use super::{
 /// Where a moved panel goes relative to an anchor panel.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
-pub enum Placement<P> {
+pub enum DockPlacement<P> {
     /// Insert before this existing destination member, or append. Also reorders a group.
     #[non_exhaustive]
     Tab {
@@ -24,7 +24,7 @@ pub enum Placement<P> {
     /// Center inserts after the anchor; sides split the anchor's frame into two halves, and
     /// every other frame keeps its size. Sides apply to `Tabs` and `Stack` nodes only.
     Split(DockSide),
-    /// A side [`Placement::Split`] that gives the new frame its own room instead of half the
+    /// A side [`DockPlacement::Split`] that gives the new frame its own room instead of half the
     /// anchor's frame: the new split takes `size`, and `outer` replaces the size of the nearest
     /// enclosing split whose divider runs along the anchor frame's `zone` side, so the frames
     /// beyond that divider give the room. An anchor at the edge of its area on that side takes
@@ -80,7 +80,7 @@ pub struct Location<P> {
     /// The panel the placement is relative to.
     pub anchor: Option<P>,
     /// Where the panel sat relative to `anchor`.
-    pub placement: Placement<P>,
+    pub placement: DockPlacement<P>,
     /// The size of the split the panel's frame was in, when it had one.
     pub size: Option<SplitSize>,
     /// Accordion state to restore if the destination is still an accordion.
@@ -107,7 +107,7 @@ pub enum Action<P> {
         /// The panel the destination is relative to.
         anchor: P,
         /// Where the panel goes relative to the anchor.
-        placement: Placement<P>,
+        placement: DockPlacement<P>,
     },
     /// Float the panel's group in a window at `rect`.
     #[non_exhaustive]
@@ -135,7 +135,7 @@ pub enum Action<P> {
     /// empty layout, else joins the first dock group that accepts tabs and is shown (not
     /// minimized, not in an iconic column; the end-side dock's first), else gets a new frame a
     /// quarter wide at the end edge of the docked area
-    /// ([`Placement::Edge`]).
+    /// ([`DockPlacement::Edge`]).
     #[non_exhaustive]
     Open {
         /// The panel the action applies to.
@@ -151,7 +151,7 @@ pub enum Action<P> {
         /// The panel the destination is relative to.
         anchor: P,
         /// Where the panel goes relative to the anchor.
-        placement: Placement<P>,
+        placement: DockPlacement<P>,
     },
     /// Reposition/resize a floating window, identified by one of its panels.
     #[non_exhaustive]
@@ -326,14 +326,14 @@ pub enum Action<P> {
 
 impl<P> Location<P> {
     /// A location relative to `anchor` by `placement`, with no recorded sizes or siblings.
-    pub fn new(anchor: Option<P>, placement: Placement<P>) -> Self {
+    pub fn new(anchor: Option<P>, placement: DockPlacement<P>) -> Self {
         Self { floating: None, anchor, placement, size: None, stack: None, sibling: Vec::new(), group: None }
     }
 }
 
 impl<P> Action<P> {
     /// Builds [`Action::Move`].
-    pub fn move_beside(panel: P, anchor: P, placement: Placement<P>) -> Self {
+    pub fn move_beside(panel: P, anchor: P, placement: DockPlacement<P>) -> Self {
         Self::Move { panel, anchor, placement }
     }
 
@@ -358,7 +358,7 @@ impl<P> Action<P> {
     }
 
     /// Builds [`Action::OpenAt`].
-    pub fn open_at(panel: P, anchor: P, placement: Placement<P>) -> Self {
+    pub fn open_at(panel: P, anchor: P, placement: DockPlacement<P>) -> Self {
         Self::OpenAt { panel, anchor, placement }
     }
 
@@ -463,29 +463,29 @@ impl<P> Action<P> {
     }
 }
 
-impl<P> Placement<P> {
-    /// Builds [`Placement::Tab`].
+impl<P> DockPlacement<P> {
+    /// Builds [`DockPlacement::Tab`].
     pub fn tab(before: Option<P>) -> Self {
         Self::Tab { before }
     }
 
-    /// Builds [`Placement::SplitSized`].
+    /// Builds [`DockPlacement::SplitSized`].
     pub fn split_sized(zone: DockSide, size: SplitSize, outer: SplitSize) -> Self {
         Self::SplitSized { zone, size, outer }
     }
 
-    /// Builds [`Placement::Group`].
+    /// Builds [`DockPlacement::Group`].
     pub fn group(below: bool, height: Option<f32>) -> Self {
         Self::Group { below, height }
     }
 
-    /// Builds [`Placement::Column`].
+    /// Builds [`DockPlacement::Column`].
     pub fn column(after: bool) -> Self {
         Self::Column { after }
     }
 }
 
-impl<P> Placement<P> {
+impl<P> DockPlacement<P> {
     /// Whether the anchor's permissions take this placement: tabs need `accepts_tabs`, side
     /// splits `accepts_splits`, and so does a group placed at an anchor in a floating window
     /// (`floating`), which splits the anchor's frame.

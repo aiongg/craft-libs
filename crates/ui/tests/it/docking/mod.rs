@@ -24,6 +24,7 @@ mod columns;
 mod area;
 mod commands;
 mod native;
+mod resize;
 
 /// The docking sizes of the default theme with the given divider gap, least pane and strip height.
 fn sizes(gap: f32, least_pane: f32, strip: f32) -> DockSizes {

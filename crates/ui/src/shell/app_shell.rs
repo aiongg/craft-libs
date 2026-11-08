@@ -10,7 +10,7 @@ pub use self::dialogs::WindowDialogs;
 use super::canvas_shell::slots as keys;
 use super::regions::{Claim, SlotSize, layout};
 use super::reveal::{Aim, Reveal, Tracking};
-use super::screen_mode::{ScreenMode, ScreenModeCommand, ScreenModeFollow};
+use super::screen_mode::{ScreenMode, ScreenModeCommands, ScreenModeFollow};
 use super::words::ShellWords;
 use crate::contract::overlay::Resize;
 use crate::contract::{
@@ -97,7 +97,7 @@ impl ShellRegion {
     /// The whole content of the window: its edges resize the window where the app draws the frame.
     pub fn window() -> Self {
         let props =
-            ContainerProps::new().mount(Mount::window(Resize::GRIPS)).surface(SurfaceKind::Background).command_scope(ScreenModeCommand::SCOPE);
+            ContainerProps::new().mount(Mount::window(Resize::GRIPS)).surface(SurfaceKind::Background).command_scope(ScreenModeCommands::SCOPE);
         ShellRegion { common: Common::new(), props, shell: None }
     }
 
@@ -105,7 +105,7 @@ impl ShellRegion {
     /// commands of its own scope and never frames or resizes the OS window.
     pub fn embedded() -> Self {
         let props =
-            ContainerProps::new().sizing(crate::contract::Sizing::Fill).surface(SurfaceKind::Background).command_scope(ScreenModeCommand::SCOPE);
+            ContainerProps::new().sizing(crate::contract::Sizing::Fill).surface(SurfaceKind::Background).command_scope(ScreenModeCommands::SCOPE);
         ShellRegion { common: Common::new(), props, shell: None }
     }
 
@@ -404,7 +404,7 @@ impl<'a, S> AppShell<'a, S> {
             }
 
             let host_only = mode.body_only();
-            if let Some(root) = cx.command_chain().innermost(ScreenModeCommand::SCOPE.name()) {
+            if let Some(root) = cx.command_chain().innermost(ScreenModeCommands::SCOPE.name()) {
                 note_shell(&ctx, viewport, &window, root);
             }
             kept.reveal.apply(&take_chrome_toggles(&ctx, viewport, &window), host_only, allow_reveal);

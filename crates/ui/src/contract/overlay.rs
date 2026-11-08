@@ -209,7 +209,9 @@ impl Default for Dismiss {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Trigger {
-    /// A click on the opener toggles.
+    /// A click on the opener toggles. A root opener (`Overlay::opened_by`) toggles on the primary press inside it, as
+    /// pop-up buttons and dropdowns do, so a press held past the click time still opens it; the release that
+    /// completes the click is part of that opening.
     Click,
     /// A press on the opener toggles.
     Press,
@@ -250,6 +252,9 @@ pub struct Opener {
     pub(crate) by_pointer: bool,
     /// The opener is pressed with the primary button, for `Trigger::Hold`.
     pub(crate) pressed: bool,
+    /// A `Trigger::Click` opener's primary click completed in this pass: the release of the press that opened the
+    /// layer, whose activation is that opening and no pick.
+    pub(crate) clicked: bool,
 }
 
 impl Opener {
@@ -257,19 +262,21 @@ impl Opener {
         // The opener's `Response` carries the press path's verdict, for a root with its own egui widget and for an
         // arena member alike: whether the open press is on it and whether a click released on it.
         let pressed_on = response::is_pressed(anchor);
-        let (fired, by_pointer, pressed) = pointer::with_pass_pointer(&anchor.ctx, |pass| {
-            let Some(frame) = pass.frame.as_ref() else { return (false, false, false) };
+        let (fired, by_pointer, pressed, clicked) = pointer::with_pass_pointer(&anchor.ctx, |pass| {
+            let Some(frame) = pass.frame.as_ref() else { return (false, false, false, false) };
             let inside = frame
                 .pos
                 .is_some_and(|pos| anchor.rect.contains(areas::layer_map(&anchor.ctx, anchor.layer_id).map_or(pos, |map| map.to_layer(pos))));
             let by_pointer = inside && frame.release == Some(PointerButton::Secondary);
+            // A root opener opens on the primary press inside it, as a pop-up button does, however long the press is
+            // then held; a `Click` opener's release completes the click that press began.
             let fired = match trigger {
-                Trigger::Click => frame.release == Some(PointerButton::Primary) && response::pointer_clicked(anchor),
-                Trigger::Press => pressed_on && frame.press.is_some_and(|press| press.button == PointerButton::Primary),
+                Trigger::Click | Trigger::Press => pressed_on && frame.press.is_some_and(|press| press.button == PointerButton::Primary),
                 Trigger::Context => by_pointer || keys::context_request(&anchor.ctx, anchor.id).is_some(),
                 Trigger::Hover | Trigger::Hold | Trigger::Manual => false,
             };
-            (fired, fired && by_pointer, pressed_on && pass.primary_down)
+            let clicked = trigger == Trigger::Click && frame.release == Some(PointerButton::Primary) && response::pointer_clicked(anchor);
+            (fired, fired && by_pointer, pressed_on && pass.primary_down, clicked)
         });
         Opener {
             id: anchor.id,
@@ -282,6 +289,7 @@ impl Opener {
             fired,
             by_pointer,
             pressed,
+            clicked,
         }
     }
 
@@ -316,6 +324,52 @@ fn opener_anchor(opener: &Opener, by_pointer: bool, place: &Place) -> Anchor {
     }
 }
 
+/// Size limits, in points: the smallest size and, where there is one, the largest. A layer's (`Overlay::size_limits`)
+/// and a dock panel's body (`PanelSpec::limits`) take them. Tiny viewports relax minima proportionally rather than
+/// producing inverted rects. A maximum constrains a pane when its sibling can take the remainder. A tab group takes
+/// the largest minimum and the largest maximum of its panels, so a panel without a maximum lifts the maximum of the
+/// panels it joins.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[non_exhaustive]
+pub struct SizeLimits {
+    /// Smallest size.
+    pub min: Vec2,
+    /// Largest size; `None` has no maximum.
+    pub max: Option<Vec2>,
+}
+
+impl SizeLimits {
+    /// The largest value a limit or a height may have: a value above it is invalid.
+    pub const BOUND: f32 = 1_000_000.0;
+
+    /// Limits between `min` and `max`.
+    pub const fn new(min: Vec2, max: Vec2) -> Self {
+        SizeLimits { min, max: Some(max) }
+    }
+
+    /// No smaller than `min`, with no maximum.
+    pub const fn at_least(min: Vec2) -> Self {
+        SizeLimits { min, max: None }
+    }
+
+    /// No larger than `max`, with no minimum.
+    pub const fn at_most(max: Vec2) -> Self {
+        SizeLimits { min: Vec2::ZERO, max: Some(max) }
+    }
+
+    /// The limits of a frame that holds a size with these limits and `extra` around it: both ends grow by `extra`.
+    pub fn around(self, extra: Vec2) -> Self {
+        SizeLimits { min: self.min + extra, max: self.max.map(|max| max + extra) }
+    }
+
+    /// Whether every value is finite and non-negative, the maximum is no less than the minimum and no value is
+    /// above [`Self::BOUND`].
+    pub fn valid(self) -> bool {
+        let within = |size: Vec2| size.is_finite() && size.x >= 0.0 && size.y >= 0.0 && size.x <= Self::BOUND && size.y <= Self::BOUND;
+        within(self.min) && self.max.is_none_or(|max| within(max) && max.x >= self.min.x && max.y >= self.min.y)
+    }
+}
+
 /// Data describing an egui layer. Presets fill focus and dismissal; builders change single fields.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -346,10 +400,8 @@ pub struct Overlay {
     pub popup: PopupKind,
     /// The size an `OverlayFit::Resizable` layer has before the user resizes it; `None` sizes it from its content.
     pub size: Option<Vec2>,
-    /// The least an `OverlayFit::Resizable` layer may be resized to.
-    pub min_size: Option<Vec2>,
-    /// The most a movable or resizable layer may be resized to.
-    pub max_size: Option<Vec2>,
+    /// The least an `OverlayFit::Resizable` layer and the most a movable or resizable layer may be resized to.
+    pub size_limits: SizeLimits,
     /// The rect the caller places the layer at, in the layer's parent space. The container reports the user's moves
     /// and resizes as `PlacementChange`s and keeps no placement of its own.
     pub placed: Option<Rect>,
@@ -392,8 +444,7 @@ impl Overlay {
             opener: None,
             popup: PopupKind::Dialog,
             size: None,
-            min_size: None,
-            max_size: None,
+            size_limits: SizeLimits::default(),
             placed: None,
             placed_at: None,
             bounds: None,
@@ -539,14 +590,13 @@ impl Overlay {
 
     /// Sets the least a resizable layer may be resized to.
     pub fn min_size(mut self, min_size: Vec2) -> Overlay {
-        self.min_size = Some(min_size);
+        self.size_limits.min = min_size;
         self
     }
 
     /// Sets the least and the most a resizable layer may be resized to.
-    pub fn size_limits(mut self, min: Vec2, max: Vec2) -> Overlay {
-        self.min_size = Some(min);
-        self.max_size = Some(max);
+    pub fn size_limits(mut self, limits: SizeLimits) -> Overlay {
+        self.size_limits = limits;
         self
     }
 
@@ -659,12 +709,13 @@ pub enum PlacementKind {
     Keyboard,
 }
 
-/// A move or resize of a layer the user made, reported to `Container::placement_changed`.
+/// A move or resize of a layer the user made, or of the OS window a viewport mount shows in, reported to
+/// `Container::placement_changed`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct PlacementChange {
-    /// The rect after the change, in the layer's parent space, kept inside the overlay's `bounds` and `size_limits`.
-    /// On `Cancel` the rect from before the gesture.
+    /// The rect after the change: a layer's in its parent space, kept inside the overlay's `bounds` and `size_limits`;
+    /// an OS window's outer rect in desktop points. On `Cancel` the rect from before the gesture.
     pub rect: Rect,
     /// Where the gesture stands.
     pub phase: GesturePhase,
@@ -1390,8 +1441,8 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
             focus::push_scope_from(ctx, layer.id, policy, None, opener, layer.exiting);
         }
         areas::bound(ui, placed.room, min_width.min(placed.room.x));
-        if let (OverlayFit::Resizable, Some(least)) = (overlay.fit, overlay.min_size) {
-            ui.set_min_size(least.min(placed.room));
+        if overlay.fit == OverlayFit::Resizable {
+            ui.set_min_size(overlay.size_limits.min.min(placed.room));
         }
         body(ui);
         if scope.is_some() && real {
@@ -1566,6 +1617,9 @@ pub(crate) fn opener_open(stage: &mut MemoryStage, first: &Opener) -> bool {
     {
         slot.open = true;
         slot.by = Some((opener.id, opener.trigger, false));
+    }
+    for opener in first.all().filter(|opener| opener.clicked) {
+        overlay::claim_activation(&ctx, opener.id);
     }
     let (open, by) = (slot.open, slot.by);
     with_popups(&ctx, |popups| match by {

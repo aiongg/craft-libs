@@ -35,11 +35,14 @@ fn the_explanation_is_computed_again_only_when_the_subject_or_the_layer_changes(
     assert!(Arc::ptr_eq(&first, workspace.explained().expect("explained")), "an unchanged subject keeps its explanation");
 
     let layer = parse_sizes("sizes.json", br#"{ "all": { "size.control.md": 30 } }"#).expect("a valid file loads");
-    workspace.sizes = layer;
+    workspace.edit_sizes(|sizes| {
+        *sizes = layer;
+        true
+    });
     workspace.refresh(&subject);
     assert!(!Arc::ptr_eq(&first, workspace.explained().expect("explained")), "a new app layer explains again");
-    assert_eq!(&workspace.sizes, &parse_sizes("sizes.json", br#"{ "all": { "size.control.md": 30 } }"#).expect("loads"));
-    assert_ne!(workspace.sizes, AppSizes::default());
+    assert_eq!(workspace.sizes(), &parse_sizes("sizes.json", br#"{ "all": { "size.control.md": 30 } }"#).expect("loads"));
+    assert_ne!(workspace.sizes(), &AppSizes::default());
 }
 
 /// A browser over the first built-in theme whose reveal request the test sets, keeping its own pick.

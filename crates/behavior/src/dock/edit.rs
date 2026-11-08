@@ -3,7 +3,7 @@
 //! A group, column or floating window is named by a panel it contains. Edits run on a proposed
 //! copy of the layout, so a helper that fails part-way leaves nothing behind.
 
-use std::{collections::HashMap, hash::Hash};
+use std::hash::Hash;
 
 use emath::Rect;
 
@@ -11,7 +11,7 @@ use crate::flow::Axis;
 
 use super::{
     DockSide,
-    action::Placement,
+    action::DockPlacement,
     groups::{Column, DockEdge, Group, Moving, PanelPlace, Target, Unit},
     layout::Layout,
     limits::{MAX_DEPTH, MAX_NODES, MAX_PANELS, valid_height, valid_rect, valid_width},
@@ -139,7 +139,7 @@ pub(super) fn split_frame<P>(root: &mut Node<P>, path: &[bool], new: Node<P>, zo
     true
 }
 
-/// The depth along the frame `path` of the split whose size a [`Placement::SplitSized`] on
+/// The depth along the frame `path` of the split whose size a [`DockPlacement::SplitSized`] on
 /// `zone` replaces: the nearest enclosing split along the zone's axis (`on_axis` at a depth)
 /// whose divider runs along the frame's `zone` side, else, for a frame at the edge of its
 /// area on that side, the nearest one along its opposite side.
@@ -151,7 +151,7 @@ pub(super) fn sized_split_depth(path: &[bool], zone: DockSide, on_axis: impl Fn(
     nearest(start).or_else(|| nearest(!start))
 }
 
-/// [`split_frame`] with the sizes of [`Placement::SplitSized`]: the new split takes `size`, and
+/// [`split_frame`] with the sizes of [`DockPlacement::SplitSized`]: the new split takes `size`, and
 /// the split [`sized_split_depth`] finds takes `outer`. False when there is no such split, or a
 /// dock is beyond it.
 pub(super) fn split_frame_sized<P>(root: &mut Node<P>, path: &[bool], new: Node<P>, zone: DockSide, size: SplitSize, outer: SplitSize) -> bool {
@@ -184,60 +184,9 @@ pub(super) fn splice<P>(panels: &mut Vec<P>, active: &mut usize, index: usize, n
     *active = index + selected.min(count.saturating_sub(1));
 }
 
+/// Queries the renderer reads: where a panel is, the node, column or group at a place, the dock and edge
+/// geometry a drop needs, and whether two layouts arrange the panels alike.
 impl<P: Clone + Eq + Hash> Layout<P> {
-    /// The layout without its sizes and rectangles: which panels are where, and their state.
-    /// A run of splits along one axis nests one way (`a | (b | c)`), since nesting it the
-    /// other way only moves sizes between its members.
-    pub fn shape(&self) -> Layout<P> {
-        fn run<'a, P>(node: &'a Node<P>, axis: Axis, out: &mut Vec<&'a Node<P>>) {
-            match node {
-                Node::Split { axis: own, first, second, .. } if *own == axis => {
-                    run(first, axis, out);
-                    run(second, axis, out);
-                }
-                node => out.push(node),
-            }
-        }
-        fn node<P: Clone>(n: &Node<P>) -> Node<P> {
-            match n {
-                Node::Split { axis, .. } => {
-                    let mut members = Vec::new();
-                    run(n, *axis, &mut members);
-                    let mut shaped = members.into_iter().rev().map(node);
-                    let last = shaped.next().unwrap_or(Node::Tabs { panels: Vec::new(), active: 0 });
-                    shaped.fold(last, |second, first| Node::Split {
-                        axis: *axis,
-                        size: SplitSize::Ratio(0.5),
-                        first: Box::new(first),
-                        second: Box::new(second),
-                    })
-                }
-                Node::Tabs { panels, active } => Node::Tabs { panels: panels.clone(), active: *active },
-                Node::Stack { entries } => Node::Stack { entries: entries.iter().map(|e| StackEntry { height: None, ..e.clone() }).collect() },
-                Node::Dock { side, columns } => Node::Dock {
-                    side: *side,
-                    columns: columns
-                        .iter()
-                        .map(|c| Column {
-                            groups: c.groups.iter().map(|g| Group { height: None, ..g.clone() }).collect(),
-                            width: 0.0,
-                            iconic: c.iconic,
-                            iconic_width: None,
-                        })
-                        .collect(),
-                },
-            }
-        }
-        Layout {
-            root: self.root.as_ref().map(node),
-            floating: self
-                .floating
-                .iter()
-                .map(|w| Floating { root: node(&w.root), rect: Rect::ZERO, native: None, monitor: None, monitor_size: None, ..w.clone() })
-                .collect(),
-        }
-    }
-
     /// Whether `other` arranges the panels as this layout does: equal apart from split sizes,
     /// column widths, group heights and window rectangles. A drop that leads from one to the
     /// other changes nothing the user would see as a move.
@@ -270,75 +219,10 @@ impl<P: Clone + Eq + Hash> Layout<P> {
         None
     }
 
-    /// [`Self::place`] of every panel, from one traversal: the renderer looks up many panels a
-    /// frame.
-    pub fn places(&self) -> HashMap<P, PanelPlace> {
-        fn note<P: Clone + Eq + Hash>(places: &mut HashMap<P, PanelPlace>, leaf: &Node<P>, place: &dyn Fn() -> PanelPlace) {
-            match leaf {
-                Node::Tabs { panels, .. } => {
-                    for panel in panels {
-                        places.entry(panel.clone()).or_insert_with(place);
-                    }
-                }
-                Node::Stack { entries } => {
-                    for entry in entries {
-                        places.entry(entry.panel.clone()).or_insert_with(place);
-                    }
-                }
-                _ => {}
-            }
-        }
-        let mut places = HashMap::new();
-        for (w, window) in self.floating.iter().enumerate() {
-            for (leaf, path) in leaves(&window.root) {
-                note(&mut places, leaf, &|| PanelPlace::Floating { window: w, path: path.clone() });
-            }
-        }
-        for (leaf, path) in self.root.as_ref().map(leaves).unwrap_or_default() {
-            if let Node::Dock { columns, .. } = leaf {
-                for (c, column) in columns.iter().enumerate() {
-                    for (g, group) in column.groups.iter().enumerate() {
-                        for panel in &group.panels {
-                            places.entry(panel.clone()).or_insert_with(|| PanelPlace::Dock { path: path.clone(), column: c, group: g });
-                        }
-                    }
-                }
-            } else {
-                note(&mut places, leaf, &|| PanelPlace::Node(path.clone()));
-            }
-        }
-        places
-    }
-
-    /// The docked layout (`None`) or a floating window's tree.
-    pub(crate) fn tree(&self, window: Option<usize>) -> Option<&Node<P>> {
-        match window {
-            None => self.root.as_ref(),
-            Some(window) => self.floating.get(window).map(|w| &w.root),
-        }
-    }
-
-    pub(super) fn tree_mut(&mut self, window: Option<usize>) -> Option<&mut Node<P>> {
-        match window {
-            None => self.root.as_mut(),
-            Some(window) => self.floating.get_mut(window).map(|w| &mut w.root),
-        }
-    }
-
-    /// The docked layout's tree, then each floating window's.
-    pub(super) fn trees_mut(&mut self) -> impl Iterator<Item = &mut Node<P>> {
-        self.root.iter_mut().chain(self.floating.iter_mut().map(|w| &mut w.root))
-    }
-
     /// The `Tabs` or `Stack` node at a tree place.
     pub fn node_of(&self, place: &PanelPlace) -> Option<&Node<P>> {
         let (window, path) = place.tree_path()?;
         node_at(self.tree(window)?, path)
-    }
-
-    pub(super) fn node_of_mut(&mut self, place: &PanelPlace) -> Option<&mut Node<P>> {
-        let (window, path) = place.tree_path()?;
-        node_at_mut(self.tree_mut(window)?, path)
     }
 
     /// The path of the `Dock` node on `side`, when the layout has one.
@@ -405,7 +289,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
         self.edge_path(zone, canvas) != self.edge_path(zone, &|_| false)
     }
 
-    /// The docked panel, other than `skip`, that a [`Placement::Edge`] anchors on so the drop
+    /// The docked panel, other than `skip`, that a [`DockPlacement::Edge`] anchors on so the drop
     /// wraps the edge area it shows: a `protected` one where that area is narrowed to the
     /// canvas column (`narrowed`), else one that is not protected, since a protected anchor
     /// narrows the model's edge. Any docked panel when every one is protected.
@@ -413,13 +297,6 @@ impl<P: Clone + Eq + Hash> Layout<P> {
         let docked: Vec<&P> =
             self.panels().into_iter().filter(|p| !skip(p) && matches!(self.place(p), Some(PanelPlace::Dock { .. } | PanelPlace::Node(_)))).collect();
         docked.iter().find(|p| protected(p) == narrowed).or(docked.first()).map(|p| (*p).clone())
-    }
-
-    pub(super) fn columns_mut(&mut self, path: &[bool]) -> Option<&mut Vec<Column<P>>> {
-        match self.root.as_mut().and_then(|root| node_at_mut(root, path)) {
-            Some(Node::Dock { columns, .. }) => Some(columns),
-            _ => None,
-        }
     }
 
     /// The dock column at `place`; `None` for a place outside a dock.
@@ -431,17 +308,104 @@ impl<P: Clone + Eq + Hash> Layout<P> {
         }
     }
 
-    pub(super) fn column_mut(&mut self, place: &PanelPlace) -> Option<&mut Column<P>> {
-        let PanelPlace::Dock { path, column, .. } = place else { return None };
-        self.columns_mut(path)?.get_mut(*column)
-    }
-
     /// The dock group at `place`; `None` for a `Tabs` or `Stack` node.
     pub fn group(&self, place: &PanelPlace) -> Option<&Group<P>> {
         match place {
             PanelPlace::Dock { group, .. } => self.column(place)?.groups.get(*group),
             PanelPlace::Node(_) | PanelPlace::Floating { .. } => None,
         }
+    }
+}
+
+impl<P: Clone + Eq + Hash> Layout<P> {
+    /// The layout without its sizes and rectangles: which panels are where, and their state.
+    /// A run of splits along one axis nests one way (`a | (b | c)`), since nesting it the
+    /// other way only moves sizes between its members.
+    fn shape(&self) -> Layout<P> {
+        fn run<'a, P>(node: &'a Node<P>, axis: Axis, out: &mut Vec<&'a Node<P>>) {
+            match node {
+                Node::Split { axis: own, first, second, .. } if *own == axis => {
+                    run(first, axis, out);
+                    run(second, axis, out);
+                }
+                node => out.push(node),
+            }
+        }
+        fn node<P: Clone>(n: &Node<P>) -> Node<P> {
+            match n {
+                Node::Split { axis, .. } => {
+                    let mut members = Vec::new();
+                    run(n, *axis, &mut members);
+                    let mut shaped = members.into_iter().rev().map(node);
+                    let last = shaped.next().unwrap_or(Node::Tabs { panels: Vec::new(), active: 0 });
+                    shaped.fold(last, |second, first| Node::Split {
+                        axis: *axis,
+                        size: SplitSize::Ratio(0.5),
+                        first: Box::new(first),
+                        second: Box::new(second),
+                    })
+                }
+                Node::Tabs { panels, active } => Node::Tabs { panels: panels.clone(), active: *active },
+                Node::Stack { entries } => Node::Stack { entries: entries.iter().map(|e| StackEntry { height: None, ..e.clone() }).collect() },
+                Node::Dock { side, columns } => Node::Dock {
+                    side: *side,
+                    columns: columns
+                        .iter()
+                        .map(|c| Column {
+                            groups: c.groups.iter().map(|g| Group { height: None, ..g.clone() }).collect(),
+                            width: 0.0,
+                            iconic: c.iconic,
+                            iconic_width: None,
+                        })
+                        .collect(),
+                },
+            }
+        }
+        Layout {
+            root: self.root.as_ref().map(node),
+            floating: self
+                .floating
+                .iter()
+                .map(|w| Floating { root: node(&w.root), rect: Rect::ZERO, native: None, monitor: None, monitor_size: None, ..w.clone() })
+                .collect(),
+        }
+    }
+
+    /// The docked layout (`None`) or a floating window's tree.
+    pub(crate) fn tree(&self, window: Option<usize>) -> Option<&Node<P>> {
+        match window {
+            None => self.root.as_ref(),
+            Some(window) => self.floating.get(window).map(|w| &w.root),
+        }
+    }
+
+    pub(super) fn tree_mut(&mut self, window: Option<usize>) -> Option<&mut Node<P>> {
+        match window {
+            None => self.root.as_mut(),
+            Some(window) => self.floating.get_mut(window).map(|w| &mut w.root),
+        }
+    }
+
+    /// The docked layout's tree, then each floating window's.
+    pub(super) fn trees_mut(&mut self) -> impl Iterator<Item = &mut Node<P>> {
+        self.root.iter_mut().chain(self.floating.iter_mut().map(|w| &mut w.root))
+    }
+
+    pub(super) fn node_of_mut(&mut self, place: &PanelPlace) -> Option<&mut Node<P>> {
+        let (window, path) = place.tree_path()?;
+        node_at_mut(self.tree_mut(window)?, path)
+    }
+
+    pub(super) fn columns_mut(&mut self, path: &[bool]) -> Option<&mut Vec<Column<P>>> {
+        match self.root.as_mut().and_then(|root| node_at_mut(root, path)) {
+            Some(Node::Dock { columns, .. }) => Some(columns),
+            _ => None,
+        }
+    }
+
+    pub(super) fn column_mut(&mut self, place: &PanelPlace) -> Option<&mut Column<P>> {
+        let PanelPlace::Dock { path, column, .. } = place else { return None };
+        self.columns_mut(path)?.get_mut(*column)
     }
 
     pub(super) fn group_mut(&mut self, place: &PanelPlace) -> Option<&mut Group<P>> {
@@ -637,7 +601,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
             Target::At { anchor, placement } => {
                 let place = self.place(&anchor).ok_or(DockError::MissingTarget)?;
                 match placement {
-                    Placement::Tab { before } => {
+                    DockPlacement::Tab { before } => {
                         let index = match &before {
                             Some(before) => {
                                 if self.place(before).as_ref() != Some(&place) {
@@ -649,11 +613,11 @@ impl<P: Clone + Eq + Hash> Layout<P> {
                         };
                         self.merge(&place, index, moving)
                     }
-                    Placement::Split(DockSide::Center) => {
+                    DockPlacement::Split(DockSide::Center) => {
                         let index = self.index_in(&place, &anchor).map(|i| i + 1);
                         self.merge(&place, index, moving)
                     }
-                    Placement::Split(zone) => {
+                    DockPlacement::Split(zone) => {
                         let (window, path) = place.tree_path().ok_or(DockError::InvalidPlacement)?;
                         let new = match moving.node {
                             Some(node) => node,
@@ -665,7 +629,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
                         let root = self.tree_mut(window).ok_or(DockError::MissingTarget)?;
                         if split_frame(root, path, new, zone) { Ok(()) } else { Err(DockError::MissingTarget) }
                     }
-                    Placement::SplitSized { zone, size, outer } => {
+                    DockPlacement::SplitSized { zone, size, outer } => {
                         let (window, path) = place.tree_path().ok_or(DockError::InvalidPlacement)?;
                         let new = match moving.node {
                             Some(node) => node,
@@ -678,11 +642,11 @@ impl<P: Clone + Eq + Hash> Layout<P> {
                         if split_frame_sized(root, path, new, zone, size, outer) { Ok(()) } else { Err(DockError::InvalidPlacement) }
                     }
                     // A floating window is a tree: a group above or below splits the anchor's group.
-                    Placement::Group { below, .. } if matches!(place, PanelPlace::Floating { .. }) => {
+                    DockPlacement::Group { below, .. } if matches!(place, PanelPlace::Floating { .. }) => {
                         let zone = if below { DockSide::Bottom } else { DockSide::Top };
-                        self.insert_moving(moving, Target::At { anchor, placement: Placement::Split(zone) }, canvas)
+                        self.insert_moving(moving, Target::At { anchor, placement: DockPlacement::Split(zone) }, canvas)
                     }
-                    Placement::Group { below, height } => {
+                    DockPlacement::Group { below, height } => {
                         if !valid_height(height) {
                             return Err(DockError::InvalidGeometry);
                         }
@@ -698,7 +662,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
                         groups.splice(index..index, moving.groups);
                         Ok(())
                     }
-                    Placement::Edge(zone) => {
+                    DockPlacement::Edge(zone) => {
                         if zone == DockSide::Center || matches!(place, PanelPlace::Floating { .. }) {
                             return Err(DockError::InvalidPlacement);
                         }
@@ -716,7 +680,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
                         *node = Node::Split { axis, size: SplitSize::Ratio(size), first: Box::new(first), second: Box::new(second) };
                         Ok(())
                     }
-                    Placement::Column { after } => {
+                    DockPlacement::Column { after } => {
                         let PanelPlace::Dock { path, column, .. } = &place else { return Err(DockError::InvalidPlacement) };
                         let columns = self.columns_mut(path).ok_or(DockError::MissingTarget)?;
                         let width = columns.get(*column).map_or(DEFAULT_COLUMN_WIDTH, |c| c.width);

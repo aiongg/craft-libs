@@ -1,12 +1,12 @@
 //! Stories of the brush overlays: each control on a canvas with a view, as a freehand tool shows it.
 
 use super::{BrushDimensions, BrushResize, BrushResizeOptions, FalloffPreview, TipCell, TipFalloff};
-use crate::canvas::Canvas;
-use crate::contract::{Show as _, ShowContainer as _};
+use crate::contract::Show as _;
+use crate::testing::canvas_story::on_canvas_view;
 use crate::testing::{StoryData, StoryOutput, story};
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Rect as DocRect};
-use egui::{Rect, Response, Ui};
+use egui::{Rect, Ui};
 
 /// Screen points per document unit.
 const ZOOM: f64 = 2.0;
@@ -25,28 +25,26 @@ const DRAG_SHARE: f32 = 0.05;
 /// The aliased tip's cell: its corners in document units.
 const CELL: DocRect = DocRect::new(96.0, 96.0, 104.0, 104.0);
 
-/// Shows the control `control` makes as the only member of a freehand canvas that shows `CENTRE` in its middle.
-fn on_canvas(ui: &mut Ui, mut control: impl FnMut(&mut Ui, Rect, &CanvasView) -> Response) -> StoryOutput {
-    let view = CanvasView::new(ui.available_rect_before_wrap(), CENTRE, ZOOM);
-    let shown = Canvas::new("Painting").view(view).show(ui, |ui, body| control(ui, body.rect, &view));
-    shown.inner.map(StoryOutput::from).unwrap_or_default()
+/// The view of a freehand canvas over `room` that shows `CENTRE` in its middle.
+fn brush_view(room: Rect) -> CanvasView {
+    CanvasView::new(room, CENTRE, ZOOM)
 }
 
 #[story(FalloffPreview<'static>, covers = [Default])]
 fn soft_tip(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let falloff = TipFalloff::from_hardness(RADIUS, SOFT);
-    on_canvas(ui, |ui, rect, _| FalloffPreview::new(&falloff, CENTRE, RADIUS).show_at(ui, rect))
+    on_canvas_view(ui, brush_view, |ui, rect, _| FalloffPreview::new(&falloff, CENTRE, RADIUS).show_at(ui, rect))
 }
 
 #[story(FalloffPreview<'static>, covers = [Default])]
 fn hard_tip(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let falloff = TipFalloff::hard(RADIUS);
-    on_canvas(ui, |ui, rect, _| FalloffPreview::new(&falloff, CENTRE, RADIUS).show_at(ui, rect))
+    on_canvas_view(ui, brush_view, |ui, rect, _| FalloffPreview::new(&falloff, CENTRE, RADIUS).show_at(ui, rect))
 }
 
 #[story(FalloffPreview<'static>, covers = [Default])]
 fn resize_in_progress(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    on_canvas(ui, |ui, rect, view| {
+    on_canvas_view(ui, brush_view, |ui, rect, view| {
         let mut resize = BrushResize::default();
         let press = view.to_screen(CENTRE);
         resize.begin(view, press, START, &BrushResizeOptions::new(MAX_DIAMETER));
@@ -62,10 +60,10 @@ fn resize_in_progress(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 
 #[story(TipCell, covers = [Default])]
 fn square_cell(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    on_canvas(ui, |ui, rect, _| TipCell::new(CELL, false).show_at(ui, rect))
+    on_canvas_view(ui, brush_view, |ui, rect, _| TipCell::new(CELL, false).show_at(ui, rect))
 }
 
 #[story(TipCell, covers = [Default])]
 fn round_cell(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    on_canvas(ui, |ui, rect, _| TipCell::new(CELL, true).show_at(ui, rect))
+    on_canvas_view(ui, brush_view, |ui, rect, _| TipCell::new(CELL, true).show_at(ui, rect))
 }

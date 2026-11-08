@@ -4,6 +4,7 @@
 //! the mirroring for right-to-left.
 
 use crate::contract::{Access, Component, Cx, Focus as _, Name, Numeric, PartsCx, Pointer as _, Role};
+use craft_behavior::dock::DockEdge;
 use craft_behavior::nav::{StepResult, ValueAxes, ValueSteps, step_value};
 use craft_behavior::{Axis, CursorIcon, Flow, HitLevel, HitPriority, NavMove, PartKey, PressPhase, Sense};
 use egui::{Pos2, Rect};
@@ -32,6 +33,27 @@ impl Divider {
             _ => Rect::from_min_max(Pos2::new(span.left(), at - half), Pos2::new(span.right(), at + half)),
         };
         Divider { axis, bar, at, lo, hi }
+    }
+
+    /// The divider on the inner edge of the column in `rect` on the dock edge `edge`, in reading order: the edge that
+    /// faces away from the window edge, which moves between the coordinates of the column's `least` and `most` widths.
+    /// Its bar stays inside `rect`.
+    pub(crate) fn column_edge(rect: Rect, edge: DockEdge, (least, most): (f32, f32), reach: f32) -> Self {
+        let (at, lo, hi) = match edge {
+            DockEdge::End => (rect.left(), rect.right() - most, rect.right() - least),
+            _ => (rect.right(), rect.left() + least, rect.left() + most),
+        };
+        let mut divider = Divider::new(Axis::X, at, rect, (lo, hi), reach);
+        divider.bar = divider.bar.intersect(rect);
+        divider
+    }
+
+    /// The width of the column in `rect` on `edge` when its inner edge is at `coord`.
+    pub(crate) fn column_width(rect: Rect, edge: DockEdge, coord: f32) -> f32 {
+        match edge {
+            DockEdge::End => rect.right() - coord,
+            _ => coord - rect.left(),
+        }
     }
 
     fn cursor(&self) -> CursorIcon {

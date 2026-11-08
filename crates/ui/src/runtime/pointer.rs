@@ -244,7 +244,8 @@ pub(crate) fn record_shapes_in(ctx: &Context, viewport: ViewportId, layer: Layer
     PerViewport::<Shapes>::with(ctx, viewport, |record| record.this.entry(layer).or_default().entry(root).or_default().shapes.extend(shapes));
 }
 
-/// Records the egui widgets that stand for the root at `root` (`click` when they sense a click).
+/// Records the egui widgets that stand for the root at `root` (`click` when they sense a click): the root's own at
+/// step 8, and the `over` widgets of its members after their bodies.
 pub(crate) fn record_widgets(ctx: &Context, layer: Layer, root: Id, widgets: &[Id], click: bool) {
     record_widgets_in(ctx, pass::current_viewport(ctx), layer, root, widgets, click);
 }
@@ -254,7 +255,7 @@ pub(crate) fn record_widgets_in(ctx: &Context, viewport: ViewportId, layer: Laye
     PerViewport::<Shapes>::with(ctx, viewport, |record| {
         let entry = record.this.entry(layer).or_default().entry(root).or_default();
         entry.widgets.extend_from_slice(widgets);
-        entry.click = click;
+        entry.click |= click;
     });
 }
 

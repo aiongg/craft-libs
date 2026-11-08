@@ -3,7 +3,7 @@
 use craft_behavior::kurbo::{Point, Size};
 use craft_behavior::{CancelReason, CanvasView, PointerButton};
 use craft_ui::canvas::{
-    CanvasSpace, CanvasTool, HandTool, NavigationOptions, RotateViewTool, ToolContext, ToolKey, ToolPointer, ViewCommand, ZoomTool,
+    CanvasSpace, CanvasTool, HandTool, NavigationOptions, RotateViewTool, ToolContext, ToolKey, ToolPointer, ViewCommands, ZoomTool,
 };
 use craft_ui::testing::{ToolFixture, trial};
 use egui::{Pos2, Rect, Vec2};
@@ -153,10 +153,10 @@ fn the_rotate_drag_turns_the_view_and_shift_snaps_and_a_double_click_resets() {
 #[trial]
 fn the_view_commands_zoom_fit_and_turn_the_view() {
     let mut view = view();
-    assert!(ViewCommand::ZoomIn.apply(&mut view, DOCUMENT, 1.0) && view.zoom > 1.0);
-    assert!(ViewCommand::FitOnScreen.apply(&mut view, DOCUMENT, 1.0));
-    assert!(ViewCommand::RotateClockwise.apply(&mut view, DOCUMENT, 1.0) && view.rotation == 15.0);
-    assert!(ViewCommand::ResetRotation.apply(&mut view, DOCUMENT, 1.0) && view.rotation == 0.0);
+    assert!(ViewCommands::ZoomIn.apply(&mut view, DOCUMENT, 1.0) && view.zoom > 1.0);
+    assert!(ViewCommands::FitOnScreen.apply(&mut view, DOCUMENT, 1.0));
+    assert!(ViewCommands::RotateClockwise.apply(&mut view, DOCUMENT, 1.0) && view.rotation == 15.0);
+    assert!(ViewCommands::ResetRotation.apply(&mut view, DOCUMENT, 1.0) && view.rotation == 0.0);
 }
 
 #[trial]

@@ -159,13 +159,8 @@ fn compare(a: &Contributor, b: &Contributor, mode: NameMode, sort: ContributorSo
     }
 }
 
-/// `list` in display order. Names compare case-insensitively without the `@`; someone with no commit date sorts after
+/// The positions of `list` in display order, which the table keys its rows by. Names compare case-insensitively without the `@`; someone with no commit date sorts after
 /// everyone with one; ties fall back to the name, then the login, in either direction, so the order is stable.
-pub fn sorted_contributors(list: &[Contributor], mode: NameMode, sort: ContributorSort, ascending: bool) -> Vec<&Contributor> {
-    sorted_indices(list, mode, sort, ascending).into_iter().map(|at| &list[at]).collect()
-}
-
-/// [`sorted_contributors`] as positions in `list`, which the table keys its rows by.
 pub(super) fn sorted_indices(list: &[Contributor], mode: NameMode, sort: ContributorSort, ascending: bool) -> Vec<usize> {
     let mut order: Vec<usize> = (0..list.len()).collect();
     order.sort_by(|&a, &b| compare(&list[a], &list[b], mode, ContributorSort::Name).then_with(|| list[a].login.cmp(&list[b].login)));
@@ -178,7 +173,7 @@ pub(super) fn sorted_indices(list: &[Contributor], mode: NameMode, sort: Contrib
 
 /// The date of an ISO 8601 timestamp in the region's date style, "—" for none; a timestamp that does not parse shows
 /// its first ten characters.
-pub fn commit_day(dates: &DateFormat, iso: &str) -> String {
+pub(crate) fn commit_day(dates: &DateFormat, iso: &str) -> String {
     if iso.is_empty() {
         return "—".to_owned();
     }
@@ -206,7 +201,7 @@ pub enum CommitShare {
 }
 
 /// A model's share of all commits; a model with any commits never reads 0 %.
-pub fn commit_share(commits: u64, total: u64) -> CommitShare {
+pub(crate) fn commit_share(commits: u64, total: u64) -> CommitShare {
     let ratio = commits as f64 / total.max(1) as f64;
     if commits > 0 && ratio < 0.005 { CommitShare::UnderOne } else { CommitShare::Ratio(ratio.min(1.0)) }
 }

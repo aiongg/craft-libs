@@ -819,7 +819,7 @@ fn frame_rate(fps: f32) -> f32 {
 
 /// `frame` after the time from `last` to `now`, and the clock to carry on from; the fraction of a frame that has not
 /// yet passed is kept.
-pub fn advance_frame(frame: u32, frames: u32, fps: f32, last: f64, now: f64) -> (u32, f64) {
+pub(crate) fn advance_frame(frame: u32, frames: u32, fps: f32, last: f64, now: f64) -> (u32, f64) {
     let frames = frames.max(1);
     let frame = frame.min(frames - 1);
     if !now.is_finite() {
@@ -843,7 +843,7 @@ pub fn advance_frame(frame: u32, frames: u32, fps: f32, last: f64, now: f64) -> 
 
 /// 4-Up's two extra panes: JPEG and lossy WebP at half and a quarter of the quality; GIF and PNG-8 at half and a
 /// quarter of the colours; any other format as PNG-8 at 128 colours and GIF at 64 colours.
-pub fn four_up_variants(settings: &SaveForWebOptions) -> [SaveForWebOptions; 2] {
+pub(crate) fn four_up_variants(settings: &SaveForWebOptions) -> [SaveForWebOptions; 2] {
     [2u16, 4].map(|divisor| {
         let mut variant = settings.clone();
         match settings.format {
@@ -863,7 +863,7 @@ pub fn four_up_variants(settings: &SaveForWebOptions) -> [SaveForWebOptions; 2] 
 }
 
 /// Seconds to download `bytes` at `kbps` kilobits per second, rounded up: the caption uses 56.6, the modem estimate.
-pub fn download_seconds(bytes: u64, kbps: f64) -> u64 {
+pub(crate) fn download_seconds(bytes: u64, kbps: f64) -> u64 {
     (bytes as f64 * 8.0 / (kbps * 1000.0)).ceil() as u64
 }
 

@@ -259,6 +259,7 @@ impl<'a> ParamDialog<'a> {
                         | ParamKind::Number { .. }
                         | ParamKind::Bool { .. }
                         | ParamKind::Choice { .. }
+                        | ParamKind::Radio { .. }
                 )
         };
         let units = params.iter().filter(|param| param.is_remembered()).filter_map(Param::unit_key);

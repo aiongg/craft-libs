@@ -1,5 +1,6 @@
 //! The viewer's chrome: the options bar, the panels, the status bar and the window that holds them.
 
+mod describe;
 mod options;
 mod panels;
 mod shell;

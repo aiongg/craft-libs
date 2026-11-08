@@ -6,7 +6,7 @@ mod credits;
 #[cfg(feature = "testing")]
 mod stories;
 
-pub use contributors::{CommitShare, ContributorSort, NameMode, commit_day, commit_share, sorted_contributors};
+pub use contributors::{CommitShare, ContributorSort, NameMode};
 pub use credits::{AboutInfo, AboutLink, Contributor, Credits, ModelCredit};
 
 use crate::buttons::{Button, IconButton, Link};
@@ -189,7 +189,7 @@ impl Outcome for AboutOutput {
 /// - **About.** The blurb, the version, the community button and the link row centred, the built-with line faint.
 /// - **Contributors.** Show (Username, Display name, Real name) and Sort (the list, with a button to reverse) over a
 ///   table of every figure; a header press sorts by its column. Activating a row (Enter or a double click) reports the
-///   contributor's GitHub profile as the link; the row's tooltip is the summary.
+///   contributor's profile URL as the link (nothing for one without a profile); the row's tooltip is the summary.
 /// - **Models.** A table of the credited models with their commits, share of all commits and lines.
 ///
 /// The tab, the name mode and the sort order are kept in the dialog's container while it is open. Links are reported
@@ -383,7 +383,7 @@ impl Shown<'_> {
                         }
                     }
                     CollectionEvent::Activate(at) => {
-                        *link.borrow_mut() = list.get(at).map(|contributor| format!("https://github.com/{}", contributor.login));
+                        *link.borrow_mut() = list.get(at).and_then(|contributor| contributor.profile.as_deref()).map(str::to_owned);
                     }
                     _ => {}
                 }

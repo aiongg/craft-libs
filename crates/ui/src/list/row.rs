@@ -1309,7 +1309,7 @@ impl Component for ListRow<'_> {
             cell.flags.set(Flags::SELECTED, selected);
             let role = if toggle.check_box { Role::CHECK_BOX } else { Role::BUTTON };
             let node = access.node(TOGGLE.at(at as u64), role);
-            node.name = Name::Text(named(&toggle.name, label));
+            node.name = Name::Text(named(toggle.name_pattern(&words), label));
             node.under(TOGGLE_CELL.at(at as u64));
         }
         for text in &self.texts {

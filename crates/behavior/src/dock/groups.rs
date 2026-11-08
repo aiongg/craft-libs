@@ -4,7 +4,7 @@ use std::hash::Hash;
 
 use emath::Rect;
 
-use super::{DockSide, action::Placement, edit::node_at, layout::Layout, node::Node, policy::DockError};
+use super::{DockSide, action::DockPlacement, edit::node_at, layout::Layout, node::Node, policy::DockError};
 
 /// The window edge a [`Node::Dock`] sits on, in reading order so right-to-left interfaces
 /// mirror. `Start` is the edge of a horizontal split's first child; the renderer maps it to a physical edge from
@@ -96,7 +96,7 @@ pub enum Target<P> {
         /// The panel to place the moved groups next to.
         anchor: P,
         /// Where, relative to `anchor`.
-        placement: Placement<P>,
+        placement: DockPlacement<P>,
     },
     /// A new dock on an edge that has none (or an empty one). The root becomes the other side
     /// of a horizontal split.
@@ -115,28 +115,28 @@ pub enum Target<P> {
     },
 }
 
-impl<P: Clone + Eq + Hash> Placement<P> {
+impl<P: Clone + Eq + Hash> DockPlacement<P> {
     /// The placement for a drop on the `side` of `anchor`'s group, in the vocabulary its container accepts.
     ///
     /// | Anchor in | `Center` | `Top`, `Bottom` | `Start`, `End` |
     /// |---|---|---|---|
-    /// | the split tree or a floating window | [`Placement::Split`] | `Split` | `Split` |
-    /// | a dock column | `Split(Center)` (join as tabs) | [`Placement::Group`] above or below | [`Placement::Column`] on that side |
+    /// | the split tree or a floating window | [`DockPlacement::Split`] | `Split` | `Split` |
+    /// | a dock column | `Split(Center)` (join as tabs) | [`DockPlacement::Group`] above or below | [`DockPlacement::Column`] on that side |
     ///
     /// A dock's `Column { after }` counts from its window edge, which is the dock's [`DockEdge`] in reading order;
     /// this picks `after` so the new column lands on the side of the anchor's column.
     pub fn for_zone(layout: &Layout<P>, anchor: &P, side: DockSide) -> Result<Self, DockError> {
         let place = layout.place(anchor).ok_or(DockError::MissingTarget)?;
         Ok(match (place, side) {
-            (PanelPlace::Node(_) | PanelPlace::Floating { .. }, side) | (_, side @ DockSide::Center) => Placement::Split(side),
-            (PanelPlace::Dock { .. }, DockSide::Top | DockSide::Bottom) => Placement::Group { below: side == DockSide::Bottom, height: None },
+            (PanelPlace::Node(_) | PanelPlace::Floating { .. }, side) | (_, side @ DockSide::Center) => DockPlacement::Split(side),
+            (PanelPlace::Dock { .. }, DockSide::Top | DockSide::Bottom) => DockPlacement::Group { below: side == DockSide::Bottom, height: None },
             (PanelPlace::Dock { path, .. }, _) => {
                 let edge = match layout.root.as_ref().and_then(|root| node_at(root, &path)) {
                     Some(Node::Dock { side, .. }) => *side,
                     _ => return Err(DockError::MissingTarget),
                 };
                 // `after` is away from the window edge: towards the end for a start dock.
-                Placement::Column { after: (side == DockSide::End) == (edge == DockEdge::Start) }
+                DockPlacement::Column { after: (side == DockSide::End) == (edge == DockEdge::Start) }
             }
         })
     }
@@ -254,7 +254,7 @@ impl<P> Moving<P> {
 
 impl<P> Target<P> {
     /// Builds [`Target::At`].
-    pub fn at(anchor: P, placement: Placement<P>) -> Self {
+    pub fn at(anchor: P, placement: DockPlacement<P>) -> Self {
         Self::At { anchor, placement }
     }
 

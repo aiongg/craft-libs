@@ -3,13 +3,13 @@
 use super::model::{PrefValue, PreferencesModel, RowKind, RowSpec};
 use crate::buttons::Button;
 use crate::choice::Checkbox;
-use crate::contract::{Bind, EditResponse, Entry, FieldLayout, Props as _, Show as _, ShowContainer as _, clicked};
+use crate::contract::{Bind, Entry, FieldLayout, Props as _, Show as _, ShowContainer as _, clicked, landed};
 use crate::form::{Field, Help};
 use crate::layout_components::Stack;
 use crate::pickers::Select;
 use crate::runtime::env::{Label, UnitKind, Units};
 use crate::text::{HexField, NumberField, TextField};
-use craft_behavior::{EditEvent, Mixed, NumberCodec};
+use craft_behavior::NumberCodec;
 use craft_theme::Rgba;
 use egui::Ui;
 use std::ops::RangeInclusive;
@@ -75,15 +75,6 @@ pub(super) struct RowsOut {
     pub edits: Vec<(String, PrefValue)>,
 }
 
-/// The value a control's event asks the host to hold: a proposal, a commit or a set, and for a cancelled gesture
-/// the value from before it.
-fn edited<T: Clone>(response: &EditResponse<T>) -> Option<T> {
-    match response.event.as_ref()? {
-        EditEvent::Cancel { before: Some(Mixed::Same(before)), .. } => Some(before.clone()),
-        event => event.value().cloned(),
-    }
-}
-
 /// The arrow-key step of a number row that names none: whole steps for whole numbers and wide ranges, else one unit
 /// of the last decimal place.
 pub(super) fn step_for(range: &RangeInclusive<f64>, decimals: u8) -> f64 {
@@ -122,7 +113,7 @@ pub(super) fn show_row<H: PreferencesModel + ?Sized>(ui: &mut Ui, host: &mut H, 
         Kind::Bool(value) => {
             let mut next = None;
             field().layout(FieldLayout::After).show(ui, |ui, _| {
-                next = edited(&Checkbox::new(Bind::given(*value)).show(ui));
+                next = Checkbox::new(Bind::given(*value)).show(ui).event.as_ref().and_then(landed).cloned();
             });
             record(next.map(PrefValue::Bool));
         }
@@ -137,7 +128,7 @@ pub(super) fn show_row<H: PreferencesModel + ?Sized>(ui: &mut Ui, host: &mut H, 
                 None => options,
             };
             field().show(ui, |ui, _| {
-                next = edited(&Select::new(label.clone(), Bind::given(value.clone()), options).show(ui));
+                next = Select::new(label.clone(), Bind::given(value.clone()), options).show(ui).event.as_ref().and_then(landed).cloned();
             });
             record(next.map(PrefValue::Choice));
         }
@@ -145,7 +136,7 @@ pub(super) fn show_row<H: PreferencesModel + ?Sized>(ui: &mut Ui, host: &mut H, 
             let mut next = None;
             field().show(ui, |ui, _| {
                 let shown = number(units, label, *value as f64, *unit, 0).range(*range.start() as f64..=*range.end() as f64).step(1.0);
-                next = edited(&shown.show(ui).edit).flatten();
+                next = shown.show(ui).edit.event.as_ref().and_then(landed).cloned().flatten();
             });
             record(next.map(|v| PrefValue::Int(v.round() as i64)));
         }
@@ -155,21 +146,21 @@ pub(super) fn show_row<H: PreferencesModel + ?Sized>(ui: &mut Ui, host: &mut H, 
                 let shown = number(units, label, *value, *unit, usize::from(*decimals))
                     .range(range.clone())
                     .step(step.unwrap_or_else(|| step_for(range, *decimals)));
-                next = edited(&shown.show(ui).edit).flatten();
+                next = shown.show(ui).edit.event.as_ref().and_then(landed).cloned().flatten();
             });
             record(next.map(PrefValue::Float));
         }
         Kind::Text(value) => {
             let mut next = None;
             field().show(ui, |ui, _| {
-                next = edited(&TextField::new(label.clone(), Bind::given(value.clone())).show(ui));
+                next = TextField::new(label.clone(), Bind::given(value.clone())).show(ui).event.as_ref().and_then(landed).cloned();
             });
             record(next.map(PrefValue::Text));
         }
         Kind::Color(color) => {
             let mut next = None;
             field().show(ui, |ui, _| {
-                next = edited(&HexField::hex(label.clone(), Bind::given(*color)).show(ui));
+                next = HexField::hex(label.clone(), Bind::given(*color)).show(ui).event.as_ref().and_then(landed).cloned();
             });
             record(next.map(PrefValue::Color));
         }

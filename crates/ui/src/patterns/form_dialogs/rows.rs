@@ -3,11 +3,10 @@
 use super::fields::{DialogFields, FieldValue};
 use crate::runtime::requests::{ColorRequest, EyedropperRequest, PathRequest};
 
-use super::param::{CustomContext, Param, ParamKind, encode, fill_defaults, rounded};
+use super::param::{CustomContext, Param, ParamKind, fill_defaults, rounded};
 use super::words::ParamWords;
 use crate::buttons::{Button, ToggleButton};
-
-use crate::choice::Checkbox;
+use crate::choice::{Checkbox, Radio, RadioGroup};
 use crate::contract::{Bind, Entry, NoValue, Outcome, Props as _, Remember as _, Sampler as _, Show as _, ShowContainer as _, clicked};
 use crate::form::{Field, FieldGroup, SliderField};
 
@@ -283,6 +282,7 @@ impl<'p> Pass<'p> {
             ParamKind::Int { min, max, .. } => self.int(ui, &line, *min, *max),
             ParamKind::Bool { default } => self.check(ui, &line, *default),
             ParamKind::Choice { options, .. } => self.choice(ui, &line, options),
+            ParamKind::Radio { options, .. } => self.radio_options(ui, &line, options),
             ParamKind::Angle { default } => self.angle(ui, &line, *default),
             ParamKind::Color { .. } => self.color(ui, &line),
             ParamKind::Grid { cells, .. } => self.grid(ui, &line, *cells),
@@ -400,6 +400,22 @@ impl<'p> Pass<'p> {
         });
     }
 
+    fn radio_options(&mut self, ui: &mut Ui, line: &Line<'_>, options: &[(String, Label)]) {
+        let value = self.work.text(line.key).map(str::to_owned).or_else(|| line.param.kind.default_value().and_then(text_of)).unwrap_or_default();
+        line.show(ui, |ui| {
+            let group = RadioGroup::new(line.name.clone(), Bind::given(value.clone())).enabled(line.enabled).show(ui, |ui, _| {
+                Stack::new().show(ui, |ui, _| {
+                    for (id, label) in options {
+                        Radio::new(id.clone()).label(label.clone()).show(ui);
+                    }
+                });
+            });
+            if let Some(v) = group.output.value().cloned() {
+                self.work.set(line.key, FieldValue::Text(v));
+            }
+        });
+    }
+
     fn angle(&mut self, ui: &mut Ui, line: &Line<'_>, default: f64) {
         let value = self.work.number(line.key).unwrap_or(default);
         let field_name = Label::from(self.words.angle_field.fill(&[("name", line.name.as_str())]));
@@ -427,8 +443,7 @@ impl<'p> Pass<'p> {
             }
         }
         let armed = self.memo.armed.as_deref() == Some(line.key);
-        let shown = color
-            .map_or_else(|| self.words.color_unset.clone(), |[r, g, b]| Label::from(format!("#{:02x}{:02x}{:02x}", encode(r), encode(g), encode(b))));
+        let shown = color.map_or_else(|| self.words.color_unset.clone(), |rgb| Label::from(Srgba::from_rgb_array(rgb).to_hex()));
         line.show(ui, |ui| {
             beside(ui, |ui| {
                 if clicked(&Button::new(shown.clone()).id_salt("choose").show(ui)) {

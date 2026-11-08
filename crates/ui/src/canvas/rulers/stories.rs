@@ -2,13 +2,14 @@
 
 use super::{CORNER, Rulers};
 use crate::canvas::{Canvas, RulerText};
-use crate::contract::{Bind, Show as _, ShowContainer as _, Validity};
+use crate::contract::{Bind, Show as _, Validity};
 use crate::runtime::env::{Env, Message, UnitKind};
+use crate::testing::canvas_story::on_canvas_with;
 use crate::testing::pointer;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::kurbo::Point;
 use craft_behavior::{CanvasView, Mixed, RulerUnits};
-use egui::{Rect, Ui, Vec2};
+use egui::{Ui, Vec2};
 
 /// How far the corner is dragged, in drag thresholds: out of the corner and onto the document.
 const DRAG_THRESHOLDS: f32 = 12.0;
@@ -44,44 +45,39 @@ fn open_units_menu(fixture: &mut Fixture) {
     fixture.idle(2);
 }
 
-/// Shows `rulers` as the only canvas control of a canvas whose view lies inside the strips and whose rulers count
-/// from `zero` in pixels.
-fn on_canvas(ui: &mut Ui, zero: Point, mut rulers: impl FnMut(&mut Ui, Rect) -> super::RulersOutput) -> StoryOutput {
-    let full = ui.available_rect_before_wrap();
-    let content = Rulers::content_rect(&Env::of(ui).tokens, full);
-    let view = CanvasView::new(content, CENTRE, 1.0);
+/// A canvas whose view lies inside the strips and whose rulers count from `zero` in pixels.
+fn rulers_canvas(ui: &Ui, zero: Point) -> Canvas {
+    let content = Rulers::content_rect(&Env::of(ui).tokens, ui.available_rect_before_wrap());
     let text = pixels();
-    Canvas::new("Document")
-        .view(view)
-        .rulers(text, text, zero)
-        .show(ui, |ui, body| rulers(ui, body.rect))
-        .inner
-        .map(StoryOutput::from)
-        .unwrap_or_default()
+    Canvas::new("Document").view(CanvasView::new(content, CENTRE, 1.0)).rulers(text, text, zero)
 }
 
 #[story(Rulers<'static>, covers = [Default], drive = Drive::Custom(drag_corner))]
 fn zero_point(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let zero = data.value("zero", Point::ZERO);
-    on_canvas(ui, *zero, |ui, at| Rulers::new("Rulers", Bind::bound(&mut *zero)).show_at(ui, at))
+    let canvas = rulers_canvas(ui, *zero);
+    on_canvas_with(ui, canvas, |ui, at| Rulers::new("Rulers", Bind::bound(&mut *zero)).show_at(ui, at))
 }
 
 #[story(Rulers<'static>, covers = [Open], drive = Drive::Custom(open_units_menu))]
 fn units_menu(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let zero = data.value("zero", Point::ZERO);
-    on_canvas(ui, *zero, |ui, at| Rulers::new("Rulers", Bind::bound(&mut *zero)).units(&UNITS).show_at(ui, at))
+    let canvas = rulers_canvas(ui, *zero);
+    on_canvas_with(ui, canvas, |ui, at| Rulers::new("Rulers", Bind::bound(&mut *zero)).units(&UNITS).show_at(ui, at))
 }
 
 #[story(Rulers<'static>, covers = [Mixed], drive = Drive::Custom(drag_corner))]
 fn zero_points_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let zero = data.value("zero", Mixed::<Point>::Mixed);
-    on_canvas(ui, Point::ZERO, |ui, at| Rulers::new("Rulers", Bind::bound_mixed(&mut *zero)).show_at(ui, at))
+    let canvas = rulers_canvas(ui, Point::ZERO);
+    on_canvas_with(ui, canvas, |ui, at| Rulers::new("Rulers", Bind::bound_mixed(&mut *zero)).show_at(ui, at))
 }
 
 #[story(Rulers<'static>, covers = [Invalid], drive = Drive::Custom(drag_corner))]
 fn zero_point_left_of_the_document(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let zero = data.value("zero", Point::new(LEAST_X - 1.0, 0.0));
-    on_canvas(ui, *zero, |ui, at| {
+    let canvas = rulers_canvas(ui, *zero);
+    on_canvas_with(ui, canvas, |ui, at| {
         let inside =
             |zero: &Point| if zero.x < LEAST_X { Validity::Refuse(Message::new("The zero point is left of the document")) } else { Validity::Ok };
         Rulers::new("Rulers", Bind::bound(&mut *zero).check(inside)).show_at(ui, at)

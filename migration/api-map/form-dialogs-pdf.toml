@@ -56,9 +56,9 @@ note = "Public now; the same four variants."
 [[type]]
 name = "check_range"
 old = "craft_ui::dialog::export::pdf::check_range"
-new = "craft_ui::patterns::form_dialogs::check_range"
-status = "moved"
-note = 'Public now; the same rules for `"1-3, 5"`, `"3-"` and `"all"`.'
+new = ""
+status = "removed"
+note = "Crate-private: the dialog applies the rule itself; no app calls it."
 
 [[type]]
 name = "PdfExportOutput"

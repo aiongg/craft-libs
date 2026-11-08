@@ -8,6 +8,7 @@
 
 pub mod access;
 pub mod bypass;
+pub(crate) mod canvas_story;
 pub mod contract;
 pub mod dump;
 pub mod examples;
@@ -37,11 +38,11 @@ pub use crate::contract::{Exemption, PatternProbe, Probe, Registration};
 pub use craft_ui_macros::{story, trial};
 pub use fixture::{Fixture, Target};
 pub use frames::Frames;
-pub use tool_fixture::ToolFixture;
 #[doc(hidden)]
 pub use story::{
     CollectionKind, Drive, EditKind, Required, STORIES, Story, StoryData, StoryOutput, StoryRegistration, StorySnapshot, show_as_only_item,
 };
+pub use tool_fixture::ToolFixture;
 pub use windows::install_spec;
 
 /// One registered trial.

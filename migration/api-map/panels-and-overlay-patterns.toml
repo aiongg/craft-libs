@@ -75,7 +75,7 @@ name = "PaletteLabels"
 old = "craft_ui::patterns::command_palette::PaletteLabels"
 new = ""
 status = "removed"
-note = "Words: `PanelWords` (`panels.palette*`)."
+note = "Words: `PanelWords` (`commandPalette.*`)."
 
 [[type]]
 name = "PaletteEntry"
@@ -124,7 +124,7 @@ name = "TourLabels"
 old = "craft_ui::patterns::tour::TourLabels"
 new = ""
 status = "removed"
-note = "Words: `PanelWords` (`panels.tour*`)."
+note = "Words: `PanelWords` (`tour.*`)."
 
 [[type]]
 name = "TourOutput"

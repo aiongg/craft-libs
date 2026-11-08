@@ -2,7 +2,7 @@
 
 use craft_behavior::PixelSize;
 use craft_behavior::kurbo::Size;
-use craft_ui::canvas::ViewCommand;
+use craft_ui::canvas::ViewCommands;
 use craft_ui::contract::{Bind, Role, ShowContainer as _};
 use craft_ui::dialog::{FullWindowDialog, FullWindowTitle, FullWindowView, FullWindowZoomBar};
 use craft_ui::runtime::env::Env;
@@ -36,21 +36,21 @@ fn a_zoom_command_ends_the_fit_and_fit_returns_to_it() {
     let mut view = fitted();
     let fit = view.device_zoom();
     assert!(view.is_fit() && fit < 1.0, "a new view fits an image larger than the canvas, reduced");
-    assert!(!view.apply(ViewCommand::FitOnScreen), "fitting a fitted view changes nothing");
-    assert!(view.apply(ViewCommand::ZoomIn));
+    assert!(!view.apply(ViewCommands::FitOnScreen), "fitting a fitted view changes nothing");
+    assert!(view.apply(ViewCommands::ZoomIn));
     assert!(!view.is_fit() && view.device_zoom() > fit);
     let kept = view.settled(rect, IMAGE, SCALE);
     assert!((kept.device_zoom() - view.device_zoom()).abs() < SAME, "a view that does not fit keeps its zoom when settled");
-    assert!(view.apply(ViewCommand::FitOnScreen));
+    assert!(view.apply(ViewCommands::FitOnScreen));
     assert!((view.settled(rect, IMAGE, SCALE).device_zoom() - fit).abs() < SAME, "settling a fitted view fits again");
 }
 
 #[trial]
 fn actual_pixels_is_one_hundred_percent_and_repeats_to_nothing() {
     let mut view = fitted();
-    assert!(view.apply(ViewCommand::ActualPixels));
+    assert!(view.apply(ViewCommands::ActualPixels));
     assert!((view.zoom_percent() - 100.0).abs() < SAME);
-    assert!(!view.apply(ViewCommand::ActualPixels), "the second command finds the view at 100 percent");
+    assert!(!view.apply(ViewCommands::ActualPixels), "the second command finds the view at 100 percent");
 }
 
 #[trial]
@@ -195,11 +195,11 @@ fn fit_on_screen_refits_in_the_same_pass_and_magnifies_a_small_image() {
     let rect = Rect::from_min_size(Pos2::ZERO, Vec2::splat(1000.0));
     let mut view = FullWindowView::new().settled(rect, PixelSize::new(100, 100), SCALE);
     assert!((view.zoom_percent() - 400.0).abs() < SAME, "a small image fits magnified, up to 400 percent");
-    assert!(view.apply(ViewCommand::ActualPixels));
-    assert!(view.apply(ViewCommand::ZoomIn));
-    assert!(view.apply(ViewCommand::FitOnScreen));
+    assert!(view.apply(ViewCommands::ActualPixels));
+    assert!(view.apply(ViewCommands::ZoomIn));
+    assert!(view.apply(ViewCommands::FitOnScreen));
     assert!(view.is_fit() && (view.zoom_percent() - 400.0).abs() < SAME, "the zoom read right after the command is the fitted one");
-    assert!(!view.apply(ViewCommand::FillScreen) && !view.apply(ViewCommand::RotateClockwise), "only the zoom commands act");
+    assert!(!view.apply(ViewCommands::FillScreen) && !view.apply(ViewCommands::RotateClockwise), "only the zoom commands act");
     assert_eq!(view.size(), Size::new(100.0, 100.0));
 }
 

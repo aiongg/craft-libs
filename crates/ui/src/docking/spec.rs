@@ -1,51 +1,12 @@
 //! `PanelSpec`: what the dock asks of a panel before it shows its body.
 
+use crate::contract::SizeLimits;
 use crate::primitives::IconSpec;
 use crate::runtime::env::Label;
 use craft_host::target::WindowKind;
 use egui::Vec2;
 
-/// Body size limits, in points, of a panel. Tiny viewports relax minima proportionally rather than producing
-/// inverted rects. A maximum constrains a pane when its sibling can take the remainder. A tab group takes the
-/// largest minimum and the largest maximum of its panels, so a panel without a maximum lifts the maximum of the
-/// panels it joins.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-#[non_exhaustive]
-pub struct PanelLimits {
-    /// Smallest body size.
-    pub min: Vec2,
-    /// Largest body size; `None` has no maximum.
-    pub max: Option<Vec2>,
-}
-
-impl PanelLimits {
-    /// The largest value a limit or a height may have: a value above it is invalid.
-    pub const BOUND: f32 = 1_000_000.0;
-
-    /// Limits between `min` and `max`.
-    pub const fn new(min: Vec2, max: Vec2) -> Self {
-        PanelLimits { min, max: Some(max) }
-    }
-
-    /// No smaller than `min`, with no maximum.
-    pub const fn at_least(min: Vec2) -> Self {
-        PanelLimits { min, max: None }
-    }
-
-    /// No larger than `max`, with no minimum.
-    pub const fn at_most(max: Vec2) -> Self {
-        PanelLimits { min: Vec2::ZERO, max: Some(max) }
-    }
-
-    /// Whether every value is finite and non-negative, the maximum is no less than the minimum and no value is
-    /// above [`Self::BOUND`].
-    pub fn valid(self) -> bool {
-        let within = |size: Vec2| size.is_finite() && size.x >= 0.0 && size.y >= 0.0 && size.x <= Self::BOUND && size.y <= Self::BOUND;
-        within(self.min) && self.max.is_none_or(|max| within(max) && max.x >= self.min.x && max.y >= self.min.y)
-    }
-}
-
-/// Body heights a panel asks for in a dock column while the user has not resized its group. Like [`PanelLimits`]
+/// Body heights a panel asks for in a dock column while the user has not resized its group. Like [`SizeLimits`]
 /// they exclude the tab strip, and a group takes the largest of each among its panels.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
@@ -80,9 +41,9 @@ impl DockHeights {
         self
     }
 
-    /// Whether every height is finite, non-negative and at most [`PanelLimits::BOUND`].
+    /// Whether every height is finite, non-negative and at most [`SizeLimits::BOUND`].
     pub fn valid(self) -> bool {
-        [self.default, self.compact, self.fill].iter().all(|height| height.is_finite() && (0.0..=PanelLimits::BOUND).contains(height))
+        [self.default, self.compact, self.fill].iter().all(|height| height.is_finite() && (0.0..=SizeLimits::BOUND).contains(height))
     }
 }
 
@@ -97,7 +58,7 @@ pub struct PanelSpec {
     /// The icon of the panel's iconic form and flyout cell.
     pub icon: Option<IconSpec<'static>>,
     /// Body size limits.
-    pub limits: PanelLimits,
+    pub limits: SizeLimits,
     /// How the panel's group sizes itself in a dock column until the user resizes it. `None` shares the column's
     /// free height with the other groups that have none when no group asks for a fill, and takes the group's
     /// minimum when one does.
@@ -121,7 +82,7 @@ impl PanelSpec {
         PanelSpec {
             label: label.into(),
             icon: None,
-            limits: PanelLimits::default(),
+            limits: SizeLimits::default(),
             heights: None,
             float_size: None,
             allow_native: true,
@@ -139,7 +100,7 @@ impl PanelSpec {
 
     /// Body size limits.
     #[must_use]
-    pub fn limits(mut self, limits: PanelLimits) -> Self {
+    pub fn limits(mut self, limits: SizeLimits) -> Self {
         self.limits = limits;
         self
     }

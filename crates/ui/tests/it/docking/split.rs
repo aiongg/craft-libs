@@ -3,10 +3,11 @@
 use craft_behavior::Axis;
 use craft_behavior::dock::{Column, Group, Layout, Node, SplitSize};
 use craft_ui::contract::ShowContainer as _;
+use craft_ui::contract::SizeLimits;
 use craft_ui::contract::{Bind, Role};
 use craft_ui::docking::frame::maximize;
 use craft_ui::docking::tree::{self, FrameRules};
-use craft_ui::docking::{DockColumn, HidePanels, PanelLimits, PanelSpec, SplitArea};
+use craft_ui::docking::{DockColumn, HidePanels, PanelSpec, SplitArea};
 use craft_ui::runtime::env::RootEnv;
 use craft_ui::runtime::frame::take_output;
 use craft_ui::testing::input::key_press;
@@ -86,7 +87,7 @@ fn the_groups_are_at_the_dragged_divider_in_the_same_pass() {
     let rects: Rects = Rc::default();
     let seen = Rc::clone(&rects);
     let mut fixture = Fixture::new(move |ui| {
-        let limits = |_: &usize| PanelLimits::default();
+        let limits = |_: &usize| SizeLimits::default();
         let mut layout = layout.borrow_mut();
         SplitArea::new("Panels", Bind::bound(&mut *layout), FrameRules::new(&limits)).show(ui, |_, body| {
             *seen.borrow_mut() = body.group_frames::<usize>().into_iter().map(|(_, rect)| rect).collect();
@@ -110,7 +111,7 @@ fn the_groups_are_at_the_dragged_divider_in_the_same_pass() {
 fn tab_in_a_window_whose_only_keys_belong_to_a_dock_area_toggles_nothing() {
     let mut layout = two_columns();
     let mut show = |ui: &mut Ui| {
-        let limits = |_: &usize| PanelLimits::default();
+        let limits = |_: &usize| SizeLimits::default();
         SplitArea::new("Panels", Bind::bound(&mut layout), FrameRules::new(&limits)).show(ui, |_, _| ());
     };
     let mut frames = Frames::new();

@@ -6,7 +6,7 @@
 pub(super) mod stories;
 
 use super::words::CanvasControlWords;
-use crate::canvas::canvas_space;
+use crate::canvas::{MARCH_SECONDS, MARCH_TICK, canvas_space, march_shift};
 use crate::contract::{Access, Animate as _, Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role, WordSetCx as _};
 use crate::primitives::{ContentPainterCx, Dashes, StrokeWidth, ellipse};
 use crate::runtime::env::Label;
@@ -17,13 +17,6 @@ use egui::{Color32, Pos2, Response, Shape, Stroke};
 
 /// Opacity of the halo under an outline being drawn.
 const HALO_ALPHA: f32 = 0.55;
-
-/// Seconds the ants take to march one dash period.
-const MARCH_SECONDS: f64 = 1.0;
-
-/// Seconds between steps of the march (the legacy marquee's 0.1 s). Photoshop's ants step rather than glide, and a
-/// shown selection repaints once per step instead of every frame.
-const MARCH_TICK: f64 = 0.1;
 
 /// How a marquee is drawn.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -232,7 +225,7 @@ impl Component for Marquee {
         match self.look {
             MarqueeLook::Ants => {
                 // One march covers a dash and its gap; where motion is off the ants stand still.
-                let phase = cx.phase(MARCH_SECONDS, Some(MARCH_TICK)).map_or(0.0, |turn| turn * 2.0 * cx.style.ants_dash);
+                let phase = march_shift(cx.phase(MARCH_SECONDS, Some(MARCH_TICK)), cx.style.ants_dash);
                 for run in &runs {
                     painter.marching_ants(&run.points, run.closed, phase);
                 }

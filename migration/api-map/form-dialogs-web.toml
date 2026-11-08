@@ -83,23 +83,23 @@ note = "`#[non_exhaustive]`; `remember(&self, ui)` stores the settings and the v
 [[type]]
 name = "four_up_variants"
 old = "craft_ui::dialog::export::web::four_up_variants"
-new = "craft_ui::patterns::form_dialogs::four_up_variants"
-status = "moved"
-note = "Unchanged."
+new = ""
+status = "removed"
+note = "Crate-private: the dialog applies the rule itself; no app calls it."
 
 [[type]]
 name = "download_seconds"
 old = "craft_ui::dialog::export::web::download_seconds"
-new = "craft_ui::patterns::form_dialogs::download_seconds"
-status = "moved"
-note = "Unchanged."
+new = ""
+status = "removed"
+note = "Crate-private: the dialog applies the rule itself; no app calls it."
 
 [[type]]
 name = "advance_frame"
 old = "craft_ui::dialog::export::web::advance_frame"
-new = "craft_ui::patterns::form_dialogs::advance_frame"
-status = "moved"
-note = "Public; the dialog wakes its next pass through `Animate::wake_at`."
+new = ""
+status = "removed"
+note = "Crate-private: the dialog applies the rule itself; no app calls it."
 
 [[type]]
 name = "Nav"

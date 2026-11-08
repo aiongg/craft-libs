@@ -167,12 +167,12 @@ name = "ScreenMode"
 old = "craft_ui::shell::ScreenMode"
 new = "craft_ui::shell::ScreenMode"
 status = "same"
-note = "Held in the `screen_mode` binding of the shell; `command_id`, `from_command_id` and `menu_entries` are gone: the modes are `ScreenModeCommand` and the View menu lists those commands."
+note = "Held in the `screen_mode` binding of the shell; `command_id`, `from_command_id` and `menu_entries` are gone: the modes are `ScreenModeCommands` and the View menu lists those commands."
 
 [[type]]
-name = "ScreenModeCommand"
+name = "ScreenModeCommands"
 old = ""
-new = "craft_ui::shell::ScreenModeCommand"
+new = "craft_ui::shell::ScreenModeCommands"
 status = "replaced"
 note = "Replaces `ScreenMode::command_id`, `CYCLE_COMMAND` and `ScreenModeLabels`: the window-scope commands `screenMode.standard`, `.full_screen_with_menu_bar` (alias `.fullScreenWithMenuBar`), `.full_screen` (alias `.fullScreen`), `.cycle` (F) and `.cycle_back` (Shift+F)."
 
@@ -181,7 +181,7 @@ name = "ScreenModeLabels"
 old = "craft_ui::shell::ScreenModeLabels"
 new = ""
 status = "removed"
-note = "The command labels of `ScreenModeCommand`."
+note = "The command labels of `ScreenModeCommands`."
 
 [[type]]
 name = "full_screen_commands"
@@ -195,7 +195,7 @@ name = "CYCLE_COMMAND"
 old = "craft_ui::shell::CYCLE_COMMAND"
 new = ""
 status = "removed"
-note = "`ScreenModeCommand::Cycle`."
+note = "`ScreenModeCommands::Cycle`."
 
 [[type]]
 name = "CanvasLabels"
@@ -448,7 +448,7 @@ note = "The actions are `StartOutput.actions`."
 type = "ViewportWindow"
 old = "new(ViewportId, ViewportBuilder)"
 new = "new(title)"
-note = "The title is the constructor argument. The builder's inner and minimum sizes and the opening position go on the fallback layer through `overlay`: `.overlay(|overlay| overlay.size_limits(min, max).placed(rect))`; the layer starts as the resizable dialog layer."
+note = "The title is the constructor argument. The builder's inner and minimum sizes and the opening position go on the fallback layer through `overlay`: `.overlay(|overlay| overlay.size_limits(SizeLimits::new(min, max)).placed(rect))`; the layer starts as the resizable dialog layer."
 
 [[setter]]
 type = "ViewportWindow"
@@ -573,8 +573,9 @@ note = "Re-exported from `craft_window::policy`."
 [[type]]
 name = "WINDOWS_BUTTON_WIDTH"
 old = "craft_ui::title_bar::WINDOWS_BUTTON_WIDTH"
-new = "craft_ui::shell::WINDOWS_BUTTON_WIDTH"
-status = "moved"
+new = ""
+status = "removed"
+note = "Crate-private: the Windows family's caption metrics; an app reads the width from `CaptionPlan::place`."
 
 [[setter]]
 type = "CaptionButton"

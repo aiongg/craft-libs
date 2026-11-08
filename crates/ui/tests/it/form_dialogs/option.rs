@@ -3,24 +3,12 @@
 use craft_theme::variant::Tone;
 use craft_ui::contract::Bind;
 use craft_ui::patterns::form_dialogs::{
-    ListManager, ListManagerAction, ListManagerChoice, ListManagerEntry, ListManagerWords, PasswordStrength, ReportDialog, ReportNote, Secret,
-    password_strength,
+    ListManager, ListManagerAction, ListManagerChoice, ListManagerEntry, ListManagerWords, ReportDialog, ReportNote, Secret,
 };
 use craft_ui::runtime::env::Env;
 use craft_ui::testing::{Fixture, trial};
 use std::cell::RefCell;
 use std::rc::Rc;
-
-/// Length and character classes decide the strength: twelve characters in three classes is strong, eight in two is
-/// medium, anything else is weak.
-#[trial]
-fn strength_follows_length_and_character_classes() {
-    assert_eq!(password_strength("abcdefgh"), PasswordStrength::Weak);
-    assert_eq!(password_strength("abcdEF1"), PasswordStrength::Weak);
-    assert_eq!(password_strength("abcdEFGH"), PasswordStrength::Medium);
-    assert_eq!(password_strength("abcdEFGH1234"), PasswordStrength::Strong);
-    assert!(PasswordStrength::Weak < PasswordStrength::Medium && PasswordStrength::Medium < PasswordStrength::Strong);
-}
 
 /// A secret never prints its text: debug output ends up in logs.
 #[trial]

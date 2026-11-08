@@ -123,12 +123,15 @@ pub(crate) struct MemberDecl {
     pub parts: Vec<PartDecl>,
     /// The shapes lie in the body layer's space; `join` sets it.
     pub local: bool,
+    /// The stack position of the member's `over` parts: just above the member until its body has run, then above
+    /// every member its body showed (`place_over_widgets`).
+    pub over_at: u32,
 }
 
 impl MemberDecl {
     /// A member `id` over `rect` sensing `sense`, with `parts`.
     pub(crate) fn new(id: Id, rect: Rect, sense: Sense, parts: Vec<PartDecl>) -> Self {
-        MemberDecl { id, rect, sense, parts, local: false }
+        MemberDecl { id, rect, sense, parts, local: false, over_at: 0 }
     }
 }
 
@@ -237,24 +240,50 @@ fn own_shapes(own: &[PartDecl], root: Id, target: f32) -> Vec<Shape<Id>> {
         .collect()
 }
 
+/// The stack position of the member at `index` in show order. Members take the even positions from 2, so the
+/// `over` parts of a member fit between the last member its body showed and the next member (8.3).
+fn member_position(index: usize) -> u32 {
+    2 * (index as u32 + 1)
+}
+
+/// The stack position of the `over` parts of a member whose body has run once `count` members have joined.
+fn over_position(count: usize) -> u32 {
+    2 * count as u32 + 1
+}
+
+fn member_part_shape(member: &MemberDecl, part: &PartDecl, position: u32, target: f32) -> Shape<Id> {
+    Shape::new(part.shape.clone(), part.sense, member.id, Some(part.part_ref()), part.priority, position).local(member.local).min_across(target)
+}
+
+/// The member's root shape and its parts but the `over` ones, at its stack position.
 fn member_shapes(member: &MemberDecl, position: u32, target: f32) -> Vec<Shape<Id>> {
-    let local = member.local;
-    let root =
-        (!member.sense.is_empty()).then(|| Shape::new(member.rect.into(), member.sense, member.id, None, HitPriority::BODY, position).local(local));
-    let parts = member.parts.iter().map(|part| {
-        Shape::new(part.shape.clone(), part.sense, member.id, Some(part.part_ref()), part.priority, position).local(local).min_across(target)
-    });
+    let root = (!member.sense.is_empty())
+        .then(|| Shape::new(member.rect.into(), member.sense, member.id, None, HitPriority::BODY, position).local(member.local));
+    let parts = member.parts.iter().filter(|part| !part.over).map(|part| member_part_shape(member, part, position, target));
     root.into_iter().chain(parts).collect()
 }
 
-/// The shapes of last pass in resolution order: own parts, then members in show order.
+/// The member's `over` parts, at the position its body left them.
+fn member_over_shapes(member: &MemberDecl, target: f32) -> impl Iterator<Item = Shape<Id>> + '_ {
+    member.parts.iter().filter(|part| part.over).map(move |part| member_part_shape(member, part, member.over_at, target))
+}
+
+/// The shapes of last pass in resolution order: own parts, then members in show order, each member's `over` parts
+/// above the members its body showed, then the own `over` parts.
 fn candidates(state: &ArenaState, target: f32) -> Vec<Shape<Id>> {
     let root = state.root.map_or(Id::NULL, |root| root.id);
     let mut shapes = own_shapes(&state.previous_own, root, target);
     for (at, member) in state.previous.iter().enumerate() {
-        shapes.extend(member_shapes(member, 1 + at as u32, target));
+        shapes.extend(member_shapes(member, member_position(at), target));
+        shapes.extend(member_over_shapes(member, target));
     }
     shapes
+}
+
+/// Whether `widget` is the egui widget of a press-taking `over` part of a member that joined last pass: such widgets
+/// stand for the arena root, as its own do.
+fn member_over_widget(members: &[MemberDecl], widget: Id) -> bool {
+    members.iter().any(|member| over_parts(&member.parts).any(|part| over_widget(member.id, part) == widget))
 }
 
 /// Records the transformed body's egui layer.
@@ -375,7 +404,7 @@ pub(crate) fn sense_root(ui: &Ui, spec: RootSpec<'_>) -> RootResult {
     }
 }
 
-/// The `over` parts that take a press: stack position 3 (8.3), above the body's members and nested roots.
+/// The `over` parts that take a press: above the body's members and nested roots (8.3).
 fn over_parts(own: &[PartDecl]) -> impl Iterator<Item = &PartDecl> {
     own.iter().filter(|part| part.over && part.sense.takes_press())
 }
@@ -384,15 +413,33 @@ fn over_widget(root: Id, part: &PartDecl) -> Id {
     sub(root, ("over", part.key, part.index))
 }
 
-/// Registers the egui widgets of the root's `over` parts after its body ran. egui picks the later widget, so a press
-/// on such a part goes to this root and not to a root nested in the body, as the stacking order says. The ids are
-/// part of the root's widgets from step 8.
-pub(crate) fn place_over_widgets(ui: &Ui, root: Id, own: &[PartDecl]) {
+/// Registers the egui widgets of the component's `over` parts after its body ran. egui picks the later widget, so a
+/// press on such a part goes to the component's arena and not to a root nested in the body, as the stacking order
+/// says (8.3). A root's ids are part of its widgets from step 8. A member's `over` parts take their stack position
+/// here, above every member its body showed, and their widgets stand for the arena root.
+pub(crate) fn place_over_widgets(ui: &Ui, id: Id, member: Option<ArenaId>, decls: &[PartDecl]) {
     let (ctx, clip) = (ui.ctx(), ui.clip_rect());
-    for part in over_parts(own) {
-        let id = over_widget(root, part);
-        response::widget(ui, id, part.shape.bounds().intersect(clip), part.sense);
-        crate::runtime::egui::access::hide(ctx, id);
+    let widgets: Vec<Id> = over_parts(decls)
+        .map(|part| {
+            let widget = over_widget(id, part);
+            response::widget(ui, widget, part.shape.bounds().intersect(clip), part.sense);
+            crate::runtime::egui::access::hide(ctx, widget);
+            widget
+        })
+        .collect();
+    let Some(arena) = member.filter(|_| decls.iter().any(|part| part.over)) else { return };
+    let layer = ui.layer_id();
+    let read = PassRead::of(ctx);
+    let shapes = with_arena_in(ctx, read.viewport, arena, read.pass_nr, |state| {
+        let count = state.members.len();
+        let joined = state.members.iter_mut().rev().find(|joined| joined.id == id)?;
+        joined.over_at = over_position(count);
+        Some(member_over_shapes(joined, read.target()).collect::<Vec<_>>())
+    });
+    let Some(shapes) = shapes else { return };
+    pointer::record_shapes_in(ctx, read.viewport, layer, arena.0, shapes);
+    if !widgets.is_empty() {
+        pointer::record_widgets_in(ctx, read.viewport, layer, arena.0, &widgets, decls.iter().any(|part| part.sense.contains(Sense::CLICK)));
     }
 }
 
@@ -434,7 +481,9 @@ pub(crate) fn sense_member(ui: &Ui, arena: ArenaId, spec: MemberSpec<'_>) -> Mem
     let (local, shapes, outcome, known) = with_arena(ctx, arena, pass_nr, |state| {
         rotate(state, pass_nr);
         decl.local = state.layer == Some(layer);
-        let shapes = member_shapes(&decl, 1 + state.members.len() as u32, target);
+        let position = member_position(state.members.len());
+        decl.over_at = position + 1;
+        let shapes = member_shapes(&decl, position, target);
         state.union_sense |= decl.sense;
         for part in &decl.parts {
             state.union_sense |= part.sense;
@@ -513,7 +562,7 @@ fn outcome_in(ctx: &Context, read: &PassRead, arena: ArenaId, layer: Layer, enab
             // The press-target rule: egui's click target decides, its drag target only for a drag-only root; the
             // root starts a press when that target is its own or there is none.
             let mine = |id: Option<Id>| match id {
-                Some(id) => state.widgets.contains(&id),
+                Some(id) => state.widgets.contains(&id) || member_over_widget(&state.previous, id),
                 None => crate::runtime::sampler::takes_untargeted(ctx, state.root.map(|root| root.id), at),
             };
             let targets = pass_pointer.press_targets;

@@ -68,7 +68,7 @@ impl ScreenMode {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui_macros::CommandSet)]
 #[command(prefix = "screenMode", scope = "window")]
 #[non_exhaustive]
-pub enum ScreenModeCommand {
+pub enum ScreenModeCommands {
     /// Everything shows.
     #[command(label = "Standard Screen Mode", kind = "radio", group = "screen_mode")]
     Standard,
@@ -86,24 +86,24 @@ pub enum ScreenModeCommand {
     CycleBack,
 }
 
-impl ScreenModeCommand {
+impl ScreenModeCommands {
     /// The command that selects `mode`.
     pub const fn of(mode: ScreenMode) -> Self {
         match mode {
-            ScreenMode::Standard => ScreenModeCommand::Standard,
-            ScreenMode::FullScreenWithMenuBar => ScreenModeCommand::FullScreenWithMenuBar,
-            ScreenMode::FullScreen => ScreenModeCommand::FullScreen,
+            ScreenMode::Standard => ScreenModeCommands::Standard,
+            ScreenMode::FullScreenWithMenuBar => ScreenModeCommands::FullScreenWithMenuBar,
+            ScreenMode::FullScreen => ScreenModeCommands::FullScreen,
         }
     }
 
     /// The mode the command leaves a window in that is in `current`.
     pub fn apply(self, current: ScreenMode) -> ScreenMode {
         match self {
-            ScreenModeCommand::Standard => ScreenMode::Standard,
-            ScreenModeCommand::FullScreenWithMenuBar => ScreenMode::FullScreenWithMenuBar,
-            ScreenModeCommand::FullScreen => ScreenMode::FullScreen,
-            ScreenModeCommand::Cycle => current.next(),
-            ScreenModeCommand::CycleBack => current.previous(),
+            ScreenModeCommands::Standard => ScreenMode::Standard,
+            ScreenModeCommands::FullScreenWithMenuBar => ScreenMode::FullScreenWithMenuBar,
+            ScreenModeCommands::FullScreen => ScreenMode::FullScreen,
+            ScreenModeCommands::Cycle => current.next(),
+            ScreenModeCommands::CycleBack => current.previous(),
         }
     }
 }
@@ -141,7 +141,7 @@ impl ScreenModeFollow {
             _ => ScreenMode::default(),
         };
         let mut mode = before;
-        while let Some((command, _)) = cx.take_command::<ScreenModeCommand>() {
+        while let Some((command, _)) = cx.take_command::<ScreenModeCommands>() {
             mode = command.apply(mode);
         }
         if os {

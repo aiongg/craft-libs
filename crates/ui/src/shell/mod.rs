@@ -23,8 +23,7 @@ mod screen_mode;
 
 pub use app_shell::{AppShell, AppShellOutput, ShellRegion, ShellRegionOutput, WindowDialogs};
 pub use canvas_shell::{CanvasPanel, CanvasPanelOutput, slots};
-pub use reveal::{Aim, EDGE_REVEAL_STRIP, Reveal, Tracking};
-pub use screen_mode::{ScreenMode, ScreenModeCommand};
+pub use screen_mode::{ScreenMode, ScreenModeCommands};
 pub use words::ShellWords;
 
 // Start screen and app windows.
@@ -40,8 +39,8 @@ pub use viewport_window::{ViewportWindow, ViewportWindowOutput};
 mod caption_button;
 mod caption_icons;
 
-pub use caption_button::{CaptionButton, CaptionEnd, CaptionMetrics, CaptionPlan, CaptionSlot, WINDOWS_BUTTON_WIDTH};
-pub use caption_icons::{CaptionIcon, CaptionIcons, CaptionMask, IconThemeChain, RenderIconFn, ThemeFiles, base_dirs, caption_icon_theme};
+pub use caption_button::{CaptionButton, CaptionEnd, CaptionPlan, CaptionSlot};
+pub use caption_icons::{CaptionIcon, CaptionIcons, CaptionMask, RenderIconFn, ThemeFiles, base_dirs, caption_icon_theme};
 pub use craft_window::policy::{CaptionFamily, Captions, Frame, MacInset};
 
 // A document's window: a container in its own OS viewport.

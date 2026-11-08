@@ -40,14 +40,14 @@ name = "AppLayer"
 old = "craft_ui_gallery_legacy::app_layer::AppLayer"
 new = ""
 status = "removed"
-note = "Replaced by `AppLayerEditor` over a `Bind<AppSizes>`; the layer itself lives in `ThemeWorkspace::sizes`. Dropped files are not read here: the host passes a dropped file's bytes through `parse_sizes`."
+note = "Replaced by `AppLayerEditor` over a `Bind<AppSizes>`; the layer itself lives in `ThemeWorkspace::sizes()`, edited through `ThemeWorkspace::edit_sizes`. Dropped files are not read here: the host passes a dropped file's bytes through `parse_sizes`."
 
 [[type]]
 name = "AppLayerEditor"
 old = ""
 new = "craft_ui_gallery::theme::AppLayerEditor"
 status = "replaced"
-note = "A pattern over a `Bind<AppSizes>` and the `Explained` sizes: the override editor of a picked size and the sizes.json text with Load, Export and Clear; edits write to the binding. Export writes the text to the field instead of the clipboard."
+note = "A pattern over a `Bind<AppSizes>` and the `Explained` sizes: the override editor of a picked size and the sizes.json text with Load, Export and Clear; edits write to the binding, and `show` returns whether one did. Export writes the text to the field instead of the clipboard."
 
 [[type]]
 name = "Inspector"

@@ -1,13 +1,15 @@
 //! Stories of the raster display.
 
 use super::RasterDisplay;
-use crate::canvas::{Canvas, PixelRect, RasterSource};
-use crate::contract::{Show as _, ShowContainer as _};
+use super::RasterDisplayOutput;
+use crate::canvas::{PixelRect, RasterSource};
+use crate::contract::Show as _;
 use crate::primitives::{Checker, Revision};
+use crate::testing::canvas_story::on_canvas_view;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::kurbo::Point;
 use craft_behavior::{CanvasView, PixelSize};
-use egui::{Color32, ColorImage, Ui};
+use egui::{Color32, ColorImage, Rect, Ui};
 
 /// The document's size in pixels.
 const DOCUMENT: PixelSize = PixelSize::new(320, 200);
@@ -52,30 +54,32 @@ impl RasterSource for Gradient {
     }
 }
 
-/// Shows the gradient on a canvas whose view is `view` of the canvas's own rect.
-fn on_canvas(ui: &mut Ui, view: impl FnOnce(CanvasView) -> CanvasView) -> StoryOutput {
+/// The view of the canvas over `room` that `adjust` makes of the one showing the whole document.
+fn view_of(room: Rect, adjust: impl FnOnce(CanvasView) -> CanvasView) -> CanvasView {
+    adjust(CanvasView::new(room, CENTER, 1.0))
+}
+
+/// The gradient, filling the canvas.
+fn gradient(ui: &mut Ui, at: Rect, _: &CanvasView) -> RasterDisplayOutput {
     static SOURCE: Gradient = Gradient;
-    let level = view(CanvasView::new(ui.max_rect(), CENTER, 1.0));
-    let shown = Canvas::new("Document")
-        .view(level)
-        .show(ui, |ui, body| RasterDisplay::new("Picture", &SOURCE).checkerboard(Checker::new()).show_at(ui, body.rect));
-    shown.inner.map(StoryOutput::from).unwrap_or_default()
+    RasterDisplay::new("Picture", &SOURCE).checkerboard(Checker::new()).show_at(ui, at)
 }
 
 #[story(RasterDisplay<'static>, covers = [Default], drive = Drive::Never)]
 fn document(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    on_canvas(ui, |view| view)
+    on_canvas_view(ui, |room| view_of(room, |view| view), gradient)
 }
 
 #[story(RasterDisplay<'static>, covers = [Default], drive = Drive::Never)]
 fn magnified(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    on_canvas(ui, |mut view| {
+    let magnify = |mut view: CanvasView| {
         view.zoom = MAGNIFIED;
         view
-    })
+    };
+    on_canvas_view(ui, |room| view_of(room, magnify), gradient)
 }
 
 #[story(RasterDisplay<'static>, covers = [Default], drive = Drive::Never)]
 fn turned(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    on_canvas(ui, |view| view.rotation(TURN))
+    on_canvas_view(ui, |room| view_of(room, |view| view.rotation(TURN)), gradient)
 }

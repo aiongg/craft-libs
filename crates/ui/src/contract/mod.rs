@@ -56,7 +56,7 @@ pub(crate) use items::lead_position;
 pub use items::{ColumnCommands, request_rename, section_part};
 pub use label::{CellWidth, FieldLabelRole, FieldLayout, GlyphLabel, LabelAlign, LabelKind, Scrub, SideLabel};
 pub use looks::Looks;
-pub use overlay::{Overlay, OverlayUi, Overlays, Popup, PopupHandle, Trigger};
+pub use overlay::{Overlay, OverlayUi, Overlays, Popup, PopupHandle, SizeLimits, Trigger};
 pub use paint_ui::PaintUi;
 pub(crate) use props::StopProps;
 pub use props::{Common, Props, Resolved, Tooltip, TooltipAt, TooltipSpec, TooltipWhen};
@@ -66,6 +66,7 @@ pub use registry::REGISTRATIONS;
 #[doc(hidden)]
 pub use registry::{CollectionEntry, ContainerEntry, Exemption, LeafEntry, PatternProbe, Probe, Registration, ShowEntry};
 pub use sampler::Sampler;
+pub(crate) use values::landed;
 pub use values::{Bind, BindMut, EditResponse, ItemOutput, NoValue, Outcome, Validity, ValueOf, clicked};
 
 use crate::runtime::memory::sub;
@@ -375,7 +376,8 @@ pub trait Container: Component + HasProps + Meta<Shape = shape::Body> {
 
     /// The user moved or resized the container's layer: by the move band, a grip or the keyboard Move and Size
     /// modes. Called for each step of the gesture, so a container whose layer the caller places (`Overlay::placed`)
-    /// can take the rect it reports.
+    /// can take the rect it reports. A viewport mount in an OS window is called once per change of the window's outer
+    /// rect, with `Commit`.
     fn placement_changed(&mut self, _change: &overlay::PlacementChange) {}
 }
 

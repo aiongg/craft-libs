@@ -144,8 +144,10 @@ impl Host for PaneHost {
         let grip = MemoryStage::peek::<PaneGrip>(&ctx, pane_grip_id(id)).extent;
         let last = grip.or(self.0.extent).or_else(|| layout_memory::read(&ctx, extent).map(|size| if along_x { size.x } else { size.y }));
         let outer = panels::show_pane(parent, edge, sub(id, ("pane", self.0.name)), last, |ui| {
-            let installed = Env::install_for(ui, env.clone());
-            pass(ui, None, None);
+            // The pane is a layout room of its own: the grid or content column its parent body flows in ends here.
+            let room = env.new_room();
+            let installed = Env::install_for(ui, room.clone());
+            pass(ui, None, Some(&room));
             Env::restore(&ui.ctx().clone(), installed);
         });
         if last.is_none() && edge != Edge::Center && outer.is_positive() {
@@ -184,11 +186,11 @@ impl Host for LayerHost {
         let mut overlay = self.overlay.clone();
         // An anchored resizable layer has no position to seed: its default size is held as its minimum until the
         // user resizes it.
-        if overlay.fit == overlay::OverlayFit::Resizable && placement.size.is_none() {
-            overlay.min_size = match (overlay.size, overlay.min_size) {
-                (Some(size), Some(min)) => Some(size.max(min)),
-                (size, min) => size.or(min),
-            };
+        if overlay.fit == overlay::OverlayFit::Resizable
+            && placement.size.is_none()
+            && let Some(size) = overlay.size
+        {
+            overlay.size_limits.min = overlay.size_limits.min.max(size);
         }
         if let Some(pos) = placement.pos {
             overlay.place = Place::Float(FloatPlace::at(Pos2::from(pos)));
@@ -287,7 +289,7 @@ impl Host for ViewportHost {
             size: layout_memory::read(&ctx, id).or(placed.map(|rect| rect.size())),
             save: self.save.as_deref(),
             spec: &spec,
-            limits: (self.overlay.min_size, self.overlay.max_size),
+            limits: (Some(self.overlay.size_limits.min), self.overlay.size_limits.max),
             position: placed.map(|rect| rect.min),
             resizable: self.overlay.resize.grips,
         };

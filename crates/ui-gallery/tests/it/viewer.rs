@@ -1,10 +1,42 @@
 //! The viewer's own logic: what it saves and restores, and how the filter narrows the component tree.
 
 use craft_behavior::Selection;
+use craft_settings::{Location, OpenOptions, SettingsFiles, SettingsStore};
 use craft_theme::Mode;
 use craft_ui::list::OpenSet;
 use craft_ui::testing::trial;
 use craft_ui_gallery::viewer::{Catalog, ComponentInfo, GallerySettings, PanelShares, TreeKey, Viewer, rows};
+use std::collections::BTreeMap;
+use std::io;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, PoisonError};
+
+/// Settings files held in memory: the format the app writes, without a disk.
+#[derive(Default)]
+struct MemoryFiles(Mutex<BTreeMap<PathBuf, String>>);
+
+impl SettingsFiles for MemoryFiles {
+    fn read(&self, path: &Path) -> io::Result<Option<String>> {
+        Ok(self.0.lock().unwrap_or_else(PoisonError::into_inner).get(path).cloned())
+    }
+
+    fn write(&self, path: &Path, text: &str) -> io::Result<()> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner).insert(path.to_path_buf(), text.to_owned());
+        Ok(())
+    }
+
+    fn move_aside(&self, path: &Path) -> io::Result<PathBuf> {
+        Ok(path.to_path_buf())
+    }
+
+    fn write_backup(&self, _: &Path, _: &str) -> io::Result<()> {
+        Ok(())
+    }
+
+    fn check_writable(&self, _: &Path) -> io::Result<()> {
+        Ok(())
+    }
+}
 
 fn components() -> Vec<ComponentInfo> {
     vec![
@@ -50,9 +82,13 @@ fn settings_restore_the_state_they_were_saved_from() {
     before.browser.selection = Selection::single(TreeKey::Component("craft_ui::buttons::link::Link"));
     before.browser.open.set(&TreeKey::Module("craft_ui::buttons::link"), true);
     let saved = GallerySettings::of(&before);
-    let text = serde_json::to_string(&saved).unwrap_or_default();
-    let read: GallerySettings = serde_json::from_str(&text).unwrap_or_default();
-    let after = viewer(&read);
+    let files = Arc::new(MemoryFiles::default());
+    let options = || OpenOptions::new(Location::Dir(PathBuf::from("settings"))).files(files.clone());
+    let (mut store, _) = SettingsStore::<GallerySettings>::open_with(options());
+    assert!(store.set(saved.clone()));
+    store.flush().expect("the store writes its file");
+    let (reopened, _) = SettingsStore::<GallerySettings>::open_with(options());
+    let after = viewer(reopened.get());
     assert_eq!(GallerySettings::of(&after), saved);
     assert_eq!(after.selected_type(), Some("craft_ui::buttons::link::Link"));
     assert_eq!(after.open_modules(), vec!["craft_ui::buttons::link".to_owned()]);

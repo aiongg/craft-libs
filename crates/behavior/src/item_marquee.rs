@@ -1,9 +1,11 @@
-//! `MarqueeSelect`: the rectangle a drag on empty space sweeps and the selection it makes (8.7).
+//! `MarqueeSelect`: the rectangle a drag over list items sweeps and the selection it makes (8.7).
 
 use craft_keymap::Mods;
 use emath::{Pos2, Rect};
 
-/// How the swept items combine with the selection the drag started from.
+/// How the swept items combine with the selection the drag started from. Items follow the list rule (Cmd or Ctrl
+/// toggles); pixels follow [`SelectionOperation`](crate::geometry::SelectionOperation) (Shift adds, Alt
+/// subtracts, both intersect).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum MarqueeMode {

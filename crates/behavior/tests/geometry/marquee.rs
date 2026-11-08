@@ -57,3 +57,11 @@ fn constraint_loads_the_legacy_settings_json() {
     assert_eq!(loaded, [Constraint::Free, Constraint::Ratio(1.0, 1.0), Constraint::Size(64.0, 48.0)]);
     assert_eq!(serde_json::to_string(&loaded).unwrap(), r#"["free",{"ratio":[1.0,1.0]},{"size":[64.0,48.0]}]"#);
 }
+
+#[test]
+fn every_marquee_style_survives_a_save_and_load() {
+    for style in [Constraint::Free, Constraint::Ratio(3.0, 2.0), Constraint::Size(64.0, 48.0)] {
+        let saved = serde_json::to_string(&style).unwrap();
+        assert_eq!(serde_json::from_str::<Constraint>(&saved).unwrap(), style, "{saved}");
+    }
+}

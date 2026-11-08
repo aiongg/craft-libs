@@ -8,7 +8,7 @@ use super::{Common, Component, Cx, IdSource, Pointer as _, Resolved, Styled as _
 use crate::primitives::sensing::PartDecl;
 use crate::primitives::{FaceRecord, FocusKind, FocusRing, PaintShape, StateLayer, StateLayerKind, Surface};
 use crate::runtime::access::{self, Access, FaceFacts, Own, Politeness, Role, SetPosition, SubDecl, SubNode, scope};
-use crate::runtime::commands::{self, CommandKind, ResolvedCommand};
+use crate::runtime::commands::{self, CommandKind, FireSource, ResolvedCommand};
 use crate::runtime::egui::{memory as store, pass, repaint, response};
 use crate::runtime::env::{Env, Label, Message};
 use crate::runtime::focus::{self, Group, Stop};
@@ -1370,8 +1370,9 @@ pub(crate) fn report_inert<C: Component>(cx: &Cx<'_, C>) {
 }
 
 /// Step 17, finish, before `C::finish`: the click flags of the response are rewritten, so every output built from it
-/// carries them.
-pub(crate) fn before_finish<C: Component>(cx: &mut Cx<'_, C>, activated: bool) {
+/// carries them, and the bound command of an activation fires, once: with the source `Cx::activate` injected, else
+/// as a component activation.
+pub(crate) fn before_finish<C: Component>(cx: &mut Cx<'_, C>, activated: bool, injected: Option<FireSource>) {
     let by_key = activated && cx.core.activation.is_some_and(|activation| activation.by_key);
     response::rewrite_clicks(&mut cx.core.response, by_key || cx.core.part_clicked, cx.core.command.is_some());
     // The response reports a change for a `Set` or a `Commit` that moved the value: the pass's last event decides, because
@@ -1384,7 +1385,12 @@ pub(crate) fn before_finish<C: Component>(cx: &mut Cx<'_, C>, activated: bool) {
         response::mark_changed(&mut cx.core.response);
     }
     if activated && let Some(command) = &cx.core.command {
-        commands::fire_bound(&cx.core.ctx, command);
+        match injected {
+            Some(source) => {
+                commands::fire_resolved(&cx.core.ctx, command, source);
+            }
+            None => commands::fire_bound(&cx.core.ctx, command),
+        }
     }
 }
 

@@ -25,7 +25,7 @@
 //!
 //! Space and the momentary Hand: while a gesture runs the host withholds Space from the shortcuts for the tool, so a
 //! Space pressed mid-drag never starts a momentary Hand; the tool reads it with [`ToolContext::held`]. Away from a
-//! gesture, Space is the [`MomentaryCommand`](super::MomentaryCommand) Hand, routed to the canvas like the view
+//! gesture, Space is the [`MomentaryCommands`](super::MomentaryCommands) Hand, routed to the canvas like the view
 //! commands. [`ToolHost::momentary`] takes the app's [`Momentary`] set and `run` feeds it the commands fired for the
 //! canvas, so the app plumbs nothing: while a momentary key is held the host runs the set's Hand or Zoom tool in
 //! place of the selected tool, and a gesture keeps the tool it began with. An app that switches tools itself from
@@ -41,9 +41,9 @@
 //! # }
 //! ```
 
-use super::momentary::{Momentary, MomentaryCommand};
+use super::momentary::{Momentary, MomentaryCommands};
 use super::readout::paint_readout;
-use super::tool::{CanvasTool, ToolAccess, ToolAction, ToolContext, ToolKey, ToolPointer, ToolRequests};
+use super::tool::{CanvasTool, March, ToolAccess, ToolAction, ToolContext, ToolKey, ToolPointer, ToolRequests};
 use super::tools::HandTool;
 use super::zoom_motion::{self, Steer};
 use super::{CanvasOutput, CanvasSpace, Snap};
@@ -227,7 +227,7 @@ impl<'m> ToolHost<'m> {
 
     /// Runs the momentary tools of `momentary` in place of the selected tool while their keys are held (Space: Hand;
     /// with Cmd or Alt: Zoom). A gesture keeps the tool it began with, and a flick released with the momentary Hand
-    /// keeps gliding after the key comes up. `run` feeds the set the [`MomentaryCommand`](super::MomentaryCommand)s fired
+    /// keeps gliding after the key comes up. `run` feeds the set the [`MomentaryCommands`](super::MomentaryCommands)s fired
     /// for the canvas (the canvas, or the instance of the `canvasView` scope around it, such as a full-window
     /// dialog); the app passes the set and nothing else. Without a set, `run` still takes and drops those commands.
     #[must_use]
@@ -256,7 +256,7 @@ impl<'m> ToolHost<'m> {
         let rect = canvas.response.rect;
         let input = pointer::frame(&ctx);
         let mut glide = None;
-        let fired = std::iter::from_fn(|| commands::take_around::<MomentaryCommand>(&ctx, canvas.response.id, env.view().command_chain()));
+        let fired = std::iter::from_fn(|| commands::take_around::<MomentaryCommands>(&ctx, canvas.response.id, env.view().command_chain()));
         let tool: &mut dyn CanvasTool = match momentary {
             Some(momentary) => {
                 for (command, event) in fired {
@@ -463,7 +463,8 @@ fn paint_tool(ui: &Ui, env: &Env, tool: &dyn CanvasTool, cx: ToolContext<'_>) {
         env.key,
         env.line_ratio,
     );
-    tool.paint(&draw, &cx.painter(&content).styled(style));
+    let march = March { policy: env.motion, dash: env.tokens.stroke.dash };
+    tool.paint(&draw, &cx.painter(&content, march).styled(style));
 }
 
 /// The hover sample of the pass: the pointer's latest position with the pen's reading.

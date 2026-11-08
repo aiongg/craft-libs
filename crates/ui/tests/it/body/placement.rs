@@ -7,6 +7,7 @@ use crate::contract::kit::{PlainStyle, Probe, Seen};
 use crate::windows_kit::Windows;
 use craft_behavior::GesturePhase;
 use craft_host::target::WindowChrome;
+use craft_ui::contract::SizeLimits;
 use craft_ui::contract::overlay::{PlacementChange, PlacementKind};
 use craft_ui::contract::{
     BodyCx, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, Mount, Overlay, Props as _, Role, Show as _,
@@ -163,7 +164,7 @@ fn a_placed_layer_reports_its_move_and_keeps_no_placement_of_its_own() {
 #[trial]
 fn a_move_stops_at_the_bounds_and_a_size_drag_at_the_size_limits() {
     let (caller, mut frames) = (Caller::new(), Frames::new());
-    let overlay = Overlay::floating().movable(true).resizable(true).bounds(BOUNDS).size_limits(LEAST, MOST);
+    let overlay = Overlay::floating().movable(true).resizable(true).bounds(BOUNDS).size_limits(SizeLimits::new(LEAST, MOST));
     let mut show = caller.show(&overlay);
     frames.idle(4, &mut show);
     pointer::drag(&mut frames, header_of(START), Vec2::new(FAR, 0.0), &mut show);

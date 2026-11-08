@@ -12,7 +12,7 @@ use super::{DockEvent, DragUnit, FloatSpace};
 use crate::runtime::commands::CommandState;
 use craft_behavior::DockSide;
 use craft_behavior::dock::{
-    Action, Arrangement, DockEdge, DockError, DocumentWindows, Layout, Node, PanelPlace, Permissions, Placement, Target, Workspace, WorkspaceSet,
+    Action, Arrangement, DockEdge, DockError, DockPlacement, DocumentWindows, Layout, Node, PanelPlace, Permissions, Target, Workspace, WorkspaceSet,
     arrange_rects, node_at,
 };
 use craft_behavior::placement::cascade_rects;
@@ -214,9 +214,9 @@ pub fn move_actions<P: Clone + Eq + Hash>(scene: &DockScene<'_, P>, unit: &DragU
     let moved = moving_panels(layout, unit);
     let one = |action: Action<P>| Ok(vec![action]);
     match to {
-        DockTo::Tabs { anchor, before } => one(beside(unit, anchor, Placement::tab(before))),
+        DockTo::Tabs { anchor, before } => one(beside(unit, anchor, DockPlacement::tab(before))),
         DockTo::Beside { anchor, side } => {
-            let placement = Placement::for_zone(layout, &anchor, side)?;
+            let placement = DockPlacement::for_zone(layout, &anchor, side)?;
             one(beside(unit, anchor, placement))
         }
         DockTo::Edge(side) => {
@@ -226,11 +226,11 @@ pub fn move_actions<P: Clone + Eq + Hash>(scene: &DockScene<'_, P>, unit: &DragU
             let protected = |p: &P| scene.policy(p).is_protected();
             let skip = |p: &P| moved.contains(p);
             let anchor = layout.edge_anchor(layout.edge_narrows(side, &protected), &protected, &skip).ok_or(DockError::MissingTarget)?;
-            one(beside(unit, anchor, Placement::Edge(side)))
+            one(beside(unit, anchor, DockPlacement::Edge(side)))
         }
         DockTo::Dock(edge) => match last_column(layout, edge) {
             Some(column) => match column.into_iter().find(|p| !moved.contains(p)) {
-                Some(anchor) => one(beside(unit, anchor, Placement::column(true))),
+                Some(anchor) => one(beside(unit, anchor, DockPlacement::column(true))),
                 // What moves already is that dock's last column.
                 None => Ok(Vec::new()),
             },
@@ -249,7 +249,7 @@ pub fn move_actions<P: Clone + Eq + Hash>(scene: &DockScene<'_, P>, unit: &DragU
             let docked = free().find(|p| matches!(layout.place(p), Some(PanelPlace::Dock { .. })));
             let framed = || free().find(|p| matches!(layout.place(p), Some(PanelPlace::Node(_))));
             let anchor = docked.or_else(framed).cloned().ok_or(DockError::MissingTarget)?;
-            one(beside(unit, anchor, Placement::tab(None)))
+            one(beside(unit, anchor, DockPlacement::tab(None)))
         }
     }
 }

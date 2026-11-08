@@ -26,7 +26,7 @@ name = "ToggleColumn"
 old = "craft_ui::list::toggle::ToggleColumn"
 new = ""
 status = "replaced"
-note = "The column is the collection's (`ColumnSpec::new(key, header, width).kind(ColumnKind::Toggle(ToggleColumn::sweepable()))`, `craft_ui::contract::ToggleColumn`), which flips cells and sweeps; the source reports each cell with `ItemSource::toggled`. A row draws its cell with `ListRow::toggle(ToggleCell::eye(column, on, name))`, `ToggleCell::lock`, `ToggleCell::check` or `ToggleCell::new(column, ToggleFace::Icons { on, off }, state, name)`. The sweep, its edit gesture and `CollectionEvent::Toggle(EditEvent<ToggleEdit>)` replace `RowEvent::Toggle`."
+note = "The column is the collection's (`ColumnSpec::new(key, header, width).kind(ColumnKind::Toggle(ToggleColumn::sweepable()))`, `craft_ui::contract::ToggleColumn`), which flips cells and sweeps; the source reports each cell with `ItemSource::toggled`. A row draws its cell with `ListRow::toggle(ToggleCell::eye(column, on))`, `ToggleCell::lock`, `ToggleCell::check` or `ToggleCell::new(column, ToggleFace::Icons { on, off }, state, name)`. The sweep, its edit gesture and `CollectionEvent::Toggle(EditEvent<ToggleEdit>)` replace `RowEvent::Toggle`."
 
 [[type]]
 name = "ToggleEdit"
@@ -336,7 +336,7 @@ new = "removed: the item step owns the rename lifecycle"
 [[setter]]
 type = "ToggleColumn"
 old = "eye(name, on), lock(name, on)"
-new = "ToggleCell::eye(column, on, name), ToggleCell::lock(column, on, name)"
+new = "ToggleCell::eye(column, on), ToggleCell::lock(column, on)"
 
 [[setter]]
 type = "ToggleColumn"

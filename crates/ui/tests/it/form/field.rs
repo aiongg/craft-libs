@@ -5,6 +5,7 @@ use craft_ui::contract::{Bind, Props as _, Role, Show as _, ShowContainer as _, 
 use craft_ui::display::Text;
 use craft_ui::form::{Field, Help};
 use craft_ui::runtime::env::Message;
+use craft_ui::testing::access::focused_key;
 use craft_ui::testing::{Fixture, trial};
 use craft_ui::text::NumberField;
 use std::cell::Cell;
@@ -103,4 +104,21 @@ fn a_warning_reads_in_the_warn_tone_and_a_refusal_in_the_error_tone() {
     let (warn, bad) = (tone_ink(Tone::Warn), tone_ink(Tone::Bad));
     assert!(inks(&warned).contains(&warn) && !inks(&warned).contains(&bad), "a warning is not painted as an error");
     assert!(inks(&refused).contains(&bad) && !inks(&refused).contains(&warn), "a refusal is painted as an error");
+}
+
+/// A click on a field's label moves focus to its control, as on any form label.
+#[trial]
+fn a_click_on_the_label_focuses_the_control() {
+    let mut fixture = Fixture::new(|ui| {
+        Field::new("Spacing").show(ui, |ui, _| {
+            NumberField::new("Spacing", Bind::given(Some(8.0))).show(ui);
+        });
+    });
+    fixture.settle();
+    let control = fixture.by_label("Spacing").expect("the field's control");
+    let label = fixture.by_role(Role::LABEL).into_iter().next().expect("the field's label");
+    assert!(!label.rect.intersects(control.rect), "the label sits beside the control");
+    assert_ne!(focused_key(fixture.tree()), control.node, "the control starts unfocused");
+    fixture.click(&label);
+    assert_eq!(focused_key(fixture.tree()), control.node, "the label's click focused the control");
 }

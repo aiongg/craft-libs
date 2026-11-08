@@ -164,16 +164,20 @@ fn a_flagged_action_under_a_disabled_parent_takes_no_drop() {
     assert!(first.is_none() && seen.borrow().dropped_on.is_none(), "the flagged action takes no drop under a disabled parent");
 }
 
-/// A lettered `Word` button shows its translated label with the letter on Windows and Linux, and none on macOS.
+/// A lettered button is named by its plain label and reports its letter as the access key; off macOS its face
+/// shows the letter marked.
 #[trial]
-fn a_lettered_word_button_shows_its_translated_label_with_the_letter_off_macos() {
+fn a_lettered_button_is_named_plainly_and_shows_its_letter_off_macos() {
     for (os, decorated) in [(Os::Windows, true), (Os::Linux, true), (Os::Mac, false)] {
         let mut fixture = Fixture::new(|ui| {
-            FooterBar::buttons([FooterButton::new(craft_ui::runtime::env::Label::Static("Save"), DialogRole::Accept).letter('s')]).show_footer(ui);
+            FooterBar::buttons([FooterButton::new(craft_ui::runtime::env::Label::Static("Delete"), DialogRole::Destructive).letter('d')])
+                .show_footer(ui);
         });
         fixture.os(os).settle();
-        assert_eq!(fixture.by_label("(S)ave").is_some(), decorated, "{os:?}: the letter shows in the label only off macOS");
-        assert_eq!(fixture.by_label("Save").is_some(), !decorated, "{os:?}: macOS keeps the plain label");
+        let button = fixture.by_label("Delete").unwrap_or_else(|| panic!("{os:?}: the button is named by its plain label"));
+        assert_eq!(fixture.tree().access_key_of(button.node), Some('D'), "{os:?}: the letter is the access key");
+        let marked = fixture.texts().iter().any(|run| button.rect.contains_rect(run.rect) && run.text != "Delete");
+        assert_eq!(marked, decorated, "{os:?}: the face marks the letter only off macOS");
     }
 }
 

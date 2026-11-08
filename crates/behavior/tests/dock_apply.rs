@@ -1,9 +1,9 @@
 //! Dock transactions, workspaces, arrangements, document windows and native placement.
 
 use craft_behavior::dock::{
-    Action, Arrangement, Column, DockEdge, DockError, DockSide, DocumentGroup, DocumentWindows, Floating, Group, Layout, NamedWorkspace, NativeSpace,
-    Node, PanelPlace, PanelState, Permissions, Placement, SplitSize, Target, Workspace, WorkspaceChrome, WorkspaceError, WorkspaceSet, arrange_rects,
-    kept_reachable, node_at, restore_rect,
+    Action, Arrangement, Column, DockEdge, DockError, DockPlacement, DockSide, DocumentGroup, DocumentWindows, Floating, Group, Layout,
+    NamedWorkspace, NativeSpace, Node, PanelPlace, PanelState, Permissions, SplitSize, Target, Workspace, WorkspaceChrome, WorkspaceError,
+    WorkspaceSet, arrange_rects, kept_reachable, node_at, restore_rect,
 };
 use craft_behavior::placement::{cascade, cascade_rects, monitor_of};
 use craft_behavior::{Axis, Monitor};
@@ -75,8 +75,8 @@ fn a_floating_destination_takes_only_floatable_panels_and_a_group_there_needs_sp
         6 => Permissions::ALL.accepts_splits(false),
         _ => Permissions::ALL,
     };
-    let tab = Placement::tab(None);
-    let group = Placement::group(true, None);
+    let tab = DockPlacement::tab(None);
+    let group = DockPlacement::group(true, None);
     for action in [
         Action::move_beside(4, 8, tab.clone()),
         Action::move_panel(4, Target::at(8, tab.clone())),
@@ -150,10 +150,10 @@ fn a_locked_set_rejects_structure_but_allows_activate_open_minimize_resize_and_n
     let before = workspace.clone();
     let spot = rect(0.0, 0.0, 100.0, 100.0);
     let refused = [
-        Action::move_beside(2, 5, Placement::tab(None)),
+        Action::move_beside(2, 5, DockPlacement::tab(None)),
         Action::move_group(2, Target::float(spot)),
         Action::move_column(5, Target::new_dock(DockEdge::Start)),
-        Action::move_window(6, Target::at(4, Placement::group(true, None))),
+        Action::move_window(6, Target::at(4, DockPlacement::group(true, None))),
         Action::float(4, spot),
         Action::move_floating(6, spot),
         Action::close(4),
@@ -181,9 +181,9 @@ fn a_locked_set_rejects_structure_but_allows_activate_open_minimize_resize_and_n
     assert_eq!(workspace.layout.panel_state(&4), PanelState::Open);
     assert_eq!(workspace.layout.panel_state(&2), PanelState::Front);
     // Opening at a chosen place works too; moving a shown panel there does not.
-    workspace.apply(Action::open_at(13, 11, Placement::Split(DockSide::Bottom)), locked, allow).unwrap();
+    workspace.apply(Action::open_at(13, 11, DockPlacement::Split(DockSide::Bottom)), locked, allow).unwrap();
     assert!(workspace.layout.contains(&13));
-    assert_eq!(workspace.apply(Action::open_at(2, 11, Placement::Split(DockSide::Bottom)), locked, allow), Err(DockError::NotAllowed));
+    assert_eq!(workspace.apply(Action::open_at(2, 11, DockPlacement::Split(DockSide::Bottom)), locked, allow), Err(DockError::NotAllowed));
 
     for native in [rect(0.0, 0.0, 300.0, 400.0), rect(40.0, 30.0, 300.0, 400.0)] {
         workspace.apply(Action::set_native(6, Some(native)), locked, allow).unwrap();
@@ -207,7 +207,7 @@ fn reconcile_drops_unknown_panels_and_places_missing_registered_ones() {
     let mut workspace = default.clone();
     workspace.layout.apply(Action::close(5)).unwrap();
     workspace.layout.apply(Action::close(12)).unwrap();
-    workspace.layout.apply(Action::open_at(99, 2, Placement::tab(None))).unwrap();
+    workspace.layout.apply(Action::open_at(99, 2, DockPlacement::tab(None))).unwrap();
     let stray = workspace.layout.location(&99).unwrap();
     workspace.hidden.push((98, stray));
     let registered = |p: &u32| *p < 90;

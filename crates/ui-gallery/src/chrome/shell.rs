@@ -6,9 +6,10 @@ use crate::theme::{ThemeSubject, parse_sizes};
 use crate::viewer::{Browser, Catalog, GalleryCommands, GalleryPanel, GallerySettings, Viewer, Workspace, theme_of};
 use craft_settings::{LoadReport, Location, SaveStatus, SettingsStore, Source};
 use craft_theme::AppSizes;
+use craft_ui::contract::SizeLimits;
 use craft_ui::contract::{Bind, CommandSet as _, ShowContainer as _};
+use craft_ui::docking::SplitArea;
 use craft_ui::docking::tree::FrameRules;
-use craft_ui::docking::{PanelLimits, SplitArea};
 use craft_ui::layout_components::Stack;
 use craft_ui::popover::DropVeil;
 use craft_ui::runtime::drag::OsFile;
@@ -27,6 +28,8 @@ pub struct Gallery {
     save_error: Option<String>,
     /// What came of the files last dropped on the theme workspace.
     drop_note: Option<String>,
+    /// A command changed the viewer since the settings were last compared.
+    command_ran: bool,
 }
 
 impl Gallery {
@@ -39,7 +42,7 @@ impl Gallery {
     /// The viewer of `catalog` over `store`, which `report` describes.
     pub fn new(catalog: Catalog, store: SettingsStore<GallerySettings>, report: &LoadReport) -> Self {
         let viewer = Viewer::new(catalog, store.get());
-        Gallery { viewer, store, notes: load_notes(report), save_error: None, drop_note: None }
+        Gallery { viewer, store, notes: load_notes(report), save_error: None, drop_note: None, command_ran: false }
     }
 
     /// Writes the settings now.
@@ -78,6 +81,12 @@ fn load_notes(report: &LoadReport) -> Vec<String> {
     notes
 }
 
+/// Whether an input event can have changed what a control edits: hover, focus and pointer motion alone cannot, the
+/// release or key that ends an edit can.
+fn is_edit(event: &egui::Event) -> bool {
+    !matches!(event, egui::Event::PointerMoved(_) | egui::Event::MouseMoved(_) | egui::Event::PointerGone | egui::Event::WindowFocused(_))
+}
+
 /// The app layer a dropped `sizes.json` holds.
 fn read_dropped(file: &OsFile) -> Result<AppSizes, String> {
     let bytes = match (&file.bytes, &file.path) {
@@ -96,6 +105,7 @@ impl ShellApp for Gallery {
     fn output(&mut self, output: FrameOutput) {
         for fired in output.fired {
             if let Some(command) = GalleryCommands::from_ref(&fired.command) {
+                self.command_ran = true;
                 self.viewer.run(command);
             }
         }
@@ -124,7 +134,7 @@ impl ShellApp for Gallery {
 
     fn ui(&mut self, ui: &mut Ui) {
         let status = self.status();
-        let Viewer { env, cell_filter, workspace, more_open, browser, themes, theme_dock } = &mut self.viewer;
+        let Viewer { env, cell_filter, workspace, more_open, browser, themes, theme_dock, .. } = &mut self.viewer;
         let in_theme = *workspace == Workspace::Theme;
         let subject = ThemeSubject::new(theme_of(&env.theme), env.appearance());
         if in_theme {
@@ -133,7 +143,7 @@ impl ShellApp for Gallery {
         let shown_filter = *cell_filter;
         let Browser { catalog, filter, selection, open, dock, generation, cells } = browser;
         let dock = if in_theme { theme_dock } else { dock };
-        let limits = |_: &GalleryPanel| PanelLimits::at_least(Vec2::ZERO);
+        let limits = |_: &GalleryPanel| SizeLimits::at_least(Vec2::ZERO);
         let rules = FrameRules::new(&limits);
         let mut panels = Panels {
             catalog,
@@ -168,14 +178,20 @@ impl ShellApp for Gallery {
         if let Some(file) = dropped.as_ref().and_then(|dropped| dropped.files.first()) {
             self.drop_note = Some(match read_dropped(file) {
                 Ok(sizes) => {
-                    themes.sizes = sizes;
+                    themes.edit_sizes(|layer| {
+                        *layer = sizes;
+                        true
+                    });
                     format!("Loaded {}", file.name)
                 }
                 Err(message) => message,
             });
         }
         self.viewer.sync_sizes();
-        if self.store.set(GallerySettings::of(&self.viewer)) {
+        // The controls change the viewer only on input, and a command only in `output`: a pass with neither has
+        // nothing new to save.
+        let edited = std::mem::take(&mut self.command_ran) || ui.ctx().input(|input| input.events.iter().any(is_edit));
+        if edited && self.store.set(GallerySettings::of(&self.viewer)) {
             // The pass after a change ticks the store, which names when the save is due.
             ui.ctx().request_repaint();
         }

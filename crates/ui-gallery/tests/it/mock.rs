@@ -2,12 +2,13 @@
 
 use craft_ui::runtime::access::Role;
 use craft_ui::runtime::env::RootEnv;
+use craft_ui::runtime::env::UnitKind;
 use craft_ui::shell::ScreenMode;
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::{Fixture, Frames, Target, pointer, trial};
 use craft_ui_gallery::mock::{Document, EditorMock, MockState, Tool};
-use egui::{Event, Key, Modifiers, Rect, Vec2, vec2};
+use egui::{Event, Key, Modifiers, Pos2, Rect, Vec2, vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -190,7 +191,9 @@ fn the_delete_layer_row_asks_nothing_with_one_layer_left() {
     let (mut fixture, state) = window(only);
     choose_delete_layer(&mut fixture);
     fixture.idle(DIALOG_OPEN);
-    assert!(fixture.by_label("(D)elete").is_none(), "no question was asked");
+    let tree = fixture.tree();
+    let asked = fixture.by_role(Role::BUTTON).into_iter().any(|target| tree.name_of(target.node).is_some_and(|name| name == "Delete"));
+    assert!(!asked, "no question was asked: the prompt's Delete button is absent (the Layer menu's Delete row may stay open)");
     assert_eq!(state.borrow().document.layers.len(), 1);
 }
 
@@ -291,4 +294,78 @@ fn hiding_the_rulers_gives_the_canvas_their_room() {
     fixture.settle();
     let without = state.borrow().document.view.rect;
     assert!(without.min.x < with.min.x && without.min.y < with.min.y, "the view reaches the canvas edge without the rulers");
+}
+
+/// A point on the middle of the top ruler of the window's canvas.
+fn top_ruler(fixture: &Fixture, state: &Rc<RefCell<MockState>>) -> Pos2 {
+    let view = state.borrow().document.view.rect;
+    Pos2::new(view.center().x, (canvas(fixture).rect.min.y + view.min.y) / 2.0)
+}
+
+#[trial]
+fn a_guide_dragged_from_the_ruler_lands_in_the_document() {
+    let (mut fixture, state) = window(MockState::default());
+    assert!(state.borrow().document.guides.is_empty());
+    let from = top_ruler(&fixture, &state);
+    let to = from + vec2(0.0, 120.0);
+    fixture.frame(vec![pointer::moved(from)]);
+    fixture.frame(vec![pointer::press(from)]);
+    for step in 1..=4 {
+        fixture.frame(vec![pointer::moved(from + (to - from) * (step as f32 / 4.0))]);
+    }
+    fixture.frame(vec![pointer::release(to)]).settle();
+    assert_eq!(state.borrow().document.guides.len(), 1, "the drag out of the ruler placed a guide");
+}
+
+#[trial]
+fn picking_a_unit_in_the_ruler_menu_changes_the_rulers_unit() {
+    let (mut fixture, state) = window(MockState::default());
+    assert_eq!(state.borrow().document.units, UnitKind::Pixels);
+    let at = top_ruler(&fixture, &state);
+    fixture.frame(vec![pointer::moved(at)]);
+    fixture.frame(vec![pointer::secondary(at, true)]);
+    fixture.frame(vec![pointer::secondary(at, false)]).settle();
+    let tree = fixture.tree();
+    let inches = [Role::MENU_ITEM, Role::MENU_ITEM_CHECK_BOX, Role::MENU_ITEM_RADIO]
+        .into_iter()
+        .flat_map(|role| fixture.by_role(role))
+        .find(|row| tree.name_of(row.node) == Some("in"))
+        .expect("the ruler menu lists inches");
+    fixture.click(&inches).settle();
+    assert_eq!(state.borrow().document.units, UnitKind::Inches);
+}
+
+#[trial]
+fn closing_the_document_tab_closes_the_document_and_opens_it_again_as_it_was() {
+    let (mut fixture, state) = window(MockState::default());
+    let top = state.borrow().document.layers[0].id;
+    state.borrow_mut().document.set_visible(top, false);
+    fixture.settle();
+    assert!(state.borrow().document.dirty);
+    let tree = fixture.tree();
+    let close = fixture
+        .by_role(Role::BUTTON)
+        .into_iter()
+        .find(|target| tree.name_of(target.node).is_some_and(|name| name.starts_with("Close")))
+        .expect("the tab's close button");
+    fixture.click(&close).settle();
+    let document = &state.borrow().document;
+    assert!(!document.dirty && document.layers.iter().all(|layer| layer.visible), "the document reopened as it was");
+}
+
+#[trial]
+fn a_marquee_drag_shows_its_width_and_height_beside_the_pointer() {
+    let (mut fixture, _) = window(MockState::default());
+    fixture.key(Key::M, Modifiers::NONE).settle();
+    let from = canvas(&fixture).center();
+    let shows = |fixture: &Fixture, label: &str| fixture.texts().iter().any(|painted| painted.text == label);
+    assert!(!shows(&fixture, "W"), "no readout before the drag");
+    fixture.frame(vec![pointer::moved(from)]);
+    fixture.frame(vec![pointer::press(from)]);
+    for step in 1..=3 {
+        fixture.frame(vec![pointer::moved(from + vec2(20.0, 14.0) * step as f32)]);
+    }
+    assert!(shows(&fixture, "W") && shows(&fixture, "H"), "the readout shows the marquee's width and height while it drags");
+    fixture.frame(vec![pointer::release(from + vec2(60.0, 42.0))]).settle();
+    assert!(!shows(&fixture, "W"), "the readout ends with the drag");
 }

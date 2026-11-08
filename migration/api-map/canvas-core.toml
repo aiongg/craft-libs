@@ -40,7 +40,7 @@ name = "ToolContext"
 old = "craft_ui::canvas::tool_host::ToolContext"
 new = "craft_ui::canvas::ToolContext"
 status = "moved"
-note = "`pointer`, `mods` (was `modifiers`), `rect` and `time`; `space() -> Option<CanvasSpace>` is the canvas's view; `held(Key) -> bool` says whether a key is down; `caps_lock() -> bool` is the platform's Caps Lock toggle (`craft_window::caps_lock`, read once per pass); `readout(rows)`, `request_repaint()` and `keep_keys()` stay. `canvas_id`, `view`, `canvas`, `snap`, `snap_tolerance`, `tokens`, `numbers`, `direction`, `parts_focused`, `set_view` and `set_cursor` are gone."
+note = "`pointer`, `mods` (was `modifiers`), `rect` and `time`; `space() -> Option<CanvasSpace>` is the canvas's view; `held(Key) -> bool` says whether a key is down; `caps_lock() -> bool` is the platform's Caps Lock toggle (`craft_window::caps_lock`, read once per pass); `readout(rows)`, `request_repaint()` and `keep_keys()` stay; `marching_ants(points, closed)` paints ants that march on the pass clock (the phase argument is gone). `canvas_id`, `view`, `canvas`, `snap`, `snap_tolerance`, `tokens`, `numbers`, `direction`, `parts_focused`, `set_view` and `set_cursor` are gone."
 
 [[type]]
 name = "ToolAction"
@@ -145,7 +145,7 @@ name = "RulerNames"
 old = "craft_ui::canvas::rulers::RulerNames"
 new = ""
 status = "removed"
-note = "The accessible names are words (`canvas.rulerHorizontal`, `canvas.rulerVertical`, `canvas.rulerOrigin`); a host translates them with its word sets."
+note = "The accessible names are words (`rulers.horizontal`, `rulers.vertical`, `rulers.origin`); a host translates them with its word sets."
 
 [[type]]
 name = "RulerTick"
@@ -227,7 +227,7 @@ name = "ScrollbarNames"
 old = "craft_ui::canvas::scrollbars::ScrollbarNames"
 new = ""
 status = "removed"
-note = "The accessible names are words (`canvas.scrollHorizontal`, `canvas.scrollVertical`)."
+note = "The accessible names are words (`canvasScrollbars.horizontal`, `canvasScrollbars.vertical`)."
 
 [[type]]
 name = "ScrollbarsResponse"
@@ -318,7 +318,7 @@ name = "NavigatorZoomRow"
 old = ""
 new = "craft_ui::canvas::NavigatorZoomRow"
 status = "replaced"
-note = "The legacy zoom row (`navigator::zoom_row`): percent `NumberField`, Zoom Out and Zoom In as `IconButton::command(icon, ViewCommand::ZoomOut / ZoomIn)` and a logarithmic `Slider` as children of a `Row`. `NavigatorZoomRow::new(Bind::bound(&mut view), document).show(ui)`. The buttons are the active canvas's view commands: the canvas (`Canvas::view(..).document(..).navigation(..)`) steps its view, eases to it under Animated Zoom, and reports it in `CanvasOutput::view` (and `ToolHostResponse::view`)."
+note = "The legacy zoom row (`navigator::zoom_row`): percent `NumberField`, Zoom Out and Zoom In as `IconButton::command(icon, ViewCommands::ZoomOut / ZoomIn)` and a logarithmic `Slider` as children of a `Row`. `NavigatorZoomRow::new(Bind::bound(&mut view), document).show(ui)`. The buttons are the active canvas's view commands: the canvas (`Canvas::view(..).document(..).navigation(..)`) steps its view, eases to it under Animated Zoom, and reports it in `CanvasOutput::view` (and `ToolHostResponse::view`)."
 
 [[type]]
 name = "NavigatorZoomRowOutput"
@@ -599,7 +599,7 @@ name = "SplitLabels"
 old = "craft_ui::canvas::split::SplitLabels"
 new = ""
 status = "removed"
-note = "Words: `SplitWords` (`canvas.splitView`, `canvas.splitResize`)."
+note = "Words: `SplitWords` (`splitViews.view`, `splitViews.resize`)."
 
 [[type]]
 name = "ToolPill"
@@ -985,9 +985,9 @@ status = "moved"
 note = "Sets the view with `ToolContext::set_view`."
 
 [[type]]
-name = "ViewCommand"
+name = "ViewCommands"
 old = ""
-new = "craft_ui::canvas::ViewCommand"
+new = "craft_ui::canvas::ViewCommands"
 status = "replaced"
 note = "The `canvasView.*` commands, scoped to `canvasView` (Zoom In Cmd+= or Cmd++, Zoom Out Cmd+-, Fit on Screen Cmd+0, Fill Screen, 100% Cmd+1, Rotate View clockwise and counterclockwise, Reset Rotation) with `apply(view, size, pixels_per_point)`."
 
@@ -996,35 +996,35 @@ name = "NavigationLabels"
 old = "craft_ui::canvas::navigate::NavigationLabels"
 new = ""
 status = "removed"
-note = "Words: `CanvasWords::rotate_compass` (`canvas.rotateCompass`). Go Back and Go Forward belong to the navigator."
+note = "Words: `CanvasWords::rotate_compass` (`rotateView.compass`). Go Back and Go Forward belong to the navigator."
 
 [[type]]
 name = "MomentaryKeys"
 old = "craft_ui::canvas::momentary::MomentaryKeys"
 new = ""
 status = "removed"
-note = "Replaced by the `MomentaryCommand` set (`Kind::Momentary`) and `Momentary`."
+note = "Replaced by the `MomentaryCommands` set (`Kind::Momentary`) and `Momentary`."
 
 [[type]]
-name = "MomentaryCommand"
+name = "MomentaryCommands"
 old = ""
-new = "craft_ui::canvas::MomentaryCommand"
+new = "craft_ui::canvas::MomentaryCommands"
 status = "replaced"
-note = "`canvasMomentary.hand`, `canvasMomentary.zoom_in` and `canvasMomentary.zoom_out`, bound to Space, Cmd+Space and Alt+Space. Scoped to `canvasView` like `ViewCommand`; `ToolHost::run` takes them for its canvas."
+note = "`canvasMomentary.hand`, `canvasMomentary.zoom_in` and `canvasMomentary.zoom_out`, bound to Space, Cmd+Space and Alt+Space. Scoped to `canvasView` like `ViewCommands`; `ToolHost::run` takes them for its canvas."
 
 [[type]]
 name = "Momentary"
 old = ""
 new = "craft_ui::canvas::Momentary"
 status = "replaced"
-note = "The momentary tools and the one in effect, kept by the app: `Momentary::new(options)` (the Zoom tool reads the document size from the canvas's space), `fired(MomentaryCommand, FirePhase)`, and `ToolHost::momentary(&mut Momentary)`, which feeds the set the `MomentaryCommand`s fired for its canvas (the set is scoped to `canvasView`; the app plumbs nothing) and runs the Hand or Zoom tool in place of the selected tool while a key is held. `tool(mods, in_gesture) -> Option<MomentaryTool>` tells which is in effect."
+note = "The momentary tools and the one in effect, kept by the app: `Momentary::new(options)` (the Zoom tool reads the document size from the canvas's space), `fired(MomentaryCommands, FirePhase)`, and `ToolHost::momentary(&mut Momentary)`, which feeds the set the `MomentaryCommands`s fired for its canvas (the set is scoped to `canvasView`; the app plumbs nothing) and runs the Hand or Zoom tool in place of the selected tool while a key is held. `tool(mods, in_gesture) -> Option<MomentaryTool>` tells which is in effect."
 
 [[type]]
 name = "MomentaryTool"
 old = "craft_ui::canvas::momentary::MomentaryTool"
 new = "craft_ui::canvas::MomentaryTool"
 status = "moved"
-note = "Same variants; `command_id` is gone (the command is `MomentaryCommand`)."
+note = "Same variants; `command_id` is gone (the command is `MomentaryCommands`)."
 
 [[type]]
 name = "SpringTool"
@@ -1256,3 +1256,19 @@ old = ""
 new = "craft_ui::canvas::NoTool"
 status = "replaced"
 note = "The tool of a canvas that has none: it takes no press, paints nothing, and its `command_form` is `ToolPath::Freehand`. `Canvas::new(label)` takes no `ToolPath`: the background part declares one fixed pointer-only reason that names the running tool's command form, and `CanvasTool::command_form` stays the one owner of the fact."
+
+# l4z-canvas
+[[type]]
+name = "frame_step"
+old = ""
+new = "craft_ui::canvas::frame_step"
+status = "replaced"
+note = "`frame_step(dt: f64) -> f64`: the one step Hand glides, held Zoom presses and autoscroll integrate over, capped at `FRAME_STEP_MAX` (0.1 s). Replaces `FlickPan`'s, `Autoscroll::MAX_DT` and `HoldZoom::MAX_DT`, which never shipped."
+
+[[type]]
+name = "FRAME_STEP_MAX"
+old = ""
+new = "craft_ui::canvas::FRAME_STEP_MAX"
+status = "replaced"
+note = "The longest frame step of canvas motion, in seconds."
+# End of l4z-canvas.

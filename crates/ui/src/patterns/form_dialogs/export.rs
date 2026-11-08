@@ -2,7 +2,7 @@
 //! and the output path row. The dialogs take plain format descriptions and settings from the app and give settings and
 //! a path back; encoding stays in the app.
 //!
-//! [`export_file_name`] and [`numbered_paths`] are the pure file-name rules the export dialogs share.
+//! [`export_file_name`] is the pure file-name rule the export dialogs share.
 
 mod as_dialog;
 mod options;
@@ -14,12 +14,12 @@ mod stories;
 use crate::runtime::env::Label;
 use craft_behavior::PixelSize;
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 pub use as_dialog::{ExportAsDialog, ExportAsOutput};
 pub use options::{
     DdsCompression, DdsOptions, ExportOptionsKind, FormatOptions, FormatOptionsDialog, FormatOptionsOutput, FormatOptionsWords, JpegFormat,
-    JpegOptions, JpegPreset, TargaOptions, TiffOptions, jpeg_quality_percent, jpeg_quality_preset,
+    JpegOptions, JpegPreset, TargaOptions, TiffOptions, jpeg_quality_percent,
 };
 pub use path_row::{OutputPathOutput, OutputPathRow, OutputPathWords};
 
@@ -331,7 +331,7 @@ pub struct ExportAsResult {
 /// A file name safe on every platform: at most 80 characters, control characters and `< > : " / \ | ? *` replaced by
 /// `_`, leading and trailing dots and spaces trimmed; empty becomes `fallback` ("layer" for per-layer exports, the
 /// document name otherwise).
-pub fn export_file_name(name: &str, fallback: &str) -> String {
+pub(crate) fn export_file_name(name: &str, fallback: &str) -> String {
     let name: String = name.chars().take(MAX_NAME_CHARS).map(|c| if c.is_control() || RESERVED.contains(c) { '_' } else { c }).collect();
     let name = name.trim().trim_matches('.');
     if name.is_empty() { fallback.to_owned() } else { name.to_owned() }
@@ -339,33 +339,6 @@ pub fn export_file_name(name: &str, fallback: &str) -> String {
 
 const MAX_NAME_CHARS: usize = 80;
 const RESERVED: &str = "<>:\"/\\|?*";
-
-/// The paths of a multi-file export: the first is `first` (its overwrite is the save picker's question); file `i`
-/// (0-based) after it is `{stem}-{i + 1}-{name}.{ext}` beside it, `name` through [`export_file_name`], stem "layers" and
-/// extension "png" when `first` has none. A later path that `exists` gets `-1`, `-2`, ... after the name
-/// (`{stem}-{i + 1}-{name}-{k}.{ext}`) so a sibling file is never overwritten silently.
-pub fn numbered_paths(first: &Path, names: &[&str], exists: impl Fn(&Path) -> bool) -> Vec<PathBuf> {
-    let parent = first.parent().unwrap_or_else(|| Path::new(""));
-    let stem = first.file_stem().and_then(|s| s.to_str()).unwrap_or("layers");
-    let ext = first.extension().and_then(|e| e.to_str()).unwrap_or("png");
-    names
-        .iter()
-        .enumerate()
-        .map(|(i, name)| {
-            if i == 0 {
-                return first.to_path_buf();
-            }
-            let name = export_file_name(name, "layer");
-            let mut candidate = parent.join(format!("{stem}-{}-{name}.{ext}", i + 1));
-            let mut suffix = 1u64;
-            while exists(&candidate) {
-                candidate = parent.join(format!("{stem}-{}-{name}-{suffix}.{ext}", i + 1));
-                suffix = suffix.saturating_add(1);
-            }
-            candidate
-        })
-        .collect()
-}
 
 /// The words for a size error.
 pub(crate) fn size_error_label(words: &ExportWords, error: SizeError) -> Label {

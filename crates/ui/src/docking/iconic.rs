@@ -1,7 +1,8 @@
 //! `IconicColumn`: a column collapsed to one icon per panel, and the flyouts its icons open.
 
+use super::divider::{self, Divider, Drag};
 use super::dock_column::{BarRecord, GroupView, bar_name, drag_column, register_edges, show_bar};
-use super::{DockSizes, DockSpot, DockTargets, DockWords, DragUnit, Flyout, PanelKey, PanelSpec, start_group_drag};
+use super::{DockSizes, DockSpot, DockTargets, DockWords, DragUnit, Flyout, PanelKey, PanelSpec, Splitter, start_group_drag};
 use crate::buttons::IconButton;
 use crate::contract::overlay::Popup;
 use crate::contract::{
@@ -11,9 +12,10 @@ use crate::contract::{
 use crate::menu::GroupItem;
 use crate::primitives::IconSpec;
 use crate::runtime::env::Label;
+use crate::runtime::focus::KeyUse;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::dock::{Column, DockEdge, Group};
-use craft_behavior::{CursorIcon, DockSide, IconId, Metrics, PartKey, PressPhase, Sense, Value};
+use craft_behavior::{Axis, CursorIcon, DockSide, IconId, Metrics, PartKey, PressPhase, Sense, Value};
 use egui::{Id, Pos2, Rect, Response, Ui, Vec2};
 use std::hash::Hash;
 
@@ -22,6 +24,7 @@ mod stories;
 
 const CELL: PartKey = PartKey::new("cell");
 const GRIP: PartKey = PartKey::new("grip");
+const EDGE: PartKey = PartKey::new("edge");
 
 /// The sizes of an iconic column on top of the column sizes.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -58,6 +61,8 @@ pub struct IconicColumnOutput<P> {
     pub iconic: Option<bool>,
     /// The dock row the user picked in the column menu.
     pub picked: Option<GroupItem>,
+    /// The width the user gave the iconic column on its inner edge this pass.
+    pub width: Option<f32>,
 }
 
 impl<P: Value + Hash + 'static> Outcome for IconicColumnOutput<P> {
@@ -108,6 +113,9 @@ pub struct IconicColumn<'a, P: Value + Hash + 'static> {
     /// Whether Auto-Collapse Iconic Panels is on.
     #[prop]
     auto_collapse: bool,
+    /// The rect the dock may grow within, which bounds how wide its inner edge can make the column.
+    #[prop]
+    within: Rect,
     open: Bind<'a, Option<P>>,
     view: Option<GroupView<'a, P>>,
     bar: Rect,
@@ -115,6 +123,9 @@ pub struct IconicColumn<'a, P: Value + Hash + 'static> {
     record: BarRecord,
     shown: Option<usize>,
     toggled: bool,
+    width: Option<f32>,
+    /// The plan `parts` laid out this pass, which update and access read.
+    laid: Option<Plan>,
 }
 
 /// Where the parts of an iconic column sit.
@@ -142,6 +153,7 @@ impl<'a, P: Value + Hash + 'static> IconicColumn<'a, P> {
             spec,
             edge: DockEdge::Start,
             auto_collapse: false,
+            within: Rect::NOTHING,
             open,
             view: None,
             bar: Rect::NOTHING,
@@ -149,6 +161,8 @@ impl<'a, P: Value + Hash + 'static> IconicColumn<'a, P> {
             record: BarRecord::default(),
             shown: None,
             toggled: false,
+            width: None,
+            laid: None,
         }
         .label(label)
     }
@@ -160,6 +174,21 @@ impl<'a, P: Value + Hash + 'static> IconicColumn<'a, P> {
     }
 
     /// The panels of the column in order, each with its group.
+    /// The divider on the column's inner edge: the width runs from the rail to the width the column expands to.
+    fn edge_divider(&self, rect: Rect, sizes: &DockSizes) -> Divider {
+        let least = sizes.iconic_least;
+        let most = sizes.expanded_width(self.column, self.spec).max(least).min((self.within.width() - sizes.least_pane).max(rect.width()));
+        Divider::column_edge(rect, self.edge, (least, most), sizes.reach)
+    }
+
+    /// Takes the width the coordinate `coord` of the inner edge asks for, kept within the divider's travel.
+    fn move_edge(&mut self, rect: Rect, divider: &Divider, coord: f32) {
+        let width = Divider::column_width(rect, self.edge, coord.clamp(divider.lo, divider.hi));
+        if (width - rect.width()).abs() > f32::EPSILON {
+            self.width = Some(width);
+        }
+    }
+
     fn flat(&self) -> Vec<(usize, usize)> {
         self.column.groups.iter().enumerate().flat_map(|(group, g)| (0..g.panels.len()).map(move |panel| (group, panel))).collect()
     }
@@ -209,6 +238,7 @@ impl<'a, P: Value + Hash + 'static> IconicColumn<'a, P> {
 
 impl<P: Value + Hash + 'static> Component for IconicColumn<'_, P> {
     const ROLE: Role = Role::GROUP;
+    const KEYS: KeyUse = KeyUse::SPLITTER;
     type Style = IconicColumnStyle;
     type Output = IconicColumnOutput<P>;
 
@@ -253,12 +283,14 @@ impl<P: Value + Hash + 'static> Component for IconicColumn<'_, P> {
                 .drag_cursor(CursorIcon::Grabbing)
                 .pointer_only("Move Panel To in the panel menu moves the group's panels");
         }
+        divider::declare(cx, rect, EDGE, 0, &self.edge_divider(rect, &sizes.column));
+        self.laid = Some(plan);
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let sizes = cx.style.sizes;
         let (rect, rtl, ctx) = (cx.rect, cx.flow.is_rtl(), cx.core.ctx.clone());
-        let plan = self.plan(rect, &sizes);
+        let Some(plan) = self.laid.take() else { return };
         let flat = self.flat();
         let popup = cx.popup("flyout");
         let dragging =
@@ -288,6 +320,13 @@ impl<P: Value + Hash + 'static> Component for IconicColumn<'_, P> {
                 start_group_drag(cx, DragUnit::Panel(panel.clone()), PanelKey::of(panel), Some((cell.size(), label)));
                 began = true;
             }
+        }
+        let edge = self.edge_divider(rect, &sizes.column);
+        if let Some(Drag::To(coord)) = divider::pointer(cx, EDGE, 0, &edge) {
+            self.move_edge(rect, &edge, coord);
+        }
+        if let Some((_, coord)) = divider::keys(cx, EDGE, &[(0, edge)], sizes.column.step, sizes.column.jump) {
+            self.move_edge(rect, &edge, coord);
         }
         let handles: Vec<_> = (0..flat.len()).map(|at| popup.at(at)).collect();
         // A toggle of an icon (click, Enter, Alt+Down) changed a popup this pass: the user chose. Otherwise the
@@ -322,6 +361,7 @@ impl<P: Value + Hash + 'static> Component for IconicColumn<'_, P> {
         }
         self.shown = at;
         self.register(&ctx, rect, rtl, &plan, &sizes);
+        self.laid = Some(plan);
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, _: &Cx<'_, Self>) {
@@ -332,12 +372,13 @@ impl<P: Value + Hash + 'static> Component for IconicColumn<'_, P> {
             let icon: IconSpec<'static> = spec.icon.unwrap_or_else(|| IconId::new("more").into());
             ui.face(CELL.at(at as u64), IconButton::new(icon).label(spec.label).selected(self.shown == Some(at)));
         }
+        ui.face(EDGE.at(0), Splitter::new(Axis::X));
     }
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let words = cx.words::<DockWords>();
         let sizes = cx.style.sizes;
-        let plan = self.plan(cx.rect, &sizes);
+        let Some(plan) = self.laid.as_ref() else { return };
         access.node(super::dock_column::BAR, Role::BUTTON).name = Name::Text(bar_name(self.column, self.spec, &words.move_column));
         for (at, (group, panel)) in self.flat().iter().enumerate() {
             let Some(panel) = self.panel(*group, *panel) else { continue };
@@ -348,6 +389,7 @@ impl<P: Value + Hash + 'static> Component for IconicColumn<'_, P> {
             let name = words.move_group.fill(&[("name", (self.spec)(shown).label.as_str())]);
             access.node(GRIP.at(*group as u64), Role::BUTTON).name = Name::Text(name);
         }
+        divider::describe(access, EDGE, 0, &self.edge_divider(cx.rect, &sizes.column), words.resize.as_str(), sizes.column.step);
     }
 
     /// The flyout of every cell whose popup is open, beside the column.
@@ -382,7 +424,7 @@ impl<P: Value + Hash + 'static> Component for IconicColumn<'_, P> {
             Popup::toggle(opener, &mut cx);
         }
         let iconic = self.record.iconic.or(self.toggled.then_some(false));
-        IconicColumnOutput { edit: cx.edit_response(), placed: cx.rect, iconic, picked: self.record.picked }
+        IconicColumnOutput { edit: cx.edit_response(), placed: cx.rect, iconic, picked: self.record.picked, width: self.width }
     }
 }
 

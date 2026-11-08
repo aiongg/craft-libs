@@ -60,9 +60,17 @@ note = "Internal; the eight zones are the float frame's body-step grips."
 [[type]]
 name = "PanelLimits"
 old = "craft_ui::docking::PanelLimits"
-new = "craft_ui::docking::PanelLimits"
-status = "same"
-note = "Built with `PanelLimits::new(min, max)`, `at_least` or `at_most`; the fields stay public; `valid` is public and the 1,000,000 bound is `PanelLimits::BOUND`."
+new = ""
+status = "removed"
+note = "Replaced by `craft_ui::contract::SizeLimits`, the one size-limits value that `PanelSpec::limits` and `Overlay::size_limits` take: `SizeLimits::new(min, max)`, `at_least` or `at_most`; the fields `min` and `max: Option<Vec2>` stay public; `valid` is public and the 1,000,000 bound is `SizeLimits::BOUND`."
+
+# Final fix pass (l4z-body): one size-limits value.
+[[type]]
+name = "SizeLimits"
+old = ""
+new = "craft_ui::contract::SizeLimits"
+status = "replaced"
+note = "The smallest size and an optional largest, in points: a dock panel's body limits (`PanelSpec::limits`) and a layer's resize limits (`Overlay::size_limits(limits)`). `around(extra)` gives the limits of a frame around such a size. It replaces `craft_ui::docking::PanelLimits`."
 
 [[type]]
 name = "DockHeights"
@@ -156,8 +164,16 @@ status = "moved"
 [[type]]
 name = "Placement"
 old = "craft_ui::docking::model::Placement"
-new = "craft_behavior::dock::Placement"
-status = "moved"
+new = ""
+status = "removed"
+note = "Renamed `DockPlacement`: `craft_behavior::overlay::Placement` is another type."
+
+[[type]]
+name = "DockPlacement"
+old = ""
+new = "craft_behavior::dock::DockPlacement"
+status = "replaced"
+note = "Where a panel goes relative to an anchor panel (`Tab`, `Split`, `SplitSized`, `Group`, `Column`, `Edge`)."
 
 [[type]]
 name = "Location"
@@ -201,7 +217,7 @@ name = "DockSide"
 old = ""
 new = "craft_behavior::DockSide"
 status = "replaced"
-note = "`DockSide` in reading order: `Left` is `Start` and `Right` is `End`; saved layouts and actions with `Left`/`Right` load through serde aliases. `Placement::for_zone` loses its `right_to_left` argument."
+note = "`DockSide` in reading order: `Left` is `Start` and `Right` is `End`; saved layouts and actions with `Left`/`Right` load through serde aliases. `DockPlacement::for_zone` loses its `right_to_left` argument."
 
 [[type]]
 name = "Monitor"
@@ -535,7 +551,7 @@ new = "Overlay::bounds(rect)"
 [[setter]]
 type = "FloatingFrame"
 old = "limits(PanelLimits { min, max })"
-new = "Overlay::size_limits(min, max)"
+new = "Overlay::size_limits(SizeLimits::new(min, max))"
 
 [[setter]]
 type = "FloatingFrame"
@@ -760,7 +776,7 @@ name = "ReorderableSections"
 old = "craft_ui::panes::sections::ReorderableSections"
 new = "craft_ui::sections::ReorderableSections"
 status = "moved"
-note = "A pattern over `SectionStack`: `new(label, Bind<SectionLayout>, &[SectionSpec])` then `show(ui, body)`. The reorder is the stack's header band; the section menu is `SectionCommand` rows."
+note = "A pattern over `SectionStack`: `new(label, Bind<SectionLayout>, &[SectionSpec])` then `show(ui, body)`. The reorder is the stack's header band; the section menu is `SectionCommands` rows."
 
 [[type]]
 name = "SectionsOutput"
@@ -830,7 +846,7 @@ name = "SectionsLabels"
 old = "craft_ui::panes::sections::SectionsLabels"
 new = ""
 status = "removed"
-note = "Replaced by `ReorderableWords` (menu name, move announcement); the menu rows are `SectionCommand` labels."
+note = "Replaced by `ReorderableWords` (menu name, move announcement); the menu rows are `SectionCommands` labels."
 
 [[type]]
 name = "ReorderableWords"
@@ -840,9 +856,9 @@ status = "replaced"
 note = "Replaces `SectionsLabels`."
 
 [[type]]
-name = "SectionCommand"
+name = "SectionCommands"
 old = ""
-new = "craft_ui::sections::SectionCommand"
+new = "craft_ui::sections::SectionCommands"
 status = "replaced"
 note = "New: Hide, Fold, Unfold, Pin, Unpin, MoveUp and MoveDown on the focused section; the legacy section menu rows run these."
 
@@ -877,7 +893,7 @@ note = "Not ported: words come from `ReorderableWords` in the env."
 [[setter]]
 type = "ReorderableSections"
 old = "menu(layout, sections, on, labels)"
-new = "SectionCommand"
+new = "SectionCommands"
 note = "The menu rows are commands; a host menu runs them with `commands::fire`."
 
 [[setter]]
@@ -1123,7 +1139,7 @@ note = "A dock's floating windows open native where `DockConfig::native_windows`
 type = "DockArea"
 old = "monitors(Vec<Monitor>)"
 new = ""
-note = "Monitors come from `WindowHost::monitors`."
+note = "Monitors come from `WindowHost::monitors(window_scale)`, in desktop points as `craft_behavior::Monitor`."
 
 [[setter]]
 type = "DockArea"
@@ -1344,3 +1360,40 @@ old = "craft_behavior::dock::DockHandle"
 new = ""
 status = "removed"
 note = "Deleted with the anchor-panel model: a dock group is named by an anchor panel in it (`DockSpot<P>`, `GroupDrag<P>`), and a layout is `Layout<P>` over the app's own panel type `P`."
+
+# Final fix pass, task dock.
+
+[[type]]
+name = "WindowMenuRows"
+old = ""
+new = "craft_ui::docking::WindowMenuRows"
+status = "replaced"
+note = "The Window menu's check rows over a layout: `WindowMenuRows::new(&Layout<P>, &dyn DockPanels<P>, &[P]).show(ui) -> WindowMenuRowsOutput<P> { action: Option<Action<P>> }`. Replaces a menu's hand-written panel rows."
+
+[[type]]
+name = "WindowMenuRowsOutput"
+old = ""
+new = "craft_ui::docking::WindowMenuRowsOutput"
+status = "replaced"
+note = "What `WindowMenuRows::show` reports: the action the picked row asks for."
+
+[[type]]
+name = "StackSections"
+old = ""
+new = "craft_ui::docking::stack::StackSections"
+status = "replaced"
+note = "The sections of an accordion with the dividers between the open ones; their drags come back as `StackSectionsOutput::resized`, which `DockArea` sends as `Action::ResizeStack`."
+
+[[type]]
+name = "StackSectionsOutput"
+old = ""
+new = "craft_ui::docking::stack::StackSectionsOutput"
+status = "replaced"
+note = "What `StackSections` reports."
+
+[[type]]
+name = "StackSectionsStyle"
+old = ""
+new = "craft_ui::docking::stack::StackSectionsStyle"
+status = "replaced"
+note = "The style of `StackSections`."

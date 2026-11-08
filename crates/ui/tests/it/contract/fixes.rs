@@ -1,19 +1,27 @@
 //! Rules of the pipeline's steps: the order the hooks run in, sizing passes, `measure_in`, activation, ids, focus
 //! on a part that goes away, the body size and the ink and app values a body hands down.
 
+use super::super::overlay::kit::Go;
 use super::kit::{PartSpec, PlainStyle, Probe, Seen};
+use crate::body::kit::Slab;
+use craft_behavior::ColumnWidth;
 use craft_behavior::{Proposal, Sense};
 use craft_theme::Stateful;
 use craft_ui::contract::{
     Common, Component, Container, ContainerProps, Cx, Focus as _, Looks, MeasureCx, OverlayUi, PaintUi, PartsCx, Props as _, Role, Show as _,
     ShowContainer as _, Sizing,
 };
+use craft_ui::contract::{Mount, PaneEdge, ShellPane};
+use craft_ui::layout::BodyLayout;
+use craft_ui::runtime::commands::FireSource;
 use craft_ui::runtime::env::{AppValues, EnvValue};
+use craft_ui::runtime::frame::take_output;
 use craft_ui::runtime::install;
 use craft_ui::style::{ComponentStyle, Ink, StateSet, StyleCx, SurfaceKind, SurfaceLook};
 use craft_ui::testing::contract::{allocate, clicked as is_clicked, clicked_by_primary, findings};
 use craft_ui::testing::focus::named_id;
 use craft_ui::testing::input::key_press;
+use craft_ui::testing::layout::Block;
 use craft_ui::testing::memory::scoped;
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Frames, trial};
@@ -257,6 +265,66 @@ fn the_click_flags_follow_how_the_component_was_activated() {
     bound.frame(vec![press(at)], |ui| show_bound(ui, &mut clicked, &mut by_pointer));
     bound.frame(vec![release(at)], |ui| show_bound(ui, &mut clicked, &mut by_pointer));
     assert!(!clicked && !by_pointer, "a command-bound component reports no click; the command fires");
+}
+
+/// Step 17 fires the bound command of an injected activation once, with the injected source, and the key
+/// activation that injected it still reports its click.
+#[trial]
+fn an_injected_activation_fires_once_and_keeps_the_key_activations_click() {
+    let fired_go = |frames: &Frames| -> Vec<FireSource> {
+        take_output(&frames.ctx).fired.into_iter().filter(|fired| fired.command.id == "overlayTrial.go").map(|fired| fired.source).collect()
+    };
+    let seen = RefCell::new(Seen::default());
+    let mut clicked = false;
+    let show = |ui: &mut Ui, bound: bool, out: &mut bool| {
+        let probe = Probe::new(&seen).injects(FireSource::Access).id_salt("probe");
+        let response = if bound { probe.command(Go::Go).show(ui) } else { probe.show(ui) };
+        *out = is_clicked(&response);
+    };
+    let mut frames = Frames::new();
+    frames.frame(vec![], |ui| show(ui, false, &mut clicked));
+    frames.frame(vec![key_press(Key::Tab, Modifiers::NONE)], |ui| show(ui, false, &mut clicked));
+    frames.frame(vec![key_press(Key::Enter, Modifiers::NONE)], |ui| show(ui, false, &mut clicked));
+    assert!(clicked, "the Enter that injected the activation reports a click");
+
+    let mut bound = Frames::new();
+    bound.frame(vec![], |ui| show(ui, true, &mut clicked));
+    bound.frame(vec![key_press(Key::Tab, Modifiers::NONE)], |ui| show(ui, true, &mut clicked));
+    fired_go(&bound);
+    bound.frame(vec![key_press(Key::Enter, Modifiers::NONE)], |ui| show(ui, true, &mut clicked));
+    assert_eq!(fired_go(&bound), vec![FireSource::Access], "the command fired once, with the injected source");
+}
+
+/// A pane is a layout room of its own: a container shown in a pane from a grid body's flow lays its body out in the
+/// pane, as a plain stack, not in the grid's cells.
+#[trial]
+fn a_grid_childs_pane_lays_out_as_a_plain_body() {
+    const COLUMNS: [ColumnWidth; 2] = [ColumnWidth::Content, ColumnWidth::Content];
+    const BLOCK: Vec2 = Vec2::new(40.0, 20.0);
+    let pane_rect = |layout: BodyLayout| {
+        let rects = RefCell::new((Rect::NOTHING, Vec::new()));
+        let mut frames = Frames::new();
+        frames.idle(4, |ui| {
+            let mut rects = rects.borrow_mut();
+            rects.1.clear();
+            Slab::new(ContainerProps::new().layout(layout.clone())).id_salt("outer").show(ui, |ui, _| {
+                let pane = ContainerProps::new().mount(Mount::Pane(ShellPane::new("side").edge(PaneEdge::Start)));
+                rects.0 = Slab::new(pane)
+                    .id_salt("pane")
+                    .show(ui, |ui, _| {
+                        for salt in 0..2 {
+                            rects.1.push(Block::new(BLOCK).id_salt(salt).show(ui).rect);
+                        }
+                    })
+                    .output
+                    .rect;
+            });
+        });
+        rects.into_inner()
+    };
+    let (in_grid, blocks) = pane_rect(BodyLayout::grid(&COLUMNS));
+    assert!(blocks.iter().all(|block| in_grid.contains_rect(*block)), "the pane holds its body: {in_grid:?} {blocks:?}");
+    assert!(blocks[1].min.y >= blocks[0].max.y, "the pane's body stacks its children: {blocks:?}");
 }
 
 /// A focused part that is not declared the next pass is no longer active.

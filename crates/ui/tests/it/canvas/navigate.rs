@@ -4,7 +4,7 @@ use craft_behavior::kurbo::{Point, Size};
 use craft_behavior::{CancelReason, CanvasView, Granularity, MoveMods, NavMove, PixelSize, Wheel, WheelPhase, WheelUnit};
 use craft_keymap::Mods;
 use craft_ui::canvas::{
-    Autoscroll, Canvas, CanvasTool, FlickPan, HoldZoom, Momentary, MomentaryCommand, MomentaryTool, NavigationOptions, PageKey, PixelRect,
+    Autoscroll, Canvas, CanvasTool, FlickPan, HoldZoom, Momentary, MomentaryCommands, MomentaryTool, NavigationOptions, PageKey, PixelRect,
     RasterSource, ToolAction, ToolContext, ToolHost, ToolPath, ToolPointer, TouchpadGlide, ViewTurn, WheelAction, WheelInput, WheelNavigation,
     ZoomAnimation, ZoomDrag,
 };
@@ -255,16 +255,16 @@ fn the_compass_snaps_to_fifteen_degrees_and_wraps_into_half_a_turn() {
 fn space_is_the_hand_and_cmd_or_alt_added_in_any_order_switch_to_zoom() {
     let mut momentary = Momentary::new(NavigationOptions::default());
     assert_eq!(momentary.tool(Mods::NONE, false), None);
-    momentary.fired(MomentaryCommand::Hand, FirePhase::Press);
+    momentary.fired(MomentaryCommands::Hand, FirePhase::Press);
     assert_eq!(momentary.tool(Mods::NONE, false), Some(MomentaryTool::Hand));
     assert_eq!(momentary.tool(Mods::CMD, false), Some(MomentaryTool::ZoomIn));
     assert_eq!(momentary.tool(Mods::ALT, false), Some(MomentaryTool::ZoomOut));
-    momentary.fired(MomentaryCommand::ZoomIn, FirePhase::Press);
+    momentary.fired(MomentaryCommands::ZoomIn, FirePhase::Press);
     assert_eq!(momentary.tool(Mods::CMD, false), Some(MomentaryTool::ZoomIn));
     let both = Mods { cmd: true, alt: true, ..Mods::NONE };
     assert_eq!(momentary.tool(both, false), Some(MomentaryTool::ZoomOut), "Alt added to a held Zoom In zooms out");
     assert_eq!(momentary.tool(Mods::NONE, true), Some(MomentaryTool::ZoomOut), "a drag keeps the tool it began with");
-    momentary.fired(MomentaryCommand::ZoomIn, FirePhase::Release);
+    momentary.fired(MomentaryCommands::ZoomIn, FirePhase::Release);
     assert_eq!(momentary.tool(Mods::NONE, false), None);
 }
 

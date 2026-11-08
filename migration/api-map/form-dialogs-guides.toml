@@ -229,3 +229,11 @@ new = "artboards(Vec<GuideRect>)"
 type = "NewGuideDialog"
 old = "error(String)"
 new = "error(Label)"
+
+# l4z-dlg
+[[type]]
+name = "HostedPropertiesDialog"
+old = ""
+new = "craft_ui::patterns::form_dialogs::HostedPropertiesDialog"
+status = "replaced"
+note = "The `StackDialog` form of `PropertiesDialog`: the `DialogHost` owns the `DialogFields` and `build` makes the dialog over them each pass; it answers `DialogFields`."

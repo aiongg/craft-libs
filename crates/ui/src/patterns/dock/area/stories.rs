@@ -1,9 +1,10 @@
 //! Stories of the dock area.
 
 use super::DockArea;
+use crate::contract::SizeLimits;
 use crate::contract::{Bind, BodyCx, Show as _};
 use crate::display::Text;
-use crate::docking::{DockConfig, DockPanels, PanelLimits, PanelSpec};
+use crate::docking::{DockConfig, DockPanels, PanelSpec};
 use crate::menu::PanelRow;
 use crate::patterns::presets::{PresetPanelMenu, PresetView};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
@@ -41,7 +42,7 @@ fn name(panel: usize) -> &'static str {
 
 impl DockPanels<usize> for Demo {
     fn spec(&self, panel: &usize) -> PanelSpec {
-        let spec = PanelSpec::new(name(*panel)).limits(PanelLimits::default());
+        let spec = PanelSpec::new(name(*panel)).limits(SizeLimits::default());
         if *panel == CANVAS { spec.canvas() } else { spec }
     }
 

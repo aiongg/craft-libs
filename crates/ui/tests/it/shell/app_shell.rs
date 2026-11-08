@@ -1,33 +1,18 @@
 //! The app shell's own rules: the screen-mode cycle, the full-screen steps, the reveal rules and the slot order.
 
+use craft_i18n::Direction;
 use craft_ui::canvas::Canvas;
-use craft_ui::contract::{Bind, PaneEdge, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::dialog::{DialogResult, PromptChoice, StandardPrompt};
 use craft_ui::display::Text;
 use craft_ui::runtime::env::{RevealEdge, RootEnv, WindowKey};
-use craft_ui::runtime::frame::ChromeToggle;
-use craft_ui::shell::{Aim, AppShell, AppShellOutput, Reveal, ScreenMode, ScreenModeCommand, Slot, SlotSize, Tracking};
+use craft_ui::shell::{AppShell, AppShellOutput, ScreenMode, ScreenModeCommands, Slot, SlotSize};
 use craft_ui::testing::input::key_press;
-use craft_ui::testing::pointer::{click, moved, settle};
+use craft_ui::testing::pointer::{click, moved, press, release, settle};
 use craft_ui::testing::{Fixture, Frames, trial};
-use egui::{Key, Modifiers, Pos2, Rect, Ui, pos2};
+use egui::{Event, Key, Modifiers, Pos2, Rect, Ui, pos2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-
-const WINDOW: Rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(800.0, 600.0));
-const BAR: Rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(800.0, 32.0));
-
-fn aim(pointer: Pos2, frozen: bool, rtl: bool) -> Aim {
-    Aim::new(Some(pointer), frozen, WINDOW, rtl)
-}
-
-fn body_only() -> Tracking {
-    Tracking::new(true, true, true)
-}
-
-fn edges(reveal: &Reveal) -> [bool; 3] {
-    [RevealEdge::Top, RevealEdge::Start, RevealEdge::End].map(|edge| reveal.edge(edge))
-}
 
 #[trial]
 fn the_f_key_cycles_the_modes_and_shift_f_goes_back() {
@@ -38,9 +23,9 @@ fn the_f_key_cycles_the_modes_and_shift_f_goes_back() {
     }
     for mode in [ScreenMode::Standard, ScreenMode::FullScreenWithMenuBar, ScreenMode::FullScreen] {
         assert_eq!(mode.next().previous(), mode);
-        assert_eq!(ScreenModeCommand::Cycle.apply(mode), mode.next());
-        assert_eq!(ScreenModeCommand::CycleBack.apply(mode), mode.previous());
-        assert_eq!(ScreenModeCommand::of(mode).apply(ScreenMode::Standard), mode);
+        assert_eq!(ScreenModeCommands::Cycle.apply(mode), mode.next());
+        assert_eq!(ScreenModeCommands::CycleBack.apply(mode), mode.previous());
+        assert_eq!(ScreenModeCommands::of(mode).apply(ScreenMode::Standard), mode);
     }
 }
 
@@ -53,100 +38,186 @@ fn each_mode_hides_what_it_hides() {
     assert!(ScreenMode::FullScreen.body_only() && ScreenMode::FullScreen.is_full_screen());
 }
 
+fn rect_of(out: &AppShellOutput, key: &str) -> Rect {
+    out.regions.slots.iter().find(|(shown, _)| *shown == key).map(|(_, rect)| *rect).expect("the slot showed")
+}
+
+const CENTER: Pos2 = pos2(400.0, 300.0);
+const TOP_STRIP: Pos2 = pos2(400.0, 1.0);
+const START_STRIP: Pos2 = pos2(1.0, 300.0);
+const END_STRIP: Pos2 = pos2(799.0, 300.0);
+const BOTTOM_STRIP: Pos2 = pos2(400.0, 599.0);
+
+/// One window of a shell with a revealing slot on the top, start and end edges and a status bar that never
+/// reveals, driven by the pointer and keys as a user would.
+struct Window {
+    frames: Frames,
+    mode: Cell<ScreenMode>,
+    shown: RefCell<Option<AppShellOutput>>,
+    panels_hidden: Cell<bool>,
+}
+
+impl Window {
+    /// A window in `mode`, its canvas focused so that Tab and F reach the shell.
+    fn new(mode: ScreenMode, direction: Direction) -> Self {
+        let mut frames = Frames::new();
+        let mut root = RootEnv::default();
+        root.tab_toggles_chrome = true;
+        root.direction = direction;
+        frames.root(root);
+        let mut window = Window { frames, mode: Cell::new(mode), shown: RefCell::new(None), panels_hidden: Cell::new(false) };
+        window.pass(Vec::new());
+        window.pass(Vec::new());
+        window.pass(vec![moved(CENTER)]);
+        window.pass(vec![press(CENTER)]);
+        window.pass(vec![release(CENTER)]);
+        window
+    }
+
+    fn pass(&mut self, events: Vec<Event>) {
+        let mut show = |ui: &mut Ui| {
+            let mut mode = self.mode.get();
+            let out = AppShell::new(WindowKey::main())
+                .screen_mode(Bind::bound(&mut mode))
+                .title(Slot::new("title").reveal(), |ui, _, _| {
+                    Text::new("Title").show(ui);
+                })
+                .start(Slot::new("tools").reveal(), |ui, _, _| {
+                    Text::new("Tools").show(ui);
+                })
+                .end(Slot::new("inspector").reveal(), |ui, _, _| {
+                    Text::new("Inspector").show(ui);
+                })
+                .bottom(Slot::new("status"), |ui, _, _| {
+                    Text::new("Status").show(ui);
+                })
+                .body(|ui, cx, _| {
+                    self.panels_hidden.set(cx.shell().is_some_and(|shell| shell.panels_hidden()));
+                    Canvas::new("Document").show(ui, |_, _| ());
+                })
+                .show(ui, &mut ());
+            self.mode.set(mode);
+            *self.shown.borrow_mut() = Some(out);
+        };
+        self.frames.frame(events, &mut show);
+    }
+
+    /// The keys of the slots the last pass showed.
+    fn slots(&self) -> Vec<&'static str> {
+        self.shown.borrow().as_ref().expect("a pass ran").regions.slots.iter().map(|(key, _)| *key).collect()
+    }
+
+    fn slot_rect(&self, key: &str) -> Rect {
+        rect_of(self.shown.borrow().as_ref().expect("a pass ran"), key)
+    }
+
+    fn key(&mut self, key: Key, modifiers: Modifiers) {
+        self.pass(vec![key_press(key, modifiers)]);
+        self.pass(Vec::new());
+    }
+}
+
 #[trial]
 fn the_pointer_at_the_top_start_or_end_edge_reveals_that_edge_only() {
-    let cases = [(pos2(400.0, 1.0), [true, false, false]), (pos2(1.0, 300.0), [false, true, false]), (pos2(799.0, 300.0), [false, false, true])];
+    let cases = [(TOP_STRIP, vec!["title"]), (START_STRIP, vec!["tools"]), (END_STRIP, vec!["inspector"]), (BOTTOM_STRIP, vec![])];
     for (pointer, expected) in cases {
-        let mut reveal = Reveal::default();
-        reveal.track(body_only(), aim(pointer, false, false));
-        assert_eq!(edges(&reveal), expected, "pointer at {pointer:?}");
+        let mut window = Window::new(ScreenMode::FullScreen, Direction::Ltr);
+        window.pass(vec![moved(pointer)]);
+        assert_eq!(window.slots(), expected, "pointer at {pointer:?}");
     }
-    let mut reveal = Reveal::default();
-    reveal.track(body_only(), aim(pos2(400.0, 599.0), false, false));
-    assert_eq!(edges(&reveal), [false; 3], "the bottom edge never reveals");
 }
 
 #[trial]
 fn start_and_end_mirror_under_right_to_left() {
-    let mut reveal = Reveal::default();
-    reveal.track(body_only(), aim(pos2(1.0, 300.0), false, true));
-    assert_eq!(edges(&reveal), [false, false, true]);
+    let mut window = Window::new(ScreenMode::FullScreen, Direction::Rtl);
+    window.pass(vec![moved(START_STRIP)]);
+    assert_eq!(window.slots(), ["inspector"], "the left edge is the end edge");
 }
 
 #[trial]
-fn a_held_button_or_open_popup_freezes_the_edge_reveal() {
-    let mut reveal = Reveal::default();
-    reveal.track(body_only(), aim(pos2(400.0, 1.0), false, false));
-    reveal.track(body_only(), aim(pos2(400.0, 300.0), true, false));
-    assert!(reveal.edge(RevealEdge::Top), "frozen: the reveal does not end");
-    reveal.track(body_only(), aim(pos2(400.0, 300.0), false, false));
-    assert!(!reveal.edge(RevealEdge::Top));
+fn a_held_button_freezes_the_edge_reveal() {
+    let mut window = Window::new(ScreenMode::FullScreen, Direction::Ltr);
+    window.pass(vec![moved(TOP_STRIP)]);
+    window.pass(vec![press(TOP_STRIP)]);
+    window.pass(vec![moved(CENTER)]);
+    assert_eq!(window.slots(), ["title"], "frozen: the reveal does not end while the button is held");
+    window.pass(vec![release(CENTER)]);
+    window.pass(Vec::new());
+    assert!(window.slots().is_empty(), "the reveal ends once the button is up and the pointer is away");
 
-    let mut frozen = Reveal::default();
-    frozen.track(body_only(), aim(pos2(400.0, 1.0), true, false));
-    assert!(!frozen.edge(RevealEdge::Top), "frozen: the reveal does not start");
+    let mut window = Window::new(ScreenMode::FullScreen, Direction::Ltr);
+    window.pass(vec![moved(CENTER)]);
+    window.pass(vec![press(CENTER)]);
+    window.pass(vec![moved(TOP_STRIP)]);
+    assert!(window.slots().is_empty(), "frozen: the reveal does not start while the button is held");
 }
 
 #[trial]
 fn the_pointer_over_a_revealed_slot_keeps_its_edge_revealed() {
-    let mut reveal = Reveal::default();
-    reveal.track(body_only(), aim(pos2(400.0, 1.0), false, false));
-    reveal.record(vec![(RevealEdge::Top, BAR)]);
-    reveal.track(body_only(), aim(pos2(400.0, 20.0), false, false));
-    assert!(reveal.edge(RevealEdge::Top));
-    reveal.track(body_only(), aim(pos2(400.0, 100.0), false, false));
-    assert!(!reveal.edge(RevealEdge::Top));
+    let mut window = Window::new(ScreenMode::FullScreen, Direction::Ltr);
+    window.pass(vec![moved(TOP_STRIP)]);
+    window.pass(Vec::new());
+    window.pass(vec![moved(window.slot_rect("title").center())]);
+    assert_eq!(window.slots(), ["title"]);
+    window.pass(vec![moved(CENTER)]);
+    assert!(window.slots().is_empty());
 }
 
 #[trial]
-fn a_reveal_shows_the_revealing_slots_and_never_the_status_bar() {
-    let options = Slot::new("options").reveal();
-    let status = Slot::new("status");
-    let mut reveal = Reveal::default();
-    assert!(reveal.shows(&options, PaneEdge::Top, false, true) && reveal.shows(&status, PaneEdge::Bottom, false, true), "normal mode: the flags");
-    assert!(!reveal.shows(&options, PaneEdge::Top, true, true));
-    reveal.track(body_only(), aim(pos2(400.0, 1.0), false, false));
-    assert!(reveal.shows(&options, PaneEdge::Top, true, true));
-    assert!(!reveal.shows(&options, PaneEdge::Start, true, true), "only the revealed edge's slots show");
-    assert!(!reveal.shows(&options, PaneEdge::Top, true, false), "a presentation ignores the reveal");
-
-    reveal.apply(&[ChromeToggle::Panels], true, true);
-    assert!(reveal.tab());
-    assert!(reveal.shows(&options, PaneEdge::Start, true, true), "the Tab reveal shows every revealing slot");
-    assert!(!reveal.shows(&status, PaneEdge::Bottom, true, true));
+fn tab_reveals_the_revealing_slots_and_never_the_status_bar() {
+    let mut window = Window::new(ScreenMode::FullScreen, Direction::Ltr);
+    assert!(window.slots().is_empty());
+    window.key(Key::Tab, Modifiers::NONE);
+    let mut shown = window.slots();
+    shown.sort_unstable();
+    assert_eq!(shown, ["inspector", "title", "tools"], "every revealing slot shows, the status bar does not");
+    window.key(Key::Tab, Modifiers::NONE);
+    assert!(window.slots().is_empty(), "Tab again hides them");
 }
 
 #[trial]
-fn tab_toggles_the_chrome_and_tab_again_shows_it() {
-    let mut reveal = Reveal::default();
-    reveal.apply(&[ChromeToggle::Panels], false, true);
-    assert!(reveal.only(false), "Tab hides the chrome");
-    reveal.apply(&[ChromeToggle::Panels], false, true);
-    assert!(!reveal.only(false), "Tab again shows the chrome");
+fn tab_hides_the_chrome_in_normal_mode_and_tab_again_shows_it() {
+    let mut window = Window::new(ScreenMode::Standard, Direction::Ltr);
+    let all = window.slots();
+    assert_eq!(all.len(), 4, "normal mode shows every slot: {all:?}");
+    window.key(Key::Tab, Modifiers::NONE);
+    assert!(window.slots().is_empty(), "Tab hides the chrome");
+    window.key(Key::Tab, Modifiers::NONE);
+    assert_eq!(window.slots(), all, "Tab again shows it");
 }
 
 #[trial]
 fn shift_tab_hides_the_panels_and_keeps_the_tools_in_normal_mode_only() {
-    let toggles = [ChromeToggle::PanelsKeepTools];
-    let mut reveal = Reveal::default();
-    reveal.apply(&toggles, false, true);
-    assert!(reveal.panels_hidden() && !reveal.only(false));
-    let mut body_only_window = Reveal::default();
-    body_only_window.apply(&toggles, true, true);
-    assert!(!body_only_window.panels_hidden());
+    let mut window = Window::new(ScreenMode::Standard, Direction::Ltr);
+    window.key(Key::Tab, Modifiers::SHIFT);
+    assert!(window.panels_hidden.get(), "the panels are hidden");
+    assert_eq!(window.slots().len(), 4, "the tools and bars stay");
+    let mut only = Window::new(ScreenMode::FullScreen, Direction::Ltr);
+    only.key(Key::Tab, Modifiers::SHIFT);
+    assert!(!only.panels_hidden.get(), "body-only mode has no panels to hide");
+}
+
+#[trial]
+fn the_f_key_cycles_the_window_and_shift_f_goes_back() {
+    let mut window = Window::new(ScreenMode::Standard, Direction::Ltr);
+    for expected in [ScreenMode::FullScreenWithMenuBar, ScreenMode::FullScreen, ScreenMode::Standard] {
+        window.key(Key::F, Modifiers::NONE);
+        assert_eq!(window.mode.get(), expected);
+    }
+    window.key(Key::F, Modifiers::SHIFT);
+    assert_eq!(window.mode.get(), ScreenMode::FullScreen);
 }
 
 #[trial]
 fn a_screen_mode_change_ends_a_reveal() {
-    let mut reveal = Reveal::default();
-    reveal.track(body_only(), aim(pos2(400.0, 1.0), false, false));
-    reveal.apply(&[ChromeToggle::Panels], true, true);
-    reveal.clear();
-    assert!(!reveal.tab() && edges(&reveal) == [false; 3]);
-}
-
-fn rect_of(out: &AppShellOutput, key: &str) -> Rect {
-    out.regions.slots.iter().find(|(shown, _)| *shown == key).map(|(_, rect)| *rect).expect("the slot showed")
+    let mut window = Window::new(ScreenMode::FullScreen, Direction::Ltr);
+    window.key(Key::Tab, Modifiers::NONE);
+    assert!(!window.slots().is_empty(), "the Tab reveal shows slots");
+    window.key(Key::F, Modifiers::NONE);
+    window.key(Key::F, Modifiers::NONE);
+    window.key(Key::F, Modifiers::NONE);
+    assert_eq!(window.mode.get(), ScreenMode::FullScreen);
+    assert!(window.slots().is_empty(), "back in full screen the old reveal is gone");
 }
 
 #[trial]
@@ -384,8 +455,7 @@ fn prompt_through_the_window_host(answer: impl FnOnce(&mut Fixture)) {
 #[trial]
 fn a_click_on_the_default_button_of_a_window_prompt_answers_the_body() {
     prompt_through_the_window_host(|fixture| {
-        // The button's accessible name carries its accelerator: "(D)elete".
-        let button = fixture.by_label("(D)elete").expect("the default button of the prompt");
+        let button = fixture.by_label("Delete").expect("the default button of the prompt");
         fixture.click(&button);
     });
 }

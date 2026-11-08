@@ -6,7 +6,8 @@
 //! user did; the dock decides what a drop changes.
 
 use super::divider::{self, Divider, Drag};
-use super::{DockHeights, DockSizes, DockSpot, DockTargets, DockWords, DragUnit, PanelKey, PanelLimits, PanelSpec, Splitter, start_group_drag};
+use super::{DockHeights, DockSizes, DockSpot, DockTargets, DockWords, DragUnit, PanelKey, PanelSpec, Splitter, start_group_drag};
+use crate::contract::SizeLimits;
 use crate::contract::overlay::{Anchor, Popup, Trigger};
 use crate::contract::{
     Access, Bind, BodyCx, Common, Component, Container, ContainerProps, Cx, HeaderRegion, Name, NoValue, Outcome, Pad, PaintUi, PartsCx, Pointer,
@@ -19,7 +20,7 @@ use crate::runtime::memory::sub;
 use crate::sections::{HeaderAction, TitleRow};
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::divider::{self as push, Segment};
-use craft_behavior::dock::{Column, Group};
+use craft_behavior::dock::{Column, DockEdge, Group};
 use craft_behavior::{Axis, CursorIcon, DockSide, Flow, Metrics, PartKey, PressPhase, Sense, Value};
 use egui::{Context, Id, Pos2, Rect, Response, Ui, Vec2};
 use std::hash::Hash;
@@ -29,6 +30,7 @@ mod stories;
 
 pub(super) const BAR: PartKey = PartKey::new("bar");
 const DIVIDER: PartKey = PartKey::new("divider");
+const EDGE: PartKey = PartKey::new("edge");
 
 /// The caller's view of one group: the group, the rect it takes and the body step's context. The dock passes the
 /// group to `DockPanels::group_view` or shows a `DockGroup` in it.
@@ -36,7 +38,7 @@ pub type GroupView<'a, P> = Box<dyn FnMut(&Group<P>, Rect, &mut Ui, &mut BodyCx<
 
 /// The width bounds of an expanded column: no narrower than `least` or the widest minimum of its panels, no wider
 /// than the narrowest maximum.
-pub fn width_bounds(least: f32, limits: impl IntoIterator<Item = PanelLimits>) -> (f32, f32) {
+pub fn width_bounds(least: f32, limits: impl IntoIterator<Item = SizeLimits>) -> (f32, f32) {
     let (mut lo, mut hi) = (least, f32::INFINITY);
     for limit in limits {
         lo = lo.max(limit.min.x);
@@ -310,6 +312,8 @@ pub struct DockColumnOutput<P> {
     pub picked: Option<GroupItem>,
     /// The groups whose height the user changed this pass, each named by its first panel, with the new height.
     pub resized: Vec<(P, f32)>,
+    /// The width the user gave the column on its inner edge this pass.
+    pub width: Option<f32>,
 }
 
 impl<P> Outcome for DockColumnOutput<P> {
@@ -357,8 +361,17 @@ pub struct DockColumn<'a, P: Value + Hash + 'static> {
     /// Whether Auto-Collapse Iconic Panels is on, which the column menu shows as checked.
     #[prop]
     auto_collapse: bool,
+    /// The window edge the column's dock sits on; the column's inner edge faces away from it.
+    #[prop]
+    edge: DockEdge,
+    /// The rect the dock may grow within, which bounds how wide its inner edge can make the column.
+    #[prop]
+    within: Rect,
     bar: BarRecord,
+    /// The plan `parts` laid out this pass, which update, paint and access read.
+    laid: Option<Plan>,
     resized: Vec<(P, f32)>,
+    width: Option<f32>,
     toggled: bool,
 }
 
@@ -373,8 +386,12 @@ impl<'a, P: Value + Hash + 'static> DockColumn<'a, P> {
             column,
             spec,
             auto_collapse: false,
+            edge: DockEdge::Start,
+            within: Rect::NOTHING,
             bar: BarRecord::default(),
+            laid: None,
             resized: Vec::new(),
+            width: None,
             toggled: false,
         }
         .label(label)
@@ -404,6 +421,20 @@ impl<'a, P: Value + Hash + 'static> DockColumn<'a, P> {
         let groups = stacked(body, &heights);
         let open = (0..group_sizes.len()).filter(|at| !group_sizes[*at].minimized).collect();
         Plan { bar, body, groups, heights, mins: group_sizes.iter().map(|size| size.min).collect(), open }
+    }
+
+    /// The divider on the column's inner edge, which moves between the width bounds of its panels.
+    fn edge_divider(&self, rect: Rect, sizes: &DockSizes) -> Divider {
+        let (least, most) = sizes.width_bounds(self.column, self.spec);
+        Divider::column_edge(rect, self.edge, (least, most.min((self.within.width() - sizes.least_pane).max(rect.width()))), sizes.reach)
+    }
+
+    /// Takes the width the coordinate `coord` of the inner edge asks for, kept within the divider's travel.
+    fn move_edge(&mut self, rect: Rect, divider: &Divider, coord: f32) {
+        let width = Divider::column_width(rect, self.edge, coord.clamp(divider.lo, divider.hi));
+        if (width - rect.width()).abs() > f32::EPSILON {
+            self.width = Some(width);
+        }
     }
 
     fn anchor(&self, group: usize) -> Option<&P> {
@@ -478,20 +509,23 @@ impl<P: Value + Hash + 'static> Component for DockColumn<'_, P> {
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let sizes = cx.style.sizes;
         let plan = self.plan(rect, &sizes);
+        let dividers = plan.dividers(rect, sizes.reach);
         cx.part(BAR, plan.bar)
             .sense(Sense::DRAG)
             .cursor(CursorIcon::Grab)
             .drag_cursor(CursorIcon::Grabbing)
             .pointer_only("Move Panel To in the panel menu moves the panels of the column");
-        for (key, _, divider) in plan.dividers(rect, sizes.reach) {
+        for (key, _, divider) in dividers {
             divider::declare(cx, rect, DIVIDER, key, &divider);
         }
+        divider::declare(cx, rect, EDGE, 0, &self.edge_divider(rect, &sizes));
+        self.laid = Some(plan);
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let sizes = cx.style.sizes;
         let (rect, rtl, ctx) = (cx.rect, cx.flow.is_rtl(), cx.core.ctx.clone());
-        let mut plan = self.plan(rect, &sizes);
+        let Some(mut plan) = self.laid.take() else { return };
         let bar = cx.part(BAR).clone();
         if matches!(bar.press.phase, PressPhase::DragStart { start, .. } if start.button == craft_behavior::PointerButton::Primary) {
             drag_column(cx, self.column, self.spec, rect.size());
@@ -509,25 +543,36 @@ impl<P: Value + Hash + 'static> Component for DockColumn<'_, P> {
         {
             self.move_divider(&mut plan, *index, coord - divider.at);
         }
+        let edge = self.edge_divider(rect, &sizes);
+        if let Some(Drag::To(coord)) = divider::pointer(cx, EDGE, 0, &edge) {
+            self.move_edge(rect, &edge, coord);
+        }
+        if let Some((_, coord)) = divider::keys(cx, EDGE, &[(0, edge)], sizes.step, sizes.jump) {
+            self.move_edge(rect, &edge, coord);
+        }
         cx.core.memory.shown::<GroupRects>(sub(sub(cx.core.id, "body"), RECTS)).0 = plan.groups.clone();
         self.register(&ctx, rect, rtl, &plan, &sizes);
+        self.laid = Some(plan);
     }
 
-    fn paint_over(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let plan = self.plan(cx.rect, &cx.style.sizes);
+    fn paint_over(&mut self, ui: &mut PaintUi<'_>, _: &Cx<'_, Self>) {
+        let Some(plan) = self.laid.as_ref() else { return };
         for pair in plan.open.windows(2) {
             ui.face(DIVIDER.at(pair[0] as u64), Splitter::new(Axis::Y));
         }
+        ui.face(EDGE.at(0), Splitter::new(Axis::X));
     }
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let words = cx.words::<DockWords>();
         let sizes = cx.style.sizes;
-        let plan = self.plan(cx.rect, &sizes);
+        let Some(plan) = self.laid.as_ref() else { return };
         access.node(BAR, Role::BUTTON).name = Name::Text(bar_name(self.column, self.spec, &words.move_column));
         for (key, _, divider) in plan.dividers(cx.rect, sizes.reach) {
             divider::describe(access, DIVIDER, key, &divider, words.resize.as_str(), sizes.step);
         }
+        let edge = self.edge_divider(cx.rect, &sizes);
+        divider::describe(access, EDGE, 0, &edge, words.resize.as_str(), sizes.step);
     }
 
     fn finish(self, mut cx: Cx<'_, Self>) -> DockColumnOutput<P> {
@@ -535,7 +580,7 @@ impl<P: Value + Hash + 'static> Component for DockColumn<'_, P> {
             Popup::toggle(opener, &mut cx);
         }
         let iconic = self.bar.iconic.or(self.toggled.then_some(!self.column.iconic));
-        DockColumnOutput { response: cx.response.clone(), placed: cx.rect, iconic, picked: self.bar.picked, resized: self.resized }
+        DockColumnOutput { response: cx.response.clone(), placed: cx.rect, iconic, picked: self.bar.picked, resized: self.resized, width: self.width }
     }
 }
 

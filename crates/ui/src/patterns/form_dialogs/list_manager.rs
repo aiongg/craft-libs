@@ -108,6 +108,8 @@ pub struct ListManagerAction {
     pub label: Label,
     /// What the button tells while it is disabled, if anything.
     pub reason: Option<Label>,
+    /// What the button tells while it is enabled, if anything.
+    pub tooltip: Option<Label>,
     /// When the button is enabled.
     pub enabled: ActionEnabled,
     /// Closes the dialog with the answer (Run, Edit, Create); otherwise the dialog stays open and the answer comes
@@ -118,7 +120,7 @@ pub struct ListManagerAction {
 impl ListManagerAction {
     /// An action with the app's `id`, a `label` and its enabled rule; it closes the dialog.
     pub fn new(id: impl Into<String>, label: impl Into<Label>, enabled: ActionEnabled) -> Self {
-        ListManagerAction { id: id.into(), label: label.into(), reason: None, enabled, closes: true }
+        ListManagerAction { id: id.into(), label: label.into(), reason: None, tooltip: None, enabled, closes: true }
     }
 
     /// Run, enabled on an entry, closing; the default action (Enter, double click).
@@ -145,6 +147,13 @@ impl ListManagerAction {
     #[must_use]
     pub fn reason(mut self, reason: impl Into<Label>) -> Self {
         self.reason = Some(reason.into());
+        self
+    }
+
+    /// Tells `tooltip` while the button is enabled.
+    #[must_use]
+    pub fn tooltip(mut self, tooltip: impl Into<Label>) -> Self {
+        self.tooltip = Some(tooltip.into());
         self
     }
 
@@ -317,6 +326,9 @@ impl<'a> ListManager<'a> {
                 let mut button = FooterButton::new(action.label.clone(), role).stays_open(!action.closes);
                 if let Some(reason) = &action.reason {
                     button = button.disabled_reason(reason.clone());
+                }
+                if let Some(tooltip) = &action.tooltip {
+                    button = button.tooltip(tooltip.clone());
                 }
                 button
             })

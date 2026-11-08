@@ -1,11 +1,12 @@
-//! The own logic of Save for Web: the 4-Up variants, the download estimate, the animation clock, which panes the
-//! dialog asks the app to encode, and the Save… hand-off.
+//! The own logic of Save for Web: which panes the dialog asks the app to encode, and the Save… hand-off.
 
-use craft_ui::runtime::requests::PathRequest;
 use craft_behavior::PixelSize;
 use craft_ui::contract::Bind;
-use craft_ui::patterns::form_dialogs::{HostRequests, SAVE_PATH_KEY, SaveForWebDialog, SaveForWebOptions, SaveForWebResult, WantedVariant, WebFormat, WebPane, WebPictures, WebPreset, WebView, advance_frame, download_seconds, four_up_variants};
+use craft_ui::patterns::form_dialogs::{
+    HostRequests, SAVE_PATH_KEY, SaveForWebDialog, SaveForWebOptions, SaveForWebResult, WantedVariant, WebPane, WebPictures, WebPreset, WebView,
+};
 use craft_ui::runtime::overlay::CloseReason;
+use craft_ui::runtime::requests::PathRequest;
 use craft_ui::testing::{Fixture, trial};
 
 use egui::Modifiers;
@@ -13,8 +14,6 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-const FRAMES: u32 = 12;
-const FPS: f32 = 24.0;
 const DOCUMENT: PixelSize = PixelSize::new(1200, 800);
 
 /// The opening settings changed by `change`.
@@ -22,50 +21,6 @@ fn options(change: impl FnOnce(&mut SaveForWebOptions)) -> SaveForWebOptions {
     let mut options = SaveForWebOptions::default();
     change(&mut options);
     options
-}
-
-fn with_format(format: WebFormat) -> SaveForWebOptions {
-    options(|options| options.format = format)
-}
-
-/// 4-Up's two extra panes halve and quarter the quality or the colours; other formats become PNG-8 and GIF.
-#[trial]
-fn four_up_variants_halve_and_quarter_what_the_format_has() {
-    let jpeg = four_up_variants(&options(|options| options.quality = 60));
-    assert_eq!((jpeg[0].quality, jpeg[1].quality), (30, 15));
-    assert!(jpeg.iter().all(|variant| variant.format == WebFormat::Jpeg));
-
-    let gif = four_up_variants(&options(|options| (options.format, options.colors) = (WebFormat::Gif, 128)));
-    assert_eq!((gif[0].colors, gif[1].colors), (64, 32));
-
-    let lossless = four_up_variants(&options(|options| (options.format, options.lossless) = (WebFormat::WebP, true)));
-    assert_eq!((lossless[0].format, lossless[1].format), (WebFormat::Png8, WebFormat::Gif), "lossless WebP has no quality to halve");
-    assert_eq!((lossless[0].colors, lossless[1].colors), (128, 64));
-
-    let png = four_up_variants(&with_format(WebFormat::Png24));
-    assert_eq!((png[0].format, png[1].format), (WebFormat::Png8, WebFormat::Gif));
-}
-
-/// The estimate rounds up at 56.6 kilobits per second.
-#[trial]
-fn the_download_estimate_rounds_up() {
-    assert_eq!(download_seconds(0, 56.6), 0);
-    assert_eq!(download_seconds(7075, 56.6), 1);
-    assert_eq!(download_seconds(7076, 56.6), 2);
-    assert_eq!(download_seconds(50_000, 56.6), 8);
-}
-
-/// The clock steps whole frames, keeps the part of a frame that has not passed, wraps, and survives bad times.
-#[trial]
-fn the_animation_clock_steps_whole_frames_and_wraps() {
-    assert_eq!(advance_frame(3, FRAMES, FPS, 10.0, 10.0).0, 3, "no time, no step");
-    let (frame, clock) = advance_frame(3, FRAMES, FPS, 10.0, 10.0 + 2.5 / f64::from(FPS));
-    assert_eq!(frame, 5);
-    assert!((clock - (10.0 + 2.0 / f64::from(FPS))).abs() < 1e-9, "the half frame carries over");
-    assert_eq!(advance_frame(FRAMES - 1, FRAMES, FPS, 0.0, 1.5 / f64::from(FPS)).0, 0, "after the last frame comes the first");
-    assert_eq!(advance_frame(40, FRAMES, FPS, 0.0, 0.0).0, FRAMES - 1, "a frame past the end is clamped");
-    assert_eq!(advance_frame(2, FRAMES, FPS, 5.0, 1.0), (2, 1.0), "a clock that went back restarts");
-    assert_eq!(advance_frame(2, FRAMES, 0.0, 0.0, 1.0).0, (2 + 30) % FRAMES, "no frame rate plays at 30");
 }
 
 /// A preset is what the settings show apart from the size.

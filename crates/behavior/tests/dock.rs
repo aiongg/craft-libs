@@ -1,7 +1,7 @@
 //! The dock model: validation, restore to the old place, permissions and the persisted shapes.
 
 use craft_behavior::dock::{
-    Action, Column, DockEdge, DockError, DockSide, Floating, Group, Layout, Location, Node, PanelState, Permissions, Placement, SplitSize,
+    Action, Column, DockEdge, DockError, DockPlacement, DockSide, Floating, Group, Layout, Location, Node, PanelState, Permissions, SplitSize,
 };
 use craft_behavior::{Axis, Flow, Monitor};
 use emath::{Pos2, Rect, Vec2};
@@ -149,7 +149,7 @@ fn restore_refuses_a_present_panel_and_a_missing_anchor_and_changes_nothing() {
 
     let mut layout = without(Some(3));
     let before = layout.clone();
-    let orphan = Location::new(Some(99), Placement::tab(None));
+    let orphan = Location::new(Some(99), DockPlacement::tab(None));
     assert!(layout.restore(3, &orphan).is_err());
     assert_eq!(layout, before);
 }
@@ -265,15 +265,15 @@ fn a_layout_saved_with_the_physical_names_loads_and_writes_back_in_reading_order
 fn actions_saved_with_left_and_right_load_as_start_and_end() {
     for (saved, side) in [("Left", DockSide::Start), ("left", DockSide::Start), ("Right", DockSide::End), ("right", DockSide::End)] {
         let action: Action<u32> = serde_json::from_value(json!({"Move": {"panel": 1, "anchor": 2, "placement": {"Split": saved}}})).unwrap();
-        assert_eq!(action, Action::move_beside(1, 2, Placement::Split(side)), "{saved}");
+        assert_eq!(action, Action::move_beside(1, 2, DockPlacement::Split(side)), "{saved}");
     }
-    assert_eq!(serde_json::to_value(Placement::<u32>::Split(DockSide::Start)).unwrap(), json!({"Split": "Start"}));
+    assert_eq!(serde_json::to_value(DockPlacement::<u32>::Split(DockSide::Start)).unwrap(), json!({"Split": "Start"}));
 }
 
 #[test]
 fn a_split_dropped_on_start_lands_on_the_right_in_a_right_to_left_flow() {
     let mut layout = Layout::new(Some(tabs(&[1], 0)), Vec::new());
-    layout.restore(2, &Location::new(Some(1), Placement::Split(DockSide::Start))).unwrap();
+    layout.restore(2, &Location::new(Some(1), DockPlacement::Split(DockSide::Start))).unwrap();
     let Some(Node::Split { axis: Axis::X, first, .. }) = &layout.root else { panic!("{:?}", layout.root) };
     assert_eq!(**first, tabs(&[2], 0), "the dropped panel is the start child");
     let area = Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(200.0, 100.0));
