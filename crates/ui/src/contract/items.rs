@@ -868,6 +868,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         *cx.core.memory.session::<Drags<C::Key>>(sub(id, "drags")) = self.drags.clone();
         self.header.report(&cx.core.ctx, id, cx);
         *cx.core.memory.session::<Renaming<C::Key>>(sub(id, "rename")) = self.renaming.clone();
+        cx.core.collection_selection = Some(Box::new(self.selection.clone()));
         cx.core.collection_events = Some(Box::new((std::mem::take(&mut self.events), std::mem::take(&mut self.shown))));
         cx.core.visible_rows = self.visible.clone();
         cx.core.gestures = Gestures::of(comp.items());
@@ -1526,8 +1527,9 @@ fn key_hash<K: std::hash::Hash>(key: &K) -> u64 {
 }
 
 impl<C: Collection> Cx<'_, C> {
-    /// The selection the item step holds this pass, for the collection's own `update`: the app's binding when it
-    /// has one, else the one the item step keeps.
+    /// The selection the item step holds this pass: the app's binding when it has one, else the one the item step
+    /// keeps. The collection's own `update` reads it as the pass began; its `finish` reads it with the pass's
+    /// selection changes applied.
     pub fn collection_selection(&self) -> Option<&C::Selection> {
         self.core.collection_selection.as_ref().and_then(|held| held.downcast_ref::<C::Selection>())
     }
