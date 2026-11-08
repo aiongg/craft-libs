@@ -370,12 +370,12 @@ fn a_double_click_on_the_rename_column_renames_and_elsewhere_activates() {
     let words = Words::flat(&["one", "two"]);
     let seen = Seen::default();
     let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| {
-        show_words(ui, List::new(SelectMode::Single).rename_column(ColumnKey::new("name"), ColumnKey::new("other")), &words, &seen)
-    };
+    let mut show =
+        |ui: &mut Ui| show_words(ui, List::new(SelectMode::Single).rename_column(ColumnKey::new("name"), ColumnKey::new("other")), &words, &seen);
     frames.idle(3, &mut show);
     let y = seen.rect.get().min.y + ROW_H / 2.0;
-    let count = |seen: &Seen, wanted: fn(&CollectionEvent<usize, Dismissed>) -> bool| seen.events.borrow().iter().filter(|event| wanted(event)).count();
+    let count =
+        |seen: &Seen, wanted: fn(&CollectionEvent<usize, Dismissed>) -> bool| seen.events.borrow().iter().filter(|event| wanted(event)).count();
     let double = |frames: &mut Frames, at: Pos2, show: &mut dyn FnMut(&mut Ui)| {
         frames.frame(vec![pointer::moved(at)], &mut *show);
         for _ in 0..2 {
