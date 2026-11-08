@@ -14,7 +14,7 @@ use craft_host::Host;
 use craft_host::target::Caps;
 use craft_settings::Remembered;
 use craft_theme::{ColorModel, Srgba, builtin_models};
-use craft_ui::contract::{Bind, Sampler as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Sampler as _, ShowContainer as _};
 use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
 use craft_ui::patterns::form_dialogs::{HostRequests, ResetFooter};
 use craft_ui::runtime::env::{Env, Label};

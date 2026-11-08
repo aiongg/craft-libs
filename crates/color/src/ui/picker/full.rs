@@ -271,7 +271,7 @@ impl<'a> Body<'a> {
                                 ChannelUnit::Degrees => field.unit_kind(craft_ui::runtime::env::UnitKind::Degrees),
                                 ChannelUnit::Text(text) => field.unit(Label::from(text)),
                             };
-                            field.show(ui)
+                            field.show(ui).edit
                         })
                         .inner
                 })

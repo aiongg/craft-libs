@@ -156,7 +156,7 @@ impl Component for SwatchCell {
     type Output = Response;
 
     fn style(cx: &StyleCx<'_>, _: SwatchCellStyleKey) -> SwatchCellStyle {
-        let side = SwatchMetrics::of(cx.tokens, cx.size).cell;
+        let side = SwatchMetrics::of(cx).cell;
         SwatchCellStyle { metrics: Metrics::new(), focus: cx.focus_look(), side }
     }
 
@@ -313,7 +313,7 @@ impl Collection for SwatchTable<'_> {
     }
 
     fn item_layout(&self, source: &dyn ItemSource<usize>, width: f32, cx: &StyleCx<'_>) -> TileLayout {
-        let cell = SwatchMetrics::of(cx.tokens, cx.size).cell;
+        let cell = SwatchMetrics::of(cx).cell;
         let width = self.per_row.map_or(width, |columns| columns.max(1) as f32 * cell + WRAP_SLACK);
         TileLayout::new(source, width, Vec2::splat(cell), 0.0)
     }

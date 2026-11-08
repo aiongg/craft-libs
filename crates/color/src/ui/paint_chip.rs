@@ -351,7 +351,7 @@ impl Component for PaintChip<'_> {
 
     fn style(cx: &StyleCx<'_>, _: PaintChipStyleKey) -> PaintChipStyle {
         let colors = &cx.tokens.color;
-        let metrics = craft_ui::choice::SwatchMetrics::of(cx.tokens, cx.size);
+        let metrics = craft_ui::choice::SwatchMetrics::of(cx);
         PaintChipStyle {
             metrics: Metrics::new(),
             focus: cx.focus_look(),

@@ -18,14 +18,14 @@ use craft_behavior::{EditEvent, GestureId, Metrics, Mixed, Value};
 use craft_theme::{ColorModel, ModelValues, Srgba, builtin_models};
 use craft_ui::contract::{
     Bind, BindMut, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, Outcome, PaintUi, Props as _, Remember as _, Role,
-    ShowContainer as _, Sizing,
+    ShowContainer, Sizing,
 };
 use craft_ui::layout::BodyLayout;
 use craft_ui::runtime::focus::{self, FocusTarget};
 use craft_ui::style::{ComponentStyle, StyleCx};
 use egui::{Id, Pos2, Response, Ui};
 
-use super::{AreaMode, channels};
+use super::AreaMode;
 pub(crate) use channel::{ChannelRow, ChannelRule, channel_name};
 pub use full::{ColorWarning, ColorWarningChip, ColorWarningChipOutput};
 pub use value::ColorConstraint;

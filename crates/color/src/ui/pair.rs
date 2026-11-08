@@ -6,7 +6,7 @@ use craft_ui::buttons::IconButton;
 use craft_ui::choice::{Swatch, SwatchMetrics};
 use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Outcome, Overlay, OverlayUi, Overlays as _,
-    PaintUi, PartsCx, Pointer as _, Props as _, Remember as _, Role, Show as _, clicked,
+    PaintUi, PartsCx, Pointer as _, Props as _, Remember as _, Role, clicked,
 };
 use craft_ui::primitives::{PaintShape, StrokeWidth};
 use craft_ui::runtime::commands::FireSource;
@@ -263,7 +263,7 @@ impl Component for SwatchPair<'_> {
             well: cx.tokens.size.icon.lg,
             step: cx.tokens.size.icon.sm,
             gap: cx.tokens.space.gap.tight,
-            buttons: SwatchMetrics::of(cx.tokens, cx.size).side,
+            buttons: SwatchMetrics::of(cx).side,
             ground: cx.color(colors.surface.panel),
             edge: cx.color(colors.line.control_edge),
         }

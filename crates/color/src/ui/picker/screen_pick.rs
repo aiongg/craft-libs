@@ -3,7 +3,7 @@
 
 use craft_behavior::{IconId, Metrics, PressPhase, Sense};
 use craft_theme::{Stateful, States, variant::Tone};
-use craft_ui::contract::{Common, Component, Cx, MeasureCx, NoValue, Outcome, PaintUi, Pointer as _, Role};
+use craft_ui::contract::{Common, Component, Cx, MeasureCx, NoValue, Outcome, PaintUi, Pointer as _, Role, Styled as _};
 use craft_ui::primitives::IconSpec;
 use craft_ui::style::{ComponentStyle, FocusLook, IconLook, Ink, StyleCx};
 use egui::{Rect, Response, Vec2};
