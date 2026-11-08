@@ -83,6 +83,8 @@ pub trait StackDialog: Any + Send {
     fn cancelled(&mut self, _ctx: &Context) {}
 }
 
+impl<T: StackDialog + crate::contract::Pattern> crate::contract::DialogPattern for T {}
+
 /// Where a startup modal goes in the queue when several apply at launch (spec question 5).
 /// Lower shows first.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]

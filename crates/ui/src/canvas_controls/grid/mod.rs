@@ -171,7 +171,7 @@ impl CanvasGrid {
             GridLine::Dots => GridStroke::Dots,
             GridLine::Crossings => return if lines.crossings { crossings(space, &lines, key.color, key.crossing) } else { Vec::new() },
         };
-        grid_lines_with(&key.look, &lines, &GridInk::new().major(key.color).stroke(stroke), key.pixels_per_point)
+        grid_lines_with(&key.look, &lines, &GridInk::new().major(DataColor::new(key.color)).stroke(stroke), key.pixels_per_point)
     }
 }
 

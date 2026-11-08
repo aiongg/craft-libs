@@ -9,12 +9,7 @@ use craft_behavior::kurbo::Size;
 use craft_behavior::{CanvasView, GesturePhase};
 use egui::{Event, Id, Key, Modifiers, Pos2, Rect, Ui, Vec2};
 use std::cell::{Cell, Ref, RefCell, RefMut};
-use std::path::{Path, PathBuf};
 use std::rc::Rc;
-
-/// The rule of the `probe` entry that names a freehand tool in `design/exceptions/<crate>/<family>.toml`; the
-/// entry's `name` is the fixture's label.
-pub const FREEHAND_RULE: &str = "probe/exempt/freehand-tool";
 
 /// The size of the document the fixture's canvas shows, in document units: what the zoom tools read from the canvas's
 /// space.
@@ -215,8 +210,7 @@ impl<T: CanvasTool + 'static> ToolFixture<T> {
 
     /// The checks every tool owes the canvas, on a drag from the middle of the canvas and an Escape drag from a quarter of the way in:
     ///
-    /// - the tool has a command form: `ToolPath::Command` with a text, or `ToolPath::Freehand` with its named
-    ///   exception entry (checked when the lint configuration is readable);
+    /// - the tool has a command form: `ToolPath::Command` with a text, or `ToolPath::Freehand` with its reason;
     /// - a drag reaches the tool as one `Begin` and one `Commit`, with updates between;
     /// - Escape during a drag cancels it once, and a second Escape cancels nothing.
     pub fn check(&mut self) {
@@ -244,55 +238,9 @@ impl<T: CanvasTool + 'static> ToolFixture<T> {
     fn check_command_form(&self) {
         match self.tool.borrow().command_form() {
             ToolPath::Command(text) => assert!(!text.trim().is_empty(), "{}: the command form names its command", self.label),
-            ToolPath::Freehand => match freehand_entry(self.label) {
-                Entry::Found => {}
-                Entry::Missing => panic!(
-                    "{}: a freehand tool needs a `{FREEHAND_RULE}` entry named \"{}\" in design/exceptions/<crate>/<family>.toml",
-                    self.label, self.label
-                ),
-                Entry::Unreadable => {
-                    eprintln!("{}: freehand; design/exceptions was not readable, so its exception entry was not checked", self.label)
-                }
-            },
-        }
-    }
-}
-
-enum Entry {
-    Found,
-    Missing,
-    Unreadable,
-}
-
-/// Looks for the `FREEHAND_RULE` entry named `name` under the `design/exceptions` of the workspace that holds the
-/// test package.
-fn freehand_entry(name: &str) -> Entry {
-    let Some(root) = std::env::var_os("CARGO_MANIFEST_DIR")
-        .map(PathBuf::from)
-        .and_then(|dir| dir.ancestors().map(|dir| dir.join("design").join("exceptions")).find(|dir| dir.is_dir()))
-    else {
-        return Entry::Unreadable;
-    };
-    let mut files = Vec::new();
-    toml_files(&root, &mut files);
-    let found = files.iter().filter_map(|file| std::fs::read_to_string(file).ok()).filter_map(|text| text.parse::<toml::Table>().ok()).any(|table| {
-        table.get("exception").and_then(|list| list.as_array()).is_some_and(|list| {
-            list.iter().filter_map(|entry| entry.as_table()).any(|entry| {
-                let text = |key: &str| entry.get(key).and_then(|value| value.as_str());
-                text("kind") == Some("probe") && text("rule") == Some(FREEHAND_RULE) && text("name") == Some(name)
-            })
-        })
-    });
-    if found { Entry::Found } else { Entry::Missing }
-}
-
-fn toml_files(dir: &Path, out: &mut Vec<PathBuf>) {
-    for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            toml_files(&path, out);
-        } else if path.extension().is_some_and(|extension| extension == "toml") {
-            out.push(path);
+            ToolPath::Freehand(reason) => {
+                assert!(!reason.trim().is_empty(), "{}: a freehand tool names the command that does its job, or says there is none", self.label)
+            }
         }
     }
 }

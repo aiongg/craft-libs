@@ -510,9 +510,11 @@ pub trait CanvasTool {
     }
 
     /// How the tool is reached without a pointer: a tool that creates or selects geometry names the command whose
-    /// form takes the same numbers; a freehand tool is `ToolPath::Freehand`, a named exception.
+    /// form takes the same numbers; a freehand tool is `ToolPath::Freehand` with its reason.
     fn command_form(&self) -> ToolPath;
 }
+
+impl<T: CanvasTool + crate::contract::Pattern> crate::contract::ToolPattern for T {}
 
 /// The tool of a canvas that has none: it takes no press and paints nothing, and its keyboard path is freehand.
 #[derive(Clone, Copy, Debug, Default)]
@@ -532,6 +534,6 @@ impl CanvasTool for NoTool {
     fn paint(&self, _: &Draw<'_>, _: &ToolContext<'_>) {}
 
     fn command_form(&self) -> ToolPath {
-        ToolPath::Freehand
+        ToolPath::Freehand("the canvas has no tool, so there is nothing to do by keyboard")
     }
 }

@@ -63,7 +63,9 @@ pub use props::{Common, Props, Resolved, Tooltip, TooltipAt, TooltipSpec, Toolti
 #[cfg(feature = "testing")]
 pub use registry::REGISTRATIONS;
 #[doc(hidden)]
-pub use registry::{CollectionEntry, ContainerEntry, Exemption, LeafEntry, PatternProbe, Probe, Registration, ShowEntry};
+pub use registry::{
+    CollectionEntry, ContainerEntry, DialogPattern, Exemption, LeafEntry, PatternKind, PatternProbe, Probe, Registration, ShowEntry, ToolPattern,
+};
 pub use sampler::Sampler;
 pub(crate) use values::landed;
 pub use values::{Bind, BindMut, EditResponse, ItemOutput, NoValue, Outcome, Validity, ValueOf, clicked};
@@ -221,6 +223,10 @@ pub const MAX_EXTENT: f32 = 32_768.0;
 /// the type, so the components index lists it and the suite runs the cases that apply to what it shows: the
 /// container and collection cases of its contents, and the role and name checks of every node. A type is a
 /// `Component` or a `Pattern`, never both: a type with its own sensing, painting, popups or focus is a component.
+///
+/// A canvas tool and a stack dialog are patterns of their own kind (`#[pattern(tool)]`, `#[pattern(dialog)]`): they
+/// are not components, and their stories show them through a canvas (`testing::tool_story`) or
+/// a dialog.
 pub trait Pattern {}
 
 /// The core trait: every UI type is a `Component`.

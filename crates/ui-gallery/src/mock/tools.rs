@@ -26,7 +26,8 @@ impl Default for Tools {
 
 /// The Move tool: it takes no press of its own (the guides over the canvas take theirs) and its command form is
 /// moving the current layer.
-#[derive(Debug)]
+#[derive(Debug, craft_ui::contract::Pattern)]
+#[pattern(tool)]
 pub(super) struct MoveTool;
 
 impl CanvasTool for MoveTool {

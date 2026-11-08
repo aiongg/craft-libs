@@ -1,11 +1,14 @@
 //! What the derives write: registrations and probes, style keys per instantiation, setters and style accessors.
 
 use super::kit::PlainStyle;
-use craft_behavior::Metrics;
+use craft_behavior::{CancelReason, Metrics};
 use craft_theme::{Contrast, ControlSize, Mode, Rgba, Tokens, Variant};
+use craft_ui::canvas::{CanvasTool, ToolAction, ToolContext, ToolPath, ToolPointer};
+use craft_ui::contract::PatternKind;
 use craft_ui::contract::{
     Common, Component, Cx, EditResponse, Internal, MeasureCx, Meta, Pattern, Props, Role, ShapeKind, Show as _, register_contract, shape,
 };
+use craft_ui::primitives::Draw;
 use craft_ui::style::{ComponentStyle, FocusLook, StyleCx, StyleKey, SurfaceLook, TokenGroup};
 use craft_ui::testing::style::{tokens, with_cx};
 use craft_ui::testing::{Frames, Probe, registered, trial};
@@ -121,6 +124,29 @@ struct Handwritten;
 impl Pattern for Handwritten {}
 
 register_contract!(Handwritten; pattern);
+
+/// A tool that does nothing, registered as a story host of the tool kind.
+#[derive(craft_ui::contract::Pattern)]
+#[pattern(tool)]
+struct IdleTool;
+
+impl CanvasTool for IdleTool {
+    fn press(&mut self, _: &ToolPointer, _: &mut ToolContext<'_>) -> ToolAction {
+        ToolAction::Ignored
+    }
+
+    fn drag(&mut self, _: &ToolPointer, _: &mut ToolContext<'_>) {}
+
+    fn release(&mut self, _: &ToolPointer, _: &mut ToolContext<'_>) {}
+
+    fn cancel(&mut self, _: CancelReason, _: &mut ToolContext<'_>) {}
+
+    fn paint(&self, _: &Draw<'_>, _: &ToolContext<'_>) {}
+
+    fn command_form(&self) -> ToolPath {
+        ToolPath::Freehand("none; the tool does nothing")
+    }
+}
 
 /// Every probe linked into this binary, the integration binary's own fixtures included.
 fn probes() -> Vec<Probe> {
@@ -315,4 +341,19 @@ fn a_pattern_registers_as_a_pattern_and_has_no_component_probe() {
     assert_eq!(row.purpose, "A row of tools: a pattern assembles components and has no contract shape of its own");
     assert!(patterns.iter().any(|pattern| pattern.type_name().ends_with("Handwritten")), "`register_contract!(Type; pattern)` registers too");
     assert!(named("ToolRow").is_empty() && named("Handwritten").is_empty(), "a pattern has no component probe");
+}
+
+#[trial]
+fn a_tool_and_a_stack_dialog_register_as_story_hosts_of_their_own_kind() {
+    let _ = IdleTool;
+    let kind_of = |name: &str| {
+        craft_ui::contract::REGISTRATIONS
+            .iter()
+            .filter_map(|registration| registration.pattern_probe())
+            .find(|pattern| pattern.type_name().ends_with(name))
+            .map(|pattern| pattern.kind)
+    };
+    assert_eq!(kind_of("IdleTool"), Some(PatternKind::Tool));
+    assert_eq!(kind_of("RecoveryDialog"), Some(PatternKind::Dialog));
+    assert_eq!(kind_of("ToolRow"), Some(PatternKind::Composition));
 }
