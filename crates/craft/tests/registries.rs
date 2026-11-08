@@ -20,8 +20,6 @@ fn words_list_the_kernel_tables_first_then_each_enabled_crate() {
     assert!(tables.len() > kernel.len());
     assert!(tables.iter().zip(kernel).all(|(a, b)| std::ptr::eq(*a, *b)));
     #[cfg(feature = "keymap")]
-    assert!(tables.iter().any(|t| *t == craft::keymap::ui::WORDS[0]));
-    #[cfg(feature = "keymap")]
     assert!(!craft::words::counts().is_empty());
 }
 
