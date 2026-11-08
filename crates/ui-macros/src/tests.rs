@@ -364,17 +364,12 @@ fn a_forwarding_attribute_needs_its_props_type() {
 }
 
 #[test]
-fn registration_outside_craft_ui_is_gated_on_the_crates_testing_feature() {
-    // The test crate is not craft-ui, so this is the expansion an app or domain crate gets.
+fn registration_outside_craft_ui_is_gated_only_when_the_package_declares_screen_testing() {
     let compact = |tokens: TokenStream| tokens.to_string().split_whitespace().collect::<String>();
-    let gate = "#[cfg(feature=\"screen-testing\")]const_:()=";
-    let pattern = compact(crate::component::pattern_registrations(&[syn::parse_quote!(Panel<Fake>)], "A panel"));
-    assert!(pattern.starts_with(gate), "{pattern}");
-    assert!(!pattern.contains("allow(unsafe_code)"), "{pattern}");
-    let component = crate::component::derive(quote! {
-        struct Field<'a> { #[common] common: Common, text: &'a str }
-    })
-    .map(compact)
-    .unwrap_or_default();
-    assert!(component.contains(gate), "{component}");
+    let declared = "[package]\nname = \"app\"\n\n[features]\nscreen-testing = [\"craft-ui/testing\"]\n";
+    assert_eq!(compact(crate::component::gate_for(false, declared)), "#[cfg(feature=\"screen-testing\")]");
+    let undeclared = "[package]\nname = \"gallery\"\nscreen-testing = 1\n\n[dependencies]\nscreen-testing = \"1\"\n";
+    assert_eq!(compact(crate::component::gate_for(false, undeclared)), "");
+    assert_eq!(compact(crate::component::gate_for(false, "")), "");
+    assert!(compact(crate::component::gate_for(true, declared)).contains("allow(unsafe_code)"));
 }
