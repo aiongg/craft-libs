@@ -113,16 +113,30 @@ note = "Name order is the interface language's collator with digits by value."
 [[type]]
 name = "LinkListLabels"
 old = "craft_browse::ui::relink::LinkListLabels"
+new = ""
+status = "removed"
+note = "Renamed `LinkListWords`."
+
+[[type]]
+name = "LinkListWords"
+old = ""
 new = "craft_browse::ui::relink::LinkListWords"
 status = "replaced"
-note = "A `craft_ui::words!` struct, ids `linkList.*`."
+note = "Replaces `LinkListLabels`. A `craft_ui::words!` struct, ids `linkList.*`."
 
 [[type]]
 name = "RelinkLabels"
 old = "craft_browse::ui::relink::RelinkLabels"
+new = ""
+status = "removed"
+note = "Renamed `RelinkWords`."
+
+[[type]]
+name = "RelinkWords"
+old = ""
 new = "craft_browse::ui::relink::RelinkWords"
 status = "replaced"
-note = "A `craft_ui::words!` struct, ids `relinkDialog.*`; the searching count is the `searching` count word."
+note = "Replaces `RelinkLabels`. A `craft_ui::words!` struct, ids `relinkDialog.*`; the searching count is the `searching` count word."
 
 [[type]]
 name = "RelinkStyle"

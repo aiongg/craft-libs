@@ -237,6 +237,8 @@ craft_ui::words! {
 ///   Offline mark rows. Done returns the outcome; Cancel and Esc return nothing; Esc while a pick
 ///   is open closes the pick only. A network or device link is refused before any read.
 /// - **Never blocks.** The search and every check are jobs; results arrive through `Wake`.
+#[derive(craft_ui::contract::Pattern)]
+#[pattern(probe(RelinkDialog<u32>))]
 pub struct RelinkDialog<K> {
     id: DialogId,
     /// The dialog's open state; Esc with a pick open writes it false and the dialog sets it back.

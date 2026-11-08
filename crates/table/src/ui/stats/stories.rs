@@ -1,7 +1,8 @@
 //! Stories of the selection statistics readout.
 
 use super::{SelectionStats, SelectionStatsReadout, StatsShown, StatsWords, stats_parts};
-use craft_ui::contract::{Bind, Show as _};
+use craft_ui::contract::{Bind, Show as _, Validity};
+use craft_ui::runtime::env::Message;
 use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use egui::{Key, Modifiers, Ui};
 
@@ -23,6 +24,18 @@ fn every_statistic(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(SelectionStatsReadout<'static>, covers = [], drive = Drive::Never)]
 fn some_hidden(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     readout(ui, data, StatsShown::default())
+}
+
+#[story(SelectionStatsReadout<'static>, covers = [Invalid], drive = Drive::Never)]
+fn no_statistic_shown_is_refused(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let shown = *data.value("shown", StatsShown::default());
+    let parts = stats_parts(&stats(), &shown, &StatsWords::default(), |value| format!("{value:.1}"));
+    let refuse_none = |shown: &StatsShown| {
+        if *shown == StatsShown::default() { Validity::Refuse(Message::new("Show at least one statistic")) } else { Validity::Ok }
+    };
+    SelectionStatsReadout::new("Selection statistics", &parts, Bind::bound(data.value("shown", StatsShown::default())).check(refuse_none))
+        .show(ui)
+        .into()
 }
 
 fn open_menu(fixture: &mut Fixture) {

@@ -12,14 +12,14 @@ note = "A pattern, `PlacesTree::new(label, &Places, &mut FolderCache)`, over one
 
 [[type]]
 name = "PlacesEvent"
-old = "craft_browse::ui::places::PlacesEvent<K>"
+old = "craft_browse::ui::places::PlacesEvent"
 new = "craft_browse::ui::places::PlacesEvent"
 status = "replaced"
 note = "Gains `Reveal(PathBuf)` (the app runs the platform reveal); loses `Dropped` and the key parameter."
 
 [[type]]
 name = "PlacesOutput"
-old = "craft_browse::ui::places::PlacesOutput<K>"
+old = "craft_browse::ui::places::PlacesOutput"
 new = "craft_browse::ui::places::PlacesOutput"
 status = "replaced"
 note = "`{ response, events }` without the key parameter; it is an `Outcome`."
@@ -27,9 +27,16 @@ note = "`{ response, events }` without the key parameter; it is an `Outcome`."
 [[type]]
 name = "PlacesLabels"
 old = "craft_browse::ui::places::PlacesLabels"
+new = ""
+status = "removed"
+note = "Renamed `PlacesWords`."
+
+[[type]]
+name = "PlacesWords"
+old = ""
 new = "craft_browse::ui::places::PlacesWords"
 status = "replaced"
-note = "Ids `placesTree.<name>`; the old `browse.places.*` ids go. The hidden-places count is the `hidden` count row."
+note = "Replaces `PlacesLabels`. Ids `placesTree.<name>`; the old `browse.places.*` ids go. The hidden-places count is the `hidden` count row."
 
 [[type]]
 name = "PlacesStyle"
@@ -68,9 +75,16 @@ status = "same"
 [[type]]
 name = "CompareResponse"
 old = "craft_browse::ui::compare::CompareResponse"
+new = ""
+status = "removed"
+note = "Renamed `CompareOutput`."
+
+[[type]]
+name = "CompareOutput"
+old = ""
 new = "craft_browse::ui::compare::CompareOutput"
 status = "replaced"
-note = "`{ response, clicked, double_clicked, view: Option<PreviewView> }`; `view_changed` is `view.is_some()`, `image_rect` is gone (the overlay gets the picture's rect)."
+note = "Replaces `CompareResponse`. `{ response, clicked, double_clicked, view: Option<PreviewView> }`; `view_changed` is `view.is_some()`, `image_rect` is gone (the overlay gets the picture's rect)."
 
 [[type]]
 name = "CompareCaption"
@@ -96,16 +110,30 @@ note = "Takes the pictures' aspect: `survey_columns(n, area, aspect)`."
 [[type]]
 name = "CompareLabels"
 old = "craft_browse::ui::compare::CompareLabels"
+new = ""
+status = "removed"
+note = "Renamed `CompareWords`."
+
+[[type]]
+name = "CompareWords"
+old = ""
 new = "craft_browse::ui::compare::CompareWords"
 status = "replaced"
-note = "Ids `compareTile.<name>`; the old `browse.compare.*` ids go. The star count is the `stars` count row."
+note = "Replaces `CompareLabels`. Ids `compareTile.<name>`; the old `browse.compare.*` ids go. The star count is the `stars` count row."
 
 [[type]]
 name = "CompareStyle"
 old = "craft_browse::ui::compare::CompareStyle"
+new = ""
+status = "removed"
+note = "Renamed `CompareTileStyle`."
+
+[[type]]
+name = "CompareTileStyle"
+old = ""
 new = "craft_browse::ui::compare::CompareTileStyle"
 status = "replaced"
-note = "Only the tile's own marks (veil, ring, halo); the caption, margin, gap and name room are not style values."
+note = "Replaces `CompareStyle`. Only the tile's own marks (veil, ring, halo); the caption, margin, gap and name room are not style values."
 
 [[setter]]
 type = "PlacesTree"

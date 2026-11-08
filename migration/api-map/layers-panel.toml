@@ -116,7 +116,7 @@ note = "Replaced by the word set `LayersPanelWords` (`layersPanel.<name>` ids), 
 name = "LayersPanelWords"
 old = ""
 new = "craft_layers::ui::panel::LayersPanelWords"
-status = "moved"
+status = "replaced"
 note = "The panel's words; the crate's `WORDS` constant goes."
 
 [[type]]
@@ -137,7 +137,7 @@ note = "Returned by `LayersPanelCommands::settings_action`, which replaces `Laye
 name = "LayersPanelCommands"
 old = ""
 new = "craft_layers::ui::panel::LayersPanelCommands"
-status = "moved"
+status = "replaced"
 note = "The `layersPanel` command set: the panel-menu rows, the stacking keys and the effects keys. The app owns the commands and turns them into events with `event(tree, label)`."
 
 [[setter]]

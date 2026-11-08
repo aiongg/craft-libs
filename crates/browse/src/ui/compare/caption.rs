@@ -8,6 +8,7 @@ use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use craft_ui::display::{Icon, Shade, Text};
 use craft_ui::layout_components::Row;
 use craft_ui::primitives::IconSpec;
+use craft_ui::runtime::env::Env;
 use craft_ui::style::TypeRole;
 use craft_ui::tile_grid::TileFlag;
 use egui::Ui;
@@ -100,6 +101,8 @@ impl CompareCaption {
         }
         let name_fits = label.measure_in(ui, Proposal::Ideal).x + name.measure_in(ui, Proposal::Ideal).x + marks <= room;
         let (label, name) = (RefCell::new(Some(label)), RefCell::new(Some(name)));
+        let env = Env::of(ui);
+        let stars_name = stars.map(|n| env.words::<CompareWords>().stars.text(u64::from(n), &env.view().format().integer(u64::from(n))).to_string());
         Row::new().show(ui, |ui, _| {
             if let Some(label) = label.borrow_mut().take() {
                 label.show(ui);
@@ -108,7 +111,11 @@ impl CompareCaption {
                 name.show(ui);
             }
             if let Some(n) = stars {
-                Rating::new(Bind::given(n), STARS).enabled(false).show(ui);
+                let rating = Rating::new(Bind::given(n), STARS).enabled(false);
+                match &stars_name {
+                    Some(name) => rating.label(name.clone()).show(ui),
+                    None => rating.show(ui),
+                };
             }
             if let Some(flag) = flag.clone() {
                 Icon::new(flag).show(ui);
