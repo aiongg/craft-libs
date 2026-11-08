@@ -1,5 +1,6 @@
 //! `Canvas` (20.6): a press away from every canvas control's parts reaches the tool.
 
+mod crop;
 mod readout;
 mod tool;
 
@@ -7,11 +8,11 @@ mod tool;
 mod navigate;
 mod tools;
 
-
+use craft_behavior::geometry::CropBox;
+use craft_behavior::kurbo::Rect;
 use craft_ui::canvas::{Canvas, CropOverlay, ToolPath};
 use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, trial};
-use egui::{Pos2, Rect};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -29,8 +30,8 @@ mod scrollbars;
 mod navigator;
 // End of canvas-navigator-a.
 
-fn crop() -> Rect {
-    Rect::from_min_max(Pos2::new(20.0, 20.0), Pos2::new(100.0, 80.0))
+fn crop() -> CropBox {
+    CropBox::upright(Rect::new(20.0, 20.0, 100.0, 80.0))
 }
 
 #[trial]
@@ -72,5 +73,5 @@ fn an_arrow_on_a_focused_crop_corner_nudges_it() {
     let before = *shared.borrow();
     fixture.key(egui::Key::ArrowRight, egui::Modifiers::NONE);
     let after = *shared.borrow();
-    assert!(after.min.x > before.min.x && after.min.y == before.min.y, "the focused corner moved right: {before:?} -> {after:?}");
+    assert!(after.rect.x0 > before.rect.x0 && after.rect.y0 == before.rect.y0, "the focused corner moved right: {before:?} -> {after:?}");
 }
