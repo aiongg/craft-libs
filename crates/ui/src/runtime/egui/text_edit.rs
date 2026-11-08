@@ -17,6 +17,9 @@ pub(crate) struct Edit<'a> {
     pub enabled: bool,
     /// The widget takes key focus, which a disabled one does while its reason shows on focus.
     pub focusable: bool,
+    /// The widget takes the pointer: presses, drags and clicks. A part whose component scrubs by drag leaves the pointer
+    /// to the component until the field is in edit; the part stays a focus stop.
+    pub pointer: bool,
     pub multiline: bool,
     pub password: bool,
     pub hint: Option<&'a str>,
@@ -43,6 +46,15 @@ pub(crate) struct Shown {
     pub entered: bool,
     pub caret: Option<Rect>,
     pub galley: std::sync::Arc<egui::Galley>,
+    /// Where the galley sits on screen.
+    pub galley_pos: egui::Pos2,
+}
+
+impl Shown {
+    /// The character index a screen position falls at.
+    pub fn char_at(&self, pos: egui::Pos2) -> usize {
+        self.galley.cursor_from_pos(pos - self.galley_pos).index.0
+    }
 }
 
 /// Runs the widget at `edit.rect`.
@@ -54,6 +66,7 @@ pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
         read_only,
         enabled,
         focusable,
+        pointer,
         multiline,
         password,
         hint,
@@ -107,7 +120,7 @@ pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
                 let mut edit = if multiline { egui::TextEdit::multiline($buffer) } else { egui::TextEdit::singleline($buffer) };
                 edit = edit
                     .id(id)
-                    .interactive(focusable)
+                    .interactive(focusable && pointer)
                     .frame(egui::Frame::NONE)
                     .desired_width(rect.width())
                     .min_size(rect.size())
@@ -126,9 +139,10 @@ pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
             }};
         }
         let shown = if read_only { build!(&mut read) } else { build!(&mut *text) };
-        // egui gives a widget of a disabled `Ui` no focus stop and drops its focus; a disabled part whose reason shows
-        // on focus keeps both (as `response::widget` does for a root).
-        if focusable && !ui.is_enabled() {
+        // egui gives a widget of a disabled `Ui` no focus stop and drops its focus, and so does one that is not
+        // interactive; a disabled part whose reason shows on focus, and a part that leaves the pointer to its
+        // component, keep both (as `response::widget` does for a root).
+        if focusable && (!ui.is_enabled() || !pointer) {
             let layer = ui.layer_id();
             ui.ctx().memory_mut(|memory| {
                 memory.interested_in_focus(id, layer);
@@ -152,6 +166,7 @@ pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
         entered,
         caret,
         galley: output.galley,
+        galley_pos: output.galley_pos,
     }
 }
 

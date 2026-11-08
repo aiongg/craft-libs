@@ -309,6 +309,14 @@ pub(crate) fn run<C: Component>(
     let caret_visible = !focused || cx.blink(state.caret_moved);
     let enabled = cx.core.resolved.enabled && decl.options.enabled;
     let focusable = super::steps::takes_focus(cx.core.resolved) && decl.options.enabled;
+    // A component that senses a drag on its root scrubs its value by it: the field takes the pointer only once it is
+    // in edit, and a click that enters it puts the caret where it went down.
+    let scrubs = cx.core.root_sense.contains(craft_behavior::Sense::DRAG);
+    let pointer = !scrubs || (focused && !cx.core.press.phase.is_drag());
+    let click = match cx.core.press.phase {
+        craft_behavior::PressPhase::Release { pos, click: true, .. } if scrubs && focusable => Some(pos),
+        _ => None,
+    };
     let read_only = cx.core.resolved.read_only || !enabled;
     let ink = decl.options.ink.map_or(ink, |own| crate::style::ink_color(&crate::runtime::env::Env::of(ui).tokens, own));
     let ink = if enabled { ink } else { crate::style::rgba_color(crate::runtime::env::Env::of(ui).tokens.color.text.disabled) };
@@ -328,6 +336,8 @@ pub(crate) fn run<C: Component>(
             read_only,
             enabled,
             focusable,
+            pointer,
+            click,
             rtl,
             focused,
             ink,
@@ -344,11 +354,19 @@ pub(crate) fn run<C: Component>(
         state.focused = false;
     }
     let commit_now = step.commit_now || (was_focused && left_for_part);
+    if out.clicked_char.is_some() {
+        state.click_caret = out.clicked_char;
+    }
     if out.focused && !left_for_part && !was_focused {
         let len = decl.shown.chars().count();
-        match decl.caret {
-            Caret::All => adapter::select(&ctx, widget, 0, len),
-            _ => adapter::select(&ctx, widget, len, len),
+        match (state.click_caret.take(), decl.caret) {
+            (Some(at), _) => adapter::select(&ctx, widget, at, at),
+            (None, Caret::All) => adapter::select(&ctx, widget, 0, len),
+            (None, _) => adapter::select(&ctx, widget, len, len),
+        }
+    } else if out.focused {
+        if let Some(at) = state.click_caret.take() {
+            adapter::select(&ctx, widget, at, at);
         }
     }
     if decl.options.complete.is_some() {

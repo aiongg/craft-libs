@@ -491,7 +491,7 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
     // the column settles on, so it never sets that width.
     let held = !inert
         && matches!(at, ShowAt::Flow)
-        && ((p.env.content_column && p.hooks.fills_width(&*p.comp))
+        && ((env.content_column && p.hooks.fills_width(&*p.comp))
             || (crate::layout::in_grid_content_column(ui) && p.hooks.fills_width_only(&*p.comp)));
     let rect = if held {
         let flowed = steps::place(ui, at, Vec2::new(p.measured.x.min(size.x), size.y));

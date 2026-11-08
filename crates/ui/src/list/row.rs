@@ -300,6 +300,10 @@ pub struct ListRow<'a> {
     #[style_key]
     #[prop]
     pub(super) tone: Tone,
+    /// The tone of the trailing icons, with the same meaning as `tone` has for the row's icon.
+    #[style_key]
+    #[prop]
+    pub(super) trailing_tone: Tone,
     /// The layer form, for lists of layers and channels: dividers under the row and at each toggle cell's edge,
     /// the accent tint on the hover and an outline on the selected row.
     #[style_key]
@@ -394,6 +398,7 @@ impl<'a> ListRow<'a> {
             node: true,
             ink: RowInk::Normal,
             tone: Tone::Neutral,
+            trailing_tone: Tone::Neutral,
             layer: false,
             striped: false,
             role: None,
@@ -546,7 +551,7 @@ impl<'a> ListRow<'a> {
         self
     }
 
-    /// An icon at the trailing end, as wide as the row's icon, in the row's ink unless the spec names a colour. It
+    /// An icon at the trailing end, as wide as the row's icon, in the row's ink (its `trailing_tone` when set) unless the spec names a colour. It
     /// always shows. `name` is its name for a screen reader and its tooltip; the icon is no focus stop and `name` is
     /// part of the row's description.
     #[must_use]
@@ -700,6 +705,9 @@ pub struct ListRowStyle {
     /// The row's icon.
     #[style(icon)]
     icon: IconLook,
+    /// The row's trailing icons.
+    #[style(icon)]
+    trailing_icon: IconLook,
     /// The detail line.
     #[style(text)]
     detail: TextLook,
@@ -1092,6 +1100,13 @@ impl Component for ListRow<'_> {
                     tone => row_ink_of(cx, cx.tone(tone)),
                 },
             ),
+            trailing_icon: IconLook::new(
+                sizes.icon,
+                match key.trailing_tone {
+                    Tone::Neutral => ink(base),
+                    tone => row_ink_of(cx, cx.tone(tone)),
+                },
+            ),
             detail: TextLook::new(TypeRole::Caption, ink(text.faint)),
             cell: TextLook::new(role, ink(base)),
             cell_muted: TextLook::new(role, ink(muted)),
@@ -1408,7 +1423,7 @@ impl ListRow<'_> {
                 }
                 TrailingItem::Icon { icon, .. } => {
                     let mut icon = icon.clone();
-                    icon.color.get_or_insert(cx.resolve(&cx.style.icon.color));
+                    icon.color.get_or_insert(cx.resolve(&cx.style.trailing_icon.color));
                     ui.draw().icon(shape, &icon);
                 }
                 TrailingItem::Hosted(show) => {

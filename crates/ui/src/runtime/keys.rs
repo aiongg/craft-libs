@@ -6,7 +6,7 @@ use crate::runtime::commands::{self, ChromeCommand, EditCommands, FirePhase};
 use crate::runtime::egui::access::node_key;
 use crate::runtime::egui::input::{self as raw_input, Action, ActionKind, KeyEvent, RawInput};
 use crate::runtime::env::Env;
-use crate::runtime::focus::{self, KeyUse, StopRec};
+use crate::runtime::focus::{self, EndKey, KeyUse, StopRec};
 use crate::runtime::frame::{ChromeToggle, PerViewport, request_chrome_toggle};
 use crate::runtime::overlay;
 use crate::runtime::sampler;
@@ -419,6 +419,11 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
         let mut claims = record.claims.clone();
         claims.extend(stage.claims.iter().filter(|(owner, _)| Some(*owner) == record.focused).map(|(_, chord)| *chord));
         claims.extend(stage.captures.iter().map(|(_, chord)| *chord));
+        // A bare End belongs to a stop that declares `EndKey::EndMode`: it reads the key as a claimed chord and toggles
+        // its mode, so no collection navigation or scroll owner takes it as a move to the end.
+        if keys.is_some_and(|keys| keys.end == EndKey::EndMode) {
+            claims.push(Chord::plain(Key::End));
+        }
         let edits = |command| keys.is_some_and(|keys| keys.edits.contains(command));
         stage.layout.set_latin(input.keyboard_layout_is_latin);
         let strip = Strip {
