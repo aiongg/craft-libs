@@ -8,7 +8,7 @@ pub(super) mod stories;
 
 use crate::canvas::canvas_space;
 use crate::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role};
-use crate::primitives::textures::{Revision, TextureStore, TextureStoreOptions};
+use crate::primitives::textures::{Revision, TextureStore, TextureStoreOptions, UNTINTED};
 use crate::primitives::{ContentPainterCx, Dashes, PaintShape, StrokeWidth};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, DataColor, StyleColor, StyleCx};
@@ -144,7 +144,7 @@ fn paint_mask(painter: &ContentPainterCx<'_>, view: &CanvasView, mask: &HoverMas
     let uvs = [pos2(0.0, 0.0), pos2(1.0, 0.0), pos2(1.0, 1.0), pos2(0.0, 1.0)];
     let mut mesh = Mesh::with_texture(texture.sized().id);
     for (pos, uv) in view.quad(mask.bounds()).into_iter().zip(uvs) {
-        mesh.vertices.push(Vertex { pos, uv, color: Color32::from_gray(u8::MAX) });
+        mesh.vertices.push(Vertex { pos, uv, color: UNTINTED });
     }
     mesh.indices.extend_from_slice(&[0, 1, 2, 0, 2, 3]);
     painter.painter.add(Shape::mesh(mesh));

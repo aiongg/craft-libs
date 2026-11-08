@@ -184,7 +184,7 @@ pub struct ThumbPaint {
 
 impl Default for ThumbPaint {
     fn default() -> Self {
-        Self { fit: ThumbFit::Contain, checker: true, paper: None, tint: DataColor::new(Color32::from_gray(u8::MAX)) }
+        Self { fit: ThumbFit::Contain, checker: true, paper: None, tint: DataColor::new(super::UNTINTED) }
     }
 }
 

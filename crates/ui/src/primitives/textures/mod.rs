@@ -11,13 +11,16 @@ pub use loader::{LoadFailure, LoadResult, LoadedPicture, LoaderOptions, Priority
 pub use store::{CachedTexture, Revision, TextureBudget, TextureKey, TextureState, TextureStatistics, TextureStore, TextureStoreOptions};
 pub use words::TextureWords;
 
+/// The tint that leaves a texture's own colours as they are: every texel is multiplied by white.
+pub(crate) const UNTINTED: Color32 = Color32::from_gray(u8::MAX);
+
 mod thumbnails;
 #[cfg(feature = "testing")]
 pub use thumbnails::FakeThumbSource;
 pub use thumbnails::{ThumbFit, ThumbJob, ThumbPaint, ThumbRender, ThumbRequest, ThumbSource, ThumbnailOptions, Thumbnails, fit_rect, thumb_image};
 
 use crate::runtime::egui::{memory, pass, textures};
-use egui::{ColorImage, Context, TextureHandle, TextureId, TextureOptions};
+use egui::{Color32, ColorImage, Context, TextureHandle, TextureId, TextureOptions};
 use std::any::TypeId;
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
