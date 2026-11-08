@@ -9,6 +9,7 @@
 //! drag to grey keeps the hue, a drag to black keeps hue and saturation.
 
 mod area;
+mod channels;
 mod choice;
 #[cfg(test)]
 mod choice_tests;
@@ -16,9 +17,6 @@ mod color_stories;
 #[cfg(test)]
 mod dialog_tests;
 mod disc;
-mod disc_stories;
-#[cfg(test)]
-mod disc_tests;
 mod droppers;
 #[cfg(test)]
 mod droppers_tests;
@@ -65,12 +63,7 @@ mod popover_tests;
 mod profile_prompts;
 #[cfg(test)]
 mod profile_prompts_tests;
-#[cfg(test)]
-mod quantize_tests;
 mod ramp;
-mod ramp_stories;
-#[cfg(test)]
-mod ramp_tests;
 mod readout;
 #[cfg(test)]
 mod readout_tests;
@@ -84,28 +77,25 @@ mod strip;
 mod swatches;
 #[cfg(test)]
 mod swatches_tests;
-#[cfg(test)]
-mod tests;
 mod wheel;
-mod wheel_stories;
-#[cfg(test)]
-mod wheel_tests;
 
 use craft_theme::{ColorModel, ModelValues};
 use egui::{Color32, Stroke, Ui, Vec2, vec2};
 
 pub use crate::AreaMode;
-pub use area::ColorArea;
-pub use disc::{ColorDisc, ColorDiscResponse, ColorDiscStyle, DiscMove};
+pub use area::{ColorArea, ColorAreaStyle};
+pub use disc::{ColorDisc, ColorDiscOutput, ColorDiscStyle, ColorDiscWords, DiscMove};
 pub use hex::{HexField, HexPairField};
 pub use pair::{PairWell, SwatchPair, SwatchPairResponse, SwatchPairStyle, Well};
 pub use palette::{SwatchPalette, SwatchTable, SwatchTableResponse};
 pub use picker::{ColorPicker, ColorPickerLayout, ColorPickerResponse, ColorWarning, ColorWarningChip, PickedColor};
 pub use popover::{ColorPopover, ColorPopoverResponse};
-pub use ramp::{ColorRamp, ColorRampResponse, ColorRampStyle, RampKind, RampPick};
+pub use ramp::{ColorRamp, ColorRampOutput, ColorRampStyle, ColorRampWords, Gamut, RampKind, RampPick};
 pub use readout::ColorReadout;
-pub use strip::ColorStrip;
-pub use wheel::{ColorWheel, ColorWheelResponse, ColorWheelStyle, WheelGeometry, WheelPart};
+pub use strip::{ColorStrip, ColorStripStyle};
+pub use wheel::{
+    ColorWheel, ColorWheelStyle, ColorWheelWords, WheelGeometry, WheelPart, hue_at, hue_direction, triangle_corners, triangle_point, triangle_sv,
+};
 
 pub use choice::{ChosenColor, ColorChoice, ColorChoiceLabels, ColorChoiceResponse, NamedColor};
 pub use droppers::{DropperButton, DropperButtonResponse, DropperKind, DropperState, DropperTool};
