@@ -1,0 +1,7 @@
+craft-ui it collection
+craft-ui it list
+craft-ui it access
+craft-ui it suite::craft_ui::list
+craft-menu it shortcuts
+craft-timeline it suite
+craft-color it swatch
