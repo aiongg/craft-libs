@@ -1,7 +1,8 @@
 //! The panes of Save for Web: the view tabs, the animation row, the zoom row and the preview panes with their captions.
 
 use super::{
-    Animation, Live, MODEM_KBPS, SaveForWebWords, WebFormat, WebPictures, WebVariant, WebView, ZOOM_RANGE, download_seconds, four_up_variants,
+    Animation, Live, MODEM_KBPS, SaveForWebOptions, SaveForWebWords, WebFormat, WebPictures, WebVariant, WebView, ZOOM_RANGE, download_seconds,
+    four_up_variants,
 };
 use crate::buttons::Button;
 use crate::choice::Segmented;
@@ -33,6 +34,7 @@ pub(super) struct Panes<'p> {
     pub(super) pictures: &'p WebPictures,
     pub(super) animation: Option<Animation>,
     pub(super) hint: &'p Label,
+    pub(super) options: &'p SaveForWebOptions,
 }
 
 /// What the panes of one pass report.
@@ -113,7 +115,7 @@ fn pane_grid(ui: &mut Ui, panes: &Panes<'_>, live: &mut Live) {
 
 /// One pane with its two caption lines.
 fn one_pane(ui: &mut Ui, panes: &Panes<'_>, live: &Live, pane: WebPane, at: usize, reported: &mut Reported) {
-    let (first, second) = captions(panes, live, pane);
+    let (first, second) = captions(panes, pane);
     let name = Label::from(panes.words.pane_name.fill(&[
         ("pane", pane_title(panes.words, pane).as_str()),
         ("first", first.as_str()),
@@ -157,7 +159,7 @@ fn state_of(panes: &Panes<'_>, pane: WebPane) -> PreviewState {
 }
 
 /// The pane's two caption lines: format, size and proxy mark; download time and colour count.
-fn captions(panes: &Panes<'_>, live: &Live, pane: WebPane) -> (String, String) {
+fn captions(panes: &Panes<'_>, pane: WebPane) -> (String, String) {
     let words = panes.words;
     match pane {
         WebPane::Original => {
@@ -172,7 +174,7 @@ fn captions(panes: &Panes<'_>, live: &Live, pane: WebPane) -> (String, String) {
             let Some(variant) = panes.pictures.variants.get(index).and_then(Option::as_ref) else {
                 return (words.pane_pending.as_str().to_owned(), String::new());
             };
-            let format = pane_format(live, index);
+            let format = pane_format(panes.options, index);
             let mut first = words
                 .encoded_caption
                 .fill(&[("format", format.extension().to_uppercase().as_str()), ("size", panes.units.file_size(variant.bytes).as_str())]);
@@ -189,9 +191,9 @@ fn captions(panes: &Panes<'_>, live: &Live, pane: WebPane) -> (String, String) {
 }
 
 /// The format the encoded pane `index` is encoded in.
-fn pane_format(live: &Live, index: usize) -> WebFormat {
+fn pane_format(options: &SaveForWebOptions, index: usize) -> WebFormat {
     match index {
-        0 => live.options.format,
-        _ => four_up_variants(&live.options)[(index - 1).min(1)].format,
+        0 => options.format,
+        _ => four_up_variants(options)[(index - 1).min(1)].format,
     }
 }

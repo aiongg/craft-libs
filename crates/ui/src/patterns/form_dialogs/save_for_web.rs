@@ -8,7 +8,7 @@ use super::param::{ColorRequest, PathFilter, PathRequest};
 use super::preview::PreviewView;
 use super::size_model::LinkedSize;
 use super::sizing::{Resample, SizingWords};
-use crate::contract::{Bind, NoValue, Outcome, Props as _};
+use crate::contract::{Bind, NoValue, Outcome, Props as _, ShowContainer as _};
 use crate::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
 use crate::layout_components::{Row, Stack};
 use crate::runtime::env::{Env, Label};
@@ -21,7 +21,6 @@ use craft_theme::{Rgba, Srgba};
 use egui::load::SizedTexture;
 use egui::{Response, Ui};
 use serde::{Deserialize, Serialize};
-use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 
 mod options;
@@ -711,8 +710,19 @@ impl<'a> SaveForWebDialog<'a> {
 
             let mut ask = None;
             Row::new().show(ui, |ui, _| {
-                let reads = panes::Panes { words: &words, units: &units, name: &name, size, pictures: &pictures, animation, hint: &hint };
-                Stack::new().id_salt("preview").show(ui, |ui, _| panes::show(ui, &reads, &mut live));
+                Stack::new().id_salt("preview").show(ui, |ui, _| {
+                    let reads = panes::Panes {
+                        words: &words,
+                        units: &units,
+                        name: &name,
+                        size,
+                        pictures: &pictures,
+                        animation,
+                        hint: &hint,
+                        options: &*options,
+                    };
+                    panes::show(ui, &reads, &mut live)
+                });
                 Stack::new().id_salt("settings").show(ui, |ui, _| {
                     let kit = options::Kit { words: &words, sizing: &sizing, units: &units, presets: &presets };
                     options::show(ui, &kit, options, &mut live.link, &mut ask)
@@ -784,7 +794,8 @@ fn save_request(name: &str, format: WebFormat) -> PathRequest {
 
 /// The pan and zoom hint, naming the key the wheel zooms with on this platform.
 fn zoom_hint(env: &Env, words: &SaveForWebWords) -> Label {
-    let mut keys = Chord::new(Mods::CMD, Key::Plus).parts_for(env.shell().os, env.keyboard_layout());
+    let view = env.view();
+    let mut keys = Chord::new(Mods::CMD, Key::Plus).parts_for(view.shell().os, view.keyboard_layout());
     keys.pop();
     Label::from(words.pan_hint.fill(&[("modifier", keys.join("+").as_str())]))
 }
@@ -1018,7 +1029,8 @@ impl StackDialog for HostedSaveForWeb {
         match (shown.result, shown.closed) {
             (Some(result), _) => Some(DialogResult::Ok(result)),
             (None, Some(_)) => {
-                self.cancel_requests();
+                self.saving = false;
+                self.requests.cancel();
                 Some(DialogResult::Cancel)
             }
             (None, None) => None,

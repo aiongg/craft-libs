@@ -408,7 +408,7 @@ impl<'a> PdfExportDialog<'a> {
                 });
             });
             if standard_picked {
-                apply_standard(&mut work);
+                apply_standard(work);
                 if work.standard != Standard::None {
                     live.switches = PasswordSwitches::default();
                 }
