@@ -499,3 +499,35 @@ fn window_move_and_size_have_no_default_chord_on_macos() {
         "Alt+F7 and Alt+F8 elsewhere"
     );
 }
+
+/// 11.4: a modal layer blocks the application's `ModalRule::Blocked` commands, but a dialog is an instance of the
+/// application scope, so Cmd+Z with focus in the dialog reaches the dialog and not the application.
+#[trial]
+fn undo_in_a_dialog_reaches_the_dialog_and_not_the_application() {
+    use craft_ui::contract::Bind;
+    use craft_ui::dialog::Dialog;
+    use craft_ui::runtime::focus::Initial;
+    use craft_ui::sections::{DialogRole, FooterButton};
+
+    let undone = Cell::new(0);
+    let mut show = |ui: &mut Ui| {
+        let mut open = true;
+        Dialog::new("Options")
+            .opened(Bind::bound(&mut open))
+            .initial_focus(Initial::First)
+            .buttons([FooterButton::new("OK", DialogRole::Accept)])
+            .show(ui, |_, cx| {
+                while let Some((command, _)) = cx.take_command::<EditCommands>() {
+                    if command == EditCommands::Undo {
+                        undone.set(undone.get() + 1);
+                    }
+                }
+            });
+    };
+    let mut frames = Frames::new();
+    frames.idle(4, &mut show);
+    frames.frame(vec![key_press(Key::Z, Modifiers::COMMAND)], &mut show);
+    frames.idle(2, &mut show);
+    assert_eq!(undone.get(), 1, "the dialog took the undo");
+    assert!(take_output(&frames.ctx).fired.is_empty(), "the application's undo stays blocked");
+}

@@ -348,6 +348,9 @@ pub struct CollectionProps {
     /// the lead scrolls the page to keep the row in view. For short collections only; a long one keeps its own
     /// scroll and is shown outside a scrolling body (16.3).
     pub natural_height: bool,
+    /// The collection's items are pages: Ctrl+Tab and Ctrl+Shift+Tab (and the platform's other page-switch keys) move
+    /// the lead and the selection to the next and previous item, wrapping at the ends.
+    pub pages: bool,
     /// The key of the current item (the page a document shows, the slide on screen). It is not the lead or the
     /// selection: the item shows the current mark and its access node reports itself as the current one of its set.
     pub current: Option<Arc<dyn Any + Send + Sync>>,
@@ -416,6 +419,7 @@ impl CollectionProps {
             deletable: false,
             drag_payload: None,
             natural_height: false,
+            pages: false,
             current: None,
         }
     }
@@ -439,6 +443,13 @@ impl CollectionProps {
     #[must_use]
     pub fn drag_payload<K: 'static, P: Send + Sync + 'static>(mut self, map: impl Fn(&ListDrag<K>) -> Option<P> + Send + Sync + 'static) -> Self {
         self.drag_payload = Some(DragPayload::new(map));
+        self
+    }
+
+    /// The items are pages (`CollectionProps::pages`).
+    #[must_use]
+    pub const fn pages(mut self, on: bool) -> Self {
+        self.pages = on;
         self
     }
 

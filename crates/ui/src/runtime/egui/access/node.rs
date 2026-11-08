@@ -310,6 +310,7 @@ fn write_actions(node: &mut accesskit::Node, spec: &NodeSpec) {
 /// Writes `spec` into the node of `id`, creating it. Nothing while AccessKit is off or the widget is invisible.
 pub(crate) fn write_node(ctx: &Context, id: Id, spec: &NodeSpec) {
     crate::runtime::egui::widgets::note_node(ctx, id);
+    super::note_written(ctx, id);
     ctx.accesskit_node_builder(id, |node| {
         write_identity(node, spec);
         write_relations(node, spec);

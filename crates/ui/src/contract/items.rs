@@ -304,6 +304,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let props = comp.items();
         craft_behavior::KeyRole::new()
             .reorderable(props.reorder.is_some())
+            .pages(props.pages)
             .rename(props.rename)
             .type_ahead(true)
             .digits(props.digit_keys)
@@ -355,7 +356,13 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         }
         self.renaming = stage.session::<Renaming<C::Key>>(sub(id, "rename")).clone();
         self.last = stage.recall::<View>(sub(id, "view"));
-        let scrolled = stage.session::<Scrolled>(sub(id, "scroll")).clone();
+        let scrolled = match comp.scroll() {
+            Some(bind) => match bind.get() {
+                Some(Mixed::Same(pos)) => Scrolled { y: pos.y, x: pos.x },
+                _ => Scrolled::default(),
+            },
+            None => stage.session::<Scrolled>(sub(id, "scroll")).clone(),
+        };
         (self.offset, self.offset_x) = if self.scrolls { (scrolled.y, scrolled.x) } else { (0.0, 0.0) };
         self.offset_at_read = self.offset;
         self.offset_x_at_read = self.offset_x;
@@ -376,9 +383,6 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 } else if rect.max.y > bounds[3] {
                     self.offset += f64::from(rect.max.y - bounds[3]);
                 }
-            }
-            if let Some(to) = super::take_scroll_to(&ctx, id) {
-                (self.offset, self.offset_x) = (to.y, to.x);
             }
             self.offset = self.offset.clamp(0.0, f64::from((self.last.extent - view).max(0.0)));
         }
@@ -477,7 +481,10 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.offset = self.offset.clamp(0.0, self.max_offset(view.height()));
         let span = ScrollSpan::new(0.0..content, self.offset..self.offset + f64::from(view.height()));
         pcx.scroll(SCROLL, track, Axis::Y, span);
-        wheel::register(&ctx, WheelTaker::new(pcx.id, view).vertical(true).horizontal(self.content.x > view.width()).zoom(comp.zooms()));
+        wheel::register(
+            &ctx,
+            WheelTaker::new(pcx.id, view).vertical(true).horizontal(self.content.x > view.width()).scrolls(true).zoom(comp.zooms()),
+        );
     }
 
     fn sensed(&mut self, _: &mut C, cx: &mut Cx<'_, C>) {
@@ -512,6 +519,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.drag_step(comp, cx, &layout, (rect, offset, rtl), &props);
         self.marquee_step(comp, cx, &layout, (rect, offset, rtl), &props);
         self.navigate(comp, cx, &layout, view, header_held);
+        self.switch_page(comp, cx, &props, &layout, view);
         let lead_at = self.lead.key.as_ref().and_then(|key| self.index_of(key)).or(lead_at);
         self.intent_actions(comp, cx, &props, lead_at, header_held);
         self.context_key(cx, &layout, at, lead_at);
@@ -810,8 +818,18 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
     fn settle(&mut self, comp: &mut C, cx: &mut Cx<'_, C>) {
         let id = cx.core.id;
         if self.scrolls && (self.offset != self.offset_at_read || self.offset_x != self.offset_x_at_read) {
-            let scrolled = cx.core.memory.session::<Scrolled>(sub(id, "scroll"));
-            (scrolled.y, scrolled.x) = (self.offset, self.offset_x);
+            match comp.scroll() {
+                Some(mut bind) => {
+                    let (label, doc_key) = (cx.core.label_arc(), cx.core.resolved.doc_key);
+                    let (before, after) =
+                        (ScrollPos { x: self.offset_x_at_read, y: self.offset_at_read }, ScrollPos { x: self.offset_x, y: self.offset });
+                    bind.apply(&EditEvent::set(GestureId::default(), Mixed::Same(before), after, label, doc_key));
+                }
+                None => {
+                    let scrolled = cx.core.memory.session::<Scrolled>(sub(id, "scroll"));
+                    (scrolled.y, scrolled.x) = (self.offset, self.offset_x);
+                }
+            }
         }
         *cx.core.memory.session::<Lead<C::Key>>(sub(id, "lead")) = self.lead.clone();
         cx.core.memory.session::<LastLayout<C::ItemLayout>>(sub(id, "item_layout")).0 = self.layout.clone();
@@ -1134,6 +1152,30 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 NavStep::Collapse(at) => self.events.push(CollectionEvent::Open(OpenChange::new(self.source.key(at), false))),
                 _ => {}
             }
+        }
+    }
+
+    /// Ctrl+Tab and its platform equivalents at a collection of pages: the lead and the selection move to the next
+    /// (or previous) item that can be taken, wrapping at the ends.
+    fn switch_page(&mut self, comp: &C, cx: &mut Cx<'_, C>, props: &CollectionProps, layout: &C::ItemLayout, view: f32) {
+        if !props.pages {
+            return;
+        }
+        let forward = if cx.core.intents.take_exact(&Intent::switch_page(true)) {
+            true
+        } else if cx.core.intents.take_exact(&Intent::switch_page(false)) {
+            false
+        } else {
+            return;
+        };
+        let len = self.source.len();
+        let Some(from) = self.lead.key.as_ref().and_then(|key| self.index_of(key)) else { return };
+        let takes = |row: &usize| self.source.enabled(*row) && !self.source.is_section(*row) && layout.shown(*row);
+        let to = (1..len).map(|step| if forward { (from + step) % len } else { (from + len - step) % len }).find(takes);
+        if let Some(to) = to {
+            self.move_lead(to, LeadSource::Keys);
+            self.pick(comp, to, false, false);
+            self.reveal_with(layout, to, view);
         }
     }
 

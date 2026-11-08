@@ -501,6 +501,7 @@ pub(crate) fn end_pass(ui: &mut Ui) {
     cursor::end_pass(&ctx);
     commands::end(&ctx);
     access::end_live_pass(&ctx);
+    crate::runtime::egui::access::order_children(&ctx);
     let painter = store::with::<FrameState, _>(&ctx, |state| state.frame_layers);
     if let Some(paint_frame_layers) = painter {
         paint_frame_layers(&ctx);

@@ -210,7 +210,7 @@ fn shift_wheel_scrolls_sideways_and_a_zoom_share_names_the_pointer() {
     let area = rect(0.0, 0.0, 400.0, 400.0);
     let read = Cell::new(None);
     let mut show_frame = |ui: &mut Ui| {
-        register(ui.ctx(), WheelTaker::new(panel, area).vertical(true).horizontal(true).zoom(true));
+        register(ui.ctx(), WheelTaker::new(panel, area).vertical(true).horizontal(true).scrolls(true).zoom(true));
         read.set(take_share(ui.ctx(), panel));
     };
     let mut frames = Frames::new();

@@ -507,7 +507,7 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
     let overflow = if held || !p.hooks.fills_width(&*p.comp) { p.hooks.overflow() } else { 0.0 };
     expand_for_overflow(ui, host_at.unwrap_or(p.at), rect, overflow, rtl);
     // The component sits where the interface puts it; a component whose axis keeps its order flows its content left to right.
-    let rtl = rtl && !C::LTR_AXIS;
+    let rtl = rtl && !p.cx.core.resolved.ltr_axis;
     // A sizing pass of the parent or host `Ui` allocates the size and stops: no parts, no body, and the stage
     // opened at step 3 is written back unchanged.
     if p.sizing || ui.is_sizing_pass() {

@@ -28,6 +28,8 @@ pub struct Common {
     pub(crate) doc_key: Option<DocKey>,
     /// The scope a leaf is an instance of while it holds key focus.
     pub(crate) command_scope: Option<CommandScope>,
+    /// The component's horizontal axis keeps its left-to-right order under a right-to-left interface.
+    pub(crate) ltr_axis: bool,
 }
 
 impl Common {
@@ -49,6 +51,7 @@ impl Common {
             default_stop: false,
             doc_key: None,
             command_scope: None,
+            ltr_axis: false,
         }
     }
 }
@@ -144,6 +147,15 @@ pub trait Props: Meta + Sized {
         self
     }
 
+    /// The component's horizontal axis keeps its left-to-right order under a right-to-left interface: a time axis, a
+    /// ruler, a document view. The component sits where its parent's flow puts it (mirrored); its own content flow,
+    /// keys and roving order, the components inside it, and its access node do not mirror. A container declares it on
+    /// the one part of its content that is such an axis, and its other parts mirror.
+    fn ltr_axis(mut self) -> Self {
+        self.common_mut(Internal::new()).ltr_axis = true;
+        self
+    }
+
     /// The semantic key of the component.
     fn doc_key(mut self, key: DocKey) -> Self {
         self.common_mut(Internal::new()).doc_key = Some(key);
@@ -190,6 +202,8 @@ pub struct Resolved<'p> {
     pub(crate) access_key: Option<char>,
     /// `Common.default_stop`: the stop is its scope's default (`Initial::Default`).
     pub(crate) default_stop: bool,
+    /// `Common.ltr_axis`.
+    pub(crate) ltr_axis: bool,
     /// `Common.description`.
     pub(crate) description: Option<&'p str>,
     /// `Common.tooltip`.

@@ -80,11 +80,9 @@ struct Seen {
     double_clicked: Option<KeyframeId>,
 }
 
-/// The options of the lane or strip, earliest in time first: the tree lists nodes in no time order.
+/// The options of the lane or strip in tree order, which is earliest in time first.
 fn options_by_time(fixture: &Fixture) -> Vec<Target> {
-    let mut options = fixture.by_role(Role::LIST_BOX_OPTION);
-    options.sort_by(|a, b| a.rect.left().total_cmp(&b.rect.left()));
-    options
+    fixture.by_role(Role::LIST_BOX_OPTION)
 }
 
 fn keys() -> Vec<KeyframeMark> {
