@@ -28,12 +28,12 @@ const LONG_SECONDS: f64 = 1.0e9;
 #[story(TimecodeField<'static>, covers = [Default], drive = Drive::Type(TYPED_TIME))]
 fn timecode_field(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let start = Tick::from_seconds_f64(3_723.5);
-    TimecodeField::new("Current time", Bind::bound(data.value("time", start)), drop_frame()).show(ui).into()
+    TimecodeField::new("Current time", Bind::bound(data.value("time", start)), drop_frame()).show(ui).edit.into()
 }
 
 #[story(TimecodeField<'static>, covers = [Mixed], drive = Drive::Never)]
 fn timecode_field_mixed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    TimecodeField::new("Current time", Bind::bound_mixed(data.value("mixed", Mixed::<Tick>::Mixed)), drop_frame()).show(ui).into()
+    TimecodeField::new("Current time", Bind::bound_mixed(data.value("mixed", Mixed::<Tick>::Mixed)), drop_frame()).show(ui).edit.into()
 }
 
 #[story(TimecodeField<'static>, covers = [Invalid], drive = Drive::Never)]
@@ -42,18 +42,18 @@ fn timecode_field_past_the_limit(ui: &mut Ui, data: &mut StoryData) -> StoryOutp
         if *time > Tick::from_seconds_f64(LATEST_SECONDS) { Validity::Refuse(Message::new("The time is past the limit")) } else { Validity::Ok }
     };
     let time = data.value("late", Tick::from_seconds_f64(LATEST_SECONDS + 60.0));
-    TimecodeField::new("Current time", Bind::bound(time).check(before_the_limit), drop_frame()).show(ui).into()
+    TimecodeField::new("Current time", Bind::bound(time).check(before_the_limit), drop_frame()).show(ui).edit.into()
 }
 
 #[story(TimecodeField<'static>, covers = [LongText], drive = Drive::Never)]
 fn timecode_field_long(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    TimecodeField::new("Current time", Bind::bound(data.value("long", Tick::from_seconds_f64(LONG_SECONDS))), drop_frame()).show(ui).into()
+    TimecodeField::new("Current time", Bind::bound(data.value("long", Tick::from_seconds_f64(LONG_SECONDS))), drop_frame()).show(ui).edit.into()
 }
 
 #[story(TimecodeField<'static>, covers = [], drive = Drive::Type(TYPED_TIME))]
 fn timecode_field_from_sequence_start(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let start = Tick::from_seconds_f64(3_600.0);
-    TimecodeField::new("In point", Bind::bound(data.value("time", start)), drop_frame()).min(start).show(ui).into()
+    TimecodeField::new("In point", Bind::bound(data.value("time", start)), drop_frame()).min(start).show(ui).edit.into()
 }
 
 #[story(TimecodePanel<'static>, covers = [Default], drive = Drive::Never)]
