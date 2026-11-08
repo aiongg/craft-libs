@@ -331,7 +331,7 @@ impl<'a> StyleCx<'a> {
 /// token's type line: the control's vertical padding (the token height less the label role's line height, which
 /// the token already holds) around the leading face's line height at the label size. `line_ratio` is that face's
 /// line height per point of text (`0` with no stack installed: the token alone).
-pub fn control_metrics(tokens: &UiTokens, size: ControlSize, line_ratio: f32) -> ControlMetrics {
+pub(crate) fn control_metrics(tokens: &UiTokens, size: ControlSize, line_ratio: f32) -> ControlMetrics {
     let sizes = &tokens.size;
     let label = tokens.typography.label;
     let grown = |token: f32| token + (line_ratio * label.size - label.line_height).max(0.0);

@@ -1533,7 +1533,7 @@ impl<C: Component> MeasureCx<'_, C> {
 
     /// The icon side of the component's size.
     pub fn icon(&self) -> f32 {
-        crate::style::control_metrics(self.tokens, self.resolved.size, crate::fonts::stack_facts(self.ui.ctx()).line_ratio).icon
+        self.env.control(self.resolved.size).icon
     }
 
     /// The gap between the component's items.

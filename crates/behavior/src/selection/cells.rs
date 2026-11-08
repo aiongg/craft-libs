@@ -512,8 +512,8 @@ impl<K: Value> CellSelection<K> {
     }
 
     /// Cmd+click (Ctrl+click) on a cell no range holds: a new range at `c` (its merged cell whole) after the others;
-    /// `c` becomes active and the anchor. A drag from there extends the new range. On a held cell the widget
-    /// reports [`SelectionChange::ToggleCell`] instead, which takes the cell out. Ends a Tab run.
+    /// `c` becomes active and the anchor. A drag from there extends the new range. A held cell is taken out by
+    /// [`toggle`](Self::toggle) instead. Ends a Tab run.
     pub fn add(&mut self, c: CellAt<K>, space: &CellSpace<'_, K>) -> bool {
         let Some(placed) = Placed::of(self, space) else {
             return self.select(c, space);
@@ -530,8 +530,9 @@ impl<K: Value> CellSelection<K> {
     }
 
     /// Cmd+click (Ctrl+click) on any cell: a cell a range holds is taken out of the selection (and joins it again
-    /// when it was taken out); any other cell joins as a new range ([`add`](Self::add)). Unlike
-    /// [`SelectionChange::ToggleCell`] it places the ranges, so it also takes out a cell between the rows of a range.
+    /// when it was taken out); any other cell joins as a new range ([`add`](Self::add)). It places
+    /// the ranges, so it also takes out a cell between the rows of a range; the widget reports the result as
+    /// [`SelectionChange::CellSet`].
     /// The cell becomes active and the anchor. Ends a Tab run.
     pub fn toggle(&mut self, c: CellAt<K>, space: &CellSpace<'_, K>) -> bool {
         let Some(at) = space.place(&c) else {

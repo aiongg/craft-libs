@@ -9,12 +9,7 @@ use egui::{Ui, Vec2};
 
 /// The size of a trial block: two control heights wide and one high.
 fn cell(ui: &Ui) -> Vec2 {
-    let height = crate::style::control_metrics(
-        &crate::runtime::env::Env::of(ui).tokens,
-        craft_theme::ControlSize::Md,
-        crate::fonts::stack_facts(ui.ctx()).line_ratio,
-    )
-    .height;
+    let height = crate::runtime::env::Env::of(ui).view().control(craft_theme::ControlSize::Md).height;
     Vec2::new(height * 2.0, height)
 }
 

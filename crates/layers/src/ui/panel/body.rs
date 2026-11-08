@@ -290,6 +290,7 @@ pub(super) fn show_body<T: LayerTree>(
         .reorder(ReorderRule::new().into_groups().copy_with_alt())
         .allow_empty(true)
         .rename(true)
+        .rename_column(NAME)
         .columns(columns)
         .selection(Bind::bound(&mut selection))
         .can_rename(|key| matches!(key, LayerRowKey::Layer(id) if tree.info(id).renamable))
@@ -311,38 +312,7 @@ pub(super) fn show_body<T: LayerTree>(
 
     let mut events: Vec<LayersEvent<T::Id>> = reveal.opens.iter().cloned().map(LayersEvent::Open).collect();
     let selection_changed = out.events.iter().any(|event| matches!(event, CollectionEvent::Selection(_)));
-    let mut list_events = out.events;
-    // A double click on a renamable layer's row renames it in place, once the press is released as a click. Enter, a
-    // thumbnail and a layer that can't be renamed report the activation.
-    let (down, released, dragging) =
-        ui.input(|input| (input.pointer.primary_down(), input.pointer.primary_released(), input.pointer.is_decidedly_dragging()));
-    let reordered = list_events.iter().any(|event| matches!(event, CollectionEvent::Reorder(_)));
-    if let Some((id, dragged)) = session.rename_after.take() {
-        if released {
-            if !(dragged || dragging || reordered) {
-                start_rename(ui, cx.list, id);
-            }
-        } else if down {
-            session.rename_after = Some((id, dragged || dragging || reordered));
-        }
-    }
-    if down {
-        let thumbs: Vec<LayerRowKey<T::Id>> = list_events
-            .iter()
-            .filter_map(|event| match event {
-                CollectionEvent::Item(key, RowEvent::ThumbClicked { .. }) => Some(key.clone()),
-                _ => None,
-            })
-            .collect();
-        list_events.retain(|event| {
-            let CollectionEvent::Activate(LayerRowKey::Layer(id)) = event else { return true };
-            let renames = tree.info(id).renamable && !thumbs.iter().any(|key| key.layer() == id);
-            if renames {
-                session.rename_after = Some((id.clone(), false));
-            }
-            !renames
-        });
-    }
+    let list_events = out.events;
     map_events(cx, &order, &parent_of, filtered, lock_name, session, list_events, &mut events);
     if !ui.input(|input| input.pointer.primary_down()) {
         session.sweep = None;

@@ -253,7 +253,7 @@ pub(super) enum TrailingItem<'a> {
     Icon { icon: IconSpec<'static>, name: Label },
     /// A pressable face of the row's icon size.
     Part { part: TrailingPart, face: TrailingFace, name: Label },
-    /// A component of its own, shown in a short field's width; it is a focus stop and takes its own keys.
+    /// A component of its own, shown in a short field's width; its stop joins the row's group and it takes its own keys.
     Hosted(Option<HostedShow<'a>>),
 }
 
@@ -557,8 +557,9 @@ impl<'a> ListRow<'a> {
 
     /// A component at the trailing end, in the width of a short field, that always shows: a field that edits a
     /// value of the row. The row shows `field` as one of its parts and hands its output to `output` in the pass it is
-    /// shown. The field is a focus stop of its own that takes the keys it declares; the row's parts are not among
-    /// its keys.
+    /// shown. The row declares the field's rect as a part, and the field's stop joins the row's roving group like the
+    /// row's focusable parts (Forward from the row enters it, Tab leaves the collection); it takes the keys it
+    /// declares.
     #[must_use]
     pub fn trailing_field<C: Show + 'a>(mut self, field: C, output: impl FnOnce(C::Output) + 'a) -> Self {
         let show: HostedShow<'a> = Box::new(move |ui, at, rect| output(ui.child(("field", at), rect, field)));
@@ -584,6 +585,7 @@ const DISCLOSURE: PartKey = PartKey::new("disclosure");
 const LINK: PartKey = PartKey::new("link");
 const TRAILING: PartKey = PartKey::new("trailing");
 const TRAILING_ICON: PartKey = PartKey::new("trailing-icon");
+const TRAILING_FIELD: PartKey = PartKey::new("trailing-field");
 const THUMB: PartKey = PartKey::new("thumb");
 
 /// How far the hover tint of the layer form tints toward the accent.
@@ -1139,7 +1141,11 @@ impl Component for ListRow<'_> {
             let Some(slot) = slot else { continue };
             let shape = Rect::from_center_size(slot.center(), Vec2::splat(side));
             match &trailing.item {
-                TrailingItem::Text(_) | TrailingItem::Hosted(_) => {}
+                TrailingItem::Text(_) => {}
+                TrailingItem::Hosted(_) => {
+                    let field = Rect::from_center_size(slot.center(), Vec2::new(slot.width(), cx.style.sizes.row));
+                    cx.part(TRAILING_FIELD.at(at as u64), field);
+                }
                 TrailingItem::Icon { name, .. } => {
                     cx.part(TRAILING_ICON.at(at as u64), shape).tooltip(name.clone());
                 }

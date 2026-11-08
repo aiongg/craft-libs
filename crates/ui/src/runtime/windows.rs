@@ -573,6 +573,13 @@ fn shared<R>(ctx: &Context, f: impl FnOnce(&mut Shared) -> R) -> R {
 /// Called by `install`: keeps the shell, the OS services and the placement store.
 pub(crate) fn install(ctx: &Context, shell: ShellInfo, system: Arc<dyn WindowSystem>, store: Option<Arc<Mutex<Store>>>, frame: Option<Decision>) {
     let layouts = frame.as_ref().map(LayoutWatch::new);
+    let shell = match &frame {
+        Some(decision) => {
+            let window = (*shell.window).clone().chrome(chrome_of(&decision.frame));
+            shell.window(window)
+        }
+        None => shell,
+    };
     shared(ctx, |shared| {
         shared.shell = Some(shell);
         shared.system = Some(system);
@@ -602,7 +609,7 @@ pub(crate) fn set_os(ctx: &Context, os: Os) {
         shell.os = os;
         if shell.runtime == Runtime::Native {
             shell.caps = Caps::native(os);
-            shell.menu = menu_placement(shell.caps, root_chrome.unwrap_or(shell.window.chrome));
+            shell.menu = MenuPlacement::of(shell.caps, root_chrome.unwrap_or(shell.window.chrome));
         }
     });
 }
@@ -615,16 +622,9 @@ pub(crate) fn set_chrome(ctx: &Context, chrome: WindowChrome) {
         let shell = shared.shell.get_or_insert_with(ShellInfo::default);
         std::sync::Arc::make_mut(&mut shell.window).chrome = chrome;
         if shell.runtime == Runtime::Native {
-            shell.menu = menu_placement(shell.caps, chrome);
+            shell.menu = MenuPlacement::of(shell.caps, chrome);
         }
     });
-}
-
-/// Where a native build's menu bar lives: at the top of the screen when the OS has one and the OS draws the window's
-/// frame around it, else in the window (an app-drawn frame carries the bar itself).
-#[cfg(feature = "testing")]
-fn menu_placement(caps: Caps, chrome: WindowChrome) -> MenuPlacement {
-    if caps.contains(Caps::NATIVE_MENU_BAR) && chrome != WindowChrome::Integrated { MenuPlacement::ScreenTop } else { MenuPlacement::InWindow }
 }
 
 fn state_of(facts: &viewports::Facts) -> WindowState {

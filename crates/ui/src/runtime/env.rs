@@ -395,6 +395,11 @@ pub(crate) struct ItemFacts {
 }
 
 impl Scoped {
+    /// The height, icon side, padding and gap of a control of `size`, with the line ratio of this scope.
+    pub(crate) fn control(&self, size: craft_theme::ControlSize) -> craft_behavior::ControlMetrics {
+        crate::style::control_metrics(&self.tokens, size, self.line_ratio)
+    }
+
     /// The facts the collection recorded for the item `id`.
     pub(crate) fn facts_of(&self, id: Id) -> Option<&ItemFacts> {
         self.item_facts.as_ref().filter(|facts| facts.item == id)
@@ -737,6 +742,11 @@ pub struct EnvView<'a> {
 }
 
 impl<'a> EnvView<'a> {
+    /// The height, icon side, padding and gap of a control of `size`.
+    pub(crate) fn control(&self, size: craft_theme::ControlSize) -> craft_behavior::ControlMetrics {
+        self.scoped.control(size)
+    }
+
     /// The facts the collection recorded for the item `id`.
     pub(crate) fn facts_of(&self, id: Id) -> Option<&ItemFacts> {
         self.scoped.facts_of(id)

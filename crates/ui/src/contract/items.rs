@@ -960,7 +960,16 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                         ActivateOn::DoubleClick => start.clicks == 2,
                         ActivateOn::Click => primary && start.clicks == 1,
                     };
-                    if activates && !self.source.section_stop(at) {
+                    let names = primary
+                        && start.clicks == 2
+                        && props.rename
+                        && props.rename_column.is_some()
+                        && layout.column_at(local(start.origin), offset).and_then(|column| self.header.key_at(column))
+                            == props.rename_column.as_ref()
+                        && comp.can_rename(&key);
+                    if names && !self.source.section_stop(at) {
+                        self.drags.rename = Some(key);
+                    } else if activates && !self.source.section_stop(at) {
                         self.events.push(CollectionEvent::Activate(key));
                     }
                 }
@@ -997,6 +1006,13 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     let request = self.menu_request(layout, Placement { rect, offset, rtl }, row, local(pos));
                     self.events.push(CollectionEvent::ContextMenu(request));
                 }
+                // The press stayed within slop of where it started, whether or not the root senses a click.
+                if let Some(key) = self.drags.rename.take()
+                    && pos.distance(start.origin) <= crate::runtime::pointer::frame(&ctx).slop
+                    && let Some(at) = self.index_of(&key)
+                {
+                    self.begin_rename(cx, at);
+                }
                 if let Some(key) = self.drags.collapse.take()
                     && click
                     && let Some(at) = self.index_of(&key)
@@ -1008,7 +1024,10 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     }
                 }
             }
-            PressPhase::Cancel { .. } => self.drags.collapse = None,
+            PressPhase::Cancel { .. } => {
+                self.drags.collapse = None;
+                self.drags.rename = None;
+            }
             _ => {}
         }
         // A secondary release on a row asks for its menu (9.2 rule 3); the row joins the selection unless it is in it.

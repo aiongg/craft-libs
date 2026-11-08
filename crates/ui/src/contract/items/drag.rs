@@ -6,7 +6,6 @@ use super::marquee::MarqueeDrag;
 use crate::contract::collection::{CollectionEvent, CollectionProps, ColumnKind, ListDrag, ReorderMove, ToggleColumn, ToggleEdit};
 use crate::contract::reorder;
 use crate::contract::{Collection, Cx, DragPreview, DropMark, DropTarget, OsFiles, Pointer as _};
-use crate::runtime::env::Env;
 use crate::runtime::env::Label;
 use craft_behavior::{
     Axis, CancelReason, ColumnKey, DropOperation, EditEvent, Flow, GestureId, ItemLayout, Mixed, NavShape, Outline, PointerButton, PressCancel,
@@ -38,13 +37,16 @@ pub(super) struct Drags<K> {
     pub(super) over: Option<K>,
     /// The selected row a plain press landed on: a click on it narrows the selection to it, a drag keeps it.
     pub(super) collapse: Option<K>,
+    /// The row whose rename column got a double press: the editor opens when the press ends as a click, not when it
+    /// becomes a drag.
+    pub(super) rename: Option<K>,
     /// The marquee a press on empty space started.
     pub(super) marquee: Option<MarqueeDrag<K>>,
 }
 
 impl<K> Default for Drags<K> {
     fn default() -> Self {
-        Drags { grabbed: None, sweep: None, moving: None, over: None, collapse: None, marquee: None }
+        Drags { grabbed: None, sweep: None, moving: None, over: None, collapse: None, rename: None, marquee: None }
     }
 }
 
@@ -377,14 +379,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             let own = payload.list == cx.core.id;
             if (own && props.reorder.is_some()) || (!own && comp.accept_from(payload.list)) {
                 let groups = props.reorder.is_some_and(|rule| rule.into_groups) && matches!(layout.nav(), NavShape::Tree);
-                let step = groups.then(|| {
-                    crate::style::control_metrics(
-                        &Env::of_root(&cx.core.ctx).tokens,
-                        cx.core.resolved.size,
-                        crate::fonts::stack_facts(&cx.core.ctx).line_ratio,
-                    )
-                    .icon
-                });
+                let step = groups.then(|| cx.env.control(cx.core.resolved.size).icon);
                 let spot = if self.source.is_empty() {
                     self.empty_spot(rect, layer(at))
                 } else {
