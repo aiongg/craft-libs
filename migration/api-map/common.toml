@@ -27,6 +27,11 @@ old = "_.label(_)"
 new = "Props::label(_, label)"
 note = "A component's own label setter is the Props setter that writes Common.label; containers hold only its kind and layout."
 
+[[call]]
+old = "shell.menu"
+new = "shell.menu()"
+note = "craft_host::ShellInfo's public field `menu` is the method `ShellInfo::menu()`, derived from the caps and the root window's chrome; `set_chrome` no longer stores a menu."
+
 [[token]]
 old = "space.pad.panel"
 new = ""
