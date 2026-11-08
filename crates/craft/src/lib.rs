@@ -116,8 +116,6 @@ pub mod story {
     /// feature is on.
     pub fn all() -> Vec<Story> {
         let mut all = craft_ui::story::registry();
-        #[cfg(feature = "color")]
-        all.extend(craft_color::ui::stories());
         #[cfg(feature = "draw")]
         all.extend(craft_draw::ui::stories());
         all
@@ -135,8 +133,6 @@ pub mod words {
     /// the picker, Glyphs panel, Missing Fonts dialog and axis sliders are listed.
     pub fn all() -> Vec<&'static [Word]> {
         let mut all: Vec<&'static [Word]> = craft_ui::localized::words::tables().to_vec();
-        #[cfg(feature = "color")]
-        all.extend(craft_color::ui::WORDS);
         #[cfg(feature = "draw")]
         all.extend(craft_draw::ui::WORDS);
         #[cfg(any(feature = "platform", feature = "dialogs"))]
@@ -163,8 +159,6 @@ pub mod words {
     #[allow(unused_mut, reason = "each push is behind its crate's feature")]
     pub fn counts() -> Vec<&'static [Counted]> {
         let mut all: Vec<&'static [Counted]> = vec![craft_ui::localized::words::COUNTS];
-        #[cfg(feature = "color")]
-        all.push(craft_color::ui::COUNTS);
         #[cfg(feature = "draw")]
         all.push(craft_draw::ui::COUNTS);
         all
