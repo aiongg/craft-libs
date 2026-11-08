@@ -62,9 +62,11 @@ craft_ui::words! {
         detach_style: "paintList.detachStyle" = "Detach style";
         detach_variable: "paintList.detachVariable" = "Detach variable";
         styles: "paintList.styles" = "Color styles";
-        select_users: "paintList.selectUsers" = "Select layers with this color";
+        /// A row's button: `{name}` the paint it selects the layers of.
+        select_users: template "paintList.selectUsers" = "Select layers with {name}";
         add: "paintList.add" = "Add";
-        remove: "paintList.remove" = "Remove";
+        /// A row's button: `{name}` the paint it removes.
+        remove: template "paintList.remove" = "Remove {name}";
     }
 }
 
@@ -843,10 +845,18 @@ impl<'a> PaintList<'a> {
                     item = item.trailing_part(BIND, TrailingFace::Icon(IconSpec::svg(IconId::new(icon))), name);
                 }
                 if options.select_users {
-                    item = item.trailing_part(SELECT_USERS, TrailingFace::Icon(IconSpec::svg(IconId::new("layers"))), words.select_users.clone());
+                    item = item.trailing_part(
+                        SELECT_USERS,
+                        TrailingFace::Icon(IconSpec::svg(IconId::new("layers"))),
+                        words.select_users.fill(&[("name", name.as_str())]).into(),
+                    );
                 }
                 if options.remove {
-                    item = item.trailing_part(REMOVE, TrailingFace::Icon(IconSpec::svg(IconId::new("minus"))), words.remove.clone());
+                    item = item.trailing_part(
+                        REMOVE,
+                        TrailingFace::Icon(IconSpec::svg(IconId::new("minus"))),
+                        words.remove.fill(&[("name", name.as_str())]).into(),
+                    );
                 }
                 item
             }));

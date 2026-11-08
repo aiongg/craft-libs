@@ -123,9 +123,9 @@ fn list_rig(options: PaintListOptions) -> (Fixture, Rc<RefCell<Vec<PaintListEven
 fn a_paint_list_row_reports_its_remove_and_select_users_actions() {
     let options = PaintListOptions::default().remove(true).select_users(true);
     let (mut fixture, events) = list_rig(options);
-    let remove = fixture.by_label("Remove").expect("the first row has a Remove button");
+    let remove = fixture.by_label("Remove Brand").expect("the first row has a Remove button");
     fixture.click(&remove);
-    let users = fixture.by_label("Select layers with this color").expect("the first row has a select users button");
+    let users = fixture.by_label("Select layers with Brand").expect("the first row has a select users button");
     fixture.click(&users);
     let seen = events.borrow().clone();
     assert!(seen.contains(&PaintListEvent::Remove(0)), "{seen:?}");
