@@ -35,3 +35,9 @@ fn reference_point_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 fn reference_point_growth(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     ReferencePoint::new("Reference point", Bind::bound(data.value("grown", Anchor9::TopLeft))).growth((200.0, -100.0)).show(ui).into()
 }
+
+/// The options bar's size: the grid is an icon square and every point is a dot.
+#[story(ReferencePoint<'static>, covers = [], drive = Drive::Never)]
+fn reference_point_compact(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    ReferencePoint::new("Reference point", Bind::bound(data.value("compact", Anchor9::Centre))).compact().show(ui).into()
+}

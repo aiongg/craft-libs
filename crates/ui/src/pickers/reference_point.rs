@@ -22,6 +22,9 @@ const CELL: PartKey = PartKey::new("cell");
 /// Points on each side of the grid.
 const GRID: usize = 3;
 
+/// The side of the dot every point shows in the compact picker.
+const COMPACT_DOT: f32 = 3.5;
+
 /// The arrow's tip, from the cell's centre, as a share of the arrow's extent.
 const ARROW_TIP: f32 = 0.5;
 /// The arrow's tail, behind the cell's centre, as a share of the arrow's extent.
@@ -47,6 +50,8 @@ pub struct ReferencePointStyle {
     cell: f32,
     /// The side of the mark in the picked cell.
     mark: f32,
+    /// The side of the dot every point shows in the compact picker.
+    compact_dot: f32,
     /// The mark's corner radius.
     mark_radius: egui::CornerRadius,
     /// The picked cell's fill.
@@ -63,7 +68,8 @@ pub struct ReferencePointStyle {
 /// points are one Tab stop; the arrows move the focus and stop at the grid's edges, and Space, Enter or a click picks
 /// the focused point. The arrows are directions in the box, so they do not mirror in a right-to-left interface and
 /// neither does the grid. With [`growth`](ReferencePoint::growth) the cells next to the pick show arrows toward where
-/// the box grows.
+/// the box grows. The [`compact`](ReferencePoint::compact) picker is the size of an options bar's icon: a dot in
+/// every cell, the pick's in the accent colour, and no arrows.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(exempt(case = "rtl", reason = "The nine points are positions in a box, not reading order: the left point stays on the left."))]
 pub struct ReferencePoint<'a> {
@@ -74,12 +80,16 @@ pub struct ReferencePoint<'a> {
     /// it where the box shrinks. Without it the cells show no arrows.
     #[prop]
     growth: Option<(f64, f64)>,
+    /// The options-bar size: the whole grid is `size.icon.md` square. It shows no growth arrows.
+    #[style_key]
+    #[prop(flag)]
+    compact: bool,
 }
 
 impl<'a> ReferencePoint<'a> {
     /// A picker named `label` over `value`.
     pub fn new(label: impl Into<Label>, value: Bind<'a, Anchor9>) -> Self {
-        ReferencePoint { common: Common::new(), value, growth: None }.label(label)
+        ReferencePoint { common: Common::new(), value, growth: None, compact: false }.label(label)
     }
 
     /// The direction of the arrow `cell` shows when the pick is `anchor`, in cell steps (each -1, 0 or 1): away from
@@ -134,7 +144,7 @@ impl Component for ReferencePoint<'_> {
     type Style = ReferencePointStyle;
     type Output = EditResponse<Anchor9>;
 
-    fn style(cx: &StyleCx<'_>, _: ReferencePointStyleKey) -> ReferencePointStyle {
+    fn style(cx: &StyleCx<'_>, key: ReferencePointStyleKey) -> ReferencePointStyle {
         let sunken = cx.surface(SurfaceKind::Sunken);
         let colors = &cx.tokens.color;
         let edge = Stateful::new(cx.color(colors.line.control_edge));
@@ -147,7 +157,8 @@ impl Component for ReferencePoint<'_> {
                 .radius(sunken.radius)
                 .border(edge, cx.tokens.stroke.thin),
             focus: cx.focus_look(),
-            cell: cx.tokens.size.control.sm,
+            cell: if key.compact { cx.tokens.size.icon.md / GRID as f32 } else { cx.tokens.size.control.sm },
+            compact_dot: COMPACT_DOT,
             mark: cx.tokens.size.icon.sm,
             mark_radius: UiTokens::corner(cx.tokens.shape.radius.sm),
             picked: look(cx.color(colors.accent.soft)),
@@ -200,7 +211,16 @@ impl Component for ReferencePoint<'_> {
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let current = Self::position_of(cx.value());
+        debug_assert!(!(self.compact && self.growth.is_some()), "the compact picker shows no growth arrows");
         let draw = ui.draw();
+        if self.compact {
+            for (at, cell) in (0..Anchor9::ALL.len()).map(|at| (at, Self::cell_rect(cx.rect, at))) {
+                let dot = Rect::from_center_size(cell.center(), Vec2::splat(cx.style.compact_dot));
+                let ink = if current == Some(at) { &cx.style.ink } else { &cx.style.arrow_ink };
+                draw.fill(&PaintShape::Rect(dot, cx.style.mark_radius), cx.resolve(ink));
+            }
+            return;
+        }
         for (at, point) in Anchor9::ALL.iter().enumerate() {
             let cell = Self::cell_rect(cx.rect, at);
             if current == Some(at) {

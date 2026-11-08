@@ -57,6 +57,7 @@ pub(crate) struct NodeSpec {
     pub description: Option<String>,
     pub placeholder: Option<String>,
     pub value: Option<String>,
+    pub color: Option<craft_theme::Srgba>,
     pub url: Option<String>,
     pub shortcut: Option<String>,
     pub access_key: Option<char>,
@@ -103,6 +104,7 @@ impl NodeSpec {
             description: None,
             placeholder: None,
             value: None,
+            color: None,
             url: None,
             shortcut: None,
             access_key: None,
@@ -174,6 +176,10 @@ fn write_identity(node: &mut accesskit::Node, spec: &NodeSpec) {
     }
     if let Some(text) = &spec.value {
         node.set_value(text.clone());
+    }
+    if let Some(color) = spec.color {
+        let [red, green, blue, alpha] = color.to_rgba().0;
+        node.set_color_value(accesskit::Color { red, green, blue, alpha });
     }
     if let Some(numeric) = &spec.numeric {
         write_numeric(node, numeric);

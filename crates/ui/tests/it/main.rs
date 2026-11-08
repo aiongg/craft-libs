@@ -51,6 +51,7 @@ mod shell;
 mod sections;
 
 mod style;
+mod swatch;
 mod table;
 mod tabs;
 mod text;

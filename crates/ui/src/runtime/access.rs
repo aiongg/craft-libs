@@ -13,7 +13,7 @@ pub(crate) mod text;
 use crate::runtime::egui::access::{self as adapter, NodeRole};
 use crate::runtime::env::Label;
 use craft_behavior::PartRef;
-use craft_theme::{Flags, Tone};
+use craft_theme::{Flags, Srgba, Tone};
 use egui::Id;
 use std::ops::RangeInclusive;
 
@@ -243,6 +243,7 @@ pub struct Access {
     pub(crate) description: Option<String>,
     pub(crate) placeholder: Option<String>,
     pub(crate) value: Option<String>,
+    pub(crate) color: Option<Srgba>,
     pub(crate) numeric: Option<Numeric>,
     pub(crate) expanded: Option<bool>,
     pub(crate) has_popup: Option<PopupKind>,
@@ -289,6 +290,12 @@ impl Access {
     /// The text value of a text component.
     pub fn value(&mut self, text: impl Into<String>) -> &mut Self {
         self.value = Some(text.into());
+        self
+    }
+
+    /// The colour value of a colour well.
+    pub fn color(&mut self, color: Srgba) -> &mut Self {
+        self.color = Some(color);
         self
     }
 

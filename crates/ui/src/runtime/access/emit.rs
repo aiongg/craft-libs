@@ -220,6 +220,7 @@ pub(crate) fn report(ctx: &Context, own: &Own<'_>) {
     spec.description = description.map(str::to_owned);
     spec.placeholder = access.placeholder.clone();
     spec.value = access.value.clone();
+    spec.color = access.color;
     spec.numeric = numeric.cloned();
     spec.expanded = expanded;
     spec.has_popup = access.has_popup.or_else(|| popup.map(|popup| popup.kind));
