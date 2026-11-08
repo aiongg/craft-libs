@@ -28,7 +28,7 @@ const ROTATE_STEP_DEG: f64 = 15.0;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui_macros::CommandSet)]
 #[command(prefix = "canvasView", scope = "canvasView")]
 #[non_exhaustive]
-pub enum ViewCommand {
+pub enum ViewCommands {
     /// Zoom in to the next step of the zoom ladder about the view's centre.
     #[command(label = "Zoom In", modal = "in_dialogs", default = "Cmd+=", default = "Cmd++")]
     ZoomIn,
@@ -55,26 +55,26 @@ pub enum ViewCommand {
     ResetRotation,
 }
 
-impl ViewCommand {
+impl ViewCommands {
     /// Applies the command to `view` for a document of `size` at `pixels_per_point`. Returns whether the view
     /// changed.
     pub fn apply(self, view: &mut CanvasView, size: Size, pixels_per_point: f32) -> bool {
         let before = *view;
         match self {
-            ViewCommand::ZoomIn => {
+            ViewCommands::ZoomIn => {
                 zoom::step(view, 1, size, pixels_per_point);
             }
-            ViewCommand::ZoomOut => {
+            ViewCommands::ZoomOut => {
                 zoom::step(view, -1, size, pixels_per_point);
             }
-            ViewCommand::FitOnScreen => zoom::fit(view, size, pixels_per_point),
-            ViewCommand::FillScreen => zoom::fill(view, size, pixels_per_point),
-            ViewCommand::ActualPixels => {
+            ViewCommands::FitOnScreen => zoom::fit(view, size, pixels_per_point),
+            ViewCommands::FillScreen => zoom::fill(view, size, pixels_per_point),
+            ViewCommands::ActualPixels => {
                 zoom::about(view, view.rect.center(), ZoomLadder::clamp(1.0, size), false, pixels_per_point);
             }
-            ViewCommand::RotateClockwise => view.rotation = ViewTurn::wrap_deg(view.rotation + ROTATE_STEP_DEG),
-            ViewCommand::RotateCounterclockwise => view.rotation = ViewTurn::wrap_deg(view.rotation - ROTATE_STEP_DEG),
-            ViewCommand::ResetRotation => view.rotation = 0.0,
+            ViewCommands::RotateClockwise => view.rotation = ViewTurn::wrap_deg(view.rotation + ROTATE_STEP_DEG),
+            ViewCommands::RotateCounterclockwise => view.rotation = ViewTurn::wrap_deg(view.rotation - ROTATE_STEP_DEG),
+            ViewCommands::ResetRotation => view.rotation = 0.0,
         }
         *view != before
     }

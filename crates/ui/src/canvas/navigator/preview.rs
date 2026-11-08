@@ -5,7 +5,7 @@
 use super::ProxyColor;
 use super::proxy::{preview_rect, proxy_quad, view_center_for, zoom_to_document_rect};
 use crate::canvas::zoom_motion::{self, Steer};
-use crate::canvas::{CanvasWords, NavigationOptions, PageKey, ViewCommand, WheelAction, WheelNavigation};
+use crate::canvas::{CanvasWords, NavigationOptions, PageKey, ViewCommands, WheelAction, WheelNavigation};
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Name, Outcome, PaintUi, PartsCx,
     Pointer as _, Props as _, Remember as _, Role, WordSetCx as _,
@@ -419,7 +419,7 @@ impl Component for Navigator<'_> {
         }
         if zoomed
             && self.navigation.animated_zoom
-            && let Some(canvas) = commands::resolve(&cx.core.ctx, ViewCommand::ZoomIn).instance
+            && let Some(canvas) = commands::resolve(&cx.core.ctx, ViewCommands::ZoomIn).instance
         {
             // A zoom that keeps the centre eases about it; the zoom rectangle moves the centre, so it eases freely.
             let anchor = (next.center == view.center).then_some((view.center, view.rect.center()));

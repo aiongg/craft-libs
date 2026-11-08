@@ -27,5 +27,5 @@ mod layout;
 mod reorderable;
 
 pub use layout::{SectionEvent, SectionKey, SectionLayout, SectionState};
-pub use reorderable::{ReorderableSections, ReorderableSectionsOutput, SectionCommand, SectionSpec};
+pub use reorderable::{ReorderableSections, ReorderableSectionsOutput, SectionCommands, SectionSpec};
 pub use words::ReorderableWords;

@@ -1,7 +1,7 @@
 //! `NavigatorZoomRow`: the Navigator's percent field, Zoom Out, slider and Zoom In.
 
 use crate::buttons::IconButton;
-use crate::canvas::{CanvasWords, ViewCommand};
+use crate::canvas::{CanvasWords, ViewCommands};
 use crate::contract::{Bind, NoValue, Outcome, Props as _, Show as _, ShowContainer as _};
 use crate::layout_components::Row;
 use crate::runtime::env::{Env, Label};
@@ -38,7 +38,7 @@ impl Outcome for NavigatorZoomRowOutput {
 ///   the field never pulls the zoom back. A typed value applies without animation; Escape in the field restores the
 ///   zoom from before the edit.
 /// - The field shows up to two decimals, and its arrows and wheel step the zoom ladder.
-/// - Zoom Out and Zoom In are the [`ViewCommand::ZoomOut`] and [`ViewCommand::ZoomIn`] commands: label, chord, enabled
+/// - Zoom Out and Zoom In are the [`ViewCommands::ZoomOut`] and [`ViewCommands::ZoomIn`] commands: label, chord, enabled
 ///   state and action come from the active canvas, which steps its view and reports the ease under Animated Zoom in
 ///   [`CanvasOutput`](crate::canvas::CanvasOutput).
 /// - The slider is logarithmic over the same range, so equal distances are equal ratios and it always holds the
@@ -89,7 +89,7 @@ impl<'a> NavigatorZoomRow<'a> {
                 edits.push(typed.map(|percent| percent.map_or(current, |percent| at(percent / 100.0))));
             }
 
-            IconButton::command(IconId::new("minus"), ViewCommand::ZoomOut).enabled(enabled).show(ui);
+            IconButton::command(IconId::new("minus"), ViewCommands::ZoomOut).enabled(enabled).show(ui);
 
             let low = ZoomLadder::min(document).min(device);
             let high = ZoomLadder::MAX.max(device);
@@ -103,7 +103,7 @@ impl<'a> NavigatorZoomRow<'a> {
                 edits.push(dragged.map(at));
             }
 
-            IconButton::command(IconId::new("plus"), ViewCommand::ZoomIn).enabled(enabled).show(ui);
+            IconButton::command(IconId::new("plus"), ViewCommands::ZoomIn).enabled(enabled).show(ui);
 
             for edit in edits {
                 view.reborrow().write(cx, &edit);

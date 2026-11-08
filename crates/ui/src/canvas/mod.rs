@@ -4,7 +4,7 @@
 //! such as `CropOverlay`) join its arena, and a press away from all of their parts reaches the active tool through
 //! the canvas's background part. A canvas given a view ([`Canvas::view`]) owns what happens to it in a pass: it
 //! sets the view's rect to its own, fits a view never shown, folds in the wheel, a middle-button pan and the view
-//! commands routed to it ([`ViewCommand`]), keeps the document in view with Overscroll off, eases a zoom under
+//! commands routed to it ([`ViewCommands`]), keeps the document in view with Overscroll off, eases a zoom under
 //! Animated Zoom, publishes the view it shows as a [`CanvasSpace`] to its body, and reports the view the app copies.
 
 mod crop;
@@ -57,10 +57,10 @@ mod rotate;
 mod tools;
 mod zoom_motion;
 
-pub use momentary::{Momentary, MomentaryCommand, MomentaryTool};
+pub use momentary::{Momentary, MomentaryCommands, MomentaryTool};
 pub use navigate::{Autoscroll, FlickPan, NavigationOptions, PageKey, TouchpadGlide, WheelAction, WheelInput, WheelNavigation, pan};
 pub use rotate::{RotateView, RotateViewOutput, RotateViewStyle, ViewTurn};
-pub use tools::{HandTool, RotateViewTool, ViewCommand, ZoomTool};
+pub use tools::{HandTool, RotateViewTool, ViewCommands, ZoomTool};
 pub use zoom_motion::{HoldZoom, ZoomAnimation, ZoomDrag};
 
 mod rulers;
@@ -93,15 +93,15 @@ use zoom_motion::{Steer, ViewMotion};
 const BACKGROUND: PartKey = PartKey::new("background");
 
 /// The view commands a canvas publishes the state of.
-const VIEW_COMMANDS: [ViewCommand; 8] = [
-    ViewCommand::ZoomIn,
-    ViewCommand::ZoomOut,
-    ViewCommand::FitOnScreen,
-    ViewCommand::FillScreen,
-    ViewCommand::ActualPixels,
-    ViewCommand::RotateClockwise,
-    ViewCommand::RotateCounterclockwise,
-    ViewCommand::ResetRotation,
+const VIEW_COMMANDS: [ViewCommands; 8] = [
+    ViewCommands::ZoomIn,
+    ViewCommands::ZoomOut,
+    ViewCommands::FitOnScreen,
+    ViewCommands::FillScreen,
+    ViewCommands::ActualPixels,
+    ViewCommands::RotateClockwise,
+    ViewCommands::RotateCounterclockwise,
+    ViewCommands::ResetRotation,
 ];
 
 /// Why the background part is pointer-only: the keyboard path of the running tool is its command form
@@ -154,7 +154,7 @@ pub struct Canvas {
     view: Option<CanvasView>,
     /// The document the view shows, in document units. With a view and a document, the canvas fits a view never
     /// shown, keeps the wheel's zoom inside the document's zoom range, keeps the document in view with Overscroll off,
-    /// and applies the view commands routed to it ([`ViewCommand`]); without either, the view commands are disabled
+    /// and applies the view commands routed to it ([`ViewCommands`]); without either, the view commands are disabled
     /// for it.
     #[prop(quantity = "document units")]
     document: Option<Size>,
@@ -184,7 +184,7 @@ impl Canvas {
     /// A canvas named `label`. The keyboard path of its tool is the tool's own
     /// ([`CanvasTool::command_form`](CanvasTool::command_form)).
     pub fn new(label: impl Into<Label>) -> Self {
-        let props = ContainerProps::new().surface(SurfaceKind::Canvas).arena(true).sizing(Sizing::Fill).command_scope(ViewCommand::SCOPE);
+        let props = ContainerProps::new().surface(SurfaceKind::Canvas).arena(true).sizing(Sizing::Fill).command_scope(ViewCommands::SCOPE);
         Canvas {
             common: Common::new(),
             props,
@@ -215,16 +215,16 @@ impl Canvas {
         for command in VIEW_COMMANDS {
             // Zoom In and Zoom Out are disabled at the ends of the zoom range.
             let enabled = target.is_some_and(|(mut view, document)| match command {
-                ViewCommand::ZoomIn | ViewCommand::ZoomOut => command.apply(&mut view, document, pixels_per_point),
+                ViewCommands::ZoomIn | ViewCommands::ZoomOut => command.apply(&mut view, document, pixels_per_point),
                 _ => true,
             });
             cx.publish(command, CommandState::new().enabled(enabled));
         }
         let (view, document) = target?;
         let (mut next, mut zoomed) = (view, false);
-        while let Some((command, _)) = cx.take_command::<ViewCommand>() {
+        while let Some((command, _)) = cx.take_command::<ViewCommands>() {
             command.apply(&mut next, document, pixels_per_point);
-            zoomed |= !matches!(command, ViewCommand::RotateClockwise | ViewCommand::RotateCounterclockwise | ViewCommand::ResetRotation);
+            zoomed |= !matches!(command, ViewCommands::RotateClockwise | ViewCommands::RotateCounterclockwise | ViewCommands::ResetRotation);
         }
         (next != view).then_some((next, zoomed))
     }
@@ -248,7 +248,7 @@ impl Canvas {
             let never_shown = !(view.rect.width() > 0.0 && view.rect.height() > 0.0);
             view.rect = area;
             if never_shown && let Some(document) = self.document {
-                ViewCommand::FitOnScreen.apply(&mut view, document, pixels_per_point);
+                ViewCommands::FitOnScreen.apply(&mut view, document, pixels_per_point);
             }
         }
         let mut jumped = false;

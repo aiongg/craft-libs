@@ -2,7 +2,7 @@
 
 use super::frame::{self, DialogOutput, FOOTER, FooterCx, FooterFn, FooterHooks};
 use super::full_window_parts::SideFooter;
-use crate::canvas::ViewCommand;
+use crate::canvas::ViewCommands;
 use crate::contract::{
     Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, EndRegion, FooterPlace, FooterRegion, HeaderRegion, Mount, Pad,
     Props as _, Role, SaveKey,
@@ -34,7 +34,7 @@ pub struct FullWindowDialogStyle {
 ///   Enter activates the first enabled `Accept` button while the dialog's Enter rule is `EnterRule::Submit`, and
 ///   `close_guard` and `settle_buttons` see every pick.
 /// - Open state: bound with [`opened`](FullWindowDialog::opened), else a session slot that starts open.
-/// - View commands: the dialog is an instance of the [`ViewCommand`] scope, so the zoom chords act on the view the
+/// - View commands: the dialog is an instance of the [`ViewCommands`] scope, so the zoom chords act on the view the
 ///   dialog's zoom bar is bound to, not on a canvas behind it.
 /// - Focus: the dialog trap, with nothing focused at first unless [`initial_focus`](FullWindowDialog::initial_focus)
 ///   says otherwise.
@@ -81,7 +81,7 @@ impl<'a> FullWindowDialog<'a> {
             .pad(Pad::None)
             .header(HeaderRegion::new().rule(true))
             .focus(FocusPolicy::DIALOG.initial(Initial::Keep))
-            .command_scope(ViewCommand::SCOPE);
+            .command_scope(ViewCommands::SCOPE);
         FullWindowDialog {
             common: Common::new(),
             props,

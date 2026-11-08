@@ -23,7 +23,7 @@ mod stories;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui_macros::CommandSet)]
 #[command(prefix = "section", scope = "section")]
 #[non_exhaustive]
-pub enum SectionCommand {
+pub enum SectionCommands {
     /// Hide the section from the sidebar.
     #[command(label = "Hide Section")]
     Hide,
@@ -90,7 +90,7 @@ impl Outcome for ReorderableSectionsOutput {
 ///   hold exactly the registered sections first. Folding a section writes the layout; so does every event below.
 /// - Header: dragging it, or Alt with Up and Down in the section, moves the section among the others of its group.
 ///   A header button opens the section menu: Hide, Fold or Unfold, Pin or Unpin, Move Up and Move Down as
-///   `SectionCommand` rows that run on this section, then a check item per registered section that shows or hides it.
+///   `SectionCommands` rows that run on this section, then a check item per registered section that shows or hides it.
 /// - Body: `body` shows the content of each open section.
 /// - Announcement: a move announces the section's new place politely.
 #[derive(Pattern)]
@@ -132,7 +132,7 @@ impl<'a> ReorderableSections<'a> {
                         let out = Section::new(title)
                             .open(Bind::bound(&mut open))
                             .in_stack(slot)
-                            .command_scope(SectionCommand::SCOPE)
+                            .command_scope(SectionCommands::SCOPE)
                             .controls(|_, cx| section_commands(cx, key, &held, &mut local.borrow_mut()))
                             .menu(|ui, _| section_menu(ui, key, &held, sections, &mut local.borrow_mut()))
                             .actions([HeaderAction::Menu])
@@ -176,7 +176,7 @@ impl<'a> ReorderableSections<'a> {
 
 /// The commands routed to the section: runs them and publishes their states.
 fn section_commands(cx: &mut BodyCx<'_>, key: &SectionKey, held: &SectionLayout, events: &mut Vec<SectionEvent>) {
-    while let Some((command, _)) = cx.take_command::<SectionCommand>() {
+    while let Some((command, _)) = cx.take_command::<SectionCommands>() {
         events.extend(command_event(command, key, held));
     }
     for (command, enabled) in command_rows(key, held) {
@@ -185,14 +185,14 @@ fn section_commands(cx: &mut BodyCx<'_>, key: &SectionKey, held: &SectionLayout,
 }
 
 /// The commands of a section's menu with whether each applies now.
-fn command_rows(key: &SectionKey, held: &SectionLayout) -> [(SectionCommand, bool); 5] {
+fn command_rows(key: &SectionKey, held: &SectionLayout) -> [(SectionCommands, bool); 5] {
     let (folded, pinned) = (held.is_folded(key), held.is_pinned(key));
     [
-        (SectionCommand::Hide, true),
-        (if folded { SectionCommand::Unfold } else { SectionCommand::Fold }, true),
-        (if pinned { SectionCommand::Unpin } else { SectionCommand::Pin }, true),
-        (SectionCommand::MoveUp, held.can_move(key, true)),
-        (SectionCommand::MoveDown, held.can_move(key, false)),
+        (SectionCommands::Hide, true),
+        (if folded { SectionCommands::Unfold } else { SectionCommands::Fold }, true),
+        (if pinned { SectionCommands::Unpin } else { SectionCommands::Pin }, true),
+        (SectionCommands::MoveUp, held.can_move(key, true)),
+        (SectionCommands::MoveDown, held.can_move(key, false)),
     ]
 }
 
@@ -216,15 +216,15 @@ fn section_menu(ui: &mut Ui, key: &SectionKey, held: &SectionLayout, sections: &
 }
 
 /// The event a command of a section stands for, or `None` when it would change nothing.
-fn command_event(command: SectionCommand, key: &SectionKey, held: &SectionLayout) -> Option<SectionEvent> {
+fn command_event(command: SectionCommands, key: &SectionKey, held: &SectionLayout) -> Option<SectionEvent> {
     match command {
-        SectionCommand::Hide => Some(SectionEvent::Hidden(key.clone())),
-        SectionCommand::Fold => Some(SectionEvent::Folded { key: key.clone(), folded: true }),
-        SectionCommand::Unfold => Some(SectionEvent::Folded { key: key.clone(), folded: false }),
-        SectionCommand::Pin => Some(SectionEvent::Pinned(key.clone())),
-        SectionCommand::Unpin => Some(SectionEvent::Unpinned(key.clone())),
-        SectionCommand::MoveUp => held.moved_by(key, true, false),
-        SectionCommand::MoveDown => held.moved_by(key, false, false),
+        SectionCommands::Hide => Some(SectionEvent::Hidden(key.clone())),
+        SectionCommands::Fold => Some(SectionEvent::Folded { key: key.clone(), folded: true }),
+        SectionCommands::Unfold => Some(SectionEvent::Folded { key: key.clone(), folded: false }),
+        SectionCommands::Pin => Some(SectionEvent::Pinned(key.clone())),
+        SectionCommands::Unpin => Some(SectionEvent::Unpinned(key.clone())),
+        SectionCommands::MoveUp => held.moved_by(key, true, false),
+        SectionCommands::MoveDown => held.moved_by(key, false, false),
     }
 }
 

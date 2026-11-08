@@ -1,7 +1,7 @@
 //! `FullWindowView`: the view of a full-window canvas as plain data. The canvas view commands
-//! ([`ViewCommand`](crate::canvas::ViewCommand)) act on it.
+//! ([`ViewCommands`](crate::canvas::ViewCommands)) act on it.
 
-use crate::canvas::ViewCommand;
+use crate::canvas::ViewCommands;
 use craft_behavior::canvas::zoom;
 use craft_behavior::kurbo::{Point, Size};
 use craft_behavior::{CanvasView, PixelSize, ZoomLadder};
@@ -22,7 +22,7 @@ const FIT_MAX: f64 = 4.0;
 ///
 /// - Fitted: the whole image shows centred, magnified up to 400 % (`zoom::fit_up_to`).
 /// - A zoom (wheel, pinch, commands, the Zoom tool, the zoom bar) or a pan (Space, the middle button, the Hand tool)
-///   by the user ends the fit; [`ViewCommand::FitOnScreen`] returns to it.
+///   by the user ends the fit; [`ViewCommands::FitOnScreen`] returns to it.
 /// - Zooms stay inside `ZoomLadder`'s range for the image's size.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FullWindowView {
@@ -44,7 +44,7 @@ impl FullWindowView {
         Self { fit: true, view: CanvasView::new(Rect::ZERO, Point::ZERO, 1.0), size: Size::ZERO, pixels_per_point: 1.0 }
     }
 
-    /// Whether the view fits the image: until the user zooms or pans, and after `ViewCommand::FitOnScreen`.
+    /// Whether the view fits the image: until the user zooms or pans, and after `ViewCommands::FitOnScreen`.
     pub fn is_fit(&self) -> bool {
         self.fit
     }
@@ -119,21 +119,21 @@ impl FullWindowView {
     /// Applies a view command: the zoom commands (zoom in and out, fit on screen, 100 %). The rest (fill screen and
     /// the rotations) leave the view as it is. Returns whether the view changed. Fit on screen refits on the rect and
     /// image size of the last settled pass, so the zoom it reports is the fitted one at once.
-    pub fn apply(&mut self, command: ViewCommand) -> bool {
+    pub fn apply(&mut self, command: ViewCommands) -> bool {
         match command {
-            ViewCommand::ZoomIn | ViewCommand::ZoomOut => {
-                let dir = if command == ViewCommand::ZoomIn { 1 } else { -1 };
+            ViewCommands::ZoomIn | ViewCommands::ZoomOut => {
+                let dir = if command == ViewCommands::ZoomIn { 1 } else { -1 };
                 let changed = zoom::step(&mut self.view, dir, self.size, self.pixels_per_point);
                 self.fit &= !changed;
                 changed
             }
-            ViewCommand::FitOnScreen => {
+            ViewCommands::FitOnScreen => {
                 let before = *self;
                 self.fit = true;
                 self.refit();
                 *self != before
             }
-            ViewCommand::ActualPixels => self.set_device_zoom(1.0),
+            ViewCommands::ActualPixels => self.set_device_zoom(1.0),
             _ => false,
         }
     }

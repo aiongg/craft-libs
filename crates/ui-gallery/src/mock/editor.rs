@@ -6,7 +6,7 @@ use super::panels::Panels;
 use super::tools::Tools;
 use craft_behavior::dock::PanelState;
 use craft_ui::bars::{Bar, BarKind, StatusReadout, StatusValues};
-use craft_ui::canvas::{PickStep, ViewCommand};
+use craft_ui::canvas::{PickStep, ViewCommands};
 use craft_ui::contract::{Bind, BodyCx, Props as _, Remember as _, SaveKey, Show as _, ShowContainer as _};
 use craft_ui::dialog::{DialogResult, PromptChoice, StandardPrompt};
 use craft_ui::display::{Divider, Text};
@@ -193,7 +193,7 @@ fn title_bar(ui: &mut Ui, state: &MockState) {
                 }),
                 MenuTitle::new("&View", |ui| {
                     for command in
-                        [ViewCommand::FitOnScreen, ViewCommand::FillScreen, ViewCommand::ActualPixels, ViewCommand::ZoomIn, ViewCommand::ZoomOut]
+                        [ViewCommands::FitOnScreen, ViewCommands::FillScreen, ViewCommands::ActualPixels, ViewCommands::ZoomIn, ViewCommands::ZoomOut]
                     {
                         MenuItem::command(command).show(ui);
                     }

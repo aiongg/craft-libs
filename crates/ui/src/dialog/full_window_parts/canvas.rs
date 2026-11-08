@@ -103,7 +103,7 @@ impl Outcome for FullWindowCanvasOutput {
 ///   moves the view as every document canvas does: the wheel, pinch and two-finger scroll follow the user's
 ///   [`NavigationOptions`], zooming about the pointer; the middle button pans; Overscroll off keeps the image in view;
 ///   a tool's eased zoom eases. Space-drag and the momentary Zoom run in the tool host when the app gives it its
-///   [`Momentary`] set. The zoom commands (`ViewCommand`) reach the view through the dialog's command scope and the
+///   [`Momentary`] set. The zoom commands (`ViewCommands`) reach the view through the dialog's command scope and the
 ///   zoom bar; the canvas is no instance of them, so the chords act on the view while it has the focus.
 /// - **Tool.** One `CanvasTool` in a `ToolHost` on this canvas; presses, drags, keys and the cursor are the host's.
 ///   Without a tool the canvas navigates with a Hand tool it keeps between passes.

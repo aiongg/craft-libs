@@ -318,7 +318,7 @@ name = "NavigatorZoomRow"
 old = ""
 new = "craft_ui::canvas::NavigatorZoomRow"
 status = "replaced"
-note = "The legacy zoom row (`navigator::zoom_row`): percent `NumberField`, Zoom Out and Zoom In as `IconButton::command(icon, ViewCommand::ZoomOut / ZoomIn)` and a logarithmic `Slider` as children of a `Row`. `NavigatorZoomRow::new(Bind::bound(&mut view), document).show(ui)`. The buttons are the active canvas's view commands: the canvas (`Canvas::view(..).document(..).navigation(..)`) steps its view, eases to it under Animated Zoom, and reports it in `CanvasOutput::view` (and `ToolHostResponse::view`)."
+note = "The legacy zoom row (`navigator::zoom_row`): percent `NumberField`, Zoom Out and Zoom In as `IconButton::command(icon, ViewCommands::ZoomOut / ZoomIn)` and a logarithmic `Slider` as children of a `Row`. `NavigatorZoomRow::new(Bind::bound(&mut view), document).show(ui)`. The buttons are the active canvas's view commands: the canvas (`Canvas::view(..).document(..).navigation(..)`) steps its view, eases to it under Animated Zoom, and reports it in `CanvasOutput::view` (and `ToolHostResponse::view`)."
 
 [[type]]
 name = "NavigatorZoomRowOutput"
@@ -985,9 +985,9 @@ status = "moved"
 note = "Sets the view with `ToolContext::set_view`."
 
 [[type]]
-name = "ViewCommand"
+name = "ViewCommands"
 old = ""
-new = "craft_ui::canvas::ViewCommand"
+new = "craft_ui::canvas::ViewCommands"
 status = "replaced"
 note = "The `canvasView.*` commands, scoped to `canvasView` (Zoom In Cmd+= or Cmd++, Zoom Out Cmd+-, Fit on Screen Cmd+0, Fill Screen, 100% Cmd+1, Rotate View clockwise and counterclockwise, Reset Rotation) with `apply(view, size, pixels_per_point)`."
 
@@ -1003,28 +1003,28 @@ name = "MomentaryKeys"
 old = "craft_ui::canvas::momentary::MomentaryKeys"
 new = ""
 status = "removed"
-note = "Replaced by the `MomentaryCommand` set (`Kind::Momentary`) and `Momentary`."
+note = "Replaced by the `MomentaryCommands` set (`Kind::Momentary`) and `Momentary`."
 
 [[type]]
-name = "MomentaryCommand"
+name = "MomentaryCommands"
 old = ""
-new = "craft_ui::canvas::MomentaryCommand"
+new = "craft_ui::canvas::MomentaryCommands"
 status = "replaced"
-note = "`canvasMomentary.hand`, `canvasMomentary.zoom_in` and `canvasMomentary.zoom_out`, bound to Space, Cmd+Space and Alt+Space. Scoped to `canvasView` like `ViewCommand`; `ToolHost::run` takes them for its canvas."
+note = "`canvasMomentary.hand`, `canvasMomentary.zoom_in` and `canvasMomentary.zoom_out`, bound to Space, Cmd+Space and Alt+Space. Scoped to `canvasView` like `ViewCommands`; `ToolHost::run` takes them for its canvas."
 
 [[type]]
 name = "Momentary"
 old = ""
 new = "craft_ui::canvas::Momentary"
 status = "replaced"
-note = "The momentary tools and the one in effect, kept by the app: `Momentary::new(options)` (the Zoom tool reads the document size from the canvas's space), `fired(MomentaryCommand, FirePhase)`, and `ToolHost::momentary(&mut Momentary)`, which feeds the set the `MomentaryCommand`s fired for its canvas (the set is scoped to `canvasView`; the app plumbs nothing) and runs the Hand or Zoom tool in place of the selected tool while a key is held. `tool(mods, in_gesture) -> Option<MomentaryTool>` tells which is in effect."
+note = "The momentary tools and the one in effect, kept by the app: `Momentary::new(options)` (the Zoom tool reads the document size from the canvas's space), `fired(MomentaryCommands, FirePhase)`, and `ToolHost::momentary(&mut Momentary)`, which feeds the set the `MomentaryCommands`s fired for its canvas (the set is scoped to `canvasView`; the app plumbs nothing) and runs the Hand or Zoom tool in place of the selected tool while a key is held. `tool(mods, in_gesture) -> Option<MomentaryTool>` tells which is in effect."
 
 [[type]]
 name = "MomentaryTool"
 old = "craft_ui::canvas::momentary::MomentaryTool"
 new = "craft_ui::canvas::MomentaryTool"
 status = "moved"
-note = "Same variants; `command_id` is gone (the command is `MomentaryCommand`)."
+note = "Same variants; `command_id` is gone (the command is `MomentaryCommands`)."
 
 [[type]]
 name = "SpringTool"
