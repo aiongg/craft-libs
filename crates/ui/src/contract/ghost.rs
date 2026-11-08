@@ -10,6 +10,7 @@ use crate::runtime::egui::areas;
 use crate::runtime::env::Env;
 use crate::runtime::{cursor, pointer};
 use crate::style::{Corners, Ink, SurfaceKind};
+use craft_behavior::Flow;
 use egui::{Context, CornerRadius, Pos2, Rect, Vec2};
 use std::cell::RefCell;
 
@@ -81,9 +82,11 @@ fn paint_drag(ctx: &Context, env: &Env, painter: &egui::Painter, draw: &Draw<'_>
             painter.extend(outline(&env.tokens, &PaintShape::Rect(frame, CornerRadius::ZERO)));
             if let Some(label) = label {
                 let label = env.view().resolve(label);
-                let run = TextRun::new(label.as_str());
-                let layout = draw.layout(&run, frame.width());
-                draw.galley(frame.min + Vec2::splat(env.tokens.space.pad.control), &layout);
+                // The label starts at the reading start of the frame's padded rect and wraps inside it.
+                let inner = frame.shrink(env.tokens.space.pad.control);
+                let layout = draw.layout(&TextRun::new(label.as_str()), inner.width());
+                let (at, _) = Flow::new(inner, env.direction.is_rtl()).take_start(layout.size().x);
+                draw.galley(at.min, &layout);
             }
         }
         _ => {}

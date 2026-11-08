@@ -7,13 +7,14 @@
 //! `frame::edge_bands` additionally follows the layout's groups), and the drop marks and the drop-over-a-pane halves
 //! follow the pane order the app keeps.
 
+use crate::contract::SizeLimits;
 use crate::contract::overlay::{PlacementChange, PlacementKind, Popup};
 use crate::contract::{
     BodyCx, Common, Component, Container, ContainerProps, Cx, DropMark, DropOperation, DropTarget, HeaderRegion, Mount, NoValue, Outcome, Pad,
     PaneEdge, Pointer as _, Props as _, Remember as _, Role, Scroll, ShellPane, Show as _, ShowContainer as _, Sizing, WordSetCx as _,
 };
 use crate::display::Divider;
-use crate::docking::{DockRoot, DockWords, DragUnit, FloatingGroup, GroupDrag, PanelKey, PanelLimits};
+use crate::docking::{DockRoot, DockWords, DragUnit, FloatingGroup, GroupDrag, PanelKey};
 use crate::menu::MenuItem;
 use crate::runtime::commands::{CommandSet as _, CommandState, Commands as _};
 use crate::runtime::env::Label;
@@ -172,7 +173,7 @@ pub struct PaneSpec {
     /// The state used when the app keeps none.
     pub default_state: PaneState,
     /// The limits of the pane's body: along the edge for a docked pane, both ways for a floating one.
-    pub limits: PanelLimits,
+    pub limits: SizeLimits,
     /// The size of the floating frame the first time the pane floats.
     pub float_size: Vec2,
     /// `false`: no Move or Float items and no title drag.
@@ -193,7 +194,7 @@ impl PaneSpec {
         PaneSpec {
             title: title.into(),
             default_state,
-            limits: PanelLimits::default(),
+            limits: SizeLimits::default(),
             float_size,
             movable: true,
             closable: true,

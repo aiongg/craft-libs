@@ -10,8 +10,8 @@
 //! The maths runs in reading order: a dock on `DockEdge::Start` is at the left of its rect. `frames` mirrors the
 //! rects it returns for right-to-left.
 
-use super::spec::PanelLimits;
 use super::targets::DockSizes;
+use crate::contract::SizeLimits;
 use craft_behavior::dock::{Column, DockEdge, Node, SplitSize};
 use craft_behavior::{Axis, Flow};
 use egui::{Rect, Vec2, pos2, vec2};
@@ -23,7 +23,7 @@ pub const DROP_MARGIN: f32 = 1.0;
 /// What the maths asks of the app: each panel's limits, the width of a dock's columns and which panels have no
 /// strip.
 pub struct FrameRules<'a, P> {
-    limits: &'a dyn Fn(&P) -> PanelLimits,
+    limits: &'a dyn Fn(&P) -> SizeLimits,
     dock_width: Option<&'a dyn Fn(&[Column<P>]) -> f32>,
     stripless: Option<&'a dyn Fn(&P) -> bool>,
 }
@@ -39,7 +39,7 @@ impl<P> Copy for FrameRules<'_, P> {}
 impl<'a, P> FrameRules<'a, P> {
     /// Rules with the panels' `limits`. A dock is as wide as its columns' stored widths until a `dock_width` says
     /// otherwise, and every panel has a strip.
-    pub fn new(limits: &'a dyn Fn(&P) -> PanelLimits) -> Self {
+    pub fn new(limits: &'a dyn Fn(&P) -> SizeLimits) -> Self {
         FrameRules { limits, dock_width: None, stripless: None }
     }
 
@@ -73,7 +73,7 @@ pub struct GroupFrame<'a, P> {
     /// Where the leaf sits, mirrored for right-to-left.
     pub rect: Rect,
     /// What the leaf's panels allow.
-    pub limits: PanelLimits,
+    pub limits: SizeLimits,
 }
 
 impl<P> GroupFrame<'_, P> {
@@ -196,7 +196,7 @@ struct Bounds {
     max: Vec2,
 }
 
-const OPEN_MAX: Vec2 = Vec2::new(PanelLimits::BOUND, PanelLimits::BOUND);
+const OPEN_MAX: Vec2 = Vec2::new(SizeLimits::BOUND, SizeLimits::BOUND);
 
 fn extent(rect: Rect, axis: Axis) -> f32 {
     match axis {
@@ -294,7 +294,7 @@ impl<P> Sizer<'_, '_, P> {
     /// The size policy of a subtree.
     fn bounds(&self, node: &Node<P>) -> Bounds {
         let sizes = self.sizes;
-        let bound = PanelLimits::BOUND;
+        let bound = SizeLimits::BOUND;
         match node {
             Node::Dock { columns, .. } => {
                 let width = self.rules.dock_width_of(columns);
@@ -392,7 +392,7 @@ impl<P> Sizer<'_, '_, P> {
     fn collect<'n>(&self, node: &'n Node<P>, rect: Rect, path: &mut Vec<bool>, out: &mut Frames<'n, P>) {
         let Some(children) = self.children(node, rect) else {
             let bounds = self.bounds(node);
-            out.groups.push(GroupFrame { node, path: path.clone(), rect, limits: PanelLimits { min: bounds.min, max: Some(bounds.max) } });
+            out.groups.push(GroupFrame { node, path: path.clone(), rect, limits: SizeLimits { min: bounds.min, max: Some(bounds.max) } });
             return;
         };
         if let Node::Split { axis, size, first, second, .. } = node

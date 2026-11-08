@@ -296,6 +296,9 @@ impl LabelLeaf {
 impl Component for LabelLeaf {
     const ROLE: super::Role = super::Role::LABEL;
     const OVERLAYS: bool = false;
+    // The label is no key target: Enter and Space go to its control, which a click on the label focuses.
+    const KEYS: crate::runtime::focus::KeyUse =
+        crate::runtime::focus::KeyUse::of(Self::INPUT).with_activate(crate::runtime::focus::ActivateKeys::Neither);
     type Style = LabelStyle;
     type Output = LabelOutput;
 
@@ -347,14 +350,9 @@ impl Component for LabelLeaf {
         Vec2::new(width + self.slot, height)
     }
 
+    /// A click on the label focuses its control (the scope's `FieldLabel::activated`), so every label takes clicks.
     fn sense(&self) -> Sense {
-        if self.scrub {
-            Sense::CLICK | Sense::DRAG
-        } else if self.resettable {
-            Sense::CLICK
-        } else {
-            Sense::HOVER
-        }
+        if self.scrub { Sense::CLICK | Sense::DRAG } else { Sense::CLICK }
     }
 
     fn parts(&mut self, _rect: Rect, cx: &mut PartsCx<'_, Self>) {

@@ -6,7 +6,8 @@
 //! user did; the dock decides what a drop changes.
 
 use super::divider::{self, Divider, Drag};
-use super::{DockHeights, DockSizes, DockSpot, DockTargets, DockWords, DragUnit, PanelKey, PanelLimits, PanelSpec, Splitter, start_group_drag};
+use super::{DockHeights, DockSizes, DockSpot, DockTargets, DockWords, DragUnit, PanelKey, PanelSpec, Splitter, start_group_drag};
+use crate::contract::SizeLimits;
 use crate::contract::overlay::{Anchor, Popup, Trigger};
 use crate::contract::{
     Access, Bind, BodyCx, Common, Component, Container, ContainerProps, Cx, HeaderRegion, Name, NoValue, Outcome, Pad, PaintUi, PartsCx, Pointer,
@@ -37,7 +38,7 @@ pub type GroupView<'a, P> = Box<dyn FnMut(&Group<P>, Rect, &mut Ui, &mut BodyCx<
 
 /// The width bounds of an expanded column: no narrower than `least` or the widest minimum of its panels, no wider
 /// than the narrowest maximum.
-pub fn width_bounds(least: f32, limits: impl IntoIterator<Item = PanelLimits>) -> (f32, f32) {
+pub fn width_bounds(least: f32, limits: impl IntoIterator<Item = SizeLimits>) -> (f32, f32) {
     let (mut lo, mut hi) = (least, f32::INFINITY);
     for limit in limits {
         lo = lo.max(limit.min.x);

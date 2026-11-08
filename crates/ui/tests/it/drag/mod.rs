@@ -17,6 +17,7 @@ use egui::{Key, Modifiers, Pos2, Rect, Response, Shape, Ui, Vec2, ViewportBuilde
 use std::cell::{Cell, RefCell};
 
 mod frame;
+mod frame_label;
 
 const GRIP: PartKey = PartKey::new("grip");
 const CHIP: Rect = Rect { min: Pos2::new(10.0, 10.0), max: Pos2::new(60.0, 40.0) };

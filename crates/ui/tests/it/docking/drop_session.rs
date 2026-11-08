@@ -3,9 +3,10 @@
 
 use craft_behavior::Axis;
 use craft_behavior::dock::{Layout, Node, Permissions, SplitSize};
+use craft_ui::contract::SizeLimits;
 use craft_ui::contract::{Common, Component, Cx, MeasureCx, Pointer as _, Role, Show as _, ShowContainer as _};
 use craft_ui::docking::tree::{self, FrameRules};
-use craft_ui::docking::{DockDropTarget, DockDropped, DockGroup, DockSizes, GroupDrag, PanelDrag, PanelKey, PanelLimits, PanelTitle};
+use craft_ui::docking::{DockDropTarget, DockDropped, DockGroup, DockSizes, GroupDrag, PanelDrag, PanelKey, PanelTitle};
 use craft_ui::runtime::drag;
 use craft_ui::style::{ComponentStyle, StyleCx};
 use craft_ui::testing::pointer::{moved, press, release};
@@ -78,7 +79,7 @@ fn two_groups() -> Layout<String> {
 
 /// The panels of each group, in reading order.
 fn groups(layout: &Layout<String>) -> Vec<Vec<String>> {
-    let limits = |_: &String| PanelLimits::default();
+    let limits = |_: &String| SizeLimits::default();
     let rules = FrameRules::new(&limits);
     let Some(root) = layout.root.as_ref() else { return Vec::new() };
     let area = Rect::from_min_size(Pos2::ZERO, AREA);
@@ -94,7 +95,7 @@ fn groups(layout: &Layout<String>) -> Vec<Vec<String>> {
 
 /// The anchor, panels and rect of each group of the layout in an area at `origin`.
 fn placed_groups(layout: &Layout<String>, origin: Pos2) -> Vec<(String, Vec<String>, Rect)> {
-    let limits = |_: &String| PanelLimits::default();
+    let limits = |_: &String| SizeLimits::default();
     let rules = FrameRules::new(&limits);
     let Some(root) = layout.root.as_ref() else { return Vec::new() };
     let frames = tree::frames(root, Rect::from_min_size(origin, AREA), &sizes(), &rules, false);

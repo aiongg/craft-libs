@@ -6,9 +6,10 @@ use crate::theme::{ThemeSubject, parse_sizes};
 use crate::viewer::{Browser, Catalog, GalleryCommands, GalleryPanel, GallerySettings, Viewer, Workspace, theme_of};
 use craft_settings::{LoadReport, Location, SaveStatus, SettingsStore, Source};
 use craft_theme::AppSizes;
+use craft_ui::contract::SizeLimits;
 use craft_ui::contract::{Bind, CommandSet as _, ShowContainer as _};
+use craft_ui::docking::SplitArea;
 use craft_ui::docking::tree::FrameRules;
-use craft_ui::docking::{PanelLimits, SplitArea};
 use craft_ui::layout_components::Stack;
 use craft_ui::popover::DropVeil;
 use craft_ui::runtime::drag::OsFile;
@@ -142,7 +143,7 @@ impl ShellApp for Gallery {
         let shown_filter = *cell_filter;
         let Browser { catalog, filter, selection, open, dock, generation, cells } = browser;
         let dock = if in_theme { theme_dock } else { dock };
-        let limits = |_: &GalleryPanel| PanelLimits::at_least(Vec2::ZERO);
+        let limits = |_: &GalleryPanel| SizeLimits::at_least(Vec2::ZERO);
         let rules = FrameRules::new(&limits);
         let mut panels = Panels {
             catalog,

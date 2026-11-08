@@ -2,7 +2,8 @@
 
 use super::stack::{StackSection, StackSections};
 use super::tree::FrameRules;
-use super::{DockGroup, DockPanels, DragUnit, GroupGrip, HANDLE, PanelKey, PanelLimits, PanelSpec, PanelTitle, SplitArea, Splitter, WindowMenuRows};
+use super::{DockGroup, DockPanels, DragUnit, GroupGrip, HANDLE, PanelKey, PanelSpec, PanelTitle, SplitArea, Splitter, WindowMenuRows};
+use crate::contract::SizeLimits;
 use crate::contract::{Bind, BodyCx, Props as _, Show as _, ShowContainer as _, Validity};
 use crate::menu::Menu;
 use crate::runtime::env::Message;
@@ -34,7 +35,7 @@ fn titles(panels: &[usize]) -> Vec<PanelTitle> {
 }
 
 fn dock(ui: &mut Ui, bind: Bind<'_, Layout<usize>>, shown: &Layout<usize>) -> StoryOutput {
-    let limits = |_: &usize| PanelLimits::default();
+    let limits = |_: &usize| SizeLimits::default();
     let rules = FrameRules::new(&limits);
     let area = SplitArea::new("Panels", bind, rules).show(ui, |ui, body| {
         for (anchor, rect) in body.group_frames::<usize>() {
