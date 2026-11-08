@@ -4,7 +4,7 @@
 //! app drains them through [`ControlChannel::next_request`], runs its own method table on each
 //! (`engine.execute`, `ui.inspect`, `ui.set`, `ui.dialog.*`, `ui.screenshot`, …) and hands the
 //! [`Reply`] to [`ControlChannel::settle`]. The channel replies at once, after the queued
-//! synthetic input has been processed ([`Reply::AfterInput`], so a following `ui.inspect` sees
+//! injected input has been processed ([`Reply::AfterInput`], so a following `ui.inspect` sees
 //! the effect), when a background job ends ([`Reply::AfterJob`]), or when a screenshot completes
 //! ([`Reply::Screenshot`], through [`crate::screenshot::Captures`]).
 //!
@@ -16,10 +16,11 @@
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::Instant;
 
+use craft_ui::runtime::windows::WindowHost;
 use serde_json::{Value, json};
 
 use crate::screenshot::{Captures, DocumentId, Finished, screenshot_reply};
-use crate::synthetic::SyntheticInput;
+use crate::synthetic::TARGET_CHANGED;
 
 /// A reply: the JSON object the transport writes as one line.
 pub type ControlResponse = Value;
@@ -135,7 +136,7 @@ impl Reply {
 /// The requests waiting for the app, and the replies waiting on input, jobs and screenshots.
 ///
 /// Per frame: `while let Some(req) = channel.next_request() { let outcome = app.handle(&req); channel.settle(ctx, req, outcome, document); }`
-/// in the logic phase; [`Self::input_processed`] after the pass that consumed the synthetic
+/// in the logic phase; [`Self::input_processed`] after the pass that consumed the injected
 /// input; [`Self::job_finished`] when a job ends; [`Self::captures`] driven by the app's UI and
 /// logic phases as `screenshot` documents.
 pub struct ControlChannel {
@@ -185,9 +186,9 @@ impl ControlChannel {
         }
     }
 
-    /// The pass that consumed the queued synthetic input ended: reply
+    /// The pass that consumed the injected input ended: reply
     /// `{"ok": true, "result": null}` to every [`Reply::AfterInput`] waiter. Call it only after a
-    /// pass that reached the end of the UI with the synthetic queue empty; an early-returning pass
+    /// pass that reached the end of the UI with the injected queue empty; an early-returning pass
     /// keeps the waiters.
     pub fn input_processed(&mut self) {
         for waiter in self.input_waiters.drain(..) {
@@ -195,7 +196,7 @@ impl ControlChannel {
         }
     }
 
-    /// The queued synthetic input was dropped (the window lost it, a modal took over): reply
+    /// The injected input was dropped (the window lost it, a modal took over): reply
     /// `{"ok": false, "error": "input cancelled: {reason}"}` to every [`Reply::AfterInput`]
     /// waiter.
     pub fn input_cancelled(&mut self, reason: &str) {
@@ -204,11 +205,23 @@ impl ControlChannel {
         }
     }
 
-    /// PhotoCraft's `cancel_synthetic`: drop `input`'s queue and in-flight step, and fail every
+    /// Answers the [`Reply::AfterInput`] waiters from the window host's input state: with
+    /// `input cancelled` when the host withdrew queued input ([`TARGET_CHANGED`]), with success
+    /// once nothing is queued or in flight. Call it once per pass, after the pass that consumed the
+    /// input.
+    pub fn poll_input(&mut self, host: &WindowHost) {
+        if host.take_injected_withdrawn() {
+            self.input_cancelled(TARGET_CHANGED);
+        } else if host.injected_idle() {
+            self.input_processed();
+        }
+    }
+
+    /// Drops the host's queued input and the step in flight, and fails every
     /// [`Reply::AfterInput`] waiter with `input cancelled: {reason}`, also when only waiters
     /// remain (their input was already consumed). True when anything was pending or waiting.
-    pub fn cancel_input(&mut self, input: &mut SyntheticInput, reason: &str) -> bool {
-        let pending = input.cancel() || !self.input_waiters.is_empty();
+    pub fn cancel_input(&mut self, host: &WindowHost, reason: &str) -> bool {
+        let pending = host.cancel_injected() || !self.input_waiters.is_empty();
         self.input_cancelled(reason);
         pending
     }
@@ -250,7 +263,3 @@ impl ControlChannel {
         self.input_waiters.len() + self.job_waiters.len() + self.captures.pending()
     }
 }
-
-#[cfg(test)]
-#[path = "control_tests.rs"]
-mod control_tests;

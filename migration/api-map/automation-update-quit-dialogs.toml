@@ -161,6 +161,141 @@ new = ""
 status = "removed"
 note = "The `WindowHost::inject_move`, `inject_click`, `inject_key` and `inject_text` calls build and queue the events."
 
+# automation
+
+[[type]]
+name = "ActionsPanel"
+old = "craft_automation::ui::actions::ActionsPanel"
+new = "craft_automation::ui::actions::ActionsPanel"
+status = "same"
+note = "A pattern on a `Stack` (body: the `List` in tree mode, Button Mode's buttons or a centred `Notice`; footer: `FooterBar`). `new(state, list)` takes no id salt and `show(ui)` returns `ActionsPanelOutput`, an `Outcome`. The pending context menu lives in the stack's root slot. `start_rename(action)` and `host(..)` stay."
+
+[[type]]
+name = "ActionsPanelOutput"
+old = "craft_automation::ui::actions::ActionsPanelOutput"
+new = "craft_automation::ui::actions::ActionsPanelOutput"
+status = "same"
+note = "`response`, `events` and `settings_changed`; an `Outcome`."
+
+[[type]]
+name = "ActionsPanelState"
+old = "craft_automation::ui::actions::ActionsPanelState"
+new = "craft_automation::ui::actions::ActionsPanelState"
+status = "same"
+note = "Same fields: `settings`, `selected`, `expanded`."
+
+[[type]]
+name = "ActionsSettings"
+old = "craft_automation::ui::actions::ActionsSettings"
+new = "craft_automation::ui::actions::ActionsSettings"
+status = "same"
+note = "Same persisted section."
+
+[[type]]
+name = "ActionsEvent"
+old = "craft_automation::ui::actions::ActionsEvent"
+new = "craft_automation::ui::actions::ActionsEvent"
+status = "same"
+note = "`Reorder` carries an `ActionMove { row, place }` (the place computed by the panel) in place of the list's `EditEvent<Move>`; `Toggle` carries `craft_behavior::EditEvent<craft_ui::contract::ToggleEdit<ActionSelection>>` whose `column` is a `ColumnKey` (`INCLUDE_COLUMN`, `DIALOG_COLUMN`) in place of an index."
+
+[[type]]
+name = "ActionsHost"
+old = "craft_automation::ui::actions::ActionsHost"
+new = "craft_automation::ui::actions::ActionsHost"
+status = "same"
+note = "Same trait."
+
+[[type]]
+name = "ActionPlace"
+old = "craft_automation::ui::actions::ActionPlace"
+new = "craft_automation::ui::actions::ActionPlace"
+status = "same"
+note = "`ActionPlace::of(list, move)` is gone: the panel reports the place in `ActionsEvent::Reorder`. The enum is `#[non_exhaustive]`."
+
+[[type]]
+name = "ActionMove"
+old = ""
+new = "craft_automation::ui::actions::ActionMove"
+status = "replaced"
+note = "A moved row and its `ActionPlace`; replaces the list's `Move<ActionSelection>` in `ActionsEvent::Reorder`."
+
+[[type]]
+name = "ActionSelection"
+old = "craft_automation::ui::actions::ActionSelection"
+new = "craft_automation::ui::actions::ActionSelection"
+status = "same"
+note = "Same enum; also the list's key."
+
+[[type]]
+name = "ShortcutChoice"
+old = "craft_automation::ui::actions::ShortcutChoice"
+new = "craft_automation::ui::actions::ShortcutChoice"
+status = "same"
+note = "Same struct."
+
+[[type]]
+name = "ActionsMenuAction"
+old = "craft_automation::ui::actions::ActionsMenuAction"
+new = "craft_automation::ui::actions::ActionsMenuAction"
+status = "same"
+note = "Returned by `ActionsPanelCommands::run`."
+
+[[type]]
+name = "ActionsPanelCommands"
+old = ""
+new = "craft_automation::ui::actions::ActionsPanelCommands"
+status = "replaced"
+note = "The panel menu's rows as a `CommandSet` (prefix `actionsPanel`): `state(panel, list, recording)` gives the app's command input its `CommandState` and `run(panel, list, recording)` replaces `ActionsPanel::run_command`. `panel_rows()` replaces `ActionsPanel::panel_menu`."
+
+[[type]]
+name = "ActionsLabels"
+old = "craft_automation::ui::actions::ActionsLabels"
+new = ""
+status = "removed"
+note = "Replaced by the `words!` set `ActionsWords` (ids kept); the count words `STEPS`, `ACTIONS` and `COUNTS` are its `steps` and `action_count` rows."
+
+[[type]]
+name = "ActionsWords"
+old = ""
+new = "craft_automation::ui::actions::ActionsWords"
+status = "replaced"
+note = "The panel's words as a `words!` set; read with `Env::words::<ActionsWords>()`."
+
+[[type]]
+name = "ActionsPanelStyle"
+old = "craft_automation::ui::actions::ActionsPanelStyle"
+new = ""
+status = "removed"
+note = "The rows take the `ListRow` look; Button Mode's buttons take their fill from `LabelColor::fill` through `Button::tint`; the recording dot is a trailing icon of the row."
+
+[[type]]
+name = "DEFAULT_FILLS"
+old = "craft_automation::ui::actions::DEFAULT_FILLS"
+new = ""
+status = "removed"
+note = "Button Mode fills are `LabelColor::fill` of the action's colour."
+
+[[type]]
+name = "SyntheticInput"
+old = "craft_automation::synthetic::SyntheticInput"
+new = ""
+status = "removed"
+note = "The injected-input queue is the window host's: `WindowHost::inject_move`, `inject_click`, `inject_key` and `inject_text`; `Click::inject` and `KeyPress::inject` queue a validated request, and `ControlChannel::poll_input` answers the waiters."
+
+[[type]]
+name = "Injected"
+old = "craft_automation::synthetic::Injected"
+new = ""
+status = "removed"
+note = "The host reports a withdrawn queue with `WindowHost::take_injected_withdrawn` and an idle one with `injected_idle`."
+
+[[type]]
+name = "send_command"
+old = "craft_automation::screenshot::send_command"
+new = ""
+status = "removed"
+note = "`Captures::issue` takes the `WindowHost` and calls `WindowHost::screenshot`."
+
 # One entry per renamed, removed or reshaped setter or constructor.
 
 [[setter]]
@@ -192,3 +327,71 @@ type = "FileListPicker"
 old = "info(Option<InfoLine>)"
 new = "info(InfoLine)"
 note = "The line is given, or the prop is left out."
+
+# automation
+
+[[setter]]
+type = "ActionsPanel"
+old = "ActionsPanel::new(id_salt, state, list)"
+new = "ActionsPanel::new(state, list)"
+
+[[setter]]
+type = "ActionsPanel"
+old = "labels(ActionsLabels)"
+new = ""
+note = "Removed: words."
+
+[[setter]]
+type = "ActionsPanel"
+old = "enabled(bool)"
+new = ""
+note = "Removed: a pattern has no `Common`; show it under a disabled scope."
+
+[[setter]]
+type = "ActionsPanel"
+old = "ActionsPanel::style(&UiTokens)"
+new = ""
+note = "Removed: the look is the rows' and the footer's."
+
+[[setter]]
+type = "ActionsPanel"
+old = "ActionsPanel::panel_menu(ctx, state, list, recording)"
+new = "panel_rows()"
+note = "The rows are commands; their state is `ActionsPanelCommands::state`."
+
+[[setter]]
+type = "ActionsPanel"
+old = "ActionsPanel::run_command(state, command, list, recording)"
+new = "ActionsPanelCommands::run(self, state, list, recording)"
+
+[[setter]]
+type = "Captures"
+old = "Captures::issue(ctx, now, document, send)"
+new = "Captures::issue(host: &WindowHost, now, document)"
+note = "The slot comes from `WindowHost::screenshot`; there is no callback to send."
+
+[[setter]]
+type = "CaptureGeometry"
+old = "CaptureGeometry::current(ctx, document)"
+new = "CaptureGeometry::from_facts(host.screenshot_facts(), document)"
+
+[[setter]]
+type = "ControlChannel"
+old = "ControlChannel::cancel_input(input: &mut SyntheticInput, reason)"
+new = "ControlChannel::cancel_input(host: &WindowHost, reason)"
+
+[[setter]]
+type = "KeyPress"
+old = "KeyPress { key: egui::Key, modifiers: egui::Modifiers }"
+new = "KeyPress { key: craft_keymap::Key, mods: craft_keymap::Mods }"
+
+[[setter]]
+type = "Click"
+old = "Click { button: egui::PointerButton, .. }"
+new = "Click { button: craft_behavior::PointerButton, .. }"
+
+[[setter]]
+type = "server"
+old = "server::start(port, token, ctx: egui::Context)"
+new = "server::start(port, token, host: WindowHost)"
+note = "The server wakes the root window with `WindowHost::repaint_in`."

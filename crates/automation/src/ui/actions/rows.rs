@@ -1,28 +1,40 @@
-//! One set, action or step row with its include and dialog cells, and the tree's display order.
+//! The rows of the tree: the display order over the list, and one row's `ListRow`.
 
-use craft_ui::behavior::DisplayOrder;
-use craft_ui::controls::CheckState;
-use craft_ui::icons::Icon;
-use craft_ui::list::{ListRow, ListRowStyle, ToggleColumn};
-use craft_ui::localized::words::{Counted, Words};
-use craft_ui::localized::{LocaleNumbers, fmt};
-use craft_ui::theme::{ToEgui as _, UiTokens, role_format};
-use egui::{Color32, Context, Key, KeyboardShortcut, Label, Modifiers, RichText, Sense, vec2};
+use std::borrow::Cow;
 
-use super::labels::{ACTIONS, ActionsLabels, STEPS};
+use craft_behavior::{ColumnKey, DisplayOrder, IconId, ItemSource};
+use craft_ui::list::{ListRow, RowInk, ToggleCell, ToggleFace, ToggleState};
+use craft_ui::primitives::IconSpec;
+use craft_ui::runtime::env::Label;
+
+use super::body::Body;
 use super::panel::{ActionSelection, ActionsHost, ActionsPanelState};
-use super::style::ActionsPanelStyle;
 use crate::actions::{ActionInclude, ActionList};
 
+/// The include column: a toggle on action rows (every step) and step rows.
+pub const INCLUDE_COLUMN: ColumnKey = ColumnKey::new("include");
+/// The dialog column: a toggle on step rows.
+pub const DIALOG_COLUMN: ColumnKey = ColumnKey::new("dialog");
+/// The column that holds the disclosure, the icon, the name and the trailing items.
+pub(super) const NAME_COLUMN: ColumnKey = ColumnKey::new("name");
+
+/// One displayed row.
+struct Shown {
+    key: ActionSelection,
+    depth: usize,
+    group: bool,
+    open: bool,
+}
+
 /// The rows the tree shows this pass, in order, with their depths: loose actions, then each set
-/// header and (unless collapsed) its actions; an expanded action's steps and its pending steps
-/// after it. Built once per pass from the list, the state and the host.
-pub(super) struct ActionRows {
-    pub(super) rows: Vec<ActionSelection>,
-    pub(super) depths: Vec<usize>,
-    pub(super) groups: Vec<bool>,
-    /// Whether the group at each position shows its children.
-    pub(super) opens: Vec<bool>,
+/// header and (unless collapsed) its actions; an open action's steps and its pending steps after
+/// it. Built once per pass from the list, the state and the host. Every action and every set is a
+/// group, so it has a disclosure even with nothing inside, as PhotoCraft's does. The recording
+/// action and its set are open whatever the state says.
+pub(super) struct ActionRows<'a> {
+    rows: Vec<Shown>,
+    list: &'a ActionList,
+    host: Option<&'a dyn ActionsHost>,
 }
 
 /// Whether the set `name` shows its actions: not collapsed, or holding the action being recorded.
@@ -36,220 +48,203 @@ fn action_open(list: &ActionList, state: &ActionsPanelState, host: Option<&dyn A
     host.and_then(|host| host.recording()) == Some(index) || list.action(index).is_some_and(|action| state.expanded.contains(&action.name))
 }
 
-impl ActionRows {
-    /// The rows of `list` as `state` and `host` show them: sets from
-    /// [`ActionList::sets`] (empty ones included), actions in
-    /// [`ActionList::display_order`], an action inside a set at depth 1 (its steps at 2), a loose
-    /// action at 0 (its steps at 1); every action is a group (it has a disclosure even with no
-    /// steps, as PhotoCraft's), every set too. The recording action is expanded whatever `state`
-    /// says.
-    pub(super) fn build(list: &ActionList, state: &ActionsPanelState, host: Option<&dyn ActionsHost>) -> Self {
-        // pc: crates/ui-egui/src/panels/actions.rs:962-981 (display order, set headers before their first action, collapsed sets);
-        // pc: crates/ui-egui/src/panels/actions.rs:947-955 (the recording row expands and is revealed).
-        let mut out = Self { rows: Vec::new(), depths: Vec::new(), groups: Vec::new(), opens: Vec::new() };
+impl<'a> ActionRows<'a> {
+    pub(super) fn build(list: &'a ActionList, state: &ActionsPanelState, host: Option<&'a dyn ActionsHost>) -> Self {
+        let mut out = Self { rows: Vec::new(), list, host };
         let order = list.display_order();
         for &index in order.iter().filter(|&&index| list.set_of(index).is_none()) {
-            out.push_action(list, state, host, index, 0);
+            out.push_action(state, index, 0);
         }
         for set in list.sets() {
             let open = set_open(list, state, host, set);
-            out.push(ActionSelection::Set(set.to_owned()), 0, true, open);
+            out.rows.push(Shown { key: ActionSelection::Set(set.to_owned()), depth: 0, group: true, open });
             if open {
                 for &index in order.iter().filter(|&&index| list.set_of(index) == Some(set)) {
-                    out.push_action(list, state, host, index, 1);
+                    out.push_action(state, index, 1);
                 }
             }
         }
         out
     }
 
-    fn push(&mut self, row: ActionSelection, depth: usize, group: bool, open: bool) {
-        self.rows.push(row);
-        self.depths.push(depth);
-        self.groups.push(group);
-        self.opens.push(open);
-    }
-
-    fn push_action(&mut self, list: &ActionList, state: &ActionsPanelState, host: Option<&dyn ActionsHost>, index: usize, depth: usize) {
-        let open = action_open(list, state, host, index);
-        self.push(ActionSelection::Action(index), depth, true, open);
+    fn push_action(&mut self, state: &ActionsPanelState, index: usize, depth: usize) {
+        let open = action_open(self.list, state, self.host, index);
+        self.rows.push(Shown { key: ActionSelection::Action(index), depth, group: true, open });
         if open {
-            let shown = list.step_count(index) + host.map_or(0, |host| host.pending_steps(index).len());
+            let shown = self.list.step_count(index) + self.host.map_or(0, |host| host.pending_steps(index).len());
             for step in 0..shown {
-                self.push(ActionSelection::Step(index, step), depth + 1, false, false);
+                self.rows.push(Shown { key: ActionSelection::Step(index, step), depth: depth + 1, group: false, open: false });
             }
         }
     }
 
-    /// The row height at `at`: `set_row_height`, `row_height` or `step_row_height`.
-    pub(super) fn height(&self, at: usize, style: &ActionsPanelStyle) -> f32 {
-        match self.rows.get(at) {
-            Some(ActionSelection::Set(_)) => style.set_row_height,
-            Some(ActionSelection::Step(..)) => style.step_row_height,
-            Some(ActionSelection::Action(_)) | None => style.row_height,
+    /// The keys in display order.
+    pub(super) fn keys(&self) -> Vec<ActionSelection> {
+        self.rows.iter().map(|row| row.key.clone()).collect()
+    }
+
+    /// Whether the row at `at` has a disclosure that is open.
+    pub(super) fn is_open(&self, at: usize) -> bool {
+        self.rows.get(at).is_some_and(|row| row.open)
+    }
+
+    pub(super) fn depth_at(&self, at: usize) -> usize {
+        self.rows.get(at).map_or(0, |row| row.depth)
+    }
+
+    pub(super) fn is_group(&self, at: usize) -> bool {
+        self.rows.get(at).is_some_and(|row| row.group)
+    }
+
+    /// Whether the row at `at` is a step the action holds (not a pending one).
+    fn recorded_step(&self, at: usize) -> Option<(usize, usize)> {
+        match self.rows.get(at)?.key {
+            ActionSelection::Step(action, step) if step < self.list.action(action)?.steps.len() => Some((action, step)),
+            _ => None,
         }
     }
 }
 
-impl DisplayOrder<ActionSelection> for ActionRows {
+impl DisplayOrder<ActionSelection> for ActionRows<'_> {
     fn len(&self) -> usize {
         self.rows.len()
     }
 
-    fn key(&self, at: usize) -> &ActionSelection {
-        &self.rows[at]
+    fn key(&self, at: usize) -> ActionSelection {
+        self.rows[at].key.clone()
     }
 
     fn depth(&self, at: usize) -> usize {
-        self.depths.get(at).copied().unwrap_or(0)
+        self.depth_at(at)
     }
 
     fn has_children(&self, at: usize) -> bool {
-        self.groups.get(at).copied().unwrap_or(false)
+        self.is_group(at)
     }
 
     fn open(&self, at: usize) -> bool {
-        self.opens.get(at).copied().unwrap_or(false)
+        self.is_open(at)
+    }
+
+    fn text(&self, at: usize) -> Option<Cow<'_, str>> {
+        match &self.rows.get(at)?.key {
+            ActionSelection::Set(name) => Some(Cow::Borrowed(name.as_str())),
+            ActionSelection::Action(index) => self.list.action(*index).map(|action| Cow::Borrowed(action.name.as_str())),
+            ActionSelection::Step(..) => None,
+        }
     }
 }
 
-/// The `ListRow` of `key`, wrapped by the panel in a `TreeRow`:
-/// - a set: `Icon::Folder` or `Icon::FolderOpen`, its name, "{n} actions" (`ACTIONS`) as a
-///   trailing text in `text.faint`;
-/// - an action: `Icon::Play` glyph, its name, the include cell unless it has no steps, the trailing text ([`ActionsLabels::shortcut_steps`] or the step count,
-///   [`ActionsLabels::partial_steps`] when partial), the recording dot (a
-///   `status.bad.solid` circle) as a trailing item while recording into it, the accessible name
-///   with [`ActionsLabels::recording_suffix`] then (the dot is [`ActionsPanelStyle::recording_dot_radius`] in radius);
-/// - a step: the host's label, dimmed when switched off.
-///
-/// The include and dialog cells are the row's [toggle columns](ToggleColumn), at the reading start
-/// before the tree's indent (lead call: one component with the Layers eye and History's source):
-/// - column 0, the include cell on action and step rows: [`include_column`];
-/// - column 1, the dialog cell on step rows: [`dialog_column`].
-///
-/// Set rows have no toggle columns, so their disclosure sits at the leading edge, as PhotoCraft's
-/// set header's triangle does.
-pub(super) fn row<'r>(
-    ctx: &Context,
-    key: &ActionSelection,
-    list: &'r ActionList,
-    state: &ActionsPanelState,
-    host: Option<&'r dyn ActionsHost>,
-    labels: &ActionsLabels,
-    style: &ActionsPanelStyle,
-) -> ListRow<'r, ActionSelection> {
-    // pc: crates/ui-egui/src/panels/actions.rs:830 `draw_set_header`, :1000-1042 (action row), :1213 `draw_step_label`.
-    let tokens = craft_ui::theme::current(ctx);
-    let row_style = ListRow::<ActionSelection>::style(&tokens);
+impl ItemSource<ActionSelection> for ActionRows<'_> {
+    fn toggled(&self, at: usize, column: &ColumnKey) -> bool {
+        let Some(row) = self.rows.get(at) else { return false };
+        match (&row.key, column) {
+            (ActionSelection::Action(index), column) if *column == INCLUDE_COLUMN => {
+                self.list.action(*index).is_some_and(|action| action.include() == ActionInclude::All)
+            }
+            _ => match self.recorded_step(at) {
+                Some((action, step)) if *column == INCLUDE_COLUMN => self.list.action(action).is_some_and(|held| held.step_enabled(step)),
+                Some((action, step)) if *column == DIALOG_COLUMN => self.list.action(action).is_some_and(|held| held.dialogs.contains(&step)),
+                _ => false,
+            },
+        }
+    }
+
+    fn toggle_enabled(&self, at: usize, column: &ColumnKey) -> bool {
+        let Some(row) = self.rows.get(at) else { return false };
+        match &row.key {
+            ActionSelection::Action(index) => *column == INCLUDE_COLUMN && self.list.action(*index).is_some_and(|action| !action.steps.is_empty()),
+            ActionSelection::Step(..) => self.recorded_step(at).is_some(),
+            ActionSelection::Set(_) => false,
+        }
+    }
+}
+
+fn include_state(include: ActionInclude) -> ToggleState {
+    match include {
+        ActionInclude::All => ToggleState::On,
+        ActionInclude::Partial => ToggleState::Mixed,
+        ActionInclude::None => ToggleState::Off,
+    }
+}
+
+/// The `ListRow` of `key`:
+/// - a set: its folder icon, open or closed, its name and "{n} actions" at the end;
+/// - an action: the play glyph, its name, the include cell unless it has no steps, the trailing
+///   text (the shortcut and the step count, or "2/3 steps" when some are off), and while it is
+///   recorded into a dot that names the recording;
+/// - a step: the host's label, dimmed when switched off, the include and dialog cells.
+pub(super) fn build_row(body: &Body<'_>, state: &ActionsPanelState, key: &ActionSelection) -> ListRow<'static> {
+    let Body { list, host, words, env, .. } = *body;
+    let digits = |n: usize| env.format().integer(n as u64);
     match key {
         ActionSelection::Set(name) => {
             let count = list.actions().iter().filter(|action| action.set.as_deref() == Some(name.as_str())).count();
-            let icon = if set_open(list, state, host, name) { Icon::FolderOpen } else { Icon::Folder };
-            let row = ListRow::new(key.clone(), name.clone()).icon(icon);
-            trailing_text(row, ctx, &tokens, &row_style, counted(ctx, ACTIONS, count))
+            let open = set_open(list, state, host, name);
+            let icon = IconId::new(if open { "folder_open" } else { "folder" });
+            ListRow::new(name.clone()).heading().icon(IconSpec::svg(icon)).trailing(words.action_count.text(count as u64, &digits(count)))
         }
         ActionSelection::Action(index) => {
-            let Some(action) = list.action(*index) else { return ListRow::new(key.clone(), String::new()) };
-            let mut row = ListRow::new(key.clone(), action.name.clone()).icon(Icon::Play);
-            if !action.steps.is_empty() {
-                row = row.toggle(include_column(include_state(action.include()), labels));
-            }
+            let Some(action) = list.action(*index) else { return ListRow::new(Label::Empty) };
+            let mut row = ListRow::new(action.name.clone()).icon(IconSpec::svg(IconId::new("play")));
             let steps = list.step_count(*index);
-            let mut text = counted(ctx, STEPS, steps);
+            let mut text = words.steps.text(steps as u64, &digits(steps));
             if action.include() == ActionInclude::Partial {
                 let enabled = action.enabled_steps().count();
-                let enabled = LocaleNumbers::of_ctx(ctx).format(enabled as f64, 0..=0);
-                text = fmt(&labels.partial_steps, &[("enabled", &enabled), ("steps", &text)]);
+                text = words.partial_steps.fill(&[("enabled", &digits(enabled)), ("steps", &text)]);
             }
             if let Some(shortcut) = host.and_then(|host| host.shortcut(action)).map(|choice| choice.text()) {
-                text = fmt(&labels.shortcut_steps, &[("shortcut", &shortcut), ("steps", &text)]);
+                text = words.shortcut_steps.fill(&[("shortcut", &shortcut), ("steps", &text)]);
             }
-            row = trailing_text(row, ctx, &tokens, &row_style, text);
             if host.and_then(|host| host.recording()) == Some(*index) {
-                row = row.accessible_name(fmt(&labels.recording_suffix, &[("name", &action.name)]));
-                let (color, side, radius) = (style.recording, row_style.icon_size, style.recording_dot_radius);
-                row = row.trailing_item(side, move |ui| {
-                    let (rect, _) = ui.allocate_exact_size(vec2(side, side), Sense::hover());
-                    ui.painter().circle_filled(rect.center(), radius, color);
-                });
+                let name = words.recording_suffix.fill(&[("name", &action.name)]);
+                row = row.accessible_name(name).trailing_icon(IconSpec::svg(IconId::new("circle")), words.recording.clone());
             }
-            row
+            row.optional(text)
         }
         ActionSelection::Step(index, step) => {
-            let Some(action) = list.action(*index) else { return ListRow::new(key.clone(), String::new()) };
+            let Some(action) = list.action(*index) else { return ListRow::new(Label::Empty) };
             match action.steps.get(*step) {
                 Some(recorded) => {
-                    let enabled = action.step_enabled(*step);
                     let label = host.map_or_else(|| recorded.command.clone(), |host| host.step_label(recorded));
-                    ListRow::new(key.clone(), label)
-                        .dimmed(!enabled)
-                        .toggle(include_column(if enabled { CheckState::Checked } else { CheckState::Unchecked }, labels))
-                        .toggle(dialog_column(action.dialogs.contains(step), labels))
+                    ListRow::new(label).ink(if action.step_enabled(*step) { RowInk::Muted } else { RowInk::Dimmed })
                 }
                 None => {
                     let pending = host.and_then(|host| host.pending_steps(*index).get(*step - action.steps.len()));
                     let label =
                         pending.map_or_else(String::new, |pending| host.map_or_else(|| pending.command.clone(), |host| host.step_label(pending)));
-                    ListRow::new(key.clone(), label)
+                    ListRow::new(label).ink(RowInk::Muted)
                 }
             }
         }
     }
 }
 
-/// The include cell of an action or step row: a [`ToggleColumn::check_box`] named
-/// [`ActionsLabels::include`] with the row's label for `{row}`, tooltip
-/// [`ActionsLabels::include_tooltip`], key Space. The state of an action row is its
-/// [`ActionInclude`] (`All` checked, `Partial` mixed, `None` unchecked); of a step row, checked
-/// unless the step is in `Action::disabled`.
-pub(super) fn include_column(state: CheckState, labels: &ActionsLabels) -> ToggleColumn {
-    // pc: crates/ui-egui/src/panels/actions.rs:1225-1234 `draw_step_controls` (the check, `CheckBox`
-    // "Include in playback: {label}"), :315 `paint_check`.
-    ToggleColumn::check_box(labels.include.clone(), state)
-        .key(KeyboardShortcut::new(Modifiers::NONE, Key::Space))
-        .tooltip(labels.include_tooltip.clone())
-}
-
-/// The include cell's state for an action's [`ActionInclude`].
-pub(super) fn include_state(include: ActionInclude) -> CheckState {
-    // new: `All` → `Checked`, `Partial` → `Mixed`, `None` → `Unchecked`.
-    match include {
-        ActionInclude::All => CheckState::Checked,
-        ActionInclude::Partial => CheckState::Mixed,
-        ActionInclude::None => CheckState::Unchecked,
+/// The toggle cells of a row: the include cell of an action with steps and of a recorded step, the
+/// dialog cell of a recorded step.
+pub(super) fn cells(body: &Body<'_>, key: &ActionSelection) -> Vec<ToggleCell> {
+    let Body { list, words, .. } = *body;
+    let include = |state: ToggleState| ToggleCell::check(INCLUDE_COLUMN, state, words.include.clone()).tooltip(words.include_tooltip.clone());
+    match key {
+        ActionSelection::Action(index) => match list.action(*index) {
+            Some(action) if !action.steps.is_empty() => vec![include(include_state(action.include()))],
+            _ => Vec::new(),
+        },
+        ActionSelection::Step(index, step) => match list.action(*index) {
+            Some(action) if *step < action.steps.len() => {
+                let note = IconId::new("note");
+                let mut dialog = ToggleCell::new(
+                    DIALOG_COLUMN,
+                    ToggleFace::icons(note.clone(), note),
+                    ToggleState::of(action.dialogs.contains(step)),
+                    words.dialog.clone(),
+                )
+                .tooltip(words.dialog_tooltip.clone());
+                dialog.check_box = true;
+                vec![include(ToggleState::of(action.step_enabled(*step))), dialog]
+            }
+            _ => Vec::new(),
+        },
+        ActionSelection::Set(_) => Vec::new(),
     }
-}
-
-/// The dialog cell of a step row: `ToggleColumn::new(name, Icon::Note, Icon::Note, on)` with
-/// [`check`](ToggleColumn::check)`(true)`, named [`ActionsLabels::dialog`] with the row's label
-/// for `{row}`, tooltip [`ActionsLabels::dialog_tooltip`]; `on` when the step is in
-/// `Action::dialogs`. Like every toggle column it shows its icon when on and under the pointer
-/// when off (PhotoCraft draws the off icon at `text.faint` × 0.45 at rest; the list's column look
-/// replaces it).
-pub(super) fn dialog_column(on: bool, labels: &ActionsLabels) -> ToggleColumn {
-    // pc: crates/ui-egui/src/panels/actions.rs:1236-1250 `draw_step_controls` (the "message-square" icon, "Show dialog during playback: {label}").
-    ToggleColumn::new(labels.dialog.clone(), Icon::Note, Icon::Note, on).check(true).tooltip(labels.dialog_tooltip.clone())
-}
-
-/// `n` in the count word `count`, in the installed words.
-fn counted(ctx: &Context, count: Counted, n: usize) -> String {
-    let words = Words::of_ctx(ctx);
-    words.counted(ctx, count, &words.get(count.word), n as u64)
-}
-
-/// `row` with `text` at the trailing end in `text.faint`, dropped before the label gets narrower
-/// than `3 * size.control.md`.
-fn trailing_text<'r>(
-    row: ListRow<'r, ActionSelection>,
-    ctx: &Context,
-    tokens: &UiTokens,
-    row_style: &ListRowStyle,
-    text: String,
-) -> ListRow<'r, ActionSelection> {
-    let color = tokens.color.text.faint.to_egui();
-    let font = role_format(tokens, row_style.detail_role, color).font_id;
-    let width = ctx.fonts_mut(|fonts| fonts.layout_no_wrap(text.clone(), font.clone(), Color32::PLACEHOLDER).size().x);
-    row.optional_item(width.ceil(), move |ui| {
-        ui.add(Label::new(RichText::new(text).font(font).color(color)).selectable(false));
-    })
 }
