@@ -350,7 +350,8 @@ impl Strip<'_> {
         } else if key == Key::F6 && (mods.is_none() || mods == Mods::SHIFT) {
             batch.nav.panes.push(!mods.shift);
             false
-        } else if key == Key::Escape && mods.is_none() {
+        } else if key == Key::Escape && !mods.cmd && !mods.ctrl {
+            // Alt and Shift ride along, as with Enter: a canvas tool reads them; Cmd and Ctrl chords are the app's.
             batch.escapes += 1;
             false
         } else if key == Key::F10 && mods.is_none() && self.menu_bar {
@@ -904,9 +905,11 @@ fn route_press(
         },
         Some(intent) => push(routed, id, intent, false),
         // Enter the key table leaves unbound activates a stop that takes Enter with any modifier held; the component
-        // reads the modifiers (Alt+Enter adds the way Alt+click does). Plain Enter elsewhere submits.
+        // reads the modifiers (Alt+Enter adds the way Alt+click does). Enter elsewhere submits with Alt and Shift
+        // held or not, which the component reads (a polygonal lasso closes straight on Alt+Enter); Enter chords with
+        // Cmd or Ctrl the table leaves unbound are the app's.
         None if press.key == Key::Enter && stop.keys.activate.enter() => route_activate(ctx, rec, routed, activated),
-        None if press.key == Key::Enter && plain => push(routed, id, Intent::Submit, false),
+        None if press.key == Key::Enter && !press.mods.cmd && !press.mods.ctrl => push(routed, id, Intent::Submit, false),
         None if press.key == Key::Space && plain && stop.keys.activate.space() => route_activate(ctx, rec, routed, activated),
         None if press.key == Key::Tab && plain && stop.keys.keep == focus::KeepKeys::Tab => push(routed, id, Intent::Tab, false),
         None if stop.role.nudge => {

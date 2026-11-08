@@ -20,7 +20,8 @@ pub struct KeyRole {
     pub rename: bool,
     /// `FocusPolicy.pages`: Ctrl+Tab switches pages.
     pub pages: bool,
-    /// The component reads arrow nudges: arrows are not moves.
+    /// The component reads arrow nudges: arrows are not moves. One that deletes (a canvas) takes only the plain
+    /// Delete and Backspace; with a modifier held they are the app's.
     pub nudge: bool,
     /// Typed letters reach the component as `Intent::Text` (type-ahead).
     pub type_ahead: bool,
@@ -28,9 +29,7 @@ pub struct KeyRole {
     pub digits: bool,
     /// A value control: Alt with an arrow is a fine move.
     pub value: bool,
-    /// The stop is a text part: Alt+Left and Alt+Right keep their word-move rows, and Alt with Delete or Backspace
-    /// is the platform's word delete. Any other role that deletes takes them whatever Alt is held, and Alt never makes
-    /// them a word delete.
+    /// The stop is a text part: Alt+Left and Alt+Right keep their word-move rows.
     pub text: bool,
     /// The component acts on the arrow moves routed to it: they are not shortcut candidates.
     pub moves: bool,
@@ -267,11 +266,14 @@ fn movement(mac: bool, key: Key, mods: Mods, role: KeyRole) -> Option<Intent> {
         }
         Key::PageUp if !mods.alt && !mods.cmd && !mods.ctrl => moved(NavMove::PageUp, Granularity::Unit),
         Key::PageDown if !mods.alt && !mods.cmd && !mods.ctrl => moved(NavMove::PageDown, Granularity::Unit),
-        // Alt is a word only in text. A canvas tool or a collection reads it as its own modifier: Photoshop's
-        // polygonal lasso removes its last point on Backspace while Alt holds the freehand switch.
-        Key::Delete | Key::Backspace if role.deletes && (!mods.alt || mac || !role.text) => {
-            let word = if mac { mods.alt && role.text } else { mods.cmd };
-            let by = if word { Granularity::Word } else { Granularity::Unit };
+        // A canvas tool takes the plain keys; with a modifier they are the app's (Photoshop fills on Alt+Backspace and
+        // Cmd+Backspace and opens Fill on Shift+Backspace). A tool with a draft open keeps them with Alt held through
+        // its kept keys.
+        Key::Delete | Key::Backspace if role.deletes && role.nudge && !role.text => {
+            mods.is_none().then(|| Intent::delete(key == Key::Delete, Granularity::Unit))
+        }
+        Key::Delete | Key::Backspace if role.deletes && (!mods.alt || mac) => {
+            let by = if by_word { Granularity::Word } else { Granularity::Unit };
             Some(Intent::Delete { forward: key == Key::Delete, by, shift: mods.shift })
         }
         _ => None,
@@ -367,19 +369,21 @@ mod tests {
     }
 
     #[test]
-    fn alt_deletes_a_word_in_text_and_a_unit_elsewhere() {
-        let tool = KeyRole::new().nudge(true).deletes(true);
+    fn a_canvas_takes_the_plain_deletes_and_leaves_the_modified_ones() {
+        let canvas = KeyRole::new().nudge(true).deletes(true);
+        let list = KeyRole::new().deletes(true);
         let text = KeyRole::new().text(true).deletes(true);
-        let alt_shift = Mods { shift: true, ..Mods::ALT };
         for os in [Os::Linux, Os::Windows, Os::Mac] {
-            check(os, Key::Backspace, Mods::ALT, tool, Some(Intent::delete(false, Granularity::Unit)));
-            check(os, Key::Delete, Mods::ALT, tool, Some(Intent::delete(true, Granularity::Unit)));
-            check(os, Key::Backspace, alt_shift, tool, Some(Intent::shift_delete(false, Granularity::Unit)));
-            check(os, Key::Backspace, NONE, text, Some(Intent::delete(false, Granularity::Unit)));
+            check(os, Key::Backspace, NONE, canvas, Some(Intent::delete(false, Granularity::Unit)));
+            check(os, Key::Delete, NONE, canvas, Some(Intent::delete(true, Granularity::Unit)));
+            for mods in [Mods::ALT, Mods::SHIFT, Mods::CMD] {
+                check(os, Key::Backspace, mods, canvas, None);
+            }
+            check(os, Key::Delete, Mods::SHIFT, list, Some(Intent::shift_delete(true, Granularity::Unit)));
         }
+        check(Os::Linux, Key::Backspace, Mods::ALT, list, None);
         check(Os::Mac, Key::Backspace, Mods::ALT, text, Some(Intent::delete(false, Granularity::Word)));
         check(Os::Linux, Key::Backspace, Mods::ALT, text, None);
-        check(Os::Windows, Key::Backspace, Mods::CMD, text, Some(Intent::delete(false, Granularity::Word)));
     }
 
     #[test]
