@@ -767,3 +767,41 @@ type = "FooterButton"
 old = "FooterButton::new(ButtonRole::Apply, label)"
 new = "FooterButton::new(label, DialogRole::Other).stays_open(true)"
 note = "An Apply button: the pick is reported and the dialog stays open. `Cancel` always closes."
+
+# Outer gesture (l4f-edit)
+
+[[type]]
+name = "OuterGesture"
+old = "craft_ui::edit::OuterGesture"
+new = ""
+status = "removed"
+note = "The dialog opens and ends its outer gesture itself: `Dialog::outer_gesture(true)` (or `FullWindowDialog`). The app reads the steps as `OuterEdit` through `GestureHost::handle_output`."
+
+[[type]]
+name = "OuterEdit"
+old = ""
+new = "craft_ui::runtime::frame::OuterEdit"
+status = "replaced"
+note = "The untyped steps of a dialog's outer gesture (`Begin`, `Commit`, `Cancel`) in `FrameOutput::outer_edits`. `GestureHost::handle_output` applies them: one undo step per dialog, named by its title."
+
+[[call]]
+old = "host.begin_outer(ctx, doc, outer)"
+new = ""
+note = "`GestureHost::handle_output(&frame_output, doc)` opens the outer gesture from `FrameOutput::outer_edits` when the dialog opens."
+
+[[call]]
+old = "host.commit(doc, outer.id())"
+new = ""
+note = "The dialog's OK commits its outer gesture; `GestureHost::handle_output` applies the `OuterEdit::Commit`."
+
+[[call]]
+old = "host.cancel(doc, outer.id())"
+new = ""
+note = "Cancel, Escape, the close action and the app closing the dialog cancel its outer gesture; `GestureHost::handle_output` applies the `OuterEdit::Cancel`."
+
+[[call]]
+old = "edit::scope(ui, add_contents)"
+new = ""
+note = "The fields of a dialog with `outer_gesture(true)` report their own events; the app's `GestureHost` folds them into the dialog's step."
+
+# End of outer gesture (l4f-edit)
