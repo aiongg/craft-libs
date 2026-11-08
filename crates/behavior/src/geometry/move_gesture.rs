@@ -40,6 +40,7 @@ use super::lock::{Directions, lock_direction};
 
 /// The distances of the move and stroke rules, in screen points.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct ConstrainStyle {
     /// Screen points an ⌥-drag travels before it copies.
     pub copy_reach: f64,
@@ -56,6 +57,7 @@ impl ConstrainStyle {
 
 /// The value of a move drag.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct MoveValue {
     /// The offset from the press in document units, after the ⇧ lock.
     pub delta: Vec2,

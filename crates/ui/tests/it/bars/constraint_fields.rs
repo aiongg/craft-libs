@@ -3,7 +3,7 @@
 use craft_behavior::PixelSize;
 use craft_behavior::geometry::Constraint;
 use craft_ui::bars::{Bar, BarKind, ConstraintFields};
-use craft_ui::contract::{Bind, Entry, Role, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Entry, Role, ShowContainer as _};
 use craft_ui::runtime::env::UnitKind;
 use craft_ui::testing::{Fixture, Target, trial};
 use egui::{Key, Modifiers, Vec2};
@@ -54,7 +54,8 @@ fn a_style_pick_resets_the_numbers() {
     fixture.click(&style).settle();
     let row = fixture.by_label("Fixed Size").expect("the select lists Fixed Size");
     fixture.click(&row).settle();
-    assert_eq!(state.get(), Constraint::Size(64.0, 64.0));
+    let reset = Constraint::Size(ConstraintFields::SIZE_START.0, ConstraintFields::SIZE_START.1);
+    assert_eq!(state.get(), reset);
 }
 
 /// A typed width commits on Enter and leaves the height.
@@ -63,7 +64,8 @@ fn a_typed_width_commits_on_enter() {
     let (mut fixture, state) = rig(Constraint::Ratio(1.0, 2.0), false, true);
     let (width, _) = fields(&fixture);
     type_into(&mut fixture, &width, "3");
-    assert_eq!(state.get(), Constraint::Ratio(3.0, 2.0));
+    let expected = Constraint::Ratio(3.0, 2.0);
+    assert_eq!(state.get(), expected);
 }
 
 /// The swap button exchanges width and height.
@@ -72,7 +74,8 @@ fn swap_exchanges_width_and_height() {
     let (mut fixture, state) = rig(Constraint::Size(640.0, 480.0), false, true);
     let swap = fixture.by_label("Swaps height and width").expect("the swap button");
     fixture.click(&swap).settle();
-    assert_eq!(state.get(), Constraint::Size(480.0, 640.0));
+    let expected = Constraint::Size(480.0, 640.0);
+    assert_eq!(state.get(), expected);
 }
 
 /// Normal and a disabled bar take no input in the number cells or the swap.
@@ -85,12 +88,13 @@ fn normal_and_disabled_cells_take_no_input() {
     normal.click(&swap).settle();
     assert_eq!(state.get(), Constraint::Free);
 
-    let (mut greyed, state) = rig(Constraint::Ratio(1.0, 2.0), false, false);
+    let start = Constraint::Ratio(1.0, 2.0);
+    let (mut greyed, state) = rig(start, false, false);
     let (width, _) = fields(&greyed);
     type_into(&mut greyed, &width, "5");
     let swap = greyed.by_label("Swaps height and width").unwrap();
     greyed.click(&swap).settle();
-    assert_eq!(state.get(), Constraint::Ratio(1.0, 2.0));
+    assert_eq!(state.get(), start);
 }
 
 /// Fixed Size in inches: 3 in at 100 pixels per inch is 300 pixels; a secondary click offers the units menu only
@@ -100,7 +104,8 @@ fn fixed_size_converts_units_and_offers_the_menu_only_with_units() {
     let (mut fixture, state) = rig(Constraint::Size(200.0, 100.0), true, true);
     let (width, _) = fields(&fixture);
     type_into(&mut fixture, &width, "3");
-    assert_eq!(state.get(), Constraint::Size(300.0, 100.0));
+    let expected = Constraint::Size(300.0, 100.0);
+    assert_eq!(state.get(), expected);
     let at = width.center();
     fixture.frame(vec![craft_ui::testing::pointer::moved(at)]);
     fixture.frame(vec![craft_ui::testing::pointer::secondary(at, true)]);

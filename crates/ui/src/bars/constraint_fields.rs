@@ -3,7 +3,7 @@
 
 use super::words::BarWords;
 use crate::buttons::IconButton;
-use crate::contract::{Bind, Entry, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, SideLabel, Sizing};
+use crate::contract::{Bind, Entry, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, SideLabel, Sizing, clicked};
 use crate::form::Field;
 use crate::layout_components::Row;
 use crate::menu::Menu;
@@ -169,7 +169,7 @@ impl<'a> ConstraintFields<'a> {
                 now = with_side(before, edit, true);
             }
             let swap = IconButton::new(IconId::new("swap_horizontal")).label(words.constraint_swap.clone()).enabled(enabled && !free).show(ui);
-            if swap.clicked() {
+            if clicked(&swap) {
                 now = match before {
                     Constraint::Ratio(w, h) => Constraint::Ratio(h, w),
                     Constraint::Size(w, h) => Constraint::Size(h, w),
