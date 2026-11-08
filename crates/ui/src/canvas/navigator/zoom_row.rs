@@ -122,7 +122,7 @@ impl<'a> NavigatorZoomRow<'a> {
             let slider = Slider::new(Bind::given(device), low..=high)
                 .scale(SliderScale::Log)
                 .label(zoom_label.clone())
-                .value_text(units.percent(device * 100.0))
+                .value_text(units.zoom_percent(device * 100.0))
                 .show(ui);
             if let Some(dragged) = slider.event.clone() {
                 edits.push(dragged.map(at));
