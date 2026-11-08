@@ -4,7 +4,7 @@ use std::io::Cursor;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
 
-use craft_behavior::{EditCommand, Input, Metrics, PartKey, PressPhase, Sense};
+use craft_behavior::{EditCommand, Input, Metrics, PartKey, PointerButton, PressPhase, Sense};
 use craft_host::{Host, PickId, PickRequest, Picked};
 use craft_theme::variant::Tone;
 use craft_ui::buttons::Button;
@@ -278,20 +278,26 @@ impl Component for DrawPad<'_> {
                 cx.set(strokes.clone());
             }
         }
-        let press = cx.press();
+        // The pointer belongs to the pad part: the component itself senses focus only.
+        let press = cx.part(PAD).press;
+        if !press.phase.start().is_some_and(|start| start.button == PointerButton::Primary) {
+            return;
+        }
         match press.phase {
             PressPhase::DragStart { pos, .. } => {
                 strokes.push(vec![normalise(pos)]);
-                cx.set(strokes);
+                cx.propose(strokes);
             }
-            PressPhase::Drag { pos, .. } | PressPhase::Release { pos, click: false, .. } => {
-                let point = normalise(pos);
-                if let Some(stroke) = strokes.last_mut()
-                    && stroke.last().is_none_or(|last| (last[0] - point[0]).abs() + (last[1] - point[1]).abs() > MIN_STEP)
-                {
-                    stroke.push(point);
-                    cx.set(strokes);
+            PressPhase::Drag { pos, .. } if cx.gesture().is_some() => {
+                if extend(&mut strokes, normalise(pos)) {
+                    cx.propose(strokes);
                 }
+            }
+            PressPhase::Release { pos, click: false, .. } if cx.gesture().is_some() => {
+                if extend(&mut strokes, normalise(pos)) {
+                    cx.propose(strokes);
+                }
+                cx.commit();
             }
             _ => {}
         }
@@ -313,6 +319,17 @@ impl Component for DrawPad<'_> {
 
     fn finish(self, cx: Cx<'_, Self>) -> Self::Output {
         cx.edit_response()
+    }
+}
+
+/// Adds `point` to the last stroke unless it is within [`MIN_STEP`] of the stroke's last point; `true` when it was added.
+fn extend(strokes: &mut [Vec<[f32; 2]>], point: [f32; 2]) -> bool {
+    let Some(stroke) = strokes.last_mut() else { return false };
+    if stroke.last().is_none_or(|last| (last[0] - point[0]).abs() + (last[1] - point[1]).abs() > MIN_STEP) {
+        stroke.push(point);
+        true
+    } else {
+        false
     }
 }
 

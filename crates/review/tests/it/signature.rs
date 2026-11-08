@@ -43,12 +43,8 @@ fn undo_removes_the_last_stroke() {
         let mut strokes = shown.borrow_mut();
         DrawPad::new("Draw", Bind::bound(&mut strokes)).show(ui);
     });
-    let pad = fixture.by_label("Draw").unwrap_or_else(|| {
-        let tree = fixture.tree();
-        let rows: Vec<String> =
-            tree.keys().into_iter().map(|key| format!("{:?} {:?} {:?}", tree.role_of(key), tree.name_of(key), tree.bounds_of(key))).collect();
-        panic!("the pad; the tree: {rows:#?}")
-    });
+    fixture.settle();
+    let pad = fixture.by_label("Draw").expect("the pad");
     fixture.drag(&pad, vec2(40.0, 10.0));
     fixture.drag(&pad, vec2(-30.0, 20.0));
     assert_eq!(strokes.borrow().len(), 2, "two strokes drawn");
@@ -74,7 +70,6 @@ struct Placed<'a> {
 impl Component for Placed<'_> {
     const ROLE: Role = Role::IMAGE;
     const PARTS: bool = false;
-    const STOPS: bool = false;
     const OVERLAYS: bool = false;
     type Style = PlacedStyle;
     type Output = Response;
