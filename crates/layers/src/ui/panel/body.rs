@@ -499,7 +499,7 @@ fn toggle_events<Id: Clone + PartialEq>(
 ) {
     match edit {
         EditEvent::Begin { label: named, .. } => *label = named,
-        EditEvent::Update { id, value } => {
+        EditEvent::Update { id, value, .. } => {
             let column = column_of(&value.column);
             if sweep.as_ref().is_none_or(|running| running.column != column) {
                 let show_only = value.mods.alt && column == LayerColumn::Visibility;

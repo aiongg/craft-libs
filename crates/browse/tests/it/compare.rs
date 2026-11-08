@@ -141,3 +141,14 @@ fn compare_panes_are_equal_and_mirror() {
     assert_eq!(select_rtl, candidate);
     assert_eq!(candidate_rtl, select);
 }
+
+#[trial]
+fn zz_probe() {
+    let (mut fixture, seen) = pair(640.0, ready);
+    let select = fixture.by_label("Select").unwrap();
+    let mut out = format!("select {:?} drag_part {:?} click_part {:?}\n", select.rect, fixture.drag_part(), fixture.click_part());
+    fixture.drag(&select, offset(24.0, 0.0));
+    fixture.settle();
+    out += &format!("view {:?} clicked {:?}\n", seen.borrow().view.fit, seen.borrow().clicked);
+    panic!("{out}");
+}
