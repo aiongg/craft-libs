@@ -167,7 +167,7 @@ where
         .select(SelectMode::Multi)
         .selection(selection)
         .caption(CaptionPlace::Below)
-        .detail_line(true)
+        .detail_line()
         .aspect(ASPECT)
         .zoom(state.settings.zoom as f32)
         .rename(true)

@@ -54,7 +54,7 @@ pub(super) fn footer<K: TextureKey>(
     let row = Row::new().fill().align(RowAlign::End).show(ui, |ui, _| {
         Segmented::new(words.views.clone(), Bind::bound(&mut view), &modes).show(ui);
         let edit = ThumbnailSlider::new(words.thumb_size.clone(), Bind::bound(&mut zoom_value), zoom).show(ui);
-        (edit, FooterBar::actions(all).show_footer(ui))
+        (edit, FooterBar::actions(all.clone()).show_footer(ui))
     });
     let Some((edit, bar)) = row.inner else { return events };
     if view != state.settings.view {

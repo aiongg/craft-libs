@@ -11,10 +11,14 @@ use craft_ui::primitives::textures::{FakeThumbSource, ThumbnailOptions, Thumbnai
 use craft_ui::sections::FooterAction;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use craft_ui::tile_grid::{BadgeKind, BadgeSlot, TileBadge, TileStatus};
-use egui::{Ui, vec2};
+use egui::{Ui, Vec2};
 
 use super::{BinEntry, BinItem, BinModel, BinState, BinView, MediaBin};
 use crate::ui::freebin::FreeformCard;
+
+/// Where the story places its cards, in points.
+const NEXT: f32 = 160.0;
+const DOWN: f32 = 48.0;
 
 const DURATION: ColumnKey = ColumnKey::new("duration");
 
@@ -150,6 +154,6 @@ fn media_bin_icon(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(MediaBin<'static, u32, dyn BinModel<u32>>, covers = [], drive = Drive::Never)]
 fn media_bin_freeform(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     // Two of the root's four entries are placed; the others flow.
-    let cards = [FreeformCard { key: 30, pos: vec2(16.0, 16.0), stack: None }, FreeformCard { key: 31, pos: vec2(160.0, 48.0), stack: None }];
+    let cards = [FreeformCard { key: 30, pos: Vec2::ZERO, stack: None }, FreeformCard { key: 31, pos: Vec2::X * NEXT + Vec2::Y * DOWN, stack: None }];
     show_bin(ui, data, BinView::Freeform, &cards, &[30])
 }

@@ -35,8 +35,8 @@ use craft_theme::{Srgba, TypeRole};
 use craft_ui::bars::{Bar, BarKind, BreadcrumbBar};
 use craft_ui::buttons::IconButton;
 use craft_ui::contract::{
-    Bind, BodyCx, ColumnEvent, ColumnSort, ColumnSpec, Commands as _, ContextMenuRequest, Entry, ListDrag, NoValue, OpenChange, Outcome, Pattern,
-    Props as _, ReorderMove, Show as _, ShowContainer as _, Sizing, clicked,
+    Bind, BodyCx, ColumnEvent, ColumnSort, ColumnSpec, CommandSet, Commands as _, ContextMenuRequest, Entry, ListDrag, NoValue, OpenChange, Outcome,
+    Pattern, Props as _, ReorderMove, Show as _, ShowContainer as _, Sizing, clicked,
 };
 use craft_ui::display::{Shade, Text};
 use craft_ui::layout_components::Stack;
@@ -66,6 +66,7 @@ pub use search::name_matches;
 
 /// One child of a bin: a sub-bin or an item.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum BinEntry<K> {
     /// A bin.
     Bin(K),
@@ -113,6 +114,7 @@ pub trait BinModel<K> {
 
 /// The bin's view.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[non_exhaustive]
 pub enum BinView {
     /// A table.
     #[default]
@@ -126,6 +128,7 @@ pub enum BinView {
 /// How the user asked to open a bin, from the double click's modifiers: plain in place, Shift or
 /// Alt in a new tab, Cmd/Ctrl in a new window.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum OpenHow {
     /// In this panel.
     InPlace,
@@ -138,6 +141,7 @@ pub enum OpenHow {
 /// The bin's saved look: a `craft_host::Section` the host stores per bin panel. Column keys have no
 /// text form, so the sorts and widths below last for the session.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[non_exhaustive]
 #[serde(default)]
 pub struct BinSettings {
     /// The view.
@@ -170,6 +174,7 @@ impl craft_host::Section for BinSettings {
 /// The bin's state between passes, kept by the host (one per panel or tab): what is shown, the
 /// search, the open bins and the settings.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct BinState<K: Eq + Hash> {
     /// The bin shown; `None` is the root.
     pub shown: Option<K>,
@@ -208,8 +213,8 @@ impl<K: Clone + Eq + Hash> BinState<K> {
                 zoom.apply(&mut self.settings.zoom);
             }
             BinEvent::Open(change) => self.expanded.set(&change.key, change.open),
-            BinEvent::Column(ColumnEvent::Sort { key, descending }) => self.settings.sort = Some(ColumnSort::new(key.clone(), *descending)),
-            BinEvent::Column(ColumnEvent::Resized { key, width }) => match self.settings.widths.iter_mut().find(|(held, _)| held == key) {
+            BinEvent::Column(ColumnEvent::Sort { key, descending, .. }) => self.settings.sort = Some(ColumnSort::new(key.clone(), *descending)),
+            BinEvent::Column(ColumnEvent::Resized { key, width, .. }) => match self.settings.widths.iter_mut().find(|(held, _)| held == key) {
                 Some((_, held)) => *held = *width,
                 None => self.settings.widths.push((key.clone(), *width)),
             },
@@ -228,6 +233,7 @@ pub enum BinEvent<K> {
     /// Enter or a double click on an item.
     Activate(K),
     /// Enter or a double click on a bin, with how.
+    #[non_exhaustive]
     OpenBin {
         /// The bin that was opened.
         key: K,
@@ -240,6 +246,7 @@ pub enum BinEvent<K> {
     /// bin, each with `all` false, so [`BinState::apply`] needs no model.
     Open(OpenChange<K>),
     /// A rename committed with non-empty text other than the name; one undo step.
+    #[non_exhaustive]
     Rename {
         /// The renamed item.
         key: K,
@@ -247,6 +254,7 @@ pub enum BinEvent<K> {
         text: String,
     },
     /// Items dropped into a bin (`None`: the shown bin).
+    #[non_exhaustive]
     Drop {
         /// The dropped items.
         items: Vec<K>,
@@ -260,6 +268,7 @@ pub enum BinEvent<K> {
     /// A drag of the selection is under way.
     Drag(ListDrag<K>),
     /// Hover scrub over an item's picture.
+    #[non_exhaustive]
     Scrub {
         /// The scrubbed item.
         key: K,
@@ -277,11 +286,13 @@ pub enum BinEvent<K> {
     /// The Sort Icons menu: the sort, `None` for User Order.
     IconSort(Option<ColumnSort>),
     /// A click on a host footer action, by its place in the actions given.
+    #[non_exhaustive]
     Footer {
         /// The action's index.
         action: usize,
     },
     /// A drop on a host footer action that accepts drops.
+    #[non_exhaustive]
     FooterDrop {
         /// The action's index.
         action: usize,
@@ -291,6 +302,7 @@ pub enum BinEvent<K> {
     /// The footer's New Bin.
     NewBin,
     /// A Freeform drag committed: the cards' new positions.
+    #[non_exhaustive]
     FreeformMoved {
         /// The cards that moved.
         keys: Vec<K>,
@@ -346,7 +358,7 @@ craft_ui::words! {
 
 /// The zoom and stacking keys of the bin: the keyboard path of the footer slider and of the order in User
 /// Order. A key reaches the bin that holds key focus.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui_macros::CommandSet)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, CommandSet)]
 #[command(prefix = "mediaBin", scope = "mediaBin")]
 #[non_exhaustive]
 pub enum MediaBinCommand {
@@ -385,7 +397,6 @@ pub(super) struct ViewIn<'a, K: TextureKey, M: ?Sized> {
     pub columns: &'a [ColumnSpec],
     pub words: &'a BinWords,
     pub collator: &'a craft_i18n::Collator,
-    pub zoom: TileZoom,
     pub rename: Option<K>,
     pub hover_scrub: bool,
     pub scrub: Option<(K, f32)>,
@@ -645,32 +656,7 @@ where
                 None => own.clone(),
             };
 
-            let mut zoom_now = local.settings.zoom;
-            let mut stack: Option<bool> = None;
-            while let Some((command, _)) = cx.take_command::<MediaBinCommand>() {
-                let step = match command {
-                    MediaBinCommand::ZoomIn => Some(ZoomStep::In),
-                    MediaBinCommand::ZoomOut => Some(ZoomStep::Out),
-                    MediaBinCommand::ZoomReset => Some(ZoomStep::Reset),
-                    MediaBinCommand::BringForward => {
-                        stack = Some(true);
-                        None
-                    }
-                    MediaBinCommand::SendBackward => {
-                        stack = Some(false);
-                        None
-                    }
-                };
-                if let Some(step) = step {
-                    let next = zoom.step(zoom_now, step);
-                    if next != zoom_now {
-                        let event = EditEvent::set(GestureId::default(), Mixed::Same(zoom_now), next, name.clone(), None);
-                        local.apply(&BinEvent::Zoom(event.clone()));
-                        events.push(BinEvent::Zoom(event));
-                        zoom_now = next;
-                    }
-                }
-            }
+            let mut commanded: Vec<ZoomStep> = Vec::new();
 
             // The matches, the count and the header row.
             let mut found: Vec<K> = Vec::new();
@@ -710,44 +696,60 @@ where
             }
 
             // The view, inside a slot that takes the drops the view leaves.
-            let mut hosted = selection.borrow_mut();
-            let bind = match hosted.as_mut() {
-                Some(bind) => bind.reborrowed(),
-                None => Bind::bound(&mut own),
-            };
-            let input = ViewIn {
-                id: list_id,
-                model,
-                state: &local,
-                selection: bind,
-                held: &held,
-                thumbnails,
-                columns: &columns,
-                words: &words,
-                collator: &collator,
-                zoom,
-                rename: rename.borrow_mut().take(),
-                hover_scrub,
-                scrub: scrub.clone(),
-                stack,
-            };
-            let (response, mut view_events, background) = match view {
-                BinView::List | BinView::Icon => {
-                    let mut input = Some(input);
-                    let shown_view = DropAction::<ListDrag<K>>::new(|_| true).sizing(Sizing::Fill).show(ui, |ui, _| {
-                        let input = input.take().expect("a slot shows its body once");
-                        if view == BinView::List { list::list_view(ui, input) } else { icon::icon_view(ui, input) }
+            let (response, mut view_events, background) = {
+                let mut hosted = selection.borrow_mut();
+                let bind = match hosted.as_mut() {
+                    Some(bind) => bind.reborrowed(),
+                    None => Bind::bound(&mut own),
+                };
+                let input = ViewIn {
+                    id: list_id,
+                    model,
+                    state: &local,
+                    selection: bind,
+                    held: &held,
+                    thumbnails,
+                    columns: &columns,
+                    words: &words,
+                    collator: &collator,
+                    rename: rename.borrow_mut().take(),
+                    hover_scrub,
+                    scrub: scrub.clone(),
+                    stack: None,
+                };
+                let mut input = Some(input);
+                let shown_view =
+                    DropAction::<ListDrag<K>>::new(|_| true).sizing(Sizing::Fill).command_scope(MediaBinCommand::SCOPE).show(ui, |ui, cx| {
+                        let mut input = input.take().expect("a slot shows its body once");
+                        while let Some((command, _)) = cx.take_command::<MediaBinCommand>() {
+                            match command {
+                                MediaBinCommand::ZoomIn => commanded.push(ZoomStep::In),
+                                MediaBinCommand::ZoomOut => commanded.push(ZoomStep::Out),
+                                MediaBinCommand::ZoomReset => commanded.push(ZoomStep::Reset),
+                                MediaBinCommand::BringForward => input.stack = Some(true),
+                                MediaBinCommand::SendBackward => input.stack = Some(false),
+                            }
+                        }
+                        match view {
+                            BinView::List => list::list_view(ui, input),
+                            BinView::Icon => icon::icon_view(ui, input),
+                            BinView::Freeform => free_view::free_view(ui, input, freeform, snap),
+                        }
                     });
-                    let background = shown_view.output.dropped.clone();
-                    let out = shown_view.inner.unwrap_or_else(|| ViewOut { response: shown_view.output.response.clone(), events: Vec::new() });
-                    (out.response, out.events, background)
-                }
-                BinView::Freeform => {
-                    let out = free_view::free_view(ui, input, freeform, snap);
-                    (out.response, out.events, None)
-                }
+                let background = shown_view.output.dropped.clone();
+                let out = shown_view.inner.unwrap_or_else(|| ViewOut { response: shown_view.output.response.clone(), events: Vec::new() });
+                (out.response, out.events, background)
             };
-            drop(hosted);
+            let mut zoom_now = local.settings.zoom;
+            for step in commanded {
+                let next = zoom.step(zoom_now, step);
+                if next != zoom_now {
+                    let event = EditEvent::set(GestureId::default(), Mixed::Same(zoom_now), next, name.clone(), None);
+                    local.apply(&BinEvent::Zoom(event.clone()));
+                    events.push(BinEvent::Zoom(event));
+                    zoom_now = next;
+                }
+            }
             if let Some(drag) = background
                 && let Some(items) = list::drop_items(model, local.shown.as_ref(), &drag.keys)
             {
@@ -782,7 +784,7 @@ where
             commit(cx, &state, &name);
         };
 
-        let stack = Stack::new().fill().command_scope(MediaBinCommand::SCOPE).footer(footer_region);
+        let stack = Stack::new().fill().footer(footer_region);
         let shown = stack.show(ui, body);
         let (response, mut events) = shown.inner.unwrap_or_else(|| (shown.output.clone(), Vec::new()));
         events.extend(footer_events.take());
