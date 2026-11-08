@@ -594,7 +594,6 @@ impl Cells<'_> {
             }
         });
         self.out.unit_picked = self.out.unit_picked.or(picked);
-        if let Some(e) = &event {}
         let Some(event) = event else { return };
         let places = i32::try_from(decimals).unwrap_or(0);
         let lifted = lift(&mut pass.bases, &pass.before, conversion, field, event, current, 0.5 * 10f64.powi(-places));
