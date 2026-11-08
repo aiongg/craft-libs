@@ -166,7 +166,7 @@ fn clicking_a_suggestion_completes_the_mention() {
     focus_reply(&mut fx);
     fx.type_text("hi @an");
     fx.settle();
-    let row = fx.by_label("Ana María").expect("the suggestion");
+    let row = fx.by_role(Role::LIST_BOX_OPTION).into_iter().find(|row| fx.tree().name_of(row.node) == Some("Ana María")).expect("the suggestion");
     fx.click(&row);
     fx.settle();
     assert_eq!(app.borrow().draft, "hi @Ana María ");
