@@ -12,7 +12,7 @@ use craft_ui::pickers::Select;
 use craft_ui::runtime::focus::Initial;
 use craft_ui::runtime::overlay::CloseReason;
 use craft_ui::sections::{DialogRole, FooterButton};
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Fixture, Room, trial};
 use craft_ui::text::TextField;
 use egui::{Key, Modifiers, Rect, Vec2};
 use std::cell::Cell;
@@ -87,10 +87,9 @@ fn the_host_can_refuse_the_close_of_ok_but_not_of_cancel() {
     assert_eq!(click_footer("Cancel", false), (Some(CloseReason::Requested), Some(2), false), "Cancel closes whatever the host says");
 }
 
-/// The size the dialogs below open at, and the screen they are shown on.
+/// The size the dialogs below open at; they are shown in a dialog room.
 const OPENING: Vec2 = Vec2::new(420.0, 300.0);
 const LINES: usize = 200;
-const SCREEN: Vec2 = Vec2::new(800.0, 600.0);
 
 /// The rect of a resizable dialog opened at `OPENING` whose body is `body` tall.
 fn opened_rect(lines: usize) -> Rect {
@@ -102,14 +101,14 @@ fn opened_rect(lines: usize) -> Rect {
             }
         });
     });
-    fixture.room(SCREEN);
+    fixture.in_room(Room::Dialog);
     fixture.settle();
     fixture.by_role(Role::DIALOG).first().expect("the dialog is shown").rect
 }
 
 #[trial]
 fn a_resizable_dialog_opens_at_its_default_size_within_the_screen() {
-    let screen = Rect::from_min_size(egui::Pos2::ZERO, SCREEN);
+    let screen = Rect::from_min_size(egui::Pos2::ZERO, Room::Dialog.size());
     let small = opened_rect(1);
     assert!(small.width() >= OPENING.x && small.height() >= OPENING.y, "short content does not shrink the dialog: {small:?}");
     let tall = opened_rect(LINES);

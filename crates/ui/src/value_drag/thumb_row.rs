@@ -23,7 +23,7 @@ use craft_behavior::part::PartRef;
 use craft_behavior::{HitLevel, HitPriority, Metrics, Mixed, MoveMods, NavMove, PartKey, PressPhase, PressState, Sense, Wheel, wheel_step};
 use craft_keymap::Mods;
 use craft_theme::{Rgba, Stateful, States};
-use egui::{Pos2, Rect, Vec2, pos2};
+use egui::{Pos2, Rangef, Rect, Vec2, pos2};
 use std::ops::RangeInclusive;
 
 #[cfg(feature = "testing")]
@@ -446,6 +446,11 @@ impl<const N: usize> RowRules<'_, N> {
     }
 }
 
+/// The horizontal span a thumb's centre travels along in a row at `rect`: the row inset by half a thumb on each side.
+fn travel(rect: Rect, thumb: f32) -> Rangef {
+    Rangef::new(rect.left() + thumb / 2.0, rect.right() - thumb / 2.0)
+}
+
 /// The thumbs on the row's track, in the row's pixels.
 struct Layout<'r, const N: usize> {
     rules: RowRules<'r, N>,
@@ -460,7 +465,8 @@ struct Layout<'r, const N: usize> {
 
 impl<'r, const N: usize> Layout<'r, N> {
     fn new(rules: RowRules<'r, N>, rect: Rect, thumb: Vec2, rtl: bool, reach: f32, alone: bool) -> Self {
-        let (left, right) = (rect.left() + thumb.x / 2.0, rect.right() - thumb.x / 2.0);
+        let travel = travel(rect, thumb.x);
+        let (left, right) = (travel.min, travel.max);
         // A wrapping row's period in points; 0 when the row does not wrap.
         let period = match rules.wrap {
             Some(period) if rules.scale.span() > 0.0 => ((right - left) as f64 * period / rules.scale.span()) as f32,
@@ -606,6 +612,10 @@ pub struct ThumbRowOutput<const N: usize> {
     /// The drag in progress: its thumb and the modifiers held, so an editor can show what Alt means on a thumb that
     /// asked for [`Thumb::alt_reports`]. `None` when no drag runs.
     pub held: Option<ThumbHold>,
+    /// The horizontal span the thumbs' centres travel along: the row's rect inset by half a thumb on each side. A
+    /// thumb sits at one end of it at the range minimum and at the other at the maximum (the right end under a
+    /// right-to-left flow). An editor places a plot or bar over it so the thumbs line up with what they edit.
+    pub travel: Rangef,
 }
 
 impl<const N: usize> Outcome for ThumbRowOutput<N> {
@@ -951,7 +961,8 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
 
     fn finish(self, mut cx: Cx<'_, Self>) -> ThumbRowOutput<N> {
         let running = cx.gesture().is_some();
+        let travel = travel(cx.rect, cx.style.thumb);
         let held = running.then(|| cx.memory::<Held>().clone()).and_then(|held| held.thumb.map(|thumb| ThumbHold { thumb, mods: held.mods }));
-        ThumbRowOutput { edit: cx.edit_response(), held }
+        ThumbRowOutput { edit: cx.edit_response(), held, travel }
     }
 }

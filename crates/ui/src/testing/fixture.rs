@@ -32,6 +32,30 @@ impl Target {
     }
 }
 
+/// The room of a trial, named by the kind of host the component sits in. A trial that needs another size gives it to
+/// [`Fixture::room`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Room {
+    /// A docked side panel.
+    Panel,
+    /// A dialog's window.
+    Dialog,
+    /// An application window.
+    Window,
+}
+
+impl Room {
+    /// The room's size in points.
+    pub fn size(self) -> Vec2 {
+        match self {
+            Room::Panel => Vec2::new(360.0, 600.0),
+            Room::Dialog => Vec2::new(800.0, 600.0),
+            Room::Window => Vec2::new(1120.0, 720.0),
+        }
+    }
+}
+
 /// A closure or story shown frame by frame.
 #[non_exhaustive]
 pub struct Fixture {
@@ -117,6 +141,11 @@ impl Fixture {
         self.room = room;
         self.frames.screen(room);
         self
+    }
+
+    /// The room of a host kind: the same as [`Fixture::room`] with that kind's size.
+    pub fn in_room(&mut self, room: Room) -> &mut Self {
+        self.room(room.size())
     }
 
     /// The layout direction.
@@ -389,6 +418,32 @@ impl Fixture {
         }
         self.frame(vec![super::pointer::release(from + by)]);
         self.frame(Vec::new())
+    }
+
+    /// The first half of a drag that pauses: press at `from`, move by `by` in four steps, and one frame with the
+    /// pointer still, button held. A trial reads the running gesture, presses Escape or checks a snap line, then ends
+    /// it with [`Fixture::release_at`].
+    pub fn drag_hold_at(&mut self, from: Pos2, by: Vec2) -> &mut Self {
+        self.frame(vec![super::pointer::moved(from)]);
+        self.frame(vec![super::pointer::press(from)]);
+        for step in 1..=4 {
+            self.frame(vec![super::pointer::moved(from + by * (step as f32 / 4.0))]);
+        }
+        self.frame(Vec::new())
+    }
+
+    /// Releases the button at `at`, then a frame with no input.
+    pub fn release_at(&mut self, at: Pos2) -> &mut Self {
+        self.frame(vec![super::pointer::release(at)]);
+        self.frame(Vec::new())
+    }
+
+    /// A drag from `from` by `by` that pauses before the release: [`Fixture::drag_hold_at`], `halt` with the gesture
+    /// running, then [`Fixture::release_at`].
+    pub fn drag_at_pausing(&mut self, from: Pos2, by: Vec2, halt: impl FnOnce(&mut Fixture)) -> &mut Self {
+        self.drag_hold_at(from, by);
+        halt(self);
+        self.release_at(from + by)
     }
 
     /// A key press and release with `modifiers`, in two frames as injected input frames them.

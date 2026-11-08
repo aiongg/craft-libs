@@ -4,7 +4,7 @@
 
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Numeric, PaintUi, PartsCx, Pointer as _,
-    Remember as _, Role, WordSetCx as _,
+    Props as _, Remember as _, Role, WordSetCx as _,
 };
 use crate::primitives::{ContentPainterCx, PaintShape};
 use crate::runtime::access::Name;
@@ -116,6 +116,7 @@ impl<'a> PointPicker<'a> {
         };
         let ((x, flip_x), (y, flip_y)) = (order(x), order(y));
         PointPicker { common: Common::new(), value, x, y, flipped: [flip_x, flip_y], step: None, steps: None, aspect: None, backdrop: None }
+            .ltr_axis()
     }
 
     fn ranges(&self) -> [&RangeInclusive<f64>; 2] {
@@ -237,12 +238,11 @@ impl<'a> PointPicker<'a> {
 }
 
 /// The axis an arrow key moves and the way on screen: 1 towards the end edge (right, bottom), -1 towards the start
-/// edge. Right moves right in either reading direction, because the picker is not mirrored.
-fn arrow(mv: NavMove, rtl: bool) -> Option<(usize, f64)> {
-    let along = if rtl { -1.0 } else { 1.0 };
+/// edge. The picker keeps its axis order (`ltr_axis`), so its moves are the physical keys.
+fn arrow(mv: NavMove) -> Option<(usize, f64)> {
     match mv {
-        NavMove::Forward => Some((0, along)),
-        NavMove::Back => Some((0, -along)),
+        NavMove::Forward => Some((0, 1.0)),
+        NavMove::Back => Some((0, -1.0)),
         NavMove::Down => Some((1, 1.0)),
         NavMove::Up => Some((1, -1.0)),
         _ => None,
@@ -283,9 +283,9 @@ impl Component for PointPicker<'_> {
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let placed = self.placed(cx.value().unwrap_or(&ALL_MIXED));
         let thumb = Rect::from_center_size(self.position(placed, self.plot(rect)), Vec2::splat(cx.style.hit));
-        cx.part(WELL, rect).sense(Sense::CLICK | Sense::DRAG).value_part().pointer_only("the arrow keys move the point");
+        cx.part(WELL, rect).sense(Sense::CLICK | Sense::DRAG | Sense::TAKE_FOCUS).value_part().pointer_only("the arrow keys move the point");
         cx.part(THUMB, thumb)
-            .sense(Sense::DRAG)
+            .sense(Sense::DRAG | Sense::TAKE_FOCUS)
             .priority(HitPriority::new(HitLevel::Handle, 0))
             .value_part()
             .pointer_only("the arrow keys move the point");
@@ -333,11 +333,11 @@ impl Component for PointPicker<'_> {
                 _ => {}
             }
         }
-        let (running, rtl) = (cx.gesture().is_some(), cx.flow.is_rtl());
+        let running = cx.gesture().is_some();
         let mut now = cx.value().cloned().unwrap_or(ALL_MIXED);
         // While a drag runs, keys, the wheel and screen-reader requests change nothing; they are still taken.
         while let Some((mv, mods)) = cx.intents().take_move() {
-            let Some((axis, toward)) = arrow(mv, rtl).filter(|_| !running) else { continue };
+            let Some((axis, toward)) = arrow(mv).filter(|_| !running) else { continue };
             let from = self.placed(&now)[axis];
             now = with_axis(&now, axis, self.stepped(axis, from, toward, mods));
             cx.set(now);

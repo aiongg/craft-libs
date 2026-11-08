@@ -7,7 +7,7 @@ use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Fixture, Frames, Story, StoryData, StoryOutput, trial};
 use craft_ui::value_drag::{Anchor, Order, RowOp, Thumb, ThumbOp, ThumbRow};
 use egui::{Key, Modifiers, Pos2, Rect, Ui, Vec2};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 fn forward(thumb: usize) -> RowOp {
     RowOp::new(thumb, ThumbOp::Move(NavMove::Forward, MoveMods::PLAIN))
@@ -288,4 +288,45 @@ fn the_thumb_a_press_would_move_takes_the_hover_look() {
     let lit = thumb_fills(&frames.frame_shapes(&mut show));
     assert_ne!(lit[0], rest[0], "the ring of the thumb nearest the pointer is lit");
     assert_eq!(lit[2], rest[2], "the other thumb's ring is not");
+}
+
+/// A row of two thumbs at the ends of its range, shown at `ROW`, with the output of its latest pass.
+fn row_at_the_ends() -> (Fixture, std::rc::Rc<Cell<Option<(Option<usize>, egui::Rangef)>>>) {
+    let seen = std::rc::Rc::new(Cell::new(None));
+    let shown = seen.clone();
+    let mut value = Mixed::each([0.0, 100.0]);
+    let mut fixture = Fixture::new(move |ui| {
+        let out = ThumbRow::new(Bind::bound(&mut value), 0.0..=100.0).step(1.0).thumbs([Thumb::new("Black"), Thumb::new("White")]).show_at(ui, ROW);
+        shown.set(Some((out.held.map(|held| held.thumb), out.travel)));
+    });
+    fixture.settle();
+    (fixture, seen)
+}
+
+/// The row reports the span its thumbs travel along: a thumb at the range minimum is centred on one end and one at
+/// the maximum on the other, and the span lies inside the row.
+#[trial]
+fn the_row_reports_the_span_its_thumbs_travel_along() {
+    let (fixture, seen) = row_at_the_ends();
+    let (_, travel) = seen.get().expect("the row was shown");
+    let mut thumbs = fixture.by_role(craft_ui::contract::Role::SLIDER);
+    thumbs.sort_by(|a, b| a.center().x.total_cmp(&b.center().x));
+    assert_eq!(thumbs.len(), 2);
+    assert!(thumbs[0].rect.x_range().contains(travel.min), "the thumb at the minimum sits on the span's start");
+    assert!(thumbs[1].rect.x_range().contains(travel.max), "the thumb at the maximum sits on the span's end");
+    assert!(ROW.x_range().contains(travel.min) && ROW.x_range().contains(travel.max), "the span lies inside the row");
+}
+
+/// A drag that pauses before the release shows the running gesture to the trial, and the gesture ends with the release.
+#[trial]
+fn a_paused_drag_shows_the_running_gesture_before_the_release() {
+    let (mut fixture, seen) = row_at_the_ends();
+    let mut thumbs = fixture.by_role(craft_ui::contract::Role::SLIDER);
+    thumbs.sort_by(|a, b| a.center().x.total_cmp(&b.center().x));
+    let mut mid_drag = None;
+    fixture.drag_at_pausing(thumbs[0].center(), Vec2::new(BY, 0.0), |_| {
+        mid_drag = seen.get().and_then(|(held, _)| held).map(|held| held == 0);
+    });
+    assert_eq!(mid_drag, Some(true), "the first thumb is being dragged while the pointer is held");
+    assert_eq!(seen.get().and_then(|(held, _)| held), None, "the release ended the drag");
 }

@@ -1,7 +1,8 @@
 //! `AngleDial` points at the pointer in its orientation and steps round or against the ends of its range;
 //! `PointPicker` maps a press to the point on the well and moves one axis per arrow key.
 
-use craft_behavior::Mixed;
+use craft_behavior::{Mixed, PartKey};
+use craft_i18n::Direction;
 use craft_ui::contract::{Bind, Props as _, Role, Show as _};
 use craft_ui::testing::access::Declared;
 use craft_ui::testing::focus::AccessActionKind;
@@ -244,4 +245,33 @@ fn right_on_a_mixed_axis_sets_that_axis_and_leaves_the_other_mixed() {
     key(&mut fixture, Key::ArrowRight, Modifiers::NONE);
     let value = *fixture.data().value("mixed", Mixed::Mixed);
     assert_eq!(value, Mixed::Same([Mixed::Same(51.0), Mixed::Mixed]), "X steps from the middle of its range; Y stays mixed");
+}
+
+/// A press on the point focuses the picker, so the next arrow moves it.
+#[trial]
+fn a_press_on_the_point_of_an_unfocused_picker_focuses_it() {
+    let mut fixture = shown(picker);
+    let id = fixture.root_id().expect("the picker is shown");
+    assert_eq!(fixture.focused_stop().map(|(stop, _)| stop), None, "nothing has the focus yet");
+    let thumb = fixture.part_rect(id, PartKey::new("thumb")).expect("the point is a part");
+    fixture.click_at(thumb.center());
+    fixture.idle(2);
+    assert_eq!(fixture.focused_stop().map(|(stop, _)| stop), Some(id), "the press focused the picker");
+    let [x, y] = point(&fixture);
+    key(&mut fixture, Key::ArrowRight, Modifiers::NONE);
+    assert_eq!(point(&fixture), [x + 1.0, y]);
+}
+
+/// The picker keeps its axis order: Right raises x and Left lowers it in either reading direction.
+#[trial]
+fn a_point_picker_moves_right_on_right_in_either_reading_direction() {
+    for direction in [Direction::Ltr, Direction::Rtl] {
+        let mut fixture = shown(picker);
+        fixture.direction(direction).settle();
+        key(&mut fixture, Key::Tab, Modifiers::NONE);
+        key(&mut fixture, Key::ArrowRight, Modifiers::NONE);
+        assert_eq!(point(&fixture), [51.0, 50.0], "Right raises x under {direction:?}");
+        key(&mut fixture, Key::ArrowLeft, Modifiers::NONE);
+        assert_eq!(point(&fixture), [50.0, 50.0], "Left lowers x under {direction:?}");
+    }
 }
