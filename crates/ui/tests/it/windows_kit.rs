@@ -182,6 +182,11 @@ impl Windows {
         keep_tree(&mut output, ViewportId::ROOT);
         let titles = output.viewport_output.iter().map(|(id, viewport)| (*id, viewport.builder.title.clone().unwrap_or_default())).collect();
         let builders = output.viewport_output.iter().map(|(id, viewport)| (*id, viewport.builder.clone())).collect();
-        Out { titles, commands: COMMANDS.with(|kept| std::mem::take(&mut *kept.borrow_mut())), builders, trees: TREES.with(|kept| std::mem::take(&mut *kept.borrow_mut())) }
+        Out {
+            titles,
+            commands: COMMANDS.with(|kept| std::mem::take(&mut *kept.borrow_mut())),
+            builders,
+            trees: TREES.with(|kept| std::mem::take(&mut *kept.borrow_mut())),
+        }
     }
 }

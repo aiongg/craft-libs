@@ -1500,7 +1500,7 @@ impl<C: Component> MeasureCx<'_, C> {
     pub fn layout_at(&self, run: &TextRun<'_>, width: f32) -> TextLayout {
         let env = TextEnv {
             tokens: self.tokens,
-            direction: self.env.direction(),
+            direction: self.env.text_direction(),
             ink: crate::style::ink_color(self.tokens, self.ink),
             fonts: crate::fonts::stack_facts(self.ui.ctx()),
         };

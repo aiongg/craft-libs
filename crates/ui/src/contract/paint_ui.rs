@@ -49,6 +49,7 @@ impl PaintUi<'_> {
     /// The content-paint API: text, rules, surfaces and shapes, recorded for the later steps.
     pub fn draw(&self) -> Draw<'_> {
         Draw::new(self.ui.painter(), self.record, DrawEnv { tokens: &self.env.tokens, direction: self.env.direction, ink: self.ink })
+            .text_direction(self.env.text_direction)
     }
 
     /// The content-paint API for painting `part`: as [`draw`](Self::draw), and when the part was declared
