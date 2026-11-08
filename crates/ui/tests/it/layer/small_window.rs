@@ -4,7 +4,7 @@
 
 use craft_behavior::{DisplayOrder, ItemSource, MotionMode};
 use craft_ui::buttons::Button;
-use craft_ui::contract::{Bind, Props as _, Role, Show as _, ShowCollection as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Role, Show as _, ShowCollection as _, ShowContainer as _};
 use craft_ui::dialog::Dialog;
 use craft_ui::list::{List, ListRow};
 use craft_ui::popover::Popover;
@@ -54,7 +54,7 @@ fn tall_dialog(list: bool) -> Fixture {
         let dialog = if list { dialog.collection_body() } else { dialog };
         dialog.show(ui, |ui, _| {
             if list {
-                let _ = List::new("Items").show_items(ui, &Rows, &mut |key, _| ListRow::new(row(key)));
+                let _ = List::new("Items").show_items(ui, &Rows, &mut |key, _| ListRow::new(row(*key)));
             } else {
                 for at in 0..ROWS {
                     let _ = Button::new(row(at)).show(ui);
