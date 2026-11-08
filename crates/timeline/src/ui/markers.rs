@@ -456,7 +456,7 @@ impl Component for MarkerStrip<'_> {
         for (at, marker) in sorted.iter().enumerate() {
             let node = access.node(MARKER.at(marker.id.0), Role::LIST_BOX_OPTION);
             node.name = Name::Text(format!("{}, {}", marker.name, format_time(marker.start, &axis.format)));
-            node.position(SetPosition::new(at).of(sorted.len()));
+            node.position = Some(SetPosition::new(at).of(sorted.len()));
         }
         if self.bin {
             access.node(BIN, Role::BUTTON).name = Name::Text(cx.words::<MarkerWords>().bin.as_str().to_owned());

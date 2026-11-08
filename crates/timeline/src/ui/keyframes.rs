@@ -454,7 +454,7 @@ impl Component for KeyframeLane<'_> {
         for (at, key) in sorted.iter().enumerate() {
             let node = access.node(KEY.at(key.id.get()), Role::LIST_BOX_OPTION);
             node.name = Name::Text(format_time(key.time, &axis.format));
-            node.position(SetPosition::new(at).of(sorted.len()));
+            node.position = Some(SetPosition::new(at).of(sorted.len()));
         }
     }
 
