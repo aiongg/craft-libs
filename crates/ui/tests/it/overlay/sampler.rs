@@ -72,7 +72,7 @@ impl Component for Armer<'_> {
     }
 }
 
-/// A button that opens a modal dialog holding the armer and, while `dropdown` is set, a menu.
+/// A button that opens a modal dialog holding the armer and, while `menu` is set, a menu.
 #[derive(Component)]
 #[component(overlay)]
 struct Dialog<'a> {
@@ -113,10 +113,7 @@ impl Component for Dialog<'_> {
         let canvas = self.canvas;
         let shown = ui.show(popup, Overlay::modal(), |ui, _| {
             Armer { common: Common::new(), canvas, arm: scene.arm.get(), at: &scene.armer_at, id: &scene.armer_id }.id_salt("armer").show(ui);
-            Opener::new(&scene.dropdown_shown, &scene.dropdown_content, Trigger::Manual, Overlay::menu)
-                .open(scene.dropdown.get())
-                .id_salt("dropdown")
-                .show(ui);
+            Opener::new(&scene.menu_shown, &scene.menu_content, Trigger::Manual, Overlay::menu).open(scene.menu.get()).id_salt("menu").show(ui);
         });
         if shown.is_some() {
             self.scene.dialog.shown.set(true);
@@ -135,10 +132,10 @@ struct Scene {
     armer_id: Cell<Id>,
     open: Cell<bool>,
     arm: Cell<Arm>,
-    dropdown: Cell<bool>,
+    menu: Cell<bool>,
     dialog: Opened,
-    dropdown_shown: Opened,
-    dropdown_content: RefCell<Seen>,
+    menu_shown: Opened,
+    menu_content: RefCell<Seen>,
 }
 
 impl Scene {
@@ -149,16 +146,16 @@ impl Scene {
             armer_id: Cell::new(Id::NULL),
             open: Cell::new(false),
             arm: Cell::new(arm),
-            dropdown: Cell::new(false),
+            menu: Cell::new(false),
             dialog: Opened::default(),
-            dropdown_shown: Opened::default(),
-            dropdown_content: RefCell::default(),
+            menu_shown: Opened::default(),
+            menu_content: RefCell::default(),
         }
     }
 
     fn show(&self, ui: &mut Ui) {
         self.dialog.shown.set(false);
-        self.dropdown_shown.shown.set(false);
+        self.menu_shown.shown.set(false);
         let canvas = self.canvas.borrow().id.unwrap_or(Id::NULL);
         Probe::new(&self.canvas).size(CANVAS.size()).sense(Sense::CLICK | Sense::DRAG).id_salt("canvas").show_at(ui, CANVAS);
         Dialog { common: Common::new(), scene: self, canvas }.id_salt("dialog").show_at(ui, OPENER);
@@ -254,13 +251,13 @@ fn a_press_on_the_canvas_closes_a_popup_over_the_dialog_and_does_not_reach_the_c
     let mut frames = Frames::new();
     let scene = Scene::new(Arm::Sampler);
     scene.open_dialog(&mut frames);
-    scene.dropdown.set(true);
+    scene.menu.set(true);
     frames.idle(30, &mut |ui: &mut Ui| scene.show(ui));
-    assert!(scene.dropdown_shown.shown.get(), "the menu is open over the dialog");
-    scene.dropdown.set(false);
+    assert!(scene.menu_shown.shown.get(), "the menu is open over the dialog");
+    scene.menu.set(false);
     scene.drag(&mut frames, CANVAS.center(), Vec2::new(40.0, 10.0));
     assert!(!scene.pressed_canvas(), "the popup took the press");
-    assert!(!scene.dropdown_shown.shown.get(), "the press closed the popup");
+    assert!(!scene.menu_shown.shown.get(), "the press closed the popup");
     assert!(scene.dialog.shown.get(), "the dialog stays open");
 }
 
