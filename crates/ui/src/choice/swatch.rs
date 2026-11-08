@@ -110,7 +110,9 @@ impl Outcome for SwatchOutput {
 /// The colour fills the well over a checkerboard where it has alpha, inside a thin ring that separates it from the
 /// panel. A `Mixed` colour shows a neutral well with a dash and has no colour value. A click reports `clicked` and the
 /// `activation`. A swatch with a `picker` key also files a `ColorRequest` for that key, opened at the swatch's colour
-/// and titled with its label, as `pick_color`; the host opens its colour picker and answers with the picked colour.
+/// and titled with its label, as `pick_color`; the host opens its colour picker and answers with the picked colour. A
+/// `Mixed` swatch opens at `mixed_start`, the first value of the mixed set, and files no request without one
+/// (`ColorRequest` has no empty colour). The host writes the pick to every target.
 ///
 /// AccessKit reports a colour well named by the label, whose value is the colour as `#rrggbb` (`#rrggbbaa` when
 /// translucent) and whose colour value is the colour; a mixed well has the value "Mixed" and no colour value.
@@ -135,6 +137,10 @@ pub struct Swatch<T: Value + 'static = ()> {
     /// The key of the `ColorRequest` a click files.
     #[prop(into)]
     picker: Option<String>,
+    /// The colour a `picker` swatch's request opens at while the swatch is `Mixed`: the first value of the mixed
+    /// set, when the host has one.
+    #[prop(into)]
+    mixed_start: Option<Srgba>,
     checked: bool,
     activation: Option<Activation>,
 }
@@ -142,8 +148,18 @@ pub struct Swatch<T: Value + 'static = ()> {
 impl Swatch<()> {
     /// A swatch of `color` named `label`.
     pub fn new(label: impl Into<crate::runtime::env::Label>, color: impl Into<Mixed<Srgba>>) -> Self {
-        Swatch { common: Common::new(), color: color.into(), member: None, cell: false, fill: false, picker: None, checked: false, activation: None }
-            .label(label)
+        Swatch {
+            common: Common::new(),
+            color: color.into(),
+            member: None,
+            cell: false,
+            fill: false,
+            picker: None,
+            mixed_start: None,
+            checked: false,
+            activation: None,
+        }
+        .label(label)
     }
 }
 
@@ -157,6 +173,7 @@ impl<T: Value + 'static> Swatch<T> {
             cell: self.cell,
             fill: self.fill,
             picker: self.picker,
+            mixed_start: self.mixed_start,
             checked: false,
             activation: None,
         }
@@ -274,9 +291,9 @@ impl<T: Value + 'static> Component for Swatch<T> {
     fn finish(self, cx: Cx<'_, Self>) -> SwatchOutput {
         let pick_color = self
             .picker
-            .zip(self.color.same())
+            .zip(self.color.same().copied().or(self.mixed_start))
             .filter(|_| self.activation.is_some())
-            .map(|(key, color)| ColorRequest::new(key, *color).title(cx.label()));
+            .map(|(key, color)| ColorRequest::new(key, color).title(cx.label()));
         SwatchOutput { response: cx.response.clone(), clicked: self.activation.is_some(), activation: self.activation, pick_color }
     }
 }

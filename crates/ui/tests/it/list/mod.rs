@@ -7,3 +7,5 @@ mod delete;
 mod row_trailing;
 
 mod row_extras;
+
+mod thumb_clicks;

@@ -65,6 +65,7 @@ mod style;
 mod suite_rtl;
 mod suite_title;
 mod swatch;
+mod swatch_mixed;
 mod table;
 mod tabs;
 mod text;

@@ -47,7 +47,7 @@ name = "RowEvent"
 old = "craft_ui::list::row::RowEvent"
 new = "craft_ui::list::RowEvent"
 status = "replaced"
-note = "Only what a row's own parts report remains: `Open { open, all }` (`all` while Alt is held), `LinkToggled { thumb, linked }`, `ThumbClicked { target: ThumbTarget, mods: Mods }` (was a tuple variant; `mods` are the modifiers held at the click, none for a key), `ThumbDrag(ThumbTarget)`, and `Trailing { part: TrailingPart, mods: Mods }` for a press on a trailing part (`ListRow::trailing_part`). `Toggle`, `Renamed`, `RenameStarted`, `RenameEnded`, `Menu` and `LabelDoubleClicked` are `CollectionEvent::Toggle`, `CollectionEvent::Rename`, `CollectionEvent::ContextMenu` and `CollectionEvent::Activate`."
+note = "Only what a row's own parts report remains: `Open { open, all }` (`all` while Alt is held), `LinkToggled { thumb, linked }`, `ThumbClicked { target: ThumbTarget, mods: Mods, clicks: u32 }` (was a tuple variant; `mods` are the modifiers held at the click, none for a key; `clicks` is the press count, 1 for a key), `ThumbDrag(ThumbTarget)`, and `Trailing { part: TrailingPart, mods: Mods }` for a press on a trailing part (`ListRow::trailing_part`). `Toggle`, `Renamed`, `RenameStarted`, `RenameEnded`, `Menu` and `LabelDoubleClicked` are `CollectionEvent::Toggle`, `CollectionEvent::Rename`, `CollectionEvent::ContextMenu` and `CollectionEvent::Activate`."
 
 [[type]]
 name = "ThumbSize"
