@@ -90,8 +90,8 @@ pub struct TrackSizes {
     pub name_most: f32,
 }
 
-/// A track's tallest is this many control heights.
-const MOST_IN_CONTROLS: f32 = 8.0;
+/// A track grows to at most this many heights of a large thumbnail.
+const MOST_IN_THUMBS: f32 = 4.0;
 /// The name column is this many control heights wide by default.
 const NAME_IN_CONTROLS: f32 = 6.0;
 /// The name column's width until the user drags it.
@@ -105,11 +105,11 @@ impl TrackSizes {
         let unit = tokens.size.control.md;
         let tall = tokens.size.thumb.lg;
         TrackSizes {
-            video: tall + tokens.space.pad.panel,
-            audio: tall + tokens.space.gap.stack,
+            video: tall,
+            audio: tokens.size.thumb.md,
             caption: unit,
             least: unit,
-            most: unit * MOST_IN_CONTROLS,
+            most: tall * MOST_IN_THUMBS,
             unit,
             name: unit * NAME_IN_CONTROLS,
             name_least: unit * NAME_LEAST_IN_CONTROLS,

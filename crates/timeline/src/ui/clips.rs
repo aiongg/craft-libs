@@ -11,7 +11,7 @@ use craft_ui::contract::{
     Access, Component, ContentPainter, Cx, Edit as _, Focus as _, Name, Outcome, PaintUi, PartsCx, Pointer as _, Remember as _,
 };
 use craft_ui::primitives::{ContentPainterCx, PaintShape, StrokeWidth, TextRun};
-use craft_ui::style::{DataColor, Flags, Resolve as _, State, StateMix, Stateful, States, StyleColor, StyleCx, TypeRole};
+use craft_ui::style::{Corners, DataColor, Flags, Resolve as _, State, StateMix, Stateful, States, StyleColor, StyleCx, SurfaceKind, TypeRole};
 use egui::{CornerRadius, Pos2, Rect, Vec2, pos2};
 
 use super::{TimeAxis, label_palette};
@@ -21,8 +21,6 @@ use crate::model::{ClipId, ClipInfo};
 use crate::time::Tick;
 use crate::timecode::format_time;
 
-/// How much darker a disabled clip's label colour is drawn (FilmCraft `clips.rs` halves each channel).
-const DISABLED_DIVISOR: u8 = 2;
 /// How strongly a track's colour label tints its lane (FilmCraft `timeline.rs:255` `TRACK_LANE_TINT`, used at `:335`).
 const LANE_LABEL_TINT: f32 = 0.10;
 /// The locked hatch's line spacing, as a share of the control height.
@@ -499,12 +497,10 @@ impl<'a> ClipLane<'a> {
             for clip in self.clips {
                 let Some(body) = geometry.body(clip) else { continue };
                 let base = palette.0[usize::from(clip.label.unwrap_or_default().0) % palette.0.len()];
-                let fill = if clip.enabled {
-                    base
-                } else {
-                    egui::Color32::from_rgb(base.r() / DISABLED_DIVISOR, base.g() / DISABLED_DIVISOR, base.b() / DISABLED_DIVISOR)
-                };
-                draw.data_fill(&PaintShape::Rect(body, CornerRadius::ZERO), DataColor::new(fill));
+                draw.data_fill(&PaintShape::Rect(body, CornerRadius::ZERO), DataColor::new(base));
+                if !clip.enabled {
+                    draw.surface(body, SurfaceKind::Scrim, Corners::None);
+                }
             }
         }
         if let Some(content) = &self.content {
