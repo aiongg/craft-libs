@@ -75,9 +75,9 @@ impl Http {
     /// `user_agent` names the product and its version (`PhotoCraft/0.9.0`) and nothing about the
     /// person using it.
     pub fn new(user_agent: &str) -> Result<Self, String> {
-        // Tests and a local mirror serve plain HTTP on loopback, which `get_api` and
-        // `redirect_target` reach through the remote agents.
-        Self::build(user_agent, !(cfg!(feature = "local-mirror") || cfg!(test)))
+        // Debug builds (and so tests) serve a local mirror over plain HTTP on loopback, which
+        // `get_api` and `redirect_target` reach through the remote agents. Release builds are HTTPS-only.
+        Self::build(user_agent, !cfg!(debug_assertions))
     }
 
     /// `https_only` keeps the agents for remote hosts, and every redirect they follow, on HTTPS:

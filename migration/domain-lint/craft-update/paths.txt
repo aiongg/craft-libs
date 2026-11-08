@@ -1,4 +1,3 @@
-crates/update/src/dialog.rs
 crates/update/src/stack_dialogs.rs
 crates/update/src/updater.rs
 crates/update/tests/it
