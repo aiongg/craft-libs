@@ -53,6 +53,8 @@ pub struct BubbleLook {
     pub caption: (f32, f32),
     /// The least contrast ratio of text on a person's colour.
     pub contrast: f64,
+    /// The ink the text starts from, before the contrast rule adjusts it.
+    pub ink: [u8; 3],
 }
 
 impl BubbleLook {
@@ -69,6 +71,7 @@ impl BubbleLook {
             body: (body.size, body.line_height),
             caption: (caption.size, caption.line_height),
             contrast: craft_theme::contrast::text_contrast_min(cx.contrast()),
+            ink: super::avatar::rgb8(craft_theme::Srgba::from(tokens.color.text.on_strong)),
         }
     }
 }
@@ -77,7 +80,7 @@ impl BubbleLook {
 /// person's colour) at `alpha`. As wide as its text, which wraps at the look's width; rounded except the corner at
 /// the pointer, which is square.
 pub fn paint_chat_bubble(draw: &Draw<'_>, look: &BubbleLook, tip: Pos2, name: Option<&str>, text: &str, fill: [u8; 3], alpha: f32) {
-    let ink = ink_on(fill, look.contrast);
+    let ink = ink_on(fill, look.ink, look.contrast);
     let measured = draw.layout(&TextRun::new(text).role(TypeRole::Body).wrap(Wrap::Wrap), look.width).size();
     let head = name.map(|name| draw.layout(&TextRun::new(name).role(TypeRole::Caption), look.width).size());
     let head_height = head.map_or(0.0, |size| size.y + look.gap);

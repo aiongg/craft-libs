@@ -24,20 +24,28 @@ pub struct AvatarFace {
     pub line: f32,
     /// The least contrast ratio of the initials on the fill.
     pub contrast: f64,
+    /// The ink the initials start from, before the contrast rule adjusts it.
+    pub ink: [u8; 3],
 }
 
 impl AvatarFace {
     /// The face the style context gives: caption type, the text contrast of the theme.
     pub fn of(cx: &StyleCx<'_>) -> Self {
         let caption = cx.tokens.typography.get(TypeRole::Caption);
-        AvatarFace { size: caption.size, line: caption.line_height, contrast: craft_theme::contrast::text_contrast_min(cx.contrast()) }
+        AvatarFace {
+            size: caption.size,
+            line: caption.line_height,
+            contrast: craft_theme::contrast::text_contrast_min(cx.contrast()),
+            ink: rgb8(craft_theme::Srgba::from(cx.tokens.color.text.on_strong)),
+        }
     }
 }
 
-/// The ink that reads on `fill`: white or black, whichever the contrast rule keeps.
-pub(super) fn ink_on(fill: [u8; 3], contrast: f64) -> Color32 {
+/// The ink that reads on `fill`: `ink` where the contrast rule keeps it, else the nearest that it does.
+pub(super) fn ink_on(fill: [u8; 3], ink: [u8; 3], contrast: f64) -> Color32 {
     let [r, g, b] = fill;
-    let ink = ensure_contrast(Rgba::WHITE, Rgba::rgb(r, g, b), contrast);
+    let [ir, ig, ib] = ink;
+    let ink = ensure_contrast(Rgba::rgb(ir, ig, ib), Rgba::rgb(r, g, b), contrast);
     let [r, g, b, _] = ink.0;
     Color32::from_rgb(r, g, b)
 }
@@ -53,7 +61,7 @@ pub fn paint_avatar(draw: &Draw<'_>, rect: Rect, name: &str, fill: [u8; 3], face
     let [r, g, b] = fill;
     let circle = PaintShape::Circle(rect.center(), rect.width().min(rect.height()) / 2.0);
     draw.data_fill(&circle, DataColor::new(Color32::from_rgb(r, g, b)));
-    paint_initials(draw, rect, name, DataColor::new(ink_on(fill, face.contrast)), face);
+    paint_initials(draw, rect, name, DataColor::new(ink_on(fill, face.ink, face.contrast)), face);
 }
 
 fn paint_initials(draw: &Draw<'_>, rect: Rect, name: &str, ink: DataColor, face: &AvatarFace) {
@@ -85,6 +93,7 @@ pub struct AvatarStyle {
     face_size: f32,
     face_line: f32,
     contrast: f64,
+    ink: [u8; 3],
     side: f32,
 }
 
@@ -109,11 +118,15 @@ impl Outcome for AvatarOutput {
 
 /// A round well at the control height with the initials of a person's name, named by the name. `fill` gives it the
 /// person's colour, else it takes the accent; `selected` draws a ring round it. A pressable avatar is a button.
-#[derive(craft_ui::contract::Component)]
+#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
 pub struct Avatar {
     #[common]
     common: Common,
+    /// The person's colour.
+    #[prop]
     fill: Option<[u8; 3]>,
+    /// The avatar is a button that reports a press.
+    #[prop]
     pressable: bool,
 }
 
@@ -121,20 +134,6 @@ impl Avatar {
     /// An avatar of the person `name`.
     pub fn new(name: impl Into<String>) -> Self {
         Avatar { common: Common::new(), fill: None, pressable: false }.label(name.into())
-    }
-
-    /// The person's colour.
-    #[must_use]
-    pub fn fill(mut self, color: [u8; 3]) -> Self {
-        self.fill = Some(color);
-        self
-    }
-
-    /// The avatar is a button that reports a press.
-    #[must_use]
-    pub fn pressable(mut self, on: bool) -> Self {
-        self.pressable = on;
-        self
     }
 }
 
@@ -159,6 +158,7 @@ impl Component for Avatar {
             face_size: face.size,
             face_line: face.line,
             contrast: face.contrast,
+            ink: face.ink,
             side: control.height,
         }
     }
@@ -181,7 +181,7 @@ impl Component for Avatar {
         let style = cx.style;
         let side = cx.content_rect.width().min(cx.content_rect.height());
         let face = Rect::from_center_size(cx.content_rect.center(), Vec2::splat(side));
-        let face_look = AvatarFace { size: style.face_size, line: style.face_line, contrast: style.contrast };
+        let face_look = AvatarFace { size: style.face_size, line: style.face_line, contrast: style.contrast, ink: style.ink };
         let draw = ui.draw();
         match self.fill {
             Some(fill) => paint_avatar(&draw, face, cx.resolved.label, fill, &face_look),

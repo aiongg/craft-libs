@@ -3,7 +3,7 @@
 use super::{VersionHistoryPanel, VersionPreviewBanner};
 use crate::versions::{Branch, BranchId, BranchState, Version, VersionId};
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
-use egui::{Ui, pos2, vec2};
+use egui::Ui;
 
 const NOW: i64 = 10_000;
 
@@ -32,11 +32,11 @@ fn version_panel_empty(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 
 #[story(VersionHistoryPanel<'static>, covers = [], drive = Drive::Never)]
 fn version_panel_previewing(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    VersionHistoryPanel::new(&history(), &branches(), NOW).previewing(Some(VersionId(4))).show(ui).into()
+    VersionHistoryPanel::new(&history(), &branches(), NOW).previewing(VersionId(4)).show(ui).into()
 }
 
 #[story(VersionPreviewBanner<'static>, covers = [Default], drive = Drive::Never)]
 fn version_banner(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let canvas = egui::Rect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 300.0));
+    let canvas = ui.available_rect_before_wrap();
     VersionPreviewBanner::new(&version(4, "Final", false), NOW).show(ui, canvas).into()
 }

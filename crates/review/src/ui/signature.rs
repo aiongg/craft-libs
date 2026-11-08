@@ -72,6 +72,7 @@ craft_ui::words! {
 
 /// The saved signature and initials, one settings section shared by every document.
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[non_exhaustive]
 pub struct SignatureSettings {
     /// The saved signature, if any.
     pub signature: Option<SavedSignature>,

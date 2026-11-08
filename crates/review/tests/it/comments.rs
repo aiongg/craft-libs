@@ -98,7 +98,7 @@ fn posting_and_replying_report_edits() {
     let mut rig = rig(vec![thread(1, 1, 0.0, "first", 0)], Some(1));
     rig.type_into("Add a comment", "a new note");
     rig.click("Post");
-    assert_eq!(rig.edits(), [CommentEdit::Add { text: "a new note".into() }]);
+    assert!(matches!(rig.edits().as_slice(), [CommentEdit::Add { text, .. }] if text == "a new note"), "{:?}", rig.edits());
     assert!(rig.app.borrow().state.new_comment.is_empty());
 
     rig.app.borrow_mut().edits.clear();
@@ -113,13 +113,17 @@ fn selected_card_menu_sets_status_and_deletes() {
     let mut rig = rig(vec![thread(1, 1, 0.0, "first", 0)], Some(1));
     rig.click("More");
     rig.click("Delete");
-    assert_eq!(rig.edits(), [CommentEdit::Delete { thread: ThreadId(1), index: 0 }]);
+    assert!(matches!(rig.edits().as_slice(), [CommentEdit::Delete { thread: ThreadId(1), index: 0, .. }]), "{:?}", rig.edits());
 
     rig.app.borrow_mut().edits.clear();
     rig.click("More");
     rig.click("Set status");
     rig.click("Accepted");
-    assert_eq!(rig.edits(), [CommentEdit::SetStatus { thread: ThreadId(1), status: ReviewStatus::Accepted }]);
+    assert!(
+        matches!(rig.edits().as_slice(), [CommentEdit::SetStatus { thread: ThreadId(1), status: ReviewStatus::Accepted, .. }]),
+        "{:?}",
+        rig.edits()
+    );
 
     let mut locked = thread(1, 1, 0.0, "first", 0);
     locked.locked = true;

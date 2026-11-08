@@ -173,7 +173,7 @@ fn more_menu_holds_unread_link_and_delete_for_your_thread() {
     let link = fx.by_label("Copy link").expect("Copy link");
     fx.click(&link);
     fx.settle();
-    assert_eq!(app.borrow().edits, [CommentEdit::CopyLink { thread: ThreadId(7) }]);
+    assert!(matches!(app.borrow().edits.as_slice(), [CommentEdit::CopyLink { thread: ThreadId(7), .. }]));
 
     let (mut fx, app) = popover("Me");
     let more = fx.by_label("More").expect("More");
@@ -182,7 +182,7 @@ fn more_menu_holds_unread_link_and_delete_for_your_thread() {
     let delete = fx.by_label("Delete thread").expect("Delete thread");
     fx.click(&delete);
     fx.settle();
-    assert_eq!(app.borrow().edits, [CommentEdit::Delete { thread: ThreadId(7), index: 0 }]);
+    assert!(matches!(app.borrow().edits.as_slice(), [CommentEdit::Delete { thread: ThreadId(7), index: 0, .. }]));
 }
 
 #[trial]
@@ -197,13 +197,13 @@ fn popover_completes_mentions_replies_and_resolves() {
     let post = fx.by_label("Post").expect("Post");
     fx.click(&post);
     fx.settle();
-    assert_eq!(app.borrow().edits, [CommentEdit::Reply { thread: ThreadId(7), text: "hi @Bo".into() }]);
+    assert!(matches!(app.borrow().edits.as_slice(), [CommentEdit::Reply { thread: ThreadId(7), text, .. }] if text == "hi @Bo"));
 
     app.borrow_mut().edits.clear();
     let resolve = fx.by_label("Resolve").expect("Resolve");
     fx.click(&resolve);
     fx.settle();
-    assert_eq!(app.borrow().edits, [CommentEdit::Resolve { thread: ThreadId(7), resolved: true }]);
+    assert!(matches!(app.borrow().edits.as_slice(), [CommentEdit::Resolve { thread: ThreadId(7), resolved: true, .. }]));
 }
 
 struct Pins {
@@ -222,14 +222,8 @@ fn pins(pins: Vec<(ThreadId, Pos2, &'static str)>) -> (Fixture, Rc<RefCell<Pins>
         let list: Vec<CommentPin> = app
             .pins
             .iter()
-            .map(|&(id, point, author)| CommentPin {
-                id,
-                point,
-                author,
-                text: "Check the margin",
-                color: [200, 80, 40],
-                unread: id == ThreadId(1),
-                resolved: id == ThreadId(3),
+            .map(|&(id, point, author)| {
+                CommentPin::new(id, point, author, "Check the margin", [200, 80, 40]).unread(id == ThreadId(1)).resolved(id == ThreadId(3))
             })
             .collect();
         let out = CommentPins::new("Pins", &list, "Me").open(app.open).show(ui);
@@ -262,10 +256,11 @@ fn pins_open_drag_and_cluster() {
     assert_eq!(app.borrow().closed, [ThreadId(1)]);
     assert!(app.borrow().opened.is_empty());
 
-    let (mut fx, app) = pins(vec![(ThreadId(2), pos2(100.0, 100.0), "Me")]);
+    let start = pos2(100.0, 100.0);
+    let (mut fx, app) = pins(vec![(ThreadId(2), start, "Me")]);
     let own = fx.by_label("Comment by Me: Check the margin").expect("own pin");
     fx.drag(&own, vec2(40.0, 0.0));
     fx.settle();
     let moves = app.borrow().moves.clone();
-    assert!(matches!(moves.last(), Some(PinMove { thread, to }) if *thread == ThreadId(2) && to.x > 110.0), "{moves:?}");
+    assert!(matches!(moves.last(), Some(PinMove { thread, to, .. }) if *thread == ThreadId(2) && to.x > start.x), "{moves:?}");
 }

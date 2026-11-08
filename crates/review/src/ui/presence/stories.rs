@@ -45,7 +45,7 @@ impl CollabTransport for Room {
 #[story(PeopleBar<'static>, covers = [Default, Many], drive = Drive::Never)]
 fn people_bar_seven(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let room = Room::of(&["Ana Reyes", "Bo Chen", "Cy Dahl", "Di Evans", "Ed Fox", "Flo Gray", "Gus Hall"]);
-    PeopleBar::new(&room).following(Some(ParticipantId(3))).show(ui).into()
+    PeopleBar::new(&room).following(ParticipantId(3)).show(ui).into()
 }
 
 #[story(PeopleBar<'static>, covers = [One], drive = Drive::Never)]

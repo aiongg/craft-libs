@@ -74,6 +74,8 @@ enum PeopleCommand {
 pub struct PeopleBar<'a> {
     label: Label,
     transport: &'a dyn CollabTransport,
+    /// The person being followed, if any.
+    #[prop]
     following: Option<ParticipantId>,
 }
 
@@ -81,13 +83,6 @@ impl<'a> PeopleBar<'a> {
     /// A bar of the people in `transport`'s session.
     pub fn new(transport: &'a dyn CollabTransport) -> Self {
         PeopleBar { label: Label::Empty, transport, following: None }
-    }
-
-    /// The person being followed, if any.
-    #[must_use]
-    pub fn following(mut self, who: Option<ParticipantId>) -> Self {
-        self.following = who;
-        self
     }
 
     /// Shows the bar. Follow, Spotlight and Remove come back as [`CollabRequest`]s.
@@ -211,7 +206,7 @@ pub fn paint_pointer(draw: &Draw<'_>, halo: StyleColor, size: f32, tip: Pos2, fi
 
 /// A name on a person's colour, its top left corner at `at`.
 fn paint_name_tag(draw: &Draw<'_>, look: &BubbleLook, at: Pos2, name: &str, fill: [u8; 3]) {
-    let runs = [DocRun::new(name.to_owned(), FontRef::proportional(), look.caption.0, DataColor::new(ink_on(fill, look.contrast)))];
+    let runs = [DocRun::new(name.to_owned(), FontRef::proportional(), look.caption.0, DataColor::new(ink_on(fill, look.ink, look.contrast)))];
     let width = draw.layout(&craft_ui::primitives::TextRun::new(name).role(craft_ui::style::TypeRole::Caption), look.width).size().x;
     let pad = Vec2::new(look.pad.y, look.pad.y / 2.0);
     let rect = Rect::from_min_size(at, Vec2::new(width, look.caption.1) + 2.0 * pad);
@@ -222,13 +217,15 @@ fn paint_name_tag(draw: &Draw<'_>, look: &BubbleLook, at: Pos2, name: &str, fill
 /// Other people's cursors over the canvas: a pointer and a name tag in their colour at each reported position, their
 /// selection outlines (at most 500) and their cursor chat bubbles. `now` is the clock the chat stamps use; a bubble
 /// shows for its hold and fades out. Not interactive.
-#[derive(craft_ui::contract::Component)]
+#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
 #[component(canvas_control)]
 pub struct RemoteCursors<'a> {
     #[common]
     common: Common,
     transport: &'a dyn CollabTransport,
     now: f64,
+    /// Chat bubbles do not fade (the app's reduced-motion setting).
+    #[prop(name = "reduced_motion")]
     reduced: bool,
 }
 
@@ -236,13 +233,6 @@ impl<'a> RemoteCursors<'a> {
     /// Cursors for the people in `transport`'s session, named `label`.
     pub fn new(label: impl Into<Label>, transport: &'a dyn CollabTransport, now: f64) -> Self {
         RemoteCursors { common: Common::new(), transport, now, reduced: false }.label(label)
-    }
-
-    /// Chat bubbles do not fade (the app's reduced-motion setting).
-    #[must_use]
-    pub fn reduced_motion(mut self, on: bool) -> Self {
-        self.reduced = on;
-        self
     }
 }
 
@@ -348,7 +338,8 @@ impl Component for FollowFrame {
         let pad = Vec2::new(look.pad.x, look.pad.y / 2.0);
         let tag = Rect::from_min_size(Pos2::new(area.center().x - width / 2.0 - pad.x, area.top()), Vec2::new(width, look.caption.1) + 2.0 * pad);
         draw.data_fill(&PaintShape::Rect(tag, CornerRadius { nw: 0, ne: 0, sw: look.radius, se: look.radius }), data(self.color));
-        let runs = [DocRun::new(self.text.clone(), FontRef::proportional(), look.caption.0, DataColor::new(ink_on(self.color, look.contrast)))];
+        let runs =
+            [DocRun::new(self.text.clone(), FontRef::proportional(), look.caption.0, DataColor::new(ink_on(self.color, look.ink, look.contrast)))];
         draw.doc(Rect::from_min_size(tag.min + pad, Vec2::new(width, look.caption.1)), &DocText::new(&runs));
     }
 

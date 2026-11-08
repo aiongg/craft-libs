@@ -124,6 +124,7 @@ struct OpenMenu {
 
 /// What the panel keeps between passes; the app keeps one per document window.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct CommentsPanelState {
     /// The search box text; threads match through [`matches`](fn@matches).
     pub search: String,
@@ -160,11 +161,13 @@ impl CommentsPanelState {
 #[non_exhaustive]
 pub enum CommentEdit {
     /// "Add a comment": a sticky note on the current page.
+    #[non_exhaustive]
     Add {
         /// The comment text.
         text: String,
     },
     /// Reply to a thread.
+    #[non_exhaustive]
     Reply {
         #[allow(missing_docs)]
         thread: ThreadId,
@@ -172,6 +175,7 @@ pub enum CommentEdit {
         text: String,
     },
     /// Message `index` (0: the comment) edited.
+    #[non_exhaustive]
     Edit {
         #[allow(missing_docs)]
         thread: ThreadId,
@@ -181,6 +185,7 @@ pub enum CommentEdit {
         text: String,
     },
     /// Message `index` deleted; 0 deletes the thread.
+    #[non_exhaustive]
     Delete {
         #[allow(missing_docs)]
         thread: ThreadId,
@@ -188,6 +193,7 @@ pub enum CommentEdit {
         index: usize,
     },
     /// Set a thread's review status.
+    #[non_exhaustive]
     SetStatus {
         #[allow(missing_docs)]
         thread: ThreadId,
@@ -195,6 +201,7 @@ pub enum CommentEdit {
         status: ReviewStatus,
     },
     /// Set or clear a thread's checkmark.
+    #[non_exhaustive]
     Mark {
         #[allow(missing_docs)]
         thread: ThreadId,
@@ -204,6 +211,7 @@ pub enum CommentEdit {
     /// A card was selected: the app selects the annotation on the page and scrolls to it.
     Select(ThreadId),
     /// Copy text of message `index`; the app puts it on the clipboard.
+    #[non_exhaustive]
     CopyText {
         #[allow(missing_docs)]
         thread: ThreadId,
@@ -211,6 +219,7 @@ pub enum CommentEdit {
         index: usize,
     },
     /// The viewer's reaction `emoji` on message `index` toggled (the thread popover).
+    #[non_exhaustive]
     React {
         #[allow(missing_docs)]
         thread: ThreadId,
@@ -220,6 +229,7 @@ pub enum CommentEdit {
         emoji: String,
     },
     /// Figma's resolve (`true`) or reopen (`false`).
+    #[non_exhaustive]
     Resolve {
         #[allow(missing_docs)]
         thread: ThreadId,
@@ -227,11 +237,13 @@ pub enum CommentEdit {
         resolved: bool,
     },
     /// The app puts a link to the thread on the clipboard.
+    #[non_exhaustive]
     CopyLink {
         #[allow(missing_docs)]
         thread: ThreadId,
     },
     /// The viewer's read state of the thread cleared.
+    #[non_exhaustive]
     MarkUnread {
         #[allow(missing_docs)]
         thread: ThreadId,
@@ -569,7 +581,7 @@ pub(crate) struct CommentRowStyle {
     good: StyleColor,
     bad: StyleColor,
     faint: StyleColor,
-    selected_fill: StyleColor,
+    highlight: StyleColor,
     bar: StyleColor,
     avatar: [u8; 3],
     avatar_face: AvatarFace,
@@ -983,7 +995,7 @@ impl Component for CommentRow<'_> {
             good: cx.color(color.status.good.fg),
             bad: cx.color(color.status.bad.fg),
             faint: cx.color(color.text.faint),
-            selected_fill: cx.color(color.state.selected),
+            highlight: cx.color(color.state.selected),
             bar: cx.color(color.accent.solid),
             avatar: rgb8(Srgba::from(color.accent.strong)),
             avatar_face: AvatarFace::of(cx),
@@ -1016,7 +1028,7 @@ impl Component for CommentRow<'_> {
         let now = self.now;
         let age = |then: i64| age_text(&cx.env, then, now);
         if self.selected {
-            ui.draw().fill(&PaintShape::Rect(rect, CornerRadius::ZERO), st.selected_fill);
+            ui.draw().fill(&PaintShape::Rect(rect, CornerRadius::ZERO), st.highlight);
             let bar = if rtl {
                 Rect::from_min_max(Pos2::new(rect.max.x - st.bar_width, rect.min.y), rect.max)
             } else {

@@ -289,7 +289,7 @@ pub const NEW_ANNOTATION_FORM: &str = "newAnnotation";
 
 /// What a press began and the drag or release continues.
 #[derive(Clone, Debug)]
-enum Gesture {
+enum Drag {
     /// Moving, resizing or reshaping selected annotations; `begun` once the pointer has moved.
     Edit { id: GestureId, begun: bool, origin: Point, change: Change },
     /// A selection rectangle on empty page.
@@ -392,6 +392,7 @@ fn segments_cross(a: Point, b: Point, c: Point, d: Point, reach: f64) -> bool {
 /// - Locked annotations are selected but never moved.
 /// - Without a pointer, the "New Annotation..." form places the shape kinds
 ///   ([`new_annotation_params`](Self::new_annotation_params), [`create_from_form`](Self::create_from_form)).
+#[non_exhaustive]
 pub struct AnnotateTool {
     /// The tool in use.
     pub tool: AnnotationTool,
@@ -410,7 +411,7 @@ pub struct AnnotateTool {
     /// The edits since the app last took them ([`take_edits`](Self::take_edits)).
     edits: Vec<EditEvent<AnnotationEdit>>,
     text_quads: Option<TextQuads>,
-    gesture: Option<Gesture>,
+    gesture: Option<Drag>,
     /// The points of the PolyLine, Polygon or Cloud being drawn.
     poly: Vec<Point>,
     /// The Ink strokes drawn since the tool was chosen.
@@ -628,7 +629,7 @@ impl AnnotateTool {
         let found = hit(&self.annotations, &self.selected, reading.at, reading.tolerance, reading.icon_side);
         let locked = |id: AnnotationId, list: &[Annotation]| list.iter().any(|a| a.id == id && a.locked);
         let id = self.next_id();
-        let edit = |change: Change| Gesture::Edit { id, begun: false, origin: reading.at, change };
+        let edit = |change: Change| Drag::Edit { id, begun: false, origin: reading.at, change };
         match found {
             Some(AnnotationHit::Handle(target, AnnotationHandle::Box(hx, hy))) => {
                 let from = self.annotations.iter().find(|a| a.id == target).map_or(Rect::ZERO, |a| a.rect);
@@ -662,7 +663,7 @@ impl AnnotateTool {
                 }
             }
             None => {
-                self.gesture = Some(Gesture::Marquee { origin: reading.at, current: reading.at, additive: shift });
+                self.gesture = Some(Drag::Marquee { origin: reading.at, current: reading.at, additive: shift });
             }
         }
         ToolAction::Claimed
@@ -688,15 +689,15 @@ impl AnnotateTool {
                 ToolAction::Done
             }
             K::Ink => {
-                self.gesture = Some(Gesture::Stroke(vec![at]));
+                self.gesture = Some(Drag::Stroke(vec![at]));
                 ToolAction::Claimed
             }
             kind if kind.is_markup() => {
-                self.gesture = Some(Gesture::Markup { kind, origin: at, current: at });
+                self.gesture = Some(Drag::Markup { kind, origin: at, current: at });
                 ToolAction::Claimed
             }
             kind => {
-                self.gesture = Some(Gesture::Shape { kind, origin: at, current: at });
+                self.gesture = Some(Drag::Shape { kind, origin: at, current: at });
                 ToolAction::Claimed
             }
         }
@@ -781,7 +782,7 @@ impl CanvasTool for AnnotateTool {
             AnnotationTool::Select => self.press_select(pointer, &reading),
             AnnotationTool::Draw(kind) => self.press_draw(kind, pointer, &reading),
             AnnotationTool::Eraser => {
-                self.gesture = Some(Gesture::Erase { path: vec![reading.at], crossed: Vec::new() });
+                self.gesture = Some(Drag::Erase { path: vec![reading.at], crossed: Vec::new() });
                 ToolAction::Claimed
             }
         }
@@ -792,16 +793,16 @@ impl CanvasTool for AnnotateTool {
         let Some(gesture) = self.gesture.as_mut() else { return };
         let mut events = Vec::new();
         match gesture {
-            Gesture::Edit { id, begun, origin, change } => {
+            Drag::Edit { id, begun, origin, change } => {
                 if !*begun {
                     *begun = true;
                     events.push(EditEvent::begin(*id, Mixed::Mixed, Arc::from(edit_label(change, &reading.words)), None));
                 }
                 events.push(EditEvent::update(*id, edit_value(change, *origin, reading.at, pointer.mods)));
             }
-            Gesture::Marquee { current, .. } | Gesture::Shape { current, .. } | Gesture::Markup { current, .. } => *current = reading.at,
-            Gesture::Stroke(points) => points.push(reading.at),
-            Gesture::Erase { path, crossed } => {
+            Drag::Marquee { current, .. } | Drag::Shape { current, .. } | Drag::Markup { current, .. } => *current = reading.at,
+            Drag::Stroke(points) => points.push(reading.at),
+            Drag::Erase { path, crossed } => {
                 let last = path.last().copied().unwrap_or(reading.at);
                 for a in self.annotations.iter().filter(|a| a.kind == AnnotationKind::Ink && !a.locked) {
                     for (i, stroke) in a.strokes.iter().enumerate() {
@@ -827,12 +828,12 @@ impl CanvasTool for AnnotateTool {
         let words = Arc::clone(&reading.words);
         let mods = pointer.mods;
         match gesture {
-            Gesture::Edit { id, begun, origin, change } => {
+            Drag::Edit { id, begun, origin, change } => {
                 if begun {
                     self.edits.push(EditEvent::commit(id, Mixed::Mixed, edit_value(&change, origin, reading.at, mods)));
                 }
             }
-            Gesture::Marquee { origin, additive, .. } => {
+            Drag::Marquee { origin, additive, .. } => {
                 let area = Rect::from_points(origin, reading.at);
                 let inside: Vec<AnnotationId> = if area.width() == 0.0 && area.height() == 0.0 {
                     Vec::new()
@@ -854,18 +855,18 @@ impl CanvasTool for AnnotateTool {
                 }
                 self.replace_selection(ids, &words);
             }
-            Gesture::Shape { kind, origin, .. } => {
+            Drag::Shape { kind, origin, .. } => {
                 if let Some(annotation) = self.shape_annotation(kind, origin, reading.at, mods.shift) {
                     self.create(annotation, &words);
                 }
             }
-            Gesture::Markup { kind, origin, .. } => {
+            Drag::Markup { kind, origin, .. } => {
                 if let Some(annotation) = self.markup_annotation(kind, origin, reading.at) {
                     self.create(annotation, &words);
                 }
             }
-            Gesture::Stroke(points) => self.strokes.push(points),
-            Gesture::Erase { crossed, .. } => {
+            Drag::Stroke(points) => self.strokes.push(points),
+            Drag::Erase { crossed, .. } => {
                 // One event per annotation, in the order the Eraser met them: an app that removes
                 // strokes by index must not see the same annotation twice.
                 let mut ids: Vec<AnnotationId> = Vec::new();
@@ -888,7 +889,7 @@ impl CanvasTool for AnnotateTool {
     }
 
     fn cancel(&mut self, reason: CancelReason, _cx: &mut ToolContext<'_>) {
-        if let Some(Gesture::Edit { id, begun: true, .. }) = self.gesture.take() {
+        if let Some(Drag::Edit { id, begun: true, .. }) = self.gesture.take() {
             self.edits.push(EditEvent::cancel(id, reason, None));
         }
     }
@@ -951,10 +952,10 @@ impl CanvasTool for AnnotateTool {
         let drawn = |kind: AnnotationKind| color32(&self.fresh(kind, Rect::ZERO));
         let shift = cx.mods.shift;
         match &self.gesture {
-            Some(Gesture::Marquee { origin, current, .. }) => {
+            Some(Drag::Marquee { origin, current, .. }) => {
                 cx.marching_ants(&screen(&corners(Rect::from_points(*origin, *current))), true, 0.0);
             }
-            Some(Gesture::Shape { kind, origin, current }) => {
+            Some(Drag::Shape { kind, origin, current }) => {
                 let color = drawn(*kind);
                 match kind {
                     AnnotationKind::Line | AnnotationKind::Arrow => {
@@ -971,16 +972,16 @@ impl CanvasTool for AnnotateTool {
                     }
                 }
             }
-            Some(Gesture::Markup { kind, origin, current }) => {
+            Some(Drag::Markup { kind, origin, current }) => {
                 if let Some(quads) = self.text_quads.as_ref() {
                     for quad in quads(*origin, *current) {
                         outline(screen(&quad), true, drawn(*kind));
                     }
                 }
             }
-            Some(Gesture::Stroke(points)) => outline(screen(points), false, drawn(AnnotationKind::Ink)),
-            Some(Gesture::Erase { path, .. }) => cx.marching_ants(&screen(path), false, 0.0),
-            Some(Gesture::Edit { .. }) | None => {}
+            Some(Drag::Stroke(points)) => outline(screen(points), false, drawn(AnnotationKind::Ink)),
+            Some(Drag::Erase { path, .. }) => cx.marching_ants(&screen(path), false, 0.0),
+            Some(Drag::Edit { .. }) | None => {}
         }
         for stroke in &self.strokes {
             outline(screen(stroke), false, drawn(AnnotationKind::Ink));

@@ -42,7 +42,7 @@ fn save_form_reports_title_and_description() {
     fixture.click(&title);
     fixture.type_text("Beta");
     fixture.key(Key::Enter, Modifiers::NONE);
-    assert_eq!(*actions.borrow(), [VersionAction::Save { title: "Beta".into(), description: String::new() }]);
+    assert!(matches!(actions.borrow().as_slice(), [VersionAction::Save { title, description, .. }] if title == "Beta" && description.is_empty()));
 }
 
 /// Create branch opens a name field; Enter creates the branch.
@@ -55,7 +55,7 @@ fn the_branch_form_creates_a_branch() {
     fixture.click(&name);
     fixture.type_text("Mobile");
     fixture.key(Key::Enter, Modifiers::NONE);
-    assert_eq!(*actions.borrow(), [VersionAction::CreateBranch { name: "Mobile".into() }]);
+    assert!(matches!(actions.borrow().as_slice(), [VersionAction::CreateBranch { name, .. }] if name == "Mobile"));
 }
 
 /// A merged branch names its state and has a menu.
@@ -109,7 +109,10 @@ fn rename_edits_the_title_in_place() {
     fixture.key(Key::A, Modifiers::COMMAND);
     fixture.type_text("Release");
     fixture.key(Key::Enter, Modifiers::NONE);
-    assert_eq!(*actions.borrow(), [VersionAction::Rename { id: VersionId(4), title: "Release".into(), description: String::new() }]);
+    assert!(matches!(
+        actions.borrow().as_slice(),
+        [VersionAction::Rename { id: VersionId(4), title, description, .. }] if title == "Release" && description.is_empty()
+    ));
 }
 
 /// Delete turns the row into a confirmation; the Delete button there reports it.
@@ -201,5 +204,8 @@ fn edit_description_reports_the_new_text() {
     fixture.key(Key::A, Modifiers::COMMAND);
     fixture.type_text("new words");
     fixture.key(Key::Enter, Modifiers::NONE);
-    assert_eq!(*actions.borrow(), [VersionAction::Rename { id: VersionId(4), title: "Final".into(), description: "new words".into() }]);
+    assert!(matches!(
+        actions.borrow().as_slice(),
+        [VersionAction::Rename { id: VersionId(4), title, description, .. }] if title == "Final" && description == "new words"
+    ));
 }

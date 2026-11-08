@@ -74,6 +74,7 @@ craft_ui::words! {
 #[non_exhaustive]
 pub enum VersionAction {
     /// Save the current state as a named version.
+    #[non_exhaustive]
     Save {
         /// The title.
         title: String,
@@ -87,6 +88,7 @@ pub enum VersionAction {
     /// Restore a version as the current one.
     Restore(VersionId),
     /// A new title and description (a title edited in the row keeps the description).
+    #[non_exhaustive]
     Rename {
         /// The version to rename.
         id: VersionId,
@@ -100,6 +102,7 @@ pub enum VersionAction {
     /// Delete a version.
     Delete(VersionId),
     /// Create a branch.
+    #[non_exhaustive]
     CreateBranch {
         /// The branch's name.
         name: String,
@@ -216,6 +219,8 @@ pub struct VersionHistoryPanel<'a> {
     label: Label,
     versions: &'a [Version],
     branches: &'a [Branch],
+    /// The version being previewed, if any; its row is selected.
+    #[prop]
     previewing: Option<VersionId>,
     now: i64,
 }
@@ -224,13 +229,6 @@ impl<'a> VersionHistoryPanel<'a> {
     /// A panel listing `versions` and `branches`; `now` is the time, in Unix seconds, the ages count from.
     pub fn new(versions: &'a [Version], branches: &'a [Branch], now: i64) -> Self {
         VersionHistoryPanel { label: Label::Empty, versions, branches, previewing: None, now }
-    }
-
-    /// The version being previewed, if any; its row is selected.
-    #[must_use]
-    pub fn previewing(mut self, version: Option<VersionId>) -> Self {
-        self.previewing = version;
-        self
     }
 
     /// Shows the panel and reports what the user did.
@@ -398,7 +396,7 @@ fn history(
     let pending = state.confirm;
     let outcome = Cell::new(None);
     let find = |id: VersionId| versions.iter().find(|version| version.id == id);
-    let list_id = egui::Id::unique("craft-review.versions.history");
+    let list_id = ui.scope_id().with("versions-history");
     let list = List::new(words.title.clone())
         .id(list_id)
         .tree(true)

@@ -6,14 +6,11 @@ use craft_behavior::CanvasView;
 use craft_ui::canvas::{Canvas, ToolHost};
 use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, pointer, story};
-use egui::{Ui, Vec2};
+use egui::Ui;
 use kurbo::{Point, Rect};
 
 use super::{AnnotateTool, AnnotationOverlay, AnnotationToolbar};
 use crate::annotate::{Annotation, AnnotationId, AnnotationKind, AnnotationTool};
-
-/// How far the drive drags the rectangle.
-const DRAG: Vec2 = Vec2::new(90.0, 60.0);
 
 fn annotation(id: u64, kind: AnnotationKind, rect: Rect) -> Annotation {
     Annotation {
@@ -102,10 +99,12 @@ impl PartialEq for Shared {
 fn drag_rectangle(fixture: &mut Fixture) {
     let Some(canvas) = fixture.by_role(craft_ui::contract::Role::CANVAS).into_iter().next() else { return };
     let from = canvas.center();
+    // A quarter of the canvas, reached in four steps.
+    let by = canvas.rect.size() / 4.0;
     fixture.frame(vec![pointer::moved(from)]);
     fixture.frame(vec![pointer::press(from)]);
     for step in 1..=4 {
-        fixture.frame(vec![pointer::moved(from + DRAG * (step as f32 / 4.0))]);
+        fixture.frame(vec![pointer::moved(from + by * (step as f32 / 4.0))]);
     }
 }
 

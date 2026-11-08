@@ -77,6 +77,7 @@ pub const REACTIONS: [&str; 8] = ["👍", "❤", "😂", "🎉", "👀", "🙏",
 
 /// A pin or a cluster of pins on screen.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct PinCluster {
     /// Centre of the pin or cluster, in screen points.
     pub at: Pos2,
@@ -162,6 +163,7 @@ impl Completer for MentionCompleter {
 
 /// One thread's pin: where it is (screen), who started it and how it looks.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct CommentPin<'a> {
     /// The thread this pin belongs to.
     pub id: ThreadId,
@@ -179,8 +181,31 @@ pub struct CommentPin<'a> {
     pub resolved: bool,
 }
 
+impl<'a> CommentPin<'a> {
+    /// A read, unresolved pin of the thread `id` at `point`, started by `author` in their colour `color`; `text` is
+    /// the thread's first message.
+    pub fn new(id: ThreadId, point: Pos2, author: &'a str, text: &'a str, color: [u8; 3]) -> Self {
+        CommentPin { id, point, author, text, color, unread: false, resolved: false }
+    }
+
+    /// Whether the viewer hasn't read the thread.
+    #[must_use]
+    pub fn unread(mut self, unread: bool) -> Self {
+        self.unread = unread;
+        self
+    }
+
+    /// Whether the thread is resolved.
+    #[must_use]
+    pub fn resolved(mut self, resolved: bool) -> Self {
+        self.resolved = resolved;
+        self
+    }
+}
+
 /// A pin dragged to a new screen point; the app maps it to its anchor.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct PinMove {
     /// The thread that was dragged.
     pub thread: ThreadId,
