@@ -108,9 +108,9 @@ impl CellGrid<'_> {
 
     fn next_gesture(cx: &mut Cx<'_, Self>) -> GestureId {
         {
-        use craft_ui::runtime::commands::CommandAccess as _;
-        craft_ui::runtime::edit::next_gesture_id(cx.command_ctx())
-    }
+            use craft_ui::runtime::commands::CommandAccess as _;
+            craft_ui::runtime::edit::next_gesture_id(cx.command_ctx())
+        }
     }
 
     /// Keys and pointer gestures of one pass.

@@ -31,7 +31,13 @@ impl Scene {
         self.events
             .borrow()
             .iter()
-            .filter_map(|event| if let CollectionEvent::Toggle(edit) = event { edit.value().map(|toggle| (toggle.key, toggle.on)) } else { None })
+            .filter_map(|event| {
+                if let CollectionEvent::Toggle(edit) = event {
+                    edit.value().filter(|_| !matches!(edit, craft_behavior::EditEvent::Commit { .. })).map(|toggle| (toggle.key, toggle.on))
+                } else {
+                    None
+                }
+            })
             .collect()
     }
 
@@ -154,4 +160,50 @@ fn locked_cells_and_section_rows_take_no_toggle_press_or_sweep() {
     assert!(toggle_drag(&Switches::new(6, &[0], &[]), 0, 3).is_empty(), "a press on a locked cell does nothing and sweeps nothing");
     assert_eq!(toggle_drag(&Switches::new(6, &[2], &[]), 1, 3), vec![(1, true), (3, true)], "a sweep passes over a locked cell without setting it");
     assert!(toggle_drag(&Switches::new(6, &[], &[0]), 0, 3).is_empty(), "a section row's toggle column starts no sweep");
+}
+
+/// Escape during a tick sweep cancels every flip it made, each with the value from before.
+#[trial]
+fn escape_during_a_tick_sweep_cancels_the_flips_and_restores_the_values() {
+    let scene = Scene::default();
+    let source = Switches::new(6, &[], &[]);
+    let props = || {
+        CollectionProps::new().columns(vec![
+            ColumnSpec::new(NAME, "Name", ColumnWidth::Fixed(COL)),
+            ColumnSpec::new(MUTE, "Mute", ColumnWidth::Fixed(COL)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())),
+        ])
+    };
+    let mut frames = Frames::new();
+    let escape = std::cell::Cell::new(false);
+    let mut show = |ui: &mut Ui| {
+        if escape.take() {
+            pointer::cancel_captured_presses(ui.ctx());
+        }
+        show_table(ui, props(), &source, &scene);
+    };
+    frames.idle(3, &mut show);
+    let cell = |key: usize| Pos2::new(ORIGIN.x + COL * 1.5, scene.row(key).center().y);
+    frames.frame(vec![pointer::moved(cell(0))], &mut show);
+    frames.frame(vec![pointer::press(cell(0))], &mut show);
+    frames.frame(vec![pointer::moved(cell(1))], &mut show);
+    frames.frame(vec![pointer::moved(cell(3))], &mut show);
+    escape.set(true);
+    frames.frame(vec![], &mut show);
+    frames.idle(2, &mut show);
+    let events = scene.events.borrow();
+    let opened = events
+        .iter()
+        .filter(|event| matches!(event, CollectionEvent::Toggle(edit) if edit.phase() == Some(craft_behavior::GesturePhase::Begin)))
+        .count();
+    let cancelled: Vec<bool> = events
+        .iter()
+        .filter_map(|event| match event {
+            CollectionEvent::Toggle(craft_behavior::EditEvent::Cancel { before: Some(craft_behavior::Mixed::Same(before)), .. }) => Some(before.on),
+            _ => None,
+        })
+        .collect();
+    assert!(opened >= 2, "the sweep flipped several cells");
+    assert_eq!(cancelled.len(), opened, "every flip is cancelled through the edit cancel path");
+    assert!(cancelled.iter().all(|on| !on), "each restores the value from before the sweep");
+    assert!(!events.iter().any(|event| matches!(event, CollectionEvent::Toggle(edit) if edit.phase() == Some(craft_behavior::GesturePhase::Commit))));
 }

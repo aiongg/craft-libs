@@ -65,7 +65,13 @@ impl Seen {
         self.events
             .borrow()
             .iter()
-            .filter_map(|event| if let CollectionEvent::Toggle(edit) = event { edit.value().map(|toggle| (toggle.key, toggle.on)) } else { None })
+            .filter_map(|event| {
+                if let CollectionEvent::Toggle(edit) = event {
+                    edit.value().filter(|_| !matches!(edit, craft_behavior::EditEvent::Commit { .. })).map(|toggle| (toggle.key, toggle.on))
+                } else {
+                    None
+                }
+            })
             .collect()
     }
 

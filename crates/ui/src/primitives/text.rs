@@ -128,7 +128,16 @@ pub struct TextRun<'a> {
 impl<'a> TextRun<'a> {
     /// A one-span run in the label role.
     pub fn new(text: impl Into<Cow<'a, str>>) -> Self {
-        TextRun { spans: vec![Span::new(text)], role: TypeRole::Label, color: None, wrap: Wrap::Line, ltr: false, align: HAlign::Start, scale: 1.0, rotation: 0.0 }
+        TextRun {
+            spans: vec![Span::new(text)],
+            role: TypeRole::Label,
+            color: None,
+            wrap: Wrap::Line,
+            ltr: false,
+            align: HAlign::Start,
+            scale: 1.0,
+            rotation: 0.0,
+        }
     }
 
     /// A run of `spans`.
