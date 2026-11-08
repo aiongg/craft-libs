@@ -418,9 +418,6 @@ The geometry of a dock: a tree of splits over groups, laid out in a rect, with t
   - `pub fn set_native(panel: P, rect: Option<Rect>) -> Self`. Builds [`Action::SetNative`].
   - `pub fn set_monitor(panel: P, monitor: Option<Monitor>, monitor_size: Option<[f32; 2]>) -> Self`. Builds [`Action::SetMonitor`].
   - `pub fn move_panel(panel: P, to: Target<P>) -> Self`. Builds [`Action::MovePanel`].
-- `craft_behavior::dock::AnchoredResize`: `pub struct AnchoredResize`. A pointer-anchored resize. The opposite edges and handle grab offset stay fixed
-  - `pub fn new(start: Rect, pointer: Pos2, direction: Vec2) -> Option<Self>`. A resize of `start` grabbed at `pointer` by the handle on `direction`: each axis is -1 (the start
-  - `pub fn rect(self, pointer: Pos2, viewport: Rect, min: Vec2, max: Vec2) -> Option<Rect>`. The window rect with the moving edges at `pointer`, kept inside `viewport` and between the sizes `min` and
 - `craft_behavior::dock::Arrangement`: `pub enum Arrangement { TileAllVertically, TileAllHorizontally, TwoUpVertical, TwoUpHorizontal, ThreeUpVertical, ThreeUpHorizontal, ThreeUpStacked, FourUp, SixUp, ConsolidateAllToTabs, Cascade, Tile, FloatInWindow, FloatAllInWindows, NewWindowForDocument, MatchZoom, MatchLocation, MatchRotation, MatchAll }`. One Window › Arrange entry. The n-up entries split the document area into that many
   - `pub fn command_id(self) -> &'static str`. The command id (`window.arrange.tileAllVertically`).
   - `pub fn from_command_id(id: &str) -> Option<Self>`. The entry for a command id, `None` for other ids.
@@ -2973,6 +2970,8 @@ The toast queue: one per viewport, filled from any code with a `Context`.
 
 - `craft_ui::runtime::windows::CaptionRegions`: `pub struct CaptionRegions { pub buttons: Vec<(Button, Rect)>, pub edges: Vec<(ResizeEdge, Rect)>, pub moves: Vec<Rect> }`. Where the exclusive parts of one window lie, in points of its viewport: the window procedure answers a Windows
   - `pub fn hit(&self, point: Pos2) -> Option<WindowHit>`. What lies at `point`: a button wins over an edge, and an edge over a drag area.
+- `craft_ui::runtime::windows::HitSink`: `pub struct HitSink`. The Windows hit test of one window: the window procedure asks [`HitSink::answer`] where the OS asks for a hit
+  - `pub fn answer(&self, point: Pos2) -> Option<WindowHit>`. What lies at `point`, in points of the window's viewport. `None` where no exclusive part lies there: the
 - `craft_ui::runtime::windows::MonitorInfo`: `pub struct MonitorInfo { pub name: String, pub pixels: Rect, pub scale: f32 }`. A connected monitor, in physical pixels of the desktop.
   - `pub fn points_at(&self, window_scale: f32) -> Rect`. The monitor's area in points of a window whose scale is `window_scale` ([`WindowFacts::scale`]). Monitors
   - `pub fn placed_at(&self, window_scale: f32) -> craft_behavior::Monitor`. The monitor as the placement owner's type, in the points of a window whose scale is `window_scale`.
@@ -2982,6 +2981,7 @@ The toast queue: one per viewport, filled from any code with a `Context`.
 - `craft_ui::runtime::windows::WindowHit`: `pub enum WindowHit { Move, Resize(ResizeEdge), Caption(Button) }`. What a part of the window does for the operating system: a press on it moves the window, resizes it from an edge,
 - `craft_ui::runtime::windows::WindowHost`: `pub struct WindowHost`. The multi-window driver of one context.
   - `pub fn of(ctx: &Context) -> Self`. The window host of `ctx`.
+  - `pub fn current(&self) -> ViewportId`. The viewport the running pass is for.
   - `pub fn shell(&self) -> ShellInfo`. The shell as the running viewport sees it.
   - `pub fn viewports_available(&self) -> bool`. Whether OS viewports can open: the capability is on and the integration does not embed them.
   - `pub fn visible(&self) -> bool`. Whether the running viewport's window is drawn; a minimized or covered window runs no UI pass, so this reads
@@ -2994,9 +2994,11 @@ The toast queue: one per viewport, filled from any code with a `Context`.
   - `pub fn monitors_at(&self, window_scale: f32) -> Vec<craft_behavior::Monitor>`. The connected monitors as the placement owner's type, in the points of a window whose scale is
   - `pub fn set_outer(&self, viewport: ViewportId, outer: Rect) -> bool`. Places `viewport`'s outer rect at `outer`: its position, and the inner size that leaves the window's
   - `pub fn viewport_of(&self, id: Id) -> Option<ViewportId>`. The viewport of the container `id` while its window is open.
-  - `pub fn viewport_at(&self, at: Pos2) -> Option<ViewportId>`. The window under the desktop point `at`: the focused one where windows overlap, else the smallest.
+  - `pub fn viewport_at(&self, at: Pos2) -> Option<ViewportId>`. The window under the desktop point `at`: where windows overlap, the focused one, else the one focused last,
+  - `pub fn viewports_at(&self, at: Pos2) -> Vec<ViewportId>`. The windows under the desktop point `at`, the topmost first (the order of [`Self::viewport_at`]).
   - `pub fn frame(&self) -> Frame`. Who draws the running viewport's frame, and the caption buttons it shows.
   - `pub fn caption_regions(&self, viewport: ViewportId) -> Option<CaptionRegions>`. Where the exclusive parts of `viewport`'s window lay in its last complete pass: the caption buttons, the edge
+  - `pub fn install_hit_sink(&self, viewport: ViewportId) -> HitSink`. The hit-test sink of `viewport`'s window, made on the first call. The platform layer calls it once it has put
   - `pub fn pointer_in(&self, viewport: ViewportId) -> Option<Pos2>`. The desktop pointer in the coordinates of `viewport`, when it lies inside that window.
 - `craft_ui::runtime::windows::WindowLevel`: `pub enum WindowLevel { Normal, Palette, AlwaysOnTop }`. Where a window stands in the stack of windows.
 - `craft_ui::runtime::windows::WindowSpec`: `pub struct WindowSpec { pub kind: WindowKind, pub chrome: Option<WindowChrome>, pub captions: Option<Captions>, pub level: WindowLevel, pub taskbar: bool }`. How an OS window opens (21.2): what it is for, who draws its frame, where it stands and whether it has a taskbar
