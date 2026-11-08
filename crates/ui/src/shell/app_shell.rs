@@ -351,7 +351,7 @@ impl<'a> AppShell<'a> {
         let mut slots: Vec<Placed<'a>> = title.into_iter().chain(slots).collect();
         slots.sort_by_key(Placed::rank);
 
-        let root = ShellRegion::window().label(words.window.clone());
+        let root = ShellRegion::window().id_salt(window.as_str()).label(words.window.clone());
         let shown = root.show(ui, |ui, cx| {
             let ctx = ui.ctx().clone();
             let viewport = pass::current_viewport(&ctx);
