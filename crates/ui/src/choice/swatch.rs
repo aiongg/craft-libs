@@ -4,15 +4,15 @@
 use super::radio::RadioKind;
 use super::words::ChoiceWords;
 use crate::contract::{
-    Access, Activation, Common, Component, Cx, GroupHandle, MeasureCx, Outcome, PaintUi, Pointer as _, Props as _, Role, Styled as _, WordSetCx as _,
+    Access, Activation, Common, Component, Cx, GroupHandle, MeasureCx, Meta as _, Outcome, PaintUi, Pointer as _, Props as _, Role, Styled as _,
+    WordSetCx as _,
 };
-use crate::primitives::{Checker, ContentPainterCx, StrokeWidth};
+use crate::primitives::{Checker, ContentPainterCx, Draw, PaintShape, StrokeWidth};
 use crate::runtime::requests::ColorRequest;
-use crate::style::{ComponentStyle, DataColor, Flags, FocusLook, StyleColor, StyleCx, UiTokens, rgba_color};
+use crate::style::{ComponentStyle, DataColor, Flags, FocusLook, State, StateMix, StateSet, StyleColor, StyleCx, UiTokens, resolve_style};
 use craft_behavior::{CursorIcon, CursorPriority, Metrics, Mixed, Sense, Value};
 use craft_theme::{Rgba, Srgba, Stateful, States, over};
-use egui::epaint::{RectShape, StrokeKind};
-use egui::{Color32, CornerRadius, Rect, Response, Shape, Stroke, Vec2, pos2};
+use egui::{Color32, CornerRadius, Rect, Response, Shape, Vec2, pos2};
 
 #[cfg(feature = "testing")]
 mod stories;
@@ -247,14 +247,7 @@ impl<T: Value + 'static> Component for Swatch<T> {
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let style = cx.style;
-        let ink = FaceInk {
-            mixed_fill: style.mixed_fill.egui(),
-            mixed_mark: style.mixed_mark.egui(),
-            edge: cx.resolve(&style.edge).egui(),
-            ring: cx.resolve(&style.ring).egui(),
-        };
-        paint_face(&ui.content_painter(cx), cx.rect, style.radius, self.color, &ink);
+        paint_face(&ui.draw(), &ui.env.tokens, cx.rect, cx.style, cx.state(), self.color);
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> SwatchOutput {
@@ -264,43 +257,38 @@ impl<T: Value + 'static> Component for Swatch<T> {
     }
 }
 
-/// The colours a swatch face is painted with, apart from the colour it shows.
-struct FaceInk {
-    /// The well of a mixed colour.
-    mixed_fill: Color32,
-    /// The dash on a mixed well.
-    mixed_mark: Color32,
-    /// The ring on the well's outline.
-    edge: Color32,
-    /// The ring inside the outline of a selected well.
-    ring: Color32,
-}
-
-/// The one swatch face painter: the well of `color` in `well` with corners of `radius` (a checkerboard behind a
-/// translucent colour, the dash of a mixed one), then the outline ring and the selection ring.
-fn paint_face(cx: &ContentPainterCx<'_>, well: Rect, radius: CornerRadius, color: Mixed<Srgba>, ink: &FaceInk) {
-    let painter = &cx.painter;
-    let rect = |fill: Color32, stroke: Stroke| Shape::Rect(RectShape::new(well, radius, fill, stroke, StrokeKind::Inside));
+/// The one swatch face painter: the well of `color` in `well` (a checkerboard behind a translucent colour, the dash
+/// of a mixed one), then the outline ring and the selection ring, in `state`.
+fn paint_face(draw: &Draw<'_>, tokens: &UiTokens, well: Rect, style: &SwatchStyle, state: &StateSet, color: Mixed<Srgba>) {
+    let shape = PaintShape::Rect(well, style.radius);
     match color.same() {
         None => {
-            painter.add(rect(ink.mixed_fill, Stroke::NONE));
+            draw.fill(&shape, style.mixed_fill);
             let (center, half) = (well.center(), well.width() * MIXED_DASH_SHARE / 2.0);
-            let dash = vec![pos2(center.x - half, center.y), pos2(center.x + half, center.y)];
-            painter.add(Shape::line(dash, Stroke::new(cx.stroke_width(StrokeWidth::Medium), ink.mixed_mark)));
+            draw.stroke(
+                &PaintShape::Path(vec![pos2(center.x - half, center.y), pos2(center.x + half, center.y)]),
+                StrokeWidth::Medium,
+                style.mixed_mark,
+            );
         }
         Some(color) => {
             if color.a < 1.0 {
-                painter.extend(rounded(Checker::new().shapes(cx.tokens(), well, well), well, radius));
+                for cell in rounded(Checker::new().shapes(tokens, well, well), well, style.radius) {
+                    if let Shape::Rect(cell) = cell {
+                        draw.data_fill(&PaintShape::Rect(cell.rect, cell.corner_radius), DataColor::new(cell.fill));
+                    }
+                }
             }
-            painter.add(rect(Color32::from(*color), Stroke::NONE));
+            draw.data_fill(&shape, DataColor::new(Color32::from(*color)));
         }
     }
-    painter.add(rect(Color32::TRANSPARENT, Stroke::new(cx.stroke_width(StrokeWidth::Thin), ink.edge)));
-    painter.add(rect(Color32::TRANSPARENT, Stroke::new(cx.stroke_width(StrokeWidth::Thick), ink.ring)));
+    draw.stroke(&shape, StrokeWidth::Thin, state.resolve(&style.edge));
+    draw.stroke(&shape, StrokeWidth::Thick, state.resolve(&style.ring));
 }
 
 /// The face of a swatch outside a `Swatch`: a preset thumbnail of a colour (`PresetBrowser::thumb`). It paints
-/// what a `Swatch` of the same colour paints, with the selected ring when `selected`.
+/// what a non-cell `Swatch` of the same colour paints, from the style that `Swatch` resolves, with the selected
+/// ring when `selected`.
 #[derive(Clone, Copy, Debug)]
 pub struct SwatchFace {
     color: Mixed<Srgba>,
@@ -320,16 +308,14 @@ impl SwatchFace {
         self
     }
 
-    /// Paints the face filling `rect`, with the corners of a swatch.
+    /// Paints the face filling `rect`.
     pub fn paint(&self, cx: &ContentPainterCx<'_>, rect: Rect) {
-        let colors = &cx.tokens().color;
-        let ink = FaceInk {
-            mixed_fill: rgba_color(colors.surface.sunken),
-            mixed_mark: rgba_color(colors.text.muted),
-            edge: rgba_color(colors.line.control_edge),
-            ring: if self.selected { rgba_color(colors.accent.solid) } else { Color32::TRANSPARENT },
-        };
-        paint_face(cx, rect, UiTokens::corner(cx.tokens().shape.radius.sm), self.color, &ink);
+        let key = Swatch::new("", self.color).style_key();
+        let scope = cx.style_cx();
+        let style = resolve_style(&scope, key, cx.painter.ctx(), Swatch::<()>::style);
+        let (flags, on) = if self.selected { (Flags::SELECTED, 1.0) } else { (Flags::empty(), 0.0) };
+        let state = StateSet::new(State::Rest, flags, StateMix::new(0.0, 0.0, on));
+        cx.with_draw(|draw| paint_face(draw, scope.tokens, rect, &style, &state, self.color));
     }
 }
 
