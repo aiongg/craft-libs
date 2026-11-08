@@ -1,0 +1,132 @@
+# API map of the "Imaging: scopes, blend keys" family: old path to new path and setter renames.
+
+family = "Imaging: scopes, blend keys"
+new_module = "craft_imaging::ui"
+
+[[type]]
+name = "ScopePanel"
+old = "craft_imaging::ui::scopes::ScopePanel"
+new = "craft_imaging::ui::scopes::ScopePanel"
+status = "same"
+
+[[type]]
+name = "ScopePanelLabels"
+old = "craft_imaging::ui::scopes::ScopePanelLabels"
+new = ""
+status = "removed"
+
+[[type]]
+name = "ScopeWords"
+old = ""
+new = "craft_imaging::ui::scopes::ScopeWords"
+status = "replaced"
+note = "the words! set that replaces ScopePanelLabels; the menu rows are the labels of ScopeCommand"
+
+[[type]]
+name = "ScopeCommand"
+old = ""
+new = "craft_imaging::ui::scopes::ScopeCommand"
+status = "replaced"
+note = "the panel menu, the scope menu and the U and O keys as one command set in the panel.scopes scope"
+
+[[type]]
+name = "ScopePanelStyle"
+old = "craft_imaging::ui::scopes::ScopePanelStyle"
+new = ""
+status = "removed"
+
+[[type]]
+name = "ClippingOverlay"
+old = "craft_imaging::ui::scopes::ClippingOverlay"
+new = "craft_imaging::ui::scopes::ClippingOverlay"
+status = "same"
+
+[[type]]
+name = "VectorscopePlot"
+old = "craft_imaging::ui::scopes::VectorscopePlot"
+new = "craft_imaging::ui::scopes::VectorscopePlot"
+status = "same"
+
+[[type]]
+name = "BlendKeys"
+old = "craft_imaging::ui::blend_keys::BlendKeys"
+new = "craft_imaging::ui::blend_keys::BlendKeys"
+status = "same"
+
+[[type]]
+name = "BlendShortcut"
+old = "craft_imaging::ui::blend_keys::BlendShortcut"
+new = "craft_imaging::ui::blend_keys::BlendShortcut"
+status = "same"
+
+[[type]]
+name = "BlendStep"
+old = ""
+new = "craft_imaging::ui::blend_keys::BlendStep"
+status = "replaced"
+note = "Shift+= and Shift+- as a command set"
+
+[[setter]]
+type = "ScopePanel"
+old = "new(id_salt, state)"
+new = "new(state)"
+
+[[setter]]
+type = "ScopePanel"
+old = "markers(&[(f32, String)])"
+new = "markers(&[(f32, Label)])"
+
+[[setter]]
+type = "ScopePanel"
+old = "zones(&[ToneZone], &[String])"
+new = "zones(&[ToneZone], &[Label])"
+
+[[setter]]
+type = "ScopePanel"
+old = "labels"
+new = ""
+note = "removed"
+
+[[setter]]
+type = "ScopePanel"
+old = "style"
+new = ""
+note = "removed"
+
+[[setter]]
+type = "ScopePanel"
+old = "panel_menu(ctx, id_salt, state)"
+new = "panel_rows()"
+
+[[setter]]
+type = "ScopePanel"
+old = "scope_menu(ctx, id_salt, state, has_selection)"
+new = "ScopeCommand::context_menu(state, has_selection)"
+note = "the panel opens the menu itself; a host shows the same ScopeCommand rows"
+
+[[setter]]
+type = "ScopePanel"
+old = "run_command(ctx, id_salt, state, &PanelCommand)"
+new = "run_command(state, ScopeCommand)"
+
+[[setter]]
+type = "ClippingOverlay"
+old = "new(id_salt).show(ctx, painter, rect, mask, revision, mode)"
+new = "new(label, mask, revision, mode).show_at(ui, rect)"
+
+[[setter]]
+type = "ClippingOverlay"
+old = "image"
+new = ""
+note = "removed"
+
+[[setter]]
+type = "BlendKeys"
+old = "consume(ctx)"
+new = "fired(&Fired)"
+
+[[setter]]
+type = "BlendKeys"
+old = "gate"
+new = ""
+note = "removed; the command board routes the keys"
