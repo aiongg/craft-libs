@@ -1851,6 +1851,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub fn label(&self) -> Label`. The label as given.
   - `pub fn layout(&self, run: &TextRun<'_>) -> TextLayout`. Lays `run` out in the room the parent offers, as `Draw::text` will paint it.
   - `pub fn layout_at(&self, run: &TextRun<'_>, width: f32) -> TextLayout`. Lays `run` out `width` wide, for a text that paints in a band narrower than the room.
+  - `pub fn layout_doc(&self, text: &crate::primitives::DocText<'_>) -> TextLayout`. Lays document `text` out `text.wrap` wide, as `ContentPainterCx::layout` will paint it: the galley a content
   - `pub fn child<D: Show>(&self, key: impl Hash + Debug, child: &mut D, proposal: Proposal) -> Vec2`. Measures a child under the composite's resolved `enabled` and `size`, as `PaintUi::child` will show it.
   - `pub fn face<S: Show>(&self, mut face: S) -> Vec2`. The size `face` has when `PaintUi::face` shows it as the look of a part: steps 1, 2 and 4 of the face run
   - `pub fn icon(&self) -> f32`. The icon side of the component's size.
@@ -2587,6 +2588,7 @@ Per-pass and per-frame services and the one egui adapter.
   - `pub fn pans(&mut self, vertical: bool, horizontal: bool) -> &mut Self`. The leaf pans its content along the vertical and horizontal axes: the node serves the scroll actions on them,
   - `pub fn busy(&mut self, on: bool) -> &mut Self`. The node is working.
   - `pub fn node(&mut self, part: impl Into<PartRef>, role: Role) -> &mut SubNode`. A node below this component's node, keyed by a `PartRef` (content painters key lines and runs as
+  - `pub fn text_selection(&mut self, anchor:(PartRef, usize), focus:(PartRef, usize)) -> &mut Self`. The text selection of the component's own text, from `anchor` to `focus`: each end is a text-run sub-node
   - `pub fn custom_action(&mut self, id: i32, label: Label) -> &mut Self`. An action the component serves itself; it arrives through `cx.intents().take_access()`.
 - `craft_ui::runtime::access::GridPlace`: `pub struct GridPlace { pub row_index: Option<usize>, pub row_count: Option<usize>, pub column_index: Option<usize>, pub column_count: Option<usize> }`. The indexes and counts of a grid, table, row or cell node (12.3).
   - `pub const fn grid(rows: usize, columns: usize) -> Self`. A grid of `rows` rows and `columns` columns.
@@ -2607,6 +2609,8 @@ Per-pass and per-frame services and the one egui adapter.
   - `pub const fn of(mut self, size: usize) -> Self`. In a set of `size`.
   - `pub const fn level(mut self, level: usize) -> Self`. At depth `level`.
 - `craft_ui::runtime::access::SubNode`: `pub struct SubNode { pub name: Name, pub description: Option<String>, pub numeric: Option<Numeric>, pub expanded: Option<bool>, pub position: Option<SetPosition>, pub grid: GridPlace, pub level: Option<usize> }`. A node below a component's node, for a part, a cell or a line of a content painter.
+  - `pub fn bounds(&mut self, rect: egui::Rect) -> &mut Self`. The node's rectangle on screen, for a node that has no part of its own to take it from (a block of text a
+  - `pub fn text_run(&mut self, text: impl Into<String>, positions: Vec<f32>, widths: Vec<f32>, rtl: bool) -> &mut Self`. Makes the node a run of text: `text` laid out on one line, each character's start offset from the node's left
   - `pub fn level(&mut self, level: usize) -> &mut Self`. The heading level or tree depth.
   - `pub fn value(&mut self, text: impl Into<String>) -> &mut Self`. A plain text value, for a sub-node that shows text as its value and has no number.
   - `pub fn column(&mut self, key: craft_behavior::ColumnKey) -> &mut Self`. The column of a cell of an item row; the item step reads the cell's column index from the collection's
