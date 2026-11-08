@@ -1,7 +1,7 @@
 //! Font definitions and the on-demand script coverage policy; the egui calls sit in `runtime::egui::fonts`.
 
 mod defaults;
-mod document;
+pub(crate) mod document;
 mod faces;
 pub(crate) mod on_demand;
 pub(crate) mod script;

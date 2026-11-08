@@ -11,8 +11,6 @@ use egui::epaint::text::{Blob, FontTweak, VariationCoords};
 use egui::{Context, FontData};
 
 use super::FontRef;
-use crate::contract::{Component, Cx, MeasureCx};
-use crate::primitives::ContentPainterCx;
 use crate::runtime::egui::{fonts as egui_fonts, memory, pass};
 use crate::runtime::frame;
 
@@ -66,36 +64,16 @@ pub enum FaceState {
     Unavailable,
 }
 
-mod sealed {
+pub(crate) mod sealed {
     pub trait Sealed {
+        /// The context the faces are registered on.
         fn context(&self) -> &egui::Context;
     }
 }
 
-/// Where a document face is asked for: a content painter, a measure or a component's context.
+/// Where a document face is asked for: a content painter, a measure or a component's context. Sealed: the contexts of
+/// this crate implement it.
 pub trait FacesAt: sealed::Sealed {}
-
-impl sealed::Sealed for ContentPainterCx<'_> {
-    fn context(&self) -> &Context {
-        self.painter.ctx()
-    }
-}
-
-impl<C: Component> sealed::Sealed for MeasureCx<'_, C> {
-    fn context(&self) -> &Context {
-        self.ui.ctx()
-    }
-}
-
-impl<C: Component> sealed::Sealed for Cx<'_, C> {
-    fn context(&self) -> &Context {
-        &self.core.ctx
-    }
-}
-
-impl FacesAt for ContentPainterCx<'_> {}
-impl<C: Component> FacesAt for MeasureCx<'_, C> {}
-impl<C: Component> FacesAt for Cx<'_, C> {}
 
 /// A registered face: the frame it was last drawn in and the frame it was added in.
 struct Registered {
