@@ -10,8 +10,8 @@ mod stories;
 
 use super::words::SplitWords;
 use crate::contract::{
-    Access, Bind, BindMut, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, Focus as _, Name, Outcome, Pad, PaintUi,
-    PartsCx, Pointer as _, Props as _, Role, Sizing, WordSetCx as _,
+    Access, Bind, BindMut, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, Name, Outcome, Pad, PaintUi, PartsCx,
+    Pointer as _, Props as _, Role, Sizing, WordSetCx as _,
 };
 use crate::docking::divider::{self, Divider, Drag};
 use crate::docking::{DockSizes, Splitter};
@@ -340,7 +340,7 @@ impl Component for SplitViews<'_> {
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let words = cx.words::<SplitWords>();
         for (number, pane) in self.layout.reading_order().into_iter().enumerate() {
-            let number = cx.format().number((number + 1) as f64, 0..=0);
+            let number = cx.format().number((number + 1) as f64, 0);
             let name = words.view.fill(&[("n", number.as_str())]);
             access.node(PANE.at(pane as u64), Role::GROUP).name = Name::Text(name);
         }

@@ -48,7 +48,7 @@ pub use iconic::{IconicColumn, IconicColumnOutput, IconicColumnStyle, IconicSize
 
 use crate::contract::{
     Access, Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, DropMark, DropOperation, DropTarget, Edit as _, EditResponse,
-    Focus as _, Outcome, Pad, PaintUi, PartsCx, Props as _, Role, Sizing, WordSetCx as _,
+    Focus as _, Outcome, Pad, PaintUi, PartsCx, Pointer as _, Props as _, Role, Sizing, WordSetCx as _,
 };
 use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;
@@ -355,7 +355,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Component for SplitAr
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let Some(layout) = cx.value() else { return };
         let (rect, rtl, sizes) = (cx.rect, cx.flow.is_rtl(), cx.style.sizes);
-        let name = cx.words::<DockWords>().resize.as_str();
+        let words = cx.words::<DockWords>();
+        let name = words.resize.as_str();
         for (at, handle) in handles(layout, rect, &sizes, &self.rules, rtl).iter().enumerate() {
             let divider = divider_of(layout, handle, rect, &sizes, &self.rules, rtl, true);
             divider::describe(access, HANDLE, at as u64, &divider, name, sizes.step);
