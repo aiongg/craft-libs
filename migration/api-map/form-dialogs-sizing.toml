@@ -29,7 +29,7 @@ name = "HostedImageSize"
 old = ""
 new = "craft_ui::patterns::form_dialogs::HostedImageSize"
 status = "replaced"
-note = "The `StackDialog` form of `ImageSize`: `HostedImageSize::new(values: ImageSizeValues, build)` with `build` making the `ImageSize` over the host-owned values (`ImageSize::new`), `values()`, `Result = ImageSizeResult`, key `sizing.imageSize`. The app opens it on its `DialogHost` with the values of its document and takes the result with `host.take::<HostedImageSize>()`."
+note = "The `StackDialog` form of `ImageSize`: `HostedImageSize::new(values: ImageSizeValues, build)` with `build` making the `ImageSize` over the host-owned values (`|values| ImageSize::new(values)`), `values()`, `Result = ImageSizeResult`, key `sizing.imageSize`. The app opens it on its `DialogHost` with the values of its document and takes the result with `host.take::<HostedImageSize>()`."
 
 [[type]]
 name = "CanvasSize"
