@@ -10,8 +10,8 @@
 use super::track::{self, Pick, Press, Scale, SliderScale, TrackFace, Travel};
 use super::words::ValueDragWords;
 use crate::contract::{
-    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Numeric, PaintUi, PartsCx, Pointer as _,
-    Outcome, Remember as _, Role, WordSetCx as _,
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Numeric, Outcome, PaintUi, PartsCx,
+    Pointer as _, Remember as _, Role, WordSetCx as _,
 };
 use crate::primitives::{PaintShape, StrokeWidth};
 use crate::runtime::access::Name;
@@ -20,8 +20,8 @@ use crate::runtime::focus::{ActivateKeys, FocusShape, KeepKeys, KeyUse};
 use crate::style::{ComponentStyle, DataColor, FocusLook, StyleColor, StyleCx, TrackLook};
 use craft_behavior::nav::{LARGE_STEPS, StepResult, ValueAxes, ValueSteps, step_value};
 use craft_behavior::part::PartRef;
-use craft_keymap::Mods;
 use craft_behavior::{HitLevel, HitPriority, Metrics, Mixed, MoveMods, NavMove, PartKey, PressPhase, PressState, Sense, Wheel, wheel_step};
+use craft_keymap::Mods;
 use craft_theme::{Rgba, Stateful, States};
 use egui::{Pos2, Rect, Vec2, pos2};
 use std::ops::RangeInclusive;
