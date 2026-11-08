@@ -1294,7 +1294,7 @@ dependencies = [
  "craft-font-store",
  "craft-host",
  "craft-i18n",
- "craft-ui-legacy",
+ "craft-ui",
  "egui",
  "egui_kittest",
  "egui_system_font_provider",

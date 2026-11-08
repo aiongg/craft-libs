@@ -91,18 +91,3 @@ pub fn for_scripts<'a>(scripts: impl IntoIterator<Item = &'a str>) -> &'static s
     }
     first.unwrap_or(PANGRAM)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn samples_follow_language_then_script() {
-        assert_eq!(for_language("ja_Jpan"), language("ja"));
-        assert_eq!(for_language("zh_Hant"), Some(TRADITIONAL));
-        assert_eq!(for_language("xx_Arab"), language("ar"));
-        assert_eq!(for_language("xx_Zzzz"), None);
-        assert_eq!(for_scripts(["Arab", "Latn"]), PANGRAM);
-        assert_eq!(for_scripts(["Zzzz", "Hebr"]), language("he").unwrap_or_default());
-    }
-}

@@ -23,7 +23,7 @@ egui = { workspace = true, features = ["default_fonts"], optional = true }
 epaint_default_fonts = { version = "0.37", optional = true }
 # A host that wants installed fonts for characters its interface faces lack (language names in
 # their own scripts in the language filter) enables craft-ui's `system_fonts` itself.
-craft-ui = { package = "craft-ui-legacy", path = "../ui-legacy", optional = true }
+craft-ui = { workspace = true, optional = true }
 # The Host: settings section, jobs and interface language.
 craft-host = { workspace = true, features = ["ui"], optional = true }
 serde = { workspace = true, optional = true }
