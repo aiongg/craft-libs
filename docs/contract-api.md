@@ -3198,10 +3198,10 @@ The toast queue: one per viewport, filled from any code with a `Context`.
   - `pub fn level(mut self, level: WindowLevel) -> Self`. Sets the level.
   - `pub fn taskbar(mut self, taskbar: bool) -> Self`. Sets whether the window has a taskbar or Dock entry.
 - `craft_ui::runtime::windows::act`: `pub fn act(ctx: &Context, viewport: ViewportId, action: WindowAction) -> bool`. Sends `action` to `viewport`. It is the only sender of window commands: it checks the capabilities and the
+- `craft_ui::runtime::windows::double_click_action`: `pub fn double_click_action(frame: &Frame, setting: DoubleClick, maximized: bool) -> Option<WindowAction>`. What a double click on a window's free move band (its title bar, or the strip a modal leaves over it) asks of the
 - `craft_ui::runtime::windows::ScreenshotError`: re-export of `craft_ui::runtime::egui::screenshot::ScreenshotError`.
 - `craft_ui::runtime::windows::ScreenshotFacts`: re-export of `craft_ui::runtime::egui::screenshot::ScreenshotFacts`.
 - `craft_ui::runtime::windows::ScreenshotSlot`: re-export of `craft_ui::runtime::egui::screenshot::ScreenshotSlot`.
-- `craft_ui::runtime::windows::double_click_action`: `pub fn double_click_action(frame: &Frame, setting: DoubleClick, maximized: bool) -> Option<WindowAction>`. What a double click on a window's free move band (its title bar, or the strip a modal leaves over it) asks of the
 
 ## `craft_ui::runtime::words`
 
@@ -3305,7 +3305,7 @@ The style layer: the state set and its resolver, style parts and `ComponentStyle
 - `craft_ui::style::Variant`: re-export of `craft_theme::Variant` (outside these crates).
 - `craft_ui::style::VariantParts`: `pub struct VariantParts { pub fill: Stateful<StyleColor>, pub text: Stateful<StyleColor>, pub edge: Option<Stateful<StyleColor>>, pub radius: CornerRadius }`. A variant's look as style parts.
 - `craft_ui::style::accepted_variant`: `pub fn accepted_variant<K: StyleKey, S: ComponentStyle>(requested: Variant) -> Accepted`. A component accepts its `VARIANTS` plus every custom variant built for its style key. Any other variant gives
-- `craft_ui::style::control_metrics`: `pub fn control_metrics(tokens: &UiTokens, size: ControlSize) -> ControlMetrics`. The height, icon side, padding and gap of a control of `size`.
+- `craft_ui::style::control_metrics`: `pub fn control_metrics(tokens: &UiTokens, size: ControlSize, line_ratio: f32) -> ControlMetrics`. The height, icon side, padding and gap of a control of `size`.
 
 ## `craft_ui::testing`
 
