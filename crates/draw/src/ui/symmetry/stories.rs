@@ -59,9 +59,10 @@ fn editing_guides(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 
 /// Drags the centre handle.
 fn drag_the_centre(fixture: &mut Fixture) {
+    let travel = 2.0 * craft_ui::testing::input::max_click_dist(fixture.ctx());
     let centre = fixture.root_id().and_then(|id| fixture.part(id, SYMMETRY.at(CENTRE)));
     if let Some(centre) = centre {
-        fixture.drag_at(centre.center(), Vec2::new(30.0, 0.0));
+        fixture.drag(&centre, Vec2::new(travel, 0.0));
     }
 }
 

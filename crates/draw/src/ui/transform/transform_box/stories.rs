@@ -25,9 +25,10 @@ fn on_canvas(ui: &mut Ui, data: &mut StoryData, configure: impl for<'a> FnOnce(T
 
 /// Drags the bottom right corner handle.
 fn drag_a_corner(fixture: &mut Fixture) {
+    let travel = 2.0 * craft_ui::testing::input::max_click_dist(fixture.ctx());
     let corner = fixture.root_id().and_then(|id| fixture.part(id, BOX.at(BoxPart::Corner(2).index())));
     if let Some(corner) = corner {
-        fixture.drag_at(corner.center(), Vec2::new(30.0, 20.0));
+        fixture.drag(&corner, Vec2::new(travel, travel));
     }
 }
 

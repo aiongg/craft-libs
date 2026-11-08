@@ -41,11 +41,12 @@ fn on_canvas(ui: &mut Ui, control: CornerWidgets<'_>) -> StoryOutput {
     shown.inner.flatten().map(StoryOutput::from).unwrap_or_default()
 }
 
-/// Drags the first widget, the rectangle's top left corner, towards the inside.
+/// Drags the first widget, the rectangle's top left corner, by twice the drag threshold towards the inside.
 fn drag_the_first_widget(fixture: &mut Fixture) {
+    let travel = 2.0 * craft_ui::testing::input::max_click_dist(fixture.ctx());
     let first = fixture.root_id().and_then(|id| fixture.part(id, WIDGET.at(0)));
     if let Some(first) = first {
-        fixture.drag_at(first.center(), Vec2::new(15.0, 15.0));
+        fixture.drag(&first, Vec2::new(travel, travel));
     }
 }
 

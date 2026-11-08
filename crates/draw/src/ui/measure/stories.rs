@@ -24,9 +24,10 @@ fn on_canvas(ui: &mut Ui, line: &mut Option<RulerLine>) -> StoryOutput {
 
 /// Drags the line's end.
 fn drag_the_end(fixture: &mut Fixture) {
+    let travel = 2.0 * craft_ui::testing::input::max_click_dist(fixture.ctx());
     let end = fixture.root_id().and_then(|id| fixture.part(id, POINT.at(RulerPart::End.key())));
     if let Some(end) = end {
-        fixture.drag_at(end.center(), Vec2::new(40.0, 0.0));
+        fixture.drag(&end, Vec2::new(travel, 0.0));
     }
 }
 
