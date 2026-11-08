@@ -331,13 +331,3 @@ pub(super) fn list(catalog: &Arc<Catalog>, infos: &Infos, listing: &Listing<'_>,
     }
     (rows, comparable)
 }
-
-/// The row the keyboard lands on after typing `text`: the exact match, else the row that was selected, else the
-/// first row.
-pub fn accept_row(rows: &[FamilyRow], text: &str, selected: Option<usize>) -> Option<usize> {
-    let exact = text.to_lowercase();
-    rows.iter()
-        .position(|r| r.family.to_lowercase() == exact || r.shown.to_lowercase() == exact)
-        .or(selected.filter(|i| *i < rows.len()))
-        .or_else(|| (!rows.is_empty()).then_some(0))
-}

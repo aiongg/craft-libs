@@ -91,17 +91,17 @@ fn class_label(class: FontClass, words: &FontPickerWords) -> Label {
     }
 }
 
-/// The two letters that mark a class at the end of a row.
-fn class_mark(class: FontClass) -> &'static str {
+/// The short mark at the end of a row for a class.
+fn class_mark(class: FontClass, words: &FontPickerWords) -> Label {
     match class {
-        FontClass::Serif => "Se",
-        FontClass::SlabSerif => "Sl",
-        FontClass::SansSerif => "Sa",
-        FontClass::Script => "Sc",
-        FontClass::Monospace => "Mo",
-        FontClass::Handwritten => "Ha",
-        FontClass::Blackletter => "Bl",
-        FontClass::Decorative => "De",
+        FontClass::Serif => words.mark_serif.clone(),
+        FontClass::SlabSerif => words.mark_slab_serif.clone(),
+        FontClass::SansSerif => words.mark_sans_serif.clone(),
+        FontClass::Script => words.mark_script.clone(),
+        FontClass::Monospace => words.mark_monospace.clone(),
+        FontClass::Handwritten => words.mark_handwritten.clone(),
+        FontClass::Blackletter => words.mark_blackletter.clone(),
+        FontClass::Decorative => words.mark_decorative.clone(),
     }
 }
 
@@ -147,7 +147,7 @@ fn sample_thumb<'a>(
         let Some(info) = infos.families.get(&row.family) else { return };
         let text = infos.sample_text(picker.catalog, &row.family, sample, &row.shown);
         if let Shown::Ready(font) = shown(cx, picker.catalog, Owner::Installed, &info.regular) {
-            let ink = DataColor::new(cx.painter.ctx().global_style().visuals.text_color());
+            let ink = DataColor::new(cx.ink());
             paint_sample(cx, rect, &font, &text, rect.height() * SAMPLE_EM, ink);
         }
     }
@@ -221,7 +221,7 @@ pub(super) fn popup<'a>(picker: &mut FontPicker<'a>, ui: &mut OverlayUi<'_>, cx:
                                 let star = TrailingFace::Icon(IconSpec::svg(IconId::new(icon)));
                                 let line = ListRow::new(row.shown.clone()).option().trailing_part(STAR, star, name);
                                 let line = match row.class {
-                                    Some(class) => line.trailing(class_mark(class)),
+                                    Some(class) => line.trailing(class_mark(class, words)),
                                     None => line,
                                 };
                                 match size {

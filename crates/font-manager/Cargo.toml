@@ -11,9 +11,9 @@ repository.workspace = true
 default = []
 # `FontsPanel`: the whole interface as one egui panel, with the picker, the Glyphs panel, the axis sliders and the
 # Missing Fonts dialog.
-ui = ["dep:craft-behavior", "dep:craft-theme", "dep:egui", "dep:craft-ui", "dep:craft-host", "dep:serde", "dep:log", "dep:epaint_default_fonts", "dep:skrifa"]
+ui = ["dep:craft-behavior", "dep:craft-theme", "dep:egui", "dep:craft-ui", "dep:craft-host", "dep:serde", "dep:log", "dep:skrifa"]
 # The widgets' stories and trials (`tests/it`).
-screen-testing = ["ui", "craft-ui/testing"]
+screen-testing = ["ui", "craft-ui/testing", "dep:epaint_default_fonts"]
 
 [dependencies]
 craft-font-catalog = { workspace = true }

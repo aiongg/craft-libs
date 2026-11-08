@@ -42,10 +42,3 @@ pub use panel::{
 pub mod testing {
     craft_ui::testing_registered!();
 }
-
-/// The panel's job queue and sample sentences, for `tests/it/panel_parts.rs`.
-#[cfg(feature = "screen-testing")]
-#[doc(hidden)]
-pub mod panel_parts {
-    pub use crate::panel::{jobs, samples};
-}

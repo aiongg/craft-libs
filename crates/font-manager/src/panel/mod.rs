@@ -9,8 +9,8 @@ mod details;
 pub(crate) mod faces;
 #[cfg(feature = "screen-testing")]
 pub(crate) mod fixtures;
-pub mod jobs;
-pub mod samples;
+pub(crate) mod jobs;
+pub(crate) mod samples;
 mod sources;
 mod specimen;
 
