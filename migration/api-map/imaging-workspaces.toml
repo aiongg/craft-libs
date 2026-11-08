@@ -7,14 +7,7 @@ new_module = ""
 # One entry per public type: `old` is the path an app calls today, `new` the path after migration.
 # `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
 
-# One entry per renamed, removed or reshaped setter or constructor.
-# [[setter]]
-# type = ""
-# old = ""
-# new = ""
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 # img-select-mask
 
 [[type]]
@@ -111,8 +104,119 @@ status = "same"
 name = "SelectMaskCanvas"
 old = "craft_imaging::ui::select_mask::SelectMaskCanvas"
 new = "craft_imaging::ui::select_mask::SelectMaskCanvas"
-=======
-# img-fill
+status = "same"
+
+[[type]]
+name = "OVERLAY_COLOR_KEY"
+old = "craft_imaging::ui::fill::OVERLAY_COLOR_KEY"
+new = "craft_imaging::ui::fill::OVERLAY_COLOR_KEY"
+status = "same"
+
+[[type]]
+name = "SelectMaskSource"
+old = "craft_imaging::ui::select_mask::SelectMaskSource"
+new = "craft_imaging::ui::select_mask::SelectMaskSource"
+status = "replaced"
+note = "Gains `preview_job(&self, &SelectMaskPreviewRequest) -> Job<PreviewDone, String>`: the workspace starts it once per request through the dialog's pending store. `view`, `image` and `ants` stay."
+
+[[type]]
+name = "SelectMaskOpen"
+old = "craft_imaging::ui::select_mask::SelectMaskOpen"
+new = "craft_imaging::ui::select_mask::SelectMaskOpen"
+status = "replaced"
+note = "`checkerboard` is a `craft_ui::primitives::Checker`; `cursor_options` is an `Option<BrushCursorOptions>`; the fields `navigation`, `checkerboard` and `cursor_options` keep their builders."
+
+[[type]]
+name = "SelectMaskEvent"
+old = "craft_imaging::ui::select_mask::SelectMaskEvent"
+new = "craft_imaging::ui::select_mask::SelectMaskEvent"
+status = "replaced"
+note = "`Edit` and `Refine` carry an `EditPhase<T>` (Begin, Update, Commit, Cancel, Set) in place of the legacy `EditEvent<T>` with modifiers: the new `EditEvent` has no slot for a value at Begin."
+
+[[type]]
+name = "SelectMaskOutput"
+old = "craft_imaging::ui::select_mask::SelectMaskOutput"
+new = "craft_imaging::ui::select_mask::SelectMaskOutput"
+status = "replaced"
+note = "`closed: Option<DialogRole>` replaces `outcome`; `response` replaces `rect`; `preview_wanted` is gone (the workspace asks for the preview itself through `preview_job`)."
+
+[[type]]
+name = "SelectMaskWorkspace"
+old = "craft_imaging::ui::select_mask::SelectMaskWorkspace"
+new = "craft_imaging::ui::select_mask::SelectMaskWorkspace"
+status = "replaced"
+note = "`show(ui, source)` takes a `Ui` (was a `Context`). `navigation`, `checkerboard`, `cursor_options` and `set_color` stay as setters; `zoom(ViewCommand)` and `mask_view(MaskViewKeys, FirePhase)` are the app's forwards; `step(Step)` is the app's Undo and Redo."
+
+[[type]]
+name = "SelectMaskBar"
+old = "craft_imaging::ui::select_mask::SelectMaskBar"
+new = "craft_imaging::ui::select_mask::SelectMaskBar"
+status = "replaced"
+note = "A pattern: `SelectMaskBar::new(tool, &mut options).show(ui)`; it takes no id salt and no labels."
+
+[[type]]
+name = "SelectMaskBarOutput"
+old = "craft_imaging::ui::select_mask::SelectMaskBarOutput"
+new = "craft_imaging::ui::select_mask::SelectMaskBarOutput"
+status = "replaced"
+note = "Gains an `Outcome` impl; `edit` is a `craft_behavior::EditEvent<SelectMaskToolOptions>`."
+
+[[type]]
+name = "SelectMaskPanel"
+old = "craft_imaging::ui::select_mask::SelectMaskPanel"
+new = "craft_imaging::ui::select_mask::SelectMaskPanel"
+status = "replaced"
+note = "A pattern: `SelectMaskPanel::new(&mut settings, &mut refine, &mut view).error(msg).show(ui)`; it takes no id salt and no labels."
+
+[[type]]
+name = "SelectMaskPanelOutput"
+old = "craft_imaging::ui::select_mask::SelectMaskPanelOutput"
+new = "craft_imaging::ui::select_mask::SelectMaskPanelOutput"
+status = "replaced"
+note = "Gains an `Outcome` impl; `edit` is a `craft_behavior::EditEvent<RefineSettings>`; `pick_color` is a `craft_ui::runtime::requests::ColorRequest`."
+
+[[type]]
+name = "SelectMaskCanvasTool"
+old = "craft_imaging::ui::select_mask::SelectMaskCanvasTool"
+new = "craft_imaging::ui::select_mask::SelectMaskCanvasTool"
+status = "replaced"
+note = "A `CanvasTool` over the new `ToolContext`: the document point comes from the canvas space, the keys are `ToolKey::{Submit, Cancel, Delete}`, the stroke trail and outlines are painted with `Draw` and the marching ants, and the resize preview is a canvas control the workspace shows."
+
+[[type]]
+name = "SelectMaskLabels"
+old = "craft_imaging::ui::select_mask::SelectMaskLabels"
+new = "craft_imaging::ui::select_mask::SelectMaskWords"
+status = "replaced"
+note = "`words!` rows under the same `selectMask.*` ids; the tool names are the labels of `SelectMaskCommands`; the counted limit words are `count` rows (`limit_edits`, `limit_edit_points`, `limit_strokes`, `limit_stroke_points`) and `LimitRefused::message` takes an `Env`."
+
+[[type]]
+name = "SelectMaskStyle"
+old = "craft_imaging::ui::select_mask::SelectMaskStyle"
+new = ""
+status = "removed"
+note = "The reach sizes are named constants of the tool and the trail colour is the accent token at a share, read from the paint call's style context."
+
+[[type]]
+name = "SelectMaskCommands"
+old = ""
+new = "craft_imaging::ui::select_mask::SelectMaskCommands"
+status = "moved"
+note = "New command set (prefix `selectMask`, scope `selectMask`): the tool letters and the brush size keys, taken in the dialog's scope."
+
+[[type]]
+name = "EditPhase"
+old = ""
+new = "craft_imaging::ui::select_mask::EditPhase"
+status = "moved"
+note = "New: the lifecycle of a tool edit or stroke in `SelectMaskEvent`."
+
+[[type]]
+name = "SelectMaskPreviewRequest"
+old = ""
+new = "craft_imaging::ui::select_mask::SelectMaskPreviewRequest"
+status = "moved"
+note = "New: what `SelectMaskSource::preview_job` is asked for."
+
 [[type]]
 name = "ContentAwareFillWorkspace"
 old = "craft_imaging::ui::fill::ContentAwareFillWorkspace"
@@ -279,148 +383,6 @@ status = "same"
 name = "FillOutput"
 old = "craft_imaging::ui::fill::FillOutput"
 new = "craft_imaging::ui::fill::FillOutput"
->>>>>>> mig/d-img-fill
-status = "same"
-
-[[type]]
-name = "OVERLAY_COLOR_KEY"
-<<<<<<< HEAD
-old = "craft_imaging::ui::select_mask::OVERLAY_COLOR_KEY"
-new = "craft_imaging::ui::select_mask::OVERLAY_COLOR_KEY"
-status = "same"
-
-[[type]]
-name = "SelectMaskSource"
-old = "craft_imaging::ui::select_mask::SelectMaskSource"
-new = "craft_imaging::ui::select_mask::SelectMaskSource"
-status = "replaced"
-note = "Gains `preview_job(&self, &SelectMaskPreviewRequest) -> Job<PreviewDone, String>`: the workspace starts it once per request through the dialog's pending store. `view`, `image` and `ants` stay."
-
-[[type]]
-name = "SelectMaskOpen"
-old = "craft_imaging::ui::select_mask::SelectMaskOpen"
-new = "craft_imaging::ui::select_mask::SelectMaskOpen"
-status = "replaced"
-note = "`checkerboard` is a `craft_ui::primitives::Checker`; `cursor_options` is an `Option<BrushCursorOptions>`; the fields `navigation`, `checkerboard` and `cursor_options` keep their builders."
-
-[[type]]
-name = "SelectMaskEvent"
-old = "craft_imaging::ui::select_mask::SelectMaskEvent"
-new = "craft_imaging::ui::select_mask::SelectMaskEvent"
-status = "replaced"
-note = "`Edit` and `Refine` carry an `EditPhase<T>` (Begin, Update, Commit, Cancel, Set) in place of the legacy `EditEvent<T>` with modifiers: the new `EditEvent` has no slot for a value at Begin."
-
-[[type]]
-name = "SelectMaskOutput"
-old = "craft_imaging::ui::select_mask::SelectMaskOutput"
-new = "craft_imaging::ui::select_mask::SelectMaskOutput"
-status = "replaced"
-note = "`closed: Option<DialogRole>` replaces `outcome`; `response` replaces `rect`; `preview_wanted` is gone (the workspace asks for the preview itself through `preview_job`)."
-
-[[type]]
-name = "SelectMaskWorkspace"
-old = "craft_imaging::ui::select_mask::SelectMaskWorkspace"
-new = "craft_imaging::ui::select_mask::SelectMaskWorkspace"
-status = "replaced"
-note = "`show(ui, source)` takes a `Ui` (was a `Context`). `navigation`, `checkerboard`, `cursor_options` and `set_color` stay as setters; `zoom(ViewCommand)` and `mask_view(MaskViewKeys, FirePhase)` are the app's forwards; `step(Step)` is the app's Undo and Redo."
-
-[[type]]
-name = "SelectMaskBar"
-old = "craft_imaging::ui::select_mask::SelectMaskBar"
-new = "craft_imaging::ui::select_mask::SelectMaskBar"
-status = "replaced"
-note = "A pattern: `SelectMaskBar::new(tool, &mut options).show(ui)`; it takes no id salt and no labels."
-
-[[type]]
-name = "SelectMaskBarOutput"
-old = "craft_imaging::ui::select_mask::SelectMaskBarOutput"
-new = "craft_imaging::ui::select_mask::SelectMaskBarOutput"
-status = "replaced"
-note = "Gains an `Outcome` impl; `edit` is a `craft_behavior::EditEvent<SelectMaskToolOptions>`."
-
-[[type]]
-name = "SelectMaskPanel"
-old = "craft_imaging::ui::select_mask::SelectMaskPanel"
-new = "craft_imaging::ui::select_mask::SelectMaskPanel"
-status = "replaced"
-note = "A pattern: `SelectMaskPanel::new(&mut settings, &mut refine, &mut view).error(msg).show(ui)`; it takes no id salt and no labels."
-
-[[type]]
-name = "SelectMaskPanelOutput"
-old = "craft_imaging::ui::select_mask::SelectMaskPanelOutput"
-new = "craft_imaging::ui::select_mask::SelectMaskPanelOutput"
-status = "replaced"
-note = "Gains an `Outcome` impl; `edit` is a `craft_behavior::EditEvent<RefineSettings>`; `pick_color` is a `craft_ui::runtime::requests::ColorRequest`."
-
-[[type]]
-name = "SelectMaskCanvasTool"
-old = "craft_imaging::ui::select_mask::SelectMaskCanvasTool"
-new = "craft_imaging::ui::select_mask::SelectMaskCanvasTool"
-status = "replaced"
-note = "A `CanvasTool` over the new `ToolContext`: the document point comes from the canvas space, the keys are `ToolKey::{Submit, Cancel, Delete}`, the stroke trail and outlines are painted with `Draw` and the marching ants, and the resize preview is a canvas control the workspace shows."
-
-[[type]]
-name = "SelectMaskLabels"
-old = "craft_imaging::ui::select_mask::SelectMaskLabels"
-new = "craft_imaging::ui::select_mask::SelectMaskWords"
-status = "replaced"
-note = "`words!` rows under the same `selectMask.*` ids; the tool names are the labels of `SelectMaskCommands`; the counted limit words are `count` rows (`limit_edits`, `limit_edit_points`, `limit_strokes`, `limit_stroke_points`) and `LimitRefused::message` takes an `Env`."
-
-[[type]]
-name = "SelectMaskStyle"
-old = "craft_imaging::ui::select_mask::SelectMaskStyle"
-new = ""
-status = "removed"
-note = "The reach sizes are named constants of the tool and the trail colour is the accent token at a share, read from the paint call's style context."
-
-[[type]]
-name = "SelectMaskCommands"
-old = ""
-new = "craft_imaging::ui::select_mask::SelectMaskCommands"
-status = "moved"
-note = "New command set (prefix `selectMask`, scope `selectMask`): the tool letters and the brush size keys, taken in the dialog's scope."
-
-[[type]]
-name = "EditPhase"
-old = ""
-new = "craft_imaging::ui::select_mask::EditPhase"
-status = "moved"
-note = "New: the lifecycle of a tool edit or stroke in `SelectMaskEvent`."
-
-[[type]]
-name = "SelectMaskPreviewRequest"
-old = ""
-new = "craft_imaging::ui::select_mask::SelectMaskPreviewRequest"
-status = "moved"
-note = "New: what `SelectMaskSource::preview_job` is asked for."
-
-[[setter]]
-type = "SelectMaskOpen"
-old = "checkerboard(Checkerboard)"
-new = "checkerboard(craft_ui::primitives::Checker)"
-
-[[setter]]
-type = "SelectMaskOpen"
-old = "cursor_options(CursorOptions)"
-new = "cursor_options(BrushCursorOptions)"
-
-[[setter]]
-type = "SelectMaskWorkspace"
-old = "cursor_options(&mut self, CursorOptions) -> &mut Self"
-new = "cursor_options(&mut self, BrushCursorOptions)"
-
-[[setter]]
-type = "SelectMaskWorkspace"
-old = "preview_ready(PreviewTicket)"
-new = ""
-
-[[setter]]
-type = "SelectMaskWorkspace"
-old = "preview_failed(PreviewTicket, String)"
-new = ""
-=======
-old = "craft_imaging::ui::fill::OVERLAY_COLOR_KEY"
-new = "craft_imaging::ui::fill::OVERLAY_COLOR_KEY"
 status = "same"
 
 [[type]]
@@ -463,75 +425,6 @@ old = ""
 new = "craft_imaging::ui::fill::PreviewFraming"
 status = "replaced"
 note = "The preview pane view framing state."
-
-[[setter]]
-type = "ContentAwareFillWorkspace"
-old = "show(ctx, source)"
-new = "show(ui, source)"
-note = "Shown in a Ui; the output has closed: Option<DialogRole> and apply: bool in place of outcome."
-
-[[setter]]
-type = "ContentAwareFillWorkspace"
-old = "navigation(options)"
-new = "navigation(options)"
-note = "Unchanged name; NavigationOptions is craft_ui::canvas::NavigationOptions."
-
-[[setter]]
-type = "ContentAwareFillWorkspace"
-old = "checkerboard(checkerboard)"
-new = "checkerboard(checker)"
-note = "Checker replaces Checkerboard."
-
-[[setter]]
-type = "ContentAwareFillWorkspace"
-old = "cursor_options(options)"
-new = "cursor_options(options)"
-note = "BrushCursorOptions replaces CursorOptions."
-
-[[setter]]
-type = "ContentAwareFillWorkspace"
-old = "preview_ready(ticket)"
-new = ""
-note = "Removed: the preview job is a Pending the workspace polls; the source gives FillSource::preview_job."
-
-[[setter]]
-type = "ContentAwareFillWorkspace"
-old = "preview_failed(ticket, message)"
-new = ""
-note = "Removed: a failed job shows through FullWindowStatus."
-
-[[setter]]
-type = "FillOutput"
-old = "preview_wanted"
-new = ""
-note = "Replaced by FillSource::preview_job."
-
-[[setter]]
-type = "FillOutput"
-old = "outcome"
-new = "closed, apply"
-note = "closed: Option<DialogRole> (Accept, Cancel) and apply: bool."
-
-[[setter]]
-type = "FillCanvas"
-old = "cursor_options(options)"
-new = ""
-note = "Removed: the workspace passes the cursor options to the tool."
-
-[[setter]]
-type = "ContentAwareFillWorkspace"
-old = "step(step)"
-new = "step(step)"
-note = "Step is craft_behavior::edit_history::Step; with a stroke open the step waits for the next pass."
-
-[[setter]]
-type = "ContentAwareFillWorkspace"
-old = "zoom(keys)"
-new = ""
-note = "Removed: the zoom chords are the ViewCommand scope of the dialog."
->>>>>>> mig/d-img-fill
-=======
-# img-vanishing
 
 [[type]]
 name = "VanishingPointWorkspace"
@@ -700,6 +593,99 @@ old = "craft_imaging::ui::vanishing_point::PlaneEdge"
 new = "craft_imaging::ui::vanishing_point::PlaneEdge"
 status = "same"
 
+# One entry per renamed, removed or reshaped setter or constructor.
+
+[[setter]]
+type = "SelectMaskOpen"
+old = "checkerboard(Checkerboard)"
+new = "checkerboard(craft_ui::primitives::Checker)"
+
+[[setter]]
+type = "SelectMaskOpen"
+old = "cursor_options(CursorOptions)"
+new = "cursor_options(BrushCursorOptions)"
+
+[[setter]]
+type = "SelectMaskWorkspace"
+old = "cursor_options(&mut self, CursorOptions) -> &mut Self"
+new = "cursor_options(&mut self, BrushCursorOptions)"
+
+[[setter]]
+type = "SelectMaskWorkspace"
+old = "preview_ready(PreviewTicket)"
+new = ""
+
+[[setter]]
+type = "SelectMaskWorkspace"
+old = "preview_failed(PreviewTicket, String)"
+new = ""
+
+[[setter]]
+type = "ContentAwareFillWorkspace"
+old = "show(ctx, source)"
+new = "show(ui, source)"
+note = "Shown in a Ui; the output has closed: Option<DialogRole> and apply: bool in place of outcome."
+
+[[setter]]
+type = "ContentAwareFillWorkspace"
+old = "navigation(options)"
+new = "navigation(options)"
+note = "Unchanged name; NavigationOptions is craft_ui::canvas::NavigationOptions."
+
+[[setter]]
+type = "ContentAwareFillWorkspace"
+old = "checkerboard(checkerboard)"
+new = "checkerboard(checker)"
+note = "Checker replaces Checkerboard."
+
+[[setter]]
+type = "ContentAwareFillWorkspace"
+old = "cursor_options(options)"
+new = "cursor_options(options)"
+note = "BrushCursorOptions replaces CursorOptions."
+
+[[setter]]
+type = "ContentAwareFillWorkspace"
+old = "preview_ready(ticket)"
+new = ""
+note = "Removed: the preview job is a Pending the workspace polls; the source gives FillSource::preview_job."
+
+[[setter]]
+type = "ContentAwareFillWorkspace"
+old = "preview_failed(ticket, message)"
+new = ""
+note = "Removed: a failed job shows through FullWindowStatus."
+
+[[setter]]
+type = "FillOutput"
+old = "preview_wanted"
+new = ""
+note = "Replaced by FillSource::preview_job."
+
+[[setter]]
+type = "FillOutput"
+old = "outcome"
+new = "closed, apply"
+note = "closed: Option<DialogRole> (Accept, Cancel) and apply: bool."
+
+[[setter]]
+type = "FillCanvas"
+old = "cursor_options(options)"
+new = ""
+note = "Removed: the workspace passes the cursor options to the tool."
+
+[[setter]]
+type = "ContentAwareFillWorkspace"
+old = "step(step)"
+new = "step(step)"
+note = "Step is craft_behavior::edit_history::Step; with a stroke open the step waits for the next pass."
+
+[[setter]]
+type = "ContentAwareFillWorkspace"
+old = "zoom(keys)"
+new = ""
+note = "Removed: the zoom chords are the ViewCommand scope of the dialog."
+
 [[setter]]
 type = "VanishingPointWorkspace"
 old = "labels"
@@ -718,4 +704,3 @@ old = "cursor_options"
 new = ""
 note = "The cursor service holds the user's cursor options."
 
->>>>>>> mig/d-img-vanishing

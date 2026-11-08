@@ -33,13 +33,6 @@ craft-imaging = { path = ".", features = ["screen-testing"] }
 egui = { workspace = true, features = ["default_fonts", "serde"] }
 libtest-mimic = "0.8"
 serde_json = { workspace = true }
-libtest-mimic = "0.8"
-
-[[test]]
-name = "it"
-path = "tests/it/main.rs"
-harness = false
-required-features = ["screen-testing"]
 
 [[test]]
 name = "it"
@@ -49,9 +42,3 @@ required-features = ["screen-testing"]
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 egui_kittest = { version = "0.37", features = ["wgpu"] }
-
-[[test]]
-name = "it"
-path = "tests/it/main.rs"
-harness = false
-required-features = ["screen-testing"]

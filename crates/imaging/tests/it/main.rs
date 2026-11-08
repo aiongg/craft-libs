@@ -20,9 +20,6 @@ mod transform_preview;
 mod vanishing_point;
 mod warp;
 
-mod fill;
-use craft_imaging::testing::registered;
-mod vanishing_point;
 use craft_ui::testing::{TRIALS, suite};
 use libtest_mimic::{Arguments, Trial};
 
@@ -41,6 +38,5 @@ fn main() {
         })
         .collect();
     trials.extend(suite::trials(env!("CARGO_PKG_NAME"), &craft_imaging::testing::registered()));
-    trials.extend(suite::trials(env!("CARGO_PKG_NAME"), &registered()));
     libtest_mimic::run(&args, trials).exit();
 }
