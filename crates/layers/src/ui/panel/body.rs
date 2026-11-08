@@ -308,9 +308,21 @@ pub(super) fn show_body<T: LayerTree>(
     let mut events: Vec<LayersEvent<T::Id>> = reveal.opens.iter().cloned().map(LayersEvent::Open).collect();
     let selection_changed = out.events.iter().any(|event| matches!(event, CollectionEvent::Selection(_)));
     let mut list_events = out.events;
-    // A double click on a renamable layer's row renames it in place; Enter, a thumbnail and a layer that can't be
-    // renamed report the activation.
-    if ui.input(|input| input.pointer.primary_down()) {
+    // A double click on a renamable layer's row renames it in place, once the press is released as a click. Enter, a
+    // thumbnail and a layer that can't be renamed report the activation.
+    let (down, released, dragging) =
+        ui.input(|input| (input.pointer.primary_down(), input.pointer.primary_released(), input.pointer.is_decidedly_dragging()));
+    let reordered = list_events.iter().any(|event| matches!(event, CollectionEvent::Reorder(_)));
+    if let Some((id, dragged)) = session.rename_after.take() {
+        if released {
+            if !(dragged || dragging || reordered) {
+                start_rename(ui, cx.list, id);
+            }
+        } else if down {
+            session.rename_after = Some((id, dragged || dragging || reordered));
+        }
+    }
+    if down {
         let thumbs: Vec<LayerRowKey<T::Id>> = list_events
             .iter()
             .filter_map(|event| match event {
@@ -322,7 +334,7 @@ pub(super) fn show_body<T: LayerTree>(
             let CollectionEvent::Activate(LayerRowKey::Layer(id)) = event else { return true };
             let renames = tree.info(id).renamable && !thumbs.iter().any(|key| key.layer() == id);
             if renames {
-                start_rename(ui, cx.list, id.clone());
+                session.rename_after = Some((id.clone(), false));
             }
             !renames
         });

@@ -108,11 +108,14 @@ pub(super) struct Session<Id> {
     sweep: Option<ToggleSweep>,
     /// The filter the panel keeps when the app gives none.
     filter: LayerFilter,
+    /// The layer whose row got a double press, and whether the press became a drag: the rename starts at the release
+    /// of a press that stayed a click.
+    rename_after: Option<(Id, bool)>,
 }
 
 impl<Id> Default for Session<Id> {
     fn default() -> Self {
-        Session { anchor: None, produced: Vec::new(), seen_active: None, menu: None, sweep: None, filter: LayerFilter::default() }
+        Session { anchor: None, produced: Vec::new(), seen_active: None, menu: None, sweep: None, filter: LayerFilter::default(), rename_after: None }
     }
 }
 

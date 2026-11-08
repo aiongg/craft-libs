@@ -231,6 +231,7 @@ impl StackDialog for LayersOptionsDialog {
                     Checkbox::new(Bind::bound(value)).label(Label::from(label.clone())).show(ui);
                 }
             });
+            eprintln!("DIAG body end min={:?} clip={:?}", ui.min_rect(), ui.clip_rect());
             true
         });
         match (shown.accepted, shown.closed) {

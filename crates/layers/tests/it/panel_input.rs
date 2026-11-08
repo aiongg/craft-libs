@@ -339,11 +339,16 @@ fn a_click_on_a_mask_chain_reports_the_link_change() {
     assert!(mask_links(&take(&app)).contains(&(3, LayerPart::LayerMask, true)));
 }
 
+/// Whether a rename field is open: a text input other than the filter bar's search field.
+fn rename_field_open(fixture: &Fixture) -> bool {
+    fixture.by_role(Role::TEXT_INPUT).iter().any(|field| fixture.tree().name_of(field.node) != Some("Search layers"))
+}
+
 /// Opens the rename field of `name` by a double click on it.
 fn begin_rename(fixture: &mut Fixture, app: &Shared, name: &str) {
     let pos = name_at(fixture, name);
     double_click(fixture, pos);
-    assert!(!fixture.by_role(Role::TEXT_INPUT).is_empty(), "{name} is being renamed");
+    assert!(rename_field_open(fixture), "{name} is being renamed");
     take(app);
 }
 
@@ -366,22 +371,22 @@ fn rename_rules_enter_tab_escape_empty_unchanged() {
     fixture.key(Key::Enter, Modifiers::NONE);
     let events = take(&app);
     assert_eq!(renames(&events), [(4, String::from("Heading"))], "Enter commits the trimmed text; events: {events:?}");
-    assert!(fixture.by_role(Role::TEXT_INPUT).is_empty());
+    assert!(!rename_field_open(&fixture));
 
     begin_rename(&mut fixture, &app, "Title");
     retype(&mut fixture, "Tabbed");
     fixture.key(Key::Tab, Modifiers::NONE);
     assert_eq!(renames(&take(&app)), [(4, String::from("Tabbed"))], "Tab commits");
-    assert!(!fixture.by_role(Role::TEXT_INPUT).is_empty(), "and continues on the next renamable row");
+    assert!(rename_field_open(&fixture), "and continues on the next renamable row");
     fixture.key(Key::Escape, Modifiers::NONE);
     assert!(renames(&take(&app)).is_empty(), "Esc cancels the continued edit");
-    assert!(fixture.by_role(Role::TEXT_INPUT).is_empty());
+    assert!(!rename_field_open(&fixture));
 
     begin_rename(&mut fixture, &app, "Title");
     retype(&mut fixture, "Discarded");
     fixture.key(Key::Escape, Modifiers::NONE);
     assert!(renames(&take(&app)).is_empty(), "Esc reports nothing");
-    assert!(fixture.by_role(Role::TEXT_INPUT).is_empty());
+    assert!(!rename_field_open(&fixture));
 
     begin_rename(&mut fixture, &app, "Title");
     retype(&mut fixture, "");
@@ -590,6 +595,16 @@ fn the_blend_label_drops_before_the_other_indicators() {
         fixture.idle(4);
         let has = |word: &str| fixture.texts().iter().any(|text| text.text == word);
         shown.push((width, has("Multiply"), has("fx")));
+    }
+    fixture.room(Vec2::new(780.0, PANEL.y));
+    fixture.idle(4);
+    for t in fixture.texts() {
+        eprintln!("DIAG text {:?} {:?}", t.text, t.rect);
+    }
+    for k in fixture.tree().keys() {
+        if let Some(t) = fixture.target(k) {
+            eprintln!("DIAG node {:?} {:?}", fixture.tree().name_of(k), t.rect);
+        }
     }
     assert!(shown.first().is_some_and(|(_, label, fx)| *label && *fx), "both show with room: {shown:?}");
     assert!(shown.iter().all(|(_, label, fx)| !*label || *fx), "the fx mark never drops before the label: {shown:?}");
