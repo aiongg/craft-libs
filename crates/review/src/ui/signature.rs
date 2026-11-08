@@ -237,10 +237,8 @@ impl Component for DrawPad<'_> {
         }
     }
 
-    /// The pad fills the width offered, at least the plot width.
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        let width = cx.room.unwrap_or(0.0).max(cx.style.metrics.min_size.x);
-        Vec2::new(width, width / PAD_ASPECT)
+        cx.style.metrics.min_size
     }
 
     fn sense(&self) -> Sense {
