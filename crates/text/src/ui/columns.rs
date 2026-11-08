@@ -213,23 +213,23 @@ impl TextColumnsDialog {
     }
 
     /// The most columns Number takes.
-    fn max(&self) -> u32 {
+    pub fn most_columns(&self) -> u32 {
         self.max_columns.unwrap_or(if self.word.is_some() { MAX_COLUMNS_WORD } else { MAX_COLUMNS })
     }
 
     fn count_ok(&self, count: u32) -> bool {
-        (1..=self.max()).contains(&count)
+        (1..=self.most_columns()).contains(&count)
     }
 
-    fn count_in_range(&self) -> bool {
+    pub fn count_in_range(&self) -> bool {
         self.edited.count.is_none_or(|n| self.count_ok(n))
     }
 
-    fn spacing_in_range(&self) -> bool {
+    pub fn spacing_in_range(&self) -> bool {
         self.edited.spacing.is_none_or(|s| (0.0..=MAX_SPACING).contains(&s))
     }
 
-    fn equal(&self) -> bool {
+    pub fn equal(&self) -> bool {
         self.edited.equal_width == Some(true)
     }
 
@@ -240,7 +240,7 @@ impl TextColumnsDialog {
 
     /// `count` equal columns of `spacing` filling `width`, each at least [`MIN_COLUMN_WIDTH`]: the
     /// spacing gives way when the columns would be narrower (WordCraft `even_out`).
-    fn even_rows(width: f32, spacing: f32, count: u32) -> Vec<(f32, f32)> {
+    pub fn even_rows(width: f32, spacing: f32, count: u32) -> Vec<(f32, f32)> {
         let room = (width - MIN_COLUMN_WIDTH * count as f32).max(0.0);
         let spacing = if count > 1 { spacing.clamp(0.0, room / (count - 1) as f32) } else { spacing };
         let each = ((width - spacing * (count - 1) as f32) / count as f32).max(0.0);
@@ -248,7 +248,7 @@ impl TextColumnsDialog {
     }
 
     /// The width and the spacing after each column, as the grid shows them.
-    fn rows(&self) -> Vec<(f32, f32)> {
+    pub fn rows(&self) -> Vec<(f32, f32)> {
         let (Some(width), Some(count)) = (self.word, self.edited.count.filter(|n| self.count_ok(*n))) else {
             return Vec::new();
         };
@@ -258,7 +258,7 @@ impl TextColumnsDialog {
         Self::even_rows(width, self.spacing_now(), count)
     }
 
-    fn set_count(&mut self, count: u32) {
+    pub fn set_count(&mut self, count: u32) {
         self.edited.count = Some(count);
         if self.word.is_some() && self.count_ok(count) && !self.equal() {
             self.edited.widths = self.rows_for(count);
@@ -269,7 +269,7 @@ impl TextColumnsDialog {
         Self::even_rows(self.word.unwrap_or(0.0), self.spacing_now(), count)
     }
 
-    fn apply_preset(&mut self, preset: ColumnsPreset) {
+    pub fn apply_preset(&mut self, preset: ColumnsPreset) {
         let Some(width) = self.word else { return };
         let spacing = DEFAULT_SPACING;
         self.edited.spacing = Some(spacing);
@@ -299,7 +299,7 @@ impl TextColumnsDialog {
 
     /// Column `row`'s width becomes `value`: with equal widths the spacing takes the difference,
     /// else the neighbouring column does.
-    fn set_width(&mut self, row: usize, value: f32) {
+    pub fn set_width(&mut self, row: usize, value: f32) {
         let (Some(width), Some(count)) = (self.word, self.edited.count) else { return };
         let value = value.clamp(MIN_COLUMN_WIDTH.min(width), width);
         if self.equal() {
@@ -329,7 +329,7 @@ impl TextColumnsDialog {
 
     /// The spacing after column `row` becomes `value`: with equal widths it is every column's;
     /// else the next column's width takes the difference.
-    fn set_spacing_after(&mut self, row: usize, value: f32) {
+    pub fn set_spacing_after(&mut self, row: usize, value: f32) {
         let value = value.clamp(0.0, MAX_SPACING);
         if self.equal() {
             self.edited.spacing = Some(value);
@@ -429,7 +429,7 @@ impl TextColumnsDialog {
                 .inner;
             self.edit_count(edit.and_then(|out| out.edit.event));
             if bad {
-                Notice::new(Tone::Bad, Self::number_message(words, units, self.max())).layout(NoticeLayout::Inline).show(ui);
+                Notice::new(Tone::Bad, Self::number_message(words, units, self.most_columns())).layout(NoticeLayout::Inline).show(ui);
             }
             if self.word.is_none() {
                 let edit = Field::new(words.spacing.clone())
