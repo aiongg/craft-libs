@@ -1924,12 +1924,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-win32"
+version = "0.1.0"
+dependencies = [
+ "winsafe",
+]
+
+[[package]]
 name = "craft-window"
 version = "0.1.0"
 dependencies = [
  "craft-atomic",
  "craft-host",
  "craft-settings",
+ "craft-win32",
  "eframe",
  "egui",
  "objc2 0.6.5",

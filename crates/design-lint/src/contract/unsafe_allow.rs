@@ -1,4 +1,4 @@
-//! `contract/unsafe-allow`: no `allow(unsafe_code)` in source, except in the one Windows module of craft-window
+//! `contract/unsafe-allow`: no `allow(unsafe_code)` in source, except in craft-win32 and the benchmark's allocator
 //! ([`ALLOWED`]). craft-ui keeps `unsafe_code` at `deny`, and the derives write the one scoped allow its registrations
 //! need; source text never contains it.
 
@@ -13,9 +13,10 @@ use super::Cx;
 
 pub const ID: &str = "contract/unsafe-allow";
 
-/// The one file that may allow `unsafe_code`: craft-window's Win32 module (the owner's exception, 2026-11-08). Paths are
-/// relative to the repository root, as in findings.
-pub(crate) const ALLOWED: &str = "crates/window/src/win32.rs";
+/// The places that may allow `unsafe_code`, as path prefixes relative to the repository root, as in findings:
+/// craft-win32, which holds the Windows FFI calls (the owner's exception, 2026-11-08), and the benchmark's global
+/// allocator.
+pub(crate) const ALLOWED: [&str; 2] = ["crates/win32/src", "crates/ui-bench/src/alloc.rs"];
 
 struct Allows {
     spans: Vec<proc_macro2::Span>,
@@ -36,7 +37,7 @@ fn names_unsafe_code(meta: &Meta) -> bool {
 }
 
 pub(super) fn check(cx: &Cx<'_>, out: &mut Vec<Finding>) {
-    if cx.path == Path::new(ALLOWED) {
+    if ALLOWED.iter().any(|allowed| cx.path.starts_with(Path::new(allowed))) {
         return;
     }
     let mut allows = Allows { spans: Vec::new() };
@@ -47,7 +48,8 @@ pub(super) fn check(cx: &Cx<'_>, out: &mut Vec<Finding>) {
             ID,
             ID,
             span,
-            "`allow(unsafe_code)`; only `crates/window/src/win32.rs` allows it, and the derives write the registrations' scoped allow".to_owned(),
+            "`allow(unsafe_code)`; only craft-win32 and the benchmark allocator allow it, and the derives write the registrations' scoped allow"
+                .to_owned(),
         );
     }
 }

@@ -203,10 +203,12 @@ fn registration_reads_the_whole_crate() {
 }
 
 #[test]
-fn only_the_win32_module_of_craft_window_may_allow_unsafe_code() {
+fn only_craft_win32_and_the_benchmark_allocator_may_allow_unsafe_code() {
     let src = fixture("reject", "contract-unsafe-allow.rs");
-    for path in ["crates/window/src/mac.rs", "crates/ui/src/runtime/windows.rs", "crates/window/src/win32/other.rs"] {
+    for path in ["crates/window/src/mac.rs", "crates/window/src/win32.rs", "crates/ui/src/runtime/windows.rs", "crates/ui-bench/src/other.rs"] {
         assert_eq!(rules_at(&src, path, &scope()), ["contract/unsafe-allow"], "{path}");
     }
-    assert!(rules_at(&src, "crates/window/src/win32.rs", &scope()).is_empty());
+    for path in ["crates/win32/src/lib.rs", "crates/ui-bench/src/alloc.rs"] {
+        assert!(rules_at(&src, path, &scope()).is_empty(), "{path}");
+    }
 }

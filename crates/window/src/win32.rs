@@ -2,24 +2,18 @@
 //! reports the maximize button's pointer events, finding an app window among the thread's windows, and layered-window
 //! opacity.
 //!
-//! This is the one module of the workspace that uses `unsafe`; the crate and every other crate deny it, and the
-//! design-lint rule `contract/unsafe-allow` names this file as the only place that may allow it. Every block says
-//! why it is sound. winsafe wraps the rest.
-#![allow(unsafe_code)]
+//! No `unsafe` here: craft-win32 holds the subclassing and handle calls, and winsafe wraps the rest.
 
 use crate::Button;
 use crate::native::{CaptionEvent, Hits, hit_code};
 use std::collections::{HashMap, HashSet};
-use std::ffi::c_void;
 use std::sync::{Arc, LazyLock, Mutex, PoisonError};
-use winsafe::{self as w, co, msg, prelude::*};
+use winsafe::{self as w, co, prelude::*};
 
 /// `HTMAXBUTTON`, the hit-test result and the `wParam` of the non-client messages over the maximize button.
 const HT_MAX_BUTTON: usize = 9;
 /// `HTCAPTION`, the `wParam` of the non-client messages over the drag area.
 const HT_CAPTION: usize = 2;
-/// Tells this module's subclass from another one on the same window.
-const SUBCLASS_ID: usize = 0x4352_4146;
 
 /// A window of this process by its handle value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -35,10 +29,7 @@ impl Hwnd {
     }
 
     fn handle(self) -> w::HWND {
-        // SAFETY: the value came from a window handle of this process (eframe's `Frame`, an enumeration of this
-        // thread's windows or the procedure's own `hwnd`). A handle whose window has since been destroyed makes the
-        // calls on it fail, as for any stale `HWND`; none of them dereferences it.
-        unsafe { w::HWND::from_ptr(self.0 as *mut c_void) }
+        craft_win32::handle(self.0)
     }
 }
 
@@ -121,33 +112,20 @@ pub(crate) fn route(hwnd: Hwnd, hits: Arc<dyn Hits>) -> bool {
     if routed(|routed| routed.contains_key(&hwnd.0)) {
         return true;
     }
-    let window = hwnd.handle();
-    // SAFETY: `procedure` is a plain function with the `SUBCLASSPROC` signature that outlives the window, and the
-    // reference data is unused. Comctl32 calls it on the thread that owns the window, which is this one: subclassing
-    // another thread's window fails.
-    let set = unsafe { window.SetWindowSubclass(procedure, SUBCLASS_ID, 0) };
-    if set.is_err() {
+    if !craft_win32::subclass(hwnd.0, handler) {
         return false;
     }
     routed(|routed| routed.insert(hwnd.0, Routed { hits, tracking: false, over: false, pressed: false }));
     true
 }
 
-/// The subclass procedure: the messages this module answers, else the window's own procedure.
-extern "system" fn procedure(window: w::HWND, message: co::WM, wparam: usize, lparam: isize, _id: usize, _data: usize) -> isize {
-    if let Some(answer) = answer(&window, message, wparam, lparam) {
-        return answer;
+/// The messages this module answers; the window's own procedure gets the rest.
+fn handler(window: &w::HWND, message: co::WM, wparam: usize, lparam: isize) -> Option<isize> {
+    if message == co::WM::NCDESTROY {
+        routed(|routed| routed.remove(&Hwnd::of(window).0));
+        return None;
     }
-    let destroyed = message == co::WM::NCDESTROY;
-    // SAFETY: the message and its parameters are the ones the system delivered to this procedure, passed on
-    // unchanged to the next procedure of the chain.
-    let result = unsafe { window.DefSubclassProc(msg::Wm::new(message, wparam, lparam)) };
-    if destroyed {
-        routed(|routed| routed.remove(&Hwnd::of(&window).0));
-        // The window ends with this message, so a failed removal leaves nothing to clean up.
-        let _ = window.RemoveWindowSubclass(procedure, SUBCLASS_ID);
-    }
-    result
+    answer(window, message, wparam, lparam)
 }
 
 /// The result of a message this module handles, `None` to leave it to the window.

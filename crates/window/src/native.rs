@@ -2,8 +2,8 @@
 //! Windows hit test of an app-drawn frame (snap layouts, native move and resize) and a window's opacity.
 //!
 //! The hit test is answered by [`Hits`], which the app side implements from the exclusive parts of its last pass.
-//! The pure part (which zone is which `WM_NCHITTEST` value) is here and runs everywhere; the Win32 calls are in the
-//! one module that may use `unsafe`.
+//! The pure part (which zone is which `WM_NCHITTEST` value) is here and runs everywhere; the Win32 calls are in
+//! `win32.rs`, which calls craft-win32 for the `unsafe` ones.
 
 use std::sync::Arc;
 

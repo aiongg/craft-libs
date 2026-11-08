@@ -53,10 +53,10 @@ fn scope_reads_layer_map_manifests_and_spec_allowances() {
     assert!(!scope.allows("behavior/pipeline-only", Path::new("crates/ui/src/buttons/mod.rs")));
 }
 
-/// The linted paths and craft-window, which the lint does not scan (every other rule would apply to its egui and
-/// platform code): `unsafe` is allowed in one file of craft-window and nowhere else.
+/// The linted paths, craft-window, craft-win32 and the benchmark, which the lint does not scan (every other rule would
+/// apply to their egui and platform code): `unsafe` is allowed in craft-win32 and the benchmark's allocator only.
 #[test]
-fn only_the_win32_module_allows_unsafe_code_anywhere_in_the_workspace() {
+fn only_craft_win32_and_the_benchmark_allocator_allow_unsafe_code() {
     fn sources(dir: &Path, out: &mut Vec<PathBuf>) {
         for entry in std::fs::read_dir(dir).unwrap().flatten() {
             let path = entry.path();
@@ -70,7 +70,8 @@ fn only_the_win32_module_allows_unsafe_code_anywhere_in_the_workspace() {
     let root = root();
     let config = Config::load(&root.join("design-lint.toml")).unwrap();
     let mut files = Vec::new();
-    for path in config.paths.iter().map(PathBuf::as_path).chain([Path::new("crates/window")]) {
+    for path in config.paths.iter().map(PathBuf::as_path).chain([Path::new("crates/window"), Path::new("crates/win32"), Path::new("crates/ui-bench")])
+    {
         sources(&root.join(path), &mut files);
     }
     let scope = craft_design_lint::StaticScope::new();
@@ -90,6 +91,8 @@ fn only_the_win32_module_allows_unsafe_code_anywhere_in_the_workspace() {
         );
     }
     assert!(found.is_empty(), "{found:?}");
-    let win32 = std::fs::read_to_string(root.join("crates/window/src/win32.rs")).unwrap();
-    assert!(win32.contains("allow(unsafe_code)"), "the rule's one allowed file is the module that uses `unsafe`");
+    for (file, holds) in [("crates/win32/src/lib.rs", true), ("crates/ui-bench/src/alloc.rs", true), ("crates/window/src/win32.rs", false)] {
+        let source = std::fs::read_to_string(root.join(file)).unwrap();
+        assert_eq!(source.contains("allow(unsafe_code)"), holds, "{file}");
+    }
 }
