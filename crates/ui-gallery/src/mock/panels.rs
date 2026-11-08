@@ -1,6 +1,7 @@
 //! The panels of the dock: the canvas group the host draws, the Navigator and the layer list.
 
 use super::model::{Document, Panel};
+use craft_behavior::RulerUnits;
 use craft_behavior::dock::Permissions;
 use craft_behavior::kurbo::Rect as DocRect;
 use craft_ui::buttons::Button;
@@ -13,7 +14,6 @@ use craft_ui::patterns::canvas::NavigatorPanel;
 use craft_ui::runtime::env::UnitKind;
 use craft_ui::shell::CanvasPanel;
 use craft_ui::tabs::{DocumentTab, DocumentTabs};
-use craft_behavior::RulerUnits;
 use egui::{Rect, Ui};
 
 /// The dock's panels over the open document.

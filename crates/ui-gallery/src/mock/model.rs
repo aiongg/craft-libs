@@ -1,7 +1,7 @@
 //! What the mock editor reads and edits: a tool, a layer list, a canvas view, a document title and a dirty flag.
 
-use craft_behavior::CanvasView;
 use craft_behavior::Axis;
+use craft_behavior::CanvasView;
 use craft_behavior::dock::{Column, DockEdge, Group, Layout, Node, SplitSize, Workspace};
 use craft_behavior::kurbo::{Point, Size};
 use craft_ui::contract::CommandSet;
