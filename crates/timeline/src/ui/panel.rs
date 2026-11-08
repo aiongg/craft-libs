@@ -512,7 +512,7 @@ fn toolbar_row(
     let shown = Row::new().show(ui, |ui, _| {
         let snap = ToggleButton::new(words.snap.clone(), Bind::given(snap)).icon(IconSpec::svg(IconId::new("snap"))).icon_only().show(ui);
         let linked = ToggleButton::new(words.linked_selection.clone(), Bind::given(linked_selection))
-            .icon(IconSpec::svg(IconId::new("linked-selection")))
+            .icon(IconSpec::svg(IconId::new("linked_selection")))
             .icon_only()
             .show(ui);
         let refused = markers.iter().any(|marker| marker.start == playhead);

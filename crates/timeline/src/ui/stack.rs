@@ -53,11 +53,11 @@ const EDGE_TOP: PartKey = PartKey::new("heightTop");
 
 /// The switch columns in header order, each with its icon while on and off.
 const SWITCHES: [(ColumnKey, &str, &str); 6] = [
-    (LOCK, "lock", "lock"),
+    (LOCK, "lock", "lock_open"),
     (TARGET, "target", "target"),
-    (SYNC_LOCK, "link", "link"),
-    (OUTPUT, "eye", "eye"),
-    (MUTE, "mute", "mute"),
+    (SYNC_LOCK, "sync_lock", "sync_lock"),
+    (OUTPUT, "eye", "eye_off"),
+    (MUTE, "track_mute", "track_mute"),
     (SOLO, "solo", "solo"),
 ];
 
