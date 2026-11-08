@@ -3,7 +3,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use egui::{Color32, ColorImage, Key, Modifiers, Pos2, pos2, vec2};
+use egui::{Color32, ColorImage, Key, Modifiers, Pos2, vec2};
 use serde_json::json;
 
 use craft_behavior::edit_history::Step;
@@ -21,6 +21,7 @@ use craft_theme::Srgba;
 use craft_ui::canvas::{NavigationOptions, PixelRect, RasterSource};
 use craft_ui::dialog::FullWindowView;
 use craft_ui::primitives::Revision;
+use craft_ui::runtime::access::Role;
 use craft_ui::runtime::pending::{Job, Pending};
 use craft_ui::sections::DialogRole;
 use craft_ui::testing::{Fixture, pointer, trial};
@@ -31,8 +32,6 @@ const GENEROUS: FillLimits = FillLimits::new(1000, 200_000);
 const LAYER: PixelSize = PixelSize::new(400, 300);
 /// The room the workspace is shown in.
 const ROOM: egui::Vec2 = vec2(1400.0, 900.0);
-/// A point on the main canvas, left of the side columns.
-const CANVAS: Pos2 = pos2(400.0, 450.0);
 /// How far from the window's centre the framed view's centre may be, in document pixels.
 const CENTRE_TOLERANCE: f64 = 1.0;
 
@@ -116,6 +115,11 @@ impl Rig {
         Rig::new(FillSettings::default(), GENEROUS)
     }
 
+    /// The middle of the main canvas.
+    fn canvas(&self) -> Pos2 {
+        self.fixture.by_role(Role::CANVAS).into_iter().next().expect("the workspace shows a canvas").center()
+    }
+
     /// The outputs since the last call.
     fn take(&self) -> Vec<FillOutput> {
         std::mem::take(&mut *self.outputs.borrow_mut())
@@ -139,21 +143,23 @@ impl Rig {
         self.fixture.idle(1);
     }
 
-    /// A stroke along a line to the right of `CANVAS` in `steps` moves.
+    /// A stroke along a line to the right of the canvas centre in `steps` moves.
     fn line(&mut self, steps: usize) {
-        let through: Vec<Pos2> = (1..=steps).map(|i| CANVAS + vec2(12.0 * i as f32, 0.0)).collect();
-        self.stroke(CANVAS, &through, NONE);
+        let through: Vec<Pos2> = (1..=steps).map(|i| self.canvas() + vec2(12.0 * i as f32, 0.0)).collect();
+        self.stroke(self.canvas(), &through, NONE);
     }
 
-    /// Picks the Lasso with its letter.
+    /// Picks the Lasso in the tool strip.
     fn lasso(&mut self) {
-        self.fixture.key(Key::L, NONE);
+        let tool = self.fixture.by_label("Lasso Tool").expect("the strip has the Lasso");
+        self.fixture.click(&tool);
     }
 
     /// A lasso round a square.
     fn square(&mut self, modifiers: Modifiers) {
-        let corners = [CANVAS + vec2(80.0, 0.0), CANVAS + vec2(80.0, 80.0), CANVAS + vec2(0.0, 80.0), CANVAS + vec2(0.0, 1.0)];
-        self.stroke(CANVAS, &corners, modifiers);
+        let corners =
+            [self.canvas() + vec2(80.0, 0.0), self.canvas() + vec2(80.0, 80.0), self.canvas() + vec2(0.0, 80.0), self.canvas() + vec2(0.0, 1.0)];
+        self.stroke(self.canvas(), &corners, modifiers);
     }
 }
 
@@ -191,7 +197,7 @@ fn fill_brush_adds_in_custom_and_subtracts_in_auto_and_alt_reverses() {
         settings.sampling = mode;
         let mut rig = Rig::new(settings, GENEROUS);
         let modifiers = if alt { Modifiers::ALT } else { NONE };
-        rig.stroke(CANVAS, &[CANVAS + vec2(20.0, 0.0), CANVAS + vec2(40.0, 0.0)], modifiers);
+        rig.stroke(rig.canvas(), &[rig.canvas() + vec2(20.0, 0.0), rig.canvas() + vec2(40.0, 0.0)], modifiers);
         let events = rig.events();
         let Some(stroke) = committed(&events) else { panic!("{mode:?}, Alt {alt}: a stroke committed: {events:?}") };
         assert_eq!(stroke.mode, expected, "{mode:?}, Alt {alt}");
@@ -219,7 +225,7 @@ fn fill_lasso_modes_and_expand_contract_report_fill_area_edits() {
     // Under three points nothing is reported.
     let mut rig = Rig::standard();
     rig.lasso();
-    rig.stroke(CANVAS, &[CANVAS + vec2(10.0, 0.0)], NONE);
+    rig.stroke(rig.canvas(), &[rig.canvas() + vec2(10.0, 0.0)], NONE);
     assert!(rig.events().iter().all(|event| !matches!(event, FillEvent::FillArea(_))));
     assert_eq!(FillAreaEdit::lasso(SelectionOperation::Add, vec![[0.0, 0.0], [1.0, 0.0]]), None);
 
@@ -423,24 +429,25 @@ fn fill_stroke_updates_carry_only_the_new_points() {
 #[trial]
 fn fill_letter_mid_stroke_cancels_the_stroke_and_ends_busy() {
     let mut rig = Rig::standard();
-    rig.fixture.frame(vec![pointer::moved(CANVAS)]);
-    rig.fixture.frame(vec![pointer::press(CANVAS)]);
-    rig.fixture.frame(vec![pointer::moved(CANVAS + vec2(20.0, 0.0))]);
+    rig.fixture.frame(vec![pointer::moved(rig.canvas())]);
+    rig.fixture.frame(vec![pointer::press(rig.canvas())]);
+    rig.fixture.frame(vec![pointer::moved(rig.canvas() + vec2(20.0, 0.0))]);
     rig.take();
-    rig.lasso();
+    // The press gave the canvas the keyboard, so the tool letter reaches the workspace.
+    rig.fixture.key(Key::L, NONE);
     let events = rig.events();
     assert!(events.contains(&FillEvent::Stroke(FillStrokeEvent::Cancel(CancelReason::Removed))), "{events:?}");
     assert!(rig.work.borrow().session().strokes.is_empty(), "the history records nothing for it");
-    rig.fixture.frame(vec![pointer::release(CANVAS + vec2(20.0, 0.0))]);
+    rig.fixture.frame(vec![pointer::release(rig.canvas() + vec2(20.0, 0.0))]);
     assert!(committed(&rig.events()).is_none());
 }
 
 #[trial]
 fn fill_undo_mid_stroke_cancels_the_stroke() {
     let mut rig = Rig::standard();
-    rig.fixture.frame(vec![pointer::moved(CANVAS)]);
-    rig.fixture.frame(vec![pointer::press(CANVAS)]);
-    rig.fixture.frame(vec![pointer::moved(CANVAS + vec2(20.0, 0.0))]);
+    rig.fixture.frame(vec![pointer::moved(rig.canvas())]);
+    rig.fixture.frame(vec![pointer::press(rig.canvas())]);
+    rig.fixture.frame(vec![pointer::moved(rig.canvas() + vec2(20.0, 0.0))]);
     rig.take();
     rig.work.borrow_mut().step(Step::Undo);
     rig.fixture.idle(1);

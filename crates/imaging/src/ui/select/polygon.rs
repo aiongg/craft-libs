@@ -225,6 +225,6 @@ impl CanvasTool for SelectToolPass<'_, PolygonLassoTool> {
     }
 
     fn command_form(&self) -> ToolPath {
-        ToolPath::Freehand
+        ToolPath::Command("the Select Area... command")
     }
 }

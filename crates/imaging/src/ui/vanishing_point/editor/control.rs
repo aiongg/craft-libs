@@ -209,8 +209,9 @@ impl Component for VanishingPlanes<'_> {
         let draw = ui.draw();
         let fill = &cx.style.handle.fill;
         let node = |plane: usize, index: usize, corner: bool| {
-            let key = if corner { CORNER } else { EDGE };
-            cx.resolve_part(key.at(key_of(plane, index)), fill)
+            let part = if corner { CORNER } else { EDGE }.at(key_of(plane, index));
+            // A node with no part (a torn plane's corner, any edge node under the Stamp) takes the control's own state.
+            if cx.part_if_declared(part).is_some() { cx.resolve_part(part, fill) } else { cx.resolve(fill) }
         };
         draw::paint(&draw, &space.view, &snap, &cx.style, &node);
     }

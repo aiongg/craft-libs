@@ -31,6 +31,9 @@ const LIMITS: StampLimits = StampLimits::new(4096, 200_000);
 /// Half the width and height of the plane the tests draw on screen, in points.
 const HALF: Vec2 = Vec2::new(100.0, 50.0);
 
+/// How far inside the canvas's corner a press lands on empty canvas, in points.
+const CORNER_INSET: f32 = 8.0;
+
 /// How close two document points count as the same.
 const NEAR: f64 = 1e-6;
 
@@ -348,8 +351,9 @@ fn delete_removes_the_plane_and_escape_drops_a_half_plane_first() {
     kept.torn.clone_from(&torn);
     let (mut fixture, app) = open_with(VanishingTool::EditPlane, kept, Vec::new(), LIMITS);
     app.borrow_mut().workspace.selected_plane(Some(0));
-    let canvas = at(&fixture, Vec2::new(HALF.x * 6.0, HALF.y * 6.0));
-    click(&mut fixture, canvas);
+    // An empty spot near the canvas's lower corner, where no plane lies, gives the canvas the keyboard.
+    let corner = fixture.by_role(Role::CANVAS).into_iter().next().expect("the workspace shows a canvas").rect.right_bottom();
+    click(&mut fixture, corner - Vec2::splat(CORNER_INSET));
     app.borrow_mut().workspace.selected_plane(Some(0));
     fixture.key(Key::Delete, Modifiers::NONE).settle();
     let after = session(&app);

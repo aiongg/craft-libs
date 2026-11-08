@@ -9,6 +9,7 @@ use std::time::Duration;
 use craft_behavior::edit_history::Step;
 use craft_behavior::kurbo::Point;
 use craft_behavior::{CancelReason, CanvasView, Cursor, PixelSize, PointerButton};
+use craft_host::{AppInfo, Host, InlineJobs};
 use craft_imaging::trace::MaskSource;
 use craft_imaging::ui::mask_view::{MaskViewKeys, MaskViewMode, MaskViewState};
 use craft_imaging::ui::select_mask::{
@@ -116,7 +117,8 @@ impl CanvasTool for Rig {
     }
 }
 
-/// A fixture over a view whose document origin is the canvas's centre, so a screen point's offset from the centre is its document point.
+/// A fixture over a view whose document point and screen point coincide (the canvas keeps a view's centre inside the
+/// document, so the origin cannot sit at the room's centre).
 fn rig(tool: SelectMaskTool, real_time: bool) -> ToolFixture<Rig> {
     let label = match tool {
         SelectMaskTool::Quick => "Quick Selection",
@@ -126,13 +128,16 @@ fn rig(tool: SelectMaskTool, real_time: bool) -> ToolFixture<Rig> {
         SelectMaskTool::PolygonalLasso => "Polygonal Lasso",
         _ => "Canvas",
     };
-    let view = |room: Rect| CanvasView::new(room, Point::ZERO, 1.0);
+    let view = |room: Rect| {
+        let centre = room.center();
+        CanvasView::new(room, Point::new(f64::from(centre.x), f64::from(centre.y)), 1.0)
+    };
     ToolFixture::with_view(label, Rig::new(tool, real_time), view, |_, _| {})
 }
 
 /// The screen point of document point `(x, y)`.
-fn at(fixture: &ToolFixture<Rig>, x: f32, y: f32) -> Pos2 {
-    fixture.canvas().center() + Vec2::new(x, y)
+fn at(x: f32, y: f32) -> Pos2 {
+    Pos2::new(x, y)
 }
 
 fn events(fixture: &ToolFixture<Rig>) -> Vec<SelectMaskEvent> {
@@ -173,7 +178,7 @@ fn click(fixture: &mut ToolFixture<Rig>, to: Pos2) {
 #[trial]
 fn select_mask_object_click_and_drag_make_point_or_rect() {
     let mut fixture = rig(SelectMaskTool::Object, false);
-    let origin = at(&fixture, 0.0, 0.0);
+    let origin = at(0.0, 0.0);
     click(&mut fixture, origin + Vec2::new(100.0, 100.0));
     let got = events(&fixture);
     assert_eq!(tags(&got), ["begin", "commit"]);
@@ -192,7 +197,7 @@ fn select_mask_object_click_and_drag_make_point_or_rect() {
 #[trial]
 fn select_mask_polygonal_lasso_enter_escape_backspace() {
     let mut fixture = rig(SelectMaskTool::PolygonalLasso, false);
-    let origin = at(&fixture, 0.0, 0.0);
+    let origin = at(0.0, 0.0);
     let corners = [(50.0, 50.0), (150.0, 50.0), (150.0, 150.0), (50.0, 150.0)];
     for (x, y) in corners {
         click(&mut fixture, origin + Vec2::new(x, y));
@@ -230,7 +235,7 @@ fn select_mask_polygonal_lasso_enter_escape_backspace() {
 fn select_mask_real_time_refinement_reports_updates_only_when_on() {
     for (real_time, expected) in [(false, vec!["begin", "commit"]), (true, vec!["begin", "update", "update", "commit"])] {
         let mut fixture = rig(SelectMaskTool::Quick, real_time);
-        let origin = at(&fixture, 0.0, 0.0);
+        let origin = at(0.0, 0.0);
         fixture.press_at(origin + Vec2::new(10.0, 10.0));
         fixture.move_to(origin + Vec2::new(30.0, 10.0)).move_to(origin + Vec2::new(60.0, 10.0)).release_at(origin + Vec2::new(60.0, 10.0));
         let got = events(&fixture);
@@ -260,7 +265,7 @@ fn select_mask_brush_sizes_are_per_tool_and_alt_reverses_the_mode() {
 
     // Alt at the press reverses the bar's mode.
     let mut fixture = rig(SelectMaskTool::Lasso, false);
-    let origin = at(&fixture, 0.0, 0.0);
+    let origin = at(0.0, 0.0);
     for (alt, mode) in [(Modifiers::NONE, EditMode::Add), (Modifiers::ALT, EditMode::Subtract)] {
         fixture.fixture().hold(alt);
         fixture.press_at(origin + Vec2::new(10.0, 10.0));
@@ -272,7 +277,7 @@ fn select_mask_brush_sizes_are_per_tool_and_alt_reverses_the_mode() {
 
     // Alt + right-drag resizes the brush's own size and paints nothing.
     let mut fixture = rig(SelectMaskTool::Quick, false);
-    let origin = at(&fixture, 0.0, 0.0);
+    let origin = at(0.0, 0.0);
     fixture.fixture().hold(Modifiers::ALT);
     fixture.secondary_drag_from(origin + Vec2::new(100.0, 100.0), Vec2::new(10.0, 0.0));
     assert!(events(&fixture).is_empty(), "a resize paints nothing");
@@ -283,7 +288,7 @@ fn select_mask_brush_sizes_are_per_tool_and_alt_reverses_the_mode() {
 #[trial]
 fn select_mask_release_uses_the_gestures_own_tool() {
     let mut fixture = rig(SelectMaskTool::Quick, true);
-    let origin = at(&fixture, 0.0, 0.0);
+    let origin = at(0.0, 0.0);
     fixture.press_at(origin + Vec2::new(100.0, 100.0));
     fixture.tool_mut().tool = SelectMaskTool::Brush;
     fixture.move_to(origin + Vec2::new(160.0, 100.0));
@@ -295,7 +300,7 @@ fn select_mask_release_uses_the_gestures_own_tool() {
     assert!(matches!(committed(&got), SelectMaskEdit::Quick { .. }), "{got:?}");
 
     let mut fixture = rig(SelectMaskTool::RefineEdge, false);
-    let origin = at(&fixture, 0.0, 0.0);
+    let origin = at(0.0, 0.0);
     fixture.press_at(origin + Vec2::new(100.0, 100.0));
     fixture.tool_mut().tool = SelectMaskTool::Quick;
     fixture.release_at(origin + Vec2::new(160.0, 100.0));
@@ -307,7 +312,7 @@ fn select_mask_release_uses_the_gestures_own_tool() {
 #[trial]
 fn select_mask_stroke_trail_stays_until_the_preview_shows_it() {
     let mut fixture = rig(SelectMaskTool::Quick, false);
-    let origin = at(&fixture, 0.0, 0.0);
+    let origin = at(0.0, 0.0);
     fixture.press_at(origin + Vec2::new(100.0, 100.0)).move_to(origin + Vec2::new(160.0, 100.0));
     assert!(!fixture.tool().canvas.trail_shown(), "painted as the gesture while it is open");
     fixture.release_at(origin + Vec2::new(160.0, 100.0));
@@ -518,6 +523,7 @@ fn open() -> (Fixture, Rc<RefCell<App>>, Arc<AtomicUsize>) {
         app.events.extend(out.events);
         app.closed = app.closed.or(out.closed);
     });
+    fixture.host(Arc::new(Host::builder(AppInfo { id: "trial", name: "Trial", version: "0" }).jobs(Arc::new(InlineJobs)).build()));
     fixture.room(Vec2::new(1200.0, 900.0));
     fixture.settle();
     (fixture, app, jobs)

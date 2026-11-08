@@ -234,12 +234,12 @@ fn stroke(rig: &mut Rig<MarqueeTool>, from: (f64, f64), to: (f64, f64), at_press
     rig.tool_mut().events()
 }
 
-/// Holds `mods` for the passes that follow.
+/// Holds `mods` from now on; one pass shows them to the tool.
 fn hold<T: Reports + 'static>(rig: &mut Rig<T>, mods: Modifiers)
 where
     for<'a> SelectToolPass<'a, T>: CanvasTool,
 {
-    rig.fixture().hold(mods);
+    rig.fixture().hold(mods).frame(Vec::new());
 }
 
 /// Gives the canvas the keyboard with a click that the tool then forgets.
@@ -252,6 +252,9 @@ where
     let mut tool = rig.tool_mut();
     tool.tool().reset();
     tool.events();
+    drop(tool);
+    // One pass drops the node the click's outline left in the tree.
+    rig.fixture().frame(Vec::new());
 }
 
 fn press_key<T: Reports + 'static>(rig: &mut Rig<T>, key: Key, mods: Modifiers)
@@ -510,7 +513,8 @@ fn lasso_takes_retract_and_enter_only_while_an_outline_is_open() {
         click(&mut rig, point, Mods::ALT);
     }
     assert_eq!(rig.tool().phase(), SelectPhase::outline(3));
-    press_key(&mut rig, Key::Backspace, Modifiers::ALT);
+    // Alt stays held through the key: a key press with Alt would announce it and release it again, closing the outline.
+    press_key(&mut rig, Key::Backspace, Modifiers::NONE);
     assert_eq!(rig.tool().phase(), SelectPhase::outline(3), "Backspace with Alt is not a retract");
     hold(&mut rig, Modifiers::NONE);
     press_key(&mut rig, Key::Backspace, Modifiers::NONE);
