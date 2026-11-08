@@ -6,37 +6,45 @@ use craft_draw::ui::brush_settings::{
 };
 use craft_ui::contract::{Bind, Show as _};
 use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers, vec2};
+use egui::{Key, Modifiers, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 const RADIUS: f32 = 34.0;
 const REACH: f32 = 7.0;
+const PULL: f32 = 20.0;
+const NEAR_CENTRE: f32 = 0.5;
+/// The angles and roundness the key trial walks through.
+const START: TipAngle = TipAngle::new(179.0, 0.5);
+const TURNED_UP: f64 = 180.0;
+const WRAPPED: f64 = -179.0;
+const TURNED_BACK_COARSE: f64 = 166.0;
+const ROUNDER: f64 = 0.51;
 
 /// A press within reach of a roundness dot grabs the dot; anywhere else on the disc grabs the arrow.
 #[trial]
 fn ellipse_grab_prefers_the_dots_within_the_reach() {
     let angle = TipAngle::new(0.0, 0.5);
     let [dot, _] = ellipse_handles(angle, RADIUS);
-    assert_eq!(ellipse_grab(dot + vec2(REACH - 1.0, 0.0), angle, RADIUS, REACH), TipEllipseGrab::Roundness);
-    assert_eq!(ellipse_grab(dot + vec2(REACH + 1.0, 0.0), angle, RADIUS, REACH), TipEllipseGrab::Angle);
+    assert_eq!(ellipse_grab(dot + Vec2::X * (REACH - 1.0), angle, RADIUS, REACH), TipEllipseGrab::Roundness);
+    assert_eq!(ellipse_grab(dot + Vec2::X * (REACH + 1.0), angle, RADIUS, REACH), TipEllipseGrab::Angle);
 }
 
 /// A drag of the arrow sets the angle from the pointer; a drag of a dot sets the roundness and keeps the angle.
 #[trial]
 fn ellipse_drag_sets_angle_and_roundness() {
     let start = TipAngle::new(10.0, 0.5);
-    let turned = ellipse_drag(TipEllipseGrab::Angle, vec2(0.0, -20.0), start, RADIUS);
+    let turned = ellipse_drag(TipEllipseGrab::Angle, Vec2::NEG_Y * PULL, start, RADIUS);
     assert_eq!((turned.degrees, turned.roundness), (90.0, 0.5));
-    let squashed = ellipse_drag(TipEllipseGrab::Roundness, vec2(0.0, -RADIUS), TipAngle::new(0.0, 0.5), RADIUS);
+    let squashed = ellipse_drag(TipEllipseGrab::Roundness, Vec2::NEG_Y * RADIUS, TipAngle::new(0.0, 0.5), RADIUS);
     assert_eq!((squashed.degrees, squashed.roundness), (0.0, 1.0));
-    assert_eq!(ellipse_drag(TipEllipseGrab::Angle, vec2(0.5, 0.0), start, RADIUS), start);
+    assert_eq!(ellipse_drag(TipEllipseGrab::Angle, Vec2::X * NEAR_CENTRE, start, RADIUS), start);
 }
 
 /// Up and Right turn the angle 1 degree, Shift 15, wrapping at 180; Alt changes the roundness by 1 %.
 #[trial]
 fn ellipse_keys_turn_and_squash() {
-    let value = Rc::new(Cell::new(TipAngle::new(179.0, 0.5)));
+    let value = Rc::new(Cell::new(START));
     let shown = value.clone();
     let mut fixture = Fixture::new(move |ui| {
         let mut current = shown.get();
@@ -47,16 +55,16 @@ fn ellipse_keys_turn_and_squash() {
     fixture.key(Key::Tab, Modifiers::NONE);
     fixture.key(Key::ArrowUp, Modifiers::NONE);
     fixture.idle(2);
-    assert_eq!(value.get().degrees, 180.0);
+    assert_eq!(value.get().degrees, TURNED_UP);
     fixture.key(Key::ArrowUp, Modifiers::NONE);
     fixture.idle(2);
-    assert_eq!(value.get().degrees, -179.0);
+    assert_eq!(value.get().degrees, WRAPPED);
     fixture.key(Key::ArrowDown, Modifiers::SHIFT);
     fixture.idle(2);
-    assert_eq!(value.get().degrees, 166.0);
+    assert_eq!(value.get().degrees, TURNED_BACK_COARSE);
     fixture.key(Key::ArrowUp, Modifiers::ALT);
     fixture.idle(2);
-    assert_eq!(value.get().roundness, 0.51);
+    assert_eq!(value.get().roundness, ROUNDER);
 }
 
 /// The preview stroke is the S-curve: its samples start and end at the floor pressure and swing the amplitude.
@@ -82,7 +90,7 @@ fn rig(events: &Rc<RefCell<Vec<BrushSectionEvent<u8>>>>) -> Fixture {
             BrushSection::pane(1, "Shape Dynamics").enabled(false).locked(false),
             BrushSection::switch(10, "Noise", false),
         ];
-        let out = BrushSectionList::new("Brush settings sections", &sections, Bind::given(0u8)).link().show(ui);
+        let out = BrushSectionList::new("Brush settings sections", &sections, Bind::given(0u8)).link_row().show(ui);
         sink.borrow_mut().extend(out.events);
     });
     fixture.settle();

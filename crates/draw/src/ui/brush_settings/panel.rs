@@ -77,7 +77,7 @@ pub struct BrushSettingsPanel<'a, K: Value + Eq + Hash> {
     shown: Bind<'a, K>,
     /// Shows the list's "Brushes" link row.
     #[prop(flag)]
-    link: bool,
+    link_row: bool,
     /// Enables Update (the brush was picked from a preset that still exists).
     #[prop(flag)]
     can_update: bool,
@@ -90,13 +90,13 @@ impl<'a, K: Value + Eq + Hash> BrushSettingsPanel<'a, K> {
     /// A panel named `label` over `sections`, showing the pane of the section in `shown` (the first pane section
     /// when it holds none).
     pub fn new(label: impl Into<Label>, sections: &'a [BrushSection<K>], shown: Bind<'a, K>) -> Self {
-        Self { label: label.into(), sections, shown, link: false, can_update: false, strip: None }
+        Self { label: label.into(), sections, shown, link_row: false, can_update: false, strip: None }
     }
 
     /// Shows the panel; `pane` draws the pane of the section it is given and its result comes back in
     /// [`BrushSettingsPanelOutput::body`]. A pass may run it more than once.
     pub fn show<R>(self, ui: &mut Ui, mut pane: impl FnMut(&mut Ui, &mut BodyCx<'_>, &K) -> R) -> BrushSettingsPanelOutput<K, R> {
-        let BrushSettingsPanel { label, sections, mut shown, link, can_update, strip } = self;
+        let BrushSettingsPanel { label, sections, mut shown, link_row, can_update, strip } = self;
         let words = Env::of(ui).words::<BrushSettingsWords>();
         let mut section_events = Vec::new();
         let mut action = None;
@@ -133,8 +133,8 @@ impl<'a, K: Value + Eq + Hash> BrushSettingsPanel<'a, K> {
             Row::new().fill().show(ui, |ui, _| {
                 let key = current.unwrap_or(first).key.clone();
                 let mut list = BrushSectionList::new(words.sections.clone(), sections, Bind::given(key));
-                if link {
-                    list = list.link();
+                if link_row {
+                    list = list.link_row();
                 }
                 section_events = list.show(ui).events;
                 Divider::vertical().show(ui);

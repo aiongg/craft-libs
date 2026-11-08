@@ -35,7 +35,11 @@ fn sections(on: bool) -> Vec<BrushSection<u8>> {
 }
 
 fn strip<'a>() -> BrushStrokeStrip<'a> {
-    BrushStrokeStrip::new("Stroke preview", Revision::new(1), StripImage::new(|[width, height]| ColorImage::filled([width, height], Color32::GRAY)))
+    BrushStrokeStrip::new(
+        "Stroke preview",
+        Revision::new(1),
+        StripImage::new(|[width, height]| ColorImage::filled([width, height], Color32::TRANSPARENT)),
+    )
 }
 
 #[story(BrushSettingsPanel<'static, u8>, covers = [Default], drive = Drive::Never)]
@@ -43,7 +47,7 @@ fn panel(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let sections = sections(true);
     let shown = *data.value("shown", TIP);
     BrushSettingsPanel::new("Brush Settings", &sections, Bind::given(shown))
-        .link()
+        .link_row()
         .can_update()
         .strip(strip())
         .show(ui, |ui, _, _| {
@@ -68,7 +72,7 @@ fn panel_off(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 fn section_list(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let sections = sections(true);
     let shown = *data.value("shown", TIP);
-    BrushSectionList::new("Brush settings sections", &sections, Bind::given(shown)).link().show(ui).into()
+    BrushSectionList::new("Brush settings sections", &sections, Bind::given(shown)).link_row().show(ui).into()
 }
 
 #[story(TipEllipse<'static>, covers = [Default], drive = Drive::Never)]

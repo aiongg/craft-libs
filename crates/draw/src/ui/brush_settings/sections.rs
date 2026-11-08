@@ -157,11 +157,11 @@ struct Rows<'a, K> {
 impl<'a, K: Clone + Eq> Rows<'a, K> {
     /// The link row and its gap, then the sections with a gap after the first row and one before the first switch
     /// row.
-    fn new(sections: &'a [BrushSection<K>], link: bool) -> Self {
+    fn new(sections: &'a [BrushSection<K>], link_row: bool) -> Self {
         let mut slots = Vec::new();
         let mut gaps = 0..;
         let mut gap = |slots: &mut Vec<Slot<K>>| slots.push(Slot::Gap(gaps.next().unwrap_or_default()));
-        if link {
+        if link_row {
             slots.push(Slot::Link);
             gap(&mut slots);
         }
@@ -237,21 +237,21 @@ pub struct BrushSectionList<'a, K: Value + Eq + Hash> {
     shown: Bind<'a, K>,
     /// Shows the "Brushes" link row at the top (Photoshop; reports `OpenLink`).
     #[prop(flag)]
-    link: bool,
+    link_row: bool,
 }
 
 impl<'a, K: Value + Eq + Hash> BrushSectionList<'a, K> {
     /// The list named `label` of `sections`, in order (pane rows first, then switch rows), with the pane in `shown`
     /// selected.
     pub fn new(label: impl Into<Label>, sections: &'a [BrushSection<K>], shown: Bind<'a, K>) -> Self {
-        Self { label: label.into(), sections, shown, link: false }
+        Self { label: label.into(), sections, shown, link_row: false }
     }
 
     /// Shows the list.
     pub fn show(self, ui: &mut Ui) -> BrushSectionListOutput<K> {
-        let BrushSectionList { label, sections, mut shown, link } = self;
+        let BrushSectionList { label, sections, mut shown, link_row } = self;
         let words = Env::of(ui).words::<BrushSettingsWords>();
-        let rows = Rows::new(sections, link);
+        let rows = Rows::new(sections, link_row);
         let enable_name = Label::from(words.enable.fill(&[("name", "{row}")]));
         let lock_name = Label::from(words.lock.fill(&[("name", "{row}")]));
         let switch_name = Label::from("{row}".to_owned());

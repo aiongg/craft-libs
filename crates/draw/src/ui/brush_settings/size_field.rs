@@ -48,13 +48,12 @@ impl Outcome for BrushSizeOutput {
 /// during a drag cancels.
 #[must_use = "show the field with `show`"]
 #[derive(craft_ui::contract::Pattern, craft_ui::contract::Props)]
-#[pattern(probe(BrushSizeField<'static>))]
 pub struct BrushSizeField<'a> {
     label: Label,
     diameter: Bind<'a, f64>,
     max: f64,
     /// The size the restore button sets, clamped to 1 to the maximum; without one there is no button.
-    #[prop]
+    #[prop(quantity = "pixels")]
     restore: Option<f64>,
 }
 
