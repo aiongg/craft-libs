@@ -525,6 +525,7 @@ fn outcome_in(ctx: &Context, read: &PassRead, arena: ArenaId, layer: Layer, enab
                     local: false,
                 })
             });
+            eprintln!("PROBE7 press at {at:?} hit={hit:?} shapes={:?}", candidates(state, target).iter().map(|s| (s.owner, s.part.map(|p| p.key), s.sense, s.position, s.priority.level)).collect::<Vec<_>>());
             hit.map(|hit| (hit, hit.sense))
         });
         cancelled = matches!(step.phase, Some(PressPhase::Cancel { .. }));

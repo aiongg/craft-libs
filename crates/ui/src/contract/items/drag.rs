@@ -343,6 +343,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         match phase {
             PressPhase::DragStart { start, pos, .. } | PressPhase::Drag { start, pos, .. } if start.button == PointerButton::Primary => {
                 let origin = layer(start.origin);
+                eprintln!("PROBE8 phase={:?} origin={origin:?} rect={rect:?} grabbed={} reorder={} payload={} free={free} sweep={}", phase, self.drags.grabbed.is_some(), props.reorder.is_some(), props.drag_payload.is_some(), self.drags.sweep.is_some());
                 let hit = (origin.y >= rect.min.y)
                     .then(|| layout.hit(Self::logical(layout, rect, rtl, origin), offset))
                     .flatten()
@@ -399,6 +400,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 }
             }
         } else {
+            if self.drags.grabbed.is_some() { eprintln!("PROBE8 grabbed reset: no ListDrag payload; phase={:?}", phase); }
             self.drags.grabbed = None;
         }
         if comp.takes_files()
