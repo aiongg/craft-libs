@@ -393,7 +393,7 @@ fn a_quick_drag_in_one_frame_pulls_the_handles() {
     let mut pen = pen();
     pen.click_doc(60.0, 60.0);
     let (from, to) = (pen.at(160.0, 60.0), pen.at(160.0, 60.0) + vec2(40.0, 30.0));
-    pen.fixture.fixture().frame(vec![
+    pen.fixture.fixture().frame_through(vec![
         Event::PointerMoved(from),
         button(from, true, Modifiers::NONE),
         Event::PointerMoved(to),

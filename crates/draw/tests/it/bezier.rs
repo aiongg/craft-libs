@@ -605,7 +605,7 @@ fn a_quick_drag_in_one_pass_moves_from_the_press() {
     let a2 = h.screen(h.anchor(0, 1));
     let to = a2 + vec2(25.0, 5.0);
     h.fixture.frame(vec![pointer::moved(a2)]);
-    h.fixture.frame(vec![pointer::press(a2), pointer::moved(a2 + vec2(10.0, 0.0)), pointer::moved(to), pointer::release(to)]);
+    h.fixture.frame_through(vec![pointer::press(a2), pointer::moved(a2 + vec2(10.0, 0.0)), pointer::moved(to), pointer::release(to)]);
     h.fixture.frame(Vec::new());
     assert_eq!(h.seen(), [Seen::Set]);
     assert_eq!(moved_by(h.last_change()), Some((vec![kr(1)], Vec2::new(25.0, 5.0))));
