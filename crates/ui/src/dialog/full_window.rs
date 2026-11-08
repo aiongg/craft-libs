@@ -159,7 +159,7 @@ impl Container for FullWindowDialog<'_> {
             &mut self.footer,
             &self.buttons,
             false,
-            frame::FooterHost { picked: &mut self.picked, guard: &mut self.guard, settle: &mut self.settle },
+            frame::FooterHost { picked: &mut self.picked, guard: &mut self.guard, on_pick: &mut None, settle: &mut self.settle },
         );
     }
 

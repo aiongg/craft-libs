@@ -19,14 +19,14 @@ name = "HostedParamDialog"
 old = ""
 new = "craft_ui::patterns::form_dialogs::HostedParamDialog"
 status = "replaced"
-note = "The `StackDialog` form of `ParamDialog` and `CommandForm`: `HostedParamDialog::new(key, fields, |fields| ParamDialog::new(..).values(Bind::bound(fields)))`, with `fields`, `fields_mut`, `pick_color`, `pick_path`, `pick_eyedropper` (over an embedded `HostRequests`)."
+note = "The `StackDialog` form of `ParamDialog`: `HostedParamDialog::new(key, fields, |fields| ParamDialog::new(..).values(Bind::bound(fields)))`, or `HostedParamDialog::command(..)` for a command form, with `fields`, `fields_mut`, `pick_color`, `pick_path`, `pick_eyedropper`, `answer_color`, `answer_path`, `answer_eyedropper` and `cancel_requests` (over an embedded `HostRequests`)."
 
 [[type]]
 name = "CommandForm"
 old = "craft_ui::dialog::command_form::CommandForm"
-new = "craft_ui::patterns::form_dialogs::CommandForm"
-status = "moved"
-note = "A `Pattern` that builds a `ParamDialog` with no `preview` and no `remember` key (`CommandForm::dialog`) and shows it: `CommandForm::new(key, title, params).values(Bind::bound(&mut fields)).show(ui)`. Hosted, a `HostedCommandForm`."
+new = ""
+status = "replaced"
+note = "Replaced by the constructor `ParamDialog::command(key, title, params)`: a `ParamDialog` with no `preview` and no `remember` key, with every option of `ParamDialog` (`values`, `opened`, `ok_enabled`, `ok_reason`, `ok_label`, `cancel_label`, `closable`, `outer_gesture`, `footer_extra`, `below`). Hosted, `HostedParamDialog::command(key, fields, build)`."
 
 [[type]]
 name = "ParamLayout"
@@ -453,56 +453,56 @@ new = "ParamDialog::show(ui) -> ParamDialogOutput"
 note = "`HostedParamDialog` keeps the `StackDialog::show(ui, stack)` form."
 
 [[setter]]
-type = "CommandForm"
+type = "ParamDialog"
 old = "CommandForm::new(key, title: impl Into<String>, params: Vec<Param>)"
-new = "CommandForm::new(key, title: impl Into<Label>, params: impl Into<Cow<[Param]>>)"
+new = "ParamDialog::command(key, title: impl Into<Label>, params: impl Into<Cow<[Param]>>)"
 
 [[setter]]
-type = "CommandForm"
+type = "ParamDialog"
 old = "values(DialogFields)"
 new = "values(Bind<DialogFields>)"
 note = "The values are a binding; without one the form keeps its own between passes."
 
 [[setter]]
-type = "CommandForm"
+type = "ParamDialog"
 old = "set_ok_enabled(bool)"
 new = "ok_enabled(bool)"
 note = "The app passes the state each pass; there is no setter on an open form."
 
 [[setter]]
-type = "CommandForm"
+type = "ParamDialog"
 old = "history(bool)"
 new = "outer_gesture(bool)"
 
 [[setter]]
-type = "CommandForm"
+type = "ParamDialog"
 old = "close_label(Option<String>)"
 new = "closable(bool)"
 note = "The close action's name is the common word; `None` becomes `closable(false)`."
 
 [[setter]]
-type = "CommandForm"
+type = "ParamDialog"
 old = "below(impl Fn(&mut Ui, &DialogFields))"
 new = "below(impl Fn(&mut Ui, &DialogFields))"
 
 [[setter]]
-type = "CommandForm"
+type = "ParamDialog"
 old = "footer_extra(impl FnMut(&mut Ui))"
 new = "footer_extra(impl FnMut(&mut Ui))"
 
 [[setter]]
-type = "CommandForm"
+type = "ParamDialog"
 old = "ok_label(impl Into<String>)"
 new = "ok_label(Label)"
 
 [[setter]]
-type = "CommandForm"
+type = "ParamDialog"
 old = "body(Body)"
 new = ""
 note = "Removed: the dialog sizes to its rows."
 
 [[setter]]
-type = "CommandForm"
+type = "ParamDialog"
 old = "width(Width)"
 new = ""
 note = "Removed: the dialog sizes to its rows."

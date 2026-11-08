@@ -361,6 +361,12 @@ impl<T> EditResponse<T> {
     pub(crate) fn new(response: Response, event: Option<EditEvent<T>>, validity: Validity<T>) -> Self {
         EditResponse { response, event, submitted: false, escaped: false, validity, shown: None }
     }
+
+    /// The value the pass's event carries: a proposal, a commit or a set; `None` when nothing was edited or the event
+    /// carries none (a gesture's begin or cancel).
+    pub fn value(&self) -> Option<&T> {
+        self.event.as_ref().and_then(EditEvent::value)
+    }
 }
 
 impl<T: Value> Outcome for EditResponse<T> {
