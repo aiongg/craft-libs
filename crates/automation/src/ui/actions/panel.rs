@@ -253,7 +253,6 @@ pub(super) struct Session {
 /// - **Empty**: a centred notice with the Record glyph.
 #[must_use = "show the panel with `show`"]
 #[derive(craft_ui::contract::Pattern)]
-#[pattern(probe(ActionsPanel<'static>))]
 pub struct ActionsPanel<'a> {
     state: &'a mut ActionsPanelState,
     list: &'a ActionList,

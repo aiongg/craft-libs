@@ -41,10 +41,13 @@ pub(super) fn show_footer(ui: &mut Ui, body: &Body<'_>, state: &mut ActionsPanel
     let delete = state.selected.as_ref().filter(|_| !playing).and_then(|selected| delete_event(selected, recording.is_some()));
     let record_into = selected_action(state.selected.as_ref(), list);
     let icon = |name: &'static str| IconSpec::svg(IconId::new(name));
-    let record_tone = if recording.is_some() { Tone::Bad } else { Tone::Neutral };
+    let mut record = FooterAction::new(icon("circle"), words.record.clone()).enabled(hosted && !playing).pressed(recording.is_some());
+    if recording.is_some() {
+        record = record.tone(Tone::Bad);
+    }
     let actions = [
         FooterAction::new(icon("square"), words.stop.clone()).enabled(hosted && !idle),
-        FooterAction::new(icon("circle"), words.record.clone()).enabled(hosted && !playing).pressed(recording.is_some()).tone(record_tone),
+        record,
         FooterAction::new(icon("play"), words.play.clone()).enabled(hosted && idle && target.is_some()),
         FooterAction::new(icon("new_folder"), words.new_set.clone()).enabled(idle),
         FooterAction::new(icon("plus"), words.new_action.clone()).enabled(hosted && idle),

@@ -154,7 +154,7 @@ fn a_tinted_button_reports_clicks_and_its_label_reads_on_the_tint() {
             seen.set(seen.get() + 1);
         }
     };
-    let mut fixture_show = show.clone();
+    let fixture_show = show.clone();
     let mut fixture = Fixture::new(move |ui| fixture_show(ui));
     fixture.settle();
     let button = fixture.by_label("Play").expect("the button");
