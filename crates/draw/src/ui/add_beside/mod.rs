@@ -24,6 +24,9 @@ pub use words::AddBesideWords;
 /// The button on one side: `BUTTON.at(i)` with `i` the side's place in [`AddSide::ALL`].
 const BUTTON: PartKey = PartKey::new("button");
 
+/// The least cosine between an arrow's direction and the way to a button for the arrow to reach it.
+const ARROW_ALIGNMENT: f32 = 0.5;
+
 /// The plus's arm as a share of the button's radius.
 const PLUS_ARM_SHARE: f32 = 0.5;
 
@@ -215,7 +218,8 @@ impl Component for AddBesideHandles<'_> {
                 .sense(Sense::CLICK | Sense::TAKE_FOCUS)
                 .priority(HitPriority::new(HitLevel::Handle, 0))
                 .cursor(CursorIcon::PointingHand)
-                .focusable();
+                .focusable()
+                .nudges();
         }
         if !buttons.is_empty() {
             cx.roving(Roving::new(NavShape::Spatial));
@@ -241,6 +245,26 @@ impl Component for AddBesideHandles<'_> {
         }
         if self.report.hovered.is_none() {
             self.report.hovered = focused;
+        }
+        // The arrows move the focus to the button that lies in their screen direction.
+        if let Some(current) = focused
+            && let Some(space) = canvas_space(&cx.env)
+            && let Some((direction, _)) = cx.intents().take_nudge()
+        {
+            let places = self.visible(&space.view, &cx.style, cx.rect);
+            let ahead = direction.normalized();
+            let from = places.iter().find(|(side, _)| *side == current).map(|&(_, at)| at);
+            let next = from.and_then(|from| {
+                places
+                    .iter()
+                    .filter(|(side, _)| *side != current)
+                    .map(|&(side, at)| (side, (at - from).normalized().dot(ahead)))
+                    .filter(|&(_, alignment)| alignment > ARROW_ALIGNMENT)
+                    .max_by(|a, b| a.1.total_cmp(&b.1))
+            });
+            if let Some((side, _)) = next {
+                cx.focus_part(BUTTON.at(side.index()));
+            }
         }
     }
 
