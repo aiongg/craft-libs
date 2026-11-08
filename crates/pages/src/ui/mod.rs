@@ -40,13 +40,13 @@ pub mod view;
 pub use access::{AccessBuilder, AccessDescriber, AccessNode, AccessPosition, BlockRole};
 pub use column_bar::{ColumnBar, ColumnBarOutput};
 pub use grid::{PageGrid, PageGridColors, PageGrids, baseline_lines};
-pub use header_footer::{HeaderFooterPage, HeaderFooterZones, HeaderFooterZonesOutput, Zone, ZoneAt, ZoneBands};
+pub use header_footer::{HeaderFooterPage, HeaderFooterZones, HeaderFooterZonesOutput, Zone, ZoneAt, ZoneBands, ZoneText};
 pub use list::{PageList, PageListEvent, PageListOutput, PageListRow, PageListWords};
-pub use margins::{MarginChange, MarginEdge, MarginHandles, MarginHandlesOutput, MarginRules, clamp_margin, dragged_margin, margin_range};
+pub use margins::{MarginChange, MarginEdge, MarginHandles, MarginHandlesOutput, MarginRules, PageEdges, clamp_margin, dragged_margin, margin_range};
 pub use marks::{FrameExtras, HiddenMark, PlacedMark, TextFrameMarks};
 pub use preview::{PagePreview, PagePreviewOutput, PagePreviewWords};
-pub use range::{PageRangeCodec, PageRangeField, PageRangeFieldOutput, PageRangeOptions, PageRangeOptionsOutput};
-pub use reading::{ReadingState, ReadingView, ReadingViewOutput};
+pub use range::{PageRangeCodec, PageRangeField, PageRangeFieldOutput, PageRangeOptions, PageRangeOptionsOutput, PageSelection};
+pub use reading::{ReadingNav, ReadingNavOutput, ReadingState, ReadingView, ReadingViewOutput};
 pub use setup::{PageLayoutChoice, PageLayoutMenus, PageSetupDialog};
 pub use sync_views::{Lead, SyncedViews, SyncedViewsOutput, SyncedViewsState};
 pub use table::{
