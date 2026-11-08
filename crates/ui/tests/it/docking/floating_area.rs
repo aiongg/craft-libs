@@ -7,7 +7,6 @@ use craft_ui::contract::{Bind, BodyCx, Role};
 use craft_ui::docking::{DockConfig, DockPanels, PanelSpec};
 use craft_ui::patterns::dock::DockArea;
 use craft_ui::runtime::drag::{self, DropMark};
-use craft_ui::testing::memory::global;
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Pos2, Rect, Ui, Vec2};
@@ -45,7 +44,7 @@ impl DockPanels<usize> for Panels {
     fn body(&mut self, _: &usize, _: &mut Ui, _: &mut BodyCx<'_>) {}
 }
 
-/// A dock area over a bound workspace whose host applies the actions the area reports.
+/// A dock area over a bound workspace; the area applies its actions.
 struct Bed {
     fixture: Fixture,
     workspace: Rc<RefCell<Workspace<usize>>>,
@@ -60,10 +59,7 @@ fn bed(layout: Layout<usize>, rights: fn(&usize) -> Permissions) -> Bed {
     let mut fixture = Fixture::new(move |ui| {
         let mut workspace = held.borrow().clone();
         let mut panels = Panels { rights };
-        let out = DockArea::new(global("floating dock", "trial"), Bind::bound(&mut workspace), &mut panels, DockConfig::default()).show(ui);
-        for action in &out.actions {
-            let _ = workspace.apply(action.clone(), false, rights);
-        }
+        let out = DockArea::new("Floating dock", Bind::bound(&mut workspace), &mut panels, DockConfig::default()).show(ui);
         *held.borrow_mut() = workspace;
         seen_edits.borrow_mut().extend(out.edit);
         seen_actions.borrow_mut().extend(out.actions);

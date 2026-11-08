@@ -12,7 +12,7 @@ name = "DockArea"
 old = "craft_ui::docking::surface::DockArea"
 new = "craft_ui::patterns::dock::DockArea"
 status = "moved"
-note = "A pattern: `DockArea::new(id, Bind<Workspace<P>>, &mut dyn DockPanels<P>, DockConfig)` and `show(ui) -> DockAreaOutput<P>` (legacy `DockArea::new(id)` and `show(ui, layout, ..)`); `DockArea::read_only(id, &Layout<P>, ..)` shows a layout that is not edited."
+note = "A pattern: `DockArea::new(label, Bind<Workspace<P>>, &mut dyn DockPanels<P>, DockConfig)` and `show(ui) -> DockAreaOutput<P>` (legacy `DockArea::new(id)` and `show(ui, layout, ..)`); the root's id comes from the label under the parent's id and, inside an `AppShell`, the window's key. The area applies its actions to a bound workspace itself, with `DockPanels::permissions` (narrowed by `locked`); no apply loop in the app. `DockArea::read_only(label, &Layout<P>, ..)` shows a layout that is not edited."
 
 [[type]]
 name = "FloatingFrame"
@@ -1036,7 +1036,7 @@ name = "DockAreaOutput"
 old = ""
 new = "craft_ui::patterns::dock::DockAreaOutput"
 status = "replaced"
-note = "Replaces the legacy `DockOutput`: `actions`, `events`, `focused` (the shown panel of the group that holds key focus), `picked` (the panel whose tab was clicked or picked this pass), `error`, `edit` (a divider's size edit as an edit of the workspace), `float_space` and `response`; forwarded input and files are the runtime's."
+note = "Replaces the legacy `DockOutput`: `actions` (the actions the workspace took; a refused one is left out, and a given workspace is never written), `events`, `focused` (the shown panel of the group that holds key focus), `picked` (the panel whose tab was clicked or picked this pass), `error`, `edit` (a divider's size edit, or the applied actions as one edit, as an edit of the workspace), `float_space` and `response`; forwarded input and files are the runtime's."
 
 [[type]]
 name = "DockOutput"

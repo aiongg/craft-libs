@@ -9,7 +9,6 @@ use craft_ui::docking::native::restore;
 use craft_ui::docking::{DockConfig, DockPanels, FloatingGroup, PanelSpec, native};
 use craft_ui::patterns::dock::DockArea;
 use craft_ui::runtime::windows::{WindowHost, WindowSpec};
-use craft_ui::testing::memory::global;
 use craft_ui::testing::trial;
 use egui::{Pos2, Rect, Ui, Vec2, ViewportBuilder, ViewportId, ViewportInfo};
 
@@ -73,12 +72,9 @@ fn the_dock_records_where_the_os_put_its_native_window() {
         let mut actions = Vec::new();
         windows.frame(vec![], vec![], |ui| {
             let config = DockConfig::default().native_windows(true);
-            let shown = DockArea::new(global("native dock", "trial"), Bind::bound(workspace), &mut Palettes, config).show(ui);
+            let shown = DockArea::new("Native dock", Bind::bound(workspace), &mut Palettes, config).show(ui);
             actions.extend(shown.actions);
         });
-        for action in &actions {
-            workspace.apply(action.clone(), false, |_| Permissions::ALL).expect("the model takes what the dock reports");
-        }
         actions
     };
     windows.child_info(info(true, PALETTE_AT));

@@ -7,10 +7,10 @@ use craft_behavior::Axis;
 use craft_behavior::dock::{Action, Column, DockEdge, Group, Layout, Node, Permissions, SplitSize, Workspace};
 use craft_theme::{Contrast, ControlSize, Mode};
 use craft_ui::contract::{Bind, BodyCx, Role};
-use craft_ui::docking::{DockConfig, DockPanels, DockSizes, HidePanels, PanelSpec};
+use craft_ui::docking::{DockConfig, DockEvent, DockPanels, DockSizes, HidePanels, PanelSpec};
 use craft_ui::patterns::dock::{DockArea, DockAreaOutput};
 use craft_ui::style::Variant;
-use craft_ui::testing::memory::global;
+use craft_ui::testing::layout::in_region;
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::style::{tokens, with_cx};
 use craft_ui::testing::{Fixture, Target, trial};
@@ -57,7 +57,7 @@ fn shown_panels(workspace: Workspace<usize>, hide_all: bool) -> (Vec<usize>, Opt
     let mut fixture = Fixture::new(move |ui| {
         seen.borrow_mut().clear();
         let mut panels = Recorder { shown: Rc::clone(&seen) };
-        let out = DockArea::new(global("dock area", "trial"), Bind::bound(&mut workspace), &mut panels, DockConfig::default())
+        let out = DockArea::new("Dock area", Bind::bound(&mut workspace), &mut panels, DockConfig::default())
             .hide(if hide_all { HidePanels::All } else { HidePanels::None })
             .show(ui);
         *kept.borrow_mut() = Some(out);
@@ -99,11 +99,10 @@ fn drag_bed(read_only: bool) -> (Fixture, Rc<RefCell<Vec<Action<usize>>>>) {
     let layout = workspace.layout.clone();
     let mut fixture = Fixture::new(move |ui| {
         let mut panels = Recorder { shown: Rc::default() };
-        let id = global("dock area", "drags");
         let area = if read_only {
-            DockArea::read_only(id, &layout, &mut panels, DockConfig::default())
+            DockArea::read_only("Dock area", &layout, &mut panels, DockConfig::default())
         } else {
-            DockArea::new(id, Bind::bound(&mut workspace), &mut panels, DockConfig::default())
+            DockArea::new("Dock area", Bind::bound(&mut workspace), &mut panels, DockConfig::default())
         };
         kept.borrow_mut().extend(area.show(ui).actions);
     });
@@ -210,13 +209,13 @@ impl DockPanels<usize> for Controls {
 
 type Outputs = Rc<RefCell<Vec<DockAreaOutput<usize>>>>;
 
-/// A fixture of the docked layout that keeps every output and applies none of its actions.
+/// A fixture of the docked layout over a given workspace, so the area applies none of its actions, that keeps every
+/// output.
 fn commanded() -> (Fixture, Outputs) {
     let outputs: Outputs = Rc::default();
     let kept = Rc::clone(&outputs);
-    let mut workspace = docked();
     let fixture = Fixture::new(move |ui| {
-        let out = DockArea::new(global("dock area", "commands"), Bind::bound(&mut workspace), &mut Controls, DockConfig::default()).show(ui);
+        let out = DockArea::new("Dock area", Bind::given(docked()), &mut Controls, DockConfig::default()).show(ui);
         kept.borrow_mut().push(out);
     });
     (fixture, outputs)
@@ -268,4 +267,114 @@ fn focus_in_a_panels_content_names_its_panel_while_nothing_is_picked() {
     let last = outputs.borrow_mut().pop().expect("the area ran");
     assert_eq!(last.focused, Some(SIDE), "the group holding focus names its panel");
     assert_eq!(last.picked, None, "focus alone picks nothing");
+}
+
+// The area applies its actions to the bound workspace (l4f-fdock).
+
+/// Panels that revoke every right once a panel body has run in a pass, when `revoke` is set: the rights the area read
+/// at the start of the pass allow the action, and the workspace refuses it when it applies the action.
+struct Revoking {
+    revoke: bool,
+    ran: bool,
+}
+
+impl DockPanels<usize> for Revoking {
+    fn spec(&self, panel: &usize) -> PanelSpec {
+        PanelSpec::new(format!("Panel {panel}"))
+    }
+
+    fn permissions(&self, panel: &usize) -> Permissions {
+        if (self.revoke && self.ran) || *panel == CANVAS { Permissions::PROTECTED } else { Permissions::ALL }
+    }
+
+    fn body(&mut self, _: &usize, _: &mut Ui, _: &mut BodyCx<'_>) {
+        self.ran = true;
+    }
+}
+
+/// A fixture over a bound workspace the test can read, with every output the area made.
+fn applying(revoke: bool) -> (Fixture, Rc<RefCell<Workspace<usize>>>, Outputs) {
+    let held = Rc::new(RefCell::new(docked()));
+    let outputs: Outputs = Rc::default();
+    let (bound, kept) = (Rc::clone(&held), Rc::clone(&outputs));
+    let fixture = Fixture::new(move |ui| {
+        let mut workspace = bound.borrow().clone();
+        let mut panels = Revoking { revoke, ran: false };
+        let out = DockArea::new("Dock area", Bind::bound(&mut workspace), &mut panels, DockConfig::default()).show(ui);
+        *bound.borrow_mut() = workspace;
+        kept.borrow_mut().push(out);
+    });
+    (fixture, held, outputs)
+}
+
+/// Closes the side panel from its group menu.
+fn close_side_from_menu(fixture: &mut Fixture) {
+    fixture.room(AREA).settle();
+    let menu = fixture
+        .by_role(Role::BUTTON)
+        .into_iter()
+        .filter(|button| name(fixture.tree(), button.node) == Some("Panel Menu") && button.rect.max.x <= COLUMN_WIDTH)
+        .min_by(|a, b| a.rect.top().total_cmp(&b.rect.top()))
+        .expect("the side group has a menu button");
+    fixture.click(&menu);
+    fixture.idle(MENU_FRAMES);
+    let close = fixture.by_label("Close").expect("the group menu lists Close");
+    fixture.click(&close);
+    fixture.idle(MENU_FRAMES);
+}
+
+#[trial]
+fn closing_a_panel_from_its_group_menu_closes_it_in_the_bound_workspace_and_is_reported() {
+    let (mut fixture, held, outputs) = applying(false);
+    close_side_from_menu(&mut fixture);
+    assert!(!held.borrow().layout.panels().contains(&&SIDE), "the panel left the layout");
+    assert!(drained(&outputs).contains(&Action::close(SIDE)), "the output reports the close");
+}
+
+#[trial]
+fn an_action_the_workspace_refuses_changes_nothing_and_is_not_reported() {
+    let (mut fixture, held, outputs) = applying(true);
+    close_side_from_menu(&mut fixture);
+    assert_eq!(*held.borrow(), docked(), "the workspace is as it was");
+    assert!(drained(&outputs).is_empty(), "nothing is reported as applied");
+}
+
+/// Panels named after their area, so a click can tell the areas apart.
+struct Named(&'static str);
+
+impl DockPanels<usize> for Named {
+    fn spec(&self, panel: &usize) -> PanelSpec {
+        PanelSpec::new(format!("{} {panel}", self.0))
+    }
+
+    fn body(&mut self, _: &usize, _: &mut Ui, _: &mut BodyCx<'_>) {}
+}
+
+#[trial]
+fn areas_with_different_labels_keep_separate_flyouts() {
+    let mut iconic = Column::new(vec![Group::new(vec![SIDE], 0)], COLUMN_WIDTH);
+    iconic.iconic = true;
+    let root = Node::split(Axis::X, SplitSize::FixedFirst(COLUMN_WIDTH), Node::dock(DockEdge::Start, vec![iconic]), Node::tabs(vec![CANVAS], 0));
+    let layout = Layout::new(Some(root), Vec::new());
+    let opened: Rc<RefCell<Vec<(&'static str, bool)>>> = Rc::default();
+    let seen = Rc::clone(&opened);
+    let mut fixture = Fixture::new(move |ui| {
+        let half = Vec2::new(AREA.x / 2.0, AREA.y);
+        for (at, label) in ["Left", "Right"].into_iter().enumerate() {
+            in_region(ui, Rect::from_min_size(Pos2::new(half.x * at as f32, 0.0), half), |ui| {
+                let mut panels = Named(label);
+                let out = DockArea::read_only(label, &layout, &mut panels, DockConfig::default()).show(ui);
+                let flyout = out.events.iter().any(|event| matches!(event, DockEvent::FlyoutChanged { panel: Some(_), .. }));
+                seen.borrow_mut().push((label, flyout));
+            });
+        }
+    });
+    fixture.room(AREA).settle();
+    opened.borrow_mut().clear();
+    let icon = fixture.by_label("Left 1").expect("the left area shows its panel's icon");
+    fixture.click(&icon);
+    fixture.idle(2);
+    let opened = opened.borrow();
+    assert!(opened.contains(&("Left", true)), "the flyout opened in the area that was clicked: {opened:?}");
+    assert!(!opened.contains(&("Right", true)), "the other area's flyout stayed closed: {opened:?}");
 }
