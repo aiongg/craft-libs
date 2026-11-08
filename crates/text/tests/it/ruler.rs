@@ -121,13 +121,14 @@ fn right_to_left_mirrors_positions() {
 #[trial]
 fn delete_and_backspace_clear_the_picked_stop() {
     for key in [Key::Delete, Key::Backspace] {
-        let mut shown = show(set(RulerValues::default(), |v| v.stops = vec![left_stop(72.0), left_stop(216.0)]), None, false, &[]);
+        let (kept, picked) = (left_stop(72.0), left_stop(216.0));
+        let mut shown = show(set(RulerValues::default(), |v| v.stops = vec![kept, picked]), None, false, &[]);
         shown.fixture.settle();
         let stops = stop_nodes(&shown.fixture);
         assert_eq!(stops.len(), 2, "the stops are named apart");
         shown.fixture.click(&stops[1]);
         shown.fixture.key(key, Modifiers::NONE);
-        assert_eq!(shown.values.borrow().stops, vec![left_stop(72.0)], "{key:?} clears the picked stop only");
+        assert_eq!(shown.values.borrow().stops, vec![kept], "{key:?} clears the picked stop only");
     }
 }
 
