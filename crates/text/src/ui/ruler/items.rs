@@ -1,6 +1,25 @@
-//! The things a ruler edits (the indent markers and the stops) and the edits on [`RulerValues`].
+//! The things a ruler edits (the indent markers and the stops), their parts, and the edits on [`RulerValues`].
 
 use super::{RulerValues, SAME_POSITION, TabStop};
+use craft_behavior::PartKey;
+use craft_behavior::part::PartRef;
+
+/// The first-line indent marker.
+pub(super) const FIRST: PartKey = PartKey::new("first");
+/// The hanging indent marker (moves the left indent, the first line stays).
+pub(super) const HANGING: PartKey = PartKey::new("hanging");
+/// The left indent box (moves first line and left indent together).
+pub(super) const LEFT: PartKey = PartKey::new("left");
+/// The right indent marker.
+pub(super) const RIGHT: PartKey = PartKey::new("right");
+/// One tab stop, `STOP.at(i)`.
+pub(super) const STOP: PartKey = PartKey::new("stop");
+/// One table column border, `COLUMN.at(i)`.
+pub(super) const COLUMN: PartKey = PartKey::new("column");
+/// The tab selector in the corner.
+pub(super) const SELECTOR: PartKey = PartKey::new("selector");
+/// The strip: a press on the empty column places a stop.
+pub(super) const STRIP: PartKey = PartKey::new("strip");
 
 /// A marker or stop on the ruler.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -20,6 +39,29 @@ impl Item {
     pub(super) fn all(values: &RulerValues) -> Vec<Item> {
         let markers = [Item::FirstLine, Item::Hanging, Item::LeftBox, Item::Right];
         markers.into_iter().chain((0..values.stops.len()).map(Item::Stop)).collect()
+    }
+
+    /// The part of the item.
+    pub(super) fn part(self) -> PartRef {
+        match self {
+            Item::FirstLine => FIRST.into(),
+            Item::Hanging => HANGING.into(),
+            Item::LeftBox => LEFT.into(),
+            Item::Right => RIGHT.into(),
+            Item::Stop(at) => STOP.at(at as u64),
+        }
+    }
+
+    /// The item a part belongs to.
+    pub(super) fn of_part(part: PartRef) -> Option<Item> {
+        match part.key {
+            key if key == FIRST => Some(Item::FirstLine),
+            key if key == HANGING => Some(Item::Hanging),
+            key if key == LEFT => Some(Item::LeftBox),
+            key if key == RIGHT => Some(Item::Right),
+            key if key == STOP => part.index.map(|at| Item::Stop(at as usize)),
+            _ => None,
+        }
     }
 
     /// Where the item sits, points from the column's start edge.
@@ -76,4 +118,16 @@ pub(super) fn moved(values: &RulerValues, item: Item, to: f32, width: f32) -> (R
         }
     }
     (next, item)
+}
+
+/// The item after (or before) `picked` in `items`, staying at the ends.
+pub(super) fn pick(items: &[Item], picked: Option<Item>, forward: bool) -> Option<Item> {
+    let at = picked.and_then(|picked| items.iter().position(|item| *item == picked));
+    let to = match (at, forward) {
+        (None, true) => 0,
+        (None, false) => items.len().saturating_sub(1),
+        (Some(at), true) => (at + 1).min(items.len().saturating_sub(1)),
+        (Some(at), false) => at.saturating_sub(1),
+    };
+    items.get(to).copied()
 }

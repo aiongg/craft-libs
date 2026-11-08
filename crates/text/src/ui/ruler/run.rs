@@ -1,59 +1,53 @@
-//! One pass of the ruler: gestures, keys and screen reader requests, then drawing.
+//! One pass of the ruler's input: the gestures on the items, the strip and the column borders, keys and the
+//! screen reader's requests.
 
-use craft_ui::behavior::{ClaimedKey, KeyClaim, nudge};
-use craft_ui::canvas::{INCH_SIXTEENTHS, RulerStyle, RulerUnits, Rulers, TickRule, Ticks};
-use craft_ui::edit::{EditEvent, EditPolicy, Gesture};
-use craft_ui::localized::units::{Length, LengthUnit, UnitContext};
-use craft_ui::localized::{Labels as _, LocaleNumbers, Unit, fmt};
-use craft_ui::primitives::{FocusRing, Interactive, Sensed};
-use craft_ui::theme::{Tokens, TokensOf as _};
-use egui::accesskit::{Action, ActionData, Role};
-use egui::{CornerRadius, CursorIcon, EventFilter, Id, Key, Modifiers, PointerButton, Rect, Response, Sense, Stroke, Ui, WidgetInfo};
+use super::items::{COLUMN, Item, STRIP, moved, pick, place, without};
+use super::{ColumnBorder, ColumnDrag, RulerValues, SAME_POSITION, TabLeader, TabStop, TextRuler, dropped_off, snap_stop};
+use crate::ui::length::DocUnit;
+use craft_behavior::{CancelReason, GesturePhase, Granularity, Intent, NavMove, PointerButton, PressPhase, RulerUnits, Ticks};
+use craft_ui::canvas::{INCH_SIXTEENTHS, RulerText, Rulers, TickRule, readout};
+use craft_ui::contract::{Cx, Edit as _, Focus as _, Pointer as _, Remember as _, WordSetCx as _};
+use craft_ui::runtime::env::{Label, UnitKind};
+use egui::Pos2;
 
-use super::items::{Item, moved, place, without};
-use super::paint::{Geometry, Shapes, background, column_grip, column_marker, ticks};
-use super::{
-    ColumnBorder, RulerValues, SAME_POSITION, TabAlign, TabLeader, TabStop, TextRuler, TextRulerLabels, TextRulerResponse, dropped_off, snap_stop,
-};
+/// How many snap steps a Shift nudge moves.
+const LARGE_NUDGE: f32 = 10.0;
 
-type Edit = Gesture<RulerValues>;
-
-/// The keys the focused ruler keeps: the arrows move a marker rather than the focus.
-const KEY_FILTER: EventFilter = EventFilter { horizontal_arrows: true, vertical_arrows: true, tab: false, escape: false };
-
-/// The keys of the stop list: Page Down and Page Up pick, Delete and Backspace clear (con §9).
-const NEXT_KEY: ClaimedKey = ClaimedKey::exact(Modifiers::NONE, Key::PageDown);
-const PREVIOUS_KEY: ClaimedKey = ClaimedKey::exact(Modifiers::NONE, Key::PageUp);
-const REMOVE_KEY: ClaimedKey = ClaimedKey::exact(Modifiers::NONE, Key::Delete);
-const BACK_KEY: ClaimedKey = ClaimedKey::exact(Modifiers::NONE, Key::Backspace);
-
-/// The opacity of a stop dragged off the ruler.
-const FADED: f32 = 0.5;
-
-/// The tick rule of a unit: Word's sixteenths for inches, the units' own decimal table otherwise.
-fn tick_rule(unit: LengthUnit) -> TickRule<'static> {
-    if unit == LengthUnit::Inches { TickRule::Inches(&INCH_SIXTEENTHS) } else { TickRule::Metric }
+/// What a drag on the ruler is doing, kept for its length.
+#[derive(Clone, Debug, Default)]
+pub(super) struct Held {
+    /// The values when the gesture began.
+    anchor: Option<RulerValues>,
+    /// The item grabbed (a stop by its index when the gesture began).
+    from: Option<Item>,
+    /// A new stop is being placed, not an existing one moved.
+    placing: bool,
+    /// Where the item is now (a stop's index follows it through the sorted stops).
+    pub(super) now: Option<Item>,
+    /// The pointer is far enough off the ruler to clear the stop on release.
+    pub(super) off: bool,
+    /// The borders of the table when a column border drag began.
+    columns: Option<Vec<f32>>,
 }
 
-fn ruler_units(ui: &Ui, unit: LengthUnit) -> RulerUnits {
-    let per_doc = UnitContext::default().convert(Length { value: 1.0, unit: LengthUnit::Points }, unit).unwrap_or(1.0);
-    RulerUnits {
-        per_doc,
-        ticks: Ticks::Decimal { whole: false },
-        numbers: (*LocaleNumbers::of(ui)).clone(),
-        unit: Unit::new(&format!("{{n}} {}", unit.suffix())),
-        decimals: unit.decimals(),
-    }
+/// The tick rule of a unit: Word's sixteenths for inches, the units' own decimal table otherwise.
+pub(super) fn rule(unit: DocUnit) -> TickRule<'static> {
+    if unit.kind == UnitKind::Inches { TickRule::Inches(&INCH_SIXTEENTHS) } else { TickRule::Metric }
+}
+
+/// The ruler's units: ruler units per point, written as the unit's kind.
+pub(super) fn ruler_text(unit: DocUnit, points_per_inch: f64) -> RulerText {
+    RulerText::new(RulerUnits::new(unit.shown(1.0, points_per_inch), Ticks::Decimal { whole: false }), unit.kind)
 }
 
 /// The distance a snapping drag moves by: the ruler's smallest tick, in points.
-fn snap_step(units: &RulerUnits, rule: TickRule<'_>, style: &RulerStyle, scale: f32) -> f32 {
-    let ticks = Rulers::ticks(units, rule, style, f64::from(scale), 0.0..=0.0);
+pub(super) fn snap_step(text: &RulerText, unit: DocUnit, scale: f32) -> f32 {
+    let ticks = Rulers::ticks(&text.units, rule(unit), f64::from(scale), 0.0..=0.0);
     let gap = ticks.windows(2).find_map(|pair| match pair {
         [a, b] => Some(b.value - a.value),
         _ => None,
     });
-    match gap.map(|minor| minor / units.per_doc) {
+    match gap.map(|minor| minor / text.units.per_doc) {
         Some(points) if points.is_finite() && points > 0.0 => points as f32,
         _ => SAME_POSITION,
     }
@@ -65,501 +59,259 @@ fn snap_within(position: f32, step: f32, bounds: (f32, f32), free: bool) -> f32 
     snapped.clamp(bounds.0, bounds.1)
 }
 
-/// What a drag on the ruler is doing.
-#[derive(Clone, Copy, Debug)]
-struct Drag {
-    /// The item being moved; a stop's index follows it through the sorted stops.
-    item: Item,
-    /// The stop's index when the drag began (its widget's identity).
-    grab: usize,
-    /// The pointer is far enough off the ruler to clear the stop on release.
-    off: bool,
-    /// A new stop being placed, not an existing one moved.
-    placing: bool,
-}
-
-#[derive(Clone, Debug, Default)]
-struct State {
-    picked: Option<Item>,
-    /// The `selected` the app gave last, to see it change.
-    seen: Option<usize>,
-    drag: Option<Drag>,
-    /// While a table column border is dragged: the borders as they were when it began.
-    columns: Option<Vec<f32>>,
-}
-
-#[derive(Default)]
-struct Outcome {
-    selected: Option<usize>,
-    open_tabs_dialog: bool,
-    column: Option<EditEvent<ColumnBorder>>,
-}
-
-struct Pass {
-    id: Id,
-    g: Geometry,
-    style: RulerStyle,
-    shapes: Shapes,
-    units: RulerUnits,
-    rule: TickRule<'static>,
-    labels: TextRulerLabels,
-    /// The snap step, points.
-    step: f32,
-    /// The kind of stop a click sets.
-    kind: TabAlign,
-}
-
-pub(super) fn show(ruler: TextRuler<'_>, ui: &mut Ui, strip: Rect) -> TextRulerResponse {
-    let TextRuler { id_salt, values, width, unit, kind, scale, right_to_left, selected, columns, labels } = ruler;
-    let tokens = Tokens::of(ui);
-    let style = Rulers::style(&tokens);
-    let width = if width.is_finite() { width.max(0.0) } else { 0.0 };
-    let fit = if width > 0.0 { strip.width() / width } else { 1.0 };
-    let scale = scale.filter(|scale| scale.is_finite() && *scale > 0.0).unwrap_or(fit).max(f32::EPSILON);
-    let units = ruler_units(ui, unit);
-    let pass = Pass {
-        id: ui.make_persistent_id(id_salt),
-        g: Geometry { strip, scale, right_to_left, width },
-        step: snap_step(&units, tick_rule(unit), &style, scale),
-        rule: tick_rule(unit),
-        shapes: Shapes::of(),
-        kind: kind.as_deref().copied().unwrap_or_default(),
-        labels: labels.unwrap_or_else(|| TextRulerLabels::of(ui)),
-        units,
-        style,
-    };
-    let mut state: State = ui.data(|d| d.get_temp(pass.id)).unwrap_or_default();
-    if selected != state.seen {
-        state.picked = selected.map(Item::Stop).or(state.picked);
-        state.seen = selected;
-    }
-
-    let response = ui.interact(strip, pass.id, Sense::click_and_drag());
-    let enabled = ui.is_enabled();
-    response.widget_info(|| WidgetInfo::labeled(Role::Group, enabled, pass.labels.ruler.as_str()));
-    let mut gesture = Gesture::load(ui, pass.id, values, EditPolicy::default()).cancel_on_focus_loss(true).event_filter(KEY_FILTER);
-    if !gesture.is_active() {
-        state.drag = None;
-    }
-    let before = gesture.shown().clone();
-    let items = pass.register(ui, &state, &before);
-    let mut out = Outcome::default();
-    for (item, sensed) in &items {
-        pass.item(ui, &mut gesture, &mut state, &mut out, *item, sensed.response());
-    }
-    pass.on_strip(ui, &mut gesture, &mut state, &mut out, &response);
-    pass.keys(ui, &mut gesture, &mut state, response.has_focus());
-    let borders = pass.column_borders(ui, &mut state, &mut out, columns);
-    let shown = gesture.shown().clone();
-    pass.paint(ui, &state, &shown, &borders, response.has_focus());
-    for (item, sensed) in items {
-        pass.report(ui, item, sensed, &before, &shown);
-    }
-    if let Some(kind) = kind {
-        pass.selector(ui, kind);
-    }
-    ui.data_mut(|d| d.insert_temp(pass.id, state));
-    TextRulerResponse { edit: gesture.finish(), selected: out.selected, open_tabs_dialog: out.open_tabs_dialog, column: out.column, response }
-}
-
-impl Pass {
-    fn name(&self, item: Item, values: &RulerValues) -> &str {
-        match item {
-            Item::FirstLine => &self.labels.first_line_indent,
-            Item::Hanging => &self.labels.hanging_indent,
-            Item::LeftBox => &self.labels.left_indent,
-            Item::Right => &self.labels.right_indent,
-            Item::Stop(at) => self.tab_name(values.stops.get(at).map(|stop| stop.align).unwrap_or_default()),
+impl TextRuler<'_> {
+    pub(super) fn run(&mut self, cx: &mut Cx<'_, Self>) {
+        let values = cx.value().cloned().unwrap_or_default();
+        let layout = self.layout(cx.rect, cx.style, cx.flow.is_rtl());
+        let g = layout.g;
+        let numbers = cx.env.units();
+        let text = ruler_text(self.unit, numbers.points_per_inch());
+        let step = snap_step(&text, self.unit, g.scale);
+        let mut held = cx.memory::<Held>().clone();
+        if !cx.gesture().is_some() && held.columns.is_none() {
+            held.off = false;
+            held.placing = false;
+            held.anchor = None;
         }
-    }
 
-    fn tab_name(&self, kind: TabAlign) -> &str {
-        match kind {
-            TabAlign::Left => &self.labels.left_tab,
-            TabAlign::Center => &self.labels.center_tab,
-            TabAlign::Right => &self.labels.right_tab,
-            TabAlign::Decimal => &self.labels.decimal_tab,
-            TabAlign::Bar => &self.labels.bar_tab,
+        for item in Item::all(&values) {
+            self.run_item(cx, &layout.g, step, &mut held, &text, item);
         }
-    }
-
-    /// The box the item occupies on the strip.
-    fn rect(&self, item: Item, values: &RulerValues) -> Rect {
-        let x = self.g.x(item.position(values, self.g.width));
-        let strip = self.g.strip;
-        match item {
-            Item::FirstLine => self.shapes.first_line(strip, x),
-            Item::Hanging => self.shapes.hanging(strip, x),
-            Item::LeftBox => self.shapes.left_box(strip, x),
-            Item::Right => self.shapes.right(strip, x),
-            Item::Stop(_) => self.shapes.stop(strip, x),
-        }
-    }
-
-    fn step_or_default(&self) -> f32 {
-        if self.step > 0.0 { self.step } else { SAME_POSITION }
-    }
-
-    /// The items' widgets, stops first so the markers keep the pointer where they overlap one. A
-    /// stop being dragged is the only stop registered, under the id it had when the drag began, so
-    /// it keeps the drag while it passes other stops and changes its index.
-    fn register(&self, ui: &Ui, state: &State, values: &RulerValues) -> Vec<(Item, Sensed)> {
-        let stops: Vec<(Item, usize)> = match state.drag {
-            Some(Drag { placing: true, .. }) => Vec::new(),
-            Some(Drag { item: item @ Item::Stop(_), grab, .. }) => vec![(item, grab)],
-            _ => (0..values.stops.len()).map(|at| (Item::Stop(at), at)).collect(),
-        };
-        let markers = [Item::LeftBox, Item::Hanging, Item::FirstLine, Item::Right].map(|item| (item, 0));
-        stops
-            .into_iter()
-            .chain(markers)
-            .map(|(item, key)| {
-                let id = self.id.with((item_key(item), key));
-                let sensed = Interactive::with_id(id, Role::Slider, self.name(item, values))
-                    .sense(Sense::click_and_drag() - Sense::FOCUSABLE)
-                    .state_layer(false)
-                    .focus_ring(false)
-                    .interact_at(ui, self.rect(item, values));
-                (item, sensed)
-            })
-            .collect()
-    }
-
-    fn item(&self, ui: &Ui, gesture: &mut Edit, state: &mut State, out: &mut Outcome, item: Item, r: &Response) {
-        if r.hovered() || r.dragged() {
-            ui.ctx().set_cursor_icon(CursorIcon::ResizeHorizontal);
-        }
-        if r.drag_started_by(PointerButton::Primary) {
-            let grab = if let Item::Stop(at) = item { at } else { 0 };
-            gesture.begin_with_value();
-            state.drag = Some(Drag { item, grab, off: false, placing: false });
-            state.picked = Some(item);
-            ui.memory_mut(|m| m.request_focus(self.id));
-        } else if r.dragged_by(PointerButton::Primary) {
-            self.drag_item(ui, gesture, state, r);
-        }
-        if r.drag_stopped() {
-            self.end_drag(ui, gesture, state);
-        }
-        if r.clicked_by(PointerButton::Primary) {
-            state.picked = Some(item);
-            ui.memory_mut(|m| m.request_focus(self.id));
-            if let Item::Stop(at) = item {
-                out.selected = Some(at);
+        self.run_strip(cx, &layout.g, step, &mut held, &text, &values);
+        self.run_columns(cx, &layout.g, step, &mut held);
+        if self.kind.is_some() {
+            let press = cx.part(super::items::SELECTOR).press;
+            if let PressPhase::Release { start, click: true, .. } = press.phase {
+                let kind = self.kind.unwrap_or_default();
+                self.report.kind = Some(kind.next(start.button == PointerButton::Secondary));
             }
         }
-        if r.double_clicked() && matches!(item, Item::Stop(_)) {
-            out.open_tabs_dialog = true;
-        }
-        self.requests(ui, gesture, state, item, r);
+        self.run_keys(cx, &layout.g, step, &mut held);
+        *cx.memory::<Held>() = held;
     }
 
-    /// The pointer's movement since the press and the modifiers held, for a drag in progress.
-    fn pointer(&self, ui: &Ui, r: &Response) -> Option<(egui::Pos2, egui::Pos2, Modifiers)> {
-        let pointer = r.interact_pointer_pos()?;
-        let origin = ui.input(|i| i.pointer.press_origin())?;
-        Some((pointer, origin, ui.input(|i| i.modifiers)))
+    /// The pointer on one marker or stop.
+    fn run_item(&mut self, cx: &mut Cx<'_, Self>, g: &super::Geometry, step: f32, held: &mut Held, text: &RulerText, item: Item) {
+        let part = item.part();
+        let press = cx.part(part).press;
+        match press.phase {
+            PressPhase::Down { start } if start.button == PointerButton::Primary => {
+                if let Item::Stop(at) = item {
+                    self.report.picked = Some(at);
+                    if start.clicks >= 2 {
+                        self.report.open_tabs_dialog = true;
+                    }
+                }
+                cx.focus_part(part);
+            }
+            PressPhase::DragStart { start, pos } if start.button == PointerButton::Primary => {
+                let anchor = cx.value().cloned().unwrap_or_default();
+                *held = Held { anchor: Some(anchor), from: Some(item), now: Some(item), ..Held::default() };
+                cx.focus_part(part);
+                cx.begin();
+                self.drag_item(cx, g, step, held, text, start.origin, pos, press.mods.alt);
+            }
+            PressPhase::Drag { start, pos, .. } if start.button == PointerButton::Primary && held.from.is_some() && !held.placing => {
+                // Only the press that began the drag moves the item: its part keeps the index it had.
+                if held.from == Some(item) {
+                    self.drag_item(cx, g, step, held, text, start.origin, pos, press.mods.alt);
+                }
+            }
+            PressPhase::Release { start, click: false, pos } if start.button == PointerButton::Primary && held.from == Some(item) => {
+                self.drag_item(cx, g, step, held, text, start.origin, pos, press.mods.alt);
+                if held.off
+                    && let (Some(anchor), Some(Item::Stop(grab))) = (held.anchor.clone(), held.from)
+                {
+                    cx.propose(without(&anchor, grab));
+                }
+                cx.commit();
+                if let Some(now) = held.now {
+                    cx.focus_part(now.part());
+                }
+                *held = Held::default();
+            }
+            PressPhase::Cancel { .. } if held.from == Some(item) => {
+                cx.cancel(CancelReason::Escape);
+                *held = Held::default();
+            }
+            _ => {}
+        }
     }
 
-    fn drag_item(&self, ui: &Ui, gesture: &mut Edit, state: &mut State, r: &Response) {
-        let (Some(mut drag), Some(anchor), Some((pointer, origin, modifiers))) = (state.drag, gesture.anchor().cloned(), self.pointer(ui, r)) else {
-            return;
-        };
-        if drag.placing {
-            return;
+    /// Follows the pointer with the grabbed item: a stop off the ruler stays where it was and fades.
+    #[allow(clippy::too_many_arguments)]
+    fn drag_item(
+        &mut self,
+        cx: &mut Cx<'_, Self>,
+        g: &super::Geometry,
+        step: f32,
+        held: &mut Held,
+        text: &RulerText,
+        origin: Pos2,
+        pos: Pos2,
+        free: bool,
+    ) {
+        let (Some(anchor), Some(from)) = (held.anchor.clone(), held.from) else { return };
+        let start = from.position(&anchor, g.width);
+        let target = snap_stop(start + (pos.x - origin.x) / g.scale * g.sign(), step, g.width, free);
+        let (value, now) = moved(&anchor, from, target, g.width);
+        held.off = matches!(from, Item::Stop(_)) && dropped_off(pos.y, g.strip);
+        if !held.off {
+            held.now = Some(now);
+            cx.propose(value.clone());
+            self.show_position(cx, text, pos, now, &value, g.width);
         }
-        let from = if let Item::Stop(_) = drag.item { Item::Stop(drag.grab) } else { drag.item };
-        let start = from.position(&anchor, self.g.width);
-        let target = snap_stop(start + (pointer.x - origin.x) / self.g.scale * self.g.sign(), self.step, self.g.width, modifiers.alt);
-        let (value, now) = moved(&anchor, from, target, self.g.width);
-        drag.off = matches!(from, Item::Stop(_)) && dropped_off(pointer.y, self.g.strip);
-        if !drag.off {
-            drag.item = now;
-            gesture.update(value, modifiers);
-        }
-        state.drag = Some(drag);
     }
 
-    /// Release: a stop off the ruler goes (a stop being placed never arrives).
-    fn end_drag(&self, ui: &Ui, gesture: &mut Edit, state: &mut State) {
-        let Some(drag) = state.drag.take() else { return };
-        if drag.off
-            && let Some(anchor) = gesture.anchor().cloned()
-        {
-            let value = if drag.placing { anchor } else { without(&anchor, drag.grab) };
-            gesture.update(value, ui.input(|i| i.modifiers));
-        }
-        gesture.commit();
+    /// The position of the dragged item at the pointer.
+    fn show_position(&self, cx: &Cx<'_, Self>, text: &RulerText, at: Pos2, item: Item, values: &RulerValues, width: f32) {
+        let words = cx.words::<super::TextRulerWords>();
+        let name = Self::item_name(&words, item, values).to_owned();
+        let value = text.format_value(&cx.env.units(), f64::from(item.position(values, width)), 0.0);
+        readout(cx, at, &[(Label::from(name), value)]);
     }
 
     /// A press on the empty column places a stop of the selector's kind; a click does too.
-    fn on_strip(&self, ui: &Ui, gesture: &mut Edit, state: &mut State, out: &mut Outcome, r: &Response) {
-        let column = self.g.column();
-        let stop_at = |x: f32, modifiers: Modifiers| TabStop {
-            position: snap_stop(self.g.at(x), self.step, self.g.width, modifiers.alt),
-            align: self.kind,
-            leader: TabLeader::None,
-        };
-        if r.drag_started_by(PointerButton::Primary) && ui.input(|i| i.pointer.press_origin()).is_some_and(|p| column.contains(p)) {
-            gesture.begin_with_value();
-            state.drag = Some(Drag { item: Item::Stop(0), grab: 0, off: false, placing: true });
-            ui.memory_mut(|m| m.request_focus(self.id));
-        }
-        if r.dragged_by(PointerButton::Primary)
-            && let Some(mut drag) = state.drag.filter(|drag| drag.placing)
-            && let Some(anchor) = gesture.anchor().cloned()
-            && let Some(pointer) = r.interact_pointer_pos()
-        {
-            let modifiers = ui.input(|i| i.modifiers);
-            let (value, at) = place(&anchor, stop_at(pointer.x, modifiers));
-            drag.off = dropped_off(pointer.y, self.g.strip);
-            if !drag.off {
-                drag.item = Item::Stop(at);
-                gesture.update(value, modifiers);
+    fn run_strip(&mut self, cx: &mut Cx<'_, Self>, g: &super::Geometry, step: f32, held: &mut Held, text: &RulerText, values: &RulerValues) {
+        let press = cx.part(STRIP).press;
+        let kind = self.kind.unwrap_or_default();
+        let stop_at = |x: f32, free: bool| TabStop { position: snap_stop(g.at(x), step, g.width, free), align: kind, leader: TabLeader::None };
+        match press.phase {
+            PressPhase::DragStart { start, pos } if start.button == PointerButton::Primary && g.column().contains(start.origin) => {
+                *held = Held { anchor: Some(values.clone()), placing: true, ..Held::default() };
+                cx.begin();
+                self.drag_placing(cx, g, held, text, pos, &stop_at(pos.x, press.mods.alt));
             }
-            state.drag = Some(drag);
-        }
-        if r.drag_stopped() && state.drag.is_some_and(|drag| drag.placing) {
-            self.end_drag(ui, gesture, state);
-        }
-        if r.clicked_by(PointerButton::Primary)
-            && let Some(pointer) = r.interact_pointer_pos().filter(|p| column.contains(*p))
-        {
-            let (value, at) = place(gesture.shown(), stop_at(pointer.x, ui.input(|i| i.modifiers)));
-            gesture.set(value);
-            state.picked = Some(Item::Stop(at));
-            out.selected = Some(at);
+            PressPhase::Drag { pos, .. } if held.placing => self.drag_placing(cx, g, held, text, pos, &stop_at(pos.x, press.mods.alt)),
+            PressPhase::Release { click: false, pos, .. } if held.placing => {
+                self.drag_placing(cx, g, held, text, pos, &stop_at(pos.x, press.mods.alt));
+                if held.off
+                    && let Some(anchor) = held.anchor.clone()
+                {
+                    cx.propose(anchor);
+                }
+                cx.commit();
+                *held = Held::default();
+            }
+            PressPhase::Cancel { .. } if held.placing => {
+                cx.cancel(CancelReason::Escape);
+                *held = Held::default();
+            }
+            PressPhase::Release { start, click: true, pos } if start.button == PointerButton::Primary && g.column().contains(pos) => {
+                let (value, at) = place(values, stop_at(pos.x, press.mods.alt));
+                cx.set(value);
+                self.report.picked = Some(at);
+                cx.focus_part(Item::Stop(at).part());
+            }
+            _ => {}
         }
     }
 
-    /// Page Down and Page Up pick the next and previous marker or stop; the arrows move the
-    /// picked one a snap step (Shift ten); Delete and Backspace clear a picked stop.
-    fn keys(&self, ui: &Ui, gesture: &mut Edit, state: &mut State, focused: bool) {
-        if !focused {
+    fn drag_placing(&mut self, cx: &mut Cx<'_, Self>, g: &super::Geometry, held: &mut Held, text: &RulerText, pos: Pos2, stop: &TabStop) {
+        let Some(anchor) = held.anchor.clone() else { return };
+        held.off = dropped_off(pos.y, g.strip);
+        if !held.off {
+            let (value, at) = place(&anchor, *stop);
+            held.now = Some(Item::Stop(at));
+            cx.propose(value.clone());
+            self.show_position(cx, text, pos, Item::Stop(at), &value, g.width);
+        }
+    }
+
+    /// The table column borders: one gesture per border drag, reported with its phase. The columns right of a dragged
+    /// border move with it, which the app applies from the report.
+    fn run_columns(&mut self, cx: &mut Cx<'_, Self>, g: &super::Geometry, step: f32, held: &mut Held) {
+        let (lo, hi) = g.span();
+        for (index, position) in self.columns.iter().copied().enumerate() {
+            let press = cx.part(COLUMN.at(index as u64)).press;
+            let report = |phase: GesturePhase, position: f32| Some(ColumnDrag { phase, border: ColumnBorder { index, position } });
+            match press.phase {
+                PressPhase::DragStart { start, .. } if start.button == PointerButton::Primary => {
+                    held.columns = Some(self.columns.to_vec());
+                    self.report.column = report(GesturePhase::Begin, position);
+                    cx.focus_own();
+                }
+                PressPhase::Drag { start, pos, .. } if held.columns.is_some() => {
+                    let from = held.columns.as_ref().and_then(|columns| columns.get(index)).copied().unwrap_or(position);
+                    let to = from + (pos.x - start.origin.x) / g.scale * g.sign();
+                    self.report.column = report(GesturePhase::Update, snap_within(to, step, (lo, hi), press.mods.alt));
+                }
+                PressPhase::Release { start, pos, click: false } if held.columns.is_some() => {
+                    let from = held.columns.as_ref().and_then(|columns| columns.get(index)).copied().unwrap_or(position);
+                    let to = from + (pos.x - start.origin.x) / g.scale * g.sign();
+                    self.report.column = report(GesturePhase::Commit, snap_within(to, step, (lo, hi), press.mods.alt));
+                    held.columns = None;
+                }
+                PressPhase::Cancel { .. } if held.columns.is_some() => {
+                    self.report.column = report(GesturePhase::Cancel, position);
+                    held.columns = None;
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// Keys on the focused item: Page Down and Page Up move to the next and previous item, the arrows nudge it, Delete
+    /// and Backspace clear a stop; a screen reader's SetValue sets an item's position.
+    fn run_keys(&mut self, cx: &mut Cx<'_, Self>, g: &super::Geometry, step: f32, held: &mut Held) {
+        if cx.gesture().is_some() {
             return;
         }
-        KeyClaim::claim(ui.ctx(), self.id, &[REMOVE_KEY, BACK_KEY]);
-        if gesture.is_active() {
-            return;
-        }
-        let (down, up, delete) = ui.input_mut(|i| {
-            let removed = REMOVE_KEY.consume(i) | BACK_KEY.consume(i);
-            (NEXT_KEY.consume(i), PREVIOUS_KEY.consume(i), removed)
-        });
-        let current = gesture.shown().clone();
-        if down || up {
-            state.picked = pick(&Item::all(&current), state.picked, down);
-        }
-        let Some(item) = state.picked else { return };
-        if delete && let Item::Stop(at) = item {
-            gesture.set(without(&current, at));
-            let left = current.stops.len().saturating_sub(1);
-            state.picked = left.checked_sub(1).map(|last| Item::Stop(at.min(last)));
-        } else if let Some(delta) = nudge::read(ui, f64::from(self.step_or_default()), 10.0 * f64::from(self.step_or_default())) {
-            let to = item.position(&current, self.g.width) + delta.x as f32 * self.g.sign();
-            let (value, now) = moved(&current, item, to, self.g.width);
-            gesture.set(value);
-            state.picked = Some(now);
-        }
-    }
-
-    /// A screen reader's Increment, Decrement and SetValue on an item.
-    fn requests(&self, ui: &Ui, gesture: &mut Edit, state: &mut State, item: Item, r: &Response) {
-        let (increments, decrements, value) = ui.input(|i| {
-            let count = |action| i.num_accesskit_action_requests(r.id, action);
-            let value = i.accesskit_action_requests(r.id, Action::SetValue).filter_map(|request| match request.data {
-                Some(ActionData::NumericValue(v)) if v.is_finite() => Some(v as f32),
-                _ => None,
-            });
-            (count(Action::Increment), count(Action::Decrement), value.last())
-        });
-        let current = gesture.shown().clone();
-        let at = item.position(&current, self.g.width);
-        let to = match value {
-            Some(value) => value,
-            None if increments != decrements => at + self.step_or_default() * (increments as f32 - decrements as f32),
-            None => return,
-        };
-        let (value, now) = moved(&current, item, to, self.g.width);
-        gesture.set(value);
-        state.picked = Some(now);
-    }
-
-    fn paint(&self, ui: &Ui, state: &State, shown: &RulerValues, borders: &[f32], focused: bool) {
-        let painter = ui.painter_at(self.g.strip);
-        let (style, shapes, g) = (&self.style, &self.shapes, &self.g);
-        background(&painter, style, g);
-        let items = Item::all(shown);
-        let column_boxes: Vec<Rect> = borders.iter().map(|at| column_marker(shapes, g.strip, g.x(*at))).collect();
-        let keep_clear: Vec<Rect> = items.iter().map(|item| self.rect(*item, shown)).chain(column_boxes.iter().copied()).collect();
-        ticks(&painter, style, g, &self.units, self.rule, &keep_clear);
-        let base = g.strip.max.y;
-        for (at, stop) in shown.stops.iter().enumerate() {
-            let off = state.drag.is_some_and(|drag| drag.off && drag.item == Item::Stop(at));
-            let stroke = Stroke::new(style.marker.width, if off { style.marker.color.gamma_multiply(FADED) } else { style.marker.color });
-            shapes.glyph(&painter, g.x(stop.position), base, stop.align, g.right_to_left, stroke);
-        }
-        for marker in &column_boxes {
-            column_grip(&painter, style, *marker);
-        }
-        if state.columns.is_some() && ui.input(|i| i.modifiers.alt) {
-            self.widths(&painter, borders);
-        }
-        let at = |item: Item| g.x(item.position(shown, g.width));
-        shapes.indents(&painter, style, g.strip, [at(Item::FirstLine), at(Item::LeftBox), at(Item::Right)]);
-        if let Some(item) = state.picked.filter(|item| items.contains(item)) {
-            FocusRing::paint_if(ui, self.rect(item, shown), CornerRadius::ZERO, focused);
-        }
-        if let Some(drag) = state.drag.filter(|drag| !drag.off) {
-            self.tip(ui, drag.item, shown);
-        }
-    }
-
-    fn tip(&self, ui: &Ui, item: Item, shown: &RulerValues) {
-        let value = self.units.format_value(f64::from(item.position(shown, self.g.width)), 0.0);
-        let text = fmt(&self.labels.tip, &[("name", self.name(item, shown)), ("value", value.as_str())]);
-        egui::Tooltip::always_open(ui.ctx().clone(), ui.layer_id(), self.id.with("tip"), egui::PopupAnchor::Pointer).show(|ui| ui.label(text));
-    }
-
-    /// The table column borders (WordCraft `table_ruler.rs:columns`): a grip on each, dragged
-    /// along the strip. The columns right of a dragged border move with it, so the borders are
-    /// returned as the drag leaves them. The drag is one gesture per border.
-    fn column_borders(&self, ui: &Ui, state: &mut State, out: &mut Outcome, host: &[f32]) -> Vec<f32> {
-        let base = state.columns.clone().filter(|start| start.len() == host.len()).unwrap_or_else(|| host.to_vec());
-        let bounds = {
-            let (a, b) = (self.g.at(self.g.strip.min.x), self.g.at(self.g.strip.max.x));
-            (a.min(b), a.max(b))
-        };
-        let mut dragged: Option<(usize, f32)> = None;
-        for (index, position) in base.iter().copied().enumerate() {
-            let id = self.id.with(("column", index));
-            let sensed = Interactive::with_id(id, Role::Splitter, self.labels.table_column.as_str())
-                .sense(Sense::DRAG)
-                .state_layer(false)
-                .focus_ring(false)
-                .interact_at(ui, column_marker(&self.shapes, self.g.strip, self.g.x(position)));
-            let r = sensed.response().clone();
-            if r.hovered() || r.dragged() {
-                ui.ctx().set_cursor_icon(CursorIcon::ResizeColumn);
-            }
-            let mut gesture =
-                Gesture::load(ui, id, &ColumnBorder { index, position }, EditPolicy::default()).cancel_on_focus_loss(true).focus_owners(&[self.id]);
-            if r.drag_started_by(PointerButton::Primary) {
-                gesture.begin_with_value();
-                state.columns = Some(host.to_vec());
-                ui.memory_mut(|m| m.request_focus(self.id));
-            } else if r.dragged_by(PointerButton::Primary)
-                && let Some(anchor) = gesture.anchor().copied()
-                && let Some((pointer, origin, modifiers)) = self.pointer(ui, &r)
-            {
-                let to = anchor.position + (pointer.x - origin.x) / self.g.scale * self.g.sign();
-                gesture.update(ColumnBorder { index, position: snap_within(to, self.step, bounds, modifiers.alt) }, modifiers);
-            }
-            if r.drag_stopped() {
-                gesture.commit();
-            }
-            if let (true, Some(anchor)) = (gesture.is_active(), gesture.anchor()) {
-                dragged = Some((index, gesture.shown().position - anchor.position));
-            }
-            out.column = gesture.finish().or(out.column.take());
-            let at = f64::from(position);
-            sensed
-                .value(self.units.format_value(at, 0.0))
-                .numeric(at, f64::from(bounds.0)..=f64::from(bounds.1), f64::from(self.step_or_default()))
-                .finish(ui);
-            if !r.dragged() {
-                r.on_hover_text(self.labels.table_column.as_str());
+        let values = cx.value().cloned().unwrap_or_default();
+        for item in Item::all(&values) {
+            if let Some(to) = cx.intents().take_set_value_at(item.part()) {
+                let (value, now) = moved(&values, item, to as f32, g.width);
+                cx.set(value);
+                cx.focus_part(now.part());
+                return;
             }
         }
-        if dragged.is_none() {
-            state.columns = None;
-        }
-        let mut shown = base;
-        if let Some((index, delta)) = dragged {
-            for border in shown.iter_mut().skip(index) {
-                *border += delta;
+        let Some(item) = cx.active_part().and_then(Item::of_part) else { return };
+        let mut by = 0.0;
+        while let Some((mv, mods)) = cx.intents().take_move() {
+            let size = if mods.fine {
+                SAME_POSITION
+            } else if mods.extend {
+                LARGE_NUDGE * step
+            } else {
+                step
+            };
+            match mv {
+                NavMove::PageDown | NavMove::PageUp => {
+                    if let Some(next) = pick(&Item::all(&values), Some(item), mv == NavMove::PageDown) {
+                        cx.focus_part(next.part());
+                    }
+                }
+                NavMove::Forward | NavMove::Up => by += size * g.sign(),
+                NavMove::Back | NavMove::Down => by -= size * g.sign(),
+                _ => {}
             }
         }
-        shown
-    }
-
-    /// While Alt is held in a border's drag, each column's width between its borders, over the
-    /// strip (WordCraft `table_ruler.rs:widths`).
-    fn widths(&self, painter: &egui::Painter, borders: &[f32]) {
-        let style = &self.style;
-        for pair in borders.windows(2) {
-            let [left, right] = pair else { continue };
-            let text = self.units.format_value(f64::from((right - left).abs()), 0.0);
-            let galley = painter.layout_no_wrap(text, style.font.clone(), style.label);
-            let middle = egui::pos2(self.g.x((left + right) / 2.0), self.g.strip.center().y);
-            let boxed = Rect::from_center_size(middle, galley.size());
-            painter.rect_filled(boxed, 0.0, style.fill);
-            painter.galley(boxed.min, galley, style.label);
+        if let Some((direction, mods)) = cx.intents().take_nudge() {
+            let size = if mods.alt {
+                SAME_POSITION
+            } else if mods.shift {
+                LARGE_NUDGE * step
+            } else {
+                step
+            };
+            by += direction.x * size * g.sign();
         }
-    }
-
-    /// Reports an item to AccessKit with its value in the unit.
-    fn report(&self, ui: &Ui, item: Item, sensed: Sensed, before: &RulerValues, shown: &RulerValues) {
-        let at = item.position(shown, self.g.width);
-        let range = 0.0..=f64::from(self.g.width);
-        let r = sensed.response().clone();
-        sensed.value(self.units.format_value(f64::from(at), 0.0)).numeric(f64::from(at), range, f64::from(self.step_or_default())).finish(ui);
-        if !r.dragged() {
-            r.on_hover_text(self.name(item, before));
+        if by != 0.0 {
+            let (value, now) = moved(&values, item, item.position(&values, g.width) + by, g.width);
+            cx.set(value);
+            cx.focus_part(now.part());
         }
-    }
-
-    /// The tab selector in the corner square left of the strip: a click picks the next kind, a
-    /// right click the previous one.
-    fn selector(&self, ui: &Ui, kind: &mut TabAlign) {
-        let strip = self.g.strip;
-        let corner = Rect::from_min_max(egui::pos2(strip.min.x - strip.height(), strip.min.y), egui::pos2(strip.min.x, strip.max.y));
-        let label = fmt(&self.labels.tab_selector, &[("kind", self.tab_name(*kind))]);
-        let sensed = Interactive::with_id(self.id.with("selector"), Role::Button, label.as_str())
-            .sense(Sense::click())
-            .state_layer(false)
-            .interact_at(ui, corner);
-        let r = sensed.response().clone();
-        if r.clicked() {
-            *kind = kind.next(false);
-        } else if r.secondary_clicked() {
-            *kind = kind.next(true);
+        let forward = cx.intents().take_exact(&Intent::delete(true, Granularity::Unit));
+        let backward = cx.intents().take_exact(&Intent::delete(false, Granularity::Unit));
+        if (forward || backward)
+            && let Item::Stop(at) = item
+        {
+            cx.set(without(&values, at));
+            let left = values.stops.len().saturating_sub(1);
+            let next = left.checked_sub(1).map(|last| Item::Stop(at.saturating_sub(1).min(last))).unwrap_or(Item::LeftBox);
+            cx.focus_part(next.part());
         }
-        let painter = ui.painter_at(corner);
-        painter.rect_filled(corner, 0.0, self.style.fill);
-        let boxed = Rect::from_center_size(corner.center(), egui::Vec2::splat(self.shapes.selector));
-        painter.rect(boxed, 0.0, self.style.fill, self.style.tick, egui::StrokeKind::Inside);
-        self.shapes.glyph(
-            &painter,
-            boxed.center().x,
-            boxed.max.y - (boxed.height() - self.shapes.selector * 0.5) * 0.5,
-            *kind,
-            false,
-            self.style.marker,
-        );
-        sensed.value(self.tab_name(*kind)).finish(ui);
-        r.on_hover_text(label);
+        let _ = held;
     }
-}
-
-fn item_key(item: Item) -> &'static str {
-    match item {
-        Item::FirstLine => "first",
-        Item::Hanging => "hanging",
-        Item::LeftBox => "left",
-        Item::Right => "right",
-        Item::Stop(_) => "stop",
-    }
-}
-
-/// The item after (or before) `picked` in `items`, staying at the ends.
-fn pick(items: &[Item], picked: Option<Item>, forward: bool) -> Option<Item> {
-    let at = picked.and_then(|picked| items.iter().position(|item| *item == picked));
-    let to = match (at, forward) {
-        (None, true) => 0,
-        (None, false) => items.len().saturating_sub(1),
-        (Some(at), true) => (at + 1).min(items.len().saturating_sub(1)),
-        (Some(at), false) => at.saturating_sub(1),
-    };
-    items.get(to).copied()
 }
