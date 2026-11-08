@@ -2,65 +2,43 @@
 //! Triangle, Polygon, Star, Line and Custom Shape) and the Create Shape dialog a click opens
 //! ([`CreateShapeDialog`]).
 //!
-//! ```no_run
-//! use craft_draw::ui::shape_drag::{CreateShapeDialog, CreateShapeOptions, ShapeDragEvent, ShapeDragOptions, ShapeDragTool, ShapeKind};
-//! use craft_ui::canvas::{CanvasId, CanvasView, ToolHost};
-//! use craft_ui::dialog::{DialogHost, GuideUnits};
-//! use craft_ui::edit::EditEvent;
-//! # fn demo(ui: &mut egui::Ui, view: &CanvasView, canvas: &egui::Response, id: CanvasId, tool: &mut ShapeDragTool, dialogs: &mut DialogHost, units: GuideUnits) {
-//! tool.options(ShapeDragOptions { kind: ShapeKind::Rectangle, ..ShapeDragOptions::default() });
-//! let _ = ToolHost::new(id).show(ui, view, canvas, tool);
-//! for event in tool.take_events() {
-//!     match event {
-//!         ShapeDragEvent::Gesture(EditEvent::Commit { value, changed: true, .. }) => { /* create the shape `value` */ }
-//!         ShapeDragEvent::Click { at, kind, .. } if CreateShapeDialog::supports(kind) => {
-//!             dialogs.open(CreateShapeDialog::new(CreateShapeOptions::initial(kind, at).units(units)));
-//!         }
-//!         _ => {}
-//!     }
-//! }
-//! # }
-//! ```
+//! The app sets the tool's options each pass, shows it on the canvas's `ToolHost` and drains
+//! [`ShapeDragTool::take_events`]: a committed [`Gesture`](ShapeDragEvent::Gesture) creates the
+//! shape, a [`Click`](ShapeDragEvent::Click) opens [`CreateShapeDialog`] for the kinds it
+//! [supports](CreateShapeDialog::supports).
 
-use egui::Modifiers;
+mod dialog;
+mod tool;
+mod words;
+
+use craft_behavior::EditEvent;
+use craft_keymap::Mods;
 use kurbo::Point;
 
 use crate::geometry::shape::ShapeGeometry;
-use craft_ui::edit::EditEvent;
-
-mod dialog;
-#[cfg(test)]
-mod dialog_tests;
-mod labels;
-pub(crate) mod stories;
-mod style;
-mod tool;
-#[cfg(test)]
-mod tool_tests;
 
 pub use dialog::{CreateShapeDialog, CreateShapeOptions, CreatedShape};
-pub use labels::{CreateShapeLabels, ShapeDragToolLabels};
-pub use style::ShapeDragStyle;
 pub use tool::ShapeDragTool;
+pub use words::{CreateShapeWords, ShapeDragWords};
 
 /// The Shape tools. Photoshop's Rectangle draws a rounded rectangle when the corner radius is over
 /// 0; VectorCraft (Illustrator) has its own Rounded Rectangle and Star.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum ShapeKind {
+    /// A rectangle.
     #[default]
-    #[allow(missing_docs)]
     Rectangle,
-    #[allow(missing_docs)]
+    /// A rectangle with rounded corners.
     RoundedRectangle,
-    #[allow(missing_docs)]
+    /// An ellipse.
     Ellipse,
-    #[allow(missing_docs)]
+    /// A triangle.
     Triangle,
-    #[allow(missing_docs)]
+    /// A regular polygon.
     Polygon,
-    #[allow(missing_docs)]
+    /// A star.
     Star,
-    #[allow(missing_docs)]
+    /// A line.
     Line,
     /// The selected custom shape preset: the tool gives its box and the app fits the preset in it.
     Custom,
@@ -142,10 +120,11 @@ impl Default for ShapeDragRules {
 /// What [`ShapeDragTool`] reports, drained with [`ShapeDragTool::take_events`] after
 /// `ToolHost::show`.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum ShapeDragEvent {
     /// The drag: `Begin` once the pointer is past the click slop, `Update` each pass with the
-    /// shape it would draw, `Commit` on release (`changed: false` when a side is under 1 px, so the
-    /// app makes nothing), `Cancel` on Esc or a tool switch.
+    /// shape it would draw, `Commit` on release, `Cancel` on Esc or a tool switch, or on release when a side is
+    /// under 1 px (`Dismissed`, so the app makes nothing).
     Gesture(EditEvent<ShapeGeometry>),
     /// A press and release within the click slop, or Enter with the canvas focused (at the view
     /// centre): the app opens [`CreateShapeDialog`] for kinds it [supports](CreateShapeDialog::supports).
@@ -155,6 +134,6 @@ pub enum ShapeDragEvent {
         /// The tool's shape kind.
         kind: ShapeKind,
         /// Modifier keys held.
-        modifiers: Modifiers,
+        mods: Mods,
     },
 }
