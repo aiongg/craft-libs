@@ -260,7 +260,7 @@ impl<'a, K: Value + Eq + Hash> BrushSectionList<'a, K> {
             vec![
                 ColumnSpec::new(CHECK, Label::Empty, ColumnWidth::Controls(1.0)).kind(toggle),
                 ColumnSpec::new(NAME, Label::Empty, ColumnWidth::Content),
-                ColumnSpec::new(LOCK, Label::Empty, ColumnWidth::Controls(1.0)).kind(toggle),
+                ColumnSpec::new(LOCK, Label::Empty, ColumnWidth::Controls(1.0)).kind(toggle).icon(IconId::new("lock")),
             ]
         };
         let shown_stack = Stack::new().show(ui, |ui, cx| {

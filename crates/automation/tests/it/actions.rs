@@ -390,10 +390,7 @@ fn actions_panel_context_menu_reopens_from_the_hosts_shortcut() {
             let row = node(&fixture, "Sharpen");
             context_click(&mut fixture, &row);
         } else {
-            // A secondary click moves no key focus: a primary click puts it on the row, then Shift+F10 asks for the
-            // menu of the lead.
-            let row = node(&fixture, "Sharpen");
-            fixture.click(&row);
+            // The secondary click moved key focus to the row: Shift+F10 asks for the menu of the lead.
             fixture.key(Key::F10, Modifiers::SHIFT);
             fixture.idle(3);
         }

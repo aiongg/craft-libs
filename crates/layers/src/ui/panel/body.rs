@@ -1,7 +1,7 @@
 //! The rows: the display order over the tree, the `List` wiring, and the mapping of the list's
 //! events to the panel's.
 
-use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, GestureId, ItemSource, Mixed, Selection, SelectionChange};
+use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, GestureId, IconId, ItemSource, Mixed, Selection, SelectionChange};
 use craft_keymap::Mods;
 use craft_ui::contract::{
     Bind, CollectionEvent, ColumnKind, ColumnSpec, ListDrag, OpenChange, Props as _, ReorderRule, ShowCollection as _, ToggleColumn, request_rename,
@@ -276,9 +276,15 @@ pub(super) fn show_body<T: LayerTree>(
     let reveal_key =
         reveal.target.clone().filter(|id| order.iter().any(|key| matches!(key, LayerRowKey::Layer(k) if k == id))).map(LayerRowKey::Layer);
 
-    let mut columns = vec![ColumnSpec::new(EYE, Label::Empty, ColumnWidth::Controls(1.0)).kind(ColumnKind::Toggle(ToggleColumn::sweepable()))];
+    let mut columns = vec![
+        ColumnSpec::new(EYE, Label::Empty, ColumnWidth::Controls(1.0)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())).icon(IconId::new("eye")),
+    ];
     if cx.lock_column {
-        columns.push(ColumnSpec::new(LOCK, Label::Empty, ColumnWidth::Controls(1.0)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())));
+        columns.push(
+            ColumnSpec::new(LOCK, Label::Empty, ColumnWidth::Controls(1.0))
+                .kind(ColumnKind::Toggle(ToggleColumn::sweepable()))
+                .icon(IconId::new("lock")),
+        );
     }
     columns.push(ColumnSpec::new(NAME, Label::Empty, ColumnWidth::fill(1.0)));
     let parent_of = |id: &T::Id| tree.parent(id);

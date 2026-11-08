@@ -1,7 +1,7 @@
 //! The body above the footer: the empty notice, Button Mode's buttons or the tree, and the mapping
 //! of the list's events to the panel's.
 
-use craft_behavior::{ColumnWidth, EditEvent, Selection};
+use craft_behavior::{ColumnWidth, EditEvent, IconId, Selection};
 use craft_theme::variant::Tone;
 use craft_ui::buttons::Button;
 use craft_ui::contract::{
@@ -144,7 +144,9 @@ fn show_tree(ui: &mut Ui, body: &Body<'_>, state: &mut ActionsPanelState, sessio
     }
     let columns = vec![
         ColumnSpec::new(INCLUDE_COLUMN, Label::Empty, ColumnWidth::Controls(1.0)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())),
-        ColumnSpec::new(DIALOG_COLUMN, Label::Empty, ColumnWidth::Controls(1.0)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())),
+        ColumnSpec::new(DIALOG_COLUMN, Label::Empty, ColumnWidth::Controls(1.0))
+            .kind(ColumnKind::Toggle(ToggleColumn::sweepable()))
+            .icon(IconId::new("note")),
         ColumnSpec::new(NAME_COLUMN, Label::Empty, ColumnWidth::fill(1.0)),
     ];
     let mut widget = List::new(words.name.clone())
