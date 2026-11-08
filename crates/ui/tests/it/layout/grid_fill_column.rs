@@ -31,11 +31,11 @@ fn the_fill_cell_beside_a_scrolling_content_cell_takes_the_rest_of_the_room() {
                 let side = Stack::new().scroll(Scroll::vertical()).show(ui, |ui, _| {
                     Section::fixed("Category").id_salt("category").show(ui, |ui, _| {
                         for (at, check) in checks.iter_mut().enumerate() {
-                            Checkbox::new(Bind::bound(check)).label(format!("Category {at}")).show(ui);
+                            let _ = Checkbox::new(Bind::bound(check)).label(format!("Category {at}")).show(ui);
                         }
                     });
                     Section::fixed("Language").id_salt("language").show(ui, |ui, _| {
-                        TextField::search("Find a language", Bind::bound(&mut search)).show(ui);
+                        let _ = TextField::search("Find a language", Bind::bound(&mut search)).show(ui);
                     });
                 });
                 let main = Stack::new().fill().show(ui, |ui, _| {
