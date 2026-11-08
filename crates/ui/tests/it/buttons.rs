@@ -196,3 +196,26 @@ fn a_mixed_toggle_reports_mixed_and_a_click_turns_it_on() {
     let button = fixture.by_label("Bold").expect("the button");
     assert_eq!(fixture.tree().toggled_of(button.node), Some(Mixed::Same(true)));
 }
+
+/// A mixed toggle paints the off look, not a blend of off and on.
+#[trial]
+fn a_mixed_toggle_paints_the_off_fill() {
+    let fill_of = |value: Mixed| {
+        let mut show = move |ui: &mut egui::Ui| {
+            let mut current = value;
+            ToggleButton::new("Bold", Bind::bound_mixed(&mut current)).show(ui);
+        };
+        let mut frames = Frames::new();
+        frames.idle(2, &mut show);
+        frames
+            .frame_shapes(&mut show)
+            .iter()
+            .find_map(|shape| match shape {
+                egui::Shape::Rect(rect) => Some(rect.fill),
+                _ => None,
+            })
+            .expect("the toggle paints a surface")
+    };
+    assert_eq!(fill_of(Mixed::Mixed), fill_of(Mixed::Same(false)), "a mixed toggle paints the off fill");
+    assert_ne!(fill_of(Mixed::Mixed), fill_of(Mixed::Same(true)), "and not the on fill");
+}
