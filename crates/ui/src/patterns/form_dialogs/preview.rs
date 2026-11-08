@@ -190,7 +190,7 @@ impl Outcome for PreviewOutput {
 ///   and the dialog applies the first view any of them reports to all.
 /// - A pane whose state is not `Ready` draws no picture and reports no view.
 #[derive(crate::contract::Component, crate::contract::Props)]
-#[component(content_painter, probe(PreviewPane<'static>))]
+#[component(content_painter)]
 pub struct PreviewPane<'a> {
     #[common]
     common: Common,

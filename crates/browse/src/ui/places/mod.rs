@@ -163,7 +163,6 @@ impl<'a> RowMenu<'a> {
 ///   hidden root restores it.
 #[must_use = "show the tree with `show`"]
 #[derive(Pattern, Props)]
-#[pattern(probe(PlacesTree<'static>))]
 pub struct PlacesTree<'a> {
     label: Label,
     places: &'a Places,
