@@ -6,6 +6,7 @@
 use crate::runtime::cursor;
 use crate::runtime::egui::input::{self as raw_input, RawInput};
 use crate::runtime::egui::memory::Service;
+use crate::runtime::egui::input_filter::{self, KeyEquivalent};
 use crate::runtime::egui::{injected, pass, scale, screenshot, viewports, widgets};
 use crate::runtime::frame::{PassStep, PerViewport, Stamped};
 use crate::runtime::{overlay, pointer};
@@ -1002,6 +1003,12 @@ impl WindowHost {
     /// Queues `key` pressed and released with `mods` held, as the platform reports them.
     pub fn inject_key(&self, viewport: ViewportId, key: Key, mods: Mods) {
         injected::inject_key(&self.ctx, viewport, key, mods);
+    }
+
+    /// Adds `equivalent` to the next input of `viewport`: a key equivalent the platform's menu took from the window
+    /// reaches the application as the key press the user made.
+    pub fn key_equivalent(&self, viewport: ViewportId, equivalent: KeyEquivalent) {
+        input_filter::add_key_equivalent(&self.ctx, viewport, equivalent);
     }
 
     /// Queues `text` as typed text.

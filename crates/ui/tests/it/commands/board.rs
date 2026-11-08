@@ -3,6 +3,7 @@ use craft_ui::contract::{Props as _, Show as _, ShowContainer as _};
 use craft_ui::runtime::commands::{
     CommandGate, CommandInput, CommandKind, CommandRef, CommandState, Commands as _, EditCommands, FirePhase, FireSource, Fired, fire, resolve,
 };
+use craft_ui::runtime::egui::input_filter::KeyEquivalent;
 use craft_ui::runtime::focus::{FocusTarget, request};
 use craft_ui::runtime::frame::take_output;
 use craft_ui::testing::input::key_press;
@@ -87,6 +88,22 @@ fn a_shortcut_fires_its_command_through_the_gate() {
     frames.commands(CommandInput::new().state(AppCommand::Save, CommandState::new().enabled(false)));
     frames.frame(vec![save()], &mut show);
     assert!(take_output(&frames.ctx).fired.is_empty(), "a disabled command does not fire from its shortcut");
+}
+
+/// A key equivalent the platform's menu took reaches the application as the key press: its command fires from a key.
+#[trial]
+fn a_registered_key_equivalent_fires_its_command() {
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        Tap::new().id_salt("go").show(ui);
+    };
+    frames.idle(2, &mut show);
+    let chord = craft_keymap::Chord::new(craft_keymap::Mods::CMD, craft_keymap::Key::K);
+    craft_ui::runtime::windows::WindowHost::of(&frames.ctx).key_equivalent(egui::ViewportId::ROOT, KeyEquivalent::Press(chord));
+    frames.frame(vec![], &mut show);
+    let fired = take_output(&frames.ctx).fired;
+    assert_eq!(ids(&fired), ["trial.save"]);
+    assert_eq!(fired[0].source, FireSource::Key);
 }
 
 #[trial]
