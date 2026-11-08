@@ -7,7 +7,7 @@ use crate::contract::{
     Bind, BindMut, BodyCx, Cx, Entry, NoValue, Outcome, Pad, Pointer as _, Props as _, ShowContainer as _, Sizing, WordSetCx as _,
 };
 use crate::docking::stack::{StackSection, section_heights};
-use crate::docking::tree::{self, FrameRules};
+use crate::docking::tree::FrameRules;
 use crate::docking::{
     DockColumn, DockCommands, DockConfig, DockDropTarget, DockDropped, DockEvent, DockGroup, DockPanels, DockRoot, DockScene, DockSizes, DockSpot,
     DockTargets, DockTo, DockWords, DragUnit, FloatSpace, FloatingGroup, GroupDrag, HidePanels, IconicColumn, PanelDrag, PanelKey, PanelSpec,
@@ -272,6 +272,8 @@ struct ColumnWork<P> {
     iconic: Option<bool>,
     picked: Option<GroupItem>,
     resized: Vec<(P, f32)>,
+    /// The expanded width the user gave an expanded column, or the iconic width of an iconic one.
+    width: Option<f32>,
 }
 
 /// The parts of one pass with the host's panels and what they reported.
@@ -742,6 +744,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
                 let Some(output) = region(ui, cell, |ui| {
                     IconicColumn::new(name.clone(), scene.dock, column, Bind::given(open.clone()), &spec)
                         .edge(plan.edge)
+                        .room(plan.rect.width())
                         .auto_collapse(scene.auto_collapse)
                         .show_flyouts(ui, |group, rect, ui, body| self.group_of(ui, body, group, rect))
                 }) else {
@@ -750,17 +753,19 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
                 if let Some(event) = output.edit.event {
                     self.report.flyout.push(event);
                 }
-                let work = ColumnWork { iconic: output.iconic, picked: output.picked, resized: Vec::new() };
+                let work = ColumnWork { iconic: output.iconic, picked: output.picked, resized: Vec::new(), width: output.width };
                 self.column_work(column, work);
             } else {
                 let Some(output) = region(ui, cell, |ui| {
                     DockColumn::new(name.clone(), scene.dock, column, &spec)
+                        .edge(plan.edge)
+                        .room(plan.rect.width())
                         .auto_collapse(scene.auto_collapse)
                         .show_groups(ui, |group, rect, ui, body| self.group_of(ui, body, group, rect))
                 }) else {
                     continue;
                 };
-                let work = ColumnWork { iconic: output.iconic, picked: output.picked, resized: output.resized };
+                let work = ColumnWork { iconic: output.iconic, picked: output.picked, resized: output.resized, width: output.width };
                 self.column_work(column, work);
             }
         }
@@ -777,6 +782,13 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
         }
         for (anchor, height) in work.resized {
             self.report.actions.push(Action::resize_group(anchor, Some(height)));
+        }
+        if let Some(width) = work.width {
+            self.report.actions.push(if column.iconic {
+                Action::resize_iconic(first.clone(), Some(width))
+            } else {
+                Action::resize_column(first.clone(), width)
+            });
         }
     }
 
@@ -850,12 +862,21 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
                 }
                 let limits = |panel: &P| scene.spec(panel).limits;
                 let rules = FrameRules::new(&limits);
-                let frames = tree::frames(&window.root, body.rect, &scene.sizes, &rules, scene.rtl);
-                for frame in &frames.groups {
-                    self.leaf(ui, body, frame.node, frame.rect);
-                }
+                let name = Label::from(body.words::<DockWords>().panels.as_str().to_owned());
+                let tree = Layout::new(Some(window.root.clone()), Vec::new());
+                let area = SplitArea::new(name, Bind::given(tree), rules).show_at(ui, body.rect, |ui, split| {
+                    for (leaf, rect) in split.group_frames::<P>() {
+                        let Some(place) = scene.layout.place(&leaf) else { continue };
+                        let Some(node) = scene.layout.node_of(&place) else { continue };
+                        self.leaf(ui, split, node, rect);
+                    }
+                });
+                area.output.edit.event
             });
             self.dock = area_dock;
+            if let Some(edited) = shown.inner.as_ref().and_then(Option::as_ref).and_then(|event| event.value()).and_then(|tree| tree.root.as_ref()) {
+                self.report.actions.extend(split_resizes(&anchor, &window.root, edited));
+            }
             let output = shown.output;
             if let Some(dropped) = dropped.into_inner() {
                 cross_window::accept_cross_window(&ctx);
@@ -895,6 +916,25 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
         }
         moved
     }
+}
+
+/// The `ResizeWindowSplit` actions that take the splits of the floating window holding `anchor`, whose tree is
+/// `from`, to the sizes `to` has.
+fn split_resizes<P: Clone>(anchor: &P, from: &Node<P>, to: &Node<P>) -> Vec<Action<P>> {
+    fn walk<P: Clone>(anchor: &P, from: &Node<P>, to: &Node<P>, path: &mut Vec<bool>, out: &mut Vec<Action<P>>) {
+        let (Node::Split { size: was, first: first_was, second: second_was, .. }, Node::Split { size, first, second, .. }) = (from, to) else { return };
+        if was != size {
+            out.push(Action::resize_window_split(anchor.clone(), path.clone(), *size));
+        }
+        for (second, (was, now)) in [(false, (first_was, first)), (true, (second_was, second))] {
+            path.push(second);
+            walk(anchor, was, now, path, out);
+            path.pop();
+        }
+    }
+    let mut out = Vec::new();
+    walk(anchor, from, to, &mut Vec::new(), &mut out);
+    out
 }
 
 /// The workspace edit of a floating window's move or resize: the gesture runs from the window's `Begin` to its
