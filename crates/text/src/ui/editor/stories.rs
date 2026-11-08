@@ -135,24 +135,27 @@ impl TextEditorHost for MonoHost {
 /// The text the stories edit.
 const SAMPLE: &str = "Hello craft\nSecond line";
 
-/// The editor over the sample text with the selection bound to `bind`, and `marked` chars of marked text when given,
-/// on a canvas.
-fn over_canvas(ui: &mut Ui, host: String, bind: Bind<'_, TextSelection>) -> StoryOutput {
-    let mut host = MonoHost { text: host, revision: 0 };
+/// The editor over `text` with the selection bound to `bind`, on a canvas. The host's edits (typed, pasted and
+/// composed text) are written back to `text`, which the story keeps between passes.
+fn over_canvas(ui: &mut Ui, text: &mut String, bind: Bind<'_, TextSelection>) -> StoryOutput {
+    let mut host = MonoHost { text: std::mem::take(text), revision: 0 };
     let mut bind = Some(bind);
     let shown = Canvas::new("Document").show(ui, |ui, body| {
         let bounds = Rect::from_min_size(body.rect.min, body.rect.size() * EDITOR_SHARE);
         bind.take().map(|bind| TextEditor::new("Text", &mut host, bind).show_at(ui, bounds))
     });
+    *text = host.text;
     shown.inner.flatten().map(StoryOutput::from).unwrap_or_default()
 }
 
 /// The editor over `text` with `selection`, and `marked` chars of marked text when given, on a canvas.
 fn on_canvas(ui: &mut Ui, data: &mut StoryData, text: &str, selection: TextSelection, marked: Option<Range<usize>>) -> StoryOutput {
-    let host = data.value("text", text.to_owned()).clone();
+    let mut host = data.value("text", text.to_owned()).clone();
     let selection = data.value("selection", selection);
     let _ = marked;
-    over_canvas(ui, host, Bind::bound(&mut *selection))
+    let out = over_canvas(ui, &mut host, Bind::bound(&mut *selection));
+    *data.value("text", String::new()) = host;
+    out
 }
 
 #[story(TextEditor<'static>, covers = [Default], drive = Drive::Type("sample"))]
@@ -177,18 +180,18 @@ fn composing(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(TextEditor<'static>, covers = [Mixed], drive = Drive::Never)]
 fn selections_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let host = data.value("text", SAMPLE.to_owned()).clone();
+    let mut host = data.value("text", SAMPLE.to_owned()).clone();
     let selection = data.value("selection", Mixed::<TextSelection>::Mixed);
-    over_canvas(ui, host, Bind::bound_mixed(&mut *selection))
+    over_canvas(ui, &mut host, Bind::bound_mixed(&mut *selection))
 }
 
 #[story(TextEditor<'static>, covers = [Invalid], drive = Drive::Never)]
 fn selection_past_the_text(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let host = data.value("text", SAMPLE.to_owned()).clone();
+    let mut host = data.value("text", SAMPLE.to_owned()).clone();
     let end = host.chars().count();
     let selection = data.value("selection", TextSelection::caret_at(end + 1));
     let inside = move |selection: &TextSelection| {
         if selection.caret > end { Validity::Refuse(Message::new("The selection is past the text")) } else { Validity::Ok }
     };
-    over_canvas(ui, host, Bind::bound(&mut *selection).check(inside))
+    over_canvas(ui, &mut host, Bind::bound(&mut *selection).check(inside))
 }

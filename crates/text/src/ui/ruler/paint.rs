@@ -5,9 +5,9 @@ use super::items::Item;
 use super::run::{Held, rule, ruler_text};
 use super::{TextRuler, TextRulerStyle};
 use craft_ui::canvas::{RulerTick, Rulers};
-use craft_ui::contract::{Cx, Edit as _, PaintUi, Remember as _, Styled as _};
+use craft_ui::contract::{Cx, Edit as _, PaintUi, Pointer as _, Remember as _, Styled as _};
 use craft_ui::primitives::{PaintShape, StrokeWidth, TextRun, Tick, TickEdge, TickRank};
-use craft_ui::style::StyleColor;
+use craft_ui::style::{StateSet, StyleColor};
 use egui::{CornerRadius, Pos2, Rect, pos2, vec2};
 
 impl TextRuler<'_> {
@@ -32,22 +32,29 @@ impl TextRuler<'_> {
         let base = g.strip.max.y;
         for (at, stop) in values.stops.iter().enumerate() {
             let off = held.off && held.now == Some(Item::Stop(at));
-            let line = if off { style.marker_off } else { cx.resolve_part(Item::Stop(at).part(), &style.marker) };
+            // A stop set by a click this pass has no part until the next pass: it paints in the rest look.
+            let line = if off {
+                style.marker_off
+            } else if cx.part_if_declared(Item::Stop(at).part()).is_some() {
+                cx.resolve_part(Item::Stop(at).part(), &style.marker)
+            } else {
+                StateSet::default().resolve(&style.marker)
+            };
             let (segments, dot) = glyph(&shapes, g.x(stop.position), base, stop.align, g.right_to_left);
             for [a, b] in segments {
                 draw.stroke(&path(a, b), StrokeWidth::Thin, line);
             }
             if let Some(centre) = dot {
-                draw.fill(&PaintShape::Circle(centre, style.stem / DOT_SHARE), line);
+                draw.fill(&PaintShape::Circle(centre, style.dot), line);
             }
         }
         for marker in &column_boxes {
             draw.fill(&rect(*marker), style.margin);
             draw.stroke(&rect(*marker), StrokeWidth::Thin, cx.resolve(&style.marker));
             let middle = marker.center();
-            for k in GRIP_LINES {
-                let at = pos2(middle.x + k * style.pad, middle.y);
-                draw.stroke(&path(at - vec2(0.0, style.pad / 2.0), at + vec2(0.0, style.pad / 2.0)), StrokeWidth::Thin, cx.resolve(&style.marker));
+            for step in GRIP_LINES {
+                let at = pos2(middle.x + step * style.grip_gap, middle.y);
+                draw.stroke(&path(at - vec2(0.0, style.grip_reach), at + vec2(0.0, style.grip_reach)), StrokeWidth::Thin, cx.resolve(&style.marker));
             }
         }
         let x = |item: Item| g.x(item.position(&values, g.width));
@@ -79,7 +86,7 @@ impl TextRuler<'_> {
                 draw.stroke(&path(a, b), StrokeWidth::Thin, cx.resolve(&style.marker));
             }
             if let Some(centre) = dot {
-                draw.fill(&PaintShape::Circle(centre, style.stem / DOT_SHARE), cx.resolve(&style.marker));
+                draw.fill(&PaintShape::Circle(centre, style.dot), cx.resolve(&style.marker));
             }
         }
     }
@@ -119,5 +126,3 @@ impl TextRuler<'_> {
 
 /// The three grip lines across a table column marker, in marker-gap steps from its middle.
 const GRIP_LINES: [f32; 3] = [-1.0, 0.0, 1.0];
-/// The decimal dot's radius is this share of the glyph's stem height.
-const DOT_SHARE: f32 = 6.0;
