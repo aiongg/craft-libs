@@ -2,7 +2,7 @@
 //! the written date.
 
 use craft_i18n::DateFormat;
-use craft_ui::contract::{Bind, Props as _, Role};
+use craft_ui::contract::{Bind, Role};
 use craft_ui::patterns::form_dialogs::{
     AboutDialog, AboutInfo, AboutTab, CommitShare, Contributor, ContributorSort, Credits, ModelCredit, NameMode, commit_day, commit_share,
     sorted_contributors,

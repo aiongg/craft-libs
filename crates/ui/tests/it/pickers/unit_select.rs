@@ -48,12 +48,13 @@ fn a_disabled_number_leaves_the_unit_select_working() {
         shown_unit.set(kind);
     });
     fixture.settle();
+    let before = width.get();
     fixture.key(Key::Tab, Modifiers::NONE);
     fixture.idle(2);
     fixture.type_text(TYPED);
     fixture.key(Key::Enter, Modifiers::NONE);
     fixture.idle(4);
-    assert_eq!(width.get(), Some(210.0), "typing reaches no number");
+    assert_eq!(width.get(), before, "typing reaches no number");
     fixture.key(Key::ArrowDown, Modifiers::ALT);
     fixture.idle(2);
     fixture.key(Key::ArrowDown, Modifiers::NONE);
