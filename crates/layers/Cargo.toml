@@ -13,19 +13,25 @@ workspace = true
 # UI-only: egui and craft-ui are plain dependencies, so there is no `ui` feature.
 [features]
 default = []
-# Screenshot and input tests of the panel with egui_kittest (desktop only).
-screen-testing = ["craft-ui/screen-testing"]
+# The stories, `mock` and the integration tests (`tests/it`).
+screen-testing = ["craft-ui/testing"]
 
 [dependencies]
+craft-behavior = { workspace = true }
 craft-i18n = { workspace = true }
+craft-keymap = { workspace = true }
 craft-theme = { workspace = true }
-craft-ui = { package = "craft-ui-legacy", path = "../ui-legacy" }
+craft-ui = { workspace = true }
 egui = { workspace = true }
 serde = { workspace = true }
 
 [dev-dependencies]
 egui = { workspace = true, features = ["default_fonts", "serde"] }
+libtest-mimic = "0.8"
 serde_json = { workspace = true }
 
-[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-egui_kittest = { version = "0.37", features = ["wgpu"] }
+[[test]]
+name = "it"
+path = "tests/it/main.rs"
+harness = false
+required-features = ["screen-testing"]
