@@ -1,48 +1,88 @@
-//! The Icon view: cards with hover scrub and In and Out marks.
+//! The Icon view: tiles with hover scrub and In and Out marks, and the tile builder the Freeform view shares.
 
-use std::fmt::Debug;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
-use craft_ui::behavior::{Axis, DisplayOrder, DropPosition, ListDrag, Reorder, Selection};
-use craft_ui::canvas::textures::{Revision, TextureKey, ThumbRender, ThumbRequest, ThumbSource, Thumbnails};
-use craft_ui::edit::{CancelReason, EditEvent};
-use craft_ui::icons::{self, Icon, IconSize};
-use craft_ui::list::{DropMark, SortOrder, TableSort, paint_drop_mark};
-use craft_ui::theme::{Tokens, TokensOf as _};
-use egui::{DragAndDrop, Id, Rect, Response, Ui};
+use craft_behavior::{DisplayOrder, ItemSource};
+use craft_i18n::Collator;
+use craft_ui::contract::{CollectionEvent, ColumnSort, ListDrag, Props as _, ReorderRule, SelectMode, ShowCollection as _, request_rename};
+use craft_ui::list::ThumbAspect;
+use craft_ui::primitives::ContentPainterCx;
+use craft_ui::primitives::textures::{Priority, TextureKey, ThumbPaint, ThumbRequest, ThumbSource, Thumbnails};
+use craft_ui::tile_grid::{CaptionPlace, Tile, TileGrid, TilePartEvent};
+use egui::{Rect, Ui};
 
-use super::list::{drop_items, inside_any, item_of, open_event, sort_entries};
-use super::{BinEntry, BinEvent, BinLabels, BinModel, BinState, BinStyle, MediaBin, ThumbPair};
-use crate::ui::grid::{BadgeVisibility, RatingKeys, SpaceAction, TileContent, TileEvent, TileGrid, TileLayout, TileSource, TileZoom};
+use super::list::{drop_items, inside_any, item_of, open_event, rename_event, reorder_event, sort_entries, stack_event};
+use super::{BinEntry, BinEvent, BinModel, BinState, ThumbPair, ViewIn, ViewOut};
 
-/// The cards' picture is 16:9 (FilmCraft's).
+/// The tiles' picture is 16:9.
 pub(super) const ASPECT: f32 = 16.0 / 9.0;
 
-/// What the Icon view reads and edits.
-pub(super) struct IconInput<'a, K: TextureKey, M: ?Sized> {
-    pub id: Id,
-    pub model: &'a M,
-    pub state: &'a BinState<K>,
-    pub selection: &'a mut Selection<K>,
-    pub thumbnails: Option<ThumbPair<'a, K>>,
-    pub hover_scrub: bool,
-    pub zoom_range: (f32, f32),
-    pub default_size: f32,
-    pub labels: &'a BinLabels,
-    pub rename: Option<K>,
+/// Paints the picture of `key` into `rect` from the app's thumbnails.
+pub(super) fn paint_thumb<K: TextureKey>(cx: &ContentPainterCx<'_>, rect: Rect, thumbs: &Thumbnails<K>, source: &dyn ThumbSource<K>, key: &K) {
+    let ctx = cx.painter.ctx().clone();
+    let request = ThumbRequest::for_cell(rect.width().max(rect.height()), ctx.pixels_per_point());
+    let state = thumbs.state(&ctx, source, key, &request, Priority::VISIBLE);
+    thumbs.paint(cx, rect, &state, &ThumbPaint::default().checker(false));
 }
 
-/// The cards of the shown bin in display order: bins before items, in the model's order or the
-/// Sort Icons order; while searching, the matching items of every sub-bin, flat. The flag is
-/// whether the order is the model's own ("User Order", the only one that accepts a reorder).
-pub(super) fn entries_of<K, M>(model: &M, state: &BinState<K>) -> (Vec<BinEntry<K>>, bool)
+/// What the shared tile builder reads.
+pub(super) struct TileFacts<'a, K: TextureKey, M: ?Sized> {
+    pub model: &'a M,
+    pub thumbnails: Option<ThumbPair<'a, K>>,
+    pub hover_scrub: bool,
+    pub scrub: Option<&'a (K, f32)>,
+}
+
+/// The tile of `key`: folder for a bin; the picture, duration, label, badges, status and In and Out bar for an
+/// item. The Icon and Freeform views build their tiles with it.
+pub(super) fn tile_of<'a, K, M>(facts: &TileFacts<'a, K, M>, key: &K) -> Tile<'a>
 where
-    K: Clone,
+    K: TextureKey,
     M: BinModel<K> + ?Sized,
 {
-    let sort = state.settings.icon_sort.as_ref().map(|(column, descending)| TableSort {
-        column: column.clone(),
-        order: if *descending { SortOrder::Descending } else { SortOrder::Ascending },
-    });
+    let item = item_of(facts.model, key);
+    let mut tile = Tile::new(item.name.clone()).status(item.status.clone());
+    if let Some(color) = item.label_color {
+        tile = tile.label_color(color);
+    }
+    for badge in item.badges {
+        tile = tile.badge(badge);
+    }
+    if facts.model.is_bin(key) {
+        return tile.folder();
+    }
+    if let Some(duration) = item.duration {
+        tile = tile.detail(duration);
+    }
+    if let Some(range) = item.range {
+        tile = tile.range(range);
+    }
+    if let Some((scrubbed, fraction)) = facts.scrub
+        && facts.hover_scrub
+        && scrubbed == key
+    {
+        tile = tile.scrub(*fraction);
+    }
+    match (facts.thumbnails, item.icon) {
+        (Some((thumbs, source)), _) => {
+            let key = key.clone();
+            tile.thumb(ThumbAspect::new(16, 9), move |cx, rect| paint_thumb(cx, rect, thumbs, source, &key))
+        }
+        (None, Some(icon)) => tile.icon(icon),
+        (None, None) => tile,
+    }
+}
+
+/// The tiles of the shown bin in display order: bins before items, in the model's order or the Sort Icons order;
+/// while searching, the matching items of every sub-bin, flat. The flag is whether the order is the model's own
+/// ("User Order", the only one that accepts a reorder).
+pub(super) fn entries_of<K, M>(model: &M, state: &BinState<K>, collator: &Collator) -> (Vec<BinEntry<K>>, bool)
+where
+    K: Clone + Eq + Hash,
+    M: BinModel<K> + ?Sized,
+{
+    let sort = state.settings.icon_sort.as_ref();
     let searching = !state.search.trim().is_empty();
     let mut found: Vec<BinEntry<K>> = Vec::new();
     if searching {
@@ -52,183 +92,119 @@ where
     } else {
         model.children(state.shown.as_ref(), &mut found);
     }
-    (sort_entries(model, sort.as_ref(), &mut found), sort.is_none() && !searching)
+    (sort_entries(model, sort, collator, found), sort.is_none() && !searching)
 }
 
-/// The cards as a `TileSource`; `stacks` (empty or one per card) are the Freeform view's "×N"
-/// counts on a stack's first card.
-pub(super) struct CardList<'a, K, M: ?Sized> {
-    pub model: &'a M,
+/// The tiles as a source.
+pub(super) struct Cards<K> {
     pub keys: Vec<K>,
-    pub bins: Vec<bool>,
-    pub stacks: Vec<Option<usize>>,
+    pub names: Vec<String>,
 }
 
-impl<'a, K, M: ?Sized> CardList<'a, K, M> {
-    pub fn new(model: &'a M, entries: Vec<BinEntry<K>>) -> Self {
-        let bins = entries.iter().map(|entry| matches!(entry, BinEntry::Bin(_))).collect();
-        let keys = entries.into_iter().map(|(BinEntry::Bin(key) | BinEntry::Item(key))| key).collect();
-        Self { model, keys, bins, stacks: Vec::new() }
+impl<K: Clone> Cards<K> {
+    pub fn new<M: BinModel<K> + ?Sized>(model: &M, entries: Vec<BinEntry<K>>) -> Self {
+        let keys: Vec<K> = entries.into_iter().map(|(BinEntry::Bin(key) | BinEntry::Item(key))| key).collect();
+        let names = keys.iter().map(|key| item_of(model, key).name).collect();
+        Self { keys, names }
     }
 }
 
-impl<K, M: ?Sized> DisplayOrder<K> for CardList<'_, K, M> {
+impl<K: Clone> DisplayOrder<K> for Cards<K> {
     fn len(&self) -> usize {
         self.keys.len()
     }
 
-    fn key(&self, at: usize) -> &K {
-        &self.keys[at]
+    fn key(&self, at: usize) -> K {
+        self.keys[at].clone()
+    }
+
+    fn text(&self, at: usize) -> Option<std::borrow::Cow<'_, str>> {
+        Some(std::borrow::Cow::Borrowed(self.names[at].as_str()))
     }
 }
 
-impl<K: Clone, M: BinModel<K> + ?Sized> TileSource<K> for CardList<'_, K, M> {
-    fn aspect(&self, _at: usize) -> f32 {
-        ASPECT
-    }
+impl<K: Clone> ItemSource<K> for Cards<K> {}
 
-    fn content(&self, at: usize, content: &mut TileContent) {
-        let item = item_of(self.model, &self.keys[at]);
-        content.name = item.name;
-        content.label_color = item.label_color;
-        content.badges = item.badges;
-        content.status = item.status;
-        content.stack = self.stacks.get(at).copied().flatten();
-        if !self.bins[at] {
-            content.detail = item.duration;
-            content.range = item.range;
-        }
-    }
+/// The tiles as a stamp: another set of tiles starts the lead over.
+pub(super) fn stamp_of<K: Hash>(shown: Option<&K>, search: &str, sort: Option<&ColumnSort>) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    shown.hash(&mut hasher);
+    search.hash(&mut hasher);
+    sort.map(|sort| (&sort.key, sort.descending)).hash(&mut hasher);
+    hasher.finish()
 }
 
-/// The app's thumbnails for items only: a bin has no picture (`Blank`), so its card shows the
-/// folder.
-pub(super) struct ItemThumbs<'a, K, M: ?Sized> {
-    pub model: &'a M,
-    pub inner: &'a dyn ThumbSource<K>,
-}
-
-impl<K, M: BinModel<K> + ?Sized> ThumbSource<K> for ItemThumbs<'_, K, M> {
-    fn revision(&self, key: &K, request: &ThumbRequest) -> Revision {
-        if self.model.is_bin(key) { Revision(0) } else { self.inner.revision(key, request) }
-    }
-
-    fn render(&self, key: &K, request: &ThumbRequest) -> ThumbRender {
-        if self.model.is_bin(key) { ThumbRender::Blank } else { self.inner.render(key, request) }
-    }
-}
-
-/// A bin card's picture: the placeholder fill with the folder glyph in `text.muted`.
-pub(super) fn paint_bin_face<K: TextureKey>(ui: &Ui, picture: Rect, style: &BinStyle) {
-    let tokens = Tokens::of(ui);
-    ui.painter().rect_filled(picture, 0.0, Thumbnails::<K>::style(&tokens).placeholder);
-    icons::paint(ui, picture, Icon::Folder, IconSize::Lg, style.bin_icon);
-}
-
-/// Draws the Icon view (see `MediaBin`'s doc): a `TileGrid` in `Cards { side: icon_size, aspect:
-/// 16 / 9, caption: true }` over [`entries_of`], with the bins' folder face and drop outline,
-/// hover scrub on items, In and Out bars (the grid's), and its events as `BinEvent`s.
+/// Draws the Icon view: a `TileGrid` of 16:9 tiles over [`entries_of`], bins as folder tiles, hover scrub on
+/// items, In and Out bars, and its events as `BinEvent`s.
 ///
-/// - Enter and a double click are `Open` or `OpenBin { how }` (as the List view).
-/// - A reorder gesture released over a bin card's middle is a drop into the bin (`Drop`, after a
-///   `Reorder(Cancel)`); between cards in User Order it is `Reorder`; in a sorted order or a
-///   search only drops into bins are offered. A release on the background is `Drop { into: None }`.
-/// - F2, a slow click on the selected card's caption and `MediaBin::start_rename` open the caption's
-///   rename field (`Rename` on commit; an empty text reports nothing).
-/// - A release on the view's background drops into the shown bin only the items the model holds
-///   elsewhere, and never a bin into itself.
-/// - Cmd/Ctrl + / − / 0 and a pinch are `Zoom(Set)` steps of the footer slider's range.
-/// - The grid has no stars, flags or check boxes here (`RatingKeys::None`, `BadgeVisibility::Never`);
-///   Space toggles the lead.
-pub(super) fn icon_view<K, M>(ui: &mut Ui, input: IconInput<'_, K, M>) -> (Response, Vec<BinEvent<K>>)
+/// - Enter and a double click open a bin or activate an item (as the List view).
+/// - A drag of the bin's own tiles reorders in User Order only; a drag from another list onto a bin tile is a
+///   `Drop` into it.
+/// - F2 and `MediaBin::start_rename` open the caption's rename field (`Rename` on commit).
+pub(super) fn icon_view<K, M>(ui: &mut Ui, input: ViewIn<'_, K, M>) -> ViewOut<K>
 where
-    K: TextureKey + Debug,
+    K: TextureKey,
     M: BinModel<K> + ?Sized,
 {
-    // filmcraft: crates/ui-egui/src/panels/project_views.rs:835 (`card`), :923 (`bin_card`), :821 (`hover_time`).
-    let IconInput { id, model, state, selection, thumbnails, hover_scrub, zoom_range, default_size, labels, rename } = input;
-    let ctx = ui.ctx().clone();
-    let tokens = Tokens::of(ui);
-    let bin_style = MediaBin::<'_, K, M>::style(&tokens);
-    let (entries, user_order) = entries_of(model, state);
-    let cards = CardList::new(model, entries);
-    let size = state.settings.icon_size;
-
-    let mut bin_rects: Vec<(K, Rect)> = Vec::new();
-    let item_thumbs = thumbnails.map(|(thumbs, source)| (thumbs, ItemThumbs { model, inner: source }));
-    let mut grid = TileGrid::new((id, "icon"), &cards)
-        .layout(TileLayout::Cards { side: size, aspect: ASPECT, caption: true })
-        .selection(&mut *selection)
-        .hover_scrub(hover_scrub)
-        .space(SpaceAction::Toggle)
-        .rating_keys(RatingKeys::None)
-        .badges(BadgeVisibility::Never)
-        .label(labels.icon_view.as_str())
-        .renamable(true)
-        .reorder(
-            Reorder::new(Axis::Horizontal)
-                .into_rows(|_, row| model.is_bin(row))
-                .accepts(move |mv, _| if mv.position == DropPosition::Into { !inside_any(model, &mv.target, &mv.items) } else { user_order }),
-        )
-        .card_overlay(|ui, key, picture| {
-            if model.is_bin(key) {
-                paint_bin_face::<K>(ui, picture, &bin_style);
-                bin_rects.push((key.clone(), picture));
-            }
-        });
-    if let Some((thumbs, source)) = &item_thumbs {
-        grid = grid.thumbnails(thumbs, source);
-    }
+    let ViewIn { id, model, state, selection, held, thumbnails, words, collator, rename, hover_scrub, scrub, stack, .. } = input;
+    let (entries, user_order) = entries_of(model, state, collator);
+    let searching = !state.search.trim().is_empty();
+    let cards = Cards::new(model, entries);
+    let mods = craft_ui::runtime::pointer::frame(ui.ctx()).mods;
     if let Some(key) = rename {
-        grid = grid.start_rename(key);
+        request_rename(ui.ctx(), id, &key);
     }
-    let out = grid.show(ui);
-    let response = out.response;
-    let modifiers = ctx.input(|i| i.modifiers);
+    let accepts = |drag: &ListDrag<K>, over: &K, _insert: usize| {
+        if drag.list == id {
+            return user_order;
+        }
+        model.is_bin(over) && !inside_any(model, over, &drag.keys)
+    };
+    let facts = TileFacts { model, thumbnails, hover_scrub, scrub: scrub.as_ref() };
+    let empty = if searching { words.no_matches.clone() } else { words.empty.clone() };
+    let grid = TileGrid::<K>::new(words.icon_view.clone())
+        .id(id)
+        .select(SelectMode::Multi)
+        .selection(selection)
+        .caption(CaptionPlace::Below)
+        .detail_line()
+        .aspect(ASPECT)
+        .zoom(state.settings.zoom as f32)
+        .rename(true)
+        .deletable(true)
+        .rows_stamp(stamp_of(state.shown.as_ref(), &state.search, state.settings.icon_sort.as_ref()))
+        .empty(empty)
+        .reorder(ReorderRule::new())
+        .accepts(&accepts);
+    let out = grid.show_items(ui, &cards, &mut |key, _| tile_of(&facts, key));
 
-    let zoom = TileZoom::Range { min: zoom_range.0, max: zoom_range.1, step: super::footer::ZOOM_STEP, default: default_size };
-    let mut zoomed = size;
     let mut events: Vec<BinEvent<K>> = Vec::new();
-    let mut dropped_in_bin = false;
-    for event in out.events {
+    if let Some(drag) = craft_ui::runtime::drag::active::<ListDrag<K>>(ui.ctx()).filter(|drag| drag.list == id) {
+        events.push(BinEvent::Drag((*drag).clone()));
+    }
+    for event in out.response.events {
         match event {
-            TileEvent::Selection(change) | TileEvent::ContextPicked(change) => events.push(BinEvent::Selection(change)),
-            TileEvent::Activate(key) => events.push(open_event(model, key, modifiers)),
-            TileEvent::Remove(keys) => events.push(BinEvent::Remove(keys)),
-            TileEvent::Drag(drag) => events.push(BinEvent::Drag(drag)),
-            TileEvent::Scrub { key, fraction } if !model.is_bin(&key) => events.push(BinEvent::Scrub { key, fraction }),
-            TileEvent::ContextMenu(request) => events.push(BinEvent::ContextMenu(request)),
-            TileEvent::Zoom(step) => {
-                zoomed = zoom.step(zoomed, step);
-                events.push(BinEvent::Zoom(EditEvent::set(f64::from(zoomed), modifiers)));
-            }
-            TileEvent::Renamed { key, text } if !text.is_empty() => events.push(BinEvent::Rename { key, text }),
-            TileEvent::Reorder(EditEvent::Commit { id: gesture, value, .. }) if value.position == DropPosition::Into => {
-                dropped_in_bin = true;
-                if user_order {
-                    events.push(BinEvent::Reorder(EditEvent::cancel(gesture, CancelReason::Dismissed)));
-                }
-                if let Some(items) = drop_items(model, Some(&value.target), &value.items) {
-                    events.push(BinEvent::Drop { items, into: Some(value.target) });
+            CollectionEvent::Selection(change) => events.push(BinEvent::Selection(change)),
+            CollectionEvent::Activate(key) => events.push(open_event(model, key, mods.cmd, mods.shift || mods.alt)),
+            CollectionEvent::ContextMenu(request) => events.push(BinEvent::ContextMenu(request)),
+            CollectionEvent::Delete(keys) => events.push(BinEvent::Remove(keys)),
+            CollectionEvent::Reorder(edit) => events.extend(reorder_event(model, state.shown.as_ref(), searching, user_order, edit)),
+            CollectionEvent::Dropped { key, keys, .. } => {
+                if let Some(items) = drop_items(model, Some(&key), &keys) {
+                    events.push(BinEvent::Drop { items, into: Some(key) });
                 }
             }
-            TileEvent::Reorder(event) if user_order => events.push(BinEvent::Reorder(event)),
+            CollectionEvent::Rename(edit) => {
+                events.extend(rename_event(&edit, |key| cards.keys.iter().position(|held| held == key).map(|at| cards.names[at].as_str())));
+            }
+            CollectionEvent::Item(key, TilePartEvent::Scrub(fraction)) if hover_scrub && !model.is_bin(&key) => {
+                events.push(BinEvent::Scrub { key, fraction });
+            }
             _ => {}
         }
     }
-    if !dropped_in_bin
-        && let Some(payload) = response.dnd_release_payload::<ListDrag<K>>()
-        && let Some(items) = drop_items(model, state.shown.as_ref(), &payload.items)
-    {
-        events.push(BinEvent::Drop { items, into: None });
+    if let Some(forward) = stack.filter(|_| user_order) {
+        events.extend(stack_event(&cards.keys, &held.items, forward, None));
     }
-
-    // The outline of the bin a drag would drop into.
-    if let (Some(payload), Some(pointer)) = (DragAndDrop::payload::<ListDrag<K>>(&ctx), ctx.input(|i| i.pointer.latest_pos())) {
-        let target = bin_rects.iter().find(|(key, rect)| rect.contains(pointer) && !inside_any(model, key, &payload.items));
-        if let Some((_, rect)) = target {
-            paint_drop_mark(ui, *rect, DropMark::Into);
-        }
-    }
-    (response, events)
+    ViewOut { response: out.response.response, events }
 }
