@@ -228,7 +228,7 @@ impl Component for ColumnBar<'_> {
                 Some(Drag::Start) => cx.begin(),
                 Some(Drag::To(x)) => cx.propose(pushed(&widths, *at as usize, x - rect.left(), width)),
                 Some(Drag::Release) => cx.commit(),
-                None => {}
+                _ => {}
             }
             if let Some(percent) = cx.intents().take_set_value_at(part) {
                 let start = if *at > 0 { position(&shares, *at as usize - 1, width) } else { 0.0 };

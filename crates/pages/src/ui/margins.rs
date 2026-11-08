@@ -489,7 +489,7 @@ impl Component for MarginHandles<'_> {
                     }
                 }
                 Some(Drag::Release) => cx.commit(),
-                None => {}
+                _ => {}
             }
             if let Some(value) = cx.intents().take_set_value_at(EDGE.at(visible.index())) {
                 cx.set(edges.with(clamp_margin(stored, value, &self.rules(edges, 0.0))));
@@ -532,7 +532,6 @@ impl Component for MarginHandles<'_> {
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let Some(edges) = cx.value().copied() else { return };
         let words = cx.words::<MarginHandlesWords>();
-        let units = cx.env.units();
         let rules = self.rules(edges, 0.0);
         for &visible in self.edges_shown() {
             let stored = rules.stored(visible);
