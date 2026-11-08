@@ -150,6 +150,7 @@ fn stroke_editor_choice_rows(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let out = StrokeEditor::new("Stroke", Bind::bound(&mut picks.style)).rows(&rows).show(ui);
     let picked = out.choice.clone();
     let story: StoryOutput = out.into();
+    drop(rows);
     if let Some((row, choice)) = picked {
         match row.as_str() {
             START => picks.start = choice,

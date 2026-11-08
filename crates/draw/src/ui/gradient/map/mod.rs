@@ -11,7 +11,7 @@ use craft_behavior::{EditEvent, GestureId, Mixed};
 use craft_ui::buttons::Button;
 use craft_ui::choice::Checkbox;
 use craft_ui::contract::{Bind, Pattern, Props as _, Show as _};
-use craft_ui::patterns::presets::{PresetPicker, PresetRow, PresetState};
+use craft_ui::patterns::presets::{PresetPicker, PresetRow};
 use craft_ui::runtime::env::{Env, Label};
 use egui::{Response, Ui};
 use std::sync::Arc;
@@ -115,6 +115,9 @@ impl<'a> GradientMapEditor<'a> {
         let mut event = None;
         let mut color_requested = None;
         let mut import = false;
+        let (preset_label, custom, import_label, stops_label) =
+            (words.preset.clone(), words.custom.clone(), words.import_presets.clone(), words.stops.clone());
+        let (reverse_label, dither_label) = (words.reverse.clone(), words.dither.clone());
         let shown = ui.scope(|ui| {
             let rows: Vec<PresetRow<GradientRef>> = self
                 .presets
@@ -127,18 +130,15 @@ impl<'a> GradientMapEditor<'a> {
                     std::iter::once(header).chain(items)
                 })
                 .collect();
-            let picker = PresetPicker::new(words.preset.clone(), Bind::given(None::<GradientRef>), &rows, Bind::kept())
-                .placeholder(words.custom.clone())
-                .show(ui);
+            let picker = PresetPicker::new(preset_label, Bind::given(None::<GradientRef>), &rows, Bind::kept()).placeholder(custom).show(ui);
             if let Some(stops) = picker.picked.and_then(|key| self.preset_stops(key)) {
                 event = Some(set(GradientMap { stops, ..base.clone() }));
             }
-            if Button::new(words.import_presets.as_str()).show(ui).clicked() {
+            if Button::new(import_label).show(ui).clicked() {
                 import = true;
             }
             let rules = StopRules { rows: StopRows::ColorOnly, min: MIN_STOPS, max: MAX_STOPS, ..StopRules::default() };
-            let mut editor =
-                GradientEditor::new(words.stops.as_str(), Bind::given(base.stops.clone())).rules(rules).midpoints(false).location_decimals(1);
+            let mut editor = GradientEditor::new(stops_label, Bind::given(base.stops.clone())).rules(rules).midpoints(false).location_decimals(1);
             if let Some(sampler) = self.sampler {
                 editor = editor.sampler(sampler);
             }
@@ -148,11 +148,11 @@ impl<'a> GradientMapEditor<'a> {
             }
             color_requested = bar.color_requested;
             let mut reverse = base.reverse;
-            if Checkbox::new(Bind::bound(&mut reverse)).label(words.reverse.as_str()).show(ui).event.is_some() {
+            if Checkbox::new(Bind::bound(&mut reverse)).label(reverse_label).show(ui).event.is_some() {
                 event = Some(set(GradientMap { reverse, ..base.clone() }));
             }
             let mut dither = base.dither;
-            if Checkbox::new(Bind::bound(&mut dither)).label(words.dither.as_str()).show(ui).event.is_some() {
+            if Checkbox::new(Bind::bound(&mut dither)).label(dither_label).show(ui).event.is_some() {
                 event = Some(set(GradientMap { dither, ..base.clone() }));
             }
         });

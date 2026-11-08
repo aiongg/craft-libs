@@ -20,7 +20,6 @@ use std::rc::Rc;
 /// The box before any drag, in document units.
 const RECT: Rect = Rect::new(100.0, 80.0, 300.0, 220.0);
 
-
 /// The part key the tests address the box's parts by.
 const BOX: PartKey = PartKey::new("box");
 

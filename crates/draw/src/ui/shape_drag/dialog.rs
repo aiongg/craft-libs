@@ -323,15 +323,8 @@ fn size_field(
 }
 
 /// The units a shape's size is entered in.
-const LENGTH_UNITS: [UnitKind; 7] = [
-    UnitKind::Pixels,
-    UnitKind::Percent,
-    UnitKind::Points,
-    UnitKind::Inches,
-    UnitKind::Centimetres,
-    UnitKind::Millimetres,
-    UnitKind::Picas,
-];
+const LENGTH_UNITS: [UnitKind; 7] =
+    [UnitKind::Pixels, UnitKind::Percent, UnitKind::Points, UnitKind::Inches, UnitKind::Centimetres, UnitKind::Millimetres, UnitKind::Picas];
 
 /// `value` in `unit` as a length the document converts.
 fn length(value: f64, unit: UnitKind) -> craft_ui::patterns::form_dialogs::GuideLength {

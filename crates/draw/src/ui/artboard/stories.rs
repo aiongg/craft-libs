@@ -9,7 +9,6 @@ use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
-
 fn presets() -> Vec<ArtboardPreset> {
     vec![ArtboardPreset::new("Letter", Size::new(612.0, 792.0)), ArtboardPreset::new("Phone", Size::new(390.0, 844.0))]
 }

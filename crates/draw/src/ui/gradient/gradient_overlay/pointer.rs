@@ -69,7 +69,9 @@ impl GradientOverlay<'_> {
                         self.report.color_requested = self.color_request(value, part);
                     }
                 }
-                PressPhase::DragStart { start, pos, .. } | PressPhase::Drag { start, pos, .. } if start.button == PointerButton::Primary && !mods.cmd => {
+                PressPhase::DragStart { start, pos, .. } | PressPhase::Drag { start, pos, .. }
+                    if start.button == PointerButton::Primary && !mods.cmd =>
+                {
                     if cx.press_slot::<Held>().is_none() {
                         *cx.press_slot::<Held>() =
                             Some(Held { part, base: value.clone(), copy: mods.alt && self.alt_copies && matches!(part, LinePart::Stop(_)) });

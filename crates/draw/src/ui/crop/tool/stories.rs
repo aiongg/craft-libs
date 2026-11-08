@@ -4,7 +4,7 @@ use super::{CropDocument, CropInput, CropSettings, CropTool};
 use crate::ui::crop::CropDocKey;
 use craft_behavior::geometry::CropBox;
 use craft_behavior::kurbo::{Rect, Size};
-use craft_ui::canvas::{Canvas, CanvasTool as _, ToolHost};
+use craft_ui::canvas::{Canvas, ToolHost};
 use craft_ui::contract::ShowContainer as _;
 use craft_ui::testing::{StoryData, StoryOutput, story};
 use egui::Ui;

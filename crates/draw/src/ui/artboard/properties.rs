@@ -6,7 +6,7 @@ use craft_behavior::EditEvent;
 use craft_behavior::kurbo::Rect;
 use craft_theme::Srgba;
 use craft_ui::choice::Swatch;
-use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Props as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Show as _, ShowContainer as _};
 use craft_ui::form::{Field, FieldGroup};
 use craft_ui::layout_components::Row;
 use craft_ui::pickers::Select;
@@ -107,14 +107,19 @@ impl<'a> ArtboardProperties<'a> {
                         rect_event = pick.event.map(|event| event.map(|_| moved));
                     }
                 });
-                let mut field = |ui: &mut Ui,
-                                 caption: &craft_ui::runtime::env::Label,
-                                 name: &craft_ui::runtime::env::Label,
-                                 value: f64,
-                                 range: &RangeInclusive<f64>| {
+                let field = |ui: &mut Ui,
+                             caption: &craft_ui::runtime::env::Label,
+                             name: &craft_ui::runtime::env::Label,
+                             value: f64,
+                             range: &RangeInclusive<f64>| {
                     Field::new(caption.clone())
                         .show(ui, |ui, _| {
-                            NumberField::new(name.clone(), Bind::given(Some(value))).range(range.clone()).unit_kind(UnitKind::Pixels).show(ui).edit.event
+                            NumberField::new(name.clone(), Bind::given(Some(value)))
+                                .range(range.clone())
+                                .unit_kind(UnitKind::Pixels)
+                                .show(ui)
+                                .edit
+                                .event
                         })
                         .inner
                         .flatten()

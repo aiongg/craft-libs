@@ -11,13 +11,11 @@ use egui::Ui;
 /// The layer's source frame, in document units.
 const FRAME: DocRect = DocRect::new(200.0, 120.0, 440.0, 280.0);
 
-
 #[story(TransformOverlay<'static, ()>, covers = [Default])]
-fn transform_phase(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+fn transform_phase(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let mut session = TransformSession::<()>::new(FRAME);
     let settings = TransformSettings::default();
-    let shown = Canvas::new("Document")
-        .show(ui, |ui, body| TransformOverlay::new("Free Transform", &session, &settings).show_at(ui, body.rect));
+    let shown = Canvas::new("Document").show(ui, |ui, body| TransformOverlay::new("Free Transform", &session, &settings).show_at(ui, body.rect));
     if let Some(output) = shown.inner {
         for edit in output.edits {
             session.apply(edit, 0.0);

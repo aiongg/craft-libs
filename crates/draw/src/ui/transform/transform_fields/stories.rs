@@ -6,7 +6,7 @@ use craft_behavior::kurbo::Rect;
 use craft_behavior::{RulerUnits, Ticks};
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::canvas::RulerText;
-use craft_ui::contract::{Bind, Entry, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Entry, ShowContainer as _};
 use craft_ui::runtime::env::UnitKind;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;

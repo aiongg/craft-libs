@@ -9,8 +9,8 @@ mod geometry;
 #[cfg(feature = "screen-testing")]
 pub(crate) mod stories;
 mod style;
-mod words;
 mod widgets;
+mod words;
 
 use kurbo::Point;
 

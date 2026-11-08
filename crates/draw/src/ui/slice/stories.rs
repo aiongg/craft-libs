@@ -17,7 +17,6 @@ use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 use std::sync::{Arc, Mutex};
 
-
 /// A document of 240 by 160 pixels at 72 pixels per inch.
 const DOCUMENT: PixelSize = PixelSize::new(240, 160);
 const PIXELS_PER_INCH: f64 = 72.0;
@@ -35,7 +34,8 @@ fn slices() -> Vec<SliceItem> {
 fn on_canvas(ui: &mut Ui, configure: impl for<'a> FnOnce(SliceOverlay<'a>) -> SliceOverlay<'a>) -> StoryOutput {
     let items = slices();
     let mut configure = Some(configure);
-    let _ = Canvas::new("Document").show(ui, |ui, body| configure.take().map(|configure| configure(SliceOverlay::new("Slices", &items)).show_at(ui, body.rect)));
+    let _ = Canvas::new("Document")
+        .show(ui, |ui, body| configure.take().map(|configure| configure(SliceOverlay::new("Slices", &items)).show_at(ui, body.rect)));
     StoryOutput::default()
 }
 

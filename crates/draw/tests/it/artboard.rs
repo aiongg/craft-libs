@@ -14,7 +14,6 @@ use egui::{Key, Modifiers, Pos2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-
 struct App {
     items: Vec<ArtboardItem>,
     selected: Vec<usize>,

@@ -4,7 +4,7 @@ use craft_behavior::kurbo::{Point, Rect};
 use craft_behavior::{CanvasView, Mixed};
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::canvas::Canvas;
-use craft_ui::contract::{Bind, ShowContainer as _};
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 

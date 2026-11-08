@@ -575,8 +575,11 @@ impl Cells<'_> {
         let mut event = None;
         let mut picked = None;
         Field::new(name.clone()).id_salt(field.key()).enabled(self.enabled).side(side).sizing(Sizing::Content).show(ui, |ui, _| {
-            let mut number =
-                NumberField::new(name.clone(), Bind::given(Some(current))).range(-bound..=bound).codec(codec.clone()).unit(unit.clone()).scrub_by_label();
+            let mut number = NumberField::new(name.clone(), Bind::given(Some(current)))
+                .range(-bound..=bound)
+                .codec(codec.clone())
+                .unit(unit.clone())
+                .scrub_by_label();
             if percent {
                 number = number.commit_decimals(decimals);
             }

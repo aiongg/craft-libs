@@ -369,7 +369,8 @@ impl CropToolPass<'_> {
         self.tool.step = Arc::from(words.frame.as_str());
         let (settings, document) = (self.input.settings, self.input.document);
         let units = Env::of(ui).units();
-        let (ratio, default, straighten) = (settings.ratio_value(document, &units), self.tool.session.is_default(), self.tool.session.straighten().on());
+        let (ratio, default, straighten) =
+            (settings.ratio_value(document, &units), self.tool.session.is_default(), self.tool.session.straighten().on());
         let Some(frame) = self.tool.session.frame_mut() else { return };
         let mut overlay = CropOverlay::new(words.frame.clone(), Bind::bound(frame))
             .guide((settings.guide, settings.guide_orientation))

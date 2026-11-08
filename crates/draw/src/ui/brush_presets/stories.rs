@@ -1,7 +1,7 @@
 //! Stories of the Brush Preset picker.
 
 use craft_behavior::Mixed;
-use craft_ui::contract::{Bind, Show as _};
+use craft_ui::contract::Bind;
 use craft_ui::patterns::presets::PresetRow;
 use craft_ui::runtime::env::Env;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};

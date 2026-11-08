@@ -3,7 +3,7 @@
 use super::GradientEditor;
 use crate::ui::gradient::{ColorStop, GradientStops, OpacityStop, StopRef, StopRows, StopRules};
 use craft_theme::Srgba;
-use craft_ui::contract::{Bind, Show as _};
+use craft_ui::contract::Bind;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 

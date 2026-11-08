@@ -26,7 +26,7 @@ use egui::{Color32, Pos2, Rect, Response, Vec2, vec2};
 
 use super::gradient_line::{at_screen, midpoint_location};
 use super::marker_texts;
-use super::{GradientExtent, GradientStops, GradientWords, LineGradient, LinePart, Sampler, StopColor, StopRef, StopRow, StopRows, StopRules};
+use super::{GradientExtent, GradientWords, LineGradient, LinePart, Sampler, StopColor, StopRef, StopRow, StopRows, StopRules};
 use parts::{END, LINE, MIDPOINT, START, STOP, line_part};
 
 craft_ui::words! {
@@ -348,7 +348,8 @@ impl Component for GradientOverlay<'_> {
         }
         let gradient_words = cx.words::<GradientWords>();
         let units = cx.env.units();
-        let text = |marker: StopRef| marker_texts(&gradient_words, &units, self.rules.rows, &value.stops, marker, usize::from(self.location_decimals));
+        let text =
+            |marker: StopRef| marker_texts(&gradient_words, &units, self.rules.rows, &value.stops, marker, usize::from(self.location_decimals));
         for i in 0..value.stops.color.len() {
             let (name, shown) = text(StopRef::Color(i));
             let node = access.node(STOP.at(i as u64), Role::BUTTON);

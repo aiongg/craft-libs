@@ -3,7 +3,7 @@
 
 use super::{PatternColors, PatternFillEditor, PatternFillOptions, PatternSwatch};
 use craft_theme::Srgba;
-use craft_ui::contract::{Bind, ShowContainer as _};
+use craft_ui::contract::Bind;
 use craft_ui::patterns::form_dialogs::FormDialog;
 use craft_ui::primitives::ContentPainterCx;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};

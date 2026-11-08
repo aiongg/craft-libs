@@ -76,7 +76,7 @@ impl<'a> SliceBar<'a> {
         let text = |commands: &[SliceCommand]| {
             BarItems::new(commands.iter().map(|&command| BarItem::new(command).display(ItemDisplay::Text)).collect()).label(words.commands.clone())
         };
-        let mut settings_changed = false;
+        let settings_changed;
         let mut unit_picked = None;
         let response = match mode {
             SliceMode::Slice => {

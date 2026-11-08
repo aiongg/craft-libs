@@ -11,13 +11,14 @@ use egui::Ui;
 /// The picture before any transform, in document units.
 const PICTURE: DocRect = DocRect::new(200.0, 120.0, 440.0, 280.0);
 
-
 /// Shows the box `configure` builds over the story's box as the only canvas control of a canvas.
 fn on_canvas(ui: &mut Ui, data: &mut StoryData, configure: impl for<'a> FnOnce(TransformBox<'a>) -> TransformBox<'a>) -> StoryOutput {
     let state = data.value("box", BoxState::from_rect(PICTURE));
     let mut configure = Some(configure);
     let shown = Canvas::new("Document").show(ui, |ui, body| {
-        configure.take().map(|configure| configure(TransformBox::new("Free Transform", Bind::bound(&mut *state), PICTURE, 0.0)).show_at(ui, body.rect))
+        configure
+            .take()
+            .map(|configure| configure(TransformBox::new("Free Transform", Bind::bound(&mut *state), PICTURE, 0.0)).show_at(ui, body.rect))
     });
     shown.inner.flatten().map(|output| StoryOutput::from(output.edit)).unwrap_or_default()
 }

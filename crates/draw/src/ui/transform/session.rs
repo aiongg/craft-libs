@@ -575,7 +575,6 @@ impl<W: TransformWarp> TransformSession<W> {
             }
             TransformEdit::Warp(warp) => self.draft.warp = Some(warp),
             TransformEdit::LeaveWarp => self.draft.warp = None,
-            _ => {}
         }
         None
     }

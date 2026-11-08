@@ -3,8 +3,8 @@
 use craft_behavior::{HitLevel, HitPriority, HitShape, Metrics, MoveMods, NavMove, PartKey, PressPhase, Sense};
 use craft_theme::{Stateful, States};
 use craft_ui::contract::{
-    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Input, MeasureCx, Numeric, PaintUi, PartsCx, Pointer as _, Role,
-    Focus as _, Styled as _, WordSetCx as _,
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Numeric, PaintUi, PartsCx, Pointer as _,
+    Role, Styled as _, WordSetCx as _,
 };
 use craft_ui::primitives::{PaintShape, StrokeWidth};
 use craft_ui::runtime::focus::{ActivateKeys, KeepKeys, KeyUse};

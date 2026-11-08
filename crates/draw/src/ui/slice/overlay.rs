@@ -13,8 +13,8 @@ use craft_keymap::Mods;
 use craft_theme::{Srgba, TypeRole};
 use craft_ui::canvas::{CanvasSpace, NUDGE, NUDGE_FAR, Snap, canvas_snap, canvas_space};
 use craft_ui::contract::{
-    Access, Common, Component, Cx, Edit as _, Focus as _, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _,
-    Remember as _, Role, Styled as _, WordSetCx as _,
+    Access, Common, Component, Cx, Focus as _, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Remember as _, Role,
+    Styled as _, WordSetCx as _,
 };
 use craft_ui::primitives::{Dashes, PaintShape, StrokeWidth, TextRun};
 use craft_ui::runtime::env::Label;
