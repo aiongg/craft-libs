@@ -92,11 +92,14 @@ pub(crate) fn run_frame(ctx: &Context, time: f64, events: Vec<Event>, files: OsF
         .map(|(shape, clip)| (shape.visual_bounding_rect().intersect(*clip), stroke_width(shape) / 2.0))
         .filter(|(rect, _)| rect.is_finite() && rect.min.x <= rect.max.x && rect.min.y <= rect.max.y)
         .unzip();
+    let mut painted_before: std::collections::HashMap<usize, usize> = std::collections::HashMap::new();
     let texts = flat
         .iter()
         .filter_map(|(shape, _)| match shape {
             Shape::Text(text) => {
-                let full = super::painted::full_text_of_painted(ctx, &text.galley);
+                let nth = painted_before.entry(Arc::as_ptr(&text.galley) as usize).or_insert(0);
+                let full = super::painted::full_text_of_painted(ctx, &text.galley, *nth);
+                *nth += 1;
                 Some(PaintedText {
                     rect: text.galley.rect.translate(text.pos.to_vec2()),
                     elided: full.is_some(),

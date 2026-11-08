@@ -231,3 +231,16 @@ fn a_card_is_named_with_its_size_line() {
     let a4 = named(&fixture, "A4").expect("the A4 card");
     assert!(fixture.tree().name_of(a4.node).is_some_and(|name| name.starts_with("A4, 8.27 × 11.") && name.ends_with(" in @ 300 ppi")));
 }
+
+/// Every card paints its own size line.
+#[trial]
+fn each_card_paints_its_own_size_line() {
+    let Rig { mut fixture, .. } = rig();
+    let print = named(&fixture, "Print").expect("the Print tab");
+    fixture.click(&print);
+    fixture.settle();
+    let lines: Vec<String> = fixture.texts().iter().filter(|run| run.text.contains(" in @ ")).map(|run| run.text.clone()).collect();
+    assert!(lines.len() >= 3, "the print cards show lines: {lines:?}");
+    assert!(lines.iter().any(|line| line.starts_with("8.5 × 11 in")), "Letter's own line: {lines:?}");
+    assert!(lines.iter().any(|line| line.starts_with("8.27 × 11.")), "A4's own line: {lines:?}");
+}
