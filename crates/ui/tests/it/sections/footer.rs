@@ -145,6 +145,25 @@ fn a_disabled_action_takes_a_drop_only_when_flagged_and_then_reports_enabled() {
     assert_eq!(first.or(flagged.borrow().dropped_on), Some(0), "the flagged action takes the drop");
 }
 
+/// A flagged action whose parent container is disabled is disabled by the parent, not by its own state: it takes no drop.
+#[trial]
+fn a_flagged_action_under_a_disabled_parent_takes_no_drop() {
+    let seen = RefCell::new(Seen::default());
+    let mut inner = scene(1, false, true, &seen);
+    let mut show = |ui: &mut Ui| {
+        ui.add_enabled_ui(false, |ui| inner(ui));
+    };
+    let mut frames = Frames::new();
+    let over = drag_over_delete(&mut frames, &mut show, &seen);
+    let id = seen.borrow().delete.expect("the action showed");
+    assert!(frames.tree().is_disabled(id), "it stays disabled under the disabled parent while the drag is over it");
+    assert!(seen.borrow().hint.is_none(), "the disabled parent shows no drop hint");
+    frames.frame(vec![release(over)], &mut show);
+    let first = seen.borrow().dropped_on;
+    frames.idle(2, &mut show);
+    assert!(first.is_none() && seen.borrow().dropped_on.is_none(), "the flagged action takes no drop under a disabled parent");
+}
+
 /// A lettered `Word` button shows its translated label with the letter on Windows and Linux, and none on macOS.
 #[trial]
 fn a_lettered_word_button_shows_its_translated_label_with_the_letter_off_macos() {
