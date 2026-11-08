@@ -335,6 +335,8 @@ struct Pass<'r, 'a, C: Component> {
     /// Set by a pass that ran past the sizing check.
     real: bool,
     activated: bool,
+    /// The source of the first activation `Cx::activate` injected in the passes.
+    injected: Option<commands::FireSource>,
 }
 
 /// Steps 6 to 16, in the `Ui` the host gives, inside the component's focus scope.
@@ -715,19 +717,15 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
         },
     );
     tooltip::run(cx, tooltip::TipIn { ui: &*ui, env, rich: p.tip.take(), parts: &parts.decls, shows_label: comp.shows_label() });
-    // Activations accumulate across the passes of a viewport mount.
+    // Activations accumulate across the passes of a viewport mount; step 17 fires the bound command once, with the
+    // injected source when there is one.
     let natural = comp.activated(cx) && resolved.enabled;
-    // An injected activation runs the bound command with its own source, so step 17 does not fire it again.
     let injected = cx.core.injected.take().filter(|_| resolved.enabled);
-    if natural || injected.is_some() {
-        if !cx.core.keep_open {
-            crate::runtime::overlay::note_activated(&ctx, id);
-        }
-        if let (Some(source), Some(command)) = (injected, &cx.core.command) {
-            crate::runtime::commands::fire(&ctx, command.command.clone(), source);
-        }
+    if (natural || injected.is_some()) && !cx.core.keep_open {
+        crate::runtime::overlay::note_activated(&ctx, id);
     }
-    p.activated |= natural && injected.is_none();
+    p.activated |= natural || injected.is_some();
+    p.injected = p.injected.or(injected);
 }
 
 fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>>, hooks: &mut dyn ShapeHooks<C>) -> C::Output {
@@ -835,9 +833,10 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
         sizing,
         real: false,
         activated: false,
+        injected: None,
     };
     host.run(id, ui, env, &mut |host_ui, host_at, host_env| pass(&mut run, host_ui, host_at, host_env));
-    let (real_pass, activated) = (run.real, run.activated);
+    let (real_pass, activated, injected) = (run.real, run.activated, run.injected);
     drop(run);
     // A layer's dismissal is decided after its body so a field inside commits in the press pass; its open state is
     // written here, after the report (the one write point outside step 15, besides `request_close`).
@@ -847,7 +846,7 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     // 17 finish, once: the stage is written back after `finish` returns, so writes made in `finish` are kept.
     if real_pass {
         trace.mark(Step::Finish);
-        steps::before_finish(&mut cx, activated);
+        steps::before_finish(&mut cx, activated, injected);
         if shape == ShapeKind::Leaf {
             let baseline = cx.core.paint.borrow().baseline;
             if let Some(baseline) = baseline {

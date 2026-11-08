@@ -1573,8 +1573,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             }
             scoped.values.extend(values);
             scoped.ink = cx.core.ink;
-            scoped.grid = None;
-            scoped.content_column = false;
+            scoped.start_room();
             if props.header.is_some_and(|header| header.band == DragBand::Reorder) {
                 scoped.commands = scoped.commands.pushed(REORDER_SCOPE, id);
             }

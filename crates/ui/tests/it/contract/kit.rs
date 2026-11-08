@@ -4,6 +4,7 @@ use craft_behavior::{DisplayOrder, Intent, ItemSource, Metrics, PartKey, PartRef
 use craft_ui::contract::{
     Collection, CollectionProps, Common, Component, Container, ContainerProps, Cx, Focus as _, MeasureCx, PartsCx, Pointer as _, Props as _, Role,
 };
+use craft_ui::runtime::commands::FireSource;
 use craft_ui::style::{ComponentStyle, StyleCx};
 use egui::{Id, Rect, Response, Vec2};
 use std::cell::RefCell;
@@ -83,12 +84,13 @@ pub struct Probe<'a> {
     sense: Option<Sense>,
     parts: &'a [PartSpec],
     takes_cancel: bool,
+    injects: Option<FireSource>,
     seen: &'a RefCell<Seen>,
 }
 
 impl<'a> Probe<'a> {
     pub fn new(seen: &'a RefCell<Seen>) -> Self {
-        Probe { common: Common::new(), size: Vec2::new(40.0, 20.0), sense: None, parts: &[], takes_cancel: true, seen }.label("Probe")
+        Probe { common: Common::new(), size: Vec2::new(40.0, 20.0), sense: None, parts: &[], takes_cancel: true, injects: None, seen }.label("Probe")
     }
 
     pub fn size(mut self, size: Vec2) -> Self {
@@ -109,6 +111,12 @@ impl<'a> Probe<'a> {
     /// The probe leaves Escape untaken, so the scope around it applies its cancel rule.
     pub fn leaves_cancel(mut self) -> Self {
         self.takes_cancel = false;
+        self
+    }
+
+    /// Each activation of the probe injects one from `source` (`Cx::activate`).
+    pub fn injects(mut self, source: FireSource) -> Self {
+        self.injects = Some(source);
         self
     }
 }
@@ -142,6 +150,11 @@ impl Component for Probe<'_> {
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         record(self.seen, self.parts, self.takes_cancel, cx);
+        if let Some(source) = self.injects
+            && cx.activation().is_some()
+        {
+            cx.activate(source);
+        }
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {

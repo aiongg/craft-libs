@@ -144,8 +144,10 @@ impl Host for PaneHost {
         let grip = MemoryStage::peek::<PaneGrip>(&ctx, pane_grip_id(id)).extent;
         let last = grip.or(self.0.extent).or_else(|| layout_memory::read(&ctx, extent).map(|size| if along_x { size.x } else { size.y }));
         let outer = panels::show_pane(parent, edge, sub(id, ("pane", self.0.name)), last, |ui| {
-            let installed = Env::install_for(ui, env.clone());
-            pass(ui, None, None);
+            // The pane is a layout room of its own: the grid or content column its parent body flows in ends here.
+            let room = env.new_room();
+            let installed = Env::install_for(ui, room.clone());
+            pass(ui, None, Some(&room));
             Env::restore(&ui.ctx().clone(), installed);
         });
         if last.is_none() && edge != Edge::Center && outer.is_positive() {

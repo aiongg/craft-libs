@@ -389,6 +389,12 @@ pub(crate) struct ItemFacts {
 }
 
 impl Scoped {
+    /// Ends the layout room of the enclosing body: its flow grid and content column.
+    pub(crate) fn start_room(&mut self) {
+        self.grid = None;
+        self.content_column = false;
+    }
+
     /// The facts the collection recorded for the item `id`.
     pub(crate) fn facts_of(&self, id: Id) -> Option<&ItemFacts> {
         self.item_facts.as_ref().filter(|facts| facts.item == id)
@@ -541,11 +547,10 @@ impl Env {
     /// The inherited group only; layer-local fields start fresh where the capture is installed.
     pub fn capture(&self) -> EnvCapture {
         EnvCapture(self.derive(|s| {
+            s.start_room();
             s.arena = None;
             s.roving = None;
             s.transform = None;
-            s.grid = None;
-            s.content_column = false;
             s.scroll_owner = None;
             s.item = None;
             s.row = None;
@@ -569,6 +574,12 @@ impl Env {
 
     /// A child entry that changes layer-local fields only (arena, item, row, roving, grid, scroll owner,
     /// transform, ink): the key carries over, because none of its inputs change.
+    /// This env for a body that starts a layout room of its own (a layer, a pane): the flow grid and the content
+    /// column of the room around it do not reach in.
+    pub(crate) fn new_room(&self) -> Env {
+        self.derive_local(Scoped::start_room)
+    }
+
     pub(crate) fn derive_local(&self, f: impl FnOnce(&mut Scoped)) -> Env {
         let mut scoped = (*self.scoped).clone();
         f(&mut scoped);
