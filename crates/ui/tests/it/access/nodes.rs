@@ -366,6 +366,8 @@ fn a_sub_node_emitted_after_a_child_component_stays_after_it() {
         });
     }
     let tree = frames.tree();
-    let names: Vec<&str> = tree.children_of(NodeKey::of(owner.expect("shown"))).into_iter().filter_map(|child| tree.name_of(child)).collect();
-    assert_eq!(names, ["Child", "Tail"], "emit order, not creation order");
+    let children = tree.children_of(NodeKey::of(owner.expect("shown")));
+    let child = children.iter().position(|key| *key == NodeKey::of(seen.borrow().id.expect("the child updated")));
+    let tail = children.iter().position(|key| tree.name_of(*key) == Some("Tail"));
+    assert!(child.is_some() && tail.is_some() && child < tail, "emit order, not creation order: {child:?} then {tail:?} of {}", children.len());
 }

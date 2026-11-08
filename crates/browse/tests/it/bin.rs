@@ -299,7 +299,12 @@ fn the_selection_count_leaves_out_keys_that_are_not_shown() {
     let mut bin = setup(false, |state| state.shown = Some(1));
     *bin.selection.borrow_mut() = Selection::single(20);
     bin.fixture.settle();
-    assert!(bin.fixture.by_label("2 items").is_some());
+    let dump: Vec<String> = [craft_ui::contract::Role::LABEL, craft_ui::contract::Role::GROUP]
+        .iter()
+        .flat_map(|r| bin.fixture.by_role(*r))
+        .map(|t| format!("{:?}", t))
+        .collect();
+    assert!(bin.fixture.by_label("2 items").is_some(), "PROBE {dump:?}");
     *bin.selection.borrow_mut() = Selection::single(10);
     bin.fixture.settle();
     assert!(bin.fixture.by_label("1 of 2 items selected").is_some());
