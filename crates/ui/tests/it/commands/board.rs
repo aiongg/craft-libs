@@ -683,7 +683,7 @@ fn a_full_window_dialog_scope_chains_under_the_view_scope() {
     frames.frame(vec![key_press(Key::Equals, Modifiers::COMMAND)], &mut show);
     frames.idle(2, &mut show);
     assert_eq!(zoomed.get(), 1, "the zoom chord reaches the dialog");
-    frames.frame(vec![key_press(Key::B, Modifiers::COMMAND | Modifiers::ALT)], &mut show);
+    frames.frame(vec![key_press(Key::W, Modifiers::COMMAND | Modifiers::ALT)], &mut show);
     frames.idle(2, &mut show);
     assert_eq!(brushed.get(), 1, "the workspace chord reaches it too");
 }
