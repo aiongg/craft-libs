@@ -62,7 +62,7 @@ fn scene(seen: &Seen) -> impl FnMut(&mut Ui) + '_ {
             seen.surface.set(seen.surface.get() || cx.surface_pressed());
             let button = Button::new("Apply").show(ui);
             seen.button.set(button.rect);
-            seen.clicked.set(seen.clicked.get() || button.clicked());
+            seen.clicked.set(seen.clicked.get() || craft_ui::testing::contract::clicked(&button));
             Block::new(Vec2::new(200.0, 120.0)).show(ui);
         });
         seen.rect.set(shown.output.rect);
