@@ -64,7 +64,7 @@ fn hidden_entries_are_not_listed_but_still_conflict() {
     rig.shared.borrow_mut().km.assign(&CommandRef::from("file.save"), Binding::parse("Cmd+E").expect("a chord"), Policy::Keep).expect("assigns");
     rig.pass();
     rig.choose("Filter:", "Conflicts");
-    assert!(rig.has("Save: ⌘S, ⌘E"), "the hidden command still clashes with Save");
+    assert!(rig.has("Save: ⌘S") && rig.has("Save: ⌘E"), "the hidden command still clashes with Save");
 }
 
 #[trial]

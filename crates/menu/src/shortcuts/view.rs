@@ -7,6 +7,8 @@
 mod bars;
 mod detail;
 mod header;
+#[cfg(feature = "screen-testing")]
+mod stories;
 mod table;
 
 use std::borrow::Cow;

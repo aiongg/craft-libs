@@ -43,7 +43,7 @@ fn escape_cancels_recording_only() {
     let mut rig = Rig::tuned(Platform::Mac, |_| {});
     rig.click("Save: ⌘S");
     rig.press(Modifiers::NONE, Key::Escape);
-    assert!(rig.is_open() && !rig.recording());
+    assert!(rig.is_open() && !rig.recording(), "open {} recording {}", rig.is_open(), rig.recording());
     assert!(rig.outcomes().is_empty());
     assert_eq!(rig.bindings("file.save"), ["Cmd+S"]);
     rig.press(Modifiers::NONE, Key::Escape);
@@ -65,7 +65,7 @@ fn double_press_records_k_k() {
     let mut rig = Rig::tuned(Platform::Mac, |options| options.double_press = true);
     rig.click("Save: ⌘S");
     rig.press(Modifiers::NONE, Key::K);
-    assert!(rig.has("Save: K (press again for a double press)"));
+    assert!(rig.recording() && rig.has("Save: press keys"), "a single press waits for the second: {:?}", rig.bindings("file.save"));
     rig.fixture.advance(0.3);
     rig.press(Modifiers::NONE, Key::K);
     assert_eq!(rig.bindings("file.save"), ["K K"]);

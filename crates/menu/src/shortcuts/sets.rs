@@ -18,33 +18,33 @@ use egui::Ui;
 use super::state::{DialogState, Env, SetForm, SetFormKind};
 
 /// The set row's actions. They belong to the dialog that shows them: a chord or the palette reaches the dialog
-/// that holds key focus.
+/// that holds key focus. The dialog is a modal layer, so they fire while a dialog is open (`in_dialogs`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, CommandSet)]
 #[command(prefix = "shortcutSets", scope = "dialog.shortcuts")]
 pub(crate) enum SetCommand {
     /// Opens the New Set form.
-    #[command(label = "New Set…")]
+    #[command(label = "New Set…", modal = "in_dialogs")]
     New,
     /// Opens the Rename form.
-    #[command(label = "Rename…")]
+    #[command(label = "Rename…", modal = "in_dialogs")]
     Rename,
     /// Asks to delete the active set.
-    #[command(label = "Delete")]
+    #[command(label = "Delete", modal = "in_dialogs")]
     Delete,
     /// Stores the edits in the active set.
-    #[command(label = "Save")]
+    #[command(label = "Save", modal = "in_dialogs")]
     Save,
     /// Puts the active set's stored shortcuts back.
-    #[command(label = "Revert Set")]
+    #[command(label = "Revert Set", modal = "in_dialogs")]
     Revert,
     /// Exports the active set as craft-keymap JSON.
-    #[command(label = "Export")]
+    #[command(label = "Export", modal = "in_dialogs")]
     Export,
     /// Asks the app for a set file.
-    #[command(label = "Import…")]
+    #[command(label = "Import…", modal = "in_dialogs")]
     Import,
     /// Summarizes the shortcuts.
-    #[command(label = "Summarize…")]
+    #[command(label = "Summarize…", modal = "in_dialogs")]
     Summarize,
 }
 

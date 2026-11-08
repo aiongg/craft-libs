@@ -67,6 +67,7 @@ pub struct MenuBarOutput {
 
 /// The bar for one frame: `MenuBarUi::new(&bar).show(ui)`. Draw it at the top of the window, in a top panel.
 /// The commands chosen come back through the command queue, not from `show`.
+#[derive(craft_ui::contract::Pattern)]
 pub struct MenuBarUi<'a> {
     bar: &'a MenuBar,
     target: Target,

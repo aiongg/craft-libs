@@ -97,7 +97,9 @@ fn switching_a_modified_set_asks_to_save() {
     let mut rig = Rig::mac_with_sets(profiles_with(&["Mine"]));
     rig.click("Save: ⌘S");
     rig.press(Modifiers::NONE, Key::F2);
-    rig.click("Set:");
+    let select = rig.named("Set:", Role::COMBO_BOX);
+    rig.fixture.click(&select);
+    rig.fixture.idle(3);
     rig.click("Fixture Defaults");
     assert!(rig.has("Save changes to “Mine”?"));
     rig.click("Don't Save");
@@ -178,7 +180,7 @@ fn narrow_set_row_moves_actions_into_more() {
     let mut rig = Rig::mac_with_sets(Profiles::default());
     rig.fixture.room(egui::vec2(560.0, 600.0));
     rig.fixture.settle();
-    assert!(!rig.has("Summarize…"), "Summarize… is in More");
+    assert!(!rig.has("Summarize…"), "Summarize… is in More: {:?}", rig.names_with(Role::BUTTON, "…"));
     rig.click("More");
     rig.click("Summarize…");
     assert!(rig.has_outcome(|o| matches!(o, Outcome::Summary { name, .. } if name == "Fixture Defaults")));

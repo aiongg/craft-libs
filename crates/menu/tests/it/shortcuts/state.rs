@@ -37,7 +37,7 @@ fn double_press_records_k_k_within_the_window() {
     let mut rig = rig_with(options().with(|o| o.double_press = true));
     rig.click("Bring to Front");
     rig.press(Modifiers::NONE, Key::K);
-    assert!(rig.shared.borrow().state.is_recording(), "a single waits for a second press");
+    assert!(rig.shared.borrow().state.is_recording(), "a single waits for a second press: {:?}", rig.bindings("object.front"));
     rig.fixture.advance(0.3);
     rig.press(Modifiers::NONE, Key::K);
     assert!(!rig.shared.borrow().state.is_recording());

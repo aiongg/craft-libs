@@ -20,7 +20,7 @@ fn binding(text: &str) -> Binding {
 
 /// A small app: file commands, two tools that both default to `M` (the conflict), and commands of the Timeline
 /// panel.
-fn keymap() -> Keymap {
+pub(super) fn keymap() -> Keymap {
     let path = |parts: &[&str]| parts.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
     let timeline = Scope::new("Timeline").unwrap_or_else(Scope::app);
     let catalog = vec![

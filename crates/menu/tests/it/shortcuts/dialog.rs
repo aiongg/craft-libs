@@ -45,7 +45,7 @@ fn conflict_keep_both_lists_the_clash_and_cancel_changes_nothing() {
     let mut rig = Rig::mac();
     rig.click("Export…: ⌘E");
     rig.press(Modifiers::MAC_CMD, Key::S);
-    rig.click("Cancel the new shortcut");
+    rig.click("Dismiss");
     assert_eq!(rig.bindings("file.export"), ["Cmd+E"]);
     rig.click("Export…: ⌘E");
     rig.press(Modifiers::MAC_CMD, Key::S);
@@ -111,11 +111,11 @@ fn reserved_chord_and_app_rule_refuse() {
     let mut rig = Rig::new(keymap(Platform::Mac).with_reserved(vec![reserved]), options, None);
     rig.click("Save: ⌘S");
     rig.press(Modifiers::MAC_CMD, Key::Tab);
-    assert!(rig.has("⚠ ⌘⇥ is reserved by the system"));
+    assert!(rig.has("⌘⇥ is reserved by the system"));
     assert_eq!(rig.bindings("file.save"), ["Cmd+S"]);
     rig.click("Marquee Tool: M");
     rig.press(Modifiers::MAC_CMD, Key::K);
-    assert!(rig.has("⚠ Tools take keys without modifiers"));
+    assert!(rig.has("Tools take keys without modifiers"));
     assert_eq!(rig.bindings("tool.marquee"), ["M"]);
 }
 
@@ -147,7 +147,7 @@ fn an_app_error_shows_until_dismissed() {
     let mut rig = Rig::mac();
     rig.shared.borrow_mut().state.show_error("The file could not be read");
     rig.fixture.idle(3);
-    assert!(rig.has("⚠ The file could not be read"));
+    assert!(rig.has("The file could not be read"));
     rig.click("Dismiss");
-    assert!(!rig.has("⚠ The file could not be read"));
+    assert!(!rig.has("The file could not be read"));
 }

@@ -12,9 +12,6 @@ use craft_ui::runtime::env::Env;
 use craft_ui::sections::{DialogRole, FooterButton};
 use serde::{Deserialize, Serialize};
 
-#[cfg(feature = "screen-testing")]
-mod stories;
-
 /// What the app's preferences remember about the offer, under its own key.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

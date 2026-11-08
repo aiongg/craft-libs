@@ -15,7 +15,7 @@ fn the_keyboard_names_holders_and_assigns_to_the_selected_command() {
     assert!(rig.has("F7"), "a key nothing holds is named by its own name");
 
     rig.click("⌘ Command");
-    assert!(rig.has("⌘S: Save"));
+    assert!(rig.has("⌘S: Save"), "{:?}", rig.names_with(craft_ui::contract::Role::BUTTON, "S"));
     assert!(rig.has("⌘B: Bold (Text)"));
     rig.click("⌘ Command");
 

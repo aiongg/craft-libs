@@ -115,6 +115,18 @@ impl Rig {
         self.fixture.by_label(label).unwrap_or_else(|| panic!("no control labelled {label:?}"))
     }
 
+    /// The names of the nodes of `role` that contain `part`, for a failure message.
+    pub(crate) fn names_with(&self, role: Role, part: &str) -> Vec<String> {
+        let tree = self.fixture.tree();
+        self.fixture
+            .by_role(role)
+            .into_iter()
+            .filter_map(|node| tree.name_of(node.node))
+            .filter(|name| name.contains(part))
+            .map(str::to_owned)
+            .collect()
+    }
+
     pub(crate) fn has(&self, label: &str) -> bool {
         self.fixture.by_label(label).is_some()
     }

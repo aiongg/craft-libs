@@ -3,7 +3,8 @@
 //!
 //! A component's key use is fixed, so the recorder is two components over one look: the idle field with the plain
 //! widget keys (Tab leaves, Enter and Space start recording) and the recording field with `KeyUse::RECORDER`
-//! (every key is a chord, Escape included). The recording field claims key focus until it holds it.
+//! (every key is a chord; bare Tab stays a chord because the field keeps Tab, and bare Escape is the dialog's
+//! cancel, which ends the recording). The recording field claims key focus until it holds it.
 
 use craft_behavior::{Metrics, Sense};
 use craft_keymap::Chord;
@@ -13,7 +14,7 @@ use craft_ui::contract::{
 };
 use craft_ui::primitives::{TextRun, Wrap};
 use craft_ui::runtime::env::Label;
-use craft_ui::runtime::focus::{self, FocusTarget, KeyUse};
+use craft_ui::runtime::focus::{self, FocusTarget, KeepKeys, KeyUse};
 use craft_ui::style::{ComponentStyle, FocusLook, Ink, StyleCx, SurfaceKind, SurfaceLook, TextLook, TypeRole};
 use egui::{Rect, Response, Ui, Vec2};
 
@@ -62,11 +63,13 @@ fn field_style(cx: &StyleCx<'_>, recording: bool) -> FieldStyle {
     let well = cx.surface(SurfaceKind::Well);
     let fill = if recording { cx.tone_fill(craft_theme::variant::Tone::Accent) } else { cx.color(cx.tokens.color.surface.sunken) };
     let control = cx.control();
+    // The accent well reads in the accent ink, the pair the theme tables for it.
+    let ink = if recording { cx.tone(craft_theme::variant::Tone::Accent) } else { cx.ink(Ink::OnPanel) };
     FieldStyle {
         metrics: Metrics::new().min_size(Vec2::splat(control.height)),
         surface: SurfaceLook::new(Stateful::new(fill)).kind(SurfaceKind::Well).radius(well.radius),
         focus: cx.focus_look(),
-        text: TextLook::new(TypeRole::Label, Stateful::new(cx.ink(Ink::OnPanel))),
+        text: TextLook::new(TypeRole::Label, Stateful::new(ink)),
         pad: cx.tokens.space.pad.chip,
     }
 }
@@ -132,7 +135,7 @@ macro_rules! field {
 }
 
 field!(IdleField, KeyUse::of(craft_behavior::Input::Pointer), false);
-field!(RecordingField, KeyUse::RECORDER, true);
+field!(RecordingField, KeyUse::RECORDER.with_keep(KeepKeys::Tab), true);
 
 /// The field that records: its accessible name, whether it records now and the text it shows (the recording
 /// prompt, or the chord).
