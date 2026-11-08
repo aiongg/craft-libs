@@ -2,10 +2,11 @@
 //! popup flips or clamps to stay inside the window, and a container closed through its binding closes the popups
 //! opened from its body.
 
-use craft_behavior::MotionMode;
+use craft_behavior::{DisplayOrder, ItemSource, MotionMode};
 use craft_ui::buttons::Button;
-use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Props as _, Role, Show as _, ShowCollection as _, ShowContainer as _};
 use craft_ui::dialog::Dialog;
+use craft_ui::list::{List, ListRow};
 use craft_ui::popover::Popover;
 use craft_ui::sections::{DialogRole, FooterButton};
 use craft_ui::testing::layout::in_region;
@@ -14,11 +15,27 @@ use egui::{Pos2, Rect, Vec2};
 use std::cell::Cell;
 use std::rc::Rc;
 
-const ROOM: Vec2 = Vec2::new(600.0, 400.0);
+/// The window: the fixture's screen is at least 800 by 600 points.
+const ROOM: Vec2 = Vec2::new(800.0, 600.0);
 // Edges snap to whole pixels, so a rectangle may overhang its neighbour by half a point.
 const EDGE_SLACK: f32 = 0.5;
 /// Far more rows than the window holds.
-const ROWS: usize = 30;
+const ROWS: usize = 40;
+
+/// `ROWS` rows keyed by position.
+struct Rows;
+
+impl DisplayOrder<usize> for Rows {
+    fn len(&self) -> usize {
+        ROWS
+    }
+
+    fn key(&self, at: usize) -> usize {
+        at
+    }
+}
+
+impl ItemSource<usize> for Rows {}
 
 fn window() -> Rect {
     Rect::from_min_size(Pos2::ZERO, ROOM).expand(EDGE_SLACK)
@@ -28,13 +45,20 @@ fn row(at: usize) -> String {
     format!("Row {at}")
 }
 
-/// A dialog whose body holds `ROWS` rows, with a footer button "Done".
-fn tall_dialog() -> Fixture {
-    let mut fixture = Fixture::new(|ui| {
+/// A dialog whose body holds `ROWS` rows, with a footer button "Done": a stack of buttons, or with `list` one list
+/// that is the dialog's collection body.
+fn tall_dialog(list: bool) -> Fixture {
+    let mut fixture = Fixture::new(move |ui| {
         let mut open = true;
-        Dialog::new("Tall").opened(Bind::bound(&mut open)).buttons([FooterButton::new("Done", DialogRole::Accept)]).show(ui, |ui, _| {
-            for at in 0..ROWS {
-                let _ = Button::new(row(at)).show(ui);
+        let dialog = Dialog::new("Tall").opened(Bind::bound(&mut open)).buttons([FooterButton::new("Done", DialogRole::Accept)]);
+        let dialog = if list { dialog.collection_body() } else { dialog };
+        dialog.show(ui, |ui, _| {
+            if list {
+                let _ = List::new("Items").show_items(ui, &Rows, &mut |key, _| ListRow::new(row(key)));
+            } else {
+                for at in 0..ROWS {
+                    let _ = Button::new(row(at)).show(ui);
+                }
             }
         });
     });
@@ -45,9 +69,8 @@ fn tall_dialog() -> Fixture {
 
 /// A dialog with content taller than the window lies inside it with its footer button in view, and its body scrolls
 /// to the last row, which then lies above the footer.
-#[trial]
-fn a_dialog_taller_than_the_window_lies_inside_it_and_scrolls_its_body() {
-    let mut fixture = tall_dialog();
+fn fits_and_scrolls(list: bool) {
+    let mut fixture = tall_dialog(list);
     let dialog = fixture.by_role(Role::DIALOG).first().expect("the dialog shows").rect;
     assert!(window().contains_rect(dialog), "the dialog lies inside the window: {dialog:?}");
     let done = fixture.by_label("Done").expect("the footer shows its button").rect;
@@ -62,6 +85,17 @@ fn a_dialog_taller_than_the_window_lies_inside_it_and_scrolls_its_body() {
     let done = fixture.by_label("Done").expect("the footer still shows its button").rect;
     assert!(last.top() >= dialog.top() - EDGE_SLACK, "the last row scrolled into the dialog: {last:?} in {dialog:?}");
     assert!(last.bottom() <= done.top() + EDGE_SLACK, "the last row lies above the footer: {last:?} over {done:?}");
+}
+
+#[trial]
+fn a_dialog_taller_than_the_window_lies_inside_it_and_scrolls_its_body() {
+    fits_and_scrolls(false);
+}
+
+/// The same with a body that is one collection, which owns the scroll (the shortcuts dialog).
+#[trial]
+fn a_dialog_whose_collection_is_taller_than_the_window_lies_inside_it_and_scrolls_it() {
+    fits_and_scrolls(true);
 }
 
 /// A popover open from the start on a button inside `anchor`, holding `rows` rows; returns the fixture and the
@@ -87,7 +121,7 @@ fn anchored_popover(anchor: Rect, rows: usize) -> (Fixture, Rc<Cell<Rect>>) {
 /// A popup anchored near the bottom of the window, with too little room below, opens above its anchor.
 #[trial]
 fn a_popup_anchored_near_the_bottom_opens_above_its_anchor() {
-    let (fixture, popup) = anchored_popover(Rect::from_min_size(Pos2::new(20.0, 350.0), Vec2::new(200.0, 30.0)), 5);
+    let (fixture, popup) = anchored_popover(Rect::from_min_size(Pos2::new(20.0, 550.0), Vec2::new(200.0, 30.0)), 5);
     let opener = fixture.by_label("Open").expect("the opener shows").rect;
     let popup = popup.get();
     assert!(fixture.by_label(&row(0)).is_some(), "the popup shows");
@@ -98,7 +132,7 @@ fn a_popup_anchored_near_the_bottom_opens_above_its_anchor() {
 /// A popup with too little room on either side of its anchor lies inside the window.
 #[trial]
 fn a_popup_with_too_little_room_either_side_lies_inside_the_window() {
-    let (fixture, popup) = anchored_popover(Rect::from_min_size(Pos2::new(20.0, 185.0), Vec2::new(200.0, 30.0)), ROWS);
+    let (fixture, popup) = anchored_popover(Rect::from_min_size(Pos2::new(20.0, 285.0), Vec2::new(200.0, 30.0)), ROWS);
     let popup = popup.get();
     assert!(fixture.by_label(&row(0)).is_some(), "the popup shows");
     assert!(window().contains_rect(popup), "the popup lies inside the window: {popup:?}");
@@ -108,7 +142,7 @@ fn a_popup_with_too_little_room_either_side_lies_inside_the_window() {
 /// container shows no popup, and the popup's binding is false.
 #[trial]
 fn a_container_closed_through_its_binding_leaves_no_child_popup_open() {
-    let (outer, inner) = (Rc::new(Cell::new(true)), Rc::new(Cell::new(true)));
+    let (outer, inner) = (Rc::new(Cell::new(true)), Rc::new(Cell::new(false)));
     let (outer_held, inner_held) = (outer.clone(), inner.clone());
     let mut fixture = Fixture::new(move |ui| {
         let opener = Button::new("Brush").show(ui);
@@ -124,6 +158,8 @@ fn a_container_closed_through_its_binding_leaves_no_child_popup_open() {
         outer_held.set(outer_open);
     });
     fixture.room(ROOM).motion(MotionMode::Off);
+    fixture.settle();
+    inner.set(true);
     fixture.settle();
     assert!(fixture.by_label("Deep").is_some(), "the popup inside the container shows");
     outer.set(false);
