@@ -563,8 +563,8 @@ fn the_menu_keys_report_a_context_menu_for_the_clip_reached_by_tab() {
     let v1 = panel.row("V1");
     let clip = panel.in_row("Clip", v1);
     panel.fixture.key(Key::Tab, Modifiers::NONE);
-    let tree = panel.fixture.tree();
-    assert_eq!(tree.name_of(tree.focused_key()), Some("Timeline"), "one Tab reaches the time area");
+    let focused = panel.fixture.focused().and_then(|id| panel.fixture.tree().name(id).map(str::to_owned));
+    assert_eq!(focused.as_deref(), Some("Timeline"), "one Tab reaches the time area");
     panel.fixture.key(Key::Menu, Modifiers::NONE);
     panel.fixture.key(Key::F10, Modifiers::SHIFT);
     let menus = reported_menus(&panel);
@@ -649,8 +649,7 @@ fn an_inactive_clip_stays_selectable() {
     panel.sequence.borrow_mut().disabled = vec![ClipId(1)];
     panel.fixture.idle(2);
     let clip = panel.in_row("Clip", panel.row("V1"));
-    let tree = panel.fixture.tree();
-    assert!(tree.data_of(clip.node).is_some_and(|node| !node.is_disabled()), "the clip's node is enabled");
+    assert!(!panel.fixture.tree().is_disabled_key(clip.node), "the clip's node is enabled");
     panel.fixture.click(&clip);
     let picked =
         panel.edits().iter().any(|edit| matches!(edit, TimelineEdit::Select { change: SelectionChange::Set(clips), .. } if clips == &[ClipId(1)]));

@@ -28,11 +28,11 @@ const HATCH_STEP_SHARE: f32 = 0.25;
 /// Within this share of the edge zone of a cut, the Selection tool with its no-modifier trims rolls.
 const ROLL_SHARE: f32 = 0.5;
 
-/// The clip body of `CLIP.at(id)`; its start and end edges are `CLIP_START.at(id)` and `CLIP_END.at(id)`, which rank
-/// above the body.
 /// A clip's body wins over the row's own shape, which takes the presses on empty lane space: the drag that sweeps a
 /// marquee and the click that clears the clip selection (Premiere; Shift or Cmd/Ctrl keeps it).
 const CLIP_PRIORITY: HitPriority = HitPriority::new(HitLevel::Body, 2);
+/// The clip body of `CLIP.at(id)`; its start and end edges are `CLIP_START.at(id)` and `CLIP_END.at(id)`, which rank
+/// above the body.
 pub const CLIP: PartKey = PartKey::new("clip");
 /// The start edge of the clip.
 pub const CLIP_START: PartKey = PartKey::new("clipStart");
