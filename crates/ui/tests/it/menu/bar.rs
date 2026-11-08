@@ -7,7 +7,8 @@ use craft_ui::contract::{PopupKind, Show as _};
 use craft_ui::menu::MenuItem;
 use craft_ui::menu::bar::{MenuBar, MenuHelp, MenuTitle, TitleFit, fit_titles};
 use craft_ui::menu::search::{HelpEntry, search_order};
-use craft_ui::runtime::commands::EditCommands;
+use craft_ui::runtime::commands::{EditCommands, FireSource};
+use craft_ui::runtime::frame::take_output;
 use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Id, Key, Modifiers};
 use std::cell::{Cell, RefCell};
@@ -184,4 +185,34 @@ fn a_label_match_ranks_before_a_path_only_match() {
     let texts = [["Zoom", "", "Window"], ["Window", "", "View"], ["Tile", "", "Window"]];
     assert_eq!(search_order(&Folder::new("en"), "window", &texts), vec![1, 0, 2]);
     assert!(search_order(&Folder::new("en"), "  ", &texts).is_empty());
+}
+
+/// A command to run from a menu row.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui::contract::CommandSet)]
+#[command(prefix = "menuTrial")]
+#[non_exhaustive]
+enum RowCommand {
+    #[command(label = "Go")]
+    Go,
+}
+
+/// A click on a command row fires the command as `FireSource::Menu`, like the typed run of the same row.
+#[trial]
+fn a_click_on_a_command_row_fires_it_from_the_menu() {
+    let mut fixture = Fixture::new(|ui| {
+        let titles = vec![MenuTitle::new("&Edit", |ui| {
+            MenuItem::command(RowCommand::Go).show(ui);
+        })];
+        MenuBar::new("Main menu", titles).show(ui);
+    });
+    fixture.settle();
+    let edit = fixture.by_label("Edit").expect("the Edit title");
+    fixture.click(&edit);
+    fixture.settle();
+    take_output(fixture.ctx());
+    let paste = fixture.by_label("Go").expect("the Go row");
+    fixture.click(&paste);
+    fixture.settle();
+    let fired: Vec<_> = take_output(fixture.ctx()).fired.into_iter().map(|fired| (fired.command.id.clone(), fired.source)).collect();
+    assert_eq!(fired, [("menuTrial.go".to_owned(), FireSource::Menu)]);
 }
