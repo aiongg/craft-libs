@@ -25,6 +25,10 @@ mod raster;
 mod rulers;
 mod scrollbars;
 
+// canvas-navigator-a
+mod navigator;
+// End of canvas-navigator-a.
+
 fn crop() -> Rect {
     Rect::from_min_max(Pos2::new(20.0, 20.0), Pos2::new(100.0, 80.0))
 }

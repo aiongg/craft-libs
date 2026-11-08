@@ -18,6 +18,23 @@ craft_ui::words! {
 
         scroll_horizontal: "canvas.scrollHorizontal" = "Horizontal scroll bar";
         scroll_vertical: "canvas.scrollVertical" = "Vertical scroll bar";
+
+        // canvas-navigator-a
+        navigator_zoom: "navigatorZoomRow.zoom" = "Zoom";
+        navigator_zoom_out: "navigatorZoomRow.zoomOut" = "Zoom Out";
+        navigator_zoom_in: "navigatorZoomRow.zoomIn" = "Zoom In";
+        navigator_options_title: "navigatorOptionsDialog.title" = "Navigator Panel Options";
+        navigator_proxy_color: "navigatorOptionsDialog.proxyColor" = "Color";
+        navigator_picker_title: "navigatorOptionsDialog.pickerTitle" = "Color Picker (Proxy Color)";
+        proxy_default: "proxyColor.default" = "Default";
+        proxy_red: "proxyColor.red" = "Red";
+        proxy_orange: "proxyColor.orange" = "Orange";
+        proxy_yellow: "proxyColor.yellow" = "Yellow";
+        proxy_green: "proxyColor.green" = "Green";
+        proxy_blue: "proxyColor.blue" = "Blue";
+        proxy_violet: "proxyColor.violet" = "Violet";
+        proxy_gray: "proxyColor.gray" = "Gray";
+        proxy_custom: "proxyColor.custom" = "Custom…";
     }
 }
 

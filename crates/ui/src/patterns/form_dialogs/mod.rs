@@ -68,6 +68,12 @@ pub use guides::{
 };
 pub use properties::{PropertiesDialog, PropertiesOutput, PropertiesTab, PropertyRow};
 
+// canvas-navigator-a
+mod navigator_options;
+
+pub use navigator_options::{NavigatorOptionsDialog, NavigatorOptionsDialogOutput};
+// End of canvas-navigator-a.
+
 mod export;
 
 pub use export::{
