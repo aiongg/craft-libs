@@ -1128,3 +1128,61 @@ type = "DockArea"
 old = "blocked_rects(&[Rect])"
 new = ""
 note = "Layers above the area block it by the drag session's layer test."
+
+
+# native-a: native dock windows and drags across windows.
+[[type]]
+name = "WindowSystem"
+old = "craft_ui::docking::render::native::WindowSystem"
+new = ""
+status = "removed"
+note = "The OS window work is the viewport mount's and `runtime::windows::WindowHost`; the policy is `craft_ui::docking::native::{allowed, spec_for, opening, restore, reported, raise}`."
+
+[[type]]
+name = "NativeInput"
+old = "craft_ui::docking::render::native::NativeInput"
+new = ""
+status = "removed"
+note = "Keys, clipboard and IME reach the focused viewport through the runtime's input hook; there is no forwarding plugin."
+
+[[type]]
+name = "WindowFiles"
+old = "craft_ui::docking::WindowFiles"
+new = ""
+status = "removed"
+note = "Files dragged over a window are the drag session's `OsFiles` payload, taken by a drop target in that window."
+
+[[type]]
+name = "typing_window"
+old = "craft_ui::docking::typing_window"
+new = ""
+status = "removed"
+note = "Each viewport's input goes to that viewport; no routing function."
+
+[[type]]
+name = "send_keys"
+old = "craft_ui::docking::send_keys"
+new = ""
+status = "removed"
+note = "Each viewport's input goes to that viewport; no routing function."
+
+[[type]]
+name = "route_app_drag"
+old = "craft_ui::docking::route_app_drag"
+new = ""
+status = "removed"
+note = "Every drag runs in the drag session, which maps the desktop pointer into the window under it; `craft_ui::docking::cross_window::{drag_target, accept_cross_window}` are the dock's window-level decisions."
+
+[[type]]
+name = "native"
+old = ""
+new = "craft_ui::docking::native"
+status = "replaced"
+note = "Policy for a floating group in an OS window: `allowed(ctx, &[PanelSpec])`, `spec_for(&[PanelSpec]) -> WindowSpec`, `restore(&Floating<P>, NativeSpace) -> Option<Rect>`, `opening(ctx, &Floating<P>, &[PanelSpec], bar) -> Opening`, `reported(&Floating<P>, Rect, &[Monitor]) -> Vec<Action<P>>` and `raise(ctx, &FloatingGroupOutput) -> bool`."
+
+[[type]]
+name = "cross_window"
+old = ""
+new = "craft_ui::docking::cross_window"
+status = "replaced"
+note = "`drag_target(ctx, desktop, dragged) -> Option<ViewportId>` and `accept_cross_window(ctx) -> bool`."
