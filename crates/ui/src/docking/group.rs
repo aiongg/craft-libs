@@ -318,6 +318,7 @@ impl<P: Clone + Hash + Send + Sync + 'static> Container for DockGroup<'_, P> {
                 .kind(kind)
                 .shown(active)
                 .tear_off()
+                .accept_from(|_| false)
                 .drag_payload(move |drag: &ListDrag<PanelKey>| Some(PanelDrag { panel: drag.grabbed, from }))
                 .show_items(ui, &source, &mut |key, _| {
                     let title = panels.iter().find(|panel| &panel.key == key).map_or_else(Label::default, |panel| panel.title.clone());
