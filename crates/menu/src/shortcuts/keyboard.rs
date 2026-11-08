@@ -26,7 +26,6 @@ use super::words::Say;
 /// rows and the gap under the function row.
 const UNITS_W: f32 = 18.5;
 const UNITS_H: f32 = 6.25;
-const UNITS: Vec2 = Vec2::new(UNITS_W, UNITS_H);
 /// The gap under the function row, in key units.
 const ROW_GAP: f32 = 0.25;
 /// Where the navigation cluster starts, in key units.
@@ -387,7 +386,8 @@ impl Component for KeyCaps {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        UNITS * cx.style.step
+        let step = cx.style.step;
+        vec2(UNITS_W * step, UNITS_H * step)
     }
 
     fn sense(&self) -> Sense {
