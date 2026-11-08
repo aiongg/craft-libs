@@ -7,11 +7,7 @@ use craft_table::ui::{FieldArea, FieldListEdit, FieldListPane, FieldSort, PivotF
 use craft_ui::contract::Role;
 use craft_ui::testing::access::name;
 use craft_ui::testing::{Fixture, Target, trial};
-use egui::{Event, Modifiers, PointerButton, vec2};
-
-/// The room the pane is shown in: wide enough for its areas side by side.
-const ROOM_WIDTH: f32 = 420.0;
-const ROOM_HEIGHT: f32 = 900.0;
+use egui::{Event, Modifiers, PointerButton};
 
 struct App {
     fields: Vec<PivotField>,
@@ -41,7 +37,6 @@ fn rig() -> (Fixture, Rc<RefCell<App>>) {
             app.edits.push(edit);
         }
     });
-    fixture.room(vec2(ROOM_WIDTH, ROOM_HEIGHT));
     fixture.settle();
     (fixture, app)
 }

@@ -18,5 +18,5 @@ fn filter_button_filtered(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 
 #[story(FilterButton, covers = [], drive = Drive::Activate)]
 fn filter_button_sorted(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    FilterButton::new("Colour").sort(Some(ColumnSort::descending(ColumnKey::new("colour")))).show(ui).into()
+    FilterButton::new("Colour").sort(ColumnSort::descending(ColumnKey::new("colour"))).show(ui).into()
 }

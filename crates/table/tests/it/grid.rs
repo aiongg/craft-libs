@@ -344,9 +344,7 @@ fn an_error_tag_beside_a_cell_takes_the_press() {
         move |ui| {
             let model = Sheet::new(None, Rc::new(Cell::new(0.0)));
             let mut state = GridState::default();
-            CellGrid::new("Sheet", &model, &mut state)
-                .error_tag(Some(CellProblem::new(CellAt::new(2, 2), "Number stored as text", &fixes)))
-                .show_sheet(ui);
+            CellGrid::new("Sheet", &model, &mut state).error_tag(CellProblem::new(CellAt::new(2, 2), "Number stored as text", &fixes)).show_sheet(ui);
         }
     });
     fixture.settle();
@@ -364,8 +362,7 @@ fn the_error_tag_sits_left_or_right_of_the_cell() {
     let mut fixture = Fixture::new(move |ui| {
         let model = Sheet::new(None, Rc::new(Cell::new(0.0)));
         let mut state = GridState::default();
-        let out =
-            CellGrid::new("Sheet", &model, &mut state).error_tag(Some(CellProblem::new(CellAt::new(2, 2), "Problem", &shown_fixes))).show_sheet(ui);
+        let out = CellGrid::new("Sheet", &model, &mut state).error_tag(CellProblem::new(CellAt::new(2, 2), "Problem", &shown_fixes)).show_sheet(ui);
         shown.borrow_mut().push(out.geometry.mirror_rect(out.geometry.cell_rect(CellAt::new(2, 2))));
     });
     fixture.settle();

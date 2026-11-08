@@ -116,7 +116,7 @@ fn cell_grid_chrome(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let columns = OutlineAxis::default();
     let out = CellGrid::new("Sheet", &model, &mut state)
         .filters(&filters)
-        .error_tag(Some(CellProblem::new(CellAt::new(2, 0), "Number stored as text", &fixes)))
+        .error_tag(CellProblem::new(CellAt::new(2, 0), "Number stored as text", &fixes))
         .outline(&rows, &columns)
         .show_sheet(ui);
     *data.value("state", GridState::default()) = state;

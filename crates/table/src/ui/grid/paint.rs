@@ -407,11 +407,12 @@ impl CellGrid<'_> {
             let header = Self::column_header(geometry, filter.column);
             let origin = if rtl { header.left_bottom() - Vec2::new(0.0, side) } else { header.right_bottom() - Vec2::new(side, side) };
             let name = self.model.column_label(filter.column);
-            let out = ui.child(
-                ("filter", filter.column),
-                Rect::from_min_size(origin, Vec2::splat(side)),
-                FilterButton::new(name).filtered(filter.filtered).sort(filter.sort),
-            );
+            let button = FilterButton::new(name).filtered(filter.filtered);
+            let button = match filter.sort.clone() {
+                Some(sort) => button.sort(sort),
+                None => button,
+            };
+            let out = ui.child(("filter", filter.column), Rect::from_min_size(origin, Vec2::splat(side)), button);
             if let Some(event) = out.event {
                 self.pass.filter = Some((filter.column, event));
             }
