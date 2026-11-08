@@ -107,7 +107,7 @@ impl FreeBinStyle {
 /// positions when the drag ends, and Escape leaves the cards where the host has them.
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
 #[component(collection, probe(FreeBin<'static, usize>))]
-pub struct FreeBin<'a, K: TextureKey> {
+pub struct FreeBin<'a, K: TextureKey + 'static> {
     #[common]
     common: Common,
     #[container]
@@ -363,7 +363,7 @@ impl<K: TextureKey> Collection for FreeBin<'_, K> {
     }
 
     /// Every tile gets the bin's caption place and its row's rename state.
-    fn dress<'r>(&self, tile: Tile<'r>, row: &RowState) -> Tile<'r> {
+    fn dress<'r>(&self, tile: Self::Item<'r>, row: &RowState) -> Self::Item<'r> {
         tile.caption(CaptionPlace::Below).renaming(row.renaming)
     }
 
