@@ -212,6 +212,7 @@ impl<'a> FullWindowCanvas<'a> {
                 controls(ui, body.rect);
             }
         });
+        crate::runtime::egui::alloc::advance_past(ui, rect);
         let output = canvas.output;
         let mut next = shown;
         let mut moved: CanvasView = shown.view();

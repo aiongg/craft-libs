@@ -203,4 +203,21 @@ mod canvas_navigation {
         let panned = hand.centre();
         assert!(panned.x < start.x - 1.0 && panned.y < start.y - 1.0, "a plain drag without a tool pans: {start:?} {panned:?}");
     }
+
+    #[trial]
+    fn a_canvas_takes_its_room_so_what_follows_lies_past_it() {
+        let rects = Rc::new(Cell::new(None));
+        let seen = rects.clone();
+        let mut view = FullWindowView::new();
+        let mut fixture = Fixture::new(move |ui| {
+            let canvas = FullWindowCanvas::new(ToolPath::Freehand, Bind::bound(&mut view), &Grey).show(ui).response.rect;
+            seen.set(Some((canvas, ui.available_rect_before_wrap())));
+        });
+        fixture.settle();
+        let (canvas, rest) = rects.get().expect("the canvas was shown");
+        assert!(
+            rest.min.y >= canvas.max.y - 0.5 || rest.min.x >= canvas.max.x - 0.5,
+            "the room after the canvas starts past it: {canvas:?} {rest:?}"
+        );
+    }
 }
