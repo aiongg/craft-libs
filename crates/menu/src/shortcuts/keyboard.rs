@@ -334,6 +334,7 @@ pub(crate) struct PaneStyle {
 
 /// The keycaps, one part each, over the layout table.
 #[derive(craft_ui::contract::Component)]
+#[component(sample = KeyCaps::sample)]
 struct KeyCaps {
     #[common]
     common: craft_ui::contract::Common,
@@ -343,6 +344,12 @@ struct KeyCaps {
 }
 
 impl KeyCaps {
+    /// The keycaps of an empty layout, for the registry's style measurements.
+    #[cfg(feature = "screen-testing")]
+    fn sample() -> Self {
+        KeyCaps { common: craft_ui::contract::Common::new(), caps: Vec::new(), key: None, toggled: None }
+    }
+
     fn unit(rect: Rect) -> f32 {
         (rect.width() / UNITS_W).min(rect.height() / UNITS_H)
     }
