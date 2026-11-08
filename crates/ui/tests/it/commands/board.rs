@@ -1,5 +1,6 @@
 use super::kit::{AppCommand, Dock, DockCommand, Field, Opens, PANE, PaneCommand, Tap};
-use craft_ui::contract::{Props as _, Show as _, ShowContainer as _};
+use craft_keymap::Overrides;
+use craft_ui::contract::{CommandSet as _, Props as _, Show as _, ShowContainer as _};
 use craft_ui::runtime::commands::{
     CommandGate, CommandInput, CommandKind, CommandRef, CommandState, Commands as _, EditCommands, FirePhase, FireSource, Fired, fire, resolve,
 };
@@ -10,6 +11,7 @@ use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Frames, trial};
 use egui::{Key, Modifiers, Pos2, Ui};
 use std::cell::{Cell, RefCell};
+use std::sync::Arc;
 
 fn ids(fired: &[Fired]) -> Vec<&str> {
     fired.iter().map(|f| f.command.id.as_str()).collect()
@@ -198,7 +200,16 @@ fn a_shortcut_does_not_fire_on_a_key_the_focused_widget_activates_with() {
         let response = Tap::new().id_salt("go").command(AppCommand::Go).show(ui);
         at.set(Some(response.id));
     };
-    let mut frames = Frames::new();
+    // Play is bound to Space for these frames only: the binary's registry binds no app command to Space, which the
+    // canvas's momentary Hand takes when the focus is outside every canvas.
+    let play_on_space = || {
+        let mut overrides = Overrides::default();
+        overrides.insert(AppCommand::Play.id(), vec!["Space".to_owned()]);
+        let mut frames = Frames::new();
+        frames.commands(CommandInput::new().overrides(Arc::new(overrides)));
+        frames
+    };
+    let mut frames = play_on_space();
     frames.idle(2, &mut show);
     focus_on(&mut frames, at.get().unwrap(), &mut show);
     frames.frame(vec![key_press(Key::Space, Modifiers::NONE)], &mut show);
@@ -206,7 +217,7 @@ fn a_shortcut_does_not_fire_on_a_key_the_focused_widget_activates_with() {
     assert_eq!(ids(&fired), ["trial.go"], "the button's activation fires, and the Space shortcut does not");
     assert_eq!(fired[0].source, FireSource::Pointer);
 
-    let mut frames = Frames::new();
+    let mut frames = play_on_space();
     frames.idle(2, &mut show);
     frames.frame(vec![key_press(Key::Space, Modifiers::NONE)], &mut show);
     assert_eq!(ids(&take_output(&frames.ctx).fired), ["trial.play"], "with nothing focused the shortcut fires");
