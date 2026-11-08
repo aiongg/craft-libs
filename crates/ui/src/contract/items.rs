@@ -730,7 +730,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     Arc::make_mut(&mut layout).set_width(at, ideal, min);
                     row = self.screen(&layout, rect, at, offset, rtl);
                 }
-                self.report_toggle_cells(&ctx, (id, item_id), (at, &key), (shown_cells.as_slice(), cx.core.resolved.enabled));
+                self.report_toggle_cells(&ctx, (id, item_id), (at, &key), (shown_cells.as_slice(), cx.core.resolved.enabled), &cx.core.env);
                 shown_rows.push(ShownRow::new(key.clone(), row, shown_cells));
                 let out = match tip {
                     Some(tip) => item.show_at_with_tip(&mut row_ui, row, tip),
@@ -1282,11 +1282,19 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
 
     /// The access sub-node of each toggle cell of row `(at, key)`, named by its column's header and carrying its state,
     /// below the row's node `item`; an AccessKit click on it reaches `toggle_by_access`.
-    fn report_toggle_cells(&self, ctx: &Context, (id, item): (Id, Id), (at, key): (usize, &C::Key), (cells, enabled): (&[(ColumnKey, Rect)], bool)) {
-        for (column, _) in self.header.toggle_columns() {
+    fn report_toggle_cells(
+        &self,
+        ctx: &Context,
+        (id, item): (Id, Id),
+        (at, key): (usize, &C::Key),
+        (cells, enabled): (&[(ColumnKey, Rect)], bool),
+        env: &crate::runtime::env::EnvView<'_>,
+    ) {
+        for (column, toggle) in self.header.toggle_columns() {
             let Some((_, rect)) = cells.iter().find(|(held, _)| *held == column) else { continue };
-            let mut node = access::SubNode::new(TOGGLE_CELL.at(key_hash(&(key, &column))), Role::SWITCH);
-            node.name = access::Name::Text(self.header.header_of(&column).unwrap_or_default().to_owned());
+            let mut node =
+                access::SubNode::new(TOGGLE_CELL.at(key_hash(&(key, &column))), if toggle.exclusive { Role::RADIO_BUTTON } else { Role::SWITCH });
+            node.name = access::Name::Text(self.header.cell_name(&column, env));
             node.flags.set(crate::style::Flags::CHECKED, self.source.toggled(at, &column));
             let decl = access::SubDecl {
                 owner: id,

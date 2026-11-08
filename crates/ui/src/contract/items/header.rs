@@ -156,9 +156,14 @@ impl Header {
         })
     }
 
-    /// The header text of the column `key`.
-    pub(super) fn header_of(&self, key: &ColumnKey) -> Option<&str> {
-        self.specs.iter().find(|spec| spec.key == *key).map(|spec| spec.header.as_str())
+    /// The name of the cells of toggle column `key`: its header text, else its icon's name, resolved in `env`.
+    pub(super) fn cell_name(&self, key: &ColumnKey, env: &crate::runtime::env::EnvView<'_>) -> String {
+        let Some(spec) = self.specs.iter().find(|spec| spec.key == *key) else { return String::new() };
+        let header = env.resolve(&spec.header);
+        match (header.as_str(), &spec.icon) {
+            ("", Some(icon)) => icon.name().to_owned(),
+            (text, _) => text.to_owned(),
+        }
     }
 
     /// The key of the column at position `at`.
