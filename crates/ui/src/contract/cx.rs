@@ -102,7 +102,7 @@ pub struct CxCore<'a> {
     pub(crate) reveal: Option<Rect>,
     pub(crate) press_cancel: Option<PressCancel>,
     /// The visible range each scroll part moved to this pass, from step 8's results.
-    pub(crate) scroll_moves: Vec<(PartKey, Range<f64>)>,
+    pub(crate) scroll_moves: Vec<ScrollMove>,
     /// The parts that show the value, whose double click resets it like the root's.
     pub(crate) value_parts: Vec<(PartKey, Option<u64>)>,
     /// The value parts that declared `own_reset`.
@@ -149,6 +149,12 @@ impl<C: Component> Cx<'_, C> {
     /// default. Reads `None` when the reset was the whole binding's, which step 9 applied.
     pub fn reset_part(&self) -> Option<PartRef> {
         self.core.reset_part
+    }
+
+    /// Lays document `text` out `text.wrap` wide: the call `ContentPainterCx::layout` and `MeasureCx::layout_doc`
+    /// make, so `update` finds a character at a point in the galley that `paint` draws.
+    pub fn layout_doc(&self, text: &crate::primitives::DocText<'_>) -> TextLayout {
+        text.layout(&self.core.ctx, &Env::of_root(&self.core.ctx).tokens, craft_i18n::Direction::Ltr)
     }
 
     /// Asks the platform to open `url`, in a new tab where the platform has tabs and `new_tab` is set.
@@ -351,7 +357,8 @@ pub trait Pointer {
     /// The operation of a drop of this component's payload, in the pass after the drop; `None` while dragging, when the
     /// drag was cancelled and when no target took it.
     fn drag_ended<P: Send + Sync + 'static>(&self) -> Option<DropOperation>;
-    /// The visible range the scroll part `key` moved to this pass (thumb or end drag, page press).
+    /// The visible range the scroll part `key` moved to this pass (thumb or end drag, page press, or an AccessKit click
+    /// on the track, which pages toward the track's centre).
     fn scroll_moved(&self, key: PartKey) -> Option<Range<f64>>;
 }
 
@@ -451,7 +458,8 @@ impl Pointer for CxCore<'_> {
     }
 
     fn scroll_moved(&self, key: PartKey) -> Option<Range<f64>> {
-        self.scroll_moves.iter().find(|(moved, _)| *moved == key).map(|(_, range)| range.clone())
+        let moves = self.scroll_moves.iter().find(|moved| moved.key == key)?;
+        moves.pressed.clone().or_else(|| moves.clicked.clone().filter(|_| self.intents.access_click(key.into())))
     }
 }
 
@@ -566,8 +574,10 @@ impl CxCore<'_> {
 
     /// The state set of `part`, hovered as well when `lit`: a part the pointer is not over that a press at the pointer
     /// would act on.
+    ///
+    /// A part not declared this pass (one added by this pass's click, which `parts` declares next pass) reads idle.
     pub(crate) fn part_state_lit(&self, part: PartRef, lit: bool) -> StateSet {
-        let result = self.part(part);
+        let result = self.part_if_declared(part).unwrap_or(&PartResult::IDLE);
         let hovered = result.hovered || lit;
         let mut flags = result.flags;
         if self.active_now() == Some(part) && focus::is_focused(&self.ctx, self.id) {
@@ -1832,27 +1842,37 @@ pub(crate) fn thumb_rect(track: Rect, axis: Axis, rtl: bool, at: f32, len: f32) 
     }
 }
 
-/// The ranges this pass's scroll-part presses moved, from step 8's results.
-pub(crate) fn scroll_moves(decls: &[ScrollDecl], results: &PartResults) -> Vec<(PartKey, Range<f64>)> {
+/// What one scroll bar can move the visible range to this pass.
+pub(crate) struct ScrollMove {
+    key: PartKey,
+    /// Where this pass's thumb drag or track press moved it.
+    pressed: Option<Range<f64>>,
+    /// Where an AccessKit click on the track part moves it: one page toward the track's centre, which is where a
+    /// pointer click on the node would land. `None` when the thumb covers that point.
+    clicked: Option<Range<f64>>,
+}
+
+/// The ranges this pass's scroll-part presses moved, and the ranges an AccessKit click on each track would move
+/// to, from step 8's results.
+pub(crate) fn scroll_moves(decls: &[ScrollDecl], results: &PartResults) -> Vec<ScrollMove> {
     let mut moves = Vec::new();
     for decl in decls {
         let sign = if decl.axis == Axis::X && decl.rtl { -1.0 } else { 1.0 };
         let along = |delta: Vec2| sign * if decl.axis == Axis::X { delta.x } else { delta.y };
+        let axis_pos = |pos: Pos2| if decl.axis == Axis::X { pos.x } else { pos.y };
+        let page_toward = |at: f32| craft_behavior::scroll::page(&decl.span, sign * (at - axis_pos(decl.thumb.center())) > 0.0);
         let length = track_length(decl.track, decl.axis);
         let thumb = results.get(&(decl.key, Some(THUMB))).map(|result| result.press.phase);
         let track = results.get(&(decl.key, None)).map(|result| result.press.phase);
-        let moved = match (thumb, track) {
+        let pressed = match (thumb, track) {
             (Some(PressPhase::Drag { delta, .. }), _) => Some(craft_behavior::scroll::drag(&decl.span, length, decl.min_thumb, along(delta))),
-            (_, Some(PressPhase::Down { start, .. })) => {
-                let at = if decl.axis == Axis::X { start.origin.x } else { start.origin.y };
-                let thumb_at = if decl.axis == Axis::X { decl.thumb.center().x } else { decl.thumb.center().y };
-                Some(craft_behavior::scroll::page(&decl.span, sign * (at - thumb_at) > 0.0))
-            }
+            (_, Some(PressPhase::Down { start, .. })) => Some(page_toward(axis_pos(start.origin))),
             _ => None,
         };
-        if let Some(range) = moved {
-            moves.push((decl.key, range));
-        }
+        let middle = decl.track.center();
+        let covered = if decl.axis == Axis::X { decl.thumb.x_range().contains(middle.x) } else { decl.thumb.y_range().contains(middle.y) };
+        let clicked = (!covered).then(|| page_toward(axis_pos(middle)));
+        moves.push(ScrollMove { key: decl.key, pressed, clicked });
     }
     moves
 }

@@ -7,6 +7,7 @@ mod fixes;
 mod hit_order;
 mod openers;
 mod os_window;
+mod part_reads;
 mod surface;
 pub(crate) mod kit;
 mod pipeline;

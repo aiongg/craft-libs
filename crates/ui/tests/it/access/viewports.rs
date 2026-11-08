@@ -85,9 +85,10 @@ fn a_scroll_bar_part_keeps_its_emit_order_after_the_body() {
     let positions: Vec<Option<usize>> = rows.iter().map(|id| at(NodeKey::of(*id))).collect();
     assert!(positions.iter().all(Option::is_some) && positions.is_sorted(), "the rows keep their show order: {positions:?}");
     let last_row = positions.last().copied().flatten().unwrap_or(0);
-    let bar = walk.iter().enumerate().filter(|(_, key)| tree.is_hidden(**key)).filter(|(_, key)| {
-        tree.bounds_of(**key)
-            .is_some_and(|bounds| rows.iter().all(|id| tree.bounds_of(NodeKey::of(*id)).is_some_and(|row| bounds.min.x >= row.max.x)))
-    });
-    assert!(bar.into_iter().all(|(index, _)| index > last_row), "the scroll-bar part's node follows the body's nodes");
+    let right_of_rows = |key: &NodeKey| {
+        tree.bounds_of(*key).is_some_and(|bounds| rows.iter().all(|id| tree.bounds_of(NodeKey::of(*id)).is_some_and(|row| bounds.min.x >= row.max.x)))
+    };
+    let bars: Vec<usize> = walk.iter().enumerate().filter(|(_, key)| tree.is_hidden(**key) && right_of_rows(key)).map(|(index, _)| index).collect();
+    assert!(!bars.is_empty(), "the scroll bar's part widgets are in the tree right of the rows: {walk:?}");
+    assert!(bars.iter().all(|index| *index > last_row), "the scroll-bar part's node follows the body's nodes: {bars:?} after {last_row}");
 }
