@@ -21,7 +21,14 @@ use std::ops::RangeInclusive;
 /// The display order of a grid whose row keys are their positions (a sheet, a document table): `key(at) == at`, and
 /// `index_of` answers without a scan.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Positions(pub u32);
+pub struct Positions(u32);
+
+impl Positions {
+    /// The order of `rows` rows.
+    pub const fn new(rows: u32) -> Self {
+        Positions(rows)
+    }
+}
 
 impl DisplayOrder<u32> for Positions {
     fn len(&self) -> usize {
@@ -125,6 +132,7 @@ impl CellRange<u32> {
 /// A move of one cell. Logical: in a right-to-left sheet the widget maps the Left arrow to
 /// [`Right`](Self::Right) (Excel mirrors the arrows with the sheet).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum CellDirection {
     /// Toward the first row.
     Up,
@@ -138,6 +146,7 @@ pub enum CellDirection {
 
 /// Which key moves the active cell after an entry: Enter goes down the rows, Tab along a row.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum CellAdvance {
     /// Enter: down the rows.
     Enter,
@@ -152,7 +161,7 @@ pub enum CellAdvance {
 ///
 /// ```ignore
 /// let hidden = |row| sheet.is_row_hidden(row);
-/// let space = CellSpace::new(&Positions(SHEET_ROWS), SHEET_COLUMNS).merges(&sheet.merges).hidden_rows(&hidden);
+/// let space = CellSpace::new(&Positions::new(SHEET_ROWS), SHEET_COLUMNS).merges(&sheet.merges).hidden_rows(&hidden);
 /// state.selection.step(CellDirection::Down, &space);
 /// ```
 pub struct CellSpace<'a, K> {

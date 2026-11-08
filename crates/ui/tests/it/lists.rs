@@ -82,7 +82,7 @@ fn apply_opens_one_group_or_every_group() {
 fn a_mark_covers_the_row_and_every_newer_one() {
     let mut mark = UndoMark::default();
     let order = Rows::new(4);
-    let covers = |mark: &UndoMark, key: usize| mark.contains(RowAt { key: &key, at: key, order: &order });
+    let covers = |mark: &UndoMark, key: usize| mark.contains(RowAt::new(&key, key, &order));
     assert!(!covers(&mark, 0));
     mark.apply(SelectionChange::Set(vec![2]));
     assert_eq!((covers(&mark, 0), covers(&mark, 2), covers(&mark, 3)), (true, true, false));

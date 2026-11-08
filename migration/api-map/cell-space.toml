@@ -40,7 +40,7 @@ name = "CellSpace"
 old = "craft_ui::behavior::cells::CellSpace"
 new = "craft_behavior::CellSpace"
 status = "moved"
-note = "`CellSpace::new(rows, columns)` is `CellSpace::new(&Positions(rows), columns)`; the type carries the row key. `merges`, `hidden_rows`, `hidden_columns`, `selectable` take positions, as before. New: `place`, `place_range`, `keyed`, `keyed_range`."
+note = "`CellSpace::new(rows, columns)` is `CellSpace::new(&Positions::new(rows), columns)`; the type carries the row key. `merges`, `hidden_rows`, `hidden_columns`, `selectable` take positions, as before. New: `place`, `place_range`, `keyed`, `keyed_range`."
 
 [[type]]
 name = "CellDirection"
@@ -59,7 +59,7 @@ name = "Positions"
 old = ""
 new = "craft_behavior::Positions"
 status = "replaced"
-note = "The display order of a grid whose row keys are their positions: `CellSpace::new(&Positions(rows), columns)`."
+note = "The display order of a grid whose row keys are their positions: `CellSpace::new(&Positions::new(rows), columns)`."
 
 [[type]]
 name = "RowAt"
@@ -81,4 +81,4 @@ new = "anchor_cell()"
 [[setter]]
 type = "CellSpace"
 old = "new(rows, columns)"
-new = "new(&Positions(rows), columns)"
+new = "new(&Positions::new(rows), columns)"

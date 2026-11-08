@@ -33,6 +33,7 @@ pub enum SelectionChange<K> {
 
 /// A cell: its row key and its column position. `CellAt<u32>` is a cell by position.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct CellAt<K> {
     /// The cell's row.
     pub row: K,
@@ -51,6 +52,7 @@ impl<K> CellAt<K> {
 /// positions `columns` and the column of the lead cell. A selection reports it with `first` at the anchor end.
 /// `CellRange<u32>` is a rectangle by position (merged cells, covers, whole lines).
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct CellRange<K> {
     /// The row at one end of the rectangle.
     pub first: K,
@@ -117,6 +119,7 @@ impl<'de, K: Deserialize<'de>> Deserialize<'de> for CellRange<K> {
 
 /// A row as the item step reads it: its key, its position and the order that places other keys. A rectangle of
 /// cells cannot answer from a key alone.
+#[non_exhaustive]
 pub struct RowAt<'a, K> {
     /// The row's key.
     pub key: &'a K,
@@ -124,6 +127,13 @@ pub struct RowAt<'a, K> {
     pub at: usize,
     /// The display order the position is in.
     pub order: &'a dyn DisplayOrder<K>,
+}
+
+impl<'a, K> RowAt<'a, K> {
+    /// The row `key` at position `at` of `order`.
+    pub fn new(key: &'a K, at: usize, order: &'a dyn DisplayOrder<K>) -> Self {
+        Self { key, at, order }
+    }
 }
 
 impl<K> Clone for RowAt<'_, K> {
@@ -535,11 +545,11 @@ mod tests {
     }
 
     fn row_at<'a>(key: &'a u32, order: &'a Positions) -> RowAt<'a, u32> {
-        RowAt { key, at: *key as usize, order }
+        RowAt::new(key, *key as usize, order)
     }
 
     fn holds(cells: &CellSelection<u32>, row: u32, column: u32) -> bool {
-        cells.contains_cell(row_at(&row, &Positions(100)), column)
+        cells.contains_cell(row_at(&row, &Positions::new(100)), column)
     }
 
     #[test]
@@ -555,7 +565,7 @@ mod tests {
     #[test]
     fn a_cell_toggle_flips_one_cell_and_leaves_the_others() {
         let at = |row, column| SelectionChange::ToggleCell(CellAt::new(row, column));
-        let order = Positions(100);
+        let order = Positions::new(100);
         let mut cells = CellSelection::<u32>::default();
         cells.apply(SelectionChange::Cells(CellRange::new(2, 3, 1..3, 2)));
         cells.apply(at(7, 0));

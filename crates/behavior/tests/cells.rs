@@ -25,7 +25,7 @@ fn current(selection: &CellSelection<u32>) -> CellRange<u32> {
 #[test]
 fn ranges_grow_over_merged_cells_but_whole_lines_stay() {
     let merges = [r((1, 1), (2, 2)), r((3, 3), (3, 5))];
-    let rows = Positions(10);
+    let rows = Positions::new(10);
     let space = CellSpace::new(&rows, 8).merges(&merges);
     // B2:C3 holds the first merge; D4:F4 touches it only through the second merge.
     assert_eq!(space.cover(r((0, 0), (1, 1))), r((0, 0), (2, 2)));
@@ -43,7 +43,7 @@ fn neighbour_skips_hidden_lines_and_merges() {
     let hidden_rows = |row: u32| row == 5;
     let hidden_columns = |column: u32| column == 1;
     let locked = |cell: CellAt<u32>| cell == c(0, 3);
-    let rows = Positions(8);
+    let rows = Positions::new(8);
     let space = CellSpace::new(&rows, 6).merges(&merges).hidden_rows(&hidden_rows).hidden_columns(&hidden_columns);
     assert_eq!(space.neighbour(c(2, 2), CellDirection::Down), Some(c(4, 2)));
     assert_eq!(space.neighbour(c(4, 2), CellDirection::Up), Some(c(2, 2)));
@@ -63,7 +63,7 @@ fn neighbour_skips_hidden_lines_and_merges() {
 #[test]
 fn click_shift_click_and_command_click_follow_excel() {
     let merges = [r((2, 2), (3, 3))];
-    let rows = Positions(10);
+    let rows = Positions::new(10);
     let space = CellSpace::new(&rows, 10).merges(&merges);
     let mut sel = CellSelection::<u32>::default();
     assert!(sel.select(c(3, 3), &space));
@@ -87,7 +87,7 @@ fn click_shift_click_and_command_click_follow_excel() {
 // collapses to the active cell's neighbour.
 #[test]
 fn shift_arrows_move_the_head_and_arrows_collapse() {
-    let rows = Positions(10);
+    let rows = Positions::new(10);
     let space = CellSpace::new(&rows, 10);
     let mut sel = CellSelection::cell(c(4, 4));
     assert!(sel.extend(CellDirection::Down, &space));
@@ -111,7 +111,7 @@ fn shift_arrows_move_the_head_and_arrows_collapse() {
 #[test]
 fn enter_and_tab_cycle_inside_the_selection() {
     let merges = [r((0, 0), (1, 1))];
-    let rows = Positions(10);
+    let rows = Positions::new(10);
     let space = CellSpace::new(&rows, 10).merges(&merges);
     let mut sel = CellSelection::from_ranges(vec![r((2, 2), (3, 3)), r((6, 6), (6, 7))], c(6, 6)).unwrap();
     let ranges = sel.ranges().to_vec();
@@ -146,7 +146,7 @@ fn enter_and_tab_cycle_inside_the_selection() {
 #[test]
 fn advance_inside_a_range_skips_hidden_lines() {
     let hidden_columns = |column: u32| column == 1;
-    let rows = Positions(5);
+    let rows = Positions::new(5);
     let space = CellSpace::new(&rows, 5).hidden_columns(&hidden_columns);
     let mut sel = CellSelection::range(r((0, 0), (1, 2)));
     let mut seen = Vec::new();
@@ -163,7 +163,7 @@ fn advance_inside_a_range_skips_hidden_lines() {
 fn locked_cells_refuse_selection_and_ranges_cover_merges() {
     let merges = [r((2, 2), (3, 3))];
     let selectable = |cell: CellAt<u32>| cell != c(5, 5);
-    let rows = Positions(10);
+    let rows = Positions::new(10);
     let space = CellSpace::new(&rows, 10).merges(&merges).selectable(&selectable);
     let mut sel = CellSelection::cell(c(0, 0));
     assert!(!sel.select(c(5, 5), &space));
@@ -185,7 +185,7 @@ fn a_stored_selection_is_checked_on_the_way_in() {
     assert!(serde_json::from_str::<CellSelection<u32>>(no_active).is_err());
     let outside = r#"{"ranges":[{"start":{"row":0,"column":0},"end":{"row":1,"column":1}}],"active":{"row":0,"column":4}}"#;
     assert!(serde_json::from_str::<CellSelection<u32>>(outside).is_err());
-    let rows = Positions(10);
+    let rows = Positions::new(10);
     let space = CellSpace::new(&rows, 10);
     let mut sel = CellSelection::from_ranges(vec![r((2, 2), (3, 3)), r((6, 6), (6, 7))], c(6, 6)).unwrap();
     sel.advance(CellAdvance::Tab, true, &space);
@@ -210,7 +210,7 @@ fn a_legacy_stored_selection_loads_and_saves_the_same_bytes() {
 // Tab, Tab, Enter goes to the next row in the column the Tabs started in; an arrow ends the run.
 #[test]
 fn enter_after_tabs_returns_to_the_starting_column() {
-    let rows = Positions(10);
+    let rows = Positions::new(10);
     let space = CellSpace::new(&rows, 10);
     let mut sel = CellSelection::cell(c(2, 1));
     sel.advance(CellAdvance::Tab, false, &space);
@@ -232,7 +232,7 @@ fn enter_after_tabs_returns_to_the_starting_column() {
 #[test]
 fn enter_after_tabs_ignores_a_start_column_that_cannot_be_visited() {
     let hidden_columns = |column: u32| column == 1;
-    let rows = Positions(10);
+    let rows = Positions::new(10);
     let hidden = CellSpace::new(&rows, 10).hidden_columns(&hidden_columns);
     let mut sel = CellSelection::cell(c(2, 1));
     sel.advance(CellAdvance::Tab, false, &hidden);
@@ -258,7 +258,7 @@ fn enter_after_tabs_ignores_a_start_column_that_cannot_be_visited() {
 #[test]
 fn reading_order_tab_wraps_rows_and_ends_past_the_last_cell() {
     let merges = [r((0, 1), (1, 2))];
-    let rows = Positions(3);
+    let rows = Positions::new(3);
     let space = CellSpace::new(&rows, 3).merges(&merges);
     assert_eq!(space.next_in_reading_order(c(0, 0), false), Some(c(0, 1)));
     assert_eq!(space.next_in_reading_order(c(0, 1), false), Some(c(1, 0)));
@@ -273,13 +273,13 @@ fn reading_order_tab_wraps_rows_and_ends_past_the_last_cell() {
 #[test]
 fn a_whole_column_of_a_full_sheet_is_one_range() {
     const ROWS: u32 = 1_048_576;
-    let rows = Positions(ROWS);
+    let rows = Positions::new(ROWS);
     let space = CellSpace::new(&rows, 16_384);
     let mut sel = CellSelection::<u32>::default();
     assert!(sel.select_range(space.whole_columns(2, 2), &space));
     assert_eq!(sel.ranges().len(), 1);
     let last = ROWS - 1;
-    let at = |column| sel.contains_cell(RowAt { key: &last, at: last as usize, order: &rows }, column);
+    let at = |column| sel.contains_cell(RowAt::new(&last, last as usize, &rows), column);
     assert_eq!((at(2), at(3), at(1)), (true, false, false));
 }
 
@@ -304,7 +304,7 @@ fn a_range_over_keyed_rows_follows_a_reorder_of_the_source() {
     assert!(sel.select_range(CellRange::new("b", "d", 0..2, 1), &space));
     let holds = |order: &Names, key: &'static str| {
         let at = order.index_of(&key).unwrap();
-        sel.contains_cell(RowAt { key: &key, at, order }, 1)
+        sel.contains_cell(RowAt::new(&key, at, order), 1)
     };
     assert_eq!(["a", "b", "c", "d", "e"].map(|key| holds(&before, key)), [false, true, true, true, false]);
     let after = Names(vec!["d", "a", "b", "e", "c"]);
@@ -317,7 +317,7 @@ fn a_range_over_keyed_rows_follows_a_reorder_of_the_source() {
 #[test]
 fn a_reported_change_rebuilds_the_selection_on_a_copy() {
     let merges = [r((4, 4), (5, 5))];
-    let rows = Positions(10);
+    let rows = Positions::new(10);
     let space = CellSpace::new(&rows, 10).merges(&merges);
     let mut sel = CellSelection::<u32>::default();
     sel.select(c(2, 3), &space);
@@ -333,8 +333,7 @@ fn a_reported_change_rebuilds_the_selection_on_a_copy() {
     copy.apply(sel.change());
     assert_eq!(copy, sel);
 
-    let held =
-        |selection: &CellSelection<u32>, row: u32, column| selection.contains_cell(RowAt { key: &row, at: row as usize, order: &rows }, column);
+    let held = |selection: &CellSelection<u32>, row: u32, column| selection.contains_cell(RowAt::new(&row, row as usize, &rows), column);
     copy.apply(SelectionChange::ToggleCell(c(8, 8)));
     assert_eq!((held(&sel, 8, 8), held(&copy, 8, 8), copy.lead()), (true, false, Some(&8)));
     copy.apply(SelectionChange::ToggleCell(c(8, 8)));

@@ -139,8 +139,7 @@ fn ctrl_click_toggles_one_cell_and_keeps_the_others() {
     let second = rig.lead();
     assert_ne!(second.0, first.0, "the Ctrl-click landed on another row");
     let order = Rows::new(ROWS);
-    let cell =
-        |rig: &Rig, (row, column): (usize, usize)| rig.selection.borrow().contains_cell(RowAt { key: &row, at: row, order: &order }, column as u32);
+    let cell = |rig: &Rig, (row, column): (usize, usize)| rig.selection.borrow().contains_cell(RowAt::new(&row, row, &order), column as u32);
     assert!(cell(&rig, first) && cell(&rig, second), "both cells are selected");
     assert!(!cell(&rig, (first.0, other_column)), "the rest of the first cell's row is not");
     rig.ctrl_click(grid.center());

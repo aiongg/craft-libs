@@ -99,13 +99,13 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     /// Whether `key`, standing at position `at`, is selected. `key` need not be in the source: a selection of ranges
     /// answers for the position.
     pub(super) fn holds_key(&self, key: &C::Key, at: usize) -> bool {
-        self.selection.contains(RowAt { key, at, order: self.source })
+        self.selection.contains(RowAt::new(key, at, self.source))
     }
 
     /// Whether the row at position `at` is selected in `selection`.
     pub(super) fn holds_in(&self, selection: &C::Selection, at: usize) -> bool {
         let key = self.source.key(at);
-        selection.contains(RowAt { key: &key, at, order: self.source })
+        selection.contains(RowAt::new(&key, at, self.source))
     }
 
     /// A move of the lead in a sheet (17.7): the lead cell moves to `row` and `column`. The selection follows
@@ -186,7 +186,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             return;
         };
         let target = CellAt::new(key, column as u32);
-        if toggle && self.selection.contains_cell(RowAt { key: &target.row, at, order: self.source }, target.column) {
+        if toggle && self.selection.contains_cell(RowAt::new(&target.row, at, self.source), target.column) {
             self.change(SelectionChange::ToggleCell(target));
             return;
         }
@@ -210,7 +210,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     pub(super) fn cell_flag_list(&self, at: usize, columns: &[u64], focused: bool) -> Vec<(u64, Flags)> {
         let key = self.source.key(at);
         let lead = self.lead.key.as_ref() == Some(&key);
-        let row = RowAt { key: &key, at, order: self.source };
+        let row = RowAt::new(&key, at, self.source);
         columns
             .iter()
             .filter_map(|&column| {
