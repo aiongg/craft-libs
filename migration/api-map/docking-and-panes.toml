@@ -540,21 +540,21 @@ name = "open_flyout"
 old = "craft_ui::docking::open_flyout"
 new = ""
 status = "replaced"
-note = "`IconicColumn::open(panel)` asks for the flyout of a panel; the host passes it to the column, and `IconicColumnOutput::flyout` reports every change."
+note = "The open flyout is the `Bind<Option<P>>` of `IconicColumn::new`; the host opens a panel by writing it, and `IconicColumnOutput::edit` carries the user's changes."
 
 [[type]]
 name = "close_flyout"
 old = "craft_ui::docking::close_flyout"
 new = ""
 status = "replaced"
-note = "A flyout closes by Escape, a press outside, a drag that begins on the column, or its icon; `IconicColumnOutput::flyout` reports `Some(None)`. The host stops passing `open`."
+note = "A flyout closes by Escape, a press outside, a drag that begins on the column, or its icon; the column writes `None` to the open bind."
 
 [[type]]
 name = "flyout"
 old = "craft_ui::docking::flyout"
 new = ""
 status = "replaced"
-note = "`IconicColumnOutput::flyout` holds the change of the open flyout; the host keeps the panel shown."
+note = "The open flyout is the column's `Bind<Option<P>>`; the host keeps the panel shown."
 
 [[type]]
 name = "DockColumn"

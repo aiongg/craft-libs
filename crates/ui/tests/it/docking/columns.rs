@@ -1,6 +1,7 @@
 //! Dock columns: the size rules of groups and columns, and the flyout of an iconic column.
 
 use craft_behavior::dock::{Column, Group};
+use craft_ui::contract::Bind;
 use craft_ui::docking::{DockHeights, GroupSize, IconicColumn, PanelSpec, drag_divider, fit_widths, group_heights};
 use craft_ui::testing::memory::global;
 use craft_ui::testing::{Fixture, trial};
@@ -76,26 +77,40 @@ fn spec(panel: &u8) -> PanelSpec {
     PanelSpec::new(format!("Panel {panel}"))
 }
 
+/// Shows the column with `open` as its bound flyout and returns the panel the flyout shows.
+fn run(open: &mut Option<u8>, shown: &Cell<Option<u8>>, ui: &mut egui::Ui) {
+    let column = Column::new(vec![Group::new(vec![0, 1], 0)], 240.0);
+    IconicColumn::new("Panels", global("dock", "columns test"), &column, Bind::bound(open), &spec)
+        .show_flyouts(ui, |group, _, _, _| shown.set(group.active_panel().copied()));
+}
+
 #[trial]
-fn clicking_an_icon_opens_the_flyout_of_its_panel_and_escape_closes_it() {
-    let changes: Rc<RefCell<Vec<Option<u8>>>> = Rc::default();
+fn clicking_an_icon_writes_the_bound_flyout_and_escape_writes_none() {
+    let open: Rc<RefCell<Option<u8>>> = Rc::default();
     let shown: Rc<Cell<Option<u8>>> = Rc::default();
-    let (seen, group_active) = (Rc::clone(&changes), Rc::clone(&shown));
-    let mut fixture = Fixture::new(move |ui| {
-        let column = Column::new(vec![Group::new(vec![0, 1], 0)], 240.0);
-        let out = IconicColumn::new("Panels", global("dock", "columns test"), &column, &spec)
-            .show_flyouts(ui, |group, _, _, _| group_active.set(group.active_panel().copied()));
-        if let Some(change) = out.flyout {
-            seen.borrow_mut().push(change);
-        }
-    });
+    let (bound, group_active) = (Rc::clone(&open), Rc::clone(&shown));
+    let mut fixture = Fixture::new(move |ui| run(&mut bound.borrow_mut(), &group_active, ui));
     fixture.settle();
     let icon = fixture.by_label("Panel 1").expect("the second panel has an icon");
     fixture.click(&icon);
     fixture.idle(2);
-    assert_eq!(changes.borrow().as_slice(), [Some(1)], "the click opened the flyout of the clicked panel");
+    assert_eq!(*open.borrow(), Some(1), "the click wrote the clicked panel");
     assert_eq!(shown.get(), Some(1), "the flyout shows the group with the clicked panel active");
     fixture.key(Key::Escape, Modifiers::NONE);
     fixture.idle(2);
-    assert_eq!(changes.borrow().as_slice(), [Some(1), None], "Escape closed the flyout");
+    assert_eq!(*open.borrow(), None, "Escape wrote None");
+}
+
+#[trial]
+fn writing_the_bound_flyout_opens_the_same_flyout_as_a_click_and_writing_it_again_keeps_it_open() {
+    let open: Rc<RefCell<Option<u8>>> = Rc::new(RefCell::new(Some(1)));
+    let shown: Rc<Cell<Option<u8>>> = Rc::default();
+    let (bound, group_active) = (Rc::clone(&open), Rc::clone(&shown));
+    let mut fixture = Fixture::new(move |ui| run(&mut bound.borrow_mut(), &group_active, ui));
+    fixture.settle();
+    assert_eq!(shown.get(), Some(1), "the bound panel's flyout is open");
+    *open.borrow_mut() = Some(1);
+    fixture.idle(2);
+    assert_eq!(shown.get(), Some(1), "writing the same panel again keeps it open");
+    assert_eq!(*open.borrow(), Some(1));
 }

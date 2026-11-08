@@ -1,6 +1,7 @@
 //! Stories of `Flyout`.
 
 use super::Flyout;
+use crate::contract::Bind;
 use crate::contract::ShowContainer as _;
 use crate::docking::{IconicColumn, PanelSpec};
 use crate::sections::Panel;
@@ -17,8 +18,7 @@ fn spec(panel: &u8) -> PanelSpec {
 #[story(Flyout, covers = [Default], drive = Drive::Never)]
 fn open_beside_its_column(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let column = Column::new(vec![Group::new(vec![0, 1], 0)], 240.0);
-    IconicColumn::new("Panels", global("flyout", "story"), &column, &spec)
-        .open(0u8)
+    IconicColumn::new("Panels", global("flyout", "story"), &column, Bind::given(Some(0u8)), &spec)
         .show_flyouts(ui, |group, rect, ui, _| {
             let title = group.active_panel().map_or_else(String::new, |panel| spec(panel).label.as_str().to_owned());
             Panel::new(title).show_at(ui, rect, |_, _| ());

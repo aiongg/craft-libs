@@ -1,6 +1,8 @@
 //! Stories of `IconicColumn`.
 
 use super::CELL;
+use crate::buttons::Button;
+use crate::contract::Bind;
 use crate::contract::ShowContainer as _;
 use crate::docking::{IconicColumn, PanelSpec};
 use crate::sections::Panel;
@@ -16,7 +18,7 @@ fn spec(panel: &u8) -> PanelSpec {
 #[story(IconicColumn<'static, u8>, covers = [Default], drive = Drive::Never)]
 fn icon_groups(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let column = Column::new(vec![Group::new(vec![0, 1], 0), Group::new(vec![2], 0)], 240.0);
-    IconicColumn::new("Panels", global("iconic column", "story"), &column, &spec)
+    IconicColumn::new("Panels", global("iconic column", "story"), &column, Bind::kept(), &spec)
         .show_flyouts(ui, |group, rect, ui, _| {
             let title = group.active_panel().map_or_else(String::new, |panel| spec(panel).label.as_str().to_owned());
             Panel::new(title).show_at(ui, rect, |_, _| ());
@@ -35,10 +37,23 @@ fn open_first_flyout(fixture: &mut Fixture) {
 #[story(IconicColumn<'static, u8>, covers = [Open], drive = Drive::Custom(open_first_flyout))]
 fn icon_flyout_open(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let column = Column::new(vec![Group::new(vec![0, 1], 0), Group::new(vec![2], 0)], 240.0);
-    IconicColumn::new("Panels", global("iconic column", "open story"), &column, &spec)
+    IconicColumn::new("Panels", global("iconic column", "open story"), &column, Bind::kept(), &spec)
         .show_flyouts(ui, |group, rect, ui, _| {
             let title = group.active_panel().map_or_else(String::new, |panel| spec(panel).label.as_str().to_owned());
             Panel::new(title).show_at(ui, rect, |_, _| ());
+        })
+        .into()
+}
+
+/// A flyout whose content has a focusable control: it takes Tab and its click, and mirrors under right-to-left.
+#[story(IconicColumn<'static, u8>, covers = [Open], drive = Drive::Custom(open_first_flyout))]
+fn icon_flyout_control(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    let column = Column::new(vec![Group::new(vec![0, 1], 0)], 240.0);
+    IconicColumn::new("Panels", global("iconic column", "control story"), &column, Bind::kept(), &spec)
+        .show_flyouts(ui, |_, rect, ui, _| {
+            Panel::new("Panel").show_at(ui, rect, |ui, _| {
+                Button::new("Apply").show(ui);
+            });
         })
         .into()
 }
