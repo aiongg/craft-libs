@@ -21,4 +21,4 @@ pub use menu::NavigatorCommands;
 pub use options::{NAVIGATOR_PROXY_COLOR_KEY, NavigatorOptions, NavigatorSettings, ProxyColor};
 pub use preview::{Navigator, NavigatorOutput, NavigatorPaint, NavigatorPreview, NavigatorStyle};
 pub use proxy::{preview_rect, proxy_quad, view_center_for, zoom_to_document_rect};
-pub use zoom_row::{NavigatorZoomRowOutput, NavigatorZoomRow};
+pub use zoom_row::{NavigatorZoomRow, NavigatorZoomRowOutput};
