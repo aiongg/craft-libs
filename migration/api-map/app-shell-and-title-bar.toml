@@ -573,8 +573,9 @@ note = "Re-exported from `craft_window::policy`."
 [[type]]
 name = "WINDOWS_BUTTON_WIDTH"
 old = "craft_ui::title_bar::WINDOWS_BUTTON_WIDTH"
-new = "craft_ui::shell::WINDOWS_BUTTON_WIDTH"
-status = "moved"
+new = ""
+status = "removed"
+note = "Crate-private: the Windows family's caption metrics; an app reads the width from `CaptionPlan::place`."
 
 [[setter]]
 type = "CaptionButton"
