@@ -8,9 +8,9 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub enum EditMode {
     #[default]
-    #[allow(missing_docs)]
+    /// Adds to the selection.
     Add,
-    #[allow(missing_docs)]
+    /// Subtracts from the selection.
     Subtract,
 }
 
@@ -35,49 +35,49 @@ pub enum ObjectTarget {
 pub enum SelectMaskEdit {
     /// A Quick Selection stroke.
     Quick {
-        #[allow(missing_docs)]
+        /// The stroke or outline in document pixels.
         points: Vec<[f64; 2]>,
-        #[allow(missing_docs)]
+        /// The brush diameter in document pixels.
         size: f64,
-        #[allow(missing_docs)]
+        /// Add or subtract.
         mode: EditMode,
         #[serde(rename = "sampleAllLayers")]
-        #[allow(missing_docs)]
+        /// Samples all layers, not only the active one.
         sample_all_layers: bool,
     },
     /// A Brush stroke.
     Brush {
-        #[allow(missing_docs)]
+        /// The stroke or outline in document pixels.
         points: Vec<[f64; 2]>,
-        #[allow(missing_docs)]
+        /// The brush diameter in document pixels.
         size: f64,
-        #[allow(missing_docs)]
+        /// The brush hardness, 0 to 100.
         hardness: f64,
-        #[allow(missing_docs)]
+        /// Add or subtract.
         mode: EditMode,
     },
     /// A Lasso or Polygonal Lasso polygon (3 points or more).
     Lasso {
-        #[allow(missing_docs)]
+        /// The stroke or outline in document pixels.
         points: Vec<[f64; 2]>,
-        #[allow(missing_docs)]
+        /// Add or subtract.
         mode: EditMode,
     },
     /// An Object Selection click or rect.
     Object {
         #[serde(flatten)]
-        #[allow(missing_docs)]
+        /// The point or rectangle.
         target: ObjectTarget,
-        #[allow(missing_docs)]
+        /// Add or subtract.
         mode: EditMode,
         #[serde(rename = "sampleAllLayers")]
-        #[allow(missing_docs)]
+        /// Samples all layers, not only the active one.
         sample_all_layers: bool,
     },
     /// Select Subject.
     Subject {
         #[serde(rename = "sampleAllLayers")]
-        #[allow(missing_docs)]
+        /// Samples all layers, not only the active one.
         sample_all_layers: bool,
     },
     /// Clear Selection.

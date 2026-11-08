@@ -26,7 +26,7 @@ pub struct SelectMaskLimits {
 }
 
 /// Which limit refused an edit or a stroke, with the number it passed. The workspace words it
-/// (`SelectMaskLimitWords` through [`LimitRefused::message`]).
+/// (`SelectMaskWords` through [`LimitRefused::message`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LimitRefused {
     /// At most this many edits.
@@ -44,17 +44,17 @@ pub enum LimitRefused {
 #[serde(rename_all = "camelCase")]
 pub enum OutputTo {
     #[default]
-    #[allow(missing_docs)]
+    /// The selection.
     Selection,
-    #[allow(missing_docs)]
+    /// The layer mask.
     LayerMask,
-    #[allow(missing_docs)]
+    /// A new layer.
     NewLayer,
-    #[allow(missing_docs)]
+    /// A new layer with a layer mask.
     NewLayerWithMask,
-    #[allow(missing_docs)]
+    /// A new document.
     NewDocument,
-    #[allow(missing_docs)]
+    /// A new document with a layer mask.
     NewDocumentWithMask,
 }
 

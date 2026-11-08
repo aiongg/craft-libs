@@ -1,1 +1,37 @@
 config_version = 1
+
+# img-select-mask
+[[exception]]
+name = "Quick Selection"
+kind = "probe"
+rule = "probe/exempt/freehand-tool"
+path = "crates/imaging/src/ui/select_mask/tools.rs"
+reason = "Freehand input; Select Subject in the options bar and the Properties panel's refinements work by keyboard."
+
+[[exception]]
+name = "Refine Edge Brush"
+kind = "probe"
+rule = "probe/exempt/freehand-tool"
+path = "crates/imaging/src/ui/select_mask/tools.rs"
+reason = "Freehand input; Select Subject in the options bar and the Properties panel's refinements work by keyboard."
+
+[[exception]]
+name = "Brush"
+kind = "probe"
+rule = "probe/exempt/freehand-tool"
+path = "crates/imaging/src/ui/select_mask/tools.rs"
+reason = "Freehand input; Select Subject in the options bar and the Properties panel's refinements work by keyboard."
+
+[[exception]]
+name = "Lasso"
+kind = "probe"
+rule = "probe/exempt/freehand-tool"
+path = "crates/imaging/src/ui/select_mask/tools.rs"
+reason = "Freehand input; Select Subject in the options bar and the Properties panel's refinements work by keyboard."
+
+[[exception]]
+name = "Polygonal Lasso"
+kind = "probe"
+rule = "probe/exempt/freehand-tool"
+path = "crates/imaging/src/ui/select_mask/tools.rs"
+reason = "Freehand input; Select Subject in the options bar and the Properties panel's refinements work by keyboard."
