@@ -2,7 +2,7 @@
 //! output.
 
 use super::kit::{AppCommand, Tap};
-use craft_ui::contract::Show as _;
+use craft_ui::contract::{Props as _, Show as _};
 use craft_ui::runtime::commands::Commands as _;
 use craft_ui::runtime::env::WindowKey;
 use craft_ui::runtime::focus::{FocusTarget, request};

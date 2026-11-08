@@ -7,7 +7,7 @@ use craft_ui::canvas::{
     Autoscroll, Canvas, CanvasTool, FlickPan, HoldZoom, Momentary, MomentaryCommand, MomentaryTool, NavigationOptions, PageKey, ToolAction,
     ToolContext, ToolHost, ToolPath, ToolPointer, TouchpadGlide, ViewTurn, WheelAction, WheelInput, WheelNavigation, ZoomAnimation, ZoomDrag,
 };
-use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use craft_ui::primitives::Draw;
 use craft_ui::runtime::commands::FirePhase;
 use craft_ui::runtime::focus::{FocusTarget, request};
