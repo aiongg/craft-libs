@@ -16,7 +16,10 @@ fn a_key_equivalent_queued_inside_the_frame_acts_in_that_frame() {
         if !queued.replace(true) {
             WindowHost::of(ui.ctx()).key_equivalent(ViewportId::ROOT, KeyEquivalent::Press(Chord::new(Mods::NONE, Key::F9)));
         }
-        pressed.set(pressed.get() || ui.input(|input| input.key_pressed(egui::Key::F9)));
+        pressed.set(
+            pressed.get()
+                || ui.input(|input| input.events.iter().any(|event| matches!(event, egui::Event::Key { key: egui::Key::F9, pressed: true, .. }))),
+        );
     };
     frames.idle(2, |_| {});
     queued.set(false);
