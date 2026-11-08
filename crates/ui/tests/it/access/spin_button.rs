@@ -12,6 +12,9 @@ use std::rc::Rc;
 
 const NAME: &str = "Spacing";
 const START: f64 = 8.0;
+/// The text an AccessKit SetValue carries, and the number it reads as.
+const TYPED: &str = "12";
+const TYPED_NUMBER: f64 = 12.0;
 
 struct Spin {
     fixture: Fixture,
@@ -68,7 +71,7 @@ fn access_increment_steps_and_set_value_sets_the_number() {
     spin.fixture.idle(2);
     let stepped = spin.value.borrow().expect("the field holds a number");
     assert!(stepped > START, "Increment steps the value up: {stepped}");
-    spin.fixture.frame(vec![set_value_request(spin.id.get(), "12")]);
+    spin.fixture.frame(vec![set_value_request(spin.id.get(), TYPED)]);
     spin.fixture.idle(2);
-    assert_eq!(*spin.value.borrow(), Some(12.0), "SetValue with text sets the number it reads");
+    assert_eq!(*spin.value.borrow(), Some(TYPED_NUMBER), "SetValue with text sets the number it reads");
 }
