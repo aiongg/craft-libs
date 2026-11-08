@@ -187,3 +187,59 @@ new = "removed: CanvasTool::cancel owns the cancel and restores the tool's mark;
 type = "ConstrainStyle"
 old = "of(&tokens)"
 new = "new(copy_reach, stroke_lock), a tool passes ToolContext.slop for both"
+
+# draw-slice-artboard
+
+[[type]]
+name = "SliceOverlay"
+old = "craft_draw::ui::slice::SliceOverlay"
+new = "craft_draw::ui::slice::SliceOverlay"
+status = "same"
+note = "A canvas control: `SliceOverlay::new(label, &[SliceItem])` with props `selected_slice`, `pick`, `color`, `numbers`, `hide_auto`, `locked`, `rules`, shown with `show_at(ui, canvas_rect)`; output `SliceOverlayOutput { response, events }`. In Select mode the slices and the selected user slice handles are parts; the tool gets only the background presses. `paint(painter, view, style, numbers)` goes."
+
+[[type]]
+name = "ArtboardOverlay"
+old = ""
+new = "craft_draw::ui::artboard::ArtboardOverlay"
+status = "replaced"
+note = "New: the controls half of the legacy `ArtboardTool` (board bodies and the active board handles as parts). `ArtboardOverlay::new(label, &[ArtboardItem], &[usize])`, prop `rules`; output `ArtboardOverlayOutput { response, events, dragging }`."
+
+[[type]]
+name = "SliceTool"
+old = "craft_draw::ui::slice::SliceTool"
+new = "craft_draw::ui::slice::SliceTool"
+status = "same"
+note = "Background half only: draws a new slice and clears the selection. Setters unchanged except `color`, `numbers`, `hide_auto` and `labels` go (the control and `SliceToolSettings::hide_auto` own them). The pointer snaps by the canvas snapping. Events carry `Mods` and the new `EditEvent`."
+
+[[type]]
+name = "ArtboardTool"
+old = "craft_draw::ui::artboard::ArtboardTool"
+new = "craft_draw::ui::artboard::ArtboardTool"
+status = "same"
+note = "Background half only: draws a board, the marquee and `FitObject` of the second rule set, Esc `Leave`. `add_beside(side, copy)` turns the answer of the plus buttons into `AddBeside`. `labels` goes."
+
+[[type]]
+name = "SliceStyle"
+old = "craft_draw::ui::slice::SliceStyle"
+new = ""
+status = "removed"
+note = "The look is the `ComponentStyle` of `SliceOverlay`."
+
+[[type]]
+name = "ArtboardStyle"
+old = "craft_draw::ui::artboard::ArtboardStyle"
+new = ""
+status = "removed"
+note = "The look is the `ComponentStyle` of `ArtboardOverlay`."
+
+[[setter]]
+type = "SliceTool"
+old = "SliceTool::style(tokens)"
+new = ""
+note = "The look is the overlay style hook."
+
+[[setter]]
+type = "ArtboardTool"
+old = "ArtboardTool::style(tokens)"
+new = ""
+note = "The look is the overlay style hook."

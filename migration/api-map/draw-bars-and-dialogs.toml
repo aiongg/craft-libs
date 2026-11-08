@@ -56,3 +56,167 @@ type = "ReferencePoint"
 old = "names([String; 9])"
 new = ""
 note = "The nine names are the picker family's words (`PickerWords`)."
+
+# draw-slice-artboard
+
+[[type]]
+name = "SliceBar"
+old = "craft_draw::ui::slice::SliceBar"
+new = "craft_draw::ui::slice::SliceBar"
+status = "same"
+note = "A pattern shown as children of the app options `Bar`: `SliceBar::new(mode, &mut SliceToolSettings)`, `size_units(unit, units, pixels_per_inch, document)`, `show(ui)`. The buttons are `BarItem`s of `SliceCommand`; `selected`, `locked`, `no_document`, `output` and `labels` go."
+
+[[type]]
+name = "SliceBarOutput"
+old = "craft_draw::ui::slice::SliceBarOutput"
+new = "craft_draw::ui::slice::SliceBarOutput"
+status = "same"
+note = "`{ response, settings_changed, unit_picked: Option<UnitKind> }`; an `Outcome`. The `command` field goes: commands run through the command system."
+
+[[type]]
+name = "SliceCommand"
+old = "craft_draw::ui::slice::SliceCommand"
+new = "craft_draw::ui::slice::SliceCommand"
+status = "same"
+note = "A `CommandSet` with ids `draw.slice.*`; `HideAuto(bool)` leaves the enum (a check box bound to `SliceToolSettings::hide_auto`); `SliceCommand::enabled(selected, locked, has_document)` is the app command state."
+
+[[type]]
+name = "SliceOptionsDialog"
+old = "craft_draw::ui::slice::SliceOptionsDialog"
+new = "craft_draw::ui::slice::SliceOptionsDialog"
+status = "same"
+note = "A `StackDialog` over a `FormDialog`; `pick_color()` returns `patterns::form_dialogs::ColorRequest` (the background swatch uses `Swatch::picker`); `labels` goes."
+
+[[type]]
+name = "DivideSlicesDialog"
+old = "craft_draw::ui::slice::DivideSlicesDialog"
+new = "craft_draw::ui::slice::DivideSlicesDialog"
+status = "same"
+note = "A `StackDialog` over a `FormDialog` with a `FieldGroup`; `labels` goes."
+
+[[type]]
+name = "ArtboardBar"
+old = "craft_draw::ui::artboard::ArtboardBar"
+new = "craft_draw::ui::artboard::ArtboardBar"
+status = "same"
+note = "A pattern shown as children of the app options `Bar`: `ArtboardBar::new(selected, presets)`, `show(ui)`. Add New Artboard is a `BarItem` of `ArtboardCommand`; `id_salt`, `labels` and `output` go."
+
+[[type]]
+name = "ArtboardBarOutput"
+old = "craft_draw::ui::artboard::ArtboardBarOutput"
+new = "craft_draw::ui::artboard::ArtboardBarOutput"
+status = "same"
+note = "`{ response, size: Option<EditEvent<Size>> }`; an `Outcome`. `add_new` goes: the command runs through the command system."
+
+[[type]]
+name = "ArtboardProperties"
+old = "craft_draw::ui::artboard::ArtboardProperties"
+new = "craft_draw::ui::artboard::ArtboardProperties"
+status = "same"
+note = "A pattern: `ArtboardProperties::new(board, presets)`, `show(ui)`; the section is a `Section` over a `FieldGroup`; `id_salt` and `labels` go."
+
+[[type]]
+name = "ArtboardPropertiesOutput"
+old = "craft_draw::ui::artboard::ArtboardPropertiesOutput"
+new = "craft_draw::ui::artboard::ArtboardPropertiesOutput"
+status = "same"
+note = "`{ response, rect, background, pick_color: Option<ColorRequest> }`; an `Outcome`."
+
+[[type]]
+name = "ArtboardCommand"
+old = ""
+new = "craft_draw::ui::artboard::ArtboardCommand"
+status = "replaced"
+note = "New: a `CommandSet` (`draw.artboard.*`) with Add New Artboard."
+
+[[type]]
+name = "SliceLabels"
+old = "craft_draw::ui::slice::SliceLabels"
+new = ""
+status = "removed"
+note = "Replaced by the `words!` set `SliceWords`."
+
+[[type]]
+name = "SliceWords"
+old = ""
+new = "craft_draw::ui::slice::SliceWords"
+status = "replaced"
+note = "The words of the Slice tools; replaces `SliceLabels`."
+
+[[type]]
+name = "SliceToolLabels"
+old = "craft_draw::ui::slice::SliceToolLabels"
+new = ""
+status = "removed"
+note = "Replaced by the `words!` set `SliceToolWords`."
+
+[[type]]
+name = "SliceToolWords"
+old = ""
+new = "craft_draw::ui::slice::SliceToolWords"
+status = "replaced"
+note = "The words of the Slice tools; replaces `SliceToolLabels`."
+
+[[type]]
+name = "ArtboardLabels"
+old = "craft_draw::ui::artboard::ArtboardLabels"
+new = ""
+status = "removed"
+note = "Replaced by the `words!` set `ArtboardWords`."
+
+[[type]]
+name = "ArtboardWords"
+old = ""
+new = "craft_draw::ui::artboard::ArtboardWords"
+status = "replaced"
+note = "The words of the Artboard tool; replaces `ArtboardLabels`."
+
+[[type]]
+name = "ArtboardToolLabels"
+old = "craft_draw::ui::artboard::ArtboardToolLabels"
+new = ""
+status = "removed"
+note = "Replaced by the `words!` set `ArtboardToolWords`."
+
+[[type]]
+name = "ArtboardToolWords"
+old = ""
+new = "craft_draw::ui::artboard::ArtboardToolWords"
+status = "replaced"
+note = "The words of the Artboard tool; replaces `ArtboardToolLabels`."
+
+[[setter]]
+type = "SliceBar"
+old = "SliceBar::new(id_salt, mode, &SliceToolSettings)"
+new = "SliceBar::new(mode, &mut SliceToolSettings)"
+note = "The bar writes the Style, Width, Height and Hide Auto Slices through the settings it is given."
+
+[[setter]]
+type = "SliceBar"
+old = "add_to(slots)"
+new = "show(ui)"
+note = "The members are shown inside the app `Bar`."
+
+[[setter]]
+type = "SliceBar"
+old = "size_units(LengthUnit, &[LengthUnit], UnitContext, UnitContext)"
+new = "size_units(UnitKind, &[Entry<UnitKind>], f64, PixelSize)"
+note = "`pixels_per_inch` and the document size replace the two `UnitContext`s."
+
+[[setter]]
+type = "ArtboardBar"
+old = "ArtboardBar::new(id_salt, selected, presets)"
+new = "ArtboardBar::new(selected, presets)"
+note = "No id salt."
+
+[[setter]]
+type = "ArtboardBar"
+old = "add_to(slots)"
+new = "show(ui)"
+note = "The members are shown inside the app `Bar`."
+
+[[setter]]
+type = "ArtboardProperties"
+old = "ArtboardProperties::new(id_salt, board, presets)"
+new = "ArtboardProperties::new(board, presets)"
+note = "No id salt."
