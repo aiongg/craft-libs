@@ -75,6 +75,7 @@ pub trait Hits: Send + Sync {
 
 /// The `WM_NCHITTEST` result for `zone`, or `None` for the default hit test. Only the maximize button is the
 /// operating system's (snap layouts show over it); the other buttons are answered in the client area.
+#[cfg(any(windows, test))]
 pub(crate) fn hit_code(zone: Option<Zone>) -> Option<u16> {
     Some(match zone? {
         Zone::Move => 2,

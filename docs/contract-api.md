@@ -2998,7 +2998,7 @@ The toast queue: one per viewport, filled from any code with a `Context`.
 - `craft_ui::runtime::windows::HitSink`: `pub struct HitSink`. The Windows hit test of one window: the window procedure asks [`HitSink::answer`] where the OS asks for a hit
   - `pub fn answer(&self, pixel: Pos2) -> Option<WindowHit>`. What lies at `pixel`, in physical pixels from the top left of the window's client area: the hit test's screen
 - `craft_ui::runtime::windows::ResizeEdge`: `pub enum ResizeEdge { Top, Bottom, Left, Right, TopLeft, TopRight, BottomLeft, BottomRight }`. An edge or corner a window resize starts from.
-- `craft_ui::runtime::windows::WindowAction`: `pub enum WindowAction { Close, Minimize, ToggleMaximize, ToggleFullscreen, SetFullscreen(bool), SetMaximized(bool), Focus, StartMove, StartResize(ResizeEdge), SetOuterPosition(Pos2), SetInnerSize(Vec2), SetLevel(WindowLevel), SetTitle(String) }`. A window command `act` sends.
+- `craft_ui::runtime::windows::WindowAction`: `pub enum WindowAction { Close, Minimize, ToggleMaximize, ToggleFullscreen, SetFullscreen(bool), SetMaximized(bool), Focus, StartMove, StartResize(ResizeEdge), SetOuterPosition(Pos2), SetInnerSize(Vec2), SetLevel(WindowLevel), SetTitle(String), SetOpacity(f32) }`. A window command `act` sends.
 - `craft_ui::runtime::windows::WindowFacts`: `pub struct WindowFacts { pub inner: Rect, pub outer: Option<Rect>, pub scale: Option<f32>, pub state: WindowState, pub focused: bool }`. What the OS tells about a window, in desktop points.
 - `craft_ui::runtime::windows::WindowHit`: `pub enum WindowHit { Move, Resize(ResizeEdge), Caption(Button) }`. What a part of the window does for the operating system: a press on it moves the window, resizes it from an edge,
 - `craft_ui::runtime::windows::WindowHost`: `pub struct WindowHost`. The multi-window driver of one context.
@@ -3752,7 +3752,11 @@ The wheel service from a trial's side: registering takers and reading their shar
 
 The window host's fixtures: install inputs that open no OS windows, and the scripted system.
 
+- `craft_ui::testing::windows::applied_actions`: `pub fn applied_actions(ctx: &egui::Context) -> Vec<(egui::ViewportId, crate::runtime::windows::WindowAction)>`. The window actions the platform applies out of reach of egui's commands (`SetOpacity`) since the last call.
+- `craft_ui::testing::windows::begin_window_drag`: `pub fn begin_window_drag(ctx: &egui::Context, source: egui::Id)`. Starts the drag of the window container `source` (what the title row of a dock window does), with the pointer
 - `craft_ui::testing::windows::install_spec`: `pub fn install_spec() -> InstallSpec`. An install spec for the running build's shell and a system with no OS services.
+- `craft_ui::testing::windows::keeps_app_drag`: `pub fn keeps_app_drag(ctx: &egui::Context, viewport: egui::ViewportId) -> bool`. Whether the window of `viewport` has a component that runs its own drag from the window's move band.
+- `craft_ui::testing::windows::show_drop_mark`: `pub fn show_drop_mark(ctx: &egui::Context, over: Option<egui::Rect>)`. Shows (or removes) the mark of a drop target in another window over the running drag.
 - `craft_ui::testing::windows::FakeSystem`: re-export of `craft_window::system::FakeSystem` (outside these crates).
 - `craft_ui::testing::windows::FullOutput`: re-export of `craft_ui::runtime::egui::fixture::FullOutput` (defined outside these crates).
 - `craft_ui::testing::windows::NoWindows`: re-export of `craft_window::system::NoWindows` (outside these crates).
