@@ -12,6 +12,7 @@ mod layer_style_parts;
 mod perspective_warp;
 mod pin_warp;
 mod scopes;
+mod select;
 mod selection;
 mod transform_preview;
 mod warp;

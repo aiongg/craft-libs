@@ -1388,9 +1388,10 @@ dependencies = [
  "craft-i18n",
  "craft-imaging",
 <<<<<<<
-=======
  "craft-keymap",
 >>>>>>>
+=======
+ "craft-keymap",
  "craft-theme",
  "craft-ui",
  "egui",
