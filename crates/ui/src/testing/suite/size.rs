@@ -98,7 +98,7 @@ pub fn text_size_case(story: &Story) -> Result<(), String> {
                 // A run the component painted elided is shortened by design and keeps its full text in the access name
                 // (the elision rule checks that), so it is not cut; it must still stay inside its part.
                 if !grown.keeps(same.rect) {
-                    return Err(format!("{}: under {name} the text `{}` leaves its part", story.name, run.text));
+                    return Err(format!("{}: under {name} the text `{}` leaves its part DIAG base run {:?} base shown {:?} grown run {:?} grown shown {:?}", story.name, run.text, run.rect, base.shown, same.rect, grown.shown));
                 }
             }
         }

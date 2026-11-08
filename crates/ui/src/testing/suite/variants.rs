@@ -161,7 +161,8 @@ pub fn rtl_case(story: &Story) -> Result<(), String> {
     let (ltr, rtl) = (show(Direction::Ltr), show(Direction::Rtl));
     let own = (root_target(&ltr).rect, root_target(&rtl).rect);
     if (own.0.width() - own.1.width()).abs() > 0.5 {
-        return Err(format!("{}: the component's width differs between directions", story.name));
+        let dump = |f: &Fixture| f.texts().iter().map(|t| format!("{:?}@{:.2}", t.text, t.rect.width())).collect::<Vec<_>>().join(" | ");
+        return Err(format!("{}: the component's width differs between directions DIAG ltr {:?} rtl {:?} ltr texts {} rtl texts {}", story.name, own.0, own.1, dump(&ltr), dump(&rtl)));
     }
     // Each node is reflected within the component's own rect, then carried to the component's rect in the other
     // direction: `mirrored` reflects across the middle of this span.
