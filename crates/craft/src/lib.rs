@@ -122,8 +122,6 @@ pub mod story {
         all.extend(craft_draw::ui::stories());
         #[cfg(feature = "imaging")]
         all.extend(craft_imaging::ui::stories());
-        #[cfg(feature = "text")]
-        all.extend(craft_text::ui::stories());
         all
     }
 }
@@ -145,8 +143,6 @@ pub mod words {
         all.extend(craft_draw::ui::WORDS);
         #[cfg(feature = "imaging")]
         all.extend(craft_imaging::ui::WORDS);
-        #[cfg(feature = "text")]
-        all.extend(craft_text::ui::WORDS);
         #[cfg(any(feature = "platform", feature = "dialogs"))]
         all.push(service_messages());
         all
@@ -177,8 +173,6 @@ pub mod words {
         all.push(craft_draw::ui::COUNTS);
         #[cfg(feature = "imaging")]
         all.push(craft_imaging::ui::COUNTS);
-        #[cfg(feature = "text")]
-        all.push(craft_text::ui::COUNTS);
         all
     }
 }

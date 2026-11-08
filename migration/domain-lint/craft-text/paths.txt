@@ -1,2 +1,0 @@
-crates/text/src/ui
-crates/text/tests/it
