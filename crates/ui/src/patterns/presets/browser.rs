@@ -65,18 +65,17 @@ const LARGE_FROM: f64 = 1.5;
 const SMALL_UNTIL: f64 = 0.75;
 
 /// Paints a preset's thumbnail: the content painter, the rect and what the browser knows of the preset.
-pub struct ThumbPainter<'a, K>(Arc<dyn Fn(&ContentPainterCx, Rect, ThumbInfo<'_, K>) + 'a>);
-
-impl<K> Clone for ThumbPainter<'_, K> {
-    fn clone(&self) -> Self {
-        ThumbPainter(Arc::clone(&self.0))
-    }
-}
+pub struct ThumbPainter<'a, K>(Box<dyn Fn(&ContentPainterCx, Rect, ThumbInfo<'_, K>) + 'a>);
 
 impl<'a, K> ThumbPainter<'a, K> {
+    /// Runs the painter: how a picker hands its own to the browser it opens.
+    pub(super) fn paint(&self, cx: &ContentPainterCx, rect: Rect, info: ThumbInfo<'_, K>) {
+        (self.0)(cx, rect, info);
+    }
+
     /// The painter that runs `paint`.
     pub fn new(paint: impl Fn(&ContentPainterCx, Rect, ThumbInfo<'_, K>) + 'a) -> Self {
-        ThumbPainter(Arc::new(paint))
+        ThumbPainter(Box::new(paint))
     }
 }
 
@@ -176,13 +175,6 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'a, K> {
             extra_items: Vec::new(),
             footer: None,
         }
-    }
-
-    /// Paints the thumbnails with `painter`, a picker's own shared with the browser it opens.
-    #[must_use]
-    pub(super) fn thumb_painter(mut self, painter: ThumbPainter<'a, K>) -> Self {
-        self.thumb = Some(painter);
-        self
     }
 
     /// Rows added to the context menu after the standard ones; running one reports `PresetEvent::Menu` with the

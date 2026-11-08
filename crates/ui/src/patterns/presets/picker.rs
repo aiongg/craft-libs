@@ -318,7 +318,7 @@ impl<K: Value + Eq + Hash + 'static> Component for PresetPicker<'_, K> {
                 browser = browser.can_move(|key| test.passes(key));
             }
             if let Some(painter) = preview {
-                browser = browser.thumb_painter(painter.clone());
+                browser = browser.thumb(|cx, rect, info| painter.paint(cx, rect, info));
             }
             let out = browser.show(ui);
             // The actions follow the presets, set off by a separator, as the preset menu lists them.
