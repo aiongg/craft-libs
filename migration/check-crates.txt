@@ -4,6 +4,7 @@ craft-browse ui
 craft-dialogs ui
 craft-layers
 craft-print ui
+craft-table ui
 craft-theme-store ui
 craft-ui color_fonts,system_fonts
 craft-update ui

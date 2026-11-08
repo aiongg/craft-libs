@@ -1,113 +1,161 @@
-//! The error checking tag beside a cell (N6.09).
+//! The error checking tag beside a cell.
 
-use craft_ui::behavior::ClaimedKey;
-use craft_ui::icons::{self, Icon, IconSize};
-use craft_ui::localized::Labels as _;
-use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
-use craft_ui::primitives::FocusRing;
-use craft_ui::theme::scale::Stroke as Line;
-use craft_ui::theme::{StrokeExt as _, ToEgui as _, Tokens, TokensOf as _};
-use egui::accesskit::Role;
-use egui::{CornerRadius, IdSalt, Key, Modifiers, Rect, Response, Sense, StrokeKind, Ui, WidgetInfo, pos2, vec2};
+use craft_behavior::{IconId, Metrics, Sense};
+use craft_theme::Variant;
+use craft_theme::variant::Tone;
+use craft_ui::contract::{
+    Access, Common, Component, Cx, MeasureCx, NoValue, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi, PopupKind, Props as _, Role, Show as _,
+    ShowContainer as _, Styled as _, Trigger,
+};
+use craft_ui::display::Divider;
+use craft_ui::menu::{Menu, MenuItem};
+use craft_ui::primitives::IconSpec;
+use craft_ui::runtime::env::Label;
+use craft_ui::runtime::env::WordSet as _;
+use craft_ui::style::{ComponentStyle, FocusLook, IconLook, StyleCx, SurfaceKind, SurfaceLook};
+use egui::{Rect, Response, Vec2};
 
-use super::style::SheetStyle;
+#[cfg(feature = "screen-testing")]
+mod stories;
 
 craft_ui::words! {
     /// The tag's accessible name, English by default (Excel's).
     #[non_exhaustive]
-    pub struct ErrorTagLabels {
+    pub struct ErrorTagWords {
         options: "errorTag.options" = "Error checking options";
     }
 }
 
-use super::grid::CellRef;
-use super::grid::SheetGeometry;
-
-/// Excel's error checking tag (GridCraft): a `sheet.error_tag` square ([`SheetStyle`], not scaled by the zoom)
-/// left of `cell` (right of it when it would cover the row headings), not drawn when outside the
-/// cells; the warning-diamond icon in the `status.warn` colour, the problem as tooltip (the app's
-/// words, "Number Stored as Text"); a click opens a [`PressMenu`]: the
-/// problem as its title, then the fixes. It senses click and drag, so a press on it never reaches
-/// the grid under it. A Tab stop (AccessKit `Button` with a popup) named
-/// [`ErrorTagLabels::options`]; Enter, Space or Alt+Down opens the menu.
-pub struct ErrorTag<'a> {
-    id_salt: IdSalt,
-    cell: CellRef,
-    geometry: &'a SheetGeometry,
-    problem: &'a str,
-    fixes: &'a [&'a str],
-    labels: Option<ErrorTagLabels>,
-}
-
-impl<'a> ErrorTag<'a> {
-    /// A tag for `cell` in `geometry`, with `problem` as tooltip and menu title and `fixes` as the menu entries.
-    pub fn new(id_salt: impl egui::AsIdSalt, cell: CellRef, geometry: &'a SheetGeometry, problem: &'a str, fixes: &'a [&'a str]) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), cell, geometry, problem, fixes, labels: None }
-    }
-
-    /// Uses these label texts instead of the ones read from the active locale's catalog.
-    pub fn labels(mut self, labels: ErrorTagLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    /// Where the tag goes: `style.error_tag` points square and `style.error_tag_gap` from the cell
-    /// (neither scaled by the sheet's zoom: GridCraft `menus.rs:424-432` draws the tag at fixed
-    /// points), `None` when it is outside the cells.
-    // gridcraft: crates/ui-egui/src/grid/menus.rs:424 (placement).
-    pub fn rect(&self, style: &SheetStyle) -> Option<Rect> {
-        let (side, gap) = (style.error_tag, style.error_tag_gap);
-        let cell = self.geometry.cell_rect(self.cell);
-        let cells = self.geometry.cells();
-        let left = cell.left() - side - gap;
-        let left = if left >= cells.left() { left } else { cell.right() + gap };
-        let tag = self.geometry.mirror_rect(Rect::from_min_size(pos2(left, cell.top()), vec2(side, side)));
-        cells.intersects(tag).then_some(tag)
-    }
-
-    // gridcraft: crates/ui-egui/src/grid/menus.rs:416 `error_check_tag`.
-    /// Shows the tag and its menu; the response holds the chosen fix.
-    pub fn show(self, ui: &mut Ui) -> ErrorTagResponse {
-        let tokens = Tokens::of(ui);
-        let style = SheetStyle::of(&tokens);
-        let Some(tag) = self.rect(&style) else {
-            return ErrorTagResponse { response: None, fix: None };
-        };
-        let labels = self.labels.unwrap_or_else(|| ErrorTagLabels::of(ui));
-        let colors = &tokens.color;
-        let id = ui.make_persistent_id(self.id_salt);
-        let response = ui.interact(tag, id, Sense::click_and_drag()).on_hover_text(self.problem);
-        response.widget_info(|| WidgetInfo::labeled(Role::Button, ui.is_enabled(), &labels.options));
-
-        let radius = CornerRadius::same(style.error_tag_radius.round() as u8);
-        let fill = if response.hovered() { colors.state.hover } else { colors.surface.raised };
-        let edge = Line::Hairline.egui(ui.ctx(), colors.line.border.to_egui());
-        let painter = ui.painter();
-        painter.rect_filled(tag, radius, fill.to_egui());
-        painter.rect_stroke(tag, radius, edge, StrokeKind::Inside);
-        icons::paint_in(
-            ui,
-            tag,
-            Icon::WarningDiamond,
-            icons::active(ui.ctx()),
-            IconSize::Sm.points(&tokens),
-            IconSize::Sm.stroke(),
-            colors.status.warn.solid.to_egui(),
-        );
-        FocusRing::paint_if(ui, tag, radius, response.has_focus());
-
-        let mut entries: Vec<MenuEntry<Option<usize>>> = vec![MenuItem::new(self.problem, None).enabled(false).into(), MenuEntry::Separator];
-        entries.extend(self.fixes.iter().enumerate().map(|(i, fix)| MenuEntry::from(MenuItem::new(*fix, Some(i)))));
-        let alt_down = response.has_focus() && ui.input_mut(|input| ClaimedKey::exact(Modifiers::ALT, Key::ArrowDown).consume(input));
-        let fix = PressMenu::new(&entries).keyboard_owner(response.id, alt_down).show(ui, &response).chosen.flatten();
-        ErrorTagResponse { response: Some(response), fix }
-    }
+/// The style of the error tag.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+#[style(variants = [Variant::SECONDARY])]
+#[non_exhaustive]
+pub struct ErrorTagStyle {
+    #[style(surface)]
+    surface: SurfaceLook,
+    #[style(metrics)]
+    metrics: Metrics,
+    #[style(focus)]
+    focus: FocusLook,
+    /// The warning diamond.
+    #[style(icon)]
+    glyph: IconLook,
+    /// The tag's side. It does not follow the sheet's zoom.
+    side: f32,
 }
 
 /// What the tag did this pass.
-pub struct ErrorTagResponse {
-    /// The tag's response; `None` when the tag is outside the cells and not drawn.
-    pub response: Option<Response>,
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct ErrorTagOutput {
+    /// The tag's response.
+    pub response: Response,
     /// The fix picked this pass, by index into the fixes.
     pub fix: Option<usize>,
+}
+
+impl Outcome for ErrorTagOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// Excel's error checking tag: a square with the warning-diamond icon in the warn tone and the problem as its
+/// tooltip. A click opens a menu with the problem as its title and the fixes below it. The tag is a Tab stop named
+/// [`ErrorTagWords::options`]; Enter, Space or Alt+Down open the menu, and a pick reports its index in
+/// [`ErrorTagOutput::fix`]. The tag measures itself at a named icon size and does not follow the sheet's zoom; where
+/// it sits beside the cell is the grid's.
+#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
+#[component(overlay)]
+pub struct ErrorTag<'a> {
+    #[common]
+    common: Common,
+    problem: Label,
+    fixes: &'a [Label],
+    fix: Option<usize>,
+}
+
+impl<'a> ErrorTag<'a> {
+    /// A tag with `problem` as tooltip and menu title and `fixes` as the menu entries.
+    pub fn new(problem: impl Into<Label>, fixes: &'a [Label]) -> Self {
+        let problem = problem.into();
+        ErrorTag { common: Common::new(), problem: problem.clone(), fixes, fix: None }.label(Label::from(ErrorTagWords::WORDS[0])).tooltip(problem)
+    }
+}
+
+impl Component for ErrorTag<'_> {
+    const ROLE: Role = Role::BUTTON;
+    const SHOWS_LABEL: bool = false;
+    const PARTS: bool = false;
+    type Style = ErrorTagStyle;
+    type Output = ErrorTagOutput;
+
+    fn style(cx: &StyleCx<'_>, _: ErrorTagStyleKey) -> ErrorTagStyle {
+        let parts = cx.variant_look();
+        let mut surface = SurfaceLook::new(parts.fill.clone()).radius(parts.radius).kind(SurfaceKind::Raised).kind_down(SurfaceKind::Pressed);
+        if let Some(edge) = parts.edge {
+            surface = surface.border(edge, cx.tokens.stroke.thin);
+        }
+        let warn = cx.tone(Tone::Warn);
+        ErrorTagStyle {
+            surface,
+            metrics: Metrics::new(),
+            focus: cx.focus_look(),
+            glyph: IconLook::new(cx.control().icon, craft_theme::Stateful::new(warn)),
+            side: cx.tokens.size.icon.md,
+        }
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::splat(cx.style.side)
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::CLICK | Sense::FOCUS
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        cx.popup("menu").trigger(Trigger::Click, cx);
+    }
+
+    /// The menu: the problem as a disabled title, a rule, then one row per fix.
+    fn overlay(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>) {
+        let popup = cx.popup("menu");
+        let (problem, fixes) = (self.problem.clone(), self.fixes);
+        let ran = ui.show(popup, Overlay::menu(), |ui, _| {
+            Menu::inline(problem.clone())
+                .show(ui, |ui, _| {
+                    MenuItem::new(problem.clone()).enabled(false).show(ui);
+                    Divider::horizontal().show(ui);
+                    let mut ran = None;
+                    for (at, fix) in fixes.iter().enumerate() {
+                        if MenuItem::new(fix.clone()).show(ui).ran {
+                            ran = Some(at);
+                        }
+                    }
+                    ran
+                })
+                .inner
+                .flatten()
+        });
+        if let Some(at) = ran.flatten() {
+            self.fix = Some(at);
+            popup.close(cx);
+        }
+    }
+
+    fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
+        access.has_popup(PopupKind::Menu);
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let glyph = Rect::from_center_size(cx.rect.center(), Vec2::splat(cx.style.glyph.side));
+        ui.draw().icon(glyph, &IconSpec::svg(IconId::new("warning_diamond")).color(cx.resolve(&cx.style.glyph.color)));
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> ErrorTagOutput {
+        ErrorTagOutput { response: cx.response.clone(), fix: self.fix }
+    }
 }
