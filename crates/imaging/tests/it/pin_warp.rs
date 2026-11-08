@@ -420,15 +420,16 @@ const RING_MARGIN: f64 = 1.0;
 #[trial]
 fn alt_drag_near_a_selected_pin_turns_it_and_fixes_its_rotation() {
     let ring = f64::from(craft_ui::testing::style::tokens(craft_theme::Mode::Light, craft_theme::Contrast::Standard).size.handle.ring);
-    let mut h = harness(vec![pin(200.0, 150.0)], vec![0]);
-    h.drag((200.0 + ring - RING_MARGIN, 150.0), (200.0, 190.0), Modifiers::ALT);
+    let (centre, quarter_turn) = (Point::new(200.0, 150.0), 90.0);
+    let mut h = harness(vec![pin(centre.x, centre.y)], vec![0]);
+    h.drag((centre.x + ring - RING_MARGIN, centre.y), (centre.x, 190.0), Modifiers::ALT);
     let turned = h.state.borrow().session.pins()[0];
-    assert!((turned.angle.expect("fixed") - 90.0).abs() < 1e-9, "{:?}", turned.angle);
-    assert_eq!(turned.at, Point::new(200.0, 150.0), "the pin stays where it is");
+    assert!((turned.angle.expect("fixed") - quarter_turn).abs() < 1e-9, "{:?}", turned.angle);
+    assert_eq!(turned.at, centre, "the pin stays where it is");
     assert_eq!(h.seen(), [Seen::Begin, Seen::Commit]);
 
     h.state.borrow_mut().seen.clear();
-    h.drag((200.0 + ring + RING_MARGIN, 150.0), (200.0, 190.0), Modifiers::ALT);
+    h.drag((centre.x + ring + RING_MARGIN, centre.y), (centre.x, 190.0), Modifiers::ALT);
     assert!(h.seen().is_empty(), "just outside the turn ring the press turns nothing: {:?}", h.seen());
 
     h.drag((300.0, 150.0), (300.0, 190.0), Modifiers::ALT);
