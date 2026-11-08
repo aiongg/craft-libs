@@ -7,54 +7,53 @@
 //! tabs ([`PaintChip::pattern_editor`], [`PaintChip::picture_editor`]: craft-draw's
 //! `PatternFillEditor` and `PictureFillEditor`).
 
-use std::cell::RefCell;
-
-use craft_theme::{ControlSize, Srgba};
-use egui::accesskit::HasPopup;
-use egui::{
-    Align, AsIdSalt, Color32, Id, IdSalt, Key, LayerId, Layout, Mesh, Modifiers, Order, Painter, PopupCloseBehavior, Rect, Stroke, Ui, Vec2, pos2,
-    vec2,
+use craft_behavior::{Axis, EditEvent, IconId, Metrics, Selection};
+use craft_behavior::{DisplayOrder, ItemSource, Mixed, SelectionChange};
+use craft_theme::Srgba;
+use craft_ui::buttons::Button;
+use craft_ui::choice::{ChoiceWords, Segmented};
+use craft_ui::contract::ShowContainer as _;
+use craft_ui::contract::{
+    Access, Activation, Bind, Common, Component, Cx, Edit as _, EditResponse, Entry, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi,
+    Pointer as _, PopupKind, Props as _, Remember as _, Role, Show as _, ShowCollection as _, WordSetCx as _,
 };
+use craft_ui::contract::{CollectionEvent, NoValue, Rename};
+use craft_ui::layout_components::Stack;
+use craft_ui::list::{List, ListRow, RowEvent, ThumbAspect, ThumbSize, TrailingFace, TrailingPart};
+use craft_ui::primitives::textures::CachedTexture;
+use craft_ui::primitives::{ContentPainterCx, IconSpec, PaintShape, StrokeWidth};
+use craft_ui::runtime::env::Label;
+use craft_ui::style::{ComponentStyle, DataColor, FocusLook, StyleColor, StyleCx};
+use egui::{Color32, Pos2, Rect, Response, Ui, pos2, vec2};
 
-use super::{ColorPicker, ColorPickerLayout, HexField, ScreenColorPicker, ScreenPickerLabels};
-use craft_ui::behavior::{RowInfo, Selection};
-use craft_ui::controls::{Badge, BadgeStyle, BadgeTone, Button, IconButton, NumberField, Segmented, Swatch, SwatchStyle, TextField, checkerboard};
-use craft_ui::edit::{EditEvent, EditPolicy, EditResponse};
-use craft_ui::icons::Icon;
-use craft_ui::list::{List, ListEvent, ListRow, RowEvent};
-use craft_ui::localized::{Labels as _, LocaleNumbers, Unit, fmt};
-use craft_ui::popup_list::PopupList;
-use craft_ui::primitives::{Interactive, Surface, SurfaceKind};
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format};
+use super::popover::compact_picker;
+use super::{PickedColor, ScreenPickGesture};
+
+#[cfg(feature = "screen-testing")]
+mod stories;
+
+/// The chip is this many control heights wide.
+const CHIP_WIDTH_IN_HEIGHTS: f32 = 1.5;
+/// The most tiles a pattern chip draws; a tile so small that more would fit is drawn as one stretched image.
+const MAX_TILES: f32 = 4096.0;
+/// The No Color diagonal stops this many control heights short of the chip's edges.
+const DIAGONAL_INSET_IN_HEIGHTS: f32 = 0.15;
+/// The length of the dash on a mixed chip, as a share of the chip's width.
+const MIXED_DASH_SHARE: f32 = 0.5;
 
 craft_ui::words! {
-    /// The paint popover's tabs, English by default.
+    /// The words of [`PaintChip`] and [`PaintList`], English by default.
     #[non_exhaustive]
-    pub struct PaintLabels {
+    pub struct PaintWords {
         no_color: "paint.noColor" = "No Color";
         solid: "paint.solid" = "Solid";
         gradient: "paint.gradient" = "Gradient";
-    }
-}
-
-craft_ui::words! {
-    /// The paint popover's Pattern and Picture tabs, English by default (Photoshop's Pattern,
-    /// PowerPoint's Picture). Kept apart from [`PaintLabels`] until they are registered.
-    #[non_exhaustive]
-    pub struct PaintKindLabels {
         pattern: "paint.pattern" = "Pattern";
         picture: "paint.picture" = "Picture";
         /// The chip's value for a screen reader: `{name}` the pattern's name.
-        pattern_named: "paint.patternNamed" = "Pattern: {name}";
+        pattern_named: template "paint.patternNamed" = "Pattern: {name}";
         /// The chip's value for a screen reader: `{name}` the picture's name.
-        picture_named: "paint.pictureNamed" = "Picture: {name}";
-    }
-}
-
-craft_ui::words! {
-    /// The row actions of [`PaintList`] (FigCraft's Selection colors; US spelling).
-    #[non_exhaustive]
-    pub struct PaintListLabels {
+        picture_named: template "paint.pictureNamed" = "Picture: {name}";
         /// A row's chip: opens the picker.
         edit: "paintList.edit" = "Edit color";
         hex: "paintList.hex" = "Color";
@@ -63,31 +62,47 @@ craft_ui::words! {
         detach_style: "paintList.detachStyle" = "Detach style";
         detach_variable: "paintList.detachVariable" = "Detach variable";
         styles: "paintList.styles" = "Color styles";
-        select_users: "paintList.selectUsers" = "Select layers with this color";
+        /// A row's button: `{name}` the paint it selects the layers of.
+        select_users: template "paintList.selectUsers" = "Select layers with {name}";
         add: "paintList.add" = "Add";
-        remove: "paintList.remove" = "Remove";
+        /// A row's button: `{name}` the paint it removes.
+        remove: template "paintList.remove" = "Remove {name}";
     }
 }
 
-/// A gradient as the chip draws it: stops at 0–1 along a left-to-right ramp. The gradient itself
+/// A gradient as the chip draws it: stops at 0–1 along a start-to-end ramp. The gradient itself
 /// (angle, style, midpoints) is the host's; it gives this preview with the paint.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct GradientPreview {
     /// Stops as (position 0–1, colour), ascending by position.
     pub stops: Vec<(f32, Srgba)>,
 }
 
+impl GradientPreview {
+    /// A preview through `stops`.
+    pub fn new(stops: Vec<(f32, Srgba)>) -> Self {
+        GradientPreview { stops }
+    }
+}
+
 /// A pattern or picture as the chip draws it: the host's texture of the image (a pattern's tile,
-/// tiled across the chip; a picture, stretched to it) and its name for a screen reader. The
+/// tiled across the chip at 1:1; a picture, stretched to it) and its name for a screen reader. The
 /// pattern or picture itself is the host's.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct ImagePreview {
     /// "Bubbles", "photo.png".
     pub name: String,
     /// The image's texture, `None` while the host has none (the chip shows the field fill).
-    pub texture: Option<egui::TextureId>,
-    /// The image's size in pixels (a pattern tile's size, so the chip tiles it at 1:1).
-    pub size: [f32; 2],
+    pub texture: Option<CachedTexture>,
+}
+
+impl ImagePreview {
+    /// A preview of `name` drawn from `texture`.
+    pub fn new(name: impl Into<String>, texture: Option<CachedTexture>) -> Self {
+        ImagePreview { name: name.into(), texture }
+    }
 }
 
 /// A paint: none, a solid colour, a gradient, a pattern or a picture. More kinds may come: a
@@ -107,9 +122,9 @@ pub enum Paint {
     Picture(ImagePreview),
 }
 
-/// The kinds of paint, as the chip's tabs and an app's fill-type switch (`Segmented<FillKind>` or
-/// a radio list) name them.
+/// The kinds of paint, as the chip's tabs and an app's fill-type switch name them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum FillKind {
     #[allow(missing_docs)]
     None,
@@ -136,101 +151,153 @@ impl FillKind {
     }
 }
 
-/// The host's gradient editor body, drawn in the popover's Gradient tab: it edits the host's
-/// gradient and returns the new preview when it changed.
-type GradientEditor<'a> = dyn FnMut(&mut Ui) -> Option<GradientPreview> + 'a;
+/// The host's editor body for one fill kind, drawn in the popover: it edits the host's fill and returns the new
+/// preview when it changed.
+pub struct PaintEditor<'a, T>(Box<dyn FnMut(&mut Ui) -> Option<T> + 'a>);
 
-/// The host's pattern or picture editor body, drawn in the popover's Pattern or Picture tab: it
-/// edits the host's fill and returns the new preview when it changed.
-type ImageEditor<'a> = dyn FnMut(&mut Ui) -> Option<ImagePreview> + 'a;
+impl<'a, T, F: FnMut(&mut Ui) -> Option<T> + 'a> From<F> for PaintEditor<'a, T> {
+    fn from(editor: F) -> Self {
+        PaintEditor(Box::new(editor))
+    }
+}
 
-/// A paint chip, 30 by 22 points in PhotoCraft (the `swatch` control's Md size here).
+impl<T> PaintEditor<'_, T> {
+    fn show(&mut self, ui: &mut Ui) -> Option<T> {
+        (self.0)(ui)
+    }
+}
+
+/// The style of a paint chip.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+#[non_exhaustive]
+pub struct PaintChipStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+    #[style(focus)]
+    focus: FocusLook,
+    /// The chip's height.
+    height: f32,
+    /// The chip's corners.
+    radius: egui::CornerRadius,
+    /// The ring on the chip's outline.
+    edge: StyleColor,
+    /// The fill of an empty chip: the field's.
+    none_fill: StyleColor,
+    /// The No Color diagonal.
+    none_mark: StyleColor,
+    /// The dash on a chip whose selection holds different paints.
+    mixed_mark: StyleColor,
+}
+
+/// The last solid colour the chip held: a switch back to Solid starts from it.
+#[derive(Clone, Copy, Default)]
+struct LastSolid(Option<Srgba>);
+
+/// What the popover's body reported this pass.
+#[derive(Default)]
+struct Shown {
+    kind: Option<FillKind>,
+    edit: Option<EditEvent<PickedColor>>,
+    screen_pick: Option<ScreenPickGesture>,
+    gradient: Option<GradientPreview>,
+    pattern: Option<ImagePreview>,
+    picture: Option<ImagePreview>,
+}
+
+/// What a paint chip reports.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct PaintChipOutput {
+    /// The edit of the paint: a switch of kind is one `Set`, the picker's gestures report as the picker does.
+    pub edit: EditResponse<Paint>,
+    /// The screen eyedropper's press: the host runs the screen pick and answers through [`PaintChip::sampled`].
+    pub screen_pick: Option<ScreenPickGesture>,
+}
+
+impl Outcome for PaintChipOutput {
+    type Value = Paint;
+
+    fn response(&self) -> &Response {
+        &self.edit.response
+    }
+}
+
+/// A paint chip, a control high and 1.5 times as wide.
 ///
 /// - Look: a solid paint fills the chip over the checkerboard (alpha shows); a gradient is a
-///   left-to-right ramp through its stops; No Color is the field fill with a red diagonal
-///   (`status.danger`) from bottom left to top right. Edge: `line.control_edge`, the focus ring
-///   when focused.
-/// - Click, Enter or Space opens a popover: a segmented No Color / Solid / Gradient / Pattern /
-///   Picture switch ([`kinds`](Self::kinds): Gradient, Pattern and Picture only when the host gave
-///   their editor), then the Compact [`ColorPicker`](super::ColorPicker) (Solid, with the screen
-///   eyedropper) or the host's editor. Switching to Solid starts from the last solid colour (or
-///   the fallback), to Gradient, Pattern or Picture from the host's default
-///   ([`default_gradient`](Self::default_gradient)). Without the new editors the chip and popover
-///   are as before (PhotoCraft's look).
-/// - A pattern draws its tile across the chip; a picture is stretched to it.
-/// - Edits: a switch is a [`Set`](craft_ui::edit::EditEvent::Set); picker gestures report as the
-///   picker does. Alpha is kept through a screen sample.
-/// - AccessKit: a `ColorWell` named by `label`, its value the hex or "No Color"/"Gradient".
+///   start-to-end ramp through its stops; No Color is the field fill with a `status.bad` diagonal
+///   from bottom start to top end; a pattern tiles its texture at 1:1; a picture is stretched.
+/// - Click, Enter or Space opens a popover under the chip: a segmented No Color / Solid / Gradient / Pattern /
+///   Picture switch (No Color only with [`none_allowed`](Self::none_allowed); Gradient, Pattern and Picture only
+///   when the host gave their editor), then the Compact [`ColorPicker`] (Solid, with the screen eyedropper) or the
+///   host's editor. Switching to Solid starts from the last solid colour (or the fallback), to Gradient, Pattern
+///   or Picture from the host's default.
+/// - Edits: a switch is a `Set`; picker gestures report as the picker does. A screen sample keeps alpha.
+/// - AccessKit: a colour well named by the label, its value the hex or "No Color", "Gradient", the pattern's or
+///   picture's name.
+#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
+#[component(overlay, content_painter)]
 pub struct PaintChip<'a> {
-    id_salt: IdSalt,
-    label: String,
-    paint: &'a Paint,
+    #[common]
+    common: Common,
+    paint: Bind<'a, Paint>,
     fallback: Srgba,
-    numbers: &'a LocaleNumbers,
+    /// No Color is offered (a stroke can be none, a text colour cannot).
+    #[prop(flag)]
     none_allowed: bool,
-    gradient: Option<(GradientPreview, Box<GradientEditor<'a>>)>,
-    pattern: Option<(ImagePreview, Box<ImageEditor<'a>>)>,
-    picture: Option<(ImagePreview, Box<ImageEditor<'a>>)>,
-    enabled: bool,
+    gradient: Option<(GradientPreview, PaintEditor<'a, GradientPreview>)>,
+    pattern: Option<(ImagePreview, PaintEditor<'a, ImagePreview>)>,
+    picture: Option<(ImagePreview, PaintEditor<'a, ImagePreview>)>,
+    /// The host's answer to the screen eyedropper: a `Set` of the sampled colour that keeps the alpha.
+    #[prop]
+    sampled: Option<Srgba>,
+    screen_pick: Option<ScreenPickGesture>,
 }
 
 impl<'a> PaintChip<'a> {
-    /// A chip for `paint`; `fallback` is the solid colour a switch to Solid starts from when the
+    /// A chip for `paint` named `label`; `fallback` is the solid colour a switch to Solid starts from when the
     /// paint has none.
-    pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, paint: &'a Paint, fallback: Srgba, numbers: &'a LocaleNumbers) -> PaintChip<'a> {
+    pub fn new(label: impl Into<Label>, paint: Bind<'a, Paint>, fallback: Srgba) -> Self {
         PaintChip {
-            id_salt: IdSalt::new(id_salt),
-            label: label.into(),
+            common: Common::new(),
             paint,
             fallback,
-            numbers,
-            none_allowed: true,
+            none_allowed: false,
             gradient: None,
             pattern: None,
             picture: None,
-            enabled: true,
+            sampled: None,
+            screen_pick: None,
         }
+        .label(label)
     }
 
-    /// Whether No Color is offered; on by default (a stroke can be none, a text colour cannot).
-    pub fn none_allowed(mut self, allowed: bool) -> PaintChip<'a> {
-        self.none_allowed = allowed;
+    /// The Gradient tab: `default_gradient` is what a switch to Gradient sets, `editor` draws the host's editor.
+    /// Without it there is no Gradient tab.
+    #[must_use]
+    pub fn gradient_editor(mut self, default_gradient: GradientPreview, editor: impl Into<PaintEditor<'a, GradientPreview>>) -> Self {
+        self.gradient = Some((default_gradient, editor.into()));
         self
     }
 
-    /// The Gradient tab: `default_gradient` is what a switch to Gradient sets, `editor` draws the
-    /// host's editor. Without it there is no Gradient tab.
-    pub fn gradient_editor(
-        mut self,
-        default_gradient: GradientPreview,
-        editor: impl FnMut(&mut Ui) -> Option<GradientPreview> + 'a,
-    ) -> PaintChip<'a> {
-        self.gradient = Some((default_gradient, Box::new(editor)));
+    /// The Pattern tab: `default_pattern` is what a switch to Pattern sets, `editor` draws the host's editor.
+    /// Without it there is no Pattern tab.
+    #[must_use]
+    pub fn pattern_editor(mut self, default_pattern: ImagePreview, editor: impl Into<PaintEditor<'a, ImagePreview>>) -> Self {
+        self.pattern = Some((default_pattern, editor.into()));
         self
     }
 
-    /// The Pattern tab: `default_pattern` is what a switch to Pattern sets, `editor` draws the
-    /// host's editor (craft-draw's `PatternFillEditor`). Without it there is no Pattern tab.
-    pub fn pattern_editor(mut self, default_pattern: ImagePreview, editor: impl FnMut(&mut Ui) -> Option<ImagePreview> + 'a) -> PaintChip<'a> {
-        self.pattern = Some((default_pattern, Box::new(editor)));
+    /// The Picture tab: `default_picture` is what a switch to Picture sets, `editor` draws the host's editor.
+    /// Without it there is no Picture tab.
+    #[must_use]
+    pub fn picture_editor(mut self, default_picture: ImagePreview, editor: impl Into<PaintEditor<'a, ImagePreview>>) -> Self {
+        self.picture = Some((default_picture, editor.into()));
         self
     }
 
-    /// The Picture tab: `default_picture` is what a switch to Picture sets, `editor` draws the
-    /// host's editor (craft-draw's `PictureFillEditor`). Without it there is no Picture tab.
-    pub fn picture_editor(mut self, default_picture: ImagePreview, editor: impl FnMut(&mut Ui) -> Option<ImagePreview> + 'a) -> PaintChip<'a> {
-        self.picture = Some((default_picture, Box::new(editor)));
-        self
-    }
-
-    /// Turns input on or off; on by default.
-    pub fn enabled(mut self, enabled: bool) -> PaintChip<'a> {
-        self.enabled = enabled;
-        self
-    }
-
-    /// The tabs the popover shows, in order: No Color (when allowed), Solid, then Gradient,
-    /// Pattern and Picture when the host gave their editors.
+    /// The tabs the popover shows, in order: No Color (when allowed), Solid, then Gradient, Pattern and Picture
+    /// when the host gave their editors.
     pub fn kinds(&self) -> Vec<FillKind> {
         let offered = [
             (FillKind::None, self.none_allowed),
@@ -244,342 +311,259 @@ impl<'a> PaintChip<'a> {
 
     /// The gradient a switch to Gradient sets, when the host gave an editor.
     pub fn default_gradient(&self) -> Option<&GradientPreview> {
-        self.gradient.as_ref().map(|(g, _)| g)
+        self.gradient.as_ref().map(|(default, _)| default)
     }
 
-    // pc: crates/ui-egui/src/tools/shape_paint_ui.rs:64 `swatch` (the chip at :72, the ramp at
-    // :80, No Color at :103, the popover tabs at :133); built on `ColorPopover`'s popover and
-    // `ColorPicker` Compact, `Segmented` for the tabs.
-    // pc: crates/ui-egui/src/tools/shape_paint_ui.rs:21-24 (the swatches never offered a pattern);
-    // crates/ui-egui/src/panels/preset_panels.rs:277-279 (the pattern grid meant for paint popups).
-    // inv-deckcraft: crates/ui-egui/src/panels/format_shape.rs:369-375 (the fill types).
-    // new: the Pattern and Picture tabs (Photoshop's Fill popover, PowerPoint's Picture fill); a
-    // chip without their editors is PhotoCraft's.
-    /// Draws the chip and its popover; the response carries the edit of the paint.
-    pub fn show(self, ui: &mut Ui) -> EditResponse<Paint> {
-        let Self { id_salt, label, paint, fallback, numbers, none_allowed, gradient, pattern, picture, enabled } = self;
-        let ctx = ui.ctx().clone();
-        let labels = PaintLabels::of(ui);
-        let tokens = Tokens::of(ui);
-        let enabled = enabled && ui.is_enabled();
-        let chip = chip_size(&tokens);
-        let style = Swatch::style(&tokens, craft_theme::ControlSize::Md);
-
-        let solid = match paint {
-            Paint::Solid(color) => *color,
-            _ => fallback,
-        };
-        let well = match paint {
-            Paint::Solid(color) => Swatch::new((&id_salt, "chip"), label.as_str(), color.to_rgba()),
-            _ => Swatch::new((&id_salt, "chip"), label.as_str(), solid.to_rgba()).mixed(true),
-        };
-        let response = ui.add(well.dimensions(chip.x, chip.y).enabled(enabled));
-        if !matches!(paint, Paint::Solid(_)) {
-            let mut painter = ui.painter().clone();
-            painter.set_clip_rect(painter.clip_rect().intersect(response.rect.expand(1.0)));
-            paint_paint(&painter, response.rect, paint, &style, &tokens, enabled, ui.pixels_per_point());
-        }
-        let last_solid = response.id.with("last-solid");
-        if let Paint::Solid(color) = paint {
-            ctx.data_mut(|d| d.insert_temp(last_solid, *color));
-        }
-        let remembered = ctx.data(|d| d.get_temp::<Srgba>(last_solid)).unwrap_or(fallback);
-        let value = match paint {
-            Paint::None => labels.no_color.clone(),
-            Paint::Solid(color) => Swatch::hex(color.to_rgba()),
-            Paint::Gradient(_) => labels.gradient.clone(),
-            Paint::Pattern(_) | Paint::Picture(_) => image_value(&PaintKindLabels::of(ui), paint),
-        };
-        ctx.accesskit_node_builder(response.id, |node| node.set_value(value));
-
-        let state_id = response.id.with(STATE);
-        let stored = ctx.data(|d| d.get_temp::<Open>(state_id)).filter(|_| enabled).unwrap_or_default();
-        let was_open = stored.open;
-        let mut open = was_open;
-        // A frame may run in two passes; the click shows in both.
-        let frame = ctx.cumulative_frame_nr();
-        if response.clicked() && enabled {
-            if stored.clicked != Some(frame) {
-                open = !open;
-            }
-            if open {
-                // The key that opened the popup is not the picker's.
-                ui.input_mut(|i| {
-                    i.consume_key(Modifiers::NONE, Key::Enter);
-                    i.consume_key(Modifiers::NONE, Key::Space);
-                });
-            }
-        }
-        let clicked = if response.clicked() { Some(frame) } else { stored.clicked };
-
-        let mut event: Option<EditEvent<Paint>> = None;
-        let current = Tab::of(paint);
-        let popup = egui::Popup::menu(&response);
-        let popup_id = popup.get_id();
-        let (has_gradient, has_pattern, has_picture) = (gradient.is_some(), pattern.is_some(), picture.is_some());
-        let (mut gradient, mut pattern, mut picture) = (gradient, pattern, picture);
-        let kind_labels = PaintKindLabels::of(ui);
-        PopupList::with_popup(popup, ui, &response)
-            .open(&mut open)
-            .focus_owners(&[response.id])
-            .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
-            .height(f32::INFINITY)
-            .surface(Surface::style(&tokens, SurfaceKind::Popup))
-            .show_ui(|ui| {
-                let mut tab = current;
-                let mut tabs = Segmented::new((&id_salt, "tabs"), label.as_str(), &mut tab);
-                if none_allowed {
-                    tabs = tabs.item(Tab::None, labels.no_color.as_str());
-                }
-                tabs = tabs.item(Tab::Solid, labels.solid.as_str());
-                if has_gradient {
-                    tabs = tabs.item(Tab::Gradient, labels.gradient.as_str());
-                }
-                if has_pattern {
-                    tabs = tabs.item(Tab::Pattern, kind_labels.pattern.as_str());
-                }
-                if has_picture {
-                    tabs = tabs.item(Tab::Picture, kind_labels.picture.as_str());
-                }
-                let tabs = tabs.enabled(enabled).show(ui);
-                if tabs.changed() && tab != current {
-                    let next = match tab {
-                        Tab::None => Paint::None,
-                        Tab::Solid => Paint::Solid(remembered),
-                        Tab::Gradient => Paint::Gradient(gradient.as_ref().map(|(g, _)| g.clone()).unwrap_or_default()),
-                        Tab::Pattern => Paint::Pattern(pattern.as_ref().map(|(p, _)| p.clone()).unwrap_or_default()),
-                        Tab::Picture => Paint::Picture(picture.as_ref().map(|(p, _)| p.clone()).unwrap_or_default()),
-                    };
-                    event = Some(EditEvent::set(next, Modifiers::NONE));
-                }
-                match paint {
-                    Paint::None => {}
-                    Paint::Solid(color) => {
-                        let picker_id = Interactive::id_in(ui, (&id_salt, "picker"));
-                        let screen_label = ScreenPickerLabels::of(ui).button;
-                        let mut picker =
-                            ColorPicker::new((&id_salt, "picker"), label.as_str(), *color, numbers).layout(ColorPickerLayout::Compact).alpha(true);
-                        if ScreenColorPicker::available(&ctx) {
-                            picker = picker.eyedropper(screen_label);
-                        }
-                        let shown = picker.enabled(enabled).show(ui);
-                        let sampler = shown.edit.response.id;
-                        if let Some(button) = &shown.eyedropper
-                            && let Some(sampled) = ScreenColorPicker::hold_drag(ui, button, sampler)
-                        {
-                            ColorPicker::sampled(&ctx, sampler, sampled);
-                        }
-                        let waiting = picker_id.with("screen-sample");
-                        if shown.eyedropper_requested {
-                            ScreenColorPicker::open(&ctx, sampler);
-                            ctx.data_mut(|d| d.insert_temp(waiting, true));
-                        }
-                        if ctx.data(|d| d.get_temp::<bool>(waiting)).unwrap_or(false) {
-                            if let Some(sampled) = ScreenColorPicker::take(&ctx, sampler) {
-                                ColorPicker::sampled(&ctx, sampler, sampled);
-                                ctx.data_mut(|d| d.remove::<bool>(waiting));
-                            } else if !ScreenColorPicker::busy(&ctx) {
-                                ctx.data_mut(|d| d.remove::<bool>(waiting));
-                            }
-                        }
-                        if event.is_none() {
-                            event = shown.edit.event.map(|e| e.map(|picked| Paint::Solid(picked.color)));
-                        }
-                    }
-                    Paint::Gradient(_) => {
-                        if let Some((_, editor)) = gradient.as_mut()
-                            && let Some(edited) = editor(ui)
-                            && event.is_none()
-                        {
-                            event = Some(EditEvent::set(Paint::Gradient(edited), Modifiers::NONE));
-                        }
-                    }
-                    Paint::Pattern(_) | Paint::Picture(_) => {
-                        let (editor, kind) = match paint {
-                            Paint::Pattern(_) => (pattern.as_mut(), Paint::Pattern as fn(ImagePreview) -> Paint),
-                            _ => (picture.as_mut(), Paint::Picture as fn(ImagePreview) -> Paint),
-                        };
-                        if let Some((_, editor)) = editor
-                            && let Some(edited) = editor(ui)
-                            && event.is_none()
-                        {
-                            event = Some(EditEvent::set(kind(edited), Modifiers::NONE));
-                        }
-                    }
-                }
-            });
-        ctx.data_mut(|d| d.insert_temp(state_id, Open { open, clicked }));
-        if was_open && !open && focus_free_or_inside(&ctx, popup_id) {
-            ctx.memory_mut(|m| m.request_focus(response.id));
-        }
-        ctx.accesskit_node_builder(response.id, |node| {
-            node.set_has_popup(HasPopup::Dialog);
-            node.set_expanded(open);
-        });
-        if open {
-            ctx.accesskit_node_builder(popup_id, |node| node.set_role(egui::accesskit::Role::Dialog));
-        }
-        EditResponse::new(response, event)
-    }
-}
-
-const STATE: &str = "craft_color::paint_chip";
-
-/// The chip's popup between frames.
-#[derive(Clone, Copy, Default)]
-struct Open {
-    open: bool,
-    /// The frame of the last click on the chip.
-    clicked: Option<u64>,
-}
-
-/// The popup's tabs.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Tab {
-    None,
-    Solid,
-    Gradient,
-    Pattern,
-    Picture,
-}
-
-impl Tab {
-    fn of(paint: &Paint) -> Tab {
-        match paint {
-            Paint::None => Tab::None,
-            Paint::Solid(_) => Tab::Solid,
-            Paint::Gradient(_) => Tab::Gradient,
-            Paint::Pattern(_) => Tab::Pattern,
-            Paint::Picture(_) => Tab::Picture,
+    /// The paint a switch to `kind` sets.
+    fn switched(&self, kind: FillKind, solid: Srgba) -> Paint {
+        match kind {
+            FillKind::None => Paint::None,
+            FillKind::Solid => Paint::Solid(solid),
+            FillKind::Gradient => Paint::Gradient(self.gradient.as_ref().map(|(default, _)| default.clone()).unwrap_or_default()),
+            FillKind::Pattern => Paint::Pattern(self.pattern.as_ref().map(|(default, _)| default.clone()).unwrap_or_default()),
+            FillKind::Picture => Paint::Picture(self.picture.as_ref().map(|(default, _)| default.clone()).unwrap_or_default()),
         }
     }
 }
 
-/// Whether no control has the focus, or the focused one is in the popup `popup`: a close that
-/// leaves the focus there gives it back to the chip.
-fn focus_free_or_inside(ctx: &egui::Context, popup: Id) -> bool {
-    let Some(focused) = ctx.memory(|m| m.focused()) else { return true };
-    ctx.read_response(focused).is_none_or(|r| r.layer_id == LayerId::new(Order::Foreground, popup))
-}
-
-/// The chip's size: a control high and two inline gaps wider.
-fn chip_size(tokens: &UiTokens) -> Vec2 {
-    vec2(tokens.size.control.md + 2.0 * tokens.space.gap.inline, tokens.size.control.md)
-}
-
-/// The fill of an empty chip: the field's.
-fn field_fill(tokens: &UiTokens, enabled: bool) -> Color32 {
-    if enabled { tokens.color.surface.sunken } else { tokens.color.state.disabled_fill }.to_egui()
-}
-
-/// Draws `paint` in `rect` as a chip: a solid paint over the checkerboard where it has alpha, a
-/// gradient as a left-to-right ramp through its stops over the checkerboard, No Color as the
-/// field fill with a diagonal in `status.bad.fg` from bottom left to top right; then the edge.
-fn paint_paint(painter: &Painter, rect: Rect, paint: &Paint, style: &SwatchStyle, tokens: &UiTokens, enabled: bool, ppp: f32) {
-    let outline = |painter: &Painter| painter.extend(Swatch::outline(style, rect, false, enabled, ppp));
-    match paint {
-        Paint::Solid(color) => painter.extend(Swatch::shapes(style, rect, Some(color.to_rgba()), false, enabled, ppp)),
-        Paint::Gradient(preview) => {
-            painter.extend(checkerboard(rect, style.radius, style.checker, style.checker_cell));
-            if !preview.stops.is_empty() {
-                painter.add(ramp(rect, preview));
-            }
-            outline(painter);
-        }
-        Paint::None => {
-            painter.rect_filled(rect, style.radius, field_fill(tokens, enabled));
-            let (inset, line) = (tokens.space.gap.tight, tokens.stroke.medium);
-            let inner = rect.shrink(inset);
-            painter.line_segment([inner.left_bottom(), inner.right_top()], Stroke::new(line, tokens.color.status.bad.fg.to_egui()));
-            outline(painter);
-        }
-        Paint::Pattern(preview) | Paint::Picture(preview) => paint_image(painter, rect, paint, preview, style, tokens, enabled, ppp),
+fn kind_label(words: &PaintWords, kind: FillKind) -> Label {
+    match kind {
+        FillKind::None => words.no_color.clone(),
+        FillKind::Solid => words.solid.clone(),
+        FillKind::Gradient => words.gradient.clone(),
+        FillKind::Pattern => words.pattern.clone(),
+        FillKind::Picture => words.picture.clone(),
     }
 }
 
-/// Draws a pattern tiled across `rect` at the tile's pixel size, or a picture stretched to it,
-/// over the checkerboard; the field fill while the preview has no texture; then the edge.
-#[expect(clippy::too_many_arguments, reason = "the chip painter's arguments plus the preview")]
-fn paint_image(
-    painter: &Painter,
-    rect: Rect,
-    paint: &Paint,
-    preview: &ImagePreview,
-    style: &SwatchStyle,
-    tokens: &UiTokens,
-    enabled: bool,
-    ppp: f32,
-) {
-    // inv-deckcraft: crates/ui-egui/src/panels/fillui.rs:478-515 (pattern cells painted in their
-    // colours). new: one textured quad per tile, so the texture needs no repeat wrapping.
-    painter.extend(checkerboard(rect, style.radius, style.checker, style.checker_cell));
-    match preview.texture {
-        Some(texture) => {
-            let mut mesh = Mesh::with_texture(texture);
-            let tile = vec2(preview.size[0], preview.size[1]) / ppp;
-            let tiled = matches!(paint, Paint::Pattern(_)) && tile.x > 0.0 && tile.y > 0.0 && tile.x.is_finite() && tile.y.is_finite();
-            let (cols, rows) = if tiled { ((rect.width() / tile.x).ceil(), (rect.height() / tile.y).ceil()) } else { (1.0, 1.0) };
-            if cols * rows > MAX_TILES {
-                mesh.add_rect_with_uv(rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
-            } else if tiled {
-                for row in 0..rows as usize {
-                    for col in 0..cols as usize {
-                        let min = rect.min + vec2(col as f32 * tile.x, row as f32 * tile.y);
-                        let cell = Rect::from_min_size(min, tile).intersect(rect);
-                        let uv_max = pos2(cell.width() / tile.x, cell.height() / tile.y);
-                        mesh.add_rect_with_uv(cell, Rect::from_min_max(pos2(0.0, 0.0), uv_max), Color32::WHITE);
-                    }
-                }
-            } else {
-                mesh.add_rect_with_uv(rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
-            }
-            painter.add(mesh);
-        }
-        None => {
-            painter.rect_filled(rect, style.radius, field_fill(tokens, enabled));
-        }
-    }
-    painter.extend(Swatch::outline(style, rect, false, enabled, ppp));
-}
-
-/// The most tiles a pattern chip draws; a tile so small that more would fit is drawn as one
-/// stretched image.
-const MAX_TILES: f32 = 4096.0;
-
-/// The chip's value for a screen reader: "Pattern: Bubbles", "Picture: photo.png"; the kind alone
-/// for an image without a name.
-fn image_value(labels: &PaintKindLabels, paint: &Paint) -> String {
-    // new: `pattern_named` or `picture_named` with the preview's name.
+/// The chip's value for a screen reader: the hex, "No Color", "Gradient", "Pattern: Bubbles" or "Picture:
+/// photo.png"; the kind alone for an image without a name.
+fn value_text(words: &PaintWords, paint: &Paint) -> String {
     let (named, kind, preview) = match paint {
-        Paint::Pattern(preview) => (&labels.pattern_named, &labels.pattern, preview),
-        Paint::Picture(preview) => (&labels.picture_named, &labels.picture, preview),
-        _ => return String::new(),
+        Paint::None => return words.no_color.as_str().to_owned(),
+        Paint::Solid(color) => return color.to_hex(),
+        Paint::Gradient(_) => return words.gradient.as_str().to_owned(),
+        Paint::Pattern(preview) => (&words.pattern_named, &words.pattern, preview),
+        Paint::Picture(preview) => (&words.picture_named, &words.picture, preview),
     };
-    if preview.name.is_empty() { kind.clone() } else { fmt(named, &[("name", preview.name.as_str())]) }
+    if preview.name.is_empty() { kind.as_str().to_owned() } else { named.fill(&[("name", preview.name.as_str())]) }
 }
 
-/// The gradient's stops as a mesh across `rect`, held flat before the first and after the last.
-fn ramp(rect: Rect, preview: &GradientPreview) -> Mesh {
+impl Component for PaintChip<'_> {
+    const ROLE: Role = Role::COLOR_WELL;
+    const PARTS: bool = false;
+    type Style = PaintChipStyle;
+    type Output = PaintChipOutput;
+
+    fn style(cx: &StyleCx<'_>, _: PaintChipStyleKey) -> PaintChipStyle {
+        let colors = &cx.tokens.color;
+        let metrics = craft_ui::choice::SwatchMetrics::of(cx);
+        PaintChipStyle {
+            metrics: Metrics::new(),
+            focus: cx.focus_look(),
+            height: metrics.side,
+            radius: metrics.radius,
+            edge: cx.color(colors.line.control_edge),
+            none_fill: cx.color(colors.surface.sunken),
+            none_mark: cx.color(colors.status.bad.solid),
+            mixed_mark: cx.color(colors.text.muted),
+        }
+    }
+
+    fn sense(&self) -> craft_behavior::Sense {
+        craft_behavior::Sense::CLICK | craft_behavior::Sense::FOCUS
+    }
+
+    fn measure(&mut self, cx: &craft_ui::contract::MeasureCx<'_, Self>) -> egui::Vec2 {
+        vec2(cx.style.height * CHIP_WIDTH_IN_HEIGHTS, cx.style.height)
+    }
+
+    fn bind(&mut self) -> Option<craft_ui::contract::BindMut<'_, Paint>> {
+        Some(self.paint.reborrow())
+    }
+
+    /// A click, Enter or Space toggles the popover; the last solid colour is kept for a switch back to Solid.
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        if let Some(Paint::Solid(color)) = cx.value() {
+            let color = *color;
+            cx.memory::<LastSolid>().0 = Some(color);
+        }
+        let popup = cx.popup("picker");
+        let activated = cx.activation().filter(|_: &Activation| cx.resolved.enabled).is_some();
+        let open = popup.is_open(cx);
+        if activated {
+            if open {
+                popup.close(cx);
+            } else {
+                popup.open(cx);
+            }
+        }
+    }
+
+    fn overlay(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>) {
+        let popup = cx.popup("picker");
+        let words = cx.words::<PaintWords>();
+        let name = cx.label();
+        let paint = cx.value().cloned().unwrap_or(Paint::None);
+        let solid = cx.memory::<LastSolid>().0.unwrap_or(self.fallback);
+        let current = FillKind::of(&paint);
+        let sampled = self.sampled;
+        let entries: Vec<Entry<FillKind>> = self.kinds().into_iter().map(|kind| Entry::new(kind, kind_label(&words, kind))).collect();
+        let (gradient, pattern, picture) = (&mut self.gradient, &mut self.pattern, &mut self.picture);
+        let shown = ui.show(popup, Overlay::popover(), |ui, _| {
+            let mut shown = Shown::default();
+            let mut kind = current;
+            Segmented::new(name.clone(), Bind::bound(&mut kind), &entries).show(ui);
+            shown.kind = (kind != current).then_some(kind);
+            match &paint {
+                Paint::None => {}
+                Paint::Solid(color) => {
+                    let picked = compact_picker(name.clone(), Bind::given(PickedColor::rgb(*color)), sampled).alpha(true).eyedropper(true).show(ui);
+                    shown.edit = picked.event;
+                    shown.screen_pick = picked.screen_pick;
+                }
+                Paint::Gradient(_) => shown.gradient = gradient.as_mut().and_then(|(_, editor)| editor.show(ui)),
+                Paint::Pattern(_) => shown.pattern = pattern.as_mut().and_then(|(_, editor)| editor.show(ui)),
+                Paint::Picture(_) => shown.picture = picture.as_mut().and_then(|(_, editor)| editor.show(ui)),
+            }
+            shown
+        });
+        let Some(shown) = shown else { return };
+        self.screen_pick = shown.screen_pick;
+        if let Some(kind) = shown.kind {
+            let next = self.switched(kind, solid);
+            cx.set(next);
+        } else if let Some(event) = shown.edit {
+            forward(cx, Some(&event));
+        }
+        if let Some(preview) = shown.gradient {
+            cx.set(Paint::Gradient(preview));
+        }
+        if let Some(preview) = shown.pattern {
+            cx.set(Paint::Pattern(preview));
+        }
+        if let Some(preview) = shown.picture {
+            cx.set(Paint::Picture(preview));
+        }
+    }
+
+    fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
+        let words = cx.words::<PaintWords>();
+        match cx.value() {
+            Some(paint) => access.value(value_text(&words, paint)),
+            None => access.value(cx.words::<ChoiceWords>().swatch_mixed.as_str()),
+        };
+        access.has_popup(PopupKind::Dialog);
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let style = cx.style;
+        let well = cx.rect;
+        let shape = PaintShape::Rect(well, style.radius);
+        let painter = ui.content_painter(cx);
+        let Some(paint) = cx.value().cloned() else {
+            let draw = ui.draw();
+            draw.fill(&shape, style.none_fill);
+            let (center, half) = (well.center(), well.width() * MIXED_DASH_SHARE / 2.0);
+            draw.stroke(
+                &PaintShape::Path(vec![pos2(center.x - half, center.y), pos2(center.x + half, center.y)]),
+                StrokeWidth::Medium,
+                style.mixed_mark,
+            );
+            ui.draw().stroke(&shape, StrokeWidth::Thin, style.edge);
+            return;
+        };
+        match &paint {
+            Paint::Solid(color) => {
+                if color.a < 1.0 {
+                    painter.checker(well);
+                }
+                ui.draw().data_fill(&shape, DataColor::new(Color32::from(*color)));
+            }
+            Paint::None => {
+                let draw = ui.draw();
+                draw.fill(&shape, style.none_fill);
+                let inner = well.shrink(style.height * DIAGONAL_INSET_IN_HEIGHTS);
+                let (from, to) = if cx.flow.is_rtl() { (inner.right_bottom(), inner.left_top()) } else { (inner.left_bottom(), inner.right_top()) };
+                draw.stroke(&PaintShape::Path(vec![from, to]), StrokeWidth::Medium, style.none_mark);
+            }
+            Paint::Gradient(preview) => {
+                painter.checker(well);
+                if !preview.stops.is_empty() {
+                    painter.ramp(well, &ramp_stops(preview, cx.flow.is_rtl()), Axis::X);
+                }
+            }
+            Paint::Pattern(image) | Paint::Picture(image) => {
+                painter.checker(well);
+                match image.texture {
+                    Some(texture) => paint_image(&painter, well, texture, matches!(paint, Paint::Pattern(_))),
+                    None => ui.draw().fill(&shape, style.none_fill),
+                }
+            }
+        }
+        ui.draw().stroke(&shape, StrokeWidth::Thin, style.edge);
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> PaintChipOutput {
+        PaintChipOutput { edit: cx.edit_response(), screen_pick: self.screen_pick }
+    }
+}
+
+/// Reports the picker's `event` as an edit of the chip's paint.
+fn forward(cx: &mut Cx<'_, PaintChip<'_>>, event: Option<&EditEvent<PickedColor>>) {
+    let Some(event) = event else { return };
+    let value = event.value().map(|picked| Paint::Solid(picked.color));
+    match (event, value) {
+        (EditEvent::Set { .. }, Some(value)) => cx.set(value),
+        (EditEvent::Begin { .. }, value) => {
+            cx.begin();
+            if let Some(value) = value {
+                cx.propose(value);
+            }
+        }
+        (EditEvent::Update { .. }, Some(value)) => cx.propose(value),
+        (EditEvent::Commit { .. }, Some(value)) => {
+            cx.propose(value);
+            cx.commit();
+        }
+        (EditEvent::Cancel { reason, .. }, _) => cx.cancel(*reason),
+        _ => {}
+    }
+}
+
+/// The gradient's stops for the ramp painter, held flat before the first and after the last, mirrored for right to
+/// left.
+fn ramp_stops(preview: &GradientPreview, rtl: bool) -> Vec<(f32, DataColor)> {
     let mut stops: Vec<(f32, Color32)> = preview.stops.iter().map(|(at, color)| (at.clamp(0.0, 1.0), Color32::from(*color))).collect();
     stops.sort_by(|a, b| a.0.total_cmp(&b.0));
-    stops.insert(0, (0.0, stops[0].1));
-    stops.push((1.0, stops[stops.len() - 1].1));
-    let mut mesh = Mesh::default();
-    for (i, (at, color)) in stops.iter().enumerate() {
-        let x = rect.left() + rect.width() * at;
-        mesh.colored_vertex(pos2(x, rect.top()), *color);
-        mesh.colored_vertex(pos2(x, rect.bottom()), *color);
-        if i > 0 {
-            let k = (i as u32) * 2;
-            mesh.add_triangle(k - 2, k - 1, k);
-            mesh.add_triangle(k - 1, k, k + 1);
+    if rtl {
+        stops = stops.into_iter().rev().map(|(at, color)| (1.0 - at, color)).collect();
+    }
+    stops.into_iter().map(|(at, color)| (at, DataColor::new(color))).collect()
+}
+
+/// Paints a pattern tiled across `well` at the tile's pixel size, or a picture stretched to it.
+fn paint_image(painter: &ContentPainterCx<'_>, well: Rect, texture: CachedTexture, tiled: bool) {
+    let whole = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
+    let tile = texture.size_vec2() / painter.painter.pixels_per_point();
+    let tiled = tiled && tile.x > 0.0 && tile.y > 0.0 && tile.x.is_finite() && tile.y.is_finite();
+    let (cols, rows) = if tiled { ((well.width() / tile.x).ceil(), (well.height() / tile.y).ceil()) } else { (1.0, 1.0) };
+    if !tiled || cols * rows > MAX_TILES {
+        painter.picture(texture.id, well, whole);
+        return;
+    }
+    for row in 0..rows as usize {
+        for col in 0..cols as usize {
+            let cell = Rect::from_min_size(well.min + vec2(col as f32 * tile.x, row as f32 * tile.y), tile).intersect(well);
+            let uv_max: Pos2 = pos2(cell.width() / tile.x, cell.height() / tile.y);
+            painter.picture(texture.id, cell, Rect::from_min_max(pos2(0.0, 0.0), uv_max));
         }
     }
-    mesh
 }
 
 /// How a paint is bound (FigCraft's colour style or variable).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum PaintLinkKind {
     /// A colour style.
     Style,
@@ -587,14 +571,22 @@ pub enum PaintLinkKind {
     Variable,
 }
 
-/// A row's binding: the style's or variable's name, shown as a badge after the paint's name, with
-/// a Detach button when [`PaintListOptions::bind`] is on.
+/// A row's binding: the style's or variable's name, shown after the paint's name, with a Detach button when
+/// [`PaintListOptions::bind`] is on.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct PaintLink {
     /// The style's or variable's name.
     pub name: String,
     /// Whether it is a style or a variable.
     pub kind: PaintLinkKind,
+}
+
+impl PaintLink {
+    /// A binding to the style or variable `name`.
+    pub fn new(name: impl Into<String>, kind: PaintLinkKind) -> Self {
+        PaintLink { name: name.into(), kind }
+    }
 }
 
 /// What a row shows beyond the chip and the name, by index in the list's paints.
@@ -637,6 +629,55 @@ impl PaintListOptions {
     pub const SELECTION_COLORS: PaintListOptions =
         PaintListOptions { edit: true, hex: true, opacity: true, bind: true, select_users: true, add: false, remove: false };
 
+    /// Turns the `edit` action on or off.
+    #[must_use]
+    pub const fn edit(mut self, on: bool) -> Self {
+        self.edit = on;
+        self
+    }
+
+    /// Turns the `hex` action on or off.
+    #[must_use]
+    pub const fn hex(mut self, on: bool) -> Self {
+        self.hex = on;
+        self
+    }
+
+    /// Turns the `opacity` action on or off.
+    #[must_use]
+    pub const fn opacity(mut self, on: bool) -> Self {
+        self.opacity = on;
+        self
+    }
+
+    /// Turns the `bind` action on or off.
+    #[must_use]
+    pub const fn bind(mut self, on: bool) -> Self {
+        self.bind = on;
+        self
+    }
+
+    /// Turns the `select_users` action on or off.
+    #[must_use]
+    pub const fn select_users(mut self, on: bool) -> Self {
+        self.select_users = on;
+        self
+    }
+
+    /// Turns the `add` action on or off.
+    #[must_use]
+    pub const fn add(mut self, on: bool) -> Self {
+        self.add = on;
+        self
+    }
+
+    /// Turns the `remove` action on or off.
+    #[must_use]
+    pub const fn remove(mut self, on: bool) -> Self {
+        self.remove = on;
+        self
+    }
+
     /// Whether any row action is on.
     pub fn any(&self) -> bool {
         self.edit || self.hex || self.opacity || self.bind || self.select_users || self.add || self.remove
@@ -648,323 +689,237 @@ impl PaintListOptions {
 #[non_exhaustive]
 pub enum PaintListEvent {
     /// The chip's picker edited the paint (as [`PaintChip`] reports).
+    #[non_exhaustive]
     Edit {
-        #[allow(missing_docs)]
+        /// The row's index.
         row: usize,
-        #[allow(missing_docs)]
+        /// The edit of the row's paint.
         event: EditEvent<Paint>,
     },
     /// A hex typed and committed.
+    #[non_exhaustive]
     Hex {
-        #[allow(missing_docs)]
+        /// The row's index.
         row: usize,
         /// The committed colour.
         color: Srgba,
     },
     /// The opacity field: `Set` when typed, a gesture when scrubbed; 0–1.
+    #[non_exhaustive]
     Opacity {
-        #[allow(missing_docs)]
+        /// The row's index.
         row: usize,
-        #[allow(missing_docs)]
+        /// The edit of the opacity.
         event: EditEvent<f32>,
     },
-    /// Bind the paint to a style or variable: the app opens its picker.
-    Bind {
-        #[allow(missing_docs)]
-        row: usize,
-    },
-    /// Detach the row's style or variable.
-    Detach {
-        #[allow(missing_docs)]
-        row: usize,
-    },
-    /// Select the layers that use this paint.
-    SelectUsers {
-        #[allow(missing_docs)]
-        row: usize,
-    },
+    /// Bind the paint of the row at this index to a style or variable: the app opens its picker.
+    Bind(usize),
+    /// Detach the style or variable of the row at this index.
+    Detach(usize),
+    /// Select the layers that use the paint of the row at this index.
+    SelectUsers(usize),
     /// Add a paint under the rows.
     Add,
-    /// Remove the row's paint.
-    Remove {
-        #[allow(missing_docs)]
-        row: usize,
-    },
-    /// Renamed in place (also in [`PaintListResponse::renamed`]).
+    /// Remove the paint of the row at this index.
+    Remove(usize),
+    /// Renamed in place.
+    #[non_exhaustive]
     Rename {
-        #[allow(missing_docs)]
+        /// The row's index.
         row: usize,
         /// The new name.
         name: String,
     },
 }
 
-/// Named paints in rows: the chip, then the name; a click on a row selects it, a double-click
-/// renames it in place. The Paints list of a document (PhotoCraft's shape paints; FigCraft's
-/// and VectorCraft's document colours).
-///
-/// With [`options`](Self::options) a row also offers FigCraft's Selection colors actions, after
-/// the name: a chip click edits the paint, a hex field, an opacity field, the binding's badge with
-/// Bind and Detach ([`rows`](Self::rows)), "Select layers with this color", and Remove; Add under
-/// the rows. Each reports a `PaintListEvent`; every control is a Tab stop in the row's order.
-pub struct PaintList<'a> {
-    id_salt: IdSalt,
-    label: String,
-    paints: &'a [(String, Paint)],
-    selected: Option<usize>,
-    options: PaintListOptions,
-    rows: &'a [PaintRow],
-    fallback: Option<Srgba>,
+/// What a paint list reports.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct PaintListOutput {
+    /// The list's response.
+    pub response: Response,
+    /// The row a click or key selected in this pass.
+    pub selected: Option<usize>,
+    /// The row actions of this pass, in order; a rename is here too.
+    pub events: Vec<PaintListEvent>,
 }
 
-/// What [`PaintList::show`] returns.
-#[derive(Debug, Default)]
-#[non_exhaustive]
-pub struct PaintListResponse {
-    /// Index of the selected row, if any.
-    pub selected: Option<usize>,
-    /// A row was renamed: its index and new name.
-    pub renamed: Option<(usize, String)>,
-    /// The row actions this pass, in order (with [`PaintList::options`]); a rename is here too.
-    pub events: Vec<PaintListEvent>,
+impl Outcome for PaintListOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// The paints as a list source, keyed by position.
+struct Paints<'a>(&'a [(String, Paint)]);
+
+impl DisplayOrder<usize> for Paints<'_> {
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    fn key(&self, at: usize) -> usize {
+        at
+    }
+
+    fn index_of(&self, key: &usize) -> Option<usize> {
+        (*key < self.0.len()).then_some(*key)
+    }
+
+    fn text(&self, at: usize) -> Option<std::borrow::Cow<'_, str>> {
+        self.0.get(at).map(|(name, _)| std::borrow::Cow::Borrowed(name.as_str()))
+    }
+}
+
+impl ItemSource<usize> for Paints<'_> {}
+
+const REMOVE: TrailingPart = TrailingPart::new(0);
+const SELECT_USERS: TrailingPart = TrailingPart::new(1);
+const BIND: TrailingPart = TrailingPart::new(2);
+
+/// The chip's width to height in a row.
+const ROW_CHIP: (u16, u16) = (3, 2);
+
+/// Named paints in rows: the chip, then the name; a click on a row selects it, a double-click or F2 renames it in
+/// place. The Paints list of a document (PhotoCraft's shape paints; FigCraft's and VectorCraft's document colours).
+///
+/// With [`options`](Self::options) a row also offers the binding's name with Bind and Detach ([`rows`](Self::rows)),
+/// "Select layers with this color" and Remove after the name, and Add under the rows. Each reports a
+/// [`PaintListEvent`]. The per-row chip edit, hex field and opacity field wait for a row slot that holds field
+/// controls.
+#[derive(craft_ui::contract::Pattern, craft_ui::contract::Props)]
+pub struct PaintList<'a> {
+    label: Label,
+    paints: &'a [(String, Paint)],
+    selected: Bind<'a, Option<usize>>,
+    /// The row actions offered; none by default.
+    #[prop]
+    options: PaintListOptions,
+    /// Each paint's row data (its binding), by index; rows past the end have none.
+    #[prop]
+    rows: &'a [PaintRow],
+    /// The solid colour a row's switch to Solid starts from when the row was never solid.
+    #[prop]
+    fallback: Option<Srgba>,
 }
 
 impl<'a> PaintList<'a> {
     /// Black: a switch to Solid in a list with no solid paint and no [`fallback`](Self::fallback).
     pub const DEFAULT_SOLID: Srgba = Srgba::rgb(0.0, 0.0, 0.0);
 
-    /// A list of `paints` (name and paint per row); `id_salt` keys its state and `label` is its label.
-    pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, paints: &'a [(String, Paint)]) -> PaintList<'a> {
-        PaintList {
-            id_salt: IdSalt::new(id_salt),
-            label: label.into(),
-            paints,
-            selected: None,
-            options: PaintListOptions::default(),
-            rows: &[],
-            fallback: None,
-        }
+    /// A list of `paints` (name and paint per row) named `label`; `selected` is the selected row.
+    pub fn new(label: impl Into<Label>, paints: &'a [(String, Paint)], selected: Bind<'a, Option<usize>>) -> Self {
+        PaintList { label: label.into(), paints, selected, options: PaintListOptions::default(), rows: &[], fallback: None }
     }
 
-    /// Marks row `selected` as selected; none by default.
-    pub fn selected(mut self, selected: Option<usize>) -> PaintList<'a> {
-        self.selected = selected;
-        self
-    }
-
-    /// The row actions offered; none by default.
-    pub fn options(mut self, options: PaintListOptions) -> PaintList<'a> {
-        self.options = options;
-        self
-    }
-
-    /// The solid colour a row's switch to Solid starts from when the row was never solid: the
-    /// host's default. Without it, the list's last solid paint, else [`DEFAULT_SOLID`](Self::DEFAULT_SOLID).
-    /// A row that was solid before starts from its last solid colour whatever this is.
-    pub fn fallback(mut self, color: Srgba) -> PaintList<'a> {
-        self.fallback = Some(color);
-        self
-    }
-
-    /// Each paint's row data (its binding), by index; rows past the end have none.
-    pub fn rows(mut self, rows: &'a [PaintRow]) -> PaintList<'a> {
-        self.rows = rows;
-        self
-    }
-
-    // pc: crates/ui-egui/src/tools/shape_paint_ui.rs:64 (the chip per row); rows on
-    // `craft_ui::list` with an in-place `TextField` rename.
     /// Draws the rows and returns the selection, any rename and the row actions of this pass.
-    pub fn show(self, ui: &mut Ui) -> PaintListResponse {
-        if self.options.any() {
-            return self.show_with_actions(ui);
-        }
-        let Self { id_salt, label, paints, selected, .. } = self;
-        let tokens = Tokens::of(ui);
-        let chip = chip_size(&tokens);
-        let style = Swatch::style(&tokens, craft_theme::ControlSize::Md);
-        let ppp = ui.pixels_per_point();
-        let enabled = ui.is_enabled();
-        let rows: Vec<RowInfo<usize>> = (0..paints.len()).map(RowInfo::leaf).collect();
-        let mut selection = selected.filter(|&i| i < paints.len()).map_or_else(Selection::new, Selection::only);
-        let output = List::new((&id_salt, "list"), label, rows.as_slice()).selection(&mut selection).renamable(true).show(ui, |_, &index| {
-            let (name, paint) = &paints[index];
-            let (style, tokens) = (&style, &tokens);
-            ListRow::new(index, name.as_str()).thumb_sized(egui::vec2(chip.x, chip.y), move |painter, rect| {
-                paint_paint(painter, rect, paint, style, tokens, enabled, ppp);
-            })
-        });
-        let mut response = PaintListResponse { selected, renamed: None, events: Vec::new() };
-        for event in output.events {
-            match event {
-                ListEvent::Selection(change) => response.selected = change.row.or(response.selected),
-                ListEvent::Row(RowEvent::Renamed { row, text }) => {
-                    response.events.push(PaintListEvent::Rename { row, name: text.clone() });
-                    response.renamed = Some((row, text));
+    pub fn show(self, ui: &mut Ui) -> PaintListOutput {
+        let words = craft_ui::runtime::env::Env::of(ui).words::<PaintWords>();
+        let mut selected_bind = self.selected;
+        let (paints, rows, options, label) = (self.paints, self.rows, self.options, self.label.clone());
+        let mut output = None;
+        let mut add = false;
+        Stack::new().show(ui, |ui, cx| {
+            let held = match selected_bind.reborrow().read(cx) {
+                Some(Mixed::Same(Some(row))) if row < paints.len() => Selection::single(row),
+                _ => Selection::default(),
+            };
+            let list = List::<usize>::new(label.clone()).selection(Bind::given(held)).can_rename(|_| true);
+            output = Some(list.show_items(ui, &Paints(paints), &mut |row, _| {
+                let (name, paint) = &paints[*row];
+                let mut item =
+                    ListRow::new(name.clone()).thumb_aspect(ThumbSize::Small, ThumbAspect::new(ROW_CHIP.0, ROW_CHIP.1), move |painter, rect| {
+                        paint_thumb(painter, rect, paint);
+                    });
+                if let Some(link) = rows.get(*row).and_then(|data| data.link.as_ref()) {
+                    item = item.trailing(link.name.clone());
                 }
-                _ => {}
-            }
-        }
-        response
-    }
-
-    /// [`show`](Self::show) with row actions: the rows as before plus the trailing items of
-    /// [`PaintListOptions`], and the Add button under them.
-    fn show_with_actions(self, ui: &mut Ui) -> PaintListResponse {
-        // inv-figcraft: crates/ui-egui/src/panels/selection_colors.rs:1-130 (per row a swatch that
-        // opens the picker, hex, opacity, style or variable bind and detach, "Select layers with this
-        // color").
-        // new: `ListRow` trailing items (`HexField`, `NumberField`, `IconButton`s). The chip is a
-        // trailing item too (a `PaintChip`, which owns the picker), so a row with `edit` has no
-        // painted thumbnail; hex and opacity are for solid paints, and other rows keep their
-        // columns empty.
-        let Self { id_salt, label, paints, selected, options, rows: row_data, fallback } = self;
-        let fallback = fallback
-            .or_else(|| paints.iter().rev().find_map(|(_, paint)| if let Paint::Solid(color) = paint { Some(*color) } else { None }))
-            .unwrap_or(PaintList::DEFAULT_SOLID);
-        let tokens = Tokens::of(ui);
-        let labels = PaintListLabels::of(ui);
-        let ctx = ui.ctx().clone();
-        let numbers = LocaleNumbers::of_ctx(&ctx);
-        let chip = chip_size(&tokens);
-        let style = Swatch::style(&tokens, craft_theme::ControlSize::Md);
-        let ppp = ui.pixels_per_point();
-        let enabled = ui.is_enabled();
-        let side = IconButton::style(&tokens, ControlSize::Md).side;
-        let hex_width = TextField::style(&tokens, ControlSize::Md).width;
-        let percent = Unit::new("{n}%");
-        let percent_width = NumberField::fit_width(ui, ControlSize::Md, &numbers, 0.0..=100.0, 0, &percent);
-        let badge = Badge::look(&tokens, BadgeTone::Neutral, BadgeStyle::Soft);
-        let badge_font = role_format(&tokens, badge.label, badge.text);
-        let acted = RefCell::new(Vec::new());
-        let rows: Vec<RowInfo<usize>> = (0..paints.len()).map(RowInfo::leaf).collect();
-        let mut selection = selected.filter(|&i| i < paints.len()).map_or_else(Selection::new, Selection::only);
-        // The Add button takes the bottom strip first: the list fills the height left over.
-        let mut add_clicked = false;
-        let mut listed = None;
-        ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
-            if options.add {
-                add_clicked = ui.add(Button::new(labels.add.as_str()).icon(Icon::Plus).enabled(enabled)).clicked();
-            }
-            ui.with_layout(Layout::top_down(Align::Min), |ui| {
-                listed = Some(List::new((&id_salt, "list"), label, rows.as_slice()).selection(&mut selection).renamable(true).show(ui, |_, &row| {
-                    let (name, paint) = &paints[row];
-                    let (style, tokens, acted, labels, numbers) = (&style, &tokens, &acted, &labels, &*numbers);
-                    let solid = match paint {
-                        Paint::Solid(color) => Some(*color),
-                        _ => None,
+                if options.bind {
+                    let (name, icon) = match rows.get(*row).and_then(|data| data.link.as_ref()) {
+                        Some(PaintLink { kind: PaintLinkKind::Style, .. }) => (words.detach_style.clone(), "unlink"),
+                        Some(PaintLink { kind: PaintLinkKind::Variable, .. }) => (words.detach_variable.clone(), "unlink"),
+                        None => (words.styles.clone(), "palette"),
                     };
-                    let mut item = ListRow::new(row, name.as_str());
-                    if let Some(color) = solid {
-                        item = item.accessible_name(format!("{name}, {}", Swatch::hex(color.to_rgba())));
-                    }
-                    if !options.edit {
-                        item = item.thumb_sized(vec2(chip.x, chip.y), move |painter, rect| {
-                            paint_paint(painter, rect, paint, style, tokens, enabled, ppp);
-                        });
-                    }
-                    // The first item added is the outermost, so they go in from the trailing end.
-                    if options.remove {
-                        item = item.trailing_item(side, move |ui| {
-                            if ui.add(IconButton::new(Icon::Minus, labels.remove.as_str()).id_salt((&id_salt, "remove", row))).clicked() {
-                                acted.borrow_mut().push(PaintListEvent::Remove { row });
-                            }
-                        });
-                    }
-                    if options.select_users {
-                        item = item.trailing_item(side, move |ui| {
-                            if ui.add(IconButton::new(Icon::Layers, labels.select_users.as_str()).id_salt((&id_salt, "select-users", row))).clicked()
-                            {
-                                acted.borrow_mut().push(PaintListEvent::SelectUsers { row });
-                            }
-                        });
-                    }
-                    let link = row_data.get(row).and_then(|data| data.link.as_ref());
-                    if options.bind {
-                        item = item.trailing_item(side, move |ui| match link {
-                            Some(link) => {
-                                let text = match link.kind {
-                                    PaintLinkKind::Style => labels.detach_style.as_str(),
-                                    PaintLinkKind::Variable => labels.detach_variable.as_str(),
-                                };
-                                if ui.add(IconButton::new(Icon::Unlink, text).id_salt((&id_salt, "detach", row))).clicked() {
-                                    acted.borrow_mut().push(PaintListEvent::Detach { row });
-                                }
-                            }
-                            None => {
-                                if ui.add(IconButton::new(Icon::Palette, labels.styles.as_str()).id_salt((&id_salt, "bind", row))).clicked() {
-                                    acted.borrow_mut().push(PaintListEvent::Bind { row });
-                                }
-                            }
-                        });
-                    }
-                    if options.opacity {
-                        item = item.trailing_item(percent_width, move |ui| {
-                            let Some(color) = solid else { return };
-                            let shown = NumberField::new((&id_salt, "opacity", row), labels.opacity.as_str(), f64::from(color.a) * 100.0, numbers)
-                                .range(0.0..=100.0)
-                                .decimals(0..=0)
-                                .unit(Unit::new("{n}%"))
-                                .width(percent_width)
-                                .enabled(enabled)
-                                .show(ui);
-                            if let Some(event) = shown.event {
-                                acted.borrow_mut().push(PaintListEvent::Opacity { row, event: event.map(|percent| (percent / 100.0) as f32) });
-                            }
-                        });
-                    }
-                    if options.hex {
-                        item = item.trailing_item(hex_width, move |ui| {
-                            let Some(color) = solid else { return };
-                            let shown = HexField::new((&id_salt, "hex", row), labels.hex.as_str(), color.to_rgba())
-                                .reason(labels.invalid.as_str())
-                                .width(hex_width)
-                                .policy(EditPolicy::default().on_release_only(true))
-                                .enabled(enabled)
-                                .show(ui);
-                            if let Some(typed) = shown.committed() {
-                                // The field has no alpha digits: the colour keeps its alpha.
-                                let color = Srgba { a: color.a, ..Srgba::from(*typed) };
-                                acted.borrow_mut().push(PaintListEvent::Hex { row, color });
-                            }
-                        });
-                    }
-                    if options.edit {
-                        item = item.trailing_item(chip.x, move |ui| {
-                            let fallback = solid.unwrap_or(fallback);
-                            let shown =
-                                PaintChip::new((&id_salt, "chip", row), labels.edit.as_str(), paint, fallback, numbers).enabled(enabled).show(ui);
-                            if let Some(event) = shown.event {
-                                acted.borrow_mut().push(PaintListEvent::Edit { row, event });
-                            }
-                        });
-                    }
-                    if let Some(link) = link {
-                        let text = link.name.clone();
-                        let galley = ctx.fonts_mut(|f| f.layout_no_wrap(text.clone(), badge_font.font_id.clone(), badge.text));
-                        let width = (galley.size().x + 2.0 * badge.pad_x).max(badge.height).ceil();
-                        item = item.optional_item(width, move |ui| {
-                            ui.add(Badge::new(text));
-                        });
-                    }
-                    item
-                }));
-            });
+                    item = item.trailing_part(BIND, TrailingFace::Icon(IconSpec::svg(IconId::new(icon))), name);
+                }
+                if options.select_users {
+                    item = item.trailing_part(
+                        SELECT_USERS,
+                        TrailingFace::Icon(IconSpec::svg(IconId::new("layers"))),
+                        Label::from(words.select_users.fill(&[("name", name.as_str())])),
+                    );
+                }
+                if options.remove {
+                    item = item.trailing_part(
+                        REMOVE,
+                        TrailingFace::Icon(IconSpec::svg(IconId::new("minus"))),
+                        Label::from(words.remove.fill(&[("name", name.as_str())])),
+                    );
+                }
+                item
+            }));
+            if options.add {
+                add = craft_ui::contract::clicked(&Button::new(words.add.clone()).icon(IconId::new("plus")).show(ui));
+            }
         });
-        let mut response = PaintListResponse { selected, renamed: None, events: acted.into_inner() };
-        for event in listed.map(|output| output.events).unwrap_or_default() {
+        let Some(list) = output else { unreachable!("the stack ran its body") };
+        let mut selected = None;
+        let mut events = Vec::new();
+        for event in list.events {
             match event {
-                ListEvent::Selection(change) => response.selected = change.row.or(response.selected),
-                ListEvent::Row(RowEvent::Renamed { row, text }) => {
-                    response.events.push(PaintListEvent::Rename { row, name: text.clone() });
-                    response.renamed = Some((row, text));
+                CollectionEvent::Selection(SelectionChange::Set(keys)) => selected = keys.last().copied().or(selected),
+                CollectionEvent::Selection(SelectionChange::Toggle(row)) => selected = Some(row),
+                CollectionEvent::Rename(event) if matches!(event, EditEvent::Commit { .. }) => {
+                    if let Some(Rename { key, name, .. }) = event.value() {
+                        events.push(PaintListEvent::Rename { row: *key, name: name.clone() });
+                    }
+                }
+                CollectionEvent::Item(row, RowEvent::Trailing { part, .. }) => {
+                    let linked = self.rows.get(row).is_some_and(|data| data.link.is_some());
+                    events.push(match part {
+                        REMOVE => PaintListEvent::Remove(row),
+                        SELECT_USERS => PaintListEvent::SelectUsers(row),
+                        _ if linked => PaintListEvent::Detach(row),
+                        _ => PaintListEvent::Bind(row),
+                    });
                 }
                 _ => {}
             }
         }
-        if add_clicked {
-            response.events.push(PaintListEvent::Add);
+        if add {
+            events.push(PaintListEvent::Add);
         }
-        response
+        PaintListOutput { response: list.response, selected, events }
+    }
+}
+
+/// Draws `paint` into a row's thumbnail: a solid paint over the checkerboard where it has alpha, a gradient ramp,
+/// the well for No Color with a diagonal, a pattern tiled or a picture stretched.
+fn paint_thumb(painter: &ContentPainterCx<'_>, rect: Rect, paint: &Paint) {
+    match paint {
+        Paint::Solid(color) => {
+            if color.a < 1.0 {
+                painter.checker(rect);
+            }
+            painter.painter.rect_filled(rect, 0.0, Color32::from(*color));
+        }
+        Paint::None => {
+            let inner = painter.plot_frame(rect);
+            painter.outline(&PaintShape::Path(vec![inner.left_bottom(), inner.right_top()]));
+        }
+        Paint::Gradient(preview) => {
+            painter.checker(rect);
+            if !preview.stops.is_empty() {
+                painter.ramp(rect, &ramp_stops(preview, false), Axis::X);
+            }
+        }
+        Paint::Pattern(image) | Paint::Picture(image) => {
+            painter.checker(rect);
+            if let Some(texture) = image.texture {
+                paint_image(painter, rect, texture, matches!(paint, Paint::Pattern(_)));
+            }
+        }
     }
 }

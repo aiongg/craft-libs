@@ -1,49 +1,69 @@
 //! [`ColorRamp`]: the bar under a colour panel's slider rows, with white and black boxes at its end.
 
+use super::channels::primary;
+use craft_behavior::{Axis, Metrics, NavMove, PartKey, PressPhase, Sense};
+use craft_theme::{Hsb, Srgba};
+use craft_ui::canvas::context_click;
+use craft_ui::contract::{
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, Name, Outcome, PaintUi, PartsCx, Pointer as _,
+    Props as _, Remember as _, Role, WordSetCx as _,
+};
+use craft_ui::primitives::{PaintShape, StrokeWidth};
+use craft_ui::runtime::commands::FireSource;
+use craft_ui::runtime::env::Label;
+use craft_ui::runtime::focus::{KeepKeys, KeyUse};
+use craft_ui::style::{ComponentStyle, DataColor, FocusLook, StyleColor, StyleCx};
+use egui::{Color32, CornerRadius, Mesh, Pos2, Rect, Response, Vec2, pos2};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::Arc;
 
-use craft_theme::{Hsb, Srgba};
-use egui::accesskit::{Action, Role};
-use egui::{AsIdSalt, Color32, CornerRadius, IdSalt, Key, Mesh, Modifiers, PointerButton, Pos2, Rect, Response, Sense, StrokeKind, Ui, pos2, vec2};
+#[cfg(feature = "screen-testing")]
+mod stories;
 
-use super::picker::installed;
-use super::{ColorArea, ColorPartsStyle, faded_stroke};
-use craft_ui::controls::slider::{KEY_FILTER, PressTurn, press_turn, tap};
-use craft_ui::edit::{EditEvent, EditPolicy, EditResponse, Gesture};
-use craft_ui::primitives::{FocusRing, Interactive};
-use craft_ui::theme::{Tokens, TokensOf, UiTokens};
+/// The bar: a press picks the colour under the pointer.
+const BAR: PartKey = PartKey::new("bar");
+/// The white box at the end.
+const WHITE: PartKey = PartKey::new("white");
+/// The black box at the end.
+const BLACK: PartKey = PartKey::new("black");
 
-/// The ramp's least height, as a multiple of `size.control.md`.
-const HEIGHT_MIN_PER_CONTROL: f32 = 1.17;
-/// The side of each end box, as a multiple of `size.control.md`.
-const BOXES_PER_CONTROL: f32 = 0.667;
-/// Columns of the quantised ramp grid.
-const CELLS_X: u32 = 48;
-/// Rows of the quantised ramp grid.
-const CELLS_Y: u32 = 8;
+/// Columns of the ramp grid.
+const CELLS_X: usize = 48;
+/// Rows of the ramp grid.
+const CELLS_Y: usize = 8;
+/// Cells a Shift arrow moves.
+const FAR: i64 = 10;
 
-/// The ramp's sizes, from [`ColorRamp::style`].
-#[derive(Clone, Copy, Debug, PartialEq)]
+craft_ui::words! {
+    /// The words of colour ramps.
+    pub struct ColorRampWords {
+        white: "colorRamp.white" = "White";
+        black: "colorRamp.black" = "Black";
+    }
+}
+
+/// The style of a colour ramp.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
 pub struct ColorRampStyle {
-    /// Default height: `size.thumb.lg`.
-    pub height: f32,
-    /// Least height.
-    pub height_min: f32,
-    /// Side of an end box.
-    pub boxes: f32,
-    /// Gap between the bar and the boxes: `space.gap.tight`.
-    pub boxes_gap: f32,
-    /// Columns of the quantised grid.
-    pub cells_x: u32,
-    /// Rows of the quantised grid.
-    pub cells_y: u32,
+    #[style(metrics)]
+    metrics: Metrics,
+    #[style(focus)]
+    focus: FocusLook,
+    /// The edge round the bar and the boxes.
+    edge: StyleColor,
+    /// The side of an end box.
+    boxes: f32,
+    /// The gap between the bar and the boxes.
+    boxes_gap: f32,
+    /// The diameter of the cursor cell's marker.
+    marker: f32,
 }
 
 /// Which colours the ramp shows.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum RampKind {
     /// Hue across; white at the top through the full colour in the middle to black at the bottom.
     #[default]
@@ -53,210 +73,169 @@ pub enum RampKind {
     CmykSpectrum,
     /// White at the left to black at the right.
     Grayscale,
-    /// From one colour at the left to another at the right, in encoded sRGB
-    /// ([`ends`](ColorRamp::ends)).
+    /// From one colour at the left to another at the right, in encoded sRGB ([`ends`](ColorRamp::ends)).
     Between,
 }
 
 /// A colour the ramp picked.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct RampPick {
     /// The picked colour.
     pub color: Srgba,
-    /// Alt was held at the press (or at the click, key or box press): the host sets the colour it
-    /// is not editing.
+    /// Alt was held at the press (or at the click or box press): the host sets the colour it is not editing.
     pub other: bool,
 }
 
-/// What [`ColorRamp::show`] reports.
-#[derive(Clone, Debug)]
+impl RampPick {
+    /// A pick of `color`, with `other` when Alt was held.
+    pub const fn new(color: Srgba, other: bool) -> Self {
+        RampPick { color, other }
+    }
+}
+
+/// Maps a spectrum colour to the host's gamut: `ColorRamp::gamut`.
+pub struct Gamut<'a>(Box<dyn Fn(Srgba) -> Srgba + 'a>);
+
+impl<'a> Gamut<'a> {
+    /// The gamut that runs `map`.
+    pub fn new(map: impl Fn(Srgba) -> Srgba + 'a) -> Self {
+        Gamut(Box::new(map))
+    }
+}
+
+/// What [`ColorRamp`] returns.
+#[derive(Debug)]
 #[non_exhaustive]
-pub struct ColorRampResponse {
-    /// The pick, through the edit lifecycle. The ramp has no value of the host's to compare with,
-    /// so every pick is a change.
+pub struct ColorRampOutput {
+    /// The pick, through the edit lifecycle. The ramp has no value of the host's to compare with, so every pick is a
+    /// change.
     pub edit: EditResponse<RampPick>,
     /// A click with Shift: the host moves to its next ramp. Nothing was picked.
     pub cycle: bool,
-    /// The bar's response, for the host's `ContextMenu`.
-    pub bar: Response,
-    /// A secondary click that began and ended on the bar: where the host opens its menu, with
-    /// `ContextMenu::open_at(Some(OpenAt::Pointer(pos)))` and `own_gestures(false)` on
-    /// [`bar`](ColorRampResponse::bar). The bar senses drags only, so egui's own secondary click
-    /// never fires on it.
+    /// A secondary click that began and ended on the bar: where the host opens its menu.
     pub menu_at: Option<Pos2>,
 }
 
-/// The value the gesture compares picks against: no colour a pick can have.
-const NO_PICK: RampPick = RampPick { color: Srgba::new(-1.0, -1.0, -1.0, -1.0), other: false };
+impl Outcome for ColorRampOutput {
+    type Value = RampPick;
 
-/// The bar under the Color panel's slider rows (Photoshop's colour ramp, PhotoCraft's `ramp`): a
-/// spectrum, a grey ramp or a ramp between two colours, with a white and a black box at its end.
+    fn response(&self) -> &Response {
+        &self.edit.response
+    }
+
+    #[cfg(feature = "screen-testing")]
+    fn story_facts(&self) -> craft_ui::testing::StoryOutput {
+        self.edit.story_facts()
+    }
+}
+
+/// What a press began with, kept for its gesture.
+#[derive(Clone, Copy, Default)]
+struct Held {
+    shift: bool,
+    alt: bool,
+    /// The ends of a Between ramp at the press.
+    ends: Option<[Srgba; 2]>,
+}
+
+/// The cursor cell: column and row.
+#[derive(Clone, Copy, Default)]
+struct Cursor(Option<(usize, usize)>);
+
+/// The colours of the mesh, with what they were computed for.
+#[derive(Clone, Default)]
+struct Cache {
+    signature: u64,
+    colors: Arc<Vec<Color32>>,
+}
+
+/// The bar under the Color panel's slider rows (Photoshop's colour ramp): a spectrum, a grey ramp or a ramp between
+/// two colours, with a white and a black box at its end.
 ///
-/// ```
-/// use craft_theme::Srgba;
-/// use craft_color::ui::{ColorRamp, RampKind};
-/// # egui::__run_test_ui(|ui| { let mut color = Srgba::rgb(0.2, 0.5, 0.8);
-/// let shown = ColorRamp::new("ramp", "Color ramp", RampKind::Spectrum).show(ui);
-/// if let Some(pick) = shown.edit.event.as_ref().and_then(|e| e.value()) {
-///     color = pick.color;
-/// }
-/// # });
-/// ```
+/// The bar is 48 by 8 cells, shaded between the vertices of a 49 by 9 grid; a [`web_safe`](ColorRamp::web_safe) ramp
+/// is flat cells coloured at their centres. Hue is a function of x only, so a pick carries hue and saturation. The
+/// colours are computed when the kind, ends, web flag or [`gamut_revision`](ColorRamp::gamut_revision) change, and
+/// kept.
 ///
-/// The bar is 48 by 8 cells, shaded between the vertices of a 49 by 9 grid; a [`web_safe`](ColorRamp::web_safe)
-/// ramp is flat cells coloured at their centres. Hue is a function of x only, so a pick carries
-/// hue and saturation; the host's slider rows show it through the kept rule. The colours are
-/// computed when the kind, ends, web flag or [`gamut_revision`](ColorRamp::gamut_revision)
-/// change, and cached.
-///
-/// - Pointer: a press picks the colour under the pointer, drawn in the press frame (the cell's
-///   centre on a web-safe ramp); a drag updates, also outside the bar, where the pick stays at the
-///   edge; the release commits. A press and release in one frame is a
-///   [`Set`](craft_ui::edit::EditEvent::Set). A [`Between`](RampKind::Between) ramp keeps the ends
-///   it had at the press for the whole gesture. Alt at the press sets
-///   [`other`](RampPick::other) on every event. A press with Shift starts no gesture; releasing
-///   it without moving sets [`cycle`](ColorRampResponse::cycle). A right-click on the bar is
-///   reported as [`menu_at`](ColorRampResponse::menu_at) for the host's `ContextMenu`.
-/// - Boxes: a click on the white or the black box (also by keyboard) is a
-///   [`Set`](craft_ui::edit::EditEvent::Set) of that colour; they are Tab stops of their own.
-/// - Keys, with the bar focused: it has a cursor cell, starting at the left end of the middle row,
-///   shown as the picker's marker. Arrows move it one cell (Shift ten), Home and End to the row's
-///   ends, Page Up and Page Down to the top and bottom rows; Left and Right do not mirror. Enter
-///   or Space picks the cursor cell (a `Set`), Alt+Enter with `other`. A press moves the cursor to
-///   its cell.
-/// - AccessKit: a `Group` named `label` whose value is [`kind_name`](ColorRamp::kind_name); its
-///   click picks the cursor cell. The boxes are `Button`s named by [`TEXTS`](ColorRamp::TEXTS).
+/// - Pointer: a click picks the colour under the pointer (the cell's centre on a web-safe ramp); a drag picks while it
+///   moves, also outside the bar, where the pick stays at the edge, and commits at the release. A
+///   [`Between`](RampKind::Between) ramp keeps the ends it had at the press for the whole gesture. Alt at the press
+///   sets [`other`](RampPick::other) on every event. A click with Shift starts no gesture and sets
+///   [`cycle`](ColorRampOutput::cycle). A secondary click on the bar is reported as
+///   [`menu_at`](ColorRampOutput::menu_at).
+/// - Boxes: a click on the white or the black box (also by keyboard) is a `Set` of that colour; they are Tab stops of
+///   their own.
+/// - Keys, with the bar focused: it has a cursor cell, starting at the left end of the middle row. Arrows move it one
+///   cell (Shift ten), Home and End to the row's ends, Page Up and Page Down to the top and bottom rows; Left and
+///   Right do not mirror. Enter or Space picks the cursor cell. A press moves the cursor to its cell.
+/// - AccessKit: the bar is a `Group` named `label` whose value is [`kind_name`](ColorRamp::kind_name); the boxes are
+///   `Button`s.
 /// - Nothing mirrors right to left; the boxes stay at the right.
-#[must_use = "show the ramp with `show`"]
+#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
+#[component(content_painter)]
 pub struct ColorRamp<'a> {
-    id_salt: IdSalt,
-    label: String,
+    #[common]
+    common: Common,
     kind: RampKind,
-    kind_name: Option<String>,
-    ends: [Srgba; 2],
-    gamut: Option<&'a dyn Fn(Srgba) -> Srgba>,
+    pick: Bind<'a, RampPick>,
+    /// The colours at the left and the right of a [`Between`](RampKind::Between) ramp; black and white without them.
+    #[prop]
+    ends: Option<[Srgba; 2]>,
+    /// Maps each colour of a spectrum ramp to the host's gamut (a CMYK round trip). It runs for the cached colours
+    /// only, and again for a pick.
+    #[prop(func = "Fn(Srgba) -> Srgba")]
+    gamut: Option<Gamut<'a>>,
+    /// The host's counter for the working space `gamut` maps into; a change recomputes the colours.
+    #[prop]
     gamut_revision: u64,
+    /// Whether every channel is rounded to the nearest of 0, 0.2, ... 1 and the ramp is flat cells.
+    #[prop]
     web_safe: bool,
+    /// Whether the white and black boxes follow the bar; on by default.
+    #[prop]
     boxes: bool,
-    height: Option<f32>,
-    policy: EditPolicy,
-    enabled: bool,
-    press_waits: bool,
-    texts: Option<[String; 2]>,
+    /// The ramp's kind as the host names it ("RGB Spectrum"), the bar's accessible value.
+    #[prop(into)]
+    kind_name: Option<Label>,
+    colors: Arc<Vec<Color32>>,
+    shown_ends: [Srgba; 2],
+    cursor: (usize, usize),
+    cycle: bool,
+    menu_at: Option<Pos2>,
 }
 
 impl<'a> ColorRamp<'a> {
-    /// The words the boxes' accessible names ask [`texts`](ColorRamp::texts) for.
-    pub const TEXTS: [&'static str; 2] = ["White", "Black"];
-
-    /// A ramp named `label` (translated by the host: "Color ramp"); `id_salt` keeps its gesture,
-    /// focus and cursor when the layout around it changes.
-    pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, kind: RampKind) -> Self {
-        Self {
-            id_salt: IdSalt::new(id_salt),
-            label: label.into(),
+    /// A ramp named `label` ("Color ramp") of `kind`, reporting its picks through `pick`.
+    pub fn new(label: impl Into<Label>, kind: RampKind, pick: Bind<'a, RampPick>) -> Self {
+        let ends = Self::default_ends();
+        ColorRamp {
+            common: Common::new(),
             kind,
-            kind_name: None,
-            ends: [Srgba::rgb(0.0, 0.0, 0.0), Srgba::rgb(1.0, 1.0, 1.0)],
+            pick,
+            ends: None,
             gamut: None,
             gamut_revision: 0,
             web_safe: false,
             boxes: true,
-            height: None,
-            policy: EditPolicy::default(),
-            enabled: true,
-            press_waits: false,
-            texts: None,
+            kind_name: None,
+            colors: Arc::default(),
+            shown_ends: ends,
+            cursor: (0, CELLS_Y / 2),
+            cycle: false,
+            menu_at: None,
         }
+        .label(label)
     }
 
-    /// The colours at the left and the right of a [`Between`](RampKind::Between) ramp.
-    pub fn ends(mut self, from: Srgba, to: Srgba) -> Self {
-        self.ends = [from, to];
-        self
+    fn default_ends() -> [Srgba; 2] {
+        [Srgba::rgb(0.0, 0.0, 0.0), Srgba::rgb(1.0, 1.0, 1.0)]
     }
 
-    /// Maps each colour of a [`Spectrum`](RampKind::Spectrum) or [`CmykSpectrum`](RampKind::CmykSpectrum) to the host's gamut (a CMYK round
-    /// trip). It runs for the cached vertices only, and again for a pick.
-    pub fn gamut(mut self, gamut: &'a dyn Fn(Srgba) -> Srgba) -> Self {
-        self.gamut = Some(gamut);
-        self
-    }
-
-    /// The host's counter for the working space `gamut` maps into; a change recomputes the colours.
-    pub fn gamut_revision(mut self, revision: u64) -> Self {
-        self.gamut_revision = revision;
-        self
-    }
-
-    /// Whether every channel is rounded to the nearest of 0, 0.2, ... 1 and the ramp is flat
-    /// cells.
-    pub fn web_safe(mut self, web_safe: bool) -> Self {
-        self.web_safe = web_safe;
-        self
-    }
-
-    /// Whether the white and black boxes follow the bar; on by default.
-    pub fn boxes(mut self, boxes: bool) -> Self {
-        self.boxes = boxes;
-        self
-    }
-
-    /// The ramp's height, not below the style's `height_min`; its `height` without it.
-    pub fn height(mut self, height: f32) -> Self {
-        self.height = Some(height);
-        self
-    }
-
-    /// How the gesture reports ([`EditPolicy`]).
-    pub fn policy(mut self, policy: EditPolicy) -> Self {
-        self.policy = policy;
-        self
-    }
-
-    /// Turns input on or off; on by default.
-    pub fn enabled(mut self, enabled: bool) -> Self {
-        self.enabled = enabled;
-        self
-    }
-
-    /// Whether a press waits for another control's typing run to commit and then edits the colour
-    /// that run left: on inside a panel with number fields, off standalone.
-    pub fn press_waits(mut self, waits: bool) -> Self {
-        self.press_waits = waits;
-        self
-    }
-
-    /// The ramp's kind as the host names it ("RGB Spectrum"), the group's accessible value.
-    pub fn kind_name(mut self, name: impl Into<String>) -> Self {
-        self.kind_name = Some(name.into());
-        self
-    }
-
-    /// The boxes' accessible names, translated by the host, as [`TEXTS`](ColorRamp::TEXTS) lists
-    /// them: the white box's, then the black one's.
-    pub fn texts(mut self, white: impl Into<String>, black: impl Into<String>) -> Self {
-        self.texts = Some([white.into(), black.into()]);
-        self
-    }
-
-    /// The sizes the ramp draws with, read from the theme `tokens`.
-    pub fn style(tokens: &UiTokens) -> ColorRampStyle {
-        let control = tokens.size.control.md;
-        ColorRampStyle {
-            height: tokens.size.thumb.lg,
-            height_min: control * HEIGHT_MIN_PER_CONTROL,
-            boxes: control * BOXES_PER_CONTROL,
-            boxes_gap: tokens.space.gap.tight,
-            cells_x: CELLS_X,
-            cells_y: CELLS_Y,
-        }
-    }
-
-    /// The colour at (`x`, `y`) as fractions of the bar, `y` down. A non-finite or outside fraction
-    /// is clamped into the bar. Spectrum: hue `x` (below 360), white at the top through the full
-    /// colour at the middle to black at the bottom, through `gamut` when given; grayscale: white
-    /// to black; between: `ends` from the left to the right. `web_safe` rounds each channel.
+    /// The colour at (`x`, `y`) as fractions of the bar, `y` down. A non-finite or outside fraction is clamped into
+    /// the bar. Spectrum: hue `x` (below 360), white at the top through the full colour at the middle to black at the
+    /// bottom, through `gamut` when given; grayscale: white to black; between: `ends` from the left to the right.
+    /// `web_safe` rounds each channel.
     pub fn color_at(kind: RampKind, web_safe: bool, gamut: Option<&dyn Fn(Srgba) -> Srgba>, ends: [Srgba; 2], x: f32, y: f32) -> Srgba {
         let unit = |v: f32| if v.is_finite() { v.clamp(0.0, 1.0) } else { 0.0 };
         let (x, y) = (unit(x), unit(y));
@@ -277,204 +256,28 @@ impl<'a> ColorRamp<'a> {
         Srgba::new(web(color.r), web(color.g), web(color.b), unit(color.a))
     }
 
-    /// Shows the ramp and returns this frame's pick. The bar's response covers the bar.
-    pub fn show(self, ui: &mut Ui) -> ColorRampResponse {
-        let tokens = Tokens::of(ui);
-        let t = ColorRamp::style(&tokens);
-        let style = ColorArea::style(&tokens);
-        let (nx, ny) = (t.cells_x.max(1) as usize, t.cells_y.max(1) as usize);
-        let height = self.height.filter(|h| h.is_finite()).unwrap_or(t.height).max(t.height_min);
-        let (all, _) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::hover());
-        let boxes_width = if self.boxes { t.boxes.min(all.width() / 2.0) } else { 0.0 };
-        let gap = if self.boxes { t.boxes_gap } else { 0.0 };
-        let bar = Rect::from_min_max(all.min, pos2((all.right() - boxes_width - gap).max(all.left()), all.bottom()));
-        let boxes = Rect::from_min_max(pos2(all.right() - boxes_width, all.top()), all.max);
-
-        let sensed = Interactive::salted(self.id_salt, Role::Group, self.label.as_str())
-            .sense(Sense::drag())
-            .enabled(self.enabled)
-            .state_layer(false)
-            .focus_ring(false)
-            .interact_at(ui, bar);
-        let response = sensed.response().clone();
-        let (id, enabled) = (response.id, response.enabled());
-        let mods = ui.input(|i| i.modifiers);
-        let menu_at = secondary_click(ui, &response, bar);
-
-        // The host holds no pick, so the gesture compares against the one it last reported while it
-        // runs: reading that as the host's echo keeps it from being cancelled as an outside change.
-        let host_key = id.with("craft_ui::ramp_host");
-        let host = ui.data(|d| d.get_temp::<RampPick>(host_key)).unwrap_or(NO_PICK);
-        let mut gesture = Gesture::load(ui, id, &host, self.policy).event_filter(KEY_FILTER).enabled(enabled);
-        let started = response.drag_started_by(PointerButton::Primary).then(|| response.interact_pointer_pos()).flatten();
-        let tapped = tap(ui, &response);
-        let turn = press_turn(ui, id, self.press_waits, gesture.id(), started.or(tapped));
-        let waits = matches!(turn, PressTurn::Waits);
-        let dragging = response.dragged_by(PointerButton::Primary);
-
-        // The press's state: its modifiers and, for a Between ramp, the ends it began with.
-        let press_key = id.with("craft_ui::ramp_press");
-        let mut press =
-            ui.data(|d| d.get_temp::<Press>(press_key)).unwrap_or(Press { shift: false, alt: false, moved: false, origin: None, ends: self.ends });
-        let press_mods = press_modifiers(ui, id, mods, waits, started.is_some() || tapped.is_some(), matches!(turn, PressTurn::Held(_)));
-        let new_press = !waits && (started.is_some() || tapped.is_some() || matches!(turn, PressTurn::Held(_)));
-        if new_press {
-            let origin = match turn {
-                PressTurn::Held(at) => Some(at),
-                _ => started.or(tapped),
-            };
-            press = Press { shift: press_mods.shift, alt: press_mods.alt, moved: false, origin, ends: self.ends };
-        }
-        let ends = if dragging && !new_press { press.ends } else { self.ends };
-        let cell_at = |pos: Pos2| cell_of(bar, nx, ny, pos);
-        let pick_at = |pos: Pos2, other: bool| {
-            let (fx, fy) = fractions(bar, pos);
-            let (fx, fy) = if self.web_safe { cell_centre(fx, fy, nx, ny) } else { (fx, fy) };
-            RampPick { color: ColorRamp::color_at(self.kind, self.web_safe, self.gamut, ends, fx, fy), other }
-        };
-        let cursor_key = id.with("craft_ui::ramp_cursor");
-        let mut cursor = ui.data(|d| d.get_temp::<(usize, usize)>(cursor_key)).unwrap_or((0, ny / 2));
-        cursor = (cursor.0.min(nx - 1), cursor.1.min(ny - 1));
-
-        let mut cycle = false;
-        if let PressTurn::Held(held) = turn {
-            cursor = cell_at(held);
-            if press.shift {
-                cycle = !dragging;
-            } else {
-                gesture.begin_with_value();
-                gesture.update(pick_at(held, press.alt), press_mods);
-                if !dragging {
-                    gesture.commit();
-                }
-            }
-        }
-        if started.is_some() {
-            response.request_focus();
-            if !waits {
-                cursor = started.map_or(cursor, cell_at);
-                if !press.shift {
-                    gesture.begin_with_value();
-                }
-            }
-        }
-        if dragging
-            && !new_press
-            && let Some(pos) = response.interact_pointer_pos()
-        {
-            if press.origin.is_some_and(|o| o.distance(pos) > MOVED) {
-                press.moved = true;
-            }
-            if !press.shift {
-                cursor = cell_at(pos);
-            }
-        }
-        if dragging
-            && !press.shift
-            && !matches!(turn, PressTurn::Held(_))
-            && let Some(pos) = response.interact_pointer_pos()
-        {
-            gesture.update(pick_at(pos, press.alt), mods);
-        }
-        if response.drag_stopped() {
-            gesture.commit();
-            cycle |= press.shift && !press.moved;
-        }
-        if let Some(pos) = tapped.filter(|_| !waits) {
-            response.request_focus();
-            cursor = cell_at(pos);
-            if mods.shift {
-                cycle = true;
-            } else {
-                gesture.set(pick_at(pos, mods.alt));
-            }
-        }
-        ui.data_mut(|d| d.insert_temp(press_key, press));
-
-        // Keys.
-        if enabled && response.has_focus() && !dragging {
-            let step = key_move(ui, nx, ny, cursor);
-            cursor = step.cursor;
-            if let Some(other) = step.pick {
-                let (cx, cy) = cell_centre_of(cursor, nx, ny);
-                gesture.set(RampPick { color: ColorRamp::color_at(self.kind, self.web_safe, self.gamut, ends, cx, cy), other });
-            }
-        }
-        if enabled && ui.input(|i| i.num_accesskit_action_requests(id, Action::Click)) > 0 {
-            response.request_focus();
-            let (cx, cy) = cell_centre_of(cursor, nx, ny);
-            gesture.set(RampPick { color: ColorRamp::color_at(self.kind, self.web_safe, self.gamut, ends, cx, cy), other: false });
-        }
-        ui.data_mut(|d| d.insert_temp(cursor_key, cursor));
-
-        let box_focus = self.show_boxes(ui, id, boxes, &style, &mut gesture);
-
-        // The bar.
-        let sensed = match &self.kind_name {
-            Some(name) => sensed.value(name.clone()),
-            None => sensed,
-        };
-        let response = sensed.finish(ui);
-        if enabled {
-            ui.ctx().accesskit_node_builder(id, |node| node.add_action(Action::Click));
-        }
-        let focused = response.has_focus();
-        if ui.is_rect_visible(all) {
-            let colors = self.colors(ui, id, nx, ny, ends);
-            ui.painter().add(ramp_mesh(bar, &colors, nx, ny, self.web_safe));
-            ui.painter().rect_stroke(bar, CornerRadius::ZERO, faded_stroke(style.edge, enabled), StrokeKind::Outside);
-            if focused && FocusRing::visible(ui.ctx()) {
-                let at = pos2(
-                    bar.left() + bar.width() * (cursor.0 as f32 + 0.5) / nx as f32,
-                    bar.top() + bar.height() * (cursor.1 as f32 + 0.5) / ny as f32,
-                );
-                ui.painter().circle_stroke(at, style.marker_outer_radius, faded_stroke(style.marker_outer, enabled));
-                ui.painter().circle_stroke(at, style.marker_inner_radius, faded_stroke(style.marker_inner, enabled));
-            }
-        }
-        FocusRing::paint_if(ui, all.expand(style.edge.width), CornerRadius::ZERO, focused || box_focus);
-        let event = gesture.finish();
-        remember_host(ui, host_key, &event);
-        ColorRampResponse { edit: EditResponse::new(response.clone(), event), cycle, bar: response, menu_at }
+    fn gamut_fn(&self) -> Option<&dyn Fn(Srgba) -> Srgba> {
+        self.gamut.as_ref().map(|gamut| &*gamut.0)
     }
 
-    /// The white and black boxes, each a [`Set`](EditEvent::Set) of its colour through `gesture`;
-    /// whether one has the keyboard focus.
-    fn show_boxes(&self, ui: &Ui, id: egui::Id, boxes: Rect, style: &ColorPartsStyle, gesture: &mut Gesture<RampPick>) -> bool {
-        let enabled = self.enabled;
-        let half = boxes.center().y;
-        let white_rect = Rect::from_min_max(boxes.min, pos2(boxes.right(), half));
-        let black_rect = Rect::from_min_max(pos2(boxes.left(), half), boxes.max);
-        let mut box_focus = false;
-        let texts = self.texts.clone().unwrap_or_else(|| installed(ui, Self::TEXTS));
-        if self.boxes {
-            for (index, (rect, color)) in [(white_rect, Srgba::rgb(1.0, 1.0, 1.0)), (black_rect, Srgba::rgb(0.0, 0.0, 0.0))].into_iter().enumerate() {
-                let name = if index == 0 { "white" } else { "black" };
-                let sensed = Interactive::with_id(Interactive::id_in(ui, (id, name)), Role::Button, texts[index].as_str())
-                    .sense(Sense::click())
-                    .enabled(self.enabled)
-                    .state_layer(false)
-                    .focus_ring(false)
-                    .interact_at(ui, rect);
-                let clicked = sensed.response().clicked();
-                let response = sensed.finish(ui);
-                box_focus |= response.has_focus();
-                if clicked {
-                    gesture.set(RampPick { color, other: ui.input(|i| i.modifiers.alt) });
-                }
-                ui.painter().rect_filled(rect, CornerRadius::ZERO, Color32::from(color));
-            }
-            ui.painter().rect_stroke(boxes, CornerRadius::ZERO, faded_stroke(style.edge, enabled), StrokeKind::Outside);
-        }
-        box_focus
+    /// The pick at the fractions (`fx`, `fy`) of the bar.
+    fn pick_at(&self, ends: [Srgba; 2], fx: f32, fy: f32, other: bool) -> RampPick {
+        let (fx, fy) = if self.web_safe { cell_centre(fx, fy) } else { (fx, fy) };
+        RampPick::new(Self::color_at(self.kind, self.web_safe, self.gamut_fn(), ends, fx, fy), other)
     }
 
-    /// The colours of the mesh for `ends` (the ones a pick uses, so a dragged Between ramp stays
-    /// as the press drew it), from the cache while nothing they depend on has changed: 49 by 9
-    /// vertices, or 48 by 8 cell centres for a web-safe ramp.
-    fn colors(&self, ui: &Ui, id: egui::Id, nx: usize, ny: usize, ends: [Srgba; 2]) -> Arc<Vec<Color32>> {
+    /// The bar's rect and the boxes' in the room `rect`.
+    fn layout(&self, rect: Rect, style: &ColorRampStyle) -> (Rect, Rect) {
+        let boxes_width = if self.boxes { style.boxes.min(rect.width() / 2.0) } else { 0.0 };
+        let gap = if self.boxes { style.boxes_gap } else { 0.0 };
+        let bar = Rect::from_min_max(rect.min, pos2((rect.right() - boxes_width - gap).max(rect.left()), rect.bottom()));
+        (bar, Rect::from_min_max(pos2(rect.right() - boxes_width, rect.top()), rect.max))
+    }
+
+    /// The colours of the mesh for `ends`: 49 by 9 vertices, or 48 by 8 cell centres for a web-safe ramp.
+    fn colors(&self, cache: &mut Cache, ends: [Srgba; 2]) -> Arc<Vec<Color32>> {
         let mut hasher = DefaultHasher::new();
-        (self.kind, self.web_safe, nx, ny).hash(&mut hasher);
+        (self.kind, self.web_safe).hash(&mut hasher);
         if self.kind == RampKind::Between {
             ends.iter().for_each(|c| [c.r, c.g, c.b, c.a].map(f32::to_bits).hash(&mut hasher));
         }
@@ -482,96 +285,20 @@ impl<'a> ColorRamp<'a> {
             (self.gamut.is_some(), self.gamut_revision).hash(&mut hasher);
         }
         let signature = hasher.finish();
-        let key = id.with("craft_ui::ramp_cache");
-        if let Some((cached, colors)) = ui.data(|d| d.get_temp::<(u64, Arc<Vec<Color32>>)>(key))
-            && cached == signature
-        {
-            return colors;
+        if cache.signature == signature && !cache.colors.is_empty() {
+            return cache.colors.clone();
         }
-        let (cols, rows, half) = if self.web_safe { (nx, ny, 0.5) } else { (nx + 1, ny + 1, 0.0) };
+        let (cols, rows, half) = if self.web_safe { (CELLS_X, CELLS_Y, 0.5) } else { (CELLS_X + 1, CELLS_Y + 1, 0.0) };
         let mut colors = Vec::with_capacity(cols * rows);
         for row in 0..rows {
             for col in 0..cols {
-                let (x, y) = ((col as f32 + half) / nx as f32, (row as f32 + half) / ny as f32);
-                colors.push(Color32::from(ColorRamp::color_at(self.kind, self.web_safe, self.gamut, ends, x, y)));
+                let (x, y) = ((col as f32 + half) / CELLS_X as f32, (row as f32 + half) / CELLS_Y as f32);
+                colors.push(Color32::from(Self::color_at(self.kind, self.web_safe, self.gamut_fn(), ends, x, y)));
             }
         }
-        let colors = Arc::new(colors);
-        ui.data_mut(|d| d.insert_temp(key, (signature, colors.clone())));
-        colors
+        *cache = Cache { signature, colors: Arc::new(colors) };
+        cache.colors.clone()
     }
-}
-
-/// Points the pointer may move between a Shift press and its release for it to be a click.
-const MOVED: f32 = 4.0;
-
-/// What a press began with, kept for its gesture.
-#[derive(Clone, Copy, Debug)]
-struct Press {
-    shift: bool,
-    alt: bool,
-    /// The pointer left the press position by more than a click's slack.
-    moved: bool,
-    origin: Option<Pos2>,
-    ends: [Srgba; 2],
-}
-
-/// Keeps the pick the gesture last reported as the value it compares against while it runs, and
-/// forgets it when the gesture ends.
-fn remember_host(ui: &Ui, key: egui::Id, event: &Option<EditEvent<RampPick>>) {
-    match event {
-        Some(EditEvent::Update { value, .. } | EditEvent::Begin { value: Some(value), .. }) => ui.data_mut(|d| {
-            d.insert_temp(key, *value);
-        }),
-        Some(EditEvent::Begin { value: None, .. }) | None => {}
-        Some(_) => ui.data_mut(|d| {
-            d.insert_temp(key, NO_PICK);
-        }),
-    }
-}
-
-/// The modifiers of the press this pass runs. A press that waits keeps the ones it arrived with:
-/// the pass that runs it may see others.
-fn press_modifiers(ui: &Ui, id: egui::Id, mods: Modifiers, waits: bool, arrived: bool, held: bool) -> Modifiers {
-    let key = id.with("craft_ui::ramp_waiting_mods");
-    if waits && arrived {
-        ui.data_mut(|d| d.insert_temp(key, mods));
-    }
-    let kept = if held { ui.data_mut(|d| d.remove_temp::<Modifiers>(key)) } else { None };
-    kept.unwrap_or(mods)
-}
-
-/// The position of a secondary click this frame whose press and release were both on `bar` and
-/// not under another layer. Read from the raw events because the bar senses drags only.
-fn secondary_click(ui: &Ui, response: &Response, bar: Rect) -> Option<Pos2> {
-    if !response.enabled() {
-        return None;
-    }
-    let key = response.id.with("craft_ui::ramp_secondary");
-    let mut origin = ui.data(|d| d.get_temp::<bool>(key)).unwrap_or(false);
-    let on_bar = |pos: Pos2| bar.contains(pos) && ui.ctx().layer_id_at(pos) == Some(response.layer_id);
-    let mut click = None;
-    let presses: Vec<(Pos2, bool)> = ui.input(|i| {
-        i.events
-            .iter()
-            .filter_map(|e| match e {
-                egui::Event::PointerButton { pos, button: PointerButton::Secondary, pressed, .. } => Some((*pos, *pressed)),
-                _ => None,
-            })
-            .collect()
-    });
-    for (pos, pressed) in presses {
-        if pressed {
-            origin = on_bar(pos);
-        } else {
-            if origin && on_bar(pos) {
-                click = Some(pos);
-            }
-            origin = false;
-        }
-    }
-    ui.data_mut(|d| d.insert_temp(key, origin));
-    click
 }
 
 /// `pos` as fractions of `bar`, kept inside it.
@@ -580,86 +307,214 @@ fn fractions(bar: Rect, pos: Pos2) -> (f32, f32) {
     (along(pos.x, bar.left(), bar.width()), along(pos.y, bar.top(), bar.height()))
 }
 
-/// The cell of `bar`'s `nx` by `ny` grid under `pos`, kept inside it.
-fn cell_of(bar: Rect, nx: usize, ny: usize, pos: Pos2) -> (usize, usize) {
-    let (fx, fy) = fractions(bar, pos);
-    (((fx * nx as f32) as usize).min(nx - 1), ((fy * ny as f32) as usize).min(ny - 1))
+/// The cell of the grid under the fractions (`fx`, `fy`).
+fn cell_of(fx: f32, fy: f32) -> (usize, usize) {
+    (((fx * CELLS_X as f32) as usize).min(CELLS_X - 1), ((fy * CELLS_Y as f32) as usize).min(CELLS_Y - 1))
 }
 
 /// The centre of the cell holding the fractions (`fx`, `fy`).
-fn cell_centre(fx: f32, fy: f32, nx: usize, ny: usize) -> (f32, f32) {
-    let centre = |f: f32, n: usize| ((f * n as f32).floor().clamp(0.0, (n - 1) as f32) + 0.5) / n as f32;
-    (centre(fx, nx), centre(fy, ny))
+fn cell_centre(fx: f32, fy: f32) -> (f32, f32) {
+    let (col, row) = cell_of(fx, fy);
+    centre_of((col, row))
 }
 
 /// The centre of `cell` as fractions of the bar.
-fn cell_centre_of(cell: (usize, usize), nx: usize, ny: usize) -> (f32, f32) {
-    ((cell.0 as f32 + 0.5) / nx as f32, (cell.1 as f32 + 0.5) / ny as f32)
+fn centre_of(cell: (usize, usize)) -> (f32, f32) {
+    ((cell.0 as f32 + 0.5) / CELLS_X as f32, (cell.1 as f32 + 0.5) / CELLS_Y as f32)
 }
 
-/// What this frame's keys did to the cursor.
-struct KeyMove {
-    cursor: (usize, usize),
-    /// Enter or Space picked the cursor cell: with `other` for Alt+Enter.
-    pick: Option<bool>,
+/// The cursor after the key `mv`: arrows one cell (ten with `far`), Home and End the row's ends, Page Up and Page Down
+/// the top and bottom rows. Left and Right do not mirror: under right-to-left text `Forward` is the left arrow.
+fn moved(cursor: (usize, usize), mv: NavMove, far: bool, rtl: bool) -> (usize, usize) {
+    let by = if far { FAR } else { 1 };
+    let along = |at: usize, delta: i64, n: usize| (at as i64 + delta).clamp(0, n as i64 - 1) as usize;
+    let right = if rtl { -by } else { by };
+    match mv {
+        NavMove::Forward => (along(cursor.0, right, CELLS_X), cursor.1),
+        NavMove::Back => (along(cursor.0, -right, CELLS_X), cursor.1),
+        NavMove::Down => (cursor.0, along(cursor.1, by, CELLS_Y)),
+        NavMove::Up => (cursor.0, along(cursor.1, -by, CELLS_Y)),
+        NavMove::Start => (0, cursor.1),
+        NavMove::End => (CELLS_X - 1, cursor.1),
+        NavMove::PageUp => (cursor.0, 0),
+        NavMove::PageDown => (cursor.0, CELLS_Y - 1),
+        _ => cursor,
+    }
 }
 
-/// The focused bar's keys: arrows (Shift ten), Home and End, Page Up and Page Down, Enter and
-/// Space. Left and Right are not mirrored.
-fn key_move(ui: &Ui, nx: usize, ny: usize, cursor: (usize, usize)) -> KeyMove {
-    let (mut dx, mut dy, mut col, mut row, mut pick) = (0_i64, 0_i64, None, None, None);
-    ui.input_mut(|i| {
-        let mut count = |modifiers, key| i.count_and_consume_key(modifiers, key) as i64;
-        // Shift first: `Modifiers::NONE` also matches a press with Shift held.
-        let mut steps = |plus, minus| {
-            10 * (count(Modifiers::SHIFT, plus) - count(Modifiers::SHIFT, minus)) + count(Modifiers::NONE, plus) - count(Modifiers::NONE, minus)
-        };
-        dx = steps(Key::ArrowRight, Key::ArrowLeft);
-        dy = steps(Key::ArrowDown, Key::ArrowUp);
-        if count(Modifiers::NONE, Key::Home) > 0 {
-            col = Some(0);
+impl Component for ColorRamp<'_> {
+    const SINGLE_VALUE: bool = true;
+    const ROLE: Role = Role::GROUP;
+    const OVERLAYS: bool = false;
+    const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_keep(KeepKeys::BlockArrows);
+    type Style = ColorRampStyle;
+    type Output = ColorRampOutput;
+
+    fn style(cx: &StyleCx<'_>, _: ColorRampStyleKey) -> ColorRampStyle {
+        let tokens = cx.tokens;
+        ColorRampStyle {
+            metrics: Metrics::new().min_size(Vec2::new(tokens.size.length.track, tokens.size.thumb.lg)),
+            focus: cx.focus_look(),
+            edge: cx.color(tokens.color.line.control_edge),
+            boxes: tokens.size.icon.lg,
+            boxes_gap: tokens.space.gap.tight,
+            marker: tokens.size.handle.md,
         }
-        if count(Modifiers::NONE, Key::End) > 0 {
-            col = Some(nx - 1);
+    }
+
+    fn fills(&self) -> Option<Axis> {
+        Some(Axis::X)
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::empty()
+    }
+
+    fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
+        let (bar, boxes) = self.layout(rect, cx.style);
+        cx.part(BAR, bar).sense(Sense::DRAG | Sense::CLICK).focusable().value_part();
+        if self.boxes {
+            let half = boxes.center().y;
+            cx.part(WHITE, Rect::from_min_max(boxes.min, pos2(boxes.right(), half))).sense(Sense::CLICK).focusable();
+            cx.part(BLACK, Rect::from_min_max(pos2(boxes.left(), half), boxes.max)).sense(Sense::CLICK).focusable();
         }
-        if count(Modifiers::NONE, Key::PageUp) > 0 {
-            row = Some(0);
+    }
+
+    fn bind(&mut self) -> Option<BindMut<'_, RampPick>> {
+        Some(self.pick.reborrow())
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        let (bar, _) = self.layout(cx.rect, cx.style);
+        let configured = self.ends.unwrap_or_else(Self::default_ends);
+        let press = cx.part(BAR).press;
+        if primary(&press) && press.went_down {
+            *cx.memory::<Held>() = Held { shift: press.mods.shift, alt: press.mods.alt, ends: Some(configured) };
         }
-        if count(Modifiers::NONE, Key::PageDown) > 0 {
-            row = Some(ny - 1);
+        let held = *cx.memory::<Held>();
+        let running = cx.gesture().is_some();
+        let ends = if running || press.phase.is_press() { held.ends.unwrap_or(configured) } else { configured };
+        self.shown_ends = ends;
+        let mut cursor = cx.memory::<Cursor>().0.unwrap_or((0, CELLS_Y / 2));
+        if primary(&press) {
+            let at = |pos: Pos2| fractions(bar, pos);
+            match press.phase {
+                PressPhase::DragStart { pos, .. } if !held.shift => {
+                    let (fx, fy) = at(pos);
+                    cursor = cell_of(fx, fy);
+                    cx.begin();
+                    cx.propose(self.pick_at(ends, fx, fy, held.alt));
+                }
+                PressPhase::Drag { pos, .. } if !held.shift && cx.gesture().is_some() => {
+                    let (fx, fy) = at(pos);
+                    cursor = cell_of(fx, fy);
+                    cx.propose(self.pick_at(ends, fx, fy, held.alt));
+                }
+                PressPhase::Release { pos, click, .. } => {
+                    let (fx, fy) = at(pos);
+                    if cx.gesture().is_some() {
+                        cx.propose(self.pick_at(ends, fx, fy, held.alt));
+                        cx.commit();
+                    } else if click {
+                        cursor = cell_of(fx, fy);
+                        if held.shift {
+                            self.cycle = true;
+                        } else {
+                            cx.set(self.pick_at(ends, fx, fy, held.alt));
+                        }
+                    }
+                    if !held.shift {
+                        cursor = cell_of(fx, fy);
+                    }
+                }
+                _ => {}
+            }
         }
-        if count(Modifiers::ALT, Key::Enter) > 0 {
-            pick = Some(true);
+        self.menu_at = context_click(&press);
+        let (bar_active, rtl) = (cx.active_part() == Some(BAR.into()), cx.flow.is_rtl());
+        while let Some((mv, mods)) = cx.intents().take_move() {
+            if bar_active && !running {
+                cursor = moved(cursor, mv, mods.extend, rtl);
+            }
         }
-        if count(Modifiers::NONE, Key::Enter) + count(Modifiers::NONE, Key::Space) > 0 {
-            pick = Some(false);
+        if !running && matches!(cx.part_activated(BAR), Some(FireSource::Key | FireSource::Access)) {
+            let (fx, fy) = centre_of(cursor);
+            cx.set(self.pick_at(ends, fx, fy, false));
         }
-    });
-    let moved = |at: usize, delta: i64, to: Option<usize>, n: usize| to.unwrap_or_else(|| (at as i64 + delta).clamp(0, n as i64 - 1) as usize);
-    KeyMove { cursor: (moved(cursor.0, dx, col, nx), moved(cursor.1, dy, row, ny)), pick }
+        for (key, color) in [(WHITE, Srgba::rgb(1.0, 1.0, 1.0)), (BLACK, Srgba::rgb(0.0, 0.0, 0.0))] {
+            if cx.part_activated(key).is_some() {
+                let other = cx.part(key).press.mods.alt;
+                cx.set(RampPick::new(color, other));
+            }
+        }
+        cx.memory::<Cursor>().0 = Some(cursor);
+        self.cursor = cursor;
+        let mut cache = std::mem::take(cx.memory::<Cache>());
+        self.colors = self.colors(&mut cache, ends);
+        *cx.memory::<Cache>() = cache;
+    }
+
+    fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
+        let words = cx.words::<ColorRampWords>();
+        let bar = access.node(BAR, Role::GROUP);
+        bar.name = Name::Text(cx.env.resolve(&cx.label()).as_str().to_owned());
+        if let Some(kind) = &self.kind_name {
+            bar.value(cx.env.resolve(kind).as_str().to_owned());
+        }
+        if self.boxes {
+            access.node(WHITE, Role::BUTTON).name = Name::Text(words.white.as_str().to_owned());
+            access.node(BLACK, Role::BUTTON).name = Name::Text(words.black.as_str().to_owned());
+        }
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let (bar, boxes) = self.layout(cx.rect, cx.style);
+        let painter = ui.content_painter(cx);
+        painter.painter.add(ramp_mesh(bar, &self.colors, self.web_safe));
+        let draw = ui.draw();
+        draw.stroke(&PaintShape::Rect(bar, CornerRadius::ZERO), StrokeWidth::Thin, cx.style.edge);
+        if cx.focus_visible() && cx.active_part() == Some(BAR.into()) {
+            let (fx, fy) = centre_of(self.cursor);
+            let at = pos2(bar.left() + bar.width() * fx, bar.top() + bar.height() * fy);
+            painter.outline(&PaintShape::Circle(at, cx.style.marker / 2.0));
+        }
+        if self.boxes {
+            let half = boxes.center().y;
+            let white = Rect::from_min_max(boxes.min, pos2(boxes.right(), half));
+            let black = Rect::from_min_max(pos2(boxes.left(), half), boxes.max);
+            draw.data_fill(&PaintShape::Rect(white, CornerRadius::ZERO), DataColor::new(Color32::from(Srgba::WHITE)));
+            draw.data_fill(&PaintShape::Rect(black, CornerRadius::ZERO), DataColor::new(Color32::from(Srgba::BLACK)));
+            draw.stroke(&PaintShape::Rect(boxes, CornerRadius::ZERO), StrokeWidth::Thin, cx.style.edge);
+        }
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> ColorRampOutput {
+        let (cycle, menu_at) = (self.cycle, self.menu_at);
+        ColorRampOutput { edit: cx.edit_response(), cycle, menu_at }
+    }
 }
 
 /// The ramp mesh over `bar`: shaded between the vertices, or flat cells when web safe.
-fn ramp_mesh(bar: Rect, colors: &[Color32], nx: usize, ny: usize, flat: bool) -> Mesh {
+fn ramp_mesh(bar: Rect, colors: &[Color32], flat: bool) -> Mesh {
     let mut mesh = Mesh::default();
-    let at = |i: usize, j: usize| pos2(bar.left() + bar.width() * i as f32 / nx as f32, bar.top() + bar.height() * j as f32 / ny as f32);
+    let at = |i: usize, j: usize| pos2(bar.left() + bar.width() * i as f32 / CELLS_X as f32, bar.top() + bar.height() * j as f32 / CELLS_Y as f32);
     if flat {
-        for j in 0..ny {
-            for i in 0..nx {
-                let color = colors.get(j * nx + i).copied().unwrap_or(Color32::BLACK);
+        for j in 0..CELLS_Y {
+            for i in 0..CELLS_X {
+                let color = colors.get(j * CELLS_X + i).copied().unwrap_or(Color32::from(Srgba::BLACK));
                 mesh.add_colored_rect(Rect::from_min_max(at(i, j), at(i + 1, j + 1)), color);
             }
         }
         return mesh;
     }
-    for j in 0..=ny {
-        for i in 0..=nx {
-            mesh.colored_vertex(at(i, j), colors.get(j * (nx + 1) + i).copied().unwrap_or(Color32::BLACK));
+    for j in 0..=CELLS_Y {
+        for i in 0..=CELLS_X {
+            mesh.colored_vertex(at(i, j), colors.get(j * (CELLS_X + 1) + i).copied().unwrap_or(Color32::from(Srgba::BLACK)));
         }
     }
-    let row = (nx + 1) as u32;
-    for j in 0..ny as u32 {
-        for i in 0..nx as u32 {
+    let row = (CELLS_X + 1) as u32;
+    for j in 0..CELLS_Y as u32 {
+        for i in 0..CELLS_X as u32 {
             let a = j * row + i;
             mesh.add_triangle(a, a + 1, a + row + 1);
             mesh.add_triangle(a, a + row + 1, a + row);

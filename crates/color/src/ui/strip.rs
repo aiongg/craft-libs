@@ -1,296 +1,284 @@
 //! [`ColorStrip`]: one component of a colour along a vertical strip, the others fixed.
 
+use super::channels::{QUANTIZE_CELLS, channel_range, channel_step, primary, quantized, settled, snapped};
+use crate::AreaMode;
+use craft_behavior::nav::{LARGE_STEPS, StepResult, ValueAxes, ValueSteps, step_value};
+use craft_behavior::{Axis, Metrics, NavMove, PartKey, PressPhase, Sense, ValueDrag};
 use craft_theme::ModelValues;
-use egui::accesskit::{Orientation, Role};
-use egui::{AsIdSalt, CornerRadius, IdSalt, Mesh, PointerButton, Rect, Sense, Shape, StrokeKind, Ui, Vec2, pos2, vec2};
+use craft_ui::contract::{
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, Numeric, PaintUi, PartsCx, Pointer as _, Props as _,
+    Remember as _, Role,
+};
+use craft_ui::primitives::{PaintShape, StrokeWidth};
+use craft_ui::runtime::env::Label;
+use craft_ui::runtime::focus::{ActivateKeys, KeepKeys, KeyUse};
+use craft_ui::style::{ComponentStyle, DataColor, FocusLook, StyleColor, StyleCx, UiTokens};
+use egui::{CornerRadius, Mesh, Pos2, Rect, Vec2, pos2};
 
-use super::{AreaMode, ColorArea, ColorPartsStyle, QUANTIZE_CELLS, faded, faded_stroke, fraction, quantized, scale_of, snapped, value_at};
-use craft_ui::controls::slider::{self, KEY_FILTER, PressTurn, Scale, Sensing, press_turn, stepped, tap};
-use craft_ui::direction;
-use craft_ui::edit::ops::ScalarOp;
-use craft_ui::edit::{EditPolicy, EditResponse, Gesture};
-use craft_ui::primitives::{FocusRing, Interactive};
-use craft_ui::theme::{Tokens, TokensOf, UiTokens};
+#[cfg(feature = "screen-testing")]
+mod stories;
 
-/// Steps of the strip's colour mesh (PhotoCraft's 24).
-const MESH_STEPS: usize = 24;
+/// The strip itself: a press on it sets the value there.
+const STRIP: PartKey = PartKey::new("strip");
 
-/// The component strip beside a colour picker's [`ColorArea`]: the [`AreaMode`]'s strip
-/// component from its lowest value at the bottom to its highest at the top, the others fixed
-/// (PhotoCraft's component strip; hue runs from 360° at the top to 0° at the bottom). The HSB hue
-/// strip shows pure hues; the others show the colour's own values.
+/// The stops of the strip's colour ramp (PhotoCraft's 24 steps).
+const RAMP_STEPS: usize = 24;
+
+/// The style of a colour strip.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+#[non_exhaustive]
+pub struct ColorStripStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+    #[style(focus)]
+    focus: FocusLook,
+    /// The edge round the strip.
+    edge: StyleColor,
+    /// The pointers' fill.
+    pointer: StyleColor,
+    /// The side of the square a pointer triangle fills.
+    pointer_size: f32,
+}
+
+/// The value at the start of the running drag.
+#[derive(Clone, Default)]
+struct DragStart(f64);
+
+/// The component strip beside a colour picker's [`ColorArea`](super::ColorArea): the [`AreaMode`]'s strip component
+/// from its lowest value at the bottom to its highest at the top, the others fixed (PhotoCraft's component strip; hue
+/// runs from 360 degrees at the top to 0 at the bottom). The HSB hue strip shows pure hues; the others show the
+/// colour's own values.
 ///
-/// As the area, it edits the mode's model values and reports through the edit lifecycle
-/// ([`craft_ui::edit`]), changing only its component:
+/// It edits the mode's model values and changes only its component:
 ///
-/// - Pointer (primary button): the press sets the value under the pointer, drawn in the press
-///   frame and reported in the next; dragging moves it (the pointer may leave the strip); the
-///   release commits; a press and release in one frame is a [`Set`](craft_ui::edit::EditEvent::Set).
-///   Values snap to the channel's step.
-/// - Keys, while focused (each a [`Set`](craft_ui::edit::EditEvent::Set)): Up and Right step the
-///   value up, Down and Left down; Shift steps ten. Page Up and Page Down move a tenth of the
-///   range, Home and End go to its ends. During a drag keys change nothing. The wheel scrolls the
-///   panel.
-/// - Esc during a drag cancels it, as the area's.
-/// - AccessKit: a vertical `Slider` named `label` ("Hue"), with its value, bounds and step, which
-///   takes increment, decrement and set-value requests.
+/// - Pointer: a press sets the value under the pointer; a drag moves it (the pointer may leave the strip); Esc during
+///   a drag cancels it. Values snap to the channel's step.
+/// - Keys, while focused: Up and Right step the value up, Down and Left down; Shift steps ten; Page Up and Page Down
+///   move a tenth of the range, Home and End go to its ends. The wheel scrolls the panel. Right to left the strip
+///   keeps its directions.
+/// - AccessKit: a `Slider` named `label` ("Hue") with its value, bounds and step, which takes increment, decrement
+///   and set-value requests.
 ///
-/// Its rect is the strip itself; it takes the room of a pointer triangle and the edge on each
-/// side of it besides, so a host laid out with no gap round it still shows both pointers. Like
-/// the area it is not a field ([`FieldTab`](craft_ui::behavior::FieldTab) skips it) and keeps its
-/// direction right to left.
-#[derive(Clone, Debug)]
-#[must_use = "show the strip with `show`"]
-pub struct ColorStrip {
-    id_salt: IdSalt,
-    label: String,
+/// The pointer triangles on both sides are drawn outside its rect.
+#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
+#[component(content_painter)]
+pub struct ColorStrip<'a> {
+    #[common]
+    common: Common,
     mode: AreaMode,
-    values: ModelValues,
-    size: Option<Vec2>,
-    policy: EditPolicy,
-    enabled: bool,
-    part: bool,
+    values: Bind<'a, ModelValues>,
+    /// Puts the colour the strip reports on this many levels (at least two) per red, green and blue channel, whatever
+    /// the mode: a web-safe strip has 6. The pointer takes the nearest such colour and a key steps to the next
+    /// different one. The strip shows flat rows of the snapped colours.
+    #[prop]
     quantize: Option<usize>,
 }
 
-impl ColorStrip {
-    /// A strip named `label` (its accessible name, translated by the host: "Hue") showing
-    /// `values`, values of `mode`'s model; `id_salt` keeps its gesture and focus when the layout
-    /// around it changes.
-    pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, mode: AreaMode, values: ModelValues) -> Self {
-        debug_assert_eq!(values.model, mode.model().id(), "the strip's values must be of its mode's model");
-        Self {
-            id_salt: IdSalt::new(id_salt),
-            label: label.into(),
-            mode,
-            values,
-            size: None,
-            policy: EditPolicy::default(),
-            enabled: true,
-            part: false,
-            quantize: None,
-        }
+impl<'a> ColorStrip<'a> {
+    /// A strip named `label` ("Hue") showing `values`, values of `mode`'s model.
+    pub fn new(label: impl Into<Label>, mode: AreaMode, values: Bind<'a, ModelValues>) -> Self {
+        ColorStrip { common: Common::new(), mode, values, quantize: None }.label(label)
     }
 
-    /// The strip's size, without its pointers' room; `size.icon.lg` by
-    /// five `size.thumb.lg` without it (the Full picker's).
-    pub fn size(mut self, size: Vec2) -> Self {
-        self.size = Some(size);
-        self
+    fn levels(&self) -> Option<usize> {
+        self.quantize.map(|levels| levels.max(2))
     }
 
-    /// How the gesture reports ([`EditPolicy`]); the default reports every change at once.
-    pub fn policy(mut self, policy: EditPolicy) -> Self {
-        self.policy = policy;
-        self
-    }
-
-    /// Turns input on or off; on by default.
-    pub fn enabled(mut self, enabled: bool) -> Self {
-        self.enabled = enabled;
-        self
-    }
-
-    /// Puts the colour the strip reports on `levels` levels (at least two) per red, green and
-    /// blue channel, whatever the mode: a web-safe strip has 6. The pointer takes the nearest
-    /// such colour and a key steps to the next different one, in the mode's model values again.
-    /// The strip shows flat rows of the snapped colours; the pointers stay at the value it was
-    /// given.
-    pub fn quantize(mut self, levels: usize) -> Self {
-        self.quantize = Some(levels.max(2));
-        self
-    }
-
-    /// Whether the strip is a part of a colour picker, whose press takes its turn from the edit
-    /// order ([`press_turn`]): it waits for a field's typing run to end.
-    pub(crate) fn part(mut self, part: bool) -> Self {
-        self.part = part;
-        self
-    }
-
-    /// The same as [`ColorArea::style`].
-    pub fn style(tokens: &UiTokens) -> ColorPartsStyle {
-        ColorArea::style(tokens)
-    }
-
-    /// The width a strip of `width` takes in the layout: the strip, its edge and the room of its
-    /// pointer at the trailing side. The leading pointer is drawn over the gap before the strip,
-    /// which is as wide as the pointer ([`Gap::Inline`](craft_ui::primitives::Gap::Inline)).
-    pub fn outer_width(style: &ColorPartsStyle, width: f32) -> f32 {
-        width + style.edge.width + style.pointer.x
-    }
-
-    /// Shows the strip and returns this frame's edit event. The response covers the strip
-    /// without its pointers' room.
-    pub fn show(self, ui: &mut Ui) -> EditResponse<ModelValues> {
-        self.show_with_ops(ui).0
-    }
-
-    /// [`show`](ColorStrip::show), with the operations this frame's one-shot inputs made.
-    pub(crate) fn show_with_ops(self, ui: &mut Ui) -> (EditResponse<ModelValues>, Vec<ScalarOp>) {
-        let style = ColorStrip::style(&Tokens::of(ui));
-        let size = self.size.unwrap_or(vec2(style.strip_full, style.area));
-        let (_, outer) = ui.allocate_space(vec2(ColorStrip::outer_width(&style, size.x), size.y));
-        let rect = if direction::is_rtl(ui) {
-            Rect::from_min_size(pos2(outer.right() - size.x, outer.top()), size)
-        } else {
-            Rect::from_min_size(outer.min, size)
-        };
+    /// `values` with the strip's component set to `value`, on its step and the quantised colour.
+    fn with(&self, values: &ModelValues, value: f64) -> ModelValues {
         let model = self.mode.model();
         let channel = self.mode.strip();
-        let scale = scale_of(model, channel);
-        let sensed = Interactive::salted(self.id_salt, Role::Slider, self.label.as_str())
-            .sense(Sense::drag())
-            .enabled(self.enabled)
-            .state_layer(false)
-            .focus_ring(false)
-            .interact_at(ui, rect);
-        let response = sensed.response().clone();
-        let component_at = |y: f32| value_at(&scale, if rect.height() > 0.0 { (rect.bottom() - y) / rect.height() } else { 0.0 });
-        let settled = |values: ModelValues| self.quantize.map_or(values, |levels| quantized(model, &values, levels));
-        let at = |base: &ModelValues, y: f32| {
-            let mut values = *base;
-            values.values[channel] = component_at(y);
-            settled(values)
-        };
-
-        let mut gesture = Gesture::load(ui, response.id, &self.values, self.policy).event_filter(KEY_FILTER).enabled(response.enabled());
-        let tapped = tap(ui, &response);
-        let pressed = response.drag_started_by(PointerButton::Primary).then(|| response.interact_pointer_pos()).flatten();
-        let turn = press_turn(ui, response.id, self.part, gesture.id(), pressed.or(tapped));
-        if let PressTurn::Held(held) = turn {
-            gesture.begin_with_value();
-            if let Some(start) = gesture.start().copied() {
-                gesture.update(at(&start, held.y), ui.input(|i| i.modifiers));
-            }
-            if !response.dragged_by(PointerButton::Primary) {
-                gesture.commit();
-            }
-        }
-        let waits = matches!(turn, PressTurn::Waits);
-        if response.drag_started_by(PointerButton::Primary) {
-            response.request_focus();
-            if !waits {
-                gesture.begin_with_value();
-            }
-        }
-        if response.dragged_by(PointerButton::Primary)
-            && let Some(start) = gesture.start().copied()
-            && let Some(pos) = response.interact_pointer_pos()
-        {
-            gesture.update(at(&start, pos.y), ui.input(|i| i.modifiers));
-        }
-        if response.drag_stopped() {
-            gesture.commit();
-        }
-        if tapped.is_some() {
-            response.request_focus();
-        }
-        // The one-shot inputs, each an operation applied to the values the ones before it left.
-        let mut ops = Vec::new();
-        let mut set = |gesture: &mut Gesture<ModelValues>, op: ScalarOp| {
-            gesture.set(apply(&op, gesture.shown(), self.mode, self.quantize));
-            ops.push(op);
-        };
-        if let Some(pos) = tapped.filter(|_| !waits) {
-            set(&mut gesture, ScalarOp::Set(f64::from(component_at(pos.y))));
-        }
-        let sensing = Sensing { wheel: false, ..Sensing::of(&response) };
-        if let Some(op) = stepped(ui, response.id, sensing, None, None, &scale) {
-            set(&mut gesture, op);
-        }
-
-        let shown = *gesture.shown();
-        let value = scale.place(f64::from(shown.values[channel]));
-        let response = sensed.numeric(value, scale.min..=scale.max, scale.key_step()).finish(ui);
-        ui.ctx().accesskit_node_builder(response.id, |node| node.set_orientation(Orientation::Vertical));
-        if ui.is_rect_visible(outer) {
-            paint(ui, &style, &self, &scale, rect, &shown, response.enabled());
-        }
-        FocusRing::paint_radius(ui, rect.expand(style.edge.width), CornerRadius::ZERO, &response);
-        (EditResponse::new(response, gesture.finish()), ops)
-    }
-}
-
-/// `values` with `op` applied to `mode`'s strip component, as the strip applies it. On a strip that
-/// quantises to `quantize` levels a relative `op` steps again until the colour is a different one,
-/// or the component can go no further.
-pub(super) fn apply(op: &ScalarOp, values: &ModelValues, mode: AreaMode, quantize: Option<usize>) -> ModelValues {
-    let channel = mode.strip();
-    let model = mode.model();
-    let scale = scale_of(model, channel);
-    let once = |values: &ModelValues, op: &ScalarOp| {
         let mut out = *values;
-        out.values[channel] = slider::apply(op, scale.place(f64::from(values.values[channel])), (scale.min, scale.max), &scale) as f32;
-        out
-    };
-    let mut out = once(values, op);
-    let Some(levels) = quantize else { return out };
-    if matches!(op, ScalarOp::By(_)) {
-        let from = quantized(model, values, levels);
+        out.values[channel] = settled(model, channel, value as f32);
+        match self.levels() {
+            Some(levels) => quantized(model, &out, levels),
+            None => out,
+        }
+    }
+
+    /// The value after the key `mv` held with `mods`, from `values`; a quantising strip steps again until the colour
+    /// is a different one or the component can go no further.
+    fn stepped(&self, values: &ModelValues, mv: NavMove, rtl: bool, mods: craft_behavior::MoveMods) -> ModelValues {
+        let model = self.mode.model();
+        let channel = self.mode.strip();
+        let range = channel_range(model, channel);
+        let (min, max) = (*range.start(), *range.end());
+        let step = channel_step(model, channel);
+        let mv = match mv {
+            NavMove::Forward if rtl => NavMove::Down,
+            NavMove::Forward => NavMove::Up,
+            NavMove::Back if rtl => NavMove::Up,
+            NavMove::Back => NavMove::Down,
+            other => other,
+        };
+        let large = if matches!(mv, NavMove::PageUp | NavMove::PageDown) { (max - min) / LARGE_STEPS } else { step * LARGE_STEPS };
+        let once = |from: f64| match step_value(&ValueSteps::new(from, min, max, step, large), ValueAxes::Vertical, mv, mods) {
+            StepResult::Set(next) => next,
+            _ => from,
+        };
+        let mut next = f64::from(values.values[channel]);
+        let from = self.levels().map(|levels| quantized(model, values, levels));
         loop {
-            let next = once(&out, op);
-            if quantized(model, &out, levels) != from || next == out {
+            let after = once(next);
+            let moved = after != next;
+            next = after;
+            let unchanged = from.is_some_and(|from| quantized(model, &self.with(values, next), self.levels().unwrap_or(2)) == from);
+            if !(moved && unchanged) {
                 break;
             }
-            out = next;
         }
+        self.with(values, next)
     }
-    quantized(model, &out, levels)
+
+    /// The colour of the strip at `value` of its component.
+    fn color_at(&self, base: &ModelValues, value: f32) -> craft_theme::Srgba {
+        let model = self.mode.model();
+        let mut values = *base;
+        values.values[self.mode.strip()] = value;
+        model.to_srgb(&values.values)
+    }
 }
 
-/// Paints the colours, the edge and the pointers.
-fn paint(ui: &Ui, style: &ColorPartsStyle, strip: &ColorStrip, scale: &Scale, rect: Rect, shown: &ModelValues, enabled: bool) {
-    let (model, channel) = (strip.mode.model(), strip.mode.strip());
-    let base = strip.mode.strip_base(shown);
-    let painter = ui.painter();
-    let mut mesh = Mesh::default();
-    let color_at = |value: f32| {
-        let mut v = base;
-        v.values[channel] = value;
-        model.to_srgb(&v.values).into()
-    };
-    match strip.quantize {
-        Some(levels) => {
-            let h = rect.height() / QUANTIZE_CELLS as f32;
-            for row in 0..QUANTIZE_CELLS {
-                let t = (row as f32 + 0.5) / QUANTIZE_CELLS as f32;
-                let top = rect.top() + row as f32 * h;
-                let color = snapped(
-                    model.to_srgb(&{
-                        let mut v = base;
-                        v.values[channel] = egui::lerp(scale.max as f32..=scale.min as f32, t);
-                        v.values
-                    }),
-                    levels,
-                );
-                mesh.add_colored_rect(Rect::from_min_max(pos2(rect.left(), top), pos2(rect.right(), top + h)), color.into());
-            }
-        }
-        None => {
-            for k in 0..=MESH_STEPS {
-                let t = k as f32 / MESH_STEPS as f32;
-                let color = color_at(egui::lerp(scale.max as f32..=scale.min as f32, t));
-                let y = egui::lerp(rect.y_range(), t);
-                mesh.colored_vertex(pos2(rect.left(), y), color);
-                mesh.colored_vertex(pos2(rect.right(), y), color);
-            }
-            for k in 0..MESH_STEPS as u32 {
-                let a = 2 * k;
-                mesh.add_triangle(a, a + 1, a + 3);
-                mesh.add_triangle(a, a + 3, a + 2);
-            }
+impl Component for ColorStrip<'_> {
+    const SINGLE_VALUE: bool = true;
+    const ROLE: Role = Role::SLIDER;
+    const OVERLAYS: bool = false;
+    const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_keep(KeepKeys::BlockArrows).with_activate(ActivateKeys::Neither);
+    type Style = ColorStripStyle;
+    type Output = EditResponse<ModelValues>;
+
+    fn style(cx: &StyleCx<'_>, _: ColorStripStyleKey) -> ColorStripStyle {
+        let tokens = cx.tokens;
+        ColorStripStyle {
+            metrics: Metrics::new().min_size(Vec2::new(tokens.size.icon.lg, tokens.size.plot.height)),
+            focus: cx.focus_look(),
+            edge: cx.color(tokens.color.line.control_edge),
+            pointer: cx.color(tokens.color.text.normal),
+            pointer_size: tokens.size.handle.md,
         }
     }
-    painter.add(mesh);
-    painter.rect_stroke(rect, CornerRadius::ZERO, faded_stroke(style.edge, enabled), StrokeKind::Outside);
-    let y = egui::lerp(rect.bottom()..=rect.top(), fraction(scale, shown.values[channel]));
-    let (depth, half) = (style.pointer.x, style.pointer.y / 2.0);
-    let color = faded(style.pointer_color, enabled);
-    let edge = style.edge.width;
-    for (tip, dir) in [(rect.left() - edge, -1.0), (rect.right() + edge, 1.0)] {
-        let base = tip + dir * depth;
-        let points = vec![pos2(tip, y), pos2(base, y - half), pos2(base, y + half)];
-        painter.add(Shape::convex_polygon(points, color, faded_stroke(style.edge, enabled)));
+
+    fn paint_outset(tokens: &UiTokens) -> f32 {
+        tokens.size.handle.md
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::FOCUS
+    }
+
+    fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
+        cx.part(STRIP, rect).sense(Sense::CLICK | Sense::DRAG | Sense::TAKE_FOCUS).value_part().pointer_only("the arrow keys step the value");
+    }
+
+    fn bind(&mut self) -> Option<BindMut<'_, ModelValues>> {
+        Some(self.values.reborrow())
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        let model = self.mode.model();
+        let channel = self.mode.strip();
+        let drag = ValueDrag::absolute(cx.rect.bottom()..cx.rect.top(), channel_range(model, channel)).axis(Axis::Y);
+        let start_values = ModelValues::new(model.id(), &[]);
+        let current = |cx: &Cx<'_, Self>| cx.value().copied().unwrap_or(start_values);
+        let press = cx.part(STRIP).press;
+        match press.phase {
+            PressPhase::DragStart { .. } if primary(&press) => {
+                cx.memory::<DragStart>().0 = f64::from(current(&*cx).values[channel]);
+                cx.begin();
+            }
+            PressPhase::Drag { .. } if primary(&press) => {
+                let from = cx.memory::<DragStart>().0;
+                if let Some(next) = drag.value(from, &press, false) {
+                    cx.propose(self.with(&current(&*cx), next));
+                }
+            }
+            PressPhase::Release { click, .. } if primary(&press) => {
+                if cx.gesture().is_some() {
+                    let from = cx.memory::<DragStart>().0;
+                    if let Some(next) = drag.value(from, &press, false) {
+                        cx.propose(self.with(&current(&*cx), next));
+                    }
+                    cx.commit();
+                } else if click && let Some(next) = drag.value(0.0, &press.mods(craft_keymap::Mods::NONE), false) {
+                    cx.set(self.with(&current(&*cx), next));
+                }
+            }
+            _ => {}
+        }
+        // A running drag is one edit: keys and SetValue wait for it, and are still taken.
+        let (running, rtl) = (cx.gesture().is_some(), cx.flow.is_rtl());
+        while let Some((mv, mods)) = cx.intents().take_move() {
+            if !running {
+                let next = self.stepped(&current(&*cx), mv, rtl, mods);
+                cx.set(next);
+            }
+        }
+        if let Some(value) = cx.intents().take_set_value().filter(|value| value.is_finite() && !running) {
+            cx.set(self.with(&current(&*cx), value));
+        }
+    }
+
+    fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
+        let model = self.mode.model();
+        let channel = self.mode.strip();
+        let range = channel_range(model, channel);
+        let numeric = match cx.value() {
+            Some(values) => Numeric::new(f64::from(values.values[channel]), range),
+            None => Numeric::empty(range),
+        };
+        access.numeric(numeric.step(channel_step(model, channel)));
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let model = self.mode.model();
+        let channel = self.mode.strip();
+        let range = channel_range(model, channel);
+        let (min, max) = (*range.start() as f32, *range.end() as f32);
+        let rect = cx.rect;
+        let shown = cx.value().copied().unwrap_or_else(|| ModelValues::new(model.id(), &[]));
+        let base = self.mode.strip_base(&shown);
+        let painter = ui.content_painter(cx);
+        match self.levels() {
+            Some(levels) => {
+                let height = rect.height() / QUANTIZE_CELLS as f32;
+                let mut mesh = Mesh::default();
+                for row in 0..QUANTIZE_CELLS {
+                    let t = (row as f32 + 0.5) / QUANTIZE_CELLS as f32;
+                    let top = rect.top() + row as f32 * height;
+                    let color = snapped(self.color_at(&base, egui::lerp(max..=min, t)), levels);
+                    mesh.add_colored_rect(Rect::from_min_max(pos2(rect.left(), top), pos2(rect.right(), top + height)), color.into());
+                }
+                painter.painter.add(mesh);
+            }
+            None => {
+                let stops: Vec<(f32, DataColor)> = (0..=RAMP_STEPS)
+                    .map(|k| {
+                        let t = k as f32 / RAMP_STEPS as f32;
+                        (t, DataColor::new(self.color_at(&base, egui::lerp(max..=min, t)).into()))
+                    })
+                    .collect();
+                painter.ramp(rect, &stops, Axis::Y);
+            }
+        }
+        let draw = ui.draw();
+        draw.stroke(&PaintShape::Rect(rect, CornerRadius::ZERO), StrokeWidth::Thin, cx.style.edge);
+        if cx.value().is_none() {
+            return;
+        }
+        let span = max - min;
+        let share = if span > 0.0 { ((shown.values[channel] - min) / span).clamp(0.0, 1.0) } else { 0.0 };
+        let y = egui::lerp(rect.bottom()..=rect.top(), share);
+        let (depth, half) = (cx.style.pointer_size / 2.0, cx.style.pointer_size / 2.0);
+        for (tip, direction) in [(rect.left(), -1.0), (rect.right(), 1.0)] {
+            let base_x = tip + direction * depth;
+            let points: Vec<Pos2> = vec![pos2(tip, y), pos2(base_x, y - half), pos2(base_x, y + half)];
+            let triangle = PaintShape::Polygon(points);
+            draw.fill(&triangle, cx.style.pointer);
+            draw.stroke(&triangle, StrokeWidth::Thin, cx.style.edge);
+        }
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> EditResponse<ModelValues> {
+        cx.edit_response()
     }
 }

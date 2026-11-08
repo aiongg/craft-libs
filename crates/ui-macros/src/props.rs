@@ -153,6 +153,7 @@ const COLLECTION: &[Forwarded] = &[
     ("allow_empty", "bool", "A press on the empty space below the rows empties the selection."),
     ("lead_on_open", "::craft_ui::contract::LeadOnOpen", "Where the lead lands when rows first show."),
     ("lead_follows_hover", "bool", "The lead, and the selection with it, moves to the row under the pointer when the pointer moves."),
+    ("arrows_select", "bool", "The arrow keys select the row they move the lead to; off, they move the lead only."),
     (
         "rows_stamp",
         "u64",

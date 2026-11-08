@@ -1,42 +1,56 @@
-//! [`ColorWheel`]: a hue ring round a saturation and brightness triangle that turns with the hue,
-//! as PhotoCraft's Color Wheel.
+//! [`ColorWheel`]: a hue ring round a saturation and brightness triangle that turns with the hue, as PhotoCraft's
+//! Color Wheel.
 
+use super::channels::{channel_step, finite, primary, settled, spoken};
+use craft_behavior::{HitLevel, HitPriority, HitShape, Metrics, NavMove, PartKey, PressPhase, Sense};
+use craft_theme::{ColorModel, HsbModel, ModelValues};
+use craft_ui::contract::{
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, Name, Numeric, PaintUi, PartsCx, Pointer as _,
+    Props as _, Remember as _, Role, WordSetCx as _,
+};
+use craft_ui::primitives::{PaintShape, StrokeWidth};
+use craft_ui::runtime::env::Label;
+use craft_ui::runtime::focus::{ActivateKeys, FocusShape, KeepKeys, KeyUse};
+use craft_ui::style::{ComponentStyle, FocusLook, StyleColor, StyleCx};
+use egui::{Mesh, Pos2, Rect, Vec2, vec2};
 use std::f32::consts::TAU;
 
-use craft_theme::{ColorModel, HsbModel, ModelValues};
-use egui::accesskit::{Action, Role};
-use egui::epaint::PathShape;
-use egui::{AsIdSalt, Id, IdSalt, InteractOptions, Mesh, Pos2, Rect, Response, Sense, Shape, Stroke, Ui, UiBuilder, Vec2, vec2};
+#[cfg(feature = "screen-testing")]
+mod stories;
 
-use super::area::{Axes, keys};
-use super::picker::installed;
-use super::{AreaMode, faded_stroke, parts_style, scale_of, spoken};
-use craft_ui::controls::slider::{KEY_FILTER, PressTurn, Sensing, press_turn, stepped, tap};
-use craft_ui::edit::ops::{Bound, ScalarOp};
-use craft_ui::edit::{EditPolicy, EditResponse, Gesture};
-use craft_ui::primitives::{FocusRing, Interactive};
-use craft_ui::theme::{Tokens, TokensOf, UiTokens};
+/// The hue ring: a press on it sets the hue to the pointer's angle.
+const RING: PartKey = PartKey::new("ring");
+/// The triangle: a press on it sets saturation and brightness.
+const TRIANGLE: PartKey = PartKey::new("triangle");
 
 /// Steps round the hue ring's mesh (PhotoCraft's 96).
 const RING_STEPS: u32 = 96;
-
 /// Cells along each side of the triangle's mesh (PhotoCraft's 16).
 const TRIANGLE_CELLS: usize = 16;
-/// The wheel's default side, as a multiple of `size.control.md`.
-const SIDE_PER_CONTROL: f32 = 9.2;
-/// The wheel's least side, as a multiple of `size.control.md`.
-const SIDE_MIN_PER_CONTROL: f32 = 1.17;
-/// The least ring width, as a multiple of `size.control.md`.
-const RING_MIN_PER_CONTROL: f32 = 0.267;
-/// The largest ring width, as a multiple of `size.control.md`.
-const RING_MAX_PER_CONTROL: f32 = 0.933;
 /// The ring's width as a proportion of the outer radius.
 const RING_RATIO: f32 = 0.09;
-/// The gap between the ring's inner edge and the triangle's circle.
-const WHEEL_TRIANGLE_INSET: f32 = 1.0;
+/// Degrees a Page key moves the hue.
+const HUE_PAGE: f32 = 36.0;
+/// Percents a Page key moves the brightness.
+const BRIGHTNESS_PAGE: f32 = 10.0;
+/// A Shift arrow moves ten steps.
+const FAR: f32 = 10.0;
+/// The last hue a key reaches: the hue wraps at 360 and has no 360 of its own.
+const HUE_LAST: f32 = 359.0;
+
+craft_ui::words! {
+    /// The words of colour wheels.
+    pub struct ColorWheelWords {
+        hue: "colorWheel.hue" = "Hue";
+        triangle: "colorWheel.saturationBrightness" = "Saturation and brightness";
+        saturation: "colorWheel.saturation" = "Saturation";
+        brightness: "colorWheel.brightness" = "Brightness";
+    }
+}
 
 /// The hue ring and the triangle: where a press began decides which one a drag edits.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum WheelPart {
     /// The ring: a press or drag sets the hue to the pointer's angle.
     Ring,
@@ -46,6 +60,7 @@ pub enum WheelPart {
 
 /// Where a wheel lies in its area: pure numbers, shared with the colour disc.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct WheelGeometry {
     /// Centre of the wheel.
     pub center: Pos2,
@@ -134,340 +149,78 @@ pub fn triangle_sv([hue, white, black]: [Pos2; 3], p: Pos2) -> Option<(f32, f32)
     Some((if b > 0.0 { bs / b } else { 0.0 }, b))
 }
 
-/// The wheel's sizes, edge and markers, from [`ColorWheel::style`].
-#[derive(Clone, Copy, Debug, PartialEq)]
+/// The style of a colour wheel.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
 pub struct ColorWheelStyle {
-    /// Default height of the area.
-    pub side: f32,
-    /// Least height of the area.
-    pub side_min: f32,
-    /// Least ring width.
-    pub ring_min: f32,
-    /// Largest ring width.
-    pub ring_max: f32,
-    /// Ring width as a proportion of the outer radius.
-    pub ring_ratio: f32,
-    /// Gap between the area's edge and the ring: `space.gap.tight`.
-    pub outer_inset: f32,
-    /// Gap between the ring's inner edge and the triangle's circle.
-    pub triangle_inset: f32,
+    #[style(metrics)]
+    metrics: Metrics,
+    #[style(focus)]
+    focus: FocusLook,
+    /// The least ring width, and the largest.
+    ring_min: f32,
+    ring_max: f32,
+    /// The gap between the area's edge and the ring.
+    outer_inset: f32,
+    /// The gap between the ring's inner edge and the triangle's circle.
+    triangle_inset: f32,
     /// A press this far outside the ring still takes it, and this far inside its inner edge.
-    pub grab_outer: f32,
-    /// Reach inside the ring's inner edge that still grabs the ring.
-    pub grab_inner: f32,
-    /// One point of `line.control_edge` round the ring and the triangle.
-    pub edge: Stroke,
-    /// The knob's inner circle and outer ring, as [`super::ColorArea`]'s marker.
-    pub marker_inner_radius: f32,
-    /// The knob's inner circle stroke.
-    pub marker_inner: Stroke,
-    /// Radius of the knob's outer ring.
-    pub marker_outer_radius: f32,
-    /// The knob's outer ring stroke.
-    pub marker_outer: Stroke,
+    grab: f32,
+    /// The edge round the ring and the triangle.
+    edge: StyleColor,
+    /// The diameter of the knobs.
+    knob: f32,
 }
 
-/// A hue ring round a saturation and brightness triangle, editing a colour's HSB values:
+/// The part a press began in, for its whole drag.
+#[derive(Clone, Copy, Default)]
+struct Held(Option<WheelPart>);
+
+/// A hue ring round a saturation and brightness triangle, editing a colour's HSB values.
 ///
-/// ```
-/// use craft_theme::{ColorModel, HsbModel, Srgba};
-/// use craft_color::ui::ColorWheel;
-/// # egui::__run_test_ui(|ui| { let mut color = Srgba::rgb(0.2, 0.5, 0.8);
-/// let values = HsbModel.from_srgb(color);
-/// let wheel = ColorWheel::new("wheel", "Color wheel", values).show(ui);
-/// if let Some(v) = wheel.edit.event.as_ref().and_then(|e| e.value()) {
-///     color = HsbModel.to_srgb(&v.values);
-/// }
-/// # });
-/// ```
+/// The host gives the colour as HSB [`ModelValues`] and gets them back with only the picked components changed: the
+/// ring changes the hue, the triangle saturation and brightness. A host that keeps the values it was sent keeps the
+/// hue of a grey and the hue and saturation of black.
 ///
-/// The host gives the colour as HSB [`ModelValues`] and gets them back through the edit lifecycle
-/// ([`craft_ui::edit`]) with only the picked components changed: the ring changes the hue, the
-/// triangle saturation and brightness. A host that keeps the values it was sent
-/// ([`kept_or_converted`](craft_theme::kept_or_converted)) keeps the hue of a grey and the hue
-/// and saturation of black.
-///
-/// - Pointer (primary button): the part under the press is kept for the whole drag, so a drag
-///   that leaves the ring keeps turning the hue; a press further outside the ring than
-///   `size.hit.target` starts nothing. The press sets the value under the pointer (whole
-///   degrees, whole percents) and is the gesture's first value; the release commits. A press
-///   and release in one frame is a [`Set`](craft_ui::edit::EditEvent::Set). A press focuses the
+/// - Pointer (primary button): the part under the press is kept for the whole drag, so a drag that leaves the ring
+///   keeps turning the hue; a press further outside the ring than `size.hit.target` starts nothing. A press sets the
+///   value under the pointer (whole degrees, whole percents) and a drag follows it; Esc cancels. A press focuses the
 ///   part.
-/// - Keys on the focused ring: Left and Down lower the hue by 1 degree, Right and Up raise it,
-///   wrapping at 360; Shift steps ten; Page Up and Page Down 36 degrees; Home 0, End 359. On the
-///   triangle (as [`super::ColorArea`]): Left and Right saturation, Up and Down brightness; Shift ten;
-///   Page keys a tenth of brightness; Home and End saturation 0 and 100. The directions are not
-///   screen directions: the triangle turns with the hue. Each key is a
-///   [`Set`](craft_ui::edit::EditEvent::Set); during a drag keys change nothing.
-/// - Esc during a drag cancels it.
-/// - Two Tab stops, the ring and then the triangle; a [`FieldTab`](craft_ui::behavior::FieldTab)
-///   scope skips both and Ctrl+Tab reaches them.
-/// - AccessKit: a `Group` named `label` holding a `Slider` for the hue (0 to 360, step 1,
-///   increment, decrement and set value) and a `Slider` for saturation and brightness (value
-///   text, no numeric value).
+/// - Keys on the focused ring: Left and Down lower the hue by 1 degree, Right and Up raise it, wrapping at 360;
+///   Shift steps ten; Page Up and Page Down 36 degrees; Home 0, End 359. On the triangle: Left and Right saturation,
+///   Up and Down brightness; Shift ten; Page keys a tenth of brightness; Home and End saturation 0 and 100. The
+///   directions are not screen directions: the triangle turns with the hue.
+/// - Two Tab stops, the ring and then the triangle.
+/// - AccessKit: a `Group` named `label` holding a `Slider` for the hue (0 to 360, step 1, increment, decrement and
+///   set value) and a `Slider` for saturation and brightness (value text, no numeric value).
 /// - Right to left nothing mirrors: red stays at 3 o'clock.
-#[derive(Clone, Debug)]
-#[must_use = "show the wheel with `show`"]
-pub struct ColorWheel {
-    id_salt: IdSalt,
-    label: String,
-    values: ModelValues,
-    side: Option<f32>,
-    policy: EditPolicy,
-    enabled: bool,
-    part: bool,
-    names: Option<[String; 4]>,
+#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
+#[component(content_painter)]
+pub struct ColorWheel<'a> {
+    #[common]
+    common: Common,
+    values: Bind<'a, ModelValues>,
 }
 
-/// What [`ColorWheel::show`] reports.
-#[derive(Clone, Debug)]
-pub struct ColorWheelResponse {
-    /// This frame's edit event; the response is the group's, covering the area.
-    pub edit: EditResponse<ModelValues>,
-    /// The area the wheel was given, for a host's button over its end corner.
-    pub area: Rect,
-    /// Where the wheel lay in the area.
-    pub geometry: WheelGeometry,
-    /// The ids of the two focus stops.
-    pub ring: Id,
-    /// The id of the triangle focus stop.
-    pub triangle: Id,
-}
-
-impl ColorWheel {
-    /// The English words the wheel speaks, the keys a host translates with
-    /// [`text`](ColorWheel::text): the ring's name, the triangle's, and the two components in
-    /// the triangle's value text.
-    pub const TEXTS: [&'static str; 4] = ["Hue", "Saturation and brightness", "Saturation", "Brightness"];
-
-    /// A wheel named `label` ("Color wheel", translated by the host) showing `values`, HSB values;
-    /// `id_salt` keeps its gesture and focus when the layout around it changes.
-    pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, values: ModelValues) -> Self {
-        debug_assert_eq!(values.model, HsbModel.id(), "the wheel's values must be HSB");
-        Self {
-            id_salt: IdSalt::new(id_salt),
-            label: label.into(),
-            values,
-            side: None,
-            policy: EditPolicy::default(),
-            enabled: true,
-            part: false,
-            names: None,
-        }
-    }
-
-    /// The area's height; the style's default `side` without it. Never below its `side_min`.
-    pub fn side(mut self, side: f32) -> Self {
-        self.side = Some(side);
-        self
-    }
-
-    /// How the gesture reports ([`EditPolicy`]); the default reports every change at once.
-    pub fn policy(mut self, policy: EditPolicy) -> Self {
-        self.policy = policy;
-        self
-    }
-
-    /// Turns input on or off; on by default.
-    pub fn enabled(mut self, enabled: bool) -> Self {
-        self.enabled = enabled;
-        self
-    }
-
-    /// Translates the wheel's words, given as the English [`TEXTS`](ColorWheel::TEXTS).
-    pub fn text(mut self, translate: impl Fn(&str) -> String) -> Self {
-        self.names = Some(Self::TEXTS.map(translate));
-        self
-    }
-
-    /// Whether a press waits for another control's typing run to commit and then edits the values
-    /// that run left: on inside a panel with number fields, off standalone.
-    pub fn press_waits(mut self, waits: bool) -> Self {
-        self.part = waits;
-        self
-    }
-
-    /// The style read from `tokens`.
-    pub fn style(tokens: &UiTokens) -> ColorWheelStyle {
-        let parts = parts_style(tokens);
-        let control = tokens.size.control.md;
-        ColorWheelStyle {
-            side: control * SIDE_PER_CONTROL,
-            side_min: control * SIDE_MIN_PER_CONTROL,
-            ring_min: control * RING_MIN_PER_CONTROL,
-            ring_max: control * RING_MAX_PER_CONTROL,
-            ring_ratio: RING_RATIO,
-            outer_inset: tokens.space.gap.tight,
-            triangle_inset: WHEEL_TRIANGLE_INSET,
-            grab_outer: tokens.size.hit.target,
-            grab_inner: tokens.size.hit.target,
-            edge: parts.edge,
-            marker_inner_radius: parts.marker_inner_radius,
-            marker_inner: parts.marker_inner,
-            marker_outer_radius: parts.marker_outer_radius,
-            marker_outer: parts.marker_outer,
-        }
+impl<'a> ColorWheel<'a> {
+    /// A wheel named `label` ("Color wheel") showing `values`, HSB values.
+    pub fn new(label: impl Into<Label>, values: Bind<'a, ModelValues>) -> Self {
+        ColorWheel { common: Common::new(), values }.label(label)
     }
 
     /// Where the wheel lies in `area`.
     pub fn geometry(style: &ColorWheelStyle, area: Rect) -> WheelGeometry {
-        WheelGeometry::new(area, style.outer_inset, (style.ring_min, style.ring_max), style.ring_ratio, style.triangle_inset)
-    }
-
-    /// Shows the wheel and returns this frame's edit event.
-    pub fn show(self, ui: &mut Ui) -> ColorWheelResponse {
-        let style = ColorWheel::style(&Tokens::of(ui));
-        let id = ui.make_persistent_id(self.id_salt);
-        let builder = UiBuilder::new().scope_id(id).accessibility_role(Role::Group).accessibility_label(self.label.clone());
-        let inner = ui.scope_builder(builder, |ui| self.show_inside(ui, &style, id));
-        let (event, area, geometry, ring, triangle) = inner.inner;
-        ColorWheelResponse { edit: EditResponse::new(inner.response, event), area, geometry, ring, triangle }
-    }
-
-    fn show_inside(
-        self,
-        ui: &mut Ui,
-        style: &ColorWheelStyle,
-        id: Id,
-    ) -> (Option<craft_ui::edit::EditEvent<ModelValues>>, Rect, WheelGeometry, Id, Id) {
-        let height = self.side.filter(|s| s.is_finite()).unwrap_or(style.side).max(style.side_min);
-        let width = if ui.available_width().is_finite() { ui.available_width() } else { height };
-        let (_, area) = ui.allocate_space(vec2(width, height));
-        let geometry = ColorWheel::geometry(style, area);
-        let ring_id = Interactive::id_in(ui, "ring");
-        let triangle_id = Interactive::id_in(ui, "triangle");
-
-        // One widget takes every press and drag; the focus goes to the two part widgets. It covers
-        // the wheel's square and the grab slack only, so presses beside it reach what lies there.
-        let pointer_id = id.with("pointer");
-        let options = InteractOptions { enabled: self.enabled, ..Default::default() };
-        let reach = Rect::from_center_size(geometry.center, Vec2::splat(2.0 * (geometry.outer + style.grab_outer))).intersect(area);
-        let response = ui.interact_opt(reach, pointer_id, Sense::DRAG, options);
-        let enabled = response.enabled();
-        let grab = |p: Pos2| geometry.part_at(p, style.grab_outer, style.grab_inner);
-
-        let hue_scale = scale_of(&HsbModel, 0);
-        let axes = Axes::of(AreaMode::Hue, None);
-        let ring_rect = Rect::from_center_size(geometry.center, Vec2::splat(2.0 * geometry.outer));
-        let corners = geometry.corners(self.values.values[0], 0.0);
-        let triangle_rect = Rect::from_points(&corners).intersect(ring_rect).expand(1.0);
-        let names = self.names.clone().unwrap_or_else(|| installed(ui, Self::TEXTS));
-        let ring = Interactive::new("ring", Role::Slider, names[0].as_str())
-            .sense(Sense::FOCUSABLE)
-            .enabled(enabled)
-            .state_layer(false)
-            .focus_ring(false)
-            .interact_at(ui, ring_rect);
-        let triangle = Interactive::new("triangle", Role::Slider, names[1].as_str())
-            .sense(Sense::FOCUSABLE)
-            .enabled(enabled)
-            .state_layer(false)
-            .focus_ring(false)
-            .interact_at(ui, triangle_rect);
-        let triangle_response = triangle.response().clone();
-
-        let mut gesture =
-            Gesture::load(ui, pointer_id, &self.values, self.policy).focus_owners(&[ring_id, triangle_id]).event_filter(KEY_FILTER).enabled(enabled);
-        let modifiers = || ui.input(|i| i.modifiers);
-        let tapped = tap(ui, &response);
-        let origin = response.drag_started_by(egui::PointerButton::Primary).then(|| response.interact_pointer_pos()).flatten();
-        let press = origin.or(tapped).filter(|p| grab(*p).is_some());
-        let turn = press_turn(ui, pointer_id, self.part, gesture.id(), press);
-        // The part the press took, for the whole drag: the press is in layer coordinates, and so
-        // is every drag position.
-        let part_key = pointer_id.with("craft_ui::wheel_part");
-        let mut pressed_part = ui.data(|d| d.get_temp::<Option<WheelPart>>(part_key)).flatten();
-        // The part to give the focus this frame.
-        let mut focus = None;
-        if let PressTurn::Held(held) = turn
-            && let Some(part) = grab(held)
-        {
-            focus = Some(part);
-            pressed_part = Some(part);
-            gesture.begin_with_value();
-            if let Some(start) = gesture.start().copied() {
-                gesture.update(value_at(&geometry, &start, part, held), modifiers());
-            }
-            if !response.dragged_by(egui::PointerButton::Primary) {
-                gesture.commit();
-            }
-        }
-        let waits = matches!(turn, PressTurn::Waits);
-        if let Some(part) = origin.and_then(grab) {
-            focus = Some(part);
-            if !waits {
-                pressed_part = Some(part);
-                gesture.begin_with_value();
-            }
-        }
-        if response.dragged_by(egui::PointerButton::Primary)
-            && let Some(start) = gesture.start().copied()
-            && let Some(pos) = response.interact_pointer_pos()
-            && let Some(part) = pressed_part
-        {
-            gesture.update(value_at(&geometry, &start, part, pos), modifiers());
-        }
-        if response.drag_stopped() {
-            gesture.commit();
-            pressed_part = None;
-        }
-        ui.data_mut(|d| d.insert_temp(part_key, pressed_part));
-        if let Some(pos) = tapped.filter(|_| !waits)
-            && let Some(part) = grab(pos)
-        {
-            focus = Some(part);
-            gesture.set(value_at(&geometry, gesture.shown(), part, pos));
-        }
-
-        let sensing = Sensing { wheel: false, ..Sensing::of(&response) };
-        if let Some(op) = stepped(ui, ring_id, sensing, None, None, &hue_scale) {
-            gesture.set(hue_applied(&op, gesture.shown()));
-        }
-        if let Some(op) = keys(ui, &triangle_response, response.dragged(), &axes) {
-            gesture.set(super::area::apply(&op, gesture.shown(), AreaMode::Hue, None));
-        }
-        if enabled {
-            ui.input(|i| {
-                for (id, part) in [(ring_id, WheelPart::Ring), (triangle_id, WheelPart::Triangle)] {
-                    if i.num_accesskit_action_requests(id, Action::Click) > 0 {
-                        focus = Some(part);
-                    }
-                }
-            });
-        }
-
-        let shown = *gesture.shown();
-        let [hue, saturation, brightness] = [0, 1, 2].map(|c| finite(shown.values[c]));
-        let model = &HsbModel as &dyn ColorModel;
-        let text = format!("{}, {}", spoken(&names[2], model, 1, saturation), spoken(&names[3], model, 2, brightness));
-        let hue_value = hue_scale.place(f64::from(hue)).rem_euclid(360.0);
-        let ring_response = ring.numeric(hue_value, 0.0..=360.0, 1.0).finish(ui);
-        let triangle_response = triangle.value(text).finish(ui);
-        if enabled {
-            for id in [ring_id, triangle_id] {
-                ui.ctx().accesskit_node_builder(id, |node| node.add_action(Action::Click));
-            }
-        }
-        if let Some(part) = focus {
-            let id = if part == WheelPart::Ring { ring_id } else { triangle_id };
-            if !ui.memory(|m| m.has_focus(id)) {
-                ui.memory_mut(|m| m.request_focus(id));
-            }
-        }
-        if ui.is_rect_visible(area) {
-            paint(ui, style, &geometry, [hue, saturation, brightness], enabled, [&ring_response, &triangle_response]);
-        }
-        (gesture.finish(), area, geometry, ring_id, triangle_id)
+        WheelGeometry::new(area, style.outer_inset, (style.ring_min, style.ring_max), RING_RATIO, style.triangle_inset)
     }
 }
 
-pub(super) fn finite(v: f32) -> f32 {
-    if v.is_finite() { v } else { 0.0 }
+/// The HSB values the wheel shows when the host gives none.
+fn blank() -> ModelValues {
+    ModelValues::new(HsbModel.id(), &[])
 }
 
-/// `base` with what a press at `pos` in `part` picks: the hue for the ring, saturation and
-/// brightness for the triangle (turned to `base`'s hue); `base` when `pos` picks nothing.
+/// `base` with what a press at `pos` in `part` picks: the hue for the ring, saturation and brightness for the
+/// triangle (turned to `base`'s hue); `base` when `pos` picks nothing.
 fn value_at(geometry: &WheelGeometry, base: &ModelValues, part: WheelPart, pos: Pos2) -> ModelValues {
     let mut out = *base;
     match part {
@@ -486,19 +239,183 @@ fn value_at(geometry: &WheelGeometry, base: &ModelValues, part: WheelPart, pos: 
     out
 }
 
-/// `values` with `op` applied to the hue, which wraps at 360 and has no 360 of its own: End is 359.
-fn hue_applied(op: &ScalarOp, values: &ModelValues) -> ModelValues {
-    let hue = f64::from(finite(values.values[0]));
-    let hue = match op {
-        ScalarOp::By(delta) => hue + delta,
-        ScalarOp::Set(value) if value.is_finite() => *value,
-        ScalarOp::ToBound(Bound::Low) => 0.0,
-        ScalarOp::ToBound(Bound::High) => 359.0,
-        _ => hue,
-    };
+/// `values` after the key `mv` on the focused `part`. Left and Right do not mirror: `Forward` is the left arrow under
+/// right-to-left text.
+fn keyed(values: &ModelValues, part: WheelPart, mv: NavMove, far: bool, rtl: bool) -> Option<ModelValues> {
+    let by = if far { FAR } else { 1.0 };
+    let right = if rtl { -by } else { by };
     let mut out = *values;
-    out.values[0] = hue.round().rem_euclid(360.0) as f32;
-    out
+    match part {
+        WheelPart::Ring => {
+            let hue = finite(values.values[0]);
+            let next = match mv {
+                NavMove::Forward => hue + right,
+                NavMove::Back => hue - right,
+                NavMove::Up => hue + by,
+                NavMove::Down => hue - by,
+                NavMove::PageUp => hue + HUE_PAGE,
+                NavMove::PageDown => hue - HUE_PAGE,
+                NavMove::Start => 0.0,
+                NavMove::End => HUE_LAST,
+                _ => return None,
+            };
+            out.values[0] = next.round().rem_euclid(360.0);
+        }
+        WheelPart::Triangle => {
+            let step = channel_step(&HsbModel, 1) as f32;
+            let (s, b) = (finite(values.values[1]), finite(values.values[2]));
+            let (s, b) = match mv {
+                NavMove::Forward => (s + right * step, b),
+                NavMove::Back => (s - right * step, b),
+                NavMove::Up => (s, b + by * step),
+                NavMove::Down => (s, b - by * step),
+                NavMove::PageUp => (s, b + BRIGHTNESS_PAGE),
+                NavMove::PageDown => (s, b - BRIGHTNESS_PAGE),
+                NavMove::Start => (0.0, b),
+                NavMove::End => (100.0, b),
+                _ => return None,
+            };
+            out.values[1] = settled(&HsbModel, 1, s);
+            out.values[2] = settled(&HsbModel, 2, b);
+        }
+    }
+    Some(out)
+}
+
+impl Component for ColorWheel<'_> {
+    const SINGLE_VALUE: bool = true;
+    const ROLE: Role = Role::GROUP;
+    const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_keep(KeepKeys::BlockArrows).with_activate(ActivateKeys::Neither);
+    const OVERLAYS: bool = false;
+    type Style = ColorWheelStyle;
+    type Output = EditResponse<ModelValues>;
+
+    fn style(cx: &StyleCx<'_>, _: ColorWheelStyleKey) -> ColorWheelStyle {
+        let tokens = cx.tokens;
+        ColorWheelStyle {
+            metrics: Metrics::new().min_size(Vec2::new(tokens.size.plot.width, tokens.size.plot.height)),
+            focus: cx.focus_look(),
+            ring_min: tokens.size.icon.sm,
+            ring_max: tokens.size.control.md,
+            outer_inset: tokens.space.gap.tight,
+            triangle_inset: tokens.stroke.thin,
+            grab: tokens.size.hit.target,
+            edge: cx.color(tokens.color.line.control_edge),
+            knob: tokens.size.handle.md,
+        }
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::empty()
+    }
+
+    fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
+        let geometry = ColorWheel::geometry(cx.style, rect);
+        let reach = cx.style.grab;
+        // The ring takes every press within its reach; the triangle takes the circle inside the ring's reach.
+        cx.part(RING, HitShape::circle(geometry.center, geometry.outer + reach))
+            .sense(Sense::DRAG | Sense::CLICK)
+            .focusable()
+            .focus_shape(FocusShape::Circle);
+        cx.part(TRIANGLE, HitShape::circle(geometry.center, (geometry.inner - reach).max(0.0)))
+            .sense(Sense::DRAG | Sense::CLICK)
+            .priority(HitPriority::new(HitLevel::Handle, 0))
+            .focusable()
+            .focus_shape(FocusShape::Circle);
+    }
+
+    fn bind(&mut self) -> Option<BindMut<'_, ModelValues>> {
+        Some(self.values.reborrow())
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        let geometry = ColorWheel::geometry(cx.style, cx.rect);
+        let current = |cx: &Cx<'_, Self>| cx.value().copied().unwrap_or_else(blank);
+        for (key, part) in [(RING, WheelPart::Ring), (TRIANGLE, WheelPart::Triangle)] {
+            let press = cx.part(key).press;
+            if !primary(&press) {
+                continue;
+            }
+            if press.went_down {
+                cx.focus_part(key);
+            }
+            match press.phase {
+                PressPhase::DragStart { pos, .. } => {
+                    cx.memory::<Held>().0 = Some(part);
+                    cx.begin();
+                    cx.propose(value_at(&geometry, &current(&*cx), part, pos));
+                }
+                PressPhase::Drag { pos, .. } if cx.gesture().is_some() && cx.memory::<Held>().0 == Some(part) => {
+                    cx.propose(value_at(&geometry, &current(&*cx), part, pos));
+                }
+                PressPhase::Release { pos, click, .. } => {
+                    if cx.gesture().is_some() {
+                        cx.propose(value_at(&geometry, &current(&*cx), part, pos));
+                        cx.commit();
+                    } else if click {
+                        cx.set(value_at(&geometry, &current(&*cx), part, pos));
+                    }
+                    cx.memory::<Held>().0 = None;
+                }
+                _ => {}
+            }
+        }
+        let (running, rtl) = (cx.gesture().is_some(), cx.flow.is_rtl());
+        let focused = match cx.active_part() {
+            Some(active) if active == RING.into() => Some(WheelPart::Ring),
+            Some(active) if active == TRIANGLE.into() => Some(WheelPart::Triangle),
+            _ => None,
+        };
+        let mut now = current(&*cx);
+        while let Some((mv, mods)) = cx.intents().take_move() {
+            if let Some(part) = focused.filter(|_| !running)
+                && let Some(next) = keyed(&now, part, mv, mods.extend, rtl)
+            {
+                now = next;
+                cx.set(now);
+            }
+        }
+        if let Some(value) = cx.intents().take_set_value_at(RING).filter(|value| value.is_finite() && !running) {
+            now.values[0] = value.round().rem_euclid(360.0) as f32;
+            cx.set(now);
+        }
+    }
+
+    fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
+        let words = cx.words::<ColorWheelWords>();
+        let values = cx.value().copied().unwrap_or_else(blank);
+        let [hue, saturation, brightness] = [0, 1, 2].map(|channel| finite(values.values[channel]));
+        let ring = access.node(RING, Role::SLIDER);
+        ring.name = Name::Text(words.hue.as_str().to_owned());
+        ring.numeric = Some(Numeric::new(f64::from(hue.rem_euclid(360.0)), 0.0..=360.0).step(1.0));
+        let model = &HsbModel as &dyn ColorModel;
+        let text =
+            format!("{}, {}", spoken(words.saturation.as_str(), model, 1, saturation), spoken(words.brightness.as_str(), model, 2, brightness));
+        let triangle = access.node(TRIANGLE, Role::SLIDER);
+        triangle.name = Name::Text(words.triangle.as_str().to_owned());
+        triangle.value(text);
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let geometry = ColorWheel::geometry(cx.style, cx.rect);
+        let values = cx.value().copied().unwrap_or_else(blank);
+        let [hue, saturation, brightness] = [0, 1, 2].map(|channel| finite(values.values[channel]));
+        let corners = geometry.corners(hue, 0.0);
+        let painter = ui.content_painter(cx);
+        painter.painter.add(ring_mesh(&geometry));
+        painter.painter.add(triangle_mesh(corners, hue));
+        let draw = ui.draw();
+        draw.stroke(&PaintShape::Circle(geometry.center, geometry.outer), StrokeWidth::Thin, cx.style.edge);
+        draw.stroke(&PaintShape::Polygon(corners.to_vec()), StrokeWidth::Thin, cx.style.edge);
+        let knobs = [geometry.ring_knob(hue), triangle_point(corners, saturation / 100.0, brightness / 100.0)];
+        for at in knobs {
+            painter.outline(&PaintShape::Circle(at, cx.style.knob / 2.0));
+        }
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> EditResponse<ModelValues> {
+        cx.edit_response()
+    }
 }
 
 /// The colour of HSB `[h, s, b]` (degrees and percents) as a vertex colour.
@@ -541,23 +458,4 @@ fn triangle_mesh(corners: [Pos2; 3], hue: f32) -> Mesh {
         }
     }
     mesh
-}
-
-/// Paints the ring, the triangle, their edges, the knobs and the focus ring of the focused part.
-fn paint(ui: &Ui, style: &ColorWheelStyle, geometry: &WheelGeometry, [hue, saturation, brightness]: [f32; 3], enabled: bool, parts: [&Response; 2]) {
-    let painter = ui.painter();
-    let corners = geometry.corners(hue, 0.0);
-    painter.add(ring_mesh(geometry));
-    painter.add(triangle_mesh(corners, hue));
-    let edge = faded_stroke(style.edge, enabled);
-    painter.circle_stroke(geometry.center, geometry.outer + edge.width / 2.0, edge);
-    let outline = geometry.corners(hue, edge.width).to_vec();
-    painter.add(Shape::Path(PathShape::closed_line(outline.clone(), edge)));
-    let knobs = [geometry.ring_knob(hue), triangle_point(corners, saturation / 100.0, brightness / 100.0)];
-    for at in knobs {
-        painter.circle_stroke(at, style.marker_inner_radius, faded_stroke(style.marker_inner, enabled));
-        painter.circle_stroke(at, style.marker_outer_radius, faded_stroke(style.marker_outer, enabled));
-    }
-    FocusRing::paint_circle(ui, geometry.center, geometry.outer + edge.width, Some(geometry.inner), parts[0].has_focus());
-    FocusRing::paint_polygon(ui, &outline, parts[1].has_focus());
 }
