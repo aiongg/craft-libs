@@ -133,11 +133,13 @@ fn panel(locked: Vec<TrackId>, selection: Vec<ClipId>) -> (Fixture, Rc<RefCell<M
     (fixture, model, seen)
 }
 
-/// The rects of the rows, top to bottom: V2, V1, A1.
+/// The rects of the track rows by name: V2, V1, A1.
 fn rows(fixture: &Fixture) -> Vec<Rect> {
-    let mut rows: Vec<Rect> = fixture.by_role(Role::ROW).into_iter().map(|row| row.rect).collect();
-    rows.sort_by(|a, b| a.top().total_cmp(&b.top()));
-    rows
+    let tree = fixture.tree();
+    ["V2", "V1", "A1"]
+        .into_iter()
+        .filter_map(|name| fixture.by_role(Role::ROW).into_iter().find(|row| tree.name_of(row.node) == Some(name)).map(|row| row.rect))
+        .collect()
 }
 
 fn clip_rect(fixture: &Fixture, name: &str) -> Rect {
@@ -259,7 +261,6 @@ fn the_snap_target_shows_as_a_line_while_dragging() {
             .count()
     };
     drag_between(&mut fixture, alpha.center(), alpha.center() + by, |fixture| {
-        fixture.idle(1);
         assert!(lines(fixture) > 0, "a line stands at the snap target");
     });
     fixture.idle(2);
@@ -272,10 +273,7 @@ fn the_divider_changes_and_keeps_the_share() {
     let (mut fixture, _, seen) = panel(Vec::new(), Vec::new());
     let before = rows(&fixture)[2].top();
     let divider = fixture.by_label(DIVIDER).expect("the divider is named");
-    // The lower half of the divider lies past the reach of the height edge of the row above it.
-    let mut grip = divider;
-    grip.rect = Rect::from_center_size(divider.center() + vec2(0.0, divider.rect.height() / 4.0), vec2(0.0, 0.0));
-    fixture.drag(&grip, vec2(0.0, -divider.rect.height()));
+    fixture.drag(&divider, vec2(0.0, -divider.rect.height()));
     fixture.idle(2);
     let share = seen.borrow().divider;
     let share = share.unwrap_or_else(|| panic!("the drag reports a share: the divider is at {:?}, the rows at {:?}", divider.rect, rows(&fixture)));

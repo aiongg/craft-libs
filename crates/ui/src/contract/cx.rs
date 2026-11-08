@@ -1600,6 +1600,13 @@ impl PartBuilder<'_> {
         self
     }
 
+    /// The part is disabled: a `Draw` from `PaintUi::draw_part` fills data colours with the theme's disabled fill. The
+    /// part keeps sensing; whether it still acts is the component's rule.
+    pub fn disabled(self, disabled: bool) -> Self {
+        self.decl.disabled = disabled;
+        self
+    }
+
     /// The part is the arrival of the component's part roving group: Tab and Shift+Tab into the group land here, not
     /// on the first member. The last part declared `selected` wins.
     pub fn selected(self) -> Self {
