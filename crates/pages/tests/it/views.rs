@@ -562,7 +562,7 @@ fn a_thumbnail_paints_the_paper_in_its_tile_while_its_picture_loads() {
     let mut frames = Frames::new();
     frames.screen(vec2(400.0, 500.0));
     let mut show = |ui: &mut egui::Ui| {
-        PageThumbnails::new("Pages", &pages, &mut picked, 0, DataColor::new(LOADING_PAPER)).show(ui);
+        let _ = PageThumbnails::new("Pages", &pages, &mut picked, 0, DataColor::new(LOADING_PAPER)).show(ui);
     };
     frames.idle(4, &mut show);
     let shapes = frames.frame_shapes(&mut show);
