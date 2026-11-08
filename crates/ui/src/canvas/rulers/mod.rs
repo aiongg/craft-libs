@@ -229,6 +229,7 @@ impl<'a> Rulers<'a> {
             context: None,
         }
         .label(label)
+        .ltr_axis()
     }
 
     /// The part of the canvas's rect `full` inside the strips: where the view lies.

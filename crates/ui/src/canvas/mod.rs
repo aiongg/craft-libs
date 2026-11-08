@@ -203,6 +203,7 @@ impl Canvas {
             settled: None,
         }
         .label(label)
+        .ltr_axis()
     }
 
     /// Leaves the view commands to the instance around the canvas that owns its view (a full-window dialog's): the
