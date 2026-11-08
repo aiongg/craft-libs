@@ -329,11 +329,7 @@ impl Edits<'_> {
             }
             NavMove::Start | NavMove::End => {
                 let end = step == NavMove::End;
-                if mods.by == Granularity::Document {
-                    if end { chars } else { 0 }
-                } else {
-                    self.host.line_edge(caret, end)
-                }
+                if mods.by == Granularity::Document { if end { chars } else { 0 } } else { self.host.line_edge(caret, end) }
             }
             NavMove::PageUp => 0,
             NavMove::PageDown => chars,

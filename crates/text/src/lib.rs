@@ -55,3 +55,8 @@ pub mod styles;
 mod styles_tests;
 #[cfg(feature = "ui")]
 pub mod ui;
+
+#[cfg(feature = "screen-testing")]
+pub mod testing {
+    craft_ui::testing_registered!();
+}

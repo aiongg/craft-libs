@@ -8,6 +8,7 @@ mod stories;
 
 use std::borrow::Cow;
 
+use craft_behavior::IconId;
 use craft_behavior::{SelectionChange, keyed};
 use craft_ui::buttons::{Button, IconButton};
 use craft_ui::choice::Checkbox;
@@ -15,6 +16,7 @@ use craft_ui::contract::{
     Bind, BodyCx, CollectionEvent, Commands as _, Entry, Outcome as _, Props as _, Show as _, ShowCollection as _, ShowContainer as _, Trigger,
 };
 use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
+use craft_ui::display::Text;
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::menu::Menu;
 use craft_ui::pickers::Select;
@@ -23,8 +25,6 @@ use craft_ui::runtime::env::{Env, Label};
 use craft_ui::sections::{DialogRole, FooterButton};
 use craft_ui::tabs::{Tab, TabKind, TabStrip};
 use craft_ui::text::TextField;
-use craft_behavior::IconId;
-use craft_ui::display::Text;
 use egui::{Response, Ui};
 
 use crate::find::{FindError, FindMatches, FindOptions, MAX_COUNT, MAX_PATTERN, RegexError, WildcardError};
@@ -302,7 +302,9 @@ impl FindLabels {
                 WildcardError::BadCount(body) => self.wildcard_bad_count.fill(&[("count", &["{", body, "}"].concat())]),
                 WildcardError::CountTooLarge => self.wildcard_count_too_large.fill(&[("max", &MAX_COUNT.to_string())]),
                 WildcardError::EmptyClass => self.wildcard_empty_class.to_string(),
-                WildcardError::ReversedRange { from, to } => self.wildcard_reversed_range.fill(&[("from", &from.to_string()), ("to", &to.to_string())]),
+                WildcardError::ReversedRange { from, to } => {
+                    self.wildcard_reversed_range.fill(&[("from", &from.to_string()), ("to", &to.to_string())])
+                }
                 _ => self.wildcard_refused.to_string(),
             },
             FindError::Regex(kind) => match kind {
@@ -523,7 +525,11 @@ impl StackDialog for FindReplaceDialog {
         let shown = Dialog::new(words.title.clone()).modeless().buttons(buttons).show(ui, |ui, _| {
             Stack::new().show(ui, |ui, _| {
                 if word {
-                    let tabs = [(FindTab::Find, words.find_tab.to_string()), (FindTab::Replace, words.replace_tab.to_string()), (FindTab::GoTo, words.go_to_tab.to_string())];
+                    let tabs = [
+                        (FindTab::Find, words.find_tab.to_string()),
+                        (FindTab::Replace, words.replace_tab.to_string()),
+                        (FindTab::GoTo, words.go_to_tab.to_string()),
+                    ];
                     let source = keyed(&tabs[..], |tab: &(FindTab, String)| tab.0).with_text(|tab| Cow::Borrowed(tab.1.as_str()));
                     let strip = TabStrip::new(words.title.clone()).kind(TabKind::Text).shown(tab);
                     let out = strip.show_items(ui, &source, &mut |key, _| {
@@ -579,6 +585,9 @@ impl StackDialog for FindReplaceDialog {
                     }
                 }
 
+                if !message.is_empty() {
+                    Text::new(message.clone()).show(ui);
+                }
                 let check = |ui: &mut Ui, label: &Label, value: &mut bool, enabled: bool| {
                     Checkbox::new(Bind::bound(value)).label(label.clone()).enabled(enabled).show(ui);
                 };
@@ -609,9 +618,6 @@ impl StackDialog for FindReplaceDialog {
                 if let Some(code) = Menu::new(words.special.clone()).opened_by(&button, Trigger::Press).pick(ui, &entries).picked {
                     let field = if last_field == Field::With && tab == FindTab::Replace { Field::With } else { Field::Find };
                     picked_code = Some((field, code.to_owned()));
-                }
-                if !message.is_empty() {
-                    Text::new(message.clone()).show(ui);
                 }
             });
         });

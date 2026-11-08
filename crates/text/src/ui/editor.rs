@@ -26,11 +26,13 @@ mod stories;
 use std::ops::Range;
 
 use craft_behavior::kurbo::Point;
-use craft_behavior::{CanvasView, CursorIcon, CursorPriority, EditCommand, EditorInput, Granularity, Metrics, MoveMods, NavMove, PressPhase, Sense, TextPos};
+use craft_behavior::{
+    CanvasView, CursorIcon, CursorPriority, EditCommand, EditorInput, Granularity, Metrics, MoveMods, NavMove, PressPhase, Sense, TextPos,
+};
 use craft_ui::canvas::canvas_space;
 use craft_ui::contract::{
-    Animate as _, Bind, BindMut, Commands as _, Common, Component, Cx, Edit as _, Focus as _, MeasureCx, Outcome, PaintUi, PartsCx, Pointer as _, Props as _,
-    Remember as _, Role,
+    Animate as _, Bind, BindMut, Commands as _, Common, Component, Cx, Edit as _, Focus as _, MeasureCx, Outcome, PaintUi, PartsCx, Pointer as _,
+    Props as _, Remember as _, Role,
 };
 use craft_ui::primitives::{EditorLine, EditorPurpose, EditorRun, EditorState, PaintShape, StrokeWidth};
 use craft_ui::runtime::commands::ClipItem;
@@ -336,7 +338,10 @@ impl Space {
     }
 
     fn rect(&self, rect: Rect) -> Rect {
-        Rect::from_two_pos(self.screen(Point::new(f64::from(rect.min.x), f64::from(rect.min.y))), self.screen(Point::new(f64::from(rect.max.x), f64::from(rect.max.y))))
+        Rect::from_two_pos(
+            self.screen(Point::new(f64::from(rect.min.x), f64::from(rect.min.y))),
+            self.screen(Point::new(f64::from(rect.max.x), f64::from(rect.max.y))),
+        )
     }
 
     /// A screen rect as document units.
@@ -364,7 +369,11 @@ fn lines_of(host: &mut dyn TextEditorHost, fallback: Rect) -> Vec<HostLine> {
 /// The position of char `at` among `lines`: the line that holds it (a soft wrap belongs to the line it ends) and
 /// the byte in that line.
 fn text_pos(lines: &[HostLine], at: usize) -> TextPos {
-    let index = lines.iter().position(|line| line.chars.start <= at && at < line.chars.end).or_else(|| lines.iter().rposition(|line| line.chars.start <= at)).unwrap_or(0);
+    let index = lines
+        .iter()
+        .position(|line| line.chars.start <= at && at < line.chars.end)
+        .or_else(|| lines.iter().rposition(|line| line.chars.start <= at))
+        .unwrap_or(0);
     let Some(line) = lines.get(index) else { return TextPos::new(0, 0) };
     let within = at.saturating_sub(line.chars.start);
     let byte = line.text.char_indices().nth(within).map_or(line.text.len(), |(byte, _)| byte);
@@ -573,7 +582,11 @@ impl Component for TextEditor<'_> {
         let caret_at = selection.caret.min(chars);
         let caret = self.host.caret(caret_at, None);
         let caret_rect = caret.map(|CaretLine { top, bottom }| Rect::from_two_pos(screen(top), screen(bottom)).expand(1.0));
-        if range.is_empty() && cx.is_focused() && (session.dragging.is_some() || cx.blink(session.blink_start)) && let Some(CaretLine { top, bottom }) = caret {
+        if range.is_empty()
+            && cx.is_focused()
+            && (session.dragging.is_some() || cx.blink(session.blink_start))
+            && let Some(CaretLine { top, bottom }) = caret
+        {
             let stroke = PaintShape::Path(vec![screen(top), screen(bottom)]);
             draw.stroke(&stroke, StrokeWidth::Thick, cx.style.halo);
             draw.stroke(&stroke, StrokeWidth::Thin, cx.style.caret);
@@ -590,11 +603,18 @@ impl Component for TextEditor<'_> {
                     let widths = vec![1.0; positions.len()];
                     return vec![(0..line.text.len(), false, positions, widths)];
                 }
-                line.runs.iter().map(|run| (run.bytes.clone(), run.rtl, run.positions.iter().map(|x| x * zoom).collect(), run.widths.iter().map(|w| w * zoom).collect())).collect()
+                line.runs
+                    .iter()
+                    .map(|run| {
+                        (run.bytes.clone(), run.rtl, run.positions.iter().map(|x| x * zoom).collect(), run.widths.iter().map(|w| w * zoom).collect())
+                    })
+                    .collect()
             })
             .collect();
-        let editor_runs: Vec<Vec<EditorRun<'_>>> =
-            runs.iter().map(|line| line.iter().map(|(bytes, rtl, positions, widths)| EditorRun::new(bytes.clone(), *rtl, positions, widths)).collect()).collect();
+        let editor_runs: Vec<Vec<EditorRun<'_>>> = runs
+            .iter()
+            .map(|line| line.iter().map(|(bytes, rtl, positions, widths)| EditorRun::new(bytes.clone(), *rtl, positions, widths)).collect())
+            .collect();
         let lines: Vec<EditorLine<'_>> = host_lines
             .iter()
             .zip(&editor_runs)

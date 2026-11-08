@@ -2,8 +2,7 @@
 //!
 //! - [`editor`]: [`TextEditor`](editor::TextEditor), the text editor on a canvas, over a
 //!   [`TextEditorHost`](editor::TextEditorHost) the app implements for its text and layout.
-//!   Input methods go through craft-ui's [`Composer`](craft_ui::ime::Composer), with the marked
-//!   text written into the app's text so it lays out like typed text.
+//!   The marked text of an input method is written into the app's text so it lays out like typed text.
 //! - [`character`]: [`CharacterControls`](character::CharacterControls) and
 //!   [`ParagraphControls`](character::ParagraphControls), Photoshop's Character and Paragraph
 //!   panels as controls for a panel body, a Properties section or an options bar.
@@ -20,64 +19,22 @@
 //!   [`ParagraphDialog`](character::ParagraphDialog).
 //! - [`style_panel`] also has multi-row highlight and the style chip (N3.04):
 //!   [`StyleChip`](style_panel::StyleChip).
-//! - [`notes`] (N3.18): [`NotesEditor`](notes::NotesEditor) and [`NotesView`](notes::NotesView).
+//! - [`notes`] (N3.18): [`NotesEditor`](notes::NotesEditor), read-only as the presenter's view.
 //! - [`columns`] (N3.27): [`TextColumnsDialog`](columns::TextColumnsDialog) and the Columns menu.
 //! - [`hyperlink`] (N3.28): [`HyperlinkDialog`](hyperlink::HyperlinkDialog).
 //! - `find` (N3.03, with the `find` feature): `FindBar` and `FindReplaceDialog`.
 
 pub mod character;
-#[cfg(test)]
-mod character_tests;
 pub mod columns;
-#[cfg(test)]
-mod columns_tests;
 pub mod editor;
-#[cfg(test)]
-mod editor_tests;
 #[cfg(feature = "find")]
 pub mod find;
-#[cfg(all(test, feature = "find"))]
-mod find_tests;
 pub mod hyperlink;
-#[cfg(test)]
-mod hyperlink_tests;
+mod length;
 pub mod notes;
-#[cfg(test)]
-mod notes_tests;
-mod paged_stories;
 pub mod ruler;
-#[cfg(test)]
-mod ruler_tests;
 pub mod spelling;
-#[cfg(test)]
-mod spelling_tests;
-mod stories;
 pub mod style_panel;
-#[cfg(test)]
-mod style_panel_tests;
 pub mod tabs_dialog;
-#[cfg(test)]
-mod tabs_dialog_tests;
 
-pub use stories::stories;
-
-/// The count words of the text interface (none yet), for the facade's catalog extraction.
-pub const COUNTS: &[craft_ui::localized::words::Counted] = &[];
-
-/// Every labels table of the text interface, for the facade's catalog extraction.
-pub const WORDS: &[&[craft_ui::localized::Word]] = &[
-    <character::CharacterLabels as craft_ui::localized::Labels>::WORDS,
-    <character::ParagraphLabels as craft_ui::localized::Labels>::WORDS,
-    <style_panel::TextStylesLabels as craft_ui::localized::Labels>::WORDS,
-    <spelling::CheckSpellingLabels as craft_ui::localized::Labels>::WORDS,
-    <ruler::TextRulerLabels as craft_ui::localized::Labels>::WORDS,
-    <tabs_dialog::TabStopsLabels as craft_ui::localized::Labels>::WORDS,
-    <character::ParagraphDialogLabels as craft_ui::localized::Labels>::WORDS,
-    <style_panel::StylePickerLabels as craft_ui::localized::Labels>::WORDS,
-    <notes::NotesLabels as craft_ui::localized::Labels>::WORDS,
-    <columns::TextColumnsLabels as craft_ui::localized::Labels>::WORDS,
-    <hyperlink::HyperlinkLabels as craft_ui::localized::Labels>::WORDS,
-    #[cfg(feature = "find")]
-    <find::FindLabels as craft_ui::localized::Labels>::WORDS,
-    <paged_stories::PagedStoryLabels as craft_ui::localized::Labels>::WORDS,
-];
+pub use length::DocUnit;
