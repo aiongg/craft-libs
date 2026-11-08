@@ -9,7 +9,7 @@ use craft_timeline::{
     ClipEdit, ClipId, ClipInfo, FrameRate, Marker, MarkerColor, Tick, TimeFormat, TimeRange, TimeView, TimelineModel, TrackId, TrackInfo, TrackKind,
 };
 use craft_ui::contract::Role;
-use craft_ui::testing::{Fixture, Target, pointer, trial};
+use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Key, Modifiers, Pos2, Rect, vec2};
 
 const POINTS_PER_SECOND: f64 = 40.0;
@@ -273,7 +273,8 @@ fn the_divider_changes_and_keeps_the_share() {
     let before = rows(&fixture)[2].top();
     let divider = fixture.by_label(DIVIDER).expect("the divider is named");
     // The lower half of the divider lies past the reach of the height edge of the row above it.
-    let grip = Target { node: divider.node, rect: Rect::from_center_size(divider.center() + vec2(0.0, divider.rect.height() / 4.0), vec2(0.0, 0.0)) };
+    let mut grip = divider;
+    grip.rect = Rect::from_center_size(divider.center() + vec2(0.0, divider.rect.height() / 4.0), vec2(0.0, 0.0));
     fixture.drag(&grip, vec2(0.0, -divider.rect.height()));
     fixture.idle(2);
     let share = seen.borrow().divider.expect("the drag reports a share");
