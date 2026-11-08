@@ -88,7 +88,8 @@ fn frame(windows: &Windows, events: Vec<egui::Event>, at: Pos2, seen: &Seen) -> 
 /// The window with the modal moved into its title bar, shown until the dialog's strips stand; the point on the bar
 /// beside the dialog.
 fn modal_over_bar(windows: &Windows, at: Pos2, seen: &Seen) -> Pos2 {
-    for _ in 0..6 {
+    // The strips read the last complete pass: the first publishes the bar's drag areas, the second shows the strips.
+    for _ in 0..2 {
         frame(windows, vec![], at, seen);
     }
     let (bar, dialog) = (seen.bar.get(), seen.dialog.get());
