@@ -371,7 +371,9 @@ fn from_and_to_stay_inside_the_document_and_in_order() {
     let start = PageRange { all: false, from: 3, to: Some(9), subset: Subset::All };
     let (mut fixture, range) = range_rig(start);
     type_number(&mut fixture, "9", "99");
-    assert_eq!(range.borrow().to, Some(12), "a page past the end is the last page: {:?}", range.borrow());
+    let shown: Vec<_> =
+        fixture.by_role(craft_ui::contract::Role::SPIN_BUTTON).iter().map(|field| fixture.tree().value_of(field.node).map(str::to_owned)).collect();
+    assert_eq!(range.borrow().to, Some(12), "a page past the end is the last page: {:?}, the fields show {shown:?}", range.borrow());
     let (mut fixture, range) = range_rig(start);
     type_number(&mut fixture, "3", "11");
     assert_eq!((range.borrow().from, range.borrow().to), (11, Some(11)), "the end follows a start past it");

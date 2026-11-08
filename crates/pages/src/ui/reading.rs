@@ -261,9 +261,9 @@ impl<'a> ReadingView<'a> {
         self.source.page_size(0).width as f32 * scale
     }
 
-    /// The page-turn parts' rects, left to right: the left margin with the first gap, the gaps between the columns
-    /// of `viewport`, the last gap with the right margin. A margin part is at least `reach` wide.
-    fn turn_rects(full: Rect, viewport: Rect, column: f32, gap: f32, reach: f32) -> Vec<Rect> {
+    /// The page-turn parts' rects, from the leading edge: the leading margin with the first gap, the gaps between the
+    /// columns of `viewport`, the last gap with the trailing margin. A margin part is at least `reach` wide.
+    fn turn_rects(full: Rect, viewport: Rect, column: f32, gap: f32, reach: f32, rtl: bool) -> Vec<Rect> {
         let step = column + gap;
         let columns = (((viewport.width() - gap) / step).round().max(1.0)) as usize;
         (0..=columns)
@@ -274,6 +274,7 @@ impl<'a> ReadingView<'a> {
                     _ if at == columns => (left.min(full.right() - reach), full.right()),
                     _ => (left, right),
                 };
+                let (left, right) = if rtl { (full.left() + full.right() - right, full.left() + full.right() - left) } else { (left, right) };
                 Rect::from_min_max(pos2(left, full.top()), pos2(right, full.bottom()))
             })
             .collect()
@@ -316,7 +317,7 @@ impl Component for ReadingView<'_> {
         let scale = Self::screen_scale(self.zoom);
         let (column, gap, reach) = (self.column_width(scale), cx.style.gap, cx.style.reach);
         let viewport = reading_viewport(rect, column, gap, scale);
-        for (at, shape) in Self::turn_rects(rect, viewport, column, gap, reach).into_iter().enumerate() {
+        for (at, shape) in Self::turn_rects(rect, viewport, column, gap, reach, cx.flow.is_rtl()).into_iter().enumerate() {
             cx.part(TURN.at(at as u64), shape).sense(Sense::CLICK | Sense::DRAG).pointer_only("the arrow keys, Page keys and Space turn the screen");
         }
     }
@@ -331,7 +332,7 @@ impl Component for ReadingView<'_> {
         let (column, gap, reach) = (self.column_width(scale), cx.style.gap, cx.style.reach);
         let viewport = reading_viewport(cx.rect, column, gap, scale);
         let rtl = cx.flow.is_rtl();
-        for (at, shape) in Self::turn_rects(cx.rect, viewport, column, gap, reach).into_iter().enumerate() {
+        for (at, shape) in Self::turn_rects(cx.rect, viewport, column, gap, reach, rtl).into_iter().enumerate() {
             let forward = Self::forward_at(shape.center().x, viewport.center().x, rtl);
             let word = if forward { &words.next } else { &words.previous };
             let node = access.node(TURN.at(at as u64), Role::BUTTON);
@@ -357,7 +358,7 @@ impl Component for ReadingView<'_> {
             turn += wheel_turns(wheel.scroll, &mut self.state.wheel);
         }
         let viewport = reading_viewport(cx.rect, column, cx.style.gap, Self::screen_scale(self.zoom));
-        let parts = Self::turn_rects(cx.rect, viewport, column, cx.style.gap, cx.style.reach).len();
+        let parts = Self::turn_rects(cx.rect, viewport, column, cx.style.gap, cx.style.reach, rtl).len();
         for at in 0..parts {
             let part = TURN.at(at as u64);
             match (cx.part_activated(part), cx.part(part).press.phase) {
