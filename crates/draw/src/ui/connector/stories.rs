@@ -69,7 +69,7 @@ fn connector_bar_for_one_connector(ui: &mut Ui, _: &mut StoryData) -> StoryOutpu
         .show(ui, |ui, _| {
             let start = StrokeChoiceRow::new("start", "Start", &choices).selected(Mixed::Same("none"));
             let end = StrokeChoiceRow::new("end", "End", &choices).selected(Mixed::Same("arrow"));
-            ConnectorBar::new(Mixed::Same(Routing::Elbow), Mixed::Same(ConnectorLine::default())).caps(start, end).show(ui);
+            let _ = ConnectorBar::new(Mixed::Same(Routing::Elbow), Mixed::Same(ConnectorLine::default())).caps(start, end).show(ui);
         })
         .output
         .into()
@@ -82,7 +82,7 @@ fn connector_bar_for_a_mixed_selection(ui: &mut Ui, _: &mut StoryData) -> StoryO
         .show(ui, |ui, _| {
             let start = StrokeChoiceRow::new("start", "Start", &choices).selected(Mixed::Mixed);
             let end = StrokeChoiceRow::new("end", "End", &choices).selected(Mixed::Same("arrow"));
-            ConnectorBar::new(Mixed::Mixed, Mixed::Mixed).caps(start, end).show(ui);
+            let _ = ConnectorBar::new(Mixed::Mixed, Mixed::Mixed).caps(start, end).show(ui);
         })
         .output
         .into()

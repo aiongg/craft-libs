@@ -22,7 +22,7 @@ fn on_canvas(ui: &mut Ui, mut tool: CropTool, settings: &CropSettings) -> StoryO
     let document = CropDocument::new(CropDocKey(1), DOCUMENT);
     let mut pass = tool.pass(CropInput::new(settings, &document));
     let shown = Canvas::new("Document").document(DOCUMENT).show(ui, |ui, body| pass.show_frame(ui, body.rect));
-    ToolHost::new().run(ui, &shown.output, &mut pass);
+    let _ = ToolHost::new().run(ui, &shown.output, &mut pass);
     shown.output.into()
 }
 

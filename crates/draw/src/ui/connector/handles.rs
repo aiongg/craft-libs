@@ -41,10 +41,6 @@ pub struct ConnectorHandlesStyle {
 #[derive(Clone, Default)]
 struct Start(Option<ConnectorItem>);
 
-/// The part that had the focus last pass, to see the focus arrive.
-#[derive(Clone, Default)]
-struct Arrival(Option<(PartKey, Option<u64>)>);
-
 /// The operation of the last pass of a drag, which the release pass reports again.
 #[derive(Clone, Default)]
 struct Last(Option<ConnectorEvent>);

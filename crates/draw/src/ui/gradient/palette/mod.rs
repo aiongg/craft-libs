@@ -11,6 +11,7 @@ use super::ramp::GradientRamp;
 use super::stops::{Sampler, default_sampler};
 use super::value::{GradientStops, StopRows};
 
+/// A named group of gradient presets.
 #[derive(Clone, Debug, PartialEq)]
 pub struct GradientGroup {
     /// The group's heading.
