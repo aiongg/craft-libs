@@ -5,8 +5,8 @@
 
 use crate::runtime::cursor;
 use crate::runtime::egui::input::{self as raw_input, RawInput};
-use crate::runtime::egui::memory::Service;
 use crate::runtime::egui::input_filter::{self, KeyEquivalent};
+use crate::runtime::egui::memory::Service;
 use crate::runtime::egui::{injected, pass, scale, screenshot, viewports, widgets};
 use crate::runtime::frame::{PassStep, PerViewport, Stamped};
 use crate::runtime::{overlay, pointer};

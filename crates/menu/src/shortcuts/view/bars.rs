@@ -57,7 +57,6 @@ fn conflict_bar(ui: &mut Ui, env: &mut Env<'_>, state: &mut DialogState) {
     let mut notice = Notice::new(Tone::Warn, text)
         .id_salt("shortcuts.conflict")
         .layout(NoticeLayout::Inline)
-        .dismiss()
         .announce(Politeness::Polite)
         .action(NoticeAction::new(words.take_it.clone()))
         .action(NoticeAction::new(words.accept_and_go_to_conflict.clone()));
@@ -65,15 +64,16 @@ fn conflict_bar(ui: &mut Ui, env: &mut Env<'_>, state: &mut DialogState) {
     if keep {
         notice = notice.action(NoticeAction::new(words.keep_both.clone()));
     }
+    // Photoshop's wording for turning the new shortcut down is "Undo Changes", the notice's last action.
+    let undo_at = if keep { 3 } else { 2 };
+    notice = notice.action(NoticeAction::new(words.undo_changes.clone()));
     let out = notice.show(ui);
     match out.action {
         Some(0) => state.take_it(env),
         Some(1) => state.take_it_and_go(env),
         Some(2) if keep => state.keep_both(env),
+        Some(at) if at == undo_at => state.dismiss_conflict(),
         _ => {}
-    }
-    if out.dismissed {
-        state.dismiss_conflict();
     }
 }
 

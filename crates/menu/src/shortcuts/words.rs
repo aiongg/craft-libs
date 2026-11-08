@@ -107,7 +107,7 @@ craft_ui::words! {
         accept_and_go_to_conflict: "keyboardShortcuts.acceptAndGoToConflict" = "Accept and Go to Conflict";
         keep_both: "keyboardShortcuts.keepBoth" = "Keep Both";
         go_to_conflict: "keyboardShortcuts.goToConflict" = "Go to Conflict";
-        cancel_the_new_shortcut: "keyboardShortcuts.cancelTheNewShortcut" = "Cancel the new shortcut";
+        undo_changes: "keyboardShortcuts.undoChanges" = "Undo Changes";
         dismiss: "keyboardShortcuts.dismiss" = "Dismiss";
         // Saved shortcuts that could not be used.
         key_no_command_has_this_name: template "keyboardShortcuts.keyNoCommandHasThisName" = "{key}: no command has this name";

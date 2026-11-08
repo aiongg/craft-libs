@@ -39,13 +39,13 @@ fn conflict_take_it_steals_and_undo_restores() {
     assert_eq!(rig.bindings("file.export"), ["Cmd+E"], "Cmd+Z undoes when no text field has focus");
 }
 
-/// Keep Both lists the clash under the Conflicts filter; dismissing the bar changes nothing.
+/// Keep Both lists the clash under the Conflicts filter; undoing the changes changes nothing.
 #[trial]
 fn conflict_keep_both_lists_the_clash_and_cancel_changes_nothing() {
     let mut rig = Rig::mac();
     rig.click("Export…: ⌘E");
     rig.press(Modifiers::MAC_CMD, Key::S);
-    rig.click("Dismiss");
+    rig.click("Undo Changes");
     assert_eq!(rig.bindings("file.export"), ["Cmd+E"]);
     rig.click("Export…: ⌘E");
     rig.press(Modifiers::MAC_CMD, Key::S);
