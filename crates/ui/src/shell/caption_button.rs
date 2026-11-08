@@ -3,7 +3,7 @@
 
 use super::caption_icons::{CaptionIcon, CaptionIcons};
 use super::words::CaptionLabels;
-use super::{Caption, CaptionFamily, Captions};
+use super::{Caption, CaptionFamily, Captions, SlotSize};
 use crate::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, PartsCx, Role, Styled as _, WordSetCx as _};
 use crate::primitives::{Glyph, IconSpec, PaintShape, TextureCache};
 use crate::runtime::access::Name;
@@ -36,9 +36,6 @@ const WINDOWS: CaptionMetrics = CaptionMetrics { side: WINDOWS_BUTTON_WIDTH, gap
 const WINDOWS_GLYPH: f32 = 10.0;
 /// The side of the round families' glyph grid.
 const ROUND_GLYPH: f32 = 16.0;
-/// Adwaita's resting disc: the glyph colour at 10 % (libadwaita's `alpha(currentColor, .1)`), so it suits light and
-/// dark bars alike.
-const ADWAITA_DISC_ALPHA: u8 = 26;
 
 /// The glyph strokes, in the units of the box they are drawn in.
 const WINDOWS_STROKE: f32 = 1.0;
@@ -312,14 +309,15 @@ impl Component for CaptionButton<'_> {
         let resting = if cx.active { normal } else { cx.color(colors.caption.inactive) };
         let (hover, pressed) = (cx.color(colors.state.hover), cx.color(colors.state.pressed));
         let close = cx.color(colors.caption.close_hover);
+        let close_pressed = cx.color(colors.caption.close_pressed);
         let close_text = cx.color(colors.caption.close_text);
         let (fill, lit) = match (key.face, key.close) {
-            (Face::Windows, true) => (states(transparent, close, close), close_text),
+            (Face::Windows, true) => (states(transparent, close, close_pressed), close_text),
             (Face::Windows, false) | (Face::Generic, _) => (states(transparent, hover, pressed), normal),
-            (Face::Adwaita, _) => (states(cx.color(colors.text.normal.with_alpha(ADWAITA_DISC_ALPHA)), hover, pressed), normal),
+            (Face::Adwaita, _) => (states(cx.color(colors.caption.disc), hover, pressed), normal),
             // KWin inverts a lit button: the disc takes the glyph colour (Close its red) and the glyph the bar's.
-            (Face::Breeze, true) => (states(transparent, close, close), close_text),
-            (Face::Breeze, false) => (states(transparent, normal, cx.color(colors.text.muted)), cx.color(colors.surface.chrome)),
+            (Face::Breeze, true) => (states(transparent, close, close_pressed), close_text),
+            (Face::Breeze, false) => (states(transparent, normal, cx.color(colors.caption.pressed)), cx.color(colors.surface.chrome)),
         };
         let glyph = IconLook::new(
             if key.face.round() { ROUND_GLYPH } else { WINDOWS_GLYPH },
@@ -329,7 +327,7 @@ impl Component for CaptionButton<'_> {
         let slot = if key.face.round() {
             Vec2::new(metrics.gap + metrics.side + metrics.gap, metrics.side)
         } else {
-            Vec2::new(metrics.side, cx.control().height)
+            Vec2::new(metrics.side, SlotSize::TitleBar.px(cx))
         };
         CaptionButtonStyle {
             metrics: Metrics::new().min_size(slot),

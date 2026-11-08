@@ -16,6 +16,7 @@ pub(crate) mod sensing;
 mod state_layer;
 mod surface;
 mod svg_set;
+pub(crate) mod svg_tree;
 mod text;
 pub(crate) mod text_adapter;
 mod text_input;

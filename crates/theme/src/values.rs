@@ -144,6 +144,13 @@ pub const BEVEL_LIT: f64 = 0.15;
 /// either mode: Windows 2000's #808080 shade of its #d4d0c8 face.
 pub const BEVEL_SHADED: f64 = 0.26;
 
+/// The alpha (0..=255) of the pressed close button against `caption.close_hover`: Windows 11 draws
+/// the pressed close red at 90 % over the bar.
+const CAPTION_CLOSE_PRESSED_ALPHA: u8 = 0xe6;
+/// The alpha (0..=255) of the resting disc of a round caption button against `text.normal`
+/// (Adwaita: 10 %).
+const CAPTION_DISC_ALPHA: u8 = 26;
+
 /// The neutral step of `surface.panel` in `mode`: the step every [`ColorSource::Anchored`] token
 /// keeps its distance from.
 pub(super) fn panel_step(mode: Mode) -> usize {
@@ -274,8 +281,11 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
         T::DataYellow => Fixed(Rgba::rgb(240, 220, 0)),
         T::DataScope => Fixed(Rgba::rgb(0x28, 0x28, 0x28)),
         T::CaptionCloseHover => Fixed(Rgba::rgb(0xc4, 0x2b, 0x1c)),
+        T::CaptionClosePressed => Faded(T::CaptionCloseHover, CAPTION_CLOSE_PRESSED_ALPHA),
         T::CaptionCloseText => Fixed(Rgba::WHITE),
+        T::CaptionDisc => Faded(T::TextNormal, CAPTION_DISC_ALPHA),
         T::CaptionInactive => Same(T::TextFaint),
+        T::CaptionPressed => Same(T::TextMuted),
         T::EdgeLight => Lighting(BEVEL_LIT),
         T::EdgeDark => Lighting(-BEVEL_SHADED),
     }

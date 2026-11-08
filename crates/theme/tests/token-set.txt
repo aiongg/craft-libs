@@ -11,8 +11,11 @@ accent.strong_hover
 accent.strong_pressed
 accent.text
 caption.close_hover
+caption.close_pressed
 caption.close_text
+caption.disc
 caption.inactive
+caption.pressed
 data.blue
 data.cyan
 data.green
