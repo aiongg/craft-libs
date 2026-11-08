@@ -62,17 +62,20 @@ pub struct NavigatorZoomRow<'a> {
     /// The app's navigation options.
     #[prop]
     navigation: NavigationOptions,
+    /// Whether the field, the buttons and the slider take input.
+    #[prop]
+    enabled: bool,
 }
 
 impl<'a> NavigatorZoomRow<'a> {
     /// A zoom row that edits `view`, over a document of `document` units.
     pub fn new(view: Bind<'a, CanvasView>, document: Size) -> Self {
-        NavigatorZoomRow { view, document, navigation: NavigationOptions::default() }
+        NavigatorZoomRow { view, document, navigation: NavigationOptions::default(), enabled: true }
     }
 
     /// Shows the row.
     pub fn show(self, ui: &mut Ui) -> NavigatorZoomRowOutput {
-        let NavigatorZoomRow { mut view, document, navigation } = self;
+        let NavigatorZoomRow { mut view, document, navigation, enabled } = self;
         let env = Env::of(ui);
         let words = env.words::<CanvasWords>();
         let units = env.units();
@@ -80,9 +83,9 @@ impl<'a> NavigatorZoomRow<'a> {
         let zoom_label = Label::from(words.navigator_zoom.clone());
         let name: Arc<str> = Arc::from(zoom_label.as_str());
         let platform = os_of(ui.ctx());
-        let command_button = |ui: &mut Ui, icon: &'static str, command: ViewCommand, enabled: bool| {
+        let command_button = |ui: &mut Ui, icon: &'static str, command: ViewCommand, steps: bool| {
             let resolved = commands::resolve(ui.ctx(), command);
-            let mut button = IconButton::new(IconId::new(icon)).label(resolved.label.to_string()).enabled(enabled);
+            let mut button = IconButton::new(IconId::new(icon)).label(resolved.label.to_string()).enabled(steps);
             if let Some(chord) = &resolved.chord {
                 button = button.tooltip(format!("{} ({})", resolved.label, chord.display(platform)));
             }
@@ -101,13 +104,17 @@ impl<'a> NavigatorZoomRow<'a> {
 
             let ladder = |percent: f64, dir: i32| ZoomLadder::step(percent / 100.0, dir, document) * 100.0;
             let codec = NumberCodec::new(units.reader(Some(UnitKind::Percent)), PERCENT_DECIMALS);
-            let field =
-                NumberField::new(zoom_label.clone(), Bind::given(Some(device * 100.0))).codec(codec).range(range.clone()).stepper(ladder).show(ui);
+            let field = NumberField::new(zoom_label.clone(), Bind::given(Some(device * 100.0)))
+                .codec(codec)
+                .range(range.clone())
+                .stepper(ladder)
+                .enabled(enabled)
+                .show(ui);
             if let Some(typed) = field.edit.event.clone() {
                 edits.push(typed.map(|percent| percent.map_or(current, |percent| at(percent / 100.0))));
             }
 
-            let out = command_button(ui, "minus", ViewCommand::ZoomOut, device > ZoomLadder::min(document) * (1.0 + STEP_EPSILON));
+            let out = command_button(ui, "minus", ViewCommand::ZoomOut, enabled && device > ZoomLadder::min(document) * (1.0 + STEP_EPSILON));
             let step = |dir: i32| {
                 let mut next = current;
                 zoom::step(&mut next, dir, document, pixels_per_point)
@@ -123,12 +130,13 @@ impl<'a> NavigatorZoomRow<'a> {
                 .scale(SliderScale::Log)
                 .label(zoom_label.clone())
                 .value_text(units.zoom_percent(device * 100.0))
+                .enabled(enabled)
                 .show(ui);
             if let Some(dragged) = slider.event.clone() {
                 edits.push(dragged.map(at));
             }
 
-            let into = command_button(ui, "plus", ViewCommand::ZoomIn, device < ZoomLadder::MAX * (1.0 - STEP_EPSILON));
+            let into = command_button(ui, "plus", ViewCommand::ZoomIn, enabled && device < ZoomLadder::MAX * (1.0 - STEP_EPSILON));
             if clicked(&into) {
                 steps.extend(step(1));
             }

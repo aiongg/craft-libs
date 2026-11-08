@@ -37,7 +37,7 @@ impl Outcome for NavigatorPanelOutput {
 ///
 /// - Both parts edit the one bound view; a zoom that eases (Animated Zoom) is reported, not written, by either.
 /// - Tab goes from the preview box to the zoom row's percent field, then through the row in reading order.
-/// - `enabled(false)` disables the preview box and the zoom row together.
+/// - `enabled(false)` disables the preview box and every control of the zoom row.
 #[must_use = "show the panel with `show`"]
 #[derive(crate::contract::Pattern, crate::contract::Props)]
 pub struct NavigatorPanel<'a> {
@@ -79,10 +79,15 @@ impl<'a> NavigatorPanel<'a> {
         let mut preview = Some(preview);
         let mut change: Option<EditEvent<CanvasView>> = None;
         let mut ease: Option<ViewEase> = None;
-        let shown = Stack::new().enabled(enabled).show(ui, |ui, _| {
+        let shown = Stack::new().show(ui, |ui, _| {
             let picture = preview.take().unwrap_or(NavigatorPreview::None);
-            let preview = Navigator::new(label.clone(), view.reborrowed(), document).preview(picture).navigation(navigation).proxy(proxy).show(ui);
-            let row = NavigatorZoomRow::new(view.reborrowed(), document).navigation(navigation).show(ui);
+            let preview = Navigator::new(label.clone(), view.reborrowed(), document)
+                .preview(picture)
+                .navigation(navigation)
+                .proxy(proxy)
+                .enabled(enabled)
+                .show(ui);
+            let row = NavigatorZoomRow::new(view.reborrowed(), document).navigation(navigation).enabled(enabled).show(ui);
             for (event, eases) in [(preview.view.event.clone(), preview.ease), (row.view, row.ease)] {
                 if let Some(event) = event {
                     change = EditEvent::fold(change.take(), event);

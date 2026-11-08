@@ -3,7 +3,7 @@
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Size};
 use craft_ui::canvas::NavigationOptions;
-use craft_ui::contract::{Bind, Role};
+use craft_ui::contract::Bind;
 use craft_ui::patterns::canvas::NavigatorPanel;
 use craft_ui::testing::access::focused_key;
 use craft_ui::testing::{Fixture, trial};
@@ -48,13 +48,16 @@ fn a_zoom_row_click_and_a_proxy_drag_both_reach_the_one_bound_view() {
 
 #[trial]
 fn tab_goes_from_the_preview_to_the_zoom_field() {
-    let (mut fixture, _) = panel(true);
+    let (mut fixture, view) = panel(true);
     let preview = fixture.by_label("Navigator").expect("the preview box has a node");
-    let field = fixture.by_role(Role::SPIN_BUTTON).into_iter().next().expect("the zoom row has a percent field");
     fixture.key(Key::Tab, Modifiers::NONE).settle();
     assert_eq!(focused_key(fixture.tree()), preview.node, "the first Tab focuses the preview box");
+    let before = *view.borrow();
     fixture.key(Key::Tab, Modifiers::NONE).settle();
-    assert_eq!(focused_key(fixture.tree()), field.node, "the next Tab focuses the zoom field");
+    // Up in the preview would pan; in the zoom field it steps the zoom.
+    fixture.key(Key::ArrowUp, Modifiers::NONE).settle();
+    assert!(view.borrow().zoom > before.zoom, "the next Tab focuses the zoom field, whose Up zooms in: {:?}", view.borrow());
+    assert_eq!(view.borrow().center, before.center, "and nothing pans");
 }
 
 #[trial]
