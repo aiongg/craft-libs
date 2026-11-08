@@ -9,7 +9,7 @@ use craft_ui::primitives::{Draw, PaintShape, StrokeWidth};
 use craft_ui::style::StyleColor;
 
 use super::VanishingTool;
-use super::editor::Work;
+use super::editor::{Work, is_unset};
 use super::planes::{MAX_GRID_LINES, PlaneCheck, TornPlane, VanishingPlane};
 use super::style::VanishingPointStyle;
 
@@ -27,11 +27,6 @@ pub(super) struct Snapshot {
     pub grid_size: f64,
     pub source: Option<[f64; 2]>,
     pub ring: Option<Vec<Point>>,
-}
-
-/// A torn plane the scene could not rebuild has all-zero corners.
-pub(super) fn is_unset(plane: &VanishingPlane) -> bool {
-    plane.corners.iter().flatten().all(|v| *v == 0.0)
 }
 
 impl Snapshot {

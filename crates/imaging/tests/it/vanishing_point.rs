@@ -19,7 +19,7 @@ use craft_ui::contract::Job;
 use craft_ui::primitives::Revision;
 use craft_ui::runtime::access::Role;
 use craft_ui::sections::DialogRole;
-use craft_ui::testing::{Fixture, pointer, trial};
+use craft_ui::testing::{Fixture, Frames, pointer, trial};
 use egui::{Color32, ColorImage, Key, Modifiers, Pos2, Shape, Vec2};
 
 /// The layer's size in document pixels.
@@ -512,7 +512,7 @@ impl RasterSource for Image {
     }
 
     fn read(&self, _: PixelRect, _: u32, out: &mut ColorImage) {
-        out.pixels.fill(Color32::WHITE);
+        out.pixels.fill(Color32::from_gray(u8::MAX));
     }
 }
 
@@ -613,23 +613,22 @@ fn plane_colours_follow_the_check() {
         let mut workspace = VanishingPointWorkspace::new(VanishingPointOpen::new(LAYER, "Photo", LIMITS).session(session));
         workspace.tool(VanishingTool::EditPlane);
         let scene = Flat { verdicts };
-        let mut fixture = Fixture::new(|_| {});
-        fixture.room(Vec2::new(1000.0, 900.0));
+        let mut frames = Frames::new();
         let mut shapes = Vec::new();
         for _ in 0..3 {
-            shapes = fixture.frame_shapes(|ui| {
+            shapes = frames.frame_shapes(|ui| {
                 workspace.show(ui, &scene, &Layer);
             });
         }
-        let mut found: Vec<Color32> = shapes
+        let mut found: Vec<[u8; 4]> = shapes
             .into_iter()
             .filter_map(|shape| match shape {
                 Shape::Path(path) => Some(path.stroke.color),
                 _ => None,
             })
             .map(|color| match color {
-                egui::epaint::ColorMode::Solid(color) => color,
-                _ => Color32::TRANSPARENT,
+                egui::epaint::ColorMode::Solid(color) => color.to_array(),
+                _ => [0; 4],
             })
             .collect();
         found.sort();

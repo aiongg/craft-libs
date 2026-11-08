@@ -19,7 +19,7 @@ use craft_behavior::{CancelReason, EditEvent, GestureId};
 
 use super::planes::{TornPlane, VanishingPlane, VanishingScene};
 use super::{VanishingPointEvent, VanishingPointSource};
-pub(super) use work::{PASTE_CELLS, Work};
+pub(super) use work::{PASTE_CELLS, Work, is_unset};
 
 /// The engine's limits on the clone strokes, given by the app (PhotoCraft `MAX_CLONE_STROKES` 4096 and
 /// `MAX_CLONE_DABS` 200 000, engine `vp_cmds.rs:19-20`). The Stamp tool stops there, so OK and the preview never fail

@@ -394,7 +394,7 @@ impl VanishingPointWorkspace {
                         let mut canvas = FullWindowCanvas::new(Bind::bound(&mut state.view), image)
                             .checkerboard(checkerboard)
                             .navigation(navigation)
-                            .momentary(momentary)
+                            .momentary(&mut *momentary)
                             .controls(|ui, rect| {
                                 pass.planes().show_at(ui, rect);
                             });
@@ -402,8 +402,8 @@ impl VanishingPointWorkspace {
                             canvas = canvas.overlay(RasterOverlay::new(paste).mapped(frame, PASTE_CELLS).placed(placed).tint(PASTE_TINT));
                         }
                         match strip {
-                            VanishingPointStripTool::Hand => canvas.tool(hand).show(ui),
-                            VanishingPointStripTool::Zoom => canvas.tool(zoom).show(ui),
+                            VanishingPointStripTool::Hand => canvas.tool(&mut *hand).show(ui),
+                            VanishingPointStripTool::Zoom => canvas.tool(&mut *zoom).show(ui),
                             _ => canvas.tool(&mut pass.tool()).show(ui),
                         }
                     })

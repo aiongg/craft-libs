@@ -14,8 +14,9 @@ use craft_ui::runtime::focus::KeyUse;
 use craft_ui::style::StyleCx;
 use egui::{Rect, Response, Vec2};
 
+use super::is_unset;
 use super::{Shared, VanishingTool};
-use crate::ui::vanishing_point::draw::{self, Snapshot, is_unset};
+use crate::ui::vanishing_point::draw::{self, Snapshot};
 use crate::ui::vanishing_point::style::{self, VanishingPointStyle};
 use crate::ui::vanishing_point::words::VanishingPointWords;
 
@@ -134,7 +135,11 @@ impl Component for VanishingPlanes<'_> {
             if snap.tool != VanishingTool::Stamp && plane.homography().is_some() {
                 for (e, node) in plane.edge_nodes().iter().enumerate() {
                     let rect = Rect::from_center_size(space.view.to_screen(craft_behavior::kurbo::Point::new(node[0], node[1])), reach);
-                    cx.part(EDGE.at(key_of(i, e)), HitShape::Rect(rect)).sense(Sense::DRAG).priority(priority).cursor(CursorIcon::Move);
+                    cx.part(EDGE.at(key_of(i, e)), HitShape::Rect(rect))
+                        .sense(Sense::DRAG)
+                        .priority(priority)
+                        .cursor(CursorIcon::Move)
+                        .keyboard_via(CORNER);
                 }
             }
         }

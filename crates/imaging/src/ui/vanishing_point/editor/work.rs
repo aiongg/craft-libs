@@ -7,7 +7,7 @@ use craft_behavior::kurbo::{Point, Rect};
 use craft_behavior::{EditEvent, Mixed};
 use craft_keymap::Mods;
 
-use super::{DragStart, PasteImage, PlaneEdit, StampStroke, VanishingDrag, VanishingPointEditor, VanishingPointSession, VanishingPointSettings};
+use super::{DragStart, PlaneEdit, StampStroke, VanishingDrag, VanishingPointEditor, VanishingPointSession, VanishingPointSettings};
 use super::{VanishingPointEvent, VanishingTool};
 use crate::ui::vanishing_point::VanishingPointSource;
 use crate::ui::vanishing_point::planes::{MAX_PLANES, PlaneCheck, PlaneEdge, TornPlane, VanishingPlane, VanishingScene, fit_torn, slide_edge};
@@ -437,23 +437,6 @@ impl Work<'_> {
             Mixed::Same(before),
             after,
             label(words.edit_planes_step.as_str()),
-            None,
-        )));
-    }
-
-    /// The paste's Width changed: the new placement, reported as a `Set`.
-    pub fn set_paste(&mut self, paste: PasteImage, words: &VanishingPointWords) {
-        let before = self.session.paste;
-        if before == paste {
-            return;
-        }
-        self.session.paste = paste;
-        let id = self.editor.next_gesture();
-        self.editor.events.push(VanishingPointEvent::Paste(EditEvent::set(
-            id,
-            Mixed::Same(before),
-            paste,
-            label(words.paste_width_step.as_str()),
             None,
         )));
     }

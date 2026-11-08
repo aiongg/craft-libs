@@ -507,7 +507,7 @@ mod mapped_overlay {
     use craft_ui::contract::Bind;
     use craft_ui::dialog::{FullWindowCanvas, FullWindowView, RasterOverlay};
     use craft_ui::primitives::Revision;
-    use craft_ui::testing::{Fixture, trial};
+    use craft_ui::testing::{Frames, trial};
     use egui::epaint::Mesh;
     use egui::{Color32, ColorImage, Pos2, Shape};
 
@@ -550,10 +550,10 @@ mod mapped_overlay {
     /// The meshes a settled pass paints with the overlay `make` gives over `Flat`.
     fn meshes(make: impl Fn() -> RasterOverlay<'static>) -> Vec<Mesh> {
         let mut view = FullWindowView::new();
-        let mut fixture = Fixture::new(|_| {});
+        let mut frames = Frames::new();
         let mut shapes = Vec::new();
         for _ in 0..2 {
-            shapes = fixture.frame_shapes(|ui| {
+            shapes = frames.frame_shapes(|ui| {
                 FullWindowCanvas::new(Bind::bound(&mut view), &Flat).overlay(make()).show(ui);
             });
         }
