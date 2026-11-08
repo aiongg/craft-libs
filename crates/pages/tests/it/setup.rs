@@ -346,3 +346,28 @@ fn a_click_on_a_section_starts_editing_it_and_escape_ends_the_editing() {
     fixture.key(Key::Escape, Modifiers::NONE);
     assert!(reported.borrow().1, "Escape on a focused section ends the editing that was under way");
 }
+
+#[trial]
+fn text_the_field_rejects_refuses_ok() {
+    let (mut fixture, _, answered) = dialog(PageSetup::default());
+    let top = fixture.by_label("Top").expect("the Top field");
+    fixture.click(&top);
+    fixture.key(Key::A, Modifiers::COMMAND);
+    fixture.type_text("tall");
+    fixture.key(Key::Tab, Modifiers::NONE);
+    let ok = fixture.by_label("OK").expect("the OK button");
+    fixture.click(&ok);
+    assert_eq!(*answered.borrow(), None, "a Top that is not a length keeps the dialog open");
+}
+
+#[trial]
+fn custom_size_stays_chosen_while_the_numbers_match_a_paper() {
+    let (mut fixture, _, _) = dialog(PageSetup::default());
+    let paper = fixture.by_label("Paper size").expect("the paper list");
+    fixture.click(&paper);
+    let custom = fixture.by_label("Custom size").expect("the Custom size entry");
+    fixture.click(&custom);
+    fixture.idle(2);
+    let paper = fixture.by_label("Paper size").expect("the paper list");
+    assert_eq!(fixture.tree().value_of(paper.node), Some("Custom size"), "the size is still Letter's");
+}

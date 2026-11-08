@@ -27,6 +27,7 @@ fn drag_left_edge(fixture: &mut Fixture) {
 fn handles(ui: &mut Ui, zero: &mut Point, edges: Bind<'_, PageEdges>, rules: &MarginRules) -> StoryOutput {
     let full = ui.available_rect_before_wrap();
     let view = CanvasView::new(full, CENTRE, 1.0);
+    let mut edges = Some(edges);
     let text = RulerText::new(RulerUnits::pixels(), UnitKind::Points);
     Canvas::new("Pages")
         .view(view)
@@ -34,9 +35,10 @@ fn handles(ui: &mut Ui, zero: &mut Point, edges: Bind<'_, PageEdges>, rules: &Ma
         .show(ui, |ui, body| {
             let page = demo_placed(1, CanvasView::new(body.rect, CENTRE, 1.0).to_screen(Point::ZERO)).remove(0);
             Rulers::new("Rulers", Bind::bound(&mut *zero)).margins(MarginHandles::spans(rules, Point::ZERO)).show_at(ui, body.rect);
-            MarginHandles::new("Margins", &page, edges).header_footer().unit(UnitKind::Inches).show_at(ui, body.rect)
+            edges.take().map(|edges| MarginHandles::new("Margins", &page, edges).header_footer().unit(UnitKind::Inches).show_at(ui, body.rect))
         })
         .inner
+        .flatten()
         .map(StoryOutput::from)
         .unwrap_or_default()
 }

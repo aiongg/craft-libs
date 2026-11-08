@@ -2,7 +2,7 @@
 
 use super::{PagePicture, PagePreview};
 use crate::ui::fixtures::DemoPages;
-use craft_ui::contract::Show as _;
+use craft_ui::contract::{Props as _, Show as _};
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 

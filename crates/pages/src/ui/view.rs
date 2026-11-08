@@ -26,7 +26,7 @@ use crate::layout::{
 use craft_behavior::kurbo::{Point, Rect as DocRect, Size};
 use craft_behavior::{CanvasView, PressPhase, WheelNotch, ZoomLadder};
 use craft_ui::canvas::{Canvas, CanvasOutput, CanvasScrollbars, NavigationOptions, PageFrame, Pasteboard, PasteboardOutput, canvas_space};
-use craft_ui::contract::{Bind, BodyCx, Held, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, BodyCx, Held, Props as _, Show as _, ShowContainer as _};
 use craft_ui::primitives::textures::ThumbSource;
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::runtime::memory::Remember as _;
