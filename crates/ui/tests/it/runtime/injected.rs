@@ -5,7 +5,9 @@ use craft_behavior::PointerButton;
 use craft_keymap::{Key, Mods};
 use craft_ui::buttons::SplitButton;
 use craft_ui::contract::{Entry, Show as _};
-use craft_ui::runtime::egui::injected::{cancel, hook_without_pass, idle, inject_click, inject_key, inject_text, take_withdrawn, withdraw};
+use craft_ui::runtime::egui::injected::{
+    cancel, hook_without_pass, idle, inject_click, inject_key, inject_text, move_focus_without_pass, take_withdrawn, withdraw,
+};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Context, Event, Id, ViewportId};
 use std::cell::{Cell, RefCell};
