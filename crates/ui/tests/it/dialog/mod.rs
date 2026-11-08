@@ -1,5 +1,7 @@
 //! Dialog bodies and footer buttons.
 
+mod drag_strip;
+
 use craft_behavior::{DisplayOrder, ItemSource};
 use craft_ui::contract::{Bind, Entry, Role, SelectMode, Show as _, ShowCollection as _, ShowContainer as _};
 use craft_ui::dialog::Dialog;
@@ -114,7 +116,7 @@ fn a_resizable_dialog_opens_at_its_default_size_within_the_screen() {
 }
 
 /// Enter pressed in a text field of a dialog with an OK button: what the dialog reported and whether it is open.
-fn enter_in_field(allow: bool) -> (Option<CloseReason>, Option<usize>, bool) {
+fn enter_in_field(allow: bool, submits: bool) -> (Option<CloseReason>, Option<usize>, bool) {
     let seen = Rc::new(Cell::new((None, None)));
     let open = Rc::new(Cell::new(true));
     let (sink, state) = (seen.clone(), open.clone());
@@ -128,7 +130,9 @@ fn enter_in_field(allow: bool) -> (Option<CloseReason>, Option<usize>, bool) {
             .buttons([FooterButton::new("OK", DialogRole::Accept), FooterButton::new("Cancel", DialogRole::Cancel)])
             .close_guard(move |_, _| allow)
             .show(ui, |ui, _| {
-                TextField::new("Name", Bind::bound(&mut name)).show(ui);
+                let field = TextField::new("Name", Bind::bound(&mut name));
+                let field = if submits { field.submits() } else { field };
+                field.show(ui);
             });
         if shown.output.picked.is_some() {
             sink.set((shown.output.closed, shown.output.picked));
@@ -142,10 +146,16 @@ fn enter_in_field(allow: bool) -> (Option<CloseReason>, Option<usize>, bool) {
     (closed, picked, open.get())
 }
 
+/// A field that acts on Enter itself keeps it: the dialog's default button is not activated.
+#[trial]
+fn enter_in_a_field_that_submits_leaves_the_default_button() {
+    assert_eq!(enter_in_field(true, true), (None, None, true), "Enter stays with the field and the dialog stays open");
+}
+
 #[trial]
 fn enter_activates_ok_through_the_close_guard() {
-    assert_eq!(enter_in_field(true), (Some(CloseReason::Activated), Some(0), false), "Enter closes as OK when the host allows it");
-    assert_eq!(enter_in_field(false), (None, Some(0), true), "Enter leaves the dialog open when the host refuses, and reports the pick");
+    assert_eq!(enter_in_field(true, false), (Some(CloseReason::Activated), Some(0), false), "Enter closes as OK when the host allows it");
+    assert_eq!(enter_in_field(false, false), (None, Some(0), true), "Enter leaves the dialog open when the host refuses, and reports the pick");
 }
 
 /// A Select in a dialog's scrolling body opens its list by a click and by Alt+Down and picks an item: the list's
@@ -179,4 +189,31 @@ fn a_select_in_a_scrolling_dialog_body_opens_its_list_and_picks() {
     fixture.key(Key::Enter, Modifiers::NONE);
     fixture.settle();
     assert_eq!(value.get(), 1, "Up and Enter pick the option above");
+}
+
+/// A footer button opens a URL through the body context's opener, the one `Link` uses.
+#[trial]
+fn a_footer_button_opens_a_url_through_the_body_context() {
+    const URL: &str = "https://example.org/help";
+    let opened = Rc::new(Cell::new(false));
+    let seen = Rc::clone(&opened);
+    let mut fixture = Fixture::new(move |ui| {
+        let mut open = true;
+        Dialog::new("Help")
+            .opened(Bind::bound(&mut open))
+            .footer(|ui, cx| {
+                if craft_ui::testing::contract::clicked(&craft_ui::buttons::Button::new("Docs").show(ui)) {
+                    cx.bar().open_url(URL, true);
+                }
+                let asked = ui.ctx().output(|output| {
+                    output.commands.iter().any(|command| matches!(command, egui::OutputCommand::OpenUrl(request) if request.url == URL))
+                });
+                seen.set(seen.get() || asked);
+            })
+            .show(ui, |_, _| {});
+    });
+    fixture.settle();
+    let docs = fixture.by_label("Docs").expect("the footer button");
+    fixture.click(&docs);
+    assert!(opened.get(), "the platform was asked to open the URL");
 }

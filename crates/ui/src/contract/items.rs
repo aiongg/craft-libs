@@ -70,16 +70,15 @@ struct View {
 struct Lead<K> {
     key: Option<K>,
     at: usize,
-    /// A sheet's lead cell column and the column the cell range extends from.
+    /// A sheet's lead cell column.
     column: usize,
-    anchor_column: usize,
     /// The `CollectionProps.rows_stamp` of the pass that last set the lead.
     stamp: Option<u64>,
 }
 
 impl<K> Default for Lead<K> {
     fn default() -> Self {
-        Lead { key: None, at: 0, column: 0, anchor_column: 0, stamp: None }
+        Lead { key: None, at: 0, column: 0, stamp: None }
     }
 }
 
@@ -123,6 +122,8 @@ pub(super) struct ItemsHooks<'s, 'r, C: Collection> {
     source: &'s dyn ItemSource<C::Key>,
     item: &'s mut ItemFn<'r, C>,
     layout: Option<Arc<C::ItemLayout>>,
+    /// The layout's column count this pass, which a row pick's whole-row cells span.
+    columns: u32,
     /// The layout of the last pass, which `Collection::item_layout_from` may reuse.
     previous: Option<Arc<C::ItemLayout>>,
     content: Vec2,
@@ -164,6 +165,7 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
             source,
             item,
             layout: None,
+            columns: 0,
             previous: None,
             content: Vec2::ZERO,
             room: Vec2::ZERO,
@@ -258,6 +260,10 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
         match Self::select_mode(comp) {
             SelectMode::None => {}
             SelectMode::Single => self.change(SelectionChange::Set(vec![key])),
+            SelectMode::Multi | SelectMode::Cells if (extend || !toggle) && self.selection.cells().is_some() => {
+                let anchor = if extend { self.anchor_at(self.lead.at) } else { at };
+                self.select_rows(comp, anchor, at);
+            }
             SelectMode::Multi | SelectMode::Cells => {
                 if extend {
                     let anchor = self.anchor_at(self.lead.at);
@@ -400,6 +406,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         });
         let content = layout.content_size();
         self.content = Vec2::new(content.x as f32, content.y as f32);
+        self.columns = layout.column_count() as u32;
         self.layout = Some(Arc::new(layout));
         let empty = if self.source.is_empty() { comp.empty_height(width, scx) } else { 0.0 };
         let height = self.content.y.max(empty) + self.header.height;
@@ -524,6 +531,12 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let node = matches!(C::ROLE, Role::Node(_));
         let offset = ScrollPos { x: self.offset_x, y: self.offset };
         Arc::make_mut(&mut layout).set_view(rect.size(), offset);
+        if self.scrolls {
+            let size = self.content.max(rect.size());
+            let left = if rtl { rect.max.x + self.offset_x as f32 - size.x } else { rect.min.x - self.offset_x as f32 };
+            let content = Rect::from_min_size(Pos2::new(left, rect.min.y - self.offset as f32), size);
+            crate::runtime::egui::widgets::note_scroll_region(&ctx, rect.intersect(ui.clip_rect()), content);
+        }
         let sheet = Self::selects_cells(comp);
         let columns: Vec<u64> = match layout.grid() {
             Some(grid) => grid.sections.iter().flat_map(|section| section.columns.clone().map(u64::from)).collect(),
@@ -554,6 +567,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let (parent, clip) = (ui.layer_id(), rect.intersect(ui.clip_rect()));
         let forward =
             areas::Forward { id: sub(id, "transform"), sense: response::to_egui(cx.core.root_sense), rect: cx.core.rect.intersect(ui.clip_rect()) };
+        let placed = self.selection.placed(self.source);
         let mut row_groups = Vec::with_capacity(order.len());
         let content_sized = self.content_sized(comp);
         let mut widest = 0.0f32;
@@ -568,7 +582,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 row_groups.push(row_group);
                 let mut row = self.screen(&layout, rect, at, offset, rtl);
                 let state = RowState {
-                    selected: self.holds(at),
+                    selected: placed.holds_row(at),
                     lead: lead.as_ref() == Some(&key),
                     renaming: self.renaming.key.as_ref() == Some(&key),
                     striped: striped && {
@@ -603,7 +617,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     *cell = self.to_screen(&layout, rect, *cell, rtl);
                 }
                 if sheet {
-                    rows::put_cell_flags(&ctx, item_id, self.cell_flag_list(at, &columns, focused));
+                    rows::put_cell_flags(&ctx, item_id, self.cell_flag_list(&placed, at, &columns, focused));
                 }
                 let column_keys: Vec<craft_behavior::ColumnKey> = cells.iter().map(|(key, _)| key.clone()).collect();
                 let mut icx = ItemCx {
@@ -942,7 +956,18 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             self.move_lead(at, LeadSource::Pointer);
         }
         match cx.core.press.phase {
-            PressPhase::Release { click, .. } => {
+            PressPhase::Release { click, start, pos, .. } => {
+                if click
+                    && props.menu_on_click
+                    && start.button == craft_behavior::PointerButton::Primary
+                    && crate::primitives::sensing::read_outcome(&ctx, ArenaId::new(cx.core.id))
+                        .hover
+                        .is_none_or(|hit| hit.part.is_none() || !hit.sense.takes_press())
+                    && let Some(row) = layout.hit(local(pos), offset).filter(|&row| self.source.enabled(row) && layout.shown(row))
+                {
+                    let request = self.menu_request(layout, Placement { rect, offset, rtl }, row, local(pos));
+                    self.events.push(CollectionEvent::ContextMenu(request));
+                }
                 if let Some(key) = self.drags.collapse.take()
                     && click
                     && let Some(at) = self.index_of(&key)
@@ -970,7 +995,6 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             && let Some(at) = layout.hit(local(pos), offset)
             && self.source.enabled(at)
         {
-            let key = self.source.key(at);
             if !self.holds(at) {
                 let column = if Self::selects_cells(comp) { layout.column_at(local(pos), offset) } else { None };
                 match column {
@@ -979,12 +1003,20 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 }
             }
             self.move_lead(at, LeadSource::Pointer);
-            let place = self.on_screen(self.screen(layout, rect, at, offset, rtl).left_bottom());
-            let mut cells = Vec::new();
-            layout.cells(at, offset, &mut cells);
-            let column = cells.into_iter().find(|(_, cell)| cell.contains(local(pos))).map(|(column, _)| column);
-            self.events.push(CollectionEvent::ContextMenu(ContextMenuRequest { key, at: place, column }));
+            let request = self.menu_request(layout, Placement { rect, offset, rtl }, at, local(pos));
+            self.events.push(CollectionEvent::ContextMenu(request));
         }
+    }
+
+    /// The request for the menu of the row `at`, opened by a pointer at `point` (the layout's coordinates): at the
+    /// row's bottom start corner, with the column the point lies in.
+    fn menu_request(&self, layout: &C::ItemLayout, at: Placement, row: usize, point: Pos2) -> ContextMenuRequest<C::Key> {
+        let Placement { rect, offset, rtl } = at;
+        let place = self.on_screen(self.screen(layout, rect, row, offset, rtl).left_bottom());
+        let mut cells = Vec::new();
+        layout.cells(row, offset, &mut cells);
+        let column = cells.into_iter().find(|(_, cell)| cell.contains(point)).map(|(column, _)| column);
+        ContextMenuRequest { key: self.source.key(row), at: place, column }
     }
 
     /// The pass's moves: lead, selection, expand and collapse.
@@ -1007,8 +1039,12 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             {
                 continue;
             }
-            let mut state = NavState::new().page(page).column(self.lead.column);
-            state.lead = lead;
+            // A range of cells that extends moves from its head, which is not the lead (the active cell).
+            let start = lead
+                .map(|at| (at, self.lead.column))
+                .map(|lead| if cells && mods.extend { self.cell_head(comp, layout).unwrap_or(lead) } else { lead });
+            let mut state = NavState::new().page(page).column(start.map_or(self.lead.column, |(_, column)| column));
+            state.lead = start.map(|(at, _)| at);
             state.anchor = lead.map(|at| self.anchor_at(at)).filter(|_| mods.extend);
             let step = match nav::step(layout.nav(), &outline, &mut state, mv, mods) {
                 // The ends of the outline, and the first move into it, land on an item, not on a section stop.
@@ -1020,12 +1056,19 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             };
             match step {
                 NavStep::Moved(to) if cells => {
-                    self.cell_move(comp, layout, to, state.column, mods);
-                    self.reveal_with(layout, to, view);
+                    let reveal = self.cell_move(comp, layout, mv, to, state.column, mods);
+                    self.reveal_with(layout, reveal, view);
                 }
                 NavStep::Column(column) if cells => {
-                    if let Some(at) = lead {
-                        self.cell_move(comp, layout, at, column, mods);
+                    if let Some((at, _)) = start {
+                        let reveal = self.cell_move(comp, layout, mv, at, column, mods);
+                        self.reveal_with(layout, reveal, view);
+                    }
+                }
+                // An arrow at the edge of the grid still runs the rules: it collapses the selection to the active cell.
+                NavStep::Stay if cells && !mods.lead && rows::cell_direction(mv, mods).is_some() => {
+                    if let Some((at, column)) = start {
+                        self.cell_move(comp, layout, mv, at, column, mods);
                     }
                 }
                 NavStep::Column(column) => self.lead.column = column,
@@ -1109,8 +1152,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         let back = cx.core.intents.take_exact(&Intent::delete(false, Granularity::Unit));
         let Some(row) = lead_at.filter(|_| forward || back) else { return };
         let lead = self.source.key(row);
-        let keys =
-            if self.holds(row) { (0..self.source.len()).filter(|&at| self.holds(at)).map(|at| self.source.key(at)).collect() } else { vec![lead] };
+        let keys = if self.holds(row) { self.selected_keys(&self.selection) } else { vec![lead] };
         self.events.push(CollectionEvent::Delete(keys));
     }
 
@@ -1132,7 +1174,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         let Some((column, toggle)) = self.header.toggle_columns().find(|(column, _)| self.source.toggle_enabled(row, column)) else { return };
         let selected = self.holds(row);
         let others: Vec<usize> =
-            if selected && !toggle.exclusive { (0..self.source.len()).filter(|&at| at != row && self.holds(at)).collect() } else { Vec::new() };
+            if selected && !toggle.exclusive { self.placed().rows().into_iter().filter(|&at| at != row).collect() } else { Vec::new() };
         let Some(on) = self.flip_toggle(cx, row, column.clone(), toggle) else { return };
         for at in others {
             if self.source.enabled(at)

@@ -363,6 +363,11 @@ impl AccessTree {
         self.lookup(NodeId(key.0)).is_some_and(|node| node.is_hidden())
     }
 
+    /// Whether a node by key is reported as disabled.
+    pub fn is_disabled_key(&self, key: NodeKey) -> bool {
+        self.lookup(NodeId(key.0)).is_some_and(Node::is_disabled)
+    }
+
     /// Whether a node by key declares `action`.
     pub fn declares_key(&self, key: NodeKey, action: Declared) -> bool {
         self.lookup(NodeId(key.0)).is_some_and(|node| node.supports_action(action.action()))

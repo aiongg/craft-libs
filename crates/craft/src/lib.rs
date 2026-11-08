@@ -3,6 +3,8 @@
 
 pub mod egui_fork;
 
+#[cfg(all(feature = "ui-system_fonts", target_arch = "wasm32"))]
+compile_error!("`ui-system_fonts` is desktop-only: the system font index needs fontique, which has no web build");
 #[cfg(feature = "ai-core")]
 pub use craft_ai_core as ai_core;
 #[cfg(feature = "atomic")]
@@ -116,20 +118,14 @@ pub mod story {
         let mut all = craft_ui::story::registry();
         #[cfg(feature = "automation")]
         all.extend(craft_automation::ui::stories());
-        #[cfg(feature = "browse")]
-        all.extend(craft_browse::ui::stories());
         #[cfg(feature = "color")]
         all.extend(craft_color::ui::stories());
-        #[cfg(feature = "dialogs")]
-        all.extend(craft_dialogs::ui::stories());
         #[cfg(feature = "draw")]
         all.extend(craft_draw::ui::stories());
         #[cfg(feature = "font-manager")]
         all.extend(craft_font_manager::ui::stories());
         #[cfg(feature = "imaging")]
         all.extend(craft_imaging::ui::stories());
-        #[cfg(feature = "layers")]
-        all.extend(craft_layers::ui::stories());
         #[cfg(feature = "pages")]
         all.extend(craft_pages::ui::stories());
         #[cfg(feature = "review")]
@@ -138,8 +134,6 @@ pub mod story {
         all.extend(craft_table::ui::stories());
         #[cfg(feature = "text")]
         all.extend(craft_text::ui::stories());
-        #[cfg(feature = "theme-store")]
-        all.extend(craft_theme_store::ui::stories());
         #[cfg(feature = "timeline")]
         all.extend(craft_timeline::ui::stories());
         all
@@ -159,32 +153,22 @@ pub mod words {
         let mut all: Vec<&'static [Word]> = craft_ui::localized::words::tables().to_vec();
         #[cfg(feature = "automation")]
         all.extend(craft_automation::ui::WORDS);
-        #[cfg(feature = "browse")]
-        all.extend(craft_browse::ui::WORDS);
         #[cfg(feature = "color")]
         all.extend(craft_color::ui::WORDS);
-        #[cfg(feature = "dialogs")]
-        all.extend(craft_dialogs::ui::WORDS);
         #[cfg(feature = "draw")]
         all.extend(craft_draw::ui::WORDS);
         #[cfg(feature = "font-manager")]
         all.extend(craft_font_manager::ui::WORDS);
         #[cfg(feature = "imaging")]
         all.extend(craft_imaging::ui::WORDS);
-        #[cfg(feature = "layers")]
-        all.extend(craft_layers::ui::WORDS);
         #[cfg(feature = "pages")]
         all.extend(craft_pages::ui::WORDS);
-        #[cfg(feature = "print")]
-        all.extend(craft_print::ui::WORDS);
         #[cfg(feature = "review")]
         all.extend(craft_review::ui::WORDS);
         #[cfg(feature = "table")]
         all.extend(craft_table::ui::WORDS);
         #[cfg(feature = "text")]
         all.extend(craft_text::ui::WORDS);
-        #[cfg(feature = "theme-store")]
-        all.extend(craft_theme_store::ui::WORDS);
         #[cfg(feature = "timeline")]
         all.extend(craft_timeline::ui::WORDS);
         #[cfg(any(feature = "platform", feature = "dialogs"))]
@@ -213,12 +197,8 @@ pub mod words {
         let mut all: Vec<&'static [Counted]> = vec![craft_ui::localized::words::COUNTS];
         #[cfg(feature = "automation")]
         all.push(craft_automation::ui::COUNTS);
-        #[cfg(feature = "browse")]
-        all.push(craft_browse::ui::COUNTS);
         #[cfg(feature = "color")]
         all.push(craft_color::ui::COUNTS);
-        #[cfg(feature = "dialogs")]
-        all.push(craft_dialogs::ui::COUNTS);
         #[cfg(feature = "draw")]
         all.push(craft_draw::ui::COUNTS);
         #[cfg(feature = "font-manager")]

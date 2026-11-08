@@ -936,11 +936,18 @@ note = "The output of `SplitArea`: the layout's resize edits."
 
 # dock-commands-a: command sets over the dock model, the workspace switcher, the words.
 [[type]]
-name = "DockCommands"
+name = "DockCommand"
 old = "craft_ui::docking::DockCommand"
+new = ""
+status = "removed"
+note = "The serde command protocol is gone; the dock commands are the `DockCommands` set."
+
+[[type]]
+name = "DockCommands"
+old = ""
 new = "craft_ui::docking::DockCommands"
 status = "replaced"
-note = "The serde command protocol is gone. `DockCommands` is a fieldless `CommandSet` (prefix `dock`, scope `dockGroup`): `DockArea` gives each `DockGroup` the scope, publishes `dock_states` there and runs `actions` and `move_actions` for the command that reaches the group, so a menu row, a key and the palette run the same code. A host with its own dock calls the functions with the panel; `Fixture` replaces the JSON control driver."
+note = "Replaces the serde `DockCommand` protocol. `DockCommands` is a fieldless `CommandSet` (prefix `dock`, scope `dockGroup`): `DockArea` gives each `DockGroup` the scope, publishes `dock_states` there and runs `actions` and `move_actions` for the command that reaches the group, so a menu row, a key and the palette run the same code. A host with its own dock calls the functions with the panel; `Fixture` replaces the JSON control driver."
 
 [[type]]
 name = "UiDock"
@@ -1046,18 +1053,18 @@ status = "replaced"
 note = "The error value of a workspace that fails `Workspace::validate`; the area draws nothing for it."
 
 [[type]]
-name = "DockAreaStyle"
+name = "DockRootStyle"
 old = ""
-new = "craft_ui::patterns::dock::DockAreaStyle"
+new = "craft_ui::docking::DockRootStyle"
 status = "replaced"
-note = "The one component style behind `DockStyle`, `DockLook`, `DockSpec` and `DockWith`: the docking sizes, from tokens."
+note = "The one component style behind `DockStyle`, `DockLook`, `DockSpec` and `DockWith`: the docking sizes, from tokens, which the body of a `DockArea` or `PaneArea` reads through `BodyCx::style`."
 
 [[type]]
 name = "DockStyle"
 old = "craft_ui::docking::surface::DockStyle"
 new = ""
 status = "removed"
-note = "Replaced by `craft_ui::patterns::dock::DockAreaStyle` (sizes) and `DockConfig` (behaviour)."
+note = "Replaced by `craft_ui::docking::DockRootStyle` (sizes) and `DockConfig` (behaviour)."
 
 [[type]]
 name = "DockLook"
@@ -1071,14 +1078,14 @@ name = "DockSpec"
 old = "craft_ui::docking::look::DockSpec"
 new = ""
 status = "removed"
-note = "Replaced by `DockAreaStyle`."
+note = "Replaced by `DockRootStyle`."
 
 [[type]]
 name = "DockWith"
 old = "craft_ui::docking::look::DockWith"
 new = ""
 status = "removed"
-note = "Replaced by `DockAreaStyle`."
+note = "Replaced by `DockRootStyle`."
 
 [[setter]]
 type = "DockArea"
@@ -1221,7 +1228,7 @@ name = "PaneRequest"
 old = "craft_ui::panes::PaneRequest"
 new = "craft_ui::patterns::dock::PaneRequest"
 status = "moved"
-note = "`Resize` is not a request: a docked pane's size is the app's `PaneState::size`. `FloatRect` carries a `Rect`. `Minimize(pane, bool)` sets `PaneState::minimized`."
+note = "`Resize(pane, extent)` arrives once, when the drag of a docked pane's inner edge ends; `PaneState::apply` sets `PaneState::size` from it. `FloatRect` carries a `Rect`. `Minimize(pane, bool)` sets `PaneState::minimized`."
 
 [[type]]
 name = "PaneOutput"

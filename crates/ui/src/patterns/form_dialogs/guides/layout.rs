@@ -16,10 +16,6 @@ const MAX_EDGES: u64 = 16_000;
 const SAME_GUIDE: f64 = 0.01;
 /// The tolerance when columns are tested against the room they must fit in.
 const FIT_TOLERANCE: f64 = 0.001;
-/// Points in a pica.
-const POINTS_PER_PICA: f64 = 12.0;
-/// Percent in a whole.
-const PERCENT: f64 = 100.0;
 
 /// A rectangle a layout fills, in document pixels.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -166,15 +162,6 @@ impl GuideUnits {
         self
     }
 
-    /// How many pixels one `unit` is, for a length across `extent` pixels; `None` for a unit that is not a length.
-    fn pixels_in(&self, unit: UnitKind, extent: f64) -> Option<f64> {
-        match unit {
-            UnitKind::Pixels => Some(1.0),
-            UnitKind::Percent => Some(extent / PERCENT),
-            length => length.per_inch(self.points_per_inch).map(|per_inch| self.pixels_per_inch / per_inch),
-        }
-    }
-
     /// `length` in pixels across `extent` pixels.
     pub fn to_pixels(&self, length: GuideLength, extent: f64) -> Option<f64> {
         length.unit.to_pixels(length.value, extent, self.pixels_per_inch, self.points_per_inch)
@@ -185,22 +172,10 @@ impl GuideUnits {
         unit.from_pixels(pixels, extent, self.pixels_per_inch, self.points_per_inch)
     }
 
-    /// The reader of the fields that show the ruler unit: it takes "50%", "2.5 cm", "1in", "12 pt", "3 pc" and
+    /// The reader of the fields that show the ruler unit: it takes "50%", "2.5 cm", "1in", "12 pt", "3 pica" and
     /// "100 px", each converted to the ruler unit, percent of `extent`; a bare number is in the ruler unit.
     pub fn reader(&self, units: &Units, extent: f64) -> Reader {
-        let mut reader = units.reader_with_points(Some(self.ruler), self.points_per_inch);
-        let one_ruler = self.pixels_in(self.ruler, extent).filter(|one| *one != 0.0);
-        let Some(one_ruler) = one_ruler else { return reader };
-        if self.ruler != UnitKind::Pixels {
-            reader = reader.unit(&units.symbol(UnitKind::Pixels), 1.0 / one_ruler);
-        }
-        if self.ruler != UnitKind::Percent {
-            reader = reader.unit(&units.symbol(UnitKind::Percent), extent / PERCENT / one_ruler);
-        }
-        if let Some(per_inch) = self.ruler.per_inch(self.points_per_inch) {
-            reader = reader.unit(&units.symbol(UnitKind::Picas), self.points_per_inch / POINTS_PER_PICA / per_inch);
-        }
-        reader
+        units.document_reader(self.ruler, extent, self.pixels_per_inch, self.points_per_inch)
     }
 }
 

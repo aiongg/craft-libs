@@ -8,11 +8,10 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
+use craft_behavior::IconId;
+use craft_keymap::Mods;
 use craft_theme::LabelColor;
-use craft_ui::behavior::Move;
-use craft_ui::icons::Icon;
-use craft_ui::menu::MenuEntry;
-use egui::Modifiers;
+use craft_ui::contract::{Entry, ReorderMove};
 
 /// The app's view of its layers, built per pass over its document (no copies of the layers).
 ///
@@ -63,7 +62,7 @@ pub trait LayerTree {
     /// Blend modes in menu order, with separators. `group` adds Pass Through; `current` is the
     /// layer's own mode, kept in the list when the app's standard list lacks it (PhotoCraft's
     /// Paint.NET modes).
-    fn blend_modes(&self, group: bool, current: &str) -> Vec<BlendChoice>;
+    fn blend_modes(&self, group: bool, current: &str) -> Vec<Entry<String>>;
 
     /// What the footer shows: the mask and delete wording, what is enabled, the two menus.
     fn footer(&self) -> LayersFooterState;
@@ -71,9 +70,9 @@ pub trait LayerTree {
     /// Whether a drag of rows may drop here. A drop the app refuses shows no marker and takes
     /// nothing (PhotoCraft: nothing goes below the Background; a multi-selection is not copied
     /// onto one of its own rows; DesignCraft: a locked or hidden layer takes drops only with
-    /// Cmd/Ctrl, read from `modifiers`). Accepts every drop by default.
-    fn accepts_drop(&self, mv: &Move<LayerRowKey<Self::Id>>, modifiers: Modifiers) -> bool {
-        let _ = (mv, modifiers);
+    /// Cmd/Ctrl, read from `mods`). Accepts every drop by default.
+    fn accepts_drop(&self, mv: &ReorderMove<LayerRowKey<Self::Id>>, mods: Mods) -> bool {
+        let _ = (mv, mods);
         true
     }
 
@@ -93,6 +92,7 @@ pub trait LayerTree {
 
 /// What one layer row shows. Build it with [`LayerInfo::new`] and set the fields that differ.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct LayerInfo {
     /// The layer's name, shown on one line with an ellipsis.
     pub name: String,
@@ -170,6 +170,7 @@ impl LayerInfo {
 
 /// What a layer is.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum LayerKind {
     /// Pixels (PhotoCraft's raster layer).
     #[default]
@@ -198,6 +199,7 @@ pub enum LayerKind {
 
 /// The part of a layer edits go to, and the thumbnail that stands for it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum LayerPart {
     /// The layer's own pixels.
     #[default]
@@ -212,6 +214,7 @@ pub enum LayerPart {
 
 /// One mask of a layer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct MaskInfo {
     /// [`LayerPart::LayerMask`] or [`LayerPart::VectorMask`].
     pub part: LayerPart,
@@ -222,8 +225,9 @@ pub struct MaskInfo {
     pub linked: bool,
 }
 
-/// A layer's locks.
+/// A layer's locks. Start from `LayerLocks::default()` (nothing locked) and set the fields that are on.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct LayerLocks {
     /// Lock transparent pixels.
     pub transparency: bool,
@@ -235,6 +239,13 @@ pub struct LayerLocks {
     pub artboard: bool,
     /// Lock all.
     pub all: bool,
+}
+
+impl MaskInfo {
+    /// A mask of `part` that is `enabled` and `linked` or not.
+    pub fn new(part: LayerPart, enabled: bool, linked: bool) -> Self {
+        Self { part, enabled, linked }
+    }
 }
 
 impl LayerLocks {
@@ -257,6 +268,7 @@ impl LayerLocks {
 
 /// One of the five locks, in the lock row's order (Photoshop's).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum LockKind {
     /// Lock transparent pixels.
     Transparency,
@@ -277,6 +289,7 @@ impl LockKind {
 
 /// The selection as the app keeps it.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct LayerSelection<Id> {
     /// The selected layers, in the order they were selected.
     pub layers: Vec<Id>,
@@ -284,6 +297,13 @@ pub struct LayerSelection<Id> {
     pub active: Option<Id>,
     /// The active layer's part edits go to: its thumbnail gets the target brackets.
     pub target: LayerPart,
+}
+
+impl<Id> LayerSelection<Id> {
+    /// The `layers` selected, `active` the one the property rows show, edits going to `target`.
+    pub fn new(layers: Vec<Id>, active: Option<Id>, target: LayerPart) -> Self {
+        Self { layers, active, target }
+    }
 }
 
 impl<Id> Default for LayerSelection<Id> {
@@ -294,6 +314,7 @@ impl<Id> Default for LayerSelection<Id> {
 
 /// The key of one row of the panel, and of what a drag carries.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum LayerRowKey<Id> {
     /// A layer's row.
     Layer(Id),
@@ -323,6 +344,7 @@ impl<Id> LayerRowKey<Id> {
 
 /// Which sub-rows of a layer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum SubRowGroup {
     /// The "Effects" row and one row per effect.
     Effects,
@@ -332,6 +354,7 @@ pub enum SubRowGroup {
 
 /// The effects or Smart Filter rows of a layer: a header row, then the items, top first.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct SubRows {
     /// The "Effects" or "Smart Filters" row; its eye shows or hides them all.
     pub header: SubRow,
@@ -339,8 +362,16 @@ pub struct SubRows {
     pub items: Vec<SubRow>,
 }
 
+impl SubRows {
+    /// A `header` row and its `items`.
+    pub fn new(header: SubRow, items: Vec<SubRow>) -> Self {
+        Self { header, items }
+    }
+}
+
 /// One effects or Smart Filter row.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct SubRow {
     /// The row's text: "Effects", "Drop Shadow", "Gaussian Blur".
     pub label: String,
@@ -349,18 +380,22 @@ pub struct SubRow {
     /// Whether the row has an eye cell at all.
     pub eye_shown: bool,
     /// The icon before the label (Photoshop's sparkles on the "Effects" row).
-    pub icon: Option<Icon>,
+    pub icon: Option<IconId>,
     /// A Smart Filters header shows the shared filter-mask thumbnail (hidden at thumbnail size
     /// None).
     pub mask: bool,
 }
 
-/// One entry of the blend-mode list, shared with the imaging editors (craft-imaging cannot
-/// depend on craft-layers).
-pub use craft_ui::controls::blend_choice::BlendChoice;
+impl SubRow {
+    /// An "on" row with an eye, no icon and no mask thumbnail, reading `label`.
+    pub fn new(label: impl Into<String>) -> Self {
+        Self { label: label.into(), on: true, eye_shown: true, icon: None, mask: false }
+    }
+}
 
 /// The active layer's properties, for [`BlendRows`](super::rows::BlendRows).
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct LayerProperties {
     /// The blend mode's key.
     pub blend_key: String,
@@ -376,8 +411,16 @@ pub struct LayerProperties {
     pub editable: bool,
 }
 
+impl LayerProperties {
+    /// A Normal, 100 %, unlocked, editable layer whose blend mode has the key `blend_key`.
+    pub fn new(blend_key: impl Into<String>) -> Self {
+        Self { blend_key: blend_key.into(), group: false, opacity: 100.0, fill: 100.0, locks: LayerLocks::default(), editable: true }
+    }
+}
+
 /// What the footer shows, from [`LayerTree::footer`].
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct LayersFooterState {
     /// Link Layers is enabled (two or more layers selected, PhotoCraft).
     pub link_enabled: bool,
@@ -392,8 +435,23 @@ pub struct LayersFooterState {
     /// The fill or adjustment menu: one item per adjustment, a separator, Solid Color…,
     /// Gradient…; a pick comes back as
     /// [`LayersFooterAction::Adjustment`](super::panel::LayersFooterAction::Adjustment).
-    pub adjustment_menu: Vec<MenuEntry<String>>,
+    pub adjustment_menu: Vec<Entry<String>>,
     /// The layer style (`fx`) menu: Blending Options…, a separator, one item per style kind; a
     /// pick comes back as [`LayersFooterAction::Style`](super::panel::LayersFooterAction::Style).
-    pub style_menu: Vec<MenuEntry<String>>,
+    pub style_menu: Vec<Entry<String>>,
+}
+
+impl LayersFooterState {
+    /// A footer whose Delete button reads `delete_label`: Link Layers disabled, the mask button
+    /// greyed, Delete disabled, both menus empty.
+    pub fn new(delete_label: impl Into<String>) -> Self {
+        Self {
+            link_enabled: false,
+            mask_label: None,
+            delete_label: delete_label.into(),
+            delete_enabled: false,
+            adjustment_menu: Vec::new(),
+            style_menu: Vec::new(),
+        }
+    }
 }

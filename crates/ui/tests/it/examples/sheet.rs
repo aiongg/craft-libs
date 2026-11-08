@@ -59,7 +59,11 @@ impl Rig {
     }
 
     fn press(&mut self, key: Key) {
-        self.fixture.key(key, Modifiers::NONE);
+        self.press_with(key, Modifiers::NONE);
+    }
+
+    fn press_with(&mut self, key: Key, mods: Modifiers) {
+        self.fixture.key(key, mods);
         self.fixture.idle(2);
     }
 
@@ -110,7 +114,38 @@ fn edit_mode_claims_the_horizontal_arrows_for_the_caret() {
     rig.press(Key::Enter);
     let expected = format!("{}z{}", &original[..original.len() - 1], &original[original.len() - 1..]);
     assert_eq!(*rig.committed.borrow(), [CellEdit::new(row, column, expected)]);
-    assert_eq!(rig.lead(), (row, column));
+    assert_eq!(rig.lead(), (row + 1, column), "Enter commits and moves down");
+}
+
+/// Enter after an entry moves down; Tab runs along the row and the next Enter returns to the column the run started
+/// in; Shift runs them back. Inside a selection of several cells both cycle inside it.
+#[trial]
+fn enter_and_tab_move_the_active_cell_as_in_excel() {
+    let mut rig = rig();
+    // Start near the first column, so that the Tabs have room.
+    rig.press(Key::ArrowLeft);
+    rig.press(Key::ArrowLeft);
+    let (row, column) = rig.lead();
+    rig.type_text("x");
+    rig.press(Key::Enter);
+    assert_eq!(rig.lead(), (row + 1, column), "Enter after an entry moves down");
+    assert_eq!(*rig.committed.borrow(), [CellEdit::new(row, column, "x")]);
+    rig.press(Key::Tab);
+    assert_eq!(rig.lead(), (row + 1, column + 1), "Tab moves along the row");
+    rig.press(Key::Enter);
+    assert_eq!(rig.lead(), (row + 2, column), "Enter after a run of Tabs returns to the column it started in");
+    rig.press_with(Key::Enter, Modifiers::SHIFT);
+    assert_eq!(rig.lead(), (row + 1, column), "Shift+Enter moves up");
+
+    rig.press_with(Key::ArrowRight, Modifiers::SHIFT);
+    assert_eq!(rig.selection.borrow().ranges().len(), 1);
+    rig.press(Key::Tab);
+    assert_eq!(rig.lead(), (row + 1, column + 1), "inside a selection Tab moves the active cell within it");
+    rig.press(Key::Tab);
+    assert_eq!(rig.lead(), (row + 1, column), "past the last cell it cycles back to the first");
+    rig.press_with(Key::Tab, Modifiers::SHIFT);
+    assert_eq!(rig.lead(), (row + 1, column + 1), "Shift+Tab runs the cycle back");
+    assert_eq!(rig.selection.borrow().ranges().len(), 1, "the selection is kept");
 }
 
 /// A formula that ends in an operator claims the arrows for its reference cursor: an arrow writes the neighbouring

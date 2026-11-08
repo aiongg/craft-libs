@@ -27,6 +27,9 @@ craft_ui::words! {
     }
 }
 
+/// How many percent make the whole of an extent.
+const PERCENT: f64 = 100.0;
+
 /// The size of a point, the Point/Pica Size of the Units preference. An app sets it once on its root env with
 /// `RootEnv::values`; `Units` reads it for typed Points and Picas and for their conversion to other lengths.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -145,24 +148,30 @@ impl UnitKind {
 }
 
 impl UnitKind {
+    /// The document numbers every conversion uses, so `from_pixels` and `to_pixels` stay exact inverses: the extent
+    /// and the pixels per inch are at least 1.
+    fn document_numbers(extent: f64, pixels_per_inch: f64) -> (f64, f64) {
+        (extent.max(1.0), pixels_per_inch.max(1.0))
+    }
+
     /// `pixels` in this unit: Pixels as they are, Percent of `extent` pixels, a length through `pixels_per_inch`
-    /// (clamped to at least 1; `points_per_inch` as in [`per_inch`](Self::per_inch)). `None` for a kind that is not
-    /// a pixel or length unit.
+    /// (`extent` and `pixels_per_inch` clamped to at least 1; `points_per_inch` as in [`per_inch`](Self::per_inch)).
+    /// `None` for a kind that is not a pixel or length unit.
     pub fn from_pixels(self, pixels: f64, extent: f64, pixels_per_inch: f64, points_per_inch: f64) -> Option<f64> {
-        let resolution = pixels_per_inch.max(1.0);
+        let (extent, resolution) = Self::document_numbers(extent, pixels_per_inch);
         Some(match self {
             UnitKind::Pixels => pixels,
-            UnitKind::Percent => pixels / extent.max(1.0) * 100.0,
+            UnitKind::Percent => pixels / extent * PERCENT,
             _ => pixels / resolution * self.per_inch(points_per_inch)?,
         })
     }
 
     /// A value in this unit as pixels; the inverse of [`from_pixels`](Self::from_pixels).
     pub fn to_pixels(self, value: f64, extent: f64, pixels_per_inch: f64, points_per_inch: f64) -> Option<f64> {
-        let resolution = pixels_per_inch.max(1.0);
+        let (extent, resolution) = Self::document_numbers(extent, pixels_per_inch);
         Some(match self {
             UnitKind::Pixels => value,
-            UnitKind::Percent => value * extent / 100.0,
+            UnitKind::Percent => value * extent / PERCENT,
             _ => value / self.per_inch(points_per_inch)? * resolution,
         })
     }
@@ -319,19 +328,35 @@ impl Units {
     }
 
     fn build_reader(&self, kind: Option<UnitKind>, points_per_inch: f64) -> Reader {
+        let Some(kind) = kind else { return self.reader_over(|_| None) };
+        self.reader_over(|other| match (kind.per_inch(points_per_inch), other.per_inch(points_per_inch)) {
+            (Some(of), Some(per)) => Some(of / per),
+            _ if other == kind => Some(1.0),
+            _ => None,
+        })
+    }
+
+    /// A reader for the numbers of a document measured in `ruler`: the unit spellings of every pixel and length unit
+    /// (px, %, in, cm, mm, pt, pica) convert to `ruler` through the document's numbers, percent of `extent` pixels
+    /// and lengths at `pixels_per_inch`, with points of `points_per_inch` to the inch (`UnitKind::to_pixels` clamps
+    /// them). A bare number is in `ruler`.
+    pub fn document_reader(&self, ruler: UnitKind, extent: f64, pixels_per_inch: f64, points_per_inch: f64) -> Reader {
+        let pixels = |kind: UnitKind| kind.to_pixels(1.0, extent, pixels_per_inch, points_per_inch);
+        let one_ruler = pixels(ruler).filter(|one| *one != 0.0);
+        self.reader_over(|other| Some(pixels(other)? / one_ruler?))
+    }
+
+    /// The locale's separators and, for every unit kind `factor` gives a factor to, its spellings (in the user's
+    /// language and in English) reading as that many of the reader's own unit.
+    fn reader_over(&self, factor: impl Fn(UnitKind) -> Option<f64>) -> Reader {
         let (decimal, group) = self.format.separators();
         let mut reader = Reader::new().decimal(decimal);
         if let Some(group) = group {
             reader = reader.group(group);
         }
-        let Some(kind) = kind else { return reader };
         let english = Units::new(self.format.clone(), english_words(), Arc::new(Words::english()), self.point_size);
         for other in UnitKind::ALL {
-            let factor = match (kind.per_inch(points_per_inch), other.per_inch(points_per_inch)) {
-                (Some(of), Some(per)) => of / per,
-                _ if other == kind => 1.0,
-                _ => continue,
-            };
+            let Some(factor) = factor(other) else { continue };
             for spelling in [self.symbol(other), english.symbol(other)] {
                 if is_unit_spelling(&spelling) {
                     reader = reader.unit(&spelling, factor);

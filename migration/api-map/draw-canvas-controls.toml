@@ -152,14 +152,16 @@ status = "moved"
 [[type]]
 name = "snap_ray"
 old = "craft_ui::behavior::move_gesture::snap_ray"
-new = "craft_behavior::geometry::snap_ray"
-status = "moved"
+new = ""
+status = "removed"
+note = "a point moved onto the nearest 45-degree ray from `origin` is `origin + craft_behavior::geometry::lock_direction(p - origin, None, Directions::Eight)`; the angle rounding is `craft_behavior::geometry::round_to_direction`"
 
 [[type]]
 name = "snap_direction"
 old = "craft_ui::behavior::move_gesture::snap_direction"
-new = "craft_behavior::geometry::snap_direction"
-status = "moved"
+new = ""
+status = "removed"
+note = "the unit direction is `lock_direction(p - origin, None, Directions::Eight)` divided by its length; a step other than 45 degrees has no caller"
 
 [[setter]]
 type = "MoveGesture"

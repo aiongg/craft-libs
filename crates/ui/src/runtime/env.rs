@@ -313,6 +313,9 @@ impl Deref for Env {
 pub struct Scoped {
     /// The resolved tokens of the scope; read in `style` only.
     pub(crate) tokens: Arc<UiTokens>,
+    /// The light or dark mode the tokens were resolved in: the app's, until a scope that resolves its tokens in
+    /// another mode sets it with them.
+    pub(crate) mode: Mode,
     /// The operating system.
     pub(crate) os: Os,
     /// Whether the window is active.
@@ -333,6 +336,9 @@ pub struct Scoped {
     pub(crate) today: Option<CalendarDate>,
     /// `RootEnv::tab_toggles_chrome`.
     pub(crate) tab_toggles_chrome: bool,
+    /// The line height per point of text of the leading face of the interface stack, as the frame began: control
+    /// heights depend on it, so the key covers it.
+    pub(crate) line_ratio: f32,
     /// The key of everything above that the style cache depends on.
     pub(crate) key: EnvKey,
     /// Ambient control size; the root default is `Md`.
@@ -356,7 +362,7 @@ pub struct Scoped {
     pub(crate) roving: Option<Id>,
     /// From `ContainerProps.transform`.
     pub transform: Option<CanvasTransform>,
-    /// The `Grid` body whose cursor places the children in flow.
+    /// The `Grid` or spread `Row` body whose cursor places the children in flow.
     pub(crate) grid: Option<Id>,
     /// The body that encloses the scope is a content-sized column: it takes its width from its widest child that is
     /// not fill-width, so a fill-width child takes the width the others settle on and never sets it.
@@ -467,12 +473,14 @@ impl Env {
         let motion = MotionPolicy::new(motion_mode(ctx, root), tokens.tokens().motion);
         let os = windows::os_of(ctx);
         let scale = Scale(pixels_per_point);
+        let line_ratio = crate::fonts::stack_facts(ctx).line_ratio;
         let shell = Arc::new(windows::shell_of(ctx, pass::current_viewport(ctx)));
         let active = shell.window.active;
         let keyboard = Arc::new(crate::runtime::keys::layout_of(ctx));
         Env {
             scoped: Arc::new(Scoped {
-                key: EnvKey::new(tokens.key(), root.direction, scale, os, active, root.values.style_hash()),
+                key: EnvKey::new(tokens.key(), root.direction, scale, os, active, root.values.style_hash()).with_line(line_ratio),
+                line_ratio,
                 tokens,
                 os,
                 active,
@@ -501,6 +509,7 @@ impl Env {
                 dates: host_dates(ctx, host.as_ref()),
                 today: root.today,
                 tab_toggles_chrome: root.tab_toggles_chrome,
+                mode: root.mode,
                 host,
                 values: root.values.clone(),
             }),
@@ -563,7 +572,8 @@ impl Env {
     pub(crate) fn derive(&self, f: impl FnOnce(&mut Scoped)) -> Env {
         let mut scoped = (*self.scoped).clone();
         f(&mut scoped);
-        scoped.key = EnvKey::new(scoped.tokens.key(), scoped.direction, scoped.scale, scoped.os, scoped.active, scoped.values.style_hash());
+        scoped.key = EnvKey::new(scoped.tokens.key(), scoped.direction, scoped.scale, scoped.os, scoped.active, scoped.values.style_hash())
+            .with_line(scoped.line_ratio);
         Env { scoped: Arc::new(scoped) }
     }
 
@@ -747,6 +757,12 @@ impl<'a> EnvView<'a> {
         self.scoped.direction
     }
 
+    /// The light or dark mode the scope's tokens are resolved in: the app's, or the one a scope with its own tokens
+    /// set.
+    pub fn mode(&self) -> Mode {
+        self.scoped.mode
+    }
+
     /// The motion mode in effect.
     pub fn motion(&self) -> MotionPolicy {
         self.scoped.motion
@@ -812,8 +828,9 @@ impl<'a> EnvView<'a> {
         craft_i18n::relative_age(&self.scoped.words, &self.scoped.format, seconds, style)
     }
 
-    /// `label` with a `Word` replaced by its text in the scope's language.
-    pub(crate) fn resolve(&self, label: &Label) -> Label {
+    /// `label` with a `Word` replaced by its text in the scope's language: what domain code that draws a `Label`
+    /// itself shows.
+    pub fn resolve(&self, label: &Label) -> Label {
         label.resolved(&self.scoped.words)
     }
 }

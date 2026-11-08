@@ -3,7 +3,7 @@
 
 use super::label::{self, LeafLabel};
 use super::run::ShowAt;
-use super::{Component, EditResponse, Resolved, Show, SideLabel, Tooltip, Validity, ValueOf};
+use super::{Component, Container, EditResponse, Resolved, Show, SideLabel, Tooltip, Validity, ValueOf};
 use crate::primitives::sensing::{PartDecl, PartResults};
 use crate::primitives::{Adopted, PaintRecord, PartResult, TextEnv, TextLayout, TextRun};
 use crate::runtime::access::{self, FieldLabel, Politeness};
@@ -26,6 +26,7 @@ use craft_i18n::{Format, WordSet};
 use craft_keymap::Chord;
 use craft_theme::Flags;
 use egui::{Context, Id, Pos2, Rect, Response, Ui, Vec2};
+use std::any::Any;
 use std::cell::RefCell;
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -38,7 +39,7 @@ use std::sync::Arc;
 pub struct Activation {
     /// By `Intent::Activate` (Enter, Space or an AccessKit click) rather than a primary click.
     pub by_key: bool,
-    /// The modifiers held at the activation.
+    /// The modifiers held at a pointer activation; `Mods::NONE` for a key or AccessKit activation.
     pub mods: craft_keymap::Mods,
 }
 
@@ -96,7 +97,7 @@ pub struct CxCore<'a> {
     pub(crate) press: PressState,
     pub(crate) cursor: Option<(Cursor, CursorPriority)>,
     /// The declared cursors of the parts hovered this pass, recorded at step 8 and written at step 16.
-    pub(crate) part_cursors: Vec<CursorIcon>,
+    pub(crate) part_cursors: Vec<Cursor>,
     pub(crate) claims: Vec<Chord>,
     pub(crate) reveal: Option<Rect>,
     pub(crate) press_cancel: Option<PressCancel>,
@@ -1188,6 +1189,7 @@ pub struct BodyCx<'a> {
     gate: Option<&'a mut bool>,
     close: Option<CloseReason>,
     field_message: Option<(Message, craft_theme::variant::Tone)>,
+    owner: Option<BodyOwner<'a>>,
 }
 
 impl<'a> BodyCx<'a> {
@@ -1201,7 +1203,13 @@ impl<'a> BodyCx<'a> {
         gate: Option<&'a mut bool>,
     ) -> Self {
         memory.claim(id);
-        BodyCx { id, env, resolved, rect, memory, open, gate, close: None, field_message: None }
+        BodyCx { id, env, resolved, rect, memory, open, gate, close: None, field_message: None, owner: None }
+    }
+
+    /// Asks the platform to open `url`, in a new tab where the platform has tabs and `new_tab` is set: the opener
+    /// `Link` uses. The footer's closure gets this context too.
+    pub fn open_url(&mut self, url: &str, new_tab: bool) {
+        crate::runtime::egui::output::open_url(self.memory.ctx(), url, new_tab);
     }
 
     pub(crate) fn with_field_message(mut self, message: Option<(Message, craft_theme::variant::Tone)>) -> Self {
@@ -1277,6 +1285,41 @@ impl<'a> BodyCx<'a> {
         placed.finish(ui.ctx());
         alloc::space(ui, Vec2::new(avail.width(), (bottom - row.top()).max(ideal.y)));
         output
+    }
+}
+
+/// What a container's body reads of its container: the style step 2 resolved for this pass, and the body gap.
+#[derive(Clone, Copy)]
+pub(crate) struct BodyOwner<'a> {
+    style: &'a (dyn Any + Send + Sync),
+    gap: f32,
+}
+
+impl<'a> BodyOwner<'a> {
+    /// The container's `style` and the gap its body lays its children out with.
+    pub(crate) fn new<S: crate::style::ComponentStyle>(style: &'a S, gap: f32) -> Self {
+        BodyOwner { style, gap }
+    }
+}
+
+impl<'a> BodyCx<'a> {
+    pub(crate) fn with_owner(mut self, owner: BodyOwner<'a>) -> Self {
+        self.owner = Some(owner);
+        self
+    }
+
+    /// The style of the container `C` whose body this is, as step 2 resolved it for this pass: the one way a body
+    /// reads what its container's style holds (a dock root's docking sizes). `None` when the body's container has
+    /// another style type, and for a body with no container: a popup's body or a collection's empty state.
+    pub fn style<C: Container>(&self) -> Option<&'a C::Style> {
+        self.owner.and_then(|owner| owner.style.downcast_ref::<C::Style>())
+    }
+
+    /// The gap the body's layout puts between its children (`ContainerProps::body_gap`), for a body that places
+    /// content of its own beside them. `None` for a body with no container: a popup's body or a collection's empty
+    /// state.
+    pub fn gap(&self) -> Option<f32> {
+        self.owner.map(|owner| owner.gap)
     }
 }
 
@@ -1455,7 +1498,12 @@ impl<C: Component> MeasureCx<'_, C> {
 
     /// Lays `run` out `width` wide, for a text that paints in a band narrower than the room.
     pub fn layout_at(&self, run: &TextRun<'_>, width: f32) -> TextLayout {
-        let env = TextEnv { tokens: self.tokens, direction: self.env.direction(), ink: crate::style::ink_color(self.tokens, self.ink) };
+        let env = TextEnv {
+            tokens: self.tokens,
+            direction: self.env.direction(),
+            ink: crate::style::ink_color(self.tokens, self.ink),
+            fonts: crate::fonts::stack_facts(self.ui.ctx()),
+        };
         run.layout(self.ui.ctx(), &env, width)
     }
 
@@ -1474,7 +1522,7 @@ impl<C: Component> MeasureCx<'_, C> {
 
     /// The icon side of the component's size.
     pub fn icon(&self) -> f32 {
-        crate::style::control_metrics(self.tokens, self.resolved.size).icon
+        crate::style::control_metrics(self.tokens, self.resolved.size, crate::fonts::stack_facts(self.ui.ctx()).line_ratio).icon
     }
 
     /// The gap between the component's items.
@@ -1535,8 +1583,8 @@ impl PartBuilder<'_> {
     }
 
     /// The cursor while the pointer is over the part.
-    pub fn cursor(self, cursor: CursorIcon) -> Self {
-        self.decl.cursor = Some(cursor);
+    pub fn cursor(self, cursor: impl Into<Cursor>) -> Self {
+        self.decl.cursor = Some(cursor.into());
         self
     }
 
@@ -1796,16 +1844,16 @@ pub(crate) fn scroll_moves(decls: &[ScrollDecl], results: &PartResults) -> Vec<(
 }
 
 /// The cursor requests of the hovered parts' declared cursors, in registration order.
-pub(crate) fn declared_cursor(core: &CxCore<'_>) -> Option<CursorIcon> {
-    core.part_cursors.first().copied()
+pub(crate) fn declared_cursor(core: &CxCore<'_>) -> Option<Cursor> {
+    core.part_cursors.first().cloned()
 }
 
 /// Writes the cursor a component asked for into the cursor service.
 pub(crate) fn write_cursor(core: &CxCore<'_>) {
     if let Some((cursor, priority)) = core.cursor.clone() {
         cursor::request(&core.ctx, cursor, priority);
-    } else if let Some(icon) = declared_cursor(core) {
-        cursor::request(&core.ctx, Cursor::System(icon), CursorPriority::Part);
+    } else if let Some(cursor) = declared_cursor(core) {
+        cursor::request(&core.ctx, cursor, CursorPriority::Part);
     }
 }
 
@@ -1840,19 +1888,3 @@ impl<K> Drives for ItemCx<'_, '_, K> {
         Driver { stage: self.memory, base: self.id, policy: self.env.motion() }
     }
 }
-
-impl<C: Component> crate::fonts::document::sealed::Sealed for Cx<'_, C> {
-    fn context(&self) -> &Context {
-        &self.core.ctx
-    }
-}
-
-impl<C: Component> crate::fonts::FacesAt for Cx<'_, C> {}
-
-impl<C: Component> crate::fonts::document::sealed::Sealed for MeasureCx<'_, C> {
-    fn context(&self) -> &Context {
-        self.ui.ctx()
-    }
-}
-
-impl<C: Component> crate::fonts::FacesAt for MeasureCx<'_, C> {}

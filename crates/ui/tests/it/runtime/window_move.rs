@@ -1,6 +1,7 @@
-//! The body step moves and resizes an OS window (16.3, 21.2): a move band and grips act only where the app draws
-//! the frame and the window is neither maximized nor full screen; a `Window` mount puts its grips on the window's
-//! edges; a double click on the move band is reported once.
+//! The body step moves and resizes an OS window (16.3, 21.2): a move band acts only where the app draws the frame and
+//! the window is not full screen (a maximized window's move is the platform's, which restores it), and grips only where
+//! it is neither maximized nor full screen; a `Window` mount puts its grips on the window's edges; a double click on the
+//! move band is reported once.
 
 use crate::contract::kit::{PlainStyle, Probe, Seen};
 use crate::windows_kit::Windows;
@@ -141,7 +142,7 @@ fn a_viewport_containers_move_band_sends_one_os_move_unless_the_app_does_not_own
     let movable = || Mount::viewport_with(Overlay::floating().movable(true), WindowSpec::tool().chrome(WindowChrome::Integrated));
     assert_eq!(starts(&band_drag(movable(), ViewportInfo::default())), 1, "an undecorated window moves once");
     let maximized = ViewportInfo { maximized: Some(true), ..ViewportInfo::default() };
-    assert_eq!(starts(&band_drag(movable(), maximized)), 0, "a maximized window does not move");
+    assert_eq!(starts(&band_drag(movable(), maximized)), 1, "a maximized window's move goes to the platform, which restores it");
     let full_screen = ViewportInfo { fullscreen: Some(true), ..ViewportInfo::default() };
     assert_eq!(starts(&band_drag(movable(), full_screen)), 0, "a full-screen window does not move");
     let framed_by_os = Mount::viewport(Overlay::floating().movable(true));

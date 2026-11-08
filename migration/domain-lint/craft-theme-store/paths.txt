@@ -1,2 +1,0 @@
-crates/theme-store/src/ui
-crates/theme-store/tests/it

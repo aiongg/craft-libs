@@ -143,9 +143,9 @@ note = "Replaces `PreferencesTexts`: ids `preferences.*` in place of `pref.*`; n
 [[type]]
 name = "ColorRequest"
 old = ""
-new = "craft_ui::patterns::preferences::ColorRequest"
-status = "replaced"
-note = "The colour request of a colour row (`key`, `title`, `color`) moves with the preferences model; `PreferencesOutput::pick_color` carries it."
+new = "craft_ui::runtime::requests::ColorRequest"
+status = "moved"
+note = "The one colour request: `PreferencesOutput::pick_color` carries it (its `title` is a `Label`)."
 
 [[type]]
 name = "PreferencesModel"

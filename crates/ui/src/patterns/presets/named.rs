@@ -220,6 +220,7 @@ impl<'a, K: Value + Eq + Hash + 'static> NamedPresetRow<'a, K> {
                             TextField::new(words.name.clone(), Bind::given(draft.text.clone()).check(check))
                                 .id_salt("name-text")
                                 .select_on_focus()
+                                .submits()
                                 .default_stop()
                                 .show(ui)
                         })

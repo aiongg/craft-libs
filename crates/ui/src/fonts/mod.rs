@@ -8,7 +8,7 @@ pub(crate) mod script;
 pub(crate) mod system;
 
 pub use defaults::deflated_default_definitions;
-pub use document::{DOCUMENT_FACES_PER_PASS, DocumentFaces, FaceBytes, FaceState, FacesAt, MAX_DOCUMENT_FACES};
+pub use document::{DOCUMENT_FACES_PER_PASS, FaceBytes, FaceState, MAX_DOCUMENT_FACES};
 pub use faces::{FaceList, RegularWeight, set_weight};
 pub use on_demand::{FontCandidates, MAX_SCRIPT_READS, NoCandidates, OnDemandFonts, SystemCandidates, han_for_locale, on_demand_registered};
 pub use system::system_font_provider;
@@ -25,7 +25,7 @@ pub use language::{I18nScripts, LanguageScripts};
 pub use served::loader::{FetchDone, FetchWake, FontFetcher};
 pub use served::loading;
 pub use stack::{CjkRows, Emoji, Family, SEMIBOLD, Stack, SystemFonts, UiFonts};
-pub(crate) use stack::{installed_families, system_ui_installed};
+pub(crate) use stack::{StackFacts, stack_facts};
 
 use crate::runtime::egui::fonts as egui_fonts;
 use crate::runtime::frame;

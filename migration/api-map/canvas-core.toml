@@ -248,14 +248,14 @@ name = "Navigator"
 old = "craft_ui::canvas::navigator::preview::Navigator"
 new = "craft_ui::canvas::Navigator"
 status = "moved"
-note = "A component: `Navigator::new(label, Bind::bound(&mut view), document).preview(..).navigation(..).proxy(..).show(ui)`; the zoom row is the separate `NavigatorZoomRow`."
+note = "The legacy widget showed the preview box over the zoom row: that is the pattern `craft_ui::patterns::canvas::NavigatorPanel::new(label, Bind::bound(&mut view), document).preview(..).navigation(..).proxy(..).enabled(..).show(ui)`, one bound view, one Tab sequence and one output (`NavigatorPanelOutput { response, view: Option<EditEvent<CanvasView>>, ease: Option<ViewEase> }`). The row's Zoom In and Zoom Out are the active canvas's view commands, so the canvas reports their view and ease. The box alone is the component `Navigator::new(label, Bind::bound(&mut view), document)`; the row alone is `NavigatorZoomRow`."
 
 [[type]]
 name = "NavigatorOutput"
 old = "craft_ui::canvas::navigator::preview::NavigatorOutput"
 new = "craft_ui::canvas::NavigatorOutput"
 status = "moved"
-note = "`view` (the `EditResponse<CanvasView>`) and `ease: Option<(CanvasView, ViewEase)>`: a zoom under Animated Zoom is not written into the bound view; the app begins its `ZoomAnimation` and copies the target in, as with `ToolHostResponse`."
+note = "`view` (the `EditResponse<CanvasView>`) and `ease: Option<ViewEase>`: a zoom under Animated Zoom is the view's change to its target, not written into the bound view; the app begins its `ZoomAnimation` and copies the target in, as with `ToolHostResponse { view, ease }`."
 
 [[type]]
 name = "NavigatorPreview"
@@ -318,14 +318,14 @@ name = "NavigatorZoomRow"
 old = ""
 new = "craft_ui::canvas::NavigatorZoomRow"
 status = "replaced"
-note = "The legacy zoom row (`navigator::zoom_row`): percent `NumberField`, `IconButton`s and a logarithmic `Slider` as children of a `Row`. `NavigatorZoomRow::new(Bind::bound(&mut view), document).navigation(options).show(ui)`."
+note = "The legacy zoom row (`navigator::zoom_row`): percent `NumberField`, Zoom Out and Zoom In as `IconButton::command(icon, ViewCommand::ZoomOut / ZoomIn)` and a logarithmic `Slider` as children of a `Row`. `NavigatorZoomRow::new(Bind::bound(&mut view), document).show(ui)`. The buttons are the active canvas's view commands: the canvas (`Canvas::view(..).document(..).navigation(..)`) steps its view and reports it, with the Animated Zoom ease, in `CanvasOutput { view, ease }` (and `ToolHostResponse { view, ease }`)."
 
 [[type]]
 name = "NavigatorZoomRowOutput"
 old = ""
 new = "craft_ui::canvas::NavigatorZoomRowOutput"
 status = "replaced"
-note = "`response`, `view` (the pass's `EditEvent<CanvasView>`) and `ease` (an `Option<ViewEase>`: a Zoom In or Zoom Out step with Animated Zoom on, not written to the bound view)."
+note = "`response` and `view` (the pass's `EditEvent<CanvasView>` from the field or the slider). A Zoom In or Zoom Out step and its ease are the canvas's: `CanvasOutput { view, ease }`."
 
 [[type]]
 name = "NavigatorCommands"
@@ -1185,8 +1185,8 @@ note = "The presses on the canvas background in a pass, read with `CanvasSpace::
 [[setter]]
 type = "NavigatorZoomRow"
 old = "zoom_row(ui, &mut view, size, numbers, labels, style, control, animated_zoom)"
-new = "NavigatorZoomRow::new(Bind::bound(&mut view), document).navigation(options).show(ui)"
-note = "The row's words come from `CanvasWords`; the field takes the percent unit's decimals."
+new = "NavigatorZoomRow::new(Bind::bound(&mut view), document).show(ui)"
+note = "The row's words come from `CanvasWords`; the field takes the percent unit's decimals. `animated_zoom` goes to the canvas (`Canvas::navigation`), which eases the Zoom In and Zoom Out the row's buttons fire."
 
 [[setter]]
 type = "NavigatorOptionsDialog"
@@ -1246,5 +1246,5 @@ new = "navigation(NavigationOptions)"
 type = "Navigator"
 old = "show(ui, &mut view)"
 new = "show(ui)"
-note = "Returns `NavigatorOutput`: the view's `EditResponse` and, under Animated Zoom, `ease` with the target view the app eases to."
+note = "Returns `NavigatorOutput`: the view's `EditResponse` and, under Animated Zoom, `ease`, how the change to the target eases. The legacy widget with its zoom row is `NavigatorPanel::show(ui)`, which returns `NavigatorPanelOutput`."
 # End of l4e-navprev.

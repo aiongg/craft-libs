@@ -21,10 +21,10 @@ use crate::primitives::{EditorLine, EditorPurpose, EditorState, PaintShape, Stro
 use crate::runtime::focus::{KeepKeys, KeyUse};
 use crate::style::{ComponentStyle, Flags, Stateful, StyleColor, StyleCx, SurfaceLook};
 use craft_behavior::{
-    CellSelection, ColumnKey, DisplayOrder, EditorInput, Flow, Granularity, Insets, ItemSource, Metrics, Mixed, MoveMods, NavMove, PartKey,
-    SheetLayout,
+    CellAdvance, CellSelection, CellSpace, ColumnKey, DisplayOrder, EditEvent, EditorInput, Flow, GestureId, Granularity, Insets, ItemSource,
+    Metrics, Mixed, MoveMods, NavMove, PartKey, SheetLayout,
 };
-use craft_keymap::{Chord, Key};
+use craft_keymap::{Chord, Key, Mods};
 use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
 
 const EDITOR: PartKey = PartKey::new("editor");
@@ -38,6 +38,14 @@ const OPERATORS: &str = "=+-*/(,";
 const ARROWS: [(Key, isize, isize); 4] = [(Key::Up, -1, 0), (Key::Down, 1, 0), (Key::Left, 0, -1), (Key::Right, 0, 1)];
 
 /// Home and End with the caret move each takes while a cell is open for editing.
+/// Enter moves down and Tab along the row; Shift runs them back.
+const ADVANCES: [(Chord, CellAdvance, bool); 4] = [
+    (Chord::plain(Key::Enter), CellAdvance::Enter, false),
+    (Chord::new(Mods::SHIFT, Key::Enter), CellAdvance::Enter, true),
+    (Chord::plain(Key::Tab), CellAdvance::Tab, false),
+    (Chord::new(Mods::SHIFT, Key::Tab), CellAdvance::Tab, true),
+];
+
 const LINE_ENDS: [(Key, NavMove); 2] = [(Key::Home, NavMove::Start), (Key::End, NavMove::End)];
 
 /// A draft the grid committed: the cell it was for and its text.
@@ -189,6 +197,19 @@ impl<'a> SheetGrid<'a> {
         Some((active.row, active.column as usize))
     }
 
+    /// Enter and Tab (Shift: back) after an entry or on a ready sheet: the active cell moves as in Excel, inside a
+    /// selection of several cells and by one cell otherwise.
+    fn advance(&mut self, cx: &mut Cx<'_, Self>, along: CellAdvance, back: bool) {
+        let Some(Mixed::Same(before)) = self.selection.reborrow().get() else { return };
+        let mut after = before.clone();
+        let order = Rows::new(self.rows.len());
+        let moved = after.advance(along, back, &self.cell_space(CellSpace::new(&order, NAMES.len() as u32)));
+        if moved {
+            let label = cx.core.label_arc();
+            let _ = self.selection.reborrow().write(cx, &EditEvent::set(GestureId::default(), Mixed::Same(before), after, label, None));
+        }
+    }
+
     fn cell_text(&self, (row, column): (usize, usize)) -> &str {
         self.rows.get(row).and_then(|cells| cells.get(column)).map_or("", String::as_str)
     }
@@ -245,7 +266,7 @@ impl Component for SheetGrid<'_> {
         let lead = self.lead_cell();
         let mut state = cx.memory::<EditState>().clone();
         let escape = cx.take_claimed(Chord::plain(Key::Escape));
-        let enter = cx.take_claimed(Chord::plain(Key::Enter));
+        let advance = ADVANCES.map(|(chord, along, back)| cx.take_claimed(chord).then_some((along, back))).into_iter().flatten().next();
         let f2 = cx.take_claimed(Chord::plain(Key::F2));
         let arrows = ARROWS.map(|(key, ..)| cx.take_claimed(Chord::plain(key)));
         let line_ends = LINE_ENDS.map(|(key, _)| cx.take_claimed(Chord::plain(key)));
@@ -255,7 +276,7 @@ impl Component for SheetGrid<'_> {
         if state.mode != Mode::Ready && escape {
             state.mode = Mode::Ready;
             state.point = None;
-        } else if state.mode != Mode::Ready && enter {
+        } else if state.mode != Mode::Ready && advance.is_some() {
             self.commit(&mut state);
         } else if state.mode == Mode::Ready
             && f2
@@ -316,8 +337,10 @@ impl Component for SheetGrid<'_> {
             }
         }
         cx.claim(Chord::plain(Key::F2));
+        for (chord, ..) in ADVANCES {
+            cx.claim(chord);
+        }
         if state.mode != Mode::Ready {
-            cx.claim(Chord::plain(Key::Enter));
             cx.claim(Chord::plain(Key::Escape));
         }
         let claimed: &[usize] = if state.pointing() {
@@ -336,6 +359,9 @@ impl Component for SheetGrid<'_> {
             }
         }
         *cx.memory::<EditState>() = state;
+        if let Some((along, back)) = advance {
+            self.advance(cx, along, back);
+        }
     }
 
     fn paint_over(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {

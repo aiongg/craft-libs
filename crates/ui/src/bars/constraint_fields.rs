@@ -11,7 +11,7 @@ use crate::pickers::Select;
 use crate::runtime::env::{Env, Label, UnitKind};
 use crate::text::NumberField;
 use craft_behavior::geometry::Constraint;
-use craft_behavior::{EditEvent, GestureId, IconId, Mixed, PixelSize};
+use craft_behavior::{EditEvent, GestureId, IconId, Mixed, NumberCodec, PixelSize};
 use egui::{Response, Ui};
 use std::ops::RangeInclusive;
 use std::sync::Arc;
@@ -264,7 +264,13 @@ impl Cells<'_> {
             |ui, _| {
                 let mut field = NumberField::new(cell.caption.clone(), Bind::given(Some(shown))).range(range.clone()).scrub_by_label();
                 if let Some(c) = conversion {
-                    field = field.unit_kind(c.unit);
+                    field = if units.is_some() {
+                        // Fixed Size with the host's units: typed text may carry any unit, read through the document.
+                        let reader = Env::of(ui).units().document_reader(c.unit, c.extent, c.pixels_per_inch, c.points_per_inch);
+                        field.codec(NumberCodec::new(reader, *c.unit.decimals().end()))
+                    } else {
+                        field.unit_kind(c.unit)
+                    };
                 }
                 let out = field.show(ui);
                 edited = out.value().copied().flatten();

@@ -17,6 +17,10 @@
 //! with [`ToolContext::set_view`]; the host reports the last one in [`ToolHostResponse::view`] and moves no view
 //! itself. `run` also paints the tool's readout; [`ToolHostResponse::readout`] repeats it as data.
 //!
+//! The context carries the pass's env ([`ToolContext::units`], [`ToolContext::words`]), the snapping the app gave
+//! with [`ToolHost::snap`] ([`ToolContext::snap`]) and, in `paint`, the style context ([`ToolContext::style`]). After
+//! `paint`, `run` emits what [`CanvasTool::access`] returns as nodes under the canvas's node.
+//!
 //! Space and the app's momentary Hand: while a gesture runs the host withholds Space from the app's shortcuts for
 //! the tool, so a Space pressed mid-drag never starts a momentary Hand; the tool reads it with
 //! [`ToolContext::held`]. A press of Space away from a gesture reaches the app as usual. [`ToolHost::momentary`]
@@ -36,20 +40,23 @@
 
 use super::momentary::Momentary;
 use super::readout::paint_readout;
-use super::tool::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPointer, ToolRequests, ViewEase};
+use super::tool::{CanvasTool, ToolAccess, ToolAction, ToolContext, ToolKey, ToolPointer, ToolRequests, ViewEase};
 use super::tools::HandTool;
-use super::{CanvasOutput, CanvasSpace};
+use super::{CanvasOutput, CanvasSpace, Snap};
 use crate::primitives::{ContentPainterCx, Draw, DrawEnv, PaintRecord};
+use crate::runtime::access::{self, Name, Role, SubDecl, SubNode};
 use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::{global, with_session};
 use crate::runtime::pointer::{self, PointerFrame};
 use crate::runtime::{cursor, frame, keys};
-use crate::style::Ink;
+use crate::style::{Ink, StyleCx};
+use craft_behavior::kurbo;
 use craft_behavior::{
-    CancelReason, CanvasView, Cursor, CursorPriority, GesturePhase, Granularity, Intent, PointerButton, PointerSample, PressCancel, PressPhase,
-    PressStart, PressState,
+    CancelReason, CanvasView, Cursor, CursorPriority, GesturePhase, Granularity, Intent, PartKey, PartRef, PointerButton, PointerSample, PressCancel,
+    PressPhase, PressStart, PressState,
 };
 use craft_keymap::{Chord, Key, Mods};
+use craft_theme::Variant;
 use egui::{Context, Id, Pos2, Rect, Ui, Vec2};
 use std::cell::RefCell;
 
@@ -156,8 +163,8 @@ pub struct ToolHostResponse {
     /// The values the tool wants beside the pointer. The host has painted them already; this is the data for
     /// automation.
     pub readout: Option<ToolReadout>,
-    /// The view a tool set with [`ToolContext::set_view`] this pass (the last one): the app copies it into its
-    /// bound view.
+    /// The view a tool set with [`ToolContext::set_view`] this pass (the last one), else the view the canvas's view
+    /// commands asked for ([`CanvasOutput::view`]): the app copies it into its bound view.
     pub view: Option<CanvasView>,
     /// How [`view`](Self::view) eases to its target, when the tool asked for an ease.
     pub ease: Option<ViewEase>,
@@ -198,6 +205,7 @@ fn state_id(canvas: Id) -> Id {
 pub struct ToolHost<'m> {
     disabled: bool,
     momentary: Option<&'m mut Momentary>,
+    snap: Option<Snap<'m>>,
 }
 
 impl<'m> ToolHost<'m> {
@@ -223,10 +231,18 @@ impl<'m> ToolHost<'m> {
         self
     }
 
+    /// The canvas's snapping (View > Snap To), which the tool reads with [`ToolContext::snap`]. The app builds one
+    /// [`Snap`] per pass and gives clones of it to the rulers, the guides and this host.
+    #[must_use]
+    pub fn snap(mut self, snap: Snap<'m>) -> Self {
+        self.snap = Some(snap);
+        self
+    }
+
     /// Delivers the pass's pointer and key events to `tool`, paints it over the canvas, and paints the readout it
     /// asked for beside the pointer.
     pub fn run(self, ui: &Ui, canvas: &CanvasOutput, tool: &mut dyn CanvasTool) -> ToolHostResponse {
-        let ToolHost { disabled, momentary } = self;
+        let ToolHost { disabled, momentary, snap } = self;
         let ctx = ui.ctx().clone();
         let env = Env::of(ui);
         let key = state_id(canvas.response.id);
@@ -258,6 +274,8 @@ impl<'m> ToolHost<'m> {
             rect,
             mods: input.mods,
             time: input.time,
+            env: &env,
+            snap: snap.as_ref(),
             state: &mut state,
             response: ToolHostResponse::default(),
             requests: ToolRequests::default(),
@@ -281,12 +299,25 @@ impl<'m> ToolHost<'m> {
         if response.view.is_none() {
             response.view = cancelled_view;
         }
+        // The view commands' view, when no tool moved the view: the app copies one view from the host.
+        if response.view.is_none() {
+            (response.view, response.ease) = (canvas.view, canvas.ease);
+        }
         let phase = canvas.press.phase;
         let over = phase.is_press() || matches!(phase, PressPhase::Hover) || state.gesture.is_some();
         let current = state.gesture.map(|active| active.last).or_else(|| over.then(|| hover_pointer(&input, canvas.press)).flatten());
-        let context = || ToolContext::new(rect, space).pointer(current).mods(input.mods).time(input.time).slop(input.slop).down(&down);
+        let context = || {
+            let cx = ToolContext::new(rect, space).pointer(current).mods(input.mods).time(input.time).slop(input.slop).down(&down).env(&env);
+            match snap.as_ref() {
+                Some(snap) => cx.snapping(snap),
+                None => cx,
+            }
+        };
         paint_tool(ui, &env, tool, context());
         let cx = context();
+        if let Some(access) = tool.access(&cx) {
+            report_access(&ctx, canvas, rect, &access);
+        }
         if over {
             let wanted = tool.cursor(&cx);
             cursor::request(&ctx, wanted.clone(), CursorPriority::Tool);
@@ -347,13 +378,53 @@ impl<'m> ToolHost<'m> {
     }
 }
 
+/// The part of the node that describes the tool's drawing, below the canvas's node.
+const TOOL_NODE: PartKey = PartKey::new("tool");
+/// The parts of the nodes that describe the tool's anchors, repeated by the anchor's place in reading order, below
+/// the tool's node.
+const TOOL_ANCHOR: PartKey = PartKey::new("tool anchor");
+
+/// Emits what the tool is to assistive technology through the sub-node path of the canvas's component: a hover-only
+/// graphics object over the drawing's bounds (no size at the canvas centre without bounds), and a child object of no
+/// size at each anchor, clamped to the canvas. The ids derive from the canvas id, so they stay the same from pass to
+/// pass.
+fn report_access(ctx: &Context, canvas: &CanvasOutput, rect: Rect, tool: &ToolAccess) {
+    let owner = canvas.response.id;
+    let to_screen = |point: kurbo::Point| canvas.space.map(|space| space.view.to_screen(point));
+    let bounds = tool.bounds.and_then(|bounds| {
+        let corners = [(bounds.x0, bounds.y0), (bounds.x1, bounds.y0), (bounds.x1, bounds.y1), (bounds.x0, bounds.y1)];
+        let corners: Option<Vec<Pos2>> = corners.into_iter().map(|(x, y)| to_screen(kurbo::Point::new(x, y))).collect();
+        corners.map(|corners| Rect::from_points(&corners).intersect(rect)).filter(|bounds| bounds.is_positive())
+    });
+    let at_centre = Rect::from_center_size(rect.center(), Vec2::ZERO);
+    let tool_part = PartRef::from(TOOL_NODE);
+    let mut node = SubNode::new(tool_part, Role::GRAPHICS_OBJECT);
+    node.name = Name::Text(tool.name.clone());
+    node.description.clone_from(&tool.description);
+    access::report_sub(ctx, &sub_decl(owner, &node, bounds.unwrap_or(at_centre), owner));
+    let parent = access::sub_node_id(owner, tool_part);
+    for (index, anchor) in (0u64..).zip(&tool.anchors) {
+        let mut node = SubNode::new(PartRef::from((TOOL_ANCHOR, index)), Role::GRAPHICS_OBJECT);
+        node.name = Name::Text(anchor.name.clone());
+        node.description.clone_from(&anchor.description);
+        let place = to_screen(anchor.at).map_or(at_centre, |at| Rect::from_center_size(rect.clamp(at), Vec2::ZERO));
+        access::report_sub(ctx, &sub_decl(owner, &node, place, parent));
+    }
+}
+
+/// A sub-node of the canvas that is read only: not focusable, not clickable, never the active part.
+fn sub_decl(owner: Id, node: &SubNode, rect: Rect, parent: Id) -> SubDecl<'_> {
+    SubDecl { owner, component: "", node, rect, enabled: true, focusable: false, clickable: false, active: false, face: None, label: "", parent }
+}
+
 /// Paints the tool over the canvas, clipped to it.
 fn paint_tool(ui: &Ui, env: &Env, tool: &dyn CanvasTool, cx: ToolContext<'_>) {
     let painter = ui.painter().with_clip_rect(cx.rect);
     let record = RefCell::new(PaintRecord::default());
     let draw = Draw::new(&painter, &record, DrawEnv { tokens: &env.tokens, direction: env.direction, ink: Ink::default() });
     let content = ContentPainterCx::new(painter.clone(), &env.tokens, env.direction);
-    tool.paint(&draw, &cx.painter(&content));
+    let style = StyleCx::new(ui.ctx(), &env.tokens, &env.values, env.size, Variant::SECONDARY, env.direction, env.scale, env.os, env.active, env.key);
+    tool.paint(&draw, &cx.painter(&content).styled(style));
 }
 
 /// The hover sample of the pass: the pointer's latest position with the pen's reading.
@@ -395,6 +466,8 @@ struct Run<'a> {
     rect: Rect,
     mods: Mods,
     time: f64,
+    env: &'a Env,
+    snap: Option<&'a Snap<'a>>,
     state: &'a mut HostState,
     response: ToolHostResponse,
     requests: ToolRequests,
@@ -404,7 +477,12 @@ struct Run<'a> {
 
 impl<'a> Run<'a> {
     fn context(&self, pointer: Option<ToolPointer>) -> ToolContext<'a> {
-        ToolContext::new(self.rect, self.space).pointer(pointer).mods(self.mods).time(self.time).slop(self.slop).down(self.down)
+        let cx = ToolContext::new(self.rect, self.space).pointer(pointer).mods(self.mods).time(self.time).slop(self.slop).down(self.down);
+        let cx = cx.env(self.env);
+        match self.snap {
+            Some(snap) => cx.snapping(snap),
+            None => cx,
+        }
     }
 
     /// Takes what a call asked for. A view it set is the view the calls after it in the pass start from.

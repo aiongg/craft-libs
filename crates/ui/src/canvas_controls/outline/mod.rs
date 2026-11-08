@@ -82,8 +82,9 @@ fn outline_style(cx: &StyleCx<'_>) -> OutlineStyle {
     }
 }
 
-/// The runs of `path` on the screen under `view`, curves flattened: the vertices and whether the run closes.
-fn runs(view: &CanvasView, path: &BezPath) -> Vec<(Vec<Pos2>, bool)> {
+/// The runs of `path` on the screen under `view`, curves flattened: the vertices and whether the run closes. Runs
+/// of one point are dropped. The outline widgets and a tool that paints its own path share this flattening.
+pub fn path_runs(view: &CanvasView, path: &BezPath) -> Vec<(Vec<Pos2>, bool)> {
     let screen = view.affine() * path.clone();
     let mut out = Vec::new();
     let mut points = Vec::new();
@@ -203,7 +204,7 @@ impl Component for HoverOutline {
                 stroke_run(&painter, view.quad(grown).to_vec(), true, self.color, style.medium);
             }
             HoverShape::Path(path) => {
-                for (points, closed) in runs(&view, path) {
+                for (points, closed) in path_runs(&view, path) {
                     stroke_run(&painter, points, closed, self.color, style.medium);
                 }
             }
@@ -270,7 +271,7 @@ impl Component for SelectionOutline<'_> {
         let painter = ui.content_painter(cx);
         let style = &cx.style;
         for path in self.paths {
-            for (mut points, closed) in runs(&space.view, path) {
+            for (mut points, closed) in path_runs(&space.view, path) {
                 match self.look {
                     SelectionOutlineLook::Solid => stroke_run(&painter, points, closed, self.color, style.thin),
                     SelectionOutlineLook::Dashed => {

@@ -1,5 +1,5 @@
 //! `BodyLayout` and the layout of a body: the physical egui layout, the measured placement of `Row` End and
-//! Center, and the `Grid` cursor.
+//! Center, and the cursors of `Grid` and of a `Row` that spreads its children.
 
 use crate::runtime::egui::memory::Service;
 use crate::runtime::egui::{alloc, child};
@@ -44,6 +44,10 @@ pub enum RowAlign {
     Center,
     /// At the end edge.
     End,
+    /// Spread over the row: the first child at the start edge, the last at the end edge, and the room left shared
+    /// equally between the children (a footer's leading slot and its buttons). One child sits at the start edge, and so
+    /// do the children of a row that wraps.
+    SpaceBetween,
 }
 
 impl BodyLayout {
@@ -79,15 +83,97 @@ impl BodyLayout {
     }
 }
 
-/// The cursors of the `Grid` bodies running this pass, by body id.
+/// The cursors of the `Grid` and spread `Row` bodies running this pass, by body id.
 #[derive(Default)]
-struct Cursors(HashMap<Id, GridCursor>);
+struct Cursors(HashMap<Id, Cursor>);
 
-/// The rect a child of measured `size` takes in flow in `ui`: the next cell of the `Grid` body that encloses it
-/// directly, else the next allocation of `ui`'s layout.
+/// What places the children in flow of a body that places them itself.
+enum Cursor {
+    Grid(GridCursor),
+    Spread(Spread),
+}
+
+impl Cursor {
+    fn cell(&mut self, size: Vec2) -> Rect {
+        match self {
+            Cursor::Grid(grid) => grid.cell(size),
+            Cursor::Spread(row) => row.cell(size),
+        }
+    }
+
+    fn room(&self) -> Vec2 {
+        match self {
+            Cursor::Grid(grid) => grid.room(),
+            Cursor::Spread(row) => row.room(),
+        }
+    }
+
+    fn widen(&mut self, size: Vec2) {
+        match self {
+            Cursor::Grid(grid) => grid.widen(size),
+            Cursor::Spread(row) => row.widen(size),
+        }
+    }
+}
+
+/// The cursor of a `SpaceBetween` row: each child in flow takes the next place along the row, and the room the
+/// children left last pass is shared between them. It places from last pass's measure, as `End` and `Center` do.
+struct Spread {
+    flow: Flow,
+    gap: f32,
+    /// The space between two children: the gap and the share of the room left.
+    between: f32,
+    /// How far from the start edge the last child placed ends.
+    at: f32,
+    /// The width of the last child placed.
+    last: f32,
+    /// What the children took this pass at the gap alone: their widths and the gaps between them.
+    natural: f32,
+    count: usize,
+}
+
+impl Spread {
+    /// A cursor over `flow` with `gap` between children, spreading by `last`: the natural width and the number of
+    /// the children last pass.
+    fn new(flow: Flow, gap: f32, last: Option<Vec2>) -> Self {
+        let width = flow.rect().width();
+        let between = last.filter(|last| last.y >= 2.0 && last.x < width).map_or(gap, |last| gap + (width - last.x) / (last.y - 1.0));
+        Spread { flow, gap, between, at: 0.0, last: 0.0, natural: 0.0, count: 0 }
+    }
+
+    fn start(&self) -> f32 {
+        if self.count == 0 { 0.0 } else { self.at + self.between }
+    }
+
+    fn cell(&mut self, size: Vec2) -> Rect {
+        let start = self.start();
+        let span = self.flow.span(start, size.x);
+        self.natural += size.x + if self.count == 0 { 0.0 } else { self.gap };
+        (self.at, self.last, self.count) = (start + size.x, size.x, self.count + 1);
+        Rect::from_min_size(span.min, Vec2::new(span.width(), size.y))
+    }
+
+    fn room(&self) -> Vec2 {
+        let rect = self.flow.rect();
+        Vec2::new((rect.width() - self.start()).max(0.0), rect.height())
+    }
+
+    fn widen(&mut self, size: Vec2) {
+        let grow = (size.x - self.last).max(0.0);
+        (self.at, self.natural, self.last) = (self.at + grow, self.natural + grow, self.last + grow);
+    }
+
+    /// What `new` spreads by next pass.
+    fn measured(&self) -> Vec2 {
+        Vec2::new(self.natural, self.count as f32)
+    }
+}
+
+/// The rect a child of measured `size` takes in flow in `ui`: the next cell of the `Grid` or spread `Row` body that
+/// encloses it directly, else the next allocation of `ui`'s layout.
 pub(crate) fn place_in_flow(ui: &mut Ui, size: Vec2) -> Rect {
     let cell =
-        Env::of(ui).grid.and_then(|grid| Service::<Cursors>::of(ui.ctx()).with(|cursors| cursors.0.get_mut(&grid).map(|cursor| cursor.cell(size))));
+        Env::of(ui).grid.and_then(|body| Service::<Cursors>::of(ui.ctx()).with(|cursors| cursors.0.get_mut(&body).map(|cursor| cursor.cell(size))));
     match cell {
         Some(cell) => {
             alloc::advance_past(ui, cell);
@@ -97,19 +183,19 @@ pub(crate) fn place_in_flow(ui: &mut Ui, size: Vec2) -> Rect {
     }
 }
 
-/// The room a child shown in flow in `ui` measures and sizes in: the room of the next cell of the `Grid` body that
-/// encloses `ui` directly, else the rest of `ui`'s layout.
+/// The room a child shown in flow in `ui` measures and sizes in: the room of the next cell of the `Grid` or spread
+/// `Row` body that encloses `ui` directly, else the rest of `ui`'s layout.
 pub(crate) fn flow_room(ui: &Ui) -> Vec2 {
-    let cell = Env::of(ui).grid.and_then(|grid| Service::<Cursors>::of(ui.ctx()).with(|cursors| cursors.0.get(&grid).map(GridCursor::room)));
+    let cell = Env::of(ui).grid.and_then(|body| Service::<Cursors>::of(ui.ctx()).with(|cursors| cursors.0.get(&body).map(Cursor::room)));
     cell.unwrap_or_else(|| ui.available_size_before_wrap())
 }
 
-/// The cell `place_in_flow` placed last in the `Grid` body that encloses `ui` directly measured `size` after all: a
-/// block placed without a size entry learns its real size once its regions have run.
+/// The cell `place_in_flow` placed last in the `Grid` or spread `Row` body that encloses `ui` directly measured `size`
+/// after all: a block placed without a size entry learns its real size once its regions have run.
 pub(crate) fn widen_cell(ui: &Ui, size: Vec2) {
-    if let Some(grid) = Env::of(ui).grid {
+    if let Some(body) = Env::of(ui).grid {
         Service::<Cursors>::of(ui.ctx()).with(|cursors| {
-            if let Some(cursor) = cursors.0.get_mut(&grid) {
+            if let Some(cursor) = cursors.0.get_mut(&body) {
                 cursor.widen(size);
             }
         });
@@ -136,18 +222,43 @@ fn last_measure(ctx: &egui::Context, grid: Id, columns: usize) -> GridMeasure {
 /// Runs `body` in a child `Ui` laid out by `layout` under `id`, in the direction of `ui`'s env. `gap` is the
 /// space between the cells of a `Grid`.
 ///
-/// `Row` with `End` or `Center` places its block from the size it took last pass, and `Grid` places its
-/// cells from last pass's widest child per column and tallest per row. A change of those sizes asks for one
-/// discard pass under the tolerance rule.
+/// `Row` with `End` or `Center` places its block from the size it took last pass, `SpaceBetween` shares the room
+/// its children left last pass between them, and `Grid` places its cells from last pass's widest child per column
+/// and tallest per row. A change of those sizes asks for one discard pass under the tolerance rule.
 pub(crate) fn run_body<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap: Vec2, body: impl FnOnce(&mut Ui) -> R) -> R {
+    run_body_measured(ui, id, layout, gap, body).0
+}
+
+/// `run_body`, with the width the children take at the gap alone for a `Row` that places its block itself (`End`,
+/// `Center`, `SpaceBetween`): the width the body asks for, where the room it is placed in spans wider.
+pub(crate) fn run_body_measured<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap: Vec2, body: impl FnOnce(&mut Ui) -> R) -> (R, Option<f32>) {
     let rtl = Env::of(ui).direction.is_rtl();
     let ctx = ui.ctx().clone();
     match layout {
-        BodyLayout::Stack => child::block(ui, None, child::column_layout(rtl), |ui| body(ui)).0,
+        BodyLayout::Stack => (child::block(ui, None, child::column_layout(rtl), |ui| body(ui)).0, None),
+        BodyLayout::Row { wrap: false, align: RowAlign::SpaceBetween } => {
+            let (inner, _) = child::block(ui, None, child::row_layout(rtl, false), |ui| {
+                let flow = Flow::new(ui.available_rect_before_wrap(), rtl);
+                let spread = Spread::new(flow, gap.x, layout_memory::read(&ctx, id));
+                Service::<Cursors>::run(&ctx, |cursors| cursors.0.insert(id, Cursor::Spread(spread)));
+                let installed = Env::install_for(ui, Env::of(ui).derive_local(|scoped| scoped.grid = Some(id)));
+                let inner = body(ui);
+                Env::restore(&ctx, installed);
+                inner
+            });
+            let measured = match Service::<Cursors>::run(&ctx, |cursors| cursors.0.remove(&id)) {
+                Some(Cursor::Spread(spread)) => Some(spread.measured()),
+                _ => None,
+            };
+            if let Some(measured) = measured {
+                layout_memory::record(&ctx, id, measured);
+            }
+            (inner, measured.map(|measured| measured.x))
+        }
         BodyLayout::Row { wrap, align } => {
             let room = ui.available_rect_before_wrap();
             let rect = match *align {
-                RowAlign::Start => None,
+                RowAlign::Start | RowAlign::SpaceBetween => None,
                 RowAlign::Center | RowAlign::End => {
                     let last = layout_memory::read(&ctx, id);
                     last.filter(|last| last.x < room.width()).map(|last| {
@@ -161,20 +272,20 @@ pub(crate) fn run_body<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap: Vec2, b
             if *align != RowAlign::Start {
                 layout_memory::record(&ctx, id, took.size());
             }
-            inner
+            (inner, (*align != RowAlign::Start).then(|| took.width()))
         }
         BodyLayout::Grid { columns } => {
             let inner = child::block(ui, None, child::column_layout(rtl), |ui| {
                 let last = last_measure(&ctx, id, columns.len());
                 let cursor = GridCursor::new(Flow::new(ui.available_rect_before_wrap(), rtl), columns, gap, &last);
-                Service::<Cursors>::run(&ctx, |cursors| cursors.0.insert(id, cursor));
+                Service::<Cursors>::run(&ctx, |cursors| cursors.0.insert(id, Cursor::Grid(cursor)));
                 let installed = Env::install_for(ui, Env::of(ui).derive_local(|scoped| scoped.grid = Some(id)));
                 let inner = body(ui);
                 Env::restore(&ctx, installed);
                 inner
             })
             .0;
-            if let Some(cursor) = Service::<Cursors>::run(&ctx, |cursors| cursors.0.remove(&id)) {
+            if let Some(Cursor::Grid(cursor)) = Service::<Cursors>::run(&ctx, |cursors| cursors.0.remove(&id)) {
                 let measured = cursor.measured();
                 for (i, width) in measured.columns.iter().enumerate() {
                     layout_memory::record(&ctx, column_id(id, i), Vec2::new(*width, 0.0));
@@ -184,7 +295,7 @@ pub(crate) fn run_body<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap: Vec2, b
                 }
                 layout_memory::record(&ctx, sub(id, "rows"), Vec2::new(measured.rows.len() as f32, 0.0));
             }
-            inner
+            (inner, None)
         }
     }
 }

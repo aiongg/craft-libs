@@ -1,27 +1,30 @@
 //! A canvas under a modal dialog (15.5, 8.3): an armed sampler lets primary presses through, the view stays usable,
-//! and everything else stays blocked.
+//! and everything else stays blocked. The dialog's body arms the canvas the way a dialog does, through `BodyCx`.
 
-use super::kit::{Opened, Opener, PlainStyle, Seen};
+use super::kit::{Leaf, Opened, Opener, PlainStyle, Seen};
 use crate::body::kit::Slab;
 use crate::contract::kit::{Probe, Seen as ProbeSeen};
 use crate::windows_kit::Windows;
-use craft_behavior::Sense;
+use craft_behavior::{Sense, WheelTaker};
 use craft_ui::contract::{
-    Common, Component, ContainerProps, Cx, MeasureCx, Mount, Overlay, OverlayUi, Overlays as _, Props as _, Role, Show as _, ShowContainer as _,
-    Sizing, Trigger,
+    Common, Component, ContainerProps, Cx, MeasureCx, Mount, Overlay, OverlayUi, Overlays as _, Props as _, Role, Sampler as _, Show as _,
+    ShowContainer as _, Sizing, Trigger,
 };
 use craft_ui::style::StyleCx;
-use craft_ui::testing::focus::is_focused;
+use craft_ui::testing::focus::{is_focused, key_release};
 use craft_ui::testing::input::key_press;
-use craft_ui::testing::pointer::{middle, moved, press, release, secondary};
+use craft_ui::testing::pointer::{middle, moved, press, release, secondary, wheel};
+use craft_ui::testing::wheel::{focus, register, take};
 use craft_ui::testing::{Frames, trial};
-use egui::{Id, Key, Modifiers, Pos2, Rect, Response, Ui, Vec2};
+use egui::{Event, Id, Key, Modifiers, Pos2, Rect, Response, Ui, Vec2};
 use std::cell::{Cell, RefCell};
 
 const OPENER: Rect = Rect { min: Pos2::new(600.0, 100.0), max: Pos2::new(680.0, 120.0) };
 const CANVAS: Rect = Rect { min: Pos2::new(20.0, 20.0), max: Pos2::new(320.0, 260.0) };
+/// A canvas under the whole centred dialog.
+const WIDE: Rect = Rect { min: Pos2::new(0.0, 0.0), max: Pos2::new(1200.0, 900.0) };
 
-/// What the dialog's control asks of the canvas.
+/// What the dialog's body asks of the canvas.
 #[derive(Clone, Copy, PartialEq)]
 enum Arm {
     Nothing,
@@ -29,50 +32,7 @@ enum Arm {
     Sampler,
 }
 
-/// The control in the dialog: it holds key focus and registers the canvas in every pass.
-#[derive(Component)]
-struct Armer<'a> {
-    #[common]
-    common: Common,
-    canvas: Id,
-    arm: Arm,
-    at: &'a Cell<Rect>,
-    id: &'a Cell<Id>,
-}
-
-impl Component for Armer<'_> {
-    const ROLE: Role = Role::BUTTON;
-    type Style = PlainStyle;
-    type Output = Response;
-
-    fn style(_: &StyleCx<'_>, _: ArmerStyleKey) -> PlainStyle {
-        PlainStyle::default()
-    }
-
-    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
-        Vec2::new(80.0, 30.0)
-    }
-
-    fn sense(&self) -> Sense {
-        Sense::CLICK | Sense::FOCUS
-    }
-
-    fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        self.at.set(cx.rect);
-        self.id.set(cx.id);
-        match self.arm {
-            Arm::Nothing => {}
-            Arm::View => cx.keep_view_open(self.canvas),
-            Arm::Sampler => cx.arm_sampler(self.canvas),
-        }
-    }
-
-    fn finish(self, cx: Cx<'_, Self>) -> Response {
-        cx.response.clone()
-    }
-}
-
-/// A button that opens a modal dialog holding the armer and, while `menu` is set, a menu.
+/// A button that opens a modal dialog whose body arms the canvas, holds a focusable leaf, a menu and a nested modal.
 #[derive(Component)]
 #[component(overlay)]
 struct Dialog<'a> {
@@ -111,9 +71,20 @@ impl Component for Dialog<'_> {
         let popup = cx.popup("popup");
         let scene = self.scene;
         let canvas = self.canvas;
-        let shown = ui.show(popup, Overlay::modal(), |ui, _| {
-            Armer { common: Common::new(), canvas, arm: scene.arm.get(), at: &scene.armer_at, id: &scene.armer_id }.id_salt("armer").show(ui);
+        let shown = ui.show(popup, Overlay::modal(), |ui, body| {
+            match scene.arm.get() {
+                Arm::Nothing => {}
+                Arm::View => body.keep_view_open(canvas),
+                Arm::Sampler => body.arm_sampler(canvas),
+            }
+            let leaf = Leaf::new(&scene.leaf, Vec2::new(80.0, 30.0)).id_salt("armer").show(ui);
+            scene.armer_at.set(leaf.rect);
+            scene.armer_id.set(leaf.id);
             Opener::new(&scene.menu_shown, &scene.menu_content, Trigger::Manual, Overlay::menu).open(scene.menu.get()).id_salt("menu").show(ui);
+            Opener::new(&scene.nested_shown, &scene.nested_content, Trigger::Manual, Overlay::modal)
+                .open(scene.nested.get())
+                .id_salt("nested")
+                .show(ui);
         });
         if shown.is_some() {
             self.scene.dialog.shown.set(true);
@@ -125,64 +96,98 @@ impl Component for Dialog<'_> {
     }
 }
 
-/// The scene: a canvas probe and the dialog's opener.
+/// The scene: a canvas probe, a second root behind it and the dialog's opener.
 struct Scene {
+    area: Rect,
     canvas: RefCell<ProbeSeen>,
+    behind: RefCell<ProbeSeen>,
+    leaf: RefCell<Seen>,
+    wheels: Cell<u32>,
     armer_at: Cell<Rect>,
     armer_id: Cell<Id>,
     open: Cell<bool>,
     arm: Cell<Arm>,
     menu: Cell<bool>,
+    nested: Cell<bool>,
     dialog: Opened,
     menu_shown: Opened,
     menu_content: RefCell<Seen>,
+    nested_shown: Opened,
+    nested_content: RefCell<Seen>,
 }
 
 impl Scene {
     fn new(arm: Arm) -> Self {
+        Self::over(arm, CANVAS)
+    }
+
+    fn over(arm: Arm, area: Rect) -> Self {
         Scene {
+            area,
             canvas: RefCell::default(),
+            behind: RefCell::default(),
+            leaf: RefCell::default(),
+            wheels: Cell::new(0),
             armer_at: Cell::new(Rect::NOTHING),
             armer_id: Cell::new(Id::NULL),
             open: Cell::new(false),
             arm: Cell::new(arm),
             menu: Cell::new(false),
+            nested: Cell::new(false),
             dialog: Opened::default(),
             menu_shown: Opened::default(),
             menu_content: RefCell::default(),
+            nested_shown: Opened::default(),
+            nested_content: RefCell::default(),
         }
     }
 
     fn show(&self, ui: &mut Ui) {
         self.dialog.shown.set(false);
         self.menu_shown.shown.set(false);
+        self.nested_shown.shown.set(false);
         let canvas = self.canvas.borrow().id.unwrap_or(Id::NULL);
-        Probe::new(&self.canvas).size(CANVAS.size()).sense(Sense::CLICK | Sense::DRAG).id_salt("canvas").show_at(ui, CANVAS);
+        Probe::new(&self.behind).size(self.area.size()).sense(Sense::CLICK | Sense::DRAG).id_salt("behind").show_at(ui, self.area);
+        Probe::new(&self.canvas).size(self.area.size()).sense(Sense::CLICK | Sense::DRAG).id_salt("canvas").show_at(ui, self.area);
+        register(ui.ctx(), WheelTaker::new(canvas, self.area).vertical(true));
+        if take(ui.ctx(), canvas).is_some() {
+            self.wheels.set(self.wheels.get() + 1);
+        }
         Dialog { common: Common::new(), scene: self, canvas }.id_salt("dialog").show_at(ui, OPENER);
     }
 
     /// A frame with `events`; the scene's flags are read as they stand.
-    fn frame(&self, frames: &mut Frames, events: Vec<egui::Event>) {
+    fn frame(&self, frames: &mut Frames, events: Vec<Event>) {
         frames.frame(events, &mut |ui: &mut Ui| self.show(ui));
+    }
+
+    fn settle(&self, frames: &mut Frames, count: usize) {
+        frames.idle(count, &mut |ui: &mut Ui| self.show(ui));
     }
 
     /// Opens the dialog and settles it.
     fn open_dialog(&self, frames: &mut Frames) {
-        frames.idle(3, &mut |ui: &mut Ui| self.show(ui));
+        self.settle(frames, 3);
         self.open.set(true);
         self.frame(frames, vec![]);
         self.open.set(false);
-        frames.idle(30, &mut |ui: &mut Ui| self.show(ui));
+        self.settle(frames, 30);
         assert!(self.dialog.shown.get(), "the dialog shows");
     }
 
     fn forget_canvas(&self) {
-        let mut seen = self.canvas.borrow_mut();
-        seen.press.clear();
+        self.canvas.borrow_mut().press.clear();
+        self.behind.borrow_mut().press.clear();
+        self.leaf.borrow_mut().presses = 0;
+        self.leaf.borrow_mut().activations = 0;
     }
 
     fn pressed_canvas(&self) -> bool {
         !self.canvas.borrow().press.is_empty()
+    }
+
+    fn pressed_behind(&self) -> bool {
+        !self.behind.borrow().press.is_empty()
     }
 
     fn dragged_canvas(&self) -> bool {
@@ -196,8 +201,20 @@ impl Scene {
         self.frame(frames, vec![moved(at + by / 2.0)]);
         self.frame(frames, vec![moved(at + by)]);
         self.frame(frames, vec![release(at + by)]);
-        frames.idle(2, &mut |ui: &mut Ui| self.show(ui));
+        self.settle(frames, 2);
     }
+
+    /// A click at `at`.
+    fn click(&self, frames: &mut Frames, at: Pos2) {
+        self.frame(frames, vec![moved(at)]);
+        self.frame(frames, vec![press(at)]);
+        self.frame(frames, vec![release(at)]);
+        self.settle(frames, 2);
+    }
+}
+
+fn space(pressed: bool) -> Event {
+    if pressed { key_press(Key::Space, Modifiers::NONE) } else { key_release(Key::Space, Modifiers::NONE) }
 }
 
 /// With a sampler armed, a press and a drag on the canvas under the dialog reach it, the dialog keeps key focus and
@@ -213,7 +230,7 @@ fn an_armed_sampler_passes_a_press_and_a_drag_to_the_canvas_and_lapses_with_the_
     assert!(scene.dialog.shown.get(), "a press on the canvas does not close the dialog");
     assert!(is_focused(&frames.ctx, scene.armer_id.get()), "the dialog keeps key focus");
     scene.frame(&mut frames, vec![key_press(Key::Escape, Modifiers::NONE)]);
-    frames.idle(30, &mut |ui: &mut Ui| scene.show(ui));
+    scene.settle(&mut frames, 30);
     assert!(!scene.dialog.shown.get(), "Escape closes the dialog");
     // A dialog that opens later and does not arm gets no press through.
     scene.arm.set(Arm::Nothing);
@@ -252,7 +269,7 @@ fn a_press_on_the_canvas_closes_a_popup_over_the_dialog_and_does_not_reach_the_c
     let scene = Scene::new(Arm::Sampler);
     scene.open_dialog(&mut frames);
     scene.menu.set(true);
-    frames.idle(30, &mut |ui: &mut Ui| scene.show(ui));
+    scene.settle(&mut frames, 30);
     assert!(scene.menu_shown.shown.get(), "the menu is open over the dialog");
     scene.menu.set(false);
     scene.drag(&mut frames, CANVAS.center(), Vec2::new(40.0, 10.0));
@@ -271,7 +288,7 @@ fn a_secondary_press_on_the_armed_canvas_is_blocked() {
     scene.frame(&mut frames, vec![moved(at)]);
     scene.frame(&mut frames, vec![secondary(at, true)]);
     scene.frame(&mut frames, vec![secondary(at, false)]);
-    frames.idle(2, &mut |ui: &mut Ui| scene.show(ui));
+    scene.settle(&mut frames, 2);
     assert!(!scene.pressed_canvas(), "a secondary press stays blocked");
 }
 
@@ -288,31 +305,37 @@ fn a_view_kept_open_takes_the_middle_press_and_not_the_primary_one() {
     scene.frame(&mut frames, vec![moved(at)]);
     scene.frame(&mut frames, vec![middle(at, true)]);
     scene.frame(&mut frames, vec![middle(at, false)]);
-    frames.idle(2, &mut |ui: &mut Ui| scene.show(ui));
+    scene.settle(&mut frames, 2);
     assert!(scene.pressed_canvas(), "the middle press reached the canvas");
 }
 
-/// A dialog in its own viewport: a press on the armed canvas in the main viewport reaches it.
+/// A dialog in its own viewport: a press on the armed canvas in the main viewport reaches it, and the main viewport's
+/// key focus stays where it was.
 #[trial]
 fn a_dialog_in_its_own_viewport_lets_an_armed_canvas_in_the_main_viewport_take_the_press() {
     let windows = Windows::new();
     let canvas = RefCell::new(ProbeSeen::default());
-    let at_armer = Cell::new(Rect::NOTHING);
-    let armer_id = Cell::new(Id::NULL);
-    let arm = Cell::new(Arm::Sampler);
-    let frame = |root: Vec<egui::Event>| {
+    let field = RefCell::new(Seen::default());
+    let frame = |root: Vec<Event>| {
         windows.frame(root, vec![], |ui| {
             let id = canvas.borrow().id.unwrap_or(Id::NULL);
             Probe::new(&canvas).size(CANVAS.size()).sense(Sense::CLICK | Sense::DRAG).id_salt("canvas").show_at(ui, CANVAS);
+            Leaf::new(&field, Vec2::new(80.0, 30.0))
+                .id_salt("field")
+                .show_at(ui, Rect::from_min_size(Pos2::new(400.0, 300.0), Vec2::new(80.0, 30.0)));
             let props = ContainerProps::new().mount(Mount::viewport(Overlay::modal())).sizing(Sizing::Content);
-            Slab::new(props).label("Sample").id_salt("dialog").show(ui, |ui, _| {
-                Armer { common: Common::new(), canvas: id, arm: arm.get(), at: &at_armer, id: &armer_id }.id_salt("armer").show(ui);
+            Slab::new(props).label("Sample").id_salt("dialog").show(ui, |ui, body| {
+                body.arm_sampler(id);
+                Leaf::new(&RefCell::new(Seen::default()), Vec2::new(80.0, 30.0)).id_salt("armer").show(ui);
             });
         });
     };
     for _ in 0..5 {
         frame(vec![]);
     }
+    let held = field.borrow().id.expect("the field shows");
+    focus(&windows.ctx, held);
+    frame(vec![]);
     let at = CANVAS.center();
     frame(vec![moved(at)]);
     frame(vec![press(at)]);
@@ -322,4 +345,78 @@ fn a_dialog_in_its_own_viewport_lets_an_armed_canvas_in_the_main_viewport_take_t
     let seen = canvas.borrow();
     assert!(!seen.press.is_empty(), "the press reached the canvas in the main viewport");
     assert!(seen.press.iter().any(|phase| phase.is_drag()), "and the drag stayed its own");
+    assert!(is_focused(&windows.ctx, held), "the press moved no key focus");
+}
+
+/// A dialog over the canvas keeps its own presses, under either reach: the press on its button is the dialog's, the
+/// canvas's own corner still reaches the canvas under Sample, and a second root behind the canvas never gets one.
+#[trial]
+fn a_dialog_over_the_canvas_keeps_its_presses_and_a_root_behind_the_canvas_gets_none() {
+    for arm in [Arm::View, Arm::Sampler] {
+        let mut frames = Frames::new();
+        let scene = Scene::over(arm, WIDE);
+        scene.open_dialog(&mut frames);
+        let button = scene.armer_at.get().center();
+        assert!(WIDE.contains(button), "the dialog lies over the canvas");
+        scene.click(&mut frames, button);
+        assert!(scene.leaf.borrow().presses > 0, "the dialog's own button got the press");
+        assert!(!scene.pressed_canvas(), "the canvas did not");
+        scene.forget_canvas();
+        let corner = Pos2::new(30.0, 30.0);
+        scene.drag(&mut frames, corner, Vec2::new(20.0, 5.0));
+        assert_eq!(scene.pressed_canvas(), arm == Arm::Sampler, "the canvas takes the press away from the dialog only when armed");
+        assert!(!scene.pressed_behind(), "a root behind the canvas never gets the press");
+        assert!(is_focused(&frames.ctx, scene.armer_id.get()), "the dialog keeps key focus");
+    }
+}
+
+/// A modal opened over an armed dialog blocks the canvas again.
+#[trial]
+fn a_nested_modal_over_an_armed_dialog_blocks_the_canvas() {
+    let mut frames = Frames::new();
+    let scene = Scene::new(Arm::Sampler);
+    scene.open_dialog(&mut frames);
+    scene.nested.set(true);
+    scene.settle(&mut frames, 30);
+    assert!(scene.nested_shown.shown.get(), "the nested modal is open over the dialog");
+    scene.drag(&mut frames, CANVAS.center(), Vec2::new(40.0, 10.0));
+    assert!(!scene.pressed_canvas(), "the nested modal blocks the canvas");
+}
+
+/// Space held over the canvas turns the primary press into a pan press, under either reach, and the dialog's focused
+/// button never gets the Space.
+#[trial]
+fn space_drag_over_the_canvas_reaches_it_and_does_not_press_the_dialogs_button() {
+    let mut frames = Frames::new();
+    let scene = Scene::new(Arm::View);
+    scene.open_dialog(&mut frames);
+    scene.forget_canvas();
+    let at = CANVAS.center();
+    scene.frame(&mut frames, vec![moved(at)]);
+    scene.frame(&mut frames, vec![space(true)]);
+    scene.frame(&mut frames, vec![press(at)]);
+    scene.frame(&mut frames, vec![moved(at + Vec2::new(30.0, 0.0))]);
+    scene.frame(&mut frames, vec![moved(at + Vec2::new(60.0, 0.0))]);
+    scene.frame(&mut frames, vec![release(at + Vec2::new(60.0, 0.0))]);
+    scene.frame(&mut frames, vec![space(false)]);
+    scene.settle(&mut frames, 2);
+    assert!(scene.dragged_canvas(), "the Space drag is the canvas's");
+    assert_eq!(scene.leaf.borrow().activations, 0, "the dialog's focused button did not take the Space");
+    assert!(is_focused(&frames.ctx, scene.armer_id.get()), "the dialog keeps key focus");
+}
+
+/// The wheel over a canvas under a dialog is blocked without a registration and passes with `keep_view_open`.
+#[trial]
+fn the_wheel_over_the_canvas_passes_a_dialog_only_with_a_registration() {
+    for (arm, passes) in [(Arm::Nothing, false), (Arm::View, true)] {
+        let mut frames = Frames::new();
+        let scene = Scene::new(arm);
+        scene.open_dialog(&mut frames);
+        scene.wheels.set(0);
+        scene.frame(&mut frames, vec![moved(CANVAS.center())]);
+        scene.frame(&mut frames, vec![wheel(-30.0)]);
+        scene.settle(&mut frames, 2);
+        assert_eq!(scene.wheels.get() > 0, passes, "the wheel passes only with a registration");
+        assert!(is_focused(&frames.ctx, scene.armer_id.get()), "the dialog keeps key focus");
+    }
 }

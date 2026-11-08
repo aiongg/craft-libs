@@ -169,11 +169,19 @@ pub(crate) fn set_max_click_duration(ctx: &Context, seconds: f64) {
 
 /// A fresh context with no plugin and AccessKit on.
 pub(crate) fn bare_context() -> Context {
-    static FONTS: std::sync::OnceLock<egui::FontDefinitions> = std::sync::OnceLock::new();
     let ctx = Context::default();
-    ctx.set_fonts(FONTS.get_or_init(egui::FontDefinitions::default).clone());
+    ctx.set_fonts(test_fonts());
     ctx.enable_accesskit();
     ctx
+}
+
+/// The font definitions of every test context: egui's default faces from `fonts::deflated_default_definitions`, the
+/// set the font stack starts from. `egui::FontDefinitions::default()` would not do: it holds egui's faces only when
+/// some crate in the build turns on egui's `default_fonts` feature, so the fixture would measure differently from
+/// one build to the next.
+fn test_fonts() -> egui::FontDefinitions {
+    static FONTS: std::sync::OnceLock<egui::FontDefinitions> = std::sync::OnceLock::new();
+    FONTS.get_or_init(crate::fonts::deflated_default_definitions).clone()
 }
 
 /// A paragraph of `text` wrapped to the available width.
@@ -181,10 +189,10 @@ pub(crate) fn wrapped_text(ui: &mut Ui, text: &str) {
     ui.add(egui::Label::new(text).wrap());
 }
 
-/// The default font definitions with the proportional family's first font moved to the end, a change that
+/// The test font definitions with the proportional family's first font moved to the end, a change that
 /// needs a new layout of every text.
 pub(crate) fn reordered_fonts() -> egui::FontDefinitions {
-    let mut definitions = egui::FontDefinitions::default();
+    let mut definitions = test_fonts();
     if let Some(proportional) = definitions.families.get_mut(&egui::FontFamily::Proportional)
         && !proportional.is_empty()
     {

@@ -5,6 +5,8 @@ use craft_behavior::Mixed;
 use craft_theme::Srgba;
 use craft_ui::choice::{RadioGroup, Swatch, SwatchOutput};
 use craft_ui::contract::{Bind, Props as _, Role, Show as _, ShowContainer as _};
+use craft_ui::patterns::form_dialogs::HostRequests;
+use craft_ui::runtime::requests::HostAnswer;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Id, Key, Modifiers};
 use std::cell::{Cell, RefCell};
@@ -102,4 +104,32 @@ fn a_cell_swatch_is_a_list_box_option() {
     });
     fixture.settle();
     assert_eq!(fixture.by_role(Role::LIST_BOX_OPTION).len(), 1);
+}
+
+#[trial]
+fn a_click_on_a_picker_swatch_files_one_colour_request_and_the_answer_sets_the_colour() {
+    const GREEN: Srgba = Srgba::rgb(0.0, 1.0, 0.0);
+    let shown = Rc::new(Cell::new(BLUE));
+    let requests = Rc::new(RefCell::new(HostRequests::new()));
+    let (colour, filed) = (shown.clone(), requests.clone());
+    let mut fixture = Fixture::new(move |ui| {
+        let out = Swatch::new("Fill", colour.get()).picker("fill").show(ui);
+        if let Some(request) = out.pick_color {
+            filed.borrow_mut().request_color(request);
+        }
+        for answer in filed.borrow_mut().take_answers() {
+            if let HostAnswer::Color { color, .. } = answer {
+                colour.set(color);
+            }
+        }
+    });
+    fixture.settle();
+    let well = fixture.by_label("Fill").expect("shown");
+    fixture.click(&well);
+    let request = requests.borrow_mut().take_color().expect("the click filed a request");
+    assert_eq!((request.key.as_str(), request.color), ("fill", BLUE));
+    assert!(requests.borrow_mut().take_color().is_none(), "one request per click");
+    requests.borrow_mut().answer_color("fill", GREEN);
+    fixture.idle(2);
+    assert_eq!(shown.get(), GREEN);
 }

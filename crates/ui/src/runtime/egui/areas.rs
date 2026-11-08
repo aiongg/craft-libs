@@ -52,49 +52,65 @@ pub(crate) fn layer_position(ctx: &Context, layer: LayerId) -> usize {
     ctx.memory(|memory| memory.layer_ids().position(|listed| listed == layer).map_or(0, |at| at + 1))
 }
 
-/// The topmost layer under a screen position. Inside the canvas a modal layer leaves open (`runtime::sampler`), it
-/// answers the topmost layer as if the modal's gate and its scrim were not there, unless a layer of the modal's family
-/// (the dialog, its chrome, a popup above it) lies under the point.
+/// The topmost layer under a screen position. Inside the canvas a modal layer leaves open (`runtime::sampler`) and
+/// where nothing but the canvas lies over it, it answers the canvas's own layer as if the modal's gate and its scrim
+/// were not there.
 pub(crate) fn layer_at(ctx: &Context, point: Pos2) -> Option<LayerId> {
-    if crate::runtime::sampler::passes(ctx, crate::runtime::egui::pass::current_viewport(ctx), point) {
-        return past_modal(ctx, &layers_under(ctx, point, None));
-    }
-    ctx.layer_id_at(point)
+    crate::runtime::sampler::layer_at(ctx, point).or_else(|| ctx.layer_id_at(point))
 }
 
 /// The topmost layer under a screen position, as if `skipped` were not shown: the layer below a window that moves
 /// with the pointer. A modal layer still holds the input, as in `layer_at`.
 pub(crate) fn layer_at_without(ctx: &Context, point: Pos2, skipped: LayerId) -> Option<LayerId> {
-    let under = layers_under(ctx, point, Some(skipped));
-    if crate::runtime::sampler::passes(ctx, crate::runtime::egui::pass::current_viewport(ctx), point) {
-        return past_modal(ctx, &under);
+    if let Some(layer) = crate::runtime::sampler::layer_at(ctx, point) {
+        return Some(layer);
     }
+    let under = layers_under(ctx, point, Some(skipped));
     let found = *under.first()?;
     ctx.memory(|memory| if memory.is_above_modal_layer(found) { Some(found) } else { memory.top_modal_layer() })
 }
 
-/// The shown, interactable layers whose area holds `point` (screen space), topmost first, without `skipped`.
-fn layers_under(ctx: &Context, point: Pos2, skipped: Option<LayerId>) -> Vec<LayerId> {
+/// The shown, interactable layers with their screen rects, bottom first, without `skipped`.
+fn interactive_layers(ctx: &Context, skipped: Option<LayerId>) -> Vec<(LayerId, Rect)> {
     let stack: Vec<LayerId> =
         ctx.memory(|memory| memory.layer_ids().filter(|layer| Some(*layer) != skipped && memory.areas().is_visible(layer)).collect());
     stack
         .into_iter()
-        .rev()
-        .filter(|layer| {
-            let Some(state) = egui::AreaState::load(ctx, layer.id) else { return false };
-            let rect = ctx.layer_transform_to_global(*layer).map_or(state.rect(), |to_global| to_global * state.rect());
-            state.interactable && rect.contains(point)
+        .filter_map(|layer| {
+            let state = egui::AreaState::load(ctx, layer.id)?;
+            let rect = ctx.layer_transform_to_global(layer).map_or(state.rect(), |to_global| to_global * state.rect());
+            state.interactable.then_some((layer, rect))
         })
         .collect()
 }
 
-/// The topmost of `under` that is a layer of the top modal's family, or else the topmost one below the modal that is
-/// not the modal's scrim or a layer of its own order (which the modal gate covers).
-fn past_modal(ctx: &Context, under: &[LayerId]) -> Option<LayerId> {
-    ctx.memory(|memory| {
-        let Some(modal) = memory.top_modal_layer() else { return under.first().copied() };
-        under.iter().copied().find(|layer| memory.is_above_modal_layer(*layer) || layer.order < modal.order)
-    })
+/// The shown, interactable layers whose area holds `point` (screen space), topmost first, without `skipped`.
+fn layers_under(ctx: &Context, point: Pos2, skipped: Option<LayerId>) -> Vec<LayerId> {
+    interactive_layers(ctx, skipped).into_iter().rev().filter(|(_, rect)| rect.contains(point)).map(|(layer, _)| layer).collect()
+}
+
+/// The screen rects of the layers that lie over `layer` in the layer order, without `layer`'s own sublayers and the
+/// modal scrim `scrim`: what can hide a canvas from a pointer.
+pub(crate) fn rects_over(ctx: &Context, layer: LayerId, scrim: Option<LayerId>) -> Vec<Rect> {
+    let own = |other: LayerId| {
+        other == layer || ctx.memory(|memory| memory.areas().parent_layer(other) == Some(layer) || memory.areas().parent_layer(layer) == Some(other))
+    };
+    // A layer the order does not list (a panel) stands lowest, as `layer_position` has it.
+    let order: Vec<LayerId> = ctx.memory(|memory| memory.layer_ids().collect());
+    let skip = order.iter().position(|other| own(*other)).map_or(0, |at| at + 1);
+    let above: std::collections::HashSet<LayerId> = order.into_iter().skip(skip).collect();
+    interactive_layers(ctx, None)
+        .into_iter()
+        .filter(|(other, _)| above.contains(other) && !own(*other) && Some(*other) != scrim)
+        .map(|(_, rect)| rect)
+        .collect()
+}
+
+/// Whether the topmost layer under `point` belongs to the top modal layer's family: the modal, its chrome and what
+/// opened above it. egui's own `layer_id_at` answers the modal for a point below it, so the layers are read directly.
+pub(crate) fn in_modal_family(ctx: &Context, point: Pos2) -> bool {
+    let top = layers_under(ctx, point, None).first().copied();
+    top.is_some_and(|top| ctx.memory(|memory| memory.is_above_modal_layer(top)))
 }
 
 /// The layer of a transformed body: a sublayer of `parent` in the parent's order, named by `root`.
@@ -211,7 +227,8 @@ pub(crate) fn show_layer(ctx: &Context, spec: &LayerSpec, body: impl FnOnce(&mut
 
 /// Shows a layer that covers `screen` and paints `scrim` on it, around `hole` when there is one. While `absorbs` it
 /// takes every pointer hit on it, so nothing below it is hit, except inside `through`, the canvas a modal leaves open
-/// (`runtime::sampler`): that rect is left unpainted and unabsorbed, and the four bands around it absorb.
+/// (`runtime::sampler`): that rect is left unpainted and unabsorbed, and the four bands around it absorb. `hole` is
+/// left unpainted as well.
 pub(crate) fn show_cover_layer(
     ctx: &Context,
     id: Id,
@@ -224,7 +241,7 @@ pub(crate) fn show_cover_layer(
 ) {
     let scrim = Some(scrim);
     let clear = through.map(|through| through.intersect(screen)).filter(|through| through.is_positive());
-    let hole = clear.or(hole);
+    let holes: Vec<Rect> = [clear, hole].into_iter().flatten().map(|hole| hole.intersect(screen)).filter(|hole| hole.is_positive()).collect();
     egui::Area::new(id)
         .order(tier.order())
         .pivot(egui::Align2::LEFT_TOP)
@@ -235,15 +252,15 @@ pub(crate) fn show_cover_layer(
         .show(ctx, |ui| {
             if let Some(scrim) = scrim {
                 let painter = ui.painter();
-                match hole.map(|hole| hole.intersect(screen)).filter(|hole| hole.is_positive()) {
-                    Some(hole) => {
-                        for band in bands(screen, hole) {
-                            painter.rect_filled(band, 0.0, scrim);
-                        }
-                    }
-                    None => {
-                        painter.rect_filled(screen, 0.0, scrim);
-                    }
+                let mut painted = vec![screen];
+                for hole in &holes {
+                    painted = painted
+                        .into_iter()
+                        .flat_map(|rect| if rect.intersects(*hole) { bands(rect, hole.intersect(rect)).to_vec() } else { vec![rect] })
+                        .collect();
+                }
+                for band in painted.into_iter().filter(|band| band.is_positive()) {
+                    painter.rect_filled(band, 0.0, scrim);
                 }
             }
             let absorbed = match clear {

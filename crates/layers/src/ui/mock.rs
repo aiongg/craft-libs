@@ -3,34 +3,46 @@
 use std::cell::Cell;
 
 use craft_theme::LabelColor;
-use craft_ui::menu::{MenuEntry, MenuItem};
+use craft_ui::contract::Entry;
 
 use super::tree::{
-    BlendChoice, LayerInfo, LayerKind, LayerLocks, LayerPart, LayerProperties, LayerSelection, LayerTree, LayersFooterState, MaskInfo, SubRow,
-    SubRowGroup, SubRows,
+    LayerInfo, LayerKind, LayerLocks, LayerPart, LayerProperties, LayerSelection, LayerTree, LayersFooterState, MaskInfo, SubRow, SubRowGroup,
+    SubRows,
 };
 
 /// One layer of a [`FakeLayers`] tree.
 #[derive(Clone, Debug)]
-pub(crate) struct FakeLayer {
-    pub(crate) id: u32,
-    pub(crate) parent: Option<u32>,
-    pub(crate) info: LayerInfo,
-    pub(crate) open: bool,
-    pub(crate) effects_open: bool,
-    pub(crate) effects: Option<SubRows>,
-    pub(crate) smart_filters: Option<SubRows>,
+#[non_exhaustive]
+pub struct FakeLayer {
+    /// The layer's id.
+    pub id: u32,
+    /// The group it is in.
+    pub parent: Option<u32>,
+    /// What its row shows.
+    pub info: LayerInfo,
+    /// Whether a group shows its children.
+    pub open: bool,
+    /// Whether the effects and Smart Filter rows show.
+    pub effects_open: bool,
+    /// The effects rows.
+    pub effects: Option<SubRows>,
+    /// The Smart Filter rows.
+    pub smart_filters: Option<SubRows>,
 }
 
 /// A fake document's layers, kept in plain vectors: the tests' and stories' `LayerTree`. Ids are
 /// `u32`; the app's state (open groups, selection, effects open) is a field the test sets.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct FakeLayers {
+#[non_exhaustive]
+pub struct FakeLayers {
     /// Every layer, each group before its children, topmost first among siblings.
-    pub(crate) layers: Vec<FakeLayer>,
-    pub(crate) selection: LayerSelection<u32>,
-    pub(crate) hovered: Option<u32>,
-    pub(crate) revision: Option<u64>,
+    pub layers: Vec<FakeLayer>,
+    /// The selection the tree reports.
+    pub selection: LayerSelection<u32>,
+    /// The layer under the pointer on the canvas.
+    pub hovered: Option<u32>,
+    /// The revision the tree reports; `None` walks every pass.
+    pub revision: Option<u64>,
     info_calls: Cell<usize>,
 }
 
@@ -38,34 +50,30 @@ impl FakeLayers {
     /// A small tree for tests: a group with two pixel layers (one clipped, one with a pixel mask),
     /// a type layer, an adjustment with a disabled mask, a smart object with two Smart Filters,
     /// a pixel layer with effects, a hidden layer, and the Background; the top layer active.
-    pub(crate) fn sample() -> Self {
-        // new: the spec's `FakeLayers` (`step6a-layers.md`, Stories and tests).
+    pub fn sample() -> Self {
         let mut tree = Self::default();
         tree.push(1, None, LayerInfo::new("Group 1", LayerKind::Group), true);
         let mut clipped = LayerInfo::new("Clipped", LayerKind::Pixel);
         clipped.clipped = true;
         tree.push(2, Some(1), clipped, false);
         let mut masked = LayerInfo::new("Masked", LayerKind::Pixel);
-        masked.masks.push(MaskInfo { part: LayerPart::LayerMask, enabled: true, linked: true });
+        masked.masks.push(MaskInfo::new(LayerPart::LayerMask, true, true));
         tree.push(3, Some(1), masked, false);
         tree.push(4, None, LayerInfo::new("Title", LayerKind::Text), false);
         let mut adjustment = LayerInfo::new("Levels 1", LayerKind::Adjustment);
-        adjustment.masks.push(MaskInfo { part: LayerPart::LayerMask, enabled: false, linked: true });
+        adjustment.masks.push(MaskInfo::new(LayerPart::LayerMask, false, true));
         tree.push(5, None, adjustment, false);
         let mut smart = LayerInfo::new("Smart Object", LayerKind::SmartObject);
         smart.has_smart_filters = true;
         tree.push(6, None, smart, false);
         tree.layers[5].smart_filters = Some(SubRows {
-            header: SubRow { label: String::from("Smart Filters"), on: true, eye_shown: true, icon: None, mask: true },
+            header: SubRow { mask: true, ..SubRow::new("Smart Filters") },
             items: vec![sub_row("Gaussian Blur"), sub_row("Sharpen")],
         });
         let mut styled = LayerInfo::new("Styled", LayerKind::Pixel);
         styled.has_effects = true;
         tree.push(7, None, styled, false);
-        tree.layers[6].effects = Some(SubRows {
-            header: SubRow { label: String::from("Effects"), on: true, eye_shown: true, icon: None, mask: false },
-            items: vec![sub_row("Drop Shadow"), sub_row("Stroke")],
-        });
+        tree.layers[6].effects = Some(SubRows { header: SubRow::new("Effects"), items: vec![sub_row("Drop Shadow"), sub_row("Stroke")] });
         let mut hidden = LayerInfo::new("Hidden", LayerKind::Pixel);
         hidden.visible = false;
         hidden.dimmed = true;
@@ -76,7 +84,7 @@ impl FakeLayers {
         background.thumb_loads_selection = false;
         background.locks = LayerLocks { all: true, ..LayerLocks::default() };
         tree.push(9, None, background, false);
-        tree.selection = LayerSelection { layers: vec![1], active: Some(1), target: LayerPart::Pixels };
+        tree.selection = LayerSelection::new(vec![1], Some(1), LayerPart::Pixels);
         tree
     }
 
@@ -84,7 +92,7 @@ impl FakeLayers {
     /// mask, vector mask, both, a disabled mask, adjustment, solid and gradient fill, type, shape,
     /// smart object with Smart Filters, effects open and closed, a locked layer, the Background,
     /// a hidden layer (story `composites/layers-panel/tree`).
-    pub(crate) fn fifty() -> Self {
+    pub fn fifty() -> Self {
         let mut tree = Self::default();
         let header = tree.add(None, named("Header", LayerKind::Group, |_| {}), true);
         let logo = tree.add(Some(header), named("Logo", LayerKind::Group, |_| {}), true);
@@ -126,7 +134,7 @@ impl FakeLayers {
         let backdrop = tree.add(Some(photo), named("Backdrop", LayerKind::SmartObject, |i| i.has_smart_filters = true), false);
         tree.layer_mut(backdrop).effects_open = true;
         tree.layer_mut(backdrop).smart_filters = Some(SubRows {
-            header: SubRow { label: String::from("Smart Filters"), on: true, eye_shown: true, icon: None, mask: true },
+            header: SubRow { mask: true, ..SubRow::new("Smart Filters") },
             items: vec![sub_row("Gaussian Blur"), SubRow { on: false, ..sub_row("Unsharp Mask") }, sub_row("Camera Raw Filter")],
         });
         let glow = tree.add(Some(photo), named("Glow", LayerKind::Pixel, |i| i.has_effects = true), false);
@@ -191,14 +199,12 @@ impl FakeLayers {
             }),
             false,
         );
-        tree.selection = LayerSelection { layers: vec![portrait], active: Some(portrait), target: LayerPart::Pixels };
+        tree.selection = LayerSelection::new(vec![portrait], Some(portrait), LayerPart::Pixels);
         tree
     }
 
     /// `count` pixel layers at the top level, for the 10,000-row test; counts the `info` calls.
-    #[cfg(test)]
-    pub(crate) fn flat(count: usize) -> Self {
-        // new: `tree_with_ten_thousand_layers_builds_rows_in_view_only`.
+    pub fn flat(count: usize) -> Self {
         let mut tree = Self::default();
         for n in 0..count {
             let id = u32::try_from(n + 1).expect("the mock tree holds fewer than 2^32 layers");
@@ -208,23 +214,21 @@ impl FakeLayers {
     }
 
     /// How many times `info` was called since the last [`take_info_calls`](Self::take_info_calls).
-    #[cfg(test)]
-    pub(crate) fn take_info_calls(&self) -> usize {
-        // new: a `Cell<usize>` counter.
+    pub fn take_info_calls(&self) -> usize {
         self.info_calls.replace(0)
     }
 }
 
 impl FakeLayers {
     /// Appends a layer under `parent` with the next id; returns the id.
-    pub(crate) fn add(&mut self, parent: Option<u32>, info: LayerInfo, open: bool) -> u32 {
+    pub fn add(&mut self, parent: Option<u32>, info: LayerInfo, open: bool) -> u32 {
         let id = u32::try_from(self.layers.len() + 1).expect("the mock tree holds fewer than 2^32 layers");
         self.push(id, parent, info, open);
         id
     }
 
     /// The layer with `id`; the mock tree has it.
-    pub(crate) fn layer_mut(&mut self, id: u32) -> &mut FakeLayer {
+    pub fn layer_mut(&mut self, id: u32) -> &mut FakeLayer {
         let at = self.layers.iter().position(|layer| layer.id == id).expect("the layer is in the mock tree");
         &mut self.layers[at]
     }
@@ -245,23 +249,21 @@ fn named(name: &str, kind: LayerKind, edit: impl FnOnce(&mut LayerInfo)) -> Laye
 }
 
 fn mask(part: LayerPart, enabled: bool, linked: bool) -> MaskInfo {
-    MaskInfo { part, enabled, linked }
+    MaskInfo::new(part, enabled, linked)
 }
 
 /// An "Effects" group with one row per name.
-pub(crate) fn effects(names: &[&str]) -> SubRows {
-    SubRows {
-        header: SubRow { label: String::from("Effects"), on: true, eye_shown: true, icon: None, mask: false },
-        items: names.iter().map(|name| sub_row(name)).collect(),
-    }
+pub fn effects(names: &[&str]) -> SubRows {
+    SubRows::new(SubRow::new("Effects"), names.iter().map(|name| sub_row(name)).collect())
 }
 
-pub(crate) fn sub_row(label: &str) -> SubRow {
-    SubRow { label: label.to_owned(), on: true, eye_shown: true, icon: None, mask: false }
+/// An "on" row reading `label`.
+pub fn sub_row(label: &str) -> SubRow {
+    SubRow::new(label)
 }
 
-fn command(label: &str, command: &str) -> MenuEntry<String> {
-    MenuItem::new(label, command.to_owned()).into()
+fn command(label: &str, command: &str) -> Entry<String> {
+    Entry::new(command.to_owned(), label.to_owned())
 }
 
 impl LayerTree for FakeLayers {
@@ -303,18 +305,16 @@ impl LayerTree for FakeLayers {
     fn properties(&self) -> Option<LayerProperties> {
         let active = self.selection.active.as_ref().and_then(|id| self.layer(id))?;
         Some(LayerProperties {
-            blend_key: active.info.blend_key.clone(),
             group: active.info.kind == LayerKind::Group,
-            opacity: 100.0,
-            fill: 100.0,
             locks: active.info.locks,
             editable: !active.info.background,
+            ..LayerProperties::new(active.info.blend_key.clone())
         })
     }
 
     /// Photoshop's modes in its groups (Normal, Dissolve | Darken, Multiply, … ), Pass Through first
     /// for a group.
-    fn blend_modes(&self, group: bool, _current: &str) -> Vec<BlendChoice> {
+    fn blend_modes(&self, group: bool, _current: &str) -> Vec<Entry<String>> {
         const GROUPS: [&[(&str, &str)]; 6] = [
             &[("normal", "Normal"), ("dissolve", "Dissolve")],
             &[
@@ -345,11 +345,14 @@ impl LayerTree for FakeLayers {
         ];
         let mut choices = Vec::new();
         if group {
-            choices.push(BlendChoice { key: String::from("passThrough"), label: String::from("Pass Through"), separator_before: false });
+            choices.push(Entry::new(String::from("passThrough"), "Pass Through"));
         }
         for (n, modes) in GROUPS.iter().enumerate() {
             for (m, (key, label)) in modes.iter().enumerate() {
-                choices.push(BlendChoice { key: (*key).to_owned(), label: (*label).to_owned(), separator_before: n > 0 && m == 0 });
+                if n > 0 && m == 0 {
+                    choices.push(Entry::separator());
+                }
+                choices.push(Entry::new((*key).to_owned(), *label));
             }
         }
         choices
@@ -368,10 +371,10 @@ impl LayerTree for FakeLayers {
         LayersFooterState {
             link_enabled: self.selection.layers.len() > 1,
             mask_label: active.then(|| String::from("Add Layer Mask")),
-            delete_label: String::from("Delete Layer"),
             delete_enabled: active,
             adjustment_menu: vec![command("Brightness/Contrast", "brightnessContrast"), command("Levels", "levels"), command("Curves", "curves")],
-            style_menu: vec![command("Drop Shadow", "dropShadow"), MenuEntry::Separator, command("Stroke", "stroke")],
+            style_menu: vec![command("Drop Shadow", "dropShadow"), Entry::separator(), command("Stroke", "stroke")],
+            ..LayersFooterState::new("Delete Layer")
         }
     }
 }

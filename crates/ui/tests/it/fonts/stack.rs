@@ -4,9 +4,12 @@
 use std::sync::Arc;
 
 use craft_fonts_build::EmbeddedFace;
+use craft_theme::{Contrast, ControlSize, Mode, Variant};
 use craft_ui::fonts::{
     CjkRows, Emoji, FaceList, Family, FontRef, I18nScripts, RegularWeight, Stack, SystemFonts, UiFonts, set_weight, system_font_provider,
 };
+use craft_ui::list::{ListRow, ThumbSize};
+use craft_ui::testing::style::{tokens, with_cx};
 use craft_ui::testing::{Frames, trial};
 use egui::epaint::text::{Fonts, TextOptions};
 use egui::{FallbackRequest, FontData, FontDefinitions, FontFamily, FontId, FontInsert, FontPriority, FontProvider, InsertFontFamily};
@@ -58,7 +61,7 @@ fn measuring(stack: &Stack) -> Fonts {
 }
 
 fn egui_face(name: &str) -> FontData {
-    (**FontDefinitions::default().font_data.get(name).expect("egui default_fonts in dev-dependencies")).clone()
+    (**craft_ui::fonts::deflated_default_definitions().font_data.get(name).expect("an egui default face")).clone()
 }
 
 #[trial]
@@ -88,8 +91,8 @@ fn ui_language_face_leads_when_the_app_face_lacks_its_script() {
 
 #[trial]
 fn families_without_app_faces_start_with_egui_defaults() {
-    let defaults = FontDefinitions::default();
-    let first = |family: &FontFamily| defaults.families.get(family).and_then(|c| c.first()).cloned().expect("egui default_fonts in dev-dependencies");
+    let defaults = craft_ui::fonts::deflated_default_definitions();
+    let first = |family: &FontFamily| defaults.families.get(family).and_then(|c| c.first()).cloned().expect("an egui default face");
     let (egui_ui, egui_mono) = (first(&FontFamily::Proportional), first(&FontFamily::Monospace));
     let only_ui = |language| fonts_without_faces(language).app_face("ui", FontData::from_static(&[]), &[FontRef::proportional()]).stack();
     let no_faces = |language| fonts_without_faces(language).stack();
@@ -185,7 +188,7 @@ fn monospaced_named_families_keep_their_latin_face_first() {
     assert_eq!(head(&stack, &console, 2), ["mono", "Noto Sans Georgian Regular"], "the monospace app faces");
     assert_eq!(head(&stack, &plain, 2), ["Noto Sans Georgian Regular", "ui"]);
 
-    let egui_mono = FontDefinitions::default().families[&FontFamily::Monospace][0].clone();
+    let egui_mono = craft_ui::fonts::deflated_default_definitions().families[&FontFamily::Monospace][0].clone();
     let stack = fonts_without_faces("ka").family(Family::named("console").monospaced()).stack();
     assert_eq!(head(&stack, &console, 1), [egui_mono], "egui's mono face");
 }
@@ -380,4 +383,21 @@ fn egui_faces_join_the_families_the_app_names() {
     assert!(!stack.chain(&FontRef::monospace()).iter().any(|n| n == "Hack"), "only the families named");
     assert!(stack.flat_definitions().font_data.contains_key("Hack"));
     assert!(!proportional.iter().any(|n| n == "no such face"));
+}
+
+#[trial]
+fn control_heights_follow_the_leading_face_of_the_stack() {
+    let tokens = tokens(Mode::Light, Contrast::Standard);
+    let heights = |language: &str| {
+        let frames = Frames::new();
+        test_stack(language).install(&frames.ctx);
+        with_cx(&frames.ctx, &tokens, Variant::SECONDARY, ControlSize::Md, |cx| {
+            (cx.control().height, ListRow::row_height(cx, ThumbSize::None, false))
+        })
+    };
+    let (latin_control, latin_row) = heights("en");
+    assert_eq!(latin_control, tokens.size.control.md, "a Latin face keeps the token height");
+    let (arabic_control, arabic_row) = heights("ar");
+    assert!(arabic_control > latin_control, "an Arabic-led stack grows the control: {arabic_control} against {latin_control}");
+    assert!(arabic_row > latin_row, "and the list row on it: {arabic_row} against {latin_row}");
 }

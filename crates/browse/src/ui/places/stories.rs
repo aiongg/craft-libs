@@ -1,86 +1,31 @@
-//! Stories of the places tree: `patterns/places-tree/places`. Roots (standard folders, volumes, favourites, recents, the
-//! session root), the reveal of the current folder, the hidden-places row and a drop.
-//!
-//! `FakeDirectories` is an in-memory tree with a removable and a network volume. Its listings run
-//! on a `ManualJobs`: unless "slow listings" is on, the story finishes the waiting jobs at the
-//! start of each pass; with it on, "Finish next" runs one, so the Loading row can be seen. The
-//! tree's events go to the story's `PlacesSettings` and current folder. A draggable photo
-//! shows the drop: only folders under Photos take it.
+//! Stories of `PlacesTree`: groups with an open root, a loading row, an empty group and hidden places. The folders
+//! are a `FakeDirectories` whose listings run on a `ManualJobs`.
 
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use craft_host::{ManualJobs, Wake};
-use craft_ui::behavior::{DragBadge, ListDrag};
-use craft_ui::controls::Button;
-use craft_ui::localized::Labels as _;
-use craft_ui::localized::fmt;
-use craft_ui::menu::{MenuEntry, MenuItem};
-use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, Story, StoryArgs, StoryLabels, lock, shared};
-use craft_ui::typed_story;
-use egui::{DragAndDrop, Id, Sense, Ui, vec2};
+use craft_ui::contract::Entry;
+use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
+use egui::Ui;
 
 use super::{PlacesEvent, PlacesTree};
 use crate::places::{FakeDirectories, FolderCache, PlaceGroupKind, Places, PlacesInput, PlacesSettings, StandardFolder, Volume};
-
-/// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["PlacesTree"];
-
-craft_ui::words! {
-    /// The sample text of the places story, English by default.
-    #[non_exhaustive]
-    pub struct PlacesStoryLabels {
-        rename: "placesStory.rename" = "Rename Folder…";
-        waiting: "placesStory.waiting" = "{n} listings waiting";
-        drag_photo: "placesStory.dragPhoto" = "Drag this photo onto a folder under Photos";
-        browsing: "placesStory.browsing" = "Browsing: {path}";
-        camera_card: "placesStory.cameraCard" = "Camera Card";
-        archive: "placesStory.archive" = "Archive";
-    }
-}
-
-/// The stories above.
-pub(crate) fn stories() -> Vec<Story> {
-    vec![typed_story!(
-        "patterns/places-tree/places",
-        Level::Patterns,
-        "PlacesTree",
-        "Places",
-        PlacesArgs { slow_listings: false, favorites: true, volumes: true, recent: true, height: 380.0 },
-        show_places
-    )]
-}
-
-#[derive(StoryArgs, Debug, PartialEq)]
-struct PlacesArgs {
-    /// Hold folder listings until "Finish next" (shows the Loading row).
-    #[arg(name = "slow listings")]
-    slow_listings: bool,
-    /// The Favorites group.
-    favorites: bool,
-    /// The Volumes and Network groups.
-    volumes: bool,
-    /// The Recent Folders group.
-    recent: bool,
-    #[arg(range = 200.0..=600.0)]
-    height: f32,
-}
 
 fn path(text: &str) -> PathBuf {
     PathBuf::from(text)
 }
 
-/// `/home/u` holds Documents, Pictures and Photos; Photos holds 2024 and 2025; 2024 holds Trip
-/// and Studio; the card holds DCIM and the archive Old.
-fn directories(card: &str, archive: &str) -> FakeDirectories {
+/// `/home/u` holds Documents, Pictures and Photos; Photos holds 2024 and 2025; 2024 holds Trip and Studio; the card
+/// holds DCIM and the archive Old.
+fn directories() -> FakeDirectories {
     let mut fake = FakeDirectories::new()
         .standard_folder(StandardFolder::Home, "/home/u")
         .standard_folder(StandardFolder::Documents, "/home/u/Documents")
         .standard_folder(StandardFolder::Pictures, "/home/u/Pictures")
         .standard_folder(StandardFolder::Music, "/home/u/Music")
-        .volume(Volume { path: path("/media/card"), name: card.to_owned(), network: false, removable: true })
-        .volume(Volume { path: path("/mnt/archive"), name: archive.to_owned(), network: true, removable: false });
+        .volume(Volume { path: path("/media/card"), name: "Camera Card".to_owned(), network: false, removable: true })
+        .volume(Volume { path: path("/mnt/archive"), name: "Archive".to_owned(), network: true, removable: false });
     for folder in [
         "/home/u/Documents",
         "/home/u/Music",
@@ -96,57 +41,66 @@ fn directories(card: &str, archive: &str) -> FakeDirectories {
     fake
 }
 
-/// What the story keeps between passes.
+/// What a story keeps between passes.
 struct Demo {
     cache: FolderCache,
     jobs: Arc<ManualJobs>,
     settings: PlacesSettings,
     current: Option<PathBuf>,
-    last: Option<String>,
 }
 
-impl Demo {
-    fn new(ctx: &egui::Context, words: &PlacesStoryLabels) -> Self {
-        let jobs = Arc::new(ManualJobs::new());
-        let directories = Arc::new(directories(&words.camera_card, &words.archive));
-        let repaint = ctx.clone();
-        let cache = FolderCache::new(directories, jobs.clone(), Wake::new(move || repaint.request_repaint()));
-        let settings = PlacesSettings {
-            favorites: vec![path("/home/u/Photos/2024/Studio")],
-            hidden: vec![path("/home/u/Music")],
-            recent: vec![path("/home/u/Photos/2025"), path("/media/card/DCIM")],
-            session_root: None,
-        };
-        Self { cache, jobs, settings, current: Some(path("/home/u/Photos/2024/Trip")), last: None }
+/// The demo as story data: compared by identity.
+#[derive(Clone)]
+struct Shared(Arc<Mutex<Demo>>);
+
+impl PartialEq for Shared {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
     }
 }
 
-fn show_places(ui: &mut Ui, args: &mut PlacesArgs) {
-    let words = PlacesStoryLabels::of(ui);
-    let shared_words = StoryLabels::of(ui);
-    let demo = shared(ui, "places", || Demo::new(ui.ctx(), &words));
-    let mut demo = lock(&demo);
+/// What a story sets up.
+struct Setup {
+    groups: &'static [PlaceGroupKind],
+    settings: fn() -> PlacesSettings,
+    current: Option<&'static str>,
+    /// Listings wait until the story's end: the tree shows its loading row.
+    slow: bool,
+}
 
-    if args.slow_listings {
-        ui.horizontal_wrapped(|ui| {
-            if ui.add(Button::new(shared_words.finish_next.clone()).enabled(demo.jobs.waiting() > 0)).clicked() {
-                demo.jobs.run_next();
-            }
-            ui.add(Text::new(fmt(&words.waiting, &[("n", &demo.jobs.waiting().to_string())])).content(Content::Muted));
-        });
-    } else if demo.jobs.run_all() > 0 {
-        ui.ctx().request_repaint();
+fn full_settings() -> PlacesSettings {
+    PlacesSettings {
+        favorites: vec![path("/home/u/Photos/2024/Studio")],
+        hidden: Vec::new(),
+        recent: vec![path("/home/u/Photos/2025"), path("/media/card/DCIM")],
+        session_root: None,
     }
+}
 
-    let mut groups = vec![PlaceGroupKind::Places];
-    if args.favorites {
-        groups.insert(0, PlaceGroupKind::Favorites);
-    }
-    if args.volumes {
-        groups.extend([PlaceGroupKind::Volumes, PlaceGroupKind::Network]);
-    }
-    if args.recent {
-        groups.push(PlaceGroupKind::Recent);
+fn hidden_settings() -> PlacesSettings {
+    PlacesSettings { favorites: Vec::new(), hidden: vec![path("/home/u/Music"), path("/home/u/Documents")], recent: Vec::new(), session_root: None }
+}
+
+fn empty_settings() -> PlacesSettings {
+    PlacesSettings { favorites: Vec::new(), hidden: Vec::new(), recent: Vec::new(), session_root: None }
+}
+
+const ALL_GROUPS: &[PlaceGroupKind] =
+    &[PlaceGroupKind::Favorites, PlaceGroupKind::Places, PlaceGroupKind::Volumes, PlaceGroupKind::Network, PlaceGroupKind::Recent];
+
+fn show_places(ui: &mut Ui, data: &mut StoryData, setup: Setup) -> StoryOutput {
+    let ctx = ui.ctx().clone();
+    let demo = data
+        .value("demo", {
+            let jobs = Arc::new(ManualJobs::new());
+            let repaint = ctx.clone();
+            let cache = FolderCache::new(Arc::new(directories()), jobs.clone(), Wake::new(move || repaint.request_repaint()));
+            Shared(Arc::new(Mutex::new(Demo { cache, jobs, settings: (setup.settings)(), current: setup.current.map(path) })))
+        })
+        .clone();
+    let mut demo = demo.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    if !setup.slow && demo.jobs.run_all() > 0 {
+        ctx.request_repaint();
     }
     let current = demo.current.clone();
     let places = {
@@ -160,51 +114,44 @@ fn show_places(ui: &mut Ui, args: &mut PlacesArgs) {
             settings,
             browsing: current.as_deref(),
             unlisted: &unlisted,
-            groups: &groups,
+            groups: setup.groups,
         });
         settings.session_root = places.session_root.clone();
         places
     };
-
-    let photo_name = fmt(&shared_words.photo_n, &[("n", "7")]);
-    let photo = ListDrag { list: Id::NULL.with("places-story"), items: vec![7u32], grabbed: 7, label: photo_name.clone() };
-    ui.horizontal_wrapped(|ui| {
-        let response = ui.add(egui::Label::new(photo_name.clone()).sense(Sense::drag()));
-        if response.drag_started() {
-            DragAndDrop::set_payload(ui.ctx(), photo.clone());
-        }
-        ui.add(Text::new(words.drag_photo.clone()).content(Content::Muted));
-    });
-    if DragAndDrop::has_payload_of_type::<ListDrag<u32>>(ui.ctx()) {
-        DragBadge::new("places-story-drag", photo_name.clone()).show(ui.ctx());
-    }
-
-    let rename = words.rename.clone();
     let out = {
         let Demo { cache, .. } = &mut *demo;
-        let tree = PlacesTree::<u32>::new("places-story-tree", &places, cache)
-            .current(current.as_deref())
-            .row_menu(|_| vec![MenuEntry::from(MenuItem::new(rename.clone(), String::from("folder.rename")))])
-            .accepts(|folder, _| folder.starts_with("/home/u/Photos"));
-        ui.allocate_ui(vec2(ui.available_width(), args.height), |ui| {
-            ui.set_min_height(args.height);
-            tree.show(ui)
-        })
-        .inner
+        let mut tree = PlacesTree::new("Places", &places, cache).row_menu(|_| vec![Entry::new(String::from("folder.rename"), "Rename Folder…")]);
+        if let Some(current) = current.as_deref() {
+            tree = tree.current(current);
+        }
+        tree.show(ui)
     };
-    for event in out.events {
-        demo.settings.apply(&event);
-        if let PlacesEvent::Open(folder) = &event {
+    for event in &out.events {
+        demo.settings.apply(event);
+        if let PlacesEvent::Open(folder) = event {
             demo.current = Some(folder.clone());
         }
-        demo.last = Some(format!("{event:?}"));
     }
-    if let Some(current) = &demo.current {
-        ui.add(Text::new(fmt(&words.browsing, &[("path", &current.display().to_string())])).content(Content::Muted));
-    }
-    let last = match &demo.last {
-        Some(event) => fmt(&shared_words.last_event, &[("event", event.as_str())]),
-        None => shared_words.no_event.clone(),
-    };
-    ui.add(Text::new(last).content(Content::Muted));
+    out.into()
+}
+
+#[story(PlacesTree<'static>, covers = [Default, Many], drive = Drive::Never)]
+fn places_tree(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    show_places(ui, data, Setup { groups: ALL_GROUPS, settings: full_settings, current: Some("/home/u/Photos/2024/Trip"), slow: false })
+}
+
+#[story(PlacesTree<'static>, covers = [], drive = Drive::Never)]
+fn places_tree_loading(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    show_places(ui, data, Setup { groups: ALL_GROUPS, settings: full_settings, current: Some("/home/u/Photos/2024/Trip"), slow: true })
+}
+
+#[story(PlacesTree<'static>, covers = [Empty], drive = Drive::Never)]
+fn places_tree_empty_group(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    show_places(ui, data, Setup { groups: &[PlaceGroupKind::Places, PlaceGroupKind::Recent], settings: empty_settings, current: None, slow: false })
+}
+
+#[story(PlacesTree<'static>, covers = [], drive = Drive::Never)]
+fn places_tree_hidden(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    show_places(ui, data, Setup { groups: &[PlaceGroupKind::Places], settings: hidden_settings, current: None, slow: false })
 }

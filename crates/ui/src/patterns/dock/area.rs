@@ -2,30 +2,25 @@
 //! the parts of `docking`, takes the drops of tab and group drags, and reports what the host applies.
 
 use super::hide::{self, Shown};
-use super::style::DockAreaStyle;
 use crate::contract::overlay::PlacementChange;
-use crate::contract::{
-    Bind, BodyCx, Common, Component, Container, ContainerProps, Cx, Entry, NoValue, Outcome, Pad, Pointer as _, Props as _, Role, ShowContainer as _,
-    Sizing, WordSetCx as _,
-};
+use crate::contract::{Bind, BodyCx, Cx, Entry, NoValue, Outcome, Pad, Pointer as _, Props as _, ShowContainer as _, Sizing, WordSetCx as _};
 use crate::docking::stack::{StackSection, section_heights};
 use crate::docking::tree::{self, FrameRules};
 use crate::docking::{
-    DockColumn, DockCommands, DockConfig, DockDropTarget, DockDropped, DockEvent, DockGroup, DockPanels, DockScene, DockSizes, DockSpot, DockTargets,
-    DockTo, DockWords, DragUnit, FloatSpace, FloatingGroup, GroupDrag, HidePanels, IconicColumn, PanelDrag, PanelKey, PanelSpec, PanelTitle,
-    SplitArea, actions, cancel_on_replacement, dock_states, fit_widths, frame, move_actions, start_group_drag,
+    DockColumn, DockCommands, DockConfig, DockDropTarget, DockDropped, DockEvent, DockGroup, DockPanels, DockRoot, DockScene, DockSizes, DockSpot,
+    DockTargets, DockTo, DockWords, DragUnit, FloatSpace, FloatingGroup, GroupDrag, HidePanels, IconicColumn, PanelDrag, PanelKey, PanelSpec,
+    PanelTitle, SplitArea, actions, cancel_on_replacement, dock_states, fit_widths, frame, move_actions,
 };
 use crate::docking::{cross_window, desktop, float_drop, native};
 use crate::layout_components::Stack;
 use crate::menu::{GroupItem, MenuWords, PanelMenu, PanelRow};
 use crate::runtime::commands::{CommandRef, CommandSet as _, Commands as _, focus_within};
 use crate::runtime::env::{Env, Label, RevealEdge, ShellCx, ShellEntry};
-use crate::runtime::memory::{Remember as _, sub};
+use crate::runtime::memory::Remember as _;
 use crate::runtime::windows::WindowHost;
 use crate::sections::HeaderAction;
-use crate::style::StyleCx;
 use craft_behavior::dock::{Action, Column, DockEdge, DockError, Group, Layout, Node, PanelPlace, Permissions, Workspace, node_at};
-use craft_behavior::{CancelReason, DockSide, EditEvent, Flow, GestureId, GesturePhase, Metrics, Mixed, Sense};
+use craft_behavior::{CancelReason, DockSide, EditEvent, Flow, GestureId, GesturePhase, Mixed};
 use egui::{Context, Id, Pos2, Rect, Response, Ui, Vec2};
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -165,37 +160,7 @@ impl<P: Clone> Clone for AreaMemory<P> {
     }
 }
 
-/// The sizes the root container resolved this pass, for its body.
-#[derive(Clone, Copy, Default)]
-struct PassSizes(Option<DockSizes>);
-
-const SIZES: &str = "dock_sizes";
-
-/// A drag a part reported and the root container starts, since only a component's context starts a drag.
-struct Start<P> {
-    unit: DragUnit<P>,
-    active: PanelKey,
-    ghost: Option<(Vec2, Label)>,
-}
-
-type Starts<P> = RefCell<Vec<Start<P>>>;
-
-/// What the root container reports.
-struct SurfaceOutput<P> {
-    response: Response,
-    dropped: Option<DockDropped<P>>,
-}
-
-impl<P> Outcome for SurfaceOutput<P> {
-    type Value = NoValue;
-
-    fn response(&self) -> &Response {
-        &self.response
-    }
-}
-
-/// What the root container's drop target reads: the dock, the layout it shows, the rights and where a floating drop
-/// lands.
+/// What the root's drop taker reads: the dock, the layout it shows, the rights and where a floating drop lands.
 struct Drops<'a, P> {
     dock: Id,
     layout: &'a Layout<P>,
@@ -205,55 +170,21 @@ struct Drops<'a, P> {
     rtl: bool,
 }
 
-/// The root container of a dock area: it resolves the dock's sizes, takes the drops and starts the drags the parts
-/// report.
-#[derive(crate::contract::Component)]
-#[component(container, probe(Surface<'static, usize>))]
-struct Surface<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> {
-    #[common]
-    common: Common,
-    #[container]
-    props: ContainerProps,
-    drops: Drops<'a, P>,
-    starts: &'a Starts<P>,
-    dropped: Option<DockDropped<P>>,
-}
-
-impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Component for Surface<'_, P> {
-    const ROLE: Role = Role::GROUP;
-    type Style = DockAreaStyle;
-    type Output = SurfaceOutput<P>;
-
-    fn style(cx: &StyleCx<'_>, _: SurfaceStyleKey<P>) -> DockAreaStyle {
-        DockAreaStyle { metrics: Metrics::new(), sizes: DockSizes::style(cx) }
-    }
-
-    fn sense(&self) -> Sense {
-        Sense::empty()
-    }
-
-    fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        cx.core.memory.shown::<PassSizes>(sub(sub(cx.core.id, "body"), SIZES)).0 = Some(cx.style.sizes);
-        let (ctx, drops) = (cx.core.ctx.clone(), &self.drops);
+impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Drops<'_, P> {
+    /// Takes a group or tab drag released on the root.
+    fn take(&self, cx: &mut Cx<'_, DockRoot<'_, DockDropped<P>>>) -> Option<DockDropped<P>> {
+        let ctx = cx.core.ctx.clone();
+        let sizes = *cx.style.sizes();
         let bounds = cx.env.get::<ShellEntry>().0.as_ref().map_or(cx.rect, ShellCx::float_bounds);
-        let space = float_space(bounds, &cx.style.sizes, drops.config, drops.specs);
-        let mut target = DockDropTarget::new(&ctx, drops.dock, drops.layout, drops.permissions);
-        target.rtl = drops.rtl;
+        let space = float_space(bounds, &sizes, self.config, self.specs);
+        let mut target = DockDropTarget::new(&ctx, self.dock, self.layout, self.permissions);
+        target.rtl = self.rtl;
         target.space = Some(&space);
-        target.float_on_empty = drops.config.float_on_empty_drop;
-        target.title_bar_docks = drops.config.title_bar_docks;
-        self.dropped = cx.drop_target::<GroupDrag<P>, _>(&target).or_else(|| cx.drop_target::<PanelDrag, _>(&target));
-    }
-
-    fn finish(self, mut cx: Cx<'_, Self>) -> SurfaceOutput<P> {
-        for start in self.starts.borrow_mut().drain(..) {
-            start_group_drag(&mut cx, start.unit, start.active, start.ghost);
-        }
-        SurfaceOutput { response: cx.response.clone(), dropped: self.dropped }
+        target.float_on_empty = self.config.float_on_empty_drop;
+        target.title_bar_docks = self.config.title_bar_docks;
+        cx.drop_target::<GroupDrag<P>, _>(&target).or_else(|| cx.drop_target::<PanelDrag, _>(&target))
     }
 }
-
-impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Container for Surface<'_, P> {}
 
 /// What the area collects while it shows its parts.
 struct Report<P> {
@@ -363,18 +294,10 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
         let policy = |panel: &P| rights.get(panel).copied().unwrap_or(Permissions::ALL);
         let specs: HashMap<P, PanelSpec> = current.layout.panels().into_iter().map(|panel| (panel.clone(), panels.spec(panel))).collect();
         let drops = Drops { dock: id, layout: &current.layout, permissions: &policy, config: &config, specs: &specs, rtl };
-        let starts: Starts<P> = RefCell::new(Vec::new());
-        let surface = Surface {
-            common: Common::new(),
-            props: ContainerProps::new().sizing(Sizing::Fill).pad(Pad::None),
-            drops,
-            starts: &starts,
-            dropped: None,
-        }
-        .id(id);
+        let root = DockRoot::new(|cx| drops.take(cx)).id(id);
         let mut passed = None;
-        let shown = surface.show(ui, |ui, body| {
-            let Some(sizes) = body.memory.recall::<PassSizes>(sub(body.id, SIZES)).0 else { return };
+        let shown = root.show(ui, |ui, body| {
+            let Some(sizes) = body.style::<DockRoot<'_, DockDropped<P>>>().map(|style| *style.sizes()) else { return };
             let input = Input {
                 id,
                 ctx: &ctx,

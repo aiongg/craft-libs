@@ -63,7 +63,7 @@ pub struct FolderCache {
     listings: HashMap<PathBuf, (Result<Vec<Folder>, String>, bool)>,
     unlisted: HashMap<PathBuf, Vec<PathBuf>>,
     stale_roots: bool,
-    /// What this pass asked for, for [`end_pass`](Self::end_pass).
+    /// What this pass asked for, for [`finish_pass`](Self::finish_pass).
     asked: HashSet<Job>,
     /// Per listing, the generation a refresh last asked for. A job carries the generation current
     /// when it was queued; a result of an older generation started before the refresh, so it
@@ -156,7 +156,7 @@ impl FolderCache {
 
     /// Drops the listings of folders not asked for since the last call, and cancels their jobs
     /// (`JobQueue::reprioritize`). `PlacesTree` calls it at the end of its pass.
-    pub fn end_pass(&mut self) {
+    pub fn finish_pass(&mut self) {
         // new: a hidden tree lists nothing.
         let asked = std::mem::take(&mut self.asked);
         self.listings.retain(|path, _| asked.contains(&Job::Subfolders(path.clone())));

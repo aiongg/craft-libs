@@ -6,13 +6,14 @@
 use crate::runtime::cursor;
 use crate::runtime::egui::input::{self as raw_input, RawInput};
 use crate::runtime::egui::memory::Service;
-use crate::runtime::egui::{areas, pass, scale, viewports};
+use crate::runtime::egui::{injected, pass, scale, screenshot, viewports, widgets};
 use crate::runtime::frame::{PassStep, PerViewport, Stamped};
-use crate::runtime::{memory, overlay};
-use craft_behavior::{Cursor, CursorIcon, CursorPriority, PartRef};
-use craft_host::target::{Caps, EdgeInsets, Os, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
+use crate::runtime::{overlay, pointer};
+use craft_behavior::{Cursor, CursorIcon, CursorPriority, PartRef, PointerButton};
+use craft_host::target::{Caps, DoubleClick, EdgeInsets, Os, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
 #[cfg(feature = "testing")]
 use craft_host::target::{MenuPlacement, Runtime};
+use craft_keymap::{Key, Mods};
 use craft_window::Button;
 use craft_window::policy::{CaptionFamily, Captions, Decision, Frame, LayoutWatch, MacInset};
 use craft_window::restore::{Placement, Store};
@@ -126,7 +127,7 @@ impl HitSink {
 
 /// The regions the parts `parts` of the running pass declare; `None` for none. A drag area's covers are read from
 /// the pass's widgets, so this runs at the end of the pass.
-fn regions_of(ctx: &Context, parts: &[ExclusivePart]) -> Option<CaptionRegions> {
+fn regions_of(ctx: &Context, viewport: ViewportId, parts: &[ExclusivePart]) -> Option<CaptionRegions> {
     if parts.is_empty() {
         return None;
     }
@@ -135,7 +136,7 @@ fn regions_of(ctx: &Context, parts: &[ExclusivePart]) -> Option<CaptionRegions> 
         match hit {
             WindowHit::Move => {
                 regions.moves.push(*rect);
-                regions.covers.extend(covers_of(ctx, *owner, *part, *rect));
+                regions.covers.extend(covers_of(ctx, viewport, *owner, *part, *rect));
             }
             WindowHit::Resize(edge) => regions.edges.push((*edge, *rect)),
             WindowHit::Caption(button) => regions.buttons.push((*button, *rect)),
@@ -144,45 +145,26 @@ fn regions_of(ctx: &Context, parts: &[ExclusivePart]) -> Option<CaptionRegions> 
     Some(regions)
 }
 
-/// The parts of the drag area `band`, the part `part` of the component `owner`, where an in-app hit lies over it:
-/// each interactive egui widget of the running pass that egui's hit test puts above the component's widget (on a
-/// higher layer, or later on the same layer), clipped to the band. The component's widgets that resolve as the
-/// component (8.3) are not hits over the band: its transform forwarder and the band's own edge widget, which the
-/// sensing core makes for an edge part reaching outside the root rect, under the ids it gives them there.
-fn covers_of(ctx: &Context, owner: Id, part: PartRef, band: Rect) -> Vec<Rect> {
-    let own = [memory::sub(owner, "transform"), memory::sub(owner, ("edge", part.key, part.index))];
-    let (root, above) = ctx.viewport(|viewport| {
-        let widgets = &viewport.this_pass.widgets;
-        let Some(root) = widgets.get(owner).map(|root| root.layer_id) else { return (None, Vec::new()) };
-        let mut above = Vec::new();
-        for (layer, rects) in widgets.layers().filter(|(layer, _)| layer.order.allow_interaction()) {
-            let after = if *layer == root { rects.iter().position(|rect| rect.id == owner).map_or(rects.len(), |at| at + 1) } else { 0 };
-            let hits: Vec<Rect> =
-                rects[after..].iter().filter(|rect| rect.sense.interactive() && !own.contains(&rect.id)).map(|rect| rect.interact_rect).collect();
-            if !hits.is_empty() {
-                above.push((*layer, hits));
-            }
-        }
-        (Some(root), above)
-    });
-    let Some(root) = root else { return Vec::new() };
-    let height = areas::layer_position(ctx, root);
-    let mut covers = Vec::new();
-    for (layer, hits) in above {
-        if layer != root && areas::layer_position(ctx, layer) <= height {
-            continue;
-        }
-        let to_screen = areas::layer_to_screen(ctx, layer);
-        covers.extend(hits.into_iter().map(|rect| (to_screen * rect).intersect(band)).filter(|cover| cover.is_positive()));
-    }
-    covers
+/// The parts of the drag area `band`, the part `part` of the component `owner`, where an in-app hit lies over it,
+/// clipped to the band: each interactive egui widget of the running pass that egui's hit test puts above the
+/// component's widgets, and each of the component's own shapes that a press there goes to instead of the band (a
+/// member over it, a higher part). The component's widgets resolve as the component (8.3), so they are not hits
+/// over the band themselves.
+fn covers_of(ctx: &Context, viewport: ViewportId, owner: Id, part: PartRef, band: Rect) -> Vec<Rect> {
+    let over = pointer::over_part(ctx, viewport, owner, part);
+    widgets::above(ctx, owner, &over.widgets)
+        .into_iter()
+        .chain(over.above)
+        .map(|cover| cover.intersect(band))
+        .filter(|cover| cover.is_positive())
+        .collect()
 }
 
 /// Keeps the regions of the running pass's exclusive parts for [`WindowHost::caption_regions`] and gives them to
 /// the viewport's hit-test sink.
 fn publish_regions(ctx: &Context, viewport: ViewportId) {
     let parts = with_exclusive(ctx, viewport, |exclusive| exclusive.current.clone());
-    let regions = regions_of(ctx, &parts);
+    let regions = regions_of(ctx, viewport, &parts);
     with_exclusive(ctx, viewport, |exclusive| exclusive.done = regions.clone());
     if let Some(sink) = PerViewport::<Record>::with(ctx, viewport, |record| record.sink.clone()) {
         let pixels_per_point = scale::pixels_per_point(ctx);
@@ -430,6 +412,18 @@ pub enum WindowAction {
     SetLevel(WindowLevel),
     /// Changes the window's title.
     SetTitle(String),
+}
+
+/// What a double click on a window's free move band (its title bar, or the strip a modal leaves over it) asks of the
+/// window in `frame`: an integrated frame maximizes or restores; a macOS inset frame follows the system setting
+/// `setting`; a native frame is the OS's.
+pub fn double_click_action(frame: &Frame, setting: DoubleClick, maximized: bool) -> Option<WindowAction> {
+    match (frame, setting) {
+        (Frame::Native, _) => None,
+        (Frame::Integrated(_), _) | (Frame::Inset(_), DoubleClick::Zoom) => Some(WindowAction::SetMaximized(!maximized)),
+        (Frame::Inset(_), DoubleClick::Minimize) => Some(WindowAction::Minimize),
+        _ => None,
+    }
 }
 
 /// What the OS tells about a window, in desktop points.
@@ -936,7 +930,61 @@ impl WindowHost {
 
     /// Runs and paints the next pass even while the window is hidden; holds for one frame.
     pub fn paint_while_hidden(&self) {
-        viewports::paint_while_hidden(&self.ctx);
+        viewports::paint_while_hidden(&self.ctx, crate::runtime::egui::pass::current_viewport(&self.ctx));
+    }
+
+    /// Issues one screenshot of `viewport`: a fresh slot bounded to `max_image_bytes` for its one image, and a pass of
+    /// the viewport even while its window is hidden. The bound covers the single retained image; the application
+    /// reserves its aggregate budget before asking.
+    pub fn screenshot(&self, viewport: ViewportId, max_image_bytes: usize) -> ScreenshotSlot {
+        screenshot::issue(&self.ctx, viewport, max_image_bytes)
+    }
+
+    /// What a screenshot of the running viewport measures this pass.
+    pub fn screenshot_facts(&self) -> ScreenshotFacts {
+        screenshot::facts(&self.ctx)
+    }
+
+    /// Queues a pointer move to `at` in `viewport`, delivered on a pass of its own.
+    pub fn inject_move(&self, viewport: ViewportId, at: Pos2) {
+        injected::inject_move(&self.ctx, viewport, at);
+    }
+
+    /// Queues a move to `at`, then `count` presses and releases of `button`, one pass each; a button egui has no
+    /// counterpart for queues nothing.
+    pub fn inject_click(&self, viewport: ViewportId, at: Pos2, button: PointerButton, count: u32) {
+        injected::inject_click(&self.ctx, viewport, at, button, count);
+    }
+
+    /// Queues `key` pressed and released with `mods` held, as the platform reports them.
+    pub fn inject_key(&self, viewport: ViewportId, key: Key, mods: Mods) {
+        injected::inject_key(&self.ctx, viewport, key, mods);
+    }
+
+    /// Queues `text` as typed text.
+    pub fn inject_text(&self, viewport: ViewportId, text: &str) {
+        injected::inject_text(&self.ctx, viewport, text);
+    }
+
+    /// Drops the injected queue of `viewport` (the document changed); a pending queue counts as withdrawn
+    /// ([`take_injected_withdrawn`](Self::take_injected_withdrawn)).
+    pub fn withdraw_injected(&self, viewport: ViewportId) {
+        injected::withdraw(&self.ctx, viewport);
+    }
+
+    /// Drops every injected queue and step in flight; true when anything was pending.
+    pub fn cancel_injected(&self) -> bool {
+        injected::cancel(&self.ctx)
+    }
+
+    /// Whether no injected step is queued or awaits its pass: the application may answer its waiters.
+    pub fn injected_idle(&self) -> bool {
+        injected::idle(&self.ctx)
+    }
+
+    /// Whether an injected step was withdrawn since the last call.
+    pub fn take_injected_withdrawn(&self) -> bool {
+        injected::take_withdrawn(&self.ctx)
     }
 
     /// Asks for one pass of `viewport` after `seconds`; a negative time means now, a non-finite one asks for
@@ -1047,7 +1095,8 @@ impl WindowHost {
 
     /// The hit-test sink of `viewport`'s window, made on the first call. The platform layer calls it once it has put
     /// its window procedure in place and holds the sink there; from then on the platform answers that window's move,
-    /// resize and caption hits, and the app registers no move or resize parts for it (`app_moves_window`).
+    /// resize and caption hits. The window's move and resize parts still register, as the exclusive parts the sink
+    /// reads, and a press on them starts no app move.
     pub fn install_hit_sink(&self, viewport: ViewportId) -> HitSink {
         PerViewport::<Record>::with(&self.ctx, viewport, |record| record.sink.get_or_insert_with(HitSink::default).clone())
     }

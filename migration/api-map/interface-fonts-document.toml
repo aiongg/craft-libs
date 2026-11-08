@@ -5,13 +5,6 @@ family = "Interface fonts: document faces"
 new_module = "craft_ui::fonts"
 
 [[type]]
-name = "DocumentFaces"
-old = ""
-new = "craft_ui::fonts::DocumentFaces"
-status = "replaced"
-note = "New: the one registry of document faces, per context, with a per-frame budget and eviction past a cap."
-
-[[type]]
 name = "FaceBytes"
 old = ""
 new = "craft_ui::fonts::FaceBytes"
@@ -26,8 +19,9 @@ status = "replaced"
 note = "New: what drawing a document face finds (ready, loading, unavailable)."
 
 [[type]]
-name = "FacesAt"
+name = "FacesCx"
 old = ""
-new = "craft_ui::fonts::FacesAt"
+new = "craft_ui::contract::FacesCx"
 status = "replaced"
-note = "New: where a document face is asked for (a content painter, a measure or a component context); sealed."
+note = "New: the chapter trait `document_face(key, load) -> FaceState`, implemented for Cx, MeasureCx and ContentPainterCx. The registry (`DocumentFaces`) is crate-private: one registry per context, a per-frame budget and eviction past a cap."
+

@@ -2,74 +2,71 @@
 //! views, the footer.
 //!
 //! ```ignore
-//! let out = MediaBin::new("project", &mut state.bin, &project)       // project: impl BinModel<ItemId>
-//!     .selection(&mut state.selection)
+//! let out = MediaBin::new("project", Bind::bound(&mut state.bin), &project)   // project: impl BinModel<ItemId>
+//!     .selection(Bind::bound(&mut state.selection))
 //!     .thumbnails(&thumbs, &project_thumbs)
-//!     .columns(&columns)
-//!     .hover_scrub(prefs.hover_scrub)
-//!     .header(|ui| preview_area(ui))
-//!     .footer_actions(&[FooterAction::new("newItem", Icon::Plus, tr("New Item")).accepts_drops(true)])
+//!     .columns(columns())
+//!     .footer_actions([FooterAction::new(IconId::new("plus"), "New Item").accepts_drops::<ListDrag<ItemId>>(|drag| !drag.keys.is_empty())])
 //!     .show(ui);
 //! for event in out.events {
 //!     match event {
 //!         BinEvent::Activate(id) => open_source(id),
 //!         BinEvent::Rename { key, text } => cmd("project.rename", key, text),
-//!         BinEvent::FooterDrop { button: "newItem", rows } => cmd("project.newSequence", rows),
+//!         BinEvent::FooterDrop { action: 0, keys } => cmd("project.newSequence", keys),
 //!         _ => {}
 //!     }
 //! }
 //! ```
 
-#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
-mod bin_tests;
 mod footer;
-mod freeform;
-#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
-mod freeform_tests;
+mod free_view;
 mod icon;
 mod list;
 mod search;
-#[cfg(test)]
-mod search_tests;
-pub(crate) mod stories;
-mod style;
+#[cfg(feature = "screen-testing")]
+mod stories;
 
-use std::collections::HashSet;
+use std::cell::RefCell;
 use std::hash::Hash;
+use std::sync::Arc;
 
-use craft_theme::Rgba;
-use craft_theme::TypeRole;
-use craft_ui::behavior::{ListDrag, Move, Selection, SelectionChange};
-use craft_ui::canvas::textures::{TextureKey, ThumbSource, Thumbnails};
-use craft_ui::composites::{FooterAction, PanelFooter};
-use craft_ui::controls::{BreadcrumbBar, Crumb, IconButton, SearchField};
-use craft_ui::direction;
-use craft_ui::edit::EditEvent;
-use craft_ui::icons::Icon;
-use craft_ui::list::{ContextMenuRequest, OpenChange, SortOrder, TableColumn, TableEvent, TableLayout, ThumbSize};
-use craft_ui::localized::{Labels as _, Words};
-use craft_ui::theme::{Tokens, TokensOf as _, role_format};
-use egui::text::LayoutJob;
-use egui::{Align, AsIdSalt, IdSalt, Label, Layout, Ui, Vec2, vec2};
+use craft_behavior::{ColumnKey, EditEvent, GestureId, IconId, Mixed, Selection, SelectionChange};
+use craft_theme::{Srgba, TypeRole};
+use craft_ui::bars::{Bar, BarKind, BreadcrumbBar};
+use craft_ui::buttons::IconButton;
+use craft_ui::contract::{
+    Bind, BodyCx, ColumnEvent, ColumnSort, ColumnSpec, CommandSet, Commands as _, ContextMenuRequest, Entry, ListDrag, NoValue, OpenChange, Outcome,
+    Pattern, Props as _, ReorderMove, Show as _, ShowContainer as _, Sizing, clicked,
+};
+use craft_ui::display::{Shade, Text};
+use craft_ui::layout_components::Stack;
+use craft_ui::list::{OpenSet, ThumbSize};
+use craft_ui::primitives::textures::{TextureKey, ThumbSource, Thumbnails};
+use craft_ui::runtime::env::{Env, Label};
+use craft_ui::runtime::memory::Remember as _;
+use craft_ui::sections::{DropAction, FooterAction};
+use craft_ui::text::TextField;
+use craft_ui::tile_grid::{TileBadge, TileStatus, TileZoom, ZoomStep};
+use egui::{Id, Response, Ui, Vec2};
 
-use super::grid::{TileBadge, TileStatus};
+use super::freebin::{FreeBinMove, FreeformCard};
 
-/// The Icon and Freeform views' card width before the user zooms, in points (FilmCraft's).
-const DEFAULT_ICON_SIZE: f32 = 96.0;
+/// The default zoom: the medium thumbnail.
+const ZOOM_DEFAULT: f64 = 1.0;
 
-/// The zoom slider's default range, in points (FilmCraft's 48–400).
-const MIN_ICON_SIZE: f32 = 48.0;
-const MAX_ICON_SIZE: f32 = 400.0;
+/// The zoom range the footer slider spans, as multiples of the medium thumbnail side, and the step of a zoom key.
+const ZOOM_MIN: f64 = 0.5;
+const ZOOM_MAX: f64 = 4.0;
+const ZOOM_STEP: f64 = 0.25;
 
 /// Bins nested deeper than this are not followed, so a model that contains itself ends.
 const MAX_DEPTH: usize = 64;
 
-pub use freeform::FreeformCard;
 pub use search::name_matches;
-pub use style::BinStyle;
 
 /// One child of a bin: a sub-bin or an item.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum BinEntry<K> {
     /// A bin.
     Bin(K),
@@ -78,37 +75,35 @@ pub enum BinEntry<K> {
 }
 
 /// What an item or bin shows.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default)]
 #[non_exhaustive]
 pub struct BinItem {
     /// Its name.
     pub name: String,
-    /// The item's kind glyph (video, audio, sequence); bins draw `Icon::Folder` in `text.muted`.
-    pub icon: Option<Icon>,
+    /// The item's kind glyph (video, audio, sequence); bins show the folder.
+    pub icon: Option<IconId>,
     /// The label chip's colour (the app's).
-    pub label_color: Option<Rgba>,
-    /// Corner badges in the Icon view; in the List view they follow the name.
+    pub label_color: Option<Srgba>,
+    /// Corner badges in the Icon view; in the List view the text ones follow the name.
     pub badges: Vec<TileBadge>,
-    /// Offline or unreadable: the name in `status.bad.fg` with the glyph and text (never colour
+    /// Offline or unreadable: the name in the failure colour with the glyph and text (never colour
     /// alone).
     pub status: TileStatus,
     /// The duration text at the end of an Icon card's caption.
     pub duration: Option<String>,
     /// In and Out as fractions of the thumbnail's width.
     pub range: Option<(f32, f32)>,
-    /// Width over height of the picture (16:9 when `None`).
-    pub aspect: Option<f32>,
 }
 
 /// The app's project, read only. Every call is cheap: the bin reads it for the rows it builds.
 pub trait BinModel<K> {
-    /// The bins and items in `parent` (`None`: the root), unsorted: the bin sorts by the layout's
-    /// sort, bins before items; "User Order" is this order.
+    /// The bins and items in `parent` (`None`: the root), unsorted: the bin sorts by the sort in
+    /// force, bins before items; "User Order" is this order.
     fn children(&self, parent: Option<&K>, out: &mut Vec<BinEntry<K>>);
     /// Fills `item` for `key`.
     fn item(&self, key: &K, item: &mut BinItem);
     /// The text of `key`'s List-view `column` (any column but the name).
-    fn cell(&self, key: &K, column: &str) -> String;
+    fn cell(&self, key: &K, column: &ColumnKey) -> String;
     /// Whether `key` is a bin.
     fn is_bin(&self, key: &K) -> bool;
     /// The bin holding `key`; `None` at the root.
@@ -119,19 +114,21 @@ pub trait BinModel<K> {
 
 /// The bin's view.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[non_exhaustive]
 pub enum BinView {
-    /// A table (FilmCraft's List view).
+    /// A table.
     #[default]
     List,
-    /// Cards (`TileGrid` `Cards`, 16:9).
+    /// Cards in a grid, 16:9.
     Icon,
     /// Cards placed by the user.
     Freeform,
 }
 
-/// How the user asked to open a bin, from the double click's modifiers (FilmCraft's
-/// `open_bin`): plain in place, Shift or Alt in a new tab, Cmd/Ctrl in a new window.
+/// How the user asked to open a bin, from the double click's modifiers: plain in place, Shift or
+/// Alt in a new tab, Cmd/Ctrl in a new window.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum OpenHow {
     /// In this panel.
     InPlace,
@@ -143,25 +140,42 @@ pub enum OpenHow {
 
 /// The bin's saved look: a `craft_host::Section` the host stores per bin panel.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[non_exhaustive]
 #[serde(default)]
 pub struct BinSettings {
     /// The view.
     pub view: BinView,
-    /// The card width in the Icon and Freeform views, in points (FilmCraft 48–400).
-    pub icon_size: f32,
+    /// The card size in the Icon and Freeform views as a multiple of the medium thumbnail side.
+    pub zoom: f64,
     /// List-view thumbnails.
     pub thumbnails: ThumbSize,
-    /// List-view columns: order, hidden, widths, sort (column keys are the host's ids, `"name"`
-    /// for the first column).
-    pub columns: TableLayout<String>,
-    /// The Icon view's sort (Sort Icons): a column key and whether reversed; `None` is User Order.
-    pub icon_sort: Option<(String, bool)>,
+    /// The List view's sort; `None` is User Order.
+    #[serde(with = "saved_sort")]
+    pub sort: Option<ColumnSort>,
+    /// The Icon view's sort (Sort Icons); `None` is User Order.
+    #[serde(with = "saved_sort")]
+    pub icon_sort: Option<ColumnSort>,
+    /// The widths the user dragged the List view's columns to.
+    pub widths: Vec<(ColumnKey, f32)>,
+}
+
+/// A sort as the column key and the direction.
+mod saved_sort {
+    use super::{ColumnKey, ColumnSort};
+    use serde::{Deserialize as _, Deserializer, Serialize as _, Serializer};
+
+    pub(super) fn serialize<S: Serializer>(sort: &Option<ColumnSort>, serializer: S) -> Result<S::Ok, S::Error> {
+        sort.as_ref().map(|sort| (&sort.key, sort.descending)).serialize(serializer)
+    }
+
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<ColumnSort>, D::Error> {
+        Ok(Option::<(ColumnKey, bool)>::deserialize(deserializer)?.map(|(key, descending)| ColumnSort::new(key, descending)))
+    }
 }
 
 impl Default for BinSettings {
     fn default() -> Self {
-        // filmcraft: crates/ui-egui/src/panels/project.rs:132 (`view_of`: List view, icon size 96).
-        Self { view: BinView::List, icon_size: DEFAULT_ICON_SIZE, thumbnails: ThumbSize::None, columns: TableLayout::new(&[]), icon_sort: None }
+        Self { view: BinView::List, zoom: ZOOM_DEFAULT, thumbnails: ThumbSize::None, sort: None, icon_sort: None, widths: Vec::new() }
     }
 }
 
@@ -171,32 +185,31 @@ impl craft_host::Section for BinSettings {
 
 /// The bin's state between passes, kept by the host (one per panel or tab): what is shown, the
 /// search, the open bins and the settings.
-#[derive(Clone, Debug)]
-pub struct BinState<K> {
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct BinState<K: Eq + Hash> {
     /// The bin shown; `None` is the root.
     pub shown: Option<K>,
     /// The search text.
     pub search: String,
     /// The List view's open bins.
-    pub expanded: HashSet<K>,
+    pub expanded: OpenSet<K>,
     /// The saved look.
     pub settings: BinSettings,
-    /// The icon size when the zoom gesture under way began, put back by its `Cancel`.
-    zoom_before: Option<f32>,
 }
 
-impl<K: Eq + Hash> Default for BinState<K> {
+impl<K: Eq + Hash + Clone> Default for BinState<K> {
     fn default() -> Self {
-        // new: the root, no search, nothing open, default settings.
-        Self { shown: None, search: String::new(), expanded: HashSet::new(), settings: BinSettings::default(), zoom_before: None }
+        Self { shown: None, search: String::new(), expanded: OpenSet::new(), settings: BinSettings::default() }
     }
 }
 
 impl<K: Clone + Eq + Hash> BinState<K> {
-    /// Applies the view-state events (`Navigate`, `Search`, `View`, `Zoom`, `Table`, and the
-    /// List view's opens and closes) to the state; document events are left to the host.
+    /// Applies the view-state events (`Navigate`, `Search`, `View`, `Zoom`, `Column`, `IconSort`, and
+    /// the List view's opens and closes) to the state; document events are left to the host. The bin
+    /// applies its own events to the state it is bound to, so a host calls this only for events it
+    /// produces itself.
     pub fn apply(&mut self, event: &BinEvent<K>) {
-        // new: the host applies view state in one call, as `SectionLayout::apply`.
         match event {
             BinEvent::Navigate(to) => {
                 self.shown.clone_from(to);
@@ -208,40 +221,16 @@ impl<K: Clone + Eq + Hash> BinState<K> {
             }
             BinEvent::Search(text) => self.search.clone_from(text),
             BinEvent::View(view) => self.settings.view = *view,
-            BinEvent::Zoom(zoom) => self.zoom(zoom),
-            BinEvent::Open(OpenChange { row, open: true, .. }) => {
-                self.expanded.insert(row.clone());
+            BinEvent::Zoom(zoom) => {
+                zoom.apply(&mut self.settings.zoom);
             }
-            BinEvent::Open(OpenChange { row, open: false, .. }) => {
-                self.expanded.remove(row);
-            }
-            // The List view's table keeps its own layout and sort; the Icon and Freeform views'
-            // Sort Icons menu reports through the same events.
-            BinEvent::Table(TableEvent::Sort(sort)) if self.settings.view != BinView::List => {
-                self.settings.icon_sort = Some((sort.column.clone(), sort.order == SortOrder::Descending));
-            }
-            BinEvent::Table(TableEvent::Unsorted) if self.settings.view != BinView::List => self.settings.icon_sort = None,
-            _ => {}
-        }
-    }
-}
-
-impl<K> BinState<K> {
-    /// The zoom slider's gesture: `Begin` takes the size to put back, updates and commits set it,
-    /// `Cancel` restores it.
-    fn zoom(&mut self, event: &EditEvent<f64>) {
-        match event {
-            EditEvent::Begin { .. } => self.zoom_before = Some(self.settings.icon_size),
-            EditEvent::Update { value, .. } | EditEvent::Set { value, .. } => self.settings.icon_size = *value as f32,
-            EditEvent::Commit { value, .. } => {
-                self.settings.icon_size = *value as f32;
-                self.zoom_before = None;
-            }
-            EditEvent::Cancel { .. } => {
-                if let Some(before) = self.zoom_before.take() {
-                    self.settings.icon_size = before;
-                }
-            }
+            BinEvent::Open(change) => self.expanded.set(&change.key, change.open),
+            BinEvent::Column(ColumnEvent::Sort { key, descending, .. }) => self.settings.sort = Some(ColumnSort::new(key.clone(), *descending)),
+            BinEvent::Column(ColumnEvent::Resized { key, width, .. }) => match self.settings.widths.iter_mut().find(|(held, _)| held == key) {
+                Some((_, held)) => *held = *width,
+                None => self.settings.widths.push((key.clone(), *width)),
+            },
+            BinEvent::IconSort(sort) => self.settings.icon_sort.clone_from(sort),
             _ => {}
         }
     }
@@ -256,6 +245,7 @@ pub enum BinEvent<K> {
     /// Enter or a double click on an item.
     Activate(K),
     /// Enter or a double click on a bin, with how.
+    #[non_exhaustive]
     OpenBin {
         /// The bin that was opened.
         key: K,
@@ -264,32 +254,33 @@ pub enum BinEvent<K> {
     },
     /// The breadcrumb, Up or a search result moved the shown bin.
     Navigate(Option<K>),
-    /// A List-view bin opened or closed (→, ←, the triangle, a screen reader's Expand and
-    /// Collapse). With Alt the bin reports one change per bin under the shown bin, each with
-    /// `all` false, so [`BinState::apply`] needs no model.
+    /// A List-view bin opened or closed. With Alt the bin reports one change per bin under the shown
+    /// bin, each with `all` false, so [`BinState::apply`] needs no model.
     Open(OpenChange<K>),
-    /// A rename committed (Enter, Tab, a click elsewhere) with non-empty text other than the
-    /// name; a `Set`, one undo step. Esc cancels in the editor and reports nothing.
+    /// A rename committed with non-empty text other than the name; one undo step.
+    #[non_exhaustive]
     Rename {
         /// The renamed item.
         key: K,
         /// The new name.
         text: String,
     },
-    /// Items dropped into a bin (`None`: the shown bin). A `Set`.
+    /// Items dropped into a bin (`None`: the shown bin).
+    #[non_exhaustive]
     Drop {
         /// The dropped items.
         items: Vec<K>,
         /// The target bin; `None` is the shown bin.
         into: Option<K>,
     },
-    /// A reorder in a bin shown in User Order.
-    Reorder(EditEvent<Move<K>>),
+    /// A reorder in a bin shown in User Order. `to` counts the rows shown, open bins' children included.
+    Reorder(EditEvent<ReorderMove<K>>),
     /// Delete or Backspace.
     Remove(Vec<K>),
-    /// A drag of the selection began.
+    /// A drag of the selection is under way.
     Drag(ListDrag<K>),
     /// Hover scrub over an item's picture.
+    #[non_exhaustive]
     Scrub {
         /// The scrubbed item.
         key: K,
@@ -300,69 +291,105 @@ pub enum BinEvent<K> {
     Search(String),
     /// A view button.
     View(BinView),
-    /// The zoom slider or keys: the new icon size.
+    /// The zoom slider or keys: the new zoom.
     Zoom(EditEvent<f64>),
-    /// The List view's table: sort or column changes.
-    Table(TableEvent<K, String>),
-    /// A click on a host footer action.
+    /// The List view's header: sort or column width.
+    Column(ColumnEvent),
+    /// The Sort Icons menu: the sort, `None` for User Order.
+    IconSort(Option<ColumnSort>),
+    /// A click on a host footer action, by its place in the actions given.
+    #[non_exhaustive]
     Footer {
-        /// The action's id.
-        button: &'static str,
+        /// The action's index.
+        action: usize,
     },
-    /// A drop on a host footer action that accepts drops (`PanelFooter::drop_button`).
+    /// A drop on a host footer action that accepts drops.
+    #[non_exhaustive]
     FooterDrop {
-        /// The action's id.
-        button: &'static str,
-        /// The dragged rows.
-        rows: Vec<K>,
+        /// The action's index.
+        action: usize,
+        /// The dragged items.
+        keys: Vec<K>,
     },
     /// The footer's New Bin.
     NewBin,
     /// A Freeform drag committed: the cards' new positions.
+    #[non_exhaustive]
     FreeformMoved {
         /// The cards that moved.
         keys: Vec<K>,
         /// The new position of each card, in the same order as `keys`.
         to: Vec<Vec2>,
     },
-    /// A context menu on an item, a bin or the background (`row: None`).
+    /// A context menu on an item or a bin.
     ContextMenu(ContextMenuRequest<K>),
 }
 
 /// What [`MediaBin::show`] returns.
 #[derive(Debug)]
+#[non_exhaustive]
 #[must_use = "the host applies the bin's events"]
 pub struct BinOutput<K> {
     /// The panel's body.
-    pub response: egui::Response,
+    pub response: Response,
     /// What happened this pass, in order.
     pub events: Vec<BinEvent<K>>,
 }
 
-craft_ui::words! {
-    /// The bin's words, English by default.
-    #[non_exhaustive]
-    pub struct BinLabels {
-        search: "browse.bin.search" = "Search";
-        clear: "browse.bin.clear" = "Clear";
-        views: "browse.bin.views" = "View";
-        up: "browse.bin.up" = "Up One Level";
-        root: "browse.bin.root" = "Project";
-        /// `{selected}` of `{total}`.
-        selected_of: "browse.bin.selectedOf" = "{selected} of {total} items selected";
-        list_view: "browse.bin.listView" = "List View";
-        icon_view: "browse.bin.iconView" = "Icon View";
-        freeform_view: "browse.bin.freeformView" = "Freeform View";
-        new_bin: "browse.bin.new" = "New Bin";
-        sort_icons: "browse.bin.sortIcons" = "Sort Icons";
-        user_order: "browse.bin.userOrder" = "User Order";
-        no_matches: "browse.bin.noMatches" = "No items match the search";
-        empty: "browse.bin.empty" = "This bin is empty";
+impl<K> Outcome for BinOutput<K> {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
     }
 }
 
-/// The bin's item count words: "{n} items".
-pub const ITEMS: craft_ui::localized::words::Counted = craft_ui::localized::words::Counted::new("browse.bin.items", "{n} item", "{n} items");
+craft_ui::words! {
+    /// The bin's words, English by default.
+    pub struct BinWords {
+        name: "mediaBin.name" = "Name";
+        search: "mediaBin.search" = "Search";
+        views: "mediaBin.views" = "View";
+        up: "mediaBin.up" = "Up One Level";
+        root: "mediaBin.root" = "Project";
+        path: "mediaBin.path" = "Bin path";
+        /// `{selected}` of `{total}`.
+        selected_of: template "mediaBin.selectedOf" = "{selected} of {total} items selected";
+        items: count "mediaBin.items" = "{n} item" | "{n} items";
+        list_view: "mediaBin.listView" = "List View";
+        icon_view: "mediaBin.iconView" = "Icon View";
+        freeform_view: "mediaBin.freeformView" = "Freeform View";
+        new_bin: "mediaBin.new" = "New Bin";
+        sort_icons: "mediaBin.sortIcons" = "Sort Icons";
+        user_order: "mediaBin.userOrder" = "User Order";
+        no_matches: "mediaBin.noMatches" = "No items match the search";
+        empty: "mediaBin.empty" = "This bin is empty";
+        thumb_size: "mediaBin.thumbSize" = "Thumbnail Size";
+    }
+}
+
+/// The zoom and stacking keys of the bin: the keyboard path of the footer slider and of the order in User
+/// Order. A key reaches the bin that holds key focus.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, CommandSet)]
+#[command(prefix = "mediaBin", scope = "mediaBin")]
+#[non_exhaustive]
+pub enum MediaBinCommand {
+    /// Bigger cards.
+    #[command(label = "Zoom In", default = "Cmd+=")]
+    ZoomIn,
+    /// Smaller cards.
+    #[command(label = "Zoom Out", default = "Cmd+-")]
+    ZoomOut,
+    /// Back to the default card size.
+    #[command(label = "Reset Zoom", default = "Cmd+0")]
+    ZoomReset,
+    /// Move the selection one place later in User Order.
+    #[command(label = "Bring Forward", default = "Cmd+]")]
+    BringForward,
+    /// Move the selection one place earlier in User Order.
+    #[command(label = "Send Backward", default = "Cmd+[")]
+    SendBackward,
+}
 
 /// A host slot drawn inside the widget.
 type Slot<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
@@ -370,340 +397,452 @@ type Slot<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
 /// The thumbnails a widget draws with: the cache and the app's source, keyed by the widget's key.
 type ThumbPair<'a, K> = (&'a Thumbnails<K>, &'a dyn ThumbSource<K>);
 
-/// The project or media panel (N8.02).
+/// What a view reads and edits in one pass.
+pub(super) struct ViewIn<'a, K: TextureKey, M: ?Sized> {
+    pub id: Id,
+    pub model: &'a M,
+    pub state: &'a BinState<K>,
+    pub selection: Bind<'a, Selection<K>>,
+    /// The selection as it stood at the start of the pass.
+    pub held: &'a Selection<K>,
+    pub thumbnails: Option<ThumbPair<'a, K>>,
+    pub columns: &'a [ColumnSpec],
+    pub words: &'a BinWords,
+    pub collator: &'a craft_i18n::Collator,
+    pub rename: Option<K>,
+    pub hover_scrub: bool,
+    pub scrub: Option<(K, f32)>,
+    /// The step of the stacking keys pressed this pass: `true` moves later.
+    pub stack: Option<bool>,
+    /// The Freeform view's drag in progress, as its last pass reported it.
+    pub moving: Option<FreeBinMove<K>>,
+}
+
+/// What a view reported.
+pub(super) struct ViewOut<K> {
+    pub response: Response,
+    pub events: Vec<BinEvent<K>>,
+    /// The Freeform view's drag in progress, handed back next pass.
+    pub moving: Option<FreeBinMove<K>>,
+}
+
+/// What the bin keeps in its container's memory between passes.
+#[derive(Clone)]
+struct BinMemory<K: Eq + Hash> {
+    before: BinState<K>,
+    local: BinState<K>,
+    selection: Selection<K>,
+    scrub: Option<(K, f32)>,
+    moving: Option<FreeBinMove<K>>,
+}
+
+impl<K: Eq + Hash + Clone> Default for BinMemory<K> {
+    fn default() -> Self {
+        BinMemory { before: BinState::default(), local: BinState::default(), selection: Selection::default(), scrub: None, moving: None }
+    }
+}
+
+/// The project or media panel.
 ///
-/// - **Header.** A `BreadcrumbBar` of the shown bin's ancestors (`BinModel::parent`, the root
-///   named [`BinLabels::root`]; ancestors `text.normal`, the last `BodyStrong`) after an Up
-///   `IconButton`; a `SearchField` that fills the row before the count; the item count in `Caption`
-///   `text.faint` at the end ([`ITEMS`], or [`BinLabels::selected_of`] with a selection). Then
-///   the host's `.header(..)` slot (FilmCraft's preview area).
-/// - **Search.** Typing filters live by [`name_matches`]; a non-empty search lists matches from
-///   every sub-bin, flat; Esc clears, a second Esc leaves the field (the library's rule).
-/// - **List view** (`list.rs`): a tree `Table` (`Table::tree`, named by the row's name) over the
-///   shown bin's rows, bins before items (every bin is a group, so an empty bin has its
-///   disclosure triangle), open bins' children under them; the table draws the first column's
-///   indent (`list.indent` per depth) and disclosure triangle, and the bin's cell closure draws
-///   the label chip, thumbnail (`Table::thumbnails`), icon and the name through
-///   `CellContext::name`; other columns `BinModel::cell` in `text.muted`; striped. Selection,
-///   the double click, the context menu, the row drag and the rename are the table's. Enter or
-///   double click: `Activate` or `OpenBin { how }`; → and ← open and close bins, Alt for every
-///   level (the table's `TableEvent::Open`, reported as `Open`; one with `all` becomes one
-///   `Open` per bin under the shown bin, read from `BinModel::children`, so `BinState::apply`
-///   needs no model); F2 or a slow click on the selected row's name renames it (`Rename`);
-///   Delete and Backspace report `Remove`; Cmd/Ctrl + and − and 0 report `Zoom(Set)` steps of
-///   the footer slider's range; Cmd/Ctrl+] and [ move in User Order.
-/// - **Icon view** (`icon.rs`): a `TileGrid` in `Cards { side: icon_size, aspect: 16 / 9,
-///   caption: true }`, bins as cards before the items, hover scrub, In and Out bars.
-/// - **Freeform view** (`freeform.rs`): cards at the host's [`FreeformCard`] positions.
-/// - **Drag and drop.** Rows and cards drag the selection (`Drag`); a bin row or card is a drop
-///   target (outline `list.drop`, `Drop { into: Some(bin) }`), the view background takes drops
-///   into the shown bin (`into: None`). A drop reports nothing for items already in the target
-///   bin, and none into a bin that is, or lies inside, one of the dragged items. In User Order
-///   the List view's own rows also reorder (`Reorder`), by the table's targets; a drag from
-///   another list over an item row is a drop on the background, never a reorder. A footer action
-///   with `accepts_drops` reports `FooterDrop` through `PanelFooter::drop_button`.
-/// - **Footer** (`footer.rs`): a `PanelFooter` with the view `Segmented` (List, Icon,
-///   Freeform), a `ThumbnailSlider` over `.zoom_range(..)` (Esc during the drag restores), Sort
-///   Icons in Icon view, the host's actions, New Bin.
-/// - **Context menus.** `ContextMenu` for an item, a bin and the background.
-/// - **AccessKit.** The List view is the tree table's `TreeGrid` of `TreeItem`s (`level`,
-///   `expanded`); the Icon view as `TileGrid`; the search, slider and footer buttons named.
-/// - **RTL.** Breadcrumb, columns and the footer mirror; the disclosure sits at the reading start.
+/// - **Header.** An Up `IconButton`, a `BreadcrumbBar` of the shown bin's ancestors (`BinModel::parent`,
+///   the root named [`BinWords::root`]), a search field and the item count ([`BinWords::items`], or
+///   [`BinWords::selected_of`] with a selection). Then the host's `.header(..)` slot.
+/// - **Search.** Typing filters live by [`name_matches`]; a non-empty search lists matches from every
+///   sub-bin, flat; Esc clears, a second Esc leaves the field.
+/// - **List view** (`list.rs`): a tree `Table`, bins before items, every bin a group so an empty bin has
+///   its disclosure triangle, open bins' children under them; header sort is the table's.
+/// - **Icon view** (`icon.rs`): a `TileGrid` of 16:9 tiles, bins as folder tiles before the items, hover
+///   scrub, In and Out bars.
+/// - **Freeform view** (`free_view.rs`): a `FreeBin` of the host's [`FreeformCard`] positions.
+/// - **Drag and drop.** Rows and cards drag the selection (`Drag`); a bin takes a drag from another list
+///   (`Drop { into: Some(bin) }`), the view background takes drops into the shown bin (`into: None`). A
+///   drop reports nothing for items already in the target bin, and none into a bin that is, or lies
+///   inside, one of the dragged items. In User Order a drag of the List view's own rows reorders them,
+///   and a drag onto a bin row's middle moves them into the bin.
+/// - **Keys.** [`MediaBinCommand`] holds the zoom and stacking keys; Enter or a double click opens a bin
+///   or activates an item; F2 renames; Delete and Backspace remove.
+/// - **Footer** (`footer.rs`): the view switch, the zoom slider, Sort Icons (Icon and Freeform), the
+///   host's actions, New Bin.
+#[must_use = "show the bin with `show`"]
+#[derive(Pattern)]
+#[pattern(probe(MediaBin<'static, u32, dyn BinModel<u32>>))]
 pub struct MediaBin<'a, K: TextureKey, M: ?Sized> {
-    id_salt: IdSalt,
-    state: &'a mut BinState<K>,
+    label: Label,
+    state: Bind<'a, BinState<K>>,
     model: &'a M,
-    selection: Option<&'a mut Selection<K>>,
+    selection: Option<Bind<'a, Selection<K>>>,
     thumbnails: Option<ThumbPair<'a, K>>,
-    columns: &'a [TableColumn<String>],
+    columns: Vec<ColumnSpec>,
     hover_scrub: bool,
     header: Option<Slot<'a>>,
-    actions: &'a [FooterAction],
+    actions: Vec<FooterAction>,
     freeform: &'a [FreeformCard<K>],
     snap: Option<f32>,
-    zoom_range: (f32, f32),
-    labels: Option<BinLabels>,
+    zoom_range: (f64, f64),
     rename: Option<K>,
 }
 
 impl<'a, K, M> MediaBin<'a, K, M>
 where
-    K: TextureKey + std::fmt::Debug,
+    K: TextureKey,
     M: BinModel<K> + ?Sized,
 {
-    /// A bin panel over `model`, its view state in `state`.
-    pub fn new(id_salt: impl AsIdSalt, state: &'a mut BinState<K>, model: &'a M) -> Self {
-        // filmcraft: crates/ui-egui/src/panels/project.rs:276 (`show`).
+    /// A bin panel named `label` over `model`, its view state in `state`.
+    pub fn new(label: impl Into<Label>, state: Bind<'a, BinState<K>>, model: &'a M) -> Self {
         Self {
-            id_salt: IdSalt::new(id_salt),
+            label: label.into(),
             state,
             model,
             selection: None,
             thumbnails: None,
-            columns: &[],
+            columns: Vec::new(),
             hover_scrub: false,
             header: None,
-            actions: &[],
+            actions: Vec::new(),
             freeform: &[],
             snap: None,
-            zoom_range: (MIN_ICON_SIZE, MAX_ICON_SIZE),
-            labels: None,
+            zoom_range: (ZOOM_MIN, ZOOM_MAX),
             rename: None,
         }
     }
 
-    /// The selection the bin applies changes to.
+    /// The selection the bin applies changes to; without one the bin keeps its own.
     #[must_use]
-    pub fn selection(self, selection: &'a mut Selection<K>) -> Self {
-        // new: builder.
-        Self { selection: Some(selection), ..self }
+    pub fn selection(mut self, selection: Bind<'a, Selection<K>>) -> Self {
+        self.selection = Some(selection);
+        self
     }
 
     /// Thumbnails keyed by the item key.
     #[must_use]
-    pub fn thumbnails(self, thumbnails: &'a Thumbnails<K>, source: &'a dyn ThumbSource<K>) -> Self {
-        // new: builder.
-        Self { thumbnails: Some((thumbnails, source)), ..self }
+    pub fn thumbnails(mut self, thumbnails: &'a Thumbnails<K>, source: &'a dyn ThumbSource<K>) -> Self {
+        self.thumbnails = Some((thumbnails, source));
+        self
     }
 
-    /// The List view's columns; the first is the name column (key `"name"`).
+    /// The List view's columns; the first is the name column (key `name`).
     #[must_use]
-    pub fn columns(self, columns: &'a [TableColumn<String>]) -> Self {
-        // filmcraft: crates/ui-egui/src/panels/project_views.rs:497 (`list_view` columns from Metadata Display).
-        Self { columns, ..self }
+    pub fn columns(mut self, columns: Vec<ColumnSpec>) -> Self {
+        self.columns = columns;
+        self
     }
 
     /// Hover scrub in the Icon view.
     #[must_use]
-    pub fn hover_scrub(self, on: bool) -> Self {
-        // new: builder.
-        Self { hover_scrub: on, ..self }
+    pub fn hover_scrub(mut self, on: bool) -> Self {
+        self.hover_scrub = on;
+        self
     }
 
     /// The host's area above the content (a preview).
     #[must_use]
-    pub fn header(self, header: impl FnOnce(&mut Ui) + 'a) -> Self {
-        // filmcraft: crates/ui-egui/src/panels/project.rs:510 (`preview_area`).
-        Self { header: Some(Box::new(header)), ..self }
+    pub fn header(mut self, header: impl FnOnce(&mut Ui) + 'a) -> Self {
+        self.header = Some(Box::new(header));
+        self
     }
 
-    /// The host's footer buttons, after the view buttons and slider.
+    /// The host's footer buttons, after the view buttons and slider. An action that takes drops reports
+    /// `FooterDrop` with the dragged keys when it was built with `accepts_drops::<ListDrag<K>>`.
     #[must_use]
-    pub fn footer_actions(self, actions: &'a [FooterAction]) -> Self {
-        // new: builder.
-        Self { actions, ..self }
+    pub fn footer_actions(mut self, actions: impl IntoIterator<Item = FooterAction>) -> Self {
+        self.actions = actions.into_iter().collect();
+        self
     }
 
     /// The Freeform view's card positions.
     #[must_use]
-    pub fn freeform(self, cards: &'a [FreeformCard<K>]) -> Self {
-        // new: builder.
-        Self { freeform: cards, ..self }
+    pub fn freeform(mut self, cards: &'a [FreeformCard<K>]) -> Self {
+        self.freeform = cards;
+        self
     }
 
     /// Freeform snapping to a grid of `step` points.
     #[must_use]
-    pub fn snap(self, step: Option<f32>) -> Self {
-        // filmcraft: crates/ui-egui/src/panels/project_views.rs:1014 (grid snap lines).
-        Self { snap: step, ..self }
+    pub fn snap(mut self, step: Option<f32>) -> Self {
+        self.snap = step;
+        self
     }
 
-    /// The zoom slider's range in points (default 48–400, FilmCraft's).
+    /// The zoom slider's range as multiples of the medium thumbnail side.
     #[must_use]
-    pub fn zoom_range(self, min: f32, max: f32) -> Self {
-        // filmcraft: crates/ui-egui/src/panels/project.rs:555 (zoom 48–400).
-        Self { zoom_range: (min, max), ..self }
+    pub fn zoom_range(mut self, min: f64, max: f64) -> Self {
+        self.zoom_range = (min, max);
+        self
     }
 
-    /// Opens the in-place rename of `key` in this pass, as F2 would: in the List view the name
-    /// cell's field (`Table::start_rename`), in the Icon view the card's caption
-    /// (`TileGrid::start_rename`). In the Freeform view it is the caption's field as in the Icon view. Call it
-    /// in the pass that handles the host's Rename command; ignored when `key` is not shown.
+    /// Opens the in-place rename of `key` in this pass, as F2 would. Call it in the pass that handles the
+    /// host's Rename command; ignored when `key` is not shown.
     #[must_use]
-    pub fn start_rename(self, key: K) -> Self {
-        // new: builder, as every rename-capable component has.
-        Self { rename: Some(key), ..self }
+    pub fn start_rename(mut self, key: K) -> Self {
+        self.rename = Some(key);
+        self
     }
+}
 
-    /// Replaces the bin's words, for translation.
-    #[must_use]
-    pub fn labels(self, labels: BinLabels) -> Self {
-        // new: builder.
-        Self { labels: Some(labels), ..self }
+/// The ancestors of the shown bin as crumbs, the root first.
+fn crumbs_of<K, M>(model: &M, shown: Option<&K>, root: &Label) -> Vec<Entry<Option<K>>>
+where
+    K: TextureKey,
+    M: BinModel<K> + ?Sized,
+{
+    let mut chain: Vec<Option<K>> = vec![shown.cloned()];
+    while let Some(parent) = chain.last().cloned().flatten().map(|key| model.parent(&key)) {
+        if chain.len() > MAX_DEPTH {
+            break;
+        }
+        chain.push(parent);
     }
+    chain
+        .into_iter()
+        .rev()
+        .map(|key| {
+            let label = match &key {
+                Some(key) => {
+                    let mut item = BinItem::default();
+                    model.item(key, &mut item);
+                    Label::from(item.name)
+                }
+                None => root.clone(),
+            };
+            Entry::new(key, label)
+        })
+        .collect()
+}
 
-    /// Draws the panel and reports what happened.
+/// The number the count line gives: the matches of a search, else the items in the shown bin.
+fn total_of<K: Clone, M: BinModel<K> + ?Sized>(model: &M, shown: Option<&K>, matches: Option<&[K]>) -> usize {
+    match (shown, matches) {
+        (_, Some(found)) => found.len(),
+        (Some(bin), None) => model.count(bin),
+        (None, None) => {
+            let mut children = Vec::new();
+            model.children(None, &mut children);
+            children
+                .iter()
+                .map(|entry| match entry {
+                    BinEntry::Bin(key) => model.count(key),
+                    BinEntry::Item(_) => 1,
+                })
+                .sum()
+        }
+    }
+}
+
+impl<K, M> MediaBin<'_, K, M>
+where
+    K: TextureKey,
+    M: BinModel<K> + ?Sized,
+{
+    /// Shows the panel across the available room and reports what happened.
     pub fn show(self, ui: &mut Ui) -> BinOutput<K> {
-        // filmcraft: crates/ui-egui/src/panels/project.rs:389 (`body`: breadcrumb, search, count, preview, view, footer).
-        let Self { id_salt, state, model, selection, thumbnails, columns, hover_scrub, header, actions, freeform, snap, zoom_range, labels, rename } =
-            self;
-        let id = ui.make_persistent_id(id_salt);
-        let labels = labels.unwrap_or_else(|| BinLabels::of(ui));
-        let tokens = Tokens::of(ui);
-        let style = Self::style(&tokens);
-        let mut events: Vec<BinEvent<K>> = Vec::new();
+        let MediaBin { label, state, model, selection, thumbnails, columns, hover_scrub, header, actions, freeform, snap, zoom_range, rename } = self;
+        let env = Env::of(ui);
+        let words = env.words::<BinWords>();
+        let collator = env.collator();
+        let name: Arc<str> = Arc::from(label.as_str());
+        let ids = ViewIds::of(ui);
+        let state = RefCell::new(state);
+        let selection = RefCell::new(selection);
+        let header = RefCell::new(header);
+        let rename = RefCell::new(rename);
+        let footer_events: RefCell<Vec<BinEvent<K>>> = RefCell::new(Vec::new());
+        let zoom = TileZoom::bounded(zoom_range.0, zoom_range.1, ZOOM_STEP, ZOOM_DEFAULT.clamp(zoom_range.0, zoom_range.1));
 
-        // The selection is the host's; without one the bin keeps its own.
-        let mut own: Selection<K> = ui.data(|d| d.get_temp(id.with("own-selection"))).unwrap_or_default();
-        let hosted = selection.is_some();
-        let selection: &mut Selection<K> = selection.unwrap_or(&mut own);
+        let body = |ui: &mut Ui, cx: &mut BodyCx<'_>| {
+            let before = match state.borrow_mut().reborrow().read(cx) {
+                Some(Mixed::Same(held)) => held,
+                _ => BinState::default(),
+            };
+            let mut local = before.clone();
+            let (mut own, scrub, moving) = {
+                let memory = cx.keep::<BinMemory<K>>();
+                memory.before = before;
+                memory.local = local.clone();
+                (memory.selection.clone(), memory.scrub.clone(), memory.moving.clone())
+            };
+            let mut events: Vec<BinEvent<K>> = Vec::new();
+            let view = local.settings.view;
+            let list_id = ids.of_view(view);
+            let searching = !local.search.trim().is_empty();
 
-        // Breadcrumb row: Up, then the shown bin's ancestors.
-        let mut chain: Vec<Option<K>> = vec![state.shown.clone()];
-        while let Some(parent) = chain.last().cloned().flatten().map(|key| model.parent(&key)) {
-            if chain.len() > MAX_DEPTH {
-                break;
+            let held = match selection.borrow_mut().as_mut() {
+                Some(bind) => match bind.reborrow().read(cx) {
+                    Some(Mixed::Same(held)) => held,
+                    _ => Selection::default(),
+                },
+                None => own.clone(),
+            };
+
+            let mut commanded: Vec<ZoomStep> = Vec::new();
+            let mut restack: Option<bool> = None;
+            while let Some((command, _)) = cx.take_command::<MediaBinCommand>() {
+                match command {
+                    MediaBinCommand::ZoomIn => commanded.push(ZoomStep::In),
+                    MediaBinCommand::ZoomOut => commanded.push(ZoomStep::Out),
+                    MediaBinCommand::ZoomReset => commanded.push(ZoomStep::Reset),
+                    MediaBinCommand::BringForward => restack = Some(true),
+                    MediaBinCommand::SendBackward => restack = Some(false),
+                }
             }
-            chain.push(parent);
-        }
-        let crumbs: Vec<Crumb<Option<K>>> = chain
-            .into_iter()
-            .rev()
-            .map(|key| {
-                let label = match &key {
-                    Some(key) => {
-                        let mut item = BinItem::default();
-                        model.item(key, &mut item);
-                        item.name
-                    }
-                    None => labels.root.clone(),
+
+            // The matches, the count and the header row.
+            let mut found: Vec<K> = Vec::new();
+            if searching {
+                search::collect_matches(model, local.shown.as_ref(), &local.search, 0, &mut found);
+            }
+            let total = total_of(model, local.shown.as_ref(), searching.then_some(found.as_slice()));
+            let selected =
+                held.items.iter().filter(|key| if searching { found.contains(key) } else { list::within(model, key, local.shown.as_ref()) }).count();
+            let count_text = if selected == 0 {
+                words.items.text(total as u64, &env.format().integer(total as u64))
+            } else {
+                words.selected_of.fill(&[("selected", &env.format().integer(selected as u64)), ("total", &env.format().integer(total as u64))])
+            };
+            let crumbs = crumbs_of(model, local.shown.as_ref(), &Label::from(words.root.clone()));
+            let shown = local.shown.clone();
+            let _ = Bar::new(Label::Empty, BarKind::Tool).show(ui, |ui, _| {
+                let up = IconButton::new(IconId::new("chevron_up")).label(words.up.clone()).enabled(shown.is_some()).show(ui);
+                if clicked(&up) {
+                    let to = shown.as_ref().and_then(|key| model.parent(key));
+                    local.apply(&BinEvent::Navigate(to.clone()));
+                    events.push(BinEvent::Navigate(to));
+                }
+                if let Some(target) = BreadcrumbBar::new(words.path.clone(), &crumbs).show(ui).picked {
+                    local.apply(&BinEvent::Navigate(target.clone()));
+                    events.push(BinEvent::Navigate(target));
+                }
+                let typed = local.search.clone();
+                TextField::search(words.search.clone(), Bind::bound(&mut local.search)).placeholder(words.search.clone()).drives(list_id).show(ui);
+                if local.search != typed {
+                    events.push(BinEvent::Search(local.search.clone()));
+                }
+                Text::new(count_text.clone()).role(TypeRole::Caption).shade(Shade::Faint).show(ui);
+            });
+            if let Some(header) = header.borrow_mut().take() {
+                header(ui);
+            }
+
+            // The view, inside a slot that takes the drops the view leaves.
+            let (response, mut view_events, background, moving_now) = {
+                let mut hosted = selection.borrow_mut();
+                let bind = match hosted.as_mut() {
+                    Some(bind) => bind.reborrowed(),
+                    None => Bind::bound(&mut own),
                 };
-                Crumb { label, key }
-            })
-            .collect();
-        let shown = state.shown.clone();
-        direction::horizontal(ui, |ui| {
-            let up = ui.add(IconButton::new(Icon::ChevronUp, labels.up.as_str()).enabled(shown.is_some()).id_salt((id, "up")));
-            if up.clicked() {
-                events.push(BinEvent::Navigate(shown.as_ref().and_then(|key| model.parent(key))));
-            }
-            if let Some(target) = BreadcrumbBar::new((id, "crumbs"), &crumbs).show(ui).opened {
-                events.push(BinEvent::Navigate(target));
-            }
-        });
-
-        // Search row: the field, then the item count at the end.
-        let searching = !state.search.trim().is_empty();
-        let mut found = Vec::new();
-        if searching {
-            search::collect_matches(model, state.shown.as_ref(), &state.search, 0, &mut found);
-        }
-        let total = match (&state.shown, searching) {
-            (_, true) => found.len(),
-            (Some(bin), false) => model.count(bin),
-            (None, false) => {
-                let mut children = Vec::new();
-                model.children(None, &mut children);
-                children
-                    .iter()
-                    .map(|entry| match entry {
-                        BinEntry::Bin(key) => model.count(key),
-                        BinEntry::Item(_) => 1,
-                    })
-                    .sum()
-            }
-        };
-        let words = Words::of(ui);
-        // Only the selected keys the bin shows count: the rest sit in another bin or are not matches.
-        let selected =
-            selection.items.iter().filter(|key| if searching { found.contains(key) } else { list::within(model, key, state.shown.as_ref()) }).count();
-        let count_text = if selected == 0 {
-            words.counted(ui.ctx(), ITEMS, &words.get(ITEMS.word), total as u64)
-        } else {
-            craft_i18n::fmt(&labels.selected_of, &[("selected", &selected.to_string()), ("total", &total.to_string())])
-        };
-        ui.allocate_ui_with_layout(vec2(ui.available_width(), ui.spacing().interact_size.y), direction::trailing(ui), |ui| {
-            let format = role_format(&tokens, TypeRole::Caption, style.count);
-            ui.add(Label::new(LayoutJob::single_section(count_text, format)).selectable(false));
-            let field = SearchField::new((id, "search"), labels.search.as_str(), &state.search, labels.clear.as_str()).show(ui);
-            if let Some(
-                EditEvent::Begin { value: Some(value), .. }
-                | EditEvent::Update { value, .. }
-                | EditEvent::Set { value, .. }
-                | EditEvent::Commit { value, .. },
-            ) = field.event
-            {
-                events.push(BinEvent::Search(value));
-            }
-        });
-        if let Some(header) = header {
-            header(ui);
-        }
-
-        // The body, then the footer at the bottom.
-        let footer_style = PanelFooter::style(&tokens, ui.pixels_per_point());
-        let body_height = (ui.available_height() - PanelFooter::reserved_height(&footer_style) - ui.spacing().item_spacing.y).max(0.0);
-        let view = state.settings.view;
-        let body = ui.allocate_ui_with_layout(vec2(ui.available_width(), body_height), Layout::top_down(Align::Min), |ui| match view {
-            BinView::List => {
-                let input = list::ListInput {
-                    id,
+                let input = ViewIn {
+                    id: list_id,
                     model,
-                    state: &mut *state,
-                    selection: &mut *selection,
+                    state: &local,
+                    selection: bind,
+                    held: &held,
                     thumbnails,
-                    columns,
-                    labels: &labels,
-                    zoom_range,
-                    default_size: DEFAULT_ICON_SIZE,
-                    rename: rename.clone(),
-                };
-                let (response, mut list_events) = list::list_view(ui, input);
-                events.append(&mut list_events);
-                Some(response)
-            }
-            BinView::Icon => {
-                let input = icon::IconInput {
-                    id,
-                    model,
-                    state: &*state,
-                    selection: &mut *selection,
-                    thumbnails,
+                    columns: &columns,
+                    words: &words,
+                    collator: &collator,
+                    rename: rename.borrow_mut().take(),
                     hover_scrub,
-                    zoom_range,
-                    default_size: DEFAULT_ICON_SIZE,
-                    labels: &labels,
-                    rename,
+                    scrub: scrub.clone(),
+                    stack: None,
+                    moving: moving.clone(),
                 };
-                let (response, mut icon_events) = icon::icon_view(ui, input);
-                events.append(&mut icon_events);
-                Some(response)
+                let mut input = Some(input);
+                let shown_view = DropAction::<ListDrag<K>>::new(|_| true).sizing(Sizing::Fill).show(ui, |ui, _| {
+                    let mut input = input.take().expect("a slot shows its body once");
+                    input.stack = restack;
+                    match view {
+                        BinView::List => list::list_view(ui, input),
+                        BinView::Icon => icon::icon_view(ui, input),
+                        BinView::Freeform => free_view::free_view(ui, input, freeform, snap),
+                    }
+                });
+                let background = shown_view.output.dropped.clone();
+                let out =
+                    shown_view.inner.unwrap_or_else(|| ViewOut { response: shown_view.output.response.clone(), events: Vec::new(), moving: None });
+                (out.response, out.events, background, out.moving)
+            };
+            let mut zoom_now = local.settings.zoom;
+            for step in commanded {
+                let next = zoom.step(zoom_now, step);
+                if next != zoom_now {
+                    let event = EditEvent::set(GestureId::default(), Mixed::Same(zoom_now), next, name.clone(), None);
+                    local.apply(&BinEvent::Zoom(event.clone()));
+                    events.push(BinEvent::Zoom(event));
+                    zoom_now = next;
+                }
             }
-            BinView::Freeform => {
-                let input = freeform::FreeformInput {
-                    id,
-                    model,
-                    state: &*state,
-                    selection: &mut *selection,
-                    thumbnails,
-                    cards: freeform,
-                    snap,
-                    zoom_range,
-                    default_size: DEFAULT_ICON_SIZE,
-                    labels: &labels,
-                    rename,
-                };
-                let (response, mut freeform_events) = freeform::freeform_view(ui, input);
-                events.append(&mut freeform_events);
-                Some(response)
+            if let Some(drag) = background
+                && let Some(items) = list::drop_items(model, local.shown.as_ref(), &drag.keys)
+            {
+                view_events.push(BinEvent::Drop { items, into: None });
             }
-        });
-        let response = body.inner.unwrap_or(body.response);
-        let input = footer::FooterInput {
-            id,
-            view,
-            icon_size: state.settings.icon_size,
-            zoom_range,
-            default_size: DEFAULT_ICON_SIZE,
-            actions,
-            columns,
-            icon_sort: state.settings.icon_sort.as_ref(),
-            labels: &labels,
+            let mut last_scrub = scrub;
+            for event in &view_events {
+                match event {
+                    BinEvent::Scrub { key, fraction } => last_scrub = Some((key.clone(), *fraction)),
+                    BinEvent::Selection(SelectionChange::Clear) | BinEvent::Activate(_) | BinEvent::OpenBin { .. } => last_scrub = None,
+                    _ => {}
+                }
+                local.apply(event);
+            }
+            events.extend(view_events);
+
+            let memory = cx.keep::<BinMemory<K>>();
+            memory.local = local;
+            memory.selection = own;
+            memory.scrub = last_scrub;
+            memory.moving = moving_now;
+            (response, events)
         };
-        events.extend(footer::footer_events(ui, &input));
-        if !hosted {
-            ui.data_mut(|d| d.insert_temp(id.with("own-selection"), own));
-        }
+
+        let footer_region = |ui: &mut Ui, cx: &mut BodyCx<'_>| {
+            let mut local = cx.keep::<BinMemory<K>>().local.clone();
+            let events = footer::footer(ui, &local, &columns, &actions, &words, zoom);
+            for event in &events {
+                local.apply(event);
+            }
+            *footer_events.borrow_mut() = events;
+            cx.keep::<BinMemory<K>>().local = local;
+            commit(cx, &state, &name);
+        };
+
+        let stack = Stack::new().fill().command_scope(MediaBinCommand::SCOPE).footer(footer_region);
+        let shown = stack.show(ui, body);
+        let (response, mut events) = shown.inner.unwrap_or_else(|| (shown.output.clone(), Vec::new()));
+        events.extend(footer_events.take());
         BinOutput { response, events }
+    }
+}
+
+/// The ids of the three views' collections: one per view, so a switch never reads another collection's memory.
+struct ViewIds {
+    list: Id,
+    icon: Id,
+    free: Id,
+}
+
+impl ViewIds {
+    fn of(ui: &Ui) -> Self {
+        let scope = ui.scope_id();
+        ViewIds { list: scope.with("media-bin-list"), icon: scope.with("media-bin-icon"), free: scope.with("media-bin-free") }
+    }
+
+    fn of_view(&self, view: BinView) -> Id {
+        match view {
+            BinView::List => self.list,
+            BinView::Icon => self.icon,
+            BinView::Freeform => self.free,
+        }
+    }
+}
+
+/// Writes the state the pass changed through the binding.
+fn commit<K: TextureKey>(cx: &mut BodyCx<'_>, state: &RefCell<Bind<'_, BinState<K>>>, name: &Arc<str>) {
+    let (before, local) = {
+        let memory = cx.keep::<BinMemory<K>>();
+        (memory.before.clone(), memory.local.clone())
+    };
+    if local != before {
+        let event = EditEvent::set(GestureId::default(), Mixed::Same(before), local, name.clone(), None);
+        let _ = state.borrow_mut().reborrow().write(cx, &event);
     }
 }

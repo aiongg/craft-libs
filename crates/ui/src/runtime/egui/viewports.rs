@@ -159,9 +159,10 @@ pub(crate) fn resize_direction(edge: crate::runtime::windows::ResizeEdge) -> egu
     }
 }
 
-/// Runs and paints the next pass even while the window is hidden, for a screenshot or an automation client.
-pub(crate) fn paint_while_hidden(ctx: &Context) {
-    ctx.send_viewport_cmd(ViewportCommand::RequestPaintWhileHidden);
+/// Runs and paints the next pass of `viewport` even while its window is hidden, for a screenshot or an automation
+/// client.
+pub(crate) fn paint_while_hidden(ctx: &Context, viewport: ViewportId) {
+    ctx.send_viewport_cmd_to(viewport, ViewportCommand::RequestPaintWhileHidden);
 }
 
 /// The pass number and movable flag the title bar of the running viewport last recorded.

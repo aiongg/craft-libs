@@ -88,6 +88,29 @@ pub(super) type ButtonState<'a> = Box<dyn FnMut(&mut BodyCx<'_>, &mut [FooterBut
 /// context. It acts on the pick (a Reset restores the values) and never decides the close.
 pub(super) type PickHook<'a> = Box<dyn FnMut(&FooterButton, &mut BodyCx<'_>) + 'a>;
 
+/// The footer hooks every dialog shell with buttons takes: the buttons themselves, the rule for their state, the
+/// action on a pick and the close guard. `Dialog` and `FullWindowDialog` implement it, so a footer pattern such as
+/// `ResetFooter::install` works on either.
+pub trait FooterHooks<'a>: Sized {
+    /// The footer buttons, in the platform's order for their roles.
+    #[must_use]
+    fn buttons(self, buttons: impl IntoIterator<Item = FooterButton>) -> Self;
+
+    /// Sets the buttons' state each pass, after the body ran: `settle` gets the body context and the buttons.
+    #[must_use]
+    fn settle_buttons<T: FnMut(&mut BodyCx<'_>, &mut [FooterButton]) + 'a>(self, settle: T) -> Self;
+
+    /// Acts on a picked footer button in the footer step, before the close is decided: `act` gets the button and the
+    /// dialog's body context.
+    #[must_use]
+    fn on_pick<T: FnMut(&FooterButton, &mut BodyCx<'_>) + 'a>(self, act: T) -> Self;
+
+    /// Lets the host refuse the close of a picked button: `allows` gets every picked button but `Cancel` and the
+    /// body context, and returns whether a button that closes the dialog may.
+    #[must_use]
+    fn close_guard<T: FnMut(&FooterButton, &mut BodyCx<'_>) -> bool + 'a>(self, allows: T) -> Self;
+}
+
 /// What the host of a dialog shell decides about its footer buttons, and where the pick goes.
 pub(super) struct FooterHost<'s, 'a> {
     pub(super) picked: &'s mut Option<usize>,

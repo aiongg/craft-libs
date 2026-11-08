@@ -506,6 +506,8 @@ pub(crate) struct StopsIn<'a> {
     pub body_roving: Option<Roving>,
     /// The roving group of the collection row the component is shown in: stops with no group of their own join it.
     pub row: Option<Id>,
+    /// The component is the collection item of its row: its parts join the row's group instead of a group of their own.
+    pub item: bool,
     /// The component's stop is its scope's default.
     pub default_stop: bool,
 }
@@ -537,7 +539,8 @@ pub(crate) fn register_stops(input: &StopsIn<'_>) {
         focus::register_group(ctx, Group::new(body_group(input.id), roving).rtl(input.rtl));
     }
     debug_assert!(input.parts.rovings.len() <= 1, "a component declares one roving group; a second would be dropped");
-    let group = (!input.parts.rovings.is_empty()).then(|| sub(input.id, "roving"));
+    let row_parts = if input.item { input.row } else { None };
+    let group = (!input.parts.rovings.is_empty() && row_parts.is_none()).then(|| sub(input.id, "roving"));
     if let (Some(group), Some(roving)) = (group, input.parts.rovings.first()) {
         let arrival = input.parts.decls.iter().rev().find(|(_, extras)| extras.selected && extras.focusable);
         let group = Group::new(group, *roving).rtl(input.rtl);
@@ -559,7 +562,7 @@ pub(crate) fn register_stops(input: &StopsIn<'_>) {
             let stop = if extras.default_stop { stop.default_stop() } else { stop };
             // A part group that joined the body's roving group has its parts registered there.
             let joined = group.and_then(|parts| focus::registration::part_group(ctx, parts));
-            focus::register_stop(ctx, if let Some(group) = joined.or(group).or(input.row) { stop.in_group(group) } else { stop });
+            focus::register_stop(ctx, if let Some(group) = row_parts.or(joined).or(group).or(input.row) { stop.in_group(group) } else { stop });
         }
     }
 }
@@ -635,12 +638,12 @@ pub(crate) fn takes_focus(resolved: &Resolved<'_>) -> bool {
 /// Step 9, update, the part the library writes: the keyboard activation.
 pub(crate) fn update_inputs(core: &mut CxCore<'_>) {
     if core.intents.take(craft_behavior::Intent::Activate) && takes_activation(core.resolved) {
-        core.activation = Some(super::Activation { by_key: true, mods: crate::runtime::pointer::frame(&core.ctx).mods });
+        core.activation = Some(super::Activation { by_key: true, mods: craft_keymap::Mods::NONE });
     }
     // An AccessKit click on a part is a click on the component as a pointer click on the part is: the response
     // reports it, and a toggling part or a part reader takes it as it takes the pointer's.
     if core.intents.any_access_click() && takes_activation(core.resolved) {
-        core.activation.get_or_insert(super::Activation { by_key: false, mods: crate::runtime::pointer::frame(&core.ctx).mods });
+        core.activation.get_or_insert(super::Activation { by_key: false, mods: craft_keymap::Mods::NONE });
         core.part_clicked = true;
     }
 }

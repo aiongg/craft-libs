@@ -24,13 +24,12 @@ mod words;
 
 pub use alert::{Alert, AlertOutput};
 pub use blocking::{BlockingOverlay, BlockingOverlayStyle};
-pub use frame::{DialogFrame, DialogFrameStyle, DialogOutput, FooterCx};
+pub use frame::{DialogFrame, DialogFrameStyle, DialogOutput, FooterCx, FooterHooks};
 pub use full_window::{FullWindowDialog, FullWindowDialogStyle};
 // full-window parts
 pub use full_window_parts::{
     FullWindowCanvas, FullWindowCanvasOutput, FullWindowSide, FullWindowSideOutput, FullWindowSideStyle, FullWindowStatus, FullWindowStatusOutput,
-    FullWindowTitle, FullWindowTitleOutput, FullWindowView, FullWindowZoomBar, FullWindowZoomBarOutput, RasterOverlay,
-    SideFooter, SideWidth,
+    FullWindowTitle, FullWindowTitleOutput, FullWindowView, FullWindowZoomBar, FullWindowZoomBarOutput, RasterOverlay, SideFooter,
 };
 // end of full-window parts
 pub use host::{DialogHost, DialogResult, StackDialog, StartupStage};

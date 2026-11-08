@@ -1,22 +1,21 @@
-//! `Swatch`: a colour well. It shows a colour from data, a mixed look for several colours, and reports a click. It
-//! edits nothing: the host opens its picker on the click.
+//! `Swatch`: a colour well. It shows a colour from data, a mixed look for several colours, and reports the activation.
+//! It edits nothing: the host opens its picker on a click, or on the `ColorRequest` of a `picker` swatch.
 
 use super::radio::RadioKind;
 use super::words::ChoiceWords;
 use crate::contract::{
-    Access, Common, Component, Cx, GroupHandle, MeasureCx, Outcome, PaintUi, Pointer as _, Props as _, Role, Styled as _, WordSetCx as _,
+    Access, Activation, Common, Component, Cx, GroupHandle, MeasureCx, Outcome, PaintUi, Pointer as _, Props as _, Role, Styled as _, WordSetCx as _,
 };
 use crate::primitives::{Checker, PaintShape, StrokeWidth};
-use crate::style::{ComponentStyle, DataColor, Flags, FocusLook, StyleColor, StyleCx, UiTokens, control_metrics};
+use crate::runtime::requests::ColorRequest;
+use crate::style::{ComponentStyle, DataColor, Flags, FocusLook, StyleColor, StyleCx, UiTokens};
 use craft_behavior::{CursorIcon, CursorPriority, Metrics, Mixed, Sense, Value};
-use craft_theme::{ControlSize, Opacity, Rgba, Srgba, Stateful, States};
+use craft_theme::{Rgba, Srgba, Stateful, States, over};
 use egui::{Color32, CornerRadius, Rect, Response, Shape, Vec2, pos2};
 
 #[cfg(feature = "testing")]
 mod stories;
 
-/// The largest corner radius of a well, whatever the control radius is.
-const RADIUS_MAX: f32 = 4.0;
 /// Opacity of the black or white ring that stands out from a well's colour.
 const INNER_EDGE_ALPHA: u8 = 0x80;
 /// The length of the dash on a mixed well, as a share of the well's width.
@@ -30,18 +29,15 @@ pub struct SwatchMetrics {
     pub side: f32,
     /// The side of a cell of a table of touching swatches.
     pub cell: f32,
-    /// The corners of a well: `shape.radius.control`, capped.
+    /// The corners of a well: `shape.radius.sm`.
     pub radius: CornerRadius,
 }
 
 impl SwatchMetrics {
-    /// The metrics at `size` from `tokens`.
-    pub fn of(tokens: &UiTokens, size: ControlSize) -> SwatchMetrics {
-        SwatchMetrics {
-            side: control_metrics(tokens, size).height,
-            cell: tokens.size.icon.md,
-            radius: CornerRadius::same(tokens.shape.radius.control.min(RADIUS_MAX).round() as u8),
-        }
+    /// The metrics at the control size of `cx`.
+    pub fn of(cx: &StyleCx<'_>) -> SwatchMetrics {
+        let tokens = cx.tokens;
+        SwatchMetrics { side: cx.control().height, cell: tokens.size.icon.md, radius: UiTokens::corner(tokens.shape.radius.sm) }
     }
 }
 
@@ -86,18 +82,6 @@ impl SwatchStyle {
     }
 }
 
-/// `fg` composited over `bg`, in sRGB channels; opaque when `bg` is.
-fn over(fg: Rgba, bg: Rgba) -> Rgba {
-    let a = f64::from(fg.a()) / 255.0;
-    let channel = |i: usize| (f64::from(fg.0[i]) * a + f64::from(bg.0[i]) * (1.0 - a)).round() as u8;
-    Rgba([channel(0), channel(1), channel(2), bg.a()])
-}
-
-/// The colour with the disabled opacity.
-fn faded(color: StyleColor) -> StyleColor {
-    StyleColor(color.egui().gamma_multiply(Opacity::DISABLED))
-}
-
 /// What a swatch reports.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -106,6 +90,11 @@ pub struct SwatchOutput {
     pub response: Response,
     /// A primary click, Space, Enter or an AccessKit click reached the enabled swatch.
     pub clicked: bool,
+    /// How the enabled swatch was activated: by key or click, with the modifiers held (Cmd or Ctrl-click and
+    /// Alt-click reach the palette that owns the swatch).
+    pub activation: Option<Activation>,
+    /// The request for the host's colour picker, set on a click of a `picker` swatch that shows a colour.
+    pub pick_color: Option<ColorRequest>,
 }
 
 impl Outcome for SwatchOutput {
@@ -116,11 +105,12 @@ impl Outcome for SwatchOutput {
     }
 }
 
-/// A colour well that shows a colour from data and reports a click; it edits nothing.
+/// A colour well that shows a colour from data and reports its activation; it edits nothing.
 ///
 /// The colour fills the well over a checkerboard where it has alpha, inside a thin ring that separates it from the
-/// panel. A `Mixed` colour shows a neutral well with a dash and has no colour value. A click reports `clicked`; the
-/// host opens its colour picker.
+/// panel. A `Mixed` colour shows a neutral well with a dash and has no colour value. A click reports `clicked` and the
+/// `activation`. A swatch with a `picker` key also files a `ColorRequest` for that key, opened at the swatch's colour
+/// and titled with its label, as `pick_color`; the host opens its colour picker and answers with the picked colour.
 ///
 /// AccessKit reports a colour well named by the label, whose value is the colour as `#rrggbb` (`#rrggbbaa` when
 /// translucent) and whose colour value is the colour; a mixed well has the value "Mixed" and no colour value.
@@ -142,21 +132,34 @@ pub struct Swatch<T: Value + 'static = ()> {
     /// Takes the width the layout offers, at the control height.
     #[prop(flag)]
     fill: bool,
+    /// The key of the `ColorRequest` a click files.
+    #[prop(into)]
+    picker: Option<String>,
     checked: bool,
-    clicked: bool,
+    activation: Option<Activation>,
 }
 
 impl Swatch<()> {
     /// A swatch of `color` named `label`.
     pub fn new(label: impl Into<crate::runtime::env::Label>, color: impl Into<Mixed<Srgba>>) -> Self {
-        Swatch { common: Common::new(), color: color.into(), member: None, cell: false, fill: false, checked: false, clicked: false }.label(label)
+        Swatch { common: Common::new(), color: color.into(), member: None, cell: false, fill: false, picker: None, checked: false, activation: None }
+            .label(label)
     }
 }
 
 impl<T: Value + 'static> Swatch<T> {
     /// Makes the swatch the member standing for `value` of the enclosing `RadioGroup<U>`.
     pub fn member<U: Value + 'static>(self, value: U) -> Swatch<U> {
-        Swatch { common: self.common, color: self.color, member: Some(value), cell: self.cell, fill: self.fill, checked: false, clicked: false }
+        Swatch {
+            common: self.common,
+            color: self.color,
+            member: Some(value),
+            cell: self.cell,
+            fill: self.fill,
+            picker: self.picker,
+            checked: false,
+            activation: None,
+        }
     }
 }
 
@@ -170,17 +173,18 @@ impl<T: Value + 'static> Component for Swatch<T> {
 
     fn style(cx: &StyleCx<'_>, key: SwatchStyleKey<T>) -> SwatchStyle {
         let colors = &cx.tokens.color;
-        let metrics = SwatchMetrics::of(cx.tokens, cx.size);
+        let metrics = SwatchMetrics::of(cx);
         let clear = cx.color(Rgba::TRANSPARENT);
         let rest = cx.color(colors.line.control_edge);
         let accent = cx.color(colors.accent.solid);
+        let disabled = cx.color(colors.text.disabled);
         SwatchStyle {
             metrics: Metrics::new(),
             focus: cx.focus_look(),
             side: if key.cell { metrics.cell } else { metrics.side },
             radius: if key.cell { CornerRadius::ZERO } else { metrics.radius },
-            edge: Stateful::new(rest).off(States::new(rest, rest, rest, faded(rest))),
-            ring: Stateful::new(clear).on(States::new(accent, accent, accent, faded(accent))),
+            edge: Stateful::new(rest).off(States::new(rest, rest, rest, disabled)),
+            ring: Stateful::new(clear).on(States::new(accent, accent, accent, disabled)),
             mixed_fill: cx.color(colors.surface.sunken),
             mixed_mark: cx.color(colors.text.muted),
             checker: [colors.overlay.checker_light, colors.overlay.checker_dark],
@@ -210,7 +214,7 @@ impl<T: Value + 'static> Component for Swatch<T> {
             cx.join_roving();
             self.checked = group.is(value);
         }
-        self.clicked = cx.resolved.enabled && cx.activation().is_some();
+        self.activation = cx.activation().filter(|_| cx.resolved.enabled);
         if cx.resolved.enabled && cx.hit() {
             cx.cursor(CursorIcon::PointingHand, CursorPriority::Part);
         }
@@ -268,7 +272,12 @@ impl<T: Value + 'static> Component for Swatch<T> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> SwatchOutput {
-        SwatchOutput { response: cx.response.clone(), clicked: self.clicked }
+        let pick_color = self
+            .picker
+            .zip(self.color.same())
+            .filter(|_| self.activation.is_some())
+            .map(|(key, color)| ColorRequest::new(key, *color).title(cx.label()));
+        SwatchOutput { response: cx.response.clone(), clicked: self.activation.is_some(), activation: self.activation, pick_color }
     }
 }
 

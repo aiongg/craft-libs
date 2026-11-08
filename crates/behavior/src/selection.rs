@@ -7,8 +7,10 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::ops::Range;
 
 mod cells;
+mod placed;
 
 pub use cells::{CellAdvance, CellDirection, CellSpace, Positions};
+pub use placed::PlacedSelection;
 
 /// A change to a selection, as a collection reports it.
 #[derive(Clone, Debug, PartialEq)]
@@ -23,8 +25,10 @@ pub enum SelectionChange<K> {
     /// Replaces the selection by one range of cells. The anchor cell is at `first` and the column end opposite
     /// `lead_column`; the lead cell is at `last` and `lead_column`. A model of rows selects the rows.
     Cells(CellRange<K>),
-    /// Flips one cell: it joins the selection when it is not selected and leaves it when it is. The lead cell moves
-    /// to it and the other cells stay. A model of rows toggles the row.
+    /// Flips one cell: a cell a range holds by its first or last row leaves the selection (and joins it again when
+    /// it was taken out); any other cell joins it as a range of its own. The lead cell moves to it and the other
+    /// cells stay. A model of rows toggles the row. Only [`CellSelection::toggle`], which has the display order,
+    /// takes out a cell between the rows of a range.
     ToggleCell(CellAt<K>),
     /// Replaces the whole selection by a result of the cell rules that one range cannot say: several ranges, an
     /// active cell inside a range, a run of Tabs.
@@ -60,20 +64,23 @@ pub struct CellRange<K> {
     pub last: K,
     /// The column positions the rectangle covers.
     pub columns: Range<u32>,
-    /// The column of the lead cell.
+    /// The column of the lead cell. Only a range that a selection reports in [`SelectionChange::Cells`] carries a
+    /// meaning here; the ranges a selection stores always hold the column of their last corner.
     pub lead_column: u32,
 }
 
 impl<K> CellRange<K> {
-    /// The cells of the rows from `first` to `last` in `columns`, with the lead cell in `lead_column`.
+    /// The cells of the rows from `first` to `last` in `columns`, with the lead cell in `lead_column`. A range has at
+    /// least one column: empty `columns` become the one column at their start.
     pub fn new(first: K, last: K, columns: Range<u32>, lead_column: u32) -> Self {
+        let columns = columns.start..columns.end.max(columns.start.saturating_add(1));
         Self { first, last, columns, lead_column }
     }
 
     /// The rectangle from the anchor cell `from` to the lead cell `to`, whichever way round they lie.
     pub fn cells(from: CellAt<K>, to: CellAt<K>) -> Self {
         let columns = from.column.min(to.column)..from.column.max(to.column).saturating_add(1);
-        Self { first: from.row, last: to.row, columns, lead_column: to.column }
+        Self::new(from.row, to.row, columns, to.column)
     }
 }
 
@@ -113,7 +120,7 @@ impl<'de, K: Deserialize<'de>> Deserialize<'de> for CellRange<K> {
         if end.column < start.column {
             return Err(D::Error::custom("a cell range ends in a column before its start"));
         }
-        Ok(CellRange { first: start.row, last: end.row, columns: start.column..end.column.saturating_add(1), lead_column: end.column })
+        Ok(CellRange::new(start.row, end.row, start.column..end.column.saturating_add(1), end.column))
     }
 }
 
@@ -165,10 +172,28 @@ pub trait SelectionModel<K>: Value + Default {
         self.contains(row)
     }
 
-    /// The cell rules of a model of cells, which the item step runs over the collection's `CellSpace`; `None` for a
-    /// model of rows.
-    fn cells_mut(&mut self) -> Option<&mut CellSelection<K>> {
+    /// The cell rules of a model of cells, which the item step runs on a copy over the collection's `CellSpace`; the
+    /// result goes back through [`apply`](Self::apply). `None` for a model of rows.
+    fn cells(&self) -> Option<&CellSelection<K>> {
         None
+    }
+
+    /// The selection by position in `order`, placed once so that the reads of a pass scan no keys. The default
+    /// walks `order` once and asks [`contains`](Self::contains) of each row; a model that holds keys or ranges
+    /// overrides it with a placement of its ends.
+    fn placed(&self, order: &dyn DisplayOrder<K>) -> PlacedSelection {
+        let mut spans: Vec<Range<usize>> = Vec::new();
+        for at in 0..order.len() {
+            let key = order.key(at);
+            if !self.contains(RowAt::new(&key, at, order)) {
+                continue;
+            }
+            match spans.last_mut() {
+                Some(span) if span.end == at => span.end = at + 1,
+                _ => spans.push(at..at + 1),
+            }
+        }
+        PlacedSelection::of_rows(spans)
     }
 }
 
@@ -222,6 +247,19 @@ impl<K: Value> SelectionModel<K> for Selection<K> {
 
     fn anchor(&self) -> Option<&K> {
         self.anchor.as_ref()
+    }
+
+    fn placed(&self, order: &dyn DisplayOrder<K>) -> PlacedSelection {
+        let mut at: Vec<usize> = self.items.iter().filter_map(|key| order.index_of(key)).collect();
+        at.sort_unstable();
+        at.dedup();
+        PlacedSelection::of_rows(at.into_iter().map(|at| at..at + 1).fold(Vec::<Range<usize>>::new(), |mut spans, next| {
+            match spans.last_mut() {
+                Some(span) if span.end == next.start => span.end = next.end,
+                _ => spans.push(next),
+            }
+            spans
+        }))
     }
 
     /// Cells select their rows. A range selects the rows at its two ends: a model of rows has no order to name the
@@ -289,7 +327,7 @@ pub struct CellSelection<K> {
     anchor: Option<CellAt<K>>,
     /// The column the current run of Tabs started in, while the last move was a Tab.
     tab_run: Option<u32>,
-    /// Cells flipped against the ranges: a cell is selected when a range holds it xor it is listed here.
+    /// Cells taken out of the ranges: a cell is selected when a range holds it and it is not listed here.
     toggled: Vec<CellAt<K>>,
 }
 
@@ -320,7 +358,7 @@ impl<K> CellSelection<K> {
         self.anchor.as_ref()
     }
 
-    /// The cells flipped against the ranges.
+    /// The cells taken out of the ranges.
     pub fn toggled(&self) -> &[CellAt<K>] {
         &self.toggled
     }
@@ -356,9 +394,15 @@ impl<K: Clone> CellSelection<K> {
 }
 
 impl<K: Value> SelectionModel<K> for CellSelection<K> {
-    /// A row is selected when a range holds it or one of its cells is toggled.
+    /// A row is selected when a range holds it and a cell of it is not taken out.
     fn contains(&self, row: RowAt<'_, K>) -> bool {
-        self.ranges.iter().any(|range| range.holds_row(row)) || self.toggled.iter().any(|cell| cell.row == *row.key)
+        self.ranges.iter().filter(|range| range.holds_row(row)).any(|range| {
+            let mut out: Vec<u32> =
+                self.toggled.iter().filter(|cell| cell.row == *row.key && range.columns.contains(&cell.column)).map(|cell| cell.column).collect();
+            out.sort_unstable();
+            out.dedup();
+            u64::from(range.columns.end.saturating_sub(range.columns.start)) > out.len() as u64
+        })
     }
 
     fn lead(&self) -> Option<&K> {
@@ -419,11 +463,13 @@ impl<K: Value> SelectionModel<K> for CellSelection<K> {
                     *self = CellSelection::cell(cell);
                     return;
                 }
-                match self.toggled.iter().position(|held| *held == cell) {
-                    Some(at) => {
-                        self.toggled.remove(at);
-                    }
-                    None => self.toggled.push(cell.clone()),
+                if let Some(at) = self.toggled.iter().position(|held| *held == cell) {
+                    self.toggled.remove(at);
+                } else if self.ends_hold(&cell) {
+                    self.toggled.push(cell.clone());
+                } else {
+                    self.ranges.push(CellRange::new(cell.row.clone(), cell.row.clone(), cell.column..cell.column.saturating_add(1), cell.column));
+                    self.current = self.ranges.len() - 1;
                 }
                 self.active = Some(cell.clone());
                 self.anchor = Some(cell);
@@ -436,14 +482,36 @@ impl<K: Value> SelectionModel<K> for CellSelection<K> {
         self.active.as_ref().map(|cell| cell.column)
     }
 
-    /// A cell is selected when a range holds it, flipped by an entry in the toggled cells.
+    /// A cell is selected when a range holds it and it is not among the toggled cells, which are taken out.
     fn contains_cell(&self, row: RowAt<'_, K>, column: u32) -> bool {
         let held = self.ranges.iter().any(|range| range.columns.contains(&column) && range.holds_row(row));
-        held != self.toggled.iter().any(|cell| cell.column == column && cell.row == *row.key)
+        held && !self.toggled.iter().any(|cell| cell.column == column && cell.row == *row.key)
     }
 
-    fn cells_mut(&mut self) -> Option<&mut CellSelection<K>> {
+    fn cells(&self) -> Option<&CellSelection<K>> {
         Some(self)
+    }
+
+    fn placed(&self, order: &dyn DisplayOrder<K>) -> PlacedSelection {
+        let ranges = self
+            .ranges
+            .iter()
+            .filter_map(|range| {
+                let (a, b) = (order.index_of(&range.first)?, order.index_of(&range.last)?);
+                Some((a.min(b)..a.max(b) + 1, range.columns.clone()))
+            })
+            .collect();
+        let removed = self.toggled.iter().filter_map(|cell| Some((order.index_of(&cell.row)?, cell.column))).collect();
+        PlacedSelection::of_cells(ranges, removed)
+    }
+}
+
+impl<K: PartialEq> CellSelection<K> {
+    /// Whether a range holds `cell` by what `apply` can see without an order: the cell lies in a range's columns and
+    /// on its first or last row. A cell between the two rows of a range is held too, but only a rule that has the
+    /// display order ([`toggle`](Self::toggle)) can tell.
+    fn ends_hold(&self, cell: &CellAt<K>) -> bool {
+        self.ranges.iter().any(|range| range.columns.contains(&cell.column) && (range.first == cell.row || range.last == cell.row))
     }
 }
 
@@ -563,22 +631,43 @@ mod tests {
     }
 
     #[test]
-    fn a_cell_toggle_flips_one_cell_and_leaves_the_others() {
+    fn a_cell_toggle_takes_out_a_held_cell_and_adds_an_unheld_one_as_a_range() {
         let at = |row, column| SelectionChange::ToggleCell(CellAt::new(row, column));
         let order = Positions::new(100);
         let mut cells = CellSelection::<u32>::default();
         cells.apply(SelectionChange::Cells(CellRange::new(2, 3, 1..3, 2)));
         cells.apply(at(7, 0));
-        assert_eq!((holds(&cells, 7, 0), holds(&cells, 7, 1), holds(&cells, 2, 1), cells.contains(row_at(&7, &order))), (true, false, true, true));
+        assert_eq!((cells.ranges().len(), cells.toggled().len(), holds(&cells, 7, 0), holds(&cells, 7, 1)), (2, 0, true, false));
+        assert_eq!((holds(&cells, 2, 1), cells.contains(row_at(&7, &order)), cells.lead()), (true, true, Some(&7)));
         cells.apply(at(2, 1));
         assert_eq!((holds(&cells, 2, 1), holds(&cells, 2, 2), holds(&cells, 3, 1)), (false, true, true));
         cells.apply(at(2, 1));
-        assert_eq!((cells.toggled().len(), holds(&cells, 2, 1)), (1, true));
-        cells.apply(at(7, 0));
-        assert_eq!((cells.toggled().len(), cells.contains(row_at(&7, &order)), cells.lead()), (0, false, Some(&7)));
-        cells.apply(at(5, 2));
-        cells.apply(SelectionChange::Set(vec![4]));
-        assert_eq!((holds(&cells, 5, 2), holds(&cells, 4, 0)), (false, true));
+        assert_eq!((cells.toggled().len(), holds(&cells, 2, 1)), (0, true));
+    }
+
+    #[test]
+    fn a_row_is_selected_while_one_of_its_cells_is() {
+        let order = Positions::new(100);
+        let mut cells = CellSelection::<u32>::default();
+        cells.apply(SelectionChange::Cells(CellRange::new(4, 4, 1..2, 1)));
+        cells.apply(SelectionChange::ToggleCell(CellAt::new(4, 1)));
+        assert_eq!((cells.contains(row_at(&4, &order)), cells.placed(&order).holds_row(4)), (false, false));
+    }
+
+    #[test]
+    fn toggling_a_whole_row_on_makes_its_first_cell_the_lead_and_anchor() {
+        let mut cells = CellSelection::<u32>::default();
+        cells.apply(SelectionChange::Set(vec![1, 2]));
+        cells.apply(SelectionChange::Toggle(6));
+        assert_eq!((cells.lead(), cells.anchor(), cells.lead_column()), (Some(&6), Some(&6), Some(0)));
+    }
+
+    #[test]
+    fn a_range_has_at_least_one_column_and_a_stored_range_loads_again() {
+        let range = CellRange::new(1u32, 2, 5..5, 5);
+        assert_eq!(range.columns, 5..6);
+        let json = serde_json::to_string(&range).expect("a range serializes");
+        assert_eq!(serde_json::from_str::<CellRange<u32>>(&json).expect("it loads"), range);
     }
 
     #[test]

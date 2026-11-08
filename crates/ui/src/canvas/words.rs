@@ -23,6 +23,8 @@ craft_ui::words! {
         navigator_horizontal: "canvas.navigatorHorizontal" = "Visible area horizontal position";
         navigator_vertical: "canvas.navigatorVertical" = "Visible area vertical position";
         navigator_zoom: "canvas.navigatorZoom" = "Zoom";
+        // l4e-navpanel
+        navigator_preview: "canvas.navigatorPreview" = "Document preview";
     }
 }
 

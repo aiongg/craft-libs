@@ -1,18 +1,19 @@
 //! The body step (16.3): the regions of a container (header, body with its scroll region, footer), open and
 //! gate state, scroll offset, move and resize, and the zoomed canvas body.
 
-use super::cx::BodyCx;
+use super::cx::{BodyCx, BodyOwner};
 use super::label::{self, LabelIn};
+use super::mount::{PaneGrip, pane_extent_id, pane_grip_id};
 use super::overlay::{OverlayFit, Place, PlacementChange, PlacementKind};
 use super::run::{ShapeHooks, ShowAt};
-use super::{Container, ContainerProps, Cx, DragBand, Gap, Internal, Mount, Notch, Pad, PartsCx, Scroll, SetPosition, Sizing};
+use super::{Container, ContainerProps, Cx, DragBand, FooterPlace, Gap, Internal, Mount, Notch, Pad, PaneEdge, PartsCx, Scroll, SetPosition, Sizing};
 use crate::layout::{self, ColumnGroup};
 use crate::primitives::{Rule, ScrollBar, Surface};
 use crate::runtime::access::scope;
 use crate::runtime::access::{self, Politeness, Role};
 use crate::runtime::commands::{self, CommandSet as _, WindowCommand};
 use crate::runtime::egui::pass;
-use crate::runtime::egui::{alloc, areas, child, response, style, viewports};
+use crate::runtime::egui::{alloc, areas, child, input, response, style, viewports};
 use crate::runtime::env::{AppValues, ArenaId, Env};
 use crate::runtime::focus::FocusPolicy;
 use crate::runtime::memory::{MemoryStage, SaveKey, sub};
@@ -38,6 +39,8 @@ const SCROLL_X: PartKey = PartKey::new("body_scroll_x");
 pub(crate) const MOVE_BAND: PartKey = PartKey::new("move_band");
 pub(crate) const REORDER_BAND: PartKey = PartKey::new("reorder_band");
 const GRIP: PartKey = PartKey::new("resize_grip");
+/// The grip on an edge pane's inner edge.
+const PANE_GRIP: PartKey = PartKey::new("pane_grip");
 
 /// The open state a container with no `Container::open` binding keeps: for the session, or saved under `save`.
 #[derive(Clone, Default, Serialize, Deserialize)]
@@ -181,19 +184,35 @@ fn opener_of(props: &ContainerProps) -> Option<&super::overlay::Opener> {
     overlay_of(props)?.opener.as_ref()
 }
 
-/// Whether the app moves and resizes the OS window of `viewport` (16.3, 21.2): the one rule every move band and grip
-/// of the body step reads. It holds when the app draws the frame (the chrome is not `Native`), the window is neither
-/// maximized nor full screen, and the platform does not answer the hit test of an undecorated window itself: it does for a window whose hit-test
-/// sink is installed (`WindowHost::install_hit_sink`), where it takes the move, edge and caption hits from the exclusive parts.
-/// When it does not hold, the move and resize parts are not registered: no cursor and no press.
-pub(crate) fn app_moves_window(ctx: &Context, viewport: ViewportId) -> bool {
+/// Which move and resize parts of the body step stand for the OS window of `viewport` (16.3, 21.2): the one rule
+/// every move band and grip of an OS window reads. Both need a frame the app draws (the chrome is not `Native`). The
+/// band stands on a maximized window too, so its double click restores the window and a drag is the platform's (it
+/// restores and moves); the grips stand only on a window that is neither maximized nor full screen. The parts stand
+/// whether or not a hit-test sink is installed: the sink reads them as the window's exclusive parts.
+#[derive(Clone, Copy)]
+struct WindowParts {
+    band: bool,
+    grips: bool,
+}
+
+impl WindowParts {
+    /// The parts of a layer or a full-window mount, which move the container and never the OS window.
+    const LAYER: WindowParts = WindowParts { band: true, grips: true };
+
+    fn of(ctx: &Context, viewport: ViewportId) -> WindowParts {
+        let window = windows::shell_of(ctx, viewport).window;
+        let framed_by_app = window.chrome != WindowChrome::Native;
+        let sized_by_os = matches!(window.state, WindowState::Maximized | WindowState::Fullscreen);
+        WindowParts { band: framed_by_app && window.state != WindowState::Fullscreen, grips: framed_by_app && !sized_by_os }
+    }
+}
+
+/// Whether the platform answers the hit test of `viewport`'s undecorated window itself, as it does for a window whose
+/// hit-test sink is installed (`WindowHost::install_hit_sink`): it takes the move, edge and caption hits from the
+/// window's exclusive parts, so a press on the move band or a grip never reaches the app as a move.
+fn answered_by_platform(ctx: &Context, viewport: ViewportId) -> bool {
     let shell = windows::shell_of(ctx, viewport);
-    let framed_by_app = shell.window.chrome != WindowChrome::Native;
-    let sized_by_os = matches!(shell.window.state, WindowState::Maximized | WindowState::Fullscreen);
-    let answered_by_platform = shell.caps.contains(Caps::OS_RESIZES_UNDECORATED)
-        && shell.window.chrome == WindowChrome::Integrated
-        && windows::hit_sink_installed(ctx, viewport);
-    framed_by_app && !sized_by_os && !answered_by_platform
+    shell.caps.contains(Caps::OS_RESIZES_UNDECORATED) && shell.window.chrome == WindowChrome::Integrated && windows::hit_sink_installed(ctx, viewport)
 }
 
 /// The viewport of the OS window a container's move and resize parts act on: a viewport mount's own window, the
@@ -220,9 +239,19 @@ fn window_instance(props: &ContainerProps, id: Id) -> Option<Id> {
 }
 
 /// The scroll region of a container: its own, or for a layer the vertical one that takes the overflow of any fit
-/// (none when the body is one collection, which owns the scroll).
+/// (none when the body is one collection, which owns the scroll, or the overlay turns its body scroll off).
 fn scroll_of(props: &ContainerProps) -> Option<Scroll> {
-    props.scroll.or_else(|| overlay_of(props).filter(|_| !props.collection_body).map(|_| Scroll::vertical()))
+    props.scroll.or_else(|| overlay_of(props).filter(|overlay| overlay.body_scroll && !props.collection_body).map(|_| Scroll::vertical()))
+}
+
+/// Whether the footer sits in the end region: it asks to, and the container has one.
+fn footer_in_end(props: &ContainerProps) -> bool {
+    props.end.is_some() && props.footer.is_some_and(|footer| footer.place.in_end())
+}
+
+/// Whether the end region takes the full height under the header: it asks to, or the footer sits in it.
+fn end_full_height(props: &ContainerProps) -> bool {
+    props.end.is_some_and(|end| end.full_height) || footer_in_end(props)
 }
 
 /// The keyboard mode of a floating container (16.3): arrows move or resize it until Enter or Escape.
@@ -347,7 +376,8 @@ fn rect_of(parts: [f32; 4]) -> Rect {
 struct Regions {
     header: Rect,
     body: Rect,
-    /// The end region: the line's end edge, as high as the line. The whole line before it has a measured width.
+    /// The end region: the line's end edge, as high as the line or, full height, from under the header to the
+    /// container's bottom, less a footer placed in it.
     end: Rect,
     footer: Rect,
 }
@@ -393,10 +423,11 @@ pub(super) struct BodyHooks<'b> {
     pub(super) body: &'b mut dyn FnMut(&mut Ui, &mut BodyCx<'_>),
     /// The body's size from last frame's layout memory; `None` before its first run.
     remembered: Option<Vec2>,
-    header_last: Vec2,
+    /// The header's size from last pass; `None` without a header or before its first measure.
+    header_last: Option<Vec2>,
     footer_last: Vec2,
-    /// The end region's size from last pass, zero without one.
-    end_last: Vec2,
+    /// The end region's size from last pass; `None` without one or before its first measure.
+    end_last: Option<Vec2>,
     /// The gap between an inline header and the body, and between a header and its trailing region.
     region_gap: f32,
     /// How far the widest region wants to exceed the width the room allows, from this pass's measure.
@@ -433,6 +464,8 @@ pub(super) struct BodyHooks<'b> {
     nudge: f32,
     /// The window mode the container is in, and what Escape restores.
     mode: WindowMode,
+    /// The edge an edge pane's grip sits on this pass, with the least extent it gives; none for other mounts.
+    pane_grip: Option<(ResizeEdge, f32)>,
     /// The placement changes of this pass, delivered to `Container::placement_changed` at the end of the update.
     reports: Vec<PlacementChange>,
     /// The host gives the container a rect of its own size: a full window, an OS viewport or a layer the user sized.
@@ -572,6 +605,12 @@ impl BodyHooks<'_> {
     /// limits, and each step is reported. Escape, which cancels the press, restores the placement from before.
     fn window_drag<C: Container>(&mut self, props: &ContainerProps, cx: &mut Cx<'_, C>) {
         let Some(overlay) = overlay_of(props) else { return };
+        // A band that moves the window below starts the OS move of the window the layer is shown in.
+        if overlay.moves_window {
+            let viewport = pass::current_viewport(&cx.core.ctx);
+            self.window_os(viewport, cx);
+            return;
+        }
         let id = cx.core.id;
         let limits = Limits::new(overlay, window_min(props, cx.style.metrics().min_size));
         let rect = cx.core.rect;
@@ -624,9 +663,13 @@ impl BodyHooks<'_> {
         }
     }
 
-    /// A press on the move band or a grip of a container in an OS window starts the OS move or resize.
+    /// A press on the move band or a grip of a container in an OS window starts the OS move or resize. Where the
+    /// platform answers the hit test (`answered_by_platform`), the parts stand for its sink only.
     fn window_os<C: Container>(&self, viewport: ViewportId, cx: &Cx<'_, C>) {
-        // The parts are registered only under the rule, and the results of a part not registered this pass are gone.
+        if answered_by_platform(&cx.core.ctx, viewport) {
+            return;
+        }
+        // The parts stand only by `WindowParts`, and the results of a part not registered this pass are gone.
         let started =
             |key: (PartKey, Option<u64>)| cx.core.results.get(&key).is_some_and(|result| matches!(result.press.phase, PressPhase::DragStart { .. }));
         if started((MOVE_BAND, None)) {
@@ -646,6 +689,196 @@ impl BodyHooks<'_> {
         let double = band.press.double_pressed();
         cx.core.memory.shown::<BandDouble>(sub(sub(cx.core.id, "body"), "band_double")).0 = double;
     }
+
+    /// The move band and the grips (16.3). A layer's move and resize the layer; those of an OS window (`os_window`)
+    /// stand by `WindowParts` and join the window's exclusive list, which the hit-test sink reads. A layer's parts never
+    /// join it, or the sink would move the OS window from a dialog inside it, except the band of a layer that moves the
+    /// window it is shown in (`Overlay::moves_window`): that band is a drag area of the window.
+    fn move_parts<C: Container>(props: &ContainerProps, regions: &Regions, rect: Rect, pcx: &mut PartsCx<'_, C>) {
+        let ctx = pcx.ui.ctx().clone();
+        let handle = pcx.tokens.tokens().size.handle.sm;
+        let reason = "the Move and Size commands of the window command set do the same";
+        let os = os_window(props, &ctx, pcx.id);
+        let stands = os.map_or(WindowParts::LAYER, |viewport| WindowParts::of(&ctx, viewport));
+        let exclusive = |hit: WindowHit| os.is_some().then_some(hit);
+        let moves_window = matches!(&props.mount, Mount::Layer(overlay) | Mount::Viewport { fallback: overlay, .. } if overlay.moves_window);
+        // A layer moves when its overlay says so; other mounts follow the header's band.
+        let movable = match &props.mount {
+            // A band that moves the window below follows the rule of the window the layer is shown in.
+            _ if moves_window => {
+                let viewport = pass::current_viewport(&ctx);
+                WindowParts::of(&ctx, viewport).grips && !answered_by_platform(&ctx, viewport)
+            }
+            Mount::Layer(overlay) | Mount::Viewport { fallback: overlay, .. } => overlay.movable && stands.band,
+            _ => props.header.is_some_and(|header| header.band == super::DragBand::Move) && stands.band,
+        };
+        let band = move_band(props, regions, rect);
+        if props.header.is_some() && movable && band.is_positive() {
+            // The band lies under the line's own parts and children, like the reorder band, so they keep their presses.
+            let part = pcx
+                .part(MOVE_BAND, band)
+                .sense(craft_behavior::Sense::DRAG)
+                .cursor(CursorIcon::Grab)
+                .drag_cursor(CursorIcon::Grabbing)
+                .pointer_only(reason);
+            if let Some(hit) = exclusive(WindowHit::Move).or(moves_window.then_some(WindowHit::Move)) {
+                part.exclusive(hit);
+            }
+        }
+        // The grips of a layer straddle its edge; those of a window lie inside it, where the window has pixels.
+        let (grips, inset) = match &props.mount {
+            Mount::Layer(overlay) | Mount::Viewport { fallback: overlay, .. } => (overlay.resize.grips, 0.0),
+            Mount::Window { resize } => (resize.grips, handle / 2.0),
+            _ => (false, 0.0),
+        };
+        if !grips || !stands.grips {
+            return;
+        }
+        for (index, (dx, dy, cursor)) in GRIPS.into_iter().enumerate() {
+            let along = |edge: i8, low: f32, high: f32| match edge {
+                -1 => (low - handle / 2.0 + inset, low + handle / 2.0 + inset),
+                1 => (high - handle / 2.0 - inset, high + handle / 2.0 - inset),
+                _ => (low + handle / 2.0 + inset, high - handle / 2.0 - inset),
+            };
+            let (x0, x1) = along(dx, rect.min.x, rect.max.x);
+            let (y0, y1) = along(dy, rect.min.y, rect.max.y);
+            let level = if dx != 0 && dy != 0 { HitLevel::Handle } else { HitLevel::Edge };
+            let part = pcx
+                .part(GRIP.at(index as u64), Rect::from_min_max(Pos2::new(x0, y0), Pos2::new(x1, y1)))
+                .sense(craft_behavior::Sense::DRAG)
+                .priority(HitPriority::new(level, 0))
+                .cursor(cursor)
+                .pointer_only(reason);
+            if let Some(hit) = exclusive(WindowHit::Resize(edge_of(dx, dy))) {
+                part.exclusive(hit);
+            }
+        }
+    }
+
+    /// Tells the platform whether the OS may move the container's OS window from where the pointer is (21.2
+    /// `WindowDrag`; macOS `NSWindow.movable`): only where a press would go to the move band under the press-target
+    /// rule (8.3), so a press on a control over the band never drags the window. Bands of one window combine: any band
+    /// that would take the press allows the move. A pass with no band writes nothing; `AppShell` writes `false` for a
+    /// pass with no title bar.
+    fn window_movable<C: Container>(&self, cx: &Cx<'_, C>) {
+        let Some(band) = cx.core.results.get(&(MOVE_BAND, None)) else { return };
+        let ctx = &cx.core.ctx;
+        let takes_press = band.hovered
+            && pointer::pass_pointer(ctx).hover.is_some_and(|at| {
+                let (click, drag) = input::hit_targets(ctx);
+                pointer::press_winner(ctx, at, pointer::PressTargets { click, drag })
+                    .is_some_and(|(winner, root)| root == cx.core.id && winner.part.is_some_and(|part| part.key == MOVE_BAND))
+            });
+        let this_pass = viewports::pass_number(ctx);
+        let allowed = viewports::movable_record(ctx).is_some_and(|(pass, movable)| pass == this_pass && movable);
+        viewports::write_movable(ctx, allowed || takes_press);
+    }
+
+    /// The grip of an edge pane (`Mount::Pane`) on its inner edge, the edge toward the centre, inside the pane: dragging
+    /// it gives the pane a new extent along its edge (`pane_drag`). A pane its caller lays out (`ShellPane::at`) and the
+    /// central pane have none. Returns the edge the grip sits on and the least extent it gives.
+    fn pane_grip<C: Container>(props: &ContainerProps, rect: Rect, pcx: &mut PartsCx<'_, C>) -> Option<(ResizeEdge, f32)> {
+        let Mount::Pane(pane) = &props.mount else { return None };
+        let rtl = pcx.flow.is_rtl();
+        let edge = match pane.edge {
+            _ if pane.at.is_some() => return None,
+            PaneEdge::Start if rtl => ResizeEdge::Left,
+            PaneEdge::Start => ResizeEdge::Right,
+            PaneEdge::End if rtl => ResizeEdge::Right,
+            PaneEdge::End => ResizeEdge::Left,
+            PaneEdge::Top => ResizeEdge::Bottom,
+            PaneEdge::Bottom => ResizeEdge::Top,
+            _ => return None,
+        };
+        let tokens = pcx.tokens.tokens();
+        let (handle, least) = (tokens.size.handle.sm, tokens.size.pane.least);
+        let (grip, cursor) = match edge {
+            ResizeEdge::Left => (Rect::from_min_max(rect.min, Pos2::new(rect.min.x + handle, rect.max.y)), CursorIcon::ResizeHorizontal),
+            ResizeEdge::Right => (Rect::from_min_max(Pos2::new(rect.max.x - handle, rect.min.y), rect.max), CursorIcon::ResizeHorizontal),
+            ResizeEdge::Top => (Rect::from_min_max(rect.min, Pos2::new(rect.max.x, rect.min.y + handle)), CursorIcon::ResizeVertical),
+            _ => (Rect::from_min_max(Pos2::new(rect.min.x, rect.max.y - handle), rect.max), CursorIcon::ResizeVertical),
+        };
+        pcx.part(PANE_GRIP, grip)
+            .sense(craft_behavior::Sense::DRAG)
+            .priority(HitPriority::new(HitLevel::Edge, 0))
+            .cursor(cursor)
+            .pointer_only("no command resizes a docked pane; its extent is the app's layout");
+        Some((edge, least))
+    }
+
+    /// A drag of an edge pane's grip: the pane's extent follows the pointer, at least the least extent, and each step
+    /// is reported as a `PlacementKind::Size` change of the pane's rect. While the gesture runs the pane host shows its
+    /// extent (`PaneGrip`); at the commit a pane with no fixed extent keeps it in pane memory, and one whose caller fixes
+    /// the extent shows the caller's from the next pass. Escape, which cancels the press, restores the extent.
+    fn pane_drag<C: Container>(&mut self, props: &ContainerProps, cx: &mut Cx<'_, C>) {
+        let (Mount::Pane(pane), Some((edge, least))) = (&props.mount, self.pane_grip) else { return };
+        let Some(phase) = cx.core.results.get(&(PANE_GRIP, None)).map(|result| result.press.phase) else { return };
+        let (origin, pos, gesture) = match phase {
+            PressPhase::DragStart { start, pos, .. } => (start.origin, Some(pos), GesturePhase::Begin),
+            PressPhase::Drag { start, pos, .. } => (start.origin, Some(pos), GesturePhase::Update),
+            PressPhase::Release { start, pos, .. } => (start.origin, Some(pos), GesturePhase::Commit),
+            PressPhase::Cancel { start, .. } => (start.origin, None, GesturePhase::Cancel),
+            _ => return,
+        };
+        let (ctx, id, rect) = (cx.core.ctx.clone(), cx.core.id, cx.core.rect);
+        let horizontal = matches!(edge, ResizeEdge::Left | ResizeEdge::Right);
+        let along = |size: Vec2| if horizontal { size.x } else { size.y };
+        let slot = cx.core.memory.shown::<PaneGrip>(pane_grip_id(id));
+        let shown = slot.extent;
+        let began = match slot.began {
+            Some(began) if gesture != GesturePhase::Begin => began,
+            _ => along(rect.size()),
+        };
+        let moved = pos.map_or(0.0, |pos| match edge {
+            ResizeEdge::Right => pos.x - origin.x,
+            ResizeEdge::Left => origin.x - pos.x,
+            ResizeEdge::Bottom => pos.y - origin.y,
+            _ => origin.y - pos.y,
+        });
+        let extent = (began + moved).max(least);
+        let resized = |extent: f32| match edge {
+            ResizeEdge::Right => Rect::from_min_size(rect.min, Vec2::new(extent, rect.height())),
+            ResizeEdge::Left => Rect::from_min_max(Pos2::new(rect.max.x - extent, rect.min.y), rect.max),
+            ResizeEdge::Bottom => Rect::from_min_size(rect.min, Vec2::new(rect.width(), extent)),
+            _ => Rect::from_min_max(Pos2::new(rect.min.x, rect.max.y - extent), rect.max),
+        };
+        let change = |rect: Rect, phase: GesturePhase| PlacementChange { rect, phase, pointer: pos, kind: PlacementKind::Size(edge) };
+        if gesture == GesturePhase::Begin {
+            self.reports.push(change(resized(began), GesturePhase::Begin));
+        }
+        let (phase, extent) = match gesture {
+            GesturePhase::Begin => (GesturePhase::Update, extent),
+            GesturePhase::Cancel => (GesturePhase::Cancel, began),
+            phase => (phase, extent),
+        };
+        self.reports.push(change(resized(extent), phase));
+        *slot = if matches!(phase, GesturePhase::Commit | GesturePhase::Cancel) {
+            PaneGrip::default()
+        } else {
+            PaneGrip { began: Some(began), extent: Some(extent) }
+        };
+        if phase == GesturePhase::Commit && pane.extent.is_none() {
+            let size = rect.size();
+            layout_memory::record(&ctx, pane_extent_id(id), if horizontal { Vec2::new(extent, size.y) } else { Vec2::new(size.x, extent) });
+        }
+        // The pane showed this pass at the extent of the last step: a commit or cancel that lands elsewhere shows in
+        // the frame's discard pass.
+        if matches!(phase, GesturePhase::Commit | GesturePhase::Cancel) && shown.is_some_and(|shown| (shown - extent).abs() > 0.5) {
+            layout_memory::ask_discard(&ctx);
+        }
+    }
+}
+
+/// The move band of a container whose header drags: an inline header's band spans the header's whole line (header,
+/// body and end region), beneath the line's children, so every free point of the line drags; a header on a line of
+/// its own is the band.
+fn move_band(props: &ContainerProps, regions: &Regions, rect: Rect) -> Rect {
+    if !props.header.is_some_and(|header| header.inline) {
+        return regions.header;
+    }
+    let line = regions.header.union(regions.body);
+    let line = if props.end.is_some() { line.union(regions.end) } else { line };
+    line.intersect(rect)
 }
 
 impl<'b> BodyHooks<'b> {
@@ -653,9 +886,9 @@ impl<'b> BodyHooks<'b> {
         BodyHooks {
             body,
             remembered: None,
-            header_last: Vec2::ZERO,
+            header_last: None,
             footer_last: Vec2::ZERO,
-            end_last: Vec2::ZERO,
+            end_last: None,
             region_gap: 0.0,
             overflow: 0.0,
             room: Vec2::ZERO,
@@ -683,6 +916,7 @@ impl<'b> BodyHooks<'b> {
             presence: Presence { t: 1.0, visible: true, exiting: false },
             nudge: 0.0,
             mode: WindowMode::default(),
+            pane_grip: None,
             reports: Vec::new(),
             fixed: false,
             follows_end: false,
@@ -712,9 +946,9 @@ impl<'b> BodyHooks<'b> {
             took.is_some_and(|took| placed.is_none_or(|placed| (took - placed).abs().max_elem() > tolerance))
         };
         moved(self.body_size, self.remembered)
-            || moved(self.header_size, Some(self.header_last))
+            || moved(self.header_size, self.header_last)
             || moved(self.footer_size, Some(self.footer_last))
-            || moved(self.end_size, Some(self.end_last))
+            || moved(self.end_size, self.end_last)
     }
 
     /// A block whose regions took more than the extent its parent's flow placed it at claims what it took: on its
@@ -736,9 +970,7 @@ impl<'b> BodyHooks<'b> {
         }
         let (body, header, footer) =
             (self.body_size.unwrap_or(Vec2::ZERO), self.header_size.unwrap_or(Vec2::ZERO), self.footer_size.unwrap_or(Vec2::ZERO));
-        let end = self.end_size.unwrap_or(Vec2::ZERO);
-        let line = Vec2::new(body.x + if end.x > 0.0 { end.x + self.region_gap } else { 0.0 }, body.y.max(end.y));
-        let took = Vec2::new(line.x.max(header.x).max(footer.x), line.y + header.y + footer.y) + Vec2::splat(2.0 * pad);
+        let took = self.regions_size(props, body, header, footer, self.end_size.unwrap_or(Vec2::ZERO)) + Vec2::splat(2.0 * pad);
         let real = if rtl { Rect::from_min_size(Pos2::new(rect.max.x - took.x, rect.min.y), took) } else { Rect::from_min_size(rect.min, took) };
         // A held block took no width in the flow: it shows across the column, and only its content counts.
         let placed = if !held {
@@ -810,53 +1042,78 @@ impl<'b> BodyHooks<'b> {
         if self.remembered.is_some() || size.x + 0.5 < ui.max_rect().width() { size } else { Vec2::new(0.0, size.y) }
     }
 
-    /// The width the regions ask for in a content-sized container: the widest of what each took last pass.
-    fn wanted_width(&self, inline: bool) -> Option<f32> {
+    /// The size the regions take together, from what the body, header, footer and end region took (zero for a region
+    /// the container lacks or that took the whole room). An inline header shares the line; a footer in the end region
+    /// stacks with its content; a full-height end region stands beside the body and the footer.
+    fn regions_size(&self, props: &ContainerProps, body: Vec2, header: Vec2, footer: Vec2, end: Vec2) -> Vec2 {
+        let in_end = footer_in_end(props);
+        let end = if in_end { Vec2::new(end.x.max(footer.x), end.y + footer.y) } else { end };
+        let across = if in_end { Vec2::ZERO } else { footer };
+        let gap = |width: f32| if width > 0.0 { width + self.region_gap } else { 0.0 };
+        let inline = props.header.is_some_and(|header| header.inline);
+        // The line: the body with an inline header before it.
+        let line = if inline { Vec2::new(body.x + gap(header.x), body.y.max(header.y)) } else { body };
+        let (width, height) = if end_full_height(props) {
+            (line.x.max(across.x) + gap(end.x), (line.y + across.y).max(end.y))
+        } else {
+            ((line.x + gap(end.x)).max(across.x), line.y.max(end.y) + across.y)
+        };
+        if inline { Vec2::new(width, height) } else { Vec2::new(width.max(header.x), height + header.y) }
+    }
+
+    /// The width the regions ask for in a content-sized container: what they took together last pass.
+    fn wanted_width(&self, props: &ContainerProps) -> Option<f32> {
         self.remembered.map(|body| {
-            let beside = body.x + if self.end_last.x > 0.0 { self.end_last.x + self.region_gap } else { 0.0 };
-            let line = if inline { beside + self.header_last.x + self.region_gap } else { beside.max(self.header_last.x) };
-            line.max(self.footer_last.x)
+            let (header, end) = (self.header_last.unwrap_or(Vec2::ZERO), self.end_last.unwrap_or(Vec2::ZERO));
+            self.regions_size(props, body, header, self.footer_last, end).x
         })
     }
 
     /// The width the header, body and footer share in a content-sized container: the widest region's, at most the
     /// room; the whole room before any pass.
-    fn shared_width(&self, room: f32, inline: bool) -> f32 {
-        self.wanted_width(inline).map_or(room.max(0.0), |wanted| wanted.min(room.max(0.0)))
+    fn shared_width(&self, room: f32, props: &ContainerProps) -> f32 {
+        self.wanted_width(props).map_or(room.max(0.0), |wanted| wanted.min(room.max(0.0)))
     }
 
     /// The regions inside `inner` (the rect minus padding and the padding tier), from last pass's sizes.
     fn regions(&self, props: &ContainerProps, inner: Rect, room: Vec2, rtl: bool) -> Regions {
         let inline = props.header.is_some_and(|header| header.inline);
-        let header_h = if props.header.is_some() { self.header_last.y } else { 0.0 };
+        let (in_end, full) = (footer_in_end(props), end_full_height(props));
+        let header_last = self.header_last.unwrap_or(Vec2::ZERO);
+        let header_h = if props.header.is_some() { header_last.y } else { 0.0 };
         let footer_h = if props.footer.is_some() { self.footer_last.y } else { 0.0 };
-        let end_h = if props.end.is_some() { self.end_last.y } else { 0.0 };
+        // A footer in the end region takes no band across the container: it stacks with the end region's content.
+        let across_h = if in_end { 0.0 } else { footer_h };
+        let end_h = self.end_last.map_or(0.0, |end| end.y) + if in_end { footer_h } else { 0.0 };
         // An inline header takes no height of its own: the line is as high as the taller of header and body.
         let stacked_h = if inline { 0.0 } else { header_h };
         let top = inner.min.y + stacked_h;
         let content_sized = self.sizing(props) == Sizing::Content;
         let (bottom, footer_top) = if content_sized {
-            let body_room = (room.y - stacked_h - footer_h).max(0.0);
+            let body_room = (room.y - stacked_h - across_h).max(0.0);
             // A body that fills records the band it was given, which may predate the footer's measure: the line is
             // never taller than the room less header and footer, so the footer stays inside the room.
             let body_h = (self.remembered.map_or(0.0, |size| size.y) * self.presence.t).min(body_room);
-            let line_h = if inline { body_h.max(header_h) } else { body_h }.max(end_h).min(body_room);
-            (top + body_room, top + line_h)
+            let line_h = if inline { body_h.max(header_h) } else { body_h };
+            // A full-height end region stands beside the footer too, so only the part of it under the line counts.
+            let end_line = if full { (end_h - across_h).max(0.0) } else { end_h };
+            (top + body_room, top + line_h.max(end_line).min(body_room))
         } else {
             // A fill-width body is offered the room the parent gives this pass, never the height its content took last
             // pass: a collection that scrolls takes its rows up to that room, and from zero it would stay at zero.
-            let offered = (self.sizing(props) == Sizing::FillWidth && room.y.is_finite()).then(|| top + (room.y - stacked_h - footer_h).max(0.0));
-            (offered.unwrap_or(inner.max.y - footer_h), inner.max.y - footer_h)
+            let offered = (self.sizing(props) == Sizing::FillWidth && room.y.is_finite()).then(|| top + (room.y - stacked_h - across_h).max(0.0));
+            (offered.unwrap_or(inner.max.y - across_h), inner.max.y - across_h)
         };
-        let width = if content_sized { self.shared_width(room.x, inline) } else { inner.width() };
+        let width = if content_sized { self.shared_width(room.x, props) } else { inner.width() };
         let (left, right) = if rtl { (inner.max.x - width, inner.max.x) } else { (inner.min.x, inner.min.x + width) };
         let band = |top: f32, bottom: f32| Rect::from_min_max(Pos2::new(left, top), Pos2::new(right, bottom.max(top)));
         let header = band(inner.min.y, if props.header.is_some() { inner.min.y + header_h.max(0.0) } else { inner.min.y });
         let mut body = band(top, bottom);
         let header = if inline {
-            // The header keeps the width it measured (the whole line before its first pass); the body takes the rest.
-            let head_w = if self.header_last.x > 0.0 { self.header_last.x.min(width) } else { width };
-            let cut = (head_w + self.region_gap).min(width);
+            // The header keeps the width it measured, none when it measured nothing; before its first measure it
+            // takes the whole line. The body takes the rest.
+            let head_w = self.header_last.map_or(width, |last| last.x.min(width));
+            let cut = if head_w > 0.0 { (head_w + self.region_gap).min(width) } else { 0.0 };
             if rtl {
                 body.max.x = right - cut;
                 Rect::from_min_max(Pos2::new(right - head_w, header.min.y), header.max)
@@ -867,22 +1124,42 @@ impl<'b> BodyHooks<'b> {
         } else {
             header
         };
-        // The end region keeps the width it measured and takes the line's end edge; the body takes the rest. Before its
-        // first measure it spans the line and the body keeps its width.
-        let taken = if props.end.is_some() { self.end_last.x.min(width) } else { 0.0 };
+        // The end region keeps the width it measured (with a footer in it, the wider of the two) and takes the end
+        // edge; the body takes the rest. Before its first measure it spans the line and the body keeps its width.
+        let measured = props.end.and(self.end_last).map(|end| {
+            let footer_w = if in_end { self.footer_last.x } else { 0.0 };
+            end.x.max(footer_w).min(width)
+        });
+        let taken = measured.unwrap_or(0.0);
         let cut = if taken > 0.0 { taken + self.region_gap } else { 0.0 };
-        let measured = |edge: f32| if taken > 0.0 { edge } else { width };
-        let end = if rtl {
-            Rect::from_min_max(Pos2::new(left, top), Pos2::new(left + measured(taken), footer_top.max(top)))
+        let end_w = measured.unwrap_or(width);
+        let end_bottom = if full { footer_top + across_h } else { footer_top };
+        let mut end = if rtl {
+            Rect::from_min_max(Pos2::new(left, top), Pos2::new(left + end_w, end_bottom.max(top)))
         } else {
-            Rect::from_min_max(Pos2::new(right - measured(taken), top), Pos2::new(right, footer_top.max(top)))
+            Rect::from_min_max(Pos2::new(right - end_w, top), Pos2::new(right, end_bottom.max(top)))
         };
         if rtl {
             body.min.x = (body.min.x + cut).min(body.max.x);
         } else {
             body.max.x = (body.max.x - cut).max(body.min.x);
         }
-        Regions { header, body, end, footer: band(footer_top, footer_top + footer_h) }
+        let footer = match props.footer.map(|footer| footer.place) {
+            Some(FooterPlace::EndTop) if in_end => {
+                let footer = Rect::from_min_max(end.min, Pos2::new(end.max.x, (end.min.y + footer_h).min(end.max.y)));
+                end.min.y = footer.max.y;
+                footer
+            }
+            _ if in_end => {
+                let footer = Rect::from_min_max(Pos2::new(end.min.x, (end.max.y - footer_h).max(end.min.y)), end.max);
+                end.max.y = footer.min.y;
+                footer
+            }
+            // Beside a full-height end region the footer lies under the body only.
+            _ if full && props.end.is_some() => Rect::from_min_max(Pos2::new(body.min.x, footer_top), Pos2::new(body.max.x, footer_top + footer_h)),
+            _ => band(footer_top, footer_top + footer_h),
+        };
+        Regions { header, body, end, footer }
     }
 
     /// The room a content-sized body runs in: what the mount offers, less the padding.
@@ -976,6 +1253,12 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         mounted.host
     }
 
+    /// A container that is an instance of its command scope sees itself in its own context's chain, so a focused
+    /// container (a canvas) is the instance its chords and the commands it takes reach.
+    fn instance_scope(&self, comp: &C) -> Option<commands::CommandScope> {
+        comp.props(Internal::new()).command_scope
+    }
+
     fn dismissed(&mut self, comp: &mut C, cx: &mut Cx<'_, C>, why: CloseReason) {
         self.close = true;
         self.open = false;
@@ -1040,9 +1323,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         // The overlay host decides a layer's Escape; so does a full-window mount's.
         self.layer = matches!(props.mount, Mount::Layer(_) | Mount::Viewport { .. } | Mount::FullWindow);
         self.remembered = layout_memory::read(&ctx, id);
-        self.header_last = if has_header { layout_memory::read(&ctx, sub(id, "header")).unwrap_or(Vec2::ZERO) } else { Vec2::ZERO };
+        self.header_last = if has_header { layout_memory::read(&ctx, sub(id, "header")) } else { None };
         self.footer_last = if has_footer { layout_memory::read(&ctx, sub(id, "footer")).unwrap_or(Vec2::ZERO) } else { Vec2::ZERO };
-        self.end_last = if props.end.is_some() { layout_memory::read(&ctx, sub(id, "end")).unwrap_or(Vec2::ZERO) } else { Vec2::ZERO };
+        self.end_last = if props.end.is_some() { layout_memory::read(&ctx, sub(id, "end")) } else { None };
         self.region_gap = gap_of(&env.tokens, Gap::Tight);
         if !matches!(props.mount, Mount::Inline | Mount::Pane(_))
             && let Some(why) = crate::runtime::overlay::take_close(&ctx, id)
@@ -1155,11 +1438,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let remembered = self.remembered.unwrap_or(Vec2::ZERO);
         let body = if self.presence.visible { Vec2::new(remembered.x, remembered.y * self.presence.t) } else { Vec2::ZERO };
         let room = self.room.x - 2.0 * pad_of(scx.tokens, props.pad);
-        let inline = props.header.is_some_and(|header| header.inline);
-        let width = if self.remembered.is_some() { self.shared_width(room, inline) } else { 0.0 };
-        self.overflow = self.wanted_width(inline).map_or(0.0, |wanted| (wanted - room.max(0.0)).max(0.0));
-        let line = body.y.max(self.end_last.y);
-        let height = if inline { line.max(self.header_last.y) } else { line + self.header_last.y } + self.footer_last.y;
+        let width = if self.remembered.is_some() { self.shared_width(room, props) } else { 0.0 };
+        self.overflow = self.wanted_width(props).map_or(0.0, |wanted| (wanted - room.max(0.0)).max(0.0));
+        let (header, end) = (self.header_last.unwrap_or(Vec2::ZERO), self.end_last.unwrap_or(Vec2::ZERO));
+        let height = self.regions_size(props, body, header, self.footer_last, end).y;
         Vec2::new(width, height) + Vec2::splat(2.0 * pad_of(scx.tokens, props.pad))
     }
 
@@ -1211,25 +1493,6 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             }
         }
         self.nudge = gap_of(tokens, Gap::Row);
-        let handle = tokens.tokens().size.handle.sm;
-        let reason = "the Move and Size commands of the window command set do the same";
-        // The window an OS move or resize acts on, and whether the app does it (the rule in `app_moves_window`).
-        let os = os_window(&props, &ctx, pcx.id);
-        let app_moves = os.is_none_or(|viewport| app_moves_window(&ctx, viewport));
-        // A layer moves when its overlay says so; other mounts follow the header's band.
-        let movable = match &props.mount {
-            Mount::Layer(overlay) | Mount::Viewport { fallback: overlay, .. } => overlay.movable && app_moves,
-            _ => props.header.is_some_and(|header| header.band == super::DragBand::Move) && app_moves,
-        };
-        if props.header.is_some() && movable && regions.header.height() > 0.0 {
-            pcx.part(MOVE_BAND, regions.header)
-                .sense(craft_behavior::Sense::DRAG)
-                .priority(HitPriority::new(HitLevel::Edge, 0))
-                .exclusive(WindowHit::Move)
-                .cursor(CursorIcon::Grab)
-                .drag_cursor(CursorIcon::Grabbing)
-                .pointer_only(reason);
-        }
         // The reorder band lies under the header's own parts and children: its default priority loses to theirs, so
         // their buttons keep their clicks.
         if props.header.is_some_and(|header| header.band == DragBand::Reorder) && regions.header.height() > 0.0 {
@@ -1239,30 +1502,8 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 .drag_cursor(CursorIcon::Grabbing)
                 .pointer_only("Alt+Up and Alt+Down move the section");
         }
-        // The grips of a layer straddle its edge; those of a window lie inside it, where the window has pixels.
-        let (grips, inset) = match &props.mount {
-            Mount::Layer(overlay) | Mount::Viewport { fallback: overlay, .. } => (overlay.resize.grips, 0.0),
-            Mount::Window { resize } => (resize.grips, handle / 2.0),
-            _ => (false, 0.0),
-        };
-        if grips && app_moves {
-            for (index, (dx, dy, cursor)) in GRIPS.into_iter().enumerate() {
-                let along = |edge: i8, low: f32, high: f32| match edge {
-                    -1 => (low - handle / 2.0 + inset, low + handle / 2.0 + inset),
-                    1 => (high - handle / 2.0 - inset, high + handle / 2.0 - inset),
-                    _ => (low + handle / 2.0 + inset, high - handle / 2.0 - inset),
-                };
-                let (x0, x1) = along(dx, rect.min.x, rect.max.x);
-                let (y0, y1) = along(dy, rect.min.y, rect.max.y);
-                let level = if dx != 0 && dy != 0 { HitLevel::Handle } else { HitLevel::Edge };
-                pcx.part(GRIP.at(index as u64), Rect::from_min_max(Pos2::new(x0, y0), Pos2::new(x1, y1)))
-                    .sense(craft_behavior::Sense::DRAG)
-                    .priority(HitPriority::new(level, 0))
-                    .exclusive(WindowHit::Resize(edge_of(dx, dy)))
-                    .cursor(cursor)
-                    .pointer_only(reason);
-            }
-        }
+        Self::move_parts(&props, &regions, rect, pcx);
+        self.pane_grip = Self::pane_grip(&props, rect, pcx);
     }
 
     fn sensed(&mut self, comp: &mut C, cx: &mut Cx<'_, C>) {
@@ -1299,12 +1540,13 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             && let Some(viewport) = os_window(props, cx.core.memory.ctx(), cx.core.id)
         {
             self.window_os(viewport, cx);
+            self.window_movable(cx);
         }
-        if !layer || (matches!(props.mount, Mount::Viewport { .. }) && viewports::available(cx.core.memory.ctx())) {
-            return;
+        self.pane_drag(props, cx);
+        if layer && !(matches!(props.mount, Mount::Viewport { .. }) && viewports::available(cx.core.memory.ctx())) {
+            self.window_keys(props, cx);
+            self.window_drag(props, cx);
         }
-        self.window_keys(props, cx);
-        self.window_drag(props, cx);
         for change in std::mem::take(&mut self.reports) {
             comp.placement_changed(&change);
         }
@@ -1326,6 +1568,8 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let window = window_instance(&props, id).filter(|window| *window != id);
         register_instances(&ctx, &props, id, window);
         let region_env = env.derive(|scoped| {
+            // The container's own `enabled(false)` greys everything inside it, as a scope would.
+            scoped.enabled &= cx.core.resolved.enabled;
             if let Some(window) = window {
                 scoped.commands = scoped.commands.pushed(WindowCommand::SCOPE, window);
             }
@@ -1336,7 +1580,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             if props.header.is_some_and(|header| header.band == DragBand::Reorder) {
                 scoped.commands = scoped.commands.pushed(REORDER_SCOPE, id);
             }
-            if let Some(scope) = props.command_scope {
+            // A host env (a layer's) does not carry the push the container's own context made.
+            if let Some(scope) = props.command_scope
+                && scoped.commands.innermost(scope.name()) != Some(id)
+            {
                 scoped.commands = scoped.commands.pushed(scope, id);
             }
             if let Some(theme) = &props.theme {
@@ -1344,6 +1591,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             }
         });
         let body_id = sub(id, "body");
+        let owner = BodyOwner::new(cx.style, gap_of(&env.tokens, props.body_gap));
         let frame = RegionFrame { id, rtl, node, env: &region_env };
         let (resolved, env_view) = (cx.core.resolved, region_env.view());
         let mut open = self.open;
@@ -1353,7 +1601,8 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         // B1 header
         if props.header.is_some() {
             let mut bcx = BodyCx::new(body_id, env_view, resolved, regions.header, &mut *cx.core.memory, &mut open, gate.as_mut())
-                .with_field_message(field_message.clone());
+                .with_field_message(field_message.clone())
+                .with_owner(owner);
             let trailing = props.header.is_some_and(|header| header.trailing);
             close = close.or(self.header_region(comp, ui, &mut bcx, &frame, regions.header, trailing));
         }
@@ -1412,7 +1661,8 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 }
             });
             let mut bcx = BodyCx::new(body_id, body_env.view(), resolved, body_rect, &mut *cx.core.memory, &mut open, gate.as_mut())
-                .with_field_message(field_message.clone());
+                .with_field_message(field_message.clone())
+                .with_owner(owner);
             let gap = Vec2::splat(gap_of(&env.tokens, props.body_gap));
             let layout_id = sub(id, "layout");
             // While the body opens or closes, it shows only the part of its last height that the presence reaches.
@@ -1462,6 +1712,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                             shared_labels(ui, id, label_column, room.x, |ui| body(ui, bcx))
                         });
                         let extent = region_ui.min_rect().size();
+                        crate::runtime::egui::widgets::note_scroll_region(&ctx, region_ui.clip_rect(), region_ui.min_rect().intersect(max));
                         self.extent = Some(extent);
                         // Along an axis it scrolls the body took what the view shows; along the other it took its content.
                         let took = extent + inset;
@@ -1470,9 +1721,12 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                             if scroll.vertical_on() { took.y.min(at.height()) } else { took.y },
                         ))
                     }
+                    // A row that places its block itself asks for its children's width, not the room it spans.
                     None => {
-                        layout::run_body(&mut body_ui, layout_id, layout, gap, |ui| shared_labels(ui, id, label_column, room.x, |ui| body(ui, bcx)));
-                        None
+                        let (_, natural) = layout::run_body_measured(&mut body_ui, layout_id, layout, gap, |ui| {
+                            shared_labels(ui, id, label_column, room.x, |ui| body(ui, bcx))
+                        });
+                        natural.map(|width| Vec2::new(width, body_ui.min_rect().height()))
                     }
                 };
                 Env::restore(&ctx, installed);
@@ -1510,10 +1764,13 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             self.view = Some(body_rect);
             if props.end.is_some() {
                 let mut end_cx = BodyCx::new(body_id, line_env.view(), resolved, regions.end, &mut *cx.core.memory, &mut open, gate.as_mut())
-                    .with_field_message(field_message.clone());
-                // The controls run in reading order, so their roving order is their order on the line; the region is
-                // as wide as they measured, so the last one sits at the end edge.
-                let layout = if rtl { Layout::right_to_left(Align::Center) } else { Layout::left_to_right(Align::Center) };
+                    .with_field_message(field_message.clone())
+                    .with_owner(owner);
+                // The content runs in reading order, so its roving order is its order on the line; the region is as
+                // wide as it measured, so the last child sits at the end edge. On the line it is centred; a
+                // full-height region starts at its top.
+                let cross = if end_full_height(&props) { Align::Min } else { Align::Center };
+                let layout = if rtl { Layout::right_to_left(cross) } else { Layout::left_to_right(cross) };
                 let builder = UiBuilder::new().max_rect(regions.end).layout(layout).scope_id(sub(id, "end"));
                 let builder = if node { access::with_parent(builder, id) } else { builder };
                 let mut end_ui = alloc::child(ui, builder);
@@ -1545,9 +1802,13 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             }
             let offset = if rtl { regions.footer.max.x - footer_rect.max.x } else { footer_rect.min.x - regions.footer.min.x };
             let mut bcx = BodyCx::new(body_id, env_view, resolved, footer_rect, &mut *cx.core.memory, &mut open, gate.as_mut())
-                .with_field_message(field_message);
+                .with_field_message(field_message)
+                .with_owner(owner);
             let mut footer_ui = alloc::child(ui, frame.region("footer", footer_rect));
-            let installed = Env::install_for(&footer_ui, region_env.clone());
+            // A footer in the end region is part of a column sized from its content: a fill-width child takes its
+            // measured width there and shows across the column, so it never sets the column's width.
+            let footer_env = if footer_in_end(&props) { region_env.derive_local(|scoped| scoped.content_column = true) } else { region_env.clone() };
+            let installed = Env::install_for(&footer_ui, footer_env);
             comp.footer(&mut footer_ui, &mut bcx);
             Env::restore(&ctx, installed);
             close = close.or(bcx.close_requested());
@@ -1598,12 +1859,18 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let rule = rule_look(&env.tokens, RuleKind::Divider);
         let ppp = ctx.pixels_per_point();
         self.claim_extent(&props, ui, env, rect, pad, rtl);
-        let draw_rule = |y: f32| ui.painter().extend(Rule::shapes(&rule, Pos2::new(inner.min.x, y), Pos2::new(inner.max.x, y), ppp));
+        let draw_rule = |from: f32, to: f32, y: f32| ui.painter().extend(Rule::shapes(&rule, Pos2::new(from, y), Pos2::new(to, y), ppp));
         if props.header.is_some_and(|header| header.rule && !header.inline) {
-            draw_rule(regions.header.max.y);
+            draw_rule(inner.min.x, inner.max.x, regions.header.max.y);
         }
-        if props.footer.is_some_and(|footer| footer.rule) {
-            draw_rule(regions.footer.min.y);
+        // A footer across the container rules the whole width; one beside or in the end region rules its own.
+        match props.footer.filter(|footer| footer.rule) {
+            Some(footer) if footer.place == FooterPlace::EndTop && footer_in_end(&props) => {
+                draw_rule(regions.footer.min.x, regions.footer.max.x, regions.footer.max.y);
+            }
+            Some(_) if end_full_height(&props) => draw_rule(regions.footer.min.x, regions.footer.max.x, regions.footer.min.y),
+            Some(_) => draw_rule(inner.min.x, inner.max.x, regions.footer.min.y),
+            None => {}
         }
     }
 

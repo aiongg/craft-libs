@@ -236,6 +236,9 @@ pub struct KeyUse {
     /// The component acts on Delete and Backspace (`Intent::Delete`: text edits, deleting a selection or a tool's
     /// object). A component that does not leaves them to the commands around the focus.
     pub deletes: bool,
+    /// The component acts on Enter itself (a text field that saves or searches on it): it takes the `Submit` intent, so
+    /// the enclosing dialog's default button does not receive it. A component that does not leaves Enter to that button.
+    pub submits: bool,
 }
 
 impl KeyUse {
@@ -255,6 +258,7 @@ impl KeyUse {
         chrome_key: true,
         nudge: true,
         deletes: false,
+        submits: false,
     };
     /// A divider between panes: it takes the arrows as moves of its value, but it is no document and no canvas tool, so
     /// it marks no window as showing a document and takes no nudges.
@@ -277,7 +281,7 @@ impl KeyUse {
             _ => EditSet::NONE,
         };
         let owner_text = matches!(owner, OwnerClass::Text);
-        KeyUse { keep, activate, claims: &[], edits, owner, value: false, moves: false, chrome_key: false, nudge: false, deletes: owner_text }
+        KeyUse { keep, activate, claims: &[], edits, owner, value: false, moves: false, chrome_key: false, nudge: false, deletes: owner_text, submits: false }
     }
 
     /// The same use claiming `claims`.
@@ -316,8 +320,22 @@ impl KeyUse {
         self
     }
 
-    pub(crate) const fn with_keep(mut self, keep: KeepKeys) -> Self {
+    /// The same use declaring that the component acts on Enter and takes `Intent::Submit`.
+    pub const fn with_submits(mut self) -> Self {
+        self.submits = true;
+        self
+    }
+
+    /// The same use with `keep` as the keys it keeps from the key stage.
+    pub const fn with_keep(mut self, keep: KeepKeys) -> Self {
         self.keep = keep;
+        self
+    }
+
+    /// The same use with `chrome_key` as whether the component marks its window as showing a document: a canvas
+    /// control that is no document sets it to `false`.
+    pub const fn with_chrome_key(mut self, chrome_key: bool) -> Self {
+        self.chrome_key = chrome_key;
         self
     }
 

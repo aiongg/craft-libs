@@ -146,6 +146,50 @@ fn view_chords_zoom_the_dialogs_view() {
     assert!(view.borrow().is_fit() && (view.borrow().zoom_percent() - fitted).abs() < SAME, "Cmd+0 fits again");
 }
 
+/// An image of one grey.
+struct Grey;
+
+impl craft_ui::canvas::RasterSource for Grey {
+    fn size(&self) -> PixelSize {
+        BAR_IMAGE
+    }
+
+    fn revision(&self) -> craft_ui::primitives::Revision {
+        craft_ui::primitives::Revision::new(1)
+    }
+
+    fn damage(&self, _: craft_ui::primitives::Revision) -> Option<craft_ui::canvas::PixelRect> {
+        None
+    }
+
+    fn read(&self, _: craft_ui::canvas::PixelRect, _: u32, out: &mut egui::ColorImage) {
+        out.pixels.fill(egui::Color32::from_rgb(0x80, 0x80, 0x80));
+    }
+}
+
+#[trial]
+fn view_chords_zoom_the_dialogs_view_while_its_canvas_has_the_focus() {
+    let view = Rc::new(RefCell::new(FullWindowView::new()));
+    let shared = view.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let mut open = true;
+        FullWindowDialog::new("Liquify").opened(Bind::bound(&mut open)).show(ui, |ui, _| {
+            FullWindowZoomBar::new(Bind::bound(&mut shared.borrow_mut())).show(ui);
+            craft_ui::dialog::FullWindowCanvas::new(craft_ui::canvas::ToolPath::Freehand, Bind::bound(&mut shared.borrow_mut()), &Grey).show(ui);
+        });
+    });
+    fixture.settle();
+    let canvas = fixture.by_role(Role::CANVAS).into_iter().next().expect("the dialog shows its canvas");
+    fixture.click(&canvas).settle();
+    assert_eq!(craft_ui::testing::access::focused_key(fixture.tree()), canvas.node, "a click focuses the canvas");
+    let fitted = view.borrow().zoom_percent();
+
+    fixture.key(Key::Equals, Modifiers::COMMAND).settle();
+    assert!(view.borrow().zoom_percent() > fitted && !view.borrow().is_fit(), "Cmd+= zooms the dialog's view in");
+    fixture.key(Key::Num0, Modifiers::COMMAND).settle();
+    assert!(view.borrow().is_fit() && (view.borrow().zoom_percent() - fitted).abs() < SAME, "Cmd+0 fits again");
+}
+
 #[trial]
 fn fit_on_screen_refits_in_the_same_pass_and_magnifies_a_small_image() {
     let rect = Rect::from_min_size(Pos2::ZERO, Vec2::splat(1000.0));
@@ -295,5 +339,132 @@ mod canvas_navigation {
         fixture.settle();
         let (canvas, rest) = rects.get().expect("the canvas was shown");
         assert!(rest.min.y >= canvas.max.y || rest.min.x >= canvas.max.x, "the room after the canvas starts past it: {canvas:?} {rest:?}");
+    }
+}
+
+mod sides {
+    //! The side columns of a full-window dialog and the dialog's buttons among them.
+
+    use craft_i18n::Direction;
+    use craft_ui::buttons::Button;
+    use craft_ui::choice::Checkbox;
+    use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
+    use craft_ui::dialog::{FullWindowDialog, FullWindowSide, SideFooter};
+    use craft_ui::patterns::form_dialogs::ResetFooter;
+    use craft_ui::runtime::focus::Initial;
+    use craft_ui::runtime::overlay::CloseReason;
+    use craft_ui::sections::{DialogRole, FooterButton};
+    use craft_ui::testing::{Fixture, trial};
+    use craft_ui::text::TextField;
+    use egui::{Key, Modifiers, Rect};
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    /// What the Liquify-shaped dialog showed and reported.
+    struct Seen {
+        closed: Option<CloseReason>,
+        picked: Option<usize>,
+        body: Rect,
+        side: Rect,
+        leading: Rect,
+        dialog: Rect,
+    }
+
+    /// Liquify's shape: the canvas in the body, a Properties column at the end edge, and OK and Cancel (Reset while
+    /// Alt is held) in the side columns' footer after a leading Restore All button.
+    fn liquify(direction: Direction) -> (Fixture, Rc<RefCell<Seen>>) {
+        let seen = Rc::new(RefCell::new(Seen {
+            closed: None,
+            picked: None,
+            body: Rect::NOTHING,
+            side: Rect::NOTHING,
+            leading: Rect::NOTHING,
+            dialog: Rect::NOTHING,
+        }));
+        let shared = seen.clone();
+        let (mut open, mut mesh, mut name) = (true, false, String::new());
+        let mut fixture = Fixture::new(move |ui| {
+            let footer = ResetFooter::new(ui, None, true);
+            let mut seen = shared.borrow_mut();
+            let (mut side, mut leading) = (Rect::NOTHING, Rect::NOTHING);
+            let shown = FullWindowDialog::new("Liquify")
+                .opened(Bind::bound(&mut open))
+                .initial_focus(Initial::First)
+                .buttons(footer.buttons(FooterButton::new("OK", DialogRole::Accept), true))
+                .sides(|ui, _| {
+                    side = FullWindowSide::new("Properties")
+                        .show(ui, |ui, _| {
+                            // The first stop is a field, which leaves Enter untaken; a check box would take it as its toggle.
+                            TextField::new("Brush Name", Bind::bound(&mut name)).show(ui);
+                            Checkbox::new(Bind::bound(&mut mesh)).label("Show the Mesh, the Pins and the Guides of the Brush Tool").show(ui);
+                        })
+                        .output
+                        .response
+                        .rect;
+                })
+                .side_footer(SideFooter::bottom().leading(|ui| leading = Button::new("Restore All").show(ui).rect))
+                .show(ui, |_, cx| cx.rect);
+            seen.body = shown.inner.unwrap_or(Rect::NOTHING);
+            seen.dialog = shown.output.response.rect;
+            (seen.side, seen.leading) = (side, leading);
+            seen.closed = seen.closed.or(shown.output.closed);
+            seen.picked = seen.picked.or(shown.output.picked);
+        });
+        fixture.direction(direction);
+        (fixture, seen)
+    }
+
+    #[trial]
+    fn enter_activates_ok_and_cancel_cancels_in_the_side_columns_footer() {
+        let (mut fixture, seen) = liquify(Direction::Ltr);
+        fixture.settle().key(Key::Enter, Modifiers::NONE).settle();
+        assert_eq!((seen.borrow().closed, seen.borrow().picked), (Some(CloseReason::Activated), Some(0)), "Enter activates OK");
+
+        let (mut fixture, seen) = liquify(Direction::Ltr);
+        fixture.settle();
+        let cancel = fixture.by_label("Cancel").expect("Cancel is the dialog's second button");
+        fixture.click(&cancel).settle();
+        assert_eq!(seen.borrow().closed, Some(CloseReason::Requested), "Cancel closes the dialog unanswered");
+    }
+
+    #[trial]
+    fn alt_turns_cancel_into_reset_in_the_side_columns_footer() {
+        let (mut fixture, seen) = liquify(Direction::Ltr);
+        fixture.settle().hold(Modifiers::ALT).settle();
+        assert!(fixture.by_label("Cancel").is_none(), "Alt hides Cancel");
+        let reset = fixture.by_label("Reset").expect("Alt turns Cancel into Reset");
+        fixture.click(&reset).settle();
+        assert_eq!(seen.borrow().closed, None, "Reset keeps the dialog open");
+        assert_eq!(seen.borrow().picked, Some(1), "the pick names Reset's place");
+    }
+
+    #[trial]
+    fn the_leading_slot_and_the_buttons_share_the_footer_row_inside_the_side_columns() {
+        for direction in [Direction::Ltr, Direction::Rtl] {
+            let (mut fixture, seen) = liquify(direction);
+            fixture.settle();
+            let (ok, cancel) = (fixture.by_label("OK").expect("OK").rect, fixture.by_label("Cancel").expect("Cancel").rect);
+            let seen = seen.borrow();
+            let (leading, side, body) = (seen.leading, seen.side, seen.body);
+            let buttons = ok.union(cancel);
+            assert!(!leading.intersects(buttons), "{direction:?}: Restore All {leading:?} over the buttons {buttons:?}");
+            let rtl = direction == Direction::Rtl;
+            let leading_first = if rtl { leading.min.x >= buttons.max.x } else { leading.max.x <= buttons.min.x };
+            assert!(leading_first, "{direction:?}: Restore All at the reading start of the row");
+            let past_body = |rect: Rect| if rtl { rect.max.x <= body.min.x } else { rect.min.x >= body.max.x };
+            assert!(past_body(side) && past_body(leading.union(buttons)), "{direction:?}: the column and its footer lie past the canvas");
+            assert!(leading.min.y >= side.max.y && buttons.min.y >= side.max.y, "{direction:?}: the footer lies under the column");
+            let row = leading.union(buttons);
+            let (start, end) = if rtl {
+                (row.max.x.round() <= side.max.x.round(), row.min.x.round() >= seen.dialog.min.x.round())
+            } else {
+                (row.min.x.round() >= side.min.x.round(), row.max.x.round() <= seen.dialog.max.x.round())
+            };
+            assert!(
+                start && end,
+                "{direction:?}: the footer row {row:?} starts with the column {side:?} and stays inside the dialog {:?}",
+                seen.dialog
+            );
+        }
     }
 }

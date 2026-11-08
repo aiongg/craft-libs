@@ -22,6 +22,9 @@ mod style;
 mod text;
 mod variants;
 
+pub use size::text_size_case;
+pub use variants::rtl_case;
+
 use super::story::{STORIES, Story};
 use crate::contract::{PatternProbe, Probe, Registration, ShapeKind};
 use libtest_mimic::{Failed, Trial};

@@ -49,8 +49,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 let seen = ScrollPos { x: self.offset_x_at_read, y: self.offset_at_read };
                 let local = Self::logical(layout, rect, rtl, origin);
                 if rect.contains(origin) && layout.hit(local, seen).is_none() {
-                    let selected: Vec<C::Key> =
-                        (0..self.source.len()).filter(|&at| self.holds_in(&self.selection_at_read, at)).map(|at| self.source.key(at)).collect();
+                    let selected: Vec<C::Key> = self.selected_keys(&self.selection_at_read);
                     let mods = crate::runtime::pointer::frame(&cx.core.ctx).mods;
                     let select = MarqueeSelect::begin(content_point(local, seen), mods, selected.clone());
                     self.drags.marquee = Some(MarqueeDrag { select, last: selected, live: false });

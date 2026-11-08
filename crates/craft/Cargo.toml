@@ -275,7 +275,6 @@ ui-window-frame = ["ui", "craft-ui/window-frame"]
 ui-window-restore = ["ui", "craft-ui/window-restore"] # native only: the window-restore store
 
 update = ["dep:craft-update"] # native only: downloads and installs through getrandom without wasm support
-update-local-mirror = ["update", "craft-update/local-mirror"]
 
 vectorcraft-format = ["dep:craft-vectorcraft-format"]
 

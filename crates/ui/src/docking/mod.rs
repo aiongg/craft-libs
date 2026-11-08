@@ -13,6 +13,7 @@ mod group;
 
 mod floating;
 mod panels;
+mod root;
 mod spec;
 mod splitter;
 pub mod stack;
@@ -35,6 +36,7 @@ pub use group::{DockGroup, DockGroupOutput, DockGroupStyle, GroupGrip, GroupGrip
 
 pub use floating::{FloatingGroup, FloatingGroupOutput, FloatingGroupStyle};
 pub use panels::DockPanels;
+pub use root::{DockRoot, DockRootOutput, DockRootStyle};
 pub use spec::{DockHeights, PanelLimits, PanelSpec};
 pub use splitter::{Splitter, SplitterStyle};
 pub use targets::{DockSizes, DockSpot, DockTargets, GroupDrag, ZoneRule};

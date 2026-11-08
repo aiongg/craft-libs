@@ -39,6 +39,7 @@ fn egui_icon(icon: CursorIcon) -> egui::CursorIcon {
         CursorIcon::ResizeNeSw => E::ResizeNeSw,
         CursorIcon::ResizeNwSe => E::ResizeNwSe,
         CursorIcon::ResizeVertical => E::ResizeVertical,
+        CursorIcon::ResizeColumn => E::ResizeColumn,
         CursorIcon::ResizeEast => E::ResizeEast,
         CursorIcon::ResizeSouthEast => E::ResizeSouthEast,
         CursorIcon::ResizeSouth => E::ResizeSouth,

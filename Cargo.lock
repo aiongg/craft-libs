@@ -1136,16 +1136,18 @@ dependencies = [
 name = "craft-browse"
 version = "0.1.0"
 dependencies = [
+ "craft-behavior",
+ "craft-browse",
  "craft-docpath",
  "craft-host",
  "craft-i18n",
  "craft-platform",
  "craft-settings",
  "craft-theme",
- "craft-ui-legacy",
+ "craft-ui",
  "egui",
- "egui_kittest",
  "kurbo 0.13.1",
+ "libtest-mimic",
  "serde",
  "serde_json",
  "tempfile",
@@ -1206,12 +1208,14 @@ version = "0.1.0"
 dependencies = [
  "block2 0.6.2",
  "craft-atomic",
+ "craft-behavior",
  "craft-host",
  "craft-i18n",
  "craft-platform",
- "craft-ui-legacy",
+ "craft-ui",
  "egui",
  "futures-lite",
+ "libtest-mimic",
  "log",
  "objc2 0.6.5",
  "objc2-app-kit 0.3.2",
@@ -1417,11 +1421,13 @@ dependencies = [
 name = "craft-layers"
 version = "0.1.0"
 dependencies = [
+ "craft-behavior",
  "craft-i18n",
+ "craft-keymap",
  "craft-theme",
- "craft-ui-legacy",
+ "craft-ui",
  "egui",
- "egui_kittest",
+ "libtest-mimic",
  "serde",
  "serde_json",
 ]
@@ -1569,9 +1575,10 @@ dependencies = [
 name = "craft-print"
 version = "0.1.0"
 dependencies = [
- "craft-ui-legacy",
+ "craft-ui",
  "craft-winprint-gdi",
  "egui",
+ "libtest-mimic",
  "log",
  "miniz_oxide 0.9.1",
  "roxmltree 0.21.2",
@@ -1685,11 +1692,12 @@ name = "craft-theme-store"
 version = "0.1.0"
 dependencies = [
  "craft-atomic",
+ "craft-behavior",
  "craft-theme",
- "craft-ui-legacy",
+ "craft-ui",
  "dirs",
  "egui",
- "egui_kittest",
+ "libtest-mimic",
  "serde",
  "serde_json",
  "tempfile",
@@ -1730,7 +1738,6 @@ dependencies = [
  "epaint_default_fonts",
  "flate2",
  "fontique",
- "js-sys",
  "libtest-mimic",
  "linkme",
  "log",
@@ -1742,10 +1749,6 @@ dependencies = [
  "syn 2.0.119",
  "toml",
  "toml_edit",
- "unicode-script",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
 ]
 
 [[package]]
@@ -1881,14 +1884,14 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "craft-host",
- "craft-ui-legacy",
+ "craft-theme",
+ "craft-ui",
  "dunce",
  "egui",
- "egui_kittest",
- "epaint_default_fonts",
  "flate2",
  "getrandom 0.3.4",
  "image",
+ "libtest-mimic",
  "log",
  "plist",
  "semver",

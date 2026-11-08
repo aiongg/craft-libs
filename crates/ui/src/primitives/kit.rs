@@ -7,8 +7,8 @@ use super::draw::PaintShape;
 use super::rule::{Rule, RuleKind};
 use super::surface::Surface;
 use crate::style::{Corners, DataColor, RuleLook, SurfaceKind, UiTokens, rgba_color, rule_look, surface_style};
-use craft_behavior::{CanvasView, kurbo};
-use egui::{Color32, Pos2, Rect, Shape, Stroke, Vec2, pos2, vec2};
+use craft_behavior::{Axis, CanvasView, kurbo};
+use egui::{Color32, Mesh, Pos2, Rect, Shape, Stroke, Vec2, pos2, vec2};
 use std::f32::consts::TAU;
 
 /// Which edge of a rect a tick row sits on, and so which way its marks point.
@@ -106,6 +106,38 @@ impl Checker {
 /// The theme's transparency checkerboard over `rect`, drawn where `clip` shows it, with cells of `size.checker`.
 pub fn checker(tokens: &UiTokens, rect: Rect, clip: Rect) -> Vec<Shape> {
     Checker::new().shapes(tokens, rect, clip)
+}
+
+/// A colour ramp over `rect`: the strip shades from stop to stop along `axis` (`Axis::X` runs left to right, `Axis::Y`
+/// top to bottom). Each stop is its place along the strip, from 0 at the start to 1 at the end, and its colour. Stops
+/// are taken in order; a place outside 0 to 1 is clamped, and a ramp whose first stop is after 0 or whose last is
+/// before 1 holds that colour out to the edge. The colours blend as the renderer blends mesh vertices, in sRGB.
+pub fn ramp(rect: Rect, stops: &[(f32, DataColor)], axis: Axis) -> Vec<Shape> {
+    if !(rect.width() > 0.0 && rect.height() > 0.0) {
+        return Vec::new();
+    }
+    let mut marks: Vec<(f32, Color32)> = stops.iter().filter(|(at, _)| at.is_finite()).map(|(at, color)| (at.clamp(0.0, 1.0), color.0)).collect();
+    let (Some(&(first_at, first)), Some(&(last_at, last))) = (marks.first(), marks.last()) else { return Vec::new() };
+    if first_at > 0.0 {
+        marks.insert(0, (0.0, first));
+    }
+    if last_at < 1.0 {
+        marks.push((1.0, last));
+    }
+    let vertical = axis == Axis::Y;
+    let (from, to) = if vertical { (rect.left_top(), rect.left_bottom()) } else { (rect.left_top(), rect.right_top()) };
+    let across = if vertical { vec2(rect.width(), 0.0) } else { vec2(0.0, rect.height()) };
+    let mut mesh = Mesh::default();
+    for (index, (at, color)) in marks.iter().enumerate() {
+        let on = from + (to - from) * *at;
+        mesh.colored_vertex(on, *color);
+        mesh.colored_vertex(on + across, *color);
+        if let Some(base) = (index as u32).checked_sub(1).map(|previous| previous * 2) {
+            mesh.add_triangle(base, base + 1, base + 2);
+            mesh.add_triangle(base + 1, base + 3, base + 2);
+        }
+    }
+    vec![Shape::mesh(mesh)]
 }
 
 /// Most lines a grid draws along one axis.
@@ -530,6 +562,11 @@ impl ContentPainterCx<'_> {
     /// Paints the transparency checkerboard over `rect`.
     pub fn checker(&self, rect: Rect) {
         self.painter.extend(checker(self.tokens, rect, self.painter.clip_rect()));
+    }
+
+    /// Paints a colour ramp over `rect` along `axis`; see [`ramp`].
+    pub fn ramp(&self, rect: Rect, stops: &[(f32, DataColor)], axis: Axis) {
+        self.painter.extend(ramp(rect, stops, axis));
     }
 
     /// Paints the well of a plot over `rect` and returns the rect inside its edge, where the plot draws.

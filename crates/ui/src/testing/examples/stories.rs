@@ -10,7 +10,12 @@ use egui::{Pos2, Rect, Ui, Vec2};
 
 /// The width and height of a cell in a stand-alone row story: two and a half control heights wide and one high.
 fn cell(ui: &Ui) -> Vec2 {
-    let height = crate::style::control_metrics(&crate::runtime::env::Env::of(ui).tokens, craft_theme::ControlSize::Md).height;
+    let height = crate::style::control_metrics(
+        &crate::runtime::env::Env::of(ui).tokens,
+        craft_theme::ControlSize::Md,
+        crate::fonts::stack_facts(ui.ctx()).line_ratio,
+    )
+    .height;
     Vec2::new(height * 2.5, height)
 }
 

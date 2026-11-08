@@ -30,6 +30,12 @@ pub mod service;
 #[cfg(feature = "ui")]
 pub mod ui;
 
+/// The registrations of this crate's UI types, for its integration binary.
+#[cfg(feature = "screen-testing")]
+pub mod testing {
+    craft_ui::testing_registered!();
+}
+
 #[cfg(target_os = "macos")]
 mod macos;
 

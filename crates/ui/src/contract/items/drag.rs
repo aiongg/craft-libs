@@ -213,11 +213,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     fn begin_row_drag(&mut self, cx: &mut Cx<'_, C>, props: &CollectionProps, at: usize) {
         let id = cx.core.id;
         let key = self.source.key(at);
-        let keys: Vec<C::Key> = if self.holds(at) {
-            (0..self.source.len()).filter(|&at| self.holds(at)).map(|at| self.source.key(at)).collect()
-        } else {
-            vec![key.clone()]
-        };
+        let keys: Vec<C::Key> = if self.holds(at) { self.selected_keys(&self.selection) } else { vec![key.clone()] };
         let preview = if keys.len() > 1 {
             DragPreview::Badge(Label::from(keys.len().to_string()))
         } else {
@@ -354,7 +350,14 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             let own = payload.list == cx.core.id;
             if (own && props.reorder.is_some()) || (!own && comp.accept_from(payload.list)) {
                 let groups = props.reorder.is_some_and(|rule| rule.into_groups) && matches!(layout.nav(), NavShape::Tree);
-                let step = groups.then(|| crate::style::control_metrics(&Env::of_root(&cx.core.ctx).tokens, cx.core.resolved.size).icon);
+                let step = groups.then(|| {
+                    crate::style::control_metrics(
+                        &Env::of_root(&cx.core.ctx).tokens,
+                        cx.core.resolved.size,
+                        crate::fonts::stack_facts(&cx.core.ctx).line_ratio,
+                    )
+                    .icon
+                });
                 let spot = self
                     .spot(layout, rect, offset, rtl, step, layer(at))
                     .filter(|spot| comp.accepts(&payload, &self.source.key(spot.over), spot.insert))

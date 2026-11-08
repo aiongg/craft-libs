@@ -2,6 +2,7 @@
 
 mod content;
 mod draw;
+mod faces;
 mod focus_ring;
 pub(crate) mod glyph;
 mod handle;
@@ -25,13 +26,14 @@ mod tool;
 
 pub use content::{ContentPainterCx, DocRun, DocText};
 pub use draw::{Draw, PaintShape, StrokeWidth};
+pub use faces::FacesCx;
 pub use focus_ring::{FocusKind, FocusRing};
 pub use handle::{Handle, HandleShape};
 pub use icon::{Glyph, IconSet, IconSource, IconSpec, Mirror, has_icon, icon_names};
 pub use ime_surface::ImeSurface;
 pub use kit::{
     Checker, GridAxis, GridInk, GridLines, GridStroke, MAX_LINES, Tick, TickEdge, checker, dashed, drop_mark, ellipse, grid_lines, marching_ants,
-    outline, ticks,
+    outline, ramp, ticks,
 };
 pub use reset_mark::ResetMark;
 pub use rule::{Rule, RuleKind};

@@ -8,6 +8,7 @@ use crate::contract::{
 };
 use crate::display::{Progress, Text};
 use crate::layout_components::Row;
+use crate::primitives::ContentPainterCx;
 use crate::runtime::access::Access;
 use crate::runtime::env::{Env, Label};
 use crate::runtime::focus::{ActivateKeys, KeepKeys, KeyUse};
@@ -140,6 +141,23 @@ impl Default for PreviewView {
     }
 }
 
+/// The host's drawing over a pane's picture: it gets the content painter, the transform the pane drew the picture with
+/// (the picture's centre is the canvas origin) and the picture's rect in the painter's coordinates. It runs after the
+/// picture and before the pending line or the failed message.
+pub struct PaneOverlay<'a>(Box<dyn FnOnce(&ContentPainterCx, CanvasTransform, Rect) + 'a>);
+
+impl<'a> PaneOverlay<'a> {
+    /// The overlay that runs `paint`.
+    pub fn new(paint: impl FnOnce(&ContentPainterCx, CanvasTransform, Rect) + 'a) -> Self {
+        PaneOverlay(Box::new(paint))
+    }
+
+    /// The drawing to run, for a caller that passes the overlay on.
+    pub fn into_paint(self) -> Box<dyn FnOnce(&ContentPainterCx, CanvasTransform, Rect) + 'a> {
+        self.0
+    }
+}
+
 /// What a preview pane reports.
 #[derive(Debug)]
 #[non_exhaustive]
@@ -153,6 +171,9 @@ pub struct PreviewOutput {
     /// while fitting. A caller that keeps the view adopts `view.unwrap_or(shown)`, so a zoom row steps from what is on
     /// screen.
     pub shown: PreviewView,
+    /// The well took the second press of a double click this pass. The pane returns to fit on it; a caller may
+    /// also act on it (open the picture larger, say).
+    pub double_clicked: bool,
 }
 
 impl Outcome for PreviewOutput {
@@ -178,7 +199,7 @@ impl Outcome for PreviewOutput {
 /// - A pane whose state is not `Ready` draws no picture and reports no view.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(content_painter)]
-pub struct PreviewPane {
+pub struct PreviewPane<'a> {
     #[common]
     common: Common,
     state: PreviewState,
@@ -188,12 +209,17 @@ pub struct PreviewPane {
     click_centres: bool,
     /// The view after this pass, when the user changed it.
     moved: Option<PreviewView>,
+    /// The well took the second press of a double click this pass.
+    double_clicked: bool,
+    /// The host's drawing over the picture of a `Ready` pane.
+    #[prop(func = "FnOnce(&ContentPainterCx, CanvasTransform, Rect)")]
+    overlay: Option<PaneOverlay<'a>>,
     /// Whether the picture overflows the well horizontally, and vertically. Set by `parts`, which runs before the
     /// root's sense is read: the wheel scrolls the pane only on an axis it pans on.
     overflow: (bool, bool),
 }
 
-impl PreviewPane {
+impl PreviewPane<'_> {
     /// A pane named `label` showing `texture` through `view`.
     pub fn new(label: impl Into<Label>, texture: SizedTexture, view: &PreviewView) -> Self {
         Self::state(label, PreviewState::Ready(texture), view)
@@ -201,7 +227,17 @@ impl PreviewPane {
 
     /// A pane named `label` showing `state` through `view`.
     pub fn state(label: impl Into<Label>, state: PreviewState, view: &PreviewView) -> Self {
-        PreviewPane { common: Common::new(), state, view: view.clone(), click_centres: true, moved: None, overflow: (false, false) }.label(label)
+        PreviewPane {
+            common: Common::new(),
+            state,
+            view: view.clone(),
+            click_centres: true,
+            moved: None,
+            double_clicked: false,
+            overlay: None,
+            overflow: (false, false),
+        }
+        .label(label)
     }
 
     /// The view at the next zoom level above the view's, with the picture's centre kept in place.
@@ -304,7 +340,7 @@ impl PreviewPane {
     }
 }
 
-impl Component for PreviewPane {
+impl Component for PreviewPane<'_> {
     const ROLE: Role = Role::GROUP;
     const OVERLAYS: bool = false;
     const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_keep(KeepKeys::BlockArrows).with_activate(ActivateKeys::Neither);
@@ -360,7 +396,10 @@ impl Component for PreviewPane {
                 next.offset += delta;
                 cx.cursor(CursorIcon::Grabbing, CursorPriority::Drag);
             }
-            PressPhase::Down { start, .. } if start.clicks >= 2 => refit = true,
+            PressPhase::Down { start, .. } if start.clicks >= 2 => {
+                refit = true;
+                self.double_clicked = true;
+            }
             PressPhase::Release { start, pos, click: true, .. } if self.click_centres && start.clicks < 2 => {
                 next.offset += well.center() - pos;
             }
@@ -433,6 +472,9 @@ impl Component for PreviewPane {
                         );
                         painter.picture(texture.id, visible, uv);
                     }
+                    if let Some(PaneOverlay(overlay)) = self.overlay.take() {
+                        overlay(&painter, view, picture);
+                    }
                 }
                 PreviewState::Pending(_) => painter.checker(inside),
                 PreviewState::Failed(_) => {}
@@ -459,7 +501,7 @@ impl Component for PreviewPane {
 
     fn finish(self, cx: Cx<'_, Self>) -> PreviewOutput {
         let shown = PreviewView { transform: self.shown(cx.rect.size()), ..self.view.clone() };
-        PreviewOutput { response: cx.response.clone(), view: self.moved, shown }
+        PreviewOutput { response: cx.response.clone(), view: self.moved, shown, double_clicked: self.double_clicked }
     }
 }
 

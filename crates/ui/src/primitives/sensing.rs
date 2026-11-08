@@ -14,7 +14,7 @@ use crate::runtime::memory::sub;
 use crate::runtime::pointer;
 use crate::runtime::pointer::PassPointer;
 use craft_behavior::{
-    CursorIcon, HitLevel, HitPriority, HitShape, PartKey, PartRef, PassInput, PointerSample, PressMachine, PressPhase, PressState, ResolveFor, Sense,
+    Cursor, HitLevel, HitPriority, HitShape, PartKey, PartRef, PassInput, PointerSample, PressMachine, PressPhase, PressState, ResolveFor, Sense,
     Shape, resolve_mapped,
 };
 use craft_keymap::Mods;
@@ -82,7 +82,7 @@ pub(crate) struct PartDecl {
     pub shape: HitShape,
     pub sense: Sense,
     pub priority: HitPriority,
-    pub cursor: Option<CursorIcon>,
+    pub cursor: Option<Cursor>,
     /// Drawn by `paint_over`: stacks above the body members.
     pub over: bool,
     pub flags: Flags,
@@ -495,7 +495,10 @@ fn outcome_in(ctx: &Context, read: &PassRead, arena: ArenaId, layer: Layer, enab
         let step = machine.step(input, |at| {
             // The press-target rule: egui's click target decides, its drag target only for a drag-only root; the
             // root starts a press when that target is its own or there is none.
-            let mine = |id: Option<Id>| id.is_none_or(|id| state.widgets.contains(&id));
+            let mine = |id: Option<Id>| match id {
+                Some(id) => state.widgets.contains(&id),
+                None => crate::runtime::sampler::takes_untargeted(ctx, state.root.map(|root| root.id), at),
+            };
             let targets = pass_pointer.press_targets;
             let allowed = if union_sense.contains(Sense::CLICK) {
                 mine(targets.click)
@@ -650,6 +653,6 @@ fn shape_press_in(outcome: &Outcome, mods: Mods, sample: Option<PointerSample>, 
 }
 
 /// The cursor a hovered part of `decls` declares, if any: the sensing core's request for the cursor service.
-pub(crate) fn hovered_cursor(decls: &[PartDecl], results: &PartResults) -> Option<CursorIcon> {
-    decls.iter().filter(|decl| results.get(&(decl.key, decl.index)).is_some_and(|result| result.hovered)).find_map(|decl| decl.cursor)
+pub(crate) fn hovered_cursor(decls: &[PartDecl], results: &PartResults) -> Option<Cursor> {
+    decls.iter().filter(|decl| results.get(&(decl.key, decl.index)).is_some_and(|result| result.hovered)).find_map(|decl| decl.cursor.clone())
 }

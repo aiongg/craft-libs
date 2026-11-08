@@ -11,9 +11,11 @@ description = "System PDF print spooler for the Craft apps: CUPS and Windows"
 default = []
 # The printer and job settings widgets (`craft_print::ui`).
 ui = ["dep:craft-ui", "dep:egui"]
+# The stories and the integration binary of the print panel.
+screen-testing = ["ui", "craft-ui/testing"]
 
 [dependencies]
-craft-ui = { package = "craft-ui-legacy", path = "../ui-legacy", optional = true }
+craft-ui = { workspace = true, optional = true }
 egui = { workspace = true, optional = true }
 # Safe API; Win32 calls are isolated in this maintained MIT OR Apache-2.0 dependency.
 craft-winprint-gdi = { git = "https://github.com/storytold/winprint.rs", rev = "417ac3c4d14d3da5485a99c7d5ce8f05664ec312" }
@@ -42,7 +44,14 @@ roxmltree = "0.21"
 # Inflating the print-ready PDF's cross-reference and object streams (src/sheets.rs).
 miniz_oxide = "0.9"
 
+[[test]]
+name = "it"
+path = "tests/it/main.rs"
+harness = false
+required-features = ["screen-testing"]
+
 [dev-dependencies]
+libtest-mimic = "0.8"
 tempfile = "3"
 roxmltree = "0.21"
 miniz_oxide = "0.9"

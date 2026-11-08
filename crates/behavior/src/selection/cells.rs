@@ -13,7 +13,7 @@
 //! A selection holds row keys; the rules run on positions. Each rule places the selection with
 //! [`CellSpace::place`], works on positions and keys the result with [`CellSpace::keyed`].
 
-use super::{CellAt, CellRange, CellSelection, SelectionChange};
+use super::{CellAt, CellRange, CellSelection, SelectionChange, SelectionModel as _};
 use crate::item_source::DisplayOrder;
 use crate::value::Value;
 use std::ops::RangeInclusive;
@@ -184,9 +184,9 @@ impl<K> Copy for CellSpace<'_, K> {}
 
 impl<'a, K: Value> CellSpace<'a, K> {
     /// A grid of the rows of `rows` and `columns` columns with no merges, nothing hidden and every cell
-    /// selectable. Both counts are at least 1.
+    /// selectable. The column count is at least 1; the row count is 0 for an empty order.
     pub fn new(rows: &'a dyn DisplayOrder<K>, columns: u32) -> Self {
-        let row_total = u32::try_from(rows.len()).unwrap_or(u32::MAX).max(1);
+        let row_total = u32::try_from(rows.len()).unwrap_or(u32::MAX);
         Self { rows, row_total, columns: columns.max(1), merges: &[], hidden_rows: None, hidden_columns: None, selectable: None }
     }
 
@@ -253,9 +253,9 @@ impl<'a, K: Value> CellSpace<'a, K> {
         self.merges.iter().find(|m| m.contains(c)).cloned()
     }
 
-    /// Every cell (Cmd/Ctrl+A on a sheet, Select › Table in a document).
-    pub fn all(&self) -> CellRange<u32> {
-        CellRange::rect(0, self.row_total - 1, 0, self.columns - 1)
+    /// Every cell (Cmd/Ctrl+A on a sheet, Select › Table in a document); `None` when the order has no rows.
+    pub fn all(&self) -> Option<CellRange<u32>> {
+        self.whole_columns(0, self.columns - 1)
     }
 
     /// Rows `first..=last` across every column (a row header click, or a drag over row headers).
@@ -263,16 +263,17 @@ impl<'a, K: Value> CellSpace<'a, K> {
         CellRange::rect(first.min(last), first.max(last), 0, self.columns - 1)
     }
 
-    /// Columns `first..=last` down every row (a column header click).
-    pub fn whole_columns(&self, first: u32, last: u32) -> CellRange<u32> {
-        CellRange::rect(0, self.row_total - 1, first.min(last), first.max(last))
+    /// Columns `first..=last` down every row (a column header click); `None` when the order has no rows.
+    pub fn whole_columns(&self, first: u32, last: u32) -> Option<CellRange<u32>> {
+        let bottom = self.row_total.checked_sub(1)?;
+        Some(CellRange::rect(0, bottom, first.min(last), first.max(last)))
     }
 
     /// `range` grown over the merged cells it crosses ([`CellRange::covering_merges`]); whole rows and whole columns
     /// stay as they are: a click on column B's header selects only B even when B1:C1 is merged, as in Excel.
     pub fn cover(&self, range: CellRange<u32>) -> CellRange<u32> {
         let whole_rows = range.left() == 0 && range.right() == self.columns - 1;
-        let whole_columns = range.top() == 0 && range.bottom() == self.row_total - 1;
+        let whole_columns = range.top() == 0 && self.row_total.checked_sub(1) == Some(range.bottom());
         if whole_rows || whole_columns { range } else { range.covering_merges(self.merges) }
     }
 
@@ -309,7 +310,7 @@ impl<'a, K: Value> CellSpace<'a, K> {
     /// InDesign and Word add a row there, which is the app's edit. A sheet's Tab is [`CellSelection::advance`],
     /// which stops at the sheet's edge.
     pub fn next_in_reading_order(&self, from: CellAt<u32>, back: bool) -> Option<CellAt<u32>> {
-        self.scan(self.all(), Some(from), CellAdvance::Tab, back)
+        self.scan(self.all()?, Some(from), CellAdvance::Tab, back)
     }
 
     fn is_hidden(&self, c: CellAt<u32>) -> bool {
@@ -525,6 +526,27 @@ impl<K: Value> CellSelection<K> {
         let mut ranges = placed.ranges;
         ranges.push(range);
         self.store(Placed { current: ranges.len() - 1, ranges, active, anchor: active, tab_run: None }, space);
+        true
+    }
+
+    /// Cmd+click (Ctrl+click) on any cell: a cell a range holds is taken out of the selection (and joins it again
+    /// when it was taken out); any other cell joins as a new range ([`add`](Self::add)). Unlike
+    /// [`SelectionChange::ToggleCell`] it places the ranges, so it also takes out a cell between the rows of a range.
+    /// The cell becomes active and the anchor. Ends a Tab run.
+    pub fn toggle(&mut self, c: CellAt<K>, space: &CellSpace<'_, K>) -> bool {
+        let Some(at) = space.place(&c) else {
+            return false;
+        };
+        if let Some(out) = self.toggled.iter().position(|cell| *cell == c) {
+            self.toggled.remove(out);
+        } else if self.placed(space.rows).holds_cell(at.row as usize, at.column) {
+            self.toggled.push(c.clone());
+        } else {
+            return self.add(c, space);
+        }
+        self.tab_run = None;
+        self.active = Some(c.clone());
+        self.anchor = Some(c);
         true
     }
 

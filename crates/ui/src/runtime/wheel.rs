@@ -6,6 +6,7 @@ use crate::runtime::egui::{input, pass};
 use crate::runtime::focus;
 use crate::runtime::frame::PerViewport;
 use crate::runtime::pointer;
+use crate::runtime::sampler;
 use craft_behavior::wheel::split;
 use craft_behavior::{PointerButton, PointerEvent, Wheel, WheelPhase, WheelTaker, WheelUnit};
 use egui::{Context, Id, Pos2, Rect, Vec2};
@@ -39,6 +40,8 @@ pub(crate) fn nearest_scroll_owner(ctx: &Context, rect: Rect) -> Option<Id> {
 /// The begin hook (H7): rotates the registrations and splits this pass's wheel input.
 pub(crate) fn begin(ctx: &Context) {
     let viewport = pass::current_viewport(ctx);
+    // Takes the pass's snapshot of the canvas a modal keeps open, which the input hook and the layer test read.
+    sampler::hole_of_pass(ctx);
     let pass_pointer = pointer::pass_pointer(ctx);
     let frame = pass_pointer.frame.clone();
     let wheel_in = input::wheel_read(ctx, 1.0, 1.0);
@@ -53,6 +56,8 @@ pub(crate) fn begin(ctx: &Context) {
             _ => None,
         })
         .map(|at| pointer::press_winner(ctx, at, pass_pointer.press_targets).map(|(winner, _)| winner.owner));
+    // A modal layer holds the wheel, except over the canvas it keeps open and inside its own family.
+    let blocked = hover.is_some_and(|at| !sampler::wheel_allowed(ctx, at));
     PerViewport::<State>::with(ctx, viewport, |state| {
         state.last = std::mem::take(&mut state.this);
         state.shares.clear();
@@ -73,6 +78,9 @@ pub(crate) fn begin(ctx: &Context) {
         let (Some(frame), Some(at)) = (frame, hover) else { return };
         let (scroll, unit, phase, mods) = wheel_in.unwrap_or((Vec2::ZERO, WheelUnit::Point, WheelPhase::Move, frame.mods));
         if scroll == Vec2::ZERO && frame.zoom == 1.0 {
+            return;
+        }
+        if blocked {
             return;
         }
         let share = Wheel::new(scroll, mods, unit, phase).zoom(frame.zoom);

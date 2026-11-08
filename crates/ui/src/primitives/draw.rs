@@ -1,9 +1,11 @@
 //! `Draw`: what a component paints content with. It takes only `StyleColor` or `DataColor`.
 
+use super::content::DocText;
 use super::record::PaintRecord;
 use super::rule::RuleKind;
 use super::surface::Surface;
 use super::text::{TextEnv, TextLayout, TextRun};
+use crate::fonts::stack_facts;
 use crate::style::{Corners, DataColor, Ink, StyleColor, SurfaceKind, UiTokens, ink_color, rule_look, surface_style};
 use craft_i18n::Direction;
 use egui::epaint::{CircleShape, RectShape};
@@ -59,7 +61,12 @@ impl<'a> Draw<'a> {
     }
 
     fn text_env(&self) -> TextEnv<'a> {
-        TextEnv { tokens: self.env.tokens, direction: self.env.direction, ink: ink_color(self.env.tokens, self.env.ink) }
+        TextEnv {
+            tokens: self.env.tokens,
+            direction: self.env.direction,
+            ink: ink_color(self.env.tokens, self.env.ink),
+            fonts: stack_facts(self.painter.ctx()),
+        }
     }
 
     fn width(&self, width: StrokeWidth) -> f32 {
@@ -82,8 +89,20 @@ impl<'a> Draw<'a> {
         layout
     }
 
-    /// Lays `run` out in `max_width` without painting it.
-    pub(crate) fn layout(&self, run: &TextRun<'_>, max_width: f32) -> TextLayout {
+    /// Lays `text` out in `rect`'s width and paints it at the reading start of `rect`, top aligned, as `text` does for
+    /// a run. Each run keeps its own font, size and colour.
+    pub fn doc(&self, rect: Rect, text: &DocText<'_>) -> TextLayout {
+        let text = DocText { wrap: Some(rect.width()), ..*text };
+        let layout = text.layout(self.painter.ctx(), self.env.tokens, self.env.direction);
+        let layout = TextLayout { galley: super::text::anchored_at_start(layout.galley.clone()), ..layout };
+        let x = if self.env.direction == Direction::Rtl { rect.right() - layout.size().x } else { rect.left() };
+        self.galley(Pos2::new(x, rect.top()), &layout);
+        layout
+    }
+
+    /// Lays `run` out in `max_width` without painting it: the one text layout path for painters that measure before
+    /// they paint (the same layout `text` paints with).
+    pub fn layout(&self, run: &TextRun<'_>, max_width: f32) -> TextLayout {
         run.layout(self.painter.ctx(), &self.text_env(), max_width)
     }
 

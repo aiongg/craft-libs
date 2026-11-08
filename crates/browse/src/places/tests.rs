@@ -240,9 +240,9 @@ fn listing_never_blocks_the_pass() {
     assert_eq!(names_of(cache.subfolders(dir)), ["only"]);
 
     // A folder the tree stopped asking for is dropped at the end of the pass.
-    cache.end_pass();
+    cache.finish_pass();
     assert_eq!(cache.subfolders(Path::new("/other")), Listing::Loading);
-    cache.end_pass();
+    cache.finish_pass();
     assert_eq!(cache.subfolders(dir), Listing::Loading, "/slow was not asked for in the last pass");
 }
 

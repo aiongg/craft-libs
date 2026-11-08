@@ -186,7 +186,10 @@ pub(crate) trait ShapeHooks<C: Component> {
     fn record(&mut self, _stage: &mut MemoryStage, _ctx: &Context, _id: Id) {}
 }
 
-struct LeafHooks;
+/// The leaf shape; `scope` is the command scope the leaf is an instance of, when its caller named one.
+struct LeafHooks {
+    scope: Option<commands::CommandScope>,
+}
 
 impl<C: Component> ShapeHooks<C> for LeafHooks {
     fn shape(&self) -> ShapeKind {
@@ -203,8 +206,18 @@ impl<C: Component> ShapeHooks<C> for LeafHooks {
 
     fn content(&mut self, _: &mut C, _: &mut Ui, _: &Env, _: &mut Cx<'_, C>, _: &AppValues) {}
 
+    fn read(&mut self, _: &mut C, stage: &mut MemoryStage, id: Id, _: &Env) {
+        if let Some(scope) = self.scope {
+            commands::register_instance(stage.ctx(), scope, id);
+        }
+    }
+
+    fn instance_scope(&self, _: &C) -> Option<commands::CommandScope> {
+        self.scope
+    }
+
     fn sized(&self, comp: &C, ui: &Ui, size: Vec2) -> Vec2 {
-        let room = ui.available_size_before_wrap();
+        let room = crate::layout::flow_room(ui);
         let fill = |measured: f32, offered: f32| if offered.is_finite() { measured.max(offered) } else { measured };
         match comp.fills() {
             Some(craft_behavior::Axis::X) => Vec2::new(fill(size.x, room.x), size.y),
@@ -428,6 +441,7 @@ fn stops_step<C: Component>(at: StopsStep<'_>, hooks: &dyn ShapeHooks<C>, comp: 
         group: steps::member_group(ctx, env.roving, id),
         body_roving,
         row: env.row,
+        item: env.item == Some(id),
         default_stop: resolved.default_stop,
     });
 }
@@ -443,13 +457,15 @@ fn activation_of(ctx: &Context, ui: &Ui, rect: Rect, resolved: &Resolved<'_>, ke
     if !steps::takes_activation(resolved) {
         return None;
     }
-    let mods = crate::runtime::pointer::frame(ctx).mods;
     if keyed {
-        return Some(Activation { by_key: true, mods });
+        return Some(Activation { by_key: true, mods: craft_keymap::Mods::NONE });
     }
     let released = root_sense.contains(Sense::CLICK)
         && crate::runtime::overlay::released_inside(ctx, crate::runtime::egui::areas::layer_to_screen(ctx, ui.layer_id()) * rect);
-    (clicked || released).then_some(Activation { by_key: false, mods })
+    (clicked || released).then(|| Activation {
+        by_key: false,
+        mods: crate::runtime::pointer::with_frame(ctx, |frame, _| frame.map_or(craft_keymap::Mods::NONE, |frame| frame.mods)),
+    })
 }
 
 /// Steps 6 to 16 of the pass, run in the `Ui` the host gives.
@@ -557,6 +573,10 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
         }
         created
     };
+    // A root with no node whose egui widget senses still gets a node from egui, with actions nobody writes.
+    if C::ROLE == Role::None && !root_sense.is_empty() {
+        access::hide(&ctx, id);
+    }
     cx.core.part_cursors = sensing::hovered_cursor(&decls, &results).into_iter().collect();
     cx.core.rect = rect;
     cx.core.content_rect = flow.inset(metrics.padding);
@@ -760,7 +780,7 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     // 5 measure
     let room = match at {
         ShowAt::Rect(rect) => Some(rect.width()),
-        ShowAt::Flow => Some(ui.available_width()).filter(|width| width.is_finite()),
+        ShowAt::Flow => Some(crate::layout::flow_room(ui).x).filter(|width| width.is_finite()),
     };
     let extent = hooks.extent(&comp, ui, at, id, &scx);
     let size = {
@@ -857,7 +877,21 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
 }
 
 pub(crate) fn show_leaf<C: Component + Meta<Shape = super::shape::Leaf>>(comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>>) -> C::Output {
-    run(comp, ui, at, tip, &mut LeafHooks)
+    let scope = comp.common(Internal::new()).command_scope;
+    run(comp, ui, at, tip, &mut LeafHooks { scope })
+}
+
+/// Shows a container at `rect` and takes the rect's room in the flow of `ui`, through the one helper that moves a
+/// parent's flow past a rect, so a sibling shown after it lies past it.
+pub(crate) fn show_container_taking<C: Container, R>(
+    comp: C,
+    ui: &mut Ui,
+    rect: Rect,
+    body: impl FnMut(&mut Ui, &mut BodyCx<'_>) -> R,
+) -> Inner<C::Output, R> {
+    let shown = show_container(comp, ui, ShowAt::Rect(rect), body, None);
+    crate::runtime::egui::alloc::advance_past(ui, rect);
+    shown
 }
 
 pub(crate) fn show_container<C: Container, R>(

@@ -77,6 +77,8 @@ pub(crate) fn has_family(ctx: &Context, family: &FontRef) -> bool {
 }
 
 /// Takes the faces called `names`, and the families of those names, out of egui's definitions.
+/// It rebuilds the definitions from the applied ones, so call it only from a begin-pass step, before an install of the
+/// pass can queue its own.
 pub(crate) fn remove_faces(ctx: &Context, names: &[String]) {
     let mut definitions = ctx.fonts(|fonts| fonts.definitions().clone());
     definitions.font_data.retain(|name, _| !names.contains(name));

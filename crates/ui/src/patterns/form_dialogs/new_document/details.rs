@@ -24,8 +24,6 @@ use egui::Ui;
 /// What the details column asks the dialog to do after the pass.
 #[derive(Default)]
 pub(super) struct Right {
-    /// Enter in the Name field: create the document.
-    pub(super) create: bool,
     /// Custom was chosen or the colour button pressed: ask the app for a colour.
     pub(super) request_color: bool,
     /// Save the settings as a preset under the typed name.
@@ -115,9 +113,6 @@ pub(super) fn show(ui: &mut Ui, session: &mut Session, values: &mut DocumentOpti
             let shown = TextField::new(words.name.clone(), Bind::given(values.name.clone())).limit(MAX_NAME).select_on_focus().show(ui);
             if let Some(name) = shown.value().cloned() {
                 values.name = name;
-            }
-            if shown.submitted {
-                right.create = true;
             }
             if std::mem::take(&mut session.focus_name) {
                 focus::request(ui.ctx(), FocusTarget::Id(shown.response.id));
@@ -307,7 +302,7 @@ fn save_row(ui: &mut Ui, session: &mut Session, read: &Read<'_>, right: &mut Rig
         _ => Validity::Ok,
     };
     Field::new(words.preset_name.clone()).id_salt("preset-name").show(ui, |ui, _| {
-        let shown = TextField::new(words.preset_name.clone(), Bind::given(name.clone()).check(&check)).limit(MAX_NAME).show(ui);
+        let shown = TextField::new(words.preset_name.clone(), Bind::given(name.clone()).check(&check)).limit(MAX_NAME).submits().show(ui);
         if let Some(typed) = shown.value().cloned() {
             session.naming = Some(typed);
             session.name_tried = false;

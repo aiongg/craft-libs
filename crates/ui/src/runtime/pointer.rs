@@ -8,12 +8,12 @@ use crate::runtime::egui::areas::{self, Layer};
 use crate::runtime::egui::{input, pass};
 use crate::runtime::frame::{PerViewport, Stamped};
 use craft_behavior::{
-    Buttons, MultiTouch, PointerButton, PointerEvent, PointerKind, PointerSample, PressCancel, PressStart, ResolveFor, Shape, Winner, count_clicks,
-    resolve,
+    Buttons, MultiTouch, PartRef, PointerButton, PointerEvent, PointerKind, PointerSample, PressCancel, PressStart, ResolveFor, Shape, Winner,
+    count_clicks, resolve,
 };
 use craft_keymap::Mods;
 use craft_theme::HitSizes;
-use egui::{Context, Id, Pos2, Vec2, ViewportId};
+use egui::{Context, Id, Pos2, Rect, Vec2, ViewportId};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -256,6 +256,43 @@ pub(crate) fn record_widgets_in(ctx: &Context, viewport: ViewportId, layer: Laye
         entry.widgets.extend_from_slice(widgets);
         entry.click = click;
     });
+}
+
+/// What the root `root` registered in the running pass of `viewport`, read for its part `part`: the egui widgets
+/// that stand for the root, and the screen bounds of the root's shapes that take a press and outrank the part.
+pub(crate) struct OverPart {
+    /// The root's egui widgets: a press on them resolves among the root's shapes, not as a widget over the part.
+    pub widgets: Vec<Id>,
+    /// The shapes a press on the part goes to instead: a higher stack position (a member, an `over` part), level or
+    /// sub-level (8.3). A shape of the same rank wins only by its distance to the point, so it is not one of them.
+    pub above: Vec<Rect>,
+}
+
+/// What lies over the part `part` of the root `root` in the running pass of `viewport`, among the root's widgets and
+/// shapes. Read at the end of the pass, when the record is complete.
+pub(crate) fn over_part(ctx: &Context, viewport: ViewportId, root: Id, part: PartRef) -> OverPart {
+    let (widgets, layers) = PerViewport::<Shapes>::with(ctx, viewport, |record| {
+        let entries = || record.this.iter().filter_map(|(layer, roots)| roots.get(&root).map(|entry| (*layer, entry)));
+        let rank = |shape: &Shape<Id>| (shape.position, shape.priority.level, shape.priority.sub);
+        let own =
+            entries().flat_map(|(_, entry)| entry.shapes.iter()).filter(|shape| shape.owner == root && shape.part == Some(part)).map(rank).max();
+        let widgets: Vec<Id> = entries().flat_map(|(_, entry)| entry.widgets.iter().copied()).collect();
+        let layers: Vec<(Layer, Vec<Rect>)> = entries()
+            .map(|(layer, entry)| {
+                let above = entry.shapes.iter().filter(|shape| shape.sense.takes_press() && own.is_some_and(|own| rank(shape) > own));
+                (layer, above.map(|shape| shape.shape.bounds()).collect())
+            })
+            .collect();
+        (widgets, layers)
+    });
+    let above = layers
+        .into_iter()
+        .flat_map(|(layer, bounds)| {
+            let to_screen = areas::layer_to_screen(ctx, layer);
+            bounds.into_iter().map(move |rect| to_screen * rect)
+        })
+        .collect();
+    OverPart { widgets, above }
 }
 
 /// The parts of the root `root` that sense `sense` in last pass's shape record, in registration order.

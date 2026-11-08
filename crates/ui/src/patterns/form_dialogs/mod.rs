@@ -7,10 +7,7 @@ mod param;
 mod rows;
 
 pub use fields::{DialogFields, FieldValue};
-pub use param::{
-    ColorRequest, CustomContext, CustomRow, EyedropperRequest, NumberUnit, Param, ParamKind, PathFilter, PathKind, PathRequest, encode, open_fields,
-    set_color_field,
-};
+pub use param::{CustomContext, CustomRow, NumberUnit, Param, ParamKind, encode, open_fields, set_color_field};
 pub use rows::{ParamRows, ParamRowsOutput};
 pub use words::ParamWords;
 
@@ -23,8 +20,8 @@ pub use dialog::{
     BelowRows, FooterExtra, HostedParamDialog, ParamDialog, ParamDialogOutput, ParamDialogWords, ParamLayout, ParamResult, ResetFooter, ResetPick,
 };
 pub use form::{FormCx, FormDialog, FormOutput};
-pub use host_requests::{HostAnswer, HostRequests, PreviewRequest};
-pub use preview::{PreviewOutput, PreviewPane, PreviewPaneStyle, PreviewState, PreviewView, PreviewWords, PreviewZoom, PreviewZoomOutput};
+pub use host_requests::{HostRequests, PreviewRequest};
+pub use preview::{PaneOverlay, PreviewOutput, PreviewPane, PreviewPaneStyle, PreviewState, PreviewView, PreviewWords, PreviewZoom, PreviewZoomOutput};
 
 mod size_model;
 
