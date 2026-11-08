@@ -28,7 +28,6 @@ fn framed_window() -> Windows {
 }
 
 /// Where the bar and the dialog lay in the last frame.
-#[derive(Default)]
 struct Seen {
     bar: Cell<Rect>,
     dialog: Cell<Rect>,
@@ -64,7 +63,7 @@ fn moves_window(sent: &[(ViewportId, ViewportCommand)]) -> bool {
 #[trial]
 fn a_modal_leaves_the_covered_title_bar_draggable_but_not_the_dialog() {
     let windows = framed_window();
-    let seen = Seen::default();
+    let seen = Seen { bar: Cell::new(Rect::NOTHING), dialog: Cell::new(Rect::NOTHING) };
     let at = Pos2::new(300.0, 4.0);
     for _ in 0..6 {
         frame(&windows, vec![], at, &seen);
