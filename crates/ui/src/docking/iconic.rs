@@ -1,7 +1,7 @@
 //! `IconicColumn`: a column collapsed to one icon per panel, and the flyouts its icons open.
 
-use super::dock_column::{ColumnGesture, ColumnSizes, GroupView, Laid, Shared, bar_name, locked, register_edges, show_bar};
-use super::{DockSpot, DockTargets, DockWords, Flyout, PanelSpec};
+use super::dock_column::{ColumnGesture, GroupView, Laid, Shared, bar_name, locked, register_edges, show_bar};
+use super::{DockSizes, DockSpot, DockTargets, DockWords, Flyout, PanelSpec};
 use crate::buttons::IconButton;
 use crate::contract::overlay::Popup;
 use crate::contract::{
@@ -28,7 +28,7 @@ const GRIP: PartKey = PartKey::new("grip");
 #[non_exhaustive]
 pub struct IconicSizes {
     /// The sizes every column shares.
-    pub column: ColumnSizes,
+    pub column: DockSizes,
     /// The height of an icon cell (the rail button).
     pub cell: f32,
     /// How far an icon group's drag band reaches into its first icon.
@@ -44,7 +44,7 @@ impl IconicSizes {
     pub fn style(cx: &StyleCx<'_>) -> Self {
         let size = &cx.tokens.size;
         IconicSizes {
-            column: ColumnSizes::style(cx),
+            column: DockSizes::style(cx),
             cell: size.rail.button,
             grip: size.handle.sm,
             separator: cx.tokens.space.gap.tight,

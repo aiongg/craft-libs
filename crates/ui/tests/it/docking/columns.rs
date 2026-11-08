@@ -1,7 +1,7 @@
 //! Dock columns: the size rules of groups and columns, and the flyout of an iconic column.
 
 use craft_behavior::dock::{Column, Group};
-use craft_ui::docking::{DockHeights, GroupSize, IconicColumn, PanelSpec, drag_divider, fit_widths, group_heights};
+use craft_ui::docking::{DockHeights, GroupSize, IconicColumn, PanelSpec, fit_widths, group_heights};
 use craft_ui::testing::memory::global;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers};
@@ -53,14 +53,6 @@ fn default_heights_give_way_to_the_group_that_fills_before_it_gets_less() {
 fn heights_shrink_towards_their_minimums_when_the_room_is_short() {
     let heights = group_heights(&[open(MIN), open(MIN), open(MIN)], STRIP, 2.0 * MIN);
     assert!(heights.iter().all(|height| *height >= MIN), "no group goes below its minimum");
-}
-
-#[trial]
-fn a_divider_moves_by_taking_room_from_the_groups_behind_it() {
-    let open = [(100.0, 40.0), (100.0, 40.0), (100.0, 40.0)];
-    assert_eq!(drag_divider(&open, 0, 30.0), vec![130.0, 70.0, 100.0], "the next group gives way first");
-    assert_eq!(drag_divider(&open, 0, 200.0), vec![220.0, 40.0, 40.0], "the move stops where every group is at its minimum");
-    assert_eq!(drag_divider(&open, 1, -30.0), vec![100.0, 70.0, 130.0], "a move up shrinks the group above and grows the one below");
 }
 
 #[trial]

@@ -5,6 +5,7 @@
 //! tab carries a `PanelDrag`; `SplitArea` is the drop target that says which group and side it lands on.
 
 mod config;
+pub(crate) mod divider;
 mod drop;
 mod event;
 pub mod frame;
@@ -40,22 +41,22 @@ mod flyout;
 mod iconic;
 
 pub use dock_column::{
-    ColumnGesture, ColumnSizes, DockColumn, DockColumnOutput, DockColumnStyle, GroupSize, GroupView, drag_divider, fit_widths, group_heights,
-    stacked, width_bounds,
+    ColumnGesture, DockColumn, DockColumnOutput, DockColumnStyle, GroupSize, GroupView, fit_widths, group_heights, stacked, width_bounds,
 };
 pub use flyout::Flyout;
 pub use iconic::{IconicColumn, IconicColumnOutput, IconicColumnStyle, IconicSizes};
 
 use crate::contract::{
-    Access, Bind, BindMut, Common, Component, Container, ContainerProps, Cx, DropMark, DropOperation, DropTarget, Edit as _, EditResponse,
-    Focus as _, Name, Numeric, Outcome, Pad, PaintUi, PartsCx, Pointer as _, Props as _, Role, Sizing, WordSetCx as _,
+    Access, Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, DropMark, DropOperation, DropTarget, Edit as _, EditResponse,
+    Focus as _, Outcome, Pad, PaintUi, PartsCx, Props as _, Role, Sizing, WordSetCx as _,
 };
 use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;
+use crate::runtime::memory::sub;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::dock::{Layout, ZoneSize, zones};
-use craft_behavior::nav::{StepResult, ValueAxes, ValueSteps, step_value};
-use craft_behavior::{Axis, CursorIcon, DockSide, Flow, HitLevel, HitPriority, Metrics, NavMove, PartKey, PressPhase, Sense};
+use craft_behavior::{Axis, DockSide, Flow, Metrics, PartKey, Sense};
+use divider::{Divider, Drag};
 use egui::{Pos2, Rect, Response};
 use std::fmt::Debug;
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -153,31 +154,27 @@ impl DropTarget<PanelDrag> for GroupDrops {
     }
 }
 
-/// The style of a split area: the sizes its handles and keys read.
+/// The style of a split area: the docking sizes its frames, handles and keys read.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
 pub struct SplitAreaStyle {
     #[style(metrics)]
     metrics: Metrics,
-    /// How thick a handle is across its boundary.
-    reach: f32,
-    /// One arrow press.
-    step: f32,
-    /// One Shift-arrow or Page press.
-    jump: f32,
+    /// The docking sizes: the dividers' gap, reach and key steps, and the groups' least extent and strip.
+    sizes: DockSizes,
 }
 
 /// What a split area reports: the layout's edits and the drop of a panel.
 #[derive(Debug)]
 #[non_exhaustive]
-pub struct DockOutput<P> {
+pub struct SplitAreaOutput<P> {
     /// The resize edits of the layout and the area's response.
     pub edit: EditResponse<Layout<P>>,
     /// A panel dropped on a group this pass.
     pub dropped: Option<DockDrop>,
 }
 
-impl<P: Clone + PartialEq + Send + Sync + 'static> Outcome for DockOutput<P> {
+impl<P: Clone + PartialEq + Send + Sync + 'static> Outcome for SplitAreaOutput<P> {
     type Value = Layout<P>;
 
     fn response(&self) -> &Response {
@@ -212,130 +209,79 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> SplitArea<'a, P> 
     }
 }
 
-/// `x` as a coordinate from the start edge of `rect`: unchanged for left-to-right, mirrored for right-to-left.
-fn logical_x(rect: Rect, rtl: bool, x: f32) -> f32 {
-    if rtl { rect.right() - (x - rect.left()) } else { x }
-}
+/// The groups of the layout with the frames the area gave them this pass, for the body.
+#[derive(Clone)]
+struct PassFrames<P>(Vec<(P, Rect)>);
 
-/// A vertical move read as the move of a value that grows downwards.
-fn along_y(mv: NavMove) -> NavMove {
-    match mv {
-        NavMove::Up => NavMove::Down,
-        NavMove::Down => NavMove::Up,
-        NavMove::PageUp => NavMove::PageDown,
-        NavMove::PageDown => NavMove::PageUp,
-        NavMove::Forward => NavMove::Up,
-        NavMove::Back => NavMove::Down,
-        other => other,
+impl<P> Default for PassFrames<P> {
+    fn default() -> Self {
+        PassFrames(Vec::new())
     }
 }
 
-/// The dividers of the layout's docked tree in `rect`.
-fn dividers<P>(layout: &Layout<P>, rect: Rect, rules: &FrameRules<'_, P>, rtl: bool) -> Vec<SplitHandle> {
-    layout.root.as_ref().map_or_else(Vec::new, |root| tree::frames(root, rect, rules, rtl).handles)
-}
+const FRAMES: &str = "split_frames";
 
-/// The handle's strip across its divider, as thick as `reach`.
-fn bar(handle: &SplitHandle, reach: f32) -> Rect {
-    let (centre, split) = (handle.divider.center(), handle.split);
-    match handle.axis {
-        Axis::X => Rect::from_min_max(Pos2::new(centre.x - reach / 2.0, split.top()), Pos2::new(centre.x + reach / 2.0, split.bottom())),
-        _ => Rect::from_min_max(Pos2::new(split.left(), centre.y - reach / 2.0), Pos2::new(split.right(), centre.y + reach / 2.0)),
+impl BodyCx<'_> {
+    /// The groups of the split area this body belongs to, each as its anchor panel and its rect, with this pass's
+    /// resize edits applied: a panel placed at its group's rect sits against the handle in the same pass.
+    pub fn group_frames<P: Clone + Send + Sync + 'static>(&self) -> Vec<(P, Rect)> {
+        self.memory.recall::<PassFrames<P>>(sub(self.id, FRAMES)).0
     }
 }
 
-/// The boundary's coordinate along its axis, in reading order, and the least and most it can take.
-fn boundary<P>(layout: &Layout<P>, handle: &SplitHandle, rect: Rect, rules: &FrameRules<'_, P>, rtl: bool) -> (f32, f32, f32) {
-    let centre = handle.divider.center();
-    let at = match handle.axis {
-        Axis::X => logical_x(rect, rtl, centre.x),
-        _ => centre.y,
+/// The dividers of the layout's docked tree in `rect`, each with the handle that names its split.
+fn handles<P>(layout: &Layout<P>, rect: Rect, sizes: &DockSizes, rules: &FrameRules<'_, P>, rtl: bool) -> Vec<SplitHandle> {
+    layout.root.as_ref().map_or_else(Vec::new, |root| tree::frames(root, rect, sizes, rules, rtl).handles)
+}
+
+/// The divider of `handle` in reading order. With `ranged`, the range it can travel is the tree's; without, it is
+/// where it stands, which is all its part and face need.
+fn divider_of<P>(
+    layout: &Layout<P>,
+    handle: &SplitHandle,
+    rect: Rect,
+    sizes: &DockSizes,
+    rules: &FrameRules<'_, P>,
+    rtl: bool,
+    ranged: bool,
+) -> Divider {
+    let flow = Flow::new(rect, rtl);
+    let (centre, split) = (flow.to_physical(handle.divider).center(), flow.to_physical(handle.split));
+    let at = if handle.axis == Axis::X { centre.x } else { centre.y };
+    let range = match layout.root.as_ref() {
+        Some(root) if ranged => tree::drag_range(root, rect, sizes, rules, &handle.path),
+        _ => (0.0, 0.0),
     };
-    let (lo, hi) = layout.root.as_ref().map_or((0.0, 0.0), |root| tree::drag_range(root, rect, rules, &handle.path));
-    (at, at + lo, at + hi)
+    Divider::new(handle.axis, at, split, (at + range.0, at + range.1), sizes.reach)
 }
 
 /// The layout with the boundary of `handle` moved by `delta` points in reading order; `None` when nothing moves.
-fn moved<P: Clone>(layout: &Layout<P>, rect: Rect, rules: &FrameRules<'_, P>, handle: &SplitHandle, delta: f32) -> Option<Layout<P>> {
+fn moved<P: Clone>(
+    layout: &Layout<P>,
+    rect: Rect,
+    sizes: &DockSizes,
+    rules: &FrameRules<'_, P>,
+    handle: &SplitHandle,
+    delta: f32,
+) -> Option<Layout<P>> {
     let root = layout.root.as_ref()?;
-    let sizes = tree::drag_sizes(root, rect, rules, &handle.path, delta);
-    if sizes.is_empty() {
+    let edits = tree::drag_sizes(root, rect, sizes, rules, &handle.path, delta);
+    if edits.is_empty() {
         return None;
     }
     let mut next = layout.clone();
-    tree::apply_sizes(next.root.as_mut()?, &sizes);
+    tree::apply_sizes(next.root.as_mut()?, &edits);
     Some(next)
-}
-
-/// Dragging a handle moves its boundary: one gesture from the drag's start to its release.
-fn resize_by_pointer<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
-    cx: &mut Cx<'_, SplitArea<'_, P>>,
-    layout: &Layout<P>,
-    handles: &[SplitHandle],
-    rules: &FrameRules<'_, P>,
-) {
-    let (rect, rtl) = (cx.rect, cx.flow.is_rtl());
-    for (at, handle) in handles.iter().enumerate() {
-        let phase = cx.part(HANDLE.at(at as u64)).press.phase;
-        match phase {
-            PressPhase::DragStart { .. } => cx.begin(),
-            PressPhase::Drag { pos, .. } => {
-                let centre = handle.divider.center();
-                let delta = match handle.axis {
-                    Axis::X => logical_x(rect, rtl, pos.x) - logical_x(rect, rtl, centre.x),
-                    _ => pos.y - centre.y,
-                };
-                if let Some(next) = moved(layout, rect, rules, handle, delta) {
-                    cx.propose(next);
-                }
-            }
-            PressPhase::Release { .. } => cx.commit(),
-            _ => {}
-        }
-    }
-}
-
-/// The arrow keys move the focused handle's boundary by a step, Shift or Page by a jump; AccessKit sets it to a value.
-fn resize_by_keys<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
-    cx: &mut Cx<'_, SplitArea<'_, P>>,
-    layout: &Layout<P>,
-    handles: &[SplitHandle],
-    rules: &FrameRules<'_, P>,
-) {
-    let (rect, rtl) = (cx.rect, cx.flow.is_rtl());
-    let (step, jump) = (cx.style.step, cx.style.jump);
-    let focused = cx.active_part().filter(|part| part.key == HANDLE).and_then(|part| part.index);
-    let Some(handle) = focused.and_then(|key| handles.get(key as usize)) else { return };
-    let (at, lo, hi) = boundary(layout, handle, rect, rules, rtl);
-    let value = if let Some(set) = cx.intents().take_set_value() {
-        set.clamp(f64::from(lo), f64::from(hi))
-    } else if let Some((mv, mods)) = cx.intents().take_move() {
-        let (axes, mv) = match handle.axis {
-            Axis::X => (ValueAxes::Horizontal, mv),
-            _ => (ValueAxes::Vertical, along_y(mv)),
-        };
-        let steps = ValueSteps::new(f64::from(at), f64::from(lo), f64::from(hi), f64::from(step), f64::from(jump));
-        match step_value(&steps, axes, mv, mods) {
-            StepResult::Set(value) => value,
-            _ => return,
-        }
-    } else {
-        return;
-    };
-    if let Some(next) = moved(layout, rect, rules, handle, value as f32 - at) {
-        cx.set(next);
-    }
 }
 
 impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Component for SplitArea<'_, P> {
     const ROLE: Role = Role::GROUP;
-    const KEYS: KeyUse = KeyUse::CANVAS;
+    const KEYS: KeyUse = KeyUse::SPLITTER;
     type Style = SplitAreaStyle;
-    type Output = DockOutput<P>;
+    type Output = SplitAreaOutput<P>;
 
     fn style(cx: &StyleCx<'_>, _: SplitAreaStyleKey<P>) -> SplitAreaStyle {
-        let control = cx.control();
-        SplitAreaStyle { metrics: Metrics::new(), reach: cx.tokens.size.hit.target, step: control.gap, jump: control.height }
+        SplitAreaStyle { metrics: Metrics::new(), sizes: DockSizes::style(cx) }
     }
 
     fn sense(&self) -> Sense {
@@ -349,28 +295,50 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Component for SplitAr
     /// The handles: edge parts above the groups, each its own Tab stop that the arrow keys move.
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let Some(layout) = cx.value() else { return };
-        for (at, handle) in dividers(layout, rect, &self.rules, cx.flow.is_rtl()).iter().enumerate() {
-            let cursor = if handle.axis == Axis::X { CursorIcon::ResizeHorizontal } else { CursorIcon::ResizeVertical };
-            cx.part(HANDLE.at(at as u64), bar(handle, cx.style.reach))
-                .sense(Sense::DRAG | Sense::TAKE_FOCUS)
-                .priority(HitPriority::new(HitLevel::Edge, 0))
-                .cursor(cursor)
-                .focusable()
-                .over();
+        let (sizes, rtl) = (cx.style.sizes, cx.flow.is_rtl());
+        for (at, handle) in handles(layout, rect, &sizes, &self.rules, rtl).iter().enumerate() {
+            let divider = divider_of(layout, handle, rect, &sizes, &self.rules, rtl, false);
+            divider::declare(cx, rect, HANDLE, at as u64, &divider);
         }
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        let Some(layout) = cx.value().cloned() else { return };
-        let (rect, rtl) = (cx.rect, cx.flow.is_rtl());
-        let rules = self.rules;
-        let handles = dividers(&layout, rect, &rules, rtl);
-        resize_by_pointer(cx, &layout, &handles, &rules);
-        resize_by_keys(cx, &layout, &handles, &rules);
-        let groups = layout.root.as_ref().map_or_else(Vec::new, |root| {
-            tree::frames(root, rect, &rules, rtl).groups.iter().filter_map(|group| Some((PanelKey::of(group.anchor()?), group.rect))).collect()
+        let Some(layout) = cx.value().cloned() else {
+            cx.core.memory.shown::<PassFrames<P>>(sub(sub(cx.core.id, "body"), FRAMES)).0.clear();
+            return;
+        };
+        let (rect, rtl, sizes, rules) = (cx.rect, cx.flow.is_rtl(), cx.style.sizes, self.rules);
+        let handles = handles(&layout, rect, &sizes, &rules, rtl);
+        for (at, handle) in handles.iter().enumerate() {
+            let divider = divider_of(&layout, handle, rect, &sizes, &rules, rtl, false);
+            match divider::pointer(cx, HANDLE, at as u64, &divider) {
+                Some(Drag::Start) => cx.begin(),
+                Some(Drag::To(coord)) => {
+                    if let Some(next) = moved(&layout, rect, &sizes, &rules, handle, coord - divider.at) {
+                        cx.propose(next);
+                    }
+                }
+                Some(Drag::Release) => cx.commit(),
+                None => {}
+            }
+        }
+        let focused = cx.active_part().filter(|part| part.key == HANDLE).and_then(|part| part.index);
+        if let Some(index) = focused
+            && let Some(handle) = handles.get(index as usize)
+        {
+            let divider = divider_of(&layout, handle, rect, &sizes, &rules, rtl, true);
+            if let Some((_, coord)) = divider::keys(cx, HANDLE, &[(index, divider)], sizes.step, sizes.jump)
+                && let Some(next) = moved(&layout, rect, &sizes, &rules, handle, coord - divider.at)
+            {
+                cx.set(next);
+            }
+        }
+        let groups = cx.value().and_then(|shown| shown.root.as_ref()).map_or_else(Vec::new, |root| {
+            tree::frames(root, rect, &sizes, &rules, rtl).groups.iter().filter_map(|group| Some((group.anchor()?.clone(), group.rect))).collect()
         });
-        let target = GroupDrops { groups, rtl };
+        let keyed = groups.iter().map(|(anchor, rect)| (PanelKey::of(anchor), *rect)).collect();
+        cx.core.memory.shown::<PassFrames<P>>(sub(sub(cx.core.id, "body"), FRAMES)).0 = groups;
+        let target = GroupDrops { groups: keyed, rtl };
         if let Some(drop) = cx.drop_target::<PanelDrag, _>(&target) {
             self.dropped = Some(drop);
         }
@@ -378,25 +346,24 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Component for SplitAr
 
     fn paint_over(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let Some(layout) = cx.value() else { return };
-        for (at, handle) in dividers(layout, cx.rect, &self.rules, cx.flow.is_rtl()).iter().enumerate() {
+        let (sizes, rtl) = (cx.style.sizes, cx.flow.is_rtl());
+        for (at, handle) in handles(layout, cx.rect, &sizes, &self.rules, rtl).iter().enumerate() {
             ui.face(HANDLE.at(at as u64), Splitter::new(handle.axis));
         }
     }
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let Some(layout) = cx.value() else { return };
-        let (rect, rtl) = (cx.rect, cx.flow.is_rtl());
-        let name = cx.words::<DockWords>().resize.as_str().to_owned();
-        for (at, handle) in dividers(layout, rect, &self.rules, rtl).iter().enumerate() {
-            let (value, lo, hi) = boundary(layout, handle, rect, &self.rules, rtl);
-            let node = access.node(HANDLE.at(at as u64), Role::SPLITTER);
-            node.name = Name::Text(name.clone());
-            node.numeric = Some(Numeric::new(f64::from(value), f64::from(lo)..=f64::from(hi)).step(f64::from(cx.style.step)));
+        let (rect, rtl, sizes) = (cx.rect, cx.flow.is_rtl(), cx.style.sizes);
+        let name = cx.words::<DockWords>().resize.as_str();
+        for (at, handle) in handles(layout, rect, &sizes, &self.rules, rtl).iter().enumerate() {
+            let divider = divider_of(layout, handle, rect, &sizes, &self.rules, rtl, true);
+            divider::describe(access, HANDLE, at as u64, &divider, name, sizes.step);
         }
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> DockOutput<P> {
-        DockOutput { edit: cx.edit_response(), dropped: self.dropped }
+    fn finish(self, cx: Cx<'_, Self>) -> SplitAreaOutput<P> {
+        SplitAreaOutput { edit: cx.edit_response(), dropped: self.dropped }
     }
 }
 

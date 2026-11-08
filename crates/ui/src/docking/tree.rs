@@ -11,7 +11,7 @@
 //! rects it returns for right-to-left.
 
 use super::spec::PanelLimits;
-use crate::style::StyleCx;
+use super::targets::DockSizes;
 use craft_behavior::dock::{Column, DockEdge, Node, SplitSize};
 use craft_behavior::{Axis, Flow};
 use egui::{Rect, Vec2, pos2, vec2};
@@ -20,37 +20,9 @@ use egui::{Rect, Vec2, pos2, vec2};
 /// much above its minimum, or the groups beyond it give the room.
 pub const DROP_MARGIN: f32 = 1.0;
 
-/// The sizes the frames maths reads.
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct FrameSizes {
-    /// The divider between two groups.
-    pub gap: f32,
-    /// The divider between a dock and its neighbour.
-    pub dock_gap: f32,
-    /// The least extent of a group along a split.
-    pub min_pane: f32,
-    /// The height of a group's header (tab strip or section title).
-    pub header: f32,
-}
-
-impl FrameSizes {
-    /// The sizes `cx`'s theme gives.
-    pub fn style(cx: &StyleCx<'_>) -> Self {
-        let gap = cx.tokens.space.gap.inline;
-        FrameSizes { gap, dock_gap: gap, min_pane: cx.tokens.size.rail.width, header: cx.tokens.size.bar.tab }
-    }
-
-    /// The sizes with the given dividers, least pane and header.
-    pub const fn new(gap: f32, dock_gap: f32, min_pane: f32, header: f32) -> Self {
-        FrameSizes { gap, dock_gap, min_pane, header }
-    }
-}
-
 /// What the maths asks of the app: each panel's limits, the width of a dock's columns and which panels have no
 /// strip.
 pub struct FrameRules<'a, P> {
-    sizes: FrameSizes,
     limits: &'a dyn Fn(&P) -> PanelLimits,
     dock_width: Option<&'a dyn Fn(&[Column<P>]) -> f32>,
     stripless: Option<&'a dyn Fn(&P) -> bool>,
@@ -65,10 +37,10 @@ impl<P> Clone for FrameRules<'_, P> {
 impl<P> Copy for FrameRules<'_, P> {}
 
 impl<'a, P> FrameRules<'a, P> {
-    /// Rules with `sizes` and the panels' `limits`. A dock is as wide as its columns' stored widths until a
-    /// `dock_width` says otherwise, and every panel has a strip.
-    pub fn new(sizes: FrameSizes, limits: &'a dyn Fn(&P) -> PanelLimits) -> Self {
-        FrameRules { sizes, limits, dock_width: None, stripless: None }
+    /// Rules with the panels' `limits`. A dock is as wide as its columns' stored widths until a `dock_width` says
+    /// otherwise, and every panel has a strip.
+    pub fn new(limits: &'a dyn Fn(&P) -> PanelLimits) -> Self {
+        FrameRules { limits, dock_width: None, stripless: None }
     }
 
     /// The width of a dock's columns, as dock columns are drawn.
@@ -83,11 +55,6 @@ impl<'a, P> FrameRules<'a, P> {
     pub fn stripless(mut self, stripless: &'a dyn Fn(&P) -> bool) -> Self {
         self.stripless = Some(stripless);
         self
-    }
-
-    /// The sizes the rules read.
-    pub fn sizes(&self) -> FrameSizes {
-        self.sizes
     }
 
     fn dock_width_of(&self, columns: &[Column<P>]) -> f32 {
@@ -156,8 +123,8 @@ impl<P> Default for Frames<'_, P> {
 }
 
 /// Where every group of `root` sits in `rect`, and the dividers between them.
-pub fn frames<'a, P>(root: &'a Node<P>, rect: Rect, rules: &FrameRules<'_, P>, rtl: bool) -> Frames<'a, P> {
-    let sizer = Sizer { rules };
+pub fn frames<'a, P>(root: &'a Node<P>, rect: Rect, sizes: &DockSizes, rules: &FrameRules<'_, P>, rtl: bool) -> Frames<'a, P> {
+    let sizer = Sizer { rules, sizes };
     let flow = Flow::new(rect, rtl);
     let mut out = Frames::default();
     sizer.collect(root, rect, &mut Vec::new(), &mut out);
@@ -173,18 +140,25 @@ pub fn frames<'a, P>(root: &'a Node<P>, rect: Rect, rules: &FrameRules<'_, P>, r
 
 /// The sizes that move the divider of the split at `path` in `root` by `delta` points along its axis (in reading
 /// order), clamped to its travel. Each is a split's path and its new size in its own mode.
-pub fn drag_sizes<P>(root: &Node<P>, rect: Rect, rules: &FrameRules<'_, P>, path: &[bool], delta: f32) -> Vec<(Vec<bool>, SplitSize)> {
-    Sizer { rules }.drag((root, rect), path, delta)
+pub fn drag_sizes<P>(
+    root: &Node<P>,
+    rect: Rect,
+    sizes: &DockSizes,
+    rules: &FrameRules<'_, P>,
+    path: &[bool],
+    delta: f32,
+) -> Vec<(Vec<bool>, SplitSize)> {
+    Sizer { rules, sizes }.drag((root, rect), path, delta)
 }
 
 /// How far the divider of the split at `path` can move: `(lo, hi)` with `lo <= 0 <= hi`.
-pub fn drag_range<P>(root: &Node<P>, rect: Rect, rules: &FrameRules<'_, P>, path: &[bool]) -> (f32, f32) {
-    Sizer { rules }.range((root, rect), path)
+pub fn drag_range<P>(root: &Node<P>, rect: Rect, sizes: &DockSizes, rules: &FrameRules<'_, P>, path: &[bool]) -> (f32, f32) {
+    Sizer { rules, sizes }.range((root, rect), path)
 }
 
 /// Whether every divider across `axis` along a side of the group at `group` can travel `DROP_MARGIN` both ways.
-pub fn frees<P>(root: &Node<P>, rect: Rect, rules: &FrameRules<'_, P>, group: Rect, axis: Axis) -> bool {
-    Sizer { rules }.frees((root, rect), group, axis)
+pub fn frees<P>(root: &Node<P>, rect: Rect, sizes: &DockSizes, rules: &FrameRules<'_, P>, group: Rect, axis: Axis) -> bool {
+    Sizer { rules, sizes }.frees((root, rect), group, axis)
 }
 
 /// Writes `sizes` (from `drag_sizes`) into the splits of `root`.
@@ -304,6 +278,7 @@ type Children<'n, P> = [(&'n Node<P>, Rect); 2];
 
 struct Sizer<'r, 'a, P> {
     rules: &'r FrameRules<'a, P>,
+    sizes: &'r DockSizes,
 }
 
 impl<P> Sizer<'_, '_, P> {
@@ -318,12 +293,12 @@ impl<P> Sizer<'_, '_, P> {
 
     /// The size policy of a subtree.
     fn bounds(&self, node: &Node<P>) -> Bounds {
-        let sizes = &self.rules.sizes;
+        let sizes = self.sizes;
         let bound = PanelLimits::BOUND;
         match node {
             Node::Dock { columns, .. } => {
                 let width = self.rules.dock_width_of(columns);
-                Bounds { min: vec2(width.clamp(sizes.min_pane, bound), sizes.min_pane), max: OPEN_MAX }
+                Bounds { min: vec2(width.clamp(sizes.least_pane, bound), sizes.least_pane), max: OPEN_MAX }
             }
             // A group is as large as its largest panel allows: a panel without a maximum lifts the maximum of
             // the panels it joins.
@@ -332,13 +307,13 @@ impl<P> Sizer<'_, '_, P> {
                 let mut max = if panels.is_empty() { OPEN_MAX } else { Vec2::ZERO };
                 for panel in panels {
                     let panel = self.panel(panel);
-                    min = min.max(panel.min).max(Vec2::splat(sizes.min_pane));
+                    min = min.max(panel.min).max(Vec2::splat(sizes.least_pane));
                     max = max.max(panel.max);
                 }
                 max = max.max(min);
                 if !self.stripless(panels) {
-                    min.y = (min.y + sizes.header).min(bound);
-                    max.y = (max.y + sizes.header).min(bound);
+                    min.y = (min.y + sizes.strip).min(bound);
+                    max.y = (max.y + sizes.strip).min(bound);
                 }
                 Bounds { min, max }
             }
@@ -350,8 +325,8 @@ impl<P> Sizer<'_, '_, P> {
                 }
                 for entry in entries {
                     let panel = self.panel(&entry.panel);
-                    min.x = min.x.max(panel.min.x).max(sizes.min_pane);
-                    min.y += if entry.open { panel.min.y.max(sizes.min_pane) } else { 0.0 } + sizes.header;
+                    min.x = min.x.max(panel.min.x).max(sizes.least_pane);
+                    min.y += if entry.open { panel.min.y.max(sizes.least_pane) } else { 0.0 } + sizes.strip;
                     max.x = max.x.max(panel.max.x);
                 }
                 min = min.min(Vec2::splat(bound));
@@ -359,7 +334,7 @@ impl<P> Sizer<'_, '_, P> {
             }
             Node::Split { axis, first, second, .. } => {
                 let (a, b) = (self.bounds(first), self.bounds(second));
-                let gap = if is_dock(first) || is_dock(second) { sizes.dock_gap } else { sizes.gap };
+                let gap = sizes.gap;
                 let (min, max) = match axis {
                     Axis::X => (vec2(a.min.x + b.min.x + gap, a.min.y.max(b.min.y)), vec2(a.max.x + b.max.x + gap, a.max.y.min(b.max.y))),
                     _ => (vec2(a.min.x.max(b.min.x), a.min.y + b.min.y + gap), vec2(a.max.x.min(b.max.x), a.max.y + b.max.y + gap)),
@@ -372,7 +347,7 @@ impl<P> Sizer<'_, '_, P> {
 
     /// The split as drawn: its stored size, clamped so both children fit their limits.
     fn split(&self, axis: Axis, size: SplitSize, first: &Node<P>, second: &Node<P>, rect: Rect) -> Option<Cells> {
-        let gap = self.rules.sizes.gap;
+        let gap = self.sizes.gap;
         let wanted = split_cells(rect, axis, size, gap)?;
         let (lo, hi) = split_bounds(wanted.available, axis, self.bounds(first), self.bounds(second));
         split_cells(rect, axis, SplitSize::FixedFirst(wanted.first_size.clamp(lo, hi)), gap)
@@ -380,7 +355,7 @@ impl<P> Sizer<'_, '_, P> {
 
     /// The rects of a dock and of the node beside it in `rect`.
     fn dock_cells(&self, edge: DockEdge, columns: &[Column<P>], other: &Node<P>, rect: Rect) -> (Rect, Rect) {
-        let gap = self.rules.sizes.dock_gap;
+        let gap = self.sizes.gap;
         let room = (rect.width() - gap - self.bounds(other).min.x).clamp(0.0, rect.width());
         let width = self.rules.dock_width_of(columns).clamp(0.0, room);
         match edge {

@@ -5,18 +5,22 @@
 //! caller's group view. The column registers its edge bands and seams as drop spots of the dock and reports what the
 //! user did; the dock decides what a drop or a gesture changes.
 
-use super::{DockHeights, DockSizes, DockSpot, DockTargets, DockWords, PanelLimits, PanelSpec};
+use super::divider::{self, Divider, Drag};
+use super::{DockHeights, DockSizes, DockSpot, DockTargets, DockWords, PanelLimits, PanelSpec, Splitter};
 use crate::contract::overlay::{Anchor, Popup, Trigger};
 use crate::contract::{
-    Access, Bind, BodyCx, Common, Component, Container, ContainerProps, Cx, Focus as _, Name, NoValue, Outcome, Pad, PaintUi, PartsCx, Pointer as _,
-    Props as _, Role, Show as _, ShowContainer as _, Sizing, WordSetCx as _,
+    Access, Bind, BodyCx, Common, Component, Container, ContainerProps, Cx, HeaderRegion, Name, NoValue, Outcome, Pad, PaintUi, PartsCx,
+    Pointer as _, Props as _, Role, Show as _, ShowContainer as _, Sizing, WordSetCx as _,
 };
 use crate::menu::{GroupItem, Menu, MenuWords, PanelMenu, PanelRow};
 use crate::runtime::env::Label;
+use crate::runtime::focus::KeyUse;
+use crate::runtime::memory::sub;
 use crate::sections::{HeaderAction, TitleRow};
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
+use craft_behavior::divider::{self as push, Segment};
 use craft_behavior::dock::{Column, Group};
-use craft_behavior::{Axis, CursorIcon, DockSide, Flow, HitLevel, HitPriority, Metrics, NavMove, PartKey, PressPhase, Sense, Value};
+use craft_behavior::{Axis, CursorIcon, DockSide, Flow, Metrics, PartKey, PressPhase, Sense, Value};
 use egui::{Context, Id, Pos2, Rect, Response, Ui};
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -29,77 +33,6 @@ const DIVIDER: PartKey = PartKey::new("divider");
 /// The caller's view of one group: the group, the rect it takes and the body step's context. The dock passes the
 /// group to `DockPanels::group_view` or shows a `DockGroup` in it.
 pub type GroupView<'a, P> = Box<dyn FnMut(&Group<P>, Rect, &mut Ui, &mut BodyCx<'_>) + 'a>;
-
-/// The sizes columns are laid out with, resolved from the theme's tokens.
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct ColumnSizes {
-    /// The height of a group's tab strip, which every group height includes.
-    pub strip: f32,
-    /// The height of a column bar.
-    pub bar: f32,
-    /// The least body size of a group and the least width of an expanded column.
-    pub least: f32,
-    /// The least width of an iconic column (the rail width).
-    pub iconic_least: f32,
-    /// The widest an iconic column gets when the user widens it.
-    pub iconic_most: f32,
-    /// How thick a group divider is across its boundary.
-    pub reach: f32,
-    /// One arrow press on a divider.
-    pub step: f32,
-    /// The width of the drop band centred on each edge of a column.
-    pub edge_band: f32,
-    /// The height of the drop band centred on the seam between two groups.
-    pub seam_band: f32,
-}
-
-impl ColumnSizes {
-    /// The sizes of the style context `cx`.
-    pub fn style(cx: &StyleCx<'_>) -> Self {
-        let size = &cx.tokens.size;
-        let drop = DockSizes::style(cx);
-        ColumnSizes {
-            strip: size.bar.tab,
-            bar: size.panel_header,
-            least: size.panel_header,
-            iconic_least: size.rail.width,
-            iconic_most: size.length.field,
-            reach: size.hit.target,
-            step: cx.control().gap,
-            edge_band: drop.column_edge_band,
-            seam_band: drop.seam_band,
-        }
-    }
-
-    /// The width bounds of an expanded column from the limits of its panels.
-    pub fn width_bounds<P>(&self, column: &Column<P>, spec: &dyn Fn(&P) -> PanelSpec) -> (f32, f32) {
-        let limits = column.groups.iter().flat_map(|group| group.panels.iter()).map(|panel| spec(panel).limits);
-        width_bounds(self.least, limits)
-    }
-
-    /// The width an expanded column's panels draw at, whether the column is expanded or iconic (its flyout and a
-    /// floated iconic column use it): the stored width kept within the panels' limits.
-    pub fn expanded_width<P>(&self, column: &Column<P>, spec: &dyn Fn(&P) -> PanelSpec) -> f32 {
-        let (lo, hi) = self.width_bounds(column, spec);
-        column.width.clamp(lo, hi)
-    }
-
-    /// The width of a column before the dock's room shrinks it.
-    pub fn width<P>(&self, column: &Column<P>, spec: &dyn Fn(&P) -> PanelSpec) -> f32 {
-        if column.iconic {
-            column.iconic_width.unwrap_or(self.iconic_least).clamp(self.iconic_least, self.iconic_most)
-        } else {
-            self.expanded_width(column, spec)
-        }
-    }
-
-    /// The `(width, floor)` of every column, for [`fit_widths`]: an expanded column shrinks down to its least width,
-    /// an iconic one keeps its width.
-    pub fn natural<P>(&self, columns: &[Column<P>], spec: &dyn Fn(&P) -> PanelSpec) -> Vec<(f32, Option<f32>)> {
-        columns.iter().map(|column| (self.width(column, spec), (!column.iconic).then(|| self.width_bounds(column, spec).0.max(1.0)))).collect()
-    }
-}
 
 /// The width bounds of an expanded column: no narrower than `least` or the widest minimum of its panels, no wider
 /// than the narrowest maximum.
@@ -250,30 +183,6 @@ fn give_way(heights: &mut [f32], which: &[usize], floors: &[f32], extra: f32) {
     }
 }
 
-/// The sizes of the open groups after the divider after `open[index]` moves by `delta`: the groups on the side it
-/// moves toward give way down to their minimums, nearest first, and the group on the other side takes the room.
-/// `open` holds `(height, min)` of each open group in order.
-pub fn drag_divider(open: &[(f32, f32)], index: usize, delta: f32) -> Vec<f32> {
-    let room = |items: &[(f32, f32)]| items.iter().map(|(height, min)| (height - min).max(0.0)).sum::<f32>();
-    let (before, after) = open.split_at((index + 1).min(open.len()));
-    let (lo, hi) = (-room(before), room(after));
-    let delta = if delta.is_finite() { delta.clamp(lo, hi) } else { 0.0 };
-    let mut sizes: Vec<f32> = open.iter().map(|(height, _)| *height).collect();
-    let (grows, givers): (usize, Vec<usize>) =
-        if delta > 0.0 { (index, (index + 1..open.len()).collect()) } else { (index + 1, (0..=index).rev().collect()) };
-    let mut rest = delta.abs();
-    for giver in givers {
-        let (Some(size), Some((height, min))) = (sizes.get_mut(giver), open.get(giver)) else { continue };
-        let taken = rest.min((height - min).max(0.0));
-        *size -= taken;
-        rest -= taken;
-    }
-    if let Some(size) = sizes.get_mut(grows) {
-        *size += delta.abs() - rest;
-    }
-    sizes
-}
-
 /// The rects of groups `heights` high, stacked from the top of `area`.
 pub fn stacked(area: Rect, heights: &[f32]) -> Vec<Rect> {
     let mut top = area.top();
@@ -289,7 +198,7 @@ pub fn stacked(area: Rect, heights: &[f32]) -> Vec<Rect> {
 
 /// The sizes of the groups of `column` for [`group_heights`]: the strip added to the tallest minimum of a group's
 /// panels, and the largest of each of their [`DockHeights`] with the strip added.
-fn group_sizes<P>(column: &Column<P>, spec: &dyn Fn(&P) -> PanelSpec, sizes: &ColumnSizes) -> Vec<GroupSize> {
+fn group_sizes<P>(column: &Column<P>, spec: &dyn Fn(&P) -> PanelSpec, sizes: &DockSizes) -> Vec<GroupSize> {
     column
         .groups
         .iter()
@@ -347,28 +256,27 @@ pub(super) fn locked(shared: &Shared) -> std::sync::MutexGuard<'_, Record> {
     shared.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
-/// Shows the column bar in `rect` and its menu: the disclosure collapses an expanded column and expands an iconic
-/// one, the menu button and the context request open the column menu.
-pub(super) fn show_bar(ui: &mut Ui, body: &mut BodyCx<'_>, rect: Rect, expanded: bool, auto_collapse: bool, menu_button: bool, shared: &Shared) {
+/// Shows the column bar and its menu, at `rect` or in the flow of `ui`: the disclosure collapses an expanded column and
+/// expands an iconic one, the menu button and the context request open the column menu. Returns what the user did.
+pub(super) fn bar_row(ui: &mut Ui, body: &mut BodyCx<'_>, rect: Option<Rect>, expanded: bool, auto_collapse: bool, menu_button: bool) -> BarRecord {
     let words = body.words::<DockWords>();
     let menu_words = body.words::<MenuWords>();
     let mut open = expanded;
     let actions: &[HeaderAction] = if menu_button { &[HeaderAction::Menu] } else { &[] };
     let toggle = if expanded { words.collapse_column.as_str() } else { words.expand_column.as_str() };
-    let shown = TitleRow::new(Label::default())
-        .disclosure(Bind::bound(&mut open))
-        .lead_name(Label::from(toggle.to_owned()))
-        .actions(actions.iter().copied())
-        .show_at(ui, rect);
+    let row =
+        TitleRow::new(Label::default()).disclosure(Bind::bound(&mut open)).lead_name(Label::from(toggle.to_owned())).actions(actions.iter().copied());
+    let shown = match rect {
+        Some(rect) => row.show_at(ui, rect),
+        None => row.show(ui),
+    };
     let opener = shown.edit.response.id;
-    {
-        let mut record = locked(shared);
-        if open != expanded {
-            record.bar.iconic = Some(!open);
-        }
-        if shown.action == Some(HeaderAction::Menu) {
-            record.bar.opener = Some(opener);
-        }
+    let mut record = BarRecord::default();
+    if open != expanded {
+        record.iconic = Some(!open);
+    }
+    if shown.action == Some(HeaderAction::Menu) {
+        record.opener = Some(opener);
     }
     let rows = vec![
         PanelRow::Item(crate::contract::Entry::new(GroupItem::CollapseToIcons, Label::from(toggle.to_owned()))),
@@ -382,9 +290,14 @@ pub(super) fn show_bar(ui: &mut Ui, body: &mut BodyCx<'_>, rect: Rect, expanded:
         menu = menu.anchor(Anchor::Rect(button));
     }
     let picked = menu.opened_by(&shown.edit.response, Trigger::Context).show(ui, |ui, _| PanelMenu::new(Vec::new(), rows.clone()).show(ui).picked);
-    if let Some(item) = picked.inner.flatten() {
-        locked(shared).bar.picked = Some(item);
-    }
+    record.picked = picked.inner.flatten();
+    record
+}
+
+/// `bar_row` at `rect`, recorded in `shared` for the column container to read when it finishes.
+pub(super) fn show_bar(ui: &mut Ui, body: &mut BodyCx<'_>, rect: Rect, expanded: bool, auto_collapse: bool, menu_button: bool, shared: &Shared) {
+    let bar = bar_row(ui, body, Some(rect), expanded, auto_collapse, menu_button);
+    locked(shared).bar = bar;
 }
 
 /// The name of a column's bar: the labels of its panels.
@@ -449,15 +362,21 @@ impl<P> Outcome for DockColumnOutput<P> {
 pub struct DockColumnStyle {
     #[style(metrics)]
     metrics: Metrics,
-    sizes: ColumnSizes,
+    sizes: DockSizes,
 }
+
+/// The rects of a column's groups as this pass's resizes leave them, for the body.
+#[derive(Clone, Default)]
+struct GroupRects(Vec<Rect>);
+
+const RECTS: &str = "column_rects";
 
 /// One column of a side dock: the column bar over the stacked groups of `column`. Show it with
 /// [`show_groups`](DockColumn::show_groups); the closure shows one group in the rect it is given, through
 /// `DockPanels::group_view` or a `DockGroup`. A double click on the bar collapses the column to icons; the bar's
 /// drag begins a column move (`DockColumnOutput::gesture`); Enter on the bar's menu button, the Menu key and a right
 /// click open the column menu, whose dock rows come back in `picked`. A divider between two open groups resizes
-/// them by pointer or with Up and Down.
+/// them by pointer or with the arrow keys.
 ///
 /// The column registers the drop bands of its two edges (`DockSpot::column`) and of the seams between its groups
 /// (`DockSpot::seam`) with the dock `dock` every pass. A dock hidden by the shell shows nothing.
@@ -474,7 +393,7 @@ pub struct DockColumn<'a, P: Value + 'static> {
     /// Whether Auto-Collapse Iconic Panels is on, which the column menu shows as checked.
     #[prop]
     auto_collapse: bool,
-    shared: Shared,
+    bar: BarRecord,
     resized: Vec<(P, f32)>,
     gesture: Option<ColumnGesture<P>>,
     toggled: bool,
@@ -483,7 +402,7 @@ pub struct DockColumn<'a, P: Value + 'static> {
 impl<'a, P: Value + 'static> DockColumn<'a, P> {
     /// A column named `label` of the dock `dock`, over `column`; `spec` reads each panel's limits and heights.
     pub fn new(label: impl Into<Label>, dock: Id, column: &'a Column<P>, spec: &'a dyn Fn(&P) -> PanelSpec) -> Self {
-        let props = ContainerProps::new().surface(SurfaceKind::Panel).sizing(Sizing::Fill).pad(Pad::None);
+        let props = ContainerProps::new().surface(SurfaceKind::Panel).sizing(Sizing::Fill).pad(Pad::None).header(HeaderRegion::new());
         DockColumn {
             common: Common::new(),
             props,
@@ -491,7 +410,7 @@ impl<'a, P: Value + 'static> DockColumn<'a, P> {
             column,
             spec,
             auto_collapse: false,
-            shared: Shared::default(),
+            bar: BarRecord::default(),
             resized: Vec::new(),
             gesture: None,
             toggled: false,
@@ -501,14 +420,13 @@ impl<'a, P: Value + 'static> DockColumn<'a, P> {
 
     /// Shows the column; `view` shows one group in the rect it gets.
     pub fn show_groups(self, ui: &mut Ui, mut view: impl FnMut(&Group<P>, Rect, &mut Ui, &mut BodyCx<'_>) + 'a) -> DockColumnOutput<P> {
-        let (column, shared, auto_collapse) = (self.column, Arc::clone(&self.shared), self.auto_collapse);
+        let column = self.column;
         self.show(ui, move |ui, body| {
             if body.shell().is_some_and(|shell| !shell.dock_visible()) {
                 return;
             }
-            let Some(laid) = locked(&shared).laid.clone() else { return };
-            show_bar(ui, body, laid.bar, true, auto_collapse, laid.menu_button, &shared);
-            for (group, rect) in column.groups.iter().zip(&laid.groups) {
+            let rects = body.memory.recall::<GroupRects>(sub(body.id, RECTS)).0;
+            for (group, rect) in column.groups.iter().zip(&rects) {
                 view(group, *rect, ui, body);
             }
         })
@@ -516,50 +434,78 @@ impl<'a, P: Value + 'static> DockColumn<'a, P> {
     }
 
     /// The bar and body of the column in `rect`, and the groups stacked in the body.
-    fn plan(&self, rect: Rect, sizes: &ColumnSizes) -> Plan {
+    fn plan(&self, rect: Rect, sizes: &DockSizes) -> Plan {
         let bar = Rect::from_min_max(rect.min, Pos2::new(rect.right(), (rect.top() + sizes.bar).min(rect.bottom())));
         let body = Rect::from_min_max(Pos2::new(rect.left(), bar.bottom()), rect.max);
         let group_sizes = group_sizes(self.column, self.spec, sizes);
         let heights = group_heights(&group_sizes, sizes.strip, body.height());
         let groups = stacked(body, &heights);
         let open = (0..group_sizes.len()).filter(|at| !group_sizes[*at].minimized).collect();
-        Plan { bar, groups, heights, mins: group_sizes.iter().map(|size| size.min).collect(), open }
+        Plan { bar, body, groups, heights, mins: group_sizes.iter().map(|size| size.min).collect(), open }
     }
 
     fn anchor(&self, group: usize) -> Option<&P> {
         self.column.groups.get(group).and_then(|group| group.panels.first())
     }
 
-    /// Moves the divider after the `index`-th open group by `delta`: the heights that change come out as resizes.
-    fn move_divider(&mut self, plan: &Plan, index: usize, delta: f32) {
-        let open: Vec<(f32, f32)> = plan.open.iter().filter_map(|at| Some((*plan.heights.get(*at)?, *plan.mins.get(*at)?))).collect();
-        for ((at, next), (height, _)) in plan.open.iter().zip(drag_divider(&open, index, delta)).zip(&open) {
-            if next != *height
-                && let Some(anchor) = self.anchor(*at)
-            {
-                self.resized.push((anchor.clone(), next));
+    /// Moves the divider after the `index`-th open group by `delta` points: the heights that change come out as
+    /// resizes, and the plan takes them so the groups are shown at their new heights in the same pass.
+    fn move_divider(&mut self, plan: &mut Plan, index: usize, delta: f32) {
+        let row = plan.row();
+        let at: f32 = row.iter().take(index + 1).map(|segment| segment.extent).sum();
+        let sizes = push::resize(&row, index, at + delta);
+        for ((group, next), segment) in plan.open.clone().into_iter().zip(sizes).zip(&row) {
+            if next != segment.extent {
+                if let Some(anchor) = self.anchor(group) {
+                    self.resized.push((anchor.clone(), next));
+                }
+                plan.heights[group] = next;
             }
         }
+        plan.groups = stacked(plan.body, &plan.heights);
     }
 }
 
 /// Where the parts of a column sit.
 struct Plan {
     bar: Rect,
+    body: Rect,
     groups: Vec<Rect>,
     heights: Vec<f32>,
     mins: Vec<f32>,
     open: Vec<usize>,
 }
 
+impl Plan {
+    /// The open groups as a row of segments, for the push rule of the dividers between them.
+    fn row(&self) -> Vec<Segment> {
+        self.open.iter().filter_map(|at| Some(Segment::unbounded(*self.heights.get(*at)?, *self.mins.get(*at)?))).collect()
+    }
+
+    /// The divider after each open group but the last: its part index (the group above it), its position among the open
+    /// groups and the divider.
+    fn dividers(&self, rect: Rect, reach: f32) -> Vec<(u64, usize, Divider)> {
+        let row = self.row();
+        self.open
+            .windows(2)
+            .enumerate()
+            .filter_map(|(index, pair)| {
+                let at = self.groups.get(pair[0])?.bottom();
+                let (lo, hi) = push::travel(&row, index);
+                Some((pair[0] as u64, index, Divider::new(Axis::Y, at, rect, (at + lo, at + hi), reach)))
+            })
+            .collect()
+    }
+}
+
 impl<P: Value + 'static> Component for DockColumn<'_, P> {
     const ROLE: Role = Role::GROUP;
-    const KEYS: crate::runtime::focus::KeyUse = crate::runtime::focus::KeyUse::CANVAS;
+    const KEYS: KeyUse = KeyUse::SPLITTER;
     type Style = DockColumnStyle;
     type Output = DockColumnOutput<P>;
 
     fn style(cx: &StyleCx<'_>, _: DockColumnStyleKey<P>) -> DockColumnStyle {
-        DockColumnStyle { metrics: Metrics::new(), sizes: ColumnSizes::style(cx) }
+        DockColumnStyle { metrics: Metrics::new(), sizes: DockSizes::style(cx) }
     }
 
     fn sense(&self) -> Sense {
@@ -570,29 +516,20 @@ impl<P: Value + 'static> Component for DockColumn<'_, P> {
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let sizes = cx.style.sizes;
         let plan = self.plan(rect, &sizes);
-        let flow = Flow::new(rect, cx.flow.is_rtl());
-        locked(&self.shared).laid = Some(Laid { bar: plan.bar, groups: plan.groups.clone(), menu_button: true });
         cx.part(BAR, plan.bar)
             .sense(Sense::DRAG)
             .cursor(CursorIcon::Grab)
             .drag_cursor(CursorIcon::Grabbing)
             .pointer_only("Move Panel To in the panel menu moves the panels of the column");
-        for pair in plan.open.windows(2) {
-            let Some(upper) = plan.groups.get(pair[0]) else { continue };
-            let divider = Rect::from_x_y_ranges(rect.x_range(), (upper.bottom() - sizes.reach * 0.5)..=(upper.bottom() + sizes.reach * 0.5));
-            cx.part(DIVIDER.at(pair[0] as u64), flow.to_physical(divider))
-                .sense(Sense::DRAG | Sense::TAKE_FOCUS)
-                .priority(HitPriority::new(HitLevel::Edge, 0))
-                .cursor(CursorIcon::ResizeVertical)
-                .focusable()
-                .over();
+        for (key, _, divider) in plan.dividers(rect, sizes.reach) {
+            divider::declare(cx, rect, DIVIDER, key, &divider);
         }
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let sizes = cx.style.sizes;
         let (rect, rtl, ctx) = (cx.rect, cx.flow.is_rtl(), cx.core.ctx.clone());
-        let plan = self.plan(rect, &sizes);
+        let mut plan = self.plan(rect, &sizes);
         let bar = cx.part(BAR).clone();
         if matches!(bar.press.phase, PressPhase::DragStart { start, .. } if start.button == craft_behavior::PointerButton::Primary)
             && let Some(anchor) = self.anchor(0)
@@ -600,58 +537,62 @@ impl<P: Value + 'static> Component for DockColumn<'_, P> {
             self.gesture = Some(ColumnGesture::Column { anchor: anchor.clone() });
         }
         self.toggled = bar.press.double_pressed();
-        for (index, at) in plan.open.iter().take(plan.open.len().saturating_sub(1)).enumerate() {
-            if let PressPhase::Drag { delta, .. } = cx.part(DIVIDER.at(*at as u64)).press.phase {
-                self.move_divider(&plan, index, delta.y);
+        let dividers = plan.dividers(rect, sizes.reach);
+        for (key, index, divider) in &dividers {
+            if let Some(Drag::To(coord)) = divider::pointer(cx, DIVIDER, *key, divider) {
+                self.move_divider(&mut plan, *index, coord - divider.at);
             }
         }
-        let focused = cx.active_part().filter(|part| part.key == DIVIDER).and_then(|part| part.index);
-        if let Some(focused) = focused
-            && let Some(index) = plan.open.iter().position(|at| *at as u64 == focused)
-            && let Some((mv, _)) = cx.intents().take_move()
+        let keyed: Vec<(u64, Divider)> = dividers.iter().map(|(key, _, divider)| (*key, *divider)).collect();
+        if let Some((key, coord)) = divider::keys(cx, DIVIDER, &keyed, sizes.step, sizes.jump)
+            && let Some((_, index, divider)) = dividers.iter().find(|(at, ..)| *at == key)
         {
-            match mv {
-                NavMove::Up => self.move_divider(&plan, index, -sizes.step),
-                NavMove::Down => self.move_divider(&plan, index, sizes.step),
-                _ => {}
-            }
+            self.move_divider(&mut plan, *index, coord - divider.at);
         }
+        cx.core.memory.shown::<GroupRects>(sub(sub(cx.core.id, "body"), RECTS)).0 = plan.groups.clone();
         self.register(&ctx, rect, rtl, &plan, &sizes);
     }
 
     fn paint_over(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let plan = self.plan(cx.rect, &cx.style.sizes);
         for pair in plan.open.windows(2) {
-            ui.face(DIVIDER.at(pair[0] as u64), super::Splitter::new(Axis::Y));
+            ui.face(DIVIDER.at(pair[0] as u64), Splitter::new(Axis::Y));
         }
     }
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let words = cx.words::<DockWords>();
-        let plan = self.plan(cx.rect, &cx.style.sizes);
+        let sizes = cx.style.sizes;
+        let plan = self.plan(cx.rect, &sizes);
         access.node(BAR, Role::BUTTON).name = Name::Text(bar_name(self.column, self.spec, &words.move_column));
-        for pair in plan.open.windows(2) {
-            access.node(DIVIDER.at(pair[0] as u64), Role::SPLITTER).name = Name::Text(words.resize.as_str().to_owned());
+        for (key, _, divider) in plan.dividers(cx.rect, sizes.reach) {
+            divider::describe(access, DIVIDER, key, &divider, words.resize.as_str(), sizes.step);
         }
     }
 
     fn finish(self, mut cx: Cx<'_, Self>) -> DockColumnOutput<P> {
-        let bar = std::mem::take(&mut locked(&self.shared).bar);
-        if let Some(opener) = bar.opener {
+        if let Some(opener) = self.bar.opener {
             Popup::toggle(opener, &mut cx);
         }
-        let iconic = bar.iconic.or(self.toggled.then_some(!self.column.iconic));
-        DockColumnOutput { response: cx.response.clone(), placed: cx.rect, iconic, picked: bar.picked, resized: self.resized, gesture: self.gesture }
+        let iconic = self.bar.iconic.or(self.toggled.then_some(!self.column.iconic));
+        DockColumnOutput {
+            response: cx.response.clone(),
+            placed: cx.rect,
+            iconic,
+            picked: self.bar.picked,
+            resized: self.resized,
+            gesture: self.gesture,
+        }
     }
 }
 
 /// Registers the drop bands of the two edges of the column in `rect` with the dock `dock`: a drop there makes a new
 /// column beside the one that holds `anchor`.
-pub(super) fn register_edges<P: Clone + Send + 'static>(ctx: &Context, dock: Id, anchor: &P, rect: Rect, rtl: bool, sizes: &ColumnSizes) {
+pub(super) fn register_edges<P: Clone + Send + 'static>(ctx: &Context, dock: Id, anchor: &P, rect: Rect, rtl: bool, sizes: &DockSizes) {
     let flow = Flow::new(rect, rtl);
     // A narrow column keeps a third of its width between its two edge bands, so a drop inside it still reaches its
     // groups.
-    let band = sizes.edge_band.min(rect.width() * 2.0 / 3.0);
+    let band = sizes.column_edge_band.min(rect.width() * 2.0 / 3.0);
     for (side, x) in [(DockSide::Start, rect.left()), (DockSide::End, rect.right())] {
         let edge = Rect::from_x_y_ranges((x - band * 0.5)..=(x + band * 0.5), rect.y_range());
         DockTargets::register(ctx, dock, DockSpot::column(anchor.clone(), side), flow.to_physical(edge));
@@ -660,7 +601,7 @@ pub(super) fn register_edges<P: Clone + Send + 'static>(ctx: &Context, dock: Id,
 
 impl<P: Value + 'static> DockColumn<'_, P> {
     /// Registers the drop bands of the column's two edges and of the seams between its groups.
-    fn register(&self, ctx: &Context, rect: Rect, rtl: bool, plan: &Plan, sizes: &ColumnSizes) {
+    fn register(&self, ctx: &Context, rect: Rect, rtl: bool, plan: &Plan, sizes: &DockSizes) {
         let Some(first) = self.anchor(0) else { return };
         register_edges(ctx, self.dock, first, rect, rtl, sizes);
         let (mut before, half) = (first, sizes.seam_band * 0.5);
@@ -673,4 +614,11 @@ impl<P: Value + 'static> DockColumn<'_, P> {
     }
 }
 
-impl<P: Value + 'static> Container for DockColumn<'_, P> {}
+impl<P: Value + 'static> Container for DockColumn<'_, P> {
+    fn header(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
+        if cx.shell().is_some_and(|shell| !shell.dock_visible()) {
+            return;
+        }
+        self.bar = bar_row(ui, cx, None, true, self.auto_collapse, true);
+    }
+}

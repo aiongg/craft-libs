@@ -1,6 +1,6 @@
 //! Stories of the docking family.
 
-use super::tree::{self, FrameRules, FrameSizes};
+use super::tree::FrameRules;
 use super::{DockGroup, GroupGrip, HANDLE, PanelKey, PanelLimits, PanelTitle, SplitArea, Splitter};
 use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _, Validity};
 use crate::runtime::env::Message;
@@ -8,8 +8,6 @@ use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::dock::{Layout, Node, SplitSize};
 use craft_behavior::{Axis, Mixed};
 use egui::{Ui, Vec2};
-
-const SIZES: FrameSizes = FrameSizes::new(1.0, 1.0, 40.0, 24.0);
 
 const LAYERS: usize = 0;
 const CHANNELS: usize = 1;
@@ -35,14 +33,13 @@ fn titles(panels: &[usize]) -> Vec<PanelTitle> {
 
 fn dock(ui: &mut Ui, bind: Bind<'_, Layout<usize>>, shown: &Layout<usize>) -> StoryOutput {
     let limits = |_: &usize| PanelLimits::default();
-    let rules = FrameRules::new(SIZES, &limits);
+    let rules = FrameRules::new(&limits);
     let area = SplitArea::new("Panels", bind, rules).show(ui, |ui, body| {
-        let Some(root) = shown.root.as_ref() else { return };
-        for group in tree::frames(root, body.rect, &rules, body.env.direction().is_rtl()).groups {
-            let (Some(anchor), Node::Tabs { panels, .. }) = (group.anchor().copied(), group.node) else { continue };
+        for (anchor, rect) in body.group_frames::<usize>() {
+            let Some(Node::Tabs { panels, .. }) = shown.place(&anchor).and_then(|place| shown.node_of(&place)) else { continue };
             let panels = titles(panels);
             let active = panels.first().map_or(PanelKey::new(0), |panel| panel.key);
-            DockGroup::new(anchor, &panels, active).show_at(ui, group.rect, |_, _| ());
+            DockGroup::new(anchor, &panels, active).show_at(ui, rect, |_, _| ());
         }
     });
     area.output.edit.into()

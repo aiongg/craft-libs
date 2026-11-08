@@ -4,11 +4,11 @@
 //! previous pass's registry, because a drop is decided against what was on screen when the pointer moved. Every
 //! zone is a rect. A spot names a group by an anchor panel, as the dock model does.
 
-use super::PanelKey;
+use super::{PanelKey, PanelSpec, width_bounds};
 use crate::contract::DropMark;
 use crate::runtime::frame::{self, PassStep, PerViewport, Stamped};
 use crate::style::StyleCx;
-use craft_behavior::dock::{ZoneSize, zones};
+use craft_behavior::dock::{Column, ZoneSize, zones};
 use craft_behavior::{DockSide, Flow};
 use egui::{Context, Id, Pos2, Rect, Vec2};
 
@@ -42,6 +42,27 @@ pub struct DockSizes {
     pub cascade_inset: f32,
     /// The size a command floats a panel at when the panel gives none (the float window size).
     pub float_size: Vec2,
+    /// The divider between two docked groups or between a dock and its neighbour (the inline gap).
+    pub gap: f32,
+    /// The least extent of a pane along a split, and of a dock (the rail width, so a pane is never narrower than the
+    /// rail that opens it).
+    pub least_pane: f32,
+    /// The height of a group's tab strip or section title row (the tab bar height), which every group height includes.
+    pub strip: f32,
+    /// The height of a column bar (the panel header height).
+    pub bar: f32,
+    /// The least body size of a column's group and the least width of an expanded column (the panel header height).
+    pub least: f32,
+    /// How thick a divider is across its boundary (the least hit size).
+    pub reach: f32,
+    /// One arrow press on a divider (the control gap).
+    pub step: f32,
+    /// One Shift-arrow or Page press on a divider (the standard control height).
+    pub jump: f32,
+    /// The least width of an iconic column (the rail width).
+    pub iconic_least: f32,
+    /// The widest an iconic column gets when the user widens it (the field length).
+    pub iconic_most: f32,
 }
 
 impl DockSizes {
@@ -57,7 +78,45 @@ impl DockSizes {
             new_dock_band: size.control.md,
             cascade_inset: size.float.cascade,
             float_size: Vec2::new(size.float.width, size.float.height),
+            gap: cx.tokens.space.gap.inline,
+            least_pane: size.rail.width,
+            strip: size.bar.tab,
+            bar: size.panel_header,
+            least: size.panel_header,
+            reach: size.hit.target,
+            step: cx.control().gap,
+            jump: cx.control().height,
+            iconic_least: size.rail.width,
+            iconic_most: size.length.field,
         }
+    }
+
+    /// The width bounds of an expanded column from the limits of its panels.
+    pub fn width_bounds<P>(&self, column: &Column<P>, spec: &dyn Fn(&P) -> PanelSpec) -> (f32, f32) {
+        let limits = column.groups.iter().flat_map(|group| group.panels.iter()).map(|panel| spec(panel).limits);
+        width_bounds(self.least, limits)
+    }
+
+    /// The width an expanded column's panels draw at, whether the column is expanded or iconic (its flyout and a
+    /// floated iconic column use it): the stored width kept within the panels' limits.
+    pub fn expanded_width<P>(&self, column: &Column<P>, spec: &dyn Fn(&P) -> PanelSpec) -> f32 {
+        let (lo, hi) = self.width_bounds(column, spec);
+        column.width.clamp(lo, hi)
+    }
+
+    /// The width of a column before the dock's room shrinks it.
+    pub fn width<P>(&self, column: &Column<P>, spec: &dyn Fn(&P) -> PanelSpec) -> f32 {
+        if column.iconic {
+            column.iconic_width.unwrap_or(self.iconic_least).clamp(self.iconic_least, self.iconic_most)
+        } else {
+            self.expanded_width(column, spec)
+        }
+    }
+
+    /// The `(width, floor)` of every column, for [`fit_widths`](super::fit_widths): an expanded column shrinks down to
+    /// its least width, an iconic one keeps its width.
+    pub fn natural<P>(&self, columns: &[Column<P>], spec: &dyn Fn(&P) -> PanelSpec) -> Vec<(f32, Option<f32>)> {
+        columns.iter().map(|column| (self.width(column, spec), (!column.iconic).then(|| self.width_bounds(column, spec).0.max(1.0)))).collect()
     }
 }
 

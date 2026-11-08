@@ -253,7 +253,8 @@ impl<P: Clone + Hash + Send + Sync + 'static> Component for DockGroup<'_, P> {
     type Output = DockGroupOutput;
 
     fn style(cx: &StyleCx<'_>, _: DockGroupStyleKey<P>) -> DockGroupStyle {
-        DockGroupStyle { metrics: Metrics::new(), header: cx.tokens.size.bar.tab, sizes: DockSizes::style(cx) }
+        let sizes = DockSizes::style(cx);
+        DockGroupStyle { metrics: Metrics::new(), header: sizes.strip, sizes }
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {

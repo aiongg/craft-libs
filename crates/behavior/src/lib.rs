@@ -12,6 +12,7 @@ pub mod codec;
 pub mod columns;
 pub mod command;
 pub mod cursor;
+pub mod divider;
 pub mod doc_key;
 pub mod dock;
 pub mod edit_history;
