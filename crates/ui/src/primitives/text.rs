@@ -24,6 +24,8 @@ pub enum Wrap {
     Elide,
     /// One line, cut with an ellipsis in the middle, so the end of a path stays.
     ElidePath,
+    /// Wraps at the room's width and is cut with an ellipsis at the end of the given number of lines (at least 1).
+    Clamp(u8),
 }
 
 /// Where the lines of a multi-line run sit within the run's width.
@@ -257,7 +259,11 @@ impl TextRun<'_> {
         let elide = matches!(self.wrap, Wrap::Elide | Wrap::ElidePath);
         let wrap = TextWrapping {
             max_width: if self.wrap == Wrap::Line { f32::INFINITY } else { max_width },
-            max_rows: if elide { 1 } else { usize::MAX },
+            max_rows: match self.wrap {
+                Wrap::Clamp(lines) => usize::from(lines.max(1)),
+                _ if elide => 1,
+                _ => usize::MAX,
+            },
             break_anywhere: elide,
             ..TextWrapping::default()
         };
