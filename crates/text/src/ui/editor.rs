@@ -87,6 +87,7 @@ pub struct CaretLine {
 
 /// What kind of edit a [`TextEditorHost::replace`] call is, for the app's history and styling.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum EditKind {
     /// Typed text, a line break, or smart-quoted text.
     Typed,
@@ -103,6 +104,7 @@ pub enum EditKind {
 
 /// A character style toggle on the selection (or the insertion style at a caret).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum CharToggle {
     /// All Caps.
     AllCaps,
@@ -119,6 +121,7 @@ pub enum CharToggle {
 /// A formatting key the editor recognised, for the app to apply to [`TextEditorHost::style_key`]'s selection. The
 /// chords are those of [`TextEditorCommand`].
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum StyleKey {
     /// All Caps, Underline, Faux Bold, Faux Italic or Strikethrough.
     Toggle(CharToggle),

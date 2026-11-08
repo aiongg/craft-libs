@@ -334,6 +334,7 @@ impl FindLabels {
 
 /// Which tab of Find and Replace is open.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum FindTab {
     /// Find.
     #[default]

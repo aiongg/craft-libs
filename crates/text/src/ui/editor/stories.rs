@@ -10,6 +10,9 @@ use egui::{Rect, Ui};
 
 use super::{CaretLine, EditKind, HostLine, HostRun, TextEditor, TextEditorHost, TextSelection};
 
+/// The editor's frame as a share of the canvas.
+const EDITOR_SHARE: f32 = 0.6;
+
 /// A text of lines at `\n` in a monospace layout: char `c` of a line sits at x = 8c, line `l` at y = 16l.
 struct MonoHost {
     text: String,
@@ -92,7 +95,10 @@ impl TextEditorHost for MonoHost {
                 let text = self.line_text(line).to_owned();
                 let count = text.chars().count();
                 let positions: Vec<f32> = (0..count).map(|at| at as f32 * CELL as f32).collect();
-                let rect = Rect::from_min_size(egui::pos2(0.0, line as f32 * LINE as f32), egui::vec2(count as f32 * CELL as f32, LINE as f32));
+                let rect = Rect::from_min_max(
+                    egui::pos2(0.0, line as f32 * LINE as f32),
+                    egui::pos2(count as f32 * CELL as f32, (line + 1) as f32 * LINE as f32),
+                );
                 HostLine {
                     chars: starts[line]..starts[line] + count,
                     rect,
@@ -130,7 +136,7 @@ fn on_canvas(ui: &mut Ui, data: &mut StoryData, text: &str, selection: TextSelec
     let selection = data.value("selection", selection);
     let _ = marked;
     let shown = Canvas::new("Document").show(ui, |ui, body| {
-        let bounds = Rect::from_min_size(body.rect.min, egui::vec2(240.0, 48.0));
+        let bounds = Rect::from_min_size(body.rect.min, body.rect.size() * EDITOR_SHARE);
         TextEditor::new("Text", &mut host, Bind::bound(&mut *selection)).show_at(ui, bounds)
     });
     shown.inner.map(StoryOutput::from).unwrap_or_default()
