@@ -1,13 +1,14 @@
-//! New Document's own logic: the built-in cards, the recent list, the preset-name rule and what a card, the orientation
-//! control and the Save Preset row do to the settings.
+//! New Document's own logic: the built-in cards, the recent list and what a card, the orientation control, Reset and the
+//! Save Preset row do to the settings.
 
 use craft_behavior::PixelSize;
 use craft_ui::contract::Bind;
 use craft_ui::patterns::form_dialogs::{
-    DocumentOptions, DocumentPreset, NameError, NewDocumentDialog, Orientation, PresetCategory, PresetWords, preset_name_error, push_recent,
+    DocumentOptions, DocumentPreset, NewDocumentDialog, NewDocumentPresetWords, Orientation, PresetCategory, push_recent,
 };
 use craft_ui::runtime::env::{Env, UnitKind};
 use craft_ui::testing::{Fixture, Target, trial};
+use egui::Vec2;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -21,6 +22,8 @@ const SIDE: u32 = 10;
 const PRINT_PPI: f64 = 600.0;
 /// The resolution a screen card is asked to open at, in pixels per inch.
 const SCREEN_PPI: f64 = 96.0;
+/// The room of an app window the dialog opens in: wide and tall enough for the cards beside the whole details column.
+const WINDOW: Vec2 = Vec2::new(1100.0, 900.0);
 
 fn recent(width: u32, name: &str) -> DocumentOptions {
     let mut options = DocumentOptions::default();
@@ -39,7 +42,7 @@ fn the_standard_categories_keep_their_order_and_every_card_has_a_word() {
     let unnamed = Rc::new(RefCell::new(Vec::new()));
     let found = Rc::clone(&unnamed);
     let mut fixture = Fixture::new(move |ui| {
-        let words = Env::of(ui).words::<PresetWords>();
+        let words = Env::of(ui).words::<NewDocumentPresetWords>();
         let mut missing = found.borrow_mut();
         missing.clear();
         for preset in PresetCategory::standard().iter().flat_map(|category| category.presets.iter()) {
@@ -88,37 +91,32 @@ fn recent_documents_keep_twenty_and_do_not_repeat() {
     assert_eq!(list.iter().filter(|held| held.size.width == SIDE).count(), 1);
 }
 
-/// A preset name is trimmed, must have 1 to 255 characters and must differ from a saved name in ASCII case; 256 presets
-/// is the most.
-#[trial]
-fn a_preset_name_is_checked_against_the_saved_ones() {
-    let saved = vec![recent(1, "Poster")];
-    assert_eq!(preset_name_error(&saved, "  "), Some(NameError::Length));
-    assert_eq!(preset_name_error(&saved, &"x".repeat(256)), Some(NameError::Length));
-    assert_eq!(preset_name_error(&saved, " poster "), Some(NameError::Taken("poster".into())));
-    assert_eq!(preset_name_error(&saved, "Flyer"), None);
-    let full = vec![recent(1, "Poster"); 256];
-    assert_eq!(preset_name_error(&full, "Flyer"), Some(NameError::TooMany));
+/// A fixture with the dialog over its settings, which collects what each pass of Create answers with.
+struct Rig {
+    fixture: Fixture,
+    options: Rc<RefCell<DocumentOptions>>,
+    created: Rc<RefCell<Vec<DocumentOptions>>>,
+    closed: Rc<Cell<bool>>,
 }
 
-/// A fixture with the dialog over `options`, which collects what Create answers with.
-fn rig() -> (Fixture, Rc<RefCell<DocumentOptions>>, Rc<RefCell<Option<DocumentOptions>>>, Rc<Cell<bool>>) {
+fn rig() -> Rig {
     let options = Rc::new(RefCell::new(DocumentOptions::default()));
-    let created = Rc::new(RefCell::new(None));
+    let created = Rc::new(RefCell::new(Vec::new()));
     let closed = Rc::new(Cell::new(false));
-    let (held, answer, done) = (Rc::clone(&options), Rc::clone(&created), Rc::clone(&closed));
+    let (held, answers, done) = (Rc::clone(&options), Rc::clone(&created), Rc::clone(&closed));
     let mut fixture = Fixture::new(move |ui| {
         let mut options = held.borrow_mut();
-        let out = NewDocumentDialog::new().options(Bind::bound(&mut *options)).show(ui);
-        if out.result.is_some() {
-            *answer.borrow_mut() = out.result;
+        let out = NewDocumentDialog::new(Bind::bound(&mut *options)).show(ui);
+        if let Some(result) = out.result {
+            answers.borrow_mut().push(result);
         }
         if out.closed.is_some() {
             done.set(true);
         }
     });
+    fixture.room(WINDOW);
     fixture.settle();
-    (fixture, options, created, closed)
+    Rig { fixture, options, created, closed }
 }
 
 /// The node named `label`, or one named `label` followed by its details.
@@ -128,16 +126,21 @@ fn named(fixture: &Fixture, label: &str) -> Option<Target> {
     fixture.target(key)
 }
 
+/// Picks the Letter card of the Print tab.
+fn pick_letter(fixture: &mut Fixture) {
+    let print = named(fixture, "Print").expect("the Print tab");
+    fixture.click(&print);
+    fixture.settle();
+    let letter = named(fixture, "Letter").expect("the Letter card");
+    fixture.click(&letter);
+    fixture.settle();
+}
+
 /// A click on a card fills the size and unit; Create then answers with the settings under the default name.
 #[trial]
 fn a_card_fills_the_details_and_create_answers_with_them() {
-    let (mut fixture, options, created, closed) = rig();
-    let print = named(&fixture, "Print").expect("the Print tab");
-    fixture.click(&print);
-    fixture.settle();
-    let letter = named(&fixture, "Letter").expect("the Letter card");
-    fixture.click(&letter);
-    fixture.settle();
+    let Rig { mut fixture, options, created, closed } = rig();
+    pick_letter(&mut fixture);
     {
         let options = options.borrow();
         assert_eq!((options.size, options.unit), (PixelSize::new(2550, 3300), UnitKind::Inches), "a print card applies inches");
@@ -146,31 +149,80 @@ fn a_card_fills_the_details_and_create_answers_with_them() {
     fixture.click(&create);
     fixture.settle();
     assert!(closed.get(), "Create closes the dialog");
-    let answer = created.borrow().clone().expect("Create answers");
+    let answers = created.borrow();
+    let answer = answers.last().expect("Create answers");
     assert_eq!((answer.size, answer.name.as_str()), (PixelSize::new(2550, 3300), "Untitled-1"));
+}
+
+/// Enter on a card creates the document once, with the card's settings.
+#[trial]
+fn enter_on_a_card_creates_once() {
+    let Rig { mut fixture, created, closed, .. } = rig();
+    pick_letter(&mut fixture);
+    assert!(created.borrow().is_empty(), "picking a card does not create");
+    fixture.key(egui::Key::Enter, egui::Modifiers::NONE);
+    fixture.settle();
+    assert!(closed.get(), "Enter on a card closes the dialog");
+    let answers = created.borrow();
+    assert_eq!(answers.len(), 1, "one answer");
+    assert_eq!(answers[0].size, PixelSize::new(2550, 3300));
 }
 
 /// The orientation control swaps width and height.
 #[trial]
 fn the_orientation_control_swaps_the_sides() {
-    let (mut fixture, options, _, _) = rig();
+    let Rig { mut fixture, options, .. } = rig();
     assert_eq!(options.borrow().size, PixelSize::new(2100, 1500), "the default is landscape");
     let portrait = named(&fixture, "Portrait").expect("the Portrait segment");
     fixture.click(&portrait);
     fixture.settle();
-    assert_eq!(options.borrow().size, PixelSize::new(1500, 2100));
+    assert_eq!(options.borrow().size, PixelSize::new(1500, 2100), "the Portrait segment at {:?} in a window of {WINDOW:?}", portrait.center());
+}
+
+/// Alt turns Close into Reset, which puts back the settings the dialog opened with.
+#[trial]
+fn alt_reset_restores_the_details() {
+    let Rig { mut fixture, options, closed, .. } = rig();
+    let portrait = named(&fixture, "Portrait").expect("the Portrait segment");
+    fixture.click(&portrait);
+    fixture.settle();
+    assert_eq!(options.borrow().size, PixelSize::new(1500, 2100), "the edit reached the settings");
+    fixture.hold(egui::Modifiers::ALT);
+    fixture.settle();
+    let reset = fixture.by_label("Reset").expect("Alt turns Close into Reset");
+    fixture.click(&reset);
+    fixture.settle();
+    assert_eq!(options.borrow().size, PixelSize::new(2100, 1500), "Reset restored the opening settings");
+    assert!(!closed.get(), "Reset keeps the dialog open");
+}
+
+/// Types `name` into the Save Preset row and presses Enter.
+fn save_preset_as(fixture: &mut Fixture, name: &str) {
+    let save = named(fixture, "Save Preset…").expect("the Save Preset button");
+    fixture.click(&save);
+    fixture.settle();
+    fixture.type_text(name);
+    fixture.key(egui::Key::Enter, egui::Modifiers::NONE);
+    fixture.settle();
 }
 
 /// Enter in the preset name saves the preset under Saved and does not create the document.
 #[trial]
 fn enter_in_the_preset_name_saves_without_creating() {
-    let (mut fixture, _, created, closed) = rig();
-    let save = named(&fixture, "Save Preset…").expect("the Save Preset button");
-    fixture.click(&save);
-    fixture.settle();
-    fixture.type_text("My size");
-    fixture.key(egui::Key::Enter, egui::Modifiers::NONE);
-    fixture.settle();
-    assert!(created.borrow().is_none() && !closed.get(), "Enter in the name row does not create");
+    let Rig { mut fixture, created, closed, .. } = rig();
+    save_preset_as(&mut fixture, "My size");
+    assert!(created.borrow().is_empty() && !closed.get(), "Enter in the name row does not create");
     assert!(named(&fixture, "My size").is_some(), "the preset is listed under Saved");
+}
+
+/// A name that differs from a saved one only in case is refused by the library's name check: the row stays open and
+/// the list keeps the one preset.
+#[trial]
+fn a_preset_name_that_differs_only_in_case_is_refused() {
+    let Rig { mut fixture, .. } = rig();
+    save_preset_as(&mut fixture, "Poster");
+    assert!(named(&fixture, "Poster").is_some(), "the first preset is listed");
+    save_preset_as(&mut fixture, "poster");
+    assert!(named(&fixture, "poster").is_none(), "the same name in another case is not saved");
+    assert!(fixture.by_label("Preset Name").is_some(), "the refused name leaves the Save Preset row open");
 }

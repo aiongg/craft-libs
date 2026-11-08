@@ -7,5 +7,5 @@ use egui::Ui;
 
 #[story(NewDocumentDialog<'static>, covers = [], drive = Drive::Never)]
 fn new_document_dialog(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    NewDocumentDialog::new().opened(Bind::bound(data.value("open", true))).show(ui).into()
+    NewDocumentDialog::new(Bind::kept()).opened(Bind::bound(data.value("open", true))).show(ui).into()
 }

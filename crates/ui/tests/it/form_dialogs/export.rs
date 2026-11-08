@@ -1,11 +1,15 @@
 //! The export dialogs' own logic: file-name rules, the settings a document can take and the JPEG quality scale.
 
 use craft_behavior::PixelSize;
+use craft_ui::contract::Bind;
 use craft_ui::patterns::form_dialogs::{
-    ExportFormat, ExportOptions, ExportSize, JpegPreset, export_file_name, jpeg_quality_percent, jpeg_quality_preset, numbered_paths,
+    ExportAsDialog, ExportAsResult, ExportFormat, ExportOptions, ExportSize, HostRequests, JpegPreset, PathKind, PathRequest, export_file_name,
+    jpeg_quality_percent, jpeg_quality_preset, numbered_paths,
 };
-use craft_ui::testing::trial;
+use craft_ui::testing::{Fixture, trial};
+use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 /// The longest name an export keeps, in characters.
 const LONG_NAME: usize = 80;
@@ -87,4 +91,44 @@ fn jpeg_quality_maps_to_percent_and_preset() {
     let maximum = [JpegPreset::Maximum; 3];
     assert_eq!(presets, [low.as_slice(), &medium, &high, &maximum].concat());
     assert!(presets.iter().all(|preset| jpeg_quality_preset(preset.quality()) == *preset), "a preset sets a quality inside itself");
+}
+
+/// Export files a save request for the file name and the format and keeps the dialog open; the host's path answer then
+/// gives the result and closes the dialog.
+#[trial]
+fn export_then_a_path_answer_gives_the_result_and_closes() {
+    let options = Rc::new(RefCell::new(ExportOptions::default()));
+    let host = Rc::new(RefCell::new(HostRequests::new()));
+    let asked = Rc::new(RefCell::new(None::<PathRequest>));
+    let result = Rc::new(RefCell::new(None::<ExportAsResult>));
+    let closed = Rc::new(Cell::new(false));
+    let (held, requests, request, answer, done) = (Rc::clone(&options), Rc::clone(&host), Rc::clone(&asked), Rc::clone(&result), Rc::clone(&closed));
+    let mut fixture = Fixture::new(move |ui| {
+        let mut options = held.borrow_mut();
+        let answers = requests.borrow_mut().take_answers();
+        let mut out = ExportAsDialog::new("Poster", document(), Bind::bound(&mut *options)).answers(answers).show(ui);
+        if let Some(filed) = out.requests.take_path() {
+            *request.borrow_mut() = Some(filed);
+        }
+        if out.result.is_some() {
+            *answer.borrow_mut() = out.result;
+        }
+        if out.closed.is_some() {
+            done.set(true);
+        }
+    });
+    fixture.settle();
+    let export = fixture.by_label("Export…").expect("the Export button");
+    fixture.click(&export);
+    fixture.settle();
+    let filed = asked.borrow().clone().expect("Export files a save request");
+    assert_eq!((filed.kind, filed.file_name.as_deref()), (PathKind::SaveFile, Some("Poster.png")));
+    assert_eq!(filed.filters.first().map(|filter| filter.extensions.clone()), Some(vec!["png".to_owned()]));
+    assert!(!closed.get() && result.borrow().is_none(), "the dialog waits for the host's path");
+
+    host.borrow_mut().answer_path(filed.key, PathBuf::from("out/Poster.png"));
+    fixture.settle();
+    assert!(closed.get(), "the path answer closes the dialog");
+    let done = result.borrow().clone().expect("the answer carries the result");
+    assert_eq!((done.path, done.size), (PathBuf::from("out/Poster.png"), document()));
 }

@@ -23,7 +23,7 @@ pub use options::{
 };
 pub use path_row::{OutputPathOutput, OutputPathRow, OutputPathWords};
 
-use super::{MAX_DOCUMENT_SIDE, SizeError, resize_from_scale, resize_from_side};
+use super::{MAX_DOCUMENT_SIDE, Resample, SizeError, resize_from_scale, resize_from_side};
 
 craft_ui::words! {
     /// The words of Export As, beside the common OK and Cancel.
@@ -60,6 +60,8 @@ craft_ui::words! {
         estimate: template "export.estimate" = "≈ {size}";
         /// `{width}` and `{height}`: the output size in pixels.
         dimensions: template "export.dimensions" = "{width} × {height} px";
+        /// `{format}`: the format's name, `{estimate}`: the size estimate or its placeholder.
+        preview_line: template "export.previewLine" = "{format}  {estimate}";
     }
 }
 
@@ -182,6 +184,9 @@ pub struct ExportOptions {
     pub embed_profile: bool,
     /// Bits per pixel; 0 is Auto.
     pub bits: u8,
+    /// How the pixels are made when the output size differs from the document's.
+    #[serde(default = "default_resample")]
+    pub resample: Resample,
 }
 
 impl Default for ExportOptions {
@@ -198,8 +203,14 @@ impl Default for ExportOptions {
             profile: ExportProfile::Document,
             embed_profile: true,
             bits: 0,
+            resample: default_resample(),
         }
     }
+}
+
+/// The method a settings value saved without one reads as.
+fn default_resample() -> Resample {
+    Resample::Automatic
 }
 
 /// The scale of the document's own size, in percent.
