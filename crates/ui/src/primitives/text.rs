@@ -204,12 +204,7 @@ pub(super) fn anchored_at_start(mut galley: Arc<Galley>) -> Arc<Galley> {
 /// Start and End swapping sides in a right-to-left paragraph. One rule for both directions, so a run measures the same
 /// by direction. The rect of the galley already spans its widest row, which stays where it is.
 pub(super) fn aligned_rows(mut galley: Arc<Galley>, align: HAlign, rtl: bool, pixels_per_point: f32) -> Arc<Galley> {
-    // The share of the free room before the row: 0 at the left edge, 1 at the right.
-    let share = match (align, rtl) {
-        (HAlign::Center, _) => 0.5,
-        (HAlign::Start, true) | (HAlign::End, false) => 1.0,
-        _ => 0.0,
-    };
+    let share = free_room_before(align, rtl);
     let width = galley.rect.width();
     if share == 0.0 || galley.rows.iter().all(|placed| placed.size.x >= width) {
         return galley;
@@ -220,6 +215,16 @@ pub(super) fn aligned_rows(mut galley: Arc<Galley>, align: HAlign, rtl: bool, pi
         placed.pos.x = (free * share * pixels_per_point).round() / pixels_per_point;
     }
     galley
+}
+
+/// The share of the free room that sits before text aligned by `align`: 0 at the left edge, 1 at the right. The one
+/// rule for rows within a run and for a laid-out block within its rect.
+pub(super) fn free_room_before(align: HAlign, rtl: bool) -> f32 {
+    match (align, rtl) {
+        (HAlign::Center, _) => 0.5,
+        (HAlign::Start, true) | (HAlign::End, false) => 1.0,
+        _ => 0.0,
+    }
 }
 
 /// What a layout reads from the env: the tokens, the direction and the ink colour.

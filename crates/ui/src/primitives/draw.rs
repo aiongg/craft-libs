@@ -9,7 +9,7 @@ use crate::fonts::stack_facts;
 use crate::style::{Corners, DataColor, Ink, StyleColor, SurfaceKind, UiTokens, ink_color, rule_look, surface_style};
 use craft_i18n::Direction;
 use egui::epaint::{CircleShape, RectShape};
-use egui::{Color32, CornerRadius, Painter, Pos2, Rect, Shape, Stroke, StrokeKind, Vec2};
+use egui::{Color32, CornerRadius, Painter, Pos2, Rect, Shape, Stroke, StrokeKind, TextureId, Vec2};
 use std::cell::RefCell;
 
 /// A shape `Draw::fill` and `Draw::stroke` paint.
@@ -50,6 +50,40 @@ impl StrokeWidth {
             StrokeWidth::Medium => stroke.medium,
             StrokeWidth::Thick => stroke.thick,
         }
+    }
+}
+
+/// A line width the data gives (a path's thickness, a pen size), in screen points: the caller maps a document width
+/// through its view first. Only `Draw::data_stroke` takes one; theme strokes keep [`StrokeWidth`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DataWidth(f32);
+
+impl DataWidth {
+    /// A width of `points`.
+    pub const fn points(points: f32) -> Self {
+        DataWidth(points)
+    }
+}
+
+/// The width of a data stroke: a named theme width or one from the document.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum DataStrokeWidth {
+    /// A width the theme names.
+    Named(StrokeWidth),
+    /// A width the document gives.
+    Data(DataWidth),
+}
+
+impl From<StrokeWidth> for DataStrokeWidth {
+    fn from(width: StrokeWidth) -> Self {
+        DataStrokeWidth::Named(width)
+    }
+}
+
+impl From<DataWidth> for DataStrokeWidth {
+    fn from(width: DataWidth) -> Self {
+        DataStrokeWidth::Data(width)
     }
 }
 
@@ -143,13 +177,14 @@ impl<'a> Draw<'a> {
         layout
     }
 
-    /// Lays `text` out in `rect`'s width and paints it at the reading start of `rect`, top aligned, as `text` does for
-    /// a run. Each run keeps its own font, size and colour.
+    /// Lays `text` out in `rect`'s width and paints it top aligned, its block placed in `rect` by `text.align` (Start
+    /// and End swap sides under right-to-left). Each run keeps its own font, size and colour.
     pub fn doc(&self, rect: Rect, text: &DocText<'_>) -> TextLayout {
         let text = DocText { wrap: Some(rect.width()), ..*text };
         let layout = text.layout(self.painter.ctx(), self.env.tokens, self.text_direction);
         let layout = TextLayout { galley: super::text::anchored_at_start(layout.galley.clone()), ..layout };
-        let x = if self.text_direction == Direction::Rtl { rect.right() - layout.size().x } else { rect.left() };
+        let share = super::text::free_room_before(text.align, self.text_direction == Direction::Rtl);
+        let x = rect.left() + (rect.width() - layout.size().x).max(0.0) * share;
         self.galley(Pos2::new(x, rect.top()), &layout);
         layout
     }
@@ -231,10 +266,24 @@ impl<'a> Draw<'a> {
         self.paint(shape, Some(fill), None);
     }
 
-    /// Strokes `shape` with a colour from data (a chart series, a curve). A `Draw` for an inactive part strokes with
-    /// the theme's disabled fill instead.
-    pub fn data_stroke(&self, shape: &PaintShape, width: StrokeWidth, color: DataColor) {
-        self.paint(shape, None, Some(Stroke::new(self.width(width), self.data_color(color))));
+    /// Strokes `shape` with a colour from data (a chart series, a curve) at a theme width or a width from the
+    /// document. A `Draw` for an inactive part strokes with the theme's disabled fill instead.
+    pub fn data_stroke(&self, shape: &PaintShape, width: impl Into<DataStrokeWidth>, color: DataColor) {
+        let points = match width.into() {
+            DataStrokeWidth::Named(width) => self.width(width),
+            DataStrokeWidth::Data(DataWidth(points)) => points,
+        };
+        self.paint(shape, None, Some(Stroke::new(points, self.data_color(color))));
+    }
+
+    /// Paints the part `uv` of `texture` (from `TextureCache` or a `TextureStore`) into `rect`, untinted. A `Draw`
+    /// for an inactive part fills `rect` with the theme's disabled fill instead, as `data_fill` does.
+    pub fn texture(&self, rect: Rect, texture: TextureId, uv: Rect) {
+        if self.inactive {
+            self.data_fill(&PaintShape::Rect(rect, CornerRadius::ZERO), DataColor::new(Color32::TRANSPARENT));
+        } else {
+            self.painter.image(texture, rect, uv, Color32::WHITE);
+        }
     }
 
     fn data_color(&self, color: DataColor) -> Color32 {

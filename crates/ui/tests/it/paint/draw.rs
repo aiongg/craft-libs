@@ -2,7 +2,8 @@
 
 use craft_i18n::Direction;
 use craft_theme::{Contrast, ControlSize, Mode, Rgba, Variant};
-use craft_ui::primitives::{Dashes, IconSpec, PaintShape, RuleKind, StrokeWidth, TextRun, TextureCache, ToolIcon, has_icon};
+use craft_ui::fonts::FontRef;
+use craft_ui::primitives::{Dashes, DocRun, DocText, HAlign, IconSpec, PaintShape, RuleKind, StrokeWidth, TextRun, TextureCache, ToolIcon, has_icon};
 use craft_ui::style::{Corners, DataColor, Ink, SurfaceKind};
 use craft_ui::testing::style::{paint_frame, tokens, with_cx};
 use craft_ui::testing::{Frames, trial};
@@ -190,4 +191,34 @@ fn a_rotated_run_paints_at_its_angle() {
     let turned = angles(TextRun::new("Axis").rotated(1.0), &mut frames);
     assert_eq!((level.len(), turned.len()), (1, 1), "each run paints one text shape");
     assert!(turned[0] > level[0], "the rotated run paints at a larger angle than the level one");
+}
+
+/// The horizontal extent of the text `doc` paints in `RECT`.
+fn doc_extent(direction: Direction, align: HAlign) -> (f32, f32) {
+    let mut frames = Frames::new();
+    let tokens = tokens(Mode::Light, Contrast::Standard);
+    let runs = [DocRun::new("Title", FontRef::proportional(), 14.0, DataColor::new(Color32::BLACK))];
+    let mut text = DocText::new(&runs);
+    text.align = align;
+    let (shapes, _) = paint_frame(&mut frames, &tokens, direction, Ink::OnPanel, |draw| {
+        draw.doc(RECT, &text);
+    });
+    let shown = shapes.iter().find_map(|s| if let Shape::Text(text) = s { Some(text) } else { None }).expect("the text painted");
+    let rect = shown.galley.rect.translate(shown.pos.to_vec2());
+    (rect.min.x, rect.max.x)
+}
+
+#[trial]
+fn doc_text_sits_in_its_rect_by_its_alignment_and_start_and_end_swap_under_rtl() {
+    let (left, right) = (RECT.left(), RECT.right());
+    let (start, end) = doc_extent(Direction::Ltr, HAlign::Start);
+    assert!((start - left).abs() < EPS && end < right, "start is the left edge in LTR");
+    let (start, end) = doc_extent(Direction::Ltr, HAlign::End);
+    assert!((end - right).abs() < EPS && start > left, "end is the right edge in LTR");
+    let (start, end) = doc_extent(Direction::Ltr, HAlign::Center);
+    assert!(((start + end) / 2.0 - RECT.center().x).abs() < 1.0, "centre is the middle of the rect");
+    let (start, end) = doc_extent(Direction::Rtl, HAlign::Start);
+    assert!((end - right).abs() < EPS && start > left, "start is the right edge in RTL");
+    let (start, _) = doc_extent(Direction::Rtl, HAlign::End);
+    assert!((start - left).abs() < EPS, "end is the left edge in RTL");
 }
