@@ -666,16 +666,14 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
         }
     }
 
-    /// One group: shown in a rect, by the host's `group_view` when it takes the group, else as a `DockGroup` over the
-    /// host's panels; or that `DockGroup` measured at a width, returning its height.
+    /// One group, by the host's `group_view` when it takes the group, else as a `DockGroup` over the host's panels:
+    /// shown in a rect, or measured at a width the way it would show, returning its height.
     fn group(&mut self, ui: &mut Ui, body: &mut BodyCx<'_>, members: &[P], active: usize, look: Look, at: GroupAt) -> Option<f32> {
         let scene = self.scene;
         let anchor = members.first()?;
         let active = active.min(members.len() - 1);
-        if let GroupAt::Show(rect) = at
-            && self.panels.group_view(members, active, ui, rect, body)
-        {
-            return None;
+        if let Some(height) = self.panels.group_view(members, active, ui, at, body) {
+            return matches!(at, GroupAt::Measure(_)).then_some(height);
         }
         let titles: Vec<PanelTitle> = members.iter().map(|panel| PanelTitle::new(PanelKey::of(panel), scene.spec(panel).label)).collect();
         let shown = &members[active];

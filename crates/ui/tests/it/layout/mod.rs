@@ -3,6 +3,8 @@ mod body;
 mod column;
 mod end_region;
 mod fonts;
+mod footer_room;
+mod grid_fill_column;
 mod label;
 mod memory;
 mod nested;

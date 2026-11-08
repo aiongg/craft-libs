@@ -125,7 +125,7 @@ name = "DockContent"
 old = "craft_ui::docking::DockContent"
 new = ""
 status = "replaced"
-note = "`DockPanels<P>`: `spec(&P) -> PanelSpec` carries the label, icon, limits, heights, float size, native and window-kind policy; `body`, `group_view(panels, active, ui, rect, cx)` (was `custom_group(panels, active, floating)`), `group_header(panels, active, ui, cx)` and `panel_rows` stay hooks; a group is named by one of its panels. Permissions are the dock model's, read through `DockPanels::permissions`."
+note = "`DockPanels<P>`: `spec(&P) -> PanelSpec` carries the label, icon, limits, heights, float size, native and window-kind policy; `body`, `group_view(panels, active, ui, at: GroupAt, cx) -> Option<f32>` (was `custom_group(panels, active, floating)`; it shows or measures the group and returns its height when it takes it), `group_header(panels, active, ui, cx)` and `panel_rows` stay hooks; a group is named by one of its panels. Permissions are the dock model's, read through `DockPanels::permissions`."
 
 [[type]]
 name = "ZoneRule"

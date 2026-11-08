@@ -15,7 +15,7 @@ use craft_ui::contract::{
     Bind, BodyCx, CollectionEvent, ColumnKind, ColumnSpec, SelectMode, Show as _, ShowCollection as _, ShowContainer as _, ToggleColumn,
     WordSetCx as _,
 };
-use craft_ui::docking::{DockPanels, PanelSpec};
+use craft_ui::docking::{DockPanels, GroupAt, PanelSpec};
 use craft_ui::list::{ListRow, ToggleCell};
 use craft_ui::patterns::canvas::NavigatorPanel;
 use craft_ui::primitives::textures::Revision;
@@ -23,7 +23,7 @@ use craft_ui::runtime::env::UnitKind;
 use craft_ui::shell::CanvasPanel;
 use craft_ui::table::Table;
 use craft_ui::tabs::{DocumentTab, DocumentTabs, DocumentTabsEvent};
-use egui::{Color32, ColorImage, Rect, Ui};
+use egui::{Color32, ColorImage, Ui};
 use std::borrow::Cow;
 
 /// The units the rulers' menu offers.
@@ -81,9 +81,11 @@ impl DockPanels<Panel> for Panels<'_> {
         }
     }
 
-    fn group_view(&mut self, panels: &[Panel], _: usize, ui: &mut Ui, _: Rect, cx: &mut BodyCx<'_>) -> bool {
+    fn group_view(&mut self, panels: &[Panel], _: usize, ui: &mut Ui, at: GroupAt, cx: &mut BodyCx<'_>) -> Option<f32> {
+        // The canvas fills the rect it is shown in; protected, it never sits in a flyout, which is what measures.
+        let GroupAt::Show(rect) = at else { return None };
         if !panels.contains(&Panel::Canvas) {
-            return false;
+            return None;
         }
         let title = self.tab_title(ui, cx);
         let modified = self.document.dirty;
@@ -103,7 +105,7 @@ impl DockPanels<Panel> for Panels<'_> {
                 *self.document = Document::default();
             }
         }
-        true
+        Some(rect.height())
     }
 }
 
