@@ -1,15 +1,19 @@
 //! Navigation rules (wheel, page keys, flick, autoscroll), the zoom motion and the momentary tool order.
 
 use craft_behavior::kurbo::{Point, Size};
-use craft_behavior::{CanvasView, Granularity, MoveMods, NavMove, Wheel, WheelPhase, WheelUnit};
+use craft_behavior::{CancelReason, CanvasView, Granularity, MoveMods, NavMove, Wheel, WheelPhase, WheelUnit};
 use craft_keymap::Mods;
 use craft_ui::canvas::{
-    Autoscroll, FlickPan, HoldZoom, Momentary, MomentaryCommand, MomentaryTool, NavigationOptions, PageKey, ViewTurn, WheelAction, WheelInput,
-    WheelNavigation, ZoomAnimation, ZoomDrag,
+    Autoscroll, Canvas, CanvasTool, FlickPan, HoldZoom, Momentary, MomentaryCommand, MomentaryTool, NavigationOptions, PageKey, ToolAction,
+    ToolContext, ToolHost, ToolPath, ToolPointer, TouchpadGlide, ViewTurn, WheelAction, WheelInput, WheelNavigation, ZoomAnimation, ZoomDrag,
 };
+use craft_ui::contract::ShowContainer as _;
+use craft_ui::primitives::Draw;
 use craft_ui::runtime::commands::FirePhase;
-use craft_ui::testing::trial;
+use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Pos2, Rect, Vec2};
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 
 /// Points of one wheel notch.
 const NOTCH: f32 = 40.0;
@@ -176,23 +180,19 @@ fn the_zoom_ease_runs_from_the_old_view_to_the_new_one() {
 }
 
 #[trial]
-fn a_press_held_still_zooms_after_the_delay_and_a_moved_press_never_holds() {
+fn a_press_held_still_zooms_after_the_delay() {
     let size = DOCUMENT;
     let anchor = Pos2::new(400.0, 300.0);
     let mut view = view();
     let mut hold = HoldZoom::press(anchor, view.to_doc(anchor), 0.0);
-    assert!(!hold.advance(&mut view, anchor, HoldZoom::DELAY / 2.0, false, size, 1.0), "no zoom inside the delay");
-    assert!(hold.advance(&mut view, anchor, HoldZoom::DELAY, false, size, 1.0));
-    assert!(hold.advance(&mut view, anchor, HoldZoom::DELAY + 0.1, false, size, 1.0));
+    assert!(!hold.advance(&mut view, HoldZoom::DELAY / 2.0, false, size, 1.0), "no zoom inside the delay");
+    assert!(hold.advance(&mut view, HoldZoom::DELAY, false, size, 1.0));
+    assert!(hold.advance(&mut view, HoldZoom::DELAY + 0.1, false, size, 1.0));
     assert!(view.zoom > 1.0 && hold.zooming());
-
-    let mut dragged = HoldZoom::press(anchor, view.to_doc(anchor), 0.0);
-    let away = anchor + Vec2::new(HoldZoom::SLOP * 2.0, 0.0);
-    assert!(!dragged.advance(&mut view, away, HoldZoom::DELAY * 2.0, false, size, 1.0), "a press that moved is a drag");
 }
 
 #[trial]
-fn a_scrubby_drag_zooms_about_the_press_and_a_small_rectangle_is_a_click() {
+fn a_scrubby_drag_zooms_about_the_press_and_a_rectangle_zooms_to_fit() {
     let anchor = Pos2::new(400.0, 300.0);
     let mut scrubbed = view();
     let doc = scrubbed.to_doc(anchor);
@@ -204,12 +204,36 @@ fn a_scrubby_drag_zooms_about_the_press_and_a_small_rectangle_is_a_click() {
 
     let mut ruled = view();
     let mut rectangle = ZoomDrag::begin(&ruled, anchor, false, 1.0);
-    rectangle.drag(&mut ruled, anchor + Vec2::splat(ZoomDrag::CLICK / 2.0), DOCUMENT, 1.0);
-    assert!(rectangle.is_click(anchor + Vec2::splat(ZoomDrag::CLICK / 2.0)));
     rectangle.drag(&mut ruled, anchor + Vec2::new(200.0, 150.0), DOCUMENT, 1.0);
-    assert!(!rectangle.is_click(anchor + Vec2::new(200.0, 150.0)));
-    rectangle.release(&mut ruled, false, DOCUMENT, 1.0);
+    rectangle.release(&mut ruled, false, DOCUMENT, 1.0, 6.0);
     assert!(ruled.zoom > 1.0, "a rectangle zooms to fit it");
+
+    let mut sliver = view();
+    let mut thin = ZoomDrag::begin(&sliver, anchor, false, 1.0);
+    thin.drag(&mut sliver, anchor + Vec2::new(200.0, 2.0), DOCUMENT, 1.0);
+    thin.release(&mut sliver, false, DOCUMENT, 1.0, 6.0);
+    assert_eq!(sliver.zoom, 1.0, "a rectangle too small to zoom to leaves the view");
+}
+
+#[trial]
+fn a_touchpad_glide_stops_in_the_pass_the_edge_clamp_leaves_the_view_where_it_was() {
+    const STEP: f64 = 0.016;
+    let mut glide = TouchpadGlide::new(true);
+    let mut now = 0.0;
+    glide.read(&Wheel::new(Vec2::new(30.0, 0.0), Mods::NONE, WheelUnit::Point, WheelPhase::Start), now, true);
+    for _ in 0..4 {
+        now += STEP;
+        glide.read(&Wheel::new(Vec2::new(30.0, 0.0), Mods::NONE, WheelUnit::Point, WheelPhase::Move), now, true);
+    }
+    glide.read(&Wheel::new(Vec2::ZERO, Mods::NONE, WheelUnit::Point, WheelPhase::End), now, true);
+    now += STEP;
+    assert!(glide.step(now).x > 0.0, "a fast lift glides");
+    glide.moved(true);
+    now += STEP;
+    assert!(glide.step(now).x > 0.0, "a glide whose view moved goes on");
+    glide.moved(false);
+    now += STEP;
+    assert_eq!(glide.step(now), Vec2::ZERO, "a pass that left the view where it was ends the glide");
 }
 
 #[trial]
@@ -223,7 +247,7 @@ fn the_compass_snaps_to_fifteen_degrees_and_wraps_into_half_a_turn() {
 
 #[trial]
 fn space_is_the_hand_and_cmd_or_alt_added_in_any_order_switch_to_zoom() {
-    let mut momentary = Momentary::default();
+    let mut momentary = Momentary::new(NavigationOptions::default(), DOCUMENT);
     assert_eq!(momentary.tool(Mods::NONE, false), None);
     momentary.fired(MomentaryCommand::Hand, FirePhase::Press);
     assert_eq!(momentary.tool(Mods::NONE, false), Some(MomentaryTool::Hand));
@@ -236,4 +260,79 @@ fn space_is_the_hand_and_cmd_or_alt_added_in_any_order_switch_to_zoom() {
     assert_eq!(momentary.tool(Mods::NONE, true), Some(MomentaryTool::ZoomOut), "a drag keeps the tool it began with");
     momentary.fired(MomentaryCommand::ZoomIn, FirePhase::Release);
     assert_eq!(momentary.tool(Mods::NONE, false), None);
+}
+
+/// A brush: it claims every press and counts what the host called.
+#[derive(Default)]
+struct Brush {
+    presses: u32,
+    releases: u32,
+}
+
+impl CanvasTool for Brush {
+    fn press(&mut self, _: &ToolPointer, _: &mut ToolContext<'_>) -> ToolAction {
+        self.presses += 1;
+        ToolAction::Claimed
+    }
+
+    fn drag(&mut self, _: &ToolPointer, _: &mut ToolContext<'_>) {}
+
+    fn release(&mut self, _: &ToolPointer, _: &mut ToolContext<'_>) {
+        self.releases += 1;
+    }
+
+    fn cancel(&mut self, _: CancelReason, _: &mut ToolContext<'_>) {}
+
+    fn paint(&self, _: &Draw<'_>, _: &ToolContext<'_>) {}
+
+    fn command_form(&self) -> ToolPath {
+        ToolPath::Command("the Select Area... command")
+    }
+}
+
+fn drag(fixture: &mut Fixture, from: Pos2, by: Vec2) {
+    fixture.frame(vec![pointer::moved(from)]);
+    fixture.frame(vec![pointer::press(from)]);
+    for step in 1..=4 {
+        fixture.frame(vec![pointer::moved(from + by * (step as f32 / 4.0))]);
+    }
+    fixture.frame(vec![pointer::release(from + by)]);
+    fixture.frame(Vec::new());
+}
+
+#[trial]
+fn holding_space_during_a_brush_pans_and_letting_go_returns_to_the_brush_without_losing_a_gesture() {
+    let view = Rc::new(Cell::new(None::<CanvasView>));
+    let momentary = Rc::new(RefCell::new(Momentary::new(NavigationOptions::default(), DOCUMENT)));
+    let brush = Rc::new(RefCell::new(Brush::default()));
+    let (seen, keys, tool) = (Rc::clone(&view), Rc::clone(&momentary), Rc::clone(&brush));
+    let mut fixture = Fixture::new(move |ui| {
+        let rect = ui.available_rect_before_wrap();
+        let mut current = seen.get().unwrap_or_else(|| CanvasView::new(rect, Point::new(1000.0, 750.0), 1.0));
+        current.rect = rect;
+        let shown = Canvas::new("Document", ToolPath::Command("the Select Area... command")).view(current).show(ui, |_, _| {});
+        let reply = ToolHost::new().momentary(&mut keys.borrow_mut()).run(ui, &shown.output, &mut *tool.borrow_mut());
+        seen.set(Some(reply.view.unwrap_or(current)));
+    });
+    fixture.settle();
+    let from = fixture.shown().center();
+    let start = view.get().expect("the canvas showed a view").center;
+
+    momentary.borrow_mut().fired(MomentaryCommand::Hand, FirePhase::Press);
+    drag(&mut fixture, from, Vec2::new(60.0, 40.0));
+    assert_eq!(brush.borrow().presses, 0, "the brush gets no press while Space is held");
+    assert_ne!(view.get().map(|view| view.center), Some(start), "the Hand pans the view");
+
+    momentary.borrow_mut().fired(MomentaryCommand::Hand, FirePhase::Release);
+    drag(&mut fixture, from, Vec2::new(60.0, 40.0));
+    assert_eq!((brush.borrow().presses, brush.borrow().releases), (1, 1), "the brush is back once Space is up");
+
+    // Space pressed in the middle of a brush stroke does not take the stroke from the brush.
+    fixture.frame(vec![pointer::moved(from)]);
+    fixture.frame(vec![pointer::press(from)]);
+    momentary.borrow_mut().fired(MomentaryCommand::Hand, FirePhase::Press);
+    fixture.frame(vec![pointer::moved(from + Vec2::new(30.0, 0.0))]);
+    fixture.frame(vec![pointer::moved(from + Vec2::new(60.0, 0.0))]);
+    fixture.frame(vec![pointer::release(from + Vec2::new(60.0, 0.0))]);
+    assert_eq!((brush.borrow().presses, brush.borrow().releases), (2, 2), "the stroke ends with the brush");
 }

@@ -5,9 +5,10 @@
 //! them to document units with the canvas's view ([`ToolContext::space`]), so it holds no copy of the view.
 
 use super::{CanvasSpace, ToolPath};
-use crate::primitives::Draw;
+use crate::primitives::{ContentPainterCx, Draw};
 use crate::runtime::env::Label;
-use craft_behavior::{CancelReason, Cursor, CursorIcon, PointerButton, PointerSample};
+use craft_behavior::kurbo::Point;
+use craft_behavior::{CancelReason, CanvasView, Cursor, CursorIcon, PointerButton, PointerSample};
 use craft_keymap::{Chord, Key, Mods};
 use egui::{Pos2, Rect, Vec2};
 
@@ -99,12 +100,22 @@ pub enum ToolKey {
     Kept(Chord),
 }
 
+/// How a view change eases to its target instead of jumping, as a zoom click does under Animated Zoom.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct ViewEase {
+    /// A document point and the screen point it stays at while the change eases, for a zoom about the pointer.
+    pub anchor: Option<(Point, Pos2)>,
+}
+
 /// What a tool asked the host for in a call; the host applies it after the call.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct ToolRequests {
     pub(crate) readout: Option<Vec<(Label, String)>>,
     pub(crate) repaint: bool,
     pub(crate) keep_keys: bool,
+    pub(crate) view: Option<CanvasView>,
+    pub(crate) ease: Option<ViewEase>,
 }
 
 /// What a tool sees and may ask for during a call.
@@ -118,8 +129,12 @@ pub struct ToolContext<'a> {
     pub rect: Rect,
     /// The pass time, in seconds.
     pub time: f64,
+    /// The press arena's slop, in screen points: the least movement that makes a press a drag, and the least size a
+    /// drawn rectangle has to count. 0 for a context built without one.
+    pub slop: f32,
     space: Option<CanvasSpace>,
     down: &'a [Key],
+    painter: Option<&'a ContentPainterCx<'a>>,
     requests: ToolRequests,
 }
 
@@ -127,7 +142,17 @@ impl<'a> ToolContext<'a> {
     /// A context over the canvas `rect`, which shows its document through `space` (`None` for a canvas without a
     /// view), with no key held: the host builds one per call; a test of a tool builds its own.
     pub fn new(rect: Rect, space: Option<CanvasSpace>) -> Self {
-        ToolContext { pointer: None, mods: Mods::NONE, rect, time: 0.0, space, down: &[], requests: ToolRequests::default() }
+        ToolContext {
+            pointer: None,
+            mods: Mods::NONE,
+            rect,
+            time: 0.0,
+            slop: 0.0,
+            space,
+            down: &[],
+            painter: None,
+            requests: ToolRequests::default(),
+        }
     }
 
     /// The pointer's last sample.
@@ -158,10 +183,60 @@ impl<'a> ToolContext<'a> {
         self
     }
 
+    /// The press arena's slop.
+    #[must_use]
+    pub fn slop(mut self, slop: f32) -> Self {
+        self.slop = slop;
+        self
+    }
+
+    /// The painter of a paint call; the host sets it.
+    #[must_use]
+    pub(crate) fn painter(mut self, painter: &'a ContentPainterCx<'a>) -> Self {
+        self.painter = Some(painter);
+        self
+    }
+
     /// The canvas's view and interface scale this pass, to map screen points to document units and back at run
-    /// time; `None` for a canvas without a view.
+    /// time; `None` for a canvas without a view. After [`set_view`](Self::set_view) it shows the view the tool
+    /// asked for, so the calls after it in the pass start from there.
     pub fn space(&self) -> Option<CanvasSpace> {
         self.space
+    }
+
+    /// Sets the canvas's view: the host reports it in [`ToolHostResponse::view`](super::ToolHostResponse::view) and
+    /// the app copies it into its bound view. The last view set in a pass wins.
+    pub fn set_view(&mut self, view: CanvasView) {
+        self.requests.view = Some(view);
+        self.requests.ease = None;
+        if let Some(space) = self.space.as_mut() {
+            space.view = view;
+        }
+    }
+
+    /// [`set_view`](Self::set_view) for a change that eases to `view` ([`ZoomAnimation`](super::ZoomAnimation)),
+    /// keeping `anchor` (a document point and the screen point it stays at) fixed on the way.
+    pub fn ease_view(&mut self, view: CanvasView, anchor: Option<(Point, Pos2)>) {
+        self.set_view(view);
+        self.requests.ease = Some(ViewEase { anchor });
+    }
+
+    /// The view the tool set in this call, for a test of a tool.
+    pub fn requested_view(&self) -> Option<CanvasView> {
+        self.requests.view
+    }
+
+    /// The ease the tool asked for in this call, for a test of a tool.
+    pub fn requested_ease(&self) -> Option<ViewEase> {
+        self.requests.ease
+    }
+
+    /// Paints marching ants along `points` (closed when `closed`), shifted `phase` points, in a paint call; it paints
+    /// nothing in any other.
+    pub fn marching_ants(&self, points: &[Pos2], closed: bool, phase: f32) {
+        if let Some(painter) = self.painter {
+            painter.marching_ants(points, closed, phase);
+        }
     }
 
     /// Whether `key` is down now, whatever the tool kept: a marquee that sizes from its centre while Space is held

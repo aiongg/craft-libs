@@ -141,8 +141,6 @@ pub struct TouchpadGlide {
     velocity: Vec2,
     /// When the glide last moved.
     at: f64,
-    /// Passes in a row the glide moved the view not at all: it is against an edge.
-    stalled: u8,
 }
 
 impl TouchpadGlide {
@@ -163,12 +161,11 @@ impl TouchpadGlide {
 
     /// A glide that runs when `enabled`.
     pub fn new(enabled: bool) -> Self {
-        Self { enabled, samples: Vec::new(), velocity: Vec2::ZERO, at: 0.0, stalled: 0 }
+        Self { enabled, samples: Vec::new(), velocity: Vec2::ZERO, at: 0.0 }
     }
 
     fn halt(&mut self) {
         self.velocity = Vec2::ZERO;
-        self.stalled = 0;
     }
 
     fn push(&mut self, now: f64, delta: Vec2) {
@@ -247,15 +244,11 @@ impl TouchpadGlide {
         moved
     }
 
-    /// Whether the view moved last pass; two passes without moving (against an edge) stop the glide.
+    /// Whether the view moved in the pass of the last [`step`](Self::step): a pass that left it where it was (the
+    /// edge clamp) stops the glide.
     pub fn moved(&mut self, moved: bool) {
-        if moved {
-            self.stalled = 0;
-        } else {
-            self.stalled = self.stalled.saturating_add(1);
-            if self.stalled >= 2 {
-                self.halt();
-            }
+        if !moved {
+            self.halt();
         }
     }
 }

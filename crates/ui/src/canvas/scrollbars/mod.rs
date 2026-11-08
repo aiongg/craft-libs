@@ -157,7 +157,7 @@ fn doc_corners(doc: DocRect) -> [Point; 4] {
 }
 
 /// The scroll bars of a canvas. They sit inside the rect they are shown at, over its bottom and right edges, and take
-/// a press before the canvas below does; the app reads [`ScrollbarsOutput::over`] to keep its tool from reacting to the
+/// a press before the canvas below does; the app reads [`CanvasScrollbarsOutput::over`] to keep its tool from reacting to the
 /// same press. Show them at the view's rect inside the `Canvas` body. The bars are AccessKit scroll bars and no Tab
 /// stops: the canvas scrolls from the keyboard as it does without bars.
 #[derive(crate::contract::Component, crate::contract::Props)]
@@ -238,7 +238,7 @@ impl Component for CanvasScrollbars<'_> {
     const ROLE: Role = Role::GROUP;
     const KEYS: KeyUse = KeyUse::CANVAS;
     type Style = ScrollbarsStyle;
-    type Output = ScrollbarsOutput;
+    type Output = CanvasScrollbarsOutput;
 
     fn style(cx: &StyleCx<'_>, _: CanvasScrollbarsStyleKey) -> ScrollbarsStyle {
         ScrollbarsStyle {
@@ -330,27 +330,27 @@ impl Component for CanvasScrollbars<'_> {
         }
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> ScrollbarsOutput {
+    fn finish(self, cx: Cx<'_, Self>) -> CanvasScrollbarsOutput {
         let over = [HORIZONTAL, VERTICAL].into_iter().any(|key| {
             [PartRef::from(key), thumb_of(key)]
                 .into_iter()
                 .any(|part| cx.part_if_declared(part).is_some_and(|result| result.hovered || result.press.phase.is_press()))
         });
-        ScrollbarsOutput { view: cx.edit_response(), over }
+        CanvasScrollbarsOutput { view: cx.edit_response(), over }
     }
 }
 
 /// What the scroll bars report in a pass.
 #[derive(Debug)]
 #[non_exhaustive]
-pub struct ScrollbarsOutput {
+pub struct CanvasScrollbarsOutput {
     /// The view: a thumb drag's gesture, a page press's change.
     pub view: EditResponse<CanvasView>,
     /// The pointer is over a bar or dragging one: the canvas leaves it alone.
     pub over: bool,
 }
 
-impl Deref for ScrollbarsOutput {
+impl Deref for CanvasScrollbarsOutput {
     type Target = EditResponse<CanvasView>;
 
     fn deref(&self) -> &Self::Target {
@@ -358,7 +358,7 @@ impl Deref for ScrollbarsOutput {
     }
 }
 
-impl Outcome for ScrollbarsOutput {
+impl Outcome for CanvasScrollbarsOutput {
     type Value = CanvasView;
 
     fn response(&self) -> &Response {
