@@ -460,7 +460,7 @@ pub struct TrackRowStyle {
 
 /// One track: its header in the header cells, its clips as parts of the lane cell.
 #[derive(Component)]
-#[component(content_painter)]
+#[component(content_painter, unregistered)]
 pub struct TrackRow<'r> {
     #[common]
     common: Common,
