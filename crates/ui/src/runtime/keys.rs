@@ -20,7 +20,7 @@ use egui::{Context, Id, Vec2, ViewportId};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-/// A menu-bar key of Windows and Linux (spec 9.7).
+/// A menu-bar key of an in-window bar (spec 9.7). F10 reaches the bar on every OS; Alt keys only off a Mac.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum MenuKey {
@@ -335,7 +335,7 @@ impl Strip<'_> {
         } else if key == Key::Escape && mods.is_none() {
             batch.escapes += 1;
             false
-        } else if key == Key::F10 && mods.is_none() && self.menu_bar && self.os != Os::Mac {
+        } else if key == Key::F10 && mods.is_none() && self.menu_bar {
             batch.menu.push(MenuKey::Focus);
             false
         } else if mnemonic {
@@ -1070,7 +1070,8 @@ impl Intents {
     }
 
     /// Takes the next AccessKit request that asks a scroll region to scroll, or with `into_view` to show its target.
-    pub(crate) fn take_scroll_access(&mut self, into_view: bool) -> Option<AccessRequest> {
+    /// A component that scrolls reads its own requests through it.
+    pub fn take_scroll_access(&mut self, into_view: bool) -> Option<AccessRequest> {
         use craft_behavior::AccessAction as Action;
         let at = self.items.iter().position(|(item, taken)| {
             !taken
