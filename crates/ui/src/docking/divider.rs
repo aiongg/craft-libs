@@ -40,8 +40,8 @@ impl Divider {
     /// Its bar stays inside `rect`.
     pub(crate) fn column_edge(rect: Rect, edge: DockEdge, (least, most): (f32, f32), reach: f32) -> Self {
         let (at, lo, hi) = match edge {
-            DockEdge::Start => (rect.right(), rect.left() + least, rect.left() + most),
             DockEdge::End => (rect.left(), rect.right() - most, rect.right() - least),
+            _ => (rect.right(), rect.left() + least, rect.left() + most),
         };
         let mut divider = Divider::new(Axis::X, at, rect, (lo, hi), reach);
         divider.bar = divider.bar.intersect(rect);
@@ -51,8 +51,8 @@ impl Divider {
     /// The width of the column in `rect` on `edge` when its inner edge is at `coord`.
     pub(crate) fn column_width(rect: Rect, edge: DockEdge, coord: f32) -> f32 {
         match edge {
-            DockEdge::Start => coord - rect.left(),
             DockEdge::End => rect.right() - coord,
+            _ => coord - rect.left(),
         }
     }
 

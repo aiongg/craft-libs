@@ -1,7 +1,7 @@
 //! `WindowMenuRows`: the Window menu's check row for every panel of an app.
 
 use super::DockPanels;
-use crate::contract::{Props as _, Show as _};
+use crate::contract::Show as _;
 use crate::menu::MenuItem;
 use craft_behavior::dock::{Action, Layout, PanelState};
 use egui::Ui;
