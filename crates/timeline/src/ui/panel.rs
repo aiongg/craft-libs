@@ -5,15 +5,18 @@
 use super::clips::{ClipContent, ClipLane, TimelineTool};
 use super::markers::{MarkerEdit, MarkerSpan, MarkerStrip};
 use super::ruler::TimelineRuler;
-use super::stack::{LOCK, MUTE, NAME, NAME_DEFAULT, OUTPUT, SOLO, SYNC_LOCK, Side, TARGET, TrackEvent, TrackRow, TrackStack, Tracks, set_event};
-use super::view::{TimelineView, TimelineWords};
-use super::{DragEvent, TimecodeField};
+use super::stack::{
+    LANE, LOCK, MUTE, MovePointer, MoveTarget, NAME, NAME_DEFAULT, OUTPUT, RowGeom, SOLO, SYNC_LOCK, Side, TARGET, TrackEvent, TrackRow, TrackSizes,
+    TrackStack, Tracks, resolve_move, set_event,
+};
+use super::view::{TimelineView, TimelineWords, time_axis};
+use super::{DragEvent, LabelPalette, TimecodeField, label_palette};
 use crate::clips::{ClipEdit, SnapTargets};
 use crate::clock::FollowMode;
 use crate::markers::{Marker, MarkerColor};
 use crate::model::{ClipId, ClipInfo, TimelineModel, TrackId, TrackInfo, TrackKind};
 use crate::time::{Tick, TimeRange};
-use craft_behavior::{ColumnWidth, EditEvent, IconId, Metrics, PressPhase, SelectionChange, Sense};
+use craft_behavior::{ColumnWidth, EditEvent, IconId, MarqueeSelect, Metrics, PressPhase, SelectionChange, Sense};
 use craft_ui::buttons::{IconButton, ToggleButton};
 use craft_ui::contract::{
     Bind, BindMut, BodyLayout, CollectionEvent, CollectionResponse, ColumnEvent, Common, Component, Container, ContainerProps, Cx, Edit as _,
@@ -26,6 +29,7 @@ use craft_ui::primitives::IconSpec;
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::style::{ComponentStyle, StyleCx};
 use egui::{Pos2, Rect, Response, Ui, Vec2};
+use std::cell::{Cell, RefCell};
 
 /// A track header switch.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -240,6 +244,42 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
 struct Memory {
     /// The track whose label menu is open.
     label_menu: Option<TrackId>,
+    /// Whether that menu shows.
+    label_open: bool,
+    /// Where the last pass's drag snapped, for the snap line over every pane.
+    snapped: Option<Tick>,
+    /// The rectangle of the marquee under way, for every pane to draw its part.
+    marquee: Option<Rect>,
+}
+
+/// What the panes reported in a pass that the panel works out across all of them.
+#[derive(Default)]
+struct Reports {
+    /// The row a clip move drag runs in, with the pointer over it.
+    drag: Option<(TrackId, MovePointer)>,
+    /// The marquee under way, and whether it ended in this pass.
+    marquee: Option<(MarqueeSelect<ClipId>, bool)>,
+    /// Where a drag snapped.
+    snapped: Option<Tick>,
+}
+
+/// The first row a pane showed: every other row's place follows from it and the heights.
+#[derive(Clone, Copy)]
+struct Anchor {
+    /// The row's position in the pane.
+    at: usize,
+    /// The row's rect.
+    row: Rect,
+    /// The left edge of the row's lane.
+    lane_left: f32,
+}
+
+/// A track's row in the time area.
+struct PlacedRow {
+    /// The track's position in the model's tracks.
+    track: usize,
+    geom: RowGeom,
+    lane_left: f32,
 }
 
 /// What the panes share in a pass.
@@ -253,6 +293,10 @@ struct Panes<'p, 'a> {
     no_modifier_trims: bool,
     content: Option<&'p ClipContent<'a>>,
     clips: &'p [Vec<ClipInfo<'p>>],
+    snapped: Cell<Option<Tick>>,
+    marquee: Cell<Option<Rect>>,
+    /// The first row each pane showed, by pane.
+    anchors: RefCell<[Option<Anchor>; 3]>,
 }
 
 impl Panes<'_, '_> {
@@ -264,6 +308,12 @@ impl Panes<'_, '_> {
             Side::Lower => "Audio",
         };
         let mut stack = TrackStack::new(label, self.name, self.words).tracks(pane).playhead(self.playhead);
+        if let Some(at) = self.snapped.get() {
+            stack = stack.snapped_at(at);
+        }
+        if let Some(swept) = self.marquee.get() {
+            stack = stack.marquee(swept);
+        }
         if side == Side::Upper {
             stack = stack.anchored_at_end();
         }
@@ -271,6 +321,9 @@ impl Panes<'_, '_> {
         stack.show_items(ui, &source, &mut |key, icx| {
             let at = pane.iter().position(|track| track.id == *key).unwrap_or(0);
             let track = &pane[at];
+            if let Some((_, lane)) = icx.cells().iter().find(|(column, _)| *column == LANE) {
+                self.anchors.borrow_mut()[side as usize].get_or_insert(Anchor { at, row: icx.rect, lane_left: lane.left() });
+            }
             let lane = ClipLane::new(&self.clips[indices[at]])
                 .tool(self.tool)
                 .no_modifier_trims(self.no_modifier_trims)
@@ -292,11 +345,12 @@ struct Mapping<'p> {
     pane: &'p [TrackInfo<'p>],
     words: &'p TimelineWords,
     name: Option<ColumnWidth>,
+    palette: &'p LabelPalette,
 }
 
 impl Mapping<'_> {
     /// Maps what a pane reported to edits; a track whose colour strip was clicked opens the label menu.
-    fn collect(&self, out: &CollectionResponse<TrackId, TrackEvent>, edits: &mut Vec<TimelineEdit>, memory: &mut Memory) {
+    fn collect(&self, out: &CollectionResponse<TrackId, TrackEvent>, edits: &mut Vec<TimelineEdit>, memory: &mut Memory, reports: &mut Reports) {
         let mut with_clip: Vec<TrackId> = Vec::new();
         for event in &out.events {
             match event {
@@ -334,6 +388,14 @@ impl Mapping<'_> {
                     edits.extend(row.height.clone().map(|height| TimelineEdit::TrackHeight { track: *track, height }));
                     if row.label_menu {
                         memory.label_menu = Some(*track);
+                        memory.label_open = true;
+                    }
+                    if let Some(pointer) = row.pointer {
+                        reports.drag = Some((*track, pointer));
+                    }
+                    reports.snapped = reports.snapped.or(row.snapped_at);
+                    if let Some(marquee) = row.marquee.clone() {
+                        reports.marquee = Some((marquee, row.marquee_ended));
                     }
                 }
                 _ => {}
@@ -353,14 +415,16 @@ impl Mapping<'_> {
         let Some(track) = memory.label_menu.and_then(|id| self.pane.iter().find(|track| track.id == id)) else { return };
         let current = track.label;
         let words = self.words;
-        let menu = Menu::context(words.track_color.clone(), anchor).show(ui, |ui, _| {
+        let mut open = memory.label_open;
+        let menu = Menu::context(words.track_color.clone(), anchor).open(Bind::bound(&mut open)).show(ui, |ui, _| {
             let mut chosen = None;
             if MenuItem::new(words.no_label.clone()).check(current.is_none()).show(ui).ran {
                 chosen = Some(None);
             }
             for n in 0..=u8::MAX.min(15) {
                 let label = MarkerColor(n);
-                if MenuItem::new(words.label_name(label).to_owned()).check(current == Some(label)).show(ui).ran {
+                let swatch = IconSpec::swatch(craft_theme::Srgba::from(self.palette.0[usize::from(n) % self.palette.0.len()]));
+                if MenuItem::new(words.label_name(label).to_owned()).icon(swatch).check(current == Some(label)).show(ui).ran {
                     chosen = Some(Some(label));
                 }
             }
@@ -369,8 +433,10 @@ impl Mapping<'_> {
         if let Some(Some(label)) = menu.inner {
             edits.push(TimelineEdit::Label { track: track.id, label });
         }
+        memory.label_open = open;
         if menu.output.closed.is_some() {
             memory.label_menu = None;
+            memory.label_open = false;
         }
     }
 }
@@ -422,9 +488,14 @@ impl<M: TimelineModel> Timeline<'_, M> {
                 no_modifier_trims,
                 content: content.as_ref(),
                 clips: &clips,
+                snapped: Cell::new(None),
+                marquee: Cell::new(None),
+                anchors: RefCell::new([None; 3]),
             };
+            let palette = label_palette(&env.view());
             let mut timecode_edit: Option<EditEvent<Tick>> = None;
             let mut ruler_edits: Vec<TimelineEdit> = Vec::new();
+            let mut ruler_snapped: Option<Tick> = None;
 
             let area =
                 TimelineView::new(label, Bind::given(view), format, duration).headers(true).follow(follow, playing, playhead).edit_points(&points);
@@ -456,24 +527,98 @@ impl<M: TimelineModel> Timeline<'_, M> {
                         let ruler = ruler.show(ui);
                         ruler_edits.extend(ruler.playhead.event.map(TimelineEdit::Playhead));
                         ruler_edits.extend(ruler.work_area.map(TimelineEdit::WorkArea));
+                        ruler_snapped = ruler.snapped_at;
                     });
                 });
                 let mut memory = std::mem::take(cx.keep::<Memory>());
+                shared.snapped.set(memory.snapped);
+                shared.marquee.set(memory.marquee);
+                let mut reports = Reports { snapped: ruler_snapped, ..Reports::default() };
+                let mut pane_rects: Vec<Rect> = Vec::new();
+                let both = !panes[1].1.is_empty() && !panes[2].1.is_empty();
+                let share = divider.unwrap_or(DIVIDER_SHARE_DEFAULT).clamp(DIVIDER_SHARE_MIN, DIVIDER_SHARE_MAX);
                 for (side, indices) in &panes {
                     if indices.is_empty() {
                         continue;
                     }
                     let pane: Vec<TrackInfo<'_>> = indices.iter().map(|&i| tracks[i].clone()).collect();
-                    let out = shared.show(ui, *side, &pane, indices);
-                    let mapping = Mapping { pane: &pane, words: &words, name: header_width };
-                    mapping.collect(&out, &mut edits, &mut memory);
+                    // Both sides of the divider: the video side takes its share of the room, the audio side the rest.
+                    let room = ui.available_height();
+                    let out = if *side == Side::Upper && both {
+                        let area = ui.available_rect_before_wrap();
+                        let own = Rect::from_min_size(area.min, Vec2::new(area.width(), room * share));
+                        Stack::new().show_at_taking_room(ui, own, |ui, _| shared.show(ui, *side, &pane, indices)).inner
+                    } else {
+                        Some(shared.show(ui, *side, &pane, indices))
+                    };
+                    let Some(out) = out else { continue };
+                    pane_rects.push(out.response.rect);
+                    let mapping = Mapping { pane: &pane, words: &words, name: header_width, palette: &palette };
+                    mapping.collect(&out, &mut edits, &mut memory, &mut reports);
                     mapping.label_menu(ui, &out.response, &mut memory, &mut edits);
-                    if *side == Side::Upper {
-                        let share = divider.unwrap_or(DIVIDER_SHARE_DEFAULT);
-                        let divided = Divider::new(words.divider.clone(), Bind::given(share)).show(ui);
+                    if *side == Side::Upper && both {
+                        let divided = Divider::new(words.divider.clone(), Bind::given(share), room).show(ui);
                         edits.extend(divided.event.map(TimelineEdit::Divider));
                     }
                 }
+                let placed = placed_rows(&panes, &tracks, &shared.anchors.borrow(), reports.drag.map(|(_, pointer)| pointer.sizes));
+                if let Some((dragged, pointer)) = reports.drag {
+                    let bounds = pane_rects
+                        .iter()
+                        .fold((f32::INFINITY, f32::NEG_INFINITY), |(top, bottom), rect| (top.min(rect.top()), bottom.max(rect.bottom())));
+                    let moved = edits.iter().find_map(|edit| match edit {
+                        TimelineEdit::Clip(event) => match event.value() {
+                            Some(ClipEdit::Move { clips, .. }) => Some(clips.clone()),
+                            _ => None,
+                        },
+                        _ => None,
+                    });
+                    if let Some(moved) = moved {
+                        let everything = TimeRange::from_bounds(Tick::ZERO, Tick::MAX);
+                        let own = |row: &PlacedRow| tracks[row.track].id == dragged;
+                        let holds = |row: &PlacedRow| model.clips(tracks[row.track].id, everything).iter().any(|clip| moved.contains(&clip.id));
+                        let sources: Vec<RowGeom> = placed
+                            .iter()
+                            .filter(|row| own(row))
+                            .chain(placed.iter().filter(|row| !own(row) && holds(row)))
+                            .map(|row| row.geom)
+                            .collect();
+                        let rows: Vec<RowGeom> = placed.iter().map(|row| row.geom).collect();
+                        let target = resolve_move(&rows, &sources, pointer.y, bounds);
+                        for edit in &mut edits {
+                            if let TimelineEdit::Clip(event) = edit {
+                                retarget(event, target);
+                            }
+                        }
+                        if target.refused {
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::NotAllowed);
+                        }
+                    }
+                }
+                let mut marquee_rect = None;
+                if let Some((marquee, ended)) = &reports.marquee {
+                    let inner = Env::of(ui);
+                    if let Some(axis) = time_axis(&inner.view()) {
+                        let axis = &axis;
+                        let items = placed.iter().flat_map(|row| {
+                            clips[row.track].iter().map(move |clip| {
+                                let (x0, x1) = (axis.x_of(clip.range.start, row.lane_left), axis.x_of(clip.range.end(), row.lane_left));
+                                (clip.id, Rect::from_min_max(Pos2::new(x0, row.geom.top), Pos2::new(x1, row.geom.bottom)))
+                            })
+                        });
+                        let keys = marquee.selection(items);
+                        if keys != selection {
+                            let change = if keys.is_empty() { SelectionChange::Clear } else { SelectionChange::Set(keys) };
+                            edits.push(TimelineEdit::Select { change, unlinked: false });
+                        }
+                    }
+                    marquee_rect = (!ended).then(|| marquee.rect());
+                }
+                if memory.snapped != reports.snapped || memory.marquee != marquee_rect {
+                    ui.ctx().request_repaint();
+                }
+                memory.snapped = reports.snapped;
+                memory.marquee = marquee_rect;
                 if let Some(db) = model.master_volume_db() {
                     mix_row(ui, &words, &env.view().format().number(f64::from(db), 1));
                 }
@@ -497,6 +642,53 @@ impl<M: TimelineModel> Timeline<'_, M> {
             edits.push(TimelineEdit::ContextMenu { track, clip, anchor: output.view.response.rect, pointer: None });
         }
         TimelineOutput { response: output.view.response, edits, toolbar }
+    }
+}
+
+/// Where each pane's rows are: the first row a pane showed gives the place, the tracks' heights the rest.
+fn placed_rows(
+    panes: &[(Side, Vec<usize>); 3],
+    tracks: &[TrackInfo<'_>],
+    anchors: &[Option<Anchor>; 3],
+    sizes: Option<TrackSizes>,
+) -> Vec<PlacedRow> {
+    let Some(sizes) = sizes else { return Vec::new() };
+    let mut placed = Vec::new();
+    for ((side, indices), anchor) in panes.iter().zip(anchors) {
+        let Some(anchor) = anchor else { continue };
+        let heights: Vec<f32> = indices.iter().map(|&i| sizes.height_of(&tracks[i])).collect();
+        let mut tops = vec![anchor.row.top(); indices.len()];
+        for at in anchor.at + 1..indices.len() {
+            tops[at] = tops[at - 1] + heights[at - 1];
+        }
+        for at in (0..anchor.at).rev() {
+            tops[at] = tops[at + 1] - heights[at];
+        }
+        for (at, &track) in indices.iter().enumerate() {
+            let kind = tracks[track].kind;
+            let same = |other: &usize| tracks[indices[*other]].kind == kind;
+            // Ranks count away from the divider: the video side is stacked upward from it.
+            let rank = if *side == Side::Upper { (at + 1..indices.len()).filter(same).count() } else { (0..at).filter(same).count() };
+            let mut geom = RowGeom::new(kind, *side, rank as i32, tops[at], tops[at] + heights[at]);
+            if tracks[track].locked == Some(true) {
+                geom = geom.locked();
+            }
+            placed.push(PlacedRow { track, geom, lane_left: anchor.lane_left });
+        }
+    }
+    placed
+}
+
+/// Sets the track fields of a clip move event.
+fn retarget(event: &mut EditEvent<ClipEdit>, target: MoveTarget) {
+    let value = match event {
+        EditEvent::Update { value, .. } => value,
+        EditEvent::Commit { after, .. } | EditEvent::Set { after, .. } => after,
+        _ => return,
+    };
+    if let ClipEdit::Move { track_delta, new_track, .. } = value {
+        *track_delta = target.track_delta;
+        *new_track = target.new_track;
     }
 }
 
@@ -579,11 +771,13 @@ struct Divider<'a> {
     #[common]
     common: Common,
     share: Bind<'a, f32>,
+    /// The room the share is of: the dragged distance over it is the change of the share.
+    room: f32,
 }
 
 impl<'a> Divider<'a> {
-    fn new(label: impl Into<Label>, share: Bind<'a, f32>) -> Self {
-        Divider { common: Common::new(), share }.label(label)
+    fn new(label: impl Into<Label>, share: Bind<'a, f32>, room: f32) -> Self {
+        Divider { common: Common::new(), share, room }.label(label)
     }
 }
 
@@ -599,7 +793,7 @@ impl Component for Divider<'_> {
     }
 
     fn sense(&self) -> Sense {
-        Sense::DRAG
+        Sense::CLICK | Sense::DRAG
     }
 
     fn bind(&mut self) -> Option<BindMut<'_, f32>> {
@@ -608,7 +802,7 @@ impl Component for Divider<'_> {
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let Some(share) = cx.value().copied() else { return };
-        let room = cx.visible.height().max(f32::EPSILON);
+        let room = self.room.max(f32::EPSILON);
         match cx.press().phase {
             PressPhase::DragStart { .. } => cx.begin(),
             PressPhase::Drag { start, pos, .. } => cx.propose((share + (pos.y - start.origin.y) / room).clamp(DIVIDER_SHARE_MIN, DIVIDER_SHARE_MAX)),

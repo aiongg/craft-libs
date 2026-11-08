@@ -1,5 +1,6 @@
 //! The integration binary of craft-timeline: every test is a registered trial.
 
+mod features;
 mod graph;
 mod lanes;
 mod panel;
