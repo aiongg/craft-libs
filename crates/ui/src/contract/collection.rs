@@ -324,6 +324,14 @@ pub struct CollectionProps {
     /// Maps a row drag to the payload that other drop targets take (8.4). A map starts row drags by itself, with or
     /// without a reorder rule.
     pub drag_payload: Option<DragPayload>,
+    /// The collection takes the full height of its rows and owns no scroll, so it can sit inside a scrolling page:
+    /// every row is built, the wheel and the keys that move past an end act on the page's scroll owner, and moving
+    /// the lead scrolls the page to keep the row in view. For short collections only; a long one keeps its own
+    /// scroll and is shown outside a scrolling body (16.3).
+    pub natural_height: bool,
+    /// The key of the current item (the page a document shows, the slide on screen). It is not the lead or the
+    /// selection: the item shows the current mark and its access node reports itself as the current one of its set.
+    pub current: Option<Arc<dyn Any + Send + Sync>>,
 }
 
 /// A mapping from a row drag to the payload of type `P` that other drop targets take; the drag session carries it
@@ -385,6 +393,8 @@ impl CollectionProps {
             marquee: false,
             deletable: false,
             drag_payload: None,
+            natural_height: false,
+            current: None,
         }
     }
 
@@ -515,6 +525,21 @@ impl CollectionProps {
         self
     }
 
+    /// The collection takes its full content height and owns no scroll (see [`CollectionProps::natural_height`]).
+    #[must_use]
+    pub const fn natural_height(mut self, on: bool) -> Self {
+        self.natural_height = on;
+        self
+    }
+
+    /// The current item: `Some(key)` marks the item with that key, `None` marks none. `K` is the collection's key type;
+    /// a key of another type marks nothing.
+    #[must_use]
+    pub fn current<K: Send + Sync + 'static>(mut self, key: Option<K>) -> Self {
+        self.current = key.map(|key| Arc::new(key) as Arc<dyn Any + Send + Sync>);
+        self
+    }
+
     /// The empty-state text.
     #[must_use]
     pub fn empty(mut self, text: impl Into<Label>) -> Self {
@@ -539,6 +564,8 @@ pub struct RowState {
     pub renaming: bool,
     /// The app marks the row.
     pub emphasized: bool,
+    /// The collection's current item (`CollectionProps::current`).
+    pub current: bool,
     /// An odd row of a striped list.
     pub striped: bool,
     /// A tree row whose children show.

@@ -322,3 +322,15 @@ fn a_click_on_a_group_header_focuses_the_grid_with_the_header_as_lead() {
         .collect();
     assert_eq!(closed, [(1, false)], "Left on the lead header closes its group");
 }
+
+/// The current tile, and only it, reports itself as the current item of the set; the selection is a different
+/// thing and stays as it was.
+#[trial]
+fn only_the_current_tile_reports_current() {
+    let (fixture, seen) = rig(6, |grid| grid.current(Some(3usize)), plain);
+    let tree = fixture.tree();
+    let current: Vec<&str> =
+        NAMES[..6].iter().copied().filter(|name| tree.current_of(fixture.by_label(name).expect("the tile is a node").node)).collect();
+    assert_eq!(current, ["delta"]);
+    assert!(seen.borrow().selection.items.is_empty(), "the current tile is not selected");
+}

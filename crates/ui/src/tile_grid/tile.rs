@@ -565,12 +565,10 @@ impl Component for Tile<'_> {
             c(state.selected_hover),
             c(state.selected),
         ));
-        let edge = Stateful::new(c(clear)).off(States::new(c(clear), c(text.muted), c(text.muted), c(clear))).on(States::new(
-            c(colors.accent.solid),
-            c(colors.accent.solid),
-            c(colors.accent.solid),
-            c(colors.accent.solid),
-        ));
+        let edge = Stateful::new(c(clear))
+            .off(States::new(c(clear), c(text.muted), c(text.muted), c(clear)))
+            .on(States::new(c(colors.accent.solid), c(colors.accent.solid), c(colors.accent.solid), c(colors.accent.solid)))
+            .when(Flags::CURRENT, c(colors.accent.solid));
         let radius = UiTokens::corner(tokens.shape.radius.control);
         let surface = SurfaceLook::new(fill).radius(radius).border(edge, tokens.stroke.thick);
         let on_selected = c(text.on_selected);

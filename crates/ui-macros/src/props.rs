@@ -164,6 +164,12 @@ const COLLECTION: &[Forwarded] = &[
     ("digit_keys", "bool", "Digit keys arrive as digit intents instead of type-ahead."),
     ("marquee", "bool", "A drag on the background selects the rows it covers."),
     ("deletable", "bool", "Delete and Backspace at the lead report the items to delete."),
+    ("natural_height", "bool", "The collection takes its full content height and owns no scroll: for a short collection inside a scrolling page."),
+    (
+        "current",
+        "::core::option::Option<impl ::core::marker::Send + ::core::marker::Sync + 'static>",
+        "The key of the current item, which shows the current mark and reports itself as the current one of its set.",
+    ),
 ];
 
 /// The `ContainerProps` builders a `#[container]` field forwards: the ones a collection or container takes from its

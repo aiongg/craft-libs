@@ -118,7 +118,7 @@ fn reachable(subject: &Subject) -> Flags {
         flags |= Flags::OPEN;
     }
     if matches!(probe.shape, crate::contract::ShapeKind::Items) || super::nodes::is_row_role(probe.role) {
-        flags |= Flags::LEAD | Flags::DRAGGING | Flags::DROP_TARGET;
+        flags |= Flags::LEAD | Flags::DRAGGING | Flags::DROP_TARGET | Flags::CURRENT;
     }
     if super::nodes::is_menu_item_role(probe.role) {
         flags |= Flags::LEAD;

@@ -39,6 +39,8 @@ bitflags! {
         const EMPHASIZED = 1 << 13;
         /// The lead item of a selection.
         const LEAD = 1 << 14;
+        /// The current item of a set: the page on screen, which is neither the lead nor selected.
+        const CURRENT = 1 << 15;
     }
 }
 
