@@ -4,9 +4,9 @@
 use super::hide::{self, Shown};
 use crate::contract::overlay::PlacementChange;
 use crate::contract::{
-    Bind, BindMut, BodyCx, Cx, Entry, NoValue, Outcome, Pad, Pointer as _, Props as _, ShowContainer as _, Sizing, WordSetCx as _,
+    Bind, BindMut, BodyCx, Cx, Entry, NoValue, Outcome, Pad, Pointer as _, Props as _, Show as _, ShowContainer as _, Sizing, WordSetCx as _,
 };
-use crate::docking::stack::{StackSection, section_heights};
+use crate::docking::stack::{StackDividers, StackSection, section_heights};
 use crate::docking::tree::FrameRules;
 use crate::docking::{
     DockColumn, DockCommands, DockConfig, DockDropTarget, DockDropped, DockEvent, DockGroup, DockPanels, DockRoot, DockScene, DockSizes, DockSpot,
@@ -584,6 +584,11 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
                     top += height;
                     let look = Look { minimized: !entry.open, section: Some(entry.open) };
                     self.group(ui, body, std::slice::from_ref(&entry.panel), 0, look, section);
+                }
+                for (at, height) in StackDividers::new(sections).show_at(ui, rect).resized {
+                    if let Some(entry) = entries.get(at) {
+                        self.report.actions.push(Action::resize_stack(entry.panel.clone(), Some(height)));
+                    }
                 }
             }
             _ => {}

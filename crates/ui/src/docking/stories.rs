@@ -1,5 +1,6 @@
 //! Stories of the docking family.
 
+use super::stack::{StackDividers, StackSection};
 use super::tree::FrameRules;
 use super::{DockGroup, DragUnit, GroupGrip, HANDLE, PanelKey, PanelLimits, PanelTitle, SplitArea, Splitter};
 use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _, Validity};
@@ -94,4 +95,9 @@ fn between_columns(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 #[story(Splitter, covers = [Default])]
 fn between_rows(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     Splitter::new(Axis::Y).label("Resize panels").show(ui).into()
+}
+
+#[story(StackDividers, covers = [Default])]
+fn between_sections(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    StackDividers::new(vec![StackSection::new(true), StackSection::new(true)]).label("Resize panels").show(ui).into()
 }
