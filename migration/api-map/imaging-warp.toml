@@ -198,20 +198,6 @@ status = "removed"
 note = "Replaced by `MeshLinesStyle`."
 
 [[type]]
-name = "PinWarpStyle"
-old = "craft_imaging::ui::warp::PinWarpStyle"
-new = ""
-status = "removed"
-note = "Replaced by the look in the pin overlay's own style."
-
-[[type]]
-name = "PerspectiveWarpStyle"
-old = "craft_imaging::ui::warp::PerspectiveWarpStyle"
-new = ""
-status = "removed"
-note = "Replaced by the look in the perspective overlay's own style."
-
-[[type]]
 name = "WarpFieldsLabels"
 old = "craft_imaging::ui::warp::WarpFieldsLabels"
 new = ""

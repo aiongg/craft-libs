@@ -3,8 +3,8 @@
 
 use craft_behavior::kurbo::{Point, Vec2 as DocVec};
 use craft_behavior::{
-    Axis, CancelReason, CanvasView, CursorIcon, EditCommand, Granularity, HitLevel, HitPriority, HitShape, Intent, Metrics, NavShape, PartKey,
-    PointerButton, PressPhase, Roving, Sense,
+    Axis, CancelReason, CanvasView, CursorIcon, EditCommand, Granularity, HitLevel, HitPriority, HitShape, Intent, Metrics, MoveMods, NavMove,
+    NavShape, PartKey, PointerButton, PressPhase, Roving, Sense,
 };
 use craft_ui::canvas::{CanvasSpace, NUDGE, NUDGE_FAR, canvas_space};
 use craft_ui::contract::{
@@ -96,7 +96,9 @@ pub struct PinWarpStyle {
     turn_ring: f32,
     /// The mesh lines while Show Mesh is on.
     mesh: StyleColor,
-    /// How far from a selected pin an Alt press turns it.
+    /// How far from a selected pin an Alt press turns it: the turn ring is the target.
+    turn_reach: f32,
+    /// How far from a pin a press takes the mesh's pin hits.
     reach: f32,
 }
 
@@ -211,10 +213,6 @@ impl Drag {
     }
 }
 
-/// The pin the focus last arrived at, so only a move of the focus selects.
-#[derive(Clone, Default)]
-struct Arrival(Option<usize>);
-
 impl Default for Drag {
     fn default() -> Self {
         Drag { kind: Kind::Place, origin: Point::ZERO, base: Vec::new(), began: false }
@@ -288,7 +286,7 @@ impl PinWarp<'_> {
     fn press_mesh(&mut self, cx: &mut Cx<'_, Self>, space: &CanvasSpace, pins: &[Pin], alt: bool, origin: Pos2) {
         let at = space.view.to_doc(origin);
         if alt {
-            let turn = nearest_selected(&space.view, pins, self.selection(), origin, cx.style.reach).and_then(|i| {
+            let turn = nearest_selected(&space.view, pins, self.selection(), origin, cx.style.turn_reach).and_then(|i| {
                 let pin = pins[i];
                 let base = pin.angle.or_else(|| self.mesh.turn_at(pin.rest))?;
                 Some(Drag { kind: Kind::Turn { pin: i, base, from: angle_of(at - pin.at)? }, origin: at, base: pins.to_vec(), began: false })
@@ -371,19 +369,23 @@ impl PinWarp<'_> {
         }
         let focused = cx.active_part().filter(|part| part.key == PIN).and_then(|part| part.index).map(|index| index as usize);
         let Some(picked) = focused.filter(|&i| i < pins.len()) else {
-            cx.memory::<Arrival>().0 = None;
             return;
         };
-        // A move of the focus selects its pin unless the selection holds it: a Shift-click grows the selection and
-        // focuses the pin it adds, and the pin it takes out stays focused.
-        let arrived = {
-            let slot = cx.memory::<Arrival>();
-            let changed = slot.0 != Some(picked);
-            slot.0 = Some(picked);
-            changed
-        };
-        if arrived && self.report.select.is_none() && !self.selection().contains(&picked) {
-            self.report.select = Some(vec![picked]);
+        // The pin keys pick: Page cycles through the pins, Home and End go to the ends, and the pin they reach is
+        // focused and selected. A Shift-click grows the selection and focuses the pin it adds, so focus alone
+        // selects nothing.
+        let target = [
+            (NavMove::PageDown, (picked + 1) % pins.len()),
+            (NavMove::PageUp, (picked + pins.len() - 1) % pins.len()),
+            (NavMove::Start, 0),
+            (NavMove::End, pins.len() - 1),
+        ]
+        .into_iter()
+        .find(|(mv, _)| cx.intents().take_exact(&Intent::Move(*mv, MoveMods::PLAIN)))
+        .map(|(_, to)| to);
+        if let Some(to) = target {
+            cx.focus_part(PIN.at(to as u64));
+            self.report.select = Some(vec![to]);
         }
         if let Some((direction, mods)) = cx.intents().take_nudge() {
             let step = if mods.shift { NUDGE_FAR } else { NUDGE };
@@ -465,6 +467,7 @@ impl Component for PinWarp<'_> {
             turn: cx.color(overlay.stroke),
             turn_ring: tokens.size.handle.ring,
             mesh: cx.color(overlay.line),
+            turn_reach: tokens.size.handle.ring,
             reach: tokens.size.hit.target,
         }
     }
@@ -494,7 +497,7 @@ impl Component for PinWarp<'_> {
             }
         }
         if !pins.is_empty() {
-            cx.roving(Roving::new(NavShape::Flat).wrap(true).page(Some(1)));
+            cx.roving(Roving::new(NavShape::Flat).wrap(true).home_end(false));
         }
         let points: Vec<Pos2> = self.mesh.deformed.iter().map(|&p| space.view.to_screen(p)).collect();
         if !points.is_empty() {

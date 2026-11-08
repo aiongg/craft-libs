@@ -4,7 +4,6 @@
 //! pixels and a generated picture for the clipping overlay. Nothing runs in the background: every count is made in the
 //! frame that shows it.
 
-use super::panel::Block;
 use super::zones::ZONE;
 use super::{
     COLORS_CHANNEL, ChannelOverlay, ClipWarning, ClippingFrame, ClippingMode, ClippingOverlay, ClippingWarnings, HistogramSet, ScopeChannel,
@@ -346,14 +345,6 @@ fn zones_that_are_refused(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let edit = data.value("refused", first_edit());
     let refuse = |_: &ScopeZoneEdit| Validity::Refuse(Message::new("Not available"));
     zones_story(ui, Bind::bound(edit).check(refuse))
-}
-
-#[story(Block, covers = [Default], drive = Drive::Never)]
-fn dark_block(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    Block::dark("Scope plot").show(ui, |ui, _| {
-        ClipWarning::new("Shadow Clipping Warning (U)", Bind::kept(), ChannelMask::R).show(ui);
-    });
-    StoryOutput::default()
 }
 
 #[story(ClippingOverlay<'static>, covers = [Default], drive = Drive::Never)]

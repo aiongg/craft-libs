@@ -202,8 +202,8 @@ impl Outcome for LevelsEditorOutput {
 /// Top to bottom: the "Input Levels" caption; the channel's histogram with the input row under it
 /// (black, gamma and white triangles); the three input fields (black at the start, gamma centred,
 /// white at the end); the "Output Levels" caption; a black-to-channel bar with the output row (two
-/// triangles) on it; the two output fields. The editor keeps this geometry right to left; the
-/// captions follow the reading order.
+/// triangles) on it; the two output fields. The plot, the two thumb rows and the fields keep this
+/// geometry left to right under a right-to-left interface; the captions follow the reading order.
 ///
 /// - The gamma thumb sits at `black + (white − black) · 0.5^gamma` and follows the black and white
 ///   thumbs; a gamma drag sets `ln t / ln 0.5` of where it is between them, in steps of 0.01 within
@@ -271,7 +271,6 @@ impl<'a> LevelsEditor<'a> {
             clip: None,
         }
         .label(label)
-        .ltr_axis()
     }
 
     fn ends(&self) -> (f64, f64) {
@@ -297,7 +296,7 @@ impl<'a> LevelsEditor<'a> {
             Some(levels) => Bind::given(levels.input()),
             None => Bind::given(Mixed::Mixed),
         };
-        ThumbRow::new(bind, self.range.clone()).step(self.step).thumbs(thumbs).label(words.input.clone())
+        ThumbRow::new(bind, self.range.clone()).step(self.step).thumbs(thumbs).label(words.input.clone()).ltr_axis()
     }
 
     /// The output row showing `shown`, hanging from a black to channel bar.
@@ -314,6 +313,7 @@ impl<'a> LevelsEditor<'a> {
             .thumbs(thumbs)
             .track_face(TrackFace::new(ToneRamp::new(bar)))
             .label(words.output.clone())
+            .ltr_axis()
     }
 
     /// The histogram plot over `data`.
@@ -325,7 +325,12 @@ impl<'a> LevelsEditor<'a> {
     /// A field named `label` showing `value`, within `range`.
     fn field<'c>(&self, label: Label, value: f64, range: RangeInclusive<f64>, step: f64) -> NumberField<'c> {
         let shown = Some(value).filter(|value| value.is_finite());
-        NumberField::new(label, Bind::given(Mixed::Same(shown))).range(range).step(step).snap_typed(true).commit_decimals(decimals_for_step(step))
+        NumberField::new(label, Bind::given(Mixed::Same(shown)))
+            .range(range)
+            .step(step)
+            .snap_typed(true)
+            .commit_decimals(decimals_for_step(step))
+            .ltr_axis()
     }
 }
 
@@ -465,10 +470,11 @@ impl Component for LevelsEditor<'_> {
             ui.child("caption-in", at(rows.caption_in), caption(&words.input));
             ui.child("caption-out", at(rows.caption_out), caption(&words.output));
         }
-        let empty = HistogramData::tone(&[0u32; 256], self.channel);
-        ui.child("plot", at(rows.plot), self.plot(&words, self.histogram.unwrap_or(&empty)));
-
         let input = ui.child("input", at(rows.input), self.input_row(&words, shown));
+        // The plot spans the travel of the input thumbs, so bin 0 and the last bin lie under the thumbs at the range ends.
+        let empty = HistogramData::tone(&[0u32; 256], self.channel);
+        let plot = Rect::from_x_y_ranges(input.travel, at(rows.plot).y_range());
+        ui.child("plot", plot, self.plot(&words, self.histogram.unwrap_or(&empty)));
         let fields = field_rects(rows.fields_in, cx.style.field, 3);
         let labels = [words.in_black.clone(), words.gamma.clone(), words.in_white.clone()];
         let values = [base.in_black, base.gamma, base.in_white];

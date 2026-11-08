@@ -17,26 +17,21 @@ use super::model::{WarpMesh, WarpSplit};
 craft_ui::words! {
     /// The words of [`WarpFields`] (PhotoCraft's Warp options bar).
     pub struct WarpFieldsWords {
-        split: "warpFields.split" = "Split:";
+        split: "warpFields.split" = "Split";
         split_crosswise: "warpFields.splitCrosswise" = "Split Warp Crosswise";
         split_vertically: "warpFields.splitVertically" = "Split Warp Vertically";
         split_horizontally: "warpFields.splitHorizontally" = "Split Warp Horizontally";
-        grid: "warpFields.grid" = "Grid:";
-        grid_name: "warpFields.gridName" = "Grid";
+        grid: "warpFields.grid" = "Grid";
         custom: "warpFields.custom" = "Custom";
         default_grid: "warpFields.defaultGrid" = "Default";
         three: "warpFields.three" = "3 x 3";
         four: "warpFields.four" = "4 x 4";
         five: "warpFields.five" = "5 x 5";
-        warp: "warpFields.warp" = "Warp:";
-        warp_name: "warpFields.warpName" = "Warp";
+        warp: "warpFields.warp" = "Warp";
         orientation: "warpFields.orientation" = "Change warp orientation";
-        bend: "warpFields.bend" = "Bend:";
-        bend_name: "warpFields.bendName" = "Bend";
-        horizontal: "warpFields.horizontal" = "H:";
-        vertical: "warpFields.vertical" = "V:";
-        horizontal_name: "warpFields.horizontalName" = "Horizontal distortion";
-        vertical_name: "warpFields.verticalName" = "Vertical distortion";
+        bend: "warpFields.bend" = "Bend";
+        horizontal: "warpFields.horizontal" = "Horizontal distortion";
+        vertical: "warpFields.vertical" = "Vertical distortion";
     }
 }
 
@@ -206,9 +201,9 @@ pub struct WarpFieldsOutput {
 /// The Warp group of a transform's options bar: the app shows it in the transform's Warp phase and
 /// reads the edits from the output.
 ///
-/// - In order: "Split:" and three toggle buttons (Crosswise, Vertically, Horizontally; the armed
-///   one pressed, a press on it disarms), a divider, "Grid:" and a select (Custom, Default,
-///   3 x 3, 4 x 4, 5 x 5), a divider, "Warp:" and the style select, the orientation toggle
+/// - In order: "Split" and three toggle buttons (Crosswise, Vertically, Horizontally; the armed
+///   one pressed, a press on it disarms), a divider, "Grid" and a select (Custom, Default,
+///   3 x 3, 4 x 4, 5 x 5), a divider, "Warp" and the style select, the orientation toggle
 ///   (pressed when vertical), and Bend, H, V number fields (−100 to 100 %).
 /// - [`on_type`](Self::on_type): Split and Grid draw disabled and Custom is not offered (PhotoCraft
 ///   #3004).
@@ -266,7 +261,7 @@ impl<'a> WarpFields<'a> {
                         Entry::new(WarpGridChoice::Four, words.four.clone()),
                         Entry::new(WarpGridChoice::Five, words.five.clone()),
                     ];
-                    let pick = Select::new(words.grid_name.clone(), Bind::given(values.grid), &entries).keeps_name(true).show(ui);
+                    let pick = Select::new(words.grid.clone(), Bind::given(values.grid), &entries).show(ui);
                     if let Some(&picked) = pick.value()
                         && picked != values.grid
                         && let Some(size) = picked.size()
@@ -282,7 +277,7 @@ impl<'a> WarpFields<'a> {
                     .filter(|entry| !(on_type && entry.custom))
                     .map(|entry| Entry::new(entry.key.clone(), entry.label.clone()))
                     .collect();
-                let pick = Select::new(words.warp_name.clone(), Bind::given(values.style.clone()), &entries).keeps_name(true).show(ui);
+                let pick = Select::new(words.warp.clone(), Bind::given(values.style.clone()), &entries).show(ui);
                 if let Some(picked) = pick.value()
                     && *picked != values.style
                 {
@@ -299,13 +294,13 @@ impl<'a> WarpFields<'a> {
                 if button.value().is_some() {
                     edits.push(WarpFieldsEdit::orientation(!values.vertical));
                 }
-                let fields: [(_, _, f64, fn(EditEvent<f64>) -> WarpFieldsEdit); 3] = [
-                    (&words.bend, &words.bend_name, values.bend, WarpFieldsEdit::Bend),
-                    (&words.horizontal, &words.horizontal_name, values.horizontal, WarpFieldsEdit::Horizontal),
-                    (&words.vertical, &words.vertical_name, values.vertical_distortion, WarpFieldsEdit::Vertical),
+                let fields: [(_, f64, fn(EditEvent<f64>) -> WarpFieldsEdit); 3] = [
+                    (&words.bend, values.bend, WarpFieldsEdit::Bend),
+                    (&words.horizontal, values.horizontal, WarpFieldsEdit::Horizontal),
+                    (&words.vertical, values.vertical_distortion, WarpFieldsEdit::Vertical),
                 ];
-                for (caption_word, name, value, edit) in fields {
-                    Field::new(caption_word.clone()).layout(caption).show(ui, |ui, _| {
+                for (name, value, edit) in fields {
+                    Field::new(name.clone()).layout(caption).show(ui, |ui, _| {
                         let field =
                             NumberField::new(name.clone(), Bind::given(Some(value))).range(DISTORTION_RANGE).unit_kind(UnitKind::Percent).show(ui);
                         if let Some(event) = field.edit.event.clone() {

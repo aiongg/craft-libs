@@ -273,12 +273,20 @@ impl<'a> WarpGrid<'a> {
                 None => cx.part_if_declared(SURFACE),
             };
             let Some(result) = found else { continue };
+            let (hover_at, press) = (result.hover_pos, result.press);
             if hover.is_none()
-                && let Some(at) = result.hover_pos
+                && let Some(at) = hover_at
             {
-                hover = Some((at, result.press.mods.alt || result.press.mods.cmd));
+                hover = Some((at, press.mods.alt || press.mods.cmd));
             }
-            results.push((point, result.press));
+            if point.is_none()
+                && self.split.is_none()
+                && let Some(at) = hover_at
+                && self.surface_params(mesh, space.view.to_doc(at)).is_some()
+            {
+                cx.cursor(CursorIcon::Grab, CursorPriority::Part);
+            }
+            results.push((point, press));
         }
         for (point, press) in results {
             self.run_press(cx, space, mesh, point, press);
@@ -392,7 +400,7 @@ impl Component for WarpGrid<'_> {
             return;
         }
         let armed = self.split.is_some();
-        let sense = if armed { Sense::TAKE_FOCUS } else { Sense::DRAG | Sense::TAKE_FOCUS };
+        let sense = if armed { Sense::CLICK | Sense::TAKE_FOCUS } else { Sense::DRAG | Sense::TAKE_FOCUS };
         for index in Self::points(mesh) {
             let at = space.view.to_screen(mesh.points[index]);
             let part = cx
@@ -404,23 +412,15 @@ impl Component for WarpGrid<'_> {
                 part.cursor(CursorIcon::Crosshair);
             }
         }
-        // A split tool takes a press anywhere on the canvas and cuts at the nearest point of the mesh; otherwise the
-        // surface is the mesh itself.
-        let shape = if armed {
-            Some(HitShape::Rect(cx.content_rect))
-        } else {
-            let ring = path_runs(&space.view, &mesh.outline()).into_iter().next().map(|(points, _)| points).unwrap_or_default();
-            (ring.len() > 2).then(|| HitShape::Polygon(ring))
-        };
-        if let Some(shape) = shape {
-            let part = cx
-                .part(SURFACE, shape)
-                .sense(Sense::DRAG | Sense::CLICK | Sense::TAKE_FOCUS)
-                .priority(HitPriority::new(HitLevel::Body, 0))
-                .keyboard_via(POINT);
-            if !armed {
-                part.cursor(CursorIcon::Grab).drag_cursor(CursorIcon::Grabbing);
-            }
+        // The surface covers the content rect below the points: a press off the mesh does nothing unless a split tool
+        // is armed or Alt or Cmd is held at the press, which cuts at the nearest point of the mesh.
+        let part = cx
+            .part(SURFACE, HitShape::Rect(cx.content_rect))
+            .sense(Sense::DRAG | Sense::CLICK | Sense::TAKE_FOCUS)
+            .priority(HitPriority::new(HitLevel::Body, 0))
+            .keyboard_via(POINT);
+        if !armed {
+            part.drag_cursor(CursorIcon::Grabbing);
         }
         cx.roving(Roving::new(NavShape::Flat).page(Some(1)));
     }

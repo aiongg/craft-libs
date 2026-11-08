@@ -3,7 +3,7 @@
 use super::{Levels, LevelsEditor};
 use crate::ui::curve::stories::story_bins;
 use crate::ui::histogram::{ChannelColor, HistogramData};
-use craft_behavior::Mixed;
+use craft_behavior::{Mixed, PartKey};
 use craft_ui::contract::{Bind, Show as _, Validity};
 use craft_ui::runtime::env::Message;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
@@ -13,7 +13,10 @@ fn identity() -> Levels {
     Levels::identity(0.0..=255.0)
 }
 
-#[story(LevelsEditor<'static>, covers = [Default], drive = Drive::Auto)]
+/// The first thumb of an input or output row: `ThumbRow` names its thumbs `thumb` with their index.
+const THUMB: PartKey = PartKey::new("thumb");
+
+#[story(LevelsEditor<'static>, covers = [Default], drive = Drive::DragChild(THUMB.at(0)))]
 fn levels_editor(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let bins = story_bins(0.0);
     let histogram = HistogramData::tone(&bins, ChannelColor::Neutral);

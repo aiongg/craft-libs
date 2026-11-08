@@ -149,8 +149,8 @@ struct Memory {
 /// - Each row: caption, slider and number field; the colour track when the field has one and the context's dynamic
 ///   tracks are on.
 /// - A reset of a row (double-click on the slider, the caption's reset) sets the field's default, one `Set`.
-/// - Every value the table reports is rounded with [`AdjustField::round`], and the edit carries every value of the
-///   table, so the host stores it as it is.
+/// - Every value a commit or set of the table reports is rounded with [`AdjustField::round`], and the edit carries
+///   every value of the table, so the host stores it as it is.
 /// - Keyboard and AccessKit: each row as `SliderField` has them.
 #[must_use = "show the table with `show`"]
 #[derive(Pattern)]
@@ -293,8 +293,14 @@ impl<'b, 'a, V: Value> Run<'b, 'a, V> {
         Field::new(field.label.clone()).id_salt(field.key).show(ui, |ui, _| {
             edit = Some(field.slider(field.clamp(value), context).show(ui));
         });
-        if let Some(edit) = edit {
-            self.push(cx, edit, |now, x| set(now, field.round(*x)));
+        if let Some(mut edit) = edit {
+            // A drag proposes the slider's own stops and the slider compares what it is shown with what it proposed, so
+            // the running gesture carries them as they are; the value that ends the edit is rounded to the field's places.
+            edit.event = edit.event.take().map(|event| match event {
+                EditEvent::Commit { .. } | EditEvent::Set { .. } => event.map(|x| field.round(x)),
+                running => running,
+            });
+            self.push(cx, edit, |now, x| set(now, *x));
         }
     }
 

@@ -183,19 +183,21 @@ fn tooled(mesh: WarpMesh, tool: WarpSplit, preset: bool) -> Harness {
 }
 
 #[trial]
-fn the_nearest_point_within_12_points_takes_the_press_in_a_turned_flipped_view() {
-    for (offset, taken) in [(11.9_f32, true), (12.1, false)] {
+fn the_nearest_point_within_reach_takes_the_press_in_a_turned_flipped_view() {
+    let reach = craft_ui::testing::style::tokens(craft_theme::Mode::Light, craft_theme::Contrast::Standard).size.hit.target;
+    for (offset, taken) in [(reach - 0.5, true), (reach + 0.5, false)] {
         let mut h = harness_in(WarpMesh::identity(RECT, 1, 1), 30.0, true);
         // Out of the mesh along the bottom right anchor's diagonal, as the view draws it.
         let anchor = h.screen(Point::new(RECT.x1, RECT.y1));
         let out = (anchor - h.screen(RECT.center())).normalized();
         let at = anchor + out * offset;
-        h.drag(at, at + out * 20.0);
+        let pull = 20.0_f32;
+        h.drag(at, at + out * pull);
         match h.edit.get() {
             Some(WarpEdit::Point { index, by, .. }) => {
                 assert!(taken, "{offset} pt");
                 assert_eq!(index, 15);
-                assert!((by.hypot() - 20.0).abs() < 1e-3, "{by:?}");
+                assert!((by.hypot() - f64::from(pull)).abs() < 1e-3, "{by:?}");
             }
             other => assert!(!taken && other.is_none(), "{offset} pt: {other:?}"),
         }
