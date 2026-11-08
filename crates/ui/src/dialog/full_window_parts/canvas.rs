@@ -6,7 +6,7 @@ use crate::canvas::{
     Canvas, CanvasTool, HandTool, Momentary, NavigationOptions, PixelRect, RasterDisplay, RasterSource, ToolHost, ToolHostResponse, ToolPath,
     WheelNavigation, pan,
 };
-use crate::contract::{Bind, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, advance_past};
+use crate::contract::{Bind, NoValue, Outcome, Props as _, Show as _, ShowContainer as _};
 use crate::primitives::{Checker, Revision};
 use crate::runtime::edit::next_gesture_id;
 use crate::runtime::env::{Env, Label};
