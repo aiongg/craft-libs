@@ -13,13 +13,14 @@ use crate::index::{Category, Family, Index, categories, source_label};
 use crate::installed::{InstalledFamily, group};
 use crate::store::{Installer, RemoveRequest, StoreError};
 use crate::{Catalog, FaceInfo, Source};
+use craft_behavior::ColumnWidth;
 use craft_host::{Host, Section, Wake};
 use craft_i18n::Folder;
 use craft_i18n::matcher::Matcher;
 use craft_ui::contract::{NoValue, Outcome, Props as _, ShowContainer as _};
 use craft_ui::dialog::Prompt;
 use craft_ui::fonts::{EmbeddedFace, I18nScripts, UiFonts};
-use craft_ui::layout_components::{Row, Stack};
+use craft_ui::layout_components::{Grid, Stack};
 use craft_ui::runtime::commands::{CommandSet as _, CommandState, Commands as _};
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::runtime::focus::{self, FocusTarget};
@@ -41,6 +42,9 @@ pub fn install_interface_fonts(ctx: &Context, language: &str, craft_faces: &[Emb
 }
 
 /// Preview downloads: at most this much per file, and this many faces in a session.
+/// The filters column takes the width of its widest section; the list and toolbar take the rest.
+static PANES: [ColumnWidth; 2] = [ColumnWidth::Content, ColumnWidth::fill(1.0)];
+
 const PREVIEW_LIMITS: Limits = Limits { max_file_bytes: 64 << 20, max_faces_per_file: 512, max_added_faces: 20_000 };
 
 craft_ui::words! {
@@ -785,7 +789,7 @@ impl<'a> FontsPanelView<'a> {
             }
             root.publish(FontsCommand::Find, CommandState::new());
             panel.top_bar(ui, &browse, texts.format, search);
-            Row::new().fill().show(ui, |ui, _| {
+            Grid::new(&PANES).fill().show(ui, |ui, _| {
                 panel.filters(ui, &texts);
                 panel.main(ui, &texts, &folder, host.as_ref());
             });
