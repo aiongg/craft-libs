@@ -32,14 +32,16 @@ note = "The docking title bar is the `TitleRow` of `FloatingGroup` and of dock g
 [[type]]
 name = "PaneHost"
 old = "craft_ui::panes::PaneHost"
-new = "craft_ui::docking::PaneHost"
-status = "pending"
+new = ""
+status = "removed"
+note = "Replaced by `craft_ui::patterns::dock::PaneArea`: docked panes are shell panes on the area's edges, floating panes are `FloatingGroup` frames, and `show` takes the closure that fills what the docked panes leave."
 
 [[type]]
 name = "ResizeHandle"
 old = "craft_ui::layout::resize::ResizeHandle"
-new = "craft_ui::docking::ResizeHandle"
-status = "pending"
+new = ""
+status = "removed"
+note = "A docked pane's size comes from `PaneState::size` through the shell pane's extent; a floating pane's edges are the body step's grips."
 
 [[type]]
 name = "resize_edges"
@@ -1186,3 +1188,95 @@ old = ""
 new = "craft_ui::docking::cross_window"
 status = "replaced"
 note = "`drag_target(ctx, desktop, dragged) -> Option<ViewportId>` and `accept_cross_window(ctx) -> bool`."
+
+
+# panes-a: the task panes.
+[[type]]
+name = "PaneArea"
+old = ""
+new = "craft_ui::patterns::dock::PaneArea"
+status = "replaced"
+note = "Replaces `PaneHost`."
+
+[[type]]
+name = "PaneContent"
+old = "craft_ui::panes::PaneContent"
+new = "craft_ui::patterns::dock::PaneContent"
+status = "moved"
+note = "`title`, `default_state`, `size_range`, `movable`, `closable` and `title_bar` are the fields of `PaneSpec` returned by `spec`; `body` and `menu` take the `BodyCx`; `state` returns the app's kept state."
+
+[[type]]
+name = "PaneSpec"
+old = ""
+new = "craft_ui::patterns::dock::PaneSpec"
+status = "replaced"
+note = "The data half of `PaneContent`."
+
+[[type]]
+name = "PaneRequest"
+old = "craft_ui::panes::PaneRequest"
+new = "craft_ui::patterns::dock::PaneRequest"
+status = "moved"
+note = "`Resize` is not a request: a docked pane's size is the app's `PaneState::size`. `FloatRect` carries a `Rect`."
+
+[[type]]
+name = "PaneOutput"
+old = "craft_ui::panes::PaneOutput"
+new = ""
+status = "removed"
+note = "Replaced by `PaneAreaOutput`; `to_document` is the shell's F6 order."
+
+[[type]]
+name = "PaneAreaOutput"
+old = ""
+new = "craft_ui::patterns::dock::PaneAreaOutput"
+status = "replaced"
+note = "Replaces `PaneOutput`."
+
+[[type]]
+name = "PaneState"
+old = "craft_ui::panes::PaneState"
+new = "craft_ui::patterns::dock::PaneState"
+status = "moved"
+note = "`float_rect` is a `Rect`; `place` is a `PanePlace`."
+
+[[type]]
+name = "SidePolicy"
+old = "craft_ui::panes::SidePolicy"
+new = "craft_ui::patterns::dock::SidePolicy"
+status = "moved"
+
+[[type]]
+name = "Edge"
+old = "craft_ui::panes::Edge"
+new = ""
+status = "removed"
+note = "Replaced by `craft_ui::contract::PaneEdge` (`Start`, `End`, `Bottom`, `Top`)."
+
+[[type]]
+name = "Place"
+old = "craft_ui::panes::Place"
+new = ""
+status = "removed"
+note = "Replaced by `craft_ui::patterns::dock::PanePlace`."
+
+[[type]]
+name = "PanePlace"
+old = ""
+new = "craft_ui::patterns::dock::PanePlace"
+status = "replaced"
+note = "Replaces `Place`."
+
+[[type]]
+name = "PaneLabels"
+old = "craft_ui::panes::PaneLabels"
+new = ""
+status = "removed"
+note = "The menu rows are the commands of `PaneCommand`; the menu name is the `DockWords` row `paneArea.menu`."
+
+[[type]]
+name = "PaneCommand"
+old = ""
+new = "craft_ui::patterns::dock::PaneCommand"
+status = "replaced"
+note = "The pane menu's Move to Start, Move to End, Move to Bottom, Float and Close as commands."

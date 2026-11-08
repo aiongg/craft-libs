@@ -26,5 +26,9 @@ craft_ui::words! {
         choose_workspace: "workspaceSwitcher.choose" = "Choose a workspace";
         /// The name of the switcher's command menu.
         workspace_menu: "workspaceSwitcher.menu" = "Workspace";
+
+        // PaneArea
+        /// The name of a pane's menu.
+        pane_menu: "paneArea.menu" = "Pane options";
     }
 }

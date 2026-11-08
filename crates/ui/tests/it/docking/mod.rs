@@ -12,6 +12,7 @@ mod drop;
 mod drop_session;
 
 mod floating;
+mod panes;
 mod spec;
 mod targets;
 
