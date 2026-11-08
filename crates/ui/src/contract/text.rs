@@ -21,7 +21,7 @@ fn state_id(id: egui::Id) -> egui::Id {
 
 /// Whether a scrubbing field was in edit before the press that is now down: a press that becomes a drag scrubs and
 /// leaves edit as it found it, and only a click without travel enters it.
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct InEditBeforePress(bool);
 
 /// What `PartsCx::text` leaves for step 8b.
