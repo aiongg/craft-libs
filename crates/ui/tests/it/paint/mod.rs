@@ -6,6 +6,7 @@ mod host_ink;
 mod kit;
 mod measure;
 mod painters;
+mod strokes;
 mod surface;
 mod text;
 mod texture_store;

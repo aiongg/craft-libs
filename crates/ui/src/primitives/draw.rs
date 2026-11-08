@@ -54,7 +54,7 @@ impl StrokeWidth {
 }
 
 /// A line width the data gives (a path's thickness, a pen size), in screen points: the caller maps a document width
-/// through its view first. Only `Draw::data_stroke` takes one; theme strokes keep [`StrokeWidth`].
+/// through its view first. `Draw::stroke` and `Draw::dashed` take one beside the named [`StrokeWidth`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DataWidth(f32);
 
@@ -65,7 +65,7 @@ impl DataWidth {
     }
 }
 
-/// The width of a data stroke: a named theme width or one from the document.
+/// The width of a stroke: a named theme width or one from the document.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum DataStrokeWidth {
@@ -84,6 +84,28 @@ impl From<StrokeWidth> for DataStrokeWidth {
 impl From<DataWidth> for DataStrokeWidth {
     fn from(width: DataWidth) -> Self {
         DataStrokeWidth::Data(width)
+    }
+}
+
+/// The colour of a stroke: a theme colour or one from the data.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum StrokeColor {
+    /// A colour the theme gives.
+    Theme(StyleColor),
+    /// A colour the data gives (a chart series, a pen colour).
+    Data(DataColor),
+}
+
+impl From<StyleColor> for StrokeColor {
+    fn from(color: StyleColor) -> Self {
+        StrokeColor::Theme(color)
+    }
+}
+
+impl From<DataColor> for StrokeColor {
+    fn from(color: DataColor) -> Self {
+        StrokeColor::Data(color)
     }
 }
 
@@ -254,9 +276,11 @@ impl<'a> Draw<'a> {
         self.paint(shape, Some(color.egui()), None);
     }
 
-    /// Strokes `shape`.
-    pub fn stroke(&self, shape: &PaintShape, width: StrokeWidth, color: StyleColor) {
-        self.paint(shape, None, Some(Stroke::new(self.width(width), color.egui())));
+    /// Strokes `shape` at a theme width or a width from the document, in a theme colour or a colour from data (a
+    /// chart series, a curve). A `Draw` for an inactive part strokes a data colour with the theme's disabled fill
+    /// instead.
+    pub fn stroke(&self, shape: &PaintShape, width: impl Into<DataStrokeWidth>, color: impl Into<StrokeColor>) {
+        self.paint(shape, None, Some(self.line(width.into(), color.into())));
     }
 
     /// Fills `shape` with a colour from data (a swatch well, a layer label dot, an avatar). A `Draw` for an inactive
@@ -264,16 +288,6 @@ impl<'a> Draw<'a> {
     pub fn data_fill(&self, shape: &PaintShape, color: DataColor) {
         let fill = self.data_color(color);
         self.paint(shape, Some(fill), None);
-    }
-
-    /// Strokes `shape` with a colour from data (a chart series, a curve) at a theme width or a width from the
-    /// document. A `Draw` for an inactive part strokes with the theme's disabled fill instead.
-    pub fn data_stroke(&self, shape: &PaintShape, width: impl Into<DataStrokeWidth>, color: DataColor) {
-        let points = match width.into() {
-            DataStrokeWidth::Named(width) => self.width(width),
-            DataStrokeWidth::Data(DataWidth(points)) => points,
-        };
-        self.paint(shape, None, Some(Stroke::new(points, self.data_color(color))));
     }
 
     /// Paints the part `uv` of `texture` (from `TextureCache` or a `TextureStore`) into `rect`, untinted. A `Draw`
@@ -290,10 +304,24 @@ impl<'a> Draw<'a> {
         if self.inactive { crate::style::rgba_color(self.env.tokens.color.state.disabled_fill) } else { color.0 }
     }
 
-    /// Strokes the open path `path` as dashes (copy marks, drag previews, reference lines). [`kit::dashed`] is the one
-    /// implementation; the kit painter's `dashed` calls it too.
-    pub fn dashed(&self, path: &[Pos2], pattern: Dashes, width: StrokeWidth, color: StyleColor) {
-        self.painter.extend(super::kit::dashed(path, pattern, self.width(width), color.egui()));
+    /// Strokes the open path `path` as dashes (copy marks, drag previews, reference lines), with the width and colour
+    /// [`Self::stroke`] takes. [`kit::dashed`] is the one implementation; the kit painter's `dashed` calls it too.
+    pub fn dashed(&self, path: &[Pos2], pattern: Dashes, width: impl Into<DataStrokeWidth>, color: impl Into<StrokeColor>) {
+        let line = self.line(width.into(), color.into());
+        self.painter.extend(super::kit::dashed(path, pattern, line.width, line.color));
+    }
+
+    /// The width in points and colour a stroke of `width` and `color` paints with.
+    fn line(&self, width: DataStrokeWidth, color: StrokeColor) -> Stroke {
+        let points = match width {
+            DataStrokeWidth::Named(width) => self.width(width),
+            DataStrokeWidth::Data(DataWidth(points)) => points,
+        };
+        let color = match color {
+            StrokeColor::Theme(color) => color.egui(),
+            StrokeColor::Data(color) => self.data_color(color),
+        };
+        Stroke::new(points, color)
     }
 
     /// Runs `paint` with a `Draw` whose painting is cut to `rect` (inside the clip already in force): scrolled content
@@ -308,8 +336,7 @@ impl<'a> Draw<'a> {
     /// the shares. The share is the app's runtime value, such as an animation's progress; a value outside 0 to 1 is
     /// clamped and a non-finite one leaves the opacity as it was.
     pub fn faded(&self, share: f32, paint: impl FnOnce(&Draw<'_>)) {
-        let mut painter = self.painter.clone();
-        painter.multiply_opacity(share);
+        let painter = faded_painter(self.painter, share);
         paint(&Draw { painter: &painter, record: self.record, env: self.env, inactive: self.inactive, text_direction: self.text_direction });
     }
 
@@ -324,4 +351,11 @@ impl<'a> Draw<'a> {
         };
         self.painter.add(shape);
     }
+}
+
+/// `painter` with its opacity multiplied by `share`: the one fade `Draw::faded` and `ContentPainterCx::faded` share.
+pub(super) fn faded_painter(painter: &Painter, share: f32) -> Painter {
+    let mut painter = painter.clone();
+    painter.multiply_opacity(share);
+    painter
 }

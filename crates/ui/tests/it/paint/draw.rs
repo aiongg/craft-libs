@@ -159,14 +159,14 @@ fn a_directional_svg_icon_mirrors_under_rtl_and_another_stays() {
 }
 
 #[trial]
-fn data_stroke_paints_a_data_colour_and_a_dashed_path_breaks_into_dashes() {
+fn a_stroke_paints_a_data_colour_and_a_dashed_path_breaks_into_dashes() {
     let mut frames = Frames::new();
     let tokens = tokens(Mode::Light, Contrast::Standard);
     let style = with_cx(&frames.ctx, &tokens, Variant::SECONDARY, ControlSize::Md, |cx| cx.color(tokens.color.accent.solid));
     let series = Color32::from_rgb(200, 30, 90);
     let line = [pos2(0.0, 20.0), pos2(60.0, 20.0)];
     let (shapes, _) = paint_frame(&mut frames, &tokens, Direction::Ltr, Ink::OnPanel, |draw| {
-        draw.data_stroke(&PaintShape::Path(line.to_vec()), StrokeWidth::Thin, DataColor::new(series));
+        draw.stroke(&PaintShape::Path(line.to_vec()), StrokeWidth::Thin, DataColor::new(series));
     });
     assert!(shapes.iter().any(|s| stroke_is(s, series)), "the path is stroked in the data colour");
     let (dashed, _) = paint_frame(&mut frames, &tokens, Direction::Ltr, Ink::OnPanel, |draw| {
