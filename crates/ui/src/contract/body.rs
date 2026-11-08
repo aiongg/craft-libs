@@ -794,7 +794,8 @@ impl BodyHooks<'_> {
                 part.exclusive(hit);
             }
         }
-        // The grips of a layer straddle its edge; those of a window lie inside it, where the window has pixels.
+        // The grips of a layer straddle its edge; those of a window lie inside it, where the window has pixels. They
+        // stack above the body (`over`), so a root in the body never covers their inner half (8.3).
         let (grips, inset) = match &props.mount {
             Mount::Layer(overlay) | Mount::Viewport { fallback: overlay, .. } => (overlay.resize.grips, 0.0),
             Mount::Window { resize } => (resize.grips, handle / 2.0),
@@ -817,7 +818,8 @@ impl BodyHooks<'_> {
                 .sense(craft_behavior::Sense::DRAG)
                 .priority(HitPriority::new(level, 0))
                 .cursor(cursor)
-                .pointer_only(reason);
+                .pointer_only(reason)
+                .over();
             if let Some(hit) = exclusive(WindowHit::Resize(edge_of(dx, dy))) {
                 part.exclusive(hit);
             }

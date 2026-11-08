@@ -695,9 +695,7 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
     }
     comp.paint_over(&mut paint_ui(&mut *ui, env, cx), cx);
     ui.set_clip_rect(outer_clip);
-    if member.is_none() {
-        sensing::place_over_widgets(ui, id, &decls);
-    }
+    sensing::place_over_widgets(ui, id, member, &decls);
     // 15 settle
     p.trace.mark(Step::Settle);
     p.hooks.settle(comp, cx);
