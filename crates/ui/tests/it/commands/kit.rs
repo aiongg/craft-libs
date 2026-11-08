@@ -59,7 +59,7 @@ pub enum DockCommand {
 #[command(prefix = "workspace", scope = "trial.workspace")]
 #[non_exhaustive]
 pub enum WorkspaceCommand {
-    #[command(label = "Brush", default = "Cmd+Alt+B")]
+    #[command(label = "Brush", modal = "in_dialogs", default = "Cmd+Alt+B")]
     Brush,
 }
 
