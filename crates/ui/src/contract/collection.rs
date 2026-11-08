@@ -330,6 +330,8 @@ pub struct CollectionProps {
     /// Typed digits reach the collection's own `update` as `Intent::Digit` (rating keys); other typed text stays
     /// type-ahead.
     pub digit_keys: bool,
+    /// A plain click on a row asks for its menu as a secondary click does: `CollectionEvent::ContextMenu`.
+    pub menu_on_click: bool,
     /// Who takes the arrow keys.
     pub item_keys: ItemKeys,
     /// A drag from empty space draws a marquee that selects the items it sweeps.
@@ -405,6 +407,7 @@ impl CollectionProps {
             space: SpaceAction::Activate,
             header: true,
             digit_keys: false,
+            menu_on_click: false,
             item_keys: ItemKeys::Own,
             marquee: false,
             deletable: false,
@@ -524,6 +527,13 @@ impl CollectionProps {
     #[must_use]
     pub const fn digit_keys(mut self, on: bool) -> Self {
         self.digit_keys = on;
+        self
+    }
+
+    /// A plain click on a row asks for its menu, as a secondary click does.
+    #[must_use]
+    pub const fn menu_on_click(mut self, on: bool) -> Self {
+        self.menu_on_click = on;
         self
     }
 

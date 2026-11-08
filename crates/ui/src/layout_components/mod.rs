@@ -26,7 +26,7 @@ impl LayoutStyle {
 /// The closure that fills a header or footer region.
 type RegionFn<'a> = Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>;
 
-/// The layout components. A component that carries closures names its lifetime and its extra fields after the key.
+/// The layout components. `[..]` names the `ContainerProps` builders the component forwards. A component that carries closures names its lifetime and its extra fields after the key.
 /// The `Container` impl: the regions only a component with closures fills.
 macro_rules! impl_container {
     ($name:ident) => {
@@ -50,14 +50,14 @@ macro_rules! impl_container {
 }
 
 macro_rules! layout_component {
-    ($(#[$doc:meta])* $name:ident, $key:ident $(, <$life:lifetime> { $($field:ident: $ty:ty),* })?) => {
+    ($(#[$doc:meta])* $name:ident, $key:ident, [$($fwd:ident),*] $(, <$life:lifetime> { $($field:ident: $ty:ty),* })?) => {
         $(#[$doc])*
-        #[derive(crate::contract::Component)]
+        #[derive(crate::contract::Component, crate::contract::Props)]
         #[component(container)]
         pub struct $name $(<$life>)? {
             #[common]
             common: Common,
-            #[container]
+            #[container($($fwd),*)]
             props: ContainerProps,
             $($($field: $ty,)*)?
         }
@@ -127,17 +127,20 @@ layout_component!(
     /// a collection that fills it.
     Stack,
     StackStyleKey,
+    [command_scope],
     <'a> { header: Option<RegionFn<'a>>, footer: Option<RegionFn<'a>> }
 );
 layout_component!(
     /// Children side by side.
     Row,
-    RowStyleKey
+    RowStyleKey,
+    []
 );
 layout_component!(
     /// Children row-major over a column list: a child in flow takes the next cell.
     Grid,
-    GridStyleKey
+    GridStyleKey,
+    []
 );
 
 impl<'a> Stack<'a> {

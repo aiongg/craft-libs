@@ -41,6 +41,11 @@ pub trait CommandSet: Copy + Send + Sync + 'static {
     /// The commands that have no default binding on a platform, as `(id, platform)`.
     #[doc(hidden)]
     fn no_default_on() -> Vec<(&'static str, Platform)>;
+
+    /// The defaults of one platform, as `(id, platform, binding)`: on that platform they replace the command's other
+    /// defaults.
+    #[doc(hidden)]
+    fn platform_defaults() -> Result<Vec<(&'static str, Platform, Binding)>, CommandDefError>;
 }
 
 /// A command a surface or a key fired, as the instance or the app takes it.

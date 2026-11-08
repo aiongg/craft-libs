@@ -60,7 +60,7 @@ impl ProbePart {
         decl.index = self.index;
         decl.priority = self.priority;
         decl.over = self.over;
-        decl.cursor = self.cursor;
+        decl.cursor = self.cursor.map(Cursor::System);
         decl
     }
 }
@@ -260,8 +260,8 @@ fn member_decls(parts: &[ProbePart]) -> Vec<PartDecl> {
 }
 
 fn request_cursor(ctx: &Context, decls: &[PartDecl], results: &std::collections::HashMap<(PartKey, Option<u64>), PartResult>) {
-    if let Some(icon) = sensing::hovered_cursor(decls, results) {
-        cursor::request(ctx, Cursor::System(icon), CursorPriority::Part);
+    if let Some(hovered) = sensing::hovered_cursor(decls, results) {
+        cursor::request(ctx, hovered, CursorPriority::Part);
     }
 }
 

@@ -5,11 +5,13 @@ use smallvec::SmallVec;
 use std::borrow::Cow;
 use std::ops::Range;
 
-/// The key of a column; stable across reordering and resizing.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+/// The key of a column; stable across reordering and resizing. It serializes as its name, or as its position for a
+/// key made by [`ColumnKey::index`].
+#[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct ColumnKey(KeyRepr);
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(untagged)]
 enum KeyRepr {
     Name(Cow<'static, str>),
     Position(u32),
@@ -25,6 +27,14 @@ impl ColumnKey {
     /// (`SheetLayout::lines`). Keys of equal positions are equal; no allocation.
     pub const fn index(column: u32) -> Self {
         ColumnKey(KeyRepr::Position(column))
+    }
+
+    /// The name of a key made by [`ColumnKey::new`]; `None` for a numbered key.
+    pub fn as_str(&self) -> Option<&str> {
+        match &self.0 {
+            KeyRepr::Name(name) => Some(name),
+            KeyRepr::Position(_) => None,
+        }
     }
 
     /// The position a key made by [`ColumnKey::index`] holds; `None` for a named key.
@@ -101,5 +111,20 @@ impl GridView {
     /// A view of `sections`, in reading order.
     pub fn new(sections: impl IntoIterator<Item = GridSection>) -> Self {
         Self { sections: sections.into_iter().collect() }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ColumnKey;
+
+    #[test]
+    fn a_column_key_round_trips_as_its_name_or_its_position() {
+        let named = serde_json::to_string(&ColumnKey::new("size")).unwrap();
+        let numbered = serde_json::to_string(&ColumnKey::index(3)).unwrap();
+        assert_eq!((named.as_str(), numbered.as_str()), ("\"size\"", "3"));
+        let back: ColumnKey = serde_json::from_str(&named).unwrap();
+        assert_eq!((back.as_str(), serde_json::from_str::<ColumnKey>(&numbered).unwrap().position()), (Some("size"), Some(3)));
+        assert_eq!(back, ColumnKey::new("size"));
     }
 }

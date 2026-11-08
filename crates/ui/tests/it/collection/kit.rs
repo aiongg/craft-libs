@@ -249,6 +249,12 @@ impl<'a> List<'a> {
         self
     }
 
+    /// A plain click on a row asks for its menu.
+    pub fn menu_on_click(mut self, on: bool) -> Self {
+        self.items = self.items.menu_on_click(on);
+        self
+    }
+
     /// A press on the empty space, or on the selected row of a single selection, empties the selection.
     pub fn allow_empty(mut self) -> Self {
         self.items = self.items.allow_empty(true);

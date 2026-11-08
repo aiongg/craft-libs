@@ -1,5 +1,6 @@
 //! `#[derive(CommandSet)]` with `#[command(prefix = "..", scope = "..")]` on the enum and
 //! `#[command(label = "..", icon = "..", kind = "..", group = "..", modal = "..", default = "..", path = "..", alias = "..")]` on variants.
+//! `default(mac = "..")` (or `windows`, `linux`) is a default of one platform: it replaces the unqualified defaults there.
 
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -19,6 +20,7 @@ struct VariantAttrs {
     group: Option<LitStr>,
     modal: Option<LitStr>,
     defaults: Vec<LitStr>,
+    platform_defaults: Vec<(LitStr, LitStr)>,
     no_default_on: Vec<LitStr>,
     paths: Vec<LitStr>,
     aliases: Vec<LitStr>,
@@ -119,7 +121,17 @@ fn variant(variant: &Variant) -> syn::Result<VariantAttrs> {
             () if meta.path.is_ident("kind") => attrs.kind = Some(value(meta)?),
             () if meta.path.is_ident("group") => attrs.group = Some(value(meta)?),
             () if meta.path.is_ident("modal") => attrs.modal = Some(value(meta)?),
-            () if meta.path.is_ident("default") => attrs.defaults.push(value(meta)?),
+            () if meta.path.is_ident("default") && meta.input.peek(syn::Token![=]) => attrs.defaults.push(value(meta)?),
+            () if meta.path.is_ident("default") => meta.parse_nested_meta(|inner| {
+                let platform = inner.path.get_ident().map(|ident| LitStr::new(&ident.to_string(), ident.span()));
+                match platform {
+                    Some(platform) if matches!(platform.value().as_str(), "mac" | "windows" | "linux") => {
+                        attrs.platform_defaults.push((platform, inner.value()?.parse()?));
+                        Ok(())
+                    }
+                    _ => Err(inner.error("a platform default is `default(mac = \"..\")`, `default(windows = \"..\")` or `default(linux = \"..\")`")),
+                }
+            })?,
             () if meta.path.is_ident("no_default_on") => attrs.no_default_on.push(value(meta)?),
             () if meta.path.is_ident("path") => attrs.paths.push(value(meta)?),
             () if meta.path.is_ident("alias") => attrs.aliases.push(value(meta)?),
@@ -159,7 +171,7 @@ pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
         Some(scope) => quote!(::craft_ui::runtime::commands::CommandScope::new(#scope)),
         None => quote!(::craft_ui::runtime::commands::CommandScope::APP),
     };
-    let (mut ids, mut arms, mut defs, mut bare) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    let (mut ids, mut arms, mut defs, mut bare, mut per_platform) = (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
     for v in &data.variants {
         let attrs = variant(v)?;
         let name = &v.ident;
@@ -201,6 +213,12 @@ pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
             let platform = platform_tokens(platform)?;
             bare.push(quote!((#id, #platform)));
         }
+        for (platform, text) in &attrs.platform_defaults {
+            let platform = platform_tokens(platform)?;
+            per_platform.push(quote! {
+                out.push((#id, #platform, ::craft_ui::runtime::commands::Binding::parse(#text).map_err(|error| ::craft_ui::runtime::commands::CommandDefError::binding(#id, error))?));
+            });
+        }
         arms.push(quote!(#id => ::core::option::Option::Some(Self::#name)));
         defs.push(quote! {
             {
@@ -240,6 +258,15 @@ pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
 
             fn no_default_on() -> ::std::vec::Vec<(&'static str, ::craft_ui::runtime::commands::Platform)> {
                 ::std::vec![#(#bare),*]
+            }
+
+            fn platform_defaults() -> ::core::result::Result<
+                ::std::vec::Vec<(&'static str, ::craft_ui::runtime::commands::Platform, ::craft_ui::runtime::commands::Binding)>,
+                ::craft_ui::runtime::commands::CommandDefError,
+            > {
+                let mut out = ::std::vec::Vec::new();
+                #(#per_platform)*
+                ::core::result::Result::Ok(out)
             }
         }
 

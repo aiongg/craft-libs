@@ -155,3 +155,17 @@ fn units_and_ages_read_the_envs_language() {
     let (times, duration, size, age) = seen.unwrap_or_default();
     assert_eq!((times.as_str(), duration.as_str(), size.as_str(), age.as_str()), ("3 fois", "1,5 sec", "12,0 Mo", "À l'instant"));
 }
+
+/// `EnvView::mode` reads the light or dark mode the app runs in.
+#[trial]
+fn the_env_view_reports_the_mode_the_app_runs_in() {
+    use craft_theme::{Contrast, Mode};
+    use craft_ui::testing::Fixture;
+    let seen = std::rc::Rc::new(std::cell::Cell::new(Mode::Light));
+    let read = std::rc::Rc::clone(&seen);
+    let mut fixture = Fixture::new(move |ui| read.set(Env::of(ui).view().mode()));
+    fixture.theme(Mode::Dark, Contrast::Standard).frame(vec![]);
+    assert_eq!(seen.get(), Mode::Dark);
+    fixture.theme(Mode::Light, Contrast::Standard).frame(vec![]);
+    assert_eq!(seen.get(), Mode::Light);
+}

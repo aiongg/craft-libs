@@ -190,3 +190,30 @@ fn a_select_in_a_scrolling_dialog_body_opens_its_list_and_picks() {
     fixture.settle();
     assert_eq!(value.get(), 1, "Up and Enter pick the option above");
 }
+
+/// A footer button opens a URL through the body context's opener, the one `Link` uses.
+#[trial]
+fn a_footer_button_opens_a_url_through_the_body_context() {
+    const URL: &str = "https://example.org/help";
+    let opened = Rc::new(Cell::new(false));
+    let seen = Rc::clone(&opened);
+    let mut fixture = Fixture::new(move |ui| {
+        let mut open = true;
+        Dialog::new("Help")
+            .opened(Bind::bound(&mut open))
+            .footer(|ui, cx| {
+                if craft_ui::testing::contract::clicked(&craft_ui::buttons::Button::new("Docs").show(ui)) {
+                    cx.bar().open_url(URL, true);
+                }
+                let asked = ui.ctx().output(|output| {
+                    output.commands.iter().any(|command| matches!(command, egui::OutputCommand::OpenUrl(request) if request.url == URL))
+                });
+                seen.set(seen.get() || asked);
+            })
+            .show(ui, |_, _| {});
+    });
+    fixture.settle();
+    let docs = fixture.by_label("Docs").expect("the footer button");
+    fixture.click(&docs);
+    assert!(opened.get(), "the platform was asked to open the URL");
+}

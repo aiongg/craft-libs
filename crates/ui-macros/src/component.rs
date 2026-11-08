@@ -437,7 +437,9 @@ fn marked<'a>(ident: &Ident, fields: &'a [Field], shape: Shape) -> syn::Result<M
             } else {
                 continue;
             };
-            attr.meta.require_path_only()?;
+            if !attr.path().is_ident("container") {
+                attr.meta.require_path_only()?;
+            }
             if slot.replace(field).is_some() {
                 return Err(syn::Error::new_spanned(attr, "at most one field carries this attribute"));
             }

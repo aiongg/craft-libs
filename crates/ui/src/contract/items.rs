@@ -956,7 +956,18 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             self.move_lead(at, LeadSource::Pointer);
         }
         match cx.core.press.phase {
-            PressPhase::Release { click, .. } => {
+            PressPhase::Release { click, start, pos, .. } => {
+                if click
+                    && props.menu_on_click
+                    && start.button == craft_behavior::PointerButton::Primary
+                    && crate::primitives::sensing::read_outcome(&ctx, ArenaId::new(cx.core.id))
+                        .hover
+                        .is_none_or(|hit| hit.part.is_none() || !hit.sense.takes_press())
+                    && let Some(row) = layout.hit(local(pos), offset).filter(|&row| self.source.enabled(row) && layout.shown(row))
+                {
+                    let request = self.menu_request(layout, Placement { rect, offset, rtl }, row, local(pos));
+                    self.events.push(CollectionEvent::ContextMenu(request));
+                }
                 if let Some(key) = self.drags.collapse.take()
                     && click
                     && let Some(at) = self.index_of(&key)
@@ -984,7 +995,6 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             && let Some(at) = layout.hit(local(pos), offset)
             && self.source.enabled(at)
         {
-            let key = self.source.key(at);
             if !self.holds(at) {
                 let column = if Self::selects_cells(comp) { layout.column_at(local(pos), offset) } else { None };
                 match column {
@@ -993,12 +1003,20 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 }
             }
             self.move_lead(at, LeadSource::Pointer);
-            let place = self.on_screen(self.screen(layout, rect, at, offset, rtl).left_bottom());
-            let mut cells = Vec::new();
-            layout.cells(at, offset, &mut cells);
-            let column = cells.into_iter().find(|(_, cell)| cell.contains(local(pos))).map(|(column, _)| column);
-            self.events.push(CollectionEvent::ContextMenu(ContextMenuRequest { key, at: place, column }));
+            let request = self.menu_request(layout, Placement { rect, offset, rtl }, at, local(pos));
+            self.events.push(CollectionEvent::ContextMenu(request));
         }
+    }
+
+    /// The request for the menu of the row `at`, opened by a pointer at `point` (the layout's coordinates): at the
+    /// row's bottom start corner, with the column the point lies in.
+    fn menu_request(&self, layout: &C::ItemLayout, at: Placement, row: usize, point: Pos2) -> ContextMenuRequest<C::Key> {
+        let Placement { rect, offset, rtl } = at;
+        let place = self.on_screen(self.screen(layout, rect, row, offset, rtl).left_bottom());
+        let mut cells = Vec::new();
+        layout.cells(row, offset, &mut cells);
+        let column = cells.into_iter().find(|(_, cell)| cell.contains(point)).map(|(column, _)| column);
+        ContextMenuRequest { key: self.source.key(row), at: place, column }
     }
 
     /// The pass's moves: lead, selection, expand and collapse.
