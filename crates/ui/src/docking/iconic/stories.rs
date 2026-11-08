@@ -28,7 +28,7 @@ fn icon_groups(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
         .into()
 }
 
-/// A click on the first icon opens the flyout of its panel.
+/// A click on the first icon opens the flyout of its panel, which the bound value then names.
 fn open_first_flyout(fixture: &mut Fixture) {
     let Some(id) = fixture.root_id() else { return };
     let Some(cell) = fixture.part(id, CELL.at(0)) else { return };
@@ -37,9 +37,10 @@ fn open_first_flyout(fixture: &mut Fixture) {
 }
 
 #[story(IconicColumn<'static, u8>, covers = [Open], drive = Drive::Custom(open_first_flyout))]
-fn icon_flyout_open(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+fn icon_flyout_open(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let open = data.value("open", None::<u8>);
     let column = Column::new(vec![Group::new(vec![0, 1], 0), Group::new(vec![2], 0)], 240.0);
-    IconicColumn::new("Panels", global("iconic column", "open story"), &column, Bind::kept(), &spec)
+    IconicColumn::new("Panels", global("iconic column", "open story"), &column, Bind::bound(open), &spec)
         .show_flyouts(ui, |group, rect, ui, _| {
             let title = group.active_panel().map_or_else(String::new, |panel| spec(panel).label.as_str().to_owned());
             Panel::new(title).show_at(ui, rect, |_, _| ());

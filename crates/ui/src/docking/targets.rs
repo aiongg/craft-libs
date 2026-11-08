@@ -44,8 +44,7 @@ pub struct DockSizes {
     pub float_size: Vec2,
     /// The divider between two docked groups or between a dock and its neighbour (the inline gap).
     pub gap: f32,
-    /// The least extent of a pane along a split, and of a dock (the rail width, so a pane is never narrower than the
-    /// rail that opens it).
+    /// The least extent of a pane along a split, and of a dock (the pane's least size).
     pub least_pane: f32,
     /// The height of a group's tab strip or section title row (the tab bar height), which every group height includes.
     pub strip: f32,
@@ -61,8 +60,6 @@ pub struct DockSizes {
     pub jump: f32,
     /// The least width of an iconic column (the rail width).
     pub iconic_least: f32,
-    /// The widest an iconic column gets when the user widens it (the field length).
-    pub iconic_most: f32,
 }
 
 impl DockSizes {
@@ -79,7 +76,7 @@ impl DockSizes {
             cascade_inset: size.window.cascade,
             float_size: Vec2::new(size.float.width, size.float.height),
             gap: cx.tokens.space.gap.inline,
-            least_pane: size.rail.width,
+            least_pane: size.pane.least,
             strip: size.bar.tab,
             bar: size.panel_header,
             least: size.panel_header,
@@ -87,7 +84,6 @@ impl DockSizes {
             step: cx.control().gap,
             jump: cx.control().height,
             iconic_least: size.rail.width,
-            iconic_most: size.length.field,
         }
     }
 
@@ -107,7 +103,9 @@ impl DockSizes {
     /// The width of a column before the dock's room shrinks it.
     pub fn width<P>(&self, column: &Column<P>, spec: &dyn Fn(&P) -> PanelSpec) -> f32 {
         if column.iconic {
-            column.iconic_width.unwrap_or(self.iconic_least).clamp(self.iconic_least, self.iconic_most)
+            // Widening an iconic column stops at the width it expands to.
+            let most = self.expanded_width(column, spec).max(self.iconic_least);
+            column.iconic_width.unwrap_or(self.iconic_least).clamp(self.iconic_least, most)
         } else {
             self.expanded_width(column, spec)
         }

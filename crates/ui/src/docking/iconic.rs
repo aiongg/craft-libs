@@ -1,7 +1,7 @@
 //! `IconicColumn`: a column collapsed to one icon per panel, and the flyouts its icons open.
 
-use super::dock_column::{BarRecord, ColumnGesture, GroupView, Shared, bar_name, locked, register_edges, show_bar};
-use super::{DockSizes, DockSpot, DockTargets, DockWords, Flyout, PanelSpec};
+use super::dock_column::{BarRecord, GroupView, bar_name, drag_column, register_edges, show_bar};
+use super::{DockSizes, DockSpot, DockTargets, DockWords, DragUnit, Flyout, PanelKey, PanelSpec, start_group_drag};
 use crate::buttons::IconButton;
 use crate::contract::overlay::Popup;
 use crate::contract::{
@@ -15,6 +15,7 @@ use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::dock::{Column, DockEdge, Group};
 use craft_behavior::{CursorIcon, DockSide, IconId, Metrics, PartKey, PressPhase, Sense, Value};
 use egui::{Id, Pos2, Rect, Response, Ui, Vec2};
+use std::hash::Hash;
 
 #[cfg(feature = "testing")]
 mod stories;
@@ -57,11 +58,9 @@ pub struct IconicColumnOutput<P> {
     pub iconic: Option<bool>,
     /// The dock row the user picked in the column menu.
     pub picked: Option<GroupItem>,
-    /// The gesture the user began on the column bar, an icon group's grip or an icon.
-    pub gesture: Option<ColumnGesture<P>>,
 }
 
-impl<P: Value + 'static> Outcome for IconicColumnOutput<P> {
+impl<P: Value + Hash + 'static> Outcome for IconicColumnOutput<P> {
     type Value = Option<P>;
 
     fn response(&self) -> &Response {
@@ -85,8 +84,8 @@ pub struct IconicColumnStyle {
 
 /// A column collapsed to icons: the column bar over icon groups, one cell per panel. A click or Enter on an icon
 /// opens the flyout of its panel beside the column, switches it to that panel or closes it; one flyout is open at a
-/// time. A drag of an icon begins a move of its panel, a drag of the band on top of a group a move of the group, a
-/// drag of the bar a move of the column; each is reported as a gesture and closes the flyout. Escape and a press
+/// time. A drag of an icon starts a move of its panel, a drag of the band on top of a group a move of the group, a
+/// drag of the bar a move of the column; each starts through the drag session and closes the flyout. Escape and a press
 /// outside close the flyout; with `auto_collapse` the focus leaving it does too.
 ///
 /// The open flyout is the bound `Option<P>` of [`new`](IconicColumn::new), owned by the host like the layout: a click
@@ -95,7 +94,7 @@ pub struct IconicColumnStyle {
 /// [`show_flyouts`](IconicColumn::show_flyouts), with the opened panel active.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(container, overlay, probe(IconicColumn<'static, u8>))]
-pub struct IconicColumn<'a, P: Value + 'static> {
+pub struct IconicColumn<'a, P: Value + Hash + 'static> {
     #[common]
     common: Common,
     #[container]
@@ -115,7 +114,6 @@ pub struct IconicColumn<'a, P: Value + 'static> {
     menu_button: bool,
     record: BarRecord,
     shown: Option<usize>,
-    gesture: Option<ColumnGesture<P>>,
     toggled: bool,
 }
 
@@ -131,7 +129,7 @@ struct Plan {
     body: Rect,
 }
 
-impl<'a, P: Value + 'static> IconicColumn<'a, P> {
+impl<'a, P: Value + Hash + 'static> IconicColumn<'a, P> {
     /// A column named `label` of the dock `dock`, over `column`, whose open flyout is the panel in `open`; `spec`
     /// reads each panel's label, icon and limits.
     pub fn new(label: impl Into<Label>, dock: Id, column: &'a Column<P>, open: Bind<'a, Option<P>>, spec: &'a dyn Fn(&P) -> PanelSpec) -> Self {
@@ -150,7 +148,6 @@ impl<'a, P: Value + 'static> IconicColumn<'a, P> {
             menu_button: false,
             record: BarRecord::default(),
             shown: None,
-            gesture: None,
             toggled: false,
         }
         .label(label)
@@ -210,7 +207,7 @@ impl<'a, P: Value + 'static> IconicColumn<'a, P> {
     }
 }
 
-impl<P: Value + 'static> Component for IconicColumn<'_, P> {
+impl<P: Value + Hash + 'static> Component for IconicColumn<'_, P> {
     const ROLE: Role = Role::GROUP;
     type Style = IconicColumnStyle;
     type Output = IconicColumnOutput<P>;
@@ -267,26 +264,28 @@ impl<P: Value + 'static> Component for IconicColumn<'_, P> {
         let dragging =
             |phase: PressPhase| matches!(phase, PressPhase::DragStart { start, .. } if start.button == craft_behavior::PointerButton::Primary);
         let mut began = false;
-        if dragging(cx.part(super::dock_column::BAR).press.phase)
-            && let Some(anchor) = self.column.groups.first().and_then(|group| group.panels.first())
-        {
-            self.gesture = Some(ColumnGesture::Column { anchor: anchor.clone() });
+        if dragging(cx.part(super::dock_column::BAR).press.phase) {
+            drag_column(cx, self.column, self.spec, rect.size());
             began = true;
         }
         self.toggled = cx.part(super::dock_column::BAR).press.double_pressed();
-        for (group, _) in &plan.grips {
+        for (group, extent) in &plan.groups {
             if dragging(cx.part(GRIP.at(*group as u64)).press.phase)
-                && let Some(anchor) = self.column.groups.get(*group).and_then(|group| group.panels.first())
+                && let Some(lead) = self.column.groups.get(*group)
+                && let Some(anchor) = lead.panels.first()
             {
-                self.gesture = Some(ColumnGesture::Group { anchor: anchor.clone() });
+                let shown = lead.active_panel().unwrap_or(anchor);
+                let label = Label::from((self.spec)(shown).label.as_str().to_owned());
+                start_group_drag(cx, DragUnit::Group(anchor.clone()), PanelKey::of(shown), Some((extent.size(), label)));
                 began = true;
             }
         }
-        for (at, (group, panel)) in flat.iter().enumerate() {
+        for (at, (group, panel, cell)) in plan.cells.iter().enumerate() {
             if dragging(cx.part(CELL.at(at as u64)).press.phase)
                 && let Some(panel) = self.panel(*group, *panel)
             {
-                self.gesture = Some(ColumnGesture::Panel { panel: panel.clone() });
+                let label = Label::from((self.spec)(panel).label.as_str().to_owned());
+                start_group_drag(cx, DragUnit::Panel(panel.clone()), PanelKey::of(panel), Some((cell.size(), label)));
                 began = true;
             }
         }
@@ -383,11 +382,11 @@ impl<P: Value + 'static> Component for IconicColumn<'_, P> {
             Popup::toggle(opener, &mut cx);
         }
         let iconic = self.record.iconic.or(self.toggled.then_some(false));
-        IconicColumnOutput { edit: cx.edit_response(), placed: cx.rect, iconic, picked: self.record.picked, gesture: self.gesture }
+        IconicColumnOutput { edit: cx.edit_response(), placed: cx.rect, iconic, picked: self.record.picked }
     }
 }
 
-impl<P: Value + 'static> IconicColumn<'_, P> {
+impl<P: Value + Hash + 'static> IconicColumn<'_, P> {
     /// Registers the drop bands of the column's edges, and the upper and lower half of every icon group: a drop on
     /// the upper half stacks above the group, one on the lower half below it.
     fn register(&self, ctx: &egui::Context, rect: Rect, rtl: bool, plan: &Plan, sizes: &IconicSizes) {
@@ -408,14 +407,12 @@ impl<P: Value + 'static> IconicColumn<'_, P> {
     }
 }
 
-impl<P: Value + 'static> Container for IconicColumn<'_, P> {
+impl<P: Value + Hash + 'static> Container for IconicColumn<'_, P> {
     /// The column bar, over the icons. What the user did on it is read in `finish`.
     fn header(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         if cx.shell().is_some_and(|shell| !shell.dock_visible()) {
             return;
         }
-        let shared = Shared::default();
-        show_bar(ui, cx, self.bar, false, self.auto_collapse, self.menu_button, &shared);
-        self.record = std::mem::take(&mut locked(&shared).bar);
+        self.record = show_bar(ui, cx, Some(self.bar), false, self.auto_collapse, self.menu_button);
     }
 }

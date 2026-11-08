@@ -151,6 +151,7 @@ size.pointer_tip.y = 27
 size.float.width = 240
 size.float.height = 300
 size.window.cascade = 38
+size.pane.least = 50
 stroke.thin = 1
 stroke.medium = 1.5
 stroke.thick = 2
