@@ -1,6 +1,6 @@
 //! Document text spans: the styles of `DocRun` change the laid-out galley, and `Text::spans` shows them.
 
-use craft_ui::contract::Show as _;
+use craft_ui::contract::{Props as _, Show as _};
 use craft_ui::display::Text;
 use craft_ui::fonts::{Family, FontRef, I18nScripts, SystemFonts, UiFonts};
 use craft_ui::list::ThumbAspect;
