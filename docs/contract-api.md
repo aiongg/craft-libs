@@ -969,8 +969,9 @@ Intents: a key, an AccessKit action or typed text turned into meaning (spec 9.2)
   - `pub const fn new(action: accesskit::Action, target: Option<PartRef>, data: Option<accesskit::ActionData>) -> Self`. A request for `action` on `target`.
 - `craft_behavior::intent::EditCommand`: `pub enum EditCommand { Cut, Copy, Paste, SelectAll, Undo, Redo }`. An edit command a component lists in its `KeyUse` to receive it as `Intent::Edit`.
 - `craft_behavior::intent::Granularity`: `pub enum Granularity { Unit, Word, Line, Paragraph, Document }`. How far a move reaches.
-- `craft_behavior::intent::Intent`: `pub enum Intent { Activate, Submit, SubmitForce, Cancel, Move(NavMove, MoveMods), Delete { forward: bool, by: Granularity }, Space, Digit(u8), Rename, ContextMenu, Reset, Text(Arc<str>), Tab, Edit(EditCommand), SwitchPage { forward: bool }, MoveItem { forward: bool }, Open, Close, Access(AccessRequest) }`. What the runtime routes to a focused component.
+- `craft_behavior::intent::Intent`: `pub enum Intent { Activate, Submit, SubmitForce, Cancel, Move(NavMove, MoveMods), Delete { forward: bool, by: Granularity, shift: bool }, Space, Digit(u8), Rename, ContextMenu, Reset, Text(Arc<str>), Tab, Edit(EditCommand), SwitchPage { forward: bool }, MoveItem { forward: bool }, Open, Close, Access(AccessRequest) }`. What the runtime routes to a focused component.
   - `pub const fn delete(forward: bool, by: Granularity) -> Intent`. `Delete` of `by`, forward or back.
+  - `pub const fn shift_delete(forward: bool, by: Granularity) -> Intent`. `Delete` of `by` with Shift held.
   - `pub const fn switch_page(forward: bool) -> Intent`. `SwitchPage` to the next page when `forward`.
   - `pub const fn move_item(forward: bool) -> Intent`. `MoveItem` toward the end when `forward`.
   - `pub fn same_kind(&self, other: &Intent) -> bool`. Whether `self` and `other` are the same kind of intent, whatever their data.
@@ -1650,6 +1651,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `fn show<R>(self, ui: &mut Ui, body: impl FnMut(&mut Ui, &mut BodyCx<'_>) -> R) -> Inner<Self::Output, R>`. Shows the container in the flow of `ui`.
   - `fn show_at<R>(self, ui: &mut Ui, rect: Rect, body: impl FnMut(&mut Ui, &mut BodyCx<'_>) -> R) -> Inner<Self::Output, R>`. Shows the container at `rect`, with no allocation: a frame over a split or a layer the parent places.
   - `fn show_at_taking_room<R>(self, ui: &mut Ui, rect: Rect, body: impl FnMut(&mut Ui, &mut BodyCx<'_>) -> R) -> Inner<Self::Output, R>`. Shows the container at `rect` and takes that rect's room in the flow of `ui`: what is shown after it lies
+  - `fn measure_in<R>(&mut self, ui: &Ui, proposal: Proposal, body: impl FnMut(&mut Ui, &mut BodyCx<'_>) -> R) -> Vec2`. Measures the container with `body` without allocating: steps 1 to 5 under the id `show` would use next, with
   - `fn show_with_tip<R>(self, ui: &mut Ui, body: impl FnMut(&mut Ui, &mut BodyCx<'_>) -> R, tip: impl FnOnce(&mut Ui)) -> Inner<Self::Output, R>`. Shows the container with rich tooltip content.
   - `fn show_at_with_tip<R>(self, ui: &mut Ui, rect: Rect, body: impl FnMut(&mut Ui, &mut BodyCx<'_>) -> R, tip: impl FnOnce(&mut Ui),) -> Inner<Self::Output, R>`. Shows the container at `rect` with rich tooltip content.
 - `craft_ui::contract::ShowShape`: `pub trait ShowShape: sealed::ShowShape`. Which show trait applies, and the shape's default sense.
@@ -1729,6 +1731,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub fn current<K: Send + Sync + 'static>(mut self, key: Option<K>) -> Self`. The current item: `Some(key)` marks the item with that key, `None` marks none. `K` is the collection's key type;
   - `pub fn empty(mut self, text: impl Into<Label>) -> Self`. The empty-state text.
 - `craft_ui::contract::CollectionResponse`: `pub struct CollectionResponse<K, E> { pub response: Response, pub events: Vec<CollectionEvent<K, E>>, pub visible: Range<usize>, pub shown: Vec<ShownRow<K>>, pub select: SelectMode, pub rename: bool, pub reorder: bool }`. The output of a collection.
+  - `pub fn opener(&self, opener: super::ItemOpener) -> Option<&Response>`. The response of the item part `opener` names: its click this pass and its rect. A menu or popover hangs from
 - `craft_ui::contract::ColumnAlign`: `pub enum ColumnAlign { Start, End }`. Where a column's content sits.
 - `craft_ui::contract::ColumnCommands`: `pub enum ColumnCommands { Resize, MoveLeft, MoveRight }`. The commands of a column header (17.1): resize and move work from the keyboard through them. The app lists
   - `pub const ALL: [ColumnCommands; 3]`. Every header command, in menu order.
@@ -1739,7 +1742,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub const fn new(key: ColumnKey, descending: bool) -> Self`. Rows sorted by `key`, descending when `descending`.
   - `pub const fn ascending(key: ColumnKey) -> Self`. Rows sorted by `key`, ascending.
   - `pub const fn descending(key: ColumnKey) -> Self`. Rows sorted by `key`, descending.
-- `craft_ui::contract::ColumnSpec`: `pub struct ColumnSpec { pub key: ColumnKey, pub header: Label, pub width: ColumnWidth, pub resizable: bool, pub sortable: bool, pub movable: bool, pub frozen: bool, pub kind: ColumnKind, pub align: ColumnAlign, pub tabular: bool, pub first_descending: bool }`. One column of a collection.
+- `craft_ui::contract::ColumnSpec`: `pub struct ColumnSpec { pub key: ColumnKey, pub header: Label, pub width: ColumnWidth, pub resizable: bool, pub sortable: bool, pub movable: bool, pub frozen: bool, pub kind: ColumnKind, pub align: ColumnAlign, pub tabular: bool, pub first_descending: bool, pub icon: Option<craft_behavior::IconId> }`. One column of a collection.
   - `pub fn new(key: ColumnKey, header: impl Into<Label>, width: ColumnWidth) -> Self`. A content column with a header and a width; the other settings off.
   - `pub fn sortable(mut self) -> Self`. Activating the header sorts.
   - `pub fn resizable(mut self) -> Self`. The user can resize the column.
@@ -1748,6 +1751,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub fn kind(mut self, kind: ColumnKind) -> Self`. The column's cell kind.
   - `pub fn align(mut self, align: ColumnAlign) -> Self`. The cells' content sits at `align`.
   - `pub fn numeric(mut self) -> Self`. A column of numbers: content at the end edge, tabular figures.
+  - `pub fn icon(mut self, icon: craft_behavior::IconId) -> Self`. The icon the column's cells show. A cell of a column with no header text is named after it.
   - `pub fn first_descending(mut self) -> Self`. The first press on the header sorts descending.
 - `craft_ui::contract::CommandSet`: re-export of `craft_ui::runtime::commands::CommandSet`.
 - `craft_ui::contract::Commands`: re-export of `craft_ui::runtime::commands::Commands`.
@@ -1785,6 +1789,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
 - `craft_ui::contract::ContextMenuRequest`: `pub struct ContextMenuRequest<K> { pub key: K, pub at: Pos2, pub column: Option<ColumnKey> }`. A request for the context menu of an item. Collections never open menus: the app does.
 - `craft_ui::contract::Cx`: `pub struct Cx<'a, C: Component> { pub style: &'a C::Style }`. What component code reads and calls. It derefs to [`CxCore`] for reading only.
   - `pub fn reset_part(&self) -> Option<PartRef>`. The part a reset aimed at, when it declared `own_reset`; `update` proposes the value with that part at its
+  - `pub fn layout_doc(&self, text: &crate::primitives::DocText<'_>) -> TextLayout`. Lays document `text` out `text.wrap` wide: the call `ContentPainterCx::layout` and `MeasureCx::layout_doc`
   - `pub fn open_url(&mut self, url: &str, new_tab: bool)`. Asks the platform to open `url`, in a new tab where the platform has tabs and `new_tab` is set.
   - `pub fn join_roving(&mut self)`. Makes this component a member of the roving group of the body it is shown in: its stop joins the group and
   - `pub fn fire(&mut self, command: impl Into<CommandRef>, source: FireSource) -> bool`. Runs `command` as this component's own activation would, for a command that is not the component's bound
@@ -1893,7 +1898,9 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub fn cell(&self, key: &craft_behavior::ColumnKey) -> Option<Rect>`. The rect of column `key` in this row.
   - `pub fn grid(&self) -> Option<&craft_behavior::GridView>`. The sections of a sheet layout.
   - `pub fn tip(&mut self, tip: impl FnOnce(&mut Ui) + 'r)`. Rich tooltip content for the item; it may borrow app data.
+  - `pub fn part_opener(&mut self, part: impl Into<craft_behavior::PartRef>) -> ItemOpener`. The opener for the item's part `part`: after the collection is shown, `CollectionResponse::opener` gives the
 - `craft_ui::contract::ItemKeys`: `pub enum ItemKeys { Own, Owner }`. Who takes a collection's arrow keys while it has the key focus.
+- `craft_ui::contract::ItemOpener`: `pub struct ItemOpener`. The part of one item that opens a menu or popover: `ItemCx::part_opener` names it and
 - `craft_ui::contract::ItemOutput`: `pub trait ItemOutput<E>: Outcome`. What an item's output may report beyond its response.
   - `fn into_event(self) -> Option<E>`. The event the collection reports for this item, `None` when the item reports nothing.
   - `fn label_rect(&self) -> Option<egui::Rect>`. The rect of the item's label, where a rename editor goes; `None` puts it over the whole row.
@@ -1999,7 +2006,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `fn drop_target<P: Send + Sync + 'static, T: DropTarget<P>>(&mut self, target: &T) -> Option<T::Drop>`. Registers `target` over this component's rect for this pass, in `update`. Returns the drop released over it this
   - `fn window_drop_target<P: Send + Sync + 'static, T: WindowDropTarget<P>>(&mut self, target: &T) -> Option<T::Drop>`. Registers `target` over the whole window of the running viewport for this pass, in `update`; a target over a
   - `fn drag_ended<P: Send + Sync + 'static>(&self) -> Option<DropOperation>`. The operation of a drop of this component's payload, in the pass after the drop; `None` while dragging, when the
-  - `fn scroll_moved(&self, key: PartKey) -> Option<Range<f64>>`. The visible range the scroll part `key` moved to this pass (thumb or end drag, page press).
+  - `fn scroll_moved(&self, key: PartKey) -> Option<Range<f64>>`. The visible range the scroll part `key` moved to this pass (thumb or end drag, page press, or an AccessKit click
 - `craft_ui::contract::Politeness`: re-export of `craft_ui::runtime::access::Politeness`.
 - `craft_ui::contract::Popup`: re-export of `craft_ui::contract::overlay::Popup`.
 - `craft_ui::contract::PopupHandle`: re-export of `craft_ui::contract::overlay::PopupHandle`.
@@ -2045,7 +2052,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub const fn edge(mut self, edge: PaneEdge) -> Self`. The pane at `edge`.
   - `pub const fn extent(mut self, extent: f32) -> Self`. The pane's size along its edge, exactly: the pane host shows it at this extent in every pass.
   - `pub const fn at(mut self, rect: Rect) -> Self`. The pane in `rect`, which the caller laid out for this pass. The pane takes no room from its siblings.
-- `craft_ui::contract::ShownRow`: `pub struct ShownRow<K> { pub key: K, pub rect: egui::Rect, pub cells: Vec<(ColumnKey, egui::Rect)> }`. The geometry of one row the collection showed this pass.
+- `craft_ui::contract::ShownRow`: `pub struct ShownRow<K> { pub key: K, pub rect: egui::Rect, pub cells: Vec<(ColumnKey, egui::Rect)>, pub openers: Vec<(super::ItemOpener, Response)> }`. The geometry of one row the collection showed this pass.
 - `craft_ui::contract::SideLabel`: `pub struct SideLabel { pub kind: LabelKind, pub layout: FieldLayout, pub align: LabelAlign, pub role: FieldLabelRole, pub scrub: bool, pub icon: Option<IconSpec<'static>>, pub detail: Option<Label> }`. What `ContainerProps.label` holds: how the label is shown and what it does. The text is `Common.label`.
   - `pub const fn new() -> Self`. A text label beside its control that names it.
   - `pub fn kind(mut self, kind: LabelKind) -> Self`. How the label is shown.
@@ -2353,11 +2360,12 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
   - `pub fn shapes(look: &HandleLook, shape: HandleShape, center: Pos2, state: &StateSet) -> Vec<Shape>`. The shapes of a handle of `shape` centred on `center`, filled for `state`.
 - `craft_ui::primitives::HandleShape`: `pub enum HandleShape { Square, Circle, Diamond }`. The outline of a handle.
 - `craft_ui::primitives::IconSet`: re-export of `craft_ui::primitives::icon::IconSet` (defined outside these crates).
-- `craft_ui::primitives::IconSource`: `pub enum IconSource<'a> { Svg(IconId), Glyph(&'a dyn Glyph), Swatch(Srgba) }`. Where an icon's drawing comes from.
+- `craft_ui::primitives::IconSource`: `pub enum IconSource<'a> { Svg(IconId), Glyph(&'a dyn Glyph), Swatch(Srgba), Disc }`. Where an icon's drawing comes from.
 - `craft_ui::primitives::IconSpec`: `pub struct IconSpec<'a> { pub source: IconSource<'a>, pub ink: Ink, pub color: Option<StyleColor>, pub mirror: Mirror, pub set: IconSet }`. An icon to paint.
   - `pub fn svg(id: IconId) -> Self`. An icon of the SVG set or a tool icon, in the panel ink.
   - `pub fn glyph(glyph: &'a dyn Glyph) -> Self`. An icon of `glyph` in the panel ink.
   - `pub fn swatch(color: Srgba) -> Self`. A swatch of `color`, painted by [`Draw::data_fill`](super::Draw::data_fill).
+  - `pub fn disc() -> Self`. A filled circle in the panel ink, or in the colour [`color`](Self::color) or [`data_color`](Self::data_color)
   - `pub fn ink(mut self, ink: Ink) -> Self`. Sets the ink.
   - `pub fn color(mut self, color: StyleColor) -> Self`. Sets the colour, in place of the ink's.
   - `pub fn data_color(mut self, color: DataColor) -> Self`. Sets the colour from data, in place of the ink's: an icon drawn in document content (an annotation pictogram),
@@ -2499,7 +2507,7 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
   - `pub fn icon(&self) -> IconId`. The icon that draws the tool.
   - `pub fn id(&self) -> &str`. The tool's id as the apps' tool commands spell it (`tool.rectangularMarquee` without the
   - `pub fn from_id(id: &str) -> Option<ToolIcon>`. The built-in tool for an id, `None` for an unknown one and for a custom tool.
-- `craft_ui::primitives::Wrap`: `pub enum Wrap { Line, Wrap, Elide, ElidePath }`. How a run fits its room.
+- `craft_ui::primitives::Wrap`: `pub enum Wrap { Line, Wrap, Elide, ElidePath, Clamp(u8) }`. How a run fits its room.
 - `craft_ui::primitives::checker`: `pub fn checker(tokens: &UiTokens, rect: Rect, clip: Rect) -> Vec<Shape>`. The theme's transparency checkerboard over `rect`, drawn where `clip` shows it, with cells of `size.checker`.
 - `craft_ui::primitives::dashed`: `pub fn dashed(points: &[Pos2], pattern: Dashes, width: f32, color: Color32) -> Vec<Shape>`. A dashed line along `points` in `color`, `width` thick, with the lengths and phase of `pattern`. The pattern
 - `craft_ui::primitives::drop_mark`: `pub fn drop_mark(tokens: &UiTokens, from: Pos2, to: Pos2, pixels_per_point: f32) -> Vec<Shape>`. The insertion mark of a drop from `from` to `to`.
@@ -2722,6 +2730,7 @@ The command board: the registry and typed sets, per-frame state, the queue, firi
   - `fn id(self) -> &'static str`.
   - `fn defs() -> Result<Vec<CommandDef>, CommandDefError>`.
   - `fn no_default_on() -> Vec<(&'static str, Platform)>`. The commands that have no default binding on a platform, as `(id, platform)`.
+  - `fn edits() -> Vec<(&'static str, EditCommand)>`. The commands a focused component takes as an `Intent::Edit`, as `(id, edit)`: the `edit` option of the
   - `fn platform_defaults() -> Result<Vec<(&'static str, Platform, Binding)>, CommandDefError>`. The defaults of one platform, as `(id, platform, binding)`: on that platform they replace the command's other
 - `craft_ui::runtime::commands::CommandState`: `pub struct CommandState`. What the app or an instance says about a command this frame.
   - `pub fn new() -> Self`. An enabled, unchecked-less state with the command's own label.
@@ -2756,6 +2765,7 @@ The command board: the registry and typed sets, per-frame state, the queue, firi
 - `craft_ui::runtime::commands::CommandKind`: re-export of `craft_keymap::CommandKind` (outside these crates).
 - `craft_ui::runtime::commands::CommandRef`: re-export of `craft_keymap::CommandRef` (outside these crates).
 - `craft_ui::runtime::commands::CommandScope`: re-export of `craft_keymap::CommandScope` (outside these crates).
+- `craft_ui::runtime::commands::EditCommand`: re-export of `craft_behavior::intent::EditCommand`.
 - `craft_ui::runtime::commands::EditCommands`: `pub enum EditCommands { Cut, Copy, Paste, SelectAll, Undo, Redo, Delete }`. The edit commands (11.3). A focused component that lists one in `KEYS.edits` takes it as
   - `pub const ALL: [EditCommands; 6]`. Every edit command that a focused component can take as an `Intent::Edit`.
   - `pub const fn edit(self) -> Option<EditCommand>`. The intent a component takes this command as; `None` for a command that is always the app's.
@@ -2944,8 +2954,8 @@ One-shot screenshot slots and the facts a screenshot is measured against.
   - `pub const fn new(pixels_per_point: f32) -> Self`. `pixels_per_point` pixels per point.
 - `craft_ui::runtime::env::Scoped`: `pub struct Scoped { pub ink: Ink, pub size: ControlSize, pub enabled: bool, pub read_only: bool, pub direction: Direction, pub text_direction: Direction, pub motion: MotionPolicy, pub ids_stable: bool, pub scale: Scale, pub arena: Option<ArenaId>, pub transform: Option<CanvasTransform> }`. The values of an env.
 - `craft_ui::runtime::env::StyleValue`: `pub trait StyleValue: EnvValue + Hash`. Marker for values `style` may read. `Hash`, because the value is folded into the style key.
-- `craft_ui::runtime::env::ThemeScope`: `pub struct ThemeScope`. Token-changing values for a container's body: the body and everything under it resolve their styles from
-  - `pub fn mode(mode: Mode) -> Self`. A scope whose body resolves the inherited theme in `mode`: a plot that is dark in every theme, a preview of the
+- `craft_ui::runtime::env::ThemeScope`: `pub struct ThemeScope`. Token-changing values for a container's body: the body and everything under it resolve their styles from the
+  - `pub fn mode(mode: Mode) -> Self`. A scope whose body resolves the inherited theme, contrast, density and text size in `mode`: a plot that is dark
 - `craft_ui::runtime::env::WordsOverride`: `pub enum WordsOverride { Replace(Arc<Words>), Overlay(WordRows) }`. How a scope changes the built-in text: the only override path for words.
 - `craft_ui::runtime::env::with_env`: `pub fn with_env<R>(ui: &mut Ui, set: impl FnOnce(&mut Overrides), body: impl FnOnce(&mut Ui) -> R) -> R`. Runs `body` in a child `Ui` with `set`'s changes applied to the inherited values. A scope that disables
 - `craft_ui::runtime::env::AgeStyle`: re-export of `craft_i18n::AgeStyle` (outside these crates).
@@ -3118,6 +3128,7 @@ The key stage (spec 9.1, 9.2, 9.3, 9.7): the input hook strips the keys the runt
   - `pub fn take(&mut self, intent: Intent) -> bool`. Takes an intent of the kind of `intent`, once per pass: the first taker gets it.
   - `pub fn take_exact(&mut self, intent: &Intent) -> bool`. Takes an intent equal to `intent` in every field, once per pass: `Intent::delete(false, Granularity::Grapheme)`
   - `pub fn take_move(&mut self) -> Option<(NavMove, MoveMods)>`. Takes the next move.
+  - `pub fn take_scroll_access(&mut self, into_view: bool) -> Option<AccessRequest>`. Takes the next AccessKit request that asks a scroll region to scroll, or with `into_view` to show its target.
   - `pub fn take_edit(&mut self) -> Option<EditCommand>`. Takes the next edit command.
   - `pub fn take_text(&mut self) -> Option<Arc<str>>`. Takes the next typed text.
   - `pub fn take_nudge(&mut self) -> Option<(Vec2, Mods)>`. Takes the physical arrow nudge for canvas content: a unit direction and the modifiers.
@@ -3126,7 +3137,7 @@ The key stage (spec 9.1, 9.2, 9.3, 9.7): the input hook strips the keys the runt
   - `pub fn take_set_value_at(&mut self, part: impl Into<PartRef>) -> Option<f64>`. Takes the AccessKit `SetValue` request aimed at the sub-node of `part`.
   - `pub fn untaken(&self, intent: &Intent) -> bool`. Whether an intent of the kind of `intent` is routed and not taken.
   - `pub fn take_access(&mut self) -> Option<AccessRequest>`. Takes the next `Intent::Access` request.
-- `craft_ui::runtime::keys::MenuKey`: `pub enum MenuKey { Focus, Letter(char) }`. A menu-bar key of Windows and Linux (spec 9.7).
+- `craft_ui::runtime::keys::MenuKey`: `pub enum MenuKey { Focus, Letter(char) }`. A menu-bar key of an in-window bar (spec 9.7). F10 reaches the bar on every OS; Alt keys only off a Mac.
 
 ## `craft_ui::runtime::memory`
 
@@ -3692,6 +3703,7 @@ Text dumps for tests: ordered `key = value` lines compared exactly with a file, 
   - `pub fn access(&mut self, kind: AccessActionKind, target: &Target) -> &mut Self`. An AccessKit action on `target`.
   - `pub fn focused_stop(&self) -> Option<(Id, Option<PartRef>)>`. The stop that holds focus: the id of its component and the part when focus is on a part.
   - `pub fn focused(&self) -> Option<Id>`. The id of the widget egui has focused.
+  - `pub fn frame_through(&mut self, events: Vec<Event>) -> &mut Self`. `events` as one OS frame, followed by the frames an app runs for it: one for each step of input the one-press
 - `craft_ui::testing::fixture::Room`: `pub enum Room { Panel, Dialog, Window }`. The room of a trial, named by the kind of host the component sits in. A trial that needs another size gives it to
   - `pub fn size(self) -> Vec2`. The room's size in points.
 - `craft_ui::testing::fixture::Target`: `pub struct Target { pub node: NodeKey, pub rect: Rect }`. A node of the AccessKit tree, as input addresses it.
