@@ -6,7 +6,7 @@ use craft_keymap::Mods;
 use craft_ui::contract::{
     Bind, CollectionEvent, ColumnKind, ColumnSpec, ListDrag, OpenChange, Props as _, ReorderRule, ShowCollection as _, ToggleColumn, request_rename,
 };
-use craft_ui::list::{List, ListRow, RowEvent, ThumbTarget};
+use craft_ui::list::{List, RowEvent, ThumbTarget};
 use craft_ui::runtime::env::Label;
 use egui::Ui;
 use std::borrow::Cow;
