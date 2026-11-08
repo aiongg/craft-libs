@@ -3,7 +3,7 @@
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
 use std::sync::mpsc::{Receiver, channel};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use craft_automation::control::{ControlChannel, ControlRequest, ControlResponse, Reply, expired_error, timeout_error};
 use craft_automation::screenshot::{CaptureGeometry, Finished};

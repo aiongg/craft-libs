@@ -4,7 +4,7 @@ use std::io::{BufReader, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, Sender, channel};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use craft_ui::runtime::motion;
 use craft_ui::runtime::windows::WindowHost;
