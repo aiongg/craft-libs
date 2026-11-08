@@ -20,12 +20,6 @@ new = ""
 status = "pending"
 
 [[type]]
-name = "BezierOverlay"
-old = ""
-new = ""
-status = "pending"
-
-[[type]]
 name = "PenDraft"
 old = ""
 new = ""
@@ -516,3 +510,193 @@ type = "GradientOverlay"
 old = "rules(StopRules)"
 new = "rules(StopRules)"
 note = "The rows are `rules.rows`."
+# craft_draw::ui::pen::bezier (draw-pen-a)
+[[type]]
+name = "BezierOverlay"
+old = "craft_draw::ui::BezierOverlay"
+new = "craft_draw::ui::BezierOverlay"
+status = "moved"
+note = "A canvas control: `BezierOverlay::new(label, Bind<Vec<EditPath>>, &PathSelection)` shown with `show_at(ui, body.rect)` in a `Canvas` body that has a view. The value is the paths: a drag proposes them with the edit applied and Escape restores the start; `BezierOutput::change` carries the gesture's `PathEdit`. The parts are in the canvas's arena, so there is no `claimed` flag."
+
+[[type]]
+name = "BezierResponse"
+old = "craft_draw::ui::BezierResponse"
+new = ""
+status = "removed"
+note = "`BezierOutput`: `edit` (an `EditResponse<Vec<EditPath>>`) replaces `event` and `id`; `change` carries the `PathEdit`; `context` carries the screen position; `claimed` is gone (a press on a part never reaches the tool)."
+
+[[type]]
+name = "BezierOutput"
+old = ""
+new = "craft_draw::ui::BezierOutput"
+status = "replaced"
+note = "Replaces `BezierResponse`."
+
+[[type]]
+name = "BezierNames"
+old = "craft_draw::ui::BezierNames"
+new = ""
+status = "removed"
+note = "`BezierWords`, a `craft_ui::words!` set read from the env."
+
+[[type]]
+name = "BezierWords"
+old = ""
+new = "craft_draw::ui::BezierWords"
+status = "replaced"
+note = "Replaces `BezierNames`: the in and out handle names, the marquee name and the template \"Anchor {i} of {n}\"; the group is named by the overlay's label."
+
+[[type]]
+name = "BezierStyle"
+old = "craft_ui::style::bezier::BezierStyle"
+new = "craft_draw::ui::BezierStyle"
+status = "moved"
+note = "A `ComponentStyle` built from the theme in `Component::style`; there is no `BezierOverlay::style(&tokens)` and no `look` setter."
+
+[[type]]
+name = "BezierTool"
+old = "craft_draw::ui::BezierTool"
+new = "craft_draw::ui::BezierTool"
+status = "same"
+note = "`Show` is now `Anchors`."
+
+[[type]]
+name = "HandlesShown"
+old = "craft_draw::ui::HandlesShown"
+new = "craft_draw::ui::HandlesShown"
+status = "same"
+
+[[type]]
+name = "AnchorsShown"
+old = "craft_draw::ui::AnchorsShown"
+new = "craft_draw::ui::AnchorsShown"
+status = "same"
+
+[[type]]
+name = "SegmentMark"
+old = "craft_draw::ui::SegmentMark"
+new = "craft_draw::ui::SegmentMark"
+status = "same"
+
+[[type]]
+name = "HitMark"
+old = "craft_draw::ui::HitMark"
+new = "craft_draw::ui::HitMark"
+status = "same"
+note = "`HitMark::new(path, hit)` is kept; the preview is drawn by the overlay and by the pen tool through the crate-private `paint_mark`."
+
+[[type]]
+name = "BezierHit"
+old = "craft_draw::ui::BezierHit"
+new = "craft_draw::ui::BezierHit"
+status = "same"
+
+[[type]]
+name = "EditPath"
+old = "craft_draw::ui::EditPath"
+new = "craft_draw::ui::EditPath"
+status = "same"
+note = "`color` is an `Option<craft_theme::Srgba>`."
+
+[[type]]
+name = "EditSubpath"
+old = "craft_draw::ui::EditSubpath"
+new = "craft_draw::ui::EditSubpath"
+status = "same"
+
+[[type]]
+name = "Knot"
+old = "craft_draw::ui::Knot"
+new = "craft_draw::ui::Knot"
+status = "same"
+
+[[type]]
+name = "KnotRef"
+old = "craft_draw::ui::KnotRef"
+new = "craft_draw::ui::KnotRef"
+status = "same"
+
+[[type]]
+name = "HandleSide"
+old = "craft_draw::ui::HandleSide"
+new = "craft_draw::ui::HandleSide"
+status = "same"
+
+[[type]]
+name = "PathEdit"
+old = "craft_draw::ui::PathEdit"
+new = "craft_draw::ui::PathEdit"
+status = "same"
+note = "`apply_all(&mut [EditPath])` joins `apply(&mut EditPath)`."
+
+[[type]]
+name = "PathSelection"
+old = "craft_draw::ui::PathSelection"
+new = "craft_draw::ui::PathSelection"
+status = "same"
+
+[[type]]
+name = "MAX_ANCHORS"
+old = "craft_draw::ui::MAX_ANCHORS"
+new = "craft_draw::ui::MAX_ANCHORS"
+status = "same"
+
+[[setter]]
+type = "BezierOverlay"
+old = "new(id_salt, paths, selection, x, y, names)"
+new = "new(label, Bind<Vec<EditPath>>, &PathSelection); the units and zero point come from the canvas's rulers, the names from `BezierWords`"
+
+[[setter]]
+type = "BezierOverlay"
+old = "show(ui, canvas, view)"
+new = "show_at(ui, body.rect) inside a `Canvas` body that has a view"
+
+[[setter]]
+type = "BezierOverlay"
+old = "look(style)"
+new = "removed: the style is the theme's `BezierStyle`"
+
+[[setter]]
+type = "BezierOverlay"
+old = "zero(point), units(x, y)"
+new = "removed: `Canvas::rulers`"
+
+[[setter]]
+type = "BezierOverlay"
+old = "steps(step, big_step)"
+new = "removed: the arrow distances are `craft_ui::canvas::{NUDGE, NUDGE_FAR}`"
+
+[[setter]]
+type = "BezierOverlay"
+old = "snap(closure)"
+new = "removed: a dragged point snaps through the canvas's `Snap`"
+
+[[setter]]
+type = "BezierOverlay"
+old = "cursor(closure)"
+new = "removed: the pointer over a part is the part's cursor"
+
+[[setter]]
+type = "BezierOverlay"
+old = "modifiers(mods)"
+new = "removed: the modifiers are the press's"
+
+[[setter]]
+type = "BezierOverlay"
+old = "highlight(hit)"
+new = "removed: the overlay marks what a press would take under the pointer, and the hovered part has its hover look"
+
+[[setter]]
+type = "BezierOverlay"
+old = "policy(policy)"
+new = "removed: the gesture is the pipeline's `begin`, `propose` and `commit`"
+
+[[setter]]
+type = "BezierOverlay"
+old = "hit_test(paths, selection, handles, view, at, reach)"
+new = "same: a pure associated function (the view is `craft_behavior::CanvasView`)"
+
+[[setter]]
+type = "BezierOverlay"
+old = "tool(tool), handles(handles), segment_mark(mark), anchors(anchors), path_options(options)"
+new = "same"
