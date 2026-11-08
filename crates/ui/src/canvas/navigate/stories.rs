@@ -1,7 +1,7 @@
 //! Stories of the compass.
 
 use crate::canvas::rotate::RIM;
-use crate::canvas::{Canvas, RotateView, RotateViewOutput, ToolPath};
+use crate::canvas::{Canvas, RotateView, RotateViewOutput};
 use crate::contract::{Bind, Show as _, ShowContainer as _, Validity};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
@@ -14,11 +14,9 @@ const TURNED: f64 = 30.0;
 /// The largest angle the invalid story accepts, in degrees.
 const MOST: f64 = 90.0;
 
-const PATH: ToolPath = ToolPath::Command("the Rotate View commands");
-
 /// Shows `compass` in the corner of a canvas and returns its output.
 fn on_canvas(ui: &mut Ui, mut compass: impl FnMut(&mut Ui, egui::Rect) -> RotateViewOutput) -> StoryOutput {
-    let shown = Canvas::new("Document", PATH).show(ui, |ui, body| {
+    let shown = Canvas::new("Document").show(ui, |ui, body| {
         let at = RotateView::compass_rect(ui, body.rect);
         compass(ui, at)
     });

@@ -3,8 +3,8 @@
 use super::super::words::DialogWords;
 use super::view::FullWindowView;
 use crate::canvas::{
-    Canvas, CanvasTool, HandTool, Momentary, NavigationOptions, PixelRect, RasterDisplay, RasterSource, ToolHost, ToolHostResponse, ToolPath,
-    WheelNavigation, pan,
+    Canvas, CanvasTool, HandTool, Momentary, NavigationOptions, PixelRect, RasterDisplay, RasterSource, ToolHost, ToolHostResponse, WheelNavigation,
+    pan,
 };
 use crate::contract::{Bind, NoValue, Outcome, Props as _, Show as _, ShowContainer as _};
 use crate::primitives::{Checker, Revision};
@@ -111,7 +111,6 @@ impl Outcome for FullWindowCanvasOutput {
 #[derive(crate::contract::Pattern)]
 #[must_use = "show the canvas with `show`"]
 pub struct FullWindowCanvas<'a> {
-    path: ToolPath,
     view: Bind<'a, FullWindowView>,
     source: &'a dyn RasterSource,
     checkerboard: Option<Checker>,
@@ -123,15 +122,14 @@ pub struct FullWindowCanvas<'a> {
 }
 
 impl<'a> FullWindowCanvas<'a> {
-    /// A canvas showing the image `source` through `view`. `path` says how the tool is reached without a pointer.
+    /// A canvas showing the image `source` through `view`.
     ///
     /// The canvas writes the view it settled on its rect, and the view the wheel, a pan or the tool made, through
     /// `view`, so a binding the app owns (`Bind::bound`) is the one place the view lives. The canvas reads the view
     /// before its body exists, so a kept binding (which has no value to read yet) shows a new, fitted view every pass,
     /// and a given value (`Bind::given`) is read and never written.
-    pub fn new(path: ToolPath, view: Bind<'a, FullWindowView>, source: &'a dyn RasterSource) -> Self {
+    pub fn new(view: Bind<'a, FullWindowView>, source: &'a dyn RasterSource) -> Self {
         FullWindowCanvas {
-            path,
             view,
             source,
             checkerboard: None,
@@ -182,7 +180,7 @@ impl<'a> FullWindowCanvas<'a> {
 
     /// Shows the canvas in the rest of `ui`.
     pub fn show(self, ui: &mut Ui) -> FullWindowCanvasOutput {
-        let FullWindowCanvas { path, mut view, source, checkerboard, overlays, tool, momentary, navigation, mut controls } = self;
+        let FullWindowCanvas { mut view, source, checkerboard, overlays, tool, momentary, navigation, mut controls } = self;
         let ppp = ui.pixels_per_point();
         let label: Label = Env::of(ui).words::<DialogWords>().full_window_canvas.clone();
         let name: Arc<str> = Arc::from(label.as_str());
@@ -192,27 +190,28 @@ impl<'a> FullWindowCanvas<'a> {
         // gets: the fit, the drawn image and the hover mapping share it.
         let rect = ui.available_rect_before_wrap();
         let shown = given.settled(rect, size, ppp);
-        let canvas = Canvas::new(label.clone(), path).view(shown.view()).outer_view_commands().show_at_taking_room(ui, rect, |ui, body| {
-            let mut image = RasterDisplay::new(label.clone(), source);
-            if let Some(checker) = checkerboard {
-                image = image.checkerboard(checker);
-            }
-            image.show_at(ui, body.rect);
-            for (n, overlay) in overlays.iter().enumerate() {
-                match overlay.tint {
-                    Some(tint) => {
-                        let tinted = Tinted { source: overlay.source, tint };
-                        RasterDisplay::new(Label::Empty, &tinted).id_salt(("overlay", n)).show_at(ui, body.rect);
-                    }
-                    None => {
-                        RasterDisplay::new(Label::Empty, overlay.source).id_salt(("overlay", n)).show_at(ui, body.rect);
+        let canvas =
+            Canvas::new(label.clone()).view(shown.view()).document(shown.size()).outer_view_commands().show_at_taking_room(ui, rect, |ui, body| {
+                let mut image = RasterDisplay::new(label.clone(), source);
+                if let Some(checker) = checkerboard {
+                    image = image.checkerboard(checker);
+                }
+                image.show_at(ui, body.rect);
+                for (n, overlay) in overlays.iter().enumerate() {
+                    match overlay.tint {
+                        Some(tint) => {
+                            let tinted = Tinted { source: overlay.source, tint };
+                            RasterDisplay::new(Label::Empty, &tinted).id_salt(("overlay", n)).show_at(ui, body.rect);
+                        }
+                        None => {
+                            RasterDisplay::new(Label::Empty, overlay.source).id_salt(("overlay", n)).show_at(ui, body.rect);
+                        }
                     }
                 }
-            }
-            if let Some(controls) = controls.as_mut() {
-                controls(ui, body.rect);
-            }
-        });
+                if let Some(controls) = controls.as_mut() {
+                    controls(ui, body.rect);
+                }
+            });
         let output = canvas.output;
         let mut next = shown;
         let mut moved: CanvasView = shown.view();

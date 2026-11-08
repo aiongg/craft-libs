@@ -2,7 +2,7 @@
 
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Rect as DocRect};
-use craft_ui::canvas::{Canvas, CanvasScrollbars, ToolPath};
+use craft_ui::canvas::{Canvas, CanvasScrollbars};
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Pos2, Rect, Vec2};
@@ -63,7 +63,7 @@ fn shown(document: DocRect, overscroll: bool) -> Shown {
     let edited = Rc::clone(&view);
     let mut fixture = Fixture::new(move |ui| {
         let view = *edited.borrow();
-        Canvas::new("Document", ToolPath::Freehand).view(view).show(ui, |ui, body| {
+        Canvas::new("Document").view(view).show(ui, |ui, body| {
             let _ =
                 CanvasScrollbars::new("Scroll bars", Bind::bound(&mut *edited.borrow_mut()), document).overscroll(overscroll).show_at(ui, body.rect);
         });

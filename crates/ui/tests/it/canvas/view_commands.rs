@@ -2,7 +2,7 @@
 
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Size};
-use craft_ui::canvas::{Canvas, NavigationOptions, ToolPath, ViewCommand};
+use craft_ui::canvas::{Canvas, NavigationOptions, ViewCommand};
 use craft_ui::contract::ShowContainer as _;
 use craft_ui::runtime::commands;
 use craft_ui::testing::{Fixture, trial};
@@ -24,7 +24,7 @@ fn canvas() -> (Fixture, Rc<RefCell<CanvasView>>) {
         let mut navigation = NavigationOptions::default();
         navigation.animated_zoom = false;
         let shown = *held.borrow();
-        let canvas = Canvas::new("Document", ToolPath::Freehand).view(shown).document(DOC).navigation(navigation).show_at(ui, CANVAS, |_, _| {});
+        let canvas = Canvas::new("Document").view(shown).document(DOC).navigation(navigation).show_at(ui, CANVAS, |_, _| {});
         if let Some(next) = canvas.output.view {
             *held.borrow_mut() = next;
         }

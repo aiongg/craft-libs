@@ -371,13 +371,28 @@ pub(crate) fn publish(ctx: &Context, chain: &CommandChain, command: &CommandRef,
     });
 }
 
+/// The next command `from_ref` reads that is routed to `instance`. The instance of the app scope (an `AppShell`'s
+/// region) takes the app commands of the frame that no earlier reader took; the rest stay for `FrameOutput.fired`.
 pub(crate) fn take<S>(ctx: &Context, instance: Option<Id>, from_ref: fn(&CommandRef) -> Option<S>) -> Option<(S, Fired)> {
     let instance = instance?;
     with(ctx, |board| {
+        if board.instances.iter().any(|i| i.id == instance && is_app(i.scope.name())) {
+            let at = board.out.iter().position(|fired| from_ref(&fired.command).is_some())?;
+            let fired = board.out.remove(at);
+            return Some((from_ref(&fired.command)?, fired));
+        }
         let at = board.queue.iter().position(|fired| fired.target == Some(instance) && from_ref(&fired.command).is_some())?;
         let fired = board.queue.remove(at);
         Some((from_ref(&fired.command)?, fired))
     })
+}
+
+/// The next command of set `S` routed to the instance of its scope at `at` (a canvas that is one itself) or, when
+/// `at` is no instance of it, to the innermost instance in `around`, the chain of the context `at` was shown in.
+pub(crate) fn take_around<S: CommandSet>(ctx: &Context, at: Id, around: &CommandChain) -> Option<(S, Fired)> {
+    let scope = S::SCOPE.name();
+    let own = with(ctx, |board| board.instances.iter().any(|i| i.id == at && i.scope.name() == scope));
+    take(ctx, if own { Some(at) } else { around.innermost(scope) }, S::from_ref)
 }
 
 /// H7: the key stage's shortcut events, matched against the keymap in the scopes around the focused component,
@@ -402,8 +417,13 @@ pub(crate) fn begin(ctx: &Context) {
             return None;
         }
         let keymap = board.keymap.as_ref().map(|cache| Arc::clone(&cache.keymap))?;
-        let scopes: Vec<&'static str> =
-            chain.iter().rev().filter_map(|id| board.instances.iter().find(|i| i.id == *id)).map(|i| i.scope.name()).collect();
+        let scopes: Vec<&'static str> = chain
+            .iter()
+            .rev()
+            .filter_map(|id| board.instances.iter().find(|i| i.id == *id))
+            .map(|i| i.scope.name())
+            .filter(|scope| !is_app(scope))
+            .collect();
         Some((keymap, scopes, std::mem::take(&mut board.matcher)))
     });
     let Some((keymap, scopes, mut matcher)) = taken else { return };

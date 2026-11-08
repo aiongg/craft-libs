@@ -88,7 +88,7 @@ impl ShellRegion {
 
     /// An inline region that fills its room and sets `shell` for everything inside it.
     pub fn scope(shell: ShellCx) -> Self {
-        let props = ContainerProps::new().sizing(crate::contract::Sizing::Fill);
+        let props = ContainerProps::new().sizing(crate::contract::Sizing::Fill).command_scope(crate::runtime::commands::CommandScope::APP);
         ShellRegion { common: Common::new(), props, shell: Some(shell) }
     }
 

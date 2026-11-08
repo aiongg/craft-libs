@@ -3,8 +3,8 @@
 use craft_behavior::kurbo::{Point, Rect as DocRect, Size};
 use craft_behavior::{CanvasView, ZoomLadder};
 use craft_ui::canvas::{
-    Canvas, NavigationOptions, Navigator, NavigatorOptions, NavigatorSettings, NavigatorZoomRow, ProxyColor, ToolPath, ViewEase, preview_rect,
-    proxy_quad, view_center_for, zoom_to_document_rect,
+    Canvas, NavigationOptions, Navigator, NavigatorOptions, NavigatorSettings, NavigatorZoomRow, ProxyColor, ViewEase, preview_rect, proxy_quad,
+    view_center_for, zoom_to_document_rect,
 };
 use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
 use craft_ui::testing::focus::AccessActionKind;
@@ -150,7 +150,7 @@ fn zoom_row(view: &Rc<RefCell<CanvasView>>, asked: &Asked, animated: bool) -> Fi
         options.animated_zoom = animated;
         NavigatorZoomRow::new(Bind::bound(&mut *held.borrow_mut()), DOC).show(ui);
         let shown = *held.borrow();
-        let canvas = Canvas::new("Document", ToolPath::Freehand).view(shown).document(DOC).navigation(options).show_at(ui, ROW_CANVAS, |_, _| {});
+        let canvas = Canvas::new("Document").view(shown).document(DOC).navigation(options).show_at(ui, ROW_CANVAS, |_, _| {});
         if let Some(next) = canvas.output.view {
             if canvas.output.ease.is_none() {
                 *held.borrow_mut() = next;

@@ -1,6 +1,5 @@
 //! What the window keeps across passes in its root container: the canvas tools and the dialog host.
 
-use super::model::Document;
 use craft_behavior::CancelReason;
 use craft_ui::canvas::{CanvasTool, HandTool, Momentary, NavigationOptions, ToolAction, ToolContext, ToolPath, ToolPointer, ZoomTool};
 use craft_ui::dialog::DialogHost;
@@ -18,8 +17,7 @@ pub(super) struct Tools {
 impl Default for Tools {
     fn default() -> Self {
         let options = NavigationOptions::default();
-        let size = Document::default().size;
-        Tools { hand: HandTool::new(options), zoom: ZoomTool::new(size, options), momentary: Momentary::new(options, size) }
+        Tools { hand: HandTool::new(options), zoom: ZoomTool::new(options), momentary: Momentary::new(options) }
     }
 }
 

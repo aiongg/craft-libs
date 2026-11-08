@@ -2,21 +2,23 @@
 //!
 //! Space is the Hand while held, Cmd+Space (Ctrl+Space off the Mac) Zoom In, Alt+Space Zoom Out; Alt added to a held
 //! Zoom In zooms out. The keys are the [`MomentaryCommand`] set (`Kind::Momentary`): the board fires a press when the
-//! key goes down and a release when it comes up. [`Momentary`] folds those into the tool for the pass, and
-//! [`ToolHost::momentary`](super::ToolHost::momentary) runs that tool instead of the selected one. A drag that began
-//! with a tool finishes with it. Space during a marquee or shape drag is the
+//! key goes down and a release when it comes up. The set is scoped to the canvas (`canvasView`), so the commands go
+//! to the canvas that holds the key focus or surrounds it, else the one that held it last.
+//! [`ToolHost::run`](super::ToolHost::run) takes them for its canvas and folds them into [`Momentary`], which picks
+//! the tool for the pass; [`ToolHost::momentary`](super::ToolHost::momentary) runs that tool instead of the selected
+//! one. An app plumbs nothing. A drag that began with a tool finishes with it. Space during a marquee or shape drag is the
 //! tool's own key ([`ToolContext::held`](super::ToolContext::held)), and the host withholds it from the shortcuts then.
 
 use super::CanvasTool;
 use super::navigate::NavigationOptions;
 use super::tools::{HandTool, ZoomTool};
 use crate::runtime::commands::FirePhase;
-use craft_behavior::kurbo::Size;
 use craft_keymap::Mods;
 
-/// The commands that put a tool in effect while their key is held.
+/// The commands that put a tool in effect while their key is held. They are scoped like [`ViewCommand`](super::ViewCommand): a canvas is
+/// an instance of the one `canvasView` scope, and a full-window dialog's canvas leaves it to the dialog.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui_macros::CommandSet)]
-#[command(prefix = "canvasMomentary")]
+#[command(prefix = "canvasMomentary", scope = "canvasView")]
 #[non_exhaustive]
 pub enum MomentaryCommand {
     /// The Hand tool while the key is held.
@@ -59,9 +61,9 @@ impl From<MomentaryCommand> for MomentaryTool {
     }
 }
 
-/// The momentary tools and the one in effect, kept by the app across passes. The app feeds it the fired
-/// [`MomentaryCommand`]s and hands it to [`ToolHost::momentary`](super::ToolHost::momentary), which runs its Hand or
-/// Zoom tool in place of the selected tool while a key is held.
+/// The momentary tools and the one in effect, kept by the app across passes. The app hands it to
+/// [`ToolHost::momentary`](super::ToolHost::momentary), which feeds it the fired [`MomentaryCommand`]s and runs its
+/// Hand or Zoom tool in place of the selected tool while a key is held.
 #[derive(Clone, Debug)]
 pub struct Momentary {
     /// The command whose key is down.
@@ -73,20 +75,15 @@ pub struct Momentary {
 }
 
 impl Momentary {
-    /// The momentary tools for a document of `size` under `options`.
-    pub fn new(options: NavigationOptions, size: Size) -> Self {
-        Momentary { held: None, latched: None, hand: HandTool::new(options), zoom: ZoomTool::new(size, options) }
+    /// The momentary tools under `options`. The Zoom tool reads the document's size from the canvas's space.
+    pub fn new(options: NavigationOptions) -> Self {
+        Momentary { held: None, latched: None, hand: HandTool::new(options), zoom: ZoomTool::new(options) }
     }
 
     /// Follows a change of the navigation options.
     pub fn set_options(&mut self, options: NavigationOptions) {
         self.hand.options = options;
         self.zoom.options = options;
-    }
-
-    /// Follows a change of the document's size.
-    pub fn set_size(&mut self, size: Size) {
-        self.zoom.size = size;
     }
 
     /// Ends a glide of the momentary Hand: the app's clamp of the view moved it, so the view hit a scroll limit.

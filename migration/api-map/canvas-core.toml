@@ -124,14 +124,14 @@ name = "RulersResponse"
 old = "craft_ui::canvas::rulers::RulersResponse"
 new = ""
 status = "removed"
-note = "`RulersOutput` replaces it: `origin` is `zero: EditResponse<Point>`, `reset_origin` is `reset_zero`, `id` is gone (the zero point is a `Bind`, and the host commands are `RulerCommands`), `context` and `unit_picked` stay."
+note = "`RulersOutput` replaces it: `origin` is `zero: EditResponse<Point>`, `reset_origin` is gone (a reset is an edit of `zero`), `id` is gone (the zero point is a `Bind`, and the host commands are `RulerCommands`), `context` and `unit_picked` stay."
 
 [[type]]
 name = "RulersOutput"
 old = ""
 new = "craft_ui::canvas::RulersOutput"
 status = "replaced"
-note = "`RulersOutput { zero: EditResponse<Point>, guide: Option<GuideDrag>, reset_zero, unit_picked: Option<UnitKind>, context: Option<RulerPart> }` with `content_rect()`. `guide` is the guide a drag from a strip is placing in this pass; the app forwards it to the guides control."
+note = "`RulersOutput { zero: EditResponse<Point>, guide: Option<GuideDrag>, unit_picked: Option<UnitKind>, context: Option<RulerPart> }` with `content_rect()`. The corner's double click and the menu's Reset Zero Point write the origin through the zero bind (one edit in `zero`); there is no `reset_zero` field. `guide` is the guide a drag from a strip is placing in this pass; the app forwards it to the guides control."
 
 [[type]]
 name = "RulerPart"
@@ -975,7 +975,7 @@ name = "ZoomTool"
 old = "craft_ui::canvas::navigate::ZoomTool"
 new = "craft_ui::canvas::ZoomTool"
 status = "moved"
-note = "`ZoomTool::new(size, options)`; A click's change is eased (`ToolContext::ease_view`, reported as `ToolHostResponse::ease`) under Animated Zoom."
+note = "`ZoomTool::new(options)` (the document size is the canvas's: `CanvasSpace::document()`, from `Canvas::document`; a canvas given no document gives the tool none and it does nothing). A click's change is eased (`ToolContext::ease_view`, reported as `ToolHostResponse::ease`) under Animated Zoom."
 
 [[type]]
 name = "RotateViewTool"
@@ -1010,14 +1010,14 @@ name = "MomentaryCommand"
 old = ""
 new = "craft_ui::canvas::MomentaryCommand"
 status = "replaced"
-note = "`canvasMomentary.hand`, `canvasMomentary.zoom_in` and `canvasMomentary.zoom_out`, bound to Space, Cmd+Space and Alt+Space."
+note = "`canvasMomentary.hand`, `canvasMomentary.zoom_in` and `canvasMomentary.zoom_out`, bound to Space, Cmd+Space and Alt+Space. Scoped to `canvasView` like `ViewCommand`; `ToolHost::run` takes them for its canvas."
 
 [[type]]
 name = "Momentary"
 old = ""
 new = "craft_ui::canvas::Momentary"
 status = "replaced"
-note = "The momentary tools and the one in effect, kept by the app: `Momentary::new(options, size)`, `fired(MomentaryCommand, FirePhase)`, and `ToolHost::momentary(&mut Momentary)`, which runs the Hand or Zoom tool in place of the selected tool while a key is held. `tool(mods, in_gesture) -> Option<MomentaryTool>` tells which is in effect."
+note = "The momentary tools and the one in effect, kept by the app: `Momentary::new(options)` (the Zoom tool reads the document size from the canvas's space), `fired(MomentaryCommand, FirePhase)`, and `ToolHost::momentary(&mut Momentary)`, which feeds the set the `MomentaryCommand`s fired for its canvas (the set is scoped to `canvasView`; the app plumbs nothing) and runs the Hand or Zoom tool in place of the selected tool while a key is held. `tool(mods, in_gesture) -> Option<MomentaryTool>` tells which is in effect."
 
 [[type]]
 name = "MomentaryTool"
@@ -1095,7 +1095,7 @@ new = "new(options)"
 [[setter]]
 type = "ZoomTool"
 old = "new(size, prefs)"
-new = "new(size, options)"
+new = "new(options)"
 
 [[setter]]
 type = "RotateView"
@@ -1142,7 +1142,7 @@ note = "Inside the `Canvas` body; the view comes from `Canvas::view`. The guides
 type = "Rulers"
 old = "reset_zero(ctx, id)"
 new = "RulerCommands::ResetZero"
-note = "The app handles the command and puts the zero point back; `RulerOutput::reset_zero` reports the corner's double click and the menu row."
+note = "The app handles the command and puts the zero point back (`Point::ZERO`); the rulers' own corner double click and menu row write the same zero through the `Rulers::new` zero bind."
 
 [[setter]]
 type = "Rulers"
@@ -1248,3 +1248,11 @@ old = "show(ui, &mut view)"
 new = "show(ui)"
 note = "Returns `NavigatorOutput`: the view's `EditResponse` and, under Animated Zoom, `ease`, how the change to the target eases. The legacy widget with its zoom row is `NavigatorPanel::show(ui)`, which returns `NavigatorPanelOutput`."
 # End of l4e-navprev.
+
+# l4f-fscope
+[[type]]
+name = "NoTool"
+old = ""
+new = "craft_ui::canvas::NoTool"
+status = "replaced"
+note = "The tool of a canvas that has none: it takes no press, paints nothing, and its `command_form` is `ToolPath::Freehand`. `Canvas::new(label)` takes no `ToolPath`: the background part declares one fixed pointer-only reason that names the running tool's command form, and `CanvasTool::command_form` stays the one owner of the fact."

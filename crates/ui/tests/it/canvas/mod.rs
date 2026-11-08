@@ -7,7 +7,7 @@ mod tool;
 mod navigate;
 mod tools;
 
-use craft_ui::canvas::{Canvas, CropOverlay, ToolPath};
+use craft_ui::canvas::{Canvas, CropOverlay};
 use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Pos2, Rect};
@@ -43,8 +43,8 @@ fn a_press_on_a_crop_corner_stays_with_the_crop_and_one_elsewhere_reaches_the_to
     let clicked = Rc::new(RefCell::new(None));
     let (shared_crop, shared_click) = (Rc::clone(&shared), Rc::clone(&clicked));
     let mut fixture = Fixture::new(move |ui| {
-        let canvas = Canvas::new("Document", ToolPath::Command("the Crop To... command"))
-            .show(ui, |ui, body| CropOverlay::new("Crop", Bind::bound(&mut *shared_crop.borrow_mut())).show_at(ui, body.rect));
+        let canvas =
+            Canvas::new("Document").show(ui, |ui, body| CropOverlay::new("Crop", Bind::bound(&mut *shared_crop.borrow_mut())).show_at(ui, body.rect));
         if let Some(at) = canvas.output.click_at() {
             *shared_click.borrow_mut() = Some(at);
         }
@@ -67,8 +67,7 @@ fn an_arrow_on_a_focused_crop_corner_nudges_it() {
     let shared = Rc::new(RefCell::new(crop()));
     let shown = Rc::clone(&shared);
     let mut fixture = Fixture::new(move |ui| {
-        let _ = Canvas::new("Document", ToolPath::Command("the Crop To... command"))
-            .show(ui, |ui, body| CropOverlay::new("Crop", Bind::bound(&mut *shown.borrow_mut())).show_at(ui, body.rect));
+        let _ = Canvas::new("Document").show(ui, |ui, body| CropOverlay::new("Crop", Bind::bound(&mut *shown.borrow_mut())).show_at(ui, body.rect));
     });
     fixture.settle();
     let corner = fixture.by_label("Crop corner, top left").expect("the crop shows its corners");

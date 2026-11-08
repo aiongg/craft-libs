@@ -5,6 +5,7 @@ use super::{Fixture, Target, pointer};
 use crate::canvas::{Canvas, CanvasTool, ToolHost, ToolPath};
 use crate::contract::{BodyCx, ShowContainer as _};
 use crate::runtime::access::Role;
+use craft_behavior::kurbo::Size;
 use craft_behavior::{CanvasView, GesturePhase};
 use egui::{Event, Id, Key, Modifiers, Pos2, Rect, Ui, Vec2};
 use std::cell::{Cell, Ref, RefCell, RefMut};
@@ -14,6 +15,10 @@ use std::rc::Rc;
 /// The rule of the `probe` entry that names a freehand tool in `design/exceptions/<crate>/<family>.toml`; the
 /// entry's `name` is the fixture's label.
 pub const FREEHAND_RULE: &str = "probe/exempt/freehand-tool";
+
+/// The size of the document the fixture's canvas shows, in document units: what the zoom tools read from the canvas's
+/// space.
+pub const DOCUMENT: Size = Size::new(1200.0, 900.0);
 
 /// A tool shown on a canvas that fills the fixture's room, with the gesture phases the host reported.
 #[non_exhaustive]
@@ -61,8 +66,7 @@ impl<T: CanvasTool + 'static> ToolFixture<T> {
         let enabled = Rc::new(Cell::new(true));
         let (shown, seen, id, on) = (Rc::clone(&tool), Rc::clone(&gestures), Rc::clone(&canvas), Rc::clone(&enabled));
         let mut fixture = Fixture::new(move |ui| {
-            let path = shown.borrow().command_form();
-            let mut shown_canvas = Canvas::new(label, path);
+            let mut shown_canvas = Canvas::new(label).document(DOCUMENT);
             if let Some(view) = &view {
                 shown_canvas = shown_canvas.view(view(ui.available_rect_before_wrap()));
             }

@@ -1,7 +1,7 @@
 //! Stories of the pasteboard.
 
 use super::{NAME, PageBorder, PageFrame, Pasteboard, PasteboardColor};
-use crate::canvas::{Canvas, ToolPath};
+use crate::canvas::Canvas;
 use crate::contract::{Show as _, ShowContainer as _};
 use crate::style::DataColor;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
@@ -11,8 +11,6 @@ use egui::{Color32, Ui};
 
 /// Degrees the turned story rotates the view by.
 const TURN: f64 = 15.0;
-
-const PLACE_PAGES: ToolPath = ToolPath::Command("the New Artboard command");
 
 fn boards() -> Vec<PageFrame> {
     vec![
@@ -29,7 +27,7 @@ fn view(ui: &Ui) -> CanvasView {
 
 /// Shows `pasteboard` as the only canvas control of a canvas with `view`.
 fn on_canvas<'p>(ui: &mut Ui, view: CanvasView, pasteboard: impl Fn() -> Pasteboard<'p>) -> StoryOutput {
-    let shown = Canvas::new("Document", PLACE_PAGES).view(view).show(ui, |ui, body| pasteboard().show_at(ui, body.rect));
+    let shown = Canvas::new("Document").view(view).show(ui, |ui, body| pasteboard().show_at(ui, body.rect));
     shown.inner.map(StoryOutput::from).unwrap_or_default()
 }
 

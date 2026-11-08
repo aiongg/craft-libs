@@ -75,7 +75,8 @@ impl RulerPart {
 }
 
 /// The commands of the rulers. They are app commands: the app that owns the zero point and the unit choice handles a
-/// key bound to one as it handles the output of the same name.
+/// key bound to one. Reset Zero Point writes the same zero as the rulers' own reset (a double click on the corner, the
+/// units menu's row), which goes through the zero bind.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui_macros::CommandSet)]
 #[command(prefix = "canvasRulers")]
 #[non_exhaustive]
@@ -183,7 +184,7 @@ enum MenuRow {
 ///   position, which removes the guide.
 /// - A drag out of the corner moves the zero point: cross hairs show where it lands, Shift snaps to the ticks
 ///   (otherwise the app's [`snap`](Rulers::snap)), dropped back on the corner it stays, Esc cancels. A double click
-///   reports [`RulersOutput::reset_zero`]. The arrow keys move the focused corner. [`origin_locked`](Rulers::origin_locked)
+///   on the corner and the menu's Reset Zero Point put the zero point back at the document's origin, one edit through the zero bind. The arrow keys move the focused corner. [`origin_locked`](Rulers::origin_locked)
 ///   turns the drag and the reset off.
 /// - A secondary click on a strip or the corner, or the Menu key or Shift+F10 on the focused corner, opens the units
 ///   menu when [`units`](Rulers::units) lists units, and reports [`RulersOutput::context`] either way. The menu's rows are also the [`RulerCommands`].
@@ -210,7 +211,6 @@ pub struct Rulers<'a> {
     #[prop]
     units: Option<&'a [UnitKind]>,
     guide: Option<GuideDrag>,
-    reset: bool,
     picked: Option<UnitKind>,
     context: Option<RulerPart>,
 }
@@ -228,7 +228,6 @@ impl<'a> Rulers<'a> {
             snap: None,
             units: None,
             guide: None,
-            reset: false,
             picked: None,
             context: None,
         }
@@ -410,7 +409,7 @@ impl Component for Rulers<'_> {
                 _ => {}
             }
             if press.double_pressed() {
-                self.reset = true;
+                cx.set(Point::ZERO);
             }
         }
         let focused = cx.active_part().is_some_and(|part| part.key == CORNER);
@@ -450,7 +449,7 @@ impl Component for Rulers<'_> {
         if let Some(pick) = ui.show(popup, layer, |ui, _| Menu::inline(name.clone()).pick(ui, &entries)) {
             match pick.picked {
                 Some(MenuRow::Unit(kind)) => self.picked = Some(kind),
-                Some(MenuRow::ResetZero) => self.reset = true,
+                Some(MenuRow::ResetZero) => cx.set(Point::ZERO),
                 None => {}
             }
         }
@@ -578,7 +577,7 @@ impl Component for Rulers<'_> {
     fn finish(self, cx: Cx<'_, Self>) -> RulersOutput {
         let zero = cx.edit_response();
         let content = Rulers::content_rect_of(cx.rect, cx.style.thickness);
-        RulersOutput { zero, guide: self.guide, reset_zero: self.reset, unit_picked: self.picked, context: self.context, content }
+        RulersOutput { zero, guide: self.guide, unit_picked: self.picked, context: self.context, content }
     }
 }
 
@@ -592,14 +591,12 @@ impl Rulers<'_> {
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct RulersOutput {
-    /// The zero point (document units): a corner drag's gesture, a nudge of the focused corner.
+    /// The zero point (document units): a corner drag's gesture, a nudge of the focused corner, or the reset to the
+    /// document's origin (a double click on the corner, the menu's Reset Zero Point).
     pub zero: EditResponse<Point>,
     /// The guide a drag from a strip is placing in this pass. The app forwards it to the guides control; it ends
     /// with a `Commit` or a `Cancel`, and a position of `None` removes the guide.
     pub guide: Option<GuideDrag>,
-    /// The corner was double-clicked or the units menu's Reset Zero Point ran: the app puts the zero point back at the
-    /// document's origin.
-    pub reset_zero: bool,
     /// A unit picked from the rulers' own menu ([`Rulers::units`]): the app keeps it as the ruler unit.
     pub unit_picked: Option<UnitKind>,
     /// A strip or the corner was clicked with the secondary button, or the focused corner asked for its menu (the Menu

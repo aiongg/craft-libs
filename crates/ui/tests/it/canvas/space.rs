@@ -2,7 +2,7 @@
 
 use craft_behavior::kurbo::Point;
 use craft_behavior::{CanvasView, Wheel};
-use craft_ui::canvas::{Canvas, CanvasSpace, ToolPath, canvas_space};
+use craft_ui::canvas::{Canvas, CanvasSpace, canvas_space};
 use craft_ui::contract::{Role, ShowContainer as _};
 use craft_ui::sections::GroupBox;
 use craft_ui::testing::pointer;
@@ -22,7 +22,7 @@ fn a_member_in_a_canvas_body_reads_the_view_and_one_outside_reads_none() {
     let shared = Rc::clone(&seen);
     let mut fixture = Fixture::new(move |ui| {
         GroupBox::new("Outside", None).show(ui, |_, body| shared.borrow_mut().0 = canvas_space(&body.env));
-        Canvas::new("Document", ToolPath::Freehand).view(view).show(ui, |_, body| shared.borrow_mut().1 = canvas_space(&body.env));
+        Canvas::new("Document").view(view).show(ui, |_, body| shared.borrow_mut().1 = canvas_space(&body.env));
     });
     fixture.settle();
 
@@ -45,7 +45,7 @@ fn watched() -> Watched {
     let (wheels, pans, presses) = (Rc::new(RefCell::new(Vec::new())), Rc::new(RefCell::new(Vec::new())), Rc::new(RefCell::new(0)));
     let (w, p, t) = (Rc::clone(&wheels), Rc::clone(&pans), Rc::clone(&presses));
     let mut fixture = Fixture::new(move |ui| {
-        let canvas = Canvas::new("Document", ToolPath::Freehand).view(turned_view()).show(ui, |_, _| {});
+        let canvas = Canvas::new("Document").view(turned_view()).show(ui, |_, _| {});
         w.borrow_mut().extend(canvas.output.wheel);
         p.borrow_mut().extend(canvas.output.pan);
         if canvas.output.press.phase.is_press() {

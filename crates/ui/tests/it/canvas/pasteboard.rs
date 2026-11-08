@@ -2,7 +2,7 @@
 
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Rect as DocRect};
-use craft_ui::canvas::{Canvas, PageFrame, Pasteboard, ToolPath};
+use craft_ui::canvas::{Canvas, PageFrame, Pasteboard};
 use craft_ui::contract::{Role, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Pos2, Rect, Vec2};
@@ -65,7 +65,7 @@ fn context_after_secondary_click(offset: Vec2) -> Option<Point> {
     let mut fixture = Fixture::new(move |ui| {
         let room = ui.available_rect_before_wrap();
         let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
-        Canvas::new("Document", ToolPath::Freehand).view(view).show(ui, |ui, body| {
+        Canvas::new("Document").view(view).show(ui, |ui, body| {
             if let Some(at) = Pasteboard::new("Pasteboard", &pages).show_at(ui, body.rect).context_at {
                 shown.set(Some(at));
             }

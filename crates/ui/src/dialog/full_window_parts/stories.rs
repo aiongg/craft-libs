@@ -1,7 +1,7 @@
 //! Stories of the full-window parts.
 
 use super::{FullWindowCanvas, FullWindowSide, FullWindowStatus, FullWindowTitle, FullWindowView, FullWindowZoomBar, RasterOverlay};
-use crate::canvas::{PixelRect, RasterSource, ToolPath};
+use crate::canvas::{PixelRect, RasterSource};
 use crate::contract::{Bind, Show as _, ShowContainer as _};
 use crate::display::Text;
 use crate::primitives::{Checker, Revision};
@@ -99,7 +99,7 @@ fn canvas(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     static IMAGE_SOURCE: Flat = Flat { colour: Color32::from_rgb(0x4a, 0x7f, 0xc1), half: true };
     static MASK: Flat = Flat { colour: Color32::from_rgba_premultiplied(0x40, 0x00, 0x00, 0x40), half: false };
     let view = data.value("view", FullWindowView::new());
-    FullWindowCanvas::new(ToolPath::Freehand, Bind::bound(view), &IMAGE_SOURCE)
+    FullWindowCanvas::new(Bind::bound(view), &IMAGE_SOURCE)
         .checkerboard(Checker::new())
         .overlay(RasterOverlay::new(&MASK).tint(Color32::from_rgb(0xc0, 0x40, 0x40)))
         .show(ui)
