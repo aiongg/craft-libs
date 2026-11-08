@@ -21,6 +21,7 @@ pub mod stack;
 mod stories;
 pub mod targets;
 pub mod tree;
+mod window_menu;
 mod words;
 
 pub mod desktop;
@@ -54,6 +55,7 @@ mod iconic;
 pub use dock_column::{DockColumn, DockColumnOutput, DockColumnStyle, GroupSize, GroupView, fit_widths, group_heights, stacked, width_bounds};
 pub use flyout::Flyout;
 pub use iconic::{IconicColumn, IconicColumnOutput, IconicColumnStyle, IconicSizes};
+pub use window_menu::{WindowMenuRows, WindowMenuRowsOutput};
 
 use crate::contract::{
     Access, Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, Focus as _, Outcome, Pad, PaintUi,

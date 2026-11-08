@@ -8,7 +8,7 @@ use std::{collections::HashSet, hash::Hash};
 
 use super::{
     DockSide,
-    action::{Action, Location, DockPlacement},
+    action::{Action, DockPlacement, Location},
     layout::Layout,
     limits::MAX_PANELS,
     policy::{DockError, Permissions},

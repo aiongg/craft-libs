@@ -12,7 +12,7 @@ use super::{DockEvent, DragUnit, FloatSpace};
 use crate::runtime::commands::CommandState;
 use craft_behavior::DockSide;
 use craft_behavior::dock::{
-    Action, Arrangement, DockEdge, DockError, DocumentWindows, Layout, Node, PanelPlace, Permissions, DockPlacement, Target, Workspace, WorkspaceSet,
+    Action, Arrangement, DockEdge, DockError, DockPlacement, DocumentWindows, Layout, Node, PanelPlace, Permissions, Target, Workspace, WorkspaceSet,
     arrange_rects, node_at,
 };
 use craft_behavior::placement::cascade_rects;

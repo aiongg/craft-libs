@@ -6,7 +6,7 @@ use crate::flow::Axis;
 
 use super::{
     DockSide,
-    action::{Action, Location, DockPlacement},
+    action::{Action, DockPlacement, Location},
     edit::{node_at, valid_column},
     groups::{Column, ColumnLocation, DockEdge, Group, GroupLocation, Moving, PanelPlace, PanelState, Target},
     inner::{

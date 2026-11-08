@@ -7,7 +7,7 @@ use crate::flow::Axis;
 
 use super::{
     DockSide,
-    action::{Action, Location, DockPlacement},
+    action::{Action, DockPlacement, Location},
     edit::{node_at, split_frame, split_frame_sized},
     groups::{Column, DockEdge, Group, Moving, PanelPlace, Target, Unit},
     layout::Layout,
@@ -296,10 +296,17 @@ impl<P: Clone + Eq + Hash> Layout<P> {
         edge.map(|(panel, _)| ((*panel).clone(), DockPlacement::Edge(DockSide::End)))
     }
 
-    pub(super) fn insert(&mut self, entry: StackEntry<P>, anchor: &P, placement: DockPlacement<P>, canvas: &dyn Fn(&P) -> bool) -> Result<(), DockError> {
+    pub(super) fn insert(
+        &mut self,
+        entry: StackEntry<P>,
+        anchor: &P,
+        placement: DockPlacement<P>,
+        canvas: &dyn Fn(&P) -> bool,
+    ) -> Result<(), DockError> {
         let place = self.place(anchor).ok_or(DockError::MissingTarget)?;
         let tree = place.tree_path().map(|(window, path)| (window, path.to_vec()));
-        let Some((window, path)) = tree.filter(|_| !matches!(placement, DockPlacement::Group { .. } | DockPlacement::Column { .. } | DockPlacement::Edge(_)))
+        let Some((window, path)) =
+            tree.filter(|_| !matches!(placement, DockPlacement::Group { .. } | DockPlacement::Column { .. } | DockPlacement::Edge(_)))
         else {
             let group = Group::new(vec![entry.panel], 0);
             return self.insert_moving(Moving::group(group), Target::At { anchor: anchor.clone(), placement }, canvas);

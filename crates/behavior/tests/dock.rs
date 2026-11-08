@@ -1,7 +1,7 @@
 //! The dock model: validation, restore to the old place, permissions and the persisted shapes.
 
 use craft_behavior::dock::{
-    Action, Column, DockEdge, DockError, DockSide, Floating, Group, Layout, Location, Node, PanelState, Permissions, DockPlacement, SplitSize,
+    Action, Column, DockEdge, DockError, DockPlacement, DockSide, Floating, Group, Layout, Location, Node, PanelState, Permissions, SplitSize,
 };
 use craft_behavior::{Axis, Flow, Monitor};
 use emath::{Pos2, Rect, Vec2};

@@ -1,9 +1,9 @@
 //! Dock transactions, workspaces, arrangements, document windows and native placement.
 
 use craft_behavior::dock::{
-    Action, Arrangement, Column, DockEdge, DockError, DockSide, DocumentGroup, DocumentWindows, Floating, Group, Layout, NamedWorkspace, NativeSpace,
-    Node, PanelPlace, PanelState, Permissions, DockPlacement, SplitSize, Target, Workspace, WorkspaceChrome, WorkspaceError, WorkspaceSet, arrange_rects,
-    kept_reachable, node_at, restore_rect,
+    Action, Arrangement, Column, DockEdge, DockError, DockPlacement, DockSide, DocumentGroup, DocumentWindows, Floating, Group, Layout,
+    NamedWorkspace, NativeSpace, Node, PanelPlace, PanelState, Permissions, SplitSize, Target, Workspace, WorkspaceChrome, WorkspaceError,
+    WorkspaceSet, arrange_rects, kept_reachable, node_at, restore_rect,
 };
 use craft_behavior::placement::{cascade, cascade_rects, monitor_of};
 use craft_behavior::{Axis, Monitor};

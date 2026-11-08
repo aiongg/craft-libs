@@ -11,7 +11,7 @@ use crate::contract::{DropMark, DropOperation, DropTarget, Pointer};
 use crate::runtime::drag::{self, DragPreview};
 use crate::runtime::env::Label;
 use crate::runtime::pointer;
-use craft_behavior::dock::{Action, DockEdge, Layout, Node, PanelPlace, Permissions, DockPlacement, Target};
+use craft_behavior::dock::{Action, DockEdge, DockPlacement, Layout, Node, PanelPlace, Permissions, Target};
 use craft_behavior::{CancelReason, DockSide};
 use egui::{Context, Id, Pos2, Rect, Vec2};
 use std::hash::Hash;

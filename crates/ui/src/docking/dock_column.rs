@@ -367,6 +367,8 @@ pub struct DockColumn<'a, P: Value + Hash + 'static> {
     #[prop]
     room: f32,
     bar: BarRecord,
+    /// The plan `parts` laid out this pass, which update, paint and access read.
+    laid: Option<Plan>,
     resized: Vec<(P, f32)>,
     width: Option<f32>,
     toggled: bool,
@@ -386,6 +388,7 @@ impl<'a, P: Value + Hash + 'static> DockColumn<'a, P> {
             edge: DockEdge::Start,
             room: 0.0,
             bar: BarRecord::default(),
+            laid: None,
             resized: Vec::new(),
             width: None,
             toggled: false,
@@ -505,21 +508,23 @@ impl<P: Value + Hash + 'static> Component for DockColumn<'_, P> {
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let sizes = cx.style.sizes;
         let plan = self.plan(rect, &sizes);
+        let dividers = plan.dividers(rect, sizes.reach);
         cx.part(BAR, plan.bar)
             .sense(Sense::DRAG)
             .cursor(CursorIcon::Grab)
             .drag_cursor(CursorIcon::Grabbing)
             .pointer_only("Move Panel To in the panel menu moves the panels of the column");
-        for (key, _, divider) in plan.dividers(rect, sizes.reach) {
+        for (key, _, divider) in dividers {
             divider::declare(cx, rect, DIVIDER, key, &divider);
         }
         divider::declare(cx, rect, EDGE, 0, &self.edge_divider(rect, &sizes));
+        self.laid = Some(plan);
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let sizes = cx.style.sizes;
         let (rect, rtl, ctx) = (cx.rect, cx.flow.is_rtl(), cx.core.ctx.clone());
-        let mut plan = self.plan(rect, &sizes);
+        let Some(mut plan) = self.laid.take() else { return };
         let bar = cx.part(BAR).clone();
         if matches!(bar.press.phase, PressPhase::DragStart { start, .. } if start.button == craft_behavior::PointerButton::Primary) {
             drag_column(cx, self.column, self.spec, rect.size());
@@ -546,10 +551,11 @@ impl<P: Value + Hash + 'static> Component for DockColumn<'_, P> {
         }
         cx.core.memory.shown::<GroupRects>(sub(sub(cx.core.id, "body"), RECTS)).0 = plan.groups.clone();
         self.register(&ctx, rect, rtl, &plan, &sizes);
+        self.laid = Some(plan);
     }
 
-    fn paint_over(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let plan = self.plan(cx.rect, &cx.style.sizes);
+    fn paint_over(&mut self, ui: &mut PaintUi<'_>, _: &Cx<'_, Self>) {
+        let Some(plan) = self.laid.as_ref() else { return };
         for pair in plan.open.windows(2) {
             ui.face(DIVIDER.at(pair[0] as u64), Splitter::new(Axis::Y));
         }
@@ -559,7 +565,7 @@ impl<P: Value + Hash + 'static> Component for DockColumn<'_, P> {
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let words = cx.words::<DockWords>();
         let sizes = cx.style.sizes;
-        let plan = self.plan(cx.rect, &sizes);
+        let Some(plan) = self.laid.as_ref() else { return };
         access.node(BAR, Role::BUTTON).name = Name::Text(bar_name(self.column, self.spec, &words.move_column));
         for (key, _, divider) in plan.dividers(cx.rect, sizes.reach) {
             divider::describe(access, DIVIDER, key, &divider, words.resize.as_str(), sizes.step);

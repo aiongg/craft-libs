@@ -749,7 +749,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
                 let Some(output) = region(ui, cell, |ui| {
                     IconicColumn::new(name.clone(), scene.dock, column, Bind::given(open.clone()), &spec)
                         .edge(plan.edge)
-                        .room(plan.rect.width())
+                        .room(body.rect.width() - scene.sizes.least_pane)
                         .auto_collapse(scene.auto_collapse)
                         .show_flyouts(ui, |group, rect, ui, body| self.group_of(ui, body, group, rect))
                 }) else {
@@ -764,7 +764,7 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
                 let Some(output) = region(ui, cell, |ui| {
                     DockColumn::new(name.clone(), scene.dock, column, &spec)
                         .edge(plan.edge)
-                        .room(plan.rect.width())
+                        .room(body.rect.width() - scene.sizes.least_pane)
                         .auto_collapse(scene.auto_collapse)
                         .show_groups(ui, |group, rect, ui, body| self.group_of(ui, body, group, rect))
                 }) else {
@@ -927,7 +927,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
 /// `from`, to the sizes `to` has.
 fn split_resizes<P: Clone>(anchor: &P, from: &Node<P>, to: &Node<P>) -> Vec<Action<P>> {
     fn walk<P: Clone>(anchor: &P, from: &Node<P>, to: &Node<P>, path: &mut Vec<bool>, out: &mut Vec<Action<P>>) {
-        let (Node::Split { size: was, first: first_was, second: second_was, .. }, Node::Split { size, first, second, .. }) = (from, to) else { return };
+        let (Node::Split { size: was, first: first_was, second: second_was, .. }, Node::Split { size, first, second, .. }) = (from, to) else {
+            return;
+        };
         if was != size {
             out.push(Action::resize_window_split(anchor.clone(), path.clone(), *size));
         }

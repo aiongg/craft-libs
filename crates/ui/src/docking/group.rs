@@ -8,8 +8,8 @@ use super::words::DockWords;
 use super::{PanelDrag, PanelKey, PanelTitle};
 use crate::buttons::IconButton;
 use crate::contract::{
-    Bind, BodyCx, Common, Component, Container, ContainerProps, ContextMenuRequest, Cx, HeaderRegion, ListDrag, MeasureCx, Outcome, PaintUi, Pointer as _,
-    Props as _, Role, Show as _, ShowCollection as _, ShowContainer as _, Sizing, Styled as _, Trigger, WordSetCx as _,
+    Bind, BodyCx, Common, Component, Container, ContainerProps, ContextMenuRequest, Cx, HeaderRegion, ListDrag, MeasureCx, Outcome, PaintUi,
+    Pointer as _, Props as _, Role, Show as _, ShowCollection as _, ShowContainer as _, Sizing, Styled as _, Trigger, WordSetCx as _,
 };
 use crate::controls::disclosure::Disclosure;
 use crate::layout_components::Row;

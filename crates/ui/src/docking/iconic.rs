@@ -1,7 +1,7 @@
 //! `IconicColumn`: a column collapsed to one icon per panel, and the flyouts its icons open.
 
-use super::dock_column::{BarRecord, GroupView, bar_name, drag_column, register_edges, show_bar};
 use super::divider::{self, Divider, Drag};
+use super::dock_column::{BarRecord, GroupView, bar_name, drag_column, register_edges, show_bar};
 use super::{DockSizes, DockSpot, DockTargets, DockWords, DragUnit, Flyout, PanelKey, PanelSpec, Splitter, start_group_drag};
 use crate::buttons::IconButton;
 use crate::contract::overlay::Popup;
@@ -124,6 +124,8 @@ pub struct IconicColumn<'a, P: Value + Hash + 'static> {
     shown: Option<usize>,
     toggled: bool,
     width: Option<f32>,
+    /// The plan `parts` laid out this pass, which update and access read.
+    laid: Option<Plan>,
 }
 
 /// Where the parts of an iconic column sit.
@@ -160,6 +162,7 @@ impl<'a, P: Value + Hash + 'static> IconicColumn<'a, P> {
             shown: None,
             toggled: false,
             width: None,
+            laid: None,
         }
         .label(label)
     }
@@ -281,12 +284,13 @@ impl<P: Value + Hash + 'static> Component for IconicColumn<'_, P> {
                 .pointer_only("Move Panel To in the panel menu moves the group's panels");
         }
         divider::declare(cx, rect, EDGE, 0, &self.edge_divider(rect, &sizes.column));
+        self.laid = Some(plan);
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let sizes = cx.style.sizes;
         let (rect, rtl, ctx) = (cx.rect, cx.flow.is_rtl(), cx.core.ctx.clone());
-        let plan = self.plan(rect, &sizes);
+        let Some(plan) = self.laid.take() else { return };
         let flat = self.flat();
         let popup = cx.popup("flyout");
         let dragging =
@@ -357,6 +361,7 @@ impl<P: Value + Hash + 'static> Component for IconicColumn<'_, P> {
         }
         self.shown = at;
         self.register(&ctx, rect, rtl, &plan, &sizes);
+        self.laid = Some(plan);
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, _: &Cx<'_, Self>) {
@@ -373,7 +378,7 @@ impl<P: Value + Hash + 'static> Component for IconicColumn<'_, P> {
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let words = cx.words::<DockWords>();
         let sizes = cx.style.sizes;
-        let plan = self.plan(cx.rect, &sizes);
+        let Some(plan) = self.laid.as_ref() else { return };
         access.node(super::dock_column::BAR, Role::BUTTON).name = Name::Text(bar_name(self.column, self.spec, &words.move_column));
         for (at, (group, panel)) in self.flat().iter().enumerate() {
             let Some(panel) = self.panel(*group, *panel) else { continue };

@@ -4,8 +4,8 @@
 //! the mirroring for right-to-left.
 
 use crate::contract::{Access, Component, Cx, Focus as _, Name, Numeric, PartsCx, Pointer as _, Role};
-use craft_behavior::nav::{StepResult, ValueAxes, ValueSteps, step_value};
 use craft_behavior::dock::DockEdge;
+use craft_behavior::nav::{StepResult, ValueAxes, ValueSteps, step_value};
 use craft_behavior::{Axis, CursorIcon, Flow, HitLevel, HitPriority, NavMove, PartKey, PressPhase, Sense};
 use egui::{Pos2, Rect};
 

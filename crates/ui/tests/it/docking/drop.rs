@@ -1,6 +1,6 @@
 //! Drop resolution: a spot under the pointer becomes the model action that moves the dragged panel or group.
 
-use craft_behavior::dock::{Action, Column, DockEdge, Floating, Group, Layout, Node, Permissions, DockPlacement, SplitSize, Target};
+use craft_behavior::dock::{Action, Column, DockEdge, DockPlacement, Floating, Group, Layout, Node, Permissions, SplitSize, Target};
 use craft_behavior::{Axis, DockSide};
 use craft_theme::{Contrast, ControlSize, Mode};
 use craft_ui::docking::{DockDrag, DockSizes, DockSpot, DockTargets, DragUnit, FloatSpace, float_drop, resolve_drop};
