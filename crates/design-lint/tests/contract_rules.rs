@@ -201,3 +201,14 @@ fn registration_reads_the_whole_crate() {
     let hits: Vec<_> = report.findings.iter().map(|f| (f.path.display().to_string(), f.rule, f.line)).collect();
     assert_eq!(hits, [("src/b.rs".to_owned(), "contract/registration", 5)], "`Listed` is registered in another file; `Loose` is not");
 }
+
+#[test]
+fn only_craft_win32_and_the_benchmark_allocator_may_allow_unsafe_code() {
+    let src = fixture("reject", "contract-unsafe-allow.rs");
+    for path in ["crates/window/src/mac.rs", "crates/window/src/win32.rs", "crates/ui/src/runtime/windows.rs", "crates/ui-bench/src/other.rs"] {
+        assert_eq!(rules_at(&src, path, &scope()), ["contract/unsafe-allow"], "{path}");
+    }
+    for path in ["crates/win32/src/lib.rs", "crates/ui-bench/src/alloc.rs"] {
+        assert!(rules_at(&src, path, &scope()).is_empty(), "{path}");
+    }
+}

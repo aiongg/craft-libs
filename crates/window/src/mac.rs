@@ -212,6 +212,39 @@ pub fn set_movable(movable: bool, applied: &mut Option<bool>) {
     let _ = (movable, applied);
 }
 
+/// Sets the opacity (1 is opaque) of the AppKit windows titled `title`. egui has no viewport command for it, and a
+/// transparent surface would need the main window transparent too (eframe picks one alpha mode for every viewport),
+/// so this goes to AppKit, which fades content, corners and shadow together. A window's native handle is a raw
+/// `NSView` pointer and turning that into an `NSWindow` needs `unsafe`, so the window is found by title; two
+/// windows with one title fade together. Returns whether a window was found. Does nothing off macOS.
+pub fn set_opacity(title: &str, opacity: f32) -> bool {
+    #[cfg(all(feature = "appkit", target_os = "macos"))]
+    {
+        use objc2::MainThreadMarker;
+        use objc2_app_kit::NSApplication;
+        use objc2_foundation::NSString;
+
+        let Some(mtm) = MainThreadMarker::new() else { return false };
+        let title = NSString::from_str(title);
+        let opacity = f64::from(opacity);
+        let mut found = false;
+        for window in NSApplication::sharedApplication(mtm).windows().iter() {
+            if window.title().isEqualToString(&title) {
+                found = true;
+                if window.alphaValue() != opacity {
+                    window.setAlphaValue(opacity);
+                }
+            }
+        }
+        found
+    }
+    #[cfg(not(all(feature = "appkit", target_os = "macos")))]
+    {
+        let _ = (title, opacity);
+        false
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

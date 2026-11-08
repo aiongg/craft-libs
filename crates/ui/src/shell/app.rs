@@ -162,7 +162,11 @@ impl<A: ShellApp> eframe::App for Driver<A> {
         windows::logic(ctx);
     }
 
-    fn ui(&mut self, ui: &mut Ui, _: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut Ui, frame: &mut eframe::Frame) {
+        #[cfg(windows)]
+        windows::route_root(ui.ctx(), || craft_window::native::NativeWindow::of_handle(&*frame));
+        #[cfg(not(windows))]
+        let _ = frame;
         // The monitor is known only once the window exists, so the fit runs from the first passes, and once.
         if !self.fitted {
             self.fitted = fit_first(ui.ctx());
