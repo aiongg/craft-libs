@@ -339,16 +339,17 @@ fn a_click_on_a_mask_chain_reports_the_link_change() {
     assert!(mask_links(&take(&app)).contains(&(3, LayerPart::LayerMask, true)));
 }
 
-/// Whether a rename field is open: a text input other than the filter bar's search field.
-fn rename_field_open(fixture: &Fixture) -> bool {
-    fixture.by_role(Role::TEXT_INPUT).iter().any(|field| fixture.tree().name_of(field.node) != Some("Search layers"))
+/// The number of text inputs shown: the panel's number fields, plus the rename field while a row is renamed.
+fn text_inputs(fixture: &Fixture) -> usize {
+    fixture.by_role(Role::TEXT_INPUT).len()
 }
 
 /// Opens the rename field of `name` by a double click on it.
 fn begin_rename(fixture: &mut Fixture, app: &Shared, name: &str) {
+    let plain = text_inputs(fixture);
     let pos = name_at(fixture, name);
     double_click(fixture, pos);
-    assert!(rename_field_open(fixture), "{name} is being renamed");
+    assert!(text_inputs(fixture) > plain, "{name} is being renamed");
     take(app);
 }
 
@@ -366,27 +367,28 @@ fn retype(fixture: &mut Fixture, text: &str) {
 #[trial]
 fn rename_rules_enter_tab_escape_empty_unchanged() {
     let (mut fixture, app) = rig(FakeLayers::sample());
+    let plain = text_inputs(&fixture);
     begin_rename(&mut fixture, &app, "Title");
     retype(&mut fixture, "  Heading ");
     fixture.key(Key::Enter, Modifiers::NONE);
     let events = take(&app);
     assert_eq!(renames(&events), [(4, String::from("Heading"))], "Enter commits the trimmed text; events: {events:?}");
-    assert!(!rename_field_open(&fixture));
+    assert_eq!(text_inputs(&fixture), plain);
 
     begin_rename(&mut fixture, &app, "Title");
     retype(&mut fixture, "Tabbed");
     fixture.key(Key::Tab, Modifiers::NONE);
     assert_eq!(renames(&take(&app)), [(4, String::from("Tabbed"))], "Tab commits");
-    assert!(rename_field_open(&fixture), "and continues on the next renamable row");
+    assert!(text_inputs(&fixture) > plain, "and continues on the next renamable row");
     fixture.key(Key::Escape, Modifiers::NONE);
     assert!(renames(&take(&app)).is_empty(), "Esc cancels the continued edit");
-    assert!(!rename_field_open(&fixture));
+    assert_eq!(text_inputs(&fixture), plain);
 
     begin_rename(&mut fixture, &app, "Title");
     retype(&mut fixture, "Discarded");
     fixture.key(Key::Escape, Modifiers::NONE);
     assert!(renames(&take(&app)).is_empty(), "Esc reports nothing");
-    assert!(!rename_field_open(&fixture));
+    assert_eq!(text_inputs(&fixture), plain);
 
     begin_rename(&mut fixture, &app, "Title");
     retype(&mut fixture, "");
