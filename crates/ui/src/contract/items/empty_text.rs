@@ -9,7 +9,7 @@ use egui::{Response, Vec2};
 
 /// The style of the empty-state text.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
-struct EmptyTextStyle {
+pub(super) struct EmptyTextStyle {
     #[style(metrics)]
     metrics: Metrics,
 }
