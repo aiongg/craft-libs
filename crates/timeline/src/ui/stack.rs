@@ -131,8 +131,8 @@ impl TrackSizes {
             _ => None,
         };
         let name = name.and_then(fixed).or_else(|| fixed(NAME_DEFAULT)).unwrap_or(0.0);
-        let switches = SWITCHES.iter().filter_map(|_| fixed(SWITCH_WIDTH));
-        fixed(STRIP_WIDTH).into_iter().chain(Some(name)).chain(switches).sum()
+        let switches = SWITCHES.len() as f32 * fixed(SWITCH_WIDTH).unwrap_or(0.0);
+        fixed(STRIP_WIDTH).unwrap_or(0.0) + name + switches
     }
 }
 
@@ -333,7 +333,7 @@ impl Component for TrackStack {
         TrackStackStyle { metrics: Metrics::new() }
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> Self::Output {
+    fn finish(self, mut cx: Cx<'_, Self>) -> Self::Output {
         cx.collection_response()
     }
 }
