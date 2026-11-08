@@ -15,7 +15,7 @@ use craft_ui::rails::{LastUsed, ToolRail};
 use craft_ui::runtime::env::{Label, WindowKey};
 use craft_ui::shell::{AppShell, AppShellOutput, Title, TitleBar};
 use egui::Ui;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 /// The percent a zoom of 1 shows.
 const PERCENT: f64 = 100.0;
@@ -140,7 +140,7 @@ fn answers(host: &mut craft_ui::dialog::DialogHost, parts: &mut Parts<'_>) {
 
 fn title_bar(ui: &mut Ui, parts: &mut Parts<'_>) {
     let title = if parts.document.dirty { Title::unsaved(parts.document.title.clone()) } else { Title::new(parts.document.title.clone()) };
-    let mut asked = None;
+    let asked = Cell::new(None);
     TitleBar::new().show_titled(
         ui,
         title,
@@ -154,17 +154,17 @@ fn title_bar(ui: &mut Ui, parts: &mut Parts<'_>) {
                 MenuTitle::new("&Edit", |ui| {
                     EditMenu.show(ui);
                     if MenuItem::new("&Delete Layer...").show(ui).ran {
-                        asked = Some(Request::DeleteLayer);
+                        asked.set(Some(Request::DeleteLayer));
                     }
                 }),
                 MenuTitle::new("&Image", |ui| {
                     if MenuItem::new("Image &Size...").show(ui).ran {
-                        asked = Some(Request::ImageSize);
+                        asked.set(Some(Request::ImageSize));
                     }
                 }),
                 MenuTitle::new("Fil&ter", |ui| {
                     if MenuItem::new("&Gaussian Blur...").show(ui).ran {
-                        asked = Some(Request::GaussianBlur);
+                        asked.set(Some(Request::GaussianBlur));
                     }
                 }),
             ];
@@ -172,8 +172,8 @@ fn title_bar(ui: &mut Ui, parts: &mut Parts<'_>) {
         },
         |_, _| {},
     );
-    if asked.is_some() {
-        *parts.request = asked;
+    if asked.get().is_some() {
+        *parts.request = asked.get();
     }
 }
 
