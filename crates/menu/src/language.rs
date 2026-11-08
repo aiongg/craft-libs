@@ -12,11 +12,11 @@ use craft_keymap::CommandRef;
 use crate::model::{Item, ItemRole, Node};
 
 /// The command every Language row runs, with `{"lang": "<code>"}` (`"auto"` for Automatic).
-// vectorcraft: crates/ui-egui/src/native_menu.rs:366 (`app.language` with `{"lang": …}`).
 pub const LANGUAGE_COMMAND: &str = "app.language";
 
 /// What a Language row chose.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum LanguageChoice {
     /// Follow the system's language ([`I18n::system_lang`]).
     Automatic,
@@ -40,11 +40,19 @@ impl LanguageChoice {
 
 /// One language row: its code and its name in itself ("Français").
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct LanguageRow {
     /// The language code the app stores.
     pub code: String,
     /// The language's name in itself.
     pub name: String,
+}
+
+impl LanguageRow {
+    /// A row for the language `code`, named `name` in itself.
+    pub fn new(code: impl Into<String>, name: impl Into<String>) -> LanguageRow {
+        LanguageRow { code: code.into(), name: name.into() }
+    }
 }
 
 /// The Language submenu.
@@ -76,7 +84,6 @@ impl LanguageMenu {
     }
 
     /// The menu of the languages `i18n` offers.
-    // vectorcraft: crates/ui-egui/src/native_menu.rs:364 `language_node` (`Lang::for_picker`).
     pub fn from_i18n(i18n: &I18n, current: LanguageChoice) -> Self {
         let rows = i18n.languages().into_iter().map(|l| LanguageRow { code: i18n.code(l).to_owned(), name: i18n.name(l).to_owned() }).collect();
         LanguageMenu::new(rows, current)

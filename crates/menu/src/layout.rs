@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 
+use craft_host::target::{Os, Runtime};
 use craft_keymap::{Chord, CommandRef, Key, Mods};
 
 use crate::model::{Builtin, Item, ItemRole, Menu, MenuBar, MenuRole, Node, Platforms, Standard, tidy};
@@ -19,6 +20,7 @@ const CMD_COMMA: Chord = Chord::new(Mods::CMD, Key::Comma);
 
 /// The platform a layout is for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Target {
     #[allow(missing_docs)]
     Mac,
@@ -34,14 +36,11 @@ impl Target {
     /// The platform this build runs on: `wasm32` builds are [`Target::Web`], and operating
     /// systems other than macOS and Windows are [`Target::Linux`].
     pub const fn current() -> Target {
-        if cfg!(target_arch = "wasm32") {
-            Target::Web
-        } else if cfg!(target_os = "macos") {
-            Target::Mac
-        } else if cfg!(target_os = "windows") {
-            Target::Windows
-        } else {
-            Target::Linux
+        match (Runtime::current(), Os::current()) {
+            (Runtime::Web, _) => Target::Web,
+            (_, Os::Mac) => Target::Mac,
+            (_, Os::Windows) => Target::Windows,
+            _ => Target::Linux,
         }
     }
 
@@ -58,6 +57,7 @@ impl Target {
 
 /// The app's name, its translations of the labels the layout writes itself, and its shortcuts
 /// that no menu item shows.
+#[non_exhaustive]
 pub struct LayoutOptions<'a> {
     /// Shown in the About, Hide and Quit items.
     pub app_name: &'a str,
@@ -76,6 +76,12 @@ impl<'a> LayoutOptions<'a> {
     /// English labels.
     pub fn new(app_name: &'a str) -> LayoutOptions<'a> {
         LayoutOptions { app_name, label: &english, extra_shortcuts: &[] }
+    }
+
+    /// Set the app's translation of the labels a layout writes; see [`LayoutOptions::label`].
+    pub fn label(mut self, label: &'a dyn Fn(&'static str) -> String) -> LayoutOptions<'a> {
+        self.label = label;
+        self
     }
 
     /// Set the shortcuts the app binds outside its menus; see [`LayoutOptions::extra_shortcuts`].
@@ -99,6 +105,7 @@ fn english(s: &'static str) -> String {
 
 /// A system or browser shortcut the app also uses for one of its commands.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct Clash {
     /// The shortcut the app binds.
     pub shortcut: Chord,
@@ -112,6 +119,7 @@ pub struct Clash {
 
 /// A laid-out menu bar and the shortcut clashes found.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct Layout {
     /// The menus to show.
     pub bar: MenuBar,

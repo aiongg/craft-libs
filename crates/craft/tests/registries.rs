@@ -7,10 +7,21 @@ fn stories_list_the_kernel_first_then_each_enabled_crate() {
     let kernel = craft::ui::story::registry().len();
     assert!(kernel > 0 && ids.len() > kernel);
     assert!(craft::ui::story::registry().iter().map(|s| s.id).eq(ids[..kernel].iter().copied()));
-    #[cfg(feature = "keymap")]
-    assert!(ids[kernel..].contains(&"patterns/shortcuts-dialog/dialog"));
     #[cfg(feature = "font-manager")]
     assert!(ids[kernel..].contains(&"patterns/fonts-panel/panel"));
+}
+
+/// The Keyboard Shortcuts dialog lives in craft-menu and registers with the UI contract's registry, not the legacy
+/// story list above; the check fails when the dialog's registration is gone.
+#[test]
+#[cfg(all(feature = "menu", feature = "screen-testing"))]
+fn the_menu_crate_registers_the_shortcuts_dialog() {
+    let registered = craft::menu::testing::registered();
+    assert!(
+        registered.iter().any(|r| r.pattern_probe().is_some_and(|probe| probe.type_name().contains("ShortcutsDialog"))),
+        "no registration of ShortcutsDialog among {} craft-menu registrations",
+        registered.len()
+    );
 }
 
 #[test]
@@ -19,8 +30,6 @@ fn words_list_the_kernel_tables_first_then_each_enabled_crate() {
     let kernel = craft::ui::localized::words::tables();
     assert!(tables.len() > kernel.len());
     assert!(tables.iter().zip(kernel).all(|(a, b)| std::ptr::eq(*a, *b)));
-    #[cfg(feature = "keymap")]
-    assert!(tables.iter().any(|t| *t == craft::keymap::ui::WORDS[0]));
     #[cfg(feature = "keymap")]
     assert!(!craft::words::counts().is_empty());
 }

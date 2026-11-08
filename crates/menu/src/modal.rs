@@ -6,8 +6,7 @@
 //! shortcuts and menus; Camera Raw and the full-window workspaces (Liquify, Select and Mask) block
 //! every command; a pending crop greys most of Image, Layer and Select but leaves the view and
 //! Help commands. [`ModalRules`] says that per command, and [`Gate::allows_under`] applies it.
-//! The app sets the rules when they change, beside the gate ([`crate::NativeMenu::set_modal_rules`],
-//! [`crate::MenuBarUi::modal_rules`], [`crate::CommandContextMenu::modal_rules`]).
+//! The app sets the rules when they change, beside the gate ([`crate::NativeMenu::set_modal_rules`]).
 
 use std::fmt;
 use std::sync::Arc;
@@ -17,8 +16,9 @@ use craft_keymap::CommandRef;
 use crate::driver::Gate;
 use crate::model::{Builtin, Item};
 
-/// The view commands that run while a dialog is open; the list [`craft_keymap::ui::KeyGate::in_dialogs`] uses.
-pub use craft_keymap::ui::NAVIGATION_COMMANDS;
+/// The view commands Photoshop runs while a dialog is open: Zoom In, Zoom Out, Fit on Screen and
+/// 100 %. An app whose ids differ passes its own list.
+pub const NAVIGATION_COMMANDS: [&str; 4] = ["view.zoomIn", "view.zoomOut", "view.fitOnScreen", "view.actualPixels"];
 
 /// Whether a command may run while a pending operation (an uncommitted crop) is open.
 pub type PendingRule = Arc<dyn Fn(&CommandRef) -> bool + Send + Sync>;
@@ -32,7 +32,7 @@ pub type PendingRule = Arc<dyn Fn(&CommandRef) -> bool + Send + Sync>;
 /// let rules = ModalRules::default()
 ///     .in_dialogs(NAVIGATION_COMMANDS)
 ///     .pending(Some(std::sync::Arc::new(|c: &craft_menu::CommandRef| c.id.starts_with("view."))));
-/// let gate = Gate { modal: true, ..Gate::default() };
+/// let gate = Gate::default().modal(true);
 /// assert!(gate.allows_under(&rules, &"view.zoomIn".into()));
 /// assert!(!gate.allows_under(&rules, &"image.crop".into()));
 /// ```
@@ -58,23 +58,19 @@ const _: () = {
 };
 
 impl ModalRules {
-    /// The commands that run while a dialog is open: [`NAVIGATION_COMMANDS`] for PhotoCraft.
-    // pc: crates/ui-egui/src/input/shortcuts.rs:170 `NAV_COMMANDS`.
+    /// The commands that run while a dialog is open: [`NAVIGATION_COMMANDS`] for an app with those ids.
     pub fn in_dialogs<S: Into<String>>(mut self, ids: impl IntoIterator<Item = S>) -> Self {
         self.in_dialogs = ids.into_iter().map(Into::into).collect();
         self
     }
 
     /// Sets [`Self::workspace`].
-    // pc: crates/ui-egui/src/dialogs/distort_ui.rs:105 `modal_workspace`; the Camera Raw check in
-    // menus.rs:46 `modal_allows`.
     pub fn workspace(mut self, open: bool) -> Self {
         self.workspace = open;
         self
     }
 
     /// Sets [`Self::pending`].
-    // pc: crates/ui-egui/src/tools/crop_ui.rs:555 `blocks`, :559 `available_while_pending`.
     pub fn pending(mut self, rule: Option<PendingRule>) -> Self {
         self.pending = rule;
         self
@@ -100,7 +96,6 @@ impl Gate {
     /// runs. A text field having the keys stops nothing, as with [`Gate::allows`].
     ///
     /// With `ModalRules::default()` this is [`Gate::allows_command`].
-    // pc: crates/ui-egui/src/menus.rs:46 `modal_allows`.
     pub fn allows_under(&self, rules: &ModalRules, command: &CommandRef) -> bool {
         if Builtin::of(command).is_some() {
             return true;

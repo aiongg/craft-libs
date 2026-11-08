@@ -8,7 +8,7 @@ use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleColor, StyleCx, SurfaceKind, SurfaceLook, TextLook, TypeRole};
 use craft_behavior::{Insets, Metrics, Sense};
 use craft_host::target::Os;
-use craft_keymap::Layout;
+use craft_keymap::{Chord, Layout};
 use craft_theme::Stateful;
 use egui::{Rect, Response, Vec2, pos2};
 
@@ -71,6 +71,8 @@ pub struct Kbd {
     #[common]
     common: Common,
     chord: Label,
+    /// The chord of `Kbd::chord`, shown in the platform's notation with this language's key names.
+    shown: Option<Chord>,
     /// Draws each key in a raised box, for help pages and the command palette.
     #[style_key]
     #[prop]
@@ -84,7 +86,13 @@ impl Kbd {
     /// A chord written as `chord`, which is also its accessible name.
     pub fn new(chord: impl Into<Label>) -> Self {
         let chord = chord.into();
-        Kbd { common: Common::new(), chord: chord.clone(), keycap: false, single: false }.label(chord)
+        Kbd { common: Common::new(), chord: chord.clone(), shown: None, keycap: false, single: false }.label(chord)
+    }
+
+    /// `chord` in the platform's notation, each key from `Chord::parts_for` with the key-cap words of
+    /// `DisplayWords`; a screen reader hears `Chord::spoken`.
+    pub fn chord(chord: Chord) -> Self {
+        Kbd { shown: Some(chord), ..Kbd::new(Label::Empty) }
     }
 
     /// The chord of `command`, in the platform's notation; a command with no chord shows nothing.
@@ -103,26 +111,29 @@ impl Kbd {
         if self.single {
             return Keys { parts: vec![self.chord.as_str().to_owned()], glued: false };
         }
-        match command {
-            Some(command) => {
-                let Some(chord) = command.chord.as_ref() else { return Keys { parts: Vec::new(), glued: false } };
+        let (chord, glued) = match command {
+            Some(command) => (command.chord.as_ref(), os.is_mac()),
+            None => (self.shown.as_ref(), os.is_mac()),
+        };
+        match chord {
+            Some(chord) => {
                 let mut parts = chord.parts_for(os, layout);
-                if !os.is_mac()
-                    && let (Some(word), Some(last)) = (words.key(chord.key), parts.last_mut())
-                {
+                if let (Some(word), Some(last)) = (words.key_name(chord.key, os), parts.last_mut()) {
                     *last = word.to_owned();
                 }
-                Keys { parts, glued: os.is_mac() }
+                Keys { parts, glued }
             }
+            None if command.is_some() => Keys { parts: Vec::new(), glued: false },
             None => Keys { parts: written_keys(self.chord.as_str()), glued: false },
         }
     }
 
     /// The name for a screen reader: a command's chord spoken, else the text given.
     fn spoken(&self, command: Option<&ResolvedCommand>, os: Os) -> String {
-        match command {
-            Some(command) => command.chord.as_ref().map_or_else(String::new, |chord| chord.spoken(os)),
-            None => self.chord.as_str().to_owned(),
+        match (command, self.shown.as_ref()) {
+            (Some(command), _) => command.chord.as_ref().map_or_else(String::new, |chord| chord.spoken(os)),
+            (None, Some(chord)) => chord.spoken(os),
+            (None, None) => self.chord.as_str().to_owned(),
         }
     }
 }
@@ -173,7 +184,7 @@ impl Component for Kbd {
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         if self.single {
             access.role(Role::None);
-        } else if cx.command.is_some() {
+        } else if cx.command.is_some() || self.shown.is_some() {
             access.name(Name::Text(self.spoken(cx.command.as_deref(), cx.env.shell().os)));
         }
     }

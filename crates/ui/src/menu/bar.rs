@@ -466,7 +466,7 @@ impl Component for MenuBar<'_> {
                                     .collect();
                                 for at in &listed {
                                     let entry = &help.entries[*at];
-                                    let row = MenuItem::command(entry.command().clone());
+                                    let row = MenuItem::command(entry.command().clone()).label(entry.label().clone());
                                     if entry.path().is_empty() {
                                         row.show(ui)
                                     } else {
