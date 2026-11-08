@@ -2,10 +2,12 @@
 
 use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role};
 use crate::primitives::{HAlign, Span, TextRun, Wrap};
-use crate::runtime::env::Label;
-use crate::style::{ComponentStyle, StyleCx, TypeRole};
+use crate::fonts::stack_facts;
+use crate::primitives::TextEnv;
+use crate::runtime::env::{Env, Label};
+use crate::style::{ComponentStyle, StyleCx, TypeRole, ink_color};
 use craft_behavior::{Metrics, Sense};
-use egui::{Response, Vec2};
+use egui::{Id, Rect, Response, Ui, Vec2};
 
 /// The style of the empty-state text.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
@@ -30,6 +32,19 @@ impl EmptyText {
     fn run<'t>(text: &'t str) -> TextRun<'t> {
         TextRun::spans(vec![Span::new(text).muted()]).role(TypeRole::Label).wrap(Wrap::Wrap).align(HAlign::Center)
     }
+}
+
+/// The height the empty text of `props.empty` takes at `width`.
+pub(in crate::contract) fn height(ui: &Ui, text: &Label, width: f32) -> f32 {
+    let env = Env::of(ui);
+    let text = env.view().resolve(text);
+    let layout_env = TextEnv { tokens: &env.tokens, direction: env.direction, ink: ink_color(&env.tokens, env.ink), fonts: stack_facts(ui.ctx()) };
+    EmptyText::run(text.as_str()).layout(ui.ctx(), &layout_env, width).size().y
+}
+
+/// Shows the empty text of `props.empty` in `rect`.
+pub(in crate::contract) fn show(ui: &mut Ui, id: Id, text: Label, rect: Rect) {
+    EmptyText::new(text).id(id).show_at(ui, rect);
 }
 
 impl Component for EmptyText {

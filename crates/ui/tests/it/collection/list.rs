@@ -470,6 +470,20 @@ fn the_empty_state_text_is_a_label_node() {
     assert_eq!(tree.role_of(label), Some(craft_ui::contract::Role::LABEL));
 }
 
+/// A collection that overrides the empty hooks shows its own empty state, not the text of its props beside it.
+#[trial]
+fn an_overridden_empty_state_replaces_the_empty_text() {
+    let words = Words::flat(&[]);
+    let seen = Seen::default();
+    let empty = Cell::new(Rect::NOTHING);
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| show_words(ui, List::new(SelectMode::Single).empty_text("Nothing here").on_empty(&empty), &words, &seen);
+    frames.idle(3, &mut show);
+    assert!(empty.get().is_positive(), "the override ran");
+    let tree = frames.tree();
+    assert!(tree.keys().into_iter().all(|key| tree.name_of(key) != Some("Nothing here")), "the props text is not shown beside it");
+}
+
 /// A tree opens on Right and closes on Left; Left again goes to the parent.
 #[trial]
 fn a_tree_expands_and_collapses_by_key() {

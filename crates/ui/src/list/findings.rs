@@ -207,7 +207,7 @@ impl Collection for FindingsList<'_> {
         SpanLayout::sized(source, width, cx.control().height)
     }
 
-    fn empty_height(&self, _width: f32, cx: &StyleCx<'_>) -> f32 {
+    fn empty_height(&self, _width: f32, _ui: &Ui, cx: &StyleCx<'_>) -> f32 {
         cx.control().height
     }
 

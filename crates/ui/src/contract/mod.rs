@@ -69,6 +69,7 @@ pub use sampler::Sampler;
 pub use values::{Bind, BindMut, EditResponse, ItemOutput, NoValue, Outcome, Validity, ValueOf, clicked};
 
 use crate::runtime::overlay::CloseReason;
+use crate::runtime::memory::sub;
 use crate::style::{ComponentStyle, Flags, StyleCx, StyleKey};
 pub use craft_behavior::Input;
 use craft_behavior::{CellSpace, ItemLayout, ItemSource, Proposal, ScrollPos, SelectionModel, Sense};
@@ -472,13 +473,19 @@ pub trait Collection: Component + HasProps + Meta<Shape = shape::Items> {
         false
     }
 
-    /// The height of the empty state at `width`: a `Sizing::Content` collection with no rows is this tall.
-    fn empty_height(&self, _width: f32, _cx: &StyleCx<'_>) -> f32 {
-        0.0
+    /// The height of the empty state at `width`: a `Sizing::Content` collection with no rows is this tall. The
+    /// default is the height of `CollectionProps::empty` laid out at `width`; an override replaces the empty text, so
+    /// it replaces `empty` as well.
+    fn empty_height(&self, width: f32, ui: &Ui, _cx: &StyleCx<'_>) -> f32 {
+        self.items().empty.as_ref().map_or(0.0, |text| items::empty_text::height(ui, text, width))
     }
 
-    /// The empty state at the rect the item step placed.
-    fn empty(&mut self, _ui: &mut Ui, _cx: &mut BodyCx<'_>) {}
+    /// The empty state at the rect the item step placed. The default shows `CollectionProps::empty`.
+    fn empty(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
+        if let Some(text) = self.items().empty.clone() {
+            items::empty_text::show(ui, sub(cx.id, "empty_text"), text, cx.rect);
+        }
+    }
 }
 
 /// Shows a leaf.

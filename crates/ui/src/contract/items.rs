@@ -27,7 +27,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 mod drag;
-mod empty_text;
+pub(super) mod empty_text;
 mod header;
 mod marquee;
 mod request;
@@ -37,7 +37,6 @@ pub(crate) use request::lead_position;
 pub use request::request_rename;
 
 use drag::Drags;
-use empty_text::EmptyText;
 use header::{Header, HeaderMemory};
 
 /// The rows the item step builds in a pass and where it puts them: what `PartsCx::rect_of` and `offset` read.
@@ -424,14 +423,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.content = Vec2::new(content.x as f32, content.y as f32);
         self.columns = layout.column_count() as u32;
         self.layout = Some(Arc::new(layout));
-        let empty = if !self.source.is_empty() {
-            0.0
-        } else if comp.items().empty.is_some() {
-            // The collection's own empty text is one line of control height.
-            scx.control().height
-        } else {
-            comp.empty_height(width, scx)
-        };
+        let empty = if self.source.is_empty() { comp.empty_height(width, ui, scx) } else { 0.0 };
         let height = self.content.y.max(empty) + self.header.height;
         if !(self.scrolls && room.y.is_finite()) {
             return Vec2::new(self.content.x, height);
@@ -786,12 +778,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             let installed = Env::install_for(&empty_ui, env.derive(|scoped| scoped.values.extend(values)));
             let (resolved, view) = (cx.core.resolved, cx.core.env);
             let mut bcx = BodyCx::new(sub(id, "body"), view, resolved, rect, &mut *cx.core.memory, &mut open, None);
-            match comp.items().empty.clone() {
-                Some(text) => {
-                    EmptyText::new(text).id(sub(id, "empty_text")).show_at(&mut empty_ui, rect);
-                }
-                None => comp.empty(&mut empty_ui, &mut bcx),
-            }
+            comp.empty(&mut empty_ui, &mut bcx);
             Env::restore(&ctx, installed);
         }
         if self.scrolls {
