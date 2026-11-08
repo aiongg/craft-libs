@@ -10,7 +10,7 @@ use crate::contract::{
 use crate::docking::stack::{StackSection, section_heights};
 use crate::docking::tree::{self, FrameRules};
 use crate::docking::{
-    ColumnGesture, DockColumn, DockConfig, DockDropTarget, DockDropped, DockEvent, DockGroup, DockPanels, DockSizes, DockSpot, DockTargets,
+    DockColumn, DockConfig, DockDropTarget, DockDropped, DockEvent, DockGroup, DockPanels, DockSizes, DockSpot, DockTargets,
     DockWords, DragUnit, FloatSpace, FloatingGroup, GroupDrag, HidePanels, IconicColumn, PanelDrag, PanelKey, PanelSpec, PanelTitle, SplitArea,
     cancel_on_replacement, fit_widths, frame, start_group_drag,
 };
@@ -234,7 +234,6 @@ struct Scene<'s, P> {
     bounds: Rect,
     auto_collapse: bool,
     rtl: bool,
-    starts: &'s Starts<P>,
 }
 
 impl<P: Clone + Eq + Hash> Scene<'_, P> {
@@ -248,12 +247,6 @@ impl<P: Clone + Eq + Hash> Scene<'_, P> {
 
     fn panel(&self, key: PanelKey) -> Option<&P> {
         self.keys.get(&key)
-    }
-
-    fn start(&self, unit: DragUnit<P>, rect: Rect) {
-        let active = PanelKey::of(unit.lead());
-        let label = self.spec(unit.lead()).label;
-        self.starts.borrow_mut().push(Start { unit, active, ghost: Some((rect.size(), label)) });
     }
 
     /// The size a command floats `panel` at.
@@ -304,7 +297,6 @@ struct ColumnWork<P> {
     iconic: Option<bool>,
     picked: Option<GroupItem>,
     resized: Vec<(P, f32)>,
-    gesture: Option<ColumnGesture<P>>,
 }
 
 /// The parts of one pass with the host's panels and what they reported.
@@ -353,7 +345,7 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
         let shown = surface.show(ui, |ui, body| {
             let Some(sizes) = body.memory.recall::<PassSizes>(sub(body.id, SIZES)).0 else { return };
             let input = Input { id, ctx: &ctx, current: &current, config: &config, hide, maximized: maximized.as_ref(), auto_collapse, sizes, rtl };
-            let result = show_area(ui, body, &input, &rights, &starts, &mut *panels, flyout.as_mut());
+            let result = show_area(ui, body, &input, &rights, &mut *panels, flyout.as_mut());
             if let Some(edit) = result.edit.as_ref() {
                 workspace.reborrow().write(body, edit);
             }
@@ -400,7 +392,6 @@ fn show_area<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
     body: &mut BodyCx<'_>,
     input: &Input<'_, P>,
     rights: &HashMap<P, Permissions>,
-    starts: &Starts<P>,
     panels: &mut dyn DockPanels<P>,
     mut flyout: Option<&mut Bind<'_, Option<P>>>,
 ) -> Passed<P> {
@@ -421,7 +412,7 @@ fn show_area<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
         }
     }
     let scene =
-        Scene { dock: id, sizes, config, layout, specs: &specs, permissions: rights, keys: &keys, space: &space, bounds, auto_collapse, rtl, starts };
+        Scene { dock: id, sizes, config, layout, specs: &specs, permissions: rights, keys: &keys, space: &space, bounds, auto_collapse, rtl };
     let open = open_of(&mut flyout, body, &memory);
     let mut pass = Pass {
         scene: &scene,
@@ -680,8 +671,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
                 if let Some(event) = output.edit.event {
                     self.report.flyout.push(event);
                 }
-                let work = ColumnWork { iconic: output.iconic, picked: output.picked, resized: Vec::new(), gesture: output.gesture };
-                self.column_work(column, work, cell);
+                let work = ColumnWork { iconic: output.iconic, picked: output.picked, resized: Vec::new() };
+                self.column_work(column, work);
             } else {
                 let Some(output) = region(ui, cell, |ui| {
                     DockColumn::new(name.clone(), scene.dock, column, &spec)
@@ -690,14 +681,14 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
                 }) else {
                     continue;
                 };
-                let work = ColumnWork { iconic: output.iconic, picked: output.picked, resized: output.resized, gesture: output.gesture };
-                self.column_work(column, work, cell);
+                let work = ColumnWork { iconic: output.iconic, picked: output.picked, resized: output.resized };
+                self.column_work(column, work);
             }
         }
     }
 
     /// Turns what a column reported into actions and drags.
-    fn column_work(&mut self, column: &Column<P>, work: ColumnWork<P>, cell: Rect) {
+    fn column_work(&mut self, column: &Column<P>, work: ColumnWork<P>) {
         let Some(first) = column.groups.first().and_then(|group| group.panels.first()) else { return };
         if let Some(iconic) = work.iconic {
             self.report.actions.push(Action::set_iconic(first.clone(), iconic));
@@ -707,12 +698,6 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Pass<'_, P> {
         }
         for (anchor, height) in work.resized {
             self.report.actions.push(Action::resize_group(anchor, Some(height)));
-        }
-        match work.gesture {
-            Some(ColumnGesture::Column { anchor, .. }) => self.scene.start(DragUnit::Column(anchor), cell),
-            Some(ColumnGesture::Group { anchor, .. }) => self.scene.start(DragUnit::Group(anchor), cell),
-            Some(ColumnGesture::Panel { panel, .. }) => self.scene.start(DragUnit::Panel(panel), cell),
-            _ => {}
         }
     }
 
