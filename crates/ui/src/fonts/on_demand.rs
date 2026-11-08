@@ -2,13 +2,13 @@
 //! first time a visible character of that script has no glyph, instead of every candidate face
 //! being installed up front. It covers CJK and every other script the same way.
 
-#[cfg(not(target_arch = "wasm32"))]
 mod files;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use craft_host::Wake;
+use craft_host::target::Runtime;
 use craft_i18n::Han;
 use egui::{Context, FontData, Shape};
 use skrifa::MetadataProvider as _;
@@ -53,15 +53,7 @@ pub struct SystemCandidates;
 
 impl FontCandidates for SystemCandidates {
     fn files(&self, script: &str, han: Option<Han>) -> Vec<PathBuf> {
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            files::files(script, han)
-        }
-        #[cfg(target_arch = "wasm32")]
-        {
-            let _ = (script, han);
-            Vec::new()
-        }
+        if Runtime::current() == Runtime::Web { Vec::new() } else { files::files(script, han) }
     }
 
     fn covers(&self, data: &[u8], c: char) -> Option<u32> {
@@ -69,24 +61,14 @@ impl FontCandidates for SystemCandidates {
     }
 
     fn pending(&self) -> bool {
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            files::pending()
-        }
-        #[cfg(target_arch = "wasm32")]
-        {
-            false
-        }
+        Runtime::current() == Runtime::Native && files::pending()
     }
 
     fn wake_when_ready(&self, wake: Wake) {
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            files::wake_when_ready(wake);
-        }
-        #[cfg(target_arch = "wasm32")]
-        {
+        if Runtime::current() == Runtime::Web {
             wake.wake();
+        } else {
+            files::wake_when_ready(wake);
         }
     }
 }

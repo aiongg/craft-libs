@@ -11,11 +11,14 @@ use craft_ui::fonts::{
     FontCandidates, MAX_SCRIPT_READS, OnDemandFonts, SystemCandidates, deflated_default_definitions, han_for_locale, on_demand_registered,
 };
 use craft_ui::testing::{Frames, trial};
-use egui::{FontDefinitions, FontId};
+use egui::{FontDefinitions, FontFamily, FontId};
 
 /// A test face with 日 (and not the Arabic letters of `ARABIC`).
 const CJK: &[u8] = include_bytes!("../../fonts/NotoSansCJKsc-test.otf");
 const ARABIC: &[u8] = include_bytes!("../../fonts/NotoSansArabic-test.ttf");
+
+/// The size a glyph is probed at.
+const PROBE_SIZE: f32 = 12.0;
 
 /// A fixed list of candidate files whose character maps are read for real.
 struct Fixed {
@@ -83,7 +86,7 @@ fn a_missing_character_registers_the_first_covering_candidate() {
     show(&mut frames, "日");
     show(&mut frames, "日");
     assert_eq!(on_demand_registered(&frames.ctx).len(), 1, "the registered face has the glyph, so nothing more is read");
-    assert!(frames.ctx.fonts_mut(|fonts| fonts.has_glyph(&FontId::proportional(12.0), '日')));
+    assert!(frames.ctx.fonts_mut(|fonts| fonts.has_glyph(&FontId::new(PROBE_SIZE, FontFamily::Proportional), '日')));
 }
 
 /// After `MAX_SCRIPT_READS` files of a script failed to cover, no further file of that script is read.
@@ -170,7 +173,6 @@ fn a_pending_lookup_wakes_the_ui_instead_of_polling() {
 
 /// Every stack and check that asks for a locale shares one provider.
 #[cfg(feature = "system_fonts")]
-#[cfg(not(target_arch = "wasm32"))]
 #[trial]
 fn the_system_provider_is_shared_per_locale() {
     use craft_ui::fonts::system_font_provider;
@@ -181,7 +183,6 @@ fn the_system_provider_is_shared_per_locale() {
 /// A context asking for the OS's interface face is woken once the index of installed fonts is built, and the face is
 /// then known without waiting.
 #[cfg(feature = "system_fonts")]
-#[cfg(not(target_arch = "wasm32"))]
 #[trial]
 fn the_system_interface_face_resolves_in_the_background_and_wakes_the_context() {
     use craft_ui::fonts::{poll_system_ui_face, system_ui_face};
@@ -191,14 +192,14 @@ fn the_system_interface_face_resolves_in_the_background_and_wakes_the_context() 
     ctx.set_request_repaint_callback(move |_| {
         counter.fetch_add(1, Ordering::Relaxed);
     });
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
-    let face = loop {
-        if let std::task::Poll::Ready(face) = poll_system_ui_face(&ctx) {
-            break face;
+    let ready = (0..6000).find_map(|_| match poll_system_ui_face(&ctx) {
+        std::task::Poll::Ready(face) => Some(face),
+        std::task::Poll::Pending => {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+            None
         }
-        assert!(std::time::Instant::now() < deadline, "the face resolves once the index is built");
-        std::thread::sleep(std::time::Duration::from_millis(5));
-    };
+    });
+    let face = ready.expect("the face resolves once the index is built");
     assert_eq!(face.map(|face| face.family.as_str()), system_ui_face().map(|face| face.family.as_str()));
     assert!(woken.load(Ordering::Relaxed) > 0, "the context was woken when the face resolved");
 }

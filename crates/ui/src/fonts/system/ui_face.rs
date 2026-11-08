@@ -44,30 +44,30 @@ pub struct SystemUiFace {
 
 impl SystemUiFace {
     /// A face from its parts.
-    #[cfg(all(feature = "system_fonts", not(target_arch = "wasm32")))]
+    #[cfg(feature = "system_fonts")]
     pub(super) fn new(family: String, regular: FontData, semibold: FontData, semibold_weight: u16) -> Self {
         Self { family, regular, semibold, semibold_weight }
     }
 }
 
-#[cfg(all(feature = "system_fonts", not(target_arch = "wasm32")))]
+#[cfg(feature = "system_fonts")]
 static FACE: std::sync::OnceLock<Option<SystemUiFace>> = std::sync::OnceLock::new();
 /// Contexts to repaint when the face resolves.
-#[cfg(all(feature = "system_fonts", not(target_arch = "wasm32")))]
+#[cfg(feature = "system_fonts")]
 static WAITING: std::sync::Mutex<Vec<Context>> = std::sync::Mutex::new(Vec::new());
 
 /// The OS's interface face, or `None` on the web, without the `system_fonts` feature, or when no
 /// installed family resolves. Resolved once per process. Before the index of installed fonts is
 /// built, this waits for it, so call it from checks, tests or a background thread; the UI thread
 /// asks [`poll_system_ui_face`].
-#[cfg(all(feature = "system_fonts", not(target_arch = "wasm32")))]
+#[cfg(feature = "system_fonts")]
 pub fn system_ui_face() -> Option<&'static SystemUiFace> {
     FACE.get_or_init(super::fontique::resolve_system_ui_face).as_ref()
 }
 
 /// The OS's interface face, or `None` on the web, without the `system_fonts` feature, or when no
 /// installed family resolves.
-#[cfg(not(all(feature = "system_fonts", not(target_arch = "wasm32"))))]
+#[cfg(not(feature = "system_fonts"))]
 pub fn system_ui_face() -> Option<&'static SystemUiFace> {
     None
 }
@@ -85,9 +85,9 @@ pub fn poll_system_ui_face(ctx: &Context) -> Poll<Option<&'static SystemUiFace>>
 
 /// The face if it has resolved, without waiting or starting the index.
 pub(crate) fn resolved() -> Option<Option<&'static SystemUiFace>> {
-    #[cfg(all(feature = "system_fonts", not(target_arch = "wasm32")))]
+    #[cfg(feature = "system_fonts")]
     return FACE.get().map(Option::as_ref);
-    #[cfg(not(all(feature = "system_fonts", not(target_arch = "wasm32"))))]
+    #[cfg(not(feature = "system_fonts"))]
     Some(None)
 }
 
@@ -98,7 +98,7 @@ pub(crate) fn wake_on_resolve(ctx: &Context) {
     }
 }
 
-#[cfg(all(feature = "system_fonts", not(target_arch = "wasm32")))]
+#[cfg(feature = "system_fonts")]
 fn wait_for(ctx: &Context) {
     super::fontique::start_building();
     let mut waiting = WAITING.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -109,12 +109,12 @@ fn wait_for(ctx: &Context) {
     }
 }
 
-#[cfg(not(all(feature = "system_fonts", not(target_arch = "wasm32"))))]
+#[cfg(not(feature = "system_fonts"))]
 fn wait_for(_ctx: &Context) {}
 
 /// The index's built hook, on the thread that built it: resolves the face, then repaints the
 /// contexts waiting for it.
-#[cfg(all(feature = "system_fonts", not(target_arch = "wasm32")))]
+#[cfg(feature = "system_fonts")]
 pub(super) fn index_built() {
     system_ui_face();
     let waiting = std::mem::take(&mut *WAITING.lock().unwrap_or_else(std::sync::PoisonError::into_inner));
@@ -126,7 +126,7 @@ pub(super) fn index_built() {
 /// Sets `data`'s variation coordinates to `coords`, each clamped to its axis's range, plus the
 /// optical size if the face has that axis. Axes the face lacks are skipped, and so is a tag that
 /// comes again.
-#[cfg(all(feature = "system_fonts", not(target_arch = "wasm32")))]
+#[cfg(feature = "system_fonts")]
 pub(super) fn instance(mut data: FontData, coords: impl IntoIterator<Item = ([u8; 4], f32)>) -> FontData {
     let axes = data.variation_axes();
     let opsz = (*b"opsz", SYSTEM_UI_OPTICAL_SIZE);

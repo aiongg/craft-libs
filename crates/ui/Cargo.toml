@@ -70,6 +70,8 @@ craft-pdf = { workspace = true, default-features = false }
 # `fonts`: character maps and variation axes of faces, and inflating egui's default fonts, stored deflated.
 skrifa = { version = "0.44", default-features = false, features = ["std"] }
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+# The installed font folders, for the on-demand font candidates (`fonts::SystemCandidates`).
+craft-font-catalog = { workspace = true, default-features = false }
 # The craft-fonts faces (`fonts::EmbeddedFace`, `fonts::ServedFace`).
 craft-fonts-build = { workspace = true }
 # Only `color_fonts` reads it: the feature turns on epaint's colour glyphs.
@@ -79,8 +81,6 @@ epaint = { version = "0.37", default-features = false }
 resvg = { version = "0.45.1", default-features = false }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-# The installed font folders, for the on-demand font candidates (`fonts::SystemCandidates`).
-craft-font-catalog = { workspace = true, default-features = false }
 # The versions egui_system_font_provider 0.37 uses.
 fontique = { version = "0.11.1", default-features = false, features = ["system", "fontconfig-dlopen"], optional = true }
 unicode-script = { version = "0.5.8", optional = true }

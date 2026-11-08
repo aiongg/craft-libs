@@ -6,6 +6,7 @@ use std::sync::OnceLock;
 
 use craft_font_catalog::{FontEnv, font_dirs, is_font_file};
 use craft_host::Wake;
+use craft_host::target::Os;
 use craft_i18n::Han;
 
 use super::{MAX_FONT_BYTES, covering_face, is_cjk};
@@ -63,32 +64,33 @@ pub(super) fn files(script: &str, han: Option<Han>) -> Vec<PathBuf> {
 }
 
 pub(super) fn wake_when_ready(wake: Wake) {
-    #[cfg(target_os = "linux")]
-    {
+    if Os::current() == Os::Linux {
         fontconfig::wake_when_ready(wake);
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
+    } else {
         wake.wake();
     }
 }
 
 pub(super) fn pending() -> bool {
-    #[cfg(target_os = "linux")]
-    {
+    if Os::current() == Os::Linux {
         fontconfig::start();
         fontconfig::pending()
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
+    } else {
         false
     }
 }
 
 /// System CJK font files for `region`, most preferred first. Paths that don't exist are
 /// included; callers skip them.
-#[cfg(target_os = "macos")]
 fn cjk_files(region: Cjk) -> Vec<PathBuf> {
+    match Os::current() {
+        Os::Mac => mac_cjk_files(region),
+        Os::Windows => windows_cjk_files(region),
+        _ => linux_cjk_files(region),
+    }
+}
+
+fn mac_cjk_files(region: Cjk) -> Vec<PathBuf> {
     use Cjk::*;
     let p = |path: &str| PathBuf::from(path);
     let pingfang = mac_pingfang();
@@ -102,10 +104,7 @@ fn cjk_files(region: Cjk) -> Vec<PathBuf> {
     }
 }
 
-/// System CJK font files for `region`, most preferred first. Paths that don't exist are
-/// included; callers skip them.
-#[cfg(target_os = "windows")]
-fn cjk_files(region: Cjk) -> Vec<PathBuf> {
+fn windows_cjk_files(region: Cjk) -> Vec<PathBuf> {
     use Cjk::*;
     let dir = std::env::var("WINDIR").unwrap_or_else(|_| "C:\\Windows".into());
     let w = |file: &str| Path::new(&dir).join("Fonts").join(file);
@@ -117,10 +116,7 @@ fn cjk_files(region: Cjk) -> Vec<PathBuf> {
     }
 }
 
-/// System CJK font files for `region`, most preferred first. Paths that don't exist are
-/// included; callers skip them.
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
-fn cjk_files(region: Cjk) -> Vec<PathBuf> {
+fn linux_cjk_files(region: Cjk) -> Vec<PathBuf> {
     use Cjk::*;
     let p = |path: &str| PathBuf::from(path);
     // One Noto Sans CJK collection covers all four regions; the loader picks the face.
@@ -168,7 +164,6 @@ fn cjk_files(region: Cjk) -> Vec<PathBuf> {
         with_host.push(file);
         with_host.extend(host);
     }
-    #[cfg(target_os = "linux")]
     if let Some(font) = fontconfig::result(region)
         && !with_host.contains(&font)
     {
@@ -179,32 +174,25 @@ fn cjk_files(region: Cjk) -> Vec<PathBuf> {
 
 /// Broad-coverage fonts tried after every region's own: they cover Han, kana and Hangul but
 /// look worse than the regional fonts.
-#[cfg(target_os = "macos")]
 fn last_resort_files() -> Vec<PathBuf> {
     let p = |path: &str| PathBuf::from(path);
-    vec![p("/System/Library/Fonts/Supplemental/Arial Unicode.ttf"), p("/Library/Fonts/Arial Unicode.ttf")]
-}
-
-#[cfg(target_os = "windows")]
-fn last_resort_files() -> Vec<PathBuf> {
-    let dir = std::env::var("WINDIR").unwrap_or_else(|_| "C:\\Windows".into());
-    vec![Path::new(&dir).join("Fonts").join("ARIALUNI.TTF")]
-}
-
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
-fn last_resort_files() -> Vec<PathBuf> {
-    let p = |path: &str| PathBuf::from(path);
-    vec![
-        p("/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf"),
-        p("/usr/share/fonts/google-droid-sans-fonts/DroidSansFallbackFull.ttf"),
-        p("/run/host/fonts/truetype/droid/DroidSansFallbackFull.ttf"),
-        p("/run/host/fonts/google-droid-sans-fonts/DroidSansFallbackFull.ttf"),
-    ]
+    match Os::current() {
+        Os::Mac => vec![p("/System/Library/Fonts/Supplemental/Arial Unicode.ttf"), p("/Library/Fonts/Arial Unicode.ttf")],
+        Os::Windows => {
+            let dir = std::env::var("WINDIR").unwrap_or_else(|_| "C:\\Windows".into());
+            vec![Path::new(&dir).join("Fonts").join("ARIALUNI.TTF")]
+        }
+        _ => vec![
+            p("/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf"),
+            p("/usr/share/fonts/google-droid-sans-fonts/DroidSansFallbackFull.ttf"),
+            p("/run/host/fonts/truetype/droid/DroidSansFallbackFull.ttf"),
+            p("/run/host/fonts/google-droid-sans-fonts/DroidSansFallbackFull.ttf"),
+        ],
+    }
 }
 
 /// macOS ships PingFang as a pre-installed asset outside `/System/Library/Fonts`
 /// (`/System/Library/AssetsV2/com_apple_MobileAsset_Font*/<hash>.asset/AssetData/PingFang.ttc`).
-#[cfg(target_os = "macos")]
 fn mac_pingfang() -> Option<PathBuf> {
     let old = PathBuf::from("/System/Library/Fonts/PingFang.ttc");
     if old.is_file() {
@@ -436,7 +424,6 @@ pub(super) fn candidates(script: &str, files: &[PathBuf]) -> Vec<PathBuf> {
 }
 
 /// Linux's fontconfig choice per CJK region, found by `fc-match` on a background thread.
-#[cfg(target_os = "linux")]
 mod fontconfig {
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicBool, Ordering};
