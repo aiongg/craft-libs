@@ -92,27 +92,6 @@ fn is_pixel_unit(unit: UnitKind) -> bool {
     matches!(unit, UnitKind::Pixels | UnitKind::Percent)
 }
 
-/// `pixels` in the length unit `unit`, given the opening side (for percent), the resolution and the points in an
-/// inch. `None` for a kind that is not a length.
-fn from_pixels(unit: UnitKind, pixels: f64, original: f64, ppi: f64, points_per_inch: f64) -> Option<f64> {
-    let resolution = ppi.max(1.0);
-    Some(match unit {
-        UnitKind::Pixels => pixels,
-        UnitKind::Percent => pixels / original.max(1.0) * PERCENT,
-        _ => pixels / resolution * unit.per_inch(points_per_inch)?,
-    })
-}
-
-/// A value in the length unit `unit` as pixels; the inverse of `from_pixels`.
-fn to_pixels(unit: UnitKind, value: f64, original: f64, ppi: f64, points_per_inch: f64) -> Option<f64> {
-    let resolution = ppi.max(1.0);
-    Some(match unit {
-        UnitKind::Pixels => value,
-        UnitKind::Percent => value * original / PERCENT,
-        _ => value / unit.per_inch(points_per_inch)? * resolution,
-    })
-}
-
 /// Pixels per inch in one of a resolution unit; `None` for a kind that is not a resolution.
 fn resolution_per_inch(unit: UnitKind) -> Option<f64> {
     match unit {
@@ -258,7 +237,7 @@ impl LinkedSize {
 
     /// Shows the width and height in `unit`. Returns `false` and changes nothing for a kind that is not a length.
     pub fn set_unit(&mut self, unit: UnitKind) -> bool {
-        let length = from_pixels(unit, 0.0, 1.0, self.ppi, self.points_per_inch).is_some();
+        let length = unit.from_pixels(0.0, 1.0, self.ppi, self.points_per_inch).is_some();
         if length {
             self.unit = unit;
         }
@@ -379,7 +358,7 @@ impl LinkedSize {
     }
 
     fn from_pixels(&self, pixels: f64, original: f64) -> f64 {
-        from_pixels(self.unit, pixels, original, self.ppi, self.points_per_inch).unwrap_or(pixels)
+        self.unit.from_pixels(pixels, original, self.ppi, self.points_per_inch).unwrap_or(pixels)
     }
 
     /// The field's value in the current unit: the value typed last while the pixel size it made stands, else the
@@ -403,7 +382,7 @@ impl LinkedSize {
             return;
         }
         let (current, original) = (pixels_along(self.current, side), pixels_along(self.original, side));
-        let Some(pixels) = to_pixels(self.unit, value, original, self.ppi, self.points_per_inch) else { return };
+        let Some(pixels) = self.unit.to_pixels(value, original, self.ppi, self.points_per_inch) else { return };
         self.typed = None;
         if !self.resampling {
             if !is_pixel_unit(self.unit) && pixels > 0.0 {

@@ -179,12 +179,12 @@ impl GuideUnits {
 
     /// `length` in pixels across `extent` pixels.
     pub fn to_pixels(&self, length: GuideLength, extent: f64) -> Option<f64> {
-        self.pixels_in(length.unit, extent).map(|pixels| length.value * pixels)
+        length.unit.to_pixels(length.value, extent, self.pixels_per_inch, self.points_per_inch)
     }
 
     /// `pixels` in `unit`, across `extent` pixels.
     pub fn from_pixels(&self, pixels: f64, unit: UnitKind, extent: f64) -> Option<f64> {
-        self.pixels_in(unit, extent).filter(|one| *one != 0.0).map(|one| pixels / one)
+        unit.from_pixels(pixels, extent, self.pixels_per_inch, self.points_per_inch)
     }
 
     /// The reader of the fields that show the ruler unit: it takes "50%", "2.5 cm", "1in", "12 pt", "3 pc" and
