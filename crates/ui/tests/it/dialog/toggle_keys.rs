@@ -44,7 +44,7 @@ fn space_on_a_focused_check_box_toggles_it_and_leaves_the_dialog_open() {
     assert_eq!(picked.get(), None, "Space picks no button");
 }
 
-const ESCAPE: &[Chord] = &[Chord::plain(Key::Escape)];
+const ESCAPE: &[Chord] = &[Chord::plain(craft_keymap::Key::Escape)];
 
 /// A control that is armed until Escape disarms it. While armed it declares Escape as its own.
 #[derive(craft_ui::contract::Component)]

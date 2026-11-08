@@ -4,7 +4,7 @@
 use craft_behavior::{DisplayOrder, Granularity, Input, Intent, ItemSource};
 use craft_ui::buttons::Button;
 use craft_ui::contract::{
-    Bind, CollectionEvent, CommandSet, Commands as _, ItemKeys, Props as _, SelectMode, Show as _, ShowCollection as _, ShowContainer as _,
+    Bind, CollectionEvent, CommandSet, Commands as _, ItemKeys, SelectMode, Show as _, ShowCollection as _, ShowContainer as _,
 };
 use craft_ui::list::{List, ListRow};
 use craft_ui::popover::Popover;
