@@ -231,7 +231,7 @@ fn planes_alone_on_a_canvas(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let (editor, session, settings) = &mut *guard;
     let image = MockImage::default();
     let source = StorySource { image, clipboard: None };
-    let pass = editor.pass(session, settings, &StoryScene, &source);
+    let pass = editor.pass(ui.ctx(), session, settings, &StoryScene, &source);
     story_canvas(ui, Some(&image), StoryView::Fit, |ui, rect| pass.planes().show_at(ui, rect).into())
 }
 

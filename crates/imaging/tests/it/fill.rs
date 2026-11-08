@@ -434,7 +434,7 @@ fn fill_letter_mid_stroke_cancels_the_stroke_and_ends_busy() {
     rig.fixture.frame(vec![pointer::press(rig.canvas())]);
     rig.fixture.frame(vec![pointer::moved(rig.canvas() + vec2(20.0, 0.0))]);
     rig.take();
-    // The press gave the canvas the keyboard, so the tool letter reaches the workspace.
+    // The dialog takes the letter wherever focus is; the stroke is the open gesture it cancels.
     rig.fixture.key(Key::L, NONE);
     let events = rig.events();
     assert!(events.contains(&FillEvent::Stroke(FillStrokeEvent::Cancel(CancelReason::Removed))), "{events:?}");

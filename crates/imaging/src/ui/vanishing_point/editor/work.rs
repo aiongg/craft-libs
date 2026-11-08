@@ -4,8 +4,9 @@ use std::sync::Arc;
 
 use craft_behavior::geometry::quad::Homography;
 use craft_behavior::kurbo::{Point, Rect};
-use craft_behavior::{EditEvent, Mixed};
+use craft_behavior::{EditEvent, GestureId, Mixed};
 use craft_keymap::Mods;
+use craft_ui::runtime::edit::next_gesture_id;
 
 use super::{DragStart, PlaneEdit, StampStroke, VanishingDrag, VanishingPointEditor, VanishingPointSession, VanishingPointSettings};
 use super::{VanishingPointEvent, VanishingTool};
@@ -22,6 +23,9 @@ pub(in crate::ui::vanishing_point) const PASTE_CELLS: u32 = 24;
 
 /// The editor, the session and the app's side of one pass.
 pub(in crate::ui::vanishing_point) struct Work<'w> {
+    pub ctx: &'w egui::Context,
+    /// The id of the gesture the host runs for the press in hand; the first history entry the press opens takes it.
+    pub gesture: Option<GestureId>,
     pub editor: &'w mut VanishingPointEditor,
     pub session: &'w mut VanishingPointSession,
     pub scene: &'w dyn VanishingScene,
@@ -80,6 +84,7 @@ pub(in crate::ui::vanishing_point) fn close_plane(
     scene: &dyn VanishingScene,
     corners: [[f64; 2]; 4],
     step: &str,
+    id: GestureId,
 ) -> bool {
     if session.planes.len() >= MAX_PLANES {
         return false;
@@ -96,7 +101,6 @@ pub(in crate::ui::vanishing_point) fn close_plane(
     // Photoshop hands over to Edit Plane once a plane is closed.
     editor.tool = VanishingTool::EditPlane;
     let after = PlaneEdit::new(session.planes.clone(), session.torn.clone());
-    let id = editor.next_gesture();
     editor.events.push(VanishingPointEvent::Planes(EditEvent::set(id, Mixed::Same(before), after, label(step), None)));
     true
 }
@@ -162,7 +166,7 @@ impl Work<'_> {
     }
 
     fn begin_drag(&mut self, drag: VanishingDrag, before: DragStart, event: impl FnOnce(craft_behavior::GestureId) -> VanishingPointEvent) {
-        let id = self.editor.next_gesture();
+        let id = self.gesture.take().unwrap_or_else(|| next_gesture_id(self.ctx));
         self.editor.drag = Some((id, drag));
         self.editor.before = Some(before);
         self.editor.events.push(event(id));
@@ -182,7 +186,8 @@ impl Work<'_> {
         }
         self.editor.pending.push(p);
         if let Ok(corners) = <[[f64; 2]; 4]>::try_from(self.editor.pending.as_slice()) {
-            close_plane(self.editor, self.session, self.scene, corners, words.edit_planes_step.as_str());
+            let id = self.gesture.take().unwrap_or_else(|| next_gesture_id(self.ctx));
+            close_plane(self.editor, self.session, self.scene, corners, words.edit_planes_step.as_str(), id);
         }
     }
 
@@ -430,7 +435,7 @@ impl Work<'_> {
         *c = [c[0] + by[0], c[1] + by[1]];
         self.editor.selected = Some(plane);
         self.resolve();
-        let id = self.editor.next_gesture();
+        let id = self.gesture.take().unwrap_or_else(|| next_gesture_id(self.ctx));
         let after = self.plane_edit();
         self.editor.events.push(VanishingPointEvent::Planes(EditEvent::set(
             id,

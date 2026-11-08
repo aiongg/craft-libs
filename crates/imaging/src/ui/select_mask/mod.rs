@@ -65,6 +65,7 @@ use craft_ui::layout_components::{Row, Stack};
 use craft_ui::primitives::Checker;
 use craft_ui::rails::{LastUsed, ToolRail};
 use craft_ui::runtime::commands::{CommandSet as _, Commands as _, FirePhase};
+use craft_ui::runtime::edit::next_gesture_id;
 use craft_ui::runtime::env::Env;
 use craft_ui::runtime::pending::{Job, Pending};
 use craft_ui::runtime::requests::ColorRequest;
@@ -263,8 +264,6 @@ pub struct SelectMaskWorkspace {
     trail_since: Option<String>,
     /// Steps the app asked for while a stroke was open; the next `show` cancels the stroke, then steps.
     requested: Vec<Step>,
-    /// The id the next history entry takes.
-    gesture: GestureId,
     /// The zoom on screen at the end of the last pass, for the title.
     zoom_percent: f64,
     /// This pass's events.
@@ -303,7 +302,6 @@ impl SelectMaskWorkspace {
             request: None,
             trail_since: None,
             requested: Vec::new(),
-            gesture: GestureId::default(),
             zoom_percent: 100.0,
             events: Vec::new(),
             pick_color: None,
@@ -386,7 +384,7 @@ impl SelectMaskWorkspace {
                     };
                     work.pick_color = panel.pick_color;
                     if let Some(edit) = panel.selection_edit {
-                        work.absorb_edit(edit);
+                        work.absorb_edit(ui.ctx(), edit);
                     }
                     FullWindowStatus::of(&status).show(ui);
                 });
@@ -427,7 +425,7 @@ impl SelectMaskWorkspace {
                     let bar = SelectMaskBar::new(work.tool, &mut work.options).show(ui);
                     if bar.select_subject {
                         let edit = SelectMaskEdit::Subject { sample_all_layers: work.options.sample_all_layers };
-                        work.absorb_edit(edit);
+                        work.absorb_edit(&ctx, edit);
                     }
                     let recipe = work.mask_view.recipe();
                     let image: &dyn RasterSource = if recipe.hidden { source.image() } else { source.view() };
@@ -470,7 +468,7 @@ impl SelectMaskWorkspace {
                     work.zoom_percent = work.view.zoom_percent();
                 });
                 work.absorb_canvas();
-                work.settle(work.canvas.busy() || work.panel_open);
+                work.settle(&ctx, work.canvas.busy() || work.panel_open);
                 work.settings.take_view(&work.mask_view);
                 work.settings.refine = work.session.refine.clone();
             });
@@ -484,7 +482,7 @@ impl SelectMaskWorkspace {
             this.canvas.drop_polygon();
             this.session.reset();
             this.error = None;
-            this.settle(false);
+            this.settle(ui.ctx(), false);
         }
         SelectMaskOutput {
             events: std::mem::take(&mut this.events),
@@ -560,18 +558,12 @@ impl SelectMaskWorkspace {
         request
     }
 
-    /// The id of the next history entry.
-    fn next_gesture(&mut self) -> GestureId {
-        self.gesture = self.gesture.next();
-        self.gesture
-    }
-
     /// Records the session as one history step when it differs from the last step and no gesture is open.
-    fn settle(&mut self, busy: bool) {
+    fn settle(&mut self, ctx: &egui::Context, busy: bool) {
         if busy || self.session == self.settled {
             return;
         }
-        let id = self.next_gesture();
+        let id = next_gesture_id(ctx);
         let name: Arc<str> = Arc::from(HISTORY_NAME);
         let before = std::mem::replace(&mut self.settled, self.session.clone());
         self.history.record(&EditEvent::set(id, Mixed::Same(before), self.session.clone(), name, None));
@@ -589,11 +581,11 @@ impl SelectMaskWorkspace {
     }
 
     /// Records a button's edit (Select Subject, Clear Selection, Invert) as a `Set`.
-    fn absorb_edit(&mut self, edit: SelectMaskEdit) {
+    fn absorb_edit(&mut self, ctx: &egui::Context, edit: SelectMaskEdit) {
         match self.session.add_edit(edit.clone(), &self.limits) {
             Ok(()) => {
                 self.error = None;
-                let id = self.next_gesture();
+                let id = next_gesture_id(ctx);
                 self.events.push(SelectMaskEvent::Edit(EditPhase::Set { id, value: edit }));
             }
             Err(why) => self.error = Some(why),

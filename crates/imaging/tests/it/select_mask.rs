@@ -113,11 +113,9 @@ impl CanvasTool for Rig {
     }
 
     fn command_form(&self) -> ToolPath {
-        if self.tool == SelectMaskTool::Object {
-            ToolPath::Command("the Select Subject command")
-        } else {
-            ToolPath::Freehand("none; a brush or lasso stroke follows the pointer")
-        }
+        let mut canvas = self.canvas.clone();
+        let mut options = self.options;
+        canvas.tool(self.tool, &mut options, self.real_time).command_form()
     }
 }
 

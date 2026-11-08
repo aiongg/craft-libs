@@ -59,7 +59,7 @@ use craft_ui::canvas_controls::brush::{BrushCursorOptions, TipFalloff};
 use craft_ui::canvas_controls::{Marquee, MarqueeLook};
 use craft_ui::contract::{Bind, BodyCx, NoValue, Outcome, Pattern, Props as _, Remember as _, Show as _, ShowContainer as _, clicked};
 use craft_ui::dialog::{DialogWords, FullWindowCanvas, FullWindowDialog, FullWindowSide, FullWindowTitle, FullWindowView, RasterOverlay, SideFooter};
-use craft_ui::layout_components::{Row, Stack};
+use craft_ui::layout_components::Row;
 use craft_ui::patterns::form_dialogs::ParamDialogWords;
 use craft_ui::primitives::{Checker, IconSpec};
 use craft_ui::rails::{LastUsed, RailTool, ToolRail, ToolSlot};
@@ -366,6 +366,7 @@ impl ContentAwareFillWorkspace {
         let this = RefCell::new(&mut *self);
 
         let shown = FullWindowDialog::new(title)
+            .command_scope(FillCommands::SCOPE)
             .opened(Bind::bound(&mut open))
             .buttons([
                 FooterButton::new(common.ok.clone(), DialogRole::Accept),
@@ -546,8 +547,8 @@ impl ContentAwareFillWorkspace {
             self.cancel_gesture(&ctx, CancelReason::UndoDuringGesture);
             self.step_now(*step);
         }
-        Stack::new().fill().command_scope(FillCommands::SCOPE).show(ui, |ui, scope| {
-            while let Some((command, fired)) = scope.take_command::<FillCommands>() {
+        {
+            while let Some((command, fired)) = cx.take_command::<FillCommands>() {
                 if let Some(tool) = command.tool() {
                     let slot = slots.iter().find(|slot| slot.tools.iter().any(|entry| entry.id == tool));
                     let tools: Vec<&RailTool<FillTool>> = slot.into_iter().flat_map(|slot| slot.tools.iter()).collect();
@@ -591,7 +592,7 @@ impl ContentAwareFillWorkspace {
                 }
                 self.show_canvas(ui, source, &words);
             });
-        });
+        }
         self.absorb_canvas_events();
         self.busy = self.canvas.busy();
         self.ask_for_preview(cx, source);
