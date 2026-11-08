@@ -21,7 +21,7 @@ use craft_behavior::geometry::{BoxPart, CropBox, CropGuide, GuideShow, SnapLine,
 use craft_behavior::kurbo::{Point, Rect as DocRect, Vec2 as DocVec};
 use craft_behavior::{
     Axis, CancelReason, CanvasView, CursorIcon, CursorPriority, HitLevel, HitPriority, HitShape, Intent, Metrics, NavShape, PaintedCursor, PartKey,
-    PointerButton, PressPhase, PressStart, Roving, Sense, resize_cursor,
+    PointerButton, PressPhase, Roving, Sense, resize_cursor,
 };
 use craft_keymap::{Chord, Key, Mods};
 use egui::{Pos2, Rect, Response, Vec2};
@@ -272,24 +272,6 @@ impl CropOverlay<'_> {
             cx.begin();
         }
         Drag { kind, at_press: *frame, from, press_view: self.image_mode.then_some(view), last: *frame }
-    }
-
-    /// The drag of `grab` that `start` pressed: `live` when a pass began it, else begun now from where the press went
-    /// down. `None` for a press of another button.
-    fn running(
-        &mut self,
-        cx: &mut Cx<'_, Self>,
-        space: &CanvasSpace,
-        frame: &CropBox,
-        grab: Grab,
-        live: Option<Drag>,
-        start: PressStart,
-    ) -> Option<Drag> {
-        match live {
-            Some(drag) => Some(drag),
-            None if start.button == PointerButton::Primary => Some(self.begin(cx, space, frame, grab, start.origin)),
-            None => None,
-        }
     }
 
     /// One step of the drag with the pointer at screen point `pos`.
@@ -546,7 +528,6 @@ impl Component for CropOverlay<'_> {
             let Some(result) = cx.part_if_declared(part) else { continue };
             let (press, hover) = (result.press, result.hover_pos);
             let mods = press.mods;
-            if !matches!(press.phase, PressPhase::Idle | PressPhase::Hover) { eprintln!("DIAG pass {:?} {:?} live={}", grab, press.phase, live.drag.is_some()); }
             match press.phase {
                 PressPhase::Down { start, .. } if start.button == PointerButton::Primary => {
                     if grab == Grab::Part(BoxPart::Inside) && press.double_pressed() && !self.default_frame {
@@ -558,21 +539,24 @@ impl Component for CropOverlay<'_> {
                     self.step(cx, &space, &mut drag, pos, mods);
                     live.drag = Some(drag);
                 }
-                PressPhase::Drag { start, pos, .. } => {
-                    // A pass that sees the drag only as running (the one that began it was folded into this frame's
-                    // passes) still begins it from where the press went down.
-                    if let Some(mut drag) = self.running(cx, &space, &frame, grab, live.drag.take(), start) {
+                PressPhase::Drag { pos, .. } => {
+                    if let Some(mut drag) = live.drag.take() {
                         self.step(cx, &space, &mut drag, pos, mods);
                         live.drag = Some(drag);
                     }
                 }
                 PressPhase::Release { start, pos, click: false, .. } => {
                     // A press that moved and ended before a pass saw it start still drags from where it was pressed.
-                    let fresh = live.drag.is_none();
-                    if let Some(mut drag) = self.running(cx, &space, &frame, grab, live.drag.take(), start) {
-                        if fresh {
+                    let drag = match live.drag.take() {
+                        Some(drag) => Some(drag),
+                        None if start.button == PointerButton::Primary => {
+                            let mut drag = self.begin(cx, &space, &frame, grab, start.origin);
                             self.step(cx, &space, &mut drag, pos, mods);
+                            Some(drag)
                         }
+                        None => None,
+                    };
+                    if let Some(drag) = drag {
                         self.finish(cx, &space, drag, pos);
                     }
                 }
