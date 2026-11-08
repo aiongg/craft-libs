@@ -80,6 +80,10 @@ pub struct DockConfig {
     /// closes them, for tabs that act as documents. Off: panels close from their menu. Accordion headers and iconic
     /// columns never show it.
     pub tab_close_buttons: bool,
+    /// A floating window the dock model keeps native opens in an OS window of its own where the platform opens
+    /// windows and its panels allow it (`PanelSpec::allow_native`). Off: every floating window shows in the app
+    /// window.
+    pub native_windows: bool,
 }
 
 impl Default for DockConfig {
@@ -95,6 +99,7 @@ impl Default for DockConfig {
             close_menu_items: true,
             close_button: true,
             tab_close_buttons: false,
+            native_windows: false,
         }
     }
 }
@@ -167,6 +172,13 @@ impl DockConfig {
     #[must_use]
     pub fn tab_close_buttons(mut self, on: bool) -> Self {
         self.tab_close_buttons = on;
+        self
+    }
+
+    /// Native floating windows on or off.
+    #[must_use]
+    pub fn native_windows(mut self, on: bool) -> Self {
+        self.native_windows = on;
         self
     }
 

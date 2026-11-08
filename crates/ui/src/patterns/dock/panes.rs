@@ -1,18 +1,18 @@
 //! `PaneArea`: task panes around a document. Docked panes are shell panes on the area's edges, floating panes are
 //! floating frames, and the app keeps which panes are open and where they are.
 
-use crate::contract::overlay::{Anchor, Popup, Trigger};
+use crate::contract::overlay::Popup;
 use crate::contract::{
     BodyCx, Common, Component, Container, ContainerProps, Cx, DropMark, DropOperation, DropTarget, HeaderRegion, Mount, NoValue, Outcome, Pad,
     PaneEdge, Pointer as _, Props as _, Remember as _, Role, Scroll, ShellPane, Show as _, ShowContainer as _, Sizing, WordSetCx as _,
 };
 use crate::display::Divider;
 use crate::docking::{DockSizes, DockWords, DragUnit, FloatingGroup, GroupDrag, PanelKey, PanelLimits};
-use crate::menu::{Menu, MenuItem};
+use crate::menu::MenuItem;
 use crate::runtime::commands::{CommandSet as _, CommandState, Commands as _};
 use crate::runtime::env::Label;
 use crate::runtime::focus::FocusPolicy;
-use crate::sections::{HeaderAction, HeaderStrength, TitleOutput, TitleRow};
+use crate::sections::{HeaderAction, HeaderStrength, MenuRows, TitleRow};
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::{GesturePhase, Metrics, Sense};
 use egui::{Id, Pos2, Rect, Response, Ui, Vec2};
@@ -417,9 +417,6 @@ impl Outcome for PaneFrameOutput {
     }
 }
 
-/// The rows of the menu a pane hangs from its title row.
-type MenuRows<'a> = Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>;
-
 /// Takes the drop released on a container.
 type TakeDrop<'a, C> = Box<dyn for<'b, 'c> FnMut(&'b mut Cx<'c, C>) + 'a>;
 
@@ -498,21 +495,9 @@ impl Container for PaneFrame<'_> {
         let shown = TitleRow::new(cx.label()).strength(HeaderStrength::Strong).actions(self.actions.iter().copied()).show(ui);
         self.taken = shown.action.or(self.taken);
         if let Some(rows) = self.menu.as_mut() {
-            self.menu_opener = hang(rows, ui, cx, &shown);
+            self.menu_opener = rows.hang(ui, &shown, cx.words::<DockWords>().pane_menu.clone());
         }
     }
-}
-
-/// Hangs the pane menu from the title row `shown`: it opens from the Menu action and from the context request (right
-/// click, Menu key, Shift+F10). Returns the row's id when the Menu action was taken this pass.
-fn hang(rows: &mut MenuRows<'_>, ui: &mut Ui, cx: &mut BodyCx<'_>, shown: &TitleOutput) -> Option<Id> {
-    let name = cx.words::<DockWords>().pane_menu.clone();
-    let mut menu = Menu::new(name).opened_by(&shown.edit.response, Trigger::Manual);
-    if let Some(button) = shown.menu_rect {
-        menu = menu.anchor(Anchor::Rect(button));
-    }
-    menu.opened_by(&shown.edit.response, Trigger::Context).show(ui, |ui, menu| rows(ui, menu));
-    (shown.action == Some(HeaderAction::Menu)).then_some(shown.edit.response.id)
 }
 
 /// The style of a pane area: the docking sizes of its drop bands and its floating cascade.
@@ -729,7 +714,7 @@ fn show_docked<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(ui: &mut Ui
     if pane.spec.closable {
         frame.actions.push(HeaderAction::Close);
     }
-    frame.menu = Some(Box::new(|ui, menu| pane_menu(ui, menu, pane, &pass.content)));
+    frame.menu = Some(MenuRows::new(|ui, menu| pane_menu(ui, menu, pane, &pass.content)));
     let key = pane.key;
     frame.take_drop = Some(taker(|cx: &mut Cx<'_, PaneFrame<'_>>| {
         let zone = Zone::Over { pane: key, edge, rect: cx.rect };

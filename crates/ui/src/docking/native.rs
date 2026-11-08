@@ -4,10 +4,10 @@
 //! work: its title row moves the window, its grips resize it, its limits are the window's, and a close is a
 //! `close_requested` report. What is left is policy, in these functions: whether a window of the dock model gets an
 //! OS window, what kind of window it is, where it opens on the connected monitors, and what the dock model records
-//! when the OS moves or resizes it. Rects are desktop logical points.
+//! when the OS moves or resizes it. `DockArea` and `FloatingGroup` call them; rects are desktop logical points.
 
-use super::{FloatingGroupOutput, PanelSpec};
-use crate::runtime::windows::{WindowAction, WindowFacts, WindowHost, WindowSpec};
+use super::{DockConfig, FloatingGroupOutput, PanelSpec};
+use crate::runtime::windows::{WindowAction, WindowHost, WindowSpec};
 use craft_behavior::dock::{Action, Floating, NativeSpace, restore_rect};
 use craft_behavior::placement::monitor_of;
 use craft_behavior::{GesturePhase, Monitor};
@@ -21,16 +21,17 @@ const SETTLED: f32 = 0.5;
 /// How a floating window of the dock model shows.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
-pub struct Opening {
+pub(crate) struct Opening {
     /// The rect the group is placed at: on the desktop for an OS window, in the app window otherwise.
     pub rect: Rect,
     /// The OS window to open, or `None` where the group shows in the app window.
     pub spec: Option<WindowSpec>,
 }
 
-/// Whether the groups of panels with `specs` may open OS windows: the platform opens them and every panel allows it.
-pub fn allowed(ctx: &Context, specs: &[PanelSpec]) -> bool {
-    WindowHost::of(ctx).viewports_available() && specs.iter().all(|spec| spec.allow_native)
+/// Whether the groups of panels with `specs` may open OS windows: the dock's `config` turns them on, the platform
+/// opens them and every panel allows it.
+pub(crate) fn allowed(ctx: &Context, config: &DockConfig, specs: &[PanelSpec]) -> bool {
+    config.native_windows && WindowHost::of(ctx).viewports_available() && specs.iter().all(|spec| spec.allow_native)
 }
 
 /// The window a group of panels with `specs` opens: a document window when any panel is a document, else a tool
@@ -56,10 +57,10 @@ pub fn space_of<'a, P>(ctx: &Context, window: &Floating<P>, monitors: &'a [Monit
     space
 }
 
-/// How `window` shows: in an OS window at its restored rect when it is native and the platform and its panels allow
-/// one, else in the app window at its own rect. `specs` are its panels' specs.
-pub fn opening<P>(ctx: &Context, window: &Floating<P>, specs: &[PanelSpec], bar: f32) -> Opening {
-    if allowed(ctx, specs) {
+/// How `window` shows: in an OS window at its restored rect when it is native and `config`, the platform and its
+/// panels allow one, else in the app window at its own rect. `specs` are its panels' specs.
+pub(crate) fn opening<P>(ctx: &Context, config: &DockConfig, window: &Floating<P>, specs: &[PanelSpec], bar: f32) -> Opening {
+    if allowed(ctx, config, specs) {
         let monitors = super::desktop::monitors(ctx);
         if let Some(rect) = restore(window, space_of(ctx, window, &monitors, bar)) {
             return Opening { rect, spec: Some(spec_for(specs)) };
@@ -69,9 +70,9 @@ pub fn opening<P>(ctx: &Context, window: &Floating<P>, specs: &[PanelSpec], bar:
 }
 
 /// The actions that record where the OS put the native window `window`, at the desktop rect `rect` (a window's
-/// [`WindowFacts::outer`], else its `inner`): that rect and the monitor holding it. Empty while the model already
+/// `WindowFacts::outer`, else its `inner`): that rect and the monitor holding it. Empty while the model already
 /// holds what the OS reports, so a window at rest costs no action.
-pub fn reported<P: Clone>(window: &Floating<P>, rect: Rect, monitors: &[Monitor]) -> Vec<Action<P>> {
+pub(crate) fn reported<P: Clone>(window: &Floating<P>, rect: Rect, monitors: &[Monitor]) -> Vec<Action<P>> {
     let Some(panel) = window.panels().next() else { return Vec::new() };
     let mut actions = Vec::new();
     if window.native.is_none_or(|saved| !same(saved, rect)) {
@@ -90,7 +91,7 @@ fn same(a: Rect, b: Rect) -> bool {
 
 /// Raises the window of the native group that `output` reports on when the user began moving or resizing it this
 /// pass, so a palette comes to the front of the windows it overlaps. False when nothing was raised.
-pub fn raise(ctx: &Context, output: &FloatingGroupOutput) -> bool {
+pub(crate) fn raise(ctx: &Context, output: &FloatingGroupOutput) -> bool {
     let began = output.placed.is_some_and(|change| change.phase == GesturePhase::Begin);
     let host = WindowHost::of(ctx);
     began && host.viewport_of(output.response.id).is_some_and(|viewport| host.act(viewport, WindowAction::Focus))

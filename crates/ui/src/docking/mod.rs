@@ -25,7 +25,7 @@ mod words;
 pub mod desktop;
 
 mod commands;
-pub mod cross_window;
+pub(crate) mod cross_window;
 pub mod native;
 
 pub use config::{DockConfig, DockSides};

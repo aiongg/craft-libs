@@ -705,7 +705,7 @@ name = "FloatingGroup"
 old = ""
 new = "craft_ui::docking::FloatingGroup"
 status = "replaced"
-note = "`FloatingGroup::new(title, rect)` then `show_group(ui, body)`; the output reports `placed` (each gesture step, with the rect the caller keeps), `action`, `menu_rect`, `minimized_toggled` and `released_at`."
+note = "`FloatingGroup::new(title, rect)` then `show_group(ui, body)`; `menu(f)` gives the rows the Menu action opens. The output reports `placed` (each gesture step, with the rect the caller keeps), `action` and `minimized_toggled`."
 
 [[type]]
 name = "ChromeStyle"
@@ -1109,8 +1109,8 @@ note = "The area's float bounds are the shell's window region (`ShellCx::float_b
 [[setter]]
 type = "DockArea"
 old = "native_windows(bool)"
-new = ""
-note = "Native floating is `PanelSpec::allow_native` with `WindowHost::viewports_available`; native-a wires it."
+new = "DockConfig::native_windows(bool)"
+note = "A dock's floating windows open native where `DockConfig::native_windows` is on, `WindowHost::viewports_available` and every panel's `PanelSpec::allow_native`; `DockArea` and `FloatingGroup` do the window work."
 
 [[setter]]
 type = "DockArea"
@@ -1184,21 +1184,14 @@ name = "route_app_drag"
 old = "craft_ui::docking::route_app_drag"
 new = ""
 status = "removed"
-note = "Every drag runs in the drag session, which maps the desktop pointer into the window under it; `craft_ui::docking::cross_window::{drag_target, accept_cross_window}` are the dock's window-level decisions."
+note = "Every drag runs in the drag session, which maps the desktop pointer into the window under it and decides which window takes the drop; `DockArea` raises the window that takes a drop from another window."
 
 [[type]]
 name = "native"
 old = ""
 new = "craft_ui::docking::native"
 status = "replaced"
-note = "Policy for a floating group in an OS window: `allowed(ctx, &[PanelSpec])`, `spec_for(&[PanelSpec]) -> WindowSpec`, `restore(&Floating<P>, NativeSpace) -> Option<Rect>`, `opening(ctx, &Floating<P>, &[PanelSpec], bar) -> Opening`, `reported(&Floating<P>, Rect, &[Monitor]) -> Vec<Action<P>>` and `raise(ctx, &FloatingGroupOutput) -> bool`."
-
-[[type]]
-name = "cross_window"
-old = ""
-new = "craft_ui::docking::cross_window"
-status = "replaced"
-note = "`drag_target(ctx, desktop, dragged) -> Option<ViewportId>` and `accept_cross_window(ctx) -> bool`."
+note = "Placement policy for a floating group in an OS window: `spec_for(&[PanelSpec]) -> WindowSpec`, `restore(&Floating<P>, NativeSpace) -> Option<Rect>` and `space_of(ctx, &Floating<P>, &[Monitor], bar) -> NativeSpace`. `DockArea` opens, records and raises the windows itself (`DockConfig::native_windows`)."
 
 
 # panes-a: the task panes.
