@@ -5,7 +5,7 @@ use craft_ui::testing::{Fixture, trial};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::mpsc::channel;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 /// The longest a collision cascade of twenty thousand printers may take to resolve.
 const CASCADE_LIMIT: Duration = Duration::from_secs(5);
@@ -83,9 +83,12 @@ fn collisions_resolve_like_the_pass_by_pass_rule() {
 #[trial]
 fn a_long_collision_cascade_stays_fast() {
     let printers = cascade(20_000);
-    let started = Instant::now();
-    let shown = shown_names(&printers);
-    assert!(started.elapsed() < CASCADE_LIMIT, "{:?}", started.elapsed());
+    let (sender, receiver) = channel();
+    let work = printers.clone();
+    std::thread::spawn(move || {
+        let _ = sender.send(shown_names(&work));
+    });
+    let shown = receiver.recv_timeout(CASCADE_LIMIT).expect("the cascade resolves within the limit");
     assert_eq!(shown[0], "n0");
     assert_eq!(shown[1], "x (n1)");
     assert!(shown[2..].iter().zip(&printers[2..]).all(|(s, p)| *s == p.name));

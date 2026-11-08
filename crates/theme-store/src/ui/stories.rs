@@ -4,7 +4,7 @@ use super::{AppearancePage, ThemeChip};
 use crate::{SelectionChange, SuiteClient};
 use craft_theme::{ThemeId, builtins};
 use craft_ui::choice::RadioGroup;
-use craft_ui::contract::{Bind, Props as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use craft_ui::layout_components::Row;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
