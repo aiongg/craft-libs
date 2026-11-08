@@ -1,7 +1,7 @@
 //! The notes text model: typing keeps the formatting around it.
 
 use craft_text::ui::notes::{NotesEditor, NotesParagraph, NotesRun, NotesText};
-use craft_ui::contract::{Props as _, Show as _};
+use craft_ui::contract::Show as _;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers, vec2};
 use std::cell::RefCell;
