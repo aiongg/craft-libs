@@ -1,107 +1,85 @@
 //! [`EffectParameters`]: the selected effect layer's filter select and parameters.
 
-use egui::accesskit::Role;
-use egui::{AsIdSalt, IdSalt, Ui, UiBuilder};
+use craft_ui::contract::{Bind, NoValue, Outcome, Show as _, ShowContainer as _};
+use craft_ui::display::{Shade, Text};
+use craft_ui::layout_components::Stack;
+use craft_ui::patterns::form_dialogs::{ColorRequest, ParamRows};
+use craft_ui::pickers::Select;
+use craft_ui::runtime::env::Env;
+use craft_ui::style::TypeRole;
+use egui::{Response, Ui};
 
-use craft_theme::TypeRole;
-use craft_ui::controls::Select;
-use craft_ui::dialog::{ParamRows, ParamRowsResponse};
-use craft_ui::primitives::{Content, Gap, Text};
-use craft_ui::theme::{Tokens, TokensOf as _};
-
-use craft_ui::localized::Labels as _;
-
-use super::FilterGalleryLabels;
-use super::catalog::{FilterCategory, GalleryFilter};
+use super::catalog::FilterIndex;
 use super::session::{EffectChange, EffectLayer};
+use super::words::FilterGalleryWords;
 
 /// What [`EffectParameters::show`] reports.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 #[non_exhaustive]
-pub struct EffectParametersResponse {
-    /// The rows' response (`changed`, a colour or path request).
-    pub rows: Option<ParamRowsResponse>,
+pub struct EffectParametersOutput {
+    /// The column's response.
+    pub response: Response,
     /// A filter picked in the select, or the fields changed.
     pub change: Option<EffectChange>,
-    /// A slider is being dragged; the history settles when the drag ends.
-    pub dragging: bool,
+    /// A colour row's swatch pressed: the host opens its picker for the request and answers into the
+    /// selected effect's fields.
+    pub pick_color: Option<ColorRequest>,
 }
 
-/// The right column's parameters: the Filter select (every filter, grouped by category) and the
-/// selected effect layer's parameters through `ParamRows` (lead call 38). A colour row asks the
-/// app through `ParamRowsResponse::color`. A filter that uses the foreground and background
-/// colours says so under its rows.
+impl Outcome for EffectParametersOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// The settings column's parameters: the Filter select (every filter, grouped by category) and the selected
+/// effect layer's parameters through `ParamRows`. A colour row asks the app through
+/// `EffectParametersOutput::pick_color`. A filter that uses the foreground and background colours says so under
+/// its rows.
 ///
 /// AccessKit: the select is a combo box named "Filter"; the rows are the form's.
+#[derive(craft_ui::contract::Pattern)]
 #[must_use = "show the parameters with `show`"]
 pub struct EffectParameters<'a> {
-    id_salt: IdSalt,
-    index: usize,
+    at: usize,
     effect: &'a EffectLayer,
-    filter: Option<&'a GalleryFilter>,
-    categories: &'a [FilterCategory],
-    labels_of: &'a dyn Fn(&str) -> String,
-    labels: Option<FilterGalleryLabels>,
+    index: &'a FilterIndex,
 }
 
 impl<'a> EffectParameters<'a> {
-    /// The settings of `effect` (at `index` in the stack), whose filter is `filter` (`None`: a
-    /// filter the app no longer has, shown with no rows). `labels_of` gives a filter key's
-    /// translated name for the select.
-    pub fn new(
-        id_salt: impl AsIdSalt,
-        index: usize,
-        effect: &'a EffectLayer,
-        filter: Option<&'a GalleryFilter>,
-        categories: &'a [FilterCategory],
-        labels_of: &'a dyn Fn(&str) -> String,
-    ) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), index, effect, filter, categories, labels_of, labels: None }
-    }
-
-    /// The words (default: [`FilterGalleryLabels::of`]).
-    pub fn labels(mut self, labels: FilterGalleryLabels) -> Self {
-        self.labels = Some(labels);
-        self
+    /// The settings of `effect` (at index `at` in the stack); `index` holds the filters.
+    pub fn new(at: usize, effect: &'a EffectLayer, index: &'a FilterIndex) -> Self {
+        Self { at, effect, index }
     }
 
     /// Draws the filter select and the parameter rows, and reports any change.
-    pub fn show(self, ui: &mut Ui) -> EffectParametersResponse {
-        // pc: crates/ui-egui/src/dialogs/gallery_ui.rs:774-831 (the select, the parameter rows).
-        let Self { id_salt, index, effect, filter, categories, labels_of, labels } = self;
-        let labels = labels.unwrap_or_else(|| FilterGalleryLabels::of(ui));
-        let id = ui.make_persistent_id(id_salt).with(index);
-        let gap = Gap::Row.points(&Tokens::of(ui));
+    pub fn show(self, ui: &mut Ui) -> EffectParametersOutput {
+        let Self { at, effect, index } = self;
+        let words = Env::of(ui).words::<FilterGalleryWords>();
+        let entries = index.entries();
+        let filter = index.filter(&effect.filter);
         let mut change = None;
-
-        let mut key = effect.filter.clone();
-        let mut select = Select::new(id.with("filter"), labels.filter.as_str(), &mut key).width(ui.available_width());
-        for category in categories {
-            select = select.group(category.label.as_str());
-            for filter_key in &category.filters {
-                select = select.option(filter_key.clone(), labels_of(filter_key));
+        let mut pick_color = None;
+        let stack = Stack::new().show(ui, |ui, _| {
+            let picked = Select::new(words.filter.clone(), Bind::given(effect.filter.clone()), &entries).show(ui);
+            if let Some(key) = picked.value().filter(|key| **key != effect.filter) {
+                change = Some(EffectChange::SetFilter { index: at, filter: key.clone() });
             }
-        }
-        let edit = select.show(ui);
-        if let Some(picked) = edit.committed().filter(|picked| **picked != effect.filter) {
-            change = Some(EffectChange::SetFilter { index, filter: picked.clone() });
-        }
-        ui.add_space(gap);
-
-        let mut rows = None;
-        if let Some(filter) = filter {
-            let mut fields = effect.fields.clone();
-            let group = UiBuilder::new().id_salt(id.with("rows")).accessibility_role(Role::Group).accessibility_label(labels.settings.as_str());
-            let shown = ui.scope_builder(group, |ui| ParamRows::new(id.with("params"), &filter.params).show(ui, &mut fields)).inner;
-            if shown.changed && change.is_none() {
-                change = Some(EffectChange::Fields { index, fields });
+            let Some(filter) = filter else { return };
+            let rows = ParamRows::new(words.settings.clone(), &filter.params, Bind::given(effect.fields.clone())).show(ui);
+            if rows.changed
+                && change.is_none()
+                && let Some(fields) = rows.values
+            {
+                change = Some(EffectChange::Fields { index: at, fields });
             }
-            rows = Some(shown);
+            pick_color = rows.pick_color;
             if filter.uses_colors {
-                ui.add_space(gap);
-                ui.add(Text::new(labels.uses_colors.as_str()).role(TypeRole::Caption).content(Content::Faint).max_width(ui.available_width()));
+                Text::new(words.uses_colors.clone()).role(TypeRole::Caption).shade(Shade::Faint).show(ui);
             }
-        }
-        EffectParametersResponse { rows, change, dragging: ui.input(|i| i.pointer.any_down()) }
+        });
+        EffectParametersOutput { response: stack.output, change, pick_color }
     }
 }
