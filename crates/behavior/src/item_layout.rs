@@ -685,13 +685,10 @@ impl ItemLayout for SheetLayout {
         let content = self.rows.start(row) * zoom;
         let top = if row < self.frozen_rows { content } else { content - offset.y };
         let height = (self.rows.size(row) * zoom) as f32;
-        // With a view set, a row spans the columns the view shows: a row as wide as the whole sheet (16,384 columns)
-        // exceeds the size guard of a shown component.
-        if let Some(right) = self.grid.as_ref().and_then(|grid| grid.sections.last()).and_then(|section| section.edges.last()) {
-            return Rect::from_min_size(Pos2::new(0.0, top as f32), Vec2::new(*right, height));
-        }
-        let size = Vec2::new((self.columns.total() * zoom) as f32, height);
-        Rect::from_min_size(Pos2::new(-(offset.x as f32), top as f32), size)
+        // A row spans the columns the view shows, from the view's left edge: a row as wide as the whole sheet (16,384
+        // columns) is never a row's rect. Before a view is set the view is empty and the row has no width.
+        let right = self.grid.as_ref().and_then(|grid| grid.sections.last()).and_then(|section| section.edges.last()).copied().unwrap_or(0.0);
+        Rect::from_min_size(Pos2::new(0.0, top as f32), Vec2::new(right, height))
     }
 
     /// The frozen band is checked first: a point in it finds the frozen row under it, whatever the scroll.
