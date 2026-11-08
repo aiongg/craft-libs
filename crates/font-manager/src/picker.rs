@@ -45,7 +45,7 @@ craft_ui::words! {
         sample: "fontPicker.sample" = "Sample";
         no_match: "fontPicker.noMatch" = "No fonts match";
         /// The name of a row's star, with `{row}` for the row's label.
-        favorite: "fontPicker.favorite" = "Favorite {row}";
+        favorite: template "fontPicker.favorite" = "Favorite {row}";
         list: "fontPicker.list" = "Fonts";
         hide_classes: "fontPicker.hideClasses" = "Hide Font Classes";
         show_classes: "fontPicker.showClasses" = "Show Font Classes";
