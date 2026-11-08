@@ -2281,6 +2281,9 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
   - `pub fn new(dash: f32, gap: f32) -> Self`. Dashes of `dash` with gaps of `gap`, starting at the pattern's beginning.
   - `pub fn even(length: f32) -> Self`. Dashes of `length` with gaps of the same length, starting at the pattern's beginning.
   - `pub fn phase(mut self, phase: f32) -> Self`. The pattern advanced by `phase` points.
+- `craft_ui::primitives::DataStrokeWidth`: `pub enum DataStrokeWidth { Named(StrokeWidth), Data(DataWidth) }`. The width of a data stroke: a named theme width or one from the document.
+- `craft_ui::primitives::DataWidth`: `pub struct DataWidth`. A line width the data gives (a path's thickness, a pen size), in screen points: the caller maps a document width
+  - `pub const fn points(points: f32) -> Self`. A width of `points`.
 - `craft_ui::primitives::DocRun`: `pub struct DocRun<'a> { pub text: Cow<'a, str>, pub font: FontRef, pub size: f32, pub weight: u16, pub italic: bool, pub color: DataColor, pub underline: bool, pub strikethrough: bool, pub indent: f32 }`. One run of document text.
   - `pub fn new(text: impl Into<Cow<'a, str>>, font: FontRef, size: f32, color: DataColor) -> Self`. A regular-weight upright run without lines or indent.
   - `pub fn italic(mut self) -> Self`. Italic.
@@ -2295,7 +2298,7 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
   - `pub fn full_text(&self) -> String`. The text of every run, joined.
 - `craft_ui::primitives::Draw`: `pub struct Draw<'a>`. The content-paint API `PaintUi::draw` gives.
   - `pub fn text(&self, rect: Rect, run: &TextRun<'_>) -> TextLayout`. Lays `run` out in `rect`'s width and paints it at the reading start of `rect`, top aligned. Records the
-  - `pub fn doc(&self, rect: Rect, text: &DocText<'_>) -> TextLayout`. Lays `text` out in `rect`'s width and paints it at the reading start of `rect`, top aligned, as `text` does for
+  - `pub fn doc(&self, rect: Rect, text: &DocText<'_>) -> TextLayout`. Lays `text` out in `rect`'s width and paints it top aligned, its block placed in `rect` by `text.align` (Start
   - `pub fn layout(&self, run: &TextRun<'_>, max_width: f32) -> TextLayout`. Lays `run` out in `max_width` without painting it: the one text layout path for painters that measure before
   - `pub fn galley(&self, pos: Pos2, layout: &TextLayout)`. Paints a laid-out run at `pos`. Records the first baseline and, when the layout cut text, the full text, as
   - `pub fn icon(&self, rect: Rect, icon: &super::IconSpec<'_>)`. Paints `icon` centred in `rect`, in the colour or ink the spec names, mirrored under right-to-left when it is
@@ -2305,7 +2308,8 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
   - `pub fn fill(&self, shape: &PaintShape, color: StyleColor)`. Fills `shape`.
   - `pub fn stroke(&self, shape: &PaintShape, width: StrokeWidth, color: StyleColor)`. Strokes `shape`.
   - `pub fn data_fill(&self, shape: &PaintShape, color: DataColor)`. Fills `shape` with a colour from data (a swatch well, a layer label dot, an avatar). A `Draw` for an inactive
-  - `pub fn data_stroke(&self, shape: &PaintShape, width: StrokeWidth, color: DataColor)`. Strokes `shape` with a colour from data (a chart series, a curve). A `Draw` for an inactive part strokes with
+  - `pub fn data_stroke(&self, shape: &PaintShape, width: impl Into<DataStrokeWidth>, color: DataColor)`. Strokes `shape` with a colour from data (a chart series, a curve) at a theme width or a width from the
+  - `pub fn texture(&self, rect: Rect, texture: TextureId, uv: Rect)`. Paints the part `uv` of `texture` (from `TextureCache` or a `TextureStore`) into `rect`, untinted. A `Draw`
   - `pub fn dashed(&self, path: &[Pos2], pattern: Dashes, width: StrokeWidth, color: StyleColor)`. Strokes the open path `path` as dashes (copy marks, drag previews, reference lines). [`kit::dashed`] is the one
   - `pub fn clipped(&self, rect: Rect, paint: impl FnOnce(&Draw<'_>))`. Runs `paint` with a `Draw` whose painting is cut to `rect` (inside the clip already in force): scrolled content
 - `craft_ui::primitives::EditorLine`: `pub struct EditorLine<'a> { pub text: &'a str, pub rect: Rect, pub baseline: f32, pub runs: &'a [EditorRun<'a>] }`. One visible line of an own-caret editor.
@@ -2681,6 +2685,7 @@ Per-pass and per-frame services and the one egui adapter.
 - `craft_ui::runtime::access::SubNode`: `pub struct SubNode { pub name: Name, pub description: Option<String>, pub numeric: Option<Numeric>, pub expanded: Option<bool>, pub position: Option<SetPosition>, pub grid: GridPlace, pub level: Option<usize> }`. A node below a component's node, for a part, a cell or a line of a content painter.
   - `pub fn bounds(&mut self, rect: egui::Rect) -> &mut Self`. The node's rectangle on screen, for a node that has no part of its own to take it from (a block of text a
   - `pub fn text_run(&mut self, text: impl Into<String>, positions: Vec<f32>, widths: Vec<f32>, rtl: bool) -> &mut Self`. Makes the node a run of text: `text` laid out on one line, each character's start offset from the node's left
+  - `pub fn run_link(&mut self, chars: std::ops::Range<usize>, target: impl Into<String>) -> &mut Self`. Marks characters `chars` of a [text run](Self::text_run) as a link to `target`: the run node gets a `Link`
   - `pub fn level(&mut self, level: usize) -> &mut Self`. The heading level or tree depth.
   - `pub fn value(&mut self, text: impl Into<String>) -> &mut Self`. A plain text value, for a sub-node that shows text as its value and has no number.
   - `pub fn column(&mut self, key: craft_behavior::ColumnKey) -> &mut Self`. The column of a cell of an item row; the item step reads the cell's column index from the collection's
@@ -2953,6 +2958,8 @@ One-shot screenshot slots and the facts a screenshot is measured against.
 - `craft_ui::runtime::env::Label`: `pub enum Label { Empty, Static(&'static str), Shared(Arc<str>), Word(Word) }`. A label: a literal stays borrowed, a built string is shared. Cloning is cheap.
   - `pub fn as_str(&self) -> &str`. The text of a label whose `Word` is not resolved yet reads as its English text.
   - `pub fn from_cow(text: Cow<'static, str>) -> Self`. The label of `text`: a borrowed text stays borrowed.
+- `craft_ui::runtime::env::LengthUnits`: `pub struct LengthUnits { pub stored: UnitKind, pub shown: UnitKind, pub pixels_per_inch: f64 }`. A length kept in one unit and shown in another: what a length field reads and writes (`stored`, the document's
+  - `pub const fn new(stored: UnitKind, shown: UnitKind, pixels_per_inch: f64) -> Self`. A length kept in `stored` and shown in `shown`, with `pixels_per_inch` sizing pixels.
 - `craft_ui::runtime::env::Message`: `pub struct Message { pub text: Label, pub tone: Option<Tone> }`. The text of a `Validity`: a label and an optional tone override. `Warn` defaults to `Tone::Warn`, `Refuse` to
   - `pub fn new(text: impl Into<Label>) -> Self`. A message with the default tone.
   - `pub fn tone(mut self, tone: Tone) -> Self`. The message in `tone`.
@@ -3009,6 +3016,8 @@ One-shot screenshot slots and the facts a screenshot is measured against.
   - `pub fn number_ungrouped(&self, n: f64, decimals: RangeInclusive<usize>) -> String`. `n` with between the least and most digits of `decimals` after the decimal mark, in the user's language and
   - `pub fn reader(&self, kind: Option<UnitKind>) -> Reader`. A reader for numbers of `kind` (plain numbers when `None`): the locale's decimal and group separators and
   - `pub fn reader_with_points(&self, kind: Option<UnitKind>, points_per_inch: f64) -> Reader`. Like [`reader`](Units::reader), with Points and Picas of `points_per_inch` to the inch, so a typed `12pt` is the
+  - `pub fn length_scale(&self, lengths: LengthUnits) -> Option<f64>`. How many `lengths.shown` make one `lengths.stored`; `None` when either is not a pixel or length unit or the
+  - `pub fn length_reader(&self, lengths: LengthUnits) -> Reader`. A reader for lengths shown in `lengths.shown`: the spellings of every length unit and of pixels convert to it,
   - `pub fn document_reader(&self, ruler: UnitKind, extent: f64, pixels_per_inch: f64, points_per_inch: f64) -> Reader`. A reader for the numbers of a document measured in `ruler`: the unit spellings of every pixel and length unit
 - `craft_ui::runtime::env::WindowKey`: `pub struct WindowKey`. The key of a window. It equals the placement `SaveKey` of the window, so two windows of one app need different keys.
   - `pub fn main() -> Self`. The first window, `"main"`.
@@ -3376,6 +3385,7 @@ The style layer: the state set and its resolver, style parts and `ComponentStyle
   - `pub fn density(&self) -> Size`. The density preset of the scope, for a style whose shape differs between presets.
   - `pub fn env<T: StyleValue>(&self) -> T`. An app value set by a scope. Its hash is part of the style cache key.
   - `pub fn color(&self, color: Rgba) -> StyleColor`. The one constructor of `StyleColor`: a semantic token read or a token-group field becomes a style colour here.
+  - `pub fn ink_on(&self, fill: DataColor) -> StyleColor`. The ink for text on a user colour: the higher-contrast of `text.normal` and `text.on_strong` on the fill,
   - `pub fn focus_look(&self) -> FocusLook`. The one builder of the focus ring: the line's focus colour at the medium stroke, on the shape's edge.
   - `pub fn tone(&self, tone: Tone) -> StyleColor`. The colour text and icons of `tone` read in.
   - `pub fn tone_fill(&self, tone: Tone) -> StyleColor`. The tinted background text and icons of `tone` sit on: the status or accent background, and the sunken surface
@@ -3439,6 +3449,7 @@ The fixture, the suite runner and the story helpers.
 - `craft_ui::testing::registered_in`: `pub fn registered_in(crate_name: &str) -> Vec<&'static Registration>`. Every registration declared in the library crate of the package `crate_name` and linked into the running
 - `craft_ui::testing::Fixture`: re-export of `craft_ui::testing::fixture::Fixture`.
 - `craft_ui::testing::Frames`: re-export of `craft_ui::testing::frames::Frames`.
+- `craft_ui::testing::Room`: re-export of `craft_ui::testing::fixture::Room`.
 - `craft_ui::testing::Target`: re-export of `craft_ui::testing::fixture::Target`.
 - `craft_ui::testing::ToolFixture`: re-export of `craft_ui::testing::tool_fixture::ToolFixture`.
 - `craft_ui::testing::install_spec`: re-export of `craft_ui::testing::windows::install_spec`.
@@ -3632,6 +3643,7 @@ Text dumps for tests: ordered `key = value` lines compared exactly with a file, 
   - `pub fn story_scoped(story: &Story, scope: fn(&mut Overrides)) -> Self`. A fixture that shows `story` inside an env scope `scope` changes: disabled, read-only, or both.
   - `pub fn command_state(&mut self, command: impl Into<CommandRef>, state: CommandState) -> &mut Self`. Gives app-scope `command` this state in every following pass, as an app's `FrameInput.commands` does; a later
   - `pub fn room(&mut self, room: Vec2) -> &mut Self`. The room the story is shown in.
+  - `pub fn in_room(&mut self, room: Room) -> &mut Self`. The room of a host kind: the same as [`Fixture::room`] with that kind's size.
   - `pub fn direction(&mut self, direction: Direction) -> &mut Self`. The layout direction.
   - `pub fn theme(&mut self, mode: Mode, contrast: Contrast) -> &mut Self`. Light or dark, and standard or high contrast.
   - `pub fn motion(&mut self, motion: MotionMode) -> &mut Self`. The motion mode.
@@ -3673,11 +3685,16 @@ Text dumps for tests: ordered `key = value` lines compared exactly with a file, 
   - `pub fn release(&mut self, target: &Target) -> &mut Self`. Release at the middle of `target`.
   - `pub fn drag(&mut self, target: &Target, by: Vec2) -> &mut Self`. Press on `target`, move by `by` in four steps, release.
   - `pub fn drag_at(&mut self, from: Pos2, by: Vec2) -> &mut Self`. A drag from the point `from` by `by`: the same frames as [`Fixture::drag`], for a point that is no target.
+  - `pub fn drag_hold_at(&mut self, from: Pos2, by: Vec2) -> &mut Self`. The first half of a drag that pauses: press at `from`, move by `by` in four steps, and one frame with the
+  - `pub fn release_at(&mut self, at: Pos2) -> &mut Self`. Releases the button at `at`, then a frame with no input.
+  - `pub fn drag_at_pausing(&mut self, from: Pos2, by: Vec2, halt: impl FnOnce(&mut Fixture)) -> &mut Self`. A drag from `from` by `by` that pauses before the release: [`Fixture::drag_hold_at`], `halt` with the gesture
   - `pub fn key(&mut self, key: Key, modifiers: Modifiers) -> &mut Self`. A key press and release with `modifiers`, in two frames as injected input frames them.
   - `pub fn type_text(&mut self, text: &str) -> &mut Self`. Typed `text`.
   - `pub fn access(&mut self, kind: AccessActionKind, target: &Target) -> &mut Self`. An AccessKit action on `target`.
   - `pub fn focused_stop(&self) -> Option<(Id, Option<PartRef>)>`. The stop that holds focus: the id of its component and the part when focus is on a part.
   - `pub fn focused(&self) -> Option<Id>`. The id of the widget egui has focused.
+- `craft_ui::testing::fixture::Room`: `pub enum Room { Panel, Dialog, Window }`. The room of a trial, named by the kind of host the component sits in. A trial that needs another size gives it to
+  - `pub fn size(self) -> Vec2`. The room's size in points.
 - `craft_ui::testing::fixture::Target`: `pub struct Target { pub node: NodeKey, pub rect: Rect }`. A node of the AccessKit tree, as input addresses it.
   - `pub fn center(&self) -> Pos2`. The middle of the node's bounds.
 
