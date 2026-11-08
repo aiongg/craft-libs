@@ -475,6 +475,7 @@ impl<K: Serialize> Serialize for CellSelection<K> {
 impl<'de, K: Deserialize<'de> + Clone> Deserialize<'de> for CellSelection<K> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
+        #[serde(bound(deserialize = "K: Deserialize<'de>"))]
         struct Stored<K> {
             ranges: Vec<CellRange<K>>,
             #[serde(default)]
