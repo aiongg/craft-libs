@@ -472,7 +472,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
                     .find(|row| row.key == *key)
                     .is_some_and(|row| !row.is_group() || reorder.as_ref().is_some_and(PresetReorder::moves_groups))
             };
-            let accepts = |drag: &ListDrag<K>, over: &K, insert: usize| reorder.as_ref().is_some_and(|rules| rules.allows(rows, drag, over, insert));
+            let accepts = |drag: &ListDrag<K>, over: Option<&K>, insert: usize| reorder.as_ref().is_some_and(|rules| rules.allows(rows, drag, over, insert));
             let rename_ok = |key: &K| can_rename.as_ref().is_none_or(|test| test.passes(key));
             let painter = thumb.as_ref();
             let paint = |row: &PresetRow<K>, selected: bool| {

@@ -113,7 +113,7 @@ fn a_list_predicate_closure_needs_no_parameter_types() {
         .can_rename(|key| key % 2 == 0)
         .can_drag(|key| *key > 0)
         .accept_from(|from| from == egui::Id::NULL)
-        .accepts(|_, over, insert| *over < insert);
+        .accepts(|_, over, insert| over.is_some_and(|over| *over < insert));
 }
 
 const NAME: ColumnKey = ColumnKey::new("name");

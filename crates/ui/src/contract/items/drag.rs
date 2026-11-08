@@ -381,10 +381,10 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 let groups = props.reorder.is_some_and(|rule| rule.into_groups) && matches!(layout.nav(), NavShape::Tree);
                 let step = groups.then(|| cx.env.control(cx.core.resolved.size).icon);
                 let spot = if self.source.is_empty() {
-                    self.empty_spot(rect, layer(at))
+                    self.empty_spot(rect, layer(at)).filter(|spot| comp.accepts(&payload, None, spot.insert))
                 } else {
                     self.spot(layout, rect, offset, rtl, step, layer(at))
-                        .filter(|spot| comp.accepts(&payload, &self.source.key(spot.over), spot.insert))
+                        .filter(|spot| comp.accepts(&payload, Some(&self.source.key(spot.over)), spot.insert))
                         .filter(|spot| !(own && groups) || !self.inside_dragged(&payload, spot.parent))
                 };
                 if let Some(spot) = spot

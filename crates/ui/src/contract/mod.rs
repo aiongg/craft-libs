@@ -455,8 +455,8 @@ pub trait Collection: Component + HasProps + Meta<Shape = shape::Items> {
     }
 
     /// Whether the dragged items may land before `insert` (a position of the display order, `over` is the item the
-    /// pointer is on). A refused spot shows no drop mark.
-    fn accepts(&self, _drag: &ListDrag<Self::Key>, _over: &Self::Key, _insert: usize) -> bool {
+    /// pointer is on, none over an empty collection). A refused spot shows no drop mark.
+    fn accepts(&self, _drag: &ListDrag<Self::Key>, _over: Option<&Self::Key>, _insert: usize) -> bool {
         true
     }
 

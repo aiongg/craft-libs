@@ -18,8 +18,8 @@ pub struct PresetReorder<'a, K> {
     #[prop(quantity = "levels")]
     nest: usize,
     /// Refuses the landings for which the test is false: a refused spot shows no drop mark. It gets the drag, the row
-    /// under the pointer and the position before which the dragged rows would go.
-    #[prop(func = "Fn(&ListDrag<K>, &K, usize) -> bool")]
+    /// under the pointer (none over an empty browser) and the position before which the dragged rows would go.
+    #[prop(func = "Fn(&ListDrag<K>, Option<&K>, usize) -> bool")]
     accepts: Option<DropTest<'a, K>>,
 }
 
@@ -47,10 +47,11 @@ impl<'a, K> PresetReorder<'a, K> {
 }
 
 impl<K: PartialEq> PresetReorder<'_, K> {
-    /// Whether dragging `drag` over the row `over`, before position `insert`, lands where the rules allow over
-    /// `rows`.
-    pub fn allows(&self, rows: &[PresetRow<K>], drag: &ListDrag<K>, over: &K, insert: usize) -> bool {
+    /// Whether dragging `drag` over the row `over` (`None` over an empty browser), before position `insert`, lands
+    /// where the rules allow over `rows`.
+    pub fn allows(&self, rows: &[PresetRow<K>], drag: &ListDrag<K>, over: Option<&K>, insert: usize) -> bool {
         let at = |key: &K| rows.iter().position(|row| row.key == *key);
+        let Some(over) = over else { return self.accepts.as_ref().is_none_or(|test| test.passes(drag, None, insert)) };
         let Some(target) = at(over) else { return false };
         for key in &drag.keys {
             let Some(from) = at(key) else { return false };
@@ -63,6 +64,6 @@ impl<K: PartialEq> PresetReorder<'_, K> {
                 return false;
             }
         }
-        self.accepts.as_ref().is_none_or(|test| test.passes(drag, over, insert))
+        self.accepts.as_ref().is_none_or(|test| test.passes(drag, Some(over), insert))
     }
 }
