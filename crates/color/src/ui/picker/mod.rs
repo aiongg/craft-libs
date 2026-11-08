@@ -321,9 +321,9 @@ impl<'a> ColorPicker<'a> {
     /// The models shown: the host's, or the built-in models on in the layout.
     fn models_list(&self) -> Vec<&'a dyn ColorModel> {
         let full = self.layout == ColorPickerLayout::Full;
-        self.models.clone().unwrap_or_else(|| {
-            builtin_models().into_iter().filter(|m| if full { m.default_on().full } else { m.default_on().compact }).collect()
-        })
+        self.models
+            .clone()
+            .unwrap_or_else(|| builtin_models().into_iter().filter(|m| if full { m.default_on().full } else { m.default_on().compact }).collect())
     }
 
     /// The modes the Full layout's radios offer.

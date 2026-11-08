@@ -4,9 +4,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use craft_behavior::Codec as _;
-use craft_color::ui::{
-    ChosenColor, ColorChoice, ColorPicker, ColorPickerLayout, ColorReadout, ColorWarning, NamedColor, PairCodec, PickedColor,
-};
+use craft_color::ui::{ChosenColor, ColorChoice, ColorPicker, ColorPickerLayout, ColorReadout, ColorWarning, NamedColor, PairCodec, PickedColor};
 use craft_theme::{Channel, ColorModel, DefaultOn, HsbModel, MAX_CHANNELS, ModelValues, OklchModel, RgbModel, Rgba, Srgba};
 use craft_ui::contract::Bind;
 use craft_ui::testing::{Fixture, trial};
@@ -83,11 +81,8 @@ fn picker(setup: Setup, start: PickedColor) -> (Fixture, Rc<RefCell<Host>>) {
         let mut value = host.value;
         let mut web = host.web;
         let sampled = host.sampled.take();
-        let models: Vec<&dyn ColorModel> = if setup.cmyk {
-            vec![&HsbModel, &RgbModel, &CMYK_MODEL, &OklchModel]
-        } else {
-            vec![&HsbModel, &RgbModel, &OklchModel]
-        };
+        let models: Vec<&dyn ColorModel> =
+            if setup.cmyk { vec![&HsbModel, &RgbModel, &CMYK_MODEL, &OklchModel] } else { vec![&HsbModel, &RgbModel, &OklchModel] };
         let mut picker = ColorPicker::new("Foreground color", Bind::bound(&mut value))
             .layout(setup.layout)
             .alpha(setup.alpha)
@@ -162,7 +157,7 @@ fn host_model_values_survive_in_the_grid() {
 /// A sample from the host replaces the colour but keeps the picker's alpha.
 #[trial]
 fn a_sample_keeps_the_alpha() {
-    let (mut fixture, host) = picker(Setup { alpha: true, ..COMPACT }, PickedColor::rgb(Srgba::new(0.2, 0.5, 0.8, 0.5)));
+    let (mut fixture, host) = picker(Setup { alpha: true, ..COMPACT }, PickedColor::rgb(Srgba::rgb(0.2, 0.5, 0.8).with_alpha(0.5)));
     host.borrow_mut().sampled = Some(Srgba::rgb(1.0, 0.0, 0.0));
     fixture.settle();
     let value = host.borrow().value;

@@ -4,6 +4,7 @@
 use std::sync::Arc;
 
 use craft_behavior::Flow;
+use craft_behavior::IconId;
 use craft_theme::ColorModel;
 use craft_ui::buttons::IconButton;
 use craft_ui::contract::{Bind, Cx, Edit as _, EditResponse, PaintUi, Props as _, SideLabel};
@@ -11,7 +12,6 @@ use craft_ui::pickers::Select;
 use craft_ui::primitives::IconSpec;
 use craft_ui::runtime::env::Label;
 use craft_ui::text::TextField;
-use craft_behavior::IconId;
 use egui::{Rect, Response, Vec2};
 
 use super::channel::{ChannelRule, ChannelUnit, channel_name, channel_slider};

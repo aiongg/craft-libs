@@ -5,9 +5,7 @@ mod stories;
 
 use craft_behavior::{Flow, Metrics, Proposal, Sense};
 use craft_theme::Rgba;
-use craft_ui::contract::{
-    Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Props as _, Role, WordSetCx as _,
-};
+use craft_ui::contract::{Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Props as _, Role, WordSetCx as _};
 use craft_ui::runtime::env::Label;
 use craft_ui::style::{ComponentStyle, StyleCx};
 use craft_ui::text::{NumberField, TextField};
@@ -92,7 +90,9 @@ impl Component for ColorReadout<'_> {
         let words = cx.words::<ColorReadoutWords>();
         let gap = cx.style.metrics.gap;
         let flow = Flow::new(cx.rect, cx.env.direction().is_rtl());
-        let place = |x: f32, width: f32| flow.to_physical(Rect::from_min_size(pos2(x, 0.0), Vec2::new(width, cx.rect.height())).translate(cx.rect.min.to_vec2()));
+        let place = |x: f32, width: f32| {
+            flow.to_physical(Rect::from_min_size(pos2(x, 0.0), Vec2::new(width, cx.rect.height())).translate(cx.rect.min.to_vec2()))
+        };
         let hex = ui.child("hex", place(0.0, cx.style.hex), TextField::hex(words.hex.as_str().to_owned(), Bind::given(shown)));
         cx.adopt(&hex, &Rgba::BLACK, |value, mine| *mine = *value);
         let names = [&words.red, &words.green, &words.blue];

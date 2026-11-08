@@ -178,7 +178,8 @@ pub(super) fn full(sizes: &Sizes, input: FullInput<'_>) -> FullPlan {
     let chips_x = x0 + if input.compare { sizes.compare.x + sizes.gap } else { 0.0 };
     let chips_y = if input.compare { sizes.caption } else { 0.0 };
     let mut chip_rows = Rows::new(sizes.stack);
-    let warnings: Vec<Rect> = (0..input.warnings).map(|_| rect(chips_x, chips_y + chip_rows.take(sizes.chip.y), sizes.chip.x, sizes.chip.y)).collect();
+    let warnings: Vec<Rect> =
+        (0..input.warnings).map(|_| rect(chips_x, chips_y + chip_rows.take(sizes.chip.y), sizes.chip.x, sizes.chip.y)).collect();
     if input.warnings > 0 {
         top = top.max(chips_y + chip_rows.height());
     }

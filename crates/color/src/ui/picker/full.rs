@@ -13,10 +13,10 @@ use craft_ui::style::{ComponentStyle, StyleCx, TypeRole};
 use craft_ui::text::NumberField;
 use egui::{Rect, Response, Vec2};
 
+use super::ColorPicker;
 use super::channel::{ChannelRule, ChannelUnit, channel_name};
 use super::compact::Pass;
 use super::layout::{self, FullInput};
-use super::ColorPicker;
 use crate::ui::AreaMode;
 
 /// A warning the host shows beside the Full picker's compare swatch, as the out-of-gamut and web-colour warnings of
@@ -111,12 +111,7 @@ impl Component for ColorWarningChip<'_> {
     type Output = ColorWarningChipOutput;
 
     fn style(cx: &StyleCx<'_>, _: ColorWarningChipStyleKey) -> ColorWarningChipStyle {
-        ColorWarningChipStyle {
-            metrics: Metrics::new(),
-            icon: cx.tokens.size.icon.md,
-            chip: cx.control().height,
-            gap: cx.tokens.space.gap.tight,
-        }
+        ColorWarningChipStyle { metrics: Metrics::new(), icon: cx.tokens.size.icon.md, chip: cx.control().height, gap: cx.tokens.space.gap.tight }
     }
 
     fn sense(&self) -> Sense {
@@ -129,10 +124,7 @@ impl Component for ColorWarningChip<'_> {
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let style = cx.style;
-        let icon = Rect::from_center_size(
-            egui::pos2(cx.rect.center().x, cx.rect.top() + style.icon / 2.0),
-            Vec2::splat(style.icon),
-        );
+        let icon = Rect::from_center_size(egui::pos2(cx.rect.center().x, cx.rect.top() + style.icon / 2.0), Vec2::splat(style.icon));
         let chip = Rect::from_center_size(egui::pos2(cx.rect.center().x, cx.rect.bottom() - style.chip / 2.0), Vec2::splat(style.chip));
         let _ = ui.child("icon", icon, Icon::new(IconSpec::svg(self.warning.icon.clone())));
         let swatch = Swatch::new(self.warning.tip.clone(), self.warning.nearest).tooltip(self.warning.tip.clone());

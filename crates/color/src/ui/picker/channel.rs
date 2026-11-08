@@ -9,7 +9,7 @@ use craft_ui::contract::{Bind, Common, Component, Cx, EditResponse, Props as _, 
 use craft_ui::form::{Field, SliderField};
 use craft_ui::primitives::{PaintShape, StrokeWidth};
 use craft_ui::runtime::env::{Label, UnitKind};
-use craft_ui::style::{ComponentStyle, DataColor, StyleCx, StyleColor};
+use craft_ui::style::{ComponentStyle, DataColor, StyleColor, StyleCx};
 use craft_ui::value_drag::TrackFace;
 use egui::{Color32, CornerRadius, Ui};
 
