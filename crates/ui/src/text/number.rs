@@ -357,6 +357,7 @@ impl<V: NumberValue> Codec for Ruled<V> {
     fn sample(&self, current: &V) -> Cow<'_, str> {
         match current.named() {
             Some(_) => Cow::Owned(self.format(current)),
+            None if self.rule.low.is_finite() && self.rule.high.is_finite() => Cow::Owned(self.inner.widest(&(self.rule.low..=self.rule.high))),
             None => self.inner.sample(&self.shown(current)),
         }
     }
@@ -754,6 +755,13 @@ impl<V: NumberValue + 'static> Component for NumberField<'_, V> {
 
     fn bind(&mut self) -> Option<BindMut<'_, V>> {
         Some(self.value.reborrow())
+    }
+
+    /// A write-back equal to the proposal at the field's decimals is the gesture's own write.
+    fn same_value(&self, proposed: &V, host: &V) -> bool {
+        let decimals = self.decimals();
+        let at_precision = |value: &V| value.number().map(|number| round_to(number * self.scale, decimals));
+        proposed == host || (proposed.named() == host.named() && at_precision(proposed) == at_precision(host))
     }
 
     fn scrub(&self) -> Option<Scrub<V>> {

@@ -4,6 +4,7 @@
 use crate::quantity::Reader;
 use std::borrow::Cow;
 use std::fmt;
+use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 /// The text is not a value of the codec's type.
@@ -189,6 +190,14 @@ impl NumberCodec {
     pub fn or_parse(mut self, parse: impl Fn(&str) -> Option<f64> + Send + Sync + 'static) -> Self {
         self.custom = Some(Arc::new(parse));
         self
+    }
+
+    /// The widest text the codec writes for a number in `range`: the longer of its two ends, with every decimal
+    /// place, so a field over the range is sized for any value in it.
+    pub fn widest(&self, range: &RangeInclusive<f64>) -> String {
+        let text = |number: f64| format!("{number:.*}", self.decimals).replace('.', &self.reader.decimal_separator().to_string());
+        let (low, high) = (text(*range.start()), text(*range.end()));
+        if low.chars().count() > high.chars().count() { low } else { high }
     }
 
     /// The most decimal places the codec writes.
