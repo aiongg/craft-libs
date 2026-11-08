@@ -1,7 +1,6 @@
 //! The Keyboard Shortcuts dialog, driven pass by pass through `craft_ui::testing::Fixture`.
 
 mod codec;
-mod dump;
 mod dialog;
 mod fixture;
 mod import_offer;
