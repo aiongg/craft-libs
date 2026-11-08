@@ -1606,6 +1606,7 @@ pub(crate) fn placement_under_fixed_sizes(row: &ListRow<'_>, width: f32, rtl: bo
         pad: 6.0,
         gap: 4.0,
         trailing_pad: 8.0,
+        field: 64.0,
         min_label: 60.0,
         thumbs: [24.0, 32.0, 48.0],
         thumb_pad: 4.0,
