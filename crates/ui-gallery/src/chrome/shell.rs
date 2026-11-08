@@ -133,7 +133,7 @@ impl ShellApp for Gallery {
 
     fn ui(&mut self, ui: &mut Ui) {
         let status = self.status();
-        let Viewer { env, cell_filter, workspace, more_open, browser, themes, theme_dock } = &mut self.viewer;
+        let Viewer { env, cell_filter, workspace, more_open, browser, themes, theme_dock, .. } = &mut self.viewer;
         let in_theme = *workspace == Workspace::Theme;
         let subject = ThemeSubject::new(theme_of(&env.theme), env.appearance());
         if in_theme {
