@@ -57,6 +57,7 @@ pub fn cascade_rects(area: Rect, size: Vec2, n: usize, step: f32) -> Vec<Rect> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use emath::vec2;
 
     fn monitor(x: f32, y: f32, w: f32, h: f32) -> Monitor {
         Monitor::new(None, Rect::from_min_size(pos2(x, y), vec2(w, h)), 1.0)
