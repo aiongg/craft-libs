@@ -3,11 +3,12 @@
 //! Redo while a crop is pending, decides what leaving the tool does, and gives the frame back when
 //! the app refuses a commit. Plain data: no egui state, no document access.
 
-use kurbo::{Rect, Size};
+use std::sync::Arc;
 
-use super::crop_frame::CropBox;
-use craft_ui::canvas::CanvasView;
-use craft_ui::dialog::{LocalHistory, Step};
+use craft_behavior::edit_history::{EditHistory, Step};
+use craft_behavior::geometry::CropBox;
+use craft_behavior::kurbo::{Rect, Size};
+use craft_behavior::{CanvasView, EditEvent, GestureId, Mixed};
 
 /// The app's identity of a document (its id, never reused while the app runs). A frame belongs
 /// to the document it was made for.
@@ -16,6 +17,7 @@ pub struct CropDocKey(pub u64);
 
 /// What the Crop tool needs to know of the active document each pass.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct CropDocument {
     /// Identifies the document, so the tool keeps a frame per document.
     pub key: CropDocKey,
@@ -61,6 +63,7 @@ impl CropDocument {
 
 /// One state of the box's own history: the frame and whether it is the untouched default.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct CropStep {
     /// The frame, or `None` when there is none.
     pub frame: Option<CropBox>,
@@ -105,6 +108,7 @@ impl StraightenState {
 
 /// What leaving the Crop tool does to the frame ([`CropSession::leave`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum LeaveFrame {
     /// No frame, or the session was already cleared.
     Nothing,
@@ -124,27 +128,26 @@ pub enum LeaveFrame {
 #[derive(Clone, Debug)]
 pub struct CropKept {
     step: CropStep,
-    history: Option<LocalHistory<CropStep>>,
+    history: Option<EditHistory<CropStep>>,
+    settled: CropStep,
     view: Option<CanvasView>,
     frame_for: Option<(CropDocKey, Size)>,
     editing: bool,
 }
 
-/// The Crop tool's pending frame. The tool ([`CropTool`](super::CropTool)) owns one and drives
-/// it; an app that hosts the frame itself (VectorCraft's Crop Image, LightCraft) may own one too.
+/// The pending frame of the Crop tool. The tool ([`CropTool`](super::CropTool)) owns one and drives it.
 ///
 /// - The default frame: [`ensure_frame`](Self::ensure_frame) frames the selection's bounds, else
 ///   the canvas, marked default, whenever there is no frame. A drag inside the untouched default
 ///   frame draws a new one; applying it does nothing. Another document, or the same one resized,
 ///   gets its own default frame.
-/// - Box Undo and Redo: a [`LocalHistory`] of [`CropStep`]s. Each committed gesture, key step,
-///   ratio refit and Straighten is one step ([`set`](Self::set) with `busy` false settles it);
-///   the app routes Edit › Undo and Redo here while the box [owns Undo](Self::owns_undo).
+/// - Box Undo and Redo: an [`EditHistory`] of [`CropStep`]s fed with the overlay's edit events
+///   ([`mirror`](Self::mirror)). Each committed gesture, key step, ratio refit and Straighten is one
+///   step; the app routes Edit > Undo and Redo here while the box [owns Undo](Self::owns_undo).
 ///   The view is not in the steps: Undo never moves it.
 /// - Leaving the tool ([`leave`](Self::leave)) drops an untouched default frame and applies a
 ///   drawn one.
-/// - [`CropTool`](super::CropTool) is the one writer: the session has no edit type, since a
-///   second caller would be the only reason for one (LC76).
+/// - [`CropTool`](super::CropTool) is the one writer: the session has no edit type of its own.
 #[derive(Clone, Debug, Default)]
 pub struct CropSession {
     frame: Option<CropBox>,
@@ -153,9 +156,15 @@ pub struct CropSession {
     frame_for: Option<(CropDocKey, Size)>,
     /// Pressed since it was made: the canvas shows what lies past its edges.
     editing: bool,
-    history: Option<LocalHistory<CropStep>>,
+    history: Option<EditHistory<CropStep>>,
+    /// The step as of the latest history entry: what a cancelled drag goes back to.
+    settled: CropStep,
+    /// The gesture a run of arrow nudges keeps open, until [`settle`](Self::settle).
+    nudging: Option<GestureId>,
+    /// The id of the next gesture the session opens itself.
+    next_id: u64,
     straighten: StraightenState,
-    /// The frame a ratio-field edit began with (#7752).
+    /// The frame a ratio-field edit began with.
     ratio_base: Option<CropBox>,
 }
 
@@ -169,6 +178,24 @@ impl CropSession {
         self.default_frame = step.default_frame;
     }
 
+    fn fresh_id(&mut self) -> GestureId {
+        self.next_id += 1;
+        GestureId::new(self.next_id)
+    }
+
+    fn history(&mut self) -> &mut EditHistory<CropStep> {
+        let now = self.current();
+        self.history.get_or_insert_with(|| EditHistory::new(&now))
+    }
+
+    /// Feeds `event` to the history and notes the step it settles.
+    fn record(&mut self, event: EditEvent<CropStep>) {
+        if let EditEvent::Commit { after, .. } | EditEvent::Set { after, .. } = &event {
+            self.settled = *after;
+        }
+        self.history().record(&event);
+    }
+
     /// A session with no frame.
     pub fn new() -> Self {
         Self::default()
@@ -179,13 +206,18 @@ impl CropSession {
         self.frame
     }
 
+    /// The frame the overlay edits in place.
+    pub(super) fn frame_mut(&mut self) -> Option<&mut CropBox> {
+        self.frame.as_mut()
+    }
+
     /// The frame is the untouched default one.
     pub fn is_default(&self) -> bool {
         self.default_frame
     }
 
     /// A crop is pending: a frame that was drawn, moved, resized, turned or keyed, not the
-    /// untouched default. Photoshop greys most menu commands out then; Edit › Undo steps the box.
+    /// untouched default. Photoshop greys most menu commands out then; Edit > Undo steps the box.
     pub fn pending(&self) -> bool {
         self.frame.is_some() && !self.default_frame
     }
@@ -200,7 +232,6 @@ impl CropSession {
     /// `key` (as Photoshop: switching documents discards the pending crop). Returns true when a
     /// drawn frame was dropped, so the tool reports [`CropEvent::Discard`](super::CropEvent).
     pub fn for_document(&mut self, key: CropDocKey) -> bool {
-        // pc: crates/ui-egui/src/tools/crop_ui.rs:590 `cancel_stale`.
         let stale = self.frame_for.is_some_and(|(held, _)| held != key);
         if !stale {
             return false;
@@ -215,8 +246,6 @@ impl CropSession {
     /// canvas gets none. A default frame made for another size is replaced. A new default frame
     /// starts a new box history, upright. Returns true when it made one.
     pub fn ensure_frame(&mut self, document: &CropDocument, dragging: bool) -> bool {
-        // pc: crates/ui-egui/src/tools/crop_ui.rs:345 `ensure_frame`, :350 `frame` (the Crop-tool
-        // half; the leave half is `leave`).
         let made_for = Some((document.key, document.size));
         if self.default_frame && self.frame_for != made_for && !dragging {
             self.frame = None;
@@ -235,115 +264,144 @@ impl CropSession {
         self.default_frame = true;
         self.frame_for = made_for;
         self.editing = false;
-        self.history = Some(LocalHistory::new(&self.current()));
+        self.settled = self.current();
+        self.nudging = None;
+        self.history = Some(EditHistory::new(&self.settled));
         true
     }
 
-    /// The first press on the frame since it was made: [`editing`](Self::editing) from now on.
-    /// Returns true when that is new.
-    pub fn press(&mut self) -> bool {
-        // pc: crates/ui-egui/src/tools/crop_ui.rs:608 `press`.
-        let new = self.frame.is_some() && !self.editing;
-        if new {
-            self.editing = true;
+    /// Takes in the overlay's edit of the frame, which the overlay has already written to the frame:
+    /// a gesture ends the default mark and marks the frame as pressed; one that changes nothing, or is
+    /// cancelled, leaves the last step's frame and mark. Each committed gesture and each `Set` is one
+    /// box step.
+    pub fn mirror(&mut self, event: &EditEvent<CropBox>) {
+        self.settle();
+        let drawn = |frame: &CropBox| CropStep { frame: Some(*frame), default_frame: false };
+        let unchanged = |settled: &CropStep, frame: &CropBox| settled.frame.as_ref() == Some(frame);
+        match event {
+            EditEvent::Begin { id, label, .. } => {
+                if self.frame.is_some() {
+                    self.editing = true;
+                    self.default_frame = false;
+                }
+                self.record(EditEvent::begin(*id, Mixed::Same(self.settled), Arc::clone(label), None));
+            }
+            EditEvent::Update { .. } => {}
+            EditEvent::Commit { id, after, .. } => {
+                let step = if unchanged(&self.settled, after) { self.settled } else { drawn(after) };
+                self.adopt(step);
+                self.record(EditEvent::commit(*id, Mixed::Same(self.settled), step));
+            }
+            EditEvent::Cancel { id, reason, .. } => {
+                self.adopt(self.settled);
+                self.record(EditEvent::cancel(*id, *reason, None));
+            }
+            EditEvent::Set { id, after, label, .. } => {
+                let step = if unchanged(&self.settled, after) { self.settled } else { drawn(after) };
+                self.adopt(step);
+                self.editing |= !step.default_frame;
+                self.record(EditEvent::set(*id, Mixed::Same(self.settled), step, Arc::clone(label), None));
+            }
+            _ => {}
         }
-        new
     }
 
-    /// A gesture, key or refit set the frame: it is no longer the default (`keep_default` true for
-    /// a gesture that changed nothing visible, such as a click outside the default frame without
-    /// a turn). With `busy` false the change since the last step becomes one box step; a drag sets
-    /// `busy` until its release.
-    pub fn set(&mut self, frame: CropBox, keep_default: bool, busy: bool) {
-        // pc: crates/ui-egui/src/tools/crop_ui.rs:862 `release` (`changed`), :879 `push_press_step`,
-        // :675 `keyed`; dialog/history.rs `LocalHistory::settle`.
-        if self.history.is_none() {
-            self.history = Some(LocalHistory::new(&CropStep::default()));
-        }
+    /// A key, refit or Straighten set the frame: one box step named `label`, reported as the `Set` the
+    /// tool mirrors. The frame is no longer the default unless `keep_default` (a refit of the untouched
+    /// default frame to a ratio alone).
+    pub fn set(&mut self, frame: CropBox, keep_default: bool, label: &str) -> EditEvent<CropBox> {
+        self.settle();
+        let before = self.frame.map_or(Mixed::Mixed, Mixed::Same);
         self.frame = Some(frame);
         if !keep_default {
             self.default_frame = false;
         }
-        if !self.default_frame {
-            self.editing = true;
+        self.editing |= !self.default_frame;
+        let (id, step) = (self.fresh_id(), self.current());
+        self.record(EditEvent::set(id, Mixed::Same(self.settled), step, label.into(), None));
+        EditEvent::set(id, before, frame, label.into(), None)
+    }
+
+    /// An arrow nudge set the frame: it joins the run of nudges, one open box step that
+    /// [`settle`](Self::settle) closes. Reported as a `Set`, as [`set`](Self::set).
+    pub fn nudge(&mut self, frame: CropBox, label: &str) -> EditEvent<CropBox> {
+        let before = self.frame.map_or(Mixed::Mixed, Mixed::Same);
+        self.frame = Some(frame);
+        self.default_frame = false;
+        self.editing = true;
+        if self.nudging.is_none() {
+            let id = self.fresh_id();
+            self.nudging = Some(id);
+            self.record(EditEvent::begin(id, Mixed::Same(self.settled), label.into(), None));
         }
-        self.settle(busy);
+        let id = self.fresh_id();
+        EditEvent::set(id, before, frame, label.into(), None)
     }
 
-    /// Records the change since the last step as one box step, unless `busy`: ends a run of
-    /// arrow nudges that [`set`](Self::set) left open.
-    pub fn settle(&mut self, busy: bool) {
-        let now = self.current();
-        if let Some(history) = &mut self.history {
-            history.settle(&now, busy);
+    /// Ends a run of arrow nudges: records them as one box step.
+    pub fn settle(&mut self) {
+        if let Some(id) = self.nudging.take() {
+            let step = self.current();
+            self.record(EditEvent::commit(id, Mixed::Same(self.settled), step));
         }
     }
 
-    /// A drag ended without a frame (too small, Esc): the frame and its default mark go back to
-    /// the last step.
-    pub fn revert(&mut self) {
-        // pc: crates/ui-egui/src/tools/crop_ui.rs:889 `restore_frame`.
-        let back = self.history.as_ref().map(|h| *h.settled()).unwrap_or_default();
-        self.adopt(back);
+    /// A run of nudges is open.
+    pub fn nudging(&self) -> bool {
+        self.nudging.is_some()
     }
 
-    /// Edit › Undo while the box owns Undo ([`owns_undo`](Self::owns_undo)): the frame one box
+    /// Edit > Undo while the box owns Undo ([`owns_undo`](Self::owns_undo)): the frame one box
     /// step back, read through [`frame`](Self::frame). False, and nothing changed, when there is
-    /// nothing to undo. The app cancels a running drag with `UndoDuringGesture` before it routes
-    /// Undo here.
+    /// nothing to undo. The app cancels a running drag first.
     pub fn undo(&mut self) -> bool {
-        // pc: crates/ui-egui/src/tools/crop_ui.rs:510 `step` (the view half is the tool's).
         self.step(Step::Undo)
     }
 
-    /// Edit › Redo while the box owns Undo: as [`undo`](Self::undo), forward.
+    /// Edit > Redo while the box owns Undo: as [`undo`](Self::undo), forward.
     pub fn redo(&mut self) -> bool {
-        // pc: crates/ui-egui/src/tools/crop_ui.rs:510 `step`.
         self.step(Step::Redo)
     }
 
     fn step(&mut self, step: Step) -> bool {
+        self.settle();
         let mut now = self.current();
         let Some(history) = self.history.as_mut() else { return false };
         if !history.step(&mut now, step) {
             return false;
         }
         self.adopt(now);
+        self.settled = now;
         true
     }
 
-    /// Whether Edit › Undo has a box step to go to: a step on the stack, or a change not yet
-    /// recorded (a run of arrow nudges within the pause).
+    /// Whether Edit > Undo has a box step to go to: a step on the stack, or a run of nudges not yet
+    /// recorded.
     pub fn can_undo(&self) -> bool {
-        // pc: crates/ui-egui/src/tools/crop_ui.rs:483 `is_enabled`.
-        self.history.as_ref().is_some_and(|h| h.can_undo() || *h.settled() != self.current())
+        self.nudging.is_some() || self.history.as_ref().is_some_and(EditHistory::can_undo)
     }
 
-    /// Whether Edit › Redo has a box step to go to.
+    /// Whether Edit > Redo has a box step to go to.
     pub fn can_redo(&self) -> bool {
-        // pc: crates/ui-egui/src/tools/crop_ui.rs:483 `is_enabled`.
-        self.history.as_ref().is_some_and(LocalHistory::can_redo)
+        self.history.as_ref().is_some_and(EditHistory::can_redo)
     }
 
-    /// The app routes Edit › Undo and Redo to the box, not the document, while either has a step
-    /// (PhotoCraft `crop_ui.rs:483-492`). It is not [`pending`](Self::pending): after Undo back to
-    /// the default frame Redo still steps the box, and a stack with nothing left greys the item
-    /// out instead of offering the document's step.
+    /// The app routes Edit > Undo and Redo to the box, not the document, while either has a step.
+    /// It is not [`pending`](Self::pending): after Undo back to the default frame Redo still steps
+    /// the box, and a stack with nothing left greys the item out instead of offering the
+    /// document's step.
     pub fn owns_undo(&self) -> bool {
         self.can_undo() || self.can_redo()
     }
 
     /// Another tool was picked. `keeps_pending`: a gesture on the frame still runs, or the pen's
-    /// eraser end stands in for the Crop tool; the held temporary tools (Space, ⌘) never count as
+    /// eraser end stands in for the Crop tool; the held temporary tools (Space, Cmd) never count as
     /// leaving and never call this. Disarms Straighten. An untouched default frame is dropped
     /// whatever `keeps_pending` says. For [`LeaveFrame::Kept`] the app calls `leave` again on
     /// later passes until it returns something else.
     pub fn leave(&mut self, keeps_pending: bool) -> LeaveFrame {
-        // pc: crates/ui-egui/src/tools/crop_ui.rs:350 `frame` (the leave half), :401 `keeps_pending`,
-        // :408 `commit_on_leave`.
         self.straighten.disarm();
         let Some(frame) = self.frame else { return LeaveFrame::Nothing };
-        // An untouched default frame goes whatever keeps the tool (PhotoCraft `crop_ui.rs:354-358`).
         if self.default_frame {
             self.clear();
             return LeaveFrame::Dropped;
@@ -355,27 +413,33 @@ impl CropSession {
         LeaveFrame::Apply(frame)
     }
 
-    /// Drops the frame, its history, the default mark, the editing state and Straighten: Esc, ⊘,
-    /// an applied crop. With the tool still picked, the next
+    /// Drops the frame, its history, the default mark, the editing state and Straighten: Esc, the
+    /// discard button, an applied crop. With the tool still picked, the next
     /// [`ensure_frame`](Self::ensure_frame) makes a new default frame.
     pub fn clear(&mut self) {
-        // pc: crates/ui-egui/src/tools/crop_ui.rs:424 `cancel`, :437 `clear_history`.
         *self = Self::default();
     }
 
-    /// Keeps the frame, the box history and `view` (an Image-mode host's turned view) before the
-    /// app runs its crop command.
+    /// Keeps the frame, the box history and `view` (an image-mode view) before the app runs its
+    /// crop command.
     pub fn keep(&self, view: Option<CanvasView>) -> CropKept {
-        // pc: crates/ui-egui/src/tools/crop_ui.rs:464 `keep`.
-        CropKept { step: self.current(), history: self.history.clone(), view, frame_for: self.frame_for, editing: self.editing }
+        CropKept {
+            step: self.current(),
+            history: self.history.clone(),
+            settled: self.settled,
+            view,
+            frame_for: self.frame_for,
+            editing: self.editing,
+        }
     }
 
     /// The crop command refused the frame: the frame, its default mark and its box history come
     /// back, and the view kept with them for the host to adopt.
     pub fn restore(&mut self, kept: CropKept) -> Option<CanvasView> {
-        // pc: crates/ui-egui/src/tools/crop_ui.rs:469 `restore`.
         self.adopt(kept.step);
         self.history = kept.history;
+        self.settled = kept.settled;
+        self.nudging = None;
         self.frame_for = kept.frame_for;
         self.editing = kept.editing;
         kept.view
@@ -383,9 +447,8 @@ impl CropSession {
 
     /// The frame a ratio-field edit fits from: the frame when the edit began (`editing` true on
     /// the first change of the run), kept until the run ends (`editing` false), so 1 : 3 on the way
-    /// to 16 : 3 does not shrink the frame first (#7752). `None` without a frame.
+    /// to 16 : 3 does not shrink the frame first. `None` without a frame.
     pub fn ratio_base(&mut self, editing: bool) -> Option<CropBox> {
-        // pc: crates/ui-egui/src/panels/options_bar.rs:489-500 (the `crop-ratio-edit-base` memory).
         if editing {
             if self.ratio_base.is_none() {
                 self.ratio_base = self.frame;
