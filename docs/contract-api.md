@@ -1741,6 +1741,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `fn cancel(&mut self, reason: CancelReason)`. Cancels the running gesture.
 - `craft_ui::contract::EditResponse`: `pub struct EditResponse<T> { pub response: Response, pub event: Option<EditEvent<T>>, pub submitted: bool, pub escaped: bool, pub unparsed: bool, pub validity: Validity<T>, pub shown: Option<Mixed<Arc<T>>> }`. The output of a component that edits a value. Only `cx.edit_response()` builds it.
   - `pub fn value(&self) -> Option<&T>`. The value the pass's event carries: a proposal, a commit or a set; `None` when nothing was edited or the event
+  - `pub fn map<U>(self, f: impl Fn(T) -> U) -> EditResponse<U>`. The response of a child component's edit as the response of the edit of a value built from it: the event, the
 - `craft_ui::contract::EndRegion`: `pub struct EndRegion { pub full_height: bool }`. An end region, filled by `Container::end`: content in reading order at the line's end edge, beside the body and
   - `pub const fn new() -> Self`. An end region as high as the line.
   - `pub const fn full_height(mut self, on: bool) -> Self`. Whether the region takes the full height under the header.
@@ -2009,6 +2010,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
 - `craft_ui::contract::clicked`: `pub fn clicked(response: &Response) -> bool`. Whether `response` reports a click, by pointer or by keyboard activation.
 - `craft_ui::contract::register_contract`: re-export of `craft_ui_macros::register_contract` (outside these crates).
 - `craft_ui::contract::request_rename`: `pub fn request_rename<K: Clone + Send + Sync + 'static>(ctx: &Context, collection: Id, key: &K)`. Asks the collection `collection` (the id it is built with, `Props::id`) to start renaming the item `key`. At its
+- `craft_ui::contract::section_part`: `pub fn section_part<K: std::hash::Hash>(key: &K) -> craft_behavior::PartRef`. The part of a collection that stands for the section row `key` (`ItemSource::section_stop`): the item step builds
 - `craft_ui::contract::spec`: re-export of the module `craft_ui::runtime::motion::spec`.
 
 ## `craft_ui::contract::ghost`
@@ -2182,6 +2184,7 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
 - `craft_ui::primitives::Completion`: `pub struct Completion { pub label: Label, pub insert: String, pub detail: Option<Label> }`. One completion candidate.
   - `pub fn new(label: impl Into<Label>, insert: impl Into<String>) -> Self`. A candidate shown as `label` that inserts `insert`.
 - `craft_ui::primitives::ContentPainterCx`: `pub struct ContentPainterCx<'a> { pub painter: Painter }`. The raw painter of an allowlisted content painter, clipped to its rect.
+  - `pub fn ink(&self) -> Color32`. The colour of text and glyphs on the surface being painted: the resolved content-text colour `Draw` paints
   - `pub fn layout(&self, text: &DocText<'_>) -> TextLayout`. The one sanctioned text layout for content painters: document runs with their own font, size and colour,
 - `craft_ui::primitives::DocRun`: `pub struct DocRun<'a> { pub text: Cow<'a, str>, pub font: FontRef, pub size: f32, pub weight: u16, pub italic: bool, pub color: DataColor, pub underline: bool, pub strikethrough: bool, pub indent: f32 }`. One run of document text.
   - `pub fn new(text: impl Into<Cow<'a, str>>, font: FontRef, size: f32, color: DataColor) -> Self`. A regular-weight upright run without lines or indent.
@@ -2691,6 +2694,7 @@ AccessKit node building, `register_accesskit_parent` and `set_accesskit_focus`: 
   - `pub fn role(&self, id: Id) -> Option<Role>`. The role of the node of `id`.
   - `pub fn name(&self, id: Id) -> Option<&str>`. The name of the node of `id`.
   - `pub fn description(&self, id: Id) -> Option<&str>`. The description of the node of `id`.
+  - `pub fn description_of(&self, key: NodeKey) -> Option<&str>`. The description of a node by key.
   - `pub fn value(&self, id: Id) -> Option<&str>`. The text value of the node of `id`.
   - `pub fn numeric(&self, id: Id) -> Option<Numeric>`. The numeric value and range of the node of `id`.
   - `pub fn is_disabled(&self, id: Id) -> bool`. Whether the node of `id` is reported as disabled.
@@ -3187,7 +3191,7 @@ The toast queue: one per viewport, filled from any code with a `Context`.
   - `pub fn install_hit_sink(&self, viewport: ViewportId) -> HitSink`. The hit-test sink of `viewport`'s window, made on the first call. The platform layer calls it once it has put
   - `pub fn pointer_in(&self, viewport: ViewportId) -> Option<Pos2>`. The desktop pointer in the coordinates of `viewport`, when it lies inside that window.
 - `craft_ui::runtime::windows::WindowLevel`: `pub enum WindowLevel { Normal, Palette, AlwaysOnTop }`. Where a window stands in the stack of windows.
-- `craft_ui::runtime::windows::WindowSpec`: `pub struct WindowSpec { pub kind: WindowKind, pub chrome: Option<WindowChrome>, pub captions: Option<Captions>, pub level: WindowLevel, pub taskbar: bool }`. How an OS window opens (21.2): what it is for, who draws its frame, where it stands and whether it has a taskbar
+- `craft_ui::runtime::windows::WindowSpec`: `pub struct WindowSpec { pub kind: WindowKind, pub chrome: Option<WindowChrome>, pub captions: Option<Captions>, pub level: WindowLevel, pub taskbar: bool, pub shown_after_first_paint: bool }`. How an OS window opens (21.2): what it is for, who draws its frame, where it stands and whether it has a taskbar
   - `pub fn tool() -> Self`. A tool window (a native dock window): the installed decision's frame without caption buttons, a palette level,
   - `pub fn document() -> Self`. A document window with the installed decision's frame.
   - `pub fn dialog() -> Self`. A dialog window with the installed decision's frame.
@@ -3337,6 +3341,7 @@ What the accessibility trials read: the AccessKit tree a frame produced, and the
   - `pub fn role(&self, id: Id) -> Option<Role>`. The role of the node of `id`.
   - `pub fn name(&self, id: Id) -> Option<&str>`. The name of the node of `id`.
   - `pub fn description(&self, id: Id) -> Option<&str>`. The description of the node of `id`.
+  - `pub fn description_of(&self, key: NodeKey) -> Option<&str>`. The description of a node by key.
   - `pub fn value(&self, id: Id) -> Option<&str>`. The text value of the node of `id`.
   - `pub fn numeric(&self, id: Id) -> Option<Numeric>`. The numeric value and range of the node of `id`.
   - `pub fn is_disabled(&self, id: Id) -> bool`. Whether the node of `id` is reported as disabled.
@@ -3512,6 +3517,7 @@ Text dumps for tests: ordered `key = value` lines compared exactly with a file, 
   - `pub fn scale(&mut self, scale: Scale) -> &mut Self`. The interface scale.
   - `pub fn host(&mut self, host: std::sync::Arc<craft_host::Host>) -> &mut Self`. The host every following frame is given: its language, catalogs and services.
   - `pub fn os(&mut self, os: Os) -> &mut Self`. The operating system the keys and chrome follow: the shell's OS and capabilities, and egui's own OS for its
+  - `pub fn chrome(&mut self, chrome: craft_host::target::WindowChrome) -> &mut Self`. Who draws the root window's frame. A native shell puts its menu bar in the window when the app draws the frame
   - `pub fn advance(&mut self, seconds: f64) -> &mut Self`. The manual clock, moved on by `seconds` before the next frame.
   - `pub fn ctx(&self) -> &egui::Context`. The frames' context.
   - `pub fn data(&self) -> std::cell::RefMut<'_, StoryData>`. The story's data.
@@ -3532,8 +3538,7 @@ Text dumps for tests: ordered `key = value` lines compared exactly with a file, 
   - `pub fn settle(&mut self) -> &mut Self`. Frames until ids, sizes and the AccessKit tree have settled.
   - `pub fn tree(&self) -> &AccessTree`. The AccessKit tree of the latest frame.
   - `pub fn target(&self, node: NodeKey) -> Option<Target>`. The node by key, with its bounds, when the latest tree has it.
-  - `pub fn by_label(&self, label: &str) -> Option<Target>`. The node named `label`.
-  - `pub fn control(&self, label: &str) -> Option<Target>`. The interactive node named `label`, by its own name or the nodes that label it: the control, where a field's
+  - `pub fn by_label(&self, label: &str) -> Option<Target>`. The node named `label`: the interactive node whose name resolves to it (its own, or the node that labels it
   - `pub fn by_role(&self, role: Role) -> Vec<Target>`. The nodes of `role` in tree order: depth first from the root, children in their declared order.
   - `pub fn part(&self, component: Id, part: impl Into<PartRef>) -> Option<Target>`. The sub-node of `part` below the component `component`.
   - `pub fn node_of(&self, component: Id) -> Option<Target>`. The node of the component `component`.
