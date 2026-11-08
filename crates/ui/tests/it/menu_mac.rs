@@ -39,9 +39,9 @@ fn typed_letters_and_access_keys_exist_off_a_mac_only() {
         let file = rig.fixture.by_label("File").expect("the File title");
         assert_eq!(rig.fixture.tree().access_key_of(file.node), lettered.then_some('F'), "{os:?}");
         rig.fixture.click(&file);
-        rig.fixture.settle();
+        rig.fixture.idle(4);
         rig.fixture.type_text("s");
-        rig.fixture.settle();
+        rig.fixture.idle(4);
         assert_eq!(*rig.ran.borrow(), if lettered { vec!["Save"] } else { Vec::new() }, "{os:?}");
     }
 }

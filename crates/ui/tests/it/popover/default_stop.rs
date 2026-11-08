@@ -35,7 +35,7 @@ fn rig() -> Rig {
 #[trial]
 fn a_popover_opens_on_the_field_that_declares_the_default_stop() {
     let rig = rig();
-    assert_eq!(rig.fixture.focused(), Some(rig.second.get()));
+    assert_eq!(rig.fixture.focused_stop().map(|(id, _)| id), Some(rig.second.get()));
 }
 
 /// Typed text lands in the draft of the focused field inside a popover.

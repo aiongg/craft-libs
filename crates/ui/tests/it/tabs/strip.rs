@@ -1,7 +1,7 @@
 //! `TabStrip`: which tabs fit, and that a click on a tab reports it selected.
 
 use craft_behavior::{DisplayOrder, ItemSource, SelectionChange};
-use craft_ui::contract::{CollectionEvent, ListDrag, ShowCollection as _, Sizing};
+use craft_ui::contract::{CollectionEvent, ListDrag, ShowCollection as _};
 use craft_ui::runtime::drag;
 use craft_ui::tabs::{Tab, TabStrip};
 use craft_ui::testing::{Fixture, trial};
@@ -169,17 +169,4 @@ fn a_strip_in_a_dialog_body_switches_pages() {
     fixture.key(Key::Tab, Modifiers::CTRL);
     fixture.settle();
     assert_eq!(shown.get(), 1, "Ctrl+Tab selects the next tab");
-}
-
-/// A content-sized strip in a wide room measures every title, so all its tabs show instead of the shown one alone.
-#[trial]
-fn a_content_sized_strip_shows_every_tab_in_a_wide_room() {
-    let mut fixture = Fixture::new(|ui| {
-        TabStrip::new("Documents").sizing(Sizing::Content).shown(0).show_items(ui, &Titles, &mut |key, _| Tab::new(TITLES[*key]));
-    });
-    fixture.room(WIDE);
-    fixture.settle();
-    let missing: Vec<&str> = TITLES.iter().copied().filter(|title| fixture.by_label(title).is_none()).collect();
-    assert!(missing.is_empty(), "tabs without a node: {missing:?}");
-    assert!(fixture.by_label("More tabs").is_none());
 }

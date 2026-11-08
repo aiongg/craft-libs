@@ -191,16 +191,6 @@ impl<'a> Tab<'a> {
         self.detail.as_ref().map(Label::as_str).filter(|text| !text.is_empty())
     }
 
-    /// The width a tab of `kind` titled `title` takes before it is built: its padding, its title set in the label
-    /// face and the close slot of its kind.
-    pub(crate) fn title_width(cx: &StyleCx<'_>, kind: TabKind, large: bool, title: &str) -> f32 {
-        let style = Self::style(cx, TabStyleKey { kind, large });
-        let sizes = style.sizes;
-        let close = if kind.shows_close() { sizes.gap + sizes.close_box } else { 0.0 };
-        let padding = style.metrics.padding;
-        padding.start + padding.end + sizes.tail + cx.text_width(style.label.role, title) + close
-    }
-
     fn label_run<'t>(&self, style: &TabStyle, text: &'t str) -> TextRun<'t> {
         TextRun::new(text).role(style.label.role)
     }
