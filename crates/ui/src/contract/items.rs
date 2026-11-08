@@ -936,10 +936,13 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         {
             let primary = start.button == craft_behavior::PointerButton::Primary;
             if let Some(at) = layout.hit(local(start.origin), offset).filter(|&at| self.source.enabled(at) && layout.shown(at)) {
-                let toggle = self.toggle_cell(props, layout, at, offset, local(start.origin)).filter(|_| primary);
+                let on_toggle = self.toggle_cell(props, layout, at, offset, local(start.origin));
+                // A secondary press on a toggle cell asks for the cell's menu and neither toggles nor picks.
+                let secondary_on_toggle = !primary && on_toggle.is_some();
+                let toggle = on_toggle.filter(|_| primary);
                 if let Some((column, toggle)) = toggle {
                     self.begin_toggle(cx, at, column, toggle);
-                } else {
+                } else if !secondary_on_toggle {
                     let mods = crate::runtime::pointer::frame(&ctx).mods;
                     let key = self.source.key(at);
                     let column = if Self::selects_cells(comp) { layout.column_at(local(start.origin), offset) } else { None };
@@ -1048,7 +1051,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             && let Some(at) = layout.hit(local(pos), offset)
             && self.source.enabled(at)
         {
-            if !self.holds(at) {
+            if !self.holds(at) && self.toggle_cell(props, layout, at, offset, local(pos)).is_none() {
                 let column = if Self::selects_cells(comp) { layout.column_at(local(pos), offset) } else { None };
                 match column {
                     Some(column) => self.cell_press(comp, layout, at, column, false, false),
