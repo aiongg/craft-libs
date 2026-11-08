@@ -206,8 +206,7 @@ jobs:
               feats+=("$pkg/screen-testing")
             fi
             list=$(IFS=,; echo "${feats[*]}")
-            cargo test --locked --no-fail-fast -p "$pkg" --features "$list" --test it 2>&1 | tee -a test.log
-            [ "${PIPESTATUS[0]}" -eq 0 ] || failed=1
+            if ! cargo test --locked --no-fail-fast -p "$pkg" --features "$list" --test it 2>&1 | tee -a test.log; then failed=1; fi
           done
           exit "$failed"
       - name: Summary
