@@ -199,6 +199,13 @@ struct Pass {
     dragged_release: Option<(Id, Pos2)>,
 }
 
+/// The top modal layer of a viewport: its id and the scrim under it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct TopModal {
+    pub id: Id,
+    pub cover: Option<Layer>,
+}
+
 #[derive(Default)]
 struct Persist {
     raised: HashMap<Id, u64>,
@@ -213,6 +220,10 @@ struct Persist {
     absorb_zone: Option<Vec<Rect>>,
     /// An outside press the input hook removed for the running pass.
     outside_press: Option<Pos2>,
+    /// The top live modal layer of the last finished pass in this viewport.
+    top_modal: Option<TopModal>,
+    /// A popup stands over a modal layer here, as of the last finished pass.
+    popup_over_modal: bool,
     /// The layers that first showed while the primary button was held, until that press ends.
     held_open: std::collections::HashSet<Id>,
     /// The root frame and pass each shown layer first ran its body in; gone with the layer's last entry.
@@ -566,6 +577,18 @@ pub(crate) fn end_pass(ctx: &Context) {
             }
         }
         persist.modal = current.iter().any(|entry| entry.rank.is_modal() && !entry.exiting);
+        persist.top_modal =
+            current.iter().rev().find(|entry| entry.rank.is_modal() && !entry.exiting).map(|entry| TopModal { id: entry.id, cover: entry.cover });
+        persist.popup_over_modal = current.iter().filter(|entry| entry.rank == Rank::Popup && !entry.exiting).any(|popup| {
+            let mut at = popup.parent;
+            while let Some(parent) = at.and_then(|id| current.iter().find(|entry| entry.id == id)) {
+                if parent.rank.is_modal() && !parent.exiting {
+                    return true;
+                }
+                at = parent.parent;
+            }
+            false
+        });
         persist.outside_press = None;
         persist.absorb_zone = families
             .iter()
@@ -656,4 +679,28 @@ pub(crate) fn modal_viewport(ctx: &Context, viewport: ViewportId) -> Option<View
 /// Whether a layer of key class `class` that is not fading out was shown last frame.
 pub(crate) fn class_open(ctx: &Context, class: OwnerClass) -> bool {
     with_pass(ctx, |pass| pass.last.iter().any(|entry| !entry.exiting && entry.keys == class))
+}
+
+// The facts the canvas reach under a modal reads (`runtime::sampler`).
+
+/// The top live modal layer shown in `viewport` as of its last finished pass.
+pub(crate) fn top_modal_in(ctx: &Context, viewport: ViewportId) -> Option<TopModal> {
+    with_persist(ctx, viewport, |persist| persist.top_modal)
+}
+
+/// Whether the layer `id` is the top modal layer of some live viewport.
+pub(crate) fn is_top_modal(ctx: &Context, id: Id) -> bool {
+    pass::live_viewports(ctx).into_iter().any(|viewport| top_modal_in(ctx, viewport).is_some_and(|modal| modal.id == id))
+}
+
+/// Whether a popup stands over a modal layer in any viewport.
+pub(crate) fn popup_over_modal(ctx: &Context) -> bool {
+    pass::live_viewports(ctx).into_iter().any(|viewport| with_persist(ctx, viewport, |persist| persist.popup_over_modal))
+}
+
+/// The modal layer whose body is running, the innermost one when layers nest: the layer a control inside it belongs to.
+pub(crate) fn modal_drawing(ctx: &Context) -> Option<Id> {
+    with_pass(ctx, |pass| {
+        pass.drawing.iter().rev().copied().find(|id| pass.current.iter().chain(&pass.last).any(|entry| entry.id == *id && entry.rank.is_modal()))
+    })
 }

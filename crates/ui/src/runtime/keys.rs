@@ -378,16 +378,16 @@ mod trials;
 /// whether it removed an event, so the hook asks for a repaint.
 pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
     let viewport = input.viewport_id;
-    // A modal layer in this viewport leaves the canvas it keeps open its view, not its presses (`runtime::sampler`).
-    sampler::bar_presses(ctx, input);
+    // The canvas a modal layer keeps open takes the events its reach admits and nothing else (`runtime::sampler`).
+    let (hole, trimmed) = sampler::hook(ctx, input);
     // A modal layer in another viewport blocks this one (app-modal, 15.5): nothing below reaches the key stage.
     if overlay::modal_elsewhere(ctx, viewport) {
         let pointer = ctx.input(|state| state.pointer.latest_pos());
-        let (removed, press) = raw_input::drop_under_modal(input, sampler::hole(ctx, viewport), pointer);
+        let (removed, press) = raw_input::drop_under_modal(input, hole.as_ref(), pointer);
         if press {
             overlay::note_dropped_press(ctx, viewport);
         }
-        return removed;
+        return removed || trimmed;
     }
     let os = crate::runtime::windows::os_of(ctx);
     let record = focus::record(ctx, viewport);
@@ -440,7 +440,7 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
     with(ctx, viewport, |stage| {
         stage.batch = batch;
     });
-    input.events.len() != before
+    trimmed || input.events.len() != before
 }
 
 /// Updates the keys held after `event`: a press adds its key, a release removes it, and the window losing focus
