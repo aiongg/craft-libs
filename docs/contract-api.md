@@ -635,11 +635,14 @@ Pure canvas geometry in document units: the transform box ([`quad`]), snapping (
 - `craft_behavior::geometry::BoxState`: re-export of `craft_behavior::geometry::quad::BoxState`.
 - `craft_behavior::geometry::ConstrainStyle`: re-export of `craft_behavior::geometry::move_gesture::ConstrainStyle`.
 - `craft_behavior::geometry::Constraint`: re-export of `craft_behavior::geometry::marquee::Constraint`.
+- `craft_behavior::geometry::CropBox`: re-export of `craft_behavior::geometry::crop::CropBox`.
+- `craft_behavior::geometry::CropGuide`: re-export of `craft_behavior::geometry::crop::CropGuide`.
 - `craft_behavior::geometry::Directions`: re-export of `craft_behavior::geometry::lock::Directions`.
 - `craft_behavior::geometry::DraftEvent`: re-export of `craft_behavior::geometry::draft::DraftEvent`.
 - `craft_behavior::geometry::DraftKind`: re-export of `craft_behavior::geometry::draft::DraftKind`.
 - `craft_behavior::geometry::DraftPoint`: re-export of `craft_behavior::geometry::draft::DraftPoint`.
 - `craft_behavior::geometry::DraftReach`: re-export of `craft_behavior::geometry::draft::DraftReach`.
+- `craft_behavior::geometry::GuideShow`: re-export of `craft_behavior::geometry::crop::GuideShow`.
 - `craft_behavior::geometry::Homography`: re-export of `craft_behavior::geometry::quad::Homography`.
 - `craft_behavior::geometry::LOCK_HYSTERESIS_DEGREES`: re-export of `craft_behavior::geometry::lock::LOCK_HYSTERESIS_DEGREES`.
 - `craft_behavior::geometry::MarqueeGesture`: re-export of `craft_behavior::geometry::marquee::MarqueeGesture`.
@@ -662,13 +665,63 @@ Pure canvas geometry in document units: the transform box ([`quad`]), snapping (
 - `craft_behavior::geometry::TransformMode`: re-export of `craft_behavior::geometry::quad::TransformMode`.
 - `craft_behavior::geometry::across_axis`: re-export of `craft_behavior::geometry::snap::across_axis`.
 - `craft_behavior::geometry::coordinate_across`: re-export of `craft_behavior::geometry::snap::coordinate_across`.
+- `craft_behavior::geometry::crop_view`: re-export of `craft_behavior::geometry::crop::crop_view`.
+- `craft_behavior::geometry::crop_view_about`: re-export of `craft_behavior::geometry::crop::crop_view_about`.
 - `craft_behavior::geometry::drag`: re-export of `craft_behavior::geometry::quad::drag`.
 - `craft_behavior::geometry::fixed_size_pixels`: re-export of `craft_behavior::geometry::marquee::fixed_size_pixels`.
+- `craft_behavior::geometry::hit_rect`: re-export of `craft_behavior::geometry::crop::hit_rect`.
 - `craft_behavior::geometry::lock_direction`: re-export of `craft_behavior::geometry::lock::lock_direction`.
 - `craft_behavior::geometry::marquee_pixels`: re-export of `craft_behavior::geometry::marquee::marquee_pixels`.
 - `craft_behavior::geometry::motion_across`: re-export of `craft_behavior::geometry::snap::motion_across`.
 - `craft_behavior::geometry::round_to_direction`: re-export of `craft_behavior::geometry::lock::round_to_direction`.
+- `craft_behavior::geometry::screen_step`: re-export of `craft_behavior::geometry::crop::screen_step`.
 - `craft_behavior::geometry::square_pixels`: re-export of `craft_behavior::geometry::marquee::square_pixels`.
+
+## `craft_behavior::geometry::crop`
+
+The crop frame's pure geometry: the box, where a press lands on it, what each gesture makes of it, the
+
+- `craft_behavior::geometry::crop::CropBox`: `pub struct CropBox { pub rect: Rect, pub angle: f64 }`. The crop frame: a document rect and the angle it is turned by about its centre.
+  - `pub const fn new(rect: Rect, angle: f64) -> Self`. The frame `rect` turned `angle` degrees about its centre.
+  - `pub const fn upright(rect: Rect) -> Self`. An unturned frame.
+  - `pub fn part_at(&self, point: Point, reach: f64) -> BoxPart`. The part a press at `point` (document units) lands on, with `reach` document units of reach: a corner or an
+  - `pub fn is_finite(&self) -> bool`. Whether the rect and the angle are finite numbers.
+  - `pub fn center(&self) -> Point`. The centre the frame turns about.
+  - `pub fn corners(&self) -> [Point; 4]`. The corners on the page, turned: top left, top right, bottom right, bottom left of the upright frame.
+  - `pub fn part_point(&self, part: BoxPart) -> Option<Point>`. The document point of `part` on the turned frame: a corner or an edge handle, or the centre for
+  - `pub fn part_direction(&self, part: BoxPart) -> Option<Vec2>`. The direction `part` points out of the frame, as a document vector turned with the frame; none for the
+  - `pub fn quadrant_diagonal(&self, point: Point) -> Vec2`. The diagonal, as a document vector, from the frame's corner nearest `point` towards the frame's centre
+  - `pub fn turned_bounds(&self) -> Rect`. The axis-aligned bounds of the turned frame.
+  - `pub fn moved(&self, by: Vec2) -> Self`. The frame moved by `by` on the page, its angle kept.
+  - `pub fn swapped(&self) -> Self`. Width and height swapped about the centre, the angle kept (X).
+  - `pub fn nudged(&self, part: BoxPart, by: Vec2, ratio: Option<f64>) -> Self`. The frame after an arrow key moves `part` by `by`, as a plain drag of the part would, with `ratio` held.
+  - `pub fn crop_size(&self) -> Option<(f64, f64)>`. The size Enter would crop to: the frame's own width and height in whole document units, at least 1; `None`
+  - `pub fn size_ok(&self) -> bool`. Whether both sides are at least one document unit.
+  - `pub fn resized(&self, part: BoxPart, by: Vec2, ratio: Option<f64>, alt: bool) -> Self`. The frame with `part` dragged by the page vector `by`: along the frame's own axes, the opposite edges kept on
+  - `pub fn resized_centred(&self, part: BoxPart, by: Vec2, ratio: Option<f64>, alt: bool) -> Option<Self>`. [`resized`](Self::resized) for Auto Center Preview in image mode: `part` dragged by `by` grows or shrinks the
+  - `pub fn turned_to(&self, grab: f64, to: Point, step: Option<f64>, image: bool) -> Self`. The frame turned from this one's angle by the pointer's sweep about the centre, from direction `grab`
+  - `pub fn within(self, bounds: Rect, resizing: bool, held: bool) -> Option<Self>`. The frame kept inside `bounds`: an unturned frame is cut to it; a turned one is moved by the least that
+  - `pub fn level_angle(a: Point, b: Point) -> Option<f64>`. The frame angle (degrees, clockwise on the page, in -45..=45) that makes the line from `a` to `b` level, or
+  - `pub fn fitted(&self, canvas: Size, angle: f64) -> Option<CropBox>`. The largest frame with this one's proportions that fits a canvas of `canvas` at `angle` degrees, centred on
+- `craft_behavior::geometry::crop::CropGuide`: `pub enum CropGuide { Thirds, Grid, Diagonal, Triangle, GoldenRatio, GoldenSpiral }`. The composition guide drawn inside a crop frame, in Photoshop's menu order.
+  - `pub const ALL: [CropGuide; 6]`. Every guide, in the order `next` cycles through.
+  - `pub fn orientations(self) -> u8`. How many distinct orientations `next_orientation` steps through: the Triangle's diagonal runs either way, the
+  - `pub fn next(self) -> Self`. The next guide (O); the orientation starts over at 0.
+  - `pub fn next_orientation(self, orientation: u8) -> u8`. The guide's next orientation (Shift+O) after `orientation`; a symmetric guide stays at 0 and a stray value
+  - `pub fn guides(self, orientation: u8, w: f64, h: f64, grid_step: f64, grid_max: usize) -> Vec<Vec<Point>>`. The guide's polylines for a frame `w` x `h` screen points, in its unit square (0..1 along its top edge, 0..1
+- `craft_behavior::geometry::crop::GuideShow`: `pub enum GuideShow { Auto, Always, Never }`. When the guide shows.
+  - `pub const ALL: [GuideShow; 3]`. Every rule, in menu order.
+  - `pub fn shows(self, gesture: bool) -> bool`. Whether the guide shows, `gesture` being a crop drag in progress.
+- `craft_behavior::geometry::crop::MIN_FRAME`: `pub const MIN_FRAME: f64`. Smallest side (document units) a gesture may leave behind.
+- `craft_behavior::geometry::crop::crop_view`: `pub fn crop_view(b: &CropBox, view: &CanvasView) -> CanvasView`. `view` turned so the frame `b` shows upright (rotation `-b.angle`), the frame's centre kept where it is on screen.
+- `craft_behavior::geometry::crop::crop_view_about`: `pub fn crop_view_about(b: &CropBox, view: &CanvasView, pivot: Point) -> CanvasView`. [`crop_view`] keeping document point `pivot` where it is on screen. `view` itself when anything is not finite.
+- `craft_behavior::geometry::crop::direction`: `pub fn direction(c: Point, p: Point) -> f64`. The direction of `p` from `c`, in radians.
+- `craft_behavior::geometry::crop::drawn`: `pub fn drawn(anchor: Point, cur: Point, ratio: Option<f64>, mods: Mods) -> Rect`. A new frame drawn from `anchor` to `cur`: ⇧ square, ⌥ from the centre, `ratio` held.
+- `craft_behavior::geometry::crop::hit_rect`: `pub fn hit_rect(rect: Rect, point: Point, reach: f64) -> BoxPart`. [`CropBox::part_at`] for a plain upright `rect`, with no frame or view.
+- `craft_behavior::geometry::crop::image_turn`: `pub fn image_turn(frame_angle: f64) -> f64`. The turn the image-mode readout shows: clockwise positive, the frame's angle undone, never -0.
+- `craft_behavior::geometry::crop::normalized_angle`: `pub fn normalized_angle(deg: f64) -> f64`. An angle in degrees brought into (-180, 180]; 0 for anything not finite.
+- `craft_behavior::geometry::crop::screen_step`: `pub fn screen_step(view: &CanvasView, by: Vec2) -> Vec2`. An arrow step `by` (screen points) as the document vector it is in `view`, at one document unit per point.
+- `craft_behavior::geometry::crop::turn`: `pub fn turn(p: Point, c: Point, deg: f64) -> Point`. `p` turned `deg` degrees clockwise on screen (y down) about `c`.
 
 ## `craft_behavior::geometry::draft`
 
@@ -771,6 +824,8 @@ Box geometry of transform boxes: where the box goes when a part of it is dragged
   - `pub const fn new(rotate: bool, skew: bool, distort: bool) -> Self`. What the content allows: turning, skewing and distorting.
 - `craft_behavior::geometry::quad::BoxDrag`: `pub enum BoxDrag { Move, Pivot, Rotate, Scale, Distort, Perspective, Skew, SlideCorner }`. What a drag of a box part does ([`BoxRules::drag_kind`]).
 - `craft_behavior::geometry::quad::BoxPart`: `pub enum BoxPart { Corner(u8), Edge(u8), Pivot, Inside, Outside }`. A part of a box under the pointer or picked from the keyboard. Edge `k` joins corners `k` and
+  - `pub const fn index(self) -> u64`. The number a part is keyed by in a canvas control's part keys: 0 inside or outside, 1 to 4 the corners, 5 to
+  - `pub const fn from_index(index: u64) -> Option<BoxPart>`. The part keyed by `index`: the inverse of [`index`](Self::index), with 0 the inside.
 - `craft_behavior::geometry::quad::BoxRules`: `pub struct BoxRules { pub mode: TransformMode, pub scale: ScaleRule, pub aspect_linked: bool, pub allow: BoxAllow, pub rotate_step: f64 }`. How drags change a box.
   - `pub fn in_mode(mode: TransformMode) -> BoxRules`. The rules of `mode` with the default scale rule, a linked aspect, everything allowed and
   - `pub fn with_scale(mut self, scale: ScaleRule) -> BoxRules`. The rules with `scale` as the plain corner and edge drag rule.
@@ -1534,6 +1589,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `const KEYS: crate::runtime::focus::KeyUse`. Keys the focused component keeps from egui and the shortcut dispatcher.
   - `fn keys(&self) -> crate::runtime::focus::KeyUse`. The keys this instance keeps in its current state. The default is `KEYS`; a component whose key use depends
   - `const SHOWS_LABEL: bool`. Whether the component paints its label as visible text. `false` for a face that shows only an icon or a
+  - `const SINGLE_VALUE: bool`. Whether the component edits one value that several selected things cannot disagree on (a colour picker's
   - `type Style`. The style type.
   - `type Output`. `Response`, `EditResponse<T>` or a richer type.
   - `fn shows_label(&self) -> bool`. Whether this instance paints its label as visible text; `SHOWS_LABEL` unless an instance prop decides, as
@@ -1642,7 +1698,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub const fn initially_open(mut self, on: bool) -> Self`. Whether the body starts open.
   - `pub const fn animated(mut self, on: bool) -> Self`. Whether opening and closing animate.
 - `craft_ui::contract::CollectionEvent`: `pub enum CollectionEvent<K, E> { Selection(SelectionChange<K>), LeadMoved { key: K, by: LeadSource }, Activate(K), ContextMenu(ContextMenuRequest<K>), Delete(Vec<K>), Open(OpenChange<K>), Reorder(EditEvent<ReorderMove<K>>), Move(EditEvent<Vec2>), Dropped { key: Option<K>, insert: usize, op: DropOperation, keys: Vec<K> }, Zoom { factor: f32, about: Pos2 }, FilesDropped { insert: usize, files: Vec<OsFile> }, Rename(EditEvent<Rename<K>>), Toggle(EditEvent<ToggleEdit<K>>), Column(ColumnEvent), HeaderMenu(HeaderMenuRequest), Item(K, E) }`. What a collection reports, in drawing order.
-- `craft_ui::contract::CollectionProps`: `pub struct CollectionProps { pub select: SelectMode, pub reorder: Option<ReorderRule>, pub rename: bool, pub rename_column: Option<ColumnKey>, pub columns: Vec<ColumnSpec>, pub sort: Option<ColumnSort>, pub empty: Option<Label>, pub activate: ActivateOn, pub striped: bool, pub allow_empty: bool, pub lead_on_open: LeadOnOpen, pub lead_follows_hover: bool, pub focus_on_press: bool, pub rows_stamp: Option<u64>, pub space: SpaceAction, pub header: bool, pub digit_keys: bool, pub menu_on_click: bool, pub item_keys: ItemKeys, pub marquee: bool, pub deletable: bool, pub drag_payload: Option<DragPayload>, pub natural_height: bool, pub overflow: Axis, pub pages: bool, pub current: Option<Arc<dyn Any + Send + Sync>> }`. What a collection reads from the app: plain data. A new builder's name is added to the forwarder list in
+- `craft_ui::contract::CollectionProps`: `pub struct CollectionProps { pub select: SelectMode, pub reorder: Option<ReorderRule>, pub rename: bool, pub rename_column: Option<ColumnKey>, pub columns: Vec<ColumnSpec>, pub sort: Option<ColumnSort>, pub empty: Option<Label>, pub activate: ActivateOn, pub striped: bool, pub allow_empty: bool, pub lead_on_open: LeadOnOpen, pub lead_follows_hover: bool, pub arrows_select: bool, pub focus_on_press: bool, pub rows_stamp: Option<u64>, pub space: SpaceAction, pub header: bool, pub digit_keys: bool, pub menu_on_click: bool, pub item_keys: ItemKeys, pub marquee: bool, pub deletable: bool, pub drag_payload: Option<DragPayload>, pub natural_height: bool, pub overflow: Axis, pub pages: bool, pub current: Option<Arc<dyn Any + Send + Sync>> }`. What a collection reads from the app: plain data. A new builder's name is added to the forwarder list in
   - `pub const fn new() -> Self`. Collection props with every setting at its default.
   - `pub fn select(mut self, mode: SelectMode) -> Self`. What can be selected.
   - `pub fn reorder(mut self, rule: ReorderRule) -> Self`. Items reorder by `rule`.
@@ -1657,6 +1713,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub const fn allow_empty(mut self, on: bool) -> Self`. A press on the empty space below the rows empties the selection.
   - `pub const fn lead_on_open(mut self, at: LeadOnOpen) -> Self`. Where the lead starts.
   - `pub const fn lead_follows_hover(mut self, on: bool) -> Self`. The lead follows the pointer over the rows.
+  - `pub const fn arrows_select(mut self, on: bool) -> Self`. Whether the arrow keys select the row they move the lead to.
   - `pub const fn rows_stamp(mut self, stamp: u64) -> Self`. The rows are the set `stamp` names; the lead starts over when the stamp changes.
   - `pub const fn focus_on_press(mut self, on: bool) -> Self`. A primary press moves key focus to the collection; off, it leaves focus where it is.
   - `pub const fn space(mut self, action: SpaceAction) -> Self`. What Space does.
@@ -2874,6 +2931,7 @@ One-shot screenshot slots and the facts a screenshot is measured against.
 - `craft_ui::runtime::env::StyleValue`: `pub trait StyleValue: EnvValue + Hash`. Marker for values `style` may read. `Hash`, because the value is folded into the style key.
 - `craft_ui::runtime::env::ThemeScope`: `pub struct ThemeScope`. Token-changing values for a container's body: the body and everything under it resolve their styles from
   - `pub fn new(tokens: UiTokens) -> Self`. A scope whose body resolves from `tokens`.
+  - `pub fn mode(mode: Mode) -> Self`. A scope whose body resolves the inherited theme in `mode`: a plot that is dark in every theme, a preview of the
 - `craft_ui::runtime::env::WordsOverride`: `pub enum WordsOverride { Replace(Arc<Words>), Overlay(WordRows) }`. How a scope changes the built-in text: the only override path for words.
 - `craft_ui::runtime::env::with_env`: `pub fn with_env<R>(ui: &mut Ui, set: impl FnOnce(&mut Overrides), body: impl FnOnce(&mut Ui) -> R) -> R`. Runs `body` in a child `Ui` with `set`'s changes applied to the inherited values. A scope that disables
 - `craft_ui::runtime::env::AgeStyle`: re-export of `craft_i18n::AgeStyle` (outside these crates).
