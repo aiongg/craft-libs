@@ -13,6 +13,7 @@ use craft_ui::primitives::textures::{CachedTexture, Revision, TextureStore, Text
 use craft_ui::primitives::{ContentPainterCx, PaintShape, StrokeWidth};
 use craft_ui::runtime::access::Access;
 use craft_ui::runtime::env::{Env, Label};
+use craft_ui::runtime::pointer;
 use craft_ui::style::StyleCx;
 use egui::load::SizedTexture;
 use egui::{ColorImage, CornerRadius, Rect, Response, Ui, Vec2, vec2};
@@ -20,47 +21,34 @@ use egui::{ColorImage, CornerRadius, Rect, Response, Ui, Vec2, vec2};
 use super::{CompareCaption, CompareTileStyle, CompareWords};
 
 /// The picture a compare tile shows.
+#[non_exhaustive]
 pub enum CompareImage<'a> {
     /// A texture from the app's own `TextureStore`, with the image's full size in pixels (for Fit and 1:1).
-    Texture {
-        /// The cached texture to draw.
-        texture: CachedTexture,
-        /// The image's full size in pixels.
-        size: [u32; 2],
-    },
+    Texture(CachedTexture, [u32; 2]),
     /// A picture the tile uploads into its own `TextureStore` (keyed by `key` and `revision`; `make` runs once per
     /// revision).
-    Picture {
-        /// The store key of the picture.
-        key: u64,
-        /// The picture's revision; a new revision uploads again.
-        revision: Revision,
-        /// The image's full size in pixels.
-        size: [u32; 2],
-        /// Builds the image. Runs once per revision.
-        make: Box<dyn FnOnce() -> ColorImage + 'a>,
-    },
+    Picture(u64, Revision, [u32; 2], Box<dyn FnOnce() -> ColorImage + 'a>),
     /// Nothing yet: the pane's placeholder.
     None,
 }
 
 /// The host's render state for the tile.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum RenderState {
     /// The picture is current.
     Ready,
     /// A render is running; `overdue` once it has taken longer than the host's wait, which replaces the picture with
     /// the pane's pending line. Before that the last picture stays.
-    Pending {
-        /// True once the render has taken longer than the host's wait.
-        overdue: bool,
-    },
+    /// True once the render has taken longer than the host's wait.
+    Pending(bool),
     /// The render failed: the pane shows the message.
     Failed(String),
 }
 
-/// What [`CompareTile::show`] returns.
+/// What [`CompareTile::place`] returns.
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct CompareOutput {
     /// The tile.
     pub response: Response,
@@ -178,7 +166,7 @@ impl<'a> CompareTile<'a> {
     }
 
     /// Shows the tile at `rect`.
-    pub fn show(mut self, ui: &mut Ui, rect: Rect) -> CompareOutput {
+    pub fn place(mut self, ui: &mut Ui, rect: Rect) -> CompareOutput {
         let env = Env::of(ui);
         let words = env.words::<CompareWords>();
         let format = env.view().format().clone();
@@ -187,10 +175,10 @@ impl<'a> CompareTile<'a> {
             None => self.label.as_str().to_owned(),
         };
         self.description = match &self.state {
-            RenderState::Pending { overdue: true } => Some(words.rendering.as_str().to_owned()),
+            RenderState::Pending(true) => Some(words.rendering.as_str().to_owned()),
             RenderState::Failed(message) if message.is_empty() => Some(words.render_failed.as_str().to_owned()),
             RenderState::Failed(message) => Some(message.clone()),
-            RenderState::Ready | RenderState::Pending { overdue: false } => None,
+            RenderState::Ready | RenderState::Pending(false) => None,
         };
         let content = RefCell::new(match (self.view.take(), self.image.take()) {
             (Some(view), Some(image)) => {
@@ -204,8 +192,8 @@ impl<'a> CompareTile<'a> {
             let Content { label, mut view, image, state, survey, overlay } = content;
             let ppp = ui.pixels_per_point();
             let picture = match image {
-                CompareImage::Texture { texture, size } => Some(SizedTexture::new(texture.id, points(size, ppp))),
-                CompareImage::Picture { key, revision, size, make } => {
+                CompareImage::Texture(texture, size) => Some(SizedTexture::new(texture.id, points(size, ppp))),
+                CompareImage::Picture(key, revision, size, make) => {
                     let store = TextureStore::<u64>::in_context(ui.ctx(), ("compare-textures", &salt), TextureStoreOptions::frames());
                     let texture = store.get_or_put(ui.ctx(), key, revision, make);
                     Some(SizedTexture::new(texture.id, points(size, ppp)))
@@ -215,7 +203,7 @@ impl<'a> CompareTile<'a> {
             let held = if survey { PreviewView::fitting() } else { view.reborrow().read(cx).unwrap_or_else(PreviewView::fitting) };
             let preview = match (&state, picture) {
                 (RenderState::Failed(message), _) => PreviewState::Failed(Label::from(message.clone())),
-                (RenderState::Pending { overdue: true }, _) | (_, None) => PreviewState::Pending(None),
+                (RenderState::Pending(true), _) | (_, None) => PreviewState::Pending(None),
                 (_, Some(texture)) => PreviewState::Ready(texture),
             };
             let mut pane = PreviewPane::state(label, preview, &held);
@@ -224,7 +212,9 @@ impl<'a> CompareTile<'a> {
             }
             let out = pane.show(ui);
             cx.memory::<Well>().0 = Some(out.response.rect);
-            let double_clicked = !survey && out.response.double_clicked();
+            let double_clicked = !survey
+                && pointer::frame(ui.ctx()).press.is_some_and(|press| press.clicks >= 2)
+                && pointer::frame(ui.ctx()).pos.is_some_and(|at| out.response.rect.contains(at));
             let next = if survey {
                 None
             } else if double_clicked {
@@ -285,7 +275,7 @@ impl Container for CompareTile<'_> {
     /// The caption strip under the picture.
     fn footer(&mut self, ui: &mut Ui, cx: &mut craft_ui::contract::BodyCx<'_>) {
         if let Some(caption) = &self.caption {
-            caption.show(ui, cx.rect.width());
+            caption.strip(ui, cx.rect.width());
         }
     }
 }

@@ -144,7 +144,7 @@ impl Default for PreviewView {
 /// The host's drawing over a pane's picture: it gets the content painter, the transform the pane drew the picture with
 /// (the picture's centre is the canvas origin) and the picture's rect in the painter's coordinates. It runs after the
 /// picture and before the pending line or the failed message.
-pub struct PaneOverlay<'a>(Box<dyn FnOnce(&ContentPainterCx, CanvasTransform, Rect) + 'a>);
+pub struct PaneOverlay<'a>(pub Box<dyn FnOnce(&ContentPainterCx, CanvasTransform, Rect) + 'a>);
 
 impl<'a> PaneOverlay<'a> {
     /// The overlay that runs `paint`.

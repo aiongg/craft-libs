@@ -9,7 +9,7 @@
 //!     match event {
 //!         PlacesEvent::Open(path) => app.browse(path),
 //!         PlacesEvent::Reveal(path) => app.reveal(&path),
-//!         PlacesEvent::Menu { target, command } => app.run_folder_command(&command, target),
+//!         PlacesEvent::Menu(target, command) => app.run_folder_command(&command, target),
 //!         other => settings.places.apply(&other),            // keep, remove, restore, recents
 //!     }
 //! }
@@ -54,12 +54,8 @@ pub enum PlacesEvent {
     /// Show the folder in the system's file manager: the app runs it.
     Reveal(PathBuf),
     /// A pick in the host's folder menu ([`PlacesTree::row_menu`]): its command on the folder `target`.
-    Menu {
-        /// The folder the menu was opened on.
-        target: PathBuf,
-        /// The id of the picked command.
-        command: String,
-    },
+    /// The folder the menu was opened on, then the id of the picked command.
+    Menu(PathBuf, String),
 }
 
 impl PlacesSettings {
@@ -72,7 +68,7 @@ impl PlacesSettings {
             PlacesEvent::Restore(path) => self.restore(path),
             PlacesEvent::RestoreAll => self.restore_all(),
             PlacesEvent::ClearRecent => self.clear_recent(),
-            PlacesEvent::Open(_) | PlacesEvent::Reveal(_) | PlacesEvent::Menu { .. } => false,
+            PlacesEvent::Open(_) | PlacesEvent::Reveal(_) | PlacesEvent::Menu(..) => false,
         }
     }
 }
@@ -80,6 +76,7 @@ impl PlacesSettings {
 /// What [`PlacesTree::show`] returns.
 #[derive(Debug)]
 #[must_use = "the host applies the tree's events"]
+#[non_exhaustive]
 pub struct PlacesOutput {
     /// The tree.
     pub response: Response,
@@ -670,6 +667,6 @@ fn into_event(command: Command) -> PlacesEvent {
         Command::RestoreAll => PlacesEvent::RestoreAll,
         Command::ClearRecent => PlacesEvent::ClearRecent,
         Command::Reveal(path) => PlacesEvent::Reveal(path),
-        Command::Host { path, command } => PlacesEvent::Menu { target: path, command },
+        Command::Host { path, command } => PlacesEvent::Menu(path, command),
     }
 }

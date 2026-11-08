@@ -208,5 +208,5 @@ fn a_host_menu_row_reports_its_command_and_folder() {
     settle(&mut fixture, &state);
     click_row(&mut fixture, "Rename Folder…");
     settle(&mut fixture, &state);
-    assert_eq!(state.borrow().events, vec![PlacesEvent::Menu { target: path("/home/u/Docs"), command: "folder.rename".into() }]);
+    assert_eq!(state.borrow().events, vec![PlacesEvent::Menu(path("/home/u/Docs"), "folder.rename".into())]);
 }

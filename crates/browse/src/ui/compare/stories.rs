@@ -28,7 +28,7 @@ fn gradient(hue: f32) -> ColorImage {
 }
 
 fn image(key: u64, hue: f32) -> CompareImage<'static> {
-    CompareImage::Picture { key, revision: Revision::of(&hue.to_bits()), size: PICTURE, make: Box::new(move || gradient(hue)) }
+    CompareImage::Picture(key, Revision::of(&hue.to_bits()), PICTURE, Box::new(move || gradient(hue)))
 }
 
 fn caption(label: &str, name: &str) -> CompareCaption {
@@ -42,7 +42,7 @@ fn compare_pair(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let area = ui.max_rect();
     let [left, right] = ComparePair::new(ArrangeSpace::new(18.0, 16.0)).rects(area);
     let select =
-        CompareTile::new("Select", Bind::bound(view), image(1, 0.58)).caption(caption("Select", "IMG_0001.jpg")).active(*active == 0).show(ui, left);
+        CompareTile::new("Select", Bind::bound(view), image(1, 0.58)).caption(caption("Select", "IMG_0001.jpg")).active(*active == 0).place(ui, left);
     if select.clicked {
         *active = 0;
     }
@@ -50,7 +50,7 @@ fn compare_pair(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
         .caption(caption("Candidate", "IMG_0002.jpg"))
         .active(*active == 1)
         .rejected(true)
-        .show(ui, right);
+        .place(ui, right);
     if candidate.clicked {
         *active = 1;
     }
@@ -63,7 +63,7 @@ fn compare_tile_narrow(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let rect = Rect::from_min_size(ui.max_rect().min, vec2(160.0, 160.0));
     CompareTile::new("Select", Bind::bound(view), image(1, 0.58))
         .caption(caption("Select", "A_file_name_much_longer_than_the_tile.jpeg"))
-        .show(ui, rect)
+        .place(ui, rect)
         .into()
 }
 
@@ -72,8 +72,8 @@ fn compare_tile_pending(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let view = data.value("view", PreviewView::fitting());
     CompareTile::new("Candidate", Bind::bound(view), image(2, 0.08))
         .caption(caption("Candidate", "IMG_0002.jpg"))
-        .state(RenderState::Pending { overdue: true })
-        .show(ui, ui.max_rect())
+        .state(RenderState::Pending(true))
+        .place(ui, ui.max_rect())
         .into()
 }
 
@@ -83,7 +83,7 @@ fn compare_tile_failed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     CompareTile::new("Candidate", Bind::bound(view), CompareImage::None)
         .caption(CompareCaption::new("Candidate", "IMG_0002.jpg"))
         .state(RenderState::Failed("The renderer stopped".into()))
-        .show(ui, ui.max_rect())
+        .place(ui, ui.max_rect())
         .into()
 }
 
@@ -105,7 +105,7 @@ fn compare_survey(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
         let out = CompareTile::new(name.clone(), Bind::bound(view), image(at as u64, hue))
             .caption(CompareCaption::new("", name))
             .survey(true)
-            .show(ui, rect);
+            .place(ui, rect);
         outs.push(out);
     }
     outs.swap_remove(0).into()

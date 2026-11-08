@@ -5,7 +5,7 @@
 //! let select = CompareTile::new("Select", Bind::bound(&mut state.view), photo_a.image())   // one view for both
 //!     .caption(CompareCaption::new(tr("Select"), &photo_a.name).rating(photo_a.rating).flag(photo_a.flag))
 //!     .active(active == 0)
-//!     .show(ui, left);
+//!     .place(ui, left);
 //! if select.clicked {
 //!     active = 0;
 //! }

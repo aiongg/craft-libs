@@ -14,12 +14,12 @@ const PICTURE: [u32; 2] = [480, 320];
 const SPACE: ArrangeSpace = ArrangeSpace::new(8.0, 4.0);
 
 fn image() -> CompareImage<'static> {
-    CompareImage::Picture {
-        key: 1,
-        revision: Revision::of(&0u8),
-        size: PICTURE,
-        make: Box::new(|| ColorImage::filled([PICTURE[0] as usize, PICTURE[1] as usize], egui::Color32::GRAY)),
-    }
+    CompareImage::Picture(
+        1,
+        Revision::of(&0u8),
+        PICTURE,
+        Box::new(|| ColorImage::filled([PICTURE[0] as usize, PICTURE[1] as usize], egui::Color32::GRAY)),
+    )
 }
 
 /// What a fixture of one or two tiles reports.
@@ -42,7 +42,7 @@ fn pair(width: f32, state: fn() -> RenderState) -> (Fixture, Rc<RefCell<Seen>>) 
             let out = CompareTile::new(name, Bind::bound(&mut view), image())
                 .caption(CompareCaption::new(name, "IMG_0001.jpg").rating(Some(3)))
                 .state(state())
-                .show(ui, rect);
+                .place(ui, rect);
             seen.clicked[at] |= out.clicked;
             seen.double_clicked[at] |= out.double_clicked;
         }
@@ -106,9 +106,9 @@ fn the_pills_follow_the_render_state() {
         let (fixture, _) = pair(640.0, state);
         fixture.texts().iter().any(|run| run.text.contains(text))
     };
-    assert!(said(|| RenderState::Pending { overdue: true }, "Rendering"));
+    assert!(said(|| RenderState::Pending(true), "Rendering"));
     assert!(said(|| RenderState::Failed("The renderer stopped".into()), "The renderer stopped"));
-    assert!(!said(|| RenderState::Pending { overdue: false }, "Rendering"));
+    assert!(!said(|| RenderState::Pending(false), "Rendering"));
     assert!(!said(ready, "Rendering"));
 }
 

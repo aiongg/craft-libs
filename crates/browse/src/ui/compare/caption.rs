@@ -78,7 +78,7 @@ impl CompareCaption {
 
     /// Shows the strip in `ui`, which is `room` points wide. The name stays out when it would not fit beside the
     /// label and the marks.
-    pub(super) fn show(&self, ui: &mut Ui, room: f32) {
+    pub(super) fn strip(&self, ui: &mut Ui, room: f32) {
         let mut label = Text::new(self.label.clone()).role(TypeRole::BodyStrong);
         let mut name = Text::new(self.name.clone()).role(TypeRole::Caption).shade(Shade::Muted);
         let stars = self.rating.filter(|n| *n > 0).map(|n| n.min(STARS));
