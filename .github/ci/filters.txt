@@ -1,0 +1,6 @@
+craft-ui it full_window_parts
+craft-ui it dialog::
+craft-ui it choice::
+craft-ui it form_dialogs
+craft-ui it suite::craft_ui::choice
+craft-ui it keys
