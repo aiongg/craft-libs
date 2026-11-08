@@ -1,208 +1,179 @@
-//! Cursor chat: your bubble at the pointer, and everyone's bubbles (N5.09).
+//! Cursor chat: your box at the pointer, and everyone's bubbles.
 
-use craft_ui::controls::TextField;
-use craft_ui::edit::EditEvent;
-use craft_ui::focus::key_owner::{KeyOwner, OwnerGate, owner};
-use craft_ui::localized::Labels as _;
-use craft_ui::theme::{Tokens, TokensOf as _, UiTokens, role_format};
-use egui::text::LayoutJob;
-use egui::{AsIdSalt, Color32, CornerRadius, Event, Frame, IdSalt, Key, Margin, Modifiers, Order, Painter, Pos2, Rect, Ui, vec2};
+use craft_theme::Rgba;
+use craft_theme::contrast::contrast_ratio;
+use craft_ui::contract::{Bind, NoValue, Outcome, Pattern, Props, Remember as _, Show as _, ShowContainer as _};
+use craft_ui::fonts::FontRef;
+use craft_ui::layout_components::Stack;
+use craft_ui::popover::Popover;
+use craft_ui::primitives::{DocRun, DocText, Draw, PaintShape, TextRun, Wrap};
+use craft_ui::runtime::env::{Env, Label};
+use craft_ui::runtime::overlay::CloseReason;
+use craft_ui::style::{DataColor, StyleCx, TypeRole};
+use craft_ui::text::TextField;
+use egui::{Color32, CornerRadius, Pos2, Rect, Response, Ui, Vec2};
 
-use super::presence::{ink_on, tag_offset};
-use super::style::ReviewStyle;
-use crate::collab::{CHAT_FADE_S, CHAT_HOLD_S, CollabRequest, chat_alpha};
+use crate::collab::CollabRequest;
 
-/// How much of the ink the name over a bubble's text keeps (FigCraft `live.rs:236`).
+#[cfg(feature = "screen-testing")]
+mod stories;
+
+/// The bubble's text wraps at this many control heights.
+const WIDTH_IN_HEIGHTS: f32 = 10.0;
+/// How much of the ink the name over a bubble's text keeps.
 const NAME_INK: f32 = 0.8;
+/// Where a name tag or bubble sits from the pointer's tip, as fractions of the pointer's size.
+pub(super) const TAG_OFFSET: [f32; 2] = [12.0 / 16.0, 1.0];
 
 craft_ui::words! {
-    /// The chat box's words, English by default (FigCraft's).
+    /// The chat box's words, English by default.
     #[non_exhaustive]
-    pub struct ChatLabels {
+    pub struct ChatWords {
         name: "chat.name" = "Cursor chat";
         hint: "chat.hint" = "Say something";
     }
 }
 
-/// A chat bubble with its corner at `tip` (beside the pointer): the name over the text when
-/// given, in `fill` (the person's colour) at `alpha`. It is as wide as its text, which wraps at
-/// `ReviewStyle::chat_width`; rounded `shape.radius.popup` except the corner at the pointer, which is
-/// square (FigCraft's bubble).
-// figcraft: crates/ui-egui/src/live.rs:232 `chat_bubble`.
-pub fn paint_chat_bubble(painter: &Painter, tokens: &UiTokens, tip: Pos2, name: Option<&str>, text: &str, fill: Color32, alpha: f32) {
-    let style = ReviewStyle::of(tokens);
-    let on = ink_on(&style, fill).gamma_multiply(alpha);
-    let mut body = LayoutJob::single_section(text.to_owned(), role_format(tokens, style.body_text, on));
-    body.wrap.max_width = style.chat_width(painter, tokens);
-    let body = painter.layout_job(body);
-    let head = name.map(|name| {
-        painter.layout_job(LayoutJob::single_section(name.to_owned(), role_format(tokens, style.caption_text, on.gamma_multiply(NAME_INK))))
-    });
-    let pad = vec2(tokens.space.pad.control, tokens.space.gap.inline);
-    let gap = tokens.space.gap.inline / 2.0;
-    let head_height = head.as_ref().map_or(0.0, |galley| galley.size().y + gap);
-    let width = head.as_ref().map_or(0.0, |galley| galley.size().x).max(body.size().x);
-    let rect = Rect::from_min_size(tip + tag_offset(tokens), vec2(width, head_height + body.size().y) + 2.0 * pad);
-    let radius = bubble_radius(tokens);
-    painter.rect_filled(rect, radius, fill.gamma_multiply(alpha));
-    let mut at = rect.min + pad;
-    if let Some(head) = head {
-        let height = head.size().y;
-        painter.galley(at, head, on);
-        at.y += height + gap;
+/// The black or white that reads better on `fill`: always at least the AA ratio for text.
+pub(super) fn ink_for(fill: [u8; 3]) -> Color32 {
+    let [r, g, b] = fill;
+    let fill = Rgba::rgb(r, g, b);
+    if contrast_ratio(Rgba::WHITE, fill) >= contrast_ratio(Rgba::BLACK, fill) { Color32::WHITE } else { Color32::BLACK }
+}
+
+/// The sizes of a bubble, from the style context of the component that paints it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct BubbleLook {
+    /// Room round the text.
+    pub pad: Vec2,
+    /// Between the name and the text.
+    pub gap: f32,
+    /// The corner radius, square at the pointer.
+    pub radius: u8,
+    /// From the pointer's tip to the bubble's corner.
+    pub offset: Vec2,
+    /// The width the text wraps at.
+    pub width: f32,
+    /// The body text size and line height.
+    pub body: (f32, f32),
+    /// The name's size and line height.
+    pub caption: (f32, f32),
+}
+
+impl BubbleLook {
+    /// The look the style context gives.
+    pub fn of(cx: &StyleCx<'_>) -> Self {
+        let (control, tokens) = (cx.control(), cx.tokens);
+        let (body, caption) = (tokens.typography.get(TypeRole::Body), tokens.typography.get(TypeRole::Caption));
+        BubbleLook {
+            pad: Vec2::new(control.pad_x, tokens.space.gap.inline),
+            gap: tokens.space.gap.inline / 2.0,
+            radius: tokens.shape.radius.popup.round().clamp(0.0, 255.0) as u8,
+            offset: Vec2::from(TAG_OFFSET) * tokens.size.icon.md,
+            width: WIDTH_IN_HEIGHTS * control.height,
+            body: (body.size, body.line_height),
+            caption: (caption.size, caption.line_height),
+        }
     }
-    painter.galley(at, body, on);
 }
 
-/// The bubble's corners: square at the pointer (top left).
-fn bubble_radius(tokens: &UiTokens) -> CornerRadius {
-    let round = tokens.shape.radius.popup.round().clamp(0.0, 255.0) as u8;
-    CornerRadius { nw: 0, ne: round, sw: round, se: round }
+/// A chat bubble with its corner beside the pointer's `tip`: the name over the text when given, on `fill` (the
+/// person's colour) at `alpha`. As wide as its text, which wraps at the look's width; rounded except the corner at
+/// the pointer, which is square.
+pub fn paint_chat_bubble(draw: &Draw<'_>, look: &BubbleLook, tip: Pos2, name: Option<&str>, text: &str, fill: [u8; 3], alpha: f32) {
+    let ink = ink_for(fill);
+    let measured = draw.layout(&TextRun::new(text).role(TypeRole::Body).wrap(Wrap::Wrap), look.width).size();
+    let head = name.map(|name| draw.layout(&TextRun::new(name).role(TypeRole::Caption), look.width).size());
+    let head_height = head.map_or(0.0, |size| size.y + look.gap);
+    let width = head.map_or(0.0, |size| size.x).max(measured.x);
+    let rect = Rect::from_min_size(tip + look.offset, Vec2::new(width, head_height + measured.y) + 2.0 * look.pad);
+    let round = look.radius;
+    let [r, g, b] = fill;
+    let background = Color32::from_rgb(r, g, b).gamma_multiply(alpha);
+    draw.data_fill(&PaintShape::Rect(rect, CornerRadius { nw: 0, ne: round, sw: round, se: round }), DataColor::new(background));
+    let mut at = rect.min + look.pad;
+    if let Some(name) = name {
+        let runs = [DocRun::new(name.to_owned(), FontRef::proportional(), look.caption.0, DataColor::new(ink.gamma_multiply(NAME_INK * alpha)))];
+        draw.doc(Rect::from_min_size(at, Vec2::new(width, look.caption.1)), &DocText::new(&runs));
+        at.y += head_height;
+    }
+    let runs = [DocRun::new(text.to_owned(), FontRef::proportional(), look.body.0, DataColor::new(ink.gamma_multiply(alpha)))];
+    draw.doc(Rect::from_min_size(at, Vec2::new(width, measured.y)), &DocText::new(&runs));
 }
 
-/// Your cursor chat: `/` over the canvas opens a bubble at the pointer with a text field (the
-/// focus moves into it); each change comes back as a [`CollabRequest::Chat`] for the app to
-/// send; Enter sends and keeps the bubble, Esc or an empty Enter closes it (an empty `Chat`).
-/// The bubble follows the pointer. The text field is the kernel's
-/// [`TextField`]; `/` is taken only while the canvas holds the
-/// keys ([`focus::key_owner`](craft_ui::focus::key_owner)).
+/// Where the box was last shown, kept while it is open.
+#[derive(Clone, Default)]
+struct Last(Option<Pos2>);
+
+/// Your cursor chat: while `open`, a text box at the pointer; each change comes back as a [`CollabRequest::Chat`] for
+/// the app to send. Enter sends and closes the box, Escape or an empty Enter closes it and clears the message (an
+/// empty `Chat`). The app opens it from its `/` command while the canvas holds the keys.
+#[derive(Pattern, Props)]
 pub struct CursorChatBox<'a> {
-    id_salt: IdSalt,
+    label: Label,
     text: &'a mut String,
     open: &'a mut bool,
-    color: Color32,
-    labels: Option<ChatLabels>,
 }
 
 impl<'a> CursorChatBox<'a> {
-    /// `color` is your own colour in the session ([`Participant::color`](crate::collab::Participant::color)):
-    /// your bubble is drawn in it, as the others see it.
-    pub fn new(id_salt: impl AsIdSalt, text: &'a mut String, open: &'a mut bool, color: [u8; 3]) -> Self {
-        let [r, g, b] = color;
-        Self { id_salt: IdSalt::new(id_salt), text, open, color: Color32::from_rgb(r, g, b), labels: None }
+    /// A box that edits `text` while `open`.
+    pub fn new(text: &'a mut String, open: &'a mut bool) -> Self {
+        CursorChatBox { label: Label::Empty, text, open }
     }
 
-    /// Uses these label texts instead of the ones read from the active locale's catalog.
-    pub fn labels(mut self, labels: ChatLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    // figcraft: crates/ui-egui/src/live.rs:353 `open_chat`, `:362` `chat_box`.
-    /// Shows the box and returns the requests it made. `pointer` is the pointer position in screen
-    /// points, `None` off the canvas; a bubble that is open keeps its last position then.
+    /// Shows the box and returns the requests it made. `pointer` is the pointer position in screen points, `None` off
+    /// the canvas; an open box keeps its last position then.
     pub fn show(self, ui: &mut Ui, pointer: Option<Pos2>) -> CursorChatBoxOutput {
-        let Self { id_salt, text, open, color: fill, labels } = self;
-        let labels = labels.unwrap_or_else(|| ChatLabels::of(ui));
-        let tokens = Tokens::of(ui);
-        let style = ReviewStyle::of(&tokens);
-        let ctx = ui.ctx().clone();
-        let id = ui.make_persistent_id(id_salt);
-        let field_id = id.with("field");
+        let CursorChatBox { label: _, text, open } = self;
+        let words = Env::of(ui).words::<ChatWords>();
         let mut requests = Vec::new();
-        let now = ctx.input(|input| input.time);
-        let opened = ChatState { editing: true, changed: now, focus: true, at: pointer };
-        let mut state: ChatState = ctx.data(|data| data.get_temp(id)).unwrap_or_else(|| opened.clone());
-
-        if !*open {
-            // `/` opens the box at the pointer; the key's text must not land in the field.
-            let slash = pointer.is_some()
-                && owner(&ctx, &OwnerGate::default()) == KeyOwner::App
-                && ctx.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Slash));
-            if slash {
-                ctx.input_mut(|input| input.events.retain(|event| !matches!(event, Event::Text(typed) if typed == "/")));
-                *open = true;
-                state = opened;
-            } else {
-                return CursorChatBoxOutput { requests };
+        let shown = Stack::new().show(ui, |ui, cx| {
+            if !*open {
+                cx.keep::<Last>().0 = None;
+                return;
             }
-        }
-        state.at = pointer.or(state.at);
-        let at = state.at.unwrap_or_else(|| ui.max_rect().center());
-        let idle = now - state.changed;
-
-        if state.editing && idle >= CHAT_HOLD_S + CHAT_FADE_S {
-            close(text, open, &mut requests);
-        } else if state.editing {
-            ctx.request_repaint_after_secs((CHAT_HOLD_S + CHAT_FADE_S - idle) as f32);
-            let on = ink_on(&style, fill);
-            let pad = Margin::symmetric(tokens.space.pad.control.round() as i8, tokens.space.gap.inline.round() as i8);
+            let last = cx.keep::<Last>();
+            last.0 = pointer.or(last.0);
+            let Some(at) = last.0 else { return };
+            let before = text.clone();
+            let mut shown = true;
             let mut submitted = false;
-            let mut escaped = false;
-            let mut left = false;
-            egui::Area::new(id.with("area")).order(Order::Foreground).fixed_pos(at + tag_offset(&tokens)).show(&ctx, |ui| {
-                Frame::NONE.fill(fill).corner_radius(bubble_radius(&tokens)).inner_margin(pad).show(ui, |ui| {
-                    ui.visuals_mut().override_text_color = Some(on);
-                    let field = TextField::new(id.with("text"), &labels.name, text.as_str())
-                        .id(field_id)
-                        .placeholder(&labels.hint)
-                        .width(style.chat_width(ui.painter(), &tokens))
-                        .show(ui);
-                    if state.focus {
-                        ui.memory_mut(|memory| memory.request_focus(field_id));
-                        state.focus = false;
-                    }
-                    if let Some(value) = field.event.as_ref().and_then(EditEvent::value)
-                        && value != text.as_str()
-                    {
-                        value.clone_into(text);
-                        state.changed = now;
-                        requests.push(CollabRequest::Chat(text.clone()));
-                    }
-                    submitted = field.submitted;
-                    escaped = field.escaped;
-                    left = field.response.lost_focus();
-                });
+            let popover = Popover::new(words.name.clone(), Bind::bound(&mut shown)).at_point(at).show(ui, |ui, _| {
+                let field = TextField::new(words.name.clone(), Bind::bound(&mut *text)).placeholder(words.hint.clone()).show(ui);
+                submitted = field.submitted;
             });
-            if escaped || ((submitted || left) && text.trim().is_empty()) {
-                close(text, open, &mut requests);
-            } else if submitted || left {
-                state.editing = false;
-                state.changed = now;
+            if *text != before {
+                requests.push(CollabRequest::Chat(text.clone()));
             }
-        } else {
-            let age = now - state.changed;
-            let alpha = chat_alpha(age, false);
-            if alpha <= 0.0 || text.is_empty() {
-                close(text, open, &mut requests);
-            } else {
-                ctx.request_repaint_after_secs((if age < CHAT_HOLD_S { CHAT_HOLD_S - age } else { 0.0 }) as f32);
-                let painter = ctx.layer_painter(egui::LayerId::new(Order::Foreground, id.with("bubble")));
-                paint_chat_bubble(&painter, &tokens, at, None, text, fill, alpha);
+            let escaped = popover.output.closed == Some(CloseReason::Escape);
+            if escaped || (submitted && text.trim().is_empty()) {
+                text.clear();
+                requests.push(CollabRequest::Chat(String::new()));
+                *open = false;
+            } else if submitted {
+                *open = false;
             }
-        }
-        if *open {
-            ctx.data_mut(|data| data.insert_temp(id, state));
-        } else {
-            ctx.data_mut(|data| data.remove_temp::<ChatState>(id));
-        }
-        CursorChatBoxOutput { requests }
+        });
+        CursorChatBoxOutput { response: shown.output, requests }
     }
-}
-
-/// Your box's state between passes.
-#[derive(Clone, Default)]
-struct ChatState {
-    /// The field is open (otherwise the sent text fades).
-    editing: bool,
-    /// When the text last changed (egui time).
-    changed: f64,
-    /// The field takes the focus on its first pass.
-    focus: bool,
-    /// The pointer's last position.
-    at: Option<Pos2>,
-}
-
-/// Closes the box and tells the others (an empty chat).
-fn close(text: &mut String, open: &mut bool, requests: &mut Vec<CollabRequest>) {
-    text.clear();
-    *open = false;
-    requests.push(CollabRequest::Chat(String::new()));
 }
 
 /// What the chat box did this pass.
+#[derive(Debug)]
+#[non_exhaustive]
 #[must_use]
 pub struct CursorChatBoxOutput {
+    /// The box's response.
+    pub response: Response,
     /// The chat messages to send, in order.
     pub requests: Vec<CollabRequest>,
+}
+
+impl Outcome for CursorChatBoxOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
 }

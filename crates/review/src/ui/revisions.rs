@@ -1,47 +1,35 @@
-//! The revisions panel: a compared copy's changes to accept or reject (N5.10).
+//! The revisions panel: a compared copy's changes to accept or reject.
 
-use craft_theme::ButtonVariant;
-use craft_ui::controls::{Button, Link};
-use craft_ui::localized::{Labels as _, Words, fmt};
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, corner_radius};
-use egui::accesskit::Role;
-use egui::{Align, AsIdSalt, Color32, Frame, IdSalt, Layout, Margin, Response, Sense, Ui, Vec2, WidgetInfo};
+use craft_theme::variant::{Tone, Variant};
+use craft_ui::buttons::{Button, Link};
+use craft_ui::contract::{NoValue, Outcome, Pattern, Props, Show as _, ShowContainer as _, clicked};
+use craft_ui::display::{Shade, Text};
+use craft_ui::layout_components::{Row, Stack};
+use craft_ui::runtime::env::{Env, Label};
+use craft_ui::style::TypeRole;
+use egui::{Response, Ui};
 
-use super::ReviewStyle;
-use super::comments::text;
 use crate::revisions::{Revision, RevisionAction, RevisionKind};
+
+#[cfg(feature = "screen-testing")]
+mod stories;
 
 /// The detail lines a card shows.
 const DETAIL_LINES: usize = 8;
 
-/// The panel's count words, for the facade's `ui::COUNTS`.
-pub mod counts {
-    use craft_ui::localized::words::Counted;
-
-    /// Count word for the Accept All button.
-    pub const ACCEPT_ALL: Counted = Counted::new("revisions.acceptAll", "Accept All ({n})", "Accept All ({n})");
-    /// Count word for the Reject All button.
-    pub const REJECT_ALL: Counted = Counted::new("revisions.rejectAll", "Reject All ({n})", "Reject All ({n})");
-
-    /// Every count word of the Revisions panel.
-    pub const ALL: &[Counted] = &[ACCEPT_ALL, REJECT_ALL];
-}
-
 craft_ui::words! {
-    /// The panel's words, English by default (DeckCraft's, PowerPoint's).
+    /// The panel's words, English by default.
     #[non_exhaustive]
-    pub struct RevisionsLabels {
-        compared_with: "revisions.comparedWith" = "Compared with {name}";
+    pub struct RevisionsWords {
+        compared_with: template "revisions.comparedWith" = "Compared with {name}";
         by_position: "revisions.byPosition" = "Not a copy of this presentation: slides are matched by position.";
-        /// The English plural of [`counts::ACCEPT_ALL`].
-        accept_all: "revisions.acceptAll" = "Accept All ({n})";
-        /// The English plural of [`counts::REJECT_ALL`].
-        reject_all: "revisions.rejectAll" = "Reject All ({n})";
+        accept_all: count "revisions.acceptAll" = "Accept All ({n})" | "Accept All ({n})";
+        reject_all: count "revisions.rejectAll" = "Reject All ({n})" | "Reject All ({n})";
         inserted: "revisions.inserted" = "Inserted";
         deleted: "revisions.deleted" = "Deleted";
         changed: "revisions.changed" = "Changed";
         /// A detail line of a change, after its bullet.
-        detail_line: "revisions.detailLine" = "\u{2022} {detail}";
+        detail_line: template "revisions.detailLine" = "\u{2022} {detail}";
         accept: "revisions.accept" = "Accept";
         reject: "revisions.reject" = "Reject";
         none_left: "revisions.noneLeft" = "No differences left.";
@@ -49,85 +37,86 @@ craft_ui::words! {
     }
 }
 
-/// PowerPoint's Compare pane (DeckCraft): "Compared with {name}" (and the by-position note),
-/// Accept All (n) and Reject All (n), then a card per change: a colour bar
-/// (`ReviewStyle::revision_bar_*` in `status.good`, `bad` or `info` of
-/// [`ReviewStyle`]), the heading as a [`Link`]
-/// (goes there), Accept and Reject at the right, up to eight detail lines with bullets. With no
-/// changes: "No differences left." and End Review. Every link and button is a Tab stop in reading
-/// order; counts through [`Counted`](craft_ui::localized::words::Counted) words.
+/// A compare pane: "Compared with {name}" (and the by-position note), Accept All (n) and Reject All (n), then a
+/// card per change with its kind, the heading as a link (goes there), Accept and Reject, and up to eight detail
+/// lines with bullets. With no changes: "No differences left." and End Review. Every link and button is a Tab stop
+/// in reading order.
+#[derive(Pattern, Props)]
 pub struct RevisionsPanel<'a> {
-    id_salt: IdSalt,
+    label: Label,
     compared_with: &'a str,
-    by_position: bool,
     revisions: &'a [Revision],
-    labels: Option<RevisionsLabels>,
+    /// The copy did not match by identity: changes are by position.
+    #[prop]
+    by_position: bool,
 }
 
 impl<'a> RevisionsPanel<'a> {
-    /// A panel listing `revisions` found by comparing with `compared_with` (the other copy's name).
-    pub fn new(id_salt: impl AsIdSalt, compared_with: &'a str, revisions: &'a [Revision]) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), compared_with, by_position: false, revisions, labels: None }
+    /// A panel named `label` listing `revisions` found by comparing with `compared_with` (the other copy's name).
+    pub fn new(label: impl Into<Label>, compared_with: &'a str, revisions: &'a [Revision]) -> Self {
+        RevisionsPanel { label: label.into(), compared_with, revisions, by_position: false }
     }
 
-    /// The copy didn't match by identity; changes are by position.
-    pub fn by_position(mut self, on: bool) -> Self {
-        self.by_position = on;
-        self
-    }
-
-    /// Uses these label texts instead of the ones read from the active locale's catalog.
-    pub fn labels(mut self, labels: RevisionsLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    // deckcraft: crates/ui-egui/src/panels/comments.rs:5 `revisions`.
     /// Shows the panel and reports what the user did.
     pub fn show(self, ui: &mut Ui) -> RevisionsPanelOutput {
-        let Self { id_salt, compared_with, by_position, revisions, labels } = self;
-        let labels = labels.unwrap_or_else(|| RevisionsLabels::of(ui));
-        let tokens = Tokens::of(ui);
-        let style = ReviewStyle::of(&tokens);
-        let id = ui.make_persistent_id(id_salt);
-        let muted = tokens.color.text.muted.to_egui();
+        let RevisionsPanel { label: _, compared_with, revisions, by_position } = self;
+        let env = Env::of(ui);
+        let words = env.words::<RevisionsWords>();
         let mut actions = Vec::new();
-        let response = ui
-            .vertical(|ui| {
-                ui.spacing_mut().item_spacing.y = tokens.space.gap.stack;
-                text(ui, &tokens, style.body_text, muted, fmt(&labels.compared_with, &[("name", compared_with)]));
-                if by_position {
-                    text(ui, &tokens, style.caption_text, muted, &labels.by_position);
+        let shown = Stack::new().show(ui, |ui, _| {
+            Text::new(words.compared_with.fill(&[("name", compared_with)])).shade(Shade::Muted).show(ui);
+            if by_position {
+                Text::new(words.by_position.clone()).role(TypeRole::Caption).shade(Shade::Muted).show(ui);
+            }
+            if revisions.is_empty() {
+                Text::new(words.none_left.clone()).show(ui);
+                if clicked(&Button::new(words.end_review.clone()).show(ui)) {
+                    actions.push(RevisionAction::EndReview);
                 }
-                if revisions.is_empty() {
-                    text(ui, &tokens, style.body_text, tokens.color.text.normal.to_egui(), &labels.none_left);
-                    if ui.add(Button::new(&labels.end_review).id_salt(id.with("end"))).clicked() {
-                        actions.push(RevisionAction::EndReview);
-                    }
-                    return;
+                return;
+            }
+            let count = u64::try_from(revisions.len()).unwrap_or(u64::MAX);
+            let digits = env.format().integer(count);
+            Row::new().show(ui, |ui, _| {
+                if clicked(&Button::new(words.accept_all.text(count, &digits)).show(ui)) {
+                    actions.push(RevisionAction::AcceptAll);
                 }
-                let count = u64::try_from(revisions.len()).unwrap_or(u64::MAX);
-                let words = Words::of(ui);
-                let accept_all = words.counted(ui.ctx(), counts::ACCEPT_ALL, &labels.accept_all, count);
-                let reject_all = words.counted(ui.ctx(), counts::REJECT_ALL, &labels.reject_all, count);
-                ui.horizontal(|ui| {
-                    if ui.add(Button::new(accept_all).id_salt(id.with("accept-all"))).clicked() {
-                        actions.push(RevisionAction::AcceptAll);
-                    }
-                    if ui.add(Button::new(reject_all).id_salt(id.with("reject-all"))).clicked() {
-                        actions.push(RevisionAction::RejectAll);
+                if clicked(&Button::new(words.reject_all.text(count, &digits)).show(ui)) {
+                    actions.push(RevisionAction::RejectAll);
+                }
+            });
+            for (index, revision) in revisions.iter().enumerate() {
+                let (tone, kind) = match revision.kind {
+                    RevisionKind::Inserted => (Tone::Good, &words.inserted),
+                    RevisionKind::Deleted => (Tone::Bad, &words.deleted),
+                    RevisionKind::Changed => (Tone::Info, &words.changed),
+                };
+                Stack::new().show(ui, |ui, _| {
+                    Row::new().show(ui, |ui, _| {
+                        Text::new(kind.clone()).role(TypeRole::Caption).tone(tone).show(ui);
+                        if clicked(&Link::new(revision.heading.clone()).show(ui)) {
+                            actions.push(RevisionAction::Go(index));
+                        }
+                        if clicked(&Button::new(words.accept.clone()).variant(Variant::PRIMARY).show(ui)) {
+                            actions.push(RevisionAction::Accept(index));
+                        }
+                        if clicked(&Button::new(words.reject.clone()).show(ui)) {
+                            actions.push(RevisionAction::Reject(index));
+                        }
+                    });
+                    for detail in revision.details.iter().take(DETAIL_LINES) {
+                        Text::new(words.detail_line.fill(&[("detail", detail.as_str())])).role(TypeRole::Caption).shade(Shade::Muted).show(ui);
                     }
                 });
-                for (index, revision) in revisions.iter().enumerate() {
-                    card(ui, &tokens, &style, &labels, (id, index), revision, &mut actions);
-                }
-            })
-            .response;
-        RevisionsPanelOutput { response, actions }
+            }
+        });
+        RevisionsPanelOutput { response: shown.output, actions }
     }
 }
 
 /// What the Revisions panel did this pass.
+#[derive(Debug)]
+#[non_exhaustive]
 #[must_use]
 pub struct RevisionsPanelOutput {
     /// The panel's response.
@@ -136,60 +125,10 @@ pub struct RevisionsPanelOutput {
     pub actions: Vec<RevisionAction>,
 }
 
-/// The colour bar of `kind`.
-fn kind_color(tokens: &UiTokens, kind: RevisionKind) -> Color32 {
-    match kind {
-        RevisionKind::Inserted => tokens.color.status.good.fg.to_egui(),
-        RevisionKind::Deleted => tokens.color.status.bad.fg.to_egui(),
-        RevisionKind::Changed => tokens.color.status.info.fg.to_egui(),
-    }
-}
+impl Outcome for RevisionsPanelOutput {
+    type Value = NoValue;
 
-/// The word of `kind`, the bar's accessible name.
-fn kind_word(labels: &RevisionsLabels, kind: RevisionKind) -> &str {
-    match kind {
-        RevisionKind::Inserted => &labels.inserted,
-        RevisionKind::Deleted => &labels.deleted,
-        RevisionKind::Changed => &labels.changed,
+    fn response(&self) -> &Response {
+        &self.response
     }
-}
-
-/// One change: bar, heading link, Accept and Reject, then its detail lines.
-fn card(
-    ui: &mut Ui,
-    tokens: &craft_ui::theme::UiTokens,
-    style: &ReviewStyle,
-    labels: &RevisionsLabels,
-    (id, index): (egui::Id, usize),
-    revision: &Revision,
-    actions: &mut Vec<RevisionAction>,
-) {
-    let frame = Frame::new()
-        .fill(tokens.color.surface.raised.to_egui())
-        .corner_radius(corner_radius(tokens.shape.radius.control))
-        .inner_margin(Margin::same(tokens.space.pad.control as i8));
-    frame.show(ui, |ui| {
-        ui.set_width(ui.available_width());
-        ui.spacing_mut().item_spacing.y = tokens.space.gap.row;
-        ui.horizontal(|ui| {
-            let (bar, response) = ui.allocate_exact_size(Vec2::new(style.revision_bar_width, style.revision_bar_height), Sense::hover());
-            response.widget_info(|| WidgetInfo::labeled(Role::Label, true, kind_word(labels, revision.kind)));
-            ui.painter().rect_filled(bar, 0.0, kind_color(tokens, revision.kind));
-            if ui.add(Link::new(&revision.heading).id_salt(id.with(("go", index)))).clicked() {
-                actions.push(RevisionAction::Go(index));
-            }
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if ui.add(Button::new(&labels.reject).id_salt(id.with(("reject", index)))).clicked() {
-                    actions.push(RevisionAction::Reject(index));
-                }
-                if ui.add(Button::new(&labels.accept).variant(ButtonVariant::Primary).id_salt(id.with(("accept", index)))).clicked() {
-                    actions.push(RevisionAction::Accept(index));
-                }
-            });
-        });
-        let muted = tokens.color.text.muted.to_egui();
-        for detail in revision.details.iter().take(DETAIL_LINES) {
-            text(ui, tokens, style.caption_text, muted, fmt(&labels.detail_line, &[("detail", detail)]));
-        }
-    });
 }

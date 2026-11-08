@@ -1,8 +1,12 @@
 //! The integration binary of craft-review: every test is a registered trial.
 
 mod annotate;
+mod collab;
 mod comments;
+mod revisions;
+mod signature;
 mod thread;
+mod versions;
 
 use craft_ui::testing::{TRIALS, suite};
 use libtest_mimic::{Arguments, Trial};

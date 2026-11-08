@@ -1,57 +1,54 @@
-//! The version history panel and the preview banner (N5.06).
+//! The version history panel and the preview banner.
 
+use std::borrow::Cow;
 use std::cell::Cell;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
-use craft_theme::ButtonVariant;
-use craft_ui::behavior::{ClaimedKey, RowInfo, Selection, SelectionMode};
-use craft_ui::controls::{Button, IconButton, Link, TextField};
-use craft_ui::edit::EditEvent;
-use craft_ui::focus::key_owner::{KeyOwner, OwnerGate, owner};
-use craft_ui::icons::{self, Icon, IconSize};
-use craft_ui::list::{List, ListEvent, ListRow, ListRowStyle, RowCommand, RowEvent};
-use craft_ui::localized::{Labels as _, Words, fmt};
-use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, corner_radius};
-use egui::{
-    Align, AsIdSalt, Context, Frame, Id, IdSalt, Key, Layout, Margin, Modifiers, Painter, Rect, Response, Sense, Stroke, Ui, UiBuilder, pos2,
+use craft_behavior::{DisplayOrder, IconId, ItemSource, Selection};
+use craft_theme::variant::Variant;
+use craft_ui::buttons::{Button, IconButton, Link};
+use craft_ui::contract::overlay::Anchor;
+use craft_ui::contract::{
+    Bind, CollectionEvent, Entry, NoValue, Outcome, Pattern, Props, Remember as _, SelectMode, Show as _, ShowCollection as _, ShowContainer as _,
+    Trigger, clicked,
 };
+use craft_ui::display::{Shade, Text};
+use craft_ui::layout_components::{Row, Stack};
+use craft_ui::list::{List, ListRow, RowEvent, TrailingFace, TrailingPart};
+use craft_ui::menu::Menu;
+use craft_ui::popover::Popover;
+use craft_ui::primitives::IconSpec;
+use craft_ui::runtime::env::{Env, Label};
+use craft_ui::style::TypeRole;
+use craft_ui::text::TextField;
+use egui::{Pos2, Rect, Response, Ui};
 
-use super::ReviewStyle;
-use super::comments::{age_text, text};
+use super::comments::age_text;
 use crate::versions::{Branch, BranchId, BranchState, HistoryRow, Version, VersionId, history_rows};
 
-/// The panel's count words, for the facade's `ui::COUNTS`.
-pub mod counts {
-    use craft_ui::localized::words::Counted;
-
-    /// Count word for a collapsed run of autosaves.
-    pub const AUTOSAVES: Counted = Counted::new("versions.autosaves", "{n} autosave version", "{n} autosave versions");
-
-    /// Every count word of the Version history panel.
-    pub const ALL: &[Counted] = &[AUTOSAVES];
-}
+#[cfg(feature = "screen-testing")]
+mod stories;
 
 craft_ui::words! {
-    /// The panel's words, English by default (FigCraft's, Figma's).
+    /// The panel's words, English by default.
     #[non_exhaustive]
-    pub struct VersionsLabels {
+    pub struct VersionsWords {
         title: "versions.title" = "Version history";
         current: "versions.current" = "Current version";
         save: "versions.save" = "Save version";
         title_field: "versions.titleField" = "Title";
         description: "versions.description" = "Description";
-        /// The folded autosave run; the English plural of [`counts::AUTOSAVES`].
-        autosaves: "versions.autosaves" = "{n} autosave versions";
+        autosaves: count "versions.autosaves" = "{n} autosave version" | "{n} autosave versions";
         /// The date and the author under a version's title.
-        detail: "versions.detail" = "{date} \u{b7} {author}";
+        detail: template "versions.detail" = "{date} \u{b7} {author}";
         no_versions: "versions.noVersions" = "No saved versions yet. Save a version to mark a point in your work you can come back to.";
         restore: "versions.restore" = "Restore this version";
         rename: "versions.rename" = "Rename";
         edit_description: "versions.editDescription" = "Edit description";
         duplicate: "versions.duplicate" = "Duplicate";
         delete: "versions.delete" = "Delete";
-        delete_confirm: "versions.deleteConfirm" = "Delete \u{201c}{title}\u{201d}? This can't be undone.";
+        delete_confirm: template "versions.deleteConfirm" = "Delete \u{201c}{title}\u{201d}? This can't be undone.";
+        row_more: "versions.rowMore" = "More";
         branches: "versions.branches" = "Branches";
         branch_name: "versions.branchName" = "Branch name";
         no_branches: "versions.noBranches" = "No branches. A branch is a copy of the file to try changes in, then review and merge.";
@@ -59,14 +56,14 @@ craft_ui::words! {
         branch_merged: "versions.branchMerged" = "Merged";
         branch_archived: "versions.branchArchived" = "Archived";
         /// The state and the date under a branch's name.
-        branch_detail: "versions.branchDetail" = "{state} \u{b7} {date}";
-        /// The name of a branch's "\u{2026}" button; `{branch}` is the branch's name.
-        branch_more: "versions.branchMore" = "More ({branch})";
+        branch_detail: template "versions.branchDetail" = "{state} \u{b7} {date}";
+        /// The name of a branch's "\u{2026}" button.
+        branch_more: template "versions.branchMore" = "More ({branch})";
         new_branch: "versions.newBranch" = "Create branch";
         open: "versions.open" = "Open";
         review_merge: "versions.reviewMerge" = "Review and merge";
         archive: "versions.archive" = "Archive";
-        previewing: "versions.previewing" = "You're viewing {title}";
+        previewing: template "versions.previewing" = "You're viewing {title}";
         go_back: "versions.goBack" = "Back to current version";
         cancel: "versions.cancel" = "Cancel";
     }
@@ -78,9 +75,9 @@ craft_ui::words! {
 pub enum VersionAction {
     /// Save the current state as a named version.
     Save {
-        #[allow(missing_docs)]
+        /// The title.
         title: String,
-        #[allow(missing_docs)]
+        /// The description.
         description: String,
     },
     /// Show a version on the canvas, read-only.
@@ -93,9 +90,9 @@ pub enum VersionAction {
     Rename {
         /// The version to rename.
         id: VersionId,
-        #[allow(missing_docs)]
+        /// The title.
         title: String,
-        #[allow(missing_docs)]
+        /// The description.
         description: String,
     },
     /// Duplicate a version.
@@ -104,7 +101,7 @@ pub enum VersionAction {
     Delete(VersionId),
     /// Create a branch.
     CreateBranch {
-        #[allow(missing_docs)]
+        /// The branch's name.
         name: String,
     },
     /// Open a branch.
@@ -115,158 +112,13 @@ pub enum VersionAction {
     ArchiveBranch(BranchId),
 }
 
-/// Figma's Version history panel in the left sidebar (FigCraft): the branches above (create,
-/// open, review and merge, archive), then Current version, then the history newest first
-/// ([`history_rows`]) on a timeline line with a dot per row (the
-/// current one filled), each named version with its title, date and author (relative under a
-/// week with [`relative_age`](craft_ui::localized::relative_age), then the date through
-/// craft-i18n's `I18n::dates()`), runs of two or more autosaves collapsed (a lone autosave is a row);
-/// per-row "…" (the list's own [`row_menu`](craft_ui::list::List::row_menu)) with Restore, Rename,
-/// Duplicate and Delete (the row turns into the confirmation in place). A branch shows its state and date, with
-/// a "…" menu of Open, Review and merge, and Archive while active. The history is the kernel's
-/// [`List`] of [`ListRow`]s (title and the date and
-/// author as the detail line; the dot column painted in the row's leading slot at
-/// `ReviewStyle::version_dot_x`, text from `ReviewStyle::version_text_x`): one Tab stop, Up / Down move,
-/// Enter previews, F2 or Rename renames in place (`List::start_rename`), autosave groups are
-/// tree rows that open and close. Save version opens an inline form (Title, Description; Enter
-/// saves, Esc cancels). The branch and footer buttons are Tab stops.
-pub struct VersionHistoryPanel<'a> {
-    id_salt: IdSalt,
-    versions: &'a [Version],
-    branches: &'a [Branch],
-    previewing: Option<VersionId>,
-    labels: Option<VersionsLabels>,
-}
-
-impl<'a> VersionHistoryPanel<'a> {
-    /// A panel listing `versions` and `branches`.
-    pub fn new(id_salt: impl AsIdSalt, versions: &'a [Version], branches: &'a [Branch]) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), versions, branches, previewing: None, labels: None }
-    }
-
-    /// The version being previewed, if any; its row is selected.
-    pub fn previewing(mut self, version: Option<VersionId>) -> Self {
-        self.previewing = version;
-        self
-    }
-
-    /// Uses these label texts instead of the ones read from the active locale's catalog.
-    pub fn labels(mut self, labels: VersionsLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    // figcraft: crates/ui-egui/src/panels/versions.rs:111 `panel`, `:317` `form`, `:374`
-    // `timeline`, `:393` `current_row`, `:408` `version_row`, `:471` `branch_row`, `:557`
-    // `autosave_group`, `:582` `confirm_row`.
-    /// Shows the panel and reports what the user did.
-    pub fn show(self, ui: &mut Ui) -> VersionHistoryPanelOutput {
-        let Self { id_salt, versions, branches, previewing, labels } = self;
-        let labels = labels.unwrap_or_else(|| VersionsLabels::of(ui));
-        let tokens = Tokens::of(ui);
-        let style = ReviewStyle::of(&tokens);
-        let id = ui.make_persistent_id(id_salt);
-        let mut state: PanelState = ui.data(|data| data.get_temp(id)).unwrap_or_default();
-        let mut actions = Vec::new();
-        let cx = Cx { tokens: &tokens, style: &style, labels: &labels, id, versions, previewing };
-        let response = ui
-            .vertical(|ui| {
-                ui.spacing_mut().item_spacing.y = tokens.space.gap.stack;
-                header(ui, &cx, &mut state, &mut actions);
-                branch_section(ui, &cx, branches, &mut state, &mut actions);
-                edit_strip(ui, &cx, &mut state, &mut actions);
-                history(ui, &cx, &mut state, &mut actions);
-            })
-            .response;
-        ui.data_mut(|data| data.insert_temp(id, state));
-        VersionHistoryPanelOutput { response, actions }
-    }
-}
-
-/// What the Version history panel did this pass.
-#[must_use]
-pub struct VersionHistoryPanelOutput {
-    /// The panel's response.
-    pub response: Response,
-    /// In the order they happened this pass.
-    pub actions: Vec<VersionAction>,
-}
-
-/// The banner over the canvas while a version is previewed: "You're viewing {title}" with its
-/// date, Restore this version and Back to current version. Two Tab stops. Esc goes back while the
-/// app or the canvas owns the keys ([`focus::key_owner`](craft_ui::focus::key_owner)), so an Esc
-/// meant for a text field, a menu or a canvas tool is theirs.
-pub struct VersionPreviewBanner<'a> {
-    id_salt: IdSalt,
-    version: &'a Version,
-    labels: Option<VersionsLabels>,
-}
-
-impl<'a> VersionPreviewBanner<'a> {
-    /// A banner for the previewed `version`.
-    pub fn new(id_salt: impl AsIdSalt, version: &'a Version) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), version, labels: None }
-    }
-
-    /// Uses these label texts instead of the ones read from the active locale's catalog.
-    pub fn labels(mut self, labels: VersionsLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    /// Drawn at the top of `canvas`.
-    // figcraft: crates/ui-egui/src/panels/versions.rs:523 `preview_banner`.
-    pub fn show(self, ui: &mut Ui, canvas: Rect) -> VersionPreviewBannerOutput {
-        let Self { id_salt, version, labels } = self;
-        let labels = labels.unwrap_or_else(|| VersionsLabels::of(ui));
-        let tokens = Tokens::of(ui);
-        let style = ReviewStyle::of(&tokens);
-        let id = ui.make_persistent_id(id_salt);
-        let mut action = None;
-        let name = version_name(ui.ctx(), version);
-        let mut inner = ui.new_child(UiBuilder::new().max_rect(canvas).layout(Layout::top_down(Align::Center)).id_salt(id));
-        let response = Frame::new()
-            .fill(tokens.color.surface.chrome.to_egui())
-            .corner_radius(corner_radius(tokens.shape.radius.control))
-            .inner_margin(Margin::same(tokens.space.pad.control as i8))
-            .show(&mut inner, |ui| {
-                ui.horizontal(|ui| {
-                    // Decorative: the title and date beside it say it.
-                    let (clock, _) = ui.allocate_exact_size(egui::Vec2::splat(tokens.size.icon.md), Sense::empty());
-                    icons::paint(ui, clock, Icon::Clock, IconSize::Sm, tokens.color.text.muted.to_egui());
-                    text(ui, &tokens, style.strong_text, tokens.color.text.normal.to_egui(), fmt(&labels.previewing, &[("title", &name)]));
-                    text(ui, &tokens, style.body_text, tokens.color.text.muted.to_egui(), age_text(ui.ctx(), version.created));
-                    if ui.add(Button::new(&labels.restore).variant(ButtonVariant::Primary).id_salt(id.with("restore"))).clicked() {
-                        action = Some(VersionAction::Restore(version.id));
-                    }
-                    if ui.add(Button::new(&labels.go_back).id_salt(id.with("back"))).clicked() {
-                        action = Some(VersionAction::Current);
-                    }
-                });
-            })
-            .response;
-        if action.is_none()
-            && owner(ui.ctx(), &OwnerGate::default()) == KeyOwner::App
-            && ui.input_mut(|input| ClaimedKey::exact(Modifiers::NONE, Key::Escape).consume(input))
-        {
-            action = Some(VersionAction::Current);
-        }
-        VersionPreviewBannerOutput { response, action }
-    }
-}
-
-/// What the preview banner did this pass.
-#[must_use]
-pub struct VersionPreviewBannerOutput {
-    /// The banner's response.
-    pub response: Response,
-    /// Restore or Back to current, if chosen this pass.
-    pub action: Option<VersionAction>,
-}
-
-/// The title of `version`, or its date for an autosave.
-fn version_name(ctx: &Context, version: &Version) -> String {
-    if version.title.trim().is_empty() { age_text(ctx, version.created) } else { version.title.clone() }
+/// A row of the history list.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum RowKey {
+    Current,
+    Version(VersionId),
+    /// A run of autosaves, by its newest version.
+    Group(VersionId),
 }
 
 /// What the panel keeps between passes.
@@ -283,183 +135,208 @@ struct PanelState {
     edit: Option<(VersionId, String, String)>,
     /// The version whose Delete awaits its confirmation.
     confirm: Option<VersionId>,
+    /// The row menu: whose it is, and where it opens.
+    menu: Option<(VersionId, Pos2)>,
+    /// A branch menu is open for this branch.
+    branch_menu: Option<BranchId>,
 }
 
-/// A row of the history list.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-enum RowKey {
-    Current,
-    Version(VersionId),
-    /// A run of autosaves, by its newest version.
-    Group(VersionId),
+/// One displayed row of the history: its key, depth and, for a group, whether it is open.
+struct Shown {
+    key: RowKey,
+    depth: usize,
+    group: bool,
+    open: bool,
+    text: String,
 }
 
-/// What every part of the panel reads.
-struct Cx<'a> {
-    tokens: &'a UiTokens,
-    style: &'a ReviewStyle,
-    labels: &'a VersionsLabels,
-    id: Id,
-    versions: &'a [Version],
-    previewing: Option<VersionId>,
-}
+struct Order(Vec<Shown>);
 
-/// The branch "\u{2026}" menu's entries.
-#[derive(Clone, Copy)]
-enum BranchMenu {
-    Open,
-    Merge,
-    Archive,
-}
-
-/// The history row menu's entries other than Rename, numbered for [`RowCommand::Other`].
-#[derive(Clone, Copy)]
-enum RowMenu {
-    Restore,
-    Edit,
-    Duplicate,
-    Delete,
-}
-
-impl RowMenu {
-    const ALL: [RowMenu; 4] = [RowMenu::Restore, RowMenu::Edit, RowMenu::Duplicate, RowMenu::Delete];
-
-    fn command(self) -> RowCommand {
-        RowCommand::Other(self as usize)
+impl DisplayOrder<RowKey> for Order {
+    fn len(&self) -> usize {
+        self.0.len()
     }
 
-    fn of(command: RowCommand) -> Option<RowMenu> {
-        match command {
-            RowCommand::Other(n) => Self::ALL.get(n).copied(),
-            _ => None,
-        }
+    fn key(&self, at: usize) -> RowKey {
+        self.0[at].key.clone()
+    }
+
+    fn index_of(&self, key: &RowKey) -> Option<usize> {
+        self.0.iter().position(|row| row.key == *key)
+    }
+
+    fn depth(&self, at: usize) -> usize {
+        self.0[at].depth
+    }
+
+    fn has_children(&self, at: usize) -> bool {
+        self.0[at].group
+    }
+
+    fn open(&self, at: usize) -> bool {
+        self.0[at].open
+    }
+
+    fn text(&self, at: usize) -> Option<Cow<'_, str>> {
+        Some(Cow::Borrowed(self.0[at].text.as_str()))
     }
 }
 
-fn header(ui: &mut Ui, cx: &Cx, state: &mut PanelState, actions: &mut Vec<VersionAction>) {
-    let (tokens, labels) = (cx.tokens, cx.labels);
-    ui.horizontal(|ui| {
-        text(ui, tokens, ReviewStyle::of(tokens).title_text, tokens.color.text.normal.to_egui(), &labels.title);
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if state.form.is_none() && ui.add(Button::new(&labels.save).id_salt(cx.id.with("save"))).clicked() {
-                state.form = Some((String::new(), String::new()));
-            }
-        });
-    });
-    let Some((title, description)) = state.form.as_mut() else { return };
-    match details_form(ui, cx, "form", (title, description), &labels.save) {
-        Some(true) => {
-            let (title, description) = state.form.take().unwrap_or_default();
-            actions.push(VersionAction::Save { title, description });
-        }
-        Some(false) => state.form = None,
-        None => {}
-    }
+impl ItemSource<RowKey> for Order {}
+
+/// The title of `version`, or its age for an autosave.
+fn version_name(env: &craft_ui::runtime::env::EnvView<'_>, version: &Version, now: i64) -> String {
+    if version.title.trim().is_empty() { age_text(env, version.created, now) } else { version.title.clone() }
 }
 
-/// The Title and Description fields with a submit button and Cancel: `Some(true)` to submit
-/// (the button or Enter), `Some(false)` to cancel (the button or Esc). `salt` names the form's ids.
-fn details_form(ui: &mut Ui, cx: &Cx, salt: &str, (title, description): (&mut String, &mut String), submit: &str) -> Option<bool> {
-    let labels = cx.labels;
-    let (mut save, mut cancel) = (false, false);
-    let field = TextField::new(cx.id.with((salt, "title")), &labels.title_field, title.as_str()).placeholder(&labels.title_field).show(ui);
-    if let Some(value) = field.event.as_ref().and_then(EditEvent::value) {
-        title.clone_from(value);
-    }
-    save |= field.submitted;
-    cancel |= field.escaped;
+/// The Title and Description fields with a submit button and Cancel: `Some(true)` to submit (the button or Enter),
+/// `Some(false)` to cancel (the button or Escape).
+fn details_form(ui: &mut Ui, words: &VersionsWords, salt: &str, title: &mut String, description: &mut String, submit: &Label) -> Option<bool> {
     let field =
-        TextField::new(cx.id.with((salt, "description")), &labels.description, description.as_str()).placeholder(&labels.description).show(ui);
-    if let Some(value) = field.event.as_ref().and_then(EditEvent::value) {
-        description.clone_from(value);
-    }
-    save |= field.submitted;
-    cancel |= field.escaped;
-    ui.horizontal(|ui| {
-        save |= ui.add(Button::new(submit).variant(ButtonVariant::Primary).id_salt(cx.id.with((salt, "submit")))).clicked();
-        cancel |= ui.add(Button::new(&labels.cancel).id_salt(cx.id.with((salt, "cancel")))).clicked();
+        TextField::new(words.title_field.clone(), Bind::bound(&mut *title)).id_salt((salt, "title")).placeholder(words.title_field.clone()).show(ui);
+    let (mut save, mut cancel) = (field.submitted, field.escaped);
+    let field = TextField::new(words.description.clone(), Bind::bound(&mut *description))
+        .id_salt((salt, "description"))
+        .placeholder(words.description.clone())
+        .show(ui);
+    (save, cancel) = (save | field.submitted, cancel | field.escaped);
+    Row::new().show(ui, |ui, _| {
+        save |= clicked(&Button::new(submit.clone()).variant(Variant::PRIMARY).id_salt((salt, "submit")).show(ui));
+        cancel |= clicked(&Button::new(words.cancel.clone()).id_salt((salt, "cancel")).show(ui));
     });
     if save { Some(true) } else { cancel.then_some(false) }
 }
 
-/// The edit form of a version's title and description, above the list.
-fn edit_strip(ui: &mut Ui, cx: &Cx, state: &mut PanelState, actions: &mut Vec<VersionAction>) {
-    let Some((id, title, description)) = state.edit.as_mut() else { return };
-    let id = *id;
-    match details_form(ui, cx, "edit", (title, description), &cx.labels.save) {
-        Some(true) => {
-            if let Some((_, title, description)) = state.edit.take() {
-                let title = title.trim().to_owned();
-                if !title.is_empty() {
-                    actions.push(VersionAction::Rename { id, title, description: description.trim().to_owned() });
+/// Figma's Version history panel: the branches above (create, open, review and merge, archive), then Current
+/// version, then the history newest first on a list with a dot per row, each named version with its title, date and
+/// author, its description wrapped under it, runs of two or more autosaves folded into a group that opens (a lone
+/// autosave is a row). A row's "…" opens its menu (Restore, Rename, Duplicate, Delete; Delete turns the row into the
+/// confirmation in place); F2 or Rename renames the title in place. Enter or a click previews. Save version opens an
+/// inline form (Title, Description; Enter saves, Escape cancels).
+#[derive(Pattern, Props)]
+pub struct VersionHistoryPanel<'a> {
+    label: Label,
+    versions: &'a [Version],
+    branches: &'a [Branch],
+    previewing: Option<VersionId>,
+    now: i64,
+}
+
+impl<'a> VersionHistoryPanel<'a> {
+    /// A panel listing `versions` and `branches`; `now` is the time, in Unix seconds, the ages count from.
+    pub fn new(versions: &'a [Version], branches: &'a [Branch], now: i64) -> Self {
+        VersionHistoryPanel { label: Label::Empty, versions, branches, previewing: None, now }
+    }
+
+    /// The version being previewed, if any; its row is selected.
+    #[must_use]
+    pub fn previewing(mut self, version: Option<VersionId>) -> Self {
+        self.previewing = version;
+        self
+    }
+
+    /// Shows the panel and reports what the user did.
+    pub fn show(self, ui: &mut Ui) -> VersionHistoryPanelOutput {
+        let VersionHistoryPanel { label: _, versions, branches, previewing, now } = self;
+        let env = Env::of(ui);
+        let words = env.words::<VersionsWords>();
+        let view = env.view();
+        let mut actions = Vec::new();
+        let shown = Stack::new().show(ui, |ui, cx| {
+            let mut state = std::mem::take(cx.keep::<PanelState>());
+            Row::new().show(ui, |ui, _| {
+                Text::new(words.title.clone()).role(TypeRole::Title).show(ui);
+                if state.form.is_none() && clicked(&Button::new(words.save.clone()).show(ui)) {
+                    state.form = Some((String::new(), String::new()));
+                }
+            });
+            if let Some((title, description)) = state.form.as_mut() {
+                match details_form(ui, &words, "form", title, description, &words.save) {
+                    Some(true) => {
+                        let (title, description) = state.form.take().unwrap_or_default();
+                        actions.push(VersionAction::Save { title, description });
+                    }
+                    Some(false) => state.form = None,
+                    None => {}
                 }
             }
-        }
-        Some(false) => state.edit = None,
-        None => {}
+            branch_section(ui, &words, &view, branches, now, &mut state, &mut actions);
+            if let Some((id, title, description)) = state.edit.as_mut() {
+                let id = *id;
+                match details_form(ui, &words, "edit", title, description, &words.save) {
+                    Some(true) => {
+                        if let Some((_, title, description)) = state.edit.take() {
+                            let title = title.trim().to_owned();
+                            if !title.is_empty() {
+                                actions.push(VersionAction::Rename { id, title, description: description.trim().to_owned() });
+                            }
+                        }
+                    }
+                    Some(false) => state.edit = None,
+                    None => {}
+                }
+            }
+            history(ui, &env, &words, (versions, previewing, now), &mut state, &mut actions);
+            *cx.keep::<PanelState>() = state;
+        });
+        VersionHistoryPanelOutput { response: shown.output, actions }
     }
 }
 
-fn branch_section(ui: &mut Ui, cx: &Cx, branches: &[Branch], state: &mut PanelState, actions: &mut Vec<VersionAction>) {
-    let (tokens, labels) = (cx.tokens, cx.labels);
-    text(ui, tokens, ReviewStyle::of(tokens).caption_text, tokens.color.text.muted.to_egui(), &labels.branches);
+fn branch_section(
+    ui: &mut Ui,
+    words: &VersionsWords,
+    view: &craft_ui::runtime::env::EnvView<'_>,
+    branches: &[Branch],
+    now: i64,
+    state: &mut PanelState,
+    actions: &mut Vec<VersionAction>,
+) {
+    Text::new(words.branches.clone()).role(TypeRole::Caption).shade(Shade::Muted).show(ui);
     if branches.is_empty() {
-        text(ui, tokens, cx.style.caption_text, tokens.color.text.muted.to_egui(), &labels.no_branches);
+        Text::new(words.no_branches.clone()).role(TypeRole::Caption).shade(Shade::Muted).show(ui);
     }
     for branch in branches {
-        ui.horizontal(|ui| {
-            let salt = cx.id.with(("branch", branch.id));
-            ui.vertical(|ui| {
-                ui.spacing_mut().item_spacing.y = 0.0;
-                if ui.add(Link::new(&branch.name).id_salt(salt.with("open"))).clicked() {
-                    actions.push(VersionAction::OpenBranch(branch.id));
-                }
-                let state_word = match branch.state {
-                    BranchState::Active => &labels.branch_active,
-                    BranchState::Merged => &labels.branch_merged,
-                    BranchState::Archived => &labels.branch_archived,
-                };
-                let date = age_text(ui.ctx(), branch.created);
-                let detail = fmt(&labels.branch_detail, &[("state", state_word), ("date", &date)]);
-                text(ui, tokens, cx.style.caption_text, tokens.color.text.muted.to_egui(), detail);
-            });
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                let mut entries = vec![
-                    MenuItem::new(labels.open.clone(), BranchMenu::Open).into(),
-                    MenuItem::new(labels.review_merge.clone(), BranchMenu::Merge).into(),
-                ];
-                if branch.state == BranchState::Active {
-                    entries.push(MenuItem::new(labels.archive.clone(), BranchMenu::Archive).into());
-                }
-                let name = fmt(&labels.branch_more, &[("branch", &branch.name)]);
-                let more = ui.add(IconButton::new(Icon::More, name).id_salt(salt.with("more")));
-                match PressMenu::new(&entries).show(ui, &more).chosen {
-                    Some(BranchMenu::Open) => actions.push(VersionAction::OpenBranch(branch.id)),
-                    Some(BranchMenu::Merge) => actions.push(VersionAction::MergeBranch(branch.id)),
-                    Some(BranchMenu::Archive) => actions.push(VersionAction::ArchiveBranch(branch.id)),
-                    None => {}
-                }
-            });
+        Row::new().show(ui, |ui, _| {
+            if clicked(&Link::new(branch.name.clone()).id_salt(("branch", branch.id)).show(ui)) {
+                actions.push(VersionAction::OpenBranch(branch.id));
+            }
+            let state_word = match branch.state {
+                BranchState::Active => &words.branch_active,
+                BranchState::Merged => &words.branch_merged,
+                BranchState::Archived => &words.branch_archived,
+            };
+            let date = age_text(view, branch.created, now);
+            Text::new(words.branch_detail.fill(&[("state", state_word.as_str()), ("date", date.as_str())]))
+                .role(TypeRole::Caption)
+                .shade(Shade::Muted)
+                .show(ui);
+            let name = words.branch_more.fill(&[("branch", branch.name.as_str())]);
+            let more = IconButton::new(IconId::new("more")).label(name.clone()).id_salt(("more", branch.id)).show(ui);
+            let mut entries = vec![Entry::new(0u8, words.open.clone()), Entry::new(1, words.review_merge.clone())];
+            if branch.state == BranchState::Active {
+                entries.push(Entry::new(2, words.archive.clone()));
+            }
+            match Menu::new(name).opened_by(&more, Trigger::Press).pick(ui, &entries).picked {
+                Some(0) => actions.push(VersionAction::OpenBranch(branch.id)),
+                Some(1) => actions.push(VersionAction::MergeBranch(branch.id)),
+                Some(2) => actions.push(VersionAction::ArchiveBranch(branch.id)),
+                _ => {}
+            }
         });
     }
     let Some(name) = state.branch.as_mut() else {
-        if ui.add(Button::new(&labels.new_branch).id_salt(cx.id.with("new-branch"))).clicked() {
+        if clicked(&Button::new(words.new_branch.clone()).show(ui)) {
             state.branch = Some(String::new());
         }
         return;
     };
-    let (mut create, mut cancel) = (false, false);
-    let field = TextField::new(cx.id.with("branch-name"), &labels.branch_name, name.as_str()).placeholder(&labels.branch_name).show(ui);
-    if let Some(value) = field.event.as_ref().and_then(EditEvent::value) {
-        name.clone_from(value);
-    }
-    create |= field.submitted;
-    cancel |= field.escaped;
+    let field = TextField::new(words.branch_name.clone(), Bind::bound(&mut *name)).placeholder(words.branch_name.clone()).show(ui);
+    let (mut create, mut cancel) = (field.submitted, field.escaped);
     let named = !name.trim().is_empty();
-    ui.horizontal(|ui| {
-        create |=
-            ui.add_enabled(named, Button::new(&labels.new_branch).variant(ButtonVariant::Primary).id_salt(cx.id.with("branch-create"))).clicked();
-        cancel |= ui.add(Button::new(&labels.cancel).id_salt(cx.id.with("branch-cancel"))).clicked();
+    Row::new().show(ui, |ui, _| {
+        create |= clicked(&Button::new(words.new_branch.clone()).variant(Variant::PRIMARY).enabled(named).id_salt("branch-create").show(ui));
+        cancel |= clicked(&Button::new(words.cancel.clone()).id_salt("branch-cancel").show(ui));
     });
     if create && named {
         let name = state.branch.take().unwrap_or_default();
@@ -476,187 +353,98 @@ enum Confirmed {
     Cancel,
 }
 
-/// The confirmation that replaces the row of the version `name`: the question, Delete and Cancel
-/// (FigCraft `confirm_row`, `versions.rs:582`). The row runs it twice per pass, once to measure
-/// it, so it only reports through `outcome`.
-fn confirm_body(ui: &mut Ui, cx: &Cx, name: &str, outcome: &Cell<Option<Confirmed>>) {
-    let (tokens, labels) = (cx.tokens, cx.labels);
-    text(ui, tokens, cx.style.body_text, tokens.color.text.normal.to_egui(), fmt(&labels.delete_confirm, &[("title", name)]));
-    ui.horizontal(|ui| {
-        if ui.add(Button::new(&labels.delete).variant(ButtonVariant::Primary).id_salt(cx.id.with("confirm-delete"))).clicked() {
-            outcome.set(Some(Confirmed::Delete));
-        }
-        if ui.add(Button::new(&labels.cancel).id_salt(cx.id.with("confirm-cancel"))).clicked() {
-            outcome.set(Some(Confirmed::Cancel));
-        }
-    });
-}
-
-/// How many lines of a version's description a row shows (FigCraft `version_row`, `versions.rs:415`).
-const DESCRIPTION_LINES: usize = 3;
-
-/// The timeline's stroke (FigCraft's `border_strong`, `versions.rs:376`).
-fn timeline_stroke(painter: &Painter, tokens: &UiTokens) -> Stroke {
-    Stroke::new(craft_theme::Stroke::W1.width(painter.ctx().pixels_per_point()), tokens.color.line.border.to_egui())
-}
-
-/// A dot on the timeline line, centred in `rect`: filled for the version shown, else hollow
-/// (FigCraft `versions.rs:386`, `:388`).
-fn paint_dot(painter: &Painter, rect: Rect, tokens: &UiTokens, filled: bool) {
-    let line = timeline_stroke(painter, tokens);
-    let color = tokens.color.accent.solid.to_egui();
-    if filled {
-        painter.circle_filled(rect.center(), tokens.shape.radius.sm, color);
-    } else {
-        painter.circle(rect.center(), tokens.shape.radius.sm, tokens.color.surface.panel.to_egui(), Stroke::new(line.width, color));
-    }
-}
-
-/// The radius of the dot of a row, which the timeline line stops at.
-fn dot_radius(tokens: &UiTokens) -> f32 {
-    tokens.shape.radius.sm
-}
-
-/// Whether the dot of `key` is the filled one: the version the canvas shows.
-fn dot_filled(cx: &Cx, key: &RowKey) -> bool {
-    match key {
-        RowKey::Current => cx.previewing.is_none(),
-        RowKey::Version(id) => cx.previewing == Some(*id),
-        RowKey::Group(_) => false,
-    }
-}
-
-/// The timeline line between the dots, drawn over the rows after the list: the glyph slot is
-/// painted clipped to its own rect, so the line between two rows cannot be part of it. It runs
-/// from the first row's dot to the last row's.
-fn paint_timeline(ui: &Ui, cx: &Cx, rows: &[(RowKey, Rect)], clip: Rect, (first, last): (&RowKey, &RowKey)) {
-    let painter = ui.painter().with_clip_rect(clip);
-    let stroke = timeline_stroke(&painter, cx.tokens);
-    for (key, rect) in rows {
-        let x = rect.min.x + cx.style.version_dot_x;
-        let radius = dot_radius(cx.tokens);
-        let y = rect.center().y;
-        if key != first {
-            painter.line_segment([pos2(x, rect.min.y), pos2(x, y - radius)], stroke);
-        }
-        if key != last {
-            painter.line_segment([pos2(x, y + radius), pos2(x, rect.max.y)], stroke);
-        }
-    }
-}
-
-/// The display order of the history: Current version, then the rows newest first, an open
-/// autosave group followed by its versions.
-fn display_order(cx: &Cx, history: &[HistoryRow], state: &PanelState) -> Vec<RowInfo<RowKey>> {
-    let mut order = vec![RowInfo::leaf(RowKey::Current)];
-    for row in history {
+/// The rows displayed: Current version, then the history newest first, an open autosave group followed by its
+/// versions.
+fn display_order(env: &Env, words: &VersionsWords, versions: &[Version], previewing: Option<VersionId>, now: i64, state: &PanelState) -> Order {
+    let view = env.view();
+    let name = |version: &Version| version_name(&view, version, now);
+    let mut rows = vec![Shown { key: RowKey::Current, depth: 0, group: false, open: false, text: words.current.as_str().to_owned() }];
+    for row in history_rows(versions) {
         match row {
-            HistoryRow::Version(at) => order.push(RowInfo::leaf(RowKey::Version(cx.versions[*at].id))),
+            HistoryRow::Version(at) => {
+                rows.push(Shown { key: RowKey::Version(versions[at].id), depth: 0, group: false, open: false, text: name(&versions[at]) });
+            }
             HistoryRow::Autosaves(members) => {
-                let head = cx.versions[members[0]].id;
-                let open = group_open(cx, members, state);
-                order.push(RowInfo::group(RowKey::Group(head), open));
+                let head = versions[members[0]].id;
+                let open = state.open.contains(&head) || members.iter().any(|&at| Some(versions[at].id) == previewing);
+                let count = u64::try_from(members.len()).unwrap_or(u64::MAX);
+                let text = words.autosaves.text(count, &env.format().integer(count));
+                rows.push(Shown { key: RowKey::Group(head), depth: 0, group: true, open, text });
                 if open {
-                    order.extend(members.iter().map(|&at| RowInfo::leaf(RowKey::Version(cx.versions[at].id)).at_depth(1)));
+                    rows.extend(members.iter().map(|&at| Shown {
+                        key: RowKey::Version(versions[at].id),
+                        depth: 1,
+                        group: false,
+                        open: false,
+                        text: name(&versions[at]),
+                    }));
                 }
             }
         }
     }
-    order
+    Order(rows)
 }
 
-/// A group is open when the user opened it or one of its versions is shown.
-fn group_open(cx: &Cx, members: &[usize], state: &PanelState) -> bool {
-    state.open.contains(&cx.versions[members[0]].id) || members.iter().any(|&at| Some(cx.versions[at].id) == cx.previewing)
-}
-
-/// Where the history rows put the dot and the text.
-pub(super) struct Columns {
-    /// The glyph slot's width.
-    pub(super) slot: f32,
-    /// The indent before the slot; a group's glyph comes before its disclosure column
-    /// ([`ListRow::leading_first`]), so every row shares it.
-    indent: f32,
-}
-
-impl Columns {
-    /// The slot is as wide as puts the label at `ReviewStyle::version_text_x` with the dot centred at
-    /// `ReviewStyle::version_dot_x` (FigCraft's `DOT_X` and `TEXT_X`, `versions.rs:109`).
-    pub(super) fn new(style: &ReviewStyle, row: &ListRowStyle) -> Self {
-        let slot = (2.0 * (style.version_text_x - style.version_dot_x - row.gap)).max(0.0);
-        let indent = (style.version_dot_x - row.pad_x - slot / 2.0).max(0.0);
-        Columns { slot, indent }
-    }
-
-    pub(super) fn indent(&self) -> f32 {
-        self.indent
-    }
-}
-
-fn history(ui: &mut Ui, cx: &Cx, state: &mut PanelState, actions: &mut Vec<VersionAction>) {
-    let (tokens, labels) = (cx.tokens, cx.labels);
-    let history = history_rows(cx.versions);
-    let order = display_order(cx, &history, state);
-    let sizes: HashMap<VersionId, usize> = history
-        .iter()
-        .filter_map(|row| match row {
-            HistoryRow::Autosaves(members) => Some((cx.versions[members[0]].id, members.len())),
-            HistoryRow::Version(_) => None,
-        })
-        .collect();
-    let ctx = ui.ctx().clone();
-    let words = Words::of(ui);
-    let row_style = ListRow::<RowKey>::style(tokens);
-    let columns = Columns::new(cx.style, &row_style);
-    let (slot, indent) = (columns.slot, columns.indent());
-    let mut selection = std::mem::take(&mut state.selection);
+fn history(
+    ui: &mut Ui,
+    env: &Env,
+    words: &VersionsWords,
+    (versions, previewing, now): (&[Version], Option<VersionId>, i64),
+    state: &mut PanelState,
+    actions: &mut Vec<VersionAction>,
+) {
+    let view = env.view();
+    let order = display_order(env, words, versions, previewing, now, state);
+    let current = previewing.map_or(RowKey::Current, RowKey::Version);
+    state.selection = Selection::single(current);
     let pending = state.confirm;
-    let confirmed = Cell::new(None);
-    let outcome = &confirmed;
-    let list = List::new(cx.id.with("history"), &labels.title, order.as_slice())
-        .selection(&mut selection)
-        .mode(SelectionMode::Single)
+    let outcome = Cell::new(None);
+    let find = |id: VersionId| versions.iter().find(|version| version.id == id);
+    let list_id = egui::Id::new("craft-review.versions.history");
+    let list = List::new(words.title.clone())
+        .id(list_id)
         .tree(true)
-        .measured()
-        .renamable(true)
-        .can_rename(|key| matches!(key, RowKey::Version(id) if cx.versions.iter().any(|v| v.id == *id && !v.autosave)))
-        .row_menu(|key| match key {
-            RowKey::Version(id) => {
-                let autosave = cx.versions.iter().any(|v| v.id == *id && v.autosave);
-                row_menu(labels, autosave)
-            }
-            RowKey::Current | RowKey::Group(_) => Vec::new(),
-        });
-    let out = list.show(ui, |_, key| {
-        let filled = dot_filled(cx, key);
-        let dot = move |painter: &Painter, rect: Rect| paint_dot(painter, rect, cx.tokens, filled);
+        .select(SelectMode::Single)
+        .rename(true)
+        .selection(Bind::bound(&mut state.selection))
+        .can_rename(|key| matches!(key, RowKey::Version(id) if find(*id).is_some_and(|version| !version.autosave)));
+    let out = list.show_items(ui, &order, &mut |key, icx| {
+        let dot = IconSpec::from(IconId::new("circle"));
+        let text = order.0[icx.at].text.clone();
         match key {
-            RowKey::Current => ListRow::new(key.clone(), &labels.current).indent(indent).glyph_sized(slot, dot),
-            RowKey::Group(head) => {
-                let n = sizes.get(head).copied().unwrap_or_default();
-                let text = words.counted(&ctx, counts::AUTOSAVES, &labels.autosaves, u64::try_from(n).unwrap_or(u64::MAX));
-                ListRow::new(key.clone(), text).indent(indent).leading_first(true).glyph_sized(slot, dot)
-            }
+            RowKey::Current => ListRow::new(text).icon(dot),
+            RowKey::Group(_) => ListRow::new(text).depth(icx.depth).group(icx.row.open).icon(dot),
             RowKey::Version(id) => {
-                let Some(version) = cx.versions.iter().find(|v| v.id == *id) else { return ListRow::new(key.clone(), String::new()) };
-                let date = age_text(&ctx, version.created);
+                let Some(version) = find(*id) else { return ListRow::new(Label::Empty) };
+                if pending == Some(*id) {
+                    let question = words.delete_confirm.fill(&[("title", text.as_str())]);
+                    let (outcome_delete, outcome_cancel) = (&outcome, &outcome);
+                    return ListRow::new(question)
+                        .depth(icx.depth)
+                        .icon(dot)
+                        .trailing_field(Button::new(words.delete.clone()).variant(Variant::PRIMARY), move |button: Response| {
+                            if clicked(&button) {
+                                outcome_delete.set(Some(Confirmed::Delete));
+                            }
+                        })
+                        .trailing_field(Button::new(words.cancel.clone()), move |button: Response| {
+                            if clicked(&button) {
+                                outcome_cancel.set(Some(Confirmed::Cancel));
+                            }
+                        });
+                }
+                let date = age_text(&view, version.created, now);
                 let detail =
-                    if version.author.is_empty() { date.clone() } else { fmt(&labels.detail, &[("date", &date), ("author", &version.author)]) };
-                let label = if version.title.trim().is_empty() { date } else { version.title.clone() };
-                // A version inside an open group sits in the same dot column as the others.
-                let row = ListRow::new(key.clone(), label.clone())
-                    .indent(indent)
-                    .paint_depth(0)
-                    .detail(detail)
-                    .lines(version.description.clone(), DESCRIPTION_LINES)
-                    .description(version.description.clone())
-                    .glyph_sized(slot, dot);
-                if pending == Some(*id) { row.body(move |ui| confirm_body(ui, cx, &label, outcome)) } else { row }
+                    if version.author.is_empty() { date } else { words.detail.fill(&[("date", date.as_str()), ("author", version.author.as_str())]) };
+                let mut row = ListRow::new(text).depth(icx.depth).icon(dot).detail(detail);
+                if !version.description.is_empty() {
+                    row = row.lines(version.description.clone());
+                }
+                row.trailing_part(TrailingPart::new(0), TrailingFace::Icon(IconSpec::from(IconId::new("more"))), words.row_more.clone())
             }
         }
     });
-    state.selection = selection;
-    match confirmed.get() {
+    match outcome.get() {
         Some(Confirmed::Delete) => {
             state.confirm = None;
             actions.extend(pending.map(VersionAction::Delete));
@@ -664,23 +452,20 @@ fn history(ui: &mut Ui, cx: &Cx, state: &mut PanelState, actions: &mut Vec<Versi
         Some(Confirmed::Cancel) => state.confirm = None,
         None => {}
     }
-    if let (Some(first), Some(last)) = (order.first(), order.last()) {
-        paint_timeline(ui, cx, &out.rows, out.response.rect, (&first.key, &last.key));
-    }
-    if order.len() == 1 && cx.versions.is_empty() {
-        text(ui, tokens, cx.style.caption_text, tokens.color.text.muted.to_egui(), &labels.no_versions);
+    if order.0.len() == 1 && versions.is_empty() {
+        Text::new(words.no_versions.clone()).role(TypeRole::Caption).shade(Shade::Muted).show(ui);
     }
     for event in out.events {
         match event {
-            ListEvent::Clicked(RowKey::Version(id)) if cx.previewing != Some(id) => actions.push(VersionAction::Preview(id)),
-            ListEvent::Activate(RowKey::Version(id)) => actions.push(VersionAction::Preview(id)),
-            ListEvent::Clicked(RowKey::Current) | ListEvent::Activate(RowKey::Current) if cx.previewing.is_some() => {
-                actions.push(VersionAction::Current);
+            CollectionEvent::Activate(RowKey::Version(id)) => actions.push(VersionAction::Preview(id)),
+            CollectionEvent::Activate(RowKey::Current) if previewing.is_some() => actions.push(VersionAction::Current),
+            CollectionEvent::Activate(RowKey::Group(head)) => {
+                if !state.open.remove(&head) {
+                    state.open.insert(head);
+                }
             }
-            // A click folds or unfolds the group, as in FigCraft (`versions.rs:557`).
-            ListEvent::Clicked(RowKey::Group(head)) | ListEvent::Activate(RowKey::Group(head)) => toggle(&mut state.open, head),
-            ListEvent::Open(change) => {
-                if let RowKey::Group(head) = change.row {
+            CollectionEvent::Open(change) => {
+                if let RowKey::Group(head) = change.key {
                     if change.open {
                         state.open.insert(head);
                     } else {
@@ -688,42 +473,150 @@ fn history(ui: &mut Ui, cx: &Cx, state: &mut PanelState, actions: &mut Vec<Versi
                     }
                 }
             }
-            ListEvent::Row(RowEvent::Renamed { row: RowKey::Version(id), text }) => {
-                let title = text.trim();
-                if let Some(v) = cx.versions.iter().find(|v| v.id == id && v.title != title).filter(|_| !title.is_empty()) {
-                    actions.push(VersionAction::Rename { id, title: title.to_owned(), description: v.description.clone() });
-                }
-            }
-            ListEvent::RowMenu { key: RowKey::Version(id), command } => match RowMenu::of(command) {
-                Some(RowMenu::Restore) => actions.push(VersionAction::Restore(id)),
-                Some(RowMenu::Edit) => {
-                    if let Some(v) = cx.versions.iter().find(|v| v.id == id) {
-                        state.edit = Some((id, v.title.clone(), v.description.clone()));
-                        state.confirm = None;
+            CollectionEvent::Rename(edit) => {
+                if let Some(rename) = edit.value()
+                    && let RowKey::Version(id) = rename.key
+                {
+                    let title = rename.name.trim();
+                    if let Some(version) = find(id).filter(|version| version.title != title).filter(|_| !title.is_empty()) {
+                        actions.push(VersionAction::Rename { id, title: title.to_owned(), description: version.description.clone() });
                     }
                 }
-                Some(RowMenu::Duplicate) => actions.push(VersionAction::Duplicate(id)),
-                Some(RowMenu::Delete) => state.confirm = Some(id),
-                None => {}
-            },
+            }
+            CollectionEvent::ContextMenu(request) => {
+                if let RowKey::Version(id) = request.key {
+                    state.menu = Some((id, request.at));
+                }
+            }
+            CollectionEvent::Item(RowKey::Version(id), RowEvent::Trailing { .. }) => state.menu = Some((id, out.response.rect.right_top())),
             _ => {}
         }
     }
+    row_menu(ui, words, &out.response, list_id, find, state, actions);
 }
 
-fn toggle(open: &mut HashSet<VersionId>, head: VersionId) {
-    if !open.remove(&head) {
-        open.insert(head);
+/// The menu of the version row a context request or its "…" part named.
+fn row_menu<'v>(
+    ui: &mut Ui,
+    words: &VersionsWords,
+    list: &Response,
+    list_id: egui::Id,
+    find: impl Fn(VersionId) -> Option<&'v Version>,
+    state: &mut PanelState,
+    actions: &mut Vec<VersionAction>,
+) {
+    let Some((id, at)) = state.menu else { return };
+    let Some(version) = find(id) else {
+        state.menu = None;
+        return;
+    };
+    let mut open = true;
+    let mut entries = vec![Entry::new(0u8, words.restore.clone())];
+    if !version.autosave {
+        entries.push(Entry::new(1, words.rename.clone()));
+        entries.push(Entry::new(2, words.edit_description.clone()));
+    }
+    entries.push(Entry::new(3, words.duplicate.clone()));
+    entries.push(Entry::new(4, words.delete.clone()));
+    let picked = Menu::new(words.title.clone())
+        .opened_by(list, Trigger::Manual)
+        .anchor(Anchor::Point(at))
+        .open(Bind::bound(&mut open))
+        .pick(ui, &entries)
+        .picked;
+    match picked {
+        Some(0) => actions.push(VersionAction::Restore(id)),
+        Some(1) => craft_ui::contract::request_rename(ui.ctx(), list_id, &RowKey::Version(id)),
+        Some(2) => {
+            state.edit = Some((id, version.title.clone(), version.description.clone()));
+            state.confirm = None;
+        }
+        Some(3) => actions.push(VersionAction::Duplicate(id)),
+        Some(4) => state.confirm = Some(id),
+        _ => {}
+    }
+    if !open || picked.is_some() {
+        state.menu = None;
     }
 }
 
-fn row_menu(labels: &VersionsLabels, autosave: bool) -> Vec<MenuEntry<RowCommand>> {
-    let mut entries = vec![MenuItem::new(labels.restore.clone(), RowMenu::Restore.command()).into()];
-    if !autosave {
-        entries.push(MenuItem::new(labels.rename.clone(), RowCommand::Rename).into());
-        entries.push(MenuItem::new(labels.edit_description.clone(), RowMenu::Edit.command()).into());
+/// What the Version history panel did this pass.
+#[derive(Debug)]
+#[non_exhaustive]
+#[must_use]
+pub struct VersionHistoryPanelOutput {
+    /// The panel's response.
+    pub response: Response,
+    /// In the order they happened this pass.
+    pub actions: Vec<VersionAction>,
+}
+
+impl Outcome for VersionHistoryPanelOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
     }
-    entries.push(MenuItem::new(labels.duplicate.clone(), RowMenu::Duplicate.command()).into());
-    entries.push(MenuItem::new(labels.delete.clone(), RowMenu::Delete.command()).into());
-    entries
+}
+
+/// The banner over the canvas while a version is previewed: "You're viewing {title}" with its date, Restore this
+/// version and Back to current version (two Tab stops). Escape goes back while the banner holds the focus.
+#[derive(Pattern, Props)]
+pub struct VersionPreviewBanner<'a> {
+    label: Label,
+    version: &'a Version,
+    now: i64,
+}
+
+impl<'a> VersionPreviewBanner<'a> {
+    /// A banner for the previewed `version`; `now` is the time, in Unix seconds, its age counts from.
+    pub fn new(version: &'a Version, now: i64) -> Self {
+        VersionPreviewBanner { label: Label::Empty, version, now }
+    }
+
+    /// Shows the banner at the top of `canvas`.
+    pub fn show(self, ui: &mut Ui, canvas: Rect) -> VersionPreviewBannerOutput {
+        let VersionPreviewBanner { label: _, version, now } = self;
+        let env = Env::of(ui);
+        let words = env.words::<VersionsWords>();
+        let name = version_name(&env.view(), version, now);
+        let title = words.previewing.fill(&[("title", name.as_str())]);
+        let mut open = true;
+        let mut action = None;
+        let shown = Popover::new(title.clone(), Bind::bound(&mut open)).at_point(Pos2::new(canvas.center().x, canvas.top())).show(ui, |ui, _| {
+            Row::new().show(ui, |ui, _| {
+                Text::new(title.clone()).role(TypeRole::Label).show(ui);
+                Text::new(age_text(&env.view(), version.created, now)).shade(Shade::Muted).show(ui);
+                if clicked(&Button::new(words.restore.clone()).variant(Variant::PRIMARY).show(ui)) {
+                    action = Some(VersionAction::Restore(version.id));
+                }
+                if clicked(&Button::new(words.go_back.clone()).show(ui)) {
+                    action = Some(VersionAction::Current);
+                }
+            });
+        });
+        if action.is_none() && shown.output.closed == Some(craft_ui::runtime::overlay::CloseReason::Escape) {
+            action = Some(VersionAction::Current);
+        }
+        VersionPreviewBannerOutput { response: shown.output.response, action }
+    }
+}
+
+/// What the preview banner did this pass.
+#[derive(Debug)]
+#[non_exhaustive]
+#[must_use]
+pub struct VersionPreviewBannerOutput {
+    /// The banner's response.
+    pub response: Response,
+    /// Restore or Back to current, if chosen this pass.
+    pub action: Option<VersionAction>,
+}
+
+impl Outcome for VersionPreviewBannerOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
 }

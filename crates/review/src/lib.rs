@@ -16,6 +16,12 @@ pub mod collab;
 #[cfg(feature = "ui")]
 pub mod ui;
 
+/// The stories and word sets the integration tests register.
+#[cfg(feature = "screen-testing")]
+pub mod testing {
+    craft_ui::testing_registered!();
+}
+
 #[cfg(test)]
 mod annotate_tests;
 #[cfg(test)]

@@ -7,6 +7,236 @@ new_module = "craft_review::ui"
 # One entry per public type: `old` is the path an app calls today, `new` the path after migration.
 # `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
 
+# review-b
+
+[[type]]
+name = "VersionHistoryPanel"
+old = "craft_review::ui::VersionHistoryPanel"
+new = "craft_review::ui::VersionHistoryPanel"
+status = "replaced"
+note = "A `Pattern` over a `Stack` with a tree `List`; `new(versions, branches, now)`, `previewing(..)`; panel state lives in the body's session slot."
+
+[[type]]
+name = "VersionHistoryPanelOutput"
+old = "craft_review::ui::VersionHistoryPanelOutput"
+new = "craft_review::ui::VersionHistoryPanelOutput"
+status = "same"
+
+[[type]]
+name = "VersionPreviewBanner"
+old = "craft_review::ui::VersionPreviewBanner"
+new = "craft_review::ui::VersionPreviewBanner"
+status = "replaced"
+note = "A `Pattern` shown with `show(ui, canvas)`; `new(version, now)`; a `Popover` at the top of the canvas."
+
+[[type]]
+name = "VersionPreviewBannerOutput"
+old = "craft_review::ui::VersionPreviewBannerOutput"
+new = "craft_review::ui::VersionPreviewBannerOutput"
+status = "same"
+
+[[type]]
+name = "VersionAction"
+old = "craft_review::ui::VersionAction"
+new = "craft_review::ui::VersionAction"
+status = "same"
+
+[[type]]
+name = "SignaturePadDialog"
+old = "craft_review::ui::SignaturePadDialog"
+new = "craft_review::ui::SignaturePadDialog"
+status = "replaced"
+note = "A `StackDialog` on `Dialog`; the draw pad is the leaf `DrawPad`."
+
+[[type]]
+name = "SignaturePadResult"
+old = "craft_review::ui::SignaturePadResult"
+new = "craft_review::ui::SignaturePadResult"
+status = "same"
+
+[[type]]
+name = "SignatureSettings"
+old = "craft_review::ui::SignatureSettings"
+new = "craft_review::ui::SignatureSettings"
+status = "same"
+
+[[type]]
+name = "paint_signature"
+old = "craft_review::ui::paint_signature"
+new = "craft_review::ui::paint_signature"
+status = "replaced"
+note = "Takes a `Draw`, the rect, the signature and a `DataColor`; an image signature is shown with a `Picture`."
+
+[[type]]
+name = "RevisionsPanel"
+old = "craft_review::ui::RevisionsPanel"
+new = "craft_review::ui::RevisionsPanel"
+status = "replaced"
+note = "A `Pattern`; `new(label, compared_with, revisions)`, `by_position(..)`."
+
+[[type]]
+name = "RevisionsPanelOutput"
+old = "craft_review::ui::RevisionsPanelOutput"
+new = "craft_review::ui::RevisionsPanelOutput"
+status = "same"
+
+[[type]]
+name = "PeopleBar"
+old = "craft_review::ui::PeopleBar"
+new = "craft_review::ui::PeopleBar"
+status = "replaced"
+note = "A `Pattern`; `new(transport)`, `following(..)`; `show(ui)` has no canvas rect."
+
+[[type]]
+name = "PeopleBarOutput"
+old = "craft_review::ui::PeopleBarOutput"
+new = "craft_review::ui::PeopleBarOutput"
+status = "same"
+
+[[type]]
+name = "RemoteCursors"
+old = "craft_review::ui::RemoteCursors"
+new = "craft_review::ui::RemoteCursors"
+status = "replaced"
+note = "A canvas control component shown in the canvas body; `new(label, transport, now)`."
+
+[[type]]
+name = "paint_pointer"
+old = "craft_review::ui::paint_pointer"
+new = "craft_review::ui::paint_pointer"
+status = "replaced"
+note = "Takes a `Draw`, the halo colour, the size, the tip and the fill."
+
+[[type]]
+name = "CursorChatBox"
+old = "craft_review::ui::CursorChatBox"
+new = "craft_review::ui::CursorChatBox"
+status = "replaced"
+note = "A `Pattern`; `new(text, open)`, `show(ui, pointer)`; the app opens it from its `/` command."
+
+[[type]]
+name = "CursorChatBoxOutput"
+old = "craft_review::ui::CursorChatBoxOutput"
+new = "craft_review::ui::CursorChatBoxOutput"
+status = "same"
+
+[[type]]
+name = "paint_chat_bubble"
+old = "craft_review::ui::paint_chat_bubble"
+new = "craft_review::ui::paint_chat_bubble"
+status = "replaced"
+note = "Takes a `Draw` and a `BubbleLook` built from the style context."
+
+[[type]]
+name = "VotePill"
+old = "craft_review::ui::VotePill"
+new = "craft_review::ui::VotePill"
+status = "replaced"
+note = "A `Pattern`; `new(transport)`, `editable(..)`, `has_selection(..)`."
+
+[[type]]
+name = "VotePillOutput"
+old = "craft_review::ui::VotePillOutput"
+new = "craft_review::ui::VotePillOutput"
+status = "same"
+
+[[type]]
+name = "JoinField"
+old = "craft_review::ui::JoinField"
+new = "craft_review::ui::JoinField"
+status = "replaced"
+note = "A `Pattern`; `new(transport, typed)`."
+
+[[type]]
+name = "JoinFieldOutput"
+old = "craft_review::ui::JoinFieldOutput"
+new = "craft_review::ui::JoinFieldOutput"
+status = "same"
+
+[[type]]
+name = "paint_avatar"
+old = "craft_review::ui::paint_avatar"
+new = "craft_review::ui::paint_avatar"
+status = "replaced"
+note = "Replaced by `Avatar` (a leaf) and `paint_avatar(draw, rect, name, fill, &AvatarFace)` for canvas painters."
+
+[[type]]
+name = "ReviewStyle"
+old = "craft_review::ui::ReviewStyle"
+new = "craft_review::ui::ReviewStyle"
+status = "removed"
+note = "Each component's style hook reads the tokens."
+
+[[type]]
+name = "PresenceLabels"
+old = "craft_review::ui::PresenceLabels"
+new = "craft_review::ui::PresenceLabels"
+status = "removed"
+note = "`PresenceWords`."
+
+[[type]]
+name = "VersionsLabels"
+old = "craft_review::ui::VersionsLabels"
+new = "craft_review::ui::VersionsLabels"
+status = "removed"
+note = "`VersionsWords`."
+
+[[type]]
+name = "SignatureLabels"
+old = "craft_review::ui::SignatureLabels"
+new = "craft_review::ui::SignatureLabels"
+status = "removed"
+note = "`SignatureWords`."
+
+[[type]]
+name = "RevisionsLabels"
+old = "craft_review::ui::RevisionsLabels"
+new = "craft_review::ui::RevisionsLabels"
+status = "removed"
+note = "`RevisionsWords`."
+
+[[type]]
+name = "VoteLabels"
+old = "craft_review::ui::VoteLabels"
+new = "craft_review::ui::VoteLabels"
+status = "removed"
+note = "`VoteWords`."
+
+[[type]]
+name = "JoinLabels"
+old = "craft_review::ui::JoinLabels"
+new = "craft_review::ui::JoinLabels"
+status = "removed"
+note = "`JoinWords`."
+
+[[type]]
+name = "ChatLabels"
+old = "craft_review::ui::ChatLabels"
+new = "craft_review::ui::ChatLabels"
+status = "removed"
+note = "`ChatWords`."
+
+[[type]]
+name = "WORDS"
+old = "craft_review::ui::WORDS"
+new = "craft_review::ui::WORDS"
+status = "removed"
+note = "Registered by `words!`; the crate's `testing` module lists them."
+
+[[type]]
+name = "COUNTS"
+old = "craft_review::ui::COUNTS"
+new = "craft_review::ui::COUNTS"
+status = "removed"
+note = "Registered by `words!`."
+
+[[type]]
+name = "stories"
+old = "craft_review::ui::stories"
+new = "craft_review::ui::stories"
+status = "removed"
+note = "`#[story]` registration and the crate's `testing` module."
+
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]
 # type = ""
