@@ -1020,3 +1020,16 @@ fn arrows_and_escape_act_only_under_direct_convert_and_curvature() {
         assert_eq!(h.selection() == PathSelection::default(), acts, "{tool:?} Escape");
     }
 }
+
+#[trial]
+fn diag_page_keys() {
+    let mut h = harness(vec![path_a()]);
+    h.tab_to_parts("Anchor 1 of 4");
+    let mut log = Vec::new();
+    for i in 0..6 {
+        h.key(Key::PageDown, Modifiers::NONE);
+        let focus = h.fixture.focused_stop().map(|(_, p)| p.map(|p| (p.key, p.index)));
+        log.push(format!("{i}: focus {focus:?} sel {:?} objects {:?}", h.selection(), h.objects()));
+    }
+    panic!("DIAG\n{}", log.join("\n"));
+}
