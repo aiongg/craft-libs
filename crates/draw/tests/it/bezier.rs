@@ -1013,7 +1013,8 @@ fn arrows_and_escape_act_only_under_direct_convert_and_curvature() {
     ] {
         let mut h = with_tool(tool);
         h.update(|st| st.selection = sel(1, &[(0, 1)]));
-        h.tab_to_parts("Anchor 2 of 4");
+        h.key(Key::Tab, Modifiers::NONE);
+        h.key(Key::Tab, Modifiers::NONE);
         h.key(Key::ArrowRight, Modifiers::NONE);
         assert_eq!(!h.seen().is_empty(), acts, "{tool:?} arrows");
         h.key(Key::Escape, Modifiers::NONE);
