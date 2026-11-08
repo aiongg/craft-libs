@@ -1,63 +1,70 @@
-//! [`HeaderFooterZones`] (N3.10): the header and footer bands of the pages on screen, each in three
-//! sections (left, centre, right), as Excel's Page Layout view shows them: the hovered section
-//! says "Add header" / "Add footer" when empty, a click starts editing it, and the app's editor
-//! takes the section's rectangle. What each section holds, its fields and the editor are the
-//! app's.
-//!
-//! ```ignore
-//! let r = HeaderFooterZones::new("hf", &view.pages, &bands).text(&|page, zone| doc.hf_text(page, zone)).editing(edit.map(|e| e.at)).show(ui);
-//! if let Some(at) = r.begin { edit = Some(ZoneEditor::new(at, doc.hf_source(at))); }
-//! if let Some(editor) = &mut edit { editor.show(ui, r.rect(at)); }   // commit on a click elsewhere
-//! ```
+//! `HeaderFooterZones`: the header and footer bands of the pages on screen, each in three sections (start, centre, end),
+//! as Excel's Page Layout view and Word show them: the hovered section says "Add header" or "Add footer" when it is
+//! empty, a double click (or Enter on the focused section) starts editing it, and the app's editor takes the section's
+//! rectangle. What a section holds, its fields and the editor are the app's.
 
-use craft_ui::direction::{HasDirection, is_rtl};
-use craft_ui::localized::Labels as _;
-use craft_ui::primitives::Interactive;
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
-use egui::accesskit::Role;
-use egui::{Align2, FontId, Rect, Response, Sense, Shape, Ui, pos2};
-use kurbo::Point;
+#[cfg(feature = "screen-testing")]
+mod stories;
 
-use super::style::{DEFAULT_INK, DEFAULT_PAPER, HeaderFooterStyle};
-use super::view::PlacedPage;
+use craft_behavior::kurbo::Point;
+use craft_behavior::{HitLevel, HitPriority, Input, Intent, Metrics, PartKey, Sense};
+use craft_ui::canvas::canvas_space;
+use craft_ui::contract::{
+    Access, Common, Component, Cx, Focus as _, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pointer as _, Props, Role, WordSetCx as _,
+};
+use craft_ui::fonts::FontRef;
+use craft_ui::primitives::{Dashes, DocRun, DocText, HAlign, PaintShape, StrokeWidth, TextRun};
+use craft_ui::runtime::env::Label;
+use craft_ui::runtime::focus::KeyUse;
+use craft_ui::style::{ComponentStyle, DataColor, FocusLook, StyleColor, StyleCx};
+use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
 
-/// The dash and gap of the hint outline, screen points.
-const DASH: f32 = 3.0;
-const GAP: f32 = 3.0;
+use crate::ui::view::PlacedPage;
+
+/// The section `ZONE.at(n)`: `n` counts a page's header sections, then its footer sections, page by page.
+const ZONE: PartKey = PartKey::new("zone");
 
 /// The header and footer text size, page points (GridCraft's `hf_font` base).
 pub const HEADER_TEXT: f32 = 10.0;
 
-/// The screen sizes header and footer text is kept between at extreme zooms (GridCraft clamps
-/// 4–120): limits of document text drawn at a zoom, not interface sizes.
+/// The screen sizes header and footer text is kept between at extreme zooms (GridCraft clamps 4 to 120): limits of
+/// document text drawn at a zoom, not interface sizes.
 pub const HEADER_TEXT_SCREEN: std::ops::RangeInclusive<f32> = 4.0..=120.0;
 
 craft_ui::words! {
     /// The zones' words (GridCraft's strings).
-    #[non_exhaustive]
-    pub struct HeaderFooterLabels {
-        add_header: "headerFooter.addHeader" = "Add header";
-        add_footer: "headerFooter.addFooter" = "Add footer";
-        header: "headerFooter.header" = "Header";
-        footer: "headerFooter.footer" = "Footer";
-        first_page: "headerFooter.firstPageHeader" = "First Page Header";
-        even_page: "headerFooter.evenPageHeader" = "Even Page Header";
-        odd_page: "headerFooter.oddPageHeader" = "Odd Page Header";
+    pub struct HeaderFooterZonesWords {
+        add_header: "headerFooterZones.addHeader" = "Add header";
+        add_footer: "headerFooterZones.addFooter" = "Add footer";
+        header: "headerFooterZones.header" = "Header";
+        footer: "headerFooterZones.footer" = "Footer";
+        first_page: "headerFooterZones.firstPageHeader" = "First Page Header";
+        even_page: "headerFooterZones.evenPageHeader" = "Even Page Header";
+        odd_page: "headerFooterZones.oddPageHeader" = "Odd Page Header";
     }
 }
 
 /// One of the six sections of a page's header and footer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct Zone {
     /// Whether the zone is in the footer band (true) or the header band (false).
     pub footer: bool,
-    /// 0 start, 1 centre, 2 end of the band: left, centre and right in a left-to-right interface,
-    /// mirrored in a right-to-left one.
+    /// 0 start, 1 centre, 2 end of the band: left, centre and right in a left-to-right interface, mirrored in a
+    /// right-to-left one.
     pub section: u8,
+}
+
+impl Zone {
+    /// Section `section` (0 start, 1 centre, 2 end) of the header band, or of the footer band when `footer`.
+    pub const fn new(footer: bool, section: u8) -> Self {
+        Zone { footer, section }
+    }
 }
 
 /// A section of one page.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct ZoneAt {
     /// Page index, 0-based.
     pub page: usize,
@@ -65,21 +72,31 @@ pub struct ZoneAt {
     pub zone: Zone,
 }
 
+impl ZoneAt {
+    /// The section `zone` of page `page`.
+    pub const fn new(page: usize, zone: Zone) -> Self {
+        ZoneAt { page, zone }
+    }
+
+    fn part(self) -> u64 {
+        (self.page as u64 * 2 + u64::from(self.zone.footer)) * 3 + u64::from(self.zone.section)
+    }
+}
+
 /// Which header and footer a page uses.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum HeaderFooterPage {
-    #[allow(missing_docs)]
+    /// The first page, with Different First Page.
     First,
-    #[allow(missing_docs)]
+    /// An odd page.
     Odd,
-    #[allow(missing_docs)]
+    /// An even page, with Different Odd & Even Pages.
     Even,
 }
 
 impl HeaderFooterPage {
     /// The kind for 1-based page `number` with Different First Page and Different Odd & Even.
-    // gridcraft: crates/model/src/features/print.rs:86 `hf_page`; crates/ui-egui/src/paper_view.rs:354
-    // `page_kind`.
     pub fn of(number: usize, different_first: bool, different_odd_even: bool) -> Self {
         if different_first && number == 1 {
             HeaderFooterPage::First
@@ -91,10 +108,10 @@ impl HeaderFooterPage {
     }
 }
 
-/// Where the bands are on each page, page points: the header band from the top edge down to the
-/// top margin and the footer band from the bottom margin to the bottom edge, inset left and right
-/// by `sides` (GridCraft's `hf_sides`).
+/// Where the bands are on each page, page points: the header band from the top edge down to the top margin and the
+/// footer band from the bottom margin to the bottom edge, inset left and right by `sides` (GridCraft's `hf_sides`).
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct ZoneBands {
     /// Height of the header band, from the top edge to the top margin.
     pub top: f64,
@@ -104,178 +121,262 @@ pub struct ZoneBands {
     pub sides: [f64; 2],
 }
 
-/// What the zones did this pass.
+impl ZoneBands {
+    /// Bands `top` and `bottom` high, inset by `sides`.
+    pub const fn new(top: f64, bottom: f64, sides: [f64; 2]) -> Self {
+        ZoneBands { top, bottom, sides }
+    }
+
+    /// The section `zone` of a page `size` points across and down: its rect in page points, before any inset. The
+    /// band splits in thirds between the sides; section 0 is the third at the reading start.
+    pub fn section(&self, size: Vec2, zone: Zone, rtl: bool) -> craft_behavior::kurbo::Rect {
+        let (width, height) = (f64::from(size.x), f64::from(size.y));
+        let (top, bottom) = if zone.footer { (height - self.bottom, height) } else { (0.0, self.top) };
+        let third = (width - self.sides[0] - self.sides[1]).max(0.0) / 3.0;
+        let column = if rtl { 2 - zone.section.min(2) } else { zone.section.min(2) };
+        let left = self.sides[0] + third * f64::from(column);
+        craft_behavior::kurbo::Rect::new(left, top, left + third, bottom)
+    }
+}
+
+/// The text of each section as the app prints it.
+pub struct ZoneText<'a>(Box<dyn Fn(ZoneAt) -> String + 'a>);
+
+impl<'a> ZoneText<'a> {
+    /// The text `text` gives for a section.
+    pub fn new(text: impl Fn(ZoneAt) -> String + 'a) -> Self {
+        ZoneText(Box::new(text))
+    }
+
+    fn of(&self, at: ZoneAt) -> String {
+        (self.0)(at)
+    }
+}
+
+/// The style of the zones.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+#[non_exhaustive]
+pub struct HeaderFooterZonesStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+    #[style(focus)]
+    focus: FocusLook,
+    /// The space between a section and the band's top and bottom.
+    inset: f32,
+    hint: StyleColor,
+    editing: StyleColor,
+    neighbour: StyleColor,
+    faint: StyleColor,
+    dash: f32,
+    gap: f32,
+}
+
+/// What the zones report.
 #[derive(Debug)]
-pub struct HeaderFooterResponse {
-    /// A click on a section: start (or move) editing there.
-    pub begin: Option<ZoneAt>,
-    /// A click on a page outside the zones while one was being edited: commit it.
-    pub end: bool,
-    #[allow(missing_docs)]
+#[non_exhaustive]
+pub struct HeaderFooterZonesOutput {
+    /// The zones' response.
     pub response: Response,
+    /// A section double clicked (or activated with the keyboard): start, or move, editing there.
+    pub begin: Option<ZoneAt>,
+    /// A press on a page outside the sections, or Escape on a focused section, while one was being edited: end it.
+    pub end: bool,
+    /// The screen rect of the section being edited, inset as the zones draw it, for the app's editor.
+    pub editor: Option<Rect>,
+}
+
+impl Outcome for HeaderFooterZonesOutput {
+    type Value = craft_ui::contract::NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
 }
 
 /// The zones over the pages on screen.
 ///
-/// - Sections split the band's inner width in thirds, inset top and bottom by
-///   [`HeaderFooterStyle::inset`](super::HeaderFooterStyle::inset); in a right-to-left interface
-///   section 0 is the rightmost third.
-/// - A hovered empty section shows the style's dashed hint outline and "Add header" / "Add
-///   footer"; the section being edited ([`editing`](Self::editing)) is filled with the style's
-///   paper with the editing outline, its neighbours outlined (Excel).
-/// - Text the app gives is drawn left, centred and right aligned in its section, at the
-///   document's header size ([`HEADER_TEXT`] page points) × the page scale, between
-///   [`HEADER_TEXT_SCREEN`] screen points (GridCraft's `hf_font`; document text, so not a type
-///   role), in the style's ink.
-/// - Keys: each section is a Tab stop (an AccessKit Button "Add header" or its text) after the
-///   page view; Enter or Space starts editing it ([`HeaderFooterResponse`]). Excel reaches the
-///   zones only through Insert › Header & Footer; the suite's rule is every control from the
-///   keyboard.
+/// - A page's bands split their inner width in thirds; section 0 is the third at the reading start, so a right-to-left
+///   interface mirrors them.
+/// - A hovered or focused empty section shows the dashed hint outline and "Add header" or "Add footer"; the section
+///   being edited ([`editing`](Self::editing)) is filled with the paper colour with the editing outline, its
+///   neighbours in the band outlined (Excel).
+/// - Text the app gives is drawn start, centre and end aligned in its section at the document's header size
+///   ([`HEADER_TEXT`] page points) times the page scale, kept between [`HEADER_TEXT_SCREEN`] screen points.
+/// - Keys: each section is a Tab stop named by what it holds, or "Add header"; Enter or Space starts editing it. Escape
+///   on a focused section ends the editing. Show the zones after the page view's other canvas controls so they are
+///   above the pages.
+#[derive(Component, Props)]
+#[component(canvas_control)]
 pub struct HeaderFooterZones<'a> {
-    id_salt: egui::IdSalt,
+    #[common]
+    common: Common,
     placed: &'a [PlacedPage],
     bands: &'a dyn Fn(usize) -> ZoneBands,
-    text: Option<&'a dyn Fn(ZoneAt) -> String>,
+    /// Each section's text as it prints (fields expanded by the app).
+    #[prop(func = "Fn(ZoneAt) -> String")]
+    text: Option<ZoneText<'a>>,
+    /// The section being edited, if any; it paints as an editor instead of a label.
+    #[prop]
     editing: Option<ZoneAt>,
-    labels: Option<HeaderFooterLabels>,
-    style: HeaderFooterStyle,
-}
-
-/// The physical third (0 left) of the band section `section` takes.
-fn column(section: u8, rtl: bool) -> u8 {
-    if rtl { 2 - section.min(2) } else { section }
+    /// The paper of the pages (document data).
+    paper: DataColor,
+    /// The ink of the pages' text (document data).
+    ink: DataColor,
+    begin: Option<ZoneAt>,
+    end: bool,
 }
 
 impl<'a> HeaderFooterZones<'a> {
-    /// The zones' sizes and strokes, from the tokens.
-    pub fn style(tokens: &craft_ui::theme::UiTokens) -> HeaderFooterStyle {
-        use craft_ui::theme::ToEgui as _;
-        let c = &tokens.color;
-        let outline = tokens.stroke.thin;
-        HeaderFooterStyle {
-            inset: tokens.space.gap.tight,
-            hint: egui::Stroke::new(outline, c.line.control_edge.to_egui()),
-            editing: egui::Stroke::new(outline, c.accent.solid.to_egui()),
-            neighbour: egui::Stroke::new(outline, c.line.control_edge.to_egui()),
-            paper: DEFAULT_PAPER,
-            ink: DEFAULT_INK,
-        }
-    }
-
-    /// The zones over `placed`, drawn and inset by `style` ([`style`](Self::style)).
-    pub fn new(id_salt: impl egui::AsIdSalt, placed: &'a [PlacedPage], bands: &'a dyn Fn(usize) -> ZoneBands, style: HeaderFooterStyle) -> Self {
-        HeaderFooterZones { id_salt: egui::IdSalt::new(id_salt), placed, bands, text: None, editing: None, labels: None, style }
-    }
-
-    /// Each section's text as it prints (fields expanded by the app).
-    pub fn text(mut self, text: &'a dyn Fn(ZoneAt) -> String) -> Self {
-        self.text = Some(text);
-        self
-    }
-
-    /// Sets the section being edited, if any; it paints as an editor instead of a label.
-    pub fn editing(mut self, at: Option<ZoneAt>) -> Self {
-        self.editing = at;
-        self
-    }
-
-    /// Sets the translated labels; the default reads them from the interface locale.
-    pub fn labels(mut self, labels: HeaderFooterLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    /// The section's rectangle on screen, inset as the zones draw it, for the app's editor;
-    /// `None` when its page isn't placed. `direction` is the interface's (the `Ui` or context).
-    // gridcraft: crates/ui-egui/src/paper_view.rs:194 `section_rects`.
-    pub fn rect(&self, direction: &impl HasDirection, at: ZoneAt) -> Option<Rect> {
-        let placed = self.placed.iter().find(|p| p.page == at.page)?;
-        Some(self.section_rect(placed, at.zone, is_rtl(direction)).shrink2(egui::vec2(0.0, self.style.inset)))
+    /// The zones named `label` over `placed`, whose bands `bands` gives per page, on pages of the document's `paper`
+    /// with text in its `ink`.
+    pub fn new(label: impl Into<Label>, placed: &'a [PlacedPage], bands: &'a dyn Fn(usize) -> ZoneBands, paper: DataColor, ink: DataColor) -> Self {
+        HeaderFooterZones { common: Common::new(), placed, bands, text: None, editing: None, paper, ink, begin: None, end: false }.label(label)
     }
 
     /// The whole section on `placed`, without the style's inset.
     fn section_rect(&self, placed: &PlacedPage, zone: Zone, rtl: bool) -> Rect {
-        let bands = (self.bands)(placed.page);
-        let width = f64::from(placed.rect.width()) / placed.scale;
-        let height = f64::from(placed.rect.height()) / placed.scale;
-        let (top, bottom) = if zone.footer { (height - bands.bottom, height) } else { (0.0, bands.top) };
-        let third = (width - bands.sides[0] - bands.sides[1]).max(0.0) / 3.0;
-        let left = bands.sides[0] + third * f64::from(column(zone.section, rtl));
-        Rect::from_min_max(placed.to_screen(Point::new(left, top)), placed.to_screen(Point::new(left + third, bottom)))
+        let size = Vec2::new(placed.rect.width() / placed.scale as f32, placed.rect.height() / placed.scale as f32);
+        let section = (self.bands)(placed.page).section(size, zone, rtl);
+        let corner = |x: f64, y: f64| placed.to_screen(Point::new(x, y));
+        Rect::from_min_max(corner(section.x0, section.y0), corner(section.x1, section.y1))
     }
 
-    // gridcraft: crates/ui-egui/src/paper_view.rs:217 `paint_headers_footers`, :291 `interact`.
-    /// Paints the zones, handles clicks, and reports what to start or stop editing.
-    pub fn show(self, ui: &mut Ui) -> HeaderFooterResponse {
-        let tokens = Tokens::of(ui);
-        let style = self.style;
-        let rtl = is_rtl(ui);
-        let labels = self.labels.clone().unwrap_or_else(|| HeaderFooterLabels::of(ui));
-        let faint = tokens.color.text.faint.to_egui();
-        let visible = ui.clip_rect();
-        let mut begin = None;
-        let mut zones = Vec::new();
-        for placed in self.placed.iter().filter(|p| p.rect.intersects(visible)) {
+    /// Every section of the pages on screen, with its rect inset as the zones draw it.
+    fn sections(&self, rtl: bool, inset: f32, visible: Rect) -> Vec<(ZoneAt, &'a PlacedPage, Rect)> {
+        let mut out = Vec::new();
+        for placed in self.placed.iter().filter(|placed| placed.rect.intersects(visible)) {
             for footer in [false, true] {
                 for section in 0..3 {
-                    let at = ZoneAt { page: placed.page, zone: Zone { footer, section } };
-                    let whole = self.section_rect(placed, at.zone, rtl);
-                    zones.push(whole);
-                    let rect = whole.shrink2(egui::vec2(0.0, style.inset));
-                    let text = self.text.map(|text| text(at)).unwrap_or_default();
-                    let editing = self.editing == Some(at);
-                    let band_editing = self.editing.is_some_and(|e| e.page == at.page && e.zone.footer == footer);
-                    if editing {
-                        ui.painter().rect_filled(rect, 0.0, style.paper);
-                        ui.painter().rect_stroke(rect, 0.0, style.editing, egui::StrokeKind::Inside);
-                        continue;
-                    }
-                    let add = if footer { &labels.add_footer } else { &labels.add_header };
-                    let name = if text.is_empty() { add.as_str() } else { text.as_str() };
-                    let id = ui.make_persistent_id((self.id_salt, at.page, footer, section));
-                    let response = Interactive::with_id(id, Role::Button, name)
-                        .sense(Sense::click())
-                        .state_layer(false)
-                        .focus_ring(false)
-                        .interact_at(ui, rect)
-                        .finish(ui);
-                    if response.clicked() {
-                        begin = Some(at);
-                    }
-                    let font =
-                        FontId::proportional((HEADER_TEXT * placed.scale as f32).clamp(*HEADER_TEXT_SCREEN.start(), *HEADER_TEXT_SCREEN.end()));
-                    let painter = ui.painter();
-                    if band_editing {
-                        painter.rect_stroke(rect, 0.0, style.neighbour, egui::StrokeKind::Inside);
-                    }
-                    if text.is_empty() {
-                        if response.hovered() || response.has_focus() {
-                            let corners = [rect.left_top(), rect.right_top(), rect.right_bottom(), rect.left_bottom(), rect.left_top()];
-                            painter.extend(Shape::dashed_line(&corners, style.hint, DASH, GAP));
-                            painter.text(rect.center(), Align2::CENTER_CENTER, add, font, faint);
-                        }
-                        continue;
-                    }
-                    let galley = painter.layout(text, font, style.ink, rect.width());
-                    let width = galley.size().x;
-                    let x = match column(section, rtl) {
-                        0 => rect.left(),
-                        1 => rect.center().x - width / 2.0,
-                        _ => rect.right() - width,
-                    };
-                    let y = if footer { rect.bottom() - galley.size().y } else { rect.top() };
-                    painter.galley(pos2(x, y), galley, style.ink);
+                    let at = ZoneAt::new(placed.page, Zone::new(footer, section));
+                    out.push((at, placed, self.section_rect(placed, at.zone, rtl).shrink2(Vec2::new(0.0, inset))));
                 }
             }
         }
-        let end = self.editing.is_some()
-            && ui.input(|i| i.pointer.primary_clicked())
-            && ui
-                .input(|i| i.pointer.interact_pos())
-                .is_some_and(|p| self.placed.iter().any(|page| page.rect.contains(p)) && !zones.iter().any(|z| z.contains(p)));
-        let extent =
-            self.placed.iter().map(|p| p.rect).reduce(Rect::union).unwrap_or_else(|| Rect::from_min_size(ui.min_rect().min, egui::Vec2::ZERO));
-        let response = ui.interact(extent, ui.make_persistent_id((self.id_salt, "zones")), Sense::hover());
-        HeaderFooterResponse { begin, end, response }
+        out
+    }
+
+    fn name(&self, at: ZoneAt, words: &HeaderFooterZonesWords) -> String {
+        let text = self.text.as_ref().map(|text| text.of(at)).unwrap_or_default();
+        if !text.is_empty() {
+            text
+        } else if at.zone.footer {
+            words.add_footer.as_str().to_owned()
+        } else {
+            words.add_header.as_str().to_owned()
+        }
+    }
+}
+
+impl Component for HeaderFooterZones<'_> {
+    const ROLE: Role = Role::GROUP;
+    const KEYS: KeyUse = KeyUse::CANVAS.with_chrome_key(false);
+    const INPUT: Input = Input::Pointer;
+    const SHOWS_LABEL: bool = false;
+    const OVERLAYS: bool = false;
+    type Style = HeaderFooterZonesStyle;
+    type Output = HeaderFooterZonesOutput;
+
+    fn style(cx: &StyleCx<'_>, _: HeaderFooterZonesStyleKey) -> HeaderFooterZonesStyle {
+        let (colors, stroke) = (&cx.tokens.color, &cx.tokens.stroke);
+        HeaderFooterZonesStyle {
+            metrics: Metrics::new(),
+            focus: cx.focus_look(),
+            inset: cx.tokens.space.gap.tight,
+            hint: cx.color(colors.line.control_edge),
+            editing: cx.color(colors.accent.solid),
+            neighbour: cx.color(colors.line.control_edge),
+            faint: cx.color(colors.text.faint),
+            dash: stroke.dash,
+            gap: stroke.dash_gap,
+        }
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::ZERO
+    }
+
+    /// One focusable click part per section of the pages on screen.
+    fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
+        let rtl = cx.flow.is_rtl();
+        for (at, _, section) in self.sections(rtl, cx.style.inset, rect) {
+            if self.editing == Some(at) {
+                continue;
+            }
+            cx.part(ZONE.at(at.part()), section).sense(Sense::CLICK | Sense::TAKE_FOCUS).priority(HitPriority::new(HitLevel::Edge, 0)).focusable();
+        }
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        let rtl = cx.flow.is_rtl();
+        let sections = self.sections(rtl, cx.style.inset, cx.rect);
+        for (at, _, _) in &sections {
+            let Some(result) = cx.part_if_declared(ZONE.at(at.part())) else { continue };
+            if result.press.double_pressed() || cx.part_activated(ZONE.at(at.part())).is_some() {
+                self.begin = Some(*at);
+            }
+        }
+        let focused = cx.active_part().is_some_and(|part| part.key == ZONE);
+        let escaped = focused && cx.intents().take(Intent::Cancel);
+        let elsewhere = canvas_space(&cx.env).is_some_and(|space| space.background().pressed);
+        self.end = self.editing.is_some() && (escaped || elsewhere);
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let (rtl, style) = (cx.flow.is_rtl(), &cx.style);
+        let draw = ui.draw();
+        let words = cx.words::<HeaderFooterZonesWords>();
+        let focused = cx.focus_visible().then(|| cx.active_part()).flatten().filter(|part| part.key == ZONE).and_then(|part| part.index);
+        for (at, placed, rect) in self.sections(rtl, style.inset, cx.rect) {
+            let outline = PaintShape::Rect(rect, CornerRadius::ZERO);
+            if self.editing == Some(at) {
+                draw.data_fill(&outline, self.paper);
+                draw.stroke(&outline, StrokeWidth::Thin, style.editing);
+                continue;
+            }
+            if self.editing.is_some_and(|editing| editing.page == at.page && editing.zone.footer == at.zone.footer) {
+                draw.stroke(&outline, StrokeWidth::Thin, style.neighbour);
+            }
+            let text = self.text.as_ref().map(|text| text.of(at)).unwrap_or_default();
+            if text.is_empty() {
+                let shown = cx.part_if_declared(ZONE.at(at.part())).is_some_and(|part| part.hovered) || focused == Some(at.part());
+                if shown {
+                    let corners = [rect.left_top(), rect.right_top(), rect.right_bottom(), rect.left_bottom(), rect.left_top()];
+                    draw.dashed(&corners, Dashes::new(style.dash, style.gap), StrokeWidth::Thin, style.hint);
+                    let hint = if at.zone.footer { &words.add_footer } else { &words.add_header };
+                    let run = TextRun::new(hint.as_str().to_owned()).color(style.faint).align(HAlign::Center);
+                    draw.text(rect, &run);
+                }
+                continue;
+            }
+            let size = (HEADER_TEXT * placed.scale as f32).clamp(*HEADER_TEXT_SCREEN.start(), *HEADER_TEXT_SCREEN.end());
+            let runs = [DocRun::new(text, FontRef::proportional(), size, self.ink)];
+            let mut doc = DocText::new(&runs);
+            doc.align = match at.zone.section {
+                0 => HAlign::Start,
+                1 => HAlign::Center,
+                _ => HAlign::End,
+            };
+            let height = size * 1.2;
+            let band = if at.zone.footer { Rect::from_min_max(Pos2::new(rect.left(), rect.bottom() - height), rect.max) } else { rect };
+            draw.doc(band, &doc);
+        }
+    }
+
+    fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
+        let words = cx.words::<HeaderFooterZonesWords>();
+        for (at, _, _) in self.sections(cx.flow.is_rtl(), cx.style.inset, cx.rect) {
+            if self.editing != Some(at) {
+                access.node(ZONE.at(at.part()), Role::BUTTON).name = Name::Text(self.name(at, &words));
+            }
+        }
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> HeaderFooterZonesOutput {
+        let rtl = cx.flow.is_rtl();
+        let editor = self.editing.and_then(|at| {
+            let placed = self.placed.iter().find(|placed| placed.page == at.page)?;
+            Some(self.section_rect(placed, at.zone, rtl).shrink2(Vec2::new(0.0, cx.style.inset)))
+        });
+        HeaderFooterZonesOutput { response: cx.response.clone(), begin: self.begin, end: self.end, editor }
     }
 }

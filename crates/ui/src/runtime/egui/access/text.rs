@@ -88,6 +88,17 @@ pub(crate) fn write_text(ctx: &Context, id: Id, text: &TextNode<'_>) {
     });
 }
 
+/// Sets the text selection of the node of `id` between two run nodes, for a node whose runs a content painter
+/// describes.
+pub(crate) fn write_selection(ctx: &Context, id: Id, anchor: (Id, usize), focus: (Id, usize)) {
+    ctx.accesskit_node_builder(id, |node| {
+        node.set_text_selection(accesskit::TextSelection {
+            anchor: accesskit::TextPosition { node: anchor.0.accesskit_id(), character_index: anchor.1 },
+            focus: accesskit::TextPosition { node: focus.0.accesskit_id(), character_index: focus.1 },
+        });
+    });
+}
+
 /// The selection a `SetTextSelection` request carries.
 pub(crate) fn requested_selection(request: &craft_behavior::AccessRequest) -> Option<(NodeEnd, NodeEnd)> {
     if request.action != accesskit::Action::SetTextSelection {

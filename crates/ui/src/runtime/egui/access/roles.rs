@@ -101,4 +101,10 @@ impl Role {
     pub const CANVAS: Role = Role::Node(accesskit::Role::Canvas);
     /// An object drawn on a canvas: a node of a node graph.
     pub const GRAPHICS_OBJECT: Role = Role::Node(accesskit::Role::GraphicsObject);
+    /// A paragraph of text.
+    pub const PARAGRAPH: Role = Role::Node(accesskit::Role::Paragraph);
+    /// One line of text, with its characters' places: only a text-run sub-node (`SubNode::text_run`) has it.
+    pub const TEXT_RUN: Role = Role::Node(accesskit::Role::TextRun);
+    /// The marker of a list item: its bullet or number.
+    pub const LIST_MARKER: Role = Role::Node(accesskit::Role::ListMarker);
 }
