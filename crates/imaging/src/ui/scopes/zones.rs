@@ -237,7 +237,7 @@ impl Component for ToneZones<'_> {
                     cx.propose(edit(at, ZoneChange::Drag(share(start.origin, pos))));
                 }
                 PressPhase::Drag { start, pos, .. } => cx.propose(edit(at, ZoneChange::Drag(share(start.origin, pos)))),
-                PressPhase::Release { start, pos, click } => {
+                PressPhase::Release { start, pos, click, .. } => {
                     cx.memory::<Held>().pressed = None;
                     if cx.gesture().is_some() {
                         cx.propose(edit(at, ZoneChange::Drag(share(start.origin, pos))));
