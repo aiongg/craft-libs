@@ -17,266 +17,266 @@ new_module = ""
 
 [[type]]
 name = "ColorPickerDialog"
-old = "craft_color::ui::picker_dialog::ColorPickerDialog"
+old = "craft_color::ui::ColorPickerDialog"
 new = "craft_color::ui::ColorPickerDialog"
 status = "same"
 note = "A `StackDialog` whose buttons are the dialog footer (OK, Cancel or Reset with Alt, Add to Swatches). `new(key, title: impl Into<Label>, color)`; `canvas(Id)` registers the canvas that samples under the modal; `requests()` holds the canvas eyedropper request and its answer; `take_screen_pick()` hands the picker's screen-pick press to the host."
 
 [[type]]
 name = "ColorPickerLabels"
-old = "craft_color::ui::picker_dialog::ColorPickerLabels"
+old = "craft_color::ui::ColorPickerLabels"
 new = "craft_color::ui::ColorPickerDialogWords"
 status = "removed"
 note = "`words!`; the warning tips are in the same set; OK and Cancel are the common words."
 
 [[type]]
 name = "ColorPickerMemory"
-old = "craft_color::ui::picker_dialog::ColorPickerMemory"
+old = "craft_color::ui::ColorPickerMemory"
 new = "craft_color::ui::ColorPickerMemory"
 status = "same"
 note = "Unchanged."
 
 [[type]]
 name = "ColorPickerResult"
-old = "craft_color::ui::picker_dialog::ColorPickerResult"
+old = "craft_color::ui::ColorPickerResult"
 new = "craft_color::ui::ColorPickerResult"
 status = "same"
 note = "Unchanged."
 
 [[type]]
 name = "ColorPopover"
-old = "craft_color::ui::popover::ColorPopover"
+old = "craft_color::ui::ColorPopover"
 new = "craft_color::ui::ColorPopover"
 status = "replaced"
 note = "A pattern: `new(label, Bind<PickedColor>)`, `picker(setup)`, `anchor(&Response, Bind<bool>)`; `show(ui)` returns `ColorPopoverOutput`. `size`, `dimensions` and `enabled` are the style and the common props; the id salt is the common `id_salt`."
 
 [[type]]
 name = "ColorPopoverResponse"
-old = "craft_color::ui::popover::ColorPopoverResponse"
+old = "craft_color::ui::ColorPopoverResponse"
 new = "craft_color::ui::ColorPopoverOutput"
 status = "replaced"
 note = "`edit` is `Option<EditResponse<PickedColor>>` (none while closed), `screen_pick` replaces `eyedropper_requested` and `picker_id`."
 
 [[type]]
 name = "popup"
-old = "craft_color::ui::popover::popup"
+old = "craft_color::ui::popup"
 new = "craft_color::ui::ColorPopover::anchor"
 status = "removed"
 note = "A caller-drawn opener hands its response and an open binding to `anchor`."
 
 [[type]]
 name = "close"
-old = "craft_color::ui::popover::close"
+old = "craft_color::ui::close"
 new = "craft_color::ui::ColorPopover::anchor"
 status = "removed"
 note = "The caller closes the popover by writing `false` to the binding it gave `anchor`."
 
 [[type]]
 name = "DropperState"
-old = "craft_color::ui::droppers::DropperState"
+old = "craft_color::ui::DropperState"
 new = "craft_color::ui::DropperButton"
 status = "removed"
 note = "The armed state is the host's: the button files an `EyedropperRequest` through `HostRequests`, the host answers with `answer_eyedropper`."
 
 [[type]]
 name = "DropperKind"
-old = "craft_color::ui::droppers::DropperKind"
+old = "craft_color::ui::DropperKind"
 new = "craft_color::ui::DropperKind"
 status = "same"
 note = "Unchanged."
 
 [[type]]
 name = "DropperButton"
-old = "craft_color::ui::droppers::DropperButton"
+old = "craft_color::ui::DropperButton"
 new = "craft_color::ui::DropperButton"
 status = "replaced"
 note = "A pattern over an icon-only `ToggleButton`: `new(label, Bind<bool>)`, `kind`, `key`; `show(ui)` returns `DropperButtonOutput { edit, request }`."
 
 [[type]]
 name = "DropperButtonResponse"
-old = "craft_color::ui::droppers::DropperButtonResponse"
+old = "craft_color::ui::DropperButtonResponse"
 new = "craft_color::ui::DropperButtonOutput"
 status = "replaced"
 note = "`sampled` is gone: the host answers the request."
 
 [[type]]
 name = "DropperTool"
-old = "craft_color::ui::droppers::DropperTool"
+old = "craft_color::ui::DropperTool"
 new = "craft_color::ui::DropperTool"
 status = "same"
 note = "A `CanvasTool`; `take()` returns the newest sample, `cancelled()` reports Escape on the canvas. `show_free` is gone: S4 lets presses through the modal layer."
 
 [[type]]
 name = "EyedropperBar"
-old = "craft_color::ui::eyedropper::EyedropperBar"
+old = "craft_color::ui::EyedropperBar"
 new = "craft_color::ui::EyedropperBar"
 status = "replaced"
 note = "A pattern shown inside the options `Bar`: `new(&mut EyedropperOptions)`, `show(ui)`."
 
 [[type]]
 name = "EyedropperLabels"
-old = "craft_color::ui::eyedropper::EyedropperLabels"
+old = "craft_color::ui::EyedropperLabels"
 new = "craft_color::ui::EyedropperWords"
 status = "removed"
 note = "`words!`."
 
 [[type]]
 name = "EyedropperOptions"
-old = "craft_color::ui::eyedropper::EyedropperOptions"
+old = "craft_color::ui::EyedropperOptions"
 new = "craft_color::ui::EyedropperOptions"
 status = "same"
 note = "Unchanged."
 
 [[type]]
 name = "EyedropperPick"
-old = "craft_color::ui::eyedropper::EyedropperPick"
+old = "craft_color::ui::EyedropperPick"
 new = "craft_color::ui::EyedropperPick"
 status = "same"
 note = "Unchanged."
 
 [[type]]
 name = "EyedropperTool"
-old = "craft_color::ui::eyedropper::EyedropperTool"
+old = "craft_color::ui::EyedropperTool"
 new = "craft_color::ui::EyedropperTool"
 status = "same"
 note = "A `CanvasTool` with the new pointer types; the ring paints through `Draw`."
 
 [[type]]
 name = "SampleSize"
-old = "craft_color::ui::eyedropper::SampleSize"
+old = "craft_color::ui::SampleSize"
 new = "craft_color::ui::SampleSize"
 status = "same"
 note = "`label(&EyedropperWords)` returns a `Label`."
 
 [[type]]
 name = "SampleSource"
-old = "craft_color::ui::eyedropper::SampleSource"
+old = "craft_color::ui::SampleSource"
 new = "craft_color::ui::SampleSource"
 status = "same"
 note = "`label(&EyedropperWords)` returns a `Label`."
 
 [[type]]
 name = "SamplingRingStyle"
-old = "craft_color::ui::eyedropper::SamplingRingStyle"
+old = "craft_color::ui::SamplingRingStyle"
 new = "craft_color::ui::EyedropperTool"
 status = "removed"
 note = "The ring's colours are theme tokens and its geometry module constants."
 
 [[type]]
 name = "eyedropper_ring"
-old = "craft_color::ui::eyedropper::eyedropper_ring"
+old = "craft_color::ui::eyedropper_ring"
 new = "craft_color::ui::EyedropperTool"
 status = "removed"
 note = "The tool paints the ring in `CanvasTool::paint`."
 
 [[type]]
 name = "ColorSamplers"
-old = "craft_color::ui::samplers::ColorSamplers"
+old = "craft_color::ui::ColorSamplers"
 new = "craft_color::ui::ColorSamplers"
 status = "same"
 note = "Data; `paint` is `ColorSamplerMarks`; `apply(ColorSamplerCommand, focused)` runs Delete and Clear."
 
 [[type]]
 name = "ColorSamplerTool"
-old = "craft_color::ui::samplers::ColorSamplerTool"
+old = "craft_color::ui::ColorSamplerTool"
 new = "craft_color::ui::ColorSamplerTool"
 status = "same"
 note = "A `CanvasTool`; `take_error()` returns a `Toast`."
 
 [[type]]
 name = "ColorSamplerLabels"
-old = "craft_color::ui::samplers::ColorSamplerLabels"
+old = "craft_color::ui::ColorSamplerLabels"
 new = "craft_color::ui::SamplerWords"
 status = "removed"
 note = "`words!`."
 
 [[type]]
 name = "SamplerError"
-old = "craft_color::ui::samplers::SamplerError"
+old = "craft_color::ui::SamplerError"
 new = "craft_color::ui::SamplerError"
 status = "same"
 note = "Unchanged."
 
 [[type]]
 name = "SamplerReadout"
-old = "craft_color::ui::samplers::SamplerReadout"
+old = "craft_color::ui::SamplerReadout"
 new = "craft_color::ui::SamplerReadout"
 status = "same"
 note = "Unchanged."
 
 [[type]]
 name = "SamplerReadouts"
-old = "craft_color::ui::samplers::SamplerReadouts"
+old = "craft_color::ui::SamplerReadouts"
 new = "craft_color::ui::SamplerReadouts"
 status = "same"
 note = "`get(&mut SamplerCache)` replaces `get(&Context)`: the host keeps the cache."
 
 [[type]]
 name = "sampler_options"
-old = "craft_color::ui::samplers::sampler_options"
+old = "craft_color::ui::sampler_options"
 new = "craft_color::ui::SamplerOptions"
 status = "replaced"
 note = "A pattern shown inside the options `Bar`: `SamplerOptions::new(count).show(ui)` returns `clear_all`."
 
 [[type]]
 name = "MAX_SAMPLERS"
-old = "craft_color::ui::samplers::MAX_SAMPLERS"
+old = "craft_color::ui::MAX_SAMPLERS"
 new = "craft_color::ui::MAX_SAMPLERS"
 status = "same"
 note = "Unchanged."
 
 [[type]]
 name = "SAMPLER_HIT"
-old = "craft_color::ui::samplers::SAMPLER_HIT"
+old = "craft_color::ui::SAMPLER_HIT"
 new = "craft_color::ui::ColorSamplerTool"
 status = "removed"
 note = "The hit reach is private to the tool."
 
 [[type]]
 name = "ScreenColorPicker"
-old = "craft_color::ui::screen_picker::ScreenColorPicker"
+old = "craft_color::ui::ScreenColorPicker"
 new = "craft_color::ui::ScreenPick"
 status = "replaced"
 note = "The state is the app's `ScreenPick`; the capture windows (`ScreenColorPicker`) are left to the crate finisher."
 
 [[type]]
 name = "ScreenPickerLabels"
-old = "craft_color::ui::screen_picker::ScreenPickerLabels"
+old = "craft_color::ui::ScreenPickerLabels"
 new = "craft_color::ui::ScreenPickerWords"
 status = "removed"
 note = "`words!`."
 
 [[type]]
 name = "CaptureResult"
-old = "craft_color::ui::screen_picker::CaptureResult"
+old = "craft_color::ui::CaptureResult"
 new = "craft_color::ui::CaptureResult"
 status = "same"
 note = "Unchanged."
 
 [[type]]
 name = "CaptureSource"
-old = "craft_color::ui::screen_picker::CaptureSource"
+old = "craft_color::ui::CaptureSource"
 new = "craft_color::ui::CaptureSource"
 status = "same"
 note = "Unchanged."
 
 [[type]]
 name = "StillCapture"
-old = "craft_color::ui::screen_picker::StillCapture"
+old = "craft_color::ui::StillCapture"
 new = "craft_color::ui::StillCapture"
 status = "same"
 note = "Unchanged."
 
 [[type]]
 name = "LOUPE_PIXELS"
-old = "craft_color::ui::screen_picker::LOUPE_PIXELS"
+old = "craft_color::ui::LOUPE_PIXELS"
 new = "craft_color::ui::LOUPE_PIXELS"
 status = "same"
 note = "Unchanged."
 
 [[type]]
 name = "LOUPE_ZOOM"
-old = "craft_color::ui::screen_picker::LOUPE_ZOOM"
+old = "craft_color::ui::LOUPE_ZOOM"
 new = "craft_color::ui::LOUPE_ZOOM"
 status = "same"
 note = "Unchanged."
