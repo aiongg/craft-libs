@@ -204,16 +204,3 @@ fn words_break_at_letters_and_digits() {
     assert_eq!(word_boundary("one, two", 0, true), 3);
     assert_eq!(word_boundary("one, two", 8, false), 5);
 }
-
-#[trial]
-fn zz_diag_editor() {
-    let mut editor = session("hello", None);
-    editor.fixture.key(Key::Tab, Modifiers::NONE);
-    let focused = editor.fixture.focused();
-    let name = focused.and_then(|id| editor.fixture.node_of(id)).and_then(|t| editor.fixture.tree().name_of(t.node).map(str::to_owned));
-    editor.fixture.type_text("xyz").settle();
-    let after_type = editor.text();
-    editor.fixture.frame(vec![egui::Event::Paste("qzq".to_owned())]);
-    editor.fixture.idle(2);
-    panic!("focused {focused:?} name {name:?} text after type {after_type:?} after paste {:?}", editor.text());
-}

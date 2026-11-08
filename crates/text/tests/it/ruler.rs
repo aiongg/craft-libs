@@ -143,21 +143,3 @@ fn a_table_column_border_drags_as_one_gesture() {
     assert_eq!(phases.iter().filter(|phase| **phase == GesturePhase::Commit).count(), 1);
     assert_eq!(phases.last(), Some(&GesturePhase::Commit));
 }
-
-#[trial]
-fn zz_diag() {
-    let mut out = String::new();
-    for label in ["First Line Indent", "Hanging Indent", "Left Indent", "Right Indent"] {
-        let mut shown = show(indents(), None, false, &[]);
-        shown.fixture.settle();
-        let area = shown.fixture.shown();
-        let node = shown.fixture.by_label(label);
-        let before = shown.values.borrow().clone();
-        if let Some(node) = &node {
-            shown.fixture.drag(node, Vec2::X * (area.width() * ALONG_SHARE));
-        }
-        let after = shown.values.borrow().clone();
-        out += &format!("{label}: area {area:?} node {:?} before {before:?} after {after:?}\n", node.map(|n| n.rect));
-    }
-    panic!("{out}");
-}
