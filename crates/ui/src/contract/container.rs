@@ -219,33 +219,72 @@ impl HeaderRegion {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct FooterRegion {
-    /// Whether a rule separates the body from the footer.
+    /// Whether a rule separates the footer from the content beside it: the body, or the end region's content.
     pub rule: bool,
+    /// Where the footer sits.
+    pub place: FooterPlace,
 }
 
 impl FooterRegion {
-    /// A footer with no rule.
+    /// A footer across the container under the line, with no rule.
     pub const fn new() -> Self {
-        FooterRegion { rule: false }
+        FooterRegion { rule: false, place: FooterPlace::Across }
     }
 
-    /// Whether a rule separates the body from the footer.
+    /// Whether a rule separates the footer from the content beside it.
     pub const fn rule(mut self, on: bool) -> Self {
         self.rule = on;
         self
     }
+
+    /// Where the footer sits.
+    pub const fn place(mut self, place: FooterPlace) -> Self {
+        self.place = place;
+        self
+    }
 }
 
-/// An end region, filled by `Container::end`: controls in reading order at the line's end edge, beside the body and
-/// outside its scroll region. Its stops join the body's roving group.
+/// Where a footer region sits.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
-pub struct EndRegion;
+pub enum FooterPlace {
+    /// Under the line, across the container's width (under the body only beside a full-height end region).
+    #[default]
+    Across,
+    /// At the foot of the end region, as wide as it: the end region then takes the full height under the header. A
+    /// container without an end region shows the footer across.
+    EndBottom,
+    /// At the top of the end region, above its content; otherwise as `EndBottom`.
+    EndTop,
+}
+
+impl FooterPlace {
+    /// Whether the footer sits in the end region.
+    pub const fn in_end(self) -> bool {
+        !matches!(self, FooterPlace::Across)
+    }
+}
+
+/// An end region, filled by `Container::end`: content in reading order at the line's end edge, beside the body and
+/// outside its scroll region, as wide as it measured. Its stops join the body's roving group.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct EndRegion {
+    /// Whether the region takes the full height under the header, down to the container's bottom, beside the body and
+    /// the footer, instead of the line's height. Its content then starts at the top, else it is centred on the line.
+    pub full_height: bool,
+}
 
 impl EndRegion {
-    /// An end region.
+    /// An end region as high as the line.
     pub const fn new() -> Self {
-        EndRegion
+        EndRegion { full_height: false }
+    }
+
+    /// Whether the region takes the full height under the header.
+    pub const fn full_height(mut self, on: bool) -> Self {
+        self.full_height = on;
+        self
     }
 }
 

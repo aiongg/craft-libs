@@ -204,7 +204,7 @@ impl<C: Component> ShapeHooks<C> for LeafHooks {
     fn content(&mut self, _: &mut C, _: &mut Ui, _: &Env, _: &mut Cx<'_, C>, _: &AppValues) {}
 
     fn sized(&self, comp: &C, ui: &Ui, size: Vec2) -> Vec2 {
-        let room = ui.available_size_before_wrap();
+        let room = crate::layout::flow_room(ui);
         let fill = |measured: f32, offered: f32| if offered.is_finite() { measured.max(offered) } else { measured };
         match comp.fills() {
             Some(craft_behavior::Axis::X) => Vec2::new(fill(size.x, room.x), size.y),
@@ -759,7 +759,7 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     // 5 measure
     let room = match at {
         ShowAt::Rect(rect) => Some(rect.width()),
-        ShowAt::Flow => Some(ui.available_width()).filter(|width| width.is_finite()),
+        ShowAt::Flow => Some(crate::layout::flow_room(ui).x).filter(|width| width.is_finite()),
     };
     let extent = hooks.extent(&comp, ui, at, id, &scx);
     let size = {
@@ -857,6 +857,19 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
 
 pub(crate) fn show_leaf<C: Component + Meta<Shape = super::shape::Leaf>>(comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>>) -> C::Output {
     run(comp, ui, at, tip, &mut LeafHooks)
+}
+
+/// Shows a container at `rect` and takes the rect's room in the flow of `ui`, through the one helper that moves a
+/// parent's flow past a rect, so a sibling shown after it lies past it.
+pub(crate) fn show_container_taking<C: Container, R>(
+    comp: C,
+    ui: &mut Ui,
+    rect: Rect,
+    body: impl FnMut(&mut Ui, &mut BodyCx<'_>) -> R,
+) -> Inner<C::Output, R> {
+    let shown = show_container(comp, ui, ShowAt::Rect(rect), body, None);
+    crate::runtime::egui::alloc::advance_past(ui, rect);
+    shown
 }
 
 pub(crate) fn show_container<C: Container, R>(

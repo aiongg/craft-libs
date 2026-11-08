@@ -86,6 +86,13 @@ macro_rules! layout_component {
                 self.props = self.props.sizing(Sizing::Fill);
                 self
             }
+
+            // bregion: a row across a region, as high as its children.
+            /// Takes the available width and the height of the children.
+            pub fn fill_width(mut self) -> Self {
+                self.props = self.props.sizing(Sizing::FillWidth);
+                self
+            }
         }
 
         impl $(<$life>)? Component for $name $(<$life>)? {

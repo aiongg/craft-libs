@@ -5,7 +5,7 @@ use super::cx::BodyCx;
 use super::label::{self, LabelIn};
 use super::overlay::{OverlayFit, Place, PlacementChange, PlacementKind};
 use super::run::{ShapeHooks, ShowAt};
-use super::{Container, ContainerProps, Cx, DragBand, Gap, Internal, Mount, Notch, Pad, PartsCx, Scroll, SetPosition, Sizing};
+use super::{Container, ContainerProps, Cx, DragBand, FooterPlace, Gap, Internal, Mount, Notch, Pad, PartsCx, Scroll, SetPosition, Sizing};
 use crate::layout::{self, ColumnGroup};
 use crate::primitives::{Rule, ScrollBar, Surface};
 use crate::runtime::access::scope;
@@ -220,9 +220,19 @@ fn window_instance(props: &ContainerProps, id: Id) -> Option<Id> {
 }
 
 /// The scroll region of a container: its own, or for a layer the vertical one that takes the overflow of any fit
-/// (none when the body is one collection, which owns the scroll).
+/// (none when the body is one collection, which owns the scroll, or the overlay turns its body scroll off).
 fn scroll_of(props: &ContainerProps) -> Option<Scroll> {
-    props.scroll.or_else(|| overlay_of(props).filter(|_| !props.collection_body).map(|_| Scroll::vertical()))
+    props.scroll.or_else(|| overlay_of(props).filter(|overlay| overlay.body_scroll && !props.collection_body).map(|_| Scroll::vertical()))
+}
+
+/// Whether the footer sits in the end region: it asks to, and the container has one.
+fn footer_in_end(props: &ContainerProps) -> bool {
+    props.end.is_some() && props.footer.is_some_and(|footer| footer.place.in_end())
+}
+
+/// Whether the end region takes the full height under the header: it asks to, or the footer sits in it.
+fn end_full_height(props: &ContainerProps) -> bool {
+    props.end.is_some_and(|end| end.full_height) || footer_in_end(props)
 }
 
 /// The keyboard mode of a floating container (16.3): arrows move or resize it until Enter or Escape.
@@ -347,7 +357,8 @@ fn rect_of(parts: [f32; 4]) -> Rect {
 struct Regions {
     header: Rect,
     body: Rect,
-    /// The end region: the line's end edge, as high as the line. The whole line before it has a measured width.
+    /// The end region: the line's end edge, as high as the line or, full height, from under the header to the
+    /// container's bottom, less a footer placed in it.
     end: Rect,
     footer: Rect,
 }
@@ -393,10 +404,11 @@ pub(super) struct BodyHooks<'b> {
     pub(super) body: &'b mut dyn FnMut(&mut Ui, &mut BodyCx<'_>),
     /// The body's size from last frame's layout memory; `None` before its first run.
     remembered: Option<Vec2>,
-    header_last: Vec2,
+    /// The header's size from last pass; `None` without a header or before its first measure.
+    header_last: Option<Vec2>,
     footer_last: Vec2,
-    /// The end region's size from last pass, zero without one.
-    end_last: Vec2,
+    /// The end region's size from last pass; `None` without one or before its first measure.
+    end_last: Option<Vec2>,
     /// The gap between an inline header and the body, and between a header and its trailing region.
     region_gap: f32,
     /// How far the widest region wants to exceed the width the room allows, from this pass's measure.
@@ -653,9 +665,9 @@ impl<'b> BodyHooks<'b> {
         BodyHooks {
             body,
             remembered: None,
-            header_last: Vec2::ZERO,
+            header_last: None,
             footer_last: Vec2::ZERO,
-            end_last: Vec2::ZERO,
+            end_last: None,
             region_gap: 0.0,
             overflow: 0.0,
             room: Vec2::ZERO,
@@ -712,9 +724,9 @@ impl<'b> BodyHooks<'b> {
             took.is_some_and(|took| placed.is_none_or(|placed| (took - placed).abs().max_elem() > tolerance))
         };
         moved(self.body_size, self.remembered)
-            || moved(self.header_size, Some(self.header_last))
+            || moved(self.header_size, self.header_last)
             || moved(self.footer_size, Some(self.footer_last))
-            || moved(self.end_size, Some(self.end_last))
+            || moved(self.end_size, self.end_last)
     }
 
     /// A block whose regions took more than the extent its parent's flow placed it at claims what it took: on its
@@ -736,9 +748,7 @@ impl<'b> BodyHooks<'b> {
         }
         let (body, header, footer) =
             (self.body_size.unwrap_or(Vec2::ZERO), self.header_size.unwrap_or(Vec2::ZERO), self.footer_size.unwrap_or(Vec2::ZERO));
-        let end = self.end_size.unwrap_or(Vec2::ZERO);
-        let line = Vec2::new(body.x + if end.x > 0.0 { end.x + self.region_gap } else { 0.0 }, body.y.max(end.y));
-        let took = Vec2::new(line.x.max(header.x).max(footer.x), line.y + header.y + footer.y) + Vec2::splat(2.0 * pad);
+        let took = self.regions_size(props, body, header, footer, self.end_size.unwrap_or(Vec2::ZERO)) + Vec2::splat(2.0 * pad);
         let real = if rtl { Rect::from_min_size(Pos2::new(rect.max.x - took.x, rect.min.y), took) } else { Rect::from_min_size(rect.min, took) };
         // A held block took no width in the flow: it shows across the column, and only its content counts.
         let placed = if !held {
@@ -810,53 +820,78 @@ impl<'b> BodyHooks<'b> {
         if self.remembered.is_some() || size.x + 0.5 < ui.max_rect().width() { size } else { Vec2::new(0.0, size.y) }
     }
 
-    /// The width the regions ask for in a content-sized container: the widest of what each took last pass.
-    fn wanted_width(&self, inline: bool) -> Option<f32> {
+    /// The size the regions take together, from what the body, header, footer and end region took (zero for a region
+    /// the container lacks or that took the whole room). An inline header shares the line; a footer in the end region
+    /// stacks with its content; a full-height end region stands beside the body and the footer.
+    fn regions_size(&self, props: &ContainerProps, body: Vec2, header: Vec2, footer: Vec2, end: Vec2) -> Vec2 {
+        let in_end = footer_in_end(props);
+        let end = if in_end { Vec2::new(end.x.max(footer.x), end.y + footer.y) } else { end };
+        let across = if in_end { Vec2::ZERO } else { footer };
+        let gap = |width: f32| if width > 0.0 { width + self.region_gap } else { 0.0 };
+        let inline = props.header.is_some_and(|header| header.inline);
+        // The line: the body with an inline header before it.
+        let line = if inline { Vec2::new(body.x + gap(header.x), body.y.max(header.y)) } else { body };
+        let (width, height) = if end_full_height(props) {
+            (line.x.max(across.x) + gap(end.x), (line.y + across.y).max(end.y))
+        } else {
+            ((line.x + gap(end.x)).max(across.x), line.y.max(end.y) + across.y)
+        };
+        if inline { Vec2::new(width, height) } else { Vec2::new(width.max(header.x), height + header.y) }
+    }
+
+    /// The width the regions ask for in a content-sized container: what they took together last pass.
+    fn wanted_width(&self, props: &ContainerProps) -> Option<f32> {
         self.remembered.map(|body| {
-            let beside = body.x + if self.end_last.x > 0.0 { self.end_last.x + self.region_gap } else { 0.0 };
-            let line = if inline { beside + self.header_last.x + self.region_gap } else { beside.max(self.header_last.x) };
-            line.max(self.footer_last.x)
+            let (header, end) = (self.header_last.unwrap_or(Vec2::ZERO), self.end_last.unwrap_or(Vec2::ZERO));
+            self.regions_size(props, body, header, self.footer_last, end).x
         })
     }
 
     /// The width the header, body and footer share in a content-sized container: the widest region's, at most the
     /// room; the whole room before any pass.
-    fn shared_width(&self, room: f32, inline: bool) -> f32 {
-        self.wanted_width(inline).map_or(room.max(0.0), |wanted| wanted.min(room.max(0.0)))
+    fn shared_width(&self, room: f32, props: &ContainerProps) -> f32 {
+        self.wanted_width(props).map_or(room.max(0.0), |wanted| wanted.min(room.max(0.0)))
     }
 
     /// The regions inside `inner` (the rect minus padding and the padding tier), from last pass's sizes.
     fn regions(&self, props: &ContainerProps, inner: Rect, room: Vec2, rtl: bool) -> Regions {
         let inline = props.header.is_some_and(|header| header.inline);
-        let header_h = if props.header.is_some() { self.header_last.y } else { 0.0 };
+        let (in_end, full) = (footer_in_end(props), end_full_height(props));
+        let header_last = self.header_last.unwrap_or(Vec2::ZERO);
+        let header_h = if props.header.is_some() { header_last.y } else { 0.0 };
         let footer_h = if props.footer.is_some() { self.footer_last.y } else { 0.0 };
-        let end_h = if props.end.is_some() { self.end_last.y } else { 0.0 };
+        // A footer in the end region takes no band across the container: it stacks with the end region's content.
+        let across_h = if in_end { 0.0 } else { footer_h };
+        let end_h = self.end_last.map_or(0.0, |end| end.y) + if in_end { footer_h } else { 0.0 };
         // An inline header takes no height of its own: the line is as high as the taller of header and body.
         let stacked_h = if inline { 0.0 } else { header_h };
         let top = inner.min.y + stacked_h;
         let content_sized = self.sizing(props) == Sizing::Content;
         let (bottom, footer_top) = if content_sized {
-            let body_room = (room.y - stacked_h - footer_h).max(0.0);
+            let body_room = (room.y - stacked_h - across_h).max(0.0);
             // A body that fills records the band it was given, which may predate the footer's measure: the line is
             // never taller than the room less header and footer, so the footer stays inside the room.
             let body_h = (self.remembered.map_or(0.0, |size| size.y) * self.presence.t).min(body_room);
-            let line_h = if inline { body_h.max(header_h) } else { body_h }.max(end_h).min(body_room);
-            (top + body_room, top + line_h)
+            let line_h = if inline { body_h.max(header_h) } else { body_h };
+            // A full-height end region stands beside the footer too, so only the part of it under the line counts.
+            let end_line = if full { (end_h - across_h).max(0.0) } else { end_h };
+            (top + body_room, top + line_h.max(end_line).min(body_room))
         } else {
             // A fill-width body is offered the room the parent gives this pass, never the height its content took last
             // pass: a collection that scrolls takes its rows up to that room, and from zero it would stay at zero.
-            let offered = (self.sizing(props) == Sizing::FillWidth && room.y.is_finite()).then(|| top + (room.y - stacked_h - footer_h).max(0.0));
-            (offered.unwrap_or(inner.max.y - footer_h), inner.max.y - footer_h)
+            let offered = (self.sizing(props) == Sizing::FillWidth && room.y.is_finite()).then(|| top + (room.y - stacked_h - across_h).max(0.0));
+            (offered.unwrap_or(inner.max.y - across_h), inner.max.y - across_h)
         };
-        let width = if content_sized { self.shared_width(room.x, inline) } else { inner.width() };
+        let width = if content_sized { self.shared_width(room.x, props) } else { inner.width() };
         let (left, right) = if rtl { (inner.max.x - width, inner.max.x) } else { (inner.min.x, inner.min.x + width) };
         let band = |top: f32, bottom: f32| Rect::from_min_max(Pos2::new(left, top), Pos2::new(right, bottom.max(top)));
         let header = band(inner.min.y, if props.header.is_some() { inner.min.y + header_h.max(0.0) } else { inner.min.y });
         let mut body = band(top, bottom);
         let header = if inline {
-            // The header keeps the width it measured (the whole line before its first pass); the body takes the rest.
-            let head_w = if self.header_last.x > 0.0 { self.header_last.x.min(width) } else { width };
-            let cut = (head_w + self.region_gap).min(width);
+            // The header keeps the width it measured, none when it measured nothing; before its first measure it
+            // takes the whole line. The body takes the rest.
+            let head_w = self.header_last.map_or(width, |last| last.x.min(width));
+            let cut = if head_w > 0.0 { (head_w + self.region_gap).min(width) } else { 0.0 };
             if rtl {
                 body.max.x = right - cut;
                 Rect::from_min_max(Pos2::new(right - head_w, header.min.y), header.max)
@@ -867,22 +902,42 @@ impl<'b> BodyHooks<'b> {
         } else {
             header
         };
-        // The end region keeps the width it measured and takes the line's end edge; the body takes the rest. Before its
-        // first measure it spans the line and the body keeps its width.
-        let taken = if props.end.is_some() { self.end_last.x.min(width) } else { 0.0 };
+        // The end region keeps the width it measured (with a footer in it, the wider of the two) and takes the end
+        // edge; the body takes the rest. Before its first measure it spans the line and the body keeps its width.
+        let measured = props.end.and(self.end_last).map(|end| {
+            let footer_w = if in_end { self.footer_last.x } else { 0.0 };
+            end.x.max(footer_w).min(width)
+        });
+        let taken = measured.unwrap_or(0.0);
         let cut = if taken > 0.0 { taken + self.region_gap } else { 0.0 };
-        let measured = |edge: f32| if taken > 0.0 { edge } else { width };
-        let end = if rtl {
-            Rect::from_min_max(Pos2::new(left, top), Pos2::new(left + measured(taken), footer_top.max(top)))
+        let end_w = measured.unwrap_or(width);
+        let end_bottom = if full { footer_top + across_h } else { footer_top };
+        let mut end = if rtl {
+            Rect::from_min_max(Pos2::new(left, top), Pos2::new(left + end_w, end_bottom.max(top)))
         } else {
-            Rect::from_min_max(Pos2::new(right - measured(taken), top), Pos2::new(right, footer_top.max(top)))
+            Rect::from_min_max(Pos2::new(right - end_w, top), Pos2::new(right, end_bottom.max(top)))
         };
         if rtl {
             body.min.x = (body.min.x + cut).min(body.max.x);
         } else {
             body.max.x = (body.max.x - cut).max(body.min.x);
         }
-        Regions { header, body, end, footer: band(footer_top, footer_top + footer_h) }
+        let footer = match props.footer.map(|footer| footer.place) {
+            Some(FooterPlace::EndTop) if in_end => {
+                let footer = Rect::from_min_max(end.min, Pos2::new(end.max.x, (end.min.y + footer_h).min(end.max.y)));
+                end.min.y = footer.max.y;
+                footer
+            }
+            _ if in_end => {
+                let footer = Rect::from_min_max(Pos2::new(end.min.x, (end.max.y - footer_h).max(end.min.y)), end.max);
+                end.max.y = footer.min.y;
+                footer
+            }
+            // Beside a full-height end region the footer lies under the body only.
+            _ if full && props.end.is_some() => Rect::from_min_max(Pos2::new(body.min.x, footer_top), Pos2::new(body.max.x, footer_top + footer_h)),
+            _ => band(footer_top, footer_top + footer_h),
+        };
+        Regions { header, body, end, footer }
     }
 
     /// The room a content-sized body runs in: what the mount offers, less the padding.
@@ -1040,9 +1095,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         // The overlay host decides a layer's Escape; so does a full-window mount's.
         self.layer = matches!(props.mount, Mount::Layer(_) | Mount::Viewport { .. } | Mount::FullWindow);
         self.remembered = layout_memory::read(&ctx, id);
-        self.header_last = if has_header { layout_memory::read(&ctx, sub(id, "header")).unwrap_or(Vec2::ZERO) } else { Vec2::ZERO };
+        self.header_last = if has_header { layout_memory::read(&ctx, sub(id, "header")) } else { None };
         self.footer_last = if has_footer { layout_memory::read(&ctx, sub(id, "footer")).unwrap_or(Vec2::ZERO) } else { Vec2::ZERO };
-        self.end_last = if props.end.is_some() { layout_memory::read(&ctx, sub(id, "end")).unwrap_or(Vec2::ZERO) } else { Vec2::ZERO };
+        self.end_last = if props.end.is_some() { layout_memory::read(&ctx, sub(id, "end")) } else { None };
         self.region_gap = gap_of(&env.tokens, Gap::Tight);
         if !matches!(props.mount, Mount::Inline | Mount::Pane(_))
             && let Some(why) = crate::runtime::overlay::take_close(&ctx, id)
@@ -1155,11 +1210,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let remembered = self.remembered.unwrap_or(Vec2::ZERO);
         let body = if self.presence.visible { Vec2::new(remembered.x, remembered.y * self.presence.t) } else { Vec2::ZERO };
         let room = self.room.x - 2.0 * pad_of(scx.tokens, props.pad);
-        let inline = props.header.is_some_and(|header| header.inline);
-        let width = if self.remembered.is_some() { self.shared_width(room, inline) } else { 0.0 };
-        self.overflow = self.wanted_width(inline).map_or(0.0, |wanted| (wanted - room.max(0.0)).max(0.0));
-        let line = body.y.max(self.end_last.y);
-        let height = if inline { line.max(self.header_last.y) } else { line + self.header_last.y } + self.footer_last.y;
+        let width = if self.remembered.is_some() { self.shared_width(room, props) } else { 0.0 };
+        self.overflow = self.wanted_width(props).map_or(0.0, |wanted| (wanted - room.max(0.0)).max(0.0));
+        let (header, end) = (self.header_last.unwrap_or(Vec2::ZERO), self.end_last.unwrap_or(Vec2::ZERO));
+        let height = self.regions_size(props, body, header, self.footer_last, end).y;
         Vec2::new(width, height) + Vec2::splat(2.0 * pad_of(scx.tokens, props.pad))
     }
 
@@ -1470,9 +1524,12 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                             if scroll.vertical_on() { took.y.min(at.height()) } else { took.y },
                         ))
                     }
+                    // A row that places its block itself asks for its children's width, not the room it spans.
                     None => {
-                        layout::run_body(&mut body_ui, layout_id, layout, gap, |ui| shared_labels(ui, id, label_column, room.x, |ui| body(ui, bcx)));
-                        None
+                        let (_, natural) = layout::run_body_measured(&mut body_ui, layout_id, layout, gap, |ui| {
+                            shared_labels(ui, id, label_column, room.x, |ui| body(ui, bcx))
+                        });
+                        natural.map(|width| Vec2::new(width, body_ui.min_rect().height()))
                     }
                 };
                 Env::restore(&ctx, installed);
@@ -1511,9 +1568,11 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             if props.end.is_some() {
                 let mut end_cx = BodyCx::new(body_id, line_env.view(), resolved, regions.end, &mut *cx.core.memory, &mut open, gate.as_mut())
                     .with_field_message(field_message.clone());
-                // The controls run in reading order, so their roving order is their order on the line; the region is
-                // as wide as they measured, so the last one sits at the end edge.
-                let layout = if rtl { Layout::right_to_left(Align::Center) } else { Layout::left_to_right(Align::Center) };
+                // The content runs in reading order, so its roving order is its order on the line; the region is as
+                // wide as it measured, so the last child sits at the end edge. On the line it is centred; a
+                // full-height region starts at its top.
+                let cross = if end_full_height(&props) { Align::Min } else { Align::Center };
+                let layout = if rtl { Layout::right_to_left(cross) } else { Layout::left_to_right(cross) };
                 let builder = UiBuilder::new().max_rect(regions.end).layout(layout).scope_id(sub(id, "end"));
                 let builder = if node { access::with_parent(builder, id) } else { builder };
                 let mut end_ui = alloc::child(ui, builder);
@@ -1547,7 +1606,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             let mut bcx = BodyCx::new(body_id, env_view, resolved, footer_rect, &mut *cx.core.memory, &mut open, gate.as_mut())
                 .with_field_message(field_message);
             let mut footer_ui = alloc::child(ui, frame.region("footer", footer_rect));
-            let installed = Env::install_for(&footer_ui, region_env.clone());
+            // A footer in the end region is part of a column sized from its content: a fill-width child takes its
+            // measured width there and shows across the column, so it never sets the column's width.
+            let footer_env = if footer_in_end(&props) { region_env.derive_local(|scoped| scoped.content_column = true) } else { region_env.clone() };
+            let installed = Env::install_for(&footer_ui, footer_env);
             comp.footer(&mut footer_ui, &mut bcx);
             Env::restore(&ctx, installed);
             close = close.or(bcx.close_requested());
@@ -1598,12 +1660,18 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let rule = rule_look(&env.tokens, RuleKind::Divider);
         let ppp = ctx.pixels_per_point();
         self.claim_extent(&props, ui, env, rect, pad, rtl);
-        let draw_rule = |y: f32| ui.painter().extend(Rule::shapes(&rule, Pos2::new(inner.min.x, y), Pos2::new(inner.max.x, y), ppp));
+        let draw_rule = |from: f32, to: f32, y: f32| ui.painter().extend(Rule::shapes(&rule, Pos2::new(from, y), Pos2::new(to, y), ppp));
         if props.header.is_some_and(|header| header.rule && !header.inline) {
-            draw_rule(regions.header.max.y);
+            draw_rule(inner.min.x, inner.max.x, regions.header.max.y);
         }
-        if props.footer.is_some_and(|footer| footer.rule) {
-            draw_rule(regions.footer.min.y);
+        // A footer across the container rules the whole width; one beside or in the end region rules its own.
+        match props.footer.filter(|footer| footer.rule) {
+            Some(footer) if footer.place == FooterPlace::EndTop && footer_in_end(&props) => {
+                draw_rule(regions.footer.min.x, regions.footer.max.x, regions.footer.max.y);
+            }
+            Some(_) if end_full_height(&props) => draw_rule(regions.footer.min.x, regions.footer.max.x, regions.footer.min.y),
+            Some(_) => draw_rule(inner.min.x, inner.max.x, regions.footer.min.y),
+            None => {}
         }
     }
 

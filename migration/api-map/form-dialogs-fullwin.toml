@@ -8,27 +8,28 @@ name = "FullWindowSide"
 old = "craft_ui::dialog::full_window::FullWindowSide"
 new = "craft_ui::dialog::FullWindowSide"
 status = "replaced"
-note = "A container: `FullWindowSide::new(title).width(SideWidth::Wide).footer(SideFooter::bottom(buttons)).show(ui, |ui, cx| ..)`. It takes no id, `FullWindowFx` or `FullWindowStyle`; the width comes from `SideWidth`, the name is the title."
+note = "A container shown in `FullWindowDialog::sides(|ui, cx| ..)`: `FullWindowSide::new(title).show(ui, |ui, cx| ..)`. It takes no id, `FullWindowFx` or `FullWindowStyle`; it sizes from its content, the name is the title, and it has no footer of its own (the dialog's buttons sit in the dialog's footer, placed by `FullWindowDialog::side_footer`)."
 
 [[type]]
 name = "SideWidth"
 old = "craft_ui::dialog::full_window::SideWidth"
-new = "craft_ui::dialog::SideWidth"
-status = "moved"
+new = ""
+status = "removed"
+note = "A side column sizes from its content; there are no side-width tokens."
 
 [[type]]
 name = "SideFooter"
 old = "craft_ui::dialog::full_window::SideFooter"
 new = "craft_ui::dialog::SideFooter"
 status = "replaced"
-note = "`SideFooter::bottom(buttons)` or `top(buttons)` with `leading(|ui| ..)`; the buttons are `FooterButton`s and the pick is `FullWindowSideOutput::picked`."
+note = "Where the dialog's footer sits among the side columns: `FullWindowDialog::side_footer(SideFooter::bottom().leading(|ui| ..))` or `SideFooter::top()`. The buttons are the dialog's (`FullWindowDialog::buttons`), and the pick is `DialogOutput::picked`."
 
 [[type]]
 name = "FullWindowSideOutput"
 old = "craft_ui::dialog::full_window::FullWindowSideOutput"
 new = "craft_ui::dialog::FullWindowSideOutput"
 status = "replaced"
-note = "`response` and `picked`; the footer's `FooterButtonsResponse` is gone."
+note = "`response`; the pick is the dialog's `DialogOutput::picked`, and the footer's `FooterButtonsResponse` is gone."
 
 [[type]]
 name = "FullWindowZoomBar"
@@ -159,12 +160,25 @@ new = "unscrolled()"
 type = "FullWindowSide"
 old = "show(ui, fx, body)"
 new = "show(ui, |ui, cx| body)"
-note = "The footer buttons are `footer(SideFooter)`; `FullWindowFx` is gone."
+note = "The footer buttons are the dialog's `buttons(..)`, placed among the side columns by `FullWindowDialog::side_footer(SideFooter)`; `FullWindowFx` is gone."
 
 [[setter]]
 type = "SideFooter"
 old = "SideFooter::bottom(Vec<FooterButton>)"
-new = "SideFooter::bottom(impl IntoIterator<Item = FooterButton>)"
+new = "SideFooter::bottom()"
+note = "The buttons go to `FullWindowDialog::buttons(..)`; `top(buttons)` is `top()` the same way."
+
+[[setter]]
+type = "FullWindowSide"
+old = "width(SideWidth)"
+new = ""
+note = "Removed: the column sizes from its content."
+
+[[setter]]
+type = "FullWindowSide"
+old = "footer(SideFooter)"
+new = "FullWindowDialog::side_footer(SideFooter)"
+note = "The footer is the dialog's; the columns go in `FullWindowDialog::sides(|ui, cx| ..)`."
 
 [[setter]]
 type = "FullWindowZoomBar"
