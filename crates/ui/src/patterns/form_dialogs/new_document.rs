@@ -13,6 +13,7 @@ use crate::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id}
 use crate::layout_components::{Grid, Stack};
 use crate::patterns::presets::{GroupPath, PresetLibrary, PresetWords as LibraryWords};
 use crate::runtime::env::{Env, Label, UnitKind, Units};
+use crate::runtime::memory::{MemoryStage, unique};
 use crate::runtime::overlay::CloseReason;
 use craft_behavior::{ColumnWidth, PixelSize};
 use craft_theme::Srgba;
@@ -21,10 +22,10 @@ use egui::{Response, Ui};
 use cards::{Left, TabId};
 use details::Right;
 
+pub(crate) use presets::push_recent;
 pub use presets::{
     BackgroundContents, BitDepth, ColorMode, ColorProfiles, DocumentOptions, DocumentPreset, NewDocumentPresetWords, Orientation, PresetCategory,
 };
-pub(crate) use presets::push_recent;
 
 /// The key of the colour request Custom makes.
 pub const BACKGROUND_COLOR_KEY: &str = "newDocument.backgroundColor";
@@ -263,6 +264,28 @@ fn background_rgb(background: BackgroundContents, app_background: [f32; 3]) -> O
     }
 }
 
+/// The settings a Create answers with, and the recent list to keep once the document exists.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct NewDocumentResult {
+    /// The settings to create the document from, under the name trimmed.
+    pub options: DocumentOptions,
+    remember: Option<(SaveKey, Vec<DocumentOptions>)>,
+}
+
+impl NewDocumentResult {
+    /// Stores the recent list of a dialog built with [`NewDocumentDialog::remember_recent`], with these settings first,
+    /// for the next open. The app calls it after its create command succeeds, so a failed command leaves the list as
+    /// it was; without a key it does nothing.
+    pub fn remember(&self, ui: &Ui) {
+        if let Some((key, list)) = &self.remember {
+            let mut stage = MemoryStage::open(ui.ctx(), unique(("craft_ui::new_document_recent", key.as_str())));
+            *stage.saved::<Vec<DocumentOptions>>(key) = list.clone();
+            stage.write_back();
+        }
+    }
+}
+
 /// What the dialog reports.
 #[derive(Debug)]
 #[non_exhaustive]
@@ -271,9 +294,9 @@ pub struct NewDocumentOutput {
     pub response: Response,
     /// How the dialog closed in this pass; `None` while it stays open.
     pub closed: Option<CloseReason>,
-    /// The settings to create the document from, the pass the dialog closed as Create. The app adds them to its recent
-    /// list with [`push_recent`] and keeps them as the settings the next dialog opens on.
-    pub result: Option<DocumentOptions>,
+    /// The settings to create the document from, the pass the dialog closed as Create. The app keeps `options` as the
+    /// settings the next dialog opens on and calls [`NewDocumentResult::remember`] after its create command succeeds.
+    pub result: Option<NewDocumentResult>,
     /// What the body asked of the host in this pass: the background colour the app's picker is asked for (Custom was
     /// chosen or the colour button pressed), keyed `BACKGROUND_COLOR_KEY`. The app answers with
     /// [`NewDocumentDialog::answers`].
@@ -372,8 +395,7 @@ fn body(ui: &mut Ui, form: &mut FormCx<'_, '_>, values: &mut DocumentOptions, sh
 /// File > New: category tabs over a grid of preset cards, a details column and Create and Close.
 ///
 /// - Tabs: Recent, the categories and Saved. Recent lists the clipboard's image size first when the app gives one,
-///   then the recent documents the app passes with [`recent`](NewDocumentDialog::recent) (up to 20 are worth keeping
-///   with [`push_recent`]), then the built-in defaults not yet among them. Saved lists the user's presets in a list
+///   then the recent documents kept under [`remember_recent`](NewDocumentDialog::remember_recent) (the last 20), then the built-in defaults not yet among them. Saved lists the user's presets in a list
 ///   whose Delete key removes the picked ones, with "No saved presets yet." when there are none.
 /// - Cards: a click or an arrow fills the details; Enter on a card or a double click creates. A built-in card turns with
 ///   the orientation control. Saved and recent cards restore every setting but the name.
@@ -388,7 +410,7 @@ fn body(ui: &mut Ui, form: &mut FormCx<'_, '_>, values: &mut DocumentOptions, sh
 ///   its edits back. Create answers with `result`, the same settings under the name trimmed.
 /// - Custom under Background Contents, or the colour button, asks the app for a colour: the output's `requests` carries
 ///   the colour request for one pass, and the app answers with `answers`.
-/// - Memory: the saved presets are kept across runs. The recent documents and the last created settings are the app's.
+/// - Memory: the saved presets are kept across runs. The recent documents are kept under `remember_recent`; the last created settings are the app's.
 #[must_use = "show the dialog with `show`"]
 #[derive(crate::contract::Pattern, crate::contract::Props)]
 pub struct NewDocumentDialog<'a> {
@@ -403,9 +425,10 @@ pub struct NewDocumentDialog<'a> {
     /// the id `"default"` is named "Default {app} Size".
     #[prop]
     recent_defaults: Vec<DocumentPreset>,
-    /// The documents created lately, newest first.
+    /// Keeps the documents created lately, newest first, under `key`, and lists them in Recent. The result's
+    /// [`NewDocumentResult::remember`] stores the list with the created settings added.
     #[prop]
-    recent: Vec<DocumentOptions>,
+    remember_recent: Option<SaveKey>,
     /// The clipboard holds an image of this size: Recent shows a Clipboard card first and the dialog opens on it.
     #[prop]
     clipboard: Option<PixelSize>,
@@ -441,7 +464,7 @@ impl<'a> NewDocumentDialog<'a> {
             open: None,
             categories: PresetCategory::standard(),
             recent_defaults: PresetCategory::default_recent(),
-            recent: Vec::new(),
+            remember_recent: None,
             clipboard: None,
             background_color: None,
             print_resolution: 300.0,
@@ -460,7 +483,7 @@ impl<'a> NewDocumentDialog<'a> {
             open,
             categories,
             recent_defaults,
-            recent,
+            remember_recent,
             clipboard,
             background_color,
             print_resolution,
@@ -470,6 +493,7 @@ impl<'a> NewDocumentDialog<'a> {
             remember,
             answers,
         } = self;
+        let recent: Vec<DocumentOptions> = remember_recent.as_ref().map_or_else(Vec::new, |key| MemoryStage::peek_saved(ui.ctx(), key));
         let env = Env::of(ui);
         let words = env.words::<NewDocumentWords>();
         let preset_words = env.words::<NewDocumentPresetWords>();
@@ -507,7 +531,15 @@ impl<'a> NewDocumentDialog<'a> {
         NewDocumentOutput {
             response: shown.response,
             closed: shown.closed,
-            result: shown.accepted.map(|options| finish(options, &untitled)),
+            result: shown.accepted.map(|options| {
+                let options = finish(options, &untitled);
+                let remember = remember_recent.map(|key| {
+                    let mut list = setup.recent.clone();
+                    push_recent(&mut list, DocumentOptions { name: String::new(), ..options.clone() }, presets::MAX_RECENT);
+                    (key, list)
+                });
+                NewDocumentResult { options, remember }
+            }),
             requests: shown.requests,
         }
     }
@@ -515,13 +547,12 @@ impl<'a> NewDocumentDialog<'a> {
 
 type Build = dyn for<'b> Fn(&'b mut DocumentOptions) -> NewDocumentDialog<'b> + Send;
 
-/// A [`NewDocumentDialog`] the [`DialogHost`](crate::dialog::DialogHost) owns: the host keeps the settings, the recent
-/// documents and the colour request, and `build` makes the dialog over the settings each pass.
+/// A [`NewDocumentDialog`] the [`DialogHost`](crate::dialog::DialogHost) owns: the host keeps the settings and the colour request, and `build` makes the dialog over the settings each pass.
 ///
 /// ```ignore
 /// host.open(HostedNewDocument::new(last_created, |options| {
 ///     NewDocumentDialog::new(Bind::bound(options)).clipboard(size).app_name("PhotoCraft")
-/// }).recent(recent));
+/// }));
 /// // each pass, for a colour request:
 /// if let Some(dialog) = host.get_mut::<HostedNewDocument>() {
 ///     if let Some(request) = dialog.pick_color() { /* open the colour picker, then */ dialog.set_color(&request.key, color); }
@@ -530,7 +561,6 @@ type Build = dyn for<'b> Fn(&'b mut DocumentOptions) -> NewDocumentDialog<'b> + 
 pub struct HostedNewDocument {
     id: DialogId,
     options: DocumentOptions,
-    recent: Vec<DocumentOptions>,
     build: Box<Build>,
     requests: HostRequests,
 }
@@ -539,19 +569,7 @@ impl HostedNewDocument {
     /// A hosted dialog opening on `options`; `build` makes the dialog over them (the clipboard, the profiles, the
     /// app's name).
     pub fn new(options: DocumentOptions, build: impl for<'b> Fn(&'b mut DocumentOptions) -> NewDocumentDialog<'b> + Send + 'static) -> Self {
-        HostedNewDocument { id: dialog_id("new-document"), options, recent: Vec::new(), build: Box::new(build), requests: HostRequests::new() }
-    }
-
-    /// The documents created lately, newest first.
-    #[must_use]
-    pub fn recent(mut self, recent: Vec<DocumentOptions>) -> Self {
-        self.recent = recent;
-        self
-    }
-
-    /// The recent documents, with the one the dialog created added.
-    pub fn recents(&self) -> &[DocumentOptions] {
-        &self.recent
+        HostedNewDocument { id: dialog_id("new-document"), options, build: Box::new(build), requests: HostRequests::new() }
     }
 
     /// The settings the details column shows.
@@ -577,22 +595,17 @@ impl HostedNewDocument {
 }
 
 impl StackDialog for HostedNewDocument {
-    type Result = DocumentOptions;
+    type Result = NewDocumentResult;
 
     fn id(&self) -> DialogId {
         self.id
     }
 
-    fn show(&mut self, ui: &mut Ui, _: &DialogStack) -> Option<DialogResult<DocumentOptions>> {
-        let shown = (self.build)(&mut self.options).recent(self.recent.clone()).answers(self.requests.take_answers()).show(ui);
+    fn show(&mut self, ui: &mut Ui, _: &DialogStack) -> Option<DialogResult<NewDocumentResult>> {
+        let shown = (self.build)(&mut self.options).answers(self.requests.take_answers()).show(ui);
         self.requests.extend(shown.requests);
         match (shown.result, shown.closed) {
-            (Some(result), _) => {
-                let mut remembered = result.clone();
-                remembered.name.clear();
-                push_recent(&mut self.recent, remembered, presets::MAX_RECENT);
-                Some(DialogResult::Ok(result))
-            }
+            (Some(result), _) => Some(DialogResult::Ok(result)),
             (None, Some(_)) => {
                 self.requests.cancel();
                 Some(DialogResult::Cancel)

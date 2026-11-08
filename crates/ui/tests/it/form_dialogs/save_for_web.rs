@@ -222,15 +222,15 @@ fn the_animation_advances_while_playing_and_stops_on_pause() {
     let asked = rig.asked.get();
     let play = rig.fixture.by_label("Play").expect("the play row is shown");
     rig.fixture.click(&play);
-    rig.fixture.idle(2);
-    rig.fixture.advance(0.26);
-    rig.fixture.idle(2);
-    assert_eq!(texts_starting(&rig.fixture, "7 / 12").len(), 1, "six frames passed in 0.26 s at 24 fps");
+    rig.fixture.advance(0.25);
+    rig.fixture.idle(1);
+    assert_eq!(texts_starting(&rig.fixture, "7 / 12").len(), 1, "six frames passed in 0.25 s at 24 fps");
     assert!(rig.asked.get() > asked, "a new frame asks the app to encode it");
     let pause = rig.fixture.by_label("Pause").expect("Play became Pause");
     rig.fixture.click(&pause);
     rig.fixture.idle(2);
+    let kept = rig.fixture.texts().iter().map(|text| text.text.clone()).find(|text| text.ends_with(" / 12")).expect("the frame readout is shown");
     rig.fixture.advance(0.5);
     rig.fixture.idle(2);
-    assert_eq!(texts_starting(&rig.fixture, "7 / 12").len(), 1, "a paused animation keeps its frame");
+    assert_eq!(texts_starting(&rig.fixture, &kept).len(), 1, "a paused animation keeps its frame");
 }

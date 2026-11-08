@@ -187,3 +187,20 @@ fn cancel_or_escape_takes_the_dialogs_field_edits_back() {
         assert!(matches!(app.outer[..], [OuterEdit::Begin { id: first, .. }, _, OuterEdit::Begin { id: second, .. }] if first != second));
     }
 }
+
+/// A modeless dialog with `outer_gesture` holds none: its open time would fold edits made elsewhere into the step.
+#[trial]
+fn a_modeless_dialog_emits_no_outer_edit() {
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let kept = seen.clone();
+    let mut open = true;
+    let mut fixture = Fixture::new(move |ui| {
+        kept.borrow_mut().extend(take_output(ui.ctx()).outer_edits);
+        Dialog::new(TITLE).opened(Bind::bound(&mut open)).modeless().outer_gesture(true).show(ui, |ui, _| {
+            Checkbox::new(Bind::given(false)).label("Snap").show(ui);
+        });
+    });
+    fixture.settle();
+    assert!(fixture.control("Snap").is_some(), "the modeless dialog is shown");
+    assert!(seen.borrow().is_empty(), "no outer gesture: {:?}", seen.borrow());
+}
