@@ -337,10 +337,10 @@ impl<'a> ClipLane<'a> {
     /// trims. A locked track registers hover only.
     pub fn parts<C: Component>(&self, lane: Rect, axis: &TimeAxis, look: &ClipLook, cx: &mut PartsCx<'_, C>) {
         let geometry = self.geometry(axis, lane, look);
-        let sense = if self.locked { Sense::HOVER } else { Sense::CLICK | Sense::DRAG | Sense::CONTEXT_CLICK };
+        let sense = if self.locked { Sense::HOVER } else { Sense::CLICK | Sense::DRAG | Sense::CONTEXT_CLICK | Sense::TAKE_FOCUS };
         if !self.locked {
             cx.part(BACKDROP, lane)
-                .sense(Sense::DRAG)
+                .sense(Sense::DRAG | Sense::TAKE_FOCUS)
                 .priority(BACKDROP_PRIORITY)
                 .pointer_only("the clips' own keys and the selection commands pick without the pointer");
         }

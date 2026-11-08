@@ -388,264 +388,42 @@ impl Mapping<'_> {
     /// The label menu of the track in this pane whose strip was clicked: None, then the sixteen names.
     fn label_menu(&self, ui: &mut Ui, anchor: &Response, memory: &mut Memory, edits: &mut Vec<TimelineEdit>) {
         let Some(track) = memory.label_menu.and_then(|id| self.pane.iter().find(|track| track.id == id)) else { return };
-        let current = track.label;
-        let words = self.words;
-        let mut open = memory.label_open;
-        let menu = Menu::context(words.track_color.clone(), anchor).open(Bind::bound(&mut open)).show(ui, |ui, _| {
-            let mut chosen = None;
-            if MenuItem::new(words.no_label.clone()).check(current.is_none()).show(ui).ran {
-                chosen = Some(None);
-            }
-            for n in 0..=u8::MAX.min(15) {
-                let label = MarkerColor(n);
-                let swatch = IconSpec::swatch(craft_theme::Srgba::from(self.palette.0[usize::from(n) % self.palette.0.len()]));
-                if MenuItem::new(words.label_name(label).to_owned()).icon(swatch).check(current == Some(label)).show(ui).ran {
-                    chosen = Some(Some(label));
-                }
-            }
-            chosen
-        });
-        if let Some(Some(label)) = menu.inner {
+        let (chosen, closed) = label_menu(ui, self.words, self.palette, track.label, anchor, &mut memory.label_open);
+        if let Some(label) = chosen {
             edits.push(TimelineEdit::Label { track: track.id, label });
         }
-        memory.label_open = open;
-        if menu.output.closed.is_some() {
+        if closed {
             memory.label_menu = None;
             memory.label_open = false;
         }
     }
 }
 
-impl<M: TimelineModel> Timeline<'_, M> {
-    /// Shows the panel and reports what the user did.
-    pub fn show(self, ui: &mut Ui) -> TimelineOutput {
-        let Timeline { label, model, tool, snap, linked_selection, no_modifier_trims, follow, playing, header_width, divider, content } = self;
-        let env = Env::of(ui);
-        let words = env.words::<TimelineWords>();
-        let mut edits: Vec<TimelineEdit> = Vec::new();
-        let mut toolbar: Option<TimelineToolbar> = None;
-        let view = *model.view();
-
-        let mut selected_clip: Option<(TrackId, Rect)> = None;
-        let output = {
-            let model: &M = &*model;
-            let tracks = model.tracks();
-            let format = model.format();
-            let (duration, playhead) = (model.duration(), model.playhead());
-            let selection = model.selection().to_vec();
-            let points = model.edit_points();
-            let markers = model.markers();
-            let (mark_in, mark_out) = model.in_out();
-            let work_area = model.work_area();
-            let visible = TimeRange::from_bounds(view.start, view.time_at(ui.available_width(), 0.0));
-            let clips: Vec<Vec<ClipInfo<'_>>> = tracks.iter().map(|track| model.clips(track.id, visible)).collect();
-            let targets = snap.then(|| {
-                let mut targets = SnapTargets::new();
-                targets.ranges(clips.iter().flatten().map(|clip| clip.range));
-                targets.push(playhead);
-                targets.extend(markers.iter().map(|marker| marker.start));
-                targets.extend(mark_in.into_iter().chain(mark_out));
-                targets.ranges(work_area);
-                targets
-            });
-            let of_kind = |keep: fn(TrackKind) -> bool| -> Vec<usize> { (0..tracks.len()).filter(|&i| keep(tracks[i].kind)).collect() };
-            let panes = [
-                (Side::Caption, of_kind(|kind| kind == TrackKind::Caption)),
-                (Side::Upper, of_kind(|kind| kind == TrackKind::Video)),
-                (Side::Lower, of_kind(|kind| !matches!(kind, TrackKind::Caption | TrackKind::Video))),
-            ];
-            let shared = Panes {
-                words: &words,
-                name: header_width,
-                selection: &selection,
-                targets: targets.as_ref(),
-                tool,
-                no_modifier_trims,
-                content: content.as_ref(),
-                clips: &clips,
-            };
-            let palette = label_palette(&env.view());
-            let mut timecode_edit: Option<EditEvent<Tick>> = None;
-            let mut ruler_edits: Vec<TimelineEdit> = Vec::new();
-            let mut ruler_snapped: Option<Tick> = None;
-
-            let overlay = Overlay::default();
-            let area = TimelineView::new(label, Bind::given(view), format, duration)
-                .headers(true)
-                .follow(follow, playing, playhead)
-                .edit_points(&points)
-                .overlay(&overlay);
-            let area = match header_width {
-                Some(width) => area.header_width(width),
-                None => area,
-            };
-            let shown = area.show(ui, |ui, cx| {
-                TopStrip::new().show(ui, |ui, _| {
-                    Stack::new().show(ui, |ui, _| {
-                        let field = TimecodeField::new(words.panel.clone(), Bind::given(playhead), format).large().show(ui);
-                        timecode_edit = field.edit.event;
-                        toolbar = toolbar_row(ui, &words, snap, linked_selection, markers, playhead);
-                    });
-                    Stack::new().show(ui, |ui, _| {
-                        let strip = MarkerStrip::new(words.overview.clone(), markers);
-                        let strip = match shared.targets {
-                            Some(targets) => strip.snap(targets),
-                            None => strip,
-                        };
-                        let strip = strip.show(ui);
-                        ruler_edits.extend(strip.span.event.clone().map(TimelineEdit::MarkerSpan));
-                        ruler_edits.extend(strip.edits.into_iter().map(TimelineEdit::Marker));
-                        let ruler = TimelineRuler::new(words.overview.clone(), Bind::given(playhead)).in_out((mark_in, mark_out));
-                        let ruler = match work_area {
-                            Some(range) => ruler.work_area(range),
-                            None => ruler,
-                        };
-                        let ruler = ruler.show(ui);
-                        ruler_edits.extend(ruler.playhead.event.map(TimelineEdit::Playhead));
-                        ruler_edits.extend(ruler.work_area.map(TimelineEdit::WorkArea));
-                        ruler_snapped = ruler.snapped_at;
-                    });
-                });
-                let mut memory = std::mem::take(cx.keep::<Memory>());
-                let mut reports = Reports { snapped: ruler_snapped, ..Reports::default() };
-                let mut pane_rects: Vec<Rect> = Vec::new();
-                let both = !panes[1].1.is_empty() && !panes[2].1.is_empty();
-                let sizes = cx.style::<TimelineView<'_>>().map(TimelineViewStyle::sizes);
-                let share = divider.unwrap_or(DIVIDER_SHARE_DEFAULT).clamp(DIVIDER_SHARE_MIN, DIVIDER_SHARE_MAX);
-                for (side, indices) in &panes {
-                    if indices.is_empty() {
-                        continue;
-                    }
-                    let pane: Vec<TrackInfo<'_>> = indices.iter().map(|&i| tracks[i].clone()).collect();
-                    // Both sides of the divider: the video side takes its share of the room, the audio side the rest.
-                    let room = ui.available_height();
-                    let out = if let (Side::Caption, Some(sizes)) = (*side, sizes) {
-                        // The caption tracks take their own height, so the video and audio panes keep the rest.
-                        let area = ui.available_rect_before_wrap();
-                        let height = pane.iter().map(|track| sizes.height_of(track)).sum::<f32>().min(room);
-                        let own = Rect::from_min_size(area.min, Vec2::new(area.width(), height));
-                        Stack::new().show_at_taking_room(ui, own, |ui, _| shared.show(ui, *side, &pane, indices)).inner
-                    } else if *side == Side::Upper && both {
-                        let area = ui.available_rect_before_wrap();
-                        let own = Rect::from_min_size(area.min, Vec2::new(area.width(), room * share));
-                        Stack::new().show_at_taking_room(ui, own, |ui, _| shared.show(ui, *side, &pane, indices)).inner
-                    } else {
-                        Some(shared.show(ui, *side, &pane, indices))
-                    };
-                    let Some(out) = out else { continue };
-                    pane_rects.push(out.response.rect);
-                    let mapping = Mapping { pane: &pane, words: &words, name: header_width, palette: &palette };
-                    mapping.collect(&out, &mut edits, &mut memory, &mut reports);
-                    let lane_left = pane_lane_left(&out);
-                    if !selection.is_empty()
-                        && clicked_lane_space(&out, lane_left)
-                        && !ui.input(|input| input.modifiers.shift || input.modifiers.command)
-                    {
-                        edits.push(TimelineEdit::Select { change: SelectionChange::Clear, unlinked: false });
-                    }
-                    mapping.label_menu(ui, &out.response, &mut memory, &mut edits);
-                    if *side == Side::Upper && both {
-                        let divided = Divider::new(words.divider.clone(), Bind::given(share), room).show(ui);
-                        edits.extend(divided.event.map(TimelineEdit::Divider));
-                    }
-                }
-                let placed = placed_rows(&panes, &tracks, &reports.places);
-                if let Some((dragged, pointer)) = reports.drag {
-                    let bounds = pane_rects
-                        .iter()
-                        .fold((f32::INFINITY, f32::NEG_INFINITY), |(top, bottom), rect| (top.min(rect.top()), bottom.max(rect.bottom())));
-                    let moved = edits.iter().find_map(|edit| match edit {
-                        TimelineEdit::Clip(event) => match event.value() {
-                            Some(ClipEdit::Move { clips, .. }) => Some(clips.clone()),
-                            _ => None,
-                        },
-                        _ => None,
-                    });
-                    if let Some(moved) = moved {
-                        let everything = TimeRange::from_bounds(Tick::ZERO, Tick::MAX);
-                        let own = |row: &PlacedRow| tracks[row.track].id == dragged;
-                        let holds = |row: &PlacedRow| model.clips(tracks[row.track].id, everything).iter().any(|clip| moved.contains(&clip.id));
-                        let sources: Vec<RowGeom> = placed
-                            .iter()
-                            .filter(|row| own(row))
-                            .chain(placed.iter().filter(|row| !own(row) && holds(row)))
-                            .map(|row| row.geom)
-                            .collect();
-                        let rows: Vec<RowGeom> = placed.iter().map(|row| row.geom).collect();
-                        let target = resolve_move(&rows, &sources, pointer.y, bounds);
-                        for edit in &mut edits {
-                            if let TimelineEdit::Clip(event) = edit {
-                                retarget(event, target);
-                            }
-                        }
-                        if target.refused {
-                            ui.ctx().set_cursor_icon(egui::CursorIcon::NotAllowed);
-                        }
-                    }
-                }
-                let mut marquee_rect = None;
-                if let Some((marquee, ended)) = &reports.marquee {
-                    let inner = Env::of(ui);
-                    if let Some(axis) = time_axis(&inner.view()) {
-                        let axis = &axis;
-                        let items = placed.iter().filter_map(|row| Some((row, row.lane_left?))).flat_map(|(row, left)| {
-                            clips[row.track].iter().map(move |clip| {
-                                let (x0, x1) = (axis.x_of(clip.range.start, left), axis.x_of(clip.range.end(), left));
-                                (clip.id, Rect::from_min_max(Pos2::new(x0, row.geom.top), Pos2::new(x1, row.geom.bottom)))
-                            })
-                        });
-                        let keys = marquee.selection(items);
-                        if keys != selection {
-                            let change = if keys.is_empty() { SelectionChange::Clear } else { SelectionChange::Set(keys) };
-                            edits.push(TimelineEdit::Select { change, unlinked: false });
-                        }
-                    }
-                    marquee_rect = (!ended).then(|| marquee.rect());
-                }
-                if let (Some(last), Some(axis)) = (selection.last(), time_axis(&Env::of(ui).view())) {
-                    selected_clip = placed.iter().find_map(|row| {
-                        let left = row.lane_left?;
-                        let clip = clips[row.track].iter().find(|clip| clip.id == *last)?;
-                        let (x0, x1) = (axis.x_of(clip.range.start, left), axis.x_of(clip.range.end(), left));
-                        Some((tracks[row.track].id, Rect::from_min_max(Pos2::new(x0, row.geom.top), Pos2::new(x1, row.geom.bottom))))
-                    });
-                }
-                overlay.snapped(reports.snapped);
-                overlay.marquee(marquee_rect);
-                let lane_left = reports.places.first().map(|(_, place)| place.lane_left);
-                if let (Some(lane_left), Some(panes)) = (lane_left, pane_rects.iter().copied().reduce(Rect::union)) {
-                    overlay.panes(panes, lane_left);
-                }
-                if let Some(db) = model.master_volume_db() {
-                    mix_row(ui, &words, &env.view().format().number(f64::from(db), 1));
-                }
-                if tracks.is_empty() {
-                    Text::new(words.empty.clone()).show(ui);
-                }
-                *cx.keep::<Memory>() = memory;
-            });
-            edits.extend(timecode_edit.map(TimelineEdit::Playhead));
-            edits.extend(ruler_edits);
-            shown.output
-        };
-        edits.extend(output.playhead.clone().map(TimelineEdit::Playhead));
-        if let Some(next) = output.view.event.as_ref().and_then(EditEvent::value) {
-            *model.view() = *next;
+/// The menu of a track's colour label, open while `open`: the label chosen (`Some(None)` for no label) and whether the
+/// menu closed in this pass.
+pub(super) fn label_menu(
+    ui: &mut Ui,
+    words: &TimelineWords,
+    palette: &LabelPalette,
+    current: Option<MarkerColor>,
+    anchor: &Response,
+    open: &mut bool,
+) -> (Option<Option<MarkerColor>>, bool) {
+    let menu = Menu::context(words.track_color.clone(), anchor).open(Bind::bound(open)).show(ui, |ui, _| {
+        let mut chosen = None;
+        if MenuItem::new(words.no_label.clone()).check(current.is_none()).show(ui).ran {
+            chosen = Some(None);
         }
-        if output.context_menu {
-            let tracks = model.tracks();
-            let clip = model.selection().last().copied();
-            let (track, anchor) = match selected_clip {
-                Some((track, rect)) => (Some(track), rect),
-                None => {
-                    let targeted = tracks.iter().find(|track| track.targeted == Some(true)).or_else(|| tracks.first());
-                    (targeted.map(|track| track.id), output.view.response.rect)
-                }
-            };
-            edits.push(TimelineEdit::ContextMenu { track, clip, anchor, pointer: None });
+        for n in 0..=u8::MAX.min(15) {
+            let label = MarkerColor(n);
+            let swatch = IconSpec::swatch(craft_theme::Srgba::from(palette.0[usize::from(n) % palette.0.len()]));
+            if MenuItem::new(words.label_name(label).to_owned()).icon(swatch).check(current == Some(label)).show(ui).ran {
+                chosen = Some(Some(label));
+            }
         }
-        TimelineOutput { response: output.view.response, edits, toolbar }
-    }
+        chosen
+    });
+    (menu.inner.flatten(), menu.output.closed.is_some())
 }
 
 /// Whether the pane's collection took a primary click on the space of a lane: no clip, edge or header part took the
