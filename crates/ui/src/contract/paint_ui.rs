@@ -55,7 +55,19 @@ impl PaintUi<'_> {
     /// sizes through tokens as `style` does.
     pub fn with_style<R>(&self, variant: Variant, f: impl FnOnce(&StyleCx<'_>) -> R) -> R {
         let env = self.env;
-        let cx = StyleCx::new(self.ui.ctx(), &env.tokens, &env.values, self.size, variant, env.direction, env.scale, env.os, env.active, env.key);
+        let cx = StyleCx::new(
+            self.ui.ctx(),
+            &env.tokens,
+            &env.values,
+            self.size,
+            variant,
+            env.direction,
+            env.scale,
+            env.os,
+            env.active,
+            env.key,
+            env.line_ratio,
+        );
         f(&cx)
     }
 

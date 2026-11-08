@@ -6,7 +6,8 @@ mod thumb_row;
 
 use craft_behavior::{EditEvent, GesturePhase, Mixed};
 use craft_i18n::Direction;
-use craft_ui::contract::{Bind, Props as _, Show as _};
+use craft_ui::bars::{Bar, BarKind};
+use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer;
 use craft_ui::testing::{Fixture, Frames, Story, StoryData, StoryOutput, trial};
@@ -26,6 +27,14 @@ fn show(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     Slider::new(Bind::bound(data.value("value", START)), 0.0..=100.0).step(STEP).label("Opacity").show(ui).into()
 }
 
+fn in_a_bar(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let mut shown = None;
+    Bar::new("Transport", BarKind::Tool).show(ui, |ui, _| {
+        shown = Some(Slider::new(Bind::bound(data.value("value", START)), 0.0..=100.0).step(STEP).label("Opacity").show(ui));
+    });
+    shown.expect("the bar shows its member").into()
+}
+
 fn after(direction: Direction, key: Key, modifiers: Modifiers) -> f64 {
     let mut fixture = Fixture::story(&Story::new("slider", show));
     fixture.direction(direction).settle();
@@ -34,6 +43,19 @@ fn after(direction: Direction, key: Key, modifiers: Modifiers) -> f64 {
     fixture.idle(2);
 
     *fixture.data().value("value", START)
+}
+
+/// A slider keeps its arrows from the roving group of the bar around it: Right steps the value and leaves the focus.
+#[trial]
+fn a_slider_in_a_bar_takes_its_own_arrows() {
+    let mut fixture = Fixture::story(&Story::new("slider-in-a-bar", in_a_bar));
+    fixture.settle();
+    fixture.key(Key::Tab, Modifiers::NONE);
+    let focused = fixture.focused();
+    fixture.key(Key::ArrowRight, Modifiers::NONE);
+    fixture.idle(2);
+    assert_eq!(*fixture.data().value("value", START), START + STEP);
+    assert_eq!(fixture.focused(), focused, "the arrow moved no focus");
 }
 
 #[trial]

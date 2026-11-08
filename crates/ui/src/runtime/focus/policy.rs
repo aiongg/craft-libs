@@ -149,6 +149,19 @@ pub enum KeepKeys {
     BlockArrows,
 }
 
+impl KeepKeys {
+    /// Whether a focused component with these keys keeps the arrow move `mv` for itself, so a roving group around it
+    /// does not take it.
+    pub(crate) fn keeps_arrow(self, mv: craft_behavior::NavMove) -> bool {
+        use craft_behavior::NavMove;
+        match self {
+            KeepKeys::BlockArrows => matches!(mv, NavMove::Up | NavMove::Down | NavMove::Back | NavMove::Forward),
+            KeepKeys::InlineArrows => matches!(mv, NavMove::Back | NavMove::Forward),
+            KeepKeys::None | KeepKeys::Tab => false,
+        }
+    }
+}
+
 /// The keys that activate a component.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]

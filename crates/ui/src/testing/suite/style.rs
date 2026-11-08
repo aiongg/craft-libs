@@ -69,6 +69,8 @@ fn sources(subject: &Subject) -> Result<Vec<Source>, String> {
 /// The resolved looks of `source` under `variant` and `tokens`.
 fn looks_in(subject: &Subject, source: &Source, tokens: &UiTokens, variant: craft_theme::Variant) -> Option<StyleLooks> {
     let ctx = egui::Context::default();
+    // A style hook that measures text needs the fonts, which egui installs in its first frame.
+    ctx.run_ui(egui::RawInput::default(), |_| {});
     match source {
         Source::Seen(seen) => Some(with_cx(&ctx, tokens, variant, seen.size, |cx| seen.resolve_in(cx))),
         Source::Sample => {

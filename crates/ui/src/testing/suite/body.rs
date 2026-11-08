@@ -58,18 +58,21 @@ pub(super) fn title_names_the_container(subject: &Subject) -> Result<(), String>
     if !is_body(subject) {
         return Ok(());
     }
-    for story in &subject.stories {
-        let mut fixture = Fixture::story(story);
-        fixture.settle();
-        let Some(container) = root(&fixture) else { continue };
-        let role = fixture.tree().role_of(container.node);
-        let tree = fixture.tree();
-        if (role == Some(Role::DIALOG) || role == Some(Role::GROUP))
-            && crate::testing::access::name(tree, container.node).is_none()
-            && !(role == Some(Role::GROUP) && is_field_of_one_control(tree, container.node))
-        {
-            return Err(format!("{}: the container's node has the role {role:?} and no name", story.name));
-        }
+    subject.stories.iter().try_for_each(title_case)
+}
+
+/// The title case for one story.
+pub fn title_case(story: &Story) -> Result<(), String> {
+    let mut fixture = Fixture::story(story);
+    fixture.settle();
+    let Some(container) = root(&fixture) else { return Ok(()) };
+    let role = fixture.tree().role_of(container.node);
+    let tree = fixture.tree();
+    if (role == Some(Role::DIALOG) || role == Some(Role::GROUP))
+        && crate::testing::access::name(tree, container.node).is_none()
+        && !(role == Some(Role::GROUP) && is_field_of_one_control(tree, container.node))
+    {
+        return Err(format!("{}: the container's node has the role {role:?} and no name", story.name));
     }
     Ok(())
 }

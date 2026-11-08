@@ -55,6 +55,7 @@ pub fn env_key(tokens: &UiTokens) -> EnvKey {
 /// Runs `f` with a `StyleCx` over `tokens` in a left-to-right Linux window at scale 1.
 pub fn with_cx<R>(ctx: &Context, tokens: &UiTokens, variant: Variant, size: ControlSize, f: impl FnOnce(&StyleCx<'_>) -> R) -> R {
     let values = AppValues::default();
+    let line_ratio = crate::fonts::stack_facts(ctx).line_ratio;
     let cx = StyleCx::new(
         ctx,
         tokens,
@@ -65,7 +66,8 @@ pub fn with_cx<R>(ctx: &Context, tokens: &UiTokens, variant: Variant, size: Cont
         Scale::default(),
         Os::Linux,
         true,
-        env_key(tokens).with_line(crate::fonts::stack_facts(ctx).line_ratio),
+        env_key(tokens).with_line(line_ratio),
+        line_ratio,
     );
     f(&cx)
 }

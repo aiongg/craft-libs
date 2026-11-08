@@ -6,7 +6,7 @@ use crate::runtime::egui::{areas, fixture};
 use crate::runtime::env::RootEnv;
 use crate::runtime::frame::{FrameInput, announce, set_input};
 use craft_host::Host;
-use egui::{Context, Event, Ui};
+use egui::{Context, Event, Ui, Vec2};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -34,6 +34,8 @@ pub struct Frames {
     told: egui::Modifiers,
     /// The OS files hovering over the window in every following frame.
     files: fixture::OsFiles,
+    /// The size of the egui screen rect: the window every press has to land in.
+    screen: Vec2,
 }
 
 impl Default for Frames {
@@ -43,6 +45,15 @@ impl Default for Frames {
 }
 
 impl Frames {
+    /// The size of the egui screen rect unless `screen` sets another.
+    const SCREEN: Vec2 = Vec2::new(800.0, 600.0);
+
+    /// The size of the egui screen rect in every following frame: `room` where it is larger than the default
+    /// 800 by 600, so a press anywhere in the room lands inside the window.
+    pub fn screen(&mut self, room: Vec2) {
+        self.screen = room.max(Self::SCREEN);
+    }
+
     /// A fresh context with the runtime installed.
     pub fn new() -> Self {
         let mut frames = Self::uninstalled();
@@ -69,6 +80,7 @@ impl Frames {
             modifiers: egui::Modifiers::NONE,
             told: egui::Modifiers::NONE,
             files: fixture::OsFiles::default(),
+            screen: Self::SCREEN,
         }
     }
 
@@ -122,14 +134,14 @@ impl Frames {
     pub fn frame_in_viewport(&mut self, viewport: egui::ViewportId, ui: impl FnMut(&mut Ui)) {
         set_input(&self.ctx, self.input());
         self.time += DT;
-        fixture::run_viewport_pass(&self.ctx, self.time, viewport, ui);
+        fixture::run_viewport_pass(&self.ctx, self.time, self.screen, viewport, ui);
     }
 
     /// One frame with no events; returns the shapes it painted, nested shapes flattened.
     pub fn frame_shapes(&mut self, mut ui: impl FnMut(&mut Ui)) -> Vec<egui::Shape> {
         set_input(&self.ctx, self.input());
         self.time += DT;
-        fixture::run_frame_shapes(&self.ctx, self.time, &mut ui)
+        fixture::run_frame_shapes(&self.ctx, self.time, self.screen, &mut ui)
     }
 
     /// The modifiers held in every following frame.
@@ -178,7 +190,7 @@ impl Frames {
             events.insert(0, fixture::modifiers_changed(self.modifiers));
         }
         let files = fixture::OsFiles { hovered: self.files.hovered.clone(), dropped: std::mem::take(&mut self.files.dropped) };
-        let result = fixture::run_frame(&self.ctx, self.time, events, files, ui);
+        let result = fixture::run_frame(&self.ctx, self.time, self.screen, events, files, ui);
         self.cursor = result.cursor;
         self.repaint_delay = result.repaint_delay;
         self.tree = result.tree;

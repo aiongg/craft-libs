@@ -22,6 +22,7 @@ mod style;
 mod text;
 mod variants;
 
+pub use body::title_case;
 pub use size::text_size_case;
 pub use variants::rtl_case;
 

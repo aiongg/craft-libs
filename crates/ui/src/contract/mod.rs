@@ -241,6 +241,11 @@ pub trait Component: Meta + Sized {
     const STOPS: bool = true;
     /// Keys the focused component keeps from egui and the shortcut dispatcher.
     const KEYS: crate::runtime::focus::KeyUse = crate::runtime::focus::KeyUse::of(Self::INPUT);
+    /// The keys this instance keeps in its current state. The default is `KEYS`; a component whose key use depends
+    /// on its state (a field that records chords while recording) overrides it, so one component serves every state.
+    fn keys(&self) -> crate::runtime::focus::KeyUse {
+        Self::KEYS
+    }
     /// Whether the component paints its label as visible text. `false` for a face that shows only an icon or a
     /// glyph: with no tooltip set, its label is then its tooltip, since the label is the only visible name the
     /// pointer can reach. A component whose answer varies per instance overrides `shows_label`.

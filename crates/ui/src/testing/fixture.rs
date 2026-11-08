@@ -115,6 +115,7 @@ impl Fixture {
     /// The room the story is shown in.
     pub fn room(&mut self, room: Vec2) -> &mut Self {
         self.room = room;
+        self.frames.screen(room);
         self
     }
 
