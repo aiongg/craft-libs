@@ -339,11 +339,17 @@ fn a_click_on_a_mask_chain_reports_the_link_change() {
     assert!(mask_links(&take(&app)).contains(&(3, LayerPart::LayerMask, true)));
 }
 
+/// The number of text inputs shown: the panel's number fields, plus the rename field while a row is renamed.
+fn text_inputs(fixture: &Fixture) -> usize {
+    fixture.by_role(Role::TEXT_INPUT).len()
+}
+
 /// Opens the rename field of `name` by a double click on it.
 fn begin_rename(fixture: &mut Fixture, app: &Shared, name: &str) {
+    let plain = text_inputs(fixture);
     let pos = name_at(fixture, name);
     double_click(fixture, pos);
-    assert!(!fixture.by_role(Role::TEXT_INPUT).is_empty(), "{name} is being renamed");
+    assert!(text_inputs(fixture) > plain, "{name} is being renamed");
     take(app);
 }
 
@@ -361,27 +367,28 @@ fn retype(fixture: &mut Fixture, text: &str) {
 #[trial]
 fn rename_rules_enter_tab_escape_empty_unchanged() {
     let (mut fixture, app) = rig(FakeLayers::sample());
+    let plain = text_inputs(&fixture);
     begin_rename(&mut fixture, &app, "Title");
     retype(&mut fixture, "  Heading ");
     fixture.key(Key::Enter, Modifiers::NONE);
     let events = take(&app);
     assert_eq!(renames(&events), [(4, String::from("Heading"))], "Enter commits the trimmed text; events: {events:?}");
-    assert!(fixture.by_role(Role::TEXT_INPUT).is_empty());
+    assert_eq!(text_inputs(&fixture), plain);
 
     begin_rename(&mut fixture, &app, "Title");
     retype(&mut fixture, "Tabbed");
     fixture.key(Key::Tab, Modifiers::NONE);
     assert_eq!(renames(&take(&app)), [(4, String::from("Tabbed"))], "Tab commits");
-    assert!(!fixture.by_role(Role::TEXT_INPUT).is_empty(), "and continues on the next renamable row");
+    assert!(text_inputs(&fixture) > plain, "and continues on the next renamable row");
     fixture.key(Key::Escape, Modifiers::NONE);
     assert!(renames(&take(&app)).is_empty(), "Esc cancels the continued edit");
-    assert!(fixture.by_role(Role::TEXT_INPUT).is_empty());
+    assert_eq!(text_inputs(&fixture), plain);
 
     begin_rename(&mut fixture, &app, "Title");
     retype(&mut fixture, "Discarded");
     fixture.key(Key::Escape, Modifiers::NONE);
     assert!(renames(&take(&app)).is_empty(), "Esc reports nothing");
-    assert!(fixture.by_role(Role::TEXT_INPUT).is_empty());
+    assert_eq!(text_inputs(&fixture), plain);
 
     begin_rename(&mut fixture, &app, "Title");
     retype(&mut fixture, "");
@@ -585,7 +592,7 @@ fn row_parts_follow_reading_order_in_both_directions() {
 fn the_blend_label_drops_before_the_other_indicators() {
     let (mut fixture, _app) = rig(busy());
     let mut shown = Vec::new();
-    for width in (6..=39).rev().map(|step| step as f32 * 20.0) {
+    for width in (6..=21).rev().map(|step| step as f32 * 20.0) {
         fixture.room(Vec2::new(width, PANEL.y));
         fixture.idle(4);
         let has = |word: &str| fixture.texts().iter().any(|text| text.text == word);

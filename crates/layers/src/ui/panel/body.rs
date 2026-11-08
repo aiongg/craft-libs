@@ -17,7 +17,7 @@ use super::context::PanelContext;
 use super::drag::{LayersDrag, accepts_drop, drop_event};
 use super::events::{ActivateOn, LayerColumn, LayerSelect, LayerToggle, LayersEvent, MenuTarget};
 use super::menu::OpenMenu;
-use super::row::{EYE, FX_PART, LOCK, LOCK_PART, build_row};
+use super::row::{EYE, FX_PART, LOCK, LOCK_PART, NAME, build_row};
 use crate::ui::filter::LayerFilter;
 use crate::ui::tree::{LayerInfo, LayerPart, LayerRowKey, LayerTree, SubRowGroup};
 
@@ -280,6 +280,7 @@ pub(super) fn show_body<T: LayerTree>(
     if cx.lock_column {
         columns.push(ColumnSpec::new(LOCK, Label::Empty, ColumnWidth::Controls(1.0)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())));
     }
+    columns.push(ColumnSpec::new(NAME, Label::Empty, ColumnWidth::fill(1.0)));
     let parent_of = |id: &T::Id| tree.parent(id);
 
     let mut list = List::new(cx.words.list.clone())
@@ -307,7 +308,39 @@ pub(super) fn show_body<T: LayerTree>(
 
     let mut events: Vec<LayersEvent<T::Id>> = reveal.opens.iter().cloned().map(LayersEvent::Open).collect();
     let selection_changed = out.events.iter().any(|event| matches!(event, CollectionEvent::Selection(_)));
-    map_events(cx, &order, &parent_of, filtered, lock_name, session, out.events, &mut events);
+    let mut list_events = out.events;
+    // A double click on a renamable layer's row renames it in place, once the press is released as a click. Enter, a
+    // thumbnail and a layer that can't be renamed report the activation.
+    let (down, released, dragging) =
+        ui.input(|input| (input.pointer.primary_down(), input.pointer.primary_released(), input.pointer.is_decidedly_dragging()));
+    let reordered = list_events.iter().any(|event| matches!(event, CollectionEvent::Reorder(_)));
+    if let Some((id, dragged)) = session.rename_after.take() {
+        if released {
+            if !(dragged || dragging || reordered) {
+                start_rename(ui, cx.list, id);
+            }
+        } else if down {
+            session.rename_after = Some((id, dragged || dragging || reordered));
+        }
+    }
+    if down {
+        let thumbs: Vec<LayerRowKey<T::Id>> = list_events
+            .iter()
+            .filter_map(|event| match event {
+                CollectionEvent::Item(key, RowEvent::ThumbClicked { .. }) => Some(key.clone()),
+                _ => None,
+            })
+            .collect();
+        list_events.retain(|event| {
+            let CollectionEvent::Activate(LayerRowKey::Layer(id)) = event else { return true };
+            let renames = tree.info(id).renamable && !thumbs.iter().any(|key| key.layer() == id);
+            if renames {
+                session.rename_after = Some((id.clone(), false));
+            }
+            !renames
+        });
+    }
+    map_events(cx, &order, &parent_of, filtered, lock_name, session, list_events, &mut events);
     if !ui.input(|input| input.pointer.primary_down()) {
         session.sweep = None;
     }
