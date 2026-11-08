@@ -84,11 +84,19 @@ impl<T> Rig<T> {
         self.drag(source, Pos2::new(target.center().x, y));
     }
 
-    fn drops(&self) -> Vec<LayerDrop<u32>> {
+    fn drops(&self) -> Vec<Landing> {
         self.seen
             .borrow()
             .iter()
-            .filter_map(|event| if let LayersEvent::Drop(EditEvent::Set { after, .. }) = event { Some(after.clone()) } else { None })
+            .filter_map(|event| match event {
+                LayersEvent::Drop(EditEvent::Set { after, .. }) => Some(match after {
+                    LayerDrop::Layers(m) => Landing::Layers(m.layers.clone(), m.target, m.position, m.copy),
+                    LayerDrop::Transfer(t) => Landing::Transfer(t.rows.clone(), t.to, t.copy),
+                    LayerDrop::SubRows(m) => Landing::SubRows(m.layer, m.group, m.from, m.to, m.copy),
+                    _ => Landing::Other,
+                }),
+                _ => None,
+            })
             .collect()
     }
 }
@@ -100,8 +108,17 @@ enum Place {
     Below,
 }
 
-fn layer_move(layers: &[u32], target: u32, position: LayerPosition, copy: bool) -> LayerDrop<u32> {
-    LayerDrop::Layers(LayerMove::new(layers.to_vec(), target, position, copy))
+/// What a drop event says, in plain values.
+#[derive(Debug, PartialEq)]
+enum Landing {
+    Layers(Vec<u32>, u32, LayerPosition, bool),
+    Transfer(Vec<LayerRowKey<u32>>, u32, bool),
+    SubRows(u32, SubRowGroup, usize, usize, bool),
+    Other,
+}
+
+fn layer_move(layers: &[u32], target: u32, position: LayerPosition, copy: bool) -> Landing {
+    Landing::Layers(layers.to_vec(), target, position, copy)
 }
 
 const SAMPLE_ORDER: [&str; 9] = ["Group 1", "Clipped", "Masked", "Title", "Levels 1", "Smart Object", "Styled", "Hidden", "Background"];
@@ -209,7 +226,7 @@ fn modified_thumbnail_clicks_are_not_selections() {
     let link = rig.row("Unlink layer mask of Levels 1").rect;
     let pixels_x = link.left() - row.height() * 0.2;
     let mask_x = link.right() + row.height() * 0.2;
-    let mut click = |rig: &mut Rig<FakeLayers>, x: f32, y: f32, modifiers: Modifiers| -> Vec<LayersEvent<u32>> {
+    let click = |rig: &mut Rig<FakeLayers>, x: f32, y: f32, modifiers: Modifiers| -> Vec<LayersEvent<u32>> {
         rig.seen.borrow_mut().clear();
         rig.fixture.hold(modifiers);
         rig.fixture.click_at(Pos2::new(x, y));
@@ -298,11 +315,9 @@ fn a_layer_drop_reports_its_landing_place_and_alt_copies() {
     assert_eq!(rig.drops(), [layer_move(&[4], 8, LayerPosition::After, false)]);
 
     rig.drop_on("Title", "Group 1", Place::Middle);
-    let [LayerDrop::Layers(into)] = rig.drops().as_slice() else { panic!("one layer drop: {:?}", rig.drops()) };
-    assert!(
-        (into.target, into.position) == (1, LayerPosition::Into) || (into.target, into.position) == (2, LayerPosition::Before),
-        "inside the group, at its top: {into:?}"
-    );
+    let drops = rig.drops();
+    let inside = [layer_move(&[4], 1, LayerPosition::Into, false), layer_move(&[4], 2, LayerPosition::Before, false)];
+    assert!(drops.len() == 1 && inside.contains(&drops[0]), "inside the group, at its top: {drops:?}");
 
     rig.fixture.hold(Modifiers::ALT);
     rig.drop_on("Title", "Hidden", Place::Below);
@@ -323,12 +338,12 @@ fn effects_dropped_on_another_layer_transfer_to_it() {
     rig.fixture.idle(3);
     let effect = LayerRowKey::Effects(7, Some(0));
     rig.drop_on("Drop Shadow", "Title", Place::Middle);
-    assert_eq!(rig.drops(), [LayerDrop::Transfer(RowTransfer { rows: vec![effect.clone()], to: 4, copy: false })]);
+    assert_eq!(rig.drops(), [Landing::Transfer(vec![effect.clone()], 4, false)]);
 
     rig.fixture.hold(Modifiers::ALT);
     rig.drop_on("Drop Shadow", "Title", Place::Middle);
     rig.fixture.hold(Modifiers::NONE);
-    assert_eq!(rig.drops(), [LayerDrop::Transfer(RowTransfer { rows: vec![effect], to: 4, copy: true })]);
+    assert_eq!(rig.drops(), [Landing::Transfer(vec![effect], 4, true)]);
 
     rig.drop_on("Drop Shadow", "Styled", Place::Middle);
     assert_eq!(rig.drops(), [], "onto their own layer");
@@ -346,7 +361,7 @@ fn smart_filters_reorder_within_their_object_and_effects_keep_their_order() {
         tree.layers[6].effects_open = true;
     }
     rig.fixture.idle(3);
-    let moved = |from, to| LayerDrop::SubRows(SubRowMove { layer: 6, group: SubRowGroup::SmartFilters, from, to, copy: false });
+    let moved = |from, to| Landing::SubRows(6, SubRowGroup::SmartFilters, from, to, false);
     rig.drop_on("Gaussian Blur", "Sharpen", Place::Below);
     assert_eq!(rig.drops(), [moved(0, 1)]);
     rig.drop_on("Sharpen", "Gaussian Blur", Place::Above);
@@ -379,11 +394,30 @@ fn layers_dropped_beside_sub_rows_land_below_their_layer() {
     }
 }
 
-fn footer_action(rig: &Rig<FakeLayers>) -> Option<LayersFooterAction> {
-    rig.seen.borrow().iter().rev().find_map(|event| if let LayersEvent::Footer(action) = event { Some(action.clone()) } else { None })
+/// A footer press, in plain values.
+#[derive(Debug, PartialEq)]
+enum Pressed {
+    NewLayer(bool, bool),
+    NewGroup(bool, bool, bool),
+    Delete(bool),
+    AddMask(bool),
+    Other,
 }
 
-fn press(rig: &mut Rig<FakeLayers>, label: &str, modifiers: Modifiers) -> Option<LayersFooterAction> {
+fn footer_action(rig: &Rig<FakeLayers>) -> Option<Pressed> {
+    rig.seen.borrow().iter().rev().find_map(|event| match event {
+        LayersEvent::Footer(LayersFooterAction::NewLayer { ask, below, .. }) => Some(Pressed::NewLayer(*ask, *below)),
+        LayersEvent::Footer(LayersFooterAction::NewGroup { from_selection, ask, below, .. }) => {
+            Some(Pressed::NewGroup(*from_selection, *ask, *below))
+        }
+        LayersEvent::Footer(LayersFooterAction::Delete { confirm, .. }) => Some(Pressed::Delete(*confirm)),
+        LayersEvent::Footer(LayersFooterAction::AddMask { invert, .. }) => Some(Pressed::AddMask(*invert)),
+        LayersEvent::Footer(_) => Some(Pressed::Other),
+        _ => None,
+    })
+}
+
+fn press(rig: &mut Rig<FakeLayers>, label: &str, modifiers: Modifiers) -> Option<Pressed> {
     rig.seen.borrow_mut().clear();
     let button = rig.row(label);
     rig.fixture.hold(modifiers);
@@ -402,12 +436,12 @@ const DELETE: &str = "Delete Layer";
 #[trial]
 fn footer_modifiers_report_ask_below_and_from_selection() {
     let mut rig = rig();
-    let layer = |ask, below| Some(LayersFooterAction::NewLayer { ask, below });
+    let layer = |ask, below| Some(Pressed::NewLayer(ask, below));
     assert_eq!(press(&mut rig, NEW_LAYER, Modifiers::NONE), layer(false, false));
     assert_eq!(press(&mut rig, NEW_LAYER, Modifiers::ALT), layer(true, false));
     assert_eq!(press(&mut rig, NEW_LAYER, Modifiers::COMMAND), layer(false, true));
 
-    let group = |from_selection, ask, below| Some(LayersFooterAction::NewGroup { from_selection, ask, below });
+    let group = |from_selection, ask, below| Some(Pressed::NewGroup(from_selection, ask, below));
     assert_eq!(press(&mut rig, NEW_GROUP, Modifiers::NONE), group(false, false, false));
     assert_eq!(press(&mut rig, NEW_GROUP, Modifiers::SHIFT), group(true, false, false));
     assert_eq!(press(&mut rig, NEW_GROUP, Modifiers::ALT), group(false, true, false));
@@ -416,10 +450,10 @@ fn footer_modifiers_report_ask_below_and_from_selection() {
     rig.fixture.idle(2);
     assert_eq!(press(&mut rig, NEW_GROUP, Modifiers::NONE), group(true, false, false), "two selected layers");
 
-    let delete = |confirm| Some(LayersFooterAction::Delete { confirm });
+    let delete = |confirm| Some(Pressed::Delete(confirm));
     assert_eq!(press(&mut rig, DELETE, Modifiers::NONE), delete(true));
     assert_eq!(press(&mut rig, DELETE, Modifiers::ALT), delete(false));
-    let mask = |invert| Some(LayersFooterAction::AddMask { invert });
+    let mask = |invert| Some(Pressed::AddMask(invert));
     assert_eq!(press(&mut rig, "Add Layer Mask", Modifiers::NONE), mask(false));
     assert_eq!(press(&mut rig, "Add Layer Mask", Modifiers::ALT), mask(true));
 
@@ -432,7 +466,7 @@ fn footer_drops(rig: &Rig<FakeLayers>) -> Vec<(LayersFooterButton, Vec<LayerRowK
     rig.seen
         .borrow()
         .iter()
-        .filter_map(|event| if let LayersEvent::FooterDrop { button, rows } = event { Some((*button, rows.clone())) } else { None })
+        .filter_map(|event| if let LayersEvent::FooterDrop { button, rows, .. } = event { Some((*button, rows.clone())) } else { None })
         .collect()
 }
 
