@@ -246,12 +246,6 @@ pub trait Component: Meta + Sized {
     /// pointer can reach. A component whose answer varies per instance overrides `shows_label`.
     const SHOWS_LABEL: bool = true;
 
-    /// Whether the component's horizontal axis keeps its left-to-right order under a right-to-left interface: a time
-    /// axis, a ruler, a document view. The component itself sits where the interface puts it; its content flow, keys
-    /// and roving order, and the nodes inside it, do not mirror. The suite's right-to-left case reads the same
-    /// declaration from the access tree.
-    const LTR_AXIS: bool = false;
-
     /// The style type.
     type Style: ComponentStyle;
     /// `Response`, `EditResponse<T>` or a richer type.

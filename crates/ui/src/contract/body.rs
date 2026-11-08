@@ -29,6 +29,7 @@ use craft_behavior::{
     ScrollPos, ScrollSpan, WheelNotch, WheelTaker,
 };
 use craft_host::target::{Caps, WindowChrome, WindowState};
+use craft_i18n::Direction;
 use craft_keymap::{Chord, Key, Mods};
 use egui::{Align, Context, Id, Layout, Pos2, Rect, Shape, Ui, UiBuilder, Vec2, ViewportId};
 use serde::{Deserialize, Serialize};
@@ -1574,6 +1575,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 scoped.commands = scoped.commands.pushed(WindowCommand::SCOPE, window);
             }
             scoped.values.extend(values);
+            if cx.core.resolved.ltr_axis {
+                scoped.direction = Direction::Ltr;
+            }
             scoped.ink = cx.core.ink;
             scoped.grid = None;
             scoped.content_column = false;

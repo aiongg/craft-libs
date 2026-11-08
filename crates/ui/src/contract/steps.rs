@@ -202,6 +202,7 @@ pub(crate) fn resolved<'p>(id: Id, step: &'p EnvStep, common: &'p Common) -> Res
         keeps_name: common.keeps_name,
         access_key: common.access_key,
         default_stop: common.default_stop,
+        ltr_axis: common.ltr_axis,
         description: common.description.as_deref(),
         tooltip: common.tooltip.as_ref(),
         doc_key: common.doc_key,
@@ -1265,7 +1266,7 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
         access: &access,
         popups: &if C::OVERLAYS { super::overlay::popups_shown(ctx, id) } else { Vec::new() },
         popups_by_part: super::overlay::has_toggle_nodes(&core.toggles, &access.nodes),
-        ltr_axis: C::LTR_AXIS,
+        ltr_axis: resolved.ltr_axis,
     };
     access::report(ctx, &own);
     if let Some(facts) = core.text_access.take() {
@@ -1357,7 +1358,7 @@ pub(crate) fn report_inert<C: Component>(cx: &Cx<'_, C>) {
             access: &access,
             popups: &[],
             popups_by_part: false,
-            ltr_axis: C::LTR_AXIS,
+            ltr_axis: core.resolved.ltr_axis,
         },
     );
 }
