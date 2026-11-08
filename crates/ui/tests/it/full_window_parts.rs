@@ -394,7 +394,7 @@ mod sides {
                 .sides(|ui, _| {
                     side = FullWindowSide::new("Properties")
                         .show(ui, |ui, _| {
-                            // The first stop is a field, which leaves Enter untaken; a check box would take it as its toggle.
+                            // Two stops in the column: a field (the first stop) and a check box. Enter on either reaches OK.
                             TextField::new("Brush Name", Bind::bound(&mut name)).show(ui);
                             Checkbox::new(Bind::bound(&mut mesh)).label("Show the Mesh, the Pins and the Guides of the Brush Tool").show(ui);
                         })
@@ -419,6 +419,17 @@ mod sides {
         let (mut fixture, seen) = liquify(Direction::Ltr);
         fixture.settle().key(Key::Enter, Modifiers::NONE).settle();
         assert_eq!((seen.borrow().closed, seen.borrow().picked), (Some(CloseReason::Activated), Some(0)), "Enter activates OK");
+
+        let (mut fixture, seen) = liquify(Direction::Ltr);
+        let field = fixture.settle().focused();
+        fixture.key(Key::Tab, Modifiers::NONE).settle();
+        assert!(fixture.focused().is_some() && fixture.focused() != field, "Tab moves focus from the field to the check box");
+        fixture.key(Key::Enter, Modifiers::NONE).settle();
+        assert_eq!(
+            (seen.borrow().closed, seen.borrow().picked),
+            (Some(CloseReason::Activated), Some(0)),
+            "Enter on the focused check box activates OK, and Space is its toggle"
+        );
 
         let (mut fixture, seen) = liquify(Direction::Ltr);
         fixture.settle();
