@@ -1,32 +1,33 @@
 //! `ColorPicker`: the colour picker's body, the area and strip with the channel rows, the hex field and the hooks a
-//! host adds.
+//! host adds. A container: its body lays the parts out with the form layouts, the "Field shows" choice is a
+//! `RadioGroup` and the channel rows share one label column.
 
 mod channel;
 mod compact;
 mod full;
-mod layout;
+mod screen_pick;
 #[cfg(feature = "screen-testing")]
 mod stories;
 mod value;
 
-use std::sync::{Arc, Mutex};
+use std::cell::RefCell;
+use std::rc::Rc;
+use std::sync::Arc;
 
-use craft_behavior::{EditEvent, Flow, GestureId, Metrics, Mixed, Sense};
+use craft_behavior::{EditEvent, GestureId, Metrics, Mixed, Value};
 use craft_theme::{ColorModel, ModelValues, Srgba, builtin_models};
-use craft_ui::choice::RadioKind;
 use craft_ui::contract::{
-    Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, GroupHandle, GroupState, MeasureCx, Outcome, PaintUi, Pointer as _, Props as _,
-    Remember as _, Role, WordSetCx as _,
+    Bind, BindMut, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, Outcome, PaintUi, Props as _, Remember as _, Role,
+    ShowContainer as _, Sizing,
 };
-use craft_ui::runtime::env::AppValues;
+use craft_ui::layout::BodyLayout;
 use craft_ui::runtime::focus::{self, FocusTarget};
 use craft_ui::style::{ComponentStyle, StyleCx};
-use egui::{Pos2, Response, Vec2};
+use egui::{Id, Pos2, Response, Ui};
 
 use super::{AreaMode, channels};
 pub(crate) use channel::{ChannelRow, ChannelRule, channel_name};
 pub use full::{ColorWarning, ColorWarningChip, ColorWarningChipOutput};
-use layout::Sizes;
 pub use value::ColorConstraint;
 use value::Rules;
 
@@ -146,16 +147,17 @@ craft_ui::words! {
         only_web_colors: "colorPicker.onlyWebColors" = "Only Web Colors";
         /// The screen-pick button's name and tooltip.
         sample_screen: "colorPicker.sampleScreen" = "Sample color from the screen";
+        /// The channel rows' group name.
+        channels: "colorPicker.channels" = "Channels";
     }
 }
 
-/// The style of a colour picker: the sizes its layouts are made of.
-#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+/// The style of a colour picker: it has no look of its own; its parts carry it.
+#[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
 #[non_exhaustive]
 pub struct ColorPickerStyle {
     #[style(metrics)]
     metrics: Metrics,
-    sizes: Sizes,
 }
 
 /// What the picker keeps between passes.
@@ -167,8 +169,6 @@ struct Memo {
     mode: AreaMode,
     /// The Full layout has taken the focus for the hex field.
     opened: bool,
-    /// The radios' registrations.
-    live: Arc<Mutex<GroupState<AreaMode>>>,
 }
 
 /// What the children reported in this pass, for `finish`.
@@ -178,8 +178,52 @@ struct Events {
     clicks: Vec<Srgba>,
     screen_pick: Option<ScreenPickGesture>,
     model_pick: Option<&'static str>,
-    /// Only Web Colors turned on.
-    web_on: bool,
+    /// The mode the "Field shows" group picked.
+    mode_pick: Option<AreaMode>,
+    /// The Only Web Colors check box was set to this.
+    web_pick: Option<bool>,
+}
+
+/// What `update` settled for the body: the colour shown and the rules its edits go through.
+#[derive(Clone)]
+pub(super) struct Pass<'a> {
+    pub shown: PickedColor,
+    pub rules: Rules<'a>,
+    pub mode: AreaMode,
+    /// The model of the Compact rows.
+    pub model: Option<&'static str>,
+    /// Only Web Colors, as the host holds it.
+    pub web: bool,
+    /// The id the hex field is shown under, which the first show of the layout focuses.
+    pub hex: Id,
+}
+
+/// A child's edit, ready to be adopted as the picker's own once `paint_over` has the picker's context.
+type Adopt<'a> = Box<dyn FnOnce(&Cx<'_, ColorPicker<'a>>) + 'a>;
+
+/// What the container and its body closure share within one `show`: the container's `update` fills the pass, the
+/// body reads it and leaves what the children reported.
+#[derive(Default)]
+pub(super) struct Shared<'a> {
+    pass: RefCell<Option<Pass<'a>>>,
+    adopts: RefCell<Vec<Adopt<'a>>>,
+    events: RefCell<Events>,
+}
+
+impl<'a> Shared<'a> {
+    /// The pass `update` settled; `None` when no pass ran `update`.
+    pub(super) fn pass(&self) -> Option<Pass<'a>> {
+        self.pass.borrow().clone()
+    }
+
+    /// Adopts `edit` of a child as an edit of the picker's colour, `map` applying it to the colour shown.
+    pub(super) fn adopt<V: Value>(&self, edit: EditResponse<V>, shown: PickedColor, map: impl FnOnce(&V, &mut PickedColor) + 'a) {
+        self.adopts.borrow_mut().push(Box::new(move |cx| cx.adopt(&edit, &shown, map)));
+    }
+
+    pub(super) fn events(&self) -> std::cell::RefMut<'_, Events> {
+        self.events.borrow_mut()
+    }
 }
 
 /// A colour picker's body: a [`ColorArea`](super::ColorArea) and a [`ColorStrip`](super::ColorStrip), the channel
@@ -208,9 +252,12 @@ struct Events {
 /// `<model> <channel>` ("OKLCH hue") while another shown model has a channel of that name.
 #[must_use = "show the picker with `show`"]
 #[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
+#[component(container)]
 pub struct ColorPicker<'a> {
     #[common]
     common: Common,
+    #[container]
+    props: ContainerProps,
     value: Bind<'a, PickedColor>,
     /// The layout; Compact by default.
     #[prop]
@@ -250,7 +297,7 @@ pub struct ColorPicker<'a> {
     #[prop]
     focus_on_open: bool,
     rules: Rules<'a>,
-    events: Events,
+    shared: Rc<Shared<'a>>,
 }
 
 impl<'a> ColorPicker<'a> {
@@ -258,6 +305,7 @@ impl<'a> ColorPicker<'a> {
     pub fn new(label: impl Into<craft_ui::runtime::env::Label>, value: Bind<'a, PickedColor>) -> Self {
         ColorPicker {
             common: Common::new(),
+            props: ContainerProps::new().sizing(Sizing::Content).layout(BodyLayout::stack()),
             value,
             layout: ColorPickerLayout::default(),
             models: None,
@@ -273,7 +321,7 @@ impl<'a> ColorPicker<'a> {
             sampled: None,
             focus_on_open: true,
             rules: Rules { web: false, constrain: None },
-            events: Events::default(),
+            shared: Rc::default(),
         }
         .label(label)
     }
@@ -319,17 +367,31 @@ impl<'a> ColorPicker<'a> {
     }
 
     /// The modes the Full layout's radios offer.
-    fn offered(models: &[&dyn ColorModel]) -> Vec<AreaMode> {
+    pub(super) fn offered(models: &[&dyn ColorModel]) -> Vec<AreaMode> {
         AreaMode::PHOTOSHOP.into_iter().chain(AreaMode::OKLCH).filter(|mode| models.iter().any(|m| m.id() == mode.model().id())).collect()
-    }
-
-    /// The levels the area and strip quantise to while Only Web Colors is on.
-    fn quantize(&self) -> Option<usize> {
-        self.rules.web.then_some(channels::WEB_LEVELS)
     }
 }
 
-impl Component for ColorPicker<'_> {
+impl<'a> ColorPicker<'a> {
+    /// Shows the picker.
+    pub fn show(mut self, ui: &mut Ui) -> ColorPickerOutput {
+        let body = compact::Body {
+            layout: self.layout,
+            models: self.models_list(),
+            warnings: std::mem::take(&mut self.warnings),
+            compare: self.compare,
+            alpha: self.alpha,
+            dynamic_tracks: self.dynamic_tracks,
+            eyedropper: self.eyedropper,
+            eyedropper_busy: self.eyedropper_busy,
+            has_web_check: self.web_colors.is_some(),
+            shared: Rc::clone(&self.shared),
+        };
+        ShowContainer::show(self, ui, move |ui, _| body.run(ui)).output
+    }
+}
+
+impl<'a> Component for ColorPicker<'a> {
     const ROLE: Role = Role::GROUP;
     const PARTS: bool = false;
     const STOPS: bool = false;
@@ -337,62 +399,16 @@ impl Component for ColorPicker<'_> {
     type Style = ColorPickerStyle;
     type Output = ColorPickerOutput;
 
-    fn style(cx: &StyleCx<'_>, _: ColorPickerStyleKey) -> ColorPickerStyle {
-        let control = cx.control();
-        let tokens = cx.tokens;
-        let sizes = Sizes {
-            gap: tokens.space.gap.inline,
-            stack: tokens.space.gap.stack,
-            tight: tokens.space.gap.tight,
-            section: tokens.space.gap.section,
-            row: control.height,
-            area: Vec2::new(tokens.size.plot.width, tokens.size.plot.height),
-            strip: control.height,
-            cell: tokens.size.length.short,
-            short: tokens.size.length.short,
-            hex: tokens.size.length.field,
-            compare: Vec2::new(tokens.size.thumb.lg, tokens.size.thumb.md),
-            caption: tokens.size.icon.md,
-            chip: Vec2::new(tokens.size.icon.md, tokens.size.icon.md + tokens.space.gap.tight + control.height),
-        };
-        ColorPickerStyle { metrics: Metrics::new(), sizes }
+    fn style(_: &StyleCx<'_>, _: ColorPickerStyleKey) -> ColorPickerStyle {
+        ColorPickerStyle::default()
     }
 
-    fn sense(&self) -> Sense {
-        Sense::empty()
-    }
-
-    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        let sizes = &cx.style.sizes;
-        let models = self.models_list();
-        match self.layout {
-            ColorPickerLayout::Compact => {
-                let channels = models.iter().map(|m| m.channels().len()).max().unwrap_or(0);
-                let input = layout::CompactInput { channels, switch: models.len() > 1, sample: self.eyedropper, alpha: self.alpha };
-                layout::compact(sizes, 0.0, input).size
-            }
-            ColorPickerLayout::Full => {
-                let input = layout::FullInput {
-                    models: &models,
-                    web: self.web_colors.is_some(),
-                    alpha: self.alpha,
-                    sample: self.eyedropper,
-                    compare: self.compare.is_some(),
-                    warnings: self.warnings.len(),
-                };
-                layout::full(sizes, input).size
-            }
-        }
+    fn sense(&self) -> craft_behavior::Sense {
+        craft_behavior::Sense::empty()
     }
 
     fn bind(&mut self) -> Option<BindMut<'_, PickedColor>> {
         Some(self.value.reborrow())
-    }
-
-    fn content_env(&self, cx: &Cx<'_, Self>, values: &mut AppValues) {
-        let handle = GroupHandle::<RadioKind<AreaMode>>::new(Arc::clone(&cx.recall::<Memo>().live));
-        handle.begin_registration();
-        values.set(handle);
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
@@ -404,21 +420,17 @@ impl Component for ColorPicker<'_> {
         let web = self.web_colors.as_mut().and_then(|web| web.reborrow().read(&mut *cx)).and_then(|web| web.same().copied()).unwrap_or(false);
         self.rules = Rules { web, constrain: self.constrain.clone() };
 
-        // The Full layout's radios pick like a radio group's: the member activated in this pass, found among the
-        // registrations of the last.
-        let handle = GroupHandle::<RadioKind<AreaMode>>::new(Arc::clone(&memo.live));
+        // The Full layout shows a mode its models offer.
         if full {
             let offered = Self::offered(&models);
-            let picked = cx.activated_member().and_then(|id| handle.member(id));
-            let wanted = picked.or_else(|| offered.first().copied().filter(|first| !offered.contains(&mode) && *first != mode));
-            if let Some(next) = wanted.filter(|next| *next != mode) {
+            let wanted = offered.first().copied().filter(|first| !offered.contains(&mode) && *first != mode);
+            if let Some(next) = wanted {
                 if let Some(held) = self.mode.as_mut() {
                     let event = EditEvent::set(GestureId::default(), Mixed::Same(mode), next, Arc::from("Field shows"), None);
                     let _ = held.reborrow().write(&mut *cx, &event);
                 }
                 mode = next;
             }
-            handle.select(Some(mode));
         }
 
         let first_show = !memo.opened;
@@ -429,50 +441,59 @@ impl Component for ColorPicker<'_> {
             memo.model = model;
             memo.opened = true;
         }
+        let hex = cx.id.with("hex");
         if full && self.focus_on_open && first_show && cx.resolved.enabled {
-            focus::request(&cx.response.ctx, FocusTarget::Id(cx.id.with("hex")));
+            focus::request(&cx.response.ctx, FocusTarget::Id(hex));
         }
         if let Some(color) = self.sampled {
             let now = cx.value().copied().unwrap_or(PickedColor::rgb(Srgba::BLACK));
             cx.set(now.with_color(color.with_alpha(now.color.a), &self.rules));
         }
+        let shown = cx.value().copied().unwrap_or(PickedColor::rgb(Srgba::BLACK));
+        *self.shared.pass.borrow_mut() = Some(Pass { shown, rules: self.rules.clone(), mode, model, web, hex });
     }
 
-    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let words = cx.words::<ColorPickerWords>();
-        let memo = cx.recall::<Memo>();
-        let pass = compact::Pass {
-            shown: cx.value().copied().unwrap_or(PickedColor::rgb(Srgba::BLACK)),
-            rules: self.rules.clone(),
-            models: self.models_list(),
-            mode: memo.mode,
-            model: memo.model,
-            flow: Flow::new(cx.rect, cx.env.direction().is_rtl()),
-            origin: cx.rect.min.to_vec2(),
-            width: cx.rect.width(),
-            words,
-        };
-        match self.layout {
-            ColorPickerLayout::Compact => self.paint_compact(ui, cx, &pass),
-            ColorPickerLayout::Full => self.paint_full(ui, cx, &pass),
+    /// The children's edits become the picker's: each maps onto the colour shown, as one gesture.
+    fn paint_over(&mut self, _ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        for adopt in self.shared.adopts.take() {
+            adopt(cx);
         }
     }
 
-    fn finish(self, mut cx: Cx<'_, Self>) -> ColorPickerOutput {
-        if let Some(model) = self.events.model_pick {
+    fn finish(mut self, mut cx: Cx<'_, Self>) -> ColorPickerOutput {
+        let events = self.shared.events.take();
+        let before = cx.recall::<Memo>().clone();
+        if let Some(model) = events.model_pick {
             cx.memory::<Memo>().model = Some(model);
         }
+        if let Some(next) = events.mode_pick.filter(|next| *next != before.mode) {
+            cx.memory::<Memo>().mode = next;
+            if let Some(held) = self.mode.as_mut() {
+                let event = EditEvent::set(GestureId::default(), Mixed::Same(before.mode), next, Arc::from("Field shows"), None);
+                let _ = held.reborrow().write(&mut cx, &event);
+            }
+        }
+        let was_web = self.shared.pass().is_some_and(|pass| pass.web);
+        if let Some(on) = events.web_pick.filter(|on| *on != was_web)
+            && let Some(held) = self.web_colors.as_mut()
+        {
+            let event = EditEvent::set(GestureId::default(), Mixed::Same(was_web), on, Arc::from("Only Web Colors"), None);
+            let _ = held.reborrow().write(&mut cx, &event);
+        }
         let mut now = cx.value().copied().unwrap_or(PickedColor::rgb(Srgba::BLACK));
-        for color in &self.events.clicks {
+        for color in &events.clicks {
             now = now.with_color(*color, &self.rules);
             cx.set(now);
         }
-        if self.events.web_on {
-            let snapped = Rules { web: true, constrain: self.rules.constrain.clone() }.apply(now.color);
+        if events.web_pick == Some(true) {
+            let rules = Rules { web: true, constrain: self.rules.constrain.clone() };
+            let snapped = rules.apply(now.color);
             if !snapped.same_rgb8(now.color) {
-                cx.set(now.with_color(snapped, &Rules { web: true, constrain: self.rules.constrain.clone() }));
+                cx.set(now.with_color(snapped, &rules));
             }
         }
-        ColorPickerOutput { edit: cx.edit_response(), screen_pick: self.events.screen_pick }
+        ColorPickerOutput { edit: cx.edit_response(), screen_pick: events.screen_pick }
     }
 }
+
+impl Container for ColorPicker<'_> {}

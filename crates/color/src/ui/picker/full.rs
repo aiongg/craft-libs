@@ -1,20 +1,24 @@
 //! The Full layout of `ColorPicker` (the Color Picker dialog), and the warnings beside its compare swatch.
 
-use craft_behavior::{IconId, Metrics, Sense};
-use craft_theme::{ColorModel, Srgba};
-use craft_ui::choice::{Checkbox, Radio, Swatch};
-use craft_ui::contract::{Bind, Common, Component, Cx, Edit as _, FieldLayout, MeasureCx, Outcome, PaintUi, Props as _, Role, SideLabel};
+use craft_behavior::{IconId, Metrics, NavShape, Sense};
+use craft_theme::{ColorModel, HsbModel, OklchModel, RgbModel, Srgba};
+use craft_ui::choice::{Checkbox, Radio, RadioGroup, Swatch};
+use craft_ui::contract::{
+    Bind, Common, Component, Cx, FieldLayout, GlyphLabel, LabelKind, MeasureCx, Outcome, PaintUi, Props as _, Role, Show as _, ShowContainer as _,
+    SideLabel,
+};
 use craft_ui::display::{Icon, Shade, Text};
+use craft_ui::form::{Field, FieldGroup};
+use craft_ui::layout_components::{Row, Stack};
 use craft_ui::primitives::IconSpec;
-use craft_ui::runtime::env::Label;
+use craft_ui::runtime::env::{Env, Label};
 use craft_ui::style::{ComponentStyle, StyleCx, TypeRole};
 use craft_ui::text::NumberField;
-use egui::{Rect, Response, Vec2};
+use egui::{Rect, Response, Ui, Vec2};
 
-use super::ColorPicker;
 use super::channel::{ChannelRule, ChannelUnit, channel_name};
-use super::compact::Pass;
-use super::layout::{self, FullInput};
+use super::compact::Body;
+use super::{ColorPicker, ColorPickerWords, Pass};
 use crate::ui::AreaMode;
 
 /// A warning the host shows beside the Full picker's compare swatch, as the out-of-gamut and web-colour warnings of
@@ -134,112 +138,153 @@ impl Component for ColorWarningChip<'_> {
     }
 }
 
-impl ColorPicker<'_> {
-    pub(super) fn paint_full(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>, pass: &Pass<'_>) {
-        let sizes = &cx.style.sizes;
-        let input = FullInput {
-            models: &pass.models,
-            web: self.web_colors.is_some(),
-            alpha: self.alpha,
-            sample: self.eyedropper,
-            compare: self.compare.is_some(),
-            warnings: self.warnings.len(),
-        };
-        let plan = layout::full(sizes, input);
-        let visible: Vec<&dyn ColorModel> = pass.models.iter().copied().chain([pass.mode.model()]).collect();
-        self.area_and_strip(ui, cx, pass, &visible, pass.at(plan.area), pass.at(plan.strip));
-        if let (Some(rect), Some(web)) = (plan.web, self.web_colors.as_mut()) {
-            let side = SideLabel::new().layout(FieldLayout::After);
-            let label = Label::from(pass.words.only_web_colors.as_str().to_owned());
-            let out = ui.labelled("web", pass.at(rect), label, side, Checkbox::new(web.reborrowed()));
-            self.events.web_on |= out.event.as_ref().and_then(|event| event.value()).copied().unwrap_or(false);
-        }
-        if let Some(rect) = plan.alpha {
-            self.alpha_row(ui, cx, pass, pass.at(rect));
-        }
-        if let Some(rect) = plan.sample {
-            self.sample_button(ui, pass, pass.at(rect));
-        }
-        if let (Some(current), Some(captions), Some(halves)) = (self.compare, plan.captions, plan.halves) {
-            self.compare_swatch(ui, pass, current, captions, halves);
-        }
-        for (i, rect) in plan.warnings.iter().enumerate() {
-            let chip = ui.child(("warning", i), pass.at(*rect), ColorWarningChip::new(&self.warnings[i]));
-            if chip.clicked {
-                self.events.clicks.push(self.warnings[i].nearest);
-            }
-        }
-        let offered = Self::offered(&pass.models);
-        for cell in &plan.cells {
-            let model = pass.models[cell.model];
-            let channel = model.channels()[cell.channel];
-            let name = channel_name(model, cell.channel, &visible);
-            let short = pass.words.grid_label.fill(&[("label", channel.label)]);
-            let mode = offered.iter().find(|mode| mode.model().id() == model.id() && mode.strip() == cell.channel).copied();
-            self.grid_label(ui, pass, cell.channel, model.id(), &short, name.clone(), mode, pass.at(cell.label));
-            let rule = ChannelRule::of(&channel);
-            let value = f64::from(pass.shown.values_in(model).values[cell.channel]);
-            let field = NumberField::new(name, Bind::given(Some(value)))
-                .range(rule.range.clone())
-                .step(rule.step)
-                .snap_typed(true)
-                .commit_decimals(usize::from(rule.decimals));
-            let field = match ChannelUnit::of(channel.unit) {
-                ChannelUnit::None => field,
-                ChannelUnit::Percent => field.unit_kind(craft_ui::runtime::env::UnitKind::Percent),
-                ChannelUnit::Degrees => field.unit_kind(craft_ui::runtime::env::UnitKind::Degrees),
-                ChannelUnit::Text(text) => field.unit(Label::from(text)),
-            };
-            let rules = &pass.rules;
-            let edit = ui.child(("grid", model.id(), cell.channel), pass.at(cell.field), field);
-            cx.adopt(&edit, &pass.shown, |v, mine| {
-                if let Some(v) = v {
-                    *mine = mine.with_channel(model, cell.channel, *v, rules);
-                }
-            });
-        }
-        let (hash, hex) = plan.hex;
-        let _ = ui.child("hash", pass.at(hash), Text::new("#").role(TypeRole::Mono).shade(Shade::Muted));
-        self.hex_field(ui, cx, pass, pass.at(hex));
+/// A grid column of the Full layout: HSB and RGB, then Lab and the host's models, then OKLCH.
+fn column_of(model: &dyn ColorModel) -> usize {
+    match model.id() {
+        id if id == HsbModel.id() || id == RgbModel.id() => 0,
+        id if id == OklchModel.id() => 2,
+        _ => 1,
     }
+}
 
-    /// A grid row's label: a radio with the short label when the channel chooses an area mode, the plain label
-    /// otherwise.
-    #[allow(clippy::too_many_arguments)]
-    fn grid_label(
-        &mut self,
-        ui: &mut PaintUi<'_>,
-        _pass: &Pass<'_>,
-        channel: usize,
-        model: &'static str,
-        short: &str,
-        name: Label,
-        mode: Option<AreaMode>,
-        rect: Rect,
-    ) {
-        match mode {
-            Some(mode) => {
-                let side = SideLabel::new().layout(FieldLayout::After);
-                let _ = ui.labelled(("radio", model, channel), rect, Label::from(short.to_owned()), side, Radio::new(mode).label(name));
-            }
-            None => {
-                let _ = ui.child(("label", model, channel), rect, Text::new(short.to_owned()).role(TypeRole::Body));
-            }
-        }
+impl<'a> Body<'a> {
+    /// The Color Picker dialog: the area and strip over the check box, the opacity row and the screen-pick button;
+    /// beside them the compare swatch and the warnings over the channel grid, where radios choose what the area shows.
+    pub(super) fn full(&self, ui: &mut Ui, pass: &Pass<'a>) {
+        let words = Env::of(ui).words::<ColorPickerWords>();
+        let visible: Vec<&dyn ColorModel> = self.models.iter().copied().chain([pass.mode.model()]).collect();
+        Row::new().show(ui, |ui, _| {
+            Stack::new().show(ui, |ui, _| {
+                self.area_and_strip(ui, pass, &visible);
+                if self.has_web_check {
+                    let check = Field::new(words.only_web_colors.as_str().to_owned()).layout(FieldLayout::After);
+                    let shown = check.show(ui, |ui, _| Checkbox::new(Bind::given(pass.web)).show(ui)).inner;
+                    if let Some(on) = shown.and_then(|edit| edit.event).and_then(|event| event.value().copied()) {
+                        self.shared.events().web_pick = Some(on);
+                    }
+                }
+                self.alpha_row(ui, pass, &words);
+                self.sample_button(ui, &words);
+            });
+            Stack::new().show(ui, |ui, _| {
+                if self.compare.is_some() || !self.warnings.is_empty() {
+                    Row::new().show(ui, |ui, _| {
+                        if let Some(current) = self.compare {
+                            self.compare_swatch(ui, pass, current, &words);
+                        }
+                        Stack::new().show(ui, |ui, _| {
+                            for warning in &self.warnings {
+                                if ColorWarningChip::new(warning).show(ui).clicked {
+                                    self.shared.events().clicks.push(warning.nearest);
+                                }
+                            }
+                        });
+                    });
+                }
+                self.grid(ui, pass, &visible, &words);
+            });
+        });
     }
 
     /// The compare swatch: the colour being edited over the current one, with their captions; a click on the current
     /// half sets it.
-    fn compare_swatch(&mut self, ui: &mut PaintUi<'_>, pass: &Pass<'_>, current: Srgba, captions: [Rect; 2], halves: [Rect; 2]) {
-        let words = &pass.words;
+    fn compare_swatch(&self, ui: &mut Ui, pass: &Pass<'a>, current: Srgba, words: &ColorPickerWords) {
         let caption = |text: &str| Text::new(text.to_owned()).role(TypeRole::Caption).shade(Shade::Muted);
-        let _ = ui.child("new-caption", pass.at(captions[0]), caption(words.new_caption.as_str()));
-        let _ = ui.child("new", pass.at(halves[0]), Swatch::new(words.new_color.as_str().to_owned(), pass.shown.color).fill());
-        let restore = words.restore.as_str().to_owned();
-        let swatch = Swatch::new(restore.clone(), current).tooltip(restore).fill();
-        if ui.child("current", pass.at(halves[1]), swatch).clicked {
-            self.events.clicks.push(current);
+        Stack::new().show(ui, |ui, _| {
+            caption(words.new_caption.as_str()).show(ui);
+            Swatch::new(words.new_color.as_str().to_owned(), pass.shown.color).fill().show(ui);
+            let restore = words.restore.as_str().to_owned();
+            if Swatch::new(restore.clone(), current).tooltip(restore).fill().show(ui).clicked {
+                self.shared.events().clicks.push(current);
+            }
+            caption(words.current_caption.as_str()).show(ui);
+        });
+    }
+
+    /// The channel grid: one column of fields per group of models, each column sharing its label column, with the
+    /// radios of "Field shows" in front of the channels that choose an area mode, and the hex field under the first.
+    fn grid(&self, ui: &mut Ui, pass: &Pass<'a>, visible: &[&dyn ColorModel], words: &ColorPickerWords) {
+        let offered = ColorPicker::offered(&self.models);
+        let group = RadioGroup::new(words.field_shows.as_str().to_owned(), Bind::given(pass.mode)).nav(NavShape::Spatial);
+        let picked = group
+            .show(ui, |ui, _| {
+                Row::new().show(ui, |ui, _| {
+                    for column in 0..3 {
+                        let models: Vec<&'a dyn ColorModel> = self.models.iter().copied().filter(|m| column_of(*m) == column).collect();
+                        if models.is_empty() && column != 0 {
+                            continue;
+                        }
+                        FieldGroup::new(words.channels.as_str().to_owned()).show(ui, |ui, _| {
+                            for model in &models {
+                                self.model_fields(ui, pass, *model, visible, &offered, words);
+                            }
+                            if column == 0 {
+                                let label = SideLabel::new().kind(LabelKind::Glyph(GlyphLabel::text("#")));
+                                Field::new(words.hex.as_str().to_owned()).side(label).show(ui, |ui, _| self.hex_field(ui, pass, words));
+                            }
+                        });
+                    }
+                });
+            })
+            .output;
+        if let Some(mode) = picked.event.as_ref().and_then(|event| event.value()) {
+            self.shared.events().mode_pick = Some(*mode);
         }
-        let _ = ui.child("current-caption", pass.at(captions[1]), caption(words.current_caption.as_str()));
+    }
+
+    /// The rows of one model's channels.
+    fn model_fields(
+        &self,
+        ui: &mut Ui,
+        pass: &Pass<'a>,
+        model: &'a dyn ColorModel,
+        visible: &[&dyn ColorModel],
+        offered: &[AreaMode],
+        words: &ColorPickerWords,
+    ) {
+        let values = pass.shown.values_in(model);
+        for (i, channel) in model.channels().iter().enumerate() {
+            let name = channel_name(model, i, visible);
+            let short = words.grid_label.fill(&[("label", channel.label)]);
+            let short: &str = &short;
+            let label = SideLabel::new().kind(LabelKind::Glyph(GlyphLabel::text(Label::from(short.to_owned()))));
+            let mode = offered.iter().find(|mode| mode.model().id() == model.id() && mode.strip() == i).copied();
+            let rule = ChannelRule::of(channel);
+            let unit = ChannelUnit::of(channel.unit);
+            let value = f64::from(values.values[i]);
+            let edit = Field::new(name.clone())
+                .side(label)
+                .show(ui, |ui, _| {
+                    Row::new()
+                        .show(ui, |ui, _| {
+                            if let Some(mode) = mode {
+                                Radio::new(mode).label(name.clone()).show(ui);
+                            }
+                            let field = NumberField::new(name.clone(), Bind::given(Some(value)))
+                                .range(rule.range.clone())
+                                .step(rule.step)
+                                .snap_typed(true)
+                                .commit_decimals(usize::from(rule.decimals));
+                            let field = match unit {
+                                ChannelUnit::None => field,
+                                ChannelUnit::Percent => field.unit_kind(craft_ui::runtime::env::UnitKind::Percent),
+                                ChannelUnit::Degrees => field.unit_kind(craft_ui::runtime::env::UnitKind::Degrees),
+                                ChannelUnit::Text(text) => field.unit(Label::from(text)),
+                            };
+                            field.show(ui)
+                        })
+                        .inner
+                })
+                .inner
+                .flatten();
+            if let Some(edit) = edit {
+                let rules = pass.rules.clone();
+                self.shared.adopt(edit, pass.shown, move |v, mine| {
+                    if let Some(v) = v {
+                        *mine = mine.with_channel(model, i, *v, &rules);
+                    }
+                });
+            }
+        }
     }
 }

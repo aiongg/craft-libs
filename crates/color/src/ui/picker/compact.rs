@@ -1,176 +1,141 @@
-//! The Compact layout, and the parts both layouts show: the area and strip, the hex field, the opacity row and the
-//! screen-pick button.
+//! The picker's body: the Compact layout, and the parts both layouts show (the area and strip, the hex field and the
+//! screen-pick button). The Full layout is in `full.rs`.
 
-use std::sync::Arc;
+use std::rc::Rc;
 
-use craft_behavior::Flow;
-use craft_behavior::IconId;
-use craft_theme::ColorModel;
-use craft_ui::buttons::IconButton;
-use craft_ui::contract::{Bind, Cx, Edit as _, EditResponse, PaintUi, Props as _, SideLabel};
+use craft_theme::{ColorModel, Srgba};
+use craft_ui::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _};
+use craft_ui::form::FieldGroup;
+use craft_ui::layout_components::Row;
 use craft_ui::pickers::Select;
-use craft_ui::primitives::IconSpec;
-use craft_ui::runtime::env::Label;
+use craft_ui::runtime::env::{Env, Label};
 use craft_ui::text::TextField;
-use egui::{Rect, Response, Vec2};
+use egui::Ui;
 
-use super::channel::{ChannelRule, ChannelUnit, channel_name, channel_slider};
-use super::layout::{self, CompactInput};
-use super::value::Rules;
-use super::{ColorPicker, ColorPickerWords, PickedColor, ScreenPickGesture};
+use super::channel::{ChannelRow, ChannelRule, ChannelUnit, channel_name};
+use super::screen_pick::ScreenPickButton;
+use super::{ColorPickerLayout, ColorPickerWords, ColorWarning, Pass, Shared};
+use crate::ui::channels::WEB_LEVELS;
 use crate::ui::{AreaMode, ColorArea, ColorStrip};
 
-/// What a pass of the picker paints from.
-pub(super) struct Pass<'p> {
-    pub shown: PickedColor,
-    pub rules: Rules<'p>,
-    pub models: Vec<&'p dyn ColorModel>,
-    pub mode: AreaMode,
-    /// The model of the Compact rows.
-    pub model: Option<&'static str>,
-    pub flow: Flow,
-    pub origin: Vec2,
-    pub width: f32,
-    pub words: Arc<ColorPickerWords>,
+/// What the body shows and the state it shares with the container.
+pub(super) struct Body<'a> {
+    pub layout: ColorPickerLayout,
+    pub models: Vec<&'a dyn ColorModel>,
+    pub warnings: Vec<ColorWarning>,
+    pub compare: Option<Srgba>,
+    pub alpha: bool,
+    pub dynamic_tracks: bool,
+    pub eyedropper: bool,
+    pub eyedropper_busy: bool,
+    /// Whether the host holds Only Web Colors, so the Full layout shows its check box.
+    pub has_web_check: bool,
+    pub shared: Rc<Shared<'a>>,
 }
 
-impl Pass<'_> {
-    /// `logical` (from the start edge and top of the picker's room) as a physical rect.
-    pub(super) fn at(&self, logical: Rect) -> Rect {
-        self.flow.to_physical(logical.translate(self.origin))
+impl<'a> Body<'a> {
+    /// Fills the container's body.
+    pub(super) fn run(&self, ui: &mut Ui) {
+        let Some(pass) = self.shared.pass() else { return };
+        match self.layout {
+            ColorPickerLayout::Compact => self.compact(ui, &pass),
+            ColorPickerLayout::Full => self.full(ui, &pass),
+        }
     }
 
-    /// The models whose channels the picker's parts are named after: the rows' model and the area's.
-    pub(super) fn visible_in_compact<'m>(&self, model: Option<&'m dyn ColorModel>) -> Vec<&'m dyn ColorModel> {
-        model.into_iter().chain([self.mode.model()]).collect()
-    }
-}
-
-impl ColorPicker<'_> {
-    pub(super) fn paint_compact(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>, pass: &Pass<'_>) {
-        let sizes = &cx.style.sizes;
-        let model = pass.models.iter().copied().find(|m| Some(m.id()) == pass.model);
-        let input = CompactInput {
-            channels: model.map_or(0, |m| m.channels().len()),
-            switch: pass.models.len() > 1,
-            sample: self.eyedropper,
-            alpha: self.alpha,
-        };
-        let plan = layout::compact(sizes, pass.width, input);
-        let visible = pass.visible_in_compact(model);
-        self.area_and_strip(ui, cx, pass, &visible, pass.at(plan.area), pass.at(plan.strip));
+    /// The area and strip over the channel rows of one model, the model switch, the hex row and the opacity row.
+    fn compact(&self, ui: &mut Ui, pass: &Pass<'a>) {
+        let words = Env::of(ui).words::<ColorPickerWords>();
+        let model = self.models.iter().copied().find(|m| Some(m.id()) == pass.model);
+        let visible: Vec<&dyn ColorModel> = model.into_iter().chain([pass.mode.model()]).collect();
+        self.area_and_strip(ui, pass, &visible);
         if let Some(model) = model {
-            for (i, rect) in plan.channels.iter().enumerate() {
-                self.channel_row(ui, cx, pass, model, i, &visible, pass.at(*rect));
+            FieldGroup::new(words.channels.as_str().to_owned()).show(ui, |ui, _| {
+                let values = pass.shown.values_in(model);
+                for (i, channel) in model.channels().iter().enumerate() {
+                    let mut row =
+                        ChannelRow::new(channel_name(model, i, &visible), Bind::given(f64::from(values.values[i])), ChannelRule::of(channel))
+                            .unit(ChannelUnit::of(channel.unit));
+                    if self.dynamic_tracks {
+                        row = row.track(model.track(i, &values));
+                    }
+                    if let Some(edit) = row.show(ui) {
+                        let rules = pass.rules.clone();
+                        self.shared.adopt(edit, pass.shown, move |v, mine| *mine = mine.with_channel(model, i, *v, &rules));
+                    }
+                }
+                self.alpha_row(ui, pass, &words);
+            });
+            if self.models.len() > 1 {
+                let entries: Vec<Entry<&'static str>> = self.models.iter().map(|m| Entry::new(m.id(), Label::from(m.name()))).collect();
+                let label = words.color_model.fill(&[("model", model.name())]);
+                let out = Select::new(label, Bind::given(model.id()), &entries).show(ui);
+                if let Some(picked) = out.event.as_ref().and_then(|event| event.value()) {
+                    self.shared.events().model_pick = Some(*picked);
+                }
             }
-            if let Some(rect) = plan.switch {
-                self.model_switch(ui, pass, model, pass.at(rect));
-            }
         }
-        self.hex_field(ui, cx, pass, pass.at(plan.hex));
-        if let Some(rect) = plan.sample {
-            self.sample_button(ui, pass, pass.at(rect));
-        }
-        if let Some(rect) = plan.alpha {
-            self.alpha_row(ui, cx, pass, pass.at(rect));
-        }
+        Row::new().show(ui, |ui, _| {
+            self.hex_field(ui, pass, &words);
+            self.sample_button(ui, &words);
+        });
     }
 
-    /// The area `area` large and the strip at its side.
-    pub(super) fn area_and_strip(
-        &mut self,
-        ui: &mut PaintUi<'_>,
-        cx: &Cx<'_, Self>,
-        pass: &Pass<'_>,
-        visible: &[&dyn ColorModel],
-        area: Rect,
-        strip: Rect,
-    ) {
-        let mode = pass.mode;
+    /// The area and the strip beside it, for the mode of the pass.
+    pub(super) fn area_and_strip(&self, ui: &mut Ui, pass: &Pass<'a>, visible: &[&dyn ColorModel]) {
+        let mode: AreaMode = pass.mode;
         let model = mode.model();
         let [across, down] = mode.area();
         let values = pass.shown.values_in(model);
-        let rules = &pass.rules;
-        let quantize = self.quantize();
-        let mut area_child = ColorArea::new(Label::from(mode.name()), mode, Bind::given(values))
-            .names([channel_name(model, across, visible), channel_name(model, down, visible)]);
-        let mut strip_child = ColorStrip::new(channel_name(model, mode.strip(), visible), mode, Bind::given(values));
-        if let Some(levels) = quantize {
-            area_child = area_child.quantize(levels);
-            strip_child = strip_child.quantize(levels);
+        let levels = pass.rules.web.then_some(WEB_LEVELS);
+        Row::new().show(ui, |ui, _| {
+            let mut area = ColorArea::new(Label::from(mode.name()), mode, Bind::given(values))
+                .names([channel_name(model, across, visible), channel_name(model, down, visible)]);
+            let mut strip = ColorStrip::new(channel_name(model, mode.strip(), visible), mode, Bind::given(values));
+            if let Some(levels) = levels {
+                area = area.quantize(levels);
+                strip = strip.quantize(levels);
+            }
+            let edit = area.show(ui);
+            let rules = pass.rules.clone();
+            self.shared.adopt(edit, pass.shown, move |v, mine| *mine = mine.with_values(v, model, &rules));
+            let edit = strip.show(ui);
+            let rules = pass.rules.clone();
+            self.shared.adopt(edit, pass.shown, move |v, mine| *mine = mine.with_values(v, model, &rules));
+        });
+    }
+
+    /// The "Opacity" row, 0 to 100 % over the checkerboard, when the picker edits alpha.
+    pub(super) fn alpha_row(&self, ui: &mut Ui, pass: &Pass<'a>, words: &ColorPickerWords) {
+        if !self.alpha {
+            return;
         }
-        let edit = ui.child("area", area, area_child);
-        cx.adopt(&edit, &pass.shown, |v, mine| *mine = mine.with_values(v, model, rules));
-        let edit = ui.child("strip", strip, strip_child);
-        cx.adopt(&edit, &pass.shown, |v, mine| *mine = mine.with_values(v, model, rules));
-    }
-
-    /// Channel `i` of `model` as a line.
-    pub(super) fn channel_row(
-        &mut self,
-        ui: &mut PaintUi<'_>,
-        cx: &Cx<'_, Self>,
-        pass: &Pass<'_>,
-        model: &dyn ColorModel,
-        i: usize,
-        visible: &[&dyn ColorModel],
-        rect: Rect,
-    ) {
-        let channel = model.channels()[i];
-        let rule = ChannelRule::of(&channel);
-        let values = pass.shown.values_in(model);
-        let name = channel_name(model, i, visible);
-        let track = self.dynamic_tracks.then(|| (model.track(i, &values), false));
-        let slider = channel_slider(name.clone(), Bind::given(f64::from(values.values[i])), &rule, ChannelUnit::of(channel.unit), track);
-        let rules = &pass.rules;
-        let edit = ui.labelled(("channel", model.id(), i), rect, name, SideLabel::new().scrub(true), slider);
-        cx.adopt(&edit, &pass.shown, |v, mine| *mine = mine.with_channel(model, i, *v, rules));
-    }
-
-    /// The model switch: a select of the models.
-    fn model_switch(&mut self, ui: &mut PaintUi<'_>, pass: &Pass<'_>, model: &dyn ColorModel, rect: Rect) {
-        let entries: Vec<craft_ui::contract::Entry<&'static str>> =
-            pass.models.iter().map(|m| craft_ui::contract::Entry::new(m.id(), Label::from(m.name()))).collect();
-        let label = pass.words.color_model.fill(&[("model", model.name())]);
-        let out: EditResponse<&'static str> = ui.child("model", rect, Select::new(label, Bind::given(model.id()), &entries));
-        if let Some(picked) = out.event.as_ref().and_then(|event| event.value()) {
-            self.events.model_pick = Some(*picked);
-        }
-    }
-
-    /// The hex field.
-    pub(super) fn hex_field(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>, pass: &Pass<'_>, rect: Rect) {
-        let rules = &pass.rules;
-        let hex = TextField::hex(pass.words.hex.as_str().to_owned(), Bind::given(pass.shown.color.to_rgba()));
-        let edit = ui.child("hex", rect, hex);
-        cx.adopt(&edit, &pass.shown, |v, mine| *mine = mine.with_hex(*v, rules));
-    }
-
-    /// The "Opacity" row, 0 to 100 % over the checkerboard.
-    pub(super) fn alpha_row(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>, pass: &Pass<'_>, rect: Rect) {
-        let name = Label::from(pass.words.opacity.as_str().to_owned());
         let opaque = pass.shown.color.with_alpha(1.0);
-        let track = Some((vec![opaque.with_alpha(0.0), opaque], true));
-        let slider = channel_slider(name.clone(), Bind::given(pass.shown.alpha_percent()), &ChannelRule::ALPHA, ChannelUnit::Percent, track);
-        let rules = &pass.rules;
-        let edit = ui.labelled("alpha", rect, name, SideLabel::new().scrub(true), slider);
-        cx.adopt(&edit, &pass.shown, |v, mine| *mine = mine.with_alpha(*v, rules));
+        let row = ChannelRow::new(words.opacity.as_str().to_owned(), Bind::given(pass.shown.alpha_percent()), ChannelRule::ALPHA)
+            .unit(ChannelUnit::Percent)
+            .track(vec![opaque.with_alpha(0.0), opaque])
+            .checker(true);
+        if let Some(edit) = row.show(ui) {
+            let rules = pass.rules.clone();
+            self.shared.adopt(edit, pass.shown, move |v, mine| *mine = mine.with_alpha(*v, &rules));
+        }
+    }
+
+    /// The hex field. The Full layout's first show focuses it.
+    pub(super) fn hex_field(&self, ui: &mut Ui, pass: &Pass<'a>, words: &ColorPickerWords) {
+        let hex = TextField::hex(words.hex.as_str().to_owned(), Bind::given(pass.shown.color.to_rgba())).id(pass.hex);
+        let edit = hex.show(ui);
+        let rules = pass.rules.clone();
+        self.shared.adopt(edit, pass.shown, move |v, mine| *mine = mine.with_hex(*v, &rules));
     }
 
     /// The screen-pick button; its press is the output's `screen_pick`.
-    pub(super) fn sample_button(&mut self, ui: &mut PaintUi<'_>, pass: &Pass<'_>, rect: Rect) {
-        let label = pass.words.sample_screen.as_str().to_owned();
-        let button = IconButton::new(IconSpec::svg(IconId::new("eyedropper"))).label(label.clone()).tooltip(label).enabled(!self.eyedropper_busy);
-        let response: Response = ui.child("sample", rect, button);
-        let at = response.interact_pointer_pos().unwrap_or(response.rect.center());
-        self.events.screen_pick = if response.drag_stopped() {
-            Some(ScreenPickGesture::Released { at })
-        } else if response.dragged() {
-            Some(ScreenPickGesture::Held { at })
-        } else if response.clicked() {
-            Some(ScreenPickGesture::Clicked)
-        } else {
-            None
-        };
+    pub(super) fn sample_button(&self, ui: &mut Ui, words: &ColorPickerWords) {
+        if !self.eyedropper {
+            return;
+        }
+        let label = words.sample_screen.as_str().to_owned();
+        let out = ScreenPickButton::new().label(label.clone()).tooltip(label).enabled(!self.eyedropper_busy).show(ui);
+        self.shared.events().screen_pick = out.gesture;
     }
 }

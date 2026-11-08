@@ -144,17 +144,25 @@ pub(crate) struct ChannelRow<'a> {
     value: Bind<'a, f64>,
     rule: ChannelRule,
     track: Option<Vec<Srgba>>,
+    /// Whether the track shows over the transparency checkerboard.
+    checker: bool,
     unit: ChannelUnit,
 }
 
 impl<'a> ChannelRow<'a> {
     pub(crate) fn new(label: impl Into<Label>, value: Bind<'a, f64>, rule: ChannelRule) -> Self {
-        ChannelRow { label: label.into(), value, rule, track: None, unit: ChannelUnit::None }
+        ChannelRow { label: label.into(), value, rule, track: None, checker: false, unit: ChannelUnit::None }
     }
 
     /// The colours of the track, from the channel's start to its end.
     pub(crate) fn track(mut self, stops: Vec<Srgba>) -> Self {
         self.track = Some(stops);
+        self
+    }
+
+    /// The track over the transparency checkerboard, for the colours that carry alpha.
+    pub(crate) fn checker(mut self, on: bool) -> Self {
+        self.checker = on;
         self
     }
 
@@ -165,8 +173,8 @@ impl<'a> ChannelRow<'a> {
 
     /// Shows the row; the edit of the slider or the field, `None` when the row did not run.
     pub(crate) fn show(self, ui: &mut Ui) -> Option<EditResponse<f64>> {
-        let ChannelRow { label, value, rule, track, unit } = self;
-        let slider = channel_slider(label.clone(), value, &rule, unit, track.map(|stops| (stops, false)));
+        let ChannelRow { label, value, rule, track, checker, unit } = self;
+        let slider = channel_slider(label.clone(), value, &rule, unit, track.map(|stops| (stops, checker)));
         let mut slider = Some(slider);
         Field::new(label).side(SideLabel::new().scrub(true)).show(ui, |ui, _| slider.take().map(|slider| slider.show(ui))).inner.flatten()
     }
