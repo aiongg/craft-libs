@@ -11,7 +11,5 @@ craft_ui::words! {
         anchor: template "pen.anchor" = "Anchor {i} of {n}";
         /// What the draft is for assistive technology: the keys that move its anchors afterwards.
         description: "pen.description" = "Open path. Enter or Escape ends it; Direct Selection moves its anchors with the arrow keys.";
-        /// The command form named for `ToolPath::Command`.
-        command: "pen.command" = "the Direct Selection tool's anchor keys";
     }
 }

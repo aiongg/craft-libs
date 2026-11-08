@@ -150,7 +150,7 @@ impl<'a> PathOptionsPopover<'a> {
             });
             if now != before {
                 let event = EditEvent::set(GestureId::default(), Mixed::Same(before), now, Arc::from(words.title.as_str()), None);
-                settings.reborrow().write(cx, &event);
+                let _ = settings.reborrow().write(cx, &event);
                 edit = Some(event);
             }
         });

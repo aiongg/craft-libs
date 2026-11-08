@@ -202,7 +202,7 @@ impl Component for CornerWidgets<'_> {
     type Output = CornerWidgetsOutput;
 
     fn style(cx: &StyleCx<'_>, _: CornerWidgetsStyleKey) -> CornerStyle {
-        CornerStyle::of(cx)
+        CornerStyle::from_cx(cx)
     }
 
     fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
