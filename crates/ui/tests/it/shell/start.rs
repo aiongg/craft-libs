@@ -124,11 +124,7 @@ fn many_files_and_templates_share_one_scrolling_page() {
         let (recent, pinned, templates) =
             (heading_top(&fixture, "Recent"), heading_top(&fixture, "Pinned Folders"), heading_top(&fixture, "Templates"));
         assert!(recent < pinned && pinned < templates, "{show:?}: the sections follow each other: {recent} {pinned} {templates}");
-        let lowest = fixture.texts().iter().map(|painted| painted.rect.max.y).fold(0.0, f32::max);
-        assert!(
-            templates > SCREEN.y,
-            "{show:?}: the templates start below the screen: recent {recent}, pinned {pinned}, templates {templates}, lowest text {lowest}"
-        );
+        assert!(templates > SCREEN.y, "{show:?}: the templates start below the screen: {templates}");
         fixture.frame(vec![pointer::moved(Pos2::new(300.0, 200.0))]);
         fixture.frame(vec![pointer::wheel(-1000.0)]);
         fixture.idle(2);
