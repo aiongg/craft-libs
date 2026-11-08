@@ -1,7 +1,7 @@
 //! `ToggleButton`: a button that stays pressed while on.
 
 use super::face::{self, FaceLook, FaceSpec};
-use crate::contract::{Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Pointer as _, Props, Role};
+use crate::contract::{Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, PaintUi, Pointer as _, Props, Role};
 use crate::primitives::IconSpec;
 use crate::runtime::commands::CommandRef;
 use crate::runtime::env::Label;
