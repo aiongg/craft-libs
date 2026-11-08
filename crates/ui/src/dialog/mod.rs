@@ -6,6 +6,9 @@ mod alert;
 mod blocking;
 mod frame;
 mod full_window;
+// full-window parts
+mod full_window_parts;
+// end of full-window parts
 mod host;
 mod modal;
 mod prompt;
@@ -23,6 +26,13 @@ pub use alert::{Alert, AlertOutput};
 pub use blocking::{BlockingOverlay, BlockingOverlayStyle};
 pub use frame::{DialogFrame, DialogFrameStyle, DialogOutput, FooterCx};
 pub use full_window::{FullWindowDialog, FullWindowDialogStyle};
+// full-window parts
+pub use full_window_parts::{
+    FullWindowCanvas, FullWindowCanvasOutput, FullWindowSide, FullWindowSideOutput, FullWindowSideStyle, FullWindowStatus, FullWindowStatusOutput,
+    FullWindowTitle, FullWindowTitleOutput, FullWindowView, FullWindowZoomBar, FullWindowZoomBarOutput, FullWindowZoomKeys, RasterOverlay,
+    SideFooter, SideWidth,
+};
+// end of full-window parts
 pub use host::{DialogHost, DialogResult, StackDialog, StartupStage};
 pub use modal::{Dialog, DialogStyle};
 pub use prompt::{Prompt, PromptOutput, accelerator_labels};
