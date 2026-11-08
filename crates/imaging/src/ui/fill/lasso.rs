@@ -9,33 +9,40 @@ use craft_behavior::geometry::selection_op::SelectionOperation;
 /// (`{"op": "add", "points": […]}`, `{"op": "expand", "by": 4}`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum FillAreaEdit {
     /// Replaces the fill area with the polygon `points`.
+    #[non_exhaustive]
     New {
         /// Points.
         points: Vec<[f64; 2]>,
     },
     /// Adds the polygon `points` to the fill area.
+    #[non_exhaustive]
     Add {
         /// Points.
         points: Vec<[f64; 2]>,
     },
     /// Subtracts the polygon `points` from the fill area.
+    #[non_exhaustive]
     Subtract {
         /// Points.
         points: Vec<[f64; 2]>,
     },
     /// Intersects the fill area with the polygon `points`.
+    #[non_exhaustive]
     Intersect {
         /// Points.
         points: Vec<[f64; 2]>,
     },
     /// Grows the fill area by `by` pixels.
+    #[non_exhaustive]
     Expand {
         /// By.
         by: f64,
     },
     /// Shrinks the fill area by `by` pixels.
+    #[non_exhaustive]
     Contract {
         /// By.
         by: f64,
@@ -56,10 +63,11 @@ impl FillAreaEdit {
             return None;
         }
         Some(match operation {
-            SelectionOperation::New => FillAreaEdit::New { points },
             SelectionOperation::Add => FillAreaEdit::Add { points },
             SelectionOperation::Subtract => FillAreaEdit::Subtract { points },
             SelectionOperation::Intersect => FillAreaEdit::Intersect { points },
+            // An operation the library adds later replaces the fill area, as the bar's New does.
+            _ => FillAreaEdit::New { points },
         })
     }
 

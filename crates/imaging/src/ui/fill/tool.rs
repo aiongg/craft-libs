@@ -22,6 +22,7 @@ const CROSSHAIR_REACH: f32 = 6.0;
 
 /// The tools of Content-Aware Fill's strip: Sampling Brush (B), Lasso (L), Hand (H), Zoom (Z).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum FillTool {
     /// The Sampling Brush.
     #[default]
@@ -53,6 +54,7 @@ impl FillTool {
 
 /// The tools' options: the bar's values, outside the history and not persisted.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct FillToolOptions {
     /// The bar's + (true) or −; the sampling option sets it (Custom adds) and Alt reverses it.
     pub brush_add: bool,
@@ -198,7 +200,7 @@ impl FillCanvasTool<'_> {
         if self.session.points_used(Some(stroke)) >= self.limits.points {
             if !canvas.refused {
                 canvas.refused = true;
-                canvas.events.push(FillEvent::Refused(FillLimit::Points(self.limits.points)));
+                canvas.events.push(FillEvent::Refused(FillLimit::Vertices(self.limits.points)));
             }
             return;
         }

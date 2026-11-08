@@ -14,6 +14,7 @@ use crate::ui::select_mask::EditMode;
 /// Rectangular start full (the brush subtracts), Custom starts empty (the brush adds).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum SamplingMode {
     #[default]
     /// Auto.
@@ -37,6 +38,7 @@ impl SamplingMode {
 /// Fill Settings › Color Adaptation.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum ColorAdaptation {
     /// None.
     None,
@@ -52,6 +54,7 @@ pub enum ColorAdaptation {
 /// Fill Settings › Rotation Adaptation.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum RotationAdaptation {
     #[default]
     /// None.
@@ -69,6 +72,7 @@ pub enum RotationAdaptation {
 /// Output Settings › Output To. Photoshop opens on New Layer.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum FillOutputTo {
     #[serde(rename = "current")]
     /// Current layer.
@@ -87,6 +91,7 @@ pub enum FillOutputTo {
 /// …}`, `caf_ui.rs:216` `stroke_json`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct SamplingStroke {
     /// Whether the stroke adds to or subtracts from the sampling area.
     pub mode: EditMode,
@@ -101,6 +106,7 @@ pub struct SamplingStroke {
 /// (`engine/src/cmd/edit_menu_cmds/content_aware.rs:105`, `:107`). The brush stops there, so
 /// Apply and the preview never fail on what was painted.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct FillLimits {
     /// Most strokes, and separately most lasso edits.
     pub edits: usize,
@@ -120,7 +126,7 @@ pub enum FillLimit {
     /// At most this many lasso edits.
     LassoEdits(usize),
     /// At most this many points in all strokes and lasso edits.
-    Points(usize),
+    Vertices(usize),
 }
 
 impl FillLimit {
@@ -133,7 +139,7 @@ impl FillLimit {
         let (counted, n) = match *self {
             FillLimit::Strokes(n) => (&words.stroke_limit, n),
             FillLimit::LassoEdits(n) => (&words.lasso_edit_limit, n),
-            FillLimit::Points(n) => (&words.point_limit, n),
+            FillLimit::Vertices(n) => (&words.point_limit, n),
         };
         counted.text(n as u64, &env.format().integer(n as u64))
     }
@@ -156,6 +162,7 @@ pub enum FillStrokeEvent {
 
 /// What a Reset button resets.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum FillReset {
     /// Sampling Area Options' Reset: Auto, Sample All Layers off, no strokes.
     Sampling,
@@ -172,6 +179,7 @@ pub enum FillReset {
 /// and the lasso edits of the fill area. The tool, the brush size and the overlay are outside it
 /// (risk 8).
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct FillSession {
     /// How the sampling area starts.
     pub sampling: SamplingMode,
@@ -199,7 +207,7 @@ impl FillSession {
             return Err(FillLimit::Strokes(limits.edits));
         }
         if self.points_used(None) >= limits.points {
-            return Err(FillLimit::Points(limits.points));
+            return Err(FillLimit::Vertices(limits.points));
         }
         Ok(())
     }
@@ -220,7 +228,7 @@ impl FillSession {
             return Err(FillLimit::LassoEdits(limits.edits));
         }
         if self.points_used(None) + edit.points_len() > limits.points {
-            return Err(FillLimit::Points(limits.points));
+            return Err(FillLimit::Vertices(limits.points));
         }
         self.fill_edits.push(edit);
         Ok(())
@@ -280,6 +288,7 @@ impl FillSession {
 /// Layer.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
+#[non_exhaustive]
 pub struct FillSettings {
     /// Whether the overlay shows.
     pub show_overlay: bool,
@@ -324,6 +333,20 @@ impl Default for FillSettings {
     }
 }
 
+impl SamplingStroke {
+    /// A stroke of `mode` and `size` document pixels along `points`.
+    pub fn new(mode: EditMode, size: f64, points: Vec<[f64; 2]>) -> Self {
+        Self { mode, size, points }
+    }
+}
+
+impl FillLimits {
+    /// At most `edits` strokes and as many lasso edits, and `points` points in all.
+    pub const fn new(edits: usize, points: usize) -> Self {
+        Self { edits, points }
+    }
+}
+
 impl FillSettings {
     /// The settings that change the fill: a change asks for a new preview.
     pub(crate) fn fill_params(&self) -> (bool, ColorAdaptation, RotationAdaptation, bool, bool) {
@@ -337,6 +360,7 @@ impl FillSettings {
 /// there are strokes.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct FillCommand {
     /// How the sampling area starts.
     pub sampling: SamplingMode,

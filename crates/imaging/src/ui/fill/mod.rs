@@ -57,7 +57,7 @@ use craft_ui::buttons::IconButton;
 use craft_ui::canvas::{HandTool, Momentary, NavigationOptions, PickStep, RasterSource, ToolHost, ZoomTool, tool_pick};
 use craft_ui::canvas_controls::brush::{BrushCursorOptions, TipFalloff};
 use craft_ui::canvas_controls::{Marquee, MarqueeLook};
-use craft_ui::contract::{Bind, BodyCx, NoValue, Outcome, Props as _, Remember as _, Show as _, ShowContainer as _, clicked};
+use craft_ui::contract::{Bind, BodyCx, NoValue, Outcome, Pattern, Props as _, Remember as _, Show as _, ShowContainer as _, clicked};
 use craft_ui::dialog::{DialogWords, FullWindowCanvas, FullWindowDialog, FullWindowSide, FullWindowTitle, FullWindowView, RasterOverlay, SideFooter};
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::patterns::form_dialogs::ParamDialogWords;
@@ -217,6 +217,7 @@ impl FillIssue {
 /// dialog's view commands. The app routes ⌘Z and ⇧⌘Z (`EditCommands::Undo`, `Redo`) to [`step`](Self::step); Enter
 /// is OK and Esc Cancel (Esc during a stroke or lasso cancels that only). A tool switch or an undo during a stroke
 /// cancels it first (`CancelReason::Removed`, `CancelReason::UndoDuringGesture`).
+#[derive(Pattern)]
 pub struct ContentAwareFillWorkspace {
     session: FillSession,
     history: EditHistory<FillSession>,
@@ -479,6 +480,7 @@ impl ContentAwareFillWorkspace {
             return match step {
                 Step::Undo => self.history.can_undo(),
                 Step::Redo => self.history.can_redo(),
+                _ => false,
             };
         }
         self.step_now(step)

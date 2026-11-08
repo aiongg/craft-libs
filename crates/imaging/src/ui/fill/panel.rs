@@ -5,8 +5,8 @@ use std::ops::RangeInclusive;
 use egui::{Color32, Response, Ui};
 
 use craft_behavior::{EditEvent, IconId};
-use craft_theme::Srgba;
 use craft_theme::variant::Tone;
+use craft_theme::{ControlSize, Srgba};
 use craft_ui::buttons::IconButton;
 use craft_ui::choice::{Checkbox, Segmented, Swatch};
 use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Pattern, Props as _, SaveKey, Show as _, ShowContainer as _, clicked};
@@ -161,7 +161,7 @@ impl<'a> FillPanel<'a> {
 /// A Reset icon button in a section header; whether it was pressed.
 fn reset_button(ui: &mut Ui, salt: &'static str, label: &Label) -> bool {
     let icon = IconSpec::svg(IconId::new("undo-2"));
-    clicked(&IconButton::new(icon).label(label.clone()).size(craft_ui::style::ControlSize::Sm).id_salt(salt).show(ui))
+    clicked(&IconButton::new(icon).label(label.clone()).size(ControlSize::Sm).id_salt(salt).show(ui))
 }
 
 /// The controls of one pass: the settings they started from and what they add up to.

@@ -26,7 +26,7 @@ use crate::ui::wide_angle::PreviewDone;
 /// Document pixels per cell of the story planes.
 const TEXEL: u32 = 8;
 /// The story limits: PhotoCraft's.
-const LIMITS: FillLimits = FillLimits { edits: 1000, points: 200_000 };
+const LIMITS: FillLimits = FillLimits::new(1000, 200_000);
 /// The share of the picture's width the fill area box covers, round the house.
 const FILL_AREA_REACH: f64 = 0.16;
 /// How long the loading story's job runs before it gives up, in seconds.
@@ -48,7 +48,7 @@ fn plane(image: MockImage, inside: impl Fn(f64, f64) -> bool) -> SamplingPlane {
     let texel = f64::from(TEXEL);
     let bits =
         (0..rows * columns).map(|i| inside(f64::from(i % columns) * texel + texel / 2.0, f64::from(i / columns) * texel + texel / 2.0)).collect();
-    SamplingPlane { origin: [0, 0], size: [columns, rows], texel: TEXEL, bits }
+    SamplingPlane::new([0, 0], [columns, rows], TEXEL, bits)
 }
 
 /// The app's side over `MockImage`.

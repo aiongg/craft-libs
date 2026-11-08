@@ -26,13 +26,18 @@ use craft_ui::sections::DialogRole;
 use craft_ui::testing::{Fixture, pointer, trial};
 
 const NONE: Modifiers = Modifiers::NONE;
-const GENEROUS: FillLimits = FillLimits { edits: 1000, points: 200_000 };
+const GENEROUS: FillLimits = FillLimits::new(1000, 200_000);
 /// The layer the workspace opens on, in document pixels.
 const LAYER: PixelSize = PixelSize::new(400, 300);
 /// The room the workspace is shown in.
 const ROOM: egui::Vec2 = vec2(1400.0, 900.0);
 /// A point on the main canvas, left of the side columns.
 const CANVAS: Pos2 = pos2(400.0, 450.0);
+/// How far from the window's centre the framed view's centre may be, in document pixels.
+const CENTRE_TOLERANCE: f64 = 1.0;
+
+/// The level of the flat grey picture.
+const GREY: u8 = 128;
 
 /// A flat grey picture.
 struct Grey;
@@ -51,7 +56,7 @@ impl RasterSource for Grey {
     }
 
     fn read(&self, _: PixelRect, _: u32, out: &mut ColorImage) {
-        out.pixels.fill(Color32::GRAY);
+        out.pixels.fill(Color32::from_gray(GREY));
     }
 }
 
@@ -107,7 +112,7 @@ impl Rig {
         rig
     }
 
-    fn default() -> Rig {
+    fn standard() -> Rig {
         Rig::new(FillSettings::default(), GENEROUS)
     }
 
@@ -161,7 +166,7 @@ fn committed(events: &[FillEvent]) -> Option<&SamplingStroke> {
 }
 
 fn stroke_of(points: &[[f64; 2]]) -> SamplingStroke {
-    SamplingStroke { mode: EditMode::Add, size: 20.0, points: points.to_vec() }
+    SamplingStroke::new(EditMode::Add, 20.0, points.to_vec())
 }
 
 fn session_with_work() -> FillSession {
@@ -182,7 +187,9 @@ fn fill_brush_adds_in_custom_and_subtracts_in_auto_and_alt_reverses() {
         (SamplingMode::Custom, true, EditMode::Subtract),
     ] {
         assert_eq!(FillToolOptions::stroke_mode(mode.brush_adds(), alt), expected, "{mode:?}, Alt {alt}");
-        let mut rig = Rig::new(FillSettings { sampling: mode, ..FillSettings::default() }, GENEROUS);
+        let mut settings = FillSettings::default();
+        settings.sampling = mode;
+        let mut rig = Rig::new(settings, GENEROUS);
         let modifiers = if alt { Modifiers::ALT } else { NONE };
         rig.stroke(CANVAS, &[CANVAS + vec2(20.0, 0.0), CANVAS + vec2(40.0, 0.0)], modifiers);
         let events = rig.events();
@@ -196,7 +203,7 @@ fn fill_lasso_modes_and_expand_contract_report_fill_area_edits() {
     for (modifiers, expect) in
         [(NONE, "new"), (Modifiers::SHIFT, "add"), (Modifiers::ALT, "subtract"), (Modifiers::SHIFT | Modifiers::ALT, "intersect")]
     {
-        let mut rig = Rig::default();
+        let mut rig = Rig::standard();
         rig.lasso();
         rig.square(modifiers);
         let edits: Vec<String> = rig
@@ -210,16 +217,20 @@ fn fill_lasso_modes_and_expand_contract_report_fill_area_edits() {
         assert_eq!(edits, [expect], "{modifiers:?}");
     }
     // Under three points nothing is reported.
-    let mut rig = Rig::default();
+    let mut rig = Rig::standard();
     rig.lasso();
     rig.stroke(CANVAS, &[CANVAS + vec2(10.0, 0.0)], NONE);
     assert!(rig.events().iter().all(|event| !matches!(event, FillEvent::FillArea(_))));
     assert_eq!(FillAreaEdit::lasso(SelectionOperation::Add, vec![[0.0, 0.0], [1.0, 0.0]]), None);
 
-    assert_eq!(FillAreaEdit::grow(true, 500.0), FillAreaEdit::Expand { by: 100.0 });
-    assert_eq!(FillAreaEdit::grow(false, 0.0), FillAreaEdit::Contract { by: 1.0 });
-    let edits =
-        [FillAreaEdit::Subtract { points: vec![[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]] }, FillAreaEdit::grow(true, 4.0), FillAreaEdit::grow(false, 2.0)];
+    // Expand and Contract clamp to 1..=100.
+    let amount = |edit: FillAreaEdit| serde_json::to_value(edit).ok().and_then(|v| v["by"].as_f64());
+    assert_eq!(amount(FillAreaEdit::grow(true, 500.0)), Some(FillAreaEdit::GROW_RANGE.1));
+    assert_eq!(amount(FillAreaEdit::grow(false, 0.0)), Some(FillAreaEdit::GROW_RANGE.0));
+    let Some(subtract) = FillAreaEdit::lasso(SelectionOperation::Subtract, vec![[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]) else {
+        panic!("three points are a lasso")
+    };
+    let edits = [subtract, FillAreaEdit::grow(true, 4.0), FillAreaEdit::grow(false, 2.0)];
     assert_eq!(
         serde_json::to_value(edits).ok(),
         Some(json!([{"op": "subtract", "points": [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]}, {"op": "expand", "by": 4.0}, {"op": "contract", "by": 2.0}]))
@@ -228,7 +239,7 @@ fn fill_lasso_modes_and_expand_contract_report_fill_area_edits() {
 
 #[trial]
 fn fill_expand_uses_the_bars_amount() {
-    let mut rig = Rig::default();
+    let mut rig = Rig::standard();
     rig.lasso();
     rig.fixture.idle(2);
     let Some(expand) = rig.fixture.by_label("Expand") else { panic!("the Lasso's bar has Expand") };
@@ -241,12 +252,14 @@ fn fill_expand_uses_the_bars_amount() {
             _ => None,
         })
         .collect();
-    assert_eq!(edits, [FillAreaEdit::Expand { by: FillToolOptions::GROW_BY }]);
+    let amounts: Vec<Option<f64>> = edits.into_iter().map(|edit| serde_json::to_value(edit).ok().and_then(|v| v["by"].as_f64())).collect();
+    assert_eq!(amounts, [Some(FillToolOptions::GROW_BY)]);
 }
 
 #[trial]
 fn fill_reset_scopes_sampling_fill_and_all() {
-    let changed = FillSettings { sample_all_layers: true, opacity: 10.0, scale: true, mirror: true, ..FillSettings::default() };
+    let mut changed = FillSettings::default();
+    (changed.sample_all_layers, changed.opacity, changed.scale, changed.mirror) = (true, 10.0, true, true);
 
     // Sampling: the strokes and the option; the fill edits stay.
     let (mut session, mut settings) = (session_with_work(), changed.clone());
@@ -293,7 +306,7 @@ fn fill_reset_scopes_sampling_fill_and_all() {
 
 #[trial]
 fn fill_limits_refuse_at_the_brush() {
-    let limits = FillLimits { edits: 2, points: 5 };
+    let limits = FillLimits::new(2, 5);
     let mut session = FillSession::default();
     session.add_stroke(stroke_of(&[[0.0, 0.0]]));
     assert_eq!(session.may_begin_stroke(&limits), Ok(()));
@@ -301,18 +314,23 @@ fn fill_limits_refuse_at_the_brush() {
     assert_eq!(session.may_begin_stroke(&limits), Err(FillLimit::Strokes(2)), "two strokes are the limit");
 
     // Points are counted over strokes and lasso edits; a total equal to the limit passes an edit.
-    let limits = FillLimits { edits: 10, points: 5 };
+    let limits = FillLimits::new(10, 5);
     let mut session = FillSession::default();
     session.add_stroke(stroke_of(&[[0.0, 0.0], [1.0, 1.0]]));
-    let triangle = || FillAreaEdit::Add { points: vec![[0.0, 0.0], [4.0, 0.0], [4.0, 4.0]] };
+    let triangle = || {
+        let Some(edit) = FillAreaEdit::lasso(SelectionOperation::Add, vec![[0.0, 0.0], [4.0, 0.0], [4.0, 4.0]]) else {
+            panic!("three points are a lasso")
+        };
+        edit
+    };
     assert_eq!(session.add_fill_edit(triangle(), &limits), Ok(()));
     assert_eq!(session.points_used(None), 5);
-    assert_eq!(session.may_begin_stroke(&limits), Err(FillLimit::Points(5)));
-    assert_eq!(session.add_fill_edit(triangle(), &limits), Err(FillLimit::Points(5)));
+    assert_eq!(session.may_begin_stroke(&limits), Err(FillLimit::Vertices(5)));
+    assert_eq!(session.add_fill_edit(triangle(), &limits), Err(FillLimit::Vertices(5)));
     assert_eq!(session.fill_edits.len(), 1, "a refused edit records nothing");
 
     // The brush: no stroke begins at the stroke limit.
-    let mut rig = Rig::new(FillSettings::default(), FillLimits { edits: 1, points: 100 });
+    let mut rig = Rig::new(FillSettings::default(), FillLimits::new(1, 100));
     rig.line(2);
     assert!(committed(&rig.events()).is_some(), "the first stroke fits");
     rig.line(2);
@@ -321,10 +339,10 @@ fn fill_limits_refuse_at_the_brush() {
     assert!(committed(&events).is_none());
 
     // A stroke at the points limit stops taking points; the message comes once.
-    let mut rig = Rig::new(FillSettings::default(), FillLimits { edits: 10, points: 3 });
+    let mut rig = Rig::new(FillSettings::default(), FillLimits::new(10, 3));
     rig.line(6);
     let events = rig.events();
-    let refusals = events.iter().filter(|event| matches!(event, FillEvent::Refused(FillLimit::Points(3)))).count();
+    let refusals = events.iter().filter(|event| matches!(event, FillEvent::Refused(FillLimit::Vertices(3)))).count();
     assert_eq!(refusals, 1, "{events:?}");
     assert_eq!(committed(&events).map(|stroke| stroke.points.len()), Some(3));
 }
@@ -353,9 +371,10 @@ fn fill_settings_and_command_serialise_as_photocraft() {
         }))
     );
     session.set_sampling(SamplingMode::Custom);
-    session.add_stroke(SamplingStroke { mode: EditMode::Subtract, size: 12.0, points: vec![[1.0, 2.0]] });
+    session.add_stroke(SamplingStroke::new(EditMode::Subtract, 12.0, vec![[1.0, 2.0]]));
     assert_eq!(session.add_fill_edit(FillAreaEdit::grow(false, 5.0), &GENEROUS), Ok(()));
-    let settings = FillSettings { sample_all_layers: true, scale: true, rotation: RotationAdaptation::Medium, ..defaults };
+    let mut settings = defaults;
+    (settings.sample_all_layers, settings.scale, settings.rotation) = (true, true, RotationAdaptation::Medium);
     assert_eq!(
         serde_json::to_value(FillCommand::new(&session, &settings)).ok(),
         Some(json!({
@@ -368,7 +387,7 @@ fn fill_settings_and_command_serialise_as_photocraft() {
 
 #[trial]
 fn fill_rebase_clears_history_and_a_refused_edit_is_taken_back() {
-    let mut rig = Rig::default();
+    let mut rig = Rig::standard();
     rig.line(3);
     rig.take();
     rig.work.borrow_mut().rebase();
@@ -387,7 +406,7 @@ fn fill_rebase_clears_history_and_a_refused_edit_is_taken_back() {
 
 #[trial]
 fn fill_stroke_updates_carry_only_the_new_points() {
-    let mut rig = Rig::default();
+    let mut rig = Rig::standard();
     rig.line(3);
     let events = rig.events();
     let updates: Vec<usize> = events
@@ -403,7 +422,7 @@ fn fill_stroke_updates_carry_only_the_new_points() {
 
 #[trial]
 fn fill_letter_mid_stroke_cancels_the_stroke_and_ends_busy() {
-    let mut rig = Rig::default();
+    let mut rig = Rig::standard();
     rig.fixture.frame(vec![pointer::moved(CANVAS)]);
     rig.fixture.frame(vec![pointer::press(CANVAS)]);
     rig.fixture.frame(vec![pointer::moved(CANVAS + vec2(20.0, 0.0))]);
@@ -418,7 +437,7 @@ fn fill_letter_mid_stroke_cancels_the_stroke_and_ends_busy() {
 
 #[trial]
 fn fill_undo_mid_stroke_cancels_the_stroke() {
-    let mut rig = Rig::default();
+    let mut rig = Rig::standard();
     rig.fixture.frame(vec![pointer::moved(CANVAS)]);
     rig.fixture.frame(vec![pointer::press(CANVAS)]);
     rig.fixture.frame(vec![pointer::moved(CANVAS + vec2(20.0, 0.0))]);
@@ -431,7 +450,7 @@ fn fill_undo_mid_stroke_cancels_the_stroke() {
 
 #[trial]
 fn fill_apply_keeps_the_workspace_open_and_ok_closes() {
-    let mut rig = Rig::default();
+    let mut rig = Rig::standard();
     let Some(apply) = rig.fixture.by_label("Apply") else { panic!("the footer has Apply") };
     rig.fixture.click(&apply);
     let outputs = rig.take();
@@ -444,14 +463,14 @@ fn fill_apply_keeps_the_workspace_open_and_ok_closes() {
 
 #[trial]
 fn fill_settings_changes_are_reported_by_the_pass_that_sees_them() {
-    let mut rig = Rig::default();
+    let mut rig = Rig::standard();
     rig.work.borrow_mut().set_color("fill.overlayColor", Srgba::from(Color32::from_rgb(10, 20, 30)));
     rig.fixture.idle(1);
     let outputs = rig.take();
     assert_eq!(outputs.iter().filter(|output| output.settings_changed).count(), 1, "the colour counts once");
     assert_eq!(rig.work.borrow().settings().color, [10, 20, 30]);
     // A key the workspace did not ask for changes nothing.
-    rig.work.borrow_mut().set_color("other", Srgba::from(Color32::WHITE));
+    rig.work.borrow_mut().set_color("other", Srgba::from(Color32::from_gray(u8::MAX)));
     rig.fixture.idle(1);
     assert!(rig.take().iter().all(|output| !output.settings_changed));
 }
@@ -459,13 +478,13 @@ fn fill_settings_changes_are_reported_by_the_pass_that_sees_them() {
 #[trial]
 fn fill_overlay_tints_the_sampling_area_or_the_excluded_area() {
     // A 4 by 1 plane of one-pixel cells: sampled, sampled, not sampled, sampled.
-    let sampling = SamplingPlane { origin: [0, 0], size: [4, 1], texel: 1, bits: vec![true, true, false, true] };
+    let sampling = SamplingPlane::new([0, 0], [4, 1], 1, vec![true, true, false, true]);
     // The fill area covers the second cell.
-    let fill_area = SamplingPlane { origin: [0, 0], size: [4, 1], texel: 1, bits: vec![false, true, false, false] };
+    let fill_area = SamplingPlane::new([0, 0], [4, 1], 1, vec![false, true, false, false]);
     let document = PixelSize::new(6, 1);
     let tinted = |excluded: bool| -> Vec<bool> {
         let overlay = FillOverlay::new(&sampling, Some(&fill_area), document).excluded(excluded);
-        let mut out = ColorImage::filled([6, 1], Color32::TRANSPARENT);
+        let mut out = ColorImage::filled([6, 1], Color32::from_white_alpha(0));
         overlay.read(PixelRect::of_size(document), 1, &mut out);
         out.pixels.iter().map(|pixel| pixel.a() > 0).collect()
     };
@@ -490,7 +509,6 @@ fn fill_preview_panel_has_its_own_view_framed_on_the_sampling_window() {
     });
     fixture.room(vec2(400.0, 400.0)).settle();
     let held = view.borrow().view();
-    assert!((held.center.x - 150.0).abs() < 1.0 && (held.center.y - 75.0).abs() < 1.0, "centred on the window: {:?}", held.center);
-    let zoom = view.borrow().device_zoom();
-    assert!(zoom > 1.0, "the window fills the pane, so the picture is magnified: {zoom}");
+    assert!(held.center.distance(frame.center()) < CENTRE_TOLERANCE, "centred on the window: {:?}", held.center);
+    assert!(!view.borrow().is_fit(), "the view is the framing, not the fit of the whole picture");
 }

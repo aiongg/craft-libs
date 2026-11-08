@@ -15,6 +15,7 @@ use crate::trace::{CoverageGrid, GRID_EDGE_LIMIT, edges_of_grid};
 
 /// A plane of the app's coverage: `bits` row-major over `size` cells of `texel` document pixels from `origin`.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct SamplingPlane {
     /// The document position of the first cell's corner.
     pub origin: [i32; 2],
@@ -27,6 +28,11 @@ pub struct SamplingPlane {
 }
 
 impl SamplingPlane {
+    /// A plane of `size` columns and rows of `texel` document pixels from `origin`, with `bits` row-major.
+    pub fn new(origin: [i32; 2], size: [u32; 2], texel: u32, bits: Vec<bool>) -> Self {
+        Self { origin, size, texel, bits }
+    }
+
     /// Whether the document point `(x, y)` lies in the plane's extent, and if so whether its cell is covered.
     fn cell_at(&self, x: f64, y: f64) -> Option<bool> {
         let texel = f64::from(self.texel.max(1));
@@ -95,7 +101,7 @@ impl RasterSource for FillOverlay<'_> {
             let y = f64::from(region.y0) + (row as f64 + 0.5) * factor;
             for column in 0..columns {
                 let x = f64::from(region.x0) + (column as f64 + 0.5) * factor;
-                out.pixels[row * columns + column] = if self.tinted(x, y) { Color32::WHITE } else { Color32::TRANSPARENT };
+                out.pixels[row * columns + column] = if self.tinted(x, y) { Color32::from_white_alpha(u8::MAX) } else { Color32::TRANSPARENT };
             }
         }
     }
