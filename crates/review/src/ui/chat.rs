@@ -145,14 +145,16 @@ impl<'a> CursorChatBox<'a> {
             let before = text.clone();
             let mut shown = true;
             let mut submitted = false;
+            let mut field_escaped = false;
             let popover = Popover::new(words.name.clone(), Bind::bound(&mut shown)).at_point(at).show(ui, |ui, _| {
                 let field = TextField::new(words.name.clone(), Bind::bound(&mut *text)).placeholder(words.hint.clone()).show(ui);
                 submitted = field.submitted;
+                field_escaped = field.escaped;
             });
             if *text != before {
                 requests.push(CollabRequest::Chat(text.clone()));
             }
-            let escaped = popover.output.closed == Some(CloseReason::Escape);
+            let escaped = field_escaped || popover.output.closed == Some(CloseReason::Escape);
             if escaped || (submitted && text.trim().is_empty()) {
                 text.clear();
                 requests.push(CollabRequest::Chat(String::new()));

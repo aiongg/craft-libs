@@ -22,10 +22,13 @@ fn panel(revisions: Vec<Revision>) -> (Fixture, Rc<RefCell<Vec<RevisionAction>>>
     (fixture, actions)
 }
 
-/// The nodes named `label`, in tree order.
+/// The nodes named `label`, top to bottom.
 pub(crate) fn named(fixture: &Fixture, label: &str) -> Vec<Target> {
     let tree = fixture.tree();
-    tree.keys().into_iter().filter(|key| tree.name_of(*key) == Some(label)).filter_map(|key| fixture.target(key)).collect()
+    let mut found: Vec<Target> =
+        tree.keys().into_iter().filter(|key| tree.name_of(*key) == Some(label)).filter_map(|key| fixture.target(key)).collect();
+    found.sort_by(|a, b| a.center().y.total_cmp(&b.center().y).then(a.center().x.total_cmp(&b.center().x)));
+    found
 }
 
 /// The per-row buttons and the All buttons report their actions.

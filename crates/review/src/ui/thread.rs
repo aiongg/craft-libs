@@ -570,6 +570,7 @@ impl ThreadPopover<'_> {
         names.push(me);
         let mut edits = Vec::new();
         let mut open = true;
+        let mut escaped = false;
         let mut popover = Popover::new(name, Bind::bound(&mut open)).opened_by(opener).initial_focus(Initial::First);
         popover = popover.overlay(|overlay| overlay.min_size(egui::vec2(POPOVER_IN_HEIGHTS * side, 0.0)));
         if let Some(rect) = anchor {
@@ -674,21 +675,23 @@ impl ThreadPopover<'_> {
                         });
                     });
                 }
-                TextField::new(words.reply.clone(), Bind::bound(&mut *draft))
+                let field = TextField::new(words.reply.clone(), Bind::bound(&mut *draft))
                     .lines(COMPOSER_ROWS)
                     .placeholder(words.reply.clone())
                     .complete(MentionCompleter { people: people.to_vec(), me: me.to_owned() })
+                    .submits()
                     .show(ui);
+                escaped |= field.escaped;
                 let text = draft.trim().to_owned();
                 let post = Button::new(words.post.clone()).enabled(!text.is_empty()).show(ui);
-                if clicked(&post) && !text.is_empty() {
+                if (clicked(&post) || field.submitted) && !text.is_empty() {
                     edits.push(CommentEdit::Reply { thread: thread.id, text });
                     draft.clear();
                 }
             });
             *cx.keep::<Editing>() = Editing(editing);
         });
-        ThreadPopoverOutput { edits, closed: !open || shown.output.closed.is_some() }
+        ThreadPopoverOutput { edits, closed: !open || escaped || shown.output.closed.is_some() }
     }
 }
 
@@ -736,11 +739,16 @@ impl CommentComposer<'_> {
             .overlay(|overlay| overlay.min_size(egui::vec2(POPOVER_IN_HEIGHTS * side, 0.0)))
             .show(ui, |ui, _| {
                 Stack::new().show(ui, |ui, _| {
-                    TextField::new(words.add_comment.clone(), Bind::bound(&mut *draft))
+                    let field = TextField::new(words.add_comment.clone(), Bind::bound(&mut *draft))
                         .lines(COMPOSER_ROWS)
                         .placeholder(words.add_comment.clone())
+                        .submits()
                         .show(ui);
+                    cancel |= field.escaped;
                     let text = draft.trim().to_owned();
+                    if field.submitted && !text.is_empty() {
+                        posted = Some(text.clone());
+                    }
                     Row::new().show(ui, |ui, _| {
                         let post = Button::new(words.post.clone()).enabled(!text.is_empty()).show(ui);
                         if clicked(&post) && !text.is_empty() {

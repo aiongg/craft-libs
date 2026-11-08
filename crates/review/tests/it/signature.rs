@@ -22,5 +22,7 @@ fn apply_waits_for_content() {
     draft.tab = SignatureTab::Draw;
     assert!(!draft.ready());
     draft.strokes = vec![vec![[0.1, 0.2]]];
+    assert!(!draft.ready(), "a bare click is not a stroke");
+    draft.strokes = vec![vec![[0.1, 0.2], [0.3, 0.4]]];
     assert!(draft.ready());
 }

@@ -10,7 +10,7 @@ use craft_theme::variant::Tone;
 use craft_ui::buttons::Button;
 use craft_ui::choice::Segmented;
 use craft_ui::contract::{
-    Access, Bind, BindMut, Common, Component, Cx, Edit as _, Entry, MeasureCx, PaintUi, PartsCx, Pointer as _, Props as _, Role, Show as _,
+    Bind, BindMut, Common, Component, Cx, Edit as _, Entry, MeasureCx, PaintUi, PartsCx, Pointer as _, Props as _, Role, Show as _,
     ShowContainer as _, clicked,
 };
 use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
@@ -271,10 +271,6 @@ impl Component for DrawPad<'_> {
             }
             _ => {}
         }
-    }
-
-    fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
-        access.role(Role::IMAGE);
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {

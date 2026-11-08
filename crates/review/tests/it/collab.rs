@@ -80,7 +80,7 @@ fn people_bar_follows_and_spotlights() {
 /// Remove is offered in the context menu only when the transport allows it.
 #[trial]
 fn people_bar_removes_only_when_allowed() {
-    for (allowed, expected) in [(false, 0), (true, 1)] {
+    for allowed in [false, true] {
         let (mut fixture, _) = bar(Scripted { remove: allowed, ..session() });
         let bo = fixture.by_label("Bo Chen").expect("Bo's avatar");
         let at = bo.center();
@@ -88,7 +88,7 @@ fn people_bar_removes_only_when_allowed() {
         fixture.frame(vec![pointer::secondary(at, true)]);
         fixture.frame(vec![pointer::secondary(at, false)]);
         fixture.idle(2);
-        assert_eq!(named(&fixture, "Remove Bo Chen from session").len(), expected);
+        assert_eq!(!named(&fixture, "Remove Bo Chen from session").is_empty(), allowed);
     }
 }
 

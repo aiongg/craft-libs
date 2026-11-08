@@ -73,14 +73,12 @@ fn composer() -> (Fixture, Rc<RefCell<Composer>>) {
     (fx, app)
 }
 
-/// The multi-line field has no commit chord in the text adapter, so Post is the button.
+/// Command+Enter posts from the multi-line field and Escape in it cancels.
 #[trial]
 fn composer_posts_with_command_enter_and_cancels_with_escape() {
     let (mut fx, app) = composer();
     fx.type_text("looks off");
-    fx.settle();
-    let post = fx.by_label("Post").expect("Post");
-    fx.click(&post);
+    fx.key(Key::Enter, Modifiers::COMMAND);
     fx.settle();
     assert_eq!(app.borrow().posted, ["looks off"]);
     assert_eq!(app.borrow().draft, "");
@@ -130,9 +128,16 @@ fn popover(author: &str) -> (Fixture, Rc<RefCell<Popover>>) {
     (fx, app)
 }
 
+/// The popover opens with focus on its first stop; the reply field takes it by a click.
+fn focus_reply(fx: &mut Fixture) {
+    let field = fx.by_label("Reply").expect("the reply field");
+    fx.click(&field);
+}
+
 #[trial]
 fn escape_closes_the_mention_list_before_the_popover() {
     let (mut fx, app) = popover("Ana María");
+    focus_reply(&mut fx);
     fx.type_text("hi @bo");
     fx.settle();
     assert!(fx.by_label("Bo").is_some(), "the mention list is open");
@@ -148,6 +153,7 @@ fn escape_closes_the_mention_list_before_the_popover() {
 #[trial]
 fn clicking_a_suggestion_completes_the_mention() {
     let (mut fx, app) = popover("Ana María");
+    focus_reply(&mut fx);
     fx.type_text("hi @an");
     fx.settle();
     let row = fx.by_label("Ana María").expect("the suggestion");
@@ -182,6 +188,7 @@ fn more_menu_holds_unread_link_and_delete_for_your_thread() {
 #[trial]
 fn popover_completes_mentions_replies_and_resolves() {
     let (mut fx, app) = popover("Ana María");
+    focus_reply(&mut fx);
     fx.type_text("hi @bo");
     fx.settle();
     fx.key(Key::Enter, Modifiers::NONE);
