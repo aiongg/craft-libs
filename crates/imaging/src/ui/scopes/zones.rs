@@ -145,6 +145,8 @@ struct Held {
 pub struct ToneZones<'a> {
     #[common]
     common: Common,
+    /// The last edit, bound so the host can show it as mixed or refuse it.
+    #[prop]
     value: Bind<'a, ScopeZoneEdit>,
     zones: &'a [ToneZone],
     values: &'a [Label],
@@ -154,12 +156,6 @@ impl<'a> ToneZones<'a> {
     /// The zones over the plot, each zone's value text in the same order (the tooltip and the slider's value).
     pub fn new(label: impl Into<Label>, zones: &'a [ToneZone], values: &'a [Label]) -> Self {
         ToneZones { common: Common::new(), value: Bind::kept(), zones, values }.label(label).ltr_axis()
-    }
-
-    /// Binds the last edit to `value`, so the host can show it as mixed or refuse it.
-    pub fn value(mut self, value: Bind<'a, ScopeZoneEdit>) -> Self {
-        self.value = value;
-        self
     }
 
     fn value_text(&self, zone: usize) -> &str {
