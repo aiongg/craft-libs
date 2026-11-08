@@ -289,3 +289,77 @@ type = "AddBesideHandles"
 old = "show(ui, view)"
 new = "show_at(ui, canvas_rect)"
 note = "The view comes from the canvas."
+# draw-connector
+[[type]]
+name = "ConnectorTool"
+old = "craft_draw::ui::connector::ConnectorTool"
+new = "craft_draw::ui::connector::ConnectorTool"
+status = "same"
+note = "A `CanvasTool` that draws new connectors and shows the hover sites; its events are `Draw(EditEvent<ConnectorDraft>)` (a drag that ends on its start object is cancelled as `Dismissed`, a refused release as `Refused`). The selected connector's ends and bends are `ConnectorHandles`."
+
+[[setter]]
+type = "ConnectorTool"
+old = "selected(Option<&ConnectorItem>)"
+new = ""
+note = "Removed: the selected connector is the value of `ConnectorHandles`."
+
+[[setter]]
+type = "ConnectorTool"
+old = "connected(Option<Rect>)"
+new = ""
+note = "Removed: the host shows `AddBesideHandles` over the selected object."
+
+[[setter]]
+type = "ConnectorTool"
+old = "labels(ConnectorToolLabels)"
+new = ""
+note = "Removed: the words are `ConnectorWords`."
+
+[[type]]
+name = "ConnectorHandles"
+old = ""
+new = "craft_draw::ui::connector::ConnectorHandles"
+status = "replaced"
+note = "The ends and bends of a selected connector as a canvas control: `ConnectorHandles::new(label, Bind<ConnectorItem>, &[ConnectionTarget])`, shown with `show_at(ui, body.rect)`. Output `ConnectorHandlesOutput { edit, event }`."
+
+[[type]]
+name = "ConnectorOverlay"
+old = "craft_draw::ui::connector::ConnectorOverlay"
+new = ""
+status = "removed"
+note = "The route and handles are painted by `ConnectorHandles`, the sites and the draft by `ConnectorTool`; there is no separate painter."
+
+[[type]]
+name = "ConnectorToolLabels"
+old = "craft_draw::ui::connector::ConnectorToolLabels"
+new = "craft_draw::ui::connector::ConnectorWords"
+status = "removed"
+note = "Words are `ConnectorWords`."
+
+[[type]]
+name = "ConnectorStyle"
+old = "craft_draw::ui::connector::ConnectorStyle"
+new = ""
+status = "removed"
+note = "The look comes from the theme in `paint` and in the handles' component style."
+
+[[type]]
+name = "ShapeDragTool"
+old = "craft_draw::ui::shape_drag::ShapeDragTool"
+new = "craft_draw::ui::shape_drag::ShapeDragTool"
+status = "same"
+note = "A `CanvasTool`; `ShapeDragEvent::Click` carries `mods: Mods`; a drag under 1 px is cancelled as `Dismissed`."
+
+[[type]]
+name = "ShapeDragToolLabels"
+old = "craft_draw::ui::shape_drag::ShapeDragToolLabels"
+new = "craft_draw::ui::shape_drag::ShapeDragWords"
+status = "removed"
+note = "Words are `ShapeDragWords`."
+
+[[type]]
+name = "ShapeDragStyle"
+old = "craft_draw::ui::shape_drag::ShapeDragStyle"
+new = ""
+status = "removed"
+note = "The outline is painted in the theme's overlay colours; the press slop is the canvas's."

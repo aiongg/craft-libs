@@ -245,3 +245,63 @@ type = "PatternFillDialog"
 old = "labels(PatternFillLabels)"
 new = "(removed)"
 note = "Words come from the env."
+# draw-connector
+[[type]]
+name = "ConnectorBar"
+old = "craft_draw::ui::connector::ConnectorBar"
+new = "craft_draw::ui::connector::ConnectorBar"
+status = "same"
+note = "A pattern shown as a child of the host's options `Bar`: `ConnectorBar::new(Mixed<Routing>, Mixed<ConnectorLine>).caps(start, end).show(ui)`; `add_to` is gone."
+
+[[setter]]
+type = "ConnectorBar"
+old = "add_to(slots)"
+new = "show(ui)"
+note = "Shown in the host's `Bar`."
+
+[[type]]
+name = "ConnectorBarOutput"
+old = "craft_draw::ui::connector::ConnectorBarOutput"
+new = "craft_draw::ui::connector::ConnectorBarOutput"
+status = "same"
+note = "Gains `response`; is no longer `Default` or `PartialEq`."
+
+[[type]]
+name = "ConnectorBarLabels"
+old = "craft_draw::ui::connector::ConnectorBarLabels"
+new = "craft_draw::ui::connector::ConnectorBarWords"
+status = "removed"
+note = "Words are `ConnectorBarWords`."
+
+[[type]]
+name = "ConnectorLine"
+old = "craft_draw::ui::connector::ConnectorLine"
+new = "craft_draw::ui::connector::ConnectorLine"
+status = "same"
+
+[[type]]
+name = "CreateShapeDialog"
+old = "craft_draw::ui::shape_drag::CreateShapeDialog"
+new = "craft_draw::ui::shape_drag::CreateShapeDialog"
+status = "same"
+note = "Still a `StackDialog`, now over `FormDialog`."
+
+[[type]]
+name = "CreateShapeOptions"
+old = "craft_draw::ui::shape_drag::CreateShapeOptions"
+new = "craft_draw::ui::shape_drag::CreateShapeOptions"
+status = "same"
+note = "`units` takes `GuideUnits` (its `ruler` is a `UnitKind`)."
+
+[[type]]
+name = "CreatedShape"
+old = "craft_draw::ui::shape_drag::CreatedShape"
+new = "craft_draw::ui::shape_drag::CreatedShape"
+status = "same"
+
+[[type]]
+name = "CreateShapeLabels"
+old = "craft_draw::ui::shape_drag::CreateShapeLabels"
+new = "craft_draw::ui::shape_drag::CreateShapeWords"
+status = "removed"
+note = "Words are `CreateShapeWords`."

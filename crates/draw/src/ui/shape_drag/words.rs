@@ -1,25 +1,30 @@
 //! The words of the Shape tools and the Create Shape dialog, English by default.
 
 craft_ui::words! {
-    /// What a screen reader and the status bar read for a Shape tool. The tool has no parts; its
-    /// keyboard route is Enter, which reports a click at the view centre.
-    #[non_exhaustive]
-    pub struct ShapeDragToolLabels {
+    /// What the status readout and a screen reader read for a Shape tool while it draws.
+    pub struct ShapeDragWords {
         /// The readout's first row label: the shape's width.
         width: "shapeDragTool.width" = "Width";
         /// The readout's second row label: the shape's height.
         height: "shapeDragTool.height" = "Height";
-        /// The canvas value while a shape is being drawn: `{width}` and `{height}` in the ruler unit.
-        drawing: "shapeDragTool.drawing" = "Drawing {width} by {height}";
-        /// The status hint while a Shape tool is active.
-        hint: "shapeDragTool.hint" = "Drag to draw · Click or press Enter to set a size";
+        /// The size of the shape being drawn, as the access node's value.
+        size: template "shapeDragTool.size" = "{width} × {height}";
+        /// The label of the gesture that draws a shape.
+        draw: "shapeDragTool.draw" = "Draw shape";
+        rectangle: "shapeDragTool.rectangle" = "Rectangle";
+        rounded_rectangle: "shapeDragTool.roundedRectangle" = "Rounded Rectangle";
+        ellipse: "shapeDragTool.ellipse" = "Ellipse";
+        triangle: "shapeDragTool.triangle" = "Triangle";
+        polygon: "shapeDragTool.polygon" = "Polygon";
+        star: "shapeDragTool.star" = "Star";
+        line: "shapeDragTool.line" = "Line";
+        custom: "shapeDragTool.custom" = "Custom Shape";
     }
 }
 
 craft_ui::words! {
     /// The Create Shape dialog's words (PhotoCraft's, without colons; US spelling).
-    #[non_exhaustive]
-    pub struct CreateShapeLabels {
+    pub struct CreateShapeWords {
         rectangle: "createShape.rectangle" = "Create Rectangle";
         rounded_rectangle: "createShape.roundedRectangle" = "Create Rounded Rectangle";
         ellipse: "createShape.ellipse" = "Create Ellipse";
@@ -40,6 +45,6 @@ craft_ui::words! {
         /// The click lies more than 300,000 px from the origin on an axis.
         bad_position: "createShape.badPosition" = "The shape's position is out of range";
         /// A width or height outside 1–300,000 px; `{field}` is the field's label, `{max}` the limit.
-        bad_size: "createShape.badSize" = "{field} must be between 1 and {max} pixels";
+        bad_size: template "createShape.badSize" = "{field} must be between 1 and {max} pixels";
     }
 }

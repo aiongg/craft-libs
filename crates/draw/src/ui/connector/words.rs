@@ -1,24 +1,26 @@
-//! The words of the Connector tool and its bar, English by default.
+//! The words of the Connector tool, its handles and its bar, English by default.
 
 craft_ui::words! {
-    /// What a screen reader reads for the Connector tool's parts.
-    #[non_exhaustive]
-    pub struct ConnectorToolLabels {
+    /// What a screen reader reads for the connector tool, its handles and the edit labels.
+    pub struct ConnectorWords {
+        /// The handles' group name.
         group: "connectorTool.group" = "Connector";
         /// The start end glued to `{target}` (the app's object name).
-        start_attached: "connectorTool.startAttached" = "Start, attached to {target}";
+        start_attached: template "connectorTool.startAttached" = "Start, attached to {target}";
         start_free: "connectorTool.startFree" = "Start, free";
-        end_attached: "connectorTool.endAttached" = "End, attached to {target}";
+        /// The finish end glued to `{target}`.
+        end_attached: template "connectorTool.endAttached" = "End, attached to {target}";
         end_free: "connectorTool.endFree" = "End, free";
         /// A path handle: `{index}` from 1 of `{count}`.
-        bend: "connectorTool.bend" = "Bend {index} of {count}";
+        bend: template "connectorTool.bend" = "Bend {index} of {count}";
+        /// The label of the gesture that draws a connector.
+        draw: "connectorTool.draw" = "Draw connector";
     }
 }
 
 craft_ui::words! {
     /// The words of [`ConnectorBar`](super::ConnectorBar) (FigCraft's; US spelling).
-    #[non_exhaustive]
-    pub struct ConnectorBarLabels {
+    pub struct ConnectorBarWords {
         /// The routing buttons' group name.
         routing: "connectorBar.routing" = "Connector type";
         straight: "connectorBar.straight" = "Straight";
@@ -30,6 +32,6 @@ craft_ui::words! {
         solid: "connectorBar.solid" = "Solid";
         dashed: "connectorBar.dashed" = "Dash";
         /// A weight row: `{weight}` in points.
-        weight: "connectorBar.weight" = "Stroke weight {weight}";
+        weight: template "connectorBar.weight" = "Stroke weight {weight}";
     }
 }

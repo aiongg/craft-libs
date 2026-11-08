@@ -6,7 +6,7 @@
 //! Document units throughout; y grows downwards. Corner radii run top-left, top-right,
 //! bottom-right, bottom-left (PhotoCraft's engine order).
 
-use std::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI, TAU};
+use std::f64::consts::{FRAC_PI_2, PI, TAU};
 use std::ops::RangeInclusive;
 
 use kurbo::{BezPath, Ellipse, Point, Rect, RoundedRect, RoundedRectRadii, Shape, Vec2};
@@ -174,17 +174,10 @@ pub fn box_drag(start: Point, end: Point, square: bool, from_centre: bool) -> Op
 }
 
 /// The end of a line dragged from `from` to `to`, or `None` when it is shorter than
-/// [`MIN_SIDE`]. `snap` (⇧) turns it to the nearest 45° step and keeps its length.
-pub fn line_drag(from: Point, to: Point, snap: bool) -> Option<Point> {
-    // pc: crates/ui-egui/src/tools/vector_ui/shapes.rs:52-61 (angle `(dy.atan2(dx) / FRAC_PI_4).round()
-    // * FRAC_PI_4`, length `dx.hypot(dy)`; shorter than 1 draws nothing).
-    let (mut dx, mut dy) = (to.x - from.x, to.y - from.y);
-    if snap {
-        let a = (dy.atan2(dx) / FRAC_PI_4).round() * FRAC_PI_4;
-        let len = dx.hypot(dy);
-        (dx, dy) = (len * a.cos(), len * a.sin());
-    }
-    (dx.hypot(dy) >= MIN_SIDE).then(|| Point::new(from.x + dx, from.y + dy))
+/// [`MIN_SIDE`].
+pub fn line_drag(from: Point, to: Point) -> Option<Point> {
+    // pc: crates/ui-egui/src/tools/vector_ui/shapes.rs:52-61 (shorter than 1 draws nothing).
+    ((to - from).hypot() >= MIN_SIDE).then_some(to)
 }
 
 /// A radial drag's frame: the press is the centre, the pointer sets the radius and the turn
