@@ -9,6 +9,7 @@ use craft_ui::form::FieldGroup;
 use craft_ui::layout_components::Row;
 use craft_ui::pickers::Select;
 use craft_ui::runtime::env::{Env, Label};
+use craft_ui::runtime::focus::{self, FocusTarget};
 use craft_ui::text::TextField;
 use egui::Ui;
 
@@ -123,8 +124,10 @@ impl<'a> Body<'a> {
 
     /// The hex field. The Full layout's first show focuses it.
     pub(super) fn hex_field(&self, ui: &mut Ui, pass: &Pass<'a>, words: &ColorPickerWords) {
-        let hex = TextField::hex(words.hex.as_str().to_owned(), Bind::given(pass.shown.color.to_rgba())).id(pass.hex);
-        let edit = hex.show(ui);
+        let edit = TextField::hex(words.hex.as_str().to_owned(), Bind::given(pass.shown.color.to_rgba())).show(ui);
+        if pass.focus_hex {
+            focus::request(ui.ctx(), FocusTarget::Id(edit.response.id));
+        }
         let rules = pass.rules.clone();
         self.shared.adopt(edit, pass.shown, move |v, mine| *mine = mine.with_hex(*v, &rules));
     }

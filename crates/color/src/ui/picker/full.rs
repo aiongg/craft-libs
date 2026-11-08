@@ -1,6 +1,6 @@
 //! The Full layout of `ColorPicker` (the Color Picker dialog), and the warnings beside its compare swatch.
 
-use craft_behavior::{IconId, Metrics, NavShape, Sense};
+use craft_behavior::{ColumnWidth, IconId, Metrics, NavShape, Sense};
 use craft_theme::{ColorModel, HsbModel, OklchModel, RgbModel, Srgba};
 use craft_ui::choice::{Checkbox, Radio, RadioGroup, Swatch};
 use craft_ui::contract::{
@@ -9,7 +9,7 @@ use craft_ui::contract::{
 };
 use craft_ui::display::{Icon, Shade, Text};
 use craft_ui::form::{Field, FieldGroup};
-use craft_ui::layout_components::{Row, Stack};
+use craft_ui::layout_components::{Grid, Row, Stack};
 use craft_ui::primitives::IconSpec;
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::style::{ComponentStyle, StyleCx, TypeRole};
@@ -138,6 +138,12 @@ impl Component for ColorWarningChip<'_> {
     }
 }
 
+/// Columns that take the width of their content: the Full layout's two halves, and its channel grid of one to three
+/// columns. A group of fields that fills the width would take all of a row's room otherwise.
+const HALVES: &[ColumnWidth] = &[ColumnWidth::Content, ColumnWidth::Content];
+const ONE_COLUMN: &[ColumnWidth] = &[ColumnWidth::Content];
+const THREE_COLUMNS: &[ColumnWidth] = &[ColumnWidth::Content, ColumnWidth::Content, ColumnWidth::Content];
+
 /// A grid column of the Full layout: HSB and RGB, then Lab and the host's models, then OKLCH.
 fn column_of(model: &dyn ColorModel) -> usize {
     match model.id() {
@@ -153,7 +159,7 @@ impl<'a> Body<'a> {
     pub(super) fn full(&self, ui: &mut Ui, pass: &Pass<'a>) {
         let words = Env::of(ui).words::<ColorPickerWords>();
         let visible: Vec<&dyn ColorModel> = self.models.iter().copied().chain([pass.mode.model()]).collect();
-        Row::new().show(ui, |ui, _| {
+        Grid::new(HALVES).show(ui, |ui, _| {
             Stack::new().show(ui, |ui, _| {
                 self.area_and_strip(ui, pass, &visible);
                 if self.has_web_check {
@@ -208,14 +214,21 @@ impl<'a> Body<'a> {
         let group = RadioGroup::new(words.field_shows.as_str().to_owned(), Bind::given(pass.mode)).nav(NavShape::Spatial);
         let picked = group
             .show(ui, |ui, _| {
-                Row::new().show(ui, |ui, _| {
-                    for column in 0..3 {
-                        let models: Vec<&'a dyn ColorModel> = self.models.iter().copied().filter(|m| column_of(*m) == column).collect();
-                        if models.is_empty() && column != 0 {
-                            continue;
-                        }
+                let columns: Vec<Vec<&'a dyn ColorModel>> = (0..3)
+                    .map(|column| self.models.iter().copied().filter(|m| column_of(*m) == column).collect::<Vec<_>>())
+                    .enumerate()
+                    .filter(|(column, models)| *column == 0 || !models.is_empty())
+                    .map(|(_, models)| models)
+                    .collect();
+                let widths = match columns.len() {
+                    1 => ONE_COLUMN,
+                    2 => &THREE_COLUMNS[..2],
+                    _ => THREE_COLUMNS,
+                };
+                Grid::new(widths).show(ui, |ui, _| {
+                    for (column, models) in columns.iter().enumerate() {
                         FieldGroup::new(words.channels.as_str().to_owned()).show(ui, |ui, _| {
-                            for model in &models {
+                            for model in models {
                                 self.model_fields(ui, pass, *model, visible, &offered, words);
                             }
                             if column == 0 {

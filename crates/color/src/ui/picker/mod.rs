@@ -22,9 +22,8 @@ use craft_ui::contract::{
 };
 use craft_ui::layout::BodyLayout;
 use craft_ui::runtime::env::Label;
-use craft_ui::runtime::focus::{self, FocusTarget};
 use craft_ui::style::{ComponentStyle, StyleCx};
-use egui::{Id, Pos2, Response, Ui};
+use egui::{Pos2, Response, Ui};
 
 use super::AreaMode;
 pub(crate) use channel::{ChannelRow, ChannelRule, channel_name};
@@ -170,6 +169,19 @@ struct Memo {
     mode: AreaMode,
     /// The Full layout has taken the focus for the hex field.
     opened: bool,
+    /// What the children reported last pass, applied by the next `update` (before the pass applies values).
+    pending: Pending,
+}
+
+/// What the children of one pass asked for that is not an edit of theirs.
+#[derive(Clone, Default)]
+struct Pending {
+    /// Colours the compare swatch and the warning chips set.
+    clicks: Vec<Srgba>,
+    /// The mode the "Field shows" group picked.
+    mode: Option<AreaMode>,
+    /// The Only Web Colors check box was set to this.
+    web: Option<bool>,
 }
 
 /// What the children reported in this pass, for `finish`.
@@ -195,8 +207,8 @@ struct Pass<'a> {
     model: Option<&'static str>,
     /// Only Web Colors, as the host holds it.
     web: bool,
-    /// The id the hex field is shown under, which the first show of the layout focuses.
-    hex: Id,
+    /// Whether the hex field takes the focus in this pass: the Full layout's first show.
+    focus_hex: bool,
 }
 
 /// A child's edit, ready to be adopted as the picker's own once `paint_over` has the picker's context.
@@ -453,10 +465,23 @@ impl<'a> Component for PickerFrame<'a> {
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let full = self.layout == ColorPickerLayout::Full;
         let models = self.models.clone();
+        let pending = std::mem::take(&mut cx.memory::<Memo>().pending);
         let memo = cx.memory::<Memo>().clone();
         let held_mode = self.mode.as_mut().and_then(|mode| mode.reborrow().read(&mut *cx)).and_then(|mode| mode.same().copied());
         let mut mode = held_mode.unwrap_or(memo.mode);
-        let web = self.web_colors.as_mut().and_then(|web| web.reborrow().read(&mut *cx)).and_then(|web| web.same().copied()).unwrap_or(false);
+        if let Some(next) = pending.mode.filter(|next| *next != mode) {
+            self.write_mode(cx, mode, next);
+            mode = next;
+        }
+        let held_web = self.web_colors.as_mut().and_then(|web| web.reborrow().read(&mut *cx)).and_then(|web| web.same().copied()).unwrap_or(false);
+        let mut web = held_web;
+        if let Some(on) = pending.web.filter(|on| *on != web) {
+            if let Some(held) = self.web_colors.as_mut() {
+                let event = EditEvent::set(GestureId::default(), Mixed::Same(web), on, Arc::from("Only Web Colors"), None);
+                let _ = held.reborrow().write(&mut *cx, &event);
+            }
+            web = on;
+        }
         self.rules = Rules { web, constrain: self.constrain.clone() };
 
         // The Full layout shows a mode its models offer.
@@ -464,10 +489,7 @@ impl<'a> Component for PickerFrame<'a> {
             let offered = ColorPicker::offered(&models);
             let wanted = offered.first().copied().filter(|first| !offered.contains(&mode) && *first != mode);
             if let Some(next) = wanted {
-                if let Some(held) = self.mode.as_mut() {
-                    let event = EditEvent::set(GestureId::default(), Mixed::Same(mode), next, Arc::from("Field shows"), None);
-                    let _ = held.reborrow().write(&mut *cx, &event);
-                }
+                self.write_mode(cx, mode, next);
                 mode = next;
             }
         }
@@ -480,16 +502,24 @@ impl<'a> Component for PickerFrame<'a> {
             memo.model = model;
             memo.opened = true;
         }
-        let hex = cx.id.with("hex");
-        if full && self.focus_on_open && first_show && cx.resolved.enabled {
-            focus::request(&cx.response.ctx, FocusTarget::Id(hex));
+        let focus_hex = full && self.focus_on_open && first_show && cx.resolved.enabled;
+        let mut now = cx.value().copied().unwrap_or(PickedColor::rgb(Srgba::BLACK));
+        for color in &pending.clicks {
+            now = now.with_color(*color, &self.rules);
+            cx.set(now);
+        }
+        if pending.web == Some(true) {
+            let snapped = self.rules.apply(now.color);
+            if !snapped.same_rgb8(now.color) {
+                now = now.with_color(snapped, &self.rules);
+                cx.set(now);
+            }
         }
         if let Some(color) = self.sampled {
-            let now = cx.value().copied().unwrap_or(PickedColor::rgb(Srgba::BLACK));
             cx.set(now.with_color(color.with_alpha(now.color.a), &self.rules));
         }
         let shown = cx.value().copied().unwrap_or(PickedColor::rgb(Srgba::BLACK));
-        *self.shared.pass.borrow_mut() = Some(Pass { shown, rules: self.rules.clone(), mode, model, web, hex });
+        *self.shared.pass.borrow_mut() = Some(Pass { shown, rules: self.rules.clone(), mode, model, web, focus_hex });
     }
 
     /// The children's edits become the picker's: each maps onto the colour shown, as one gesture.
@@ -499,39 +529,24 @@ impl<'a> Component for PickerFrame<'a> {
         }
     }
 
-    fn finish(mut self, mut cx: Cx<'_, Self>) -> ColorPickerOutput {
+    fn finish(self, mut cx: Cx<'_, Self>) -> ColorPickerOutput {
         let events = self.shared.events.take();
-        let before = cx.recall::<Memo>().clone();
+        let memo = cx.memory::<Memo>();
         if let Some(model) = events.model_pick {
-            cx.memory::<Memo>().model = Some(model);
+            memo.model = Some(model);
         }
-        if let Some(next) = events.mode_pick.filter(|next| *next != before.mode) {
-            cx.memory::<Memo>().mode = next;
-            if let Some(held) = self.mode.as_mut() {
-                let event = EditEvent::set(GestureId::default(), Mixed::Same(before.mode), next, Arc::from("Field shows"), None);
-                let _ = held.reborrow().write(&mut cx, &event);
-            }
-        }
-        let was_web = self.shared.pass().is_some_and(|pass| pass.web);
-        if let Some(on) = events.web_pick.filter(|on| *on != was_web)
-            && let Some(held) = self.web_colors.as_mut()
-        {
-            let event = EditEvent::set(GestureId::default(), Mixed::Same(was_web), on, Arc::from("Only Web Colors"), None);
-            let _ = held.reborrow().write(&mut cx, &event);
-        }
-        let mut now = cx.value().copied().unwrap_or(PickedColor::rgb(Srgba::BLACK));
-        for color in &events.clicks {
-            now = now.with_color(*color, &self.rules);
-            cx.set(now);
-        }
-        if events.web_pick == Some(true) {
-            let rules = Rules { web: true, constrain: self.rules.constrain.clone() };
-            let snapped = rules.apply(now.color);
-            if !snapped.same_rgb8(now.color) {
-                cx.set(now.with_color(snapped, &rules));
-            }
-        }
+        memo.pending = Pending { clicks: events.clicks, mode: events.mode_pick, web: events.web_pick };
         ColorPickerOutput { edit: cx.edit_response(), screen_pick: events.screen_pick }
+    }
+}
+
+impl PickerFrame<'_> {
+    /// Sets the mode the host holds, if it holds one.
+    fn write_mode(&mut self, cx: &mut Cx<'_, Self>, from: AreaMode, to: AreaMode) {
+        if let Some(held) = self.mode.as_mut() {
+            let event = EditEvent::set(GestureId::default(), Mixed::Same(from), to, Arc::from("Field shows"), None);
+            let _ = held.reborrow().write(&mut *cx, &event);
+        }
     }
 }
 

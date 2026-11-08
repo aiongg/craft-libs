@@ -2,11 +2,13 @@
 //! compare swatch and a warning, and Full with the host's CMYK model and OKLCH.
 
 use craft_theme::{Channel, ColorModel, DefaultOn, HsbModel, LabModel, MAX_CHANNELS, ModelValues, OklchModel, RgbModel, Srgba};
-use craft_ui::contract::{Bind, Show as _};
+use craft_ui::contract::{Bind, Props as _, Show as _};
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
-use super::{ColorPicker, ColorPickerLayout, ColorWarning, ColorWarningChip, PickedColor};
+use super::channel::{ChannelRow, ChannelRule, TrackRamp};
+use super::screen_pick::ScreenPickButton;
+use super::{ColorPicker, ColorPickerLayout, ColorWarning, ColorWarningChip, PickedColor, PickerFrame};
 use crate::ui::AreaMode;
 
 /// A naive CMYK in percent, without a working space: a host's model for the stories. A real host converts through its
@@ -91,9 +93,38 @@ fn color_picker_full_models(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     ColorPicker::new("Foreground color", Bind::bound(color)).layout(ColorPickerLayout::Full).models(models).alpha(true).show(ui).into()
 }
 
-#[story(ColorWarningChip<'static>, covers = [], drive = Drive::Never)]
+#[story(ColorWarningChip<'static>, covers = [Default], drive = Drive::Never)]
 fn color_warning_chip(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     static WARNING: std::sync::LazyLock<ColorWarning> =
         std::sync::LazyLock::new(|| ColorWarning::new("Out of gamut for printing", Srgba::rgb(0.9, 0.1, 0.9)));
     ColorWarningChip::new(&WARNING).show(ui).into()
+}
+
+/// The container behind `ColorPicker`, shown through the picker.
+#[story(PickerFrame<'static>, covers = [], drive = Drive::Never)]
+fn picker_frame(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let color = data.value("color", start());
+    ColorPicker::new("Foreground color", Bind::bound(color)).show(ui).into()
+}
+
+#[story(ScreenPickButton, covers = [], drive = Drive::Never)]
+fn screen_pick_button(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    ScreenPickButton::new().label("Sample color from the screen").show(ui).into()
+}
+
+#[story(TrackRamp, covers = [], drive = Drive::Never)]
+fn track_ramp(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    TrackRamp::new(vec![Srgba::rgb(0.0, 0.0, 0.0), Srgba::rgb(1.0, 1.0, 1.0)], false).show(ui).into()
+}
+
+#[story(ChannelRow<'static>, covers = [], drive = Drive::Never)]
+fn channel_row(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let value = data.value("value", 40.0_f64);
+    let channel = HsbModel.channels()[1];
+    let row = ChannelRow::new("Saturation", Bind::bound(value), ChannelRule::of(&channel))
+        .track(vec![Srgba::rgb(1.0, 1.0, 1.0), Srgba::rgb(1.0, 0.0, 0.0)]);
+    match row.show(ui) {
+        Some(edit) => StoryOutput::from(edit),
+        None => StoryOutput::default(),
+    }
 }

@@ -252,7 +252,7 @@ fn a_picker_without_focus_on_open_leaves_the_focus() {
 fn the_model_switch_switches_the_rows() {
     let (mut fixture, _) = picker(COMPACT, PickedColor::rgb(Srgba::rgb(0.2, 0.5, 0.8)));
     assert!(fixture.by_label("Saturation").is_some() || fixture.by_label("HSB saturation").is_some(), "HSB rows show first");
-    let switch = fixture.by_label("Color model").expect("the model switch");
+    let switch = fixture.by_label("Color model: HSB").expect("the model switch");
     fixture.click(&switch);
     fixture.settle();
     let rgb = fixture.by_label("RGB").expect("the RGB row in the menu");
