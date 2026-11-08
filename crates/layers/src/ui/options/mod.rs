@@ -1,33 +1,29 @@
-//! `LayersSettings`, `LayersOptions`, `LayersOptionsDialog` and `paint_sample_thumbnail`: Layers
-//! Panel Options (F11.03).
+//! `LayersSettings`, `LayersOptions` and `LayersOptionsDialog`: Layers Panel Options.
 //!
 //! `LayersSettings` is the panel's persisted section (`.settings(&mut ..)` on the panel);
-//! `LayersOptions` is the value the dialog edits and returns (`.initial(..)`), held by the
-//! settings.
+//! `LayersOptions` is the value the dialog edits and returns, held by the settings.
 
-//! design: allow(the sample thumbnail is original monochrome art drawn in fractions of its rect)
+#[cfg(feature = "screen-testing")]
+mod stories;
 
-#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
-mod dialog_tests;
-#[cfg(test)]
-mod tests;
+use craft_ui::choice::{Checkbox, Radio, RadioGroup};
+use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
+use craft_ui::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
+use craft_ui::display::{Picture, PictureSize};
+use craft_ui::layout_components::{Row, Stack};
+use craft_ui::list::{ListWords, ThumbSize};
+use craft_ui::patterns::form_dialogs::FormDialog;
+use craft_ui::runtime::env::{Env, Label};
+use craft_ui::sections::GroupBox;
+use egui::{Color32, ColorImage, Context, Ui};
 
-use craft_ui::composites::GroupBox;
-use craft_ui::controls::{Checkbox, RadioGroup, RadioOption, RadioSet};
-use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, DialogState, Footer, Outcome, StackDialog, Width, dialog_id};
-use craft_ui::list::{ListRow, ListRowStyle, ThumbSize};
-use craft_ui::localized::{LocaleNumbers, SharedLabels as _, Words};
-use craft_ui::primitives::Gap;
-use craft_ui::theme::{Tokens, TokensOf as _};
-use egui::{Color32, Context, Painter, Rect, Sense, Shape, Stroke, StrokeKind, Ui, pos2, vec2};
-
-use super::panel::LayersStyle;
 use super::thumbs::ThumbContents;
 
 /// The Layers panel's persisted section: the Panel Options and the panel menu's Show Filters.
 /// Every field has a serde default, so a section saved by an older version loads.
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
+#[non_exhaustive]
 pub struct LayersSettings {
     /// The Panel Options dialog's value.
     pub options: LayersOptions,
@@ -45,10 +41,10 @@ impl Default for LayersSettings {
 /// Layers Panel Options: what the dialog edits and returns. Every field has a serde default.
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
+#[non_exhaustive]
 pub struct LayersOptions {
     /// Thumbnail Size: [`ThumbSize::None`], `Small`, `Medium` (default) or `Large`; the row
-    /// height follows the Size preset's `list.*` tokens. `Px` is not offered and reads as
-    /// `Medium`.
+    /// height follows the size's `size.thumb.*` token.
     pub thumbnail_size: ThumbSize,
     /// Thumbnail Contents: Layer Bounds or Entire Document (default). The panel menu's Clip
     /// Thumbnails to Layer Bounds is the same setting; it is part of every
@@ -87,70 +83,100 @@ impl Default for LayersOptions {
 
 craft_ui::words! {
     /// The words of Layers Panel Options. The size names are [`ThumbSize::label`]'s.
-    pub struct LayersOptionsLabels {
-        title: "layers.options.title" = "Layers Panel Options";
-        thumbnail_size: "layers.options.thumbnailSize" = "Thumbnail Size";
-        /// A size radio's description for a screen reader: `{side}` is the sample's side in points,
-        /// written with the locale's digits.
-        sample: "layers.options.sample" = "{side} by {side} point thumbnails";
-        thumbnail_contents: "layers.options.thumbnailContents" = "Thumbnail Contents";
-        layer_bounds: "layers.options.layerBounds" = "Layer Bounds";
-        entire_document: "layers.options.entireDocument" = "Entire Document";
-        default_masks: "layers.options.defaultMasks" = "Use Default Masks on Fill Layers";
-        expand_new_effects: "layers.options.expandNewEffects" = "Expand New Effects";
-        add_copy: "layers.options.addCopy" = "Add “copy” to Copied Layers and Groups";
-        preview_on_canvas: "layers.options.previewOnCanvas" = "Preview on canvas when reordering layers";
-        mask_badges: "layers.options.maskBadges" = "Show layer mask badges";
+    pub struct LayersOptionsWords {
+        title: "layersOptionsDialog.title" = "Layers Panel Options";
+        thumbnail_size: "layersOptionsDialog.thumbnailSize" = "Thumbnail Size";
+        /// The name of the sample picture beside a size.
+        sample: "layersOptionsDialog.sample" = "Sample thumbnail";
+        thumbnail_contents: "layersOptionsDialog.thumbnailContents" = "Thumbnail Contents";
+        layer_bounds: "layersOptionsDialog.layerBounds" = "Layer Bounds";
+        entire_document: "layersOptionsDialog.entireDocument" = "Entire Document";
+        default_masks: "layersOptionsDialog.defaultMasks" = "Use Default Masks on Fill Layers";
+        expand_new_effects: "layersOptionsDialog.expandNewEffects" = "Expand New Effects";
+        add_copy: "layersOptionsDialog.addCopy" = "Add \u{201c}copy\u{201d} to Copied Layers and Groups";
+        preview_on_canvas: "layersOptionsDialog.previewOnCanvas" = "Preview on canvas when reordering layers";
+        mask_badges: "layersOptionsDialog.maskBadges" = "Show layer mask badges";
     }
+}
+
+/// The key of the sample picture in the texture store.
+const SAMPLE_KEY: u64 = 0x6c61_7965_7273_7361;
+/// The side of the sample picture in pixels.
+const SAMPLE_SIDE: usize = 96;
+/// The sky's grey at the top and the grey it gains toward the bottom.
+const SKY_TOP: f32 = 119.0;
+const SKY_GAIN: f32 = 30.0;
+/// The grey of the far hills, the near hills and the outline.
+const FAR_HILLS: u8 = 80;
+const NEAR_HILLS: u8 = 64;
+const OUTLINE: u8 = 92;
+/// The ridge of the far hills and of the near hills as `(x, y)` points in fractions of the picture.
+const FAR_RIDGE: [(f32, f32); 5] = [(0.0, 0.60), (0.22, 0.36), (0.46, 0.56), (0.72, 0.33), (1.0, 0.62)];
+const NEAR_RIDGE: [(f32, f32); 4] = [(0.0, 0.76), (0.32, 0.60), (0.57, 0.69), (1.0, 0.51)];
+
+/// The height of the piecewise-linear `ridge` at `x`.
+fn ridge_at(ridge: &[(f32, f32)], x: f32) -> f32 {
+    let Some(&(first_x, first_y)) = ridge.first() else { return 1.0 };
+    let mut before = (first_x, first_y);
+    for &(px, py) in ridge {
+        if x <= px {
+            let span = (px - before.0).max(f32::EPSILON);
+            return before.1 + (py - before.1) * ((x - before.0) / span).clamp(0.0, 1.0);
+        }
+        before = (px, py);
+    }
+    before.1
+}
+
+/// The sample picture of the thumbnail sizes: a monochrome landscape of a pale sky and two ranges
+/// of hills, outlined.
+fn sample_image() -> ColorImage {
+    let mut image = ColorImage::filled([SAMPLE_SIDE, SAMPLE_SIDE], Color32::BLACK);
+    let last = SAMPLE_SIDE - 1;
+    for y in 0..SAMPLE_SIDE {
+        for x in 0..SAMPLE_SIDE {
+            let (u, v) = (x as f32 / last as f32, y as f32 / last as f32);
+            let grey = if x == 0 || y == 0 || x == last || y == last {
+                OUTLINE
+            } else if v >= ridge_at(&NEAR_RIDGE, u) {
+                NEAR_HILLS
+            } else if v >= ridge_at(&FAR_RIDGE, u) {
+                FAR_HILLS
+            } else {
+                (SKY_TOP + v * SKY_GAIN) as u8
+            };
+            image.pixels[y * SAMPLE_SIDE + x] = Color32::from_gray(grey);
+        }
+    }
+    image
 }
 
 /// The Layers Panel Options dialog, a [`StackDialog`] whose result is the edited
 /// [`LayersOptions`].
 ///
 /// ```ignore
-/// dialogs.open(LayersOptionsDialog::new().initial(prefs.layers.options.clone()));
+/// dialogs.open(LayersOptionsDialog::new(prefs.layers.options.clone()));
 /// // later
 /// if let Some(DialogResult::Ok(options)) = dialogs.take::<LayersOptionsDialog>() { prefs.layers.options = options; }
 /// ```
 ///
-/// - Layout (`Width::Standard`, the library footer with OK and Cancel in the platform order): a
-///   [`GroupBox`] "Thumbnail Size" with a
-///   [`RadioGroup`] of None (a text label), then Small, Medium and
-///   Large, each with a real-size sample ([`paint_sample_thumbnail`]) at twice the row thumbnail
-///   (`layers.options.sample_scale` × `list.thumb.*`: 36, 48, 96 at Compact), drawn inside the
-///   radio's hit area, so a click on a sample picks its size and the sample adds no Tab stop. A group box "Thumbnail Contents" with Layer Bounds and Entire
-///   Document; then the five switches as [`Checkbox`]es, in
+/// - **Layout**: a group box "Thumbnail Size" with a radio group of None, then Small, Medium and
+///   Large, each with a sample picture of its size beside its label; a group box "Thumbnail
+///   Contents" with Layer Bounds and Entire Document; then the five switches as check boxes, in
 ///   PhotoCraft's order.
-/// - Keyboard: the radio groups take arrows; Tab walks the groups and checkboxes; Enter is OK,
-///   Esc is Cancel (the library dialog's keys).
-/// - AccessKit: the dialog frame's roles; the size radios are named "None", "Small", "Medium",
-///   "Large" and described by [`LayersOptionsLabels::sample`].
-/// - Returns `Ok(options)` on OK, `Cancel` on Cancel or Esc; nothing is applied while it is open.
+/// - **Keyboard**: the radio groups take arrows; Tab walks the groups and check boxes; Enter is
+///   OK, Escape is Cancel.
+/// - Returns `Ok(options)` on OK, `Cancel` on Cancel or Escape; the app applies nothing while it
+///   is open.
 pub struct LayersOptionsDialog {
     id: DialogId,
-    draft: LayersOptions,
-    state: DialogState,
+    options: LayersOptions,
 }
 
 impl LayersOptionsDialog {
-    /// The dialog at Photoshop's defaults ([`LayersOptions::default`]).
-    pub fn new() -> Self {
-        Self { id: dialog_id("layers-options"), draft: LayersOptions::default(), state: DialogState::new() }
-    }
-
-    /// Opens with `options`: the panel's current Panel Options.
-    pub fn initial(mut self, options: LayersOptions) -> Self {
-        self.draft = options;
-        if matches!(self.draft.thumbnail_size, ThumbSize::Px(_)) {
-            self.draft.thumbnail_size = ThumbSize::Medium;
-        }
-        self
-    }
-}
-
-impl Default for LayersOptionsDialog {
-    fn default() -> Self {
-        Self::new()
+    /// The dialog over `initial`: the panel's current Panel Options.
+    pub fn new(initial: LayersOptions) -> Self {
+        Self { id: dialog_id("layers-options"), options: initial }
     }
 }
 
@@ -161,145 +187,57 @@ impl StackDialog for LayersOptionsDialog {
         self.id
     }
 
-    fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<LayersOptions>> {
-        let labels = LayersOptionsLabels::shared_ctx(ctx);
-        let mut state = std::mem::take(&mut self.state);
-        let shown = Dialog::new("layers-options", labels.title.as_str()).stack(stack).width(Width::Standard).footer(Footer::standard()).show(
-            ctx,
-            &mut state,
-            &mut (),
-            |ui, ()| self.body(ui, &labels),
-        );
-        self.state = state;
-        match shown.outcome {
-            Some(Outcome::Ok) => Some(DialogResult::Ok(self.draft.clone())),
-            Some(Outcome::Cancel | Outcome::Close) => Some(DialogResult::Cancel),
-            _ => None,
+    fn show(&mut self, ui: &mut Ui, _stack: &DialogStack) -> Option<DialogResult<LayersOptions>> {
+        let env = Env::of(ui);
+        let words = env.words::<LayersOptionsWords>();
+        let list = env.words::<ListWords>();
+        let shown = FormDialog::new(Label::from(words.title.clone()), Bind::bound(&mut self.options)).show(ui, |ui, _, options| {
+            Stack::new().show(ui, |ui, _| {
+                GroupBox::new(Label::from(words.thumbnail_size.clone()), None).show(ui, |ui, _| {
+                    RadioGroup::new(Label::from(words.thumbnail_size.clone()), Bind::bound(&mut options.thumbnail_size)).show(ui, |ui, _| {
+                        Stack::new().show(ui, |ui, _| {
+                            for size in ThumbSize::ALL {
+                                Row::new().show(ui, |ui, _| {
+                                    Radio::new(size).label(size.label(&list)).show(ui);
+                                    if size != ThumbSize::None {
+                                        Picture::new(Label::from(words.sample.clone()), SAMPLE_KEY, &sample_image)
+                                            .size(PictureSize::Thumb(size))
+                                            .show(ui);
+                                    }
+                                });
+                            }
+                        });
+                    });
+                });
+                GroupBox::new(Label::from(words.thumbnail_contents.clone()), None).show(ui, |ui, _| {
+                    RadioGroup::new(Label::from(words.thumbnail_contents.clone()), Bind::bound(&mut options.thumbnail_contents)).show(ui, |ui, _| {
+                        Stack::new().show(ui, |ui, _| {
+                            Radio::new(ThumbContents::LayerBounds).label(Label::from(words.layer_bounds.clone())).show(ui);
+                            Radio::new(ThumbContents::EntireDocument).label(Label::from(words.entire_document.clone())).show(ui);
+                        });
+                    });
+                });
+                let switches = [
+                    (&words.default_masks, &mut options.use_default_masks_on_fill_layers),
+                    (&words.expand_new_effects, &mut options.expand_new_effects),
+                    (&words.add_copy, &mut options.add_copy_to_copied_layers_and_groups),
+                    (&words.preview_on_canvas, &mut options.preview_on_canvas_when_reordering),
+                    (&words.mask_badges, &mut options.show_layer_mask_badges),
+                ];
+                for (label, value) in switches {
+                    Checkbox::new(Bind::bound(value)).label(Label::from(label.clone())).show(ui);
+                }
+            });
+            true
+        });
+        match (shown.accepted, shown.closed) {
+            (Some(options), _) => Some(DialogResult::Ok(options)),
+            (None, Some(_)) => Some(DialogResult::Cancel),
+            (None, None) => None,
         }
     }
 
     fn confirm(&mut self, _ctx: &Context) -> Option<LayersOptions> {
-        Some(self.draft.clone())
+        Some(self.options.clone())
     }
-}
-
-impl LayersOptionsDialog {
-    fn body(&mut self, ui: &mut Ui, labels: &LayersOptionsLabels) {
-        let tokens = Tokens::of(ui);
-        let words = Words::of_ctx(ui.ctx());
-        let numbers = LocaleNumbers::of(ui);
-        let gap = Gap::Section.points(&tokens);
-        let row = ListRow::<u8>::style(&tokens);
-        let layers = LayersStyle::of(&tokens);
-        let draft = &mut self.draft;
-        GroupBox::new(labels.thumbnail_size.as_str()).show(ui, |ui| {
-            let mut set = RadioSet::new("layers-options-size", labels.thumbnail_size.as_str(), &mut draft.thumbnail_size)
-                .item(ThumbSize::None)
-                .item(ThumbSize::Small)
-                .item(ThumbSize::Medium)
-                .item(ThumbSize::Large)
-                .begin(ui);
-            for (index, size) in ThumbSize::ALL.into_iter().enumerate() {
-                let name = size.label(&words);
-                if size == ThumbSize::None {
-                    set.radio(ui, index, &name);
-                    continue;
-                }
-                let side = sample_side(&row, &layers, size);
-                let side_text = numbers.format(f64::from(side), 0..=1);
-                let description = craft_i18n::fmt(&labels.sample, &[("side", side_text.as_str())]);
-                let inline = Gap::Inline.points(&tokens);
-                let option = RadioOption::new("").name(&name).description(&description).content(|ui| {
-                    ui.add_space(inline);
-                    let (rect, _) = ui.allocate_exact_size(vec2(side, side), Sense::empty());
-                    paint_sample_thumbnail(ui.painter(), rect);
-                });
-                set.radio_with(ui, index, option).on_hover_text(name.as_ref());
-            }
-            let _ = set.end(ui);
-        });
-        ui.add_space(gap);
-        GroupBox::new(labels.thumbnail_contents.as_str()).show(ui, |ui| {
-            let _ = RadioGroup::new("layers-options-contents", labels.thumbnail_contents.as_str(), &mut draft.thumbnail_contents)
-                .item(ThumbContents::LayerBounds, labels.layer_bounds.as_str())
-                .item(ThumbContents::EntireDocument, labels.entire_document.as_str())
-                .show(ui);
-        });
-        ui.add_space(gap);
-        let switches = [
-            (&labels.default_masks, &mut draft.use_default_masks_on_fill_layers),
-            (&labels.expand_new_effects, &mut draft.expand_new_effects),
-            (&labels.add_copy, &mut draft.add_copy_to_copied_layers_and_groups),
-            (&labels.preview_on_canvas, &mut draft.preview_on_canvas_when_reordering),
-            (&labels.mask_badges, &mut draft.show_layer_mask_badges),
-        ];
-        for (label, value) in switches {
-            let _ = Checkbox::bool(label.as_str(), value).show(ui);
-        }
-    }
-}
-
-/// The side of a size's sample in the dialog: twice the row thumbnail of `size` at the current
-/// Size preset (`layers.options.sample_scale` × [`ListRowStyle::thumb_side`]); 0 for `None`.
-pub(crate) fn sample_side(row: &ListRowStyle, layers: &LayersStyle, size: ThumbSize) -> f32 {
-    layers.sample_scale * row.thumb_side(size)
-}
-
-/// Paints the dialog's sample thumbnail into `rect`: PhotoCraft's own monochrome miniature
-/// landscape (light sky, shaded hills, a meadow with daisies), original art, clipped to `rect`.
-/// It scales with `rect` and never mirrors.
-pub fn paint_sample_thumbnail(painter: &Painter, rect: Rect) {
-    let painter = painter.with_clip_rect(rect);
-    let side = rect.width();
-    let point = |x: f32, y: f32| pos2(rect.min.x + x * side, rect.min.y + y * side);
-    const BANDS: u32 = 22;
-    for n in 0..BANDS {
-        let y0 = n as f32 / BANDS as f32;
-        let y1 = (n + 1) as f32 / BANDS as f32;
-        painter.rect_filled(Rect::from_min_max(point(0.0, y0), point(1.0, y1)), 0.0, Color32::from_gray((119.0 + y0 * 30.0) as u8));
-    }
-    painter.add(Shape::convex_polygon(
-        vec![point(0.0, 0.60), point(0.22, 0.36), point(0.46, 0.56), point(0.72, 0.33), point(1.0, 0.62)],
-        Color32::from_gray(80),
-        Stroke::NONE,
-    ));
-    painter.add(Shape::convex_polygon(
-        vec![point(0.0, 0.76), point(0.32, 0.60), point(0.57, 0.69), point(1.0, 0.51), point(1.0, 1.0), point(0.0, 1.0)],
-        Color32::from_gray(64),
-        Stroke::NONE,
-    ));
-    for n in 0..16 {
-        let x = ((n * 43 + 13) % 97) as f32 / 96.0;
-        let y = 0.78 + ((n * 11 % 19) as f32) / 100.0;
-        painter.line_segment([point(x, 1.0), point((x + 0.02).min(1.0), y)], Stroke::new(side * 0.01, Color32::from_gray(104)));
-    }
-    // A daisy with layered petals and a dark centre disc, the same composition at every size.
-    let center = point(0.49, 0.57);
-    let unit = side * 0.34;
-    for n in 0..15 {
-        let theta = (n as f32 + 0.5) * std::f32::consts::TAU / 15.0;
-        let direction = vec2(theta.cos(), theta.sin());
-        let normal = vec2(-theta.sin(), theta.cos());
-        let mut outline = Vec::with_capacity(20);
-        for i in 0..=9 {
-            let t = i as f32 / 9.0;
-            let base = center + direction * unit * (0.22 + 0.83 * t);
-            outline.push(base + normal * (unit * 0.22 * (std::f32::consts::PI * t).sin()));
-        }
-        for i in (0..=9).rev() {
-            let t = i as f32 / 9.0;
-            let base = center + direction * unit * (0.22 + 0.83 * t);
-            outline.push(base - normal * (unit * 0.22 * (std::f32::consts::PI * t).sin()));
-        }
-        let fill = if n % 3 == 0 { Color32::from_gray(213) } else { Color32::from_gray(238) };
-        painter.add(Shape::convex_polygon(outline, fill, Stroke::new(0.3, Color32::from_gray(155))));
-    }
-    painter.circle_filled(center, unit * 0.27, Color32::from_gray(33));
-    painter.circle_filled(center - vec2(unit * 0.065, unit * 0.055), unit * 0.16, Color32::from_gray(55));
-    for n in 0..16 {
-        let theta = n as f32 * std::f32::consts::TAU / 16.0;
-        let r = unit * if n % 2 == 0 { 0.16 } else { 0.21 };
-        painter.circle_filled(center + vec2(theta.cos(), theta.sin()) * r, (side * 0.008).max(0.3), Color32::from_gray(119));
-    }
-    painter.rect_stroke(rect, 0.0, Stroke::new(1.0, Color32::from_gray(92)), StrokeKind::Inside);
 }

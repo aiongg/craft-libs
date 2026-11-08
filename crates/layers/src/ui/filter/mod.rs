@@ -5,25 +5,27 @@
 //! read and set the criteria (PhotoCraft's `ui.set layerFilter {by, kinds, name, mode}`) without
 //! the panel.
 
-#[cfg(test)]
-mod tests;
+#[cfg(feature = "screen-testing")]
+mod stories;
 
+use craft_behavior::{EditEvent, GestureId, IconId, Mixed};
 use craft_theme::ControlSize;
-use craft_ui::controls::{IconButton, SearchField, Select};
-use craft_ui::edit::EditEvent;
-use craft_ui::icons::Icon;
-use craft_ui::localized::Labels as _;
-use craft_ui::theme::{Tokens, TokensOf as _};
-use egui::{AsIdSalt, IdSalt, Response, Ui};
+use craft_ui::buttons::ToggleButton;
+use craft_ui::contract::{Bind, Entry, NoValue, Outcome, Props as _, Show as _, ShowContainer as _};
+use craft_ui::layout_components::Row;
+use craft_ui::pickers::Select;
+use craft_ui::runtime::env::{Env, Label};
+use craft_ui::text::TextField;
+use egui::{Response, Ui};
 
-use super::panel::LayersStyle;
-use super::tree::{BlendChoice, LayerInfo, LayerKind};
+use super::tree::{LayerInfo, LayerKind};
 
 /// What the Layers panel filters by: the filter bar's type select (PhotoCraft's three types;
 /// Photoshop's Effect, Attribute, Color, Selected and Artboard wait for the features that need
 /// them).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum FilterBy {
     /// Layer kinds, toggled with five buttons.
     #[default]
@@ -37,6 +39,7 @@ pub enum FilterBy {
 /// A layer kind the Kind filter toggles.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum FilterKind {
     /// Pixel layers.
     Pixel,
@@ -89,6 +92,7 @@ impl LayerKind {
 /// field has a serde default.
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
+#[non_exhaustive]
 pub struct LayerFilter {
     /// The filter type.
     pub by: FilterBy,
@@ -138,168 +142,143 @@ impl LayerFilter {
 
 craft_ui::words! {
     /// The words of the filter bar.
-    pub struct LayerFilterLabels {
-        /// The type select's name for a screen reader.
-        filter_type: "layers.filter.type" = "Filter type";
+    pub struct LayerFilterWords {
+        /// The type select's name.
+        filter_type: "layerFilterBar.type" = "Filter type";
         /// The type select's entries.
-        kind: "layers.filter.kind" = "Kind";
-        name: "layers.filter.name" = "Name";
-        mode: "layers.filter.mode" = "Mode";
+        kind: "layerFilterBar.kind" = "Kind";
+        name: "layerFilterBar.name" = "Name";
+        mode: "layerFilterBar.mode" = "Mode";
         /// The kind toggles' tooltips and names.
-        pixel: "layers.filter.pixel" = "Filter for pixel layers";
-        adjustment: "layers.filter.adjustment" = "Filter for adjustment layers";
-        type_layers: "layers.filter.typeLayers" = "Filter for type layers";
-        shape: "layers.filter.shape" = "Filter for shape layers";
-        smart_object: "layers.filter.smartObject" = "Filter for smart objects";
+        pixel: "layerFilterBar.pixel" = "Filter for pixel layers";
+        adjustment: "layerFilterBar.adjustment" = "Filter for adjustment layers";
+        type_layers: "layerFilterBar.typeLayers" = "Filter for type layers";
+        shape: "layerFilterBar.shape" = "Filter for shape layers";
+        smart_object: "layerFilterBar.smartObject" = "Filter for smart objects";
         /// The name field's placeholder.
-        search: "layers.filter.search" = "Search";
-        /// The name field's name for a screen reader.
-        search_layers: "layers.filter.searchLayers" = "Search layers";
-        /// The name field's clear button.
-        clear_search: "layers.filter.clearSearch" = "Clear search";
-        /// The mode select's name for a screen reader.
-        blend_mode: "layers.filter.blendMode" = "Filter blend mode";
+        search: "layerFilterBar.search" = "Search";
+        /// The name field's name.
+        search_layers: "layerFilterBar.searchLayers" = "Search layers";
+        /// The mode select's name.
+        blend_mode: "layerFilterBar.blendMode" = "Filter blend mode";
     }
 }
 
-/// PhotoCraft's filter row: the type select (Kind, Name, Mode; `layers.filter.type_width` wide),
-/// then that type's controls, `layers.filter.gap` apart (`layers.filter.type_gap` more after the select).
+/// PhotoCraft's filter row: the type select (Kind, Name, Mode), then that type's controls.
 ///
 /// ```ignore
-/// let out = LayerFilterBar::new("layer-filter", &mut ui_state.layer_filter).blend_modes(&modes).show(ui);
+/// let out = LayerFilterBar::new(Bind::bound(&mut ui_state.layer_filter)).blend_modes(&modes).show(ui);
 /// if out.changed { /* the app stores the filter; the panel reads it next time it's drawn */ }
 /// ```
 ///
-/// - **Kind**: five Small [`IconButton`] toggles in
-///   [`FilterKind::ALL`] order (icons image, adjustment, type, square, app window), pressed while
-///   on; a click adds or removes the kind.
-/// - **Name**: a [`SearchField`] over the rest of the row,
-///   named "Search layers".
-/// - **Mode**: a [`Select`] over the rest of the row with
-///   `blend_modes` (the app gives Pass Through first, as PhotoCraft).
-/// - Keyboard: each control is its own Tab stop; the select opens with Space or Alt+Down.
-/// - AccessKit: the type select is a `ComboBox` named "Filter type"; the toggles are toggle
-///   buttons named by their tooltip with their pressed state.
-/// - Right to left, the controls run from the right edge.
+/// - **Kind**: five icon toggle buttons in [`FilterKind::ALL`] order, pressed while on; a click or
+///   Space adds or removes the kind.
+/// - **Name**: a search field named "Search layers", filtering as the user types; Escape clears.
+/// - **Mode**: a [`Select`] with `blend_modes` (the app gives Pass Through first, as PhotoCraft).
+/// - **Keyboard**: each control is its own Tab stop; the select opens with Space or Alt+Down.
 #[must_use = "show the filter bar with `show`"]
+#[derive(craft_ui::contract::Pattern, craft_ui::contract::Props)]
 pub struct LayerFilterBar<'a> {
-    id_salt: IdSalt,
-    filter: &'a mut LayerFilter,
-    blend_modes: &'a [BlendChoice],
-    labels: Option<LayerFilterLabels>,
+    filter: Bind<'a, LayerFilter>,
+    /// The modes the Mode select offers, in order; usually [`LayerTree::blend_modes`](super::tree::LayerTree::blend_modes)
+    /// with groups, so Pass Through is in it.
+    #[prop]
+    blend_modes: &'a [Entry<String>],
 }
 
 /// What [`LayerFilterBar::show`] returns.
 #[derive(Debug)]
+#[non_exhaustive]
 #[must_use = "the host stores a changed filter"]
 pub struct LayerFilterOutput {
-    /// The criteria changed this pass (a toggle, a typed letter, a mode pick, the type select).
-    pub changed: bool,
     /// The bar's row.
     pub response: Response,
+    /// The criteria changed this pass (a toggle, a typed letter, a mode pick, the type select).
+    pub changed: bool,
+    /// The change as an edit, for a binding that does not write through.
+    pub edit: Option<EditEvent<LayerFilter>>,
+}
+
+impl Outcome for LayerFilterOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
 }
 
 impl<'a> LayerFilterBar<'a> {
-    /// The bar editing `filter`; `id_salt` keeps the search field's focus.
-    pub fn new(id_salt: impl AsIdSalt, filter: &'a mut LayerFilter) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), filter, blend_modes: &[], labels: None }
-    }
-
-    /// The modes the Mode select offers, in order; usually [`LayerTree::blend_modes`](super::tree::LayerTree::blend_modes)
-    /// with groups, so Pass Through is in it.
-    pub fn blend_modes(mut self, modes: &'a [BlendChoice]) -> Self {
-        self.blend_modes = modes;
-        self
-    }
-
-    /// The bar's words; the installed words by default.
-    pub fn labels(mut self, labels: LayerFilterLabels) -> Self {
-        self.labels = Some(labels);
-        self
+    /// The bar editing `filter`.
+    pub fn new(filter: Bind<'a, LayerFilter>) -> Self {
+        Self { filter, blend_modes: &[] }
     }
 
     /// Draws the bar on one row of the available width.
     pub fn show(self, ui: &mut Ui) -> LayerFilterOutput {
-        // pc: crates/ui-egui/src/panels/layer_filter_ui.rs:122-158 `bar` (gap 2, type select 64 and
-        // 4 more after it, kind buttons 22, name field, mode dropdown).
-        let Self { id_salt, filter, blend_modes, labels } = self;
-        let labels = labels.unwrap_or_else(|| LayerFilterLabels::of(ui));
-        let tokens = Tokens::of(ui);
-        let style = LayersStyle::of(&tokens);
-        let type_width = LayersStyle::filter_type_width(
-            ui,
-            &tokens,
-            [labels.kind.as_str(), labels.name.as_str(), labels.mode.as_str(), labels.filter_type.as_str()],
-        );
+        let Self { mut filter, blend_modes } = self;
+        let words = Env::of(ui).words::<LayerFilterWords>();
         let size = ControlSize::Sm;
-        let mut changed = false;
-        let row = ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = style.filter_gap;
-            let mut by = filter.by;
-            let picked = Select::new((id_salt, "by"), labels.filter_type.as_str(), &mut by)
-                .option(FilterBy::Kind, labels.kind.as_str())
-                .option(FilterBy::Name, labels.name.as_str())
-                .option(FilterBy::Mode, labels.mode.as_str())
-                .width(type_width)
-                .size(size)
-                .show(ui);
-            ui.add_space(style.filter_type_gap);
-            if picked.event.as_ref().and_then(EditEvent::value).is_some() && by != filter.by {
-                filter.by = by;
-                changed = true;
+        let mut edit = None;
+        let row = Row::new().show(ui, |ui, cx| {
+            let Some(Mixed::Same(current)) = filter.reborrow().read(cx) else { return };
+            let mut next = current.clone();
+            let types = [
+                Entry::new(FilterBy::Kind, Label::from(words.kind.clone())),
+                Entry::new(FilterBy::Name, Label::from(words.name.clone())),
+                Entry::new(FilterBy::Mode, Label::from(words.mode.clone())),
+            ];
+            let picked = Select::new(Label::from(words.filter_type.clone()), Bind::given(current.by), &types).size(size).show(ui);
+            if let Some(by) = picked.value() {
+                next.by = *by;
             }
-            match filter.by {
+            match current.by {
                 FilterBy::Kind => {
                     let kinds = [
-                        (FilterKind::Pixel, Icon::Image, &labels.pixel),
-                        (FilterKind::Adjustment, Icon::AdjustmentLayer, &labels.adjustment),
-                        (FilterKind::Type, Icon::Text, &labels.type_layers),
-                        (FilterKind::Shape, Icon::Square, &labels.shape),
-                        (FilterKind::SmartObject, Icon::AppWindow, &labels.smart_object),
+                        (FilterKind::Pixel, "image", &words.pixel),
+                        (FilterKind::Adjustment, "adjustment_layer", &words.adjustment),
+                        (FilterKind::Type, "text", &words.type_layers),
+                        (FilterKind::Shape, "square", &words.shape),
+                        (FilterKind::SmartObject, "app_window", &words.smart_object),
                     ];
                     for (kind, icon, tip) in kinds {
-                        let was = filter.kinds.contains(&kind);
-                        let mut on = was;
-                        ui.add(IconButton::new(icon, tip.as_str()).size(size).toggle(&mut on).id_salt((id_salt, kind.name())));
-                        if on != was {
-                            if on {
-                                filter.kinds.push(kind);
-                            } else {
-                                filter.kinds.retain(|k| *k != kind);
-                            }
-                            changed = true;
+                        let on = current.kinds.contains(&kind);
+                        let toggled = ToggleButton::new(Label::from(tip.clone()), Bind::given(on))
+                            .icon(IconId::new(icon))
+                            .icon_only()
+                            .size(size)
+                            .id_salt(kind.name())
+                            .show(ui);
+                        match toggled.value() {
+                            Some(true) => next.kinds.push(kind),
+                            Some(false) => next.kinds.retain(|k| *k != kind),
+                            None => {}
                         }
                     }
                 }
                 FilterBy::Name => {
-                    let edit = SearchField::new((id_salt, "name"), labels.search_layers.as_str(), &filter.name, labels.clear_search.as_str())
-                        .placeholder(labels.search.as_str())
+                    let typed = TextField::search(Label::from(words.search_layers.clone()), Bind::given(current.name.clone()))
+                        .placeholder(Label::from(words.search.clone()))
                         .size(size)
                         .show(ui);
-                    if let Some(text) = edit.event.as_ref().and_then(EditEvent::value)
-                        && *text != filter.name
-                    {
-                        filter.name.clone_from(text);
-                        changed = true;
+                    if let Some(text) = typed.value() {
+                        next.name.clone_from(text);
                     }
                 }
                 FilterBy::Mode => {
-                    let mut mode = filter.mode.clone();
-                    let mut select = Select::new((id_salt, "mode"), labels.blend_mode.as_str(), &mut mode).width(ui.available_width()).size(size);
-                    for choice in blend_modes {
-                        if choice.separator_before {
-                            select = select.separator();
-                        }
-                        select = select.option(choice.key.clone(), choice.label.as_str());
-                    }
-                    let picked = select.show(ui);
-                    if picked.event.as_ref().and_then(EditEvent::value).is_some() && mode != filter.mode {
-                        filter.mode = mode;
-                        changed = true;
+                    let picked =
+                        Select::new(Label::from(words.blend_mode.clone()), Bind::given(current.mode.clone()), blend_modes).size(size).show(ui);
+                    if let Some(mode) = picked.value() {
+                        next.mode.clone_from(mode);
                     }
                 }
             }
+            if next != current {
+                let name: std::sync::Arc<str> = std::sync::Arc::from(words.filter_type.as_str());
+                let event = EditEvent::set(GestureId::default(), Mixed::Same(current), next, name, None);
+                filter.reborrow().write(cx, &event);
+                edit = Some(event);
+            }
         });
-        LayerFilterOutput { changed, response: row.response }
+        LayerFilterOutput { response: row.output, changed: edit.is_some(), edit }
     }
 }

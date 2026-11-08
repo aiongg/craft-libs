@@ -5,3 +5,8 @@
 //! happened. The app applies them with its own commands and undo.
 
 pub mod ui;
+
+#[cfg(feature = "screen-testing")]
+pub mod testing {
+    craft_ui::testing_registered!();
+}
