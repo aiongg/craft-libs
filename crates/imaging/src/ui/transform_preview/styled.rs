@@ -11,11 +11,11 @@
 
 use std::sync::{Mutex, PoisonError};
 
-use egui::{Color32, ColorImage, Context, TextureHandle, TextureId, TextureOptions};
-use kurbo::{Point, Rect};
-
+use craft_behavior::geometry::Homography;
+use craft_behavior::kurbo::{Point, Rect};
 use craft_ui::canvas::PixelRect;
-use craft_ui::canvas::quad::Homography;
+use craft_ui::primitives::{Revision, TextureStore, TextureStoreOptions};
+use egui::{Color32, ColorImage, Context, TextureOptions};
 
 use super::{PreviewDisplay, PreviewQuality, PreviewTextures};
 
@@ -23,12 +23,15 @@ use super::{PreviewDisplay, PreviewQuality, PreviewTextures};
 const COORD_LIMIT: f64 = 5.0e8;
 /// Rounds of shrinking the scale until the content fits the budget.
 const ROUNDS: u32 = 6;
+/// The salt of the styled composite's texture stores.
+const STORE: &str = "craft_imaging.styled_preview";
 
 /// How long a styled rebuild may take (LC25, LC26): the work pixels a composite may have are the
 /// time over the source's [cost per pixel](StyledSource::pixel_cost_ns) plus the library's own
 /// resample cost per pixel, clamped. Separate from
 /// S7-adjust's live-preview damage tracking (different inputs).
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct StyledBudget {
     /// Milliseconds a rebuild may take while the pointer is down (a drag rebuilds every pass).
     pub drag_ms: f64,
@@ -80,6 +83,7 @@ impl Default for StyledBudget {
 /// Where and how finely a styled preview is composited. Rectangles are in work pixels: document
 /// pixels times `scale`.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct StylePlan {
     /// Work pixels per document pixel, at most 1.
     pub scale: f64,
@@ -155,6 +159,7 @@ fn grow(rect: &PixelRect, by: i32) -> PixelRect {
 /// `rect.width() × rect.height()` of them. The edges of the source fade over one texel, as a
 /// resampled layer's do.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct StyledContent {
     /// The work rectangle in document pixels.
     pub rect: PixelRect,
@@ -184,7 +189,7 @@ pub trait StyledSource {
 /// The moving texels (`image`, premultiplied, of which `uv` covers the source frame) resampled
 /// over `rect`. `to_unit` takes a work pixel to the unit square of the source frame and `inside`
 /// is a work point within the box; `nearest` keeps texels whole.
-pub(super) fn resample(image: &ColorImage, uv: [f32; 2], to_unit: &Homography, inside: Point, rect: PixelRect, nearest: bool) -> StyledContent {
+pub fn resample(image: &ColorImage, uv: [f32; 2], to_unit: &Homography, inside: Point, rect: PixelRect, nearest: bool) -> StyledContent {
     // pc: crates/ui-egui/src/tools/transform_fx.rs:164 (`resample`).
     let width = rect.width() as usize;
     let mut texels = vec![[0.0f32; 4]; width * rect.height() as usize];
@@ -249,19 +254,34 @@ pub(super) fn resample(image: &ColorImage, uv: [f32; 2], to_unit: &Homography, i
     StyledContent { rect, texels }
 }
 
-/// What a styled composite is made from this pass (built by
-/// [`TransformPreview::show`](super::TransformPreview::show)).
-pub(super) struct StyledFrame<'a> {
+/// What a styled composite is made from in one pass.
+#[derive(Clone, Copy)]
+#[non_exhaustive]
+pub struct StyledFrame<'a> {
+    /// The moving pixels.
     pub textures: &'a PreviewTextures,
+    /// The box, clockwise from the top left, in document units.
     pub quad: [Point; 4],
     /// How much the box enlarges its source (1 is the same size).
     pub quad_scale: f32,
+    /// Nearest Neighbor interpolation.
     pub nearest: bool,
     /// Screen pixels per document pixel.
     pub zoom: f32,
+    /// The pointer is down: the drag budget applies.
     pub dragging: bool,
+    /// The document's size in pixels.
     pub canvas: [u32; 2],
+    /// How long a rebuild may take.
     pub budget: StyledBudget,
+}
+
+impl<'a> StyledFrame<'a> {
+    /// The frame of `quad` over `textures` in a document of `canvas` pixels shown at `zoom` screen
+    /// pixels per document pixel: unscaled, linear, at rest, with the default budget.
+    pub fn new(textures: &'a PreviewTextures, quad: [Point; 4], canvas: [u32; 2], zoom: f32) -> Self {
+        Self { textures, quad, quad_scale: 1.0, nearest: false, zoom, dragging: false, canvas, budget: StyledBudget::default() }
+    }
 }
 
 /// What a composite depends on: the box (bit for bit), the plan, the revision, the display key,
@@ -279,7 +299,8 @@ struct StyledKey {
 
 struct Shown {
     key: StyledKey,
-    texture: TextureHandle,
+    revision: Revision,
+    crisp: bool,
     rect: Rect,
 }
 
@@ -311,17 +332,23 @@ impl StyledPreview {
         self.state.lock().unwrap_or_else(PoisonError::into_inner).builds
     }
 
+    /// The store of the composite's picture: one per filter, one entry each.
+    fn store(&self, ctx: &Context, crisp: bool) -> TextureStore<()> {
+        let filter = if crisp { TextureOptions::NEAREST } else { TextureOptions::LINEAR };
+        TextureStore::in_context(ctx, (STORE, self.name.as_str(), crisp), TextureStoreOptions::frames().filter(filter))
+    }
+
     /// The composite for `frame` and the document rectangle it covers, compositing again through
     /// `source` when the key changed. Crisp (nearest) when the plan is at full scale and the zoom
     /// is at least `CRISP_ZOOM`. `None` when there is nothing to draw this way; the caller draws
     /// the plain mesh.
-    pub(super) fn texture(
+    pub fn composite(
         &self,
         ctx: &Context,
         frame: &StyledFrame<'_>,
         source: &dyn StyledSource,
         display: Option<&PreviewDisplay>,
-    ) -> Option<(TextureId, Rect)> {
+    ) -> Option<(egui::TextureId, Rect)> {
         // pc: crates/ui-egui/src/tools/transform_fx.rs:393 (`texture`), :335 (`Frame::plan`).
         let plan = StylePlan::new(frame.quad, frame.canvas, frame.zoom, frame.budget.pixels(source.pixel_cost_ns(), frame.dragging), |scale| {
             source.reach(scale)
@@ -338,8 +365,10 @@ impl StyledPreview {
             crisp,
         };
         let mut state = self.state.lock().unwrap_or_else(PoisonError::into_inner);
-        if let Some(shown) = state.shown.as_ref().filter(|s| s.key == key) {
-            return Some((shown.texture.id(), shown.rect));
+        if let Some(shown) = state.shown.as_ref().filter(|s| s.key == key)
+            && let Some(texture) = self.store(ctx, shown.crisp).state(ctx, &(), shown.revision).shown()
+        {
+            return Some((texture.id, shown.rect));
         }
         if state.failed.as_ref() == Some(&key) {
             return None;
@@ -358,12 +387,13 @@ impl StyledPreview {
             Some(d) => (d.convert)(&composed),
             None => composed,
         };
-        let options = if crisp { TextureOptions::NEAREST } else { TextureOptions::LINEAR };
-        let texture = ctx.load_texture(self.name.clone(), pixels, options);
-        let (id, rect) = (texture.id(), plan.document_rect());
+        let revision = Revision::new(state.builds + 1);
+        self.store(ctx, !crisp).forget(ctx, &());
+        let texture = self.store(ctx, crisp).put(ctx, (), revision, pixels);
+        let rect = plan.document_rect();
         state.failed = None;
-        state.shown = Some(Shown { key, texture, rect });
+        state.shown = Some(Shown { key, revision, crisp, rect });
         state.builds += 1;
-        Some((id, rect))
+        Some((texture.id, rect))
     }
 }

@@ -10,39 +10,39 @@
 //!
 //! ```no_run
 //! use craft_imaging::ui::transform_preview::{PreviewMap, PreviewPixels, PreviewTextures, TransformPreview};
-//! # fn demo(ui: &mut egui::Ui, view: &craft_ui::canvas::CanvasView, image: egui::ColorImage, quad: [kurbo::Point; 4]) {
+//! use craft_ui::contract::Show as _;
+//! # fn demo(ui: &mut egui::Ui, canvas_rect: egui::Rect, image: egui::ColorImage, quad: [kurbo::Point; 4]) {
 //! // Once per session:
-//! let textures = PreviewTextures::new(ui.ctx(), "ft-preview", PreviewPixels::new(image, [1.0, 1.0]));
-//! // Every pass, under the guides and the box:
-//! TransformPreview::new("ft-preview", &textures).map(PreviewMap::quad(quad)).opacity(0.8).clip([800, 600]).show(ui, view);
+//! let textures = PreviewTextures::new("ft-preview", PreviewPixels::new(image, [1.0, 1.0]));
+//! // Every pass, in the canvas body under the guides and the box:
+//! TransformPreview::new("Moving layer", &textures).map(PreviewMap::quad(quad)).opacity(0.8).clip([800, 600]).show_at(ui, canvas_rect);
 //! # }
 //! ```
 
 mod maps;
+#[cfg(feature = "screen-testing")]
 pub(crate) mod stories;
 mod styled;
 mod textures;
 
-#[cfg(test)]
-mod maps_tests;
-#[cfg(test)]
-mod styled_tests;
-#[cfg(test)]
-mod textures_tests;
-
+use craft_behavior::kurbo::Point;
+use craft_behavior::{CanvasView, Input, Metrics};
+use craft_ui::canvas::canvas_space;
+use craft_ui::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role};
+use craft_ui::primitives::ContentPainterCx;
+use craft_ui::runtime::env::Label;
+use craft_ui::style::{ComponentStyle, StyleCx};
 use egui::epaint::Vertex;
-use egui::{AsIdSalt, Color32, Mesh, Painter, TextureId, Ui};
-use kurbo::Point;
+use egui::{Color32, Mesh, Response, Shape, TextureId};
 
-use craft_ui::canvas::CanvasView;
-
-pub use maps::PreviewMap;
-use maps::{PreviewMesh, clip_to_canvas};
-pub use styled::{StylePlan, StyledBudget, StyledContent, StyledPreview, StyledSource};
+use maps::clip_to_canvas;
+pub use maps::{PreviewMap, PreviewMesh};
+pub use styled::{StylePlan, StyledBudget, StyledContent, StyledFrame, StyledPreview, StyledSource, resample};
 pub use textures::{PreviewDisplay, PreviewMask, PreviewPixels, PreviewTextures, TextureChoice};
 
 /// The preview's algorithm constants (LC23, LC24): choices of how finely to sample, not look, so
 /// not tokens. Values are PhotoCraft's.
+#[non_exhaustive]
 pub struct PreviewQuality;
 
 impl PreviewQuality {
@@ -55,7 +55,7 @@ impl PreviewQuality {
     pub const SEGMENT_PX: f64 = 6.0;
     /// Fewest and most segments one warp patch gets along an axis.
     pub const MIN_PER_CELL: usize = 4;
-    #[allow(missing_docs)]
+    /// Most segments one warp patch gets along an axis.
     pub const MAX_PER_CELL: usize = 96;
     /// Most samples along either axis of a warp mesh.
     pub const MAX_PER_AXIS: usize = 240;
@@ -69,11 +69,18 @@ impl PreviewQuality {
     pub const MIP_BELOW: f32 = 0.5;
 }
 
-/// A painter that draws over the preview: the app's layers above the moving one.
-type Above<'a> = Box<dyn FnOnce(&Painter) + 'a>;
+/// The style of the transform preview: it has no look of its own.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+#[non_exhaustive]
+pub struct PreviewStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+}
 
 /// The moving pixels of a transform drawn through a map, as image content under the guides and
 /// the box (PhotoCraft draws them before the guides so a guide stays visible across the layer).
+/// Show it at the canvas's rect in the canvas body; the host shows a `RasterDisplay` of the layers
+/// above the moving one right after it (show order is paint order).
 ///
 /// - The texture level and filter follow the on-screen size of a source pixel
 ///   ([`PreviewTextures::choose`]): a mip level when shrinking below ½, level 0 bilinear around
@@ -86,25 +93,44 @@ type Above<'a> = Box<dyn FnOnce(&Painter) + 'a>;
 /// - [`opacity`](Self::opacity) tints every vertex white with that alpha (layer opacity × fill).
 /// - With [`styled`](Self::styled) and a plan that fits, the styled composite is drawn in place of
 ///   the mesh (quad maps only); otherwise the plain mesh.
-/// - No AccessKit node: image content.
+/// - No pointer, key or accessibility node: image content.
+#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
+#[component(canvas_control, content_painter)]
 pub struct TransformPreview<'a> {
+    #[common]
+    common: Common,
     textures: &'a PreviewTextures,
+    /// Where the source goes; nothing is drawn without a map.
+    #[prop]
     map: Option<PreviewMap<'a>>,
+    /// The layer's opacity times its fill, 0 to 1; 1 by default.
+    #[prop(quantity = "fraction")]
     opacity: f32,
+    /// Nearest Neighbor interpolation: level 0 with nearest filtering at every zoom. The app passes the draw
+    /// session's `Interpolation::NearestNeighbor` as a bool: the imaging library cannot name the drawing library's
+    /// type.
+    #[prop]
     nearest: bool,
+    /// The document's size in pixels: nothing is drawn past its edges.
+    #[prop]
     clip: Option<[u32; 2]>,
+    /// The monitor conversion of the displayed upload; the mip levels stay raw.
+    #[prop]
     display: Option<&'a PreviewDisplay>,
     styled: Option<(&'a StyledPreview, &'a dyn StyledSource)>,
+    /// The pointer is down: the styled composite uses the drag budget.
+    #[prop]
     dragging: bool,
-    budget: StyledBudget,
-    above: Option<Above<'a>>,
+    /// How long a styled rebuild may take; PhotoCraft's times by default.
+    #[prop]
+    styled_budget: StyledBudget,
 }
 
 impl<'a> TransformPreview<'a> {
-    /// The preview of `textures`; nothing is drawn until a [`map`](Self::map) is set. The preview
-    /// registers no widget, so `id_salt` only keeps the builder's usual first parameter.
-    pub fn new(_id_salt: impl AsIdSalt, textures: &'a PreviewTextures) -> Self {
-        Self {
+    /// The preview of `textures`, named `label`; nothing is drawn until a [`map`](Self::map) is set.
+    pub fn new(label: impl Into<Label>, textures: &'a PreviewTextures) -> Self {
+        TransformPreview {
+            common: Common::new(),
             textures,
             map: None,
             opacity: 1.0,
@@ -113,93 +139,59 @@ impl<'a> TransformPreview<'a> {
             display: None,
             styled: None,
             dragging: false,
-            budget: StyledBudget::default(),
-            above: None,
+            styled_budget: StyledBudget::default(),
         }
-    }
-
-    /// Where the source goes.
-    pub fn map(mut self, map: PreviewMap<'a>) -> Self {
-        self.map = Some(map);
-        self
-    }
-
-    /// The layer's opacity times its fill, 0 to 1; 1 by default.
-    pub fn opacity(mut self, opacity: f32) -> Self {
-        self.opacity = opacity;
-        self
-    }
-
-    /// Nearest Neighbor interpolation: level 0 with nearest filtering at every zoom. The app
-    /// passes the draw session's `Interpolation::NearestNeighbor` as a bool: the imaging library
-    /// cannot name the drawing library's type (decisions §2.1).
-    pub fn nearest(mut self, nearest: bool) -> Self {
-        self.nearest = nearest;
-        self
-    }
-
-    /// The document's size in pixels: nothing is drawn past its edges.
-    pub fn clip(mut self, canvas: [u32; 2]) -> Self {
-        self.clip = Some(canvas);
-        self
-    }
-
-    /// The monitor conversion of the displayed upload; the mip levels stay raw.
-    pub fn display(mut self, display: &'a PreviewDisplay) -> Self {
-        self.display = Some(display);
-        self
+        .label(label)
     }
 
     /// A styled layer: composite through the app's `source` and keep the result in `preview`.
+    #[must_use]
     pub fn styled(mut self, preview: &'a StyledPreview, source: &'a dyn StyledSource) -> Self {
         self.styled = Some((preview, source));
         self
     }
+}
 
-    /// The pointer is down: the styled composite uses the drag budget.
-    pub fn dragging(mut self, dragging: bool) -> Self {
-        self.dragging = dragging;
-        self
+impl Component for TransformPreview<'_> {
+    const ROLE: Role = Role::GRAPHICS_OBJECT;
+    const ALT_ROLES: &'static [Role] = &[Role::None];
+    const INPUT: Input = Input::Display;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
+    const OVERLAYS: bool = false;
+    type Style = PreviewStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: TransformPreviewStyleKey) -> PreviewStyle {
+        PreviewStyle { metrics: Metrics::new() }
     }
 
-    /// How long a styled rebuild may take; PhotoCraft's times by default.
-    pub fn styled_budget(mut self, budget: StyledBudget) -> Self {
-        self.budget = budget;
-        self
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> egui::Vec2 {
+        egui::Vec2::ZERO
     }
 
-    /// Draws the app's layers above the moving one after it, in the same clip.
-    pub fn above(mut self, paint: impl FnOnce(&Painter) + 'a) -> Self {
-        self.above = Some(Box::new(paint));
-        self
-    }
-
-    /// Draws the preview into the canvas area of `view`.
-    pub fn show(self, ui: &Ui, view: &CanvasView) {
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         // pc: crates/ui-egui/src/tools/transform_tool/draw.rs:113 (the quad mesh), :118 (texture
         // pick), :83 (`front_vertices`), :395 (`clip_to_canvas`);
         // crates/ui-egui/src/tools/perspective_ui.rs:263 (`draw_content`, function map);
         // crates/ui-egui/src/tools/puppet_ui.rs:348 (`draw_content`, pin mesh).
-        let Some(map) = self.map else { return };
-        let ctx = ui.ctx();
-        let painter = ui.painter_at(view.rect);
-        let zoom = view.zoom as f32 * ctx.pixels_per_point();
+        let (Some(map), Some(space)) = (self.map, canvas_space(&cx.env)) else { return };
+        let view = space.view;
+        let painter = ui.content_painter(cx);
+        let ctx = painter.painter.ctx().clone();
+        let device = space.pixels_per_point;
+        let zoom = view.zoom as f32 * device;
         let scale = map.source_scale(self.textures.size());
         let tint = Color32::from_white_alpha((self.opacity.clamp(0.0, 1.0) * 255.0).round() as u8);
 
         let styled = match (&self.styled, &map, self.clip) {
             (Some((preview, source)), PreviewMap::Quad(quad), Some(canvas)) => {
-                let frame = styled::StyledFrame {
-                    textures: self.textures,
-                    quad: *quad,
-                    quad_scale: scale,
-                    nearest: self.nearest,
-                    zoom,
-                    dragging: self.dragging,
-                    canvas,
-                    budget: self.budget,
-                };
-                preview.texture(ctx, &frame, *source, self.display)
+                let mut frame = StyledFrame::new(self.textures, *quad, canvas, zoom);
+                frame.quad_scale = scale;
+                frame.nearest = self.nearest;
+                frame.dragging = self.dragging;
+                frame.budget = self.styled_budget;
+                preview.composite(&ctx, &frame, *source, self.display)
             }
             _ => None,
         };
@@ -211,21 +203,26 @@ impl<'a> TransformPreview<'a> {
                 uv: corners.iter().map(|c| [c.2, c.3]).collect(),
                 indices: vec![0, 1, 2, 0, 2, 3],
             };
-            painter.add(screen_mesh(mesh, texture, Color32::WHITE, self.clip, view));
+            add_mesh(&painter, mesh, texture, Color32::from_gray(u8::MAX), self.clip, &view);
         } else {
             let choice = PreviewTextures::choose(zoom, scale, self.nearest);
-            let (texture, uv) = self.textures.pick(ctx, choice, self.display);
-            let mesh = map.build(view.zoom * f64::from(ctx.pixels_per_point()), uv);
-            painter.add(screen_mesh(mesh, texture, tint, self.clip, view));
+            let Some((texture, uv)) = self.textures.pick(&ctx, choice, self.display) else { return };
+            let mesh = map.build(view.zoom * f64::from(device), uv);
+            add_mesh(&painter, mesh, texture, tint, self.clip, &view);
         }
-        if let Some(above) = self.above {
-            above(&painter);
-        }
+    }
+
+    fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
+        access.role(Role::None);
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
     }
 }
 
-/// `mesh` clipped to the canvas in document space and mapped through `view` to an egui mesh.
-fn screen_mesh(mesh: PreviewMesh, texture: TextureId, tint: Color32, canvas: Option<[u32; 2]>, view: &CanvasView) -> Mesh {
+/// `mesh` clipped to the canvas in document space, mapped through `view` and added to the painter.
+fn add_mesh(painter: &ContentPainterCx<'_>, mesh: PreviewMesh, texture: TextureId, tint: Color32, canvas: Option<[u32; 2]>, view: &CanvasView) {
     let mesh = match canvas {
         Some(canvas) => clip_to_canvas(mesh, canvas),
         None => mesh,
@@ -234,5 +231,5 @@ fn screen_mesh(mesh: PreviewMesh, texture: TextureId, tint: Color32, canvas: Opt
     out.vertices =
         mesh.points.iter().zip(&mesh.uv).map(|(p, uv)| Vertex { pos: view.to_screen(*p), uv: egui::pos2(uv[0], uv[1]), color: tint }).collect();
     out.indices = mesh.indices;
-    out
+    painter.painter.add(Shape::mesh(out));
 }

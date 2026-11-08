@@ -1,10 +1,12 @@
 //! The integration binary of craft-imaging: every test is a registered trial.
 
 mod blend_keys;
+mod blur_pins;
 mod curve;
 mod histogram;
 mod scopes;
 mod selection;
+mod transform_preview;
 
 use craft_ui::testing::{TRIALS, suite};
 use libtest_mimic::{Arguments, Trial};

@@ -1,9 +1,8 @@
 //! [`PreviewMap`]: where a transform preview's source goes, and the mesh it is drawn with (task
 //! TR-T10).
 
-use kurbo::{Point, Rect};
-
-use craft_ui::canvas::quad::Homography;
+use craft_behavior::geometry::Homography;
+use craft_behavior::kurbo::{self, Point, Rect};
 
 use super::PreviewQuality;
 use crate::ui::warp::WarpMesh;
@@ -12,6 +11,7 @@ use crate::ui::warp::pin::PinMeshView;
 /// Where the preview's source goes, in document units. The texture covers the source frame; each
 /// map says where every point of it lands.
 #[derive(Clone, Copy)]
+#[non_exhaustive]
 pub enum PreviewMap<'a> {
     /// Free Transform: the source frame's corners onto a box's corners (clockwise from the top
     /// left), through the homography; a `QUAD_CELLS` × `QUAD_CELLS` mesh keeps perspective
@@ -21,28 +21,31 @@ pub enum PreviewMap<'a> {
     /// warp pulls hard (about every `SEGMENT_PX` screen points, `MIN_PER_CELL` to `MAX_PER_CELL`
     /// per patch, at most `MAX_PER_AXIS` per axis). The displacement order measures from `source`,
     /// the unwarped frame.
+    #[non_exhaustive]
     Mesh {
-        #[allow(missing_docs)]
+        /// The warp mesh.
         mesh: &'a WarpMesh,
-        #[allow(missing_docs)]
+        /// The source frame.
         source: Rect,
     },
     /// Puppet Warp: the solver's triangles, each vertex at its deformed position and its texel at
     /// its rest position within `source` (the layer's bounds), drawn in the solver's order.
+    #[non_exhaustive]
     Pins {
-        #[allow(missing_docs)]
+        /// The solver's mesh.
         mesh: PinMeshView<'a>,
-        #[allow(missing_docs)]
+        /// The source frame.
         source: Rect,
     },
     /// Perspective Warp and other engine maps: a `cells` × `cells` grid over `source` pushed
     /// through the app's function (PhotoCraft's piecewise homography, LC20).
+    #[non_exhaustive]
     Function {
-        #[allow(missing_docs)]
+        /// The source frame.
         source: Rect,
-        #[allow(missing_docs)]
+        /// Cells per side.
         cells: usize,
-        #[allow(missing_docs)]
+        /// The app's map.
         map: &'a dyn Fn(Point) -> Point,
     },
 }
@@ -96,7 +99,7 @@ impl<'a> PreviewMap<'a> {
     /// The mesh to draw at `zoom` screen points per document unit: positions, rest positions,
     /// texture coordinates within `uv` (the level's extent covering the source) and triangles in
     /// drawing order.
-    pub(super) fn build(&self, zoom: f64, uv: [f32; 2]) -> PreviewMesh {
+    pub fn build(&self, zoom: f64, uv: [f32; 2]) -> PreviewMesh {
         // pc: crates/ui-egui/src/tools/transform_tool/draw.rs:113 (quad), :83 (`front_vertices`);
         // crates/ui-egui/src/tools/warp_preview.rs:20 (`samples`), :58 (`triangle_order`);
         // crates/ui-egui/src/tools/puppet_ui.rs:348 (pins); perspective_ui.rs:263 (function).
@@ -111,14 +114,25 @@ impl<'a> PreviewMap<'a> {
 
 /// A preview mesh in document units, before it is clipped and mapped to the screen.
 #[derive(Clone, Debug, Default, PartialEq)]
-pub(super) struct PreviewMesh {
+#[non_exhaustive]
+pub struct PreviewMesh {
     /// Where each vertex is drawn.
     pub points: Vec<Point>,
     /// Where each vertex sits with no transform (the displacement order reads it).
     pub rest: Vec<Point>,
+    /// The texture coordinate of each vertex.
     pub uv: Vec<[f32; 2]>,
     /// Triangles, three indices each, in drawing order.
     pub indices: Vec<u32>,
+}
+
+impl PreviewMesh {
+    /// The mesh clipped to a document of `canvas` pixels: triangles past its edges are cut in
+    /// document space, also under a turned view.
+    #[must_use]
+    pub fn clipped(self, canvas: [u32; 2]) -> PreviewMesh {
+        clip_to_canvas(self, canvas)
+    }
 }
 
 /// Two triangles per cell of a `row`-wide grid of vertices, in row order, for the cells whose four
