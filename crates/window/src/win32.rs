@@ -8,7 +8,7 @@ use crate::Button;
 use crate::native::{CaptionEvent, Hits, hit_code};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, LazyLock, Mutex, PoisonError};
-use winsafe::{self as w, co, prelude::*};
+use winsafe::{self as w, co};
 
 /// `HTMAXBUTTON`, the hit-test result and the `wParam` of the non-client messages over the maximize button.
 const HT_MAX_BUTTON: usize = 9;
@@ -135,7 +135,7 @@ fn answer(window: &w::HWND, message: co::WM, wparam: usize, lparam: isize) -> Op
     match message {
         co::WM::NCHITTEST => {
             let zone = hits.zone_at(client_of(window, lparam)?);
-            hit_code(zone).map(isize::from)
+            hit_code(zone).and_then(|code| isize::try_from(code).ok())
         }
         co::WM::NCMOUSEMOVE if wparam == HT_MAX_BUTTON => {
             let (arm, entered) = routed(|routed| {
