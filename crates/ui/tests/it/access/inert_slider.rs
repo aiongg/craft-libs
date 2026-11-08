@@ -1,6 +1,6 @@
 //! A component shown at a width that cannot hold it shows nothing, and its node promises nothing the role rules need.
 
-use craft_ui::contract::{Bind, Role, Show as _};
+use craft_ui::contract::{Bind, Props as _, Role, Show as _};
 use craft_ui::testing::access::violations;
 use craft_ui::testing::{Fixture, trial};
 use craft_ui::value_drag::Slider;
