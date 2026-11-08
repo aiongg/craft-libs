@@ -9,6 +9,12 @@ pub(crate) fn clicked(response: &Response) -> bool {
     response.clicked()
 }
 
+/// Whether the press path released a pointer click on the component of `response`: a root's own widget or a
+/// member's shape, never a key or AccessKit activation.
+pub(crate) fn pointer_clicked(response: &Response) -> bool {
+    response.flags.contains(Flags::CLICKED)
+}
+
 /// egui's sense for a library sense: `FOCUS` makes the widget a focus stop.
 pub(crate) fn to_egui(sense: Sense) -> egui::Sense {
     let mut mapped = egui::Sense::hover();
