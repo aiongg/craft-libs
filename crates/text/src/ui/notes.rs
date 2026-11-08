@@ -626,7 +626,7 @@ impl Component for NotesEditor<'_> {
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let inputs: Vec<EditorInput> = cx.editor_input().collect();
-        let press = cx.part(EDITOR).press;
+        let press = *cx.press();
         let pointed = match press.phase {
             PressPhase::Down { start, .. } if press.went_down && start.button == PointerButton::Primary => {
                 Some((self.char_at(cx, start.origin), Some((start.clicks, press.mods.shift))))
