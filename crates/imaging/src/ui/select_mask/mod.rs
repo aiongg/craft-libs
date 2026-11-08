@@ -57,7 +57,7 @@ use craft_behavior::edit_history::Step;
 use craft_behavior::{CancelReason, EditEvent, EditHistory, GestureId, IconId, Mixed};
 use craft_theme::Srgba;
 use craft_ui::buttons::IconButton;
-use craft_ui::canvas::{NavigationOptions, PickStep, RasterSource, ToolHost, ViewCommand, ZoomTool, tool_pick};
+use craft_ui::canvas::{NavigationOptions, PickStep, RasterSource, ToolHost, ViewCommands, ZoomTool, tool_pick};
 use craft_ui::canvas_controls::brush::{BrushCursorOptions, TipFalloff};
 use craft_ui::contract::{Bind, NoValue, Outcome, Pattern, Props as _, Remember as _, Show as _, ShowContainer as _, clicked};
 use craft_ui::dialog::{FullWindowCanvas, FullWindowDialog, FullWindowSide, FullWindowStatus, FullWindowTitle, FullWindowView, SideFooter};
@@ -461,8 +461,7 @@ impl SelectMaskWorkspace {
                             SelectMaskTool::Hand => canvas.show(ui),
                             SelectMaskTool::Zoom => canvas.tool(&mut work.zoom_tool).show(ui),
                             tool => {
-                                let env = Env::of(ui);
-                                let mut brush = work.canvas.tool(tool, &mut work.options, work.settings.real_time).env(&env);
+                                let mut brush = work.canvas.tool(tool, &mut work.options, work.settings.real_time).env(Env::of(ui));
                                 canvas.tool(&mut brush).show(ui)
                             }
                         }
@@ -532,8 +531,8 @@ impl SelectMaskWorkspace {
         self.step_now(step)
     }
 
-    /// Applies a zoom command (`ViewCommand`) to the workspace's view. Returns whether the view moved.
-    pub fn zoom(&mut self, command: ViewCommand) -> bool {
+    /// Applies a zoom command (`ViewCommands`) to the workspace's view. Returns whether the view moved.
+    pub fn zoom(&mut self, command: ViewCommands) -> bool {
         self.view.apply(command)
     }
 

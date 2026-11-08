@@ -73,7 +73,7 @@ fn the_contributors_table_orders_its_rows_by_the_chosen_sort() {
     let mut fixture = open_on(people(), AboutTab::Contributors);
     assert_eq!(listed(&fixture, &NAMES), ["@bob", "@dave", "@Carol", "@alice"], "oldest first, the undated last, the tie in name order");
 
-    let reverse = fixture.control("Reverse the order").expect("the reverse button");
+    let reverse = fixture.by_label("Reverse the order").expect("the reverse button");
     fixture.click(&reverse);
     fixture.settle();
     let turned = listed(&fixture, &NAMES);

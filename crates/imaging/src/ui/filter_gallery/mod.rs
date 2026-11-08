@@ -42,7 +42,7 @@ use craft_behavior::edit_history::Step;
 use craft_behavior::kurbo::Rect;
 use craft_behavior::{CanvasView, EditEvent, EditHistory, GestureId, Mixed, PixelSize};
 use craft_theme::Srgba;
-use craft_ui::canvas::{NavigationOptions, PixelRect, ViewCommand};
+use craft_ui::canvas::{NavigationOptions, PixelRect, ViewCommands};
 use craft_ui::contract::{Bind, Pattern, Pending, Remember as _, ShowContainer as _};
 use craft_ui::dialog::{
     DialogOutput, FullWindowCanvas, FullWindowDialog, FullWindowSide, FullWindowStatus, FullWindowTitle, FullWindowView, FullWindowZoomBar,
@@ -174,7 +174,7 @@ pub struct FilterGalleryWorkspace {
     /// The preview job of the last pass, for the status line.
     status: Pending<PreviewDone, String>,
     /// Zoom commands from calls outside `show`, applied by the next pass.
-    zooms: Vec<ViewCommand>,
+    zooms: Vec<ViewCommands>,
     /// Events from calls outside `show`, reported by the next pass.
     queued: Vec<FilterGalleryEvent>,
 }
@@ -344,7 +344,7 @@ impl FilterGalleryWorkspace {
 
     /// Applies a zoom command the app received (the dialog's own scope handles its keys); the next pass applies
     /// it to the preview's view.
-    pub fn zoom(&mut self, command: ViewCommand) -> bool {
+    pub fn zoom(&mut self, command: ViewCommands) -> bool {
         self.zooms.push(command);
         true
     }

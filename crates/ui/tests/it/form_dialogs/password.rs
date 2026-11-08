@@ -12,7 +12,7 @@ fn typed(password: &str) -> Fixture {
         PasswordDialog::new(PasswordPurpose::Set).opened(Bind::bound(&mut open)).show(ui);
     });
     fixture.settle();
-    let field = fixture.control("Type Password").expect("the first password field");
+    let field = fixture.by_label("Type Password").expect("the first password field");
     fixture.click(&field);
     fixture.type_text(password);
     fixture.settle();

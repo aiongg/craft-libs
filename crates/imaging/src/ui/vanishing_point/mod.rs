@@ -49,7 +49,7 @@ use egui::{Color32, Id, Response, Ui};
 use craft_behavior::edit_history::Step;
 use craft_behavior::{CancelReason, EditEvent, EditHistory, Mixed};
 use craft_ui::canvas::{
-    HandTool, Momentary, MomentaryCommand, NavigationOptions, PickStep, RasterSource, ToolHost, ViewCommand, ZoomTool, tool_pick,
+    HandTool, Momentary, MomentaryCommands, NavigationOptions, PickStep, RasterSource, ToolHost, ViewCommands, ZoomTool, tool_pick,
 };
 use craft_ui::contract::{Bind, Job, NoValue, Outcome, Pending, Remember as _, Show as _, ShowContainer as _};
 use craft_ui::dialog::{FullWindowCanvas, FullWindowDialog, FullWindowSide, FullWindowStatus, FullWindowTitle, FullWindowView, RasterOverlay};
@@ -327,7 +327,7 @@ impl VanishingPointWorkspace {
                     work.cancel_gesture(&ctx, &state, CancelReason::UndoDuringGesture, &mut out);
                     work.step_now(step);
                 }
-                while let Some((command, _)) = cx.take_command::<ViewCommand>() {
+                while let Some((command, _)) = cx.take_command::<ViewCommands>() {
                     state.view.apply(command);
                 }
                 while let Some((command, fired)) = cx.take_command::<VanishingPointCommands>() {
@@ -469,7 +469,7 @@ impl VanishingPointWorkspace {
     }
 
     /// A momentary Hand or Zoom command the app routes here (Space, ⌘Space), with its phase.
-    pub fn momentary(&mut self, command: MomentaryCommand, phase: FirePhase) {
+    pub fn momentary(&mut self, command: MomentaryCommands, phase: FirePhase) {
         self.momentary.fired(command, phase);
     }
 }

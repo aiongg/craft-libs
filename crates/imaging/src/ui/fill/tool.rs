@@ -183,13 +183,13 @@ pub struct FillCanvasTool<'a> {
     session: &'a FillSession,
     limits: &'a FillLimits,
     cursor: &'a BrushCursorOptions,
-    env: Option<&'a Env>,
+    env: Option<Env>,
 }
 
-impl<'a> FillCanvasTool<'a> {
+impl FillCanvasTool<'_> {
     /// The env the brush cursor reads its reach from (`size.hit.target`). Without one the brush shows the system arrow.
     #[must_use]
-    pub fn env(mut self, env: &'a Env) -> Self {
+    pub fn env(mut self, env: Env) -> Self {
         self.env = Some(env);
         self
     }
@@ -246,7 +246,7 @@ impl CanvasTool for FillCanvasTool<'_> {
                 if self.canvas.resize.active() {
                     return Cursor::Painted(PaintedCursor::Hidden);
                 }
-                let (Some(space), Some(env)) = (cx.space(), self.env) else { return Cursor::System(CursorIcon::Default) };
+                let (Some(space), Some(env)) = (cx.space(), self.env.as_ref()) else { return Cursor::System(CursorIcon::Default) };
                 // A hard round brush: the 50 % contour is the edge.
                 let size = self.options.brush_size;
                 let tip = BrushTip::round(size, size / 2.0);

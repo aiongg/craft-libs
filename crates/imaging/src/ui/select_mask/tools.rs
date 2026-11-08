@@ -470,13 +470,13 @@ pub struct SelectMaskCanvasTool<'a> {
     tool: SelectMaskTool,
     options: &'a mut SelectMaskToolOptions,
     real_time: bool,
-    env: Option<&'a Env>,
+    env: Option<Env>,
 }
 
-impl<'a> SelectMaskCanvasTool<'a> {
+impl SelectMaskCanvasTool<'_> {
     /// The env the brush cursor reads its reach from (`size.hit.target`). Without one the brush shows the system arrow.
     #[must_use]
-    pub fn env(mut self, env: &'a Env) -> Self {
+    pub fn env(mut self, env: Env) -> Self {
         self.env = Some(env);
         self
     }
@@ -605,7 +605,7 @@ impl CanvasTool for SelectMaskCanvasTool<'_> {
         }
         let Some(space) = cx.space() else { return Cursor::System(CursorIcon::Default) };
         if self.tool.brushes() {
-            let Some(env) = self.env else { return Cursor::System(CursorIcon::Default) };
+            let Some(env) = self.env.as_ref() else { return Cursor::System(CursorIcon::Default) };
             let size = self.options.sizes.get(self.tool);
             let tip = BrushTip::round(size, size / 2.0);
             // The bar's mode, reversed while Alt is held (the press reads it the same way).
@@ -751,7 +751,6 @@ impl CanvasTool for SelectMaskCanvasTool<'_> {
         let canvas = &*self.canvas;
         let view = space.view;
         let ink = style.color(style.tokens.color.accent.solid.faded(TRAIL_SHARE));
-        let phase = 0.0;
         let screen = |points: &[Point]| points.iter().map(|p| view.to_screen(*p)).collect::<Vec<Pos2>>();
         let stroke = |tool: SelectMaskTool, points: &[Point]| {
             let radius = (self.options.sizes.get(tool) / 2.0 * view.zoom) as f32;
@@ -768,11 +767,11 @@ impl CanvasTool for SelectMaskCanvasTool<'_> {
         if let Some((_, tool, _, points)) = &canvas.gesture {
             match tool {
                 SelectMaskTool::Quick | SelectMaskTool::Brush | SelectMaskTool::RefineEdge => stroke(*tool, points),
-                SelectMaskTool::Lasso if points.len() >= 2 => cx.marching_ants(&screen(points), false, phase),
+                SelectMaskTool::Lasso if points.len() >= 2 => cx.marching_ants(&screen(points), false),
                 SelectMaskTool::Object => {
                     if let (Some(&a), Some(&b)) = (points.first(), points.last()) {
                         let corners = [a, Point::new(b.x, a.y), b, Point::new(a.x, b.y)];
-                        cx.marching_ants(&screen(&corners), true, phase);
+                        cx.marching_ants(&screen(&corners), true);
                     }
                 }
                 _ => {}
@@ -780,10 +779,10 @@ impl CanvasTool for SelectMaskCanvasTool<'_> {
         }
         if let Some(draft) = &canvas.polygon {
             if draft.points().len() >= 2 {
-                cx.marching_ants(&screen(draft.points()), false, phase);
+                cx.marching_ants(&screen(draft.points()), false);
             }
             if let Some([a, b]) = draft.rubber_band() {
-                cx.marching_ants(&screen(&[a, b]), false, phase);
+                cx.marching_ants(&screen(&[a, b]), false);
             }
         }
     }

@@ -4,7 +4,7 @@ use egui::{Response, Ui};
 
 use craft_behavior::kurbo::{Point, Rect, Size};
 use craft_behavior::{CanvasView, ZoomLadder};
-use craft_ui::canvas::{NavigationOptions, RasterSource, ViewCommand};
+use craft_ui::canvas::{NavigationOptions, RasterSource, ViewCommands};
 use craft_ui::contract::{Bind, Pattern, ShowContainer as _};
 use craft_ui::dialog::{FullWindowCanvas, FullWindowStatus, FullWindowView, FullWindowZoomBar};
 use craft_ui::layout_components::Stack;
@@ -85,7 +85,7 @@ impl<'a> FillPreviewPane<'a> {
         frame_view(ui, view, framing, source, frame);
         Stack::new()
             .fill()
-            .command_scope(ViewCommand::SCOPE)
+            .command_scope(ViewCommands::SCOPE)
             .show(ui, |ui, _| {
                 let state = FullWindowStatus::of(status);
                 FullWindowZoomBar::new(Bind::bound(&mut *view)).progress(state.progress()).show(ui);

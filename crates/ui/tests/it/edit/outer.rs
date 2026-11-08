@@ -112,7 +112,7 @@ fn dialog() -> (Fixture, Rc<RefCell<App>>) {
 /// Clicks both check boxes: two field edits inside the dialog.
 fn edit_both(fixture: &mut Fixture, app: &Rc<RefCell<App>>) {
     for label in ["Snap", "Show Grid"] {
-        let target = fixture.control(label).unwrap_or_else(|| panic!("the {label} check box is shown"));
+        let target = fixture.by_label(label).unwrap_or_else(|| panic!("the {label} check box is shown"));
         fixture.click(&target).settle();
     }
     let app = app.borrow();
@@ -141,7 +141,7 @@ fn outer_steps(app: &App) -> (Vec<&'static str>, bool) {
 fn two_field_edits_and_ok_leave_one_undo_step_for_the_dialog() {
     let (mut fixture, app) = dialog();
     edit_both(&mut fixture, &app);
-    let ok = fixture.control("OK").expect("the OK button is shown");
+    let ok = fixture.by_label("OK").expect("the OK button is shown");
     fixture.click(&ok).settle();
     let mut app = app.borrow_mut();
     app.drain(fixture.ctx());
@@ -158,7 +158,7 @@ fn two_field_edits_and_ok_leave_one_undo_step_for_the_dialog() {
 fn cancel_or_escape_takes_the_dialogs_field_edits_back() {
     let closes: [(&str, fn(&mut Fixture)); 2] = [
         ("Cancel", |fixture| {
-            let cancel = fixture.control("Cancel").expect("the Cancel button is shown");
+            let cancel = fixture.by_label("Cancel").expect("the Cancel button is shown");
             fixture.click(&cancel);
         }),
         ("Escape", |fixture| {
@@ -201,6 +201,6 @@ fn a_modeless_dialog_emits_no_outer_edit() {
         });
     });
     fixture.settle();
-    assert!(fixture.control("Snap").is_some(), "the modeless dialog is shown");
+    assert!(fixture.by_label("Snap").is_some(), "the modeless dialog is shown");
     assert!(seen.borrow().is_empty(), "no outer gesture: {:?}", seen.borrow());
 }

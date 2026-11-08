@@ -456,13 +456,13 @@ pub struct LiquifyCanvasTool<'a> {
     canvas: &'a mut LiquifyCanvas,
     settings: &'a mut LiquifySettings,
     cursor: &'a BrushCursorOptions,
-    env: Option<&'a Env>,
+    env: Option<Env>,
 }
 
-impl<'a> LiquifyCanvasTool<'a> {
+impl LiquifyCanvasTool<'_> {
     /// The env the brush cursor reads its reach from (`size.hit.target`). Without one the brush shows the system arrow.
     #[must_use]
-    pub fn env(mut self, env: &'a Env) -> Self {
+    pub fn env(mut self, env: Env) -> Self {
         self.env = Some(env);
         self
     }
@@ -547,7 +547,7 @@ impl CanvasTool for LiquifyCanvasTool<'_> {
         if self.settings.tool == LiquifyTool::FreezeLasso {
             return Cursor::Painted(PaintedCursor::Crosshair);
         }
-        let (Some(space), Some(env)) = (cx.space(), self.env) else { return Cursor::System(CursorIcon::Default) };
+        let (Some(space), Some(env)) = (cx.space(), self.env.as_ref()) else { return Cursor::System(CursorIcon::Default) };
         let size = self.settings.brush.size;
         BrushCursor::new(&BrushTip::round(size, size / 2.0)).painting(self.canvas.recorder.is_active()).cursor(env, self.cursor, &space.view, false)
     }

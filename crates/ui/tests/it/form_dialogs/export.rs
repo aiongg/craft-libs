@@ -172,13 +172,13 @@ fn jpeg_dialog(quality: u8, answer: Rc<RefCell<Option<FormatOptions>>>) -> Fixtu
 fn the_jpeg_preset_list_follows_and_sets_the_quality() {
     for (quality, preset) in [(0, "Low"), (4, "Low"), (5, "Medium"), (7, "Medium"), (8, "High"), (9, "High"), (10, "Maximum"), (12, "Maximum")] {
         let fixture = jpeg_dialog(quality, Rc::default());
-        let list = fixture.control("Preset").expect("the preset list");
+        let list = fixture.by_label("Preset").expect("the preset list");
         let face: Vec<_> = fixture.texts().iter().filter(|run| list.rect.contains_rect(run.rect)).map(|run| run.text.as_str()).collect();
         assert_eq!(face, [preset], "quality {quality}");
     }
     let answer = Rc::new(RefCell::new(None));
     let mut fixture = jpeg_dialog(6, Rc::clone(&answer));
-    let list = fixture.control("Preset").expect("the preset list");
+    let list = fixture.by_label("Preset").expect("the preset list");
     fixture.click(&list);
     fixture.settle();
     let high = fixture.by_label("High").expect("the list offers High");

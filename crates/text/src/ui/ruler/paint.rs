@@ -6,7 +6,7 @@ use super::run::{Held, rule, ruler_text};
 use super::{TextRuler, TextRulerStyle};
 use craft_ui::canvas::{RulerTick, Rulers};
 use craft_ui::contract::{Cx, Edit as _, PaintUi, Remember as _, Styled as _};
-use craft_ui::primitives::{PaintShape, StrokeWidth, TextRun, Tick, TickEdge};
+use craft_ui::primitives::{PaintShape, StrokeWidth, TextRun, Tick, TickEdge, TickRank};
 use craft_ui::style::StyleColor;
 use egui::{CornerRadius, Pos2, Rect, pos2, vec2};
 
@@ -93,7 +93,12 @@ impl TextRuler<'_> {
         let (lo, hi) = g.span();
         let ticks: Vec<RulerTick> =
             Rulers::ticks(&text.units, rule(self.unit), f64::from(g.scale), (f64::from(lo) * per_doc)..=(f64::from(hi) * per_doc));
-        let marks: Vec<Tick> = ticks.iter().map(|tick| Tick::new(g.x((tick.value / per_doc) as f32) - g.strip.min.x, tick.major)).collect();
+        let rank = |tick: &RulerTick| match (tick.major, tick.mid) {
+            (true, _) => TickRank::Major,
+            (false, true) => TickRank::Mid,
+            (false, false) => TickRank::Minor,
+        };
+        let marks: Vec<Tick> = ticks.iter().map(|tick| Tick::new(g.x((tick.value / per_doc) as f32) - g.strip.min.x, rank(tick))).collect();
         ui.content_painter(cx).ticks(g.strip, TickEdge::Bottom, &marks);
         let draw = ui.draw();
         let color: StyleColor = cx.resolve(&style.label.color);

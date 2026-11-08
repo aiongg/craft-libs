@@ -35,7 +35,7 @@ use std::time::Duration;
 
 use craft_behavior::edit_history::Step;
 use craft_behavior::{CancelReason, EditEvent, EditHistory, GestureId, Mixed};
-use craft_ui::canvas::{CanvasTool, HandTool, NavigationOptions, PickStep, RasterSource, ToolHost, ViewCommand, ZoomTool, tool_pick};
+use craft_ui::canvas::{CanvasTool, HandTool, NavigationOptions, PickStep, RasterSource, ToolHost, ViewCommands, ZoomTool, tool_pick};
 use craft_ui::contract::{Bind, Pattern, Remember as _, Show as _, ShowContainer as _};
 use craft_ui::dialog::{FullWindowCanvas, FullWindowDialog, FullWindowSide, FullWindowStatus, FullWindowTitle, FullWindowView};
 use craft_ui::display::Divider;
@@ -205,7 +205,7 @@ pub struct WideAngleWorkspace {
     /// The panel's Add button was pressed and the form is not open yet.
     add_requested: bool,
     steps: Vec<Step>,
-    zooms: Vec<ViewCommand>,
+    zooms: Vec<ViewCommands>,
 }
 
 impl WideAngleWorkspace {
@@ -261,7 +261,7 @@ impl WideAngleWorkspace {
     }
 
     /// Applies the zoom command the app fired to the view on the next [`show`](Self::show).
-    pub fn zoom(&mut self, command: ViewCommand) -> bool {
+    pub fn zoom(&mut self, command: ViewCommands) -> bool {
         self.zooms.push(command);
         true
     }
@@ -340,7 +340,7 @@ impl WideAngleWorkspace {
                 for command in &zooms {
                     view.apply(*command);
                 }
-                while let Some((command, _)) = cx.take_command::<ViewCommand>() {
+                while let Some((command, _)) = cx.take_command::<ViewCommands>() {
                     view.apply(command);
                 }
 

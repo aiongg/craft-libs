@@ -157,7 +157,7 @@ fn choosing_a_standard_applies_its_rules() {
     go_to(&mut fixture, "Summary");
     assert!(lines(&fixture).iter().any(|text| text.starts_with("General › Create PDF layers")), "the layers differ from the preset at first");
     go_to(&mut fixture, "General");
-    let standard = fixture.control("Standard").expect("the Standard select");
+    let standard = fixture.by_label("Standard").expect("the Standard select");
     fixture.click(&standard);
     fixture.settle();
     let x1a = fixture.by_label(Standard::PdfX1a.label()).expect("the list offers PDF/X-1a");
