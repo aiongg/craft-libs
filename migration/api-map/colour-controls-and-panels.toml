@@ -44,19 +44,26 @@ note = ""
 name = "PaintChip"
 old = "craft_color::ui::PaintChip"
 new = "craft_color::ui::PaintChip"
-status = "moved"
+status = "same"
 note = "A `Component`: `PaintChip::new(label, Bind::bound(&mut paint), fallback).show(ui)` replaces `PaintChip::new(salt, label, &paint, fallback, numbers).show(ui)`. No Color is offered with `none_allowed()` (a flag, off by default). The output is `PaintChipOutput { edit, screen_pick }`; the host answers a screen pick through `sampled`."
 
 [[type]]
 name = "PaintList"
 old = "craft_color::ui::PaintList"
 new = "craft_color::ui::PaintList"
-status = "moved"
+status = "same"
 note = "A `Pattern`: `PaintList::new(label, &paints, Bind::bound(&mut selected))`; the output is `PaintListOutput { response, selected, events }`, a rename is `PaintListEvent::Rename`. The row chip edit, hex and opacity fields wait for a row slot that holds field controls."
 
 [[type]]
 name = "PaintListResponse"
 old = "craft_color::ui::PaintListResponse"
+new = ""
+status = "removed"
+note = "Replaced by `PaintListOutput`."
+
+[[type]]
+name = "PaintListOutput"
+old = ""
 new = "craft_color::ui::PaintListOutput"
 status = "replaced"
 note = "`selected` is the row selected in the pass; `renamed` is folded into `events`."
@@ -64,6 +71,13 @@ note = "`selected` is the row selected in the pass; `renamed` is folded into `ev
 [[type]]
 name = "PaintLabels"
 old = "craft_color::ui::PaintLabels"
+new = ""
+status = "removed"
+note = "Replaced by `PaintWords`."
+
+[[type]]
+name = "PaintWords"
+old = ""
 new = "craft_color::ui::PaintWords"
 status = "replaced"
 note = "One word set holds the labels of the chip, its kinds and the list."
@@ -71,16 +85,16 @@ note = "One word set holds the labels of the chip, its kinds and the list."
 [[type]]
 name = "PaintKindLabels"
 old = "craft_color::ui::PaintKindLabels"
-new = "craft_color::ui::PaintWords"
-status = "replaced"
-note = ""
+new = ""
+status = "removed"
+note = "Replaced by `PaintWords`."
 
 [[type]]
 name = "PaintListLabels"
 old = "craft_color::ui::PaintListLabels"
-new = "craft_color::ui::PaintWords"
-status = "replaced"
-note = ""
+new = ""
+status = "removed"
+note = "Replaced by `PaintWords`."
 
 [[type]]
 name = "PaintLink"
@@ -93,12 +107,19 @@ note = "`#[non_exhaustive]`; `PaintLink::new(name, kind)`."
 name = "SwatchPair"
 old = "craft_color::ui::SwatchPair"
 new = "craft_color::ui::SwatchPair"
-status = "moved"
+status = "same"
 note = "A `Component` with parts `WELL.at(0|1)`: `SwatchPair::new(label, wells, Bind::bound(&mut active))`. The popup is the pair's own overlay holding the Compact picker."
 
 [[type]]
 name = "SwatchPairResponse"
 old = "craft_color::ui::SwatchPairResponse"
+new = ""
+status = "removed"
+note = "Replaced by `SwatchPairOutput`."
+
+[[type]]
+name = "SwatchPairOutput"
+old = ""
 new = "craft_color::ui::SwatchPairOutput"
 status = "replaced"
 note = "`edit` is `Option<EditEvent<PickedColor>>`; `choice` is the `EditResponse<Well>` of the active well; `eyedropper_requested` and `picker_id` are `screen_pick`."
@@ -121,12 +142,19 @@ note = "`PairWell::new(label, color)` takes a `Label`."
 name = "LutPicker"
 old = "craft_color::ui::LutPicker"
 new = "craft_color::ui::LutPicker"
-status = "moved"
+status = "same"
 note = "A `Component` over `Bind<LutChoice>`; `folder(PathBuf)` sets the folder."
 
 [[type]]
 name = "LutPickerResponse"
 old = "craft_color::ui::LutPickerResponse"
+new = ""
+status = "removed"
+note = "Replaced by `LutPickerOutput`."
+
+[[type]]
+name = "LutPickerOutput"
+old = ""
 new = "craft_color::ui::LutPickerOutput"
 status = "replaced"
 note = ""
@@ -134,6 +162,13 @@ note = ""
 [[type]]
 name = "LutPickerLabels"
 old = "craft_color::ui::LutPickerLabels"
+new = ""
+status = "removed"
+note = "Replaced by `LutWords`."
+
+[[type]]
+name = "LutWords"
+old = ""
 new = "craft_color::ui::LutWords"
 status = "replaced"
 note = "`LUT_WORDS` is folded into `LutWords`."
@@ -142,69 +177,22 @@ note = "`LUT_WORDS` is folded into `LutWords`."
 name = "ProfileMismatchDialog"
 old = "craft_color::ui::ProfileMismatchDialog"
 new = "craft_color::ui::ProfileMismatchDialog"
-status = "moved"
+status = "same"
 note = "A `StackDialog` on `Prompt`."
 
 [[type]]
 name = "ProfileLabels"
 old = "craft_color::ui::ProfileLabels"
+new = ""
+status = "removed"
+note = "Replaced by `ProfileWords`."
+
+[[type]]
+name = "ProfileWords"
+old = ""
 new = "craft_color::ui::ProfileWords"
 status = "replaced"
 note = ""
-
-[[setter]]
-type = "PaintChip"
-old = "enabled"
-new = ""
-note = "removed: disabled is the pipeline's"
-
-[[setter]]
-type = "PaintChip"
-old = "numbers"
-new = ""
-note = "removed: numbers come from the scope"
-
-[[setter]]
-type = "PaintChip"
-old = "id_salt"
-new = ""
-note = "removed: ids come from the pipeline"
-
-[[setter]]
-type = "SwatchPair"
-old = "backdrop"
-new = ""
-note = "removed: the gap uses the panel's surface colour"
-
-[[setter]]
-type = "SwatchPair"
-old = "enabled"
-new = ""
-note = "removed"
-
-[[setter]]
-type = "SwatchPair"
-old = "numbers"
-new = ""
-note = "removed"
-
-[[setter]]
-type = "SwatchPair"
-old = "active"
-new = "new(.., active)"
-note = "the active well is the constructor's binding"
-
-[[setter]]
-type = "LutPicker"
-old = "enabled"
-new = ""
-note = "removed"
-
-[[setter]]
-type = "LutPicker"
-old = "id_salt"
-new = ""
-note = "removed"
 
 [[type]]
 name = "ColorArea"
@@ -244,6 +232,13 @@ note = "`#[non_exhaustive]`; built with `RampPick::new(color, other)`."
 [[type]]
 name = "ColorRampResponse"
 old = "craft_color::ui::ColorRampResponse"
+new = ""
+status = "removed"
+note = "Replaced by `ColorRampOutput`."
+
+[[type]]
+name = "ColorRampOutput"
+old = ""
 new = "craft_color::ui::ColorRampOutput"
 status = "replaced"
 note = "`ColorRampOutput { edit, cycle, menu_at }`; the `bar` response is `edit.response`. An `Outcome`."
@@ -272,6 +267,13 @@ note = "`#[non_exhaustive]`; built with `DiscMove::new(marker, hue, saturation)`
 [[type]]
 name = "ColorDiscResponse"
 old = "craft_color::ui::ColorDiscResponse"
+new = ""
+status = "removed"
+note = "Replaced by `ColorDiscOutput`."
+
+[[type]]
+name = "ColorDiscOutput"
+old = ""
 new = "craft_color::ui::ColorDiscOutput"
 status = "replaced"
 note = "`ColorDiscOutput { edit, pressed, grabbed }`; `area` and `markers` are gone. An `Outcome`."
@@ -504,7 +506,7 @@ note = "Unchanged."
 name = "ColorPicker"
 old = "craft_color::ui::ColorPicker"
 new = "craft_color::ui::ColorPicker"
-status = "moved"
+status = "same"
 note = "`ColorPicker::new(label, Bind<PickedColor>)`; the area mode and Only Web Colors are second bindings (`mode(Bind<AreaMode>)`, `web_colors(Bind<bool>)`); `sampled(Option<Srgba>)` is a prop; no egui memory."
 
 [[type]]
@@ -517,6 +519,13 @@ note = "Unchanged."
 [[type]]
 name = "ColorPickerResponse"
 old = "craft_color::ui::ColorPickerResponse"
+new = ""
+status = "removed"
+note = "Replaced by `ColorPickerOutput`."
+
+[[type]]
+name = "ColorPickerOutput"
+old = ""
 new = "craft_color::ui::ColorPickerOutput"
 status = "replaced"
 note = "`edit: EditResponse<PickedColor>` and `screen_pick: Option<ScreenPickGesture>` replace `eyedropper_requested`/`eyedropper`; `side_clicked` goes (the dialog lays out its buttons)."
@@ -525,14 +534,14 @@ note = "`edit: EditResponse<PickedColor>` and `screen_pick: Option<ScreenPickGes
 name = "ColorWarning"
 old = "craft_color::ui::ColorWarning"
 new = "craft_color::ui::ColorWarning"
-status = "moved"
+status = "same"
 note = "`tip` is a `Label`, the icon an `IconId`; `ColorWarning::web_colors(tip, nearest)` stays."
 
 [[type]]
 name = "ColorWarningChip"
 old = "craft_color::ui::ColorWarningChip"
 new = "craft_color::ui::ColorWarningChip"
-status = "moved"
+status = "same"
 note = "`ColorWarningChip::new(&ColorWarning)`; the output carries `clicked`."
 
 [[type]]
@@ -553,33 +562,47 @@ note = "`TextField<'a, PairCodec>` built by `HexPair::hex_pair(label, Bind<u8>)`
 name = "ColorReadout"
 old = "craft_color::ui::ColorReadout"
 new = "craft_color::ui::ColorReadout"
-status = "moved"
+status = "same"
 note = "A pattern: `ColorReadout::new(label, Bind<Rgba>)` shows a private container; the output is `ColorReadoutOutput { response, event }`; the names are `ColorReadoutWords`."
 
 [[type]]
 name = "ColorReadoutOutput"
-old = "craft_color::ui::ColorReadout (EditResponse<Rgba>)"
+old = ""
 new = "craft_color::ui::ColorReadoutOutput"
-status = "moved"
-note = "`#[non_exhaustive]`: `response`, and `event` (the pass's edits folded into one)."
+status = "replaced"
+note = "Replaces the old `EditResponse<Rgba>` output. `#[non_exhaustive]`: `response`, and `event` (the pass's edits folded into one)."
 
 [[type]]
 name = "ColorChoice"
 old = "craft_color::ui::ColorChoice"
 new = "craft_color::ui::ColorChoice"
-status = "moved"
+status = "same"
 note = "A pattern: `ColorChoice::new(label, &ChosenColor)` shows a `Select`; `ColorChoiceOutput { response, chosen, pick_color }`."
 
 [[type]]
 name = "ColorChoiceLabels"
 old = "craft_color::ui::ColorChoiceLabels"
-new = "craft_color::ui::ColorChoiceWords"
+new = ""
 status = "removed"
+note = "Replaced by `ColorChoiceWords`."
+
+[[type]]
+name = "ColorChoiceWords"
+old = ""
+new = "craft_color::ui::ColorChoiceWords"
+status = "replaced"
 note = "A `words!` set."
 
 [[type]]
 name = "ColorChoiceResponse"
 old = "craft_color::ui::ColorChoiceResponse"
+new = ""
+status = "removed"
+note = "Replaced by `ColorChoiceOutput`."
+
+[[type]]
+name = "ColorChoiceOutput"
+old = ""
 new = "craft_color::ui::ColorChoiceOutput"
 status = "replaced"
 note = "`chosen: Option<ChosenColor>` replaces the edit."
@@ -595,7 +618,7 @@ note = "Unchanged."
 name = "NamedColor"
 old = "craft_color::ui::NamedColor"
 new = "craft_color::ui::NamedColor"
-status = "moved"
+status = "same"
 note = "The label is a `Label`."
 
 [[setter]]
@@ -723,8 +746,15 @@ note = "A `StackDialog` whose buttons are the dialog footer (OK, Cancel or Reset
 [[type]]
 name = "ColorPickerLabels"
 old = "craft_color::ui::ColorPickerLabels"
-new = "craft_color::ui::ColorPickerDialogWords"
+new = ""
 status = "removed"
+note = "Replaced by `ColorPickerDialogWords`."
+
+[[type]]
+name = "ColorPickerDialogWords"
+old = ""
+new = "craft_color::ui::ColorPickerDialogWords"
+status = "replaced"
 note = "`words!`; the warning tips are in the same set; OK and Cancel are the common words."
 
 [[type]]
@@ -751,6 +781,13 @@ note = "A pattern: `new(label, Bind<PickedColor>)`, `picker(setup)`, `anchor(&Re
 [[type]]
 name = "ColorPopoverResponse"
 old = "craft_color::ui::ColorPopoverResponse"
+new = ""
+status = "removed"
+note = "Replaced by `ColorPopoverOutput`."
+
+[[type]]
+name = "ColorPopoverOutput"
+old = ""
 new = "craft_color::ui::ColorPopoverOutput"
 status = "replaced"
 note = "`edit` is `Option<EditResponse<PickedColor>>` (none while closed), `screen_pick` replaces `eyedropper_requested` and `picker_id`."
@@ -758,23 +795,30 @@ note = "`edit` is `Option<EditResponse<PickedColor>>` (none while closed), `scre
 [[type]]
 name = "popup"
 old = "craft_color::ui::popup"
-new = "craft_color::ui::ColorPopover::anchor"
+new = ""
 status = "removed"
+note = "Replaced by `anchor`."
+
+[[type]]
+name = "anchor"
+old = ""
+new = "craft_color::ui::ColorPopover::anchor"
+status = "replaced"
 note = "A caller-drawn opener hands its response and an open binding to `anchor`."
 
 [[type]]
 name = "close"
 old = "craft_color::ui::close"
-new = "craft_color::ui::ColorPopover::anchor"
+new = ""
 status = "removed"
-note = "The caller closes the popover by writing `false` to the binding it gave `anchor`."
+note = "Replaced by `anchor`."
 
 [[type]]
 name = "DropperState"
 old = "craft_color::ui::DropperState"
-new = "craft_color::ui::DropperButton"
+new = ""
 status = "removed"
-note = "The armed state is the host's: the button files an `EyedropperRequest` through `HostRequests`, the host answers with `answer_eyedropper`."
+note = "Replaced by `DropperButton`."
 
 [[type]]
 name = "DropperKind"
@@ -793,6 +837,13 @@ note = "A pattern over an icon-only `ToggleButton`: `new(label, Bind<bool>)`, `k
 [[type]]
 name = "DropperButtonResponse"
 old = "craft_color::ui::DropperButtonResponse"
+new = ""
+status = "removed"
+note = "Replaced by `DropperButtonOutput`."
+
+[[type]]
+name = "DropperButtonOutput"
+old = ""
 new = "craft_color::ui::DropperButtonOutput"
 status = "replaced"
 note = "`sampled` is gone: the host answers the request."
@@ -814,8 +865,15 @@ note = "A pattern shown inside the options `Bar`: `new(&mut EyedropperOptions)`,
 [[type]]
 name = "EyedropperLabels"
 old = "craft_color::ui::EyedropperLabels"
-new = "craft_color::ui::EyedropperWords"
+new = ""
 status = "removed"
+note = "Replaced by `EyedropperWords`."
+
+[[type]]
+name = "EyedropperWords"
+old = ""
+new = "craft_color::ui::EyedropperWords"
+status = "replaced"
 note = "`words!`."
 
 [[type]]
@@ -856,16 +914,16 @@ note = "`label(&EyedropperWords)` returns a `Label`."
 [[type]]
 name = "SamplingRingStyle"
 old = "craft_color::ui::SamplingRingStyle"
-new = "craft_color::ui::EyedropperTool"
+new = ""
 status = "removed"
-note = "The ring's colours are theme tokens and its geometry module constants."
+note = "Replaced by `EyedropperTool`."
 
 [[type]]
 name = "eyedropper_ring"
 old = "craft_color::ui::eyedropper_ring"
-new = "craft_color::ui::EyedropperTool"
+new = ""
 status = "removed"
-note = "The tool paints the ring in `CanvasTool::paint`."
+note = "Replaced by `EyedropperTool`."
 
 [[type]]
 name = "ColorSamplers"
@@ -884,8 +942,15 @@ note = "A `CanvasTool`; `take_error()` returns a `Toast`."
 [[type]]
 name = "ColorSamplerLabels"
 old = "craft_color::ui::ColorSamplerLabels"
-new = "craft_color::ui::SamplerWords"
+new = ""
 status = "removed"
+note = "Replaced by `SamplerWords`."
+
+[[type]]
+name = "SamplerWords"
+old = ""
+new = "craft_color::ui::SamplerWords"
+status = "replaced"
 note = "`words!`."
 
 [[type]]
@@ -912,6 +977,13 @@ note = "`get(&mut SamplerCache)` replaces `get(&Context)`: the host keeps the ca
 [[type]]
 name = "sampler_options"
 old = "craft_color::ui::sampler_options"
+new = ""
+status = "removed"
+note = "Replaced by `SamplerOptions`."
+
+[[type]]
+name = "SamplerOptions"
+old = ""
 new = "craft_color::ui::SamplerOptions"
 status = "replaced"
 note = "A pattern shown inside the options `Bar`: `SamplerOptions::new(count).show(ui)` returns `clear_all`."
@@ -926,13 +998,20 @@ note = "Unchanged."
 [[type]]
 name = "SAMPLER_HIT"
 old = "craft_color::ui::SAMPLER_HIT"
-new = "craft_color::ui::ColorSamplerTool"
+new = ""
 status = "removed"
-note = "The hit reach is private to the tool."
+note = "Replaced by `ColorSamplerTool`."
 
 [[type]]
 name = "ScreenColorPicker"
 old = "craft_color::ui::ScreenColorPicker"
+new = ""
+status = "removed"
+note = "Replaced by `ScreenPick`."
+
+[[type]]
+name = "ScreenPick"
+old = ""
 new = "craft_color::ui::ScreenPick"
 status = "replaced"
 note = "The state is the app's `ScreenPick`; the capture windows (`ScreenColorPicker`) are left to the crate finisher."
@@ -940,8 +1019,15 @@ note = "The state is the app's `ScreenPick`; the capture windows (`ScreenColorPi
 [[type]]
 name = "ScreenPickerLabels"
 old = "craft_color::ui::ScreenPickerLabels"
-new = "craft_color::ui::ScreenPickerWords"
+new = ""
 status = "removed"
+note = "Replaced by `ScreenPickerWords`."
+
+[[type]]
+name = "ScreenPickerWords"
+old = ""
+new = "craft_color::ui::ScreenPickerWords"
+status = "replaced"
 note = "`words!`."
 
 [[type]]
@@ -1026,6 +1112,13 @@ note = "An items component on the collection contract with Swatch cells: `new(la
 [[type]]
 name = "SwatchTableResponse"
 old = "craft_color::ui::SwatchTableResponse"
+new = ""
+status = "removed"
+note = "Replaced by `SwatchTableOutput`."
+
+[[type]]
+name = "SwatchTableOutput"
+old = ""
 new = "craft_color::ui::SwatchTableOutput"
 status = "replaced"
 note = "`selected`, `open` as before; `chosen` is the whole selection."
@@ -1040,6 +1133,13 @@ note = "A pattern: `new(Bind<ColorPanelState>, [fg, bg])` in place of `new(id_sa
 [[type]]
 name = "ColorPanelResponse"
 old = "craft_color::ui::ColorPanelResponse"
+new = ""
+status = "removed"
+note = "Replaced by `ColorPanelOutput`."
+
+[[type]]
+name = "ColorPanelOutput"
+old = ""
 new = "craft_color::ui::ColorPanelOutput"
 status = "replaced"
 note = "Same fields plus `response`; `pick_color` is `craft_ui::runtime::requests::ColorRequest`."
@@ -1047,6 +1147,13 @@ note = "Same fields plus `response`; `pick_color` is `craft_ui::runtime::request
 [[type]]
 name = "ColorPanelLabels"
 old = "craft_color::ui::ColorPanelLabels"
+new = ""
+status = "removed"
+note = "Replaced by `ColorPanelWords`."
+
+[[type]]
+name = "ColorPanelWords"
+old = ""
 new = "craft_color::ui::ColorPanelWords"
 status = "replaced"
 note = "A `words!` set; the two Color Picker titles are the colour picker dialog's words."
@@ -1061,6 +1168,13 @@ note = "A pattern: `new(label, &[Srgba])` in place of `new(id_salt, label, color
 [[type]]
 name = "HarmonyWheelResponse"
 old = "craft_color::ui::HarmonyWheelResponse"
+new = ""
+status = "removed"
+note = "Replaced by `HarmonyWheelOutput`."
+
+[[type]]
+name = "HarmonyWheelOutput"
+old = ""
 new = "craft_color::ui::HarmonyWheelOutput"
 status = "replaced"
 note = "Same fields plus `response`."
@@ -1075,6 +1189,13 @@ note = "A pattern: `new(Bind<HarmonyPanelState>, Bind<HarmonyPicked>, base)` in 
 [[type]]
 name = "HarmonyPanelResponse"
 old = "craft_color::ui::HarmonyPanelResponse"
+new = ""
+status = "removed"
+note = "Replaced by `HarmonyPanelOutput`."
+
+[[type]]
+name = "HarmonyPanelOutput"
+old = ""
 new = "craft_color::ui::HarmonyPanelOutput"
 status = "replaced"
 note = "Same fields plus `response`."
@@ -1082,6 +1203,13 @@ note = "Same fields plus `response`."
 [[type]]
 name = "HarmonyLabels"
 old = "craft_color::ui::HarmonyLabels"
+new = ""
+status = "removed"
+note = "Replaced by `HarmonyWords`."
+
+[[type]]
+name = "HarmonyWords"
+old = ""
 new = "craft_color::ui::HarmonyWords"
 status = "replaced"
 note = "A `words!` set that also holds the 21 rule names (`HARMONY_WORDS` goes); `rule_name(Harmony)` reads one."
@@ -1103,6 +1231,13 @@ note = "A pattern on PresetBrowser: `new(Bind<SwatchLibrary>, Bind<SwatchesState
 [[type]]
 name = "SwatchesPanelResponse"
 old = "craft_color::ui::SwatchesPanelResponse"
+new = ""
+status = "removed"
+note = "Replaced by `SwatchesPanelOutput`."
+
+[[type]]
+name = "SwatchesPanelOutput"
+old = ""
 new = "craft_color::ui::SwatchesPanelOutput"
 status = "replaced"
 note = "`imported`, `exported` and `status` are in `SwatchesFileOutput` from `apply_file`; the status line is a `Toast`."
@@ -1110,6 +1245,13 @@ note = "`imported`, `exported` and `status` are in `SwatchesFileOutput` from `ap
 [[type]]
 name = "SwatchesMenuResponse"
 old = "craft_color::ui::SwatchesMenuResponse"
+new = ""
+status = "removed"
+note = "Replaced by `SwatchesMenuOutput`."
+
+[[type]]
+name = "SwatchesMenuOutput"
+old = ""
 new = "craft_color::ui::SwatchesMenuOutput"
 status = "replaced"
 note = "Adds `file` (the file request) and `toast`."
@@ -1124,6 +1266,13 @@ note = "The browser view, selected row and pending rename, host-owned in place o
 [[type]]
 name = "SwatchesLabels"
 old = "craft_color::ui::SwatchesLabels"
+new = ""
+status = "removed"
+note = "Replaced by `SwatchesWords`."
+
+[[type]]
+name = "SwatchesWords"
+old = ""
 new = "craft_color::ui::SwatchesWords"
 status = "replaced"
 note = "A `words!` set; the seven note rows are `count` rows and `COUNTS` goes."
