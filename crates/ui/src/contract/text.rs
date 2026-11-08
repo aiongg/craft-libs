@@ -19,6 +19,11 @@ fn state_id(id: egui::Id) -> egui::Id {
     sub(id, "text_state")
 }
 
+/// Whether a scrubbing field was in edit before the press that is now down: a press that becomes a drag scrubs and
+/// leaves edit as it found it, and only a click without travel enters it.
+#[derive(Clone, Default)]
+struct InEditBeforePress(bool);
+
 /// What `PartsCx::text` leaves for step 8b.
 #[derive(Default)]
 pub(crate) struct TextStep {
@@ -303,7 +308,7 @@ pub(crate) fn run<C: Component>(
     let mut state = std::mem::take(cx.core.memory.shown::<TextState>(state_id));
     (decl.values.resync)(&mut state, shown_copy(cx).as_ref());
     let widget = adapter::text_id(id, decl.key);
-    let focused = crate::runtime::egui::focus::has_focus(&ctx, widget);
+    let mut focused = crate::runtime::egui::focus::has_focus(&ctx, widget);
     let was_focused = state.focused;
     let now = cx.now();
     let caret_visible = !focused || cx.blink(state.caret_moved);
@@ -312,6 +317,19 @@ pub(crate) fn run<C: Component>(
     // A component that senses a drag on its root scrubs its value by it: the field takes the pointer only once it is
     // in edit, and a click that enters it puts the caret where it went down.
     let scrubs = cx.core.root_sense.contains(craft_behavior::Sense::DRAG);
+    if scrubs {
+        use craft_behavior::PressPhase;
+        let before = cx.core.memory.shown::<InEditBeforePress>(sub(id, "in_edit_before_press"));
+        if cx.core.press.phase.is_drag() {
+            // The root press focused the field; a press that travelled is a scrub, so the field is given back.
+            if !before.0 {
+                crate::runtime::egui::focus::surrender(&ctx, widget);
+                focused = false;
+            }
+        } else if !matches!(cx.core.press.phase, PressPhase::Down { .. }) {
+            before.0 = focused;
+        }
+    }
     let pointer = !scrubs || (focused && !cx.core.press.phase.is_drag());
     let click = match cx.core.press.phase {
         craft_behavior::PressPhase::Release { pos, click: true, .. } if scrubs && focusable => Some(pos),

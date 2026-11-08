@@ -4,9 +4,12 @@
 use craft_behavior::Mixed;
 use craft_theme::{Rgba, contrast_ratio, text_contrast_min};
 use craft_ui::buttons::{Button, IconButton, SplitButton, ToggleButton};
-use craft_ui::contract::{Bind, CommandSet, Entry, Role, Show as _};
+use craft_ui::contract::{Bind, CommandSet, Entry, Role, Show as _, ShowContainer as _};
+use craft_ui::dialog::Dialog;
 use craft_ui::primitives::IconSpec;
 use craft_ui::runtime::commands::{CommandInput, CommandState};
+use craft_ui::runtime::focus::Initial;
+use craft_ui::sections::{DialogRole, FooterButton};
 use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, Frames, trial};
 use egui::{Id, Key, Modifiers};
@@ -202,4 +205,54 @@ fn a_mixed_toggle_reports_mixed_and_a_click_turns_it_on() {
     assert_eq!(value.get(), Mixed::Same(true), "a click on a mixed toggle makes it on");
     let button = fixture.by_label("Bold").expect("the button");
     assert_eq!(fixture.tree().toggled_of(button.node), Some(Mixed::Same(true)));
+}
+
+/// A mixed toggle paints the off look, not a blend of off and on.
+#[trial]
+fn a_mixed_toggle_paints_the_off_fill() {
+    let fill_of = |value: Mixed<bool>| {
+        let mut show = move |ui: &mut egui::Ui| {
+            let mut current = value;
+            ToggleButton::new("Bold", Bind::bound_mixed(&mut current)).show(ui);
+        };
+        let mut frames = Frames::new();
+        frames.idle(2, &mut show);
+        frames
+            .frame_shapes(&mut show)
+            .iter()
+            .find_map(|shape| match shape {
+                egui::Shape::Rect(rect) => Some(rect.fill),
+                _ => None,
+            })
+            .expect("the toggle paints a surface")
+    };
+    assert_eq!(fill_of(Mixed::Mixed), fill_of(Mixed::Same(false)), "a mixed toggle paints the off fill");
+    assert_ne!(fill_of(Mixed::Mixed), fill_of(Mixed::Same(true)), "and not the on fill");
+}
+
+/// An armed toggle that disarms with Escape turns off on the first Escape and leaves the dialog open; the second
+/// Escape, with nothing armed, closes the dialog.
+#[trial]
+fn escape_turns_off_an_armed_toggle_before_it_closes_the_dialog() {
+    let armed = Rc::new(Cell::new(true));
+    let open = Rc::new(Cell::new(true));
+    let (shown_armed, shown_open) = (armed.clone(), open.clone());
+    let mut fixture = Fixture::new(move |ui| {
+        let (mut is_open, mut on) = (shown_open.get(), shown_armed.get());
+        Dialog::new("Adjust")
+            .opened(Bind::bound(&mut is_open))
+            .initial_focus(Initial::First)
+            .buttons([FooterButton::new("OK", DialogRole::Accept), FooterButton::new("Cancel", DialogRole::Cancel)])
+            .show(ui, |ui, _| {
+                ToggleButton::new("Pick", Bind::bound(&mut on)).escape_disarms().show(ui);
+            });
+        shown_open.set(is_open);
+        shown_armed.set(on);
+    });
+    fixture.settle();
+    fixture.key(Key::Escape, Modifiers::NONE).settle();
+    assert!(!armed.get(), "Escape turned the toggle off");
+    assert!(open.get(), "the first Escape leaves the dialog open");
+    fixture.key(Key::Escape, Modifiers::NONE).settle();
+    assert!(!open.get(), "the second Escape closes the dialog");
 }

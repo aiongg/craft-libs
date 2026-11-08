@@ -326,18 +326,23 @@ pub(crate) fn part_bounds(ctx: &Context, owner: Id, part: craft_behavior::PartRe
     })
 }
 
-/// The bounds of the first part `part` in last pass's shape record that senses `sense` and belongs to a component
-/// other than `except`: where a component's child keeps the part a drive acts on.
+/// The bounds of the part `part` that senses `sense`, on a component other than `subject` and lying inside the
+/// subject's own shapes in last pass's shape record: where a component's child keeps the part a drive acts on. When
+/// several children match, the first by top edge, then start edge, then root id.
 #[cfg(feature = "testing")]
-pub(crate) fn child_part_bounds(ctx: &Context, except: Id, part: craft_behavior::PartRef, sense: craft_behavior::Sense) -> Option<egui::Rect> {
+pub(crate) fn child_part_bounds(ctx: &Context, subject: Id, part: craft_behavior::PartRef, sense: craft_behavior::Sense) -> Option<egui::Rect> {
     let viewport = pass::current_viewport(ctx);
     PerViewport::<Shapes>::with(ctx, viewport, |record| {
-        record
-            .last
-            .values()
-            .flat_map(|roots| roots.values())
-            .flat_map(|root| root.shapes.iter())
-            .find(|shape| shape.owner != except && shape.part == Some(part) && shape.sense.contains(sense))
+        let shapes = || record.last.values().flat_map(|roots| roots.values()).flat_map(|root| root.shapes.iter());
+        let room = shapes().filter(|shape| shape.owner == subject).map(|shape| shape.shape.bounds()).reduce(|all, next| all.union(next))?;
+        shapes()
+            .filter(|shape| {
+                shape.owner != subject && shape.part == Some(part) && shape.sense.contains(sense) && room.contains_rect(shape.shape.bounds())
+            })
+            .min_by(|a, b| {
+                let (a_bounds, b_bounds) = (a.shape.bounds(), b.shape.bounds());
+                a_bounds.min.y.total_cmp(&b_bounds.min.y).then(a_bounds.min.x.total_cmp(&b_bounds.min.x)).then(a.owner.value().cmp(&b.owner.value()))
+            })
             .map(|shape| shape.shape.bounds())
     })
 }

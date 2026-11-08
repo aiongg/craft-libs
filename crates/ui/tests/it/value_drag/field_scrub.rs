@@ -108,6 +108,9 @@ fn a_press_and_drag_on_a_scrubbing_field_scrubs_the_value() {
     let target = readout(&fixture);
     fixture.drag(&target, vec2(TRAVEL, 0.0));
     assert_eq!(*fixture.data().value("value", START), START + f64::from(TRAVEL));
+    fixture.idle(2);
+    let id = fixture.root_id().expect("the readout has an id");
+    assert_ne!(fixture.focused(), Some(widget_id(id, TEXT)), "a scrub leaves the field out of edit, so typing does not edit it");
 }
 
 /// A click without travel enters edit with the caret at the click, not at the end or over the whole text.

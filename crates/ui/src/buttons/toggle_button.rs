@@ -1,17 +1,19 @@
 //! `ToggleButton`: a button that stays pressed while on.
 
 use super::face::{self, FaceLook, FaceSpec};
-use crate::contract::{Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Pointer as _, Props, Role};
+use crate::contract::{Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, PaintUi, Pointer as _, Props, Role};
 use crate::primitives::IconSpec;
 use crate::runtime::commands::CommandRef;
 use crate::runtime::env::Label;
+use crate::runtime::focus::KeyUse;
 use crate::style::{ComponentStyle, FocusLook, IconLook, StyleCx, SurfaceLook, TextLook, TypeRole};
 use craft_behavior::{Metrics, Sense};
-use craft_theme::{Flags, Mix as _, Variant};
+use craft_keymap::{Chord, Key};
+use craft_theme::{Flags, Variant};
 use egui::Vec2;
 
-/// How far between the off fill and the on fill a mixed value sits.
-const MIXED_SHARE: f32 = 0.5;
+/// The chords an armed button keeps.
+const ESCAPE: &[Chord] = &[Chord::plain(Key::Escape)];
 
 /// The style of a toggle button.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
@@ -58,19 +60,40 @@ pub struct ToggleButton<'a> {
     #[style_key]
     #[prop(flag)]
     icon_only: bool,
+    /// While on, the button keeps Escape and turns itself off with it, so Escape in a dialog ends the armed mode before
+    /// it closes the dialog. Off, the button keeps no Escape.
+    #[prop(flag)]
+    escape_disarms: bool,
 }
 
 impl<'a> ToggleButton<'a> {
     /// A button named `label` that edits `value`.
     pub fn new(label: impl Into<Label>, value: Bind<'a, bool>) -> Self {
-        ToggleButton { common: Common::new(), value: Some(value), icon: None, on_icon: None, trailing_icon: None, role: None, icon_only: false }
-            .label(label)
+        ToggleButton {
+            common: Common::new(),
+            value: Some(value),
+            icon: None,
+            on_icon: None,
+            trailing_icon: None,
+            role: None,
+            icon_only: false,
+            escape_disarms: false,
+        }
+        .label(label)
     }
 
     /// A button bound to a toggle `command`: its label, enabled state and checked state follow the command.
     pub fn command(command: impl Into<CommandRef>) -> Self {
-        let button =
-            ToggleButton { common: Common::new(), value: None, icon: None, on_icon: None, trailing_icon: None, role: None, icon_only: false };
+        let button = ToggleButton {
+            common: Common::new(),
+            value: None,
+            icon: None,
+            on_icon: None,
+            trailing_icon: None,
+            role: None,
+            icon_only: false,
+            escape_disarms: false,
+        };
         <ToggleButton as Props>::command(button, command)
     }
 
@@ -95,9 +118,8 @@ impl Component for ToggleButton<'_> {
         let control = cx.control();
         let (off, on) = (cx.variant_look(), face::on_parts(cx));
         let mut surface = face::surface(cx, &off);
-        // A mixed value sits between off and on: the fill halfway, the ink of the off look.
-        let mixed_fill = off.fill.off.rest.mix(on.fill.off.rest, MIXED_SHARE);
-        surface.fill = off.fill.clone().on(on.fill.off).when(Flags::MIXED, mixed_fill);
+        // A mixed value shows the off look, as Photoshop's style toggles do; the access state tells it from off.
+        surface.fill = off.fill.clone().on(on.fill.off).when(Flags::MIXED, off.fill.off.rest);
         surface.border = off.edge.clone().map(|edge| edge.on(on.edge.as_ref().map_or(on.fill.off, |edge| edge.off)));
         let (mut text, mut icon) = face::ink(cx);
         text.color = text.color.on(on.text.off).when(Flags::MIXED, off.text.off.rest);
@@ -114,12 +136,20 @@ impl Component for ToggleButton<'_> {
         Sense::CLICK | Sense::FOCUS
     }
 
+    fn keys(&self) -> KeyUse {
+        let armed = self.escape_disarms && self.value.as_ref().is_some_and(|value| value.holds(&true));
+        if armed { Self::KEYS.with_claims(ESCAPE) } else { Self::KEYS }
+    }
+
     fn bind(&mut self) -> Option<BindMut<'_, bool>> {
         self.value.as_mut().map(Bind::reborrow)
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         cx.join_roving();
+        if self.escape_disarms && cx.value().copied() == Some(true) && cx.take_claimed(ESCAPE[0]) {
+            cx.set(false);
+        }
         if cx.activation().is_some() && self.value.is_some() {
             let on = cx.value().copied().unwrap_or(false);
             cx.set(!on);
