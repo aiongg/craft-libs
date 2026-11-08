@@ -156,6 +156,9 @@ pub enum RowEvent {
         target: ThumbTarget,
         /// The modifiers held at the click; none for a key activation.
         mods: Mods,
+        /// The press count of the click (`craft_behavior::press::count_clicks`): 1 for a single click, 2 for a double
+        /// click, reported after the single click's own report. An activation by key or AccessKit counts 1.
+        clicks: u32,
     },
     /// A drag started on a thumbnail of a row with [`ListRow::thumb_drag`] for it: the thumbnail is dragged, not the
     /// row, and the drag session runs with the payload given.
@@ -1309,7 +1312,11 @@ impl Component for ListRow<'_> {
                 crate::runtime::drag::start(&cx.ctx, cx.id, payload.clone(), None, preview);
                 self.event = Some(RowEvent::ThumbDrag(target));
             } else if let Some(source) = cx.part_activated(THUMB.at(at as u64)) {
-                self.event = Some(RowEvent::ThumbClicked { target, mods: part_mods(cx, THUMB.at(at as u64), source) });
+                let clicks = match (source, phase) {
+                    (FireSource::Pointer, PressPhase::Release { start, click: true, .. }) => start.clicks,
+                    _ => 1,
+                };
+                self.event = Some(RowEvent::ThumbClicked { target, mods: part_mods(cx, THUMB.at(at as u64), source), clicks });
             }
         }
         for trailing in &self.trailing {
