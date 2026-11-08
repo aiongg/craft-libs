@@ -12,7 +12,7 @@ const BOX: Vec2 = vec2(320.0, 180.0);
 
 /// A 4:3 card of coloured stripes with a white frame, uploaded once.
 fn card(ctx: &Context) -> TextureHandle {
-    let id = Id::new("timeline-preview-card");
+    let id = Id::NULL;
     if let Some(handle) = ctx.data(|data| data.get_temp::<TextureHandle>(id)) {
         return handle;
     }

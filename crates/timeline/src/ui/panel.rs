@@ -310,7 +310,7 @@ impl Mapping<'_> {
                     let exclusive = toggled.mods.alt && matches!(switch, TrackSwitch::Muted | TrackSwitch::Solo);
                     edits.push(TimelineEdit::Switch { track: toggled.key, switch, value: toggled.on, exclusive });
                 }
-                CollectionEvent::Column(ColumnEvent::Resized { key, width }) if *key == NAME => {
+                CollectionEvent::Column(ColumnEvent::Resized { key, width, .. }) if *key == NAME => {
                     edits.push(TimelineEdit::HeaderWidth(set_event(self.name_width, *width, self.words.header_width.as_str())));
                 }
                 CollectionEvent::Item(track, row) => {

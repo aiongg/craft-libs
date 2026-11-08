@@ -374,7 +374,6 @@ impl<'a> TimelineView<'a> {
                     *next = TimeView::fit(TimeRange::new(Tick::ZERO, self.end), width, margin);
                     self.anim.anchor = None;
                 }
-                _ => {}
             }
         }
     }
