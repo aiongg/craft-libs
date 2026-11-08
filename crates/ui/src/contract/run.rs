@@ -464,7 +464,7 @@ fn run_in_host<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Opti
     // 6 place
     let at = host_at.unwrap_or(p.at);
     // A root that fills takes the room of the `Ui` its host runs it in: a pane's or a layer's own, not its parent's.
-    let size = if ui.id() == p.parent { p.size } else { p.hooks.sized(&*p.comp, ui, p.measured) };
+    let size = if ui.scope_id() == p.parent { p.size } else { p.hooks.sized(&*p.comp, ui, p.measured) };
     // In a content-sized column a fill-width child takes its measured width in the flow and shows across the width
     // the column settles on, so it never sets that width.
     let held = !inert && matches!(at, ShowAt::Flow) && p.env.content_column && p.hooks.fills_width(&*p.comp);
@@ -830,7 +830,7 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
         room,
         measured,
         size,
-        parent: ui.id(),
+        parent: ui.scope_id(),
         inert,
         sizing,
         real: false,
