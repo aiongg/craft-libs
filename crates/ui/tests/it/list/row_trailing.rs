@@ -328,6 +328,6 @@ fn a_hosted_field_takes_typing_and_tab_leaves_it() {
     assert_eq!(committed.get(), Some(craft_theme::Rgba::rgb(255, 0, 0)), "the typing reached the field");
     fixture.key(Key::Tab, Modifiers::NONE);
     fixture.idle(2);
-    let focused = fixture.focused();
-    assert!(focused.is_none_or(|id| craft_ui::testing::access::NodeKey::of(id) != field.node), "Tab leaves the field");
+    let focused = fixture.focused().expect("Tab lands on a stop");
+    assert!(craft_ui::testing::access::NodeKey::of(focused) != field.node, "Tab leaves the field");
 }
