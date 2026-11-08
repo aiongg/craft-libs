@@ -88,6 +88,8 @@ struct Board {
     dialog_keys: bool,
     /// Bound command ids that no set registers, already logged.
     unknown: HashSet<String>,
+    /// The scope each child scope is declared inside: an instance of the child is also an instance of the parent.
+    parents: HashMap<&'static str, &'static str>,
 }
 
 fn with<R>(ctx: &Context, f: impl FnOnce(&mut Board) -> R) -> R {
@@ -100,7 +102,37 @@ impl Board {
     }
 
     fn live_instances(&self, ctx: &Context, scope: &str) -> Vec<Id> {
-        self.instances.iter().filter(|i| i.scope.name() == scope && self.live(ctx, i)).map(|i| i.id).collect()
+        self.instances.iter().filter(|i| self.within(i.scope.name(), scope) && self.live(ctx, i)).map(|i| i.id).collect()
+    }
+
+    /// Whether an instance of `scope` is also an instance of `ancestor`: they are one scope, or `ancestor` is among
+    /// the scopes `scope` was declared a child of.
+    fn within(&self, scope: &str, ancestor: &str) -> bool {
+        let mut at = scope;
+        for _ in 0..=self.parents.len() {
+            if at == ancestor {
+                return true;
+            }
+            match self.parents.get(at) {
+                Some(parent) => at = parent,
+                None => return false,
+            }
+        }
+        false
+    }
+
+    /// `scope` and the scopes it was declared a child of, innermost first.
+    fn lineage(&self, scope: &'static str) -> Vec<&'static str> {
+        let mut out = vec![scope];
+        while let Some(parent) = self.parents.get(out[out.len() - 1]).copied().filter(|parent| !out.contains(parent)) {
+            out.push(parent);
+        }
+        out
+    }
+
+    /// The innermost instance in `chain` that receives the commands of `scope`.
+    fn innermost(&self, chain: &CommandChain, scope: &str) -> Option<Id> {
+        chain.innermost_where(|of| self.within(of, scope))
     }
 
     fn is_live(&self, ctx: &Context, id: Id) -> bool {
@@ -142,17 +174,19 @@ impl Board {
         (app, if app { None } else { self.pick(ctx, scope) })
     }
 
-    /// The declaration of `command` inside the top modal layer: an instance there that published its state, else the
-    /// focused component when it takes the command as an edit.
-    fn declaring(&self, ctx: &Context, command: &CommandRef) -> Option<Declaration> {
+    /// Who answers for `command` ahead of the app: an instance inside the top modal layer that published its state,
+    /// else the focused component when it takes the command as an edit (inside a modal layer, only when the focus
+    /// is in it).
+    fn declaring(&self, ctx: &Context, command: &CommandRef, dialog_open: bool) -> Option<Declaration> {
         let number = *self.numbers.get(command.id.as_str())?;
         let published = self.modal_published.iter().chain(&self.modal_published_last).find(|(published, _)| *published == number);
-        if let Some(id) = published.and_then(|(_, id)| *id) {
+        if let Some(id) = published.and_then(|(_, id)| *id).filter(|_| dialog_open) {
             return Some(Declaration::Instance(id));
         }
-        let edit = EditCommands::from_ref(command)?.edit()?;
+        let edit = self.registry.edit_of(&command.id)?;
         let record = focus::record(ctx, pass::current_viewport(ctx));
-        (!self.inside_modal.is_empty() && record.keys.is_some_and(|keys| keys.edits.contains(edit))).then_some(Declaration::Focused)
+        let in_reach = !dialog_open || !self.inside_modal.is_empty();
+        (in_reach && record.keys.is_some_and(|keys| keys.edits.contains(edit))).then_some(Declaration::Focused)
     }
 
     /// `command` as seen by `instance`, or by the app for an app-scope command, before the gate. Also whether this is
@@ -166,10 +200,17 @@ impl Board {
         // A command no set registers is never blocked.
         let rule = def.map(|def| def.modal);
         // The instance inside the top modal that declares the command, which then answers for it.
-        let declaring = (dialog_open && rule == Some(ModalRule::Declared)).then(|| self.declaring(ctx, command)).flatten();
+        let declaring = (rule == Some(ModalRule::Declared)).then(|| self.declaring(ctx, command, dialog_open)).flatten();
+        // The declaring instance answers for the command: it is where the command is delivered. The focused component
+        // answers for itself, so the app's state of the command does not apply.
+        let instance = match declaring {
+            Some(Declaration::Instance(id)) => Some(id),
+            _ => instance,
+        };
         let key = match declaring {
             Some(Declaration::Instance(id)) => self.numbers.get(command.id.as_str()).map(|&number| (number, Some(id))),
-            _ => self.state_key(command, instance),
+            Some(Declaration::Focused) => None,
+            None => self.state_key(command, instance),
         };
         let this = key.and_then(|key| self.this.get(&key));
         let last = key.and_then(|key| self.last.get(&key));
@@ -205,6 +246,19 @@ pub(crate) fn install(ctx: &Context) -> Result<(), registry::CommandDefError> {
     let registry = registry::Registry::load()?;
     with(ctx, |board| board.registry = Arc::new(registry));
     Ok(())
+}
+
+/// Declares that an instance of `child` also receives the commands of `parent`, and that its shortcuts rank inside the
+/// parent's. The workspace scope of a full-window dialog is a child of the view scope.
+pub(crate) fn declare_child(ctx: &Context, child: CommandScope, parent: CommandScope) {
+    with(ctx, |board| {
+        board.parents.insert(child.name(), parent.name());
+    });
+}
+
+/// The innermost instance in `chain` that receives the commands of `scope`: an instance of the scope or of a child of it.
+pub(crate) fn innermost(ctx: &Context, chain: &CommandChain, scope: &str) -> Option<Id> {
+    with(ctx, |board| board.innermost(chain, scope))
 }
 
 /// The platform the keymap and the chords shown are read for.
@@ -243,15 +297,13 @@ pub(crate) fn set_input(ctx: &Context, input: &CommandInput) {
             if let Some(overrides) = &input.overrides {
                 keymap.set_overrides((**overrides).clone());
             }
-            let edit_chords = EditCommands::ALL
+            let edit_chords = board
+                .registry
+                .defs()
                 .iter()
-                .flat_map(|command| {
-                    let bindings = keymap.bindings(&CommandRef::from(*command));
-                    let edit = command.edit();
-                    bindings
-                        .into_iter()
-                        .filter(|binding| !binding.trigger.double)
-                        .filter_map(move |binding| edit.map(|edit| (edit, binding.trigger.chord)))
+                .filter_map(|def| board.registry.edit_of(&def.command.id).map(|edit| (edit, &def.command)))
+                .flat_map(|(edit, command)| {
+                    keymap.bindings(command).into_iter().filter(|binding| !binding.trigger.double).map(move |binding| (edit, binding.trigger.chord))
                 })
                 .collect();
             board.keymap = Some(KeymapCache { keymap: Arc::new(keymap), platform, overrides: input.overrides.clone(), edit_chords });
@@ -331,29 +383,27 @@ pub(crate) fn resolve_global(ctx: &Context, command: &CommandRef) -> ResolvedCom
 /// of the command's scope (a Navigator's Zoom In beside the canvas) reaches the instance a menu row of the command
 /// reaches.
 pub(crate) fn resolve_bound(ctx: &Context, chain: &CommandChain, command: &CommandRef) -> ResolvedCommand {
-    let instance = with(ctx, |board| chain.innermost(board.scope_of(command)).or_else(|| board.target_of(ctx, command).1));
+    let instance = with(ctx, |board| board.innermost(chain, board.scope_of(command)).or_else(|| board.target_of(ctx, command).1));
     resolve_in(ctx, command, instance)
 }
 
 /// Step-1 resolution for a context in `chain`; `None` when the command's scope has no instance in the chain.
 pub(crate) fn resolve_scoped(ctx: &Context, chain: &CommandChain, command: &CommandRef) -> Option<ResolvedCommand> {
-    let (scope, app) = with(ctx, |board| {
-        let scope = board.scope_of(command).to_owned();
-        let app = is_app(&scope);
-        (scope, app)
+    let (found, app) = with(ctx, |board| {
+        let scope = board.scope_of(command);
+        (board.innermost(chain, scope).is_some(), is_app(scope))
     });
-    if !app && chain.innermost(&scope).is_none() {
+    if !app && !found {
         return None;
     }
     Some(resolve_bound(ctx, chain, command))
 }
 
 fn queue(ctx: &Context, fired: Fired) {
-    // An edit command goes to the focused component that lists it; otherwise it stays an app command.
-    if fired.target.is_none()
-        && fired.phase != FirePhase::Release
-        && let Some(command) = EditCommands::from_ref(&fired.command)
-        && let Some(edit) = command.edit()
+    // An edit command goes to the focused component that lists it; otherwise it goes to the instance that declared
+    // it or, with none, stays an app command.
+    if fired.phase != FirePhase::Release
+        && let Some(edit) = with(ctx, |board| board.registry.edit_of(&fired.command.id))
         && keys::queue_edit(ctx, edit)
     {
         return;
@@ -363,18 +413,14 @@ fn queue(ctx: &Context, fired: Fired) {
     repaint::request_of(ctx, ViewportId::ROOT);
 }
 
-/// An undo or redo a text part or editor had nothing to do for goes to the app command of the same id (11.3).
+/// An undo or redo a text part or editor had nothing to do for goes to the instance that declares the command or,
+/// with none, to the app command of the same id (11.3).
 pub(crate) fn fall_through(ctx: &Context, command: craft_behavior::EditCommand) {
     let Some(command) = EditCommands::of(command) else { return };
-    let fired = Fired {
-        command: CommandRef::from(command),
-        target: None,
-        source: FireSource::Key,
-        phase: FirePhase::Press,
-        cycle: false,
-        alt_variant: false,
-    };
-    with(ctx, |board| board.out.push(fired));
+    let command = CommandRef::from(command);
+    let target = with(ctx, |board| board.resolve(ctx, &command, None).0.instance);
+    let fired = Fired { command, target, source: FireSource::Key, phase: FirePhase::Press, cycle: false, alt_variant: false };
+    with(ctx, |board| if fired.target.is_some() { board.queue.push(fired) } else { board.out.push(fired) });
     repaint::request_of(ctx, ViewportId::ROOT);
 }
 
@@ -400,10 +446,13 @@ pub(crate) fn fire_from(ctx: &Context, command: &CommandRef, source: FireSource)
     if !app && instance.is_none() {
         return false;
     }
-    if !resolve_in(ctx, command, instance).enabled {
+    let resolved = resolve_in(ctx, command, instance);
+    if !resolved.enabled {
         return false;
     }
-    queue(ctx, Fired { command: command.clone(), target: instance, source, phase: FirePhase::Press, cycle: false, alt_variant: false });
+    // An app-scope command a modal layer's instance declares is delivered to that instance.
+    let target = if app { resolved.instance } else { instance };
+    queue(ctx, Fired { command: command.clone(), target, source, phase: FirePhase::Press, cycle: false, alt_variant: false });
     true
 }
 
@@ -417,7 +466,7 @@ pub(crate) fn publish(ctx: &Context, chain: &CommandChain, command: &CommandRef,
         );
         // A declared app-scope command is published by the innermost instance around the caller, inside whichever
         // modal layer it sits in.
-        let instance = if is_app(scope) { chain.innermost_any() } else { chain.innermost(scope) };
+        let instance = if is_app(scope) { chain.innermost_any() } else { board.innermost(chain, scope) };
         if let Some(instance) = instance {
             let number = board.number(&command.id);
             // The pass that publishes is the one that knows the layers around the caller.
@@ -450,8 +499,9 @@ pub(crate) fn take<S>(ctx: &Context, instance: Option<Id>, app: bool, from_ref: 
 /// `at` is no instance of it, to the innermost instance in `around`, the chain of the context `at` was shown in.
 pub(crate) fn take_around<S: CommandSet>(ctx: &Context, at: Id, around: &CommandChain) -> Option<(S, Fired)> {
     let scope = S::SCOPE.name();
-    let own = with(ctx, |board| board.instances.iter().any(|i| i.id == at && i.scope.name() == scope));
-    take(ctx, if own { Some(at) } else { around.innermost(scope) }, is_app(scope), S::from_ref)
+    let (own, nearest) =
+        with(ctx, |board| (board.instances.iter().any(|i| i.id == at && board.within(i.scope.name(), scope)), board.innermost(around, scope)));
+    take(ctx, if own { Some(at) } else { nearest }, is_app(scope), S::from_ref)
 }
 
 /// H7: the key stage's shortcut events, matched against the keymap in the scopes around the focused component,
@@ -480,13 +530,15 @@ pub(crate) fn begin(ctx: &Context) {
             return None;
         }
         let keymap = board.keymap.as_ref().map(|cache| Arc::clone(&cache.keymap))?;
-        let mut scopes: Vec<&'static str> = chain
-            .iter()
-            .rev()
-            .filter_map(|id| board.instances.iter().find(|i| i.id == *id))
-            .map(|i| i.scope.name())
-            .filter(|scope| !is_app(scope))
-            .collect();
+        // An instance of a child scope also brings the scopes it is declared inside, after its own.
+        let mut scopes: Vec<&'static str> = Vec::new();
+        for instance in chain.iter().rev().filter_map(|id| board.instances.iter().find(|i| i.id == *id)) {
+            let lineage = board.lineage(instance.scope.name());
+            scopes.push(lineage[0]);
+            let parents: Vec<&'static str> = lineage[1..].iter().copied().filter(|scope| !scopes.contains(scope)).collect();
+            scopes.extend(parents);
+        }
+        scopes.retain(|scope| !is_app(scope));
         // The held-open canvas's scope is around the focus for matching: its commands fire from the dialog.
         let held_scope = held_open.and_then(|id| board.instances.iter().find(|i| i.id == id)).map(|i| i.scope.name()).filter(|scope| !is_app(scope));
         if let Some(scope) = held_scope
@@ -527,10 +579,12 @@ pub(crate) fn begin(ctx: &Context) {
                 if app && shortcut.moved {
                     continue;
                 }
-                if !resolve_in(ctx, &hit.command, instance).enabled {
+                let resolved = resolve_in(ctx, &hit.command, instance);
+                if !resolved.enabled {
                     continue;
                 }
-                let target = if app { None } else { instance };
+                // An app-scope command a modal layer's instance declares is delivered to that instance.
+                let target = if app { resolved.instance } else { instance };
                 let key = shortcut.input.physical.or(shortcut.input.typed);
                 with(ctx, |board| {
                     if let Some(key) = key.filter(|_| board.registry.get(&hit.command.id).is_some_and(|def| def.kind == CommandKind::Momentary)) {

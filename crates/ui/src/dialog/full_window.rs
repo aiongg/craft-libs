@@ -8,7 +8,7 @@ use crate::contract::{
     Props as _, Role, SaveKey,
 };
 use crate::edit::outer::{self, OuterEnd};
-use crate::runtime::commands::CommandSet as _;
+use crate::runtime::commands::{self, CommandScope, CommandSet as _};
 use crate::runtime::env::Label;
 use crate::runtime::focus::{EnterRule, FocusPolicy, Initial};
 use crate::runtime::overlay::CloseReason;
@@ -44,7 +44,7 @@ pub struct FullWindowDialogStyle {
 pub struct FullWindowDialog<'a> {
     #[common]
     common: Common,
-    #[container]
+    #[container(sizing, surface, live, end, position, collection_body)]
     props: ContainerProps,
     /// Binds the open state to `open`.
     #[prop(name = "opened")]
@@ -115,6 +115,15 @@ impl<'a> FullWindowDialog<'a> {
     #[must_use]
     pub fn initial_focus(mut self, initial: Initial) -> Self {
         self.props.focus = self.props.focus.initial(initial);
+        self
+    }
+
+    /// The dialog's own command scope, a child of [`ViewCommands::SCOPE`]: the dialog is an instance of `scope` and still
+    /// of the view scope. Both scopes' chords act wherever the focus is inside the dialog, and the view commands still
+    /// reach the zoom bar; `scope`'s commands reach the dialog's body by `take_command` on its context.
+    #[must_use]
+    pub fn command_scope(mut self, scope: CommandScope) -> Self {
+        self.props = self.props.command_scope(scope);
         self
     }
 
@@ -224,6 +233,9 @@ impl Container for FullWindowDialog<'_> {
 
     fn header(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         self.body_shown = true;
+        if let Some(scope) = self.props.command_scope.filter(|scope| *scope != ViewCommands::SCOPE) {
+            commands::declare_child(ui.ctx(), scope, ViewCommands::SCOPE);
+        }
         if self.props.outer_edit {
             outer::keep(ui.ctx(), cx);
         }

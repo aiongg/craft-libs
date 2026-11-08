@@ -54,6 +54,16 @@ pub enum DockCommand {
     Close,
 }
 
+/// Commands of the `trial.workspace` scope, which a full-window dialog declares as its own.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, CommandSet)]
+#[command(prefix = "workspace", scope = "trial.workspace")]
+#[non_exhaustive]
+pub enum WorkspaceCommand {
+    #[command(label = "Brush", modal = "in_dialogs", default = "Cmd+Alt+W")]
+    Brush,
+}
+
+pub const WORKSPACE: CommandScope = <WorkspaceCommand as CommandSet>::SCOPE;
 pub const PANE: CommandScope = <PaneCommand as CommandSet>::SCOPE;
 pub const DOCK: CommandScope = <DockCommand as CommandSet>::SCOPE;
 

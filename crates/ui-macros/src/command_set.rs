@@ -1,5 +1,6 @@
 //! `#[derive(CommandSet)]` with `#[command(prefix = "..", scope = "..")]` on the enum and
-//! `#[command(label = "..", icon = "..", kind = "..", group = "..", modal = "..", default = "..", path = "..", alias = "..")]` on variants.
+//! `#[command(label = "..", icon = "..", kind = "..", group = "..", modal = "..", edit = "..", default = "..", path = "..", alias = "..")]` on variants.
+//! `edit = ".."` links the command to the `EditCommand` a focused component takes it as.
 //! `default(mac = "..")` (or `windows`, `linux`) is a default of one platform: it replaces the unqualified defaults there.
 
 use proc_macro2::TokenStream;
@@ -19,6 +20,7 @@ struct VariantAttrs {
     kind: Option<LitStr>,
     group: Option<LitStr>,
     modal: Option<LitStr>,
+    edit: Option<LitStr>,
     defaults: Vec<LitStr>,
     platform_defaults: Vec<(LitStr, LitStr)>,
     no_default_on: Vec<LitStr>,
@@ -109,6 +111,20 @@ fn modal_tokens(modal: &LitStr) -> syn::Result<TokenStream> {
     })
 }
 
+fn edit_tokens(edit: &LitStr) -> syn::Result<TokenStream> {
+    let name = match edit.value().as_str() {
+        "cut" => "Cut",
+        "copy" => "Copy",
+        "paste" => "Paste",
+        "select_all" => "SelectAll",
+        "undo" => "Undo",
+        "redo" => "Redo",
+        _ => return Err(syn::Error::new(edit.span(), "`edit` is `\"cut\"`, `\"copy\"`, `\"paste\"`, `\"select_all\"`, `\"undo\"` or `\"redo\"`")),
+    };
+    let name = syn::Ident::new(name, edit.span());
+    Ok(quote!(::craft_ui::runtime::commands::EditCommand::#name))
+}
+
 fn variant(variant: &Variant) -> syn::Result<VariantAttrs> {
     if !matches!(variant.fields, Fields::Unit) {
         return Err(syn::Error::new_spanned(variant, "a command is a unit variant"));
@@ -122,6 +138,7 @@ fn variant(variant: &Variant) -> syn::Result<VariantAttrs> {
             () if meta.path.is_ident("kind") => attrs.kind = Some(value(meta)?),
             () if meta.path.is_ident("group") => attrs.group = Some(value(meta)?),
             () if meta.path.is_ident("modal") => attrs.modal = Some(value(meta)?),
+            () if meta.path.is_ident("edit") => attrs.edit = Some(value(meta)?),
             () if meta.path.is_ident("default") && meta.input.peek(syn::Token![=]) => attrs.defaults.push(value(meta)?),
             () if meta.path.is_ident("default") => meta.parse_nested_meta(|inner| {
                 let platform = inner.path.get_ident().map(|ident| LitStr::new(&ident.to_string(), ident.span()));
@@ -172,7 +189,8 @@ pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
         Some(scope) => quote!(::craft_ui::runtime::commands::CommandScope::new(#scope)),
         None => quote!(::craft_ui::runtime::commands::CommandScope::APP),
     };
-    let (mut ids, mut arms, mut defs, mut bare, mut per_platform) = (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    let (mut ids, mut arms, mut defs, mut bare, mut per_platform, mut edits) =
+        (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
     for v in &data.variants {
         let attrs = variant(v)?;
         let name = &v.ident;
@@ -220,6 +238,10 @@ pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
                 out.push((#id, #platform, ::craft_ui::runtime::commands::Binding::parse(#text).map_err(|error| ::craft_ui::runtime::commands::CommandDefError::binding(#id, error))?));
             });
         }
+        if let Some(edit) = &attrs.edit {
+            let edit = edit_tokens(edit)?;
+            edits.push(quote!((#id, #edit)));
+        }
         arms.push(quote!(#id => ::core::option::Option::Some(Self::#name)));
         defs.push(quote! {
             {
@@ -259,6 +281,10 @@ pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
 
             fn no_default_on() -> ::std::vec::Vec<(&'static str, ::craft_ui::runtime::commands::Platform)> {
                 ::std::vec![#(#bare),*]
+            }
+
+            fn edits() -> ::std::vec::Vec<(&'static str, ::craft_ui::runtime::commands::EditCommand)> {
+                ::std::vec![#(#edits),*]
             }
 
             fn platform_defaults() -> ::core::result::Result<
