@@ -288,9 +288,18 @@ fn the_bar_reports_new_and_delete_and_edits_options() {
     rig.fixture.click(&fields[0]);
     rig.fixture.key(Key::ArrowUp, Modifiers::NONE).settle();
     let stepped = rig.settings.borrow().ratio;
+    rig.fixture.key(Key::ArrowUp, Modifiers::NONE).settle();
+    let twice = rig.settings.borrow().ratio;
     assert!(
-        matches!((preset, stepped), (CropRatio::Sides { width: before, height, .. }, CropRatio::Sides { width: after, height: kept, .. }) if after == before + 1.0 && kept == height),
-        "one arrow press adds 1 to the width and keeps the height: {stepped:?}"
+        matches!(
+            (preset, stepped, twice),
+            (
+                CropRatio::Sides { width: before, height, .. },
+                CropRatio::Sides { width: after, height: kept, .. },
+                CropRatio::Sides { width: again, height: still, .. },
+            ) if after > before && again - after == after - before && kept == height && still == height
+        ),
+        "each arrow press adds the same step to the width and keeps the height: {stepped:?}, {twice:?}"
     );
     assert!(rig.seen.borrow().iter().any(|s| s.ratio.is_some()));
 
