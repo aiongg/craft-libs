@@ -73,11 +73,16 @@ pub(super) fn host(props: &ContainerProps, at: &HostCx<'_>, open: bool, title: &
     }
 }
 
-/// A closed layer-like container: nothing shows and no layer is recorded.
+/// A closed layer-like container: nothing shows and no layer is recorded. The layer forgets what it remembered while
+/// shown, so a container closed through its binding, with no exit fade, also closes the popups opened from its body.
 struct ClosedHost;
 
 impl Host for ClosedHost {
-    fn run(&mut self, _: Id, _: &mut Ui, _: &Env, _: &mut HostPass<'_>) {}
+    fn run(&mut self, id: Id, parent: &mut Ui, _: &Env, _: &mut HostPass<'_>) {
+        if !parent.is_sizing_pass() {
+            overlay::forget_layer(parent.ctx(), id, id);
+        }
+    }
 }
 
 /// The parent `Ui` is the host `Ui`.

@@ -11,6 +11,9 @@ use egui::{Key, Modifiers, Pos2, Rect, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+// Edges snap to whole pixels, so a rectangle may overhang its neighbour by half a point.
+const EDGE_SLACK: f32 = 0.5;
+
 fn region() -> Rect {
     Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::new(300.0, 200.0))
 }
@@ -69,6 +72,10 @@ fn open_and_run(fixture: &mut Fixture, seen: &Seen, row: &Target, key: Key, mods
     assert!(request.contains(row.rect.center()), "the request is at the lead row: {request:?} vs {:?}", row.rect);
     assert!(request.height() < seen.list.get(), "the request is the row, not the list: {request:?}");
     let remove = fixture.by_label("Remove").expect("the key opens the list's context menu");
+    // The menu hangs from the lead row, not from the whole list: its first row starts under the lead row's bottom,
+    // within half a row of it.
+    let under = remove.rect.top() - row.rect.bottom();
+    assert!(under >= -EDGE_SLACK && under < row.rect.height() / 2.0, "the menu lies below the lead row: {:?} under {:?}", remove.rect, row.rect);
     fixture.click(&remove).settle();
 }
 
