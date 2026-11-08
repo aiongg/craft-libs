@@ -1,10 +1,9 @@
-//! [`ParagraphDialog`] (N3.15): the Paragraph dialog of PowerPoint (Home › Paragraph launcher)
-//! and Word: alignment, indentation (before text, and a first-line or hanging indent by an
-//! amount), spacing before and after, line spacing, with a live sample of the result and a Tabs…
-//! button. OK applies everything as one change.
+//! [`ParagraphDialog`]: the Paragraph dialog of PowerPoint (Home › Paragraph launcher) and Word: alignment,
+//! indentation (before text, and a first-line or hanging indent by an amount), spacing before and after, line
+//! spacing, with a live sample of the result and a Tabs… button. OK applies everything as one change.
 //!
-//! The Paragraph controls ([`ParagraphControls`](super::ParagraphControls)) are Photoshop's
-//! panel; this is the office apps' dialog over the same paragraph.
+//! The Paragraph controls ([`ParagraphControls`](super::ParagraphControls)) are Photoshop's panel; this is the office
+//! apps' dialog over the same paragraph.
 //!
 //! ```ignore
 //! dialogs.open(ParagraphDialog::new(format_at_caret).unit(unit));
@@ -15,22 +14,25 @@
 
 use std::cell::Cell;
 
-use craft_ui::composites::{Field, FieldGroup, GroupBox};
-use craft_ui::controls::expr::ExprUnits;
-use craft_ui::controls::{NumberField, Select};
-use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, DialogState, Footer, InitialFocus, Outcome, StackDialog, Width};
-use craft_ui::edit::{EditEvent, GestureDraft};
-use craft_ui::localized::units::{Length, LengthUnit, UnitContext};
-use craft_ui::localized::{Labels as _, LocaleNumbers, UnitKind, Units, fmt};
-use craft_ui::patterns::unit_number_field;
-use craft_ui::primitives::{Content, Surface, SurfaceKind};
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
-use egui::{Context, Rect, Sense, Ui, pos2, vec2};
+use crate::ui::length::{DocUnit, length_edit, length_field};
+use craft_behavior::{Axis, EditEvent, Metrics, Mixed, NumberCodec};
+use craft_theme::variant::Tone;
+use craft_ui::contract::{Bind, Common, Component, Cx, Entry, MeasureCx, PaintUi, Props as _, Role, Show as _, ShowContainer as _};
+use craft_ui::dialog::{Dialog, DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
+use craft_ui::form::{Field, FieldGroup, Help};
+use craft_ui::pickers::Select;
+use craft_ui::primitives::TextRun;
+use craft_ui::runtime::env::{Env, Label, UnitKind, Units};
+use craft_ui::runtime::words::CommonWords;
+use craft_ui::sections::{DialogRole, FooterButton, GroupBox};
+use craft_ui::style::{ComponentStyle, Corners, StyleColor, StyleCx, SurfaceKind, TypeRole};
+use craft_ui::text::NumberField;
+use egui::{Rect, Response, Ui, Vec2, pos2, vec2};
 
 craft_ui::words! {
     /// The dialog's words (DeckCraft's strings).
     #[non_exhaustive]
-    pub struct ParagraphDialogLabels {
+    pub struct ParagraphDialogWords {
         title: "paragraphDialog.title" = "Paragraph";
         general: "paragraphDialog.general" = "General";
         alignment: "paragraphDialog.alignment" = "Alignment";
@@ -62,32 +64,34 @@ craft_ui::words! {
         tabs: "paragraphDialog.tabs" = "Tabs…";
         at_least: "paragraphDialog.atLeast" = "At least";
         sample: "paragraphDialog.sample" = "Sample Text";
-        out_of_range: "paragraphDialog.outOfRange" = "{field} must be from {min} to {max}";
+        out_of_range: template "paragraphDialog.outOfRange" = "{field} must be from {min} to {max}";
     }
 }
 
 /// PowerPoint's alignments (Word has the first four).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ParagraphAlign {
-    #[allow(missing_docs)]
+    /// Left.
     #[default]
     Left,
-    #[allow(missing_docs)]
+    /// Center.
     Center,
-    #[allow(missing_docs)]
+    /// Right.
     Right,
-    #[allow(missing_docs)]
+    /// Justify.
     Justify,
-    #[allow(missing_docs)]
+    /// Justify low.
     JustifyLow,
-    #[allow(missing_docs)]
+    /// Distributed.
     Distributed,
 }
 
 /// The first line against the others.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum SpecialIndent {
-    #[allow(missing_docs)]
+    /// None.
     #[default]
     None,
     /// The first line starts `by` further in.
@@ -97,7 +101,7 @@ pub enum SpecialIndent {
 }
 
 /// What a paragraph's spacing before or after counts, as DeckCraft keeps it (`spaceBeforeKind`
-/// and `spaceAfterKind`, `pts` or `pct`; engine `model/src/text.rs:186` `Spacing`).
+/// and `spaceAfterKind`, `pts` or `pct`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum SpacingKind {
@@ -110,6 +114,7 @@ pub enum SpacingKind {
 
 /// Line spacing.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum LineSpacing {
     /// A multiple of single spacing: Single is 1, 1.5 lines 1.5, Double 2, Multiple any other.
     Multiple(f32),
@@ -128,8 +133,9 @@ impl Default for LineSpacing {
 /// What the dialog edits; `None` where the selected paragraphs differ (the field starts empty
 /// and a field left empty is left as it was).
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct ParagraphFormat {
-    #[allow(missing_docs)]
+    /// The align.
     pub align: Option<ParagraphAlign>,
     /// Points.
     pub before_text: Option<f32>,
@@ -157,6 +163,7 @@ pub struct ParagraphFormat {
 /// OK's answer: the format, and whether Tabs… was pressed (the app applies the format, then opens
 /// the Tabs dialog, and after it the Paragraph dialog shows what was applied).
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct ParagraphAnswer {
     /// The format as the user left it.
     pub format: ParagraphFormat,
@@ -166,63 +173,45 @@ pub struct ParagraphAnswer {
 
 /// The Paragraph dialog.
 ///
-/// - Alignment and Special (None, First line, Hanging) and Line spacing (Single, 1.5 lines,
-///   Double, Multiple, Exactly; Word adds At least) are craft-ui `Select`s; Before text, After
-///   text and By are `unit_number_field`s in the dialog's unit, Spacing before and after
-///   `unit_number_field`s in points (PowerPoint and Word both show points there); At is a
-///   `NumberField` (lines or points, by the line spacing).
-///   Choosing Exactly with an At of 9.99 or less sets 18 pt; choosing a multiple with an At above
-///   9.99 sets 1 (DeckCraft).
-/// - Lengths in the dialog's unit (inches by default, as PowerPoint). Typed numbers are clamped
-///   by their field; text that is not a number is not taken (the field marks it, and OK waits until it is fixed or
-///   left). Esc in a field's gesture restores the value the gesture began from. A format the
-///   app hands over with a value out of range shows the labels' range message under its field
-///   (the field error style) and OK waits until it is fixed.
-/// - Preview (Word's; DeckCraft has none): three sample paragraphs, the outer two grey and the
-///   middle one in the text colour, laid out with the values as they are now (Word's Preview
-///   box), redrawn as fields change. A typographic point is a point of the screen there.
-/// - Keys: Enter is OK, Esc Cancel; first focus on Alignment.
+/// - Alignment, Special (None, First line, Hanging) and Line spacing (Single, 1.5 lines, Double, Multiple, Exactly;
+///   Word adds At least) are `Select`s; Before text, After text and By are number fields in the dialog's unit,
+///   Spacing before and after number fields in points (PowerPoint and Word both show points there); At is a number
+///   field (lines or points, by the line spacing). Choosing Exactly with an At of 9.99 or less sets 18 pt; choosing a
+///   multiple with an At above 9.99 sets 1 (DeckCraft).
+/// - Lengths in the dialog's unit (inches by default, as PowerPoint). Typed numbers are clamped by their field; text
+///   that is not a number is not taken (the field marks it, and OK waits until it is fixed or left). Esc in a field's
+///   gesture restores the value the gesture began from. A format the app hands over with a value out of range shows
+///   the range message beside its field and OK waits until it is fixed.
+/// - Preview (Word's; DeckCraft has none): three sample paragraphs, the outer two grey and the middle one in the text
+///   colour, laid out with the values as they are now (Word's Preview box), redrawn as fields change. A typographic
+///   point is a point of the screen there.
+/// - Keys: Enter is OK, Esc Cancel.
+#[derive(craft_ui::contract::Pattern)]
 pub struct ParagraphDialog {
     format: ParagraphFormat,
-    unit: LengthUnit,
+    unit: DocUnit,
     word: bool,
-    labels: Option<ParagraphDialogLabels>,
-    state: DialogState,
     /// The format the dialog opened with: a spacing that returns to its value takes its kind back.
     opened: ParagraphFormat,
-    /// One draft per field, indexed by [`Row`]: Esc in a gesture restores the value it began from.
-    drafts: [GestureDraft<Option<f32>>; ROWS],
 }
 
 impl ParagraphDialog {
     /// A dialog editing `format`, with lengths in inches.
     pub fn new(format: ParagraphFormat) -> Self {
-        ParagraphDialog {
-            opened: format.clone(),
-            format,
-            unit: LengthUnit::Inches,
-            word: false,
-            labels: None,
-            state: DialogState::new(),
-            drafts: Default::default(),
-        }
+        ParagraphDialog { opened: format.clone(), format, unit: DocUnit::new(UnitKind::Inches, UnitKind::POINTS_PER_INCH), word: false }
     }
 
     /// Sets the unit the length fields show.
-    pub fn unit(mut self, unit: LengthUnit) -> Self {
+    #[must_use]
+    pub fn unit(mut self, unit: DocUnit) -> Self {
         self.unit = unit;
         self
     }
 
     /// Word's form: four alignments, and At least among the line spacings.
+    #[must_use]
     pub fn word(mut self, word: bool) -> Self {
         self.word = word;
-        self
-    }
-
-    /// Sets the translated labels; the default reads them from the interface locale.
-    pub fn labels(mut self, labels: ParagraphDialogLabels) -> Self {
-        self.labels = Some(labels);
         self
     }
 
@@ -252,6 +241,12 @@ const MAX_SPACING_LINES: f32 = 10.0;
 const AT_DECIMALS: usize = 2;
 /// Lines in each sample paragraph of the preview.
 const SAMPLE_LINES: usize = 3;
+/// How many samples wide the preview is when its room is not known.
+const PREVIEW_SAMPLES: f32 = 6.0;
+/// The index of the Tabs… button among the dialog's buttons.
+const TABS: usize = 2;
+/// The index of the Cancel button among the dialog's buttons.
+const CANCEL: usize = 1;
 
 /// The entries of Line spacing.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -278,10 +273,7 @@ impl LinePreset {
 
     /// The spacing choosing this entry gives when `current` was set.
     fn choose(self, current: Option<LineSpacing>) -> LineSpacing {
-        let at = match current {
-            Some(LineSpacing::Multiple(x) | LineSpacing::Exactly(x) | LineSpacing::AtLeast(x)) => Some(x),
-            None => None,
-        };
+        let at = current.map(at_value);
         let distance = at.filter(|x| *x > MULTIPLE_LIMIT).unwrap_or(DEFAULT_DISTANCE);
         match self {
             LinePreset::Single => LineSpacing::Multiple(1.0),
@@ -294,37 +286,13 @@ impl LinePreset {
     }
 }
 
-/// The values a spacing before or after of `kind` can take: points up to Word's largest length,
-/// lines up to the most DeckCraft keeps (`engine/src/cmd/format/paragraph.rs:246`).
+/// The values a spacing before or after of `kind` can take: points up to Word's largest length, lines up to the most
+/// DeckCraft keeps.
 fn spacing_bounds(kind: SpacingKind) -> (f32, f32) {
     match kind {
         SpacingKind::Points => (0.0, MAX_POINTS),
         SpacingKind::Lines => (0.0, MAX_SPACING_LINES),
     }
-}
-
-/// The number of [`Row`]s.
-const ROWS: usize = 6;
-
-/// The fields that can be out of range.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Row {
-    BeforeText,
-    AfterText,
-    By,
-    SpaceBefore,
-    SpaceAfter,
-    At,
-}
-
-fn in_unit(points: f32, unit: LengthUnit) -> f64 {
-    let context = UnitContext::default();
-    context.convert(Length { value: f64::from(points), unit: LengthUnit::Points }, unit).unwrap_or(f64::from(points))
-}
-
-fn in_points(value: f64, unit: LengthUnit) -> f32 {
-    let context = UnitContext::default();
-    context.convert(Length { value, unit }, LengthUnit::Points).unwrap_or(value) as f32
 }
 
 /// The bounds of At for a line spacing, in lines or points.
@@ -350,108 +318,80 @@ fn with_at(spacing: LineSpacing, at: f32) -> LineSpacing {
     }
 }
 
-/// What a length field reported this pass.
-pub(super) struct LengthEdit {
-    pub(super) event: Option<EditEvent<Option<f32>>>,
-    /// The field's text can't become a value.
-    pub(super) rejected: bool,
+/// The fields that can be out of range.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Row {
+    BeforeText,
+    AfterText,
+    By,
+    SpaceBefore,
+    SpaceAfter,
+    At,
+}
+
+/// What a number field counts: a length shown in a unit, or a plain number of lines.
+#[derive(Clone, Copy)]
+enum Count {
+    Length(DocUnit),
+    Lines,
+}
+
+/// What a pass of the dialog reads from its scope.
+struct Scope<'s> {
+    words: &'s ParagraphDialogWords,
+    units: &'s Units,
 }
 
 impl ParagraphDialog {
+    /// How `row` counts its number.
+    fn count(&self, row: Row) -> Count {
+        let f = &self.format;
+        match row {
+            Row::BeforeText | Row::AfterText | Row::By => Count::Length(self.unit),
+            Row::SpaceBefore => Self::spacing_count(f.space_before_kind),
+            Row::SpaceAfter => Self::spacing_count(f.space_after_kind),
+            Row::At if matches!(f.line_spacing, Some(LineSpacing::Multiple(_))) => Count::Lines,
+            Row::At => Count::Length(DocUnit::points()),
+        }
+    }
+
+    fn spacing_count(kind: SpacingKind) -> Count {
+        match kind {
+            SpacingKind::Points => Count::Length(DocUnit::points()),
+            SpacingKind::Lines => Count::Lines,
+        }
+    }
+
+    /// The values `row` can take, in points or lines.
+    fn bounds(&self, row: Row) -> (f32, f32) {
+        let f = &self.format;
+        match row {
+            Row::BeforeText | Row::AfterText => (-MAX_POINTS, MAX_POINTS),
+            Row::By => (0.0, MAX_POINTS),
+            Row::SpaceBefore => spacing_bounds(f.space_before_kind),
+            Row::SpaceAfter => spacing_bounds(f.space_after_kind),
+            Row::At => f.line_spacing.map_or((0.0, MAX_POINTS), at_bounds),
+        }
+    }
+
+    /// Whether the row's field can be edited.
+    fn enabled(&self, row: Row) -> bool {
+        match row {
+            Row::By => matches!(self.format.special, Some(SpecialIndent::FirstLine | SpecialIndent::Hanging)),
+            Row::At => self.format.line_spacing.is_some(),
+            _ => true,
+        }
+    }
+
     /// The rows whose value is outside its bounds.
     fn out_of_range(&self) -> Vec<Row> {
-        let f = &self.format;
-        let outside = |value: Option<f32>, (lo, hi): (f32, f32)| value.is_some_and(|v| !(lo..=hi).contains(&v));
-        let mut rows = Vec::new();
-        let mut check = |row, bad| {
-            if bad {
-                rows.push(row);
-            }
-        };
-        check(Row::BeforeText, outside(f.before_text, (-MAX_POINTS, MAX_POINTS)));
-        check(Row::AfterText, outside(f.after_text.flatten(), (-MAX_POINTS, MAX_POINTS)));
-        check(Row::By, outside(f.by, (0.0, MAX_POINTS)));
-        check(Row::SpaceBefore, outside(f.space_before, spacing_bounds(f.space_before_kind)));
-        check(Row::SpaceAfter, outside(f.space_after, spacing_bounds(f.space_after_kind)));
-        check(Row::At, f.line_spacing.is_some_and(|l| outside(Some(at_value(l)), at_bounds(l))));
-        rows
-    }
-
-    fn message(
-        &self,
-        labels: &ParagraphDialogLabels,
-        numbers: &LocaleNumbers,
-        units: &Units,
-        caption: &str,
-        bounds: (f32, f32),
-        unit: Option<LengthUnit>,
-    ) -> String {
-        let show = |points: f32| match unit {
-            Some(unit) => units.length(unit, in_unit(points, unit)),
-            None => numbers.format(f64::from(points), 0..=AT_DECIMALS),
-        };
-        fmt(&labels.out_of_range, &[("field", caption), ("min", &show(bounds.0)), ("max", &show(bounds.1))])
-    }
-
-    /// One length field of the form: `value` in points, shown in `unit`; without a unit the
-    /// value is a number of lines, shown as it is.
-    #[allow(clippy::too_many_arguments, reason = "one field of the form; the pieces are its parts")]
-    fn length_field(
-        &self,
-        ui: &mut Ui,
-        labels: &ParagraphDialogLabels,
-        numbers: &LocaleNumbers,
-        salt: &'static str,
-        caption: &str,
-        value: Option<f32>,
-        unit: Option<LengthUnit>,
-        bounds: (f32, f32),
-        enabled: bool,
-        row: Row,
-    ) -> LengthEdit {
-        let invalid = self.out_of_range().contains(&row);
-        let error = invalid.then(|| self.message(labels, numbers, &Units::of(ui), caption, bounds, unit));
-        let rejected = Cell::new(false);
-        let edit = Field::new(caption)
-            .error(error)
-            .show(ui, |ui, invalid| {
-                let output = match unit {
-                    Some(unit) => {
-                        let shown = value.map_or(f64::NAN, |v| in_unit(v, unit));
-                        let units = ExprUnits { unit: Some(unit), suffix: unit.suffix(), context: UnitContext::default() };
-                        unit_number_field(("paragraph", salt), caption, shown, numbers, &units)
-                            .range(in_unit(bounds.0, unit)..=in_unit(bounds.1, unit))
-                            .enabled(enabled)
-                            .invalid(invalid)
-                            .show_optional_full(ui)
-                    }
-                    // No range: a number typed here replaces the lines with points, whatever it is.
-                    None => NumberField::new(("paragraph", salt), caption, value.map_or(f64::NAN, f64::from), numbers)
-                        .decimals(0..=AT_DECIMALS)
-                        .enabled(enabled)
-                        .invalid(invalid)
-                        .show_optional_full(ui),
-                };
-                rejected.set(output.rejected);
-                output.edit
+        [Row::BeforeText, Row::AfterText, Row::By, Row::SpaceBefore, Row::SpaceAfter, Row::At]
+            .into_iter()
+            .filter(|row| {
+                let (low, high) = self.bounds(*row);
+                self.value(*row).is_some_and(|value| !(low..=high).contains(&value))
             })
-            .inner;
-        // Lines are the value as typed; points go through the unit.
-        let to_value = |v: f64| unit.map_or(v as f32, |unit| in_points(v, unit));
-        LengthEdit { event: edit.event.map(|event| event.map(|v| v.map(to_value))), rejected: rejected.get() }
-    }
-
-    /// Applies a field's event to its row's value through the row's draft, and refuses OK while
-    /// the field's text is rejected.
-    pub(super) fn edit(&mut self, row: Row, edit: LengthEdit, valid: &Cell<bool>) {
-        if edit.rejected {
-            valid.set(false);
-        }
-        let Some(event) = edit.event else { return };
-
-        let mut value = self.value(row);
-        self.drafts[row as usize].apply(&mut value, event);
-        self.set_value(row, value);
+            .collect()
     }
 
     fn value(&self, row: Row) -> Option<f32> {
@@ -485,202 +425,317 @@ impl ParagraphDialog {
         }
     }
 
-    fn body(&mut self, ui: &mut Ui, labels: &ParagraphDialogLabels, numbers: &LocaleNumbers, valid: &Cell<bool>) {
+    /// Applies a field's event, in points or lines, to the row's value: every `Update` shows in the dialog, and
+    /// Escape (`Cancel`) restores the value from before the gesture.
+    fn apply(&mut self, row: Row, event: &EditEvent<Option<f32>>) {
+        let mut value = self.value(row).map_or(Mixed::Mixed, |value| Mixed::Same(Some(value)));
+        event.apply_mixed(&mut value);
+        self.set_value(row, value.same().copied().flatten());
+    }
+
+    /// The message beside a field whose value is out of range, its bounds in the locale's digits.
+    fn message(&self, scope: &Scope<'_>, row: Row, caption: &str) -> String {
+        let (low, high) = self.bounds(row);
+        let show = |bound: f32| match self.count(row) {
+            Count::Length(unit) => scope.units.show(unit.kind, unit.shown(f64::from(bound), scope.units.points_per_inch())),
+            Count::Lines => scope.units.number(f64::from(bound), 0..=AT_DECIMALS),
+        };
+        scope.words.out_of_range.fill(&[("field", caption), ("min", &show(low)), ("max", &show(high))])
+    }
+
+    /// One number field of the form, under `caption`: edits go to the row's value; a rejected text or an out of range
+    /// value makes `valid` false.
+    fn field(&mut self, ui: &mut Ui, scope: &Scope<'_>, row: Row, caption: &Label, valid: &Cell<bool>) {
+        let count = self.count(row);
+        let (low, high) = self.bounds(row);
+        let enabled = self.enabled(row);
+        let shown = self.value(row).map_or(Mixed::Mixed, |value| Mixed::Same(Some(f64::from(value))));
+        let mut field = Field::new(caption.clone());
+        if self.out_of_range().contains(&row) {
+            field = field.help(Help::Status(Tone::Bad, self.message(scope, row, caption.as_str()).into()));
+        }
+        let units = scope.units;
+        let shown_field = field.show(ui, |ui, _| {
+            let out = match count {
+                Count::Length(unit) => length_field(units, caption.clone(), unit, shown, f64::from(low)..=f64::from(high)).enabled(enabled).show(ui),
+                Count::Lines => {
+                    // No range: a number typed here replaces the lines with points, whatever it is.
+                    let codec = NumberCodec::new(units.reader(None), AT_DECIMALS);
+                    NumberField::new(caption.clone(), Bind::given(shown)).codec(codec).enabled(enabled).show(ui)
+                }
+            };
+            (out.edit.event, out.edit.unparsed)
+        });
+        let Some((event, unparsed)) = shown_field.inner else { return };
+        if unparsed {
+            valid.set(false);
+        }
+        let Some(event) = event else { return };
+        let event = match count {
+            Count::Length(unit) => length_edit(units, unit, event),
+            Count::Lines => event,
+        };
+        self.apply(row, &event.map(|value| value.map(|value| value as f32)));
+    }
+
+    fn body(&mut self, ui: &mut Ui, scope: &Scope<'_>, valid: &Cell<bool>) {
+        let words = scope.words;
         valid.set(true);
-        let unit = self.unit;
-        let gap = ui.spacing().item_spacing.y;
-        FieldGroup::new("paragraph-fields").show(ui, |ui| {
-            GroupBox::new(labels.general.as_str()).show(ui, |ui| self.alignment(ui, labels));
-            ui.add_space(gap);
-            GroupBox::new(labels.indentation.as_str()).show(ui, |ui| self.indentation(ui, labels, numbers, unit, valid));
-            ui.add_space(gap);
-            GroupBox::new(labels.spacing.as_str()).show(ui, |ui| self.spacing(ui, labels, numbers, valid));
-            ui.add_space(gap);
-            GroupBox::new(labels.preview.as_str()).show(ui, |ui| self.preview(ui, labels));
+        FieldGroup::new(words.title.clone()).show(ui, |ui, _| {
+            GroupBox::new(words.general.clone(), None).show(ui, |ui, _| self.alignment(ui, words));
+            GroupBox::new(words.indentation.clone(), None).show(ui, |ui, _| self.indentation(ui, scope, valid));
+            GroupBox::new(words.spacing.clone(), None).show(ui, |ui, _| self.spacing(ui, scope, valid));
+            GroupBox::new(words.preview.clone(), None).show(ui, |ui, _| {
+                ParagraphPreview::new(words.preview.clone(), &self.format, words.sample.as_str()).show(ui);
+            });
         });
         if !self.out_of_range().is_empty() {
             valid.set(false);
         }
     }
 
-    fn alignment(&mut self, ui: &mut Ui, labels: &ParagraphDialogLabels) {
-        let mut align = self.format.align;
-        Field::new(labels.alignment.as_str()).show(ui, |ui, _| {
-            let mut select = Select::new(("paragraph", "align"), labels.alignment.as_str(), &mut align).placeholder("");
-            let every = [
-                (ParagraphAlign::Left, &labels.left),
-                (ParagraphAlign::Center, &labels.center),
-                (ParagraphAlign::Right, &labels.right),
-                (ParagraphAlign::Justify, &labels.justify),
-                (ParagraphAlign::JustifyLow, &labels.justify_low),
-                (ParagraphAlign::Distributed, &labels.distributed),
-            ];
-            for (value, text) in every {
+    fn alignment(&mut self, ui: &mut Ui, words: &ParagraphDialogWords) {
+        let every = [
+            (ParagraphAlign::Left, &words.left),
+            (ParagraphAlign::Center, &words.center),
+            (ParagraphAlign::Right, &words.right),
+            (ParagraphAlign::Justify, &words.justify),
+            (ParagraphAlign::JustifyLow, &words.justify_low),
+            (ParagraphAlign::Distributed, &words.distributed),
+        ];
+        let entries: Vec<Entry<ParagraphAlign>> = every
+            .into_iter()
+            .filter(|(value, _)| {
                 let word_only = matches!(value, ParagraphAlign::JustifyLow | ParagraphAlign::Distributed);
-                if !self.word || !word_only || self.format.align == Some(value) {
-                    select = select.option(Some(value), text.as_str());
-                }
-            }
-            select.show(ui)
-        });
-        self.format.align = align;
+                !self.word || !word_only || self.format.align == Some(*value)
+            })
+            .map(|(value, text)| Entry::new(value, text.clone()))
+            .collect();
+        let current = self.format.align.map_or(Mixed::Mixed, Mixed::Same);
+        let picked = Field::new(words.alignment.clone())
+            .show(ui, |ui, _| Select::new(words.alignment.clone(), Bind::given(current), &entries).show(ui).value().copied())
+            .inner
+            .flatten();
+        if let Some(align) = picked {
+            self.format.align = Some(align);
+        }
     }
 
-    fn indentation(&mut self, ui: &mut Ui, labels: &ParagraphDialogLabels, numbers: &LocaleNumbers, unit: LengthUnit, valid: &Cell<bool>) {
-        let indent = (-MAX_POINTS, MAX_POINTS);
-        let before = self.format.before_text;
-        let edit = self.length_field(ui, labels, numbers, "before", &labels.before_text, before, Some(unit), indent, true, Row::BeforeText);
-        self.edit(Row::BeforeText, edit, valid);
-        if let Some(after) = self.format.after_text {
-            let edit = self.length_field(ui, labels, numbers, "after", &labels.after_text, after, Some(unit), indent, true, Row::AfterText);
-            self.edit(Row::AfterText, edit, valid);
+    fn indentation(&mut self, ui: &mut Ui, scope: &Scope<'_>, valid: &Cell<bool>) {
+        let words = scope.words;
+        self.field(ui, scope, Row::BeforeText, &words.before_text, valid);
+        if self.format.after_text.is_some() {
+            self.field(ui, scope, Row::AfterText, &words.after_text, valid);
         }
-        let mut special = self.format.special;
-        Field::new(labels.special.as_str()).show(ui, |ui, _| {
-            Select::new(("paragraph", "special"), labels.special.as_str(), &mut special)
-                .placeholder("")
-                .option(Some(SpecialIndent::None), labels.special_none.as_str())
-                .option(Some(SpecialIndent::FirstLine), labels.first_line.as_str())
-                .option(Some(SpecialIndent::Hanging), labels.hanging.as_str())
-                .show(ui)
-        });
-        if special != self.format.special {
-            self.format.special = special;
-            if matches!(special, Some(SpecialIndent::FirstLine | SpecialIndent::Hanging)) && self.format.by.is_none_or(|by| by == 0.0) {
+        let entries = [
+            Entry::new(SpecialIndent::None, words.special_none.clone()),
+            Entry::new(SpecialIndent::FirstLine, words.first_line.clone()),
+            Entry::new(SpecialIndent::Hanging, words.hanging.clone()),
+        ];
+        let current = self.format.special.map_or(Mixed::Mixed, Mixed::Same);
+        let picked = Field::new(words.special.clone())
+            .show(ui, |ui, _| Select::new(words.special.clone(), Bind::given(current), &entries).show(ui).value().copied())
+            .inner
+            .flatten();
+        if let Some(special) = picked.filter(|special| Some(*special) != self.format.special) {
+            self.format.special = Some(special);
+            if matches!(special, SpecialIndent::FirstLine | SpecialIndent::Hanging) && self.format.by.is_none_or(|by| by == 0.0) {
                 self.format.by = Some(DEFAULT_BY);
             }
         }
-        let by_enabled = matches!(self.format.special, Some(SpecialIndent::FirstLine | SpecialIndent::Hanging));
-        let by = self.format.by;
-        let edit = self.length_field(ui, labels, numbers, "by", &labels.by, by, Some(unit), (0.0, MAX_POINTS), by_enabled, Row::By);
-        self.edit(Row::By, edit, valid);
+        self.field(ui, scope, Row::By, &words.by, valid);
     }
 
-    fn spacing(&mut self, ui: &mut Ui, labels: &ParagraphDialogLabels, numbers: &LocaleNumbers, valid: &Cell<bool>) {
-        let (before, after) = (self.format.space_before, self.format.space_after);
-        let (kind_before, kind_after) = (self.format.space_before_kind, self.format.space_after_kind);
-        let unit_of = |kind| (kind == SpacingKind::Points).then_some(LengthUnit::Points);
-        let edit = self.length_field(
-            ui,
-            labels,
-            numbers,
-            "space-before",
-            &labels.spacing_before,
-            before,
-            unit_of(kind_before),
-            spacing_bounds(kind_before),
-            true,
-            Row::SpaceBefore,
-        );
-        self.edit(Row::SpaceBefore, edit, valid);
-        let edit = self.length_field(
-            ui,
-            labels,
-            numbers,
-            "space-after",
-            &labels.spacing_after,
-            after,
-            unit_of(kind_after),
-            spacing_bounds(kind_after),
-            true,
-            Row::SpaceAfter,
-        );
-        self.edit(Row::SpaceAfter, edit, valid);
+    fn spacing(&mut self, ui: &mut Ui, scope: &Scope<'_>, valid: &Cell<bool>) {
+        let words = scope.words;
+        self.field(ui, scope, Row::SpaceBefore, &words.spacing_before, valid);
+        self.field(ui, scope, Row::SpaceAfter, &words.spacing_after, valid);
 
-        let mut preset = self.format.line_spacing.map(LinePreset::of);
-        let at_least = self.word || preset == Some(LinePreset::AtLeast);
-        Field::new(labels.line_spacing.as_str()).show(ui, |ui, _| {
-            let mut select = Select::new(("paragraph", "line"), labels.line_spacing.as_str(), &mut preset)
-                .placeholder("")
-                .option(Some(LinePreset::Single), labels.single.as_str())
-                .option(Some(LinePreset::OneAndHalf), labels.one_and_half.as_str())
-                .option(Some(LinePreset::Double), labels.double.as_str())
-                .option(Some(LinePreset::Multiple), labels.multiple.as_str());
-            if at_least {
-                select = select.option(Some(LinePreset::AtLeast), labels.at_least.as_str());
-            }
-            select.option(Some(LinePreset::Exactly), labels.exactly.as_str()).show(ui)
-        });
-        if let Some(chosen) = preset.filter(|p| Some(*p) != self.format.line_spacing.map(LinePreset::of)) {
+        let current = self.format.line_spacing.map(LinePreset::of);
+        let mut entries = vec![
+            Entry::new(LinePreset::Single, words.single.clone()),
+            Entry::new(LinePreset::OneAndHalf, words.one_and_half.clone()),
+            Entry::new(LinePreset::Double, words.double.clone()),
+            Entry::new(LinePreset::Multiple, words.multiple.clone()),
+        ];
+        if self.word || current == Some(LinePreset::AtLeast) {
+            entries.push(Entry::new(LinePreset::AtLeast, words.at_least.clone()));
+        }
+        entries.push(Entry::new(LinePreset::Exactly, words.exactly.clone()));
+        let picked = Field::new(words.line_spacing.clone())
+            .show(ui, |ui, _| {
+                Select::new(words.line_spacing.clone(), Bind::given(current.map_or(Mixed::Mixed, Mixed::Same)), &entries).show(ui).value().copied()
+            })
+            .inner
+            .flatten();
+        if let Some(chosen) = picked.filter(|chosen| Some(*chosen) != current) {
             self.format.line_spacing = Some(chosen.choose(self.format.line_spacing));
         }
 
-        let current = self.format.line_spacing;
-        let (lo, hi) = current.map_or((0.0, MAX_POINTS), at_bounds);
-        let invalid = self.out_of_range().contains(&Row::At);
-        let in_lines = matches!(current, Some(LineSpacing::Multiple(_)));
-        let error = invalid.then(|| self.message(labels, numbers, &Units::of(ui), &labels.at, (lo, hi), (!in_lines).then_some(LengthUnit::Points)));
-        let shown = current.map_or(f64::NAN, |l| f64::from(at_value(l)));
-        let rejected = Cell::new(false);
-        let edit = Field::new(labels.at.as_str())
-            .error(error)
-            .show(ui, |ui, invalid| {
-                let mut field = NumberField::new(("paragraph", "at"), labels.at.as_str(), shown, numbers)
-                    .range(f64::from(lo)..=f64::from(hi))
-                    .decimals(0..=AT_DECIMALS);
-                if !in_lines {
-                    field = field.unit_kind(UnitKind::Points);
-                }
-                let output = field.enabled(current.is_some()).invalid(invalid).show_optional_full(ui);
-                rejected.set(output.rejected);
-                output.edit
-            })
-            .inner;
-        let event = edit.event.map(|event| event.map(|v| v.map(|v| v as f32)));
-        self.edit(Row::At, LengthEdit { event, rejected: rejected.get() }, valid);
+        self.field(ui, scope, Row::At, &words.at, valid);
     }
 
-    fn preview(&self, ui: &mut Ui, labels: &ParagraphDialogLabels) {
-        let tokens = Tokens::of(ui);
-        let font = egui::TextStyle::Body.resolve(ui.style());
-        let sample = labels.sample.as_str();
-        let (subject, context) = (Content::Normal.color(&tokens).to_egui(), Content::Muted.color(&tokens).to_egui());
-        Surface::new(SurfaceKind::Sunken).show(ui, |ui| {
-            let width = ui.available_width();
-            let one = ui.painter().layout_no_wrap(sample.to_owned(), font.clone(), subject);
-            let plan = sample_plan(&self.format, width, one.size().y);
-            let (rect, response) = ui.allocate_exact_size(vec2(width, plan.height), Sense::hover());
-            response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Label, true, labels.preview.as_str()));
-            let painter = ui.painter().with_clip_rect(rect);
-            for row in &plan.rows {
-                let color = if row.subject { subject } else { context };
-                let slot = row.rect.translate(rect.min.to_vec2());
-                let text = if row.full { format!("{sample} ").repeat((slot.width() / one.size().x).ceil() as usize + 1) } else { sample.to_owned() };
-                let galley = painter.layout_no_wrap(text, font.clone(), color);
-                let x = match row.last_align {
-                    ParagraphAlign::Center if !row.full => slot.center().x - galley.size().x / 2.0,
-                    ParagraphAlign::Right if !row.full => slot.right() - galley.size().x,
-                    _ => slot.left(),
-                };
-                painter.with_clip_rect(slot.intersect(rect)).galley(pos2(x, slot.top()), galley, color);
-            }
-        });
+    fn answer(&self, open_tabs: bool) -> ParagraphAnswer {
+        ParagraphAnswer { format: self.format.clone(), open_tabs }
+    }
+}
+
+impl StackDialog for ParagraphDialog {
+    type Result = ParagraphAnswer;
+
+    fn id(&self) -> DialogId {
+        dialog_id("paragraph")
+    }
+
+    fn show(&mut self, ui: &mut Ui, _: &DialogStack) -> Option<DialogResult<ParagraphAnswer>> {
+        let env = Env::of(ui);
+        let words = env.words::<ParagraphDialogWords>();
+        let common = env.words::<CommonWords>();
+        let units = env.units();
+        let scope = Scope { words: &words, units: &units };
+        let valid = Cell::new(self.out_of_range().is_empty());
+        let buttons = [
+            FooterButton::new(common.ok.clone(), DialogRole::Accept),
+            FooterButton::new(common.cancel.clone(), DialogRole::Cancel),
+            FooterButton::new(words.tabs.clone(), DialogRole::Other),
+        ];
+        let shown = Dialog::new(words.title.clone())
+            .buttons(buttons)
+            .settle_buttons(|_, buttons| {
+                for (at, button) in buttons.iter_mut().enumerate() {
+                    if at != CANCEL {
+                        button.set_enabled(valid.get());
+                    }
+                }
+            })
+            .show(ui, |ui, _| self.body(ui, &scope, &valid));
+        let tabs = shown.output.picked == Some(TABS);
+        match shown.output.result(|| tabs) {
+            Some(DialogResult::Ok(open_tabs)) if valid.get() => Some(DialogResult::Ok(self.answer(open_tabs))),
+            Some(DialogResult::Cancel) => Some(DialogResult::Cancel),
+            _ => None,
+        }
+    }
+
+    fn confirm(&mut self, _: &egui::Context) -> Option<ParagraphAnswer> {
+        self.out_of_range().is_empty().then(|| self.answer(false))
+    }
+}
+
+/// The preview's style: a sunken well holding the sample lines, the paragraph being edited in the text colour and the
+/// ones around it muted.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+#[non_exhaustive]
+pub struct ParagraphPreviewStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+    /// The edited paragraph's lines.
+    subject: StyleColor,
+    /// The lines around it.
+    context: StyleColor,
+    /// Between the well's edge and the lines.
+    pad: f32,
+}
+
+/// The paragraph preview: three sample paragraphs laid out with the format's indents, spacing and line spacing, as
+/// Word's dialog draws them. The width is the room offered; the height follows from the lines.
+#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
+pub struct ParagraphPreview {
+    #[common]
+    common: Common,
+    format: ParagraphFormat,
+    sample: String,
+}
+
+impl ParagraphPreview {
+    /// A preview named `label` of `format`, its lines made of `sample`.
+    pub fn new(label: impl Into<Label>, format: &ParagraphFormat, sample: impl Into<String>) -> Self {
+        ParagraphPreview { common: Common::new(), format: format.clone(), sample: sample.into() }.label(label)
+    }
+}
+
+impl Component for ParagraphPreview {
+    const ROLE: Role = Role::IMAGE;
+    const OVERLAYS: bool = false;
+    type Style = ParagraphPreviewStyle;
+    type Output = Response;
+
+    fn style(cx: &StyleCx<'_>, _: ParagraphPreviewStyleKey) -> ParagraphPreviewStyle {
+        let colors = &cx.tokens.color;
+        ParagraphPreviewStyle {
+            metrics: Metrics::new(),
+            subject: cx.color(colors.text.normal),
+            context: cx.color(colors.text.muted),
+            pad: cx.tokens.space.gap.row,
+        }
+    }
+
+    fn fills(&self) -> Option<Axis> {
+        Some(Axis::X)
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        let one = cx.layout(&TextRun::new(self.sample.as_str()).role(TypeRole::Body)).size();
+        let pad = cx.style.pad;
+        let width = cx.room.filter(|room| room.is_finite()).unwrap_or(one.x * PREVIEW_SAMPLES);
+        let plan = sample_plan(&self.format, (width - 2.0 * pad).max(0.0), one.y);
+        Vec2::new(width, plan.height + 2.0 * pad)
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let style = cx.style;
+        let draw = ui.draw();
+        draw.surface(cx.rect, SurfaceKind::Sunken, Corners::All);
+        let inner = cx.rect.shrink(style.pad);
+        let run = |text: String, color: StyleColor| TextRun::new(text).role(TypeRole::Body).color(color);
+        let one = draw.layout(&run(self.sample.clone(), style.subject), f32::INFINITY).size();
+        let plan = sample_plan(&self.format, inner.width(), one.y);
+        for row in &plan.rows {
+            let slot = row.rect.translate(inner.min.to_vec2());
+            let color = if row.subject { style.subject } else { style.context };
+            let text =
+                if row.full { format!("{} ", self.sample).repeat((slot.width() / one.x.max(1.0)).ceil() as usize + 1) } else { self.sample.clone() };
+            let x = match row.last_align {
+                ParagraphAlign::Center if !row.full => slot.center().x - one.x / 2.0,
+                ParagraphAlign::Right if !row.full => slot.right() - one.x,
+                _ => slot.left(),
+            };
+            let at = Rect::from_min_size(pos2(x, slot.top()), vec2((slot.right() - x).max(one.x), slot.height()));
+            draw.clipped(slot.intersect(inner), |draw| {
+                draw.text(at, &run(text, color));
+            });
+        }
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
     }
 }
 
 /// One line of the preview.
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct SampleRow {
+struct SampleRow {
     /// The line's room, relative to the preview's corner.
-    pub(super) rect: Rect,
+    rect: Rect,
     /// Whether the line belongs to the paragraph being edited.
-    pub(super) subject: bool,
+    subject: bool,
     /// Whether the line is full (not the last of its paragraph, or a distributed last line).
-    pub(super) full: bool,
+    full: bool,
     /// Where a short line sits.
-    pub(super) last_align: ParagraphAlign,
+    last_align: ParagraphAlign,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct SamplePlan {
-    pub(super) rows: Vec<SampleRow>,
-    pub(super) height: f32,
+struct SamplePlan {
+    rows: Vec<SampleRow>,
+    height: f32,
 }
 
-/// The preview's lines for `format` in a box `width` wide, `row_height` being one line of text:
-/// a paragraph before and after in the default format, and the edited one between. Fields that
-/// differ among the paragraphs (`None`) take the default.
-pub(super) fn sample_plan(format: &ParagraphFormat, width: f32, row_height: f32) -> SamplePlan {
+/// The preview's lines for `format` in a box `width` wide, `row_height` being one line of text: a paragraph before
+/// and after in the default format, and the edited one between. Fields that differ among the paragraphs (`None`) take
+/// the default.
+fn sample_plan(format: &ParagraphFormat, width: f32, row_height: f32) -> SamplePlan {
+    let width = width.max(0.0);
     let plain = ParagraphFormat::default();
     let mut rows = Vec::new();
     let mut y = 0.0_f32;
@@ -715,38 +770,4 @@ pub(super) fn sample_plan(format: &ParagraphFormat, width: f32, row_height: f32)
         y += f.space_after.unwrap_or(0.0);
     }
     SamplePlan { rows, height: y }
-}
-
-impl StackDialog for ParagraphDialog {
-    type Result = ParagraphAnswer;
-
-    fn id(&self) -> DialogId {
-        craft_ui::dialog::dialog_id("paragraph")
-    }
-
-    // deckcraft: crates/ui-egui/src/dialogs/paragraph.rs:57 `paragraph_dialog`, :3
-    // `seed_paragraph_fields`, :17 `paragraph_return_params`, :43 `line_preset_label`.
-    fn show(&mut self, ctx: &Context, stack: &DialogStack) -> Option<DialogResult<ParagraphAnswer>> {
-        let labels = self.labels.clone().unwrap_or_else(|| ParagraphDialogLabels::of_ctx(ctx));
-        let numbers = LocaleNumbers::of_ctx(ctx);
-        let valid = Cell::new(self.out_of_range().is_empty());
-        let footer = Footer::side().extra(labels.tabs.as_str()).ok_enabled_with(|| valid.get());
-        let mut state = std::mem::take(&mut self.state);
-        let shown = Dialog::with_id(self.id(), labels.title.as_str())
-            .stack(stack)
-            .width(Width::Standard)
-            .initial_focus(InitialFocus::FirstField)
-            .footer(footer)
-            .show(ctx, &mut state, &mut (), |ui, ()| self.body(ui, &labels, &numbers, &valid));
-        self.state = state;
-        let answer = |open_tabs| ParagraphAnswer { format: self.format.clone(), open_tabs };
-        if shown.extra.is_some() && valid.get() {
-            return Some(DialogResult::Ok(answer(true)));
-        }
-        match shown.outcome {
-            Some(Outcome::Ok) if valid.get() => Some(DialogResult::Ok(answer(false))),
-            Some(Outcome::Cancel | Outcome::Close) => Some(DialogResult::Cancel),
-            _ => None,
-        }
-    }
 }

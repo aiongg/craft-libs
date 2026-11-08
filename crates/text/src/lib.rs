@@ -11,7 +11,7 @@
 //!   Thai, Lao, Khmer and Burmese with their language features.
 //! - [`bidi`] (default): bidirectional text (UAX #9): embedding levels, line reordering and
 //!   mirroring.
-//! - [`linebreak`] (default): line breaking on a font-independent box/glue/penalty model.
+//! - [`linebreak`]: line breaking on a font-independent box/glue/penalty model.
 //! - [`spell`]: spelling, with a bundled US English word list and suggestions.
 //! - [`quotes`]: smart quotes, the straight quotes typed into text turned into the language's own.
 //! - [`find`]: find and replace patterns (Acrobat's and Word's options, Word's codes and
@@ -36,7 +36,6 @@ pub mod find;
 mod find_tests;
 #[cfg(feature = "hyphen")]
 pub mod hyphen;
-#[cfg(feature = "linebreak")]
 pub mod linebreak;
 pub mod lists;
 #[cfg(test)]
@@ -55,3 +54,9 @@ pub mod styles;
 mod styles_tests;
 #[cfg(feature = "ui")]
 pub mod ui;
+
+/// The stories and trials of the crate's UI, registered in craft-ui's registry.
+#[cfg(feature = "screen-testing")]
+pub mod testing {
+    craft_ui::testing_registered!();
+}

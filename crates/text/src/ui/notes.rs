@@ -1,48 +1,113 @@
-//! [`NotesEditor`] (N3.18): a multi-line rich-text box for speaker or page notes (PowerPoint's
-//! Notes pane): the notes' bold, italic, underline and colour runs drawn while editing, bullets
-//! and numbers at each paragraph's start with wrapped lines under the text, not under the bullet;
-//! typing keeps the formatting around the caret. [`NotesView`] draws the same notes read-only and
-//! selectable (the presenter's notes pane).
+//! [`NotesEditor`] (N3.18): a multi-line rich-text box for speaker or page notes (PowerPoint's Notes pane): the
+//! notes' bold, italic, underline and colour runs drawn while editing, bullets and numbers at each paragraph's start
+//! with wrapped lines under the text, not under the bullet; typing keeps the formatting around the caret. Read-only,
+//! the same component is the presenter's notes pane.
 //!
 //! The notes are the app's; [`NotesText`] is the shape the editor reads and writes.
 
-use std::cell::RefCell;
-use std::sync::Arc;
+#[cfg(feature = "screen-testing")]
+mod stories;
 
-use craft_theme::TypeRole;
-use craft_ui::controls::TextField;
-use craft_ui::edit::EditEvent;
-use craft_ui::localized::Labels as _;
-use craft_ui::primitives::Content;
-use craft_ui::theme::{StrokeExt as _, ToEgui as _, Tokens, TokensOf as _, UiTokens, scale};
-use egui::text::{CCursor, LayoutJob, TextFormat};
-use egui::{Align2, Color32, FontId, Galley, Label, Pos2, Response, Ui, WidgetText, vec2};
+use std::ops::Range;
 
+use craft_behavior::{EditCommand, EditorInput, Granularity, Metrics, NavMove, Sense, TextPos};
+use craft_ui::contract::{
+    Animate as _, Commands as _, Common, Component, Cx, Focus as _, MeasureCx, NoValue, Outcome, PaintUi, PartsCx, Props as _, Remember as _, Role,
+    WordSetCx as _,
+};
+use craft_ui::fonts::FontRef;
+use craft_ui::primitives::{DocRun, DocText, EditorLine, EditorPurpose, EditorRun, EditorState};
+use craft_ui::runtime::commands::ClipItem;
+use craft_ui::runtime::env::Label;
+use craft_ui::runtime::focus::KeyUse;
+use craft_ui::runtime::pending::Pending;
+use craft_ui::style::{ComponentStyle, DataColor, StyleColor, StyleCx};
+use egui::{Color32, Pos2, Rect, Response, Stroke, Vec2};
+
+use super::editor::word_boundary;
 use crate::lists::{ListMarker, ListParagraph, line_starts, markers};
 
 /// The largest indent, points.
 const MAX_INDENT: f32 = 400.0;
+/// The columns and lines the editor measures when nothing else sizes it.
+const MIN_COLUMNS: f32 = 24.0;
+const MIN_LINES: f32 = 4.0;
+/// A text row's height as a share of the text size.
+const LINE_HEIGHT_SHARE: f32 = 1.3;
+
+craft_ui::words! {
+    /// The notes pane's words (PowerPoint's).
+    #[non_exhaustive]
+    pub struct NotesLabels {
+        notes: "notes.notes" = "Notes";
+        placeholder: "notes.placeholder" = "Click to add notes";
+    }
+}
 
 /// A run of notes text with its formatting.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct NotesRun {
     /// The run's text.
     pub text: String,
-    #[allow(missing_docs)]
+    /// Bold.
     pub bold: bool,
-    #[allow(missing_docs)]
+    /// Italic.
     pub italic: bool,
-    #[allow(missing_docs)]
+    /// Underline.
     pub underline: bool,
-    #[allow(missing_docs)]
+    /// Strikethrough.
     pub strikethrough: bool,
     /// `None`: the editor's text colour.
     pub color: Option<Color32>,
 }
 
+impl NotesRun {
+    /// A plain run of `text`.
+    pub fn new(text: impl Into<String>) -> Self {
+        NotesRun { text: text.into(), ..NotesRun::default() }
+    }
+
+    /// The run bold (`on`) or not.
+    #[must_use]
+    pub fn bold(mut self, on: bool) -> Self {
+        self.bold = on;
+        self
+    }
+
+    /// The run italic (`on`) or not.
+    #[must_use]
+    pub fn italic(mut self, on: bool) -> Self {
+        self.italic = on;
+        self
+    }
+
+    /// The run underlined (`on`) or not.
+    #[must_use]
+    pub fn underline(mut self, on: bool) -> Self {
+        self.underline = on;
+        self
+    }
+
+    /// The run struck through (`on`) or not.
+    #[must_use]
+    pub fn strikethrough(mut self, on: bool) -> Self {
+        self.strikethrough = on;
+        self
+    }
+
+    /// The run in `color` (`None`: the editor's text colour).
+    #[must_use]
+    pub fn color(mut self, color: Option<Color32>) -> Self {
+        self.color = color;
+        self
+    }
+}
+
 /// One paragraph: its runs, list level and marker, and its margins (points; `None` takes
 /// [`crate::lists::LEVEL_INDENT`] per level).
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct NotesParagraph {
     /// The runs of the paragraph, in order.
     pub runs: Vec<NotesRun>,
@@ -56,16 +121,45 @@ pub struct NotesParagraph {
     pub indent: Option<f64>,
 }
 
+impl NotesParagraph {
+    /// A paragraph of `runs`, at level 0 without a list marker.
+    pub fn new(runs: Vec<NotesRun>) -> Self {
+        NotesParagraph { runs, ..NotesParagraph::default() }
+    }
+
+    /// The paragraph at list `level`, with `marker` if it is a list item.
+    #[must_use]
+    pub fn list(mut self, level: u8, marker: Option<ListMarker>) -> Self {
+        self.level = level;
+        self.marker = marker;
+        self
+    }
+
+    /// The start-edge `margin` of the lines after the first and the first-line `indent`, in points.
+    #[must_use]
+    pub fn margins(mut self, margin: Option<f64>, indent: Option<f64>) -> Self {
+        self.margin = margin;
+        self.indent = indent;
+        self
+    }
+}
+
 /// The notes as the editor sees them.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct NotesText {
     /// The paragraphs, in order.
     pub paragraphs: Vec<NotesParagraph>,
 }
 
 impl NotesText {
+    /// Notes of `paragraphs`.
+    pub fn new(paragraphs: Vec<NotesParagraph>) -> Self {
+        NotesText { paragraphs }
+    }
+
     /// Plain paragraphs, one per line of `text`.
-    fn from_plain(text: &str) -> NotesText {
+    pub(super) fn from_plain(text: &str) -> NotesText {
         let paragraph = |line: &str| NotesParagraph {
             runs: if line.is_empty() { Vec::new() } else { vec![NotesRun { text: line.to_owned(), ..NotesRun::default() }] },
             ..NotesParagraph::default()
@@ -85,7 +179,6 @@ impl NotesText {
     /// its runs and paragraph settings, and the new text takes the formatting where it lands.
     /// Line endings in `text` are read as `\n` first. `None` when the two share no prefix and no
     /// suffix: the app then replaces the notes with plain paragraphs.
-    // deckcraft: crates/model/src/edit.rs:420 `replace_text` (via `panels/notes.rs:41` `typed`).
     pub fn typed(&self, text: &str) -> Option<NotesText> {
         let old: Vec<char> = self.plain().chars().collect();
         let new: Vec<char> = text.replace("\r\n", "\n").replace('\r', "\n").chars().collect();
@@ -185,286 +278,454 @@ impl Flat {
 
 /// What the editor did this pass.
 #[derive(Debug)]
-pub struct NotesResponse {
-    /// The notes changed: the app stores them (one undo step per typing run, as text fields).
-    pub changed: Option<NotesText>,
-    #[allow(missing_docs)]
+#[non_exhaustive]
+pub struct NotesEditorOutput {
+    /// The editor's response.
     pub response: Response,
+    /// The notes changed this pass: the app stores them (one undo step per typing run).
+    pub changed: bool,
+}
+
+impl Outcome for NotesEditorOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// The notes' look: the body type at the pane's zoom, the text and caret colours and the selection fill. Indents are
+/// in document points and scale with the text size.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+#[non_exhaustive]
+pub struct NotesEditorStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+    /// The text colour.
+    ink: StyleColor,
+    /// The selection fill.
+    selection: StyleColor,
+    /// The size of the body text, points.
+    body_size: f32,
+    /// The size of the notes' default text in document points: indents scale as `body_size / points`.
+    points: f32,
+    /// The largest indent, points.
+    max_indent: f32,
+    /// The caret's width, as a share of the text size.
+    caret_share: f32,
+}
+
+/// The position of the caret and the selection anchor in chars of [`NotesText::plain`].
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct Cursor {
+    caret: usize,
+    anchor: usize,
+    /// The pass time of the last edit or move: the blink restarts from it.
+    blink_start: f64,
 }
 
 /// The editor, built per pass over the app's notes.
 ///
-/// - Text at the body type role × [`zoom`](NotesEditor::zoom), wrapped to
-///   the width; each paragraph laid out at its indent, its marker
-///   ([`crate::lists::markers`]) drawn at its first line's start.
-/// - An empty editor shows [`NotesLabels::placeholder`]; the editor is named by
-///   [`NotesLabels::notes`].
-/// - Keys and focus are the craft-ui text field's (it is one, multi-line); ⌘/Ctrl-B, -I, -U toggle
-///   the run style at the selection through the app's commands, not here.
+/// - Text at the body type role × [`zoom`](NotesEditor::zoom), wrapped to the width; each paragraph laid out at its
+///   indent, its marker ([`crate::lists::markers`]) drawn at its first line's start.
+/// - An empty editor shows the placeholder; the editor is named by the notes word.
+/// - Read-only (`Props::read_only`) it filters input to what changes no text and is the presenter's view.
+/// - Bold, italic and underline toggles are the app's commands, not the editor's.
+#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
+#[component(content_painter)]
 pub struct NotesEditor<'a> {
-    id_salt: egui::IdSalt,
-    notes: &'a NotesText,
+    #[common]
+    common: Common,
+    notes: &'a mut NotesText,
+    /// The notes pane's zoom (PowerPoint's Zoom of the notes pane), a factor over the body type role's size; 1 by
+    /// default.
+    #[prop(quantity = "zoom factor")]
     zoom: f32,
-    labels: Option<NotesLabels>,
-}
-
-craft_ui::words! {
-    /// The notes pane's words (PowerPoint's).
-    #[non_exhaustive]
-    pub struct NotesLabels {
-        notes: "notes.notes" = "Notes";
-        placeholder: "notes.placeholder" = "Click to add notes";
-    }
+    changed: bool,
 }
 
 impl<'a> NotesEditor<'a> {
-    /// Notes for `notes`, shown at the body size.
-    pub fn new(id_salt: impl egui::AsIdSalt, notes: &'a NotesText) -> Self {
-        NotesEditor { id_salt: egui::IdSalt::new(id_salt), notes, zoom: 1.0, labels: None }
+    /// An editor named `label` over `notes`, shown at the body size.
+    pub fn new(label: impl Into<Label>, notes: &'a mut NotesText) -> Self {
+        NotesEditor { common: Common::new(), notes, zoom: 1.0, changed: false }.label(label)
     }
+}
 
-    /// The notes pane's zoom (PowerPoint's Zoom of the notes pane), a factor over the body type
-    /// role's size; 1 by default.
-    pub fn zoom(mut self, zoom: f32) -> Self {
-        self.zoom = zoom;
-        self
+fn markers_of(notes: &NotesText) -> Vec<Option<String>> {
+    let list: Vec<ListParagraph> = notes
+        .paragraphs
+        .iter()
+        .map(|p| ListParagraph { level: p.level, marker: p.marker.clone(), empty: p.runs.iter().all(|r| r.text.is_empty()) })
+        .collect();
+    markers(&list)
+}
+
+/// The chars of paragraph `at` of `plain`'s lines.
+fn paragraph_range(plain: &str, at: usize) -> Range<usize> {
+    let mut start = 0;
+    for (index, line) in plain.split('\n').enumerate() {
+        let end = start + line.chars().count();
+        if index == at {
+            return start..end;
+        }
+        start = end + 1;
     }
+    start..start
+}
 
-    /// Sets the translated labels; the default reads them from the interface locale.
-    pub fn labels(mut self, labels: NotesLabels) -> Self {
-        self.labels = Some(labels);
-        self
+/// The paragraph holding char `c` and the char's offset within it.
+fn locate(plain: &str, c: usize) -> (usize, usize) {
+    let mut start = 0;
+    for (index, line) in plain.split('\n').enumerate() {
+        let end = start + line.chars().count();
+        if c <= end {
+            return (index, c - start);
+        }
+        start = end + 1;
     }
+    (0, 0)
+}
 
-    // deckcraft: crates/ui-egui/src/panels/notes.rs:189 `editor`, :117 `para_layout`, :143
-    // `job`, :162 `galley`, :215 `paint_bullets`.
-    /// Paints the editor and returns the new notes when the user changed them.
-    pub fn show(self, ui: &mut Ui) -> NotesResponse {
-        let labels = self.labels.clone().unwrap_or_else(|| NotesLabels::of_ctx(ui.ctx()));
-        let look = Look::of(ui, self.zoom);
-        let plain = self.notes.plain();
-        let rows = plain.split('\n').count();
-        // The notes the field's text stands for and their galley, for the markers.
-        let laid: RefCell<Option<(NotesText, Arc<Galley>)>> = RefCell::new(None);
-        let layouter = |ui: &Ui, text: &str, wrap: f32| {
-            let notes = self.notes.typed(text).unwrap_or_else(|| NotesText::from_plain(text));
-            let galley = look.galley(ui, &notes, wrap);
-            *laid.borrow_mut() = Some((notes, galley.clone()));
-            galley
+/// Replaces the chars `range` of `plain` with `with`.
+fn splice(plain: &mut String, range: Range<usize>, with: &str) {
+    let byte = |chars: usize, text: &str| text.char_indices().nth(chars).map_or(text.len(), |(b, _)| b);
+    let (from, to) = (byte(range.start, plain), byte(range.end, plain));
+    plain.replace_range(from..to, with);
+}
+
+impl NotesEditor<'_> {
+    /// Applies one input to the notes' plain text and the cursor; returns whether the text changed.
+    fn apply(&self, plain: &mut String, cursor: &mut Cursor, input: EditorInput, clip: Option<&str>) -> bool {
+        let chars = plain.chars().count();
+        cursor.caret = cursor.caret.min(chars);
+        cursor.anchor = cursor.anchor.min(chars);
+        let selected = cursor.caret.min(cursor.anchor)..cursor.caret.max(cursor.anchor);
+        let insert = |plain: &mut String, cursor: &mut Cursor, text: &str| {
+            let text = text.replace("\r\n", "\n").replace('\r', "\n");
+            splice(plain, selected.clone(), &text);
+            cursor.caret = selected.start + text.chars().count();
+            cursor.anchor = cursor.caret;
+            true
         };
-        let output = TextField::new(self.id_salt, labels.notes.as_str(), &plain)
-            .placeholder(labels.placeholder.as_str())
-            .multiline(rows)
-            .layouter(&layouter)
-            .show_full(ui);
-        let (edit, text_rect) = (output.edit, output.text_rect);
-        let changed = match edit.event.as_ref() {
-            Some(EditEvent::Commit { changed: false, .. }) | None => None,
-            Some(event) => event.value().map(|text| self.notes.typed(text).unwrap_or_else(|| NotesText::from_plain(text))),
-        };
-        if let Some((notes, galley)) = laid.into_inner() {
-            look.paint_markers(&ui.painter().with_clip_rect(edit.response.rect), &notes, &galley, text_rect.min);
+        match input {
+            EditorInput::Text(text) => insert(plain, cursor, &text),
+            EditorInput::Newline => insert(plain, cursor, "\n"),
+            EditorInput::Tab => insert(plain, cursor, "\t"),
+            EditorInput::Edit(EditCommand::Paste) => clip.is_some_and(|text| insert(plain, cursor, text)),
+            EditorInput::Edit(EditCommand::Cut) if !selected.is_empty() => insert(plain, cursor, ""),
+            EditorInput::Edit(EditCommand::SelectAll) => {
+                cursor.anchor = 0;
+                cursor.caret = chars;
+                false
+            }
+            EditorInput::Delete { forward, by, .. } => {
+                let range = if !selected.is_empty() {
+                    selected
+                } else {
+                    let at = cursor.caret;
+                    let to = match (forward, by) {
+                        (false, Granularity::Line | Granularity::Paragraph | Granularity::Document) => {
+                            paragraph_range(plain, locate(plain, at).0).start
+                        }
+                        (false, Granularity::Word) => word_boundary(plain, at, false),
+                        (false, _) => at.saturating_sub(1),
+                        (true, Granularity::Unit) => (at + 1).min(chars),
+                        (true, _) => word_boundary(plain, at, true),
+                    };
+                    to.min(at)..to.max(at)
+                };
+                if range.is_empty() {
+                    return false;
+                }
+                splice(plain, range.clone(), "");
+                cursor.caret = range.start;
+                cursor.anchor = range.start;
+                true
+            }
+            EditorInput::DeleteSurrounding { before, after, .. } => {
+                let (from, to) = (selected.start.saturating_sub(before), (selected.end + after).min(chars));
+                if from == selected.start && to == selected.end {
+                    return false;
+                }
+                splice(plain, selected.end..to, "");
+                splice(plain, from..selected.start, "");
+                cursor.caret = from + selected.len();
+                cursor.anchor = from;
+                true
+            }
+            EditorInput::Move(step, mods) => {
+                let (index, column) = locate(plain, cursor.caret);
+                let to = match step {
+                    NavMove::Back | NavMove::Forward => {
+                        let forward = step == NavMove::Forward;
+                        if mods.by != Granularity::Unit {
+                            word_boundary(plain, cursor.caret, forward)
+                        } else if !selected.is_empty() && !mods.extend {
+                            if forward { selected.end } else { selected.start }
+                        } else if forward {
+                            (cursor.caret + 1).min(chars)
+                        } else {
+                            cursor.caret.saturating_sub(1)
+                        }
+                    }
+                    NavMove::Up | NavMove::Down if matches!(mods.by, Granularity::Paragraph | Granularity::Document) => {
+                        if step == NavMove::Up {
+                            0
+                        } else {
+                            chars
+                        }
+                    }
+                    NavMove::Up | NavMove::Down => {
+                        let paragraphs = plain.split('\n').count();
+                        let target = if step == NavMove::Up { index.checked_sub(1) } else { Some(index + 1).filter(|next| *next < paragraphs) };
+                        target.map_or(cursor.caret, |target| {
+                            let range = paragraph_range(plain, target);
+                            range.start + column.min(range.len())
+                        })
+                    }
+                    NavMove::Start | NavMove::End => {
+                        if mods.by == Granularity::Document {
+                            if step == NavMove::End { chars } else { 0 }
+                        } else {
+                            let range = paragraph_range(plain, index);
+                            if step == NavMove::End { range.end } else { range.start }
+                        }
+                    }
+                    _ => cursor.caret,
+                };
+                cursor.caret = to;
+                if !mods.extend {
+                    cursor.anchor = to;
+                }
+                false
+            }
+            EditorInput::Select { anchor, focus, .. } => {
+                let at = |pos: TextPos| {
+                    let range = paragraph_range(plain, pos.line);
+                    let line: String = plain.chars().skip(range.start).take(range.len()).collect();
+                    range.start + line.get(..pos.byte.min(line.len())).map_or(0, |head| head.chars().count())
+                };
+                cursor.anchor = at(anchor);
+                cursor.caret = at(focus);
+                false
+            }
+            _ => false,
         }
-        NotesResponse { changed, response: edit.response }
     }
 }
 
-/// The notes read-only, wrapped to the width and selectable like a label.
-pub struct NotesView<'a> {
-    id_salt: egui::IdSalt,
-    notes: &'a NotesText,
-    zoom: f32,
-}
+impl Component for NotesEditor<'_> {
+    const ROLE: Role = Role::MULTILINE_TEXT_INPUT;
+    const INPUT: craft_ui::contract::Input = craft_ui::contract::Input::Editor;
+    const KEYS: KeyUse = KeyUse::CODE;
+    type Style = NotesEditorStyle;
+    type Output = NotesEditorOutput;
 
-impl<'a> NotesView<'a> {
-    /// A read-only view of `notes`.
-    pub fn new(id_salt: impl egui::AsIdSalt, notes: &'a NotesText) -> Self {
-        NotesView { id_salt: egui::IdSalt::new(id_salt), notes, zoom: 1.0 }
-    }
-
-    /// A factor over the body type role's size, as [`NotesEditor::zoom`].
-    pub fn zoom(mut self, zoom: f32) -> Self {
-        self.zoom = zoom;
-        self
-    }
-
-    // deckcraft: crates/ui-egui/src/panels/notes.rs:231 `view` (the presenter's read-only notes).
-    /// Paints the notes wrapped to the available width.
-    pub fn show(self, ui: &mut Ui) -> Response {
-        let look = Look::of(ui, self.zoom);
-        let galley = look.galley(ui, self.notes, ui.available_width());
-        ui.push_id(self.id_salt, |ui| {
-            let response = ui.add(Label::new(WidgetText::Galley(galley.clone())).selectable(true));
-            look.paint_markers(ui.painter(), self.notes, &galley, response.rect.min);
-            response
-        })
-        .inner
-    }
-}
-
-/// The notes' type roles and measures, shared by [`NotesEditor`] and [`NotesView`].
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct NotesStyle {
-    /// The type role of the notes' text, and of a bold run.
-    pub body: TypeRole,
-    /// The type role of a bold run.
-    pub strong: TypeRole,
-    /// The size of the notes' default text, points: indents are in points and scale with the text
-    /// size as `size / points` (`typography.caption.size`).
-    pub points: f32,
-    /// The largest indent, points .
-    pub max_indent: f32,
-}
-
-impl NotesStyle {
-    /// The notes' style, from the tokens.
-    pub fn of(tokens: &UiTokens) -> Self {
-        NotesStyle { body: TypeRole::Body, strong: TypeRole::BodyStrong, points: tokens.typography.caption.size, max_indent: MAX_INDENT }
-    }
-}
-
-/// The notes' type and measures: the body role's face at the pane's zoom, document points
-/// scaled with the text size.
-struct Look {
-    max_indent: f64,
-    regular: FontId,
-    strong: FontId,
-    color: Color32,
-    scale: f32,
-    underline: egui::Stroke,
-}
-
-/// One paragraph laid out: its lines start at `margin` and the first line's text at `text` (both
-/// logical pixels from the notes' start edge).
-struct Layout {
-    job: LayoutJob,
-    margin: f32,
-    text: f32,
-}
-
-impl Look {
-    fn of(ui: &Ui, zoom: f32) -> Look {
-        let tokens = Tokens::of(ui);
-        let style = NotesStyle::of(&tokens);
-        let body = tokens.font(style.body);
-        let strong = tokens.font(style.strong);
-        let color = Content::Normal.color(&tokens).to_egui();
-        Look {
-            regular: FontId::new(body.size * zoom, body.family),
-            strong: FontId::new(body.size * zoom, strong.family),
-            color,
-            scale: body.size * zoom / style.points,
-            max_indent: f64::from(style.max_indent),
-            underline: scale::Stroke::W1.egui(ui.ctx(), color),
+    fn style(cx: &StyleCx<'_>, _: NotesEditorStyleKey) -> NotesEditorStyle {
+        NotesEditorStyle {
+            metrics: Metrics::new(),
+            ink: cx.color(cx.tokens.color.text.normal),
+            selection: cx.color(cx.tokens.color.state.text_selection),
+            body_size: cx.tokens.typography.body.size,
+            points: cx.tokens.typography.caption.size,
+            max_indent: MAX_INDENT,
+            caret_share: CARET_SHARE,
         }
     }
 
-    /// A length in points from the file, bounded, in logical pixels.
-    fn indent(&self, points: f64) -> f32 {
-        if points.is_finite() { points.clamp(0.0, self.max_indent) as f32 * self.scale } else { 0.0 }
+    fn sense(&self) -> Sense {
+        Sense::CLICK | Sense::FOCUS | Sense::TAKE_FOCUS
     }
 
-    fn format(&self, run: &NotesRun) -> TextFormat {
-        let color = run.color.unwrap_or(self.color);
-        let mut format = TextFormat::simple(if run.bold { self.strong.clone() } else { self.regular.clone() }, color);
-        format.italics = run.italic;
-        if run.underline {
-            format.underline = egui::Stroke { color, ..self.underline };
-        }
-        if run.strikethrough {
-            format.strikethrough = egui::Stroke { color, ..self.underline };
-        }
-        format
-    }
-
-    fn layout(&self, ui: &Ui, p: &NotesParagraph, marker: Option<&str>, wrap: f32) -> Layout {
-        let (first, margin) = line_starts(p.level, p.margin, p.indent);
-        let points = |v: f64| self.indent(v);
-        let (first, margin) = (points(first), points(margin));
-        let width = |text: &str| ui.painter().layout_no_wrap(text.to_owned(), self.regular.clone(), self.color).size().x;
-        // The text starts at the margin, after the marker and one space if the marker is wider
-        // than the hanging indent.
-        let text = match marker {
-            Some(m) => margin.max(first + width(m) + width(" ")),
-            None => first,
-        };
-        let mut job = LayoutJob::default();
-        job.wrap.max_width = (wrap - margin).max(0.0);
-        let mut lead = (text - margin).max(0.0);
-        for run in p.runs.iter().filter(|r| !r.text.is_empty()) {
-            job.append(&run.text, lead, self.format(run));
-            lead = 0.0;
-        }
-        if job.text.is_empty() {
-            job.append("", 0.0, self.format(&NotesRun::default()));
-        }
-        Layout { job, margin, text }
-    }
-
-    fn markers(notes: &NotesText) -> Vec<Option<String>> {
-        let list: Vec<ListParagraph> = notes
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        let style = cx.style;
+        let size = style.body_size * self.zoom;
+        let width = size * MIN_COLUMNS / 2.0;
+        let room = cx.room.unwrap_or(width);
+        let scale = size / style.points;
+        let font = FontRef::proportional();
+        let ink = DataColor::new(style.ink.egui());
+        let height: f32 = self
+            .notes
             .paragraphs
             .iter()
-            .map(|p| ListParagraph { level: p.level, marker: p.marker.clone(), empty: p.runs.iter().all(|r| r.text.is_empty()) })
-            .collect();
-        markers(&list)
+            .map(|paragraph| {
+                let (_, margin) = line_starts(paragraph.level, paragraph.margin, paragraph.indent);
+                let runs = paragraph_runs(paragraph, &font, size, ink);
+                let mut text = DocText::new(&runs);
+                text.wrap = Some((room - indent(style, margin, scale)).max(0.0));
+                cx.layout_doc(&text).size().y.max(size)
+            })
+            .sum();
+        Vec2::new(width, height.max(size * MIN_LINES * LINE_HEIGHT_SHARE))
     }
 
-    /// The notes laid out paragraph by paragraph, each moved to its indent, so wrapped lines
-    /// line up under the text and not under the marker.
-    fn galley(&self, ui: &Ui, notes: &NotesText, wrap: f32) -> Arc<Galley> {
-        let markers = Self::markers(notes);
-        let layouts: Vec<Layout> = notes.paragraphs.iter().zip(&markers).map(|(p, m)| self.layout(ui, p, m.as_deref(), wrap)).collect();
-        let mut whole = LayoutJob::default();
-        whole.wrap.max_width = wrap;
-        for (i, layout) in layouts.iter().enumerate() {
-            if i > 0 {
-                whole.append("\n", 0.0, self.format(&NotesRun::default()));
-            }
-            for section in &layout.job.sections {
-                if let Some(text) = layout.job.text.get(section.byte_range.start.0..section.byte_range.end.0) {
-                    whole.append(text, section.leading_space, section.format.clone());
-                }
-            }
-        }
-        if layouts.is_empty() {
-            return ui.fonts_mut(|f| f.layout_job(whole));
-        }
-        let parts: Vec<Arc<Galley>> = ui.fonts_mut(|f| {
-            layouts
-                .into_iter()
-                .map(|layout| {
-                    let mut galley = (*f.layout_job(layout.job)).clone();
-                    for (i, row) in galley.rows.iter_mut().enumerate() {
-                        // The first line already holds the gap after a marker; a first line
-                        // hanging left of the margin without one starts there.
-                        row.pos.x += if i == 0 { layout.margin.min(layout.text) } else { layout.margin };
-                    }
-                    Arc::new(galley)
-                })
-                .collect()
-        });
-        Arc::new(Galley::concat(Arc::new(whole), &parts, ui.ctx().pixels_per_point()))
+    fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
+        cx.editor(EDITOR, rect, EditorPurpose::Text);
     }
 
-    /// The markers at the start of each paragraph's first line of `galley` (laid out from
-    /// `notes`), drawn at `origin`.
-    fn paint_markers(&self, painter: &egui::Painter, notes: &NotesText, galley: &Galley, origin: Pos2) {
-        let mut at = 0;
-        for (p, marker) in notes.paragraphs.iter().zip(Self::markers(notes)) {
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        let inputs: Vec<EditorInput> = cx.editor_input().collect();
+        if inputs.is_empty() {
+            return;
+        }
+        let clip = if inputs.iter().any(|input| matches!(input, EditorInput::Edit(EditCommand::Paste))) {
+            match cx.clipboard().paste() {
+                Pending::Ready(content) => content.text.as_ref().map(|text| text.to_string()),
+                _ => None,
+            }
+        } else {
+            None
+        };
+        let now = cx.now();
+        let mut cursor = *cx.memory::<Cursor>();
+        let mut plain = self.notes.plain();
+        let mut copied = None;
+        let mut text_changed = false;
+        for input in inputs {
+            if matches!(input, EditorInput::Edit(EditCommand::Copy | EditCommand::Cut)) {
+                let range = cursor.caret.min(cursor.anchor)..cursor.caret.max(cursor.anchor);
+                copied = Some(plain.chars().skip(range.start).take(range.len()).collect::<String>()).filter(|text| !text.is_empty());
+            }
+            text_changed |= self.apply(&mut plain, &mut cursor, input, clip.as_deref());
+        }
+        if text_changed {
+            *self.notes = self.notes.typed(&plain).unwrap_or_else(|| NotesText::from_plain(&plain));
+            self.changed = true;
+        }
+        cursor.blink_start = now;
+        *cx.memory::<Cursor>() = cursor;
+        if let Some(text) = copied {
+            cx.clipboard().put(&[ClipItem::Text(text.into())]);
+        }
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let painter = ui.content_painter(cx);
+        let style = &cx.style;
+        let area = cx.content_rect;
+        let size = style.body_size * self.zoom;
+        let scale = size / style.points;
+        let ink_color = style.ink.egui();
+        let ink = DataColor::new(ink_color);
+        let cursor = cx.recall::<Cursor>();
+        let plain = self.notes.plain();
+        let chars = plain.chars().count();
+        let selected = cursor.caret.min(cursor.anchor).min(chars)..cursor.caret.max(cursor.anchor).min(chars);
+        let marks = markers_of(self.notes);
+        let font = FontRef::proportional();
+        let caret_width = (size * style.caret_share).max(1.0);
+
+        let mut y = area.top();
+        let mut at = 0usize;
+        let mut editor_lines: Vec<(String, Rect, f32)> = Vec::new();
+        let mut caret_rect = Rect::from_min_size(area.min, Vec2::new(0.0, size));
+        for (paragraph, marker) in self.notes.paragraphs.iter().zip(&marks) {
+            let (first, margin) = line_starts(paragraph.level, paragraph.margin, paragraph.indent);
+            let (first, margin) = (indent(style, first, scale), indent(style, margin, scale));
+            let origin = area.left() + margin;
+            let runs = paragraph_runs(paragraph, &font, size, ink);
+            let mut text = DocText::new(&runs);
+            text.wrap = Some((area.width() - (origin - area.left())).max(0.0));
+            let layout = painter.layout(&text);
+            let length: usize = paragraph.runs.iter().map(|run| run.text.chars().count()).sum();
+            let range = at..at + length;
+            let top_left = Pos2::new(origin, y);
+            // Selection bands under the text, one per row the selection touches.
+            if !selected.is_empty() && selected.start <= range.end && selected.end >= range.start {
+                let (from, to) = (selected.start.max(range.start) - range.start, selected.end.min(range.end) - range.start);
+                let a = layout.galley.pos_from_cursor(egui::text::CCursor::new(from));
+                let b = layout.galley.pos_from_cursor(egui::text::CCursor::new(to));
+                let band = Rect::from_min_max(top_left + a.min.to_vec2(), top_left + b.max.to_vec2());
+                painter.painter.rect_filled(band, 0.0, style.selection.egui());
+            }
+            painter.painter.galley(top_left, layout.galley.clone(), ink_color);
             if let Some(marker) = marker {
-                let row = galley.pos_from_cursor(CCursor::new(at));
-                let (first, _) = line_starts(p.level, p.margin, p.indent);
-                let x = self.indent(first);
-                painter.text(origin + vec2(x, row.center().y), Align2::LEFT_CENTER, marker, self.regular.clone(), self.color);
+                let marker_run = [DocRun::new(marker, font.clone(), size, ink)];
+                let laid = painter.layout(&DocText::new(&marker_run));
+                painter.painter.galley(Pos2::new(area.left() + first.min(margin), y), laid.galley, ink_color);
             }
-            at += p.runs.iter().map(|r| r.text.chars().count()).sum::<usize>() + 1;
+            if (range.start..=range.end).contains(&cursor.caret.min(chars)) {
+                let cursor_pos = layout.galley.pos_from_cursor(egui::text::CCursor::new(cursor.caret.min(chars) - range.start));
+                caret_rect = Rect::from_min_max(top_left + cursor_pos.min.to_vec2(), top_left + cursor_pos.max.to_vec2());
+            }
+            let height = layout.size().y;
+            editor_lines.push((
+                paragraph.runs.iter().map(|run| run.text.as_str()).collect(),
+                Rect::from_min_size(top_left, Vec2::new(layout.size().x, height)),
+                top_left.y + layout.first_baseline,
+            ));
+            y += height.max(size);
+            at = range.end + 1;
         }
+        if self.notes.paragraphs.iter().all(|p| p.runs.iter().all(|r| r.text.is_empty())) && !cx.is_focused() {
+            let words = cx.words::<NotesLabels>();
+            let hint = [DocRun::new(words.placeholder.as_str(), font.clone(), size, DataColor::new(ink_color.gamma_multiply(0.55)))];
+            let laid = painter.layout(&DocText::new(&hint));
+            painter.painter.galley(area.min, laid.galley, ink_color);
+        }
+        if cx.is_focused() && selected.is_empty() && cx.blink(cursor.blink_start) {
+            painter.painter.line_segment([caret_rect.center_top(), caret_rect.center_bottom()], Stroke::new(caret_width, ink_color));
+        }
+        let runs: Vec<[EditorRun<'_>; 1]> = editor_lines.iter().map(|(text, _, _)| [EditorRun::new(0..text.len(), false, &[], &[])]).collect();
+        let lines: Vec<EditorLine<'_>> =
+            editor_lines.iter().zip(&runs).map(|((text, rect, baseline), runs)| EditorLine::new(text, *rect, *baseline, runs)).collect();
+        let position = |c: usize| {
+            let (line, column) = locate(&plain, c.min(chars));
+            let text = editor_lines.get(line).map_or("", |l| l.0.as_str());
+            TextPos::new(line, text.char_indices().nth(column).map_or(text.len(), |(b, _)| b))
+        };
+        let mut state = EditorState::new(caret_rect, &lines, position(cursor.caret), revision(&plain));
+        state.selection = (!selected.is_empty()).then(|| (position(cursor.anchor), position(cursor.caret)));
+        cx.editor_state(state);
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> NotesEditorOutput {
+        NotesEditorOutput { response: cx.response.clone(), changed: self.changed }
     }
 }
 
-/// The notes laid out as the view and the editor draw them, wrapped to `width`.
-#[cfg(test)]
-pub(super) fn notes_galley(ui: &Ui, notes: &NotesText, zoom: f32, width: f32) -> Arc<Galley> {
-    Look::of(ui, zoom).galley(ui, notes, width)
+/// The indent of `points` document points at `scale`, within the largest indent.
+fn indent(style: &NotesEditorStyle, points: f64, scale: f32) -> f32 {
+    if points.is_finite() { points.clamp(0.0, f64::from(style.max_indent)) as f32 * scale } else { 0.0 }
 }
+
+/// The runs of `paragraph` at `size`: one document run per styled run, or one empty run for an empty paragraph so
+/// it keeps a line.
+fn paragraph_runs<'a>(paragraph: &'a NotesParagraph, font: &FontRef, size: f32, ink: DataColor) -> Vec<DocRun<'a>> {
+    let runs: Vec<DocRun<'a>> = paragraph
+        .runs
+        .iter()
+        .filter(|run| !run.text.is_empty())
+        .map(|run| {
+            let mut doc = DocRun::new(&run.text, font.clone(), size, run.color.map_or(ink, DataColor::new));
+            if run.italic {
+                doc = doc.italic();
+            }
+            if run.bold {
+                doc = doc.bold();
+            }
+            if run.underline {
+                doc = doc.underline();
+            }
+            if run.strikethrough {
+                doc = doc.strikethrough();
+            }
+            doc
+        })
+        .collect();
+    if runs.is_empty() { vec![DocRun::new("", font.clone(), size, ink)] } else { runs }
+}
+
+/// A number that changes with the notes' text, for the input method's revision.
+fn revision(plain: &str) -> u64 {
+    use std::hash::{Hash as _, Hasher as _};
+    let mut hasher = std::hash::DefaultHasher::new();
+    plain.hash(&mut hasher);
+    hasher.finish()
+}
+
+/// The caret's width as a share of the text size.
+const CARET_SHARE: f32 = 0.06;
+/// The part key of the editor part.
+const EDITOR: craft_behavior::PartKey = craft_behavior::PartKey::new("editor");

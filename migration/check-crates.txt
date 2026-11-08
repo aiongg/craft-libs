@@ -3,12 +3,14 @@
 craft-automation ui
 craft-browse ui
 craft-dialogs ui
+craft-font-manager ui
 craft-layers
 craft-menu
 craft-pages ui
 craft-print ui
 craft-review ui
 craft-table ui
+craft-text find,font-picker,ui
 craft-theme-store ui
 craft-timeline ui,screen-testing
 craft-ui color_fonts,system_fonts
