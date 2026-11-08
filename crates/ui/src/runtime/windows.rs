@@ -1045,7 +1045,8 @@ impl WindowHost {
 
     /// The hit-test sink of `viewport`'s window, made on the first call. The platform layer calls it once it has put
     /// its window procedure in place and holds the sink there; from then on the platform answers that window's move,
-    /// resize and caption hits, and the app registers no move or resize parts for it (`app_moves_window`).
+    /// resize and caption hits. The window's move and resize parts still register, as the exclusive parts the sink
+    /// reads, and a press on them starts no app move.
     pub fn install_hit_sink(&self, viewport: ViewportId) -> HitSink {
         PerViewport::<Record>::with(&self.ctx, viewport, |record| record.sink.get_or_insert_with(HitSink::default).clone())
     }
