@@ -115,6 +115,14 @@ fn auto_follows_the_clip_rule_at_both_ends() {
     assert_eq!((auto.in_black, auto.in_white), (1.0, 253.0));
 }
 
+/// The input points Auto finds in the histogram of `the_auto_button_sets_the_shown_channel`: the first and last
+/// level that clears the clipping share, with the gamma left at one and the output range kept.
+const AUTO_BLACK: f64 = 1.0;
+const AUTO_GAMMA: f64 = 1.0;
+const AUTO_WHITE: f64 = 254.0;
+const START_OUT_BLACK: f64 = 10.0;
+const START_OUT_WHITE: f64 = 240.0;
+
 /// The Auto button sets the shown channel as one change.
 #[trial]
 fn the_auto_button_sets_the_shown_channel() {
@@ -138,8 +146,7 @@ fn the_auto_button_sets_the_shown_channel() {
     let auto = fixture.by_label("Auto").expect("the Auto button");
     fixture.click(&auto);
     fixture.idle(2);
-    let auto_levels = Levels::new(1.0, 1.0, 254.0, 10.0, 240.0);
-    assert_eq!(levels.borrow()[0], auto_levels);
+    assert_eq!(levels.borrow()[0], Levels::new(AUTO_BLACK, AUTO_GAMMA, AUTO_WHITE, START_OUT_BLACK, START_OUT_WHITE));
     assert_eq!(levels.borrow()[1], start, "the other channels are untouched");
 }
 

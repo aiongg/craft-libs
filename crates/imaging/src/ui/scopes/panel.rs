@@ -13,8 +13,8 @@ use craft_behavior::{ColumnWidth, EditEvent, IconId, Proposal};
 use craft_theme::{ControlSize, Mode};
 use craft_ui::buttons::IconButton;
 use craft_ui::contract::{
-    Access, Bind, BodyCx, Common, Component, Container, ContainerProps, Cx, Entry, Gap, NoValue, Outcome, Pattern, Props as _, Role, Show as _,
-    ShowContainer as _, Sizing, ThemeScope, clicked,
+    Access, Bind, BodyCx, Common, Component, Container, ContainerProps, Cx, Entry, FieldLabelRole, Gap, NoValue, Outcome, Pattern, Props as _, Role,
+    Show as _, ShowContainer as _, SideLabel, Sizing, ThemeScope, clicked,
 };
 use craft_ui::contract::{CommandSet as _, Commands as _};
 use craft_ui::display::{Badge, Shade, Text};
@@ -601,6 +601,7 @@ impl Pass<'_> {
         let mut refresh = false;
         Row::new().show(ui, |ui, _| {
             let field = Field::new(words.channel.clone())
+                .side(SideLabel::new().role(FieldLabelRole::Describes))
                 .show(ui, |ui, _| Select::new(words.channel_name.clone(), Bind::given(shown_key.to_owned()), &entries).show(ui));
             picked = field.inner.and_then(|select| select.value().cloned());
             let button = IconButton::new(IconId::new("rotate-cw")).label(words.uncached_refresh.clone()).size(ControlSize::Sm).show(ui);
@@ -621,7 +622,7 @@ impl Pass<'_> {
         let current = sources.iter().find(|source| source.key == self.panel.state.settings.source).unwrap_or(&sources[0]).key;
         let entries: Vec<Entry<String>> = sources.iter().map(|source| Entry::new(source.key.to_owned(), source.label.to_owned())).collect();
         let mut picked = None;
-        Field::new(words.source.clone()).show(ui, |ui, _| {
+        Field::new(words.source.clone()).side(SideLabel::new().role(FieldLabelRole::Describes)).show(ui, |ui, _| {
             picked = Select::new(words.source_name.clone(), Bind::given(current.to_owned()), &entries).show(ui).value().cloned();
         });
         if let Some(picked) = picked.filter(|picked| picked != current) {
