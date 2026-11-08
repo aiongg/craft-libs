@@ -9,7 +9,7 @@ use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, DataColor, FocusLook, IconLook, StyleColor, StyleCx, SurfaceLook, TextLook, TypeRole};
 use craft_behavior::{Metrics, PartKey, PressPhase, Sense};
 use craft_theme::{
-    Rgba, Stateful, States, Variant, ensure_contrast, text_contrast_min,
+    Rgba, Stateful, States, Variant,
     variant::{Emphasis, Tone},
 };
 use egui::{Color32, Rect, Response, Vec2};
@@ -58,7 +58,7 @@ impl ButtonStyle {
     /// The style of a button whose face is filled with `tint`: the label and icons read on it.
     fn tinted(cx: &StyleCx<'_>, tint: Rgba) -> ButtonStyle {
         let mut style = ButtonStyle::of(cx);
-        let ink = cx.color(ensure_contrast(cx.tokens.color.text.normal, tint, text_contrast_min(cx.contrast())));
+        let ink = cx.ink_on(DataColor::new(cx.color(tint).egui()));
         style.text = TextLook::new(TypeRole::Label, Stateful::new(ink));
         style.icon = IconLook::new(cx.control().icon, Stateful::new(ink));
         style
