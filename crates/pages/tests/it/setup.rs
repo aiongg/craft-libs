@@ -435,24 +435,38 @@ fn custom_size_stays_chosen_while_the_numbers_match_a_paper() {
     let paper = fixture.by_label("Paper size").expect("the paper list");
     fixture.click(&paper);
     fixture.idle(2);
-    let custom = fixture.by_label("Custom size").expect("the Custom size entry");
+    let open = fixture.tree().expanded_of(paper.node);
+    let custom = fixture.by_label("Custom size").unwrap_or_else(|| {
+        let tree = fixture.tree();
+        let nodes: Vec<_> = tree.keys().into_iter().map(|key| (tree.role_of(key), tree.name_of(key).map(str::to_owned))).collect();
+        panic!("the Custom size entry is missing; the list is open: {open:?}; nodes: {nodes:?}")
+    });
     fixture.click(&custom);
     fixture.idle(2);
     let paper = fixture.by_label("Paper size").expect("the paper list");
     assert_eq!(fixture.tree().value_of(paper.node), Some("Custom size"), "the size is still Letter's");
 }
 
+/// Whether the radio named `label` is on.
+fn radio_on(fixture: &Fixture, label: &str) -> bool {
+    let radio = fixture.by_label(label).unwrap_or_else(|| panic!("the {label} radio"));
+    fixture.tree().toggled_of(radio.node) == Some(craft_behavior::Mixed::Same(true))
+}
+
 #[trial]
 fn escape_in_a_width_field_puts_back_the_size_and_the_orientation() {
-    let (mut fixture, edited, _) = dialog(PageSetup::default());
-    let before = edited.borrow().clone();
+    let (mut fixture, _, _) = dialog(PageSetup::default());
     let width = fixture.by_label("Width").expect("the Width field");
+    let before = fixture.tree().value_of(width.node).map(str::to_owned);
+    assert!(radio_on(&fixture, "Portrait"), "Letter starts upright");
     fixture.click(&width);
     fixture.key(Key::A, Modifiers::COMMAND);
     fixture.type_text("12");
-    assert_eq!(edited.borrow().orientation, Orientation::Landscape, "a width past the height turns the page as it is typed");
+    assert!(radio_on(&fixture, "Landscape"), "a width past the height turns the page as it is typed");
     fixture.key(Key::Escape, Modifiers::NONE);
-    assert_eq!((edited.borrow().width, edited.borrow().orientation), (before.width, before.orientation), "Escape puts both back");
+    let width = fixture.by_label("Width").expect("the Width field");
+    assert_eq!(fixture.tree().value_of(width.node).map(str::to_owned), before, "Escape puts the width back");
+    assert!(radio_on(&fixture, "Portrait"), "and the orientation with it");
 }
 
 #[trial]

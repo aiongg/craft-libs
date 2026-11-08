@@ -497,10 +497,69 @@ fn turns_stay_within_the_columns() {
     assert_eq!(swipe_turn(pos2(100.0, 50.0), pos2(20.0, 52.0), 300.0, -1.0), -1, "and the other way round in a right-to-left row");
 }
 
+/// Text under every point of the page, so a drag from anywhere in the canvas selects.
+struct Dense;
+
+impl Dense {
+    fn glyph(p: Point) -> usize {
+        (p.x.max(0.0) as usize / DENSE_GLYPH).min(Mock.glyph_count() - 1)
+    }
+}
+
+/// The width of a glyph's box in [`Dense`] text, points.
+const DENSE_GLYPH: usize = 10;
+
+impl PageTextSource for Dense {
+    fn glyph_count(&self) -> usize {
+        Mock.glyph_count()
+    }
+
+    fn glyph_at(&self, p: Point) -> Option<usize> {
+        Some(Self::glyph(p))
+    }
+
+    fn glyph_box_at(&self, p: Point) -> Option<usize> {
+        Some(Self::glyph(p))
+    }
+
+    fn line_rects(&self, glyphs: Range<usize>) -> Vec<Rect> {
+        Mock.line_rects(glyphs)
+    }
+
+    fn glyphs_in(&self, rect: Rect) -> Vec<usize> {
+        Mock.glyphs_in(rect)
+    }
+
+    fn word_at(&self, glyph: usize) -> Option<Range<usize>> {
+        Mock.word_at(glyph)
+    }
+
+    fn line_at(&self, glyph: usize) -> Option<Range<usize>> {
+        Mock.line_at(glyph)
+    }
+
+    fn text_of(&self, glyphs: Range<usize>) -> String {
+        Mock.text_of(glyphs)
+    }
+
+    fn column_text(&self, glyphs: &[usize]) -> String {
+        Mock.column_text(glyphs)
+    }
+}
+
+impl PageTexts for Dense {
+    fn page(&self, page: usize) -> Option<&dyn PageTextSource> {
+        (page == 0).then_some(&Dense)
+    }
+}
+
 #[trial]
 fn the_text_select_tool_passes_the_tool_checks() {
-    let rect = egui::Rect::from_min_size(Pos2::ZERO, vec2(200.0, 100.0));
-    let pages: &'static [PlacedPage] = Box::leak(vec![PlacedPage::new(0, rect, 1.0, (0.0, 100.0))].into_boxed_slice());
+    let page = egui::Rect::from_min_size(Pos2::ZERO, vec2(PAGE_SIDE, PAGE_SIDE));
+    let pages: &'static [PlacedPage] = Box::leak(vec![PlacedPage::new(0, page, 1.0, (0.0, PAGE_SIDE))].into_boxed_slice());
     let state: &'static mut TextSelectState = Box::leak(Box::default());
-    ToolFixture::new("Select Text", TextSelectTool::new(pages, &Texts, state)).check();
+    ToolFixture::new("Select Text", TextSelectTool::new(pages, &Dense, state)).check();
 }
+
+/// A page larger than any canvas the fixture shows.
+const PAGE_SIDE: f32 = 4000.0;

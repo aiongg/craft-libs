@@ -449,7 +449,8 @@ fn the_preview_paints_the_paper_under_a_page_without_a_picture() {
     let room = fixture.shown().height();
     assert!(
         fixture.shape_bounds().iter().any(|bounds| bounds.height() > room / 2.0 && (bounds.width() / bounds.height() - aspect).abs() < 0.01),
-        "a page-shaped fill is the paper"
+        "a page-shaped fill is the paper: {:?}",
+        fixture.shape_bounds()
     );
 }
 
