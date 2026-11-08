@@ -12,3 +12,292 @@ new_module = ""
 # type = ""
 # old = ""
 # new = ""
+
+# color-a: area, strip, ramp, disc and wheel.
+
+[[type]]
+name = "ColorArea"
+old = "craft_color::ui::ColorArea"
+new = "craft_color::ui::ColorArea"
+status = "same"
+note = "`new(label, mode, Bind<ModelValues>)` in place of `new(id_salt, label, mode, values)`; a composite over a `PointPicker`, so Home, End, Page Up and Page Down on the area are the picker's. `show(ui)` returns `EditResponse<ModelValues>`."
+
+[[type]]
+name = "ColorStrip"
+old = "craft_color::ui::ColorStrip"
+new = "craft_color::ui::ColorStrip"
+status = "same"
+note = "`new(label, mode, Bind<ModelValues>)`; `show(ui)` returns `EditResponse<ModelValues>`. The pointer triangles are painted outside its rect."
+
+[[type]]
+name = "ColorRamp"
+old = "craft_color::ui::ColorRamp"
+new = "craft_color::ui::ColorRamp"
+status = "same"
+note = "`new(label, kind, Bind<RampPick>)`; `show(ui)` returns `ColorRampOutput`. `color_at` is unchanged."
+
+[[type]]
+name = "RampKind"
+old = "craft_color::ui::RampKind"
+new = "craft_color::ui::RampKind"
+status = "same"
+note = "`#[non_exhaustive]`."
+
+[[type]]
+name = "RampPick"
+old = "craft_color::ui::RampPick"
+new = "craft_color::ui::RampPick"
+status = "same"
+note = "`#[non_exhaustive]`; built with `RampPick::new(color, other)`."
+
+[[type]]
+name = "ColorRampResponse"
+old = "craft_color::ui::ColorRampResponse"
+new = "craft_color::ui::ColorRampOutput"
+status = "replaced"
+note = "`ColorRampOutput { edit, cycle, menu_at }`; the `bar` response is `edit.response`. An `Outcome`."
+
+[[type]]
+name = "ColorRampStyle"
+old = "craft_color::ui::ColorRampStyle"
+new = "craft_color::ui::ColorRampStyle"
+status = "replaced"
+note = "A `ComponentStyle`; sizes come from named tokens and no field is public."
+
+[[type]]
+name = "ColorDisc"
+old = "craft_color::ui::ColorDisc"
+new = "craft_color::ui::ColorDisc"
+status = "same"
+note = "`new(label, &[Srgba], Bind<DiscMove>)`; `show(ui)` returns `ColorDiscOutput`."
+
+[[type]]
+name = "DiscMove"
+old = "craft_color::ui::DiscMove"
+new = "craft_color::ui::DiscMove"
+status = "same"
+note = "`#[non_exhaustive]`; built with `DiscMove::new(marker, hue, saturation)`."
+
+[[type]]
+name = "ColorDiscResponse"
+old = "craft_color::ui::ColorDiscResponse"
+new = "craft_color::ui::ColorDiscOutput"
+status = "replaced"
+note = "`ColorDiscOutput { edit, pressed }`; `area` and `markers` are gone. An `Outcome`."
+
+[[type]]
+name = "ColorDiscStyle"
+old = "craft_color::ui::ColorDiscStyle"
+new = "craft_color::ui::ColorDiscStyle"
+status = "replaced"
+note = "A `ComponentStyle`; no field is public."
+
+[[type]]
+name = "ColorWheel"
+old = "craft_color::ui::ColorWheel"
+new = "craft_color::ui::ColorWheel"
+status = "same"
+note = "`new(label, Bind<ModelValues>)`; `show(ui)` returns `EditResponse<ModelValues>`."
+
+[[type]]
+name = "ColorWheelResponse"
+old = "craft_color::ui::ColorWheelResponse"
+new = "craft_color::ui::ColorWheelResponse"
+status = "removed"
+note = "The output is `EditResponse<ModelValues>`; `area`, `geometry`, `ring` and `triangle` are gone."
+
+[[type]]
+name = "ColorWheelStyle"
+old = "craft_color::ui::ColorWheelStyle"
+new = "craft_color::ui::ColorWheelStyle"
+status = "replaced"
+note = "A `ComponentStyle`; no field is public."
+
+[[type]]
+name = "WheelGeometry"
+old = "craft_color::ui::WheelGeometry"
+new = "craft_color::ui::WheelGeometry"
+status = "same"
+note = "`#[non_exhaustive]`; pure."
+
+[[type]]
+name = "WheelPart"
+old = "craft_color::ui::WheelPart"
+new = "craft_color::ui::WheelPart"
+status = "same"
+note = "`#[non_exhaustive]`."
+
+[[type]]
+name = "ColorPartsStyle"
+old = "craft_color::ui::ColorPartsStyle"
+new = "craft_color::ui::ColorPartsStyle"
+status = "removed"
+note = "Each part has its own `ComponentStyle`; a disabled part is faded by the pipeline."
+
+[[setter]]
+type = "ColorArea"
+old = "size"
+new = ""
+note = "The size is the picker's."
+
+[[setter]]
+type = "ColorArea"
+old = "policy"
+new = ""
+note = "Set on the binding with `Bind::policy`."
+
+[[setter]]
+type = "ColorArea"
+old = "enabled"
+new = "same"
+note = "The common `enabled` prop."
+
+[[setter]]
+type = "ColorArea"
+old = "channel_names"
+new = "names"
+note = "`names([Label; 2])`."
+
+[[setter]]
+type = "ColorArea"
+old = "quantize"
+new = "quantize"
+note = "The prop takes the levels as before."
+
+[[setter]]
+type = "ColorStrip"
+old = "size"
+new = ""
+note = "The size is the style's."
+
+[[setter]]
+type = "ColorStrip"
+old = "outer_width"
+new = ""
+note = "The pointers are painted outside the rect."
+
+[[setter]]
+type = "ColorStrip"
+old = "style"
+new = ""
+note = "A `ComponentStyle`."
+
+[[setter]]
+type = "ColorRamp"
+old = "height"
+new = ""
+note = "The height is the style's."
+
+[[setter]]
+type = "ColorRamp"
+old = "policy"
+new = ""
+note = "Set on the binding with `Bind::policy`."
+
+[[setter]]
+type = "ColorRamp"
+old = "press_waits"
+new = ""
+note = "Press order is the pipeline's."
+
+[[setter]]
+type = "ColorRamp"
+old = "texts"
+new = ""
+note = "The boxes are named by `ColorRampWords`."
+
+[[setter]]
+type = "ColorRamp"
+old = "kind_name"
+new = "kind_name"
+note = "Takes a `Label`."
+
+[[setter]]
+type = "ColorRamp"
+old = "ends"
+new = "ends"
+note = "Takes `[Srgba; 2]`."
+
+[[setter]]
+type = "ColorRamp"
+old = "gamut"
+new = "gamut"
+note = "Takes any `Fn(Srgba) -> Srgba`."
+
+[[setter]]
+type = "ColorRamp"
+old = "gamut_revision"
+new = "gamut_revision"
+note = "Unchanged."
+
+[[setter]]
+type = "ColorRamp"
+old = "web_safe"
+new = "web_safe"
+note = "Unchanged."
+
+[[setter]]
+type = "ColorRamp"
+old = "boxes"
+new = "boxes"
+note = "Unchanged."
+
+[[setter]]
+type = "ColorDisc"
+old = "side"
+new = ""
+note = "The size is the style's."
+
+[[setter]]
+type = "ColorDisc"
+old = "text"
+new = ""
+note = "The words are `ColorDiscWords`."
+
+[[setter]]
+type = "ColorDisc"
+old = "names"
+new = "names"
+note = "Takes `Vec<Label>`."
+
+[[setter]]
+type = "ColorDisc"
+old = "selected"
+new = "selected"
+note = "Takes the index."
+
+[[setter]]
+type = "ColorDisc"
+old = "brightness"
+new = "brightness"
+note = "Unchanged."
+
+[[setter]]
+type = "ColorDisc"
+old = "marker_pos"
+new = "marker_pos"
+note = "Unchanged."
+
+[[setter]]
+type = "ColorWheel"
+old = "side"
+new = ""
+note = "The size is the style's."
+
+[[setter]]
+type = "ColorWheel"
+old = "text"
+new = ""
+note = "The words are `ColorWheelWords`."
+
+[[setter]]
+type = "ColorWheel"
+old = "press_waits"
+new = ""
+note = "Press order is the pipeline's."
+
+[[setter]]
+type = "ColorWheel"
+old = "geometry"
+new = "geometry"
+note = "Takes the style and the area."
