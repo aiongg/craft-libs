@@ -1,36 +1,40 @@
-//! The Blending Options page.
+//! The Blending Options page: General Blending, Advanced Blending and Blend If.
 
-use egui::{Ui, UiBuilder};
+use std::cell::RefCell;
 
-use craft_theme::TypeRole;
-use craft_ui::composites::{SectionLabel, SliderRow, SliderRowResponse};
-use craft_ui::controls::{BlendChoice, Checkbox};
-use craft_ui::edit::parts::Edits;
-use craft_ui::edit::{EditEvent, EditResponse};
-use craft_ui::localized::{LocaleNumbers, Unit};
-use craft_ui::primitives::{Content, Divider, Gap, Stack, Text};
+use craft_behavior::EditEvent;
+use craft_ui::choice::Checkbox;
+use craft_ui::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _};
+use craft_ui::form::{Field, FieldGroup, SliderField};
+use craft_ui::layout_components::Stack;
+use craft_ui::pickers::Select;
+use craft_ui::runtime::env::{Env, Label};
+use craft_ui::runtime::env::UnitKind;
+use craft_ui::sections::{HeaderStrength, Section};
+use egui::Ui;
 
 use super::BlendIfBar;
-use super::labels::{BlendIfBarLabels, LayerStyleLabels};
-use super::page::{StyleOp, apply_op, blend_options, caption_row, pick};
+use super::labels::LayerStyleWords;
+use super::page::{StyleOp, style_edit};
 use crate::layer_style::{BlendIfRange, Blending, Knockout, LayerStyle};
 
-/// What the Blending Options page reads (the values come from the edit queue's style).
+/// What the Blending Options page reads.
 pub(super) struct BlendingInput<'a> {
+    /// The style the page edits.
+    pub style: &'a LayerStyle,
     /// The Blend If entry shown.
     pub blend_if_channel: usize,
     /// The document's colour channels.
     pub channel_names: &'a [String],
-    pub blend_modes: &'a [BlendChoice],
-    pub labels: &'a LayerStyleLabels,
-    pub bar_labels: &'a BlendIfBarLabels,
-    pub numbers: &'a LocaleNumbers,
-    pub enabled: bool,
+    /// The blend modes the Blend Mode select offers; a separator entry divides the groups.
+    pub blend_modes: &'a [Entry<String>],
 }
 
-/// What the Blending Options page reports in one pass besides its edits.
+/// What the Blending Options page reports in one pass.
 #[derive(Default)]
 pub(super) struct BlendingOutput {
+    /// The edit of the style a control made.
+    pub edit: Option<EditEvent<LayerStyle>>,
     /// The Blend If select picked another entry (view state).
     pub blend_if_channel: Option<usize>,
 }
@@ -48,7 +52,7 @@ pub(super) enum BlendingOp {
         on: bool,
     },
     Knockout(Knockout),
-    /// Advanced check `index` (Photoshop's order, [`advanced_checks`]).
+    /// Advanced check `index` (Photoshop's order, [`ADVANCED_GETTERS`]).
     Check {
         index: usize,
         on: bool,
@@ -87,137 +91,121 @@ impl BlendingOp {
     }
 }
 
-/// Pushes `edit` of a Blending Options control; `op` makes the operation of a control value.
-/// `typing` for a number field whose focus is a typing run's.
-fn push_blending<T: Clone + Send + Sync + 'static>(
-    edits: &mut Edits<LayerStyle, StyleOp>,
-    edit: &EditResponse<T>,
-    typing: bool,
-    op: impl Fn(&T) -> BlendingOp,
-) {
-    let ops = edit.event.as_ref().and_then(EditEvent::value).map(|v| StyleOp::Blending(op(v)));
-    let map = |v: T, base: &LayerStyle| {
-        let mut next = base.clone();
-        op(&v).apply(&mut next.blending);
-        next
-    };
-    if typing {
-        edits.typing(edit, ops, apply_op, map);
-    } else {
-        edits.push(edit, ops, apply_op, map);
-    }
-}
-
-/// A slider row's two parts as edits of `op`.
-fn push_row(edits: &mut Edits<LayerStyle, StyleOp>, row: &SliderRowResponse, op: impl Fn(f32) -> BlendingOp + Copy) {
-    let whole = move |v: &f64| op(v.round() as f32);
-    push_blending(edits, &row.field, true, whole);
-    push_blending(edits, &row.slider, false, whole);
-}
-
 /// Draws Photoshop's Blending Options page:
 ///
-/// - General Blending: Blend Mode (`Select` over `input.blend_modes`; a mode the list lacks, such as an
-///   imported Paint.NET mode, is added at the end so it still shows), Opacity 0..=100 %.
-/// - Advanced Blending: Fill Opacity 0..=100 %; "Channels:" with one check per name in
-///   `input.channel_names` (checked: the channel blends); Knockout (None, Shallow, Deep); the five
-///   checks in Photoshop's order (Blend Interior Effects as Group, Blend Clipped Layers as Group,
-///   Transparency Shapes Layer, Layer Mask Hides Effects, Vector Mask Hides Effects).
-/// - Blend If (hidden with no entries): the "Blend If:" select ([`blend_if_entry_label`] names
-///   the entries), then for This Layer and Underlying Layer a caption and a
-///   [`BlendIfBar`](super::BlendIfBar) with its readout. A bar's id holds the shown entry, so
-///   each entry has its own gesture and focus.
+/// - General Blending: Blend Mode (a `Select` over `input.blend_modes`), Opacity 0..=100 %.
+/// - Advanced Blending: Fill Opacity 0..=100 %; "Channels:" with one check per name in `input.channel_names`
+///   (checked: the channel blends); Knockout (None, Shallow, Deep); the five checks in Photoshop's order (Blend
+///   Interior Effects as Group, Blend Clipped Layers as Group, Transparency Shapes Layer, Layer Mask Hides Effects,
+///   Vector Mask Hides Effects).
+/// - Blend If (hidden with no entries): the "Blend If:" select ([`blend_if_entry_label`] names the entries), then
+///   for This Layer and Underlying Layer a [`BlendIfBar`] with its readout.
 ///
-/// Sections are divided by hairlines and headed by section labels (`type.label`). The controls
-/// draw from `edits`' style and push their edits to it in drawing order; the dialog names the
-/// page's AccessKit group.
-pub(super) fn blending_page(ui: &mut Ui, input: &BlendingInput<'_>, edits: &mut Edits<LayerStyle, StyleOp>) -> BlendingOutput {
-    // pc: crates/ui-egui/src/dialogs/layer_style.rs:1252-1350 `blending_page`, :1197 `KNOCKOUT`,
-    // :1200-1206 `ADVANCED_CHECKS`.
-    let mut out = BlendingOutput::default();
-    let b = edits.value().blending.clone();
-    let (labels, enabled) = (input.labels, input.enabled);
-    let id = ui.make_persistent_id("blendingOptionsPage");
-    let mut builder = UiBuilder::new().scope_id(id);
-    if !enabled {
-        builder = builder.disabled();
-    }
-    ui.scope_builder(builder, |ui| {
-        Stack::new(Gap::Stack).show(ui, |ui| {
-            SectionLabel::new(labels.general_blending.as_str()).show(ui);
-            let response = caption_row(ui, &labels.blend_mode, |ui| {
-                let options = blend_options(input.blend_modes, &b.blend);
-                pick(ui, (id, "blend"), &labels.blend_mode, b.blend.clone(), options, enabled)
+/// Every control shows the style's value and reports its edit; the page maps the first edit of the pass to an edit of
+/// the style ([`style_edit`]) in `BlendingOutput::edit`.
+pub(super) fn blending_page(ui: &mut Ui, input: &BlendingInput<'_>) -> BlendingOutput {
+    let env = Env::of(ui);
+    let words = env.words::<LayerStyleWords>();
+    let style = input.style;
+    let b = &style.blending;
+    let out = RefCell::new(BlendingOutput::default());
+    let push = |event: Option<EditEvent<LayerStyle>>| {
+        let mut out = out.borrow_mut();
+        if out.edit.is_none() {
+            out.edit = event;
+        }
+    };
+
+    Stack::new().show(ui, |ui, _| {
+        Section::fixed(Label::from(words.general_blending.clone())).strength(HeaderStrength::Caption).show(ui, |ui, _| {
+            FieldGroup::new(words.general_blending.clone()).show(ui, |ui, _| {
+                Field::new(words.blend_mode.clone()).show(ui, |ui, _| {
+                    let shown = with_current(input.blend_modes, &b.blend);
+                    let edit = Select::new(words.blend_mode.clone(), Bind::given(b.blend.clone()), &shown).show(ui);
+                    push(style_edit(&edit, style, |v: &String| StyleOp::Blending(BlendingOp::Blend(v.clone()))));
+                });
+                Field::new(words.opacity.clone()).show(ui, |ui, _| {
+                    let edit = percent(ui, &words.opacity, b.opacity);
+                    push(style_edit(&edit, style, |v: &f64| StyleOp::Blending(BlendingOp::Opacity(*v as f32))));
+                });
             });
-            push_blending(edits, &response, false, |v: &String| BlendingOp::Blend(v.clone()));
-            let row = percent_row(ui, (id, "opacity"), &labels.opacity, b.opacity, input.numbers, enabled);
-            push_row(edits, &row, BlendingOp::Opacity);
-            Divider::horizontal().show(ui);
+        });
 
-            SectionLabel::new(labels.advanced_blending.as_str()).show(ui);
-            let row = percent_row(ui, (id, "fillOpacity"), &labels.fill_opacity, b.fill_opacity, input.numbers, enabled);
-            push_row(edits, &row, BlendingOp::FillOpacity);
-
-            let of = input.channel_names.len();
-            let mut channels = b.channels.clone();
-            channels.resize(of, true);
-            caption_row(ui, &labels.channels, |ui| {
-                for (index, name) in input.channel_names.iter().enumerate() {
-                    let mut on = channels[index];
-                    let response = Checkbox::bool(name.as_str(), &mut on).id_salt((id, "channel", index)).enabled(enabled).show(ui);
-                    push_blending(edits, &response, false, |v: &bool| BlendingOp::Channel { index, of, on: *v });
+        Section::fixed(Label::from(words.advanced_blending.clone())).strength(HeaderStrength::Caption).show(ui, |ui, _| {
+            FieldGroup::new(words.advanced_blending.clone()).show(ui, |ui, _| {
+                Field::new(words.fill_opacity.clone()).show(ui, |ui, _| {
+                    let edit = percent(ui, &words.fill_opacity, b.fill_opacity);
+                    push(style_edit(&edit, style, |v: &f64| StyleOp::Blending(BlendingOp::FillOpacity(*v as f32))));
+                });
+                let of = input.channel_names.len();
+                let mut channels = b.channels.clone();
+                channels.resize(of, true);
+                Field::new(words.channels.clone()).show(ui, |ui, _| {
+                    for (index, name) in input.channel_names.iter().enumerate() {
+                        let edit = Checkbox::new(Bind::given(channels[index])).label(name.clone()).show(ui);
+                        push(style_edit(&edit, style, |v: &bool| StyleOp::Blending(BlendingOp::Channel { index, of, on: *v })));
+                    }
+                });
+                let knockouts = [
+                    Entry::new(Knockout::None, words.knockout_none.clone()),
+                    Entry::new(Knockout::Shallow, words.knockout_shallow.clone()),
+                    Entry::new(Knockout::Deep, words.knockout_deep.clone()),
+                ];
+                Field::new(words.knockout.clone()).show(ui, |ui, _| {
+                    let edit = Select::new(words.knockout.clone(), Bind::given(b.knockout), &knockouts).show(ui);
+                    push(style_edit(&edit, style, |v: &Knockout| StyleOp::Blending(BlendingOp::Knockout(*v))));
+                });
+                for (index, (text, get)) in advanced_labels(&words).into_iter().zip(ADVANCED_GETTERS).enumerate() {
+                    let edit = Checkbox::new(Bind::given(get(b))).label(text).show(ui);
+                    push(style_edit(&edit, style, |v: &bool| StyleOp::Blending(BlendingOp::Check { index, on: *v })));
                 }
             });
+        });
 
-            let knockouts =
-                [(Knockout::None, &labels.knockout_none), (Knockout::Shallow, &labels.knockout_shallow), (Knockout::Deep, &labels.knockout_deep)];
-            let options = knockouts.iter().map(|(k, text)| (*k, (*text).clone(), false)).collect();
-            let response = caption_row(ui, &labels.knockout, |ui| pick(ui, (id, "knockout"), &labels.knockout, b.knockout, options, enabled));
-            push_blending(edits, &response, false, |v: &Knockout| BlendingOp::Knockout(*v));
-
-            for (index, (text, get)) in advanced_labels(labels).into_iter().zip(ADVANCED_GETTERS).enumerate() {
-                let mut on = get(&b);
-                let response = Checkbox::bool(text, &mut on).id_salt((id, "advanced", index)).enabled(enabled).show(ui);
-                push_blending(edits, &response, false, |v: &bool| BlendingOp::Check { index, on: *v });
-            }
-            Divider::horizontal().show(ui);
-
-            let entries = b.blend_if.len();
-            if entries == 0 {
-                return;
-            }
-            let shown = input.blend_if_channel.min(entries - 1);
-            let names: Vec<_> = (0..entries).map(|i| blend_if_entry_label(i, entries, input.channel_names, &labels.gray)).collect();
-            let options = names.iter().enumerate().map(|(i, name)| (i, name.clone(), false)).collect();
-            let response = caption_row(ui, &labels.blend_if, |ui| pick(ui, (id, "blendIfChannel"), &labels.blend_if, shown, options, enabled));
-            if let Some(&index) = response.event.as_ref().and_then(EditEvent::value) {
-                out.blend_if_channel = Some(index);
-            }
-            let entry = b.blend_if[shown];
-            for (caption, underlying) in [(&labels.this_layer, false), (&labels.underlying_layer, true)] {
-                ui.add(Text::new(caption.as_str()).role(TypeRole::Label).content(Content::Muted));
-                let range = if underlying { entry.underlying } else { entry.this_layer };
-                let bar = BlendIfBar::new((id, "blendIf", shown, underlying), caption.as_str(), range)
-                    .labels(input.bar_labels.clone())
-                    .numbers(input.numbers)
-                    .enabled(enabled);
-                let response = bar.show(ui);
-                push_blending(edits, &response, false, |v: &BlendIfRange| BlendingOp::BlendIf { entry: shown, underlying, range: *v });
-            }
+        let entries = b.blend_if.len();
+        if entries == 0 {
+            return;
+        }
+        let shown = input.blend_if_channel.min(entries - 1);
+        Section::fixed(Label::from(words.blend_if.clone())).strength(HeaderStrength::Caption).show(ui, |ui, _| {
+            FieldGroup::new(words.blend_if.clone()).show(ui, |ui, _| {
+                let names: Vec<Entry<usize>> =
+                    (0..entries).map(|i| Entry::new(i, blend_if_entry_label(i, entries, input.channel_names, &words))).collect();
+                Field::new(words.blend_if.clone()).show(ui, |ui, _| {
+                    let edit = Select::new(words.blend_if.clone(), Bind::given(shown), &names).show(ui);
+                    if let Some(&index) = edit.event.as_ref().and_then(EditEvent::value) {
+                        out.borrow_mut().blend_if_channel = Some(index);
+                    }
+                });
+                let entry = b.blend_if[shown];
+                for (caption, underlying) in [(&words.this_layer, false), (&words.underlying_layer, true)] {
+                    let range = if underlying { entry.underlying } else { entry.this_layer };
+                    Stack::new().id(egui::Id::new(("blendIf", shown, underlying))).show(ui, |ui, _| {
+                        let edit = BlendIfBar::new(caption.clone(), Bind::given(range)).show(ui);
+                        push(style_edit(&edit, style, |v: &BlendIfRange| {
+                            StyleOp::Blending(BlendingOp::BlendIf { entry: shown, underlying, range: *v })
+                        }));
+                    });
+                }
+            });
         });
     });
-    out
+    out.into_inner()
 }
 
-/// A 0..=100 % slider row, whole percent.
-fn percent_row(ui: &mut Ui, id_salt: impl egui::AsIdSalt, label: &str, value: f32, numbers: &LocaleNumbers, enabled: bool) -> SliderRowResponse {
-    let row = SliderRow::new(id_salt, label, value, 0.0..=100.0, numbers)
-        .unit(Unit::new("{n} %"))
-        .decimals(0)
-        .step(1.0)
-        .default_value(100.0)
-        .enabled(enabled);
-    row.show(ui)
+/// The blend modes with `current` added at the end when the list lacks it (a mode an imported document brings), so
+/// the select still shows it.
+fn with_current(modes: &[Entry<String>], current: &str) -> Vec<Entry<String>> {
+    let mut entries = modes.to_vec();
+    if !entries.iter().any(|entry| entry.value().is_some_and(|value| value == current)) {
+        entries.push(Entry::new(current.to_owned(), current.to_owned()));
+    }
+    entries
+}
+
+/// A 0..=100 % slider and field, whole percent.
+fn percent(ui: &mut Ui, label: &craft_ui::runtime::env::Word, value: f32) -> craft_ui::contract::EditResponse<f64> {
+    SliderField::new(label.clone(), Bind::given(f64::from(value)), 0.0..=100.0).step(1.0).unit_kind(UnitKind::Percent).show(ui)
 }
 
 /// The Advanced Blending checks' values, in Photoshop's order.
@@ -241,26 +229,25 @@ fn advanced_set(index: usize) -> fn(&mut Blending, bool) {
 }
 
 /// The Advanced Blending checks' labels, in Photoshop's order.
-fn advanced_labels(labels: &LayerStyleLabels) -> [&str; 5] {
+fn advanced_labels(words: &LayerStyleWords) -> [Label; 5] {
     [
-        &labels.blend_interior_effects,
-        &labels.blend_clipped_layers,
-        &labels.transparency_shapes_layer,
-        &labels.layer_mask_hides_effects,
-        &labels.vector_mask_hides_effects,
+        words.blend_interior_effects.clone().into(),
+        words.blend_clipped_layers.clone().into(),
+        words.transparency_shapes_layer.clone().into(),
+        words.layer_mask_hides_effects.clone().into(),
+        words.vector_mask_hides_effects.clone().into(),
     ]
 }
 
-/// The name of Blend If entry `index` when the style has `entries` entries and the document's
-/// channels are `channel_names`: with as many entries as names (a one-channel document) the
-/// name itself; otherwise entry 0 is `gray` and entry `i` is name `i − 1`.
-pub(super) fn blend_if_entry_label(index: usize, entries: usize, channel_names: &[String], gray: &str) -> String {
-    // pc: crates/ui-egui/src/dialogs/layer_style.rs:1317-1325 (the entry labels).
-    let name = |i: usize| channel_names.get(i).cloned().unwrap_or_default();
+/// The name of Blend If entry `index` when the style has `entries` entries and the document's channels are
+/// `channel_names`: with as many entries as names (a one-channel document) the name itself; otherwise entry 0 is
+/// Gray and entry `i` is name `i − 1`.
+pub(super) fn blend_if_entry_label(index: usize, entries: usize, channel_names: &[String], words: &LayerStyleWords) -> Label {
+    let name = |i: usize| Label::from(channel_names.get(i).cloned().unwrap_or_default());
     if entries == channel_names.len() {
         name(index)
     } else if index == 0 {
-        gray.to_owned()
+        words.gray.clone().into()
     } else {
         name(index - 1)
     }
