@@ -20,7 +20,8 @@ use craft_behavior::{ColumnWidth, EditEvent, IconId, MarqueeSelect, Metrics, Pre
 use craft_ui::buttons::{IconButton, ToggleButton};
 use craft_ui::contract::{
     Bind, BindMut, BodyLayout, CollectionEvent, CollectionResponse, ColumnEvent, Common, Component, Container, ContainerProps, Cx, Edit as _,
-    EditResponse, NoValue, Outcome, Pattern, Pointer as _, Props, Remember as _, Role, Show as _, ShowCollection as _, ShowContainer as _, Sizing,
+    EditResponse, MeasureCx, NoValue, Outcome, Pattern, Pointer as _, Props, Remember as _, Role, Show as _, ShowCollection as _, ShowContainer as _,
+    Sizing,
 };
 use craft_ui::display::Text;
 use craft_ui::layout_components::{Row, Stack};
@@ -777,7 +778,16 @@ impl Component for Divider<'_> {
     type Output = EditResponse<f32>;
 
     fn style(cx: &StyleCx<'_>, _: DividerStyleKey) -> DividerStyle {
-        DividerStyle { metrics: Metrics::new().min_size(Vec2::new(0.0, cx.tokens.size.hit.target)) }
+        DividerStyle { metrics: Metrics::new(), grip: cx.tokens.size.hit.target }
+    }
+
+    /// As tall as the pointer's grab distance, across the width the panes have.
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(0.0, cx.style.grip)
+    }
+
+    fn fills(&self) -> Option<craft_behavior::Axis> {
+        Some(craft_behavior::Axis::X)
     }
 
     fn sense(&self) -> Sense {
@@ -804,12 +814,14 @@ impl Component for Divider<'_> {
     }
 }
 
-/// The divider has only its minimum size.
+/// The divider is as tall as the pointer's grab distance.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
 pub struct DividerStyle {
     #[style(metrics)]
     metrics: Metrics,
+    /// The divider's height.
+    grip: f32,
 }
 
 #[cfg(feature = "screen-testing")]
