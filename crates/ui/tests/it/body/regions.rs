@@ -99,7 +99,7 @@ fn first_pass(props: ContainerProps, header: Option<Vec2>) -> Took {
 }
 
 /// `first_pass`, with the container labelled `label` (none when empty).
-fn first_pass_labelled(props: ContainerProps, header: Option<Vec2>, label: &str) -> Took {
+fn first_pass_labelled(props: ContainerProps, header: Option<Vec2>, label: &'static str) -> Took {
     let took = RefCell::new(Took::default());
     let passes = RefCell::new(Vec::new());
     let mut frames = Frames::new();
