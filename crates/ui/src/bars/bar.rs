@@ -101,7 +101,7 @@ impl Bar {
         let mut props = ContainerProps::new()
             .surface(SurfaceKind::Chrome)
             .pad(Pad::Control)
-            .sizing(Sizing::Fill)
+            .sizing(Sizing::FillWidth)
             .body_gap(gap)
             .child_size(ControlSize::Sm)
             .roving(Roving::new(NavShape::Flat))
@@ -140,7 +140,7 @@ impl Bar {
     fn lay_out(mut self) -> Self {
         let layout = if self.vertical || self.rows.get() > 1 { BodyLayout::stack() } else { BodyLayout::row() };
         let scroll = if self.vertical { Scroll::vertical() } else { Scroll::horizontal() };
-        self.props = self.props.layout(layout).sizing(if self.vertical { Sizing::Content } else { Sizing::Fill }).scroll(scroll);
+        self.props = self.props.layout(layout).sizing(if self.vertical { Sizing::Content } else { Sizing::FillWidth }).scroll(scroll);
         self
     }
 }

@@ -619,6 +619,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 if sheet {
                     rows::put_cell_flags(&ctx, item_id, self.cell_flag_list(&placed, at, &columns, focused));
                 }
+                eprintln!("DIAG row at={at} rect={row:?} cells={} grid={:?} view={rect:?}", cells.len(), grid.as_ref().map(|g| g.sections.len()));
                 let column_keys: Vec<craft_behavior::ColumnKey> = cells.iter().map(|(key, _)| key.clone()).collect();
                 let mut icx = ItemCx {
                     key: &key,

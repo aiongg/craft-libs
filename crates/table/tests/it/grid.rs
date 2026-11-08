@@ -62,6 +62,7 @@ struct Rig {
     marks: Rc<RefCell<Vec<CellRange<u32>>>>,
     committed: Rc<RefCell<Vec<CellEdit>>>,
     zoom: Rc<Cell<f32>>,
+    grid: Rc<Cell<Option<egui::Id>>>,
 }
 
 fn rig(hidden_column: Option<u32>, selection: CellSelection<u32>, zoom: f32) -> Rig {
@@ -72,17 +73,20 @@ fn rig(hidden_column: Option<u32>, selection: CellSelection<u32>, zoom: f32) -> 
     let seen_zoom = Rc::new(Cell::new(0.0));
     let (shown_state, shown_edits, shown_marks, shown_zoom) = (state.clone(), edits.clone(), marks.clone(), seen_zoom.clone());
     let shown_committed = committed.clone();
+    let grid = Rc::new(Cell::new(None));
+    let shown_grid = grid.clone();
     let mut fixture = Fixture::new(move |ui| {
         let model = Sheet::new(hidden_column, shown_zoom.clone());
         let mut state = shown_state.borrow().clone();
         let marks = shown_marks.borrow().clone();
         let out = CellGrid::new("Sheet", &model, &mut state).copy_mark(&marks).show_sheet(ui);
+        shown_grid.set(Some(out.collection.response.id));
         *shown_state.borrow_mut() = state;
         shown_edits.borrow_mut().extend(out.edits);
         shown_committed.borrow_mut().extend(out.committed);
     });
     fixture.settle();
-    Rig { fixture, state, edits, marks, committed, zoom: seen_zoom }
+    Rig { fixture, state, edits, marks, committed, zoom: seen_zoom, grid }
 }
 
 impl Rig {
@@ -100,7 +104,7 @@ impl Rig {
     }
 
     fn part(&self, key: PartKey, index: u32) -> craft_ui::testing::Target {
-        let id = self.fixture.root_id().expect("the grid showed");
+        let id = self.grid.get().expect("the grid showed");
         self.fixture.part(id, key.at(u64::from(index))).expect("the part has a node")
     }
 }
@@ -339,7 +343,7 @@ fn a_filter_button_over_the_header_takes_the_press() {
             eprintln!("DUMP node role={:?} name={:?} rect={:?}", tree.role_of(key), tree.name_of(key), tree.bounds_of(key));
         }
     }
-    let button = fixture.by_label("B").expect("the filter button is named after its column");
+    let button = fixture.by_label("B (Showing All)").expect("the filter button is named after its column");
     fixture.click(&button);
     assert_eq!(*hits.borrow(), vec![1], "the press opened the filter and did not select the header");
 }
