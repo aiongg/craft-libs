@@ -1,8 +1,9 @@
-//! `Select`: opens from the keyboard, picks through the listbox, closes on Escape without a change and reports its
-//! popup to assistive technology.
+//! `Select`: opens from the keyboard and from a click, picks through the listbox, closes on Escape without a change and
+//! reports its popup to assistive technology.
 
 use craft_theme::Srgba;
-use craft_ui::contract::{Bind, Entry, Props as _, Role, Show as _};
+use craft_ui::contract::{Bind, Entry, Props as _, Role, Show as _, ShowContainer as _};
+use craft_ui::form::Field;
 use craft_ui::pickers::{Select, SelectFace};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Id, Key, Modifiers};
@@ -233,4 +234,29 @@ fn entries_with_swatches_pick_by_keys() {
     fixture.key(Key::Enter, Modifiers::NONE);
     fixture.idle(FADE_FRAMES);
     assert_eq!(value.get(), 1);
+}
+
+/// A click on a select in a field opens its list, and a click on a row picks that row and closes the list. The field's
+/// label and group carry the select's name too, so the click goes to the control.
+#[trial]
+fn a_click_opens_a_select_and_a_click_on_a_row_picks_it() {
+    let value = Rc::new(Cell::new(0u8));
+    let shown = value.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let entries = [Entry::new(0u8, "Blue"), Entry::new(1, "Red"), Entry::new(2, "Green")];
+        Field::new("Color").show(ui, |ui, _| {
+            let mut color = shown.get();
+            Select::new("Color", Bind::bound(&mut color), &entries).show(ui);
+            shown.set(color);
+        });
+    });
+    fixture.settle();
+    let select = fixture.control("Color").expect("the select is the control named Color");
+    fixture.click(&select);
+    assert!(!fixture.by_role(Role::LIST_BOX).is_empty(), "a click opens the list");
+    let red = fixture.by_label("Red").expect("the open list shows its rows");
+    fixture.click(&red);
+    fixture.idle(FADE_FRAMES);
+    assert_eq!(value.get(), 1, "a click on a row picks it");
+    assert!(fixture.by_role(Role::LIST_BOX).is_empty(), "the pick closes the list");
 }
