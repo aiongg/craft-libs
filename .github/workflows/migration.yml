@@ -83,6 +83,32 @@ jobs:
         if: always()
         run: bash .github/ci/summary.sh test.log "other new crates" >> "$GITHUB_STEP_SUMMARY"
 
+  gallery-tests:
+    name: gallery tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: aiongg/craft-fonts
+          ref: b4b8f4d15f3c7d4e4ed9e0558411439b8c9aabfd
+          path: craft-fonts
+      - name: Free disk and install linker
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo apt-get update
+          sudo apt-get install -y mold clang
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: gallery-tests
+      - name: Test craft-ui-gallery
+        run: cargo test -p craft-ui-gallery --locked --no-fail-fast 2>&1 | tee test.log
+      - name: Summary
+        if: always()
+        run: bash .github/ci/summary.sh test.log "gallery tests" >> "$GITHUB_STEP_SUMMARY"
+
   static:
     name: static checks
     runs-on: ubuntu-latest
