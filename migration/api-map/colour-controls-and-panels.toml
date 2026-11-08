@@ -502,6 +502,145 @@ note = "Takes the style and the area."
 name = "PickedColor"
 old = "craft_color::ui::PickedColor"
 new = "craft_color::ui::PickedColor"
+# color-d: panels, swatches, harmony, palette.
+
+[[type]]
+name = "SwatchPalette"
+old = "craft_color::ui::SwatchPalette"
+new = "craft_color::ui::SwatchPalette"
+status = "replaced"
+note = "A pattern over a RadioGroup of Swatch members: `new(label, Bind<Srgba>, &[(Label, Srgba)])` in place of `new(id_salt, label, color, swatches)`; `show(ui)` returns `SwatchPaletteOutput { response, edit }` and writes the pick to the binding. `size`, `enabled` and `table` go."
+
+[[type]]
+name = "SwatchTable"
+old = "craft_color::ui::SwatchPalette::table"
+new = "craft_color::ui::SwatchTable"
+status = "replaced"
+note = "An items component on the collection contract with Swatch cells: `new(label, &[(Label, Srgba)])` with `selection(Bind<Selection<usize>>)`, `per_row(n)` in place of `columns` and `multiple(bool)`; `show(ui)` returns `SwatchTableOutput { response, selected, chosen, open }`."
+
+[[type]]
+name = "SwatchTableResponse"
+old = "craft_color::ui::SwatchTableResponse"
+new = "craft_color::ui::SwatchTableOutput"
+status = "replaced"
+note = "`selected`, `open` as before; `chosen` is the whole selection."
+
+[[type]]
+name = "ColorPanel"
+old = "craft_color::ui::ColorPanel"
+new = "craft_color::ui::ColorPanel"
+status = "replaced"
+note = "A pattern: `new(Bind<ColorPanelState>, [fg, bg])` in place of `new(id_salt, &mut state, colors, &numbers)`; `show(ui)` returns `ColorPanelOutput` (the old fields plus `response`). `enabled` and the numbers argument go (the environment). The panel menu is `ColorPanelMenu` over `ColorPanelCommand`."
+
+[[type]]
+name = "ColorPanelResponse"
+old = "craft_color::ui::ColorPanelResponse"
+new = "craft_color::ui::ColorPanelOutput"
+status = "replaced"
+note = "Same fields plus `response`; `pick_color` is `craft_ui::runtime::requests::ColorRequest`."
+
+[[type]]
+name = "ColorPanelLabels"
+old = "craft_color::ui::ColorPanelLabels"
+new = "craft_color::ui::ColorPanelWords"
+status = "replaced"
+note = "A `words!` set; the two Color Picker titles are the colour picker dialog's words."
+
+[[type]]
+name = "HarmonyWheel"
+old = "craft_color::ui::HarmonyWheel"
+new = "craft_color::ui::HarmonyWheel"
+status = "replaced"
+note = "A pattern: `new(label, &[Srgba])` in place of `new(id_salt, label, colors)`; `size` goes (the disc sizes from its style)."
+
+[[type]]
+name = "HarmonyWheelResponse"
+old = "craft_color::ui::HarmonyWheelResponse"
+new = "craft_color::ui::HarmonyWheelOutput"
+status = "replaced"
+note = "Same fields plus `response`."
+
+[[type]]
+name = "HarmonyPanel"
+old = "craft_color::ui::HarmonyPanel"
+new = "craft_color::ui::HarmonyPanel"
+status = "replaced"
+note = "A pattern: `new(Bind<HarmonyPanelState>, Bind<HarmonyPicked>, base)` in place of `new(id_salt, &mut state, base)`. The chosen cells are the host-owned `HarmonyPicked`."
+
+[[type]]
+name = "HarmonyPanelResponse"
+old = "craft_color::ui::HarmonyPanelResponse"
+new = "craft_color::ui::HarmonyPanelOutput"
+status = "replaced"
+note = "Same fields plus `response`."
+
+[[type]]
+name = "HarmonyLabels"
+old = "craft_color::ui::HarmonyLabels"
+new = "craft_color::ui::HarmonyWords"
+status = "replaced"
+note = "A `words!` set that also holds the 21 rule names (`HARMONY_WORDS` goes); `rule_name(Harmony)` reads one."
+
+[[type]]
+name = "HarmonyPicked"
+old = "craft_color::ui::HarmonyPanel::panel_menu"
+new = "craft_color::ui::HarmonyPicked"
+status = "replaced"
+note = "The cells chosen for Save Colors as Swatches, host-owned in place of egui memory."
+
+[[type]]
+name = "SwatchesPanel"
+old = "craft_color::ui::SwatchesPanel"
+new = "craft_color::ui::SwatchesPanel"
+status = "replaced"
+note = "A pattern on PresetBrowser: `new(Bind<SwatchLibrary>, Bind<SwatchesState>, foreground)` in place of `new(id_salt, &mut library, foreground)`; `show(ui)` returns `SwatchesPanelOutput { response, used, changed }`. Files go out as `PresetFileRequest`s from `SwatchesMenu` and come back through `SwatchesPanel::apply_file`."
+
+[[type]]
+name = "SwatchesPanelResponse"
+old = "craft_color::ui::SwatchesPanelResponse"
+new = "craft_color::ui::SwatchesPanelOutput"
+status = "replaced"
+note = "`imported`, `exported` and `status` are in `SwatchesFileOutput` from `apply_file`; the status line is a `Toast`."
+
+[[type]]
+name = "SwatchesMenuResponse"
+old = "craft_color::ui::SwatchesMenuResponse"
+new = "craft_color::ui::SwatchesMenuOutput"
+status = "replaced"
+note = "Adds `file` (the file request) and `toast`."
+
+[[type]]
+name = "SwatchesState"
+old = "craft_color::ui::SwatchesPanel::run_command"
+new = "craft_color::ui::SwatchesState"
+status = "replaced"
+note = "The browser view, selected row and pending rename, host-owned in place of egui memory."
+
+[[type]]
+name = "SwatchesLabels"
+old = "craft_color::ui::SwatchesLabels"
+new = "craft_color::ui::SwatchesWords"
+status = "replaced"
+note = "A `words!` set; the seven note rows are `count` rows and `COUNTS` goes."
+
+[[type]]
+name = "SwatchKey"
+old = "craft_color::ui::swatches::Key"
+new = "craft_color::ui::SwatchKey"
+status = "moved"
+note = "Public: the key of a browser row."
+
+[[type]]
+name = "SwatchLibrary"
+old = "craft_color::ui::SwatchLibrary"
+new = "craft_color::ui::SwatchLibrary"
+status = "same"
+note = "Data; `apply_reorder(&ReorderMove<SwatchKey>)` replaces the crate-private drag application."
+
+[[type]]
+name = "PanelTarget"
+old = "craft_color::ui::PanelTarget"
+new = "craft_color::ui::PanelTarget"
 status = "same"
 note = "Unchanged."
 
@@ -516,6 +655,9 @@ note = "`ColorPicker::new(label, Bind<PickedColor>)`; the area mode and Only Web
 name = "ColorPickerLayout"
 old = "craft_color::ui::ColorPickerLayout"
 new = "craft_color::ui::ColorPickerLayout"
+name = "ColorPanelState"
+old = "craft_color::ui::ColorPanelState"
+new = "craft_color::ui::ColorPanelState"
 status = "same"
 note = "Unchanged."
 
@@ -606,6 +748,9 @@ note = "`words!`; the warning tips are in the same set; OK and Cancel are the co
 name = "ColorPickerMemory"
 old = "craft_color::ui::ColorPickerMemory"
 new = "craft_color::ui::ColorPickerMemory"
+name = "HarmonyPanelState"
+old = "craft_color::ui::HarmonyPanelState"
+new = "craft_color::ui::HarmonyPanelState"
 status = "same"
 note = "Unchanged."
 
@@ -1003,3 +1148,64 @@ new = "ColorSamplerTool::take_error()"
 type = "ColorPopover"
 old = "ColorPopover::{size, dimensions, enabled, picker, show}"
 new = "ColorPopover::{picker, anchor, show}; size and enabled are the common props"
+name = "HarmonyMenuAction"
+old = "craft_color::ui::HarmonyMenuAction"
+new = "craft_color::ui::HarmonyMenuAction"
+status = "same"
+note = "Unchanged; `HarmonyMenu::run_command` returns it."
+
+[[type]]
+name = "ColorPanelMenu"
+old = "craft_color::ui::ColorPanel::panel_menu"
+new = "craft_color::ui::ColorPanelMenu"
+status = "replaced"
+note = "`rows()`, `states(&ColorPanelState)` and `run_command(&mut state, ColorPanelCommand, edited) -> Option<String>` (the clipboard text) in place of `panel_menu(ctx, id, state)` and `run_command(ctx, id, state, &PanelCommand, edited)`."
+
+[[type]]
+name = "HarmonyMenu"
+old = "craft_color::ui::HarmonyPanel::panel_menu"
+new = "craft_color::ui::HarmonyMenu"
+status = "replaced"
+note = "`rows()`, `states(&state, &picked)` and `run_command(&mut state, &picked, HarmonyCommand)` over `HarmonyCommand`."
+
+[[type]]
+name = "SwatchesMenu"
+old = "craft_color::ui::SwatchesPanel::panel_menu"
+new = "craft_color::ui::SwatchesMenu"
+status = "replaced"
+note = "`rows()`, `states(&library)` and `run_command(&mut library, &mut state, SwatchesCommand, foreground, &words)` over `SwatchesCommand`."
+
+[[setter]]
+type = "SwatchPalette"
+old = "size(ControlSize)"
+new = "(removed: the control size is the environment's)"
+
+[[setter]]
+type = "SwatchPalette"
+old = "enabled(bool)"
+new = "(removed: a disabled ancestor disables it)"
+
+[[setter]]
+type = "SwatchTable"
+old = "enabled(bool)"
+new = "(removed: a disabled ancestor disables it)"
+
+[[setter]]
+type = "SwatchTable"
+old = "columns(usize)"
+new = "per_row(usize)"
+
+[[setter]]
+type = "SwatchTable"
+old = "selected(Option<usize>)"
+new = "selection(Bind<Selection<usize>>)"
+
+[[setter]]
+type = "ColorPanel"
+old = "enabled(bool)"
+new = "(removed: a disabled ancestor disables it)"
+
+[[setter]]
+type = "HarmonyWheel"
+old = "size(f32)"
+new = "(removed: the disc sizes from its style)"
