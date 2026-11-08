@@ -1,7 +1,7 @@
 //! `EditorMock`: a document editor window composed from library components.
 
 use super::model::{Document, MockState, Panel, Request, Tool};
-use super::panels::{Panels, permissions};
+use super::panels::Panels;
 use super::tools::{Dialogs, Tools};
 use craft_behavior::dock::Workspace;
 use craft_ui::bars::{Bar, BarKind, StatusItem, StatusReadout, StatusValues};
@@ -86,12 +86,7 @@ impl<'a> EditorMock<'a> {
                 let dialogs = cx.keep::<Dialogs>().clone();
                 let current = *parts.tool;
                 let mut panels = Panels { document: &mut *parts.document, tool: current, tools: &mut tools };
-                let id = ui.scope_id().with("dock");
-                let output = DockArea::new(id, Bind::bound(&mut *workspace), &mut panels, DockConfig::default()).show(ui);
-                for action in output.actions {
-                    // A refused action leaves the workspace as it was.
-                    let _ = workspace.apply(action, false, permissions);
-                }
+                DockArea::new("Dock", Bind::bound(&mut *workspace), &mut panels, DockConfig::default()).show(ui);
                 *cx.keep::<Tools>() = tools;
                 if let Ok(mut host) = dialogs.0.lock() {
                     open_requested(&mut host, &mut parts);
