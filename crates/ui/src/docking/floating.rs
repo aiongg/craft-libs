@@ -258,6 +258,7 @@ impl Component for FloatingGroup<'_> {
         }
         let output = FloatingGroupOutput { response: cx.response.clone(), placed: self.placed, action: self.taken, minimized_toggled: self.toggled };
         native::raise(&cx.core.ctx, &output);
+        native::fade(&cx.core.ctx, &output);
         output
     }
 }

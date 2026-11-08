@@ -121,6 +121,9 @@ struct Driver<A> {
     movable: Option<bool>,
     /// Whether the first fit of the root window to its monitor has run.
     fitted: bool,
+    /// Whether the root window's OS window is known to the window host, which routes its Windows hit test.
+    #[cfg(windows)]
+    routed: bool,
 }
 
 /// Maximizes the root window, once its monitor is known, when it is larger than the monitor's usable area (Photoshop
@@ -162,7 +165,13 @@ impl<A: ShellApp> eframe::App for Driver<A> {
         windows::logic(ctx);
     }
 
-    fn ui(&mut self, ui: &mut Ui, _: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut Ui, frame: &mut eframe::Frame) {
+        #[cfg(windows)]
+        if !self.routed {
+            self.routed = windows::route_root(ui.ctx(), craft_window::native::NativeWindow::of_handle(&*frame));
+        }
+        #[cfg(not(windows))]
+        let _ = frame;
         // The monitor is known only once the window exists, so the fit runs from the first passes, and once.
         if !self.fitted {
             self.fitted = fit_first(ui.ctx());
@@ -208,7 +217,13 @@ pub fn run<A: ShellApp + 'static>(spec: AppSpec, make: impl FnOnce(&Context) -> 
                 install = install.frame(decision);
             }
             crate::install(&cc.egui_ctx, install).map_err(|error| format!("the runtime could not be installed: {error}"))?;
-            Ok(Box::new(Driver { app: make(&cc.egui_ctx), movable: None, fitted: false }))
+            Ok(Box::new(Driver {
+                app: make(&cc.egui_ctx),
+                movable: None,
+                fitted: false,
+                #[cfg(windows)]
+                routed: false,
+            }))
         }),
     )
 }

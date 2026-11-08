@@ -44,10 +44,28 @@ eframe = { version = "0.37", default-features = false, features = ["x11"], optio
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = { version = "0.6.4", default-features = false, features = ["std"], optional = true }
 objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSApplication", "NSButton", "NSControl", "NSResponder", "NSView", "NSWindow"], optional = true }
-objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSArray", "NSGeometry", "NSProcessInfo"], optional = true }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSArray", "NSEnumerator", "NSGeometry", "NSProcessInfo", "NSString"], optional = true }
+
+# `caps_lock`: the toggle bit of the Caps Lock key, through winsafe's safe wrapper (the workspace forbids `unsafe`).
+# `win32`: the window procedure of an app-drawn frame and layered-window opacity (the one module that uses `unsafe`);
+# `comctl` is the window subclassing, `raw-window-handle` the root window's handle from eframe.
+[target.'cfg(windows)'.dependencies]
+winsafe = { version = "0.0.29", default-features = false, features = ["user", "comctl"] }
+raw-window-handle = "0.6"
 
 [dev-dependencies]
 tempfile = "3"
 
-[lints]
-workspace = true
+# The workspace table with `unsafe_code` at `deny`: `win32.rs` is the one module that allows it, and design-lint's
+# `contract/unsafe-allow` rule names that file as the only place. Cargo cannot override one workspace lint.
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(craft_pdf_unicode_fixtures)"] }
+
+[lints.clippy]
+cognitive_complexity = "deny"
+too_many_arguments = "deny"
+wildcard_imports = "deny"
+dbg_macro = "warn"
+todo = "warn"

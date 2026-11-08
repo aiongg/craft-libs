@@ -7,6 +7,7 @@
 //! when the OS moves or resizes it. `DockArea` and `FloatingGroup` call them; rects are desktop logical points.
 
 use super::{DockConfig, FloatingGroupOutput, PanelSpec};
+use crate::runtime::drag;
 use crate::runtime::windows::{WindowAction, WindowHost, WindowSpec};
 use craft_behavior::dock::{Action, Floating, NativeSpace, restore_rect};
 use craft_behavior::placement::monitor_of;
@@ -95,4 +96,19 @@ pub(crate) fn raise(ctx: &Context, output: &FloatingGroupOutput) -> bool {
     let began = output.placed.is_some_and(|change| change.phase == GesturePhase::Begin);
     let host = WindowHost::of(ctx);
     began && host.viewport_of(output.response.id).is_some_and(|viewport| host.act(viewport, WindowAction::Focus))
+}
+
+/// The opacity of a native dock window while its drag highlights a drop target, so the target shows through it. The
+/// theme's opacity scale has no step for it (`Opacity::DISABLED` is 0.4, `Opacity::SCRIM` 0.5).
+const DRAG_OPACITY: f32 = 0.75;
+
+/// Fades the native window of the group that `output` reports on while its drag highlights a drop target, and makes
+/// it opaque again otherwise: over empty space, for a move that cannot dock and while Ctrl or Cmd keeps the drop
+/// floating (the target then takes no drop and shows no mark). Every way a drag ends brings the opacity back, because
+/// this runs in each pass of the window.
+pub(crate) fn fade(ctx: &Context, output: &FloatingGroupOutput) {
+    let host = WindowHost::of(ctx);
+    let Some(viewport) = host.viewport_of(output.response.id) else { return };
+    let highlighted = drag::moves_viewport(ctx) && drag::mark(ctx).is_some();
+    host.act(viewport, WindowAction::SetOpacity(if highlighted { DRAG_OPACITY } else { 1.0 }));
 }

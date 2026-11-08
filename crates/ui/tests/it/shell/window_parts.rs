@@ -83,3 +83,43 @@ fn exclusive_parts_are_the_caption_record() {
     }
     assert_eq!(host.caption_regions(ViewportId::ROOT), None, "a bar that stops registering leaves no record");
 }
+
+/// The maximize button under a window procedure that owns the pointer there (Windows 11 snap layouts answer the hit
+/// test `HTMAXBUTTON`): the procedure reports hover, press and release through the sink, and the button shows and acts
+/// as it does under the app's own pointer, so a release on it is a click and a press that ends elsewhere is none.
+#[trial]
+fn caption_events_from_the_window_procedure_drive_the_maximize_button() {
+    use craft_ui::shell::{CaptionButton, CaptionFamily};
+    use craft_window::native::{CaptionEvent, Hits};
+
+    let windows = Windows::new();
+    let maximize = |windows: &Windows| {
+        let mut shown = None;
+        windows.frame(vec![], vec![], |ui| shown = Some(CaptionButton::new(Caption::Maximize, CaptionFamily::Windows).id_salt("maximize").show(ui)));
+        shown.expect("the button was shown")
+    };
+    for _ in 0..3 {
+        maximize(&windows);
+    }
+    let sink = WindowHost::of(&windows.ctx).install_hit_sink(ViewportId::ROOT);
+    let mut button = maximize(&windows);
+    assert!(!button.hovered() && !button.is_pointer_button_down_on(), "the pointer is not on the button");
+
+    sink.caption(CaptionEvent::Hover(Caption::Maximize));
+    button = maximize(&windows);
+    assert!(button.hovered(), "the reported hover lights the button");
+
+    sink.caption(CaptionEvent::Press(Caption::Maximize));
+    button = maximize(&windows);
+    assert!(button.is_pointer_button_down_on(), "the reported press presses it");
+
+    sink.caption(CaptionEvent::Release(Caption::Maximize));
+    button = maximize(&windows);
+    assert!(button.clicked(), "the reported release on the button is its click");
+
+    sink.caption(CaptionEvent::Press(Caption::Maximize));
+    maximize(&windows);
+    sink.caption(CaptionEvent::Cancel);
+    button = maximize(&windows);
+    assert!(!button.clicked() && !button.is_pointer_button_down_on(), "a press that ended away from the button is no click");
+}

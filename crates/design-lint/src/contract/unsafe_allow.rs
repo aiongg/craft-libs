@@ -1,5 +1,8 @@
-//! `contract/unsafe-allow`: no `allow(unsafe_code)` in source. craft-ui keeps `unsafe_code` at `deny`, and the derives
-//! write the one scoped allow its registrations need; source text never contains it.
+//! `contract/unsafe-allow`: no `allow(unsafe_code)` in source, except in the one Windows module of craft-window
+//! ([`ALLOWED`]). craft-ui keeps `unsafe_code` at `deny`, and the derives write the one scoped allow its registrations
+//! need; source text never contains it.
+
+use std::path::Path;
 
 use syn::visit::{self, Visit};
 use syn::{Attribute, Meta};
@@ -9,6 +12,10 @@ use crate::report::Finding;
 use super::Cx;
 
 pub const ID: &str = "contract/unsafe-allow";
+
+/// The one file that may allow `unsafe_code`: craft-window's Win32 module (the owner's exception, 2026-11-08). Paths are
+/// relative to the repository root, as in findings.
+pub(crate) const ALLOWED: &str = "crates/window/src/win32.rs";
 
 struct Allows {
     spans: Vec<proc_macro2::Span>,
@@ -29,9 +36,18 @@ fn names_unsafe_code(meta: &Meta) -> bool {
 }
 
 pub(super) fn check(cx: &Cx<'_>, out: &mut Vec<Finding>) {
+    if cx.path == Path::new(ALLOWED) {
+        return;
+    }
     let mut allows = Allows { spans: Vec::new() };
     allows.visit_file(cx.file);
     for span in allows.spans {
-        cx.flag_span(out, ID, ID, span, "`allow(unsafe_code)`; the derives write the registrations' scoped allow".to_owned());
+        cx.flag_span(
+            out,
+            ID,
+            ID,
+            span,
+            "`allow(unsafe_code)`; only `crates/window/src/win32.rs` allows it, and the derives write the registrations' scoped allow".to_owned(),
+        );
     }
 }

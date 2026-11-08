@@ -14,6 +14,7 @@ use craft_host::target::{Caps, DoubleClick, EdgeInsets, Os, ShellInfo, WindowChr
 #[cfg(feature = "testing")]
 use craft_host::target::{MenuPlacement, Runtime};
 use craft_window::Button;
+use craft_window::native::{CaptionEvent, Edge, Hits, NativeWindow, Zone};
 use craft_window::policy::{CaptionFamily, Captions, Decision, Frame, LayoutWatch, MacInset};
 use craft_window::restore::{Placement, Store};
 use craft_window::system::WindowSystem;
@@ -104,13 +105,25 @@ struct Published {
 /// test, and the answer comes from the exclusive parts the window's last pass declared, so the caption buttons,
 /// edges and drag areas the app draws are the ones the OS acts on (snap layouts, native move and resize). The sink
 /// holds the scale with the regions, so the window procedure needs nothing from egui.
-/// [`WindowHost::install_hit_sink`] makes the sink; the platform layer that owns the window procedure holds it.
+///
+/// Over the maximize button the pointer lies in the non-client area and the app gets no client pointer, so the
+/// procedure reports the button's hover, press and release through [`Hits::caption`]; the next pass turns them into
+/// the pointer events the button would have had. [`WindowHost::install_hit_sink`] makes the sink; the platform layer
+/// that owns the window procedure holds it.
 #[derive(Clone, Debug, Default)]
 pub struct HitSink {
     published: Arc<Mutex<Option<Published>>>,
+    /// The caption events the window procedure reported since the last pass.
+    events: Arc<Mutex<Vec<CaptionEvent>>>,
+    /// The window to repaint when an event arrives from the window procedure.
+    wake: Option<(Context, ViewportId)>,
 }
 
 impl HitSink {
+    fn linked(ctx: &Context, viewport: ViewportId) -> Self {
+        HitSink { wake: Some((ctx.clone(), viewport)), ..HitSink::default() }
+    }
+
     /// What lies at `pixel`, in physical pixels from the top left of the window's client area: the hit test's screen
     /// point after `ScreenToClient`. `None` where no exclusive part lies there: the window procedure leaves the hit
     /// test to the window's content.
@@ -123,7 +136,77 @@ impl HitSink {
     fn publish(&self, published: Option<Published>) {
         *self.published.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = published;
     }
+
+    fn take_events(&self) -> Vec<CaptionEvent> {
+        std::mem::take(&mut *self.events.lock().unwrap_or_else(std::sync::PoisonError::into_inner))
+    }
 }
+
+impl Hits for HitSink {
+    fn zone_at(&self, pixel: [f32; 2]) -> Option<Zone> {
+        Some(match self.answer(Pos2::new(pixel[0], pixel[1]))? {
+            WindowHit::Move => Zone::Move,
+            WindowHit::Resize(edge) => Zone::Edge(edge_of(edge)),
+            WindowHit::Caption(button) => Zone::Button(button),
+        })
+    }
+
+    fn caption(&self, event: CaptionEvent) {
+        self.events.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(event);
+        if let Some((ctx, viewport)) = &self.wake {
+            ctx.request_repaint_of(*viewport);
+        }
+    }
+}
+
+/// The platform layer's name for `edge`.
+fn edge_of(edge: ResizeEdge) -> Edge {
+    match edge {
+        ResizeEdge::Top => Edge::Top,
+        ResizeEdge::Bottom => Edge::Bottom,
+        ResizeEdge::Left => Edge::Left,
+        ResizeEdge::Right => Edge::Right,
+        ResizeEdge::TopLeft => Edge::TopLeft,
+        ResizeEdge::TopRight => Edge::TopRight,
+        ResizeEdge::BottomLeft => Edge::BottomLeft,
+        ResizeEdge::BottomRight => Edge::BottomRight,
+    }
+}
+
+/// Turns the caption events the window procedure reported for `viewport` into the pointer events the caption button
+/// would have had, so the button looks and acts as on the other platforms: a hover moves the pointer onto it, a press
+/// presses the primary button, a release releases it there (a click), and a leave or a cancelled press moves the
+/// pointer away first so the release is no click.
+fn replay_caption_events(ctx: &Context, viewport: ViewportId, input: &mut RawInput) {
+    let Some(sink) = PerViewport::<Record>::with(ctx, viewport, |record| record.sink.clone()) else { return };
+    let events = sink.take_events();
+    if events.is_empty() {
+        return;
+    }
+    let buttons = with_exclusive(ctx, viewport, |exclusive| exclusive.done.as_ref().map(|regions| regions.buttons.clone())).unwrap_or_default();
+    let center = |button: Button| buttons.iter().find(|(held, _)| *held == button).map(|(_, rect)| rect.center());
+    let button = |pos, pressed| egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE };
+    for event in events {
+        match event {
+            CaptionEvent::Hover(caption) => input.events.extend(center(caption).map(egui::Event::PointerMoved)),
+            CaptionEvent::Press(caption) => {
+                if let Some(at) = center(caption) {
+                    input.events.extend([egui::Event::PointerMoved(at), button(at, true)]);
+                }
+            }
+            CaptionEvent::Release(caption) => input.events.extend(center(caption).map(|at| button(at, false))),
+            CaptionEvent::Leave => input.events.push(egui::Event::PointerGone),
+            CaptionEvent::Cancel => {
+                input.events.extend([egui::Event::PointerMoved(OUTSIDE), button(OUTSIDE, false), egui::Event::PointerGone]);
+            }
+            _ => {}
+        }
+    }
+    ctx.request_repaint_of(viewport);
+}
+
+/// A position outside every window: a release there ends a press without a click.
+const OUTSIDE: Pos2 = Pos2::new(-1.0, -1.0);
 
 /// The regions the parts `parts` of the running pass declare; `None` for none. A drag area's covers are read from
 /// the pass's widgets, so this runs at the end of the pass.
@@ -412,6 +495,10 @@ pub enum WindowAction {
     SetLevel(WindowLevel),
     /// Changes the window's title.
     SetTitle(String),
+    /// Sets the window's opacity, 1 being opaque (a dock window fades while its drag highlights a drop target).
+    /// The platform applies it where it can: a layered window on Windows, `NSWindow.alphaValue` on macOS. The
+    /// request is kept as [`WindowHost::opacity`] either way, and the action returns whether the platform applied it.
+    SetOpacity(f32),
 }
 
 /// What a double click on a window's free move band (its title bar, or the strip a modal leaves over it) asks of the
@@ -523,6 +610,16 @@ struct Record {
     last_inner_size: Option<Vec2>,
     /// The window procedure's hit test, once the platform layer installed it.
     sink: Option<HitSink>,
+    /// The title the window was opened with, which finds its OS window.
+    title: Option<String>,
+    /// The OS window, once found.
+    native: Option<NativeWindow>,
+    /// Whether the search for the OS window has run for `title`: the window exists when its facts do.
+    native_searched: bool,
+    /// The opacity the window was last set to; 1 is opaque.
+    opacity: Option<f32>,
+    /// The opacity the platform last applied to the OS window.
+    opacity_applied: Option<f32>,
 }
 
 /// An OS move or resize started in the pass `pass`: the OS keeps the press and sends no release. `released` is the
@@ -669,6 +766,7 @@ pub(crate) fn set_input(ctx: &Context) {
 /// the viewport's record. Returns whether it added an event.
 pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
     let viewport = input.viewport_id;
+    replay_caption_events(ctx, viewport, input);
     let base = base_shell(ctx);
     let undecorated = base.caps.contains(Caps::OS_RESIZES_UNDECORATED) && window_info(ctx, viewport, &base).chrome == WindowChrome::Integrated;
     let size = viewports::inner_size_in(input, viewport);
@@ -810,6 +908,9 @@ fn flush_store(ctx: &Context) {
 /// window's state; a root `Close` reaches the app's close decision and the platform quit in [`logic`]. Returns
 /// whether a command went out.
 pub fn act(ctx: &Context, viewport: ViewportId, action: WindowAction) -> bool {
+    if let WindowAction::SetOpacity(opacity) = action {
+        return set_opacity(ctx, viewport, opacity);
+    }
     let base = base_shell(ctx);
     let commands = base.caps.contains(Caps::WINDOW_COMMANDS);
     let window = window_info(ctx, viewport, &base);
@@ -828,6 +929,7 @@ pub fn act(ctx: &Context, viewport: ViewportId, action: WindowAction) -> bool {
         | WindowAction::SetInnerSize(_)
         | WindowAction::SetLevel(_)
         | WindowAction::SetTitle(_) => commands,
+        WindowAction::SetOpacity(_) => false,
     };
     if !allowed {
         return false;
@@ -867,6 +969,70 @@ pub fn act(ctx: &Context, viewport: ViewportId, action: WindowAction) -> bool {
             }
         }
         WindowAction::SetTitle(title) => viewports::command(ctx, viewport, egui::ViewportCommand::Title(title)),
+        WindowAction::SetOpacity(_) => {}
+    }
+    true
+}
+
+/// Keeps `opacity` as the window's and applies it to the OS window when it differs from what the platform last
+/// applied. Returns whether the platform applied it now.
+fn set_opacity(ctx: &Context, viewport: ViewportId, opacity: f32) -> bool {
+    let opacity = opacity.clamp(0.0, 1.0);
+    let applied = PerViewport::<Record>::with(ctx, viewport, |record| {
+        record.opacity = Some(opacity);
+        record.opacity_applied
+    });
+    if applied == Some(opacity) || (applied.is_none() && opacity >= 1.0) {
+        return false;
+    }
+    let done = native_of(ctx, viewport).is_some_and(|native| native.set_opacity(opacity));
+    if done {
+        PerViewport::<Record>::with(ctx, viewport, |record| record.opacity_applied = Some(opacity));
+    }
+    done
+}
+
+/// The OS window of `viewport`, found once its window exists: by its title among the thread's windows, nearest the
+/// reported client origin when several share the title. The root window's is set by [`route_root`].
+fn native_of(ctx: &Context, viewport: ViewportId) -> Option<NativeWindow> {
+    let (known, title, searched, facts) =
+        PerViewport::<Record>::with(ctx, viewport, |record| (record.native.clone(), record.title.clone(), record.native_searched, record.facts));
+    if known.is_some() || searched {
+        return known;
+    }
+    let (title, inner) = (title?, facts?.inner?);
+    let scale = scale_of(ctx, &facts?)?;
+    let origin = [(inner.min.x * scale).round() as i32, (inner.min.y * scale).round() as i32];
+    let found = NativeWindow::titled(&title, Some(origin));
+    PerViewport::<Record>::with(ctx, viewport, |record| {
+        record.native_searched = true;
+        record.native = found.clone();
+    });
+    found
+}
+
+/// Routes the Windows hit test of `viewport`'s window to its hit sink, once, when the OS window exists and the app
+/// draws its frame. A platform without the routing leaves the sink uninstalled, so the app moves and resizes the
+/// window itself.
+fn route_hit_test(ctx: &Context, viewport: ViewportId) {
+    if hit_sink_installed(ctx, viewport) {
+        return;
+    }
+    let Some(native) = native_of(ctx, viewport) else { return };
+    let sink = HitSink::linked(ctx, viewport);
+    if native.route_hits(Arc::new(sink.clone())) {
+        PerViewport::<Record>::with(ctx, viewport, |record| record.sink = Some(sink));
+    }
+}
+
+/// Gives the root window its OS window (from eframe's window handle) and routes its hit test when the app draws the
+/// frame. Returns whether the handle was known, which is when the call has done its work.
+#[cfg(windows)]
+pub(crate) fn route_root(ctx: &Context, native: Option<NativeWindow>) -> bool {
+    let Some(native) = native else { return false };
+    PerViewport::<Record>::with(ctx, ViewportId::ROOT, |record| record.native = Some(native));
+    if matches!(shared(ctx, |shared| shared.root_frame.clone()), Some(Frame::Integrated(_))) {
+        route_hit_test(ctx, ViewportId::ROOT);
     }
     true
 }
@@ -1056,7 +1222,12 @@ impl WindowHost {
     /// resize and caption hits. The window's move and resize parts still register, as the exclusive parts the sink
     /// reads, and a press on them starts no app move.
     pub fn install_hit_sink(&self, viewport: ViewportId) -> HitSink {
-        PerViewport::<Record>::with(&self.ctx, viewport, |record| record.sink.get_or_insert_with(HitSink::default).clone())
+        PerViewport::<Record>::with(&self.ctx, viewport, |record| record.sink.get_or_insert_with(|| HitSink::linked(&self.ctx, viewport)).clone())
+    }
+
+    /// The opacity `viewport`'s window was last set to with [`WindowAction::SetOpacity`]; 1 for a window never set.
+    pub fn opacity(&self, viewport: ViewportId) -> f32 {
+        PerViewport::<Record>::with(&self.ctx, viewport, |record| record.opacity.unwrap_or(1.0))
     }
 
     /// The desktop pointer in the coordinates of `viewport`, when it lies inside that window.
@@ -1184,6 +1355,11 @@ pub(crate) fn show_viewport(ctx: &Context, open: &ViewportOpen<'_>, mut body: im
         record.chrome = Some(chrome);
         record.captions = captions.clone();
         record.resizable = Some(open.resizable);
+        if record.title.as_deref() != Some(open.title) {
+            record.title = Some(open.title.to_owned());
+            record.native = None;
+            record.native_searched = false;
+        }
         record.level.get_or_insert(spec.level).for_egui(active, os)
     });
     let opens = viewports::Spec {
@@ -1213,6 +1389,9 @@ pub(crate) fn show_viewport(ctx: &Context, open: &ViewportOpen<'_>, mut body: im
             }
         }
         body(ui);
+        if chrome == WindowChrome::Integrated && os == Os::Windows {
+            route_hit_test(&ctx, viewport);
+        }
         if let Some(key) = open.save {
             record_placement(&ctx, viewport, key, &viewports::current(&ctx));
         }

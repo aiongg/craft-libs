@@ -52,3 +52,40 @@ fn scope_reads_layer_map_manifests_and_spec_allowances() {
     assert!(scope.allows("behavior/pipeline-only", Path::new("crates/ui/src/edit/mod.rs")));
     assert!(!scope.allows("behavior/pipeline-only", Path::new("crates/ui/src/buttons/mod.rs")));
 }
+
+/// Every crate's sources, not only the linted paths: `unsafe` is allowed in one file of craft-window and nowhere else.
+#[test]
+fn only_the_win32_module_allows_unsafe_code_anywhere_in_the_workspace() {
+    fn sources(dir: &Path, out: &mut Vec<PathBuf>) {
+        for entry in std::fs::read_dir(dir).unwrap().flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                sources(&path, out);
+            } else if path.extension().is_some_and(|ext| ext == "rs") {
+                out.push(path);
+            }
+        }
+    }
+    let root = root();
+    let mut files = Vec::new();
+    sources(&root.join("crates"), &mut files);
+    let scope = craft_design_lint::StaticScope::new();
+    let mut found = Vec::new();
+    for file in files {
+        let shown = file.strip_prefix(&root).unwrap().to_owned();
+        // The rule's own fixtures hold the forbidden text on purpose.
+        if shown.starts_with("crates/design-lint") {
+            continue;
+        }
+        let source = std::fs::read_to_string(&file).unwrap();
+        found.extend(
+            craft_design_lint::analyze_contract(&source, &shown, &scope, true)
+                .into_iter()
+                .filter(|finding| finding.rule == "contract/unsafe-allow")
+                .map(|finding| format!("{}:{}", shown.display(), finding.line)),
+        );
+    }
+    assert!(found.is_empty(), "{found:?}");
+    let win32 = std::fs::read_to_string(root.join("crates/window/src/win32.rs")).unwrap();
+    assert!(win32.contains("allow(unsafe_code)"), "the rule's one allowed file is the module that uses `unsafe`");
+}

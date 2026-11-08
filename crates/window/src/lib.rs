@@ -1,5 +1,5 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
 
 //! Decide who draws the window frame, so every Craft app shows the same titlebar and borders on a
 //! given desktop, and make an app-drawn strip act as the title bar.
@@ -144,6 +144,7 @@ mod layout;
 mod list;
 pub mod mac;
 mod menu;
+pub mod native;
 mod place;
 pub mod policy;
 #[cfg(not(target_arch = "wasm32"))]
@@ -152,6 +153,8 @@ pub mod system;
 pub mod title_bar;
 #[cfg(feature = "ui")]
 mod viewports;
+#[cfg(windows)]
+mod win32;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod restore;
