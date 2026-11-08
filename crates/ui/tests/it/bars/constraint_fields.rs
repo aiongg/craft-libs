@@ -141,6 +141,8 @@ fn normal_greys_the_cells() {
         let swap = fixture.by_label("Swaps height and width").unwrap();
         [width, height, swap].map(|target| fixture.tree().is_disabled_key(target.node))
     };
-    assert_eq!(greyed(Constraint::Free), [true; 3]);
-    assert_eq!(greyed(Constraint::Ratio(1.0, 2.0)), [false; 3]);
+    let ratio = Constraint::Ratio(1.0, 2.0);
+    let (free, fixed) = (greyed(Constraint::Free), greyed(ratio));
+    assert!(free.iter().all(|grey| *grey), "Normal greys Width, the swap and Height");
+    assert!(fixed.iter().all(|grey| !*grey), "Fixed Ratio leaves them enabled");
 }
