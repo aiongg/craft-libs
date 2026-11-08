@@ -1,347 +1,282 @@
-//! `CompareTile`: one fitted image with zoom and pan shared across tiles, and its pending and
-//! failed pills.
+//! `CompareTile`: one picture in a `PreviewPane` over a view the panes share, with its caption strip, the active ring
+//! and the rejected veil.
 
-use craft_theme::TypeRole;
-use craft_ui::canvas::CanvasView;
-use craft_ui::canvas::navigate::{NavigationOptions, WheelNavigation, pan};
-use craft_ui::canvas::textures::{CachedTexture, Revision, TextureCache, TextureCacheOptions};
-use craft_ui::canvas::zoom::fit_view;
-use craft_ui::controls::Spinner;
-use craft_ui::direction;
-use craft_ui::icons::IconSize;
-use craft_ui::localized::Labels as _;
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, role_format};
-use egui::text::LayoutJob;
-use egui::{
-    AsIdSalt, Color32, ColorImage, CornerRadius, CursorIcon, IdSalt, Painter, Rect, Response, Sense, Stroke, StrokeKind, Ui, WidgetInfo, pos2, vec2,
+use std::cell::RefCell;
+
+use craft_behavior::CanvasTransform;
+use craft_ui::contract::{
+    Bind, Common, Component, Container, ContainerProps, Cx, FooterRegion, Held, NoValue, Outcome, PaintUi, Props, Remember as _, Role, Show as _,
+    ShowContainer as _, Sizing, clicked,
 };
-use kurbo::{Point, Size};
+use craft_ui::patterns::form_dialogs::{PaneOverlay, PreviewPane, PreviewState, PreviewView};
+use craft_ui::primitives::textures::{CachedTexture, Revision, TextureStore, TextureStoreOptions};
+use craft_ui::primitives::{ContentPainterCx, PaintShape, StrokeWidth};
+use craft_ui::runtime::access::Access;
+use craft_ui::runtime::env::{Env, Label};
+use craft_ui::runtime::pointer;
+use craft_ui::style::StyleCx;
+use egui::load::SizedTexture;
+use egui::{ColorImage, CornerRadius, Rect, Response, Ui, Vec2, vec2};
 
-use super::{CompareCaption, CompareLabels, CompareStyle};
-use crate::ui::grid::TileStyle;
+use super::{CompareCaption, CompareTileStyle, CompareWords};
 
 /// The picture a compare tile shows.
+#[non_exhaustive]
 pub enum CompareImage<'a> {
-    /// A texture from the app's own `TextureCache`, with the image's full size in pixels (for Fit
-    /// and 100 %).
-    Texture {
-        /// The cached texture to draw.
-        texture: CachedTexture,
-        /// The image's full size in pixels.
-        size: [u32; 2],
-    },
-    /// A picture the tile uploads into its own `TextureCache` (`get_or_put` keyed by `key` and
-    /// `revision`; `make` runs once per revision).
-    Picture {
-        /// The cache key of the picture.
-        key: u64,
-        /// The picture's revision; a new revision uploads again.
-        revision: Revision,
-        /// The image's full size in pixels.
-        size: [u32; 2],
-        /// Builds the image. Runs once per revision.
-        make: Box<dyn FnOnce() -> ColorImage + 'a>,
-    },
-    /// Nothing yet: the thumbnail placeholder.
+    /// A texture from the app's own `TextureStore`, with the image's full size in pixels (for Fit and 1:1).
+    Texture(CachedTexture, [u32; 2]),
+    /// A picture the tile uploads into its own `TextureStore` (keyed by `key` and `revision`; `make` runs once per
+    /// revision).
+    Picture(u64, Revision, [u32; 2], Box<dyn FnOnce() -> ColorImage + 'a>),
+    /// Nothing yet: the pane's placeholder.
     None,
 }
 
 /// The host's render state for the tile.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum RenderState {
     /// The picture is current.
     Ready,
-    /// A render is running; `overdue` once it has taken longer than the host's wait, which shows
-    /// the "Rendering…" pill (`surface.scrim` with a `Spinner`).
-    Pending {
-        /// True once the render has taken longer than the host's wait.
-        overdue: bool,
-    },
-    /// The render failed: the "Render failed" pill (`status.bad.solid`) at once, the message as
-    /// its tooltip.
+    /// A render is running; `overdue` once it has taken longer than the host's wait, which replaces the picture with
+    /// the pane's pending line. Before that the last picture stays.
+    /// True once the render has taken longer than the host's wait.
+    Pending(bool),
+    /// The render failed: the pane shows the message.
     Failed(String),
 }
 
-/// What [`CompareTile::show`] returns.
+/// What [`CompareTile::place`] returns.
 #[derive(Debug)]
-pub struct CompareResponse {
+#[non_exhaustive]
+pub struct CompareOutput {
     /// The tile.
     pub response: Response,
     /// A click: the host makes the pane active.
     pub clicked: bool,
-    /// A double click: the host toggles Fit and 100 % ([`CompareTile::toggle_zoom`]).
+    /// A double click: the tile has toggled Fit and 1:1 in `view`.
     pub double_clicked: bool,
-    /// The shared view changed this pass (zoom or pan).
-    pub view_changed: bool,
-    /// Where the picture was drawn.
-    pub image_rect: Rect,
+    /// The view after a pan, a zoom or a double click of this pass; `None` when it did not change. The tile also
+    /// writes it to the binding it was given.
+    pub view: Option<PreviewView>,
 }
 
-/// The host's drawing over the picture.
-type Overlay<'a> = Box<dyn FnOnce(&Painter, &CanvasView, Rect) + 'a>;
+impl Outcome for CompareOutput {
+    type Value = NoValue;
 
-/// One compare pane (N8.08): the image fitted into the area less the caption strip, zoomed and
-/// panned through a `CanvasView` the tiles share (wheel, pinch, drag through
-/// `canvas::WheelNavigation` and `canvas::pan`; the tile works on a copy whose `rect` is its own
-/// image rect, and writes back `center` and `zoom`, so equal panes stay in step), the caption,
-/// the pills, the rejected veil (`surface.scrim`), and the active ring (`accent.solid`, `stroke.thick` wide, with
-/// its halo). `.survey(true)`: no zoom or pan, always fitted. Window renders are the host's,
-/// drawn through `.overlay(..)` over the picture. AccessKit: an `Image` named by
-/// `CompareLabels::tile_name` (the caption read as text), the pill text as its description.
-pub struct CompareTile<'a> {
-    id_salt: IdSalt,
-    view: &'a mut CanvasView,
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// What the body hands back.
+#[derive(Default)]
+struct Shown {
+    clicked: bool,
+    double_clicked: bool,
+    view: Option<PreviewView>,
+}
+
+/// What the body shows: taken out of the tile before the container runs.
+struct Content<'a> {
+    label: Label,
+    view: Bind<'a, PreviewView>,
     image: CompareImage<'a>,
-    caption: Option<CompareCaption>,
     state: RenderState,
-    active: bool,
-    rejected: bool,
     survey: bool,
-    overlay: Option<Overlay<'a>>,
-    labels: Option<CompareLabels>,
+    overlay: Option<PaneOverlay<'a>>,
+}
+
+/// The pane's well in the last pass, for the marks painted over it.
+#[derive(Clone, Default)]
+struct Well(Option<Rect>);
+
+/// One compare pane: a picture fitted into its well, zoomed and panned through a [`PreviewView`] the panes share,
+/// under its caption strip, with the rejected veil and the active ring.
+///
+/// - **Picture.** The well is a `PreviewPane`: drag and the arrow keys pan, the wheel and pinch zoom. A double click
+///   toggles Fit and 1:1 ([`CompareTile::toggle_zoom`]). `.survey(true)` shows the picture always fitted and adopts no
+///   view change.
+/// - **Render state.** `Pending { overdue: true }` and `Failed` replace the picture with the pane's pending line and
+///   failed message; before the host's wait a pending render keeps the last picture.
+/// - **Marks.** The rejected veil (`surface.scrim`) and the active ring (`accent.solid`, with its halo) are painted
+///   over the well from the tile's style.
+/// - **Access.** An image named by the caption read as text, with the pending or failed text as its description.
+#[must_use = "show the tile with `show`"]
+#[derive(craft_ui::contract::Component, Props)]
+#[component(container)]
+pub struct CompareTile<'a> {
+    #[common]
+    common: Common,
+    #[container]
+    props: ContainerProps,
+    label: Label,
+    view: Option<Bind<'a, PreviewView>>,
+    image: Option<CompareImage<'a>>,
+    /// The caption strip.
+    #[prop]
+    caption: Option<CompareCaption>,
+    /// The render state (default `Ready`).
+    #[prop]
+    state: RenderState,
+    /// The active pane: the ring.
+    #[prop]
+    active: bool,
+    /// The rejected veil.
+    #[prop]
+    rejected: bool,
+    /// Survey: fitted, no zoom or pan.
+    #[prop]
+    survey: bool,
+    /// The host's drawing over the picture (a window render): the content painter, the transform the picture is
+    /// drawn with and the picture's rect.
+    #[prop(func = "FnOnce(&ContentPainterCx, CanvasTransform, Rect)")]
+    overlay: Option<PaneOverlay<'a>>,
+    description: Option<String>,
 }
 
 impl<'a> CompareTile<'a> {
-    /// A tile showing `image` through the shared `view`.
-    pub fn new(id_salt: impl AsIdSalt, view: &'a mut CanvasView, image: CompareImage<'a>) -> Self {
-        // lightcraft: crates/ui-egui/src/panels/compare.rs:213 (`photo_tile`).
-        Self {
-            id_salt: IdSalt::new(id_salt),
-            view,
-            image,
+    /// A tile named `label` showing `image` through the shared `view`.
+    pub fn new(label: impl Into<Label>, view: Bind<'a, PreviewView>, image: CompareImage<'a>) -> Self {
+        let label = label.into();
+        CompareTile {
+            common: Common::new(),
+            props: ContainerProps::new().sizing(Sizing::Fill).footer(FooterRegion::new()),
+            label,
+            view: Some(view),
+            image: Some(image),
             caption: None,
             state: RenderState::Ready,
             active: false,
             rejected: false,
             survey: false,
             overlay: None,
-            labels: None,
+            description: None,
         }
     }
 
-    /// The caption strip.
-    #[must_use]
-    pub fn caption(self, caption: CompareCaption) -> Self {
-        // new: builder.
-        Self { caption: Some(caption), ..self }
-    }
-
-    /// The render state (default `Ready`).
-    #[must_use]
-    pub fn state(self, state: RenderState) -> Self {
-        // lightcraft: crates/ui-egui/src/panels/compare.rs:328 (the pills).
-        Self { state, ..self }
-    }
-
-    /// The active pane: the ring.
-    #[must_use]
-    pub fn active(self, active: bool) -> Self {
-        // lightcraft: crates/ui-egui/src/panels/compare.rs:298 (the active tile's ring).
-        Self { active, ..self }
-    }
-
-    /// The rejected veil.
-    #[must_use]
-    pub fn rejected(self, rejected: bool) -> Self {
-        // lightcraft: crates/ui-egui/src/panels/compare.rs:292 (black α110 veil).
-        Self { rejected, ..self }
-    }
-
-    /// Survey: fitted, no zoom or pan.
-    #[must_use]
-    pub fn survey(self, survey: bool) -> Self {
-        // lightcraft: crates/ui-egui/src/panels/compare.rs:232 (zoom and pan only in Compare and Reference).
-        Self { survey, ..self }
-    }
-
-    /// The host's drawing over the picture (a window render), with the tile's view and image rect.
-    #[must_use]
-    pub fn overlay(self, overlay: impl FnOnce(&Painter, &CanvasView, Rect) + 'a) -> Self {
-        // lightcraft: crates/ui-egui/src/panels/compare.rs:446 (`draw_window`).
-        Self { overlay: Some(Box::new(overlay)), ..self }
-    }
-
-    /// The words.
-    #[must_use]
-    pub fn labels(self, labels: CompareLabels) -> Self {
-        // new: builder.
-        Self { labels: Some(labels), ..self }
-    }
-
-    /// Draws the tile in `rect`.
-    pub fn show(self, ui: &mut Ui, rect: Rect) -> CompareResponse {
-        // lightcraft: crates/ui-egui/src/panels/compare.rs:213 (`photo_tile`).
-        let Self { id_salt, view, image, caption, state, active, rejected, survey, overlay, labels } = self;
-        let tokens = Tokens::of(ui);
-        let style = CompareStyle::of(&tokens);
-        let tile = TileStyle::style(&tokens);
-        let labels = labels.unwrap_or_else(|| CompareLabels::of(ui));
-        let ctx = ui.ctx().clone();
-        let ppp = ctx.pixels_per_point();
-        let id = ui.scope_id().with(id_salt);
-        let response = ui.interact(rect, id, if survey { Sense::click() } else { Sense::click_and_drag() });
-
-        let caption_height = if caption.is_some() { style.caption } else { 0.0 };
-        let image_area = Rect::from_min_max(rect.min, pos2(rect.right(), (rect.bottom() - caption_height).max(rect.top())));
-        let (texture, size) = match image {
-            CompareImage::Texture { texture, size } => (Some(texture), Some(size)),
-            CompareImage::Picture { key, revision, size, make } => {
-                let cache = TextureCache::<u64>::in_context(&ctx, ("compare-textures", id_salt), TextureCacheOptions::frames());
-                (Some(cache.get_or_put(&ctx, key, revision, make)), Some(size))
-            }
-            CompareImage::None => (None, None),
-        };
-
-        // The tile works on a copy whose rect is its own image rect and writes back centre and zoom.
-        let before = *view;
-        let mut shown = before;
-        shown.rect = image_area;
-        let document = size.map(|[w, h]| Size::new(f64::from(w.max(1)), f64::from(h.max(1))));
-        if let Some(document) = document {
-            let mark_id = id.with("fitted");
-            let mut fit = shown;
-            fit_view(&mut fit, document, ppp);
-            // A view this tile left at Fit follows the area when it changes.
-            let left_fitted = ctx
-                .data(|d| d.get_temp::<(f64, f64, f64)>(mark_id))
-                .is_some_and(|(zoom, x, y)| close(zoom, shown.zoom) && close(x, shown.center.x) && close(y, shown.center.y));
-            if survey || left_fitted || !(shown.zoom.is_finite() && shown.zoom > 0.0) {
-                shown.zoom = fit.zoom;
-                shown.center = fit.center;
-            }
-            if !survey {
-                let prefs = NavigationOptions { zoom_with_wheel: true, animated_zoom: false, ..NavigationOptions::default() };
-                if let Some(action) = WheelNavigation::read(&ctx, &response, &prefs) {
-                    let pointer = response.hover_pos().unwrap_or_else(|| image_area.center());
-                    WheelNavigation::apply(&mut shown, action, pointer, document, &prefs, ppp);
-                }
-                if response.dragged() {
-                    pan(&mut shown, response.drag_delta());
-                    ctx.set_cursor_icon(CursorIcon::Grabbing);
-                } else if response.hovered() {
-                    ctx.set_cursor_icon(CursorIcon::Grab);
-                }
-                view.zoom = shown.zoom;
-                view.center = shown.center;
-                if close(shown.zoom, fit.zoom) && close(shown.center.x, fit.center.x) && close(shown.center.y, fit.center.y) {
-                    ctx.data_mut(|d| d.insert_temp(mark_id, (shown.zoom, shown.center.x, shown.center.y)));
-                } else {
-                    ctx.data_mut(|d| d.remove::<(f64, f64, f64)>(mark_id));
-                }
-            }
-        }
-        let display = match document {
-            Some(document) => Rect::from_two_pos(shown.to_screen(Point::ZERO), shown.to_screen(Point::new(document.width, document.height))),
-            None => image_area,
-        };
-        let visible = display.intersect(image_area);
-        let visible = if visible.is_positive() { visible } else { image_area };
-
-        let mut painted = None;
-        let mut pill_text = None;
-        if ui.is_rect_visible(rect) {
-            let painter = ui.painter_at(image_area);
-            match texture {
-                Some(texture) => {
-                    let uv = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
-                    painter.image(texture.id, display, uv, Color32::WHITE); // design: allow(identity tint)
-                }
-                None => {
-                    painter.rect_filled(image_area, 0.0, tokens.color.surface.sunken.to_egui());
-                }
-            }
-            if let Some(overlay) = overlay {
-                overlay(&painter, &shown, display);
-            }
-            if rejected {
-                painter.rect_filled(visible, 0.0, style.veil);
-            }
-            if active {
-                let ring = ui.painter_at(rect.expand(tile.ring_width + tile.ring_halo_width));
-                ring.rect_stroke(visible, 0.0, Stroke::new(tile.ring_width, style.ring), StrokeKind::Outside);
-                ring.rect_stroke(visible.expand(tile.ring_width), 0.0, Stroke::new(tile.ring_halo_width, style.ring_halo), StrokeKind::Outside);
-            }
-            let pill = match &state {
-                RenderState::Pending { overdue: true } => Some((labels.rendering.clone(), style.pending_fill, style.pill_text, true, None)),
-                RenderState::Failed(message) => {
-                    Some((labels.render_failed.clone(), style.failed_fill, style.failed_text, false, Some(message.clone())))
-                }
-                RenderState::Ready | RenderState::Pending { overdue: false } => None,
-            };
-            if let Some((text, fill, ink, spinning, tip)) = pill {
-                let rtl = direction::is_rtl(ui);
-                let pad = tokens.space.pad.control;
-                let gap = tokens.space.gap.inline;
-                let spinner = IconSize::Sm.points(&tokens);
-                let galley = painter.layout_job(LayoutJob::single_section(text.clone(), role_format(&tokens, TypeRole::Caption, ink)));
-                let lead = if spinning { spinner + gap } else { 0.0 };
-                let pill_size = vec2(galley.size().x + lead + 2.0 * pad, galley.size().y.max(spinner) + pad);
-                let min = pos2(visible.center().x - pill_size.x / 2.0, visible.top() + tokens.space.gap.row);
-                let pill_rect = Rect::from_min_size(min, pill_size);
-                painter.rect_filled(pill_rect, CornerRadius::from((pill_size.y / 2.0).min(tokens.shape.radius.pill)), fill);
-                let (spinner_x, text_x) = if rtl {
-                    (pill_rect.right() - pad - spinner, pill_rect.left() + pad)
-                } else {
-                    (pill_rect.left() + pad, pill_rect.right() - pad - galley.size().x)
-                };
-                if spinning {
-                    let slot = Rect::from_min_size(pos2(spinner_x, pill_rect.center().y - spinner / 2.0), vec2(spinner, spinner));
-                    Spinner::paint(ui, slot, ink);
-                }
-                painter.galley(pos2(text_x, pill_rect.center().y - galley.size().y / 2.0), galley, ink);
-                if let Some(tip) = tip {
-                    let hover = ui.interact(pill_rect.intersect(image_area), id.with("pill"), Sense::hover());
-                    hover.on_hover_text(tip);
-                }
-                pill_text = Some(text);
-            }
-            if let Some(caption) = &caption {
-                let top = (display.bottom() + tile.caption_gap).clamp(image_area.top(), image_area.bottom());
-                let (left, right) = if direction::is_rtl(ui) {
-                    (rect.left(), display.right().clamp(rect.left(), rect.right()))
-                } else {
-                    (display.left().clamp(rect.left(), rect.right()), rect.right())
-                };
-                let strip = Rect::from_min_max(pos2(left, top), pos2(right, top + style.caption));
-                painted = Some(caption.paint(ui, strip, &style, &labels));
-            }
-        }
-
-        let name = painted.map(|p| p.name).unwrap_or_default();
-        response.widget_info(|| WidgetInfo::labeled(egui::Role::Image, ui.is_enabled(), &name));
-        if let Some(text) = pill_text {
-            ctx.accesskit_node_builder(response.id, |node| node.set_description(text));
-        }
-        CompareResponse {
-            clicked: response.clicked(),
-            double_clicked: response.double_clicked(),
-            view_changed: !(close(view.zoom, before.zoom) && close(view.center.x, before.center.x) && close(view.center.y, before.center.y)),
-            image_rect: display,
-            response,
-        }
-    }
-
-    /// Toggles `view` between Fit (`canvas::fit_view` for an image of `size` in `area`) and 100 %
-    /// (one device pixel per image pixel, about the area's centre). `area` is the image area: the
-    /// tile's rect less the caption strip (`CompareStyle::caption`).
-    pub fn toggle_zoom(view: &mut CanvasView, size: [u32; 2], area: Rect, pixels_per_point: f32) {
-        // lightcraft: crates/ui-egui/src/panels/compare.rs:520 (double click toggles Fit and 100 %).
-        let document = Size::new(f64::from(size[0].max(1)), f64::from(size[1].max(1)));
-        let centre = view.to_doc(area.center());
-        view.rect = area;
-        let mut fit = *view;
-        fit_view(&mut fit, document, pixels_per_point);
-        if close(view.zoom, fit.zoom) {
-            view.zoom = CanvasView::points_per_unit(1.0, pixels_per_point);
-            view.center = centre;
+    /// `view` toggled between Fit and 1:1 (one device pixel per image pixel, about the well's centre): from Fit to
+    /// 1:1, from anything else to Fit.
+    pub fn toggle_zoom(view: &PreviewView) -> PreviewView {
+        if view.fit {
+            PreviewView::new(CanvasTransform::new(1.0, Vec2::ZERO)).zoom_range(view.range.clone())
         } else {
-            view.zoom = fit.zoom;
-            view.center = fit.center;
+            PreviewView::fitting().zoom_range(view.range.clone())
         }
+    }
+
+    /// Shows the tile at `rect`.
+    pub fn place(mut self, ui: &mut Ui, rect: Rect) -> CompareOutput {
+        let env = Env::of(ui);
+        let words = env.words::<CompareWords>();
+        let format = env.view().format().clone();
+        let name = match &self.caption {
+            Some(caption) => caption.accessible_name(&words, &format),
+            None => self.label.as_str().to_owned(),
+        };
+        self.description = match &self.state {
+            RenderState::Pending(true) => Some(words.rendering.as_str().to_owned()),
+            RenderState::Failed(message) if message.is_empty() => Some(words.render_failed.as_str().to_owned()),
+            RenderState::Failed(message) => Some(message.clone()),
+            RenderState::Ready | RenderState::Pending(false) => None,
+        };
+        let content = RefCell::new(match (self.view.take(), self.image.take()) {
+            (Some(view), Some(image)) => {
+                Some(Content { label: self.label.clone(), view, image, state: self.state.clone(), survey: self.survey, overlay: self.overlay.take() })
+            }
+            _ => None,
+        });
+        let salt = self.label.as_str().to_owned();
+        let shown = self.label(name).show_at(ui, rect, |ui, cx| {
+            let content = content.borrow_mut().take()?;
+            let Content { label, view, image, state, survey, overlay } = content;
+            let mut view = Held::new(view);
+            let ppp = ui.pixels_per_point();
+            let picture = match image {
+                CompareImage::Texture(texture, size) => Some(SizedTexture::new(texture.id, points(size, ppp))),
+                CompareImage::Picture(key, revision, size, make) => {
+                    let store = TextureStore::<u64>::in_context(ui.ctx(), ("compare-textures", &salt), TextureStoreOptions::frames());
+                    let texture = store.get_or_put(ui.ctx(), key, revision, make);
+                    Some(SizedTexture::new(texture.id, points(size, ppp)))
+                }
+                CompareImage::None => None,
+            };
+            let held = if survey { PreviewView::fitting() } else { view.read(cx).unwrap_or_else(PreviewView::fitting) };
+            let preview = match (&state, picture) {
+                (RenderState::Failed(message), _) => PreviewState::Failed(Label::from(message.clone())),
+                (RenderState::Pending(true), _) | (_, None) => PreviewState::Pending(None),
+                (_, Some(texture)) => PreviewState::Ready(texture),
+            };
+            let mut pane = PreviewPane::state(label, preview, &held);
+            if let Some(PaneOverlay(paint)) = overlay {
+                pane = pane.overlay(paint);
+            }
+            let out = pane.show(ui);
+            cx.memory::<Well>().0 = Some(out.response.rect);
+            let double_clicked = !survey
+                && pointer::frame(ui.ctx()).press.is_some_and(|press| press.clicks >= 2)
+                && pointer::frame(ui.ctx()).pos.is_some_and(|at| out.response.rect.contains(at));
+            let next = if survey {
+                None
+            } else if double_clicked {
+                Some(Self::toggle_zoom(&out.shown))
+            } else {
+                out.view.clone()
+            };
+            if let Some(next) = &next {
+                view.write(cx, &held, next.clone(), "Zoom");
+            }
+            Some(Shown { clicked: clicked(&out.response), double_clicked, view: next })
+        });
+        let Shown { clicked, double_clicked, view } = shown.inner.flatten().unwrap_or_default();
+        CompareOutput { response: shown.output, clicked, double_clicked, view }
     }
 }
 
-/// Equal up to the rounding of a zoom or a centre.
-fn close(a: f64, b: f64) -> bool {
-    (a - b).abs() <= 1e-9 * a.abs().max(b.abs()).max(1.0)
+/// An image of `size` pixels in points: at 1.0 zoom one device pixel per image pixel.
+fn points(size: [u32; 2], pixels_per_point: f32) -> Vec2 {
+    vec2(size[0].max(1) as f32, size[1].max(1) as f32) / pixels_per_point
+}
+
+impl Component for CompareTile<'_> {
+    const ROLE: Role = Role::IMAGE;
+    type Style = CompareTileStyle;
+    type Output = Response;
+
+    fn style(cx: &StyleCx<'_>, _: CompareTileStyleKey) -> CompareTileStyle {
+        Self::tile_style(cx)
+    }
+
+    fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
+        if let Some(description) = &self.description {
+            access.description(description.clone());
+        }
+    }
+
+    /// The rejected veil and the active ring over the well.
+    fn paint_over(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let Some(well) = cx.recall::<Well>().0 else { return };
+        let style = cx.style;
+        let draw = ui.draw();
+        if self.rejected {
+            draw.fill(&PaintShape::Rect(well, CornerRadius::ZERO), style.veil);
+        }
+        if self.active {
+            draw.stroke(&PaintShape::Rect(well, CornerRadius::ZERO), StrokeWidth::Thick, style.halo);
+            draw.stroke(&PaintShape::Rect(well, CornerRadius::ZERO), StrokeWidth::Medium, style.ring);
+        }
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+impl Container for CompareTile<'_> {
+    /// The caption strip under the picture.
+    fn footer(&mut self, ui: &mut Ui, cx: &mut craft_ui::contract::BodyCx<'_>) {
+        if let Some(caption) = &self.caption {
+            caption.strip(ui, cx.rect.width());
+        }
+    }
 }

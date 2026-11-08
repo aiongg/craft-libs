@@ -1,20 +1,16 @@
 //! File thumbnails: `FileThumbKey`, `ThumbDecoder`, `DecodeRequest`, `DecodedThumb`, `ThumbError`,
 //! `ThumbStore` and `StoreKey` without egui; with `ui`, `FileThumbSource` and `FileThumbOptions`,
-//! one more `ThumbSource` over the shared `craft_ui::canvas::textures::Thumbnails` cache.
+//! one more `ThumbSource` over the shared `craft_ui::primitives::textures::Thumbnails` cache.
 //!
 //! ```ignore
 //! let files = FileThumbSource::new(Arc::new(MyDecoder), Some(Arc::new(MyStore)));   // app state, one per library
-//! let thumbs = Thumbnails::<PhotoId>::in_context(ctx, "library", ThumbnailOptions::default());
+//! let thumbs = Thumbnails::<PhotoId>::in_context(ctx, "library", ThumbnailOptions::new());
 //! let source = files.keyed(|id: &PhotoId| catalog.file(*id));                        // per pass: tile key to FileThumbKey
-//! TileGrid::new("library", &photos).thumbnails(&thumbs, &source).show(ui);
+//! let state = thumbs.state(ctx, &source, &id, &request, Priority::Visible);          // then `thumbs.paint(..)` in the tile's picture
 //! ```
 
 #[cfg(feature = "ui")]
 mod source;
-#[cfg(all(test, feature = "ui"))]
-mod source_tests;
-#[cfg(feature = "ui")]
-pub(crate) mod stories;
 
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
@@ -37,7 +33,6 @@ pub struct FileThumbKey {
 impl FileThumbKey {
     /// The whole file (variant 0).
     pub fn file(path: impl Into<PathBuf>) -> Self {
-        // new: the common case.
         Self { path: path.into(), variant: 0 }
     }
 }

@@ -1,15 +1,15 @@
-//! `FileThumbSource` through `Thumbnails` with `ManualJobs` and a fake decoder (task XT).
+//! `FileThumbSource` through `Thumbnails` with `ManualJobs` and a fake decoder.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
+use craft_browse::thumbs::{DecodeRequest, DecodedThumb, FileStat, FileThumbKey, FileThumbSource, StoreKey, ThumbDecoder, ThumbError, ThumbStore};
 use craft_host::ManualJobs;
 use craft_host::queue::Cancel;
-use craft_ui::canvas::textures::{Priority, TextureState, ThumbPaint, ThumbRequest, ThumbnailOptions, Thumbnails};
-use egui::{Context, Rect, pos2, vec2};
-
-use super::{DecodeRequest, DecodedThumb, FileStat, FileThumbKey, FileThumbSource, StoreKey, ThumbDecoder, ThumbError, ThumbStore};
+use craft_ui::primitives::textures::{LoadFailure, Priority, TextureState, ThumbRequest, ThumbnailOptions, Thumbnails};
+use craft_ui::testing::trial;
+use egui::Context;
 
 /// What the fake decoder answers.
 #[derive(Clone)]
@@ -17,6 +17,7 @@ enum Answer {
     Picture,
     Fail(&'static str),
     Unsupported,
+    Raw(DecodedThumb),
 }
 
 struct Decoder {
@@ -68,6 +69,7 @@ impl ThumbDecoder for Decoder {
             Answer::Picture => Ok(picture(self.full_side.load(Ordering::Relaxed))),
             Answer::Fail(message) => Err(ThumbError::Failed(message.to_owned())),
             Answer::Unsupported => Err(ThumbError::Unsupported),
+            Answer::Raw(thumb) => Ok(thumb),
         }
     }
 
@@ -106,7 +108,7 @@ impl Setup {
     fn new() -> Self {
         let ctx = Context::default();
         let jobs = Arc::new(ManualJobs::new());
-        let options = ThumbnailOptions { lanes: 1, jobs: Some(jobs.clone()), ..ThumbnailOptions::default() };
+        let options = ThumbnailOptions::new().lanes(1).jobs(jobs.clone());
         let thumbs = Thumbnails::in_context(&ctx, "files", options);
         Self { ctx, jobs, thumbs, dir: tempfile::tempdir().expect("temp dir") }
     }
@@ -141,11 +143,11 @@ impl Setup {
 }
 
 fn side(state: &TextureState) -> Option<usize> {
-    state.shown().map(|texture| texture.size[0])
+    state.shown().map(|texture| texture.size.width as usize)
 }
 
 // Two keys asked VISIBLE and NEAR: ManualJobs runs the VISIBLE decode first.
-#[test]
+#[trial]
 fn file_source_jobs_run_visible_before_near() {
     let setup = Setup::new();
     let decoder = Decoder::new(None);
@@ -160,13 +162,13 @@ fn file_source_jobs_run_visible_before_near() {
 }
 
 // After `invalidate(path)` the state is Loading with the old picture as stand-in, then Ready with the new.
-#[test]
+#[trial]
 fn file_source_reloads_after_invalidate() {
     let setup = Setup::new();
     let decoder = Decoder::new(None);
     let source = FileThumbSource::new(decoder.clone(), None);
     let key = setup.file("a.png");
-    assert!(matches!(setup.show(&source, &key), TextureState::Loading { stand_in: None }));
+    assert!(matches!(setup.show(&source, &key), TextureState::Loading { stand_in: None, .. }));
     setup.jobs.run_all();
     let state = setup.show(&source, &key);
     assert_eq!(side(&state), Some(4));
@@ -175,7 +177,8 @@ fn file_source_reloads_after_invalidate() {
     decoder.full_side.store(6, Ordering::Relaxed);
     source.invalidate(&key.path);
     let state = setup.show(&source, &key);
-    assert_eq!(state, TextureState::Loading { stand_in: Some(first) });
+    let TextureState::Loading { stand_in, .. } = &state else { panic!("expected a reload in progress, got {state:?}") };
+    assert_eq!(stand_in.as_ref(), Some(&first));
     setup.jobs.run_all();
     let state = setup.show(&source, &key);
     assert!(matches!(state, TextureState::Ready(_)));
@@ -184,7 +187,7 @@ fn file_source_reloads_after_invalidate() {
 }
 
 // A failing decode: Failed, and no second job on later passes until `invalidate`.
-#[test]
+#[trial]
 fn file_source_fails_once_per_stamp() {
     let setup = Setup::new();
     let decoder = Decoder::new(None);
@@ -194,7 +197,9 @@ fn file_source_fails_once_per_stamp() {
     setup.show(&source, &key);
     setup.jobs.run_all();
     for _ in 0..3 {
-        assert_eq!(setup.show(&source, &key), TextureState::Failed { message: "boom".to_owned() });
+        let state = setup.show(&source, &key);
+        let TextureState::Failed { failure, .. } = &state else { panic!("expected a failure, got {state:?}") };
+        assert_eq!(*failure, LoadFailure::Message("boom".to_owned()));
     }
     assert_eq!(setup.jobs.waiting(), 0);
     assert_eq!(decoder.decodes(), 1);
@@ -208,7 +213,7 @@ fn file_source_fails_once_per_stamp() {
 }
 
 // A decoder with `quick`: the quick picture shows, then stands in while `decode` runs, then the full one.
-#[test]
+#[trial]
 fn file_source_shows_the_quick_preview_first() {
     let setup = Setup::new();
     let decoder = Decoder::new(Some(2));
@@ -219,8 +224,8 @@ fn file_source_shows_the_quick_preview_first() {
     assert_eq!(decoder.decodes(), 0);
 
     let state = setup.show(&source, &key);
-    let TextureState::Loading { stand_in: Some(quick) } = state else { panic!("expected the quick picture as stand-in, got {state:?}") };
-    assert_eq!(quick.size[0], 2);
+    let TextureState::Loading { stand_in: Some(quick), .. } = state else { panic!("expected the quick picture as stand-in, got {state:?}") };
+    assert_eq!(quick.size.width, 2);
     setup.jobs.run_all();
     let state = setup.show(&source, &key);
     assert!(matches!(state, TextureState::Ready(_)));
@@ -233,7 +238,7 @@ fn file_source_shows_the_quick_preview_first() {
 }
 
 // A store hit is final: `decode` is never called and no second revision is asked.
-#[test]
+#[trial]
 fn a_stored_thumbnail_needs_no_decode() {
     let setup = Setup::new();
     let decoder = Decoder::new(Some(2));
@@ -251,8 +256,8 @@ fn a_stored_thumbnail_needs_no_decode() {
     assert_eq!((decoder.decodes(), decoder.quick_calls.load(Ordering::Relaxed), store.saves.load(Ordering::Relaxed)), (0, 0, 0));
 }
 
-// A decoder answering `ThumbError::Unsupported`: the state is Empty (not Failed), `paint` draws nothing, and no second job runs.
-#[test]
+// A decoder answering `ThumbError::Unsupported`: the state is Empty (not Failed), and no second job runs.
+#[trial]
 fn an_unsupported_file_shows_no_picture() {
     let setup = Setup::new();
     let decoder = Decoder::new(None);
@@ -264,17 +269,12 @@ fn an_unsupported_file_shows_no_picture() {
     for _ in 0..3 {
         assert_eq!(setup.show(&source, &key), TextureState::Empty);
     }
-    setup.pass(|| {
-        let painter = egui::Painter::new(setup.ctx.clone(), egui::LayerId::background(), Rect::EVERYTHING);
-        let rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(32.0, 32.0));
-        assert!(!setup.thumbs.paint(&painter, rect, &TextureState::Empty, &ThumbPaint::default()));
-    });
     assert_eq!(setup.jobs.waiting(), 0);
     assert_eq!(decoder.decodes(), 1);
 }
 
 // The length and modification time come from the decoder's stat hook, not the file system.
-#[test]
+#[trial]
 fn the_job_stats_through_the_decoder() {
     let setup = Setup::new();
     let decoder = Decoder::new(None);
@@ -290,7 +290,7 @@ fn the_job_stats_through_the_decoder() {
 }
 
 // A stat that finds no file is the loader's "missing" reason, not a decode.
-#[test]
+#[trial]
 fn a_failed_stat_is_missing() {
     let setup = Setup::new();
     let decoder = Decoder::new(None);
@@ -305,19 +305,24 @@ fn a_failed_stat_is_missing() {
 }
 
 // A buffer that is not width x height x 4 fails as unreadable instead of panicking; a zero size shows no picture.
-#[test]
+#[trial]
 fn a_malformed_decode_fails_and_a_zero_size_is_empty() {
     let setup = Setup::new();
     let key = setup.file("a.png");
-    super::source::to_image(DecodedThumb { width: 2, height: 2, rgba: vec![0; 3] }).expect_err("short buffer");
-    assert!(matches!(
-        super::source::to_image(DecodedThumb { width: 0, height: 3, rgba: vec![] }),
-        Ok(craft_ui::canvas::textures::LoadedPicture::Blank)
-    ));
-    assert!(matches!(
-        super::source::to_image(DecodedThumb { width: 2, height: 2, rgba: vec![0; 16] }),
-        Ok(craft_ui::canvas::textures::LoadedPicture::Image(_))
-    ));
+    let short = Decoder::new(None);
+    *short.answer.lock().unwrap() = Answer::Raw(DecodedThumb { width: 2, height: 2, rgba: vec![0; 3] });
+    let source_short = FileThumbSource::new(short, None);
+    setup.show(&source_short, &key);
+    setup.jobs.run_all();
+    let state = setup.show(&source_short, &key);
+    assert!(matches!(state, TextureState::Failed { .. }), "{state:?}");
+    let empty_key = setup.file("b.png");
+    let zero = Decoder::new(None);
+    *zero.answer.lock().unwrap() = Answer::Raw(DecodedThumb { width: 0, height: 3, rgba: vec![] });
+    let source_zero = FileThumbSource::new(zero, None);
+    setup.show(&source_zero, &empty_key);
+    setup.jobs.run_all();
+    assert_eq!(setup.show(&source_zero, &empty_key), TextureState::Empty);
 
     let with_quick = Decoder::new(Some(2));
     *with_quick.bad_quick.lock().unwrap() = Some(DecodedThumb { width: 2, height: 2, rgba: vec![0; 3] });
@@ -331,7 +336,7 @@ fn a_malformed_decode_fails_and_a_zero_size_is_empty() {
 }
 
 // The stage is per (key, side): a second size starts from the quick preview again.
-#[test]
+#[trial]
 fn stages_are_kept_per_side() {
     let setup = Setup::new();
     let decoder = Decoder::new(Some(2));

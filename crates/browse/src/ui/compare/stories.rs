@@ -1,186 +1,113 @@
-//! Stories of the compare tile: `patterns/compare-tile/pair` and
-//! `patterns/compare-tile/survey` (the spec's `browse/compare-*` as `<level>/<component>/<story>`). Two tiles
-//! with one shared zoom and pan, the render pills and the rejected veil; twelve tiles at 3:2 in
-//! the survey arrangement.
-//!
-//! The pictures are generated in the story (a gradient with a grid, so zoom and pan
-//! show). A click makes a pane active and a double click toggles Fit and 100 %, as an app would.
+//! Stories of `CompareTile`: a pair (active, rejected, pending, failed) and a survey.
 
-use craft_theme::Rgba;
-use craft_ui::canvas::CanvasView;
-use craft_ui::canvas::textures::Revision;
-use craft_ui::localized::Labels as _;
-use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels, lock, shared};
-use craft_ui::theme::{Tokens, TokensOf as _};
-use craft_ui::typed_story;
-use egui::ecolor::Hsva;
-use egui::{Color32, ColorImage, Rect, Sense, Ui, vec2};
-use kurbo::Point;
+use craft_theme::Srgba;
+use craft_ui::contract::Bind;
+use craft_ui::patterns::form_dialogs::PreviewView;
+use craft_ui::primitives::textures::Revision;
+use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
+use craft_ui::tile_grid::TileFlag;
+use egui::{ColorImage, Rect, Ui, pos2, vec2};
 
-use super::{CompareCaption, CompareImage, ComparePair, CompareStyle, CompareTile, RenderState, survey_columns};
-use crate::ui::grid::TileFlag;
+use super::{ArrangeSpace, CompareCaption, CompareImage, ComparePair, CompareTile, RenderState, survey_columns};
 
-/// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["CompareTile"];
+/// The picture's size in pixels.
+const PICTURE: [u32; 2] = [480, 320];
 
-craft_ui::words! {
-    /// The sample text of the compare stories, English by default.
-    #[non_exhaustive]
-    pub struct CompareStoryLabels {
-        select: "compareStory.select" = "Select";
-        candidate: "compareStory.candidate" = "Candidate";
-        render_failed: "compareStory.renderFailed" = "The renderer stopped";
-        active: "compareStory.active" = "Active pane: {label}";
-    }
-}
-
-/// The stories above.
-pub(crate) fn stories() -> Vec<Story> {
-    vec![
-        typed_story!(
-            "patterns/compare-tile/pair",
-            Level::Patterns,
-            "CompareTile",
-            "Pair",
-            PairArgs { right: RightState::Ready, rejected: false, flagged: true, rtl: false, height: 340.0 },
-            show_pair
-        ),
-        typed_story!("patterns/compare-tile/survey", Level::Patterns, "CompareTile", "Survey", SurveyArgs { count: 12, height: 360.0 }, show_survey),
-    ]
-}
-
-#[derive(StoryChoice, Clone, Copy, Debug, PartialEq)]
-enum RightState {
-    Ready,
-    #[choice(name = "Rendering")]
-    Rendering,
-    Failed,
-}
-
-#[derive(StoryArgs, Debug, PartialEq)]
-struct PairArgs {
-    /// The right pane's render state: the Rendering and Render failed pills.
-    right: RightState,
-    /// The rejected veil on the right pane.
-    rejected: bool,
-    /// Rating, pick flag and colour label in the captions.
-    flagged: bool,
-    /// Right to left: the panes swap sides.
-    rtl: bool,
-    #[arg(range = 200.0..=600.0)]
-    height: f32,
-}
-
-#[derive(StoryArgs, Debug, PartialEq)]
-struct SurveyArgs {
-    #[arg(range = 2..=12)]
-    count: usize,
-    #[arg(range = 200.0..=600.0)]
-    height: f32,
-}
-
-const SIZE: [u32; 2] = [900, 600];
-
-/// A gradient of the seed's hue with a grid every 100 pixels, so zoom and pan show.
-fn picture(seed: u64) -> ColorImage {
-    let hue = (seed % 12) as f32 / 12.0;
-    let [width, height] = SIZE;
-    let mut image = ColorImage::filled([width as usize, height as usize], Color32::GRAY);
-    for y in 0..height {
-        for x in 0..width {
-            let t = (x as f32 / width as f32 + y as f32 / height as f32) / 2.0;
-            let line = x % 100 < 2 || y % 100 < 2;
-            let color: Color32 = if line { Hsva::new(hue, 0.2, 0.95, 1.0).into() } else { Hsva::new((hue + 0.3 * t).fract(), 0.55, 0.8, 1.0).into() };
-            image.pixels[(y * width + x) as usize] = color;
+/// A gradient with a grid, so zoom and pan show.
+fn gradient(hue: f32) -> ColorImage {
+    let [w, h] = PICTURE;
+    let mut pixels = Vec::with_capacity((w * h) as usize);
+    for y in 0..h {
+        for x in 0..w {
+            let on_grid = x % 40 == 0 || y % 40 == 0;
+            let level = if on_grid { 0.25 } else { 0.55 + 0.4 * (x as f32 / w as f32) };
+            pixels.push(egui::ecolor::Hsva::new(hue, 0.5, level, 1.0).into());
         }
     }
-    image
+    ColorImage { size: [w as usize, h as usize], source_size: vec2(w as f32, h as f32), pixels }
 }
 
-fn image(seed: u64) -> CompareImage<'static> {
-    CompareImage::Picture { key: seed, revision: Revision(1), size: SIZE, make: Box::new(move || picture(seed)) }
+fn image(key: u64, hue: f32) -> CompareImage<'static> {
+    CompareImage::Picture(key, Revision::of(&hue.to_bits()), PICTURE, Box::new(move || gradient(hue)))
 }
 
-struct Demo {
-    view: CanvasView,
-    active: usize,
+fn caption(label: &str, name: &str) -> CompareCaption {
+    CompareCaption::new(label, name).rating(Some(4)).flag(Some(TileFlag::Picked)).label_color(Some(Srgba::rgb(0.86, 0.31, 0.24)))
 }
 
-fn show_pair(ui: &mut Ui, args: &mut PairArgs) {
-    let words = CompareStoryLabels::of(ui);
-    let story = StoryLabels::of(ui);
-    let state = shared(ui, "pair", || Demo { view: CanvasView::new(Rect::ZERO, Point::ZERO, 0.0), active: 0 });
-    let mut demo = lock(&state);
-    let style = CompareStyle::of(&Tokens::of(ui));
-    let (area, _) = ui.allocate_exact_size(vec2(ui.available_width(), args.height), Sense::hover());
-    let pair = ComparePair::new().rtl(args.rtl);
-    let rects = pair.rects(area, &style);
-    ui.painter().rect_filled(pair.divider(area, &style).expand2(vec2(0.5, 0.0)), 0.0, style.divider);
-
-    let labels = [words.select.clone(), words.candidate.clone()];
-    let names = [craft_i18n::fmt(&story.photo_n, &[("n", "1")]), craft_i18n::fmt(&story.photo_n, &[("n", "2")])];
-    let active = demo.active;
-    let mut clicked = None;
-    for (n, rect) in rects.into_iter().enumerate() {
-        let mut caption = CompareCaption::new(labels[n].clone(), names[n].clone());
-        if args.flagged {
-            caption = caption
-                .rating(Some(if n == 0 { 4 } else { 2 }))
-                .flag((n == 0).then_some(TileFlag::Picked))
-                .label_color((n == 1).then(|| Rgba::rgb(230, 170, 40)));
-        }
-        let mut tile = CompareTile::new(("compare-pair", n), &mut demo.view, image(n as u64 * 5 + 1)).caption(caption).active(active == n);
-        if n == 1 {
-            tile = tile.rejected(args.rejected).state(match args.right {
-                RightState::Ready => RenderState::Ready,
-                RightState::Rendering => RenderState::Pending { overdue: true },
-                RightState::Failed => RenderState::Failed(words.render_failed.clone()),
-            });
-        }
-        let shown = tile.show(ui, rect);
-        if shown.clicked {
-            clicked = Some(n);
-        }
-        if shown.double_clicked {
-            let image_area = Rect::from_min_max(rect.min, egui::pos2(rect.right(), rect.bottom() - style.caption));
-            CompareTile::toggle_zoom(&mut demo.view, SIZE, image_area, ui.pixels_per_point());
-        }
+#[story(CompareTile<'static>, covers = [Default], drive = Drive::Never)]
+fn compare_pair(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let mut active = *data.value("active", 0usize);
+    let view = data.value("view", PreviewView::fitting());
+    let area = ui.max_rect();
+    let [left, right] = ComparePair::new(ArrangeSpace::new(18.0, 16.0)).rects(area);
+    let select =
+        CompareTile::new("Select", Bind::bound(view), image(1, 0.58)).caption(caption("Select", "IMG_0001.jpg")).active(active == 0).place(ui, left);
+    if select.clicked {
+        active = 0;
     }
-    if let Some(n) = clicked {
-        demo.active = n;
+    let candidate = CompareTile::new("Candidate", Bind::bound(view), image(2, 0.08))
+        .caption(caption("Candidate", "IMG_0002.jpg"))
+        .active(active == 1)
+        .rejected(true)
+        .place(ui, right);
+    if candidate.clicked {
+        active = 1;
     }
-    ui.add(Text::new(craft_i18n::fmt(&words.active, &[("label", labels[demo.active].as_str())])).content(Content::Muted));
+    *data.value("active", 0usize) = active;
+    select.into()
 }
 
-fn show_survey(ui: &mut Ui, args: &mut SurveyArgs) {
-    let story = StoryLabels::of(ui);
-    let state = shared(ui, "survey", || 0usize);
-    let active = *lock(&state);
-    let style = CompareStyle::of(&Tokens::of(ui));
-    let (area, _) = ui.allocate_exact_size(vec2(ui.available_width(), args.height), Sense::hover());
-    let inner = area.shrink(style.margin);
-    let count = args.count;
-    let columns = survey_columns(count, inner);
-    let rows = count.div_ceil(columns);
-    let cell =
-        vec2((inner.width() - style.gap * (columns - 1) as f32) / columns as f32, (inner.height() - style.gap * (rows - 1) as f32) / rows as f32);
-    let mut clicked = None;
-    for n in 0..count {
-        let (column, row) = (n % columns, n / columns);
-        let min = inner.min + vec2(column as f32 * (cell.x + style.gap), row as f32 * (cell.y + style.gap));
-        let name = craft_i18n::fmt(&story.photo_n, &[("n", &(n + 1).to_string())]);
-        let mut view = CanvasView::new(Rect::ZERO, Point::ZERO, 0.0);
-        let shown = CompareTile::new(("compare-survey", n), &mut view, image(n as u64))
-            .caption(CompareCaption::new((n + 1).to_string(), name).rating(Some((n % 5 + 1) as u8)))
+#[story(CompareTile<'static>, covers = [LongText], drive = Drive::Never)]
+fn compare_tile_narrow(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let view = data.value("view", PreviewView::fitting());
+    let rect = Rect::from_min_size(ui.max_rect().min, vec2(160.0, 160.0));
+    CompareTile::new("Select", Bind::bound(view), image(1, 0.58))
+        .caption(caption("Select", "A_file_name_much_longer_than_the_tile.jpeg"))
+        .place(ui, rect)
+        .into()
+}
+
+#[story(CompareTile<'static>, covers = [], drive = Drive::Never)]
+fn compare_tile_pending(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let view = data.value("view", PreviewView::fitting());
+    CompareTile::new("Candidate", Bind::bound(view), image(2, 0.08))
+        .caption(caption("Candidate", "IMG_0002.jpg"))
+        .state(RenderState::Pending(true))
+        .place(ui, ui.max_rect())
+        .into()
+}
+
+#[story(CompareTile<'static>, covers = [], drive = Drive::Never)]
+fn compare_tile_failed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let view = data.value("view", PreviewView::fitting());
+    CompareTile::new("Candidate", Bind::bound(view), CompareImage::None)
+        .caption(CompareCaption::new("Candidate", "IMG_0002.jpg"))
+        .state(RenderState::Failed("The renderer stopped".into()))
+        .place(ui, ui.max_rect())
+        .into()
+}
+
+/// Twelve tiles at 3:2 in the survey arrangement: fitted, no zoom or pan.
+#[story(CompareTile<'static>, covers = [Many], drive = Drive::Never)]
+fn compare_survey(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    const COUNT: usize = 12;
+    const ASPECT: f32 = 1.5;
+    let view = data.value("view", PreviewView::fitting());
+    let area = ui.max_rect();
+    let columns = survey_columns(COUNT, area, ASPECT);
+    let rows = COUNT.div_ceil(columns);
+    let cell = vec2(area.width() / columns as f32, area.height() / rows as f32);
+    let mut outs = Vec::new();
+    for at in 0..COUNT {
+        let rect = Rect::from_min_size(pos2(area.min.x + cell.x * (at % columns) as f32, area.min.y + cell.y * (at / columns) as f32), cell);
+        let hue = at as f32 / COUNT as f32;
+        let name = format!("IMG_{at:04}.jpg");
+        let out = CompareTile::new(name.clone(), Bind::bound(view), image(at as u64, hue))
+            .caption(CompareCaption::new("", name))
             .survey(true)
-            .active(active == n)
-            .show(ui, Rect::from_min_size(min, cell));
-        if shown.clicked {
-            clicked = Some(n);
-        }
+            .place(ui, rect);
+        outs.push(out);
     }
-    if let Some(n) = clicked {
-        *lock(&state) = n;
-    }
+    outs.swap_remove(0).into()
 }
