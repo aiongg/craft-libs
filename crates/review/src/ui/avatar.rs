@@ -5,7 +5,7 @@ use craft_theme::Rgba;
 use craft_theme::contrast::ensure_contrast;
 use craft_ui::contract::{Common, Component, Cx, MeasureCx, NoValue, Outcome, PaintUi, Props as _, Role, clicked};
 use craft_ui::fonts::FontRef;
-use craft_ui::primitives::{DocRun, DocText, Draw, HAlign, PaintShape, StrokeWidth};
+use craft_ui::primitives::{DocRun, DocText, Draw, PaintShape, StrokeWidth, TextRun};
 use craft_ui::style::{ComponentStyle, DataColor, FocusLook, StyleColor, StyleCx, TypeRole};
 use egui::{Color32, Pos2, Rect, Response, Vec2};
 
@@ -35,9 +35,9 @@ impl AvatarFace {
 }
 
 /// The ink that reads on `fill`: white or black, whichever the contrast rule keeps.
-fn ink_on(fill: [u8; 3], face: &AvatarFace) -> Color32 {
+pub(super) fn ink_on(fill: [u8; 3], contrast: f64) -> Color32 {
     let [r, g, b] = fill;
-    let ink = ensure_contrast(Rgba::WHITE, Rgba::rgb(r, g, b), face.contrast);
+    let ink = ensure_contrast(Rgba::WHITE, Rgba::rgb(r, g, b), contrast);
     let [r, g, b, _] = ink.0;
     Color32::from_rgb(r, g, b)
 }
@@ -53,15 +53,19 @@ pub fn paint_avatar(draw: &Draw<'_>, rect: Rect, name: &str, fill: [u8; 3], face
     let [r, g, b] = fill;
     let circle = PaintShape::Circle(rect.center(), rect.width().min(rect.height()) / 2.0);
     draw.data_fill(&circle, DataColor::new(Color32::from_rgb(r, g, b)));
-    paint_initials(draw, rect, name, DataColor::new(ink_on(fill, face)), face);
+    paint_initials(draw, rect, name, DataColor::new(ink_on(fill, face.contrast)), face);
 }
 
 fn paint_initials(draw: &Draw<'_>, rect: Rect, name: &str, ink: DataColor, face: &AvatarFace) {
     let text = initials(name);
     let runs = [DocRun::new(text, FontRef::proportional(), face.size, ink)];
-    let doc = DocText { align: HAlign::Center, ..DocText::new(&runs) };
-    let at = Rect::from_min_size(Pos2::new(rect.left(), rect.center().y - face.line / 2.0), Vec2::new(rect.width(), face.line));
-    draw.doc(at, &doc);
+    // The face size is the caption role's, so the caption run measures the initials exactly.
+    let width = draw.layout(&TextRun::new(runs[0].text.as_ref()).role(TypeRole::Caption), f32::INFINITY).size().x;
+    let at = Rect::from_min_size(
+        Pos2::new(rect.center().x - width / 2.0, rect.center().y - face.line / 2.0),
+        Vec2::new(width.min(rect.width()), face.line),
+    );
+    draw.doc(at, &DocText::new(&runs));
 }
 
 /// The style of an avatar.

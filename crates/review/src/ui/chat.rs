@@ -1,7 +1,5 @@
 //! Cursor chat: your box at the pointer, and everyone's bubbles.
 
-use craft_theme::Rgba;
-use craft_theme::contrast::contrast_ratio;
 use craft_ui::contract::{Bind, NoValue, Outcome, Pattern, Props, Remember as _, Show as _, ShowContainer as _};
 use craft_ui::fonts::FontRef;
 use craft_ui::layout_components::Stack;
@@ -13,6 +11,7 @@ use craft_ui::style::{DataColor, StyleCx, TypeRole};
 use craft_ui::text::TextField;
 use egui::{Color32, CornerRadius, Pos2, Rect, Response, Ui, Vec2};
 
+use super::avatar::ink_on;
 use crate::collab::CollabRequest;
 
 #[cfg(feature = "screen-testing")]
@@ -34,13 +33,6 @@ craft_ui::words! {
     }
 }
 
-/// The black or white that reads better on `fill`: always at least the AA ratio for text.
-pub(super) fn ink_for(fill: [u8; 3]) -> Color32 {
-    let [r, g, b] = fill;
-    let fill = Rgba::rgb(r, g, b);
-    if contrast_ratio(Rgba::WHITE, fill) >= contrast_ratio(Rgba::BLACK, fill) { Color32::WHITE } else { Color32::BLACK }
-}
-
 /// The sizes of a bubble, from the style context of the component that paints it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
@@ -59,6 +51,8 @@ pub struct BubbleLook {
     pub body: (f32, f32),
     /// The name's size and line height.
     pub caption: (f32, f32),
+    /// The least contrast ratio of text on a person's colour.
+    pub contrast: f64,
 }
 
 impl BubbleLook {
@@ -74,6 +68,7 @@ impl BubbleLook {
             width: WIDTH_IN_HEIGHTS * control.height,
             body: (body.size, body.line_height),
             caption: (caption.size, caption.line_height),
+            contrast: craft_theme::contrast::text_contrast_min(cx.contrast()),
         }
     }
 }
@@ -82,7 +77,7 @@ impl BubbleLook {
 /// person's colour) at `alpha`. As wide as its text, which wraps at the look's width; rounded except the corner at
 /// the pointer, which is square.
 pub fn paint_chat_bubble(draw: &Draw<'_>, look: &BubbleLook, tip: Pos2, name: Option<&str>, text: &str, fill: [u8; 3], alpha: f32) {
-    let ink = ink_for(fill);
+    let ink = ink_on(fill, look.contrast);
     let measured = draw.layout(&TextRun::new(text).role(TypeRole::Body).wrap(Wrap::Wrap), look.width).size();
     let head = name.map(|name| draw.layout(&TextRun::new(name).role(TypeRole::Caption), look.width).size());
     let head_height = head.map_or(0.0, |size| size.y + look.gap);
@@ -102,13 +97,24 @@ pub fn paint_chat_bubble(draw: &Draw<'_>, look: &BubbleLook, tip: Pos2, name: Op
     draw.doc(Rect::from_min_size(at, Vec2::new(width, measured.y)), &DocText::new(&runs));
 }
 
+/// The review commands outside a widget: `/` opens the cursor chat box. The app binds the chord and sets
+/// [`CursorChatBox`]'s `open` flag when the command runs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui::contract::CommandSet)]
+#[command(prefix = "review")]
+#[non_exhaustive]
+pub enum ReviewCommand {
+    /// Open the cursor chat box at the pointer.
+    #[command(label = "Cursor chat", icon = "message_square", default = "/")]
+    CursorChat,
+}
+
 /// Where the box was last shown, kept while it is open.
 #[derive(Clone, Default)]
 struct Last(Option<Pos2>);
 
 /// Your cursor chat: while `open`, a text box at the pointer; each change comes back as a [`CollabRequest::Chat`] for
 /// the app to send. Enter sends and closes the box, Escape or an empty Enter closes it and clears the message (an
-/// empty `Chat`). The app opens it from its `/` command while the canvas holds the keys.
+/// empty `Chat`). The app opens it from [`ReviewCommand::CursorChat`].
 #[derive(Pattern, Props)]
 pub struct CursorChatBox<'a> {
     label: Label,

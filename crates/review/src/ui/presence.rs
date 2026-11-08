@@ -18,7 +18,8 @@ use craft_ui::style::{ComponentStyle, DataColor, StyleColor, StyleCx};
 use egui::{Color32, CornerRadius, Pos2, Rect, Response, Ui, Vec2};
 
 use super::avatar::Avatar;
-use super::chat::{BubbleLook, TAG_OFFSET, ink_for, paint_chat_bubble};
+use super::avatar::ink_on;
+use super::chat::{BubbleLook, TAG_OFFSET, paint_chat_bubble};
 use crate::collab::{CollabRequest, CollabTransport, Participant, ParticipantId, chat_alpha};
 
 #[cfg(feature = "screen-testing")]
@@ -210,7 +211,7 @@ pub fn paint_pointer(draw: &Draw<'_>, halo: StyleColor, size: f32, tip: Pos2, fi
 
 /// A name on a person's colour, its top left corner at `at`.
 fn paint_name_tag(draw: &Draw<'_>, look: &BubbleLook, at: Pos2, name: &str, fill: [u8; 3]) {
-    let runs = [DocRun::new(name.to_owned(), FontRef::proportional(), look.caption.0, DataColor::new(ink_for(fill)))];
+    let runs = [DocRun::new(name.to_owned(), FontRef::proportional(), look.caption.0, DataColor::new(ink_on(fill, look.contrast)))];
     let width = draw.layout(&craft_ui::primitives::TextRun::new(name).role(craft_ui::style::TypeRole::Caption), look.width).size().x;
     let pad = Vec2::new(look.pad.y, look.pad.y / 2.0);
     let rect = Rect::from_min_size(at, Vec2::new(width, look.caption.1) + 2.0 * pad);
@@ -347,7 +348,7 @@ impl Component for FollowFrame {
         let pad = Vec2::new(look.pad.x, look.pad.y / 2.0);
         let tag = Rect::from_min_size(Pos2::new(area.center().x - width / 2.0 - pad.x, area.top()), Vec2::new(width, look.caption.1) + 2.0 * pad);
         draw.data_fill(&PaintShape::Rect(tag, CornerRadius { nw: 0, ne: 0, sw: look.radius, se: look.radius }), data(self.color));
-        let runs = [DocRun::new(self.text.clone(), FontRef::proportional(), look.caption.0, DataColor::new(ink_for(self.color)))];
+        let runs = [DocRun::new(self.text.clone(), FontRef::proportional(), look.caption.0, DataColor::new(ink_on(self.color, look.contrast)))];
         draw.doc(Rect::from_min_size(tag.min + pad, Vec2::new(width, look.caption.1)), &DocText::new(&runs));
     }
 

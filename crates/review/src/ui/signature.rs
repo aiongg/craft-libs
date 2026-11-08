@@ -19,7 +19,7 @@ use craft_ui::fonts::FontRef;
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::list::ThumbSize;
 use craft_ui::notices::{Notice, NoticeLayout};
-use craft_ui::primitives::{DocRun, DocText, Draw, HAlign, PaintShape, StrokeWidth};
+use craft_ui::primitives::{DocRun, DocText, Draw, PaintShape, StrokeWidth};
 use craft_ui::runtime::env::Env;
 use craft_ui::sections::{DialogRole, FooterButton};
 use craft_ui::style::{ComponentStyle, DataColor, FocusLook, StyleColor, StyleCx, SurfaceKind};
@@ -135,9 +135,8 @@ fn paint_typed(draw: &Draw<'_>, rect: Rect, label: &str, color: DataColor) {
     let size = rect.height() * TYPED_HEIGHT_SHARE;
     let room = rect.width() * TYPED_WIDTH_SHARE;
     let run = |size: f32| [DocRun::new(label.to_owned(), FontRef::proportional(), size, color)];
-    let doc = |runs: &[DocRun<'_>]| DocText { align: HAlign::Center, wrap: Some(room), ..DocText::new(runs) };
     let at = Rect::from_center_size(rect.center(), Vec2::new(room, size));
-    draw.doc(Rect::from_min_size(Pos2::new(rect.center().x - room / 2.0, at.top()), Vec2::new(room, size)), &doc(&run(size)));
+    draw.doc(Rect::from_min_size(Pos2::new(rect.center().x - room / 2.0, at.top()), Vec2::new(room, size)), &DocText::new(&run(size)));
 }
 
 /// Why a picked image was not taken.
@@ -255,7 +254,7 @@ impl Component for DrawPad<'_> {
             [(p.x - rect.left()) / rect.width(), (p.y - rect.top()) / rect.height()]
         };
         let mut strokes = cx.value().cloned().unwrap_or_default();
-        let press = cx.part(PAD).press;
+        let press = cx.press();
         match press.phase {
             PressPhase::DragStart { pos, .. } => {
                 strokes.push(vec![normalise(pos)]);
@@ -280,9 +279,8 @@ impl Component for DrawPad<'_> {
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let draw = ui.draw();
-        draw.surface(cx.rect, SurfaceKind::Well, craft_ui::style::Corners::all());
+        draw.surface(cx.rect, SurfaceKind::Well, craft_ui::style::Corners::All);
         let strokes = cx.value().cloned().unwrap_or_default();
-        let _ = Input::Pointer;
         paint_strokes(&draw, cx.rect, &strokes, StrokeWidth::Medium, DataColor::new(cx.style.ink.egui()), false);
     }
 

@@ -16,8 +16,8 @@ use craft_theme::variant::Tone;
 use craft_ui::buttons::{Button, IconButton, ToggleButton};
 use craft_ui::contract::overlay::Anchor;
 use craft_ui::contract::{
-    Bind, Common, Component, Cx, MeasureCx, NoValue, Outcome, PaintUi, Pattern, Pointer as _, Props as _, Role, Show as _, ShowContainer as _,
-    Trigger, clicked,
+    Bind, Common, Component, Cx, MeasureCx, NoValue, Outcome, PaintUi, Pattern, Pointer as _, Props as _, Remember as _, Role, Show as _,
+    ShowContainer as _, Trigger, clicked,
 };
 use craft_ui::display::{Shade, Text};
 use craft_ui::layout_components::{Row, Stack};
@@ -26,7 +26,7 @@ use craft_ui::popover::Popover;
 use craft_ui::primitives::{Completer, Completion, HAlign, IconSpec, PaintShape, StrokeWidth, TextRun};
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::runtime::focus::Initial;
-use craft_ui::style::{ComponentStyle, Ink, Stateful, StyleColor, StyleCx, TextLook, TypeRole};
+use craft_ui::style::{ComponentStyle, StyleColor, StyleCx, TypeRole};
 use craft_ui::text::TextField;
 use egui::{CornerRadius, Pos2, Rect, Response, Ui, Vec2};
 
@@ -292,7 +292,7 @@ impl Component for PinBubble {
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         self.activated = cx.activation().is_some();
-        if let PressPhase::Release { start, pos, click: false } = cx.press().phase
+        if let PressPhase::Release { start, pos, click: false, .. } = cx.press().phase
             && self.mine()
         {
             self.dropped = Some(cx.rect.left_bottom() + (pos - start.origin));
@@ -343,7 +343,6 @@ impl Component for PinBubble {
 /// dragged to another spot, reported as a [`PinMove`] on release. Each pin is a focus stop in reading order.
 #[must_use = "show the pins with `show`"]
 #[derive(Pattern)]
-#[pattern(probe(CommentPins<'static>))]
 pub struct CommentPins<'a> {
     label: Label,
     pins: &'a [CommentPin<'a>],
@@ -500,7 +499,6 @@ struct Editing(Option<(usize, String)>);
 /// edit, then the popover. Focus goes to the reply field when it opens.
 #[must_use = "show the popover with `show`"]
 #[derive(Pattern)]
-#[pattern(probe(ThreadPopover<'static>))]
 pub struct ThreadPopover<'a> {
     thread: &'a CommentThread,
     opener: &'a Response,
@@ -572,7 +570,7 @@ impl ThreadPopover<'_> {
         names.push(me);
         let mut edits = Vec::new();
         let mut open = true;
-        let mut popover = Popover::new(name, Bind::bound(&mut open)).opened_by(opener).initial_focus(Initial::Default);
+        let mut popover = Popover::new(name, Bind::bound(&mut open)).opened_by(opener).initial_focus(Initial::First);
         popover = popover.overlay(|overlay| overlay.min_size(egui::vec2(POPOVER_IN_HEIGHTS * side, 0.0)));
         if let Some(rect) = anchor {
             popover = popover.overlay(|overlay| overlay.opener_anchor(Anchor::Rect(rect)));
@@ -680,7 +678,6 @@ impl ThreadPopover<'_> {
                     .lines(COMPOSER_ROWS)
                     .placeholder(words.reply.clone())
                     .complete(MentionCompleter { people: people.to_vec(), me: me.to_owned() })
-                    .default_stop()
                     .show(ui);
                 let text = draft.trim().to_owned();
                 let post = Button::new(words.post.clone()).enabled(!text.is_empty()).show(ui);
@@ -699,7 +696,6 @@ impl ThreadPopover<'_> {
 /// Cancel (Escape).
 #[must_use = "show the composer with `show`"]
 #[derive(Pattern)]
-#[pattern(probe(CommentComposer<'static>))]
 pub struct CommentComposer<'a> {
     anchor: Option<Pos2>,
     draft: &'a mut String,
@@ -736,14 +732,13 @@ impl CommentComposer<'_> {
         let mut cancel = false;
         let shown = Popover::new(words.add_comment.clone(), Bind::bound(&mut open))
             .at_point(anchor)
-            .initial_focus(Initial::Default)
+            .initial_focus(Initial::First)
             .overlay(|overlay| overlay.min_size(egui::vec2(POPOVER_IN_HEIGHTS * side, 0.0)))
             .show(ui, |ui, _| {
                 Stack::new().show(ui, |ui, _| {
                     TextField::new(words.add_comment.clone(), Bind::bound(&mut *draft))
                         .lines(COMPOSER_ROWS)
                         .placeholder(words.add_comment.clone())
-                        .default_stop()
                         .show(ui);
                     let text = draft.trim().to_owned();
                     Row::new().show(ui, |ui, _| {

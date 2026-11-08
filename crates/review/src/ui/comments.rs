@@ -34,7 +34,7 @@ use craft_ui::menu::{Menu, MenuItem};
 use craft_ui::notices::{Notice, NoticeLayout};
 use craft_ui::primitives::{HAlign, IconSpec, PaintShape, TextRun, Wrap};
 use craft_ui::runtime::env::{AgeStyle, Env, EnvView, Label};
-use craft_ui::style::{ComponentStyle, Ink, Stateful, StyleColor, StyleCx, TextLook, TypeRole};
+use craft_ui::style::{ComponentStyle, Ink, StyleColor, StyleCx, TypeRole};
 use craft_ui::text::TextField;
 use egui::{CornerRadius, Pos2, Rect, Response, Ui, Vec2, vec2};
 
@@ -269,7 +269,6 @@ pub(crate) fn age_text(env: &EnvView<'_>, then: i64, now: i64) -> String {
 /// ```
 #[must_use = "show the panel with `show`"]
 #[derive(Pattern)]
-#[pattern(probe(CommentsPanel<'static>))]
 pub struct CommentsPanel<'a> {
     label: Label,
     threads: &'a [CommentThread],
@@ -1198,13 +1197,13 @@ fn card_menu(
     editable: bool,
 ) -> (bool, Option<CardMenu>) {
     let mut open = true;
-    let mut ran = None;
+    let ran = std::cell::Cell::new(None);
     Menu::new(words.more.clone()).opened_by(list, Trigger::Manual).anchor(Anchor::Rect(menu.anchor)).open(Bind::bound(&mut open)).show(
         ui,
         |ui, _| {
-            let mut row = |ui: &mut Ui, label: &Label, action: CardMenu| {
+            let row = |ui: &mut Ui, label: &Label, action: CardMenu| {
                 if MenuItem::new(label.as_str().to_owned()).show(ui).ran {
-                    ran = Some(action);
+                    ran.set(Some(action));
                 }
             };
             if menu.index == 0 {
@@ -1212,7 +1211,7 @@ fn card_menu(
                 let _ = Menu::submenu_row(ui, words.set_status.clone(), |ui, _| {
                     for status in ReviewStatus::MENU {
                         if MenuItem::new(status_label(words, status).as_str().to_owned()).radio_mark(thread.status == status).show(ui).ran {
-                            ran = Some(CardMenu::Status(status));
+                            ran.set(Some(CardMenu::Status(status)));
                         }
                     }
                 });
@@ -1230,7 +1229,7 @@ fn card_menu(
             }
         },
     );
-    (open, ran)
+    (open, ran.into_inner())
 }
 
 impl CommentsPanel<'_> {
