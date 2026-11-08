@@ -145,3 +145,71 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Check workspace
         run: cargo check --workspace --all-targets --locked
+
+  domain-tests:
+    name: domain crates
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - name: List domain crates
+        id: list
+        run: |
+          if [ -f migration/check-crates.txt ] && grep -qvE '^[[:space:]]*(#|$)' migration/check-crates.txt; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "no domain crates listed"
+          fi
+      - uses: actions/checkout@v7
+        if: steps.list.outputs.run == 'true'
+        with:
+          repository: aiongg/craft-fonts
+          ref: b4b8f4d15f3c7d4e4ed9e0558411439b8c9aabfd
+          path: craft-fonts
+      - name: Free disk and install linker
+        if: steps.list.outputs.run == 'true'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo apt-get update
+          sudo apt-get install -y mold clang
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        if: steps.list.outputs.run == 'true'
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        if: steps.list.outputs.run == 'true'
+        with:
+          key: domain-tests
+      - name: Test domain crates
+        if: steps.list.outputs.run == 'true'
+        run: |
+          mapfile -t lines < <(grep -vE '^[[:space:]]*(#|$)' migration/check-crates.txt)
+          meta="$RUNNER_TEMP/metadata.json"
+          cargo metadata --no-deps --format-version 1 --locked > "$meta"
+          failed=0
+          : > test.log
+          for line in "${lines[@]}"; do
+            read -r pkg fl <<< "$line"
+            if [ "$pkg" = craft-ui ]; then
+              echo "craft-ui: tested by the craft-ui tests job" | tee -a test.log
+              continue
+            fi
+            if ! jq -e --arg p "$pkg" '.packages[] | select(.name == $p) | .targets[] | select(.name == "it" and (.kind | index("test")))' "$meta" > /dev/null; then
+              echo "no tests/it: $pkg" | tee -a test.log
+              continue
+            fi
+            feats=()
+            IFS=, read -ra fs <<< "$fl"
+            for f in "${fs[@]}"; do
+              [ -n "$f" ] && [ "$f" != screen-testing ] && feats+=("$pkg/$f")
+            done
+            if jq -e --arg p "$pkg" '.packages[] | select(.name == $p) | .features | has("screen-testing")' "$meta" > /dev/null; then
+              feats+=("$pkg/screen-testing")
+            fi
+            list=$(IFS=,; echo "${feats[*]}")
+            cargo test --locked --no-fail-fast -p "$pkg" --features "$list" --test it 2>&1 | tee -a test.log
+            [ "${PIPESTATUS[0]}" -eq 0 ] || failed=1
+          done
+          exit "$failed"
+      - name: Summary
+        if: always() && steps.list.outputs.run == 'true'
+        run: bash .github/ci/summary.sh test.log "domain crates" >> "$GITHUB_STEP_SUMMARY"
