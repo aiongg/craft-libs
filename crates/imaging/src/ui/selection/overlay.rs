@@ -182,16 +182,7 @@ impl<'a> SelectionOverlay<'a> {
         if visible && has_outline {
             let traced: Arc<Vec<Segment>> = match source {
                 OutlineSource::Mask(mask) => {
-                    let found = OutlineTrace {
-                        common: craft_ui::contract::Common::new(),
-                        mask,
-                        offset,
-                        reduction: k,
-                        whole: mapped.is_some(),
-                        found: Traced::default(),
-                    }
-                    .label(label.clone())
-                    .show_at(ui, canvas);
+                    let found = OutlineTrace::new(label.clone(), mask, offset, k, mapped.is_some()).show_at(ui, canvas);
                     retraced = found.retraced;
                     found.segments
                 }
@@ -329,8 +320,7 @@ struct OutlineTraceStyle {
 /// trace until the mask, the step, the region or the reduction changes.
 #[derive(craft_ui::contract::Component, Props)]
 #[component(canvas_control)]
-#[component(exempt(case = "required-states", reason = "A tracing step with no look; the selection overlay's stories show it."))]
-struct OutlineTrace<'a> {
+pub(super) struct OutlineTrace<'a> {
     #[common]
     common: craft_ui::contract::Common,
     mask: &'a dyn MaskSource,
@@ -338,6 +328,14 @@ struct OutlineTrace<'a> {
     reduction: u32,
     whole: bool,
     found: Traced,
+}
+
+impl<'a> OutlineTrace<'a> {
+    /// A trace of `mask` named `label`, drawn `offset` from where it lies, reduced by `reduction`; `whole` traces the
+    /// mask outside the visible region too.
+    pub(super) fn new(label: impl Into<Label>, mask: &'a dyn MaskSource, offset: [i32; 2], reduction: u32, whole: bool) -> Self {
+        OutlineTrace { common: craft_ui::contract::Common::new(), mask, offset, reduction, whole, found: Traced::default() }.label(label)
+    }
 }
 
 impl Component for OutlineTrace<'_> {

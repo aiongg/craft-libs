@@ -5,10 +5,12 @@
 //! pixels is what the story must not do).
 
 use super::SelectionOverlay;
+use super::overlay::OutlineTrace;
 use crate::selection::PreviewMode;
 use crate::trace::{MaskRect, MaskSource};
 use crate::ui::mock_image::{MockImage, MockSubject, StoryView, story_canvas};
 use craft_behavior::kurbo::Point;
+use craft_ui::contract::Show as _;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
@@ -81,6 +83,15 @@ fn large_mask(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let view = StoryView::At { zoom: HUGE_ZOOM, centre: HugeDisc::centre() };
     story_canvas(ui, None, view, |ui, canvas| {
         SelectionOverlay::new("Selection", &HugeDisc).reduction(REDUCTION).show_at(ui, canvas);
+        StoryOutput::default()
+    })
+}
+
+#[story(OutlineTrace<'static>, covers = [Default], drive = Drive::Never)]
+fn trace(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    let view = StoryView::At { zoom: HUGE_ZOOM, centre: HugeDisc::centre() };
+    story_canvas(ui, None, view, |ui, canvas| {
+        OutlineTrace::new("Selection trace", &HugeDisc, [0, 0], REDUCTION, false).show_at(ui, canvas);
         StoryOutput::default()
     })
 }
