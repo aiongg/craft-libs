@@ -118,6 +118,7 @@ fn compare_tile_failed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 fn compare_survey(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     const COUNT: usize = 12;
     const ASPECT: f32 = 1.5;
+    let rtl = Env::of(ui).view().direction().is_rtl();
     filling(ui, |ui, area| {
         let view = data.value("view", PreviewView::fitting());
         let columns = survey_columns(COUNT, area, ASPECT);
@@ -125,7 +126,9 @@ fn compare_survey(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
         let cell = vec2(area.width() / columns as f32, area.height() / rows as f32);
         let mut outs = Vec::new();
         for at in 0..COUNT {
-            let rect = Rect::from_min_size(pos2(area.min.x + cell.x * (at % columns) as f32, area.min.y + cell.y * (at / columns) as f32), cell);
+            let column = (at % columns) as f32;
+            let x = if rtl { area.max.x - cell.x * (column + 1.0) } else { area.min.x + cell.x * column };
+            let rect = Rect::from_min_size(pos2(x, area.min.y + cell.y * (at / columns) as f32), cell);
             let hue = at as f32 / COUNT as f32;
             let name = format!("IMG_{at:04}.jpg");
             let out = CompareTile::new(name.clone(), Bind::bound(view), image(at as u64, hue))

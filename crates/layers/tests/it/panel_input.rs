@@ -681,8 +681,13 @@ fn smart_filter_heights(size: ThumbSize) -> (f32, f32) {
         app.tree.layer_mut(6).effects_open = true;
         app.settings.options.thumbnail_size = size;
     });
-    eprintln!("DIAG {size:?} header {:?} item {:?} layer {:?}", row(&fixture, "Smart Filters").rect, row(&fixture, "Gaussian Blur").rect, row(&fixture, "Masked").rect);
-    (row(&fixture, "Smart Filters").rect.height(), row(&fixture, "Gaussian Blur").rect.height())
+    // `by_label` prefers the interactive node of that name, which for the header is its thumbnail; the row is the list item.
+    let height = |name: &str| {
+        let items = fixture.by_role(Role::LIST_ITEM);
+        let found = items.iter().find(|item| fixture.tree().name_of(item.node) == Some(name));
+        found.unwrap_or_else(|| panic!("no list item named {name:?}")).rect.height()
+    };
+    (height("Smart Filters"), height("Gaussian Blur"))
 }
 
 /// The Smart Filters header carries the filter mask's thumbnail unless thumbnails are off; a filter row never does.

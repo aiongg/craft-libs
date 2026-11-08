@@ -79,9 +79,16 @@ status = "same"
 [[type]]
 name = "BinLabels"
 old = "craft_browse::ui::bin::BinLabels"
+new = ""
+status = "removed"
+note = "Renamed `BinWords`."
+
+[[type]]
+name = "BinWords"
+old = ""
 new = "craft_browse::ui::bin::BinWords"
-status = "moved"
-note = "A `craft_ui::words!` set with ids `mediaBin.<name>`; the legacy `browse.bin.*` ids go. The item count is a `count` row (`items`), `selected_of` a template, `clear` is the search field's own."
+status = "replaced"
+note = "Replaces `BinLabels`. A `craft_ui::words!` set with ids `mediaBin.<name>`; the legacy `browse.bin.*` ids go. The item count is a `count` row (`items`), `selected_of` a template, `clear` is the search field's own."
 
 [[type]]
 name = "BinStyle"
