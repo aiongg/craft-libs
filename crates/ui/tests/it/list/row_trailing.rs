@@ -155,10 +155,15 @@ const NAME: ColumnKey = ColumnKey::new("name");
 const MUTE: ColumnKey = ColumnKey::new("mute");
 
 /// A table with a toggle column: the events it reported and where row 1 was.
-#[derive(Default)]
 struct Scene {
     events: RefCell<Vec<CollectionEvent<usize, Dismissed>>>,
     row: Cell<Rect>,
+}
+
+impl Scene {
+    fn new() -> Self {
+        Scene { events: RefCell::new(Vec::new()), row: Cell::new(Rect::NOTHING) }
+    }
 }
 
 fn show_table(ui: &mut Ui, scene: &Scene) {
@@ -184,7 +189,7 @@ fn toggle_cell(scene: &Scene) -> Pos2 {
 /// A click on a toggle cell reports the modifiers held.
 #[trial]
 fn a_toggle_click_reports_its_modifiers() {
-    let scene = Scene::default();
+    let scene = Scene::new();
     let mut frames = Frames::new();
     let mut show = |ui: &mut Ui| show_table(ui, &scene);
     frames.idle(3, &mut show);
@@ -202,7 +207,7 @@ fn a_toggle_click_reports_its_modifiers() {
 /// A right-click on a toggle cell names its column in the context request.
 #[trial]
 fn a_context_request_on_a_toggle_cell_names_the_column() {
-    let scene = Scene::default();
+    let scene = Scene::new();
     let mut frames = Frames::new();
     let mut show = |ui: &mut Ui| show_table(ui, &scene);
     frames.idle(3, &mut show);
