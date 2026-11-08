@@ -118,6 +118,7 @@ fn an_integrated_bar_registers_its_captions_and_move_band() {
     assert!(shown.bar.get().contains_rect(close), "the buttons lie in the bar");
     assert_eq!(regions.hit(close.center()), Some(WindowHit::Caption(Caption::Close)));
     assert_eq!(regions.hit(shown.bar.get().center()), Some(WindowHit::Move), "the title gap moves the window: {regions:?}");
+    assert!(shown.leading.get().is_positive(), "the leading content shows: {:?}", shown.leading.get());
     assert_eq!(regions.hit(after_leading(&shown)), Some(WindowHit::Move), "the room after the leading content moves the window: {regions:?}");
     assert_eq!(regions.hit(shown.leading.get().center()), None, "a leading button keeps its press: {regions:?}");
     assert_eq!(regions.hit(shown.trailing.get().center()), None, "a trailing button keeps its press: {regions:?}");

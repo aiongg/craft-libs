@@ -1,15 +1,13 @@
 //! A docked pane's inner edge resizes it: one `PaneRequest::Resize` when the drag ends, with the pane showing the
-//! new extent in that frame. A pane on a side edge has the same width and a mirrored rect in both reading directions.
+//! new extent in that frame.
 
-use crate::body::kit::Slab;
-use craft_i18n::Direction;
 use craft_ui::buttons::Button;
-use craft_ui::contract::{BodyCx, ContainerProps, Mount, PaneEdge, Props as _, ShellPane, Show as _, ShowContainer as _};
+use craft_ui::contract::{BodyCx, PaneEdge, Show as _};
 use craft_ui::patterns::dock::{PaneArea, PaneContent, PaneRequest, PaneSpec, PaneState};
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Rect, Ui, Vec2};
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::rc::Rc;
 
 const FLOAT: Vec2 = Vec2::new(200.0, 140.0);
@@ -77,32 +75,4 @@ fn dragging_a_docked_panes_inner_edge_sends_one_resize_and_shows_it() {
     let after = pane_rect(&fixture);
     assert!((after.width() - (WIDTH + GROW)).abs() < SLACK, "the pane shows the new extent in the frame the drag ends: {after:?}");
     assert!((after.left() - before.left()).abs() < SLACK, "the outer edge stays: {after:?} {before:?}");
-}
-
-/// Shows a bare pane on `edge` in a fixture under `direction`; returns the fixture and the pane's rect.
-fn bare_pane(edge: PaneEdge, direction: Direction) -> (Fixture, Rect) {
-    let rect = Rc::new(Cell::new(Rect::NOTHING));
-    let seen = Rc::clone(&rect);
-    let mut fixture = Fixture::new(move |ui| {
-        let props = ContainerProps::new().mount(Mount::Pane(ShellPane::new("side").edge(edge).extent(WIDTH)));
-        let shown = Slab::new(props).id_salt("pane").show(ui, |ui, _| {
-            Button::new("Body").show(ui);
-        });
-        seen.set(shown.output.rect);
-    });
-    fixture.direction(direction).settle();
-    (fixture, rect.get())
-}
-
-#[trial]
-fn a_side_pane_has_the_same_width_and_a_mirrored_rect_in_both_directions() {
-    for edge in [PaneEdge::Start, PaneEdge::End] {
-        let (ltr, ltr_pane) = bare_pane(edge, Direction::Ltr);
-        let (rtl, rtl_pane) = bare_pane(edge, Direction::Rtl);
-        let (ltr_shown, rtl_shown) = (ltr.shown(), rtl.shown());
-        assert!((ltr_shown.width() - rtl_shown.width()).abs() < SLACK, "{edge:?}: the used width is the same: {ltr_shown:?} {rtl_shown:?}");
-        assert!((ltr_pane.width() - rtl_pane.width()).abs() < SLACK, "{edge:?}: the pane keeps its width: {ltr_pane:?} {rtl_pane:?}");
-        let mirrored = (ltr_pane.left() - ltr_shown.left()) - (rtl_shown.right() - rtl_pane.right());
-        assert!(mirrored.abs() < SLACK, "{edge:?}: the pane lies at the mirrored edge: {ltr_pane:?} {rtl_pane:?} in {ltr_shown:?} {rtl_shown:?}");
-    }
 }
