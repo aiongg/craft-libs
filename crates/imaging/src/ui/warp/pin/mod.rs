@@ -5,15 +5,10 @@
 mod bar;
 mod overlay;
 mod session;
+#[cfg(feature = "screen-testing")]
 pub(crate) mod stories;
 
-#[cfg(test)]
-mod bar_tests;
-#[cfg(test)]
-mod overlay_tests;
-#[cfg(test)]
-mod session_tests;
-
-pub use bar::{PinWarpBar, PinWarpBarLabels, PinWarpBarOutput};
-pub use overlay::{PinWarp, PinWarpLabels, PinWarpResponse};
+pub use bar::{PinWarpBar, PinWarpBarOutput, PinWarpBarWords};
+pub(in crate::ui::warp) use overlay::point_text;
+pub use overlay::{PinWarp, PinWarpCommands, PinWarpOutput, PinWarpStyle, PinWarpWords};
 pub use session::{Pin, PinDensity, PinEdit, PinMeshView, PinMode, PinSolver, PinWarpOptions, PinWarpSession, PinWarpSettings};

@@ -6,11 +6,12 @@ use serde::{Deserialize, Serialize};
 /// the press gives the other.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum EditMode {
     #[default]
-    #[allow(missing_docs)]
+    /// Adds to the selection.
     Add,
-    #[allow(missing_docs)]
+    /// Subtracts from the selection.
     Subtract,
 }
 
@@ -19,6 +20,7 @@ pub enum EditMode {
 /// `rect` key.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum ObjectTarget {
     /// The object under this document point.
     Point([f64; 2]),
@@ -32,52 +34,58 @@ pub enum ObjectTarget {
 /// app passes [`SelectMaskCommand`](super::SelectMaskCommand) to its engine as it is.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "tool", rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum SelectMaskEdit {
     /// A Quick Selection stroke.
+    #[non_exhaustive]
     Quick {
-        #[allow(missing_docs)]
+        /// The stroke or outline in document pixels.
         points: Vec<[f64; 2]>,
-        #[allow(missing_docs)]
+        /// The brush diameter in document pixels.
         size: f64,
-        #[allow(missing_docs)]
+        /// Add or subtract.
         mode: EditMode,
         #[serde(rename = "sampleAllLayers")]
-        #[allow(missing_docs)]
+        /// Samples all layers, not only the active one.
         sample_all_layers: bool,
     },
     /// A Brush stroke.
+    #[non_exhaustive]
     Brush {
-        #[allow(missing_docs)]
+        /// The stroke or outline in document pixels.
         points: Vec<[f64; 2]>,
-        #[allow(missing_docs)]
+        /// The brush diameter in document pixels.
         size: f64,
-        #[allow(missing_docs)]
+        /// The brush hardness, 0 to 100.
         hardness: f64,
-        #[allow(missing_docs)]
+        /// Add or subtract.
         mode: EditMode,
     },
     /// A Lasso or Polygonal Lasso polygon (3 points or more).
+    #[non_exhaustive]
     Lasso {
-        #[allow(missing_docs)]
+        /// The stroke or outline in document pixels.
         points: Vec<[f64; 2]>,
-        #[allow(missing_docs)]
+        /// Add or subtract.
         mode: EditMode,
     },
     /// An Object Selection click or rect.
+    #[non_exhaustive]
     Object {
         #[serde(flatten)]
-        #[allow(missing_docs)]
+        /// The point or rectangle.
         target: ObjectTarget,
-        #[allow(missing_docs)]
+        /// Add or subtract.
         mode: EditMode,
         #[serde(rename = "sampleAllLayers")]
-        #[allow(missing_docs)]
+        /// Samples all layers, not only the active one.
         sample_all_layers: bool,
     },
     /// Select Subject.
+    #[non_exhaustive]
     Subject {
         #[serde(rename = "sampleAllLayers")]
-        #[allow(missing_docs)]
+        /// Samples all layers, not only the active one.
         sample_all_layers: bool,
     },
     /// Clear Selection.
@@ -87,6 +95,31 @@ pub enum SelectMaskEdit {
 }
 
 impl SelectMaskEdit {
+    /// A Quick Selection stroke.
+    pub fn quick(points: Vec<[f64; 2]>, size: f64, mode: EditMode, sample_all_layers: bool) -> Self {
+        Self::Quick { points, size, mode, sample_all_layers }
+    }
+
+    /// A Brush stroke.
+    pub fn brush(points: Vec<[f64; 2]>, size: f64, hardness: f64, mode: EditMode) -> Self {
+        Self::Brush { points, size, hardness, mode }
+    }
+
+    /// A Lasso or Polygonal Lasso polygon.
+    pub fn lasso(points: Vec<[f64; 2]>, mode: EditMode) -> Self {
+        Self::Lasso { points, mode }
+    }
+
+    /// An Object Selection click or rect.
+    pub fn object(target: ObjectTarget, mode: EditMode, sample_all_layers: bool) -> Self {
+        Self::Object { target, mode, sample_all_layers }
+    }
+
+    /// Select Subject.
+    pub fn subject(sample_all_layers: bool) -> Self {
+        Self::Subject { sample_all_layers }
+    }
+
     /// The points the edit carries, against `SelectMaskLimits::edit_points` (an Object edit and
     /// the buttons carry none).
     pub fn points_len(&self) -> usize {
@@ -101,6 +134,7 @@ impl SelectMaskEdit {
 /// A Refine Edge Brush stroke: kept apart from the edits (`select.refineEdge`'s `refineStrokes`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct RefineStroke {
     /// The brush path in document pixels, rounded to a tenth.
     pub points: Vec<[f64; 2]>,
@@ -108,6 +142,13 @@ pub struct RefineStroke {
     pub size: f64,
     /// Whether the stroke adds to the refined edge or subtracts from it.
     pub mode: EditMode,
+}
+
+impl RefineStroke {
+    /// A stroke of diameter `size` along `points` that adds or subtracts per `mode`.
+    pub fn new(points: Vec<[f64; 2]>, size: f64, mode: EditMode) -> Self {
+        Self { points, size, mode }
+    }
 }
 
 /// A point rounded to a tenth of a pixel, as edits store them.

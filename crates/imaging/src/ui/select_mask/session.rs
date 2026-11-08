@@ -14,6 +14,7 @@ use super::edits::{RefineStroke, SelectMaskEdit};
 /// 100 000 points in all edits, 4096 Refine Edge Brush strokes, 100 000 points in all strokes
 /// (`engine/src/select_mask_edits.rs:27-28`, `cmd/smartselect_cmds.rs:350-351`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct SelectMaskLimits {
     /// Most tool edits.
     pub edits: usize,
@@ -25,9 +26,17 @@ pub struct SelectMaskLimits {
     pub stroke_points: usize,
 }
 
+impl SelectMaskLimits {
+    /// Limits of `edits` edits, `edit_points` points in all edits, `strokes` strokes and `stroke_points` points in all strokes.
+    pub const fn new(edits: usize, edit_points: usize, strokes: usize, stroke_points: usize) -> Self {
+        Self { edits, edit_points, strokes, stroke_points }
+    }
+}
+
 /// Which limit refused an edit or a stroke, with the number it passed. The workspace words it
-/// (`SelectMaskLimitWords` through [`LimitRefused::message`]).
+/// (`SelectMaskWords` through [`LimitRefused::message`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum LimitRefused {
     /// At most this many edits.
     Edits(usize),
@@ -42,19 +51,20 @@ pub enum LimitRefused {
 /// Output Settings › Output To.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum OutputTo {
     #[default]
-    #[allow(missing_docs)]
+    /// The selection.
     Selection,
-    #[allow(missing_docs)]
+    /// The layer mask.
     LayerMask,
-    #[allow(missing_docs)]
+    /// A new layer.
     NewLayer,
-    #[allow(missing_docs)]
+    /// A new layer with a layer mask.
     NewLayerWithMask,
-    #[allow(missing_docs)]
+    /// A new document.
     NewDocument,
-    #[allow(missing_docs)]
+    /// A new document with a layer mask.
     NewDocumentWithMask,
 }
 
@@ -82,6 +92,7 @@ impl OutputTo {
 /// Defaults: everything 0 and off, Amount 100, Output To Selection.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
+#[non_exhaustive]
 pub struct RefineSettings {
     /// 0..=250 px.
     pub radius: f64,
@@ -135,6 +146,7 @@ impl RefineSettings {
 /// the refinement values. The view, the tool and its options are outside it (risk 8): undo never
 /// changes them.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct SelectMaskSession {
     /// The tool edits, in order.
     pub edits: Vec<SelectMaskEdit>,
@@ -149,6 +161,7 @@ pub struct SelectMaskSession {
 /// `"target": "mask"` when a layer mask is refined.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct SelectMaskCommand {
     /// The refinement values.
     #[serde(flatten)]
@@ -164,6 +177,13 @@ pub struct SelectMaskCommand {
     /// `Some("mask")` when a layer mask is refined, else `None`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub target: Option<&'static str>,
+}
+
+impl SelectMaskCommand {
+    /// Parameters for `refine` with no edits, no strokes and no mask target.
+    pub fn new(refine: RefineSettings, sample_all_layers: bool) -> Self {
+        Self { refine, sample_all_layers, edits: Vec::new(), strokes: Vec::new(), target: None }
+    }
 }
 
 impl SelectMaskSession {
@@ -225,6 +245,7 @@ impl SelectMaskSession {
 /// Remember off.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
+#[non_exhaustive]
 pub struct SelectMaskSettings {
     /// The selected view.
     pub view: MaskViewMode,

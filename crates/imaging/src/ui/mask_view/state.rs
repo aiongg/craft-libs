@@ -4,12 +4,14 @@
 use craft_theme::Srgba;
 use serde::{Deserialize, Serialize};
 
-use super::MaskViewLabels;
+use super::{MaskViewKeys, MaskViewWords};
 use crate::selection::ColorIndicates;
+use craft_ui::runtime::commands::FirePhase;
 
 /// One of Select and Mask's seven views, in menu order (the order F cycles).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum MaskViewMode {
     /// Only the masked layer, its unselected area see-through by the opacity. Default.
     #[default]
@@ -61,20 +63,6 @@ impl MaskViewMode {
         MaskViewMode::ALL.into_iter().find(|m| m.id() == id)
     }
 
-    /// The letter that picks the view: O, M, V, A, T, K, Y.
-    pub fn key(self) -> egui::Key {
-        // pc: crates/ui-egui/src/canvas/select_mask_view.rs:73-83 `Mode::key`.
-        match self {
-            MaskViewMode::OnionSkin => egui::Key::O,
-            MaskViewMode::MarchingAnts => egui::Key::M,
-            MaskViewMode::Overlay => egui::Key::V,
-            MaskViewMode::OnBlack => egui::Key::A,
-            MaskViewMode::OnWhite => egui::Key::T,
-            MaskViewMode::BlackAndWhite => egui::Key::K,
-            MaskViewMode::OnLayers => egui::Key::Y,
-        }
-    }
-
     /// The view's opacity in percent until the user changes it: 50 for Onion Skin and Overlay, 100
     /// for On Black and On White, `None` for the three without one.
     pub fn default_opacity(self) -> Option<f32> {
@@ -97,17 +85,29 @@ impl MaskViewMode {
         MaskViewMode::ALL[(i + 1) % MaskViewMode::ALL.len()]
     }
 
-    /// The view's name in `labels`.
-    pub fn label(self, labels: &MaskViewLabels) -> &str {
-        // new: one `MaskViewLabels` field per view.
+    /// The view's name in `words`.
+    pub fn label(self, words: &MaskViewWords) -> &str {
         match self {
-            MaskViewMode::OnionSkin => &labels.onion_skin,
-            MaskViewMode::MarchingAnts => &labels.marching_ants,
-            MaskViewMode::Overlay => &labels.overlay,
-            MaskViewMode::OnBlack => &labels.on_black,
-            MaskViewMode::OnWhite => &labels.on_white,
-            MaskViewMode::BlackAndWhite => &labels.black_and_white,
-            MaskViewMode::OnLayers => &labels.on_layers,
+            MaskViewMode::OnionSkin => words.onion_skin.as_str(),
+            MaskViewMode::MarchingAnts => words.marching_ants.as_str(),
+            MaskViewMode::Overlay => words.overlay.as_str(),
+            MaskViewMode::OnBlack => words.on_black.as_str(),
+            MaskViewMode::OnWhite => words.on_white.as_str(),
+            MaskViewMode::BlackAndWhite => words.black_and_white.as_str(),
+            MaskViewMode::OnLayers => words.on_layers.as_str(),
+        }
+    }
+
+    /// The command that picks the view.
+    pub const fn command(self) -> MaskViewKeys {
+        match self {
+            MaskViewMode::OnionSkin => MaskViewKeys::OnionSkin,
+            MaskViewMode::MarchingAnts => MaskViewKeys::MarchingAnts,
+            MaskViewMode::Overlay => MaskViewKeys::Overlay,
+            MaskViewMode::OnBlack => MaskViewKeys::OnBlack,
+            MaskViewMode::OnWhite => MaskViewKeys::OnWhite,
+            MaskViewMode::BlackAndWhite => MaskViewKeys::BlackAndWhite,
+            MaskViewMode::OnLayers => MaskViewKeys::OnLayers,
         }
     }
 }
@@ -115,6 +115,7 @@ impl MaskViewMode {
 /// The view state of the Select and Mask dialog (PhotoCraft's `__view`, `__opacity`,
 /// `__showEdge`, `__showOriginal`, `__hideView` fields). View state, not undoable.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct MaskViewState {
     /// The view shown.
     pub mode: MaskViewMode,
@@ -145,7 +146,7 @@ impl Default for MaskViewState {
             show_edge: false,
             show_original: false,
             hide_view: false,
-            overlay_color: Srgba { r: 1.0, g: 0.0, b: 0.0, a: 1.0 }, // design: allow(Photoshop's rubylith red, document data)
+            overlay_color: Srgba { r: 1.0, g: 0.0, b: 0.0, a: 1.0 },
             overlay_indicates: ColorIndicates::MaskedAreas,
         }
     }
@@ -180,6 +181,25 @@ impl MaskViewState {
         }
     }
 
+    /// Applies a fired view command and returns the change it made. A view's letter picks it, F the next view, J and P
+    /// toggle Show Edge and Show Original, and X held hides the view until it is released. A repeat of a key does
+    /// nothing, and neither does the release of a key that is not held.
+    pub fn run(&mut self, command: MaskViewKeys, phase: FirePhase) -> Option<MaskViewChange> {
+        let change = match (command, phase) {
+            (MaskViewKeys::HideView, FirePhase::Press) => MaskViewChange::HideView(true),
+            (MaskViewKeys::HideView, FirePhase::Release) => MaskViewChange::HideView(false),
+            (_, FirePhase::Press) => match command {
+                MaskViewKeys::NextView => MaskViewChange::Mode(self.mode.next()),
+                MaskViewKeys::ShowEdge => MaskViewChange::ShowEdge(!self.show_edge),
+                MaskViewKeys::ShowOriginal => MaskViewChange::ShowOriginal(!self.show_original),
+                other => MaskViewChange::Mode(MaskViewMode::ALL.into_iter().find(|mode| mode.command() == other)?),
+            },
+            _ => return None,
+        };
+        self.apply(change);
+        Some(change)
+    }
+
     /// What the engine builds for the current view.
     ///
     /// With `o` the view's opacity (0..=1) and `c` the coverage:
@@ -205,8 +225,8 @@ impl MaskViewState {
         } else {
             MaskCoverage::Refined
         };
-        let black = Srgba { r: 0.0, g: 0.0, b: 0.0, a: 1.0 }; // design: allow(the On Black view's veil)
-        let white = Srgba { r: 1.0, g: 1.0, b: 1.0, a: 1.0 }; // design: allow(the On White view's veil)
+        let black = Srgba { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
+        let white = Srgba { r: 1.0, g: 1.0, b: 1.0, a: 1.0 };
         let mut veils = Vec::new();
         let mut layer_floor = None;
         let mut hide_other_layers = false;
@@ -237,6 +257,7 @@ impl MaskViewState {
 
 /// Which coverage the view shows.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum MaskCoverage {
     /// The refined selection (the engine runs the refinement).
     #[default]
@@ -250,6 +271,7 @@ pub enum MaskCoverage {
 
 /// Which part of the canvas a veil covers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum VeilMask {
     /// Everywhere.
     Everywhere,
@@ -261,6 +283,7 @@ pub enum VeilMask {
 
 /// A solid fill over the image, as the engine adds it (PhotoCraft's veil fill layers).
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct Veil {
     /// Encoded sRGB.
     pub color: Srgba,

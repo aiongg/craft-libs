@@ -1,85 +1,99 @@
 //! Vanishing Point (Filter › Vanishing Point…): the plane editor and its full-window workspace.
 //!
-//! The owner's answer (decisions, "Step 7 questions" 2): Vanishing Point opens in its own window,
-//! as in Photoshop; PhotoCraft ran it on the main canvas. [`VanishingPointWorkspace`] is a
-//! [`FullWindowDialog`] with the title strip "Vanishing Point (layer, 66%)", the full-width
-//! options bar ([`VanishingPointBar`]), the tool strip (Edit Plane V, Create Plane C, Stamp S,
-//! then Hand H and Zoom Z), the canvas, and a narrow side column with only OK and Cancel at its
-//! bottom (Photoshop has no side panel and PhotoCraft's bar ends in ✓ and ⊘; the owner's answer
+//! The owner's answer (decisions, "Step 7 questions" 2): Vanishing Point opens in its own window, as in Photoshop;
+//! PhotoCraft ran it on the main canvas. [`VanishingPointWorkspace`] is a [`FullWindowDialog`] with the title strip
+//! "Vanishing Point (layer, 66%)", the full-width options bar ([`VanishingPointBar`]), the tool strip (Edit Plane V,
+//! Create Plane C, Stamp S, then Hand H and Zoom Z), the canvas, and a narrow side column with only OK and Cancel at
+//! its bottom (Photoshop has no side panel and PhotoCraft's bar ends in check and ban buttons; the owner's answer
 //! keeps the column, which also holds the preview's status).
 //!
-//! [`VanishingPointEditor`] is the plane editor without a frame (lead call 46): the workspace runs
-//! it in its canvas, and an app may run it on any canvas. The session
-//! ([`VanishingPointSession`]: planes, torn planes, paste, clone source and strokes) has
-//! [`LocalHistory`] undo. The app's [`VanishingScene`] holds the perspective maths, its
-//! [`VanishingPointSource`] paints the stamp preview, and OK runs `filter.vanishingPoint` with the
+//! [`VanishingPointEditor`] is the plane editor without a frame: the workspace runs it in its canvas, and an app may
+//! run it on any canvas through one [`VanishingPointPass`] per pass (its [`planes`](VanishingPointPass::planes)
+//! control and its [`tool`](VanishingPointPass::tool)). The session ([`VanishingPointSession`]: planes, torn planes,
+//! paste, clone source and strokes) has [`EditHistory`] undo. The app's [`VanishingScene`] holds the perspective
+//! maths, its [`VanishingPointSource`] paints the stamp preview, and OK runs `filter.vanishingPoint` with the
 //! session.
 //!
-//! Files: `planes` and `editor`; `draw`, `bar` and this file's `show` and `step`;
-//! `style`.
+//! Files: `planes` and `editor` (the state, the tool and the planes control); `draw`, `bar`, `new_plane`, `commands`
+//! and this file's `show` and `step`; `style` and `words`.
 //!
 //! [`FullWindowDialog`]: craft_ui::dialog::FullWindowDialog
+//! [`EditHistory`]: craft_behavior::EditHistory
 
 mod bar;
+mod commands;
 mod draw;
 mod editor;
-#[cfg(test)]
-mod editor_tests;
-mod labels;
+mod new_plane;
 mod planes;
+#[cfg(feature = "screen-testing")]
 pub(crate) mod stories;
 mod style;
-#[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
-mod workspace_tests;
+mod words;
 
 pub use bar::{VanishingPointBar, VanishingPointBarOutput};
-pub use draw::paint_editor;
+pub use commands::{VanishingPointCommands, VanishingPointStripTool};
 pub use editor::{
-    PasteImage, PlaneEdit, StampLimits, StampSettings, StampStroke, VanishingPointEditor, VanishingPointPass, VanishingPointSession,
-    VanishingPointSettings, VanishingTool,
+    PasteImage, PlaneEdit, StampLimits, StampSettings, StampStroke, VanishingPlanes, VanishingPlanesOutput, VanishingPointEditor, VanishingPointPass,
+    VanishingPointSession, VanishingPointSettings, VanishingPointTool, VanishingTool,
 };
-pub use labels::VanishingPointLabels;
 pub use planes::{MAX_GRID_LINES, MAX_PLANES, PlaneCheck, PlaneEdge, TornPlane, VanishingPlane, VanishingScene, fit_torn, slide_edge};
 pub use style::VanishingPointStyle;
+pub use words::VanishingPointWords;
 
-use egui::load::SizedTexture;
-use egui::{Context, Key, Modifiers, Rect};
+use std::cell::RefCell;
+use std::sync::Arc;
 
-use craft_ui::canvas::kurbo::Size;
-use craft_ui::canvas::{Checkerboard, CursorOptions, HandTool, NavigationOptions, RasterSource, ToolHost, ZoomTool};
-use craft_ui::dialog::full_window::{
-    FullWindowCanvas, FullWindowLabels, FullWindowSide, FullWindowTitle, FullWindowView, PreviewStatus, PreviewTicket, SideFooter, SideWidth,
+use egui::{Color32, Id, Response, Ui};
+
+use craft_behavior::edit_history::Step;
+use craft_behavior::{CancelReason, EditEvent, EditHistory, Mixed};
+use craft_ui::canvas::{
+    HandTool, Momentary, MomentaryCommand, NavigationOptions, PickStep, RasterSource, ToolHost, ViewCommand, ZoomTool, tool_pick,
 };
-use craft_ui::dialog::{ButtonRole, DialogLabels, DialogState, FooterButton, FullWindowDialog, LocalHistory, Outcome, Step};
-use craft_ui::edit::{self, CancelReason, EditEvent};
-use craft_ui::icons::Icon;
-use craft_ui::localized::Labels as _;
-use craft_ui::patterns::{LastUsed, RailTool, ToolRail, ToolSlot};
-use craft_ui::theme::current;
+use craft_ui::contract::{Bind, Job, NoValue, Outcome, Pending, Remember as _, Show as _, ShowContainer as _};
+use craft_ui::dialog::{FullWindowCanvas, FullWindowDialog, FullWindowSide, FullWindowStatus, FullWindowTitle, FullWindowView, RasterOverlay};
+use craft_ui::layout_components::Row;
+use craft_ui::primitives::Checker;
+use craft_ui::rails::{LastUsed, RailTool, ToolRail, ToolSlot};
+use craft_ui::runtime::commands::{CommandSet as _, Commands as _, FirePhase};
+use craft_ui::runtime::env::Env;
+use craft_ui::runtime::words::CommonWords;
+use craft_ui::sections::{DialogRole, FooterButton};
 
-/// The workspace's strip: the editor's tools, Hand and Zoom.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub enum VanishingPointStripTool {
-    #[default]
-    #[allow(missing_docs)]
-    Editor,
-    #[allow(missing_docs)]
-    Hand,
-    #[allow(missing_docs)]
-    Zoom,
-}
+use commands::Pick;
+use editor::PASTE_CELLS;
+
+use crate::ui::wide_angle::PreviewDone;
+
+/// The paste's tint: white at the legacy alpha, so the image shows as it is, a little transparent over the picture.
+/// It is data of the paste, not a theme colour.
+const PASTE_TINT: Color32 = Color32::from_rgba_premultiplied(230, 230, 230, 230);
 
 /// What the app gives the editor to show each pass.
 pub trait VanishingPointSource {
     /// The layer as it is.
     fn image(&self) -> &dyn RasterSource;
 
-    /// The clone strokes painted onto a copy of the layer (the app paints them in batches, lead
-    /// call 47); `None` while there are none.
+    /// The clone strokes painted onto a copy of the layer (the app paints them in batches, lead call 47); `None` while
+    /// there are none.
     fn stamp_preview(&self) -> Option<&dyn RasterSource>;
 
-    /// The clipboard's image as a texture the app holds, for Paste; `None` without one.
-    fn paste(&self) -> Option<SizedTexture>;
+    /// The clipboard's image, for Paste; `None` without one.
+    fn paste(&self) -> Option<&dyn RasterSource>;
+
+    /// The job that paints the strokes of `request` onto a copy of the layer from scratch: after an undo, or a plane
+    /// change under strokes. The workspace starts it once per change of the session and shows its status in the side
+    /// column; the picture stays [`stamp_preview`](Self::stamp_preview).
+    fn preview_job(&self, request: &VanishingPreviewRequest) -> Job<PreviewDone, String>;
+}
+
+/// What a preview job paints.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct VanishingPreviewRequest {
+    /// The planes, paste and strokes to paint.
+    pub session: VanishingPointSession,
 }
 
 /// What opens the workspace.
@@ -99,9 +113,7 @@ pub struct VanishingPointOpen {
     /// The user's navigation options (Photoshop's defaults).
     pub navigation: NavigationOptions,
     /// The user's transparency grid.
-    pub checkerboard: Checkerboard,
-    /// The user's Preferences › Cursors.
-    pub cursor_options: CursorOptions,
+    pub checkerboard: Checker,
 }
 
 impl VanishingPointOpen {
@@ -114,32 +126,35 @@ impl VanishingPointOpen {
             settings: VanishingPointSettings::default(),
             limits,
             navigation: NavigationOptions::default(),
-            checkerboard: Checkerboard::default(),
-            cursor_options: CursorOptions::default(),
+            checkerboard: Checker::default(),
         }
     }
 
     /// Sets the options bar's starting values.
+    #[must_use]
     pub fn settings(mut self, settings: VanishingPointSettings) -> Self {
         self.settings = settings;
         self
     }
 
+    /// The planes, paste and strokes to start from.
+    #[must_use]
+    pub fn session(mut self, session: VanishingPointSession) -> Self {
+        self.session = session;
+        self
+    }
+
     /// The user's navigation options, for the canvas, Hand and Zoom.
+    #[must_use]
     pub fn navigation(mut self, options: NavigationOptions) -> Self {
         self.navigation = options;
         self
     }
 
     /// The user's transparency grid under the image.
-    pub fn checkerboard(mut self, checkerboard: Checkerboard) -> Self {
+    #[must_use]
+    pub fn checkerboard(mut self, checkerboard: Checker) -> Self {
         self.checkerboard = checkerboard;
-        self
-    }
-
-    /// The user's Preferences › Cursors, for the editor's cursor.
-    pub fn cursor_options(mut self, options: CursorOptions) -> Self {
-        self.cursor_options = options;
         self
     }
 }
@@ -148,8 +163,7 @@ impl VanishingPointOpen {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum VanishingPointEvent {
-    /// The planes changed: a node or edge drag (Begin, Update, Commit), a plane made, torn off or
-    /// deleted (`Set`).
+    /// The planes changed: a node or edge drag (Begin, Update, Commit), a plane made, torn off or deleted (`Set`).
     Planes(EditEvent<PlaneEdit>),
     /// The pasted image moved on its plane, or its Width changed.
     Paste(EditEvent<PasteImage>),
@@ -158,304 +172,270 @@ pub enum VanishingPointEvent {
 }
 
 /// What [`VanishingPointWorkspace::show`] reports.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 #[non_exhaustive]
 pub struct VanishingPointOutput {
     /// What happened this pass, in order.
     pub events: Vec<VanishingPointEvent>,
-    /// The strokes changed other than by painting on (undo, a deleted plane): the app repaints the
-    /// stamp preview from scratch for this ticket.
-    pub preview_wanted: Option<PreviewTicket>,
     /// The bar changed a setting (the app stores the settings).
     pub settings_changed: bool,
     /// The message of a refused Stamp press, translated, for the app's status line.
     pub status: Option<String>,
-    /// OK or Cancel, once chosen.
-    pub outcome: Option<Outcome>,
-    /// The workspace's screen rectangle.
-    pub rect: Rect,
+    /// OK (`Accept`) or Cancel, once chosen.
+    pub closed: Option<DialogRole>,
+    /// The dialog's response: its rect is the workspace's.
+    pub response: Response,
 }
 
-/// The Vanishing Point workspace.
+impl Outcome for VanishingPointOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// What the dialog's body keeps between passes: the view, the strip's memory and the canvas the tools run under.
+#[derive(Clone, Default)]
+struct VanishingView {
+    view: FullWindowView,
+    last_used: LastUsed<Pick>,
+    /// The canvas the tools run under, to cancel their gestures outside a pass.
+    canvas: Option<Id>,
+}
+
+/// The New Plane form's state.
+#[derive(Clone, Default)]
+struct NewPlaneState {
+    open: bool,
+    values: new_plane::NewPlaneCorners,
+}
+
+/// The Vanishing Point workspace: the session, its history, the settings and the editor, as one value the app keeps
+/// while Vanishing Point is open. The view and the strip's memory live in the dialog's body.
 ///
-/// Keys: V, C, S, H, Z (`ToolRail::pick_by_key`); Delete and Backspace the selected plane; ⌘+, ⌘−,
-/// ⌘0, ⌘1 the view; ⌘Z, ⇧⌘Z the history (a gesture in progress is cancelled first, with
-/// `CancelReason::UndoDuringGesture`); Enter OK; Esc drops pending corners first, else Cancel. A
-/// tool switch cancels the old tool's gesture with `CancelReason::Removed`.
+/// Keys ([`VanishingPointCommands`], on the dialog's scope): V, C, S, H, Z pick the tools; Delete and Backspace remove
+/// the selected plane while the canvas has the keyboard. The app forwards ⌘Z and ⇧⌘Z (`EditCommands::Undo`, `Redo`) to
+/// [`step`](Self::step) and the momentary Hand and Zoom commands to [`momentary`](Self::momentary); Enter is OK and
+/// Esc Cancel (with the canvas focused, Esc drops pending corners first, and during a drag cancels the drag only). A
+/// tool switch cancels the old tool's gesture (`CancelReason::Removed`), and so does an undo
+/// (`CancelReason::UndoDuringGesture`).
+#[derive(craft_ui::contract::Pattern)]
 pub struct VanishingPointWorkspace {
-    dialog: DialogState<VanishingPointSession>,
     session: VanishingPointSession,
-    history: LocalHistory<VanishingPointSession>,
+    history: EditHistory<VanishingPointSession>,
+    /// The session as the history last saw it.
+    recorded: VanishingPointSession,
+    /// Counts the sessions the history has seen: the key of the preview job.
+    revision: u64,
     settings: VanishingPointSettings,
+    editor: VanishingPointEditor,
     subject: String,
     size: [u32; 2],
-    // View state outside the history (risk 8).
-    view: FullWindowView,
+    navigation: NavigationOptions,
+    checkerboard: Checker,
     strip: VanishingPointStripTool,
-    editor: VanishingPointEditor,
-    preview: PreviewStatus,
-    /// The strokes changed outside `show` (the app's Edit menu stepped the history): the next pass
-    /// asks for a new preview.
-    stale: bool,
-    last_used: LastUsed<Pick>,
     hand: HandTool,
     zoom: ZoomTool,
-    navigation: NavigationOptions,
-    checkerboard: Checkerboard,
-    /// The words; the installed words while `None`.
-    labels: Option<VanishingPointLabels>,
+    momentary: Momentary,
+    new_plane: NewPlaneState,
+    /// Steps the app asked for while a drag was open: the next `show` cancels the drag, then steps.
+    requested: Vec<Step>,
+    /// The zoom on screen at the end of the last pass, for the title.
+    zoom_percent: f64,
 }
-
-/// A button of the strip: the editor's three tools, Hand and Zoom.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Pick {
-    EditPlane,
-    CreatePlane,
-    Stamp,
-    Hand,
-    Zoom,
-}
-
-impl Pick {
-    fn of(strip: VanishingPointStripTool, editor: &VanishingPointEditor) -> Pick {
-        match (strip, editor.tool()) {
-            (VanishingPointStripTool::Hand, _) => Pick::Hand,
-            (VanishingPointStripTool::Zoom, _) => Pick::Zoom,
-            (VanishingPointStripTool::Editor, VanishingTool::EditPlane) => Pick::EditPlane,
-            (VanishingPointStripTool::Editor, VanishingTool::CreatePlane) => Pick::CreatePlane,
-            (VanishingPointStripTool::Editor, VanishingTool::Stamp) => Pick::Stamp,
-        }
-    }
-
-    /// The strip: Edit Plane (V), Create Plane (C), Stamp (S), a gap, Hand (H) and Zoom (Z).
-    fn slots(labels: &VanishingPointLabels) -> Vec<ToolSlot<Pick>> {
-        // pc: crates/ui-egui/src/dialogs/vp_ui.rs:1052-1059 (the letters), :1230 (the tool pills the
-        // strip replaces). The icons are library `Icon`s until app icons land.
-        let tools = [
-            (Pick::EditPlane, Icon::Pointer, &labels.edit_plane, "V"),
-            (Pick::CreatePlane, Icon::Grid, &labels.create_plane, "C"),
-            (Pick::Stamp, Icon::Stamp, &labels.stamp, "S"),
-            (Pick::Hand, Icon::Hand, &labels.hand, "H"),
-            (Pick::Zoom, Icon::ZoomIn, &labels.zoom, "Z"),
-        ];
-        (0_u32..)
-            .zip(tools)
-            .map(|(id, (pick, icon, label, letter))| {
-                ToolSlot::new(id, vec![RailTool::new(pick, icon, label.as_str()).shortcut(letter)]).group_end(pick == Pick::Stamp)
-            })
-            .collect()
-    }
-
-    fn select(self, strip: &mut VanishingPointStripTool, editor: &mut VanishingPointEditor) {
-        match self {
-            Pick::Hand => *strip = VanishingPointStripTool::Hand,
-            Pick::Zoom => *strip = VanishingPointStripTool::Zoom,
-            Pick::EditPlane | Pick::CreatePlane | Pick::Stamp => {
-                *strip = VanishingPointStripTool::Editor;
-                editor.set_tool(match self {
-                    Pick::EditPlane => VanishingTool::EditPlane,
-                    Pick::CreatePlane => VanishingTool::CreatePlane,
-                    _ => VanishingTool::Stamp,
-                });
-            }
-        }
-    }
-}
-
-/// The canvas's id salt, shared by the canvas and the tool switch that cancels its gesture.
-const CANVAS: &str = "vanishing-point-view";
 
 impl VanishingPointWorkspace {
     /// A workspace on the layer and session that `open` describes.
     pub fn new(open: VanishingPointOpen) -> Self {
-        let mut editor = VanishingPointEditor::new(open.limits);
-        editor.cursor_options(open.cursor_options);
-        let size = Size::new(f64::from(open.size[0]), f64::from(open.size[1]));
         Self {
-            dialog: DialogState::new(),
-            history: LocalHistory::new(&open.session),
+            history: EditHistory::new(&open.session),
+            recorded: open.session.clone(),
             session: open.session,
+            revision: 0,
             settings: open.settings,
+            editor: VanishingPointEditor::new(open.limits),
             subject: open.subject,
             size: open.size,
-            view: FullWindowView::new(),
-            strip: VanishingPointStripTool::Editor,
-            editor,
-            preview: PreviewStatus::new(),
-            stale: false,
-            last_used: LastUsed::default(),
-            hand: HandTool::new(size, open.navigation),
-            zoom: ZoomTool::new(size, open.navigation),
             navigation: open.navigation,
             checkerboard: open.checkerboard,
-            labels: None,
+            strip: VanishingPointStripTool::Editor,
+            hand: HandTool::new(open.navigation),
+            zoom: ZoomTool::new(open.navigation),
+            momentary: Momentary::new(open.navigation),
+            new_plane: NewPlaneState::default(),
+            requested: Vec::new(),
+            zoom_percent: 100.0,
         }
     }
 
-    /// The words (default: the installed words).
-    pub fn labels(mut self, labels: VanishingPointLabels) -> Self {
-        self.editor.labels(labels.clone());
-        self.labels = Some(labels);
-        self
-    }
-
-    /// The marks' look from the theme's tokens.
-    pub fn style(tokens: &craft_ui::theme::UiTokens) -> VanishingPointStyle {
-        VanishingPointStyle::of(tokens)
-    }
-
-    /// Selects plane `index` (none when it is out of range or `None`), for an app or a story that
-    /// opens on a chosen plane.
+    /// Selects plane `index` (none when it is out of range or `None`), for an app or a story that opens on a chosen
+    /// plane.
     pub fn selected_plane(&mut self, index: Option<usize>) -> &mut Self {
         self.editor.select(index, &self.session);
         self
     }
 
-    /// Shows the workspace for this pass: the title, the keys, [`VanishingPointBar`], the strip
-    /// (the editor's three tools, `group_end`, Hand and Zoom), the narrow side column with
-    /// `SideFooter::bottom` OK and Cancel and the preview's status, and the canvas with the
-    /// source's image and the editor's pass (or Hand, Zoom). Then the history settles (busy while
-    /// the editor drags or a bar field is being edited).
-    pub fn show(&mut self, ctx: &Context, scene: &dyn VanishingScene, source: &dyn VanishingPointSource) -> VanishingPointOutput {
-        // pc: crates/ui-egui/src/dialogs/vp_ui.rs:1230 `options_bar`, :1045 `keys`, :1068
-        // `escape`; distort_ui.rs:352-368 (the mode on the main canvas, replaced by the frame).
-        let Self {
-            dialog,
-            session,
-            history,
-            settings,
-            subject,
-            size,
-            view,
-            strip,
-            editor,
-            preview,
-            stale,
-            last_used,
-            hand,
-            zoom,
-            navigation,
-            checkerboard,
-            labels: custom,
-        } = self;
-        let installed;
-        let labels = match custom.as_ref() {
-            Some(labels) => labels,
-            None => {
-                installed = VanishingPointLabels::of_ctx(ctx);
-                &installed
-            }
-        };
-        let dialog_labels = DialogLabels::of_ctx(ctx);
-        let window_labels = FullWindowLabels::of_ctx(ctx);
-        let style = VanishingPointEditor::style(&current(ctx));
-        let title = FullWindowTitle::new(labels.name.as_str()).subject(subject.as_str()).zoom(view.zoom_percent()).text(ctx);
-        let doc = Size::new(f64::from(size[0]), f64::from(size[1]));
-        let navigation = *navigation;
-        let checkerboard = *checkerboard;
-        let before = *settings;
+    /// Picks the editor's tool, for an app or a story that opens on a chosen tool.
+    pub fn tool(&mut self, tool: VanishingTool) -> &mut Self {
+        self.strip = VanishingPointStripTool::Editor;
+        self.editor.set_tool(tool);
+        self
+    }
 
-        let mut events = Vec::new();
-        let mut wanted = std::mem::take(stale);
-        let mut bar_live = false;
-        let response = FullWindowDialog::new("vanishing-point").title(title).show(ctx, dialog, session, |ui, session, fx| {
-            // The history keys are read whatever has focus, so they work while a number field has
-            // it, but only while this workspace is the top modal layer. A gesture in progress ends
-            // first, so the step finds the session as the history has it.
-            if let Some(step) = fx.take_step(ui) {
-                let canvas = FullWindowCanvas::canvas_id(ui, CANVAS);
-                cancel_active(ctx, canvas, *strip, hand, zoom, editor, session, settings, scene, source, &style, CancelReason::UndoDuringGesture);
-                if history.step(session, step) {
-                    editor.after_step(session);
-                    wanted = true;
+    /// Shows the workspace for this pass.
+    ///
+    /// A [`FullWindowDialog`] titled by [`FullWindowTitle`] (the subject and the zoom), in the scope of
+    /// [`VanishingPointCommands`], with the narrow side column (the preview's status, OK and Cancel at its bottom). The
+    /// body, in order: the commands; [`VanishingPointBar`]; the tool strip (a `ToolRail`; a pick cancels the old tool's
+    /// gesture with `Removed`); the canvas ([`FullWindowCanvas`]) with the source's image (the stamp preview while
+    /// strokes exist), the paste as an overlay mapped through the selected plane, the planes control over it, and the
+    /// editor's tool (or Hand, Zoom). The New Plane form shows while open.
+    pub fn show(&mut self, ui: &mut Ui, scene: &dyn VanishingScene, source: &dyn VanishingPointSource) -> VanishingPointOutput {
+        // pc: crates/ui-egui/src/dialogs/vp_ui.rs:1230 `options_bar`, :1045 `keys`, :1068 `escape`;
+        // distort_ui.rs:352-368 (the mode on the main canvas, replaced by the frame).
+        let env = Env::of(ui);
+        let words = env.words::<VanishingPointWords>();
+        let common = env.words::<CommonWords>();
+        let title = FullWindowTitle::new(words.name.clone()).subject(self.subject.clone()).zoom(self.zoom_percent).label(&env);
+        let settings_before = self.settings;
+        let mut asked = std::mem::take(&mut self.requested);
+        let slots = slots();
+        let status: RefCell<Option<Pending<PreviewDone, String>>> = RefCell::new(None);
+        let events = RefCell::new(Vec::<VanishingPointEvent>::new());
+        let this = RefCell::new(&mut *self);
+
+        let shown = FullWindowDialog::new(title)
+            .command_scope(VanishingPointCommands::SCOPE)
+            .buttons([FooterButton::new(common.ok.clone(), DialogRole::Accept), FooterButton::new(common.cancel.clone(), DialogRole::Cancel)])
+            .sides(|ui, _| {
+                FullWindowSide::new(words.planes.clone()).headerless().show(ui, |ui, _| {
+                    if let Some(status) = status.borrow().as_ref() {
+                        FullWindowStatus::of(status).show(ui);
+                    }
+                });
+            })
+            .show(ui, |ui, cx| {
+                let ctx = ui.ctx().clone();
+                let mut guard = this.borrow_mut();
+                let work: &mut VanishingPointWorkspace = &mut **guard;
+                let mut state = std::mem::take(cx.keep::<VanishingView>());
+                let mut out = Vec::new();
+
+                // An open drag is cancelled first, so the step finds the session as the history has it.
+                for step in asked.drain(..) {
+                    work.cancel_gesture(&ctx, &state, CancelReason::UndoDuringGesture, &mut out);
+                    work.step_now(step);
                 }
-            }
-            // Esc drops half-clicked corners before it cancels the workspace.
-            if fx.keys_free(ui) && ctx.input(|i| i.key_pressed(Key::Escape) && i.modifiers.is_none()) && editor.drop_pending() {
-                ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape));
-            }
+                while let Some((command, _)) = cx.take_command::<ViewCommand>() {
+                    state.view.apply(command);
+                }
+                while let Some((command, fired)) = cx.take_command::<VanishingPointCommands>() {
+                    if command == VanishingPointCommands::NewPlane {
+                        work.new_plane.open = true;
+                        continue;
+                    }
+                    let Some(pick) = command.pick() else { continue };
+                    let slot = slots.iter().find(|slot| slot.tools.iter().any(|entry| entry.id == pick));
+                    let tools: Vec<_> = slot.into_iter().flat_map(|slot| slot.tools.iter()).collect();
+                    let current = Pick::of(work.strip, work.editor.tool());
+                    let picked = slot.and_then(|slot| {
+                        tool_pick(&tools, slot.id, &current, &state.last_used, PickStep::of(&fired), |_| true).map(|entry| (slot.id, entry.id))
+                    });
+                    if let Some((slot_id, pick)) = picked {
+                        work.pick(&ctx, &state, pick, &mut out);
+                        state.last_used.set(slot_id, pick);
+                    }
+                }
 
-            let new_layer = settings.new_layer;
-            let mut bar = VanishingPointBar::new("vanishing-point-bar", editor.tool(), settings, session.paste, source.paste().is_some())
-                .has_strokes(!session.strokes.is_empty());
-            if let Some(labels) = custom.as_ref() {
-                bar = bar.labels(labels.clone());
-            }
-            let bar = bar.show(ui);
-            bar_live = bar.edit.as_ref().and_then(EditEvent::id).is_some_and(|id| edit::is_live(ctx, id));
-            if let Some(paste) = bar.paste {
-                session.paste = paste;
-                events.push(VanishingPointEvent::Paste(EditEvent::set(paste, Modifiers::NONE)));
-            }
-            wanted |= settings.new_layer != new_layer && !session.strokes.is_empty();
+                let bar = VanishingPointBar::new(work.editor.tool(), &work.settings, work.session.paste, source.paste().is_some())
+                    .has_strokes(!work.session.strokes.is_empty())
+                    .show(ui);
+                if let Some(event) = &bar.edit
+                    && let Some(settings) = event.value()
+                {
+                    work.settings = *settings;
+                }
+                if let Some(event) = bar.paste_width {
+                    let at = work.session.paste.at;
+                    if let Some(width) = event.value() {
+                        work.session.paste.width = *width;
+                    }
+                    out.push(VanishingPointEvent::Paste(event.map(|width| PasteImage::new(at, width))));
+                }
 
-            let slots = Pick::slots(labels);
-            let current = Pick::of(*strip, editor);
-            let rail = ToolRail::new("vanishing-point-tools").label(labels.tools.as_str()).pick_by_key(fx.keys_free(ui)).show(
-                ui,
-                &slots,
-                &current,
-                last_used,
-                |_, _| {},
-            );
-            if let Some(pick) = rail.select.filter(|pick| *pick != current) {
-                // A gesture in progress ends with the tool that began it.
-                let canvas = FullWindowCanvas::canvas_id(ui, CANVAS);
-                cancel_active(ctx, canvas, *strip, hand, zoom, editor, session, settings, scene, source, &style, CancelReason::Removed);
-                pick.select(strip, editor);
-            }
+                let strokes = !work.session.strokes.is_empty();
+                let preview = strokes.then(|| {
+                    let request = VanishingPreviewRequest { session: work.session.clone() };
+                    cx.pending((work.revision, "vanishing-point-preview"), || source.preview_job(&request)).clone()
+                });
+                *status.borrow_mut() = preview;
 
-            let footer = SideFooter::bottom(vec![
-                FooterButton::new(ButtonRole::Default, dialog_labels.ok.as_str()),
-                FooterButton::new(ButtonRole::Cancel, dialog_labels.cancel.as_str()),
-            ]);
-            FullWindowSide::new("vanishing-point-side").width(SideWidth::Narrow).footer(footer).show(ui, fx, |ui| {
-                preview.show(ui, &window_labels);
+                let image: &dyn RasterSource = match source.stamp_preview().filter(|_| strokes) {
+                    Some(preview) => preview,
+                    None => source.image(),
+                };
+                let current = Pick::of(work.strip, work.editor.tool());
+                let document = [f64::from(work.size[0]), f64::from(work.size[1])];
+                let mut chosen = None;
+                let VanishingPointWorkspace { editor, session, settings, hand, zoom, momentary, checkerboard, navigation, strip, .. } = &mut *work;
+                let (checkerboard, navigation, strip) = (*checkerboard, *navigation, *strip);
+                let pass = editor.pass(session, settings, scene, source);
+                let paste = source.paste().filter(|_| !strokes || source.stamp_preview().is_none()).zip(pass.paste_placement());
+
+                let shown = Row::new()
+                    .fill()
+                    .show(ui, |ui, _| {
+                        let rail = ToolRail::new(words.tools.clone(), &slots, &current, &state.last_used).show_rail(ui, |_, _| {});
+                        if let Some(next) = rail.last_used {
+                            state.last_used = next;
+                        }
+                        chosen = rail.select.filter(|pick| *pick != current);
+                        let mut canvas = FullWindowCanvas::new(Bind::bound(&mut state.view), image)
+                            .checkerboard(checkerboard)
+                            .navigation(navigation)
+                            .momentary(&mut *momentary)
+                            .controls(|ui, rect| {
+                                pass.planes().show_at(ui, rect);
+                            });
+                        if let Some((paste, (frame, placed))) = paste {
+                            canvas = canvas.overlay(RasterOverlay::new(paste).mapped(frame, PASTE_CELLS).placed(placed).tint(PASTE_TINT));
+                        }
+                        match strip {
+                            VanishingPointStripTool::Hand => canvas.tool(&mut *hand).show(ui),
+                            VanishingPointStripTool::Zoom => canvas.tool(&mut *zoom).show(ui),
+                            _ => canvas.tool(&mut pass.tool()).show(ui),
+                        }
+                    })
+                    .inner;
+                drop(pass);
+                if let Some(pick) = chosen {
+                    work.pick(&ctx, &state, pick, &mut out);
+                }
+                if work.new_plane.open {
+                    let NewPlaneState { open, values } = &mut work.new_plane;
+                    if let Some(corners) = new_plane::show(ui, document, Bind::bound(values), Bind::bound(open)) {
+                        let VanishingPointWorkspace { editor, session, .. } = &mut *work;
+                        editor.add_plane(session, scene, corners, words.new_plane.as_str());
+                    }
+                }
+                state.canvas = shown.as_ref().map(|canvas| canvas.response.id);
+                work.zoom_percent = state.view.zoom_percent();
+                out.extend(work.editor.take_events());
+                events.borrow_mut().extend(out);
+                *cx.keep::<VanishingView>() = state;
             });
-
-            // While strokes exist the canvas shows the app's copy of the layer with them painted on.
-            let image: &dyn RasterSource = match source.stamp_preview().filter(|_| !session.strokes.is_empty()) {
-                Some(preview) => preview,
-                None => source.image(),
-            };
-            let widget = FullWindowCanvas::new(CANVAS, view).source(image).checkerboard(checkerboard).navigation(navigation);
-            let shown = match *strip {
-                VanishingPointStripTool::Hand => {
-                    hand.size = doc;
-                    hand.prefs = navigation;
-                    widget.tool(hand).show(ui)
-                }
-                VanishingPointStripTool::Zoom => {
-                    zoom.size = doc;
-                    zoom.prefs = navigation;
-                    widget.tool(zoom).show(ui)
-                }
-                VanishingPointStripTool::Editor => widget.tool(&mut editor.pass(session, settings, scene, source, &style)).show(ui),
-            };
-            // The Esc that cancelled a gesture is not the dialog's Cancel.
-            if shown.took_key.is_some_and(|key| key.key == Key::Escape) {
-                ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape));
-            }
-            events.extend(editor.take_events());
-        });
-        // A plane or the paste changed for good: the app's strokes and paste are baked on the planes.
-        wanted |= (!session.strokes.is_empty() || settings.paste)
-            && events.iter().any(|event| {
-                matches!(
-                    event,
-                    VanishingPointEvent::Planes(EditEvent::Commit { .. } | EditEvent::Set { .. })
-                        | VanishingPointEvent::Paste(EditEvent::Commit { .. } | EditEvent::Set { .. })
-                )
-            });
-        history.settle(session, editor.busy() || bar_live || ctx.input(|i| i.pointer.any_down()));
-        let preview_wanted = wanted.then(|| preview.request());
+        let this = this.into_inner();
+        let picked = shown.output.picked.and_then(|at| [DialogRole::Accept, DialogRole::Cancel].get(at).copied());
+        let closed = picked.or(shown.output.closed.map(|_| DialogRole::Cancel));
+        let events = events.into_inner();
+        this.record(&events, words.source_step.as_str());
         VanishingPointOutput {
             events,
-            preview_wanted,
-            settings_changed: *settings != before,
-            status: editor.take_status(),
-            outcome: response.outcome,
-            rect: response.rect,
+            settings_changed: this.settings != settings_before,
+            status: this.editor.take_status(),
+            closed,
+            response: shown.output.response,
         }
     }
 
@@ -464,60 +444,126 @@ impl VanishingPointWorkspace {
         &self.session
     }
 
+    /// The editor: the selected tool and plane, and the corners Create Plane has clicked.
+    pub fn editor(&self) -> &VanishingPointEditor {
+        &self.editor
+    }
+
     /// The options bar's current values.
     pub fn settings(&self) -> &VanishingPointSettings {
         &self.settings
     }
 
-    /// The app's preview for `ticket` is in: the status clears when it is the latest request, and
-    /// a result for an older ticket is dropped.
-    pub fn preview_ready(&mut self, ticket: PreviewTicket) {
-        self.preview.ready(ticket);
-    }
-
-    /// The app's preview for `ticket` failed with `message` (translated): shown in the side
-    /// column when it is the latest request.
-    pub fn preview_failed(&mut self, ticket: PreviewTicket, message: String) {
-        self.preview.failed(ticket, message);
-    }
-
-    /// Undo or redo from the app's Edit menu; returns whether it stepped. A drag in progress
-    /// refuses the step: the workspace's own ⌘Z cancels the gesture first, an app menu waits for
-    /// the release.
+    /// Undo or redo from the app's Edit menu; returns whether a step will happen. With a drag open the step waits for
+    /// the next [`show`](Self::show), which cancels the drag (`UndoDuringGesture`) first.
     pub fn step(&mut self, step: Step) -> bool {
         // pc: crates/ui-egui/src/dialogs/vp_ui.rs:383 `step`.
         if self.editor.busy() {
-            return false;
+            self.requested.push(step);
+            return match step {
+                Step::Undo => self.history.can_undo(),
+                _ => self.history.can_redo(),
+            };
         }
-        let stepped = self.history.step(&mut self.session, step);
-        if stepped {
-            self.editor.after_step(&self.session);
-            self.stale = true;
-        }
-        stepped
+        self.step_now(step)
+    }
+
+    /// A momentary Hand or Zoom command the app routes here (Space, ⌘Space), with its phase.
+    pub fn momentary(&mut self, command: MomentaryCommand, phase: FirePhase) {
+        self.momentary.fired(command, phase);
     }
 }
 
-/// Ends the gesture of the tool the strip has picked, with `reason`: the host reports the tool's
-/// `Cancel` (the editor puts back what the press found).
-#[expect(clippy::too_many_arguments, reason = "the editor's pass takes the whole workspace state")]
-fn cancel_active(
-    ctx: &Context,
-    canvas: craft_ui::canvas::CanvasId,
-    strip: VanishingPointStripTool,
-    hand: &mut HandTool,
-    zoom: &mut ZoomTool,
-    editor: &mut VanishingPointEditor,
-    session: &mut VanishingPointSession,
-    settings: &VanishingPointSettings,
-    scene: &dyn VanishingScene,
-    source: &dyn VanishingPointSource,
-    style: &VanishingPointStyle,
-    reason: CancelReason,
-) {
-    match strip {
-        VanishingPointStripTool::Hand => ToolHost::cancel(ctx, canvas, hand, reason),
-        VanishingPointStripTool::Zoom => ToolHost::cancel(ctx, canvas, zoom, reason),
-        VanishingPointStripTool::Editor => ToolHost::cancel(ctx, canvas, &mut editor.pass(session, settings, scene, source, style), reason),
-    };
+/// The strip: Edit Plane (V), Create Plane (C), Stamp (S), a gap, Hand (H) and Zoom (Z); each slot runs the tool's
+/// command, which has its label, icon and letter.
+fn slots() -> Vec<ToolSlot<Pick>> {
+    [Pick::EditPlane, Pick::CreatePlane, Pick::Stamp, Pick::Hand, Pick::Zoom]
+        .into_iter()
+        .zip(0_u32..)
+        .map(|(pick, id)| {
+            let tools = vec![RailTool::new(pick, VanishingPointCommands::of(pick))];
+            if pick == Pick::Stamp { ToolSlot::ending_group(id, tools) } else { ToolSlot::new(id, tools) }
+        })
+        .collect()
+}
+
+impl VanishingPointWorkspace {
+    /// Steps the history now; the editor drops what the old session left (pending corners, a stale selection).
+    fn step_now(&mut self, step: Step) -> bool {
+        let stepped = self.history.step(&mut self.session, step);
+        if stepped {
+            self.editor.after_step(&self.session);
+            self.recorded = self.session.clone();
+            self.revision += 1;
+        }
+        stepped
+    }
+
+    /// Cancels the gesture the strip's tool holds with `reason`: the editor puts back what the press found (the
+    /// Hand's and Zoom's drags go through the host).
+    fn cancel_gesture(&mut self, ctx: &egui::Context, state: &VanishingView, reason: CancelReason, out: &mut Vec<VanishingPointEvent>) {
+        match (self.strip, state.canvas) {
+            (VanishingPointStripTool::Hand, Some(canvas)) => {
+                ToolHost::cancel(ctx, canvas, &mut self.hand, reason);
+            }
+            (VanishingPointStripTool::Zoom, Some(canvas)) => {
+                ToolHost::cancel(ctx, canvas, &mut self.zoom, reason);
+            }
+            _ => self.editor.cancel(&mut self.session, reason),
+        }
+        out.extend(self.editor.take_events());
+    }
+
+    /// Switches to `pick`, cancelling the old tool's gesture first.
+    fn pick(&mut self, ctx: &egui::Context, state: &VanishingView, pick: Pick, out: &mut Vec<VanishingPointEvent>) {
+        if pick == Pick::of(self.strip, self.editor.tool()) {
+            return;
+        }
+        self.cancel_gesture(ctx, state, CancelReason::Removed, out);
+        let (strip, tool) = pick.picks();
+        self.strip = strip;
+        if let Some(tool) = tool {
+            self.editor.set_tool(tool);
+        }
+    }
+
+    /// Takes this pass's events into the history: a gesture's Begin opens a step, its Commit closes it, a Set is a
+    /// step of its own, and a change with no event (Alt-click sets the clone source) is a step by itself.
+    fn record(&mut self, events: &[VanishingPointEvent], source_step: &str) {
+        for event in events {
+            match event {
+                VanishingPointEvent::Planes(event) => self.record_event(event),
+                VanishingPointEvent::Paste(event) => self.record_event(event),
+                VanishingPointEvent::Stamp(event) => self.record_event(event),
+            }
+        }
+        if !self.history.is_open() {
+            if self.session != self.recorded {
+                let id = self.editor.next_gesture();
+                let name: Arc<str> = Arc::from(source_step);
+                self.history.record(&EditEvent::set(id, Mixed::Same(self.recorded.clone()), self.session.clone(), name, None));
+                self.revision += 1;
+            }
+            self.recorded = self.session.clone();
+        }
+    }
+
+    fn record_event<T>(&mut self, event: &EditEvent<T>) {
+        let before = Mixed::Same(self.recorded.clone());
+        match event {
+            EditEvent::Begin { id, label, .. } => self.history.record(&EditEvent::begin(*id, before, label.clone(), None)),
+            EditEvent::Commit { id, .. } => {
+                self.history.record(&EditEvent::commit(*id, before, self.session.clone()));
+                self.recorded = self.session.clone();
+                self.revision += 1;
+            }
+            EditEvent::Cancel { id, reason, .. } => self.history.record(&EditEvent::cancel(*id, *reason, None)),
+            EditEvent::Set { id, label, .. } => {
+                self.history.record(&EditEvent::set(*id, before, self.session.clone(), label.clone(), None));
+                self.recorded = self.session.clone();
+                self.revision += 1;
+            }
+            _ => {}
+        }
+    }
 }

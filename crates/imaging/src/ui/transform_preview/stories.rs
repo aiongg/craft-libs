@@ -1,106 +1,38 @@
 //! Stories of the transform preview.
 //!
-//! The moving layer is `MockImage` (`ui::mock_image`) uploaded as a mip pyramid in which every
-//! level below the first has its own tint, so the level the preview picks shows. It sits in the
-//! middle of a blank document (the checkerboard). Every string goes through story words.
-//!
-//! | Story id | Shows |
-//! |---|---|
-//! | `composites/transform-preview/maps` | The layer through a quad (rotate, skew, distort past the horizon, perspective), a warp mesh, a pin mesh (fake solver) and a function map; Bicubic and Nearest at three zooms; opacity; clip to the canvas; a styled variant with a fake `StyledSource` (a drop shadow drawn by the story) |
-//!
-//! [`Document`] (the blank document, its canvas and the layer's textures) is the one stage the
-//! other warp stories (`warp::pin::stories`, `warp::perspective::stories`) share.
+//! The moving layer is `MockImage` uploaded as a mip pyramid in which every level below the first
+//! has its own tint, so the level the preview picks shows. It sits in the middle of a blank
+//! document (the checkerboard). [`Document`] is the one stage the warp stories share.
 
-use std::sync::{Arc, PoisonError};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
-use craft_ui::canvas::kurbo::{Point, Rect};
-use craft_ui::canvas::{CanvasView, PixelRect, RasterSource};
-use craft_ui::localized::{Labels as _, LocaleNumbers};
-use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, Story, StoryArgs, Surface};
-use craft_ui::testing::canvas_story::{StoryCanvas, ViewArgs, document_over};
-use craft_ui::typed_story;
-use egui::{Color32, ColorImage, Response, Sense, Ui};
+use craft_behavior::PixelSize;
+use craft_behavior::kurbo::{Point, Rect};
+use craft_ui::canvas::{PixelRect, RasterSource};
+use craft_ui::contract::Show as _;
+use craft_ui::primitives::Revision;
+use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
+use egui::{Color32, ColorImage, Ui};
 
-use super::{PreviewMap, PreviewPixels, PreviewQuality, PreviewTextures, StylePlan, StyledContent, StyledPreview, StyledSource, TransformPreview};
-use crate::ui::mock_image::MockImage;
+use super::{PreviewMap, PreviewQuality, PreviewTextures, StylePlan, StyledContent, StyledPreview, StyledSource, TransformPreview};
+use crate::ui::mock_image::{MockImage, StoryView, story_canvas};
 use crate::ui::warp::WarpMesh;
 use crate::ui::warp::pin::stories::{IdwSolver, sample_pins};
 
-/// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["TransformPreview"];
-
-craft_ui::words! {
-    /// The captions of the transform preview stories, English by default.
-    #[non_exhaustive]
-    pub(crate) struct TransformPreviewStoryLabels {
-        rotate: "transformPreviewStory.rotate" = "Rotate";
-        skew: "transformPreviewStory.skew" = "Skew";
-        distort: "transformPreviewStory.distort" = "Distort past the horizon";
-        perspective: "transformPreviewStory.perspective" = "Perspective";
-        warp: "transformPreviewStory.warp" = "Warp mesh";
-        pins: "transformPreviewStory.pins" = "Pin mesh";
-        function: "transformPreviewStory.function" = "Function map";
-        bicubic: "transformPreviewStory.bicubic" = "Bicubic at {n}%";
-        nearest: "transformPreviewStory.nearest" = "Nearest Neighbor at {n}%";
-        opacity: "transformPreviewStory.opacity" = "Opacity {n}%";
-        clip: "transformPreviewStory.clip" = "Clipped to the canvas";
-        styled: "transformPreviewStory.styled" = "Layer style: drop shadow";
-    }
-}
-
-/// The story above.
-pub(crate) fn stories() -> Vec<Story> {
-    vec![
-        typed_story!(
-            "composites/transform-preview/maps",
-            Level::Composites,
-            "TransformPreview",
-            "Maps",
-            MapsArgs {
-                width: Document::DEFAULT_SIZE[0],
-                height: Document::DEFAULT_SIZE[1],
-                turn: 20.0,
-                skew: 20.0,
-                perspective: 25.0,
-                bend: 30.0,
-                opacity: 50.0,
-            },
-            show_maps
-        )
-        .on(Surface::Canvas),
-    ]
-}
-
-#[derive(StoryArgs, Debug, PartialEq)]
-struct MapsArgs {
-    /// The document's width, in pixels.
-    #[arg(range = 200.0..=4000.0)]
-    width: f64,
-    /// The document's height, in pixels.
-    #[arg(range = 200.0..=4000.0)]
-    height: f64,
-    /// The turn of the rotated box, in degrees.
-    #[arg(range = -180.0..=180.0)]
-    turn: f64,
-    /// The skew of the skewed box, in degrees.
-    #[arg(range = -60.0..=60.0)]
-    skew: f64,
-    /// How far the perspective box's far edge is narrowed, in percent of the width.
-    #[arg(range = 0.0..=45.0)]
-    perspective: f64,
-    /// How far the warp lifts its top edge, in percent of the height.
-    #[arg(range = -50.0..=50.0)]
-    bend: f64,
-    /// The opacity of the opacity case, in percent.
-    #[arg(range = 0.0..=100.0)]
-    opacity: f64,
-}
-
-/// The zooms of the interpolation cases, in percent: the first is far enough out for a mip level.
-const ZOOMS: [f64; 3] = [25.0, 100.0, 400.0];
-/// The zoom of the clip case, as a fraction of the zoom that fits the document in the canvas.
-const CLIP_FIT: f64 = 0.5;
+/// The document's size in pixels (3:2).
+const DOCUMENT: [u32; 2] = [960, 640];
+/// The turn of the rotated box, in degrees.
+const TURN: f64 = 20.0;
+/// The skew of the skewed box, in degrees.
+const SKEW: f64 = 20.0;
+/// How far the perspective box's far edge is narrowed, in percent of the width.
+const NARROWING: f64 = 25.0;
+/// How far the warp lifts its top edge, in percent of the height.
+const BEND: f64 = 30.0;
+/// The opacity of the opacity story.
+const OPACITY: f32 = 0.5;
+/// The zoom of the mip story, in percent: far enough out for a mip level.
+const MIP_ZOOM: f64 = 25.0;
 /// How far the clipped box reaches past the layer on each side, as a fraction of the document's size.
 const CLIP_REACH: f64 = 0.4;
 /// The drop shadow's offset, as a fraction of the document's width.
@@ -116,27 +48,29 @@ pub(crate) struct Document {
     pub(crate) size: [u32; 2],
 }
 
-/// How a canvas is zoomed.
+/// How a story canvas is zoomed.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Zoom {
     /// The whole document fits the canvas.
     Fit,
     /// Device pixels per document pixel, in percent.
     Percent(f64),
-    /// A fraction of the zoom that fits the document.
-    OfFit(f64),
 }
 
 /// A transparent document of a given size: the checkerboard shows through.
 struct Blank([u32; 2]);
 
 impl RasterSource for Blank {
-    fn size(&self) -> [u32; 2] {
-        self.0
+    fn size(&self) -> PixelSize {
+        PixelSize::new(self.0[0], self.0[1])
     }
 
-    fn revision(&self) -> u64 {
-        1
+    fn revision(&self) -> Revision {
+        Revision::new(1)
+    }
+
+    fn damage(&self, _since: Revision) -> Option<PixelRect> {
+        Some(PixelRect::new(0, 0, 0, 0))
     }
 
     fn read(&self, _region: PixelRect, _factor: u32, out: &mut ColorImage) {
@@ -145,13 +79,9 @@ impl RasterSource for Blank {
 }
 
 impl Document {
-    /// The default size in pixels (3:2).
-    pub(crate) const DEFAULT_SIZE: [f64; 2] = [960.0, 640.0];
-
-    /// A document of `width` × `height` pixels.
-    pub(crate) fn new(width: f64, height: f64) -> Self {
-        let pixels = |v: f64| v.round().clamp(16.0, 8000.0) as u32;
-        Self { size: [pixels(width), pixels(height)] }
+    /// The default document.
+    pub(crate) fn standard() -> Self {
+        Self { size: DOCUMENT }
     }
 
     /// The layer's frame: the middle half of the document.
@@ -166,38 +96,35 @@ impl Document {
         [layer.width().round().max(1.0) as u32, layer.height().round().max(1.0) as u32]
     }
 
-    /// A story canvas labelled `label` showing the document under `zoom`, centred on `centre`
-    /// (`None`: the middle), with the layer drawn by the caller.
-    pub(crate) fn canvas(&self, ui: &mut Ui, label: &str, zoom: Zoom, centre: Option<Point>) -> StoryCanvas {
-        let (w, h) = (f64::from(self.size[0]), f64::from(self.size[1]));
-        let canvas = document_over(ui, ViewArgs::default(), label, 0.0, |rect, pixels_per_point| {
-            let fit = (f64::from(rect.width()) / w).min(f64::from(rect.height()) / h);
-            let per_unit = match zoom {
-                Zoom::Fit => fit,
-                Zoom::Percent(percent) => percent / 100.0 / pixels_per_point,
-                Zoom::OfFit(fraction) => fit * fraction,
-            };
-            CanvasView::new(rect, centre.unwrap_or_else(|| Point::new(w / 2.0, h / 2.0)), per_unit)
-        });
-        MockImage::new(self.size).show_source(ui, &canvas, &Blank(self.size));
-        canvas
+    /// A story canvas showing the document under `zoom`, centred on `centre` (`None`: the middle),
+    /// with `controls` shown in its body.
+    pub(crate) fn canvas(
+        &self,
+        ui: &mut Ui,
+        zoom: Zoom,
+        centre: Option<Point>,
+        controls: impl FnMut(&mut Ui, egui::Rect) -> StoryOutput,
+    ) -> StoryOutput {
+        let view = match (zoom, centre) {
+            (Zoom::Fit, _) => StoryView::Fit,
+            (Zoom::Percent(percent), None) => StoryView::Zoom(percent / 100.0),
+            (Zoom::Percent(percent), Some(centre)) => StoryView::At { zoom: percent / 100.0, centre },
+        };
+        story_canvas(ui, Some(&Blank(self.size)), view, controls)
     }
 
-    /// The layer's textures, uploaded once per layer size: `MockImage` at every mip level, each
-    /// level below the first tinted.
-    pub(crate) fn textures(&self, ui: &Ui) -> Arc<PreviewTextures> {
-        let id = ui.make_persistent_id("transform-story-textures");
+    /// The layer's textures, built once per layer size: `MockImage` at every mip level, each level
+    /// below the first tinted.
+    pub(crate) fn textures(&self) -> Arc<PreviewTextures> {
+        static KEPT: OnceLock<Mutex<Vec<([u32; 2], Arc<PreviewTextures>)>>> = OnceLock::new();
         let size = self.layer_size();
-        if let Some((kept, textures)) = ui.data(|d| d.get_temp::<([u32; 2], Arc<PreviewTextures>)>(id))
-            && kept == size
-        {
-            return textures;
+        let mut kept = KEPT.get_or_init(Mutex::default).lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some((_, textures)) = kept.iter().find(|(s, _)| *s == size) {
+            return Arc::clone(textures);
         }
-        let levels = pyramid(size);
-        let pixels = PreviewPixels::new(levels[0].as_ref().clone(), [1.0, 1.0]);
-        let textures = Arc::new(PreviewTextures::new(ui.ctx(), "transform-story", pixels));
-        *textures.images.lock().unwrap_or_else(PoisonError::into_inner) = levels;
-        ui.data_mut(|d| d.insert_temp(id, (size, Arc::clone(&textures))));
+        let name = format!("transform-story-{}x{}", size[0], size[1]);
+        let textures = Arc::new(PreviewTextures::from_levels(name, pyramid(size), [1.0, 1.0]));
+        kept.push((size, Arc::clone(&textures)));
         textures
     }
 }
@@ -206,12 +133,13 @@ impl Document {
 /// tinted.
 fn pyramid(size: [u32; 2]) -> Vec<Arc<ColorImage>> {
     let picture = MockImage::new(size);
+    let region = PixelRect::new(0, 0, size[0] as i32, size[1] as i32);
     let mut levels = Vec::new();
     let mut factor = 1u32;
     loop {
         let (w, h) = (size[0].div_ceil(factor).max(1), size[1].div_ceil(factor).max(1));
         let mut image = ColorImage::filled([w as usize, h as usize], Color32::TRANSPARENT);
-        picture.read(PixelRect::of_size(size), factor, &mut image);
+        picture.read(region, factor, &mut image);
         tint(&mut image, levels.len());
         levels.push(Arc::new(image));
         if w <= 1 && h <= 1 {
@@ -281,77 +209,105 @@ fn bent(r: Rect, percent: f64) -> WarpMesh {
     mesh
 }
 
-fn percent(numbers: &LocaleNumbers, n: f64) -> String {
-    numbers.format(n, 0..=0)
+/// The layer through `map` on a story canvas at `at`, clipped to the document.
+pub(crate) fn draw(ui: &mut Ui, at: egui::Rect, doc: &Document, textures: &PreviewTextures, map: PreviewMap<'_>, opacity: f32, nearest: bool) {
+    TransformPreview::new("Moving layer", textures).map(map).opacity(opacity).nearest(nearest).clip(doc.size).show_at(ui, at);
 }
 
-fn caption(text: &str, n: &str) -> String {
-    craft_i18n::fmt(text, &[("n", n)])
+/// One story canvas with the layer through `map`.
+fn shown(ui: &mut Ui, zoom: Zoom, opacity: f32, nearest: bool, map: impl Fn(Rect) -> PreviewMap<'static>) -> StoryOutput {
+    let doc = Document::standard();
+    let textures = doc.textures();
+    let layer = doc.layer();
+    let centre = (zoom != Zoom::Fit).then(|| layer.center());
+    doc.canvas(ui, zoom, centre, |ui, at| {
+        draw(ui, at, &doc, &textures, map(layer), opacity, nearest);
+        StoryOutput::default()
+    })
 }
 
-/// The response an overlay senses through: presses and drags on the canvas, without taking
-/// keyboard focus (the overlay's own parts are the focus stops).
-pub(crate) fn sensing(ui: &Ui, canvas: &StoryCanvas) -> Response {
-    ui.interact(canvas.response.rect, canvas.response.id.with("sense"), Sense::click_and_drag() - Sense::FOCUSABLE)
+#[story(TransformPreview<'static>, covers = [Default], drive = Drive::Never)]
+fn rotate(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    shown(ui, Zoom::Fit, 1.0, false, |layer| PreviewMap::quad(rotated(layer, TURN)))
 }
 
-/// The most story canvases side by side: three columns of the tile overflow it by a point.
-const ACROSS: usize = 2;
-/// The narrowest story canvas, in points (`document_over` clamps its width to this).
-const MIN_CANVAS: f32 = 240.0;
-
-/// `items` in rows of up to [`ACROSS`] columns, fewer where the tile is too narrow for that many
-/// story canvases; `show` draws one in its column.
-pub(crate) fn grid<T>(ui: &mut Ui, items: Vec<T>, mut show: impl FnMut(&mut Ui, T)) {
-    let gap = ui.spacing().item_spacing.x;
-    let fit = ((ui.available_width() + gap) / (MIN_CANVAS + gap)).floor() as usize;
-    let across = fit.clamp(1, ACROSS);
-    let mut items = items.into_iter().peekable();
-    while items.peek().is_some() {
-        let row: Vec<T> = items.by_ref().take(across).collect();
-        ui.columns(across, |columns| {
-            for (column, item) in columns.iter_mut().zip(row) {
-                show(column, item);
-            }
-        });
-    }
+#[story(TransformPreview<'static>, covers = [Default], drive = Drive::Never)]
+fn skew(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    shown(ui, Zoom::Fit, 1.0, false, |layer| PreviewMap::quad(skewed(layer, SKEW)))
 }
 
-/// One canvas of [`show_maps`]: its caption, zoom, centre and what draws into the view.
-/// What a case draws into its view.
-type Paint<'a> = Box<dyn Fn(&Ui, &CanvasView) + 'a>;
-
-struct Case<'a> {
-    text: String,
-    zoom: Zoom,
-    centre: Option<Point>,
-    paint: Paint<'a>,
+#[story(TransformPreview<'static>, covers = [Default], drive = Drive::Never)]
+fn distort_past_the_horizon(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    shown(ui, Zoom::Fit, 1.0, false, |layer| PreviewMap::quad(crossed(layer)))
 }
 
-impl<'a> Case<'a> {
-    fn new(text: impl Into<String>, paint: impl Fn(&Ui, &CanvasView) + 'a) -> Self {
-        Self { text: text.into(), zoom: Zoom::Fit, centre: None, paint: Box::new(paint) }
-    }
-
-    fn zoom(mut self, zoom: Zoom, centre: Option<Point>) -> Self {
-        self.zoom = zoom;
-        self.centre = centre;
-        self
-    }
+#[story(TransformPreview<'static>, covers = [Default], drive = Drive::Never)]
+fn perspective(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    shown(ui, Zoom::Fit, 1.0, false, |layer| PreviewMap::quad(narrowed(layer, NARROWING)))
 }
 
-/// The cases as a grid: a caption and a canvas under it, labelled with the caption.
-fn show_cases(ui: &mut Ui, doc: &Document, cases: Vec<Case<'_>>) {
-    grid(ui, cases, |ui, case| {
-        ui.add(Text::new(case.text.as_str()).content(Content::Muted));
-        let canvas = doc.canvas(ui, &case.text, case.zoom, case.centre);
-        (case.paint)(ui, &canvas.view);
-    });
+#[story(TransformPreview<'static>, covers = [Default], drive = Drive::Never)]
+fn opacity(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    shown(ui, Zoom::Fit, OPACITY, false, |layer| PreviewMap::quad(rotated(layer, TURN)))
 }
 
-/// The layer through `map`, clipped to the document.
-pub(crate) fn draw(ui: &Ui, view: &CanvasView, doc: &Document, textures: &PreviewTextures, map: PreviewMap<'_>, opacity: f32, nearest: bool) {
-    TransformPreview::new("transform-story", textures).map(map).opacity(opacity).nearest(nearest).clip(doc.size).show(ui, view);
+#[story(TransformPreview<'static>, covers = [Default], drive = Drive::Never)]
+fn nearest_neighbor(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    shown(ui, Zoom::Percent(400.0), 1.0, true, |layer| PreviewMap::quad(rotated(layer, TURN)))
+}
+
+/// At a small zoom the preview draws a tinted mip level.
+#[story(TransformPreview<'static>, covers = [Default], drive = Drive::Never)]
+fn mip_levels_at_small_zoom(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    shown(ui, Zoom::Percent(MIP_ZOOM), 1.0, false, |layer| PreviewMap::quad(rotated(layer, TURN)))
+}
+
+/// A box reaching past the document shows nothing past its edges.
+#[story(TransformPreview<'static>, covers = [Default], drive = Drive::Never)]
+fn clipped_to_the_canvas(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    shown(ui, Zoom::Percent(MIP_ZOOM), 1.0, false, |layer| {
+        let reach = layer.inflate(f64::from(DOCUMENT[0]) * CLIP_REACH, f64::from(DOCUMENT[1]) * CLIP_REACH);
+        PreviewMap::quad(rotated(reach, TURN))
+    })
+}
+
+#[story(TransformPreview<'static>, covers = [Default], drive = Drive::Never)]
+fn warp_mesh(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    let doc = Document::standard();
+    let textures = doc.textures();
+    let layer = doc.layer();
+    let mesh = bent(layer, BEND);
+    doc.canvas(ui, Zoom::Fit, None, |ui, at| {
+        draw(ui, at, &doc, &textures, PreviewMap::mesh(&mesh, layer), 1.0, false);
+        StoryOutput::default()
+    })
+}
+
+#[story(TransformPreview<'static>, covers = [Default], drive = Drive::Never)]
+fn pin_mesh(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    let doc = Document::standard();
+    let textures = doc.textures();
+    let layer = doc.layer();
+    let solver = IdwSolver::solved(layer, &sample_pins(layer));
+    doc.canvas(ui, Zoom::Fit, None, |ui, at| {
+        draw(ui, at, &doc, &textures, PreviewMap::pins(solver.view(), layer), 1.0, false);
+        StoryOutput::default()
+    })
+}
+
+#[story(TransformPreview<'static>, covers = [Default], drive = Drive::Never)]
+fn function_map(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    let doc = Document::standard();
+    let textures = doc.textures();
+    let layer = doc.layer();
+    let ripple = |p: Point| {
+        let wave = (p.y - layer.y0) / layer.height() * std::f64::consts::TAU * 1.5;
+        Point::new(p.x + layer.width() * 0.05 * wave.sin(), p.y)
+    };
+    doc.canvas(ui, Zoom::Fit, None, |ui, at| {
+        draw(ui, at, &doc, &textures, PreviewMap::function(layer, PreviewQuality::PLANE_CELLS, &ripple), 1.0, false);
+        StoryOutput::default()
+    })
 }
 
 /// A drop shadow offset down and right, drawn by the story in place of the app's compositor.
@@ -402,70 +358,16 @@ impl StyledSource for Shadow {
     }
 }
 
-fn show_maps(ui: &mut Ui, args: &mut MapsArgs) {
-    let labels = TransformPreviewStoryLabels::of(ui);
-    let numbers = LocaleNumbers::of(ui);
-    let doc = Document::new(args.width, args.height);
-    let textures = doc.textures(ui);
-    let textures = textures.as_ref();
-    let layer = doc.layer();
-    let centre = layer.center();
-    let turn = args.turn;
-
-    // The four boxes of Free Transform.
-    let boxes = [
-        (&labels.rotate, rotated(layer, turn)),
-        (&labels.skew, skewed(layer, args.skew)),
-        (&labels.distort, crossed(layer)),
-        (&labels.perspective, narrowed(layer, args.perspective)),
-    ];
-    let cases =
-        boxes.into_iter().map(|(text, quad)| Case::new(text, move |ui, view| draw(ui, view, &doc, textures, PreviewMap::quad(quad), 1.0, false)));
-    show_cases(ui, &doc, cases.collect());
-
-    // The other maps: a warp mesh, a pin mesh on the fake solver and a function.
-    let mesh = bent(layer, args.bend);
-    let solver = IdwSolver::solved(layer, &sample_pins(layer));
-    let ripple = |p: Point| {
-        let wave = (p.y - layer.y0) / layer.height() * std::f64::consts::TAU * 1.5;
-        Point::new(p.x + layer.width() * 0.05 * wave.sin(), p.y)
-    };
-    let maps = vec![
-        Case::new(&labels.warp, |ui, view| draw(ui, view, &doc, textures, PreviewMap::mesh(&mesh, layer), 1.0, false)),
-        Case::new(&labels.pins, |ui, view| draw(ui, view, &doc, textures, PreviewMap::pins(solver.view(), layer), 1.0, false)),
-        Case::new(&labels.function, |ui, view| {
-            draw(ui, view, &doc, textures, PreviewMap::function(layer, PreviewQuality::PLANE_CELLS, &ripple), 1.0, false);
-        }),
-    ];
-    show_cases(ui, &doc, maps);
-
-    // Interpolation at three zooms, Bicubic beside Nearest Neighbor: the pyramid's tints show at
-    // the farthest.
-    let turned = PreviewMap::quad(rotated(layer, turn));
-    let mut interpolation = Vec::new();
-    for zoom in ZOOMS {
-        for nearest in [false, true] {
-            let text = caption(if nearest { &labels.nearest } else { &labels.bicubic }, &percent(&numbers, zoom));
-            interpolation
-                .push(Case::new(text, move |ui, view| draw(ui, view, &doc, textures, turned, 1.0, nearest)).zoom(Zoom::Percent(zoom), Some(centre)));
-        }
-    }
-    show_cases(ui, &doc, interpolation);
-
-    // Opacity, the clip to the canvas and a styled layer.
-    let styled_id = ui.make_persistent_id("transform-story-styled");
-    let styled = ui.data_mut(|d| Arc::clone(d.get_temp_mut_or_insert_with(styled_id, || Arc::new(StyledPreview::new("transform-story-styled")))));
+#[story(TransformPreview<'static>, covers = [Default], drive = Drive::Never)]
+fn styled_layer(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    static PREVIEW: OnceLock<StyledPreview> = OnceLock::new();
+    let preview = PREVIEW.get_or_init(|| StyledPreview::new("transform-story-styled"));
+    let doc = Document::standard();
+    let textures = doc.textures();
     let shadow = Shadow { offset: f64::from(doc.size[0]) * SHADOW_OFFSET };
-    let reach = layer.inflate(f64::from(doc.size[0]) * CLIP_REACH, f64::from(doc.size[1]) * CLIP_REACH);
-    let opacity = caption(&labels.opacity, &percent(&numbers, args.opacity));
-    let last = vec![
-        Case::new(opacity, |ui, view| draw(ui, view, &doc, textures, turned, (args.opacity / 100.0) as f32, false)),
-        Case::new(&labels.clip, |ui, view| draw(ui, view, &doc, textures, PreviewMap::quad(rotated(reach, turn)), 1.0, false))
-            .zoom(Zoom::OfFit(CLIP_FIT), None),
-        Case::new(&labels.styled, |ui, view| {
-            let map = PreviewMap::quad(rotated(layer, turn));
-            TransformPreview::new("transform-story", textures).map(map).clip(doc.size).styled(&styled, &shadow).show(ui, view);
-        }),
-    ];
-    show_cases(ui, &doc, last);
+    let map = PreviewMap::quad(rotated(doc.layer(), TURN));
+    doc.canvas(ui, Zoom::Fit, None, |ui, at| {
+        TransformPreview::new("Moving layer", &textures).map(map).clip(doc.size).styled(preview, &shadow).show_at(ui, at);
+        StoryOutput::default()
+    })
 }

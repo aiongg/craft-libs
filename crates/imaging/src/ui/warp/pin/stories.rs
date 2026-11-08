@@ -1,80 +1,22 @@
-//! Stories of Puppet Warp.
-//!
-//! The layer is `MockImage` on the shared stage of the transform preview stories
-//! (`transform_preview::stories::Document`), drawn by the real `TransformPreview` through
-//! `PreviewMap::pins` over a fake solver ([`IdwSolver`], an inverse-distance deformation of a
-//! grid). Every case keeps its own session and applies the edits the overlay or the bar reports,
-//! so pins can be placed, dragged, turned and deleted. Every string goes through story words.
-//!
-//! | Story id | Shows |
-//! |---|---|
-//! | `composites/pin-warp/pins` | Empty mesh, several pins, a selected pin, a fixed rotation ring, several selected, mesh hidden |
-//! | `patterns/pin-warp-bar/bar` | The bar with and without a selected pin (with Fixed rotation on request); a refused remesh notice |
+//! Stories of Puppet Warp: the pins on a plain canvas over a fake solver ([`IdwSolver`], an inverse-distance
+//! deformation of a grid), and the options bar.
 
-use craft_ui::canvas::kurbo::{Point, Rect, Vec2};
-use craft_ui::localized::Labels as _;
-use craft_ui::patterns::OptionsBar;
-use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, Story, StoryArgs, Surface};
-use craft_ui::typed_story;
+use craft_behavior::kurbo::{Point, Rect as DocRect, Vec2};
+use craft_behavior::{CanvasView, Mixed};
+use craft_ui::canvas::Canvas;
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
+use craft_ui::runtime::env::Message;
+use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use egui::Ui;
 
-use super::{
-    Pin, PinDensity, PinEdit, PinMeshView, PinSolver, PinWarp, PinWarpBar, PinWarpBarOutput, PinWarpOptions, PinWarpSession, PinWarpSettings,
-};
-use crate::ui::transform_preview::PreviewMap;
-use crate::ui::transform_preview::stories::{Document, Zoom, draw, grid, sensing};
+use super::{Pin, PinDensity, PinEdit, PinMeshView, PinSolver, PinWarp, PinWarpBar, PinWarpOptions, PinWarpOutput, PinWarpSession, PinWarpSettings};
 
-/// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["PinWarp", "PinWarpBar"];
+/// The most pins the invalid story accepts.
+const MOST_PINS: usize = 3;
 
-craft_ui::words! {
-    /// The captions of the Puppet Warp stories, English by default.
-    #[non_exhaustive]
-    pub(crate) struct PinWarpStoryLabels {
-        empty: "pinWarpStory.empty" = "No pins";
-        several: "pinWarpStory.several" = "Several pins";
-        selected: "pinWarpStory.selected" = "A selected pin";
-        fixed: "pinWarpStory.fixed" = "Fixed rotation";
-        multiple: "pinWarpStory.multiple" = "Several selected";
-        hidden: "pinWarpStory.hidden" = "Mesh hidden";
-        bar_none: "pinWarpStory.barNone" = "No pin selected";
-        bar_selected: "pinWarpStory.barSelected" = "A pin selected";
-        bar_refused: "pinWarpStory.barRefused" = "A refused remesh";
-        refusal: "pinWarpStory.refusal" = "Could not use Puppet Warp: no opaque pixels at this density and expansion";
-    }
-}
-
-/// The two stories above.
-pub(crate) fn stories() -> Vec<Story> {
-    vec![
-        typed_story!(
-            "composites/pin-warp/pins",
-            Level::Composites,
-            "PinWarp",
-            "Pins",
-            PinsArgs { width: Document::DEFAULT_SIZE[0], height: Document::DEFAULT_SIZE[1] },
-            show_pins
-        )
-        .on(Surface::Canvas),
-        typed_story!("patterns/pin-warp-bar/bar", Level::Patterns, "PinWarpBar", "Bar", BarArgs { fixed: false }, show_bar),
-    ]
-}
-
-#[derive(StoryArgs, Debug, PartialEq)]
-struct PinsArgs {
-    /// The document's width, in pixels.
-    #[arg(range = 200.0..=4000.0)]
-    width: f64,
-    /// The document's height, in pixels.
-    #[arg(range = 200.0..=4000.0)]
-    height: f64,
-}
-
-#[derive(StoryArgs, Debug, PartialEq)]
-struct BarArgs {
-    /// The selected pin's rotation is fixed: the bar shows its degrees field.
-    fixed: bool,
+/// The layer the pins deform.
+fn layer() -> DocRect {
+    DocRect::new(20.0, 20.0, 260.0, 200.0)
 }
 
 /// The mesh's cells per side.
@@ -97,7 +39,7 @@ pub(crate) struct IdwSolver {
 
 impl IdwSolver {
     /// An undeformed grid over `source`.
-    pub(crate) fn new(source: Rect) -> Self {
+    pub(crate) fn new(source: DocRect) -> Self {
         let side = GRID + 1;
         let rest: Vec<Point> = (0..side * side)
             .map(|k| {
@@ -119,7 +61,7 @@ impl IdwSolver {
     }
 
     /// The grid over `source` deformed by `pins`.
-    pub(crate) fn solved(source: Rect, pins: &[Pin]) -> Self {
+    pub(crate) fn solved(source: DocRect, pins: &[Pin]) -> Self {
         let mut solver = Self::new(source);
         solver.deform(pins);
         solver
@@ -127,7 +69,7 @@ impl IdwSolver {
 
     /// The mesh as the overlay and the preview read it.
     pub(crate) fn view(&self) -> PinMeshView<'_> {
-        PinMeshView { rest: &self.rest, deformed: &self.deformed, triangles: &self.triangles, order: &self.order }
+        PinMeshView::new(&self.rest, &self.deformed, &self.triangles, &self.order)
     }
 
     fn deform(&mut self, pins: &[Pin]) {
@@ -162,140 +104,90 @@ impl PinSolver for IdwSolver {
 }
 
 /// Four pins on `layer`: one held where it attached, two pulled and one that anchors.
-pub(crate) fn sample_pins(layer: Rect) -> Vec<Pin> {
+pub(crate) fn sample_pins(layer: DocRect) -> Vec<Pin> {
     let at = |fx: f64, fy: f64| Point::new(layer.x0 + layer.width() * fx, layer.y0 + layer.height() * fy);
-    let pin = |rest: (f64, f64), held: (f64, f64)| Pin { rest: at(rest.0, rest.1), at: at(held.0, held.1), angle: None, depth: 0 };
+    let pin = |rest: (f64, f64), held: (f64, f64)| Pin::new(at(rest.0, rest.1), at(held.0, held.1));
     vec![pin((0.2, 0.25), (0.2, 0.25)), pin((0.8, 0.25), (0.9, 0.1)), pin((0.5, 0.75), (0.45, 0.85)), pin((0.15, 0.8), (0.15, 0.8))]
 }
 
-/// What a case starts from.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Kind {
-    Empty,
-    Several,
-    Selected,
-    Fixed,
-    Multiple,
-    Hidden,
-    Refused,
+/// Shows `pins` on a canvas whose view has the document origin at its top left; the selection the pins report is kept.
+fn on_canvas(ui: &mut Ui, data: &mut StoryData, bind: Bind<'_, Vec<Pin>>, show_mesh: bool) -> StoryOutput {
+    let room = ui.available_rect_before_wrap();
+    let view = CanvasView::new(room, Point::new(f64::from(room.width()) / 2.0, f64::from(room.height()) / 2.0), 1.0);
+    let selected = data.value("selected", vec![1usize]).clone();
+    let solver = IdwSolver::new(layer());
+    let mut control = Some(PinWarp::new("Pins", bind, solver.view()).selected_pins(&selected).show_mesh(show_mesh));
+    let shown = Canvas::new("Document")
+        .view(view)
+        .show(ui, |ui, body| -> Option<PinWarpOutput> { control.take().map(|control| control.show_at(ui, body.rect)) });
+    let Some(output) = shown.inner.flatten() else { return StoryOutput::default() };
+    if let Some(select) = output.select.clone() {
+        *data.value("selected", vec![1usize]) = select;
+    }
+    StoryOutput::from(output)
 }
 
-/// A case's session and solver, kept between passes.
-#[derive(Clone)]
-struct PinCell {
-    kind: Kind,
-    layer: Rect,
-    refusal: String,
-    session: PinWarpSession,
-    solver: IdwSolver,
-    notice: Option<String>,
+/// Drags the second pin by twice the drag threshold.
+fn drag_second(fixture: &mut Fixture) {
+    let Some(id) = fixture.root_id() else { return };
+    let Some(pin) = fixture.part(id, super::overlay::PIN.at(1)) else { return };
+    let travel = 2.0 * craft_ui::testing::input::max_click_dist(fixture.ctx());
+    fixture.drag(&pin, egui::Vec2::new(travel, 0.0));
 }
 
-impl PinCell {
-    fn new(kind: Kind, layer: Rect, refusal: &str) -> Self {
-        let mut pins = if kind == Kind::Empty { Vec::new() } else { sample_pins(layer) };
-        if kind == Kind::Fixed
-            && let Some(pin) = pins.get_mut(1)
-        {
-            pin.angle = Some(30.0);
-        }
-        let selected = match kind {
-            Kind::Selected | Kind::Fixed | Kind::Refused => vec![1],
-            Kind::Multiple => vec![0, 1, 2],
-            Kind::Empty | Kind::Several | Kind::Hidden => Vec::new(),
-        };
-        let settings = PinWarpSettings { show_mesh: kind != Kind::Hidden, ..PinWarpSettings::default() };
-        let mut solver = IdwSolver::new(layer);
-        let mut session = PinWarpSession::from_pins(pins, &settings);
-        solver.deform(session.pins());
-        session.apply(PinEdit::Select(selected), &mut solver, 0.0).ok();
-        let mut notice = None;
-        if kind == Kind::Refused {
-            solver.refusal = Some(refusal.to_owned());
-            let options = *session.options();
-            notice = session.apply(PinEdit::Options(PinWarpOptions { density: PinDensity::More, ..options }), &mut solver, 0.0).err();
-        }
-        Self { kind, layer, refusal: refusal.to_owned(), session, solver, notice }
-    }
-
-    /// The case as it was kept for `salt`, or newly built when there is none or the stage changed.
-    fn load(ui: &Ui, salt: &'static str, kind: Kind, layer: Rect, refusal: &str) -> Self {
-        let id = ui.make_persistent_id(("pin-story", salt));
-        ui.data(|d| d.get_temp::<PinCell>(id))
-            .filter(|cell| cell.kind == kind && cell.layer == layer)
-            .unwrap_or_else(|| Self::new(kind, layer, refusal))
-    }
-
-    fn store(self, ui: &Ui, salt: &'static str) {
-        let id = ui.make_persistent_id(("pin-story", salt));
-        ui.data_mut(|d| d.insert_temp(id, self));
-    }
-
-    fn reset(&mut self) {
-        *self = Self::new(self.kind, self.layer, &self.refusal.clone());
-    }
-
-    /// Applies the edits a widget reported; a refused remesh becomes the notice, any other edit
-    /// clears it.
-    fn apply(&mut self, edits: Vec<PinEdit>, now: f64) {
-        for edit in edits {
-            self.notice = self.session.apply(edit, &mut self.solver, now).err();
-        }
-        self.session.settle(now, false);
-    }
+fn pins_with_a_fixed_turn() -> Vec<Pin> {
+    let mut pins = sample_pins(layer());
+    pins[1].angle = Some(30.0);
+    pins
 }
 
-fn show_pins(ui: &mut Ui, args: &mut PinsArgs) {
-    let labels = PinWarpStoryLabels::of(ui);
-    let doc = Document::new(args.width, args.height);
-    let textures = doc.textures(ui);
-    let textures = textures.as_ref();
-    let layer = doc.layer();
-    let cases = [
-        (Kind::Empty, "empty", &labels.empty),
-        (Kind::Several, "several", &labels.several),
-        (Kind::Selected, "selected", &labels.selected),
-        (Kind::Fixed, "fixed", &labels.fixed),
-        (Kind::Multiple, "multiple", &labels.multiple),
-        (Kind::Hidden, "hidden", &labels.hidden),
-    ];
-    grid(ui, Vec::from(cases), |column, (kind, salt, text)| {
-        column.add(Text::new(text).content(Content::Muted));
-        let mut cell = PinCell::load(column, salt, kind, layer, &labels.refusal);
-        let canvas = doc.canvas(column, text, Zoom::Fit, None);
-        let (response, view) = (sensing(column, &canvas), canvas.view);
-        draw(column, &view, &doc, textures, PreviewMap::pins(cell.solver.view(), layer), 1.0, false);
-        let now = column.input(|i| i.time);
-        let reported = PinWarp::new(salt, &cell.session).show(column, &response, &view, cell.solver.view());
-        if reported.discard {
-            cell.reset();
-        }
-        cell.apply(reported.edits, now);
-        cell.store(column, salt);
-    });
+#[story(PinWarp<'static>, covers = [Default], drive = Drive::Custom(drag_second))]
+fn pins_with_a_fixed_rotation(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let mut pins = data.value("pins", pins_with_a_fixed_turn()).clone();
+    let output = on_canvas(ui, data, Bind::bound(&mut pins), true);
+    *data.value("pins", pins_with_a_fixed_turn()) = pins;
+    output
 }
 
-fn show_bar(ui: &mut Ui, args: &mut BarArgs) {
-    let labels = PinWarpStoryLabels::of(ui);
-    let layer = Document::new(Document::DEFAULT_SIZE[0], Document::DEFAULT_SIZE[1]).layer();
-    let selected = if args.fixed { Kind::Fixed } else { Kind::Selected };
-    let cases = [
-        (Kind::Several, "bar-none", &labels.bar_none),
-        (selected, "bar-selected", &labels.bar_selected),
-        (Kind::Refused, "bar-refused", &labels.bar_refused),
-    ];
-    for (kind, salt, text) in cases {
-        ui.add(Text::new(text).content(Content::Muted));
-        let mut cell = PinCell::load(ui, salt, kind, layer, &labels.refusal);
-        let mut out = PinWarpBarOutput::default();
-        OptionsBar::new(salt).label(text.as_str()).show(ui, |slots| {
-            PinWarpBar::new("bar", &cell.session).notice(cell.notice.as_deref()).output(&mut out).add_to(slots);
-        });
-        if out.discard {
-            cell.reset();
-        }
-        let now = ui.input(|i| i.time);
-        cell.apply(out.edits, now);
-        cell.store(ui, salt);
-    }
+#[story(PinWarp<'static>, covers = [Mixed], drive = Drive::Never)]
+fn pins_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let mut pins = data.value("mixed", Mixed::<Vec<Pin>>::Mixed).clone();
+    let output = on_canvas(ui, data, Bind::bound_mixed(&mut pins), false);
+    *data.value("mixed", Mixed::<Vec<Pin>>::Mixed) = pins;
+    output
+}
+
+#[story(PinWarp<'static>, covers = [Invalid], drive = Drive::Never)]
+fn too_many_pins(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let mut pins = data.value("invalid", sample_pins(layer())).clone();
+    let few = |pins: &Vec<Pin>| if pins.len() > MOST_PINS { Validity::Refuse(Message::new("There are too many pins")) } else { Validity::Ok };
+    let output = on_canvas(ui, data, Bind::bound(&mut pins).check(few), true);
+    *data.value("invalid", sample_pins(layer())) = pins;
+    output
+}
+
+/// A session on the sample pins with pin 1 selected and, when `fixed`, its rotation fixed.
+fn session(fixed: bool) -> (PinWarpSession, IdwSolver) {
+    let pins = if fixed { pins_with_a_fixed_turn() } else { sample_pins(layer()) };
+    let mut solver = IdwSolver::solved(layer(), &pins);
+    let mut session = PinWarpSession::from_pins(pins, &PinWarpSettings::default());
+    session.apply(PinEdit::Select(vec![1]), &mut solver).ok();
+    (session, solver)
+}
+
+#[story(PinWarpBar<'static>, covers = [Default], drive = Drive::Never)]
+fn bar_with_a_fixed_pin_selected(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    let (session, _) = session(true);
+    PinWarpBar::new(&session).show(ui);
+    StoryOutput::default()
+}
+
+#[story(PinWarpBar<'static>, covers = [], drive = Drive::Never)]
+fn bar_with_a_refused_remesh(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    let (mut session, mut solver) = session(false);
+    solver.refusal = Some("Could not use Puppet Warp: no opaque pixels at this density and expansion".to_owned());
+    let options = *session.options();
+    let refused = session.apply(PinEdit::Options(PinWarpOptions { density: PinDensity::More, ..options }), &mut solver).err();
+    PinWarpBar::new(&session).notice(refused.as_deref()).show(ui);
+    StoryOutput::default()
 }

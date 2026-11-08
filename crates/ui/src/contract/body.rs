@@ -1670,7 +1670,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 scoped.commands = scoped.commands.pushed(scope, id);
             }
             if let Some(theme) = &props.theme {
-                scoped.tokens = theme.tokens().clone();
+                theme.apply(&ctx, scoped);
             }
         });
         let body_id = sub(id, "body");

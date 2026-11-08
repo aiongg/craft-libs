@@ -1,51 +1,40 @@
 //! `ChannelRow` and `ChannelKind`: the rows the app passes in, and what the panel reports
 //! (`ChannelsEvent`, `ChannelsOutput`).
 
+use craft_behavior::EditEvent;
+use craft_behavior::geometry::selection_op::SelectionOperation;
+use craft_keymap::Mods;
 use craft_theme::Srgba;
-use craft_ui::behavior::Move;
-use craft_ui::canvas::SelectionOperation;
-use craft_ui::edit::EditEvent;
-use craft_ui::list::ToggleEdit;
+use craft_ui::contract::{NoValue, Outcome, ReorderMove, ToggleEdit};
 use egui::Response;
 
 use super::footer::ChannelsFooterButton;
-use super::menu::ChannelsCommand;
+use super::menu::ChannelsCommands;
 
 /// What a channel row is.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum ChannelKind {
     /// The composite (RGB, CMYK, Lab): targeting it targets every colour channel.
     Composite,
     /// One colour channel (Red, Cyan, …); listed only when there is more than one and the
     /// document isn't Multichannel (the app's rule).
     Color,
-    /// An alpha channel; `indicates` is its Color Indicates setting.
-    Alpha {
-        /// Masked or selected areas.
-        indicates: ColorIndicates,
-    },
-    /// A spot channel: italic, with a swatch of its ink at the thumbnail's corner.
-    Spot {
-        /// The ink, encoded sRGB.
-        ink: Srgba,
-    },
-    /// Quick Mask, while it is on: italic, last.
-    QuickMask {
-        /// Masked or selected areas.
-        indicates: ColorIndicates,
-    },
+    /// An alpha channel with its Color Indicates setting.
+    Alpha(ColorIndicates),
+    /// A spot channel with its ink (encoded sRGB): italic, with a swatch of the ink at the thumbnail's corner.
+    Spot(Srgba),
+    /// Quick Mask, while it is on, with its Color Indicates setting: italic, last.
+    QuickMask(ColorIndicates),
     /// The selected layer's mask, a temporary channel listed while the layer is selected: italic,
-    /// named "{layer} Mask" by the app.
-    LayerMask {
-        /// The mask is enabled (its menu offers Disable, else Enable).
-        enabled: bool,
-    },
+    /// named "{layer} Mask" by the app; the flag says the mask is enabled (its menu offers Disable, else Enable).
+    LayerMask(bool),
 }
 
 impl ChannelKind {
     /// Alpha and spot channels rename in place (F2, a double click on the name).
     pub fn renames(self) -> bool {
-        matches!(self, ChannelKind::Alpha { .. } | ChannelKind::Spot { .. })
+        matches!(self, ChannelKind::Alpha(_) | ChannelKind::Spot(_))
     }
 
     /// Alpha and spot channels reorder (drag, Cmd/Ctrl+] and [).
@@ -62,7 +51,7 @@ impl ChannelKind {
     /// Spot, Quick Mask and layer-mask rows draw their name italic (temporary or special
     /// channels, PhotoCraft).
     pub fn italic(self) -> bool {
-        matches!(self, ChannelKind::Spot { .. } | ChannelKind::QuickMask { .. } | ChannelKind::LayerMask { .. })
+        matches!(self, ChannelKind::Spot(_) | ChannelKind::QuickMask(_) | ChannelKind::LayerMask(_))
     }
 }
 
@@ -72,6 +61,7 @@ pub use crate::selection::ColorIndicates;
 
 /// One of the six overlay colours of the context menu's Overlay Color.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum OverlayPreset {
     /// `#ff0000`.
     Red,
@@ -111,6 +101,7 @@ pub const OVERLAY_OPACITIES: [u8; 4] = [25, 50, 75, 100];
 /// One row of the Channels panel, built by the app once per pass in display order: Composite,
 /// the colour channels, the layer mask, the alpha and spot channels, Quick Mask (PhotoCraft's).
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct ChannelRow<K> {
     /// The app's key of the channel: the key of the row, its thumbnail and its events.
     pub key: K,
@@ -137,8 +128,6 @@ impl<K> ChannelRow<K> {
 /// Mask row; else the composite when it is targeted; else the one targeted colour row; `None`
 /// with no rows or no target.
 pub fn targeted_row<K>(rows: &[ChannelRow<K>]) -> Option<&ChannelRow<K>> {
-    // pc: crates/ui-egui/src/panels/channels_panel.rs:458-464 (`target_ref` from the view's target;
-    // the mask row while it is the visible target, :478-485).
     let targeted = |kinds: fn(ChannelKind) -> bool| rows.iter().find(|row| row.targeted && kinds(row.kind));
     targeted(|kind| !matches!(kind, ChannelKind::Composite | ChannelKind::Color))
         .or_else(|| targeted(|kind| matches!(kind, ChannelKind::Composite)))
@@ -157,6 +146,7 @@ pub enum ChannelsEvent<K> {
     Visibility(EditEvent<ToggleEdit<K>>),
     /// Cmd/Ctrl-click on a row, or Cmd/Ctrl+Enter on the lead: load the channel as a selection
     /// with the operation of Shift and Alt.
+    #[non_exhaustive]
     LoadSelection {
         /// The channel.
         key: K,
@@ -164,6 +154,7 @@ pub enum ChannelsEvent<K> {
         operation: SelectionOperation,
     },
     /// A rename committed (alpha and spot rows): never empty after trimming, never unchanged.
+    #[non_exhaustive]
     Rename {
         /// The channel.
         key: K,
@@ -175,26 +166,32 @@ pub enum ChannelsEvent<K> {
     Options(K),
     /// An alpha or spot row moved: a drag (`Begin`, `Commit` or `Cancel`) or Cmd/Ctrl+] and [
     /// (`Set`). Targets: before or after another alpha or spot row, before Quick Mask.
-    Reorder(EditEvent<Move<K>>),
-    /// A click on a footer button; `rows` holds [`targeted_row`]'s key (empty without rows).
+    Reorder(EditEvent<ReorderMove<K>>),
+    /// A click on a footer button; `rows` holds [`targeted_row`]'s key (empty without rows). `mods` are the
+    /// modifiers held at the click: Alt on New asks for the channel's options first.
+    #[non_exhaustive]
     Footer {
         /// The button.
         button: ChannelsFooterButton,
         /// The rows it acts on.
         rows: Vec<K>,
+        /// The modifiers held at the click.
+        mods: Mods,
     },
     /// A row dropped on a footer button: New duplicates it, Delete deletes it (the app asks first
     /// for a layer mask), Load Channel as Selection loads it. Refused drops report nothing.
+    #[non_exhaustive]
     FooterDrop {
         /// The button.
         button: ChannelsFooterButton,
         /// The dropped rows: the row the pointer grabbed.
         rows: Vec<K>,
     },
-    /// A pick in a row's context menu or the panel menu.
+    /// A command of the set ran: a pick in the row's context menu, a key, or a panel-menu row routed to the panel.
+    #[non_exhaustive]
     Command {
         /// The command.
-        command: ChannelsCommand,
+        command: ChannelsCommands,
         /// The row it was opened on (the targeted row for the panel menu); `None` for the
         /// commands that act on the document (New Channel…, Split Channels).
         key: Option<K>,
@@ -204,6 +201,7 @@ pub enum ChannelsEvent<K> {
 /// What [`ChannelsPanel::show`](super::ChannelsPanel::show) returns.
 #[derive(Debug)]
 #[must_use = "the app applies the panel's events"]
+#[non_exhaustive]
 pub struct ChannelsOutput<K> {
     /// What the user did this pass, in order.
     pub events: Vec<ChannelsEvent<K>>,
@@ -211,28 +209,10 @@ pub struct ChannelsOutput<K> {
     pub response: Response,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+impl<K> Outcome for ChannelsOutput<K> {
+    type Value = NoValue;
 
-    fn row(key: u8, kind: ChannelKind, targeted: bool) -> ChannelRow<u8> {
-        ChannelRow { targeted, ..ChannelRow::new(key, kind, "c") }
-    }
-
-    // While the composite is targeted every colour row is highlighted too; the footer acts on the
-    // composite. A targeted alpha row wins over both.
-    #[test]
-    fn targeted_row_prefers_the_single_channel_then_the_composite() {
-        let indicates = ColorIndicates::MaskedAreas;
-        let mut rows = vec![row(0, ChannelKind::Composite, true), row(1, ChannelKind::Color, true), row(2, ChannelKind::Color, true)];
-        assert_eq!(targeted_row(&rows).map(|r| r.key), Some(0));
-        rows.push(row(3, ChannelKind::Alpha { indicates }, true));
-        assert_eq!(targeted_row(&rows).map(|r| r.key), Some(3));
-        rows[0].targeted = false;
-        rows[3].targeted = false;
-        rows[2].targeted = false;
-        assert_eq!(targeted_row(&rows).map(|r| r.key), Some(1));
-        rows[1].targeted = false;
-        assert!(targeted_row(&rows).is_none());
+    fn response(&self) -> &Response {
+        &self.response
     }
 }

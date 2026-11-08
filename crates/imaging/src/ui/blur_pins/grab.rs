@@ -1,60 +1,101 @@
 //! What a press on the pins grabs, and the drag that follows.
 
-use egui::CursorIcon;
-
-use craft_ui::canvas::kurbo::Point;
-use craft_ui::canvas::{CanvasView, hit};
+use craft_behavior::kurbo::Point;
+use craft_behavior::{CanvasView, CursorIcon};
+use egui::Pos2;
 
 use super::model::{BlurKind, BlurPin, BlurPins, IrisShape, TiltBand};
-use super::style::BlurPinsStyle;
+
+/// How near a press grabs each mark, in screen points.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct PinReach {
+    /// How near a press grabs a pin's dot or a handle.
+    pub grab: f32,
+    /// The ring's radius.
+    pub ring: f32,
+    /// How far from the ring's radius a press still grabs the ring.
+    pub ring_band: f32,
+    /// How near a press grabs a Tilt-Shift line.
+    pub line_grab: f32,
+}
+
+impl PinReach {
+    /// The reach of the given sizes.
+    pub fn new(grab: f32, ring: f32, ring_band: f32, line_grab: f32) -> Self {
+        Self { grab, ring, ring_band, line_grab }
+    }
+}
+
+/// The distance from `p` to `q`.
+fn point_distance(p: Pos2, q: Pos2) -> f32 {
+    p.distance(q)
+}
+
+/// The distance from `p` to the segment from `a` to `b`.
+fn segment_distance(p: Pos2, a: Pos2, b: Pos2) -> f32 {
+    let ab = b - a;
+    let length = ab.length_sq();
+    let t = if length > 0.0 { ((p - a).dot(ab) / length).clamp(0.0, 1.0) } else { 0.0 };
+    p.distance(a + ab * t)
+}
 
 /// What a press grabs, by pin index. Handles belong to the selected pin only.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum BlurGrab {
     /// An Iris or Spin outline handle: axis 0..=3 (+u, +v, −u, −v) resizes that radius.
+    #[non_exhaustive]
     Axis {
-        #[allow(missing_docs)]
+        /// The pin's index.
         pin: usize,
-        #[allow(missing_docs)]
+        /// The axis, 0 to 3.
         axis: usize,
     },
     /// Iris's rounding square.
+    #[non_exhaustive]
     Round {
-        #[allow(missing_docs)]
+        /// The pin's index.
         pin: usize,
     },
     /// One of Iris's four feather dots.
+    #[non_exhaustive]
     Feather {
-        #[allow(missing_docs)]
+        /// The pin's index.
         pin: usize,
-        #[allow(missing_docs)]
+        /// The dot, 0 to 3.
         dot: usize,
     },
     /// A Tilt-Shift turn dot, on one side of the band (−1 or 1).
+    #[non_exhaustive]
     Turn {
-        #[allow(missing_docs)]
+        /// The pin's index.
         pin: usize,
-        #[allow(missing_docs)]
+        /// The side of the band, 1 or -1.
         side: i8,
     },
     /// A Tilt-Shift solid line: the sharp band's width.
+    #[non_exhaustive]
     Focus {
-        #[allow(missing_docs)]
+        /// The pin's index.
         pin: usize,
     },
     /// A Tilt-Shift dashed line: the transition's width.
+    #[non_exhaustive]
     Transition {
-        #[allow(missing_docs)]
+        /// The pin's index.
         pin: usize,
     },
     /// A pin's ring: the amount (one turn is the full range).
+    #[non_exhaustive]
     Ring {
-        #[allow(missing_docs)]
+        /// The pin's index.
         pin: usize,
     },
     /// A pin's dot: moves it.
+    #[non_exhaustive]
     Pin {
-        #[allow(missing_docs)]
+        /// The pin's index.
         pin: usize,
     },
     /// Nothing: a click adds a pin (not Tilt-Shift).
@@ -62,6 +103,46 @@ pub enum BlurGrab {
 }
 
 impl BlurGrab {
+    /// Outline handle `axis` of pin `pin`.
+    pub fn axis(pin: usize, axis: usize) -> Self {
+        BlurGrab::Axis { pin, axis }
+    }
+
+    /// The rounding square of pin `pin`.
+    pub fn round(pin: usize) -> Self {
+        BlurGrab::Round { pin }
+    }
+
+    /// Feather dot `dot` of pin `pin`.
+    pub fn feather(pin: usize, dot: usize) -> Self {
+        BlurGrab::Feather { pin, dot }
+    }
+
+    /// The turn dot on `side` (1 or -1) of pin `pin`.
+    pub fn turn(pin: usize, side: i8) -> Self {
+        BlurGrab::Turn { pin, side }
+    }
+
+    /// The solid lines of pin `pin`.
+    pub fn focus(pin: usize) -> Self {
+        BlurGrab::Focus { pin }
+    }
+
+    /// The dashed lines of pin `pin`.
+    pub fn transition(pin: usize) -> Self {
+        BlurGrab::Transition { pin }
+    }
+
+    /// The ring of pin `pin`.
+    pub fn ring(pin: usize) -> Self {
+        BlurGrab::Ring { pin }
+    }
+
+    /// The dot of pin `pin`.
+    pub fn pin(pin: usize) -> Self {
+        BlurGrab::Pin { pin }
+    }
+
     /// The cursor over this grab: Alias for the ring, rounding and turn dots; Move for the axis and
     /// feather handles; ResizeVertical for the Tilt-Shift lines; Grab for a pin; Crosshair over
     /// nothing (Default for Tilt-Shift, which adds no pin).
@@ -85,7 +166,7 @@ fn valid(pins: &BlurPins) -> bool {
 }
 
 /// A shaped pin's local point `(u, v)` (1 on the outline along that axis) in document pixels.
-pub(super) fn iris_point(pins: &BlurPins, pin: &BlurPin, shape: IrisShape, u: f64, v: f64) -> Point {
+pub fn iris_point(pins: &BlurPins, pin: &BlurPin, shape: IrisShape, u: f64, v: f64) -> Point {
     // pc: crates/ui-egui/src/dialogs/blur_pins.rs:322 `iris_point`.
     let c = pins.to_document(pin);
     let side = pins.short_side();
@@ -111,23 +192,23 @@ fn diagonal(shape: IrisShape) -> f64 {
 }
 
 /// The four outline handles' local points (+u, +v, −u, −v).
-pub(super) const AXIS_HANDLES: [(f64, f64); 4] = [(1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0)];
+pub const AXIS_HANDLES: [(f64, f64); 4] = [(1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0)];
 
 /// Iris's rounding square, local (upper right).
-pub(super) fn round_handle(shape: IrisShape) -> (f64, f64) {
+pub fn round_handle(shape: IrisShape) -> (f64, f64) {
     let t = diagonal(shape);
     (t, -t)
 }
 
 /// Iris's four feather dots, local (on the diagonals).
-pub(super) fn feather_handles(shape: IrisShape) -> [(f64, f64); 4] {
+pub fn feather_handles(shape: IrisShape) -> [(f64, f64); 4] {
     let k = shape.feather * diagonal(shape);
     [(k, k), (-k, k), (-k, -k), (k, -k)]
 }
 
 /// The point of the Tilt-Shift band `offset` pixels across it (along its normal) and `along`
 /// pixels along it from the centre, in document pixels.
-pub(super) fn tilt_point(pins: &BlurPins, pin: &BlurPin, band: TiltBand, offset: f64, along: f64) -> Point {
+pub fn tilt_point(pins: &BlurPins, pin: &BlurPin, band: TiltBand, offset: f64, along: f64) -> Point {
     // pc: crates/ui-egui/src/dialogs/blur_pins.rs:362 `tilt_point`.
     let c = pins.to_document(pin);
     let (n, d) = band.axes();
@@ -144,23 +225,23 @@ fn tilt_offset(pins: &BlurPins, pin: &BlurPin, band: TiltBand, at: Point) -> f64
 
 /// A Tilt-Shift turn dot: one on each solid line, beyond the pin's ring and its grab zone (so it
 /// never sits on the ring, however narrow the band). `side` is +1 or −1.
-pub(super) fn turn_handle(pins: &BlurPins, pin: &BlurPin, band: TiltBand, view: &CanvasView, style: &BlurPinsStyle, side: f64) -> Point {
+pub fn turn_handle(pins: &BlurPins, pin: &BlurPin, band: TiltBand, view: &CanvasView, reach: &PinReach, side: f64) -> Point {
     // pc: crates/ui-egui/src/dialogs/blur_pins.rs:353 `tilt_turn_handle` (ring + 18 points).
     let scale = view.zoom_x().max(1e-6);
-    let along = f64::from(style.ring + 2.0 * style.grab) / scale;
+    let along = f64::from(reach.ring + 2.0 * reach.grab) / scale;
     tilt_point(pins, pin, band, side * band.focus * pins.short_side(), along)
 }
 
 /// What a press at screen point `at` grabs: the selected pin's handles first (within
 /// the grab, the Tilt-Shift lines within `.line_grab`), then its ring (`.ring` ±
 /// `.ring_band`), then any pin's dot (`.grab`), else [`BlurGrab::New`].
-pub fn grab(pins: &BlurPins, view: &CanvasView, at: egui::Pos2, style: &BlurPinsStyle) -> BlurGrab {
+pub fn grab(pins: &BlurPins, view: &CanvasView, at: Pos2, reach: &PinReach) -> BlurGrab {
     // pc: crates/ui-egui/src/dialogs/blur_pins.rs:474 `grab`, :468 `line_distance`.
     if !valid(pins) {
         return BlurGrab::New;
     }
     let screen = |p: Point| view.to_screen(p);
-    let near = |p: Point| hit::point(at, screen(p)) <= style.grab;
+    let near = |p: Point| point_distance(at, screen(p)) <= reach.grab;
     if let Some(index) = pins.selected
         && let Some(pin) = pins.pins.get(index)
     {
@@ -180,23 +261,23 @@ pub fn grab(pins: &BlurPins, view: &CanvasView, at: egui::Pos2, style: &BlurPins
         }
         if let Some(band) = pin.tilt {
             for side in [1i8, -1] {
-                if near(turn_handle(pins, pin, band, view, style, f64::from(side))) {
+                if near(turn_handle(pins, pin, band, view, reach, f64::from(side))) {
                     return BlurGrab::Turn { pin: index, side };
                 }
             }
         }
         let centre = screen(pins.to_document(pin));
-        let from_centre = hit::point(at, centre);
-        if (from_centre - style.ring).abs() <= style.ring_band {
+        let from_centre = point_distance(at, centre);
+        if (from_centre - reach.ring).abs() <= reach.ring_band {
             return BlurGrab::Ring { pin: index };
         }
         if let Some(band) = pin.tilt
-            && from_centre > style.grab
+            && from_centre > reach.grab
         {
             let side = pins.short_side();
             let on = |offset: f64| {
-                hit::segment(at, screen(tilt_point(pins, pin, band, offset, -side)), screen(tilt_point(pins, pin, band, offset, side)))
-                    <= style.line_grab
+                segment_distance(at, screen(tilt_point(pins, pin, band, offset, -side)), screen(tilt_point(pins, pin, band, offset, side)))
+                    <= reach.line_grab
             };
             let focus = band.focus * side;
             if on(focus) || on(-focus) {
@@ -211,8 +292,8 @@ pub fn grab(pins: &BlurPins, view: &CanvasView, at: egui::Pos2, style: &BlurPins
     pins.pins
         .iter()
         .enumerate()
-        .map(|(index, pin)| (index, hit::point(at, screen(pins.to_document(pin)))))
-        .filter(|(_, distance)| *distance <= style.grab)
+        .map(|(index, pin)| (index, point_distance(at, screen(pins.to_document(pin)))))
+        .filter(|(_, distance)| *distance <= reach.grab)
         .min_by(|a, b| a.1.total_cmp(&b.1))
         .map_or(BlurGrab::New, |(index, _)| BlurGrab::Pin { pin: index })
 }

@@ -4,6 +4,7 @@ craft-automation ui
 craft-browse ui
 craft-dialogs ui
 craft-font-manager ui
+craft-imaging ui,screen-testing
 craft-layers
 craft-menu
 craft-pages ui

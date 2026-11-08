@@ -2,11 +2,13 @@
 //! geometry its screens need (linking, snapping, straightening). The warp map itself
 //! (PhotoCraft's piecewise homography) stays the app's (LC20, LC21).
 
+use std::sync::Arc;
+
 use kurbo::{Point, Rect};
 
-use craft_ui::canvas::quad::Homography;
-use craft_ui::dialog::{LocalHistory, Step};
-use craft_ui::edit::EditEvent;
+use craft_behavior::edit_history::Step;
+use craft_behavior::geometry::quad::Homography;
+use craft_behavior::{EditEvent, EditHistory, GestureId, Mixed};
 
 /// Corners closer than this in the source (each axis) are one linked corner (PhotoCraft
 /// `LINK_EPS`).
@@ -18,6 +20,7 @@ pub const PLANE_MINIMUM: f64 = 4.0;
 /// One plane: its corners in Layout (`source`) and in Warp (`target`), clockwise from the top
 /// left, in document units (PhotoCraft `Plane { src, dst }`).
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct Plane {
     /// The corners in Layout, clockwise from the top left.
     pub source: [Point; 4],
@@ -26,6 +29,11 @@ pub struct Plane {
 }
 
 impl Plane {
+    /// A plane with corners `source` in Layout and `target` in Warp.
+    pub fn new(source: [Point; 4], target: [Point; 4]) -> Self {
+        Plane { source, target }
+    }
+
     /// A plane whose target is its source.
     pub fn identity(corners: [Point; 4]) -> Self {
         Plane { source: corners, target: corners }
@@ -42,6 +50,7 @@ impl Plane {
 
 /// A plane's corner: the plane's index and the corner's (0 to 3, clockwise from the top left).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct PlaneCorner {
     /// The plane's index.
     pub plane: usize,
@@ -49,8 +58,16 @@ pub struct PlaneCorner {
     pub corner: usize,
 }
 
+impl PlaneCorner {
+    /// Corner `corner` of plane `plane`.
+    pub fn new(plane: usize, corner: usize) -> Self {
+        PlaneCorner { plane, corner }
+    }
+}
+
 /// Perspective Warp's two modes.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum PlaneMode {
     /// Draw planes and fit their corners to the picture's lines; the picture does not move.
     #[default]
@@ -61,6 +78,7 @@ pub enum PlaneMode {
 
 /// Warp mode's straightening buttons (Photoshop's Straighten, Level, Both).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Straighten {
     /// Straighten: near-vertical edges become vertical.
     Vertical,
@@ -148,6 +166,7 @@ pub fn straighten(planes: &mut [Plane], how: Straighten) {
 /// An edit of the perspective session, from [`PerspectiveWarp`](super::PerspectiveWarp) or
 /// [`PerspectiveBar`](super::PerspectiveBar).
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum PerspectiveEdit {
     /// The planes as a whole: a corner drag (Begin, Update, Commit, Cancel) or a one-shot change
     /// (Set): a new plane, a removed plane, Remove Planes, an arrow nudge.
@@ -156,6 +175,14 @@ pub enum PerspectiveEdit {
     Mode(PlaneMode),
     /// A straightening button (Warp mode).
     Straighten(Straighten),
+}
+
+impl PerspectiveEdit {
+    /// A one-step change of the planes from `before` to `after`, named `label` in the undo list: what the commands
+    /// and the bar report.
+    pub fn replace(before: &[Plane], after: Vec<Plane>, label: &str) -> PerspectiveEdit {
+        PerspectiveEdit::Planes(EditEvent::set(GestureId::default(), Mixed::Same(before.to_vec()), after, Arc::from(label), None))
+    }
 }
 
 /// What one undo step holds.
@@ -170,31 +197,23 @@ struct PerspectiveDraft {
 /// - Changes only through [`apply`](Self::apply) and [`replace`](Self::replace). Replacing the
 ///   planes from outside (the app's control channel) bumps the [generation](Self::generation), so
 ///   the overlay ends a corner drag that held the old planes' indices (PhotoCraft bug #952).
-/// - One undo step per drag, one-shot change, mode switch or straightening, and per run of arrow
-///   nudges within the [nudge pause](Self::nudge_pause).
+/// - One undo step per drag, one-shot change, mode switch or straightening, an arrow nudge included
+///   (Photoshop records each).
 #[derive(Clone, Debug)]
 pub struct PerspectiveSession {
     /// The layer's bounds: Insert adds a plane over their middle half.
     bounds: Rect,
     draft: PerspectiveDraft,
-    history: LocalHistory<PerspectiveDraft>,
+    history: EditHistory<PerspectiveDraft>,
     before: Option<PerspectiveDraft>,
     generation: u64,
-    nudge_pause: Option<f64>,
-    last_nudge: Option<f64>,
 }
 
 impl PerspectiveSession {
     /// A session in Layout mode with no planes over the layer's `bounds`.
     pub fn new(bounds: Rect) -> Self {
         let draft = PerspectiveDraft { planes: Vec::new(), mode: PlaneMode::Layout };
-        Self { bounds, history: LocalHistory::new(&draft), draft, before: None, generation: 0, nudge_pause: None, last_nudge: None }
-    }
-
-    /// The app's Nudge Bundle Pause in seconds (as `TransformSession::nudge_pause`).
-    pub fn nudge_pause(mut self, seconds: Option<f64>) -> Self {
-        self.nudge_pause = seconds;
-        self
+        Self { bounds, history: EditHistory::new(&draft), draft, before: None, generation: 0 }
     }
 
     /// The layer's bounds.
@@ -244,32 +263,32 @@ impl PerspectiveSession {
         (!planes.is_empty() && !identity).then_some(planes.as_slice())
     }
 
-    /// Applies one edit at `now` (seconds). `Mode(Warp)` with no planes is refused; entering Warp
-    /// unifies linked corners; a Layout edit moves source and target together, a Warp edit the
-    /// target only (the layout is kept).
-    pub fn apply(&mut self, edit: PerspectiveEdit, now: f64) {
+    /// Applies one edit. `Mode(Warp)` with no planes is refused; entering Warp unifies linked
+    /// corners; a Layout edit moves source and target together, a Warp edit the target only (the
+    /// layout is kept).
+    pub fn apply(&mut self, edit: PerspectiveEdit) {
         // pc: crates/ui-egui/src/tools/perspective_ui.rs:165 (`set_mode`), :108 (`set_corner`),
         // :310 (`options_bar`: Warp needs a plane).
         match edit {
-            PerspectiveEdit::Planes(event) => self.planes_event(event, now),
+            PerspectiveEdit::Planes(event) => self.planes_event(event),
             PerspectiveEdit::Mode(mode) => {
                 if self.dragging() || mode == self.draft.mode || (mode == PlaneMode::Warp && self.draft.planes.is_empty()) {
                     return;
                 }
-                self.end_nudges();
+                let before = self.draft.clone();
                 self.draft.mode = mode;
                 if mode == PlaneMode::Warp {
                     unify(&mut self.draft.planes);
                 }
-                self.history.settle(&self.draft, false);
+                self.record_step(before, "Mode");
             }
             PerspectiveEdit::Straighten(how) => {
                 if self.dragging() || self.draft.planes.is_empty() {
                     return;
                 }
-                self.end_nudges();
+                let before = self.draft.clone();
                 straighten(&mut self.draft.planes, how);
-                self.history.settle(&self.draft, false);
+                self.record_step(before, "Straighten");
             }
         }
     }
@@ -281,28 +300,13 @@ impl PerspectiveSession {
         if let Some(before) = self.before.take() {
             self.draft = before;
         }
-        self.end_nudges();
+        let before = self.draft.clone();
         self.draft.planes = planes;
         if self.draft.planes.is_empty() {
             self.draft.mode = PlaneMode::Layout;
         }
         self.generation += 1;
-        self.history.settle(&self.draft, false);
-    }
-
-    /// Records an undo step when the draft has come to rest changed (as
-    /// `TransformSession::settle`).
-    pub fn settle(&mut self, now: f64, busy: bool) {
-        // new: PhotoCraft's Perspective Warp has no undo inside the session; the session's steps
-        // follow the transform session's rule.
-        let nudging = match (self.last_nudge, self.nudge_pause) {
-            (Some(at), Some(pause)) => now - at < pause,
-            _ => false,
-        };
-        if !nudging {
-            self.last_nudge = None;
-        }
-        self.history.settle(&self.draft, busy || self.dragging() || nudging);
+        self.record_step(before, "Planes");
     }
 
     /// Edit › Undo while the session is open (the app routes it here whatever
@@ -312,13 +316,11 @@ impl PerspectiveSession {
     /// The app cancels a running drag first (`ToolHost::cancel` with `CancelReason::UndoDuringGesture`)
     /// and then calls this. A call during a drag steps nothing and returns false.
     pub fn undo(&mut self) -> bool {
-        // new: as `settle`.
         self.step(Step::Undo)
     }
 
     /// Steps forward one undone step, routed as [`undo`](Self::undo) is.
     pub fn redo(&mut self) -> bool {
-        // new: as `settle`.
         self.step(Step::Redo)
     }
 
@@ -332,53 +334,45 @@ impl PerspectiveSession {
         self.history.can_redo()
     }
 
-    /// Ends a run of nudges: records them as their own step before the next edit.
-    fn end_nudges(&mut self) {
-        if self.last_nudge.take().is_some() && !self.dragging() {
-            self.history.settle(&self.draft, false);
-        }
+    /// Records the change from `before` to the draft as one step named `name`.
+    fn record_step(&mut self, before: PerspectiveDraft, name: &str) {
+        let event = EditEvent::set(GestureId::default(), Mixed::Same(before), self.draft.clone(), Arc::from(name), None);
+        self.history.record(&event);
     }
 
     /// One planes event. Begin takes the draft as `before`; Cancel restores it. In Warp mode the
-    /// sources are kept (the layout is kept) when the plane count is unchanged. A Set that keeps
-    /// the plane count is an arrow nudge and folds into the run; one that adds or removes planes
-    /// is a step of its own.
-    fn planes_event(&mut self, event: EditEvent<Vec<Plane>>, now: f64) {
+    /// sources are kept (the layout is kept) when the plane count is unchanged. A Set is a step of
+    /// its own; so is a drag, from its Begin to its Commit.
+    fn planes_event(&mut self, event: EditEvent<Vec<Plane>>) {
         match event {
-            EditEvent::Begin { value, .. } => {
-                self.end_nudges();
-                self.before = Some(self.draft.clone());
-                if let Some(value) = value {
-                    self.set_planes(value);
-                }
+            EditEvent::Begin { id, label, doc_key, .. } => {
+                let before = self.draft.clone();
+                self.history.record(&EditEvent::begin(id, Mixed::Same(before.clone()), label, doc_key));
+                self.before = Some(before);
             }
             EditEvent::Update { value, .. } => self.set_planes(value),
-            EditEvent::Commit { value, .. } => {
-                self.set_planes(value);
-                self.before = None;
+            EditEvent::Commit { id, after, .. } => {
+                self.set_planes(after);
+                if let Some(before) = self.before.take() {
+                    self.history.record(&EditEvent::commit(id, Mixed::Same(before), self.draft.clone()));
+                }
             }
-            EditEvent::Cancel { .. } => {
+            EditEvent::Cancel { id, reason, .. } => {
+                self.history.record(&EditEvent::cancel(id, reason, None));
                 if let Some(before) = self.before.take() {
                     self.draft = before;
                 }
             }
-            EditEvent::Set { value, .. } => {
+            EditEvent::Set { id, after, label, doc_key, .. } => {
                 if self.dragging() {
                     return;
                 }
-                let nudge = value.len() == self.draft.planes.len();
-                if nudge {
-                    self.last_nudge = Some(now);
-                } else {
-                    self.end_nudges();
+                let before = self.draft.clone();
+                self.set_planes(after);
+                if self.draft.planes.is_empty() {
+                    self.draft.mode = PlaneMode::Layout;
                 }
-                self.set_planes(value);
-                if !nudge {
-                    if self.draft.planes.is_empty() {
-                        self.draft.mode = PlaneMode::Layout;
-                    }
-                    self.history.settle(&self.draft, false);
-                }
+                self.history.record(&EditEvent::set(id, Mixed::Same(before), self.draft.clone(), label, doc_key));
             }
             _ => {}
         }
@@ -398,7 +392,6 @@ impl PerspectiveSession {
         if self.dragging() {
             return false;
         }
-        self.last_nudge = None;
         self.history.step(&mut self.draft, step)
     }
 }

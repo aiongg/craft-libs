@@ -166,9 +166,16 @@ note = "The half names are `ValueDragWords::thumb_low` and `thumb_high` of the w
 [[type]]
 name = "ThumbRowOutput"
 old = "craft_ui::controls::thumb_row::ThumbRowOutput"
-new = ""
-status = "removed"
-note = "`show` returns `EditResponse<[f64; N]>`. `shown` is the bound value, `edit` is the response; `dragged` and `ops` have no counterpart (the row applies its operations itself)."
+new = "craft_ui::value_drag::ThumbRowOutput"
+status = "moved"
+note = "`ThumbRowOutput { edit: EditResponse<[Mixed<f64>; N]>, held: Option<ThumbHold> }`. `edit.shown` is the bound value; `held` names the thumb being dragged and the modifiers held (Alt on a `Thumb::alt_reports` thumb); `dragged` and `ops` have no counterpart (the row applies its operations itself)."
+
+[[type]]
+name = "ThumbHold"
+old = ""
+new = "craft_ui::value_drag::ThumbHold"
+status = "replaced"
+note = "The drag in progress: `thumb` index and the `Mods` held. Read from the row's own drag memory."
 
 [[type]]
 name = "Thumb"
@@ -538,3 +545,8 @@ old = "track_face(TrackFace)"
 new = "track_face(TrackFace)"
 note = "New on the range slider."
 
+[[setter]]
+type = "Thumb"
+old = ""
+new = "alt_reports()"
+note = "Alt on this thumb is reported in `ThumbRowOutput::held` and is not the fine scale (a levels black or white point, where Alt shows clipping)."

@@ -2,8 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use craft_ui::canvas::kurbo::Point;
-use craft_ui::canvas::quad::Homography;
+use craft_behavior::geometry::quad::Homography;
+use craft_behavior::kurbo::Point;
 
 /// The most planes a session holds (PhotoCraft `MAX_PLANES`, so the control channel can't make it
 /// allocate without bound).
@@ -15,12 +15,18 @@ pub const MAX_GRID_LINES: usize = 200;
 /// A plane's four corners in document pixels, in the scene's order (top-left, top-right,
 /// bottom-right, bottom-left after [`VanishingScene::normalized`]).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct VanishingPlane {
     /// The corners in document pixels, `[x, y]` each.
     pub corners: [[f64; 2]; 4],
 }
 
 impl VanishingPlane {
+    /// The plane with these corners.
+    pub const fn new(corners: [[f64; 2]; 4]) -> Self {
+        Self { corners }
+    }
+
     /// The map from the unit square to the plane (`Homography::unit_to_quad`), `None` for a
     /// degenerate plane.
     pub fn homography(&self) -> Option<Homography> {
@@ -50,14 +56,15 @@ impl VanishingPlane {
 /// An edge of a plane, as the engine names it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum PlaneEdge {
-    #[allow(missing_docs)]
+    /// The top edge.
     Top,
-    #[allow(missing_docs)]
+    /// The right edge.
     Right,
-    #[allow(missing_docs)]
+    /// The bottom edge.
     Bottom,
-    #[allow(missing_docs)]
+    /// The left edge.
     Left,
 }
 
@@ -69,6 +76,7 @@ impl PlaneEdge {
 /// A plane torn off an edge of an earlier plane (the engine's `{"from", "edge", "angle",
 /// "depth"}`): it follows its parent when that is edited.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct TornPlane {
     /// The parent plane's index, always below this plane's.
     pub from: usize,
@@ -80,15 +88,23 @@ pub struct TornPlane {
     pub depth: f64,
 }
 
+impl TornPlane {
+    /// A plane torn off `edge` of plane `from`, `angle` degrees from it and `depth` times its adjacent side deep.
+    pub const fn new(from: usize, edge: PlaneEdge, angle: f64, depth: f64) -> Self {
+        Self { from, edge, angle, depth }
+    }
+}
+
 /// How believable a plane is: the grid and outline in `accent` (valid), `status.warn.fg`
 /// (questionable) or `status.bad.fg` (invalid; drawn as its outline only).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum PlaneCheck {
-    #[allow(missing_docs)]
+    /// The perspective holds.
     Valid,
-    #[allow(missing_docs)]
+    /// The perspective is doubtful.
     Questionable,
-    #[allow(missing_docs)]
+    /// The perspective cannot hold.
     Invalid,
 }
 

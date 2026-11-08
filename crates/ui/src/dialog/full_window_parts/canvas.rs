@@ -9,7 +9,8 @@ use crate::primitives::{Checker, Revision};
 use crate::runtime::edit::next_gesture_id;
 use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::{global, with_session};
-use craft_behavior::kurbo::Point;
+use craft_behavior::geometry::quad::Homography;
+use craft_behavior::kurbo::{Point, Rect as Rect64};
 use craft_behavior::{EditEvent, Mixed, PixelSize};
 use egui::{Color32, ColorImage, Rect, Response, Ui};
 use std::sync::Arc;
@@ -21,18 +22,39 @@ use std::sync::Arc;
 pub struct RasterOverlay<'a> {
     source: &'a dyn RasterSource,
     tint: Option<Color32>,
+    mapping: Option<(Homography, u32, Option<Rect64>)>,
 }
 
 impl<'a> RasterOverlay<'a> {
     /// An overlay of `source`.
     pub fn new(source: &'a dyn RasterSource) -> Self {
-        RasterOverlay { source, tint: None }
+        RasterOverlay { source, tint: None, mapping: None }
     }
 
     /// Multiplies the overlay's texels by `tint`: the user's sampling-area colour over a coverage mask.
     #[must_use]
     pub fn tint(mut self, tint: Color32) -> Self {
         self.tint = Some(tint);
+        self
+    }
+
+    /// Draws the overlay through `frame` (the unit square onto the document) on a `cells` by `cells` mesh, so a
+    /// perspective frame shows it foreshortened: Vanishing Point's paste on a plane. A cell whose centre lies
+    /// outside the frame's unit square is left out. The mesh goes through the same raster path as the overlay's
+    /// flat form.
+    #[must_use]
+    pub fn mapped(mut self, frame: Homography, cells: u32) -> Self {
+        self.mapping = Some((frame, cells, self.mapping.and_then(|(_, _, placed)| placed)));
+        self
+    }
+
+    /// Where the overlay's image lies in the mapped frame's unit square (default: all of it), so the frame can be
+    /// the plane the image sits on. Only with [`mapped`](Self::mapped).
+    #[must_use]
+    pub fn placed(mut self, placed: Rect64) -> Self {
+        if let Some((_, _, at)) = self.mapping.as_mut() {
+            *at = Some(placed);
+        }
         self
     }
 }
@@ -204,15 +226,19 @@ impl<'a> FullWindowCanvas<'a> {
                     }
                     image.show_at(ui, body.rect);
                     for (n, overlay) in overlays.iter().enumerate() {
-                        match overlay.tint {
-                            Some(tint) => {
-                                let tinted = Tinted { source: overlay.source, tint };
-                                RasterDisplay::new(Label::Empty, &tinted).id_salt(("overlay", n)).show_at(ui, body.rect);
-                            }
-                            None => {
-                                RasterDisplay::new(Label::Empty, overlay.source).id_salt(("overlay", n)).show_at(ui, body.rect);
+                        let tinted = overlay.tint.map(|tint| Tinted { source: overlay.source, tint });
+                        let source: &dyn RasterSource = match &tinted {
+                            Some(tinted) => tinted,
+                            None => overlay.source,
+                        };
+                        let mut display = RasterDisplay::new(Label::Empty, source).id_salt(("overlay", n));
+                        if let Some((frame, cells, placed)) = overlay.mapping {
+                            display = display.mapped(frame, cells);
+                            if let Some(placed) = placed {
+                                display = display.placed(placed);
                             }
                         }
+                        display.show_at(ui, body.rect);
                     }
                     if let Some(controls) = controls.as_mut() {
                         controls(ui, body.rect);

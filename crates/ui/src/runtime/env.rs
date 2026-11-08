@@ -313,9 +313,9 @@ impl Deref for Env {
 pub struct Scoped {
     /// The resolved tokens of the scope; read in `style` only.
     pub(crate) tokens: Arc<UiTokens>,
-    /// The light or dark mode the tokens were resolved in: the app's, until a scope that resolves its tokens in
-    /// another mode sets it with them.
-    pub(crate) mode: Mode,
+    /// What the tokens were resolved from (the light or dark mode among them): the app's, until a scope that
+    /// resolves its tokens in another mode sets them.
+    pub(crate) token_inputs: Arc<TokenInputs>,
     /// The operating system.
     pub(crate) os: Os,
     /// Whether the window is active.
@@ -419,23 +419,49 @@ impl Scoped {
 /// these tokens.
 #[derive(Clone)]
 pub struct ThemeScope {
-    tokens: Arc<UiTokens>,
+    change: ScopeChange,
+}
+
+/// What a theme scope changes in the tokens its body resolves from.
+#[derive(Clone)]
+enum ScopeChange {
+    /// These tokens.
+    Tokens(Arc<UiTokens>),
+    /// The inherited theme, contrast, density and text size in this mode.
+    Mode(Mode),
 }
 
 impl ThemeScope {
     /// A scope whose body resolves from `tokens`.
     pub fn new(tokens: UiTokens) -> Self {
-        ThemeScope { tokens: Arc::new(tokens) }
+        ThemeScope { change: ScopeChange::Tokens(Arc::new(tokens)) }
     }
 
-    pub(crate) fn tokens(&self) -> &Arc<UiTokens> {
-        &self.tokens
+    /// A scope whose body resolves the inherited theme in `mode`: a plot that is dark in every theme, a preview of the
+    /// other mode.
+    pub fn mode(mode: Mode) -> Self {
+        ThemeScope { change: ScopeChange::Mode(mode) }
+    }
+
+    /// Puts the scope's tokens into `scoped`.
+    pub(crate) fn apply(&self, ctx: &Context, scoped: &mut Scoped) {
+        match &self.change {
+            ScopeChange::Tokens(tokens) => scoped.tokens = tokens.clone(),
+            ScopeChange::Mode(mode) => {
+                let inputs = TokenInputs { mode: *mode, ..(*scoped.token_inputs).clone() };
+                scoped.tokens = tokens_for(ctx, &inputs);
+                scoped.token_inputs = Arc::new(inputs);
+            }
+        }
     }
 }
 
 impl std::fmt::Debug for ThemeScope {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ThemeScope").field("key", &self.tokens.key()).finish()
+        match &self.change {
+            ScopeChange::Tokens(tokens) => f.debug_struct("ThemeScope").field("key", &tokens.key()).finish(),
+            ScopeChange::Mode(mode) => f.debug_struct("ThemeScope").field("mode", mode).finish(),
+        }
     }
 }
 
@@ -483,7 +509,8 @@ impl Env {
 
     /// The root env of a frame: the app's values with the pixels per point read back from egui.
     pub(crate) fn from_root(ctx: &Context, root: &RootEnv, host: Option<Arc<Host>>, pixels_per_point: f32) -> Env {
-        let tokens = root_tokens(ctx, root);
+        let inputs = TokenInputs::of(root);
+        let tokens = tokens_for(ctx, &inputs);
         let motion = MotionPolicy::new(motion_mode(ctx, root), tokens.tokens().motion);
         let os = windows::os_of(ctx);
         let scale = Scale(pixels_per_point);
@@ -496,6 +523,7 @@ impl Env {
                 key: EnvKey::new(tokens.key(), root.direction, scale, os, active, root.values.style_hash()).with_line(line_ratio),
                 line_ratio,
                 tokens,
+                token_inputs: Arc::new(inputs),
                 os,
                 active,
                 shell,
@@ -524,7 +552,6 @@ impl Env {
                 dates: host_dates(ctx, host.as_ref()),
                 today: root.today,
                 tab_toggles_chrome: root.tab_toggles_chrome,
-                mode: root.mode,
                 host,
                 values: root.values.clone(),
             }),
@@ -701,36 +728,30 @@ pub(crate) fn root_token_entries(ctx: &Context) -> usize {
     Service::<RootTokenCache>::run(ctx, |cache| cache.entries.len())
 }
 
-/// The tokens the root resolves to, cached by the inputs that determine them.
-fn root_tokens(ctx: &Context, root: &RootEnv) -> Arc<UiTokens> {
-    let inputs = TokenInputs {
-        sizes: root.sizes.clone(),
-        theme: root.theme.clone(),
-        mode: root.mode,
-        contrast: root.contrast,
-        density: root.density,
-        text_size: root.text_size,
-    };
+/// The tokens `inputs` resolve to, cached by the inputs.
+fn tokens_for(ctx: &Context, inputs: &TokenInputs) -> Arc<UiTokens> {
     let service = Service::<RootTokenCache>::of(ctx);
-    if let Some(hit) = service.with(|cache| cache.entries.iter().find(|(key, _)| key.same(&inputs)).map(|(_, tokens)| tokens.clone())) {
+    if let Some(hit) = service.with(|cache| cache.entries.iter().find(|(key, _)| key.same(inputs)).map(|(_, tokens)| tokens.clone())) {
         return hit;
     }
-    let appearance = root.appearance();
+    let appearance =
+        Appearance { mode: inputs.mode, contrast: inputs.contrast, size: inputs.density, text_size: inputs.text_size, reduced_motion: false };
     let themes = builtins();
     let theme: &ThemeDef =
-        [root.theme.as_str(), SUITE_DEFAULT].into_iter().find_map(|id| themes.iter().find(|theme| theme.id.as_str() == id)).unwrap_or(&themes[0]);
-    let tokens = Arc::new(UiTokens::new(Arc::new(resolve_sized(theme, appearance, None, &root.sizes).tokens), root.contrast, root.density));
+        [inputs.theme.as_str(), SUITE_DEFAULT].into_iter().find_map(|id| themes.iter().find(|theme| theme.id.as_str() == id)).unwrap_or(&themes[0]);
+    let tokens = Arc::new(UiTokens::new(Arc::new(resolve_sized(theme, appearance, None, &inputs.sizes).tokens), inputs.contrast, inputs.density));
     service.with(|cache| {
         if cache.entries.len() == KEPT_ROOT_TOKENS {
             cache.entries.remove(0);
         }
-        cache.entries.push((inputs, tokens.clone()));
+        cache.entries.push((inputs.clone(), tokens.clone()));
     });
     tokens
 }
 
 /// What the resolved root tokens depend on. The sizes are compared by identity, as `set_input` does.
-struct TokenInputs {
+#[derive(Clone)]
+pub(crate) struct TokenInputs {
     sizes: Arc<AppSizes>,
     theme: ThemeId,
     mode: Mode,
@@ -740,6 +761,17 @@ struct TokenInputs {
 }
 
 impl TokenInputs {
+    fn of(root: &RootEnv) -> Self {
+        TokenInputs {
+            sizes: root.sizes.clone(),
+            theme: root.theme.clone(),
+            mode: root.mode,
+            contrast: root.contrast,
+            density: root.density,
+            text_size: root.text_size,
+        }
+    }
+
     fn same(&self, other: &TokenInputs) -> bool {
         Arc::ptr_eq(&self.sizes, &other.sizes)
             && self.theme == other.theme
@@ -786,7 +818,7 @@ impl<'a> EnvView<'a> {
     /// The light or dark mode the scope's tokens are resolved in: the app's, or the one a scope with its own tokens
     /// set.
     pub fn mode(&self) -> Mode {
-        self.scoped.mode
+        self.scoped.token_inputs.mode
     }
 
     /// The motion mode in effect.

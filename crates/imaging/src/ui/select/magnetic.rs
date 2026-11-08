@@ -1,21 +1,23 @@
 //! [`MagneticLassoTool`]: an outline that snaps to the edges the app's [`EdgeTracer`] finds.
 
-use craft_ui::canvas::draft::DraftReach;
-use craft_ui::canvas::kurbo::{Point, Rect};
-use craft_ui::canvas::{
-    CanvasTool, Marquee, MarqueeLook, PointerInk, SelectionBadge, SelectionOperation, ToolAction, ToolContext, ToolCursor, ToolKey, ToolNode,
-    ToolPointer, selection_cursor,
-};
-use craft_ui::edit::CancelReason;
-use craft_ui::localized::Words;
-use egui::{CursorIcon, Key, Modifiers, Painter, Stroke, StrokeKind, vec2};
+use craft_behavior::geometry::SelectionOperation;
+use craft_behavior::{CancelReason, Cursor, PaintedCursor};
+use craft_keymap::{Key, Mods};
+use craft_ui::canvas::{CanvasTool, ToolAccess, ToolAction, ToolContext, ToolKey, ToolPath, ToolPointer};
+use craft_ui::primitives::{Draw, PaintShape, StrokeWidth, ToolIcon};
+use egui::{CornerRadius, Pos2, Rect as ScreenRect, Vec2};
+use kurbo::Point;
 use serde::{Deserialize, Serialize};
 
-use super::style::SelectToolStyle;
-use super::{OUTLINE_POINTS, SelectEvent, SelectLabels, SelectPhase, SelectToolPass, SelectionProbe, SelectionShape, labels_in};
+use super::lasso::{outline_access, reach};
+use super::{Place, Report, SelectEvent, SelectPhase, SelectToolPass, SelectionProbe, SelectionShape};
+
+/// Where the magnetic lasso cursor's icon touches the document: the icon's own origin.
+const ICON_HOTSPOT: Vec2 = Vec2::ZERO;
 
 /// The detection settings of one edge query.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct EdgeSearch {
     /// How far from the pointer edges are looked for, in document pixels (Width, narrowed by
     /// stylus pressure when [`MagneticSettings::pressure_width`] is on).
@@ -24,10 +26,15 @@ pub struct EdgeSearch {
     pub contrast: f64,
 }
 
-/// The app's edge finder over the pixels being traced (PhotoCraft's `EdgeSource` over
-/// `photocraft_algo::magnetic`, the active layer's pixels or the composite). The tool calls it on
-/// the UI thread; the app refreshes its snapshot when the document or the layer changes, between
-/// outlines.
+impl EdgeSearch {
+    /// A search for edges within `width` document pixels of the pointer, at least `contrast` (0..=1) strong.
+    pub fn new(width: f64, contrast: f64) -> Self {
+        Self { width, contrast }
+    }
+}
+
+/// The app's edge finder over the pixels being traced (the active layer's pixels or the composite). The tool calls it
+/// on the UI thread; the app refreshes its snapshot when the document or the layer changes, between outlines.
 pub trait EdgeTracer {
     /// The edge point near `at` within `search.width`, or `None` for none (the tool uses `at`).
     fn snap(&mut self, at: Point, search: EdgeSearch) -> Option<Point>;
@@ -41,6 +48,7 @@ pub trait EdgeTracer {
 /// [`MagneticLassoTool::settings_mut`]; `[` and `]` change `width` in the tool.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
+#[non_exhaustive]
 pub struct MagneticSettings {
     /// Width in document pixels, 1..=256. Default 10.
     pub width: f32,
@@ -53,7 +61,6 @@ pub struct MagneticSettings {
 }
 
 impl Default for MagneticSettings {
-    // pc: crates/ui-egui/src/state/tool_options.rs:454-457 (10, 10, 57, false).
     fn default() -> Self {
         Self { width: 10.0, contrast: 10.0, frequency: 57.0, pressure_width: false }
     }
@@ -67,7 +74,6 @@ impl MagneticSettings {
     /// screen points per pixel: `(8 + (100 − frequency) · 0.9) / zoom` (8 points at 100, 98 at 0,
     /// 47 at 57). A frequency that is not a number counts as 57; `zoom` at least 0.01.
     pub fn spacing(&self, zoom: f64) -> f64 {
-        // pc: crates/ui-egui/src/tools/magnetic_lasso_ui.rs:71-77 `spacing`.
         let frequency = if self.frequency.is_finite() { f64::from(self.frequency.clamp(0.0, 100.0)) } else { 57.0 };
         (8.0 + (100.0 - frequency) * 0.9) / zoom.max(0.01)
     }
@@ -76,7 +82,6 @@ impl MagneticSettings {
     /// `1 + (width − 1) · (1 − pressure)` when [`pressure_width`](Self::pressure_width) is on and a
     /// pen sample carries a pressure; Contrast / 100.
     pub fn search(&self, pressure: Option<f32>) -> EdgeSearch {
-        // pc: crates/ui-egui/src/tools/magnetic_lasso_ui.rs:60-69 `settings`.
         let mut width = f64::from(self.width);
         if self.pressure_width
             && let Some(pressure) = pressure.filter(|p| p.is_finite())
@@ -118,7 +123,6 @@ impl MagneticOutline {
 
     /// The pointer's position `q` joins the trail, keeping its points `gap` apart.
     fn extend_trail(&mut self, q: Point, width: f64) {
-        // pc: magnetic_lasso_ui.rs:205-212 `extend_trail`.
         let gap = (width / 4.0).clamp(1.0, 8.0);
         match self.trail.len() {
             n if n >= 2 && self.trail[n - 2].distance(q) < gap => self.trail[n - 1] = q,
@@ -128,7 +132,6 @@ impl MagneticOutline {
 
     /// The live segment fastens: its end becomes a fastening point.
     fn fasten_live(&mut self) {
-        // pc: magnetic_lasso_ui.rs:262-279 `fasten_live`.
         let live = std::mem::take(&mut self.live);
         let before = self.path.len();
         for q in live.into_iter().skip(1) {
@@ -146,7 +149,6 @@ impl MagneticOutline {
 
     /// An ⌥-drag ends: where it stopped is a fastening point.
     fn end_freehand(&mut self) {
-        // pc: magnetic_lasso_ui.rs:286-292 `end_freehand`.
         if std::mem::take(&mut self.freehand) && self.anchors.last().is_some_and(|&a| a + 1 < self.path.len()) {
             self.anchors.push(self.path.len() - 1);
         }
@@ -154,7 +156,6 @@ impl MagneticOutline {
 
     /// `p` is within `radius` of the first point of an outline long enough to close.
     fn near_start(&self, p: Point, radius: f64) -> bool {
-        // pc: magnetic_lasso_ui.rs:297-300 `near_start`.
         self.path.first().is_some_and(|&first| first.distance(p) <= radius) && length(&self.path) + length(&self.live) > 2.0 * radius
     }
 }
@@ -167,7 +168,6 @@ fn length(p: &[Point]) -> f64 {
 /// The polyline `p` up to `len` along it (ending at that point) and the point, when more than a
 /// pixel of it lies beyond.
 fn cut(p: &[Point], len: f64) -> Option<(Vec<Point>, Point)> {
-    // pc: magnetic_lasso_ui.rs:238-260 `cut`.
     if length(p) < len + 1.0 {
         return None;
     }
@@ -189,15 +189,15 @@ fn cut(p: &[Point], len: f64) -> Option<(Vec<Point>, Point)> {
 
 /// The pen's pressure for `pointer`, `None` for a mouse (pressure 1, no tilt, no rotation).
 ///
-/// A guess: the egui fork's pointer input carries no pointer kind (pen or mouse), so `ToolPointer`
-/// has none either. A pen that reports full pressure and no tilt reads as a mouse; the width then
-/// stays as set, which is also what a mouse gets.
+/// A pen that reports full pressure and no tilt reads as a mouse; the width then stays as set, which is also what a
+/// mouse gets.
 fn pen_pressure(pointer: &ToolPointer) -> Option<f32> {
-    let pen = pointer.pressure != 1.0 || pointer.tilt != [0.0; 2] || pointer.rotation != 0.0 || pointer.eraser;
-    pen.then_some(pointer.pressure)
+    let sample = pointer.sample;
+    let pen = sample.pressure != 1.0 || sample.tilt != [0.0; 2] || sample.rotation != 0.0 || sample.eraser;
+    pen.then_some(sample.pressure)
 }
 
-/// Photoshop's Magnetic Lasso: a selection outline that snaps to edges as the pointer moves.
+/// The Magnetic Lasso: a selection outline that snaps to edges as the pointer moves.
 ///
 /// Pointer (document units through the host; the tool takes button-up moves too):
 /// - The first click sets the first fastening point at the edge near the pointer
@@ -218,27 +218,24 @@ fn pen_pressure(pointer: &ToolPointer) -> Option<f32> {
 /// and `]` change the width by 1 px within 1..=256. The tool keeps Backspace, Delete and Enter from
 /// the app's shortcuts while an outline is open.
 ///
-/// The closed outline is [`SelectEvent::Commit`] with a `SelectionShape::Polygon` (PhotoCraft's
-/// `select.magneticLasso` with `trace: false`): the selection is exactly the outline drawn. An
+/// The closed outline is [`SelectEvent::Commit`] with a `SelectionShape::Polygon`: the selection is exactly the outline drawn. An
 /// outline of fewer than 3 points commits nothing. A document change or [`reset`](Self::reset)
 /// drops it. No selection drag: a press inside the selection draws.
 ///
-/// Drawn: the outline solid (`MarqueeLook::Drawing`), a white 5 pt square with a 1 pt black
-/// outline at each fastening point, and over the first point the closing ring beside the pointer
-/// (`SelectToolStyle`). The cursor is the crosshair; with Other Cursors › Precise
-/// (`set_precise_cursor`) the width circle too.
+/// Drawn: the outline as ants, a square with an edge at each fastening point, and over the first point the closing
+/// ring beside the pointer. The cursor is the lasso icon; with Other Cursors > Precise
+/// ([`precise_cursor`](Self::precise_cursor)) or Caps Lock it is the width circle.
 #[derive(Clone, Debug)]
 pub struct MagneticLassoTool<T> {
     tracer: T,
     settings: MagneticSettings,
     bar: SelectionOperation,
     outline: Option<MagneticOutline>,
-    /// The modifiers of the last pass, to see ⌥ pressed or released during a drag.
-    modifiers: Modifiers,
+    /// The modifiers of the last pass, to see Alt pressed or released during a drag.
+    mods: Mods,
     /// Other Cursors › Precise: the width circle shows round the crosshair.
     precise: bool,
-    labels: Option<SelectLabels>,
-    events: Vec<SelectEvent>,
+    report: Report,
 }
 
 impl<T: EdgeTracer> MagneticLassoTool<T> {
@@ -249,10 +246,9 @@ impl<T: EdgeTracer> MagneticLassoTool<T> {
             settings: MagneticSettings::default(),
             bar: SelectionOperation::New,
             outline: None,
-            modifiers: Modifiers::NONE,
+            mods: Mods::NONE,
             precise: false,
-            labels: None,
-            events: Vec::new(),
+            report: Report::default(),
         }
     }
 
@@ -284,13 +280,6 @@ impl<T: EdgeTracer> MagneticLassoTool<T> {
         self
     }
 
-    /// The words of the outline's accessible name and value. Without them the tool reads the
-    /// installed ones.
-    pub fn labels(&mut self, labels: SelectLabels) -> &mut Self {
-        self.labels = Some(labels);
-        self
-    }
-
     /// The tool as the `CanvasTool` for one pass, asking `probe` about the document.
     pub fn pass<'a>(&'a mut self, probe: &'a dyn SelectionProbe) -> SelectToolPass<'a, Self> {
         SelectToolPass::new(self, probe)
@@ -298,7 +287,7 @@ impl<T: EdgeTracer> MagneticLassoTool<T> {
 
     /// The events since the last call, in order.
     pub fn take_events(&mut self) -> Vec<SelectEvent> {
-        std::mem::take(&mut self.events)
+        self.report.take()
     }
 
     /// Drop the outline without an event (a tool switch).
@@ -308,20 +297,17 @@ impl<T: EdgeTracer> MagneticLassoTool<T> {
 
     /// What the tool is doing: an outline with its point count.
     pub fn phase(&self) -> SelectPhase {
-        // new: `Outline { points: path + live }` while an outline is open.
         self.outline.as_ref().map_or(SelectPhase::Idle, |o| SelectPhase::Outline { points: o.points().count() })
     }
 
     /// An outline with the operation New is open: the app hides the selection's ants.
     pub fn replaces_selection(&self) -> bool {
-        // pc: crates/ui-egui/src/tools/magnetic_lasso_ui.rs:363-366 `replaces_selection`.
         self.outline.as_ref().is_some_and(|o| o.operation == SelectionOperation::New)
     }
 
     /// Close the outline: the live segment fastens, then the last point joins the first along the
     /// edges, or with a straight segment with `straight`; `Commit` when 3 or more points.
     fn close(&mut self, straight: bool) {
-        // pc: crates/ui-egui/src/tools/magnetic_lasso_ui.rs:301-332 `close`, `commit`.
         let Some(mut o) = self.outline.take() else { return };
         o.end_freehand();
         o.fasten_live();
@@ -332,14 +318,13 @@ impl<T: EdgeTracer> MagneticLassoTool<T> {
             o.path.extend(closing.into_iter().skip(1));
         }
         if o.path.len() >= 3 {
-            self.events.push(SelectEvent::Commit { shape: SelectionShape::Polygon(o.path), operation: o.operation });
+            self.report.push(SelectEvent::Commit { shape: SelectionShape::Polygon(o.path), operation: o.operation });
         }
     }
 
     /// Remove the last fastening point and the outline back to the one before; with only the first
     /// left, cancel. The live segment is traced to the pointer again without fastening.
     fn remove_last_point(&mut self) {
-        // pc: crates/ui-egui/src/tools/magnetic_lasso_ui.rs:340-361 `remove_last_point`.
         let Some(o) = self.outline.as_mut() else { return };
         o.end_freehand();
         if o.anchors.len() <= 1 {
@@ -363,8 +348,6 @@ impl<T: EdgeTracer> MagneticLassoTool<T> {
     /// points behind the pointer while the live segment is longer than the spacing (at most 64 per
     /// call).
     fn follow(&mut self, q: Point, search: EdgeSearch, spacing: f64, fasten: bool) {
-        // pc: crates/ui-egui/src/tools/magnetic_lasso_ui.rs:205-284 `extend_trail` (gap `width / 4`
-        // within 1..=8), `follow`, `cut`, `fasten_live`.
         let Self { tracer, outline, .. } = self;
         let Some(o) = outline.as_mut() else { return };
         o.extend_trail(q, search.width);
@@ -392,9 +375,7 @@ impl<T: EdgeTracer> MagneticLassoTool<T> {
 
     /// The pointer moved to `p` (button up or down): freehand adds points, otherwise the outline
     /// follows the edges, walking a long jump in steps.
-    fn moved(&mut self, pointer: &ToolPointer, zoom: f64) {
-        // pc: crates/ui-egui/src/tools/magnetic_lasso_ui.rs:164-193 `moved`.
-        let p = pointer.doc;
+    fn moved(&mut self, pointer: &ToolPointer, p: Point, zoom: f64) {
         let Some(o) = self.outline.as_mut() else { return };
         o.pointer = p;
         if o.freehand {
@@ -429,19 +410,17 @@ impl<T: EdgeTracer> MagneticLassoTool<T> {
 impl<T: EdgeTracer> CanvasTool for SelectToolPass<'_, MagneticLassoTool<T>> {
     /// Drops an outline begun on another document; keeps the keys while an outline is open.
     fn each_pass(&mut self, cx: &mut ToolContext<'_>) {
-        // pc: crates/ui-egui/src/tools/magnetic_lasso_ui.rs:368-374 `frame`.
         let (tool, probe) = (&mut *self.tool, self.probe);
         if tool.outline.as_ref().is_some_and(|o| o.document != probe.document()) {
             tool.outline = None;
         }
-        let before = std::mem::replace(&mut tool.modifiers, cx.modifiers);
+        let before = std::mem::replace(&mut tool.mods, cx.mods);
         if let Some(o) = tool.outline.as_mut()
             && o.down
-            && before.alt != cx.modifiers.alt
+            && before.alt != cx.mods.alt
         {
-            if cx.modifiers.alt {
-                // ⌥ pressed during the drag: the pointer's last place anchors, freehand
-                // goes on from it (Photoshop).
+            if cx.mods.alt {
+                // Alt pressed during the drag: the pointer's last place anchors, freehand goes on from it.
                 let p = o.pointer;
                 o.fasten_live();
                 if o.path.last().is_none_or(|q| q.distance(p) > 1e-9) {
@@ -451,7 +430,7 @@ impl<T: EdgeTracer> CanvasTool for SelectToolPass<'_, MagneticLassoTool<T>> {
                 o.trail = vec![p];
                 o.freehand = true;
             } else {
-                // ⌥ released: the edges again, from where the freehand stopped.
+                // Alt released: the edges again, from where the freehand stopped.
                 o.end_freehand();
                 o.live.clear();
                 o.trail = o.path.last().copied().into_iter().collect();
@@ -462,33 +441,35 @@ impl<T: EdgeTracer> CanvasTool for SelectToolPass<'_, MagneticLassoTool<T>> {
         }
     }
 
-    /// The system crosshair; with `set_precise_cursor`
-    /// `paint` adds the width circle (`width · zoom`, at least the width ring min) round it, a 1 pt dark ring
-    /// outside a 1 pt light one (`SelectToolStyle::width_ring_dark`, `width_ring_light`).
-    fn cursor(&self, cx: &ToolContext<'_>) -> ToolCursor {
-        // pc: crates/ui-egui/src/tools/magnetic_lasso_ui.rs:440-449 `cursor`.
+    /// The width circle with Other Cursors > Precise or Caps Lock (`width * zoom`, at least the slop); otherwise the
+    /// lasso icon with the operation's badge.
+    fn cursor(&self, cx: &ToolContext<'_>) -> Cursor {
         let tool = &*self.tool;
-        if let Some(pointer) = cx.pointer {
-            let badge = match &tool.outline {
-                Some(o) => o.operation.badge(),
-                None if cx.modifiers.command => SelectionBadge::New,
-                None => SelectionOperation::resolve(tool.bar, cx.modifiers, self.probe.has_selection()).badge(),
-            };
-            selection_cursor(&cx.canvas.ctx, pointer.screen, badge, PointerInk::System);
+        if (tool.precise || cx.caps_lock())
+            && let Some(place) = Place::of(cx)
+        {
+            let (min, max) = MagneticSettings::WIDTH_RANGE;
+            let radius = (f64::from(tool.settings.width.clamp(min, max)) * place.zoom()) as f32;
+            return PaintedCursor::circle(radius.max(cx.slop)).into();
         }
-        ToolCursor::System(CursorIcon::Crosshair)
+        let badge = match &tool.outline {
+            Some(o) => o.operation.badge(),
+            None if cx.mods.cmd => None,
+            None => SelectionOperation::resolve(tool.bar, cx.mods, self.probe.has_selection()).badge(),
+        };
+        PaintedCursor::tool(ToolIcon::MagneticLasso.icon(), ICON_HOTSPOT, badge).into()
     }
 
-    /// The first click starts an outline; later ones close near the first point, add a straight
-    /// segment with ⌥ (and freehand while dragging), or fasten a point; a double-click closes.
+    /// The first click starts an outline; later ones close near the first point, add a straight segment with Alt (and
+    /// freehand while dragging), or fasten a point; a double-click closes.
     fn press(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) -> ToolAction {
-        // pc: crates/ui-egui/src/tools/magnetic_lasso_ui.rs:120-162 `down`.
         let (tool, probe) = (&mut *self.tool, self.probe);
+        let Some(place) = Place::of(cx) else { return ToolAction::Ignored };
         let search = tool.settings.search(pen_pressure(pointer));
-        let p = pointer.doc;
+        let p = place.doc(pointer.pos);
         let Some(o) = tool.outline.as_mut() else {
-            // ⌘ makes it the Move tool (the app's rule).
-            if pointer.modifiers.command {
+            // Cmd makes it the Move tool (the app's rule).
+            if pointer.mods.cmd {
                 return ToolAction::Ignored;
             }
             let start = tool.tracer.snap(p, search).unwrap_or(p);
@@ -497,7 +478,7 @@ impl<T: EdgeTracer> CanvasTool for SelectToolPass<'_, MagneticLassoTool<T>> {
                 anchors: vec![0],
                 live: Vec::new(),
                 trail: vec![p],
-                operation: SelectionOperation::resolve(tool.bar, pointer.modifiers, probe.has_selection()),
+                operation: SelectionOperation::resolve(tool.bar, pointer.mods, probe.has_selection()),
                 document: probe.document(),
                 freehand: false,
                 down: true,
@@ -505,14 +486,13 @@ impl<T: EdgeTracer> CanvasTool for SelectToolPass<'_, MagneticLassoTool<T>> {
             });
             return ToolAction::Claimed;
         };
-        let radius = DraftReach::of(cx.tokens).close / cx.view.zoom.max(0.01);
-        if pointer.clicks >= 2 || o.near_start(p, radius) {
-            tool.close(pointer.modifiers.alt);
+        if pointer.clicks >= 2 || o.near_start(p, close_radius(cx, &place)) {
+            tool.close(pointer.mods.alt);
             return ToolAction::Claimed;
         }
         o.down = true;
         o.pointer = p;
-        if pointer.modifiers.alt {
+        if pointer.mods.alt {
             // A straight segment to here; dragging on draws freehand.
             if o.path.last().is_none_or(|q| q.distance(p) > 1e-9) {
                 o.path.push(p);
@@ -531,119 +511,110 @@ impl<T: EdgeTracer> CanvasTool for SelectToolPass<'_, MagneticLassoTool<T>> {
         ToolAction::Claimed
     }
 
-    /// An ⌥-drag adds freehand points (0.5 px apart); otherwise the outline follows the edges.
+    /// An Alt drag adds freehand points (0.5 px apart); otherwise the outline follows the edges.
     fn drag(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
-        // pc: crates/ui-egui/src/tools/magnetic_lasso_ui.rs:164-193 `moved`.
-        self.tool.moved(pointer, cx.view.zoom);
+        if let Some(place) = Place::of(cx) {
+            self.tool.moved(pointer, place.doc(pointer.pos), place.zoom());
+        }
     }
 
-    /// Ends an ⌥-drag: where it stopped fastens.
+    /// Ends an Alt drag: where it stopped fastens.
     fn release(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {
-        // pc: crates/ui-egui/src/tools/magnetic_lasso_ui.rs:286-292 `end_freehand`.
         self.tool.end_gesture();
     }
 
     /// Button-up moves follow the edges too.
     fn hover(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
-        // pc: crates/ui-egui/src/tools/magnetic_lasso_ui.rs:164-193 `moved`.
-        if self.tool.outline.is_some() {
-            self.tool.moved(pointer, cx.view.zoom);
+        if self.tool.outline.is_some()
+            && let Some(place) = Place::of(cx)
+        {
+            self.tool.moved(pointer, place.doc(pointer.pos), place.zoom());
             cx.request_repaint();
         }
     }
 
-    /// Esc during a press drops the whole outline (Photoshop), as Esc between clicks does. A lost
-    /// pointer or a `ToolHost::cancel` for another reason ends an ⌥-drag as `release` would and
-    /// keeps the outline (the app calls [`reset`](MagneticLassoTool::reset) to drop it).
+    /// Escape during a press drops the whole outline, as Escape between clicks does. A lost pointer or a
+    /// `ToolHost::cancel` for another reason ends an Alt drag as `release` would and keeps the outline (the app calls
+    /// [`reset`](MagneticLassoTool::reset) to drop it).
     fn cancel(&mut self, reason: CancelReason, _cx: &mut ToolContext<'_>) {
-        // new: ends an ⌥-drag as `release` would; the outline stays unless Esc.
         self.tool.end_gesture();
         if reason == CancelReason::Escape {
             self.tool.outline = None;
         }
     }
 
-    /// Enter (⌥ Enter), Esc, Backspace and Delete while an outline is open; `[` and `]` always.
-    fn key(&mut self, key: &ToolKey, _cx: &mut ToolContext<'_>) -> bool {
-        // pc: crates/ui-egui/src/tools/magnetic_lasso_ui.rs:376-412 `keys`.
+    /// Enter (Alt+Enter straight), Escape, Backspace and Delete while an outline is open; `[` and `]` change the width
+    /// (the tool keeps them only while an outline is open).
+    fn key(&mut self, key: &ToolKey, cx: &mut ToolContext<'_>) -> bool {
         let tool = &mut *self.tool;
-        if !key.pressed {
-            return false;
-        }
-        let none = key.modifiers.is_none();
+        let none = cx.mods.is_none();
         if tool.outline.is_some() {
-            match key.key {
-                Key::Enter if none || key.modifiers.matches_exact(Modifiers::ALT) => {
-                    tool.close(key.modifiers.alt);
+            match key {
+                ToolKey::Submit if none || cx.mods == Mods::ALT => {
+                    tool.close(cx.mods.alt);
                     return true;
                 }
-                Key::Escape if none => {
+                ToolKey::Cancel => {
                     tool.outline = None;
                     return true;
                 }
-                Key::Backspace | Key::Delete if none => {
+                ToolKey::Delete { .. } if none => {
                     tool.remove_last_point();
                     return true;
                 }
                 _ => {}
             }
         }
-        let step = match key.key {
-            Key::OpenBracket if none => -1.0,
-            Key::CloseBracket if none => 1.0,
+        let step = match key {
+            ToolKey::Kept(chord) if chord.mods.is_none() && chord.key == Key::OpenBracket => -1.0,
+            ToolKey::Kept(chord) if chord.mods.is_none() && chord.key == Key::CloseBracket => 1.0,
             _ => return false,
         };
         let (min, max) = MagneticSettings::WIDTH_RANGE;
         let width = &mut tool.settings.width;
-        *width = if width.is_finite() { (width.round() + step).clamp(min, max) } else { 10.0 };
+        *width = if width.is_finite() { (width.round() + step).clamp(min, max) } else { MagneticSettings::default().width };
         true
     }
 
-    /// The outline, the fastening points and the closing ring.
-    fn paint(&self, painter: &Painter, cx: &ToolContext<'_>) {
-        // pc: crates/ui-egui/src/tools/magnetic_lasso_ui.rs:414-438 `draw`.
-        let tool = &*self.tool;
-        let style = SelectToolStyle::of(cx.tokens);
-        let pointer = cx.pointer.map(|p| p.screen);
-        if let Some(o) = &tool.outline {
-            let points: Vec<Point> = o.points().collect();
-            if points.len() >= 2 {
-                Marquee::polyline(points, "").paint(painter, cx.view, MarqueeLook::Drawing, cx.time);
-            }
-            for p in o.anchors.iter().filter_map(|&i| o.path.get(i)).map(|&p| cx.view.to_screen(p)) {
-                let r = egui::Rect::from_center_size(p, vec2(style.fastening, style.fastening));
-                painter.rect_filled(r, 0.0, style.fastening_fill);
-                painter.rect_stroke(r, 0.0, Stroke::new(1.0, style.fastening_stroke), StrokeKind::Outside);
-            }
-            if let Some(h) = pointer
-                && o.near_start(cx.view.to_doc(h), DraftReach::of(cx.tokens).close / cx.view.zoom.max(0.01))
-            {
-                // Photoshop's closing cursor: a small circle beside the pointer.
-                let c = h + vec2(style.ring_offset, style.ring_offset);
-                painter.circle_stroke(c, style.ring_radius, Stroke::new(style.ring_halo, style.ring_halo_color));
-                painter.circle_stroke(c, style.ring_radius, Stroke::new(style.ring_line, style.ring_line_color));
-            }
+    /// The outline as ants, a square at each fastening point and the closing ring beside the pointer over the first
+    /// point.
+    fn paint(&self, draw: &Draw<'_>, cx: &ToolContext<'_>) {
+        let (Some(o), Some(place)) = (&self.tool.outline, Place::of(cx)) else { return };
+        let points: Vec<Pos2> = o.points().map(|at| place.screen(at)).collect();
+        if points.len() >= 2 {
+            cx.marching_ants(&points, false, 0.0);
         }
-        if tool.precise
-            && let Some(h) = pointer
+        let Some(style) = cx.style() else { return };
+        let (tokens, overlay) = (style.tokens, &style.tokens.color.overlay);
+        let side = Vec2::splat(tokens.size.handle.md);
+        for at in o.anchors.iter().filter_map(|&i| o.path.get(i)).map(|&at| place.screen(at)) {
+            let square = PaintShape::Rect(ScreenRect::from_center_size(at, side), CornerRadius::ZERO);
+            draw.fill(&square, style.color(overlay.handle_fill));
+            draw.stroke(&square, StrokeWidth::Thin, style.color(overlay.handle_stroke));
+        }
+        if let Some(pointer) = cx.pointer
+            && o.near_start(place.doc(pointer.pos), close_radius(cx, &place))
         {
-            let (min, max) = MagneticSettings::WIDTH_RANGE;
-            let r = (tool.settings.width.clamp(min, max) * cx.view.zoom as f32).max(style.width_ring_min);
-            painter.circle_stroke(h, r + style.width_ring_gap, Stroke::new(1.0, style.width_ring_dark));
-            painter.circle_stroke(h, r, Stroke::new(1.0, style.width_ring_light));
+            // The closing cursor: a small circle beside the pointer.
+            let ring = PaintShape::Circle(pointer.pos + side, tokens.shape.radius.sm);
+            draw.stroke(&ring, StrokeWidth::Medium, style.color(overlay.halo));
+            draw.stroke(&ring, StrokeWidth::Thin, style.color(overlay.handle_fill));
         }
     }
 
-    /// The outline being drawn as one AccessKit object: named `SelectLabels::outline`, valued
-    /// `OUTLINE_POINTS` of its points ("5 points"), over the points' bounds; `None` while no
+    /// The outline being drawn as one object: its name and point count over the points' bounds; `None` while no
     /// outline is open.
-    fn node(&self, cx: &ToolContext<'_>) -> Option<ToolNode> {
-        // new: SE deviation 3 (no `Ui` on the host); `ToolNode::new(..).value(..).bounds(..)`.
-        let o = self.tool.outline.as_ref()?;
-        let first = *o.path.first()?;
-        let (bounds, count) = o.points().fold((Rect::from_points(first, first), 0_u64), |(rect, n), p| (rect.union_pt(p), n + 1));
-        let (ctx, words) = (&cx.canvas.ctx, Words::of_ctx(&cx.canvas.ctx));
-        let value = words.counted(ctx, OUTLINE_POINTS, &words.get(OUTLINE_POINTS.word), count);
-        Some(ToolNode::new(labels_in(self.tool.labels.as_ref(), ctx).outline).value(value).bounds(bounds))
+    fn access(&self, cx: &ToolContext<'_>) -> Option<ToolAccess> {
+        let points: Vec<Point> = self.tool.outline.as_ref()?.points().collect();
+        outline_access(&points, cx)
     }
+
+    fn command_form(&self) -> ToolPath {
+        ToolPath::Freehand
+    }
+}
+
+/// How near the first point a press closes the outline, in document units.
+fn close_radius(cx: &ToolContext<'_>, place: &Place) -> f64 {
+    reach(cx).close / place.zoom().max(0.01)
 }

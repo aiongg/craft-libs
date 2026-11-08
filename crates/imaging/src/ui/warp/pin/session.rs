@@ -2,15 +2,17 @@
 //! plugs in.
 
 use std::collections::BTreeSet;
+use std::sync::Arc;
 
 use kurbo::{Point, Rect};
 
-use craft_ui::dialog::{LocalHistory, Step};
-use craft_ui::edit::EditEvent;
+use craft_behavior::edit_history::Step;
+use craft_behavior::{EditEvent, EditHistory, GestureId, Mixed};
 
 /// One pin: where it attaches on the rest mesh and where it holds that point now, in document
 /// units (PhotoCraft `PuppetPin { src, dst, rotate, depth }`, VectorCraft `rest`, `at`, `angle`).
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct Pin {
     /// The pin's attachment point on the rest mesh.
     pub rest: Point,
@@ -22,35 +24,45 @@ pub struct Pin {
     pub depth: i32,
 }
 
+impl Pin {
+    /// A pin attached at `rest` and held at `at`, with Auto rotation and depth 0.
+    pub fn new(rest: Point, at: Point) -> Self {
+        Self { rest, at, angle: None, depth: 0 }
+    }
+}
+
 /// How stiff the mesh is (Photoshop's Mode).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum PinMode {
-    #[allow(missing_docs)]
+    /// Keeps the mesh stiff.
     Rigid,
     #[default]
-    #[allow(missing_docs)]
+    /// The default.
     Normal,
-    #[allow(missing_docs)]
+    /// Lets the mesh bend freely.
     Distort,
 }
 
 /// How many points the mesh has (Photoshop's Density).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum PinDensity {
-    #[allow(missing_docs)]
+    /// A coarse mesh.
     Fewer,
     #[default]
-    #[allow(missing_docs)]
+    /// The default.
     Normal,
-    #[allow(missing_docs)]
+    /// A fine mesh.
     More,
 }
 
 /// What the solver reads besides the pins: mode, density and expansion.
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct PinWarpOptions {
     /// How stiff the mesh is.
     pub mode: PinMode,
@@ -71,6 +83,7 @@ impl Default for PinWarpOptions {
 /// Unknown fields are ignored, missing ones take their defaults.
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default, rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct PinWarpSettings {
     /// The solver's options.
     #[serde(flatten)]
@@ -109,6 +122,7 @@ pub trait PinSolver {
 /// The solver's mesh, lent for one pass: the rest and deformed vertices, the triangles, and the
 /// order to draw the triangles in (back to front).
 #[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
 pub struct PinMeshView<'a> {
     /// The rest vertices.
     pub rest: &'a [Point],
@@ -118,6 +132,13 @@ pub struct PinMeshView<'a> {
     pub triangles: &'a [[u32; 3]],
     /// The triangle indices in draw order, back to front.
     pub order: &'a [u32],
+}
+
+impl<'a> PinMeshView<'a> {
+    /// A mesh from the solver's vertices, triangles and draw order.
+    pub fn new(rest: &'a [Point], deformed: &'a [Point], triangles: &'a [[u32; 3]], order: &'a [u32]) -> Self {
+        Self { rest, deformed, triangles, order }
+    }
 }
 
 impl PinMeshView<'_> {
@@ -209,9 +230,10 @@ impl PinMeshView<'_> {
 
 /// An edit of the pin session, from [`PinWarp`](super::PinWarp) or [`PinWarpBar`](super::PinWarpBar).
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum PinEdit {
     /// The pins as a whole: a drag (Begin, Update, Commit, Cancel) or a one-shot change (Set).
-    /// Placing a pin begins a drag whose value already holds the new pin, so the placement and the
+    /// Placing a pin begins a drag whose first proposal holds the new pin, so the placement and the
     /// drag that follows are one step; moving several selected pins, an ⌥-drag turn, a delete, a
     /// depth or angle change and Remove All Pins all report the new pin list.
     Pins(EditEvent<Vec<Pin>>),
@@ -224,24 +246,30 @@ pub enum PinEdit {
     ShowMesh(bool),
 }
 
+impl PinEdit {
+    /// A one-step change of the pin list from `before` to `after`, named `label` in the undo list: what the bar and
+    /// the commands report.
+    pub fn replace(before: &[Pin], after: Vec<Pin>, label: &str) -> PinEdit {
+        PinEdit::Pins(EditEvent::set(GestureId::default(), Mixed::Same(before.to_vec()), after, Arc::from(label), None))
+    }
+}
+
 /// The pins of an open Puppet Warp, their selection, the options and the session's undo steps.
 ///
 /// - Changes only through [`apply`](Self::apply), which also tells the solver: a new pin count or
 ///   a pin's rotation fixed or freed is a [`rebind`](PinSolver::rebind), any other pin change a
 ///   [`solve`](PinSolver::solve), density or expansion a [`remesh`](PinSolver::remesh).
-/// - One undo step per drag that moved something, per one-shot change, per run of arrow nudges
-///   within the [nudge pause](Self::nudge_pause). Undo and Redo keep the selection where the
-///   selected pins still exist (PhotoCraft `restore`).
+/// - One undo step per drag that moved something and per one-shot change, an arrow nudge included
+///   (Photoshop records each). Undo and Redo keep the selection where the selected pins still exist
+///   (PhotoCraft `restore`).
 #[derive(Clone, Debug)]
 pub struct PinWarpSession {
     pins: Vec<Pin>,
     selected: Vec<usize>,
     options: PinWarpOptions,
     show_mesh: bool,
-    history: LocalHistory<Vec<Pin>>,
+    history: EditHistory<Vec<Pin>>,
     before: Option<Vec<Pin>>,
-    nudge_pause: Option<f64>,
-    last_nudge: Option<f64>,
 }
 
 impl PinWarpSession {
@@ -252,22 +280,7 @@ impl PinWarpSession {
 
     /// A session on pins the app kept (VectorCraft's pins live in the document).
     pub fn from_pins(pins: Vec<Pin>, settings: &PinWarpSettings) -> Self {
-        Self {
-            history: LocalHistory::new(&pins),
-            pins,
-            selected: Vec::new(),
-            options: settings.options,
-            show_mesh: settings.show_mesh,
-            before: None,
-            nudge_pause: None,
-            last_nudge: None,
-        }
-    }
-
-    /// The app's Nudge Bundle Pause in seconds (as `TransformSession::nudge_pause`).
-    pub fn nudge_pause(mut self, seconds: Option<f64>) -> Self {
-        self.nudge_pause = seconds;
-        self
+        Self { history: EditHistory::new(&pins), pins, selected: Vec::new(), options: settings.options, show_mesh: settings.show_mesh, before: None }
     }
 
     /// The pins in their order.
@@ -309,21 +322,16 @@ impl PinWarpSession {
         (!identity).then_some(&self.pins)
     }
 
-    /// Applies one edit at `now` (seconds), telling `solver` what changed. `Err` carries a refused
-    /// remesh's text for the bar's notice; the options are then as before.
+    /// Applies one edit, telling `solver` what changed. `Err` carries a refused remesh's text for
+    /// the bar's notice; the options are then as before.
     ///
     /// A pin list that grows selects its last pin (a placed pin is selected, PhotoCraft); one that
     /// shrinks keeps the selected pins that survive, matched in order by their rest point.
-    pub fn apply(&mut self, edit: PinEdit, solver: &mut dyn PinSolver, now: f64) -> Result<(), String> {
+    pub fn apply(&mut self, edit: PinEdit, solver: &mut dyn PinSolver) -> Result<(), String> {
         // pc: crates/ui-egui/src/tools/puppet_ui.rs:293 (`pointer`), :123 (`remesh_or_restore`),
         // :135 (`rebind`), :143 (`solve`), :86 (`delete_selected_pin`).
-        let nudge = matches!(&edit, PinEdit::Pins(EditEvent::Set { value, .. }) if self.only_moves(value));
-        if !nudge {
-            // Whatever comes after a run of nudges ends the run: the nudges are their own step.
-            self.end_nudges();
-        }
         match edit {
-            PinEdit::Pins(event) => self.pins_event(event, solver, now, nudge),
+            PinEdit::Pins(event) => self.pins_event(event, solver),
             PinEdit::Select(indices) => {
                 self.selected = Self::clean(indices, self.pins.len());
             }
@@ -331,21 +339,6 @@ impl PinWarpSession {
             PinEdit::ShowMesh(show) => self.show_mesh = show,
         }
         Ok(())
-    }
-
-    /// Records an undo step when the pins have come to rest changed (as
-    /// `TransformSession::settle`).
-    pub fn settle(&mut self, now: f64, busy: bool) {
-        // pc: crates/ui-egui/src/tools/puppet_ui.rs:53 (`record`: one step per drag that moved
-        // something).
-        let nudging = match (self.last_nudge, self.nudge_pause) {
-            (Some(at), Some(pause)) => now - at < pause,
-            _ => false,
-        };
-        if !nudging {
-            self.last_nudge = None;
-        }
-        self.history.settle(&self.pins, busy || self.dragging() || nudging);
     }
 
     /// Edit › Undo while the session is open (the app routes it here; the session reads no undo
@@ -370,19 +363,6 @@ impl PinWarpSession {
     /// Whether an undone edit can be redone.
     pub fn can_redo(&self) -> bool {
         self.history.can_redo()
-    }
-
-    /// Whether `pins` differ from the current pins only in where they are held (an arrow nudge).
-    fn only_moves(&self, pins: &[Pin]) -> bool {
-        pins.len() == self.pins.len()
-            && pins.iter().zip(&self.pins).all(|(n, o)| n.rest == o.rest && n.angle == o.angle && n.depth == o.depth)
-            && pins != self.pins
-    }
-
-    fn end_nudges(&mut self) {
-        if self.last_nudge.take().is_some() && !self.dragging() {
-            self.history.settle(&self.pins, false);
-        }
     }
 
     /// Indices in range, each once, in the order given.
@@ -427,17 +407,13 @@ impl PinWarpSession {
         }
     }
 
-    fn pins_event(&mut self, event: EditEvent<Vec<Pin>>, solver: &mut dyn PinSolver, now: f64, nudge: bool) {
+    fn pins_event(&mut self, event: EditEvent<Vec<Pin>>, solver: &mut dyn PinSolver) {
+        self.history.record(&event);
         match event {
-            EditEvent::Begin { value, .. } => {
-                self.before = Some(self.pins.clone());
-                if let Some(value) = value {
-                    self.replace(value, solver);
-                }
-            }
+            EditEvent::Begin { .. } => self.before = Some(self.pins.clone()),
             EditEvent::Update { value, .. } => self.replace(value, solver),
-            EditEvent::Commit { value, .. } => {
-                self.replace(value, solver);
+            EditEvent::Commit { after, .. } => {
+                self.replace(after, solver);
                 self.before = None;
             }
             EditEvent::Cancel { .. } => {
@@ -445,12 +421,7 @@ impl PinWarpSession {
                     self.replace(before, solver);
                 }
             }
-            EditEvent::Set { value, .. } => {
-                self.replace(value, solver);
-                if nudge {
-                    self.last_nudge = Some(now);
-                }
-            }
+            EditEvent::Set { after, .. } => self.replace(after, solver),
             _ => {}
         }
     }
@@ -477,7 +448,6 @@ impl PinWarpSession {
         if self.dragging() {
             return false;
         }
-        self.last_nudge = None;
         if !self.history.step(&mut self.pins, step) {
             return false;
         }

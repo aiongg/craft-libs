@@ -1,197 +1,97 @@
-//! Stories of the Blur Gallery pins: not registered. Registering them
-//! adds `blur_pins::stories` to the crate's `register!` list and `BlurPinsOverlay` to
-//! `COMPONENTS`, and regenerates the registry dump.
-//!
-//! The stories draw `MockImage` on a canvas with the overlay and the panel beside it; no blur is
-//! computed. Every string goes through story words. The pins are the story's own state: an arg
-//! change starts them again, and dragging, adding and removing pins work as in the filter dialog.
-//!
-//! | Story id | Shows |
-//! |---|---|
-//! | `composites/blur-pins/field` | Three Field Blur pins, one selected, its amount on the ring |
-//! | `composites/blur-pins/iris` | An Iris pin with its outline, handles, rounding square and feather dots |
-//! | `composites/blur-pins/spin` | A Spin pin; the ring sets the blur angle |
-//! | `composites/blur-pins/tilt` | Tilt-Shift's band with its solid and dashed lines and turn dots |
+//! Stories of the Blur Gallery's pins and the panel of the selected pin.
 
 use craft_ui::canvas::RasterSource as _;
-use craft_ui::localized::Labels as _;
-use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, Story, StoryArgs, Surface, lock, reset_on, shared};
-use craft_ui::testing::canvas_story::{ViewArgs, document_over};
-use craft_ui::typed_story;
-use egui::{Sense, Ui};
+use craft_ui::contract::{Bind, Show as _};
+use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
+use egui::Ui;
 
-use super::{BlurKind, BlurPin, BlurPins, BlurPinsLabels, BlurPinsOverlay, BlurPinsPanel, IrisShape, TiltBand};
-use crate::ui::mock_image::MockImage;
+use super::{BlurKind, BlurPin, BlurPins, BlurPinsOverlay, BlurPinsPanel, IrisShape, TiltBand};
+use crate::ui::mock_image::{MockImage, StoryView, story_canvas};
 
-/// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["BlurPinsOverlay"];
-
-craft_ui::words! {
-    /// The captions of the blur pins stories, English by default.
-    #[non_exhaustive]
-    pub(crate) struct BlurPinsStoryLabels {
-        edit: "blurPinsStory.edit" = "Edit last: {what}";
-        none: "blurPinsStory.none" = "none";
-        set: "blurPinsStory.set" = "pins changed";
-        begin: "blurPinsStory.begin" = "drag started";
-        update: "blurPinsStory.update" = "dragging";
-        commit: "blurPinsStory.commit" = "drag finished";
-        cancel: "blurPinsStory.cancel" = "drag cancelled";
-        canvas: "blurPinsStory.canvas" = "Blur pins canvas";
-    }
-}
-
-/// The stories above.
-pub(crate) fn stories() -> Vec<Story> {
-    vec![
-        typed_story!("composites/blur-pins/field", Level::Composites, "BlurPinsOverlay", "Field", FieldArgs { amount: 30.0 }, show_field)
-            .on(Surface::Canvas),
-        typed_story!(
-            "composites/blur-pins/iris",
-            Level::Composites,
-            "BlurPinsOverlay",
-            "Iris",
-            IrisArgs { roundness: 40.0, feather: 50.0, angle: 0.0 },
-            show_iris
-        )
-        .on(Surface::Canvas),
-        typed_story!("composites/blur-pins/spin", Level::Composites, "BlurPinsOverlay", "Spin", SpinArgs { angle: 90.0 }, show_spin)
-            .on(Surface::Canvas),
-        typed_story!(
-            "composites/blur-pins/tilt",
-            Level::Composites,
-            "BlurPinsOverlay",
-            "Tilt-Shift",
-            TiltArgs { angle: 15.0, focus: 10.0, transition: 15.0 },
-            show_tilt
-        )
-        .on(Surface::Canvas),
-    ]
-}
-
-#[derive(StoryArgs, Debug, PartialEq)]
-struct FieldArgs {
-    /// The selected pin's blur, in pixels.
-    #[arg(range = 0.0..=500.0)]
-    amount: f64,
-}
-
-#[derive(StoryArgs, Debug, PartialEq)]
-struct IrisArgs {
-    /// The corner rounding, in percent.
-    #[arg(range = 0.0..=100.0)]
-    roundness: f64,
-    /// Where the blur starts, in percent of the shape.
-    #[arg(range = 0.0..=99.0)]
-    feather: f64,
-    /// The outline's turn, in degrees.
-    #[arg(range = -180.0..=180.0)]
-    angle: f64,
-}
-
-#[derive(StoryArgs, Debug, PartialEq)]
-struct SpinArgs {
-    /// The blur angle, in degrees.
-    #[arg(range = 0.0..=360.0)]
-    angle: f64,
-}
-
-#[derive(StoryArgs, Debug, PartialEq)]
-struct TiltArgs {
-    /// The band's turn, in degrees.
-    #[arg(range = -90.0..=90.0)]
-    angle: f64,
-    /// The sharp band's half width, in percent of the shorter side.
-    #[arg(range = 0.0..=100.0)]
-    focus: f64,
-    /// The transition's width, in percent of the shorter side.
-    #[arg(range = 1.0..=100.0)]
-    transition: f64,
-}
-
-/// The pins' state and the last edit's kind. The args they were built from reset it
-/// ([`reset_on`]).
-struct Kept {
-    pins: BlurPins,
-    edit: Option<&'static str>,
-}
+/// The pins' state is the story's value under this name.
+const PINS: &str = "pins";
 
 fn bounds(image: &MockImage) -> [f64; 4] {
-    let [w, h] = image.size();
-    [0.0, 0.0, f64::from(w), f64::from(h)]
+    let size = image.size();
+    [0.0, 0.0, f64::from(size.width), f64::from(size.height)]
 }
 
 fn pin(x: f64, y: f64, amount: f64) -> BlurPin {
-    BlurPin { x, y, amount, iris: None, tilt: None }
+    BlurPin::new(x, y, amount)
 }
 
-/// The picture with the pins over it on the left, the panel on the right.
-fn show(ui: &mut Ui, salt: &'static str, signature: Vec<f64>, build: impl FnOnce(&MockImage) -> BlurPins) {
-    let labels = BlurPinsLabels::of(ui);
-    let words = BlurPinsStoryLabels::of(ui);
+/// The picture with the pins over it.
+fn on_picture(ui: &mut Ui, data: &mut StoryData, build: impl FnOnce(&MockImage) -> BlurPins) -> StoryOutput {
     let image = MockImage::default();
-    reset_on(ui, salt, &signature);
-    let kept = shared(ui, salt, || Kept { pins: build(&image), edit: None });
-    let mut kept = lock(&kept);
-    let kept = &mut *kept;
-    ui.columns(2, |columns| {
-        let ui = &mut columns[0];
-        let picture = document_over(ui, ViewArgs::default(), words.canvas.as_str(), 0.0, image.view(None, None));
-        image.show(ui, &picture);
-        let (area, view) = (&picture.response, picture.view);
-        let canvas = ui.interact(area.rect, ui.make_persistent_id(("blur-pins-story-canvas", salt)), Sense::click_and_drag() - Sense::FOCUSABLE);
-        let out = BlurPinsOverlay::new(("pins", salt), &mut kept.pins).labels(labels.clone()).show(ui, &canvas, &view);
-        if let Some(edit) = &out.edit {
-            kept.edit = Some(match edit {
-                craft_ui::edit::EditEvent::Begin { .. } => "begin",
-                craft_ui::edit::EditEvent::Update { .. } => "update",
-                craft_ui::edit::EditEvent::Commit { .. } => "commit",
-                craft_ui::edit::EditEvent::Cancel { .. } => "cancel",
-                _ => "set",
-            });
-        }
-
-        let ui = &mut columns[1];
-        BlurPinsPanel::new(("pin-rows", salt), &mut kept.pins).labels(labels).show(ui);
-        let what = match kept.edit {
-            Some("begin") => &words.begin,
-            Some("update") => &words.update,
-            Some("commit") => &words.commit,
-            Some("cancel") => &words.cancel,
-            Some(_) => &words.set,
-            None => &words.none,
-        };
-        ui.add(Text::new(craft_i18n::fmt(&words.edit, &[("what", what.as_str())])).content(Content::Muted));
-    });
+    let pins = data.shown(PINS, build(&image));
+    story_canvas(ui, Some(&image), StoryView::Fit, |ui, at| {
+        StoryOutput::from(BlurPinsOverlay::new("Blur pins", Bind::bound(&mut *pins)).show_at(ui, at))
+    })
 }
 
-fn show_field(ui: &mut Ui, args: &mut FieldArgs) {
-    let amount = args.amount;
-    show(ui, "field", vec![amount], |image| {
-        let mut pins = BlurPins::new(BlurKind::Field, bounds(image), pin(0.5, 0.5, amount));
-        pins.pins = vec![pin(0.22, 0.55, 8.0), pin(0.5, 0.4, amount), pin(0.78, 0.62, 30.0)];
+#[story(BlurPinsOverlay<'static>, covers = [Default], drive = Drive::Never)]
+fn field(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    on_picture(ui, data, |image| {
+        let mut pins = BlurPins::new(BlurKind::Field, bounds(image), pin(0.5, 0.5, 30.0));
+        pins.pins = vec![pin(0.22, 0.55, 8.0), pin(0.5, 0.4, 30.0), pin(0.78, 0.62, 30.0)];
         pins.selected = Some(1);
         pins.clean();
         pins
-    });
+    })
 }
 
-fn show_iris(ui: &mut Ui, args: &mut IrisArgs) {
-    let shape = IrisShape { roundness: args.roundness, feather: args.feather / 100.0, angle: args.angle, ..IrisShape::iris() };
-    show(ui, "iris", vec![args.roundness, args.feather, args.angle], |image| {
-        BlurPins::new(BlurKind::Iris, bounds(image), BlurPin { iris: Some(shape), ..pin(0.5, 0.5, 15.0) })
-    });
+#[story(BlurPinsOverlay<'static>, covers = [Default], drive = Drive::Never)]
+fn field_with_two_pins(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    on_picture(ui, data, |image| {
+        let mut pins = BlurPins::new(BlurKind::Field, bounds(image), pin(0.5, 0.5, 15.0));
+        pins.pins = vec![pin(0.3, 0.5, 40.0), pin(0.7, 0.5, 10.0)];
+        pins.selected = Some(0);
+        pins.clean();
+        pins
+    })
 }
 
-fn show_spin(ui: &mut Ui, args: &mut SpinArgs) {
-    let angle = args.angle;
-    show(ui, "spin", vec![angle], |image| BlurPins::new(BlurKind::Spin, bounds(image), pin(0.5, 0.5, angle)));
+#[story(BlurPinsOverlay<'static>, covers = [Default], drive = Drive::Never)]
+fn iris(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    on_picture(ui, data, |image| {
+        let mut shape = IrisShape::iris();
+        shape.roundness = 40.0;
+        shape.feather = 0.5;
+        let mut start = pin(0.5, 0.5, 15.0);
+        start.iris = Some(shape);
+        BlurPins::new(BlurKind::Iris, bounds(image), start)
+    })
 }
 
-fn show_tilt(ui: &mut Ui, args: &mut TiltArgs) {
-    let band = TiltBand { angle: args.angle, focus: args.focus / 100.0, transition: args.transition / 100.0 };
-    show(ui, "tilt", vec![args.angle, args.focus, args.transition], |image| {
-        BlurPins::new(BlurKind::TiltShift, bounds(image), BlurPin { tilt: Some(band), ..pin(0.5, 0.55, 15.0) })
+#[story(BlurPinsOverlay<'static>, covers = [Default], drive = Drive::Never)]
+fn spin(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    on_picture(ui, data, |image| BlurPins::new(BlurKind::Spin, bounds(image), pin(0.5, 0.5, 90.0)))
+}
+
+#[story(BlurPinsOverlay<'static>, covers = [Default], drive = Drive::Never)]
+fn tilt_shift(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    on_picture(ui, data, |image| {
+        let mut start = pin(0.5, 0.55, 15.0);
+        start.tilt = Some(TiltBand::new(15.0, 0.1, 0.15));
+        BlurPins::new(BlurKind::TiltShift, bounds(image), start)
+    })
+}
+
+fn panel(ui: &mut Ui, data: &mut StoryData, selected: Option<usize>) -> StoryOutput {
+    let pins = data.shown(PINS, {
+        let mut pins = BlurPins::new(BlurKind::Iris, [0.0, 0.0, 800.0, 600.0], pin(0.5, 0.5, 15.0));
+        pins.selected = selected;
+        pins
     });
+    StoryOutput::from(BlurPinsPanel::new(pins).show(ui).response)
+}
+
+#[story(BlurPinsPanel<'static>, covers = [Default], drive = Drive::Never)]
+fn panel_with_a_selected_pin(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    panel(ui, data, Some(0))
+}
+
+#[story(BlurPinsPanel<'static>, covers = [Default], drive = Drive::Never)]
+fn panel_without_a_selected_pin(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    panel(ui, data, None)
 }

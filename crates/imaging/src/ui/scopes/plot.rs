@@ -1,18 +1,11 @@
-//! The histogram plot of one channel, of Colors, and the All Channels plots.
+//! The data the main plot and the All Channels plots show.
 
-use craft_theme::TypeRole;
-use craft_ui::composites::{ChannelColor, Histogram, HistogramData, HistogramResponse};
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
-use egui::{RichText, Ui};
-
-use super::labels::ScopePanelLabels;
 use super::panel::{COLORS_CHANNEL, ChannelOverlay, HistogramSet, ScopeChannel};
+use crate::ui::histogram::{ChannelColor, HistogramData};
 
-/// The channel a key shows: the set's channel with that key, else the composite (the first
-/// channel); [`COLORS_CHANNEL`](super::COLORS_CHANNEL) only when the set offers Colors, else the
-/// composite as well. `None` for an empty set.
+/// The channel a key shows: the set's channel with that key, else the composite (the first channel);
+/// [`COLORS_CHANNEL`] only when the set offers Colors, else the composite as well. `None` for an empty set.
 pub(super) fn resolve_channel<'s>(set: &HistogramSet<'s>, key: &str) -> Option<Shown<'s>> {
-    // pc: crates/ui-egui/src/panels/histogram_panel.rs:151 `resolve_channel`.
     if key == COLORS_CHANNEL
         && let Some(overlay) = set.colors
         && !set.channels.is_empty()
@@ -31,11 +24,9 @@ pub(super) enum Shown<'s> {
     Colors(ChannelOverlay),
 }
 
-/// The data the plot draws for the Colors entry: `Light` is [`HistogramData::rgb`] of the set's
-/// three colour channels (fills add); `Ink` is [`HistogramData::channels`] of its colour channels
-/// with their inks (fills multiply). Colors is always in colour.
-pub(super) fn colors_data(set: &HistogramSet<'_>, overlay: ChannelOverlay) -> HistogramData {
-    // pc: crates/ui-egui/src/panels/histogram_panel.rs:626-629 (`draw_overlaid`, multiply for CMYK), :537 `mix`.
+/// The data the plot draws for the Colors entry: `Light` is the RGB look of the set's three colour channels (fills
+/// add); `Ink` is the inks look of its colour channels (fills multiply). Colors is always in colour.
+fn colors_data(set: &HistogramSet<'_>, overlay: ChannelOverlay) -> HistogramData {
     let colors = || set.channels.iter().filter(|channel| channel.color_channel);
     match overlay {
         ChannelOverlay::Light => {
@@ -50,66 +41,29 @@ pub(super) fn colors_data(set: &HistogramSet<'_>, overlay: ChannelOverlay) -> Hi
     }
 }
 
-/// Draws the main plot with the library [`Histogram`](craft_ui::composites::Histogram): `shown`
-/// in its colour when `colored` (else `ChannelColor::Neutral`), the original outlined, the
-/// markers, the stale mark (with `on_stale_click`), the selection (`range`) and the value text
-/// (`labels.histogram_value` over the channel's name and `source`, the resolved Source's label).
-/// With `zoned` the plot takes the pointer and the keys for the tone zones
-/// ([`Histogram::interactive`]) and has no selection (`range` is ignored). Returns the histogram's response (hovered level, selection
-/// change, stale click).
-#[expect(clippy::too_many_arguments, reason = "the panel passes the plot's inputs once per pass")]
-pub(super) fn main_plot(
-    ui: &mut Ui,
-    id: egui::Id,
-    labels: &ScopePanelLabels,
-    source: &str,
-    set: &HistogramSet<'_>,
-    shown: Shown<'_>,
-    colored: bool,
-    height: f32,
-    markers: &[(f32, String)],
-    range: Option<std::ops::RangeInclusive<f32>>,
-    zoned: bool,
-) -> HistogramResponse {
-    // pc: crates/ui-egui/src/panels/histogram_panel.rs:636 `graph` (band, outline, sampler ticks, cached mark, double-click).
-    let (data, name, original) = match shown {
-        Shown::Channel(channel) => {
-            let ink = if colored { channel.ink } else { ChannelColor::Neutral };
-            (HistogramData::tone(channel.bins, ink), channel.label, set.original.and_then(|o| o.iter().find(|c| c.key == channel.key)))
-        }
-        Shown::Colors(overlay) => (colors_data(set, overlay), labels.colors.as_str(), set.original.and_then(|o| o.first())),
-    };
-    let value = craft_i18n::fmt(&labels.histogram_value, &[("channel", name), ("source", source)]);
-    let mut histogram = Histogram::new(id, labels.histogram.clone())
-        .data(data)
-        .markers(markers)
-        .stale(set.stale || set.cache_level > 1)
-        .on_stale_click(labels.refresh_hint.clone())
-        .value(value)
-        .height(height)
-        .interactive(zoned);
-    // The selection and the zones both take the plot's keys and drags: with zones there is none.
-    if !zoned {
-        histogram = histogram.selection(range);
-    }
-    if let Some(original) = original {
-        histogram = histogram.outline(original.bins, ChannelColor::Neutral);
-    }
-    histogram.show(ui)
+/// What the main plot draws: the counted data (`shown` in its colour when `colored`, else neutral), the original
+/// outlined over it, and the channel's name for the value text. `colors_name` names the Colors entry.
+pub(super) struct PlotData {
+    pub data: HistogramData,
+    pub outline: Option<HistogramData>,
+    pub name: String,
 }
 
-/// All Channels View's extra plots: for each colour channel its label (`TypeRole::Caption`, the
-/// channel's name) and a hover-only plot `height` high, in its colour when `colored`, named and
-/// valued from `labels` and `source` as the main plot is.
-pub(super) fn all_channels(ui: &mut Ui, id: egui::Id, labels: &ScopePanelLabels, source: &str, set: &HistogramSet<'_>, colored: bool, height: f32) {
-    // pc: crates/ui-egui/src/panels/histogram_panel.rs:792-801.
-    let tokens = Tokens::of(ui);
-    let caption = tokens.font(TypeRole::Caption);
-    let text = tokens.color.text.normal.to_egui();
-    for channel in set.channels.iter().filter(|channel| channel.color_channel) {
-        ui.label(RichText::new(channel.label).font(caption.clone()).color(text));
-        let ink = if colored { channel.ink } else { ChannelColor::Neutral };
-        let value = craft_i18n::fmt(&labels.histogram_value, &[("channel", channel.label), ("source", source)]);
-        Histogram::new((id, channel.key), labels.histogram.clone()).tone(channel.bins, ink).value(value).height(height).show(ui);
+pub(super) fn plot_data(set: &HistogramSet<'_>, shown: Shown<'_>, colored: bool, colors_name: &str) -> PlotData {
+    let original = |channel: Option<&ScopeChannel<'_>>| channel.map(|channel| HistogramData::tone(channel.bins, ChannelColor::Neutral));
+    match shown {
+        Shown::Channel(channel) => {
+            let ink = if colored { channel.ink } else { ChannelColor::Neutral };
+            PlotData {
+                data: HistogramData::tone(channel.bins, ink),
+                outline: original(set.original.and_then(|original| original.iter().find(|c| c.key == channel.key))),
+                name: channel.label.to_owned(),
+            }
+        }
+        Shown::Colors(overlay) => PlotData {
+            data: colors_data(set, overlay),
+            outline: original(set.original.and_then(|original| original.first())),
+            name: colors_name.to_owned(),
+        },
     }
 }

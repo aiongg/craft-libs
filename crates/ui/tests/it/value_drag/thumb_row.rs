@@ -218,6 +218,48 @@ fn an_alt_drag_on_a_split_thumb_moves_one_half_at_full_rate() {
     assert_eq!(split, free, "the half moved as far as a free thumb, and its partner stayed");
 }
 
+/// Alt on a thumb that reports it moves at full rate, like the same drag without Alt, and the row reports the
+/// thumb and the modifier while the drag runs.
+#[trial]
+fn an_alt_drag_on_an_alt_reporting_thumb_moves_at_full_rate_and_reports_alt() {
+    let free = dragged(|| [Thumb::new("Black").alt_reports(), Thumb::new("White")], false);
+    let value = RefCell::new(Mixed::each([40.0, 60.0]));
+    let seen = std::cell::Cell::new(None);
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        let mut row = value.borrow_mut();
+        let out = ThumbRow::new(Bind::bound(&mut *row), 0.0..=100.0)
+            .thumbs([Thumb::new("Black").alt_reports(), Thumb::new("White")])
+            .label("Levels")
+            .show_at(ui, ROW);
+        if let Some(held) = out.held {
+            seen.set(Some((held.thumb, held.mods.alt)));
+        }
+    };
+    frames.idle(3, &mut show);
+    let tree = frames.tree();
+    let mut centres: Vec<Pos2> = tree
+        .keys()
+        .into_iter()
+        .filter(|key| tree.role_of(*key) == Some(craft_ui::contract::Role::SLIDER))
+        .filter_map(|key| tree.bounds_of(key))
+        .map(|rect| rect.center())
+        .collect();
+    centres.sort_by(|a, b| a.x.total_cmp(&b.x));
+    let from = centres[0];
+    frames.hold(Modifiers::ALT);
+    frames.frame(vec![moved(from)], &mut show);
+    frames.frame(vec![press(from)], &mut show);
+    for step in 1..=4 {
+        frames.frame(vec![moved(from + Vec2::new(BY * step as f32 / 4.0, 0.0))], &mut show);
+    }
+    frames.frame(vec![release(from + Vec2::new(BY, 0.0))], &mut show);
+    frames.idle(2, &mut show);
+    drop(show);
+    assert_eq!(value.into_inner(), free, "Alt is not the fine scale on this thumb");
+    assert_eq!(seen.get(), Some((0, true)), "the drag of the first thumb reports Alt");
+}
+
 /// The fills of the thumbs' polygons in one frame: each thumb's ring, then its face.
 fn thumb_fills(shapes: &[egui::Shape]) -> Vec<egui::Color32> {
     shapes

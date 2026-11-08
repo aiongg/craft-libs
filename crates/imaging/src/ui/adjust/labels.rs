@@ -1,14 +1,14 @@
-//! [`AdjustLabels`]: one word table for every adjustment editor, so the editors
-//! share Preserve Luminosity, Reds and Hue (every editor reads it).
+//! [`AdjustWords`]: one word table for every adjustment editor, so the editors share Preserve
+//! Luminosity, Reds and Hue.
 //!
 //! One word per English text: the Photo Filter presets Red, Yellow and the rest, Posterize's
-//! Levels and Lab's Lightness reuse the channel and panel words. US spelling; Photoshop's words and capitalisation. Templates take `{key}` (a key name from the
-//! platform's shortcut words, ⌘ or Ctrl, Shift).
+//! Levels and Lab's Lightness reuse the channel and panel words. US spelling; Photoshop's words and
+//! capitalisation. Templates take `{key}` (a key name from the platform's shortcut words, Cmd or
+//! Ctrl, Shift).
 
 craft_ui::words! {
     /// The words of the adjustment editors, in the installed language unless set.
-    #[non_exhaustive]
-    pub struct AdjustLabels {
+    pub struct AdjustWords {
         // Channels and the Channel select (Levels, Curves).
         channel: "adjust.channel" = "Channel";
         rgb: "adjust.rgb" = "RGB";
@@ -42,8 +42,8 @@ craft_ui::words! {
         draw_curve: "adjust.drawCurve" = "Draw to modify the curve";
         smooth: "adjust.smooth" = "Smooth";
         smooth_tip: "adjust.smoothTip" = "Smooth the curve values";
-        points_hint: "adjust.pointsHint" = "Click to add a point · drag off or {key}-click or Delete to remove";
-        pencil_hint: "adjust.pencilHint" = "Drag to draw the curve · {key}-click draws a straight line";
+        points_hint: template "adjust.pointsHint" = "Click to add a point · drag off or {key}-click or Delete to remove";
+        pencil_hint: template "adjust.pencilHint" = "Drag to draw the curve · {key}-click draws a straight line";
 
         // Slider tables.
         brightness: "adjust.brightness" = "Brightness";
@@ -95,7 +95,7 @@ craft_ui::words! {
         range_end: "adjust.rangeEnd" = "Range end";
         /// The degrees readout under the spectrum bars: the range's outer start, inner start, inner
         /// end and outer end, "{a} / {b}  ·  {c} \\ {d}".
-        range_readout: "adjust.rangeReadout" = "{a} / {b}  ·  {c} \\ {d}";
+        range_readout: template "adjust.rangeReadout" = "{a} / {b}  ·  {c} \\ {d}";
 
         // Black & White.
         /// The Black & White editor's group name (AccessKit).
@@ -131,9 +131,9 @@ craft_ui::words! {
         output_channel: "adjust.outputChannel" = "Output Channel";
         total: "adjust.total" = "Total";
         /// A non-negative number with its sign, "+{n}"; the Total readout writes it before the percent.
-        plus: "adjust.plus" = "+{n}";
+        plus: template "adjust.plus" = "+{n}";
         /// The Total readout's accessible value above 100 %: "{value}, over 100 percent".
-        total_over: "adjust.totalOver" = "{value}, over 100 percent";
+        total_over: template "adjust.totalOver" = "{value}, over 100 percent";
         constant: "adjust.constant" = "Constant";
         monochrome: "adjust.monochrome" = "Monochrome";
 

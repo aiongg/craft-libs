@@ -1,34 +1,74 @@
-//! `ChannelsPanel`: list wiring, events, selection and thumbnails.
+//! `ChannelsPanel`: the list over the app's rows, the footer, the menus and the events.
 
+use std::borrow::Cow;
 use std::cell::RefCell;
-use std::collections::HashSet;
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use craft_ui::behavior::{Axis, Reorder, RowInfo, Selection, SelectionMode, SelectionPick};
-use craft_ui::canvas::SelectionOperation;
-use craft_ui::canvas::textures::{ThumbSource, Thumbnails};
-use craft_ui::composites::PanelFooter;
-use craft_ui::list::{List, ListEvent, ListRow, ListRowStyle, RowEvent, ThumbSize};
-use craft_ui::localized::SharedLabels as _;
-use craft_ui::menu::{OpenAt, facts_id};
-use craft_ui::theme::{Tokens, TokensOf as _, UiTokens};
-use egui::{AsIdSalt, Context, Id, IdSalt, Key, Modifiers, Ui, Vec2};
+use craft_behavior::geometry::selection_op::SelectionOperation;
+use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, ItemSource, Selection, SelectionChange};
+use craft_ui::contract::{
+    Bind, CollectionEvent, ColumnKind, ColumnSpec, ListDrag, Props as _, ReorderRule, ShowCollection as _, ShowContainer as _, ToggleColumn,
+    request_rename,
+};
+use craft_ui::layout_components::Stack;
+use craft_ui::list::{List, RowEvent, ThumbSize, ThumbTarget};
+use craft_ui::primitives::textures::{ThumbSource, Thumbnails};
+use craft_ui::runtime::commands::{CommandState, Commands as _};
+use craft_ui::runtime::env::{Env, Label};
+use craft_ui::runtime::memory::Remember as _;
+use egui::Ui;
 
-use super::footer::show_footer;
-use super::labels::{ChannelsLabels, shortcut_numbers};
-use super::menu::{show_row_menu, take_pending_rename};
+use super::footer::{ChannelDrag, show_footer};
+use super::labels::{ChannelsWords, shortcut_numbers};
+use super::menu::{ChannelsCommands, lands, show_row_menu};
 use super::model::{ChannelKind, ChannelRow, ChannelsEvent, ChannelsOutput, targeted_row};
-use super::rows::channel_row;
-use super::style::ChannelsStyle;
+use super::rows::{EYE, NAME, RowContext, ThumbHost, channel_row};
 
-/// The Channels panel over the app's rows: composite, colour, layer-mask, alpha and spot
-/// channels and Quick Mask, with thumbnails, eyes, the footer and the menus. It holds no
-/// document; what the user did comes back as [`ChannelsEvent`](super::ChannelsEvent)s.
+/// What the panel keeps between passes, in its root slot: the row the last context request opened the menu on.
+#[derive(Clone)]
+struct Session<K> {
+    menu: Option<K>,
+}
+
+impl<K> Default for Session<K> {
+    fn default() -> Self {
+        Session { menu: None }
+    }
+}
+
+/// The rows as the list reads them: flat, in the app's order.
+struct Order<'a, K> {
+    rows: &'a [ChannelRow<K>],
+}
+
+impl<K: Clone> DisplayOrder<K> for Order<'_, K> {
+    fn len(&self) -> usize {
+        self.rows.len()
+    }
+
+    fn key(&self, at: usize) -> K {
+        self.rows[at].key.clone()
+    }
+
+    fn text(&self, at: usize) -> Option<Cow<'_, str>> {
+        Some(Cow::Borrowed(self.rows[at].name.as_str()))
+    }
+}
+
+impl<K: Clone> ItemSource<K> for Order<'_, K> {
+    fn toggled(&self, at: usize, column: &ColumnKey) -> bool {
+        *column == EYE && self.rows[at].visible
+    }
+}
+
+/// The Channels panel over the app's rows: composite, colour, layer-mask, alpha and spot channels and Quick Mask,
+/// with thumbnails, eyes, the footer and the menus. It holds no document; what the user did comes back as
+/// [`ChannelsEvent`]s.
 ///
 /// ```ignore
 /// let rows = channel_rows(&doc, &view);                     // the app, once per pass
-/// let out = ChannelsPanel::new("channels", &rows).thumbnails(&thumbs, &DocChannelThumbs { doc }).show(ui);
+/// let out = ChannelsPanel::new(&rows).thumbnails(&thumbs, &DocChannelThumbs { doc }).show(ui);
 /// for event in out.events {
 ///     match event {
 ///         ChannelsEvent::Target(key) => app.run("channel.target", key),
@@ -38,273 +78,195 @@ use super::style::ChannelsStyle;
 /// }
 /// ```
 ///
-/// - **Layout**: the rows fill the panel's height above a
-///   [`PanelFooter`](craft_ui::composites::PanelFooter); a [`List`](craft_ui::list::List) of
-///   `ListRow`s in the layer form (`rows::channel_row`), every row one height
-///   (`ListRowStyle::height` of the thumbnail side). The thumbnail side is
-///   [`thumbnail_size`](Self::thumbnail_size)'s, else `size.thumb.md`.
-/// - **Selection**: the list shows the rows the app marks `targeted` as selected (several while
-///   the composite is targeted), so it runs in Multiple mode over a selection rebuilt from the
-///   rows each pass; its own changes are not kept. A click (Shift or not) reports
-///   [`Target`](super::ChannelsEvent::Target); Cmd/Ctrl-click reports
-///   [`LoadSelection`](super::ChannelsEvent::LoadSelection) with
-///   `SelectionOperation::from_modifiers` instead; ↑ ↓ report `Target` for the new lead;
-///   Cmd/Ctrl+Enter on the lead reports `LoadSelection`.
-/// - **Eyes**: the list's toggle column; a click or a sweep reports
-///   [`Visibility`](super::ChannelsEvent::Visibility); the eye's click doesn't target.
-/// - **Double click and Enter**: on the thumbnail of a row with options, or Enter on it,
-///   [`Options`](super::ChannelsEvent::Options); on the name of an alpha or spot row, rename in
-///   place (also F2): Enter or a click elsewhere commits, Esc cancels; an empty or unchanged name
-///   reports nothing, else [`Rename`](super::ChannelsEvent::Rename).
-/// - **Drag**: any row drags with the list's ghost. Alpha and spot rows reorder: the list's
-///   marker shows before or after another alpha or spot row and before Quick Mask, and nowhere
-///   else ([`Reorder::accepts`](craft_ui::behavior::Reorder::accepts));
-///   [`Reorder`](super::ChannelsEvent::Reorder) reports it (Cmd/Ctrl+] and [ too). Any row drops
-///   on the footer's New and Load buttons, and an alpha or spot row on Delete; a drop acts on the row grabbed. A release elsewhere does nothing; Esc cancels.
-/// - **Menus**: a right-click or the Menu key opens the row's context menu
-///   (`menu::row_menu_entries`); the panel menu is
-///   [`panel_menu`](Self::panel_menu).
-/// - **Tab**: one stop for the list, then each footer button.
-/// - **AccessKit**: a `ListBox` named "Channels"; rows named by the channel name, selected from
-///   `targeted`, described "Hidden" when not visible; the eye cells named "Visibility {row}";
-///   thumbnails add no nodes.
-/// - **Right to left**: the eye, thumbnail and chord follow the list's direction rules; the
-///   chord sits at the trailing end.
+/// - **Layout**: the rows fill the panel's height above the footer: a [`List`] of `ListRow`s in the layer form.
+/// - **Selection**: the list shows the rows the app marks `targeted` as selected (several while the composite is
+///   targeted), over a selection rebuilt from the rows each pass; its own changes are not kept. A click or Shift-click
+///   reports [`Target`](ChannelsEvent::Target); Cmd/Ctrl-click on the thumbnail reports
+///   [`LoadSelection`](ChannelsEvent::LoadSelection) with the operation Shift and Alt ask for; ↑ ↓ report `Target`
+///   for the new lead; the Load Selection command (Cmd/Ctrl+Enter) loads the lead.
+/// - **Eyes**: the list's toggle column; a click or a sweep reports [`Visibility`](ChannelsEvent::Visibility); the
+///   eye never targets.
+/// - **Double click and Enter**: on the thumbnail of a row with options, or Enter, [`Options`](ChannelsEvent::Options);
+///   on the name of an alpha or spot row, or F2, rename in place; an empty or unchanged name reports nothing, else
+///   [`Rename`](ChannelsEvent::Rename).
+/// - **Drag**: alpha and spot rows reorder, before or after another one or before Quick Mask
+///   ([`Reorder`](ChannelsEvent::Reorder); Cmd/Ctrl+] and [ too). Any row drops on the footer's New and Load buttons,
+///   and an alpha or spot row on Delete; a drop acts on the row grabbed.
+/// - **Menus**: a right-click or the Menu key opens the row's context menu; [`panel_rows`](super::panel_rows) are the
+///   panel menu's rows.
+/// - **Right to left**: the list and the footer mirror; the chord sits at the trailing end.
 #[must_use = "show the panel with `show`"]
+#[derive(craft_ui::contract::Pattern)]
+#[pattern(probe(ChannelsPanel<'static, u32>))]
 pub struct ChannelsPanel<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> {
-    id_salt: IdSalt,
     rows: &'a [ChannelRow<K>],
-    thumbnails: Option<(&'a Thumbnails<K>, &'a dyn ThumbSource<K>)>,
-    thumbnail_size: Option<ThumbSize>,
-    labels: Option<ChannelsLabels>,
+    thumbnails: Option<ThumbHost<'a, K>>,
+    thumbnail_size: ThumbSize,
     rename: Option<K>,
 }
 
-/// One pass's shared state of the panel, lent to the rows.
-pub(super) struct ChannelsContext<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
-    /// The context, for `Thumbnails::state` inside the list's row builder.
-    pub(super) ctx: Context,
-    /// The panel's id: the list, the menu and a pending rename keep state under it.
-    pub(super) id: Id,
-    /// The panel's rows, for the neighbours a row asks thumbnails for.
-    pub(super) rows: &'a [ChannelRow<K>],
-    /// The rows this pass asked `Thumbnails::state` for at `Priority::VISIBLE`.
-    pub(super) asked_visible: RefCell<HashSet<K>>,
-    /// The thumbnail cache and source; `None` draws placeholders only.
-    pub(super) thumbnails: Option<(&'a Thumbnails<K>, &'a dyn ThumbSource<K>)>,
-    /// The thumbnail side in points.
-    pub(super) thumb_side: f32,
-    /// The panel's words.
-    pub(super) labels: &'a ChannelsLabels,
-    /// The panel's style.
-    pub(super) style: ChannelsStyle,
-}
-
 impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> ChannelsPanel<'a, K> {
-    /// The panel showing `rows` in their order; `id_salt` keeps its scroll position, rename, drag
-    /// and menu.
-    pub fn new(id_salt: impl AsIdSalt, rows: &'a [ChannelRow<K>]) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), rows, thumbnails: None, thumbnail_size: None, labels: None, rename: None }
+    /// The panel showing `rows` in their order.
+    pub fn new(rows: &'a [ChannelRow<K>]) -> Self {
+        Self { rows, thumbnails: None, thumbnail_size: ThumbSize::Medium, rename: None }
     }
 
-    /// The thumbnail cache and the app's source of the channels' pictures, keyed by the rows'
-    /// keys. Without it the rows draw placeholders.
+    /// The thumbnail cache and the app's source of the channels' pictures, keyed by the rows' keys. Without it the
+    /// rows draw no pictures.
     pub fn thumbnails(mut self, thumbnails: &'a Thumbnails<K>, source: &'a dyn ThumbSource<K>) -> Self {
-        self.thumbnails = Some((thumbnails, source));
+        self.thumbnails = Some(ThumbHost { thumbnails, source });
         self
     }
 
-    /// The user's Panel Options thumbnail size (Photoshop's; PhotoCraft sets none): `Small`,
-    /// `Medium` and `Large` use `list.thumb.*`, `None` hides the thumbnails. Without it the side is
-    /// `size.thumb.md`.
+    /// The user's Panel Options thumbnail size (Photoshop's): `ThumbSize::None` hides the thumbnails. The default is
+    /// `Medium`.
     pub fn thumbnail_size(mut self, size: ThumbSize) -> Self {
-        self.thumbnail_size = Some(size);
+        self.thumbnail_size = size;
         self
     }
 
-    /// The panel's words; the installed words by default.
-    pub fn labels(mut self, labels: ChannelsLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    /// Opens the rename field of the row `key` in this pass, as Rename Channel… in a menu does;
-    /// the app calls it in the pass it handles its own rename command. Rows that don't rename
-    /// (composite, colour, Quick Mask, layer mask) ignore it.
+    /// Opens the rename field of the row `key` in this pass, as Rename Channel… in a menu does; the app calls it in
+    /// the pass it handles its own rename command. Rows that don't rename (composite, colour, Quick Mask, layer mask)
+    /// ignore it.
     pub fn start_rename(mut self, key: K) -> Self {
         self.rename = Some(key);
         self
     }
 
-    /// The panel's style from `tokens`: a thumbnail of `size.thumb.md` and an ink swatch of `size.icon.sm`.
-    pub fn style(tokens: &UiTokens) -> ChannelsStyle {
-        ChannelsStyle { thumb: tokens.size.thumb.md, spot_swatch: tokens.size.icon.sm }
-    }
-
     /// Draws the panel over the available rect.
     pub fn show(self, ui: &mut Ui) -> ChannelsOutput<K> {
-        // pc: crates/ui-egui/src/panels/channels_panel.rs:285-515 `show` (rows, clicks, drag, footer);
-        // pc: crates/ui-egui/src/panels/channels_panel.rs:91-157 (click, Cmd-click, double click, rename);
-        // pc: crates/ui-egui/src/panels/channels_panel.rs:207-215 `drop_insertion` (alpha targets).
-        let Self { id_salt, rows, thumbnails, thumbnail_size, labels, rename } = self;
-        let tokens = Tokens::of(ui);
-        let labels = labels.map_or_else(|| ChannelsLabels::shared(ui), std::sync::Arc::new);
-        let style = Self::style(&tokens);
-        let row_style = ListRow::<K>::style(&tokens);
-        let id = facts_id(id_salt);
-        let cx = ChannelsContext {
-            ctx: ui.ctx().clone(),
-            id,
-            rows,
-            asked_visible: RefCell::new(HashSet::new()),
-            thumbnails,
-            thumb_side: thumb_side(thumbnail_size, &style, &row_style),
-            labels: &labels,
-            style,
-        };
-        let footer = PanelFooter::reserved_height(&PanelFooter::style(&tokens, ui.pixels_per_point()));
-        let list_height = (ui.available_height() - footer).max(0.0);
-        let inner = ui.scope(|ui| {
-            ui.spacing_mut().item_spacing = Vec2::ZERO;
-            let (mut events, list) = show_list(ui, &cx, rows, list_height, rename);
-            events.extend(show_footer(ui, rows, &labels, list));
-            events
-        });
-        ChannelsOutput { events: inner.inner, response: inner.response }
+        let Self { rows, thumbnails, thumbnail_size, rename } = self;
+        let env = Env::of(ui);
+        let words = env.words::<ChannelsWords>();
+        let list = ui.scope_id().with("channels-rows");
+        let events: RefCell<Vec<ChannelsEvent<K>>> = RefCell::new(Vec::new());
+        let ctx = ui.ctx().clone();
+        let row_cx = RowContext { rows, numbers: shortcut_numbers(rows), thumbs: thumbnails, size: thumbnail_size, words: &words };
+
+        let shown = Stack::new()
+            .fill()
+            .label(Label::from(words.list.clone()))
+            .command_scope(<ChannelsCommands as craft_ui::contract::CommandSet>::SCOPE)
+            .footer(|ui, _| {
+                let out = show_footer(ui, rows, &words, list);
+                events.borrow_mut().extend(out);
+            })
+            .show(ui, |ui, stack| {
+                let mods = craft_ui::runtime::pointer::frame(&ctx).mods;
+                while let Some((command, _)) = stack.take_command::<ChannelsCommands>() {
+                    match (command, targeted_row(rows)) {
+                        (ChannelsCommands::RenameChannel, Some(row)) if row.kind.renames() => request_rename(&ctx, list, &row.key),
+                        _ => events.borrow_mut().extend(command.event(rows, mods)),
+                    }
+                }
+                let kind = targeted_row(rows).map(|row| row.kind);
+                for command in ChannelsCommands::ALL {
+                    stack.publish(command, CommandState::new().enabled(command.applies_to(kind)));
+                }
+                if let Some(key) = rename.clone() {
+                    request_rename(&ctx, list, &key);
+                }
+
+                let order = Order { rows };
+                let lead = targeted_row(rows).map(|row| row.key.clone());
+                let mut selection = Selection::new(rows.iter().filter(|row| row.targeted).map(|row| row.key.clone()).collect(), lead.clone(), lead);
+                let kinds: Vec<(K, ChannelKind)> = rows.iter().map(|row| (row.key.clone(), row.kind)).collect();
+                let payload_kinds = kinds.clone();
+                let kind_of = |key: &K| kinds.iter().find(|(k, _)| k == key).map(|(_, kind)| *kind);
+                let columns = vec![
+                    ColumnSpec::new(EYE, Label::Empty, ColumnWidth::Controls(1.0)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())),
+                    ColumnSpec::new(NAME, Label::Empty, ColumnWidth::fill(1.0)),
+                ];
+                let out = List::new(words.list.clone())
+                    .id(list)
+                    .reorder(ReorderRule::new())
+                    .allow_empty(false)
+                    .rename(true)
+                    .rename_column(NAME)
+                    .deletable(true)
+                    .columns(columns)
+                    .selection(Bind::bound(&mut selection))
+                    .can_rename(|key| kind_of(key).is_some_and(ChannelKind::renames))
+                    .accepts(|drag: &ListDrag<K>, _over, insert| {
+                        if !drag.keys.iter().all(|key| kind_of(key).is_some_and(ChannelKind::moves)) {
+                            return false;
+                        }
+                        let moved_before = kinds[..insert.min(kinds.len())].iter().filter(|(key, _)| drag.keys.contains(key)).count();
+                        let remaining: Vec<ChannelKind> = kinds.iter().filter(|(key, _)| !drag.keys.contains(key)).map(|(_, kind)| *kind).collect();
+                        lands(&remaining, insert.saturating_sub(moved_before))
+                    })
+                    .drag_payload(move |drag: &ListDrag<K>| {
+                        let kind = payload_kinds.iter().find(|(key, _)| *key == drag.grabbed).map(|(_, kind)| *kind)?;
+                        Some(ChannelDrag { list: drag.list, grabbed: drag.grabbed.clone(), kind })
+                    })
+                    .show_items(ui, &order, &mut |_key, item| {
+                        let at = item.at;
+                        channel_row(&row_cx, at).cells(item.cells()).state(item.row)
+                    });
+
+                let mut found = Vec::new();
+                map_events(rows, out.events, &mut found, stack.memory::<Session<K>>());
+                events.borrow_mut().extend(found);
+
+                let open = stack.memory::<Session<K>>().menu.clone();
+                if let Some(row) = open.and_then(|key| rows.iter().find(|row| row.key == key))
+                    && let Some(command) = show_row_menu(ui, &out.response, row, &words)
+                {
+                    match command {
+                        ChannelsCommands::RenameChannel => request_rename(&ctx, list, &row.key),
+                        ChannelsCommands::ChannelOptions => events.borrow_mut().push(ChannelsEvent::Options(row.key.clone())),
+                        command => events.borrow_mut().push(ChannelsEvent::Command { command, key: command_key(command).then(|| row.key.clone()) }),
+                    }
+                }
+                out.response
+            });
+        ChannelsOutput { events: events.into_inner(), response: shown.output }
     }
 }
 
-/// The kind of the row `key`.
-fn kind_of<K: PartialEq>(rows: &[ChannelRow<K>], key: &K) -> Option<ChannelKind> {
-    rows.iter().find(|row| &row.key == key).map(|row| row.kind)
+fn command_key(command: ChannelsCommands) -> bool {
+    !matches!(
+        command,
+        ChannelsCommands::NewChannel | ChannelsCommands::NewSpotChannel | ChannelsCommands::SplitChannels | ChannelsCommands::MergeChannels
+    )
 }
 
-/// Whether a drop of rows `items` at `target` reorders channels as Photoshop does: only alpha and
-/// spot rows move, before or after another one or before Quick Mask.
-fn reorder_accepts<K: PartialEq>(rows: &[ChannelRow<K>], mv: &craft_ui::behavior::Move<K>) -> bool {
-    use craft_ui::behavior::DropPosition;
-    let moves = mv.items.iter().all(|key| kind_of(rows, key).is_some_and(ChannelKind::moves));
-    let slot = match kind_of(rows, &mv.target) {
-        Some(ChannelKind::Alpha { .. } | ChannelKind::Spot { .. }) => mv.position != DropPosition::Into,
-        Some(ChannelKind::QuickMask { .. }) => mv.position == DropPosition::Before,
-        _ => false,
-    };
-    moves && slot && !mv.copy
-}
-
-/// The list of rows, the row context menu and the keyboard load; returns the events in order.
-fn show_list<K: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
-    ui: &mut Ui,
-    cx: &ChannelsContext<'_, K>,
+/// What the list's events mean for the app: targets, loads, eyes, renames, options, moves and deletes.
+fn map_events<K: Clone + PartialEq>(
     rows: &[ChannelRow<K>],
-    height: f32,
-    rename: Option<K>,
-) -> (Vec<ChannelsEvent<K>>, Id) {
-    let order: Vec<RowInfo<K>> = rows.iter().map(|row| RowInfo::leaf(row.key.clone())).collect();
-    let numbers = shortcut_numbers(rows);
-    let lead = targeted_row(rows).map(|row| row.key.clone());
-    let mut selection =
-        Selection { items: rows.iter().filter(|row| row.targeted).map(|row| row.key.clone()).collect(), lead: lead.clone(), anchor: lead };
-    let thumbs = if cx.thumb_side > 0.0 { ThumbSize::Px(cx.thumb_side.round().clamp(0.0, f32::from(u16::MAX)) as u16) } else { ThumbSize::None };
-    let mut list = List::new((cx.id, "list"), cx.labels.list.clone(), order.as_slice())
-        .selection(&mut selection)
-        .mode(SelectionMode::Multiple)
-        .allow_empty(false)
-        .thumbnails(thumbs)
-        .max_height(height)
-        .can_rename(|key| kind_of(rows, key).is_some_and(ChannelKind::renames))
-        .reorder(Reorder::new(Axis::Vertical).accepts(|mv, _| reorder_accepts(rows, mv)));
-    // Rename Channel… in either menu leaves the row under the panel's id.
-    if let Some(key) = take_pending_rename::<K>(&cx.ctx, cx.id).or(rename) {
-        list = list.start_rename(key);
-    }
-    let out = list.show(ui, |at, _| channel_row(cx, at, numbers[at]));
-    let focused = out.response.has_focus();
-    let mut events = list_events(ui, rows, &out.events);
-    if focused
-        && let Some(key) = selection.lead.clone()
-        && let Some(operation) = keyboard_load(ui)
-    {
-        events.push(ChannelsEvent::LoadSelection { key, operation });
-    }
-    let request = out.events.iter().find_map(|event| match event {
-        ListEvent::ContextMenu(request) => {
-            request.row.clone().map(|row| (row, request.pointer.map_or(OpenAt::Rect(request.anchor), OpenAt::Pointer)))
-        }
-        _ => None,
-    });
-    events.extend(show_row_menu(ui, &out.response, cx.id, rows, cx.labels, request));
-    (events, out.response.id)
-}
-
-/// Cmd/Ctrl+Enter on the focused list: the operation of Shift and Alt held with it.
-fn keyboard_load(ui: &Ui) -> Option<SelectionOperation> {
-    ui.input_mut(|input| input.consume_key(Modifiers::COMMAND, Key::Enter).then(|| SelectionOperation::from_modifiers(input.modifiers)))
-}
-
-/// What the list's events mean for the app: targets, loads, eyes, renames, options and moves.
-fn list_events<K: Clone + PartialEq>(ui: &Ui, rows: &[ChannelRow<K>], events: &[ListEvent<K>]) -> Vec<ChannelsEvent<K>> {
-    let modifiers = ui.input(|input| input.modifiers);
-    let operation = SelectionOperation::from_modifiers(modifiers);
-    let clicked = |key: &K| events.iter().any(|event| matches!(event, ListEvent::Clicked(k) if k == key));
-    let mut out = Vec::new();
-    for event in events {
+    list: Vec<CollectionEvent<K, RowEvent>>,
+    events: &mut Vec<ChannelsEvent<K>>,
+    session: &mut Session<K>,
+) {
+    let kind_of = |key: &K| rows.iter().find(|row| &row.key == key).map(|row| row.kind);
+    for event in list {
         match event {
-            ListEvent::Clicked(key) if modifiers.command => out.push(ChannelsEvent::LoadSelection { key: key.clone(), operation }),
-            ListEvent::Clicked(key) => out.push(ChannelsEvent::Target(key.clone())),
-            ListEvent::Selection(change) if change.pick != SelectionPick::Toggle => {
-                // A click reports its own `Clicked`; a key move reports only the selection.
-                if let Some(key) = change.row.as_ref().filter(|key| !clicked(key)) {
-                    out.push(ChannelsEvent::Target(key.clone()));
+            CollectionEvent::Selection(SelectionChange::Set(keys)) => {
+                if let Some(key) = keys.last() {
+                    events.push(ChannelsEvent::Target(key.clone()));
                 }
             }
-            ListEvent::Activate(key) if modifiers.command => out.push(ChannelsEvent::LoadSelection { key: key.clone(), operation }),
-            ListEvent::Activate(key) if kind_of(rows, key).is_some_and(ChannelKind::has_options) => out.push(ChannelsEvent::Options(key.clone())),
-            ListEvent::Row(RowEvent::Toggle(edit)) => out.push(ChannelsEvent::Visibility(edit.clone())),
-            ListEvent::Row(RowEvent::Renamed { row, text }) => {
-                let name = text.trim();
-                if !name.is_empty() && rows.iter().find(|r| &r.key == row).is_some_and(|r| r.name != name) {
-                    out.push(ChannelsEvent::Rename { key: row.clone(), text: name.to_owned() });
+            CollectionEvent::Item(key, RowEvent::ThumbClicked { target: ThumbTarget::First, mods, .. }) if mods.cmd => {
+                events.push(ChannelsEvent::LoadSelection { key, operation: SelectionOperation::from_mods(mods) });
+            }
+            CollectionEvent::Activate(key) if kind_of(&key).is_some_and(ChannelKind::has_options) => events.push(ChannelsEvent::Options(key)),
+            CollectionEvent::Toggle(edit) => events.push(ChannelsEvent::Visibility(edit)),
+            CollectionEvent::Rename(edit) => {
+                if let EditEvent::Commit { after, .. } | EditEvent::Set { after, .. } = edit {
+                    let name = after.name.trim();
+                    if !name.is_empty() && rows.iter().find(|row| row.key == after.key).is_some_and(|row| row.name != name) {
+                        events.push(ChannelsEvent::Rename { key: after.key.clone(), text: name.to_owned() });
+                    }
                 }
             }
-            ListEvent::Reorder(edit) => out.push(ChannelsEvent::Reorder(edit.clone())),
+            CollectionEvent::Reorder(edit) => events.push(ChannelsEvent::Reorder(edit)),
+            CollectionEvent::Delete(keys) => {
+                for key in keys.into_iter().filter(|key| kind_of(key).is_some_and(ChannelKind::moves)) {
+                    events.push(ChannelsEvent::Command { command: ChannelsCommands::Delete, key: Some(key) });
+                }
+            }
+            CollectionEvent::ContextMenu(request) => session.menu = Some(request.key),
             _ => {}
         }
-    }
-    out
-}
-
-/// The thumbnail side for `size` (`None`: the style's `size.thumb.md`): `list.thumb.*` for
-/// `Small`, `Medium` and `Large`, 0 for `ThumbSize::None`, the points of `Px`.
-pub(super) fn thumb_side(size: Option<ThumbSize>, style: &ChannelsStyle, row_style: &ListRowStyle) -> f32 {
-    size.map_or(style.thumb, |size| row_style.thumb_side(size))
-}
-
-#[cfg(test)]
-mod tests {
-    use craft_ui::behavior::{DropPosition, Move};
-
-    use super::*;
-    use crate::ui::channels::ColorIndicates;
-
-    fn mv(items: &[u8], target: u8, position: DropPosition) -> Move<u8> {
-        Move { items: items.to_vec(), target, position, copy: false }
-    }
-
-    // Colour and mask rows are not targets and do not move; Quick Mask takes only a drop above it.
-    #[test]
-    fn reorder_accepts_alpha_slots_only() {
-        let indicates = ColorIndicates::MaskedAreas;
-        let rows = vec![
-            ChannelRow::new(0, ChannelKind::Color, "R"),
-            ChannelRow::new(1, ChannelKind::Alpha { indicates }, "A1"),
-            ChannelRow::new(2, ChannelKind::Alpha { indicates }, "A2"),
-            ChannelRow::new(3, ChannelKind::QuickMask { indicates }, "Q"),
-        ];
-        assert!(reorder_accepts(&rows, &mv(&[1], 2, DropPosition::After)));
-        assert!(reorder_accepts(&rows, &mv(&[2], 3, DropPosition::Before)));
-        assert!(!reorder_accepts(&rows, &mv(&[2], 3, DropPosition::After)));
-        assert!(!reorder_accepts(&rows, &mv(&[1], 0, DropPosition::After)));
-        assert!(!reorder_accepts(&rows, &mv(&[0], 2, DropPosition::After)));
     }
 }

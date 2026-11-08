@@ -1,7 +1,9 @@
 //! The layout components `Stack`, `Row` and `Grid`: containers with no surface, header or footer whose body
 //! lays its children out (6.3).
 
-use crate::contract::{Access, BodyCx, Common, Component, Container, ContainerProps, Cx, FooterRegion, Gap, HeaderRegion, Pad, Role, Scroll, Sizing};
+use crate::contract::{
+    Access, BodyCx, Common, Component, Container, ContainerProps, Cx, FooterRegion, Gap, HeaderRegion, Pad, Role, Scroll, Sizing, ThemeScope,
+};
 use crate::layout::{BodyLayout, RowAlign};
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{ColumnWidth, Metrics};
@@ -91,6 +93,12 @@ macro_rules! layout_component {
             /// Takes the available width and the height of the children.
             pub fn fill_width(mut self) -> Self {
                 self.props = self.props.sizing(Sizing::FillWidth);
+                self
+            }
+
+            /// The body and everything under it resolve their tokens through `theme`.
+            pub fn theme(mut self, theme: ThemeScope) -> Self {
+                self.props = self.props.theme(theme);
                 self
             }
         }

@@ -1,85 +1,80 @@
-//! `ChannelsLabels`: every user-visible word of the Channels panel, and the shortcut chords
-//! the rows display.
+//! `ChannelsWords`: every user-visible word of the Channels panel, and the shortcut chords the rows display.
 
-use craft_ui::controls::Kbd;
-use craft_ui::localized::Words;
-use egui::{Context, Key, KeyboardShortcut, Modifiers};
+use craft_keymap::{Chord, Key, Mods, Platform};
 
 use super::model::{ChannelKind, ChannelRow};
 
 craft_ui::words! {
     /// The words of the Channels panel. Channel names are the app's ([`ChannelRow::name`]).
-    pub struct ChannelsLabels {
+    pub struct ChannelsWords {
         /// The list's name for a screen reader.
-        list: "channels.list" = "Channels";
+        list: "channelsPanel.list" = "Channels";
         /// The eye cell's name: `{row}` is the channel name.
-        visibility: "channels.visibility" = "Visibility {row}";
+        visibility: "channelsPanel.visibility" = "Visibility {row}";
         /// The eye's tooltip.
-        toggle_visibility: "channels.toggleVisibility" = "Toggle visibility";
+        toggle_visibility: "channelsPanel.toggleVisibility" = "Toggle visibility";
         /// The layer-mask row's eye tooltip.
-        mask_overlay: "channels.maskOverlay" = "Show the layer mask as an overlay";
+        mask_overlay: "channelsPanel.maskOverlay" = "Show the layer mask as an overlay";
         /// A hidden row's description.
-        hidden: "channels.hidden" = "Hidden";
+        hidden: "channelsPanel.hidden" = "Hidden";
         /// The footer buttons' tooltips and names.
-        delete: "channels.delete" = "Delete current channel";
-        new: "channels.new" = "Create new channel";
-        save_selection: "channels.saveSelection" = "Save selection as channel";
-        load_selection: "channels.loadSelection" = "Load channel as selection";
+        delete: "channelsPanel.delete" = "Delete current channel";
+        new: "channelsPanel.new" = "Create new channel";
+        save_selection: "channelsPanel.saveSelection" = "Save selection as channel";
+        load_selection: "channelsPanel.loadSelection" = "Load channel as selection";
+        /// The row menu's name.
+        row_menu: "channelsPanel.rowMenu" = "Channel";
         /// The context menu.
-        duplicate_channel: "channels.menu.duplicate" = "Duplicate Channel";
-        delete_channel: "channels.menu.delete" = "Delete Channel";
-        rename_channel: "channels.menu.rename" = "Rename Channel…";
-        channel_options: "channels.menu.options" = "Channel Options…";
-        merge_spot: "channels.menu.mergeSpot" = "Merge Spot Channel";
-        convert_to_alpha: "channels.menu.convertToAlpha" = "Convert to Alpha Channel";
-        indicates_masked: "channels.menu.indicatesMasked" = "Color Indicates Masked Areas";
-        indicates_selected: "channels.menu.indicatesSelected" = "Color Indicates Selected Areas";
-        overlay_color: "channels.menu.overlayColor" = "Overlay Color";
-        red: "channels.menu.red" = "Red";
-        green: "channels.menu.green" = "Green";
-        blue: "channels.menu.blue" = "Blue";
-        cyan: "channels.menu.cyan" = "Cyan";
-        magenta: "channels.menu.magenta" = "Magenta";
-        yellow: "channels.menu.yellow" = "Yellow";
-        overlay_opacity: "channels.menu.overlayOpacity" = "Overlay Opacity";
+        duplicate_channel: "channelsPanel.menuDuplicate" = "Duplicate Channel";
+        delete_channel: "channelsPanel.menuDelete" = "Delete Channel";
+        rename_channel: "channelsPanel.menuRename" = "Rename Channel…";
+        channel_options: "channelsPanel.menuOptions" = "Channel Options…";
+        merge_spot: "channelsPanel.menuMergeSpot" = "Merge Spot Channel";
+        convert_to_alpha: "channelsPanel.menuConvertToAlpha" = "Convert to Alpha Channel";
+        indicates_masked: "channelsPanel.menuIndicatesMasked" = "Color Indicates Masked Areas";
+        indicates_selected: "channelsPanel.menuIndicatesSelected" = "Color Indicates Selected Areas";
+        overlay_color: "channelsPanel.menuOverlayColor" = "Overlay Color";
+        red: "channelsPanel.menuRed" = "Red";
+        green: "channelsPanel.menuGreen" = "Green";
+        blue: "channelsPanel.menuBlue" = "Blue";
+        cyan: "channelsPanel.menuCyan" = "Cyan";
+        magenta: "channelsPanel.menuMagenta" = "Magenta";
+        yellow: "channelsPanel.menuYellow" = "Yellow";
+        overlay_opacity: "channelsPanel.menuOverlayOpacity" = "Overlay Opacity";
         /// An opacity entry: `{value}` is the percentage in the locale's digits.
-        percent: "channels.menu.percent" = "{value}%";
-        exit_quick_mask: "channels.menu.exitQuickMask" = "Exit Quick Mask";
-        quick_mask_options: "channels.menu.quickMaskOptions" = "Quick Mask Options…";
-        enable_layer_mask: "channels.menu.enableLayerMask" = "Enable Layer Mask";
-        disable_layer_mask: "channels.menu.disableLayerMask" = "Disable Layer Mask";
-        delete_layer_mask: "channels.menu.deleteLayerMask" = "Delete Layer Mask";
-        mask_display_options: "channels.menu.maskDisplayOptions" = "Layer Mask Display Options…";
-        new_channel: "channels.menu.newChannel" = "New Channel…";
-        new_spot_channel: "channels.menu.newSpotChannel" = "New Spot Channel…";
-        split_channels: "channels.menu.split" = "Split Channels";
-        merge_channels: "channels.menu.merge" = "Merge Channels…";
+        percent: "channelsPanel.menuPercent" = "{value}%";
+        exit_quick_mask: "channelsPanel.menuExitQuickMask" = "Exit Quick Mask";
+        quick_mask_options: "channelsPanel.menuQuickMaskOptions" = "Quick Mask Options…";
+        enable_layer_mask: "channelsPanel.menuEnableLayerMask" = "Enable Layer Mask";
+        disable_layer_mask: "channelsPanel.menuDisableLayerMask" = "Disable Layer Mask";
+        delete_layer_mask: "channelsPanel.menuDeleteLayerMask" = "Delete Layer Mask";
+        mask_display_options: "channelsPanel.menuMaskDisplayOptions" = "Layer Mask Display Options…";
+        new_channel: "channelsPanel.menuNewChannel" = "New Channel…";
+        new_spot_channel: "channelsPanel.menuNewSpotChannel" = "New Spot Channel…";
+        split_channels: "channelsPanel.menuSplit" = "Split Channels";
+        merge_channels: "channelsPanel.menuMerge" = "Merge Channels…";
     }
 }
 
-/// The shortcut number each row displays, in row order: the composite 2, then each colour, alpha
-/// and spot row the next number while it is at most 9; Quick Mask and layer-mask rows `None`.
-/// The panel only displays them; the app's keymap owns the keys.
+/// The shortcut number each row displays, in row order: the composite 2, then each colour, alpha and spot row the
+/// next number while it is at most 9; Quick Mask and layer-mask rows `None`. The panel only displays them; the app's
+/// keymap owns the keys.
 pub(super) fn shortcut_numbers<K>(rows: &[ChannelRow<K>]) -> Vec<Option<u8>> {
-    // pc: crates/ui-egui/src/panels/channels_panel.rs:249-284 `row_presentation` (`slot`: Composite 2,
-    // colour 3 + k, alpha 3 + colours + i while at most 9).
     let mut next = 2u8;
     rows.iter()
         .map(|row| match row.kind {
-            ChannelKind::Composite | ChannelKind::Color | ChannelKind::Alpha { .. } | ChannelKind::Spot { .. } => {
+            ChannelKind::Composite | ChannelKind::Color | ChannelKind::Alpha(_) | ChannelKind::Spot(_) => {
                 let number = next;
                 next = next.saturating_add(1);
                 (number <= 9).then_some(number)
             }
-            ChannelKind::QuickMask { .. } | ChannelKind::LayerMask { .. } => None,
+            ChannelKind::QuickMask(_) | ChannelKind::LayerMask(_) => None,
         })
         .collect()
 }
 
-/// The chord text of shortcut `number`: Cmd+n on macOS, Ctrl+n elsewhere, in the library's
-/// [`Kbd`](craft_ui::controls::Kbd) form for the context's platform.
-pub(super) fn chord_text(ctx: &Context, number: u8) -> String {
-    // pc: crates/ui-egui/src/panels/channels_panel.rs:403-411 (`shortcuts::pretty("Cmd+{slot}")`, mono 11, unified to `Kbd`).
-    let key = Key::from_name(&number.to_string()).unwrap_or(Key::Num2);
-    Kbd::new(&KeyboardShortcut::new(Modifiers::COMMAND, key)).text_in(ctx.os(), &Words::of_ctx(ctx))
+/// The chord text of shortcut `number`: Cmd+n on macOS, Ctrl+n elsewhere.
+pub(super) fn chord_text(number: u8) -> Option<String> {
+    let key = Key::parse(&number.to_string())?;
+    Some(Chord::new(Mods::CMD, key).display(Platform::current()))
 }

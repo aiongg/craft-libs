@@ -1,330 +1,458 @@
-//! The row and panel menus (`ChannelsCommand`, `ChannelsPanel::panel_menu`,
-//! `ChannelsPanel::run_command`).
+//! `ChannelsCommands` and the menus: the row's context menu (`Menu::context`) and the rows the panel adds to its
+//! panel menu (`panel_rows`). Both list the commands one row kind offers.
 
-use std::fmt::Debug;
-use std::hash::Hash;
-
+use craft_behavior::geometry::selection_op::SelectionOperation;
+use craft_behavior::{EditEvent, GestureId, Mixed};
+use craft_keymap::Mods;
 use craft_theme::Srgba;
-use craft_ui::docking::panel_menu::PanelCommand;
-use craft_ui::localized::{Labels as _, LocaleNumbers};
-use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt, facts_id};
-use egui::{AsIdSalt, Context, Id, IdSalt, Response, Ui};
+use craft_ui::contract::{CommandSet, Props as _, ReorderMove, ShowContainer as _};
+use craft_ui::menu::{Menu, MenuItem, PanelRow};
+use craft_ui::primitives::IconSpec;
+use craft_ui::runtime::commands::CommandRef;
+use craft_ui::runtime::env::{Env, Label};
+use egui::{Response, Ui};
+use std::sync::Arc;
 
-use super::labels::ChannelsLabels;
+use super::labels::ChannelsWords;
 use super::model::{ChannelKind, ChannelRow, ChannelsEvent, ColorIndicates, OVERLAY_OPACITIES, OverlayPreset, targeted_row};
-use super::panel::ChannelsPanel;
 
-const RENAME: &str = "channels.rename";
-const OPTIONS: &str = "channels.options";
-
-/// The egui memory slot under `panel` where Rename Channel… leaves the key of the row to rename.
-/// The panel's list reads it with [`take_pending_rename`] and opens that row's rename field.
-fn pending_rename_id(panel: Id) -> Id {
-    panel.with("pending-rename")
-}
-
-/// The key of the row whose rename a menu asked for under `panel`, removed from memory.
-pub(super) fn take_pending_rename<K: Clone + Send + Sync + 'static>(ctx: &Context, panel: Id) -> Option<K> {
-    ctx.data_mut(|d| {
-        let key = d.get_temp::<K>(pending_rename_id(panel));
-        if key.is_some() {
-            d.remove::<K>(pending_rename_id(panel));
-        }
-        key
-    })
-}
-
-/// A command of a channel's context menu or the panel menu. Channel Options… (and Quick Mask
-/// Options…, Layer Mask Display Options…) report [`ChannelsEvent::Options`]; Rename Channel…
-/// opens the row's rename field in the panel; neither is a command.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+/// The commands of the Channels panel: its panel-menu rows, its row menu, and the keys of the list.
+///
+/// They are the app's commands. The panel takes the ones routed to it and reports them as
+/// [`ChannelsEvent`]s; the app can also turn one into its event with [`event`](ChannelsCommands::event).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, CommandSet)]
+#[command(prefix = "channelsPanel", scope = "channelsPanel")]
 #[non_exhaustive]
-pub enum ChannelsCommand {
-    /// New Channel….
+pub enum ChannelsCommands {
+    /// Create a channel.
+    #[command(label = "New Channel…")]
     NewChannel,
-    /// New Spot Channel….
+    /// Create a spot channel.
+    #[command(label = "New Spot Channel…")]
     NewSpotChannel,
-    /// Duplicate Channel.
+    /// Duplicate the targeted channel.
+    #[command(label = "Duplicate Channel")]
     Duplicate,
-    /// Delete Channel.
+    /// Delete the targeted channel.
+    #[command(label = "Delete Channel", icon = "trash")]
     Delete,
-    /// Merge Spot Channel (spot rows).
+    /// Rename the targeted alpha or spot channel in place.
+    #[command(label = "Rename Channel…", default = "F2")]
+    RenameChannel,
+    /// Open the options of the targeted channel.
+    #[command(label = "Channel Options…")]
+    ChannelOptions,
+    /// Merge the targeted spot channel into the colour channels.
+    #[command(label = "Merge Spot Channel")]
     MergeSpot,
-    /// Convert to Alpha Channel (spot rows).
+    /// Turn the targeted spot channel into an alpha channel.
+    #[command(label = "Convert to Alpha Channel")]
     ConvertToAlpha,
-    /// Exit Quick Mask.
+    /// Leave Quick Mask.
+    #[command(label = "Exit Quick Mask")]
     ExitQuickMask,
-    /// Color Indicates Masked Areas (a radio item).
+    /// The targeted channel's colour marks masked areas.
+    #[command(label = "Color Indicates Masked Areas")]
     ColorIndicatesMasked,
-    /// Color Indicates Selected Areas (a radio item).
+    /// The targeted channel's colour marks selected areas.
+    #[command(label = "Color Indicates Selected Areas")]
     ColorIndicatesSelected,
-    /// Overlay Color › a preset.
-    OverlayColor(OverlayPreset),
-    /// Overlay Opacity › a percentage of [`OVERLAY_OPACITIES`](super::OVERLAY_OPACITIES).
-    OverlayOpacity(u8),
-    /// Enable or Disable Layer Mask (the layer-mask row).
+    /// Overlay colour red.
+    #[command(label = "Red")]
+    OverlayRed,
+    /// Overlay colour green.
+    #[command(label = "Green")]
+    OverlayGreen,
+    /// Overlay colour blue.
+    #[command(label = "Blue")]
+    OverlayBlue,
+    /// Overlay colour cyan.
+    #[command(label = "Cyan")]
+    OverlayCyan,
+    /// Overlay colour magenta.
+    #[command(label = "Magenta")]
+    OverlayMagenta,
+    /// Overlay colour yellow.
+    #[command(label = "Yellow")]
+    OverlayYellow,
+    /// Overlay opacity 25 percent.
+    #[command(label = "25%")]
+    Opacity25,
+    /// Overlay opacity 50 percent.
+    #[command(label = "50%")]
+    Opacity50,
+    /// Overlay opacity 75 percent.
+    #[command(label = "75%")]
+    Opacity75,
+    /// Overlay opacity 100 percent.
+    #[command(label = "100%")]
+    Opacity100,
+    /// Enable or disable the layer mask.
+    #[command(label = "Toggle Layer Mask")]
     ToggleLayerMask,
-    /// Delete Layer Mask.
+    /// Delete the layer mask.
+    #[command(label = "Delete Layer Mask")]
     DeleteLayerMask,
-    /// Split Channels.
+    /// Split the document into one document per channel.
+    #[command(label = "Split Channels")]
     SplitChannels,
-    /// Merge Channels….
+    /// Merge documents into the channels of one.
+    #[command(label = "Merge Channels…")]
     MergeChannels,
+    /// Load the lead channel as a selection; Shift adds, Alt subtracts, both intersect.
+    #[command(
+        label = "Load Channel as Selection",
+        default = "Cmd+Enter",
+        default = "Cmd+Shift+Enter",
+        default = "Cmd+Alt+Enter",
+        default = "Cmd+Shift+Alt+Enter"
+    )]
+    LoadSelection,
+    /// Save the selection as a channel.
+    #[command(label = "Save Selection as Channel")]
+    SaveSelection,
+    /// Move the lead alpha or spot channel up one place.
+    #[command(label = "Move Channel Up", default = "Cmd+]")]
+    MoveUp,
+    /// Move the lead alpha or spot channel down one place.
+    #[command(label = "Move Channel Down", default = "Cmd+[")]
+    MoveDown,
 }
 
-impl ChannelsCommand {
-    /// The command's panel-menu id: `channels.new`, `channels.newSpot`, `channels.duplicate`,
-    /// `channels.delete`, `channels.mergeSpot`, `channels.convertToAlpha`,
-    /// `channels.exitQuickMask`, `channels.indicatesMasked`, `channels.indicatesSelected`,
-    /// `channels.overlay.<red|green|blue|cyan|magenta|yellow>`, `channels.opacity.<n>`,
-    /// `channels.toggleLayerMask`, `channels.deleteLayerMask`, `channels.split`, `channels.merge`.
-    pub fn id(self) -> String {
-        // new: ids for the docking host's `PanelCommand`.
+impl ChannelsCommands {
+    /// Every command of the set.
+    pub const ALL: [ChannelsCommands; 29] = [
+        ChannelsCommands::NewChannel,
+        ChannelsCommands::NewSpotChannel,
+        ChannelsCommands::Duplicate,
+        ChannelsCommands::Delete,
+        ChannelsCommands::RenameChannel,
+        ChannelsCommands::ChannelOptions,
+        ChannelsCommands::MergeSpot,
+        ChannelsCommands::ConvertToAlpha,
+        ChannelsCommands::ExitQuickMask,
+        ChannelsCommands::ColorIndicatesMasked,
+        ChannelsCommands::ColorIndicatesSelected,
+        ChannelsCommands::OverlayRed,
+        ChannelsCommands::OverlayGreen,
+        ChannelsCommands::OverlayBlue,
+        ChannelsCommands::OverlayCyan,
+        ChannelsCommands::OverlayMagenta,
+        ChannelsCommands::OverlayYellow,
+        ChannelsCommands::Opacity25,
+        ChannelsCommands::Opacity50,
+        ChannelsCommands::Opacity75,
+        ChannelsCommands::Opacity100,
+        ChannelsCommands::ToggleLayerMask,
+        ChannelsCommands::DeleteLayerMask,
+        ChannelsCommands::SplitChannels,
+        ChannelsCommands::MergeChannels,
+        ChannelsCommands::LoadSelection,
+        ChannelsCommands::SaveSelection,
+        ChannelsCommands::MoveUp,
+        ChannelsCommands::MoveDown,
+    ];
+
+    /// The overlay colour the command sets.
+    pub fn overlay_color(self) -> Option<OverlayPreset> {
         match self {
-            ChannelsCommand::NewChannel => "channels.new".to_owned(),
-            ChannelsCommand::NewSpotChannel => "channels.newSpot".to_owned(),
-            ChannelsCommand::Duplicate => "channels.duplicate".to_owned(),
-            ChannelsCommand::Delete => "channels.delete".to_owned(),
-            ChannelsCommand::MergeSpot => "channels.mergeSpot".to_owned(),
-            ChannelsCommand::ConvertToAlpha => "channels.convertToAlpha".to_owned(),
-            ChannelsCommand::ExitQuickMask => "channels.exitQuickMask".to_owned(),
-            ChannelsCommand::ColorIndicatesMasked => "channels.indicatesMasked".to_owned(),
-            ChannelsCommand::ColorIndicatesSelected => "channels.indicatesSelected".to_owned(),
-            ChannelsCommand::OverlayColor(preset) => format!("channels.overlay.{}", preset_name(preset)),
-            ChannelsCommand::OverlayOpacity(percent) => format!("channels.opacity.{percent}"),
-            ChannelsCommand::ToggleLayerMask => "channels.toggleLayerMask".to_owned(),
-            ChannelsCommand::DeleteLayerMask => "channels.deleteLayerMask".to_owned(),
-            ChannelsCommand::SplitChannels => "channels.split".to_owned(),
-            ChannelsCommand::MergeChannels => "channels.merge".to_owned(),
+            ChannelsCommands::OverlayRed => Some(OverlayPreset::Red),
+            ChannelsCommands::OverlayGreen => Some(OverlayPreset::Green),
+            ChannelsCommands::OverlayBlue => Some(OverlayPreset::Blue),
+            ChannelsCommands::OverlayCyan => Some(OverlayPreset::Cyan),
+            ChannelsCommands::OverlayMagenta => Some(OverlayPreset::Magenta),
+            ChannelsCommands::OverlayYellow => Some(OverlayPreset::Yellow),
+            _ => None,
         }
     }
 
-    /// The command of an [`id`](Self::id); `None` for any other text.
-    pub fn from_id(id: &str) -> Option<ChannelsCommand> {
-        // new: the inverse of `id`.
-        let simple = match id {
-            "channels.new" => ChannelsCommand::NewChannel,
-            "channels.newSpot" => ChannelsCommand::NewSpotChannel,
-            "channels.duplicate" => ChannelsCommand::Duplicate,
-            "channels.delete" => ChannelsCommand::Delete,
-            "channels.mergeSpot" => ChannelsCommand::MergeSpot,
-            "channels.convertToAlpha" => ChannelsCommand::ConvertToAlpha,
-            "channels.exitQuickMask" => ChannelsCommand::ExitQuickMask,
-            "channels.indicatesMasked" => ChannelsCommand::ColorIndicatesMasked,
-            "channels.indicatesSelected" => ChannelsCommand::ColorIndicatesSelected,
-            "channels.toggleLayerMask" => ChannelsCommand::ToggleLayerMask,
-            "channels.deleteLayerMask" => ChannelsCommand::DeleteLayerMask,
-            "channels.split" => ChannelsCommand::SplitChannels,
-            "channels.merge" => ChannelsCommand::MergeChannels,
-            _ => {
-                if let Some(name) = id.strip_prefix("channels.overlay.") {
-                    return OverlayPreset::ALL.into_iter().find(|preset| preset_name(*preset) == name).map(ChannelsCommand::OverlayColor);
-                }
-                let percent = id.strip_prefix("channels.opacity.")?.parse::<u8>().ok()?;
-                return OVERLAY_OPACITIES.contains(&percent).then_some(ChannelsCommand::OverlayOpacity(percent));
+    /// The overlay opacity in percent the command sets.
+    pub fn overlay_opacity(self) -> Option<u8> {
+        match self {
+            ChannelsCommands::Opacity25 => Some(25),
+            ChannelsCommands::Opacity50 => Some(50),
+            ChannelsCommands::Opacity75 => Some(75),
+            ChannelsCommands::Opacity100 => Some(100),
+            _ => None,
+        }
+    }
+
+    fn of_preset(preset: OverlayPreset) -> ChannelsCommands {
+        match preset {
+            OverlayPreset::Red => ChannelsCommands::OverlayRed,
+            OverlayPreset::Green => ChannelsCommands::OverlayGreen,
+            OverlayPreset::Blue => ChannelsCommands::OverlayBlue,
+            OverlayPreset::Cyan => ChannelsCommands::OverlayCyan,
+            OverlayPreset::Magenta => ChannelsCommands::OverlayMagenta,
+            OverlayPreset::Yellow => ChannelsCommands::OverlayYellow,
+        }
+    }
+
+    fn of_opacity(percent: u8) -> Option<ChannelsCommands> {
+        match percent {
+            25 => Some(ChannelsCommands::Opacity25),
+            50 => Some(ChannelsCommands::Opacity50),
+            75 => Some(ChannelsCommands::Opacity75),
+            100 => Some(ChannelsCommands::Opacity100),
+            _ => None,
+        }
+    }
+
+    /// Whether the command applies to a targeted row of `kind` (`None`: no row targeted).
+    pub fn applies_to(self, kind: Option<ChannelKind>) -> bool {
+        use ChannelsCommands as C;
+        let any = matches!(self, C::NewChannel | C::NewSpotChannel | C::SplitChannels | C::MergeChannels | C::SaveSelection);
+        let Some(kind) = kind else { return any };
+        match self {
+            C::Duplicate | C::LoadSelection => true,
+            C::Delete => !matches!(kind, ChannelKind::Composite | ChannelKind::Color | ChannelKind::QuickMask(_)),
+            C::RenameChannel | C::MoveUp | C::MoveDown => kind.moves(),
+            C::ChannelOptions => kind.has_options(),
+            C::MergeSpot | C::ConvertToAlpha => matches!(kind, ChannelKind::Spot(_)),
+            C::ExitQuickMask => matches!(kind, ChannelKind::QuickMask(_)),
+            C::ToggleLayerMask | C::DeleteLayerMask => matches!(kind, ChannelKind::LayerMask(_)),
+            C::ColorIndicatesMasked | C::ColorIndicatesSelected => matches!(kind, ChannelKind::Alpha(_) | ChannelKind::QuickMask(_)),
+            c if c.overlay_color().is_some() || c.overlay_opacity().is_some() => {
+                matches!(kind, ChannelKind::Alpha(_) | ChannelKind::QuickMask(_))
             }
-        };
-        Some(simple)
+            _ => true,
+        }
+    }
+
+    /// The event the command makes over `rows` with the modifiers `mods` held; `None` when it does nothing there.
+    /// Rename has no event: the panel opens the row's rename field.
+    pub fn event<K: Clone + PartialEq>(self, rows: &[ChannelRow<K>], mods: Mods) -> Option<ChannelsEvent<K>> {
+        let target = targeted_row(rows)?;
+        match self {
+            ChannelsCommands::LoadSelection => {
+                Some(ChannelsEvent::LoadSelection { key: target.key.clone(), operation: SelectionOperation::from_mods(mods) })
+            }
+            ChannelsCommands::MoveUp | ChannelsCommands::MoveDown => move_event(rows, target, self == ChannelsCommands::MoveUp),
+            ChannelsCommands::ChannelOptions => target.kind.has_options().then(|| ChannelsEvent::Options(target.key.clone())),
+            ChannelsCommands::RenameChannel => None,
+            command => {
+                self.applies_to(Some(target.kind)).then(|| ChannelsEvent::Command { command, key: command_key(command).then(|| target.key.clone()) })
+            }
+        }
     }
 }
 
-/// The context-menu entries of `row`, by its kind, then the document's commands:
-///
-/// - alpha: Duplicate Channel, Delete Channel, Rename Channel…, Channel Options…, a separator,
-///   Color Indicates Masked Areas and Selected Areas (radio, from `indicates`), Overlay Color ›
-///   the six presets, Overlay Opacity › 25 %, 50 %, 75 %, 100 %;
-/// - spot: Duplicate, Delete, Rename…, Channel Options…, a separator, Merge Spot Channel, Convert
-///   to Alpha Channel;
-/// - Quick Mask: Exit Quick Mask, Quick Mask Options…, the Color Indicates radios, Overlay Color
-///   and Overlay Opacity;
-/// - layer mask: Disable (or Enable) Layer Mask, Delete Layer Mask, Layer Mask Display Options…;
-/// - composite and colour: Duplicate Channel;
-/// - then a separator, New Channel…, New Spot Channel…, a separator, Split Channels, Merge
-///   Channels….
-///
-/// Commands are [`ChannelsCommand::id`]s, plus `channels.rename` and `channels.options`. `numbers`
-/// writes the opacity percentages.
-pub(super) fn row_menu_entries<K>(row: &ChannelRow<K>, labels: &ChannelsLabels, numbers: &LocaleNumbers) -> Vec<MenuEntry<PanelCommand>> {
-    // pc: crates/ui-egui/src/panels/channels_panel.rs:159-204 `draw_row_menu`, `draw_alpha_menu`,
-    // `draw_quick_mask_menu`, `draw_mask_menu`; :572-605 `indicates_items`, `overlay_colors`.
-    let item = |label: &str, command: ChannelsCommand| MenuItem::new(label, command.id());
-    let plain = |label: &str, id: &str| MenuItem::new(label, id.to_owned());
-    let mut entries: Vec<MenuEntry<PanelCommand>> = Vec::new();
-    match row.kind {
-        ChannelKind::Alpha { indicates } => {
-            entries.push(item(&labels.duplicate_channel, ChannelsCommand::Duplicate).into());
-            entries.push(item(&labels.delete_channel, ChannelsCommand::Delete).into());
-            entries.push(plain(&labels.rename_channel, RENAME).into());
-            entries.push(plain(&labels.channel_options, OPTIONS).into());
-            entries.push(MenuEntry::Separator);
-            entries.extend(overlay_entries(labels, numbers, indicates));
-        }
-        ChannelKind::Spot { .. } => {
-            entries.push(item(&labels.duplicate_channel, ChannelsCommand::Duplicate).into());
-            entries.push(item(&labels.delete_channel, ChannelsCommand::Delete).into());
-            entries.push(plain(&labels.rename_channel, RENAME).into());
-            entries.push(plain(&labels.channel_options, OPTIONS).into());
-            entries.push(MenuEntry::Separator);
-            entries.push(item(&labels.merge_spot, ChannelsCommand::MergeSpot).into());
-            entries.push(item(&labels.convert_to_alpha, ChannelsCommand::ConvertToAlpha).into());
-        }
-        ChannelKind::QuickMask { indicates } => {
-            entries.push(item(&labels.exit_quick_mask, ChannelsCommand::ExitQuickMask).into());
-            entries.push(plain(&labels.quick_mask_options, OPTIONS).into());
-            entries.extend(overlay_entries(labels, numbers, indicates));
-        }
-        ChannelKind::LayerMask { enabled } => {
-            let toggle = if enabled { &labels.disable_layer_mask } else { &labels.enable_layer_mask };
-            entries.push(item(toggle, ChannelsCommand::ToggleLayerMask).into());
-            entries.push(item(&labels.delete_layer_mask, ChannelsCommand::DeleteLayerMask).into());
-            entries.push(plain(&labels.mask_display_options, OPTIONS).into());
-        }
-        ChannelKind::Composite | ChannelKind::Color => {
-            entries.push(item(&labels.duplicate_channel, ChannelsCommand::Duplicate).into());
-        }
-    }
-    entries.push(MenuEntry::Separator);
-    entries.extend(document_entries(labels));
-    entries
+/// Whether a command acts on a channel; the others act on the document.
+fn command_key(command: ChannelsCommands) -> bool {
+    !matches!(
+        command,
+        ChannelsCommands::NewChannel | ChannelsCommands::NewSpotChannel | ChannelsCommands::SplitChannels | ChannelsCommands::MergeChannels
+    )
 }
 
-/// Document-level rows: New Channel…, New Spot Channel…, Split Channels, Merge Channels….
-fn document_entries(labels: &ChannelsLabels) -> Vec<MenuEntry<PanelCommand>> {
-    vec![
-        MenuItem::new(labels.new_channel.as_str(), ChannelsCommand::NewChannel.id()).into(),
-        MenuItem::new(labels.new_spot_channel.as_str(), ChannelsCommand::NewSpotChannel.id()).into(),
-        MenuEntry::Separator,
-        MenuItem::new(labels.split_channels.as_str(), ChannelsCommand::SplitChannels.id()).into(),
-        MenuItem::new(labels.merge_channels.as_str(), ChannelsCommand::MergeChannels.id()).into(),
+/// Whether alpha and spot rows may land between the places `to - 1` and `to` of `remaining` (the rows left once the
+/// moved ones are out): after another alpha or spot row, before one, or before Quick Mask.
+pub(super) fn lands(remaining: &[ChannelKind], to: usize) -> bool {
+    let before = remaining.get(to).is_some_and(|kind| kind.moves() || matches!(kind, ChannelKind::QuickMask(_)));
+    let after = to.checked_sub(1).and_then(|at| remaining.get(at)).is_some_and(|kind| kind.moves());
+    before || after
+}
+
+/// The one-place move of the lead alpha or spot row.
+fn move_event<K: Clone + PartialEq>(rows: &[ChannelRow<K>], lead: &ChannelRow<K>, up: bool) -> Option<ChannelsEvent<K>> {
+    if !lead.kind.moves() {
+        return None;
+    }
+    let at = rows.iter().position(|row| row.key == lead.key)?;
+    let to = if up { at.checked_sub(1)? } else { at + 1 };
+    let remaining: Vec<ChannelKind> = rows.iter().filter(|row| row.key != lead.key).map(|row| row.kind).collect();
+    if to > remaining.len() || !lands(&remaining, to) {
+        return None;
+    }
+    let mv = ReorderMove::new(lead.key.clone(), vec![lead.key.clone()], to, false);
+    Some(ChannelsEvent::Reorder(EditEvent::set(
+        GestureId::default(),
+        Mixed::Mixed,
+        mv,
+        Arc::from(if up { "Move Channel Up" } else { "Move Channel Down" }),
+        None,
+    )))
+}
+
+/// A line of a row's menu.
+#[derive(Clone, Copy)]
+enum Plan {
+    Command(ChannelsCommands),
+    Separator,
+    Colors,
+    Opacities,
+}
+
+fn overlay_plan() -> [Plan; 4] {
+    [Plan::Command(ChannelsCommands::ColorIndicatesMasked), Plan::Command(ChannelsCommands::ColorIndicatesSelected), Plan::Colors, Plan::Opacities]
+}
+
+fn document_plan() -> [Plan; 5] {
+    [
+        Plan::Command(ChannelsCommands::NewChannel),
+        Plan::Command(ChannelsCommands::NewSpotChannel),
+        Plan::Separator,
+        Plan::Command(ChannelsCommands::SplitChannels),
+        Plan::Command(ChannelsCommands::MergeChannels),
     ]
 }
 
-/// Color Indicates radios, then Overlay Color › and Overlay Opacity ›.
-fn overlay_entries(labels: &ChannelsLabels, numbers: &LocaleNumbers, indicates: ColorIndicates) -> Vec<MenuEntry<PanelCommand>> {
-    let colors = OverlayPreset::ALL
-        .into_iter()
-        .map(|preset| {
-            let [r, g, b] = preset.rgb();
-            MenuItem::new(preset_label(labels, preset), ChannelsCommand::OverlayColor(preset).id())
-                .tint(Srgba::from(craft_theme::Rgba::rgb(r, g, b)))
-                .into()
-        })
-        .collect();
-    let opacities = OVERLAY_OPACITIES
-        .into_iter()
-        .map(|percent| MenuItem::new(percent_label(labels, numbers, percent), ChannelsCommand::OverlayOpacity(percent).id()).into())
-        .collect();
-    vec![
-        MenuItem::new(labels.indicates_masked.as_str(), ChannelsCommand::ColorIndicatesMasked.id())
-            .radio(indicates == ColorIndicates::MaskedAreas)
-            .into(),
-        MenuItem::new(labels.indicates_selected.as_str(), ChannelsCommand::ColorIndicatesSelected.id())
-            .radio(indicates == ColorIndicates::SelectedAreas)
-            .into(),
-        MenuItem::submenu(labels.overlay_color.as_str(), colors).into(),
-        MenuItem::submenu(labels.overlay_opacity.as_str(), opacities).into(),
-    ]
+fn add_commands(lines: &mut Vec<Plan>, commands: &[ChannelsCommands]) {
+    lines.extend(commands.iter().map(|c| Plan::Command(*c)));
 }
 
-fn preset_name(preset: OverlayPreset) -> &'static str {
-    match preset {
-        OverlayPreset::Red => "red",
-        OverlayPreset::Green => "green",
-        OverlayPreset::Blue => "blue",
-        OverlayPreset::Cyan => "cyan",
-        OverlayPreset::Magenta => "magenta",
-        OverlayPreset::Yellow => "yellow",
-    }
-}
-
-fn preset_label(labels: &ChannelsLabels, preset: OverlayPreset) -> &str {
-    match preset {
-        OverlayPreset::Red => &labels.red,
-        OverlayPreset::Green => &labels.green,
-        OverlayPreset::Blue => &labels.blue,
-        OverlayPreset::Cyan => &labels.cyan,
-        OverlayPreset::Magenta => &labels.magenta,
-        OverlayPreset::Yellow => &labels.yellow,
-    }
-}
-
-fn percent_label(labels: &ChannelsLabels, numbers: &LocaleNumbers, percent: u8) -> String {
-    craft_i18n::fmt(&labels.percent, &[("value", &numbers.format(f64::from(percent), 0..=0))])
-}
-
-/// The event of a picked menu `command` on the row `key`: [`ChannelsEvent::Command`] for a
-/// [`ChannelsCommand`] (`key` `None` for New Channel…, New Spot Channel…, Split Channels and
-/// Merge Channels…), [`ChannelsEvent::Options`] for `channels.options`. `channels.rename` starts
-/// the row's rename (kept in egui memory under the panel's id, read by the panel's list) and
-/// reports nothing. `None` for an unknown command.
-pub(super) fn command_event<K: Clone + Send + Sync + 'static>(
-    ctx: &Context,
-    panel: egui::Id,
-    key: Option<&K>,
-    command: &str,
-) -> Option<ChannelsEvent<K>> {
-    // pc: crates/ui-egui/src/panels/channels_panel.rs:493-509 (`ui.renameChannel`, `ui.channelOptions`, the rest run).
-    match command {
-        RENAME => {
-            if let Some(key) = key {
-                ctx.data_mut(|d| d.insert_temp(pending_rename_id(panel), key.clone()));
-                ctx.request_repaint();
-            }
-            None
+/// The menu lines for a row of `kind`; with no row, the document's.
+fn plan(kind: Option<ChannelKind>) -> Vec<Plan> {
+    use ChannelsCommands as C;
+    let mut lines: Vec<Plan> = Vec::new();
+    match kind {
+        Some(ChannelKind::Alpha(_)) => {
+            add_commands(&mut lines, &[C::Duplicate, C::Delete, C::RenameChannel, C::ChannelOptions]);
+            lines.push(Plan::Separator);
+            lines.extend(overlay_plan());
         }
-        OPTIONS => key.map(|key| ChannelsEvent::Options(key.clone())),
-        _ => ChannelsCommand::from_id(command).map(|command| ChannelsEvent::Command { command, key: key.cloned() }),
+        Some(ChannelKind::Spot(_)) => {
+            add_commands(&mut lines, &[C::Duplicate, C::Delete, C::RenameChannel, C::ChannelOptions]);
+            lines.push(Plan::Separator);
+            add_commands(&mut lines, &[C::MergeSpot, C::ConvertToAlpha]);
+        }
+        Some(ChannelKind::QuickMask(_)) => {
+            add_commands(&mut lines, &[C::ExitQuickMask, C::ChannelOptions]);
+            lines.extend(overlay_plan());
+        }
+        Some(ChannelKind::LayerMask(_)) => add_commands(&mut lines, &[C::ToggleLayerMask, C::DeleteLayerMask, C::ChannelOptions]),
+        Some(ChannelKind::Composite | ChannelKind::Color) => add_commands(&mut lines, &[C::Duplicate]),
+        None => {}
     }
+    if kind.is_some() {
+        lines.push(Plan::Separator);
+    }
+    lines.extend(document_plan());
+    lines
 }
 
-/// Shows the row context menu on the list's response: opens it for `request` (the row's key and
-/// where), keeps the row in egui memory under `panel` (the panel's id) while it is open, rebuilds
-/// [`row_menu_entries`] each pass and reports a pick through [`command_event`].
-pub(super) fn show_row_menu<K: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
-    ui: &Ui,
-    list: &Response,
-    panel: Id,
-    rows: &[ChannelRow<K>],
-    labels: &ChannelsLabels,
-    request: Option<(K, OpenAt)>,
-) -> Vec<ChannelsEvent<K>> {
-    // pc: crates/ui-egui/src/panels/channels_panel.rs:88 (the row's `context_menu`).
-    let ctx = ui.ctx();
-    let slot = panel.with("menu-row");
-    if let Some((key, _)) = &request {
-        ctx.data_mut(|d| d.insert_temp(slot, key.clone()));
+/// The rows the panel adds to its panel menu, for the targeted row of `rows`: the commands of its row menu.
+pub fn panel_rows<K>(rows: &[ChannelRow<K>], words: &ChannelsWords) -> Vec<PanelRow> {
+    let command = |c: ChannelsCommands| PanelRow::Command(CommandRef::from(c));
+    let kind = targeted_row(rows).map(|row| row.kind);
+    let mut out = Vec::new();
+    for line in plan(kind) {
+        match line {
+            Plan::Command(c) => out.push(command(c)),
+            Plan::Separator => out.push(PanelRow::Separator),
+            Plan::Colors => out.push(PanelRow::Submenu(
+                words.overlay_color.clone().into(),
+                OverlayPreset::ALL.iter().map(|preset| command(ChannelsCommands::of_preset(*preset))).collect(),
+            )),
+            Plan::Opacities => out.push(PanelRow::Submenu(
+                words.overlay_opacity.clone().into(),
+                OVERLAY_OPACITIES.iter().filter_map(|percent| ChannelsCommands::of_opacity(*percent)).map(command).collect(),
+            )),
+        }
     }
-    let Some(row) = ctx.data(|d| d.get_temp::<K>(slot)).and_then(|key| rows.iter().find(|row| row.key == key)) else {
-        return Vec::new();
+    out
+}
+
+fn label_of(command: ChannelsCommands, kind: Option<ChannelKind>, words: &ChannelsWords) -> Label {
+    use ChannelsCommands as C;
+    let word = match command {
+        C::NewChannel => &words.new_channel,
+        C::NewSpotChannel => &words.new_spot_channel,
+        C::Duplicate => &words.duplicate_channel,
+        C::Delete => &words.delete_channel,
+        C::RenameChannel => &words.rename_channel,
+        C::ChannelOptions => match kind {
+            Some(ChannelKind::QuickMask(_)) => &words.quick_mask_options,
+            Some(ChannelKind::LayerMask(_)) => &words.mask_display_options,
+            _ => &words.channel_options,
+        },
+        C::MergeSpot => &words.merge_spot,
+        C::ConvertToAlpha => &words.convert_to_alpha,
+        C::ExitQuickMask => &words.exit_quick_mask,
+        C::ColorIndicatesMasked => &words.indicates_masked,
+        C::ColorIndicatesSelected => &words.indicates_selected,
+        C::ToggleLayerMask => match kind {
+            Some(ChannelKind::LayerMask(true)) => &words.disable_layer_mask,
+            _ => &words.enable_layer_mask,
+        },
+        C::DeleteLayerMask => &words.delete_layer_mask,
+        C::SplitChannels => &words.split_channels,
+        C::MergeChannels => &words.merge_channels,
+        C::OverlayRed => &words.red,
+        C::OverlayGreen => &words.green,
+        C::OverlayBlue => &words.blue,
+        C::OverlayCyan => &words.cyan,
+        C::OverlayMagenta => &words.magenta,
+        C::OverlayYellow => &words.yellow,
+        C::LoadSelection => &words.load_selection,
+        C::SaveSelection => &words.save_selection,
+        _ => &words.row_menu,
     };
-    let numbers = LocaleNumbers::of_ctx(ctx);
-    let entries = row_menu_entries(row, labels, &numbers);
-    let menu = ContextMenu::new(&entries).own_gestures(false).open_at(request.map(|(_, at)| at)).show(ui, list);
-    let events = menu.chosen.and_then(|command| command_event(ctx, panel, Some(&row.key), &command)).into_iter().collect();
-    if !menu.open {
-        ctx.data_mut(|d| d.remove::<K>(slot));
-    }
-    events
+    word.clone().into()
 }
 
-impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> ChannelsPanel<'_, K> {
-    /// The panel menu, for the docking host's `panel_menu_entries` hook: the context-menu
-    /// entries of [`targeted_row`](super::targeted_row) of `rows` (the document's commands only
-    /// without one), as Photoshop's Channels panel menu (lead call 21).
-    pub fn panel_menu(ctx: &Context, id_salt: impl AsIdSalt, rows: &[ChannelRow<K>]) -> Vec<MenuEntry<PanelCommand>> {
-        // new: `row_menu_entries` of the targeted row, with `ChannelsLabels::of_ctx`.
-        let _ = id_salt;
-        let labels = ChannelsLabels::of_ctx(ctx);
-        match targeted_row(rows) {
-            Some(row) => row_menu_entries(row, &labels, &LocaleNumbers::of_ctx(ctx)),
-            None => document_entries(&labels),
-        }
+/// The command a row menu run picked, from its entries.
+fn checked(command: ChannelsCommands, kind: Option<ChannelKind>) -> Option<bool> {
+    let indicates = match kind {
+        Some(ChannelKind::Alpha(indicates) | ChannelKind::QuickMask(indicates)) => Some(indicates),
+        _ => None,
+    };
+    match command {
+        ChannelsCommands::ColorIndicatesMasked => Some(indicates == Some(ColorIndicates::MaskedAreas)),
+        ChannelsCommands::ColorIndicatesSelected => Some(indicates == Some(ColorIndicates::SelectedAreas)),
+        _ => None,
     }
+}
 
-    /// Carries out a command of [`panel_menu`](Self::panel_menu) on the targeted row of `rows`,
-    /// as a context-menu pick does (`menu::command_event`). `id_salt` is the panel's.
-    pub fn run_command(ctx: &Context, id_salt: impl AsIdSalt, rows: &[ChannelRow<K>], command: &PanelCommand) -> Option<ChannelsEvent<K>> {
-        // new: `command_event` with the targeted row's key.
-        command_event(ctx, facts_id(IdSalt::new(id_salt)), targeted_row(rows).map(|row| &row.key), command)
-    }
+/// Shows the context menu of the row `row`, hanging from `opener`, and returns the command that ran.
+pub(super) fn show_row_menu<K>(ui: &mut Ui, opener: &Response, row: &ChannelRow<K>, words: &ChannelsWords) -> Option<ChannelsCommands> {
+    let kind = Some(row.kind);
+    let units = Env::of(ui).units();
+    let lines = plan(kind);
+    let shown = Menu::context(words.row_menu.clone(), opener).show(ui, |ui, _| {
+        use craft_ui::contract::Show as _;
+        let mut ran = None;
+        for line in &lines {
+            match *line {
+                Plan::Separator => {
+                    craft_ui::display::Divider::horizontal().show(ui);
+                }
+                Plan::Command(command) => {
+                    let mut item = MenuItem::new(label_of(command, kind, words)).enabled(command.applies_to(kind));
+                    if let Some(on) = checked(command, kind) {
+                        item = item.radio_mark(on);
+                    }
+                    if item.show(ui).ran {
+                        ran = Some(command);
+                    }
+                }
+                Plan::Colors => {
+                    Menu::submenu_row(ui, words.overlay_color.clone(), |ui, _| {
+                        for preset in OverlayPreset::ALL {
+                            let [r, g, b] = preset.rgb();
+                            let command = ChannelsCommands::of_preset(preset);
+                            let item =
+                                MenuItem::new(label_of(command, kind, words)).icon(IconSpec::swatch(Srgba::from(craft_theme::Rgba::rgb(r, g, b))));
+                            if item.show(ui).ran {
+                                ran = Some(command);
+                            }
+                        }
+                    });
+                }
+                Plan::Opacities => {
+                    Menu::submenu_row(ui, words.overlay_opacity.clone(), |ui, _| {
+                        for percent in OVERLAY_OPACITIES {
+                            let Some(command) = ChannelsCommands::of_opacity(percent) else { continue };
+                            let text = craft_i18n::fmt(words.percent.as_str(), &[("value", &units.number(f64::from(percent), 0..=0))]);
+                            if MenuItem::new(text).show(ui).ran {
+                                ran = Some(command);
+                            }
+                        }
+                    });
+                }
+            }
+        }
+        ran
+    });
+    shown.inner.flatten()
 }

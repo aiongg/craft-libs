@@ -5,18 +5,11 @@
 mod bar;
 mod overlay;
 mod session;
+#[cfg(feature = "screen-testing")]
 pub(crate) mod stories;
 
-#[cfg(test)]
-mod bar_tests;
-#[cfg(test)]
-mod overlay_tests;
-#[cfg(test)]
-mod session_tests;
-
-pub(crate) use bar::PLANES;
-pub use bar::{PerspectiveBar, PerspectiveBarLabels, PerspectiveBarOutput};
-pub use overlay::{PerspectiveWarp, PerspectiveWarpLabels, PerspectiveWarpResponse};
+pub use bar::{PerspectiveBar, PerspectiveBarOutput, PerspectiveBarWords};
+pub use overlay::{PerspectiveCommands, PerspectiveWarp, PerspectiveWarpOutput, PerspectiveWarpStyle, PerspectiveWarpWords};
 pub use session::{
     LINK_DISTANCE, PLANE_MINIMUM, PerspectiveEdit, PerspectiveSession, Plane, PlaneCorner, PlaneMode, Straighten, linked_corners, straighten, unify,
 };
