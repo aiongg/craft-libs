@@ -1,6 +1,5 @@
 //! Stories of the Blur Gallery's pins and the panel of the selected pin.
 
-use craft_behavior::Mixed;
 use craft_ui::canvas::RasterSource as _;
 use craft_ui::contract::{Bind, Show as _, Validity};
 use craft_ui::runtime::env::Message;
@@ -51,15 +50,6 @@ fn field(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
         pins.selected = Some(1);
         pins.clean();
         pins
-    })
-}
-
-#[story(BlurPinsOverlay<'static>, covers = [Mixed], drive = Drive::Never)]
-fn pins_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let image = MockImage::default();
-    let pins = data.value("mixed", Mixed::<BlurPins>::Mixed);
-    story_canvas(ui, Some(&image), StoryView::Fit, |ui, at| {
-        StoryOutput::from(BlurPinsOverlay::new("Blur pins", Bind::bound_mixed(&mut *pins)).show_at(ui, at))
     })
 }
 

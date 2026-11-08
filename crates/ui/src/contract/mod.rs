@@ -47,8 +47,8 @@ pub use container::{
     ScrollAxes, ShellPane, Sizing, ThemeScope,
 };
 pub use craft_ui_macros::{CommandSet, Component, Pattern, Props, register_contract};
-pub(crate) use cx::{SeenPress, THUMB};
 pub use cx::{Accessible, Activation, BodyCx, Cx, CxCore, Edit, Focus, ItemCx, MeasureCx, PartBuilder, PartsCx, Pointer, Styled, WordSetCx};
+pub(crate) use cx::{SeenPress, THUMB};
 pub use entry::Entry;
 pub use group::{GroupHandle, GroupKind, GroupState};
 pub use held::Held;
@@ -259,6 +259,8 @@ pub trait Component: Meta + Sized {
     const SHOWS_LABEL: bool = true;
     /// Whether the component edits one value that several selected things cannot disagree on (a colour picker's
     /// area, strip or ramp: it edits the colour it is given). Such a type has no mixed state and no mixed story.
+    /// Two sources: a canvas control (`#[component(canvas_control)]`) is single-value by kind, since it edits one
+    /// layer's geometry; any other component declares it here.
     const SINGLE_VALUE: bool = false;
 
     /// The style type.

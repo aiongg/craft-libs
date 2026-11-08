@@ -1,5 +1,5 @@
-//! A scrolled layout component is a group node of its own, named by its label; an unscrolled one is no node. The
-//! suite's text-size case lets a scroll region's view cut its rows, and no other part.
+//! A scrolled or labelled layout component is a group node of its own, named by its label; an unlabelled unscrolled
+//! one is no node. The suite's text-size case lets a scroll region's view cut its rows, and no other part.
 
 use craft_ui::contract::{Props as _, Role, Scroll, Show as _, ShowContainer as _};
 use craft_ui::display::Text;
@@ -42,8 +42,13 @@ fn a_scrolled_stack_without_a_label_is_an_unnamed_group() {
 }
 
 #[trial]
-fn an_unscrolled_stack_is_no_node() {
-    assert_eq!(groups(false, Some("Page")).0, Vec::<Option<String>>::new());
+fn a_labelled_stack_is_a_group_named_by_its_label() {
+    assert_eq!(groups(false, Some("Page")).0, vec![Some("Page".to_owned())]);
+}
+
+#[trial]
+fn an_unlabelled_unscrolled_stack_is_no_node() {
+    assert_eq!(groups(false, None).0, Vec::<Option<String>>::new());
 }
 
 /// More rows than the fixture's room holds, so one of them crosses the room's bottom edge.
