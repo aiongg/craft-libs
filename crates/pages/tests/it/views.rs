@@ -9,9 +9,11 @@ use craft_pages::ui::{
     ThumbnailEvent, baseline_lines, moved_page,
 };
 
-use craft_ui::contract::ReorderMove;
+use craft_pages::ui::reading::{ReadingState, ReadingView};
+use craft_ui::contract::{ReorderMove, Role, Show as _};
+use craft_ui::primitives::textures::{Revision, ThumbRender, ThumbRequest, ThumbSource};
 use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers, vec2};
+use egui::{Key, Modifiers, Pos2, Rect, pos2, vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -262,7 +264,7 @@ fn preview_rig(start: usize) -> PreviewRig {
     let shown = [0, 1, 2, 3, 4];
     let mut fixture = Fixture::new(move |ui| {
         let mut now = *kept.borrow();
-        PagePreview::new(&pages, &shown, &mut now).show(ui);
+        PagePreview::new(&pages, &shown, &mut now, PAPER).show(ui);
         *kept.borrow_mut() = now;
     });
     fixture.room(vec2(500.0, 500.0));
@@ -290,4 +292,161 @@ fn the_preview_steps_with_its_buttons_and_stops_at_the_ends() {
 #[trial]
 fn the_demo_pages_are_letter_sized() {
     assert_eq!(DemoPages::new(2).page_size(1), Size::new(612.0, 792.0));
+}
+
+/// Three columns of the demo pages with a margin each side, in a room of known geometry.
+struct ReadingRig {
+    fixture: Fixture,
+    state: Rc<RefCell<ReadingState>>,
+    /// The width of one column.
+    column: f32,
+}
+
+/// Columns shown side by side in a [`ReadingRig`].
+const READING_COLUMNS: usize = 3;
+/// The width left for the two side margins and the gaps, screen points.
+const READING_LEFTOVER: f32 = 300.0;
+/// The pages in a reading rig.
+const READING_PAGES: usize = 9;
+
+fn reading_rig(start: usize) -> ReadingRig {
+    let column = DemoPages::new(1).page_size(0).width as f32 * ReadingView::screen_scale(1.0);
+    let rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(READING_COLUMNS as f32 * column + READING_LEFTOVER, 700.0));
+    let state = Rc::new(RefCell::new(ReadingState::default()));
+    state.borrow_mut().column = start;
+    let kept = Rc::clone(&state);
+    let pages = DemoPages::new(READING_PAGES);
+    let mut fixture = Fixture::new(move |ui| {
+        let mut now = kept.borrow().clone();
+        ReadingView::new("Document", &pages, &mut now, PAPER).show_at(ui, rect);
+        *kept.borrow_mut() = now;
+    });
+    fixture.room(rect.size());
+    fixture.settle();
+    ReadingRig { fixture, state, column }
+}
+
+impl ReadingRig {
+    /// The centres of the page-turn buttons the view exposes, left to right: the left margin, the gaps between the
+    /// columns, the right margin.
+    fn turns(&self) -> Vec<Pos2> {
+        let mut centres: Vec<Pos2> = self.fixture.by_role(Role::BUTTON).iter().map(|target| target.center()).collect();
+        centres.sort_by(|a, b| a.x.total_cmp(&b.x));
+        centres
+    }
+
+    /// The middle of the middle column, between the two gaps around it.
+    fn middle_column(&self) -> Pos2 {
+        let turns = self.turns();
+        pos2((turns[1].x + turns[2].x) / 2.0, turns[1].y)
+    }
+
+    fn at(&self) -> usize {
+        self.state.borrow().column
+    }
+}
+
+#[trial]
+fn a_click_inside_a_column_leaves_the_reading_view_where_it_is() {
+    let mut rig = reading_rig(2);
+    let inside = rig.middle_column();
+    rig.fixture.click_at(inside);
+    assert_eq!(rig.at(), 2, "the click is the app's, so the text can be selected");
+}
+
+#[trial]
+fn a_click_in_a_gap_or_a_side_margin_turns_toward_that_side() {
+    let mut rig = reading_rig(2);
+    let turns = rig.turns();
+    assert_eq!(turns.len(), READING_COLUMNS + 1, "a part over each gap and each margin");
+    rig.fixture.click_at(turns[0]);
+    assert_eq!(rig.at(), 1, "the left margin turns back");
+    rig.fixture.click_at(turns[2]);
+    assert_eq!(rig.at(), 2, "a gap right of the middle turns forward");
+    rig.fixture.click_at(turns[1]);
+    assert_eq!(rig.at(), 1, "a gap left of the middle turns back");
+    rig.fixture.click_at(turns[3]);
+    assert_eq!(rig.at(), 2, "the right margin turns forward");
+}
+
+#[trial]
+fn a_drag_inside_a_column_does_not_turn_but_a_swipe_from_a_margin_does() {
+    let mut rig = reading_rig(2);
+    let turns = rig.turns();
+    let along = vec2(-rig.column / 2.0, 0.0);
+    let inside = rig.middle_column();
+    rig.fixture.drag_at(inside, along);
+    assert_eq!(rig.at(), 2, "a drag in a column is a text selection");
+    rig.fixture.drag_at(turns[3], along);
+    assert_eq!(rig.at(), 3, "a swipe to the left turns forward");
+    rig.fixture.drag_at(turns[0], -along);
+    assert_eq!(rig.at(), 2, "a swipe to the right turns back");
+}
+
+#[trial]
+fn space_turns_the_reading_view_forward() {
+    let mut rig = reading_rig(0);
+    rig.fixture.key(Key::Tab, Modifiers::NONE);
+    rig.fixture.key(Key::Space, Modifiers::NONE);
+    assert_eq!(rig.at(), 1);
+}
+
+/// Pages whose pictures never arrive: only the paper under them is painted.
+struct BlankPages(DemoPages);
+
+impl ThumbSource<usize> for BlankPages {
+    fn revision(&self, key: &usize, request: &ThumbRequest) -> Revision {
+        self.0.revision(key, request)
+    }
+
+    fn render(&self, _: &usize, _: &ThumbRequest) -> ThumbRender {
+        ThumbRender::Blank
+    }
+}
+
+impl PageSource for BlankPages {
+    fn page_count(&self) -> usize {
+        self.0.page_count()
+    }
+
+    fn page_size(&self, page: usize) -> Size {
+        self.0.page_size(page)
+    }
+}
+
+/// Whether a painted shape is as large as `size`, within a point.
+fn paints_shape_of(fixture: &Fixture, size: egui::Vec2) -> bool {
+    fixture.shape_bounds().iter().any(|bounds| (bounds.size() - size).abs().max_elem() < 1.0)
+}
+
+#[trial]
+fn the_reading_view_paints_the_paper_under_a_page_without_a_picture() {
+    let scale = ReadingView::screen_scale(1.0);
+    let page = vec2(612.0, 792.0) * scale;
+    let room = Rect::from_min_size(pos2(0.0, 0.0), page + vec2(300.0, 200.0));
+    let pages = BlankPages(DemoPages::new(2));
+    let mut state = ReadingState::default();
+    let mut fixture = Fixture::new(move |ui| {
+        ReadingView::new("Document", &pages, &mut state, PAPER).show_at(ui, room);
+    });
+    fixture.room(room.size());
+    fixture.settle();
+    assert!(paints_shape_of(&fixture, page), "a shape the size of the page is the paper");
+}
+
+#[trial]
+fn the_preview_paints_the_paper_under_a_page_without_a_picture() {
+    let pages = BlankPages(DemoPages::new(2));
+    let shown = [0, 1];
+    let mut at = 0;
+    let mut fixture = Fixture::new(move |ui| {
+        PagePreview::new(&pages, &shown, &mut at, PAPER).show(ui);
+    });
+    fixture.room(vec2(500.0, 500.0));
+    fixture.settle();
+    let aspect = 612.0 / 792.0;
+    assert!(
+        fixture.shape_bounds().iter().any(|bounds| bounds.height() > 200.0 && (bounds.width() / bounds.height() - aspect).abs() < 0.01),
+        "a page-shaped fill is the paper"
+    );
 }

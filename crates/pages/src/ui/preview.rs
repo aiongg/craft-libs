@@ -14,15 +14,15 @@ use craft_ui::contract::{
 };
 use craft_ui::dialog::Dialog;
 use craft_ui::layout_components::Row;
-use craft_ui::primitives::TextRun;
 use craft_ui::primitives::textures::{
     MAX_TEXTURE, Priority, TextureState, TextureStoreOptions, ThumbPaint, ThumbRequest, ThumbnailOptions, Thumbnails,
 };
+use craft_ui::primitives::{PaintShape, TextRun};
 use craft_ui::runtime::env::Env;
 use craft_ui::runtime::focus::{ActivateKeys, KeepKeys, KeyUse};
 use craft_ui::runtime::memory::Remember as _;
-use craft_ui::style::{ComponentStyle, StyleColor, StyleCx, TypeRole};
-use egui::{Rect, Response, Ui, Vec2};
+use craft_ui::style::{ComponentStyle, DataColor, StyleColor, StyleCx, TypeRole};
+use egui::{CornerRadius, Rect, Response, Ui, Vec2};
 use std::cell::Cell;
 
 craft_ui::words! {
@@ -59,7 +59,7 @@ impl Outcome for PagePreviewOutput {
 ///
 /// - A modal [`Dialog`] titled "Page {p} of {n}"; the page's picture as large as fits through `Thumbnails<usize>`
 ///   over the [`PageSource`] (side from `ThumbRequest::for_cell`, at most `MAX_TEXTURE`; the last picture stays as
-///   the stand-in until the new one lands). A page that fails to render shows [`PagePreviewWords::unavailable`].
+///   the stand-in until the new one lands), on `paper` while it loads. A page that fails to render shows [`PagePreviewWords::unavailable`].
 /// - In the footer: previous and next, disabled at the ends. The pages stepped through are `pages` (the pages a
 ///   range selects), in order.
 /// - Keys (with the picture focused): Left and Page Up previous, Right and Page Down next (reversed in a
@@ -69,17 +69,18 @@ pub struct PagePreview<'a> {
     source: &'a dyn PageSource,
     pages: &'a [usize],
     at: &'a mut usize,
+    paper: DataColor,
 }
 
 impl<'a> PagePreview<'a> {
-    /// Previews `pages` (0-based), showing `pages[*at]`.
-    pub fn new(source: &'a dyn PageSource, pages: &'a [usize], at: &'a mut usize) -> Self {
-        PagePreview { source, pages, at }
+    /// Previews `pages` (0-based) on the document's `paper`, showing `pages[*at]`.
+    pub fn new(source: &'a dyn PageSource, pages: &'a [usize], at: &'a mut usize, paper: DataColor) -> Self {
+        PagePreview { source, pages, at, paper }
     }
 
     /// Shows the preview over the window and reports page changes and close requests.
     pub fn show(self, ui: &mut Ui) -> PagePreviewOutput {
-        let PagePreview { source, pages, at } = self;
+        let PagePreview { source, pages, at, paper } = self;
         let Some(last) = pages.len().checked_sub(1) else {
             return PagePreviewOutput { response: ui.response(), stepped: false, closed: true };
         };
@@ -103,7 +104,7 @@ impl<'a> PagePreview<'a> {
                 });
             })
             .show(ui, |ui, body| {
-                let picture = PagePicture::new(source, page, words.unavailable.as_str()).label(source.page_label(page)).show_at(ui, body.rect);
+                let picture = PagePicture::new(source, page, words.unavailable.as_str(), paper).label(source.page_label(page)).show_at(ui, body.rect);
                 step.set(step.get() + picture.step);
             });
         let target = (*at as isize + step.get()).clamp(0, last as isize) as usize;
@@ -149,12 +150,13 @@ struct PagePicture<'a> {
     source: &'a dyn PageSource,
     page: usize,
     unavailable: &'a str,
+    paper: DataColor,
     step: isize,
 }
 
 impl<'a> PagePicture<'a> {
-    fn new(source: &'a dyn PageSource, page: usize, unavailable: &'a str) -> Self {
-        PagePicture { common: Common::new(), source, page, unavailable, step: 0 }
+    fn new(source: &'a dyn PageSource, page: usize, unavailable: &'a str, paper: DataColor) -> Self {
+        PagePicture { common: Common::new(), source, page, unavailable, paper, step: 0 }
     }
 
     /// The part of the room the page fills, whole page and no larger than the ideal.
@@ -215,6 +217,7 @@ impl Component for PagePicture<'_> {
         let rect = Rect::from_center_size(area.center(), shape);
         let request = ThumbRequest::for_cell(shape.max_elem(), painter.pixels_per_point());
         let state = thumbs.state(&ctx, self.source, &self.page, &request, Priority::VISIBLE);
+        ui.draw().data_fill(&PaintShape::Rect(rect, CornerRadius::ZERO), self.paper);
         thumbs.paint(&painter, rect, &state, &ThumbPaint::default().checker(false));
         if matches!(state, TextureState::Failed { .. }) {
             let run = TextRun::new(self.unavailable).role(TypeRole::Caption).color(cx.style.message);
