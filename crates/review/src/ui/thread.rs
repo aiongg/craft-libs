@@ -276,7 +276,7 @@ impl PinBubble {
     /// How far the pointer has dragged your own pin from where it was pressed.
     fn lift(&self, cx: &Cx<'_, Self>) -> Vec2 {
         match cx.press().phase {
-            PressPhase::DragStart { start, pos } | PressPhase::Drag { start, pos, .. } if self.mine() => pos - start.origin,
+            PressPhase::DragStart { start, pos, .. } | PressPhase::Drag { start, pos, .. } if self.mine() => pos - start.origin,
             _ => Vec2::ZERO,
         }
     }
