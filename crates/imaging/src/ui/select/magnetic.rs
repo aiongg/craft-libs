@@ -520,8 +520,12 @@ impl<T: EdgeTracer> CanvasTool for SelectToolPass<'_, MagneticLassoTool<T>> {
     }
 
     /// Ends an Alt drag: where it stopped fastens.
-    fn release(&mut self, _pointer: &ToolPointer, _cx: &mut ToolContext<'_>) {
+    fn release(&mut self, _pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
         self.tool.end_gesture();
+        // The keyboard is kept from the pass the button came up in, not the one after it.
+        if self.tool.outline.is_some() {
+            cx.keep_keys();
+        }
     }
 
     /// Button-up moves follow the edges too.

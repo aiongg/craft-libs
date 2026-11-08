@@ -805,7 +805,6 @@ fn magnetic_fastens_every_spacing_and_walks_jumps() {
         click(&mut rig, pt(start), NONE);
         // One hover sample 2.5 rad (200 px of arc) along the circle.
         glide(&mut rig, on(2.5), NONE);
-        eprintln!("DIAG froms {frequency} {:?}", log.froms.borrow());
         log.starts()
     };
     let (slow, normal, fast) = (fastened(0.0), fastened(57.0), fastened(100.0));

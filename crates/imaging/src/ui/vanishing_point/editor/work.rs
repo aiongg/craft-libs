@@ -279,7 +279,6 @@ impl Work<'_> {
 
     /// Stamp's press: Alt sets the source, otherwise a stroke starts. `Err` is the message of a refused press.
     fn stamp_press(&mut self, p: [f64; 2], mods: Mods, words: &VanishingPointWords) -> Result<Pressed, String> {
-        eprintln!("DIAG stamp_press {p:?} mods {mods:?} on_plane {} source {:?}", self.on_plane(p), self.session.source);
         if mods.alt {
             if !self.on_plane(p) {
                 return Err(words.stamp_no_source.as_str().to_owned());
