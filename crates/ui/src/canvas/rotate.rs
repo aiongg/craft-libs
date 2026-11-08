@@ -13,7 +13,7 @@ use crate::runtime::env::{Env, Label};
 use crate::runtime::focus::KeyUse;
 use crate::style::{ComponentStyle, StyleColor, StyleCx};
 use craft_behavior::{CancelReason, CanvasView, CursorIcon, HitLevel, HitPriority, HitShape, Metrics, PartKey, PressPhase, Sense};
-use egui::{Pos2, Rect, Response, Ui, Vec2};
+use egui::{Align2, Pos2, Rect, Response, Ui, Vec2};
 
 pub(super) const RIM: PartKey = PartKey::new("rim");
 
@@ -39,14 +39,14 @@ pub struct RotateViewStyle {
 /// What the compass did this pass.
 #[derive(Debug)]
 #[non_exhaustive]
-pub struct CompassOutput {
+pub struct RotateViewOutput {
     /// The angle's edits and the compass' response.
     pub rotation: EditResponse<f64>,
     /// A double click set the angle back to 0.
     pub reset: bool,
 }
 
-impl Outcome for CompassOutput {
+impl Outcome for RotateViewOutput {
     type Value = f64;
 
     fn response(&self) -> &Response {
@@ -87,13 +87,12 @@ impl<'a> RotateView<'a> {
         rotation.is_finite() && rotation.abs() > VISIBLE_DEG
     }
 
-    /// The compass' rect in the corner of `canvas` where the reading direction ends, at the size and distance from
-    /// the edges the theme gives it.
+    /// The compass' rect in the top corner of `canvas` where the reading direction ends, at the size the theme gives
+    /// it, inset from the canvas edges by the stack gap.
     pub fn compass_rect(ui: &Ui, canvas: Rect) -> Rect {
         let env = Env::of(ui);
-        let (side, margin) = (env.tokens.size.thumb.md, env.tokens.space.gap.stack);
-        let x = if env.direction.is_rtl() { canvas.left() + margin } else { canvas.right() - margin - side };
-        Rect::from_min_size(Pos2::new(x, canvas.top() + margin), Vec2::splat(side))
+        let corner = if env.direction.is_rtl() { Align2::LEFT_TOP } else { Align2::RIGHT_TOP };
+        corner.align_size_within_rect(Vec2::splat(env.tokens.size.thumb.md), canvas.shrink(env.tokens.space.gap.stack))
     }
 }
 
@@ -110,7 +109,7 @@ impl Component for RotateView<'_> {
     const ROLE: Role = Role::GROUP;
     const KEYS: KeyUse = KeyUse::CANVAS;
     type Style = RotateViewStyle;
-    type Output = CompassOutput;
+    type Output = RotateViewOutput;
 
     fn style(cx: &StyleCx<'_>, _: RotateViewStyleKey) -> RotateViewStyle {
         let (colors, side) = (&cx.tokens.color, cx.tokens.size.thumb.md);
@@ -196,8 +195,8 @@ impl Component for RotateView<'_> {
         access.node(RIM, Role::BUTTON).name = Name::Text(cx.words::<CanvasWords>().rotate_compass.as_str().to_owned());
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> CompassOutput {
-        CompassOutput { rotation: cx.edit_response(), reset: self.reset }
+    fn finish(self, cx: Cx<'_, Self>) -> RotateViewOutput {
+        RotateViewOutput { rotation: cx.edit_response(), reset: self.reset }
     }
 }
 

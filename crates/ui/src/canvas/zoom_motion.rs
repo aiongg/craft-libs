@@ -103,15 +103,14 @@ impl ZoomAnimation {
 
 /// The Zoom tool's press held still: past [`DELAY`](Self::DELAY) it zooms in continuously about the press point (out
 /// with Alt) until the button comes up, [`RATE`](Self::RATE) doublings a second of wall time at any frame rate. The
-/// release is then no click step. A press that moves more than [`SLOP`](Self::SLOP) points first is a drag and never
-/// becomes a hold. Only with Animated Zoom on; off, a hold is a click.
+/// release is then no click step. The tool drops a hold that has not started zooming when the press turns into a
+/// drag. Only with Animated Zoom on; off, a hold is a click.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct HoldZoom {
     anchor: Pos2,
     doc: Point,
     pressed_at: f64,
     last: Option<f64>,
-    dragged: bool,
 }
 
 impl HoldZoom {
@@ -119,29 +118,18 @@ impl HoldZoom {
     pub const DELAY: f64 = 0.3;
     /// Doublings (halvings zooming out) per second.
     pub const RATE: f64 = 2.0;
-    /// Screen points the pointer may wander before the press is a drag.
-    pub const SLOP: f32 = 6.0;
     /// The longest frame gap a hold zooms over, so a stalled frame never jumps the zoom.
     pub const MAX_DT: f64 = 0.25;
 
     /// A press at `screen` over document point `doc` at `time`.
     pub fn press(screen: Pos2, doc: Point, time: f64) -> Self {
-        Self { anchor: screen, doc, pressed_at: time, last: None, dragged: false }
+        Self { anchor: screen, doc, pressed_at: time, last: None }
     }
 
-    /// Advances the hold for the pass at `time` with the pointer at `pointer`: once past the delay, zooms `view` about
-    /// the press point (out when `out`). Returns `true` while the hold zooms, so the tool skips its scrub and its
-    /// click step.
-    pub fn advance(&mut self, view: &mut CanvasView, pointer: Pos2, time: f64, out: bool, size: Size, pixels_per_point: f32) -> bool {
-        if self.dragged {
-            return false;
-        }
+    /// Advances the hold for the pass at `time`: once past the delay, zooms `view` about the press point (out when
+    /// `out`). Returns `true` while the hold zooms, so the tool skips its scrub and its click step.
+    pub fn advance(&mut self, view: &mut CanvasView, time: f64, out: bool, size: Size, pixels_per_point: f32) -> bool {
         if self.last.is_none() {
-            // Moved before the hold began: a drag (scrubby zoom or rectangle), not a hold.
-            if pointer.distance(self.anchor) > Self::SLOP {
-                self.dragged = true;
-                return false;
-            }
             let begin = self.pressed_at + Self::DELAY;
             if time < begin {
                 return false;
@@ -166,7 +154,7 @@ impl HoldZoom {
 
     /// Whether the press still waits out the delay and may start zooming at `time`.
     pub fn waiting(&self, time: f64) -> bool {
-        !self.dragged && self.last.is_none() && time < self.pressed_at + Self::DELAY
+        self.last.is_none() && time < self.pressed_at + Self::DELAY
     }
 
     /// The zoom after holding for `dt` seconds at `zoom`, within the document's range. A non-finite or negative `dt`
@@ -180,7 +168,8 @@ impl HoldZoom {
 
 /// A Zoom tool drag. With Scrubby Zoom on (Photoshop's default) the drag zooms continuously, right in and left out,
 /// [`DOUBLING`](Self::DOUBLING) points per doubling, about the press point. Off, it draws a rectangle and the release
-/// zooms to fit it (Alt: out, so the view steps one rung out about the press point).
+/// zooms to fit it (Alt: out, so the view steps one rung out about the press point). Whether a press is a drag or a
+/// click is the host's call (`drag` reached the tool or not), not the drag's.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ZoomDrag {
     anchor: Pos2,
@@ -192,8 +181,6 @@ pub struct ZoomDrag {
 impl ZoomDrag {
     /// Horizontal drag in screen points that doubles (or halves) the zoom.
     pub const DOUBLING: f32 = 100.0;
-    /// A rectangle narrower or shorter than this many points is a click, which steps the zoom at the press point.
-    pub const CLICK: f32 = 4.0;
 
     /// A drag pressed at `screen` on `view`. `scrubby` is the Zoom tool's Scrubby Zoom option.
     pub fn begin(view: &CanvasView, screen: Pos2, scrubby: bool, pixels_per_point: f32) -> Self {
@@ -215,12 +202,12 @@ impl ZoomDrag {
     }
 
     /// The button came up: a rectangle zooms `view` to fit it, or with `out` steps the zoom out about the press point;
-    /// a scrub has nothing left to do. A rectangle smaller than [`CLICK`](Self::CLICK) points is a click: no zoom
-    /// here, the tool steps.
-    pub fn release(self, view: &mut CanvasView, out: bool, size: Size, pixels_per_point: f32) {
+    /// a scrub has nothing left to do. A rectangle narrower or shorter than `least` points is too small to zoom to:
+    /// the view stays.
+    pub fn release(self, view: &mut CanvasView, out: bool, size: Size, pixels_per_point: f32, least: f32) {
         let Some(corner) = self.corner else { return };
         let rect = Rect::from_two_pos(self.anchor, corner);
-        if rect.width() < Self::CLICK || rect.height() < Self::CLICK {
+        if rect.width() < least || rect.height() < least || rect.width() <= 0.0 || rect.height() <= 0.0 {
             return;
         }
         let current = zoom::device(view, pixels_per_point);
@@ -240,14 +227,6 @@ impl ZoomDrag {
     /// The zoom rectangle on screen while it is drawn (Scrubby Zoom off).
     pub fn rect(&self) -> Option<Rect> {
         self.corner.map(|corner| Rect::from_two_pos(self.anchor, corner))
-    }
-
-    /// Whether the drag is a click: a rectangle too small to zoom to, or the pointer still at the press.
-    pub fn is_click(&self, pointer: Pos2) -> bool {
-        match self.rect() {
-            Some(rect) => rect.width() < Self::CLICK || rect.height() < Self::CLICK,
-            None => pointer.distance(self.anchor) <= HoldZoom::SLOP,
-        }
     }
 
     /// The scrubby zoom for a horizontal drag of `dx` points from a press at `zoom0`, within the document's range.

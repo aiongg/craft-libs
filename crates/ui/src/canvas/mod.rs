@@ -23,7 +23,7 @@ pub use readout::readout;
 pub use space::{CanvasSpace, RulerText, canvas_space};
 pub use words::CanvasWords;
 
-pub use tool::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPointer};
+pub use tool::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPointer, ViewEase};
 pub use tool_groups::{PickStep, tool_pick};
 pub use tool_host::{ToolHost, ToolHostResponse, ToolInput, ToolReadout};
 
@@ -48,16 +48,14 @@ mod zoom_motion;
 
 pub use momentary::{Momentary, MomentaryCommand, MomentaryTool};
 pub use navigate::{Autoscroll, FlickPan, NavigationOptions, PageKey, TouchpadGlide, WheelAction, WheelInput, WheelNavigation, pan};
-pub use rotate::{CompassOutput, RotateView, RotateViewStyle, ViewTurn};
-pub use tools::{HandTool, RotateViewTool, ViewChange, ViewCommand, ZoomTool};
+pub use rotate::{RotateView, RotateViewOutput, RotateViewStyle, ViewTurn};
+pub use tools::{HandTool, RotateViewTool, ViewCommand, ZoomTool};
 pub use zoom_motion::{HoldZoom, ZoomAnimation, ZoomDrag};
 
 mod rulers;
 mod scrollbars;
-pub use rulers::{
-    INCH_EIGHTHS, INCH_SIXTEENTHS, RulerCommands, RulerMargins, RulerOutput, RulerPart, RulerTick, Rulers, TickRule, ZeroSnap,
-};
-pub use scrollbars::{CanvasScrollbars, ScrollbarsOutput};
+pub use rulers::{INCH_EIGHTHS, INCH_SIXTEENTHS, RulerCommands, RulerMargins, RulerOutput, RulerPart, RulerTick, Rulers, TickRule, ZeroSnap};
+pub use scrollbars::{CanvasScrollbars, CanvasScrollbarsOutput};
 
 use crate::contract::{Common, Component, Container, ContainerProps, Cx, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role, Sizing};
 use crate::runtime::env::Label;

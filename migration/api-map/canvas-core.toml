@@ -206,7 +206,7 @@ name = "CanvasScrollbars"
 old = "craft_ui::canvas::scrollbars::CanvasScrollbars"
 new = "craft_ui::canvas::CanvasScrollbars"
 status = "moved"
-note = "A canvas control: `CanvasScrollbars::new(label, Bind::bound(&mut view), document)` shown with `show_at(ui, view_rect)` inside the `Canvas` body. The thumb drag and the page press run in the pipeline (`PartsCx::scroll`); the output is `ScrollbarsOutput`."
+note = "A canvas control: `CanvasScrollbars::new(label, Bind::bound(&mut view), document)` shown with `show_at(ui, view_rect)` inside the `Canvas` body. The thumb drag and the page press run in the pipeline (`PartsCx::scroll`); the output is `CanvasScrollbarsOutput`."
 
 [[type]]
 name = "ScrollbarStyle"
@@ -234,14 +234,14 @@ name = "ScrollbarsResponse"
 old = "craft_ui::canvas::scrollbars::ScrollbarsResponse"
 new = ""
 status = "removed"
-note = "`ScrollbarsOutput` replaces it: `changed` is read from `view.event`, `over` stays."
+note = "`CanvasScrollbarsOutput` replaces it: `changed` is read from `view.event`, `over` stays."
 
 [[type]]
-name = "ScrollbarsOutput"
+name = "CanvasScrollbarsOutput"
 old = ""
-new = "craft_ui::canvas::ScrollbarsOutput"
+new = "craft_ui::canvas::CanvasScrollbarsOutput"
 status = "replaced"
-note = "`ScrollbarsOutput { view: EditResponse<CanvasView>, over: bool }`."
+note = "`CanvasScrollbarsOutput { view: EditResponse<CanvasView>, over: bool }`."
 
 [[type]]
 name = "Navigator"
@@ -782,7 +782,7 @@ name = "RotateView"
 old = "craft_ui::canvas::navigate::RotateView"
 new = "craft_ui::canvas::RotateView"
 status = "replaced"
-note = "`RotateView` is now the compass, a canvas control: `RotateView::new(label, Bind<f64>, flip_x)` shown with `show_at(ui, RotateView::compass_rect(ui, canvas))` while `RotateView::visible(rotation)`; it returns `CompassOutput`. The drag maths (`begin`, `drag`, `wrap_deg`, `snap_deg`, `screen_delta`) is `ViewTurn`. `trackpad_delta` is gone (the wheel share carries no twist)."
+note = "`RotateView` is now the compass, a canvas control: `RotateView::new(label, Bind<f64>, flip_x)` shown with `show_at(ui, RotateView::compass_rect(ui, canvas))` while `RotateView::visible(rotation)`; it returns `RotateViewOutput`. The drag maths (`begin`, `drag`, `wrap_deg`, `snap_deg`, `screen_delta`) is `ViewTurn`. `trackpad_delta` is gone (the wheel share carries no twist)."
 
 [[type]]
 name = "ViewTurn"
@@ -796,12 +796,12 @@ name = "CompassResponse"
 old = "craft_ui::canvas::navigate::CompassResponse"
 new = ""
 status = "removed"
-note = "Replaced by `CompassOutput { rotation: EditResponse<f64>, reset: bool }`."
+note = "Replaced by `RotateViewOutput { rotation: EditResponse<f64>, reset: bool }`."
 
 [[type]]
-name = "CompassOutput"
+name = "RotateViewOutput"
 old = ""
-new = "craft_ui::canvas::CompassOutput"
+new = "craft_ui::canvas::RotateViewOutput"
 status = "replaced"
 note = "The compass' output: the angle's edits and whether a double click reset it."
 
@@ -810,28 +810,21 @@ name = "HandTool"
 old = "craft_ui::canvas::navigate::HandTool"
 new = "craft_ui::canvas::HandTool"
 status = "moved"
-note = "`HandTool::new(options)` (the document size is gone). The tool leaves the view it asks for in `take_change() -> Option<ViewChange>` for the app to copy; `glide(view, now)` and `stop_glide()` serve a flick released with the momentary Hand."
+note = "`HandTool::new(options)` (the document size is gone). The tool sets the view with `ToolContext::set_view`; the app copies `ToolHostResponse::view`. `stop_glide()` ends a glide the app's clamp stopped."
 
 [[type]]
 name = "ZoomTool"
 old = "craft_ui::canvas::navigate::ZoomTool"
 new = "craft_ui::canvas::ZoomTool"
 status = "moved"
-note = "`ZoomTool::new(size, options)`; `take_change()` as for the Hand tool. A click's change is eased (`ViewChange::eased`) under Animated Zoom."
+note = "`ZoomTool::new(size, options)`; A click's change is eased (`ToolContext::ease_view`, reported as `ToolHostResponse::ease`) under Animated Zoom."
 
 [[type]]
 name = "RotateViewTool"
 old = "craft_ui::canvas::navigate::RotateViewTool"
 new = "craft_ui::canvas::RotateViewTool"
 status = "moved"
-note = "`take_change()` as for the Hand tool."
-
-[[type]]
-name = "ViewChange"
-old = ""
-new = "craft_ui::canvas::ViewChange"
-status = "replaced"
-note = "What a view tool asks the app's view to become: `view`, `anchor` and `eased`. It replaces `ToolContext::set_view`."
+note = "Sets the view with `ToolContext::set_view`."
 
 [[type]]
 name = "ViewCommand"
@@ -866,7 +859,7 @@ name = "Momentary"
 old = ""
 new = "craft_ui::canvas::Momentary"
 status = "replaced"
-note = "The momentary tool in effect, kept by the app: `fired(MomentaryCommand, FirePhase)` and `tool(mods, in_gesture) -> Option<MomentaryTool>`."
+note = "The momentary tools and the one in effect, kept by the app: `Momentary::new(options, size)`, `fired(MomentaryCommand, FirePhase)`, and `ToolHost::momentary(&mut Momentary)`, which runs the Hand or Zoom tool in place of the selected tool while a key is held. `tool(mods, in_gesture) -> Option<MomentaryTool>` tells which is in effect."
 
 [[type]]
 name = "MomentaryTool"

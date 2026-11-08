@@ -16,8 +16,10 @@ fn view() -> CanvasView {
     CanvasView::new(Rect::from_min_size(Pos2::ZERO, CANVAS), Point::new(1000.0, 750.0), 1.0)
 }
 
+const SLOP: f32 = 6.0;
+
 fn context<'a>(view: CanvasView, time: f64) -> ToolContext<'a> {
-    ToolContext::new(Rect::from_min_size(Pos2::ZERO, CANVAS), Some(CanvasSpace::new(view, 1.0))).time(time)
+    ToolContext::new(Rect::from_min_size(Pos2::ZERO, CANVAS), Some(CanvasSpace::new(view, 1.0))).time(time).slop(SLOP)
 }
 
 fn at(pos: Pos2, time: f64) -> ToolPointer {
@@ -30,15 +32,17 @@ fn the_hand_drag_moves_the_document_with_the_pointer_and_escape_puts_the_view_ba
     let mut hand = HandTool::new(NavigationOptions::default());
     let from = Pos2::new(300.0, 300.0);
     hand.press(&at(from, 0.0), &mut context(start, 0.0));
-    hand.drag(&at(from + DRAG, 0.5), &mut context(start, 0.5));
-    let moved = hand.take_change().expect("a drag asks for a new view").view;
+    let mut dragged = context(start, 0.5);
+    hand.drag(&at(from + DRAG, 0.5), &mut dragged);
+    let moved = dragged.requested_view().expect("a drag asks for a new view");
     let point = Point::new(1000.0, 750.0);
     let before = start.to_screen(point);
     let after = moved.to_screen(point);
     assert!((after - before - DRAG).length() < 1e-3, "the document follows the pointer: {before:?} -> {after:?}");
 
-    hand.cancel(CancelReason::Escape, &mut context(moved, 0.6));
-    assert_eq!(hand.take_change().map(|change| change.view), Some(start), "a cancelled drag restores the view");
+    let mut cancelled = context(moved, 0.6);
+    hand.cancel(CancelReason::Escape, &mut cancelled);
+    assert_eq!(cancelled.requested_view(), Some(start), "a cancelled drag restores the view");
 }
 
 #[trial]
@@ -47,18 +51,19 @@ fn a_zoom_click_steps_the_ladder_about_the_point_and_alt_steps_out() {
     let click = Pos2::new(200.0, 100.0);
     let mut zoom = ZoomTool::new(DOCUMENT, NavigationOptions::default());
     zoom.press(&at(click, 0.0), &mut context(start, 0.0));
-    zoom.release(&at(click, 0.05), &mut context(start, 0.05));
-    let change = zoom.take_change().expect("a click zooms");
-    assert!(change.view.zoom > start.zoom && change.eased, "a click zooms in, eased under Animated Zoom");
+    let mut released = context(start, 0.05);
+    zoom.release(&at(click, 0.05), &mut released);
+    let zoomed = released.requested_view().expect("a click zooms");
+    assert!(zoomed.zoom > start.zoom && released.requested_ease().is_some(), "a click zooms in, eased under Animated Zoom");
     let doc = start.to_doc(click);
-    let kept = change.view.to_doc(click);
+    let kept = zoomed.to_doc(click);
     assert!((kept.x - doc.x).abs() < 1e-6 && (kept.y - doc.y).abs() < 1e-6, "the clicked point stays put");
 
     zoom.out = true;
     zoom.press(&at(click, 1.0), &mut context(start, 1.0));
-    zoom.release(&at(click, 1.05), &mut context(start, 1.05));
-    let out = zoom.take_change().expect("an out click zooms");
-    assert!(out.view.zoom < start.zoom);
+    let mut released = context(start, 1.05);
+    zoom.release(&at(click, 1.05), &mut released);
+    assert!(released.requested_view().expect("an out click zooms").zoom < start.zoom);
 }
 
 #[trial]
@@ -67,11 +72,38 @@ fn a_zoom_press_held_still_zooms_instead_of_stepping() {
     let click = Pos2::new(200.0, 100.0);
     let mut zoom = ZoomTool::new(DOCUMENT, NavigationOptions::default());
     zoom.press(&at(click, 0.0), &mut context(start, 0.0));
-    zoom.each_pass(&mut context(start, 0.7));
-    let held = zoom.take_change().expect("a hold zooms").view;
+    let mut pass = context(start, 0.7);
+    zoom.each_pass(&mut pass);
+    let held = pass.requested_view().expect("a hold zooms");
     assert!(held.zoom > start.zoom);
-    zoom.release(&at(click, 0.8), &mut context(held, 0.8));
-    assert_eq!(zoom.take_change(), None, "the release of a hold is no click step");
+    let mut released = context(held, 0.8);
+    zoom.release(&at(click, 0.8), &mut released);
+    assert_eq!(released.requested_view(), None, "the release of a hold is no click step");
+}
+
+#[trial]
+fn a_zoom_press_that_dragged_never_steps_whatever_the_rectangle() {
+    let start = view();
+    let from = Pos2::new(200.0, 100.0);
+    let mut options = NavigationOptions::default();
+    options.scrubby_zoom = false;
+    options.animated_zoom = false;
+    let mut zoom = ZoomTool::new(DOCUMENT, options);
+    // Past the arena's slop in one direction only: a sliver, too small to zoom to.
+    let sliver = from + Vec2::new(SLOP + 1.0, 1.0);
+    zoom.press(&at(from, 0.0), &mut context(start, 0.0));
+    zoom.drag(&at(sliver, 0.1), &mut context(start, 0.1));
+    let mut released = context(start, 0.2);
+    zoom.release(&at(sliver, 0.2), &mut released);
+    let view = released.requested_view().unwrap_or(start);
+    assert_eq!(view.zoom, start.zoom, "a dragged press that draws a sliver does not step");
+
+    let far = from + Vec2::new(200.0, 150.0);
+    zoom.press(&at(from, 1.0), &mut context(start, 1.0));
+    zoom.drag(&at(far, 1.1), &mut context(start, 1.1));
+    let mut released = context(start, 1.2);
+    zoom.release(&at(far, 1.2), &mut released);
+    assert!(released.requested_view().expect("a rectangle zooms").zoom > start.zoom, "a dragged rectangle zooms to it");
 }
 
 #[trial]
@@ -81,15 +113,18 @@ fn the_rotate_drag_turns_the_view_and_shift_snaps_and_a_double_click_resets() {
     let mut tool = RotateViewTool::default();
     let pivot = turned.rect.center();
     tool.press(&at(pivot + Vec2::new(100.0, 0.0), 0.0), &mut context(turned, 0.0));
-    tool.drag(&at(pivot + Vec2::new(0.0, 100.0), 0.1), &mut context(turned, 0.1));
-    let quarter = tool.take_change().expect("a drag turns the view").view.rotation;
+    let mut dragged = context(turned, 0.1);
+    tool.drag(&at(pivot + Vec2::new(0.0, 100.0), 0.1), &mut dragged);
+    let quarter = dragged.requested_view().expect("a drag turns the view").rotation;
     assert!((quarter - 130.0).abs() < 1e-6, "a quarter turn clockwise adds 90 degrees: {quarter}");
 
-    tool.release(&at(pivot + Vec2::new(0.0, 100.0), 0.2).clicks(2), &mut context(turned, 0.2));
-    assert_eq!(tool.take_change().map(|change| change.view.rotation), Some(0.0), "a double click resets");
+    let mut released = context(turned, 0.2);
+    tool.release(&at(pivot + Vec2::new(0.0, 100.0), 0.2).clicks(2), &mut released);
+    assert_eq!(released.requested_view().map(|view| view.rotation), Some(0.0), "a double click resets");
 
-    assert!(tool.key(&ToolKey::Cancel, &mut context(turned, 0.3)), "Escape resets a turned view");
-    assert_eq!(tool.take_change().map(|change| change.view.rotation), Some(0.0));
+    let mut escaped = context(turned, 0.3);
+    assert!(tool.key(&ToolKey::Cancel, &mut escaped), "Escape resets a turned view");
+    assert_eq!(escaped.requested_view().map(|view| view.rotation), Some(0.0));
 }
 
 #[trial]

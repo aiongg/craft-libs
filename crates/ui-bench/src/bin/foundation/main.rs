@@ -474,9 +474,8 @@ impl Scene for CanvasViewScene {
             let _ = Guides::new("Guides", Bind::bound(&mut *guides)).show_at(ui, body.rect);
             let _ = Rulers::new("Rulers", &text, &text, Bind::bound(&mut *zero)).show_at(ui, body.rect);
         });
-        let _ = ToolHost::new().run(ui, &shown.output, hand);
-        if let Some(change) = hand.take_change() {
-            *view = change.view;
+        if let Some(next) = ToolHost::new().run(ui, &shown.output, hand).view {
+            *view = next;
         }
     }
 }
