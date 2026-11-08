@@ -41,8 +41,8 @@ pub use report::{ReportDialog, ReportNote, ReportOutput, ReportWords};
 mod sizing;
 
 pub use sizing::{
-    CanvasExtension, CanvasSize, CanvasSizeOutput, CanvasSizeResult, CanvasSizeValues, ImageSize, ImageSizeOutput, ImageSizeResult, ImageSizeValues,
-    Resample, SizingOutput, SizingWords,
+    CanvasExtension, CanvasSize, CanvasSizeOutput, CanvasSizeResult, CanvasSizeValues, HostedImageSize, ImageSize, ImageSizeOutput, ImageSizeResult,
+    ImageSizeValues, Resample, SizingOutput, SizingWords,
 };
 
 mod new_document;

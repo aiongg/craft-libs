@@ -3,21 +3,20 @@
 
 use super::words::BarWords;
 use crate::buttons::IconButton;
-use crate::contract::{Bind, EditResponse, Entry, GlyphLabel, LabelKind, Outcome, Props as _, Show as _, ShowContainer as _, SideLabel, Sizing};
+use crate::contract::{Bind, Entry, GlyphLabel, LabelKind, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, SideLabel, Sizing};
 use crate::display::{Elide, Text};
 use crate::form::Field;
 use crate::layout_components::Row;
-use crate::runtime::env::{Env, Label, UnitKind, Units};
-use craft_behavior::IconId;
+use crate::runtime::commands::{self, CommandRef};
+use crate::runtime::env::{Env, Label, Units};
+use craft_behavior::canvas::zoom;
+use craft_behavior::kurbo::Size;
+use craft_behavior::{CanvasView, EditEvent, IconId, Mixed, PixelSize, ZoomLadder};
 use egui::{Response, Ui};
-use std::ops::RangeInclusive;
 use std::time::Duration;
 
 #[cfg(feature = "testing")]
 mod stories;
-
-/// The zoom range in percent when the caller gives none.
-const DEFAULT_RANGE: RangeInclusive<f64> = 0.01..=100_000.0;
 
 /// Shown for an item whose value the host does not know.
 const MISSING: &str = "\u{2014}";
@@ -55,8 +54,8 @@ pub struct StatusValues {
     pub document_sizes: Option<(u64, u64)>,
     /// The colour profile name, shown as given.
     pub document_profile: Option<String>,
-    /// The dimensions text, shown as given.
-    pub document_dimensions: Option<String>,
+    /// The document's size in pixels, shown in the user's unit.
+    pub document_dimensions: Option<PixelSize>,
     /// The measurement scale text, shown as given.
     pub measurement_scale: Option<String>,
     /// Used and available bytes.
@@ -65,8 +64,8 @@ pub struct StatusValues {
     pub efficiency: Option<u8>,
     /// How long the last operation took.
     pub timing: Option<Duration>,
-    /// The active tool's name, shown as given.
-    pub current_tool: Option<String>,
+    /// The active tool's command; the readout shows its label as the rail and the menus do.
+    pub current_tool: Option<CommandRef>,
     /// The number of layers.
     pub layer_count: Option<usize>,
 }
@@ -101,7 +100,7 @@ impl StatusItem {
     }
 
     /// The item's text for `values`, a dash when the value is missing.
-    fn text(self, values: &StatusValues, words: &BarWords, env: &Env) -> String {
+    fn text(self, values: &StatusValues, words: &BarWords, env: &Env, ctx: &egui::Context) -> String {
         let units: Units = env.units();
         let given = |value: &Option<String>| value.clone().unwrap_or_else(|| MISSING.to_owned());
         match self {
@@ -110,7 +109,14 @@ impl StatusItem {
                 |(flat, layered)| words.readout_doc_sizes.fill(&[("flat", &units.file_size(flat)), ("layered", &units.file_size(layered))]),
             ),
             StatusItem::DocumentProfile => given(&values.document_profile),
-            StatusItem::DocumentDimensions => given(&values.document_dimensions),
+            StatusItem::DocumentDimensions => values.document_dimensions.map_or_else(
+                || MISSING.to_owned(),
+                |size| {
+                    words
+                        .readout_dimensions_text
+                        .fill(&[("width", &units.pixels(f64::from(size.width))), ("height", &units.pixels(f64::from(size.height)))])
+                },
+            ),
             StatusItem::MeasurementScale => given(&values.measurement_scale),
             StatusItem::ScratchSizes => values.scratch_sizes.map_or_else(
                 || MISSING.to_owned(),
@@ -122,7 +128,9 @@ impl StatusItem {
             StatusItem::Timing => values
                 .timing
                 .map_or_else(|| MISSING.to_owned(), |time| words.readout_timing_text.fill(&[("value", &units.duration(time.as_secs_f64()))])),
-            StatusItem::CurrentTool => given(&values.current_tool),
+            StatusItem::CurrentTool => {
+                values.current_tool.as_ref().map_or_else(|| MISSING.to_owned(), |tool| commands::resolve(ctx, tool.clone()).label.to_string())
+            }
             StatusItem::LayerCount => {
                 values.layer_count.map_or_else(|| MISSING.to_owned(), |n| words.readout_layers.text(n as u64, &env.format().integer(n as u64)))
             }
@@ -135,14 +143,17 @@ impl StatusItem {
 pub struct StatusReadoutOutput {
     /// The readout row's response.
     pub response: Response,
-    /// The zoom field's edit, in percent; `None` when the row did not run.
-    pub zoom: Option<EditResponse<Option<f64>>>,
+    /// The zoom field's response; `None` when the row did not run.
+    pub zoom: Option<Response>,
+    /// The view change of this pass (a typed or scrubbed zoom about the view's centre), for a binding that does not
+    /// write through.
+    pub view: Option<EditEvent<CanvasView>>,
     /// The item chosen in the menu this pass; the host stores it.
     pub item: Option<StatusItem>,
 }
 
 impl Outcome for StatusReadoutOutput {
-    type Value = Option<f64>;
+    type Value = NoValue;
 
     fn response(&self) -> &Response {
         &self.response
@@ -150,34 +161,28 @@ impl Outcome for StatusReadoutOutput {
 
     #[cfg(feature = "testing")]
     fn story_facts(&self) -> crate::testing::StoryOutput {
-        crate::testing::StoryOutput::of_edit(&self.response, self.zoom.as_ref().and_then(|zoom| zoom.event.as_ref()))
+        crate::testing::StoryOutput::of_edit(&self.response, self.view.as_ref())
     }
 }
 
 /// The zoom field, the chosen item's text and the menu that chooses it, shown as children of a status `Bar`.
 ///
-/// The field keeps no value of its own: the zoom is the caller's binding in percent. The item is the caller's value,
-/// and a pick comes back in the output.
+/// - The field shows the bound view's zoom in percent of device pixels, as the Navigator's zoom row does. A typed or
+///   scrubbed zoom is clamped to the document's zoom range and written into the view about its centre.
+/// - The item is the caller's value, and a pick comes back in the output.
 #[derive(crate::contract::Pattern)]
 pub struct StatusReadout<'a> {
-    zoom: Bind<'a, Option<f64>>,
+    view: Bind<'a, CanvasView>,
+    document: Size,
     item: StatusItem,
     values: &'a StatusValues,
-    range: RangeInclusive<f64>,
     tips: Vec<(StatusItem, Label)>,
 }
 
 impl<'a> StatusReadout<'a> {
-    /// A readout of the zoom `zoom` in percent that shows `item` from `values`.
-    pub fn new(zoom: Bind<'a, Option<f64>>, item: StatusItem, values: &'a StatusValues) -> Self {
-        StatusReadout { zoom, item, values, range: DEFAULT_RANGE, tips: Vec::new() }
-    }
-
-    /// The zoom field's range in percent.
-    #[must_use]
-    pub fn range(mut self, percent: RangeInclusive<f64>) -> Self {
-        self.range = percent;
-        self
+    /// A readout of the zoom of `view` over a document of `document` units that shows `item` from `values`.
+    pub fn new(view: Bind<'a, CanvasView>, document: Size, item: StatusItem, values: &'a StatusValues) -> Self {
+        StatusReadout { view, document, item, values, tips: Vec::new() }
     }
 
     /// A tooltip for the info text while `item` is the one shown.
@@ -193,16 +198,34 @@ impl<'a> StatusReadout<'a> {
     pub fn show(mut self, ui: &mut Ui) -> StatusReadoutOutput {
         let env = Env::of(ui);
         let words = env.words::<BarWords>();
-        let text = self.item.text(self.values, &words, &env);
-        let shown = Row::new().show(ui, |ui, _| {
+        let text = self.item.text(self.values, &words, &env, ui.ctx());
+        let pixels_per_point = env.scale.0;
+        let document = self.document;
+        let mut event: Option<EditEvent<CanvasView>> = None;
+        let shown = Row::new().show(ui, |ui, cx| {
+            let current = match self.view.reborrow().read(cx) {
+                Some(Mixed::Same(current)) => Some(current),
+                _ => None,
+            };
+            let device = current.as_ref().map(|view| zoom::device(view, pixels_per_point));
             let glyph = SideLabel::new().kind(LabelKind::Glyph(GlyphLabel::icon(IconId::new("zoom_in")))).scrub(true);
-            let zoom = Field::new(words.readout_zoom.clone()).side(glyph).sizing(Sizing::Content).show(ui, |ui, _| {
-                crate::text::NumberField::new(words.readout_zoom.clone(), self.zoom.reborrowed())
-                    .unit_kind(UnitKind::Percent)
-                    .range(self.range.clone())
+            let field = Field::new(words.readout_zoom.clone()).side(glyph).sizing(Sizing::Content).show(ui, |ui, _| {
+                let mut number = crate::text::NumberField::new(words.readout_zoom.clone(), Bind::given(device.map(|device| device * 100.0)))
+                    .codec(env.units().zoom_codec())
                     .scrub_by_label()
-                    .show(ui)
+                    .enabled(current.is_some());
+                if let Some(device) = device {
+                    number = number.range(ZoomLadder::percent_range(device, document));
+                }
+                number.show(ui)
             });
+            let typed = field.inner.as_ref().and_then(|zoom| zoom.edit.event.clone());
+            if let (Some(current), Some(typed)) = (current, typed) {
+                let edit =
+                    typed.map(|percent| percent.map_or(current, |percent| zoom::with_device(&current, percent / 100.0, document, pixels_per_point)));
+                self.view.reborrow().write(cx, &edit);
+                event = Some(edit);
+            }
             let mut info = Text::new(text.clone()).elide(Elide::End);
             if let Some((_, tip)) = self.tips.iter().find(|(item, _)| *item == self.item) {
                 info = info.tooltip(tip.clone());
@@ -212,9 +235,9 @@ impl<'a> StatusReadout<'a> {
             let entries: Vec<Entry<StatusItem>> =
                 StatusItem::ALL.iter().map(|&item| Entry::new(item, item.name(&words)).checked(item == self.item)).collect();
             let menu = crate::menu::pick_values_from(ui, words.readout_menu.clone(), &more, &entries);
-            (zoom.inner.map(|zoom| zoom.edit), menu.picked)
+            (field.inner.map(|zoom| zoom.edit.response), menu.picked)
         });
         let (zoom, item) = shown.inner.unzip();
-        StatusReadoutOutput { response: shown.output, zoom: zoom.flatten(), item: item.flatten() }
+        StatusReadoutOutput { response: shown.output, zoom: zoom.flatten(), view: event, item: item.flatten() }
     }
 }

@@ -33,7 +33,7 @@ name = "StatusReadout"
 old = "craft_ui::patterns::status_readout::StatusReadout"
 new = "craft_ui::bars::StatusReadout"
 status = "moved"
-note = "A `Pattern` shown inside the body of a status `Bar` with `StatusReadout::new(zoom: Bind<Option<f64>>, item, &values).show_in(ui, cx)`; `StatusReadout::new(id_salt)` and `show(ui, zoom, item, values)` are gone. The output is `StatusReadoutOutput { zoom: EditResponse<Option<f64>>, item }`; a zoom edit is read from `zoom` and written through the binding. `StatusReadoutLabels` is `StatusReadoutWords`; `labels(..)` is gone (words come from the scope)."
+note = "A `Pattern` shown inside the body of a status `Bar` with `StatusReadout::new(view: Bind<CanvasView>, document: Size, item, &values).show(ui)`; `StatusReadout::new(id_salt)` and `show(ui, zoom, item, values)` are gone. The field shows the device percent of the bound view and writes a typed or scrubbed zoom into it about its centre, inside the document's zoom range. The output is `StatusReadoutOutput { response, zoom: Option<Response>, view: Option<EditEvent<CanvasView>>, item }`. `StatusReadoutLabels` is `StatusReadoutWords`; `labels(..)` is gone (words come from the scope)."
 
 [[type]]
 name = "AlignBar"
@@ -230,13 +230,14 @@ name = "StatusValues"
 old = "craft_ui::patterns::status_readout::StatusValues"
 new = "craft_ui::bars::StatusValues"
 status = "moved"
+note = "`current_tool` is `Option<CommandRef>` (the readout shows the command's label) and `document_dimensions` is `Option<PixelSize>` (shown through `Units`); neither is app-formatted text."
 
 [[type]]
 name = "StatusReadoutOutput"
 old = "craft_ui::patterns::status_readout::StatusReadoutOutput"
 new = "craft_ui::bars::StatusReadoutOutput"
 status = "moved"
-note = "`zoom` is an `EditResponse<Option<f64>>` instead of `Option<EditEvent<f64>>`."
+note = "`zoom` is the zoom field's `Response`; the zoom edit is `view: Option<EditEvent<CanvasView>>`."
 
 [[type]]
 name = "AlignBarResponse"

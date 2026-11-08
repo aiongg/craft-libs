@@ -3,6 +3,7 @@
 use super::{Kit, LinkedSize, Resample, SizeForm, SizingOutput, show_form};
 use crate::choice::Checkbox;
 use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _};
+use crate::dialog::{DialogId, DialogResult, DialogStack, StackDialog, dialog_id};
 use crate::form::Field;
 use crate::pickers::Select;
 use crate::runtime::env::UnitKind;
@@ -199,5 +200,59 @@ impl<'a> ImageSize<'a> {
                 scale_styles: state.scale_styles,
             },
         )
+    }
+}
+
+/// Builds the dialog over the host-owned values of a [`HostedImageSize`] for one pass.
+type Build = dyn for<'b> Fn(Bind<'b, ImageSizeValues>) -> ImageSize<'b> + Send;
+
+/// A hosted Image Size: the `DialogHost` owns the values, and `build` makes the dialog over them each pass. The app
+/// opens it with the values of its document and takes the [`ImageSizeResult`] from the host.
+///
+/// ```ignore
+/// host.open(HostedImageSize::new(ImageSizeValues::new(document_size), ImageSize::new));
+/// if let Some(DialogResult::Ok(result)) = host.take::<HostedImageSize>() {
+///     resize(result);
+/// }
+/// ```
+pub struct HostedImageSize {
+    id: DialogId,
+    values: ImageSizeValues,
+    build: Box<Build>,
+}
+
+impl HostedImageSize {
+    /// A dialog opening with `values`; `build` makes it over the values (`ImageSize::new`, with its settings).
+    pub fn new(values: ImageSizeValues, build: impl for<'b> Fn(Bind<'b, ImageSizeValues>) -> ImageSize<'b> + Send + 'static) -> Self {
+        HostedImageSize { id: dialog_id(KEY), values, build: Box::new(build) }
+    }
+
+    /// The values the dialog shows.
+    pub fn values(&self) -> &ImageSizeValues {
+        &self.values
+    }
+}
+
+/// The key of the hosted dialog.
+const KEY: &str = "sizing.imageSize";
+
+impl StackDialog for HostedImageSize {
+    type Result = ImageSizeResult;
+
+    fn id(&self) -> DialogId {
+        self.id
+    }
+
+    fn show(&mut self, ui: &mut Ui, _: &DialogStack) -> Option<DialogResult<ImageSizeResult>> {
+        let shown = (self.build)(Bind::bound(&mut self.values)).show(ui);
+        match (shown.result, shown.closed) {
+            (Some(result), _) => Some(DialogResult::Ok(result)),
+            (None, Some(_)) => Some(DialogResult::Cancel),
+            (None, None) => None,
+        }
+    }
+
+    fn key(&self) -> Option<&str> {
+        Some(KEY)
     }
 }
