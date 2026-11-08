@@ -11,7 +11,6 @@ use craft_ui::menu::{EditMenu, MenuBar, MenuItem, MenuTitle};
 use craft_ui::patterns::dock::DockArea;
 use craft_ui::rails::{LastUsed, ToolRail};
 use craft_ui::runtime::env::{Label, WindowKey};
-use craft_ui::runtime::memory::unique;
 use craft_ui::shell::{AppShell, AppShellOutput, Title, TitleBar};
 use egui::Ui;
 use std::cell::RefCell;
@@ -74,7 +73,7 @@ impl<'a> EditorMock<'a> {
             .body(|ui, _| {
                 let mut parts = parts.borrow_mut();
                 let mut panels = Panels { document: &mut *parts.document };
-                let id = unique("mock editor dock");
+                let id = egui::Id::unique("mock editor dock");
                 let output = DockArea::new(id, Bind::bound(&mut *workspace), &mut panels, DockConfig::default()).show(ui);
                 for action in output.actions {
                     // A refused action leaves the workspace as it was.
@@ -140,12 +139,10 @@ fn tool_rail(ui: &mut Ui, parts: &mut Parts<'_>) {
 
 fn status_bar(ui: &mut Ui, parts: &Parts<'_>) {
     let document = &*parts.document;
-    let values = StatusValues {
-        document_dimensions: Some(format!("{} x {} px", document.size.width, document.size.height)),
-        current_tool: Some(parts.tool.name().to_owned()),
-        layer_count: Some(document.layers.len()),
-        ..StatusValues::default()
-    };
+    let mut values = StatusValues::default();
+    values.document_dimensions = Some(format!("{} x {} px", document.size.width, document.size.height));
+    values.current_tool = Some(parts.tool.name().to_owned());
+    values.layer_count = Some(document.layers.len());
     let zoom = Some(document.view.zoom * PERCENT);
     let _ = Bar::new("Status", BarKind::Status).show(ui, |ui, _| {
         StatusReadout::new(Bind::given(zoom), StatusItem::DocumentDimensions, &values).show(ui);
