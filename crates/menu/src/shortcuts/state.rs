@@ -12,7 +12,7 @@ use craft_keymap::{
 
 use super::keyboard::KeyboardState;
 use super::pages::TabSet;
-use super::rows::{self, AreaEntry, AreaId, Built, Filter, Line, RowCache, View};
+use super::rows::{self, AreaEntry, AreaId, Built, Filter, RowCache, View};
 use super::words::Say;
 use super::{ConflictMode, JSON_FORMAT, Options, Outcome, summary};
 

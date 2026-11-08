@@ -209,7 +209,6 @@ use std::borrow::Cow;
 use std::sync::Arc;
 
 use craft_host::Host;
-use craft_i18n::WordSet as _;
 use craft_keymap::import::kys::KysError;
 use craft_keymap::{Bindable, Chord, Key, Platform, ReturnGlyph, Trigger};
 use craft_ui::display::DisplayWords;

@@ -31,20 +31,6 @@ pub(crate) fn keymap(platform: Platform) -> Keymap {
     Keymap::new(catalog, Scopes::new().with_panel("Timeline").with_context("Text"), platform)
 }
 
-/// `km` with a command whose label and menu path are far too long for a row.
-pub(crate) fn with_long_label(km: Keymap) -> Keymap {
-    let long = "Distribute Selected Objects Evenly Along the Active Guide Path and Keep Their Spacing".to_string();
-    let mut catalog = km.catalog().to_vec();
-    catalog.insert(
-        3,
-        Bindable::new("object.distribute", long.as_str(), Scope::app())
-            .with_path(vec!["Object".into(), "Arrange and Distribute Along a Path".into(), long.clone()])
-            .with_default(binding("Cmd+Alt+Shift+D"))
-            .with_default(binding("Ctrl+Alt+Shift+F12")),
-    );
-    Keymap::new(catalog, Scopes::new().with_panel("Timeline").with_context("Text"), km.platform())
-}
-
 /// The options a test starts from.
 pub(crate) fn options() -> Options {
     Options::default()
