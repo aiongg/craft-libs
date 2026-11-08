@@ -216,9 +216,7 @@ fn canvas(fixture: &Fixture) -> Target {
 /// A window whose document is zoomed in, so a pan has room to move the view.
 fn zoomed_window() -> (Fixture, Rc<RefCell<MockState>>) {
     let (mut fixture, state) = window(MockState::default());
-    {
-        state.borrow_mut().document.view.zoom *= 4.0;
-    }
+    state.borrow_mut().document.view.zoom *= 4.0;
     fixture.settle();
     (fixture, state)
 }
