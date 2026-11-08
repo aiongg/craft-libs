@@ -1,5 +1,6 @@
 //! Stories of the dialog shells.
 
+use super::modal::ModalDragStrip;
 use super::{BlockingOverlay, Dialog, DialogFrame, FullWindowDialog};
 use crate::choice::Checkbox;
 use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _};
@@ -132,5 +133,5 @@ fn blocking_overlay(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 fn modal_drag_strip(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let room = ui.max_rect();
     let height = crate::shell::SlotSize::TitleBar.resolve(&crate::runtime::env::Env::of(ui).tokens);
-    super::modal::ModalDragStrip::new(egui::Rect::from_min_size(room.min, egui::vec2(room.width(), height))).show(ui, |_, _| {}).into()
+    ModalDragStrip::new(egui::Rect::from_min_size(room.min, egui::vec2(room.width(), height))).show(ui, |_, _| {}).into()
 }
