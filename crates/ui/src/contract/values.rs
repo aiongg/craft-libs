@@ -365,6 +365,14 @@ impl<T> EditResponse<T> {
         EditResponse { response, event, submitted: false, escaped: false, unparsed: false, validity, shown: None }
     }
 
+    /// The response of a composite that edits one value through several child components: `event` is the edit of the
+    /// whole value the composite lifted from its children's events, `shown` the value it showed after the pass, and
+    /// `response` its own. The flags are clear and the validity is `Ok`; the composite sets the flags it reads from
+    /// its children.
+    pub fn lifted(response: Response, event: Option<EditEvent<T>>, shown: Option<Mixed<Arc<T>>>) -> Self {
+        EditResponse { response, event, submitted: false, escaped: false, unparsed: false, validity: Validity::Ok, shown }
+    }
+
     /// The value the pass's event carries: a proposal, a commit or a set; `None` when nothing was edited or the event
     /// carries none (a gesture's begin or cancel).
     pub fn value(&self) -> Option<&T> {

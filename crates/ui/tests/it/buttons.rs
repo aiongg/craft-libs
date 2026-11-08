@@ -1,9 +1,10 @@
 //! `SplitButton`: the main part runs the action and never opens the menu, the arrow and Alt+Down open it, a pick
 //! reports the entry as one choice and closes the menu.
 
+use craft_behavior::Mixed;
 use craft_theme::{Rgba, contrast_ratio, text_contrast_min};
-use craft_ui::buttons::{Button, IconButton, SplitButton};
-use craft_ui::contract::{CommandSet, Entry, Role, Show as _};
+use craft_ui::buttons::{Button, IconButton, SplitButton, ToggleButton};
+use craft_ui::contract::{Bind, CommandSet, Entry, Role, Show as _};
 use craft_ui::primitives::IconSpec;
 use craft_ui::runtime::commands::{CommandInput, CommandState};
 use craft_ui::testing::focus::AccessActionKind;
@@ -174,4 +175,24 @@ fn a_tinted_button_reports_clicks_and_its_label_reads_on_the_tint() {
     let ratio = contrast_ratio(Rgba::from(ink), tint);
     let least = text_contrast_min(craft_theme::Contrast::Standard);
     assert!(ratio >= least, "the label reads on the tint: {ratio} against {least}");
+}
+
+/// A selection with both states: the button reports the mixed toggled state, and a click makes it on.
+#[trial]
+fn a_mixed_toggle_reports_mixed_and_a_click_turns_it_on() {
+    let value = Rc::new(Cell::new(Mixed::Mixed));
+    let shown = value.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let mut current = shown.get();
+        ToggleButton::new("Bold", Bind::bound_mixed(&mut current)).show(ui);
+        shown.set(current);
+    });
+    fixture.settle();
+    let button = fixture.by_label("Bold").expect("the button");
+    assert_eq!(fixture.tree().toggled_of(button.node), Some(Mixed::Mixed), "a mixed value reads as mixed, not on or off");
+    fixture.click(&button);
+    fixture.idle(2);
+    assert_eq!(value.get(), Mixed::Same(true), "a click on a mixed toggle makes it on");
+    let button = fixture.by_label("Bold").expect("the button");
+    assert_eq!(fixture.tree().toggled_of(button.node), Some(Mixed::Same(true)));
 }

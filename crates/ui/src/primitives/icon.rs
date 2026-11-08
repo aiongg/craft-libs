@@ -2,7 +2,7 @@
 
 use super::svg_set;
 use super::textures::TextureCache;
-use crate::style::{Ink, StyleColor, UiTokens, ink_color};
+use crate::style::{DataColor, Ink, StyleColor, UiTokens, ink_color};
 use craft_behavior::IconId;
 use craft_i18n::Direction;
 use craft_theme::Srgba;
@@ -109,6 +109,14 @@ impl<'a> IconSpec<'a> {
     /// Sets the colour, in place of the ink's.
     pub fn color(mut self, color: StyleColor) -> Self {
         self.color = Some(color);
+        self
+    }
+
+    /// Sets the colour from data, in place of the ink's: an icon drawn in document content (an annotation pictogram),
+    /// whose colour belongs to the document and not to a state. It fills the colour slot of [`color`](Self::color), so
+    /// a style that resolves a colour for an icon without one leaves it.
+    pub fn data_color(mut self, color: DataColor) -> Self {
+        self.color = Some(StyleColor(color.0));
         self
     }
 

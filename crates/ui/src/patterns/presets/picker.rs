@@ -8,25 +8,29 @@
 #[cfg(feature = "testing")]
 mod stories;
 
-use super::browser::PresetBrowser;
+use super::browser::{PresetBrowser, ThumbPainter};
 use super::event::PresetEvent;
 use super::footer::PresetFooterOptions;
-use super::model::{CellShape, PresetRow};
+use super::model::{CellShape, PresetRow, ThumbInfo};
 use super::state::{DefaultOpen, PresetState, PresetView};
 use super::words::PresetWords;
+use crate::buttons::Button;
 use crate::contract::{
     Access, Bind, BindMut, BodyCx, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi,
-    PartsCx, Pointer as _, Props as _, Role, ShowContainer as _, WordSetCx as _,
+    PartsCx, Pointer as _, Props as _, Role, Show as _, ShowContainer as _, WordSetCx as _, clicked,
 };
+use crate::display::Divider;
 use crate::layout_components::Stack;
 use crate::list::RowTest;
 use crate::pickers::{SelectFace, toggle_on_key};
+use crate::primitives::ContentPainterCx;
 use crate::runtime::env::{EnvView, Label};
 use crate::runtime::memory::StageAccess;
 use crate::style::{ComponentStyle, FocusLook, StyleCx, SurfaceLook};
 use crate::tile_grid::TileZoom;
 use craft_behavior::{CancelReason, GesturePhase, HitLevel, HitPriority, Metrics, PartKey, PressPhase, Sense, Value};
-use egui::{Response, Ui, Vec2};
+use craft_theme::Variant;
+use egui::{Rect, Response, Ui, Vec2};
 use std::hash::Hash;
 
 /// The face under the whole field.
@@ -87,6 +91,10 @@ pub struct PresetPickerOutput<K> {
     pub closed: bool,
     /// The thumbnail of the face was pressed (with `edit_face`): the host opens its editor.
     pub edit_requested: bool,
+    /// The row `PresetPicker::create_row` added was chosen in this pass; the popover has closed.
+    pub create: bool,
+    /// The row `PresetPicker::detach_row` added was chosen in this pass; the popover has closed.
+    pub detach: bool,
 }
 
 impl<K: Value> Outcome for PresetPickerOutput<K> {
@@ -172,9 +180,20 @@ pub struct PresetPicker<'a, K: Value + Eq + Hash + 'static> {
     /// rest of the field opens the list.
     #[prop(flag)]
     edit_face: bool,
+    /// The label of the row below the presets that creates a preset.
+    #[prop(into)]
+    create_row: Option<Label>,
+    /// The label of the row below the presets that detaches the value from its preset.
+    #[prop(into)]
+    detach_row: Option<Label>,
+    /// Paints the popover's thumbnails (a swatch, a gradient ramp, a brush tip) in place of each row's own `preview`.
+    #[prop(func = "Fn(&ContentPainterCx, Rect, ThumbInfo<'_, K>)")]
+    preview: Option<ThumbPainter<'a, K>>,
     picked: Option<K>,
     closed: bool,
     edit_requested: bool,
+    create: bool,
+    detach: bool,
     events: Vec<PresetEvent<K>>,
 }
 
@@ -202,9 +221,14 @@ impl<'a, K: Value + Eq + Hash + 'static> PresetPicker<'a, K> {
             footer: None,
             thumb_range: TileZoom::Ladder,
             edit_face: false,
+            create_row: None,
+            detach_row: None,
+            preview: None,
             picked: None,
             closed: false,
             edit_requested: false,
+            create: false,
+            detach: false,
             events: Vec::new(),
         }
         .label(label)
@@ -332,6 +356,7 @@ impl<K: Value + Eq + Hash + 'static> Component for PresetPicker<'_, K> {
         let (thumb_range, footer, keep_open) = (self.thumb_range, self.footer.as_ref(), self.keep_open);
         let state = &mut self.state;
         let head = &mut self.head;
+        let (create_row, detach_row, preview) = (self.create_row.as_ref(), self.detach_row.as_ref(), self.preview.as_ref());
         let mut browse = |ui: &mut Ui| {
             let mut browser = PresetBrowser::new(name.clone(), state.reborrowed(), rows)
                 .cell_shape(shape)
@@ -355,13 +380,43 @@ impl<K: Value + Eq + Hash + 'static> Component for PresetPicker<'_, K> {
             if let Some(test) = can_move {
                 browser = browser.can_move(|key| test.passes(key));
             }
+            if let Some(painter) = preview {
+                browser = browser.thumb(|cx, rect, info| painter.paint(cx, rect, info));
+            }
             browser.show(ui)
         };
-        let out = ui.show(popup, Overlay::popover(), |ui, _| match head.as_mut() {
-            Some(head) => Stack::new().fill().header(|ui, cx| (head.0)(ui, cx)).show(ui, |ui, _| browse(ui)).inner,
-            None => Some(browse(ui)),
+        let out = ui.show(popup, Overlay::popover(), |ui, _| {
+            let has_actions = create_row.is_some() || detach_row.is_some();
+            if head.is_none() && !has_actions {
+                return Some((browse(ui), (false, false)));
+            }
+            // The actions follow the presets in a footer, set off by a separator, as the preset menu lists them.
+            let mut chosen = (false, false);
+            let actions = |ui: &mut Ui, _: &mut BodyCx<'_>| {
+                Divider::horizontal().show(ui);
+                if let Some(label) = create_row {
+                    chosen.0 = clicked(&Button::new(label.clone()).id_salt("create").variant(Variant::GHOST).show(ui));
+                }
+                if let Some(label) = detach_row {
+                    chosen.1 = clicked(&Button::new(label.clone()).id_salt("detach").variant(Variant::GHOST).show(ui));
+                }
+            };
+            let mut stack = Stack::new();
+            if let Some(head) = head.as_mut() {
+                stack = stack.fill().header(|ui, cx| (head.0)(ui, cx));
+            }
+            if has_actions {
+                stack = stack.footer(actions);
+            }
+            let shown = stack.show(ui, |ui, _| browse(ui)).inner;
+            shown.map(|out| (out, chosen))
         });
-        let Some(Some(out)) = out else { return };
+        let Some((out, (create, detach))) = out.flatten() else { return };
+        if create || detach {
+            self.create |= create;
+            self.detach |= detach;
+            popup.close(cx);
+        }
         let mut pick: Option<(K, bool)> = None;
         for event in out.events {
             match event {
@@ -406,6 +461,8 @@ impl<K: Value + Eq + Hash + 'static> Component for PresetPicker<'_, K> {
             events: self.events,
             closed: self.closed,
             edit_requested: self.edit_requested,
+            create: self.create,
+            detach: self.detach,
         }
     }
 }

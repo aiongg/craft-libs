@@ -68,6 +68,11 @@ const SMALL_UNTIL: f64 = 0.75;
 pub struct ThumbPainter<'a, K>(Box<dyn Fn(&ContentPainterCx, Rect, ThumbInfo<'_, K>) + 'a>);
 
 impl<'a, K> ThumbPainter<'a, K> {
+    /// Runs the painter: how a picker hands its own to the browser it opens.
+    pub(super) fn paint(&self, cx: &ContentPainterCx, rect: Rect, info: ThumbInfo<'_, K>) {
+        (self.0)(cx, rect, info);
+    }
+
     /// The painter that runs `paint`.
     pub fn new(paint: impl Fn(&ContentPainterCx, Rect, ThumbInfo<'_, K>) + 'a) -> Self {
         ThumbPainter(Box::new(paint))

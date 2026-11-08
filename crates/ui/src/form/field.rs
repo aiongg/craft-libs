@@ -4,6 +4,7 @@ use crate::contract::{
     BodyCx, Common, Component, Container, ContainerProps, Cx, FieldLayout, FooterRegion, Props as _, Role, Show as _, SideLabel, Sizing,
 };
 use crate::display::{Shade, Text};
+use crate::runtime::access::Access;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx, TypeRole};
 use craft_behavior::{Metrics, Sense};
@@ -44,13 +45,17 @@ pub struct Field {
     help: Option<Help>,
     /// The layout `Field::layout` set, which `Field::side` keeps.
     layout: Option<FieldLayout>,
+    /// The static text a readout field reports as its node's value, for a field whose body shows that text (a
+    /// `Text` in the body closure). The value is read by assistive technology and by tests; it is not editable.
+    #[prop(into)]
+    value: Option<String>,
 }
 
 impl Field {
     /// A field labelled `label`, beside its control, filling the width offered.
     pub fn new(label: impl Into<Label>) -> Self {
         let props = ContainerProps::new().sizing(Sizing::FillWidth).footer(FooterRegion::new()).label(SideLabel::new());
-        Field { common: Common::new(), props, help: None, layout: None }.label(label)
+        Field { common: Common::new(), props, help: None, layout: None, value: None }.label(label)
     }
 
     /// Where the label sits relative to the control.
@@ -87,6 +92,12 @@ impl Component for Field {
 
     fn sense(&self) -> Sense {
         Sense::empty()
+    }
+
+    fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
+        if let Some(text) = &self.value {
+            access.value(text.clone());
+        }
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {

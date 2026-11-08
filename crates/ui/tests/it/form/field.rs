@@ -122,3 +122,18 @@ fn a_click_on_the_label_focuses_the_control() {
     fixture.click(&label);
     assert_eq!(focused_key(fixture.tree()), control.node, "the label's click focused the control");
 }
+
+const READOUT: &str = "12 mm";
+
+#[trial]
+fn a_readout_field_reports_its_value() {
+    let mut fixture = Fixture::new(|ui| {
+        Field::new("Length").value(READOUT).show(ui, |ui, _| {
+            Text::new(READOUT).show(ui);
+        });
+    });
+    fixture.settle();
+    let tree = fixture.tree();
+    let valued = fixture.by_role(Role::GROUP).into_iter().any(|group| tree.value_of(group.node) == Some(READOUT));
+    assert!(valued, "the field node carries the readout as its value");
+}

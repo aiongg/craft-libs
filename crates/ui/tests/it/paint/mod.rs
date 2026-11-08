@@ -1,3 +1,4 @@
+mod content;
 mod draw;
 mod host_ink;
 mod kit;
