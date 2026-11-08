@@ -191,12 +191,13 @@ fn the_nearest_point_within_reach_takes_the_press_in_a_turned_flipped_view() {
         let anchor = h.screen(Point::new(RECT.x1, RECT.y1));
         let out = (anchor - h.screen(RECT.center())).normalized();
         let at = anchor + out * offset;
-        h.drag(at, at + out * 20.0);
+        let pull = 20.0_f32;
+        h.drag(at, at + out * pull);
         match h.edit.get() {
             Some(WarpEdit::Point { index, by, .. }) => {
                 assert!(taken, "{offset} pt");
                 assert_eq!(index, 15);
-                assert!((by.hypot() - 20.0).abs() < 1e-3, "{by:?}");
+                assert!((by.hypot() - f64::from(pull)).abs() < 1e-3, "{by:?}");
             }
             other => assert!(!taken && other.is_none(), "{offset} pt: {other:?}"),
         }
