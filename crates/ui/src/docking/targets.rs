@@ -76,7 +76,7 @@ impl DockSizes {
             seam_band: size.control.md,
             column_edge_band: size.control.md,
             new_dock_band: size.control.md,
-            cascade_inset: size.float.cascade,
+            cascade_inset: size.window.cascade,
             float_size: Vec2::new(size.float.width, size.float.height),
             gap: cx.tokens.space.gap.inline,
             least_pane: size.rail.width,

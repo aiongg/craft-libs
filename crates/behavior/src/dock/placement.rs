@@ -3,10 +3,10 @@
 use emath::{Pos2, Rect, Vec2, pos2, vec2};
 
 use crate::monitor::Monitor;
+use crate::placement::{MAX_POSITION, monitor_of, usable};
 
-/// Largest native window, and the farthest it may sit from the desktop origin.
+/// Largest native window.
 const MAX_SIZE: f32 = 16_384.0;
-const MAX_POSITION: f32 = 100_000.0;
 const MIN_WIDTH: f32 = 160.0;
 const MIN_HEIGHT: f32 = 100.0;
 /// The extent a non-finite width or height falls back to.
@@ -25,21 +25,6 @@ pub fn sanitized(rect: Rect) -> Rect {
         pos2(finite(rect.min.x, 0.0).clamp(-MAX_POSITION, MAX_POSITION), finite(rect.min.y, 0.0).clamp(-MAX_POSITION, MAX_POSITION)),
         vec2(finite(size.x, FALLBACK_WIDTH).clamp(MIN_WIDTH, MAX_SIZE), finite(size.y, FALLBACK_HEIGHT).clamp(MIN_HEIGHT, MAX_SIZE)),
     )
-}
-
-fn usable(monitor: &Monitor) -> bool {
-    let (min, size) = (monitor.rect.min, monitor.rect.size());
-    [min.x, min.y, size.x, size.y].iter().all(|v| v.is_finite() && v.abs() <= MAX_POSITION) && size.x > 0.0 && size.y > 0.0
-}
-
-/// The monitor holding the center of `rect`, else the one nearest to it. None for an empty
-/// list.
-pub fn monitor_of(monitors: &[Monitor], rect: Rect) -> Option<&Monitor> {
-    let center = rect.center();
-    let monitors = || monitors.iter().filter(|m| usable(m));
-    monitors()
-        .find(|m| m.rect.contains(center))
-        .or_else(|| monitors().min_by(|a, b| a.rect.distance_sq_to_pos(center).total_cmp(&b.rect.distance_sq_to_pos(center))))
 }
 
 /// Whether enough of the `bar`-high bar along the top of `rect` lies on one of `monitors` to

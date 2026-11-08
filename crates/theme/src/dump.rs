@@ -8,7 +8,7 @@ use std::fmt::Write as _;
 use crate::{
     BarSizes, BySize, ColorToken, ComponentTokens, ControlSizes, Easing, Edge, Elevation, ElevationTokens, FloatSizes, FontSlot, Gaps, HandleSizes,
     HitSizes, IconSizes, LengthSizes, Motion, MotionTokens, Pads, PlotSizes, RadiusSet, RailSizes, Rgba, RowStyle, ShapeTokens, SizeTokens,
-    SliderTokens, SpaceTokens, StrokeTokens, ThumbSizes, Tokens, TypeStyle, TypeTokens,
+    SliderTokens, SpaceTokens, StrokeTokens, ThumbSizes, Tokens, TypeStyle, TypeTokens, WindowSizes,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -112,6 +112,7 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
         toggle,
         pointer_tip,
         float,
+        window,
     } = size;
     let ControlSizes { sm, md } = control;
     out.line("size.control.sm", len(*sm));
@@ -152,10 +153,11 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
     out.line("size.toggle", len(*toggle));
     out.line("size.pointer_tip.x", len(pointer_tip.x));
     out.line("size.pointer_tip.y", len(pointer_tip.y));
-    let FloatSizes { width, height, cascade } = float;
+    let FloatSizes { width, height } = float;
     out.line("size.float.width", len(*width));
     out.line("size.float.height", len(*height));
-    out.line("size.float.cascade", len(*cascade));
+    let WindowSizes { cascade } = window;
+    out.line("size.window.cascade", len(*cascade));
 }
 
 fn slot(s: FontSlot) -> &'static str {

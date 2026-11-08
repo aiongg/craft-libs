@@ -1,13 +1,11 @@
 //! The app shell's own rules: the screen-mode cycle, the full-screen steps, the reveal rules and the slot order.
 
-use craft_host::target::WindowState;
 use craft_ui::canvas::{Canvas, ToolPath};
 use craft_ui::contract::{Bind, PaneEdge, Show as _, ShowContainer as _};
 use craft_ui::display::Text;
 use craft_ui::runtime::env::{RevealEdge, RootEnv, WindowKey};
 use craft_ui::runtime::frame::ChromeToggle;
-use craft_ui::runtime::windows::WindowAction;
-use craft_ui::shell::{Aim, AppShell, AppShellOutput, FullScreenPlan, Reveal, ScreenMode, ScreenModeCommand, Slot, SlotSize, Tracking};
+use craft_ui::shell::{Aim, AppShell, AppShellOutput, Reveal, ScreenMode, ScreenModeCommand, Slot, SlotSize, Tracking};
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::{click, moved, settle};
 use craft_ui::testing::{Frames, trial};
@@ -51,41 +49,6 @@ fn each_mode_hides_what_it_hides() {
     let with_bars = ScreenMode::FullScreenWithMenuBar;
     assert!(!with_bars.tabs_visible() && !with_bars.scrollbars_visible() && with_bars.is_full_screen() && !with_bars.body_only());
     assert!(ScreenMode::FullScreen.body_only() && ScreenMode::FullScreen.is_full_screen());
-}
-
-#[trial]
-fn on_windows_a_maximized_window_leaves_maximized_before_full_screen_and_returns_to_it() {
-    let mut plan = FullScreenPlan::default();
-    plan.start(true);
-    assert_eq!(plan.step(true, WindowState::Maximized), Some(WindowAction::ToggleMaximize));
-    assert_eq!(plan.step(true, WindowState::Maximized), None, "the plan waits for the state to change");
-    assert_eq!(plan.step(true, WindowState::Normal), Some(WindowAction::ToggleFullscreen));
-    assert_eq!(plan.step(true, WindowState::Fullscreen), None);
-    assert!(!plan.is_active());
-
-    plan.start(false);
-    assert_eq!(plan.step(true, WindowState::Fullscreen), Some(WindowAction::ToggleFullscreen));
-    assert_eq!(plan.step(true, WindowState::Normal), Some(WindowAction::ToggleMaximize), "full screen and maximized never overlap");
-    assert_eq!(plan.step(true, WindowState::Maximized), None);
-    assert!(!plan.is_active());
-}
-
-#[trial]
-fn elsewhere_full_screen_is_one_toggle_each_way_and_a_normal_window_is_not_maximized_on_return() {
-    let mut plan = FullScreenPlan::default();
-    plan.start(true);
-    assert_eq!(plan.step(false, WindowState::Maximized), Some(WindowAction::ToggleFullscreen));
-    assert_eq!(plan.step(false, WindowState::Fullscreen), None);
-    plan.start(false);
-    assert_eq!(plan.step(false, WindowState::Fullscreen), Some(WindowAction::ToggleFullscreen));
-    assert_eq!(plan.step(false, WindowState::Maximized), None);
-
-    plan.start(true);
-    assert_eq!(plan.step(true, WindowState::Normal), Some(WindowAction::ToggleFullscreen));
-    assert_eq!(plan.step(true, WindowState::Fullscreen), None);
-    plan.start(false);
-    assert_eq!(plan.step(true, WindowState::Fullscreen), Some(WindowAction::ToggleFullscreen));
-    assert_eq!(plan.step(true, WindowState::Normal), None, "a window that was not maximized stays as it is");
 }
 
 #[trial]

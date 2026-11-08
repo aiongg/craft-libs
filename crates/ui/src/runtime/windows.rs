@@ -303,6 +303,11 @@ pub enum WindowAction {
     ToggleMaximize,
     /// Enters or leaves full screen.
     ToggleFullscreen,
+    /// Enters full screen (`true`) or leaves it. Unlike [`WindowAction::ToggleMaximize`] it is not refused while the
+    /// window is in full screen, so a sequence of actions can be sent in one pass.
+    SetFullscreen(bool),
+    /// Maximizes (`true`) or restores the window, whatever state it reports.
+    SetMaximized(bool),
     /// Raises the window and gives it OS focus.
     Focus,
     /// The OS starts moving the window with the pointer.
@@ -357,6 +362,11 @@ impl MonitorInfo {
     pub fn points_at(&self, window_scale: f32) -> Rect {
         let scale = window_scale.max(f32::EPSILON);
         Rect::from_min_max(self.pixels.min / scale, self.pixels.max / scale)
+    }
+
+    /// The monitor as the placement owner's type, in the points of a window whose scale is `window_scale`.
+    pub fn placed_at(&self, window_scale: f32) -> craft_behavior::Monitor {
+        craft_behavior::Monitor::new(Some(self.name.clone()), self.points_at(window_scale), self.scale)
     }
 }
 
@@ -682,6 +692,8 @@ pub fn act(ctx: &Context, viewport: ViewportId, action: WindowAction) -> bool {
         WindowAction::ToggleMaximize => commands && window.state != WindowState::Fullscreen,
         WindowAction::StartResize(_) => commands && resizable,
         WindowAction::ToggleFullscreen
+        | WindowAction::SetFullscreen(_)
+        | WindowAction::SetMaximized(_)
         | WindowAction::StartMove
         | WindowAction::SetOuterPosition(_)
         | WindowAction::SetInnerSize(_)
@@ -699,6 +711,8 @@ pub fn act(ctx: &Context, viewport: ViewportId, action: WindowAction) -> bool {
         WindowAction::ToggleFullscreen => {
             viewports::command(ctx, viewport, egui::ViewportCommand::Fullscreen(window.state != WindowState::Fullscreen))
         }
+        WindowAction::SetFullscreen(on) => viewports::command(ctx, viewport, egui::ViewportCommand::Fullscreen(on)),
+        WindowAction::SetMaximized(on) => viewports::command(ctx, viewport, egui::ViewportCommand::Maximized(on)),
         WindowAction::StartMove => {
             viewports::command(ctx, viewport, egui::ViewportCommand::StartDrag);
             hand_off(ctx, viewport);
@@ -849,6 +863,12 @@ impl WindowHost {
     pub fn monitors(&self) -> Vec<MonitorInfo> {
         let system = shared(&self.ctx, |shared| shared.system.clone());
         system.map(|system| system.monitors()).unwrap_or_default().into_iter().map(monitor_info).collect()
+    }
+
+    /// The connected monitors as the placement owner's type, in the points of a window whose scale is
+    /// `window_scale` ([`WindowFacts::scale`]).
+    pub fn monitors_at(&self, window_scale: f32) -> Vec<craft_behavior::Monitor> {
+        self.monitors().iter().map(|monitor| monitor.placed_at(window_scale)).collect()
     }
 
     /// Places `viewport`'s outer rect at `outer`: its position, and the inner size that leaves the window's

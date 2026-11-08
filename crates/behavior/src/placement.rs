@@ -1,0 +1,119 @@
+//! Where windows go on the desktop: which monitor a window is on, and where the next window of a cascade opens.
+//! Rects are in desktop logical points.
+
+use emath::{Rect, Vec2, pos2};
+
+use crate::monitor::Monitor;
+
+/// The farthest a window or monitor may sit from the desktop origin.
+pub(crate) const MAX_POSITION: f32 = 100_000.0;
+
+/// The monitor `window` is on: the one showing most of it or, when none shows it, the nearest. By area, not by a
+/// corner or the centre: on Windows a maximized window overhangs its monitor on every side. Monitors with a
+/// non-finite or empty rect are skipped. `None` only when there is no usable monitor.
+pub fn monitor_of(monitors: &[Monitor], window: Rect) -> Option<&Monitor> {
+    let shown = |monitor: &Monitor| {
+        let overlap = window.intersect(monitor.rect);
+        overlap.width().max(0.0) * overlap.height().max(0.0)
+    };
+    let gap = |monitor: &Monitor| {
+        let across = (monitor.rect.min.x - window.max.x).max(window.min.x - monitor.rect.max.x).max(0.0);
+        let down = (monitor.rect.min.y - window.max.y).max(window.min.y - monitor.rect.max.y).max(0.0);
+        across * across + down * down
+    };
+    monitors.iter().filter(|monitor| usable(monitor)).max_by(|a, b| shown(a).total_cmp(&shown(b)).then_with(|| gap(b).total_cmp(&gap(a))))
+}
+
+/// Whether a monitor report can place a window: finite, nonempty and of sane size.
+pub(crate) fn usable(monitor: &Monitor) -> bool {
+    let (min, size) = (monitor.rect.min, monitor.rect.size());
+    [min.x, min.y, size.x, size.y].iter().all(|v| v.is_finite() && v.abs() <= MAX_POSITION) && size.x > 0.0 && size.y > 0.0
+}
+
+/// Where a window of `size` opens after the one at `previous`: one `step` right and down. An axis on which that
+/// would leave `bounds` starts again at the edge of `bounds`, so a long run of windows walks down the screen and
+/// wraps back to the top left. A window larger than `bounds` goes to the corner of `bounds`; its size never
+/// changes.
+pub fn cascade(previous: Rect, size: Vec2, bounds: Rect, step: f32) -> Rect {
+    let axis = |previous: f32, length: f32, low: f32, high: f32| {
+        let at = previous + step;
+        if at < low || at + length > high { low } else { at }
+    };
+    let at = pos2(axis(previous.min.x, size.x, bounds.min.x, bounds.max.x), axis(previous.min.y, size.y, bounds.min.y, bounds.max.y));
+    Rect::from_min_size(at, size)
+}
+
+/// `n` windows of `size` in a cascade inside `area`: the first at its top left, each next one [`cascade`]d from the
+/// one before. The host passes its cascade step (`size.window.cascade`).
+pub fn cascade_rects(area: Rect, size: Vec2, n: usize, step: f32) -> Vec<Rect> {
+    let mut rects: Vec<Rect> = Vec::with_capacity(n);
+    for _ in 0..n {
+        let next = rects.last().map_or_else(|| Rect::from_min_size(area.min, size), |last| cascade(*last, size, area, step));
+        rects.push(next);
+    }
+    rects
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use emath::vec2;
+
+    fn monitor(x: f32, y: f32, w: f32, h: f32) -> Monitor {
+        Monitor::new(None, Rect::from_min_size(pos2(x, y), vec2(w, h)), 1.0)
+    }
+
+    fn rect(x: f32, y: f32, w: f32, h: f32) -> Rect {
+        Rect::from_min_size(pos2(x, y), vec2(w, h))
+    }
+
+    #[test]
+    fn a_window_is_on_the_monitor_showing_most_of_it() {
+        let left = monitor(-1920.0, 200.0, 1920.0, 1080.0);
+        let main = monitor(0.0, 0.0, 3840.0, 1600.0);
+        let below = monitor(718.0, 1600.0, 1280.0, 720.0);
+        let desktop = [left.clone(), main.clone(), below.clone()];
+        assert_eq!(monitor_of(&desktop, rect(-8.0, -8.0, 3856.0, 1576.0)), Some(&main), "maximized, its corner outside");
+        assert_eq!(monitor_of(&desktop, rect(-1928.0, 192.0, 1936.0, 1056.0)), Some(&left), "maximized, on the left");
+        assert_eq!(monitor_of(&desktop, rect(800.0, 1700.0, 400.0, 300.0)), Some(&below), "offset and smaller");
+        assert_eq!(monitor_of(&desktop, rect(-100.0, 300.0, 1000.0, 500.0)), Some(&main), "across two, mostly on one");
+        assert_eq!(monitor_of(std::slice::from_ref(&main), rect(3400.0, 100.0, 800.0, 600.0)), Some(&main), "past the right edge");
+    }
+
+    #[test]
+    fn a_window_no_monitor_shows_goes_to_the_nearest() {
+        let main = monitor(0.0, 0.0, 1920.0, 1080.0);
+        let right = monitor(1920.0, 0.0, 1920.0, 1080.0);
+        assert_eq!(monitor_of(&[right.clone(), main.clone()], rect(-3840.0, -1600.0, 1456.0, 959.0)), Some(&main));
+        assert_eq!(monitor_of(&[main.clone(), right.clone()], rect(5000.0, 100.0, 800.0, 600.0)), Some(&right));
+        assert_eq!(monitor_of(&[], rect(0.0, 0.0, 800.0, 600.0)), None);
+    }
+
+    #[test]
+    fn nonsense_numbers_still_give_a_monitor() {
+        let main = monitor(0.0, 0.0, 1920.0, 1080.0);
+        let window = Rect::from_min_size(pos2(f32::NAN, f32::INFINITY), vec2(f32::NAN, 1.0));
+        assert_eq!(monitor_of(std::slice::from_ref(&main), window), Some(&main));
+        let broken = monitor(f32::NAN, 0.0, 1920.0, 1080.0);
+        assert_eq!(monitor_of(&[broken, main.clone()], rect(0.0, 0.0, 800.0, 600.0)), Some(&main), "a broken report is skipped");
+    }
+
+    #[test]
+    fn a_cascade_steps_down_and_right_and_wraps_each_axis_at_the_bounds() {
+        let screen = rect(0.0, 0.0, 1000.0, 800.0);
+        let size = vec2(400.0, 300.0);
+        assert_eq!(cascade(rect(100.0, 50.0, 400.0, 300.0), size, screen, 28.0), rect(128.0, 78.0, 400.0, 300.0));
+        // Bottom edge: y starts over, x keeps stepping.
+        assert_eq!(cascade(rect(100.0, 480.0, 400.0, 300.0), size, screen, 28.0), rect(128.0, 0.0, 400.0, 300.0));
+        // Right edge on a second monitor whose work area starts at (1000, 30).
+        let second = rect(1000.0, 30.0, 1200.0, 770.0);
+        assert_eq!(cascade(rect(1780.0, 100.0, 400.0, 300.0), size, second, 28.0), rect(1000.0, 128.0, 400.0, 300.0));
+    }
+
+    #[test]
+    fn a_window_off_the_bounds_or_too_big_goes_to_the_corner() {
+        let screen = rect(0.0, 0.0, 1000.0, 800.0);
+        assert_eq!(cascade(rect(-500.0, -200.0, 400.0, 300.0), vec2(400.0, 300.0), screen, 28.0), rect(0.0, 0.0, 400.0, 300.0));
+        assert_eq!(cascade(rect(10.0, 10.0, 400.0, 300.0), vec2(1200.0, 900.0), screen, 28.0), rect(0.0, 0.0, 1200.0, 900.0));
+    }
+}

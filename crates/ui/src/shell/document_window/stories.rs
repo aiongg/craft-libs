@@ -11,7 +11,6 @@ use egui::Ui;
 fn document_window(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let mut guides = *data.value("guides", true);
     let shown = DocumentWindow::new("Landscape.psd")
-        .opened(Bind::bound(data.value("open", true)))
         .show(ui, |ui, _| {
             Stack::new().show(ui, |ui, _| {
                 Checkbox::new(Bind::bound(&mut guides)).label("Show guides").show(ui);

@@ -3,8 +3,9 @@
 use craft_behavior::dock::{
     Action, AnchoredResize, Arrangement, Column, DockEdge, DockError, DockSide, DocumentGroup, DocumentWindows, Floating, Group, Layout,
     NamedWorkspace, NativeSpace, Node, PanelPlace, PanelState, Permissions, Placement, SplitSize, Target, Workspace, WorkspaceChrome, WorkspaceError,
-    WorkspaceSet, arrange_rects, cascade_rects, kept_reachable, monitor_of, node_at, restore_rect,
+    WorkspaceSet, arrange_rects, kept_reachable, node_at, restore_rect,
 };
+use craft_behavior::placement::{cascade, cascade_rects, monitor_of};
 use craft_behavior::{Axis, Monitor};
 use emath::{Pos2, Rect, Vec2, pos2, vec2};
 
@@ -342,6 +343,23 @@ fn n_up_cells_split_the_area_and_cascade_steps_then_wraps() {
 }
 
 #[test]
+fn a_document_window_and_a_floating_dock_window_cascade_alike_on_the_monitor_of_the_previous_window() {
+    let monitors = [monitor("left", rect(-1000.0, 0.0, 1000.0, 800.0), 1.0), monitor("main", rect(0.0, 0.0, 1000.0, 800.0), 1.0)];
+    let size = vec2(400.0, 300.0);
+    let step = 28.0;
+    let previous = rect(-700.0, 520.0, 400.0, 300.0);
+    let bounds = monitor_of(&monitors, previous).expect("a monitor").rect;
+    assert_eq!(bounds, monitors[0].rect);
+    // The document window's next place: one step, and the y axis starts over at the bottom of the same monitor.
+    let next = cascade(previous, size, bounds, step);
+    assert_eq!(next.min, pos2(-672.0, 0.0));
+    // The dock arranges its floating windows in the same monitor with the same function.
+    let series = cascade_rects(bounds, size, 3, step);
+    assert_eq!(series[1], cascade(series[0], size, bounds, step));
+    assert_eq!(series[2], cascade(series[1], size, bounds, step));
+}
+
+#[test]
 fn arrangements_are_enabled_by_the_document_count_and_round_trip_their_command_ids() {
     assert!(!Arrangement::TwoUpVertical.enabled(1, 1, 0));
     assert!(!Arrangement::MatchAll.enabled(1, 1, 0));
@@ -480,12 +498,17 @@ fn a_missing_monitor_moves_the_window_to_the_main_window_monitor_and_a_resized_o
 }
 
 #[test]
-fn monitors_with_negative_coordinates_are_found_by_their_center_else_by_distance() {
+fn monitors_with_negative_coordinates_are_found_by_most_overlap_else_by_distance() {
     let monitors = [monitor("left", rect(-2560.0, -200.0, 2560.0, 1440.0), 2.0), monitor("main", left(), 1.0)];
     let name = |area: Rect| monitor_of(&monitors, area).and_then(|m| m.name.as_deref());
     assert_eq!(name(rect(-500.0, 0.0, 300.0, 300.0)), Some("left"));
     assert_eq!(name(rect(100.0, 0.0, 300.0, 300.0)), Some("main"));
     assert_eq!(name(rect(-3000.0, 2000.0, 100.0, 100.0)), Some("left"));
+    // A maximized window overhangs its monitor: the one showing most of it wins, though the centre is on the other.
+    let small = [monitor("small", rect(0.0, 0.0, 500.0, 400.0), 1.0), monitor("wide", rect(500.0, 0.0, 3500.0, 400.0), 1.0)];
+    let overhang = rect(-1200.0, 0.0, 3200.0, 400.0);
+    assert!(small[0].rect.contains(overhang.center()));
+    assert_eq!(monitor_of(&small, overhang).and_then(|m| m.name.as_deref()), Some("wide"));
     // Unplugged: the same offset on the main window's monitor.
     let saved = rect(-1000.0, -100.0, 300.0, 300.0);
     assert_eq!(restore_rect(saved, Some(&monitors[0]), space(&monitors, main_at(100.0, 100.0), None)), saved);

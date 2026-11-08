@@ -1,7 +1,13 @@
 //! Screen modes (the F key) and the window actions that enter and leave full screen.
 
-use crate::runtime::windows::WindowAction;
-use craft_host::target::WindowState;
+use crate::contract::{BindMut, BodyCx};
+use crate::runtime::commands::Commands as _;
+use crate::runtime::egui::pass;
+use crate::runtime::windows::{WindowAction, WindowHost, os_of};
+use craft_behavior::{EditEvent, GestureId, Mixed};
+use craft_host::target::{Os, WindowState};
+use egui::Context;
+use std::sync::Arc;
 
 /// The three screen modes. The shell keeps the current one in its `screen_mode` binding and maps it to the body mode,
 /// the document tabs and the scroll bars.
@@ -102,74 +108,85 @@ impl ScreenModeCommand {
     }
 }
 
-/// The window actions that bring a window to full screen or back after a screen-mode change.
+/// The shell's record of how its window follows the screen mode, kept between passes.
 ///
-/// `WindowAction` has toggles only and `WindowHost::act` reads the window state refreshed once per pass, so the plan is
-/// a small machine that looks at the state each pass and sends at most one action, then waits for the state to change.
+/// The window is brought to the mode in one pass, with the actions of [`sequence`]; the shell acts whenever the
+/// bound mode and the mode last applied differ in full screen, whoever wrote the bound mode (the F key, a menu
+/// command, an app writing Standard on Escape). When the OS leaves full screen on its own (the macOS green button),
+/// the mode follows it back to Standard.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct ScreenModeFollow {
+    /// The mode last sent to the window.
+    applied: ScreenMode,
+    /// The window was in OS full screen in the last pass that had its facts.
+    os_full: bool,
+    /// The window was maximized when it went to full screen, and returns to it on Windows.
+    was_maximized: bool,
+}
+
+impl ScreenModeFollow {
+    /// Reads the window's mode from `bind`, applies this pass's screen-mode commands, follows the OS window and
+    /// brings it to the mode. Writes the mode back under `name` when it changed. Returns the mode and whether it
+    /// changed.
+    pub(super) fn follow(&mut self, ctx: &Context, cx: &mut BodyCx<'_>, mut bind: BindMut<'_, ScreenMode>, name: Arc<str>) -> (ScreenMode, bool) {
+        let before = match bind.read(cx) {
+            Some(Mixed::Same(held)) => held,
+            _ => ScreenMode::default(),
+        };
+        let mut mode = before;
+        while let Some((command, _)) = cx.take_command::<ScreenModeCommand>() {
+            mode = command.apply(mode);
+        }
+        let host = WindowHost::of(ctx);
+        let viewport = pass::current_viewport(ctx);
+        let state = host.facts(viewport).map(|facts| facts.state);
+        if let Some(state) = state {
+            let in_full_screen = state == WindowState::Fullscreen;
+            let left = self.os_full && !in_full_screen;
+            self.os_full = in_full_screen;
+            if left && mode.is_full_screen() && self.applied.is_full_screen() {
+                mode = ScreenMode::Standard;
+                self.applied = mode;
+            }
+        }
+        if mode.is_full_screen() != self.applied.is_full_screen() {
+            let keep_apart = os_of(ctx) == Os::Windows;
+            let (actions, was_maximized) = sequence(keep_apart, state.unwrap_or(WindowState::Normal), self.was_maximized, mode.is_full_screen());
+            self.was_maximized = was_maximized;
+            for action in actions {
+                host.act(viewport, action);
+            }
+        }
+        self.applied = mode;
+        if mode != before {
+            let event = EditEvent::set(GestureId::default(), Mixed::Same(before), mode, name, None);
+            let _ = bind.write(cx, &event);
+        }
+        (mode, mode != before)
+    }
+}
+
+/// The window actions that bring a window in `state` to full screen (`enter`) or back, in the order they are sent in
+/// one pass, and whether the window is to be maximized again when it leaves full screen.
 ///
-/// With `keep_apart` (Windows), full screen and maximized never overlap: a maximized window is un-maximized before it
-/// goes full screen and maximized again after it leaves.
+/// With `keep_apart` (Windows), full screen and maximized never overlap: a maximized window is restored before it goes
+/// full screen and maximized again after it leaves.
 ///
 /// WORKAROUND(winit#4756): winit on Windows keeps the maximized style on a window that goes full screen from
 /// maximized, and the shell then draws the taskbar black instead of hiding it; on the way out the window stays
 /// maximized at the monitor's full size, over the taskbar. Remove `keep_apart` once the winit in Cargo.lock has the
 /// fix; check first with the reproduction gist of that issue (`--max`, no `--fix`: full screen must have no
 /// WS_MAXIMIZE and hide the taskbar).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct FullScreenPlan {
-    active: bool,
-    want_full: bool,
-    was_maximized: bool,
-    awaiting: Option<WindowState>,
-}
-
-impl FullScreenPlan {
-    /// Starts moving the window to full screen (`want_full`) or out of it.
-    pub fn start(&mut self, want_full: bool) {
-        self.active = true;
-        self.want_full = want_full;
-        self.awaiting = None;
-    }
-
-    /// Whether a plan is running.
-    pub fn is_active(&self) -> bool {
-        self.active
-    }
-
-    /// The next action for a window that reports `state` in this pass, if any. After an action the plan sends nothing
-    /// until the state differs from the one it was sent in.
-    pub fn step(&mut self, keep_apart: bool, state: WindowState) -> Option<WindowAction> {
-        if !self.active || self.awaiting == Some(state) {
-            return None;
-        }
-        self.awaiting = None;
-        if state == WindowState::Minimized {
-            self.active = false;
-            return None;
-        }
-        let full = state == WindowState::Fullscreen;
-        let action = if self.want_full {
-            if full {
-                self.active = false;
-                return None;
-            }
-            if keep_apart && state == WindowState::Maximized {
-                self.was_maximized = true;
-                WindowAction::ToggleMaximize
-            } else {
-                WindowAction::ToggleFullscreen
-            }
-        } else if full {
-            WindowAction::ToggleFullscreen
-        } else if keep_apart && self.was_maximized && state == WindowState::Normal {
-            self.was_maximized = false;
-            WindowAction::ToggleMaximize
+fn sequence(keep_apart: bool, state: WindowState, was_maximized: bool, enter: bool) -> (Vec<WindowAction>, bool) {
+    if enter {
+        if keep_apart && state == WindowState::Maximized {
+            (vec![WindowAction::SetMaximized(false), WindowAction::SetFullscreen(true)], true)
         } else {
-            self.active = false;
-            self.was_maximized = false;
-            return None;
-        };
-        self.awaiting = Some(state);
-        Some(action)
+            (vec![WindowAction::SetFullscreen(true)], was_maximized)
+        }
+    } else if keep_apart && was_maximized {
+        (vec![WindowAction::SetFullscreen(false), WindowAction::SetMaximized(true)], false)
+    } else {
+        (vec![WindowAction::SetFullscreen(false)], false)
     }
 }
