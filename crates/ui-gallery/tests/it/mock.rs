@@ -182,17 +182,15 @@ fn deleting_a_layer_from_the_menu_asks_and_proceed_deletes_the_current_layer() {
 }
 
 #[trial]
-fn the_delete_layer_row_does_nothing_with_one_layer_left() {
+fn the_delete_layer_row_asks_nothing_with_one_layer_left() {
     let mut only = MockState::default();
     only.document.layers.truncate(1);
     only.document.current = 0;
     let (mut fixture, state) = window(only);
     choose_delete_layer(&mut fixture);
     fixture.idle(DIALOG_OPEN);
-    fixture.key(Key::Escape, Modifiers::NONE).settle();
-    fixture.key(Key::Escape, Modifiers::NONE).settle();
-    fixture.key(Key::Enter, Modifiers::NONE).settle();
-    assert_eq!(state.borrow().document.layers.len(), 1, "no question was asked, so Enter deleted nothing");
+    assert!(fixture.control("(D)elete").is_none(), "no question was asked");
+    assert_eq!(state.borrow().document.layers.len(), 1);
 }
 
 #[trial]
