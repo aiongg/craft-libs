@@ -1,4 +1,4 @@
 [lint]
-paths = ["crates/behavior", "crates/ui", "crates/ui-macros", "crates/ui-gallery"]
+paths = ["crates/behavior", "crates/ui", "crates/ui-macros", "crates/ui-gallery", "crates/update/src/stack_dialogs.rs", "crates/update/src/updater.rs", "crates/update/tests/it"]
 include-tests = true
 deny-unused = true
