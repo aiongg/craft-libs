@@ -223,7 +223,10 @@ fn a_star_click_and_a_digit_key_give_the_same_rate_event() {
 #[trial]
 fn space_toggles_the_lead_tiles_check() {
     let (mut fixture, seen) = rig(4, |grid| grid.checks(true), |_, tile| tile.check(ToggleState::Off));
-    click(&mut fixture, "bravo");
+    // A click on the picture only selects; the check box is a corner of it.
+    let picture = seen.borrow().picture(1);
+    fixture.click_at(picture.center());
+    fixture.idle(2);
     fixture.key(Key::Space, Modifiers::NONE);
     fixture.idle(2);
     let checked: Vec<_> = seen
@@ -233,6 +236,20 @@ fn space_toggles_the_lead_tiles_check() {
         .filter_map(|event| if let CollectionEvent::Item(key, TilePartEvent::Check { .. }) = event { Some(*key) } else { None })
         .collect();
     assert_eq!(checked, [1], "Space reports the check of the lead tile");
+}
+
+/// A click on a tile's check box reports one `Check` for that tile.
+#[trial]
+fn a_click_on_the_check_box_reports_one_check() {
+    let (mut fixture, seen) = rig(4, |grid| grid.checks(true), |_, tile| tile.check(ToggleState::Off));
+    click(&mut fixture, "bravo");
+    let checked: Vec<_> = seen
+        .borrow()
+        .events
+        .iter()
+        .filter_map(|event| if let CollectionEvent::Item(key, TilePartEvent::Check { .. }) = event { Some(*key) } else { None })
+        .collect();
+    assert_eq!(checked, [1], "the click on the check box reports the tile's check once");
 }
 
 /// A single click activates a tile when the grid says so, and a click that only selects does not.
