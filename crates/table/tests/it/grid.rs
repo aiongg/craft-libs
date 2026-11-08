@@ -9,8 +9,9 @@ use craft_table::ui::{
     CellAt, CellEdit, CellGrid, CellProblem, CellRange, ColumnFilter, GridEdit, GridLayout, GridModel, GridState, LineIndex, SHEET_COLUMNS,
     SHEET_ROWS, SheetGeometry, SheetMetrics, absolute_reference, column_letters,
 };
-use craft_ui::contract::{Label, PaintUi};
+use craft_ui::contract::PaintUi;
 use craft_ui::primitives::TextRun;
+use craft_ui::runtime::env::Label;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers, Pos2, Rect, Vec2};
 

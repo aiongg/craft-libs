@@ -8,9 +8,10 @@
 pub use craft_behavior::{CellAdvance, CellAt, CellDirection, CellRange, CellSelection, CellSpace, LineIndex, Positions, SHEET_ZOOM};
 use craft_behavior::{DisplayOrder, EditEvent, Insets, ItemSource, Metrics, SheetLayout};
 use craft_ui::contract::{
-    Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, ContainerProps, ContextMenuRequest, Cx, Label, Outcome,
+    Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, ContainerProps, ContextMenuRequest, Cx, Outcome,
     PaintUi, Props as _, Remember as _, Role, SelectMode, Sizing,
 };
+use craft_ui::runtime::env::Label;
 use craft_ui::runtime::focus::{KeepKeys, KeyUse};
 use craft_ui::style::{ComponentStyle, StyleColor, StyleCx, SurfaceLook};
 use egui::{Pos2, Rect, Response, Vec2};

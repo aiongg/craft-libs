@@ -2,8 +2,9 @@
 //! marks, the in-cell editor and the chrome that sits on the sheet.
 
 use craft_behavior::{CursorIcon, HitLevel, HitPriority, Metrics, PartKey, ScrollPos, Sense, TextPos};
-use craft_ui::contract::{Access, Cx, Focus as _, Label, Name, PaintUi, PartsCx, Role, Show as _};
+use craft_ui::contract::{Access, Cx, Focus as _, Name, PaintUi, PartsCx, Role, Show as _};
 use craft_ui::primitives::{Draw, EditorLine, EditorPurpose, EditorRun, EditorState, HAlign, PaintShape, StrokeWidth, TextRun};
+use craft_ui::runtime::env::Label;
 use craft_ui::runtime::motion::Animate as _;
 use craft_ui::style::StyleCx;
 use egui::{CornerRadius, Pos2, Rect, Vec2};
