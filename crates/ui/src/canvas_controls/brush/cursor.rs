@@ -155,7 +155,7 @@ impl<'a> BrushCursor<'a> {
         self
     }
 
-    /// The pointer for this pass, by the rules above. `caps_lock` is the state of the Caps Lock key.
+    /// The pointer for this pass, by the rules above. `caps_lock` is the state of the Caps Lock toggle: a tool passes `ToolContext::caps_lock()`.
     pub fn cursor(&self, options: &BrushCursorOptions, view: &CanvasView, caps_lock: bool) -> Cursor {
         Cursor::Painted(self.painted(options, view, caps_lock))
     }

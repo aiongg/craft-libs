@@ -10,7 +10,7 @@ pub use ticks::{INCH_EIGHTHS, INCH_SIXTEENTHS, RulerTick, StepLadder, TickRule};
 
 pub(crate) use self::ticks::LABEL_STEP_MIN;
 use super::words::CanvasWords;
-use super::{CanvasRulers, CanvasSpace, GuideDrag, RulerText, Snap, canvas_space, context_menu, readout};
+use super::{CanvasRulers, CanvasSpace, GuideDrag, RulerText, Snap, canvas_snap, canvas_space, context_menu, readout};
 use crate::contract::overlay::Anchor;
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Entry, Focus as _, MeasureCx, Name, Outcome, OverlayUi, Overlays as _,
@@ -184,7 +184,7 @@ enum MenuRow {
 ///   guide; Alt turns it, Shift snaps it to the ticks, and a release over a ruler or off the document reports no
 ///   position, which removes the guide.
 /// - A drag out of the corner moves the zero point: cross hairs show where it lands, Shift snaps to the ticks
-///   (otherwise the app's [`snap`](Rulers::snap)), dropped back on the corner it stays, Esc cancels. A double click
+///   (otherwise the canvas's [`Snap`]), dropped back on the corner it stays, Esc cancels. A double click
 ///   on the corner and the menu's Reset Zero Point put the zero point back at the document's origin, one edit through the zero bind. The arrow keys move the focused corner. [`origin_locked`](Rulers::origin_locked)
 ///   turns the drag and the reset off.
 /// - A secondary click on a strip or the corner, or the Menu key or Shift+F10 on the focused corner, opens the units
@@ -204,9 +204,6 @@ pub struct Rulers<'a> {
     /// The margin bands of the strips.
     #[prop]
     margins: RulerMargins,
-    /// The app's snapping of the zero point when Shift is not held.
-    #[prop(func = "Fn(Axis, f64, Mods) -> f64")]
-    snap: Option<Snap<'a>>,
     /// The units the secondary click's menu offers; the unit of the top ruler is checked. Without it the rulers open
     /// no menu.
     #[prop]
@@ -226,7 +223,6 @@ impl<'a> Rulers<'a> {
             origin_locked: false,
             interactive: true,
             margins: RulerMargins::default(),
-            snap: None,
             units: None,
             guide: None,
             picked: None,
@@ -257,8 +253,8 @@ impl<'a> Rulers<'a> {
     }
 
     /// Where the zero point lands for the pointer at `pos`: on the nearest tick of the rulers with Shift, else where
-    /// the app's snap puts it.
-    fn landing(&self, space: &CanvasSpace, pos: Pos2, mods: Mods, zero: Point) -> Point {
+    /// the canvas's snap puts it.
+    fn landing(space: &CanvasSpace, snap: Option<&Snap>, pos: Pos2, mods: Mods, zero: Point) -> Point {
         let doc = space.view.to_doc(pos);
         let rulers = space.rulers();
         let (x, y) = if mods.shift {
@@ -266,7 +262,7 @@ impl<'a> Rulers<'a> {
                 rulers.x.units.snap_to_tick(doc.x, zero.x, space.view.zoom_x(), LABEL_STEP_MIN),
                 rulers.y.units.snap_to_tick(doc.y, zero.y, space.view.zoom, LABEL_STEP_MIN),
             )
-        } else if let Some(snap) = &self.snap {
+        } else if let Some(snap) = snap {
             (snap.apply(Axis::Y, doc.x, mods), snap.apply(Axis::X, doc.y, mods))
         } else {
             (doc.x, doc.y)
@@ -403,7 +399,7 @@ impl Component for Rulers<'_> {
                 }
                 PressPhase::Drag { pos, .. } => {
                     let start = cx.press_slot::<Point>().unwrap_or(zero);
-                    let at = if corner.contains(pos) { start } else { self.landing(&space, pos, press.mods, zero) };
+                    let at = if corner.contains(pos) { start } else { Self::landing(&space, canvas_snap(&cx.env).as_ref(), pos, press.mods, zero) };
                     cx.propose(at);
                 }
                 PressPhase::Release { click: false, .. } => cx.commit(),

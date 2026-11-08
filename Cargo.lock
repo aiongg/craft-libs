@@ -1957,6 +1957,7 @@ dependencies = [
  "tempfile",
  "wayland-client",
  "winit",
+ "winsafe",
 ]
 
 [[package]]

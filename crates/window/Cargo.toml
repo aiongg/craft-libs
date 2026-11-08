@@ -49,6 +49,10 @@ objc2 = { version = "0.6.4", default-features = false, features = ["std"], optio
 objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSApplication", "NSButton", "NSControl", "NSEvent", "NSMenu", "NSMenuItem", "NSResponder", "NSView", "NSWindow"], optional = true }
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSArray", "NSBundle", "NSGeometry", "NSLocale", "NSProcessInfo", "NSString"], optional = true }
 
+# `caps_lock`: the toggle bit of the Caps Lock key, through winsafe's safe wrapper (the workspace forbids `unsafe`).
+[target.'cfg(windows)'.dependencies]
+winsafe = { version = "0.0.29", default-features = false, features = ["user"] }
+
 [dev-dependencies]
 tempfile = "3"
 
