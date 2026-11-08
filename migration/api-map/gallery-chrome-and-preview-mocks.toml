@@ -172,7 +172,7 @@ name = "MockState"
 old = ""
 new = "craft_ui_gallery::mock::MockState"
 status = "replaced"
-note = "Replaces the legacy `Mock`. Shrunk to the dock workspace, the document (title, dirty flag, layers, view, ruler zero), the current tool, the last-used tools and the Delete Layer question."
+note = "Replaces the legacy `Mock`. Shrunk to the dock workspace, the document (title, dirty flag, size, layers by id, the layer selection, view, ruler zero and unit, guides, the marquee selection, rulers), the current tool, the last-used tools, the status bar item, the colour pair and the maximized panel. Dialogs live on the window's dialog host, not in the state."
 
 [[type]]
 name = "layers"
@@ -180,3 +180,66 @@ old = "craft_ui_gallery_legacy::preview::panels::layers"
 new = ""
 status = "removed"
 note = "The panel pages Layers, Properties, Swatches, Channels, History and Adjustments are deleted as pages. The dock shows the layer list (a `Table` with a name and a visibility column) and the Navigator panel; each other panel is a story of its family component."
+
+[[type]]
+name = "Document"
+old = "craft_ui_gallery_legacy::preview::model::Doc"
+new = "craft_ui_gallery::mock::Document"
+status = "replaced"
+note = "The open document of the mock: title, dirty flag, size, layers (top first), the layer selection whose lead is the current layer, the canvas view (a never-shown view opens fitted; the canvas sets its rect), ruler zero and unit, guides, the Marquee selection and drag, and the rulers flag, which the canvas's `show_rulers` follows. `resize(PixelSize)` applies the Image Size answer."
+
+[[type]]
+name = "Layer"
+old = "craft_ui_gallery_legacy::preview::model::Layer"
+new = "craft_ui_gallery::mock::Layer"
+status = "replaced"
+note = "A layer with a stable `LayerId`, a name, a visibility flag, a colour and the page bounds it fills; the layer table keys its rows by the id."
+
+[[type]]
+name = "LayerId"
+old = ""
+new = "craft_ui_gallery::mock::LayerId"
+status = "replaced"
+note = "The stable identity of a layer."
+
+[[type]]
+name = "MarqueeDrag"
+old = ""
+new = "craft_ui_gallery::mock::MarqueeDrag"
+status = "replaced"
+note = "The rectangle the Marquee tool is dragging out: the press point and the pointer point, in document units."
+
+[[type]]
+name = "Panel"
+old = ""
+new = "craft_ui_gallery::mock::Panel"
+status = "replaced"
+note = "The dock panels of the mock: Canvas (protected), Navigator and Layers. `Panel::ALL` is the Window menu's order."
+
+[[type]]
+name = "Tool"
+old = "craft_ui_gallery_legacy::preview::model::Tool"
+new = "craft_ui_gallery::mock::Tool"
+status = "replaced"
+note = "The mock's tools as a `CommandSet` of kind `tool`: each carries its default chord (V, M, E, S, H, Z); Brush and Pencil share the Brush slot and are picked with `ToolKey`. `Tool::slots()` is the rail's data and `Tool::pick` goes through `canvas::tool_pick`. The status bar takes `CommandRef::from(tool)` for its label."
+
+[[type]]
+name = "ToolKey"
+old = ""
+new = "craft_ui_gallery::mock::ToolKey"
+status = "replaced"
+note = "The keys that are no tool: B picks and Shift+B cycles the Brush slot, X swaps and D resets the colour pair."
+
+[[type]]
+name = "AppCommand"
+old = ""
+new = "craft_ui_gallery::mock::AppCommand"
+status = "replaced"
+note = "The app commands of the menus (File, Image, Layer, Filter, View > Rulers, Window): rows are `MenuItem::command` and the window body takes them with `take_command`."
+
+[[type]]
+name = "ColorPair"
+old = "craft_ui_gallery_legacy::preview::model::Colors"
+new = "craft_ui_gallery::mock::ColorPair"
+status = "replaced"
+note = "The foreground and background colours, as 24-bit values; `swap` and `reset`."
