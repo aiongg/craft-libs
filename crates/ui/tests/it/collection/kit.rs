@@ -175,6 +175,7 @@ pub struct List<'a> {
     props: ContainerProps,
     items: CollectionProps,
     selection: Option<Bind<'a, Selection<usize>>>,
+    scroll: Option<Bind<'a, craft_behavior::ScrollPos>>,
     tree: bool,
     on_empty: Option<&'a Cell<Rect>>,
     text_editor: bool,
@@ -189,6 +190,7 @@ impl<'a> List<'a> {
             props: ContainerProps::new().sizing(craft_ui::contract::Sizing::Fill),
             items: CollectionProps::new().select(select),
             selection: None,
+            scroll: None,
             tree: false,
             on_empty: None,
             text_editor: false,
@@ -295,6 +297,12 @@ impl<'a> List<'a> {
         self
     }
 
+    /// The app owns the scroll offset.
+    pub fn scroll(mut self, scroll: Bind<'a, craft_behavior::ScrollPos>) -> Self {
+        self.scroll = Some(scroll);
+        self
+    }
+
     pub fn tree(mut self) -> Self {
         self.tree = true;
         self
@@ -319,6 +327,10 @@ impl Component for List<'_> {
 
     fn style(_: &StyleCx<'_>, _: ListStyleKey) -> PlainStyle {
         PlainStyle::default()
+    }
+
+    fn scroll(&mut self) -> Option<BindMut<'_, craft_behavior::ScrollPos>> {
+        self.scroll.as_mut().map(Bind::reborrow)
     }
 
     fn parts(&mut self, _: Rect, cx: &mut craft_ui::contract::PartsCx<'_, Self>) {

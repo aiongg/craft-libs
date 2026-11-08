@@ -150,27 +150,11 @@ pub struct BinSettings {
     /// List-view thumbnails.
     pub thumbnails: ThumbSize,
     /// The List view's sort; `None` is User Order.
-    #[serde(with = "saved_sort")]
     pub sort: Option<ColumnSort>,
     /// The Icon view's sort (Sort Icons); `None` is User Order.
-    #[serde(with = "saved_sort")]
     pub icon_sort: Option<ColumnSort>,
     /// The widths the user dragged the List view's columns to.
     pub widths: Vec<(ColumnKey, f32)>,
-}
-
-/// A sort as the column key and the direction.
-mod saved_sort {
-    use super::{ColumnKey, ColumnSort};
-    use serde::{Deserialize as _, Deserializer, Serialize as _, Serializer};
-
-    pub(super) fn serialize<S: Serializer>(sort: &Option<ColumnSort>, serializer: S) -> Result<S::Ok, S::Error> {
-        sort.as_ref().map(|sort| (&sort.key, sort.descending)).serialize(serializer)
-    }
-
-    pub(super) fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<ColumnSort>, D::Error> {
-        Ok(Option::<(ColumnKey, bool)>::deserialize(deserializer)?.map(|(key, descending)| ColumnSort::new(key, descending)))
-    }
 }
 
 impl Default for BinSettings {

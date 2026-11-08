@@ -122,6 +122,7 @@ pub(crate) fn ink_color(tokens: &UiTokens, ink: super::key::Ink) -> Color32 {
     color(match ink {
         super::key::Ink::OnPanel => text.normal,
         super::key::Ink::OnDark => text.on_strong,
+        super::key::Ink::Accent => tokens.color.accent.text,
     })
 }
 

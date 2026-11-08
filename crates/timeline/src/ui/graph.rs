@@ -6,8 +6,8 @@ mod stories;
 
 use craft_behavior::kurbo;
 use craft_behavior::{
-    CursorIcon, Granularity, HitLevel, HitPriority, IconId, Intent, MarqueeSelect, Metrics, NavShape, PartKey, PressPhase, PressState, Roving,
-    Selection, SelectionChange, Sense,
+    CursorIcon, HitLevel, HitPriority, IconId, MarqueeSelect, Metrics, NavShape, PartKey, PressPhase, PressState, Roving, Selection, SelectionChange,
+    Sense,
 };
 use craft_keymap::{Chord, Key, Mods};
 use craft_ui::buttons::{IconButton, ToggleButton};
@@ -16,7 +16,7 @@ use craft_ui::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pointer as _,
     Props, Role, Styled as _, WordSetCx as _,
 };
-use craft_ui::primitives::{GridInk, GridLines, IconSpec, PaintShape, RuleKind, StrokeWidth, TextRun};
+use craft_ui::primitives::{Dashes, GridInk, GridLines, IconSpec, PaintShape, RuleKind, StrokeWidth, TextRun};
 use craft_ui::runtime::env::Label;
 use craft_ui::runtime::focus::KeyUse;
 use craft_ui::style::{ComponentStyle, Flags, FocusLook, Resolve as _, State, StateMix, Stateful, States, StyleColor, StyleCx, TextLook, TypeRole};
@@ -58,7 +58,10 @@ pub const BAR: PartKey = PartKey::new("bar");
 const EASY_EASE: Chord = Chord::new(Mods::NONE, Key::F9);
 const EASY_EASE_IN: Chord = Chord::new(Mods::SHIFT, Key::F9);
 const EASY_EASE_OUT: Chord = Chord::new(Mods { cmd: true, ctrl: false, alt: false, shift: true }, Key::F9);
-const CLAIMED: [Chord; 3] = [EASY_EASE, EASY_EASE_IN, EASY_EASE_OUT];
+/// Delete and Backspace without modifiers: the delete intent also fires under Shift, which is another chord.
+const DELETE: Chord = Chord::new(Mods::NONE, Key::Delete);
+const BACKSPACE: Chord = Chord::new(Mods::NONE, Key::Backspace);
+const CLAIMED: [Chord; 5] = [EASY_EASE, EASY_EASE_IN, EASY_EASE_OUT, DELETE, BACKSPACE];
 
 craft_ui::words! {
     /// The editor's bottom-bar tooltips, English by default (EffectCraft `graph.rs:611`).
@@ -621,7 +624,7 @@ fn applied(selection: &Selection<KeyframeId>, change: &SelectionChange<KeyframeI
 impl Component for GraphEditor<'_> {
     const ROLE: Role = Role::GROUP;
     const OVERLAYS: bool = false;
-    const KEYS: KeyUse = KeyUse::CANVAS.with_chrome_key(false).with_deletes().with_claims(&CLAIMED);
+    const KEYS: KeyUse = KeyUse::CANVAS.with_chrome_key(false).with_claims(&CLAIMED);
     type Style = GraphEditorStyle;
     type Output = GraphEditorOutput;
 
@@ -881,8 +884,8 @@ impl Component for GraphEditor<'_> {
                 self.actions.push(action);
             }
         }
-        let forward = cx.intents().take_exact(&Intent::delete(true, Granularity::Unit));
-        let back = cx.intents().take_exact(&Intent::delete(false, Granularity::Unit));
+        let forward = cx.take_claimed(DELETE);
+        let back = cx.take_claimed(BACKSPACE);
         if (forward || back) && !self.shown.items.is_empty() {
             self.actions.push(GraphAction::Delete);
         }
@@ -937,7 +940,7 @@ impl Component for GraphEditor<'_> {
                     .iter()
                     .map(|&(time, value)| Pos2::new(x_of(time), plot.bottom() - ((value - low) / span) as f32 * (plot.height() - 2.0 * free) - free))
                     .collect();
-                painter.dashed(&points, style.line, style.dash, style.dash_gap, 0.0, ink);
+                painter.dashed(&points, style.line, Dashes::new(style.dash, style.dash_gap), ink);
             }
         }
 

@@ -569,7 +569,8 @@ fn cap_views(env: &Env<'_>, state: &KeyboardState, index: &Index, mods: Mods) ->
                     let first = holders.iter().find(|h| h.scope.is_app()).or(holders.first());
                     view.title = first.map(|h| say.label_of(env.keymap, &h.holder.command));
                     view.legend = cap_legend(say, key, platform);
-                    let spoken = if mods.is_none() { say.key_word(key) } else { say.trigger(&Trigger::single(Chord { mods, key }), platform) };
+                    let spoken =
+                        if mods.is_none() { say.key_word(key, platform) } else { say.trigger(&Trigger::single(Chord { mods, key }), platform) };
                     let mut names: Vec<String> = Vec::new();
                     for h in holders {
                         let t = holder_text(say, env.keymap, h);
@@ -682,7 +683,7 @@ fn key_list(ui: &mut Ui, env: &Env<'_>, state: &DialogState, index: &Index, mods
         Text::new(words.click_a_key_to_see_its.clone()).shade(craft_ui::display::Shade::Muted).show(ui);
         return;
     };
-    Text::new(words.key_key.fill(&[("key", say.key_word(key).as_str())])).show(ui);
+    Text::new(words.key_key.fill(&[("key", say.key_word(key, platform).as_str())])).show(ui);
     if env.options.editable {
         let chord = say.trigger(&Trigger::single(Chord { mods, key }), platform);
         let selected = state.selected.clone().filter(|c| env.keymap.bindable(c).is_some());

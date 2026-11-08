@@ -1,9 +1,12 @@
 //! `BodyLayout` under direction: the physical layouts, measured `Row` placement and the `Grid` cursor.
 
 use craft_behavior::ColumnWidth;
+use craft_ui::contract::{Show as _, ShowContainer as _};
+use craft_ui::display::Divider;
 use craft_ui::layout::{BodyLayout, RowAlign};
+use craft_ui::layout_components::Grid;
 use craft_ui::runtime::env::{Direction, with_env};
-use craft_ui::testing::layout::body;
+use craft_ui::testing::layout::{Block, body};
 use craft_ui::testing::{Frames, trial};
 use egui::{Rect, Ui, Vec2};
 use std::cell::{Cell, RefCell};
@@ -77,6 +80,31 @@ fn grid_places_children_row_major_with_shared_column_widths() {
     let (region, rtl) = lay_out(Some(Direction::Rtl), grid(false));
     assert!(rtl[0].min.x > rtl[1].min.x && rtl[1].min.x > rtl[2].min.x, "under RTL the first column is on the right");
     assert!((rtl[0].max.x - region.max.x).abs() < 1.0);
+}
+
+static CONTENT_THEN_FIXED: [ColumnWidth; 2] = [ColumnWidth::Content, ColumnWidth::Fixed(60.0)];
+
+/// A child that fills its width in a `Content` column measures at its content and fills the column the widest cell
+/// settles on, so the next column starts inside the room.
+#[trial]
+fn a_fill_width_child_in_a_content_column_leaves_the_next_column_in_the_room() {
+    let mut frames = Frames::new();
+    let region = Cell::new(Rect::NOTHING);
+    let rects = RefCell::new(Vec::new());
+    frames.idle(5, |ui| {
+        region.set(ui.available_rect_before_wrap());
+        let mut placed = Vec::new();
+        Grid::new(&CONTENT_THEN_FIXED).show(ui, |ui, _| {
+            placed.push(Divider::horizontal().show(ui).rect);
+            placed.push(Block::new(ITEM).show(ui).rect);
+            placed.push(Block::new(ITEM).show(ui).rect);
+            placed.push(Block::new(ITEM).show(ui).rect);
+        });
+        *rects.borrow_mut() = placed;
+    });
+    let rects = rects.into_inner();
+    assert!(rects[1].max.x <= region.get().max.x, "the second column lies inside the room: {rects:?} in {:?}", region.get());
+    assert!(!rects[0].intersect(rects[1]).is_positive(), "the filling child ends where the next column starts: {rects:?}");
 }
 
 /// Skeleton: `frames_state::ltr_scope_inside_rtl_lays_out_left_to_right`.

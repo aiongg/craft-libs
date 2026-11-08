@@ -19,6 +19,8 @@ pub enum Ink {
     OnPanel,
     /// On strong fills and scrims: the colour that reads on them.
     OnDark,
+    /// Accent-coloured text on panels and sunken surfaces: a prominent readout.
+    Accent,
 }
 
 /// The key of everything a style depends on besides its own key: tokens, direction, scale, the OS, the window's

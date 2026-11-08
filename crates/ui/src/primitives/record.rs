@@ -54,6 +54,8 @@ pub(crate) struct FaceRecord {
     pub numeric: Option<crate::runtime::access::Numeric>,
     /// The face's explicit expanded state, `false` when closed.
     pub expanded: Option<bool>,
+    /// Whether the face is enabled: a disabled face makes its part's sub-node disabled.
+    pub enabled: bool,
 }
 
 /// The base id of the face painted for `part` of the composite `id`: owned by the composite, so the face's hover

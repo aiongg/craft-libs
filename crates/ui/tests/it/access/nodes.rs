@@ -275,3 +275,49 @@ fn a_set_value_on_a_thumb_sub_node_sets_that_thumb_while_another_holds_focus() {
     let expected = Mixed::each([20.0, 60.0]);
     assert_eq!(*fixture.data().value("row", Mixed::each([f64::NAN; 2])), expected);
 }
+
+/// A leaf that declares one sub-node per name, in the order given.
+#[derive(craft_ui::contract::Component)]
+struct Ordered {
+    #[common]
+    common: Common,
+}
+
+impl Component for Ordered {
+    const ROLE: UiRole = UiRole::LIST;
+    type Style = MeterLook;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: OrderedStyleKey) -> MeterLook {
+        MeterLook { metrics: craft_behavior::Metrics::new().min_size(Vec2::new(60.0, 20.0)) }
+    }
+
+    fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
+        for name in ORDER {
+            access.node(PartKey::new(name), UiRole::LIST_ITEM).name = Name::Text(name.into());
+        }
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+/// Declaration order that is neither alphabetical nor the order of the sub-nodes' ids.
+const ORDER: [&str; 6] = ["Zulu", "Mike", "Alpha", "Quebec", "Echo", "Victor"];
+
+#[trial]
+fn the_children_of_a_node_follow_the_order_it_declared_them_in() {
+    let mut frames = Frames::new();
+    let mut id = None;
+    frames.frame(vec![], |ui| {
+        id = Some(Ordered { common: Common::new() }.label("Letters").show(ui).id);
+    });
+    frames.frame(vec![], |ui| {
+        id = Some(Ordered { common: Common::new() }.label("Letters").show(ui).id);
+    });
+    let tree = frames.tree();
+    let owner = NodeKey::of(id.expect("shown"));
+    let names: Vec<&str> = tree.children_of(owner).into_iter().filter_map(|child| tree.name_of(child)).collect();
+    assert_eq!(names, ORDER, "the children are in reading order, not id order");
+}

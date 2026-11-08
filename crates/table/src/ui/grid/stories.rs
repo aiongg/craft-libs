@@ -3,13 +3,14 @@
 
 use std::collections::BTreeMap;
 
-use craft_behavior::CellSelection;
-use craft_ui::contract::PaintUi;
+use craft_behavior::{CellSelection, ColumnKey};
+use craft_ui::contract::{PaintUi, Props as _};
 use craft_ui::primitives::TextRun;
 use craft_ui::runtime::env::Label;
-use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
-use egui::{Key, Modifiers, Rect, Ui};
+use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, show_as_only_item, story};
+use egui::{Key, Modifiers, Rect, Ui, Vec2};
 
+use super::row::GridRow;
 use super::{CellAt, CellGrid, CellProblem, CellRange, ColumnFilter, GridModel, GridState, LineIndex, SHEET_COLUMNS, SHEET_ROWS};
 use crate::ui::outline::{OutlineAxis, OutlineGroup};
 
@@ -19,16 +20,27 @@ struct StorySheet {
     columns: LineIndex,
     merges: Vec<CellRange<u32>>,
     frozen: (u32, u32),
+    /// Whether the first cell holds text far wider than its column.
+    long: bool,
 }
+
+/// A value that runs past the edge of its column.
+const LONG_TEXT: &str = "A cell value that is far wider than its column and is cut at the cell's edge";
 
 impl StorySheet {
     fn new() -> Self {
+        Self::of(SHEET_ROWS, false)
+    }
+
+    /// A sheet of `rows` rows; with `long`, the first cell holds [`LONG_TEXT`].
+    fn of(rows: u32, long: bool) -> Self {
         let hidden: BTreeMap<u32, f32> = BTreeMap::from([(3, 0.0)]);
         StorySheet {
-            rows: LineIndex::new(&BTreeMap::new(), 20.0, SHEET_ROWS),
+            long,
+            rows: LineIndex::new(&BTreeMap::new(), 20.0, rows),
             columns: LineIndex::new(&hidden, 64.0, SHEET_COLUMNS),
-            merges: vec![CellRange::cells(CellAt::new(2, 1), CellAt::new(3, 2))],
-            frozen: (1, 1),
+            merges: if rows > 3 { vec![CellRange::cells(CellAt::new(2, 1), CellAt::new(3, 2))] } else { Vec::new() },
+            frozen: (rows.min(1), 1),
         }
     }
 }
@@ -61,12 +73,18 @@ impl GridModel for StorySheet {
     }
 
     fn cell_text(&self, cell: CellAt<u32>) -> String {
+        if self.long && cell == CellAt::new(0, 0) {
+            return LONG_TEXT.to_owned();
+        }
         format!("{}", cell.row * 10 + cell.column)
     }
 }
 
 fn sheet(ui: &mut Ui, data: &mut StoryData, selection: CellSelection<u32>, marks: &[CellRange<u32>]) -> StoryOutput {
-    let model = StorySheet::new();
+    shown_sheet(ui, data, StorySheet::new(), selection, marks)
+}
+
+fn shown_sheet(ui: &mut Ui, data: &mut StoryData, model: StorySheet, selection: CellSelection<u32>, marks: &[CellRange<u32>]) -> StoryOutput {
     let mut state = data.value("state", GridState { selection, ..GridState::default() }).clone();
     let out = CellGrid::new("Sheet", &model, &mut state).copy_mark(marks).show_sheet(ui);
     *data.value("state", GridState::default()) = state;
@@ -121,4 +139,32 @@ fn cell_grid_chrome(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
         .show_sheet(ui);
     *data.value("state", GridState::default()) = state;
     out.into()
+}
+
+const STORY_ROW_CELLS: u32 = 4;
+
+#[story(GridRow<'static>, covers = [Default], drive = Drive::Never)]
+fn grid_row(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    let model = StorySheet::new();
+    let origin = ui.available_rect_before_wrap().min;
+    let (width, height) = (model.columns().size(0) as f32, model.rows().size(1) as f32);
+    let cells = (0..STORY_ROW_CELLS)
+        .map(|column| (ColumnKey::index(column), Rect::from_min_size(origin + Vec2::new(width * column as f32, 0.0), Vec2::new(width, height))))
+        .collect();
+    show_as_only_item(ui, GridRow::new(&model, 1, 1.0, cells).label("Row 2")).into()
+}
+
+#[story(CellGrid<'static>, covers = [Empty], drive = Drive::Never)]
+fn cell_grid_empty(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    shown_sheet(ui, data, StorySheet::of(0, false), CellSelection::default(), &[])
+}
+
+#[story(CellGrid<'static>, covers = [One], drive = Drive::Never)]
+fn cell_grid_one_row(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    shown_sheet(ui, data, StorySheet::of(1, false), CellSelection::cell(CellAt::new(0, 0)), &[])
+}
+
+#[story(CellGrid<'static>, covers = [LongText], drive = Drive::Never)]
+fn cell_grid_long_text(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    shown_sheet(ui, data, StorySheet::of(SHEET_ROWS, true), CellSelection::cell(CellAt::new(0, 0)), &[])
 }

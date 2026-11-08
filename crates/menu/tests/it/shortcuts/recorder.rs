@@ -14,7 +14,7 @@ fn recording_captures_a_chord_another_command_would_run() {
     rig.click("Save: ⌘S");
     assert!(rig.has("Save: press keys"));
     rig.press(Modifiers::COMMAND, Key::E);
-    assert!(rig.has("⚠ ⌘E is used by Export…"));
+    assert!(rig.has("⌘E is used by Export…"));
     assert_eq!(rig.bindings("file.save"), ["Cmd+S"], "nothing applied before an answer");
 }
 

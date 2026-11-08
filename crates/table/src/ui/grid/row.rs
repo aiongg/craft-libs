@@ -87,7 +87,6 @@ impl Component for GridRow<'_> {
             let Some(column) = key.position() else { continue };
             let node = access.node(PartKey::CELL.at(u64::from(column)), Role::GRID_CELL);
             node.name = Name::Text(self.model.cell_text(CellAt::new(self.row, column)));
-            node.column(key.clone());
         }
     }
 

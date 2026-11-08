@@ -86,7 +86,9 @@ impl<'a> Dialog<'a> {
     }
 
     fn on(title: impl Into<Label>, overlay: Overlay, header: HeaderRegion) -> Self {
-        let props = frame::chrome_props().mount(Mount::Layer(overlay)).header(header);
+        // The dialog is an instance of the application scope, so its edit commands reach it while a modal layer blocks the
+        // application's own.
+        let props = frame::chrome_props().mount(Mount::Layer(overlay)).header(header).command_scope(crate::runtime::commands::CommandScope::APP);
         Dialog {
             common: Common::new(),
             props,

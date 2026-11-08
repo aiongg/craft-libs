@@ -161,7 +161,8 @@ pub struct LayerToggle<Id> {
     /// Which column.
     pub column: LayerColumn,
     /// The new state of every row, a `Set`. The events of one sweep share the gesture and arrive as the pointer
-    /// crosses more rows.
+    /// crosses more rows. Escape during the sweep reports the rows it crossed as a `Cancel` that carries the state
+    /// they had before.
     pub edit: EditEvent<bool>,
 }
 

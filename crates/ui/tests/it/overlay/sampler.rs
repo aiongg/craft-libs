@@ -5,7 +5,9 @@ use super::kit::{Leaf, Opened, Opener, PlainStyle, Seen};
 use crate::body::kit::Slab;
 use crate::contract::kit::{Probe, Seen as ProbeSeen};
 use crate::windows_kit::Windows;
-use craft_behavior::{Sense, WheelTaker};
+use craft_behavior::kurbo::{Point, Size};
+use craft_behavior::{CanvasView, Sense, WheelTaker};
+use craft_ui::canvas::{Canvas, Momentary, NavigationOptions, NoTool, ToolHost};
 use craft_ui::contract::{
     Common, Component, ContainerProps, Cx, MeasureCx, Mount, Overlay, OverlayUi, Overlays as _, Props as _, Role, Sampler as _, Show as _,
     ShowContainer as _, Sizing, Trigger,
@@ -403,6 +405,50 @@ fn space_drag_over_the_canvas_reaches_it_and_does_not_press_the_dialogs_button()
     assert!(scene.dragged_canvas(), "the Space drag is the canvas's");
     assert_eq!(scene.leaf.borrow().activations, 0, "the dialog's focused button did not take the Space");
     assert!(is_focused(&frames.ctx, scene.armer_id.get()), "the dialog keeps key focus");
+}
+
+/// Space held over a canvas under an armed dialog is the Hand: the pointer drag pans the view. The canvas is a real
+/// `Canvas` under a `ToolHost` with a `Momentary`, as an app shows it, and the dialog holds the key focus.
+#[trial]
+fn space_drag_over_the_canvas_under_a_dialog_pans_the_view() {
+    let mut frames = Frames::new();
+    let scene = Scene::new(Arm::View);
+    let view = Cell::new(None::<CanvasView>);
+    let canvas = Cell::new(Id::NULL);
+    let momentary = RefCell::new(Momentary::new(NavigationOptions::default()));
+    let show = |frames: &mut Frames, events: Vec<Event>| {
+        frames.frame(events, &mut |ui: &mut Ui| {
+            scene.dialog.shown.set(false);
+            let mut current = view.get().unwrap_or_else(|| CanvasView::new(CANVAS, Point::new(500.0, 400.0), 1.0));
+            current.rect = CANVAS;
+            let shown = Canvas::new("Document").view(current).document(Size::new(1000.0, 800.0)).show_at(ui, CANVAS, |_, _| {});
+            canvas.set(shown.output.response.id);
+            let reply = ToolHost::new().momentary(&mut momentary.borrow_mut()).run(ui, &shown.output, &mut NoTool);
+            view.set(Some(reply.view.unwrap_or(current)));
+            Dialog { common: Common::new(), scene: &scene, canvas: canvas.get() }.id_salt("dialog").show_at(ui, OPENER);
+        });
+    };
+    for _ in 0..3 {
+        show(&mut frames, vec![]);
+    }
+    scene.open.set(true);
+    show(&mut frames, vec![]);
+    scene.open.set(false);
+    for _ in 0..30 {
+        show(&mut frames, vec![]);
+    }
+    assert!(scene.dialog.shown.get(), "the dialog shows");
+    let at = CANVAS.center();
+    let start = view.get().map(|view| view.center);
+    show(&mut frames, vec![moved(at)]);
+    show(&mut frames, vec![space(true)]);
+    show(&mut frames, vec![press(at)]);
+    show(&mut frames, vec![moved(at + Vec2::new(30.0, 0.0))]);
+    show(&mut frames, vec![moved(at + Vec2::new(60.0, 0.0))]);
+    show(&mut frames, vec![release(at + Vec2::new(60.0, 0.0))]);
+    show(&mut frames, vec![space(false)]);
+    show(&mut frames, vec![]);
+    assert_ne!(view.get().map(|view| view.center), start, "the Hand pans the view under the dialog");
 }
 
 /// The wheel over a canvas under a dialog is blocked without a registration and passes with `keep_view_open`.

@@ -187,21 +187,14 @@ impl Rig {
         self.pass();
     }
 
-    /// The control of `role` in the labelled row `label`: the one inside the group the row's label names. The label,
-    /// the group and the control all carry the row's name, so a click on the name alone does not reach the control.
+    /// The control of `role` in the labelled row `label`: a labelled control carries its label's text as its name.
     pub(crate) fn control(&self, label: &str, role: Role) -> Target {
         let tree = self.fixture.tree();
-        let row = tree
-            .with_role(Role::GROUP)
-            .into_iter()
-            .filter(|key| tree.name_of(*key) == Some(label))
-            .find_map(|key| tree.bounds_of(key))
-            .unwrap_or_else(|| panic!("no row labelled {label:?}"));
         self.fixture
             .by_role(role)
             .into_iter()
-            .find(|control| row.contains_rect(control.rect))
-            .unwrap_or_else(|| panic!("no {role:?} in the row labelled {label:?}"))
+            .find(|control| tree.name_of(control.node) == Some(label))
+            .unwrap_or_else(|| panic!("no {role:?} labelled {label:?}"))
     }
 
     /// Opens the select of the row `label`.

@@ -16,18 +16,13 @@ pub(super) struct EmptyTextStyle {
 
 /// The text a collection with no rows shows (`CollectionProps::empty`).
 #[derive(crate::contract::Component)]
-#[component(sample = EmptyText::sample)]
+#[component(unregistered)]
 pub(super) struct EmptyText {
     #[common]
     common: Common,
 }
 
 impl EmptyText {
-    #[cfg(feature = "testing")]
-    fn sample() -> Self {
-        EmptyText::new(Label::from("No items"))
-    }
-
     pub(super) fn new(text: Label) -> Self {
         EmptyText { common: Common::new() }.label(text)
     }

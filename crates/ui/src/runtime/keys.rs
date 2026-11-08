@@ -198,6 +198,8 @@ struct Strip<'a> {
     layout: &'a Layout,
     keeps_tab: bool,
     pages: bool,
+    /// The focused component reads every press as a chord (`OwnerClass::Recorder`).
+    records: bool,
     claims: &'a [Chord],
     edits: &'a dyn Fn(EditCommand) -> bool,
     /// The chords bound to the edit commands.
@@ -257,7 +259,10 @@ impl Strip<'_> {
                     .shortcuts
                     .iter()
                     .any(|shortcut| shortcut.phase == FirePhase::Press && shortcut.input.mods == Mods::CMD && shortcut.input.typed == Some(key));
-                if !sent {
+                if !sent && self.records {
+                    // A component that reads every chord gets the event as the chord's press, the way the key made it.
+                    self.press(batch, key, &input, false);
+                } else if !sent {
                     batch.shortcuts.push(Shortcut { input, phase: FirePhase::Press, typed: false, press: None, moved: false });
                 }
                 // The event stands for the chord, so the shortcut path is its only reader: egui does not copy or paste
@@ -412,6 +417,7 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
             layout: &stage.layout,
             keeps_tab: keys.is_some_and(|keys| keys.keep == focus::KeepKeys::Tab),
             pages: record.pages,
+            records: keys.is_some_and(|keys| matches!(keys.owner, OwnerClass::Recorder)),
             claims: &claims,
             edits: &edits,
             edit_chords: &edit_chords,

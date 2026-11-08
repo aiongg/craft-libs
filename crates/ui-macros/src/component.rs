@@ -32,6 +32,8 @@ struct Options {
     widget: bool,
     canvas_control: bool,
     content_painter: bool,
+    /// Implements `Meta` and registers nothing (see `#[component(unregistered)]` in the derive's doc).
+    unregistered: bool,
     declared: Declared,
     probe: Vec<Type>,
 }
@@ -96,6 +98,8 @@ fn parse_options(attrs: &[Attribute]) -> syn::Result<Options> {
                 options.canvas_control = true;
             } else if meta.path.is_ident("content_painter") {
                 options.content_painter = true;
+            } else if meta.path.is_ident("unregistered") {
+                options.unregistered = true;
             } else if meta.path.is_ident("probe") {
                 let content;
                 syn::parenthesized!(content in meta.input);
@@ -106,7 +110,7 @@ fn parse_options(attrs: &[Attribute]) -> syn::Result<Options> {
                 options.probe.extend(types);
             } else if !options.declared.read(&meta)? {
                 return Err(meta.error(
-                    "unknown `component` option; expected `container`, `collection`, `widget`, `overlay`, `content_painter`, `canvas_control`, `exempt(..)`, `sample = ..` or `probe(..)`",
+                    "unknown `component` option; expected `container`, `collection`, `widget`, `overlay`, `content_painter`, `canvas_control`, `unregistered`, `exempt(..)`, `sample = ..` or `probe(..)`",
                 ));
             }
             Ok(())
@@ -518,9 +522,20 @@ pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
             }
         }
     });
-    let types = instantiations(ident, &input.generics, options.probe, "component")?;
-    options.declared.purpose = purpose_of(&input.attrs);
-    let registration = registrations(&types, &options.declared, shape)?;
+    let registration = if options.unregistered {
+        let declared = &options.declared;
+        if declared.overlay || !declared.exempt.is_empty() || declared.sample.is_some() || !options.probe.is_empty() {
+            return Err(syn::Error::new_spanned(
+                ident,
+                "`unregistered` registers nothing: `overlay`, `exempt`, `sample` and `probe` have no effect with it",
+            ));
+        }
+        quote!()
+    } else {
+        let types = instantiations(ident, &input.generics, options.probe, "component")?;
+        options.declared.purpose = purpose_of(&input.attrs);
+        registrations(&types, &options.declared, shape)?
+    };
     Ok(quote! {
         #key_tokens
         impl #impl_generics ::craft_ui::contract::Meta for #ident #type_generics #where_clause {

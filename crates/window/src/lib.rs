@@ -147,6 +147,7 @@
 pub mod desktop;
 mod layout;
 mod list;
+mod lock_state;
 pub mod mac;
 mod menu;
 pub mod native_menu;
@@ -163,6 +164,7 @@ mod viewports;
 pub mod restore;
 
 pub use list::{Closed, WindowId, WindowList};
+pub use lock_state::caps_lock;
 pub use menu::{Document, MenuEntry, WindowMenu};
 pub use place::{CASCADE_STEP, Rect, cascade, monitor_of};
 #[cfg(feature = "ui")]

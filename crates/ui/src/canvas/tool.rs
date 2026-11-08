@@ -114,14 +114,17 @@ pub struct ViewEase {
 /// What a tool is to assistive technology this pass: one graphics object over the tool's drawing, with a child for
 /// each anchor. The host emits it through the canvas's access path in [`ToolHost::run`](super::ToolHost::run), as
 /// a hover-only node that is not a Tab stop. The texts are the tool's words in the app's language, with the live
-/// size in the units of the document ([`ToolContext::units`]): `Rectangle 120 x 80 px` while a rectangle is dragged.
+/// size in the units of the document ([`ToolContext::units`]) as the value: `Rectangle` valued `120 x 80 px` while a
+/// rectangle is dragged.
 #[derive(Clone, Debug, Default, PartialEq)]
 #[non_exhaustive]
 pub struct ToolAccess {
     /// The object's name.
     pub name: String,
-    /// What the object adds to its name, such as the numbers the tool reads out.
+    /// What the object is or does, beyond its name.
     pub description: Option<String>,
+    /// The object's current value, such as the live size a drag reads out (`120 x 80 px`).
+    pub value: Option<String>,
     /// The drawing's bounds in document units. `None` gives a node of no size at the canvas centre.
     pub bounds: Option<craft_behavior::kurbo::Rect>,
     /// The points of the drawing the user can grab or reach, in reading order.
@@ -129,15 +132,22 @@ pub struct ToolAccess {
 }
 
 impl ToolAccess {
-    /// An object named `name`, with no description, bounds or anchors.
+    /// An object named `name`, with no description, value, bounds or anchors.
     pub fn new(name: impl Into<String>) -> Self {
-        ToolAccess { name: name.into(), description: None, bounds: None, anchors: Vec::new() }
+        ToolAccess { name: name.into(), description: None, value: None, bounds: None, anchors: Vec::new() }
     }
 
     /// The object's description.
     #[must_use]
     pub fn description(mut self, description: impl Into<String>) -> Self {
         self.description = Some(description.into());
+        self
+    }
+
+    /// The object's current value.
+    #[must_use]
+    pub fn value(mut self, value: impl Into<String>) -> Self {
+        self.value = Some(value.into());
         self
     }
 
@@ -208,10 +218,11 @@ pub struct ToolContext<'a> {
     pub slop: f32,
     space: Option<CanvasSpace>,
     down: &'a [Key],
+    caps_lock: bool,
     painter: Option<&'a ContentPainterCx<'a>>,
     style: Option<StyleCx<'a>>,
     env: Option<&'a Env>,
-    snap: Option<&'a Snap<'a>>,
+    snap: Option<&'a Snap>,
     requests: ToolRequests,
 }
 
@@ -227,6 +238,7 @@ impl<'a> ToolContext<'a> {
             slop: 0.0,
             space,
             down: &[],
+            caps_lock: false,
             painter: None,
             style: None,
             env: None,
@@ -263,6 +275,13 @@ impl<'a> ToolContext<'a> {
         self
     }
 
+    /// Whether Caps Lock is on now.
+    #[must_use]
+    pub fn caps(mut self, on: bool) -> Self {
+        self.caps_lock = on;
+        self
+    }
+
     /// The press arena's slop.
     #[must_use]
     pub fn slop(mut self, slop: f32) -> Self {
@@ -292,9 +311,9 @@ impl<'a> ToolContext<'a> {
         self
     }
 
-    /// The canvas's snapping, which [`snap`](Self::snap) applies; the host sets the one the app gave it.
+    /// The canvas's snapping, which [`snap`](Self::snap) applies; the host sets the one the canvas has.
     #[must_use]
-    pub fn snapping(mut self, snap: &'a Snap<'a>) -> Self {
+    pub fn snapping(mut self, snap: &'a Snap) -> Self {
         self.snap = Some(snap);
         self
     }
@@ -386,6 +405,12 @@ impl<'a> ToolContext<'a> {
     /// runs, so a momentary Hand does not take over mid-drag.
     pub fn held(&self, key: Key) -> bool {
         self.down.contains(&key)
+    }
+
+    /// Whether Caps Lock is on now (a brush shows its precise cursor): the platform's toggle state, read once per
+    /// pass, not a count of key presses.
+    pub fn caps_lock(&self) -> bool {
+        self.caps_lock
     }
 
     /// Labelled values to show beside the pointer this pass (a marquee's W and H). The last request of a pass wins.

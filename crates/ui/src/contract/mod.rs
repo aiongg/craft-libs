@@ -80,10 +80,10 @@ use std::ops::Deref;
 pub use crate::runtime::drag::{DragPreview, DropMark, DropTarget, OsFile, OsFiles, WindowDropTarget};
 #[cfg(feature = "testing")]
 pub(crate) use body::MOVE_BAND;
-pub use craft_behavior::DropOperation;
 pub use craft_behavior::ColumnKey;
+pub use craft_behavior::DropOperation;
 pub(crate) use run::measure_under;
-pub(crate) use steps::{take_reveal, take_scroll_to};
+pub(crate) use steps::take_reveal;
 
 /// Where an element's id comes from.
 #[derive(Clone, Copy, Debug, Default)]
@@ -246,12 +246,6 @@ pub trait Component: Meta + Sized {
     /// pointer can reach. A component whose answer varies per instance overrides `shows_label`.
     const SHOWS_LABEL: bool = true;
 
-    /// Whether the component's horizontal axis keeps its left-to-right order under a right-to-left interface: a time
-    /// axis, a ruler, a document view. The component itself sits where the interface puts it; its content flow, keys
-    /// and roving order, and the nodes inside it, do not mirror. The suite's right-to-left case reads the same
-    /// declaration from the access tree.
-    const LTR_AXIS: bool = false;
-
     /// The style type.
     type Style: ComponentStyle;
     /// `Response`, `EditResponse<T>` or a richer type.
@@ -307,7 +301,8 @@ pub trait Component: Meta + Sized {
         None
     }
 
-    /// The scroll offset's owner when the app drives scrolling; `None` keeps it in session memory.
+    /// The scroll offset's owner when the app drives scrolling; `None` keeps it in session memory. The app restores a
+    /// scroll position, or keeps the content under the pointer fixed across a zoom, by writing it.
     fn scroll(&mut self) -> Option<BindMut<'_, ScrollPos>> {
         None
     }
@@ -471,8 +466,8 @@ pub trait Collection: Component + HasProps + Meta<Shape = shape::Items> {
     }
 
     /// Whether the collection takes the zoom share of the wheel (Ctrl or Cmd with the wheel): it reports
-    /// `CollectionEvent::Zoom` and the app sets its zoom and, with `Focus::scroll_to`, the scroll position that keeps
-    /// the content under the pointer fixed.
+    /// `CollectionEvent::Zoom` and the app sets its zoom and, through `Component::scroll`, the scroll position that
+    /// keeps the content under the pointer fixed.
     fn zooms(&self) -> bool {
         false
     }

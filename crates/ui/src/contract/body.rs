@@ -29,6 +29,7 @@ use craft_behavior::{
     ScrollPos, ScrollSpan, WheelNotch, WheelTaker,
 };
 use craft_host::target::{Caps, WindowChrome, WindowState};
+use craft_i18n::Direction;
 use craft_keymap::{Chord, Key, Mods};
 use egui::{Align, Context, Id, Layout, Pos2, Rect, Shape, Ui, UiBuilder, Vec2, ViewportId};
 use serde::{Deserialize, Serialize};
@@ -1398,10 +1399,6 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             self.offset.x += f64::from(if rtl { -dx } else { dx });
             self.moved = true;
         }
-        if let Some(to) = super::steps::take_scroll_to(&ctx, id) {
-            self.offset = to;
-            self.moved = true;
-        }
         for mv in super::steps::take_scroll_moves(&ctx, id) {
             let (visible, extent, offset, vertical) = if scroll.vertical_on() {
                 (view.y, self.last.extent.1, self.offset.y, true)
@@ -1459,7 +1456,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 Vec2::new(if room.x.is_finite() { room.x } else { size.x }, if room.y.is_finite() { room.y } else { size.y })
             }
             Sizing::FillWidth => {
-                let room = crate::layout::flow_room(ui).x;
+                let room = crate::layout::flow_fill_room(ui).x;
                 Vec2::new(if room.is_finite() { size.x.max(room) } else { size.x }, size.y)
             }
             Sizing::Content => size,
@@ -1468,6 +1465,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
 
     fn fills_width(&self, comp: &C) -> bool {
         self.sizing(comp.props(Internal::new())) != Sizing::Content
+    }
+
+    fn fills_width_only(&self, comp: &C) -> bool {
+        self.sizing(comp.props(Internal::new())) == Sizing::FillWidth
     }
 
     fn parts(&mut self, comp: &mut C, rect: Rect, pcx: &mut PartsCx<'_, C>) {
@@ -1493,7 +1494,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                     Notch::Lines(lines) => WheelNotch::Points(lines * tokens.tokens().typography.body.line_height),
                     Notch::ViewShare(share) => WheelNotch::ViewShare(share),
                 };
-                wheel::register(&ctx, WheelTaker::new(pcx.id, view).vertical(scroll.vertical_on()).horizontal(scroll.horizontal_on()).notch(notch));
+                wheel::register(
+                    &ctx,
+                    WheelTaker::new(pcx.id, view).vertical(scroll.vertical_on()).horizontal(scroll.horizontal_on()).scrolls(true).notch(notch),
+                );
             }
         }
         self.nudge = gap_of(tokens, Gap::Row);
@@ -1578,6 +1582,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 scoped.commands = scoped.commands.pushed(WindowCommand::SCOPE, window);
             }
             scoped.values.extend(values);
+            if cx.core.resolved.ltr_axis {
+                scoped.direction = Direction::Ltr;
+            }
             scoped.ink = cx.core.ink;
             scoped.grid = None;
             scoped.content_column = false;
@@ -1660,8 +1667,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 }
                 scoped.transform = props.transform;
                 scoped.content_column = content_column;
-                if scroll.is_some() {
+                if let Some(scroll) = scroll {
                     scoped.scroll_owner = Some(id);
+                    scoped.unbounded = (scroll.horizontal_on(), scroll.vertical_on());
                 }
             });
             let mut bcx = BodyCx::new(body_id, body_env.view(), resolved, body_rect, &mut *cx.core.memory, &mut open, gate.as_mut())

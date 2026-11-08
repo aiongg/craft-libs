@@ -532,8 +532,8 @@ impl Component for MenuItem<'_> {
         let tokens = cx.tokens;
         let text = &tokens.color.text;
         let c = |rgba: Rgba| cx.color(rgba);
-        let surface = SurfaceLook::new(crate::list::row_surface(cx)).radius(UiTokens::corner(tokens.shape.radius.sm));
-        let ink = |base: Rgba| crate::list::row_ink(cx, base).off(States::new(c(base), c(base), c(base), c(text.disabled)));
+        let surface = SurfaceLook::new(cx.row_surface()).radius(UiTokens::corner(tokens.shape.radius.sm));
+        let ink = |base: Rgba| cx.row_ink(base).off(States::new(c(base), c(base), c(base), c(text.disabled)));
         let control = cx.control();
         MenuItemStyle {
             surface,
@@ -642,7 +642,8 @@ impl Component for MenuItem<'_> {
             frame::request_repaint(&ctx);
         }
         // Every activation of a menu row reaches its command as `FireSource::Menu`, whether it was typed, clicked or keyed.
-        if asked && cx.command.is_some() {
+        // A typed letter also runs a row that has no command: the injected activation closes the menu.
+        if typed || (asked && cx.command.is_some()) {
             cx.activate(FireSource::Menu);
         }
         if asked && self.keep_open {

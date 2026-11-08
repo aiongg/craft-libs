@@ -7,13 +7,13 @@ mod stories;
 
 use super::words::CanvasControlWords;
 use crate::canvas::{
-    CanvasSpace, Guide, GuideDrag, GuideKey, GuideLine, LABEL_STEP_MIN, NUDGE, NUDGE_FAR, Snap, canvas_space, context_menu, readout,
+    CanvasSpace, Guide, GuideDrag, GuideKey, GuideLine, LABEL_STEP_MIN, NUDGE, NUDGE_FAR, Snap, canvas_snap, canvas_space, context_menu, readout,
 };
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Name, Numeric, Outcome, PaintUi, PartsCx,
     Pointer as _, Props as _, Remember as _, Role, WordSetCx as _,
 };
-use crate::primitives::{FocusKind, FocusRing, PaintShape, Rule};
+use crate::primitives::{Dashes, FocusKind, FocusRing, PaintShape, Rule};
 use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;
 use crate::style::{ComponentStyle, Flags, FocusLook, RuleLook, StyleColor, StyleCx};
@@ -117,7 +117,7 @@ struct PendingKey(Option<GuideKey>);
 /// - The pointer takes an unlocked guide while the guides are [`interactive`](Guides::interactive). A drag moves it;
 ///   the release commits where it is, or removes the guide outside the [`bounds`](Guides::bounds) or the canvas.
 ///   Escape cancels the drag.
-/// - Shift snaps to the ruler's ticks; otherwise the host's [`snap`](Guides::snap) places the guide and gets the
+/// - Shift snaps to the ruler's ticks; otherwise the canvas's [`Snap`] places the guide and gets the
 ///   modifiers (Ctrl turns snapping off).
 /// - The guides are one Tab stop. Page Up and Page Down select the previous or next guide (vertical guides left to
 ///   right, then horizontal ones top to bottom), the arrow keys nudge the selected one across its axis (Shift moves
@@ -144,9 +144,6 @@ pub struct Guides<'a> {
     /// Where guides may live, in document units; a guide released outside is removed. Without bounds, the canvas.
     #[prop]
     bounds: Option<DocRect>,
-    /// The host's snapping of a guide being dragged.
-    #[prop(func = "Fn(Axis, f64, Mods) -> f64")]
-    snap: Option<Snap<'a>>,
     /// The distance an arrow key moves a guide, in document units.
     #[prop(quantity = "document units")]
     step: f64,
@@ -168,7 +165,6 @@ impl<'a> Guides<'a> {
             selected: None,
             interactive: false,
             bounds: None,
-            snap: None,
             step: NUDGE,
             big_step: NUDGE_FAR,
             pending: None,
@@ -177,13 +173,13 @@ impl<'a> Guides<'a> {
         .label(label)
     }
 
-    /// `position` snapped: to the ruler's minor ticks with Shift, otherwise by the host.
-    fn snapped(&self, space: &CanvasSpace, along: Axis, position: f64, mods: Mods) -> f64 {
+    /// `position` snapped: to the ruler's minor ticks with Shift, otherwise by the canvas's snap.
+    fn snapped(space: &CanvasSpace, snap: Option<&Snap>, along: Axis, position: f64, mods: Mods) -> f64 {
         if mods.shift {
             let zoom = place::zoom_across(&space.view, along);
             let (ruler, zero) = space.rulers().across(along);
             ruler.units.snap_to_tick(position, zero, zoom, LABEL_STEP_MIN)
-        } else if let Some(snap) = &self.snap {
+        } else if let Some(snap) = snap {
             snap.apply(along, position, mods)
         } else {
             position
@@ -213,8 +209,8 @@ impl<'a> Guides<'a> {
     }
 
     /// The position the pointer at `pos` gives a guide running `along`, before it is kept inside the view.
-    fn pointer_position(&self, space: &CanvasSpace, along: Axis, pos: Pos2, mods: Mods) -> f64 {
-        self.snapped(space, along, coordinate_across(along, space.view.to_doc(pos)), mods)
+    fn pointer_position(space: &CanvasSpace, snap: Option<&Snap>, along: Axis, pos: Pos2, mods: Mods) -> f64 {
+        Self::snapped(space, snap, along, coordinate_across(along, space.view.to_doc(pos)), mods)
     }
 
     /// Shows the position of a dragged guide beside the pointer.
@@ -232,7 +228,8 @@ impl<'a> Guides<'a> {
         if drag.key.is_some() {
             return;
         }
-        let position = drag.at.map(|at| self.snapped(space, drag.along, at, drag.mods));
+        let snap = canvas_snap(&cx.env);
+        let position = drag.at.map(|at| Self::snapped(space, snap.as_ref(), drag.along, at, drag.mods));
         let outside = position.is_none_or(|position| !self.inside_bounds(drag.along, position));
         let stored = cx.keep::<PendingKey>().0;
         let key = stored.unwrap_or_else(|| place::fresh_key(guides));
@@ -268,6 +265,7 @@ impl<'a> Guides<'a> {
     /// The pointer on the guides: select, drag, click, double click and the context request (a secondary click, the
     /// Menu key or Shift+F10 on the focused guide).
     fn run_pointer(&mut self, cx: &mut Cx<'_, Self>, space: &CanvasSpace, guides: &[Guide]) {
+        let snap = canvas_snap(&cx.env);
         let area = cx.rect;
         for guide in guides.iter().filter(|guide| !guide.locked) {
             let Some(result) = cx.part_if_declared(guide.key.part(GUIDE)) else { continue };
@@ -284,7 +282,7 @@ impl<'a> Guides<'a> {
                         cx.begin();
                     }
                     let (lo, hi) = self.drag_range(space, guide.along);
-                    let position = place::clamped(self.pointer_position(space, guide.along, pos, press.mods), (lo, hi));
+                    let position = place::clamped(Self::pointer_position(space, snap.as_ref(), guide.along, pos, press.mods), (lo, hi));
                     cx.propose(place::moved(guides, guide.key, position));
                     self.show_readout(cx, space, pos, guide.along, position);
                 }
@@ -294,7 +292,7 @@ impl<'a> Guides<'a> {
                         self.report.select = Some(Some(guide.key));
                     }
                     (PointerButton::Primary, false) => {
-                        let position = self.pointer_position(space, guide.along, pos, press.mods);
+                        let position = Self::pointer_position(space, snap.as_ref(), guide.along, pos, press.mods);
                         if area.contains(pos) && self.inside_bounds(guide.along, position) {
                             let live = place::clamped(position, self.drag_range(space, guide.along));
                             cx.propose(place::moved(guides, guide.key, live));
@@ -481,8 +479,8 @@ impl Component for Guides<'_> {
             let color = if self.selected == Some(guide.key) { style.selected.egui() } else { guide.color.map_or(style.line.egui(), data_color) };
             match guide.line {
                 GuideLine::Solid => painter.painter.extend(Rule::shapes(&RuleLook { color, width: style.width }, a, b, ppp)),
-                GuideLine::Dashed => painter.dashed(&[a, b], style.width, style.dash, style.gap, 0.0, color),
-                GuideLine::Dots => painter.dashed(&[a, b], style.width, style.width, style.gap, 0.0, color),
+                GuideLine::Dashed => painter.dashed(&[a, b], style.width, Dashes::new(style.dash, style.gap), color),
+                GuideLine::Dots => painter.dashed(&[a, b], style.width, Dashes::new(style.width, style.gap), color),
             }
             if focused == Some(guide.key.get()) && (b - a).length() > 0.0 {
                 painter.painter.extend(FocusRing::shapes(&style.focus, FocusKind::Halo, &footprint(&space, a, b, style.width), ppp));

@@ -6,7 +6,7 @@
 //! (every key is a chord; bare Tab stays a chord because the field keeps Tab). The recording field claims key focus
 //! until it holds it.
 
-use craft_behavior::{Metrics, Sense};
+use craft_behavior::{Metrics, Proposal, Sense};
 use craft_keymap::Chord;
 use craft_theme::Stateful;
 use craft_ui::contract::{
@@ -185,6 +185,18 @@ impl ChordRecorder {
             }
             field.show(ui)
         }
+    }
+
+    /// The width the field has under a component's measure, as [`ChordRecorder::child`] will show it.
+    pub(crate) fn width<C: Component>(self, cx: &MeasureCx<'_, C>, key: impl std::hash::Hash + std::fmt::Debug) -> f32 {
+        let ChordRecorder { label, recording, shown, claim, .. } = self;
+        let common = Common::new();
+        let size = if recording {
+            cx.child(key, &mut RecordingField { common, shown, chords: Vec::new(), started: false, claim }.label(label), Proposal::Ideal)
+        } else {
+            cx.child(key, &mut IdleField { common, shown, chords: Vec::new(), started: false, claim }.label(label), Proposal::Ideal)
+        };
+        size.x
     }
 
     /// Shows the field as a child of a component's paint at `rect`. Idle and recording share `key`, so focus

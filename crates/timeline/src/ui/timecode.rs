@@ -18,7 +18,7 @@ use craft_ui::primitives::{TextKey, TextOptions, TextRun};
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::runtime::focus::KeyUse;
 use craft_ui::runtime::memory::Remember as _;
-use craft_ui::style::{StyleCx, TypeRole};
+use craft_ui::style::{Ink, StyleCx, TypeRole};
 use craft_ui::text::FieldStyle;
 use egui::{Rect, Response, Ui, Vec2};
 use std::borrow::Cow;
@@ -158,7 +158,7 @@ impl Codec for TimecodeCodec {
 pub struct TimecodeFieldOutput {
     /// The edit: a changed time as an edit event.
     pub edit: EditResponse<Tick>,
-    /// Typed text that is not a time, from Enter or a click away; word it with [`TimecodeWords::message`].
+    /// Typed text that is not a time, from Enter or a click away, in every pass the text stays marked invalid; word it with [`TimecodeWords::message`].
     /// Nothing is committed: the text stays in the field, marked invalid, until it is fixed or Esc restores the time.
     pub error: Option<TimecodeError>,
 }
@@ -198,6 +198,8 @@ pub struct TimecodeField<'a> {
     #[prop]
     min: Tick,
     options: TextOptions,
+    /// The readout form: large accent text that scrubs under a drag on the field itself.
+    large: bool,
 }
 
 impl<'a> TimecodeField<'a> {
@@ -208,7 +210,18 @@ impl<'a> TimecodeField<'a> {
         options.select_on_focus = true;
         options.submits = true;
         options.steps_value = true;
-        TimecodeField { common: Common::new(), value, format, min: Tick::ZERO, options }.label(label)
+        TimecodeField { common: Common::new(), value, format, min: Tick::ZERO, options, large: false }.label(label)
+    }
+
+    /// The large readout: the prominent text role in the accent ink. A drag on the field itself scrubs the time, as a
+    /// drag on the side label does for the plain field.
+    #[must_use]
+    pub fn large(mut self) -> Self {
+        self.options.mono = false;
+        self.options.role = TypeRole::BodyLarge;
+        self.options.ink = Some(Ink::Accent);
+        self.large = true;
+        self
     }
 
     fn codec(&self) -> TimecodeCodec {
@@ -234,13 +247,14 @@ impl Component for TimecodeField<'_> {
     }
 
     fn sense(&self) -> Sense {
-        Sense::CLICK | Sense::FOCUS | Sense::TAKE_FOCUS
+        if self.large { Sense::CLICK | Sense::DRAG | Sense::FOCUS | Sense::TAKE_FOCUS } else { Sense::CLICK | Sense::FOCUS | Sense::TAKE_FOCUS }
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         let codec = self.codec();
         let sample = codec.sample(cx.value().unwrap_or(&Tick::ZERO));
-        cx.layout(&TextRun::new(sample.as_ref()).role(TypeRole::Mono)).size()
+        let role = if self.options.mono { TypeRole::Mono } else { self.options.role };
+        cx.layout(&TextRun::new(sample.as_ref()).role(role)).size()
     }
 
     fn parts(&mut self, _: Rect, cx: &mut PartsCx<'_, Self>) {
@@ -260,7 +274,8 @@ impl Component for TimecodeField<'_> {
         let (rate, min) = (self.format.rate, self.min);
         let frames = rate.frame_at(min) as f64..=rate.frame_at(Tick::MAX) as f64;
         let drag = ValueDrag::relative(1.0, frames).warp(true).hide_cursor(true).coarse(LARGE_STEPS);
-        Some(Scrub::new(drag, move |time: &Tick| rate.frame_at(*time) as f64, move |frames: f64| rate.tick_of(frames.round() as i64).max(min)))
+        let scrub = Scrub::new(drag, move |time: &Tick| rate.frame_at(*time) as f64, move |frames: f64| rate.tick_of(frames.round() as i64).max(min));
+        Some(if self.large { scrub.on_field() } else { scrub })
     }
 
     /// Up and Down step the time by a frame, with Shift by ten.
@@ -278,8 +293,10 @@ impl Component for TimecodeField<'_> {
 
     fn finish(self, cx: Cx<'_, Self>) -> TimecodeFieldOutput {
         let edit = cx.edit_response();
-        let ended = edit.submitted || !cx.is_focused();
-        let draft = cx.text(&TextKey::<Tick>::new(TEXT)).and_then(|text| text.draft.as_deref());
+        let text = cx.text(&TextKey::<Tick>::new(TEXT));
+        let draft = text.and_then(|text| text.draft.as_deref());
+        // A rejected Enter keeps the draft, marks it invalid and neither submits nor blurs.
+        let ended = edit.submitted || !cx.is_focused() || text.is_some_and(|text| text.invalid);
         let error = match draft {
             Some(draft) if ended => parse_time(draft, &self.format, cx.value().copied().unwrap_or(Tick::ZERO)).err(),
             _ => None,

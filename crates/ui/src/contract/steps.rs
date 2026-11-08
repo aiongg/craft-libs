@@ -20,7 +20,7 @@ use crate::runtime::{inspect, keys, layout_memory, wheel};
 use crate::style::{ComponentStyle, Flags, Ink, StateSet, StyleCx, accepted_variant, resolve_style, surface_style};
 use craft_behavior::{
     CancelReason, Cursor, CursorPriority, DragWarp, EditEvent, Gesture, GesturePhase, Input, Intent, KeyRole, Mixed, NavMove, PaintedCursor, PartKey,
-    PartRef, PressCancel, Proposal, Roving, ScrollPos, Sense, Value, ValueDrag,
+    PartRef, PressCancel, Proposal, Roving, Sense, Value, ValueDrag,
 };
 use craft_theme::{ControlSize, State, StateMix, Variant};
 use egui::{Context, Id, Pos2, Rect, Response, Ui, Vec2};
@@ -202,6 +202,7 @@ pub(crate) fn resolved<'p>(id: Id, step: &'p EnvStep, common: &'p Common) -> Res
         keeps_name: common.keeps_name,
         access_key: common.access_key,
         default_stop: common.default_stop,
+        ltr_axis: common.ltr_axis,
         description: common.description.as_deref(),
         tooltip: common.tooltip.as_ref(),
         doc_key: common.doc_key,
@@ -730,8 +731,9 @@ fn scrub_warp<C: Component>(cx: &mut Cx<'_, C>, drag: &ValueDrag, pos: Pos2) -> 
     shift
 }
 
-/// Step 9, before the component: a drag on the side label scrubs the value of a component that opts in with
-/// `Component::scrub`. The control registers with its label scope so the label senses the drag from the next pass on.
+/// Step 9, before the component: a drag on the side label (or on the component itself, for a scrub that
+/// `Scrub::on_field` declares) scrubs the value of a component that opts in with `Component::scrub`. A label scrub
+/// registers the control with its label scope so the label senses the drag from the next pass on.
 pub(crate) fn scrub_by_label<C: Component>(comp: &C, cx: &mut Cx<'_, C>) {
     use super::cx::Edit as _;
     use craft_behavior::PressPhase;
@@ -739,11 +741,16 @@ pub(crate) fn scrub_by_label<C: Component>(comp: &C, cx: &mut Cx<'_, C>) {
         return;
     }
     let Some(scrub) = comp.scrub() else { return };
-    let Some(label) = scope::field_label(&cx.core.ctx) else { return };
-    scope::register_scrub(&cx.core.ctx);
+    let press = if scrub.on_field {
+        cx.core.press
+    } else {
+        let Some(label) = scope::field_label(&cx.core.ctx) else { return };
+        scope::register_scrub(&cx.core.ctx);
+        label.press
+    };
     let start_id = sub(cx.core.id, "scrub_start");
     let rtl = cx.core.env.direction().is_rtl();
-    match label.press.phase {
+    match press.phase {
         PressPhase::DragStart { .. } => {
             cx.core.memory.shown::<ScrubStart>(start_id).0 = cx.value().map_or(0.0, |value| (scrub.read)(value));
             *cx.core.memory.shown::<ScrubWarp>(sub(cx.core.id, "scrub_warp")) = ScrubWarp::default();
@@ -754,7 +761,7 @@ pub(crate) fn scrub_by_label<C: Component>(comp: &C, cx: &mut Cx<'_, C>) {
             hide_scrub_cursor(cx, &scrub.drag);
             let start = cx.core.memory.shown::<ScrubStart>(start_id).0;
             let shift = scrub_warp(cx, &scrub.drag, pos);
-            if let Some(next) = scrub.drag.value_shifted(start, &label.press, rtl, shift) {
+            if let Some(next) = scrub.drag.value_shifted(start, &press, rtl, shift) {
                 cx.propose((scrub.write)(next));
             }
         }
@@ -1101,26 +1108,6 @@ pub(crate) fn take_reveal(ctx: &Context, owner: Id) -> Option<Rect> {
     })
 }
 
-#[derive(Default)]
-struct ScrollTos(Vec<(Id, ScrollPos)>);
-
-/// Asks the scroll region `owner` to show its content at `to` on its next pass.
-pub(crate) fn request_scroll_to(ctx: &Context, owner: Id, to: ScrollPos) {
-    store::Service::<ScrollTos>::run(ctx, |requests| {
-        requests.0.retain(|(id, _)| *id != owner);
-        requests.0.push((owner, to));
-    });
-    repaint::request(ctx);
-}
-
-/// The scroll position requested of `owner`, once; the newest request wins.
-pub(crate) fn take_scroll_to(ctx: &Context, owner: Id) -> Option<ScrollPos> {
-    store::Service::<ScrollTos>::run(ctx, |requests| {
-        let at = requests.0.iter().position(|(id, _)| *id == owner)?;
-        Some(requests.0.remove(at).1)
-    })
-}
-
 /// A page or end move a focused component left untaken, addressed to the scroll owner around it (9.2 rule 5).
 #[derive(Default)]
 struct ScrollMoves(Vec<(Id, NavMove)>);
@@ -1285,7 +1272,7 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
         access: &access,
         popups: &if C::OVERLAYS { super::overlay::popups_shown(ctx, id) } else { Vec::new() },
         popups_by_part: super::overlay::has_toggle_nodes(&core.toggles, &access.nodes),
-        ltr_axis: C::LTR_AXIS,
+        ltr_axis: resolved.ltr_axis,
     };
     access::report(ctx, &own);
     if let Some(facts) = core.text_access.take() {
@@ -1334,7 +1321,7 @@ fn report_sub(core: &CxCore<'_>, input: &ReportIn<'_>, node: &SubNode, face: Opt
         component: "",
         node: &node,
         rect: result.map_or(core.rect, |result| result.rect),
-        enabled: core.resolved.enabled,
+        enabled: core.resolved.enabled && face.is_none_or(|face| face.enabled),
         focusable: takes_focus(core.resolved) && declared.is_some_and(|(_, extras)| extras.focusable),
         clickable: core.resolved.enabled && declared.is_some_and(|(decl, _)| decl.sense.contains(Sense::CLICK)),
         active: core.active == Some(node.part),
@@ -1377,7 +1364,7 @@ pub(crate) fn report_inert<C: Component>(cx: &Cx<'_, C>) {
             access: &access,
             popups: &[],
             popups_by_part: false,
-            ltr_axis: C::LTR_AXIS,
+            ltr_axis: core.resolved.ltr_axis,
         },
     );
 }

@@ -37,8 +37,13 @@ pub fn derive_command_set(input: TokenStream) -> TokenStream {
 /// registration and probe.
 ///
 /// Attributes: `#[component]`, `#[component(container)]`, `#[component(collection)]`, `widget`, `overlay`,
-/// `content_painter`, `canvas_control`, `exempt(case = .., reason = ..)`, `probe(Type<..>, ..)` on the type;
+/// `content_painter`, `canvas_control`, `unregistered`, `exempt(case = .., reason = ..)`, `probe(Type<..>, ..)` on the
+/// type;
 /// `#[common]`, `#[container]` and `#[style_key]` on fields.
+///
+/// `unregistered` implements `Meta` and registers nothing, for a face an app never composes on its own: a collection's
+/// item or a leaf that only its parent shows. Its parent's stories and suite cases cover it. It is not a way to skip
+/// stories for a type an app uses: such a type registers and has stories.
 #[proc_macro_derive(Component, attributes(component, common, container, style_key))]
 pub fn derive_component(input: TokenStream) -> TokenStream {
     expanded(component::derive(input.into()))

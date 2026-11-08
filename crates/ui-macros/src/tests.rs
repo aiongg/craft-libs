@@ -24,6 +24,23 @@ fn a_generic_component_without_probe_is_an_error() {
 }
 
 #[test]
+fn an_unregistered_component_implements_meta_and_registers_nothing() {
+    let tokens = crate::component::derive(quote! {
+        #[component(unregistered)]
+        struct Row { #[common] common: Common }
+    })
+    .expect("the derive accepts `unregistered`")
+    .to_string();
+    assert!(tokens.contains("Meta"), "{tokens}");
+    assert!(!tokens.contains("__register_contract"), "{tokens}");
+    let with_option = component(quote! {
+        #[component(unregistered, overlay)]
+        struct Row { #[common] common: Common }
+    });
+    assert!(with_option.contains("unregistered"), "{with_option}");
+}
+
+#[test]
 fn a_lifetime_only_component_needs_no_probe() {
     let tokens = crate::component::derive(quote! {
         struct Field<'a> { #[common] common: Common, text: &'a str }

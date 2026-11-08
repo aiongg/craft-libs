@@ -265,10 +265,10 @@ impl Component for TrackRow<'_> {
     fn style(cx: &StyleCx<'_>, _: TrackRowStyleKey) -> TrackRowStyle {
         let clip = Stateful::new(cx.color(cx.tokens.color.surface.raised)).when(Flags::SELECTED, cx.color(cx.tokens.color.state.selected_hover));
         TrackRowStyle {
-            surface: SurfaceLook::new(crate::list::row_surface(cx)),
+            surface: SurfaceLook::new(cx.row_surface()),
             metrics: Metrics::new(),
-            ink: TextLook::new(TypeRole::Label, crate::list::row_ink(cx, cx.tokens.color.text.normal)),
-            dim: TextLook::new(TypeRole::Label, crate::list::row_ink(cx, cx.tokens.color.text.faint)),
+            ink: TextLook::new(TypeRole::Label, cx.row_ink(cx.tokens.color.text.normal)),
+            dim: TextLook::new(TypeRole::Label, cx.row_ink(cx.tokens.color.text.faint)),
             clip,
             pad: cx.control().pad_x,
         }

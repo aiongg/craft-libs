@@ -15,7 +15,7 @@ fn recording_takes_a_chord_another_command_would_run() {
     rig.click("Save: ⌘S");
     assert!(rig.has("Save: press keys"));
     rig.press(Modifiers::MAC_CMD, Key::E);
-    assert!(rig.has("⚠ ⌘E is used by Export…"));
+    assert!(rig.has("⌘E is used by Export…"));
     assert_eq!(rig.bindings("file.save"), ["Cmd+S"], "nothing changes before the answer");
     assert!(!rig.shared.borrow().state.is_recording());
 }
@@ -39,13 +39,13 @@ fn conflict_take_it_steals_and_undo_restores() {
     assert_eq!(rig.bindings("file.export"), ["Cmd+E"], "Cmd+Z undoes when no text field has focus");
 }
 
-/// Keep Both lists the clash under the Conflicts filter; dismissing the bar changes nothing.
+/// Keep Both lists the clash under the Conflicts filter; undoing the changes changes nothing.
 #[trial]
 fn conflict_keep_both_lists_the_clash_and_cancel_changes_nothing() {
     let mut rig = Rig::mac();
     rig.click("Export…: ⌘E");
     rig.press(Modifiers::MAC_CMD, Key::S);
-    rig.click("Dismiss");
+    rig.click("Undo Changes");
     assert_eq!(rig.bindings("file.export"), ["Cmd+E"]);
     rig.click("Export…: ⌘E");
     rig.press(Modifiers::MAC_CMD, Key::S);
@@ -53,7 +53,7 @@ fn conflict_keep_both_lists_the_clash_and_cancel_changes_nothing() {
     let clashes = rig.shared.borrow().km.conflicts().into_iter().filter(|c| c.kind == ConflictKind::Clash).count();
     assert_eq!(clashes, 1);
     assert!(rig.has("Also used by Save"));
-    rig.click("⚠ 1 shortcut is assigned more than once");
+    rig.click("1 shortcut is assigned more than once");
     assert!(rig.has("Save: ⌘S") && rig.has("Export…: ⌘S"));
     assert!(!rig.has("Save As…: ⇧⌘S"), "the Conflicts filter shows only the clash");
 }
@@ -71,7 +71,7 @@ fn assign_takes_a_held_shortcut_and_keeps_the_others() {
     rig.click("New shortcut: None");
     rig.press(Modifiers::MAC_CMD, Key::P);
     assert!(rig.has("Currently assigned to:"));
-    assert!(rig.has("⚠ Print…"), "the holder is listed under the field");
+    assert!(rig.has("Print…"), "the holder is listed under the field");
     rig.click("Assign");
     assert!(rig.has("⌘P was removed from Print…"));
     rig.click("OK");

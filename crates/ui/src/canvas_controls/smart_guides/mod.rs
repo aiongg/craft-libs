@@ -6,7 +6,7 @@ mod stories;
 
 use crate::canvas::{CanvasRulers, canvas_space};
 use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Role};
-use crate::primitives::{PaintShape, Rule, StrokeWidth, TextRun};
+use crate::primitives::{Dashes, PaintShape, Rule, StrokeWidth, TextRun};
 use crate::runtime::env::Units;
 use crate::style::{ComponentStyle, DataColor, RuleLook, StyleColor, StyleCx, TypeRole, UiTokens};
 use craft_behavior::geometry::snap::SnapLine;
@@ -197,7 +197,7 @@ impl Component for SmartGuides<'_> {
         for smart in self.lines {
             let (a, b) = (view.to_screen(smart.a), view.to_screen(smart.b));
             if smart.extension {
-                painter.dashed(&[a, b], style.width, style.dash, style.dash, 0.0, fill);
+                painter.dashed(&[a, b], style.width, Dashes::even(style.dash), fill);
             } else {
                 painter.painter.extend(Rule::shapes(&line, a, b, ppp));
             }

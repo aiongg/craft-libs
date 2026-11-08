@@ -176,7 +176,6 @@ impl CellGrid<'_> {
                 cx.part(COLUMN.at(u64::from(column)), header)
                     .sense(sense)
                     .flags(flags(Marks::of_line(&marks.columns, column)))
-                    .over()
                     .pointer_only("Select the column is Cmd+Space");
                 let end = if rtl { header.left_center() } else { header.right_center() };
                 let edge = Rect::from_center_size(end, Vec2::new(reach * 2.0, header.height()));

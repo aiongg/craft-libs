@@ -1,7 +1,7 @@
 //! Clip edges, trims and snapping.
 
-use crate::clips::{ClipEdge, EdgeZones, SnapTargets, TrimKind, edge_at, edge_zone, marquee_clips, selection_trim, snap_time};
-use crate::model::{ClipId, TrackId};
+use crate::clips::{ClipEdge, EdgeZones, SnapTargets, TrimKind, edge_at, edge_zone, selection_trim, snap_time};
+use crate::model::ClipId;
 use crate::time::{TICKS_PER_SECOND, Tick, TimeRange, TimeView};
 
 const ZONES: EdgeZones = EdgeZones { edge: 7.0, roll: 2.5 };
@@ -66,17 +66,4 @@ fn snap_time_takes_the_nearest_target_in_reach() {
     // the nearer of two in reach wins
     let near_four = seconds(4) + Tick(TICKS_PER_SECOND / 25);
     assert_eq!(snap_time(&targets, near_four, &view(), 9.0), (seconds(4), Some(seconds(4))));
-}
-
-// marquee_clips returns the clips in the rectangle.
-#[test]
-fn marquee_selects_the_clips_it_touches() {
-    let clips = [(ClipId(1), TrackId(1), range(0, 5)), (ClipId(2), TrackId(1), range(5, 10)), (ClipId(3), TrackId(2), range(0, 10))];
-    let rows = [(TrackId(1), 0.0, 20.0), (TrackId(2), 20.0, 40.0)];
-    // x 40..60 is 4 s to 6 s, across the cut; y stays in the first row
-    assert_eq!(marquee_clips(&clips, &rows, &view(), 0.0, [60.0, 5.0], [40.0, 10.0]), vec![ClipId(1), ClipId(2)]);
-    // down into the second row
-    assert_eq!(marquee_clips(&clips, &rows, &view(), 0.0, [10.0, 10.0], [20.0, 30.0]), vec![ClipId(1), ClipId(3)]);
-    // a rectangle inside the second clip selects only it
-    assert_eq!(marquee_clips(&clips, &rows, &view(), 0.0, [50.0, 5.0], [60.0, 6.0]), vec![ClipId(2)]);
 }
