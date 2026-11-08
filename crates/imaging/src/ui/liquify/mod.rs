@@ -64,7 +64,7 @@ use egui::{Color32, Id, Response, Ui};
 
 use craft_behavior::edit_history::Step;
 use craft_behavior::{CancelReason, Cursor, EditEvent, EditHistory, Mixed};
-use craft_ui::canvas::{NavigationOptions, PickStep, RasterSource, ToolHost, tool_pick};
+use craft_ui::canvas::{NavigationOptions, PickStep, RasterSource, ToolHost, ViewCommands, tool_pick};
 use craft_ui::canvas_controls::brush::{BrushCursorOptions, TipFalloff};
 use craft_ui::contract::{Bind, NoValue, Outcome, Pattern, Remember as _, Show as _, ShowContainer as _};
 use craft_ui::dialog::{FullWindowCanvas, FullWindowDialog, FullWindowSide, FullWindowTitle, FullWindowView, RasterOverlay};
@@ -368,6 +368,9 @@ impl LiquifyWorkspace {
                 let work: &mut LiquifyWorkspace = &mut **guard;
                 let mut state = std::mem::take(cx.keep::<LiquifyView>());
                 state.canvas.navigate(work.navigation);
+                while let Some((command, _)) = cx.take_command::<ViewCommands>() {
+                    state.view.apply(command);
+                }
 
                 // An open stroke is cancelled first; the replay of the step supersedes the one the cancel reports.
                 for step in asked_steps.drain(..) {

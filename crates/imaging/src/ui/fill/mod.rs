@@ -54,7 +54,7 @@ use craft_behavior::kurbo::{Point, Rect};
 use craft_behavior::{CancelReason, EditEvent, EditHistory, GestureId, IconId, Mixed, PixelSize};
 use craft_theme::Srgba;
 use craft_ui::buttons::IconButton;
-use craft_ui::canvas::{HandTool, Momentary, NavigationOptions, PickStep, RasterSource, ToolHost, ZoomTool, tool_pick};
+use craft_ui::canvas::{HandTool, Momentary, NavigationOptions, PickStep, RasterSource, ToolHost, ViewCommands, ZoomTool, tool_pick};
 use craft_ui::canvas_controls::brush::{BrushCursorOptions, TipFalloff};
 use craft_ui::canvas_controls::{Marquee, MarqueeLook};
 use craft_ui::contract::{Bind, BodyCx, NoValue, Outcome, Pattern, Props as _, Remember as _, Show as _, ShowContainer as _, clicked};
@@ -542,6 +542,9 @@ impl ContentAwareFillWorkspace {
     fn show_body(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>, env: &Env, slots: &[ToolSlot<FillTool>], source: &dyn FillSource, asked: &[Step]) {
         let ctx = ui.ctx().clone();
         let words = env.words::<FillWords>();
+        while let Some((command, _)) = cx.take_command::<ViewCommands>() {
+            self.view.apply(command);
+        }
         // An open stroke is cancelled first; the step follows.
         for step in asked {
             self.cancel_gesture(&ctx, CancelReason::UndoDuringGesture);
