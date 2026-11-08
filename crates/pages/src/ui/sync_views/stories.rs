@@ -10,7 +10,7 @@ use egui::Ui;
 fn linked(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let (pair, old, new) = data.value("pair", (SyncedViewsState::default(), PageViewState::default(), PageViewState::default()));
     let (old_pages, new_pages) = (DemoPages::new(3), DemoPages::new(3));
-    let out = SyncedViews::new("Compare", pair).show(ui, (old, new), |ui, rect, state, half| match half {
+    let out = SyncedViews::new("Compare", pair).halves(ui, (old, new), |ui, rect, state, half| match half {
         Lead::Left => PageView::new("Old", &old_pages, state).show_at(ui, rect, |_, _| ()),
         Lead::Right => PageView::new("New", &new_pages, state).show_at(ui, rect, |_, _| ()),
     });

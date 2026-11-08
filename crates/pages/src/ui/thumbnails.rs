@@ -56,6 +56,7 @@ craft_ui::words! {
 /// A named run of pages (PowerPoint's sections): a grid group header with a disclosure chevron, the name and the
 /// count; its context menu is the app's ([`ThumbnailEvent::SectionMenu`]).
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ThumbnailSection {
     /// The section's name.
     pub name: String,
@@ -69,6 +70,7 @@ pub struct ThumbnailSection {
 
 /// Marks on one thumbnail (PowerPoint), drawn by the grid with [`CaptionPlace::Start`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ThumbnailMarks {
     /// A hidden slide: the tile's `hidden` (the picture under the veil, a slash across the number), and
     /// [`ThumbnailWords::hidden`] in its accessible name.
@@ -121,6 +123,7 @@ pub enum ThumbnailEvent {
     /// an unpicked page makes it the picked set first ([`Selection`](Self::Selection)), without going to it.
     ContextMenu(ContextMenuRequest<usize>),
     /// The app's menu for section `section` is asked for (secondary click on its header).
+    #[non_exhaustive]
     SectionMenu {
         /// Index of the section.
         section: usize,
@@ -128,6 +131,7 @@ pub enum ThumbnailEvent {
         at: Pos2,
     },
     /// A section header's chevron (or AccessKit's Expand or Collapse on it) asks to open or close it.
+    #[non_exhaustive]
     SectionOpen {
         /// Index of the section.
         section: usize,
@@ -135,6 +139,7 @@ pub enum ThumbnailEvent {
         open: bool,
     },
     /// Files dragged in from outside dropped before page `insert`.
+    #[non_exhaustive]
     FilesDropped {
         /// The position the files drop at.
         insert: usize,
@@ -144,6 +149,7 @@ pub enum ThumbnailEvent {
 /// The panel's result.
 #[derive(Debug)]
 #[must_use = "the app applies the panel's events"]
+#[non_exhaustive]
 pub struct PageThumbnailsOutput {
     /// The panel: its focus and rect.
     pub response: Response,

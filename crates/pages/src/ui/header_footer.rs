@@ -19,7 +19,7 @@ use craft_ui::runtime::focus::KeyUse;
 use craft_ui::style::{ComponentStyle, DataColor, FocusLook, StyleColor, StyleCx};
 use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
 
-use crate::ui::view::{DEFAULT_INK, DEFAULT_PAPER, PlacedPage};
+use crate::ui::view::PlacedPage;
 
 /// The section `ZONE.at(n)`: `n` counts a page's header sections, then its footer sections, page by page.
 const ZONE: PartKey = PartKey::new("zone");
@@ -164,6 +164,8 @@ pub struct HeaderFooterZonesStyle {
     /// The space between a section and the band's top and bottom.
     inset: f32,
     hint: StyleColor,
+    paper: StyleColor,
+    ink: StyleColor,
     editing: StyleColor,
     neighbour: StyleColor,
     faint: StyleColor,
@@ -218,12 +220,12 @@ pub struct HeaderFooterZones<'a> {
     /// The section being edited, if any; it paints as an editor instead of a label.
     #[prop]
     editing: Option<ZoneAt>,
-    /// The paper of the pages, when the document gives one.
+    /// The paper of the pages, when the document gives one; else the theme's well colour.
     #[prop]
-    paper: DataColor,
-    /// The ink of the pages' text, when the document gives one.
+    paper: Option<DataColor>,
+    /// The ink of the pages' text, when the document gives one; else the theme's normal text colour.
     #[prop]
-    ink: DataColor,
+    ink: Option<DataColor>,
     begin: Option<ZoneAt>,
     end: bool,
 }
@@ -231,18 +233,8 @@ pub struct HeaderFooterZones<'a> {
 impl<'a> HeaderFooterZones<'a> {
     /// The zones named `label` over `placed`, whose bands `bands` gives per page.
     pub fn new(label: impl Into<Label>, placed: &'a [PlacedPage], bands: &'a dyn Fn(usize) -> ZoneBands) -> Self {
-        HeaderFooterZones {
-            common: Common::new(),
-            placed,
-            bands,
-            text: None,
-            editing: None,
-            paper: DEFAULT_PAPER,
-            ink: DEFAULT_INK,
-            begin: None,
-            end: false,
-        }
-        .label(label)
+        HeaderFooterZones { common: Common::new(), placed, bands, text: None, editing: None, paper: None, ink: None, begin: None, end: false }
+            .label(label)
     }
 
     /// The whole section on `placed`, without the style's inset.
@@ -295,6 +287,8 @@ impl Component for HeaderFooterZones<'_> {
             focus: cx.focus_look(),
             inset: cx.tokens.space.gap.tight,
             hint: cx.color(colors.line.control_edge),
+            paper: cx.color(colors.surface.sunken),
+            ink: cx.color(colors.text.normal),
             editing: cx.color(colors.accent.solid),
             neighbour: cx.color(colors.line.control_edge),
             faint: cx.color(colors.text.faint),
@@ -341,7 +335,7 @@ impl Component for HeaderFooterZones<'_> {
         for (at, placed, rect) in self.sections(rtl, style.inset, cx.rect) {
             let outline = PaintShape::Rect(rect, CornerRadius::ZERO);
             if self.editing == Some(at) {
-                draw.data_fill(&outline, self.paper);
+                draw.data_fill(&outline, self.paper.unwrap_or_else(|| DataColor::new(style.paper.egui())));
                 draw.stroke(&outline, StrokeWidth::Thin, style.editing);
                 continue;
             }
@@ -361,7 +355,7 @@ impl Component for HeaderFooterZones<'_> {
                 continue;
             }
             let size = (HEADER_TEXT * placed.scale as f32).clamp(*HEADER_TEXT_SCREEN.start(), *HEADER_TEXT_SCREEN.end());
-            let runs = [DocRun::new(text, FontRef::proportional(), size, self.ink)];
+            let runs = [DocRun::new(text, FontRef::proportional(), size, self.ink.unwrap_or_else(|| DataColor::new(style.ink.egui())))];
             let mut doc = DocText::new(&runs);
             doc.align = match at.zone.section {
                 0 => HAlign::Start,

@@ -129,17 +129,14 @@ pub(super) struct PagePictures<'a> {
     /// Sharp renders wait: a zoom is under way.
     #[prop]
     hold: bool,
+    /// The description of the text under the pages.
+    #[prop]
     describer: Option<&'a dyn AccessDescriber>,
 }
 
 impl<'a> PagePictures<'a> {
     pub(super) fn new(source: &'a dyn PageSource, pages: &'a [PlacedPage], near: &'a [(usize, Vec2)]) -> Self {
         PagePictures { common: Common::new(), source, pages, near, hold: false, describer: None }
-    }
-
-    pub(super) fn describer(mut self, describer: Option<&'a dyn AccessDescriber>) -> Self {
-        self.describer = describer;
-        self
     }
 }
 

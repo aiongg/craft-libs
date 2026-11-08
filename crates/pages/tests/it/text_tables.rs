@@ -251,7 +251,7 @@ fn rig(rtl: bool) -> Rig {
     let state: Rc<RefCell<TextSelectState>> = Rc::default();
     let shown = Rc::clone(&state);
     let rect = egui::Rect::from_min_size(Pos2::ZERO, vec2(200.0, 100.0));
-    let pages = vec![PlacedPage { page: 0, rect, scale: 1.0, band: (0.0, 100.0) }];
+    let pages = vec![PlacedPage::new(0, rect, 1.0, (0.0, 100.0))];
     let mut fixture = Fixture::new(move |ui| {
         let canvas = Canvas::new("Page").show(ui, |_, _| ());
         let mut state = shown.borrow_mut();

@@ -1,0 +1,38 @@
+FAIL: failure (4m31s) https://github.com/aiongg/craft-libs/actions/runs/42485479803
+warning: patch `egui_demo_lib v0.37.0 (https://github.com/aiongg/egui.git?rev=4b93a86c52348eb53e883c9b6b9f59c573608e07#4b93a86c)` was not used in the crate graph
+warning: patch `egui_inspection v0.37.0 (https://github.com/aiongg/egui.git?rev=4b93a86c52348eb53e883c9b6b9f59c573608e07#4b93a86c)` was not used in the crate graph
+help: Check that the patched package version and available features are compatible
+crates/ui-legacy/src/focus/key_owner.rs:165:9: warning: use of deprecated associated function `egui::Id::new`: Use `Id::unique` (for a globally unique id) or `IdSalt::new` (for a locally unique salt) instead
+    Checking craft-ui-gallery v0.1.0 (/home/runner/work/craft-libs/craft-libs/crates/ui-gallery)
+warning: `craft-ui-legacy` (lib) generated 1 warning
+    Checking craft-ui-bench v0.1.0 (/home/runner/work/craft-libs/craft-libs/crates/ui-bench)
+crates/ui/tests/it/form_dialogs/preview.rs:134:24: warning: use of deprecated associated function `egui::Id::new`: Use `Id::unique` (for a globally unique id) or `IdSalt::new` (for a locally unique salt) instead
+crates/ui/tests/it/presets/browser.rs:107:23: warning: use of deprecated associated function `egui::Id::new`: Use `Id::unique` (for a globally unique id) or `IdSalt::new` (for a locally unique salt) instead
+crates/ui/tests/it/keys.rs:7:65: warning: unused import: `Props`
+crates/ui/tests/it/runtime/chrome_toggle.rs:4:32: warning: unused import: `Show`
+crates/ui/tests/it/collection/kit.rs:290:12: warning: method `current` is never used
+crates/ui/tests/it/canvas/tool.rs:453:9: warning: unused `ToolHostResponse` that must be used
+crates/ui/tests/it/canvas_controls/grid.rs:152:59: warning: calls to `std::mem::drop` with a value that implements `Copy` does nothing
+crates/ui/tests/it/canvas_controls/grid.rs:154:59: warning: calls to `std::mem::drop` with a value that implements `Copy` does nothing
+warning: `craft-ui` (test "it") generated 8 warnings
+    Finished `dev` profile [unoptimized] target(s) in 1m 40s
+crates/pages/src/ui/mod.rs:53:86: error[E0432]: unresolved import `table::EdgePickerOutput`: no `EdgePickerOutput` in `ui::table`
+crates/pages/src/ui/marks.rs:12:82: warning: unused import: `Styled as _`
+crates/pages/src/ui/sync_views.rs:12:46: warning: unused import: `NoValue`
+    Checking craft-dialogs v0.1.0 (/home/runner/work/craft-libs/craft-libs/crates/dialogs)
+crates/browse/src/ui/mod.rs:22:1: warning: missing documentation for a module
+    Checking craft-layers v0.1.0 (/home/runner/work/craft-libs/craft-libs/crates/layers)
+crates/browse/src/ui/compare/tile.rs:174:41: warning: call to `.clone()` on a reference in this situation does nothing
+warning: `craft-browse` (lib) generated 2 warnings (run `cargo fix --lib -p craft-browse` to apply 1 suggestion)
+    Checking craft-timeline v0.1.0 (/home/runner/work/craft-libs/craft-libs/crates/timeline)
+crates/pages/src/ui/margins.rs:482:38: error[E0277]: the trait bound `margins::Anchor: craft_ui::contract::Slot` is not satisfied: the trait `std::default::Default` is not implemented for `margins::Anchor`
+crates/pages/src/ui/margins.rs:486:50: error[E0277]: the trait bound `margins::Anchor: craft_ui::contract::Slot` is not satisfied: the trait `std::default::Default` is not implemented for `margins::Anchor`
+    Checking craft-menu v0.1.0 (/home/runner/work/craft-libs/craft-libs/crates/menu)
+crates/pages/src/ui/view.rs:307:76: error[E0639]: cannot create non-exhaustive struct using struct expression
+crates/pages/src/ui/margins/stories.rs:29:16: error[E0499]: cannot borrow `*data` as mutable more than once at a time: second mutable borrow occurs here
+warning: `craft-pages` (lib) generated 2 warnings
+error: could not compile `craft-pages` (lib) due to 5 previous errors; 2 warnings emitted
+warning: build failed, waiting for other jobs to finish...
+crates/timeline/src/ui/clips.rs:38:1: warning: missing documentation for a constant
+warning: `craft-timeline` (lib) generated 1 warning
+layer map of craft-browse is merged

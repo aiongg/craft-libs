@@ -9,12 +9,13 @@ mod stories;
 
 use super::view::{PageViewOutput, PageViewState};
 use craft_ui::canvas::{SplitAt, SplitLayout, SplitViews};
-use craft_ui::contract::{Bind, EditResponse, NoValue, Outcome, ShowContainer as _};
+use craft_ui::contract::{Bind, EditResponse, Outcome, ShowContainer as _};
 use craft_ui::runtime::env::Label;
 use egui::{Rect, Response, Ui};
 
 /// Which half leads.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Lead {
     /// The left half.
     Left,
@@ -25,6 +26,7 @@ pub enum Lead {
 
 /// The pair's state, kept by the app.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct SyncedViewsState {
     /// The half that leads: the one the user last pressed.
     pub lead: Lead,
@@ -58,7 +60,7 @@ impl Outcome for SyncedViewsOutput {
 /// closure, which gets the half's rect, its state and which half it is; the pair keeps the states together.
 ///
 /// ```ignore
-/// SyncedViews::new("Compare", &mut pair).show(ui, (&mut old_state, &mut new_state), |ui, rect, state, half| match half {
+/// SyncedViews::new("Compare", &mut pair).halves(ui, (&mut old_state, &mut new_state), |ui, rect, state, half| match half {
 ///     Lead::Left => PageView::new("Old", &old_pages, state).show_at(ui, rect, |_, _| ()),
 ///     Lead::Right => PageView::new("New", &new_pages, state).show_at(ui, rect, |_, _| ()),
 /// });
@@ -76,7 +78,7 @@ impl<'a> SyncedViews<'a> {
 
     /// Splits the room in two halves (`SplitViews`, its divider and gap) and runs `half` for each, the leader first.
     // pdfcraft: crates/ui-egui/src/workflows/compare_ui.rs:344 `compare_area`.
-    pub fn show(
+    pub fn halves(
         self,
         ui: &mut Ui,
         states: (&mut PageViewState, &mut PageViewState),

@@ -40,6 +40,7 @@ pub fn baseline_lines(start: f64, increment: f64, height: f64) -> Vec<f64> {
 
 /// One page's grids, in page points.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct PageGrid {
     /// The index of the page the grids belong to (`PlacedPage::page`); a page that is not on screen draws nothing.
     pub index: usize,
@@ -56,6 +57,7 @@ pub struct PageGrid {
 /// The colours, InDesign's defaults (Preferences, Guides and Pasteboard; Document Setup's Margins and Columns
 /// colours). They are document data.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct PageGridColors {
     /// Colour of the margin rectangle.
     pub margins: DataColor,

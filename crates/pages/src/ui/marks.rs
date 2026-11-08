@@ -9,14 +9,12 @@ mod stories;
 use craft_behavior::kurbo::{Point, Rect};
 use craft_behavior::{CanvasView, Input, Metrics, Sense};
 use craft_theme::variant::Tone;
-use craft_ui::contract::{Common, Component, Cx, MeasureCx, PaintUi, Props, Role, Styled as _};
+use craft_ui::contract::{Common, Component, Cx, MeasureCx, PaintUi, Props, Role};
 use craft_ui::fonts::FontRef;
 use craft_ui::primitives::{DocRun, DocText, PaintShape, StrokeWidth};
 use craft_ui::runtime::env::Label;
 use craft_ui::style::{ComponentStyle, DataColor, StyleColor, StyleCx};
 use egui::{CornerRadius, Pos2, Response, Vec2};
-
-use crate::ui::view::DEFAULT_PAPER;
 
 /// A hidden-character mark's size as a share of the line's ascent (DesignCraft).
 pub const MARK_SHARE: f32 = 0.75;
@@ -145,6 +143,7 @@ pub struct TextFrameMarksStyle {
     port: f32,
     /// How far along its edge a port's centre lies.
     port_inset: f32,
+    paper: StyleColor,
     overset: StyleColor,
 }
 
@@ -169,15 +168,15 @@ pub struct TextFrameMarks<'a> {
     hidden_characters: &'a [PlacedMark],
     /// The layer colour the marks and outlines take.
     color: DataColor,
-    /// The colour the ports are filled with.
+    /// The colour the ports are filled with; else the theme's well colour.
     #[prop]
-    paper: DataColor,
+    paper: Option<DataColor>,
 }
 
 impl<'a> TextFrameMarks<'a> {
     /// The extras of `frames` seen through `view`, named `label`, in the layer colour `color`.
     pub fn new(label: impl Into<Label>, view: CanvasView, frames: &'a [FrameExtras], color: DataColor) -> Self {
-        TextFrameMarks { common: Common::new(), view, frames, hidden_characters: &[], color, paper: DEFAULT_PAPER }.label(label)
+        TextFrameMarks { common: Common::new(), view, frames, hidden_characters: &[], color, paper: None }.label(label)
     }
 }
 
@@ -196,6 +195,7 @@ impl Component for TextFrameMarks<'_> {
             metrics: Metrics::new(),
             port: cx.tokens.size.handle.md,
             port_inset: cx.tokens.space.pad.control,
+            paper: cx.color(cx.tokens.color.surface.sunken),
             overset: cx.tone(Tone::Bad),
         }
     }
@@ -227,7 +227,7 @@ impl Component for TextFrameMarks<'_> {
             let out_port = port_centre(corners[2], corners[3], style.port_inset);
             for (centre, threaded, is_out) in [(in_port, frame.threaded_in, false), (out_port, frame.threaded_out, true)] {
                 let square = PaintShape::Rect(egui::Rect::from_center_size(centre, Vec2::splat(style.port)), CornerRadius::ZERO);
-                draw.data_fill(&square, self.paper);
+                draw.data_fill(&square, self.paper.unwrap_or_else(|| DataColor::new(style.paper.egui())));
                 draw.data_stroke(&square, StrokeWidth::Hairline, self.color);
                 if is_out && frame.overset {
                     let arm = style.port / 2.0;

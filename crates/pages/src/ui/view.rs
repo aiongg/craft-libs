@@ -24,22 +24,16 @@ use crate::layout::{
     Fit, LayoutOptions, PageDisplay, PageSpacing, PagedLayout, SCREEN_POINTS_PER_POINT, ViewDefaults, ZOOM_RANGE, fit_scale, place_pages, shown_row,
 };
 use craft_behavior::kurbo::{Point, Rect as DocRect, Size};
-use craft_behavior::{CanvasView, WheelNotch, ZoomLadder};
+use craft_behavior::{CanvasView, PressPhase, WheelNotch, ZoomLadder};
 use craft_ui::canvas::{Canvas, CanvasOutput, CanvasScrollbars, NavigationOptions, PageFrame, Pasteboard, PasteboardOutput, canvas_space};
 use craft_ui::contract::{Bind, BodyCx, Held, Show as _, ShowContainer as _};
 use craft_ui::primitives::textures::ThumbSource;
 use craft_ui::runtime::env::{Env, Label};
 use craft_ui::runtime::memory::Remember as _;
-use craft_ui::style::DataColor;
-use egui::{Color32, Rect, Ui, Vec2, pos2};
+use egui::{Rect, Ui, Vec2, pos2};
 use std::cell::RefCell;
 use std::ops::Range;
 use std::sync::Arc;
-
-/// The page paper when the document gives none: white.
-pub const DEFAULT_PAPER: DataColor = DataColor::new(Color32::WHITE);
-/// The page ink when the document gives none: black.
-pub const DEFAULT_INK: DataColor = DataColor::new(Color32::BLACK);
 
 /// The document's pages as a page view, thumbnails and previews read them. The app implements it over its document;
 /// the view never owns pages.
@@ -65,6 +59,7 @@ pub trait PageSource: ThumbSource<usize> {
 /// The view's state, kept by the app per document view (one per tab).
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
+#[non_exhaustive]
 pub struct PageViewState {
     /// The current page: the one the page box shows and paging moves from.
     pub current: usize,
@@ -136,6 +131,7 @@ impl PageViewState {
 
 /// One page on screen this pass, for overlays: its index, screen rectangle and scale.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct PlacedPage {
     /// Page index, 0-based.
     pub page: usize,
@@ -148,6 +144,12 @@ pub struct PlacedPage {
 }
 
 impl PlacedPage {
+    /// Page `page` at `rect` on screen, `scale` screen points to a page point, with `band` the visible part of its height in
+    /// screen points.
+    pub const fn new(page: usize, rect: Rect, scale: f64, band: (f32, f32)) -> Self {
+        PlacedPage { page, rect, scale, band }
+    }
+
     /// Page point (origin top-left, y down) to screen.
     pub fn to_screen(&self, p: Point) -> egui::Pos2 {
         pos2(self.rect.min.x + (p.x * self.scale) as f32, self.rect.min.y + (p.y * self.scale) as f32)
@@ -304,7 +306,9 @@ impl<'a> PageView<'a> {
         let geo = build.of(&start);
         let frame = Frame::of(&geo);
         let given = frame.view(rect, start.offset, geo.scale / SCREEN_POINTS_PER_POINT);
-        let mut canvas = Canvas::new(label.clone()).view(given).navigation(NavigationOptions { overscroll: !start.continuous, ..navigation });
+        let mut navigation = navigation;
+        navigation.overscroll = !start.continuous;
+        let mut canvas = Canvas::new(label.clone()).view(given).navigation(navigation);
         if start.continuous {
             canvas = canvas.document(frame.document(&geo));
         }
@@ -321,8 +325,12 @@ impl<'a> PageView<'a> {
         let shown = if take_room { canvas.show_at_taking_room(ui, rect, &mut canvas_body) } else { canvas.show_at(ui, rect, &mut canvas_body) };
         let output = shown.output;
         let seen = seen.unwrap_or_else(|| Seen::empty(given, frame));
-        let toggle_white_space = output.response.double_clicked()
-            && output.response.interact_pointer_pos().is_some_and(|at| seen.geo.layout.on_page_gap(seen.frame.layout_point(seen.view.to_doc(at))));
+        let toggle_white_space = match output.press.phase {
+            PressPhase::Release { start, pos, click: true, .. } => {
+                start.clicks == 2 && seen.geo.layout.on_page_gap(seen.frame.layout_point(seen.view.to_doc(pos)))
+            }
+            _ => false,
+        };
         PageViewOutput {
             canvas: output,
             pages: seen.pages,
@@ -541,8 +549,7 @@ fn run_pass(ui: &mut Ui, cx: &mut BodyCx<'_>, held: &mut Held<'_, PageViewState>
             band: (drawn.layout.bands[page].0 as f32 * ratio as f32, drawn.layout.bands[page].1 as f32 * ratio as f32),
         })
         .collect();
-    let frames: Vec<PageFrame> =
-        rows.iter().map(|&p| PageFrame::new(drawn_frame.document_rect(&band_rect(&drawn.layout, p))).fill(DEFAULT_PAPER)).collect();
+    let frames: Vec<PageFrame> = rows.iter().map(|&p| PageFrame::new(drawn_frame.document_rect(&band_rect(&drawn.layout, p)))).collect();
     let pasteboard = Pasteboard::new(words.pasteboard.clone(), &frames).show_at(ui, cx.rect);
     let near: Vec<(usize, Vec2)> = near_pages(&drawn, state.continuous, &visible, count, &build.layout_options(&state))
         .into_iter()
@@ -551,7 +558,11 @@ fn run_pass(ui: &mut Ui, cx: &mut BodyCx<'_>, held: &mut Held<'_, PageViewState>
             (page, Vec2::new(size.width as f32, size.height as f32))
         })
         .collect();
-    PagePictures::new(source, &pages, &near).hold(zooming || ratio != 1.0).describer(describer).show_at(ui, cx.rect);
+    let pictures = PagePictures::new(source, &pages, &near).hold(zooming || ratio != 1.0);
+    match describer {
+        Some(describer) => pictures.describer(describer).show_at(ui, cx.rect),
+        None => pictures.show_at(ui, cx.rect),
+    };
 
     // The scroll bars come before the clamp, so a drag of this pass lands in this pass.
     let document = drawn_frame.document(&drawn);

@@ -25,8 +25,7 @@ fn drag_left_edge(fixture: &mut Fixture) {
 
 #[story(MarginHandles<'static>, covers = [Default], drive = Drive::Custom(drag_left_edge))]
 fn margin_handles_on_rulers(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let edges = data.value("edges", PageEdges::new(Margins::uniform(72.0)).header_footer(36.0, 36.0));
-    let zero = data.value("zero", Point::ZERO);
+    let (edges, zero) = data.value("state", (PageEdges::new(Margins::uniform(72.0)).header_footer(36.0, 36.0), Point::ZERO));
     let full = ui.available_rect_before_wrap();
     let view = CanvasView::new(full, CENTRE, 1.0);
     let text = RulerText::new(RulerUnits::pixels(), UnitKind::Points);

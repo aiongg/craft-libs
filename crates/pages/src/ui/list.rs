@@ -59,6 +59,7 @@ const OPTIONS: TrailingPart = TrailingPart::new(0);
 
 /// One row.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct PageListRow {
     /// The page or artboard name.
     pub name: String,
@@ -66,6 +67,27 @@ pub struct PageListRow {
     pub locked: bool,
     /// Whether the row is hidden.
     pub hidden: bool,
+}
+
+impl PageListRow {
+    /// A row named `name`, unlocked and shown.
+    pub fn new(name: impl Into<String>) -> Self {
+        PageListRow { name: name.into(), locked: false, hidden: false }
+    }
+
+    /// Whether the row is locked against edits.
+    #[must_use]
+    pub const fn locked(mut self, locked: bool) -> Self {
+        self.locked = locked;
+        self
+    }
+
+    /// Whether the row is hidden.
+    #[must_use]
+    pub const fn hidden(mut self, hidden: bool) -> Self {
+        self.hidden = hidden;
+        self
+    }
 }
 
 /// What the list reports, in the order it happened this pass.
@@ -81,6 +103,7 @@ pub enum PageListEvent {
     /// A name typed in place (F2, a double-click on the name, the context menu's Rename): trimmed, never empty.
     /// With several rows picked the app gives the name to all of them numbered in list order as `{text}-1`,
     /// `{text}-2` (VectorCraft `artboards.rs:243`).
+    #[non_exhaustive]
     Rename {
         /// The row that was renamed.
         row: usize,
@@ -93,6 +116,7 @@ pub enum PageListEvent {
     Toggle(EditEvent<ToggleEdit<usize>>),
     /// New, Duplicate, or a row dropped on New (`duplicate`, the dragged rows' grabbed row); `options` with Alt held
     /// (open the options for the new one first).
+    #[non_exhaustive]
     New {
         /// The row to duplicate; `None` for a plain New.
         duplicate: Option<usize>,
@@ -111,6 +135,7 @@ pub enum PageListEvent {
 /// The list's result.
 #[derive(Debug)]
 #[must_use = "the app applies the list's events"]
+#[non_exhaustive]
 pub struct PageListOutput {
     /// The list's area.
     pub response: Response,

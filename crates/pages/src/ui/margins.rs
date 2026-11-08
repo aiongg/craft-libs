@@ -318,7 +318,7 @@ pub struct MarginHandlesStyle {
 }
 
 /// The press that began a drag: the edges, and the pointer's start.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 struct Anchor(PageEdges);
 
 /// The margin edges of one page on the horizontal and vertical ruler strips of the canvas.

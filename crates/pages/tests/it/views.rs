@@ -31,9 +31,19 @@ fn baseline_lines_end_before_the_bottom_edge() {
     assert_eq!(baseline_lines(0.0, 10.0, 30.0), [0.0, 10.0, 20.0], "the bottom edge is not a line");
 }
 
+/// The default state with `change` applied.
+fn state_with(change: impl FnOnce(&mut PageViewState)) -> PageViewState {
+    let mut state = PageViewState::default();
+    change(&mut state);
+    state
+}
+
 #[trial]
 fn zoom_steps_start_from_the_shown_zoom_and_end_a_fit() {
-    let mut state = PageViewState { fit: Fit::Width, zoom: 0.9, ..PageViewState::default() };
+    let mut state = state_with(|s| {
+        s.fit = Fit::Width;
+        s.zoom = 0.9;
+    });
     state.zoom_step(true);
     assert_eq!(state.fit, Fit::None);
     assert!(state.zoom > 0.9, "in goes up from the shown zoom, got {}", state.zoom);
@@ -78,20 +88,33 @@ fn view_rig(count: usize, start: PageViewState) -> ViewRig {
 
 #[trial]
 fn fit_width_keeps_the_zoom_equal_to_what_shows() {
-    let rig = view_rig(3, PageViewState { fit: Fit::Width, zoom: 7.0, ..PageViewState::default() });
+    let rig = view_rig(
+        3,
+        state_with(|s| {
+            s.fit = Fit::Width;
+            s.zoom = 7.0;
+        }),
+    );
     let zoom = rig.state.borrow().zoom;
     assert!(zoom < 7.0 && zoom > 0.0, "the fit wrote its zoom back, got {zoom}");
 }
 
 #[trial]
 fn only_the_row_of_the_current_page_shows_when_not_continuous() {
-    let rig = view_rig(5, PageViewState { continuous: false, current: 2, fit: Fit::Page, ..PageViewState::default() });
+    let rig = view_rig(
+        5,
+        state_with(|s| {
+            s.continuous = false;
+            s.current = 2;
+            s.fit = Fit::Page;
+        }),
+    );
     assert_eq!(*rig.shown.borrow(), [2]);
 }
 
 #[trial]
 fn the_current_page_follows_the_middle_line() {
-    let mut rig = view_rig(6, PageViewState { fit: Fit::Width, ..PageViewState::default() });
+    let mut rig = view_rig(6, state_with(|s| s.fit = Fit::Width));
     rig.state.borrow_mut().go_to(3);
     rig.fixture.idle(3);
     let state = rig.state.borrow();
@@ -108,9 +131,9 @@ fn the_follower_takes_the_leaders_zoom_and_layout() {
     let mut fixture = Fixture::new(move |ui| {
         let mut now = kept.borrow().clone();
         let (pair, left, right) = (&mut now.0, &mut now.1, &mut now.2);
-        SyncedViews::new("Compare", pair).show(ui, (left, right), |ui, rect, state, half| match half {
+        SyncedViews::new("Compare", pair).halves(ui, (left, right), |ui, rect, state, half| match half {
             Lead::Left => PageView::new("Old", &old_pages, state).show_at(ui, rect, |_, _| ()),
-            Lead::Right => PageView::new("New", &new_pages, state).show_at(ui, rect, |_, _| ()),
+            _ => PageView::new("New", &new_pages, state).show_at(ui, rect, |_, _| ()),
         });
         *kept.borrow_mut() = now;
     });
@@ -191,11 +214,7 @@ fn list_rig() -> ListRig {
     let events: Rc<RefCell<Vec<PageListEvent>>> = Rc::default();
     let seen = Rc::clone(&events);
     let picked = Rc::new(RefCell::new(Selection::single(0_usize)));
-    let rows = vec![
-        PageListRow { name: "Board 1".to_owned(), locked: false, hidden: false },
-        PageListRow { name: "Board 2".to_owned(), locked: true, hidden: false },
-        PageListRow { name: "Board 3".to_owned(), locked: false, hidden: true },
-    ];
+    let rows = vec![PageListRow::new("Board 1"), PageListRow::new("Board 2").locked(true), PageListRow::new("Board 3").hidden(true)];
     let mut fixture = Fixture::new(move |ui| {
         let mut now = picked.borrow().clone();
         let out = PageList::new("Boards", &rows, &mut now, 0).show(ui);
@@ -223,7 +242,11 @@ fn a_name_typed_in_place_is_trimmed_and_never_empty() {
     rig.fixture.key(Key::F2, Modifiers::NONE);
     rig.fixture.type_text("  Cover  ");
     rig.fixture.key(Key::Enter, Modifiers::NONE);
-    assert!(rig.events.borrow().contains(&PageListEvent::Rename { row: 0, text: "Cover".to_owned() }), "events {:?}", rig.events.borrow());
+    assert!(
+        rig.events.borrow().iter().any(|event| matches!(event, PageListEvent::Rename { row: 0, text, .. } if text == "Cover")),
+        "events {:?}",
+        rig.events.borrow()
+    );
 }
 
 /// The preview of five pages, started at page `start`.
