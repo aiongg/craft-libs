@@ -2,15 +2,17 @@
 
 use craft_ui::canvas::{Canvas, ToolPath};
 use craft_ui::contract::{Bind, PaneEdge, Show as _, ShowContainer as _};
+use craft_ui::dialog::{DialogResult, PromptChoice, StandardPrompt};
 use craft_ui::display::Text;
 use craft_ui::runtime::env::{RevealEdge, RootEnv, WindowKey};
 use craft_ui::runtime::frame::ChromeToggle;
 use craft_ui::shell::{Aim, AppShell, AppShellOutput, Reveal, ScreenMode, ScreenModeCommand, Slot, SlotSize, Tracking};
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::{click, moved, settle};
-use craft_ui::testing::{Frames, trial};
+use craft_ui::testing::{Fixture, Frames, trial};
 use egui::{Key, Modifiers, Pos2, Rect, Ui, pos2};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 
 const WINDOW: Rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(800.0, 600.0));
 const BAR: Rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(800.0, 32.0));
@@ -153,19 +155,19 @@ fn slots_lay_out_around_the_body_on_the_first_pass() {
     let mut frames = Frames::new();
     let mut show = |ui: &mut Ui| {
         let out = AppShell::new(WindowKey::main())
-            .title_bar(|ui, _| {
+            .title_bar(|ui, _, _| {
                 Text::new("Title").show(ui);
             })
-            .bottom(Slot::new("status"), |ui, _| {
+            .bottom(Slot::new("status"), |ui, _, _| {
                 Text::new("Status").show(ui);
             })
-            .start(Slot::new("tools"), |ui, _| {
+            .start(Slot::new("tools"), |ui, _, _| {
                 Text::new("Tools").show(ui);
             })
-            .body(|ui, _| {
+            .body(|ui, _, _| {
                 Text::new("Document").show(ui);
             })
-            .show(ui);
+            .show(ui, &mut ());
         *seen.borrow_mut() = Some(out);
     };
     frames.frame(Vec::new(), &mut show);
@@ -186,13 +188,13 @@ fn full_screen_shows_the_body_only() {
         let mut mode = ScreenMode::FullScreen;
         let out = AppShell::new(WindowKey::main())
             .screen_mode(Bind::bound(&mut mode))
-            .title_bar(|ui, _| {
+            .title_bar(|ui, _, _| {
                 Text::new("Title").show(ui);
             })
-            .body(|ui, _| {
+            .body(|ui, _, _| {
                 Text::new("Document").show(ui);
             })
-            .show(ui);
+            .show(ui, &mut ());
         *seen.borrow_mut() = Some(out);
     };
     frames.frame(Vec::new(), &mut show);
@@ -207,16 +209,16 @@ fn a_slot_is_as_high_as_its_size_says_whatever_its_content() {
     let mut frames = Frames::new();
     let mut show = |ui: &mut Ui| {
         let out = AppShell::new(WindowKey::main())
-            .top(Slot::new("short").size(SlotSize::OptionsBar), |ui, _| {
+            .top(Slot::new("short").size(SlotSize::OptionsBar), |ui, _, _| {
                 Text::new("Short").show(ui);
             })
-            .top(Slot::new("tall").size(SlotSize::OptionsBar), |ui, _| {
+            .top(Slot::new("tall").size(SlotSize::OptionsBar), |ui, _, _| {
                 craft_ui::testing::layout::allocate(ui, egui::vec2(10.0, 300.0));
             })
-            .top(Slot::new("narrow").size(SlotSize::OptionsBarNarrow), |ui, _| {
+            .top(Slot::new("narrow").size(SlotSize::OptionsBarNarrow), |ui, _, _| {
                 Text::new("Narrow").show(ui);
             })
-            .show(ui);
+            .show(ui, &mut ());
         *seen.borrow_mut() = Some(out);
     };
     frames.frame(Vec::new(), &mut show);
@@ -234,13 +236,13 @@ fn revealing_the_top_bar_in_body_only_mode_leaves_the_body_rect_alone() {
         let mut mode = ScreenMode::FullScreen;
         let out = AppShell::new(WindowKey::main())
             .screen_mode(Bind::bound(&mut mode))
-            .title(Slot::new("title").reveal(), |ui, _| {
+            .title(Slot::new("title").reveal(), |ui, _, _| {
                 Text::new("Title").show(ui);
             })
-            .body(|ui, _| {
+            .body(|ui, _, _| {
                 Text::new("Document").show(ui);
             })
-            .show(ui);
+            .show(ui, &mut ());
         *seen.borrow_mut() = Some(out);
     };
     frames.frame(vec![moved(pos2(400.0, 300.0))], &mut show);
@@ -262,14 +264,14 @@ fn a_body_that_registers_a_revealed_rect_keeps_the_reveal_while_the_pointer_is_i
             let mut mode = ScreenMode::FullScreen;
             AppShell::new(WindowKey::main())
                 .screen_mode(Bind::bound(&mut mode))
-                .body(|_, cx| {
+                .body(|_, cx, _| {
                     let shell = cx.shell().expect("the body is in a shell");
                     if register && shell.edge_revealed(RevealEdge::Start) {
                         shell.reveal_rect(RevealEdge::Start, Rect::from_min_max(pos2(0.0, 40.0), pos2(120.0, 560.0)));
                     }
                     *kept.borrow_mut() = shell.edge_revealed(RevealEdge::Start);
                 })
-                .show(ui);
+                .show(ui, &mut ());
         };
         frames.frame(vec![moved(pos2(300.0, 300.0))], &mut show);
         frames.frame(vec![moved(pos2(1.0, 300.0))], &mut show);
@@ -299,13 +301,13 @@ fn tab_hides(shells: &[&'static str]) -> Vec<(&'static str, bool)> {
             let rect = Rect::from_min_size(room.min + egui::vec2(width * at as f32, 0.0), egui::vec2(width, room.height()));
             craft_ui::testing::layout::in_region(ui, rect, |ui| {
                 let out = AppShell::new(WindowKey::new(*key))
-                    .title_bar(|ui, _| {
+                    .title_bar(|ui, _, _| {
                         Text::new("Title").show(ui);
                     })
-                    .body(|ui, _| {
+                    .body(|ui, _, _| {
                         Canvas::new("Document", ToolPath::Freehand).show(ui, |_, _| ());
                     })
-                    .show(ui);
+                    .show(ui, &mut ());
                 seen.borrow_mut().push((*key, !out.regions.slots.is_empty()));
             });
         }
@@ -327,4 +329,116 @@ fn tab_with_a_canvas_focused_hides_that_windows_panels_in_the_same_pass() {
 #[trial]
 fn two_shells_in_one_viewport_toggle_apart() {
     assert_eq!(tab_hides(&["first", "second"]), [("first", true), ("second", false)], "Tab goes to the window that holds focus");
+}
+
+#[trial]
+fn the_slots_and_the_body_edit_one_state_in_turn() {
+    let seen = RefCell::new(Vec::new());
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        let mut order: Vec<&'static str> = Vec::new();
+        AppShell::new(WindowKey::main())
+            .title_bar(|_, _, order: &mut Vec<&'static str>| order.push("title"))
+            .bottom(Slot::new("status"), |_, _, order| order.push("status"))
+            .body(|_, _, order| order.push("body"))
+            .show(ui, &mut order);
+        *seen.borrow_mut() = order;
+    };
+    frames.frame(Vec::new(), &mut show);
+    assert_eq!(*seen.borrow(), ["title", "status", "body"], "one state, handed to each region in the order they run");
+}
+
+const OPEN_FRAMES: usize = 30;
+
+/// A body that opens a delete prompt once through the window host and takes its answer; `answer` runs once the prompt
+/// shows, and the prompt must be closed with its answer after it.
+fn prompt_through_the_window_host(answer: impl FnOnce(&mut Fixture)) {
+    let asked = Rc::new(Cell::new(false));
+    let open = Rc::new(Cell::new(false));
+    let choice = Rc::new(Cell::new(None));
+    let (asked_in, open_in, choice_in) = (asked.clone(), open.clone(), choice.clone());
+    let mut fixture = Fixture::new(move |ui| {
+        AppShell::new(WindowKey::main())
+            .body(|_, cx, _| {
+                let dialogs = cx.dialogs().expect("the body is in a shell");
+                dialogs.with(|host| {
+                    if !asked_in.replace(true) {
+                        host.open(StandardPrompt::confirm_delete(["Layer"], 1));
+                    }
+                    open_in.set(host.is_open::<StandardPrompt>());
+                    if let Some(answered) = host.take::<StandardPrompt>().and_then(DialogResult::ok) {
+                        choice_in.set(Some(answered.choice));
+                    }
+                });
+            })
+            .show(ui, &mut ());
+    });
+    fixture.idle(OPEN_FRAMES);
+    assert!(open.get() && choice.get().is_none(), "the prompt shows over the window");
+    answer(&mut fixture);
+    fixture.idle(2);
+    assert_eq!(choice.get(), Some(PromptChoice::Proceed), "the body takes the answer in the next pass");
+    assert!(!open.get(), "the default button closed the prompt");
+}
+
+#[trial]
+fn a_click_on_the_default_button_of_a_window_prompt_answers_the_body() {
+    prompt_through_the_window_host(|fixture| {
+        // The button's accessible name carries its accelerator: "(D)elete".
+        let button = fixture.control("(D)elete").expect("the default button of the prompt");
+        fixture.click(&button);
+    });
+}
+
+#[trial]
+fn enter_on_a_window_prompt_answers_its_default_button() {
+    prompt_through_the_window_host(|fixture| {
+        fixture.key(Key::Enter, Modifiers::NONE);
+    });
+}
+
+#[trial]
+fn a_body_cannot_reach_the_host_while_it_is_locked() {
+    let seen = RefCell::new(None);
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        AppShell::new(WindowKey::main())
+            .body(|_, cx, _| {
+                let dialogs = cx.dialogs().expect("the body is in a shell");
+                let inside = dialogs.with(|_| cx.dialogs().is_none());
+                *seen.borrow_mut() = Some((inside, cx.dialogs().is_some()));
+            })
+            .show(ui, &mut ());
+    };
+    frames.frame(Vec::new(), &mut show);
+    assert_eq!(*seen.borrow(), Some((true, true)), "no handle while the host is locked, a handle again after");
+}
+
+#[trial]
+fn two_windows_keep_separate_dialog_hosts() {
+    let open = RefCell::new(Vec::new());
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        open.borrow_mut().clear();
+        let room = ui.max_rect();
+        for (at, key) in ["first", "second"].into_iter().enumerate() {
+            let rect = Rect::from_min_size(room.min + egui::vec2(room.width() / 2.0 * at as f32, 0.0), egui::vec2(room.width() / 2.0, room.height()));
+            craft_ui::testing::layout::in_region(ui, rect, |ui| {
+                AppShell::new(WindowKey::new(key))
+                    .body(|_, cx, _| {
+                        let dialogs = cx.dialogs().expect("the body is in a shell");
+                        dialogs.with(|host| {
+                            if key == "first" && !host.is_open::<StandardPrompt>() {
+                                host.open(StandardPrompt::confirm_delete(["Layer"], 1));
+                            }
+                            open.borrow_mut().push((key, host.is_open::<StandardPrompt>()));
+                        });
+                    })
+                    .show(ui, &mut ());
+            });
+        }
+    };
+    frames.frame(Vec::new(), &mut show);
+    frames.frame(Vec::new(), &mut show);
+    assert_eq!(*open.borrow(), [("first", true), ("second", false)]);
 }

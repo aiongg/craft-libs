@@ -21,7 +21,7 @@ mod canvas_shell;
 mod reveal;
 mod screen_mode;
 
-pub use app_shell::{AppShell, AppShellOutput, ShellRegion, ShellRegionOutput};
+pub use app_shell::{AppShell, AppShellOutput, ShellRegion, ShellRegionOutput, WindowDialogs};
 pub use canvas_shell::{CanvasPanel, CanvasPanelOutput, slots};
 pub use reveal::{Aim, EDGE_REVEAL_STRIP, Reveal, Tracking};
 pub use screen_mode::{ScreenMode, ScreenModeCommand};
