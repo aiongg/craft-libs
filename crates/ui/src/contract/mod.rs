@@ -40,7 +40,7 @@ pub(crate) use body::REORDER_BAND;
 pub use collection::{
     ActivateOn, CollectionEvent, CollectionProps, CollectionResponse, ColumnAlign, ColumnEvent, ColumnKind, ColumnSort, ColumnSpec,
     ContextMenuRequest, DragPayload, HeaderMenuRequest, ItemKeys, LeadOnOpen, LeadSource, ListDrag, OpenChange, Rename, ReorderMove, ReorderRule,
-    RowState, SelectMode, SpaceAction, ToggleColumn, ToggleEdit,
+    RowState, SelectMode, ShownRow, SpaceAction, ToggleColumn, ToggleEdit,
 };
 pub use container::{
     Collapse, ContainerProps, DragBand, EndRegion, FooterPlace, FooterRegion, Gap, HeaderRegion, Mount, Notch, Pad, PaneEdge, Scroll, ScrollAnchor,

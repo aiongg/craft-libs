@@ -366,10 +366,14 @@ fn text_inputs(fixture: &Fixture) -> usize {
     fixture.by_role(Role::TEXT_INPUT).len()
 }
 
-/// Opens the rename field of `name` by a double click on it.
+/// Seconds between two separate double clicks: longer than the interval in which presses count as one multi-click.
+const BETWEEN_DOUBLE_CLICKS: f64 = 1.0;
+
+/// Opens the rename field of `name` by a double click on it, a while after the last click.
 fn begin_rename(fixture: &mut Fixture, app: &Shared, name: &str) {
     let plain = text_inputs(fixture);
     let pos = name_at(fixture, name);
+    fixture.advance(BETWEEN_DOUBLE_CLICKS);
     double_click(fixture, pos);
     assert!(text_inputs(fixture) > plain, "{name} is being renamed");
     take(app);

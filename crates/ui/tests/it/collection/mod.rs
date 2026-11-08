@@ -12,3 +12,4 @@ mod rows;
 mod strip;
 pub(crate) mod table;
 mod table_trials;
+mod unbounded_room;

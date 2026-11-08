@@ -2,17 +2,19 @@
 
 use super::kit::{Count, Dismissed, Row};
 use super::table::{Free, Table};
-use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, GesturePhase, ItemSource, ScrollPos, keyed};
+use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, GesturePhase, ItemSource, Mixed, ScrollPos, keyed};
 use craft_ui::contract::{
     Bind, CollectionEvent, CollectionProps, CollectionResponse, ColumnCommands, ColumnEvent, ColumnKind, ColumnSort, ColumnSpec, DropMark, ListDrag,
-    Props as _, ReorderRule, Role, SelectMode, ShowCollection as _, ToggleColumn,
+    Props as _, ReorderRule, Role, SelectMode, ShowCollection as _, ShownRow, ToggleColumn,
 };
 use craft_ui::runtime::commands::{self, FireSource};
 use craft_ui::runtime::drag;
+use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::layout::in_region;
-use craft_ui::testing::{Frames, pointer, trial};
+use craft_ui::testing::{Fixture, Frames, pointer, trial};
 use egui::{Pos2, Rect, Ui, Vec2};
 use std::cell::RefCell;
+use std::rc::Rc;
 
 const ORIGIN: Pos2 = Pos2::new(10.0, 10.0);
 const VIEW: Vec2 = Vec2::new(400.0, 240.0);
@@ -424,4 +426,66 @@ fn shift_wheel(dy: f32) -> egui::Event {
         modifiers: egui::Modifiers::SHIFT,
         source: egui::MouseWheelSource::Wheel,
     }
+}
+
+/// The response reads the rect of every row the collection showed and of each of its cells, and of no other row.
+#[trial]
+fn the_response_reads_the_rects_of_the_shown_rows_and_their_cells() {
+    let (scene, source) = (Scene::default(), Count(100));
+    let held: RefCell<(Vec<ShownRow<usize>>, std::ops::Range<usize>)> = RefCell::new((Vec::new(), 0..0));
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
+            let out = Table::new(file_columns(COL)).id_salt("table").show_items(ui, &source, &mut |key, cx| {
+                scene.note(*key, cx.rect);
+                Row::new()
+            });
+            *held.borrow_mut() = (out.shown.clone(), out.visible.clone());
+        });
+    };
+    frames.idle(3, &mut show);
+    let (shown, visible) = held.take();
+    assert!(!shown.is_empty() && shown.len() < source.0, "only the rows in view are read: {}", shown.len());
+    assert_eq!(shown.iter().map(|row| row.key).collect::<Vec<_>>(), visible.collect::<Vec<_>>());
+    for row in &shown {
+        let given = scene.row(row.key);
+        assert!((row.rect.min - given.min).length() < CLOSE && (row.rect.size() - given.size()).length() < CLOSE, "{:?} against {given:?}", row.rect);
+        assert_eq!(row.cells.iter().map(|(key, _)| key.clone()).collect::<Vec<_>>(), vec![NAME, SIZE, DATE]);
+        for (at, (_, cell)) in row.cells.iter().enumerate() {
+            assert!((cell.min.x - (row.rect.min.x + COL * at as f32)).abs() < CLOSE && (cell.width() - COL).abs() < CLOSE, "cell {at}: {cell:?}");
+        }
+    }
+}
+
+/// Each toggle cell of a row reports a switch named by its column's header with the cell's state, and an assistive
+/// click on it flips that cell alone.
+#[trial]
+fn a_toggle_cell_reports_a_switch_named_by_its_column_and_flips_on_an_access_click() {
+    let on = Rc::new(RefCell::new(vec![false, true, false]));
+    let events = Rc::new(RefCell::new(Vec::new()));
+    let (shown_on, shown_events) = (Rc::clone(&on), Rc::clone(&events));
+    let mut fixture = Fixture::new(move |ui| {
+        let source = Switches { on: RefCell::new(shown_on.borrow().clone()) };
+        let props = CollectionProps::new().columns(vec![
+            ColumnSpec::new(NAME, "Name", ColumnWidth::Fixed(COL)),
+            ColumnSpec::new(MUTE, "Mute", ColumnWidth::Fixed(COL)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())),
+        ]);
+        let out = Table::new(props).id_salt("table").show_items(ui, &source, &mut |_, _| Row::new());
+        shown_events.borrow_mut().extend(out.events);
+    });
+    fixture.settle();
+    let switches = fixture.by_role(Role::SWITCH);
+    assert_eq!(switches.len(), 3, "one switch per row");
+    for (at, expected) in [false, true, false].into_iter().enumerate() {
+        assert_eq!(fixture.tree().name_of(switches[at].node), Some("Mute"));
+        assert_eq!(fixture.tree().toggled_of(switches[at].node), Some(Mixed::Same(expected)), "row {at}");
+    }
+    fixture.access(AccessActionKind::Click, &switches[2]);
+    fixture.idle(2);
+    let toggles: Vec<(usize, bool)> = events
+        .borrow()
+        .iter()
+        .filter_map(|event| if let CollectionEvent::Toggle(edit) = event { edit.value().map(|toggle| (toggle.key, toggle.on)) } else { None })
+        .collect();
+    assert_eq!(toggles, vec![(2, true)], "{:?}", events.borrow());
 }

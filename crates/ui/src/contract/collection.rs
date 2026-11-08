@@ -879,6 +879,8 @@ pub struct CollectionResponse<K, E> {
     pub events: Vec<CollectionEvent<K, E>>,
     /// The positions the collection showed.
     pub visible: Range<usize>,
+    /// Where each shown row and its cells sit this pass, in screen space, in drawing order.
+    pub shown: Vec<ShownRow<K>>,
     /// What the collection lets the user select.
     pub select: SelectMode,
     /// The collection renames items.
@@ -888,8 +890,31 @@ pub struct CollectionResponse<K, E> {
 }
 
 impl<K, E> CollectionResponse<K, E> {
-    pub(crate) fn new(response: Response, events: Vec<CollectionEvent<K, E>>, visible: Range<usize>, gestures: Gestures) -> Self {
-        CollectionResponse { response, events, visible, select: gestures.select, rename: gestures.rename, reorder: gestures.reorder }
+    pub(crate) fn new(
+        response: Response,
+        (events, shown): (Vec<CollectionEvent<K, E>>, Vec<ShownRow<K>>),
+        visible: Range<usize>,
+        gestures: Gestures,
+    ) -> Self {
+        CollectionResponse { response, events, visible, shown, select: gestures.select, rename: gestures.rename, reorder: gestures.reorder }
+    }
+}
+
+/// The geometry of one row the collection showed this pass.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct ShownRow<K> {
+    /// The row's key.
+    pub key: K,
+    /// The row's rect.
+    pub rect: egui::Rect,
+    /// The rect of each cell, by column key; empty for a collection with no columns.
+    pub cells: Vec<(ColumnKey, egui::Rect)>,
+}
+
+impl<K> ShownRow<K> {
+    pub(crate) fn new(key: K, rect: egui::Rect, cells: Vec<(ColumnKey, egui::Rect)>) -> Self {
+        ShownRow { key, rect, cells }
     }
 }
 

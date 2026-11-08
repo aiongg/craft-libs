@@ -4,7 +4,7 @@ pub(super) mod rows;
 
 use super::collection::{
     ActivateOn, CollectionEvent, CollectionProps, CollectionResponse, ContextMenuRequest, Gestures, LeadOnOpen, LeadSource, OpenChange, Rename,
-    RowState, SelectMode, SpaceAction,
+    RowState, SelectMode, ShownRow, SpaceAction,
 };
 use super::cx::BodyCx;
 use super::run::{ShapeHooks, ShowAt};
@@ -18,8 +18,8 @@ use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::{focus, frame, overlay, wheel};
 use crate::style::{StyleCx, scroll_bar_look};
 use craft_behavior::{
-    Axis, EditEvent, Flow, GestureId, Granularity, Intent, ItemLayout, ItemSource, Mixed, MoveMods, NavMove, NavState, NavStep, Outline, PressPhase,
-    Proposal, ScrollPos, ScrollSpan, SelectionChange, SelectionModel, Sense, TypeAhead, WheelTaker, nav,
+    Axis, ColumnKey, EditEvent, Flow, GestureId, Granularity, Intent, ItemLayout, ItemSource, Mixed, MoveMods, NavMove, NavState, NavStep, Outline,
+    PressPhase, Proposal, ScrollPos, ScrollSpan, SelectionChange, SelectionModel, Sense, TypeAhead, WheelTaker, nav,
 };
 use egui::{Context, Id, Pos2, Rect, Ui, UiBuilder, Vec2};
 use std::ops::Range;
@@ -47,6 +47,8 @@ pub(super) struct Rows<K> {
 
 const SCROLL: craft_behavior::PartKey = craft_behavior::PartKey::new("items_scroll");
 const SECTION: craft_behavior::PartKey = craft_behavior::PartKey::new("section");
+/// The sub-node of a toggle cell of an item row; the index is the hash of the row's key and the column.
+const TOGGLE_CELL: craft_behavior::PartKey = craft_behavior::PartKey::new("toggle_cell");
 
 /// The part of a collection that stands for the section row `key` (`ItemSource::section_stop`): the item step builds
 /// no row for it, so the access node that AccessKit focus goes to while the section holds the lead, and the pointer
@@ -138,6 +140,8 @@ pub(super) struct ItemsHooks<'s, 'r, C: Collection> {
     selection_at_read: C::Selection,
     events: Vec<CollectionEvent<C::Key, C::ItemEvent>>,
     visible: Range<usize>,
+    /// The rows built this pass with their rects, for `collection_response`.
+    shown: Vec<ShownRow<C::Key>>,
     offset: f64,
     offset_at_read: f64,
     offset_x: f64,
@@ -180,6 +184,7 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
             selection_at_read: C::Selection::default(),
             events: Vec::new(),
             visible: 0..0,
+            shown: Vec::new(),
             offset: 0.0,
             offset_at_read: 0.0,
             offset_x: 0.0,
@@ -358,8 +363,9 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 self.selection = C::Selection::default();
             }
         }
+        // A selection can hold items this source does not show; a lead that was never a shown row is not a lead that left.
         if self.lead.key.is_none() {
-            self.lead.key = self.selection.lead().cloned();
+            self.lead.key = self.selection.lead().filter(|key| self.index_of(key).is_some()).cloned();
         }
         self.renaming = stage.session::<Renaming<C::Key>>(sub(id, "rename")).clone();
         self.last = stage.recall::<View>(sub(id, "view"));
@@ -375,7 +381,8 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.offset_x_at_read = self.offset_x;
         let view = self.last.view.map_or(0.0, |view| view[3] - view[1]);
         if self.scrolls {
-            if let Some(share) = wheel::take(&ctx, id) {
+            let taken = wheel::take(&ctx, id);
+            if let Some(share) = taken {
                 self.offset -= f64::from(share.scroll.y);
                 self.offset_x -= f64::from(share.scroll.x);
                 if share.zoom != 1.0
@@ -471,13 +478,12 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         Some(Rc::new(Rows { rects, offset }))
     }
 
-    fn parts(&mut self, comp: &mut C, _: Rect, pcx: &mut PartsCx<'_, C>) {
+    fn parts(&mut self, _: &mut C, _: Rect, pcx: &mut PartsCx<'_, C>) {
         self.header.parts(pcx);
         if !self.scrolls {
             return;
         }
         let view = self.below_header(pcx.content_rect);
-        let ctx = pcx.ui.ctx().clone();
         let thickness = scroll_bar_look(pcx.tokens).thickness;
         let track = if pcx.flow.is_rtl() {
             Rect::from_min_max(view.min, Pos2::new(view.min.x + thickness, view.max.y))
@@ -488,18 +494,23 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.offset = self.offset.clamp(0.0, self.max_offset(view.height()));
         let span = ScrollSpan::new(0.0..content, self.offset..self.offset + f64::from(view.height()));
         pcx.scroll(SCROLL, track, Axis::Y, span);
-        wheel::register(
-            &ctx,
-            WheelTaker::new(pcx.id, view)
-                .vertical(self.overflow == Axis::Y)
-                .horizontal(self.content.x > view.width())
-                .scrolls(true)
-                .zoom(comp.zooms()),
-        );
     }
 
-    fn sensed(&mut self, _: &mut C, cx: &mut Cx<'_, C>) {
+    fn sensed(&mut self, comp: &mut C, cx: &mut Cx<'_, C>) {
         cx.core.collection_selection = Some(Box::new(self.selection.clone()));
+        if self.scrolls {
+            // The root's wheel sense registered a taker for the whole rect before this step; the scroll region's taker
+            // comes after it, so it wins the share where the two rects are equal: Shift turns its vertical wheel sideways.
+            let view = self.below_header(cx.core.content_rect);
+            wheel::register(
+                &cx.core.ctx,
+                WheelTaker::new(cx.core.id, view)
+                    .vertical(self.overflow == Axis::Y)
+                    .horizontal(self.content.x > view.width())
+                    .scrolls(true)
+                    .zoom(comp.zooms()),
+            );
+        }
     }
 
     fn updated(&mut self, comp: &mut C, cx: &mut Cx<'_, C>) {
@@ -535,6 +546,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.intent_actions(comp, cx, &props, lead_at, header_held);
         self.context_key(cx, &layout, at, lead_at);
         self.delete_key(cx, &props, lead_at);
+        self.toggle_by_access(cx, &layout, at);
         self.reorder_and_rename(comp, cx, &props, lead_at);
         self.requested_rename(comp, cx, &props, &layout, view);
         self.requested_reveal(comp, &layout, view);
@@ -608,6 +620,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             areas::Forward { id: sub(id, "transform"), sense: response::to_egui(cx.core.root_sense), rect: cx.core.rect.intersect(ui.clip_rect()) };
         let placed = self.selection.placed(self.source);
         let mut row_groups = Vec::with_capacity(order.len());
+        let mut shown_rows: Vec<ShownRow<C::Key>> = Vec::with_capacity(order.len());
         let content_sized = self.content_sized(comp);
         let mut widest = 0.0f32;
         let place_rows = |ui: &mut Ui| {
@@ -659,6 +672,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     rows::put_cell_flags(&ctx, item_id, self.cell_flag_list(&placed, at, &columns, focused));
                 }
                 let column_keys: Vec<craft_behavior::ColumnKey> = cells.iter().map(|(key, _)| key.clone()).collect();
+                let shown_cells = cells.clone();
                 let mut icx = ItemCx {
                     key: &key,
                     at,
@@ -714,6 +728,8 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     Arc::make_mut(&mut layout).set_width(at, ideal, min);
                     row = self.screen(&layout, rect, at, offset, rtl);
                 }
+                self.report_toggle_cells(&ctx, (id, item_id), (at, &key), (shown_cells.as_slice(), cx.core.resolved.enabled));
+                shown_rows.push(ShownRow::new(key.clone(), row, shown_cells));
                 let out = match tip {
                     Some(tip) => item.show_at_with_tip(&mut row_ui, row, tip),
                     None => item.show_at(&mut row_ui, row),
@@ -766,6 +782,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         }
         self.paint_marquee(ui, env, &layout, (rect, offset, rtl));
         focus::register_row_groups(&ctx, id, rtl, row_groups);
+        self.shown = shown_rows;
         if content_sized {
             rows::record_widest(&ctx, id, widest);
         }
@@ -844,7 +861,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         *cx.core.memory.session::<Drags<C::Key>>(sub(id, "drags")) = self.drags.clone();
         self.header.report(&cx.core.ctx, id, cx);
         *cx.core.memory.session::<Renaming<C::Key>>(sub(id, "rename")) = self.renaming.clone();
-        cx.core.collection_events = Some(Box::new(std::mem::take(&mut self.events)));
+        cx.core.collection_events = Some(Box::new((std::mem::take(&mut self.events), std::mem::take(&mut self.shown))));
         cx.core.visible_rows = self.visible.clone();
         cx.core.gestures = Gestures::of(comp.items());
     }
@@ -1230,6 +1247,52 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         }
     }
 
+    /// The access sub-node of each toggle cell of row `(at, key)`, named by its column's header and carrying its state,
+    /// below the row's node `item`; an AccessKit click on it reaches `toggle_by_access`.
+    fn report_toggle_cells(&self, ctx: &Context, (id, item): (Id, Id), (at, key): (usize, &C::Key), (cells, enabled): (&[(ColumnKey, Rect)], bool)) {
+        for (column, _) in self.header.toggle_columns() {
+            let Some((_, rect)) = cells.iter().find(|(held, _)| *held == column) else { continue };
+            let mut node = access::SubNode::new(TOGGLE_CELL.at(key_hash(&(key, &column))), Role::SWITCH);
+            node.name = access::Name::Text(self.header.header_of(&column).unwrap_or_default().to_owned());
+            node.flags.set(crate::style::Flags::CHECKED, self.source.toggled(at, &column));
+            let decl = access::SubDecl {
+                owner: id,
+                component: "",
+                node: &node,
+                rect: *rect,
+                enabled: enabled && self.source.enabled(at) && self.toggle_open(at, &column),
+                focusable: false,
+                clickable: true,
+                active: false,
+                face: None,
+                label: "",
+                parent: item,
+            };
+            access::report_sub(ctx, &decl);
+        }
+    }
+
+    /// An AccessKit click on a toggle cell's sub-node flips that cell, as a click on it does.
+    fn toggle_by_access(&mut self, cx: &mut Cx<'_, C>, layout: &C::ItemLayout, place: Placement) {
+        let wanted = |request: &craft_behavior::AccessRequest| {
+            request.action == craft_behavior::AccessAction::Click && request.target.is_some_and(|part| part.key == TOGGLE_CELL)
+        };
+        while let Some(request) = cx.core.intents.take_access_where(wanted) {
+            let Some(part) = request.target else { continue };
+            let (_, built) = self.built(layout, place.rect, place.offset);
+            let found = built.into_iter().find_map(|at| {
+                let key = self.source.key(at);
+                self.header
+                    .toggle_columns()
+                    .find(|(column, _)| TOGGLE_CELL.at(key_hash(&(&key, column))) == part)
+                    .map(|(column, toggle)| (at, column, toggle))
+            });
+            if let Some((at, column, toggle)) = found {
+                self.flip_toggle(cx, at, column, toggle);
+            }
+        }
+    }
+
     /// The context-menu key at the lead: the request is at the row's bottom start corner.
     fn context_key(&mut self, cx: &mut Cx<'_, C>, layout: &C::ItemLayout, at: Placement, lead_at: Option<usize>) {
         if cx.core.intents.take(Intent::ContextMenu)
@@ -1421,8 +1484,8 @@ impl<C: Collection> Cx<'_, C> {
             .core
             .collection_events
             .take()
-            .and_then(|events| events.downcast::<Vec<CollectionEvent<C::Key, C::ItemEvent>>>().ok())
-            .map(|events| *events)
+            .and_then(|held| held.downcast::<(Vec<CollectionEvent<C::Key, C::ItemEvent>>, Vec<ShownRow<C::Key>>)>().ok())
+            .map(|held| *held)
             .unwrap_or_default();
         CollectionResponse::new(self.core.response.clone(), events, self.core.visible_rows.clone(), self.core.gestures)
     }

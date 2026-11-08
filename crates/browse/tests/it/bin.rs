@@ -229,15 +229,26 @@ fn a_release_on_the_background_drops_into_the_shown_bin_unless_they_are_there() 
     assert!(bin.drops().is_empty(), "Title is in the root, which is the shown bin: {:?}", bin.events.borrow());
 }
 
-/// In User Order a release past the last row moves the rows to the end; it is not a drop.
+/// In User Order a release past the last row moves a row of the shown bin to the end; it is not a drop.
 #[trial]
 fn a_release_past_the_last_row_in_user_order_reorders() {
     let mut bin = setup(false, |_| {});
     let room = bin.empty_room();
-    bin.drag_to("Clip.mov", room);
+    bin.drag_to("Archive", room);
     let events = bin.events.borrow();
     assert!(events.iter().any(|event| matches!(event, BinEvent::Reorder(_))), "{events:?}");
     assert!(!events.iter().any(|event| matches!(event, BinEvent::Drop { .. })));
+}
+
+/// A release past the last row puts the item at the top level of the shown bin: an item of an open sub-bin leaves
+/// its bin, which is a drop into the shown bin, not a reorder.
+#[trial]
+fn a_release_past_the_last_row_takes_an_item_out_of_its_bin() {
+    let mut bin = setup(false, |_| {});
+    let room = bin.empty_room();
+    bin.drag_to("Clip.mov", room);
+    assert_eq!(bin.drops(), [(vec![11], None)], "{:?}", bin.events.borrow());
+    assert!(!bin.events.borrow().iter().any(|event| matches!(event, BinEvent::Reorder(_))));
 }
 
 /// A drag from another list over an item row is a drop on the background, never a reorder; over a bin row it
@@ -317,7 +328,7 @@ fn a_drop_on_a_footer_action_reports_it() {
         .iter()
         .filter_map(|event| if let BinEvent::FooterDrop { action, keys, .. } = event { Some((*action, keys.clone())) } else { None })
         .collect();
-    assert_eq!(drops, [(0, vec![10])]);
+    assert_eq!(drops, [(0, vec![10])], "{:?}", bin.events.borrow());
     assert!(bin.drops().is_empty());
 }
 

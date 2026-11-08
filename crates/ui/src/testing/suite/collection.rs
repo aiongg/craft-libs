@@ -97,7 +97,7 @@ pub(super) fn keys_move_the_lead(subject: &Subject) -> Result<(), String> {
             }
             EndKey::EndMode => {
                 // End alone arms the mode and leaves the lead; the next arrow jumps to the data edge, which can lie
-                // outside the shown rows (the grid's own trial checks Ctrl+End).
+                // outside the shown rows, where no row reports the lead.
                 fixture.key(Key::End, Modifiers::NONE);
                 fixture.idle(2);
                 if lead(&fixture, &container) != Some(first) {
@@ -105,12 +105,22 @@ pub(super) fn keys_move_the_lead(subject: &Subject) -> Result<(), String> {
                 }
                 fixture.key(Key::ArrowDown, Modifiers::NONE);
                 fixture.idle(2);
-                // The data edge can lie outside the shown rows, where no row reports the lead: only a one-row step is wrong.
-                if lead(&fixture, &container) == Some(first + 1) {
+                let jumped = lead(&fixture, &container);
+                if jumped == Some(first + 1) {
                     return Err(format!("{name}: End then Down moved the lead one row, expected the jump to the data edge"));
                 }
-                // The lead is now far from the rows Page Down is checked on.
-                continue;
+                // Ctrl+End goes to the last used cell and scrolls it into view, so the lead is read again.
+                fixture.key(Key::End, Modifiers::COMMAND);
+                fixture.idle(2);
+                match lead(&fixture, &container) {
+                    Some(found) if found > first && jumped.is_none_or(|edge| found >= edge) => {}
+                    found => {
+                        return Err(format!(
+                            "{name}: after Ctrl+End the lead is {found:?}, expected the last used cell (past row {first}, and not before {jumped:?})"
+                        ));
+                    }
+                }
+                expect(&mut fixture, Key::Home, Modifiers::COMMAND, 0, "Ctrl+Home")?;
             }
         }
         fixture.key(Key::PageDown, Modifiers::NONE);
