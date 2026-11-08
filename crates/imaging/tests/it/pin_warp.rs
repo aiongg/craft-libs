@@ -425,16 +425,19 @@ const RING_MARGIN: f64 = 1.0;
 #[trial]
 fn alt_drag_near_a_selected_pin_turns_it_and_fixes_its_rotation() {
     let ring = turn_ring();
-    let (centre, quarter_turn) = (Point::new(200.0, 150.0), 90.0);
+    let (centre, release) = (Point::new(200.0, 150.0), Point::new(200.0, 190.0));
+    let press = Point::new(centre.x + ring - RING_MARGIN, centre.y);
+    // The turn is the angle the drag sweeps around the pin, from the press to the release.
+    let swept = ((release.y - centre.y).atan2(release.x - centre.x) - (press.y - centre.y).atan2(press.x - centre.x)).to_degrees();
     let mut h = harness(vec![pin(centre.x, centre.y)], vec![0]);
-    h.drag((centre.x + ring - RING_MARGIN, centre.y), (centre.x, 190.0), Modifiers::ALT);
+    h.drag((press.x, press.y), (release.x, release.y), Modifiers::ALT);
     let turned = h.state.borrow().session.pins()[0];
-    assert!((turned.angle.expect("fixed") - quarter_turn).abs() < 1e-9, "{:?}", turned.angle);
+    assert!((turned.angle.expect("fixed") - swept).abs() < 1e-9, "{:?} vs {swept}", turned.angle);
     assert_eq!(turned.at, centre, "the pin stays where it is");
     assert_eq!(h.seen(), [Seen::Begin, Seen::Commit]);
 
     h.state.borrow_mut().seen.clear();
-    h.drag((centre.x + ring + RING_MARGIN, centre.y), (centre.x, 190.0), Modifiers::ALT);
+    h.drag((centre.x + ring + RING_MARGIN, centre.y), (release.x, release.y), Modifiers::ALT);
     assert!(h.seen().is_empty(), "just outside the turn ring the press turns nothing: {:?}", h.seen());
 
     h.drag((300.0, 150.0), (300.0, 190.0), Modifiers::ALT);
