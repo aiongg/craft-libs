@@ -61,7 +61,7 @@ impl Component for Host<'_> {
 }
 
 fn dock_id() -> Id {
-    Id::new("session dock")
+    Id::NULL.with("session dock")
 }
 
 fn panels(names: &[&str]) -> Vec<String> {
@@ -119,7 +119,7 @@ fn bed(layout: Layout<String>) -> (Fixture, Rc<RefCell<Layout<String>>>, Rc<RefC
         let origin = ui.max_rect().min;
         Host { common: Common::new(), target: &target, seen: &shared_taken }.show(ui);
         for (anchor, panels, rect) in placed_groups(&shown, origin) {
-            let titles: Vec<PanelTitle> = panels.iter().map(|panel| PanelTitle::new(PanelKey::of(panel), panel.as_str())).collect();
+            let titles: Vec<PanelTitle> = panels.iter().map(|panel| PanelTitle::new(PanelKey::of(panel), panel.clone())).collect();
             let active = titles.first().map_or(PanelKey::new(0), |title| title.key);
             DockGroup::new(anchor, &titles, active).dock(dock_id()).show_at(ui, rect, |_, _| ());
         }
