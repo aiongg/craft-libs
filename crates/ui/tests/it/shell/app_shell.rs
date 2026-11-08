@@ -374,10 +374,9 @@ fn a_body_opens_a_prompt_through_the_window_host_and_takes_the_answer_in_a_later
     });
     fixture.idle(OPEN_FRAMES);
     assert!(open.get() && answer.get().is_none(), "the prompt shows over the window");
-    let button = fixture.control("Delete").expect("the default button of the prompt");
-    fixture.click(&button).idle(2);
+    fixture.key(Key::Enter, Modifiers::NONE).idle(2);
     assert_eq!(answer.get(), Some(PromptChoice::Proceed), "the body takes the answer in the next pass");
-    assert!(!open.get(), "the click closed the prompt");
+    assert!(!open.get(), "the default button closed the prompt");
 }
 
 #[trial]
