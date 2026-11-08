@@ -3,10 +3,10 @@
 use craft_behavior::kurbo::{Point, Rect as DocRect, Size};
 use craft_behavior::{CanvasView, ZoomLadder};
 use craft_ui::canvas::{
-    NavigationOptions, Navigator, NavigatorOptions, NavigatorSettings, NavigatorZoomRow, ProxyColor, preview_rect, proxy_quad, view_center_for,
-    zoom_to_document_rect,
+    NavigationOptions, Navigator, NavigatorOptions, NavigatorSettings, NavigatorZoomRow, NavigatorZoomRowOutput, ProxyColor, preview_rect,
+    proxy_quad, view_center_for, zoom_to_document_rect,
 };
-use craft_ui::contract::{Bind, Show as _};
+use craft_ui::contract::{Bind, Role, Show as _};
 use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::pointer::{moved, press, release, wheel_lines};
 use craft_ui::testing::story::EditKind;
@@ -30,6 +30,8 @@ const CENTRE_SLACK: f64 = 100.0;
 
 /// The zoom the row starts from.
 const START: f64 = 1.0;
+/// The 66.67 % rung of the zoom ladder.
+const TWO_THIRDS: f64 = 2.0 / 3.0;
 
 const CENTRE: Point = Point::new(1000.0, 750.0);
 
@@ -128,17 +130,40 @@ fn the_navigator_settings_round_trip() {
     assert_eq!(toml::from_str::<NavigatorSettings>("other = 1").expect("unknown fields are ignored"), NavigatorSettings::default());
 }
 
-#[trial]
-fn zoom_in_steps_the_ladder_about_the_centre_and_asks_for_the_ease() {
-    let view = Rc::new(RefCell::new(zoom_view(START)));
-    let eased = Rc::new(Cell::new(false));
-    let (held, flag) = (Rc::clone(&view), Rc::clone(&eased));
-    let mut fixture = Fixture::new(move |ui| {
+/// A zoom row over `view` that keeps the output of the last pass that changed the view.
+fn zoom_row(view: &Rc<RefCell<CanvasView>>, out: &Rc<RefCell<Option<NavigatorZoomRowOutput>>>, animated: bool) -> Fixture {
+    let (held, kept) = (Rc::clone(view), Rc::clone(out));
+    Fixture::new(move |ui| {
         let mut view = held.borrow_mut();
-        if NavigatorZoomRow::new(Bind::bound(&mut *view), DOC).show(ui).animate_zoom {
-            flag.set(true);
+        let mut options = NavigationOptions::default();
+        options.animated_zoom = animated;
+        let shown = NavigatorZoomRow::new(Bind::bound(&mut *view), DOC).navigation(options).show(ui);
+        if shown.view.is_some() {
+            *kept.borrow_mut() = Some(shown);
         }
-    });
+    })
+}
+
+#[trial]
+fn an_eased_zoom_in_reports_the_ease_and_leaves_the_bound_view_to_the_app() {
+    let view = Rc::new(RefCell::new(zoom_view(START)));
+    let out = Rc::new(RefCell::new(None));
+    let mut fixture = zoom_row(&view, &out, true);
+    fixture.settle();
+    let zoom_in = fixture.by_label("Zoom In").expect("the row has a Zoom In button, labelled by the view command");
+    fixture.click(&zoom_in);
+    let seen = out.borrow_mut().take().expect("the row ran");
+    let ease = seen.ease.expect("Animated Zoom on: the button asks for the ease");
+    assert_eq!(ease.anchor.map(|(doc, _)| doc), Some(CENTRE), "the zoom eases about the view's centre");
+    assert!(seen.view.is_some(), "the target is reported for the app to ease to");
+    assert_eq!(*view.borrow(), zoom_view(START), "the bound view keeps the view before the change");
+}
+
+#[trial]
+fn a_zoom_in_without_the_ease_steps_the_ladder_about_the_centre() {
+    let view = Rc::new(RefCell::new(zoom_view(START)));
+    let out = Rc::new(RefCell::new(None));
+    let mut fixture = zoom_row(&view, &out, false);
     fixture.settle();
     let zoom_in = fixture.by_label("Zoom In").expect("the row has a Zoom In button");
     fixture.click(&zoom_in);
@@ -146,7 +171,23 @@ fn zoom_in_steps_the_ladder_about_the_centre_and_asks_for_the_ease() {
     let after = *view.borrow();
     assert!(after.zoom > START && after.zoom <= ZoomLadder::MAX, "one rung in: {after:?}");
     assert_eq!(after.center, CENTRE, "the centre stays");
-    assert!(eased.get(), "Animated Zoom is on by default, so the button asks for the ease");
+}
+
+#[trial]
+fn the_percent_field_steps_the_zoom_ladder_and_shows_two_decimals() {
+    let view = Rc::new(RefCell::new(zoom_view(TWO_THIRDS)));
+    let out = Rc::new(RefCell::new(None));
+    let mut fixture = zoom_row(&view, &out, false);
+    fixture.settle();
+    let field = fixture.by_role(Role::SPIN_BUTTON).into_iter().next().expect("the row has a percent field");
+    assert!(fixture.texts().iter().any(|text| text.text == "66.67"), "a ladder rung shows its two decimals");
+    fixture.click(&field);
+    fixture.settle();
+    fixture.key(Key::ArrowUp, Modifiers::NONE);
+    fixture.settle();
+    let after = view.borrow().zoom;
+    let next_rung = ZoomLadder::step(TWO_THIRDS, 1, DOC);
+    assert!(next_rung > TWO_THIRDS && (after - next_rung).abs() < 1e-9, "up from 66.67 % goes to the next rung: {after}");
 }
 
 #[trial]
