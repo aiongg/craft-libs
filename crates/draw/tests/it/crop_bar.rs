@@ -2,13 +2,13 @@
 
 use craft_behavior::geometry::crop::{CropGuide, GuideShow};
 use craft_draw::ui::crop::{
-    CROP_RATIOS, CROP_SIZES, CropBar, CropBarWords, CropDocKey, CropDocument, CropFill, CropOptionsMenu, CropOverlayMenu, CropPresetChoice,
-    CropRatio, CropRatioChange, CropSettings, CropSizeFields, CropUserPreset, ResolutionUnit,
+    CROP_RATIOS, CROP_SIZES, CropBar, CropBarWords, CropDocKey, CropDocument, CropFill, CropLength, CropOptionsMenu, CropOverlayMenu,
+    CropPresetChoice, CropRatio, CropRatioChange, CropSettings, CropSizeFields, CropUserPreset, ResolutionUnit,
 };
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::canvas::ShieldColor;
 use craft_ui::contract::{Role, ShowContainer as _};
-use craft_ui::runtime::env::{Env, Units, WordSet as _};
+use craft_ui::runtime::env::{Env, UnitKind, Units, WordSet as _};
 use craft_ui::testing::{Fixture, Frames, trial};
 use egui::{Key, Modifiers, Vec2};
 use kurbo::Size;
@@ -29,11 +29,19 @@ fn with_units(check: impl FnOnce(&Units)) {
     });
 }
 
-fn size_mode(width: &str, height: &str, resolution: &str) -> CropSettings {
+fn inches(value: f64) -> Option<CropLength> {
+    Some(CropLength::new(value, UnitKind::Inches))
+}
+
+fn pixels(value: f64) -> Option<CropLength> {
+    Some(CropLength::new(value, UnitKind::Pixels))
+}
+
+fn size_mode(width: Option<CropLength>, height: Option<CropLength>, resolution: &str) -> CropSettings {
     let mut settings = CropSettings::default();
     settings.ratio = CropRatio::Size;
-    settings.size.width = width.into();
-    settings.size.height = height.into();
+    settings.size.width = width;
+    settings.size.height = height;
     settings.size.resolution = resolution.into();
     settings
 }
@@ -49,12 +57,12 @@ fn sides(width: f64, height: f64) -> CropSettings {
 /// and turns W x H x Resolution on; `choice` shows them back.
 #[trial]
 fn ratio_presets_and_size_presets_fill_the_fields() {
-    with_units(|units| {
+    {
         let doc = document();
         let mut settings = CropSettings::default();
         for (i, ratio) in CROP_RATIOS.iter().enumerate() {
-            settings.choose(CropPresetChoice::Free, &doc, &[], units);
-            settings.choose(CropPresetChoice::Ratio(i), &doc, &[], units);
+            settings.choose(CropPresetChoice::Free, &doc, &[]);
+            settings.choose(CropPresetChoice::Ratio(i), &doc, &[]);
             assert_eq!(settings.ratio, *ratio);
             if let CropRatio::Sides { width, height, .. } = ratio {
                 assert_eq!(settings.ratio_fields, [*width, *height]);
@@ -63,93 +71,80 @@ fn ratio_presets_and_size_presets_fill_the_fields() {
         }
         for (i, preset) in CROP_SIZES.iter().enumerate() {
             settings.size.resolution_unit = ResolutionUnit::PixelsPerCentimetre;
-            assert!(settings.choose(CropPresetChoice::SizePreset(i), &doc, &[], units));
+            assert!(settings.choose(CropPresetChoice::SizePreset(i), &doc, &[]));
             assert_eq!(settings.ratio, CropRatio::Size);
             assert_eq!(
-                (settings.size.width.as_str(), settings.size.height.as_str(), settings.size.resolution.as_str(), settings.size.resolution_unit),
-                (preset.width, preset.height, preset.resolution, ResolutionUnit::PixelsPerInch)
+                (settings.size.width, settings.size.height, settings.size.resolution.as_str(), settings.size.resolution_unit),
+                (Some(preset.width), Some(preset.height), preset.resolution, ResolutionUnit::PixelsPerInch)
             );
             assert_eq!(settings.choice(&[]), CropPresetChoice::SizePreset(i));
         }
-        assert!(!settings.choose(CropPresetChoice::NewPreset, &doc, &[], units));
-        assert!(settings.choose(CropPresetChoice::Free, &doc, &[], units));
+        assert!(!settings.choose(CropPresetChoice::NewPreset, &doc, &[]));
+        assert!(settings.choose(CropPresetChoice::Free, &doc, &[]));
         assert_eq!(settings.choice(&[]), CropPresetChoice::Free);
 
         let user = [CropUserPreset::new("Cinema", CropRatio::sides(21.0, 9.0), CropSizeFields::default())];
-        assert!(settings.choose(CropPresetChoice::User(0), &doc, &user, units));
+        assert!(settings.choose(CropPresetChoice::User(0), &doc, &user));
         assert_eq!(settings.ratio_fields, [21.0, 9.0]);
         assert_eq!(settings.choice(&user), CropPresetChoice::User(0));
-    });
+    }
 }
 
-/// "4 in", "4in" and "10.5 cm" parse; a bare number keeps the field's unit (pixels when empty); zero, negative,
-/// percent and unknown units do not, and normalising keeps the previous text for them.
+/// The resolution field keeps a positive number of at most two decimals, else what it had.
 #[trial]
-fn lengths_parse_with_units_and_a_bare_number_keeps_the_field_unit() {
-    with_units(|units| {
-        let norm = |typed: &str, previous: &str| CropSizeFields::normalize_length(typed, previous, units);
-        assert_eq!(norm("4 in", ""), "4 in");
-        assert_eq!(norm("4in", ""), "4 in");
-        assert_eq!(norm("10.5 cm", ""), "10.5 cm");
-        assert_eq!(norm("1024", ""), "1024 px");
-        assert_eq!(norm("6", "4 in"), "6 in");
-        assert_eq!(norm("  ", "4 in"), "");
-        for junk in ["0", "-3", "50%", "4 furlongs", "abc"] {
-            assert_eq!(norm(junk, "4 in"), "4 in", "{junk}");
-        }
-        assert_eq!(CropSizeFields::normalize_resolution("300.5", "72"), "300.5");
-        assert_eq!(CropSizeFields::normalize_resolution("0", "72"), "72");
-        assert_eq!(CropSizeFields::normalize_resolution("", "72"), "");
-    });
+fn the_resolution_field_keeps_a_positive_number() {
+    assert_eq!(CropSizeFields::normalize_resolution("300.5", "72"), "300.5");
+    assert_eq!(CropSizeFields::normalize_resolution("0", "72"), "72");
+    assert_eq!(CropSizeFields::normalize_resolution("", "72"), "");
 }
 
 /// `target` converts physical lengths at the typed resolution (px/cm x 2.54), else at the document's; points at the
 /// document's points per inch.
 #[trial]
 fn target_uses_the_typed_resolution_else_the_documents() {
-    with_units(|units| {
+    {
         let doc = document().resolution(100.0);
-        let at_typed = size_mode("4 in", "6 in", "300").target(&doc, units).unwrap();
+        let at_typed = size_mode(inches(4.0), inches(6.0), "300").target(&doc).unwrap();
         assert_eq!((at_typed.width, at_typed.height, at_typed.resolution), (1200.0, 1800.0, Some(300.0)));
-        let at_document = size_mode("4 in", "1024", "").target(&doc, units).unwrap();
+        let at_document = size_mode(inches(4.0), pixels(1024.0), "").target(&doc).unwrap();
         assert_eq!((at_document.width, at_document.height, at_document.resolution), (400.0, 1024.0, None));
-        let mut per_cm = size_mode("2.54 cm", "1 in", "100");
+        let mut per_cm = size_mode(Some(CropLength::new(2.54, UnitKind::Centimetres)), inches(1.0), "100");
         per_cm.size.resolution_unit = ResolutionUnit::PixelsPerCentimetre;
-        let t = per_cm.target(&doc, units).unwrap();
+        let t = per_cm.target(&doc).unwrap();
         assert!((t.width - 254.0).abs() < 1e-9 && (t.height - 254.0).abs() < 1e-9 && t.resolution == Some(254.0));
-        let points = size_mode("72 pt", "1", "").target(&doc.points_per_inch(72.27), units).unwrap();
+        let points = size_mode(Some(CropLength::new(72.0, UnitKind::Points)), pixels(1.0), "").target(&doc.points_per_inch(72.27)).unwrap();
         assert!((points.width - 100.0 * 72.0 / 72.27).abs() < 1e-9);
-        assert!((size_mode("4 in", "6 in", "").ratio_value(&doc, units).unwrap() - 4.0 / 6.0).abs() < 1e-12);
-    });
+        assert!((size_mode(inches(4.0), inches(6.0), "").ratio_value(&doc).unwrap() - 4.0 / 6.0).abs() < 1e-12);
+    }
 }
 
 /// W or H empty: no target and no ratio; one ratio side typed: a free ratio that keeps the side.
 #[trial]
 fn empty_w_or_h_is_a_free_crop() {
-    with_units(|units| {
+    {
         let doc = document();
-        let half = size_mode("4 in", "", "300");
-        assert_eq!((half.target(&doc, units), half.ratio_value(&doc, units)), (None, None));
+        let half = size_mode(inches(4.0), None, "300");
+        assert_eq!((half.target(&doc), half.ratio_value(&doc)), (None, None));
         let mut settings = CropSettings::default();
         settings.set_ratio_field(0, 3.0);
-        assert_eq!((settings.ratio, settings.ratio_fields, settings.ratio_value(&doc, units)), (CropRatio::Free, [3.0, 0.0], None));
+        assert_eq!((settings.ratio, settings.ratio_fields, settings.ratio_value(&doc)), (CropRatio::Free, [3.0, 0.0], None));
         assert_eq!(settings.shown_ratio_fields(&doc), [3.0, 0.0]);
         settings.set_ratio_field(1, 1.41437);
         assert_eq!(settings.ratio, CropRatio::sides(3.0, 1.414));
         settings.set_ratio_field(0, 0.0);
         assert_eq!((settings.ratio, settings.ratio_fields), (CropRatio::Free, [0.0, 1.414]));
-    });
+    }
 }
 
 /// Swap exchanges W and H in W x H x Resolution mode and the ratio's sides otherwise (Original turns the document's
 /// size); Front Image fills the document's size in px and its resolution in the field's unit.
 #[trial]
 fn swap_and_front_image() {
-    with_units(|units| {
+    {
         let doc = document();
-        let mut settings = size_mode("4 in", "6 px", "300");
+        let mut settings = size_mode(inches(4.0), pixels(6.0), "300");
         assert!(settings.swap(&doc));
-        assert_eq!((settings.size.width.as_str(), settings.size.height.as_str()), ("6 px", "4 in"));
+        assert_eq!((settings.size.width, settings.size.height), (pixels(6.0), inches(4.0)));
 
         let mut ratio = sides(16.0, 9.0);
         assert!(ratio.swap(&doc));
@@ -162,10 +157,10 @@ fn swap_and_front_image() {
 
         let mut front = CropSettings::default();
         front.size.resolution_unit = ResolutionUnit::PixelsPerCentimetre;
-        front.front_image(&document().resolution(254.0), units);
+        front.front_image(&document().resolution(254.0));
         assert_eq!(front.ratio, CropRatio::Size);
-        assert_eq!((front.size.width.as_str(), front.size.height.as_str(), front.size.resolution.as_str()), ("2400 px", "1500 px", "100"));
-    });
+        assert_eq!((front.size.width, front.size.height, front.size.resolution.as_str()), (pixels(2400.0), pixels(1500.0), "100"));
+    }
 }
 
 /// "4 x 5 in 300 ppi", "2 : 3", mixed units, a px/cm resolution; `None` for Original and a free ratio.
@@ -174,13 +169,13 @@ fn preset_name_is_made_from_the_values() {
     with_units(|units| {
         let words = CropBarWords::english();
         let name = |settings: &CropSettings| settings.preset_name(&words, units);
-        assert_eq!(name(&size_mode("4 in", "5 in", "300")).as_deref(), Some("4 x 5 in 300 ppi"));
-        assert_eq!(name(&size_mode("8.5 in", "11 in", "")).as_deref(), Some("8.5 x 11 in"));
-        assert_eq!(name(&size_mode("4 in", "300", "")).as_deref(), Some("4 in x 300 px"));
-        let mut per_cm = size_mode("1024", "768", "35.5");
+        assert_eq!(name(&size_mode(inches(4.0), inches(5.0), "300")).as_deref(), Some("4 x 5 in 300 ppi"));
+        assert_eq!(name(&size_mode(inches(8.5), inches(11.0), "")).as_deref(), Some("8.5 x 11 in"));
+        assert_eq!(name(&size_mode(inches(4.0), pixels(300.0), "")).as_deref(), Some("4 in x 300 px"));
+        let mut per_cm = size_mode(pixels(1024.0), pixels(768.0), "35.5");
         per_cm.size.resolution_unit = ResolutionUnit::PixelsPerCentimetre;
         assert_eq!(name(&per_cm).as_deref(), Some("1024 x 768 px 35.5 px/cm"));
-        assert_eq!(name(&size_mode("4 in", "", "300")), None);
+        assert_eq!(name(&size_mode(inches(4.0), None, "300")), None);
         assert_eq!(name(&sides(2.0, 3.0)).as_deref(), Some("2 : 3"));
         let mut original = CropSettings::default();
         original.ratio = CropRatio::Original;
@@ -297,9 +292,9 @@ fn the_bar_reports_new_and_delete_and_edits_options() {
                 CropRatio::Sides { width: before, height, .. },
                 CropRatio::Sides { width: after, height: kept, .. },
                 CropRatio::Sides { width: again, height: still, .. },
-            ) if after > before && again - after == after - before && kept == height && still == height
+            ) if after == before + 1.0 && again == after + 1.0 && kept == height && still == height
         ),
-        "each arrow press adds the same step to the width and keeps the height: {stepped:?}, {twice:?}"
+        "each arrow press adds the step of 1 to the width and keeps the height: {stepped:?}, {twice:?}"
     );
     assert!(rig.seen.borrow().iter().any(|s| s.ratio.is_some()));
 
@@ -326,7 +321,7 @@ fn the_bar_reports_the_shield_color_request() {
 /// with the swap button; Original shows the document's size.
 #[trial]
 fn the_bar_shows_size_fields_in_size_mode_and_ratio_fields_otherwise() {
-    let rig = bar(size_mode("4 in", "5 in", "300"), Vec::new());
+    let rig = bar(size_mode(inches(4.0), inches(5.0), "300"), Vec::new());
     assert!(rig.fixture.by_label("Width").is_some() && rig.fixture.by_label("Height").is_some());
     let resolution = rig.fixture.by_label("Resolution").expect("a resolution field");
     assert!(rig.fixture.tree().value_of(resolution.node).is_some_and(|v| v.contains("300")));
@@ -436,4 +431,43 @@ fn gear_menu_greys_two_rows_in_classic_mode() {
     rig.click("Custom…");
     assert!(rig.seen.borrow().iter().any(|s| s.colour));
     assert!(rig.fixture.by_label("Use Classic Mode").is_some(), "the popover stays open on a click inside");
+}
+
+/// Types `text` into the field named `label`, replacing what it holds, and commits it.
+fn type_into(rig: &mut Rig, label: &str, text: &str) {
+    let field = rig.fixture.by_label(label).unwrap_or_else(|| panic!("the bar shows {label}"));
+    rig.fixture.click(&field);
+    rig.fixture.key(Key::A, Modifiers::COMMAND);
+    if text.is_empty() {
+        rig.fixture.key(Key::Backspace, Modifiers::NONE);
+    } else {
+        rig.fixture.type_text(text);
+    }
+    rig.fixture.key(Key::Enter, Modifiers::NONE).settle();
+}
+
+/// A length typed in the unit the field is in stays in that unit.
+#[trial]
+fn a_length_typed_in_the_fields_unit_keeps_that_unit() {
+    let mut rig = bar(size_mode(inches(4.0), inches(5.0), "300"), Vec::new());
+    type_into(&mut rig, "Width", "2 in");
+    assert_eq!(rig.settings.borrow().size.width, inches(2.0));
+    assert_eq!(rig.settings.borrow().size.height, inches(5.0), "the other side is untouched");
+}
+
+/// Photoshop's crop bar keeps the unit the user typed: "50 mm" in a field showing inches is 50 mm.
+#[trial]
+fn a_length_typed_in_another_unit_is_stored_in_that_unit() {
+    let mut rig = bar(size_mode(inches(4.0), inches(5.0), "300"), Vec::new());
+    type_into(&mut rig, "Width", "50 mm");
+    assert_eq!(rig.settings.borrow().size.width, Some(CropLength::new(50.0, UnitKind::Millimetres)));
+}
+
+/// A cleared field is unset, and the commit then has no target.
+#[trial]
+fn a_cleared_length_field_is_unset() {
+    let mut rig = bar(size_mode(inches(4.0), inches(5.0), "300"), Vec::new());
+    type_into(&mut rig, "Height", "");
+    assert_eq!(rig.settings.borrow().size.height, None);
+    assert_eq!(rig.settings.borrow().target(&document()), None);
 }

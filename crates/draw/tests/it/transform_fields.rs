@@ -328,6 +328,9 @@ struct BarHost {
     unit: Option<UnitKind>,
 }
 
+/// A room wide enough for the Box phase's members, in points.
+const BAR_ROOM: f32 = 2400.0;
+
 fn bar(warp: bool) -> (Fixture, Rc<RefCell<BarHost>>) {
     let mut session = TransformSession::<()>::new(START);
     if warp {
@@ -352,7 +355,8 @@ fn bar(warp: bool) -> (Fixture, Rc<RefCell<BarHost>>) {
         (*apply, *discard, *reset) = (*apply | output.apply, *discard | output.discard, *reset | output.reset_warp);
         *unit = unit.or(output.unit_picked);
     });
-    fixture.settle();
+    // The bar's body scrolls past the room's edge; the room holds every member so the trials can reach them.
+    fixture.room(Vec2::new(BAR_ROOM, 120.0)).settle();
     (fixture, host)
 }
 

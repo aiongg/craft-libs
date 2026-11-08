@@ -20,7 +20,7 @@ pub use bar::{CropBar, CropBarOutput, CropRatioChange};
 pub use bar_words::CropBarWords;
 pub use menus::{CropOptionsMenu, CropOptionsMenuOutput, CropOverlayMenu};
 pub use options::{
-    CROP_RATIOS, CROP_SIZES, CropFill, CropPresetChoice, CropRatio, CropSettings, CropSizeFields, CropSizePreset, CropTarget, CropUserPreset,
+    CROP_RATIOS, CROP_SIZES, CropFill, CropLength, CropPresetChoice, CropRatio, CropSettings, CropSizeFields, CropSizePreset, CropTarget, CropUserPreset,
     FIELD_MAX, RATIO_DECIMALS, RATIO_MAX, ResolutionUnit,
 };
 pub use perspective_crop::{

@@ -59,7 +59,6 @@ pub struct PerspectiveCropTool {
     quad: PerspectiveQuad,
     clicks: Vec<Point>,
     press: Option<Press>,
-    next_id: u64,
     events: Vec<PerspectiveCropEvent>,
 }
 
@@ -100,11 +99,6 @@ impl PerspectiveCropTool {
     pub fn take_events(&mut self) -> Vec<PerspectiveCropEvent> {
         std::mem::take(&mut self.events)
     }
-
-    fn fresh_id(&mut self) -> GestureId {
-        self.next_id += 1;
-        GestureId::new(self.next_id)
-    }
 }
 
 /// The upright quad of a box drawn from `anchor` to `to`; none while the box has no area.
@@ -120,7 +114,7 @@ impl CanvasTool for PerspectiveCropTool {
         if self.quad.is_some() || !(anchor.x.is_finite() && anchor.y.is_finite()) {
             return ToolAction::Ignored;
         }
-        let id = self.fresh_id();
+        let Some(id) = cx.gesture_id() else { return ToolAction::Ignored };
         self.press = Some(Press { id, anchor, origin: pointer.pos, before: self.quad, began: false });
         ToolAction::Claimed
     }

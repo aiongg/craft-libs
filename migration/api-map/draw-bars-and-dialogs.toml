@@ -848,6 +848,24 @@ new = "snap(&SnapTargets)"
 note = "The overlay snaps; the tool snaps nothing itself."
 
 [[setter]]
+type = "CropInput"
+old = "CropInput::new(settings, document)"
+new = "CropInput::new(ctx, settings, document)"
+note = "`ctx` mints the ids of the key edits the tool opens (`runtime::edit::next_gesture_id`)."
+
+[[setter]]
+type = "CropTool"
+old = "refit(settings, document, units, editing)"
+new = "refit(ctx, settings, document, editing)"
+note = "Lengths are stored values, so no `units`; `ctx` mints the edit id. `crop_to(ctx, frame)` takes it too; `apply`, `leave`, `CropCommit::new`, `ratio_value` and `target` drop `units`."
+
+[[setter]]
+type = "CropSession"
+old = "set(frame, keep_default, label) / nudge(frame, label)"
+new = "set(ctx, frame, keep_default, label) / nudge(ctx, frame, label)"
+note = "The session mints no ids of its own."
+
+[[setter]]
 type = "CropTool"
 old = "undo(&CanvasView) -> Option<CanvasView>"
 new = "undo() -> bool"
@@ -942,6 +960,14 @@ name = "CropSizeFields"
 old = "craft_draw::ui::crop::CropSizeFields"
 new = "craft_draw::ui::crop::CropSizeFields"
 status = "same"
+note = "`width` and `height` are `Option<CropLength>`, not text; the settings' old string form is not read back."
+
+[[type]]
+name = "CropLength"
+old = ""
+new = "craft_draw::ui::crop::CropLength"
+status = "replaced"
+note = "`#[non_exhaustive]`: `CropLength::new(value, unit)`. A crop W or H with the unit it was entered in; `CropSizePreset::width` and `height` are `CropLength` too."
 
 [[type]]
 name = "CropRatio"
@@ -1046,7 +1072,7 @@ name = "RulerInput"
 old = "craft_draw::ui::measure::RulerInput"
 new = ""
 status = "removed"
-note = "`RulerTool::pass(line)` takes the line; the units come from the canvas space."
+note = "`RulerTool::pass(ctx, line)` takes the line; the units come from the canvas space."
 
 [[type]]
 name = "CropBarLabels"
@@ -1173,29 +1199,8 @@ note = "The open state is kept by the popover."
 
 [[setter]]
 type = "CropSettings"
-old = "CropSettings::choose(choice, document, user)"
-new = "CropSettings::choose(choice, document, user, units)"
-note = "Typed lengths read through `Units`."
-
-[[setter]]
-type = "CropSettings"
-old = "CropSettings::target(document)"
-new = "CropSettings::target(document, units)"
-
-[[setter]]
-type = "CropSettings"
 old = "CropSettings::preset_name(labels)"
 new = "CropSettings::preset_name(words, units)"
-
-[[setter]]
-type = "CropSettings"
-old = "CropSettings::front_image(document)"
-new = "CropSettings::front_image(document, units)"
-
-[[setter]]
-type = "CropSizeFields"
-old = "CropSizeFields::normalize_length(typed, previous)"
-new = "CropSizeFields::normalize_length(typed, previous, units)"
 
 [[setter]]
 type = "RulerBar"
@@ -1239,7 +1244,8 @@ note = "Words are `RulerWords` from the scope."
 [[setter]]
 type = "RulerTool"
 old = "RulerTool::pass(RulerInput)"
-new = "RulerTool::pass(line)"
+new = "RulerTool::pass(ctx, line)"
+note = "`ctx` mints the ids of key edits; a drag uses the host's gesture id."
 
 [[setter]]
 type = "RulerInput"

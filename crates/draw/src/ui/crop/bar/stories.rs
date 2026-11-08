@@ -1,11 +1,12 @@
 //! Stories of the Crop options bar and its menus.
 
 use super::super::menus::{CropOptionsMenu, CropOverlayMenu};
-use super::super::options::{CropRatio, CropSettings, CropSizeFields, CropUserPreset};
+use super::super::options::{CropLength, CropRatio, CropSettings, CropSizeFields, CropUserPreset};
 use super::super::session::{CropDocKey, CropDocument};
 use super::CropBar;
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::contract::ShowContainer as _;
+use craft_ui::runtime::env::UnitKind;
 use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 use kurbo::Size;
@@ -28,8 +29,8 @@ fn crop_bar_size(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let document = document();
     let mut settings = CropSettings::default();
     settings.ratio = CropRatio::Size;
-    settings.size.width = "4 in".into();
-    settings.size.height = "5 in".into();
+    settings.size.width = Some(CropLength::new(4.0, UnitKind::Inches));
+    settings.size.height = Some(CropLength::new(5.0, UnitKind::Inches));
     settings.size.resolution = "300".into();
     let settings = data.value("size", settings);
     let mut output = None;
