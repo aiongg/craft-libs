@@ -161,15 +161,22 @@ status = "replaced"
 note = "A pattern over a `&mut MockState`: the mock editor window. `show(ui)` returns the `AppShellOutput`."
 
 [[type]]
-name = "MockState"
+name = "Mock"
 old = "craft_ui_gallery_legacy::preview::model::Mock"
-new = "craft_ui_gallery::mock::MockState"
-status = "moved"
-note = "Shrunk to the dock workspace, the document (title, dirty flag, layers, view, ruler zero), the current tool, the last-used tools and the Delete Layer question."
+new = ""
+status = "removed"
+note = "Replaced by `craft_ui_gallery::mock::MockState`."
 
 [[type]]
-name = "Layers"
+name = "MockState"
+old = ""
+new = "craft_ui_gallery::mock::MockState"
+status = "replaced"
+note = "Replaces the legacy `Mock`. Shrunk to the dock workspace, the document (title, dirty flag, layers, view, ruler zero), the current tool, the last-used tools and the Delete Layer question."
+
+[[type]]
+name = "layers"
 old = "craft_ui_gallery_legacy::preview::panels::layers"
 new = ""
 status = "removed"
-note = "The panel pages Layers, Properties, Swatches, Channels, History and Adjustments are deleted as pages. The dock shows a visibility check box and a select button per layer and the Navigator panel; each other panel is a story of its family component."
+note = "The panel pages Layers, Properties, Swatches, Channels, History and Adjustments are deleted as pages. The dock shows the layer list (a `Table` with a name and a visibility column) and the Navigator panel; each other panel is a story of its family component."
