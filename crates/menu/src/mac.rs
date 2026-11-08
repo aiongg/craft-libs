@@ -68,6 +68,7 @@ impl Default for MacOptions {
 }
 
 impl MacOptions {
+    /// Set [`MacOptions::window_list`].
     pub fn window_list(mut self, on: bool) -> MacOptions {
         self.window_list = on;
         self

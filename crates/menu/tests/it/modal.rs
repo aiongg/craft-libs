@@ -84,10 +84,10 @@ fn a_pending_crop_greys_what_its_rule_refuses() {
     }
 
     events.borrow_mut().extend([Event::Click(cmd("image.crop")), Event::Click(cmd("view.zoomIn"))]);
-    menu.raw_input(&mut egui::RawInput::default());
+    menu.raw_input(&mut Default::default());
     let ctx = egui::Context::default();
     let mut clicks = Vec::new();
-    let mut out = ctx.run_ui(egui::RawInput::default(), |ui| clicks = menu.take_clicks(ui.ctx()));
+    let mut out = ctx.run_ui(Default::default(), |ui| clicks = menu.take_clicks(ui.ctx()));
     out.textures_delta.clear();
     assert_eq!(clicks, [cmd("view.zoomIn")]);
 
