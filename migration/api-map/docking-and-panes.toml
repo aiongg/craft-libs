@@ -156,8 +156,16 @@ status = "moved"
 [[type]]
 name = "Placement"
 old = "craft_ui::docking::model::Placement"
-new = "craft_behavior::dock::Placement"
-status = "moved"
+new = ""
+status = "removed"
+note = "Renamed `DockPlacement`: `craft_behavior::overlay::Placement` is another type."
+
+[[type]]
+name = "DockPlacement"
+old = ""
+new = "craft_behavior::dock::DockPlacement"
+status = "replaced"
+note = "Where a panel goes relative to an anchor panel (`Tab`, `Split`, `SplitSized`, `Group`, `Column`, `Edge`)."
 
 [[type]]
 name = "Location"
@@ -201,7 +209,7 @@ name = "DockSide"
 old = ""
 new = "craft_behavior::DockSide"
 status = "replaced"
-note = "`DockSide` in reading order: `Left` is `Start` and `Right` is `End`; saved layouts and actions with `Left`/`Right` load through serde aliases. `Placement::for_zone` loses its `right_to_left` argument."
+note = "`DockSide` in reading order: `Left` is `Start` and `Right` is `End`; saved layouts and actions with `Left`/`Right` load through serde aliases. `DockPlacement::for_zone` loses its `right_to_left` argument."
 
 [[type]]
 name = "Monitor"
@@ -1344,3 +1352,40 @@ old = "craft_behavior::dock::DockHandle"
 new = ""
 status = "removed"
 note = "Deleted with the anchor-panel model: a dock group is named by an anchor panel in it (`DockSpot<P>`, `GroupDrag<P>`), and a layout is `Layout<P>` over the app's own panel type `P`."
+
+# Final fix pass, task dock.
+
+[[type]]
+name = "WindowMenuRows"
+old = ""
+new = "craft_ui::docking::WindowMenuRows"
+status = "replaced"
+note = "The Window menu's check rows over a layout: `WindowMenuRows::new(&Layout<P>, &dyn DockPanels<P>, &[P]).show(ui) -> WindowMenuRowsOutput<P> { action: Option<Action<P>> }`. Replaces a menu's hand-written panel rows."
+
+[[type]]
+name = "WindowMenuRowsOutput"
+old = ""
+new = "craft_ui::docking::WindowMenuRowsOutput"
+status = "replaced"
+note = "What `WindowMenuRows::show` reports: the action the picked row asks for."
+
+[[type]]
+name = "StackSections"
+old = ""
+new = "craft_ui::docking::stack::StackSections"
+status = "replaced"
+note = "The sections of an accordion with the dividers between the open ones; their drags come back as `StackSectionsOutput::resized`, which `DockArea` sends as `Action::ResizeStack`."
+
+[[type]]
+name = "StackSectionsOutput"
+old = ""
+new = "craft_ui::docking::stack::StackSectionsOutput"
+status = "replaced"
+note = "What `StackSections` reports."
+
+[[type]]
+name = "StackSectionsStyle"
+old = ""
+new = "craft_ui::docking::stack::StackSectionsStyle"
+status = "replaced"
+note = "The style of `StackSections`."

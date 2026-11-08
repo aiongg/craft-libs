@@ -378,3 +378,38 @@ fn areas_with_different_labels_keep_separate_flyouts() {
     assert!(opened.contains(&("Left", true)), "the flyout opened in the area that was clicked: {opened:?}");
     assert!(!opened.contains(&("Right", true)), "the other area's flyout stayed closed: {opened:?}");
 }
+
+/// Panels whose group header holds one button, for the group of the side panel.
+struct Headed;
+
+impl DockPanels<usize> for Headed {
+    fn spec(&self, panel: &usize) -> PanelSpec {
+        PanelSpec::new(format!("Panel {panel}"))
+    }
+
+    fn permissions(&self, panel: &usize) -> Permissions {
+        if *panel == CANVAS { Permissions::PROTECTED } else { Permissions::ALL }
+    }
+
+    fn body(&mut self, _: &usize, _: &mut Ui, _: &mut BodyCx<'_>) {}
+
+    fn group_header(&mut self, panels: &[usize], _: usize, ui: &mut Ui, _: &mut BodyCx<'_>) {
+        if panels.contains(&SIDE) {
+            let _ = Button::new("Header tool").show(ui);
+        }
+    }
+}
+
+#[trial]
+fn the_host_header_control_shows_in_its_groups_header_before_the_tab_strip() {
+    let workspace = docked();
+    let mut fixture = Fixture::new(move |ui| {
+        let mut panels = Headed;
+        let _ = DockArea::read_only("Dock area", &workspace.layout, &mut panels, DockConfig::default()).show(ui);
+    });
+    fixture.room(AREA).settle();
+    let tool = fixture.control("Header tool").expect("the group header shows the host's control");
+    let tab = column_tabs(&fixture).first().cloned().expect("the side group's tab");
+    assert!(tool.rect.max.x <= tab.rect.min.x, "the control sits before the tab strip: {:?} {:?}", tool.rect, tab.rect);
+    assert!(tool.rect.intersects(Rect::from_min_max(Pos2::ZERO, Pos2::new(COLUMN_WIDTH, tab.rect.max.y))), "and in the group's header band");
+}

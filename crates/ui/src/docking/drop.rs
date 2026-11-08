@@ -11,7 +11,7 @@ use crate::contract::{DropMark, DropOperation, DropTarget, Pointer};
 use crate::runtime::drag::{self, DragPreview};
 use crate::runtime::env::Label;
 use crate::runtime::pointer;
-use craft_behavior::dock::{Action, DockEdge, Layout, Node, PanelPlace, Permissions, Placement, Target};
+use craft_behavior::dock::{Action, DockEdge, DockPlacement, Layout, Node, PanelPlace, Permissions, Target};
 use craft_behavior::{CancelReason, DockSide};
 use egui::{Context, Id, Pos2, Rect, Vec2};
 use std::hash::Hash;
@@ -105,7 +105,7 @@ fn outside<P: Clone + Eq + Hash>(layout: &Layout<P>, named: &P, moved: &[P]) -> 
     members(layout, named).into_iter().find(|panel| !moved.contains(panel))
 }
 
-pub(crate) fn beside<P: Clone>(unit: &DragUnit<P>, anchor: P, placement: Placement<P>) -> Action<P> {
+pub(crate) fn beside<P: Clone>(unit: &DragUnit<P>, anchor: P, placement: DockPlacement<P>) -> Action<P> {
     match unit {
         DragUnit::Panel(panel) => Action::move_beside(panel.clone(), anchor, placement),
         DragUnit::Group(lead) => Action::move_group(lead.clone(), Target::at(anchor, placement)),
@@ -152,7 +152,7 @@ fn spot_action<P: Clone + Eq + Hash>(
         return None;
     }
     let moved = moving_panels(layout, unit);
-    let place = |anchor: P, placement: Placement<P>| {
+    let place = |anchor: P, placement: DockPlacement<P>| {
         let floating = matches!(layout.place(&anchor), Some(PanelPlace::Floating { .. }));
         placement.allowed_by(permissions(&anchor), floating).then(|| beside(unit, anchor, placement))
     };
@@ -160,14 +160,14 @@ fn spot_action<P: Clone + Eq + Hash>(
         DockSpot::Tab { anchor, index } => {
             let destination = outside(layout, anchor, &moved)?;
             let before = members(layout, anchor).into_iter().skip(*index).find(|panel| !moved.contains(panel));
-            place(destination, Placement::tab(before))
+            place(destination, DockPlacement::tab(before))
         }
         DockSpot::Group { anchor, side } => {
             if *side == DockSide::Center && members(layout, anchor).iter().any(|panel| moved.contains(panel)) {
                 return None;
             }
             let destination = outside(layout, anchor, &moved)?;
-            let placement = Placement::for_zone(layout, &destination, *side).ok()?;
+            let placement = DockPlacement::for_zone(layout, &destination, *side).ok()?;
             place(destination, placement)
         }
         DockSpot::Edge(side) => {
@@ -177,7 +177,7 @@ fn spot_action<P: Clone + Eq + Hash>(
             let protected = |panel: &P| permissions(panel).is_protected();
             let skip = |panel: &P| moved.contains(panel);
             let anchor = layout.edge_anchor(layout.edge_narrows(*side, &protected), &protected, &skip)?;
-            Some(beside(unit, anchor, Placement::Edge(*side)))
+            Some(beside(unit, anchor, DockPlacement::Edge(*side)))
         }
         DockSpot::NewDock(side) => {
             let edge = match side {
@@ -188,13 +188,13 @@ fn spot_action<P: Clone + Eq + Hash>(
             Some(to_target(unit, Target::new_dock(edge)))
         }
         DockSpot::Seam { before, after } => match outside(layout, before, &moved) {
-            Some(anchor) => place(anchor, Placement::group(true, None)),
-            None => place(outside(layout, after, &moved)?, Placement::group(false, None)),
+            Some(anchor) => place(anchor, DockPlacement::group(true, None)),
+            None => place(outside(layout, after, &moved)?, DockPlacement::group(false, None)),
         },
         DockSpot::Column { anchor, side } => {
             let destination = outside(layout, anchor, &moved)?;
             let placement =
-                Placement::for_zone(layout, &destination, *side).ok().filter(|placement| matches!(placement, Placement::Column { .. }))?;
+                DockPlacement::for_zone(layout, &destination, *side).ok().filter(|placement| matches!(placement, DockPlacement::Column { .. }))?;
             place(destination, placement)
         }
         DockSpot::Blocked => None,

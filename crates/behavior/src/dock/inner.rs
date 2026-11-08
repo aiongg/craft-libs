@@ -7,7 +7,7 @@ use crate::flow::Axis;
 
 use super::{
     DockSide,
-    action::{Action, Location, Placement},
+    action::{Action, DockPlacement, Location},
     edit::{node_at, split_frame, split_frame_sized},
     groups::{Column, DockEdge, Group, Moving, PanelPlace, Target, Unit},
     layout::Layout,
@@ -28,7 +28,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
                 if !self.contains(&anchor) {
                     return Err(DockError::MissingTarget);
                 }
-                if let Placement::Tab { before: Some(before) } = &placement {
+                if let DockPlacement::Tab { before: Some(before) } = &placement {
                     if before == &panel {
                         // A tab dropped immediately before itself has not moved.
                         return if self.same_group(&panel, &anchor) { Ok(()) } else { Err(DockError::InvalidPlacement) };
@@ -76,7 +76,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
                 }
                 let entry = StackEntry { panel, open: true, height: None };
                 if let Some(anchor) = anchor {
-                    self.insert(entry, &anchor, Placement::Tab { before: None }, canvas)
+                    self.insert(entry, &anchor, DockPlacement::Tab { before: None }, canvas)
                 } else if self.root.is_none() {
                     self.root = Some(Node::Tabs { panels: vec![entry.panel], active: 0 });
                     Ok(())
@@ -88,7 +88,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
                 if self.contains(&panel) {
                     return self.apply_inner(Action::Move { panel, anchor, placement }, canvas);
                 }
-                if let Placement::Tab { before: Some(before) } = &placement
+                if let DockPlacement::Tab { before: Some(before) } = &placement
                     && !self.same_group(before, &anchor)
                 {
                     return Err(DockError::MissingTarget);
@@ -268,7 +268,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
     /// Where [`Action::Open`] without an anchor puts an absent panel in a layout with a root:
     /// the end of the first shown dock group that accepts tabs, in the end-side dock if one has
     /// such a group, else a new frame at the end edge of the docked area.
-    pub(super) fn open_place(&self, permissions: impl Fn(&P) -> Permissions) -> Option<(P, Placement<P>)> {
+    pub(super) fn open_place(&self, permissions: impl Fn(&P) -> Permissions) -> Option<(P, DockPlacement<P>)> {
         let docked: Vec<(&P, PanelPlace)> = self
             .panels()
             .into_iter()
@@ -289,29 +289,36 @@ impl<P: Clone + Eq + Hash> Layout<P> {
         };
         let groups = docked.iter().filter(|(p, place)| side(place).is_some() && shown(place) && permissions(p).accepts_tabs);
         if let Some((panel, _)) = groups.clone().find(|(_, place)| side(place) == Some(DockEdge::End)).or_else(|| groups.clone().next()) {
-            return Some(((*panel).clone(), Placement::Tab { before: None }));
+            return Some(((*panel).clone(), DockPlacement::Tab { before: None }));
         }
         // A canvas anchor would narrow the edge to the canvas column.
         let edge = docked.iter().find(|(p, _)| !permissions(p).is_protected()).or(docked.first());
-        edge.map(|(panel, _)| ((*panel).clone(), Placement::Edge(DockSide::End)))
+        edge.map(|(panel, _)| ((*panel).clone(), DockPlacement::Edge(DockSide::End)))
     }
 
-    pub(super) fn insert(&mut self, entry: StackEntry<P>, anchor: &P, placement: Placement<P>, canvas: &dyn Fn(&P) -> bool) -> Result<(), DockError> {
+    pub(super) fn insert(
+        &mut self,
+        entry: StackEntry<P>,
+        anchor: &P,
+        placement: DockPlacement<P>,
+        canvas: &dyn Fn(&P) -> bool,
+    ) -> Result<(), DockError> {
         let place = self.place(anchor).ok_or(DockError::MissingTarget)?;
         let tree = place.tree_path().map(|(window, path)| (window, path.to_vec()));
-        let Some((window, path)) = tree.filter(|_| !matches!(placement, Placement::Group { .. } | Placement::Column { .. } | Placement::Edge(_)))
+        let Some((window, path)) =
+            tree.filter(|_| !matches!(placement, DockPlacement::Group { .. } | DockPlacement::Column { .. } | DockPlacement::Edge(_)))
         else {
             let group = Group::new(vec![entry.panel], 0);
             return self.insert_moving(Moving::group(group), Target::At { anchor: anchor.clone(), placement }, canvas);
         };
         let root = self.tree_mut(window).ok_or(DockError::MissingTarget)?;
-        if let Placement::Split(zone) = placement
+        if let DockPlacement::Split(zone) = placement
             && zone != DockSide::Center
         {
             let new = Node::Tabs { panels: vec![entry.panel], active: 0 };
             return if split_frame(root, &path, new, zone) { Ok(()) } else { Err(DockError::MissingTarget) };
         }
-        if let Placement::SplitSized { zone, size, outer } = placement {
+        if let DockPlacement::SplitSized { zone, size, outer } = placement {
             let new = Node::Tabs { panels: vec![entry.panel], active: 0 };
             return if split_frame_sized(root, &path, new, zone, size, outer) { Ok(()) } else { Err(DockError::InvalidPlacement) };
         }
@@ -473,7 +480,7 @@ pub(super) fn stack_entry_mut<'a, P: Eq>(node: &'a mut Node<P>, panel: &P) -> Op
     }
 }
 
-pub(super) fn insert_node<P: Clone + Eq>(node: &mut Node<P>, entry: &StackEntry<P>, anchor: &P, placement: &Placement<P>) -> bool {
+pub(super) fn insert_node<P: Clone + Eq>(node: &mut Node<P>, entry: &StackEntry<P>, anchor: &P, placement: &DockPlacement<P>) -> bool {
     let here = match node {
         Node::Split { first, second, .. } => return insert_node(first, entry, anchor, placement) || insert_node(second, entry, anchor, placement),
         Node::Tabs { panels, .. } => panels.contains(anchor),
@@ -486,7 +493,7 @@ pub(super) fn insert_node<P: Clone + Eq>(node: &mut Node<P>, entry: &StackEntry<
     match node {
         Node::Tabs { panels, active } => {
             let index = match placement {
-                Placement::Tab { before } => before.as_ref().and_then(|p| panels.iter().position(|q| q == p)).unwrap_or(panels.len()),
+                DockPlacement::Tab { before } => before.as_ref().and_then(|p| panels.iter().position(|q| q == p)).unwrap_or(panels.len()),
                 _ => panels.iter().position(|p| p == anchor).map_or(panels.len(), |i| i + 1),
             };
             panels.insert(index, entry.panel.clone());
@@ -494,7 +501,7 @@ pub(super) fn insert_node<P: Clone + Eq>(node: &mut Node<P>, entry: &StackEntry<
         }
         Node::Stack { entries } => {
             let index = match placement {
-                Placement::Tab { before } => before.as_ref().and_then(|p| entries.iter().position(|e| &e.panel == p)).unwrap_or(entries.len()),
+                DockPlacement::Tab { before } => before.as_ref().and_then(|p| entries.iter().position(|e| &e.panel == p)).unwrap_or(entries.len()),
                 _ => entries.iter().position(|e| &e.panel == anchor).map_or(entries.len(), |i| i + 1),
             };
             entries.insert(index, entry.clone());
@@ -508,7 +515,7 @@ pub(super) fn group_location<P: Clone + Eq>(panels: &[P], panel: &P) -> Option<L
     let index = panels.iter().position(|p| p == panel)?;
     let anchor = panels.iter().find(|p| *p != panel).cloned();
     let before = panels.get(index + 1).cloned();
-    Some(Location { floating: None, anchor, placement: Placement::Tab { before }, size: None, stack: None, sibling: Vec::new(), group: None })
+    Some(Location { floating: None, anchor, placement: DockPlacement::Tab { before }, size: None, stack: None, sibling: Vec::new(), group: None })
 }
 
 pub(super) fn first_panel<P>(node: &Node<P>) -> Option<&P> {
@@ -540,7 +547,7 @@ pub(super) fn node_location<P: Clone + Eq>(node: &Node<P>, panel: &P) -> Option<
                 && let Some(anchor) = first_panel(sibling)
             {
                 location.anchor = Some(anchor.clone());
-                location.placement = Placement::Split(match (*axis, is_first) {
+                location.placement = DockPlacement::Split(match (*axis, is_first) {
                     (Axis::X, true) => DockSide::Start,
                     (Axis::X, false) => DockSide::End,
                     (Axis::Y, true) => DockSide::Top,

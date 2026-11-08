@@ -8,7 +8,7 @@ use std::{collections::HashSet, hash::Hash};
 
 use super::{
     DockSide,
-    action::{Action, Location, Placement},
+    action::{Action, DockPlacement, Location},
     layout::Layout,
     limits::MAX_PANELS,
     policy::{DockError, Permissions},
@@ -281,28 +281,28 @@ fn close_locations<P: Clone + Eq + Hash>(layout: &Layout<P>, closed: &[P]) -> Ve
 /// relation from the other side. `None` for an outer-edge frame, which only sat beside it.
 fn reversed<P: Clone + Eq>(hidden: &Location<P>, location: &Location<P>, panel: &P) -> Option<Location<P>> {
     let next = match &hidden.placement {
-        Placement::Tab { before } => before.clone(),
+        DockPlacement::Tab { before } => before.clone(),
         _ => None,
     };
     let (placement, size) = match &location.placement {
         // `before` names the anchor only when `panel` came first and the anchor second; the
         // anchor's own `before` then still names the tab after it.
-        Placement::Tab { before } if before == &location.anchor => (Placement::Tab { before: next }, None),
-        Placement::Tab { .. } | Placement::Split(DockSide::Center) => (Placement::Tab { before: Some(panel.clone()) }, None),
-        Placement::Split(DockSide::Start) => (Placement::Split(DockSide::End), location.size),
-        Placement::Split(DockSide::End) => (Placement::Split(DockSide::Start), location.size),
-        Placement::Split(DockSide::Top) => (Placement::Split(DockSide::Bottom), location.size),
-        Placement::Split(DockSide::Bottom) => (Placement::Split(DockSide::Top), location.size),
-        Placement::Group { below, .. } => (Placement::Group { below: !below, height: None }, None),
-        Placement::Column { after } => (Placement::Column { after: !after }, None),
-        Placement::SplitSized { zone, .. } => match zone {
-            DockSide::Start => (Placement::Split(DockSide::End), location.size),
-            DockSide::End => (Placement::Split(DockSide::Start), location.size),
-            DockSide::Top => (Placement::Split(DockSide::Bottom), location.size),
-            DockSide::Bottom => (Placement::Split(DockSide::Top), location.size),
+        DockPlacement::Tab { before } if before == &location.anchor => (DockPlacement::Tab { before: next }, None),
+        DockPlacement::Tab { .. } | DockPlacement::Split(DockSide::Center) => (DockPlacement::Tab { before: Some(panel.clone()) }, None),
+        DockPlacement::Split(DockSide::Start) => (DockPlacement::Split(DockSide::End), location.size),
+        DockPlacement::Split(DockSide::End) => (DockPlacement::Split(DockSide::Start), location.size),
+        DockPlacement::Split(DockSide::Top) => (DockPlacement::Split(DockSide::Bottom), location.size),
+        DockPlacement::Split(DockSide::Bottom) => (DockPlacement::Split(DockSide::Top), location.size),
+        DockPlacement::Group { below, .. } => (DockPlacement::Group { below: !below, height: None }, None),
+        DockPlacement::Column { after } => (DockPlacement::Column { after: !after }, None),
+        DockPlacement::SplitSized { zone, .. } => match zone {
+            DockSide::Start => (DockPlacement::Split(DockSide::End), location.size),
+            DockSide::End => (DockPlacement::Split(DockSide::Start), location.size),
+            DockSide::Top => (DockPlacement::Split(DockSide::Bottom), location.size),
+            DockSide::Bottom => (DockPlacement::Split(DockSide::Top), location.size),
             DockSide::Center => return None,
         },
-        Placement::Edge(_) => return None,
+        DockPlacement::Edge(_) => return None,
     };
     Some(Location { floating: None, anchor: Some(panel.clone()), placement, size, sibling: Vec::new(), ..hidden.clone() })
 }
