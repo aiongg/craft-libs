@@ -12,7 +12,7 @@ use craft_theme::LabelColor;
 use craft_ui::contract::{Entry, Role};
 use craft_ui::list::ThumbSize;
 use craft_ui::testing::{Fixture, Target, pointer, trial};
-use egui::{Key, Modifiers, Pos2, Rect, Ui, vec2};
+use egui::{Key, Modifiers, Pos2, Rect, Ui, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -24,6 +24,12 @@ struct App {
     events: Vec<LayersEvent<u32>>,
     rename: Option<u32>,
 }
+
+/// The room of the panel: wide and tall enough for every row of the sample tree.
+const PANEL: Vec2 = Vec2::new(420.0, 700.0);
+
+/// A pointer move that starts a drag.
+const DRAG_THRESHOLD: Vec2 = Vec2::new(0.0, 8.0);
 
 type Shared = Rc<RefCell<App>>;
 
@@ -87,7 +93,7 @@ fn rig_with(tree: FakeLayers, setup: impl FnOnce(&mut App)) -> (Fixture, Shared)
     setup(&mut app.borrow_mut());
     let shared = Rc::clone(&app);
     let mut fixture = Fixture::new(move |ui| show(ui, &mut shared.borrow_mut()));
-    fixture.room(vec2(420.0, 700.0));
+    fixture.room(PANEL);
     fixture.settle();
     (fixture, app)
 }
@@ -148,7 +154,7 @@ fn drag_to(fixture: &mut Fixture, from: Pos2, to: Pos2) {
     fixture.idle(6);
     fixture.frame(vec![pointer::moved(from)]);
     fixture.frame(vec![pointer::press(from)]);
-    fixture.frame(vec![pointer::moved(from + vec2(0.0, 8.0))]);
+    fixture.frame(vec![pointer::moved(from + DRAG_THRESHOLD)]);
     fixture.frame(vec![pointer::moved(to)]);
     fixture.frame(vec![pointer::moved(to)]);
     fixture.frame(vec![pointer::release(to)]);
@@ -562,7 +568,7 @@ fn the_blend_label_drops_before_the_other_indicators() {
     let (mut fixture, _app) = rig(busy());
     let mut shown = Vec::new();
     for width in (6..=21).rev().map(|step| step as f32 * 20.0) {
-        fixture.room(vec2(width, 700.0));
+        fixture.room(Vec2::new(width, PANEL.y));
         fixture.idle(4);
         let has = |word: &str| fixture.texts().iter().any(|text| text.text == word);
         shown.push((width, has("Multiply"), has("fx")));
