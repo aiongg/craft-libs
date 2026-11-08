@@ -253,12 +253,12 @@ fn a_sweep_down_the_eyes_is_one_gesture() {
 fn the_eye_colour_menu_colours_every_selected_layer() {
     let (mut fixture, app) = rig(FakeLayers::sample());
     select_layers(&mut fixture, &app, &[4, 5]);
-    context_click(&mut fixture, &node(&fixture, "Visibility Title"));
+    context_click_on(&mut fixture, "Visibility Title");
     fixture.click(&node(&fixture, "Red"));
     fixture.idle(2);
     assert_eq!(label_colors(&take(&app)), [(vec![4, 5], Some(LabelColor::Red))]);
 
-    context_click(&mut fixture, &node(&fixture, "Visibility Hidden"));
+    context_click_on(&mut fixture, "Visibility Hidden");
     fixture.click(&node(&fixture, "Blue"));
     fixture.idle(2);
     let events = take(&app);
@@ -275,14 +275,14 @@ fn the_eye_menu_checks_only_a_colour_the_rows_share() {
     let (mut fixture, app) = rig(tree);
     select_layers(&mut fixture, &app, &[4, 5]);
     let checked = |fixture: &Fixture| matches!(fixture.tree().toggled_of(node(fixture, "Red").node), Some(Mixed::Same(true)));
-    context_click(&mut fixture, &node(&fixture, "Visibility Title"));
+    context_click_on(&mut fixture, "Visibility Title");
     assert!(checked(&fixture), "the shared colour is checked");
     fixture.key(Key::Escape, Modifiers::NONE);
     fixture.idle(3);
 
     app.borrow_mut().tree.layer_mut(5).info.label = Some(LabelColor::Blue);
     fixture.idle(2);
-    context_click(&mut fixture, &node(&fixture, "Visibility Title"));
+    context_click_on(&mut fixture, "Visibility Title");
     assert!(!checked(&fixture), "differing colours: none is checked");
 }
 
@@ -290,7 +290,7 @@ fn the_eye_menu_checks_only_a_colour_the_rows_share() {
 #[trial]
 fn a_right_click_on_an_effects_eye_opens_the_row_menu_for_that_row() {
     let (mut fixture, app) = rig_with(FakeLayers::sample(), |app| app.tree.layer_mut(7).effects_open = true);
-    context_click(&mut fixture, &node(&fixture, "Visibility Drop Shadow"));
+    context_click_on(&mut fixture, "Visibility Drop Shadow");
     assert!(fixture.by_label("Red").is_none(), "no colour menu");
     fixture.click(&node(&fixture, "Rename Layer…"));
     fixture.idle(3);
@@ -636,4 +636,10 @@ fn the_smart_filters_header_holds_the_shared_mask_thumbnail() {
     assert!(header > item, "the header row holds a thumbnail: {header} against {item}");
     let (header, item) = smart_filter_heights(ThumbSize::None);
     assert!((header - item).abs() < 0.5, "no thumbnail at size None: {header} against {item}");
+}
+
+/// Right-click on the node named `label`.
+fn context_click_on(fixture: &mut Fixture, label: &str) {
+    let target = node(fixture, label);
+    context_click(fixture, &target);
 }
