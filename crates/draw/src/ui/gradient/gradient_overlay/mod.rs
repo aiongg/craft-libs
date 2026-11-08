@@ -280,6 +280,7 @@ impl Outcome for GradientOverlayOutput {
 impl Component for GradientOverlay<'_> {
     const ROLE: Role = Role::GROUP;
     const KEYS: KeyUse = KeyUse::CANVAS.with_deletes().with_chrome_key(false).with_claims(CLAIMS);
+    const SINGLE_VALUE: bool = true;
     type Style = GradientOverlayStyle;
     type Output = GradientOverlayOutput;
 

@@ -957,6 +957,7 @@ impl Outcome for BezierOutput {
 impl Component for BezierOverlay<'_> {
     const ROLE: Role = Role::GROUP;
     const OVERLAYS: bool = false;
+    const SINGLE_VALUE: bool = true;
     const KEYS: KeyUse =
         KeyUse::CANVAS.with_moves().with_deletes().with_submits().with_chrome_key(false).with_edits(EditSet::NONE.with(EditCommand::SelectAll));
     type Style = BezierStyle;

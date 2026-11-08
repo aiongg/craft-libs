@@ -7,7 +7,8 @@ use craft_behavior::CanvasView;
 use craft_behavior::kurbo::Point;
 use craft_theme::Srgba;
 use craft_ui::canvas::Canvas;
-use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
+use craft_ui::runtime::env::Message;
 use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use egui::{Ui, Vec2};
 
@@ -85,4 +86,11 @@ fn a_path_in_its_own_colour(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     };
     let paths = data.value("paths", coloured());
     on_canvas(ui, BezierOverlay::new("Paths", Bind::bound(&mut *paths), &selected()))
+}
+
+#[story(BezierOverlay<'static>, covers = [Invalid], drive = Drive::Never)]
+fn paths_the_host_refuses(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let paths = data.value("refused", paths());
+    let refuse_many = |paths: &Vec<EditPath>| if paths.len() > 1 { Validity::Refuse(Message::new("Only one path")) } else { Validity::Ok };
+    on_canvas(ui, BezierOverlay::new("Paths", Bind::bound(&mut *paths).check(refuse_many), &selected()))
 }

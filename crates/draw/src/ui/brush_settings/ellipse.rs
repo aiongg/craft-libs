@@ -14,7 +14,7 @@ use egui::{CornerRadius, Pos2, Rect, Vec2, vec2};
 use super::words::BrushSettingsWords;
 
 /// The arrow along the major axis, and the rest of the disc off the dots.
-const ARROW: PartKey = PartKey::new("arrow");
+pub(super) const ARROW: PartKey = PartKey::new("arrow");
 /// The two roundness dots on the minor axis.
 const DOT: PartKey = PartKey::new("dot");
 

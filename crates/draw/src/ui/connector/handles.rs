@@ -23,7 +23,7 @@ use super::{ConnectionTarget, ConnectorEnd, ConnectorEndKind, ConnectorEvent, Co
 use crate::geometry::connector::{RouteEnd, reshaped};
 
 /// An end of the connector: `END.at(0)` is the start, `END.at(1)` the finish.
-const END: PartKey = PartKey::new("end");
+pub(super) const END: PartKey = PartKey::new("end");
 
 /// A bend of the connector: `BEND.at(portion)`, the portion [`reshaped`] takes.
 const BEND: PartKey = PartKey::new("bend");
@@ -124,6 +124,7 @@ fn kind_of(index: u64) -> ConnectorEndKind {
 impl Component for ConnectorHandles<'_> {
     const ROLE: Role = Role::GROUP;
     const KEYS: KeyUse = KeyUse::CANVAS.with_moves().with_chrome_key(false);
+    const SINGLE_VALUE: bool = true;
     type Style = ConnectorHandlesStyle;
     type Output = ConnectorHandlesOutput;
 
