@@ -104,7 +104,7 @@ fn a_fill_width_child_in_a_content_column_leaves_the_next_column_in_the_room() {
     });
     let rects = rects.into_inner();
     assert!(rects[1].max.x <= region.get().max.x, "the second column lies inside the room: {rects:?} in {:?}", region.get());
-    assert!(rects[0].max.x <= rects[1].min.x + 1.0, "the filling child ends where the next column starts: {rects:?}");
+    assert!(!rects[0].intersect(rects[1]).is_positive(), "the filling child ends where the next column starts: {rects:?}");
 }
 
 /// Skeleton: `frames_state::ltr_scope_inside_rtl_lays_out_left_to_right`.

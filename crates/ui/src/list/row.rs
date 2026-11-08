@@ -344,7 +344,7 @@ pub struct ListRow<'a> {
     /// A progress bar under the label, `fraction` full (clamped to 0..=1), in a line of its own below the detail. The
     /// row is one caption line taller than its detail makes it, so a list with fixed row heights adds one
     /// (`ListRow::row_height` counts the detail only). A screen reader reads the percentage in the row's description.
-    #[prop]
+    #[prop(quantity = "fraction")]
     pub(super) progress: Option<f32>,
     /// What a screen reader reads as the row's name when it differs from the drawn text.
     #[prop(into)]
