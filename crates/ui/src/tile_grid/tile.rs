@@ -241,6 +241,7 @@ struct Faces {
     check: Vec2,
     stars: Vec2,
     pill: f32,
+    corner: Vec2,
 }
 
 /// Where the parts of a tile lie in its content rect.
@@ -523,6 +524,10 @@ impl<'a> Tile<'a> {
             let at = Rect::from_min_size(egui::pos2(across.min.x, picture.top() + margin), faces.check);
             (at, at.expand(sizes.tight))
         });
+        let corner = self.corner.as_ref().map(|_| {
+            let across = Flow::new(picture, rtl).span((picture.width() - margin - faces.corner.x).max(0.0), faces.corner.x);
+            Rect::from_min_size(egui::pos2(across.min.x, picture.top() + margin), faces.corner)
+        });
         let corners = Rect::from_min_max(picture.min, egui::pos2(picture.right(), floor));
         let mut pills = vec![Rect::NOTHING; self.pills.len()];
         for slot in [BadgeSlot::StartTop, BadgeSlot::EndTop, BadgeSlot::StartBottom, BadgeSlot::EndBottom] {
@@ -534,18 +539,19 @@ impl<'a> Tile<'a> {
             };
             let members: Vec<usize> = (0..self.pills.len()).filter(|&at| self.pills[at].slot == slot).collect();
             let widths: Vec<f32> = members.iter().map(|&at| pill_widths[at]).collect();
-            let rects = badge_rects(Flow::new(corners, rtl), &widths, faces.pill, sizes, check.map(|(_, plate)| plate), (is_start, top));
+            let plate = if is_start { check.map(|(_, plate)| plate) } else { corner.map(|at| at.expand(sizes.tight)) };
+            let rects = badge_rects(Flow::new(corners, rtl), &widths, faces.pill, sizes, plate, (is_start, top));
             for (at, rect) in members.into_iter().zip(rects) {
                 pills[at] = rect;
             }
         }
-        Placed { picture, caption, name, detail, marks, band: band_rect, bar, stars, flag, dot, check, pills, corner: None }
+        Placed { picture, caption, name, detail, marks, band: band_rect, bar, stars, flag, dot, check, pills, corner }
     }
 }
 
 /// The rects of the badges of one corner, inward from it. Badges stack toward the middle of the picture `tight`
-/// apart; one that would touch the check box's plate moves past it, away from the corner.
-fn badge_rects(flow: Flow, widths: &[f32], height: f32, sizes: &Sizes, check: Option<Rect>, corner: (bool, bool)) -> Vec<Rect> {
+/// apart; one that would touch the plate of the check box or the corner button moves past it, away from the corner.
+fn badge_rects(flow: Flow, widths: &[f32], height: f32, sizes: &Sizes, plate: Option<Rect>, corner: (bool, bool)) -> Vec<Rect> {
     let (is_start, top) = corner;
     let area = flow.rect();
     let mut y = if top { area.top() + sizes.inset } else { area.bottom() - sizes.inset - height };
@@ -554,7 +560,7 @@ fn badge_rects(flow: Flow, widths: &[f32], height: f32, sizes: &Sizes, check: Op
         .map(|&width| {
             let across = if is_start { flow.span(sizes.inset, width) } else { flow.span((area.width() - sizes.inset - width).max(0.0), width) };
             let mut rect = Rect::from_min_size(Pos2::new(across.min.x, y), Vec2::new(width, height));
-            if let Some(plate) = check.filter(|plate| rect.intersects(*plate)) {
+            if let Some(plate) = plate.filter(|plate| rect.intersects(*plate)) {
                 let moved = if top { plate.bottom() + sizes.tight } else { plate.top() - sizes.tight - height };
                 rect = rect.translate(Vec2::new(0.0, moved - rect.top()));
             }
@@ -660,6 +666,7 @@ impl Component for Tile<'_> {
             check: cx.face(Checkbox::new(Bind::given(Mixed::Same(false)))),
             stars: cx.face(Rating::new(Bind::given(0u8), STARS)),
             pill: cx.face(Badge::new("0")).y,
+            corner: self.corner.as_ref().map_or(Vec2::ZERO, |(icon, command)| cx.face(IconButton::command(icon.clone(), command.clone()))),
         };
         let pill_widths: Vec<f32> = self.pills.iter().map(|badge| Self::badge_face(badge).map_or(faces.pill, |face| cx.face(face).x)).collect();
         let bar_shown = self.has_bar_content()
@@ -688,16 +695,11 @@ impl Component for Tile<'_> {
         for (at, (mark, rect)) in self.marks.iter().zip(&placed.marks).enumerate() {
             let _ = cx.part(MARK.at(at as u64), *rect).tooltip(mark.tip.clone());
         }
-        if let Some((icon, command)) = &self.corner
-            && (cx.hovered() || cx.focus_visible())
-        {
-            let face = cx.face(IconButton::command(icon.clone(), command.clone()));
-            let margin = sizes.inset + sizes.tight;
-            let across = Flow::new(placed.picture, rtl).span((placed.picture.width() - margin - face.x).max(0.0), face.x);
-            let at = Rect::from_min_size(egui::pos2(across.min.x, placed.picture.top() + margin), face);
+        if let Some(at) = placed.corner.filter(|_| cx.hovered() || cx.focus_visible()) {
             cx.part(CORNER, at).sense(Sense::CLICK | Sense::FOCUS).focusable();
             cx.roving(Roving::new(NavShape::Flat));
-            placed.corner = Some(at);
+        } else {
+            placed.corner = None;
         }
         self.placed = Some(placed);
     }
