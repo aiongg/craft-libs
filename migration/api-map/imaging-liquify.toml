@@ -34,6 +34,12 @@ note = "Replaced by the command set `LiquifyCommands`, taken in the dialog's sco
 [[type]]
 name = "LiquifyLabels"
 old = "craft_imaging::ui::liquify::LiquifyLabels"
+new = ""
+status = "removed"
+
+[[type]]
+name = "LiquifyWords"
+old = ""
 new = "craft_imaging::ui::liquify::LiquifyWords"
 status = "replaced"
 note = "`words!` rows under the same `liquify.*` ids; the tool names are the labels of `LiquifyCommands`, and OK and Cancel are the footer's shared words."
@@ -100,31 +106,6 @@ old = "craft_imaging::ui::liquify::StrokeRecorder"
 new = "craft_imaging::ui::liquify::StrokeRecorder"
 status = "replaced"
 note = "Returns `StrokeEvent`s and takes `alt: bool` in place of egui `Modifiers`."
-
-[[setter]]
-type = "LiquifyOpen"
-old = "cursor_options(CursorOptions)"
-new = "cursor_options(BrushCursorOptions)"
-
-[[setter]]
-type = "LiquifyOpen"
-old = "checkerboard(Checkerboard)"
-new = "checkerboard(Checker)"
-
-[[setter]]
-type = "LiquifyWorkspace"
-old = "cursor_options(CursorOptions)"
-new = "cursor_options(BrushCursorOptions)"
-
-[[setter]]
-type = "LiquifyWorkspace"
-old = "checkerboard(Checkerboard)"
-new = "checkerboard(Checker)"
-
-[[setter]]
-type = "LiquifyWorkspace"
-old = "show(ctx, source)"
-new = "show(ui, source)"
 
 [[type]]
 name = "LiquifySource"

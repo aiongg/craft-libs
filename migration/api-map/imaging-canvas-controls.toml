@@ -31,6 +31,90 @@ old = ""
 new = ""
 status = "pending"
 
+[[type]]
+name = "Anchor9"
+old = "craft_ui::canvas::quad::Anchor9"
+new = "craft_behavior::Anchor9"
+status = "moved"
+
+[[type]]
+name = "SnapTargets"
+old = "craft_ui::canvas::SnapTargets"
+new = "craft_behavior::geometry::snap::SnapTargets"
+status = "moved"
+
+[[type]]
+name = "SnapOptions"
+old = "craft_ui::canvas::SnapOptions"
+new = "craft_behavior::geometry::snap::SnapOptions"
+status = "moved"
+
+[[type]]
+name = "SnapGesture"
+old = "craft_ui::canvas::SnapGesture"
+new = "craft_behavior::geometry::snap::SnapGesture"
+status = "moved"
+
+[[type]]
+name = "OutlineDraft"
+old = "craft_ui::canvas::draft::OutlineDraft"
+new = "craft_behavior::geometry::draft::OutlineDraft"
+status = "moved"
+
+[[type]]
+name = "DraftKind"
+old = "craft_ui::canvas::draft::DraftKind"
+new = "craft_behavior::geometry::draft::DraftKind"
+status = "moved"
+
+[[type]]
+name = "DraftEvent"
+old = "craft_ui::canvas::draft::DraftEvent"
+new = "craft_behavior::geometry::draft::DraftEvent"
+status = "moved"
+
+[[type]]
+name = "SelectionOperation"
+old = "craft_ui::canvas::SelectionOperation"
+new = "craft_behavior::geometry::selection_op::SelectionOperation"
+status = "moved"
+
+[[type]]
+name = "MarqueeRect"
+old = "craft_ui::canvas::marquee::MarqueeRect"
+new = "craft_behavior::geometry::marquee::MarqueeRect"
+status = "moved"
+
+[[type]]
+name = "Constraint"
+old = "craft_ui::canvas::marquee::Constraint"
+new = "craft_behavior::geometry::marquee::Constraint"
+status = "moved"
+
+[[type]]
+name = "MarqueeGesture"
+old = "craft_ui::canvas::marquee::MarqueeGesture"
+new = "craft_behavior::geometry::marquee::MarqueeGesture"
+status = "moved"
+
+[[type]]
+name = "fixed_size_pixels"
+old = "craft_ui::canvas::fixed_size_pixels"
+new = "craft_behavior::geometry::marquee::fixed_size_pixels"
+status = "moved"
+
+[[type]]
+name = "marquee_pixels"
+old = "craft_ui::canvas::marquee_pixels"
+new = "craft_behavior::geometry::marquee::marquee_pixels"
+status = "moved"
+
+[[type]]
+name = "square_pixels"
+old = "craft_ui::canvas::square_pixels"
+new = "craft_behavior::geometry::marquee::square_pixels"
+status = "moved"
+
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]
 # type = ""

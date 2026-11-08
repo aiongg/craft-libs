@@ -185,6 +185,12 @@ note = "A `CanvasTool` over the new `ToolContext`: the document point comes from
 [[type]]
 name = "SelectMaskLabels"
 old = "craft_imaging::ui::select_mask::SelectMaskLabels"
+new = ""
+status = "removed"
+
+[[type]]
+name = "SelectMaskWords"
+old = ""
 new = "craft_imaging::ui::select_mask::SelectMaskWords"
 status = "replaced"
 note = "`words!` rows under the same `selectMask.*` ids; the tool names are the labels of `SelectMaskCommands`; the counted limit words are `count` rows (`limit_edits`, `limit_edit_points`, `limit_strokes`, `limit_stroke_points`) and `LimitRefused::message` takes an `Env`."

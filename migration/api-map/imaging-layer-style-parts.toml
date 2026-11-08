@@ -14,6 +14,12 @@ note = "A pattern over a `ThumbRow` of four thumbs: `BlendIfBar::new(label, Bind
 [[type]]
 name = "BlendIfBarLabels"
 old = "craft_imaging::ui::layer_style::BlendIfBarLabels"
+new = ""
+status = "removed"
+
+[[type]]
+name = "BlendIfWords"
+old = ""
 new = "craft_imaging::ui::layer_style::BlendIfWords"
 status = "replaced"
 note = "The same ids (`blendIf.*`) as a `words!` set."
@@ -35,6 +41,12 @@ note = "A pattern over `PresetPicker<ContourKey>`: `ContourField::new(label, Bin
 [[type]]
 name = "ContourFieldResponse"
 old = "craft_imaging::ui::layer_style::ContourFieldResponse"
+new = ""
+status = "removed"
+
+[[type]]
+name = "ContourFieldOutput"
+old = ""
 new = "craft_imaging::ui::layer_style::ContourFieldOutput"
 status = "replaced"
 note = "`edit`, `anti_alias`, `edit_contour` and `action`."
@@ -42,6 +54,12 @@ note = "`edit`, `anti_alias`, `edit_contour` and `action`."
 [[type]]
 name = "ContourFieldLabels"
 old = "craft_imaging::ui::layer_style::ContourFieldLabels"
+new = ""
+status = "removed"
+
+[[type]]
+name = "ContourWords"
+old = ""
 new = "craft_imaging::ui::layer_style::ContourWords"
 status = "replaced"
 note = "The ids move from `contourField.*` to `contour.*`."
@@ -73,46 +91,4 @@ old = "craft_imaging::ui::layer_style::ContourEditorDialog"
 new = "craft_imaging::ui::layer_style::ContourEditorDialog"
 status = "same"
 note = "Still a `StackDialog` with `show(ui, stack)`; built on `FormDialog` and the curve editor. `labels` is gone: the words are the scope's."
-
-[[setter]]
-type = "ContourField"
-old = "new(id_salt, label, &contour)"
-new = "new(label, Bind<Contour>, &rows, Bind<PresetState<ContourKey>>)"
-note = "The id comes from the call site."
-
-[[setter]]
-type = "ContourField"
-old = "user_contours(&[Contour])"
-new = "user(&[Contour])"
-note = "Renamed."
-
-[[setter]]
-type = "ContourField"
-old = "anti_alias(Option<bool>)"
-new = "anti_alias(Bind<Option<bool>>)"
-note = "The check box edits the binding."
-
-[[setter]]
-type = "ContourField"
-old = "sampler(&Sampler)"
-new = "contour_rows(.., sampler)"
-note = "The sampler paints the thumbnails of the rows."
-
-[[setter]]
-type = "ContourField"
-old = "labels(..) / enabled(bool)"
-new = ""
-note = "The scope's words; a disabled scope disables the field."
-
-[[setter]]
-type = "BlendIfBar"
-old = "new(id_salt, layer, range)"
-new = "new(label, Bind<BlendIfRange>)"
-note = "The id comes from the call site."
-
-[[setter]]
-type = "BlendIfBar"
-old = "labels(..) / numbers(..) / policy(..) / enabled(bool)"
-new = ""
-note = "The scope's words, units and policy."
 

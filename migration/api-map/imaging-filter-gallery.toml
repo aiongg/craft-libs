@@ -148,34 +148,3 @@ new = "craft_imaging::ui::filter_gallery::FilterIndex"
 status = "replaced"
 note = "The catalog read once a pass: folders, filters, labels and the select's entries. It replaces the `labels_of` closures."
 
-[[setter]]
-type = "FilterGalleryOpen"
-old = "checkerboard(Checkerboard)"
-new = "checkerboard(Checker)"
-
-[[setter]]
-type = "FilterGalleryOpen"
-old = "size: [u32; 2]"
-new = "size: PixelSize"
-
-[[setter]]
-type = "GalleryFilter"
-old = "label: String"
-new = "label: Label"
-note = "A word the app's catalogue holds, or a string the app gives."
-
-[[setter]]
-type = "FilterCategory"
-old = "label: String"
-new = "label: Label"
-note = "A word the app's catalogue holds, or a string the app gives."
-
-[[setter]]
-type = "FilterGalleryWorkspace"
-old = "show(ctx, catalog, thumbs, thumb_source, preview)"
-new = "show(ui, catalog, thumbs, thumb_source, source)"
-
-[[setter]]
-type = "FilterGalleryWorkspace"
-old = "visible() -> (kurbo::Rect, f64)"
-new = "visible() -> (PixelRect, f64)"

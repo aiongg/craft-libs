@@ -14,6 +14,12 @@ note = "A pattern on a `Stack`: a `List` of layer-form rows over the app's `Chan
 [[type]]
 name = "ChannelsLabels"
 old = "craft_imaging::ui::channels::ChannelsLabels"
+new = ""
+status = "removed"
+
+[[type]]
+name = "ChannelsWords"
+old = ""
 new = "craft_imaging::ui::channels::ChannelsWords"
 status = "replaced"
 note = "Ids move from `channels.*` to `channelsPanel.*`."
@@ -28,6 +34,12 @@ note = "Sizes come from `ThumbSize` and the row form."
 [[type]]
 name = "ChannelsCommand"
 old = "craft_imaging::ui::channels::ChannelsCommand"
+new = ""
+status = "removed"
+
+[[type]]
+name = "ChannelsCommands"
+old = ""
 new = "craft_imaging::ui::channels::ChannelsCommands"
 status = "replaced"
 note = "A `CommandSet`; the overlay colours and opacities are commands of it (`overlay_color`, `overlay_opacity`)."
@@ -66,28 +78,4 @@ old = "craft_imaging::ui::channels::ChannelsFooterButton"
 new = "craft_imaging::ui::channels::ChannelsFooterButton"
 status = "same"
 note = "Unchanged."
-
-[[setter]]
-type = "ChannelsPanel"
-old = "new(id_salt, &rows)"
-new = "new(&rows)"
-note = "The id comes from the call site."
-
-[[setter]]
-type = "ChannelsPanel"
-old = "labels(..)"
-new = ""
-note = "The scope's words."
-
-[[setter]]
-type = "ChannelsPanel"
-old = "thumbnail_size(ThumbSize)"
-new = "thumbnail_size(ThumbSize)"
-note = "Small, Medium and Large replace Px sizes; Medium is the default."
-
-[[setter]]
-type = "ChannelsPanel"
-old = "panel_menu(ctx, id_salt, &rows) / run_command(..)"
-new = "panel_rows(&rows, &words) and ChannelsCommands::event"
-note = "The panel menu is `PanelRow` commands; a command becomes an event with `event(rows, mods)`."
 

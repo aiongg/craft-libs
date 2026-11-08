@@ -59,6 +59,12 @@ note = "`CurveGraphStyle` is built from the theme."
 [[type]]
 name = "CurveLabels"
 old = "craft_ui::composites::curve_editor::CurveLabels"
+new = ""
+status = "removed"
+
+[[type]]
+name = "CurveWords"
+old = ""
 new = "craft_imaging::ui::curve::CurveWords"
 status = "replaced"
 note = "A `words!` set; the `{channel}`, `{i}`, `{n}`, `{x}` and `{y}` templates are `fill` calls."
@@ -66,43 +72,262 @@ note = "A `words!` set; the `{channel}`, `{i}`, `{n}`, `{x}` and `{y}` templates
 [[type]]
 name = "Sampler"
 old = "craft_ui::composites::curve_editor::Sampler"
+new = ""
+status = "removed"
+
+[[type]]
+name = "CurveSampler"
+old = ""
 new = "craft_imaging::ui::curve::CurveSampler"
 status = "replaced"
 note = "A named closure prop: `sampler(|points| ..)` or `CurveSampler::monotone(levels)`."
 
 [[type]]
-name = "curve_editor::gradient"
+name = "gradient"
 old = "craft_ui::composites::curve_editor::gradient"
+new = ""
+status = "removed"
+
+[[type]]
+name = "ToneRamp"
+old = ""
 new = "craft_imaging::ui::curve::ToneRamp"
 status = "replaced"
 note = "`ToneRamp::new(&stops)` (`.vertical()`) paints through the content painter's ramp painter."
 
 [[type]]
-name = "curve_editor::fill"
+name = "fill"
 old = "craft_ui::composites::curve_editor::fill"
 new = ""
 status = "removed"
-note = "`words!` templates fill their own placeholders."
 
 [[type]]
-name = "curve_editor::take_exact"
+name = "take_exact"
 old = "craft_ui::composites::curve_editor::take_exact"
 new = ""
 status = "removed"
-note = "`Cx::take_claimed(chord)`, with the chords claimed by the component."
 
 [[type]]
-name = "curve_editor::COMPONENTS"
+name = "COMPONENTS"
 old = "craft_ui::composites::curve_editor::COMPONENTS"
 new = ""
 status = "removed"
-note = "Types register themselves."
 
 [[type]]
 name = "Histogram"
 old = "craft_ui::composites::histogram::Histogram"
 new = ""
 status = "pending"
+
+[[type]]
+name = "BrightnessContrastEditor"
+old = "craft_imaging::ui::adjust::BrightnessContrastEditor"
+new = "craft_imaging::ui::adjust::BrightnessContrastEditor"
+status = "same"
+note = "A pattern over a `Bind<BrightnessContrast>` named by its label; `show(ui)` returns `EditResponse<BrightnessContrast>`. One slider drag, step key, typed number or reset is one gesture of the whole value."
+
+[[type]]
+name = "ThresholdEditor"
+old = "craft_imaging::ui::adjust::ThresholdEditor"
+new = "craft_imaging::ui::adjust::ThresholdEditor"
+status = "same"
+note = "A pattern over a `Bind<f64>` named by its label; `show(ui)` returns `EditResponse<f64>`. One slider drag, step key, typed number or reset is one gesture of the whole value."
+
+[[type]]
+name = "ColorBalanceEditor"
+old = "craft_imaging::ui::adjust::ColorBalanceEditor"
+new = "craft_imaging::ui::adjust::ColorBalanceEditor"
+status = "same"
+note = "A pattern over a `Bind<ColorBalance>` named by its label; `show(ui)` returns `ColorBalanceOutput { edit, tone }`. One slider drag, step key, typed number or reset is one gesture of the whole value."
+
+[[type]]
+name = "PhotoFilterEditor"
+old = "craft_imaging::ui::adjust::PhotoFilterEditor"
+new = "craft_imaging::ui::adjust::PhotoFilterEditor"
+status = "same"
+note = "A pattern over a `Bind<PhotoFilter>` named by its label; `show(ui)` returns `PhotoFilterOutput { edit, pick_color }`. One slider drag, step key, typed number or reset is one gesture of the whole value."
+
+[[type]]
+name = "HueSaturationEditor"
+old = "craft_imaging::ui::adjust::HueSaturationEditor"
+new = "craft_imaging::ui::adjust::HueSaturationEditor"
+status = "same"
+note = "A pattern over a `Bind<HueSaturation>` named by its label; `show(ui)` returns `HueSaturationOutput { edit, shown_range }`. One slider drag, step key, typed number or reset is one gesture of the whole value."
+
+[[type]]
+name = "BlackWhiteEditor"
+old = "craft_imaging::ui::adjust::BlackWhiteEditor"
+new = "craft_imaging::ui::adjust::BlackWhiteEditor"
+status = "same"
+note = "A pattern over a `Bind<BlackWhite>` named by its label; `show(ui)` returns `BlackWhiteOutput { edit, pick_color, auto }`. One slider drag, step key, typed number or reset is one gesture of the whole value."
+
+[[type]]
+name = "ChannelMixerEditor"
+old = "craft_imaging::ui::adjust::ChannelMixerEditor"
+new = "craft_imaging::ui::adjust::ChannelMixerEditor"
+status = "same"
+note = "A pattern over a `Bind<ChannelMixer>` named by its label; `show(ui)` returns `EditResponse<ChannelMixer>`. One slider drag, step key, typed number or reset is one gesture of the whole value."
+
+[[type]]
+name = "SelectiveColorEditor"
+old = "craft_imaging::ui::adjust::SelectiveColorEditor"
+new = "craft_imaging::ui::adjust::SelectiveColorEditor"
+status = "same"
+note = "A pattern over a `Bind<SelectiveColor>` named by its label; `show(ui)` returns `SelectiveColorOutput { edit, shown_range }`. One slider drag, step key, typed number or reset is one gesture of the whole value."
+
+[[type]]
+name = "AdjustSliders"
+old = "craft_imaging::ui::adjust::AdjustSliders"
+new = "craft_imaging::ui::adjust::AdjustSliders"
+status = "same"
+note = "A pattern over a `Bind<Vec<f64>>` named by its label; one `Field` over a `SliderField` per row, in a `FieldGroup`. `show(ui)` returns `EditResponse<Vec<f64>>`."
+
+[[type]]
+name = "AdjustField"
+old = "craft_imaging::ui::adjust::AdjustField"
+new = "craft_imaging::ui::adjust::AdjustField"
+status = "same"
+note = "`unit` is `unit_kind(UnitKind)` and `decimals` is `step(f64)`; `label` is a `Label`; `round` keeps the places of the step. The presets read `AdjustWords`."
+
+[[type]]
+name = "AdjustTrack"
+old = "craft_imaging::ui::adjust::AdjustTrack"
+new = "craft_imaging::ui::adjust::AdjustTrack"
+status = "same"
+note = "`Colors` takes `Vec<DataColor>` (image data), drawn as a `ToneRamp` track face while dynamic color sliders are on."
+
+[[type]]
+name = "AdjustSession"
+old = "craft_imaging::ui::adjust::AdjustSession"
+new = "craft_imaging::ui::adjust::AdjustSession"
+status = "same"
+note = "Pure data, unchanged."
+
+[[type]]
+name = "PhotoFilterOutput"
+old = "craft_imaging::ui::adjust::PhotoFilterOutput"
+new = "craft_imaging::ui::adjust::PhotoFilterOutput"
+status = "same"
+note = "`pick_color` is the `Swatch` output with `.picker(key)`: a `runtime::requests::ColorRequest`."
+
+[[type]]
+name = "BlackWhiteOutput"
+old = "craft_imaging::ui::adjust::BlackWhiteOutput"
+new = "craft_imaging::ui::adjust::BlackWhiteOutput"
+status = "same"
+note = "Gains `auto`: the Auto button was pressed. `pick_color` is the `Swatch` output with `.picker(key)`."
+
+[[type]]
+name = "AdjustLabels"
+old = "craft_imaging::ui::adjust::AdjustLabels"
+new = ""
+status = "removed"
+note = "Replaced by `AdjustWords`, a `words!` set with the same keys and English texts."
+
+[[type]]
+name = "AdjustStyle"
+old = "craft_imaging::ui::adjust::AdjustStyle"
+new = ""
+status = "removed"
+note = "Each editor sizes from its content with named semantic sizes; image tones are data in the crate (`style::tones`)."
+
+[[type]]
+name = "AdjustWords"
+old = ""
+new = ""
+status = "replaced"
+note = "Was `AdjustLabels`."
+
+[[type]]
+name = "LevelsEditor"
+old = "craft_imaging::ui::adjust::levels_editor::LevelsEditor"
+new = "craft_imaging::ui::adjust::LevelsEditor"
+status = "moved"
+note = "A component over `Bind<Levels>`: the histogram, the input thumb row, three fields, the output bar and thumb row, two fields. `show(ui)` returns `LevelsEditorOutput { edit: EditResponse<Levels>, clipping }`."
+
+[[type]]
+name = "LevelsEditorOutput"
+old = ""
+new = "craft_imaging::ui::adjust::LevelsEditorOutput"
+status = "replaced"
+note = "The editor's output: the edit and which input end an Alt drag moves (`LevelsEditor::clipping(ctx, id)` is gone)."
+
+[[type]]
+name = "LevelsStyle"
+old = "craft_imaging::ui::adjust::levels_editor::LevelsStyle"
+new = ""
+status = "removed"
+note = "Sizes and colours come from the theme: the component's own `LevelsEditorStyle`; `LevelsEditor::style` and the 13 fields go."
+
+[[type]]
+name = "LevelsEditorStyle"
+old = ""
+new = "craft_imaging::ui::adjust::LevelsEditorStyle"
+status = "replaced"
+note = "The editor's style, built from tokens by `ComponentStyle`."
+
+[[type]]
+name = "LevelsLabels"
+old = "craft_imaging::ui::adjust::levels_editor::LevelsLabels"
+new = ""
+status = "removed"
+note = "Replaced by `LevelsWords`."
+
+[[type]]
+name = "LevelsWords"
+old = ""
+new = "craft_imaging::ui::adjust::LevelsWords"
+status = "replaced"
+note = "The editor's words (`words!`)."
+
+[[type]]
+name = "LevelsPanel"
+old = "craft_imaging::ui::adjust::levels_panel::LevelsPanel"
+new = "craft_imaging::ui::adjust::LevelsPanel"
+status = "moved"
+note = "A pattern over `Bind<Vec<Levels>>` (one value per channel). `show(ui)` returns `LevelsPanelOutput { response, edit: Option<EditEvent<Vec<Levels>>>, channel, picker, clipping }`; the shown channel is the pattern's own state (`shown_channel(ctx, id)` is gone)."
+
+[[type]]
+name = "TonePickerRow"
+old = "craft_imaging::ui::adjust::tone::TonePickerRow"
+new = "craft_imaging::ui::adjust::TonePickerRow"
+status = "moved"
+note = "A pattern over `Bind<Option<TonePicker>>`; `canvas(Id)` names the document canvas the armed picker samples through the sampler of the modal layer (`Sampler::arm_sampler`)."
+
+[[type]]
+name = "TonePickerResponse"
+old = "craft_imaging::ui::adjust::tone::TonePickerResponse"
+new = ""
+status = "removed"
+note = "Replaced by `TonePickerRowOutput`."
+
+[[type]]
+name = "TonePickerRowOutput"
+old = ""
+new = "craft_imaging::ui::adjust::TonePickerRowOutput"
+status = "replaced"
+note = "`{ response, change: Option<Option<TonePicker>> }`."
+
+[[type]]
+name = "TonePickTool"
+old = "craft_imaging::ui::adjust::tone::TonePickTool"
+new = "craft_imaging::ui::adjust::TonePickTool"
+status = "moved"
+note = "A `CanvasTool`; the cursor is a `PaintedCursor::Tool` with the pipette and its hotspot; the command form is the dialog's own point picker."
+
+[[type]]
+name = "CurvesPanel"
+old = "craft_imaging::ui::adjust::curves_panel::CurvesPanel"
+new = "craft_imaging::ui::adjust::CurvesPanel"
+status = "moved"
+note = "A pattern over `Bind<ToneCurves>`. `show(ui)` returns `CurvesPanelOutput { response, edit: Option<EditEvent<ToneCurves>>, channel, mode, picker, selected }`; the selected point is the panel's state and `select(index)` sets it."
+
+[[type]]
+name = "AdjustContext"
+old = "craft_imaging::ui::adjust::context::AdjustContext"
+new = "craft_imaging::ui::adjust::AdjustContext"
+status = "moved"
+note = "`wheel()` is removed: a focused control takes the wheel."
 
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]

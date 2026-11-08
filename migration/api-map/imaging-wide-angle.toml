@@ -48,25 +48,34 @@ note = "A `CanvasTool` that draws a constraint by dragging; the lines on the can
 [[type]]
 name = "ConstraintToolPass"
 old = "craft_imaging::ui::wide_angle::ConstraintToolPass"
+new = ""
 status = "removed"
 note = "Its pass is `ConstraintTool` itself, shown through `FullWindowCanvas::tool`; its parts and paint are `ConstraintLines`."
 
 [[type]]
 name = "WideAngleStyle"
 old = "craft_imaging::ui::wide_angle::WideAngleStyle"
+new = ""
 status = "removed"
 note = "The marks' look is the style of `ConstraintLines`."
 
 [[type]]
 name = "WideAngleLabels"
 old = "craft_imaging::ui::wide_angle::WideAngleLabels"
+new = ""
+status = "removed"
+
+[[type]]
+name = "WideAngleWords"
+old = ""
 new = "craft_imaging::ui::wide_angle::WideAngleWords"
 status = "replaced"
 note = "The words are `WideAngleWords` (`words!`); `constraints` is a count word."
 
 [[type]]
 name = "ConstraintLines"
-old = "craft_imaging::ui::wide_angle::ConstraintToolPass"
+old = ""
 new = "craft_imaging::ui::wide_angle::ConstraintLines"
 status = "replaced"
 note = "New: the constraints as a canvas control with one focusable part each."
+
