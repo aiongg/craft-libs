@@ -1,6 +1,6 @@
 //! `FullWindowDialog` (16.5): a dialog over the whole window, on the panel surface, with the dialog focus trap.
 
-use super::frame::{self, DialogOutput, FOOTER, FooterCx, FooterFn};
+use super::frame::{self, DialogOutput, FOOTER, FooterCx, FooterFn, FooterHooks};
 use super::full_window_parts::SideFooter;
 use crate::canvas::ViewCommand;
 use crate::contract::{
@@ -58,6 +58,10 @@ pub struct FullWindowDialog<'a> {
     /// Sets the buttons' state each pass; see `Dialog::settle_buttons`.
     #[prop(boxed, name = "settle_buttons")]
     settle: Option<Box<dyn FnMut(&mut BodyCx<'_>, &mut [FooterButton]) + 'a>>,
+    /// Acts on a picked footer button in the footer step, before the close is decided: `act` gets the button and the
+    /// dialog's body context. `ResetFooter::install` sets it.
+    #[prop(boxed, name = "on_pick")]
+    on_pick: Option<Box<dyn FnMut(&FooterButton, &mut BodyCx<'_>) + 'a>>,
     buttons: Vec<FooterButton>,
     sides: Option<SidesFn<'a>>,
     side_footer: SideFooter<'a>,
@@ -85,6 +89,7 @@ impl<'a> FullWindowDialog<'a> {
             footer: None,
             guard: None,
             settle: None,
+            on_pick: None,
             buttons: Vec::new(),
             sides: None,
             side_footer: SideFooter::bottom(),
@@ -215,7 +220,7 @@ impl Container for FullWindowDialog<'_> {
 
     fn footer(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         let enter = self.props.focus.enter == EnterRule::Submit;
-        let host = frame::FooterHost { picked: &mut self.picked, guard: &mut self.guard, on_pick: &mut None, settle: &mut self.settle };
+        let host = frame::FooterHost { picked: &mut self.picked, guard: &mut self.guard, on_pick: &mut self.on_pick, settle: &mut self.settle };
         let (content, buttons) = (&mut self.footer, &self.buttons);
         if self.sides.is_some() {
             self.side_footer.show(ui, |ui| frame::footer(ui, cx, content, buttons, enter, host));
@@ -226,5 +231,23 @@ impl Container for FullWindowDialog<'_> {
 
     fn closed(&mut self, why: CloseReason) {
         self.closed.get_or_insert(why);
+    }
+}
+
+impl<'a> FooterHooks<'a> for FullWindowDialog<'a> {
+    fn buttons(self, buttons: impl IntoIterator<Item = FooterButton>) -> Self {
+        FullWindowDialog::buttons(self, buttons)
+    }
+
+    fn settle_buttons<T: FnMut(&mut BodyCx<'_>, &mut [FooterButton]) + 'a>(self, settle: T) -> Self {
+        FullWindowDialog::settle_buttons(self, settle)
+    }
+
+    fn on_pick<T: FnMut(&FooterButton, &mut BodyCx<'_>) + 'a>(self, act: T) -> Self {
+        FullWindowDialog::on_pick(self, act)
+    }
+
+    fn close_guard<T: FnMut(&FooterButton, &mut BodyCx<'_>) -> bool + 'a>(self, allows: T) -> Self {
+        FullWindowDialog::close_guard(self, allows)
     }
 }

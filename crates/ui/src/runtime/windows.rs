@@ -10,7 +10,7 @@ use crate::runtime::egui::{injected, pass, scale, screenshot, viewports, widgets
 use crate::runtime::frame::{PassStep, PerViewport, Stamped};
 use crate::runtime::{overlay, pointer};
 use craft_behavior::{Cursor, CursorIcon, CursorPriority, PartRef, PointerButton};
-use craft_host::target::{Caps, EdgeInsets, Os, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
+use craft_host::target::{Caps, DoubleClick, EdgeInsets, Os, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
 #[cfg(feature = "testing")]
 use craft_host::target::{MenuPlacement, Runtime};
 use craft_keymap::{Key, Mods};
@@ -72,17 +72,20 @@ pub struct CaptionRegions {
     pub edges: Vec<(ResizeEdge, Rect)>,
     /// The areas that drag the window.
     pub moves: Vec<Rect>,
-    /// The parts of the drag areas where an in-app hit lies over the area's band: an interactive widget shown above
-    /// the band's component, such as a bar's button or menu. A press there goes to that widget under the
-    /// press-target rule (8.3), so the window does not move from it.
-    pub covers: Vec<Rect>,
+    /// For each drag area, at the same index in `moves`, the parts where an in-app hit lies over its band: an
+    /// interactive widget shown above the band's component, such as a bar's button or menu. A press there goes to
+    /// that widget under the press-target rule (8.3), so the window does not move from that area there. A cover
+    /// belongs to its own area only: a drag area shown above another (a modal's strip over the title bar) covers
+    /// the lower one and still answers itself.
+    pub covers: Vec<Vec<Rect>>,
 }
 
 impl CaptionRegions {
     /// What lies at `point`: a button wins over an edge, and an edge over a drag area. A drag area answers only where
-    /// no cover lies over it, so the band is the top in-app hit there.
+    /// none of its covers lies, so its band is the top in-app hit there.
     pub fn hit(&self, point: Pos2) -> Option<WindowHit> {
-        let moves = || self.moves.iter().any(|rect| rect.contains(point)) && !self.covers.iter().any(|rect| rect.contains(point));
+        let moves =
+            || self.moves.iter().zip(&self.covers).any(|(rect, covers)| rect.contains(point) && !covers.iter().any(|cover| cover.contains(point)));
         self.buttons
             .iter()
             .find(|(_, rect)| rect.contains(point))
@@ -136,7 +139,7 @@ fn regions_of(ctx: &Context, viewport: ViewportId, parts: &[ExclusivePart]) -> O
         match hit {
             WindowHit::Move => {
                 regions.moves.push(*rect);
-                regions.covers.extend(covers_of(ctx, viewport, *owner, *part, *rect));
+                regions.covers.push(covers_of(ctx, viewport, *owner, *part, *rect));
             }
             WindowHit::Resize(edge) => regions.edges.push((*edge, *rect)),
             WindowHit::Caption(button) => regions.buttons.push((*button, *rect)),
@@ -412,6 +415,18 @@ pub enum WindowAction {
     SetLevel(WindowLevel),
     /// Changes the window's title.
     SetTitle(String),
+}
+
+/// What a double click on a window's free move band (its title bar, or the strip a modal leaves over it) asks of the
+/// window in `frame`: an integrated frame maximizes or restores; a macOS inset frame follows the system setting
+/// `setting`; a native frame is the OS's.
+pub fn double_click_action(frame: &Frame, setting: DoubleClick, maximized: bool) -> Option<WindowAction> {
+    match (frame, setting) {
+        (Frame::Native, _) => None,
+        (Frame::Integrated(_), _) | (Frame::Inset(_), DoubleClick::Zoom) => Some(WindowAction::SetMaximized(!maximized)),
+        (Frame::Inset(_), DoubleClick::Minimize) => Some(WindowAction::Minimize),
+        _ => None,
+    }
 }
 
 /// What the OS tells about a window, in desktop points.

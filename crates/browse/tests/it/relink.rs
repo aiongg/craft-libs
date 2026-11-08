@@ -21,6 +21,11 @@ const STAMP: u64 = 1;
 
 /// The bytes of a file that is the same as every link was recorded with.
 const SAME: &[u8] = b"abc";
+/// The fixture room of `width` by `height` points.
+fn room_of(width: f32, height: f32) -> egui::Vec2 {
+    egui::vec2(width, height)
+}
+
 /// Bytes of another size, so the file is a different one.
 const OTHER: &[u8] = b"abcdefghi";
 
@@ -96,11 +101,7 @@ struct Rig {
 
 fn row(key: u32, owner: &str, stored: &str) -> RelinkRow<u32> {
     let identity = identity_of(&mut Cursor::new(SAME), SAME.len() as u64, Some(SystemTime::UNIX_EPOCH + Duration::from_secs(STAMP))).ok();
-    RelinkRow {
-        link: Link { key, name: owner.into(), stored: stored.into(), identity, page: None, embedded: false },
-        owner: owner.into(),
-        status: "Media missing".into(),
-    }
+    RelinkRow::new(Link { key, name: owner.into(), stored: stored.into(), identity, page: None, embedded: false }, owner, "Media missing")
 }
 
 /// A file system with `files` (path, bytes), all modified at the stamp the links were recorded with.
@@ -111,12 +112,13 @@ fn files(files: &[(&str, &[u8])]) -> Arc<FakeLinkFiles> {
 fn rig(rows: Vec<RelinkRow<u32>>, files: &Arc<FakeLinkFiles>, folder: &str, relink_others: bool, with_jobs: bool) -> Rig {
     let jobs = Arc::new(ManualJobs::new());
     let picks = Arc::new(ScriptedFiles::default());
-    let options = RelinkOptions {
-        relink_others,
-        folder: (!folder.is_empty()).then(|| folder.into()),
-        jobs: with_jobs.then(|| Arc::clone(&jobs) as Arc<dyn Jobs>),
-        ..RelinkOptions::default()
-    };
+    let mut options = RelinkOptions::default().relink_others(relink_others);
+    if !folder.is_empty() {
+        options = options.folder(folder);
+    }
+    if with_jobs {
+        options = options.jobs(Arc::clone(&jobs) as Arc<dyn Jobs>);
+    }
     let dialog = RelinkDialog::new(rows, files.clone(), options);
     let mut stack = DialogStack::default();
     stack.push(dialog.id(), None);
@@ -130,7 +132,7 @@ fn rig(rows: Vec<RelinkRow<u32>>, files: &Arc<FakeLinkFiles>, folder: &str, reli
         }
     });
     let host = Host::builder(AppInfo { id: "relink-trials", name: "Relink trials", version: "0" }).files(picks.clone() as Arc<dyn Files>).build();
-    fx.room(egui::vec2(900.0, 900.0)).host(Arc::new(host));
+    fx.room(room_of(900.0, 900.0)).host(Arc::new(host));
     fx.settle();
     Rig { fx, app, jobs, picks }
 }
@@ -341,7 +343,7 @@ fn panel() -> (Fixture, Rc<RefCell<Panel>>) {
         *settings_changed += usize::from(out.settings_changed);
         events.extend(out.events);
     });
-    fx.room(egui::vec2(360.0, 320.0)).settle();
+    fx.room(room_of(360.0, 320.0)).settle();
     (fx, panel)
 }
 

@@ -86,7 +86,7 @@ fn style_group_dump_matches_its_file() {
         });
     }
     for size in [ControlSize::Sm, ControlSize::Md] {
-        dump_resolved(&mut dump, &format!("control.{}", format!("{size:?}").to_lowercase()), |tokens| control_metrics(tokens, size));
+        dump_resolved(&mut dump, &format!("control.{}", format!("{size:?}").to_lowercase()), |tokens| control_metrics(tokens, size, 0.0));
     }
     dump.check(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/dumps/style_groups.txt"));
 }

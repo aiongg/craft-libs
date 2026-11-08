@@ -2,13 +2,13 @@
 
 use craft_ui::contract::{Props as _, Show as _};
 use craft_ui::display::Text;
-use craft_ui::fonts::{Family, FontRef, I18nScripts, SystemFonts, UiFonts};
+use craft_ui::fonts::{Family, FontRef, I18nScripts, SystemFonts, UiFonts, deflated_default_definitions};
 use craft_ui::list::ThumbAspect;
 use craft_ui::primitives::{DocRun, DocText, TextLayout};
 use craft_ui::style::DataColor;
 use craft_ui::testing::{Fixture, trial};
 use craft_ui::tile_grid::Tile;
-use egui::{Color32, FontDefinitions};
+use egui::Color32;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -22,7 +22,7 @@ fn run(text: &str) -> DocRun<'_> {
 }
 
 fn egui_face(name: &str) -> egui::FontData {
-    (**FontDefinitions::default().font_data.get(name).expect("egui default_fonts in dev-dependencies")).clone()
+    (**deflated_default_definitions().font_data.get(name).expect("an egui default face")).clone()
 }
 
 /// Installs a UI face and a semibold family of another face, so a bold run is measurably different.

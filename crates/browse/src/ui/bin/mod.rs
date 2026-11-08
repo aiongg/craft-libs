@@ -138,8 +138,7 @@ pub enum OpenHow {
     NewWindow,
 }
 
-/// The bin's saved look: a `craft_host::Section` the host stores per bin panel. Column keys have no
-/// text form, so the sorts and widths below last for the session.
+/// The bin's saved look: a `craft_host::Section` the host stores per bin panel.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 #[serde(default)]
@@ -151,14 +150,27 @@ pub struct BinSettings {
     /// List-view thumbnails.
     pub thumbnails: ThumbSize,
     /// The List view's sort; `None` is User Order.
-    #[serde(skip)]
+    #[serde(with = "saved_sort")]
     pub sort: Option<ColumnSort>,
     /// The Icon view's sort (Sort Icons); `None` is User Order.
-    #[serde(skip)]
+    #[serde(with = "saved_sort")]
     pub icon_sort: Option<ColumnSort>,
     /// The widths the user dragged the List view's columns to.
-    #[serde(skip)]
     pub widths: Vec<(ColumnKey, f32)>,
+}
+
+/// A sort as the column key and the direction.
+mod saved_sort {
+    use super::{ColumnKey, ColumnSort};
+    use serde::{Deserialize as _, Deserializer, Serialize as _, Serializer};
+
+    pub(super) fn serialize<S: Serializer>(sort: &Option<ColumnSort>, serializer: S) -> Result<S::Ok, S::Error> {
+        sort.as_ref().map(|sort| (&sort.key, sort.descending)).serialize(serializer)
+    }
+
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<ColumnSort>, D::Error> {
+        Ok(Option::<(ColumnKey, bool)>::deserialize(deserializer)?.map(|(key, descending)| ColumnSort::new(key, descending)))
+    }
 }
 
 impl Default for BinSettings {
@@ -662,6 +674,16 @@ where
             };
 
             let mut commanded: Vec<ZoomStep> = Vec::new();
+            let mut restack: Option<bool> = None;
+            while let Some((command, _)) = cx.take_command::<MediaBinCommand>() {
+                match command {
+                    MediaBinCommand::ZoomIn => commanded.push(ZoomStep::In),
+                    MediaBinCommand::ZoomOut => commanded.push(ZoomStep::Out),
+                    MediaBinCommand::ZoomReset => commanded.push(ZoomStep::Reset),
+                    MediaBinCommand::BringForward => restack = Some(true),
+                    MediaBinCommand::SendBackward => restack = Some(false),
+                }
+            }
 
             // The matches, the count and the header row.
             let mut found: Vec<K> = Vec::new();
@@ -724,24 +746,15 @@ where
                     moving: moving.clone(),
                 };
                 let mut input = Some(input);
-                let shown_view =
-                    DropAction::<ListDrag<K>>::new(|_| true).sizing(Sizing::Fill).command_scope(MediaBinCommand::SCOPE).show(ui, |ui, cx| {
-                        let mut input = input.take().expect("a slot shows its body once");
-                        while let Some((command, _)) = cx.take_command::<MediaBinCommand>() {
-                            match command {
-                                MediaBinCommand::ZoomIn => commanded.push(ZoomStep::In),
-                                MediaBinCommand::ZoomOut => commanded.push(ZoomStep::Out),
-                                MediaBinCommand::ZoomReset => commanded.push(ZoomStep::Reset),
-                                MediaBinCommand::BringForward => input.stack = Some(true),
-                                MediaBinCommand::SendBackward => input.stack = Some(false),
-                            }
-                        }
-                        match view {
-                            BinView::List => list::list_view(ui, input),
-                            BinView::Icon => icon::icon_view(ui, input),
-                            BinView::Freeform => free_view::free_view(ui, input, freeform, snap),
-                        }
-                    });
+                let shown_view = DropAction::<ListDrag<K>>::new(|_| true).sizing(Sizing::Fill).show(ui, |ui, _| {
+                    let mut input = input.take().expect("a slot shows its body once");
+                    input.stack = restack;
+                    match view {
+                        BinView::List => list::list_view(ui, input),
+                        BinView::Icon => icon::icon_view(ui, input),
+                        BinView::Freeform => free_view::free_view(ui, input, freeform, snap),
+                    }
+                });
                 let background = shown_view.output.dropped.clone();
                 let out =
                     shown_view.inner.unwrap_or_else(|| ViewOut { response: shown_view.output.response.clone(), events: Vec::new(), moving: None });
@@ -792,7 +805,7 @@ where
             commit(cx, &state, &name);
         };
 
-        let stack = Stack::new().fill().footer(footer_region);
+        let stack = Stack::new().fill().command_scope(MediaBinCommand::SCOPE).footer(footer_region);
         let shown = stack.show(ui, body);
         let (response, mut events) = shown.inner.unwrap_or_else(|| (shown.output.clone(), Vec::new()));
         events.extend(footer_events.take());

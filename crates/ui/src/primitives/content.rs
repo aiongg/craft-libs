@@ -1,7 +1,7 @@
 //! Content painters and document text.
 
 use super::text::TextLayout;
-use crate::fonts::{FontRef, SEMIBOLD, installed_families};
+use crate::fonts::{FontRef, SEMIBOLD, stack_facts};
 use crate::runtime::egui::text_layout;
 use crate::style::{DataColor, UiTokens};
 use craft_i18n::Direction;
@@ -88,7 +88,7 @@ impl<'a> DocText<'a> {
             job.direction = TextDirection::RightToLeft;
         }
         let semibold = FontFamily::Name(SEMIBOLD.into());
-        let has_semibold = installed_families(ctx).is_some_and(|families| families.contains(&semibold));
+        let has_semibold = stack_facts(ctx).semibold;
         for run in self.runs {
             let family = match run.font.family() {
                 FontFamily::Proportional if run.weight >= BOLD_FROM && has_semibold => semibold.clone(),

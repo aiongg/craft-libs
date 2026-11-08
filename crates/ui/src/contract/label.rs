@@ -394,7 +394,8 @@ impl Component for LabelLeaf {
                 draw.icon(centred(cell, cx.style.icon), icon);
                 rest = after.take_start(cx.style.gap).1;
             }
-            let run = TextRun::new(cx.core.resolved.label);
+            // A name wider than its room elides; the full text stays the accessible name.
+            let run = TextRun::new(cx.core.resolved.label).elide();
             let name = draw.layout(&run, rest.rect().width()).size();
             let (name_rect, after) = rest.take_start(name.x);
             draw.text(centred(name_rect, name.y), &run);
@@ -611,6 +612,8 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Placed {
     };
     // The room decides; a beside label gets the width it needs even where last frame's content was narrower.
     let stacks = input.room < stack_below;
+    // A stacked label has the row's width at most; its name elides there.
+    let column = if stacks { column.min(input.row.width()) } else { column };
     let flow = if stacks || input.row.width() >= stack_below {
         flow
     } else {

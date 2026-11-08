@@ -13,8 +13,9 @@ use craft_behavior::Selection;
 use craft_docpath::Refused;
 use craft_docpath::links::{FakeLinkFiles, Link, LinkIdentity, LinkStatus, identity_of};
 use craft_host::{Jobs, ManualJobs};
-use craft_ui::contract::Bind;
+use craft_ui::contract::{Bind, Show as _};
 use craft_ui::dialog::{Dialog, DialogStack, StackDialog as _};
+use craft_ui::display::Text;
 use craft_ui::list::ThumbSize;
 use craft_ui::primitives::textures::{FakeThumbSource, ThumbnailOptions, Thumbnails};
 use craft_ui::runtime::env::Env;
@@ -76,7 +77,7 @@ fn list_story(ui: &mut Ui, data: &mut StoryData, links: &[Link<u32>], statuses: 
     LinkList::new("Links", links, statuses, Bind::bound(state))
         .thumbnails(&thumbs, &pictures)
         .info(|ui| {
-            ui.label("/shoot/cover.psd");
+            Text::new("/shoot/cover.psd").show(ui);
         })
         .show(ui)
         .into()
@@ -124,15 +125,15 @@ fn demo(words: &LinkStoryWords) -> Held {
         .zip(1..)
         .map(|(name, n)| {
             let file = format!("{name}.mov");
-            RelinkRow {
-                link: Link { key: n, name: file.clone(), stored: format!("/old/shoot/{file}"), identity: recorded(), page: None, embedded: false },
-                owner: words.clip_n.fill(&[("n", &n.to_string())]),
-                status: words.media_missing.as_str().to_owned(),
-            }
+            RelinkRow::new(
+                Link { key: n, name: file.clone(), stored: format!("/old/shoot/{file}"), identity: recorded(), page: None, embedded: false },
+                words.clip_n.fill(&[("n", &n.to_string())]),
+                words.media_missing.as_str(),
+            )
         })
         .collect();
     let jobs = Arc::new(ManualJobs::new());
-    let options = RelinkOptions { folder: Some("/new".into()), jobs: Some(Arc::clone(&jobs) as Arc<dyn Jobs>), ..RelinkOptions::default() };
+    let options = RelinkOptions::default().folder("/new").jobs(Arc::clone(&jobs) as Arc<dyn Jobs>);
     Held(Arc::new(Demo { jobs, dialog: Mutex::new(RelinkDialog::new(rows, Arc::new(files), options)), started: Mutex::new(false) }))
 }
 

@@ -1,8 +1,8 @@
 //! `LayerThumb`, `LayerThumbKind` and `ThumbContents`: the thumbnail key of a row (F11.02).
 //!
-//! The panel asks [`Thumbnails`](craft_ui::canvas::textures::Thumbnails) for one picture per
+//! The panel asks [`Thumbnails`](craft_ui::primitives::textures::Thumbnails) for one picture per
 //! thumbnail of a row, keyed by a [`LayerThumb`]; the app implements
-//! [`ThumbSource<LayerThumb<Id>>`](craft_ui::canvas::textures::ThumbSource) and renders what the
+//! [`ThumbSource<LayerThumb<Id>>`](craft_ui::primitives::textures::ThumbSource) and renders what the
 //! key names:
 //!
 //! | Kind | Picture | Frame |
@@ -12,7 +12,7 @@
 //! | `VectorMask` | white where it reveals, grey 128 where it hides (128 + 127 v); disabled masks still show their shape | the canvas |
 //! | `SmartFilterMask` | as `Mask` | the canvas |
 //!
-//! Groups, adjustments and type layers answer [`ThumbRender::Blank`](craft_ui::canvas::textures::ThumbRender::Blank)
+//! Groups, adjustments and type layers answer [`ThumbRender::Blank`](craft_ui::primitives::textures::ThumbRender::Blank)
 //! and the row paints their kind tile; solid and gradient fills answer a small `Ready` picture.
 //! The revision covers pixels only, so a selection-only step keeps the thumbnails.
 
@@ -21,6 +21,7 @@ use super::tree::LayerPart;
 /// What a layer's thumbnail frames (Panel Options › Thumbnail Contents; the panel menu's Clip
 /// Thumbnails to Layer Bounds is the same setting).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[non_exhaustive]
 pub enum ThumbContents {
     /// The layer's content bounds, clipped to the canvas.
     LayerBounds,
@@ -31,6 +32,7 @@ pub enum ThumbContents {
 
 /// Which picture of a layer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum LayerThumbKind {
     /// The layer's own pixels.
     Pixels,
@@ -45,6 +47,7 @@ pub enum LayerThumbKind {
 /// The key of one thumbnail: the layer, which picture, and the frame. Changing Thumbnail Contents
 /// keeps both pictures cached, since the setting is part of the key.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct LayerThumb<L> {
     /// The layer.
     pub layer: L,

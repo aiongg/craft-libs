@@ -5,3 +5,9 @@
 //! happened. The app applies them with its own commands and undo.
 
 pub mod ui;
+
+/// The stories and trials this crate registers.
+#[cfg(feature = "screen-testing")]
+pub mod testing {
+    craft_ui::testing_registered!();
+}

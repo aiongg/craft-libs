@@ -3145,7 +3145,7 @@ The toast queue: one per viewport, filled from any code with a `Context`.
 
 `WindowHost`: the one multi-window driver. It owns `ShellInfo`, refreshes each viewport's `WindowInfo`, releases
 
-- `craft_ui::runtime::windows::CaptionRegions`: `pub struct CaptionRegions { pub buttons: Vec<(Button, Rect)>, pub edges: Vec<(ResizeEdge, Rect)>, pub moves: Vec<Rect>, pub covers: Vec<Rect> }`. Where the exclusive parts of one window lie, in points of its viewport: the window procedure answers a Windows
+- `craft_ui::runtime::windows::CaptionRegions`: `pub struct CaptionRegions { pub buttons: Vec<(Button, Rect)>, pub edges: Vec<(ResizeEdge, Rect)>, pub moves: Vec<Rect>, pub covers: Vec<Vec<Rect>> }`. Where the exclusive parts of one window lie, in points of its viewport: the window procedure answers a Windows
   - `pub fn hit(&self, point: Pos2) -> Option<WindowHit>`. What lies at `point`: a button wins over an edge, and an edge over a drag area. A drag area answers only where
 - `craft_ui::runtime::windows::HitSink`: `pub struct HitSink`. The Windows hit test of one window: the window procedure asks [`HitSink::answer`] where the OS asks for a hit
   - `pub fn answer(&self, pixel: Pos2) -> Option<WindowHit>`. What lies at `pixel`, in physical pixels from the top left of the window's client area: the hit test's screen
@@ -3198,6 +3198,7 @@ The toast queue: one per viewport, filled from any code with a `Context`.
   - `pub fn level(mut self, level: WindowLevel) -> Self`. Sets the level.
   - `pub fn taskbar(mut self, taskbar: bool) -> Self`. Sets whether the window has a taskbar or Dock entry.
 - `craft_ui::runtime::windows::act`: `pub fn act(ctx: &Context, viewport: ViewportId, action: WindowAction) -> bool`. Sends `action` to `viewport`. It is the only sender of window commands: it checks the capabilities and the
+- `craft_ui::runtime::windows::double_click_action`: `pub fn double_click_action(frame: &Frame, setting: DoubleClick, maximized: bool) -> Option<WindowAction>`. What a double click on a window's free move band (its title bar, or the strip a modal leaves over it) asks of the
 - `craft_ui::runtime::windows::ScreenshotError`: re-export of `craft_ui::runtime::egui::screenshot::ScreenshotError`.
 - `craft_ui::runtime::windows::ScreenshotFacts`: re-export of `craft_ui::runtime::egui::screenshot::ScreenshotFacts`.
 - `craft_ui::runtime::windows::ScreenshotSlot`: re-export of `craft_ui::runtime::egui::screenshot::ScreenshotSlot`.
@@ -3304,7 +3305,7 @@ The style layer: the state set and its resolver, style parts and `ComponentStyle
 - `craft_ui::style::Variant`: re-export of `craft_theme::Variant` (outside these crates).
 - `craft_ui::style::VariantParts`: `pub struct VariantParts { pub fill: Stateful<StyleColor>, pub text: Stateful<StyleColor>, pub edge: Option<Stateful<StyleColor>>, pub radius: CornerRadius }`. A variant's look as style parts.
 - `craft_ui::style::accepted_variant`: `pub fn accepted_variant<K: StyleKey, S: ComponentStyle>(requested: Variant) -> Accepted`. A component accepts its `VARIANTS` plus every custom variant built for its style key. Any other variant gives
-- `craft_ui::style::control_metrics`: `pub fn control_metrics(tokens: &UiTokens, size: ControlSize) -> ControlMetrics`. The height, icon side, padding and gap of a control of `size`.
+- `craft_ui::style::control_metrics`: `pub fn control_metrics(tokens: &UiTokens, size: ControlSize, line_ratio: f32) -> ControlMetrics`. The height, icon side, padding and gap of a control of `size`.
 
 ## `craft_ui::testing`
 
@@ -3485,7 +3486,7 @@ Text dumps for tests: ordered `key = value` lines compared exactly with a file, 
 - `craft_ui::testing::examples::tracks::TrackEvent`: `pub enum TrackEvent { Selected(u64) }`. What a track row reports.
 - `craft_ui::testing::examples::tracks::TrackOut`: `pub struct TrackOut { pub response: Response, pub event: Option<TrackEvent> }`. What a track row returns.
 - `craft_ui::testing::examples::tracks::TrackRow`: `pub struct TrackRow<'r>`. One track: its name and toggles in their cells, its clips as parts of the lane cell.
-  - `pub fn new(track: &'r Track, cells: Vec<(ColumnKey, Rect)>, visible: f32) -> Self`. A row of `track` in `cells`, the rects the item context lists, with a lane showing `visible` seconds.
+  - `pub fn new(track: &'r Track, cells: Vec<(ColumnKey, Rect)>, visible: f32) -> Self`. A row of `track` in `cells`, the rects the item context lists, with a lane showing `visible` seconds. The row is
 - `craft_ui::testing::examples::tracks::TrackRowStyle`: `pub struct TrackRowStyle`. The style of a track row: the colours of name, toggles and clips.
 - `craft_ui::testing::examples::tracks::TrackStack`: `pub struct TrackStack`. A list of tracks over four columns: name, mute, lock and lane.
   - `pub fn new(label: impl Into<crate::runtime::env::Label>) -> Self`. A track stack named `label`.
@@ -3533,7 +3534,7 @@ Text dumps for tests: ordered `key = value` lines compared exactly with a file, 
   - `pub fn target(&self, node: NodeKey) -> Option<Target>`. The node by key, with its bounds, when the latest tree has it.
   - `pub fn by_label(&self, label: &str) -> Option<Target>`. The node named `label`.
   - `pub fn control(&self, label: &str) -> Option<Target>`. The interactive node named `label`, by its own name or the nodes that label it: the control, where a field's
-  - `pub fn by_role(&self, role: Role) -> Vec<Target>`. The nodes of `role`.
+  - `pub fn by_role(&self, role: Role) -> Vec<Target>`. The nodes of `role` in tree order: depth first from the root, children in their declared order.
   - `pub fn part(&self, component: Id, part: impl Into<PartRef>) -> Option<Target>`. The sub-node of `part` below the component `component`.
   - `pub fn node_of(&self, component: Id) -> Option<Target>`. The node of the component `component`.
   - `pub fn click(&mut self, target: &Target) -> &mut Self`. Hover, press and release on `target`, in separate frames, then one idle frame.
@@ -3846,6 +3847,7 @@ Style and paint helpers: token sets, a `StyleCx`, the style cache and a `Draw` o
 The suite runner: one trial per registered type, running the shared cases of its shape over the stories the
 
 - `craft_ui::testing::suite::trials`: `pub fn trials(package: &'static str, registered: &[&'static Registration]) -> Vec<Trial>`. The trials of one package: a trial per registered type and one per story naming a type that is not linked. The
+- `craft_ui::testing::suite::rtl_case`: `pub fn rtl_case(story: &Story) -> Result<(), String>`. The suite's right-to-left case for one story.
 - `craft_ui::testing::suite::text_size_case`: `pub fn text_size_case(story: &Story) -> Result<(), String>`. The suite's text-size case for one story: under a larger text size, either density and scale 2 the story grows
 
 ## `craft_ui::testing::surface`

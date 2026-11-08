@@ -179,9 +179,18 @@ impl Canvas {
         .label(label)
     }
 
+    /// Leaves the view commands to the instance around the canvas that owns its view (a full-window dialog's): the
+    /// canvas is no instance of them, so the chords reach that instance while the canvas has the focus.
+    #[must_use]
+    pub(crate) fn outer_view_commands(mut self) -> Self {
+        self.props.command_scope = None;
+        self
+    }
+
     /// Publishes the view commands' state for this canvas and applies the ones routed to it, in order, to its view:
     /// the view they ask for, eased under Animated Zoom when the commands zoom.
     fn view_commands(&self, cx: &mut Cx<'_, Self>) -> Option<(CanvasView, Option<ViewEase>)> {
+        self.props.command_scope?;
         let pixels_per_point = cx.env.scale().0;
         let target = self.view.zip(self.document);
         for command in VIEW_COMMANDS {
@@ -258,7 +267,8 @@ pub struct CanvasOutput {
     /// The canvas's view and interface scale, for a canvas given a view. [`ToolHost::run`] hands it to the tool.
     pub space: Option<CanvasSpace>,
     /// The view the view commands routed to the canvas asked for this pass: the app copies it into its view, through
-    /// a [`ZoomAnimation`] when [`ease`](Self::ease) is set, as it does with [`ToolHostResponse::view`].
+    /// a [`ZoomAnimation`] when [`ease`](Self::ease) is set. [`ToolHost::run`] carries it in
+    /// [`ToolHostResponse::view`] when no tool set a view, so an app with a tool host copies that one view.
     pub view: Option<CanvasView>,
     /// How [`view`](Self::view) eases to its target: a zoom command under Animated Zoom.
     pub ease: Option<ViewEase>,

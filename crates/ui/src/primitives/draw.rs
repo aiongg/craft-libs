@@ -5,6 +5,7 @@ use super::record::PaintRecord;
 use super::rule::RuleKind;
 use super::surface::Surface;
 use super::text::{TextEnv, TextLayout, TextRun};
+use crate::fonts::stack_facts;
 use crate::style::{Corners, DataColor, Ink, StyleColor, SurfaceKind, UiTokens, ink_color, rule_look, surface_style};
 use craft_i18n::Direction;
 use egui::epaint::{CircleShape, RectShape};
@@ -60,7 +61,12 @@ impl<'a> Draw<'a> {
     }
 
     fn text_env(&self) -> TextEnv<'a> {
-        TextEnv { tokens: self.env.tokens, direction: self.env.direction, ink: ink_color(self.env.tokens, self.env.ink) }
+        TextEnv {
+            tokens: self.env.tokens,
+            direction: self.env.direction,
+            ink: ink_color(self.env.tokens, self.env.ink),
+            fonts: stack_facts(self.painter.ctx()),
+        }
     }
 
     fn width(&self, width: StrokeWidth) -> f32 {
