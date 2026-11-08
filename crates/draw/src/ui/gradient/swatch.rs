@@ -1,170 +1,149 @@
 //! [`GradientSwatch`]: a well that shows a gradient.
 
-use craft_theme::{ControlSize, Rgba, Srgba};
-use egui::accesskit::{HasPopup, Role};
-use egui::{CursorIcon, Response, Ui, vec2};
+use craft_behavior::{Axis, CursorIcon, CursorPriority, Metrics, Sense};
+use craft_theme::{Stateful, States};
+use craft_ui::choice::SwatchMetrics;
+use craft_ui::contract::{Access, Common, Component, Cx, MeasureCx, Outcome, PaintUi, Pointer as _, PopupKind, Props as _, Role, Styled as _};
+use craft_ui::primitives::{PaintShape, StrokeWidth};
+use craft_ui::style::{ComponentStyle, FocusLook, StyleColor, StyleCx};
+use egui::{CornerRadius, Response, Vec2};
 
 use super::ramp::GradientRamp;
 use super::stops::{Sampler, default_sampler};
-use super::value::{ColorStop, GradientStops, OpacityStop, StopRows};
-use craft_ui::controls::Swatch;
-use craft_ui::primitives::{Content, FocusRing, Gap, Interactive, Row, Stack, Text};
-use craft_ui::story::{Level, SizeArg, Story, StoryArgs};
-use craft_ui::theme::{Tokens, TokensOf};
-use craft_ui::typed_story;
-use egui::{AsIdSalt, IdSalt};
+use super::value::{GradientStops, StopRows};
 
-/// A well that shows a gradient and reports a click, as [`Swatch`] does for a colour:
-/// `if GradientSwatch::new("fill", "Gradient picker", &stops).show(ui).clicked() { open_editor }`.
+#[cfg(feature = "screen-testing")]
+mod stories;
+
+/// The style of a gradient swatch: the colour swatch's side, corners and ring.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+#[non_exhaustive]
+pub struct GradientSwatchStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+    #[style(focus)]
+    focus: FocusLook,
+    /// The side of the square well.
+    side: f32,
+    /// The well's corners.
+    radius: CornerRadius,
+    /// The ring on the well's outline, which separates the well from the panel.
+    edge: Stateful<StyleColor>,
+}
+
+/// What a gradient swatch reports.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct GradientSwatchOutput {
+    /// The swatch's response.
+    pub response: Response,
+    /// A primary click, Space, Enter or an AccessKit click reached the enabled swatch.
+    pub clicked: bool,
+}
+
+impl Outcome for GradientSwatchOutput {
+    type Value = craft_ui::contract::NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// A well that shows a gradient and reports a click, as a colour swatch does for a colour:
+/// `if GradientSwatch::new("Gradient", &stops).show(ui).clicked { open_editor }`.
 ///
-/// The ramp is drawn over the checkerboard where it is translucent, inside the swatch's two
-/// rings and corner radius, the size high. The swatch edits nothing; a click is the host's
-/// cue. AccessKit sees a button named by `label`, with `has_popup` when the host opens one.
-#[derive(Clone)]
+/// The ramp is drawn over the checkerboard where it is translucent, inside the swatch's ring. The
+/// swatch edits nothing; a click is the host's cue. `fill` takes the width the layout offers (an
+/// options bar cell), else the well is square. AccessKit sees a button named by the label, with
+/// `has_popup` when the host opens a dialog on the click. A disabled swatch keeps its gradient and
+/// fades its ring.
+#[derive(craft_ui::contract::Component, craft_ui::contract::Props)]
+#[component(content_painter)]
 pub struct GradientSwatch<'a> {
-    id_salt: IdSalt,
-    label: String,
+    #[common]
+    common: Common,
     stops: &'a GradientStops,
+    /// The row layout, for the default sampler.
+    #[prop]
     rows: StopRows,
+    /// Samples the gradient instead of [`default_sampler`].
+    #[prop]
     sampler: Option<&'a Sampler>,
-    width: Option<f32>,
-    size: ControlSize,
-    enabled: bool,
-    popup: bool,
+    /// Takes the width the layout offers, at the control height.
+    #[prop(flag)]
+    fill: bool,
+    /// Tells AccessKit that a click opens a dialog.
+    #[prop(flag)]
+    has_popup: bool,
+    clicked: bool,
 }
 
 impl<'a> GradientSwatch<'a> {
     /// A swatch of `stops`; `label` names it for a screen reader.
-    pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, stops: &'a GradientStops) -> Self {
-        Self {
-            id_salt: IdSalt::new(id_salt),
-            label: label.into(),
-            stops,
-            rows: StopRows::Split,
-            sampler: None,
-            width: None,
-            size: ControlSize::Md,
-            enabled: true,
-            popup: false,
+    pub fn new(label: impl Into<craft_ui::runtime::env::Label>, stops: &'a GradientStops) -> Self {
+        GradientSwatch { common: Common::new(), stops, rows: StopRows::Split, sampler: None, fill: false, has_popup: false, clicked: false }
+            .label(label)
+    }
+}
+
+impl Component for GradientSwatch<'_> {
+    const ROLE: Role = Role::BUTTON;
+    const PARTS: bool = false;
+    const OVERLAYS: bool = false;
+    type Style = GradientSwatchStyle;
+    type Output = GradientSwatchOutput;
+
+    fn style(cx: &StyleCx<'_>, _: GradientSwatchStyleKey) -> GradientSwatchStyle {
+        let metrics = SwatchMetrics::of(cx);
+        let colors = &cx.tokens.color;
+        let rest = cx.color(colors.line.control_edge);
+        let disabled = cx.color(colors.text.disabled);
+        GradientSwatchStyle {
+            metrics: Metrics::new(),
+            focus: cx.focus_look(),
+            side: metrics.side,
+            radius: metrics.radius,
+            edge: Stateful::new(rest).off(States::new(rest, rest, rest, disabled)),
         }
     }
 
-    /// The row layout, for the default sampler. Default [`StopRows::Split`].
-    pub fn rows(mut self, rows: StopRows) -> Self {
-        self.rows = rows;
-        self
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        let side = cx.style.side;
+        let width = if self.fill { cx.room.filter(|room| room.is_finite()).map_or(side, |room| room.max(side)) } else { side };
+        Vec2::new(width, side)
     }
 
-    /// Samples the gradient instead of the default [`default_sampler`].
-    pub fn sampler(mut self, sampler: &'a Sampler) -> Self {
-        self.sampler = Some(sampler);
-        self
+    fn fills(&self) -> Option<Axis> {
+        self.fill.then_some(Axis::X)
     }
 
-    /// The swatch's width (PhotoCraft's options bar 96). Default: as wide as it is high.
-    pub fn width(mut self, width: f32) -> Self {
-        self.width = Some(width);
-        self
+    fn sense(&self) -> Sense {
+        Sense::CLICK | Sense::FOCUS
     }
 
-    /// The control's size.
-    pub fn size(mut self, size: ControlSize) -> Self {
-        self.size = size;
-        self
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        self.clicked = cx.activation().is_some() && cx.resolved.enabled;
+        if cx.resolved.enabled && cx.hit() {
+            cx.cursor(CursorIcon::PointingHand, CursorPriority::Part);
+        }
     }
 
-    /// Whether it takes clicks; a disabled swatch keeps its gradient and fades its rings.
-    pub fn enabled(mut self, enabled: bool) -> Self {
-        self.enabled = enabled;
-        self
+    fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
+        if self.has_popup {
+            access.has_popup(PopupKind::Dialog);
+        }
     }
 
-    /// Tells AccessKit that a click opens a popup (the host's editor).
-    pub fn has_popup(mut self, popup: bool) -> Self {
-        self.popup = popup;
-        self
-    }
-
-    /// Draws the swatch.
-    pub fn show(self, ui: &mut Ui) -> Response {
-        let tokens = Tokens::of(ui);
-        let style = Swatch::style(&tokens, self.size);
-        let ramp = GradientRamp::style(&tokens);
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let style = cx.style;
         let default = default_sampler(self.rows);
         let sampler: &Sampler = self.sampler.unwrap_or(&default);
-        let response = Interactive::salted(self.id_salt, Role::Button, self.label.as_str())
-            .state_layer(false)
-            .focus_ring(false)
-            .enabled(self.enabled)
-            .show(ui, vec2(self.width.unwrap_or(style.side), style.side));
-        if self.popup {
-            ui.ctx().accesskit_node_builder(response.id, |node| node.set_has_popup(HasPopup::Dialog));
-        }
-        if ui.is_rect_visible(response.rect) {
-            let colors = GradientRamp::colors(self.stops, sampler);
-            let painter = ui.painter();
-            GradientRamp::paint_rounded(painter, response.rect, f32::from(style.radius.nw), &colors, &ramp);
-            painter.extend(Swatch::outline(&style, response.rect, false, self.enabled, ui.pixels_per_point()));
-        }
-        FocusRing::paint_radius(ui, response.rect, style.radius, &response);
-        if self.enabled { response.on_hover_cursor(CursorIcon::PointingHand) } else { response }
+        let colors = GradientRamp::colors(self.stops, sampler);
+        GradientRamp::paint(&ui.content_painter(cx), cx.rect, &colors);
+        ui.draw().stroke(&PaintShape::Rect(cx.rect, style.radius), StrokeWidth::Thin, cx.resolve(&style.edge));
     }
-}
 
-pub(crate) fn stories() -> Vec<Story> {
-    vec![typed_story!(
-        "composites/gradient/swatch",
-        Level::Composites,
-        "GradientSwatch",
-        "Swatch and ramp",
-        SwatchArgs { size: SizeArg::Md, width: 96.0, enabled: true },
-        show_swatch
-    )]
-}
-
-#[derive(StoryArgs, Debug, PartialEq)]
-struct SwatchArgs {
-    size: SizeArg,
-    #[arg(range = 24.0..=300.0)]
-    width: f32,
-    enabled: bool,
-}
-
-fn show_swatch(ui: &mut Ui, args: &mut SwatchArgs) {
-    let size = args.size.control();
-    let (width, enabled) = (args.width.min(ui.available_width()), args.enabled);
-    let color = |at: f32, [r, g, b]: [u8; 3]| ColorStop::new(at, Srgba::from(Rgba::rgb(r, g, b)));
-    let mut centred = GradientStops::new(vec![color(0.0, [0xf5, 0xa5, 0x24]), color(1.0, [0x3e, 0x63, 0xdd])]);
-    let mut skewed = centred.clone();
-    skewed.color[0].midpoint = 0.15;
-    centred.opacity = vec![OpacityStop::new(0.0, 0.0), OpacityStop::new(1.0, 1.0)];
-    let combined = GradientStops::new(vec![
-        ColorStop::new(0.0, Srgba::new(0.9, 0.28, 0.3, 1.0)),
-        ColorStop::new(0.5, Srgba::new(0.9, 0.28, 0.3, 0.0)),
-        ColorStop::new(1.0, Srgba::new(0.19, 0.64, 0.42, 1.0)),
-    ]);
-    let state_id = ui.scope_id().with("gradient-swatch-clicks");
-    let mut clicks = ui.data(|d| d.get_temp::<u32>(state_id).unwrap_or_default());
-    Stack::new(Gap::Stack).show(ui, |ui| {
-        let tokens = Tokens::of(ui);
-        let panel = ui.available_width().min(300.0);
-        for (name, stops, rows) in [
-            ("Fading in", &centred, StopRows::Split),
-            ("Midpoint at 15 %", &skewed, StopRows::Split),
-            ("Opacity in the colour", &combined, StopRows::Combined),
-        ] {
-            Row::new(Gap::Inline).show(ui, |ui| {
-                if GradientSwatch::new(name, name, stops).rows(rows).width(width).size(size).enabled(enabled).has_popup(true).show(ui).clicked() {
-                    clicks += 1;
-                }
-                ui.add(Text::new(name).content(Content::Muted));
-            });
-            // The ramp alone, as a stop bar and a thumbnail draw it.
-            let (rect, _) = ui.allocate_exact_size(vec2(panel, 24.0), egui::Sense::hover());
-            let sampler = default_sampler(rows);
-            GradientRamp::paint(ui.painter(), rect, stops, &sampler, &tokens);
-        }
-        ui.add(Text::new(format!("Clicked {clicks} times")).content(Content::Muted));
-    });
-    ui.data_mut(|d| d.insert_temp(state_id, clicks));
+    fn finish(self, cx: Cx<'_, Self>) -> GradientSwatchOutput {
+        GradientSwatchOutput { response: cx.response.clone(), clicked: self.clicked }
+    }
 }
