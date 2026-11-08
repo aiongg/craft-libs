@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use craft_ui::canvas::kurbo::Point;
+use craft_behavior::kurbo::Point;
 
 /// The smallest radius (a fraction of the shorter side), as the filter commands bound it.
 const MIN_RADIUS: f64 = 0.01;
@@ -19,6 +19,7 @@ pub const DEFAULT_AMOUNT: f64 = 15.0;
 /// The four Blur Gallery filters with pins.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub enum BlurKind {
     /// Field Blur: the pins' amounts interpolate over the image.
     Field,
@@ -41,10 +42,11 @@ impl BlurKind {
 /// An Iris or Spin pin's shape.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct IrisShape {
-    /// Radii as fractions of the bounds' shorter side, 0.01..=1.
+    /// The horizontal radius as a fraction of the bounds' shorter side, 0.01..=1.
     pub radius_x: f64,
-    #[allow(missing_docs)]
+    /// The vertical radius, in the same unit.
     pub radius_y: f64,
     /// Degrees, clockwise on screen, −180..180.
     pub angle: f64,
@@ -55,6 +57,12 @@ pub struct IrisShape {
 }
 
 impl IrisShape {
+    /// A shape of the given radii (fractions of the bounds' shorter side), angle (degrees), roundness and feather,
+    /// as they are, before [`clean`](Self::clean).
+    pub fn new(radius_x: f64, radius_y: f64, angle: f64, roundness: f64, feather: f64) -> IrisShape {
+        IrisShape { radius_x, radius_y, angle, roundness, feather }
+    }
+
     /// Iris Blur's default: radii 0.35 and 0.25, upright, an ellipse, feather 0.5.
     pub fn iris() -> IrisShape {
         // pc: crates/ui-egui/src/dialogs/blur_pins.rs:109-114.
@@ -91,6 +99,7 @@ impl IrisShape {
 /// Tilt-Shift's band.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct TiltBand {
     /// Degrees, −90..=90; 0 a horizontal band, positive turns it anticlockwise on screen.
     pub angle: f64,
@@ -102,6 +111,12 @@ pub struct TiltBand {
 }
 
 impl TiltBand {
+    /// A band of the given angle (degrees), focus and transition (fractions of the bounds' shorter side), as they
+    /// are, before [`clean`](Self::clean).
+    pub fn new(angle: f64, focus: f64, transition: f64) -> TiltBand {
+        TiltBand { angle, focus, transition }
+    }
+
     /// The band with every value finite and in range (the angle folded into −90..=90: the band
     /// turned half a turn is the same).
     pub fn clean(self) -> TiltBand {
@@ -134,10 +149,11 @@ impl TiltBand {
 /// in degrees), and an Iris or Spin pin's shape or the Tilt-Shift band.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct BlurPin {
-    #[allow(missing_docs)]
+    /// The horizontal position as a fraction of the bounds' width.
     pub x: f64,
-    #[allow(missing_docs)]
+    /// The vertical position as a fraction of the bounds' height.
     pub y: f64,
     /// Blur in pixels (Spin: blur angle in degrees).
     pub amount: f64,
@@ -149,12 +165,20 @@ pub struct BlurPin {
     pub tilt: Option<TiltBand>,
 }
 
+impl BlurPin {
+    /// A plain pin at the fractions `x` and `y` of the bounds with `amount` and no shape.
+    pub fn new(x: f64, y: f64, amount: f64) -> BlurPin {
+        BlurPin { x, y, amount, iris: None, tilt: None }
+    }
+}
+
 /// The pins of one Blur Gallery filter (lead call 48: typed, where PhotoCraft kept a JSON map in
 /// the dialog's fields): the kind, the filter's bounds (the selection's, else the canvas's) in
 /// document pixels `[x0, y0, x1, y1]`, the pins, and the selected pin. The dialog's fields keep
 /// the remembered amount and shape; the app maps `BlurPins` to the filter's `pins` parameters
 /// (Tilt-Shift: `centerX`, `centerY`, `angle`, `focus`, `transition`, `blur`).
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct BlurPins {
     /// The filter these pins belong to.
     pub kind: BlurKind,

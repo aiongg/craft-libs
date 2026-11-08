@@ -3,9 +3,13 @@
 
 use std::sync::{Arc, Mutex, PoisonError};
 
-use egui::{Color32, ColorImage, Context, TextureHandle, TextureId, TextureOptions};
+use craft_ui::primitives::{Revision, TextureStore, TextureStoreOptions};
+use egui::{Color32, ColorImage, Context, TextureId, TextureOptions};
 
 use super::PreviewQuality;
+
+/// The salt of the preview's texture stores.
+const STORE: &str = "craft_imaging.transform_preview";
 
 /// The app's pixels of the moving layer: premultiplied texels of which `base_uv` covers the
 /// source frame (the rest is padding up to the GPU's texture limit). The app reads them from its
@@ -77,34 +81,34 @@ pub struct TextureChoice {
     pub nearest: bool,
 }
 
-/// One uploaded texture: its level, filter, display key and the uv extent covering the source.
-pub(super) struct Level {
-    choice: TextureChoice,
-    display_key: u64,
-    texture: TextureHandle,
-    uv: [f32; 2],
-}
-
 /// The moving pixels uploaded for the preview: level 0 at once, the other mip levels (2 × 2 box
-/// filtered) and the nearest-filtered variants on first use, cached for the session. A new
-/// display key drops the uploads of the old one, so a profile change does not pile up textures.
+/// filtered) and the nearest-filtered variants on first use. The CPU levels are kept for the
+/// session; the uploads live in the texture store under the preview's name (one entry per level
+/// and filter), and a new display key replaces them in place, so a profile change does not pile
+/// up textures. Two previews of one context must not share a name.
 pub struct PreviewTextures {
     name: String,
     /// The CPU levels built so far, premultiplied; level 0 first.
-    pub(super) images: Mutex<Vec<Arc<ColorImage>>>,
+    images: Mutex<Vec<Arc<ColorImage>>>,
     base_uv: [f32; 2],
-    pub(super) uploaded: Mutex<Vec<Level>>,
 }
 
 impl PreviewTextures {
-    /// Uploads `pixels` as level 0 (linear), named `name` in egui's texture manager.
-    pub fn new(ctx: &Context, name: impl Into<String>, pixels: PreviewPixels) -> Self {
-        let name = name.into();
+    /// The preview of `pixels`, named `name`: the store entries are keyed by it. Nothing is
+    /// uploaded until the preview is painted.
+    pub fn new(name: impl Into<String>, pixels: PreviewPixels) -> Self {
         let base_uv = pixels.base_uv;
-        let image = Arc::new(pixels.image);
-        let texture = ctx.load_texture(format!("{name}-0-linear"), Arc::clone(&image), TextureOptions::LINEAR);
-        let choice = TextureChoice::default();
-        Self { name, images: Mutex::new(vec![image]), base_uv, uploaded: Mutex::new(vec![Level { choice, display_key: 0, texture, uv: base_uv }]) }
+        Self { name: name.into(), images: Mutex::new(vec![Arc::new(pixels.image)]), base_uv }
+    }
+
+    /// The preview over `levels` already built, level 0 first, covering the source with `base_uv`.
+    pub(crate) fn from_levels(name: impl Into<String>, levels: Vec<Arc<ColorImage>>, base_uv: [f32; 2]) -> Self {
+        Self { name: name.into(), images: Mutex::new(levels), base_uv }
+    }
+
+    /// How many mip levels are built so far (level 0 counts): levels are built when asked for.
+    pub fn levels_built(&self) -> usize {
+        self.images.lock().unwrap_or_else(PoisonError::into_inner).len()
     }
 
     /// The size of level 0 in texels.
@@ -136,23 +140,17 @@ impl PreviewTextures {
 
     /// The texture and its uv extent for [`choose`](Self::choose)'s answer, uploading that level
     /// and filter on first use; with `display`, the converted upload (the CPU level stays raw).
-    pub fn pick(&self, ctx: &Context, choice: TextureChoice, display: Option<&PreviewDisplay>) -> (TextureId, [f32; 2]) {
-        let display_key = display.map_or(0, |d| d.key);
-        let mut uploaded = self.uploaded.lock().unwrap_or_else(PoisonError::into_inner);
-        if let Some(level) = uploaded.iter().find(|l| l.choice == choice && l.display_key == display_key) {
-            return (level.texture.id(), level.uv);
-        }
-        let Some((image, uv)) = self.level_image(choice.level) else {
-            return uploaded.first().map_or((TextureId::default(), [1.0, 1.0]), |l| (l.texture.id(), l.uv));
-        };
-        let image = display.map_or_else(|| Arc::clone(&image), |d| Arc::new((d.convert)(&image)));
-        let (options, filter) = if choice.nearest { (TextureOptions::NEAREST, "nearest") } else { (TextureOptions::LINEAR, "linear") };
-        let texture = ctx.load_texture(format!("{}-{}-{filter}", self.name, choice.level), image, options);
-        let id = texture.id();
-        // A new display key drops the old uploads, so a profile change does not pile up textures.
-        uploaded.retain(|l| l.display_key == display_key);
-        uploaded.push(Level { choice, display_key, texture, uv });
-        (id, uv)
+    /// Each pass asks again: a store hit costs a lookup.
+    pub fn pick(&self, ctx: &Context, choice: TextureChoice, display: Option<&PreviewDisplay>) -> Option<(TextureId, [f32; 2])> {
+        let (image, uv) = self.level_image(choice.level)?;
+        let options = if choice.nearest { TextureOptions::NEAREST } else { TextureOptions::LINEAR };
+        let store = TextureStore::<u32>::in_context(ctx, (STORE, self.name.as_str(), choice.nearest), TextureStoreOptions::pages().filter(options));
+        let revision = Revision::of(&display.map_or(0, |d| d.key));
+        let texture = store.get_or_put(ctx, choice.level, revision, || match display {
+            Some(d) => (d.convert)(&image),
+            None => ColorImage::clone(&image),
+        });
+        Some((texture.id, uv))
     }
 
     /// Level `n` of the mip chain (built on demand, at most down to one texel) and its uv extent

@@ -8,3 +8,8 @@ pub mod selection;
 pub mod trace;
 #[cfg(feature = "ui")]
 pub mod ui;
+
+#[cfg(feature = "screen-testing")]
+pub mod testing {
+    craft_ui::testing_registered!();
+}
