@@ -83,6 +83,26 @@ pub struct WarpGridStyle {
     end: HandleLook,
 }
 
+/// `ring` pushed outward by `by` along the normal at each corner, so a press that close outside the mesh still
+/// reaches the surface (a split off the surface cuts at its nearest point).
+fn grown(ring: &[Pos2], by: f32) -> Vec<Pos2> {
+    let mut corners: Vec<Pos2> = ring.to_vec();
+    if corners.len() > 1 && corners.first() == corners.last() {
+        corners.pop();
+    }
+    let n = corners.len();
+    let centre = corners.iter().fold(Vec2::ZERO, |sum, p| sum + p.to_vec2()) / n.max(1) as f32;
+    (0..n)
+        .map(|i| {
+            let (before, after) = (corners[(i + n - 1) % n], corners[(i + 1) % n]);
+            let tangent = after - before;
+            let normal = Vec2::new(tangent.y, -tangent.x).normalized();
+            let outward = if normal.dot(corners[i].to_vec2() - centre) < 0.0 { -normal } else { normal };
+            corners[i] + if outward.is_finite() { outward * by } else { Vec2::ZERO }
+        })
+        .collect()
+}
+
 /// What a press drags.
 #[derive(Clone, Copy, Debug)]
 enum Target {
@@ -359,7 +379,7 @@ impl Outcome for WarpGridOutput {
 impl Component for WarpGrid<'_> {
     const ROLE: Role = Role::GROUP;
     const OVERLAYS: bool = false;
-    const KEYS: KeyUse = KeyUse::CANVAS;
+    const KEYS: KeyUse = KeyUse::CANVAS.with_submits();
     type Style = WarpGridStyle;
     type Output = WarpGridOutput;
 
@@ -408,7 +428,7 @@ impl Component for WarpGrid<'_> {
         let ring = path_runs(&space.view, &mesh.outline()).into_iter().next().map(|(points, _)| points).unwrap_or_default();
         if ring.len() > 2 {
             let part = cx
-                .part(SURFACE, HitShape::Polygon(ring))
+                .part(SURFACE, HitShape::Polygon(grown(&ring, HIT_REACH)))
                 .sense(Sense::DRAG | Sense::CLICK | Sense::TAKE_FOCUS)
                 .priority(HitPriority::new(HitLevel::Body, 0))
                 .keyboard_via(POINT);
@@ -467,14 +487,18 @@ impl Component for WarpGrid<'_> {
                 }
             }
         }
+        // An edit of this pass can have changed the mesh since `parts` declared its points; those draw at rest.
+        let look = |index: usize, fill: &craft_ui::style::Stateful<craft_ui::style::StyleColor>| {
+            if cx.part_if_declared(POINT.at(index as u64)).is_some() { cx.resolve_part(POINT.at(index as u64), fill) } else { cx.resolve(fill) }
+        };
         for anchor in mesh.anchors() {
             let square = PaintShape::Rect(Rect::from_center_size(screen(anchor), Vec2::splat(style.anchor.side)), CornerRadius::ZERO);
-            draw.fill(&square, cx.resolve_part(POINT.at(anchor as u64), &style.anchor.fill));
+            draw.fill(&square, look(anchor, &style.anchor.fill));
             draw.stroke(&square, StrokeWidth::Thin, style.anchor.stroke);
         }
         for index in ends {
             let circle = PaintShape::Circle(screen(index), style.end.side / 2.0);
-            draw.fill(&circle, cx.resolve_part(POINT.at(index as u64), &style.end.fill));
+            draw.fill(&circle, look(index, &style.end.fill));
             draw.stroke(&circle, StrokeWidth::Thin, style.end.stroke);
         }
         if let Some(at) = slot.preview {

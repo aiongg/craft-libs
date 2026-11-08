@@ -23,7 +23,7 @@ use super::style::BlurPinsStyle;
 use super::words::BlurPinsWords;
 
 /// The part of one pin's dot: `PIN.at(index)`.
-const PIN: PartKey = PartKey::new("pin");
+pub(super) const PIN: PartKey = PartKey::new("pin");
 /// The ring of the selected pin.
 const RING: PartKey = PartKey::new("ring");
 /// An outline handle of the selected pin: `AXIS.at(0..4)`.
@@ -364,7 +364,7 @@ impl Outcome for BlurPinsOutput {
 impl Component for BlurPinsOverlay<'_> {
     const ROLE: Role = Role::GROUP;
     const OVERLAYS: bool = false;
-    const KEYS: KeyUse = KeyUse::CANVAS;
+    const KEYS: KeyUse = KeyUse::CANVAS.with_deletes();
     type Style = BlurPinsStyle;
     type Output = BlurPinsOutput;
 

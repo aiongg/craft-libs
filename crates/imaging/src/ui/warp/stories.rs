@@ -1,9 +1,10 @@
 //! Stories of the warp grid, its options-bar group and the mesh lines.
 
-use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Rect as DocRect};
+use craft_behavior::{CanvasView, Mixed};
 use craft_ui::canvas::Canvas;
-use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Show as _, ShowContainer as _, Validity};
+use craft_ui::runtime::env::Message;
 use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, pointer, story};
 use egui::{Ui, Vec2};
 
@@ -11,6 +12,9 @@ use super::{MeshLines, POINT, WarpFieldValues, WarpFields, WarpGrid, WarpGridCho
 
 /// The picture the mesh starts over, in document units.
 const PICTURE: DocRect = DocRect::new(40.0, 30.0, 360.0, 270.0);
+
+/// The most patches across the invalid story accepts.
+const MOST_COLUMNS: usize = 2;
 
 /// How far the drag stories move the first anchor, in points.
 fn pull() -> Vec2 {
@@ -52,6 +56,24 @@ fn three_by_three_after_a_drag(ui: &mut Ui, data: &mut StoryData) -> StoryOutput
 fn cross_split_over_a_patch(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let mesh = data.value("mesh", WarpMesh::identity(PICTURE, 3, 3));
     on_canvas(ui, |ui, rect| WarpGrid::new("Warp", Bind::bound(&mut *mesh), PICTURE).split(WarpSplit::Cross).show_at(ui, rect))
+        .map(StoryOutput::from)
+        .unwrap_or_default()
+}
+
+#[story(WarpGrid<'static>, covers = [Mixed], drive = Drive::Never)]
+fn meshes_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let mesh = data.value("mixed", Mixed::<WarpMesh>::Mixed);
+    on_canvas(ui, |ui, rect| WarpGrid::new("Warp", Bind::bound_mixed(&mut *mesh), PICTURE).show_at(ui, rect))
+        .map(StoryOutput::from)
+        .unwrap_or_default()
+}
+
+#[story(WarpGrid<'static>, covers = [Invalid], drive = Drive::Never)]
+fn too_many_patches(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let mesh = data.value("invalid", WarpMesh::identity(PICTURE, 3, 3));
+    let few =
+        |mesh: &WarpMesh| if mesh.columns() > MOST_COLUMNS { Validity::Refuse(Message::new("There are too many patches")) } else { Validity::Ok };
+    on_canvas(ui, |ui, rect| WarpGrid::new("Warp", Bind::bound(&mut *mesh).check(few), PICTURE).show_at(ui, rect))
         .map(StoryOutput::from)
         .unwrap_or_default()
 }

@@ -148,6 +148,12 @@ impl Harness {
         self.fixture.hold(Modifiers::NONE);
     }
 
+    /// Tab to the grid: the canvas holds the first stop, the grid's points the next.
+    fn focus_grid(&mut self) {
+        self.fixture.key(Key::Tab, Modifiers::NONE);
+        self.fixture.key(Key::Tab, Modifiers::NONE);
+    }
+
     fn set(&mut self, mutate: impl FnOnce(&Harness)) {
         mutate(self);
         self.fixture.settle();
@@ -227,7 +233,7 @@ fn arrows_move_the_picked_point() {
     let mut h = harness(WarpMesh::identity(RECT, 1, 1));
     h.fixture.key(Key::ArrowRight, Modifiers::NONE);
     assert_eq!(h.edit.get(), None, "no keys without focus");
-    h.fixture.key(Key::Tab, Modifiers::NONE);
+    h.focus_grid();
     assert_eq!(h.picked.get(), Some(0), "focus from the keyboard picks the first anchor");
     h.fixture.key(Key::PageDown, Modifiers::NONE);
     assert_eq!(h.picked.get(), Some(1));
@@ -363,7 +369,7 @@ fn alt_or_ctrl_with_no_tool_is_a_quick_split_chosen_by_the_pointer() {
 #[trial]
 fn enter_splits_the_focused_anchors_patch_in_the_middle() {
     let mut h = tooled(WarpMesh::identity(RECT, 2, 1), WarpSplit::Cross, false);
-    h.fixture.key(Key::Tab, Modifiers::NONE);
+    h.focus_grid();
     h.fixture.key(Key::Enter, Modifiers::NONE);
     let Some(WarpEdit::Split { split: WarpSplit::Cross, column: 0, row: 0, u, v, .. }) = h.edit.get() else { panic!("{:?}", h.edit.get()) };
     assert_eq!((u, v), (0.5, 0.5));
@@ -371,14 +377,14 @@ fn enter_splits_the_focused_anchors_patch_in_the_middle() {
 
     // The last anchor of a row splits the last patch.
     let mut h = tooled(WarpMesh::identity(RECT, 2, 1), WarpSplit::Vertical, false);
-    h.fixture.key(Key::Tab, Modifiers::NONE);
+    h.focus_grid();
     h.fixture.key(Key::End, Modifiers::NONE);
     h.fixture.key(Key::Enter, Modifiers::NONE);
     assert!(matches!(h.edit.get(), Some(WarpEdit::Split { split: WarpSplit::Vertical, column: 1, row: 0, .. })), "{:?}", h.edit.get());
 
     // With no tool set Enter does nothing.
     let mut h = harness(WarpMesh::identity(RECT, 1, 1));
-    h.fixture.key(Key::Tab, Modifiers::NONE);
+    h.focus_grid();
     h.fixture.key(Key::Enter, Modifiers::NONE);
     assert!(h.seen.borrow().is_empty());
 }
