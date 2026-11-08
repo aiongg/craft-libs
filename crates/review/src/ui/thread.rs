@@ -69,9 +69,6 @@ const MENTION_QUERY_CHARS: usize = 40;
 /// The words of the thread's text a pin's accessible name carries.
 const PIN_NAME_WORDS: usize = 8;
 
-/// A popover is this many control heights wide.
-const POPOVER_IN_HEIGHTS: f32 = 14.0;
-
 /// The reactions a message offers.
 pub const REACTIONS: [&str; 8] = ["👍", "❤", "😂", "🎉", "👀", "🙏", "🔥", "✅"];
 
@@ -316,8 +313,10 @@ impl Component for PinBubble {
         let line = cx.layout(&TextRun::new("0").role(TypeRole::Caption)).size().y;
         self.line = line;
         let width = match self.face {
-            Face::Cluster { count } if count >= 100 => cx.style.side * 2.0,
-            Face::Cluster { count } if count >= 10 => cx.style.side * 1.5,
+            Face::Cluster { count } => {
+                let digits = cx.layout(&TextRun::new(count.to_string()).role(TypeRole::Caption)).size().x;
+                cx.style.side.max(digits + 2.0 * cx.style.inset)
+            }
             _ => cx.style.side,
         };
         Vec2::new(width, cx.style.side)
@@ -474,15 +473,11 @@ impl CommentPins<'_> {
                     }
                 } else {
                     let name = words.cluster.fill(&[("n", &spot.threads.len().to_string())]);
-                    let width = match spot.threads.len() {
-                        100.. => side * 2.0,
-                        10.. => side * 1.5,
-                        _ => side,
-                    };
+                    let face = Face::Cluster { count: spot.threads.len() };
+                    let width = PinBubble::new(face.clone(), String::new()).measure_in(ui, Proposal::Ideal).x;
                     let rect = Rect::from_min_max(Pos2::new(spot.at.x, spot.at.y - side), Pos2::new(spot.at.x + width, spot.at.y));
                     let first = spot.threads.first().map_or(0, |thread| thread.0);
-                    let bubble =
-                        PinBubble::new(Face::Cluster { count: spot.threads.len() }, name.clone()).id_salt(("cluster", first)).show_at(ui, rect);
+                    let bubble = PinBubble::new(face, name.clone()).id_salt(("cluster", first)).show_at(ui, rect);
                     let mut chosen = None;
                     Menu::new(name).opened_by(&bubble.response, Trigger::Click).show(ui, |ui, _| {
                         for thread in spot.threads.iter().filter_map(|thread| pins.iter().find(|pin| pin.id == *thread)) {
@@ -623,7 +618,6 @@ impl ThreadPopover<'_> {
         let env = Env::of(ui);
         let words = env.words::<ThreadWords>();
         let view = env.view();
-        let side = Button::new("Aa").measure_in(ui, Proposal::Ideal).y;
         let name = thread.messages.first().map_or_else(String::new, |first| words.pin.fill(&[("author", &first.author)]));
         let mut names: Vec<&str> = people.iter().map(String::as_str).collect();
         names.push(me);
@@ -632,7 +626,6 @@ impl ThreadPopover<'_> {
         let mut escaped = false;
         let mut close = false;
         let mut popover = Popover::new(name, Bind::bound(&mut open)).opened_by(opener).initial_focus(Initial::Default);
-        popover = popover.overlay(|overlay| overlay.min_size(egui::vec2(POPOVER_IN_HEIGHTS * side, 0.0)));
         if let Some(rect) = anchor {
             popover = popover.overlay(|overlay| overlay.opener_anchor(Anchor::Rect(rect)));
         }
@@ -795,15 +788,11 @@ impl CommentComposer<'_> {
         let mut output = CommentComposerOutput::default();
         let Some(anchor) = anchor else { return output };
         let words = Env::of(ui).words::<ThreadWords>();
-        let side = Button::new("Aa").measure_in(ui, Proposal::Ideal).y;
         let mut open = true;
         let mut posted = None;
         let mut cancel = false;
-        let shown = Popover::new(words.add_comment.clone(), Bind::bound(&mut open))
-            .at_point(anchor)
-            .initial_focus(Initial::Default)
-            .overlay(|overlay| overlay.min_size(egui::vec2(POPOVER_IN_HEIGHTS * side, 0.0)))
-            .show(ui, |ui, _| {
+        let shown =
+            Popover::new(words.add_comment.clone(), Bind::bound(&mut open)).at_point(anchor).initial_focus(Initial::Default).show(ui, |ui, _| {
                 Stack::new().show(ui, |ui, _| {
                     let field = TextField::new(words.add_comment.clone(), Bind::bound(&mut *draft))
                         .lines(COMPOSER_ROWS)

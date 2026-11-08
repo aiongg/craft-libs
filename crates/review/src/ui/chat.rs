@@ -17,12 +17,8 @@ use crate::collab::CollabRequest;
 #[cfg(feature = "screen-testing")]
 mod stories;
 
-/// The bubble's text wraps at this many control heights.
-const WIDTH_IN_HEIGHTS: f32 = 10.0;
 /// How much of the ink the name over a bubble's text keeps.
 const NAME_INK: f32 = 0.8;
-/// Where a name tag or bubble sits from the pointer's tip, as fractions of the pointer's size.
-pub(super) const TAG_OFFSET: [f32; 2] = [12.0 / 16.0, 1.0];
 
 craft_ui::words! {
     /// The chat box's words, English by default.
@@ -60,10 +56,10 @@ impl BubbleLook {
         let (body, caption) = (tokens.typography.get(TypeRole::Body), tokens.typography.get(TypeRole::Caption));
         BubbleLook {
             pad: Vec2::new(control.pad_x, tokens.space.gap.inline),
-            gap: tokens.space.gap.inline / 2.0,
+            gap: tokens.space.gap.tight,
             radius: tokens.shape.radius.popup.round().clamp(0.0, 255.0) as u8,
-            offset: Vec2::from(TAG_OFFSET) * tokens.size.icon.md,
-            width: WIDTH_IN_HEIGHTS * control.height,
+            offset: Vec2::new(tokens.size.pointer_tip.x, tokens.size.pointer_tip.y),
+            width: tokens.size.length.field,
             body: (body.size, body.line_height),
             caption: (caption.size, caption.line_height),
         }

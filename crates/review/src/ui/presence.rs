@@ -18,7 +18,7 @@ use craft_ui::style::{ComponentStyle, DataColor, StyleColor, StyleCx};
 use egui::{Color32, CornerRadius, Pos2, Rect, Response, Ui, Vec2};
 
 use super::avatar::Avatar;
-use super::chat::{BubbleLook, TAG_OFFSET, paint_chat_bubble};
+use super::chat::{BubbleLook, paint_chat_bubble};
 use crate::collab::{CollabRequest, CollabTransport, Participant, ParticipantId, chat_alpha};
 
 #[cfg(feature = "screen-testing")]
@@ -284,7 +284,7 @@ impl Component for RemoteCursors<'_> {
             });
             match bubble {
                 Some((chat, alpha)) => paint_chat_bubble(ui, &style.bubble, tip, Some(&person.name), &chat.text, person.color, alpha),
-                None => paint_name_tag(ui, &style.bubble, tip + Vec2::from(TAG_OFFSET) * style.pointer, &person.name, person.color),
+                None => paint_name_tag(ui, &style.bubble, tip + style.bubble.offset, &person.name, person.color),
             }
         }
     }
