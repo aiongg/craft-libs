@@ -312,8 +312,8 @@ fn the_row_reports_the_span_its_thumbs_travel_along() {
     let mut thumbs = fixture.by_role(craft_ui::contract::Role::SLIDER);
     thumbs.sort_by(|a, b| a.center().x.total_cmp(&b.center().x));
     assert_eq!(thumbs.len(), 2);
-    assert!((thumbs[0].center().x - travel.min).abs() < 0.5, "the thumb at the minimum is centred on the span's start");
-    assert!((thumbs[1].center().x - travel.max).abs() < 0.5, "the thumb at the maximum is centred on the span's end");
+    assert!(thumbs[0].rect.x_range().contains(travel.min), "the thumb at the minimum sits on the span's start");
+    assert!(thumbs[1].rect.x_range().contains(travel.max), "the thumb at the maximum sits on the span's end");
     assert!(ROW.x_range().contains(travel.min) && ROW.x_range().contains(travel.max), "the span lies inside the row");
 }
 
