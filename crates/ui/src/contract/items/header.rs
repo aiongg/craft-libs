@@ -385,7 +385,7 @@ impl Header {
             let enabled = target.is_some_and(|at| self.allowed(command, at, rtl));
             commands::publish_for(&ctx, &chain, &CommandRef::from(command), CommandState::new().enabled(enabled));
         }
-        while let Some((command, _)) = commands::take_for_instance(&ctx, Some(id), ColumnCommands::from_ref) {
+        while let Some((command, _)) = commands::take_for_instance(&ctx, Some(id), false, ColumnCommands::from_ref) {
             let Some(at) = target.filter(|&at| self.allowed(command, at, rtl)) else { continue };
             self.memory.menu = None;
             let key = self.specs[self.cells[at].spec].key.clone();
