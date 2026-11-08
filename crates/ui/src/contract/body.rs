@@ -1699,6 +1699,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                             shared_labels(ui, id, label_column, room.x, |ui| body(ui, bcx))
                         });
                         let extent = region_ui.min_rect().size();
+                        crate::runtime::egui::widgets::note_scroll_region(&ctx, region_ui.clip_rect(), region_ui.min_rect().intersect(max));
                         self.extent = Some(extent);
                         // Along an axis it scrolls the body took what the view shows; along the other it took its content.
                         let took = extent + inset;
