@@ -673,6 +673,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 }
                 let column_keys: Vec<craft_behavior::ColumnKey> = cells.iter().map(|(key, _)| key.clone()).collect();
                 let shown_cells = cells.clone();
+                let toggle_keys: Vec<craft_behavior::ColumnKey> = self.header.toggle_columns().map(|(key, _)| key).collect();
                 let mut icx = ItemCx {
                     key: &key,
                     at,
@@ -709,7 +710,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     base_env.derive_local(|scoped| {
                         scoped.item = Some(item_id);
                         scoped.row = Some(row_group);
-                        scoped.item_facts = Some(ItemFacts { item: item_id, flags, position, columns: column_keys });
+                        scoped.item_facts = Some(ItemFacts { item: item_id, flags, position, columns: column_keys, toggles: toggle_keys });
                     }),
                 );
                 item = Props::id(item, item_id);

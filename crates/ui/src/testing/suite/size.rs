@@ -149,7 +149,8 @@ fn a_tiny_room_breaks_nothing(subject: &Subject) -> Result<(), String> {
     Ok(())
 }
 
-/// In a room narrower than the story, every text run that the layout cut has its full text in an accessible name.
+/// In a room narrower than the story, every text run that the layout cut has its full text in an accessible name or
+/// description: a cut label is the node's name, a cut description its description.
 fn elided_text_keeps_its_full_name(subject: &Subject) -> Result<(), String> {
     for story in &subject.stories {
         let width = shot(story, &|_| {}).shown.width();
@@ -160,10 +161,10 @@ fn elided_text_keeps_its_full_name(subject: &Subject) -> Result<(), String> {
         fixture.room(Vec2::new(width / 3.0, 300.0));
         fixture.settle();
         let tree = fixture.tree();
-        let names: Vec<&str> = tree.keys().into_iter().filter_map(|key| tree.name_of(key)).collect();
+        let read: Vec<&str> = tree.keys().into_iter().flat_map(|key| [tree.name_of(key), tree.description_of(key)]).flatten().collect();
         for run in fixture.texts().iter().filter(|run| run.elided) {
-            if !names.iter().any(|name| name.contains(run.text.trim())) {
-                return Err(format!("{}: the elided text `{}` is in no accessible name", story.name, run.text));
+            if !read.iter().any(|text| text.contains(run.text.trim())) {
+                return Err(format!("{}: the elided text `{}` is in no accessible name or description", story.name, run.text));
             }
         }
     }

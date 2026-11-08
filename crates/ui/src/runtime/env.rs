@@ -399,6 +399,8 @@ pub(crate) struct ItemFacts {
     pub(crate) position: crate::runtime::access::SetPosition,
     /// The keys of the item's cells in display order, so a cell reports the position of its column.
     pub(crate) columns: Vec<craft_behavior::ColumnKey>,
+    /// The collection's toggle columns, shown or not: a row's label never takes one of them.
+    pub(crate) toggles: Vec<craft_behavior::ColumnKey>,
 }
 
 impl Scoped {

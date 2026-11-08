@@ -156,7 +156,16 @@ fn the_create_and_detach_rows_follow_the_presets_and_report() {
     assert_eq!(reported.get(), (true, false), "the create row is reported alone");
     assert!(fixture.by_label("Coral").is_none(), "the popover closed");
     open(&mut fixture);
-    let detach = fixture.by_label(DETACH).expect("the detach row");
+    let detach = fixture.by_label(DETACH).unwrap_or_else(|| {
+        let field = fixture.by_role(Role::COMBO_BOX).first().copied().expect("the picker's field");
+        panic!(
+            "the detach row after the reopen: field expanded {:?}, a preset shown {}, the create row shown {}, reported {:?}",
+            fixture.tree().expanded_of(field.node),
+            fixture.by_label("Coral").is_some(),
+            fixture.by_label(NEW_PRESET).is_some(),
+            reported.get()
+        )
+    });
     fixture.click(&detach);
     fixture.idle(3);
     assert_eq!(reported.get(), (false, true), "the detach row is reported alone");

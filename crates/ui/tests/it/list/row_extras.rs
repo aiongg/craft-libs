@@ -5,6 +5,7 @@ use craft_i18n::Direction;
 use craft_ui::contract::{ColumnKind, ColumnSpec, Props as _, Show as _, ShowCollection as _, ToggleColumn};
 use craft_ui::list::{List, ListRow, ToggleCell, ToggleState};
 use craft_ui::primitives::IconSpec;
+use craft_ui::testing::relations::{mirrored, same_height};
 use craft_ui::testing::{Fixture, Frames, trial};
 use egui::{Rect, Ui, Vec2};
 use std::cell::Cell;
@@ -13,6 +14,10 @@ use std::rc::Rc;
 const INCLUDE: ColumnKey = ColumnKey::new("include");
 const DIALOG: ColumnKey = ColumnKey::new("dialog");
 const NAME: ColumnKey = ColumnKey::new("name");
+/// Room for both toggle columns, the label and the optional text.
+const WIDE: Vec2 = Vec2::new(520.0, 200.0);
+/// Room for both toggle columns and the label only.
+const NARROW: Vec2 = Vec2::new(150.0, 200.0);
 
 struct One;
 
@@ -79,8 +84,8 @@ fn the_leading_painter_sits_at_the_reading_start_and_mirrors() {
     let (rtl, rtl_row) = slot_in(Direction::Rtl);
     assert!(ltr.is_positive() && rtl.is_positive(), "the painter ran");
     assert!(ltr.center().x < ltr_row.center().x && rtl.center().x > rtl_row.center().x);
-    assert!(ltr.height() >= ltr_row.height() - 1.0, "the slot is as high as the row");
-    assert!(((ltr.left() - ltr_row.left()) - (rtl_row.right() - rtl.right())).abs() < 1.0, "the rtl slot mirrors the ltr one");
+    assert!(same_height(ltr, ltr_row), "the slot is as high as the row");
+    assert!(mirrored(ltr.translate(rtl_row.min - ltr_row.min), rtl, rtl_row), "the rtl slot mirrors the ltr one");
 }
 
 fn circles(icon: Option<IconSpec<'static>>) -> usize {
@@ -114,19 +119,14 @@ fn columns() -> Vec<ColumnSpec> {
     ]
 }
 
-/// A row with a cell in one of two toggle columns still lays its label and optional text out in the name column.
+/// A row with a cell in one of two toggle columns still lays its label and optional text out in the name column,
+/// with no `ListRow::columns` call: the collection tells the row its toggle columns.
 #[trial]
 fn optional_text_paints_beside_two_toggle_columns_and_drops_first_in_a_narrow_row() {
     let painted = |room: Vec2| {
         let mut fixture = Fixture::new(|ui| {
-            let specs = columns();
-            let shown = specs.clone();
-            List::new("Items").columns(specs).show_items(ui, &One, &mut |_, item| {
-                ListRow::new("Row")
-                    .cells(item.cells())
-                    .columns(&shown)
-                    .toggle(ToggleCell::check(INCLUDE, ToggleState::On, "Include"))
-                    .optional("2/3 steps")
+            List::new("Items").columns(columns()).show_items(ui, &One, &mut |_, item| {
+                ListRow::new("Row").cells(item.cells()).toggle(ToggleCell::check(INCLUDE, ToggleState::On, "Include")).optional("2/3 steps")
             });
         });
         fixture.room(room);
@@ -134,7 +134,7 @@ fn optional_text_paints_beside_two_toggle_columns_and_drops_first_in_a_narrow_ro
         let texts: Vec<String> = fixture.texts().iter().map(|text| text.text.clone()).collect();
         (texts.iter().any(|text| text == "2/3 steps"), texts.iter().any(|text| text == "Row"))
     };
-    assert_eq!(painted(Vec2::new(520.0, 200.0)), (true, true), "with room the optional text paints");
-    let (optional, label) = painted(Vec2::new(150.0, 200.0));
+    assert_eq!(painted(WIDE), (true, true), "with room the optional text paints");
+    let (optional, label) = painted(NARROW);
     assert!(!optional && label, "in a narrow row the optional text drops and the label stays");
 }

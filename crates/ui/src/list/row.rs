@@ -12,14 +12,14 @@ use super::words::ListWords;
 use crate::buttons::IconButton;
 use crate::choice::Checkbox;
 use crate::contract::{
-    Access, Bind, ColumnAlign, ColumnKind, ColumnSpec, Common, Component, Cx, DragPreview, ItemOutput, MeasureCx, Name, NoValue, Outcome, PaintUi,
-    PartsCx, Pointer as _, Props as _, Role, RowState, Show, Styled as _, WordSetCx as _,
+    Access, Bind, ColumnAlign, ColumnSpec, Common, Component, Cx, DragPreview, ItemOutput, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx,
+    Pointer as _, Props as _, Role, RowState, Show, Styled as _, WordSetCx as _,
 };
 use crate::controls::disclosure::Disclosure;
 use crate::display::Progress;
 use crate::primitives::{ContentPainterCx, Draw, HAlign, IconSpec, PaintShape, RuleKind, Span, StrokeWidth, TextRun, Wrap};
 use crate::runtime::commands::FireSource;
-use crate::runtime::env::{Label, WordTemplate};
+use crate::runtime::env::{EnvView, Label, WordTemplate};
 use crate::style::{ComponentStyle, Flags, IconLook, Ink, StyleColor, StyleCx, SurfaceLook, TextLook, UiTokens};
 use craft_behavior::{ColumnKey, Flow, IconId, Metrics, Mixed, NavShape, PartKey, PartRef, PressPhase, Proposal, Roving, Sense};
 use craft_keymap::Mods;
@@ -363,17 +363,19 @@ pub struct ListRow<'a> {
     pub(super) aligns: Vec<(ColumnKey, HAlign, bool)>,
     /// The columns that read in the muted look.
     pub(super) muted: Vec<ColumnKey>,
-    /// The toggle columns of the collection, from `columns(..)`: none of them holds the label, whether or not this
-    /// row has a cell in it.
+    /// The toggle columns of the collection, from the item facts it records for the row: none of them holds the
+    /// label, whether or not this row has a cell in it.
     pub(super) toggle_columns: Vec<ColumnKey>,
     pub(super) toggles: Vec<ToggleCell>,
     pub(super) texts: Vec<TextCell>,
     /// An icon before the label. A thumbnail takes its place.
     #[prop]
     pub(super) icon: Option<IconSpec<'a>>,
-    /// The caller's painter for the leading slot, which takes the icon's place: it gets the slot's width and the
-    /// row's whole height.
-    pub(super) lead_paint: Option<ThumbPaint<'a>>,
+    /// The leading slot, one icon wide and as high as the row, painted by the closure into its rect (a timeline rail:
+    /// a dot and a line through the row). It sits where the icon does, mirrored in a right-to-left interface, and
+    /// replaces the row's icon; thumbnails replace it in turn.
+    #[prop(boxed, name = "lead_painter")]
+    pub(super) lead_paint: Option<Box<dyn FnOnce(&ContentPainterCx, Rect) + 'a>>,
     pub(super) thumb: ThumbSize,
     pub(super) thumb_aspect: ThumbAspect,
     pub(super) first: Option<ThumbPaint<'a>>,
@@ -478,7 +480,6 @@ impl<'a> ListRow<'a> {
     #[must_use]
     pub fn columns(mut self, specs: &[ColumnSpec]) -> Self {
         self.aligns = specs.iter().map(|spec| (spec.key.clone(), halign(spec.align), spec.tabular)).collect();
-        self.toggle_columns = specs.iter().filter(|spec| matches!(spec.kind, ColumnKind::Toggle(_))).map(|spec| spec.key.clone()).collect();
         self
     }
 
@@ -509,15 +510,6 @@ impl<'a> ListRow<'a> {
     #[must_use]
     pub fn cell_lines(mut self, column: ColumnKey, text: impl Into<Label>) -> Self {
         self.texts.push(TextCell { column, text: text.into(), wrap: true });
-        self
-    }
-
-    /// The leading slot, one icon wide and as high as the row, painted by `paint` into its rect (a timeline rail: a dot
-    /// and a line through the row). It sits where the icon does, mirrored in a right-to-left interface, and replaces
-    /// the row's icon; thumbnails replace it in turn.
-    #[must_use]
-    pub fn lead_painter(mut self, paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
-        self.lead_paint = Some(Box::new(paint));
         self
     }
 
@@ -639,6 +631,7 @@ const LABEL_CELL: PartKey = PartKey::new("label-cell");
 const DISCLOSURE: PartKey = PartKey::new("disclosure");
 const LINK: PartKey = PartKey::new("link");
 const PROGRESS: PartKey = PartKey::new("progress");
+const LINES: PartKey = PartKey::new("lines");
 const TRAILING: PartKey = PartKey::new("trailing");
 const TRAILING_ICON: PartKey = PartKey::new("trailing-icon");
 const THUMB: PartKey = PartKey::new("thumb");
@@ -904,6 +897,13 @@ impl ListRow<'_> {
         }
     }
 
+    /// Takes the toggle columns from the facts the collection recorded for this row.
+    fn adopt_toggle_columns(&mut self, env: &EnvView<'_>, id: egui::Id) {
+        if let Some(facts) = env.facts_of(id) {
+            self.toggle_columns.clone_from(&facts.toggles);
+        }
+    }
+
     /// How the wrapped lines fit: all of them, or cut after `line_limit`.
     fn lines_wrap(&self) -> Wrap {
         self.line_limit.map_or(Wrap::Wrap, Wrap::Clamp)
@@ -923,6 +923,15 @@ impl ListRow<'_> {
     /// The part of the label band the progress bar takes: its bottom line.
     fn progress_band(&self, label: Rect, sizes: &Sizes) -> Rect {
         Rect::from_x_y_ranges(label.x_range(), (label.bottom() - self.progress_line(sizes))..=label.bottom())
+    }
+
+    /// The label band above the progress line, and the top of the label, detail and wrapped lines centred in it
+    /// together, for wrapped lines `lines` high with the gap above them.
+    fn text_block(&self, label: Rect, sizes: &Sizes, lines: f32) -> (Rect, f32) {
+        let band = Rect::from_x_y_ranges(label.x_range(), label.top()..=label.bottom() - self.progress_line(sizes));
+        let detail = if self.detail_line() { sizes.detail_line } else { 0.0 };
+        let block = sizes.label_line + detail + lines;
+        (band, band.top() + ((band.height() - block) / 2.0).max(0.0))
     }
 
     /// The levels of indent: a leaf inside a group indents one more level, past its parent's disclosure column.
@@ -1150,6 +1159,7 @@ impl Component for ListRow<'_> {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        self.adopt_toggle_columns(&cx.env, cx.resolved.id);
         let sizes = &cx.style.sizes;
         if self.spacer {
             return Vec2::ZERO;
@@ -1194,6 +1204,7 @@ impl Component for ListRow<'_> {
         if self.spacer {
             return;
         }
+        self.adopt_toggle_columns(&cx.env, cx.resolved.id);
         let widths = self.item_widths(&cx.style.sizes, &|run| cx.layout_at(run, f32::INFINITY).size().x);
         let placed = self.place(&cx.style.sizes, &widths, rect, cx.flow.is_rtl());
         for (at, cell) in &placed.toggles {
@@ -1217,6 +1228,20 @@ impl Component for ListRow<'_> {
         }
         if self.progress.is_some() {
             cx.part(PROGRESS, self.progress_band(placed.label, &cx.style.sizes));
+        }
+        // Clamped lines that the clamp cuts show whole in a tooltip of their own, which a cut label's tooltip on the
+        // row does not hide.
+        if let Some(text) = self.lines.as_ref().filter(|_| self.line_limit.is_some()) {
+            let sizes = &cx.style.sizes;
+            let run = TextRun::new(text.as_str()).role(cx.style.detail.role).wrap(self.lines_wrap());
+            let layout = cx.layout_at(&run, self.text_block(placed.label, sizes, 0.0).0.width());
+            if layout.elided {
+                let (band, top) = self.text_block(placed.label, sizes, sizes.gap + layout.size().y);
+                let detail = if self.detail_line() { sizes.detail_line } else { 0.0 };
+                let lines_top = top + sizes.label_line + detail + sizes.gap;
+                let rect = Rect::from_x_y_ranges(band.x_range(), lines_top..=lines_top + layout.size().y);
+                cx.part(LINES, rect).tooltip(text.clone());
+            }
         }
         let mut focusable = false;
         for (at, (_, link)) in placed.extras.iter().enumerate() {
@@ -1547,15 +1572,12 @@ impl ListRow<'_> {
         let style = cx.style;
         let sizes = &style.sizes;
         let rtl = cx.env.direction().is_rtl();
-        let label = Rect::from_x_y_ranges(label.x_range(), label.top()..=label.bottom() - self.progress_line(sizes));
         let wrapped = self.lines.as_ref().map(|text| {
             let run = TextRun::new(text.as_str()).role(style.detail.role).color(cx.resolve(&style.detail.color)).wrap(self.lines_wrap());
-            draw.layout(&run, label.width())
+            draw.layout(&run, self.text_block(label, sizes, 0.0).0.width())
         });
-        let detail = if self.detail_line() { sizes.detail_line } else { 0.0 };
         let lines = wrapped.as_ref().map_or(0.0, |layout| sizes.gap + layout.size().y);
-        let block = sizes.label_line + detail + lines;
-        let mut top = label.top() + ((label.height() - block) / 2.0).max(0.0);
+        let (label, mut top) = self.text_block(label, sizes, lines);
         // A heading's detail sits at the end of the label's line and the title is cut to what it leaves.
         let beside = match (&self.detail, self.heading) {
             (Some(detail), true) => {
