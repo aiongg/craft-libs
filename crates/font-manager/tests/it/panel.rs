@@ -130,6 +130,34 @@ impl Rig {
             .unwrap_or_else(|| panic!("no {role:?} named `{name}` on screen"))
     }
 
+    /// Presses the button named `name` whose description is `description`: the style rows of the details sheet share
+    /// their name and differ in the description.
+    fn click_described(&mut self, name: &str, description: &str) {
+        let target = self
+            .fx
+            .by_role(Role::BUTTON)
+            .into_iter()
+            .find(|target| {
+                craft_ui::testing::access::name(self.fx.tree(), target.node) == Some(name)
+                    && self.fx.tree().description_of(target.node) == Some(description)
+            })
+            .unwrap_or_else(|| panic!("no button `{name}` described `{description}` on screen"));
+        self.fx.click(&target);
+        self.fx.settle();
+    }
+
+    /// Presses the notice action named `name`: a link beside the message, a button when the actions stack.
+    fn click_notice_action(&mut self, name: &str) {
+        let target = [Role::LINK, Role::BUTTON]
+            .into_iter()
+            .find_map(|role| {
+                (self.fx.by_role(role).into_iter()).find(|target| craft_ui::testing::access::name(self.fx.tree(), target.node) == Some(name))
+            })
+            .unwrap_or_else(|| panic!("no notice action `{name}` on screen"));
+        self.fx.click(&target);
+        self.fx.settle();
+    }
+
     fn click_role(&mut self, role: Role, name: &str) {
         let target = self.named(role, name);
         self.fx.click(&target);
@@ -265,11 +293,11 @@ fn install_and_remove_one_style() {
     let mut rig = setup("style");
     rig.allow();
     rig.open("Hack");
-    rig.click("Install Regular");
+    rig.click_described("Install", "Install Regular");
     assert_eq!(rig.store.calls(), [Call::InstallFile("Hack".into(), HACK.into())]);
     assert!(rig.has_installed("Hack"));
 
-    rig.click("Remove Regular");
+    rig.click_described("Remove", "Remove Regular");
     assert_eq!(rig.store.calls().last(), Some(&Call::Remove("Hack".into())));
     assert!(!rig.has_installed("Hack"));
 }
@@ -305,7 +333,7 @@ fn nothing_downloads_without_consent() {
 
     // Allowed from the note, a preview downloads without asking and installs nothing.
     rig.type_into("Search", "Hack");
-    rig.click_role(Role::BUTTON, "Allow downloads");
+    rig.click_notice_action("Allow downloads");
     assert!(rig.panel.borrow().downloads_allowed());
     assert!(!rig.present("Downloads are off"));
     rig.click("Preview");
@@ -427,16 +455,16 @@ fn queued_installs_run_one_runner_in_request_order() {
     let deferred = Arc::new(Deferred::default());
     let mut rig = setup_jobs("queue", Arc::new(MemorySections::default()), deferred.clone());
     rig.allow();
-    rig.type_into("Search", "Hack");
+    // Each card offers its own Install; a card whose job is queued shows progress instead, so the second press lands on
+    // the next family.
     rig.click("Install");
-    rig.type_into("Search", "Amiri");
     rig.click("Install");
 
     let mut spawned = std::mem::take(&mut *deferred.0.lock().unwrap_or_else(PoisonError::into_inner));
     assert_eq!(spawned.len(), 1, "one runner drains the queue");
     assert!(rig.store.calls().is_empty(), "nothing runs before the runner does");
     spawned.remove(0)();
-    assert_eq!(rig.store.calls(), [Call::Install("Hack".into()), Call::Install("Amiri".into())]);
+    assert_eq!(rig.store.calls(), [Call::Install("Amiri".into()), Call::Install("Hack".into())]);
 }
 
 #[trial]
