@@ -359,7 +359,7 @@ pub struct Scoped {
     pub(crate) roving: Option<Id>,
     /// From `ContainerProps.transform`.
     pub transform: Option<CanvasTransform>,
-    /// The `Grid` body whose cursor places the children in flow.
+    /// The `Grid` or spread `Row` body whose cursor places the children in flow.
     pub(crate) grid: Option<Id>,
     /// The body that encloses the scope is a content-sized column: it takes its width from its widest child that is
     /// not fill-width, so a fill-width child takes the width the others settle on and never sets it.

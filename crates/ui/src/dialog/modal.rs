@@ -1,7 +1,7 @@
 //! `Dialog` (16.5): `DialogFrame`'s chrome on an egui layer: modal or modeless, movable by its header, with a
 //! focus trap, placement and size remembered under a `SaveKey`.
 
-use super::frame::{self, DialogOutput, FOOTER, FooterCx, FooterFn};
+use super::frame::{self, DialogOutput, FOOTER, FooterCx, FooterFn, FooterHooks};
 use crate::contract::overlay::{FloatPlace, OverlayFit, Place};
 use crate::contract::{
     Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, Mount, Overlay, Pad, Props as _, Role, SaveKey,
@@ -12,10 +12,11 @@ use crate::runtime::env::Label;
 use crate::runtime::focus::Initial;
 use crate::runtime::memory::sub;
 use crate::runtime::overlay::{self, Backdrop, CloseReason, Rank};
-use crate::runtime::windows::WindowHost;
+use crate::runtime::windows::{self, WindowHost};
 use crate::sections::{DialogRole, FooterButton};
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{Metrics, Sense};
+use craft_host::target::WindowState;
 use egui::{Context, Id, Pos2, Rangef, Rect, Response, Ui, ViewportId};
 
 /// The style of a dialog: the surface and padding come from the container.
@@ -246,11 +247,10 @@ impl Dialog<'_> {
     }
 }
 
-/// Whether the dialog `id`, or its chrome, is the layer that takes the keys: no popup of the dialog and no other modal
-/// is open above it.
+/// Whether the dialog `id` is the layer that takes the keys: no popup of the dialog and no other modal is open above
+/// it. Its modal chrome takes no keys, so the strips never hide the dialog from this test.
 fn on_top(ctx: &Context, id: Id) -> bool {
-    overlay::top(ctx)
-        .is_some_and(|top| top == id || overlay::entry(ctx, top).is_some_and(|entry| entry.parent == Some(id) && entry.rank == Rank::ModalChrome))
+    overlay::top(ctx) == Some(id)
 }
 
 /// The strips of `viewport`'s window that stay draggable under a modal whose dialog lies at `dialog`: each drag area
@@ -298,11 +298,10 @@ pub(crate) struct ModalDragStripStyle {
 }
 
 /// The chrome a modal dialog puts over a drag area of the window it covers, so that the window still moves by it.
-/// It sits at the strip on the modal-chrome layer (`Overlay::modal_chrome`), paints nothing and is no Tab stop: a
-/// drag moves the window.
+/// It sits at the strip on the modal-chrome layer (`Overlay::modal_chrome`), paints nothing, takes no keys and is no
+/// Tab stop: a drag moves the window, and a double click maximizes or restores it as the title bar does.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(container)]
-#[component(exempt(case = "layer-escape", reason = "The strip is the chrome of the modal under it and takes no keys: Escape closes that modal."))]
 pub(crate) struct ModalDragStrip {
     #[common]
     common: Common,
@@ -342,8 +341,17 @@ impl Component for ModalDragStrip {
 }
 
 impl Container for ModalDragStrip {
-    /// The header is the strip, so the move band covers it.
-    fn header(&mut self, ui: &mut Ui, _: &mut BodyCx<'_>) {
+    /// The header is the strip, so the move band covers it. A double click on it acts on the window as one on the
+    /// title bar under it does.
+    fn header(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
+        if cx.band_double_pressed() {
+            let host = WindowHost::of(ui.ctx());
+            let viewport = host.current();
+            let shell = windows::shell_of(ui.ctx(), viewport);
+            if let Some(action) = windows::double_click_action(&host.frame(), shell.double_click, shell.window.state == WindowState::Maximized) {
+                host.act(viewport, action);
+            }
+        }
         ui.set_min_size(self.rect.size());
     }
 }
@@ -398,5 +406,23 @@ impl Container for Dialog<'_> {
 
     fn closed(&mut self, why: CloseReason) {
         self.closed.get_or_insert(why);
+    }
+}
+
+impl<'a> FooterHooks<'a> for Dialog<'a> {
+    fn buttons(self, buttons: impl IntoIterator<Item = FooterButton>) -> Self {
+        Dialog::buttons(self, buttons)
+    }
+
+    fn settle_buttons<T: FnMut(&mut BodyCx<'_>, &mut [FooterButton]) + 'a>(self, settle: T) -> Self {
+        Dialog::settle_buttons(self, settle)
+    }
+
+    fn on_pick<T: FnMut(&FooterButton, &mut BodyCx<'_>) + 'a>(self, act: T) -> Self {
+        Dialog::on_pick(self, act)
+    }
+
+    fn close_guard<T: FnMut(&FooterButton, &mut BodyCx<'_>) -> bool + 'a>(self, allows: T) -> Self {
+        Dialog::close_guard(self, allows)
     }
 }

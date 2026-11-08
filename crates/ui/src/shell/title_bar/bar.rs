@@ -43,17 +43,6 @@ impl Outcome for TitleBarOutput {
     }
 }
 
-/// What a double click on the free bar asks of the window in `frame`: an integrated bar maximizes or restores; a
-/// macOS inset bar follows the system setting `setting`; a native frame is the OS's.
-pub fn double_click_action(frame: &Frame, setting: DoubleClick, maximized: bool) -> Option<WindowAction> {
-    match (frame, setting) {
-        (Frame::Native, _) => None,
-        (Frame::Integrated(_), _) | (Frame::Inset(_), DoubleClick::Zoom) => Some(WindowAction::SetMaximized(!maximized)),
-        (Frame::Inset(_), DoubleClick::Minimize) => Some(WindowAction::Minimize),
-        _ => None,
-    }
-}
-
 /// The bar of a window whose frame the app draws.
 ///
 /// The bar fills the width of its room; its height is its content's, the caption strip's `SlotSize::TitleBar`. What it shows follows the window's frame
@@ -254,7 +243,7 @@ impl Container for TitleBar<'_> {
     fn header(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         let window = self.window(cx);
         if cx.band_double_pressed()
-            && let Some(action) = double_click_action(&window.frame, window.double_click, window.maximized)
+            && let Some(action) = windows::double_click_action(&window.frame, window.double_click, window.maximized)
         {
             let ctx = cx.memory.ctx().clone();
             WindowHost::of(&ctx).act(pass::current_viewport(&ctx), action);
