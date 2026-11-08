@@ -1,7 +1,7 @@
-//! `FullWindowView`: the view of a full-window canvas as plain data, and `FullWindowZoomKeys`, the zoom commands
-//! that act on it.
+//! `FullWindowView`: the view of a full-window canvas as plain data. The canvas view commands
+//! ([`ViewCommand`](crate::canvas::ViewCommand)) act on it.
 
-use crate::canvas::WheelNavigation;
+use crate::canvas::{ViewCommand, WheelNavigation};
 use craft_behavior::canvas::zoom;
 use craft_behavior::kurbo::{Point, Size};
 use craft_behavior::{CanvasView, PixelSize, ZoomLadder};
@@ -11,25 +11,8 @@ use egui::Rect;
 /// bits).
 const SAME: f64 = 1e-9;
 
-/// The zoom commands of a full-window canvas: its keys and the zoom bar's buttons. The app binds the chords and
-/// feeds the fired command to [`FullWindowView::apply`], as it does the canvas view commands.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui_macros::CommandSet)]
-#[command(prefix = "fullWindowZoom")]
-#[non_exhaustive]
-pub enum FullWindowZoomKeys {
-    /// Zoom in to the next step of the zoom ladder.
-    #[command(label = "Zoom In", default = "Cmd+=")]
-    In,
-    /// Zoom out to the previous step of the zoom ladder.
-    #[command(label = "Zoom Out", default = "Cmd+-")]
-    Out,
-    /// Fit the whole image in the canvas.
-    #[command(label = "Fit in View", default = "Cmd+0")]
-    Fit,
-    /// Show the image at 100 percent.
-    #[command(label = "Actual Pixels", default = "Cmd+1")]
-    ActualPixels,
-}
+/// The highest device zoom a fitted view reaches: a small image is magnified up to 400 % to fill the canvas.
+const FIT_MAX: f64 = 4.0;
 
 /// How a full-window canvas shows its image: fitted, or a zoom and a centre the user chose.
 ///
@@ -37,9 +20,9 @@ pub enum FullWindowZoomKeys {
 /// view is fitted. The canvas settles it on its rect each pass (so a window resize refits a fitted view) and reports
 /// the next view in its output; the zoom bar steps from the same value.
 ///
-/// - Fitted: the whole image shows centred (`zoom::fit`).
+/// - Fitted: the whole image shows centred, magnified up to 400 % (`zoom::fit_up_to`).
 /// - A zoom (wheel, pinch, commands, the Zoom tool, the zoom bar) or a pan (Space, the middle button, the Hand tool)
-///   by the user ends the fit; [`FullWindowZoomKeys::Fit`] returns to it.
+///   by the user ends the fit; [`ViewCommand::FitOnScreen`] returns to it.
 /// - Zooms stay inside `ZoomLadder`'s range for the image's size.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FullWindowView {
@@ -68,7 +51,7 @@ impl FullWindowView {
         }
     }
 
-    /// Whether the view fits the image: until the user zooms or pans, and after `FullWindowZoomKeys::Fit`.
+    /// Whether the view fits the image: until the user zooms or pans, and after `ViewCommand::FitOnScreen`.
     pub fn is_fit(&self) -> bool {
         self.fit
     }
@@ -101,10 +84,15 @@ impl FullWindowView {
         self.size = Size::new(f64::from(size.width), f64::from(size.height));
         self.pixels_per_point = pixels_per_point;
         self.view.rect = rect;
-        if self.fit && size.width > 0 && size.height > 0 {
-            zoom::fit(&mut self.view, self.size, pixels_per_point);
-        }
+        self.refit();
         self
+    }
+
+    /// Fits the view to the rect and image size the value holds, while it is fitted.
+    fn refit(&mut self) {
+        if self.fit && self.size.width > 0.0 && self.size.height > 0.0 {
+            zoom::fit_up_to(&mut self.view, self.size, self.pixels_per_point, FIT_MAX);
+        }
     }
 
     /// The view after a tool, a pan or a wheel zoom changed the canvas view `next` this pass; a change of the zoom or
@@ -140,21 +128,25 @@ impl FullWindowView {
         changed
     }
 
-    /// Applies a zoom command. Returns whether the view changed.
-    pub fn apply(&mut self, command: FullWindowZoomKeys) -> bool {
+    /// Applies a view command: the zoom commands (zoom in and out, fit on screen, 100 %). The rest (fill screen and
+    /// the rotations) leave the view as it is. Returns whether the view changed. Fit on screen refits on the rect and
+    /// image size of the last settled pass, so the zoom it reports is the fitted one at once.
+    pub fn apply(&mut self, command: ViewCommand) -> bool {
         match command {
-            FullWindowZoomKeys::In | FullWindowZoomKeys::Out => {
-                let dir = if command == FullWindowZoomKeys::In { 1 } else { -1 };
+            ViewCommand::ZoomIn | ViewCommand::ZoomOut => {
+                let dir = if command == ViewCommand::ZoomIn { 1 } else { -1 };
                 let changed = zoom::step(&mut self.view, dir, self.size, self.pixels_per_point);
                 self.fit &= !changed;
                 changed
             }
-            FullWindowZoomKeys::Fit => {
-                let changed = !self.fit;
+            ViewCommand::FitOnScreen => {
+                let before = *self;
                 self.fit = true;
-                changed
+                self.refit();
+                *self != before
             }
-            FullWindowZoomKeys::ActualPixels => self.set_device_zoom(1.0),
+            ViewCommand::ActualPixels => self.set_device_zoom(1.0),
+            _ => false,
         }
     }
 }

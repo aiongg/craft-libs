@@ -14,5 +14,5 @@ pub use canvas::{FullWindowCanvas, FullWindowCanvasOutput, RasterOverlay};
 pub use side::{FullWindowSide, FullWindowSideOutput, FullWindowSideStyle, SideFooter, SideWidth};
 pub use status::{FullWindowStatus, FullWindowStatusOutput};
 pub use title::{FullWindowTitle, FullWindowTitleOutput};
-pub use view::{FullWindowView, FullWindowZoomKeys};
+pub use view::FullWindowView;
 pub use zoom_bar::{FullWindowZoomBar, FullWindowZoomBarOutput};

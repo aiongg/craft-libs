@@ -1,7 +1,9 @@
 //! `FullWindowDialog` (16.5): a dialog over the whole window, on the panel surface, with the dialog focus trap.
 
 use super::frame::{self, DialogOutput, FOOTER, FooterCx, FooterFn};
+use crate::canvas::ViewCommand;
 use crate::contract::{Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, HeaderRegion, Mount, Pad, Props as _, Role, SaveKey};
+use crate::runtime::commands::CommandSet as _;
 use crate::runtime::env::Label;
 use crate::runtime::focus::{EnterRule, FocusPolicy, Initial};
 use crate::runtime::overlay::CloseReason;
@@ -22,6 +24,8 @@ pub struct FullWindowDialogStyle {
 /// optional footer. The areas the body shows inside it are panels at rects.
 ///
 /// - Open state: bound with [`opened`](FullWindowDialog::opened), else a session slot that starts open.
+/// - View commands: the dialog is an instance of the [`ViewCommand`] scope, so the zoom chords act on the view the
+///   dialog's zoom bar is bound to, not on a canvas behind it.
 /// - Focus: the dialog trap, with nothing focused at first unless [`initial_focus`](FullWindowDialog::initial_focus)
 ///   says otherwise.
 #[derive(crate::contract::Component, crate::contract::Props)]
@@ -60,7 +64,8 @@ impl<'a> FullWindowDialog<'a> {
             .surface(SurfaceKind::Panel)
             .pad(Pad::None)
             .header(HeaderRegion::new().rule(true))
-            .focus(FocusPolicy::DIALOG.initial(Initial::Keep));
+            .focus(FocusPolicy::DIALOG.initial(Initial::Keep))
+            .command_scope(ViewCommand::SCOPE);
         FullWindowDialog {
             common: Common::new(),
             props,

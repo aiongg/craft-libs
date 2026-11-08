@@ -982,7 +982,7 @@ name = "ViewCommand"
 old = ""
 new = "craft_ui::canvas::ViewCommand"
 status = "replaced"
-note = "The `canvasView.*` commands (Zoom In, Zoom Out, Fit on Screen, Fill Screen, Rotate View clockwise and counterclockwise, Reset Rotation) with `apply(view, size, pixels_per_point)`."
+note = "The `canvasView.*` commands, scoped to `canvasView` (Zoom In Cmd+= or Cmd++, Zoom Out Cmd+-, Fit on Screen Cmd+0, Fill Screen, 100% Cmd+1, Rotate View clockwise and counterclockwise, Reset Rotation) with `apply(view, size, pixels_per_point)`."
 
 [[type]]
 name = "NavigationLabels"
