@@ -1,0 +1,2 @@
+crates/browse/src/ui
+crates/browse/tests/it

@@ -1,0 +1,8 @@
+crates/font-manager/src/axes.rs
+crates/font-manager/src/glyphs.rs
+crates/font-manager/src/missing.rs
+crates/font-manager/src/panel
+crates/font-manager/src/picker.rs
+crates/font-manager/src/text_stories.rs
+crates/font-manager/src/ui.rs
+crates/font-manager/tests/it
