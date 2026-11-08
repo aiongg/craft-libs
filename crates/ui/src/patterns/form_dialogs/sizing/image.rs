@@ -1,6 +1,6 @@
 //! `ImageSize`: the Image Size dialog.
 
-use super::{Kit, LinkedSize, Resample, SizeForm, SizingOutput, edited, show_form};
+use super::{Kit, LinkedSize, Resample, SizeForm, SizingOutput, show_form};
 use crate::choice::Checkbox;
 use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use crate::form::Field;
@@ -30,15 +30,80 @@ pub struct ImageSizeResult {
 /// What Image Size reports: its response, how it closed and the [`ImageSizeResult`] at OK.
 pub type ImageSizeOutput = SizingOutput<ImageSizeResult>;
 
-/// The values Image Size edits.
-#[derive(Clone, PartialEq)]
-struct ImageState {
+/// The values Image Size edits: the linked size, the Resample method and Scale Styles. The app builds them when it
+/// opens the dialog and keeps them in the binding the dialog edits.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ImageSizeValues {
     size: LinkedSize,
     method: Resample,
     scale_styles: bool,
 }
 
-impl SizeForm for ImageState {
+impl ImageSizeValues {
+    /// The values for a document of `size` pixels, at 72 pixels per inch, in pixels, resampling automatically with
+    /// Scale Styles on.
+    pub fn new(size: PixelSize) -> Self {
+        ImageSizeValues { size: LinkedSize::new(size), method: Resample::Automatic, scale_styles: true }
+    }
+
+    /// The resolution the document opens with, in pixels per inch.
+    #[must_use]
+    pub fn pixels_per_inch(mut self, pixels_per_inch: f64) -> Self {
+        self.size = self.size.opening_resolution(pixels_per_inch);
+        self
+    }
+
+    /// The points in an inch of the Points and Picas units: 72, or 72.27 for traditional points.
+    #[must_use]
+    pub fn points_per_inch(mut self, points_per_inch: f64) -> Self {
+        self.size = self.size.points_per_inch(points_per_inch);
+        self
+    }
+
+    /// The unit the width and height open in.
+    #[must_use]
+    pub fn unit(mut self, unit: UnitKind) -> Self {
+        self.size.set_unit(unit);
+        self
+    }
+
+    /// The unit the resolution opens in.
+    #[must_use]
+    pub fn resolution_unit(mut self, unit: UnitKind) -> Self {
+        self.size.set_resolution_unit(unit);
+        self
+    }
+
+    /// Whether Resample opens on; the default is on.
+    #[must_use]
+    pub fn resampling(mut self, on: bool) -> Self {
+        self.size.resampling(on);
+        self
+    }
+
+    /// The method Resample opens with, and returns to when it is turned on again.
+    #[must_use]
+    pub fn method(mut self, method: Resample) -> Self {
+        self.method = method;
+        self
+    }
+
+    /// Whether Scale Styles opens on.
+    #[must_use]
+    pub fn scale_styles(mut self, on: bool) -> Self {
+        self.scale_styles = on;
+        self
+    }
+}
+
+impl Default for ImageSizeValues {
+    /// The values of an empty document, which the dialog refuses to answer with.
+    fn default() -> Self {
+        ImageSizeValues::new(PixelSize::new(0, 0))
+    }
+}
+
+impl SizeForm for ImageSizeValues {
     fn pixels(&self) -> PixelSize {
         self.size.pixels()
     }
@@ -50,91 +115,38 @@ impl SizeForm for ImageState {
 /// - Keys: Tab walks the fields, Enter is OK unless a field owns it, Escape cancels. Holding Alt turns Cancel into
 ///   Reset, which restores the values from when the dialog opened and keeps the dialog open. Ctrl/Cmd+Z steps the
 ///   dialog's own settings.
-/// - With Resample off the pixel count is fixed: the width and height in pixels or percent refuse input, and a physical
-///   size changes the resolution.
+/// - With Resample off the pixel count is fixed: the width and height in pixels or percent are disabled, and a
+///   physical size changes the resolution.
 /// - OK is refused while a side is under 1 or over `MAX_DOCUMENT_SIDE` pixels.
+/// - Values: the `values` binding holds them; the app builds them with [`ImageSizeValues::new`] when it opens the
+///   dialog.
 #[must_use = "show the dialog with `show`"]
 #[derive(crate::contract::Pattern, crate::contract::Props)]
 pub struct ImageSize<'a> {
-    size: PixelSize,
+    values: Bind<'a, ImageSizeValues>,
     /// Binds the open state to `open`.
     #[prop(name = "opened")]
     open: Option<Bind<'a, bool>>,
-    /// The resolution the document opens with, in pixels per inch.
-    #[prop(quantity = "pixels per inch")]
-    pixels_per_inch: f64,
-    /// The unit the width and height open in.
-    #[prop]
-    unit: UnitKind,
-    /// The unit the resolution opens in.
-    #[prop]
-    resolution_unit: UnitKind,
-    /// Whether Resample opens on; the default is on.
-    #[prop]
-    resampling: bool,
-    /// The method Resample opens with, and returns to when it is turned on again.
-    #[prop]
-    method: Resample,
     /// The methods the list offers, in the order of [`Resample::ALL`]; all of them when empty.
     #[prop]
     methods: Vec<Resample>,
-    /// Whether Scale Styles opens on.
-    #[prop]
-    scale_styles: bool,
     /// The bytes one pixel takes, for the file size readout.
     #[prop(quantity = "bytes per pixel")]
     bytes_per_pixel: f64,
-    /// The points in an inch of the Points and Picas units: 72, or 72.27 for traditional points.
-    #[prop(quantity = "points in an inch")]
-    points_per_inch: f64,
 }
 
 impl<'a> ImageSize<'a> {
-    /// The dialog for a document of `size` pixels, at 72 pixels per inch, in pixels, resampling automatically.
-    pub fn new(size: PixelSize) -> Self {
-        ImageSize {
-            size,
-            open: None,
-            pixels_per_inch: 72.0,
-            unit: UnitKind::Pixels,
-            resolution_unit: UnitKind::PixelsPerInch,
-            resampling: true,
-            method: Resample::Automatic,
-            methods: Vec::new(),
-            scale_styles: true,
-            bytes_per_pixel: 4.0,
-            points_per_inch: UnitKind::POINTS_PER_INCH,
-        }
+    /// The dialog over `values`.
+    pub fn new(values: Bind<'a, ImageSizeValues>) -> Self {
+        ImageSize { values, open: None, methods: Vec::new(), bytes_per_pixel: 4.0 }
     }
 
     /// Shows the dialog.
     pub fn show(self, ui: &mut Ui) -> ImageSizeOutput {
-        let ImageSize {
-            size,
-            open,
-            pixels_per_inch,
-            unit,
-            resolution_unit,
-            resampling,
-            method,
-            methods,
-            scale_styles,
-            bytes_per_pixel,
-            points_per_inch,
-        } = self;
+        let ImageSize { values, open, methods, bytes_per_pixel } = self;
         let kit = Kit::new(ui);
         let entries = Resample::entries(kit.words(), &methods);
-        let method = if entries.iter().any(|entry| entry.value() == Some(&method)) {
-            method
-        } else {
-            entries.first().and_then(|entry| entry.value().copied()).unwrap_or(method)
-        };
-
-        let mut linked = LinkedSize::new(size).opening_resolution(pixels_per_inch).points_per_inch(points_per_inch);
-        linked.set_unit(unit);
-        linked.set_resolution_unit(resolution_unit);
-        linked.resampling(resampling);
-        let opening = ImageState { size: linked, method, scale_styles };
+        let first_method = entries.first().and_then(|entry| entry.value().copied());
 
         let words = kit.words();
         let title = words.image_size_title.clone();
@@ -142,9 +154,12 @@ impl<'a> ImageSize<'a> {
             ui,
             title,
             open,
-            &opening,
+            values,
             |ui, state| {
-                let was = kit.file_size(size, bytes_per_pixel);
+                if let (false, Some(first)) = (entries.iter().any(|entry| entry.value() == Some(&state.method)), first_method) {
+                    state.method = first;
+                }
+                let was = kit.file_size(state.size.original(), bytes_per_pixel);
                 let now = state.size.pixels();
                 let tone = kit.tone_of(now);
                 let shown = words.size_was.fill(&[("size", kit.file_size(now, bytes_per_pixel).as_str()), ("old", was.as_str())]);
@@ -155,13 +170,13 @@ impl<'a> ImageSize<'a> {
                 kit.resolution(ui, &mut state.size);
 
                 let on = Checkbox::new(Bind::given(state.size.is_resampling())).label(words.resample.clone()).id_salt("resample").show(ui);
-                if let Some(on) = edited(&on) {
+                if let Some(on) = on.value().copied() {
                     state.size.resampling(on);
                 }
                 if state.size.is_resampling() {
                     Field::new(words.resample_method.clone()).id_salt("method").show(ui, |ui, _| {
                         let picked = Select::new(words.resample_method.clone(), Bind::given(state.method), &entries).show(ui);
-                        if let Some(method) = edited(&picked) {
+                        if let Some(method) = picked.value().copied() {
                             state.method = method;
                         }
                     });
@@ -171,7 +186,7 @@ impl<'a> ImageSize<'a> {
                     .id_salt("scale-styles")
                     .enabled(state.size.is_linked())
                     .show(ui);
-                if let Some(on) = edited(&styles) {
+                if let Some(on) = styles.value().copied() {
                     state.scale_styles = on;
                 }
             },

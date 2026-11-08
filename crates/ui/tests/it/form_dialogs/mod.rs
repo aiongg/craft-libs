@@ -22,6 +22,8 @@ mod about;
 
 mod guides;
 
+mod new_guide;
+
 mod properties;
 
 mod export;
