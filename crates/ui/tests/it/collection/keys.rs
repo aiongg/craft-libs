@@ -372,6 +372,23 @@ fn the_lead_reports_what_moved_it() {
     assert!(seen.events.borrow().iter().any(|event| matches!(event, CollectionEvent::Selection(SelectionChange::Set(_)))));
 }
 
+/// With `arrows_select` off the arrows move the lead and select nothing; Space then selects the lead.
+#[trial]
+fn arrows_move_the_lead_without_selecting_when_the_props_say_so() {
+    let (seen, source) = (Seen::default(), Count(4));
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| show_table(ui, CollectionProps::new().select(SelectMode::Single).arrows_select(false), &source, &seen);
+    frames.idle(3, &mut show);
+    focus(&mut frames, &seen, &mut show);
+    press(&mut frames, Key::ArrowDown, &mut show);
+    press(&mut frames, Key::ArrowDown, &mut show);
+    assert_eq!(seen.leads(), vec![(0, LeadSource::Keys), (1, LeadSource::Keys)]);
+    let selections = |seen: &Seen| seen.events.borrow().iter().filter(|event| matches!(event, CollectionEvent::Selection(_))).count();
+    assert_eq!(selections(&seen), 0, "the arrows only moved the lead");
+    press(&mut frames, Key::Space, &mut show);
+    assert_eq!(selections(&seen), 1, "Space selects the lead");
+}
+
 /// The first press on a column that sorts descending first asks for descending; the next one reverses it.
 #[trial]
 fn the_first_click_on_a_first_descending_column_sorts_descending() {

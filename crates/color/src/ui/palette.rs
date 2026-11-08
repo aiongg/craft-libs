@@ -249,7 +249,7 @@ impl<'a> SwatchTable<'a> {
         SwatchTable {
             common: Common::new(),
             props: ContainerProps::new().sizing(Sizing::Content),
-            items: CollectionProps::new().select(SelectMode::Single).activate(ActivateOn::DoubleClick).natural_height(true),
+            items: CollectionProps::new().select(SelectMode::Single).activate(ActivateOn::DoubleClick).arrows_select(false).natural_height(true),
             swatches,
             selection: None,
             per_row: None,
