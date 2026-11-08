@@ -1,48 +1,27 @@
-//! Stories of the mask views. The story has no words of its own: its captions are
-//! `MaskViewLabels`.
+//! Stories of the mask views: the View Mode controls with and without an opacity, and the composite the engine would
+//! build for each view that veils the picture.
 //!
-//! The story composites the recipe itself over `MockImage` with `MockImage::subject` as the soft
-//! mask (the house), so every view shows without an engine ([`Composite`]). Every string goes
-//! through story words.
-//!
-//! | Story id | Shows |
-//! |---|---|
-//! | `patterns/mask-view-controls/modes` | The seven views over the picture; the opacity kept per view; Show Edge; Show Original; hold X |
+//! The story composites the recipe itself over `MockImage` with `MockImage::subject` as the soft mask (the house), so
+//! every view shows without an engine ([`Composite`]).
 
+use super::{MaskCoverage, MaskViewControls, MaskViewMode, MaskViewRecipe, MaskViewState, VeilMask};
+use crate::ui::mock_image::{MockImage, MockSubject, StoryView, story_canvas};
+use crate::ui::selection::SelectionOverlay;
+use craft_behavior::PixelSize;
 use craft_ui::canvas::{PixelRect, RasterSource};
-use craft_ui::localized::Labels as _;
-use craft_ui::primitives::{Content, Text};
-use craft_ui::story::{Level, NoArgs, Story, Surface};
-use craft_ui::testing::canvas_story::{ViewArgs, document_over};
-use craft_ui::typed_story;
+use craft_ui::primitives::Revision;
+use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
 use egui::{Color32, ColorImage, Ui};
 
-use super::{MaskCoverage, MaskViewControls, MaskViewKeys, MaskViewLabels, MaskViewMode, MaskViewRecipe, MaskViewState, VeilMask};
-use crate::ui::mock_image::{MockImage, MockSubject};
-use crate::ui::selection::{SelectionOverlay, SelectionOverlayLabels};
-use crate::ui::transform_preview::stories::grid;
-
-/// The components this module has stories for.
-pub const COMPONENTS: &[&str] = &["MaskViewControls"];
-
-/// The story.
-pub(crate) fn stories() -> Vec<Story> {
-    vec![typed_story!("patterns/mask-view-controls/modes", Level::Patterns, "MaskViewControls", "Modes", NoArgs {}, show_modes).on(Surface::Canvas)]
-}
-
-/// The size of the large view and of each of the seven small ones (the picture drawn at that
-/// size; the composite computes every pixel, so they are smaller than the default picture).
-const LARGE: [u32; 2] = [960, 640];
-const SMALL: [u32; 2] = [240, 160];
 /// Show Edge's band: its half width as a fraction of the picture's width.
 const BAND: f64 = 0.008;
 
-/// The view the engine would build from a [`MaskViewRecipe`], drawn on the spot: the layer (the
-/// picture) with its mask raised to the recipe's floor, then each veil over it.
+/// The view the engine would build from a [`MaskViewRecipe`], drawn on the spot: the layer (the picture) with its mask
+/// raised to the recipe's floor, then each veil over it.
 pub(crate) struct Composite {
     pub(crate) image: MockImage,
     pub(crate) recipe: MaskViewRecipe,
-    pub(crate) revision: u64,
+    pub(crate) revision: Revision,
 }
 
 impl Composite {
@@ -54,7 +33,7 @@ impl Composite {
             MaskCoverage::Original => f32::from(self.image.subject_distance(x, y) < 0.0),
             // The band either side of the edge.
             MaskCoverage::EdgeBand => {
-                let reach = BAND * f64::from(self.image.size()[0]);
+                let reach = BAND * f64::from(RasterSource::size(&self.image).width);
                 (1.0 - (self.image.subject_distance(x, y).abs() / reach).clamp(0.0, 1.0)) as f32
             }
         }
@@ -91,12 +70,16 @@ impl Composite {
 }
 
 impl RasterSource for Composite {
-    fn size(&self) -> [u32; 2] {
-        self.image.size()
+    fn size(&self) -> PixelSize {
+        RasterSource::size(&self.image)
     }
 
-    fn revision(&self) -> u64 {
+    fn revision(&self) -> Revision {
         self.revision
+    }
+
+    fn damage(&self, _: Revision) -> Option<PixelRect> {
+        None
     }
 
     fn read(&self, region: PixelRect, factor: u32, out: &mut ColorImage) {
@@ -111,50 +94,50 @@ impl RasterSource for Composite {
     }
 }
 
-/// The revision of a composite kept under `id`: it counts up whenever the recipe changes.
-fn revision_of(ui: &Ui, id: impl egui::AsIdSalt, recipe: &MaskViewRecipe) -> u64 {
-    let key = ui.make_persistent_id(id);
-    let kept = ui.data(|d| d.get_temp::<(MaskViewRecipe, u64)>(key));
-    match kept {
-        Some((kept, revision)) if kept == *recipe => revision,
-        other => {
-            let revision = other.map_or(1, |(_, revision)| revision + 1);
-            ui.data_mut(|d| d.insert_temp(key, (recipe.clone(), revision)));
-            revision
-        }
-    }
-}
-
-/// A canvas of the recipe's view over a picture of `size`, with the ants when the recipe has them.
-fn view(ui: &mut Ui, salt: &'static str, size: [u32; 2], recipe: MaskViewRecipe) {
-    let image = MockImage::new(size);
-    let revision = revision_of(ui, ("mask-view-story", salt), &recipe);
+/// A canvas of the recipe's view over the picture, with the ants when the recipe has them.
+fn composite(ui: &mut Ui, mode: MaskViewMode) -> StoryOutput {
+    let image = MockImage::default();
+    let recipe = MaskViewState { mode, ..MaskViewState::default() }.recipe();
     let ants = recipe.ants && !recipe.hidden;
-    let composite = Composite { image, recipe, revision };
-    let canvas = document_over(ui, ViewArgs::default(), salt, 0.0, image.view(None, None));
-    image.show_source(ui, &canvas, &composite);
-    SelectionOverlay::new(("mask-view-story", salt), &MockSubject(image)).labels(SelectionOverlayLabels::of(ui)).visible(ants).show(
-        ui,
-        &canvas.response,
-        &canvas.view,
-    );
+    let view = Composite { image, recipe, revision: Revision::new(1) };
+    story_canvas(ui, Some(&view), StoryView::Fit, |ui, canvas| {
+        SelectionOverlay::new("Selection", &MockSubject(image)).visible(ants).show_at(ui, canvas);
+        StoryOutput::default()
+    })
 }
 
-/// The View Mode controls and keys drive one large view; the seven views show small below, each
-/// at its own kept opacity.
-fn show_modes(ui: &mut Ui, _: &mut NoArgs) {
-    let labels = MaskViewLabels::of(ui);
-    let id = ui.make_persistent_id("mask-view-story-state");
-    let mut state = ui.data(|d| d.get_temp::<MaskViewState>(id)).unwrap_or_default();
-    MaskViewKeys::read(ui, &mut state);
-    MaskViewControls::new("mask-view-story", &mut state).labels(labels.clone()).show(ui);
-    view(ui, "large", LARGE, state.recipe());
+#[story(MaskViewControls<'static>, covers = [Default], drive = Drive::Never)]
+fn controls_with_opacity(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let state = data.value("state", MaskViewState { mode: MaskViewMode::Overlay, ..MaskViewState::default() });
+    let shown = MaskViewControls::new(state).show(ui);
+    let _ = shown.changed;
+    StoryOutput::default()
+}
 
-    // Two to a row where the tile holds two story canvases (each at least 240 points wide).
-    grid(ui, MaskViewMode::ALL.to_vec(), |column, mode| {
-        column.add(Text::new(mode.label(&labels)).content(Content::Muted));
-        let each = MaskViewState { mode, hide_view: false, ..state.clone() };
-        view(column, mode.id(), SMALL, each.recipe());
-    });
-    ui.data_mut(|d| d.insert_temp(id, state));
+#[story(MaskViewControls<'static>, covers = [], drive = Drive::Never)]
+fn controls_without_opacity(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let state = data.value("state", MaskViewState { mode: MaskViewMode::MarchingAnts, ..MaskViewState::default() });
+    let shown = MaskViewControls::new(state).show(ui);
+    let _ = shown.changed;
+    StoryOutput::default()
+}
+
+#[story(MaskViewControls<'static>, covers = [], drive = Drive::Never)]
+fn overlay_composite(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    composite(ui, MaskViewMode::Overlay)
+}
+
+#[story(MaskViewControls<'static>, covers = [], drive = Drive::Never)]
+fn on_black_composite(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    composite(ui, MaskViewMode::OnBlack)
+}
+
+#[story(MaskViewControls<'static>, covers = [], drive = Drive::Never)]
+fn on_white_composite(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    composite(ui, MaskViewMode::OnWhite)
+}
+
+#[story(MaskViewControls<'static>, covers = [], drive = Drive::Never)]
+fn black_and_white_composite(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    composite(ui, MaskViewMode::BlackAndWhite)
 }

@@ -1,23 +1,2 @@
 config_version = 1
 
-# img-scopes
-[[exception]]
-name = "scope-vectorscope-rtl"
-kind = "probe"
-rule = "probe/exempt/rtl"
-path = "crates/imaging/src/ui/scopes/vectorscope.rs"
-reason = "The vectorscope is a plot of hue as an angle: red sits at a fixed angle, never at the reading start."
-
-[[exception]]
-name = "scope-tone-zones-rtl"
-kind = "probe"
-rule = "probe/exempt/rtl"
-path = "crates/imaging/src/ui/scopes/zones.rs"
-reason = "The zones lie over a histogram whose levels run dark to light from the left in every direction."
-
-[[exception]]
-name = "scope-clipping-rtl"
-kind = "probe"
-rule = "probe/exempt/rtl"
-path = "crates/imaging/src/ui/scopes/clipping.rs"
-reason = "The overlay is the document's pixels and the warning buttons sit at the plot's physical corners, shadows left."

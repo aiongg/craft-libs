@@ -2,7 +2,9 @@
 
 mod blend_keys;
 mod curve;
+mod histogram;
 mod scopes;
+mod selection;
 
 use craft_ui::testing::{TRIALS, suite};
 use libtest_mimic::{Arguments, Trial};

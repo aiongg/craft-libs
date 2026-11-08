@@ -1,40 +1,39 @@
-//! [`SelectionOverlay`].
+//! [`SelectionOverlay`]: the selection on the canvas as a preview and marching ants.
 
-use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-use craft_ui::canvas::kurbo::Point;
-use craft_ui::canvas::{CanvasView, Marquee, MarqueeLook};
-use craft_ui::localized::{Labels, LocaleNumbers, Unit, Units};
-use egui::accesskit::Role;
-use egui::epaint::Vertex;
-use egui::{
-    AsIdSalt, Color32, ColorImage, Id, IdSalt, Mesh, Rect, Response, Sense, Shape, TextureHandle, TextureOptions, Ui, UiBuilder, WidgetInfo, pos2,
-};
+use craft_behavior::kurbo::Point;
+use craft_behavior::{Input, Metrics, PixelSize};
+use craft_ui::canvas::{PixelRect, RasterDisplay, RasterSource, canvas_space};
+use craft_ui::canvas_controls::{Marquee, MarqueeLook};
+use craft_ui::contract::{Access, Component, Cx, MeasureCx, NoValue, Outcome, Pattern, Props, Remember as _, Role, Show as _};
+use craft_ui::primitives::Revision;
+use craft_ui::runtime::env::{Env, Label, UnitKind};
+use craft_ui::style::{ComponentStyle, StyleCx};
+use egui::{Color32, ColorImage, Rect, Response, Ui, Vec2};
 
 use crate::selection::{PreviewMode, QuickMaskLook};
 use crate::trace::{MaskRect, MaskSource, Segment, bounded_step, outline, quantised_region, trace_step};
 
-/// The longest side of the preview texture, in texels: a larger document is sampled every `k`-th
-/// pixel (`k = ceil(long side / 1024)`).
-// pc: crates/ui-egui/src/dialogs/color_range_ui.rs:47 `CANVAS_PREVIEW` (1024).
-pub(super) const PREVIEW_TEXTURE_MAX: u32 = 1024;
-
 craft_ui::words! {
     /// The accessible name and value of the selection overlay, English by default.
     #[non_exhaustive]
-    pub struct SelectionOverlayLabels {
-        /// The graphics object's name.
-        name: "selectionOverlay.name" = "Selection";
+    pub struct SelectionWords {
+        /// The preview's name.
+        preview: "selectionOverlay.preview" = "Selection preview";
         /// The value with nothing selected.
         nothing: "selectionOverlay.nothing" = "No selection";
         /// The value: the content bounds, each number with the document's unit.
-        bounds: "selectionOverlay.bounds" = "{width} × {height} at {x}, {y}";
-        /// Appended to the value while a preview shows: `{value}, {mode}`.
-        with_mode: "selectionOverlay.withMode" = "{value}, {mode}";
+        bounds: template "selectionOverlay.bounds" = "{width} × {height} at {x}, {y}";
+        /// Appended to the value while a preview shows.
+        with_mode: template "selectionOverlay.withMode" = "{value}, {mode}";
+        /// The grayscale preview.
         grayscale: "selectionOverlay.grayscale" = "Grayscale";
+        /// The black matte preview.
         black_matte: "selectionOverlay.blackMatte" = "Black Matte";
+        /// The white matte preview.
         white_matte: "selectionOverlay.whiteMatte" = "White Matte";
+        /// The Quick Mask preview.
         quick_mask: "selectionOverlay.quickMask" = "Quick Mask";
     }
 }
@@ -43,16 +42,16 @@ craft_ui::words! {
 #[derive(Clone, Copy)]
 #[non_exhaustive]
 pub enum OutlineSource<'a> {
-    /// The app's mask: the overlay traces it ([`crate::trace::outline`]) and caches the
-    /// segments, and builds the preview texture from it.
+    /// The app's mask: the overlay traces it ([`crate::trace::outline`]) and caches the segments, and builds the
+    /// preview texture from it.
     Mask(&'a dyn MaskSource),
-    /// Segments the app traced itself (in a job, PhotoCraft's Rayon trace), in document pixels of
-    /// the full-size document, with the content `bounds` for the accessible value. Drawn as they
-    /// are: no cache, no preview texture.
+    /// Segments the app traced itself (in a job), in document pixels of the full-size document, with the content
+    /// `bounds` for the accessible value. Drawn as they are: no cache, no preview texture.
+    #[non_exhaustive]
     Segments {
-        #[allow(missing_docs)]
+        /// The traced edges.
         segments: &'a [Segment],
-        #[allow(missing_docs)]
+        /// The content bounds.
         bounds: MaskRect,
     },
 }
@@ -63,342 +62,343 @@ impl<'a, M: MaskSource> From<&'a M> for OutlineSource<'a> {
     }
 }
 
-/// What [`SelectionOverlay::show`] reports.
+/// A point to point map in document pixels: where a Free Transform puts the selection, or the app's warp.
+pub struct PointMap<'a>(Box<dyn Fn(Point) -> Point + 'a>);
+
+impl<'a> PointMap<'a> {
+    /// The map that runs `map`.
+    pub fn new(map: impl Fn(Point) -> Point + 'a) -> Self {
+        PointMap(Box::new(map))
+    }
+
+    fn apply(&self, point: Point) -> Point {
+        (self.0)(point)
+    }
+}
+
+/// What a selection overlay reports.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
-pub struct SelectionOverlayResponse {
-    /// The overlay's id (its cache and its AccessKit node).
-    pub id: Id,
-    /// The selection's content bounds in full-size document pixels, `None` when nothing is
-    /// selected.
+pub struct SelectionOverlayOutput {
+    /// The selection's content bounds in full-size document pixels, `None` when nothing is selected.
     pub bounds: Option<MaskRect>,
-    /// The trace ran this pass (the mask's revision, the step, the region or the reduction
-    /// changed); `false` when the cached segments were drawn. For a performance readout and tests.
+    /// The trace ran this pass (the mask's revision, the step, the region or the reduction changed); `false` when the
+    /// cached segments were drawn. For a performance readout and tests.
     pub retraced: bool,
 }
 
-/// The selection on the canvas, drawn once per pass before the tool's paint.
-///
-/// ```ignore
-/// let mask = SurfaceMask(&doc.selection);                       // the app's MaskSource
-/// SelectionOverlay::new(("selection", doc.id), &mask)
-///     .visible(show.selection_edges && !polygon.replaces_selection())
-///     .offset(floating_offset)                                  // a floating piece, a selection drag
-///     .preview(PreviewMode::None, QuickMaskLook::default())
-///     .show(ui, &canvas, &view);
-/// ```
+/// The selection on the canvas, shown once per pass over the canvas rect before the tool's paint.
 ///
 /// What it draws, bottom first:
-/// - The preview ([`preview`](Self::preview)), when the mode is not `None` and the source is a
-///   mask: one texture of [`PreviewMode::pixel`] per texel over the whole document, at most
-///   1024 texels on the long side, rebuilt only when the mask's revision, the mode, the look or the
-///   reduction changes, drawn over the document's rectangle with linear filtering.
-/// - The ants ([`MarqueeLook::Ants`](craft_ui::canvas::MarqueeLook::Ants), the `marquee.*`
-///   tokens) along the selection's boundary, when [`visible`](Self::visible). Hidden ants keep the
-///   preview.
+/// - The preview ([`preview`](Self::preview)), when the mode is not `None` and the source is a mask: a raster display
+///   of [`PreviewMode::pixel`] over the whole document, rebuilt only when the mask's revision, the mode, the look or
+///   the reduction changes.
+/// - The ants ([`MarqueeLook::Ants`]) along the selection's boundary, when [`visible`](Self::visible). Hidden ants keep
+///   the preview.
 ///
-/// The trace, for a mask source: step [`trace_step`](crate::trace::trace_step) of the view's
-/// device zoom (`view.zoom · pixels_per_point`) and the [`reduction`](Self::reduction); region
-/// [`quantised_region`](crate::trace::quantised_region) of the view's visible bounds shifted back by
-/// the [`offset`](Self::offset), so a small
-/// pan reuses the trace; bounds the mask's content bounds (the whole canvas when
-/// [`MaskSource::outside`] is above 0) within the region. With a [`mapped`](Self::mapped) outline
-/// the whole selection is traced instead (a Free Transform may carry parts from outside the view
-/// into it) with [`bounded_step`](crate::trace::bounded_step). Segments are scaled up by the
-/// reduction. The overlay keeps one trace per id in context memory, keyed by the mask's revision,
-/// the step, the region and the reduction, and retraces only when one of them changes.
+/// The trace, for a mask source: step [`trace_step`] of the view's device zoom and the [`reduction`](Self::reduction);
+/// region [`quantised_region`] of the view's visible bounds shifted back by the [`offset`](Self::offset), so a small
+/// pan reuses the trace; bounds the mask's content bounds (the whole canvas when [`MaskSource::outside`] is above 0)
+/// within the region. With a [`mapped`](Self::mapped) outline the whole selection is traced instead (a Free Transform
+/// may carry parts from outside the view into it) with [`bounded_step`]. Segments are scaled up by the reduction.
+/// The trace is kept per overlay and runs again only when the mask's revision, the step, the region or the reduction
+/// changes.
 ///
-/// Drawing: each segment end moves by the [`offset`](Self::offset), then through the
-/// [`mapped`](Self::mapped) point map, then through the view, so the ants are crisp on device
-/// pixels at any zoom and rotation. While the ants show, the overlay asks for a repaint every
-/// the tick ms (100 ms) unless reduced motion stops the march.
+/// Each segment end moves by the [`offset`](Self::offset), then through the [`mapped`](Self::mapped) map, then through
+/// the canvas view, so the ants are crisp on device pixels at any zoom and rotation.
 ///
-/// AccessKit: one graphics object named "Selection", valued with the content bounds in the
-/// document's unit ("120 × 80 at 40, 20", with [`value_in`](Self::value_in)) or "No selection";
-/// a preview adds its mode's name. No focus; the ants are decoration.
+/// AccessKit: the ants are one graphics object named by the label and valued with the content bounds in the
+/// [`unit`](Self::unit) ("120 × 80 at 40, 20") or "No selection"; a preview adds its mode's name.
+#[must_use = "show the overlay with `show_at`"]
+#[derive(Pattern, Props)]
 pub struct SelectionOverlay<'a> {
-    id_salt: IdSalt,
+    label: Label,
     source: OutlineSource<'a>,
+    /// Whether the ants show (View > Show > Selection Edges, and not while a polygonal or magnetic lasso outline
+    /// replaces the selection). Hidden ants keep the preview.
+    #[prop]
     visible: bool,
+    /// Draws the ants this many whole document pixels from where the selection is: a floating piece, a selection drag
+    /// in progress, layers moved together with the selection.
+    #[prop(quantity = "offset")]
     offset: [i32; 2],
+    /// The source is reduced this many times (Select and Mask's preview proxy): its pixels are that many document
+    /// pixels each way. 0 counts as 1.
+    #[prop(quantity = "reduction")]
     reduction: u32,
-    map: Option<&'a dyn Fn(Point) -> Point>,
+    /// Draws the outline through this map, document point to document point.
+    #[prop(func = "Fn(Point) -> Point")]
+    mapped: Option<PointMap<'a>>,
+    /// The Selection Preview mode (Color Range's modes, or Quick Mask).
+    #[prop]
     preview: PreviewMode,
-    look: QuickMaskLook,
-    value_in: Option<(&'a LocaleNumbers, &'a Unit)>,
-    labels: Option<SelectionOverlayLabels>,
+    /// The Quick Mask tint, for [`PreviewMode::QuickMask`].
+    #[prop]
+    quick_mask: QuickMaskLook,
+    /// The unit the accessible value's numbers are written in (the rulers' unit).
+    #[prop]
+    unit: UnitKind,
 }
 
 impl<'a> SelectionOverlay<'a> {
-    /// The selection of `source` (a `&impl MaskSource`, or [`OutlineSource::Segments`]) under
-    /// `id_salt`: ants shown, no offset, no reduction, no map, no preview.
-    pub fn new(id_salt: impl AsIdSalt, source: impl Into<OutlineSource<'a>>) -> Self {
+    /// The selection of `source` (a `&impl MaskSource`, or [`OutlineSource::Segments`]), named `label`: ants shown,
+    /// no offset, no reduction, no map, no preview, in pixels.
+    pub fn new(label: impl Into<Label>, source: impl Into<OutlineSource<'a>>) -> Self {
         Self {
-            id_salt: IdSalt::new(id_salt),
+            label: label.into(),
             source: source.into(),
             visible: true,
             offset: [0, 0],
             reduction: 1,
-            map: None,
+            mapped: None,
             preview: PreviewMode::None,
-            look: QuickMaskLook::default(),
-            value_in: None,
-            labels: None,
+            quick_mask: QuickMaskLook::default(),
+            unit: UnitKind::Pixels,
         }
     }
 
-    /// Whether the ants show (View › Show › Selection Edges, and not while a New Polygonal or
-    /// Magnetic Lasso outline replaces the selection). Hidden ants keep the preview. Default on.
-    pub fn visible(mut self, visible: bool) -> Self {
-        self.visible = visible;
-        self
-    }
-
-    /// Draw the ants `offset` whole document pixels from where the selection is: a floating piece,
-    /// a selection drag in progress ([`SelectionDrag::delta`](crate::ui::select::SelectionDrag)),
-    /// layers moved together with the selection.
-    pub fn offset(mut self, offset: [i32; 2]) -> Self {
-        self.offset = offset;
-        self
-    }
-
-    /// The source is reduced `k` times (Select and Mask's preview proxy): its pixels are `k`
-    /// document pixels each way. Default 1; 0 counts as 1.
-    pub fn reduction(mut self, k: u32) -> Self {
-        self.reduction = k.max(1);
-        self
-    }
-
-    /// Draw the outline through `map` (document point to document point): where a Free Transform
-    /// box puts the selection (`|p| homography.apply(p)` from `TransformSession::homography`) or
-    /// the app's warp map in the Warp phase. The whole selection is traced, not only the visible
-    /// part.
-    pub fn mapped(mut self, map: &'a dyn Fn(Point) -> Point) -> Self {
-        self.map = Some(map);
-        self
-    }
-
-    /// The Selection Preview (Color Range's modes, `look` for its Quick Mask) or, with
-    /// [`PreviewMode::QuickMask`] and the user's Quick Mask Options, the Quick Mask tint (Edit in
-    /// Quick Mask Mode, the Type Mask tools). Default [`PreviewMode::None`].
-    pub fn preview(mut self, mode: PreviewMode, look: QuickMaskLook) -> Self {
-        self.preview = mode;
-        self.look = look;
-        self
-    }
-
-    /// Format the accessible value's numbers with `numbers` in `unit` (the rulers' unit). Without
-    /// it the value is in pixels with the context's numbers.
-    pub fn value_in(mut self, numbers: &'a LocaleNumbers, unit: &'a Unit) -> Self {
-        self.value_in = Some((numbers, unit));
-        self
-    }
-
-    /// Translated words; without them [`SelectionOverlayLabels::of`] the context.
-    pub fn labels(mut self, labels: SelectionOverlayLabels) -> Self {
-        self.labels = Some(labels);
-        self
-    }
-
-    /// Draws the overlay over `canvas` (the canvas's response, for the clip rect and the AccessKit
-    /// parent) with `view`.
-    pub fn show(self, ui: &mut Ui, canvas: &Response, view: &CanvasView) -> SelectionOverlayResponse {
-        let id = canvas.id.with("craft_imaging::ui::SelectionOverlay").with_salt(self.id_salt);
-        let k = self.reduction.max(1);
-        let labels = self.labels.clone().unwrap_or_else(|| SelectionOverlayLabels::of(ui));
-        let mut retraced = false;
-        let bounds = match self.source {
+    /// Shows the overlay over `canvas`, the rect of the canvas it is shown in.
+    pub fn show_at(self, ui: &mut Ui, canvas: Rect) -> SelectionOverlayOutput {
+        let Self { label, source, visible, offset, reduction, mapped, preview, quick_mask, unit } = self;
+        let k = reduction.max(1);
+        let env = Env::of(ui);
+        let words = env.words::<SelectionWords>();
+        let bounds = match source {
             OutlineSource::Mask(mask) => content_bounds(mask, k),
             OutlineSource::Segments { bounds, .. } => (!bounds.is_empty()).then_some(bounds),
         };
-
-        if let OutlineSource::Mask(mask) = self.source
-            && self.preview != PreviewMode::None
+        if let OutlineSource::Mask(mask) = source
+            && preview != PreviewMode::None
+            && mask.size().iter().all(|&side| side > 0)
         {
-            self.paint_preview(ui, id, view, mask, k);
+            let source = SelectionPreviewSource { mask, mode: preview, look: quick_mask, reduction: k };
+            RasterDisplay::new(words.preview.clone(), &source).show_at(ui, canvas);
         }
-
-        // pc: canvas.rs:236-244 draws the ants only when the selection has an outline to draw.
-        let has_outline = match self.source {
+        let has_outline = match source {
             OutlineSource::Mask(_) => bounds.is_some(),
             OutlineSource::Segments { segments, .. } => !segments.is_empty(),
         };
-        if self.visible && has_outline {
-            let traced;
-            let segments: &[Segment] = match self.source {
+        let mut retraced = false;
+        if visible && has_outline {
+            let traced: Arc<Vec<Segment>> = match source {
                 OutlineSource::Mask(mask) => {
-                    let (segments, ran) = self.traced(ui, id, view, mask, k);
-                    (traced, retraced) = (segments, ran);
-                    &traced
+                    let found = OutlineTrace {
+                        common: craft_ui::contract::Common::new(),
+                        mask,
+                        offset,
+                        reduction: k,
+                        whole: mapped.is_some(),
+                        found: Traced::default(),
+                    }
+                    .label(label.clone())
+                    .show_at(ui, canvas);
+                    retraced = found.retraced;
+                    found.segments
                 }
-                OutlineSource::Segments { segments, .. } => segments,
+                OutlineSource::Segments { segments, .. } => Arc::new(segments.to_vec()),
             };
-            // pc: canvas.rs:309-313 (offset), :318 and `Marquee::paint` (repaint every tick).
-            let [dx, dy] = self.offset.map(f64::from);
+            let [dx, dy] = offset.map(f64::from);
             let place = |p: [i32; 2]| {
-                let p = Point::new(f64::from(p[0]) + dx, f64::from(p[1]) + dy);
-                self.map.map_or(p, |map| map(p))
+                let at = Point::new(f64::from(p[0]) + dx, f64::from(p[1]) + dy);
+                mapped.as_ref().map_or(at, |map| map.apply(at))
             };
-            let lines = segments.iter().map(|&(a, b)| (place(a), place(b))).collect::<Vec<_>>();
-            let time = ui.input(|i| i.time);
-            Marquee::segments(lines, "").paint(&ui.painter_at(view.rect), view, MarqueeLook::Ants, time);
+            let lines = traced.iter().map(|&(a, b)| (place(a), place(b)));
+            let value = value_of(&env, &words, bounds, preview, unit);
+            Marquee::segments(label, lines).look(MarqueeLook::Ants).value(value).show_at(ui, canvas);
         }
+        SelectionOverlayOutput { bounds, retraced }
+    }
+}
 
-        self.describe(ui, canvas, view, id, bounds, &labels);
-        SelectionOverlayResponse { id, bounds, retraced }
+/// The accessible value: the bounds in the unit (or "No selection"), plus the preview's name.
+fn value_of(env: &Env, words: &SelectionWords, bounds: Option<MaskRect>, preview: PreviewMode, unit: UnitKind) -> String {
+    let units = env.units();
+    let base = match bounds {
+        None => words.nothing.as_str().to_owned(),
+        Some(b) => {
+            let n = |v: i32| units.show(unit, f64::from(v));
+            let (width, height) = (n(i32::try_from(b.width()).unwrap_or(i32::MAX)), n(i32::try_from(b.height()).unwrap_or(i32::MAX)));
+            words.bounds.fill(&[("width", &width), ("height", &height), ("x", &n(b.x0)), ("y", &n(b.y0))])
+        }
+    };
+    let mode = match preview {
+        PreviewMode::None => return base,
+        PreviewMode::Grayscale => &words.grayscale,
+        PreviewMode::BlackMatte => &words.black_matte,
+        PreviewMode::WhiteMatte => &words.white_matte,
+        PreviewMode::QuickMask => &words.quick_mask,
+    };
+    words.with_mode.fill(&[("value", &base), ("mode", &mode.as_str().to_owned())])
+}
+
+/// The selection's content bounds in full-size document pixels (the whole canvas when the mask is selected outside its
+/// content); `None` when nothing is selected.
+fn content_bounds(mask: &dyn MaskSource, k: u32) -> Option<MaskRect> {
+    let b = if mask.outside() > 0.0 { MaskRect::of_size(mask.size()) } else { mask.content_bounds() };
+    let up = |v: i32| v.saturating_mul(i32::try_from(k).unwrap_or(i32::MAX));
+    (!b.is_empty()).then(|| MaskRect::new(up(b.x0), up(b.y0), up(b.x1), up(b.y1)))
+}
+
+/// The preview of a mask as a document-sized picture: one texel per `PreviewMode::pixel` of the coverage under its
+/// top-left document pixel. The revision changes with the mask, the mode, the look and the reduction.
+struct SelectionPreviewSource<'a> {
+    mask: &'a dyn MaskSource,
+    mode: PreviewMode,
+    look: QuickMaskLook,
+    reduction: u32,
+}
+
+impl RasterSource for SelectionPreviewSource<'_> {
+    fn size(&self) -> PixelSize {
+        let [width, height] = self.mask.size();
+        PixelSize::new(width.saturating_mul(self.reduction), height.saturating_mul(self.reduction))
     }
 
-    /// The cached trace of the visible region (the whole selection under a map), and whether it ran
-    /// this pass.
-    fn traced(&self, ui: &Ui, id: Id, view: &CanvasView, mask: &dyn MaskSource, k: u32) -> (Arc<Vec<Segment>>, bool) {
-        // pc: canvas.rs:248 (step in device pixels), :261-278 (region), :266-281 (whole trace).
-        let device_zoom = view.zoom * f64::from(ui.ctx().pixels_per_point());
+    fn revision(&self) -> Revision {
+        let look = &self.look;
+        let tint = (look.color.r.to_bits(), look.color.g.to_bits(), look.color.b.to_bits(), look.opacity.to_bits(), look.indicates as u8);
+        Revision::of(&(self.mask.revision(), self.mode, self.reduction, self.mask.size(), tint))
+    }
+
+    fn damage(&self, _: Revision) -> Option<PixelRect> {
+        None
+    }
+
+    fn read(&self, region: PixelRect, factor: u32, out: &mut ColorImage) {
+        let [width, height] = out.size;
+        let (k, factor) = (i64::from(self.reduction), i64::from(factor));
+        let mut row = vec![0.0_f32; width];
+        for ty in 0..height {
+            let y = i32::try_from((i64::from(region.y0) + ty as i64 * factor) / k).unwrap_or(i32::MAX);
+            let x0 = i64::from(region.x0);
+            if k == 1 {
+                self.mask.read_row(y, region.x0, u32::try_from(factor).unwrap_or(1), &mut row);
+            } else {
+                for (tx, value) in row.iter_mut().enumerate() {
+                    *value = self.mask.at(i32::try_from((x0 + tx as i64 * factor) / k).unwrap_or(i32::MAX), y);
+                }
+            }
+            for (pixel, &coverage) in out.pixels[ty * width..(ty + 1) * width].iter_mut().zip(&row) {
+                let [r, g, b, a] = self.mode.pixel(coverage, &self.look).0;
+                *pixel = Color32::from_rgba_unmultiplied(r, g, b, a);
+            }
+        }
+    }
+}
+
+/// The key a trace is cached under: the mask's revision, the step, the region and the reduction.
+type TraceKey = (u64, u32, MaskRect, u32);
+
+/// The last trace of one overlay.
+#[derive(Clone, Default)]
+struct TraceCache {
+    key: Option<TraceKey>,
+    segments: Arc<Vec<Segment>>,
+}
+
+/// The segments a trace found and whether it ran this pass.
+#[derive(Clone, Default)]
+struct Traced {
+    segments: Arc<Vec<Segment>>,
+    retraced: bool,
+}
+
+/// What the trace leaf reports.
+struct TraceOutput {
+    response: Response,
+    segments: Arc<Vec<Segment>>,
+    retraced: bool,
+}
+
+impl Outcome for TraceOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// The style of the trace leaf: it paints nothing.
+#[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
+struct OutlineTraceStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+}
+
+/// A canvas control that traces a mask's outline for the visible region of the canvas it is shown in and keeps the
+/// trace until the mask, the step, the region or the reduction changes.
+#[derive(craft_ui::contract::Component, Props)]
+#[component(canvas_control)]
+#[component(exempt(case = "required-states", reason = "A tracing step with no look; the selection overlay's stories show it."))]
+struct OutlineTrace<'a> {
+    #[common]
+    common: craft_ui::contract::Common,
+    mask: &'a dyn MaskSource,
+    offset: [i32; 2],
+    reduction: u32,
+    whole: bool,
+    found: Traced,
+}
+
+impl Component for OutlineTrace<'_> {
+    const ROLE: Role = Role::GRAPHICS_OBJECT;
+    const ALT_ROLES: &'static [Role] = &[Role::None];
+    const INPUT: Input = Input::Display;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
+    const OVERLAYS: bool = false;
+    type Style = OutlineTraceStyle;
+    type Output = TraceOutput;
+
+    fn style(_: &StyleCx<'_>, _: OutlineTraceStyleKey) -> OutlineTraceStyle {
+        OutlineTraceStyle { metrics: Metrics::new() }
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::ZERO
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        let Some(space) = canvas_space(&cx.env) else { return };
+        let (mask, k) = (self.mask, self.reduction);
+        let device_zoom = space.zoom_device();
         let mut step = trace_step(device_zoom, k);
-        let whole = self.map.is_some();
-        let region = if whole {
+        let region = if self.whole {
             let far = 1 << 30;
             MaskRect::new(-far, -far, far, far)
         } else {
-            // The mask lies `offset` from where it is drawn, so the part of it in view is the
-            // visible area shifted back.
-            let v = view.visible();
+            // The mask lies `offset` from where it is drawn, so the part of it in view is the visible area shifted back.
+            let v = space.view.visible();
             let [dx, dy] = self.offset.map(f64::from);
             quantised_region([v.x0 - dx, v.y0 - dy, v.x1 - dx, v.y1 - dy], step, k)
         };
         let content = if mask.outside() > 0.0 { MaskRect::of_size(mask.size()) } else { mask.content_bounds() };
         let bounds = content.intersect(&region);
-        if whole {
+        if self.whole {
             step = bounded_step(bounds, step);
         }
-        let revision = mask.revision();
-        let key = (revision, step, region, k);
-        let cached = ui.ctx().data(|d| d.get_temp::<(TraceKey, Arc<Vec<Segment>>)>(id));
-        if let Some((cached_key, segments)) = cached
-            && cached_key == key
-        {
-            return (segments, false);
+        let key = (mask.revision(), step, region, k);
+        let cache = cx.memory::<TraceCache>();
+        if cache.key == Some(key) {
+            self.found = Traced { segments: cache.segments.clone(), retraced: false };
+            return;
         }
-        // pc: canvas.rs:298-302 scales the segments up by `k`.
         let mut segments = outline(mask, bounds, step);
         if k > 1 {
-            let s = i32::try_from(k).unwrap_or(i32::MAX);
-            let up = |p: [i32; 2]| [p[0].saturating_mul(s), p[1].saturating_mul(s)];
+            let scale = i32::try_from(k).unwrap_or(i32::MAX);
+            let up = |p: [i32; 2]| [p[0].saturating_mul(scale), p[1].saturating_mul(scale)];
             segments.iter_mut().for_each(|(a, b)| (*a, *b) = (up(*a), up(*b)));
         }
         let segments = Arc::new(segments);
-        ui.ctx().data_mut(|d| d.insert_temp(id, (key, segments.clone())));
-        (segments, true)
+        *cache = TraceCache { key: Some(key), segments: segments.clone() };
+        self.found = Traced { segments, retraced: true };
     }
 
-    /// The preview texture over the document's rectangle.
-    fn paint_preview(&self, ui: &Ui, id: Id, view: &CanvasView, mask: &dyn MaskSource, k: u32) {
-        // pc: color_range_ui.rs:592-636 (texture, reuse by key, drawn over the image rect).
-        let size = mask.size();
-        if size[0] == 0 || size[1] == 0 {
-            return;
-        }
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        (mask.revision(), self.preview, k, size).hash(&mut hasher);
-        let look = &self.look;
-        (look.color.r.to_bits(), look.color.g.to_bits(), look.color.b.to_bits(), look.opacity.to_bits(), look.indicates as u8).hash(&mut hasher);
-        let key = hasher.finish();
-        let texture_id = id.with("preview");
-        let cached = ui.ctx().data(|d| d.get_temp::<(u64, TextureHandle)>(texture_id));
-        let texture = match cached {
-            Some((cached_key, texture)) if cached_key == key => texture,
-            _ => {
-                let texture = ui.ctx().load_texture("craft-selection-preview", self.preview_image(mask, size), TextureOptions::LINEAR);
-                ui.ctx().data_mut(|d| d.insert_temp(texture_id, (key, texture.clone())));
-                texture
-            }
-        };
-        let side = |n: u32| f64::from(n) * f64::from(k);
-        let corners = view.quad(craft_ui::canvas::kurbo::Rect::new(0.0, 0.0, side(size[0]), side(size[1])));
-        let uvs = [pos2(0.0, 0.0), pos2(1.0, 0.0), pos2(1.0, 1.0), pos2(0.0, 1.0)];
-        let mut mesh = Mesh::with_texture(texture.id());
-        for (pos, uv) in corners.into_iter().zip(uvs) {
-            mesh.vertices.push(Vertex { pos, uv, color: Color32::WHITE });
-        }
-        mesh.indices.extend_from_slice(&[0, 1, 2, 0, 2, 3]);
-        ui.painter_at(view.rect).add(Shape::mesh(mesh));
+    fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
+        access.role(Role::None);
     }
 
-    /// One texel per `p`-th source pixel (`p = ceil(long side / 1024)`), each [`PreviewMode::pixel`].
-    fn preview_image(&self, mask: &dyn MaskSource, size: [u32; 2]) -> ColorImage {
-        let p = size[0].max(size[1]).div_ceil(PREVIEW_TEXTURE_MAX).max(1);
-        let (w, h) = (size[0].div_ceil(p) as usize, size[1].div_ceil(p) as usize);
-        let mut row = vec![0.0_f32; w];
-        let mut pixels = Vec::with_capacity(w * h);
-        for ty in 0..h {
-            mask.read_row(i32::try_from(ty as u64 * u64::from(p)).unwrap_or(i32::MAX), 0, p, &mut row);
-            pixels.extend(row.iter().map(|&c| {
-                let [r, g, b, a] = self.preview.pixel(c, &self.look).0;
-                Color32::from_rgba_unmultiplied(r, g, b, a)
-            }));
-        }
-        ColorImage::new([w, h], pixels)
+    fn finish(self, cx: Cx<'_, Self>) -> TraceOutput {
+        TraceOutput { response: cx.response.clone(), segments: self.found.segments, retraced: self.found.retraced }
     }
-
-    /// The AccessKit node: one graphics object inside the canvas node, hover-only.
-    fn describe(&self, ui: &mut Ui, canvas: &Response, view: &CanvasView, id: Id, bounds: Option<MaskRect>, labels: &SelectionOverlayLabels) {
-        let value = self.value(ui, bounds, labels);
-        let rect = bounds
-            .map(|b| {
-                let side = |v: i32| f64::from(v);
-                let [dx, dy] = self.offset.map(f64::from);
-                let r = craft_ui::canvas::kurbo::Rect::new(side(b.x0) + dx, side(b.y0) + dy, side(b.x1) + dx, side(b.y1) + dy);
-                Rect::from_points(&view.quad(r)).intersect(view.rect)
-            })
-            .filter(|r| r.is_positive())
-            .unwrap_or_else(|| Rect::from_center_size(view.rect.center(), egui::Vec2::ZERO));
-        let nodes = ui.new_child(UiBuilder::new().max_rect(view.rect).accessibility_parent(canvas.id));
-        let response = nodes.interact(rect, id, Sense::hover());
-        response.widget_info(|| {
-            let mut info = WidgetInfo::labeled(Role::GraphicsObject, nodes.is_enabled(), &labels.name);
-            info.current_text_value = Some(value.clone());
-            info
-        });
-    }
-
-    /// The accessible value: the bounds in the unit (or "No selection"), plus the preview's name.
-    fn value(&self, ui: &Ui, bounds: Option<MaskRect>, l: &SelectionOverlayLabels) -> String {
-        let units = Units::of(ui);
-        let base = match bounds {
-            None => l.nothing.clone(),
-            Some(b) => {
-                let n = |v: f64| match self.value_in {
-                    Some((numbers, unit)) => format!("{}{}{}", unit.prefix(), numbers.format(v, 0..=2), unit.suffix()),
-                    None => units.pixels(v),
-                };
-                craft_i18n::fmt(
-                    &l.bounds,
-                    &[
-                        ("width", &n(f64::from(b.width()))),
-                        ("height", &n(f64::from(b.height()))),
-                        ("x", &n(f64::from(b.x0))),
-                        ("y", &n(f64::from(b.y0))),
-                    ],
-                )
-            }
-        };
-        let mode = match self.preview {
-            PreviewMode::None => return base,
-            PreviewMode::Grayscale => &l.grayscale,
-            PreviewMode::BlackMatte => &l.black_matte,
-            PreviewMode::WhiteMatte => &l.white_matte,
-            PreviewMode::QuickMask => &l.quick_mask,
-        };
-        craft_i18n::fmt(&l.with_mode, &[("value", &base), ("mode", mode)])
-    }
-}
-
-/// The cache key of a trace: the mask's revision, the step, the region and the reduction.
-type TraceKey = (u64, u32, MaskRect, u32);
-
-/// The selection's content bounds in full-size document pixels (the whole canvas when the mask is
-/// selected outside its content); `None` when nothing is selected.
-fn content_bounds(mask: &dyn MaskSource, k: u32) -> Option<MaskRect> {
-    let b = if mask.outside() > 0.0 { MaskRect::of_size(mask.size()) } else { mask.content_bounds() };
-    let up = |v: i32| v.saturating_mul(i32::try_from(k).unwrap_or(i32::MAX));
-    (!b.is_empty()).then(|| MaskRect::new(up(b.x0), up(b.y0), up(b.x1), up(b.y1)))
 }
