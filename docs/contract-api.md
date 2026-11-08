@@ -3202,6 +3202,8 @@ The toast queue: one per viewport, filled from any code with a `Context`.
   - `pub fn inject_click(&self, viewport: ViewportId, at: Pos2, button: PointerButton, count: u32)`. Queues a move to `at`, then `count` presses and releases of `button`, one pass each; a button egui has no
   - `pub fn inject_key(&self, viewport: ViewportId, key: Key, mods: Mods)`. Queues `key` pressed and released with `mods` held, as the platform reports them.
   - `pub fn key_equivalent(&self, viewport: ViewportId, equivalent: KeyEquivalent)`. Adds `equivalent` to the next input of `viewport`: a key equivalent the platform's menu took from the window
+  - `pub fn menu_open(&self, viewport: ViewportId, open: bool)`. Records whether the platform's menu of `viewport` is open. While it is, the window's next press or Escape is
+  - `pub fn take_menu_close(&self, viewport: ViewportId) -> bool`. True once after a press or Escape reached `viewport`'s input: the platform's menu is to close.
   - `pub fn inject_text(&self, viewport: ViewportId, text: &str)`. Queues `text` as typed text.
   - `pub fn withdraw_injected(&self, viewport: ViewportId)`. Drops the injected queue of `viewport` (the document changed); a pending queue counts as withdrawn
   - `pub fn cancel_injected(&self) -> bool`. Drops every injected queue and step in flight; true when anything was pending.
