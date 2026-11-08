@@ -145,11 +145,8 @@ impl<Id> Default for Session<Id> {
 ///   rename or activate, rows drag to reorder (Alt copies) and onto the footer.
 /// - **Right to left**: the list and the footer mirror.
 #[must_use = "show the panel with `show`"]
-#[cfg_attr(
-    feature = "screen-testing",
-    derive(craft_ui::contract::Pattern),
-    pattern(probe(LayersPanel<'static, crate::ui::mock::FakeLayers>))
-)]
+#[derive(craft_ui::contract::Pattern)]
+#[pattern(probe(LayersPanel<'static, crate::ui::mock::FakeLayers>))]
 pub struct LayersPanel<'a, T: LayerTree> {
     tree: &'a T,
     settings: Option<&'a LayersSettings>,
