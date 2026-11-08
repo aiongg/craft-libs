@@ -1,12 +1,12 @@
 //! [`SwatchPair`]: two overlapping colour wells, foreground over background or fill over stroke.
 
-use craft_behavior::{Flow, HitLevel, HitPriority, IconId, Metrics, NavShape, PartKey, PressPhase, Roving, Sense};
+use craft_behavior::{EditEvent, Flow, HitLevel, HitPriority, IconId, Metrics, NavShape, PartKey, PressPhase, Roving, Sense};
 use craft_theme::Srgba;
 use craft_ui::buttons::IconButton;
 use craft_ui::choice::{Swatch, SwatchMetrics};
 use craft_ui::contract::{
-    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Outcome, Overlay, OverlayUi, Overlays as _,
-    PaintUi, PartsCx, Pointer as _, Props as _, Remember as _, Role, clicked,
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, Focus as _, MeasureCx, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx,
+    Pointer as _, Props as _, Remember as _, Role, clicked,
 };
 use craft_ui::primitives::{PaintShape, StrokeWidth};
 use craft_ui::runtime::commands::FireSource;
@@ -138,7 +138,7 @@ pub struct SwatchPairOutput {
     /// The well double-clicked in this pass.
     pub double_clicked: Option<Well>,
     /// The edit of the picker in the popup; without an event while no popup is open.
-    pub edit: Option<EditResponse<PickedColor>>,
+    pub edit: Option<EditEvent<PickedColor>>,
     /// The well `edit` belongs to: the one whose popup is open.
     pub well: Well,
     /// The swap button was pressed.
@@ -205,7 +205,7 @@ pub struct SwatchPair<'a> {
     activated: bool,
     swap: bool,
     defaults: bool,
-    edit: Option<EditResponse<PickedColor>>,
+    edit: Option<EditEvent<PickedColor>>,
     edited: Option<Well>,
     screen_pick: Option<ScreenPickGesture>,
 }
@@ -364,7 +364,7 @@ impl Component for SwatchPair<'_> {
             picker.show(ui)
         });
         if let Some(picked) = shown {
-            self.edit = Some(picked.edit);
+            self.edit = picked.event;
             self.edited = Some(opened);
             self.screen_pick = picked.screen_pick;
         }

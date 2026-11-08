@@ -191,7 +191,7 @@ struct LastSolid(Option<Srgba>);
 #[derive(Default)]
 struct Shown {
     kind: Option<FillKind>,
-    edit: Option<EditResponse<PickedColor>>,
+    edit: Option<EditEvent<PickedColor>>,
     screen_pick: Option<ScreenPickGesture>,
     gradient: Option<GradientPreview>,
     pattern: Option<ImagePreview>,
@@ -412,7 +412,7 @@ impl Component for PaintChip<'_> {
                 Paint::None => {}
                 Paint::Solid(color) => {
                     let picked = compact_picker(name.clone(), Bind::given(PickedColor::rgb(*color)), sampled).alpha(true).eyedropper(true).show(ui);
-                    shown.edit = Some(picked.edit);
+                    shown.edit = picked.event;
                     shown.screen_pick = picked.screen_pick;
                 }
                 Paint::Gradient(_) => shown.gradient = gradient.as_mut().and_then(|(_, editor)| editor.show(ui)),
@@ -426,8 +426,8 @@ impl Component for PaintChip<'_> {
         if let Some(kind) = shown.kind {
             let next = self.switched(kind, solid);
             cx.set(next);
-        } else if let Some(edit) = shown.edit {
-            forward(cx, edit.event.as_ref());
+        } else if let Some(event) = shown.edit {
+            forward(cx, Some(&event));
         }
         if let Some(preview) = shown.gradient {
             cx.set(Paint::Gradient(preview));

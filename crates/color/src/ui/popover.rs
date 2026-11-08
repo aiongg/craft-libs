@@ -1,8 +1,9 @@
 //! `ColorPopover`: a colour well that opens a Compact colour picker in a popover.
 
+use craft_behavior::EditEvent;
 use craft_theme::Srgba;
 use craft_ui::choice::Swatch;
-use craft_ui::contract::{Bind, EditResponse, Outcome, Pattern, Remember as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Outcome, Pattern, Remember as _, Show as _, ShowContainer as _};
 use craft_ui::layout_components::Stack;
 use craft_ui::popover::Popover;
 use craft_ui::runtime::env::Label;
@@ -51,7 +52,7 @@ pub struct ColorPopoverOutput {
     /// The well's response, or the anchor's.
     pub response: Response,
     /// The edit of the picker in the popover; `None` while the popover is closed.
-    pub edit: Option<EditResponse<PickedColor>>,
+    pub edit: Option<EditEvent<PickedColor>>,
     /// The picker's screen-pick button was pressed; the app drives its `ScreenPick`.
     pub screen_pick: Option<ScreenPickGesture>,
     /// Whether the popover is open after this pass.
@@ -125,7 +126,7 @@ fn popover(
     setup: &mut Option<Setup<'_>>,
     opener: &Response,
     open: Bind<'_, bool>,
-) -> (Option<EditResponse<PickedColor>>, Option<ScreenPickGesture>, bool) {
+) -> (Option<EditEvent<PickedColor>>, Option<ScreenPickGesture>, bool) {
     let shown = Popover::new(label.clone(), open).opened_by(opener).show(ui, |ui, _| {
         let mut picker = compact_picker(label.clone(), value.reborrowed(), None).focus_on_open(true);
         if let Some(setup) = setup.take() {
@@ -135,7 +136,7 @@ fn popover(
     });
     let open = shown.inner.is_some() && shown.output.closed.is_none();
     match shown.inner {
-        Some(ColorPickerOutput { edit, screen_pick, .. }) => (Some(edit), screen_pick, open),
+        Some(ColorPickerOutput { event, screen_pick, .. }) => (event, screen_pick, open),
         None => (None, None, open),
     }
 }
