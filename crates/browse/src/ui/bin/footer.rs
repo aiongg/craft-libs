@@ -1,131 +1,95 @@
-//! The bin footer: view buttons, zoom, the host's actions and their drops (`FooterAction`).
+//! The bin footer: the view switch, the zoom slider, Sort Icons, the host's actions and their drops.
 
-use craft_ui::behavior::ListDrag;
-use craft_ui::canvas::textures::TextureKey;
-use craft_ui::composites::{FooterAction, PanelFooter};
-use craft_ui::controls::{ControlSize, Segmented};
-use craft_ui::icons::Icon;
-use craft_ui::list::{SortOrder, TableColumn, TableEvent, TableSort};
-use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
-use craft_ui::theme::{Tokens, TokensOf as _};
-use egui::{Id, Ui};
+use craft_behavior::{ColumnKey, IconId};
+use craft_ui::choice::Segmented;
+use craft_ui::contract::{Bind, ColumnSort, ColumnSpec, Entry, ListDrag, PopupKind, RowAlign, Show as _, ShowContainer as _, Trigger};
+use craft_ui::layout_components::Row;
+use craft_ui::menu::Menu;
+use craft_ui::primitives::textures::TextureKey;
+use craft_ui::sections::{FooterAction, FooterBar};
+use craft_ui::tile_grid::{ThumbnailSlider, TileZoom};
+use egui::Ui;
 
-use super::{BinEvent, BinLabels, BinView};
-use crate::ui::grid::{ThumbnailSlider, TileZoom};
-
-/// The zoom slider's key step, in points.
-pub(super) const ZOOM_STEP: f32 = 8.0;
-
-/// What the footer shows and reads.
-pub(super) struct FooterInput<'a> {
-    pub id: Id,
-    pub view: BinView,
-    pub icon_size: f32,
-    pub zoom_range: (f32, f32),
-    pub default_size: f32,
-    pub actions: &'a [FooterAction],
-    pub columns: &'a [TableColumn<String>],
-    pub icon_sort: Option<&'a (String, bool)>,
-    pub labels: &'a BinLabels,
-}
+use super::list::NAME;
+use super::{BinEvent, BinState, BinView, BinWords};
 
 /// A pick in the Sort Icons menu.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 enum SortPick {
     UserOrder,
-    By(String),
+    By(ColumnKey),
 }
 
-/// Draws the footer: a `PanelFooter` (height `panel_footer`) with the view `Segmented` (List,
-/// Icon, Freeform glyphs), a `ThumbnailSlider`, Sort Icons (Icon view), each action as an
-/// `PanelFooter::button`, or `PanelFooter::drop_button::<ListDrag<K>>` when it accepts drops, and
-/// New Bin. Returns the footer's events.
-pub(super) fn footer_events<K: TextureKey>(ui: &mut Ui, input: &FooterInput<'_>) -> Vec<BinEvent<K>> {
-    // filmcraft: crates/ui-egui/src/panels/project.rs:555 (`footer`).
-    let FooterInput { id, view, icon_size, zoom_range, default_size, actions, columns, icon_sort, labels } = *input;
-    let mut events = Vec::new();
-    PanelFooter::show(ui, |ui| {
-        // The bar fills from the reading end: New Bin, the host's actions (last first, so they
-        // read in the host's order), Sort Icons, then the slider and the view buttons.
-        if PanelFooter::button(ui, Icon::NewFolder, &labels.new_bin).clicked() {
-            events.push(BinEvent::NewBin);
-        }
-        for action in actions.iter().rev() {
-            if action.accepts_drops {
-                // The enabled state goes in as an argument: a disabled `Ui` would keep the button
-                // disabled under an accepted drag.
-                let (button, dropped) =
-                    PanelFooter::drop_button::<ListDrag<K>>(ui, action.icon, &action.label, action.enabled, |drag| !drag.items.is_empty());
-                if let Some(drag) = dropped {
-                    events.push(BinEvent::FooterDrop { button: action.id, rows: drag.items.clone() });
-                } else if button.clicked() {
-                    events.push(BinEvent::Footer { button: action.id });
-                }
-            } else if ui.add_enabled_ui(action.enabled, |ui| PanelFooter::button(ui, action.icon, &action.label)).inner.clicked() {
-                events.push(BinEvent::Footer { button: action.id });
-            }
-        }
-        if view != BinView::List {
-            sort_menu(ui, id, columns, icon_sort, labels, &mut events);
-        }
-        let zoom = TileZoom::Range { min: zoom_range.0, max: zoom_range.1, step: ZOOM_STEP, default: default_size };
-        // The slider takes the room the view switch leaves, down to its least width; below that it hides.
-        let tokens = Tokens::of(ui);
-        let strip = Segmented::style(&tokens, ControlSize::Sm);
-        let switch = 3.0 * (strip.icon + 2.0 * strip.pad_x) + 2.0 * strip.gap;
-        let room = ui.available_width() - switch - ui.spacing().item_spacing.x;
-        let (natural, least) = ThumbnailSlider::extent(ui);
-        if room >= least {
-            let slider = ThumbnailSlider::new((id, "zoom"), icon_size, zoom).width(room.min(natural));
-            if let Some(event) = slider.show(ui).event {
-                events.push(BinEvent::Zoom(event));
-            }
-        }
-        let mut picked = view;
-        Segmented::new((id, "view"), &labels.views, &mut picked)
-            .size(ControlSize::Sm)
-            .icon_item(BinView::List, Icon::List, labels.list_view.as_str())
-            .icon_item(BinView::Icon, Icon::Grid, labels.icon_view.as_str())
-            .icon_item(BinView::Freeform, Icon::LayoutGrid, labels.freeform_view.as_str())
-            .show(ui);
-        if picked != view {
-            events.push(BinEvent::View(picked));
-        }
-    });
-    events
+/// The columns the Sort Icons menu offers: the host's, or the name alone.
+fn sortable(columns: &[ColumnSpec], words: &BinWords) -> Vec<ColumnSpec> {
+    if columns.is_empty() { vec![ColumnSpec::new(NAME, words.name.clone(), craft_behavior::ColumnWidth::fill(1.0))] } else { columns.to_vec() }
 }
 
-/// The Sort Icons button and its menu: User Order and one entry per sortable column; the column
-/// of the current sort again flips its direction.
-fn sort_menu<K>(
+/// Draws the footer: the view `Segmented` (List, Icon, Freeform), a `ThumbnailSlider`, then the actions: the
+/// host's, Sort Icons (Icon and Freeform views) and New Bin. Returns the footer's events.
+pub(super) fn footer<K: TextureKey>(
     ui: &mut Ui,
-    id: Id,
-    columns: &[TableColumn<String>],
-    icon_sort: Option<&(String, bool)>,
-    labels: &BinLabels,
-    events: &mut Vec<BinEvent<K>>,
-) {
-    let slot = id.with("sort-menu-open");
-    let open = ui.ctx().data(|d| d.get_temp::<bool>(slot)).unwrap_or(false);
-    let button = PanelFooter::menu_button(ui, Icon::Menu, &labels.sort_icons, open);
-    let mut entries = vec![MenuEntry::Item(MenuItem::new(labels.user_order.as_str(), SortPick::UserOrder).radio(icon_sort.is_none()))];
-    entries.extend(columns.iter().map(|column| {
-        MenuEntry::Item(
-            MenuItem::new(column.label(), SortPick::By(column.key().clone())).radio(icon_sort.is_some_and(|(key, _)| key == column.key())),
-        )
-    }));
-    let open_at = button.clicked().then_some(OpenAt::Rect(button.rect));
-    let menu = ContextMenu::new(&entries).own_gestures(false).open_at(open_at).show(ui, &button);
-    ui.ctx().data_mut(|d| d.insert_temp(slot, menu.open));
-    match menu.chosen {
-        Some(SortPick::UserOrder) => events.push(BinEvent::Table(TableEvent::Unsorted)),
-        Some(SortPick::By(column)) => {
-            let current = icon_sort.map(|(key, descending)| TableSort {
-                column: key.clone(),
-                order: if *descending { SortOrder::Descending } else { SortOrder::Ascending },
-            });
-            events.push(BinEvent::Table(TableEvent::Sort(TableSort::clicked(current.as_ref(), column, SortOrder::Ascending))));
-        }
-        None => {}
+    state: &BinState<K>,
+    columns: &[ColumnSpec],
+    actions: &[FooterAction],
+    words: &BinWords,
+    zoom: TileZoom,
+) -> Vec<BinEvent<K>> {
+    let mut events = Vec::new();
+    let mut view = state.settings.view;
+    let mut zoom_value = state.settings.zoom;
+    let mut all: Vec<FooterAction> = actions.to_vec();
+    let sort_at = (view != BinView::List).then(|| {
+        all.push(FooterAction::new(IconId::new("more"), words.sort_icons.clone()).popup(PopupKind::Menu));
+        all.len() - 1
+    });
+    let new_bin = all.len();
+    all.push(FooterAction::new(IconId::new("new_folder"), words.new_bin.clone()));
+
+    let modes = [
+        Entry::new(BinView::List, words.list_view.clone()).icon(IconId::new("list")),
+        Entry::new(BinView::Icon, words.icon_view.clone()).icon(IconId::new("grid")),
+        Entry::new(BinView::Freeform, words.freeform_view.clone()).icon(IconId::new("layout-grid")),
+    ];
+    let row = Row::new().fill().align(RowAlign::End).show(ui, |ui, _| {
+        Segmented::new(words.views.clone(), Bind::bound(&mut view), &modes).show(ui);
+        let edit = ThumbnailSlider::new(words.thumb_size.clone(), Bind::bound(&mut zoom_value), zoom).show(ui);
+        (edit, FooterBar::actions(all).show_footer(ui))
+    });
+    let Some((edit, bar)) = row.inner else { return events };
+    if view != state.settings.view {
+        events.push(BinEvent::View(view));
     }
+    if let Some(event) = edit.event {
+        events.push(BinEvent::Zoom(event));
+    }
+    if let Some(drop) = &bar.dropped {
+        if let Some(drag) = drop.payload::<ListDrag<K>>() {
+            events.push(BinEvent::FooterDrop { action: drop.index, keys: drag.keys.clone() });
+        }
+    } else if let Some(at) = bar.picked {
+        if at == new_bin {
+            events.push(BinEvent::NewBin);
+        } else if Some(at) != sort_at {
+            events.push(BinEvent::Footer { action: at });
+        }
+    }
+    if let Some(response) = sort_at.and_then(|at| bar.responses.get(at)) {
+        let current = state.settings.icon_sort.as_ref();
+        let mut entries = vec![Entry::new(SortPick::UserOrder, words.user_order.clone()).checked(current.is_none())];
+        entries.extend(
+            sortable(columns, words).into_iter().map(|spec| {
+                Entry::new(SortPick::By(spec.key.clone()), spec.header.clone()).checked(current.is_some_and(|sort| sort.key == spec.key))
+            }),
+        );
+        match Menu::new(words.sort_icons.clone()).values().opened_by(response, Trigger::Press).pick(ui, &entries).picked {
+            Some(SortPick::UserOrder) => events.push(BinEvent::IconSort(None)),
+            Some(SortPick::By(key)) => {
+                let descending = current.is_some_and(|sort| sort.key == key && !sort.descending);
+                events.push(BinEvent::IconSort(Some(ColumnSort::new(key, descending))));
+            }
+            None => {}
+        }
+    }
+    events
 }
