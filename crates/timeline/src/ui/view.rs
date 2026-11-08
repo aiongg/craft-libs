@@ -235,7 +235,7 @@ pub struct TimelineView<'a> {
 impl<'a> TimelineView<'a> {
     /// A time area named `label` over `view`, for a sequence ending at `end` written in `format`.
     pub fn new(label: impl Into<Label>, view: Bind<'a, TimeView>, format: TimeFormat, end: Tick) -> Self {
-        let props = ContainerProps::new().surface(SurfaceKind::Sunken).sizing(Sizing::Fill);
+        let props = ContainerProps::new().surface(SurfaceKind::Sunken).sizing(Sizing::Fill).command_scope(TimeCommand::SCOPE);
         TimelineView {
             common: Common::new(),
             props,

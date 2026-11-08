@@ -5,6 +5,7 @@ use craft_timeline::ui::{DragEvent, TimelineRuler, TimelineView};
 use craft_timeline::{FrameRate, Tick, TimeFormat, TimeRange, TimeView, format_time};
 use craft_ui::canvas::StepLadder;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_ui::testing::access::NodeKey;
 use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Key, Modifiers, Pos2, Rect};
@@ -185,4 +186,26 @@ fn double_clicking_the_work_area_sets_it_to_the_visible_span() {
     let expected = TimeRange::from_bounds(view.start, view.time_at(rect.right(), rect.left()));
     let events = shown.work.borrow();
     assert!(events.contains(&DragEvent::Set(expected)), "{events:?}");
+}
+
+/// The name of the node that holds keyboard focus.
+fn focused_name(fixture: &Fixture) -> Option<String> {
+    let id = fixture.focused()?;
+    fixture.tree().name_of(NodeKey::of(id)).map(str::to_owned)
+}
+
+/// Tab visits the time area, then the ruler, in reading order, and Shift+Tab walks back.
+#[trial]
+fn tab_visits_the_time_area_then_the_ruler() {
+    let mut shown = shown(None);
+    let mut seen = Vec::new();
+    for _ in 0..2 {
+        shown.fixture.key(Key::Tab, Modifiers::NONE);
+        shown.fixture.settle();
+        seen.push(focused_name(&shown.fixture));
+    }
+    assert_eq!(seen, [Some("Time".to_owned()), Some(RULER.to_owned())], "the time area first, then the ruler inside it");
+    shown.fixture.key(Key::Tab, Modifiers::SHIFT);
+    shown.fixture.settle();
+    assert_eq!(focused_name(&shown.fixture), Some("Time".to_owned()), "Shift+Tab returns to the time area");
 }

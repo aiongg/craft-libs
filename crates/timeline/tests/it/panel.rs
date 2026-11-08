@@ -6,10 +6,13 @@ use std::rc::Rc;
 use craft_behavior::EditEvent;
 use craft_timeline::ui::stack::{MoveTarget, RowGeom, Side, resolve_move};
 use craft_timeline::ui::view::TimelineView;
+use craft_timeline::ui::{Timeline, TimelineEdit, TrackSwitch};
+use craft_timeline::{ClipId, ClipInfo, TimeRange, TimelineModel, TrackId, TrackInfo};
 use craft_timeline::{FollowMode, FrameRate, Tick, TimeFormat, TimeView, TrackKind};
 use craft_ui::contract::{Bind, ShowContainer as _};
-use craft_ui::testing::{Fixture, pointer, trial};
-use egui::{Key, Modifiers, Vec2};
+use craft_ui::testing::access::NodeKey;
+use craft_ui::testing::{Fixture, Target, pointer, trial};
+use egui::{Event, Key, Modifiers, MouseWheelSource, MouseWheelUnit, Rect, TouchPhase, Vec2};
 
 const RATE: FrameRate = FrameRate::FPS_29_97;
 
@@ -108,16 +111,18 @@ fn zoom_keys_zoom_about_the_playhead_and_fit_the_sequence() {
     assert_eq!(state.borrow().view.start, Tick::ZERO);
 }
 
+/// A wheel turn of `delta` points over the view's middle, carrying `modifiers` the way a device reports them.
 fn wheel(fixture: &mut Fixture, delta: Vec2, modifiers: Modifiers) {
     let at = fixture.shown().center();
-    fixture.hold(modifiers);
-    fixture.frame(vec![pointer::moved(at), pointer::wheel(delta.y)]);
-    fixture.hold(Modifiers::NONE);
+    let turn = Event::MouseWheel { unit: MouseWheelUnit::Point, delta, phase: TouchPhase::Move, modifiers, source: MouseWheelSource::Wheel };
+    fixture.frame(vec![pointer::moved(at)]);
+    fixture.frame(vec![turn]);
 }
 
-/// Alt+wheel zooms about the pointer by `1 + dy * 0.01`; Cmd or Ctrl and the wheel scroll time sideways.
+/// Alt+wheel zooms about the pointer by `1 + dy * 0.01`; Cmd or Ctrl+wheel zooms as the pinch does; Shift+wheel scrolls
+/// time sideways; the plain wheel leaves the time alone.
 #[trial]
-fn the_wheel_maps_as_filmcraft_does() {
+fn the_wheel_maps_to_zoom_and_sideways_scroll() {
     let (mut fixture, state) = rig();
     let before = state.borrow().view.points_per_second;
     wheel(&mut fixture, Vec2::new(0.0, 10.0), Modifiers::ALT);
@@ -127,9 +132,23 @@ fn the_wheel_maps_as_filmcraft_does() {
 
     state.borrow_mut().view = TimeView::new(secs(10.0), 40.0);
     fixture.idle(2);
-    wheel(&mut fixture, Vec2::new(0.0, 40.0), Modifiers::COMMAND);
-    let start = state.borrow().view.start;
-    assert!(start < secs(10.0), "a downward Cmd+wheel moves the view to later times as FilmCraft does: {start:?}");
+    wheel(&mut fixture, Vec2::new(0.0, 40.0), Modifiers::SHIFT);
+    let view = state.borrow().view;
+    assert!(view.start < secs(10.0), "a downward Shift+wheel moves the view to earlier times as FilmCraft does: {:?}", view.start);
+    assert_eq!(view.points_per_second, 40.0, "Shift+wheel does not zoom");
+
+    state.borrow_mut().view = TimeView::new(secs(10.0), 40.0);
+    fixture.idle(2);
+    wheel(&mut fixture, Vec2::new(0.0, 40.0), Modifiers::NONE);
+    assert_eq!(state.borrow().view.start, secs(10.0), "the plain wheel scrolls the tracks, not the time");
+
+    state.borrow_mut().view = TimeView::new(Tick::ZERO, 40.0);
+    fixture.idle(2);
+    let at = fixture.shown().center();
+    fixture.frame(vec![pointer::moved(at)]);
+    fixture.frame(vec![pointer::zoom_wheel(40.0)]);
+    fixture.idle(30);
+    assert!(state.borrow().view.points_per_second > 40.0, "Cmd+wheel zooms: {:?}", state.borrow().view);
 }
 
 /// While playing the view follows the playhead; a jump while stopped reveals it.
@@ -200,3 +219,337 @@ fn a_selected_clip_on_a_locked_track_out_of_view_refuses_the_new_track() {
     let target = resolve_move(&rows, &[rows[0], locked_away], -5.0, (-10.0, 170.0));
     assert!(target.refused && !target.new_track);
 }
+
+// The Timeline panel over a model of tracks, one clip in V1 and one in A1.
+
+const V1: TrackId = TrackId(1);
+const V2: TrackId = TrackId(2);
+const A1: TrackId = TrackId(3);
+const C1: TrackId = TrackId(9);
+/// The panel's room.
+const PANEL_ROOM: Vec2 = Vec2::new(900.0, 500.0);
+/// The time the panel's view shows per second of room.
+const PANEL_POINTS_PER_SECOND: f64 = 20.0;
+/// Audio tracks beyond the room's share, so the audio side scrolls.
+const EXTRA_AUDIO: u64 = 12;
+
+struct Sequence {
+    tracks: Vec<(TrackId, TrackKind, String)>,
+    master: Option<f32>,
+    view: TimeView,
+    playhead: Tick,
+    selection: Vec<ClipId>,
+    edits: Vec<TimelineEdit>,
+}
+
+impl TimelineModel for Sequence {
+    fn duration(&self) -> Tick {
+        secs(30.0)
+    }
+
+    fn format(&self) -> TimeFormat {
+        TimeFormat::timecode(RATE)
+    }
+
+    fn playhead(&self) -> Tick {
+        self.playhead
+    }
+
+    fn view(&mut self) -> &mut TimeView {
+        &mut self.view
+    }
+
+    fn tracks(&self) -> Vec<TrackInfo<'_>> {
+        self.tracks
+            .iter()
+            .map(|(id, kind, name)| TrackInfo {
+                id: *id,
+                kind: *kind,
+                name,
+                height: None,
+                depth: 0,
+                label: None,
+                locked: Some(false),
+                targeted: Some(true),
+                sync_lock: None,
+                enabled: Some(true),
+                muted: (*kind == TrackKind::Audio).then_some(false),
+                solo: (*kind == TrackKind::Audio).then_some(false),
+            })
+            .collect()
+    }
+
+    fn clips(&self, track: TrackId, _: TimeRange) -> Vec<ClipInfo<'_>> {
+        let clip = |id: u64| ClipInfo {
+            id: ClipId(id),
+            track,
+            range: TimeRange::from_bounds(secs(2.0), secs(6.0)),
+            name: "Clip",
+            label: None,
+            enabled: true,
+            source: None,
+        };
+        match track {
+            V1 => vec![clip(1)],
+            A1 => vec![clip(2)],
+            _ => Vec::new(),
+        }
+    }
+
+    fn selection(&self) -> &[ClipId] {
+        &self.selection
+    }
+
+    fn master_volume_db(&self) -> Option<f32> {
+        self.master
+    }
+}
+
+struct Panel {
+    fixture: Fixture,
+    sequence: Rc<RefCell<Sequence>>,
+}
+
+fn panel_with(tracks: Vec<(TrackId, TrackKind, String)>, master: Option<f32>) -> Panel {
+    let sequence = Rc::new(RefCell::new(Sequence {
+        tracks,
+        master,
+        view: TimeView::new(Tick::ZERO, PANEL_POINTS_PER_SECOND),
+        playhead: Tick::ZERO,
+        selection: Vec::new(),
+        edits: Vec::new(),
+    }));
+    let shown = sequence.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let mut sequence = shown.borrow_mut();
+        let out = Timeline::new("Timeline", &mut *sequence).show(ui);
+        sequence.edits.extend(out.edits);
+    });
+    fixture.room(PANEL_ROOM);
+    fixture.settle();
+    Panel { fixture, sequence }
+}
+
+fn named(tracks: &[(TrackId, TrackKind, &str)]) -> Vec<(TrackId, TrackKind, String)> {
+    tracks.iter().map(|(id, kind, name)| (*id, *kind, (*name).to_owned())).collect()
+}
+
+/// V2 and V1 over A1.
+fn panel() -> Panel {
+    panel_with(named(&[(V2, TrackKind::Video, "V2"), (V1, TrackKind::Video, "V1"), (A1, TrackKind::Audio, "A1")]), None)
+}
+
+/// V1 over A1 and many more audio tracks.
+fn many_audio() -> Panel {
+    let mut tracks = named(&[(V1, TrackKind::Video, "V1"), (A1, TrackKind::Audio, "A1")]);
+    tracks.extend((2..2 + EXTRA_AUDIO).map(|n| (TrackId(20 + n), TrackKind::Audio, format!("A{n}"))));
+    panel_with(tracks, None)
+}
+
+impl Panel {
+    /// The row of the track called `name`: of the nodes with that name, the widest (the row spans the header and the lane).
+    fn row(&self, name: &str) -> Rect {
+        let tree = self.fixture.tree();
+        tree.keys()
+            .into_iter()
+            .filter(|key| tree.name_of(*key) == Some(name))
+            .filter_map(|key| self.fixture.target(key))
+            .map(|target| target.rect)
+            .max_by(|a, b| a.width().total_cmp(&b.width()))
+            .unwrap_or_else(|| panic!("no row named {name}"))
+    }
+
+    /// The node whose name contains `name` and which lies inside `row`.
+    fn in_row(&self, name: &str, row: Rect) -> Target {
+        let tree = self.fixture.tree();
+        tree.keys()
+            .into_iter()
+            .filter(|key| tree.name_of(*key).is_some_and(|label| label.contains(name)))
+            .filter_map(|key| self.fixture.target(key))
+            .find(|target| row.contains(target.center()))
+            .unwrap_or_else(|| panic!("no node named {name} in {row:?}"))
+    }
+
+    fn edits(&self) -> Vec<TimelineEdit> {
+        self.sequence.borrow().edits.clone()
+    }
+
+    fn heights(&self) -> Vec<(TrackId, f32)> {
+        self.edits()
+            .into_iter()
+            .filter_map(|edit| match edit {
+                TimelineEdit::TrackHeight { track, height, .. } => height.value().map(|height| (track, *height)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Presses at `from` and drags by `by` in four steps.
+    fn drag_by(&mut self, from: egui::Pos2, by: Vec2) {
+        self.fixture.frame(vec![pointer::moved(from)]);
+        self.fixture.frame(vec![pointer::press(from)]);
+        for step in 1..=4 {
+            self.fixture.frame(vec![pointer::moved(from + by * (step as f32 / 4.0))]);
+        }
+        self.fixture.frame(vec![pointer::release(from + by)]);
+        self.fixture.idle(2);
+    }
+}
+
+/// Video tracks stack up from the divider with V1 nearest it, and audio goes down.
+#[trial]
+fn video_tracks_stack_up_from_the_divider() {
+    let panel = panel();
+    let (v2, v1, a1) = (panel.row("V2"), panel.row("V1"), panel.row("A1"));
+    assert!(v2.bottom() <= v1.top() + SLACK, "V2 lies above V1: {v2:?} {v1:?}");
+    assert!(v1.bottom() < a1.top(), "the divider lies between V1 and A1: {v1:?} {a1:?}");
+    assert_eq!(v2.height(), v1.height());
+}
+
+/// Clicking Lock reports the new state; Alt-click on Solo is exclusive.
+#[trial]
+fn header_switches_report_their_new_state() {
+    let mut panel = panel();
+    let lock = panel.in_row("Toggle Track Lock", panel.row("V1"));
+    panel.fixture.click(&lock);
+    let solo = panel.in_row("Solo Track", panel.row("A1"));
+    panel.fixture.hold(Modifiers::ALT);
+    panel.fixture.click(&solo);
+    panel.fixture.hold(Modifiers::NONE);
+    let switches: Vec<_> = panel
+        .edits()
+        .into_iter()
+        .filter_map(|edit| match edit {
+            TimelineEdit::Switch { track, switch, value, exclusive, .. } => Some((track, switch, value, exclusive)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(switches, [(V1, TrackSwitch::Locked, true, false), (A1, TrackSwitch::Solo, true, true)]);
+}
+
+/// A row resizes from its own height: video rows grow upward, so an edge dragged up adds height, and the top video row
+/// has a top edge.
+#[trial]
+fn rows_resize_from_their_height_and_video_rows_grow_upward() {
+    let mut panel = panel();
+    let a1 = panel.row("A1");
+    let edge = panel.in_row("Drag to change the height of A1", a1);
+    panel.drag_by(edge.center(), Vec2::new(0.0, RESIZE_TRAVEL));
+    let got = panel.heights();
+    assert_eq!(got.last().map(|(track, _)| *track), Some(A1), "{got:?}");
+    assert!((got.last().map_or(0.0, |(_, height)| *height) - (a1.height() + RESIZE_TRAVEL)).abs() < SLACK, "{got:?} from {}", a1.height());
+
+    let mut panel = self::panel();
+    let v1 = panel.row("V1");
+    let edge = panel.in_row("Drag to change the height of V1", v1);
+    panel.drag_by(edge.center(), Vec2::new(0.0, -RESIZE_TRAVEL));
+    let got = panel.heights();
+    assert!((got.last().map_or(0.0, |(_, height)| *height) - (v1.height() + RESIZE_TRAVEL)).abs() < SLACK, "{got:?} from {}", v1.height());
+
+    let mut panel = self::panel();
+    let v2 = panel.row("V2");
+    let top = panel.in_row("Drag the top edge to change the height of V2", v2);
+    panel.drag_by(top.center(), Vec2::new(0.0, -RESIZE_TRAVEL));
+    let got = panel.heights();
+    assert_eq!(got.last().map(|(track, _)| *track), Some(V2), "{got:?}");
+    assert!((got.last().map_or(0.0, |(_, height)| *height) - (v2.height() + RESIZE_TRAVEL)).abs() < SLACK, "{got:?} from {}", v2.height());
+}
+
+/// The distance a height edge is dragged in the resize trial.
+const RESIZE_TRAVEL: f32 = 10.0;
+
+/// A double click on a header toggles the row between its two named heights.
+#[trial]
+fn double_clicking_a_header_toggles_its_height() {
+    let mut panel = panel();
+    let a1 = panel.row("A1");
+    let before = a1.height();
+    let at = a1.left_center() + Vec2::new(HEADER_NAME_INSET, 0.0);
+    panel.fixture.frame(vec![pointer::moved(at)]);
+    panel.fixture.click_at(at);
+    panel.fixture.click_at(at);
+    let got = panel.heights();
+    assert_eq!(got.len(), 1, "one height from the double click: {got:?}");
+    assert_eq!(got[0].0, A1);
+    assert_ne!(got[0].1, before, "the height changed to the other named height");
+}
+
+/// The rounding slack of a measured point.
+const SLACK: f32 = 0.5;
+
+/// How far into the row the name column's text lies, clear of the colour strip and the switches.
+const HEADER_NAME_INSET: f32 = 60.0;
+
+/// Captions sit above the video rows; a model with a master volume shows the Mix row below the audio rows.
+#[trial]
+fn caption_rows_sit_above_video_with_a_mix_row() {
+    let panel = panel_with(named(&[(C1, TrackKind::Caption, "C1"), (V1, TrackKind::Video, "V1"), (A1, TrackKind::Audio, "A1")]), Some(-3.0));
+    let (c, v1, a1) = (panel.row("C1"), panel.row("V1"), panel.row("A1"));
+    assert!(c.bottom() <= v1.top() + SLACK, "{c:?} {v1:?}");
+    assert!(v1.bottom() < a1.top(), "{v1:?} {a1:?}");
+    let mix = panel.fixture.by_label("Mix").expect("a model with a master volume has a Mix row");
+    assert!(mix.rect.top() >= a1.bottom() - SLACK, "the Mix row lies below the audio rows: {:?} {a1:?}", mix.rect);
+}
+
+/// The plain wheel scrolls the side of the divider under the pointer.
+#[trial]
+fn the_wheel_scrolls_the_side_under_the_pointer() {
+    let mut panel = many_audio();
+    let before = panel.row("A3").top();
+    let over = panel.row("A2").center();
+    panel.fixture.frame(vec![pointer::moved(over)]);
+    panel.fixture.frame(vec![pointer::wheel(-WHEEL_POINTS)]);
+    panel.fixture.idle(2);
+    let after = panel.row("A3").top();
+    assert!((before - after - WHEEL_POINTS).abs() < SLACK, "{before} -> {after}");
+}
+
+/// The points one wheel turn moves.
+const WHEEL_POINTS: f32 = 30.0;
+
+/// The Menu key and Shift+F10 report a context menu anchored on the selection's last clip; a secondary click reports its
+/// position.
+#[trial]
+fn the_menu_keys_report_a_context_menu_anchored_on_the_focused_clip() {
+    let mut panel = panel();
+    panel.sequence.borrow_mut().selection = vec![ClipId(1)];
+    panel.fixture.idle(2);
+    for _ in 0..FOCUS_TABS {
+        let focused = panel.fixture.focused().and_then(|id| panel.fixture.tree().name_of(NodeKey::of(id)).map(str::to_owned));
+        if focused.as_deref() == Some("Timeline") {
+            break;
+        }
+        panel.fixture.key(Key::Tab, Modifiers::NONE);
+    }
+    panel.fixture.key(Key::Menu, Modifiers::NONE);
+    panel.fixture.key(Key::F10, Modifiers::SHIFT);
+    let menus: Vec<_> = panel
+        .edits()
+        .into_iter()
+        .filter_map(|edit| match edit {
+            TimelineEdit::ContextMenu { track, clip, anchor, pointer, .. } => Some((track, clip, anchor, pointer)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(menus.len(), 2, "{menus:?}");
+    let v1 = panel.row("V1");
+    for (track, clip, anchor, pointer) in &menus {
+        assert_eq!((*track, *clip, *pointer), (Some(V1), Some(ClipId(1)), None));
+        assert!((anchor.top() - v1.top()).abs() < SLACK && (anchor.bottom() - v1.bottom()).abs() < SLACK, "{anchor:?} in {v1:?}");
+        assert!((anchor.width() - 4.0 * PANEL_POINTS_PER_SECOND as f32).abs() < SLACK, "{anchor:?}");
+    }
+
+    panel.sequence.borrow_mut().edits.clear();
+    let at = menus[0].2.center();
+    panel.fixture.frame(vec![pointer::moved(at)]);
+    panel.fixture.frame(vec![pointer::secondary(at, true)]);
+    panel.fixture.frame(vec![pointer::secondary(at, false)]);
+    let click = panel.edits().into_iter().find_map(|edit| match edit {
+        TimelineEdit::ContextMenu { pointer, .. } => Some(pointer),
+        _ => None,
+    });
+    assert!(matches!(click, Some(Some(pos)) if (pos - at).length() < 1.0), "{click:?}");
+}
+
+/// The most Tab presses the focus search takes.
+const FOCUS_TABS: usize = 40;

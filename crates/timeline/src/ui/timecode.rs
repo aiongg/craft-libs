@@ -158,7 +158,7 @@ impl Codec for TimecodeCodec {
 pub struct TimecodeFieldOutput {
     /// The edit: a changed time as an edit event.
     pub edit: EditResponse<Tick>,
-    /// Typed text that is not a time, from Enter or a click away; word it with [`TimecodeWords::message`].
+    /// Typed text that is not a time, from Enter or a click away, in every pass the text stays marked invalid; word it with [`TimecodeWords::message`].
     /// Nothing is committed: the text stays in the field, marked invalid, until it is fixed or Esc restores the time.
     pub error: Option<TimecodeError>,
 }
@@ -293,8 +293,10 @@ impl Component for TimecodeField<'_> {
 
     fn finish(self, cx: Cx<'_, Self>) -> TimecodeFieldOutput {
         let edit = cx.edit_response();
-        let ended = edit.submitted || !cx.is_focused();
-        let draft = cx.text(&TextKey::<Tick>::new(TEXT)).and_then(|text| text.draft.as_deref());
+        let text = cx.text(&TextKey::<Tick>::new(TEXT));
+        let draft = text.and_then(|text| text.draft.as_deref());
+        // A rejected Enter keeps the draft, marks it invalid and neither submits nor blurs.
+        let ended = edit.submitted || !cx.is_focused() || text.is_some_and(|text| text.invalid);
         let error = match draft {
             Some(draft) if ended => parse_time(draft, &self.format, cx.value().copied().unwrap_or(Tick::ZERO)).err(),
             _ => None,

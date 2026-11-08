@@ -15,6 +15,9 @@ use std::rc::Rc;
 
 /// The editor's room, in points.
 const ROOM: Vec2 = Vec2::new(560.0, 320.0);
+/// The time area around the editor is taller than the editor: the wheel's zoom share goes to the innermost taker, and
+/// equal rects would leave the choice to the order they register in.
+const VIEW_ROOM: Vec2 = Vec2::new(ROOM.x, 2.0 * ROOM.y);
 /// Points per second of the editor's time axis.
 const POINTS_PER_SECOND: f64 = 100.0;
 /// The editor's name, which names its AccessKit node.
@@ -116,7 +119,7 @@ fn shown(curves: Vec<GraphCurve>, selection: Selection<KeyframeId>, auto_zoom: b
         });
         *held_range.borrow_mut() = edited;
     });
-    fixture.room(ROOM);
+    fixture.room(VIEW_ROOM);
     fixture.settle();
     Shown { fixture, range, selection, moved, handles, actions }
 }
@@ -254,8 +257,9 @@ fn delete_and_backspace_report_delete_and_chords_are_exact() {
     }
     assert!(shown.actions.borrow().is_empty() && shown.moved.borrow().is_empty(), "{:?}", shown.actions.borrow());
     shown.fixture.key(Key::Backspace, Modifiers::NONE);
+    assert_eq!(*shown.actions.borrow(), [GraphAction::Delete], "Backspace deletes");
     shown.fixture.key(Key::Delete, Modifiers::NONE);
-    assert_eq!(*shown.actions.borrow(), [GraphAction::Delete, GraphAction::Delete]);
+    assert_eq!(*shown.actions.borrow(), [GraphAction::Delete, GraphAction::Delete], "Delete deletes");
 }
 
 #[trial]
