@@ -232,20 +232,3 @@ impl Rig {
         self.fixture.idle(3);
     }
 }
-
-/// Temporary diagnostics: the named nodes with roles and bounds.
-pub(crate) fn dump(rig: &Rig) -> String {
-    let tree = rig.fixture.tree();
-    let mut all: Vec<String> = tree
-        .keys()
-        .into_iter()
-        .filter_map(|key| {
-            let name = tree.name_of(key)?;
-            let r = tree.bounds_of(key).map(|r| (r.min.x as i32, r.min.y as i32, r.width() as i32, r.height() as i32));
-            Some(format!("{:?} {r:?}:{name}", tree.role_of(key).map(|r| format!("{r:?}").replace("Some(Node(", "").replace("))", ""))))
-        })
-        .collect();
-    all.sort();
-    all.retain(|l| !l.contains("Restore the default") && !l.contains("Add a shortcut"));
-    all.join("\n")
-}

@@ -1,8 +1,8 @@
 //! The table's model through the dialog: what each Show area, filter and search lists, how groups sort and
 //! collapse, and which rows count as conflicts.
 
-use craft_keymap::{Bindable, Binding, CommandRef, Keymap, Kind, Platform, Policy, Scope, Scopes};
-use craft_menu::shortcuts::Options;
+use craft_keymap::{Bindable, Binding, CommandRef, Keymap, Kind, Platform, Policy, Scope, Scopes, Trigger};
+use craft_menu::shortcuts::{FixedRow, Options};
 use craft_ui::testing::trial;
 
 use super::fixture::{self, Rig};
@@ -90,7 +90,10 @@ fn sort_by_label_and_collapsed_groups() {
 
 #[trial]
 fn fixed_rows_strike_through_when_a_command_takes_their_chord() {
-    let mut rig = Rig::mac();
+    let chord = |text: &str| Trigger::parse(text).unwrap_or_else(|e| panic!("{text}: {e}"));
+    let mut options = fixture::options();
+    options.fixed = vec![FixedRow::new("Rating", "Rate 1", "1").chord(chord("1")), FixedRow::new("Rating", "Loop", "L").chord(chord("L"))];
+    let mut rig = Rig::new(fixture::keymap(Platform::Mac), options, None);
     rig.choose("Show:", "Fixed Keys");
     assert!(rig.has("Loop: L (Now used by Loop)"), "a fixed row whose chord a command took names the command");
     assert!(rig.has("Rate 1: 1"), "a free fixed row is plain");

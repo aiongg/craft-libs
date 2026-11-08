@@ -183,12 +183,3 @@ fn narrow_set_row_moves_actions_into_more() {
     rig.click("Summarize…");
     assert!(rig.has_outcome(|o| matches!(o, Outcome::Summary { name, .. } if name == "Fixture Defaults")));
 }
-
-#[trial]
-fn zz_dump_sets() {
-    let mut rig = Rig::mac_with_sets(Profiles::default());
-    let a = super::fixture::dump(&rig);
-    rig.click("Export…");
-    let b = super::fixture::dump(&rig);
-    panic!("S1\n{a}\nS2 after click Export\n{b}\nEND");
-}

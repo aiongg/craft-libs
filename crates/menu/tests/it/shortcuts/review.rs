@@ -46,15 +46,3 @@ fn picking_a_suggestion_replans() {
     rig.click("Save As…");
     assert!(!rig.has("Command for File > Sve Az"), "the pick moved to Will change");
 }
-
-#[trial]
-fn zz_dump_review() {
-    let mut rig = Rig::mac_with_sets(Profiles::default());
-    open_review(&mut rig);
-    let a = super::fixture::dump(&rig);
-    let button = rig.fixture.by_label("Import as New Set");
-    let clicked = button.is_some();
-    rig.click("Import as New Set");
-    let b = super::fixture::dump(&rig);
-    panic!("R1 button={clicked}\n{a}\nR2 after click active={:?}\n{b}\nEND", rig.active_set());
-}
