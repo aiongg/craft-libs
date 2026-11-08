@@ -4,6 +4,8 @@
 //! A toggle sweep flips each switch live: every cell the pointer crosses applies an `Update` at once, as its own
 //! open gesture. The release commits the gestures; Escape or a lost press capture cancels them, each with the value
 //! from before, which restores every crossed switch.
+//!
+//! [`SweepApply`] is the one host-side reader of those events: it turns each into the step the host applies.
 
 use super::ItemsHooks;
 use super::marquee::MarqueeDrag;
@@ -28,6 +30,91 @@ struct Sweep<K> {
     /// The flips made so far, each a gesture that stays open until the release commits it or Escape cancels it:
     /// its id and the edit that undoes it.
     open: Vec<(GestureId, ToggleEdit<K>, ToggleEdit<K>)>,
+}
+
+/// What a host does for one toggle event, from [`SweepApply::feed`]. Each carries the cell's key, column and value.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SweepStep<K> {
+    /// Set the cell to `on` now. A sweep emits one as the pointer crosses each cell; a plain press emits one.
+    Flip(ToggleEdit<K>),
+    /// Alt was held at the first press: show only this cell, turning the column's other cells off. A sweep emits it once,
+    /// for its first cell; the cells it crosses afterwards emit nothing.
+    ShowOnly(ToggleEdit<K>),
+    /// Put the cell back to the value it had before the sweep (Escape or a lost press capture). Every flipped cell
+    /// emits one.
+    Restore(ToggleEdit<K>),
+    /// Undo the `ShowOnly` of a cancelled Alt sweep: the cell has the value from before it.
+    UndoShowOnly(ToggleEdit<K>),
+}
+
+/// The state a sweep needs between events: which gesture opened it and whether Alt was held.
+#[derive(Clone, Copy, Debug)]
+struct Run {
+    first: GestureId,
+    alt: bool,
+    /// A `Commit` or `Cancel` came: the next `Begin` or `Update` opens a new sweep.
+    ended: bool,
+}
+
+/// The one consumer of a toggle column's events (`CollectionEvent::Toggle`), for a host that applies a sweep live.
+///
+/// The host keeps one per toggle column and passes it every `Toggle` edit of the pass, in order, applying the step
+/// that comes back. Each crossed cell applies as the pointer reaches it (`Flip`); Escape or a lost press capture
+/// restores every crossed cell (`Restore`); and a sweep that began with Alt shows only its first cell once
+/// (`ShowOnly`), where the cells it crosses afterwards apply nothing and restore nothing. The host owns the toggle
+/// state, so the steps carry no state to read: a `Restore` carries the value from before.
+#[derive(Clone, Debug, Default)]
+pub struct SweepApply {
+    run: Option<Run>,
+}
+
+impl SweepApply {
+    /// The step for `edit`, if it asks the host for one. `Commit` repeats what its `Update` already applied.
+    pub fn feed<K: Clone>(&mut self, edit: &EditEvent<ToggleEdit<K>>) -> Option<SweepStep<K>> {
+        match edit {
+            EditEvent::Set { after, .. } => Some(if after.mods.alt { SweepStep::ShowOnly(after.clone()) } else { SweepStep::Flip(after.clone()) }),
+            EditEvent::Begin { id, before: Mixed::Same(before), .. } => {
+                self.open(*id, before);
+                None
+            }
+            EditEvent::Update { id, value, .. } => {
+                let run = self.open(*id, value);
+                match (run.alt, run.first == *id) {
+                    (false, _) => Some(SweepStep::Flip(value.clone())),
+                    (true, true) => Some(SweepStep::ShowOnly(value.clone())),
+                    (true, false) => None,
+                }
+            }
+            EditEvent::Commit { .. } => {
+                self.end();
+                None
+            }
+            EditEvent::Cancel { id, before: Some(Mixed::Same(before)), .. } => match self.end() {
+                Some(Run { alt: true, first, .. }) => (first == *id).then(|| SweepStep::UndoShowOnly(before.clone())),
+                _ => Some(SweepStep::Restore(before.clone())),
+            },
+            _ => None,
+        }
+    }
+
+    /// The running sweep; gesture `id` opens one when none runs or the last one ended.
+    fn open<K>(&mut self, id: GestureId, edit: &ToggleEdit<K>) -> Run {
+        match self.run {
+            Some(run) if !run.ended => run,
+            _ => {
+                let run = Run { first: id, alt: edit.mods.alt, ended: false };
+                self.run = Some(run);
+                run
+            }
+        }
+    }
+
+    /// Marks the sweep ended and returns it; the cells of one release or cancel arrive one after the other.
+    fn end(&mut self) -> Option<Run> {
+        let run = self.run.as_mut()?;
+        run.ended = true;
+        Some(*run)
+    }
 }
 
 /// What a collection keeps of the drags it runs, in session memory.

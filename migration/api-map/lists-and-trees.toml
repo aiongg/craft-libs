@@ -486,3 +486,18 @@ old = ""
 new = "craft_ui::list::label_color_label"
 status = "pending"
 note = "`label_color_label(Option<LabelColor>, &ListWords) -> Label`: one word per label colour and for no label (ids `list.labelRed` to `list.labelGray`, `list.labelNone`), beside `ThumbSize::label`."
+
+# fwk-sweepapply
+[[type]]
+name = "SweepApply"
+old = ""
+new = "craft_ui::contract::SweepApply"
+status = "pending"
+note = "`SweepApply::default()`, then `feed(&EditEvent<ToggleEdit<K>>) -> Option<SweepStep<K>>` for every `CollectionEvent::Toggle` of a pass, in order: the one host-side reader of a toggle column's events. It replaces each host's own reading of `Update`, `Cancel` and `Alt`."
+
+[[type]]
+name = "SweepStep"
+old = ""
+new = "craft_ui::contract::SweepStep"
+status = "pending"
+note = "`SweepStep<K> { Flip(ToggleEdit<K>), ShowOnly(ToggleEdit<K>), Restore(ToggleEdit<K>), UndoShowOnly(ToggleEdit<K>) }`: what the host applies for one toggle event."

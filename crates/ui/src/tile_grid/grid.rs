@@ -15,7 +15,7 @@ use super::{CaptionPlace, Tile, TilePartEvent};
 use crate::contract::{
     Access, Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, ColumnKind, ColumnSpec, Common, Component,
     ContainerProps, Cx, EditResponse, Focus as _, ListDrag, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role, RowState, SelectMode,
-    Show as _, Sizing, SpaceAction, ToggleColumn,
+    Show as _, Sizing, SpaceAction, SweepApply, SweepStep, ToggleColumn,
 };
 use crate::contract::{lead_position, section_part};
 use crate::controls::disclosure::Disclosure;
@@ -26,8 +26,7 @@ use crate::runtime::commands::FireSource;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, RuleKind, StyleColor, StyleCx};
 use craft_behavior::{
-    ColumnKey, ColumnWidth, EditEvent, HitLevel, HitPriority, Intent, ItemSource, Metrics, Mixed, PartKey, PointerButton, PressPhase, Selection,
-    Sense,
+    ColumnKey, ColumnWidth, HitLevel, HitPriority, Intent, ItemSource, Metrics, Mixed, PartKey, PointerButton, PressPhase, Selection, Sense,
 };
 use craft_keymap::Mods;
 use egui::{CornerRadius, Id, Pos2, Rect, Response, Ui, pos2, vec2};
@@ -595,9 +594,10 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
             }
             match event {
                 CollectionEvent::Item(key, TilePartEvent::Rate(rating)) => events.push(GridEvent::Rate { keys: vec![key], rating }),
-                CollectionEvent::Toggle(edit) if self.checks && matches!(edit, EditEvent::Set { .. } | EditEvent::Commit { .. }) => {
-                    if let Some(toggle) = edit.value() {
-                        kept.push(CollectionEvent::Item(toggle.key.clone(), TilePartEvent::Check { mods: Mods::NONE }));
+                CollectionEvent::Toggle(edit) if self.checks => {
+                    // The check column does not sweep, so each flip arrives whole as a `Set`.
+                    if let Some(SweepStep::Flip(toggle) | SweepStep::ShowOnly(toggle)) = SweepApply::default().feed(&edit) {
+                        kept.push(CollectionEvent::Item(toggle.key, TilePartEvent::Check { mods: Mods::NONE }));
                     }
                 }
                 other => kept.push(other),

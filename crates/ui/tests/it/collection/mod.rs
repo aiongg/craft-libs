@@ -11,6 +11,7 @@ mod review;
 mod row_children;
 mod rows;
 mod strip;
+mod sweep_apply;
 pub(crate) mod table;
 mod table_trials;
 mod unbounded_room;

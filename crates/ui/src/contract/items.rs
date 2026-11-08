@@ -32,6 +32,7 @@ mod header;
 mod marquee;
 mod request;
 
+pub use drag::{SweepApply, SweepStep};
 pub use header::ColumnCommands;
 pub(crate) use header::put_toggle_names;
 pub(crate) use request::lead_position;
