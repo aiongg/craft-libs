@@ -516,7 +516,8 @@ fn frame(ui: &mut Ui, env: &mut Env<'_>, state: &mut DialogState) -> ShortcutsOu
                     Act::Redo => idle && state.can_redo(),
                     Act::ResetAll => idle && !env.keymap.overrides().is_empty(),
                     Act::Ok => idle,
-                    Act::Summarize | Act::Cancel => true,
+                    Act::Cancel => idle,
+                    Act::Summarize => true,
                 });
             }
         })

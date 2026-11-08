@@ -45,7 +45,7 @@ fn double_press_records_k_k_within_the_window() {
     assert!(!rig.shared.borrow().state.is_recording());
     assert_eq!(rig.bindings("object.front"), ["K K"]);
 
-    rig.click("Bold: Text: ⌘B");
+    rig.click("Add a shortcut to Bold");
     rig.press(Modifiers::NONE, Key::K);
     rig.fixture.advance(0.9);
     rig.fixture.idle(2);

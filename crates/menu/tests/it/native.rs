@@ -10,12 +10,12 @@ use craft_menu::{
     Backend, Builtin, ClipboardKeys, CommandRef, Dispatch, Event, Gate, ItemKind, ItemState, LayoutOptions, Menu, MenuBar, MenuRole, NativeMenu,
     Node, apply_state, mac_layout, structure_key,
 };
-use craft_ui::contract::{Props as _, Show as _};
+use craft_ui::contract::{Bind, Props as _, Show as _};
 use craft_ui::testing::focus::key_release;
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::click;
 use craft_ui::testing::{Frames, trial};
-use craft_ui::text::SelectableText;
+use craft_ui::text::{SelectableText, TextField};
 use egui::{Key, Modifiers};
 
 use crate::sample::{chord, cmd, held, sample, typing};
@@ -222,14 +222,12 @@ fn a_click_on_a_text_editing_item_while_typing_taps_its_shortcut() {
     menu.set_gate(typing(false));
     assert_eq!(dispatch.chosen(&cmd("edit.undo"), Some(&undo), false, None), Event::Click(cmd("edit.undo")));
 
+    // Both taps in one poll reach one frame, with the text shown.
     menu.set_gate(typing(true));
-    events.borrow_mut().push(Event::Tap(undo));
-    let seen = through(&mut menu, &mut frames, vec![]);
-    assert_eq!(seen, [key(Key::Z, true, mac_cmd(false)), key(Key::Z, false, mac_cmd(false))]);
-
     let mut show = selected_text(&mut frames);
-    events.borrow_mut().push(Event::Tap(copy));
-    through_in(&mut menu, &mut frames, vec![], &mut show);
+    events.borrow_mut().extend([Event::Tap(undo), Event::Tap(copy)]);
+    let seen = through_in(&mut menu, &mut frames, vec![], &mut show);
+    assert_eq!(seen, [key(Key::Z, false, mac_cmd(false))], "the focused field takes the ⌘Z press as Undo and ⌘C as Copy; the key-up stays");
     assert_eq!(frames.copied(), ["read me"], "the tapped Copy acts on the focused field");
     assert!(take_clicks(&mut menu).is_empty());
 }
@@ -477,7 +475,7 @@ fn clipboard_key_equivalents_reach_text_fields() {
     events.borrow_mut().extend([equivalent("Cmd+C"), equivalent("Cmd+Shift+V")]);
     let seen = through_in(&mut menu, &mut frames, vec![], &mut show);
     assert_eq!(frames.copied(), ["read me"], "⌘C copies the focused field's selection");
-    assert!(seen.contains(&key(Key::V, true, mac_cmd(true))), "⌘⇧V is an app shortcut");
+    assert_eq!(seen, [key(Key::V, true, mac_cmd(true))], "⌘C is the runtime's; ⌘⇧V is an app shortcut and reaches egui once");
 
     events.borrow_mut().push(equivalent("Cmd+V"));
     let seen = through_in(&mut menu, &mut frames, vec![], &mut show);
@@ -495,6 +493,25 @@ fn clipboard_key_equivalents_reach_text_fields() {
     let mut frames = Frames::new();
     let seen = through(&mut menu, &mut frames, vec![]);
     assert_eq!(seen, [key(Key::C, true, mac_cmd(false)), key(Key::V, true, mac_cmd(false))]);
+}
+
+/// ⌘X on an editable field with a selection removes the selection and puts it on the clipboard.
+#[trial]
+fn cut_removes_the_selection_of_an_editable_field() {
+    let mut frames = Frames::new();
+    let events = Rc::new(RefCell::new(Vec::new()));
+    let mut menu = NativeMenu::new(Box::new(Fake { events: events.clone(), ..Default::default() }));
+    let value = RefCell::new("cut me".to_owned());
+    let rect = Cell::new(egui::Rect::NOTHING);
+    let mut show = |ui: &mut egui::Ui| rect.set(TextField::new("Note", Bind::bound(&mut *value.borrow_mut())).id_salt("note").show(ui).response.rect);
+    frames.idle(3, &mut show);
+    click(&mut frames, rect.get().center(), &mut show);
+    frames.frame(vec![key_press(Key::A, Modifiers::COMMAND)], &mut show);
+    frames.frame(vec![], &mut show);
+    events.borrow_mut().push(Event::Key(chord("Cmd+X")));
+    through_in(&mut menu, &mut frames, vec![], &mut show);
+    assert_eq!(frames.copied(), ["cut me"], "the selection is on the clipboard");
+    assert_eq!(*value.borrow(), "", "and gone from the field");
 }
 
 /// The layout marks the shortcuts it gives (the app's key handling doesn't bind them), and a key

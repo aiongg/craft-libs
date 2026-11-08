@@ -6,7 +6,7 @@
 //! the field keeps Tab). The field takes key focus once, in the pass recording starts.
 
 use craft_behavior::{Metrics, Proposal, Sense};
-use craft_keymap::Chord;
+use craft_keymap::{Chord, Key};
 use craft_theme::Stateful;
 use craft_ui::contract::{
     Access, Common, Component, Cx, Focus as _, MeasureCx, Name, NoValue, Outcome, PaintUi, Pointer as _, Props as _, Role, Show as _, Styled as _,
@@ -19,6 +19,10 @@ use egui::{Rect, Response, Ui, Vec2};
 
 #[cfg(feature = "screen-testing")]
 mod stories;
+
+/// The field claims bare Escape while recording, so it reaches the field as a chord (the keymap's recorder reads it as
+/// cancel) and neither leaves the row nor closes the dialog.
+const ESCAPE: &[Chord] = &[Chord::plain(Key::Escape)];
 
 /// What the recorder reports in one pass.
 #[derive(Debug)]
@@ -93,7 +97,7 @@ impl Component for Recorder {
     type Output = RecorderOutput;
 
     fn keys(&self) -> KeyUse {
-        if self.recording { KeyUse::RECORDER.with_keep(KeepKeys::Tab) } else { Self::KEYS }
+        if self.recording { KeyUse::RECORDER.with_keep(KeepKeys::Tab).with_claims(ESCAPE) } else { Self::KEYS }
     }
 
     fn style(cx: &StyleCx<'_>, key: RecorderStyleKey) -> FieldStyle {
@@ -115,6 +119,9 @@ impl Component for Recorder {
                 focus::request(&cx.response.ctx, FocusTarget::Id(cx.response.id));
             }
             self.chords.extend(cx.intents().take_chords());
+            if cx.take_claimed(ESCAPE[0]) {
+                self.chords.push(ESCAPE[0]);
+            }
         } else if cx.activation().is_some() {
             self.started = true;
         }

@@ -112,7 +112,9 @@ impl Rig {
 
     /// The control with this label; panics when there is none.
     pub(crate) fn find(&self, label: &str) -> Target {
-        self.fixture.by_label(label).unwrap_or_else(|| panic!("no control labelled {label:?}"))
+        self.fixture.by_label(label).unwrap_or_else(|| {
+            panic!("no control labelled {label:?}; buttons {:?}; rows {:?}", self.names_with(Role::BUTTON, ""), self.names_with(Role::ROW, ""))
+        })
     }
 
     /// The names of the nodes of `role` that contain `part`, for a failure message.
@@ -207,7 +209,19 @@ impl Rig {
     /// Picks `entry` in the select of the row `label`.
     pub(crate) fn choose(&mut self, label: &str, entry: &str) {
         self.open(label);
-        self.click(entry);
+        // A table group can carry the same name as an entry, so the entry is looked up among the select's options.
+        let tree = self.fixture.tree();
+        let option = [Role::LIST_BOX_OPTION, Role::MENU_ITEM, Role::MENU_ITEM_RADIO, Role::LIST_ITEM]
+            .into_iter()
+            .flat_map(|role| self.fixture.by_role(role))
+            .find(|node| tree.name_of(node.node) == Some(entry));
+        match option {
+            Some(option) => {
+                self.fixture.click(&option);
+                self.fixture.idle(3);
+            }
+            None => self.click(entry),
+        }
     }
 
     /// Whether a shortcut is being recorded.

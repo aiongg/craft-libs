@@ -23,6 +23,12 @@ fn the_keyboard_names_holders_and_assigns_to_the_selected_command() {
     assert!(rig.has("Key: L"));
     rig.click("Save");
     rig.click("Assign to Selected");
-    assert_eq!(rig.bindings("file.save"), ["Cmd+S", "L"]);
+    assert_eq!(
+        rig.bindings("file.save"),
+        ["Cmd+S", "L"],
+        "buttons {:?}, rows {:?}",
+        rig.names_with(craft_ui::contract::Role::BUTTON, ""),
+        rig.names_with(craft_ui::contract::Role::ROW, "")
+    );
     assert!(rig.has("L: Save, Loop (Timeline)"));
 }
