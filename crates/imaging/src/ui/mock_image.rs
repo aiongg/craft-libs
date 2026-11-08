@@ -11,22 +11,25 @@
 //! - `MockImage::default()` is the full picture. [`MockImage::new`] draws the same scene at any
 //!   size (the shapes scale with the width, the hills and the horizon with the height), so a small
 //!   one is cheap for a thumbnail and a huge one costs nothing until it is read.
-//! - It is a [`RasterSource`]: `RasterDisplay::new(salt).show(ui, &view, &image)`, or
-//!   [`MockImage::show`], which draws it into a story canvas (`document_over(.., image.view(zoom,
-//!   centre))`).
+//! - It is a [`RasterSource`]: `RasterDisplay::new(label, &image)`, or [`story_canvas`], which
+//!   shows a canvas with the picture under the story's controls.
 //! - [`MockSubject`] is the subject as a [`MaskSource`] (a selection of the house): use it for the
 //!   selection overlay, a Select and Mask preview or a fake mask source.
 //!   [`MockImage::subject_bounds`] gives its pixels.
 //! - Everything is a pure function of the coordinates: no randomness, no clock. Every method takes
 //!   document pixels as `f64`; an integer pixel's centre is `+ 0.5`.
 //! - Nothing here uses egui except `read`'s output type and the canvas it draws into.
+//!
+//! The module is behind `screen-testing`, with the stories.
 
 use egui::{Color32, ColorImage, Ui};
 
-use craft_ui::canvas::kurbo::Point;
-use craft_ui::canvas::{CanvasView, Checkerboard, PixelRect, RasterDisplay, RasterSource};
-use craft_ui::testing::canvas_story::StoryCanvas;
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
+use craft_behavior::kurbo::Point;
+use craft_behavior::{CanvasView, PixelSize};
+use craft_ui::canvas::{Canvas, PixelRect, RasterDisplay, RasterSource, ToolPath};
+use craft_ui::contract::{Show as _, ShowContainer as _};
+use craft_ui::primitives::{Checker, Revision};
+use craft_ui::testing::StoryOutput;
 
 use crate::trace::{MaskRect, MaskSource};
 
@@ -232,41 +235,19 @@ impl MockImage {
         let (k, _) = self.extent();
         smoothstep(0.5 - self.subject_distance(x, y) / (EDGE * k)) as f32
     }
-
-    /// The view that shows the picture on a story canvas, for `document_over`: `zoom` percent
-    /// (device pixels per picture pixel; `None` fits the whole picture in the canvas) centred on
-    /// `centre` (`None`: the middle).
-    pub(crate) fn view(self, zoom: Option<f64>, centre: Option<Point>) -> impl FnOnce(egui::Rect, f64) -> CanvasView {
-        let (w, h) = self.extent();
-        move |rect, pixels_per_point| {
-            let fit = (f64::from(rect.width()) / w).min(f64::from(rect.height()) / h);
-            let per_unit = zoom.map_or(fit, |percent| percent / 100.0 / pixels_per_point);
-            CanvasView::new(rect, centre.unwrap_or_else(|| Point::new(w / 2.0, h / 2.0)), per_unit)
-        }
-    }
-
-    /// Draws the picture into `canvas` under its view, over the canvas colour (the story document
-    /// the canvas draws is `DOC`-sized, not the picture's).
-    pub(crate) fn show(&self, ui: &mut Ui, canvas: &StoryCanvas) {
-        self.show_source(ui, canvas, self);
-    }
-
-    /// [`show`](Self::show) drawing `source` (a composite of the picture, the same size) over a
-    /// checkerboard.
-    pub(crate) fn show_source(&self, ui: &mut Ui, canvas: &StoryCanvas, source: &dyn RasterSource) {
-        let canvas_color = Tokens::of(ui).color.surface.canvas.to_egui();
-        ui.painter_at(canvas.view.rect).rect_filled(canvas.view.rect, 0.0, canvas_color);
-        let _ = RasterDisplay::new(canvas.response.id).checkerboard(Checkerboard::default()).show(ui, &canvas.view, source);
-    }
 }
 
 impl RasterSource for MockImage {
-    fn size(&self) -> [u32; 2] {
-        self.size
+    fn size(&self) -> PixelSize {
+        PixelSize::new(self.size[0], self.size[1])
     }
 
-    fn revision(&self) -> u64 {
-        self.revision
+    fn revision(&self) -> Revision {
+        Revision::new(self.revision)
+    }
+
+    fn damage(&self, since: Revision) -> Option<PixelRect> {
+        (since == self.revision()).then(PixelRect::default)
     }
 
     fn read(&self, region: PixelRect, factor: u32, out: &mut ColorImage) {
@@ -310,43 +291,43 @@ impl MaskSource for MockSubject {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+/// How a story canvas shows its picture.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum StoryView {
+    /// The whole picture fits the canvas.
+    Fit,
+    /// `zoom` percent (device pixels per picture pixel), the picture's middle at the canvas's middle.
+    Zoom(f64),
+    /// `zoom` percent, `centre` (picture pixels) at the canvas's middle.
+    At { zoom: f64, centre: Point },
+}
 
-    // The stories rely on one fixed picture whose subject has a soft edge.
-    #[test]
-    fn the_picture_is_deterministic_and_its_subject_is_soft_edged() {
-        let (a, b) = (MockImage::default(), MockImage::default());
-        let mut sample = ColorImage::filled([8, 5], Color32::TRANSPARENT);
-        let mut again = sample.clone();
-        a.read(PixelRect::new(600, 500, 1000, 750), 50, &mut sample);
-        b.read(PixelRect::new(600, 500, 1000, 750), 50, &mut again);
-        assert_eq!(sample.pixels, again.pixels);
-        assert!(sample.pixels.iter().all(|p| p.a() == 255));
-
-        assert!(a.subject(800.0, 650.0) > 0.999, "inside the house");
-        assert!(a.subject(100.0, 100.0) < 0.001, "in the sky");
-        // Along a row through the wall the coverage passes through partial values at both sides.
-        let bounds = a.subject_bounds();
-        let row = f64::from(bounds.y1) - 80.0;
-        let soft = (bounds.x0..bounds.x1).filter(|&x| (0.01..0.99).contains(&a.subject(f64::from(x) + 0.5, row))).count();
-        assert!((6..=14).contains(&soft), "{soft} soft pixels across the wall's two edges");
-        let mask = MockSubject(a);
-        assert!(mask.content_bounds().width() > 100 && mask.at(800, 650) > 0.99 && mask.at(10, 10) < 0.001);
-    }
-
-    // The story canvas is a fixed height: the picture fits by its tighter side, and a zoom is
-    // device pixels per picture pixel whatever the interface scale.
-    #[test]
-    fn the_view_fits_the_picture_or_zooms_in_percent() {
-        let image = MockImage::default();
-        let rect = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(720.0, 360.0));
-        let fit = image.view(None, None)(rect, 2.0);
-        assert!((fit.zoom - 360.0 / 1067.0).abs() < 1e-9);
-        assert_eq!(fit.center, Point::new(800.0, 533.5));
-        let zoomed = image.view(Some(200.0), Some(Point::new(1.0, 2.0)))(rect, 2.0);
-        assert!((zoomed.zoom - 1.0).abs() < 1e-9);
-        assert_eq!(zoomed.center, Point::new(1.0, 2.0));
-    }
+/// A story canvas: `image` (the default picture's size without one) under `view`, then `controls` called with the
+/// canvas's rect to show the controls of the story over it.
+pub(crate) fn story_canvas(
+    ui: &mut Ui,
+    image: Option<&dyn RasterSource>,
+    view: StoryView,
+    mut controls: impl FnMut(&mut Ui, egui::Rect) -> StoryOutput,
+) -> StoryOutput {
+    let at = ui.available_rect_before_wrap();
+    let size = image.map_or_else(|| MockImage::default().size(), |image| image.size());
+    let (width, height) = (f64::from(size.width.max(1)), f64::from(size.height.max(1)));
+    let per_point = f64::from(ui.ctx().pixels_per_point());
+    let middle = Point::new(width / 2.0, height / 2.0);
+    let canvas_view = match view {
+        StoryView::Fit => {
+            let fit = (f64::from(at.width()) / width).min(f64::from(at.height()) / height);
+            CanvasView::new(at, middle, fit)
+        }
+        StoryView::Zoom(percent) => CanvasView::new(at, middle, percent / 100.0 / per_point),
+        StoryView::At { zoom, centre } => CanvasView::new(at, centre, zoom / 100.0 / per_point),
+    };
+    let shown = Canvas::new("Document", ToolPath::Freehand).view(canvas_view).show(ui, |ui, body| {
+        if let Some(image) = image {
+            RasterDisplay::new("Picture", image).checkerboard(Checker::new()).show_at(ui, body.rect);
+        }
+        controls(ui, body.rect)
+    });
+    shown.inner.unwrap_or_default()
 }
