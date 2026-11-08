@@ -1,13 +1,13 @@
 //! `NavigatorZoomRow`: the Navigator's percent field, Zoom Out, slider and Zoom In.
 
 use crate::buttons::IconButton;
-use crate::canvas::{NavigationOptions, ViewCommand, ViewEase};
+use crate::canvas::{CanvasWords, NavigationOptions, ViewCommand, ViewEase};
 use crate::contract::{Bind, NoValue, Outcome, Props as _, Show as _, ShowContainer as _, clicked};
 use crate::layout_components::Row;
 use crate::runtime::commands;
 use crate::runtime::env::{Env, Label, UnitKind};
 use crate::runtime::windows::os_of;
-use crate::text::{NumberField, NumberStepper};
+use crate::text::NumberField;
 use crate::value_drag::{Slider, SliderScale};
 use craft_behavior::canvas::zoom;
 use craft_behavior::kurbo::Size;
