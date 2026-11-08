@@ -1,15 +1,15 @@
 //! `TileGrid`: a collection of `Tile`s in wrapped cards or justified rows, under optional group headers. The item step
 //! does the work: virtualisation, lead and selection rules, arrow, Home, End and page keys over the layout, type-ahead,
 //! drag with drop marks, OS file drops, the rename lifecycle and the context-menu request. The grid adds the layout,
-//! the pinned group headers, which are rows of the grid's outline (section rows of the item step that hold the
-//! lead), and the rating keys. It owns what its cards have in common: where the
+//! the pinned group headers and the tail rows after the tiles, which are rows of the grid's outline (section rows of
+//! the item step that hold the lead), and the rating keys. It owns what its cards have in common: where the
 //! caption goes, whether a detail line is reserved, and the zoom.
 
 #[cfg(feature = "testing")]
 mod stories;
 
 use super::headers::Outline;
-use super::layout::{Around, ArrangeSpacing, GridLayout, Recipe, Slot, TileGroup, Tiling, arrange, aspects_of, slot_at};
+use super::layout::{Around, ArrangeSpacing, GridLayout, Recipe, Slot, TailRow, TileGroup, Tiling, arrange, aspects_of, slot_at};
 use super::tile::AroundPicture;
 use super::{CaptionPlace, Tile, TilePartEvent};
 use crate::contract::{
@@ -19,7 +19,7 @@ use crate::contract::{
 };
 use crate::contract::{lead_position, section_part};
 use crate::controls::disclosure::Disclosure;
-use crate::list::{DropTest, ListRow, RowTest, SourceTest};
+use crate::list::{DropTest, ListRow, RowTest, SourceTest, ThumbSize};
 use crate::primitives::PaintShape;
 use crate::runtime::access::Name;
 use crate::runtime::commands::FireSource;
@@ -39,6 +39,8 @@ const GROUP_LEVEL: usize = 1;
 const TOGGLE: PartKey = PartKey::new("group_toggle");
 /// The keyboard path of the header parts: the header is a row of the outline, and the lead on it takes these keys.
 const HEADER_KEYS: &str = "Up and Down move to a group header; Enter picks it and Left and Right close and open it";
+/// The keyboard path of a tail row's part: the row is a row of the outline, and the lead on it takes Enter.
+const TAIL_KEYS: &str = "Down from the last line of tiles moves to the row; Enter activates it";
 /// The toggle column that carries the tiles' check boxes, so Space toggles the lead tile's check.
 const CHECKS: ColumnKey = ColumnKey::new("check");
 
@@ -205,6 +207,10 @@ pub struct TileGrid<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     /// Group headers show a disclosure that opens and closes their group.
     #[prop(flag)]
     collapsible: bool,
+    /// Full-width rows after the tiles, below a divider: actions such as "Create preset". A click or Enter on one
+    /// reports `CollectionEvent::Activate` with its key.
+    #[prop]
+    tail: &'a [TailRow<K>],
     /// Which keys rate the selected tiles.
     rating_keys: RatingKeys,
     /// Tiles show a check box and Space toggles the lead tile's check.
@@ -229,6 +235,10 @@ pub struct TileGrid<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     laid: RefCell<Option<GridLayout>>,
     /// The headers this pass shows, in the grid's layer space: the group, its rect and whether it is pinned.
     placed: Vec<Placed>,
+    /// The tail rows this pass shows, in the grid's layer space: the row's index and its rect.
+    placed_tail: Vec<(usize, Rect)>,
+    /// The tail rows clicked this pass, in order.
+    tail_clicked: Vec<K>,
     events: Vec<GridEvent<K>>,
 }
 
@@ -256,6 +266,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
             detail_line: false,
             groups: &[],
             collapsible: false,
+            tail: &[],
             rating_keys: RatingKeys::None,
             checks: false,
             can_rename: None,
@@ -265,6 +276,8 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
             takes_files: false,
             laid: RefCell::new(None),
             placed: Vec::new(),
+            placed_tail: Vec::new(),
+            tail_clicked: Vec::new(),
             events: Vec::new(),
         }
         .label(label)
@@ -292,6 +305,14 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
         self
     }
 
+    /// A tile drag carries `map` of it, for the drop targets of type `P`; a tile the map gives `None` for does not drag
+    /// unless a reorder rule is set. The drag stays one session with one ghost.
+    #[must_use]
+    pub fn drag_payload<P: Send + Sync + 'static>(mut self, map: impl Fn(&ListDrag<K>) -> Option<P> + Send + Sync + 'static) -> Self {
+        self.items = self.items.drag_payload(map);
+        self
+    }
+
     /// The selected tiles, or the lead when none is selected: what a rating key rates. The caller's binding when it
     /// holds one, else the selection the item step keeps.
     fn rated(&mut self, cx: &Cx<'_, Self>) -> Vec<K> {
@@ -314,6 +335,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
         let style = TileGridStyle::build(cx);
         let (side, spacing, around) = (style.picture_side(self.zoom), style.spacing, style.around.get(self.caption, self.detail_line));
         let aspect = if self.aspect.is_finite() && self.aspect > 0.0 { self.aspect } else { 1.0 };
+        let tail_height = ListRow::row_height(cx, ThumbSize::None, false);
         let recipe = self.items.rows_stamp.map(|stamp| Recipe {
             stamp,
             width,
@@ -323,6 +345,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
             justified: self.justified,
             around,
             groups: self.groups.iter().map(|group| (group.start, group.count, group.open)).collect(),
+            tail: (self.tail.len(), tail_height),
         });
         if let (Some(previous), Some(recipe)) = (previous, &recipe)
             && previous.is_made_from(recipe)
@@ -330,9 +353,11 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
             *self.laid.borrow_mut() = Some(previous.clone());
             return previous;
         }
-        let layout = if self.justified || !self.groups.is_empty() {
+        let layout = if self.justified || !self.groups.is_empty() || !self.tail.is_empty() {
             let tiling = if self.justified { Tiling::justified(side) } else { Tiling::cards(side, aspect) };
-            GridLayout::arranged(arrange(&aspects_of(source), self.groups, width, tiling, spacing, around), width, around)
+            let mut arrangement = arrange(&aspects_of(source), self.groups, width, tiling, spacing, around);
+            arrangement.add_tail(self.tail.len(), tail_height, width, spacing);
+            GridLayout::arranged(arrangement, width, around)
         } else {
             GridLayout::equal(source, width, spacing.inset, style.card(side, aspect, around), spacing.gap)
         };
@@ -344,17 +369,20 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
         layout
     }
 
-    /// The group whose header holds the lead while the grid has focus.
-    fn lead_group(&self, cx: &Cx<'_, Self>) -> Option<usize> {
+    /// The row that holds the lead while the grid has focus, when the grid has an arrangement.
+    fn lead_slot(&self, cx: &Cx<'_, Self>) -> Option<Slot> {
         if !cx.is_focused() {
             return None;
         }
         let at = lead_position(&cx.core.ctx, cx.core.id)?;
         let laid = self.laid.borrow();
-        match slot_at(&laid.as_ref()?.arrangement()?.starts, at) {
-            Slot::Header(group) => Some(group),
-            Slot::Tile(_) => None,
-        }
+        let arrangement = laid.as_ref()?.arrangement()?;
+        Some(slot_at(&arrangement.starts, arrangement.tiles.len(), at))
+    }
+
+    /// The outline position of the first tail row in this pass's layout, when the grid has one.
+    fn tail_from(&self) -> Option<usize> {
+        self.laid.borrow().as_ref().and_then(|layout| layout.arrangement().map(|arrangement| arrangement.tail_from()))
     }
 
     fn group_rect(rect: Rect, view: Rect, rtl: bool) -> Rect {
@@ -382,9 +410,11 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
         TileGridStyle::build(cx)
     }
 
-    /// One pointer part per header in view, over the tiles, and a disclosure part in it when headers collapse.
+    /// One pointer part per header in view, over the tiles, and a disclosure part in it when headers collapse; one
+    /// pointer part per tail row in view.
     fn parts(&mut self, area: Rect, cx: &mut PartsCx<'_, Self>) {
         self.placed.clear();
+        self.placed_tail.clear();
         let Some(arrangement) = self.laid.borrow().as_ref().and_then(|layout| layout.arrangement().cloned()) else { return };
         let (view, offset, rtl) = (cx.content_rect, cx.offset(), cx.flow.is_rtl());
         let pinned = arrangement.pinned(offset.y as f32);
@@ -408,6 +438,15 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
                 let column = Self::toggle_rect(rect, cx.style, rtl);
                 cx.part(TOGGLE.at(group as u64), column).sense(Sense::CLICK).priority(priority).over().pointer_only(HEADER_KEYS);
             }
+        }
+        for (at, (row, rect)) in self.tail.iter().zip(&arrangement.tails).enumerate() {
+            let rect = Self::group_rect(rect.translate(shift), view, rtl);
+            if !rect.intersects(clip) {
+                continue;
+            }
+            self.placed_tail.push((at, rect));
+            let priority = HitPriority::new(HitLevel::Edge, 0);
+            cx.part(section_part(&row.key), rect).sense(Sense::CLICK | Sense::TAKE_FOCUS).priority(priority).over().pointer_only(TAIL_KEYS);
         }
     }
 
@@ -445,6 +484,16 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
                 self.events.push(GridEvent::GroupOpen { group, open: !open });
             }
         }
+        for (at, _) in self.placed_tail.clone() {
+            let key = &self.tail[at].key;
+            let part = section_part(key);
+            let clicked = cx.part_if_declared(part).is_some_and(
+                |result| matches!(result.press.phase, PressPhase::Release { start, click: true, .. } if start.button == PointerButton::Primary),
+            );
+            if clicked || cx.part_activated(part) == Some(FireSource::Access) {
+                self.tail_clicked.push(key.clone());
+            }
+        }
         if self.collapsible {
             while let Some(request) = cx.intents().take_access() {
                 let Some(target) = request.target else { continue };
@@ -465,7 +514,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
         }
     }
 
-    fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
+    fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         for placed in &self.placed {
             let Some(group) = self.groups.get(placed.group) else { continue };
             let node = access.node(section_part(&group.key), Role::HEADING);
@@ -475,11 +524,15 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
                 node.expanded = Some(group.open);
             }
         }
+        for &(at, _) in &self.placed_tail {
+            let row = &self.tail[at];
+            access.node(section_part(&row.key), Role::LIST_ITEM).name = Name::Text(cx.env.resolve(&row.label).as_str().to_owned());
+        }
     }
 
     fn paint_over(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let style = cx.style;
-        let lead = self.lead_group(cx);
+        let lead = self.lead_slot(cx);
         for placed in &self.placed {
             let Some(group) = self.groups.get(placed.group) else { continue };
             let rect = placed.rect;
@@ -488,7 +541,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
                 draw.fill(&PaintShape::Rect(rect, CornerRadius::ZERO), style.pinned);
                 draw.rule(RuleKind::Divider, rect.left_bottom(), rect.right_bottom());
             }
-            let lead = RowState { emphasized: lead == Some(placed.group), ..RowState::default() };
+            let lead = RowState { emphasized: lead == Some(Slot::Header(placed.group)), ..RowState::default() };
             let mut heading = ListRow::new(group.title.clone()).heading().node(false).state(lead);
             if !group.detail.is_empty() {
                 heading = heading.trailing(group.detail.clone());
@@ -499,18 +552,32 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
                 ui.face(TOGGLE.at(placed.group as u64), disclosure);
             }
         }
+        for &(at, rect) in &self.placed_tail {
+            let row = &self.tail[at];
+            if at == 0 {
+                ui.draw().rule(RuleKind::Divider, rect.left_top(), rect.right_top());
+            }
+            let state = RowState { emphasized: lead == Some(Slot::Tail(at)), ..RowState::default() };
+            ui.face(section_part(&row.key), ListRow::new(row.label.clone()).node(false).state(state));
+        }
     }
 
     /// The grid's events are the digits' and the stars' ratings, in that order, besides the collection's own. The
     /// collection's events on a header row are the group events instead: Enter picks the group, the context-menu
-    /// key asks for its menu, Left and Right open and close it, and the lead on it is not reported.
+    /// key asks for its menu, Left and Right open and close it, and the lead on it is not reported. A tail row keeps its
+    /// Enter and the lead on it, and adds its click as `CollectionEvent::Activate`; it has no menu.
     fn finish(self, mut cx: Cx<'_, Self>) -> TileGridOutput<K> {
         let mut response = cx.collection_response();
         let mut events = self.events;
         let mods = crate::runtime::pointer::frame(&cx.core.ctx).mods;
         let group_of = |key: &K| self.groups.iter().position(|group| group.key == *key);
+        let is_tail = |key: &K| self.tail.iter().any(|row| row.key == *key);
         let mut kept = Vec::with_capacity(response.events.len());
         for event in std::mem::take(&mut response.events) {
+            let tail_menu = matches!(&event, CollectionEvent::ContextMenu(request) if is_tail(&request.key));
+            if tail_menu {
+                continue;
+            }
             let header = match &event {
                 CollectionEvent::Activate(key) | CollectionEvent::LeadMoved { key, .. } => group_of(key),
                 CollectionEvent::ContextMenu(request) => group_of(&request.key),
@@ -534,6 +601,12 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
                     }
                 }
                 other => kept.push(other),
+            }
+        }
+        for key in self.tail_clicked {
+            let reported = kept.iter().any(|event| matches!(event, CollectionEvent::Activate(done) if *done == key));
+            if !reported {
+                kept.push(CollectionEvent::Activate(key));
             }
         }
         response.events = kept;
@@ -563,9 +636,11 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for TileGrid<'_, K
         self.reveal.as_ref()
     }
 
-    /// The tiles with a header row before each group: the rows the item step walks and the layout places.
+    /// The tiles with a header row before each group, then the tail rows: the rows the item step walks and the layout
+    /// places.
     fn filtered<'s>(&self, source: &'s dyn ItemSource<K>, _: &crate::runtime::env::Env) -> Option<Box<dyn ItemSource<K> + 's>> {
-        (!self.groups.is_empty()).then(|| Box::new(Outline::new(source, self.groups, self.collapsible)) as Box<dyn ItemSource<K> + 's>)
+        (!self.groups.is_empty() || !self.tail.is_empty())
+            .then(|| Box::new(Outline::new(source, self.groups, self.tail, self.collapsible)) as Box<dyn ItemSource<K> + 's>)
     }
 
     fn item_layout(&self, source: &dyn ItemSource<K>, width: f32, cx: &StyleCx<'_>) -> GridLayout {
@@ -594,8 +669,11 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for TileGrid<'_, K
         self.accept_from.as_ref().is_none_or(|test| test.passes(from))
     }
 
+    /// No drop lands on a tail row or after one; the app's test decides the rest.
     fn accepts(&self, drag: &ListDrag<K>, over: Option<&K>, insert: usize) -> bool {
-        self.accepts.as_ref().is_none_or(|test| test.passes(drag, over, insert))
+        let on_tail = over.is_some_and(|key| self.tail.iter().any(|row| row.key == *key));
+        let past_tail = self.tail_from().is_some_and(|from| !self.tail.is_empty() && insert > from);
+        !on_tail && !past_tail && self.accepts.as_ref().is_none_or(|test| test.passes(drag, over, insert))
     }
 
     fn takes_files(&self) -> bool {

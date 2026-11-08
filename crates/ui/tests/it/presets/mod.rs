@@ -8,3 +8,6 @@ mod browser;
 
 // The picker.
 mod picker;
+
+// The browser's action rows.
+mod actions;

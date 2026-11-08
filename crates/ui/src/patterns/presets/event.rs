@@ -64,6 +64,8 @@ pub enum PresetEvent<K> {
     },
     /// A button of the browser's footer was pressed, in the order it happened among the other events.
     Footer(PresetFooterEvent<K>),
+    /// An action row (`PresetBrowser::actions`) was clicked or took Enter: its index among the actions.
+    Action(usize),
     /// A row the host added to the context menu was chosen for `target`.
     #[non_exhaustive]
     Menu {

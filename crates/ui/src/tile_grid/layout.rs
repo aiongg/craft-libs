@@ -1,8 +1,9 @@
-//! Where tiles and group headers go: `arrange` lays out justified rows and card grids under group headers, and
-//! `GridLayout` is the item layout the grid hands the item step. Equal tiles without groups are
-//! `craft_behavior::TileLayout`; everything else is an arrangement. Every tile is its picture plus what the tile adds
-//! around it (`Around`), in every tiling.
+//! Where tiles, group headers and tail rows go: `arrange` lays out justified rows and card grids under group headers,
+//! the tail rows follow them, and `GridLayout` is the item layout the grid hands the item step. Equal tiles without
+//! groups or tail rows are `craft_behavior::TileLayout`; everything else is an arrangement. Every tile is its picture
+//! plus what the tile adds around it (`Around`), in every tiling.
 
+use crate::runtime::env::Label;
 use craft_behavior::{ItemLayout, ItemSource, NavShape, ScrollPos, SizeHint, TileLayout as EqualTiles};
 use egui::{Pos2, Rect, Vec2, pos2, vec2};
 use std::ops::Range;
@@ -54,6 +55,29 @@ impl<K> TileGroup<K> {
     }
 }
 
+/// A full-width row after the tiles and their groups, below a divider: an action such as "Create preset", listed
+/// after the tiles as a menu lists its commands after a separator.
+///
+/// The row is a row of the grid's outline, as a group header is: it holds the keyboard lead, Down from the last line
+/// of tiles reaches it, and a click, Enter or AccessKit's default action reports `CollectionEvent::Activate` with its
+/// `key`. It is never selected, dragged, renamed or reached by type-ahead, and no drop lands on or after it. Its `key`
+/// differs from the key of every tile and header. Positions count it after every tile and header.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct TailRow<K> {
+    /// The key of the row.
+    pub key: K,
+    /// The row's label, which also names it for a screen reader.
+    pub label: Label,
+}
+
+impl<K> TailRow<K> {
+    /// A row keyed `key` showing `label`.
+    pub fn new(key: K, label: impl Into<Label>) -> Self {
+        TailRow { key, label: label.into() }
+    }
+}
+
 /// The tiles each of `groups` covers among `tiles` tiles: groups are in display order, a start before the end of the
 /// group before it moves up to that end, and a range ends at the last tile.
 pub(super) fn group_spans<K>(groups: &[TileGroup<K>], tiles: usize) -> Vec<Range<usize>> {
@@ -96,10 +120,16 @@ pub(super) enum Slot {
     Header(usize),
     /// The tile at this position among the tiles.
     Tile(usize),
+    /// The tail row at this position among the tail rows.
+    Tail(usize),
 }
 
-/// What stands at outline position `at`, given the first tile of every group.
-pub(super) fn slot_at(starts: &[usize], at: usize) -> Slot {
+/// What stands at outline position `at`, given the first tile of every group and the count of `tiles`: the tail rows
+/// follow every tile and header.
+pub(super) fn slot_at(starts: &[usize], tiles: usize, at: usize) -> Slot {
+    if let Some(tail) = at.checked_sub(tiles + starts.len()) {
+        return Slot::Tail(tail);
+    }
     let before = headers_through(starts, at);
     match before.checked_sub(1) {
         Some(group) if starts[group] + group == at => Slot::Header(group),
@@ -203,6 +233,8 @@ pub struct TileArrangement {
     pub headers: Vec<Rect>,
     /// Each group's first tile, in group order.
     pub starts: Vec<usize>,
+    /// Each tail row's rect, in order, after every tile and header.
+    pub tails: Vec<Rect>,
     /// The whole height.
     pub height: f32,
 }
@@ -254,8 +286,29 @@ impl TileArrangement {
                 from = cut;
             }
         }
-        lengths.extend(std::iter::repeat_n(1, self.starts.len() - group));
+        lengths.extend(std::iter::repeat_n(1, self.starts.len() - group + self.tails.len()));
         lengths
+    }
+
+    /// Puts `count` tail rows `height` high after the tiles and headers, across the content of `width`, one gap below
+    /// the last of them; the arrangement grows by them.
+    pub(super) fn add_tail(&mut self, count: usize, height: f32, width: f32, spacing: ArrangeSpacing) {
+        if count == 0 {
+            return;
+        }
+        let ArrangeSpacing { gap, inset, .. } = spacing;
+        let content = (width - 2.0 * inset).max(1.0);
+        let mut y = self.height - inset + gap;
+        for _ in 0..count {
+            self.tails.push(Rect::from_min_size(pos2(inset, y), vec2(content, height)));
+            y += height;
+        }
+        self.height = y + inset;
+    }
+
+    /// The outline position of the first tail row: every tile and header comes before it.
+    pub(super) fn tail_from(&self) -> usize {
+        self.tiles.len() + self.starts.len()
     }
 
     /// The row holding tile `at`.
@@ -445,6 +498,8 @@ pub(super) struct Recipe {
     pub(super) around: Around,
     /// Each group's first tile, count and open state.
     pub(super) groups: Vec<(usize, usize, bool)>,
+    /// How many tail rows follow, and their height.
+    pub(super) tail: (usize, f32),
 }
 
 #[derive(Clone, Debug)]
@@ -463,7 +518,8 @@ impl GridLayout {
     }
 
     /// The layout `arrangement` makes in `width`; each card is its picture and `around`. The positions of the layout are
-    /// those of the grid's outline: the header of every group stands just before the group's first tile.
+    /// those of the grid's outline: the header of every group stands just before the group's first tile, and the tail
+    /// rows follow every tile and header.
     pub fn arranged(arrangement: TileArrangement, width: f32, around: Around) -> Self {
         let rows = arrangement.outline_rows().into();
         let starts = arrangement.starts.as_slice().into();
@@ -531,6 +587,8 @@ impl ItemLayout for GridLayout {
                 let pinned = arrangement.pinned(top).map(|(group, _)| group);
                 let shown = arrangement.headers.iter().enumerate().filter(|(_, header)| header.bottom() >= top && header.top() <= bottom);
                 found.extend(shown.map(|(group, _)| group).chain(pinned).map(|group| starts[group] + group));
+                let tails = arrangement.tails.iter().enumerate().filter(|(_, tail)| tail.bottom() >= top && tail.top() <= bottom);
+                found.extend(tails.map(|(tail, _)| arrangement.tail_from() + tail));
                 found.sort_unstable();
                 found.dedup();
                 out.extend(found);
@@ -542,7 +600,8 @@ impl ItemLayout for GridLayout {
         let behind = vec2(-(offset.x as f32), -(offset.y as f32));
         match &self.kind {
             Kind::Equal { tiles, inset } => tiles.rect(at, shifted(offset, *inset)),
-            Kind::Arranged { arrangement, starts, around, .. } => match slot_at(starts, at) {
+            Kind::Arranged { arrangement, starts, around, .. } => match slot_at(starts, arrangement.tiles.len(), at) {
+                Slot::Tail(tail) => arrangement.tails.get(tail).map_or(Rect::NOTHING, |rect| rect.translate(behind)),
                 Slot::Header(group) => {
                     let pinned = arrangement.pinned(offset.y as f32).filter(|(held, _)| *held == group);
                     pinned
@@ -568,6 +627,9 @@ impl ItemLayout for GridLayout {
                     && rect.contains(at)
                 {
                     return Some(header(group));
+                }
+                if let Some(tail) = arrangement.tails.iter().position(|tail| tail.contains(at)) {
+                    return Some(arrangement.tail_from() + tail);
                 }
                 let below = arrangement.headers.partition_point(|header| header.top() <= at.y);
                 if let Some(group) = below.checked_sub(1).filter(|&group| arrangement.headers[group].contains(at)) {
@@ -596,8 +658,9 @@ impl ItemLayout for GridLayout {
     fn shown(&self, at: usize) -> bool {
         match &self.kind {
             Kind::Equal { .. } => true,
-            Kind::Arranged { arrangement, starts, .. } => match slot_at(starts, at) {
+            Kind::Arranged { arrangement, starts, .. } => match slot_at(starts, arrangement.tiles.len(), at) {
                 Slot::Header(group) => group < arrangement.headers.len(),
+                Slot::Tail(tail) => tail < arrangement.tails.len(),
                 Slot::Tile(tile) => arrangement.tiles.get(tile).is_some_and(|rect| *rect != Rect::NOTHING),
             },
         }
