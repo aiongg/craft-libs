@@ -30,6 +30,10 @@ const KEY_STEP: f64 = 0.01;
 /// 1.5 inches in points.
 const TOP: f64 = 1.5 * 72.0;
 
+/// The share a screen reader sets the first divider to, and the margin it sets the left edge to, points.
+const SHARE: f64 = 0.4;
+const SET_MARGIN: f64 = 100.0;
+
 /// Letter, in points.
 const LETTER: (f64, f64) = (612.0, 792.0);
 
@@ -229,10 +233,10 @@ fn column_rig() -> (Fixture, Rc<RefCell<Vec<f64>>>) {
 fn a_screen_reader_sets_a_divider_by_percent() {
     let (mut fixture, widths) = column_rig();
     let divider = fixture.by_label("Column 1 width").expect("the first divider");
-    fixture.access(AccessActionKind::SetValue(40.0), &divider);
+    fixture.access(AccessActionKind::SetValue(SHARE * 100.0), &divider);
     let widths = widths.borrow();
     let total: f64 = widths.iter().sum();
-    assert!(close(widths[0] / total, 0.4), "the first column holds 40 percent: {widths:?}");
+    assert!(close(widths[0] / total, SHARE), "the first column holds 40 percent: {widths:?}");
     assert!(close(total, EQUAL * COLUMNS as f64), "the total stays: {widths:?}");
 }
 
@@ -267,18 +271,21 @@ fn margin_rig() -> (Fixture, Rc<RefCell<PageEdges>>) {
 fn a_screen_reader_sets_a_margin_inside_its_range() {
     let (mut fixture, edges) = margin_rig();
     let left = fixture.by_label("Left Margin").expect("the left edge");
-    fixture.access(AccessActionKind::SetValue(100.0), &left);
-    assert!(close(edges.borrow().margins.left, 100.0), "{:?}", edges.borrow());
-    fixture.access(AccessActionKind::SetValue(1.0e6), &left);
-    assert_eq!(edges.borrow().margins.left, 468.0, "the text keeps its least width: {:?}", edges.borrow());
+    fixture.access(AccessActionKind::SetValue(SET_MARGIN), &left);
+    assert!(close(edges.borrow().margins.left, SET_MARGIN), "{:?}", edges.borrow());
+    fixture.access(AccessActionKind::SetValue(f64::MAX), &left);
+    let furthest = *margin_range(MarginEdge::Left, &MarginRules::new(LETTER, *edges.borrow())).end();
+    assert_eq!(edges.borrow().margins.left, furthest, "the text keeps its least width: {:?}", edges.borrow());
+    assert!(furthest < LETTER.0, "the range ends inside the page");
 }
 
 #[trial]
 fn a_screen_reader_steps_a_margin() {
     let (mut fixture, edges) = margin_rig();
     let left = fixture.by_label("Left Margin").expect("the left edge");
+    let before = edges.borrow().margins.left;
     fixture.access(AccessActionKind::Increment, &left);
-    assert!(edges.borrow().margins.left > 72.0, "Increment moves the edge toward the text: {:?}", edges.borrow());
+    assert!(edges.borrow().margins.left > before, "Increment moves the edge toward the text: {:?}", edges.borrow());
 }
 
 /// A page range over twelve pages, and the range the options last reported.
