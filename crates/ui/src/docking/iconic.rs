@@ -67,6 +67,11 @@ impl<P: Value + 'static> Outcome for IconicColumnOutput<P> {
     fn response(&self) -> &Response {
         &self.edit.response
     }
+
+    #[cfg(feature = "testing")]
+    fn story_facts(&self) -> crate::testing::StoryOutput {
+        self.edit.story_facts()
+    }
 }
 
 /// The style of an iconic column.
