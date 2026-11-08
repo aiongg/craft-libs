@@ -284,13 +284,14 @@ fn your_pin_follows_the_pointer_while_dragged() {
     fx.frame(Vec::new());
     let before = left(&fx);
     assert!(before.is_finite(), "the pin paints its initials");
-    let at = own.center();
+    let (at, to) = (own.center(), own.center() + vec2(45.0, 0.0));
     fx.frame(vec![pointer::moved(at)]);
     fx.frame(vec![pointer::press(at)]);
     for step in 1..=3 {
-        fx.frame(vec![pointer::moved(at + vec2(15.0 * step as f32, 0.0))]);
+        fx.frame(vec![pointer::moved(at + (to - at) * (step as f32 / 3.0))]);
     }
-    assert!(left(&fx) > before + 20.0, "the pin moved with the pointer: {before} then {}", left(&fx));
+    let moved = left(&fx) - before;
+    assert!(moved > (to.x - at.x) - own.rect.width(), "the pin moved with the pointer, within its own width: {before} then {}", left(&fx));
 }
 
 /// A message keeps its line breaks.
@@ -299,7 +300,7 @@ fn a_message_keeps_its_line_breaks() {
     let (fx, _) = popover_saying("Ana María", "first\nsecond");
     let first = fx.by_label("first").expect("the first line");
     let second = fx.by_label("second").expect("the second line");
-    assert!(second.center().y > first.center().y + 1.0, "the second line is below the first");
+    assert!(second.center().y > first.rect.max.y, "the second line is below the first");
 }
 
 /// The close button closes the popover.

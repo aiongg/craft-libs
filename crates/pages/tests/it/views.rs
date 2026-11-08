@@ -434,9 +434,6 @@ fn the_reading_view_paints_the_paper_under_a_page_without_a_picture() {
     assert!(paints_shape_of(&fixture, page), "a shape the size of the page is the paper");
 }
 
-/// The share of the room's height a shape must reach to be the page and not a control.
-const LARGE_SHARE: f32 = 0.5;
-
 #[trial]
 fn the_preview_paints_the_paper_under_a_page_without_a_picture() {
     let pages = BlankPages(DemoPages::new(2));
@@ -448,13 +445,13 @@ fn the_preview_paints_the_paper_under_a_page_without_a_picture() {
     fixture.room(vec2(500.0, 500.0));
     fixture.settle();
     let page = DemoPages::new(1).page_size(0);
-    let aspect = (page.width / page.height) as f32;
-    let room = fixture.shown().height() * LARGE_SHARE;
-    assert!(
-        fixture.shape_bounds().iter().any(|bounds| bounds.height() > room && (bounds.width() / bounds.height() - aspect).abs() < 0.01),
-        "a page-shaped fill is the paper: {:?}",
-        fixture.shape_bounds()
-    );
+    let portrait = page.width < page.height;
+    let picture = fixture.by_role(Role::IMAGE).into_iter().next().expect("the page picture").rect;
+    // The paper is the fill centred in the picture that takes most of its height, in the page's orientation.
+    let paper = |bounds: &Rect| {
+        picture.contains(bounds.center()) && bounds.height() > picture.height() - bounds.height() && (bounds.width() < bounds.height()) == portrait
+    };
+    assert!(fixture.shape_bounds().iter().any(paper), "a page-shaped fill is the paper: {:?}", fixture.shape_bounds());
 }
 
 /// A page view over `count` demo pages with the state it starts from, and the rects of the pages it laid out.
