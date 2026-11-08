@@ -11,7 +11,7 @@ mod panes;
 
 pub use area::{DockArea, DockAreaOutput, InvalidGeometry};
 pub use panes::{
-    PaneArea, PaneAreaOutput, PaneCommand, PaneContent, PaneFrame, PaneFrameOutput, PaneFrameStyle, PanePlace, PaneRequest, PaneRoot, PaneRootOutput,
+    PaneArea, PaneAreaOutput, PaneCommands, PaneContent, PaneFrame, PaneFrameOutput, PaneFrameStyle, PanePlace, PaneRequest, PaneRoot, PaneRootOutput,
     PaneRootStyle, PaneSpec, PaneState, SidePolicy,
 };
 pub use style::DockAreaStyle;

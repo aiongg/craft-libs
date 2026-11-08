@@ -241,7 +241,7 @@ name = "Place"
 old = "craft_ui::docking::dock_model::Place"
 new = ""
 status = "removed"
-note = "Replaced by `PanelPlace`."
+note = "Replaced by `PanelPlace`. The pane `craft_ui::panes::Place` is replaced by `craft_ui::patterns::dock::PanePlace`."
 
 [[type]]
 name = "PanelPlace"
@@ -1221,7 +1221,7 @@ name = "PaneRequest"
 old = "craft_ui::panes::PaneRequest"
 new = "craft_ui::patterns::dock::PaneRequest"
 status = "moved"
-note = "`Resize` is not a request: a docked pane's size is the app's `PaneState::size`. `FloatRect` carries a `Rect`."
+note = "`Resize` is not a request: a docked pane's size is the app's `PaneState::size`. `FloatRect` carries a `Rect`. `Minimize(pane, bool)` sets `PaneState::minimized`."
 
 [[type]]
 name = "PaneOutput"
@@ -1258,32 +1258,25 @@ status = "removed"
 note = "Replaced by `craft_ui::contract::PaneEdge` (`Start`, `End`, `Bottom`, `Top`)."
 
 [[type]]
-name = "Place"
-old = "craft_ui::panes::Place"
-new = ""
-status = "removed"
-note = "Replaced by `craft_ui::patterns::dock::PanePlace`."
-
-[[type]]
 name = "PanePlace"
 old = ""
 new = "craft_ui::patterns::dock::PanePlace"
 status = "replaced"
-note = "Replaces `Place`."
+note = "Replaces `craft_ui::panes::Place`."
 
 [[type]]
 name = "PaneLabels"
 old = "craft_ui::panes::PaneLabels"
 new = ""
 status = "removed"
-note = "The menu rows are the commands of `PaneCommand`; the menu name is the `DockWords` row `paneArea.menu`."
+note = "The menu rows are the commands of `PaneCommands`; the menu name is the `DockWords` row `paneArea.menu`."
 
 [[type]]
-name = "PaneCommand"
+name = "PaneCommands"
 old = ""
-new = "craft_ui::patterns::dock::PaneCommand"
+new = "craft_ui::patterns::dock::PaneCommands"
 status = "replaced"
-note = "The pane menu's Move to Start, Move to End, Move to Bottom, Float and Close as commands."
+note = "The pane menu's Move to Start, Move to End, Move to Top, Move to Bottom, Float and Close as commands."
 
 # l4e-dflags: DockConfig fields with no behaviour behind them.
 
