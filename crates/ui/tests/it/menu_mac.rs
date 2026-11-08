@@ -1,47 +1,52 @@
 //! Access letters: a Mac menu has none, the other platforms do.
 
 use craft_host::target::Os;
-use craft_ui::contract::Show as _;
-use craft_ui::menu::MenuItem;
+use craft_ui::buttons::Button;
+use craft_ui::contract::{Show as _, ShowContainer as _, Trigger};
 use craft_ui::menu::bar::{MenuBar, MenuTitle};
+use craft_ui::menu::{Menu, MenuItem};
 use craft_ui::testing::{Fixture, trial};
-use std::cell::RefCell;
+use std::cell::Cell;
 use std::rc::Rc;
 
-struct Rig {
-    fixture: Fixture,
-    ran: Rc<RefCell<Vec<&'static str>>>,
-}
+const PLATFORMS: [(Os, bool); 2] = [(Os::Linux, true), (Os::Mac, false)];
 
-fn rig(os: Os) -> Rig {
-    let ran = Rc::new(RefCell::new(Vec::new()));
-    let log = ran.clone();
-    let mut fixture = Fixture::new(move |ui| {
-        let log = log.clone();
-        let titles = vec![MenuTitle::new("&File", move |ui| {
-            MenuItem::new("&New").show(ui);
-            if MenuItem::new("&Save").show(ui).ran {
-                log.borrow_mut().push("Save");
-            }
-        })];
-        MenuBar::new("Main menu", titles).show(ui);
-    });
-    fixture.os(os).settle();
-    Rig { fixture, ran }
-}
-
-/// With a menu open, the typed letter of a row runs it off a Mac; on a Mac the bar's title reports no access key and
-/// the letter runs nothing.
+/// A menu bar title reports its access key off a Mac and none on a Mac.
 #[trial]
-fn typed_letters_and_access_keys_exist_off_a_mac_only() {
-    for (os, lettered) in [(Os::Linux, true), (Os::Mac, false)] {
-        let mut rig = rig(os);
-        let file = rig.fixture.by_label("File").expect("the File title");
-        assert_eq!(rig.fixture.tree().access_key_of(file.node), lettered.then_some('F'), "{os:?}");
-        rig.fixture.click(&file);
-        rig.fixture.idle(4);
-        rig.fixture.type_text("s");
-        rig.fixture.idle(4);
-        assert_eq!(*rig.ran.borrow(), if lettered { vec!["Save"] } else { Vec::new() }, "{os:?}");
+fn a_bar_title_has_an_access_key_off_a_mac_only() {
+    for (os, lettered) in PLATFORMS {
+        let mut fixture = Fixture::new(|ui| {
+            let titles = vec![MenuTitle::new("&File", |ui| {
+                MenuItem::new("&Save").show(ui);
+            })];
+            MenuBar::new("Main menu", titles).show(ui);
+        });
+        fixture.os(os).settle();
+        let file = fixture.by_label("File").expect("the File title");
+        assert_eq!(fixture.tree().access_key_of(file.node), lettered.then_some('F'), "{os:?}");
+    }
+}
+
+/// With a menu open, the typed letter of a row runs it off a Mac; on a Mac it runs nothing.
+#[trial]
+fn a_typed_letter_runs_a_menu_row_off_a_mac_only() {
+    for (os, lettered) in PLATFORMS {
+        let ran = Rc::new(Cell::new(false));
+        let shown = ran.clone();
+        let mut fixture = Fixture::new(move |ui| {
+            let opener = Button::new("File").show(ui);
+            Menu::new("File").opened_by(&opener, Trigger::Press).show(ui, |ui, _| {
+                if MenuItem::new("&Save").show(ui).ran {
+                    shown.set(true);
+                }
+            });
+        });
+        fixture.os(os).settle();
+        let opener = fixture.by_label("File").expect("the opener has a node");
+        fixture.click(&opener);
+        fixture.idle(4);
+        fixture.type_text("s");
+        fixture.idle(4);
+        assert_eq!(ran.get(), lettered, "{os:?}");
     }
 }
