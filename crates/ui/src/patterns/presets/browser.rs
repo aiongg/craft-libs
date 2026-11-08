@@ -120,6 +120,10 @@ pub struct PresetBrowser<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     /// Fixes the view, whatever the state says; the toolbar then has no view buttons.
     #[prop]
     view_lock: Option<PresetView>,
+    /// Starts renaming this row in the pass it is set, as the row menu's Rename does; the host clears it afterwards. A
+    /// key the browser lacks or may not rename is ignored.
+    #[prop]
+    rename: Option<K>,
     /// Which presets and groups may be renamed; F2 does nothing on another.
     #[prop(func = "Fn(&K) -> bool")]
     can_rename: Option<RowTest<'a, K>>,
@@ -157,6 +161,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'a, K> {
             toolbar: false,
             row_menu: true,
             view_lock: None,
+            rename: None,
             can_rename: None,
             can_delete: None,
             can_move: None,
@@ -400,6 +405,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
             toolbar,
             row_menu,
             view_lock,
+            rename,
             can_rename,
             can_delete,
             can_move,
@@ -467,6 +473,9 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
             };
             let accepts = |drag: &ListDrag<K>, over: &K, insert: usize| reorder.as_ref().is_some_and(|rules| rules.allows(rows, drag, over, insert));
             let rename_ok = |key: &K| can_rename.as_ref().is_none_or(|test| test.passes(key));
+            if let Some(key) = rename.as_ref().filter(|key| rename_ok(key) && rows.iter().any(|row| row.key == **key)) {
+                request_rename(ui.ctx(), list_id, key);
+            }
             let painter = thumb.as_ref();
             let paint = |row: &PresetRow<K>, selected: bool| {
                 let key = row.key.clone();

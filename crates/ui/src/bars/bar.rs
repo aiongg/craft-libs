@@ -70,7 +70,8 @@ impl Outcome for BarOutput {
 }
 
 /// A bar over a chrome surface whose body holds the members in reading order at the small control size. They are
-/// one roving group. The bar is as tall as its tallest member plus the control padding. A bar of one row lays its
+/// one roving group. The bar is as tall as its tallest member plus the control padding. A horizontal bar takes the
+/// width it is offered and no more height than that; a vertical bar sizes to its content. A bar of one row lays its
 /// body out as a row; a bar of several rows, or a vertical one, as a stack whose rows the caller makes with `Row`.
 /// The body scrolls along the row axis (along y for a vertical bar), so a member past the edge is reached by Tab
 /// and revealed. A bar with `commit_cancel` ends with a cancel and a commit button in its end region, outside the
@@ -101,7 +102,7 @@ impl Bar {
         let mut props = ContainerProps::new()
             .surface(SurfaceKind::Chrome)
             .pad(Pad::Control)
-            .sizing(Sizing::Fill)
+            .sizing(Sizing::FillWidth)
             .body_gap(gap)
             .child_size(ControlSize::Sm)
             .roving(Roving::new(NavShape::Flat))
@@ -140,7 +141,7 @@ impl Bar {
     fn lay_out(mut self) -> Self {
         let layout = if self.vertical || self.rows.get() > 1 { BodyLayout::stack() } else { BodyLayout::row() };
         let scroll = if self.vertical { Scroll::vertical() } else { Scroll::horizontal() };
-        self.props = self.props.layout(layout).sizing(if self.vertical { Sizing::Content } else { Sizing::Fill }).scroll(scroll);
+        self.props = self.props.layout(layout).sizing(if self.vertical { Sizing::Content } else { Sizing::FillWidth }).scroll(scroll);
         self
     }
 }

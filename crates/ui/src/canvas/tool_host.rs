@@ -422,7 +422,7 @@ fn paint_tool(ui: &Ui, env: &Env, tool: &dyn CanvasTool, cx: ToolContext<'_>) {
     let painter = ui.painter().with_clip_rect(cx.rect);
     let record = RefCell::new(PaintRecord::default());
     let draw = Draw::new(&painter, &record, DrawEnv { tokens: &env.tokens, direction: env.direction, ink: Ink::default() });
-    let content = ContentPainterCx::new(painter.clone(), &env.tokens, env.direction);
+    let content = ContentPainterCx::new(painter.clone(), &env.tokens, env.direction, env.ink);
     let style = StyleCx::new(ui.ctx(), &env.tokens, &env.values, env.size, Variant::SECONDARY, env.direction, env.scale, env.os, env.active, env.key);
     tool.paint(&draw, &cx.painter(&content).styled(style));
 }

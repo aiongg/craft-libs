@@ -167,3 +167,19 @@ fn a_select_in_a_bar_opens_its_list_and_picks_a_row() {
     fixture.idle(10);
     assert_eq!(value.get(), 2, "a click picks the row");
 }
+
+/// A bar in a column is as tall as its content: the control after it follows directly instead of being pushed to
+/// the bottom of the room.
+#[trial]
+fn a_bar_leaves_the_room_under_it_to_what_follows() {
+    let mut fixture = Fixture::new(|ui| {
+        Bar::new("Options", BarKind::Options).show(ui, |ui, _| {
+            Button::new("Inside").show(ui);
+        });
+        Button::new("After").show(ui);
+    });
+    fixture.settle();
+    let (bar, after) = (fixture.by_role(Role::GROUP).into_iter().next().expect("the bar is shown"), fixture.by_label("After").expect("shown"));
+    assert!(after.rect.top() >= bar.rect.bottom(), "the control after the bar sits below it");
+    assert!(after.rect.top() - bar.rect.bottom() < bar.rect.height(), "nothing but the column's gap separates them");
+}

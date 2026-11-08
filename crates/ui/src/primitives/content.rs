@@ -3,11 +3,11 @@
 use super::text::TextLayout;
 use crate::fonts::{FontRef, SEMIBOLD, stack_facts};
 use crate::runtime::egui::text_layout;
-use crate::style::{DataColor, UiTokens};
+use crate::style::{DataColor, Ink, UiTokens, ink_color};
 use craft_i18n::Direction;
 use egui::epaint::text::{FontId, TextDirection};
 use egui::text::{LayoutJob, TextFormat};
-use egui::{Align, Context, FontFamily, Painter, Stroke};
+use egui::{Align, Color32, Context, FontFamily, Painter, Stroke};
 use std::borrow::Cow;
 
 /// The weight of a regular run.
@@ -24,12 +24,19 @@ pub struct ContentPainterCx<'a> {
     pub painter: Painter,
     pub(super) tokens: &'a UiTokens,
     pub(super) direction: Direction,
+    ink: Ink,
 }
 
 impl<'a> ContentPainterCx<'a> {
-    /// A raw painter for a content painter, with the tokens and direction the content-paint kit reads.
-    pub(crate) fn new(painter: Painter, tokens: &'a UiTokens, direction: Direction) -> Self {
-        ContentPainterCx { painter, tokens, direction }
+    /// A raw painter for a content painter, with the tokens, direction and surface ink the content-paint kit reads.
+    pub(crate) fn new(painter: Painter, tokens: &'a UiTokens, direction: Direction, ink: Ink) -> Self {
+        ContentPainterCx { painter, tokens, direction, ink }
+    }
+
+    /// The colour of text and glyphs on the surface being painted: the resolved content-text colour `Draw` paints
+    /// text with.
+    pub fn ink(&self) -> Color32 {
+        ink_color(self.tokens, self.ink)
     }
 
     /// The one sanctioned text layout for content painters: document runs with their own font, size and colour,
