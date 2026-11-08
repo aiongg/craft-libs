@@ -4,7 +4,7 @@ use super::bar_words::CropBarWords;
 use super::menus::{CropOptionsMenu, CropOverlayMenu};
 use super::options::{
     CROP_RATIOS, CROP_SIZES, CropPresetChoice, CropRatio, CropSettings, CropSizeFields, CropUserPreset, FIELD_MAX, RATIO_DECIMALS, RATIO_MAX,
-    ResolutionUnit,
+    RATIO_STEP, ResolutionUnit,
 };
 use super::session::CropDocument;
 use craft_behavior::{EditEvent, IconId, NumberCodec};
@@ -279,7 +279,11 @@ fn ratio_field(
     let mut event = None;
     Field::new(caption.clone()).id_salt(salt).layout(FieldLayout::Caption(CAPTION)).sizing(Sizing::Content).show(ui, |ui, _| {
         let codec = NumberCodec::new(units.reader(None), RATIO_DECIMALS);
-        let field = NumberField::new(caption.clone(), Bind::given((current > 0.0).then_some(current))).codec(codec).range(0.0..=RATIO_MAX).show(ui);
+        let field = NumberField::new(caption.clone(), Bind::given((current > 0.0).then_some(current)))
+            .codec(codec)
+            .range(0.0..=RATIO_MAX)
+            .step(RATIO_STEP)
+            .show(ui);
         event = field.edit.event.clone();
     });
     let mut apply = |settings: &mut CropSettings, value: Option<f64>| {

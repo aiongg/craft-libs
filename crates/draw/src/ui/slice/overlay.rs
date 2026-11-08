@@ -31,9 +31,6 @@ const HANDLE: PartKey = PartKey::new("handle");
 /// A layer slice's mark after its number, as a share of the number's height.
 const LAYER_MARK: f32 = 0.45;
 
-/// The dash and the gap of an auto slice's outline, in multiples of the thin stroke.
-const AUTO_DASH: f32 = 3.0;
-
 /// The style of the slice overlay.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
@@ -53,8 +50,9 @@ pub struct SliceOverlayStyle {
     gap: f32,
     /// A badge's corner radius.
     radius: f32,
-    /// The dash and gap of an auto slice's line.
+    /// The dash and the gap of an auto slice's line.
     dash: f32,
+    dash_gap: f32,
 }
 
 /// What the control reports: the events of the pass in order.
@@ -348,7 +346,8 @@ impl Component for SliceOverlay<'_> {
             text: cx.color(colors.text.on_status),
             gap: cx.tokens.space.gap.tight,
             radius: cx.tokens.shape.radius.sm,
-            dash: AUTO_DASH * cx.tokens.stroke.thin,
+            dash: cx.tokens.stroke.dash,
+            dash_gap: cx.tokens.stroke.dash_gap,
         }
     }
 
@@ -424,7 +423,7 @@ impl Component for SliceOverlay<'_> {
                 if auto {
                     let mut path = quad.clone();
                     path.push(quad[0]);
-                    painter.dashed(&path, Dashes::even(style.dash), StrokeWidth::Thin, slice_color.gamma_multiply(Opacity::DERIVED));
+                    painter.dashed(&path, Dashes::new(style.dash, style.dash_gap), StrokeWidth::Thin, slice_color.gamma_multiply(Opacity::DERIVED));
                 } else {
                     draw.data_stroke(&PaintShape::Polygon(quad.clone()), StrokeWidth::Thin, line);
                 }

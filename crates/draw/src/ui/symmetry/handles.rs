@@ -18,8 +18,8 @@ use craft_ui::style::{ComponentStyle, StyleCx};
 use egui::{Pos2, Rect, Response, Vec2};
 
 /// The parts: `SYMMETRY.at(CENTRE)` and `SYMMETRY.at(HANDLE)`.
-const SYMMETRY: PartKey = PartKey::new("symmetry");
-const CENTRE: u64 = 0;
+pub(super) const SYMMETRY: PartKey = PartKey::new("symmetry");
+pub(super) const CENTRE: u64 = 0;
 const HANDLE: u64 = 1;
 
 /// The style of the handles: the reach of a press.

@@ -157,13 +157,13 @@ fn the_button_is_pressed_while_a_symmetry_is_on() {
     let (mut fixture, _) = menu(SymmetryChoice::Mode(SymmetryMode::Diagonal), false);
     let button = fixture.by_label("Set painting symmetry options").expect("the button is shown");
     let tree = fixture.tree();
-    assert_eq!(tree.toggled_of(button.node), Some(Mixed::Same(true)));
+    assert_eq!(tree.selected_of(button.node), Some(true));
     assert_eq!(tree.description_of(button.node), Some("Diagonal"));
 
     let (fixture, _) = menu(SymmetryChoice::Off, false);
     let button = fixture.by_label("Set painting symmetry options").expect("the button is shown");
     let tree = fixture.tree();
-    assert_ne!(tree.toggled_of(button.node), Some(Mixed::Same(true)));
+    assert_ne!(tree.selected_of(button.node), Some(true));
     assert_eq!(tree.description_of(button.node), None);
 }
 
@@ -364,4 +364,25 @@ fn enter_and_escape_work_before_the_canvas_is_focused() {
     assert_eq!(canvas.tool_mut().take_events(), [SymmetryEvent::Apply(start())]);
     canvas.fixture().key(Key::Escape, Modifiers::NONE);
     assert_eq!(canvas.tool_mut().take_events(), [SymmetryEvent::Discard]);
+}
+
+/// With the canvas focused, the arrows ask the tool to move the symmetry's centre 1 document unit, Shift 10, each as a
+/// `Set` of the preview.
+#[trial]
+fn the_tool_nudges_the_centre_with_the_arrows() {
+    let session: &'static SymmetryTransform = Box::leak(Box::new(SymmetryTransform::begin(start())));
+    let mut canvas = craft_ui::testing::ToolFixture::new("Document", SymmetryTool::new(session, true));
+    canvas.fixture().key(Key::Tab, Modifiers::NONE).settle();
+    canvas.fixture().key(Key::ArrowRight, Modifiers::NONE).settle();
+    canvas.fixture().key(Key::ArrowDown, Modifiers::SHIFT).settle();
+    let centres: Vec<Point> = canvas
+        .tool_mut()
+        .take_events()
+        .into_iter()
+        .filter_map(|event| match event {
+            SymmetryEvent::Preview(EditEvent::Set { after, .. }) => Some(after.center),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(centres, [Point::new(201.0, 150.0), Point::new(200.0, 160.0)]);
 }

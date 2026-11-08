@@ -1,12 +1,13 @@
 //! Stories of the corner widgets: a rectangle and a hexagon on a canvas.
 
+use super::widgets::WIDGET;
 use super::{CornerKind, CornerPoint, CornerTarget, CornerWidgets, CornerWidgetsOutput};
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::Point;
 use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
-use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
-use egui::Ui;
+use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
+use egui::{Ui, Vec2};
 
 /// The rectangle's corner radius and the hexagon's.
 const RECT_RADIUS: f64 = 12.0;
@@ -40,7 +41,15 @@ fn on_canvas(ui: &mut Ui, control: CornerWidgets<'_>) -> StoryOutput {
     shown.inner.flatten().map(StoryOutput::from).unwrap_or_default()
 }
 
-#[story(CornerWidgets<'static>, covers = [Default], drive = Drive::Never)]
+/// Drags the first widget, the rectangle's top left corner, towards the inside.
+fn drag_the_first_widget(fixture: &mut Fixture) {
+    let first = fixture.root_id().and_then(|id| fixture.part(id, WIDGET.at(0)));
+    if let Some(first) = first {
+        fixture.drag_at(first.center(), Vec2::new(15.0, 15.0));
+    }
+}
+
+#[story(CornerWidgets<'static>, covers = [Default], drive = Drive::Custom(drag_the_first_widget))]
 fn rectangle_and_hexagon(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let targets = data.value("targets", targets());
     on_canvas(ui, CornerWidgets::new("Corner radius", Bind::bound(&mut *targets)))

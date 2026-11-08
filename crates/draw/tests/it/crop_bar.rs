@@ -3,7 +3,7 @@
 use craft_behavior::geometry::crop::{CropGuide, GuideShow};
 use craft_draw::ui::crop::{
     CROP_RATIOS, CROP_SIZES, CropBar, CropBarWords, CropDocKey, CropDocument, CropFill, CropOptionsMenu, CropOverlayMenu, CropPresetChoice,
-    CropRatio, CropRatioChange, CropSettings, CropSizeFields, CropUserPreset, ResolutionUnit,
+    CropRatio, CropRatioChange, CropSettings, CropSizeFields, CropUserPreset, RATIO_STEP, ResolutionUnit,
 };
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::canvas::ShieldColor;
@@ -240,7 +240,7 @@ fn bar(settings: CropSettings, users: Vec<CropUserPreset>) -> Rig {
         });
         *shared.borrow_mut() = settings;
     });
-    fixture.room(Vec2::new(1800.0, 1400.0)).settle();
+    fixture.room(Vec2::new(1800.0, 400.0)).settle();
     Rig { fixture, settings: state, seen }
 }
 
@@ -289,8 +289,8 @@ fn the_bar_reports_new_and_delete_and_edits_options() {
     rig.fixture.key(Key::ArrowUp, Modifiers::NONE).settle();
     let stepped = rig.settings.borrow().ratio;
     assert!(
-        matches!((preset, stepped), (CropRatio::Sides { width: before, height, .. }, CropRatio::Sides { width: after, height: kept, .. }) if after > before && kept == height),
-        "the arrow grows the width and keeps the height: {stepped:?}"
+        matches!((preset, stepped), (CropRatio::Sides { width: before, height, .. }, CropRatio::Sides { width: after, height: kept, .. }) if after == before + RATIO_STEP && kept == height),
+        "the arrow adds one step to the width and keeps the height: {stepped:?}"
     );
     assert!(rig.seen.borrow().iter().any(|s| s.ratio.is_some()));
 
@@ -386,7 +386,7 @@ fn menu(settings: CropSettings, which: Menu) -> Rig {
         }
         *shared.borrow_mut() = settings;
     });
-    fixture.room(Vec2::new(480.0, 1400.0)).settle();
+    fixture.room(Vec2::new(480.0, 600.0)).settle();
     Rig { fixture, settings: state, seen }
 }
 
@@ -406,6 +406,7 @@ fn overlay_menu_sets_the_overlay_and_show_rule() {
     assert_eq!(rig.settings.borrow().guide, CropGuide::Triangle);
 
     rig.click("Set the overlay options for the Crop tool");
+    eprintln!("DIAG-C-A menu items {}", rig.fixture.by_role(Role::MENU_ITEM).len());
     assert!(!rig.disabled("Cycle Orientation"));
     rig.click("Cycle Orientation");
     assert_eq!(rig.settings.borrow().guide_orientation, 1);
@@ -419,6 +420,9 @@ fn gear_menu_greys_two_rows_in_classic_mode() {
     settings.shield.classic_mode = true;
     let mut rig = menu(settings, Menu::Gear);
     rig.click("Set additional Crop options");
+    for t in rig.fixture.by_role(Role::CHECK_BOX) {
+        eprintln!("DIAG-C-A cb name={:?} disabled={}", rig.fixture.tree().name_of(t.node), rig.fixture.tree().is_disabled_key(t.node));
+    }
     assert!(rig.disabled("Show Cropped Area"), "Show Cropped Area");
     assert!(rig.disabled("Auto Center Preview"), "Auto Center Preview");
     assert!(!rig.disabled("Use Classic Mode"));

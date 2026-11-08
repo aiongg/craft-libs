@@ -2,7 +2,7 @@
 
 use craft_behavior::geometry::Constraint;
 use craft_behavior::kurbo::{Point, Rect};
-use craft_behavior::{CanvasView, EditEvent, PartKey};
+use craft_behavior::{CanvasView, EditEvent};
 use craft_draw::ui::slice::{
     DivideBy, DivideSlices, DivideSlicesDialog, SliceCommand, SliceEvent, SliceItem, SliceKind, SliceMode, SliceOptions, SliceOptionsDialog,
     SliceOrigin, SliceOverlay, SliceRefusal, SliceRules, SliceTool, SliceToolSettings,
@@ -14,8 +14,6 @@ use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Key, Modifiers, Pos2};
 use std::cell::RefCell;
 use std::rc::Rc;
-
-const SLICE: PartKey = PartKey::new("slice");
 
 /// What the app keeps of the slices and what the passes reported.
 struct App {

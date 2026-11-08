@@ -1,12 +1,13 @@
 //! Stories of painting symmetry: the menu, the guides and the handles of Transform Symmetry.
 
+use super::handles::{CENTRE, SYMMETRY};
 use super::{Symmetry, SymmetryChoice, SymmetryHandles, SymmetryMenu, SymmetryMode, SymmetryOverlay, SymmetryPathRow};
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::{Point, Size};
 use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
-use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
-use egui::Ui;
+use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
+use egui::{Ui, Vec2};
 
 /// The page the guides run over, in document units.
 const PAGE: Size = Size::new(400.0, 300.0);
@@ -56,7 +57,15 @@ fn editing_guides(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     StoryOutput::default()
 }
 
-#[story(SymmetryHandles<'static>, covers = [Default])]
+/// Drags the centre handle.
+fn drag_the_centre(fixture: &mut Fixture) {
+    let centre = fixture.root_id().and_then(|id| fixture.part(id, SYMMETRY.at(CENTRE)));
+    if let Some(centre) = centre {
+        fixture.drag_at(centre.center(), Vec2::new(30.0, 0.0));
+    }
+}
+
+#[story(SymmetryHandles<'static>, covers = [Default], drive = Drive::Custom(drag_the_centre))]
 fn handles_on_a_canvas(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let symmetry = data.value("symmetry", sample(SymmetryMode::Vertical));
     let room = ui.available_rect_before_wrap();

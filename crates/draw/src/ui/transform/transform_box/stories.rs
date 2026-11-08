@@ -1,12 +1,12 @@
 //! Stories of the transform box: Free Transform with its reference point, the Move tool's controls and Distort.
 
-use super::{RotateZone, TransformBox};
-use craft_behavior::geometry::quad::{BoxRules, BoxState, TransformMode};
+use super::{BOX, RotateZone, TransformBox};
+use craft_behavior::geometry::quad::{BoxPart, BoxRules, BoxState, TransformMode};
 use craft_behavior::kurbo::Rect as DocRect;
 use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
-use craft_ui::testing::{StoryData, StoryOutput, story};
-use egui::Ui;
+use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
+use egui::{Ui, Vec2};
 
 /// The picture before any transform, in document units.
 const PICTURE: DocRect = DocRect::new(200.0, 120.0, 440.0, 280.0);
@@ -23,7 +23,15 @@ fn on_canvas(ui: &mut Ui, data: &mut StoryData, configure: impl for<'a> FnOnce(T
     shown.inner.flatten().map(|output| StoryOutput::from(output.edit)).unwrap_or_default()
 }
 
-#[story(TransformBox<'static>, covers = [Default])]
+/// Drags the bottom right corner handle.
+fn drag_a_corner(fixture: &mut Fixture) {
+    let corner = fixture.root_id().and_then(|id| fixture.part(id, BOX.at(BoxPart::Corner(2).index())));
+    if let Some(corner) = corner {
+        fixture.drag_at(corner.center(), Vec2::new(30.0, 20.0));
+    }
+}
+
+#[story(TransformBox<'static>, covers = [Default], drive = Drive::Custom(drag_a_corner))]
 fn free_transform(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     on_canvas(ui, data, |control| control.reference_point(true))
 }

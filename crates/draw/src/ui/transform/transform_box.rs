@@ -322,6 +322,7 @@ impl<'a> TransformBox<'a> {
                     let moves_pivot = mods.alt && self.reference_point && matches!(part, BoxPart::Inside | BoxPart::Outside);
                     let (part, begin) = if moves_pivot { (BoxPart::Pivot, BoxState::new(shown.quad, from)) } else { (part, *shown) };
                     held = Some(Grip { part, start: begin, from, began: false, moves_pivot, last: *shown });
+                    eprintln!("DIAG-C-A down part={:?} from={:?} origin={:?}", part, from, start.origin);
                 }
                 PressPhase::DragStart { pos, .. } | PressPhase::Drag { pos, .. } => {
                     let Some(mut grip) = held else { continue };
@@ -336,6 +337,18 @@ impl<'a> TransformBox<'a> {
                         continue;
                     }
                     let next = self.proposal(space, &grip, pos, mods);
+                    eprintln!(
+                        "DIAG-C-A drag part={:?} gpart={:?} origin_from={:?} pos={:?} to={:?} mods={:?} began={} next_eq_start={} allows={}",
+                        part,
+                        grip.part,
+                        grip.from,
+                        pos,
+                        space.view.to_doc(pos),
+                        mods,
+                        grip.began,
+                        next == grip.start,
+                        self.rules.allows(grip.part)
+                    );
                     grip.last = next;
                     held = Some(grip);
                     cx.propose(next);

@@ -591,10 +591,14 @@ impl Cells<'_> {
             }
         });
         self.out.unit_picked = self.out.unit_picked.or(picked);
+        if let Some(e) = &event {
+            eprintln!("DIAG-C-A field {:?} event {:?}", field, e.phase());
+        }
         let Some(event) = event else { return };
         let places = i32::try_from(decimals).unwrap_or(0);
         let lifted = lift(&mut pass.bases, &pass.before, conversion, field, event, current, 0.5 * 10f64.powi(-places));
         if let Some(lifted) = lifted {
+            eprintln!("DIAG-C-A lifted {:?}", lifted.phase());
             self.report(cx, lifted);
         }
     }

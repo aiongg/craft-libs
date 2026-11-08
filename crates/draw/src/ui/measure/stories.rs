@@ -1,13 +1,14 @@
 //! Stories of the Ruler tool's overlay and options bar.
 
-use super::{RulerBar, RulerLine, RulerOverlay};
+use super::overlay::POINT;
+use super::{RulerBar, RulerLine, RulerOverlay, RulerPart};
 use craft_behavior::CanvasView;
 use craft_behavior::kurbo::Point;
 use craft_ui::bars::{Bar, BarKind};
 use craft_ui::canvas::Canvas;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
-use craft_ui::testing::{Drive, StoryData, StoryOutput, story};
-use egui::Ui;
+use craft_ui::testing::{Drive, Fixture, StoryData, StoryOutput, story};
+use egui::{Ui, Vec2};
 
 fn line() -> RulerLine {
     RulerLine::new(Point::new(60.0, 80.0), Point::new(260.0, 140.0))
@@ -21,7 +22,15 @@ fn on_canvas(ui: &mut Ui, line: &mut Option<RulerLine>) -> StoryOutput {
     shown.inner.map(StoryOutput::from).unwrap_or_default()
 }
 
-#[story(RulerOverlay<'static>, covers = [], drive = Drive::Never)]
+/// Drags the line's end.
+fn drag_the_end(fixture: &mut Fixture) {
+    let end = fixture.root_id().and_then(|id| fixture.part(id, POINT.at(RulerPart::End.key())));
+    if let Some(end) = end {
+        fixture.drag_at(end.center(), Vec2::new(40.0, 0.0));
+    }
+}
+
+#[story(RulerOverlay<'static>, covers = [Default], drive = Drive::Custom(drag_the_end))]
 fn ruler_overlay_with_a_line(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     on_canvas(ui, data.value("line", Some(line())))
 }

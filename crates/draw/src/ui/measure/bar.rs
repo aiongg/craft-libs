@@ -119,7 +119,7 @@ impl<'a> RulerBar<'a> {
 
 /// One readout: a caption above a tabular value, named `name` for AccessKit.
 fn readout(ui: &mut Ui, salt: &'static str, name: Label, value: String) {
-    Field::new(name).id_salt(salt).layout(FieldLayout::Caption(CAPTION)).sizing(Sizing::Content).show(ui, |ui, _| {
+    Field::new(name).id_salt(salt).layout(FieldLayout::Caption(CAPTION)).sizing(Sizing::Content).value(value.clone()).show(ui, |ui, _| {
         Text::new(value.clone()).role(TypeRole::Mono).show(ui);
     });
 }

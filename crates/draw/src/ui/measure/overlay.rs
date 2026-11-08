@@ -18,7 +18,7 @@ use craft_ui::style::{ComponentStyle, HandleLook, StyleCx};
 use egui::{CornerRadius, Rect, Vec2};
 
 /// The part of one point of the line: `POINT.at(RulerPart::index)`.
-const POINT: PartKey = PartKey::new("point");
+pub(super) const POINT: PartKey = PartKey::new("point");
 
 /// The style of the Ruler overlay.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]

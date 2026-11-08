@@ -12,7 +12,7 @@ use craft_ui::canvas::{Canvas, CanvasSpace, CanvasTool as _, ToolContext, ToolKe
 use craft_ui::canvas::{Guide, GuideKey};
 use craft_ui::canvas_controls::Guides;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
-use craft_ui::testing::{Fixture, pointer, trial};
+use craft_ui::testing::{Fixture, ToolFixture, pointer, trial};
 use egui::{Key, Modifiers, Pos2, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -679,4 +679,26 @@ fn a_click_outside_and_a_double_click_inside_apply_through_the_overlay() {
     fixture.frame(Vec::new());
     assert_eq!(host.borrow().applied, 1, "a double click inside");
     assert_eq!(host.borrow().discarded, 0);
+}
+
+/// With the canvas focused, the arrows ask the tool for a `Set` that moves the whole box 1 document unit, Shift 10,
+/// from the box the session holds.
+#[trial]
+fn the_tool_nudges_the_whole_box_with_the_arrows() {
+    let session: &'static TransformSession<()> = Box::leak(Box::new(TransformSession::new(RECT)));
+    let mut canvas = ToolFixture::new("Document", TransformTool::new(session));
+    canvas.fixture().key(Key::Tab, Modifiers::NONE).settle();
+    canvas.fixture().key(Key::ArrowRight, Modifiers::NONE).settle();
+    canvas.fixture().key(Key::ArrowDown, Modifiers::SHIFT).settle();
+    let (edits, apply, discard) = canvas.tool_mut().take_edits();
+    let boxes: Vec<BoxState> = edits
+        .into_iter()
+        .filter_map(|edit| match edit {
+            TransformEdit::Box(EditEvent::Set { after, .. }) => Some(after),
+            _ => None,
+        })
+        .collect();
+    let upright = BoxState::from_rect(RECT);
+    assert_eq!(boxes, [upright.moved(doc(1.0, 0.0)), upright.moved(doc(0.0, 10.0))]);
+    assert!(!apply && !discard, "arrows apply and discard nothing");
 }
