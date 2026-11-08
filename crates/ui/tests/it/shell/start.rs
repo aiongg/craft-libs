@@ -108,15 +108,15 @@ fn heading_top(fixture: &Fixture, text: &str) -> f32 {
 #[trial]
 fn many_files_and_templates_share_one_scrolling_page() {
     for show in [RecentView::Grid, RecentView::List] {
-        let files: Vec<RecentFile> = (0..40).map(|at| file(&format!("file {at:02}"), Some(at), None)).collect();
+        let files: Vec<RecentFile> = (0..200).map(|at| file(&format!("file {at:02}"), Some(at), None)).collect();
         let pinned = vec![PathBuf::from("/work/a"), PathBuf::from("/work/b")];
-        let templates: Vec<Template> = (0..24).map(|at| Template::new(format!("t{at}"), format!("Template {at}"), "")).collect();
+        let templates: Vec<Template> = (0..100).map(|at| Template::new(format!("t{at}"), format!("Template {at}"), "")).collect();
         let mut fixture = Fixture::new(move |ui| {
             let (mut view, mut sort) = (show, RecentSort::default());
             let _ = StartScreen::new(Bind::bound(&mut view), Bind::bound(&mut sort), &files)
                 .pinned(&pinned)
                 .templates(&templates)
-                .max_recent(40)
+                .max_recent(200)
                 .show(ui);
         });
         fixture.room(SCREEN);
@@ -124,7 +124,11 @@ fn many_files_and_templates_share_one_scrolling_page() {
         let (recent, pinned, templates) =
             (heading_top(&fixture, "Recent"), heading_top(&fixture, "Pinned Folders"), heading_top(&fixture, "Templates"));
         assert!(recent < pinned && pinned < templates, "{show:?}: the sections follow each other: {recent} {pinned} {templates}");
-        assert!(templates > SCREEN.y, "{show:?}: the templates start below the screen");
+        let lowest = fixture.texts().iter().map(|painted| painted.rect.max.y).fold(0.0, f32::max);
+        assert!(
+            templates > SCREEN.y,
+            "{show:?}: the templates start below the screen: recent {recent}, pinned {pinned}, templates {templates}, lowest text {lowest}"
+        );
         fixture.frame(vec![pointer::moved(Pos2::new(300.0, 200.0))]);
         fixture.frame(vec![pointer::wheel(-1000.0)]);
         fixture.idle(2);

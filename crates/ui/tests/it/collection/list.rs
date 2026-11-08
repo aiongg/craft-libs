@@ -216,7 +216,7 @@ fn a_natural_height_list_builds_every_row() {
     let mut show = |ui: &mut Ui| page.show(ui, &words);
     frames.idle(3, &mut show);
     assert_eq!(page.seen.range(), 0..ROWS, "every row is built");
-    assert!(page.seen.rect.get().height() > page.panel.get().height(), "the list is taller than the page that shows it");
+    assert!(page.last_row.get().min.y > page.panel.get().max.y, "the last row lies below the page that shows the list");
 }
 
 /// The wheel over a natural-height list scrolls the page; the list has no scroll of its own.
