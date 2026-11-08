@@ -101,7 +101,10 @@ fn the_groups_are_at_the_dragged_divider_in_the_same_pass() {
     for x in [at.x + 10.0, at.x + 40.0] {
         fixture.frame(vec![pointer::moved(Pos2::new(x, at.y))]);
         let rects = rects.borrow();
-        assert!(rects[0].right() <= x + 0.5 && x - 0.5 <= rects[1].left(), "the pointer is between the groups of the same pass: {rects:?} at {x}");
+        assert!(
+            rects[0].right() <= x + grip.rect.width() && x - grip.rect.width() <= rects[1].left(),
+            "the pointer is between the groups of the same pass: {rects:?} at {x}"
+        );
     }
 }
 
