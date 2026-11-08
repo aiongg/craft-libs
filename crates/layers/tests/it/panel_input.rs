@@ -267,9 +267,11 @@ fn the_eye_colour_menu_colours_every_selected_layer() {
     let (mut fixture, app) = rig(FakeLayers::sample());
     select_layers(&mut fixture, &app, &[4, 5]);
     context_click_on(&mut fixture, "Visibility Title");
+    let opened = app.borrow().events.clone();
     fixture.click(&node(&fixture, "Red"));
     fixture.idle(2);
-    assert_eq!(label_colors(&take(&app)), [(vec![4, 5], Some(LabelColor::Red))]);
+    let events = take(&app);
+    assert_eq!(label_colors(&events), [(vec![4, 5], Some(LabelColor::Red))], "events at the menu: {opened:?}, after the pick: {events:?}");
 
     context_click_on(&mut fixture, "Visibility Hidden");
     fixture.click(&node(&fixture, "Blue"));
@@ -362,7 +364,8 @@ fn rename_rules_enter_tab_escape_empty_unchanged() {
     begin_rename(&mut fixture, &app, "Title");
     retype(&mut fixture, "  Heading ");
     fixture.key(Key::Enter, Modifiers::NONE);
-    assert_eq!(renames(&take(&app)), [(4, String::from("Heading"))], "Enter commits the trimmed text");
+    let events = take(&app);
+    assert_eq!(renames(&events), [(4, String::from("Heading"))], "Enter commits the trimmed text; events: {events:?}");
     assert!(fixture.by_role(Role::TEXT_INPUT).is_empty());
 
     begin_rename(&mut fixture, &app, "Title");
@@ -440,7 +443,8 @@ fn alt_click_on_a_group_disclosure_reaches_every_group() {
     let (mut fixture, app) = rig(FakeLayers::sample());
     fixture.hold(Modifiers::ALT);
     fixture.click(&node(&fixture, "Collapse Group 1"));
-    assert!(opens(&take(&app)).contains(&(1, false, true)));
+    let events = take(&app);
+    assert!(opens(&events).contains(&(1, false, true)), "events: {events:?}");
 }
 
 /// A click on the empty space below the last row clears the selection.
@@ -449,8 +453,8 @@ fn a_click_below_the_rows_clears_the_selection() {
     let (mut fixture, app) = rig(FakeLayers::sample());
     let last = row(&fixture, "Background");
     let below = Pos2::new(last.rect.center().x, last.rect.bottom() + 20.0);
-    let list = fixture.by_role(Role::TREE).pop().expect("the list");
-    assert!(list.rect.contains(below), "there is empty space under the rows");
+    let list = fixture.by_role(Role::LIST).into_iter().find(|list| list.rect.contains(below));
+    assert!(list.is_some(), "there is empty space under the rows");
     fixture.click_at(below);
     fixture.idle(2);
     assert_eq!(selects(&take(&app)), [SelectionChange::Clear]);
@@ -581,7 +585,7 @@ fn row_parts_follow_reading_order_in_both_directions() {
 fn the_blend_label_drops_before_the_other_indicators() {
     let (mut fixture, _app) = rig(busy());
     let mut shown = Vec::new();
-    for width in (6..=21).rev().map(|step| step as f32 * 20.0) {
+    for width in (6..=39).rev().map(|step| step as f32 * 20.0) {
         fixture.room(Vec2::new(width, PANEL.y));
         fixture.idle(4);
         let has = |word: &str| fixture.texts().iter().any(|text| text.text == word);
@@ -621,7 +625,7 @@ fn target_brackets_frame_the_targeted_thumbnail() {
     assert!(framed[0] < chains[0] && chains[0] < framed[1] && framed[1] < chains[1] && chains[1] < framed[2], "{framed:?} around {chains:?}");
 }
 
-/// Effects rows sit under their layer in order, no taller than a layer row, with their eye indented under the layer's.
+/// Effects rows sit under their layer in order, no taller than a layer row, with their eye in the eye column of the layers.
 #[trial]
 fn effect_rows_sit_under_their_layer() {
     let mut tree = FakeLayers::sample();
@@ -631,7 +635,7 @@ fn effect_rows_sit_under_their_layer() {
     assert!(tops.windows(2).all(|pair| pair[0] < pair[1]), "the rows follow their layer in order: {tops:?}");
     assert!(row(&fixture, "Drop Shadow").rect.height() <= row(&fixture, "Styled").rect.height(), "an effects row is no taller than its layer");
     let (layer_eye, effect_eye) = (node(&fixture, "Visibility Styled").rect, node(&fixture, "Visibility Drop Shadow").rect);
-    assert!(effect_eye.min.x > layer_eye.min.x, "the effect's eye is indented under the layer's: {layer_eye:?} {effect_eye:?}");
+    assert_eq!(effect_eye.min.x, layer_eye.min.x, "one eye column for layers and effects");
 }
 
 /// The heights of the Smart Filters header row and of a filter row at thumbnail size `size`.

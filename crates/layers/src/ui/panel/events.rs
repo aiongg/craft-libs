@@ -218,6 +218,9 @@ pub enum LayerDrop<Id> {
 }
 
 /// Layers moved or copied next to a target layer.
+///
+/// A place has one encoding: `Into` a group at its first slot, else `Before` the next sibling, else `After` the last
+/// sibling. A place beside a layer's effects or Smart Filter rows is `After` that layer.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct LayerMove<Id> {

@@ -91,6 +91,14 @@ fn settings_defaults_missing_fields_and_round_trip() {
 /// The answers the dialog gave: `Some(options)` for OK, `None` for Cancel.
 type Answers = Rc<RefCell<Vec<Option<LayersOptions>>>>;
 
+/// The room of a dialog: the whole 800 by 600 screen of a fixture, so no row of its body is clipped away.
+const SCREEN: egui::Vec2 = by(800.0, 600.0);
+
+/// A size of `width` by `height` points.
+const fn by(width: f32, height: f32) -> egui::Vec2 {
+    egui::Vec2::new(width, height)
+}
+
 fn open_dialog() -> (Fixture, Answers) {
     let answers: Answers = Rc::default();
     let seen = answers.clone();
@@ -101,6 +109,7 @@ fn open_dialog() -> (Fixture, Answers) {
             seen.borrow_mut().push(answer.ok());
         }
     });
+    fixture.room(SCREEN);
     fixture.settle();
     (fixture, answers)
 }

@@ -377,7 +377,7 @@ fn smart_filters_reorder_within_their_object_and_effects_keep_their_order() {
     assert_eq!(rig.drops(), [], "effects keep their order");
 }
 
-/// Layers dropped beside a layer's effects or Smart Filter rows land below that layer; onto one they go nowhere.
+/// Layers dropped above, on or below a layer's effects or Smart Filter rows land below that layer.
 #[trial]
 fn layers_dropped_beside_sub_rows_land_below_their_layer() {
     let mut rig = rig();
@@ -388,12 +388,10 @@ fn layers_dropped_beside_sub_rows_land_below_their_layer() {
     }
     rig.fixture.idle(3);
     for (row, layer) in [("Effects", 7), ("Stroke", 7), ("Sharpen", 6)] {
-        for place in [Place::Above, Place::Below] {
+        for place in [Place::Above, Place::Middle, Place::Below] {
             rig.drop_on("Title", row, place);
             assert_eq!(rig.drops(), [layer_move(&[4], layer, LayerPosition::After, false)], "{row}");
         }
-        rig.drop_on("Title", row, Place::Middle);
-        assert_eq!(rig.drops(), [], "onto {row}");
     }
 }
 
