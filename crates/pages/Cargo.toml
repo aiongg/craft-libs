@@ -13,20 +13,27 @@ workspace = true
 [features]
 default = []
 # The page widgets (`craft_pages::ui`), on craft-ui.
-ui = ["dep:craft-ui", "dep:craft-theme", "dep:egui", "dep:craft-host"]
+ui = ["dep:craft-behavior", "dep:craft-ui", "dep:craft-theme", "dep:egui"]
+# The stories and the integration tests (`tests/it`).
+screen-testing = ["ui", "craft-ui/testing"]
 
 [dependencies]
 # `numbering` formats page numbers with craft-text's list number styles.
 craft-text = { workspace = true, default-features = false }
 kurbo = { workspace = true }
 serde = { workspace = true }
-craft-ui = { package = "craft-ui-legacy", path = "../ui-legacy", optional = true }
+craft-behavior = { workspace = true, optional = true }
+craft-ui = { workspace = true, optional = true }
 craft-theme = { workspace = true, optional = true }
-craft-host = { workspace = true, features = ["ui"], optional = true }
 egui = { workspace = true, optional = true }
 
 [dev-dependencies]
 egui = { workspace = true, features = ["default_fonts"] }
-egui_kittest = "0.37"
-# The list test installs a catalog.
 craft-i18n = { workspace = true }
+libtest-mimic = "0.8"
+
+[[test]]
+name = "it"
+path = "tests/it/main.rs"
+harness = false
+required-features = ["screen-testing"]
